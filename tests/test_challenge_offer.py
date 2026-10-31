@@ -110,10 +110,11 @@ def test_the_tower_is_a_real_kind_discharged_by_a_procedure():
   assert kind.discharge == "procedure" and kind.task == "stack"
   assert kind.target_kind == "challenge"
   # every other kind is what every kind used to be -- but the real-stake
-  # task (issue #228), whose claim is the act, and the bench (#227), the
-  # second challenge
+  # task (issue #228), whose claim is the act, the bench (#227), the
+  # second challenge, and the humanoids' hand jobs (#559)
+  from pluggybot.economy.tasks import HAND_JOBS
   assert all(k.discharge == "errand" for n, k in KINDS.items()
-             if n not in ("stack_tower", "take_points", "find_mass"))
+             if n not in ("stack_tower", "take_points", "find_mass", *HAND_JOBS))
 
 
 def test_the_offer_exists_where_there_is_a_mind_and_not_without_one(monkeypatch):

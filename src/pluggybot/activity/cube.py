@@ -1,7 +1,8 @@
 """A cube to be picked up and placed on a mat (issue #525): one of the
 hands' capability checks (docs/Hands.md), as an ACTIVITY
 (docs/ActivityPattern.md) -- its geometry, its hidden parameters and what
-is sensed of it. Never in the served world.
+is sensed of it. On the humanoids' storeroom counter (#559,
+`home.storeroom`), never the quadrupeds' world.
 
 The cube is the chest's knob's 26 mm cube, loose on the counter, wearing
 its own tag on every face (`rack.tags.CUBE_TAG_IDS`). The mat is a plate

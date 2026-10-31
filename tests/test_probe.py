@@ -429,8 +429,15 @@ def test_the_probe_reads_nothing_of_the_worlds_model_of_the_box():
   # (`ClawHand.held` reads the bodies between the pads) and reads no truth
   # through the body's helpers (#479's review: the arm driver's `gravity`
   # reads `qpos`, `floor_below` and `_height` the world's heights).
+  #
+  # ⚠ The humanoids' house has the chest on its counter (#559, stage 3), so
+  # whatever builds or runs the house loads it -- the world's builders
+  # (`robot.world_spec`) and the loop, which everything loads -- through
+  # the counter's module, the one way in (`home.storeroom`): the walk stops
+  # there, and the probe's own modules may import neither it nor any
+  # activity or world (below), as they may import no grader.
   from test_imagination import _closure  # noqa: I001 -- tests/ is on sys.path
-  closure = _closure(["pluggybot.legs.probe"])
+  closure = _closure(["pluggybot.legs.probe"], stop=("pluggybot.home.storeroom",))
   assert "pluggybot.legs.probe" in closure and "pluggybot.perception.box" in closure
   assert not [m for m in closure if m.startswith(("pluggybot.activity.chest",
                                                   "pluggybot.evaluation"))], sorted(closure)
@@ -445,7 +452,10 @@ def test_the_probe_reads_nothing_of_the_worlds_model_of_the_box():
     imports = ({n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
                | {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names})
     assert not [m for m in imports if m.startswith(("pluggybot.challenge",
-                                                    "pluggybot.economy"))], name
+                                                    "pluggybot.economy",
+                                                    "pluggybot.activity", "pluggybot.home",
+                                                    "pluggybot.humanoid.world",
+                                                    "pluggybot.legs.world"))], name
     calls = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call)
              and isinstance(n.func, ast.Attribute)}
     assert not calls & {"held", "held_tag", "true_pose", "gravity", "floor_below",

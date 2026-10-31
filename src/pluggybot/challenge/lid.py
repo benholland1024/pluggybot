@@ -6,7 +6,8 @@ hidden and drawn. The job is the world's, never the robot's account of it:
 code measures the lid and the robot off the true state, and the verdict goes
 through `scoring.evaluate` like every other (economy/scoring.py). It is
 graded and unpaid -- its row in `challenges.json` is base 0 -- and shown to
-no mind: the chest is in no served world.
+no mind; the served humanoids' job on the storeroom's counter is graded by
+this predicate under a row of its own (`open_chest`, #559).
 
 THE CRITERIA, written first. An attempt passes when:
 

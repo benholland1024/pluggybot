@@ -6,7 +6,8 @@ The drawer is `activity/drawer.py`'s, its runners' friction and damping
 and its load hidden and drawn. Code measures the drawer and the robot off
 the true state, and the verdict goes through `scoring.evaluate` like every
 other. It is graded and unpaid -- its row in `challenges.json` is base 0 --
-and shown to no mind: the drawer is in no served world.
+and shown to no mind; the served humanoids' job on the storeroom's counter
+is graded by this predicate under a row of its own (`open_drawer`, #559).
 
 THE CRITERIA, written first. An attempt passes when:
 

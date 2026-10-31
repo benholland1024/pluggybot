@@ -4908,8 +4908,8 @@ class HubLifecycle:
     kept from the claim (a fall since then fails it) and the time the job
     gives from its claim (`minutes`). Nothing here reads the robot's
     account; the sampler is handed no report."""
-    from pluggybot.activity import chest as ch
     from pluggybot.economy.tasks import KINDS
+    from pluggybot.home import storeroom
     kind = KINDS[task.kind]
     check = HAND_JOBS[kind.task]
     module, prop = _hand_grader(check)
@@ -4935,7 +4935,7 @@ class HubLifecycle:
       self, None, None, {"at_call": at_call, "watch": watch,
                          "started": task.claimed_t if task.claimed_t is not None else t0,
                          "limitS": 60.0 * float(minutes) if minutes else None,
-                         "catchN": (ch.draw(int(draw)).catch_n
+                         "catchN": (storeroom.drawn(prop, int(draw)).catch_n
                                     if check == "lid" and draw is not None else None)})
     verdict = scoring.evaluate(kind.task, measured)
     entry = self._bank(verdict)

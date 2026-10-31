@@ -177,6 +177,14 @@ def counter_box() -> tuple[np.ndarray, np.ndarray]:
 CUBE_SURFACE_Z = COUNTER_H + ct.BOARD_H
 
 
+def drawn(prop: str, k: int):
+  """A prop's hidden parameters at draw `k` (`<its activity's module>.draw`):
+  the truth an offer sets into the world, kept as `Task.secret` is -- the
+  grade's to read (the chest's catch, secret on its row), never a flag."""
+  from pluggybot.activity import chest as ch, cube as cb, door as dd, drawer as dr
+  return {"chest": ch.draw, "drawer": dr.draw, "door": dd.draw, "cube": cb.draw}[prop](k)
+
+
 def activity_for(model, data, prop: str, k: int):
   """A prop's activity over its draw `k` (`<prop's module>.draw(k)`): the
   truth it keeps (never a flag) and its state machine, fresh -- the chest's

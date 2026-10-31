@@ -1,7 +1,7 @@
 """A cupboard door with a lever handle (issue #525): one of the hands'
 capability checks (docs/Hands.md), as an ACTIVITY (docs/ActivityPattern.md)
--- its geometry, its hidden parameters and its latch. Never in the served
-world.
+-- its geometry, its hidden parameters and its latch. On the humanoids'
+storeroom counter (#559, `home.storeroom`), never the quadrupeds' world.
 
 A cupboard 0.24 m wide, 0.24 deep and 0.30 high on the counter, its door
 hung on a hinge down its left edge (the robot's left) so it swings open

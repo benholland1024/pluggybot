@@ -720,8 +720,10 @@ save a filmstrip PNG named after the script.
   EXPECTATION, their noise keyed on the worker's seed, never the world's.
   Nothing in it is specific to a lid, and a model in progress is never saved
   with the world.
-- **The drop-handle chest is demo 1's mechanism, and a demo's only**
-  (`activity/chest.py`; never in the served world, where a new object moves
+- **The drop-handle chest is demo 1's mechanism, and the humanoids' house's**
+  (`activity/chest.py`; since #559 on its storeroom's counter, through
+  `home.storeroom` alone -- the probe's fence stops there -- and in no
+  quadruped's world, where a new object moves
   the geometry hash and the fixtures): #469's box as an activity, its hidden
   parameters drawn seeded (`draw(k)` is the spike's set-out k and a 1-4 N
   catch, kept only shut by `CLOSING_MARGIN_NM`: a drop handle only pulls).

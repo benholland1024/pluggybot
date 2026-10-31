@@ -1,7 +1,8 @@
 """A drawer in a cabinet on the counter (issue #525): one of the hands'
 capability checks (docs/Hands.md), as an ACTIVITY (docs/ActivityPattern.md)
 -- it owns its geometry, its hidden parameters and its state, and reports
-what is sensed of it. Never in the served world.
+what is sensed of it. On the humanoids' storeroom counter (#559,
+`home.storeroom`), never the quadrupeds' world.
 
 A cabinet 0.34 m wide, 0.30 deep and 0.16 high of 12 mm board, open at the
 front, and a drawer in it that slides out toward the robot on its runners
