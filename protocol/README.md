@@ -14,24 +14,29 @@ version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
 committed world or the committed version.
 
-**Regenerating the fixtures.** One scene per world and one recording, the
-served pair's; a replayer picks its scene off the header's `model`:
+**Regenerating the fixtures.** One scene per world and one recording a
+pair, the served pair's the site's default; a replayer picks its scene off
+the header's `model`. The humanoids' house, served since #559's stage 4:
 
 ```sh
-MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_quad
-MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_quad --pair
-MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo \
+MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_humanoid
+MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_humanoid --pair
+MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo \
   --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 \
-  --record protocol/telemetry.home_quad_pair.jsonl.gz
+  --record protocol/telemetry.home_humanoid_pair.jsonl.gz
 ```
+
+...and the quadrupeds' (#387), the same three with `--world home_quad` and
+`home_quad_pair`'s recording, until stage 5 deletes them.
 
 ⚠ **The recording is the deployed period's shape.** `--tasks`, `--metabolism`
 and `--near-field` are each off by default, so a recording made without one
 carries no `tasks` / `metabolism` block or `heightmap` lines, and the website
 has nothing to build its markers, its hunger gauge or its floor map against.
-The committed recording is #387's period — `--near-field`, no offers and no
-upkeep, so `taskKinds` and `hungerStates` are empty; a recording for a
-period that runs offers or upkeep takes those flags too.
+The committed recordings are #387's and #559's periods with no job on them
+— `--near-field`, no offers and no upkeep, so `taskKinds` and
+`hungerStates` are empty; a recording for a period that runs offers or
+upkeep takes those flags too.
 
 ⚠ **A recording with ink takes two passes.** A `board_snapshot` is only
 emitted for a board already carrying ink when the stream opens, so lay the
@@ -42,7 +47,32 @@ file. The committed recording has none: no robot in it draws.
 is the world with the second robot attached where the pair starts it, and a
 replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
-pair, `home_quad_pair`.
+pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
+
+### 0.21.0, additive: the humanoid pair served (the `home_humanoid` worlds; a scene's `cables`)
+
+pluggybot #559's stage 4: the world the site is streamed is the humanoids'
+house, `home_humanoid_pair`, the same house with the humanoid pair in it,
+its charging station on the living room's wall (tags 58-59) and the
+research center storeroom's counter with its props (the drawer, the
+cupboard's door and lever, the chest's lid, handle and knob, the cube and
+its mat; tags 53-57 and 60-63). Two scenes (`home_humanoid`,
+`home_humanoid_pair`) and the pair's recording are new fixtures; nothing
+existing changed shape. A humanoid's limbs are bodies like the quadruped's,
+drawn from the scene's primitives; its `posture` is `standing`, or
+`getting_up` after a fall (it rests standing).
+
+**A scene's `cables`** (additive, off the compiled model, so only a world
+with one carries it): `{tendon: {points, width, rgba}}`, each spatial
+tendon strung between sites -- the station's rope, from the station's face
+to the plug's back. A tendon has no geometry, so no body draws it: `points`
+are the bodies it runs through and the place on each (body-local, MuJoCo's
+conventions), and a client strings it every frame off their streamed poses;
+`width` is its radius, m. A tendon that couples joints (the quadruped's
+arm) has no path and is left out, so no other world's scene moved.
+
+**No bump**: two new worlds, an optional scene field, and no message whose
+shape moved.
 
 ### 0.21.0, additive: a verb and its readings (`watch`, `watch.*`)
 

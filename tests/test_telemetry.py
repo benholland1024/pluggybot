@@ -899,9 +899,10 @@ def _typed(q, kind):
 # fail, regenerate the fixtures or bump the protocol version deliberately.
 
 PROTOCOL = REPO / "protocol"
-#: The one recording: the served pair on legs, in the first quadruped
-#: period's shape (no offers, no upkeep).
-PAIR_RECORDING = PROTOCOL / "telemetry.home_quad_pair.jsonl.gz"
+#: The one served recording: the humanoid pair since #559's stage 4, what
+#: the site replays while the world is paused (no offers, no upkeep). The
+#: quadrupeds' stays beside it until stage 5.
+PAIR_RECORDING = PROTOCOL / "telemetry.home_humanoid_pair.jsonl.gz"
 
 
 def _pair_recording() -> list[dict]:
@@ -912,8 +913,8 @@ def _pair_recording() -> list[dict]:
 def test_the_pair_recording_gives_every_robot_the_same_shape():
   """The pair fixture (0.20.0): two robots from one loop, and everything
   the wire keys by robot present for BOTH -- bodies, status, goals,
-  documents, map. The served shape (#181, #387): the first robot walks to
-  its dock and charges, the second explores."""
+  documents, map. The served shape (#181, #559): the first robot walks to
+  its station and charges, the second explores."""
   from pluggybot.mind.thoughts import NAMES
   from pluggybot.robot import FIRST, SECOND
   lines = _pair_recording()
@@ -921,7 +922,7 @@ def test_the_pair_recording_gives_every_robot_the_same_shape():
   events = [x for x in lines[1:] if "type" in x]
   roots = [FIRST.root, SECOND.root]
   assert header["protocolVersion"] == PROTOCOL_VERSION
-  assert header["model"] == "home_quad_pair"
+  assert header["model"] == "home_humanoid_pair"
   assert list(header["robots"]) == roots
   assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
   assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
@@ -977,6 +978,57 @@ def test_the_quadruped_scene_fixtures_are_current(pair):
       [SECOND.el(n) for n, o in owners.items() if o == "pluggybot"]
 
 
+@pytest.mark.parametrize("pair", [False, True], ids=["home_humanoid", "home_humanoid_pair"])
+def test_the_humanoid_scene_fixtures_are_current(pair):
+  """The house with the humanoids in it (issue #559): the pair the world
+  serves from stage 4, its station on the living room's wall and the
+  storeroom's counter with its props, built from the world's spec as the
+  sim builds it. Stale on any change to the house, the body, the station or
+  the counter."""
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  from pluggybot.robot import SECOND, pair_model_name, world_spec
+  cfg = world_config(HUMANOID_HOME)
+  name = pair_model_name(cfg["model_name"]) if pair else cfg["model_name"]
+  scene = json.loads((PROTOCOL / f"scene.{name}.json").read_text())
+  assert scene["protocolVersion"] == PROTOCOL_VERSION and scene["model"] == name
+  model = world_spec(cfg["model"], second_at=cfg["start2"][:2] if pair else None,
+                     body="humanoid").compile()
+  meta = json.loads(Path(cfg["meta"]).read_text())
+  flag = " --pair" if pair else ""
+  assert scene == scene_dict(model, name, meta=meta), \
+    f"stale fixture: uv run python -m pluggybot.telemetry.scene --world {HUMANOID_HOME}{flag}"
+  owners = {b["name"]: b["robot"] for b in scene["bodies"]}
+  assert "left_shank" in owners and "FL_thigh" not in owners and "dock" not in owners
+  assert owners["station"] is None and owners["station_plug"] is None
+  if pair:
+    assert [n for n, o in owners.items() if o == SECOND.root] == \
+      [SECOND.el(n) for n, o in owners.items() if o == "pluggybot"]
+
+
+def test_a_cable_is_strung_between_the_bodies_it_runs_through():
+  """The station's rope is a tendon, which no body draws (issue #559): the
+  scene says which bodies it runs between and where on each, and a client
+  strings it every frame off their streamed poses. Its plug end is a body
+  that moves, its station end one that does not; a tendon that couples
+  joints has no path and is no cable (the quadruped's arm)."""
+  from pluggybot.telemetry.scene import _quat_rotate
+  scene = json.loads((PROTOCOL / "scene.home_humanoid_pair.json").read_text())
+  bodies = {b["name"]: b for b in scene["bodies"]}
+  rope = scene["cables"]["station_rope"]
+  ends = [p["body"] for p in rope["points"]]
+  assert ends == ["station", "station_plug"]
+  assert not bodies["station"]["dynamic"] and bodies["station_plug"]["dynamic"]
+  assert rope["width"] > 0 and len(rope["rgba"]) == 4
+  # ...parked, the rope's two ends meet at the cup
+  at = []
+  for p in rope["points"]:
+    b = bodies[p["body"]]
+    at.append([c + d for c, d in zip(b["pos"], _quat_rotate(b["quat"], p["pos"]))])
+  assert math.dist(*at) < 1e-3
+  quad = json.loads((PROTOCOL / "scene.home_quad_pair.json").read_text())
+  assert "cables" not in quad
+
+
 def test_the_quadruped_pair_recording_is_the_periods_shape():
   """The first quadruped period's fixture (issue #387): no offers and no
   upkeep -- no `tasks` block, no appetite, `hungerStates: []` -- and every
@@ -996,6 +1048,37 @@ def test_the_quadruped_pair_recording_is_the_periods_shape():
   first = {f["robots"][FIRST.root]["state"] for f in frames if "state" in f["robots"][FIRST.root]}
   assert "CHARGE" in first, "the first robot lies on the dock and charges"
   assert not any(x.get("type") == "tasks" or "tasks" in x for x in lines[1:])
+  # ...each reading the default constitution in the quadruped's words, the
+  # library's humanoid ones swapped (#559's stage 4): what it always read
+  from pluggybot.mind import constitution as constitutions
+  persona = constitutions.resolve(constitutions.DEFAULT_NAME, body="quadruped").text.strip()
+  mains = {x["robot"]: x["text"] for x in lines[1:]
+           if x.get("type") == "thought" and x.get("name") == "Main.md"}
+  assert mains == {root: persona for root in roots}
+
+
+def test_the_humanoid_pair_recording_is_the_served_periods_shape():
+  """The served pair's fixture (#559's stage 4), what the site replays
+  while the world is paused: no job on it -- no `tasks` block, no appetite
+  -- and every frame says each robot's posture; the first plugs in at its
+  station and charges standing, the plug moving with it, then the other
+  (the whole day's shape is `test_the_recording_is_a_whole_served_day`'s)."""
+  from pluggybot.robot import FIRST, SECOND
+  with gzip.open(PROTOCOL / "telemetry.home_humanoid_pair.jsonl.gz", "rt") as f:
+    lines = [json.loads(line) for line in f]
+  header, frames = lines[0], frames_of(lines)
+  roots = [FIRST.root, SECOND.root]
+  assert header["model"] == "home_humanoid_pair" and list(header["robots"]) == roots
+  assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
+  assert header["hungerStates"] == [] and not header["taskKinds"]
+  assert not any(x.get("type") == "tasks" or "tasks" in x for x in lines[1:])
+  for root in roots:
+    recs = [f["robots"][root] for f in frames if root in f["robots"]]
+    assert all(r.get("posture") in ("standing", "getting_up") for r in recs)
+    assert "CHARGE" in {r["state"] for r in recs if "state" in r}, f"{root} never charged"
+    assert any(r["battery"]["charging"] for r in recs if "battery" in r)
+  assert sum("station_plug" in f.get("world", {}) for f in frames if not f.get("key")) > 100, \
+    "the plug never moved"
 
 
 def test_the_recording_is_a_whole_served_day():
@@ -1065,8 +1148,8 @@ def test_the_recording_is_a_whole_served_day():
   docs = [e for e in events if e["type"] == "thought"]
   # ⚠ THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39): the
   # default constitution, the library file byte for byte (in the
-  # quadruped's words, #387, #427). A fixture carrying last month's persona
-  # is what a visitor reads.
+  # humanoid's words, #559's stage 4). A fixture carrying last month's
+  # persona is what a visitor reads.
   persona = constitutions.resolve(constitutions.DEFAULT_NAME).text.strip()
   for root in roots:
     mine = [d for d in docs if d["robot"] == root]

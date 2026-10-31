@@ -172,6 +172,32 @@ def screen_map(model) -> dict:
   return screens
 
 
+def cable_map(model) -> dict:
+  """{tendon: the points it runs through} for every spatial tendon strung
+  between sites (issue #559: the charging station's plug on its balancer's
+  rope, `activity.station`). A tendon is no geom, so no body draws it: a
+  client strings `points` -- each a body and a place on it, MuJoCo's
+  conventions, composed with that body's streamed pose -- every frame.
+  `width` (the radius) and `rgba` are MuJoCo's own for drawing it. A tendon
+  that couples joints, or wraps a geom, has no path of sites and is left
+  out (the quadruped's arm couples its joints by two)."""
+  site = int(mujoco.mjtWrap.mjWRAP_SITE)
+  cables: dict = {}
+  for t in range(model.ntendon):
+    adr, num = int(model.tendon_adr[t]), int(model.tendon_num[t])
+    wraps = [(int(model.wrap_type[adr + i]), int(model.wrap_objid[adr + i]))
+             for i in range(num)]
+    if num < 2 or any(kind != site for kind, _ in wraps):
+      continue
+    cables[model.tendon(t).name] = {
+      "points": [{"body": model.body(int(model.site_bodyid[s])).name,
+                  "pos": _round(model.site_pos[s])} for _, s in wraps],
+      "width": round(float(model.tendon_width[t]), NDIGITS),
+      "rgba": _round(model.tendon_rgba[t], 4),
+    }
+  return cables
+
+
 def camera_map(model, cameras: dict) -> dict:
   """{role: where that camera is on its body} for each `role: name` asked
   (issue #530: the robot's own view, drawn by the site as the eye draws a
@@ -306,6 +332,11 @@ def scene_dict(model, model_name: str, meta: dict | None = None,
     # Read off the COMPILED model rather than a sidecar: the display modules
     # are generated into every world, and only home_world has a sidecar.
     scene["screens"] = screens
+  cables = cable_map(model)
+  if cables:
+    # Additive, off the compiled model as the screens are: only the
+    # humanoids' house has one, so no other world's fixture moves.
+    scene["cables"] = cables
   if cameras:
     # Additive, and only where a producer asks (`camera_map`): the served
     # worlds' scenes carry none, so their fixtures are unchanged.
