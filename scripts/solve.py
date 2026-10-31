@@ -540,10 +540,12 @@ def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
 
 class _HandStrip:
   """A hand job's filmstrip: a tile from behind the robot as it sets off
-  and once a minute on its way, then -- once it stands within 2.5 m of the
-  prop -- a tile every 4 s from beside the counter, the grade's last."""
+  and once a minute on its way, then -- once it stands within `NEAR_M` of
+  the prop, about where its walk there ends -- a tile every 4 s from beside
+  the counter, the grade's last. (At 1.8 m a search's viewpoint near the
+  counter drew it with the robot out of the frame.)"""
 
-  TILES, WALK_EVERY_S, WORK_EVERY_S = 12, 60.0, 4.0
+  TILES, WALK_EVERY_S, WORK_EVERY_S, NEAR_M = 12, 60.0, 4.0, 1.2
 
   def __init__(self, life, prop: str) -> None:
     from pluggybot.home import storeroom
@@ -566,9 +568,16 @@ class _HandStrip:
       cam.lookat[:] = [self.hx - 0.25, self.hy - 0.15, storeroom.COUNTER_H + 0.1]
       cam.distance, cam.azimuth, cam.elevation = 2.0, -70.0, -22.0
     else:
+      # from behind, or turned round it where a wall stands in between (a
+      # walk just through a doorway was drawn as the wall behind it, from
+      # above the 2.4 m walls too)
       x, y, yaw = self.life.body.true_pose()
       cam.lookat[:] = [x, y, 0.8]
-      cam.distance, cam.azimuth, cam.elevation = 3.5, math.degrees(yaw), -20.0
+      cam.distance, cam.elevation = 3.5, -20.0
+      for turn in (0.0, 60.0, -60.0, 120.0, -120.0, 180.0):
+        cam.azimuth = math.degrees(yaw) + turn
+        if not self._walled(cam):
+          break
     light = (m.vis.headlight.ambient.copy(), m.vis.headlight.diffuse.copy())
     m.vis.headlight.ambient[:], m.vis.headlight.diffuse[:] = 0.4, 0.55
     self.r.update_scene(d, cam)
@@ -577,12 +586,24 @@ class _HandStrip:
     ImageDraw.Draw(img).text((8, 8), label, fill=(255, 255, 255))
     self.tiles.append(img)
 
+  def _walled(self, cam) -> bool:
+    """Whether something fixed to the world stands between the camera and
+    what it looks at."""
+    import numpy as np
+    az, el = math.radians(cam.azimuth), math.radians(cam.elevation)
+    ahead = np.array([math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el)])
+    hit = np.zeros(1, dtype=np.int32)
+    far = mujoco.mj_ray(self.model, self.data, np.array(cam.lookat) - cam.distance * ahead,
+                        ahead, None, 1, -1, hit)
+    return (hit[0] >= 0 and far < cam.distance - 0.5
+            and self.model.body_weldid[self.model.geom_bodyid[hit[0]]] == 0)
+
   def hook(self) -> None:
     t = float(self.data.time)
     if len(self.tiles) >= self.TILES - 1:
       return
     x, y, _ = self.life.body.true_pose()
-    near = math.hypot(x - self.hx, y - self.hy) < 2.5
+    near = math.hypot(x - self.hx, y - self.hy) < self.NEAR_M
     # ...a tile as it comes to the prop, whenever the walk's next was due
     if t < self.due and near == self.near:
       return
