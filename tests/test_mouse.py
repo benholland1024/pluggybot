@@ -124,15 +124,17 @@ def test_every_row_of_the_table_and_every_clock(home_model):
 
 def test_a_shock_switched_off_acts_on_nothing_and_the_feed_still_feeds(home_model):
   """The humanoids' house switches the shock plate off (#559; Ben,
-  2026-10-31): a foot on it is no act -- no count, no press to record, the
-  mouse unmoved -- and the feed plate still feeds. Their world builds the
-  cage so, and the quadrupeds' as it always was."""
+  2026-10-31): a foot on it is no act -- no count, no press to record, no
+  flag lit on the wire, the mouse unmoved -- and the feed plate still
+  feeds. Their world builds the cage so, and the quadrupeds' as it always
+  was."""
   data = mujoco.MjData(home_model)
   cage = Cage(home_model, data, room=LAB, shock=False)
   cage._advance(1.0, _press(shock=True), False)
   assert cage.state == "resting" and cage.counts["shock"] == 0 and not cage._plated
+  assert cage.flags["shock"] is False
   cage._advance(2.0, _press(feed=True), False)
-  assert cage.state == "eating" and cage.counts["feed"] == 1
+  assert cage.state == "eating" and cage.counts["feed"] == 1 and cage.flags["feed"]
   assert world_config("home_humanoid")["activities"] is lc.humanoid_activities
   assert world_config(WORLD)["activities"] is lc.home_activities
   for build, plates in ((lc.humanoid_activities, ("feed", "toy")),
