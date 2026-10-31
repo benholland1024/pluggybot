@@ -42,6 +42,10 @@ class HumanoidWay(MakeWay):
     super()._init_way()
     #: When it was last commanded to move, sim s: what `resting` reads.
     self.last_motion_t = 0.0
+    #: Held on its charger (`Body.docked`, the lifecycle's while it
+    #: charges): asked aside then, it walked off with the plug in its port
+    #: and pulled it out (#559's stage 4, its pair's recording).
+    self.docked = False
 
   def _hand_out(self) -> bool:
     return any(p != "rest" for p in self.reach.phase.values())
@@ -55,7 +59,8 @@ class HumanoidWay(MakeWay):
             and float(self.data.time) - self.last_motion_t >= REST_S)
 
   def _way_refusal(self) -> str:
-    return ("getting up" if self.legs == "getup"
+    return ("charging" if self.docked
+            else "getting up" if self.legs == "getup"
             else "working" if self._hand_out()
             else "walking" if self.driving
             else "standing" if not self.resting else "")

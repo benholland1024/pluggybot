@@ -7839,6 +7839,7 @@ ASIDE_ENDED = {"its own walk": "my own walk took over",
 #: as its narration says it -- once a while, so a no is heard. Standing or
 #: mid-move it is in nobody's way by its own rule, and says nothing.
 WAY_REFUSED = {"docked": "I am on the dock",
+               "charging": "I am plugged in at my charging station",
                "working": "I am in the middle of a move with my arm",
                "walking": "I am waiting inside a walk of my own",
                "getting up": "I am getting up",

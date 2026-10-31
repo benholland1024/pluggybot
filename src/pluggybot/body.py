@@ -560,8 +560,9 @@ class Body(abc.ABC):
   ask_way: Any
   #: The robot this body is stepping aside for, by its root, or None.
   making_way: str | None
-  #: Why it last said no to making way (issue #455): "docked", "working",
-  #: "walking" (a walk of its own), "moving" (lying down or standing up),
+  #: Why it last said no to making way (issue #455): "docked" ("charging",
+  #: a humanoid plugged in at its station, #559), "working", "walking" (a
+  #: walk of its own), "moving" (lying down or standing up), "getting up",
   #: "standing", "no spot" -- or "".
   way_refused: str
   #: How many times it has stepped aside (issue #415) ...

@@ -362,6 +362,34 @@ def test_a_resting_humanoid_says_yes_to_a_way_it_cuts_and_why_not_otherwise():
     life.body.close()
 
 
+def test_a_humanoid_charging_at_its_station_says_no_to_a_way_it_cuts():
+  """Held on its charger (`Body.docked`, the lifecycle's while it charges),
+  a resting humanoid says no, as the quadruped on its dock does (#559's
+  stage 4): asked aside in the pair's recording, it walked off with the
+  plug in its port and pulled it out. Said in its own words, and the hold
+  rides a restart."""
+  from pluggybot.humanoid.way import REST_S
+  from pluggybot.lifecycle import WAY_REFUSED
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    x, y, _ = life.body.pose
+    _open_floor(m, x, y)
+    way = [(x - 1.5, y), (x + 1.5, y)]
+    life.data.time += REST_S
+    life.body.docked = True
+    assert m.docked and life.body.resting
+    assert not life.body.make_way(way, "r2_pluggybot")
+    assert life.body.way_refused == "charging" and life.body.making_way is None
+    assert "dock" not in WAY_REFUSED["charging"]
+    kept, _ = m.kept_state()
+    assert kept["docked"] is True
+    life.body.docked = False
+    assert life.body.make_way(way, "r2_pluggybot")
+  finally:
+    life.body.close()
+
+
 def test_a_humanoid_steps_aside_on_its_own_legs_beneath_a_routine_that_stands():
   """The step aside walks beneath whatever routine holds the body still --
   its legs handed to the walker where it rests -- to the spot, and ends

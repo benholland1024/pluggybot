@@ -228,11 +228,18 @@ class HumanoidBody(Body):
     self._why: dict[str, str] = {}
     self._halted: set[str] = set()
     self.bay_wait = None
-    self.docked = False
     self.head_camera = handle.el(HEAD_CAMERA)
     self.collision_steps = self.press_steps = 0
 
   falls = property(lambda self: self.mission.falls)
+
+  @property
+  def docked(self) -> bool:
+    return self.mission.docked
+
+  @docked.setter
+  def docked(self, held: bool) -> None:
+    self.mission.docked = held
 
   @property
   def rights_itself(self) -> bool:

@@ -507,7 +507,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     torqued = {name: d.torqued for name, d in self._all_drivers().items()}
     memo = self._plan_memo
     return ({"legs": self.legs, "falls": self.falls, "steps": self._steps,
-             "lastMotion": self.last_motion_t,
+             "lastMotion": self.last_motion_t, "docked": self.docked,
              "odometry": o.kept_state(),
              "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
                        "rate": kept_value(trunk.rate)},
@@ -544,6 +544,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.falls = int(state["falls"])
     self._steps = int(state["steps"])
     self.last_motion_t = float(state.get("lastMotion", 0.0))
+    self.docked = bool(state.get("docked", False))
     self.odo.restore_kept(state["odometry"])
     trunk = self.stand.trunk
     trunk.imu.restore_kept(state["trunk"]["imu"])
