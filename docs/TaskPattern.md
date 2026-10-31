@@ -238,6 +238,14 @@ a measurement of the desk that only the robot's filing and the operator's
 inbound close can write. It sits here because the desk is the
 `autonomous` arm's alone.
 
+ⓘ *Found by building the humanoids' hand jobs (#559):* a job graded by a
+practice's grader -- a demo's check, whose row is `shown: false` and pays
+nothing -- is paid on a ROW OF ITS OWN under the same evaluator
+(`open_drawer` beside `drawer`), so practice stays unpaid. And `shown:
+false` is what keeps a row only one world offers out of the quadruped's
+table, which is every row: a world that names its jobs shows its own
+(`RewardTable.as_context(kinds=)`).
+
 Related, because a stranger will eventually be on this path
 (`TASK_SOURCES = system | visitor | overseer`): a description is untrusted
 text on the inbox's terms — capped (`tasks.MAX_DESCRIPTION`, 420) and
@@ -332,6 +340,16 @@ CALL and the verdict reading after a HOLD (`stack.HOLD_S`, 10 s) during which
 nothing may touch the work, and both must pass. The hold is a criterion of
 the challenge, not an implementation detail, and it belongs in its written
 criteria.
+
+ⓘ *Found by building the humanoids' hand jobs (#559):* **a success judged
+on what happened ALONG the way** -- a lid never let fall, the robot never
+fallen -- is watched from the CLAIM, the job being the robot's from then,
+through the walk there to the hold's end (`HubLifecycle._watch_job`); its
+time limit is the offer's own term, counted from the claim. **And a job
+done to a MECHANISM with hidden dynamics draws them afresh at every offer**
+(`TaskKind.draws`, off the board's own sequence, the prop set back out with
+them and put back after a restart), so the skill is over a kind of thing,
+never one of it.
 
 ### 4.1 The worked example: `whiteboard_answer`
 

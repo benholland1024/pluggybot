@@ -443,3 +443,61 @@ would change the deployed prompt.
 rather than pulled by its lever passes -- the door is the job -- and so
 does a drawer pulled by its front.
 
+
+## 11. The hands' jobs in the house (issue #559, stage 3)
+
+§10's four checks set into the served humanoids' house: on a counter
+against the east wall of the research center's storeroom (`home.storeroom`),
+the chest, a cabinet of drawers, a cupboard and the cube with its mat, each
+square to the counter where the middle of its practice set-outs had it, and
+over each a 120 mm tag in a row on the wall. Each is a job of its own --
+`open_chest`, `open_drawer`, `open_door`, `place_cube`
+(`tasks.HAND_JOBS`) -- discharged by a procedure the robot writes (§7's
+shape), its target its prop, so they may all stand at once. Three are
+offered (cadence.json); the cube's is not, below.
+
+**The criteria are the checks'**, through the same evaluators, with two
+departures, both about where an attempt starts:
+
+- *from the CLAIM.* The watch the checks run from an attempt's start runs
+  from the claim, through the walk there, to the end of the hold after
+  `done` (`HubLifecycle._watch_job`, `_grade_hands_routine`): a fall
+  anywhere in it fails the job (#544's rule), and so does a lid let fall or
+  a cube dropped before the call. Its readings ride a restart with the
+  world they were read off (`kept_state`'s `jobWatches`): a lid opened
+  before one is still a lid that was opened.
+- *in the job's MINUTES.* The time limit is the offer's own term
+  (`minutes`, cadence.json), counted from the claim: 16, three times the
+  slowest pass of the references over a tour of the house (313 s, from the
+  station), rounded up.
+
+**The offer says where by the area's terms** (#419): the facility's
+address, and directions that name the storeroom, the counter, the row's
+four tags and the handle's own -- never a position. **Each offer draws its
+prop's hidden dynamics afresh** (`TaskKind.draws`: the board's own
+sequence number, `Task.secret["draw"]`), set into the compiled world as the
+offer lands with the prop set back out (`HubLifecycle._set_out_counter`,
+`storeroom.redraw`, `storeroom.set_out`), its activity begun again over
+the draw's truth (`renew`), and put back after a restart
+(`restore_counter`): a skill over a kind of drawer, never one drawer. ⚠ No
+offer lands on a prop a robot is touching (`_worked_props`, the
+producer's `busy`): set out from under a hand, a door was clamped shut
+round it, and a drawer left out was a job paid for nothing.
+
+**Rows of their own.** Each job is paid on a row of its own in
+challenges.json (`open_drawer` and the rest), graded by its check's
+evaluator, while the check's row stays the practice's, unpaid. The served
+rows are `shown: false`, which keeps them out of the quadruped's table --
+every row -- while the humanoids' world, which names its jobs
+(`RewardTable.as_context(kinds=)`), shows them.
+
+**Each has its hand-written solution** (`challenge/solutions.py`, Evaluation.md
+§7), two procedures in the robot's own vocabulary, because one would pass
+the language's 1,500 characters: the walk there, then the check's own
+procedure -- unchanged for the door and the chest; the drawer's pulls 4 cm
+further and lets go of the knob before its arm goes home. A job is offered
+once its reference passes 6 of 8 over a tour of the house, the bar written
+before they flew (`solve.py --from tour`; SimNotes, "The humanoids' first
+jobs"): the drawer 8, the door 8, the chest 7. The cube's reference set it
+down 2-7 cm off its mat's middle all 8 times, so `place_cube` is defined,
+graded and priced but not offered.

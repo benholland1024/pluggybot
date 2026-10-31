@@ -300,6 +300,13 @@ job -- each passes some of its set-outs -- not that a mind finds the
 expression, nor yet that one procedure holds over draws it was not written
 against; it is one body, one hand at a time, on a counter at 0.72 m.
 
+**The checks are the served humanoids' first jobs** (#559, stage 3;
+Challenges.md §11): each prop on a counter in the storeroom, square at the
+middle of its set-outs, and each check's procedure the second half of its
+job's reference (the drawer's pulling 4 cm further and letting go of the
+knob before its arm goes home), after a walk there that turns once to its
+prop's stance and steps the handle to where the set-outs had it.
+
 ## 6. The migration
 
 **#493's practice verbs:**

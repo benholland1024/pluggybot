@@ -2353,9 +2353,12 @@ has no goals to spend free time on.
   interrupt that stops rather than stows -- until the quadruped goes and the
   text is rewritten in the humanoid's (stage 5). Its reward table is its
   world's rows (`Menu.kinds`: the charge's, a procedure's, a ticket's and
-  its jobs'), and its procedures are its hands as its practice states them
-  (`hands_procedure_rule`, `steps.served_hand_facts`: every practice switch
-  on, its walks over its map, no bumper).
+  its jobs' -- the hands' four on the storeroom's counter, rows `shown:
+  false` that the quadruped's every-row table leaves out, Challenges.md
+  §11), and its procedures are its hands as its practice states them
+  (`hands_procedure_rule` over its world's facts, `steps.served_hand_facts`:
+  every practice switch on, its walks over its map, `find` and where it
+  found its place in its map, `find.*`, no bumper).
 
 ## 9. Running it
 

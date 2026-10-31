@@ -156,9 +156,12 @@ class TaskReward:
   #: the ledger, hashed into no result, shown only to a mind (#207) -- a job
   #: no world offers the loop. Moving it into rewards.json is the offer.
   offered: bool = True
-  #: False for a DEMO's row (#493: `"shown": false`): graded through this
-  #: door like any other, and shown to no mind, because no served world
-  #: has the job -- a row in the prompt is the prompt changed.
+  #: False for a row kept out of a table that names no world's jobs -- the
+  #: quadruped's, which is every row: a DEMO's (#493), graded through this
+  #: door like any other and offered by no world, so shown to no mind; and a
+  #: job only another world offers (#559, the humanoids' hand jobs), shown
+  #: where that world's mind is (`as_context(kinds=)`). A row in the prompt
+  #: is the prompt changed.
   shown: bool = True
 
   @classmethod
@@ -279,12 +282,13 @@ class RewardTable:
     tasks only -- a row with no evaluator cannot be earned and offering it
     would be a lie about what the robot can do -- and a challenge row only
     where one can be attempted (`challenges`: a mind, whose library is what
-    discharges one; issue #207). A demo's row (`shown` False) never; and,
-    where the world names them (`kinds`, #559: a humanoid's house offers
-    none of the quadruped's jobs), its rows alone."""
+    discharges one; issue #207). Where the world names them (`kinds`, #559:
+    a humanoid's house offers none of the quadruped's jobs), its rows alone,
+    `shown` or not; where it names none (the quadruped's, every row), a row
+    `shown` False never -- a demo's, or another world's job."""
     return [r.as_context() for name, r in self.tasks.items()
-            if name in EVALUATORS and r.shown and (r.offered or challenges)
-            and (kinds is None or name in kinds)]
+            if name in EVALUATORS and (r.offered or challenges)
+            and (r.shown if kinds is None else name in kinds)]
 
 
 _default: RewardTable | None = None
@@ -789,6 +793,14 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   "drawer": drawer.eval_drawer,
   "door": door.eval_door,
   "place": place.eval_place,
+  # ...and set into the house (#559, stage 3): the humanoids' first jobs,
+  # each its check's predicate under a row of its own -- paid, and shown
+  # where a world offers it -- the practice's rows unpaid beside them
+  # (`tasks.HAND_JOBS`).
+  "open_drawer": drawer.eval_drawer,
+  "open_door": door.eval_door,
+  "place_cube": place.eval_place,
+  "open_chest": lid.eval_lid,
 }
 
 
@@ -1129,6 +1141,14 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "drawer": drawer.sample_drawer,
   "door": door.sample_door,
   "place": place.sample_place,
+  # ...and the humanoids' served jobs (#559), off the same props on the
+  # storeroom's counter -- called by the grade on the seam (`HubLifecycle.
+  # _grade_hands_routine`), which hands each the watch it kept from the
+  # claim, there being no errand.
+  "open_drawer": drawer.sample_drawer,
+  "open_door": door.sample_door,
+  "place_cube": place.sample_place,
+  "open_chest": lid.sample_lid,
 }
 
 

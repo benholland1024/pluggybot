@@ -81,12 +81,122 @@ WEIGH = '''def weigh():
   stow()
 '''
 
+#: THE HUMANOIDS' HAND JOBS (#559, stage 3; SimNotes, "The humanoids' first
+#: jobs", has what flying took): each TWO procedures, one would pass the
+#: language's cap (`lang.MAX_SOURCE_CHARS`). The walk there finds the row's
+#: NEIGHBOUR first (a find stops at its tag's first sight, and one tag alone
+#: left the walk's `face` 17-20 deg off the wall), stands 1.3 m out of the
+#: wall's face (nearer, the planner's margin round the counter takes the
+#: goal), turns ONCE off the handle's tag read from there to `STANCE`, steps
+#: to 30 cm short, then looks again and steps the last 30 cm (a step after a
+#: turn falls a tenth short; a short one overshoots by up to 3.6 cm). Then
+#: the check's own procedure (`evaluation.hands_check.JOBS`; the drawer's is
+#: `DRAWER_JOB`).
+APPROACH = '''def to_%(prop)s():
+  budget(steps=16, seconds=900)
+  find(%(beside)d, %(ax)g, %(ay)g, 600)
+  find(%(row)d, %(ax)g, %(ay)g, 600)
+  f = read("find.facing")
+  drive_to(read("find.x") + 1.3 * cos(f) - 0.2 * sin(f), read("find.y") + 1.3 * sin(f) + 0.2 * cos(f), 180)
+  face(f + 3.14159 - 6.28318 * (f > 0))
+  spot(%(handle)d)
+  a = atan2(read("spot.ny"), read("spot.nx"))
+  while a > 0.79:
+    a = a - 1.571
+  while a < -0.79:
+    a = a + 1.571
+  t = a + %(stance)g
+  x = read("spot.x") * cos(t) + read("spot.y") * sin(t)
+  y = read("spot.y") * cos(t) - read("spot.x") * sin(t)
+  step(x - %(ahead)g - 0.3, y - %(left)g, t)
+  spot(%(handle)d)
+  step(read("spot.x") - %(ahead)g, read("spot.y") - %(left)g)
+'''
+
+
+#: How far LEFT of square to its prop the robot stands at each, rad: where
+#: its check's procedure passed (squared, its arm's way home pushed the
+#: drawer back in and the door opened only 44 deg), with room for the 4-5
+#: deg a stance lands either side of the one asked.
+STANCE = {"drawer": 0.25, "door": 0.2, "chest": 0.12, "cube": 0.15}
+
+
+#: The drawer's job: its check's procedure (`hands_check.DRAWER`) pulling to
+#: 0.22 m, not 0.18 (its runners stop at 0.24), and drawing the open hand
+#: back off the knob along the pull before its way home, which from the
+#: knob pushed a drawer pulled 17 cm back under the 15 it must be, 5 times
+#: in 8 over the tour.
+DRAWER_JOB = '''def open_drawer():
+  budget(steps=40, seconds=60)
+  spot(54)
+  x = read("spot.x") + 0.013 * read("spot.nx")
+  y = read("spot.y") + 0.013 * read("spot.ny")
+  z = read("spot.z") + 0.013 * read("spot.nz")
+  a = atan2(read("spot.ey"), read("spot.ex"))
+  while a > 0.79:
+    a = a - 1.571
+  while a < -0.79:
+    a = a + 1.571
+  fx = cos(a)
+  fy = sin(a)
+  g = 0
+  t = 0.26
+  for i in range(4):
+    if g == 0:
+      open_hand("left")
+      if reach("left", x, y, z, fx * cos(t), fy * cos(t), -sin(t), -fy, fx, 0):
+        g = 2
+    if g == 2:
+      if close_hand("left"):
+        g = 1
+      else:
+        g = 0
+        withdraw("left")
+    t = t - 0.26
+  if g == 1:
+    pull("left", -fx, -fy, 0, 15, 0.22)
+  open_hand("left")
+  if not move_hand("left", read("left.x") - 0.06 * fx, read("left.y") - 0.06 * fy, read("left.z") + 0.02):
+    pass
+  withdraw("left")
+'''
+
+
+def _hands_job(check: str, prop: str) -> tuple[str, str]:
+  """A hand job's reference: the walk to its prop (`APPROACH`), searching
+  round the address its offer gives (`home.places.area`), then its check's
+  procedure (`evaluation.hands_check.JOBS`) -- the drawer's `DRAWER_JOB`."""
+  from pluggybot.evaluation import hands_check
+  from pluggybot.home import places as addresses
+  from pluggybot.home import storeroom
+  from pluggybot.rack import tags
+  handle = {"chest": tags.CHEST_TAG_IDS, "drawer": tags.DRAWER_TAG_IDS,
+            "door": tags.DOOR_TAG_IDS, "cube": tags.CUBE_TAG_IDS}[prop][0]
+  ahead, left = storeroom.HANDLE_FROM_SPOT[prop]
+  i = storeroom.PROPS.index(prop)
+  beside = storeroom.PROPS[i + 1 if i + 1 < len(storeroom.PROPS) else i - 1]
+  address = addresses.area(prop)["address"]
+  return (APPROACH % {"prop": prop, "row": storeroom.TAGS[prop],
+                      "beside": storeroom.TAGS[beside], "handle": handle,
+                      "ax": address["x"], "ay": address["y"],
+                      "ahead": ahead, "left": left, "stance": STANCE[prop]},
+          DRAWER_JOB if prop == "drawer" else hands_check.JOBS[check])
+
+
+DRAWER = _hands_job("drawer", "drawer")
+DOOR = _hands_job("door", "door")
+CUBE = _hands_job("place", "cube")
+CHEST = _hands_job("lid", "chest")
+
 #: The procedure that discharges each challenge kind, by kind.
-PROCEDURES = {"stack_tower": TOWER, "find_mass": WEIGH}
+PROCEDURES = {"stack_tower": TOWER, "find_mass": WEIGH, "open_drawer": DRAWER,
+              "open_door": DOOR, "place_cube": CUBE, "open_chest": CHEST}
 
 
-#: The challenges by their place (`world_config`'s `tower` and `bench`).
-TARGETS = {"stack_tower": "workshop", "find_mass": "lab_bench"}
+#: The challenges by their place (`world_config`'s `tower` and `bench`, and
+#: its counter's props).
+TARGETS = {"stack_tower": "workshop", "find_mass": "lab_bench", "open_drawer": "drawer",
+           "open_door": "door", "place_cube": "cube", "open_chest": "chest"}
 
 
 def job_routine(life, kind: str, world: str):
@@ -107,12 +217,19 @@ def job_routine(life, kind: str, world: str):
   task = life.tasks.offer(kind, TARGETS[kind], params=params, secret=secret, ttl=3000.0,
                           t=float(life.data.time))
   assert task is not None and life._claim_task(task.id), "the claim was refused"
-  library = lib.Library(world_facts(world))
-  name = lang.parse(PROCEDURES[kind]).name
-  library.define(name, PROCEDURES[kind])
-  errand = errand_from(ov.Decision(action=f"procedure:{name}"), world, library=library)
-  result = yield from life.run_errand_routine(errand)
-  run = result.get("procedure") or {}
+  facts = world_facts(world)
+  library = lib.Library(facts)
+  sources = PROCEDURES[kind] if isinstance(PROCEDURES[kind], tuple) else (PROCEDURES[kind],)
+  runs = []
+  for source in sources:
+    name = lang.compile_procedure(source, facts).name
+    library.define(name, source)
+    errand = errand_from(ov.Decision(action=f"procedure:{name}"), world, library=library)
+    result = yield from life.run_errand_routine(errand)
+    run = result.get("procedure") or {}
+    runs.append(run)
+    if not run.get("ok"):
+      break
   if kind == "find_mass":
     mass = (run.get("locals") or {}).get("mass")
     if mass is not None:
@@ -125,7 +242,7 @@ def job_routine(life, kind: str, world: str):
   verdict = dict(done.verdict or {}) if done is not None else {}
   return {"errand": result, "procedure": {k: run.get(k) for k in ("ok", "failedAt", "seconds")},
           "steps": [(st.get("verb"), st.get("ok"), st.get("why"), st.get("reason"))
-                    for st in run.get("steps", [])],
+                    for r in runs for st in r.get("steps", [])],
           "locals": run.get("locals"), "secret": dict(secret),
           "grade": {"ok": bool(verdict.get("ok")), "reason": verdict.get("reason", ""),
                     "points": verdict.get("points", 0)}}

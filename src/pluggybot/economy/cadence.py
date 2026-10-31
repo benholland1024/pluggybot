@@ -259,15 +259,17 @@ class TaskProducer:
     self.next_at = float(t) + self.cadence.first_at_s
     return made
 
-  def tick(self, t: float, pack_wh: float | None = None) -> list:
+  def tick(self, t: float, pack_wh: float | None = None, busy=None) -> list:
     """Place at most one offer, if one is due. Returns what was offered.
 
     Cheap enough to call on the physics seam: until `next_at` this is one
-    float compare.
+    float compare. `busy`, asked only once an offer is due, names the
+    targets being worked right now, and no offer lands on one: an offer
+    sets its prop out (#559), never from under a robot's hand.
     """
     if float(t) < self.next_at:
       return []
-    task = self._offer_one(t, pack_wh)
+    task = self._offer_one(t, pack_wh, busy() if busy is not None else ())
     # Advanced whether or not anything was placed, and without catch-up: see
     # the module docstring. A tick that could not place a job is a tick the
     # world was full, not a debt the world owes the robot.
@@ -276,12 +278,12 @@ class TaskProducer:
 
   # ---- picking one ---------------------------------------------------------
 
-  def _offer_one(self, t: float, pack_wh: float | None):
+  def _offer_one(self, t: float, pack_wh: float | None, busy=()):
     if not self.kinds:
       return None
     if len(self.board.offered()) >= self.cadence.max_offered:
       return None
-    booked = {task.target for task in self.board.open_tasks()}
+    booked = {task.target for task in self.board.open_tasks()} | set(busy)
     n = len(self.kinds)
     starved = False
     # ⚠ WHERE THE HEAD ENDS UP IS THE WHOLE OF FAIRNESS HERE. A kind that was
@@ -411,6 +413,11 @@ class TaskProducer:
                      "known_tag": bench.MASS_TAG_IDS[0],
                      "unknown_tag": bench.MASS_TAG_IDS[1]})
       return params, {"kg": bench.default_bank().pick(self.board.seq)}
+    if KINDS[kind].draws:
+      # A hand job (#559): its prop's hidden dynamics drawn afresh, off the
+      # same counter, set into the world as the offer lands -- the draw's
+      # number the secret, so a restart puts the same prop back
+      return params, {"draw": int(self.board.seq)}
     return params, {}
 
   # ---- what a long run looks like ------------------------------------------

@@ -111,11 +111,15 @@ def test_every_swap_is_read_in_some_humanoid_prompt_and_the_quadrupeds_is_its_ow
 
 def test_a_humanoid_is_shown_only_the_reward_rows_its_world_can_pay():
   """None of the quadruped's jobs is offered in its house: the table is
-  the charge's, a procedure's and a ticket's (`overseer.ALWAYS_SHOWN`), and
-  the quadruped's is every row it always was."""
+  the charge's, a procedure's and a ticket's (`overseer.ALWAYS_SHOWN`) and
+  its own jobs', the hands' on the storeroom's counter (stage 3); and the
+  quadruped's is every row it always was."""
+  from pluggybot.economy.cadence import default_cadence
+  from pluggybot.economy.tasks import KINDS
   rows = {r["task"] for r in default_table().as_context(
     challenges=True, kinds=Menu.for_world(HUMANOID_HOME).kinds)}
-  assert rows == set(ov.ALWAYS_SHOWN)
+  jobs = {KINDS[k].task for k in default_cadence(HUMANOID_HOME).kinds}
+  assert jobs and rows == set(ov.ALWAYS_SHOWN) | jobs
   assert Menu.for_world(QUAD_HOME).kinds is None
   menu = Menu.for_world(HUMANOID_HOME, board_book(HUMANOID_HOME))
   assert menu.body == "humanoid" and menu.programs == () and menu.boards
@@ -128,7 +132,7 @@ def test_a_humanoids_procedures_are_its_hands_and_its_walks_every_switch_on():
   bumper, arm or tools."""
   facts = world_facts(HUMANOID_HOME)
   hands = st.hand_facts()
-  assert facts.verbs == st.SERVED_WALK_VERBS + hands.verbs
+  assert facts.verbs == st.SERVED_WALK_VERBS + st.PLACE_VERBS + hands.verbs
   assert set(hands.sensors) <= set(facts.sensors) and "bumper" not in facts.sensors
   assert {"battery.wh", "battery.frac", "points"} <= set(facts.sensors)
   assert facts.axes == axes.BODY_AXES["humanoid"] and facts.hands == axes.HANDS
@@ -142,8 +146,9 @@ def test_a_humanoids_procedure_rule_is_its_practices_language_and_body():
   compiles on the house as served (#434) and hands over no survival
   policy; every verb, sensor and axis it may name is listed, and none of the
   quadruped's."""
-  rule = ov.hands_procedure_rule()
-  sections = dict(practice.system_sections(st.served_hand_facts()))
+  places = world_facts(HUMANOID_HOME).places
+  rule = ov.hands_procedure_rule(places)
+  sections = dict(practice.system_sections(st.served_hand_facts(places=places)))
   assert sections["the language"] in rule
   assert sections["your body"].replace("Both grippers start shut. ", "") in rule
   example = rule[rule.index("  def wave"):rule.index("Statements:")]

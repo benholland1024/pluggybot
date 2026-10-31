@@ -206,8 +206,6 @@ class HumanoidBody(Body):
     self.geom_ids = np.array([g for g in range(model.ngeom)
                               if self.mission._under_root(int(model.geom_bodyid[g]))],
                              dtype=np.int32)
-    # The members a standing body answers plainly.
-    self.places = None
     #: Its charging station's frame (#559, `activity.station`'s: +x into
     #: the wall), the COMMISSIONED pose, off the compiled world as the
     #: quadruped's dock is -- None where the world has none -- and as the
@@ -304,6 +302,7 @@ class HumanoidBody(Body):
     if self._tags is not None:
       self._tags.close()
       self._tags = None
+    self.mission.close_places()
 
   # ---- where it is ---------------------------------------------------------
 
@@ -970,10 +969,12 @@ class HumanoidBody(Body):
     return dict(m.counts) if m is not None else {}
 
   def forget_world(self) -> None:
-    """A true death (#419): the map, its layer, the walls it is kept off and
-    the plan it last made, gone, as the quadruped's."""
+    """A true death (#419): the map, its layer, the walls it is kept off,
+    the plan it last made and the places it found, gone, as the
+    quadruped's."""
     m = self.mission
     m.forget_map()
+    m.places.forget()
     m.low[:] = 0.0
     m._walls_t, m._walls_mask, m._plan_memo = None, None, None
 
@@ -1077,9 +1078,12 @@ class HumanoidBody(Body):
                                      atM=round(math.hypot(seen.x - x, seen.y - y), 2),
                                      moved=True, dropped=dropped)
 
+  places = property(lambda self: self.mission.places)
+
   def find_tag_routine(self, tag, near, patience, stop=None):
-    raise NotImplementedError(f"{NOT_HERE}: a place's walk is the quadruped's (#419)")
-    yield
+    """Its mission's search (`humanoid.places`, #559's stage 3): the
+    quadruped's, its looks through the head's navigation camera."""
+    return self.mission.find_routine(tag, near=near, patience=patience, stop=stop)
 
   # ---- the quadruped's world: not the humanoid's yet -----------------------
 

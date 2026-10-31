@@ -452,7 +452,9 @@ def goals_set_and_served(rows: Iterable[Row]) -> dict:
 def challenge_kinds_today() -> tuple[str, ...]:
   """The task kinds with no errand behind them -- discharged by a procedure
   the robot writes, off `economy/tasks.py`'s own field (`TaskKind.
-  discharge`) -- the shape's default sources: the tower, the bench."""
+  discharge`) -- the shape's default sources: the tower, the bench, and
+  the humanoids' hand jobs (#559), in the site's order (rooftop's
+  `CHALLENGE_KINDS`)."""
   from pluggybot.economy.tasks import KINDS   # evaluation reads economy, never the reverse
   return tuple(name for name, k in KINDS.items() if k.discharge == "procedure")
 
@@ -464,7 +466,8 @@ def first_solve(rows: Iterable[Row],
   solve what it could not yesterday: procedures run, and tools built.
 
   Sources: the tower (#207, kind `stack_tower`), the bench (#227, kind
-  `find_mass`) -- `challenge_kinds_today` unless told otherwise; `procedure`
+  `find_mass`), the humanoids' hand jobs (#559, `open_drawer` and the rest)
+  -- `challenge_kinds_today` unless told otherwise; `procedure`
   rows (#166), and `tool` rows where a period has them (the workshop's,
   #168, until #489). A row's `kind` is the TASK KIND, the word the
   observatory files.

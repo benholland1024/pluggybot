@@ -1,7 +1,7 @@
 """A cupboard door with a lever handle (issue #525): one of the hands'
 capability checks (docs/Hands.md), as an ACTIVITY (docs/ActivityPattern.md)
--- its geometry, its hidden parameters and its latch. Never in the served
-world.
+-- its geometry, its hidden parameters and its latch. On the humanoids'
+storeroom counter (#559, `home.storeroom`), never the quadrupeds' world.
 
 A cupboard 0.24 m wide, 0.24 deep and 0.30 high on the counter, its door
 hung on a hinge down its left edge (the robot's left) so it swings open
@@ -203,7 +203,7 @@ class Door(Activity):
 
   def __init__(self, model, data, hinge: Hinge, name: str = "door") -> None:
     super().__init__(name)
-    self.hinge = hinge
+    self._model = model
     self.open_adr = int(model.sensor(f"{name}_open").adr[0])
     self.lever_adr = int(model.sensor(f"{name}_pressed").adr[0])
     door = model.joint(f"{name}_hinge").id
@@ -212,6 +212,13 @@ class Door(Activity):
     self.door_q = int(model.jnt_qposadr[door])
     self.door_dof = int(model.jnt_dofadr[door])
     self.lever_q = int(model.jnt_qposadr[lever])
+    self.renew(model, hinge)
+
+  def renew(self, model, hinge: Hinge) -> None:
+    """Begun again over `hinge`, a door set out afresh (#559's counter):
+    shut, its latch bolted round it -- the hinge's range in the model --
+    its thresholds clear."""
+    self.hinge = hinge
     self.open = Threshold(on=OPEN_ON, off=OPEN_OFF)
     self.past = Threshold(on=OPENED_RAD, latch=True)
     self.bolted = True
@@ -222,6 +229,21 @@ class Door(Activity):
 
   def _limit(self, model) -> None:
     model.jnt_range[self.door_jnt] = (0.0, SHUT_RAD if self.bolted else DOOR_TRAVEL)
+
+  def kept_state(self) -> dict:
+    """The flags, the latch and the thresholds behind them (#559: the
+    served counter's door rides a restart): restored without them, an open
+    door came back bolted shut round it."""
+    return {**super().kept_state(), "bolted": self.bolted, "ajar": self.ajar,
+            "open": self.open.value, "past": self.past.value}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.bolted = bool(state.get("bolted", True))
+    self.ajar = bool(state.get("ajar", False))
+    self.open.value = bool(state.get("open", False))
+    self.past.value = bool(state.get("past", False))
+    self._limit(self._model)
 
   def angle(self, data) -> float:
     """The door's angle off shut, rad, as its sensor reads it."""

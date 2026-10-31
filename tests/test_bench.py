@@ -416,7 +416,8 @@ def test_the_grade_reads_the_world_not_the_report(home_model, tmp_path):
 
 
 def test_the_bench_feeds_first_solve_and_findings_recorded_correctly():
-  assert q.challenge_kinds_today() == ("stack_tower", "find_mass")
+  assert q.challenge_kinds_today() == ("stack_tower", "find_mass", "open_drawer", "open_door",
+                                      "place_cube", "open_chest")
   rows = [Row("task", "failed", t=1, data={"kind": "find_mass"}),
           Row("task", "done", t=2, data={"kind": "find_mass"}),
           Row("finding", "true", t=2, data={"kind": "find_mass"}),

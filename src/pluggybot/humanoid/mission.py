@@ -40,6 +40,7 @@ from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.arms import SelfModel, kept_value, value_back
 from pluggybot.humanoid.getup import GETUP_NPZ, FallWatch, GetupDriver
 from pluggybot.humanoid.odometry import StanceOdometry
+from pluggybot.humanoid.places import HumanoidPlaces
 from pluggybot.humanoid.policy import StandDriver, StandPolicy
 from pluggybot.humanoid.reach import Reach
 from pluggybot.humanoid.scan import HeadScan
@@ -146,9 +147,10 @@ class HumanoidStepper:
     return tick.run(self, routine, name)
 
 
-class HumanoidMission(HumanoidWay, Navigator):
+class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   """The Navigator over a humanoid (module docstring), making way for the
-  other robot as it rests (`humanoid.way`, #559)."""
+  other robot as it rests (`humanoid.way`, #559), and finding the places a
+  job sends it to (`humanoid.places`, #559's stage 3)."""
 
   #: Its sizes. Half its width with its hands hanging is 0.27 m: the map's
   #: inflation is that and 8 cm, as the quadruped's covers its half-width.
@@ -210,6 +212,9 @@ class HumanoidMission(HumanoidWay, Navigator):
     self._walls_t, self._walls_mask = None, None
     self._pressing = False
     self._init_way()
+    # THE PLACES IT FINDS (`humanoid.places`): the quadruped's search, its
+    # looks through the head's navigation camera
+    self._init_places(model)
 
   # ---- what only a body says ------------------------------------------------
 
@@ -521,7 +526,9 @@ class HumanoidMission(HumanoidWay, Navigator):
                           self.lidar.peer_rng.bit_generator.state],
              "depthRng": [self.depth.rng.bit_generator.state,
                           self.depth.peer_rng.bit_generator.state],
-             "match": match, "pressing": self._pressing},
+             "match": match, "pressing": self._pressing,
+             # ...and the places it has found, with the map they are laid in
+             "places": self.places.kept_state()},
             arrays)
 
   def restore_kept(self, state: dict, arrays: dict) -> bool:
@@ -586,6 +593,8 @@ class HumanoidMission(HumanoidWay, Navigator):
         self._walls_mask, self._walls_t = np.array(arrays["walls"], dtype=bool), clocks["walls"]
       if self.matcher is not None and state.get("match"):
         self.matcher.restore_kept(state["match"], arrays)
+    # ...the places only with the map they were laid in (#419)
+    self.places.restore_kept(state.get("places") if mapped else None)
     return mapped
 
   def _all_drivers(self) -> dict:
@@ -642,9 +651,11 @@ class HumanoidMission(HumanoidWay, Navigator):
     """The depth camera, at its rate: what it sees under the LIDAR's plane
     goes into the planner's layer, off a frame taken level and on its feet
     -- and none is taken otherwise but for the loop's near field
-    (`latest_depth`): bowed for a reach, it renders nothing."""
+    (`latest_depth`): bowed for a reach, it renders nothing. And the walking
+    look for places (`HumanoidPlaces._place_step`, #559)."""
     if self.legs == "getup" or not self.level():
       return
+    self._place_step()
     frame = self.latest_depth()
     if frame is None or self._frame_t == self._frame_used_t or not self._frame_level:
       return

@@ -219,6 +219,13 @@ uv run python scripts/two_robots.py --world home_humanoid --view --pack hosting
                                       # the humanoid pair living a day in the
                                       # house, as served (#559); `--fast
                                       # --strip PNG` draws it headless
+uv run python scripts/solve.py --feature drawer --from store --view
+                                      # a hand job (#559): the drawer on the
+                                      # storeroom's counter found, walked
+                                      # to, squared up to and opened, as
+                                      # the robot's own procedure (door,
+                                      # cube, chest; --from station walks
+                                      # across the street first; --strip)
 ```
 `humanoid_spike.py --help` lists its tables (`--mass`, `--torque`,
 `--thermal`, `--energy`, `--sensors`, `--shove`, `--envelope`, `--hold`,

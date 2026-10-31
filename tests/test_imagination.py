@@ -356,9 +356,10 @@ def _module_file(name: str) -> Path | None:
   return p / "__init__.py" if (p / "__init__.py").exists() else None
 
 
-def _closure(roots) -> dict[str, Path]:
+def _closure(roots, stop=()) -> dict[str, Path]:
   """Every pluggybot module `roots` can load, by name: what each imports,
-  at its top or inside a function, and the packages above it."""
+  at its top or inside a function, and the packages above it -- reaching a
+  module in `stop` but never walking on through it."""
   seen: dict[str, Path] = {}
   todo = list(roots)
   while todo:
@@ -367,6 +368,8 @@ def _closure(roots) -> dict[str, Path]:
     if name in seen or path is None:
       continue
     seen[name] = path
+    if name in stop:
+      continue
     todo += [".".join(name.split(".")[:k]) for k in range(2, name.count(".") + 1)]
     for node in ast.walk(ast.parse(path.read_text())):
       if isinstance(node, ast.Import):
