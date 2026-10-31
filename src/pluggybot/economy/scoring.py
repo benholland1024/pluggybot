@@ -273,14 +273,18 @@ class RewardTable:
     """The rows the robot can actually be offered: the shipped file's."""
     return [name for name, r in self.tasks.items() if r.offered]
 
-  def as_context(self, challenges: bool = False) -> list[dict]:
+  def as_context(self, challenges: bool = False,
+                 kinds: tuple[str, ...] | None = None) -> list[dict]:
     """The offered table, as the overseer's context (issue #15). Scoreable
     tasks only -- a row with no evaluator cannot be earned and offering it
     would be a lie about what the robot can do -- and a challenge row only
     where one can be attempted (`challenges`: a mind, whose library is what
-    discharges one; issue #207). A demo's row (`shown` False) never."""
+    discharges one; issue #207). A demo's row (`shown` False) never; and,
+    where the world names them (`kinds`, #559: a humanoid's house offers
+    none of the quadruped's jobs), its rows alone."""
     return [r.as_context() for name, r in self.tasks.items()
-            if name in EVALUATORS and r.shown and (r.offered or challenges)]
+            if name in EVALUATORS and r.shown and (r.offered or challenges)
+            and (kinds is None or name in kinds)]
 
 
 _default: RewardTable | None = None

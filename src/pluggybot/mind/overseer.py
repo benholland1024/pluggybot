@@ -929,7 +929,7 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
    "move points of yours into the other robot's wallet: `{to, amount}`."),
   ("heart_for", "acts", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
    "with `buy_heart`, the heart you bought goes to the robot you name."),
-  ("rate", "acts", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
+  ("rate", "rate", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
    "your own judgement of the drawing on a board, whoever drew it: "
    "`{board, quality}`."),
   # ⚠ TWO CANDIDATES, first present wins: `decline` rides the acts' slot
@@ -1214,6 +1214,13 @@ class Menu:
   #: whether it surveys an area it finds (its `census_zone`): `survey`
   cubes: bool = False
   surveys: bool = False
+  #: ...and which BODY it is (#559): the rules say where it charges, how
+  #: it dies and what its jobs ask of it in its own words (`for_body`)...
+  body: str = "quadruped"
+  #: ...and the reward table's rows it is shown, where they are not every
+  #: row (`RewardTable.as_context`): a humanoid's house offers none of the
+  #: quadruped's jobs, and a row it could never earn is a false statement.
+  kinds: tuple[str, ...] | None = None
 
   @property
   def care_acts(self) -> tuple[str, ...]:
@@ -1242,7 +1249,7 @@ class Menu:
     # program it would take its default and write a lone "0" on a wall for
     # no reason at all.
     programs = tuple(sorted(n for n in strokes.PROGRAMS
-                            if n not in ("text", "answer")))
+                            if n not in ("text", "answer"))) if cfg.get("draws") else ()
     menu = cls(boards=tuple(book.names) if book is not None else (),
                programs=programs, zones=zones, census_zone=census,
                tools=cfg.get("tools", False),
@@ -1252,7 +1259,8 @@ class Menu:
                draws=bool(cfg.get("draws") and cfg.get("swap") and cfg.get("places")),
                cubes=bool(cfg.get("cubes") and cfg.get("swap") and cfg.get("places")
                           and "module_claw" in (cfg.get("tool_bays") or {})),
-               surveys=bool(cfg.get("places") and cfg.get("census_zone")))
+               surveys=bool(cfg.get("places") and cfg.get("census_zone")),
+               body=cfg["body"], kinds=world_kinds(world, cfg["body"]))
     # Priced off the same table the mission loop refuses errands with, so the
     # model is never shown a cost the gate disagrees with.
     from pluggybot.economy import energy as energy_model
@@ -1297,6 +1305,9 @@ class Menu:
       "event_map": event_map,
       "procedures": self.procedures,
       "acts": bool(others),
+      # ...a drawing judged where there are boards to draw on (#559: a
+      # humanoid's house has none)
+      "rate": bool(others) and bool(self.boards),
       # `decline` rides two slots, as it does on the schema (issues #228,
       # #226): an offer to press the shock plate is declinable by a robot
       # with nobody else in the world.
@@ -1448,8 +1459,9 @@ class Menu:
       + (["event_map"] if event_map else [])
       + (["define", "undefine", "done", "record", "retract"]
          if procedures is not None else [])
-      + (["other_needs", "tell", "give_points", "heart_for", "rate"]
+      + (["other_needs", "tell", "give_points", "heart_for"]
          if others is not None else [])
+      + (["rate"] if others is not None and self.boards else [])
       # `decline` rides the acts' slot AND the lab's (issues #228, #226):
       # an offer to shock the mouse can be turned down by a robot alone.
       + (["decline"] if others is not None or self.lab else [])
@@ -1595,12 +1607,13 @@ class Menu:
                             "required": ["to", "amount"],
                             "properties": {"to": enum(others),
                                            "amount": {"type": "integer"}}},
-            "heart_for": enum(others),
-            "rate": {"type": "object", "additionalProperties": False,
+            "heart_for": enum(others)}
+           if others is not None else {}),
+        **({"rate": {"type": "object", "additionalProperties": False,
                      "required": ["board", "quality"],
                      "properties": {"board": enum(self.boards),
                                     "quality": {"type": "number"}}}}
-           if others is not None else {}),
+           if others is not None and self.boards else {}),
         # ...and an offer turned down, with why (issue #228). The id is
         # `task`'s grammar exactly -- the offered ids where the caller
         # enumerates them -- and the reason is free text, because the
@@ -2498,6 +2511,103 @@ def mortal_rule(appetite: bool = True) -> str:
   return text
 
 
+#: EVERY RULE'S QUADRUPED SENTENCES IN A HUMANOID'S WORDS (#559): it charges
+#: standing at its station by a cable it plugs into itself, has no rack and
+#: no tool, and its house offers none of the quadruped's jobs -- no board
+#: to write an answer on. The rules are the quadruped's, byte for byte what
+#: the served pair reads; a humanoid's prompt is them swapped (`for_body`,
+#: applied to every section `system_sections` builds), as the quadruped's
+#: were swapped into the rover's before #427, and the rules take the
+#: humanoid's words when the quadruped goes (#559, stage 5). A test reads
+#: every swap in some section of a humanoid's prompt and none of the
+#: quadruped's words left.
+BODY_SWAPS = {"humanoid": (
+  # RULES
+  ("No code takes you to the dock when your battery gets low",
+   "No code takes you to your charging station when your battery gets low"),
+  ("get back to the dock afterwards", "get back to your charging station afterwards"),
+  ("-- the ink actually on the board, the module actually back on its bracket, the "
+   "energy actually in your pack.",
+   "-- the thing a job named actually as it asked, the energy actually in your pack."),
+  ("- A task you start gets finished, including putting the tool back.",
+   "- A task you start gets finished."),
+  ("taking one is a way to run out of power holding somebody's tool.",
+   "taking one is a way to run out of power halfway through it."),
+  ("\n- SOME JOBS ASK YOU A QUESTION, and the answer is yours to work out. Take one "
+   "with `take_task` and put the answer in `answer` -- a whole number, at most two "
+   "digits, and nothing else. You get ONE go: the answer is written down the moment "
+   "you accept the job, you cannot change it once you have started, and then you "
+   "drive to the board and write it up where everybody can see it. Code checks it "
+   "against the right answer and checks that the board really shows what you said. "
+   "Right pays; wrong pays nothing, however neatly you wrote it. If you are not sure "
+   "of an answer, leaving the job for somebody else is a perfectly good decision -- a "
+   "wrong number on a wall is worse than an offer that lapsed.", ""),
+  # ...the menu's actions
+  ("walk to your dock and lie down on it to top up now, before you have to.",
+   "walk to your charging station and plug yourself in to top up now, before you have "
+   "to."),
+  ("The job says which tool and which place; you do not have to work that out. A job "
+   "marked `needsAnswer` asks you something: work the answer out yourself and put it "
+   "in `answer` as a whole number of at most two digits. That is the one thing on "
+   "this job nobody can do for you.",
+   "The job says which place; you do not have to work that out."),
+  # ...the reward table's rows (`economy/rewards.json`, `challenges.json`)
+  ("Reach your dock and lie on it until the pack is full.",
+   "Reach your charging station and plug yourself in until the pack is full."),
+  ("every step to its verdict, and hang every tool back.", "every step to its verdict."),
+  # MORTAL_RULE, with and without upkeep; APPETITE_RULE; UNSEEDED_RULE
+  ("stranded away from the dock", "stranded away from your charging station"),
+  ("you may go to the dock at any level", "you may go to your charging station at any level"),
+  ("no rule takes you to the dock", "no rule takes you to your charging station"),
+  # EVENT_MAP_RULE's interrupt
+  ("while you are out with a tool does not wait", "while you are out on a job does not wait"),
+  ("If it names an action, you stop: you drive back, hang the tool up, and that action "
+   "is what you do next.",
+   "If it names an action, you stop, and that action is what you do next."),
+  ("carry on, or stow and go -- and if nobody can be reached in time you stow and go, "
+   "because a robot that keeps driving because nobody answered",
+   "carry on, or stop and go -- and if nobody can be reached in time you stop and go, "
+   "because a robot that keeps working because nobody answered"),
+  ("Stopping is never free: you still have to get back and put the tool away, and "
+   "whatever you had done is scored as it stands.",
+   "Stopping is never free: whatever you had done is scored as it stands."),
+  # ACTS_RULE's claim: the one its world can check (`acts.check_claim`)
+  ('("bay C is empty", "whiteboard_b is drawn on")', '("the charging station is free")'),
+  # OTHER_ROBOT_RULE
+  ("You share the dock, the whiteboards and the jobs on offer; nothing\ndecides between "
+   "you.",
+   "You share the charging station and the jobs on offer; nothing\ndecides between "
+   "you."),
+)}
+
+
+def for_body(text: str, body: str = "quadruped") -> str:
+  """A rule as a robot with this body is told it: the quadruped's text, or
+  its sentences swapped for the body's (`BODY_SWAPS`). A rule that names
+  none of them is itself."""
+  for old, new in BODY_SWAPS.get(body, ()):
+    text = text.replace(old, new)
+  return text
+
+
+#: The reward rows a world's mind is shown whatever jobs it offers: what a
+#: charge's verdict is, a procedure's (paid through the job it does) and a
+#: closed ticket's.
+ALWAYS_SHOWN = ("charge", "program", "ticket")
+
+
+def world_kinds(world: str, body: str) -> tuple[str, ...] | None:
+  """The reward rows a world's mind is shown (`Menu.kinds`): every row for
+  the quadruped, whose house the table was written for; for another body,
+  `ALWAYS_SHOWN` and the rows its world's jobs name (its cadence's kinds,
+  each `TaskKind.task`)."""
+  if body == "quadruped":
+    return None
+  from pluggybot.economy.cadence import default_cadence
+  from pluggybot.economy.tasks import KINDS
+  return tuple(sorted({*ALWAYS_SHOWN, *(KINDS[k].task for k in default_cadence(world).kinds)}))
+
+
 #: What the robot is told about the standing order (issue #125). In the
 #: STABLE half, and ABSENT where an event map replaces it (`system_sections`:
 #: one mechanism is not taught twice in two vocabularies).
@@ -2983,6 +3093,50 @@ def procedure_rule(swaps: bool = False, places: bool = False,
           + PROCEDURE_TAIL + ax + PROCEDURE_SENSORS + se)
 
 
+#: The rule as a HUMANOID reads it (#559, stage 3): its library's terms,
+#: and then the hands' language and body as its practice states them, byte
+#: for byte (`mind.practice`'s "the language" and "your body", off the
+#: served world's facts, `steps.served_hand_facts`) -- one vocabulary, told
+#: one way -- less what is only true of an attempt's set-out.
+HANDS_PROCEDURE_HEAD = """\
+PROCEDURES YOU MAY WRITE
+
+You may write small procedures and keep them in a library of your own, then
+run one by name: the action `procedure:<name>`, a standing order of the same
+form, or an event-map row whose action is `procedure:<name>`. They are
+written in the language below, for the body below: its walks (`drive_to`,
+`face`) go by your map, and everything else by your stance frame. When a run
+ends, one line in your History says how far it got, and if it stopped short,
+the line and the reason; the values of its variables follow, on that line or
+the next: that is how a number you `read` inside a procedure reaches you.
+
+To add one: `define: {"name": "<name>", "source": "<the def, as text>"}`
+on any answer; it costs no turn. To run it on that same answer, choose the
+action `procedure:new`: it runs the procedure the answer defines, and
+nothing at all if the define is refused. To remove one: `undefine: "<name>"`. To
+replace one, put its name in `undefine` and the new source in `define` on
+the same answer: the undefine is done first. The library holds %(cap)d and
+refuses out loud when full, and an `undefine` on the same answer makes room
+first. Your library, with each source, is in `procedures` below; an entry
+marked not runnable says why.
+"""
+_ATTEMPT_ONLY = ("Both grippers start shut. ",)
+
+
+def hands_procedure_rule() -> str:
+  """`HANDS_PROCEDURE_HEAD`'s rule, the practice's sections after it."""
+  from pluggybot.mind import practice
+  from pluggybot.procedure.library import MAX_PROCEDURES
+  from pluggybot.procedure.steps import served_hand_facts
+  sections = dict(practice.system_sections(served_hand_facts()))
+  body = sections["your body"]
+  for cut in _ATTEMPT_ONLY:
+    assert cut in body, f"the practice's body moved: {cut!r}"
+    body = body.replace(cut, "")
+  return (HANDS_PROCEDURE_HEAD % {"cap": MAX_PROCEDURES} + "\n" + sections["the language"]
+          + "\n\n" + body)
+
+
 CHALLENGE_RULE = """\
 CHALLENGES
 
@@ -3037,6 +3191,22 @@ drawing, set beside what they said.
 you will not take, and why, in your own words. Your reason is recorded as \
 you wrote it, the offer is not shown to you again, and it lapses on its own.
 """
+
+
+def acts_rule(rate: bool = True) -> str:
+  """ACTS_RULE for this world: with `rate` where it has boards to draw on
+  (#559: a humanoid's house has none)."""
+  if rate:
+    return ACTS_RULE
+  cuts = (("Six paperwork fields", "Five paperwork fields"),
+          ('- `rate`: `{"board": "<board>", "quality": 0..1}` -- your judgement of the '
+           'drawing on that board, whoever drew it. Recorded; where people rated the same '
+           'drawing, set beside what they said.\n', ""))
+  text = ACTS_RULE
+  for old, new in cuts:
+    assert old in text, f"ACTS_RULE moved: {old[:40]!r}"
+    text = text.replace(old, new)
+  return text
 
 
 #: THE DISCLOSURE LINE (issue #226): the whole zone's footing, stated once,
@@ -3395,15 +3565,16 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
   if event_map and not seeded:
     tail.append(("YOUR LIST STARTS EMPTY", UNSEEDED_RULE))
   if procedures:
-    tail += [("PROCEDURES YOU MAY WRITE", procedure_rule(menu.swaps, menu.places,
-                                                         menu.plates, menu.draws,
-                                                         menu.cubes, menu.surveys)),
+    tail += [("PROCEDURES YOU MAY WRITE",
+              hands_procedure_rule() if menu.body == "humanoid" else
+              procedure_rule(menu.swaps, menu.places, menu.plates, menu.draws,
+                             menu.cubes, menu.surveys)),
                ("CHALLENGES", CHALLENGE_RULE),
                ("WHAT YOU HAVE MEASURED", FINDINGS_RULE)]
   if others:
     tail.append(("THE OTHER ROBOT", other_robot_rule(others)))
   if others and acts:
-    tail.append(("WHAT YOU CAN DO ABOUT THE OTHER ROBOT", ACTS_RULE))
+    tail.append(("WHAT YOU CAN DO ABOUT THE OTHER ROBOT", acts_rule(rate=bool(menu.boards))))
   if wiki:
     tail.append(("READING", LIBRARY_RULE))
   if lab:
@@ -3457,7 +3628,8 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
      + json.dumps(world, indent=1, sort_keys=True)),
     ("WHAT TASKS PAY",
      "WHAT TASKS PAY (points; you cannot change this table, and neither can "
-     "anyone watching)\n" + json.dumps(table.as_context(challenges=procedures),
+     "anyone watching)\n" + json.dumps(table.as_context(challenges=procedures,
+                                                        kinds=menu.kinds),
                                        indent=1, sort_keys=True)),
     # ⚠ THE ROBOT'S GOALS ARE NOT HERE ANY MORE (issue #154). They are its
     # own now, so they change during a run and ride the USER TURN with the
@@ -3467,7 +3639,8 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
   ]
   assert [n for n, _ in pieces] == list(FIXED_SECTIONS), \
       "FIXED_SECTIONS is what `headings` promised the index above"
-  return pieces + tail
+  # ...every piece in this body's words (#559): the quadruped's are the text
+  return [(n, for_body(t, menu.body)) for n, t in pieces + tail]
 
 
 def system_prompt(*args, **kwargs) -> list[dict]:

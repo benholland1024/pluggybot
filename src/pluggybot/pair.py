@@ -145,7 +145,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   # Which constitution each robot reads (issue #263): named here, else
   # each robot's own environment variable, else the library's default.
   charters = tuple(constitutions.resolve(
-    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i])
+    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i], body=cfg["body"])
     for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:

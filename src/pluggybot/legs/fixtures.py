@@ -33,8 +33,9 @@ from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
 from pluggybot.telemetry.protocol import DRIFT_FIXTURES
 from pluggybot.tick import Routine
 
-#: The two commissioned fixtures, by the name a record carries.
-FIXTURES = DRIFT_FIXTURES
+#: The two commissioned fixtures, by the name a record carries (the wire's
+#: also names the humanoid's station, #559).
+FIXTURES = tuple(f for f in DRIFT_FIXTURES if f in ("dock", "rack"))
 #: A look is a fix only where it was MEASURED to be one
 #: (`scripts/drift_spike.py --looks`): within `NEAR_FIX_M` off
 #: `NEAR_FIX_TAGS` -- lined up at a bay, its own pair -- within 0.3 cm and

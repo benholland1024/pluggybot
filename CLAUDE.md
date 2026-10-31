@@ -274,7 +274,7 @@ save a filmstrip PNG named after the script.
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345; `--world home_humanoid` the humanoid's, #559), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
 | `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B`, `--world home_humanoid` the humanoid pair, one resting standing (#559) |
 | `scripts/dock_pair_spike.py` | #455's closing reading: the pair at the dock and the rack on true-floor maps, the camera on, one process a scene: `overlap` (both lying on the dock's standoff, one walks off; `--live SAVE --jam T,...` on each robot's own saved map at afb473a's jams), `double` (one charging, the other comes to charge; `bump` with nobody holding the seat), `wait` (one resting on the standoff; `lane` across the way in), `backout` (one backs off the dock onto one resting), `swap` (one resting by the claw's bay, the other fetches; `rack` across it, nobody waiting or asking); every scene says how deep the bodies went into each other and each blind walk's `headway` as its own check saw it; `--no-contact` the pair passing through each other, `--blind` the walks in and back out not stopping when they get nowhere |
-| `scripts/station_spike.py` | the humanoid's charging station (#559 stage 2; SimNotes "The humanoid's charging station"): `--approach [--n N] [--parallel P]` docked and unplugged or why not from seeded starts round the standoff, one process a trial; `--hold [--seconds S]` plugged in: the charger's watts against what it draws; `--fall` shoved over plugged in: the breakaway, the plug home, the robot up; `--walk-in [--explore 120,240]` explored, walked out to 8 places across the house on its own map, then the loop's own `go_charge`; `--view [plug\|fall]` in the viewer, looped (MUJOCO_GL unset); filmstrip `station_spike.png` |
+| `scripts/station_spike.py` | the humanoid's charging station (#559 stage 2; SimNotes "The humanoid's charging station"): `--approach [--n N] [--parallel P]` docked and unplugged or why not from seeded starts round the standoff, one process a trial; `--seats` started at 140 seats over what the seat check accepts: plugged in and unplugged or why not; `--lost [--n N]` a fresh robot 2 m out, its belief set 0.4-1 m wrong: the loop's charge path, its lost search and the fix; `--hold [--seconds S]` plugged in: the charger's watts against what it draws; `--fall` shoved over plugged in: the breakaway, the plug home, the robot up; `--walk-in [--explore 120,240]` explored, walked out to 8 places across the house on its own map, then the loop's own `go_charge`; `--view [plug\|fall]` in the viewer, looped (MUJOCO_GL unset); filmstrip `station_spike.png` |
 | `scripts/press_spike.py` | #439: the pair in the lab on true-floor maps, the camera on, one robot lying where a scene puts it (by default where its own press backs out, 0.25 m short of the feed plate's standoff) and the other finding and pressing the feed plate, one process a scene: how the press ended and its tries, the walk's and the way in's time, the steps aside, every plate the feet came down on; `--drift-walker`/`--drift` lay one map off as Luca's was |
 | `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. `--feature tower\|bench` flies a challenge (#407): offered with its area's terms, claimed, the hand-written solution run as the robot's procedure (`challenge/solutions.py`), graded by its own predicate |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
@@ -477,10 +477,9 @@ save a filmstrip PNG named after the script.
   the walker takes its legs, and ended by a routine that takes them; its
   front stop backs it off within the step, never ends it (ended, 3 doors of
   6 never began). Without it two humanoids jammed a door for 500 s of a
-  minded day. ⚠ The death
-  seam calls a body down at `TOPPLE_TILT_RAD` (60 deg) of pelvis tilt and a
-  reach's deepest bow is 63 deg: nothing bows in the served world until the
-  hands come in (stage 3).
+  minded day. ⚠ THE DEATH SEAM READS A TOPPLE OFF THE POSTURE THE LEGS
+  HOLD (`Body.held_pitch`, stage 3): a reach's deepest bow is 63 deg of
+  pelvis tilt, past `TOPPLE_TILT_RAD`'s 60.
 - **The humanoid charges by a cable it plugs into itself** (#559 stage 2;
   `activity/station.py`, `humanoid/charge.py`, `tests/test_station.py`;
   SimNotes, "The humanoid's charging station"): a station on the living
@@ -499,10 +498,39 @@ save a filmstrip PNG named after the script.
   port off its model of itself): the open jaws slid along the plug's axis,
   never in from its side; pushed to the body and LET GO; a miss fetched
   again from the cup a step aside; the seat never more than 3 cm nearer the
-  station (the walker barely backs up: an undock turns away). Measured:
-  11 of 15 docked from round the standoff, every one unplugged; 10 of 16
-  from across the house, its fetch failing at the seat check's edges
-  (SimNotes); 345 W net; the reserve 17.5 Wh.
+  station (the walker barely backs up: an undock turns away). ⚠ THE PLUG-IN
+  TAKES THE SEAT AS THE WALKER LEAVES IT (`charge.GRIPS`, stage 3): the
+  fingers swung 20 deg toward the plug's back, the grip 1 cm further back
+  (straight across, the standing arm reached the parked plug only from 3 cm
+  behind the seat), straight across where that hand's way in is barred; the
+  port read once the hand holds the plug. ⚠ A SQUEEZE ON A PLUG A CATCH
+  HOLDS BEGINS AT 5 N: shut at once, the first pad pushed a seated plug off
+  its catch. ⚠ LOST, IT STEPS IN BY ITS LIDAR, NEVER ITS BELIEF
+  (`HumanoidBody.lost_routine`): to the wall 0.8 m ahead, looks round, steps
+  along the wall; a look that fits the station is a fix (`_fix_at`, the
+  anchor's too). ⚠ A SQUEEZE HOLDS THE PLUG ONLY AT THE JACK'S WIDTH
+  (`PLUG_GAP_TOL_M`): wider is the station's boss, and the hand draws back
+  along the plug and grips again. ⚠ THE UNPLUG LETS GO AT THE CUP'S MOUTH
+  (`CUP_SHORT_M`): carried to the seat, the plug was driven into the boss
+  and the robot fell. Measured: plugged in from 140 of 140 seats over the
+  seat check (110 before), unplugged 140 of them; 15 of 15 docked and
+  unplugged from round the standoff; 15 of 16 docked from across the house
+  (10 before); 16 of 16 with their belief set 0.4-1 m wrong (SimNotes);
+  345 W net; the reserve 17.5 Wh.
+- **A humanoid is told its own body and world** (#559 stage 3;
+  `overseer.BODY_SWAPS`, `for_body`, `Menu.kinds`, `hands_procedure_rule`,
+  `steps.served_hand_facts`, `constitution.for_body`;
+  `tests/test_humanoid_words.py`; Overseer.md §8): ⚠ THE QUADRUPED'S TEXT IS
+  THE TEXT -- the rules, the reward table's rows and the constitutions are
+  what the served pair reads, byte for byte, and a humanoid's are them
+  swapped at load, as the quadruped's were swapped into the rover's before
+  #427, until the quadruped goes (stage 5); ⚠ a swap whose sentence moved
+  fails the test, which reads every humanoid prompt for the quadruped's
+  words. Its reward table is its world's rows (the charge's, a procedure's,
+  a ticket's and its jobs'), `rate` only where there are boards; its
+  procedures are its practice's hands, every switch on, its walks over its
+  map (`drive_to`, `face`), no bumper, and its rule carries the practice's
+  language and body byte for byte (less "Both grippers start shut").
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -974,7 +1002,9 @@ save a filmstrip PNG named after the script.
   is what the served quadruped reads, byte for byte — the fixture recording
   carries it (`tests/test_telemetry.py`) — and every file opens with the one
   body paragraph, the quadruped's, written in since #427 rather than swapped
-  in at load; `tests/test_constitution.py` reads EVERY library file (no number, `%` or
+  in at load -- a humanoid reads its own swapped in at load
+  (`constitution.for_body`, #559) until the quadruped goes;
+  `tests/test_constitution.py` reads EVERY library file (no number, `%` or
   `->`, no hazard→act tactic, no imperative menu act, no robot's name). Every
   row is in `mind/text.py`; `text.admit` is the ONE gate every document write
   passes; a refusal is narrated AND written to History, the reason before

@@ -2345,7 +2345,17 @@ has no goals to spend free time on.
   quadruped's (the dock, walking, lying down), and the menu carries no tool
   errand (`Menu.tools`, off by default). Until #427 they were the rover's,
   swapped into the quadruped's at load; the swapped text is now the text,
-  byte for byte, so the served prompt did not move.
+  byte for byte, so the served prompt did not move. A humanoid (#559, stage
+  3) reads them swapped into its own words at load the same way --
+  `overseer.BODY_SWAPS` on every section `system_sections` builds, and
+  `constitution.for_body` on its constitution: its charging station for the
+  dock, no tool to hang back, no question to write on a board, a job's
+  interrupt that stops rather than stows -- until the quadruped goes and the
+  text is rewritten in the humanoid's (stage 5). Its reward table is its
+  world's rows (`Menu.kinds`: the charge's, a procedure's, a ticket's and
+  its jobs'), and its procedures are its hands as its practice states them
+  (`hands_procedure_rule`, `steps.served_hand_facts`: every practice switch
+  on, its walks over its map, no bumper).
 
 ## 9. Running it
 

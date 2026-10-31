@@ -854,6 +854,12 @@ class Body(abc.ABC):
   #: rights itself, its get-up's MEASURED budget; one that cannot,
   #: `TOPPLE_HOLD_S`.
   stuck_after_s: float
+  #: The trunk's pitch forward that the posture its legs hold puts it at,
+  #: rad: what a topple is read past (`TOPPLE_TILT_RAD`, the death seam's).
+  #: 0 for a body that stands only upright; the humanoid's bow
+  #: (`Reach.held_pitch`), whose deepest, 63 deg, is past the seam's 60
+  #: (#559).
+  held_pitch: float
 
   @abc.abstractmethod
   def rest_routine(self) -> Routine:
@@ -957,6 +963,7 @@ class StubBody(Body):
   rights_itself = False
   falls = 0
   stuck_after_s = 2.0
+  held_pitch = 0.0
   head_camera = None
 
   @staticmethod

@@ -83,7 +83,8 @@ _MODULE = re.compile(r"\b(module_[a-z0-9_]+)\s+is\s+(on the rack|on its bay|hung
                      r"missing|gone|off the rack|not on the rack)\b")
 _BOARD = re.compile(r"\b(whiteboard_[a-z0-9_]+)\s+is\s+(blank|empty|clean|"
                     r"drawn on|full|used|not blank)\b")
-_CHARGE = re.compile(r"\bthe charge bay is\s+(free|empty|clear|taken|occupied|busy|in use)\b")
+_CHARGE = re.compile(r"\bthe (?:charge bay|charging station) is\s+"
+                     r"(free|empty|clear|taken|occupied|busy|in use)\b")
 
 _EMPTY = {"empty", "free", "clear", "blank", "clean"}
 
@@ -100,6 +101,7 @@ def check_claim(text: str, rack: dict | None = None, boards=None,
     "module_pen is on the rack" -- `rack` again: hung on some bay
     "whiteboard_b is drawn on"  -- `boards` (a BoardBook): strokes on it
     "the charge bay is free"    -- `charging`: is any robot charging now
+                                   (or "the charging station", a humanoid's)
   Anything else is a message, not a claim; None here is "unchecked", which
   the record keeps apart from false. The honesty rule pointed the other
   way: the wire may carry what a network could carry, and a robot saying

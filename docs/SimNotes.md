@@ -6448,9 +6448,9 @@ reported pose the other robot is kept clear of.
 
 **What is not yet.** `look` asks the site for a picture from the head's
 camera (`nav_eye`, 1.3 m up, facing where it faces), and the site draws the
-pair in stage 4. The death seam calls a robot down at 60 deg of its
-pelvis's tilt (`TOPPLE_TILT_RAD`), and a reach's deepest bow is 63 deg:
-nothing bows in the served world until the hands come in (stage 3).
+pair in stage 4. (The death seam reads a topple off the posture the legs
+hold, `Body.held_pitch`, since stage 3: a reach's deepest bow is 63 deg of
+pelvis tilt, past `TOPPLE_TILT_RAD`'s 60.)
 
 
 ## The humanoid's charging station (issue #559, stage 2)
@@ -6508,12 +6508,36 @@ across it). What flying took, each at its constant:
   came free).
 
 **The plug-in.** The hand takes the plug's line 10 cm short of the parked
-plug's grip -- fingers to the robot's left, jaws upright -- slides its open
-jaws over the plug along its axis (in from its side, the arm's swing read
-35-49 N it was not feeling and stopped short), grips it 40 mm behind its
-face (at the jack's middle the gripper's housing met the belly with the plug
-17 mm off its port), draws it out against the balancer, turns it to the port
-and pushes it to the body with 10 N, and LETS GO in the funnel. Pushed to
+plug's grip -- jaws upright, the fingers across it to the robot's left and
+swung 20 deg toward the plug's back about the jaws' line, which keeps the
+pads pinching it from above and below -- slides its open jaws over the plug
+along its axis (in from its side, the arm's swing read 35-49 N it was not
+feeling and stopped short), grips it 50 mm behind its face, draws it out
+against the balancer, turns it to the port as the body then stands (a
+posture taken to reach moves the port) and pushes it to the body with 10
+N, and LETS GO in the funnel. Straight across, the parked plug was in the
+standing arm's reach only from up to 3 cm behind the seat (the wrist bent
+past 90 deg), and past that the hand ended held back or out of reach of it;
+swung, from 7 cm (the robot's model of itself, every seat of the check). The
+swung grip is 45 mm behind the face: at the jack's back end, 40, the
+gripper's housing met the belly with the plug 21 mm off the port, past the
+catch's 15, and at 50 the pads' far edge came 4 mm off the station's boss.
+Where the swung hand's way in -- along the fingers -- presses on the trunk
+(3 cm in and 4-6 cm to the right of the seat), the hand fetches straight
+across at the jack's back end (`charge.GRIPS`). Every squeeze on a plug a
+catch holds begins at the gripper's least, 5 N, until both pads are on it:
+shut at once, the first pad to meet a seated plug pushed it across the port
+past the connector's 20 N and it broke away. And a squeeze holds the plug
+only where the jaws stop at the jack's 24.5 mm (the gripper's encoder reads
+it to a millimetre): the station's fit is 1-2 cm off along the plug (its
+tags' range off the colour camera), and walked in from across the house
+with the grip at 50 mm, 12 first pushes in 15 were made with a hand shut on
+the boss, 40 mm across -- held, and pushing nothing. Shut wider than the
+jack, the hand opens, draws back 2.5 cm along the plug and shuts again. A
+look at the seat that sees no pair is taken again bowed 0.2 rad: nearer the
+station than its seat the tags are under the colour camera's view, and on
+the fit from before its last step, the step's odometry put the hand on the
+boss from both grips. Pushed to
 the body, plugs landed 12-33 mm across the port and 7-10 mm low: the hand
 knows where it holds one to 1-2 cm (its encoders and backlash, and the plug
 free along the Dex1-1's 80 mm pads), so the funnel round the port is 70 mm
@@ -6529,34 +6553,50 @@ seat as it sees it, 0.35 m off; within 6 cm and 6 deg, but never more than
 barely backs up -- 4 cm in 3 s asked 0.25 m/s -- so an undock turns away.
 
 **The unplug.** The open jaws slide along the seated plug from 3 cm behind
-its back, grip it at 80 N (at 40 it slipped out), pull it straight off past
-the connector's 20 N, carry it to the cup's mouth and let go there.
+its back, squeeze it at 5 N and then 80 (at 40 it slipped out; shut at 80
+at once, 46 unplugs in 110 could not grip it, 45 of them having knocked it
+off its catch), pull it straight off past the connector's 20 N, carry it to the cup's
+mouth and let go there. One that fails still ends unplugged: the robot turns
+away, the rope's stop pulls the plug off at 20 N and the balancer takes it
+home.
+
+![Lost and found by its station: a humanoid 2 m out, its belief set 0.7 m
+nearer the wall than it is, walks to where it believes the standoff is
+(1.45 m off the station's face, the tags above its colour camera), sees
+nothing, steps in by its LIDAR, finds the tags, puts its belief right off
+them, and walks in again and plugs itself in, a tile every 4 s
+(`station_spike.py --strip lost`)](figures/humanoid_station_lost.png)
+
+**Lost.** No tags in sight from the standoff the belief walked it to, the
+robot is lost (#476's rule), and the station, commissioned as the dock is,
+puts it right: facing where it believes the station is, it steps in until
+its LIDAR reads the wall 0.8 m ahead -- never by its belief, which is what
+is wrong; from viewpoints set on a belief 0.7 m off toward the wall, every
+look was further from the station than 1.07 m -- and looks ahead, 34 and 63
+deg either side (the camera sees 34.5 either side of its axis), turning to
+a lone tag of the two where it sees one, then from a step 0.5 m along the
+wall each way. A look that fits the station is a FIX (`HumanoidBody._fix_at`,
+the same as `anchor_at_dock`'s): the belief moved, and past the matcher's own
+search the map laid on the old one dropped, and the loop's walk to the
+standoff goes again on it.
 
 **Measured** (`scripts/station_spike.py`, the house, one humanoid):
 
 | | |
 |---|---|
-| `--approach`: 15 starts round the standoff (head on, 0.2 m and 20 deg off each way, 12 drawn within 0.2 m along, 0.25 m across, 25 deg) | docked 11 of 15 in 17-23 s, each unplugged and the plug parked in 21-23 s; no falls |
-| ...the four misses | twice four pushes never taken, from 0.2-0.24 m to its left at 20 deg; twice the hand closed on nothing on its second try |
-| ...started at the seat itself (`--hold`'s and `--fall`'s start) | a turn step left it 1.8 cm in and 1.2 cm left; three pushes went their 3 cm untaken, and the fourth, 24 mm aside, was taken: 73 s, where from the standoff one push took 19.6 s. So `--view fall` starts at the standoff |
+| `--seats`: 140 seats over what the seat check accepts (3 cm in to 6 cm back, 6 cm across either way, 6 deg either way), each started there | plugged in 140 of 140 (the swung grip 133, straight across 7), most on the first push; unplugged and the plug home 140 of 140; no falls (5 after the plug was off, before the unplug let go at the cup's mouth). Straight across at the jack's back end, the same seats plugged in 110 and unplugged 64 |
+| `--approach`: 15 starts round the standoff (head on, 0.2 m and 20 deg off each way, 12 drawn within 0.2 m along, 0.25 m across, 25 deg) | docked 15 of 15 in 18-41 s, each unplugged and the plug parked; no falls (11 of 15 before) |
 | `--hold`: plugged in for 60 s | held all of it; 432 W in, 86.9 W drawn standing: 345.1 W net |
 | `--fall`: shoved over backward plugged in | the plug broke away and was home in 2.0 s; the robot up again |
 | the loop's own walk and plug-in (`energy_spike.py`) | 345.2 W net into the pack (energy.json) |
 | the reserve (`energy_spike.py --reserve`) | 13.72 Wh over 44.62 m to the garden doorway, 307.6 mWh/m; carried 17.5 Wh |
-| `--walk-in`: a fresh humanoid explores 120 or 240 s, walks on its own map to each of 8 places across the house (the bedroom, hall, kitchen, workshop, garden and south garden; the lobby and lab across the street), and the loop's own `go_charge` takes it to the station | **docked 10 of 16**, each in 44-85 s; its belief 0.04-0.51 m off where it walked to (1.07 m at the lobby after 120 s), 0.01-0.19 m once docked; no falls |
-| ...the six that did not | three hands held back short of the parked plug, touching nothing, and one closed on nothing, each from a seat at the check's edge: 4.6 cm back, 5.5 cm across, 4.6 deg, and 2.8 cm back and across with 1.5 deg, where every docked seat was within 2.1 cm back, 4.8 cm across and 2.9 deg. The reach's posture chosen for the carry too (`reach_routine(path=)`) got two of those hands round the plug, whose pushes then missed: 10 of 16 either way. One robot pushed four times untaken from a good seat (where the plug sits in the jaws). One came back from the lobby 0.39 m off its standoff, where the tags are above the colour camera (past 1.07 m), and looking round where it stood never found them |
+| `--walk-in`: a fresh humanoid explores 120 or 240 s, walks on its own map to each of 8 places across the house (the bedroom, hall, kitchen, workshop, garden and south garden; the lobby and lab across the street), and the loop's own `go_charge` takes it to the station | **docked 15 of 16**, each in 46-131 s, 10 on the first push; its belief 0.04-0.51 m off where it walked to (1.07 m at the lobby after 120 s, which docked on its third push), 0.01-0.42 m once docked, before the charge's own fix; no falls (10 of 16 before) |
+| `--lost`: a fresh humanoid 2 m out facing the station, its belief set 0.7 m wrong each way and 12 drawn 0.4-1 m off and up to 5 deg turned, the loop's own `go_charge` | **docked 16 of 16**: the 14 that saw no station searched and found it in 4-62 s, their fix putting the belief within 0.11 m; the two whose walks ended near enough docked as they were, their fix the charge's own |
 
-**What is not yet.** The walk-in's six: the seat check accepts 6 cm and 6
-deg where the fetch works within about 2 cm and 3, and a small step lands
-5-10 cm off (asked 3 cm on, one robot ended 8 cm in), so it is the plug-in
-that has to take a seat as the walker leaves it; where the plug sits in the
-jaws still misses pushes; and a robot lost past 1.07 m of the station only
-looks round where it stands (`lost_routine`; the quadruped's walks its map
-outward). The reserve's own dock leg gave up on the explore's map and is
-carried by rate; the fix at the station (`anchor_at_dock`) is the dock's
-arithmetic, not yet flown in a day; one station a world. The overseer's
-`charge` still says "walk to your dock and lie down on it" (stage 3's
-prompt).
+**What is not yet.** One walk-in in 16 pushed four times and the port took
+none: where the plug sits in the jaws still misses pushes now and then. The
+reserve's own dock leg gave up on the explore's map and is carried by rate;
+one station a world.
 
 ## Debugging workflow that worked
 

@@ -1507,6 +1507,8 @@ class QuadBody(Body):
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True
+  #: Its torso is held level, standing and lying alike.
+  held_pitch = 0.0
   falls = property(lambda self: self.mission.falls)
   rack_discovered = False
 

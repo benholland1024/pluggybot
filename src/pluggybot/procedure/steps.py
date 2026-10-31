@@ -1726,6 +1726,26 @@ def hand_facts(measure: bool = True, step: bool = True, guarded: bool = True,
                     hands=axes.HANDS, verb_tests=True, math=True, guarded=guarded)
 
 
+#: What a SERVED humanoid walks with beside its hands (#559, stage 3): a
+#: walk to a point over its map and a turn where it stands -- the walk
+#: takes its arms home first (`HumanoidMission.to_walk_routine`).
+SERVED_WALK_VERBS = ("drive_to", "face")
+
+
+def served_hand_facts(boards: tuple = (), bounds=(-1e3, -1e3, 1e3, 1e3)) -> "WorldFacts":
+  """What a procedure a served humanoid writes is validated against (#559,
+  stage 3): the practice's hands, every one of its switches on and their
+  sensors (`hand_facts`), and its walks over its map (`SERVED_WALK_VERBS`),
+  its pack, its wallet -- no bumper: its LIDAR's front stop is no part a
+  procedure reads."""
+  from dataclasses import replace
+  from pluggybot.procedure import axes
+  hands = hand_facts()
+  body = tuple(s for s in axes.BODY_SENSORS if s != "bumper" and s not in hands.sensors)
+  return replace(hands, boards=tuple(boards), bounds=tuple(float(v) for v in bounds),
+                 verbs=SERVED_WALK_VERBS + hands.verbs, sensors=body + hands.sensors)
+
+
 # ---- the game's verbs (issue #404) ------------------------------------------------
 
 #: How long a role stands by at a time while its game goes on, s.
