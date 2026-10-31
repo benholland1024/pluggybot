@@ -174,7 +174,7 @@ RS05 = Motor(
 #: under its 20.9 rad/s no-load speed (the RS03's at 20, under its 20.4):
 #: a joint turning faster reads the field's last count. The current
 #: sense's noise is unpublished: the quadruped's stated 25 mA RMS
-#: (`perception.encoders.CURRENT_NOISE_A`).
+#: (`perception.encoders.CURRENT_NOISE_A` at `quadruped-final`).
 FIELDS = {
   RS04.name: Fields(16, 12.57, 12, 15.0, 12, 120.0, 0.025),
   RS03.name: Fields(16, 12.57, 12, 20.0, 12, 60.0, 0.025),

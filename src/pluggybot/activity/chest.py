@@ -28,7 +28,7 @@ from pluggybot.activity.base import Activity, Threshold
 from pluggybot.home.props import BLOCK_HALF
 from pluggybot.perception.tags import CHEST_TAG_IDS
 
-# ---- the geometry (#469's; `scripts/mechanism_spike.py` imports it) --------------
+# ---- the geometry (#469's) ---------------------------------------------------
 
 #: The chest: a toy chest's size, its walls and lid 12 mm board.
 BOX_D, BOX_W, BOX_H = 0.22, 0.30, 0.14

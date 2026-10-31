@@ -1013,11 +1013,9 @@ UNSHOWN_PAPERWORK = ("buy_heart", "heart_for", "give_points", "rate",
 #: `define` in every filled answer) -- but an `undefine` beside a define
 #: left out waits, as beside one the library refuses (#264); ids only an id matches
 #: (`respond_to`, `cites`); a visitor's `reply` and its `outcome`, which
-#: ride an id only a waiting message has (and "5" answers a sum); the lab's
-#: two, beside the action.
+#: ride an id only a waiting message has (and "5" answers a sum).
 PLACEHOLDER_KEPT = ("standing_order", "event_map", "escalate", "undefine",
-                    "respond_to", "cites", "reply", "outcome", "real",
-                    "mouse_will")
+                    "respond_to", "cites", "reply", "outcome")
 #: How many of the placeholders, as written, the record quotes back.
 WORDS_SHOWN = 3
 #: What a left-out field goes back to: its default on `Decision`.
@@ -1104,8 +1102,9 @@ class Menu:
   #: world: it does not change between calls, so it belongs in the cached
   #: prefix. What DOES change -- which of them the pack can pay for right
   #: now, and which this world could ever do -- is the state's
-  #: `affordableActions` / `possibleActions`, for code (`order_runnable`),
-  #: and never shown: comparing the costs is the robot's (`model_state`).
+  #: `affordableActions` / `possibleActions` (every action since no action
+  #: builds an errand, #559), never shown: comparing the costs is the
+  #: robot's (`model_state`).
   costs_wh: dict = field(default_factory=dict)
   #: THE POWERS A MIND HAS (issue #427: every one of them was the
   #: `autonomous` arm's, keyed on a flag `build()` set on that arm alone, and
@@ -1198,8 +1197,7 @@ class Menu:
       "event_map": event_map,
       "procedures": self.procedures,
       "acts": bool(others),
-      # ...a drawing judged where there are boards to draw on (#559: a
-      # humanoid's house has none)
+      # ...a drawing judged where there are boards to draw on
       "rate": bool(others) and bool(self.boards),
       "wiki": self.wiki,
       "tickets": self.tickets,
@@ -1394,11 +1392,9 @@ class Menu:
         # affordable against a 90 s deadline and 7.5 s calls (issue #117).
         # `None` -- a caller with no ids to hand -- keeps the free string.
         "task": (enum(task_ids) if task_ids else {"type": "string"}),
-        # ...and the answer to a job that asks a question (issue #22). Free
-        # text on the wire and NOT free text by the time it is drawn: the
-        # schema cannot express "at most two digits", so the constraint is
-        # `questions.clean_answer` in `validate`, where every other piece of
-        # untrusted input in this file is dealt with.
+        # ⚠ A VESTIGE: the answer to a whiteboard question (issue #22),
+        # whose jobs went with the quadruped (#559). Still required, never
+        # read: `Decision.answer` stays "".
         "answer": {"type": "string"},
         # The thought files (issues #38, #221). Free strings, capped in
         # `validate` -- the schema cannot express "one line, 400
@@ -2768,8 +2764,7 @@ you wrote it, the offer is not shown to you again, and it lapses on its own.
 
 
 def acts_rule(rate: bool = True) -> str:
-  """ACTS_RULE for this world: with `rate` where it has boards to draw on
-  (#559: a humanoid's house has none)."""
+  """ACTS_RULE for this world: with `rate` where it has boards to draw on."""
   if rate:
     return ACTS_RULE
   cuts = (("Six paperwork fields", "Five paperwork fields"),
@@ -3225,11 +3220,10 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
                 # battery smaller than one errand.
                 "spendableWh": round(life.spendable_wh, 4),
                 "charging": bool(life.charging_now)},
-    # Which errands the pack can pay for RIGHT NOW, and which it could pay
-    # for after a charge -- FOR CODE, and never shown (`model_state`): "can I
-    # afford this" is the arithmetic the mind is flown to do itself (issue
-    # #115). `order_runnable` reads `possibleActions`: what no charge in this
-    # world would cover is an order with nothing to act on.
+    # Which actions the pack can pay for RIGHT NOW, and which it could pay
+    # for after a charge -- every one since none builds an errand (#559) --
+    # never shown (`model_state`): "can I afford this" is the arithmetic the
+    # mind is flown to do itself (issue #115).
     # HOW LONG IT HAS BEEN ALIVE (issue #107). Shown because a metric the
     # robot cannot see is not one it can optimise; movable by nothing on a
     # decision. `deaths` is the day's count so far.
@@ -5127,7 +5121,7 @@ def build(world: str, book=None, enabled: bool | None = None,
     return None
   from pluggybot.lifecycle import world_config, world_facts
   if thoughts is None:
-    thoughts = ThoughtFiles.open(body=world_config(world)["body"])
+    thoughts = ThoughtFiles.open()
   model = model or os.environ.get(MODEL_ENV, "").strip()
   backend = llm.resolve_backend(
     backend or os.environ.get(BACKEND_ENV, "").strip() or "auto", model)

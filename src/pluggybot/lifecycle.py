@@ -12,6 +12,10 @@ to the dock, charge, resume -- with an errand queue and a mind:
                               v
                     SWAP_PICK -> (use the tool) -> SWAP_RETURN -> DONE
 
+(The swap states are the quadruped's: a procedure still passes through
+SWAP_PICK and USE_TOOL, which the served frames carry, and SWAP_RETURN is
+never entered since #559 deleted it.)
+
 Two things were measured once and hold for any body: the pack drains
 against the body's real actuator effort (`Body.pack`), and charging is
 confirmed by an ELECTRICAL criterion rather than by position -- the
@@ -242,9 +246,9 @@ NO_CHARGER = "there is nowhere for me to charge here"
 #: less, so nothing about an existing mission moves.
 CHARGE_TIMEOUT = 400.0
 #: ...and the floor under that scaling, so a tiny pack still gets long enough
-#: to seat the pins and be believed.
+#: to plug in and be believed.
 CHARGE_TIMEOUT_MIN = 400.0
-#: How much longer than the arithmetic says: the press is not perfectly
+#: How much longer than the arithmetic says: charging is not perfectly
 #: efficient, contact can drop and be re-made, and a cycle that times out one
 #: second short of full is a charge that did not happen.
 CHARGE_TIMEOUT_SLACK = 1.4
@@ -265,7 +269,6 @@ DRIFT_EVERY_S = 300.0
 #: What each commissioned fixture is called where the robot reads of it.
 FIXTURE_WORDS = {"dock": "the dock's board", "rack": "the rack",
                  "station": "my charging station"}
-SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
 #: loop gets to reconsider (issue #15). Bounded on purpose: without it one
@@ -2245,14 +2248,10 @@ class HubLifecycle:
     A fixed 400 s was right for a 0.7 Wh demo cell and quietly wrong for the
     deployed 8 Wh one: at the measured rate it takes ~1340 s to refill, so
     every cycle hit the cap partway up and reported itself complete. The
-    timeout is meant to catch a robot pressing on pins that are not
-    conducting, which is a fault; it should never be what ends a charge that
-    is working.
-
-    ⚠ The rate it is sized against is the SLOWEST press measured, not the
-    best one -- 19.4 W against 39.6 W on a different approach -- because the
-    spread is geometry: how squarely the bumper meets the pins decides how
-    hard the wheels stall against them. See economy/energy.json.
+    timeout is meant to catch a charger that is not conducting, which is a
+    fault; it should never be what ends a charge that is working. The rate
+    it is sized against is the world's measured one (economy/energy.json's
+    `chargeW`).
     """
     rate = self.energy.charge_w
     if rate <= 0.0:
@@ -2836,7 +2835,7 @@ class HubLifecycle:
                 f"{msg.quality:.0%} -- {entry['points']:+d} points, "
                 f"balance {entry['balance']}")
 
-  # ---- a tool on the floor (issue #347) -------------------------------------
+  # ---- the places it finds (issue #419) -------------------------------------
 
   def _places_step(self) -> None:
     """A place found for the FIRST time goes in History (issue #419): what
@@ -5482,8 +5481,7 @@ class HubLifecycle:
             if errand.task_id and self.tasks is not None else None)
     kind = KINDS.get(task.kind) if task is not None else None
     job = (self.tasks.abandon(task.id, DEATH_ENDED, t=t)
-           if kind is not None and kind.discharge == "errand" and not task.roles
-           else None)
+           if kind is not None and kind.discharge == "errand" else None)
     if errand.program is not None:
       # ...and a run that said `validated` says how it ended; its count died
       # with the runner, so it carries none rather than a wrong one
@@ -6316,8 +6314,7 @@ def shown_offers(life) -> list[dict]:
   what it pays, and whether it can be taken RIGHT NOW. The claimability
   flag is computed here rather than left to the model, because "can I
   afford this" is arithmetic with a right answer (issue #21). Never an
-  offer done TO this robot, nor one it declined (issue #228), nor a game
-  it holds a role in (issue #404).
+  offer done TO this robot, nor one it declined (issue #228).
 
   ⚠ FILTERED ON `claim_budget_wh`, THE OFFER RAIL, NOT ON `spendable_wh`:
   where there is a mind the rail is off and the rules say an offer it

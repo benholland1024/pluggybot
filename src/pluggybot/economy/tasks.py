@@ -923,10 +923,12 @@ class TaskBoard:
     for spec in doc.get("tasks", ()):
       try:
         task = Task.from_json(spec)
+        KINDS[task.kind]                  # `from_json` reads an unknown kind; a save would not
       except (KeyError, ValueError):
-        # A task written by a build that knew a kind this one does not.
-        # Skipped rather than fatal: the file is world state shared across an
-        # upgrade, and one unreadable row must not cost the whole board.
+        # A task written by a build that knew a kind this one does not (the
+        # quadrupeds' jobs, #559). Skipped rather than fatal: the file is
+        # world state shared across an upgrade, and one unreadable row must
+        # not cost the whole board.
         self.dropped += 1
         continue
       # ...priced HERE, as `offer` priced it -- never off the file, and never

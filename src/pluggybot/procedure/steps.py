@@ -6,45 +6,36 @@ steps, each a verb off a closed list with typed, bounded arguments. It is
 validated whole before a single step runs, and then ticked from the physics
 loop like every other routine (pluggybot/tick.py), one verdict per step.
 What makes it safe for an agent to write is what it cannot say: every verb
-is an existing primitive with the ramping, the coupling envelope and the
+is an existing primitive with the ramping, the reach's stops and the
 noslip policy INSIDE it, and nothing here touches `data.ctrl` (the fence in
 tests/test_procedure.py enumerates the modules that may).
 
-The verbs, in the words the issue used:
+The verbs: the walks and a look, and the hands' (`HANDS_VERBS`, #525;
+docs/Hands.md has each one's meaning, report and failure):
 
-  fetch(tool)          pick a module off its bay        `Body.fetch_tool_routine`
-  stow()               hang the carried module back     `Body.stow_tool_routine`
   drive_to(x, y)       walk to a world point            `Body.go_to_routine`
   face(heading)        turn in place                    `Body.face_routine`
   find(tag, x, y)      a task area found by its tag     `Body.find_tag_routine`
-  press(tag)           onto the plate its sign marks    `Body.press_plate_routine`
-  draw(board, figure)  a figure on a found whiteboard   `Body.draw_routine`
-  pick(tag)            a cube into the claw             `Body.pick_cube_routine`
-  place(tag)           the held cube onto another       `Body.place_cube_routine`
-  put()                the held cube onto the floor     `Body.put_cube_routine`
-  grip() / release()   the claw's jaws shut / open      `Body.claw_routine`
-  survey(tag)          count what stands in an area     `Body.survey_routine`
   wait(seconds)        stand still
   move(axis, target)   one axis to a setpoint           `procedure/axes.py`
-  drive(v, w, seconds) the base at a velocity           `Body.velocity_routine`
+  spot, measure, watch, reach, via, move_hand, pull, close_hand,
+  open_hand, withdraw, step     the hands and the feet  `Body`'s hand members
 
-...and a two-role game's, in its program alone (`GAME_VERBS`, issue #404):
-
-  hide()               the hider's role                 `Body.hide_routine`
-  seek()               the seeker's role                `Body.seek_routine`
+(The quadruped's -- its tools, the plates, the board, the claw, the survey
+and the game's roles -- went with it in #559.)
 
 Every verb reaches the body through `Body` (issue #380, `body.py`) and
 nothing else. Each returns a verdict dict with `ok`, measured off the world
-(the module seated and powered, the arrival, a foot on the plate), never
-off the command. The runner stops at the first failed step: later steps
+(the arrival, a grip its gripper reads, a hand at its goal), never off the
+command. The runner stops at the first failed step: later steps
 assume earlier ones. The result is honest about how far it got.
 
 Three rules the shape carries for the rungs above it:
 
   ROLES. A program is `{role: steps}` and today every program has one role,
-  `robot`. M12's two-role errand (a hider and a seeker, one verdict) is a
-  second key, not a rebuild -- so the slot validates any number of roles and
-  the runner refuses more than one, with the reason.
+  `robot`: a second key is a second robot's part, not a rebuild -- so the
+  slot validates any number of roles and the runner refuses more than one,
+  with the reason.
 
   BUDGETS ARE CAPPED BY CODE. A program declares its own sim-time budget and
   the vocabulary caps it (`MAX_BUDGET_S`) and the step count (`MAX_STEPS`);
@@ -52,10 +43,9 @@ Three rules the shape carries for the rungs above it:
   step boundaries, which are the safe points; a walk is a safe point at
   every step (issue #381), and asks `life.interrupted` as it goes (#116).
 
-  ABORT MEANS STOW. Whatever ends a program early -- a failed step, the
-  budget, an interrupt -- the errand around it hangs any carried module back
-  before the verdict. A program cannot leave a tool on the floor by
-  stopping.
+  ABORT ENDS IT WHERE IT IS. Whatever ends a program early -- a failed
+  step, the budget, an interrupt -- the verdict is taken of what it did,
+  as it stands.
 
 What a program may say is what a work order may say (TaskPattern.md §2): a
 tool by name, a surveyed place by coordinate, a board by id. A program that
@@ -83,7 +73,7 @@ MAX_WAIT_S = 60.0
 DRIVE_TIMEOUT_S = 60.0
 #: ...and the most it may name, s: a fresh robot's first walk to the loop's
 #: far west corner took 246 s, finding the house's walls on the way (44 m of
-#: route, 95 walked), and its second 117 s (`scripts/unknown_spike.py`).
+#: route, 95 walked), and its second 117 s (`scripts/unknown_spike.py` at `quadruped-final`).
 MAX_PATIENCE_S = 600.0
 
 

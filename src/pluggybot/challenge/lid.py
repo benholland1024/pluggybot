@@ -61,9 +61,8 @@ from pluggybot.contacts import contact_pairs
 OPEN_RAD = 1.0
 #: 2 and 3: under 5 deg the lid is shut -- its knob 24 mm over where it
 #: rests -- the activity's own hysteresis line (`chest.OPEN_OFF`). ⚠ This
-#: module imports nothing of the chest's: everything loads `scoring`, the
-#: probe included (`tests/test_probe.py`), and the chest's module holds
-#: its truth. Its parts are read by their names.
+#: module imports nothing of the chest's: everything loads `scoring`, and
+#: the chest's module holds its truth. Its parts are read by their names.
 SHUT_RAD = math.radians(5.0)
 #: 2: lowered is no faster than this while open, rad/s. MEASURED over the
 #: 128 drawn lids (`scripts/attempts.py --drops`): let go from rest 1 deg

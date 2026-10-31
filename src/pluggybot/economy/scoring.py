@@ -13,13 +13,11 @@ here, out of its reach.
 
 Three pieces, deliberately separated:
 
-  MEASURE (this module, `sample_*`). Read the finished task off the SIM: the
-  board book's stroke count, the battery, the occupancy grid, the model. Never
-  off the robot's own claim about itself. The errand's result dict is used only
-  for quantities the physics measured on the way through (the plotter's traced
-  form error), and the fact that matters -- did ink land on the board -- is
-  cross-checked against board state, which the pen writes and the errand
-  cannot.
+  MEASURE (this module, `sample_*`). Read the finished task off the SIM: a
+  prop's joint, the battery, the model. Never
+  off the robot's own claim about itself: the fact that matters -- did the
+  drawer come out -- is read off the drawer, which the robot's report cannot
+  move.
 
   JUDGE (this module, `EVALUATORS`). Per task: measurements in, `(ok, metrics,
   reason)` out. Pure, deterministic, unit-testable without a physics world, and
@@ -33,7 +31,8 @@ Three pieces, deliberately separated:
 Four tiers, from the design doc, carried on each task in the table:
 
   auto       the sim knows the answer outright -- ink, contact, joint state
-  hidden     the sim knows, the robot must DISCOVER it -- the census
+  hidden     the sim knows, the robot must DISCOVER it -- a prop's drawn
+             dynamics
   visitor    an aesthetic call, rated later over the inbound channel: the
              evaluator confirms the work happened and leaves the verdict
              PENDING for `Ledger.settle` (issue #16)
@@ -129,7 +128,7 @@ class TaskReward:
   bonus: int = 0
   curves: tuple[Curve, ...] = ()
   #: metrics that must never leave the evaluator -- see the module docstring
-  #: and rewards.json's note. The census's ground truth is the whole example.
+  #: and rewards.json's note: the chest's true catch (`catchN`), say.
   secret: tuple[str, ...] = ()
   detail: str = ""
   #: False for a CHALLENGE row (challenges.json, issue #120): scoreable by
@@ -330,9 +329,9 @@ class Verdict:
   def public_metrics(self) -> dict:
     """Everything a viewer, the site and the overseer may see.
 
-    The census's ground truth is not in here, and that is the point: the
-    ledger is streamed and shown as context, so publishing `truth` would hand
-    the robot the answer to the task it is supposed to go and discover.
+    A secret metric (the chest's true catch) is not in here, and that is the
+    point: the ledger is streamed and shown as context, so publishing it would
+    hand the robot what it is supposed to go and discover.
     """
     return {k: v for k, v in self.metrics.items() if k not in self.secret}
 

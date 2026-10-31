@@ -608,7 +608,8 @@ DRIFT_FIXTURES = ("dock", "rack", "station")
 #: probe's first row, `hz`, the moving `parts`, and `frames`: their poses
 #: tick by tick). `rounds`, `revisions` and `residualN` say how it was
 #: made. ⚠ THE ROBOT'S MODEL ONLY: no number of the world's rides it. A
-#: demo's (`scripts/imagine_chest.py --demo`), never the served world's.
+#: demo's (#466's imagination, at `quadruped-final` until #563 brings it
+#: back), never the served world's.
 IMAGINED_EVENT_TYPES = ("imagined",)
 
 #: The `crash` message: the PROCESS is exiting on an exception, and it says

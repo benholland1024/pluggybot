@@ -84,6 +84,10 @@ MAPS_DROPPED = "the map I had was laid askew, and it is gone"
 #: body in it (#559, `lifecycle.HOUSES`): the robot carries on in a new one,
 #: the clock, its pack, its deaths and its jobs with it.
 BODY_CHANGED = "I have a new body since then"
+#: The quadrupeds' served pack, Wh (12S1P Molicel P45B; `quadruped-final`):
+#: the one other body's world in the house (`home_quad`), so the pack its
+#: saves made before they carried `capacityWh` were on.
+QUAD_PACK_WH = 12 * 3.6 * 4.5
 
 
 def fingerprint(model) -> str:
@@ -475,8 +479,7 @@ def restore(lives, snap: Snapshot) -> dict:
       # robot at 40 % wakes at 40 %, never at 194 Wh of 778. A save from
       # before packs were saved with their size is another body's world
       # carried on from where it was served, on its served pack.
-      from pluggybot.lifecycle import world_config
-      was = kept.get("capacityWh") or world_config(snap.meta["world"])["hosting_battery_wh"]
+      was = kept.get("capacityWh") or QUAD_PACK_WH
       kept = {**kept, "energyWh": life.battery.capacity_wh * float(kept["energyWh"]) / float(was)}
     life.restore_kept(kept, arrays, in_place=same, why=why)
     restored.append(life.root)
