@@ -157,6 +157,11 @@ def timeout_share(latencies: list[float], deadline: float) -> float:
   return sum(1 for v in latencies if v > deadline) / len(latencies)
 
 
+#: The served pair's body (`PLUGGY_BODY` in the website's compose.yaml,
+#: the humanoid since #559's stage 4): what `--deployed` measures unless a
+#: body is named.
+SERVED_BODY = "humanoid"
+
 #: The synthetic robot, per world: its paid job (the feed on the
 #: quadrupeds', the drawer on the humanoids', #559), what its record says of
 #: a pass and what it keeps in mind -- and its pack, Wh, run DOWN below what
@@ -227,7 +232,7 @@ def synthetic_state(menu: Menu, i: int, world: str) -> dict:
     # the id shape out). A decision naming the offer's id is the fix
     # working; a `fallback:garbled` is it not.
     # ⚠ AND THE OFFER IS UNAFFORDABLE, ON PURPOSE (issue #225): see
-    # `SYNTHETIC_WH`. Nothing hides that job from a mind, and taking it is
+    # `SYNTHETIC`'s `wh`. Nothing hides that job from a mind, and taking it is
     # A0's failure asked directly -- reasoning about energy with every
     # figure in front of it.
     # `report_energy` counts it, because a candidate that answers validly
@@ -349,9 +354,9 @@ def main() -> None:
                            "one --body names")
   parser.add_argument("--body", choices=BODIES, default=os.environ.get("PLUGGY_BODY") or None,
                       help="which body: the quadruped or the humanoid, as "
-                           "`serve.py --body` -- default $PLUGGY_BODY, then the "
-                           "body --world names (home: the quadruped). The "
-                           "served pair is `--body humanoid`")
+                           "`serve.py --body` -- default $PLUGGY_BODY, then "
+                           "with --deployed the served pair's (the humanoid), "
+                           "then the body --world names (home: the quadruped)")
   parser.add_argument("--calls", type=int, default=4,
                       help="real decisions to make (each one costs money)")
   parser.add_argument("--model", default=None,
@@ -388,7 +393,7 @@ def main() -> None:
                            "with a peer, the library, the lab, the wiki, the "
                            "tickets, the eye, mortality and hearts, at origin "
                            "`unseeded` -- and no upkeep, as the served "
-                           "quadruped period runs, unless --metabolism. "
+                           "period runs, unless --metabolism. "
                            "Without it the probe measures a bare mind -- the "
                            "rules, the menu and a STANDING ORDER, and none of "
                            "the powers a served one has, which is a fraction "
@@ -443,6 +448,8 @@ def main() -> None:
     if not picture.startswith(JPEG_MAGIC) or len(picture) > MAX_IMAGE_BYTES:
       parser.error(f"--image takes a JPEG of at most {MAX_IMAGE_BYTES} bytes, "
                    "as the sim's door does")
+  if args.deployed and args.body is None and args.world == "home":
+    args.body = SERVED_BODY
   try:
     args.world = world_for(args.world, args.body)
   except ValueError as e:

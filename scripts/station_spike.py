@@ -65,7 +65,7 @@ def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
   hooked; (model, data, body, station activity)."""
   from pluggybot.activity import station as st
   from pluggybot.body import body_for
-  from pluggybot.lifecycle import HUMANOID_HOME, home_activities, world_config
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
   from pluggybot.robot import world_spec
   cfg = world_config(HUMANOID_HOME)
   model = world_spec(cfg["model"], body="humanoid").compile()
@@ -75,7 +75,7 @@ def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
   x0 = st.SEAT_X if at_seat else st.STANDOFF_X
   x, y = s.to_world(x0 - off[0], st.SEAT_Y + off[1])
   body.start_at(x, y, s.yaw + math.radians(off[2]))
-  acts = home_activities(model, data)
+  acts = cfg["activities"](model, data)
   station = next(a for a in acts if a.name == "station")
   body.step_hooks.append(acts.step_hook(model, data))
   body.run(body.hold_routine(1.0))

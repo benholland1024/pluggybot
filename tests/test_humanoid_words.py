@@ -101,7 +101,8 @@ def test_the_probe_measures_each_bodys_served_prompt_in_its_own_words(monkeypatc
   """`overseer_probe.py --deployed --prompt --body humanoid` (#559's stage
   4): the prefix the served pair sends, in the humanoid's words -- and the
   quadruped's in its own. The probe opened its thought files in no body's
-  words, which a body's constitution is not read in."""
+  words, which a body's constitution is not read in. Named no body, it
+  measures the served pair's, the humanoid's."""
   import importlib.util
   import sys
   from pathlib import Path
@@ -111,9 +112,11 @@ def test_the_probe_measures_each_bodys_served_prompt_in_its_own_words(monkeypatc
   spec.loader.exec_module(probe)
   monkeypatch.delenv("PLUGGY_BODY", raising=False)
   for body, own, other in (("humanoid", "You are a humanoid robot", "four-legged"),
-                           ("quadruped", "You are a four-legged robot", "humanoid robot")):
+                           ("quadruped", "You are a four-legged robot", "humanoid robot"),
+                           (None, "You are a humanoid robot", "four-legged")):
     monkeypatch.setattr(sys, "argv", ["overseer_probe.py", "--deployed", "--prompt",
-                                      "--backend", "local", "--body", body])
+                                      "--backend", "local"]
+                        + (["--body", body] if body else []))
     probe.main()
     out = capsys.readouterr().out
     assert own in out and other not in out, body

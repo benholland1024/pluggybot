@@ -1029,6 +1029,22 @@ def test_a_cable_is_strung_between_the_bodies_it_runs_through():
   assert "cables" not in quad
 
 
+def test_two_cables_nobody_named_are_two_cables():
+  """A tendon nobody named is keyed by its index, never by its empty name,
+  where the second would overwrite the first."""
+  from pluggybot.telemetry.scene import cable_map
+  model = mujoco.MjModel.from_xml_string("""<mujoco><worldbody>
+    <body name="a"><site name="a0"/><site name="a1" pos="0 0 1"/></body>
+    <body name="b" pos="1 0 0"><freejoint/><geom size=".1"/><site name="b0"/></body>
+    </worldbody><tendon>
+    <spatial><site site="a0"/><site site="b0"/></spatial>
+    <spatial><site site="a1"/><site site="b0"/></spatial>
+    </tendon></mujoco>""")
+  cables = cable_map(model)
+  assert sorted(cables) == ["tendon_0", "tendon_1"]
+  assert cables["tendon_1"]["points"][0]["pos"] == [0.0, 0.0, 1.0]
+
+
 def test_the_quadruped_pair_recording_is_the_periods_shape():
   """The first quadruped period's fixture (issue #387): no offers and no
   upkeep -- no `tasks` block, no appetite, `hungerStates: []` -- and every

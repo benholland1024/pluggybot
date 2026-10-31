@@ -180,7 +180,8 @@ def cable_map(model) -> dict:
   conventions, composed with that body's streamed pose -- every frame.
   `width` (the radius) and `rgba` are MuJoCo's own for drawing it. A tendon
   that couples joints, or wraps a geom, has no path of sites and is left
-  out (the quadruped's arm couples its joints by two)."""
+  out (the quadruped's arm couples its joints by two). One nobody named is
+  `tendon_<index>`."""
   site = int(mujoco.mjtWrap.mjWRAP_SITE)
   cables: dict = {}
   for t in range(model.ntendon):
@@ -189,7 +190,7 @@ def cable_map(model) -> dict:
              for i in range(num)]
     if num < 2 or any(kind != site for kind, _ in wraps):
       continue
-    cables[model.tendon(t).name] = {
+    cables[model.tendon(t).name or f"tendon_{t}"] = {
       "points": [{"body": model.body(int(model.site_bodyid[s])).name,
                   "pos": _round(model.site_pos[s])} for _, s in wraps],
       "width": round(float(model.tendon_width[t]), NDIGITS),
