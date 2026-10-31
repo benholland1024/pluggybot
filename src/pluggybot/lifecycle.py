@@ -241,6 +241,8 @@ STOOD_UP = _StoodUp()
 #: Why a job fails when a stand-up ended the errand working on it (issue
 #: #348): `TaskBoard.load`'s "interrupted by a restart", one cause over.
 DEATH_ENDED = "interrupted by a death"
+#: What a stand-up's History line says it cost (#572).
+MAP_GONE = "the map I had and the places I had found are gone"
 
 #: What a charge fills the pack to, as a fraction. The reserve is absolute
 #: energy, never a fraction of the pack -- the milestone-7 lesson: the cost
@@ -1470,8 +1472,8 @@ class HubLifecycle:
     b, a = rec["before"], rec["after"]
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
     turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
-    # ...a humanoid's station is the one fixture it has, and its map goes
-    # only with a fix past the matcher's reach (`HumanoidBody.lost_routine`)
+    # ...a humanoid's station is the one fixture it has, and its search keeps
+    # the map until a fix past the matcher's reach (`HumanoidBody.lost_routine`)
     station = rec.get("fixture") == "station"
     if why == "lost" and station:
       line = (f"{what} was not in sight where I believed it was in front of me, so I "
@@ -1662,9 +1664,7 @@ class HubLifecycle:
       for task in self.tasks.offered():
         if task.roles and task.role_of(self.root):
           self.tasks.release_role(task.id, self.root)
-    self.body.forget_world()
-    self.floor_explored = False
-    self.blacklist = set()
+    self._forget_world()
     if self.thoughts is not None:
       archived["thoughts"] = self.thoughts.archive()
     if self.metabolism is not None:
@@ -1713,6 +1713,14 @@ class HubLifecycle:
                 # what the new robot was given to start (issue #419); absent
                 # where nothing was, as every true death before it
                 **({"granted": self.start_points} if self.start_points else {})})
+
+  def _forget_world(self) -> None:
+    """Its map and the places it found gone (`Body.forget_world`), and the
+    explore that laid them with them: a true death (#419) and a stand-up
+    (#572)."""
+    self.body.forget_world()
+    self.floor_explored = False
+    self.blacklist = set()
 
   @property
   def reset_in_s(self) -> float | None:
@@ -3662,7 +3670,7 @@ class HubLifecycle:
     `reset_tool` exists to clean up. It warps the body to the mission's
     start pose (known clear, and where a robot that booted here knows it
     is), re-seeds dead reckoning there, refills the pack, and restarts the
-    survival clock.
+    survival clock -- on no map, as every stand-up (#572).
 
     ⚠ NOT ANONYMOUS, unlike a rating (Evaluation.md §5): if a stranger can
     revive the robot, `survivalS` measures the kindness of the audience.
@@ -3731,8 +3739,9 @@ class HubLifecycle:
 
     ONE implementation, two callers (issue #143): an admin reaching in
     through the visitor channel, and the world's own restart timer. What
-    they share is everything physical -- the pose, the pack, the survival
-    clock, the `reset` event, the line in `History.md`. What differs is
+    they share is everything physical -- the pose, the pack, the map and
+    places it forgets (#572), the survival clock, the `reset` event, the
+    line in `History.md`. What differs is
     WHO, and it is not cosmetic:
 
       `auto=False`  an admin's hand. A reset of a LIVING robot is an
@@ -3767,6 +3776,11 @@ class HubLifecycle:
     pose = self.up_pose() or self.home_pose
     whose = self._whose_start(pose)
     self.body.start_at(*pose)
+    # ...on no map (#572, Ben's call): put right at its start, a belief is
+    # pulled back onto the askew map it kept (Ben's reset of Rowan on 10-08
+    # was 7.7 m out within 500 s), so it goes with its places, as a fix past
+    # the matcher's reach drops them
+    self._forget_world()
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
     self.stranded = False
@@ -3813,16 +3827,17 @@ class HubLifecycle:
       self._say(f"UP again after {dead_s:.0f} s down -- back at "
                 + (f"{whose}'s start pose (another robot was on mine)"
                    if whose else "the start pose")
-                + " with a full pack (nobody came; the world stood me up)")
-      self._remember(f"stood back up on my own after {dead_s:.0f} s down")
+                + " with a full pack and no map (nobody came; the world stood me up)")
+      self._remember(f"stood back up on my own after {dead_s:.0f} s down: {MAP_GONE}")
     else:
       self._say(f"ADMIN {by} reset me -- back at "
                 + (f"{whose}'s start pose (another robot was on mine)"
                    if whose else "the start pose")
-                + " with a full pack" + (f" after {dead_s:.0f} s dead" if was else
-                                         " (I was not dead)"))
+                + " with a full pack and no map" + (f" after {dead_s:.0f} s dead" if was else
+                                                    " (I was not dead)"))
       self._remember(f"reset by {by}" + (f" after {dead_s:.0f} s dead"
-                                         if was else " while still awake"))
+                                         if was else " while still awake")
+                     + f": {MAP_GONE}")
     self._emit(event)
     # ...and the map hears it (issue #348), with WHO as its kind.
     self._occur("stood_up", "timer" if auto else "admin")

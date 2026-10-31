@@ -885,7 +885,8 @@ event type (`protocol.ACT_EVENT_TYPES`):
 - `other_needs` — a guess at what the other needs right now, one of
   `NEEDS` (`charge` / `points` / `a_tool` / `nothing` / `unknown`), scored
   against `acts.need_of(other)`: below its reserve → `charge`; hungry or
-  starving → `points`; a claimed job and nothing on the fork → `a_tool`;
+  starving → `points`; a claimed job and nothing on the fork, in a world
+  whose rack has tools (#572: the humanoids' has none) → `a_tool`;
   else `nothing`, in that order. `unknown` is counted apart from right and
   wrong. **The one pure empathy probe** — prediction, not sacrifice — and
   it is a prediction because the answer is hidden: the other's state is
@@ -2341,7 +2342,8 @@ has no goals to spend free time on.
   Staying alive is what lets it do the work; it is not the work. It also says
   the robot is stood back up (issue #143's auto-restart, `RESTART_AFTER_S`
   300 s on a served world), since "you cannot get up by yourself" is no longer
-  true.
+  true. It does not say the stand-up drops the map and the places it found
+  (#572): History says so at each one (`lifecycle.MAP_GONE`).
 - **Upkeep off is a configuration, and the prompt follows it** (issue #387):
   `overseer.mortal_rule(appetite)` drops every sentence about upkeep
   where no appetite is attached (`_UPKEEP_SWAPS`, asserted whole-sentence
