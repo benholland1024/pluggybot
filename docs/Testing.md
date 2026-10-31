@@ -16,14 +16,14 @@ kinds:
 - **An integration** — "the refusal produces a charge and then the errand".
   If it is the loop's BOOKKEEPING — the mind, the economy, the record, the
   wire, what the body is sent to do and in what order — it is a day on the
-  stub, in the default run (§2.1). If it is PHYSICS — a dock, a walk, a tool
-  on the fork, a body in a world — fly it, stop it on the claim
+  stub, in the default run (§2.1). If it is PHYSICS — a plug-in, a walk, a
+  hand on a handle, a body in a world — fly it, stop it on the claim
   (`stop_when`), and with its rule pinned put it behind `--endurance`,
   naming what it guards (§4). ⚠ That is adding test time like any other: Ben
   approves it in the PR, told how long it takes and why no default-run test
   can make its claim (CLAUDE.md, the budget has no outside).
 - **A premise** — the old defect still reproduces with the fix bypassed
-  (`scripts/dock_spike.py --blind`, `--sticky`). `slow`; it cannot catch a
+  (`scripts/make_way_spike.py --before`: nobody asks). `slow`; it cannot catch a
   regression while you iterate, it only stops the premise rotting.
 
 A flown test whose rule is NOT pinned elsewhere is not an endurance
@@ -37,15 +37,15 @@ and wall clock tracks the machine. So:
 
 1. **Build it on a stub body.** A claim about the loop's BOOKKEEPING — the
    mind, the economy, the record, the wire — needs no robot:
-   `stub_life(world="home_quad", **kw)` (`tests/test_body.py`) builds the
+   `stub_life(world="home_humanoid", **kw)` (`tests/test_body.py`) builds the
    lifecycle on a `StubBody` (issue #380), a floor and no robot, ~25 ms. Its
    manoeuvres arrive at once, its senses answer what the test set
-   (`holding`, `on_charger`, `attitude`), and time passes only where it
-   holds. Two robots are two stubs on ONE world
+   (`on_charger`, `attitude`, `hands`, `grips`), and time passes only where
+   it holds. Two robots are two stubs on ONE world
    (`StubBody(model, data, handle=SECOND)`) ticked by `run_pair`. A claim
-   about the body or the world's geometry (a camera's pose, a module on the
-   floor, a walk) is the quadruped's (`quad_world` in
-   `tests/test_quadruped.py`), short and stopped on its claim.
+   about the body or the world's geometry (a camera's pose, a prop on the
+   counter, a walk) is the humanoid's (`_humanoid` in
+   `tests/test_humanoid_served.py`), short and stopped on its claim.
    ⚠ A stub manoeuvre takes NO sim time, so a step hook never sees one:
    wrap the body's routines and read what the loop commanded, with what
    (`test_a_starving_robot_still_charges_navigates_and_stows`). And a gate
@@ -75,13 +75,13 @@ and wall clock tracks the machine. So:
    costs 5 s per iteration however small the budget: `monkeypatch.setattr(lc,
    "WAIT_FOR_WORK_S", 0.2)`. The slice length is never the claim.
 5. **Place the belief, not the body.** Where the robot THINKS it is is its
-   estimate (the quadruped's `life.body.mission.odo`, set through
+   estimate (the humanoid's `life.body.mission.odo`, set through
    `odo.correct(x, y, yaw)`; a stub's `x`/`y`); where it IS is `qpos` at
    `handle.qpos_adr(model)` followed by `mj_forward`. Set whichever the branch
    reads and skip the drive that would have got it there.
 6. **Ask the world's data, not a flight.** An `Activity` is sensed off
    `data` — write both robots' poses in and call `sense()` (the encounter and
-   referee tests). An evaluator reads a dict of measurements — hand it one.
+   cage tests). An evaluator reads a dict of measurements — hand it one.
 7. **Let a vendored fixture be the integration proof.** `protocol/*.jsonl.gz`
    are real flown missions, read in a second; a test over one of them proves
    the wire shape for free, and a recorder driven by hand — its events

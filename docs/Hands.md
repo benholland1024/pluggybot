@@ -91,7 +91,7 @@ and its feet, which the walking policy moves.
 
 | verb | what it does | its report | how it fails | built from |
 |---|---|---|---|---|
-| `spot(tag)` | stands still and looks for a tag -- as it stands, then bowing lower (`SPOT_GAZES`) until it sees it -- and stands up again | `spot.x/y/z` (the face's middle), `spot.nx..nz` (into the thing it is on), `spot.ex..ez` (along an edge), `spot.range` | not in view from where it stands | the head camera's tag detector (`rack.tags`), `Body.gaze_routine` |
+| `spot(tag)` | stands still and looks for a tag -- as it stands, then bowing lower (`SPOT_GAZES`) until it sees it -- and stands up again | `spot.x/y/z` (the face's middle), `spot.nx..nz` (into the thing it is on), `spot.ex..ez` (along an edge), `spot.range` | not in view from where it stands | the head camera's tag detector (`perception.tags`), `Body.gaze_routine` |
 | `watch(tag)` | keeps the head camera reading a tag while the procedure goes on, 15 pictures a second, each read 0.1 s after it was taken; ends with the procedure or the next `watch` | as `spot`'s, where the newest picture that showed it put it (`watch.*`), and `watch.seen` (whether the newest picture shows it), `watch.age` | not in view as it begins: it watches on | `spot`'s decode, placed through the robot's model of itself as its arm's loop last posed it (`perception.watch`) |
 | `measure(x, y)` | the depth camera's look at what stands at (x, y) | `object.top/near/far/left/right` | no flat top seen | the D435's cloud (`perception/box.py`) |
 | `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it, then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
@@ -329,16 +329,15 @@ vocabulary's stages; it is one vocabulary now, `measure` and `step` with
 it (`--no-measure`, `--no-step` the arms without), and Evaluation.md §4 keeps the rule that
 #493's rows are never pooled with its.
 
-**The served robots' language is unchanged.** The quadruped's procedures
-are `VERBS`, and `WorldFacts`' switches are off there (`verb_tests`,
-`math`): its procedure rule says "no other calls"
-(`overseer.PROCEDURE_HEAD`). Turning either on is a change to the deployed
-prompt, so it is its own Observatory period (Observatory.md), decided
-apart (Evaluation.md §2); nothing here asks for it, and the hands' verbs
-belong to a body the served world does not have. The hands' verbs are a table of their own
-(`HANDS_VERBS`) that the language reads only where a world's facts name
-them, so a served robot's kept procedure naming a local `pull` still
-compiles.
+**The served robots write in this vocabulary** (#559). A served
+humanoid's procedures are its practice's hands with every switch on
+(`steps.served_hand_facts`: the verb test, the maths, a move's stop
+condition, a tag watched), beside its walks over its map (`drive_to`,
+`face`) and `find` where its world has task areas; its procedure rule
+carries the practice's language and body byte for byte
+(`overseer.hands_procedure_rule`, Overseer.md §8b). The hands' verbs are
+still a table of their own (`HANDS_VERBS`), which the language reads only
+where a world's facts name them.
 
 **The practice prompt** (`mind/practice.py`) is built off the facts: the
 verbs' text, the sensors, the maths and the verb test are each shown

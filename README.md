@@ -1,11 +1,13 @@
 # pluggybot
 
 A simulated, hardware-honest robot and the autonomous agent that lives in it:
-a ~10 kg quadruped with a two-joint arm, in a house it shares with a second
-one. The work now is self-taught generality: the robot acquiring new skills
-by its own effort through five processes (reuse what it has, try and react,
-follow instructions, copy, and imagine first). It chooses among them, and
-that choice is measured (#487, #465). What the project is for, and the six
+a humanoid built from real parts (#507), in a house it shares with a second
+one (#559). The quadruped before it was deleted in #559's stage 5; the tag
+`quadruped-final` is the last commit that runs it. The work now is
+self-taught generality: the robot acquiring new skills by its own effort
+through five processes (reuse what it has, try and react, follow
+instructions, copy, and imagine first). It chooses among them, and that
+choice is measured (#487, #465). What the project is for, and the six
 qualities the agent is meant to maximise, are in
 [`docs/PluggyPlan.md`](docs/PluggyPlan.md); how the mind sits in the loop is
 [`docs/Overseer.md`](docs/Overseer.md).
@@ -68,8 +70,12 @@ where the agent's own map says whether to consult it (`EVENT_TYPES`:
 `every`, `ticket_replied`, `stood_up`). The floor and the gate are the
 rails of the loop with no mind, and are off wherever there is one; the
 interrupt out of `USE_TOOL` is a row of the agent's map, and abort means
-stow. An errand is queued by a standing order, a decision, a
-task the robot claimed or a procedure it wrote. `RECALL` reads a key or finds
+stow. An errand is a procedure the robot wrote, run by a decision, a
+standing order or a map row, or a program a run started with (`--program`).
+Its states keep the quadruped's names and labels, which fetched a tool,
+used it and hung it back: an errand now runs as `SWAP_PICK` then
+`USE_TOOL`, nothing is fetched, and nothing enters `SWAP_RETURN` (a
+vestige; a later period renames them). `RECALL` reads a key or finds
 by text, standing still; what it found rides the next turn, at most three
 recalls in a row. `LOOK` (issue #275) asks the website for a picture from
 the head camera's pose and stands still until it comes; the picture rides
@@ -153,34 +159,8 @@ Every script takes `--help`, and CLAUDE.md's table says what each is for.
 Headless (no window) runs want `MUJOCO_GL=egl` in front; `--view` runs want
 it left off.
 
-The quadruped (#375) and its arm (#378), each scene looping until the window
-closes:
-```bash
-uv run python scripts/arm_spike.py --view         # fetch a tool: find the rack,
-                                      # walk in by its tags, pick, hold it up,
-                                      # hang it back
-uv run python scripts/arm_spike.py --view carry   # walk, trot, stop, turn and
-                                      # sidestep with a tool on the fork
-uv run python scripts/arm_spike.py --view stairs  # over a hill of the house's
-                                      # flight and back, carrying one
-uv run python scripts/arm_spike.py --view fall    # pushed over: the arm folds
-                                      # and it stands (every other time not)
-uv run python scripts/arm_spike.py --view reach   # the arm through the targets
-                                      # that chose it, a marker at each
-uv run python scripts/dock_spike.py --view        # lying down onto the dock
-uv run python scripts/station_spike.py --view     # a humanoid plugs itself in
-                                      # and unplugs (--view fall: shoved over)
-uv run python scripts/quad_spike.py --policy --view  # the walking policy
-uv run python scripts/two_robots.py --world home_quad --view --errands none,none
-                                      # the served pair in the home world
-```
-
-`arm_spike.py --help` lists the tables behind the scenes (`--capture`,
-`--approach`, `--retention --stairs`, ...); SimNotes, "The quadruped's arm,
-its coupling and the rack", has what they measured.
-
-The humanoid (#507), the next body, in simulation first; each stage adds its
-scene to the same script:
+The humanoid (#507), the body, built in simulation first; each stage adds
+its scene to the same script, each scene looping until the window closes:
 ```bash
 uv run python scripts/humanoid_spike.py --view body   # held up on a gantry in
                                       # the house, each joint through its
@@ -215,6 +195,9 @@ uv run python scripts/humanoid_spike.py --view fall   # shoved over three
                                       # fall and standing it again
 uv run python scripts/humanoid_spike.py --view getup  # up from lying on
                                       # its back, its front and its side
+uv run python scripts/station_spike.py --view     # it plugs itself in at its
+                                      # station and unplugs (--view fall:
+                                      # shoved over plugged in)
 uv run python scripts/two_robots.py --world home_humanoid --view --pack hosting
                                       # the humanoid pair living a day in the
                                       # house, as served (#559); `--fast
@@ -237,11 +220,13 @@ falls and gets up" and "The humanoid pair served" have what they measured,
 and Parts.md the parts and the bill.
 
 Demo 1's harness (#493): an attempt at #466's chest from its set-out, graded
-by the world, the probe as the skill; the verdict is printed:
+by the world, the humanoid's reference at its counter as the skill
+(`evaluation.opener`); the verdict is printed:
 ```bash
-uv run python scripts/attempts.py --view 0     # the probe opens chest 0's
-                                      # lid and sets it down; 5 s on, the
-                                      # grader reads the hinge and the robot
+uv run python scripts/attempts.py --view 0     # the reference opens chest
+                                      # 0's lid and sets it down; 5 s on,
+                                      # the grader reads the hinge and the
+                                      # robot
 ```
 `attempts.py --help` lists the rest (`--chests`, `--held-out`, `--into`,
 `--read`, `--drops`); Evaluation.md §4 is the protocol and Challenges.md §9
@@ -258,11 +243,11 @@ PLUGGYWORLD_TOKEN=... uv run python -m pluggybot.session.host \
 
 View a body alone:
 ```bash
-uv run python -m mujoco.viewer --mjcf=models/quadruped.xml
 uv run python -m mujoco.viewer --mjcf=models/humanoid.xml
 ```
-(`models/home_world.xml` is the house with no robot in it; the quadruped
-and its dock are put in at load, `legs/world.py`.)
+(`models/home_world.xml` is the house with no robot in it; the humanoids,
+their charging station and the storeroom's counter are put in at load,
+`humanoid/world.py`.)
 
 Run scripts in /tests/ :
 ```bash
@@ -282,17 +267,17 @@ PLUGGYWORLD_TOKEN=dev-token-change-me MUJOCO_GL=osmesa \
 
 Then, in `rooftop-media-2026`, start it with `npm run dev`
 
-It serves the generated house + garden (issue #6) with the quadruped in it
-(`home_quad`, issue #387), the one world; `--pair` serves both robots, as
-the deployed world does. Everything the world implies (model, scene name,
-dock and rack poses, grid extent, battery size, start pose, explore budget)
+It serves the generated house + garden (issue #6) with the humanoid in it
+(`home_humanoid`, issue #559), the one world; `--pair` serves both robots,
+as the deployed world does. Everything the world implies (model, scene name,
+the station's pose, grid extent, battery size, start pose, explore budget)
 comes from one table, `lifecycle.world_config()`, because every one of those
 getting out of step fails silently rather than loudly: the wrong explore
 budget just stops filling the map.
 
 The site must be showing the matching scene — the header's `model` field is
-what it selects on (`home_quad` or `home_quad_pair`), and both scenes, and a
-recorded day of the pair, are committed under `protocol/`.
+what it selects on (`home_humanoid` or `home_humanoid_pair`), and both
+scenes, and a recorded day of the pair, are committed under `protocol/`.
 
 ## Letting the robot choose its own errands
 

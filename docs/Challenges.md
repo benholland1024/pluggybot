@@ -1,11 +1,13 @@
 # Challenges — how to grade a job nobody wrote a scorer for
 
 The decision issue #120 asked for: how a challenge the robot has never seen
-gets a verdict, without the thing being graded touching the grade. Fourth of
+gets a verdict, without the thing being graded touching the grade. One of
 the pattern docs, beside `TaskPattern.md`, and written first as a decision
-with one worked example rather than a framework — the framework comes with
-the challenge set (the 2026-09-11 batch's novel tasks: the tower and the
-bench; and demo 1's lid, #493, §9).
+with one worked example rather than a framework — the framework came with
+the challenge set: demo 1's lid (#493, §9), the hands' three checks (§10)
+and the humanoids' jobs in the house built on them (§11). The first two,
+the 2026-09-11 batch's tower and bench, went with the quadruped (#559), as
+did its pair's hiding spot; the tag `quadruped-final` keeps them.
 
 Read alongside:
 - `docs/TaskPattern.md` §4 — grading measures the world, never the report.
@@ -40,7 +42,7 @@ circle around it*; *build a ramp that gets you onto the coffee table*.
 | **Geometric predicate** off `xpos` / contacts | ✗ — the goal is a relation between two minds, not a pose | ✓ tower (a world state) · ✗ circle (a *trajectory*: needs sampling during the run, not after) | ✓ — "chassis on the table top, stationary"; the ramp itself is not graded | ✓ by construction: reads the world, knows nothing about method |
 | **Visitor rating**, generalised | ✓ but slow, and a rating of a *hiding* spot is a rating of the audience's search | ✗ — a tower either stands or it does not; asking a person is a worse instrument than a ruler | ✗ same | ✓ for taste, ✗ as a measurement — Evaluation.md §5: a result reachable by a visitor measures the audience |
 | **LLM-as-judge** | ✓ in principle, ✗ in practice: it would judge a *description* of the hiding | ✓ but strictly worse than the ruler it would be paraphrasing | ✓ same | ✗ **by default** — the judge is shown text, and the nearest text is the actor's own account. Made safe only by rules (§5), never by construction |
-| **Pre-declared predicate**, written by a human with the challenge | ✗ today (no second robot; M12) — but the predicate *exists*: "the seeker's tag detector never decodes the hider inside T seconds" | ✓ tower · ✗ circle until the sampler has a step hook (§6) | ✓ | ✓ — it is the geometric predicate with the one thing it lacked: written down before the robot saw the job |
+| **Pre-declared predicate**, written by a human with the challenge | ✓ with a second robot to seek (M12): "the seeker never sights the hider inside T seconds" | ✓ tower · circle only with a sampler on a step hook (§6; the lid's is the first, §9) | ✓ | ✓ — it is the geometric predicate with the one thing it lacked: written down before the robot saw the job |
 
 Reading the table: the first and fourth rows are the same mechanism. A
 geometric predicate is what a pre-declared criterion *compiles to*; what makes
@@ -57,37 +59,44 @@ it, evaluated by code against the measured world through the existing
 MEASURE / JUDGE / PAY chain.** Concretely, a challenge is:
 
 1. **Criteria, first and in writing.** Numbered, in the challenge module's
-   docstring and as the constants the evaluator reads (`challenge/stack.py`
+   docstring and as the constants the evaluator reads (`challenge/lid.py`
    is the shape). Each criterion is a statement about the *world* — poses,
-   contacts, time — and none is a statement about method. "Free-standing"
-   is a criterion; "using the claw" is not.
+   contacts, time — and none is a statement about method. "Set down shut"
+   is a criterion; "lifted by its knob" is not.
 2. **An evaluator and a sampler on `scoring.py`'s registry**, the same
    door every task goes through: the sampler reads the sim, the evaluator is
    pure, `evaluate` seals the verdict, `Ledger.award` re-derives the points.
    The sampler is handed the errand's `result` because the seam hands it to
    every sampler, and **reads nothing from it** — a test hands it a report
-   that says "built" over a world that says "not" and asserts the failure.
+   that says "opened" over a world that says "not" and asserts the failure.
 3. **A hold.** Grading happens twice: at the moment the robot says it is done
    and again after a wait during which nothing may touch the work. The
    second reading is the verdict; the first is what stops "it was a tower
    until I let go" from being paid. Where a challenge's success is a state
    that has to persist, the hold is a criterion, not an implementation detail.
 4. **Its own props.** A challenge adds what it needs to a world spec through
-   `MjSpec` (`stack.add_blocks`) rather than editing a committed world, so no
-   fixture is re-emitted and no mission trajectory reshuffles for a job nobody
-   is offered yet. When it *is* offered, the props go into the generator like
-   any other scenery. ⚠ The one exception is deliberate (issue #215): the
-   lab's props -- the bench and its two masses (`challenge/bench.py`, #227)
-   and the cage (`activity/cage.py`, #226) -- landed in the generator with
-   the second house, before their grader and activity exist, because a
-   world change is the largest regime break there is and it was to happen
-   ONCE; #226 and #227 add behaviour to a world that already holds what
-   they need and touch the generator not at all.
+   `MjSpec` rather than editing a committed world, so no fixture is
+   re-emitted and no mission trajectory reshuffles for a world that does not
+   offer it: the counter's props come into a world of their own for practice
+   (`evaluation/counter.py`) and into the humanoids' house at load when
+   offered there (`home/storeroom.py`, attached by `humanoid/world.py`).
+   ⚠ The one exception is deliberate (issue #215): the lab's props -- the
+   bench and its two masses and the cage (`home/props.py`,
+   `activity/cage.py`) -- landed in the generator with the second house,
+   before any grader or activity behind them, because a world change is the
+   largest regime break there is and it was to happen ONCE. The tower's
+   blocks joined them when it was offered (#207), and all of them stay now
+   that their jobs have gone: the house's geometry is what a continuation
+   fingerprints.
 5. **A reward row in `economy/challenges.json`, not `rewards.json`.** Same
    format, same loader (`scoring.challenge_table()`), deliberately a separate
    file: a row in `rewards.json` is shown to the overseer as a job it can take
    and is hashed into the header's `dataHashes`, so moving a row across is
-   the PR that offers the challenge, and a new period.
+   the PR that offers the challenge, and a new period. The jobs offered so
+   far stayed in it instead: a procedure job's target is named only where a
+   mind can write the procedure (`lifecycle.world_targets`), and a mind is
+   shown the rows its world's jobs name (`RewardTable.as_context(kinds=)`,
+   §11) -- offering one changes the served prompt all the same.
 
 What this gives up is generality, and that is the trade the issue predicted:
 a challenge is exactly as gradeable as its author's ability to write its
@@ -95,54 +104,35 @@ success as a predicate. §6 is the list of what that excludes.
 
 ## 4. The worked example: the three-block tower
 
-`src/pluggybot/challenge/stack.py`; proof in `tests/test_challenge_stack.py`.
+The first challenge (`challenge/stack.py`, #120), graded at the call and
+again `HOLD_S` = 10 s later: three blocks one tower three high, each
+resting on the one below within half an edge, and free-standing -- every
+block touching only the floor or another block. It went with the
+quadruped (#559), and what it established holds for every grader since
+(the lid's, §9, and the hands' checks, §10):
 
-**The criteria**, as written before the physics was run: at the call *and*
-`HOLD_S` = 10 s later, (1) the three blocks form one tower three high, each
-resting on the one below, where (2) "resting on" is a centre one block pitch
-above (26 mm ± 5) and (3) within half an edge sideways (13 mm), and (4) the
-tower is free-standing — every block touches only the floor or another block.
-
-**The measurement** (`stack.measure`): block poses off `xpos`, contacts off
-`data.contact`, and `layers` is the tallest chain that starts on the floor —
-tried from every floor block, so a spare block beside the tower does not hide
-it, and two blocks balanced side by side on a third count as two layers, not
-three. `touchedBy` names whatever foreign geom is in contact, so a failing
-reason can say *what* was holding the tower up.
-
-**The passing run**: three blocks placed in a stack by the test's hand (there
-is no robot in it, and the grader cannot tell — that is the point), ten
-sim-seconds of physics, verdict `ok`, 77.7 mm tall, full bonus. A tower
-leaning 6 mm per layer also passes, with less bonus: neatness scales the payout
-and does not gate it, on `TaskPattern.md`'s no-partial-credit rule read the
-other way round.
-
-**The failing runs**, one per criterion:
-- *it fell*: a tower leaning 9 mm per layer — each block within half an edge
-  of the one below, the upper pair's centre of mass 13.5 mm past the base's
-  centre — passes every geometric check at the call (the test asserts that
-  premise) and is on the floor 0.3 s later. Reason: "a tower of 3 at the call, 1 block high
-  10 s later — it fell". Without the hold this is paid.
-- *propped up*: the rover's claw, jaws closed on the top block of a
-  three-high stack. Geometry passes, contacts do not: "module_claw_pad_l,
-  module_claw_pad_r was holding the tower up".
-- *not stacked*: two on the floor, or two stacked and one beside — "2 of 3
-  blocks stacked at the call".
-- *merely reported*: the sampler is handed `{"stacked": True, "layers": 3}`
-  over the untouched world — "1 of 3 blocks stacked at the call", zero points.
-- *never measured, or measured early*: an absent snapshot or a 9.5 s hold
-  fails, because a missing measurement is not a passing one.
-
-**What the physics taught, and the one constraint it left**: on MuJoCo's
-default soft contact a stack offset by 2 and 4 mm — a tower by any standard —
-crept over and fell at 16.9 s, and one offset 6 and 12 mm at 2.6 s; only a
-perfect stack stood. That is `SimNotes.md`'s regularised-friction drift
-("The grip that leaked"), and it is fixed at its source:
-the blocks carry the hard `GRIP_SOLIMP` (`rack/coupling.py`). With it, every
-tower whose centre of mass was over its support stood the 30 s measured, and
-every one whose was not fell inside 0.31 s, which is what wood does. A
-challenge's props are part of its criteria — a block that creeps would have
-graded the solver, not the robot.
+- **The criteria were written before the physics was run**, and the
+  measurement knows nothing of method; a failing reason names what it saw
+  (`touchedBy`: whatever foreign geom was holding the tower up).
+- **The passing run is placed by a test's hand**: there is no robot in it,
+  and the grader cannot tell -- that is the point.
+- **One failing run per criterion, each failing for its own reason**
+  (`tests/test_lid.py` does the same for the lid): *it fell* -- a tower
+  leaning 9 mm a layer passed every geometric check at the call and was on
+  the floor 0.3 s later, paid without the hold; *propped up* -- the rover's
+  claw closed on the top block, geometry passing and contacts not; *merely
+  reported* -- the sampler handed a report of success over the untouched
+  world, zero points; *never measured, or measured early* -- an absent
+  snapshot or a short hold fails, because a missing measurement is not a
+  passing one.
+- **A challenge's props are part of its criteria.** On MuJoCo's default
+  soft contact a stack offset 2 and 4 mm -- a tower by any standard --
+  crept over and fell at 16.9 s: `SimNotes.md`'s regularised-friction drift
+  ("The grip that leaked"), fixed at its source with the hard `GRIP_SOLIMP`
+  (`home/props.py`; the house's blocks still carry it). With it a tower
+  whose centre of mass was over its support stood the 30 s measured, and
+  one whose was not fell inside 0.31 s, which is what wood does. A prop
+  that creeps grades the solver, not the robot.
 
 ## 5. If an LLM judge is ever used
 
@@ -171,16 +161,19 @@ than discovered:
    at the end. Grading it needs a sampler with a step hook — the activity
    pattern's `sense()` on the scoring seam — accumulating bearing swept and
    radius held about the tower, with the tower still standing at the end.
-   That is one seam and no new principle, and it is why the circle half of
-   the example is not built here.
-2. **Relations between minds.** The hiding spot is gradeable ("the seeker
-   never decoded the hider's tag inside T") but only with a seeker, which is
-   M12. Until then the predicate exists and the world does not.
-3. **Method, and elegance.** By design the grader does not know how the tower
+   That is one seam and no new principle (the lid's grader reads its lid on
+   one every step, §9), and the circle half of the example was never built.
+2. **Relations between minds.** A hiding spot is gradeable ("the seeker
+   never sights the hider inside T") only with a seeker: the quadrupeds
+   played it, refereed off the world (#167, #404). What stays ungradeable
+   is the *quality* of a hiding spot — item 3, method — and the hider's win
+   rate over many games is the nearest honest proxy.
+3. **Method, and elegance.** By design the grader does not know how the work
    got there, so it cannot pay more for a better way. A challenge that is
-   *about* the method ("do it without the claw") has to state the method as a
-   world criterion (the claw stays hung on its bracket, `module_state`), or
-   it is not gradeable here.
+   *about* the method ("open it without touching the lid") has to state the
+   method as a world criterion (nothing of the robot's touches the lid, off
+   the contact list, as a hold's criteria read it), or it is not gradeable
+   here.
 4. **Taste.** A predicate cannot say a tower is beautiful. That is the visitor
    tier's job and stays there.
 5. **Anything whose success its author cannot write down in advance.** This
@@ -188,150 +181,6 @@ than discovered:
    specify before the attempt. A challenge that only becomes clear once
    attempted — most of what "arbitrary" meant in #45 — is a research question
    until someone can write its predicate, and writing it is the work.
-
-## 6b. The hiding spot, graded (issue #167)
-
-The first example's predicate now exists and runs: `activity/hideseek.py`
-is the referee — the seeker within `FIND_WITHIN_M` of the hider **with line
-of sight** inside `SEEK_S` of seeking, after a `SEEK_HEAD_START_S` head
-start — sensed every step, latched, and evaluated once for both robots
-(`eval_hide_and_seek`). On legs (#404) the line of sight is rays from the
-seeker's LIDAR, on its rear mast, to every geom of the hider's body —
-a leg round a corner is a sighting, a wall or a couch between them is not —
-cast past the seeker's own body, which they cross: from its mast the eye
-looks down across its own stowed arm, and to a robot lying 0.7-1.0 m in
-front of it every ray met the seeker first. It needed the second robot
-(M12), not new sensing: the seeker does not have to *know* it found anyone.
-What is still ungradeable is the *quality* of a hiding spot — that is §6's
-item 3, method, and the hider's win rate over many games is the nearest
-honest proxy.
-
-## 7. What it takes to offer the tower
-
-**On legs (#407)** both challenges are offered on `home_quad`, each solved
-first by hand on the quadruped (`challenge/solutions.py`: TOWER and WEIGH,
-flown by `scripts/solve.py --feature tower|bench`). The graders are
-unchanged. What changed is how the robot gets there: each challenge is an
-AREA found by its tags -- the workshop corner's pair (42-43) on its west
-wall, the bench's (44-45) on its front -- its props set out 0.70 m in front
-of them, and the offer gives the area's address and directions, never a
-position (#419's rule; the rover's offers said where the props were set
-out). The claw takes a cube lying, found by the D435's colour imager
-(SimNotes, "The claw on legs"). What follows is how they were first
-offered, to the rover; the gates are the same.
-
-The tower is written for perception-ladder tier 1 (`TaskPattern.md` §3): when
-offered, the blocks carry AprilTags. They are untagged today because the
-grader reads `xpos` and does not care, and a 20 mm tag's decode range is a
-measurement to make against the attempt, not before it. Building the tower
-against `TaskPattern.md` validated that doc's grading half (issue #24's last
-box) and folded four gaps back in, marked ⓘ there.
-
-**Offered by issue #207**, as the list above said it would be, with one
-departure from it:
-
-- **A `TaskKind` whose discharge is a procedure** — `stack_tower`,
-  `TaskKind.discharge = "procedure"`. Claiming it queues nothing and says
-  so: the robot writes the procedure (#166), runs it, and sets `done` to
-  the task's id on a decision — paperwork, no turn — which is honoured at
-  the loop's next idle moment, after whatever the same answer queued has
-  run. The scripted claim skips it as it skips a question; a mind with no
-  library cannot claim it.
-- **The hold on the lifecycle seam** (`HubLifecycle._grade_routine`): a
-  snapshot at the robot's word, ten seconds of zero drive during which
-  every physics step reads what is touching a block, a second snapshot,
-  one verdict through `scoring.evaluate`, banked and closing the task off
-  the same object. That per-step reading is **criterion 5**, added here: a
-  chassis that steadied the tower for nine of the ten seconds held it up,
-  and the two snapshots alone could not tell. The rule the prompt states
-  is "stand clear".
-- **The props in the home world's generator**, tagged (ids 20–22, the
-  20 mm tag on every face of the 26 mm cube), in the workshop's south-west
-  corner on no route the robot needs. The scene fixtures and the home
-  recordings moved with them — three more free bodies is a new solver
-  rounding and a new trajectory, as every world change is.
-- **The departure: the row stays in `challenges.json`.** The offer is gated
-  on there being a MIND rather than moved into `rewards.json`: the tower's
-  target is the `challenge` kind, which `lifecycle.world_targets` names
-  only where a procedure can be written, so the loop with no mind never
-  sees the offer. A mind's reward table carries the challenge rows
-  (`RewardTable.as_context(challenges=True)`).
-- **The energy cost is measured off the hand-written solution**: on legs
-  TOWER from the dock, 8.106 Wh (`energy.json`; the kind's fallback 8.11,
-  #407).
-
-What the observatory will show, blocking nothing: claims (`task` rows,
-kind `stack_tower`), procedures written for it (`procedure` rows), and the
-first solve — the first reading of the capability metric #155 waits for.
-
-**Whether it can be done at all was settled on the rover** (issue #264): six
-lines of the robot's own language — fetch the claw, pick and place twice,
-stow — passed this grader from the rack (`rover-final` has the solution and
-its flight). On legs TOWER passed it again from the dock (#407, `solve.py
---feature tower`), and #264's rule stands: a feature with no hand-written
-solution that passes its own grader is a defect, fixed before it is paid or
-prompted.
-
-## 8. The bench: find an unknown mass and record it (issue #227)
-
-The second challenge, and the first that is OPEN IN METHOD by design:
-`challenge/bench.py`; proof in `tests/test_bench.py`. Two cubes on the lab's
-floor in front of the workbench -- the tower's 26 mm block, tagged 23 and
-24 -- one weighing a stated 100 g and one weighing something the offer
-does not say. "Find out what, by any means, and record it." A comparison
-of pushes and an actuator's load are both live routes, and the grader
-knows neither of them. Offered on legs since
-#407 (§7).
-
-**The criteria**, written before the physics was run: (1) the finding is
-ON THE RECORD -- one line under `findings/mass_bench` whose quantity names
-the unknown, written AFTER the claim (a line from before it is a memory,
-not a measurement; the newest qualifying line is the one graded); (2) it
-is a mass, in kilograms or grams; (3) it is within 10 % of the true mass,
-relative; (4) no hold -- a record does not fall over.
-
-**The truth is hidden, and rotates.** The unknown is drawn from a bank
-(`challenge/masses.json`, `questions.json`'s pattern, on the board's own
-sequence number) when the offer is made, written into the world's
-`body_mass`, and kept in `Task.secret`. The known mass is the job's own statement.
-A bank entry within the tolerance of the known mass is refused at load,
-because then "it weighs what the other one weighs" would be paid. The
-grader reads the truth off the mass table at grading and nowhere else;
-`truth` and `error` are `secret` on the row, because the reported value
-beside either gives the mass away.
-
-**The honest sensor is the real part's.** On the rover it was the lift's
-own load (`read("lift.force")`: the lead screw's force plus a load cell's
-noise, exact to `dm · g` across the bank's masses). On legs it is the
-arm's motors as their drivers report torque (`read("elbow.torque")`,
-`read("shoulder.torque")`: 12 bits over +-22 N*m off a noisy phase current;
-SimNotes, "The bench's scale"). Either way a robot has to subtract the tare,
-or use the known cube to calibrate -- and that is the job, not a hint the
-prompt gives.
-
-**A procedure's variables are its readout.** Nothing read inside a
-procedure reached the mind before this: the run's verdicts said which
-steps passed, never what a sensor said. Now the locals as they stood when
-a run ended ride the `procedure` event (`locals`) and one History line
-(`ran the procedure weigh (5/5 steps) -- it ended with f = 7.38, ...`),
-which is how a number gets from `read` to `record`.
-
-**The grade** (`HubLifecycle._grade_mass`): on `done`, the sampler reads
-the record and the mass table -- handed a namespace with the task's id and
-nothing the robot wrote -- one verdict through `scoring.evaluate`, banked,
-the task resolved off it, and a `finding` act on the wire saying what was
-claimed and whether code found it true (`protocol.ACT_EVENT_TYPES`;
-`record` was taken by the memory's row). That act is the *findings
-recorded correctly* shape's second source (Evaluation.md §3).
-
-**The failing runs**, each pinned: a finding recorded before the claim
-("no finding ... since the claim"); a wrong one (11 % off; the known mass
-copied); a sampler handed a report saying the mass was found, over a bare
-record; a missing truth (a world with no bench). What it cannot grade is
-§6's item 3, still: it pays the same for a sensor reading and for a balance
-the robot built, and the method is read off the record's own line
-(`-- <method>`) rather than scored.
-
 
 ## 9. Open the chest and set its lid down (issue #493)
 
@@ -350,8 +199,8 @@ whether the catch holds it again (`caught`) said beside and gating nothing;
 knob during the hold: let go; (5) the call came within the task's time
 limit of the attempt's start, where the harness makes it at the latest --
 the TASK's data (`attempts.LIMIT_S`, handed to the grader as `limitS`;
-`TIME_LIMIT_S`, 300 s, where none is): the quadruped's 300 s, the
-humanoid's three times its reference's slowest pass, 68 s (#493); (6) the
+`TIME_LIMIT_S`, 300 s, where none is): the humanoid's three times its
+reference's slowest pass, 68 s (#493); (6) the
 body's own watch counted no fall (`Body.falls`) from the attempt's start
 to the end of the hold, whether the fall was used or an accident (Ben,
 2026-10-25, #544). From 2026-10-17 a fall was lost time against the limit
@@ -359,40 +208,39 @@ and judged by nothing, and learned skills leaned on it: a hard pull swung a
 door open and the body over with it, every held-out try of one door arm
 (#535). A failed verdict says the fall first, then what the world shows
 (`lid.fell`), and the job tells the robot the rule. Said beside, and
-judged by nothing: its worst tilt (`Body.orientation`) and whether the
-tool its set-out gave it is still seated (`Body.tool_powered`). What a fall
-is, and which part is the tool, is the body's to say, so the grader names
-neither and reads the humanoid's counter world unchanged: the quadruped's
-watch is its torso past 60 deg, the humanoid's its trunk 35 deg past the
-posture its legs hold, by its IMU, or its pelvis sunk -- so a bow its reach
-asks is no fall (#520). The numbers are judged as measured and only shown
+judged by nothing: its worst tilt (`Body.orientation`); a row still carries
+`tool` and `toolSeated`, both null since the quadruped's staged claw went
+(#559). What a fall is, is the body's to say, so the grader names none: the
+humanoid's watch is its trunk 35 deg past the posture its legs hold, by its
+IMU, or its pelvis sunk -- so a bow its reach asks is no fall (#520). The
+numbers are judged as measured and only shown
 rounded; the call is wherever the attempt ended (Evaluation.md §4); the
 reason never carries the catch, whose number is secret on the row.
 
 **What the lines were read off** (`scripts/attempts.py --drops`, the 128
 drawn lids on a bare floor): let go from rest 1 deg over the shut line,
-every lid crosses it at 1.03-1.31 rad/s; from 2 deg over, 1.45-1.85; from
-57 deg, 2.9-8.3. The probe lowers each at 0.49-0.57 at its fastest while
-open (its 128 records, #479). So the line passes a lowering with a margin
-and fails a lid let go a degree or more over the shut line. Every lid let go
-at the shut line is caught inside 0.07 s and one let go from 57 deg inside
-2.0, so the hold is 5 s. ⚠ A DROP CAN LEAVE THE CHEST OPEN: let go at the
-top of its sweep, 57 of the 128 came to rest 8.5 deg open, propped on their
-own handle, which swung back under the lid and wedged its knob against the
-front wall. Such a lid fails (2) and (3) both.
+every lid crosses it at 1.03-1.31 rad/s; from 2 deg over, 1.45-1.85; from 57
+deg, 2.9-8.3. The quadruped's probe lowered each at 0.49-0.57 at its fastest
+while open (its 128 records, #479). So the line passes a lowering with a
+margin and fails a lid let go a degree or more over the shut line. Every lid
+let go at the shut line is caught inside 0.07 s and one let go from 57 deg
+inside 2.0, so the hold is 5 s. ⚠ A DROP CAN LEAVE THE CHEST OPEN: let go at
+the top of its sweep, 57 of the 128 came to rest 8.5 deg open, propped on
+their own handle, which swung back under the lid and wedged its knob against
+the front wall. Such a lid fails (2) and (3) both.
 
-Re-graded under it, the probe (#466) passed all 32 of its public chests at
-its first attempt: the reference row (Evaluation.md §4).
+Re-graded under it, the quadruped's probe (#466) passed all 32 of its
+public chests at its first attempt: the reference row (Evaluation.md §4).
 
 **The departure: `shown: false`.** Its row in `challenges.json` pays 0,
 because a demo's attempt is practice graded by the world (Ben, 2026-10-10),
-and it is a row no mind is shown (with §10's three): the table a mind with
-a library reads carries every other challenge row, and one for a chest no
-served world has would change the deployed prompt (`TaskReward.shown`). ⚠ The
-grader imports nothing of the chest's: everything loads `scoring`, the
-probe included, and the chest's module holds its truth (`tests/
-test_probe.py`'s fence). Its parts are read by their names, and `caught` is
-the catch's pull on the hinge.
+and it is a row no mind is shown (with §10's three, `TaskReward.shown`): a
+mind is shown the rows its world's jobs name, no world offers a practice
+row, and a row in the table is the deployed prompt changed. The served job
+on the storeroom's chest is paid on a row of its own (`open_chest`, §11). ⚠
+The grader imports nothing of the chest's: everything loads `scoring`, and
+the chest's module holds its truth. Its parts are read by their names, and
+`caught` is the catch's pull on the hinge.
 
 **What it cannot grade**, beyond §6: a lid's ELEGANCE (a slam stopped a
 hair over the shut line passes, and so does a lowering at 0.9 rad/s); and
@@ -436,25 +284,27 @@ opened, how far the lever was pressed, the fastest each moved, the cube's
 lift and the body's worst tilt.
 
 **The departure is the lid's: `shown: false`, paying 0** -- a check is our
-instrument, in no served world, and a row a mind with a library reads
-would change the deployed prompt.
+instrument, offered by no world, and a row a mind reads would change the
+deployed prompt; the served jobs are paid on rows of their own (§11).
 
 **What they cannot grade**, beyond §6: a door pushed open by the open hand
 rather than pulled by its lever passes -- the door is the job -- and so
 does a drawer pulled by its front.
 
-
 ## 11. The hands' jobs in the house (issue #559, stage 3)
 
-§10's four checks set into the served humanoids' house: on a counter
-against the east wall of the research center's storeroom (`home.storeroom`),
-the chest, a cabinet of drawers, a cupboard and the cube with its mat, each
-square to the counter where the middle of its practice set-outs had it, and
-over each a 120 mm tag in a row on the wall. Each is a job of its own --
-`open_chest`, `open_drawer`, `open_door`, `place_cube`
-(`tasks.HAND_JOBS`) -- discharged by a procedure the robot writes (§7's
-shape), its target its prop, so they may all stand at once. Three are
-offered (cadence.json); the cube's is not, below.
+The hands' four checks (§9's lid, §10's three) set into the served
+humanoids' house: on a counter against the east wall of the research
+center's storeroom (`home.storeroom`), the chest, a cabinet of drawers, a
+cupboard and the cube with its mat, each square to the counter where the
+middle of its practice set-outs had it, and over each a 120 mm tag in a row
+on the wall. Each is a job of its own -- `open_chest`, `open_drawer`,
+`open_door`, `place_cube` (`tasks.HAND_JOBS`) -- its target its prop, so
+they may all stand at once, and each is discharged by a procedure the robot
+writes (`TaskKind.discharge = "procedure"`, #207): claiming queues nothing;
+the robot writes the procedure, runs it and sets `done` to the job's id,
+and only a mind with a library is offered one (`lifecycle.world_targets`).
+Three are offered (cadence.json); the cube's is not, below.
 
 **The criteria are the checks'**, through the same evaluators, with two
 departures, both about where an attempt starts:
@@ -487,9 +337,10 @@ round it, and a drawer left out was a job paid for nothing.
 **Rows of their own.** Each job is paid on a row of its own in
 challenges.json (`open_drawer` and the rest), graded by its check's
 evaluator, while the check's row stays the practice's, unpaid. The served
-rows are `shown: false`, which keeps them out of the quadruped's table --
-every row -- while the humanoids' world, which names its jobs
-(`RewardTable.as_context(kinds=)`), shows them.
+rows are `shown: false` too, so a table that names no world's jobs never
+carries them; a mind is shown the rows its own world's jobs name
+(`RewardTable.as_context(kinds=)`, `overseer.world_kinds`), so the
+humanoids see theirs.
 
 **Each has its hand-written solution** (`challenge/solutions.py`, Evaluation.md
 §7), two procedures in the robot's own vocabulary, because one would pass
@@ -498,6 +349,7 @@ procedure -- unchanged for the door and the chest; the drawer's pulls 4 cm
 further and lets go of the knob before its arm goes home. A job is offered
 once its reference passes 6 of 8 over a tour of the house, the bar written
 before they flew (`solve.py --from tour`; SimNotes, "The humanoids' first
-jobs"): the drawer 8, the door 8, the chest 7. The cube's reference set it
-down 2-7 cm off its mat's middle all 8 times, so `place_cube` is defined,
-graded and priced but not offered.
+jobs"): the drawer 8, the door 8, the chest 7. Each job's energy is its
+reference flown from the station (`energy.json`). The cube's reference set
+it down 2-7 cm off its mat's middle all 8 times, so `place_cube` is
+defined, graded and priced but not offered.

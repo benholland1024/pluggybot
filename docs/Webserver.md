@@ -11,7 +11,7 @@ robot (PluggyPlan.md "What this project is for"; Evaluation.md §5).
 ## The one seam, and the one rule
 
 Every physics step bottoms out in the body's stepper (`Body.stepper`; the
-quadruped's is `QuadStepper`, `legs/body.py`), which fires `Body.step_hooks`
+humanoid's is `HumanoidStepper`, `humanoid/mission.py`), which fires `Body.step_hooks`
 — the same per-step
 callback list the battery drains through. Everything here is another hook on that list, so it
 works regardless of who owns the loop.
@@ -27,16 +27,16 @@ robot. Frames are due on SIM time, so a paused sim emits none (which is why
 ## The pieces (`src/pluggybot/telemetry/`)
 
 - **`protocol.py`** — `PROTOCOL_VERSION`, the dynamic-body census both
-  emitters share, and the two-repo vocabularies (visual hints, face states,
-  message and inbound kinds).
+  emitters share, and the two-repo vocabularies (visual hints, message and
+  inbound kinds).
 - **`scene.py`** — MJCF→JSON scene transpiler: the static world, shipped
   once per world. `uv run python -m pluggybot.telemetry.scene --world
-  home_quad [--pair]` regenerates the fixture.
+  home_humanoid [--pair]` regenerates the fixture.
 - **`recorder.py`** — `FrameBuilder`: decimation to `FRAME_HZ` = 20 Hz of
   sim time, sparse frames (a body ships only when it has moved more than
   `POS_EPS` = 0.5 mm since it was last *emitted*), a full keyframe every
   `KEYFRAME_S` = 5 sim-seconds marked `"key": true`; the sparse per-key
-  blocks (activities, boards, screens, ledger, …) follow the same rule and
+  blocks (activities, boards, ledger, …) follow the same rule and
   re-ship on every keyframe. `TelemetryRecorder` is the builder plus a JSONL
   writer thread (`--record out.jsonl.gz` on `two_robots.py` / `serve.py`).
   `GridSampler` is the one grid implementation both sinks share: live at
@@ -46,7 +46,7 @@ robot. Frames are due on SIM time, so a paused sim emits none (which is why
   vendored into the website's bundle.
 - **`pacer.py`** — `RealTimePacer`: a step hook that sleeps the headless
   loop so sim time tracks wall time at `--rate`. It only ever sleeps — when
-  the sim falls behind (an osmesa render burst, a 1 ms-timestep swap) it
+  the sim falls behind (an osmesa render burst) it
   stops sleeping until the sim catches up, so lag is transient drift, never
   a stall or a skip. `stats()` reports the drift; `resync()` after a pause
   stops a long pause becoming a sprint to catch up.
@@ -78,7 +78,8 @@ bodies. Cost: 1 frame in 100.
 are not per-tick quantities, so they ride the socket as typed messages
 between frames (`draw`, `board_cleared`, `board_snapshot`, `earned`,
 `grid`, `event`, `goals`, `death`, …); ink is never MuJoCo geometry — the
-browser paints the polyline the pen actually inked. Three rules for a
+browser paints the polyline the pen actually inked (no robot draws since
+the quadruped's pen went, #559). Three rules for a
 consumer: dispatch on `type`, and no `type` means frame; a dropped typed
 message is not superseded by a later one (a lost `draw` line is missing
 until the board is next erased — the accepted price of never blocking
@@ -110,16 +111,7 @@ MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
 
 # …both robots, as deployed: the humanoid pair (#559), charging at its
 # station on the living room's wall
-MUJOCO_GL=osmesa uv run python scripts/serve.py --pair --body humanoid \
-  --pack hosting --endpoint ws://localhost:8765
-
-# …the quadruped pair before them, until #559's stage 5 deletes it
-MUJOCO_GL=osmesa uv run python scripts/serve.py --pair \
-  --endpoint ws://localhost:8765
-
-# …with the robot doing something: walk to the lab, find the feed plate by
-# its sign and press it
-MUJOCO_GL=osmesa uv run python scripts/serve.py --errand feed \
+MUJOCO_GL=osmesa uv run python scripts/serve.py --pair --pack hosting \
   --endpoint ws://localhost:8765
 
 # …or rehearse the authenticated production path
@@ -128,27 +120,19 @@ PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
   --endpoint ws://localhost:8765/api/pluggyworld/ingest
 ```
 
-`--body humanoid` (`$PLUGGY_BODY=humanoid`) serves the humanoids, the
-deployed body since #559's stage 4: `home_humanoid` (`home_humanoid_pair`
-with `--pair`), the house built at load from the same file
+The world is the humanoids' house, `home_humanoid` (`home_humanoid_pair`
+with `--pair`; `--world home` and `$PLUGGY_BODY=humanoid` name it too, as
+the site's compose does), the house built at load from the same file
 (`humanoid/world.py`) with the house's own fixtures -- the lab's signs, the
-boards' and the areas' tags -- and none of the quadruped's: no dock, no rack,
-no tools. It charges at its station on the living room's wall, plugging
-itself in by a cable (stage 2; SimNotes, "The humanoid's charging
-station"), and its jobs are its hands', on the storeroom's counter: the
-drawer, the cupboard's door and the chest's lid (stage 3), on a board of
-their own (`tasks_humanoid.json`), with no upkeep; Observatory.md has what
-is running. SimNotes, "The humanoid pair served", has what was measured,
-its speed on the deploy box among it.
-
-Unnamed, the body is still the quadruped (issue #387), until #559's stage 5
-deletes it: the house with the quadruped and its dock put in at load,
-`home_quad` (`home_quad_pair` with `--pair`); `--world home` names either
-house, the body picking it. Its errand defaults to `none`, and the queues
-it takes are the lab's acts (`care`, `feed`, `shock`) -- no errand fetches
-a tool; its period offered the feed (#403, on its board, `tasks_legs.json`).
-In a world with no charger a chosen `charge` ends at once, said in History
-("there is nowhere for me to charge here").
+boards' and the areas' tags. It charges at its station on the living
+room's wall, plugging itself in by a cable (#559's stage 2; SimNotes, "The
+humanoid's charging station"), and its jobs are its hands', on the
+storeroom's counter: the drawer, the cupboard's door and the chest's lid
+(stage 3), on a board of their own (`tasks_humanoid.json`), with no
+upkeep; Observatory.md has what is running. SimNotes, "The humanoid pair
+served", has what was measured, its speed on the deploy box among it. Its
+errand is `none`. The quadruped's `home_quad` went with it in #559's stage
+5 (the tag `quadruped-final` serves it).
 
 `serve.py --pair` serves BOTH robots from one loop (issue #181; M12) under
 `<world>_pair`: `--errand2` is the second robot's errand (default `none` —
@@ -162,7 +146,7 @@ ledger file with an account each, one operator switch on the primary.
 measure the machine's real-time multiple; `--record` keeps a v0 recording of
 the same run; `--keyframe-s` tunes the keyframe cadence (0 disables, and
 late joiners then wait forever). The world is picked *whole* — model, scene
-name, dock and rack poses, grid extent, battery, start pose and explore
+name, the station's pose, grid extent, battery, start pose and explore
 budget all come from `lifecycle.world_config()`, since a half-applied world
 fails silently (a short explore budget just stops filling the map). The arm,
 the pack, the mind and the state files are flags too (`--help`; CLAUDE.md).
@@ -252,15 +236,16 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   the solver's warm start and every actuator's control, matched by NAME, plus
   the mocap mouse, the sim clock and where the last step began
   (`continuation.LastStep`). Per robot: its pack, its believed pose
-  (the legs' reckoning, with the contact history its lag reads), its
-  posture and its clocks, the policies' and the arm's last targets, the
-  places it has found, the occupancy grid, the depth camera's layer and the
-  sensors' noise generators. Also whether it is
+  (its legs' reckoning, with its planted foot), its posture and its
+  clocks, its policies' drivers (their steps and targets, and the gains
+  they set in the model) and its reach, the places it has found, the
+  occupancy grid, the depth camera's layer and the walls it is kept off,
+  and the sensors' noise generators. Also whether it is
   dead and since when, its survival and unminded clocks, its explore state,
   the errand it was in, and what it had queued. For the world: its
-  activities (the mouse, the plates, the pair's encounters) and the
-  producer's schedule. The ledger, boards, task board, thoughts and tickets
-  were already files and are not saved twice.
+  activities (the mouse, the plates, the station, the counter's props, the
+  pair's encounters) and the producer's schedule. The ledger, boards, task
+  board, thoughts and tickets were already files and are not saved twice.
 - **When.** Every `SAVE_EVERY_S` (60 sim s) on the last robot's step
   hooks, so a pair is saved after both robots' step, and once more when the
   run ends. A run ends at its budget or on
@@ -270,8 +255,9 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   are written on every event and are not rewound, so a job paid in that
   minute stays paid.
 - **Put back.** `continuation.load` finds the save before the task board is
-  built. Each lifecycle's `begin()` puts back an open bench offer's mass,
-  then `continuation.restore` puts the bodies back. The day routine opens without
+  built. Each lifecycle's `begin()` puts back the counter's props' hidden
+  draws (`restore_counter`), then `continuation.restore` puts the bodies
+  back. The day routine opens without
   moving: no start pose, no spin. History says "the world restarted; I
   carried on from (x, y) with the pack at N%".
 - **The last step is stepped again** (`continuation.replay`, #420). A running
@@ -289,22 +275,17 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   the RUN's budget from where it starts. The wire's `t` grows past 3600,
   which the site handles, since every new header resets its view.
 - **The errand in flight ends**, because it was a generator. Its job stays
-  the robot's: an errand job is queued again (rebuilt off the task, with its
-  committed answer), and a procedure job stays claimed. A module the restart
-  left on the fork mid-errand is stowed first. Between errands a tool on the
-  fork is the loop's, as it would have been had nothing stopped: the count
-  of returns it has tried is kept, and a return counts once it has run
-  (#420). A claim held by a robot not in the new
-  world goes back on offer. A game still fails, because its referee lived in
-  the process. A job taken up through `MAX_TAKE_UPS` (3) restarts without
-  finishing is failed: the world's crash-loop guard counts saves, and a job
-  whose errand crashes the process would otherwise crash every process after
-  it.
-- **An offer sets its props out.** The tower's blocks and the bench's cubes
-  go back where the world compiled them when their challenge is offered,
-  except one touching a robot. The hourly reset used to be what made "set
-  out in a row at …" true; with the world carried on, a failed attempt would
-  otherwise leave them wherever it dropped them, for good.
+  the robot's: a procedure job stays claimed, its watch carried on from the
+  readings the save kept (`jobWatches`). A claim held by a robot not in the
+  new world goes back on offer. A job taken up through `MAX_TAKE_UPS` (3)
+  restarts without finishing is failed: the world's crash-loop guard counts
+  saves, and a job whose errand crashes the process would otherwise crash
+  every process after it.
+- **An offer sets its prop out.** A hand job's prop goes back to rest on
+  the counter, its hidden dynamics drawn afresh, when its job is offered
+  (`_set_out_counter`), except one a robot is touching. With the world
+  carried on, a failed attempt would otherwise leave it wherever it was
+  dropped, for good.
 - **Another body in the same house** (#559: Luca and Rowan keep who they are
   in new bodies). A save of one body's world carries on in another body's
   world of the same house (`lifecycle.HOUSES`) as a changed world does,
@@ -500,7 +481,7 @@ seat.** The site's session hub holds one seat; a seat with nothing run for
 fifteen minutes frees itself. The compose service CAPS the host and its
 child at one CPU's worth (`cpus: "1.0"`) -- a cap, never a pinned or a
 reserved core: a run competes with the served pair for the box's cores and
-can still eat into the pair's thin margin over real time (~1.1x, below).
+can still eat into the pair's margin over real time (~1.6x, below).
 MEASURED on the dev box, one pinned core, osmesa, a watched attempt of 15
 verbs (5 tag sightings) flew 13.6 sim s in 11.2 wall s, **1.22x real
 time**, so a run
@@ -527,12 +508,12 @@ struct by struct (half the physics thread, once).
 **A served day, and the core that would carry it** (issue #385, 2026-09-27;
 SimNotes, "The served sim's speed"). `--pair --free-run` on the deploy box
 over a scripted day, streaming to `ws_sink.py`: the rover's pair ran
-**1.14×** after #385; a quadruped pair adds ~20 ms of wall a sim second on
-the box, ~11 on a rented **AMD EPYC 4564P** core: ~1.1× here, ~1.78× there.
-#377 had asked for 1.3× over a day; **Ben decided (2026-09-27) to stay on
-this box**, so the served world runs near 1.1× and will slip under 1× as
-#386's scan matching and the stairs land. The measuring kit is the
-throwaway container the box runs beside the live world: `docker run --rm
+**1.14×** after #385, and the quadruped pair ~1.1× (~1.78× on a rented
+**AMD EPYC 4564P** core). #377 had asked for 1.3× over a day; **Ben decided
+(2026-09-27) to stay on this box**. The humanoid pair serves there at
+**1.62× and 1.65×** (#559; SimNotes, "The humanoid pair served"). The
+measuring kit is the throwaway container the box runs beside the live
+world: `docker run --rm
 --cpus 2 --memory 3g -e MUJOCO_GL=osmesa -e OPENBLAS_NUM_THREADS=1 -e
 PYTHONPATH=/w/src -v <tree>:/w -w /w --entrypoint sh rooftop-prod-sim`, a
 `ws_sink.py` in the background, then `serve.py` as above.

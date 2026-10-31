@@ -2,8 +2,7 @@
 
 The recipe for adding an *activity* to PluggyWorld: a puzzle, a mechanism, a
 gardening step — anything the robot does to the world that the world then
-has to remember. Companion to `docs/ToolPattern.md`, which covers the things
-the robot picks up; this covers the things it acts on.
+has to remember.
 
 Written alongside its first consumer, the **pressure plate and light**
 (`activity/plate.py`), so every rule here is one the build actually paid
@@ -11,8 +10,6 @@ for.
 
 Read alongside:
 - `docs/SimNotes.md` — the measurements behind the numbers quoted here.
-- `docs/ToolPattern.md` — the sibling doc; several rules are shared and are
-  cross-referenced rather than repeated.
 - `protocol/README.md` — the wire format activities join.
 
 ---
@@ -33,12 +30,12 @@ The question is never *"can MuJoCo model soil, water, or growth"*. It is
 state machine can verify"** — and layer 2 is that verification.
 
 **This is the oldest pattern in the repo, not a new one.** Charging has
-always worked this way: `dock_charge_contact` (`legs/dock.py`) is a
-contact-derived criterion and the battery filling is bookkeeping. So is
-`module_power_contact` (`rack/coupling.py`). Every one answers a question
-about the world with a **fact read out of the physics** rather than a belief
-about what was commanded. An activity is that pattern given a name, a
-memory, and a way onto the wire.
+always worked this way: the humanoid charges while its station's port catch
+holds its plug (`activity/station.py`, `Body.charging`), a criterion read
+out of the physics, and the battery filling is bookkeeping. It answers a
+question about the world with a **fact read out of the physics** rather
+than a belief about what was commanded. An activity is that pattern given a
+name, a memory, and a way onto the wire.
 
 ---
 
@@ -55,16 +52,24 @@ and one public surface, `self.flags` — a small dict of JSON-ready scalars that
 goes to telemetry verbatim.
 
 **An activity module owns its geometry too.** `activity/plate.py` emits its own
-MJCF and holds its own state machine, exactly as `rack/coupling.py` owns the
-tool modules' faces. A world generator adds an activity with one import and
-one call, and knows nothing else about it:
+MJCF and holds its own state machine, as `activity/station.py` emits the
+charging station and holds its two catches. A world generator adds an
+activity with one import and one call, and knows nothing else about it:
 
 ```python
-act_body, act_sensor = plate_gate_xml(PLATE_XY, (gx1, GATE_Y), FENCE_HALF_H)
+act_body, act_sensor = plate_light_xml(PLATE_XY)
 ```
 
 Sensors come back separately because MuJoCo wants them in their own top-level
-`<sensor>` section.
+`<sensor>` section. A world built at load takes one call on its `MjSpec`
+instead (`attach_station`, `storeroom.attach`, in `humanoid/world.py`).
+
+**An activity may apply physics MuJoCo has no element for**, on the seam
+each step: the chest's magnetic catch (`activity/chest.py`), the door's
+latch (`activity/door.py`), and the station's two catches -- welds switched
+on where the plug is and off past their force. **And a job's mechanism
+keeps its dynamics hidden** -- a drawer's runners, the chest's catch --
+drawn per offer and kept as `Task.secret` is (`TaskKind.draws`).
 
 The supporting pieces in `activity/base.py`:
 
@@ -110,7 +115,7 @@ latch=True)` remembers; the physics does not have to. The reference activity
 carries one flag of each kind on purpose:
 
 - `pressed` — **live**, true only while something is on the plate;
-- `state` — **latched**, `closed` until the first press, then `open` forever.
+- `state` — **latched**, `off` until the first press, then `on` forever.
 
 ### 3.4 Visible changes are pre-allocated — and `geom_pos` is a trap
 
@@ -179,7 +184,7 @@ Activity flags ride in the frame, beside `state` and `battery`:
 ```jsonc
 {"t": 123.45, "key": true,
  "robots": {"pluggybot": {...}},
- "world": {"module_lcd": [...]},
+ "world": {"lab_mouse": [...]},
  "activities": {"garden_light": {"state": "on", "pressed": false,
                                  "depressMm": 1}}}
 ```
@@ -216,19 +221,22 @@ deltas and each shipped a random half of the state changes. Guarded by
    and bracket the mechanics so the criterion is reachable but not
    self-triggering. The plate's spring was chosen by arithmetic at both ends:
    its own weight (1.47 N) must not reach the 6 mm trigger, and the rover's
-   drive wheel's ~15 N had to pass it comfortably (a quadruped's foot carries
-   more). 1200 N/m gives 1.2 mm of sag and bottoms out under a wheel. Both
-   ends have margin, and both were checked before anything was drawn.
+   drive wheel's ~15 N had to pass it comfortably (a walking robot's foot
+   carries more). 1200 N/m gives 1.2 mm of sag and bottoms out under a
+   wheel. Both ends have margin, and both were checked before anything was
+   drawn.
 3. **Write the module**: geometry emitter + `Activity` subclass, together.
 4. **Add it to a world generator** — one import, one call, and regenerate.
-5. **Demo with a filmstrip**, and *sweep the camera* (`ToolPattern.md` §5.4).
-   A toggle you cannot see in the filmstrip is a toggle you cannot debug, and
-   the first cut of the plate demo lost its toggle twice over: a bad angle,
-   and an effect painted nearly its background's own colour, which no angle
-   would have saved. Colour the two states apart as well as framing them.
-   ⚠ Grab the frame **one step after** the toggle: `sense()` selects it, but
-   a mocap pose only reaches `geom_xpos` on the next forward pass — the first
-   version captioned a photograph of the un-toggled state.
+5. **Demo with a filmstrip**, and *sweep the camera*: pick the angle by
+   sweeping azimuth at the moment of contact, and aim a free camera at the
+   working site rather than tracking a moving body. A toggle you cannot see
+   in the filmstrip is a toggle you cannot debug, and the first cut of the
+   plate demo lost its toggle twice over: a bad angle, and an effect painted
+   nearly its background's own colour, which no angle would have saved.
+   Colour the two states apart as well as framing them. ⚠ Grab the frame
+   **one step after** the toggle: `sense()` selects it, but a mocap pose
+   only reaches `geom_xpos` on the next forward pass — the first version
+   captioned a photograph of the un-toggled state.
 6. **pytest**, per the house rule — every debugged failure becomes an
    assertion shown to fail without its fix. For activities that means:
    the plate rests below its own trigger; pressing latches; releasing does
@@ -252,20 +260,21 @@ deltas and each shipped a random half of the state changes. Guarded by
    was withdrawn: a gate designed under "blocks no route the robot needs"
    had the street put behind it, and the rover that drove at the shut panel
    pumped metres of imaginary travel into its odometry (issues #68, #94).
-2. **One activity is scored, off its own counts.** `scoring.sample_shock`
-   reads the cage's shock count before and after the errand (issue #226)
-   — "the mechanism ran", never the program's account of its steps — and
-   `eval_shock` pays on it. The pattern for the next one: the activity
-   keeps counts (`Cage.measurements`), the sampler takes a before-reading
-   (`cage_before`, `board_before`'s shape) and the evaluator grades the
-   difference.
-3. **The robot has no verb for "operate a mechanism".** A plate is tripped
-   by standing on it (`press`), which needs no manipulation. A lever or a
-   valve needs a grip on a fixed mechanism at a known pose — the sink-lever
-   problem — and that is a tool-side capability, not an activity-side one.
-   #466's chest (`activity/chest.py`) is the first an arm will operate, its
-   lid by a drop handle (#469); its magnetic catch is the first physics an
-   activity sets on the seam, a force MuJoCo has no element for.
+2. **No job is scored off an activity's own flags or counts.** The hand
+   jobs' graders read their props' joints and the contact list themselves
+   (`challenge/lid.py`, `drawer.py`, `door.py`, `place.py`); the chest's
+   `opened` latch is a sensed flag beside the verdict's own line. A job
+   paid for what a mechanism counted has the activity keep the counts
+   (`Cage.measurements` still does), the sampler take a before-reading and
+   the evaluator grade the difference: the mouse's shock job was paid so,
+   off the cage's count (#226).
+3. **A mechanism is worked by the hands, a plate by the feet.** A plate is
+   tripped by a foot on it, which needs no manipulation (no verb presses
+   one now). A lever or a knob needs a grip on a fixed mechanism at a known
+   pose — the sink-lever problem — and the humanoid's hands' vocabulary
+   does that (docs/Hands.md), on the storeroom counter's chest lid, drawer,
+   lever-latched door and cube (`activity/chest.py`, `drawer.py`,
+   `door.py`, `cube.py`). What a hand cannot do yet is Hands.md §7's.
 4. **Activity state is not in the occupancy grid.** A mocap body that moves
    is geometry the map never re-observes, and a state that blocked a passage
    would be a wall the planner does not know about. Fine today because of
@@ -274,20 +283,18 @@ deltas and each shipped a random half of the state changes. Guarded by
    lab's cage (`activity/cage.py`) arrived with the second house (#215) as
    an emitter alone, and #226 added the `Cage` activity beside it without
    touching the generator -- a world change is one regime break, and the
-   props had to arrive with the house. What the second consumer added to
-   the pattern: a BEING with a state machine over a table and CLOCKS
+   props had to arrive with the house. What the second consumer added to the
+   pattern: a BEING with a state machine over a table and CLOCKS
    (`TRANSITIONS`, `CLOCKS`; every timed state falls back on its own),
-   inputs from three plates AND from the robots' poses (company is a
-   chassis within a radius for a while, once per visit), a pure
+   inputs from three plates AND from the robots' poses (company is a chassis
+   within a radius for a while, once per visit), a pure
    `_advance(now, presses, company)` a test drives with a fake press and a
    fake clock (docs/Testing.md), and a `context()` that answers only from
-   inside the room. A plate is still how the robot ACTS on it, through a
-   program that finds the plate by its sign and presses it
-   (`lifecycle.cage_program`: `find`, then `press`, #403, #419): the walk
-   onto the pad is steered by the sign, never by a believed position,
-   because a pad 25 m from the dock is 0.2 m to its edge and the trip
-   drifts the reckoning further than that (#287). Every pad the robot has
-   seen is a wall to its planner, so a press is the only way onto one.
+   inside the room. A world may switch a plate off (`Cage(shock=False)`: the humanoids'
+   house, `lifecycle.home_activities`), and a press of it is nothing -- no
+   act, no count, no record. No program presses a plate now: a foot crossing
+   a live one presses it, and `Cage.presser` names whose (a `press` row on
+   the wire).
 
 ---
 
