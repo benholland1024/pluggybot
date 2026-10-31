@@ -78,6 +78,20 @@ class Watch:
   def falls(self) -> int | None:
     return None if self.body is None else int(self.body.falls) - self.falls0
 
+  def kept_state(self) -> dict:
+    """What a restart carries (#559: a served job is watched from its
+    claim): the attempt's readings and its falls so far, never the hold's --
+    a job a restart cut is called again."""
+    return {"z0": self.z0, "highest": self.highest, "fastestDown": self.fastest_down,
+            "worstTilt": self.worst_tilt, "falls": self.falls()}
+
+  def restore_kept(self, state: dict) -> None:
+    self.z0 = state.get("z0", self.z0)
+    self.highest = float(state.get("highest", 0.0))
+    self.fastest_down = float(state.get("fastestDown", 0.0))
+    self.worst_tilt = state.get("worstTilt", self.worst_tilt)
+    lid.kept_falls(self, state)
+
   def __call__(self) -> None:
     z = float(self.data.xpos[self.cube][2])
     if self.z0 is None:

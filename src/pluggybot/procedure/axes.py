@@ -380,6 +380,20 @@ SENSORS["step.dy"] = Sensor(
 SENSORS["step.turn"] = Sensor(
   "step.turn", lambda life: reported("step", "turn", life),
   "how far you turned in the last `step`, rad (left, +)")
+#: ...and where the last `find` found its place (#559, a served humanoid's:
+#: what it walks up to with `drive_to` and `face`), in its MAP, as the
+#: address it searched round is -- never the stance frame a hand's are in.
+FIND_SENSORS = ("find.x", "find.y", "find.facing")
+SENSORS["find.x"] = Sensor(
+  "find.x", lambda life: reported("find", "x", life),
+  "where the tag the last `find` found is, m, in your map (x), as its address was given")
+SENSORS["find.y"] = Sensor(
+  "find.y", lambda life: reported("find", "y", life),
+  "where that tag is, m, in your map (y)")
+SENSORS["find.facing"] = Sensor(
+  "find.facing", lambda life: reported("find", "facing", life),
+  "which way that tag's face looks, rad, in your map: out of it, toward where it is read "
+  "from")
 #: ...and what `measure` saw (#493, the arm with sight): a flat top's height
 #: and where it ends, the stance frame.
 MEASURE_SENSORS = tuple(f"object.{k}" for k in ("top", "near", "far", "left", "right"))

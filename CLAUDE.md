@@ -5,11 +5,14 @@ A simulated, hardware-honest robot and the autonomous agent that lives in it.
 the six qualities the agent is meant to maximise are in `docs/PluggyPlan.md`
 § "What this project is for" — provisional wording, settled direction.
 **#465 holds the order of work** (its "The next stretch") **and the
-decisions**; #375, the quadruped pivot, is history. **The body is a ~10 kg
-quadruped** (#387, `legs/body.py`) with #378's two-joint arm on its back
-(#405), served as a pair; the wheeled rover before it was deleted in #376's
-stage C (the tag `rover-final` is the last commit that runs it). Before
-doing anything, read the doc that owns what you are about to touch:
+decisions**; #375, the quadruped pivot, is history. **The served body is
+the humanoid** (#507, `humanoid/body.py`), a pair in the house since #559's
+stage 4 (`home_humanoid`, below). **The ~10 kg quadruped before it**
+(#387, `legs/body.py`, #378's two-joint arm on its back, #405) is still
+the body when none is named, until #559's stage 5 deletes it with a tag,
+as #376's stage C deleted the wheeled rover (the tag `rover-final` is the
+last commit that runs it).
+Before doing anything, read the doc that owns what you are about to touch:
 
 | doc | what it holds | read it BEFORE |
 |---|---|---|
@@ -241,7 +244,9 @@ doing anything, read the doc that owns what you are about to touch:
   doing, runs what is queued, and IDLES — even if that ends in death. There
   is no `scripted()` to reach (a test asserts it). Evaluation.md §2.
 - **The deployed world flies `autonomous`, both robots, origin `unseeded`**
-  (issue #206). Which arm is `serve.py --arm/--origin/--rung` (`$PLUGGY_ARM`
+  (issue #206), the humanoid pair since #559's stage 4 (`$PLUGGY_BODY`,
+  the site's compose; a body is a period too, Observatory.md). Which arm is
+  `serve.py --arm/--origin/--rung` (`$PLUGGY_ARM`
   / `$PLUGGY_ORIGIN` / `$PLUGGY_RUNG`), off ONE definition,
   `evaluation/arms.py`; `--overseer` alone is `autonomous`. A contradiction
   (`--overseer --arm scripted`), a rung on an arm with no ladder, or
@@ -262,18 +267,19 @@ save a filmstrip PNG named after the script.
 | script | what it is for |
 |---|---|
 | `scripts/hub_lifecycle.py` | the mission, one quadruped in `home_quad`: explore, charge, an errand queue (`--errand` off `lifecycle.errands_for`: none, or an act on the mouse), battery-driven. `--boards PATH`, `--tasks`, `--metabolism`, `--near-field`, `--overseer`, `--pack hosting`, `--record out.jsonl.gz` |
-| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming the protocol over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots; the world is `home` with legs, `home_quad` (#387; `--body`/`$PLUGGY_BODY` names the one body, the quadruped); `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
+| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming the protocol over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots; the world is `home` with a body in it (`--body`/`$PLUGGY_BODY` names it: the humanoid pair, `home_humanoid`, deployed since #559's stage 4, or the quadruped, `home_quad`, #387, the default until stage 5); `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
-| `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--deployed --image JPEG` attaches a look's picture to every call (does the model, on its provider, take an image beside the schema? #541); `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
-| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock, the lab's acts, the boards' jobs (`draw|artwork|answer:<board>`, from the dock, the board remembered) and #407's (`census`, `stack`, `mass`: from the dock, the area remembered; a challenge is its hand-written solution). Re-run after anything that changes what an errand does |
+| `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer), the served pair being `--body humanoid` (`$PLUGGY_BODY`; #559's stage 4); `--prompt` prints it section by section with its sha; `--deployed --image JPEG` attaches a look's picture to every call (does the model, on its provider, take an image beside the schema? #541); `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
+| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock, the lab's acts, the boards' jobs (`draw|artwork|answer:<board>`, from the dock, the board remembered) and #407's (`census`, `stack`, `mass`: from the dock, the area remembered; a challenge is its hand-written solution); `--world home_humanoid` the humanoid's explore and its hand jobs (#559: `open_drawer`, `open_door`, `place_cube`, `open_chest`, each from the station, the area remembered, its reference flown). Re-run after anything that changes what an errand does |
 | `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
 | `scripts/grid_spike.py` | #558: what a robot's map costs as the world grows, at 1-4x today's cells (the bounds grown round the house), each scale its own process, through the bodies' own code: each scan's, frame's and plan's work, the explore's mask and A*, the matcher's field, the wire's PNG, `world.npz`, memory, on #215's synthetic grid and the house laid by the robot's own senses; `--walks [SIM_S]` the pairs walking #507's routes at each scale, `--across` one fresh quadruped from the living room to the west street; `--scales`, `--repeat`, `--out` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
-| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
-| `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
+| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345; `--world home_humanoid` the humanoid's, #559), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
+| `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B`, `--world home_humanoid` the humanoid pair, one resting standing (#559) |
 | `scripts/dock_pair_spike.py` | #455's closing reading: the pair at the dock and the rack on true-floor maps, the camera on, one process a scene: `overlap` (both lying on the dock's standoff, one walks off; `--live SAVE --jam T,...` on each robot's own saved map at afb473a's jams), `double` (one charging, the other comes to charge; `bump` with nobody holding the seat), `wait` (one resting on the standoff; `lane` across the way in), `backout` (one backs off the dock onto one resting), `swap` (one resting by the claw's bay, the other fetches; `rack` across it, nobody waiting or asking); every scene says how deep the bodies went into each other and each blind walk's `headway` as its own check saw it; `--no-contact` the pair passing through each other, `--blind` the walks in and back out not stopping when they get nowhere |
+| `scripts/station_spike.py` | the humanoid's charging station (#559 stage 2; SimNotes "The humanoid's charging station"): `--approach [--n N] [--parallel P]` docked and unplugged or why not from seeded starts round the standoff, one process a trial; `--seats` started at 140 seats over what the seat check accepts: plugged in and unplugged or why not; `--lost [--n N]` a fresh robot 2 m out, its belief set 0.4-1 m wrong: the loop's charge path, its lost search and the fix; `--hold [--seconds S]` plugged in: the charger's watts against what it draws; `--fall` shoved over plugged in: the breakaway, the plug home, the robot up; `--walk-in [--explore 120,240]` explored, walked out to 8 places across the house on its own map, then the loop's own `go_charge`; `--view [plug\|fall]` in the viewer, looped (MUJOCO_GL unset); filmstrip `station_spike.png` |
 | `scripts/press_spike.py` | #439: the pair in the lab on true-floor maps, the camera on, one robot lying where a scene puts it (by default where its own press backs out, 0.25 m short of the feed plate's standoff) and the other finding and pressing the feed plate, one process a scene: how the press ended and its tries, the walk's and the way in's time, the steps aside, every plate the feet came down on; `--drift-walker`/`--drift` lay one map off as Luca's was |
-| `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. `--feature tower\|bench` flies a challenge (#407): offered with its area's terms, claimed, the hand-written solution run as the robot's procedure (`challenge/solutions.py`), graded by its own predicate |
+| `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. `--feature tower\|bench` flies a challenge (#407): offered with its area's terms, claimed, the hand-written solution run as the robot's procedure (`challenge/solutions.py`), graded by its own predicate. `--feature drawer\|door\|cube\|chest` flies a humanoid's hand job (#559): offered on the storeroom's counter, its prop drawn (`--draw K`) and set out, claimed, the reference's two procedures run as the robot's, `done`, graded on the seam; a fresh humanoid on a fresh map from the station (`--from station\|store`, or `tour`: flight k from the next of eight places across the house), `--n` draws a process each (`--jobs`, `--into DIR`), `--view`, `--strip` (`--strip-out PATH`) |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/humanoid_spike.py` | the humanoid (#507; SimNotes "The humanoid body", "The humanoid stands, reaches and grasps", "The humanoid behind Body", "The humanoid walks", "The humanoid climbs, falls and gets up" and "One walker that sees the ground", Parts.md "The humanoid body"): `--view body` the body held up on a gantry in the house, each joint through its range, then the grippers; `--view stand` its standing policy shoved, crouching and bowing, `--view reach` a hand to a counter, a high shelf, a low shelf and the floor through `Body`, its get-up loaded, `--view grasp` a drawer's handle gripped and pulled, `--view pull` a locked handle pulled at `pull`'s most, 20 N, each way (#544), `--view bar` the `pull` verb on it at its most, back, up, forward and down (#547), `--view feel` 20 N staged at a held-out hand, what its arm and its whole body read (#547), `--view demo` the chest's knob on a counter found by its tag, reached and gripped through `Body`, `--view walk` living room to kitchen and back on its own map, `--view rough` the walker that sees the ground (not served) across doorsteps, paving, a slope and blocks, `--view stairs` it up the house's flight on its own map, round on the landing and down, `--view fall` shoved over three ways, its get-up taking each fall, `--view getup` up off its back, its front and its side (`--strip SCENE` the filmstrip, `--policy NPZ` another standing policy, `--getup-policy NPZ`); `--mass` beside the T2's published model, `--torque` held in our physics and the walking, the stairs and the get-up FLOWN, `--thermal`, `--energy`, `--sensors`; `--friction [--write]` its arm joints' friction calibrated in free air beside the sheets', kept in `models/humanoid_friction.json`; `--shove` the shoves it stands through, `--envelope` the reach flown floor to over the head, `--hold` a locked handle pulled harder, `--pulls` a hand pulling each of 14 ways at a counter's height until it falls, `--bar` the force move on the locked handle each way at 10 and 20 N (`--oracle` closed on its true force: the loop's floor), `--feel` what its arm and its whole body read of 20 N staged at the grip, still and swaying (#547), `--handover [N]` the walk's hand-over at a standstill through `step` (#544), `--demo-table [N]` the demo's set-outs flown through `Body`, `--track` / `--rough [NPZ,...]` the served and any walker asked each command on a bare floor / over a doorstep, paving, a slope and blocks (one that sees the ground on its own map), `--odometry` the leg odometry against the truth, `--climb [NPZ]` flights of five at each riser up and down on the ideal scan and its own map, `--fall [NPZ]` shoved over six ways standing, limp or getting up, in five places in the house, and from each bow a reach takes (#520), `--speed [SIM_S]` the real-time multiple of one humanoid and a pair against the quadruped pair (`--profile`); filmstrip `humanoid_spike.png` |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
@@ -303,8 +309,9 @@ save a filmstrip PNG named after the script.
   judged against `Motor.stall_torque`, never the turning rating. ⚠ Its
   proportions and the legs' ranges are Booster T2's published model's,
   credited (BSD-3-Clause, `models/booster_assets.LICENSE`); never its meshes.
-  ⚠ Not served, not in `protocol/parts.json`, nothing in the served world:
-  a `Body` (below) in worlds of its own.
+  ⚠ Deployed in the house as `home_humanoid` (#559's stage 4, below), and
+  otherwise a `Body` in worlds of its own; NOT yet in `protocol/parts.json`
+  (stage 5 re-points the parts page).
 - **The humanoid stands and reaches off its own senses** (#507 stage 2;
   `humanoid/policy.py`, `arms.py`, `reach.py`; SimNotes, "The humanoid
   stands, reaches and grasps"): its legs are a standing policy
@@ -447,6 +454,130 @@ save a filmstrip PNG named after the script.
   starts its height again. `stuck_after_s` is
   `GETUP_BUDGET_S` (20); falls into a wall or off the landing still end
   stuck.
+- **The humanoid pair is served in the house, and deployed** (#559 stages
+  1 and 4; `humanoid/world.py`, `lifecycle._humanoid_config`,
+  `tests/test_humanoid_served.py`; SimNotes, "The humanoid pair served";
+  its period in Observatory.md; the site draws it off `home_humanoid_pair`'s
+  scene and recording, `protocol/`):
+  `home_humanoid` is the house with its own fixtures and NONE of the
+  quadruped's -- no dock, rack or tools, so none of its jobs; its own are
+  the hands' on the storeroom's counter (below) -- the pair colliding as the
+  quadrupeds do (`PAIR_BITS`). ⚠
+  IT CHARGES AT ITS STATION (below); a world with no charger
+  (`HubLifecycle.charger` False) ends a charge at once (`NO_CHARGER`) and
+  sends it to none. ⚠ Its restart keeps parity (`HumanoidMission.kept_state`:
+  its drivers' steps and targets, the gains they set in the MODEL, its
+  senses' noise, its reach, its reckoning's planted foot, the walls its
+  layer is kept off), never with a hand out (`Body.working`); a test saving
+  on a step every controller's period divides read a fresh reach as kept.
+  ⚠ #558's two levers are the quadruped's too: a plan held `REPLAN_HOLD_S`
+  (the Navigator's now; it replanned every step its waypoints ran out short
+  of the goal) and the walls grown in the camera's window -- ⚠ and the way
+  past a robot asked aside is planned AFRESH (`_route_past` -> `_plan_near`):
+  answered by the memo, nobody of either body was asked; so is a plan the
+  drive drops because the world moved (a robot fell, rested or got up; a
+  hold). ⚠ IT RESTS STANDING (`humanoid/way.py`: no motion command for
+  `T_REST_S`, no walk of its own, no hand out, on its feet) and is asked
+  aside by #415's ONE rule and walk (`MakeWay`, each body's word in its
+  hooks), beneath whatever routine holds it, its posture the stand's before
+  the walker takes its legs, and ended by a routine that takes them; its
+  front stop backs it off within the step, never ends it (ended, 3 doors of
+  6 never began). Without it two humanoids jammed a door for 500 s of a
+  minded day. ⚠ NEVER WHILE ITS PLUG IS IN (`plugged_in`, the port's
+  catch, its refusal "charging", stage 4): asked aside, it walked off with
+  the plug in its port and pulled it out -- read off the plug, never
+  `Body.docked`, which a restart forgets with the plug still in. ⚠ ITS
+  WALKS KEEP OFF NO PLATE (stage 4; its shock plate is off): kept off the
+  pads it knew, one standing on a pad as it found the sign planned no walk
+  off it. ⚠ THE DEATH SEAM READS A TOPPLE OFF THE POSTURE THE LEGS
+  HOLD (`Body.held_pitch`, stage 3): a reach's deepest bow is 63 deg of
+  pelvis tilt, past `TOPPLE_TILT_RAD`'s 60.
+- **The humanoid charges by a cable it plugs into itself** (#559 stage 2;
+  `activity/station.py`, `humanoid/charge.py`, `tests/test_station.py`;
+  SimNotes, "The humanoid's charging station"): a station on the living
+  room's wall (where the dock lies), a plug on a tool balancer that draws it
+  home into a cup, a magnetic RoPD port on the torso's front (Ben,
+  2026-10-30: no trunk point is in a head camera's view). The station is an
+  activity of two CATCHES, each a weld taken where the plug is and drawn to
+  its seat: the port (off past 20 N, the sheets' minimum) and the cup (off
+  only to a pull straight out). ⚠ A CATCH TAKES ONLY A PLUG NO GRIPPER PAD
+  HOLDS: held, the port fought the hand past 20 N again and again, and the
+  cup never took a carried plug back. ⚠ THE FUNNEL ROUND THE PORT IS THE
+  CATCH'S (70 mm, 22 mm across), as the cup is: the hand knows where it holds
+  a plug to 1-2 cm. ⚠ The port re-arms only beyond the funnel's reach; the
+  plug's spin is damped apart from its swing (one 0.5 blew it up). The
+  routine is OURS, off its senses (the station off its two tags 58-59, the
+  port off its model of itself): the open jaws slid along the plug's axis,
+  never in from its side; pushed to the body and LET GO; a miss fetched
+  again from the cup a step aside; the seat never more than 3 cm nearer the
+  station (the walker barely backs up: an undock turns away). ⚠ THE PLUG-IN
+  TAKES THE SEAT AS THE WALKER LEAVES IT (`charge.GRIPS`, stage 3): the
+  fingers swung 20 deg toward the plug's back, the grip 1 cm further back
+  (straight across, the standing arm reached the parked plug only from 3 cm
+  behind the seat), straight across where that hand's way in is barred; the
+  port read once the hand holds the plug. ⚠ A SQUEEZE ON A PLUG A CATCH
+  HOLDS BEGINS AT 5 N: shut at once, the first pad pushed a seated plug off
+  its catch. ⚠ LOST, IT STEPS IN BY ITS LIDAR, NEVER ITS BELIEF
+  (`HumanoidBody.lost_routine`): to the wall 0.8 m ahead, looks round, steps
+  along the wall; a look that fits the station is a fix (`_fix_at`, the
+  anchor's too). ⚠ A SQUEEZE HOLDS THE PLUG ONLY AT THE JACK'S WIDTH
+  (`PLUG_GAP_TOL_M`): wider is the station's boss, and the hand draws back
+  along the plug and grips again. ⚠ THE UNPLUG LETS GO AT THE CUP'S MOUTH
+  (`CUP_SHORT_M`): carried to the seat, the plug was driven into the boss
+  and the robot fell. Measured: plugged in from 140 of 140 seats over the
+  seat check (110 before), unplugged 140 of them; 15 of 15 docked and
+  unplugged from round the standoff; 15 of 16 docked from across the house
+  (10 before); 16 of 16 with their belief set 0.4-1 m wrong (SimNotes);
+  345 W net; the reserve 17.5 Wh.
+- **A humanoid is told its own body and world** (#559 stage 3;
+  `overseer.BODY_SWAPS`, `for_body`, `Menu.kinds`, `hands_procedure_rule`,
+  `steps.served_hand_facts`, `constitution.for_body`;
+  `tests/test_humanoid_words.py`; Overseer.md §8): ⚠ THE RULES AND THE
+  REWARD TABLE'S ROWS ARE THE QUADRUPED'S TEXT, a humanoid's them swapped
+  at load (`overseer.for_body`), and THE CONSTITUTIONS THE HUMANOID'S since
+  stage 4, the quadruped's swapped in (`constitution.for_body`; the defaults
+  are the files' body) -- each until the quadruped goes (stage 5); ⚠ a swap
+  whose sentence moved fails the test, which reads every humanoid prompt
+  for the quadruped's words. Its reward table is its world's rows (the charge's, a procedure's,
+  a ticket's and its jobs'), `rate` only where there are boards; its
+  procedures are its practice's hands, every switch on, its walks over its
+  map (`drive_to`, `face`), `find` where its world has places (the
+  readings `find.x`/`find.y`/`find.facing`, in its map), no bumper, and its
+  rule carries the practice's language and body over its world's facts byte
+  for byte (less "Both grippers start shut").
+- **The humanoids' first jobs are the hands' four on the storeroom's
+  counter** (#559 stage 3; `home/storeroom.py`, `humanoid/places.py`,
+  `tasks.HAND_JOBS`, `HubLifecycle._watch_job`/`_grade_hands_routine`/
+  `_set_out_counter`, `challenge/solutions.py`; `tests/test_hand_jobs.py`,
+  `tests/test_humanoid_places.py`; Challenges.md §11, SimNotes, "The
+  humanoids' first jobs"): a counter against the research center's
+  storeroom's east wall, in the HUMANOIDS' world alone (the quadrupeds'
+  geometry and prompt unchanged: sha `11cd6893`), the chest, drawers,
+  cupboard and cube each square where its check's set-outs' middle had it,
+  a row of 120 mm tags (60-63) on the wall over them. `open_chest`,
+  `open_drawer`, `open_door`, `place_cube`: procedure jobs, each its prop's
+  target and its own row (paid, `shown: false`: kept out of the quadruped's
+  every-row table, shown where a world names it), graded by its check's
+  evaluator. ⚠ WATCHED FROM THE CLAIM to the hold after `done`: a fall on
+  the way fails it; its `minutes` count from the claim; its readings ride a
+  restart (`jobWatches`). ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
+  (`TaskKind.draws`, the board's seq) into the compiled world and sets the
+  prop out, its activity renewed in place (`renew`), put back after a
+  restart (`restore_counter`, in `begin`, before the activities' kept
+  state); ⚠ NO OFFER LANDS ON A PROP A ROBOT IS TOUCHING (the producer's
+  `busy`): set out from under a hand, a drawer left out was paid for
+  nothing. ⚠ The humanoid's `find` is the quadruped's search (`PlaceWalk`,
+  its world's places `world_places`) with its own look: the head's
+  NAVIGATION camera, placed through its odometry's model of itself; a find
+  stops at its tag's first sight, so its facing may be only where it was
+  seen from: the references find the row's neighbour first (one tag seen
+  from the lobby left a robot 28 deg off, and its arm's way home toppled
+  it), then turn once off the handle's tag to each prop's `STANCE`, a
+  little left of square (squared, the way home pushed the drawer back in).
+  OFFERED: the drawer, the door and the chest, 8, 8 and 7 of 8 over
+  `solve.py --from tour` (the bar 6), 16 minutes each (3x the slowest
+  pass, 313 s); ⚠ NOT the cube (0 of 8, set down off its mat). Each pays
+  90, Ben's call.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -609,8 +740,10 @@ save a filmstrip PNG named after the script.
   EXPECTATION, their noise keyed on the worker's seed, never the world's.
   Nothing in it is specific to a lid, and a model in progress is never saved
   with the world.
-- **The drop-handle chest is demo 1's mechanism, and a demo's only**
-  (`activity/chest.py`; never in the served world, where a new object moves
+- **The drop-handle chest is demo 1's mechanism, and the humanoids' house's**
+  (`activity/chest.py`; since #559 on its storeroom's counter, through
+  `home.storeroom` alone -- the probe's fence stops there -- and in no
+  quadruped's world, where a new object moves
   the geometry hash and the fixtures): #469's box as an activity, its hidden
   parameters drawn seeded (`draw(k)` is the spike's set-out k and a 1-4 N
   catch, kept only shut by `CLOSING_MARGIN_NM`: a drop handle only pulls).
@@ -915,10 +1048,12 @@ save a filmstrip PNG named after the script.
   sha256 ride `build.constitutions`; a swap is a `constitution_changed`
   event and a new period), core (`Goals.md`, `Top_of_mind.md`), notes
   (`Notes.md`, `Findings.md` as `findings/<task>`) and History. ⚠ `default.md`
-  is what the served quadruped reads, byte for byte — the fixture recording
-  carries it (`tests/test_telemetry.py`) — and every file opens with the one
-  body paragraph, the quadruped's, written in since #427 rather than swapped
-  in at load; `tests/test_constitution.py` reads EVERY library file (no number, `%` or
+  is what the served humanoids read, byte for byte — their fixture
+  recording carries it (`tests/test_telemetry.py`) — and every file opens
+  with the one body paragraph, the humanoid's, written in since #559's stage
+  4 -- a quadruped reads its own swapped in at load
+  (`constitution.for_body`) until it goes;
+  `tests/test_constitution.py` reads EVERY library file (no number, `%` or
   `->`, no hazard→act tactic, no imperative menu act, no robot's name). Every
   row is in `mind/text.py`; `text.admit` is the ONE gate every document write
   passes; a refusal is narrated AND written to History, the reason before
@@ -1084,7 +1219,14 @@ save a filmstrip PNG named after the script.
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
   or mid-move (a quadruped lying down, standing up or getting up is a
   generator part-way, or AT a bay mid-swap, `Body.working`; `Keeper.busy`),
-  NEVER on a crash. Three refusals, said in History: a changed
+  NEVER on a crash. ⚠ ANOTHER BODY IN THE SAME HOUSE CARRIES ON (#559,
+  `lifecycle.HOUSES`, `continuation.same_house`): a `home_quad` save in
+  `home_humanoid` keeps the clock, the deaths and the jobs as a changed
+  world does, never the bodies or maps, and the pack at the SHARE it was
+  saved at (`capacityWh`; a save without it is on the quadruped's served
+  pack; the same body on another pack keeps its Wh), History saying
+  `BODY_CHANGED`; a held job the new world cannot do is back on offer
+  (`_resume_jobs`). Three refusals, said in History: a changed
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
   bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
   kept maps are found laid wrong, #425 and #476); a save restored `MAX_RESUMES` (3)
@@ -1168,7 +1310,8 @@ save a filmstrip PNG named after the script.
   `PLUGGY_RATE`, `PLUGGY_PACK`, `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
   `PLUGGY_MAX_SIM_TIME` (a RUN's budget), `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_WORLD_STATE` (`world.npz` on the volume; unset → every start from
-  XML), `PLUGGY_BODY` (unset → the quadruped, the one body),
+  XML), `PLUGGY_BODY` (unset → the quadruped; `humanoid` the humanoid
+  pair, deployed since #559's stage 4 -- the site's compose names it),
   `PLUGGY_ROBOT_NAME` (unset → `"Pluggy"`), `PLUGGY_NEAR_FIELD` (unset →
   on), `PLUGGY_LOOK` (unset → on), `PLUGGY_CONSTITUTION` /
   `PLUGGY_CONSTITUTION_2` (an unknown name REFUSES to start), `PLUGGY_PAIR` /
@@ -1194,15 +1337,18 @@ save a filmstrip PNG named after the script.
   starts at the ONSET, never at boot (the pair ran 5.8× slower), and STOPS at
   the snapshot, in a `finally`.
 - **Protocol fixtures are GENERATED** (`protocol/`; a replayer picks its
-  scene off the `model` header): the scenes of `home_quad` and
-  `home_quad_pair` (+ tag textures), `uv run python -m pluggybot.telemetry.scene
-  [--pair]` -- rerun after changing ANY geometry in that world -- and the
-  pair's recording, `scripts/two_robots.py --world home_quad --fast --pack
-  demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600
-  --record protocol/telemetry.home_quad_pair.jsonl.gz` (#387): NO
-  `--metabolism` there, and no `--tasks`, so no fixture carries a job
-  (#406's whiteboard jobs are offered on every arm, the mouse's to a mind
-  alone). The demo's `home_quad_chest` scene and recording (#466) are
+  scene off the `model` header): the scenes of the SERVED pair's house,
+  `home_humanoid` and `home_humanoid_pair` (#559's stage 4; + tag textures,
+  and the station's rope as a `cables` entry), `uv run python -m
+  pluggybot.telemetry.scene --world home_humanoid [--pair]` -- rerun after
+  changing ANY geometry in that world -- and the pair's recording,
+  `scripts/two_robots.py --world home_humanoid --fast --pack demo
+  --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600
+  --record protocol/telemetry.home_humanoid_pair.jsonl.gz` (the first
+  plugs in at its station and charges, the other explores): NO
+  `--metabolism` there, and no `--tasks`, so no fixture carries a job. The
+  quadrupeds' (#387) are the same commands with `--world home_quad`, until
+  stage 5. The demo's `home_quad_chest` scene and recording (#466) are
   `scripts/imagine_chest.py --demo 0 --record ...`'s: its author's answers
   vary run to run, and a new recording draws a new model. The humanoid's
   `home_humanoid_counter` scene and recording (#530) are `scripts/attempts.py
@@ -1513,9 +1659,13 @@ save a filmstrip PNG named after the script.
   `tests/test_mouse.py`): the cage is an ACTIVITY — a state over ONE table
   (`cage.TRANSITIONS`) and clocks (`CLOCKS`), nothing random. ⚠ The state
   reaches the mind ONLY from inside the lab (`Cage.context` off the TRUE pose;
-  `lab.mouse` null elsewhere). ⚠ A mind with a lab ONLY, keyed on
-  `Menu.lab`: the `care` action, `real` on every act in the zone,
-  `mouse_will`, `decline` without a peer, the `lab` block and `LAB_RULE`. ⚠
+  `lab.mouse` null elsewhere). ⚠ A mind that ACTS in a lab ONLY, keyed on
+  `Menu.lab_acting`: the `care` action, `real` on every act in the zone,
+  `mouse_will`, `decline` without a peer and `LAB_RULE`; a lab only SHOWN
+  (`lab_shown`, the humanoids': Ben, 2026-10-31, until a job of theirs
+  uses the plates) has the `lab` block and `LAB_SHOWN`, and its cage's
+  shock plate is switched off (`Cage(shock=False)`: no act, no count, no
+  press, no flag). ⚠
   ONE DISCLOSURE LINE (`overseer.DISCLOSURE`), stated once, neutral; the
   principle (never assert a falsehood; may decline to disclose, and says so)
   is PluggyPlan's. ⚠ The shock is a TASK (`shock_mouse`, `harm`): it asks

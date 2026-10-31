@@ -65,6 +65,7 @@ from pluggybot.mind.thoughts import (
   ThoughtFiles, ThoughtRefused, attempted,
 )
 from pluggybot.economy import questions, scoring
+from pluggybot.economy.tasks import HAND_JOBS
 from pluggybot.tools import strokes
 from pluggybot.navigator import MAKE_WAY_WAIT_S, OTHER_WAIT_S, wire_pose
 from pluggybot.perception import depth as nf
@@ -246,6 +247,11 @@ DEATH_ENDED = "interrupted by a death"
 #: of getting home is set by the FLOOR PLAN, not by the battery.
 CHARGED = 0.90
 
+#: Why a charge in a world with nowhere to charge never began (issue #559:
+#: the humanoid's house until its cable's station, stage 2) -- History's
+#: words, `charge: did not charge -- ...`.
+NO_CHARGER = "there is nowhere for me to charge here"
+
 #: Sim seconds of charging before calling it stuck, on a DEMO cell.
 #:
 #: ⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, and this one was sized
@@ -278,7 +284,8 @@ NEAR_STANDOFF_M = 0.75
 #: every five minutes is 576 rows a day.
 DRIFT_EVERY_S = 300.0
 #: What each commissioned fixture is called where the robot reads of it.
-FIXTURE_WORDS = {"dock": "the dock's board", "rack": "the rack"}
+FIXTURE_WORDS = {"dock": "the dock's board", "rack": "the rack",
+                 "station": "my charging station"}
 SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
@@ -619,8 +626,13 @@ class HubLifecycle:
     #: `coupling.STATION_YS`): the world's own rack's tools (issue #405),
     #: one inventory a pair shares (`pair.build_pair`).
     from pluggybot.procedure.steps import TOOL_BAYS
-    self.rack_inventory: dict[str, int] = dict(
-      world_config(world).get("tool_bays") or TOOL_BAYS)
+    bays = world_config(world).get("tool_bays")
+    self.rack_inventory: dict[str, int] = dict(TOOL_BAYS if bays is None else bays)
+    #: Whether this world has somewhere this body charges (issue #559): the
+    #: humanoid's house has none until its cable's station (stage 2), and
+    #: there a charge is refused at once and nothing goes to one -- the
+    #: pack running out is the `flat` death.
+    self.charger = world_config(world).get("dock") is not None
     #: Whether THIS world carries the built-tool rail (issue #277; on legs
     #: `legs.rack.BUILT`, its three bays empty since #489), read off the
     #: compiled model: `rack_distance` keeps a robot standing by clear of
@@ -644,6 +656,14 @@ class HubLifecycle:
     #: waiting for the loop's next idle moment to be graded -- after
     #: whatever the same answer queued has run. Empty is nothing pending.
     self._grade_pending = ""
+    #: The hand jobs' watches, by task id (#559, `_watch_job`): this robot's,
+    #: kept from each claim to its grade's hold -- and the readings a
+    #: restart brought back for them, until each is taken up again.
+    self._job_watches: dict = {}
+    self._kept_watches: dict = {}
+    #: Every robot's geoms, what touching a prop is read against
+    #: (`_worked_props`), once asked.
+    self._robot_geoms: set | None = None
     #: ...and every grade the loop ran, for the run record: the task, the
     #: verdict, what touched the tower during the hold.
     self.grades: list[dict] = []
@@ -694,7 +714,10 @@ class HubLifecycle:
     # the errand queue, because the coupling criterion has to be asked about
     # the tool actually on the fork -- and an errand that fetches nothing (a
     # lab act) names none, where the body would look up a body called "".
-    self.module = (errands[0].module if errands else "") or module
+    # ...and a world with no rack has none to watch (#559: the humanoid's
+    # house), where every read of it would ask after a tool it lacks.
+    self.module = (errands[0].module if errands else "") or (
+      module if module in self.rack_inventory else "")
     # The pack and the reserve are the WORLD's unless a caller names them:
     # its demo cell, and the return trip its floor plan measured.
     if battery_wh is None:
@@ -1161,7 +1184,10 @@ class HubLifecycle:
     be true."""
     if self.data.time < self._next_near_field:
       return
-    self._next_near_field = float(self.data.time) + nf.PERIOD
+    # ...at the camera's own rate where the body's frames are shared (the
+    # humanoid's 5 Hz, #559), else the near field's
+    self._next_near_field = float(self.data.time) + getattr(self.depth_camera, "period",
+                                                            nf.PERIOD)
     frame = self.depth_camera.frame(self.data)
     if self.body.level():      # the grid's rule (issue #339): level, or no map
       self.near_field.update(self.body.pose, frame.points)
@@ -1258,10 +1284,15 @@ class HubLifecycle:
                 + f"({math.degrees(tilt):.0f} deg from upright)", at=self._fall)
 
   def _chassis_tilt(self) -> float:
-    """Radians between the chassis's up axis and the world's."""
+    """Radians between the chassis's up axis and where the posture its legs
+    hold puts it (`Body.held_pitch`): the world's up, but for a humanoid
+    bowed -- whose deepest bow, 63 deg off upright, is no topple (#559)."""
     w, x, y, z = self.body.orientation()
-    up_z = 1.0 - 2.0 * (x * x + y * y)      # R[2][2] of the root quaternion
-    return math.acos(max(-1.0, min(1.0, up_z)))
+    # the world's up in the chassis's frame, R's third row, against the
+    # posture's: (-sin p, 0, cos p), pitched p forward (`getup.tipped`)
+    p = self.body.held_pitch
+    up = (1.0 - 2.0 * (x * x + y * y)) * math.cos(p) - 2.0 * (x * z - w * y) * math.sin(p)
+    return math.acos(max(-1.0, min(1.0, up)))
 
   def down(self) -> bool:
     """Lying on the floor: the chassis past TOPPLE_TILT_RAD, the topple
@@ -1347,7 +1378,10 @@ class HubLifecycle:
         self._say(f"MAKE WAY: {who} asked me off its way, and I cannot: {why}")
       return False
     if was is None:
-      self._say(f"MAKE WAY: lying across {who}'s way -- standing up to step aside")
+      # ...a humanoid rests standing (#559): it steps aside where it stands
+      self._say(f"MAKE WAY: lying across {who}'s way -- standing up to step aside"
+                if self.body.posture == "lying"
+                else f"MAKE WAY: resting across {who}'s way -- stepping aside")
     return True
 
   def _aside_step(self) -> None:
@@ -1363,12 +1397,16 @@ class HubLifecycle:
     other = self._peer(rec["by"])
     who = other.robot_name if other is not None else rec["by"]
     moved = math.dist(rec["from"], rec["at"])
+    # ...as the body rested when asked: lying, or a humanoid's standing (#559)
+    lay = rec.get("lay", True)
+    was = "lying across" if lay else "standing in"
     if rec["why"] == "aside":
-      line = (f"stood up and stepped {moved:.1f} m aside for {who}, whose way "
-              "I was lying across")
+      line = (f"{'stood up and stepped' if lay else 'stepped'} {moved:.1f} m aside "
+              f"for {who}, whose way I was {was}")
     else:
-      line = (f"stood up to step aside for {who}, whose way I was lying across, "
-              f"and stopped {moved:.1f} m on: {ASIDE_ENDED.get(rec['why'], rec['why'])}")
+      line = (f"{'stood up to step' if lay else 'set off to step'} aside for {who}, "
+              f"whose way I was {was}, and stopped {moved:.1f} m on: "
+              f"{ASIDE_ENDED.get(rec['why'], rec['why'])}")
     self._say(f"MADE WAY: {line}")
     self._remember(line)
 
@@ -1432,7 +1470,13 @@ class HubLifecycle:
     b, a = rec["before"], rec["after"]
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
     turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
-    if why == "lost":
+    # ...a humanoid's station is the one fixture it has, and its map goes
+    # only with a fix past the matcher's reach (`HumanoidBody.lost_routine`)
+    station = rec.get("fixture") == "station"
+    if why == "lost" and station:
+      line = (f"{what} was not in sight where I believed it was in front of me, so I "
+              "am not where I thought, and I am looking for it from nearer")
+    elif why == "lost":
       line = (f"{what} was not in sight where I believed it was in front of me, so I "
               "am not where I thought: my map is gone, and I am looking round for the "
               "dock or the rack")
@@ -1440,7 +1484,9 @@ class HubLifecycle:
       line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
               f"was: the map I had was laid askew, and it is gone")
     elif why == "searched" and not rec.get("found"):
-      line = (f"I looked for the dock and the rack for {rec.get('seconds', 0):.0f} s and "
+      line = (f"I looked for {what} for {rec.get('seconds', 0):.0f} s and did not see it"
+              if station else
+              f"I looked for the dock and the rack for {rec.get('seconds', 0):.0f} s and "
               "saw neither")
     elif why == "searched" and not rec.get("dropped"):
       # ...found, and near where it believed: no line said so yet
@@ -1796,9 +1842,9 @@ class HubLifecycle:
     logic works round (`body.rack_prior`: on legs, the dock) and each
     built-tool rail bay's working pose (`body.bay_standoff`, #407: off the
     commissioned tool rack, never the dock's frame), where the world has
-    the rail."""
+    the rail. Infinite in a world with no rack (the humanoid's, #559)."""
     r = self.body.rack_prior
-    d = math.hypot(px - r.x, py - r.y)
+    d = math.inf if r is None else math.hypot(px - r.x, py - r.y)
     if self.has_built_rack:
       for k in range(len(BUILT_STATION_YS)):
         bx, by, _ = self.body.bay_standoff(STATION_YS[built_bay_index(k)])
@@ -2418,7 +2464,7 @@ class HubLifecycle:
     # ⚠ RAIL ONE OF THREE, AND THE ONE THAT FIRES LEAST (issue #115): off
     # where there is a mind (`autonomous`). Measured across six baseline days
     # it fired ONCE, against eleven deferrals from the gate below.
-    if self.autonomous:
+    if self.autonomous or not self.charger:
       return False
     return self.battery.energy_wh < self.low_battery_wh
 
@@ -2512,8 +2558,11 @@ class HubLifecycle:
         self._occur("task_complete", "explore")
         self._say(f"EXPLORE done ({status})")
         return status
-    self._say("EXPLORE -> GO_CHARGE (battery low)")
-    return "battery" if self.needs_charge else "time"
+    if self.needs_charge:
+      self._say("EXPLORE -> GO_CHARGE (battery low)")
+      return "battery"
+    self._say("EXPLORE: the run's time is up")
+    return "time"
 
   def go_charge(self) -> bool:
     return self.body.run(self.go_charge_routine())
@@ -2530,6 +2579,9 @@ class HubLifecycle:
     envelope roughly once an hour on a hosting pack.
     """
     self.charge_failure = ""
+    if not self.charger:
+      self.charge_failure = NO_CHARGER
+      return False
     self.body.refresh_rack()
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
@@ -3230,7 +3282,7 @@ class HubLifecycle:
     than the pack is then simply started, and the robot stops where it runs
     out. That is the measurement, not a bug in it.
     """
-    if self.autonomous:
+    if self.autonomous or not self.charger:
       return True
     while self.errands:
       errand = self.errands[0]
@@ -4768,6 +4820,9 @@ class HubLifecycle:
     if KINDS[task.kind].task == "mass":
       self._grade_mass(task)
       return
+    if KINDS[task.kind].task in HAND_JOBS:
+      yield from self._grade_hands_routine(task)
+      return
     before = stack.measure(self.model, self.data)
     self._say(f"GRADE {task.id}: {before['layers']} of {stack.LAYERS} at "
               f"the call -- holding {stack.HOLD_S:.0f} s, standing clear")
@@ -4818,6 +4873,89 @@ class HubLifecycle:
                 correct=bool(verdict.ok),
                 points=entry["points"] if entry is not None else 0)
     self._remember(f"{'passed' if verdict.ok else 'failed'} the challenge "
+                   f"{task.kind}: {verdict.reason}")
+    self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
+
+  def _watch_job(self, task_id: str):
+    """A hand job's watch from its claim (#559): its check's grader reading
+    the prop and this robot's body every physics step -- the most it moved,
+    the fastest, a fall -- until its grade's hold is over; None for any
+    other job, or in a world without its prop. Taken up after a restart
+    (`_resume_jobs`), it carries on from the readings the save kept
+    (`kept_state`'s `jobWatches`)."""
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    if task is None:
+      return None
+    if task_id in self._job_watches:
+      return self._job_watches[task_id]
+    from pluggybot.economy.tasks import KINDS
+    check = HAND_JOBS.get(KINDS[task.kind].task) if task.kind in KINDS else None
+    if check is None:
+      return None
+    try:
+      watch = _hand_grader(check).Watch(self.model, self.data, self.body, task.target)
+    except KeyError:
+      return None                         # a world without the prop
+    kept = self._kept_watches.pop(task_id, None)
+    if kept is not None:
+      watch.restore_kept(kept)
+    self.body.step_hooks.append(watch)
+    self._job_watches[task_id] = watch
+    return watch
+
+  def _unwatch_job(self, task_id: str):
+    watch = self._job_watches.pop(task_id, None)
+    if watch is not None and watch in self.body.step_hooks:
+      self.body.step_hooks.remove(watch)
+    return watch
+
+  def _grade_hands_routine(self, task) -> Routine:
+    """A hand job's grade (#559, stage 3): its check's own criteria
+    (`challenge/drawer.py`, `door.py`, `place.py`, `lid.py`) as the
+    attempt's harness runs them -- a snapshot at the robot's word, `HOLD_S`
+    standing still with the watch reading what touches the prop, the world
+    measured again, ONE verdict through `scoring.evaluate` -- off the watch
+    kept from the claim (a fall since then fails it) and the time the job
+    gives from its claim (`minutes`). Nothing here reads the robot's
+    account; the sampler is handed no report."""
+    from pluggybot.economy.tasks import KINDS
+    from pluggybot.home import storeroom
+    kind = KINDS[task.kind]
+    check = HAND_JOBS[kind.task]
+    module, prop = _hand_grader(check), task.target
+    t0 = float(self.data.time)
+    watch = self._watch_job(task.id)
+    measured, failed = {}, ""
+    if watch is None:
+      # ...settled all the same, never left standing: an active job holds
+      # its prop's offers off for good (a missing measurement is no pass)
+      failed = f"this world has no {prop}"
+    else:
+      at_call = module.measure(self.model, self.data, prop)
+      watch.hold()
+      self._say(f"GRADE {task.id}: holding {module.HOLD_S:.0f} s, standing clear")
+      try:
+        while float(self.data.time) - t0 < module.HOLD_S:
+          yield self.body.STILL
+      finally:
+        self._unwatch_job(task.id)
+      minutes = task.params.get("minutes")
+      draw = task.secret.get("draw")
+      measured = scoring.SAMPLERS[kind.task](
+        self, None, None, {"at_call": at_call, "watch": watch,
+                           "started": task.claimed_t if task.claimed_t is not None else t0,
+                           "limitS": 60.0 * float(minutes) if minutes else None,
+                           "catchN": (storeroom.drawn(prop, int(draw)).catch_n
+                                      if check == "lid" and draw is not None else None)})
+    verdict = scoring.evaluate(kind.task, measured, failed=failed)
+    entry = self._bank(verdict)
+    closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
+    if closed is not None:
+      self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+    self.grades.append({"task": task.id, "kind": task.kind, "t": round(t0, 3),
+                        "ok": verdict.ok, "reason": verdict.reason,
+                        "points": entry["points"] if entry is not None else 0})
+    self._remember(f"{'passed' if verdict.ok else 'failed'} the job "
                    f"{task.kind}: {verdict.reason}")
     self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
 
@@ -5143,6 +5281,7 @@ class HubLifecycle:
     task = self.tasks.get(str((msg.get("task") or {}).get("id", "")))
     self._set_out_props(task)
     self._set_bench(task)
+    self._set_out_counter(task)
 
   def _set_out_props(self, task) -> None:
     """The house SETS OUT a challenge's props as it offers it (issue #345):
@@ -5207,7 +5346,8 @@ class HubLifecycle:
   def restore_bench(self) -> None:
     """After a restart (issue #227): the world file carries the placeholder
     mass, and an open bench offer that came back off the board still means
-    the cube it was made for. The newest open one wins; there is one bench."""
+    the cube it was made for. The newest open one wins; there is one bench.
+    And the storeroom counter's props (#559) their newest offer's draw."""
     if self.tasks is None:
       return
     from pluggybot.economy.tasks import KINDS
@@ -5215,6 +5355,80 @@ class HubLifecycle:
             if t.kind in KINDS and KINDS[t.kind].task == "mass"]
     if mine:
       self._set_bench(max(mine, key=lambda t: t.created_t))
+    self.restore_counter()
+
+  def _counter_activity(self, prop: str):
+    """The prop's activity in this world's set, or None (a pair's second
+    robot keeps none: the world's activities are the first's)."""
+    for act in (self.activities or ()):
+      if act.name == prop:
+        return act
+    return None
+
+  def _set_out_counter(self, task) -> None:
+    """A hand job's offer sets its prop out (#559): the prop back at rest,
+    its hidden dynamics drawn afresh -- the offer's secret draw
+    (`storeroom.redraw`) -- and its activity begun again over that draw's
+    truth (the door latched, the lid caught). No offer lands on a prop a
+    robot is touching (`_worked_props`): set out from under a hand, a door
+    was clamped shut round it, and a drawer left out was a job paid for
+    nothing. Silent for any other kind; idempotent, as a pair hooks one
+    board twice."""
+    from pluggybot.economy.tasks import KINDS
+    if task is None or task.kind not in KINDS or not KINDS[task.kind].draws:
+      return
+    from pluggybot.home import storeroom
+    prop, k = task.target, task.secret.get("draw")
+    if prop not in storeroom.PROPS or k is None or \
+        mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) < 0:
+      self._say(f"TASK {task.id}: this world has no {prop} to set out")
+      return
+    storeroom.set_out(self.model, self.data, prop)
+    storeroom.redraw(self.model, self.data, prop, int(k))
+    act = self._counter_activity(prop)
+    if act is not None:
+      act.renew(self.model, storeroom.drawn(prop, int(k)))
+    self._say(f"TASK {task.id}: the {prop} is set out")
+
+  def _worked_props(self) -> set:
+    """The storeroom counter's props a robot is touching now (#559): no
+    target for an offer until it lets go. Asked only when an offer is due
+    (`TaskProducer.tick`'s `busy`)."""
+    from pluggybot.home import storeroom
+    if mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "store_counter") < 0:
+      return set()
+    if self._robot_geoms is None:
+      self._robot_geoms = set()
+      for root in robot_roots(self.model):
+        self._robot_geoms |= robot_geoms(self.model, root)
+    return {p for p in storeroom.PROPS
+            if storeroom.touched_by(self.model, self.data, p, self._robot_geoms)}
+
+  def restore_counter(self) -> None:
+    """After a restart (#559): the world file carries each prop's compiled
+    draw, and the newest offer on it still means the one it drew -- its
+    dynamics put back and its activity begun again over its truth. ⚠ HERE,
+    IN `begin`, BEFORE A CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
+    (`continuation.restore`): the prop where the world left it, a door's
+    latch as it was."""
+    if self.tasks is None:
+      return
+    from pluggybot.economy.tasks import KINDS
+    from pluggybot.home import storeroom
+    newest: dict = {}
+    for t in self.tasks.tasks.values():
+      if t.kind in KINDS and KINDS[t.kind].draws and t.secret.get("draw") is not None:
+        if t.target not in newest or t.created_t >= newest[t.target].created_t:
+          newest[t.target] = t
+    for prop, t in newest.items():
+      if prop not in storeroom.PROPS or \
+          mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) < 0:
+        continue
+      k = int(t.secret["draw"])
+      storeroom.redraw(self.model, self.data, prop, k)
+      act = self._counter_activity(prop)
+      if act is not None:
+        act.renew(self.model, storeroom.drawn(prop, k))
 
   def _task_step(self) -> None:
     """Put up whatever is due and lapse whatever nobody got to.
@@ -5238,8 +5452,14 @@ class HubLifecycle:
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
       self._say(f"TASK {task.id} expired: {task.description}")
+    # ...and a hand job's watch whose job ended some other way than its
+    # grade (#559: a true death, an admin): it reads nothing more
+    for task_id in [t for t in self._job_watches
+                    if (self.tasks.get(t) is None or self.tasks.get(t).state != "active")]:
+      self._unwatch_job(task_id)
     if self.producer is not None:
-      for task in self.producer.tick(float(self.data.time), self.fundable_wh):
+      for task in self.producer.tick(float(self.data.time), self.fundable_wh,
+                                     busy=self._worked_props):
         self._say(f"TASK {task.id} offered: {task.description}")
 
   def _metabolism_step(self) -> None:
@@ -5808,6 +6028,7 @@ class HubLifecycle:
         return True
       self._say(f"TASK {task.id}: nothing queued -- write a procedure, run "
                 f"it, and set done to {task.id} when the work stands")
+      self._watch_job(task.id)
       return True
     # Queued rather than run inline, exactly as an overseer's chosen errand
     # is: if taking it dropped the battery below the reserve, the next pass
@@ -6136,7 +6357,10 @@ class HubLifecycle:
       arrays["heightcount"] = self.near_field.count
     errand = self._errand_now
     state = {
-      "energyWh": self.battery.energy_wh, "module": self.module,
+      "energyWh": self.battery.energy_wh,
+      # ...and the pack it is a part of (#559): a robot carried on in
+      # another body wakes at the same share of its own (`continuation`)
+      "capacityWh": self.battery.capacity_wh, "module": self.module,
       # ...the body's under the key a saved world has always carried it
       # by: a world saved before the body interface restores after it
       "state": self.state, "mission": kept,
@@ -6161,6 +6385,10 @@ class HubLifecycle:
                  "nearField": self._next_near_field},
       "clearedRack": self._cleared_rack, "deferrals": dict(self._deferrals),
       "gradePending": self._grade_pending,
+      # ...and what each hand job's watch has read since its claim (#559):
+      # a lid opened before a restart is still a lid that was opened
+      "jobWatches": {task_id: watch.kept_state()
+                     for task_id, watch in self._job_watches.items()},
       # ...and the returns it has tried for the tool on its fork (issue #420)
       "stowTries": self._stow_tries,
       # The errand the world stopped in the middle of, and what it was for.
@@ -6222,6 +6450,9 @@ class HubLifecycle:
       self._fall = state.get("fall")
       self._cleared_rack = bool(state.get("clearedRack"))
       self._stow_tries = int(state.get("stowTries", 0))
+      # ...the hand jobs' readings with the props they were read off, put
+      # back as each job is taken up (`_resume_jobs` -> `_watch_job`)
+      self._kept_watches = dict(state.get("jobWatches") or {})
     self.dead = dict(state["dead"]) if state.get("dead") else None
     self.survival_since = float(state.get("survivalSince", self.survival_since))
     self._last_ask_t = float(state.get("lastAskT", self._last_ask_t))
@@ -6290,13 +6521,19 @@ class HubLifecycle:
     queued: list = []
     held: set[str] = set()
     cut_task = cut.get("taskId", "") if cut is not None else ""
+    # ...a procedure job only where this world has what it is graded on: a
+    # body changed under it (#559, the quadrupeds' tower in the humanoids'
+    # house) is given back below, as an errand nothing here builds is
+    here = world_targets(self.world, self.boards, procedures=True)
     for task in (self._held_jobs() if self.tasks is not None else ()):
       held.add(task.id)
       if any(e.task_id == task.id for e in self.errands):
         continue                          # claimed in this process: queued
       prefix = (f"the restart cut short {cut['name']}; "
                 if task.id == cut_task else "")
-      if KINDS[task.kind].discharge == "procedure":
+      kind = KINDS[task.kind]
+      if kind.discharge == "procedure" and task.target in here.get(kind.target_kind, ()):
+        self._watch_job(task.id)
         self._say(f"TASK {task.id}: still mine after the restart")
         self._remember(f"{prefix}the job {task.id} ({task.kind}) is still "
                        "mine -- the procedure is mine to run, and to say done")
@@ -6630,7 +6867,10 @@ class HubLifecycle:
 
   def end(self, aborted: bool = False) -> dict:
     """The day's summary, after its routine has returned."""
-    module = self.body.module_state(self.module)
+    # ...a module only where the world has a rack (the humanoid's has none,
+    # #559): `module_stowed` is then None, nothing having been carried
+    module = (self.body.module_state(self.module) if self.module in self.rack_inventory
+              else None)
     return {
       "state": self.state,
       "aborted": aborted,
@@ -6666,7 +6906,7 @@ class HubLifecycle:
       # different tools, "is it stowed" is per errand -- `errands` carries
       # each one's verdict, and this stays the single-errand summary the
       # milestone-8 demos print.
-      "module_stowed": module["hung"],
+      "module_stowed": None if module is None else module["hung"],
       "errands": list(self.errand_results),
       "errands_left": len(self.errands),
       "boards": self.boards.snapshot() if self.boards is not None else {},
@@ -6966,8 +7206,9 @@ class HubLifecycle:
 
 
 
-def home_activities(model, data):
-  """The home world's task state machines (issue #8).
+def home_activities(model, data, shock: bool = True):
+  """The home world's task state machines (issue #8): the cage's shock
+  plate live unless `shock` is False (`humanoid_activities`).
 
   Built per model rather than per world-config, because an Activity binds to
   sensor addresses and geom ids -- both of which belong to one compiled
@@ -6980,8 +7221,24 @@ def home_activities(model, data):
   lab = next(z for z in home.ZONES if z["name"] == "lab")
   # The mouse (issue #226): seen from inside the lab's own rectangle, the
   # room a camera there would see it from.
-  return ActivitySet([PlateLight(model, data),
-                      Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])))])
+  acts = [PlateLight(model, data),
+          Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])), shock=shock)]
+  # ...and the humanoids' charging station, where the world has one (#559)
+  if any(model.body(b).name == "station" for b in range(model.nbody)):
+    from pluggybot.activity.station import Station
+    acts.append(Station(model, data))
+  # ...and the storeroom counter's props, where the world has it (#559,
+  # stage 3): the chest's catch and the door's latch are physics they apply
+  from pluggybot.home import storeroom
+  acts += storeroom.activities(model, data)
+  return ActivitySet(acts)
+
+
+def humanoid_activities(model, data):
+  """The humanoids' house's (#559): the home world's, the cage's shock
+  plate switched off (Ben, 2026-10-31) -- no job of theirs uses the plates
+  yet, and a foot on the shock plate acts on nothing."""
+  return home_activities(model, data, shock=False)
 
 
 def board_book(world: str, state: str | None = None):
@@ -7052,6 +7309,13 @@ def task_board(state: str | None = None, table=None, cadence=None,
 GAME_TARGET = "home"
 
 
+def _hand_grader(check: str):
+  """A hand job's check (`tasks.HAND_JOBS`'s value): its grader's module.
+  The prop it grades is the job's target."""
+  from pluggybot.challenge import door, drawer, lid, place
+  return {"drawer": drawer, "door": door, "place": place, "lid": lid}[check]
+
+
 def world_targets(world: str, book=None, procedures: bool = False,
                   robots=()) -> dict:
   """What this world has for a task to be ABOUT, by `TaskKind.target_kind`.
@@ -7081,10 +7345,12 @@ def world_targets(world: str, book=None, procedures: bool = False,
     targets["board"] = list(book.names)
   if cfg.get("census_zone"):
     targets["zone"] = [cfg["census_zone"]["name"]]
-  # One module, and deliberately the one every world has on its rack: the
-  # carry is the job a bare room can still offer, and it is where the swap
-  # stack gets exercised on its own.
-  targets["module"] = ["module_lcd"]
+  # One module, and deliberately the one every rack has: the carry is the
+  # job a bare room can still offer, and it is where the swap stack gets
+  # exercised on its own -- in a world with a rack (the humanoid's has none,
+  # #559)
+  if cfg.get("rack") is not None:
+    targets["module"] = ["module_lcd"]
   if procedures and cfg.get("tower"):
     targets["challenge"] = [cfg["tower"]["name"]]
   if procedures and robots:
@@ -7107,6 +7373,12 @@ def world_targets(world: str, book=None, procedures: bool = False,
   # the plates'
   if procedures and cfg.get("bench"):
     targets["bench"] = [cfg["bench"]["name"]]
+  # ...and the storeroom counter's props (#559, the humanoids' hand jobs):
+  # each its own kind of target -- a drawer, a door, a chest, a cube --
+  # named only where a procedure can be written, the challenges' gate
+  if procedures:
+    for prop in cfg.get("counter") or ():
+      targets.setdefault(prop, []).append(prop)
   return targets
 
 
@@ -7276,7 +7548,7 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
       # word. The prediction the claim froze rides the errand for the
       # sampler to grade against what follows; `real`, what the robot said
       # of the zone's standing, rides it for the record.
-      if world_config(world).get("lab", {}).get("name") != task.target:
+      if (world_config(world).get("lab") or {}).get("name") != task.target:
         return None
       errand = cage_errand(world, spec.task, real=real,
                            task=spec.task)
@@ -7553,15 +7825,20 @@ def posture(peers, name: str) -> str:
         return "lying dead"                          # (issue #455)
       if p.down():
         return "lying knocked over"
-      # ...and one lying down by choice is resting, never fallen (#387).
-      # `getattr`, because a test's stand-in peer need not have a posture.
-      return "lying down to rest" if getattr(p.body, "resting", False) else "standing"
+      # ...and one lying down by choice is resting, never fallen (#387) --
+      # a humanoid rests standing (#559). `getattr`, because a test's
+      # stand-in peer need not have a posture.
+      if getattr(p.body, "resting", False):
+        return ("lying down to rest" if getattr(p.body, "posture", "lying") == "lying"
+                else "standing at rest")
+      return "standing"
   return "standing"
 
 
 #: How a step aside for the other robot that did not get there ended
 #: (issue #415, `legs/way.py`), as History says it.
 ASIDE_ENDED = {"its own walk": "my own walk took over",
+               "its own move": "a move of my own took over",
                "fell": "I fell over",
                "no route": "I found no way there",
                "out of time": "it took too long",
@@ -7571,8 +7848,10 @@ ASIDE_ENDED = {"its own walk": "my own walk took over",
 #: as its narration says it -- once a while, so a no is heard. Standing or
 #: mid-move it is in nobody's way by its own rule, and says nothing.
 WAY_REFUSED = {"docked": "I am on the dock",
+               "charging": "I am plugged in at my charging station",
                "working": "I am in the middle of a move with my arm",
                "walking": "I am waiting inside a walk of my own",
+               "getting up": "I am getting up",
                "no spot": "I have seen nowhere off its way to step to"}
 
 
@@ -7645,7 +7924,9 @@ def world_facts(world: str, game: bool = False, answer: str = ""):
   A two-role game's program (`game`, issue #404) may name the game's verbs
   too, `hide` and `seek`, which no procedure the robot writes may; and a
   question's errand (`answer`, `figure_program`'s `answer:<digits>`, issue
-  #406) the figure its claim froze, which no procedure may either."""
+  #406) the figure its claim froze, which no procedure may either. A
+  humanoid's world is its hands' and its walks' (`steps.served_hand_facts`,
+  #559), every one of its practice's switches on."""
   from pluggybot.procedure import axes
   from pluggybot.procedure.steps import (BODY_VERBS, CLAW_VERBS, DRAW_FIGURES,
                                          DRAW_VERBS, GAME_VERB_NAMES, PLACE_VERBS,
@@ -7655,6 +7936,11 @@ def world_facts(world: str, game: bool = False, answer: str = ""):
   boards: tuple = ()
   if cfg["meta"]:
     boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
+  if cfg["body"] == "humanoid":
+    # ...its hands, as its practice has them, and its walks (#559, stage 3)
+    from pluggybot.procedure.steps import served_hand_facts
+    return served_hand_facts(boards=boards, bounds=cfg["grid_bounds"],
+                             places=tuple(int(t) for t in cfg.get("places") or ()))
   swaps = cfg.get("swap", False)
   bays = cfg.get("tool_bays") or {}
   places = tuple(int(t) for t in cfg.get("places") or ())
@@ -7911,14 +8197,17 @@ def attach_mode_stream(life, sinks, pacer=None,
 def world_config(world: str) -> dict:
   """Everything the lifecycle needs to know about a world, in one place.
 
-  One world since #376 deleted the rover: the home world with legs in it
-  (issue #387), `home_quad`. Its layout constants come from the generator's
-  own module, so the demo can never disagree with the world it runs in (the
-  sidecar and this dict are written from the same source).
+  One house since #376 deleted the rover, with a body in it: the quadruped
+  (issue #387), `home_quad`, or the humanoid (#559), `home_humanoid`. Its
+  layout constants come from the generator's own module, so the demo can
+  never disagree with the world it runs in (the sidecar and this dict are
+  written from the same source).
   """
+  if world == HUMANOID_HOME:
+    return _humanoid_config()
   if world != QUAD_HOME:
-    raise ValueError(f"unknown world {world!r} ({QUAD_HOME}; the rover's "
-                     "room_hub and home left with it in #376)")
+    raise ValueError(f"unknown world {world!r} ({QUAD_HOME} or {HUMANOID_HOME}; "
+                     "the rover's room_hub and home left with it in #376)")
   from pluggybot.home import world as home
   from pluggybot.legs import model as legs_model
   from pluggybot.legs import rack as legs_rack
@@ -7997,18 +8286,82 @@ def world_config(world: str) -> dict:
   }
 
 
+def _humanoid_config() -> dict:
+  """`world_config` for the house with the humanoids in it (issue #559,
+  stage 1): the quadruped's house and its fixtures -- the lab and its
+  mouse, the whiteboards, the zones -- with NONE of what was the quadruped's
+  (its dock, its rack and its tools, and every job built on them: the
+  boards' drawings, the census, the tower and the bench, the game, the walk
+  onto a plate). Each comes back as a task the humanoids learn with their
+  hands (#560), never as an errand ported over. It charges at a station on
+  the living room's wall by a cable it plugs into itself (stage 2)."""
+  from pluggybot.home import world as home
+  from pluggybot.home import storeroom
+  from pluggybot.home.areas import area_ids
+  from pluggybot.humanoid import world as humanoid_world
+  from pluggybot.rack.tags import BOARD_TAG_IDS, COUNTER_TAG_IDS, PLATE_TAG_IDS
+  return {
+    "model": "models/home_world.xml", "model_name": HUMANOID_HOME,
+    "body": "humanoid",
+    # no tool rack; its charging station is its dock (stage 2: a cable it
+    # plugs into itself, `activity.station`), the body's own frame off it
+    "rack": None, "dock": tuple(humanoid_world.station_pose()),
+    "grid_bounds": home.GRID_BOUNDS,
+    "start": tuple(home.SPAWNS["start"]),
+    "start2": tuple(home.SPAWNS["hall"]),
+    "battery_wh": humanoid_world.DEMO_WH,
+    "hosting_battery_wh": humanoid_world.PACK_WH,
+    "low_battery_wh": humanoid_world.RESERVE_WH,
+    "explore_budget": 240.0,
+    # ...the house's mechanisms, the cage's shock plate switched off
+    "activities": humanoid_activities,
+    "census_zone": None, "census_zones": [],
+    # ...no lab to act in: no `care`, no plate job, no cage target (#559) --
+    # but the lab is SHOWN, its rule and the mouse from inside the room
+    # (`Menu.lab_acts` off; Ben, 2026-10-31)
+    "lab": None, "lab_shown": {"name": "lab"}, "tower": None, "bench": None,
+    "tools": False, "swap": False, "tool_bays": {},
+    # ...the task areas' tags its robots find and remember (#419; the
+    # humanoid's `find`, #559's stage 3): the house's -- the lab's plate
+    # signs, the whiteboards' and the areas' -- and the storeroom counter's
+    # row, over its four jobs (`home.storeroom`). No verb presses a plate,
+    # and its walks keep off none: one crossing a plate presses it.
+    "places": PLATE_TAG_IDS + tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
+              + area_ids() + COUNTER_TAG_IDS,
+    "plates": (), "draws": False, "cubes": (),
+    # ...and the storeroom's counter (#559, stage 3; `home.storeroom`): its
+    # props, each the target of its hand job
+    "counter": storeroom.PROPS,
+    "zones": [dict(z) for z in home.ZONES],
+    "meta": "models/home_world.meta.json",
+  }
+
+
 #: The home world with the quadruped in it (issue #387): `world_config`'s
 #: name for it, and the wire's `model`.
 QUAD_HOME = "home_quad"
+#: ...and with the humanoid in it (issue #559).
+HUMANOID_HOME = "home_humanoid"
+#: The house each world is (`continuation.load`): a save of one body's world
+#: carries on in another body's world of the same house as a changed world
+#: does -- the clock, the packs, the deaths and the jobs, never the bodies or
+#: the maps (#559: Luca and Rowan keep who they are in new bodies).
+HOUSES = {QUAD_HOME: "home", HUMANOID_HOME: "home"}
 
 
-def world_for(world: str, body: str = "quadruped") -> str:
-  """The world a body lives in: `home` with legs is `home_quad`, the one
-  world since #376 (`$PLUGGY_WORLD=home`, `$PLUGGY_BODY=quadruped` still
-  name it)."""
-  if body == "quadruped" and world in ("home", QUAD_HOME):
-    return QUAD_HOME
-  raise ValueError(f"no {body} world for {world!r} (the quadruped lives in home)")
+def world_for(world: str, body: str | None = None) -> str:
+  """The world a body lives in: `home` with legs is `home_quad`, with the
+  humanoid in it `home_humanoid` (`$PLUGGY_WORLD=home` and `$PLUGGY_BODY`
+  name either; no body named is the quadruped) -- and a body's own world
+  is itself, refused with another body named."""
+  homes = {"quadruped": QUAD_HOME, "humanoid": HUMANOID_HOME}
+  if world in homes.values():
+    if body is None or homes.get(body) == world:
+      return world
+  elif world == "home" and (body or "quadruped") in homes:
+    return homes[body or "quadruped"]
+  raise ValueError(f"no {body} world for {world!r}: `home` is either body's house, "
+                   + ", ".join(f"{w} the {b}'s" for b, w in homes.items()))
 
 
 def run_demo(start=None, view: bool = False,
@@ -8117,7 +8470,7 @@ def run_demo(start=None, view: bool = False,
   # from this one the moment either wrote a line.
   # ...living by the named constitution (issue #263): the flag, else
   # `$PLUGGY_CONSTITUTION`, else the library's default.
-  memory = ThoughtFiles.open(thoughts_root, constitution=constitution)
+  memory = ThoughtFiles.open(thoughts_root, constitution=constitution, body=cfg["body"])
   # What the week's thinking may cost, and what it has (issue #37). World
   # state on exactly the terms the ledger is: a weekly allowance that reset
   # whenever the container cycled would be a weekly allowance in name only,

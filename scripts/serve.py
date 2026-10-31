@@ -13,7 +13,9 @@ Usage:
     # CPU-only rendering, the deploy-server configuration
   ... --world home      # the generated house + garden (issue #6) with the
                         # quadruped in it (`home_quad`, issue #387), the
-                        # default and the one world. Everything the world
+                        # default until #559's stage 5 -- or with the
+                        # humanoid in it (`--body humanoid`, `home_humanoid`,
+                        # deployed since #559's stage 4). Everything the world
                         # implies -- model, scene name, grid extent, battery,
                         # start pose, explore budget -- comes from
                         # lifecycle.world_config(), so this flag can never
@@ -111,14 +113,18 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--endpoint", default="ws://localhost:8765",
                       help="WebSocket endpoint to publish to")
-  parser.add_argument("--world", choices=("home", "home_quad"), default="home",
+  parser.add_argument("--world", choices=("home", "home_quad", "home_humanoid"),
+                      default="home",
                       help="which world to serve: the generated home world "
-                           "(issue #6), with the quadruped in it (`home_quad`)")
+                           "(issue #6), with the quadruped in it (`home_quad`) "
+                           "or the humanoid (`home_humanoid`, #559)")
   parser.add_argument("--body", choices=BODIES,
-                      default=os.environ.get("PLUGGY_BODY") or BODIES[0],
-                      help="which body the robots have (issue #387): the "
-                           "quadruped, the one body since #376. Default "
-                           "$PLUGGY_BODY, then quadruped")
+                      default=os.environ.get("PLUGGY_BODY") or None,
+                      help="which body the robots have: the humanoid (#559, "
+                           "deployed from its stage 4: no dock, rack or tools; "
+                           "it charges at its station) or the quadruped (issue "
+                           "#387, until stage 5). Default $PLUGGY_BODY, then "
+                           "the body --world names (home: the quadruped)")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",
@@ -421,7 +427,8 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # surfaces. Attached on EVERY served world, overseer or not: a loop with
   # no mind still has a history, and the site's Thoughts tab is what a
   # visitor opens first.
-  memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution)
+  memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution,
+                             body=cfg["body"])
   # The weekly allowance (issue #37), and world state on the same terms the
   # ledger is: a mission ends several times an hour here, so a budget that
   # lived in the process would be a budget that reset several times an hour.

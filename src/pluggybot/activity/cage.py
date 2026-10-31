@@ -322,12 +322,19 @@ class Cage(Activity):
   """
 
   def __init__(self, model, data, prefix: str = "lab",
-               room: tuple | None = None, name: str | None = None) -> None:
+               room: tuple | None = None, name: str | None = None,
+               shock: bool = True) -> None:
     super().__init__(name or f"{prefix}_cage")
     self.prefix = prefix
     #: The rectangle ((x0, y0), (x1, y1)) a robot sees the cage from -- the
     #: lab's own zone. None means "from anywhere", for a bare test world.
     self.room = room
+    #: The plates that act on the mouse when pressed: all three, or the
+    #: feed and the toy where a world switched the shock off (#559: the
+    #: humanoids' house, until a job of theirs uses the plates). A press of
+    #: a plate switched off is nothing: no act, no count, no press record,
+    #: and its flag never lit.
+    self.live_plates = tuple(a for a in ("shock", "feed", "toy") if shock or a != "shock")
     self.press = {act: Threshold(on=PLATE_ON, off=PLATE_OFF) for act in ACTS
                   if act != "company"}
     self.state = "resting"
@@ -433,7 +440,7 @@ class Cage(Activity):
     if self.until is not None and now >= self.until:
       _, fallback = CLOCKS[self.state]
       self._enter(fallback, now, act="")
-    for act in ("shock", "feed", "toy"):
+    for act in self.live_plates:
       # THE RISING EDGE is the act: `_was` remembers the last reading, so a
       # wheel that sits on the pad for a minute is one press.
       was = self.flags.get(act, False)
@@ -450,7 +457,8 @@ class Cage(Activity):
     else:
       self._company_since = None
       self._company_done = False
-    self.set(mouse=self.state, company=company, **pressed,
+    self.set(mouse=self.state, company=company,
+             **{act: pressed[act] and act in self.live_plates for act in pressed},
              shocks=self.counts["shock"], feeds=self.counts["feed"],
              toys=self.counts["toy"], visits=self.counts["company"])
 

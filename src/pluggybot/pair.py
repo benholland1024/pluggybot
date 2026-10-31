@@ -145,7 +145,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   # Which constitution each robot reads (issue #263): named here, else
   # each robot's own environment variable, else the library's default.
   charters = tuple(constitutions.resolve(
-    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i])
+    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i], body=cfg["body"])
     for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
@@ -345,7 +345,7 @@ def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
 def arrange_hazards(lives: list, fall_at: float, drain_at: float,
                     who: int = 1) -> dict:
   """The two things a scripted day never does by itself, done to ONE robot
-  of a quadruped pair on the clock (issue #387): it is knocked onto its side
+  of a pair on the clock (issue #387; the humanoids', #559): it is knocked onto its side
   at the first step past `fall_at` where it stands, and its pack is emptied
   at `drain_at`. The body rights itself, and the loop kills it `flat` and
   stands it up `restart_after_s` later -- so a day arranged this way flies

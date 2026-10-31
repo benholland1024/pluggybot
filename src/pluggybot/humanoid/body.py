@@ -19,14 +19,15 @@ import mujoco
 import numpy as np
 
 from pluggybot import tick
-from pluggybot.body import TOPPLE_HOLD_S, Body
+from pluggybot.body import TOPPLE_HOLD_S, Body, RackPose
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
 from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
-from pluggybot.humanoid.mission import MOTION_EPS, V_MIN, HumanoidMission
+from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, HumanoidMission
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
+from pluggybot.perception.depth import DepthFrame
 from pluggybot.perception.watch import TagWatch
 from pluggybot.power import Pack
 from pluggybot.robot import FIRST, RobotHandle
@@ -112,8 +113,11 @@ class HumanoidPack(Pack):
   driver makes -- holding still does no work."""
 
   def __init__(self, body: "HumanoidBody", capacity_wh: float, charge_scale: float):
+    from pluggybot.activity.station import CHARGE_W
     super().__init__(capacity_wh, charge_scale=charge_scale,
                      draw_w=sum(hp.ELECTRONICS_W.values()))
+    #: Its station's charger's (#559): the NPB-750-48 at 10 A.
+    self.charge_w = CHARGE_W
     self.act = body.stand.joints.act
     motors = [hm.CHOSEN.motor(j) for j in hm.JOINT_NAMES]
     self.kt = np.array([m.kt for m in motors])
@@ -122,6 +126,49 @@ class HumanoidPack(Pack):
   def power_draw(self, data) -> float:
     i = data.actuator_force[self.act] / self.kt
     return self.draw_w + float((1.5 * self.r * i * i).sum())
+
+
+def _station_frame(model):
+  """The first charging station's frame in a compiled world (`activity.
+  station`'s, its body's pose), or None."""
+  try:
+    b = model.body("station")
+  except KeyError:
+    return None
+  q = b.quat
+  yaw = math.atan2(2 * (q[0] * q[3] + q[1] * q[2]), 1 - 2 * (q[2] ** 2 + q[3] ** 2))
+  return RackPose(float(b.pos[0]), float(b.pos[1]), yaw)
+
+
+class _SharedDepth:
+  """Its depth camera as the loop's near-field reads it (#559): the SAME
+  frames its planner's layer is laid from, levelled into the robot frame,
+  at the camera's own period (`mission.DEPTH_PERIOD`). Its draw is in the
+  body's electronics (`parts.ELECTRONICS_W`), so the loop adds none."""
+
+  draw_w = 0.0
+  period = DEPTH_PERIOD
+
+  def __init__(self, mission: HumanoidMission) -> None:
+    self.mission = mission
+
+  @property
+  def rng(self):
+    return self.mission.depth.rng
+
+  @property
+  def peer_rng(self):
+    return self.mission.depth.peer_rng
+
+  def frame(self, data) -> DepthFrame:
+    frame = self.mission.latest_depth()
+    if frame is None:
+      return DepthFrame(z=np.zeros((0, 0)), points=np.zeros((0, 3)), self_fraction=0.0,
+                        peers=np.zeros((0, 3)), peer_geoms=np.zeros(0, dtype=np.int32))
+    return frame
+
+  def exclude_robot(self, root_name: str) -> None:
+    pass
 
 
 class HumanoidBody(Body):
@@ -140,27 +187,38 @@ class HumanoidBody(Body):
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                policy: StandPolicy | None = None, walk: StandPolicy | None = None,
-               grid_bounds=(-3, -3, 7, 7)):
+               grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False):
     self.handle = handle
     self._m, self._d = model, data
     self._policies = (policy, walk)
     self.root = model.body(handle.root).id
     self.mission = HumanoidMission(model, data, handle, stand=policy, walk=walk,
-                                   grid_bounds=grid_bounds)
+                                   grid_bounds=grid_bounds, viewer=viewer,
+                                   realtime=realtime)
     self._tags = None
     #: The tag its colour imager keeps reading while it moves (`watch`).
     self.mission.sight = TagWatch(model.opt.timestep, self._sighted)
     #: A watcher's own joint sense and model of itself (`hand_watched`), and
     #: its own depth camera (`depth_watched`).
     self._watch = self._depth_watch = None
-    self.geom_ids = frozenset(g for g in range(model.ngeom)
-                              if self._under_root(int(model.geom_bodyid[g])))
-    # The members a standing body answers plainly.
-    self.places = None
-    self.rack = self.rack_prior = None
+    #: ...an array, as the loop indexes it (#559: a frozenset broke a pair's
+    #: restore, `HubLifecycle.unclip`, and the near field's robots lying down)
+    self.geom_ids = np.array([g for g in range(model.ngeom)
+                              if self.mission._under_root(int(model.geom_bodyid[g]))],
+                             dtype=np.int32)
+    #: Its charging station's frame (#559, `activity.station`'s: +x into
+    #: the wall), the COMMISSIONED pose, off the compiled world as the
+    #: quadruped's dock is -- None where the world has none -- and as the
+    #: loop works round it (`Body.rack`: +x out into the room).
+    self._station = _station_frame(model)
+    self.rack = self.rack_prior = (None if self._station is None else
+                                   RackPose(self._station.x, self._station.y,
+                                            self._station.yaw + math.pi))
+    #: ...and the station as it last saw it.
+    self._station_seen = None
+    self._charge_trace: list = []
     self.rack_discovered = False
     self.swapping_at = None
-    self.working = False
     self.peer_at_bay_m = None
     #: Why each hand's last reach ended short of holding (`hand_why`), and
     #: the hands whose reach `stop_hand` stopped (#554).
@@ -169,12 +227,7 @@ class HumanoidBody(Body):
     self.bay_wait = None
     self.docked = False
     self.head_camera = handle.el(HEAD_CAMERA)
-    self.making_way = None
-    self.way_refused = ""
-    self.asides = 0
-    self.last_aside = None
     self.collision_steps = self.press_steps = 0
-    self.resting = False
 
   falls = property(lambda self: self.mission.falls)
 
@@ -188,6 +241,12 @@ class HumanoidBody(Body):
     return self.GETUP_BUDGET_S if self.rights_itself else TOPPLE_HOLD_S
 
   @property
+  def held_pitch(self) -> float:
+    """The standing policy's bow, upright for the walker and the get-up:
+    what its fall watch reads a tip past (`HumanoidMission._held_pitch`)."""
+    return self.mission._held_pitch()
+
+  @property
   def posture(self) -> str:
     """`getting_up` while its get-up policy has the joints, else `standing`
     (it rests standing)."""
@@ -198,13 +257,6 @@ class HumanoidBody(Body):
   stand = property(lambda self: self.mission.stand)
   walker = property(lambda self: self.mission.walker)
   reach = property(lambda self: self.mission.reach)
-
-  def _under_root(self, body: int) -> bool:
-    while body > 0:
-      if body == self.root:
-        return True
-      body = int(self._m.body_parentid[body])
-    return False
 
   # ---- which robot, and the seam -------------------------------------------
 
@@ -228,17 +280,26 @@ class HumanoidBody(Body):
     return tick.run(self.mission.stepper, routine, name)
 
   def kept_state(self):
-    """Nothing it believes outlives a restart yet: its map is a walk's
-    (a served humanoid's restart comes after stage 5)."""
-    return {}, {}
+    """What it believes and what its controllers hold, for a restart (#559:
+    `HumanoidMission.kept_state`), and whether it rests."""
+    return self.mission.kept_state()
 
   def restore_kept(self, state, arrays) -> bool:
-    return True
+    if "legs" not in state:
+      return False                      # saved before a humanoid kept any
+    return self.mission.restore_kept(state, arrays)
+
+  @property
+  def working(self) -> bool:
+    """A hand out (#559): its move is a routine's, which no file holds, so
+    a restart's save waits it out (`continuation.Keeper.busy`)."""
+    return any(p != "rest" for p in self.reach.phase.values())
 
   def close(self) -> None:
     if self._tags is not None:
       self._tags.close()
       self._tags = None
+    self.mission.close_places()
 
   # ---- where it is ---------------------------------------------------------
 
@@ -770,11 +831,16 @@ class HumanoidBody(Body):
     return HumanoidPack(self, capacity_wh, charge_scale)
 
   def depth_camera(self):
-    """None yet: the D435's depth is a walking body's map (stage 4)."""
-    return None
+    """Its D435 as the loop's near-field reads it (#559): the frames its
+    walk lays its low layer from (`HumanoidMission.latest_depth`)."""
+    return _SharedDepth(self.mission)
 
   def know_peer(self, root: str) -> None:
-    """One robot alone yet: a pair is a served world's (after stage 5)."""
+    """The other robot's body out of its LIDAR's scan and its depth
+    camera's points (#559), as the quadruped's: painted into the map, a
+    robot walked past walls in the one that passed it."""
+    self.mission.lidar.exclude_robot(root)
+    self.mission.depth.exclude_robot(root)
 
   def _detector(self):
     if self._tags is None:
@@ -854,16 +920,16 @@ class HumanoidBody(Body):
   # ---- posture and rest ----------------------------------------------------
 
   def rest_routine(self):
-    """It rests STANDING: its standing policy holds it at the stand, and
-    lying down is a get-up's partner (stage 5)."""
-    self.resting = True
+    """It rests STANDING, by itself: `resting` once it has stood still long
+    enough (`humanoid.way`, #559); nothing to do."""
     return
     yield
 
   def stand_routine(self):
-    self.resting = False
     return
     yield
+
+  resting = property(lambda self: self.mission.resting)
 
   # ---- going places: its mission's -------------------------------------------
 
@@ -874,8 +940,10 @@ class HumanoidBody(Body):
   last_drive = property(lambda self: self.mission.last_drive)
 
   def gave_up(self, record, peer="the other robot") -> str:
+    """...a humanoid rests standing (#559): the other at rest, standing."""
     from pluggybot.navigator import gave_up
-    return gave_up(record, peer).replace("the drive gave up", "the walk gave up", 1)
+    return (gave_up(record, peer).replace("the drive gave up", "the walk gave up", 1)
+            .replace("lying down to rest", "standing at rest"))
 
   def face_routine(self, heading):
     return self.mission.face_routine(heading)
@@ -898,8 +966,14 @@ class HumanoidBody(Body):
     return dict(m.counts) if m is not None else {}
 
   def forget_world(self) -> None:
-    self.mission.forget_map()
-    self.mission.low[:] = 0.0
+    """A true death (#419): the map, its layer, the walls it is kept off,
+    the plan it last made and the places it found, gone, as the
+    quadruped's."""
+    m = self.mission
+    m.forget_map()
+    m.places.forget()
+    m.low[:] = 0.0
+    m._walls_t, m._walls_mask, m._plan_memo = None, None, None
 
   def plan_frontier(self, blacklist):
     from pluggybot.behavior.navigation import plan
@@ -913,12 +987,100 @@ class HumanoidBody(Body):
     return self.mission.in_sight(x, y)
 
   def lost_routine(self, fixture, stop=None):
-    raise NotImplementedError(f"{NOT_HERE}: its fixtures are a dock's and a rack's")
-    yield
+    """No station in sight where the belief puts it (#476's rule): facing
+    where it believes the station is, it steps in until its LIDAR reads the
+    wall `charge.LOST_WALL_M` ahead, and looks, ahead and either side of it
+    (`LOST_LOOKS`); then from a step either way along the wall
+    (`LOST_ALONG_M`). A look that fits the station is a FIX, the station
+    commissioned as the dock is (`_fix_at`), so the loop's walk to the
+    standoff goes again on the belief put right. True once a look found it;
+    `stop`, asked between its moves, ends the search. ⚠ NEARER BY WHAT IT
+    SENSES, never by its belief: past 1.07 m of the station's face the tags
+    are above its colour camera's view, and from viewpoints set on a belief
+    0.7 m off toward the wall every look was further than that. The `lost`
+    and `searched` records are the quadruped's (`belief_event`); its search
+    walks its map outward and forgets it first (`legs.fixtures`), where the
+    humanoid's map goes only with a fix past the matcher's reach."""
+    from pluggybot.humanoid import charge
+    if self._station is None:
+      return False
+    t0, m = float(self._d.time), self.mission
+    m.belief_event("lost", fixture="station")
+    cx, cy = self._station.to_world(0.0, 0.0)
+    found, ended, fix, views = False, "not found", None, 0
+    for along in (0.0, *charge.LOST_ALONG_M):
+      if stop is not None and stop():
+        ended = "interrupted"
+        break
+      if along:
+        views += 1
+        yield from self.step_routine(0.0, along)
+      else:
+        x, y, _ = self.pose
+        yield from self.face_routine(math.atan2(cy - y, cx - x))
+        wall = self._wall_ahead()
+        if wall is not None and wall > charge.LOST_WALL_M + charge.LOST_WALL_TOL_M:
+          yield from self.step_routine(wall - charge.LOST_WALL_M)
+      facing = self.pose[2]
+      for swing in charge.LOST_LOOKS:
+        yield from self.face_routine(facing + swing)
+        seen = yield from charge.look_routine(self)
+        if seen is not None:
+          fix = self._fix_at(seen)
+          found, ended = True, "found"
+          break
+      if found:
+        break
+      yield from self.face_routine(facing)
+    m.belief_event("searched", found=found, ended=ended, fixture="station",
+                   seconds=round(float(self._d.time) - t0, 1), viewpoints=views,
+                   dropped=bool(fix is not None and fix["dropped"]))
+    return found
+
+  def _wall_ahead(self) -> float | None:
+    """How far its LIDAR reads what stands dead ahead, m -- the room's
+    returns within `charge.LOST_AHEAD_RAD` of its heading, their median --
+    or None where none came back."""
+    from pluggybot.humanoid import charge
+    angles, ranges, _, _ = self.mission.lidar.scan_split(self._d)
+    ahead = ranges[np.abs(angles) <= charge.LOST_AHEAD_RAD]
+    ahead = ahead[np.isfinite(ahead) & (ahead < self.mission.lidar.max_range)]
+    return float(np.median(ahead)) if ahead.size else None
+
+  def _fix_at(self, seen) -> dict | None:
+    """The belief put where the station, seen as `seen` (its frame in the
+    believed world, `charge.look`), says it stands: the station is
+    commissioned (`_station`), as the dock is (#476). Past `FIX_TOL_*` the
+    belief moves, and past the matcher's own search (`ASKEW_*`) the map laid
+    on the old belief goes too -- kept, a map laid while lost pulled a
+    corrected belief back onto a copy within 20 s (`legs.fixtures`). Its
+    `fixed` record, or None where the look agreed with the belief."""
+    from pluggybot.legs.fixtures import ASKEW_M, ASKEW_RAD, FIX_TOL_M, FIX_TOL_RAD
+    prior = self._station
+    x, y, yaw = self.pose
+    c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
+    lx, ly = (x - seen.x) * c + (y - seen.y) * s_, -(x - seen.x) * s_ + (y - seen.y) * c
+    tx, ty = prior.to_world(lx, ly)
+    tyaw = prior.yaw + (yaw - seen.yaw)
+    moved, turned = math.hypot(tx - x, ty - y), abs(math.remainder(tyaw - yaw, 2 * math.pi))
+    if moved < FIX_TOL_M and turned < FIX_TOL_RAD:
+      return None
+    dropped = moved > ASKEW_M or turned > ASKEW_RAD
+    self.mission._set_pose(tx, ty, tyaw)
+    if dropped:
+      self.forget_world()
+    elif self.mission.matcher is not None:
+      self.mission.matcher.anchored()
+    return self.mission.belief_event("fixed", (x, y, yaw), fixture="station", tags=2,
+                                     atM=round(math.hypot(seen.x - x, seen.y - y), 2),
+                                     moved=True, dropped=dropped)
+
+  places = property(lambda self: self.mission.places)
 
   def find_tag_routine(self, tag, near, patience, stop=None):
-    raise NotImplementedError(f"{NOT_HERE}: a place's walk is the quadruped's (#419)")
-    yield
+    """Its mission's search (`humanoid.places`, #559's stage 3): the
+    quadruped's, its looks through the head's navigation camera."""
+    return self.mission.find_routine(tag, near=near, patience=patience, stop=stop)
 
   # ---- the quadruped's world: not the humanoid's yet -----------------------
 
@@ -962,10 +1124,11 @@ class HumanoidBody(Body):
     yield
 
   def start_discovery(self) -> None:
-    raise NotImplementedError(NOT_HERE)
+    """No rack in its world to watch for (#559): the quadruped's went with
+    it, and the day begins here all the same."""
 
   def refresh_rack(self):
-    raise NotImplementedError(NOT_HERE)
+    return None
 
   def bay_standoff(self, station_y):
     raise NotImplementedError(NOT_HERE)
@@ -995,41 +1158,96 @@ class HumanoidBody(Body):
     return ""
 
   def charge_standoff(self):
-    raise NotImplementedError(NOT_HERE)
+    """Where its walk to the station ends, facing it: its tags in view, room
+    to line up (`activity.station.STANDOFF_X`)."""
+    from pluggybot.activity import station as st
+    x, y = self._station.to_world(st.STANDOFF_X, st.SEAT_Y)
+    return x, y, self._station.yaw
 
   def charge_seat(self):
-    raise NotImplementedError(NOT_HERE)
+    """Where it stands to plug in: another robot there holds the station."""
+    from pluggybot.activity import station as st
+    return self._station.to_world(st.SEAT_X, st.SEAT_Y)
 
   def dock_routine(self):
-    raise NotImplementedError(NOT_HERE)
-    yield
+    """From the standoff, plugged in (`humanoid.charge`): it faces the
+    station, fits it off its tags, steps to the seat as it sees it (again
+    while off it) and plugs itself in. "docked", or why not -- "no board"
+    where the tags were not in sight, as the dock's."""
+    from pluggybot.activity import station as st
+    from pluggybot.humanoid import charge
+    self._charge_trace = []
+    if self._station is None:
+      return "no dock"
+    # ...facing the cup from where it stands, never the station's own
+    # heading: from 0.2 m to one side that put the far tag out of view
+    cx, cy = self._station.to_world(0.0, 0.0)
+    yield from self.face_routine(math.atan2(cy - self.pose[1], cx - self.pose[0]))
+    seen = yield from charge.look_routine(self)
+    if seen is None:
+      return "no board"
+    for _ in range(charge.SEAT_STEPS):
+      sx, sy = seen.to_world(st.SEAT_X, st.SEAT_Y)
+      x, y, yaw = self.pose
+      c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
+      ahead, left = (sx - x) * c + (sy - y) * s_, -(sx - x) * s_ + (sy - y) * c
+      turn = math.remainder(seen.yaw - yaw, 2 * math.pi)
+      self._charge_trace.append({"seat": [round(ahead, 3), round(left, 3), round(turn, 3)]})
+      if (-charge.SEAT_IN_M <= ahead <= charge.SEAT_TOL_M and abs(left) <= charge.SEAT_TOL_M
+          and abs(turn) <= charge.SEAT_TOL_RAD):
+        break
+      yield from self.step_routine(ahead, left, turn)
+      seen = (yield from charge.look_low_routine(self)) or seen
+    else:
+      return "not lined up"
+    self._station_seen = seen
+    why = yield from charge.plug_in_routine(self, seen, self._charge_trace)
+    return "docked" if why == "plugged in" else why
 
   def charging(self) -> bool:
-    return False
+    """Its pack takes the charger's current: a station's port catch holds
+    its plug (`activity.station`) -- the BMS reads the current."""
+    return self.mission.plugged_in()
 
   def anchor_at_dock(self) -> None:
-    raise NotImplementedError(NOT_HERE)
+    """The station fixes its belief as it charges (#476), off the look it
+    plugged in by (`_fix_at`): a look in the frame the fix left is no look."""
+    if (self._station_seen is not None and self._station is not None
+        and self._fix_at(self._station_seen) is not None):
+      self._station_seen = None
 
   def dock_hold_routine(self, seconds):
-    raise NotImplementedError(NOT_HERE)
-    yield
+    return self.hold_routine(seconds)
 
   def redock_routine(self):
-    raise NotImplementedError(NOT_HERE)
-    yield
+    """Its plug out while it charged: plugged in again from where it stands."""
+    from pluggybot.humanoid import charge
+    seen = self._station_seen or charge.look(self)
+    if seen is None or self.charging():
+      return
+    yield from charge.plug_in_routine(self, seen, self._charge_trace)
 
   def undock_routine(self):
-    raise NotImplementedError(NOT_HERE)
-    yield
+    """Unplugged, the plug left to its balancer at the cup, and turned away
+    from the station: its walker barely backs up (4 cm in 3 s asked 0.25
+    m/s), so it walks off forward."""
+    from pluggybot.humanoid import charge
+    seen = self._station_seen or charge.look(self) or self._station
+    if self.charging():
+      why = yield from charge.unplug_routine(self, seen, self._charge_trace)
+      self._charge_trace.append({"undock": why})
+    yield from self.step_routine(0.0, 0.0, math.pi)
 
   def charge_trace(self) -> str:
-    return ""
+    return "; ".join(str(t) for t in self._charge_trace)
 
   def make_way(self, route, by) -> bool:
-    """It steps aside for nobody yet: one robot alone (a pair is a served
-    world's, after stage 5)."""
-    self.way_refused = "standing"
-    return False
+    return self.mission.make_way(route, by)
+
+  making_way = property(lambda self: self.mission.making_way)
+  way_refused = property(lambda self: self.mission.way_refused)
+  asides = property(lambda self: self.mission.asides)
+  last_aside = property(lambda self: self.mission.last_aside)
 
   def ask_off(self, x, y, asked, beyond=()) -> bool:
     return self.mission.ask_off(x, y, asked, beyond)

@@ -169,6 +169,26 @@ def test_a_topple_is_read_as_the_robot_falls_not_when_it_is_declared_dead():
   assert at["pose"]["yawDeg"] == pytest.approx(120.0, abs=3.0)
 
 
+def test_a_bow_its_legs_hold_is_no_topple_and_the_same_tilt_unheld_is(monkeypatch):
+  """A humanoid's deepest bow puts its pelvis 63 deg off upright, past the
+  seam's `TOPPLE_TILT_RAD` (60): the tilt is read off the posture its legs
+  hold (`Body.held_pitch`, #559), so held there for longer than a fall may
+  last it is neither down nor dead -- and the same pitch, the legs holding
+  none, is a topple."""
+  bow = math.radians(63.0)
+  life = _life()
+  seen = _deaths(life)
+  life.body.attitude = (math.cos(bow / 2), 0.0, math.sin(bow / 2), 0.0)   # pitched forward
+  monkeypatch.setattr(life.body, "held_pitch", bow, raising=False)
+  assert not life.down()
+  life.body.run(life.body.hold_routine(life.body.stuck_after_s + 1.0))
+  assert seen == [] and life.dead is None
+  monkeypatch.setattr(life.body, "held_pitch", 0.0, raising=False)
+  assert life.down()
+  life.body.run(life.body.hold_routine(life.body.stuck_after_s + 1.0))
+  assert [d["cause"] for d in seen] == ["stuck"]
+
+
 def test_the_lean_word_is_the_nearest_of_four():
   assert [lc.lean_word(a) for a in (0, 44, -44, 46, 134, -46, -134, 136, -180)] \
       == ["forward", "forward", "forward", "left", "left", "right", "right",

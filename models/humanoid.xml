@@ -58,6 +58,16 @@
             fromto="0 0 0.42 0 0 0.475" mass="0" rgba="0.3 0.3 0.32 1"/>
       <geom name="head" class="limb" type="box" size="0.065 0.075 0.08"
             pos="0 0 0.555" mass="0.375641"/>
+      <geom name="charge_port" class="visual" type="box"
+            size="0.001 0.01425 0.01425"
+            pos="0.086 -0.075 0.168"
+            mass="0.015" rgba="0.75 0.6 0.2 1"/>
+      <geom name="charge_funnel" class="visual" type="cylinder"
+            size="0.035 0.0075" zaxis="1 0 0"
+            pos="0.0945 -0.075 0.168"
+            mass="0.018" rgba="0.2 0.2 0.22 0.35"/>
+      <site name="charge_port" pos="0.087 -0.075 0.168"
+            zaxis="1 0 0" size="0.004"/>
       <body name="depth_cam_body" pos="0.0775 0 0.535" euler="0 0.698132 0">
         <geom name="depth_cam" class="visual" type="box" size="0.0125 0.045 0.0125"
               mass="0.075" rgba="0.2 0.2 0.2 1"/>

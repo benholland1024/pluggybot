@@ -560,8 +560,9 @@ class Body(abc.ABC):
   ask_way: Any
   #: The robot this body is stepping aside for, by its root, or None.
   making_way: str | None
-  #: Why it last said no to making way (issue #455): "docked", "working",
-  #: "walking" (a walk of its own), "moving" (lying down or standing up),
+  #: Why it last said no to making way (issue #455): "docked" ("charging",
+  #: a humanoid plugged in at its station, #559), "working", "walking" (a
+  #: walk of its own), "moving" (lying down or standing up), "getting up",
   #: "standing", "no spot" -- or "".
   way_refused: str
   #: How many times it has stepped aside (issue #415) ...
@@ -854,6 +855,12 @@ class Body(abc.ABC):
   #: rights itself, its get-up's MEASURED budget; one that cannot,
   #: `TOPPLE_HOLD_S`.
   stuck_after_s: float
+  #: The trunk's pitch forward that the posture its legs hold puts it at,
+  #: rad: what a topple is read past (`TOPPLE_TILT_RAD`, the death seam's).
+  #: 0 for a body that stands only upright; the humanoid's bow
+  #: (`Reach.held_pitch`), whose deepest, 63 deg, is past the seam's 60
+  #: (#559).
+  held_pitch: float
 
   @abc.abstractmethod
   def rest_routine(self) -> Routine:
@@ -884,7 +891,8 @@ def body_for(model, data, handle: RobotHandle = FIRST, **kw) -> Body:
   if is_humanoid(model, handle):
     from pluggybot.humanoid.body import HumanoidBody
     return HumanoidBody(model, data, handle=handle,
-                        **{k: v for k, v in kw.items() if k in ("grid_bounds", "policy", "walk")})
+                        **{k: v for k, v in kw.items()
+                           if k in ("grid_bounds", "policy", "walk", "viewer", "realtime")})
   raise ValueError(f"no body under {handle.root!r} in this world: the quadruped "
                    "and the humanoid are the bodies (the rover left in #376)")
 
@@ -956,6 +964,7 @@ class StubBody(Body):
   rights_itself = False
   falls = 0
   stuck_after_s = 2.0
+  held_pitch = 0.0
   head_camera = None
 
   @staticmethod

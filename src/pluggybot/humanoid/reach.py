@@ -38,7 +38,8 @@ from scipy.optimize import least_squares
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
-                                     HandGoal, SelfModel, _rot_error)
+                                     HandGoal, SelfModel, _rot_error, kept_value,
+                                     value_back)
 from pluggybot.humanoid.policy import HEIGHT_RANGE, PITCH_RANGE, StandDriver
 
 
@@ -968,6 +969,27 @@ class Reach:
     if self.steps % self.every == 0:
       self._update(self.every * self.m.opt.timestep)
     self.steps += 1
+
+  #: What a restart carries of a reach (#559, `HumanoidMission.kept_state`):
+  #: every hand's phase and commands, its filters and what it last read.
+  KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "sensed", "miss", "slack",
+          "_off", "steps", "posture", "trim", "tau", "qd", "standing", "force",
+          "arm_force", "sensed_grip", "speed", "pulls", "report")
+
+  def kept_state(self) -> dict:
+    return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
+            "grippers": {s: {"shut": g.shut_asked, "force": g.force, "gap": g.gap,
+                             "squeeze": g.squeeze, "rng": g.sense.rng.bit_generator.state}
+                         for s, g in self.grippers.items()}}
+
+  def restore_kept(self, state: dict) -> None:
+    for k, v in state["reach"].items():
+      setattr(self, k, value_back(v))
+    for s, kept in state["grippers"].items():
+      g = self.grippers[s]
+      g.shut_asked, g.force = bool(kept["shut"]), float(kept["force"])
+      g.gap, g.squeeze = float(kept["gap"]), float(kept["squeeze"])
+      g.sense.rng.bit_generator.state = kept["rng"]
 
   def posture_now(self) -> np.ndarray:
     """The posture as the robot's model of itself has it: the pelvis's

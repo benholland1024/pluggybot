@@ -1542,22 +1542,25 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
 def test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so(
     monkeypatch, tmp_path):
   """The configuration the deployed world runs from issue #206 -- `--pair
-  --arm autonomous --origin unseeded`, in the image's environment -- pinned
-  before it is deployed rather than checked off `/observe` afterwards.
+  --arm autonomous --origin unseeded`, in the image's environment, the
+  humanoid pair from #559's stage 4 (`PLUGGY_BODY`, as the site's compose
+  names it) -- pinned before it is deployed rather than checked off
+  `/observe` afterwards.
 
-  Three claims, one per thing that could quietly be wrong: BOTH minds are
+  Four claims, one per thing that could quietly be wrong: BOTH minds are
   `autonomous` (the rails off on each lifecycle, not the first alone); both
   start from an EMPTY event map, which is what `unseeded` means (`none`
-  would be no map at all, and a map with rows in it would be `seeded`); and
-  the one header the pair publishes carries the arm and the origin, because
-  a stream that claims an arm nobody flew is the failure `evaluation/arms.py`
-  exists to prevent."""
+  would be no map at all, and a map with rows in it would be `seeded`); the
+  one header the pair publishes carries the arm and the origin, because a
+  stream that claims an arm nobody flew is the failure `evaluation/arms.py`
+  exists to prevent; and it says the body, the world the site draws."""
   from pluggybot import pair as pair_mod
   from pluggybot.mind import overseer as overseer_mod
   serve = _load_serve()
   root = tmp_path / "thoughts"
   monkeypatch.setenv(overseer_mod.MODEL_ENV, "Qwen/Qwen3-4B-Instruct-2507")
   monkeypatch.setenv("PLUGGY_THOUGHTS", str(root))
+  monkeypatch.setenv("PLUGGY_BODY", "humanoid")
   built: dict = {}
   monkeypatch.setattr(serve, "WsPublisher",
                       lambda m, d, e, **kw: built.setdefault("pub", _FakePublisher(m, d, e, **kw)))
@@ -1590,6 +1593,12 @@ def test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so(
   identity = built["pub"].init_kwargs["build"]
   assert identity["arm"] == "autonomous"
   assert identity["origin"] == "unseeded"
+  assert identity["body"]["name"] == "humanoid"
+  assert built["pub"].init_kwargs["model_name"] == "home_humanoid_pair"
+  from pluggybot.humanoid.world import PACK_WH
+  for life in lives:
+    assert life.charger, f"{life.root}: nowhere to charge"
+    assert life.battery.capacity_wh == PACK_WH, f"{life.root}: not the humanoid's pack"
 
 
 def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_documents(

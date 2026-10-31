@@ -6,7 +6,8 @@ The drawer is `activity/drawer.py`'s, its runners' friction and damping
 and its load hidden and drawn. Code measures the drawer and the robot off
 the true state, and the verdict goes through `scoring.evaluate` like every
 other. It is graded and unpaid -- its row in `challenges.json` is base 0 --
-and shown to no mind: the drawer is in no served world.
+and shown to no mind; the served humanoids' job on the storeroom's counter
+is graded by this predicate under a row of its own (`open_drawer`, #559).
 
 THE CRITERIA, written first. An attempt passes when:
 
@@ -75,6 +76,19 @@ class Watch:
 
   def falls(self) -> int | None:
     return None if self.body is None else int(self.body.falls) - self.falls0
+
+  def kept_state(self) -> dict:
+    """What a restart carries (#559: a served job is watched from its
+    claim): the attempt's readings and its falls so far, never the hold's --
+    a job a restart cut is called again."""
+    return {"most": None if self.most == -math.inf else self.most, "fastest": self.fastest,
+            "worstTilt": self.worst_tilt, "falls": self.falls()}
+
+  def restore_kept(self, state: dict) -> None:
+    self.most = -math.inf if state.get("most") is None else float(state["most"])
+    self.fastest = float(state.get("fastest", 0.0))
+    self.worst_tilt = state.get("worstTilt", self.worst_tilt)
+    lid.kept_falls(self, state)
 
   def __call__(self) -> None:
     out, v = float(self.data.qpos[self.qadr]), abs(float(self.data.qvel[self.dof]))

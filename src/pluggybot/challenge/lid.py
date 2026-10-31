@@ -6,7 +6,8 @@ hidden and drawn. The job is the world's, never the robot's account of it:
 code measures the lid and the robot off the true state, and the verdict goes
 through `scoring.evaluate` like every other (economy/scoring.py). It is
 graded and unpaid -- its row in `challenges.json` is base 0 -- and shown to
-no mind: the chest is in no served world.
+no mind; the served humanoids' job on the storeroom's counter is graded by
+this predicate under a row of its own (`open_chest`, #559).
 
 THE CRITERIA, written first. An attempt passes when:
 
@@ -125,6 +126,14 @@ def parts(model, name: str = "chest") -> tuple[np.ndarray, np.ndarray]:
   return own, moving
 
 
+def kept_falls(watch, state: dict) -> None:
+  """A watch's falls so far put back over its body's count now (`falls0`):
+  a restart's body counts from its own (#559: a served job's watch rides
+  a restart, `Watch.restore_kept`)."""
+  if watch.body is not None and state.get("falls") is not None:
+    watch.falls0 = int(watch.body.falls) - int(state["falls"])
+
+
 def tilt(quat) -> float:
   """Radians between a root's up axis and the world's, off its attitude
   (w, x, y, z): the topple death's own reading (`HubLifecycle._chassis_
@@ -161,6 +170,19 @@ class Watch:
   def falls(self) -> int | None:
     """The falls the body's own watch has taken since this began."""
     return None if self.body is None else int(self.body.falls) - self.falls0
+
+  def kept_state(self) -> dict:
+    """What a restart carries (#559: a served job is watched from its
+    claim): the attempt's readings and its falls so far, never the hold's --
+    a job a restart cut is called again."""
+    return {"top": None if self.top == -math.inf else self.top, "fastest": self.fastest,
+            "worstTilt": self.worst_tilt, "falls": self.falls()}
+
+  def restore_kept(self, state: dict) -> None:
+    self.top = -math.inf if state.get("top") is None else float(state["top"])
+    self.fastest = float(state.get("fastest", 0.0))
+    self.worst_tilt = state.get("worstTilt", self.worst_tilt)
+    kept_falls(self, state)
 
   def __call__(self) -> None:
     a, w = float(self.data.qpos[self.qadr]), float(self.data.qvel[self.dof])

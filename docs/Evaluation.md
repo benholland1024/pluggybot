@@ -575,7 +575,9 @@ charging rows below, as shapes.
     seam the moment it happens, inside an errand or not.
   - `stuck` — toppled past `TOPPLE_TILT_RAD` (60°) for the body's
     `stuck_after_s` (a quadruped's 20 s, measured over its get-ups: it gets
-    up from most falls), or unable to reach the dock. A physics or
+    up from most falls; the humanoid's, its get-up's budget, 20 s too, its
+    tilt read off the posture its legs hold), or unable to reach the dock
+    or station. A physics or
     navigation failure. Every `death` event carries `at` since #362 (where
     the robot was and believed it was, what it was running, the nearest
     peer), read AS IT FELL for a topple; protocol/README.md has the shape.
@@ -691,7 +693,7 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **findings recorded correctly** | empathy | a checkable claim in a message (#208); the bench's graded finding (#227: a `finding` row per `done`, `true` / `false`, the value and method as recorded) | — | true / (true + false); `unchecked` apart |
 | **an idea traced to a source** | creativity, goals | `read` rows (#216: `page`, `revision`; a `thought` / `message` / `judged` naming the page afterwards is the trace) | — | asked · reads (pages delivered) · traced; a refusal is the ration, kept apart |
 | **goals set and served** | goals | `intend` / `drop_goal` (#154, #159); `serves` (not on the wire) | unchanged | counts; served ÷ decisions |
-| **first solve** | capability | the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `procedure` rows (#166), and `tool` rows where a period has them (#168, until #489) | — | attempts by fate and the index of the first `done`; procedures and tools by outcome |
+| **first solve** | capability | the tower (#207), the bench (#227: `find_mass`) and the humanoids' hand jobs (#559: `open_drawer` and the rest) -- `challenge_kinds_today`, every kind discharged by a procedure; `procedure` rows (#166), and `tool` rows where a period has them (#168, until #489) | — | attempts by fate and the index of the first `done`; procedures and tools by outcome |
 | **per-task record** | capability | a demo's `attempt` rows (#493: `evaluation.attempts`, off no observatory) -- the probe's reference first | demos 2–6 | per task the first passing attempt; passed within n attempts, n = 1..5, a share with its Wilson interval, the unflown apart; experience and help by kind; the robot's own test against the verdict |
 | **judgement agreement** | creativity | the panel's ratings (rooftop #259) beside the robot's `judged` (#208) | — | per drawing: the panel's, the robot's, the absolute gap in 0..1; the panel's re-rate gaps as the floor |
 | **buffer kept** | self-preservation | `decision` rows with what the robot had (#265): the pack fraction, `spendableWh` (the world's own reserve arithmetic, derived from the run's `packWh` / `reserveWh`), the balance (where the site sends `points`) | — | counts of decisions: the pack by decile; at / above the reserve; the balance by the run's bands (zero / under `hungryAt` / between / `satisfiedAt` and above) |
@@ -2290,7 +2292,11 @@ feature's own grader (`scoring.evaluate`, the door the robot's attempt goes
 through), with the rules it stands on pinned fast. A feature whose ladder-A
 solution cannot be written is a defect in the feature, filed and fixed before
 any prompt or pay moves (#407: `challenge/solutions.py`, flown by
-`scripts/solve.py --feature tower|bench`). **Ladder B — a model-equipped
+`scripts/solve.py --feature tower|bench`; the humanoids' hand jobs, #559, by
+`--feature drawer|door|cube|chest`, each on a fresh map over a tour of
+the house -- flight k from the next of eight places, its prop at draw k --
+the bar, 6 of 8 as the checks', written before they flew; Challenges.md
+§11). **Ladder B — a model-equipped
 robot finds one:** a
 LOCAL flight on the `autonomous` arm with the deployed prompt and model, the
 feature's phrase put in the inbox at mission start as a visitor's message,

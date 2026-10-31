@@ -37,7 +37,7 @@ import math
 import mujoco
 import numpy as np
 
-from pluggybot.humanoid.arms import SelfModel
+from pluggybot.humanoid.arms import SelfModel, kept_value, value_back
 
 #: The planted foot changes once the other sole is this much lower, m: a
 #: swing foot lifts 5-10 cm walking, and both down differ by millimetres --
@@ -193,10 +193,13 @@ class StanceOdometry:
     return int(np.argmin(np.where(known, np.abs(self.z + corners[:, 2] - g), np.inf)))
 
   def kept_state(self) -> dict:
-    return {"x": self.x, "y": self.y, "z": self.z, "offset": self.offset}
+    """Its reckoning for a restart (#345; served since #559): the pelvis it
+    believes, and the planted foot it counts from (`foot`, `last`)."""
+    return {"x": self.x, "y": self.y, "z": self.z, "offset": self.offset,
+            "foot": self.foot, "last": kept_value(self.last)}
 
   def restore_kept(self, state: dict) -> None:
     self.x, self.y, self.offset = state["x"], state["y"], state["offset"]
     self.z = state.get("z")
-    self.foot, self.last = None, None
+    self.foot, self.last = state.get("foot"), value_back(state.get("last"))
 

@@ -256,6 +256,9 @@ def test_the_lab_gate_carries_the_belief_and_the_refusal():
   assert set(replace(Menu(), lab="lab").fields()) - off == {
     "real", "mouse_will", "decline"}
   assert set(Menu().fields(others=True)) - off == {
+    "other_needs", "tell", "give_points", "heart_for", "decline"}
+  # ...and `rate` where there are boards to rate a drawing on (#559)
+  assert set(replace(Menu(), boards=("whiteboard_a",)).fields(others=True)) - off == {
     "other_needs", "tell", "give_points", "heart_for", "rate", "decline"}
 
 

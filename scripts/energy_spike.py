@@ -47,7 +47,7 @@ from pluggybot.economy.tasks import TaskBoard
 from pluggybot.robot import world_spec  # noqa: E402
 
 from pluggybot.lifecycle import (
-  QUAD_HOME, HubLifecycle, board_book, errands_for, points_ledger, world_config,
+  HUMANOID_HOME, QUAD_HOME, HubLifecycle, board_book, errands_for, points_ledger, world_config,
   world_for, world_screens,
 )
 
@@ -67,8 +67,15 @@ BOARD_ACTIONS = tuple(f"{task}:{board}" for board in ("whiteboard_a", "whiteboar
 #: remembered: the census (the survey of the garden) and the two challenges,
 #: each its hand-written solution (`challenge.solutions`) flown as a mind's
 #: procedure runs -- the claw fetched, the cubes moved, the claw hung back.
-AREA_ACTIONS = {"census": "garden", "stack": "workshop", "mass": "lab_bench"}
-CHALLENGE_KINDS = {"stack": "stack_tower", "mass": "find_mass"}
+AREA_ACTIONS = {"census": "garden", "stack": "workshop", "mass": "lab_bench",
+                # ...and the humanoids' hand jobs (#559, stage 3), each its
+                # prop on the storeroom's counter, its reference's two
+                # procedures flown from the station
+                "open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
+                "open_chest": "chest"}
+CHALLENGE_KINDS = {"stack": "stack_tower", "mass": "find_mass", "open_drawer": "open_drawer",
+                   "open_door": "open_door", "place_cube": "place_cube",
+                   "open_chest": "open_chest"}
 
 class _Writer:
   """What the lifecycle reads off a mind on a challenge's path: a library,
@@ -158,11 +165,13 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
     for action in actions:
       if action in AREA_ACTIONS:
         # an area's job (#407), its tag found first if the explore missed it
+        from pluggybot.home import storeroom
         from pluggybot.home.areas import area_ids
         from pluggybot.home.places import load
         named = load()["areas"][AREA_ACTIONS[action]]["tags"]
-        _from_the_dock(life, AREA_ACTIONS[action],
-                       min(int(t) for t in named if int(t) in area_ids()))
+        prop = AREA_ACTIONS[action]
+        _from_the_dock(life, prop, storeroom.TAGS[prop] if prop in storeroom.TAGS
+                       else min(int(t) for t in named if int(t) in area_ids()))
       if action in CHALLENGE_KINDS:
         from pluggybot.challenge import solutions
         t0 = float(data.time)
@@ -268,6 +277,8 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
       out["chargeW"] = gained * 3600.0 / dt
       print(f"  charge    {dt:6.1f}s  {gained:+.4f} Wh  "
             f"({out['chargeW']:5.1f} W net into the pack)")
+    elif not life.charger:
+      print("  charge    nowhere to charge in this world -- no chargeW measured")
     else:
       print("  charge    could not reach the dock -- no chargeW measured")
   finally:
@@ -376,8 +387,9 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument("--world", default=QUAD_HOME, choices=(QUAD_HOME, "home"),
-                  help="the house with the quadruped in it; `home` names it too")
+  ap.add_argument("--world", default=QUAD_HOME, choices=(QUAD_HOME, HUMANOID_HOME, "home"),
+                  help="the house with the quadruped in it (`home` names it too), or with "
+                       "the humanoid (#559: its explore, its station and its hand jobs)")
   ap.add_argument("--battery-wh", type=float, default=BIG_PACK_WH,
                   help="an oversized pack, so nothing measured is cut short")
   ap.add_argument("--explore-s", type=float, default=None,
@@ -390,7 +402,7 @@ def main() -> None:
                        f"charger: any of {','.join(CAGE_ACTIONS)} (or care), "
                        "a board's job, <draw|artwork|answer>:<board> "
                        f"(e.g. {','.join(BOARD_ACTIONS[:2])}), or an area's "
-                       f"(#407): {','.join(AREA_ACTIONS)}")
+                       f"(#407, and the humanoid's hand jobs, #559): {','.join(AREA_ACTIONS)}")
   ap.add_argument("--reserve", action="store_true",
                   help="measure the worst-case return trip instead of the "
                        "errands (issues #70/#84): what legs.world.RESERVE_WH "

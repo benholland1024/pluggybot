@@ -213,6 +213,20 @@ def _route():
   return [ASKER, DOOR, EAST]
 
 
+def test_the_way_past_a_robot_is_planned_afresh_never_the_held_plan(house):
+  """The way a robot is asked off is the plan WITHOUT it (`_route_past`),
+  made afresh -- never `_plan_to`'s memo (#559): moved into the Navigator,
+  the memo answered the plan just made with that robot in the door, None,
+  and nobody was ever asked to make way."""
+  m = _mission(house, at=ASKER, posture=qb.STANDING)
+  try:
+    m.others = [lambda: KeepClear(*DOOR, root="r2_pluggybot", resting=True)]
+    assert m._plan_to(*EAST) is None, "the premise: its disc shuts the door"
+    assert m._route_past("r2_pluggybot", *EAST) is not None
+  finally:
+    m.close()
+
+
 def _off(route, x, y) -> float:
   """How far (x, y) is from a polyline."""
   best = math.inf

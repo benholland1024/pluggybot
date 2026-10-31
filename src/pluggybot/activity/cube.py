@@ -1,7 +1,8 @@
 """A cube to be picked up and placed on a mat (issue #525): one of the
 hands' capability checks (docs/Hands.md), as an ACTIVITY
 (docs/ActivityPattern.md) -- its geometry, its hidden parameters and what
-is sensed of it. Never in the served world.
+is sensed of it. On the humanoids' storeroom counter (#559,
+`home.storeroom`), never the quadrupeds' world.
 
 The cube is the chest's knob's 26 mm cube, loose on the counter, wearing
 its own tag on every face (`rack.tags.CUBE_TAG_IDS`). The mat is a plate
@@ -109,11 +110,25 @@ class Cube(Activity):
 
   def __init__(self, model, data, load: Load, surface_z: float, name: str = "cube") -> None:
     super().__init__(name)
-    self.load = load
     self.body = int(model.body(name).id)
     self.surface_z = float(surface_z)
+    self.renew(model, load)
+
+  def renew(self, model, load: Load) -> None:
+    """Begun again over `load`, a cube set out afresh (#559's counter): on
+    its board, its threshold clear."""
+    self.load = load
     self.lifted = Threshold(on=LIFT_ON, off=LIFT_ON / 2)
     self.set(lifted=False)
+
+  def kept_state(self) -> dict:
+    """The flag and the threshold behind it (#559: the served counter's
+    cube rides a restart)."""
+    return {**super().kept_state(), "lifted": self.lifted.value}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.lifted.value = bool(state.get("lifted", False))
 
   def sense(self, model, data) -> None:
     bottom = float(data.xpos[self.body][2]) - CUBE

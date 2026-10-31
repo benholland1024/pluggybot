@@ -19,6 +19,11 @@ walk over its own map with the asker kept clear of, that is `ASIDE_CLEAR_M`
 from every point of the asker's way -- out of the disc the asker keeps
 round it, so the way it sent is open whatever it plans next. Into the room
 past a doorway and to one side, where the asker's way crosses it.
+
+The rule and the walk are ONE for both bodies (#559): what only a body says
+are its hooks -- why it will not (`_way_refusal`), what it does before it
+walks (`_aside_ready`), what stops the walk (`_aside_blocked`) and the
+command that walks it (`_aside_twist`). The humanoid's are `humanoid.way`'s.
 """
 
 from __future__ import annotations
@@ -29,16 +34,24 @@ import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.mapping import optimistic
-from pluggybot.navigator import ARRIVAL_SLOW_RADIUS, CLOSE_ENOUGH_M, WAYPOINT_REACHED_M
+from pluggybot.navigator import (ARRIVAL_SLOW_RADIUS, CLOSE_ENOUGH_M, WAYPOINT_REACHED_M,
+                                 Navigator)
+
+#: A command that moves nothing: every body's (`Body.STILL`).
+STILL = (0.0, 0.0, 0.0)
 
 
 class MakeWay:
-  """Making way (the module docstring), on `QuadMission`."""
+  """Making way (the module docstring), on `QuadMission`, and under its
+  own hooks on `HumanoidMission` (`humanoid.way`)."""
 
   #: The farthest it walks to step aside, m, and the longest it takes, s:
   #: MEASURED over six doorways of the house (`scripts/make_way_spike.py`),
   #: the stand-up (2.2 s) and a walk of 0.82-0.88 m took 6.7-8.9 s.
   ASIDE_WALK_M, ASIDE_BUDGET_S = 6.0, 30.0
+  #: It rests LYING (the quadruped's reflex, #387), as its record of a step
+  #: aside says (`last_aside`'s `lay`).
+  RESTS_LYING = True
 
   def _init_way(self) -> None:
     #: The step aside under way: for whom, from where, to where, when it
@@ -66,11 +79,7 @@ class MakeWay:
     self.way_refused = ""
     if self._aside is not None:
       return True
-    from pluggybot.legs.body import LYING
-    self.way_refused = ("docked" if self.docked else "working" if self.working
-                        else "walking" if self.driving
-                        else "moving" if self._move is not None
-                        else "standing" if self.posture != LYING else "")
+    self.way_refused = self._way_refusal()
     if self.way_refused:
       return False
     spot = self.aside_spot(route)
@@ -119,23 +128,26 @@ class MakeWay:
     ky, kx = divmod(k, cols)
     return (round(g.x_min + (kx + 0.5) * side, 3), round(g.y_min + (ky + 0.5) * side, 3))
 
+  def _way_refusal(self) -> str:
+    """Why it will not step aside now, or "": on the dock, mid-move with its
+    arm, inside a walk of its own, mid-move of its legs, or standing -- in
+    nobody's way by its own rule, as it rests lying."""
+    from pluggybot.legs.body import LYING
+    return ("docked" if self.docked else "working" if self.working
+            else "walking" if self.driving
+            else "moving" if self._move is not None
+            else "standing" if self.posture != LYING else "")
+
   def _aside_command(self, command, t: float):
     """One physics step of making way, in place of the routine's command
-    (the module docstring): the routine's own once it moves -- its walk
-    takes over -- else a motion command while it lies (the posture machine
-    stands it first), STILL while it stands up, then the drive's law along
-    a plan to the spot, and STILL once it is there."""
-    from pluggybot.legs.body import (GETTING_UP, LYING, STANDING, STILL, W_CARRY, W_MIN,
-                                     command_for, is_motion)
+    (the module docstring): what the body does first (`_aside_ready`: the
+    routine's own walk takes over, a fall ends it, a body lying stands),
+    then the drive's law along a plan to the spot, and STILL once it is
+    there."""
+    ready = self._aside_ready(command)
+    if ready is not None:
+      return ready
     a = self._aside
-    if is_motion(command):
-      return self._end_aside("its own walk", command)
-    if self.posture == GETTING_UP:
-      return self._end_aside("fell", command)
-    if self.posture == LYING:
-      return (0.0, 0.0, W_MIN)                    # stands it, by the reflex's own rule
-    if self.posture != STANDING:
-      return STILL
     x, y, _ = self.pose
     tx, ty = a["to"]
     if a["waypoints"] is None:
@@ -150,6 +162,35 @@ class MakeWay:
       return self._end_aside("aside", STILL)
     if t - a["t0"] > self.ASIDE_BUDGET_S:
       return self._end_aside("out of time", STILL)
+    blocked = self._aside_blocked(t)
+    if blocked is not None:
+      return blocked
+    if len(wps) > 1:
+      v, w = drive_toward(self.pose, wps[0])
+    else:
+      v, w = drive_toward(self.pose, wps[0] if wps else (tx, ty),
+                          slow_radius=ARRIVAL_SLOW_RADIUS)
+    return self._aside_twist(v, w)
+
+  def _aside_ready(self, command):
+    """The command this step before the walk, or None to walk: the
+    routine's own once it moves, the end of it on a fall, a motion command
+    while it lies (the posture machine stands it first) and STILL while it
+    stands up."""
+    from pluggybot.legs.body import GETTING_UP, LYING, STANDING, W_MIN, is_motion
+    if is_motion(command):
+      return self._end_aside("its own walk", command)
+    if self.posture == GETTING_UP:
+      return self._end_aside("fell", command)
+    if self.posture == LYING:
+      return (0.0, 0.0, W_MIN)                    # stands it, by the reflex's own rule
+    if self.posture != STANDING:
+      return STILL
+    return None
+
+  def _aside_blocked(self, t: float):
+    """The command that ends the walk, or None to walk on: its front stop
+    or its bumper, or its arm out of its stow."""
     if t < self.backoff_until or (self.pressing and not (
         self.pressed_at is not None and self.robot_at(*self.pressed_at))):
       # ...never where another robot's reported pose puts its body (#455):
@@ -158,11 +199,12 @@ class MakeWay:
       return self._end_aside("met something", STILL)
     if not self.arm_driving():
       return self._end_aside("arm out", STILL)
-    if len(wps) > 1:
-      v, w = drive_toward(self.pose, wps[0])
-    else:
-      v, w = drive_toward(self.pose, wps[0] if wps else (tx, ty),
-                          slow_radius=ARRIVAL_SLOW_RADIUS)
+    return None
+
+  def _aside_twist(self, v: float, w: float):
+    """The command that walks (v, w): its turn held to `W_CARRY` with a
+    tool aboard."""
+    from pluggybot.legs.body import W_CARRY, command_for
     cmd = command_for(v, 0.0, w)
     if self.carrying is not None and abs(cmd[2]) > W_CARRY:
       cmd = (cmd[0], cmd[1], math.copysign(W_CARRY, cmd[2]))
@@ -177,5 +219,26 @@ class MakeWay:
     self.last_aside = {"by": a["by"], "from": a["from"], "to": a["to"],
                        "at": (round(float(x), 3), round(float(y), 3)),
                        "seconds": round(float(self.data.time) - a["t0"], 1),
-                       "why": why}
+                       "why": why, "lay": self.RESTS_LYING}
     return command
+
+  def drive_to_routine(self, wx: float, wy: float, timeout: float = 90.0,
+                       stop=None, beyond=()):
+    """`Navigator.drive_to_routine`, counted while it runs (`driving`): a
+    body waiting inside a walk of its own is never asked aside (#415)."""
+    self.driving += 1
+    try:
+      return (yield from Navigator.drive_to_routine(self, wx, wy, timeout, stop, beyond))
+    finally:
+      self.driving -= 1
+
+  def clear_way_routine(self, way):
+    """`Navigator.clear_way_routine`, counted as a walk of its own too
+    (`driving`, #455): a press waiting for its way in lies down by the
+    rest reflex 8.6 s into the wait, and asked aside then, it would walk
+    off its standoff before its walk in."""
+    self.driving += 1
+    try:
+      return (yield from Navigator.clear_way_routine(self, way))
+    finally:
+      self.driving -= 1

@@ -385,8 +385,12 @@ def test_the_acts_exist_only_where_there_is_a_peer():
   auto = ov.Overseer(menu, others=("Rowan",))
   assert auto._acts() == ("Rowan",)
   schema = menu.schema(others=auto._acts())
-  for field in ("other_needs", "tell", "give_points", "heart_for", "rate", "decline"):
+  for field in ("other_needs", "tell", "give_points", "heart_for", "decline"):
     assert field in schema["properties"] and field in schema["required"]
+  # ...a drawing rated only where there are boards (#559): none here
+  assert "rate" not in schema["properties"] and "rate" not in schema["required"]
+  boarded = ov.Menu.for_world(WORLD, board_book(WORLD)).schema(others=auto._acts())
+  assert "rate" in boarded["properties"] and "rate" in boarded["required"]
   assert schema["properties"]["tell"]["properties"]["to"]["enum"] == ["Rowan", ""]
   assert schema["properties"]["other_needs"]["enum"] == [*ov.NEEDS, ""]
   alone = ov.Overseer(menu)

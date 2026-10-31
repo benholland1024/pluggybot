@@ -1,7 +1,8 @@
 """A drawer in a cabinet on the counter (issue #525): one of the hands'
 capability checks (docs/Hands.md), as an ACTIVITY (docs/ActivityPattern.md)
 -- it owns its geometry, its hidden parameters and its state, and reports
-what is sensed of it. Never in the served world.
+what is sensed of it. On the humanoids' storeroom counter (#559,
+`home.storeroom`), never the quadrupeds' world.
 
 A cabinet 0.34 m wide, 0.30 deep and 0.16 high of 12 mm board, open at the
 front, and a drawer in it that slides out toward the robot on its runners
@@ -158,11 +159,26 @@ class Drawer(Activity):
 
   def __init__(self, model, data, runners: Runners, name: str = "drawer") -> None:
     super().__init__(name)
-    self.runners = runners
     self.sensor_adr = int(model.sensor(f"{name}_out").adr[0])
+    self.renew(model, runners)
+
+  def renew(self, model, runners: Runners) -> None:
+    """Begun again over `runners`, a drawer set out afresh (#559's
+    counter): shut, its thresholds clear."""
+    self.runners = runners
     self.open = Threshold(on=OPEN_ON, off=OPEN_OFF)
     self.past = Threshold(on=OPENED_M, latch=True)
     self.set(drawer="shut", opened=False)
+
+  def kept_state(self) -> dict:
+    """The flags and the thresholds behind them (#559: the served counter's
+    drawer rides a restart)."""
+    return {**super().kept_state(), "open": self.open.value, "past": self.past.value}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.open.value = bool(state.get("open", False))
+    self.past.value = bool(state.get("past", False))
 
   def out(self, data) -> float:
     """How far the drawer is out, m, as its sensor reads it."""

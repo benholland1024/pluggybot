@@ -178,15 +178,22 @@ def test_every_kind_is_affordable_off_a_full_pack():
   """Every kind IS affordable off a full pack, or it could never be taken
   at all and offering it would be a lie about what the robot can do --
   priced PER WORLD (`TaskBoard.estimate_for`, issue #15), the kinds with no
-  row of their own at the dearest one the world measured."""
+  row of their own at the dearest one the world measured; each in every
+  world that has something for it to be about (#559: the humanoids' hand
+  jobs are their house's alone)."""
   from pluggybot.economy.energy import load as load_energy
-  cap = lc.world_config(lc.QUAD_HOME)["battery_wh"]
-  board = TaskBoard(energy=load_energy(lc.QUAD_HOME))
-  for name, kind in KINDS.items():
-    priced = board.estimate_for(name)
-    if priced is None:
-      priced = kind.estimate_wh
-    assert priced <= cap * 0.9, f"{lc.QUAD_HOME}/{name}: {priced} Wh"
+  for world in (lc.QUAD_HOME, lc.HUMANOID_HOME):
+    cap = lc.world_config(world)["battery_wh"]
+    board = TaskBoard(energy=load_energy(world))
+    here = lc.world_targets(world, lc.board_book(world), procedures=True,
+                            robots=("Pluggy", "Rowan"))
+    for name, kind in KINDS.items():
+      if kind.target_kind not in here:
+        continue
+      priced = board.estimate_for(name)
+      if priced is None:
+        priced = kind.estimate_wh
+      assert priced <= cap * 0.9, f"{world}/{name}: {priced} Wh"
 
 
 def test_a_lapsed_offer_cannot_be_claimed_and_a_taken_one_cannot_be_retaken():
@@ -416,7 +423,8 @@ def test_every_kind_names_a_real_evaluator_and_a_real_reward_row():
     assert spec.task in scoring.EVALUATORS, name
     assert spec.task in TABLE, name
     assert spec.target_kind in ("board", "zone", "module", "world",
-                                "challenge", "robot", "cage", "bench"), name
+                                "challenge", "robot", "cage", "bench",
+                                "chest", "drawer", "door", "cube"), name
     # a job whose claim is the act (issue #228) moves no body and is the
     # one kind honestly priced at nothing
     assert spec.estimate_wh > 0.0 or spec.discharge == "act", name

@@ -21,8 +21,8 @@ import pytest
 
 from pluggybot import continuation, tick
 from pluggybot.economy.tasks import TaskBoard
-from pluggybot.lifecycle import (QUAD_HOME, STOW_RETRIES, HubLifecycle, cage_errand,
-                                 task_board, world_config, world_facts)
+from pluggybot.lifecycle import (HUMANOID_HOME, QUAD_HOME, STOW_RETRIES, HubLifecycle,
+                                 cage_errand, task_board, world_config, world_facts)
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.procedure import lang
 from pluggybot.mind.thoughts import HISTORY
@@ -42,8 +42,8 @@ def _world():
   return cfg, model, mujoco.MjData(model)
 
 
-def _board(tmp_path, tasks: bool, rebase: bool):
-  return (task_board(str(tmp_path / "tasks.json"), world=QUAD_HOME, rebase=rebase)
+def _board(tmp_path, tasks: bool, rebase: bool, world: str = QUAD_HOME):
+  return (task_board(str(tmp_path / "tasks.json"), world=world, rebase=rebase)
           if tasks else None)
 
 
@@ -59,7 +59,18 @@ def _quad(tmp_path, tasks: bool = False, rebase: bool = True, **kw) -> HubLifecy
 
 def _stub(tmp_path, tasks: bool = False, rebase: bool = True, **kw) -> HubLifecycle:
   """The loop's bookkeeping on the stub body: every other claim."""
-  return stub_life(tasks=_board(tmp_path, tasks, rebase), **kw)
+  return stub_life(tasks=_board(tmp_path, tasks, rebase, kw.get("world", QUAD_HOME)), **kw)
+
+
+def _humanoid(tmp_path, **kw) -> HubLifecycle:
+  """The humanoid in its house (#559): for a claim about its body, its maps
+  or its senses."""
+  cfg = world_config(HUMANOID_HOME)
+  model = world_spec(cfg["model"], body="humanoid").compile()
+  return HubLifecycle(model, mujoco.MjData(model), realtime=False, world=HUMANOID_HOME,
+                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                      grid_bounds=cfg["grid_bounds"],
+                      low_battery_wh=cfg["low_battery_wh"], **kw)
 
 
 def _restored(life, snap=None, max_sim_time: float = 600.0):
@@ -99,6 +110,12 @@ def _saved(life, tmp_path, last_step=None) -> continuation.Snapshot:
 #: on the first step after the restore, which is why the last step is
 #: stepped again (#420).
 AT_A_DECISION_S = 0.6
+
+
+#: ...and a humanoid's save on a step NO controller's period divides (#559):
+#: 687 steps, against its reach's 5 and its policies' 10 -- on one they all
+#: divide, a fresh controller ticks in step with the saved one by chance.
+OFF_EVERY_PERIOD_S = 1.374
 
 
 def _hold(life, seconds: float) -> None:
@@ -250,6 +267,33 @@ def test_a_restored_robot_senses_on_exactly_as_if_nothing_had_stopped(tmp_path):
   assert np.array_equal(back.body.grid.grid, life.body.grid.grid)
   assert np.array_equal(back.near_field.height, life.near_field.height,
                         equal_nan=True)
+
+
+def test_a_restored_humanoid_steps_on_exactly_as_if_nothing_had_stopped(tmp_path):
+  """The parity rule on the humanoid (#559), saved mid-walk where nothing
+  in particular decides next: its drivers' steps and targets, the gains they
+  set in the MODEL, its senses' noise, its reach and its reckoning's planted
+  foot all ride the save, and the same walk after a restore steps the same
+  body and paints the same maps."""
+  life = _humanoid(tmp_path, near_field=True)
+  start = world_config(HUMANOID_HOME)["start"]
+  life.body.start_at(*start)
+  last = continuation.LastStep(life)
+  life.body.step_hooks.append(last.hook)
+  m = life.body.mission
+  m.run(m._drive_routine(OFF_EVERY_PERIOD_S, 0.5, 0.3))
+  snap = _saved(life, tmp_path, last)
+  m.run(m._drive_routine(1.0, 0.6, -0.4))
+
+  back = _humanoid(tmp_path, near_field=True)
+  back.begin(start)
+  continuation.restore([back], snap)
+  b = back.body.mission
+  b.run(b._drive_routine(1.0, 0.6, -0.4))
+  assert np.array_equal(back.data.qpos, life.data.qpos)
+  assert back.body.pose == life.body.pose
+  assert np.array_equal(back.body.grid.grid, life.body.grid.grid)
+  assert np.array_equal(back.near_field.height, life.near_field.height, equal_nan=True)
 
 
 def test_a_dead_robot_is_still_dead_after_a_restart_and_pays_no_second_heart(tmp_path):
@@ -509,6 +553,111 @@ def test_a_changed_world_keeps_the_pack_and_the_clock_but_not_the_bodies(tmp_pat
              in ln for ln in _history(back))
 
 
+def _bodies(tmp_path):
+  """The quadruped's house and the humanoid's, each on its served pack, as
+  the stub flies them: the change of body (#559)."""
+  kw = {"mortal": True, "restart_after_s": 300.0}
+  return (_stub(tmp_path, battery_wh=world_config(QUAD_HOME)["hosting_battery_wh"], **kw),
+          _stub(tmp_path, world=HUMANOID_HOME,
+                battery_wh=world_config(HUMANOID_HOME)["hosting_battery_wh"], **kw))
+
+
+def test_the_quadrupeds_house_carries_on_in_the_humanoids_at_the_same_share(tmp_path):
+  """THE CHANGE OF BODY (#559): Luca and Rowan keep who they are in new
+  bodies, so a save of the quadrupeds' house carries on in the humanoids' as
+  a changed world does -- the clock and the pack, never the bodies or the
+  maps -- the pack at the SHARE it was saved at (40 % of the quadruped's 194
+  Wh is 40 % of the humanoid's 778, never 78 Wh of it), and History says
+  why."""
+  quad, humanoid = _bodies(tmp_path)
+  quad.battery.energy_wh = 0.4 * quad.battery.capacity_wh
+  _hold(quad, 0.5)
+  _saved(quad, tmp_path)
+  loaded = continuation.load(tmp_path / "world.npz", HUMANOID_HOME)
+  assert loaded.snapshot is not None, loaded.why
+  _prelude(humanoid, loaded.snapshot)
+  assert humanoid.data.time >= quad.data.time
+  assert humanoid.battery.capacity_wh > 3 * quad.battery.capacity_wh
+  assert humanoid.battery.fraction == pytest.approx(0.4)
+  assert not humanoid.resumed["inPlace"]
+  assert any(f"could not put me back where I was ({continuation.BODY_CHANGED})" in ln
+             for ln in _history(humanoid))
+
+
+def test_a_save_from_before_packs_kept_their_size_carries_on_at_the_served_packs_share(tmp_path):
+  """The deployed quadrupeds' saves carry no `capacityWh`: carried across
+  the change of body, one is on the quadruped's served pack -- the one world
+  ever served -- and a robot at 60 Wh of its 194 wakes at 31 %."""
+  quad, humanoid = _bodies(tmp_path)
+  quad.battery.energy_wh = 60.0
+  snap = _saved(quad, tmp_path)
+  del snap.meta["robots"][quad.root]["capacityWh"]
+  _prelude(humanoid, snap)
+  assert humanoid.battery.fraction == pytest.approx(60.0 / quad.battery.capacity_wh)
+
+
+def test_a_robot_dead_in_its_old_body_is_dead_in_its_new_one(tmp_path):
+  """Its deaths are the robot's, whatever body it wakes in: dead flat at the
+  switch, it is still down, its stand-up clock going on."""
+  quad, humanoid = _bodies(tmp_path)
+  quad.home_pose = tuple(world_config(QUAD_HOME)["start"])
+  quad.battery.energy_wh = 0.0
+  _hold(quad, 0.5)
+  assert quad.dead is not None
+  _prelude(humanoid, _saved(quad, tmp_path))
+  assert humanoid.dead == quad.dead and humanoid.reset_in_s == quad.reset_in_s
+
+
+def test_the_quadrupeds_jobs_are_given_back_in_the_humanoids_house(tmp_path):
+  """The change of body keeps the jobs (#559), and the humanoids' house has
+  none of what the quadrupeds' were done with: a job a robot held there --
+  the mouse's, whose errand asked after a lab this house names None and
+  crashed the restart; a whiteboard's; a challenge's, which nothing here
+  grades -- is back on offer and said in History, and nothing is queued."""
+  quad = _stub(tmp_path, tasks=True)
+  jobs = [quad.tasks.offer(kind, target, t=0.0, **kw) for kind, target, kw in (
+    ("feed_mouse", "lab", {}),
+    ("draw_figure", "whiteboard_a", {"params": {"program": "house"}}),
+    ("stack_tower", "workshop", {}),
+    ("find_mass", "lab_bench", {"secret": {"kg": 0.3},
+                                "params": {"known_g": 100, "known_tag": 23, "unknown_tag": 24}}))]
+  for task in jobs:                                  # the mouse's asks a prediction
+    assert quad.tasks.claim(task.id, robot=quad.root, t=0.0, answer="eating") is not None
+  for task in jobs[2:]:
+    quad.tasks.start(task.id, t=0.0)                # a challenge is active from its claim
+  snap = _saved(quad, tmp_path)
+
+  humanoid = _stub(tmp_path, tasks=True, rebase=False, world=HUMANOID_HOME)
+  _prelude(humanoid, snap)
+  assert humanoid.errands == []
+  assert [humanoid.tasks[task.id].state for task in jobs] == ["offered"] * len(jobs)
+  said = _history(humanoid)
+  for task in jobs:
+    assert any(f"the job {task.id} ({task.kind}) is back on offer" in ln for ln in said), said
+
+
+def test_the_same_body_on_another_pack_keeps_its_watt_hours(tmp_path):
+  """The share is the change of BODY's alone (#559 review): the same body
+  restarted on another pack -- an operator's `PLUGGY_BATTERY_WH` -- keeps
+  the watt-hours it had, as it always has, up to what the pack holds."""
+  small = _stub(tmp_path, battery_wh=100.0)
+  small.battery.energy_wh = 60.0
+  snap = _saved(small, tmp_path)
+  big = _stub(tmp_path, battery_wh=200.0)
+  _prelude(big, snap)
+  assert big.battery.energy_wh == pytest.approx(60.0)
+
+
+def test_another_houses_save_is_never_carried_on(tmp_path):
+  """Only another body in the SAME house (`lifecycle.HOUSES`)."""
+  quad, _ = _bodies(tmp_path)
+  snap = _saved(quad, tmp_path)
+  snap.meta["world"] = "room_hub"
+  continuation.write(snap, tmp_path / "world.npz")
+  loaded = continuation.load(tmp_path / "world.npz", HUMANOID_HOME)
+  assert loaded.snapshot is None and "room_hub" in loaded.why
+
+
 @pytest.mark.parametrize("old", [None, 1, 2])
 def test_maps_of_another_epoch_are_dropped_as_a_changed_worlds_are(tmp_path, old):
   """#425: hours of heading walked while the quadrupeds lay, and every map
@@ -671,21 +820,24 @@ def test_a_world_saved_mid_charge_says_the_charge_was_cut_short(tmp_path):
   assert any("it cut my charge short" in ln for ln in _history(back))
 
 
-def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
+@pytest.mark.parametrize("world, at", [(QUAD_HOME, AT_A_DECISION_S),
+                                       (HUMANOID_HOME, OFF_EVERY_PERIOD_S / 2)])
+def test_the_pair_steps_on_exactly_after_a_restart(tmp_path, world, at):
   """The parity rule on the deployed shape: two robots from one loop, the
   depth cameras on, the pair's encounters sensing -- the same walk after a
   restore steps the same world and paints the same two maps, saved as the
-  keeper saves it (its last step kept) where both policies decide next."""
+  keeper saves it (its last step kept) where both quadrupeds' policies
+  decide next; and the humanoid pair (#559)."""
   from pluggybot.pair import build_pair
-  cfg = world_config(QUAD_HOME)
+  cfg = world_config(world)
   starts = (cfg["start"], cfg["start2"])
 
   def fly(lives):
     tick.run_many([(life.body.stepper,
-                    life.body.mission._drive_routine(AT_A_DECISION_S, 0.15, w))
+                    life.body.mission._drive_routine(at, 0.15, w))
                    for life, w in zip(lives, (-0.3, 0.4))])
 
-  lives = build_pair(QUAD_HOME, near_field=True)
+  lives = build_pair(world, near_field=True)
   for life, start in zip(lives, starts):
     life.body.start_at(*start)
   path = tmp_path / "world.npz"
@@ -696,7 +848,7 @@ def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
   assert "before" in snap.meta["physics"]
   fly(lives)
 
-  back = build_pair(QUAD_HOME, near_field=True, resume=snap)
+  back = build_pair(world, near_field=True, resume=snap)
   for life, start in zip(back, starts):
     life.begin(start)
   continuation.restore(back, snap)

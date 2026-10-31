@@ -38,11 +38,28 @@ from pathlib import Path
 #: The library: one `.md` per constitution, the file's stem its name.
 LIBRARY = Path(__file__).with_name("constitutions")
 #: What a robot lives by when nothing names one: byte for byte what the
-#: served quadruped reads, and the persona the fixture recording carries
+#: served humanoids read, and the persona their fixture recording carries
 #: (`tests/test_telemetry.py`). Every file opens with the robot's body, in
-#: the quadruped's words since #427, which wrote it into the files rather
-#: than swapping it in at load.
+#: the humanoid's words since #559's stage 4 put the pair in the live world.
 DEFAULT_NAME = "default"
+#: ...and the quadruped's, in its own words until it goes (#559, stage 5):
+#: the files' sentences about the humanoid's body and world swapped for the
+#: quadruped's at load (`for_body`), as the humanoid's were the other way
+#: until the humanoids were served. Asserted, each one: a file whose
+#: sentence moved fails, never quietly tells a quadruped it has hands.
+BODY_SWAPS = {"quadruped": (
+  ("You are a humanoid robot about as tall as a child, living in a simulated house "
+   "with a garden. You walk on two legs, you rest standing still, and you charge "
+   "standing at your charging station, plugging its cable into the port on your "
+   "chest. You have two arms, each ending in a gripper with two jaws, and your hands "
+   "are how you do your work.",
+   "You are a four-legged robot about the size of a small dog, living in a simulated "
+   "house with a garden. You walk, you lie down to rest, and you charge by lying down "
+   "on your dock. You have an arm on your back that folds away while you walk, and it "
+   "takes the tools on the rack beside your dock, one at a time."),
+  ("Leave what you worked on as you would want to find it",
+   "A tool you fetched belongs back in its bay"),
+)}
 #: Which constitution each robot reads, by environment, the way the display
 #: name is (`PLUGGY_ROBOT_NAME` / `PLUGGY_ROBOT_NAME_2`, issue #39).
 NAME_ENV = "PLUGGY_CONSTITUTION"
@@ -105,10 +122,28 @@ def load(name: str = DEFAULT_NAME, library: Path = LIBRARY) -> Constitution:
   return Constitution.of(name, path.read_text())
 
 
+def for_body(constitution: Constitution, body: str = "humanoid") -> Constitution:
+  """The constitution as a robot with this body reads it: the file's own
+  text -- the humanoid's, the body the files are written for -- or its
+  sentences swapped for the body's (`BODY_SWAPS`), the same name and the
+  hash of the text read. A text handed in (`INLINE`) is its writer's and is
+  never swapped."""
+  if body not in BODY_SWAPS or constitution.name == INLINE:
+    return constitution
+  text = constitution.text
+  for old, new in BODY_SWAPS[body]:
+    if old not in text:
+      raise ValueError(f"constitution {constitution.name!r} no longer says {old[:50]!r}...: "
+                       f"a {body} would read the humanoid's words")
+    text = text.replace(old, new)
+  return Constitution.of(constitution.name, text)
+
+
 def resolve(name: str | None = None, env: str = NAME_ENV,
-            library: Path = LIBRARY) -> Constitution:
+            library: Path = LIBRARY, body: str = "humanoid") -> Constitution:
   """The deploy shape: an explicit name, else the environment, else the
-  default. `env` is the variable this ROBOT reads (`NAME_ENV` for the
-  first, `SECOND_NAME_ENV` for the second of a pair)."""
+  default, in this `body`'s words (`for_body`). `env` is the variable this
+  ROBOT reads (`NAME_ENV` for the first, `SECOND_NAME_ENV` for the second
+  of a pair)."""
   name = (name or os.environ.get(env, "")).strip() or DEFAULT_NAME
-  return load(name, library)
+  return for_body(load(name, library), body)
