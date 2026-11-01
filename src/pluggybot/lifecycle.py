@@ -269,9 +269,7 @@ NEAR_STANDOFF_M = 0.75
 #: every five minutes is 576 rows a day.
 DRIFT_EVERY_S = 300.0
 #: What each commissioned fixture is called where the robot reads of it.
-FIXTURE_WORDS = {"dock": "the dock's board", "rack": "the rack",
-                 "station": "my charging station"}
-                            # the robot is NOT carrying (issue #13)
+FIXTURE_WORDS = {"station": "my charging station"}
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
 #: loop gets to reconsider (issue #15). Bounded on purpose: without it one
 #: `explore` decision eats the whole mission, and the point of an overseer is
@@ -1370,29 +1368,19 @@ class HubLifecycle:
     loss ended. A fix within the map's reach and a relocation are narrated
     only: the robot was put right where it would have been anyway."""
     why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
-    if rec.get("anchor") == "seat":       # ...lying on it with no board read
-      what = "the dock"
     b, a = rec["before"], rec["after"]
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
     turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
-    # ...a humanoid's station is the one fixture it has, and its search keeps
-    # the map until a fix past the matcher's reach (`HumanoidBody.lost_routine`)
-    station = rec.get("fixture") == "station"
-    if why == "lost" and station:
+    # ...the station is the one fixture, and its search keeps the map until
+    # a fix past the matcher's reach (`HumanoidBody.lost_routine`)
+    if why == "lost":
       line = (f"{what} was not in sight where I believed it was in front of me, so I "
               "am not where I thought, and I am looking for it from nearer")
-    elif why == "lost":
-      line = (f"{what} was not in sight where I believed it was in front of me, so I "
-              "am not where I thought: my map is gone, and I am looking round for the "
-              "dock or the rack")
     elif why == "fixed" and rec.get("dropped"):
       line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
               f"was: the map I had was laid askew, and it is gone")
     elif why == "searched" and not rec.get("found"):
-      line = (f"I looked for {what} for {rec.get('seconds', 0):.0f} s and did not see it"
-              if station else
-              f"I looked for the dock and the rack for {rec.get('seconds', 0):.0f} s and "
-              "saw neither")
+      line = f"I looked for {what} for {rec.get('seconds', 0):.0f} s and did not see it"
     elif why == "searched" and not rec.get("dropped"):
       # ...found, and near where it believed: no line said so yet
       line = (f"I looked round for {rec.get('seconds', 0):.0f} s and found {what}, near "
@@ -1950,8 +1938,7 @@ class HubLifecycle:
 
 
   def _await_bay_routine(self, sx: float, sy: float, kind: str,
-                         since: float, hold: bool = False,
-                         seat=None) -> Routine:
+                         since: float, seat=None) -> Routine:
     """Wait for another robot to leave a standoff this one needs (issue
     #346). True once it is free; False once the robot gave up, with why in
     `self.last_bay_wait` (who held it, for how long, and what ended the wait).
@@ -1966,10 +1953,9 @@ class HubLifecycle:
     Nothing else ends a charge's wait early: charging is what an interrupt
     would ask for, and giving up on it is how the robot dies.
 
-    `kind` is `charge`. `hold` waits where the robot stands. `seat`, a
-    charge's (`Body.charge_seat`): the station's way in and its seat hold
-    the bay too (`_bay_holder`) -- a robot lying on the quadrupeds' dock was
-    a metre past the standoff, and the walk in went on and lay on it (#455).
+    `kind` is `charge`. `seat`, a charge's (`Body.charge_seat`): the
+    station's way in and its seat hold the bay too (`_bay_holder`), or the
+    walk in goes on into a robot standing there (#455).
 
     ⚠ ONE LYING DOWN TO REST ON THE BAY IS ASKED OFF THE WAY THERE (issue
     #455; `Body.ask_off`): waited for, it never moved, and on afb473a every
@@ -1992,7 +1978,7 @@ class HubLifecycle:
     first = self.last_bay_wait is None or self.last_bay_wait.get("since") != since
     # EVERY time, not only the first: a drive that found the bay taken again
     # stops at the edge of the holder's disc, which is its way out.
-    spot = None if hold else self._waiting_spot(sx, sy)
+    spot = self._waiting_spot(sx, sy)
     if first:
       self._say(f"WAIT: {holder(self.peers, who, where, near, what)} -- waiting up to "
                 f"{bound:.0f} s" + ("" if spot is None else
@@ -4799,13 +4785,14 @@ class HubLifecycle:
     self._remember(f"woke up again after {held:.0f} s paused")
 
   def _claim_task(self, task_id: str) -> bool:
-    """Take one offered job on and queue the errand that discharges it.
+    """Take one offered job on: a procedure's, the robot's to write, run and
+    say `done`, or an act, done as it is claimed (`TaskKind.discharge`).
 
     False for every ordinary way this can not happen -- the offer is gone,
-    somebody took it, it lapsed, it costs more than the pack has left, or
-    this world cannot build an errand for it. False rather than an exception
-    because the caller is a mission loop acting on an LLM's answer, and "that
-    one is not available" is an answer.
+    somebody took it, it lapsed, or it costs more than the pack has left.
+    False rather than an exception because the caller is a mission loop
+    acting on an LLM's answer, and "that one is not available" is an
+    answer.
 
     ⚠ The energy gate lives HERE and not in the errand: a task that cannot be
     afforded must not be claimable in the first place, because the reserve is
@@ -4820,16 +4807,14 @@ class HubLifecycle:
       self._say(f"TASK {task_id}: not available")
       return False
     from pluggybot.economy.tasks import KINDS
-    discharge = KINDS[task.kind].discharge
-    by_procedure = discharge == "procedure"
     other = None
-    if discharge == "act":
+    if KINDS[task.kind].discharge == "act":
       # CLAIMING IS THE ACT (issue #228): the job is done TO the robot it
       # names, so it needs that robot to exist here and not to be the one
       # taking it -- an offer naming you is the other's to take, on a
       # shared board -- and a mind, because a rotation may never take it
-      # (`claimable_offers`, `_claim_next_task`): code taking a job that
-      # harms the other would be code deciding the harm.
+      # (`claimable_offers`): code taking a job that harms the other would be
+      # code deciding the harm.
       other = self._peer(task.target)
       if task.target == self.robot_name or other is None:
         self._say(f"TASK {task.id}: names {task.target}, and that is "
@@ -4843,25 +4828,14 @@ class HubLifecycle:
       if acts is None or acts() is None:
         self._say(f"TASK {task.id}: nothing here may act on {task.target}")
         return False
-      errand = None
-    elif by_procedure:
-      # A CHALLENGE (issue #207): no errand does it. The claim is the
+    elif getattr(self.overseer, "library", None) is None:
+      # A PROCEDURE'S JOB (issue #207): no errand does it. The claim is the
       # robot's word that it will write the procedure, run it and say
       # `done`; only a mind with a library is offered one, and only a mind
       # can say when it is finished.
-      if getattr(self.overseer, "library", None) is None:
-        self._say(f"TASK {task.id}: takes a procedure, and nothing here "
-                  "can write one")
-        return False
-      errand = None
-    else:
-      errand = errand_for_task(task, self.world)
-      if errand is None:
-        # Offered in a world that cannot build it. Not fatal and not a
-        # claim: leaving it offered lets it lapse honestly rather than be
-        # marked failed by a robot that never touched it.
-        self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
-        return False
+      self._say(f"TASK {task.id}: takes a procedure, and nothing here "
+                "can write one")
+      return False
     # ⚠ `claim_budget_wh`, the same gate `claimable` was checked against
     # above -- not `spendable_wh`. Where there is a mind rail three is OFF,
     # and the board's own re-check used to quietly put it back: a claim the
@@ -4873,46 +4847,16 @@ class HubLifecycle:
       return False
     self.claimed.append(task.id)
     self._say(f"TASK {task.id} claimed: {task.description}")
-    if errand is None:
-      # ACTIVE from the claim: an errand marks its task active when it
-      # starts running, and a challenge's work starts the moment the robot
-      # takes it on -- writing the procedure is the work.
-      self.tasks.start(task.id, t=now)
-      if other is not None:
-        self._act_task(task, other)
-        return True
-      self._say(f"TASK {task.id}: nothing queued -- write a procedure, run "
-                f"it, and set done to {task.id} when the work stands")
-      self._watch_job(task.id)
+    # ACTIVE from the claim: a job's work starts the moment the robot takes
+    # it on -- writing the procedure is the work, and an act is done here.
+    self.tasks.start(task.id, t=now)
+    if other is not None:
+      self._act_task(task, other)
       return True
-    # Queued rather than run inline, exactly as an overseer's chosen errand
-    # is: if taking it dropped the battery below the reserve, the next pass
-    # through the loop charges first.
-    self.errands.append(errand)
+    self._say(f"TASK {task.id}: nothing queued -- write a procedure, run "
+              f"it, and set done to {task.id} when the work stands")
+    self._watch_job(task.id)
     return True
-
-  def _claim_next_task(self) -> bool:
-    """Take the oldest claimable job, if there is one.
-
-    This is the branch that makes tasks work WITHOUT an overseer. A world
-    that only hands out work to a robot with an LLM attached would have no
-    tasks in either committed recording and none on the deployed sim, which
-    is off by default -- and a job offer nobody can accept is scenery.
-    """
-    if self.tasks is None:
-      return False
-    from pluggybot.economy.tasks import KINDS
-    for task in self.tasks.claimable(float(self.data.time),
-                                     self.claim_budget_wh):
-      # A job the robot writes the procedure for is skipped (issue #207):
-      # code is not going to write one for the robot. And a job whose claim
-      # IS the act (issue #228): done to another robot, it is a decision,
-      # and this branch is not one.
-      if KINDS[task.kind].discharge in ("procedure", "act"):
-        continue
-      if self._claim_task(task.id):
-        return True
-    return False
 
   # ---- the one branch an LLM may replace (issue #15) ------------------------
 
@@ -5340,55 +5284,37 @@ class HubLifecycle:
     return [self._preset[i] for i, name in r["preset"]
             if i < len(self._preset) and self._preset[i].name == name]
 
-  def _resume_jobs(self, cut: dict | None) -> list:
+  def _resume_jobs(self, cut: dict | None) -> None:
     """The jobs this robot holds on the board, taken up again (issue #345):
-    an errand job's errand, rebuilt off the task, to queue; a procedure job
-    left claimed, the procedure being the robot's to run. A claim held by a
-    robot not in this world goes back on offer. `cut` is the errand the
-    world stopped in the middle of, which History names."""
+    a procedure job left claimed, the procedure being the robot's to run,
+    where this world has what it is graded on; any other goes back on
+    offer, as does a claim held by a robot not in this world. `cut` is the
+    errand the world stopped in the middle of, which History names."""
     from pluggybot.economy.tasks import KINDS
-    queued: list = []
     held: set[str] = set()
     cut_task = cut.get("taskId", "") if cut is not None else ""
     # ...a procedure job only where this world has what it is graded on: a
     # body changed under it (#559, the quadrupeds' tower in the humanoids'
-    # house) is given back below, as an errand nothing here builds is
+    # house) is given back below
     here = world_targets(self.world, self.boards, procedures=True)
     for task in (self._held_jobs() if self.tasks is not None else ()):
       held.add(task.id)
-      if any(e.task_id == task.id for e in self.errands):
-        continue                          # claimed in this process: queued
       prefix = (f"the restart cut short {cut['name']}; "
                 if task.id == cut_task else "")
-      kind = KINDS[task.kind]
-      if kind.discharge == "procedure" and task.target in here.get(kind.target_kind, ()):
+      if task.target in here.get(KINDS[task.kind].target_kind, ()):
         self._watch_job(task.id)
         self._say(f"TASK {task.id}: still mine after the restart")
         self._remember(f"{prefix}the job {task.id} ({task.kind}) is still "
                        "mine -- the procedure is mine to run, and to say done")
         continue
-      taken = self.tasks.take_up(task.id, t=float(self.data.time))
-      if taken is not None and taken.state == "failed":
-        self._say(f"TASK {task.id} failed: {taken.verdict['reason']}")
-        self._remember(f"{prefix}the job {task.id} ({task.kind}) is failed: "
-                       f"{taken.verdict['reason']}")
-        continue
-      errand = errand_for_task(task, self.world)
-      if errand is None:
-        self.tasks.release(task.id)
-        self._say(f"TASK {task.id}: offered again -- nothing here builds it")
-        self._remember(f"{prefix}the job {task.id} ({task.kind}) is back on "
-                       "offer: nothing in this world can do it")
-        continue
-      queued.append(errand)
-      self._say(f"TASK {task.id}: still mine after the restart -- queued again")
-      self._remember(f"{prefix}the job {task.id} ({task.kind}) is still mine, "
-                     "and is queued again")
+      self.tasks.release(task.id)
+      self._say(f"TASK {task.id}: offered again -- nothing here builds it")
+      self._remember(f"{prefix}the job {task.id} ({task.kind}) is back on "
+                     "offer: nothing in this world can do it")
     if cut is not None and cut_task not in held:
       self._remember(f"the restart cut short {cut['name']}"
                      + ("; it is not queued again" if not cut_task else
                         f"; the job {cut_task} is no longer mine"))
-    return queued
 
   def _held_jobs(self) -> list:
     """This robot's open claims, after giving back any held by a robot
@@ -5460,18 +5386,12 @@ class HubLifecycle:
   def _void_errand(self) -> None:
     """What `run_errand_routine`'s own ending would have written, for the
     errand a stand-up closed (issue #348): out of errand mode, one result,
-    the job failed, `task_failed` for the map beside `stood_up`, and a
-    History line saying what dying cut short. Nothing where no errand was
-    in flight.
-
-    ⚠ THE JOB IS FAILED, NOT TAKEN UP AGAIN as a restart's is (#345): a
-    kept errand runs before the mind is asked, so the robot would walk
-    straight back into the job it died doing -- the opposite of coming back
-    out of errand mode, and what `MORTAL_RULE` promises ("ends everything
-    you were doing"). A procedure's job stays the robot's to run, and a
-    game's is its referee's, as across a restart. Only a stand-up after a
-    death gets here: an admin reaches a LIVING robot between errands."""
-    from pluggybot.economy.tasks import KINDS
+    `task_failed` for the map beside `stood_up`, and a History line saying
+    what dying cut short. Nothing where no errand was in flight. A job the
+    robot holds stays its to run, as across a restart: its procedure is
+    the robot's, and the mind is asked before anything runs again. Only a
+    stand-up after a death gets here: an admin reaches a LIVING robot
+    between errands."""
     errand = self._errand_now
     if errand is None:
       return
@@ -5489,11 +5409,6 @@ class HubLifecycle:
       "stowed": None, "energyWh": None,
       "estimateWh": round(self.affords(errand).cost_wh, 4),
       "error": DEATH_ENDED, "stoodUp": True})
-    task = (self.tasks.get(errand.task_id)
-            if errand.task_id and self.tasks is not None else None)
-    kind = KINDS.get(task.kind) if task is not None else None
-    job = (self.tasks.abandon(task.id, DEATH_ENDED, t=t)
-           if kind is not None and kind.discharge == "errand" else None)
     if errand.program is not None:
       # ...and a run that said `validated` says how it ended; its count died
       # with the runner, so it carries none rather than a wrong one
@@ -5501,17 +5416,14 @@ class HubLifecycle:
       self._emit({"type": "procedure", "robot": self.root, "name": program.name,
                   "program": program.as_dict(), "t": round(t, 3),
                   "outcome": "aborted", "stopped": "stood_up"})
-    self._say(f"STOOD UP mid-errand: {errand.name} ended there"
-              + (f" -- TASK {job.id} failed: {DEATH_ENDED}" if job else ""))
+    self._say(f"STOOD UP mid-errand: {errand.name} ended there")
     # ⚠ NOT AFTER A TRUE DEATH: the errand was the robot before's, and the
     # next one's only inheritance is being told it is not the first
     # (`_true_death`) -- its History and its fresh map hear none of this.
     if self.deaths and self.deaths[-1].get("hearts") == 0:
       return
     self._occur("task_failed", errand.name)
-    self._remember(f"dying cut short {errand.name}"
-                   + (f"; the job {job.id} ({job.kind}) is failed: {DEATH_ENDED}"
-                      if job else ""))
+    self._remember(f"dying cut short {errand.name}")
 
   def _charge_trip_routine(self) -> Routine:
     """GO_CHARGE then CHARGE, the loop's way to the rack: a dock that fails
@@ -5789,11 +5701,9 @@ class HubLifecycle:
     # ...and what came back of its list of rules (issue #337).
     self._announce_map()
     # ...and its jobs (issue #345): a job it had claimed is still its own.
-    held = self._resume_jobs(resumed["errand"] if resumed is not None else None)
+    self._resume_jobs(resumed["errand"] if resumed is not None else None)
     if resumed is not None:
-      self.errands = self._preset_left(resumed) + held
-    else:
-      self.errands.extend(held)
+      self.errands = self._preset_left(resumed)
 
     # A real arbitration loop, not a fixed script. Priority order, and the
     # reasons: charging outranks everything (a flat robot does nothing at
@@ -5880,13 +5790,6 @@ class HubLifecycle:
         # holds the other robot's bay for as long as the call flies.
         yield from self._leave_rack_routine()
         yield from self._arbitrate_routine()
-      elif self._claim_next_task():
-        # An offered job, taken by the loop itself (issue #21). Unreachable
-        # with an overseer, which is correct: a robot with a mind chooses
-        # for itself and `take_task` is one of the things it may choose.
-        # Without one, work still gets done -- and it outranks exploring for
-        # the reason the errand queue does, because somebody asked for it.
-        continue
       elif not self.floor_explored:
         self._cleared_rack = False
         self.state = "EXPLORE"
@@ -6144,47 +6047,6 @@ def errand_from(decision, library=None):
   return None
 
 
-def errand_for_task(task, world: str):
-  """A claimed TASK -> the errand that discharges it, or None (issue #21).
-
-  The sibling of `errand_from` and deliberately the same shape: a task is
-  untrusted input in exactly the way an overseer decision is (it can come
-  from a visitor), so a world that cannot build one answers None and the loop
-  leaves the offer alone rather than ending.
-
-  The errand carries `task_id`, so the verdict that pays for the finished
-  job also closes the offer -- one evaluation, two consumers. It never
-  carries the task's `secret`. A job the robot writes the procedure for
-  has none (issue #207): the robot runs it and says `done`. The quadruped's
-  errands went with it (#559); what is left is a task carrying the
-  procedure that discharges it.
-  """
-  from pluggybot.economy.tasks import KINDS
-  spec = KINDS.get(task.kind)
-  if spec is None or spec.discharge == "procedure":
-    return None
-  try:
-    if not isinstance(task.params.get("procedure"), dict):
-      return None
-    # A task carrying the PROCEDURE that discharges it (issue #58): the
-    # steps are data on the task, validated here against this world, and
-    # the kind's own evaluator grades the result. A program that does not
-    # validate builds nothing, and the loop leaves the offer alone.
-    from pluggybot.procedure.steps import Program, compile_program
-    program = compile_program(Program.from_dict(task.params["procedure"]),
-                              world_facts(world))
-    errand = programmed_errand(program, task=spec.task)
-  except (ValueError, KeyError, IndexError):
-    return None
-  errand.task_id = task.id
-  # The job's own energy figure travels with the errand (issue #15). Per
-  # KIND rather than per action, which is strictly better information. The
-  # gate that refuses an unaffordable errand then agrees by construction
-  # with the gate that refused to claim it.
-  errand.estimate_wh = float(task.estimate_wh)
-  return errand
-
-
 def load_program(path: str, world: str):
   """A program to fly by hand (`hub_lifecycle.py --program`): a JSON program
   over the step vocabulary (#58), or a `.procedure` in the language (#166),
@@ -6350,13 +6212,7 @@ def overseer_context(life) -> dict:
   from pluggybot.mind import overseer as ov
   visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
   offers = shown_offers(life)
-  # What the pack can pay for now, and what this world could ever do
-  # (issue #15): every action, since no action builds an errand of its own
-  # (the quadruped's tool errands went with it, #559) -- each is free,
-  # bounded, or priced per offer by the board.
-  affordable = possible = list(life.overseer.menu.available())
   state = ov.context_for(life, visitors=visitors, tasks=offers,
-                         affordable=affordable, possible=possible,
                          # The two thought files that change during a run
                          # (issue #38). The other two are already in the
                          # cached prefix, and putting these there instead is

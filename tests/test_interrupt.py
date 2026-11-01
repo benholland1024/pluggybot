@@ -49,8 +49,7 @@ def _state(fraction: float) -> dict:
   return {"simTimeS": 100.0,
           "battery": {"fraction": fraction, "wh": 8.0 * fraction,
                       "spendableWh": max(0.0, 8.0 * fraction - 0.9)},
-          "offeredTasks": [], "affordableActions": ["explore", "charge"],
-          "possibleActions": ["explore", "charge"],
+          "offeredTasks": [],
           "tasksThisMission": [], "decisions": 0}
 
 

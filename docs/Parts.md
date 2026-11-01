@@ -239,10 +239,12 @@ SimNotes' energy table.
 
 **The sensors** ("The sensors", above), placed for a body 1.4 m tall. The
 D435 is fixed in the head, 1.26 m up and pitched 40° down: it sees the
-counter's height from 0.12 to 1.64 m ahead and the floor from 0.48 m. The
-Camera Module 3 above it, pitched 20°, reads the tags. The RPLIDAR C1 sits
-on the head, its plane 1.41 m up, over the tables, the couch and the bed,
-which the depth camera has to see. The IMU rides the pelvis.
+counter's height from 0.12 to 1.64 m ahead and the floor from 0.48 m, and
+its colour imager reads the tags within reach (a counter's props, the
+station). The Camera Module 3 above it, pitched 20°, reads the tags on the
+walls that mark places, and is the eye a `look` sees through. The RPLIDAR
+C1 sits on the head, its plane 1.41 m up, over the tables, the couch and the
+bed, which the depth camera has to see. The IMU rides the pelvis.
 
 **The bill.** `humanoid/bill.py`, rendered here and written to
 `protocol/parts.json` by `uv run python -m pluggybot.humanoid.bill`: a part
@@ -286,7 +288,7 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 | [Waveshare 2-CH CAN HAT+ (MCP2515, isolated) for the Raspberry Pi](https://eckstein-shop.de/WaveShare-2CH-Isolated-CAN-Bus-Expansion-HAT-for-Raspberry-Pi) `27338` | 1 | 29.95 | 29.95 | in stock, 1-3 days (Eckstein) | `humanoid.parts.ELECTRONICS['waveshare_can_hat_plus']` |
 | [Waveshare 2-CH CAN FD HAT (MCP2518FD, isolated) for the Raspberry Pi](https://www.welectron.com/Waveshare-17075-2-CH-CAN-FD-HAT_1) `17075` | 1 | 51.90 | 51.90 | in stock (short supply), 1-3 business days (Welectron) | `humanoid.parts.ELECTRONICS['waveshare_can_fd_hat']` |
 | **sensors** | | | **491.80** | | |
-| [RealSense D435 depth camera (active IR stereo)](https://www.digikey.de/de/products/detail/realsense/82635AWGDVKPRQ/9926002) `D435` | 1 | 340.01 | 340.01 | none in stock, the maker's standard lead 14 weeks (DigiKey DE); 21 days at MyBotShop for €419.99 | `depth_eye.fovy`, `humanoid.parts.D435_KG`, `humanoid.model.CHOSEN.depth_pitch_deg` |
+| [RealSense D435 depth camera (active IR stereo)](https://www.digikey.de/de/products/detail/realsense/82635AWGDVKPRQ/9926002) `D435` | 1 | 340.01 | 340.01 | none in stock, the maker's standard lead 14 weeks (DigiKey DE); 21 days at MyBotShop for €419.99 | `depth_eye.fovy`, `humanoid.parts.D435_KG`, `humanoid.model.CHOSEN.depth_pitch_deg`, +1 |
 | [Slamtec RPLIDAR C1 2D LIDAR](https://funduinoshop.com/en/electronic-modules/sensors/movement-distance/rplidar-c1-dtof-lidar-3600-laser-range-scanner-12m-ip54-slamtec) `RPLIDAR C1` | 1 | 84.90 | 84.90 | 1-3 business days (Funduino) | `humanoid.parts.LIDAR.kg`, `humanoid.parts.ELECTRONICS_W['lidar']` |
 | [Raspberry Pi Camera Module 3](https://www.berrybase.de/raspberry-pi-camera-module-3-12mp) `Camera Module 3` | 1 | 28.90 | 28.90 | in stock, 1-3 days (BerryBase) | `nav_eye.fovy` |
 | [Raspberry Pi camera cable, standard to mini, 200 mm](https://www.berrybase.de/raspberry-pi-camera-cable-standard-mini-200mm) `SC1128` | 1 | 1.20 | 1.20 | in stock, 1-3 days (BerryBase) | — |

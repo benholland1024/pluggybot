@@ -311,8 +311,6 @@ def test_a_claim_by_the_robot_the_job_names_is_refused_and_by_a_stranger_too(pai
   assert not a._claim_task(to_rowan.id)
   assert a.tasks.get(to_rowan.id).state == "offered" and b.ledger.balance() == 30
   a.overseer.others = peers
-  # ...and the scripted claim skips it however claimable it is
-  assert not a._claim_next_task() or a.tasks.get(to_rowan.id).state == "offered"
 
 
 def test_a_take_task_decision_reaches_the_act_through_the_decision_path(pair):

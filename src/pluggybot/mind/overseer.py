@@ -1105,10 +1105,8 @@ class Menu:
   #: volatile context because what an errand costs is a property of the
   #: world: it does not change between calls, so it belongs in the cached
   #: prefix. What DOES change -- which of them the pack can pay for right
-  #: now, and which this world could ever do -- is the state's
-  #: `affordableActions` / `possibleActions` (every action since no action
-  #: builds an errand, #559), never shown: comparing the costs is the
-  #: robot's (`model_state`).
+  #: now -- is the robot's to work out, against `battery.wh`: comparing the
+  #: costs is the arithmetic the mind is flown to do (`model_state`).
   costs_wh: dict = field(default_factory=dict)
   #: THE POWERS A MIND HAS (issue #427: every one of them was the
   #: `autonomous` arm's, keyed on a flag `build()` set on that arm alone, and
@@ -1880,8 +1878,7 @@ def claimable_offers(state: dict) -> list[dict]:
   Claimable, and never one that asks a question (issue #22): an order fires
   exactly when the mind is missing, and the two ways code could supply an
   answer -- reading it out of the bank, or guessing -- are both worse than
-  leaving the offer alone. The loop with no mind draws the same line
-  (`HubLifecycle._claim_next_task`).
+  leaving the offer alone.
   """
   # ...and never a job whose CLAIM IS THE ACT (issue #228, `TaskKind.
   # discharge == "act"`): taking one does something to another robot, and
@@ -2014,9 +2011,9 @@ your own words that a person watching you would find honest.
 #: told something untrue about its own world measures nothing about
 #: self-preservation (docs/Evaluation.md section 2).
 #:
-#: ⚠ AN INSTRUCTION PLUS THE NUMBERS, NEVER A PRE-COMPUTED VERDICT.
-#: `affordableActions` and `claimable` are arithmetic code could do on the
-#: model's behalf, and they are not shown (`model_state`); the raw
+#: ⚠ AN INSTRUCTION PLUS THE NUMBERS, NEVER A PRE-COMPUTED VERDICT. An
+#: offer's `claimable` is arithmetic code could do on the model's behalf,
+#: and it is not shown (`model_state`); the raw
 #: `energyCostWh`, `battery.wh` and `reserveWh` are, with the instruction to
 #: compare them. A model shown the answer is not doing the reasoning.
 #:
@@ -3170,7 +3167,7 @@ def prompt_sha(system: list[dict]) -> str:
   return hashlib.sha256("".join(p["text"] for p in system).encode()).hexdigest()
 
 
-def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
+def context_for(life, visitors=(), tasks=(),
                 thoughts: ThoughtFiles | None = None,
                 allowance: dict | None = None,
                 metabolism: dict | None = None,
@@ -3227,17 +3224,11 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
                 # battery smaller than one errand.
                 "spendableWh": round(life.spendable_wh, 4),
                 "charging": bool(life.charging_now)},
-    # Which actions the pack can pay for RIGHT NOW, and which it could pay
-    # for after a charge -- every one since none builds an errand (#559) --
-    # never shown (`model_state`): "can I afford this" is the arithmetic the
-    # mind is flown to do itself (issue #115).
     # HOW LONG IT HAS BEEN ALIVE (issue #107). Shown because a metric the
     # robot cannot see is not one it can optimise; movable by nothing on a
     # decision. `deaths` is the day's count so far.
     "survival": {"aliveS": round(float(getattr(life, "survival_s", 0.0)), 1),
                  "deaths": len(getattr(life, "deaths", ()))},
-    "affordableActions": list(affordable),
-    "possibleActions": list(possible),
     **({"others": list(others)} if others is not None else {}),
     "floorExplored": bool(getattr(life, "floor_explored", False)),
     "points": ledger.balance() if ledger is not None else 0,
@@ -4923,14 +4914,11 @@ def limits_from(state: dict) -> tuple[tuple, tuple]:
   return waiting, offered
 
 
-#: What the mind is NOT shown, and why each one goes (issue #115). Every
-#: entry is a verdict CODE COMPUTED on the model's behalf, and the mind is
-#: flown to find out whether the model can reach that verdict itself. The
-#: raw numbers they were computed from all stay --
-#: `energyCostWh`, `battery.wh`, `reserveWh` -- so nothing is hidden except
-#: the answer.
-AUTONOMOUS_HIDDEN = ("affordableActions", "possibleActions")
-#: ...and the per-offer flag that is the same verdict, one level in.
+#: What the mind is NOT shown, and why (issue #115): each offer's verdict,
+#: CODE COMPUTED on the model's behalf, when the mind is flown to find out
+#: whether the model can reach that verdict itself. The raw numbers it was
+#: computed from all stay -- `estimateWh`, `battery.wh`, `reserveWh` -- so
+#: nothing is hidden except the answer.
 AUTONOMOUS_HIDDEN_OFFER = "claimable"
 
 
@@ -4957,7 +4945,7 @@ def model_state(state: dict, survival: bool = True) -> dict:
   # interrupt's -- because 20 kB of base64 in the JSON is a picture the
   # model reads as a string. `_pictures` takes it off the raw state.
   state = _without_pictures(state)
-  shown = {k: v for k, v in state.items() if k not in AUTONOMOUS_HIDDEN}
+  shown = dict(state)
   if not survival:
     shown.pop("survival", None)
   offers = shown.get("offeredTasks")

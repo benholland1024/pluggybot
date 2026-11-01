@@ -294,7 +294,7 @@ class EnergyModel:
     turn: what an errand costs is a property of the world and does not change
     between calls, so putting it in the user turn would invalidate the cache
     for nothing. What DOES change -- which of them the pack can pay for right
-    now -- goes in the volatile half as `affordableActions`.
+    now -- is the robot's to work out from the volatile half's `battery.wh`.
 
     ⚠ MEASURED ROWS ONLY. `cost` answers for any name, because the gate has
     to price an unmeasured errand at something -- but printing that fallback

@@ -341,39 +341,6 @@ def test_a_hand_job_stays_the_robots_and_the_map_hears_the_stand_up_and_the_fail
     life.body.close()
 
 
-def test_a_job_with_an_errand_behind_it_is_failed_by_the_stand_up(monkeypatch):
-  """...and a job with an ERRAND behind it is failed with the world's reason
-  (`DEATH_ENDED`), never taken up again as a restart's is: a kept errand
-  would walk straight back into what killed it. No kind the humanoids are
-  offered is discharged by an errand (#559), so the kind is a copy of the
-  drawer's; the branch still read a game's roles, which went with hide and
-  seek, and raised."""
-  import dataclasses
-  from pluggybot.economy.tasks import KINDS
-  monkeypatch.setitem(KINDS, "errand_job", dataclasses.replace(
-    KINDS["open_drawer"], name="errand_job", discharge="errand", draws=False))
-  board = TaskBoard()
-  said: list[dict] = []
-  board.on_event.append(said.append)
-  life = _life(tasks=board)
-  try:
-    task = board.offer("errand_job", "drawer", params={"minutes": 16}, t=0.0)
-    board.claim(task.id, robot=life.root, t=0.0)
-    board.start(task.id, t=0.0)
-    errand = _lap()
-    errand.task_id = task.id
-    out = life.body.run(
-      life._until_stood_up_routine(_forever(life, errand, [])))
-    assert out is STOOD_UP
-    assert board[task.id].state == "failed"
-    assert board[task.id].verdict["reason"] == DEATH_ENDED
-    assert [m["state"] for m in said if m["type"] == "task_resolved"] == ["failed"]
-    assert any(f"dying cut short {errand.name}; the job {task.id} (errand_job) "
-               f"is failed: {DEATH_ENDED}" in ln for ln in _history(life))
-  finally:
-    life.body.close()
-
-
 def test_a_voided_procedure_run_closes_as_aborted_with_no_count():
   """A run the site saw `validated` says how it ended: `aborted`, stopped
   `stood_up`. Its step count died with the runner, so it carries NONE --

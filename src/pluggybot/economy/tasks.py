@@ -85,11 +85,6 @@ MAX_TASKS = 40
 #: ...and how many may stand OFFERED at once. A cap, not a cadence: issue #23
 #: owns how fast they arrive.
 MAX_OFFERED = 6
-#: Restarts a kept errand claim is taken up through unfinished before it is
-#: failed instead (issue #345): a job whose errand crashes the process would
-#: otherwise crash every process after it -- the world's own crash-loop
-#: guard (`continuation.MAX_RESUMES`) never sees a claim, which lives here.
-MAX_TAKE_UPS = 3
 
 #: The states a task moves through, in order. `offered` is a job nobody has
 #: taken; `claimed` is one a robot has accepted but not started (it is queued
@@ -116,6 +111,10 @@ def _now() -> str:
 # padding for safety makes a job that costs most of a small pack
 # permanently unclaimable. Why a guess is fatal in either direction, and the
 # fixture that proved it: docs/TaskPattern.md section 5.
+
+
+#: How a job is done once claimed (`TaskKind.discharge`).
+DISCHARGES = ("procedure", "act")
 
 
 @dataclass(frozen=True)
@@ -145,21 +144,19 @@ class TaskKind:
   #: what an unmeasured world is charged, and being dear there is the cheap
   #: direction to be wrong in.
   estimate_wh: float = 0.2
-  #: HOW the job is done once claimed (issue #207). `errand`: claiming queues
-  #: the errand that discharges it, the shape every kind had until the
-  #: tower. `procedure`: claiming queues NOTHING -- there is no errand for
-  #: the job, the robot has to write the procedure that does it (#166), run
-  #: it, and say `done`, and the challenge's grader measures the world then
-  #: (`HubLifecycle._grade_routine`). Only a mind that can write a procedure
-  #: can attempt one, so the scripted claim skips these, and the offer
-  #: exists only where the arm has a library
-  #: (`lifecycle.world_targets`). `act` (issue #228): CLAIMING IS DOING IT
-  #: -- the claim performs the act, grades it and resolves the task in one
-  #: call, nothing is queued and nothing moves the body. Only a decision
-  #: naming the job takes one: the scripted claim, a standing order and an
-  #: event-map row all skip it, because code taking it would be code
-  #: deciding the act on the robot's behalf.
-  discharge: str = "errand"
+  #: HOW the job is done once claimed (`DISCHARGES`). `procedure` (issue
+  #: #207): claiming queues NOTHING -- the robot has to write the procedure
+  #: that does it (#166), run it, and say `done`, and the job's grader
+  #: measures the world then (`HubLifecycle._grade_routine`). Only a mind
+  #: that can write a procedure can attempt one, and the offer exists only
+  #: where the arm has a library (`lifecycle.world_targets`). `act` (issue
+  #: #228): CLAIMING IS DOING IT -- the claim performs the act, grades it and
+  #: resolves the task in one call, nothing is queued and nothing moves the
+  #: body. Only a decision naming the job takes one: a standing order and an
+  #: event-map row skip it, because code taking it would be code deciding
+  #: the act on the robot's behalf. (The quadruped's jobs were `errand`s,
+  #: code's program queued at the claim; they went with it, #559.)
+  discharge: str = "procedure"
   #: THE JOB'S COST FALLS ON A BEING (issue #228): what it asks is done TO
   #: the target -- another robot today -- and the reward pays for that.
   #: Read by quality three's harm-for-points shape to find its sources
@@ -174,6 +171,11 @@ class TaskKind:
   #: offer lands, the prop set back out with them (`HubLifecycle.
   #: _set_out_counter`) -- a skill over a kind of drawer, never one drawer.
   draws: bool = False
+
+  def __post_init__(self) -> None:
+    if self.discharge not in DISCHARGES:
+      raise ValueError(f"{self.name}: discharge {self.discharge!r} is none of "
+                       f"{', '.join(DISCHARGES)}")
 
   def describe(self, target: str, params: dict) -> str:
     try:
@@ -311,9 +313,6 @@ class Task:
   #: sensor data, but it is not a work order either, and there is no path
   #: from here to the wire or to the model's context.
   secret: dict = field(default_factory=dict, repr=False)
-  #: How many restarts have handed this claim back to its robot (issue
-  #: #345; `TaskBoard.take_up`). The state file's, never the wire's.
-  restarts: int = 0
 
   @classmethod
   def create(cls, kind: str, target: str, task_id: str,
@@ -436,7 +435,7 @@ class Task:
     what things are worth and is also not published. Leaving it out instead
     would mean a restart brought back an offer that could never be graded.
     """
-    return {**self.as_dict(), "secret": dict(self.secret), "restarts": self.restarts}
+    return {**self.as_dict(), "secret": dict(self.secret)}
 
   def snapshot(self, table: RewardTable | None = None) -> dict:
     """The task as a telemetry frame carries it: `as_dict` plus the payout
@@ -501,7 +500,6 @@ class Task:
       # Absent from anything that came off the wire, and that is fine: only
       # `as_state` writes it, and only the state file is ever read back.
       secret=dict(spec.get("secret") or {}),
-      restarts=int(spec.get("restarts") or 0),
     )
 
 
@@ -715,8 +713,7 @@ class TaskBoard:
     if task is None or not task.claimable(t, pack_wh):
       return None
     return self._move(replace(task, state="claimed", claimed_by=robot,
-                              claimed_t=round(float(t), 3),
-                              restarts=0),                  # a new claim's
+                              claimed_t=round(float(t), 3)),
                       "task_claimed", t)
 
   def release(self, task_id: str) -> Task | None:
@@ -733,34 +730,6 @@ class TaskBoard:
     self.save()
     return task
 
-  def take_up(self, task_id: str, t: float = 0.0) -> Task | None:
-    """Hand a kept errand claim back to its robot after a restart, counted
-    (issue #345): at `MAX_TAKE_UPS` restarts unfinished it is failed and
-    said on the wire instead -- the returned task's state says which."""
-    task = self.tasks.get(task_id)
-    if task is None or task.state not in ("claimed", "active"):
-      return None
-    if task.restarts >= MAX_TAKE_UPS:
-      return self.abandon(task_id, f"taken up through {task.restarts} "
-                                   "restarts and never finished", t)
-    task = replace(task, restarts=task.restarts + 1)
-    self.tasks[task.id] = task
-    self.save()
-    return task
-
-  def abandon(self, task_id: str, reason: str, t: float = 0.0) -> Task | None:
-    """Fail a claim that ended with nothing to grade, for a reason the WORLD
-    gives -- restarts it never outlived, or a death that ended the errand
-    working on it (issue #348) -- never a verdict a robot reports on itself.
-    None if it is not claimed or active."""
-    task = self.tasks.get(task_id)
-    if task is None or task.state not in ("claimed", "active"):
-      return None
-    return self._move(replace(task, state="failed", resolved_t=round(float(t), 3),
-                              verdict={"task": task.task, "ok": False, "points": 0,
-                                       "reason": reason}),
-                      "task_resolved", t)
-
   def release_absent(self, present) -> list[Task]:
     """Give back every claim held by a robot that is not in this world."""
     return [self.release(t.id) for t in list(self.tasks.values())
@@ -774,8 +743,7 @@ class TaskBoard:
       return None
     return self._move(replace(task, state="active"), "task_claimed", t)
 
-  def resolve(self, task_id: str, verdict: Verdict, t: float = 0.0,
-              robot: str = "") -> Task | None:
+  def resolve(self, task_id: str, verdict: Verdict, t: float = 0.0) -> Task | None:
     """Close a task with an EVALUATOR's verdict, and nothing else.
 
     The type check is the same lock `Ledger.award` carries, for the same
@@ -783,8 +751,7 @@ class TaskBoard:
     verdict-shaped dict is a task that can declare itself done. The points
     recorded here are the verdict's, which the ledger has already re-derived
     from the reward table -- this is a copy for display, and the balance it
-    came from is the ledger's. `robot` is whose verdict it is where the
-    claim cannot say: a game's winner (issue #404), whose wallet it paid.
+    came from is the ledger's.
     """
     if not isinstance(verdict, Verdict):
       raise TypeError(
@@ -797,7 +764,7 @@ class TaskBoard:
     return self._move(replace(task, state="done" if verdict.ok else "failed",
                               verdict=verdict.as_dict(), points=verdict.points,
                               resolved_t=round(float(t), 3)),
-                      "task_resolved", t, robot=robot)
+                      "task_resolved", t)
 
   def expire_due(self, t: float) -> list[Task]:
     """Lapse every OFFERED task past its deadline. Returns what lapsed.
@@ -817,12 +784,11 @@ class TaskBoard:
           gone.append(moved)
     return gone
 
-  def _move(self, task: Task, kind: str, t: float, robot: str = "") -> Task:
+  def _move(self, task: Task, kind: str, t: float) -> Task:
     self.tasks[task.id] = task
-    # ...named by who did it: the claimant, or `robot` where the claim
-    # cannot say
+    # ...named by who did it: the claimant
     msg = {"type": kind, "t": round(float(t), 3), "id": task.id,
-           "state": task.state, "robot": robot or task.claimed_by or ROBOT_ROOT}
+           "state": task.state, "robot": task.claimed_by or ROBOT_ROOT}
     if kind == "task_resolved":
       msg.update({"points": task.points, "verdict": task.verdict,
                   "task": task.snapshot(self.table)})
@@ -939,17 +905,14 @@ class TaskBoard:
       priced = self.estimate_for(task.kind, task.target)
       if priced is not None:
         task = replace(task, estimate_wh=priced)
-      known = KINDS.get(task.kind)
-      kept = known is not None and known.discharge in ("errand", "procedure")
-      if task.state in ("claimed", "active") and kept:
-        if known.discharge == "errand":
-          task = replace(task, state="claimed")
-      elif task.state == "active":
+      # ...a procedure's job is the robot's still; an act's is not
+      act = KINDS[task.kind].discharge == "act"
+      if act and task.state == "active":
         task = replace(task, state="failed",
                        verdict={"task": task.task, "ok": False, "points": 0,
                                 "reason": "interrupted by a restart"})
         self.interrupted.append(task)
-      elif task.state == "claimed":
+      elif act and task.state == "claimed":
         task = replace(task, state="offered", claimed_by="", claimed_t=None)
       if task.open and task.deadline is not None and shift is not None:
         # What was LEFT when the board was saved, from the new clock's 0;

@@ -297,42 +297,6 @@ def test_a_robot_on_the_goal_that_says_no_is_asked_once_a_wait_at_most():
   assert 0 < len(drive.asked) <= 2 * 30.0 / nav.OTHER_WAIT_S, len(drive.asked)
 
 
-class _Clear(_Drive):
-  clear_way_routine = nav.Navigator.clear_way_routine
-  _across = nav.Navigator._across
-
-
-@pytest.mark.parametrize("who", ["resting", "refuses", "standing", "dead", "nobody"])
-def test_a_way_no_plan_walks_is_cleared_by_asking_and_waiting_or_not_walked(who):
-  """`clear_way_routine`, a walk no planner plans: a robot resting across it
-  is asked off it and waited for while it steps off; one standing on it
-  while it moves on; one that says no, or is dead, is not waited for -- the
-  way is not walked -- and nobody across it is no wait at all."""
-  way = [(0.0, 0.0), (1.2, 0.0)]
-  gone_at = 5.0
-
-  def there(**kw):
-    def where():
-      if who in ("resting", "standing") and drive.data.time >= gone_at:
-        return KeepClear(0.6, 2.0, root="r2_pluggybot")
-      return KeepClear(0.6, 0.1, root="r2_pluggybot", **kw)
-    return where
-
-  others = {"resting": [there(resting=True)], "refuses": [there(resting=True)],
-            "standing": [there()], "dead": [there(dead=True)], "nobody": []}[who]
-  drive = _Clear(others, says=who != "refuses")
-  across = tick.run(STEPPER, drive.clear_way_routine(way))
-  if who in ("resting", "standing", "nobody"):
-    assert across is None
-    assert drive.data.time == (0.0 if who == "nobody" else pytest.approx(6.0)), drive.data.time
-  else:
-    assert across is not None and across.root == "r2_pluggybot" and drive.data.time == 0.0
-  assert [r for r, _ in drive.asked] == (["r2_pluggybot"] * 3 if who == "resting"
-                                         else ["r2_pluggybot"] if who == "refuses" else [])
-  if drive.asked:
-    assert drive.asked[0][1] == way
-
-
 # ---- 5. the words --------------------------------------------------------------------
 
 

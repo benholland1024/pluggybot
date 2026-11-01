@@ -136,7 +136,7 @@ def test_recall_is_an_action_and_never_an_order():
     ov.standing_order("recall", menu)
   with pytest.raises(ValueError):
     ev.row({"event": "every", "action": "recall", "value": 60, "kind": ""}, menu)
-  assert not ov.order_runnable(menu, "recall", {"possibleActions": ["carry"]})
+  assert not ov.order_runnable(menu, "recall", {})
   # ...and at the cap it leaves the action enum for that call.
   assert "recall" not in menu.schema(recall=False)["properties"]["action"]["enum"]
   assert ov._recall_allowed({}) and ov._recall_allowed({"recallsLeft": 1})

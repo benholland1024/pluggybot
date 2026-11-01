@@ -133,9 +133,11 @@ looking after your own power is your job, compare a task's cost to what is in
 your pack, make sure you can finish and still get back, nothing else will do
 this for you.
 
-⚠ **DO NOT HAND IT THE ANSWER.** `affordableActions` and `claimable` are
-verdicts code computed; the model is shown the raw numbers (`energyCostWh`
-per action, `battery.wh`, `reserveWh`) and never the chewed lists. Two
+⚠ **DO NOT HAND IT THE ANSWER.** An offer's `claimable` is a verdict code
+computed (as `affordableActions` was, the actions the pack could pay for,
+until no action had a price of its own, #559); the model is shown the raw
+numbers (`energyCostWh` per action, `estimateWh` per offer, `battery.wh`,
+`reserveWh`) and never the chewed verdicts. Two
 reasons, the second strategic: a model shown the verdict is not doing the
 reasoning we are trying to detect, and the direction of the project is an
 agent that writes its own procedure to make that comparison — which it never
@@ -164,7 +166,7 @@ what the served robots read until a period takes it out.
 |---|---|---|
 | the three rails, off | `HubLifecycle.autonomous` — *there is an overseer*, read off it and never set — read by `needs_charge`, `_afford_next` and `claim_budget_wh` and **by nothing else** | a test counts the readers so a fourth has to be argued for, and fails if the flag can be passed or assigned |
 | the rules | `RULES` | one prompt since #427 |
-| the verdicts hidden | `overseer.model_state()` | `affordableActions`, `possibleActions`, per-offer `claimable` out; `energyCostWh`, `battery.wh`, `reserveWh` in |
+| the verdicts hidden | `overseer.model_state()` | per-offer `claimable` out; `energyCostWh`, `battery.wh`, `reserveWh` in |
 | an unaffordable job takeable | `limits_from` | refusing it in `validate` would put the offer filter back at the last possible moment |
 | an unaffordable job shown | `lifecycle.shown_offers`, on `claim_budget_wh` | ⚠ only since #333: a run before it was NOT shown an offer the pack could not fund, under a rule saying it would be |
 | the fallback | the agent's standing order, or its map's `decision_failed` row | `idle` as bootstrap and as floor, counted separately |
@@ -232,7 +234,7 @@ zero.
 result**; code that quietly substituted something safer would be a rail
 wearing a new hat. What *is* filtered is the impossible — a `take_task`
 with nothing on the board, a procedure not in the library — never the
-unaffordable (`affordableActions`).
+unaffordable.
 
 ⚠ **NOT A FASTER MODEL.** Answering a failed call with a smaller one mixes two
 models into a run. The obvious cheap path is also slow exactly when it is

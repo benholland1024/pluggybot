@@ -57,7 +57,6 @@ def test_a_mind_is_told_the_rules():
 
 def _state() -> dict:
   return {"battery": {"fraction": 0.4, "wh": 3.2, "reserveWh": 0.9},
-          "affordableActions": ["explore"], "possibleActions": ["explore", "charge"],
           "survival": {"aliveS": 1200.0, "deaths": 0},
           "energyCostWh": {"explore": 0.85, "charge": 0.0},
           "offeredTasks": [{"id": "t_0001", "claimable": False,
@@ -65,11 +64,10 @@ def _state() -> dict:
 
 
 def test_the_verdicts_code_computed_are_what_the_mind_is_not_shown():
-  """`affordableActions` and `claimable` are arithmetic code did on the
-  model's behalf, and the mind is flown to find out whether the model can do
-  it. ⚠ The RAW NUMBERS all stay -- nothing is hidden except the answer."""
+  """An offer's `claimable` is arithmetic code did on the model's behalf,
+  and the mind is flown to find out whether the model can do it. ⚠ The RAW
+  NUMBERS all stay -- nothing is hidden except the answer."""
   shown = ov.model_state(_state(), survival=True)
-  assert "affordableActions" not in shown and "possibleActions" not in shown
   assert "claimable" not in shown["offeredTasks"][0]
   assert shown["energyCostWh"] == {"explore": 0.85, "charge": 0.0}
   assert shown["battery"]["wh"] == 3.2 and shown["battery"]["reserveWh"] == 0.9
@@ -91,7 +89,6 @@ def test_the_filter_is_at_presentation_and_the_state_stays_whole():
   reads as a side effect of a prompt change."""
   state = _state()
   ov.model_state(state, survival=False)
-  assert state["possibleActions"] == ["explore", "charge"], "not mutated"
   assert state["offeredTasks"][0]["claimable"] is False and "survival" in state
   # ...and the fallback reads what the view hides: a standing `take_task`
   # runs only on an offer marked claimable, so off the view it never would

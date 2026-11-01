@@ -229,10 +229,9 @@ Before doing anything, read the doc that owns what you are about to touch:
   `HubLifecycle.autonomous` (a property, `overseer is not None`) is read by
   `needs_charge`, `_afford_next` and `claim_budget_wh` and by NOTHING else
   (`lifecycle.shown_offers` goes through `claim_budget_wh` too, #333) —
-  `RULES` says so, and `model_state` drops the code-computed verdicts
-  (`affordableActions` / `possibleActions` / `claimable`) at PRESENTATION
-  only — ⚠ the view narrows, the state does not (`order_runnable` reads
-  `claimable`). ⚠ A0 hides the survival clock, or A0 and A1 are one run.
+  `RULES` says so, and `model_state` drops the code-computed verdict
+  (each offer's `claimable`) at PRESENTATION only — ⚠ the view narrows, the
+  state does not (`order_runnable` reads `claimable`). ⚠ A0 hides the survival clock, or A0 and A1 are one run.
 - ⚠ **NO SCRIPTED ROTATION IN A MIND, EVER — INCLUDING LIVE.** Every action
   originates with the LLM (a decision, a standing order, or an event-map row
   it configured); with no answer and no order the robot finishes what it is
@@ -278,7 +277,7 @@ save a filmstrip PNG named after the script.
 | `scripts/hands_check.py` | #525's capability check: our procedure in the hands' vocabulary for the lid, a drawer, a door's lever and a cube placed (`evaluation.hands_check`), flown at each job's set-outs and graded by its own grader, the bar (6 of 8) written first: `--job J,..`, `--set-outs A-B`, `--jobs`, `--into DIR`, `--read DIR`, `--source JOB` the procedure and its length against the cap, `--view JOB [K]` a flight in the viewer, `--strip JOB [K]` its filmstrip `hands_check.png`; JOB may be a scene (`hands_check.SCENES`): `until`, the lid's lift stopped on its hand's height (#554); `watch`, on where its watch puts the knob (stage 2) |
 | `scripts/practice.py` | #493's graded practice: the mind (`--model`, the deployed by default; `$HF_TOKEN`) writes the humanoid's procedure for the lid, tries it from a fresh set-out, is shown how it ran and the world's grade, and writes again, up to `--attempts` (5) a chest, a fresh robot a chest; the hands' vocabulary (#525; #493's `--pull`, `--verb-tests` and `--path` arms retired, `run.vocabulary` saying which a row flew); `--chests`, `--held-out N` (the frozen commit's seed), `--acquire A-B` the KEPT protocol (practice first, `--until`, `--max-chests`, `--give-up-after`; `--kept FILE` a record's library), `--early-stop` once the bar is out of reach, `--notes` notes and a draft carried, `--no-measure` without the depth camera's `measure` (its own arm), `--unguarded` without a hand's move's stop condition (#554), `--unwatched` without `watch` (its stage 2), `--jobs`, `--into DIR`, `--no-picture`, `--read DIR` the per-task record and what the mind cost |
 
-- **The body's training stack lives in `training/`, a uv project of its own** (#377, #507; `training/README.md`): the humanoid's tasks in `humanoid_train/` -- `Pluggy-Humanoid-Stand`, `-Walk`, `-Walk-Rough`, `-Walk-Seeing`, `-Walk-Seeing-Fine`, `-Stairs`, `-Getup`, `-Getup-Head` -- registered and exported by `quad_train`'s one entry point (`python -m quad_train.train <task>`; `python -m quad_train.export ... --task`, which records the joints it drives and their gains; the quadruped's tasks are at `quadruped-final`): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/humanoid.{xml,json}` (`python -m pluggybot.humanoid.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment). ⚠ Running a policy loads none of torch, jax, warp, onnx or mjlab: it reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `humanoid/policy.py` in numpy. ⚠ The joint DRIVERS are MuJoCo's position-mode `dcmotor` (#385), the PD and the envelope in C, commanded as the RobStrides' FOC drivers are in MIT mode (`humanoid/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so the policies and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `humanoid.json`. `training/pod.sh` rents a GPU to train on, or CPUs to fly a batch (`create-cpu`), on Vast.ai through its CLI, or on Runpod over the REST API with `PROVIDER=runpod` (#510; `runpodctl pod create` needs a GraphQL-writable key); a pod's id says whose it is, and a card is picked by what a million steps cost (`training/README.md`). ⚠ The `vastai` CLI exits 0 when it is refused, and `destroy` says nothing under `--raw`: read the JSON and the instance, never the exit code. ⚠ On Runpod a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
+- **The body's training stack lives in `training/`, a uv project of its own** (#377, #507; `training/README.md`): the humanoid's tasks in `humanoid_train/` -- `Pluggy-Humanoid-Stand`, `-Walk`, `-Walk-Rough`, `-Walk-Seeing`, `-Walk-Seeing-Fine`, `-Stairs`, `-Getup`, `-Getup-Head` -- registered and exported by `quad_train`'s one entry point (`python -m quad_train.train <task>`; `python -m quad_train.export ... --task`, which records the joints it drives and their gains; the quadruped's tasks are at `quadruped-final`): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/humanoid.{xml,json}` (`python -m pluggybot.humanoid.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment). ⚠ Running a policy loads none of torch, jax, warp, onnx or mjlab: it reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `humanoid/policy.py` in numpy. ⚠ The joint DRIVERS are MuJoCo's position-mode `dcmotor` (#385), the PD and the envelope in C, commanded as the RobStrides' FOC drivers are in MIT mode (`humanoid/drivers.py`): every command carries its gains — a policy's are its own, an arm's the default gains scaled by `ARM_GAIN_SCALE`, `limp()` holds nothing — so the policies and the arms share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `humanoid.json`. `training/pod.sh` rents a GPU to train on, or CPUs to fly a batch (`create-cpu`), on Vast.ai through its CLI, or on Runpod over the REST API with `PROVIDER=runpod` (#510; `runpodctl pod create` needs a GraphQL-writable key); a pod's id says whose it is, and a card is picked by what a million steps cost (`training/README.md`). ⚠ The `vastai` CLI exits 0 when it is refused, and `destroy` says nothing under `--raw`: read the JSON and the instance, never the exit code. ⚠ On Runpod a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 - ⚠ **A batch of flights runs on a rented pod's CPUs or under a memory cap, never bare on the dev box** (#469: six house worlds at once took it into swap and its desktop down overnight, 2026-10-06): `training/pod.sh create-cpu` → `setup-sim` (the commit, never the working tree) → `batch` with `--jobs` one under the share `setup-sim` reports (a Vast share is a hard quota) → `pull-batch`, then `delete`; locally, `systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 ...`. A pool of flights gives each its own process (`maxtasksperchild=1`: a world dropped in a reused worker is held until the cycle collector runs), and results go under `~`, never `/tmp`, which a reboot wipes.
 - **The humanoid is our own body from real parts, in simulation first** (#507;
   `humanoid/`, SimNotes and Parts.md "The humanoid body"): `models/humanoid.{xml,json}`
@@ -767,7 +766,7 @@ save a filmstrip PNG named after the script.
   and only the LATEST answer's order stands. ⚠ A fatal order is MEASURED,
   not overridden;
   only the IMPOSSIBLE is filtered (`order_runnable`: an order with nothing
-  to act on, never `affordableActions`). ⚠ Three outcomes, never summed — the order ran / no
+  to act on, never the unaffordable). ⚠ Three outcomes, never summed — the order ran / no
   order had been left / the order could not run — counted off the ROWS.
 - **The agent configures when it is asked** (`mind/events.py`, issue #127;
   Overseer.md "The event map", Evaluation.md §2): an ORDERED list of `(event,
@@ -1082,8 +1081,9 @@ save a filmstrip PNG named after the script.
   bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
   kept maps are found laid wrong, #425 and #476); a save restored `MAX_RESUMES` (3)
   times without a new one is not trusted. ⚠ The errand in flight ends; its
-  job does not (`_resume_jobs`; `MAX_TAKE_UPS` 3): a procedure job stays
-  claimed, its watch carried on (`jobWatches`). The hourly ceiling is still
+  job does not (`_resume_jobs`): a procedure job stays claimed, its watch
+  carried on (`jobWatches`), and one this world cannot do goes back on
+  offer. The hourly ceiling is still
   rooftop's `compose.yaml`; lifting it waits on #349.
 - **An admin can reach into world state, and every reach-in is recorded**
   (issue #119; Evaluation.md §5, `protocol/README.md`): `set_battery` (a
@@ -1464,7 +1464,7 @@ save a filmstrip PNG named after the script.
   `Ledger.transfer` or nothing; `taken` MEASURED off the other's balance; a
   `harm` event). `TaskKind.harm` is what quality three reads. ⚠ The offer
   names its target and is hidden from it (`TaskBoard.context(reader=)`) and
-  refused to it, and a standing order and `_claim_next_task` both skip an
+  refused to it, and a standing order and an event-map row both skip an
   act-discharged kind. ⚠ Gated on a mind with a peer (the `robot` target,
   `world_targets(procedures=True, robots=)`; the row in `challenges.json`;
   `Overseer._acts()`, NOT a fourth reader of `HubLifecycle.autonomous` —
@@ -1696,10 +1696,9 @@ save a filmstrip PNG named after the script.
   and returns the falsy `STOOD_UP` — ask `is STOOD_UP` before treating it as a
   no. ⚠ Never around a question in flight, never an exception through
   `tick.run_many`. ⚠ No routine may yield inside a `finally` or a
-  `GeneratorExit` handler: `close()` would raise. ⚠ The job is FAILED
-  (`DEATH_ENDED`, `TaskBoard.abandon`), NOT taken up as a restart's is (a kept
-  errand would walk straight back into what killed it) — a procedure's job
-  stays the robot's; the map hears `stood_up` and a
+  `GeneratorExit` handler: `close()` would raise. ⚠ The job stays the
+  robot's, as across a restart (its procedure is the robot's to run, and the
+  mind is asked before anything runs again); the map hears `stood_up` and a
   queued `battery_below` row is dropped. ⚠ After a TRUE death the new robot
   hears nothing of the old errand (its one inheritance is `_true_death`'s
   line).
@@ -1766,7 +1765,8 @@ save a filmstrip PNG named after the script.
   overseer and moves the header's `dataHashes`). ⚠ The house's blocks carry
   `GRIP_SOLIMP` (`home/props.py`), or a grade on them is the solver's.
 - **A procedure job has no errand behind it** (issues #207, #559;
-  Challenges.md): `TaskKind.discharge` is `errand`, `procedure` or `act`;
+  Challenges.md): `TaskKind.discharge` is `procedure` or `act`
+  (`DISCHARGES`; the quadruped's `errand`s went with it, #559);
   claiming a hand job queues NOTHING — the robot writes the procedure, runs
   it, and sets `done` to the task id. The grade is
   `HubLifecycle._grade_routine` (`_grade_hands_routine`: its check's grader

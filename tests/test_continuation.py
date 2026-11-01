@@ -307,36 +307,6 @@ def test_a_restart_keeps_the_hand_job_its_robot_holds_and_says_so(tmp_path):
              for ln in said), said
 
 
-def test_a_restart_during_an_errand_keeps_the_job_and_says_so(tmp_path, monkeypatch):
-  """...and a job with an ERRAND behind it comes back claimed by its robot,
-  its errand queued again under the task's id, and History names what was
-  cut short. No kind the humanoids are offered is discharged by an errand
-  (#559), so the kind is a copy of the drawer's carrying its steps."""
-  import dataclasses
-  from pluggybot.economy.tasks import KINDS
-  from pluggybot.procedure.steps import Program, Step
-  monkeypatch.setitem(KINDS, "errand_job", dataclasses.replace(
-    KINDS["open_drawer"], name="errand_job", discharge="errand", draws=False))
-  life = _stub(tmp_path, tasks=True)
-  steps = Program.single("job", [Step("wait", {"seconds": 1.0})]).as_dict()
-  task = life.tasks.offer("errand_job", "drawer",
-                          params={"minutes": 16, "procedure": steps}, t=0.0)
-  assert life._claim_task(task.id)
-  [errand] = life.errands
-  life.tasks.start(task.id)                       # the errand is running...
-  life._errand_now = errand                       # ...and the world stops
-  snap = _saved(life, tmp_path)
-
-  back = _stub(tmp_path, tasks=True, rebase=False)
-  assert back.tasks[task.id].state == "claimed"   # not failed
-  assert back.tasks[task.id].claimed_by == back.root
-  _prelude(back, snap)
-  assert [e.task_id for e in back.errands] == [task.id]
-  assert any(f"the restart cut short {errand.name}; the job {task.id} "
-             "(errand_job) is still mine, and is queued again" in ln
-             for ln in _history(back)), _history(back)
-
-
 def test_the_board_keeps_a_claim_and_gives_back_what_nobody_can_finish(tmp_path):
   """`TaskBoard.load`'s rule since #345: a procedure job claimed or active
   comes back as it was (its robot says `done`); a job nothing in the new
@@ -822,28 +792,6 @@ def test_a_save_that_cannot_be_read_is_a_fresh_start_never_a_crash(tmp_path, con
   assert got.snapshot is None and "could not be read" in got.why
 
 
-def test_a_kept_claim_that_never_finishes_is_failed_after_three_restarts(tmp_path):
-  """The world's crash-loop guard counts saves, and a claim lives on the
-  board: a job whose errand crashed the process was re-queued by every
-  process after it (found in review, six in a row). Each restart that
-  takes the claim up counts; the fourth fails it, on the wire."""
-  from pluggybot.economy.tasks import MAX_TAKE_UPS
-  path = tmp_path / "tasks.json"
-  b = TaskBoard(path)
-  task = b.offer("open_drawer", "drawer", t=0.0)
-  b.claim(task.id, robot="pluggybot", t=1.0)
-  for n in range(1, MAX_TAKE_UPS + 1):
-    b = TaskBoard(path, rebase=False)
-    assert b.take_up(task.id, t=float(n)).state == "claimed"
-  b = TaskBoard(path, rebase=False)
-  heard = []
-  b.on_event.append(heard.append)
-  gone = b.take_up(task.id, t=9.0)
-  assert gone.state == "failed" and "3 restarts" in gone.verdict["reason"]
-  assert heard[0]["type"] == "task_resolved"
-  assert "restarts" not in b[task.id].as_dict()   # the file's, not the wire's
-
-
 def test_a_map_that_does_not_fit_this_build_is_explored_again(tmp_path):
   """The fingerprint is the geometry's; a new grid extent or resolution is
   not. The grid is then left empty -- and the map's verdicts with it, or a
@@ -896,21 +844,6 @@ def test_a_pair_is_saved_after_every_robots_step_not_between_them(tmp_path):
   assert keeper.step_hook in lives[-1].body.step_hooks
   assert keeper.step_hook not in lives[0].body.step_hooks
   assert all(life.continuing for life in lives)
-
-
-def test_a_new_claim_starts_its_restart_count_at_nothing(tmp_path):
-  """The count is a CLAIM's: a job given back and taken by another robot
-  must not arrive already most of the way to being failed."""
-  path = tmp_path / "tasks.json"
-  b = TaskBoard(path)
-  task = b.offer("open_drawer", "drawer", t=0.0)
-  b.claim(task.id, robot="r2_pluggybot", t=1.0)
-  b.take_up(task.id)
-  b.take_up(task.id)
-  assert b[task.id].restarts == 2
-  b.release(task.id)
-  b.claim(task.id, robot="pluggybot", t=2.0)
-  assert b[task.id].restarts == 0
 
 
 def test_an_errand_cut_short_with_no_job_behind_it_is_named_and_left(tmp_path):

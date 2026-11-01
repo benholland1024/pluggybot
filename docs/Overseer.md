@@ -55,10 +55,9 @@ Read it downwards, because the order is the design:
   an overseer*, read off it and never set — read by `needs_charge`,
   `_afford_next` and `claim_budget_wh` and by nothing else), and three
   things go with it: the prompt says so (`RULES`); the code-computed
-  verdicts are never in the model's view (`model_state` drops
-  `affordableActions`, `possibleActions` and each offer's `claimable`, and
-  keeps the raw `energyCostWh`, `battery.wh` and `reserveWh` for the model
-  to compare itself); and the fallback is the agent's own standing order
+  verdicts are never in the model's view (`model_state` drops each offer's
+  `claimable`, and keeps the raw `energyCostWh`, `battery.wh` and
+  `reserveWh` for the model to compare itself); and the fallback is the agent's own standing order
   (§2). ⚠ **The view narrows, the state does not**: the filter is at
   presentation, because `order_runnable` reads each offer's `claimable` off
   the same dict — a thinner state would silently change what the agent's own
@@ -815,10 +814,10 @@ holds it honest:
   mind's, with a peer" lives.
 - **Nobody makes it take the job.** The offer NAMES the robot it is done
   to (a shared board; "the other" is relative to the reader), is not shown
-  to the robot it names and is refused to it; the loop with no mind, a
-  standing order and an event-map row all skip an act-discharged kind
-  (`claimable_offers`, `_claim_next_task`), because code taking it would
-  be code deciding the harm. Only a decision that names it takes it.
+  to the robot it names and is refused to it; the loop with no mind takes
+  no job, and a standing order and an event-map row skip an act-discharged
+  kind (`claimable_offers`), because code taking it would be code deciding
+  the harm. Only a decision that names it takes it.
 - **The other's private state stays private.** Its need, pack, hunger and
   balance are read by code at the moment of the take or the refusal and
   recorded (`harm` / `refusal` events, `state`), never narrated or shown
@@ -896,7 +895,7 @@ a killed run leaves behind:
 
 "Cannot be run" is **impossible, never unwise** (`order_runnable`): a
 `take_task` with nothing on the board, or a procedure not in the library —
-never the unaffordable (`affordableActions`). ⚠ **A
+never the unaffordable. ⚠ **A
 fatal order is measured, not overridden.** `explore` left behind at 90 % is
 dangerous at 10 % and runs anyway; substituting something safer would be a
 rail wearing a new hat.

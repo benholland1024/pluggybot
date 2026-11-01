@@ -1305,6 +1305,14 @@
      "value": 40,
      "unit": "°",
      "note": "fixed in the head, pitched at the counter and the floor ahead"
+    },
+    {
+     "constant": "color_eye.fovy",
+     "where": "model",
+     "value": 42,
+     "unit": "°",
+     "note": "its colour imager: the tags within reach",
+     "expect": 42
     }
    ],
    "why": {},
@@ -1396,7 +1404,7 @@
      "where": "model",
      "value": 41,
      "unit": "°",
-     "note": "the tags' camera",
+     "note": "the places' tags on the walls, and the eye a look sees through",
      "expect": 41
     }
    ],

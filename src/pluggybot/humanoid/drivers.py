@@ -1,22 +1,17 @@
 """The humanoid's drivers, commanded as the robot commands them (issue #385).
 
 A joint's driver is its actuator's FOC driver in MIT mode (`humanoid.parts`):
-every command carries its own target and PD gains, so a policy and a routine
-that pushes with torque take turns on the same drivers. In the sim each is a
-MuJoCo `dcmotor` in position mode (`actuator.JointLimits.dcmotor` has the
-algebra), the PD and the torque-speed envelope in C on every physics step,
-and a command writes the gains it carries into the model:
+every command carries its own target and PD gains, so the policies and the
+arms take turns on the same drivers. In the sim each is a MuJoCo `dcmotor`
+in position mode (`actuator.JointLimits.dcmotor` has the algebra), the PD
+and the torque-speed envelope in C on every physics step, and a command
+writes the gains it carries into the model:
 
   pd(target, stiffness, damping)   a target and its gains, held between
                                    commands -- a policy's
-  torque(tau)                      this step's torque, through the envelope;
-                                   re-sent every step, as any torque is
-  limp()                           holding nothing: no stiffness, no damping
-
-A torque is a target offset by tau over the stiffness it is carried on,
-with the controller's damping set to cancel the motor's back-EMF (kd = -K):
-the actuator then damps nothing, `implicitfast` has nothing to integrate
-implicitly, and a torque step is the plain torque motor's to 1e-14 N*m.
+  limp()                           holding nothing: no stiffness, and the
+                                   damping set to cancel the motor's
+                                   back-EMF (kd = -K)
 
 ⚠ The gains live in the MODEL, not the data: a restart builds them fresh
 from the XML's defaults until the next command writes its own.
@@ -27,10 +22,6 @@ import numpy as np
 
 #: Where MuJoCo 3.10 keeps a `dcmotor`'s numbers in `actuator_gainprm`.
 R, K, KP, KD, VMAX = 0, 1, 4, 6, 7
-#: The controller's stiffness a torque rides on, V/rad. Any positive one
-#: gives the same torque; a constant, because the model's own gains are
-#: whatever the last command wrote (after `limp`, zero).
-TORQUE_KP_V = 10.0
 
 
 class Drivers:
@@ -67,14 +58,6 @@ class Drivers:
     g[self.act, KD] = damping * self._r / self._k - self._k
     self.d.ctrl[self.act] = target
     self.torqued = False
-
-  def torque(self, tau: np.ndarray) -> None:
-    g = self.m.actuator_gainprm
-    g[self.act, KP] = TORQUE_KP_V
-    g[self.act, KD] = -self._k
-    self.d.ctrl[self.act] = (self.d.qpos[self.qadr]
-                             + tau * self._r / (self._k * TORQUE_KP_V))
-    self.torqued = True
 
   def limp(self) -> None:
     g = self.m.actuator_gainprm

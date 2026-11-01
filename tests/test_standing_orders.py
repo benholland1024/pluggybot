@@ -29,26 +29,18 @@ def menu():
   return Menu.for_world("home_humanoid", board_book("home_humanoid"))
 
 
-def _state(fraction: float, offers=(), affordable=None, possible=None) -> dict:
+def _state(fraction: float, offers=()) -> dict:
   """A decision's volatile context, as far as these tests read it."""
   return {"simTimeS": 100.0,
           "battery": {"fraction": fraction, "wh": 8.0 * fraction,
                       "spendableWh": max(0.0, 8.0 * fraction - 0.9)},
           "offeredTasks": list(offers),
-          "affordableActions": list(affordable or ["explore", "charge"]),
-          "possibleActions": list(possible or ["explore", "charge"]),
           "tasksThisMission": [], "decisions": 0}
 
 
 def make(menu, *answers, **kw) -> Overseer:
   kw.setdefault("client", FakeClient(*answers))
   return Overseer(menu, **kw)
-
-
-#: A pack that could pay for anything on this world's menu after a charge.
-#: `_state`'s default is a two-action world, which would make half the orders
-#: below unrunnable for a reason the test is not about.
-ANY = ["explore", "charge", "take_task", "idle"]
 
 
 def offer(task_id="t_0007", **kw) -> dict:
@@ -145,17 +137,17 @@ def test_every_way_a_call_can_fail_reaches_the_same_order(menu, why, client):
   so there is one policy, decided in one place."""
   boss = make(menu, client=client, timeout_s=0.05)
   boss.standing_order = "charge"
-  d = boss.decide(_state(0.5, possible=ANY))
+  d = boss.decide(_state(0.5))
   assert d.source == why and d.action == "charge"
 
 
 def test_free_mode_and_a_spent_budget_are_the_same_seam(menu):
   boss = make(menu, full())
   boss.standing_order = "charge"
-  assert boss.decide_scripted(_state(0.5, possible=ANY),
+  assert boss.decide_scripted(_state(0.5),
                               "scripted-mode").action == "charge"
   boss.calls_per_hour = 0
-  assert boss.decide(_state(0.5, possible=ANY)).source == "fallback:budget"
+  assert boss.decide(_state(0.5)).source == "fallback:budget"
   assert boss.decisions[-1].action == "charge"
 
 
@@ -234,9 +226,9 @@ def test_a_fallback_cannot_appoint_its_own_successor(menu):
   `idle` floor would then silently retire an order the agent never
   withdrew, and every later failure would read as "never set"."""
   boss = make(menu, full(standing_order="explore"), RuntimeError("down"))
-  boss.decide(_state(0.9, possible=ANY))
+  boss.decide(_state(0.9))
   for _ in range(3):
-    boss.decide(_state(0.5, possible=ANY))
+    boss.decide(_state(0.5))
   assert boss.standing_order == "explore"
   assert boss.orders_fired == {"explore": 3} and boss.orders_unset == 0
 
@@ -261,7 +253,7 @@ def test_a_fallback_is_the_agents_order_or_the_floor_by_every_route(menu):
     # the second.
     boss.standing_order = order
     for why in ov.FALLBACK_REASONS:
-      d = boss.fallback(_state(0.5, possible=ANY), why)
+      d = boss.fallback(_state(0.5), why)
       assert d.source == f"fallback:{why}"
       assert d.action in (order, ov.STANDING_ORDER_FLOOR)
 

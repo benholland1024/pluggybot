@@ -277,10 +277,7 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 - **The errand in flight ends**, because it was a generator. Its job stays
   the robot's: a procedure job stays claimed, its watch carried on from the
   readings the save kept (`jobWatches`). A claim held by a robot not in the
-  new world goes back on offer. A job taken up through `MAX_TAKE_UPS` (3)
-  restarts without finishing is failed: the world's crash-loop guard counts
-  saves, and a job whose errand crashes the process would otherwise crash
-  every process after it.
+  new world goes back on offer, as does a job this world cannot do.
 - **An offer sets its prop out.** A hand job's prop goes back to rest on
   the counter, its hidden dynamics drawn afresh, when its job is offered
   (`_set_out_counter`), except one a robot is touching. With the world

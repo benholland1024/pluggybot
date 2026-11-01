@@ -1090,48 +1090,6 @@ class Navigator:
     which is charging on the dock beside the standoff, or passing."""
     return self._ask_way(wx, wy, asked, beyond=beyond, on_goal=True)
 
-  def clear_way_routine(self, way) -> Routine:
-    """Clear a way no plan walks -- a press's walk in (issue #455) -- of
-    the other robots: one lying down to rest across it is asked off it and
-    waited for while it steps off, `MAKE_WAY_WAIT_S` from its first yes at
-    most, and one standing on it while it moves on by itself, as long.
-    None once nobody's disc covers the way; else the robot still across it
-    -- fallen, dead, saying no, or not off it in time."""
-    t0 = float(self.data.time)
-    made_way: dict = {}
-    while True:
-      across = [b for b in self._bodies() if self._across(b, way)]
-      if not across:
-        return None
-      now = float(self.data.time)
-      for b in across:
-        if (b.resting and b.root and self.ask_way is not None
-            and now - made_way.get(b.root, now) <= MAKE_WAY_WAIT_S
-            and self.ask_way(b.root, [(round(float(x), 3), round(float(y), 3))
-                                      for x, y in way])):
-          made_way.setdefault(b.root, now)
-      moving = any(now - made_way[b.root] <= MAKE_WAY_WAIT_S
-                   for b in across if b.root in made_way)
-      standing = now - t0 < MAKE_WAY_WAIT_S and any(
-        not (b.down or b.dead or b.resting) for b in across)
-      if not (moving or standing):
-        px, py, _ = self.pose
-        return min(across, key=lambda b: math.hypot(b.x - px, b.y - py))
-      yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
-
-  def _across(self, b: KeepClear, way) -> bool:
-    """Does another robot's disc (`_cells`) cover any of the polyline
-    `way`? The disc a plan keeps this robot's centre out of."""
-    reach = self._cells(b) * self.grid.resolution
-    pts = list(way)
-    for (ax, ay), (cx, cy) in zip(pts[:-1], pts[1:]):
-      dx, dy = cx - ax, cy - ay
-      n = dx * dx + dy * dy
-      t = 0.0 if n == 0.0 else max(0.0, min(1.0, ((b.x - ax) * dx + (b.y - ay) * dy) / n))
-      if math.hypot(b.x - ax - t * dx, b.y - ay - t * dy) < reach:
-        return True
-    return False
-
   def _route_past(self, root: str, wx: float, wy: float) -> list | None:
     """The plan this robot would walk to (wx, wy) were the robot `root` not
     there -- every other one still kept clear of -- or None: the way that

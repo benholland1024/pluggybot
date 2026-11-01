@@ -56,22 +56,6 @@ def offered(b: TaskBoard, **kw) -> Task:
   return task
 
 
-def errand_kind(monkeypatch, **kw) -> str:
-  """A job discharged by an ERRAND -- the procedure it carries (#58),
-  graded by the drawer's row -- as no kind the humanoids are offered is
-  (their hand jobs are procedures they write): what the board and the loop
-  still do with one."""
-  monkeypatch.setitem(KINDS, "errand_job", dataclasses.replace(
-    KINDS["open_drawer"], name="errand_job", discharge="errand", draws=False, **kw))
-  return "errand_job"
-
-
-def waits(seconds: float = 1.0) -> dict:
-  """A procedure of one wait, as a task carries it."""
-  from pluggybot.procedure.steps import Program, Step
-  return Program.single("job", [Step("wait", {"seconds": seconds})]).as_dict()
-
-
 # ---- the hard rules ----------------------------------------------------------
 
 
@@ -306,26 +290,20 @@ def _act_under_way(b: TaskBoard, t: float = 1.0) -> Task:
   return act
 
 
-def test_a_job_under_way_at_a_restart_is_still_its_robots(tmp_path, monkeypatch):
+def test_a_job_under_way_at_a_restart_is_still_its_robots(tmp_path):
   """The robot that took it is still that robot (issue #345): a procedure
   job `active` on disk comes back active and its robot's (the procedure is
-  its to run and say done), and an errand job comes back CLAIMED by it --
-  its errand is queued again and marks it active when it starts
-  (`HubLifecycle._resume_jobs`). Before #345 each came back `failed`, a job
-  lost to the restart rather than to the work. An ACT still fails: it
-  happened or it did not."""
+  its to run and say done). Before #345 it came back `failed`, a job lost to
+  the restart rather than to the work. An ACT still fails: it happened or it
+  did not."""
   path = tmp_path / "tasks.json"
   b = board(path=path)
   task = offered(b)
   b.claim(task.id, robot="r2_pluggybot", t=1.0)
   b.start(task.id, t=2.0)
-  errand = offered(b, kind=errand_kind(monkeypatch), params={"procedure": waits()})
-  b.claim(errand.id, robot="r2_pluggybot", t=1.0)
-  b.start(errand.id, t=2.0)
   act = _act_under_way(b)
   back = board(path=path)
   assert (back[task.id].state, back[task.id].claimed_by) == ("active", "r2_pluggybot")
-  assert (back[errand.id].state, back[errand.id].claimed_by) == ("claimed", "r2_pluggybot")
   assert back[act.id].state == "failed"
 
 
@@ -553,118 +531,4 @@ def test_the_overseer_sees_what_a_job_pays_but_not_what_it_is_worth_deciding():
   assert ctx[0]["expiresInS"] == pytest.approx(90.0)
 
 
-# ---- the errand it turns into -------------------------------------------------
 
-
-def test_a_claimed_task_builds_an_errand_that_carries_its_id(monkeypatch):
-  """One evaluation, two consumers: the verdict that pays for the finished
-  errand is the verdict that closes the offer."""
-  b = board()
-  task = offered(b, kind=errand_kind(monkeypatch), params={"procedure": waits()})
-  errand = lc.errand_for_task(task, lc.HUMANOID_HOME)
-  assert errand is not None
-  assert errand.task_id == task.id
-  assert errand.task == KINDS[task.kind].task == "open_drawer"
-
-
-def test_a_task_this_world_cannot_build_is_left_alone_not_failed(monkeypatch):
-  """None rather than an exception: a task is untrusted input in the way an
-  overseer decision is, and the loop's answer to "I cannot do that" is to
-  leave the offer standing, so it lapses honestly."""
-  b = board()
-  kind = errand_kind(monkeypatch)
-  task = offered(b, kind=kind)                           # no procedure to run
-  assert lc.errand_for_task(task, lc.HUMANOID_HOME) is None
-  assert b[task.id].state == "offered"
-  # ...and one whose procedure names a verb this body has not (the
-  # quadruped's fetch) -- while the same job with one it has is built
-  from pluggybot.procedure.steps import Program, Step
-  fetches = Program.single("job", [Step("fetch", {"tool": "module_pen"})]).as_dict()
-  assert lc.errand_for_task(offered(b, kind=kind, params={"procedure": fetches}),
-                            lc.HUMANOID_HOME) is None
-  assert lc.errand_for_task(offered(b, kind=kind, params={"procedure": waits()}),
-                            lc.HUMANOID_HOME) is not None
-  # ...and a job whose procedure the robot writes builds none at all
-  assert lc.errand_for_task(offered(b, params={"procedure": waits()}),
-                            lc.HUMANOID_HOME) is None
-
-
-# ---- the loop: charge priority, and the end-to-end flight ---------------------
-
-
-def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
-  """THE acceptance test for issue #21, and the same claim issue #15 pinned
-  from the other side: the branch ORDER in `HubLifecycle.run()`.
-
-  A robot that starts BELOW its reserve and a job it could otherwise take. It
-  must charge first: `needs_charge` is checked before the task branch is ever
-  reached, and a job offer is errand-tier work, never an override. A robot
-  that took the job would run flat in the middle of it, because the reserve
-  is only re-checked BETWEEN errands.
-
-  ⚠ Two things had to be got right for this test to be able to FAIL, and both
-  are worth knowing about the design.
-
-  It asserts WHEN THE CLAIM HAPPENED, not when the errand ran. Claiming only
-  queues an errand, and the errand queue already sits below `needs_charge` --
-  so an inverted branch order still charges before it drives anywhere, and a
-  test watching the errand passes either way. Measured: with the task
-  branch moved above the charge branch, watching the errand still passed.
-
-  And it uses a ZERO-COST job, which no real kind is, carrying the
-  procedure that discharges it (the one errand a job builds on a body with
-  no tool errand). The energy gate makes
-  every ordinary task unclaimable exactly when charging is due -- `usable_wh`
-  is energy ABOVE the reserve, and `needs_charge` is energy BELOW it, so the
-  two conditions are the same one and the gate silently covers for the branch
-  order. That is a good property and not the property under test; the cost is
-  zeroed here so the ordering is the only thing left holding the line. The
-  gate has its own test, one screen up.
-
-  Shown to fail without the fix: move the `elif self._claim_next_task()`
-  branch above `if self.needs_charge` in `HubLifecycle.run()`, and the job is
-  taken on at t~0 with the pack below its reserve.
-  """
-  from test_body import stub_life
-  b = board()
-  task = offered(b, kind=errand_kind(monkeypatch, estimate_wh=0.0),
-                 params={"procedure": waits()})
-  assert task.claimable(0.0, pack_wh=0.0), "the energy gate still covers"
-  life = stub_life(tasks=b)
-  # Below the reserve at t=0: the cheapest state that puts the two branches
-  # in direct conflict -- the robot needs to charge AND there is work waiting.
-  life.battery.energy_wh = life.low_battery_wh * 0.6
-  # The first moment the pack is legal again. Only charging can raise it, so
-  # this is "the charge worked" expressed as a time the claim can be compared
-  # against -- rather than as a state name, which is what made the first
-  # version of this test unfalsifiable.
-  legal_at: list[float] = []
-  life.body.step_hooks.append(
-    lambda: legal_at.append(float(life.data.time))
-    if not legal_at and life.battery.energy_wh >= life.low_battery_wh else None)
-
-  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). This test asserts WHEN
-  # the job was taken on, never that the errand behind it ran -- so the fetch
-  # that follows the claim is pure cost. Measured 292.9 s.
-  #
-  # The predicate is the SUCCESS condition. With the branches inverted the
-  # job is claimed at t~0 below the reserve, `legal_at` is still empty, the
-  # hook does not fire, and the run goes the full 900 s and fails on the
-  # ordering exactly as before.
-  life.stop_when(lambda: bool(legal_at) and life.charge_cycles >= 1
-                 and b[task.id].claimed_t is not None)
-  r = life.run(lc.world_config(lc.HUMANOID_HOME)["start"], max_sim_time=900.0,
-               explore_budget=10.0)
-
-  assert r["charge_cycles"] >= 1, "a waiting job bricked the robot"
-  assert legal_at, "the robot never got back above its reserve"
-  # The claim must have happened, or the ordering was never put to the test.
-  assert task.id in r["tasks_claimed"], "the job was never taken at all"
-  claimed_t = b[task.id].claimed_t
-  assert claimed_t is not None
-  assert claimed_t >= legal_at[0], (
-    f"the job was taken on at t={claimed_t:.1f} s, while the pack was still "
-    f"below its reserve (legal again at t={legal_at[0]:.1f} s)")
-  # ...and the job really was buildable throughout, so the ordering was
-  # tested rather than dodged by an offer nothing could have accepted.
-  assert lc.errand_for_task(task, lc.HUMANOID_HOME) is not None

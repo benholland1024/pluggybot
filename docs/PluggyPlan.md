@@ -131,14 +131,16 @@ the quadruped pivot before it, closed on 2026-10-04 with its final status.
   component parameters (motor torque curves, camera FOV, masses, sensor
   noise and blind spots) are modelled on real, purchasable parts, keeping an
   eventual sim-to-real transfer plausible.
-- **A cable, never handled as one.** Manipulating a deformable wire is one
-  of the hardest problems in robotics, and PluggyBot never does it: the
-  humanoid grips its charging plug's rigid body and pushes it into a funnel
-  on its torso, where a magnetic catch seats it, while a tool balancer keeps
-  the rope taut and draws the plug home into its cup (#559's stage 2) —
-  contact-rich alignment, but tractable. (The quadruped's couplings were
-  rigid: a gravity latch on its arm's fork, and a dock it lay down onto,
-  #378.)
+- **A cable, where only the plug's rigid body is handled.** Manipulating a
+  deformable wire is one of the hardest problems in robotics, and PluggyBot
+  never does it: the humanoid grips its charging plug's rigid body and
+  pushes it into a funnel on its torso, where a magnetic catch seats it,
+  while a tool balancer keeps the rope taut and draws the plug home into its
+  cup (#559's stage 2) — contact-rich alignment, but tractable. In the sim
+  the cable touches nothing: it is a line that pulls the plug home and stops
+  it 0.6 m out (`activity/station.py`), and only the plug collides. (The
+  quadruped's couplings were rigid: a gravity latch on its arm's fork, and a
+  dock it lay down onto, #378.)
 - **Decompose, don't end-to-end.** Each capability uses the cheapest adequate
   technique: supervised learning where labels are free, classical robotics
   where the problem is solved, RL where it earns its keep, and an LLM for the

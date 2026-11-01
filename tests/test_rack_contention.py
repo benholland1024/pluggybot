@@ -378,7 +378,7 @@ def test_a_resting_holder_is_asked_afresh_after_a_no_or_a_yes_that_did_not_move_
       asked.setdefault(peer.root, now)      # ...says yes, and never gets off
       return True
     life.body.ask_off = ask_off
-    assert life.body.run(life._await_bay_routine(sx, sy, "charge", 0.0, hold=True)) is False
+    assert life.body.run(life._await_bay_routine(sx, sy, "charge", 0.0)) is False
     if says == "no":
       assert len(asked_at) >= 3
       assert asked_at == pytest.approx([k * MAKE_WAY_WAIT_S for k in range(len(asked_at))])
@@ -445,7 +445,7 @@ def test_a_robot_resting_on_a_bay_is_asked_off_it_while_it_is_waited_for():
       peer.pos[0] += 5.0
     return True
   life.body.ask_off = ask_off
-  assert life.body.run(life._await_bay_routine(sx, sy, "charge", 0.0, hold=True,
+  assert life.body.run(life._await_bay_routine(sx, sy, "charge", 0.0,
                                                seat=seat)) is True
   assert [a[1:] for a in asks] == [((sx, sy), beyond)] * 3
   assert [a[0] for a in asks] == pytest.approx([0.0, OTHER_WAIT_S, 2 * OTHER_WAIT_S])

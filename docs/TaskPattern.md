@@ -44,10 +44,6 @@ the HOW is not machinery this repo ships; what the pattern requires of it is
 only that the verdict is reachable from the world afterwards (§4). **Since
 #207 that is a field**, `TaskKind.discharge`:
 
-- `errand`: claiming queues the errand that discharges it — a program over
-  the verbs (`procedure/steps.py`) the task carries in
-  `params["procedure"]`, built by `errand_for_task` and graded by the
-  kind's own evaluator. No kind offered today is one; the quadruped's were.
 - `procedure`: claiming queues nothing; the robot writes and runs the
   procedure and says `done`, and the job's own grader runs on the seam
   (`HubLifecycle._grade_routine`; the humanoids' hand jobs,
@@ -369,11 +365,9 @@ every one below was hit, measured, and given a gate.
   `fundable_wh` (what a *charged* pack could pay), for the mirror-image
   reason: gated on the instantaneous charge, the rover's house fell from 58
   offers in four sim-hours to 14.
-- **Charge priority is untouched, and the test for it is subtle.** Claiming
-  only QUEUES an errand (a procedure job's queues nothing), and the errand
-  queue already sits below `needs_charge` — so a test watching the robot's
-  states passes even with the branch order inverted. What moves is the moment the robot *accepts* work,
-  which is what `tests/test_tasks.py` asserts against the battery clock.
+- **Charge priority is untouched.** Only a mind takes a job (the loop with
+  no mind takes none), and claiming queues nothing: a procedure's job is the
+  robot's to run, and an act is done at the claim.
 - **Cadence is data, and deterministic** (`economy/cadence.json`,
   `$PLUGGY_CADENCE`). Three files divide the system so each is re-tuned
   alone: `tasks.py` says what a job IS, `rewards.json` what it PAYS,
@@ -511,17 +505,15 @@ evaluator actually returns (a curve over a metric nobody measures scores
 `None`, not zero — a missing measurement is not a bad one). Unit-test the
 evaluator without a physics world; that is what "pure" buys.
 
-### 4. The errand that discharges it
+### 4. How the job is done
 
-Or none: a job the robot writes the procedure for (`discharge="procedure"`)
-has no errand. Claiming it queues nothing, and its grade runs on the seam
-once the robot says `done` (`HubLifecycle._grade_routine`, Challenges.md
+By the robot: a job it writes the procedure for (`discharge="procedure"`)
+has no errand behind it. Claiming it queues nothing, and its grade runs on
+the seam once the robot says `done` (`HubLifecycle._grade_routine`, Challenges.md
 §11); it is offered only once a hand-written solution passes its own grader
-(`challenge/solutions.py`, #264; Evaluation.md §7). Otherwise the errand is
-a program over the verbs (`procedure/steps.py`) that the task carries in
-`params["procedure"]` (`errand_for_task`), graded by the kind's own
-evaluator: `find` the place by its tag round its address, then what is
-done there.
+(`challenge/solutions.py`, #264; Evaluation.md §7). (The quadruped's jobs
+were errands: a program over the verbs the task carried, queued at the
+claim; they went with it, #559.)
 
 ### 5. Cadence
 

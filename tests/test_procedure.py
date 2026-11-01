@@ -14,8 +14,7 @@ import pytest
 
 from pluggybot import tick
 from pluggybot.economy import scoring
-from pluggybot.economy.tasks import Task
-from pluggybot.lifecycle import errand_for_task, world_facts
+from pluggybot.lifecycle import world_facts
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.procedure import steps as st
 from pluggybot.procedure.steps import Program, Refused, Step
@@ -410,42 +409,6 @@ def test_a_run_its_own_budget_stopped_fails_whole_and_says_so_without_a_fraction
 
 
 # ---- serialisation: task state, the wire, a recording --------------------------
-
-
-@pytest.fixture
-def errand_kind(monkeypatch):
-  """A kind a task's own procedure discharges (#58), graded by the generic
-  `program` evaluator: no served kind is one now (the quadruped's errand
-  jobs went with it, #559), and `errand_for_task` still builds one."""
-  from pluggybot.economy import tasks
-  kind = replace(tasks.KINDS["open_drawer"], name="walk_there", task="program",
-                 discharge="errand")
-  monkeypatch.setitem(tasks.KINDS, kind.name, kind)
-  return kind.name
-
-
-def test_a_program_rides_a_task_into_its_state_and_back(errand_kind):
-  p = two_places()
-  task = Task.create(errand_kind, "drawer", "t_1",
-                     params={"procedure": p.as_dict(), "minutes": 5},
-                     description="a job carrying the procedure that does it")
-  state = json.loads(json.dumps(task.as_state()))
-  assert Program.from_dict(state["params"]["procedure"]) == p
-  back = Task.from_json(state)
-  assert Program.from_dict(back.params["procedure"]) == p
-  # ...and on the wire, the tasks block carries it whole
-  assert Program.from_dict(task.as_dict()["params"]["procedure"]) == p
-  # ...and the task builds the composed errand, graded by its own kind
-  errand = errand_for_task(back, WORLD)
-  assert errand is not None and errand.program == p and errand.task == "program"
-  assert errand.task_id == "t_1"
-
-
-def test_a_task_carrying_an_invalid_program_builds_nothing(errand_kind):
-  task = Task.create(errand_kind, "drawer", "t_2",
-                     params={"procedure": {"name": "x", "steps": [{"verb": "fly"}]},
-                             "minutes": 5})
-  assert errand_for_task(task, WORLD) is None
 
 
 #: The least a recorder records: a floor and a robot's root.

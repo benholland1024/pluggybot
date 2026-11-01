@@ -217,8 +217,8 @@ class HumanoidSpec:
   #: from 0.12 m ahead and the floor from 0.48 m (`humanoid_spike.py
   #: --sensors`).
   depth_pitch_deg: float = 40.0
-  #: The navigation camera's (the tags on the walls and the rack, 0.4-1.2 m
-  #: up, read from a metre on).
+  #: The navigation camera's (the tags on the walls, 0.4-1.2 m up, read
+  #: from a metre on).
   nav_pitch_deg: float = 20.0
   # -- the charge port (#559 stage 2): on the torso's front --
   #: Right of its middle and over the hip axes, m: where the right hand

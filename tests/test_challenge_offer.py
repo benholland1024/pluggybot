@@ -113,7 +113,6 @@ def test_claiming_a_hand_job_queues_no_errand(tmp_path):
   task = _claimed_drawer(life)
   assert task.state == "active" and task.claimed_by == life.root
   assert life.errands == []
-  assert lc.errand_for_task(task, HUMANOID_HOME) is None
 
 
 def test_a_mind_without_a_library_cannot_claim_it(tmp_path):
@@ -121,15 +120,6 @@ def test_a_mind_without_a_library_cannot_claim_it(tmp_path):
   task = life.tasks.offer("open_drawer", "drawer")
   assert not life._claim_task(task.id)
   assert life.tasks.get(task.id).state == "offered"
-
-
-def test_the_scripted_claim_skips_a_challenge(tmp_path):
-  """A job for a mind, left offered rather than attempted by something that
-  cannot write the procedure."""
-  life = _claiming_life(tmp_path)
-  life.tasks.offer("open_drawer", "drawer")
-  assert not life._claim_next_task()
-  assert [t.state for t in life.tasks.tasks.values()] == ["offered"]
 
 
 # ---- 3. done, and when the grade runs --------------------------------------

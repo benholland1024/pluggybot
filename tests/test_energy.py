@@ -401,15 +401,12 @@ def test_only_measured_costs_are_shown_to_the_model():
 def test_an_order_filters_on_what_the_world_can_do_never_on_the_pack_now():
   """⚠ IMPOSSIBLE, NOT UNWISE (`order_runnable`). An order with nothing to
   act on -- a job when none is on offer -- is filtered; one the pack cannot
-  pay for THIS SECOND (`affordableActions`) is dangerous and runs anyway --
-  an agent that sets a fatal order and dies of it is the result. And a
-  caller that supplies no list -- a unit test, an older context dict -- must
-  not be read as "this robot can do nothing"."""
+  pay for THIS SECOND is dangerous and runs anyway -- an agent that sets a
+  fatal order and dies of it is the result."""
   menu = ov.Menu.for_world(HUMANOID_HOME, lc.board_book(HUMANOID_HOME))
-  state = {"decisions": 0, "affordableActions": [], "possibleActions": []}
-  assert ov.order_runnable(menu, "explore", state)
-  assert not ov.order_runnable(menu, "take_task", state)
-  assert ov.order_runnable(menu, "explore", {"decisions": 0})
+  flat = {"decisions": 0, "battery": {"fraction": 0.0, "wh": 0.0}}
+  assert ov.order_runnable(menu, "explore", flat)
+  assert not ov.order_runnable(menu, "take_task", flat)
 
 
 def test_the_context_carries_what_the_pack_can_actually_spend():
@@ -419,11 +416,9 @@ def test_the_context_carries_what_the_pack_can_actually_spend():
   allowed to spend."""
   life = life_with(battery_wh=HOSTING_WH)
   life.battery.energy_wh = RESERVE + 3.0
-  state = ov.context_for(life, affordable=["explore"], possible=["explore", "charge"])
+  state = ov.context_for(life)
   assert state["battery"]["wh"] == pytest.approx(RESERVE + 3.0)
   assert state["battery"]["spendableWh"] == pytest.approx(3.0)
-  assert state["affordableActions"] == ["explore"]
-  assert state["possibleActions"] == ["explore", "charge"]
 
 
 def test_the_prompt_still_never_carries_a_hidden_answer():

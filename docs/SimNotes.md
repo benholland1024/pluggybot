@@ -744,9 +744,9 @@ bearing order (`test_the_batched_scan_is_the_scan_it_replaced` pins every
 ray against the per-ray scan); the joint drivers are position-mode
 `dcmotor`s, commanded as an MIT-mode driver is (`humanoid/drivers.py`,
 `actuator.JointLimits.dcmotor`): a policy's command carries its own gains,
-a routine's torque rides a target with the damping cancelled and steps as a
-torque motor does, and `limp()` holds nothing, so a policy and the scripted
-routines share one body. A pair is one physics thread, so the lever left is
+an arm's the default gains scaled by `ARM_GAIN_SCALE`, and `limp()` holds
+nothing, so the policies and the arms share one body. (A routine's torque, the quadruped's lie-down and
+stand-up, went with it, #559.) A pair is one physics thread, so the lever left is
 the core, and the box keeps its core for now; the humanoid pair's speed on
 it is "The humanoid pair served"'s.
 
@@ -1312,8 +1312,6 @@ aside, with no touch and no fall.
 - a dead robot is never waited on, held for or asked;
 - a robot further off than `PAST_M` (3 m) whose disc alone cuts a walk's
   way is planned past (`Navigator._plan_to`); nearer, it is the wall it was;
-- a walk's way in is cleared before it is walked (`clear_way_routine`), or
-  the try ends "in the way";
 - a robot that cannot make way says why, once every `MAKE_WAY_WAIT_S`;
 - THE PAIR COLLIDES (Ben, 2026-10-14): each robot meets every solid geom of
   the other and none of its own (`PAIR_BITS`, bits the world never sets; a
