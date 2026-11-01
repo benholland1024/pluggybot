@@ -156,9 +156,9 @@ second robot present, both minds' prefixes carry `OTHER_ROBOT_RULE` and
 their contexts carry `others` — so a reading of a pair is never pooled with
 a single robot's.
 
-**The context's `rack` is `{}` since #559** (issue #351's rack view, where
-each tool was): the tools went with the quadruped, and the field stays in
-what the served robots read until a period takes it out.
+**The context has no `rack` since #579** (issue #351's rack view, where
+each tool was, went with the quadruped's tools in #559, an empty `{}` the
+served robots read until then).
 
 ### What a mind turns on, and where
 
@@ -782,9 +782,9 @@ cannot see:** mood and opinion — the other robot has neither, and a visitor's
 are never known; a prediction made and never acted on; and whether an
 `unknown` was honesty or evasion, which is exactly why it is not counted
 wrong. **Depends on:** the model, given the world exists — but the world's
-share is the NEED vocabulary (`charge` / `points` / `a_tool` / `nothing`;
-`a_tool` a vestige, no tool being left to need), and a need the rule
-cannot name cannot be predicted right.
+share is the NEED vocabulary (`charge` / `points` / `nothing`; the
+quadruped's `a_tool` went in #579, no tool being left to need), and a need
+the rule cannot name cannot be predicted right.
 
 **3. Morality** — *does it help others reach their goals, and recognise the
 chance to.* Metric: **help at a cost** — an act that cost the actor when the
@@ -1022,9 +1022,8 @@ internals. Its rules:
   hold, used or by accident -- every grader's criterion, said first in its
   verdict, and stated in the job the robot is told. From 2026-10-17 it was
   lost time and nothing more, and learned skills leaned on it (§4, "A fall
-  was lost time"). A row still carries `tool` and `toolSeated`, both null
-  since the quadruped's staged claw went (#559): the record's columns are a
-  period's to change;
+  was lost time"). A row names no tool since #579 (its `tool` and
+  `toolSeated` were null from #559, when the quadruped's staged claw went);
 - **what the skill says of itself is its own test**, recorded beside the
   verdict and never read by it; ⚠ a skill is handed the BODY, never the
   world: the chest's truth stays the harness's;
