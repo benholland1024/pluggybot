@@ -435,8 +435,71 @@ PARTS: tuple[Part, ...] = (
          "bill's longest lead, and the one to watch.",
   ),
   Part(
-    "rplidar_c1", "Slamtec RPLIDAR C1 2D LIDAR",
+    "livox_mid360s", "Livox Mid-360S 3D LIDAR (360 x 59 deg, non-repetitive scan)",
     "sensor", "chosen", ("build",), (),
+    partNumber="Mid-360S",
+    source="https://funduino.com/en/products/livox-mid-360s-lidar",
+    massG=265,
+    dimensionsMm={"length": 65, "width": 65, "height": 60},
+    priceEur=772.95,
+    capabilities={"fovDeg": "360 x 59 (-7 to +52)",
+                  "pointsPerS": 200000,
+                  "frameHz": 10,
+                  "rangeM": "40 at 10 % reflectivity",
+                  "rangeSigmaCm": "<= 2 at 10 m, <= 4 at 0.2 m",
+                  "angleSigmaDeg": 0.15,
+                  "blindM": 0.1,
+                  "supplyV": "9-27",
+                  "powerW": 6.5,
+                  "interface": "100BASE-TX Ethernet",
+                  "imu": "ICM-40609",
+                  "ip": "IP67"},
+    note="The head's LIDAR since #581, upside down as Unitree's G1 carries a Mid-360: its "
+         "rays reach the floor 1.15 m out and see the house's 0.9 m fences, which the C1's "
+         "one plane 1.41 m up passed over. Livox's sheet (livoxtech.com/mid-360s/specs): "
+         "14 W self-heating below 0 C; the Mid-360's manual adds 18 W for about 8 s at "
+         "start-up. Funduino (DE): only 3 left; OpenELAB lists the Mid-360 at EUR 755-812. "
+         "It takes the Pi 5's Ethernet port, and its own 12 V converter (`meanwell_ddr_30l_12`: "
+         "its start-up and the contactor's coil are past one's 30 W). No cable in the box: "
+         "`livox_m12_cable`.",
+  ),
+  Part(
+    "livox_m12_cable", "Livox connection cable: M12 aviation connector to power, Ethernet "
+    "and signal wires, 1.5 m",
+    "electronics", "chosen", ("build",), (),
+    partNumber="Livox Three Wire Aviation Connector",
+    source="https://funduino.com/en/products/three-core-livox-connection-cable",
+    priceEur=89.95,
+    capabilities={"sensorSide": "M12 female", "lengthM": 1.5},
+    why={"massG": "not published", "dimensionsMm": "a 1.5 m cable"},
+    note="The Mid-360S ships without one (its box: the sensor, a cloth, a key and M3 "
+         "screws). DJI calls it a development cable and recommends a made-up one for a "
+         "permanent install; Funduino lists it beside the Mid-360S, currently unavailable.",
+  ),
+  Part(
+    "unitree_l2", "Unitree L2 4D LIDAR (360 x 96 deg)",
+    "sensor", "candidate", ("build",), (),
+    partNumber="L2",
+    source="https://unitree.com/L2/",
+    massG=230,
+    dimensionsMm={"length": 75, "width": 75, "height": 65},
+    priceEur=437.26,
+    capabilities={"fovDeg": "360 x 96",
+                  "pointsPerS": 64000,
+                  "frameHz": 5.55,
+                  "rangeM": "30 at 90 % reflectivity, 15 at 10 %",
+                  "rangeAccuracyCm": 2.0,
+                  "blindM": 0.05,
+                  "powerW": 10,
+                  "interface": "Ethernet (UDP) or TTL UART"},
+    note="Compared for #581 and not chosen: a third of the Mid-360S's points over a field "
+         "1.6 times as tall, a full round every 0.18 s, and 10 W against 6.5. Upside down "
+         "its field reaches straight down, where the body is. Unitree's page: $419, "
+         "shown here at the bill's rate with Germany's 19 % VAT; 13 W self-heating.",
+  ),
+  Part(
+    "rplidar_c1", "Slamtec RPLIDAR C1 2D LIDAR",
+    "sensor", "removed", ("build",), (),
     partNumber="RPLIDAR C1",
     source="https://funduinoshop.com/en/electronic-modules/sensors/movement-distance/rplidar-c1-dtof-lidar-3600-laser-range-scanner-12m-ip54-slamtec",
     massG=110,
@@ -449,9 +512,10 @@ PARTS: tuple[Part, ...] = (
                   "startCurrentMa": 800,
                   "interface": "USB/UART"},
     why={"dimensionsMm": "not recorded"},
-    note="Funduino (DE) has it in stock; OpenELAB lists it at €79.95 with 4 left from a "
-         "warehouse it does not name (it ships from China in 10-20 days otherwise). It draws "
-         "800 mA for a moment at start-up.",
+    note="The head's LIDAR until #581: one plane 1.41 m up passed over the house's 0.9 m "
+         "fences, and outdoors a robot had nothing to localize by (#572). Funduino (DE) had "
+         "it in stock; OpenELAB listed it at €79.95. It draws 800 mA for a moment at "
+         "start-up.",
   ),
   Part(
     "pi_camera_3", "Raspberry Pi Camera Module 3",
@@ -516,8 +580,7 @@ PARTS: tuple[Part, ...] = (
     massG=1000,
     priceEur=21.0,
     why={"dimensionsMm": "a 1 kg spool"},
-    note="The head's shell, the torso's cover, the pack's case and the cameras' and the "
-         "LIDAR's mounts.",
+    note="The head's shell, the torso's cover, the pack's case and the cameras' mounts.",
   ),
   Part(
     "albright_sw80b549", "Albright SW80B contactor, 12 V coil, with blowouts (100 A, 96 V DC)",

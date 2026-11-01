@@ -40,7 +40,7 @@ MODULES = (ROOT / "src" / "pluggybot" / "humanoid" / "catalog.py",
 #: sensors), by the number you would order with. The doc gains a pointer to
 #: the fixture and stops being the only copy of these.
 PARTS_MD_CHOSEN = ("RS04", "RS03", "RS02", "RS00", "RS05", "Dex1-1", "INR21700-P45B",
-                   "RPLIDAR C1", "D435", "Camera Module 3", "EV_ICM-42688-P")
+                   "Mid-360S", "D435", "Camera Module 3", "EV_ICM-42688-P")
 
 
 @pytest.fixture(scope="module")
@@ -153,10 +153,10 @@ def test_a_bought_parts_mass_is_one_fact():
   equal value cannot show, so the source is read for the call."""
   from pluggybot.humanoid import parts as hp
   kg = {pid: catalog.by_id()[pid].massG / 1000 for pid in
-        ("realsense_d435", "pi_camera_3", "rplidar_c1", "waveshare_can_hat_plus")}
+        ("realsense_d435", "pi_camera_3", "livox_mid360s", "waveshare_can_hat_plus")}
   assert hp.D435_KG == kg["realsense_d435"]
   assert hp.CAMERA_KG == kg["pi_camera_3"]
-  assert hp.LIDAR.kg == kg["rplidar_c1"]
+  assert hp.LIDAR.kg == kg["livox_mid360s"]
   assert hp.ELECTRONICS["waveshare_can_hat_plus"] == kg["waveshare_can_hat_plus"]
   tree = ast.parse((ROOT / "src" / "pluggybot" / "humanoid" / "parts.py").read_text())
   read = {node.args[0].value for node in ast.walk(tree)

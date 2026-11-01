@@ -1319,8 +1319,8 @@
    "note": "DigiKey DE's kit (961448, with cable and tripod), none in stock; MyBotShop (DE) €419.99 in 21 days; RealSense's own store $314, backordered 6-8 weeks, import duty on top. Cognex agreed to buy RealSense on 2026-09-22 (closing in Q4 2026): the bill's longest lead, and the one to watch."
   },
   {
-   "id": "rplidar_c1",
-   "name": "Slamtec RPLIDAR C1 2D LIDAR",
+   "id": "livox_mid360s",
+   "name": "Livox Mid-360S 3D LIDAR (360 x 59 deg, non-repetitive scan)",
    "kind": "sensor",
    "status": "chosen",
    "shelves": [
@@ -1330,43 +1330,143 @@
    "usedBy": [
     "lidar_mount"
    ],
-   "partNumber": "RPLIDAR C1",
-   "source": "https://funduinoshop.com/en/electronic-modules/sensors/movement-distance/rplidar-c1-dtof-lidar-3600-laser-range-scanner-12m-ip54-slamtec",
-   "massG": 110,
-   "dimensionsMm": null,
-   "priceEur": 84.9,
+   "partNumber": "Mid-360S",
+   "source": "https://funduino.com/en/products/livox-mid-360s-lidar",
+   "massG": 265,
+   "dimensionsMm": {
+    "length": 65,
+    "width": 65,
+    "height": 60
+   },
+   "priceEur": 772.95,
    "priceFor": "each",
    "quantity": 1,
    "capabilities": {
-    "rangeM": 12,
-    "rateHz": 10,
-    "fovDeg": 360,
-    "supplyV": 5,
-    "currentMa": 230,
-    "startCurrentMa": 800,
-    "interface": "USB/UART"
+    "fovDeg": "360 x 59 (-7 to +52)",
+    "pointsPerS": 200000,
+    "frameHz": 10,
+    "rangeM": "40 at 10 % reflectivity",
+    "rangeSigmaCm": "<= 2 at 10 m, <= 4 at 0.2 m",
+    "angleSigmaDeg": 0.15,
+    "blindM": 0.1,
+    "supplyV": "9-27",
+    "powerW": 6.5,
+    "interface": "100BASE-TX Ethernet",
+    "imu": "ICM-40609",
+    "ip": "IP67"
    },
    "feeds": [
     {
      "constant": "humanoid.parts.LIDAR.kg",
      "where": "code",
-     "value": 0.11,
+     "value": 0.265,
      "unit": "kg",
-     "note": ""
+     "note": "",
+     "expect": 0.265
     },
     {
      "constant": "humanoid.parts.ELECTRONICS_W['lidar']",
      "where": "code",
-     "value": 1.15,
+     "value": 7.303371,
      "unit": "W",
-     "note": "",
-     "expect": 1.15
+     "note": "its sheet's 6.5 W through its 12 V converter, 89 %"
+    },
+    {
+     "constant": "perception.lidar.FOV_DEG",
+     "where": "code",
+     "value": [
+      -52,
+      7
+     ],
+     "unit": "°",
+     "note": "its field upside down, the sheet's -7 to +52 turned over",
+     "expect": [
+      -52,
+      7
+     ]
+    },
+    {
+     "constant": "perception.lidar.LIDAR_PERIOD",
+     "where": "code",
+     "value": 0.1,
+     "unit": "s",
+     "note": "a frame",
+     "expect": 0.1
+    },
+    {
+     "constant": "perception.lidar.BLIND_M",
+     "where": "code",
+     "value": 0.1,
+     "unit": "m",
+     "note": "its blind zone",
+     "expect": 0.1
+    },
+    {
+     "constant": "perception.lidar.SIGMA",
+     "where": "code",
+     "value": [
+      [
+       0.2,
+       0.04
+      ],
+      [
+       10,
+       0.02
+      ]
+     ],
+     "unit": "m",
+     "note": "a range's 1 sigma at 0.2 m and at 10 m",
+     "expect": [
+      [
+       0.2,
+       0.04
+      ],
+      [
+       10,
+       0.02
+      ]
+     ]
+    },
+    {
+     "constant": "humanoid.model.CHOSEN.lidar_rise",
+     "where": "code",
+     "value": 0.1,
+     "unit": "m",
+     "note": "its rays' origin over the head's top, upside down on its bracket"
     }
    ],
-   "why": {
-    "dimensionsMm": "not recorded"
+   "why": {},
+   "note": "The head's LIDAR since #581, upside down as Unitree's G1 carries a Mid-360: its rays reach the floor 1.15 m out and see the house's 0.9 m fences, which the C1's one plane 1.41 m up passed over. Livox's sheet (livoxtech.com/mid-360s/specs): 14 W self-heating below 0 C; the Mid-360's manual adds 18 W for about 8 s at start-up. Funduino (DE): only 3 left; OpenELAB lists the Mid-360 at EUR 755-812. It takes the Pi 5's Ethernet port, and its own 12 V converter (`meanwell_ddr_30l_12`: its start-up and the contactor's coil are past one's 30 W). No cable in the box: `livox_m12_cable`."
+  },
+  {
+   "id": "livox_m12_cable",
+   "name": "Livox connection cable: M12 aviation connector to power, Ethernet and signal wires, 1.5 m",
+   "kind": "electronics",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "humanoid",
+   "usedBy": [
+    "lidar_mount"
+   ],
+   "partNumber": "Livox Three Wire Aviation Connector",
+   "source": "https://funduino.com/en/products/three-core-livox-connection-cable",
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": 89.95,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "sensorSide": "M12 female",
+    "lengthM": 1.5
    },
-   "note": "Funduino (DE) has it in stock; OpenELAB lists it at €79.95 with 4 left from a warehouse it does not name (it ships from China in 10-20 days otherwise). It draws 800 mA for a moment at start-up."
+   "feeds": [],
+   "why": {
+    "massG": "not published",
+    "dimensionsMm": "a 1.5 m cable"
+   },
+   "note": "The Mid-360S ships without one (its box: the sensor, a cloth, a key and M3 screws). DJI calls it a development cable and recommends a made-up one for a permanent install; Funduino lists it beside the Mid-360S, currently unavailable."
   },
   {
    "id": "pi_camera_3",
@@ -1748,6 +1848,43 @@
    "note": ""
   },
   {
+   "id": "humanoid_lidar_bracket",
+   "name": "The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "humanoid",
+   "usedBy": [
+    "lidar_mount"
+   ],
+   "partNumber": null,
+   "source": null,
+   "massG": 89.773,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 2,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "humanoid.model.structure[lidar_post, lidar_roof]",
+     "where": "code",
+     "value": 89.773,
+     "unit": "g",
+     "note": "their volume's mass, the fasteners' and wiring's allowance on it (`humanoid.model.ALLOWANCE`)"
+    }
+   ],
+   "why": {
+    "partNumber": "made to a drawing not yet drawn",
+    "source": "made to a drawing not yet drawn",
+    "dimensionsMm": "the drawing's; `humanoid.model.structure` sizes it",
+    "priceEur": "nothing drawn to quote: an allowance in the bill"
+   },
+   "note": ""
+  },
+  {
    "id": "humanoid_shells",
    "name": "The head's shell and the torso's front cover, printed in PETG",
    "kind": "structure",
@@ -1837,7 +1974,7 @@
    "why": {
     "dimensionsMm": "a 1 kg spool"
    },
-   "note": "The head's shell, the torso's cover, the pack's case and the cameras' and the LIDAR's mounts."
+   "note": "The head's shell, the torso's cover, the pack's case and the cameras' mounts."
   },
   {
    "id": "albright_sw80b549",
@@ -2849,18 +2986,46 @@
     "note": ""
    },
    {
-    "part": "rplidar_c1",
-    "name": "Slamtec RPLIDAR C1 2D LIDAR",
+    "part": "livox_mid360s",
+    "name": "Livox Mid-360S 3D LIDAR (360 x 59 deg, non-repetitive scan)",
     "group": "sensors",
     "quantity": 1,
     "priceFor": "each",
-    "eachEur": 84.9,
-    "lineEur": 84.9,
+    "eachEur": 772.95,
+    "lineEur": 772.95,
     "allowance": false,
     "basis": "",
-    "leadTime": "1-3 business days (Funduino)",
+    "leadTime": "only 3 left in stock, 1-3 working days (Funduino)",
     "why": {},
     "note": ""
+   },
+   {
+    "part": "livox_m12_cable",
+    "name": "Livox connection cable: M12 aviation connector to power, Ethernet and signal wires, 1.5 m",
+    "group": "sensors",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 89.95,
+    "lineEur": 89.95,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "currently unavailable (Funduino)",
+    "why": {},
+    "note": ""
+   },
+   {
+    "part": "meanwell_ddr_30l_12",
+    "name": "Mean Well DDR-30L-12 DC-DC converter, 18-75 V in, 12 V 2.5 A, isolated (DIN rail)",
+    "group": "sensors",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 27.1,
+    "lineEur": 27.1,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "in stock, 1-2 business days (Reichelt)",
+    "why": {},
+    "note": "the LIDAR's 12 V"
    },
    {
     "part": "pi_camera_3",
@@ -3010,6 +3175,22 @@
     "lineEur": 66.67,
     "allowance": true,
     "basis": "two machined plates at €33.33 a machined part (#379's rate), drawn when the gripper's flange is known (Unitree does not publish it)",
+    "leadTime": null,
+    "why": {
+     "leadTime": "nothing drawn to quote"
+    },
+    "note": ""
+   },
+   {
+    "part": "humanoid_lidar_bracket",
+    "name": "The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under",
+    "group": "frame",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 66.67,
+    "allowance": true,
+    "basis": "two machined parts at €33.33 a machined part (#379's rate)",
     "leadTime": null,
     "why": {
      "leadTime": "nothing drawn to quote"
@@ -3400,19 +3581,19 @@
    }
   ],
   "totals": {
-   "sourcedEur": 10705.51,
-   "allowanceEur": 2616.01,
-   "contingencyEur": 1998.23,
-   "totalEur": 15319.75,
-   "totalUsd": 17469.11,
+   "sourcedEur": 11510.61,
+   "allowanceEur": 2682.68,
+   "contingencyEur": 2128.99,
+   "totalEur": 16322.28,
+   "totalUsd": 18612.3,
    "budgetEur": null,
    "byGroup": {
     "actuation": 5086.4,
     "grippers": 1436.9,
     "power": 635.9,
     "compute": 327.55,
-    "sensors": 491.8,
-    "frame": 2443.73,
+    "sensors": 1296.9,
+    "frame": 2510.4,
     "safety": 291.58,
     "charging": 370.87,
     "spares": 931.98,

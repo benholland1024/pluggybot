@@ -5,11 +5,13 @@ it is (its leg odometry and IMU, `humanoid.odometry`), how it walks a
 velocity (its walking policy, `humanoid.walk`), its front stop, and what
 its depth camera sees under its LIDAR's plane.
 
-⚠ THE LIDAR IS ON THE HEAD, 1.41 m up, OVER every table, counter, couch
-and bed in the house: a map of its plane alone plans straight through
-them. So the D435's points between the floor and that plane are a layer of
-their own the planner plans round (`_fold_low`, the quadruped's rule with
-the humanoid's band, `LOW_MAX_Z`).
+⚠ ITS MAP IS LAID FROM ITS LIDAR'S LEVEL RING, 1.47 m up, OVER every
+table, counter, couch and bed in the house: a map of that plane alone plans
+straight through them. So the D435's points between the floor and that
+plane are a layer of their own the planner plans round (`_fold_low`, the
+quadruped's rule with the humanoid's band, `LOW_MAX_Z`). The LIDAR sees
+them (#581): its points laid flat (`band`) are a measurement's, not yet
+served.
 
 Its legs are one of two policies': the WALKING one's while it moves, the
 STANDING one's while it stands to reach (`humanoid.policy`, `humanoid.
@@ -66,8 +68,8 @@ SETTLE_S = 0.8
 
 #: THE DEPTH CAMERA'S OBSTACLES: a point this high over the floor, and no
 #: higher, is something the body walks into -- over a foot's clearance
-#: (the walking policy is trained on flat ground), under the LIDAR's plane
-#: (1.41 m) less a margin. ...and a point under `FLOOR_Z` is floor.
+#: (the walking policy is trained on flat ground), under the LIDAR's level
+#: ring (1.47 m) less a margin. ...and a point under `FLOOR_Z` is floor.
 LOW_MIN_Z, LOW_MAX_Z, FLOOR_Z = 0.08, 1.35, 0.03
 #: The quadruped's rules for the layer (#387), kept: points within this
 #: of the trunk, three frames' evidence, never beside what the LIDAR maps.
@@ -172,8 +174,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   OPTIMISTIC = True
   PROGRESS_MAP_GROWTH = True
   #: Its IMU's tilt under which the LIDAR's scan is a map of the room: a
-  #: walking trunk rocks a degree or so, and a 1.41 m plane tilted 2 deg
-  #: reaches the floor at 40 m, past the LIDAR's 8.
+  #: walking trunk rocks a degree or so, and a 1.47 m plane tilted 2 deg
+  #: reaches the floor at 42 m, past the LIDAR's 8.
   LEVEL_TILT = math.radians(2.0)
   #: The odometry's tick, s.
   ODO_S = 0.01
@@ -210,6 +212,11 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._frame_level = False
     self.low = np.zeros_like(self.grid.grid, dtype=np.float32)
     self._walls_t, self._walls_mask = None, None
+    #: Its LIDAR's points laid flat by height (`Lidar.band`), levelled
+    #: through its IMU, as the scan its map is laid from and matched by,
+    #: where its level ring is (#581's stage 1: a measurement's switch, never
+    #: a deployment's; its stage 2 serves the band).
+    self.band = False
     self._init_way()
     # THE PLACES IT FINDS (`humanoid.places`): the quadruped's search, its
     # looks through the head's navigation camera
@@ -604,6 +611,16 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     """Its drivers and senses built again where the body stands now (a
     start, a stand-up). The map is not touched here."""
     self._build_drivers(self.stand.policy, self.walker.policy)
+
+  def _scan(self) -> tuple:
+    """Its LIDAR's level ring, or with `band` its points laid flat: through
+    its IMU's tilt and set over the floor at its pelvis's height off its
+    legs' encoders (its model of itself), as its depth frames are
+    (`_levelled`)."""
+    if not self.band:
+      return super()._scan()
+    return self.lidar.band(self.data, self.stand.trunk.attitude.level(),
+                           float(self.odo.sm.d.qpos[2]))
 
   def _front_blocked(self, angles, ranges) -> bool:
     ahead = np.cos(angles) * ranges
