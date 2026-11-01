@@ -18,7 +18,7 @@ import pytest
 
 from pluggybot import tick
 from pluggybot.activity import cage
-from pluggybot.body import KeepClear, StubBody
+from pluggybot.body import NOT_SEEN, KeepClear, StubBody
 from pluggybot.economy import scoring
 from pluggybot.humanoid.mission import HumanoidMission
 from pluggybot.lifecycle import (NEAR_STANDOFF_M, HUMANOID_HOME, HubLifecycle, board_book,
@@ -251,10 +251,10 @@ def test_a_charge_trip_that_never_arrived_says_why_and_so_does_the_death():
   life.body.go_to_routine = _stalled_at(life, seconds=90.0, short=2.0)
   assert life.body.run(life.go_charge_routine()) is False
   why = "the drive gave up 2.0 m short after 90 s (stalled, no progress for 10 s)"
-  assert any(f"GO_CHARGE: never reached the charge bay: {why}" in ln
+  assert any(f"GO_CHARGE: never reached the charging station: {why}" in ln
              for ln in life.log), life.log[-3:]
   life._strand()
-  assert life.dead["why"].endswith(f": never reached the charge bay: {why}")
+  assert life.dead["why"].endswith(f": never reached the charging station: {why}")
 
 
 def test_a_walk_home_that_gives_up_near_the_standoff_goes_on_to_the_board():
@@ -278,7 +278,7 @@ def test_a_walk_home_that_gives_up_near_the_standoff_goes_on_to_the_board():
     def dock():
       approaches.append(1)
       life.body.on_charger = board
-      return tick.result("docked" if board else "no board")
+      return tick.result("docked" if board else NOT_SEEN)
 
     life.body.go_to_routine = drive
     life.body.dock_routine = dock
@@ -294,8 +294,8 @@ def test_a_walk_home_that_gives_up_near_the_standoff_goes_on_to_the_board():
   assert trip(0.2) == (True, 1, 0, "")
   went, approaches, looks, failure = trip(0.2, board=False)
   assert (went, approaches, looks) == (False, 2, 2)
-  assert failure.startswith("never reached the charge bay: the drive gave up 0.2 m short")
-  assert failure.endswith("; the board was not in sight from there"), failure
+  assert failure.startswith("never reached the charging station: the drive gave up 0.2 m short")
+  assert failure.endswith("; the station was not in sight from there"), failure
   assert trip(NEAR_STANDOFF_M + 0.5)[:3] == (False, 0, 2)
   assert trip(0.2, why="peer")[:3] == (False, 0, 2)
 
@@ -352,7 +352,7 @@ def test_a_charge_bay_waited_for_and_given_up_reads_no_older_drive():
 def _held_by_rowan(life):
   """The reason is the wait's, whole -- who held the bay -- and names no
   drive; the narration says that same sentence (issue #424)."""
-  assert life.charge_failure.startswith("never reached the charge bay -- Rowan was "
+  assert life.charge_failure.startswith("never reached the charging station -- Rowan was "
                                         "standing"), life.charge_failure
   assert "the drive gave up" not in life.charge_failure
   assert any(ln.endswith(f"GO_CHARGE: {life.charge_failure}") for ln in life.log), \
@@ -415,7 +415,7 @@ def test_a_find_whose_walks_took_it_nowhere_says_the_last_walk(monkeypatch):
   out = life.body.run(st.run_verb(life, st.VERBS["find"], {"tag": feed, "x": 25.2, "y": -2.4}))
   said = ("did not find tag 36 round (25.2, -2.4) in 23 s, and no walk took it anywhere else "
           "to look from (1 looks round): the drive gave up 24.1 m short after 0 s (the other "
-          "robot lying down to rest in the way, 0.1 m off)")
+          "robot standing at rest in the way, 0.1 m off)")
   assert out["reason"] == said
   peer = "peerAt=here peerM=0.1 peerDown=False peerRests=True"
   assert out["trace"] == (
@@ -478,11 +478,11 @@ def test_a_decided_charge_that_failed_says_why_in_history(fails):
   body = StubBody()
   life = stub_life(body=body)
   if fails == "dock":
-    body.dock_routine = lambda: tick.result("no board")   # the board never in view
-    why = "no charge contact (no board)"
+    body.dock_routine = lambda: tick.result(NOT_SEEN)    # the station never in view
+    why = "no charge contact (station not seen)"
   else:
     body.go_to_routine = _gives_up(body)
-    why = "never reached the charge bay: the drive gave up (no_route)"
+    why = "never reached the charging station: the drive gave up (no_route)"
   life._after_decision(ov.Decision(action="charge", reason="topping up"))
   assert _history(life)[-1].endswith(f"charge: did not charge -- {why}"), _history(life)[-2:]
   assert life.charge_cycles == 0 and not life.verdicts, "no charge, and no verdict for one"

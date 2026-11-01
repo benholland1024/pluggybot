@@ -59,6 +59,11 @@ from pluggybot.tick import Routine
 TOPPLE_TILT_RAD = math.radians(60.0)
 TOPPLE_HOLD_S = 2.0
 
+#: `dock_routine`'s answer where the charger was not in sight from where
+#: the robot stood: the loop then searches (`lost_routine`), and the
+#: charge's failure, History and a stranded death quote it.
+NOT_SEEN = "station not seen"
+
 
 @dataclass(frozen=True)
 class RackPose:
@@ -336,7 +341,8 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def dock_routine(self) -> Routine:
     """From the charge standoff, onto the charger until its contacts
-    conduct; returns the approach's answer. Success is `charging()`."""
+    conduct; returns the approach's answer (`NOT_SEEN` where the charger
+    was not in sight). Success is `charging()`."""
 
   @abc.abstractmethod
   def charging(self) -> bool:

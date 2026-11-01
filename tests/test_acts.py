@@ -57,10 +57,10 @@ def test_the_need_rule_has_three_truths_in_a_fixed_order():
   assert acts.need_of(_other(wh=0.5))[0] == "charge"
   assert acts.need_of(_other(hunger="hungry"))[0] == "points"
   assert acts.need_of(_other(hunger="starving", points=0))[0] == "points"
-  # ...and a held job is no need: `a_tool` is the prompt's word, never the
-  # answer, with no rack in any world (#559; #572 stopped the humanoids
-  # reading it -- every job holder "needed a tool")
+  # ...and a held job is no need (#572: every job holder "needed a tool",
+  # the quadruped's word, until #579 took it out of the prompt)
   assert acts.need_of(_other(holds=True))[0] == "nothing"
+  assert "a_tool" not in ov.NEEDS
   # precedence: charge outranks points
   assert acts.need_of(_other(wh=0.5, hunger="starving", holds=True))[0] == "charge"
   assert acts.need_of(_other(hunger="starving", holds=True))[0] == "points"
@@ -68,30 +68,30 @@ def test_the_need_rule_has_three_truths_in_a_fixed_order():
   truth, state = acts.need_of(_other(wh=0.5))
   assert state["batteryWh"] == 0.5 and state["reserveWh"] == 0.95
   assert set(state) == {"batteryFrac", "batteryWh", "reserveWh", "hunger",
-                        "points", "holdsJob", "carrying"}
+                        "points", "holdsJob"}
 
 
 # ---- 2. claims -------------------------------------------------------------------
 
 
 def test_a_claim_about_the_world_is_scored_and_prose_is_not():
-  rack = {"module_lcd": 0, "module_pen": 2}                # bays A and C taken
   boards = {"whiteboard_a": SimpleNamespace(blank=False),
             "whiteboard_b": SimpleNamespace(blank=True)}
-  assert acts.check_claim("Bay B is empty, go ahead", rack=rack) == ("bay b is empty", True)
-  assert acts.check_claim("bay C is empty", rack=rack) == ("bay c is empty", False)
-  assert acts.check_claim("bay a is taken", rack=rack) == ("bay a is taken", True)
-  assert acts.check_claim("module_pen is on the rack", rack=rack)[1] is True
-  assert acts.check_claim("module_claw is on the rack", rack=rack)[1] is False
-  assert acts.check_claim("module_claw is missing", rack=rack)[1] is True
   assert acts.check_claim("whiteboard_b is blank", boards=boards)[1] is True
   assert acts.check_claim("whiteboard_a is drawn on", boards=boards)[1] is True
   assert acts.check_claim("whiteboard_a is blank", boards=boards)[1] is False
-  assert acts.check_claim("the charge bay is free", charging=True)[1] is False
-  assert acts.check_claim("the charge bay is taken", charging=True)[1] is True
+  assert acts.check_claim("The charging station is free", charging=True) == (
+    "the charging station is free", False)
+  assert acts.check_claim("the charging station is taken", charging=True)[1] is True
+  # ...and the quadrupeds' word for it, which the robots' memories carry
+  assert acts.check_claim("the charge bay is free", charging=False)[1] is True
   # prose: not a claim this code can check, so neither true nor false
-  assert acts.check_claim("good luck with the drawing", rack=rack, boards=boards) is None
-  assert acts.check_claim("I am heading for the garden", rack=rack) is None
+  assert acts.check_claim("good luck with the drawing", boards=boards) is None
+  assert acts.check_claim("I am heading for the garden", boards=boards) is None
+  # ...and nor is a claim about the quadruped's rack, which no world has
+  # (#579: graded against an empty rack, every bay read empty)
+  for text in ("bay C is empty", "bay a is taken", "module_pen is on the rack"):
+    assert acts.check_claim(text, boards=boards, charging=False) is None, text
   # a claim about a board the world does not have is unchecked, not false
   assert acts.check_claim("whiteboard_z is blank", boards=boards) is None
 
@@ -191,23 +191,28 @@ def test_a_tell_lands_in_the_others_inbox_as_a_named_robot(pair):
   a, b = pair
   events = []
   a.on_event.append(events.append)
-  a._acts(_decision(tell={"to": "Rowan", "text": "bay B is empty, and hello"}))
+  a._acts(_decision(tell={"to": "Rowan", "text": "the charging station is free, and hello"}))
   [msg] = b.inbox.peek()
   assert msg.kind == "message" and msg.who == "Pluggy"
-  assert msg.text == "bay B is empty, and hello"
+  assert msg.text == "the charging station is free, and hello"
   # shown to the other exactly as a visitor's message is: a report from
   # someone, never a turn or an instruction
   assert msg.as_context() == {"id": "pluggybot:1", "from": "Pluggy",
-                              "text": "bay B is empty, and hello"}
+                              "text": "the charging station is free, and hello"}
   [sent] = [e for e in events if e["type"] == "message"]
   assert sent["to"] == "r2_pluggybot" and sent["delivered"] is True
-  # a claim about a bay is checked against what hangs there: in the
-  # humanoids' house, nothing (#559), so the claim is true
-  assert sent["claim"] == "bay b is empty" and sent["claimTrue"] is True
+  # a claim about the station is checked against the world: nobody is
+  # charging, so the claim is true
+  assert sent["claim"] == "the charging station is free" and sent["claimTrue"] is True
   assert a.acts[-1]["act"] == "message"
   # a message to a name that is not the other's goes nowhere
   a._acts(_decision(tell={"to": "Nobody", "text": "hi"}))
   assert len(b.inbox) == 1
+  # ...and a claim about the quadruped's rack is unchecked, where it was
+  # graded against an empty rack and every bay read empty (#579)
+  a._acts(_decision(tell={"to": "Rowan", "text": "bay C is empty"}))
+  told = [e for e in events if e["type"] == "message"][-1]
+  assert told["delivered"] and told["claim"] is None and told["claimTrue"] is None
 
 
 def test_a_prediction_is_scored_off_the_others_real_state(pair):
@@ -234,8 +239,7 @@ def test_the_predictor_is_never_shown_the_answer(pair):
   b.battery.energy_wh = 0.123456
   b.ledger.intervene(7777, by="test", t=0.0)
   shown = others_context(a)
-  assert set(shown[0]) == {"name", "robot", "x", "y", "state", "doing",
-                           "carrying", "dead"}
+  assert set(shown[0]) == {"name", "robot", "x", "y", "state", "doing", "dead"}
   ctx = json.dumps(overseer_context(a))
   for hidden in ("0.1234", "7777"):
     assert hidden not in ctx, hidden

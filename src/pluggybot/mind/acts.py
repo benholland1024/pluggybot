@@ -34,13 +34,9 @@ import re
 from pluggybot.mind.overseer import NEEDS
 
 #: The order the rule checks, first match wins: a robot below its reserve
-#: needs charge whatever its wallet says, a hungry one needs points. ⚠ A
-#: VESTIGE: `a_tool`, a held job with nothing on the fork, is still one of
-#: the prompt's words for a need (`NEEDS`) and is never the answer -- no
-#: world has had a rack since the quadruped went (#559; #572 had already
-#: stopped the humanoids reading it).
+#: needs charge whatever its wallet says, a hungry one needs points.
 NEED_ORDER = ("charge", "points", "nothing")
-assert all(n in NEEDS for n in NEED_ORDER)
+assert set(NEED_ORDER) == set(NEEDS) - {"unknown"}
 
 
 def need_of(other) -> tuple[str, dict]:
@@ -60,7 +56,7 @@ def need_of(other) -> tuple[str, dict]:
     "reserveWh": round(float(other.low_battery_wh), 4),
     "hunger": other.metabolism.state if other.metabolism is not None else None,
     "points": other.ledger.balance() if other.ledger is not None else None,
-    "holdsJob": False, "carrying": "",
+    "holdsJob": False,
   }
   if other.tasks is not None:
     root = other.root
@@ -75,9 +71,6 @@ def need_of(other) -> tuple[str, dict]:
 
 # ---- claims about the world ---------------------------------------------------
 
-_BAY = re.compile(r"\bbay\s+([A-Ea-e])\s+is\s+(empty|free|clear|occupied|taken|full)\b")
-_MODULE = re.compile(r"\b(module_[a-z0-9_]+)\s+is\s+(on the rack|on its bay|hung|racked|"
-                     r"missing|gone|off the rack|not on the rack)\b")
 _BOARD = re.compile(r"\b(whiteboard_[a-z0-9_]+)\s+is\s+(blank|empty|clean|"
                     r"drawn on|full|used|not blank)\b")
 _CHARGE = re.compile(r"\bthe (?:charge bay|charging station) is\s+"
@@ -86,37 +79,21 @@ _CHARGE = re.compile(r"\bthe (?:charge bay|charging station) is\s+"
 _EMPTY = {"empty", "free", "clear", "blank", "clean"}
 
 
-def check_claim(text: str, rack: dict | None = None, boards=None,
+def check_claim(text: str, boards=None,
                 charging: bool | None = None) -> tuple[str, bool] | None:
   """The first checkable statement in `text`, and its truth -- or None.
 
-  Four shapes are checked, each against the world and nothing else:
-    "bay C is empty"            -- `rack` (module -> the bay it HANGS in),
-                                   a bay nothing hangs in is empty; ⚠ A
-                                   VESTIGE of the quadruped's rack: the
-                                   lifecycle hands it `{}`, so every bay
-                                   reads empty
-    "module_pen is on the rack" -- `rack` again: hung on some bay
+  Two shapes are checked, each against the world and nothing else:
     "whiteboard_b is drawn on"  -- `boards` (a BoardBook): strokes on it
-    "the charge bay is free"    -- `charging`: is any robot charging now
-                                   (or "the charging station", a humanoid's)
+    "the charging station is free" -- `charging`: is any robot charging
+                                   now (or "the charge bay", the
+                                   quadrupeds' word, which memories carry)
   Anything else is a message, not a claim; None here is "unchecked", which
   the record keeps apart from false. The honesty rule pointed the other
   way: the wire may carry what a network could carry, and a robot saying
   something a sensor would have to discover is checked by the sensor.
   """
   t = (text or "").lower()
-  m = _BAY.search(t)
-  if m and rack is not None:
-    bay = ord(m.group(1).upper()) - ord("A")
-    empty = bay not in set(rack.values())
-    claim_empty = m.group(2) in _EMPTY
-    return m.group(0), empty == claim_empty
-  m = _MODULE.search(t)
-  if m and rack is not None:
-    hung = m.group(1) in rack
-    claim_hung = m.group(2) in ("on the rack", "on its bay", "hung", "racked")
-    return m.group(0), hung == claim_hung
   m = _BOARD.search(t)
   if m and boards is not None and m.group(1) in boards:
     blank = boards[m.group(1)].blank

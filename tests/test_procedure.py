@@ -344,11 +344,13 @@ def test_a_task_spanning_two_places_resolves_to_one_verdict():
   assert errand.task == "program"
   result = life.run_errand(errand)
   run = result["procedure"]
-  assert run["ok"] and run["completed"] == 4 and result["stowed"]
+  assert run["ok"] and run["completed"] == 4 and "error" not in result
   verdict = scoring.evaluate("program", scoring.sample_program(life, errand, result, {}),
                              table=TABLE)
   assert verdict.ok and verdict.points == TABLE["program"].base
-  assert verdict.reason == "errand: 4/4 steps, tools hung"
+  # ...and no tool in its words (#579: "tools hung" was the quadruped's)
+  assert verdict.reason == "errand: 4/4 steps"
+  assert "toolsHung" not in verdict.metrics
   assert [e["outcome"] for e in events if e["type"] == "procedure"] == \
     ["validated", "ran"]
 
@@ -366,9 +368,7 @@ def test_a_program_cut_short_is_scored_as_it_stands():
   result = life.run_errand(programmed_errand(p))
   run = result["procedure"]
   assert run["failedAt"] == 1 and run["completed"] == 1
-  assert result["stowed"]
   measured = scoring.sample_program(life, programmed_errand(p), result, {})
-  assert measured["toolsHung"] is True                  # the quadruped's words, kept
   v = scoring.evaluate("program", measured, table=TABLE)
   assert not v.ok and v.points == 0 and "1/3 steps, step 2 failed" in v.reason
   assert events[-1]["outcome"] == "aborted" and events[-1]["failedAt"] == 1
@@ -380,7 +380,7 @@ def test_a_refused_program_is_an_errand_that_did_nothing():
   life.on_event.append(events.append)
   bad = Program.single("bad", [Step("wait", {"seconds": 1.0}), Step("fly")])
   result = life.run_errand(programmed_errand(bad))
-  assert result["error"].startswith("refused:") and not result["picked"]
+  assert result["error"].startswith("refused:")
   assert events[-1]["outcome"] == "refused" and events[-1]["reasons"]
   v = scoring.evaluate("program", scoring.sample_program(
     life, programmed_errand(bad), result, {}), table=TABLE)
@@ -391,7 +391,7 @@ def test_a_run_nothing_measured_is_never_a_pass():
   """A missing measurement is not a passing one: an errand whose result
   carries no run is sampled as nothing, and graded as never measured."""
   m = scoring.sample_program(SimpleNamespace(), None, {}, {})
-  assert m["total"] is None and m["toolsHung"] is None
+  assert m["total"] is None
   ok, _, reason = scoring.eval_program(m)
   assert not ok and reason == "the procedure was never measured"
   ok, _, reason = scoring.eval_program({})
@@ -400,10 +400,10 @@ def test_a_run_nothing_measured_is_never_a_pass():
 
 def test_a_run_its_own_budget_stopped_fails_whole_and_says_so_without_a_fraction():
   """Issue #264: a procedure's `total` is the calls it MADE, so a budget stop
-  after every call succeeded read "2/2 steps, tools hung" -- graded ok, and
-  banked into History beside the line saying the run did not finish."""
+  after every call succeeded read "2/2 steps" -- graded ok, and banked into
+  History beside the line saying the run did not finish."""
   m = {"program": "p", "total": 2, "completed": 2, "failedAt": None,
-       "stopped": "budget", "toolsHung": True}
+       "stopped": "budget"}
   ok, _, reason = scoring.eval_program(m)
   assert not ok and reason == "p: did not finish -- stopped (budget) after 2 steps"
 

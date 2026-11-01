@@ -155,7 +155,7 @@ class EnergyModel:
   """
 
   world: str = ""
-  #: action name -> Wh, SWAP_PICK to the end of SWAP_RETURN
+  #: action name -> Wh, the errand from its start to its end
   errand_wh: dict[str, float] = field(default_factory=dict)
   #: what an action with no row costs. Falls back to the dearest measured one.
   default_wh: float = 0.0

@@ -296,6 +296,6 @@ def test_history_says_a_robot_on_the_floor_is_lying_there():
   back (`posture`, shared with the `WAIT:` narration)."""
   me, peer = _downed_pair()
   blocked = (peer.robot_name or peer.root, 0.4)
-  assert "was lying knocked over 0.40 m from the bay" in me.held_for(blocked)
+  assert "was lying knocked over 0.40 m from the charging station" in me.held_for(blocked)
   peer.stand_up("a test", auto=False)
-  assert "was standing 0.40 m from the bay" in me.held_for(blocked)
+  assert "was standing 0.40 m from the charging station" in me.held_for(blocked)

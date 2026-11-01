@@ -632,9 +632,8 @@ def test_a_model_still_saying_answered_is_understood():
 
 
 def test_a_decision_carries_its_reply_to_the_wire():
-  d = Decision(action="draw", board="whiteboard_a", program="house",
-               reason="asked nicely", respond_to="s1", outcome="accepted",
-               reply="good idea")
+  d = Decision(action="draw", reason="asked nicely", respond_to="s1",
+               outcome="accepted", reply="good idea")
   assert d.as_dict()["respondTo"] == "s1"
   assert d.as_dict()["outcome"] == "accepted"
 
@@ -1111,8 +1110,7 @@ def test_the_exchange_is_remembered_as_the_chats():
   life = _lifecycle(inbox=inbox)
   inbox.offer(message(id="m_1"))
   inbox.offer(follow_up())
-  life._answer_visitor(Decision(action="draw", board="whiteboard_b",
-                                program="house", respond_to="m_1",
+  life._answer_visitor(Decision(action="draw", respond_to="m_1",
                                 outcome="accepted", reply="on it"))
   life._answer_visitor(Decision(action="explore", respond_to="m_2",
                                 outcome="declined", reply="b is taken too"))

@@ -73,7 +73,7 @@ def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running():
   second step. The row names the errand, the step by count and source line,
   the state and every axis's setpoint -- the arms' -- and the true pose
   beside the believed one, which are read apart (the belief is pushed 0.25 m
-  off). `carrying` is a vestige of the quadruped's fork: None."""
+  off). Nothing names the quadruped's fork or swap since #579."""
   life = _humanoid()
   try:
     seen = _deaths(life)
@@ -101,8 +101,9 @@ def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running():
     assert at["errand"]["name"] == "procedure"
     assert at["step"] == {"procedure": "check", "n": 2, "line": 3,
                           "verb": "wait", "args": {"seconds": 5.0}}
-    assert at["state"] == "USE_TOOL"
-    assert at["carrying"] is None
+    assert at["state"] == "PROCEDURE"
+    # ...and nothing of the quadruped's fork or swap (#579)
+    assert not {"carrying", "swapping"} & set(at) and set(at["errand"]) == {"name", "task"}
     stand = hm.stand_qpos()                      # the arms hang where it stood
     assert at["setpoints"] == {n: round(stand.get(n, 0.0), 4) for n in axes.HUMANOID_JOINTS}
     assert at["pose"]["x"] == pytest.approx(sx, abs=0.03)
@@ -114,7 +115,7 @@ def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running():
     # fraction of a degree is noise, and "back" would count it among falls
     assert at["tilt"]["deg"] < 1.5
     assert at["tilt"]["towardDeg"] is None and at["tilt"]["toward"] is None
-    assert at["swapping"] is None and "peer" not in at
+    assert "peer" not in at
     # ...and the step is let go when it ends, however it ended
     assert life.step_now is None
   finally:

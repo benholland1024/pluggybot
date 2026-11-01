@@ -13,13 +13,14 @@ here is pinned on the prompt as it is built, nothing flown.
 """
 
 import itertools
+import json
 import re
 import textwrap
 from dataclasses import replace
 
 import pytest
 
-from pluggybot.lifecycle import HUMANOID_HOME, board_book, world_facts
+from pluggybot.lifecycle import HUMANOID_HOME, board_book, overseer_context, world_facts
 from pluggybot.mind import acts
 from pluggybot.mind import constitution as c
 from pluggybot.mind import overseer as ov
@@ -31,10 +32,14 @@ from pluggybot.procedure import steps as st
 from pluggybot.economy.scoring import default_table
 
 #: What no humanoid is told of: the quadruped's body, its dock and its rack,
-#: the tools on it, the question jobs written on a board.
+#: the tools on it and what it carried, the drawing and question jobs
+#: written on a board (#579: the last of them were in its form, its turns
+#: and its context).
 QUADRUPED_WORDS = re.compile(
   r"\b(four-legged|small dog|dock|lie down|lying|lie on|rack|bay [A-E]|bays|fork|bumper|"
-  r"tools?|modules?|module_\w+|stow|pen|claw|LCD|needsAnswer|whole number of at most)\b",
+  r"tools?|a_tool|modules?|module_\w+|stow\w*|bracket|what it is carrying|pen|claw|LCD|draw|"
+  r"figures|"
+  r"needsAnswer|whole number of at most)\b",
   re.I)
 #: ...nor the rover's (#376 deleted it), which the quadruped's rules were
 #: written over in #427.
@@ -140,6 +145,55 @@ def test_the_probe_measures_the_served_prompt_in_the_humanoids_words(monkeypatch
 def test_no_humanoid_prompt_names_another_bodys_world(flags):
   text = "\n\n".join(t for _, t in _sections(**flags))
   assert not _foreign(text), _foreign(text)
+
+
+def test_what_a_humanoid_is_shown_each_turn_names_no_other_bodys_world():
+  """#579: the turns and the context carried the quadruped's leftovers after
+  its rules had gone -- an offer's `needsAnswer`, the context's `rack`, the
+  other robot's `carrying`, a turn that told the robot to put its tool back
+  on its bracket -- and the form its `board`, `program` and `answer`."""
+  from test_two_minds import stub_pair
+  a, _ = stub_pair(tasks=True)
+  a.tasks.offer("open_drawer", "drawer", t=0.0)
+  state = overseer_context(a)
+  assert state["offeredTasks"] and state["others"]
+  shown = json.dumps(state)
+  for key in ("needsAnswer", "rack", "carrying"):
+    assert f'"{key}"' not in shown, key
+  turns = (ov._user_turn(ov.model_state(dict(state))),
+           ov._interrupt_turn(ov.model_state(dict(state)), "procedure:open",
+                              "your pack is at 28%"))
+  for turn in turns:
+    assert not _foreign(turn), _foreign(turn)
+  assert not {"board", "program", "answer"} & set(a.overseer.menu.schema()["properties"])
+
+
+#: The quadruped's station in narration's words: its rack and its bays, its
+#: dock, its board and its pins, the tools it fetched and stowed.
+STATION_WORDS = re.compile(r"\b(rack|dock|bays?|pins|fork|tools?|stow\w*|bracket|modules?|"
+                           r"charge bay|lie down|lying down)\b", re.I)
+
+
+def test_no_narration_or_history_line_names_the_quadrupeds_station():
+  """#579: narration -- a frame's `status`, the event stream, the other
+  robot's `doing` -- and History called the humanoids' charging station the
+  quadruped's: the rack, the charge bay, the dock and its board, its pins.
+  Every string the loop and the Navigator build them from is read (never a
+  docstring); the one left is `dock`, a key and a token, never said."""
+  import ast
+  from pathlib import Path
+  src = Path(__file__).resolve().parents[1] / "src" / "pluggybot"
+  said = []
+  for module in ("lifecycle.py", "navigator.py"):
+    tree = ast.parse((src / module).read_text())
+    docs = {id(node.body[0].value) for node in ast.walk(tree)
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef))
+            and node.body and isinstance(node.body[0], ast.Expr)}
+    said += [(module, node.lineno, node.value) for node in ast.walk(tree)
+             if isinstance(node, ast.Constant) and isinstance(node.value, str)
+             and id(node) not in docs and node.value != "dock"
+             and STATION_WORDS.search(node.value)]
+  assert not said, said
 
 
 def test_a_humanoid_is_shown_only_the_reward_rows_its_world_can_pay():

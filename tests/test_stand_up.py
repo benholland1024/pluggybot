@@ -95,7 +95,7 @@ def _forever(life, errand, closed: list, kill: bool = True):
   life._in_errand = True
   life._errand_now = errand
   life._errand_name = errand.name
-  life.state = "USE_TOOL"
+  life.state = "PROCEDURE"
   if kill:
     life.battery.energy_wh = 0.0
   try:
@@ -162,7 +162,7 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
 
     def errand_routine(errand):
       life._in_errand, life._errand_now = True, errand
-      life.state = "USE_TOOL"
+      life.state = "PROCEDURE"
       life.battery.energy_wh = 0.0
       try:
         while True:
@@ -171,7 +171,7 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
             #  still driven after the stand-up: say so and stop, so the test
             #  FAILS here rather than hanging
             resumed.append(float(life.data.time))
-            return {"errand": errand.name, "picked": False, "stowed": True}
+            return {"errand": errand.name}
       finally:
         closed.append(float(life.data.time))
 
@@ -268,7 +268,7 @@ def test_a_stand_up_inside_a_blocking_stretch_puts_the_state_back():
 
     def blocking():
       _hold(life, PAST_S)                         # the timer fires in here
-      life.state = "SWAP_RETURN"                  # ...and the errand runs on
+      life.state = "PROCEDURE"                    # ...and the errand runs on
       yield life.body.STILL
       raise AssertionError("resumed after the stand-up")
 

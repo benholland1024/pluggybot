@@ -170,7 +170,7 @@ def test_a_resting_robot_is_said_to_rest_where_it_is_in_the_way():
   tick.run(STEPPER, drive.drive_to_routine(*GOAL, 60.0))
   rec = drive.last_drive
   assert (rec["peerAt"], rec["peerM"], rec.get("peerRests")) == ("here", 3.6, True)
-  assert gave_up(rec, "Rowan").endswith("(Rowan lying down to rest in the way, 3.6 m off)")
+  assert gave_up(rec, "Rowan").endswith("(Rowan standing at rest in the way, 3.6 m off)")
   on = _Drive([_resting(GOAL[0] + 0.3, 0.0)], says=False)
   tick.run(STEPPER, on.drive_to_routine(*GOAL, 60.0))
   assert (on.last_drive["peerAt"], on.last_drive["peerM"]) == ("goal", 0.3)

@@ -54,10 +54,10 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
     cause = "stopped by the robot's own interrupt"
   elif why == "peer":
     far, lies = rec.get("peerM"), rec.get("peerDown")
-    # ...and one lying down by choice is resting, never fallen (#387, #415),
-    # and a dead one is neither (#455)
+    # ...and one resting is never fallen (#387, #415; a humanoid rests
+    # standing, #559), and a dead one is neither (#455)
     how = ("lying dead" if rec.get("peerDead") else "lying" if lies
-           else "lying down to rest" if rec.get("peerRests") else "")
+           else "standing at rest" if rec.get("peerRests") else "")
     if far is None:
       cause = f"{peer} in the way"
     elif rec.get("peerAt") == "goal":
