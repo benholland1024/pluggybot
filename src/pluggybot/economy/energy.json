@@ -51,12 +51,12 @@
       "errandWh": {
         "open_drawer": 7.082,
         "open_door": 5.715,
-        "place_cube": 4.704,
+        "place_cube": 4.865,
         "open_chest": 5.984
       },
-      "exploreWhPerS": 0.046233,
-      "chargeW": 345.2,
-      "measuredOn": "measured 29 Oct 2026 on the humanoid (issue #559), home_humanoid, 40 Wh pack, the world's 240 s explore, depth camera drawing (`scripts/energy_spike.py --world home_humanoid`): the explore 11.745 Wh over 254.0 s (166.4 W, the quadruped's 86.9 twice over; 0.045711 Wh/s again on 30 Oct, the dearer carried), its windings off their drivers' torques plus its electronics. Its charge measured 30 Oct 2026 the same way, the loop's own walk to its station and plug-in from the explore's end: 8.629 Wh in 90 s plugged in (345.2 W net: the station's NPB-750-48 at 10 A, 432 W, less the 86.9 W it draws standing; `scripts/station_spike.py --hold` read 345.1 over 60 s). The hand jobs (#559, stage 3) measured 31 Oct 2026 the same way, each its reference's two procedures (`challenge/solutions.py`) flown from the station with its place remembered (`--actions open_drawer,open_door,place_cube,open_chest`): the drawer 7.036 and 7.082 Wh over 162-164 s (the dearer carried, the second its final procedure), the door 5.715 over 137.4 s, the chest 5.984 over 138.8 s, the cube 4.704 over 108.3 s (its reference set the cube down 7 cm off the mat: every move a pass makes was flown)."
+      "exploreWhPerS": 0.048213,
+      "chargeW": 338.8,
+      "measuredOn": "measured 1 Nov 2026 on the Mid-360S's head with its map laid from its points laid flat (issue #581, stage 2), home_humanoid, 40 Wh pack, the world's 240 s explore (`scripts/energy_spike.py --world home_humanoid --actions open_drawer,open_door,place_cube,open_chest`): the explore 12.237 Wh over 253.8 s (173.5 W; 166.4 on the C1's head, #559), its windings off their drivers' torques plus its electronics, the Mid-360S's 6.2 W more among them; its charge, the loop's own walk to its station and plug-in from the explore's end, 8.494 Wh in 90 s plugged in (338.8 W net: the station's NPB-750-48 at 10 A, 432 W, less the 93 W it draws standing); the hand jobs, each its reference's two procedures (`challenge/solutions.py`) flown from the station with its place remembered: the drawer 4.735 Wh over 108.0 s, the door 5.167 over 124.5 s, the cube 4.865 over 110.8 s (passed), the chest 5.254 over 120.1 s. WHERE TWO HONEST MEASUREMENTS DISAGREE THE DEARER IS CARRIED: the C1's head's, 31 Oct 2026 (#559, stage 3), for the drawer (7.082 Wh over 164 s), the door (5.715 over 137.4 s) and the chest (5.984 over 138.8 s), their walks across the street on a map laid from a plane over the fences."
     }
   }
 }

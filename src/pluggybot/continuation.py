@@ -77,9 +77,14 @@ MAX_RESUMES = 3
 #: stand-up; Luca 5.0 m and Rowan 8.0 m from the truth on 2026-10-08).
 #: 3: #476's fix, which drops a map a commissioned fixture finds askew, on
 #: maps laid askew without it (put at the truth on them, a walk was 1.3 and
-#: 1.9 m out within 20 s).
-MAP_EPOCH = 3
-MAPS_DROPPED = "the map I had was laid askew, and it is gone"
+#: 1.9 m out within 20 s). 4: #581's stage 2, the map laid from the LIDAR's
+#: points laid flat, on maps laid from a plane over the fences: they hold
+#: every fence's cells as floor, and a scan goes in only at half its points
+#: on the walls, so the street's scans, mostly fence, might never go in.
+MAP_EPOCH = 4
+#: ...said for the newest epoch's reason: a save crosses only the bump the
+#: deploy that reads it brings.
+MAPS_DROPPED = "the map I had was laid before I could see low things, and it is gone"
 #: ...and History's words where the save is of the same house with another
 #: body in it (#559, `lifecycle.HOUSES`): the robot carries on in a new one,
 #: the clock, its pack, its deaths and its jobs with it.

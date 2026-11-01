@@ -10,6 +10,46 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The map laid from the LIDAR's points laid flat (#581, stage 2) — opens when this PR is deployed
+
+**What changed in the world.**
+- **Both robots' maps are laid from their LIDAR's points laid flat**: per
+  bearing the nearest surface between 0.15 m over the floor (rising 2 deg a
+  metre out) and 2.2 m, from 15 rings at 10 Hz (Ben's call 3), matched and
+  laid while each stands or walks in the posture its legs hold, bowed at a
+  counter too. Their maps hold the house's 0.9 m fences, the couch, the
+  beds, the tables and the counters, and outdoors they see the fences along
+  the street, where the level ring saw the buildings' walls alone.
+- **A return nearer than 1 m is no point of the matcher's fit**, and **a
+  step walks by its legs' reckoning**, never by a correction the matcher
+  made meanwhile (its report too: a procedure's `step.*` is the legs' alone).
+- **A deploy starts both robots at their starts on no map**
+  (`continuation.MAP_EPOCH` 4): the save keeps the clock, the packs, the
+  deaths and the jobs, and History says "the map I had was laid before I
+  could see low things, and it is gone". Deployed with stage 1 (released
+  with it or after it), the head's new shape does the same first, and
+  History says the world changed instead.
+- **The served pair runs at about 1.4x real time** on the deploy box (1.40
+  and 1.41x; the level ring's 1.68 and 1.78).
+- **The energy table is priced again on the new head**: the explore 173.5 W
+  (166.4), a charge 338.8 W net (345.2), and the cube's job 4.865 Wh (4.704;
+  not offered); the drawer's, the door's and the chest's keep the C1's
+  head's dearer readings.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #581's stage 2: in and beyond the middle street the level ring saw
+nothing to match, and 9 of #572's 14 drift flights were lost there; and a
+bowed robot neither mapped nor matched. Flown as served: 29 of 30 drift
+flights docked, and the station 80 of 85 starts (SimNotes, "The band
+served").
+
+**What the period is for.** #581's last box: a day of the pair, neither
+robot lost outdoors -- off the `drift` rows (the belief against the truth,
+and each relocation, fix, loss and search) against the periods before, and
+the charges and the falls. ⚠ If stage 1's period never ran alone, the one
+before is the C1's. ⚠ Where the weekend hours run, read rates per awake
+hour (#562's entry, below).
+
 ### A fallen robot is kept clear of round its middle, and a stand-up drops a step aside (#580) — opens when this PR is deployed
 
 **What changed in the world.**

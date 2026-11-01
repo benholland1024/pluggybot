@@ -58,7 +58,7 @@ class OccupancyGrid:
     world_y = ((y + 0.5) * self.resolution) + self.y_min
     return (world_x, world_y)
     
-  def update(self, pose, angles, ranges, max_range, origin=(0.03, 0.03)):
+  def update(self, pose, angles, ranges, max_range, origin=(0.03, 0.03), free_from=None):
     """Update the occupancy map. pose = (x, y, theta) at the AXLE midpoint.
 
     `origin` is where the sensor sits relative to that axle, in robot-frame
@@ -67,6 +67,10 @@ class OccupancyGrid:
     which is what the mission maps with. Getting this wrong slides
     the whole map by the difference, which is exactly the class of quiet
     error the rack-frame verdict bug was.
+
+    `free_from`, m a ray, is where each ray may begin to clear a cell the
+    map holds a wall in (`perception.lidar.Scan`): nearer, it frees only
+    cells with no wall's evidence in them.
     """
     px, py, theta = pose
     fwd, left = origin
@@ -112,7 +116,15 @@ class OccupancyGrid:
     hin = hit & (hxs.view(np.uint32) < cols) & (hys.view(np.uint32) < rows)
 
     # One weighted bincount accumulates all the evidence in a single pass
-    free_cells = cells[keep]
+    if free_from is not None:
+      # ...nearer than its `free_from`, a ray frees no cell the map holds
+      # any wall's evidence in (read before this scan)
+      near = keep & (ts < np.asarray(free_from, dtype=float)[:, None])
+      keep &= ~near
+      walled = self.grid.reshape(-1)[cells[near]] > 0.0
+      free_cells = np.concatenate([cells[keep], cells[near][~walled]])
+    else:
+      free_cells = cells[keep]
     hit_cells = (hys * cols + hxs)[hin]
     weights = np.concatenate([np.full(free_cells.size, L_FREE),
                               np.full(hit_cells.size, L_OCC)])

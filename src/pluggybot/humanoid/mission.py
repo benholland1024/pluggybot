@@ -3,15 +3,17 @@ humanoid -- the map, the planner, the LIDAR, the scan matcher and the drive
 the quadruped walks by -- with what only this body says: where it believes
 it is (its leg odometry and IMU, `humanoid.odometry`), how it walks a
 velocity (its walking policy, `humanoid.walk`), its front stop, and what
-its depth camera sees under its LIDAR's level ring.
+its depth camera sees by its feet.
 
-⚠ ITS MAP IS LAID FROM ITS LIDAR'S LEVEL RING, 1.47 m up, OVER every
-table, counter, couch and bed in the house: a map of that plane alone plans
-straight through them. So the D435's points between the floor and that
-plane are a layer of their own the planner plans round (`_fold_low`, the
-quadruped's rule with the humanoid's band, `LOW_MAX_Z`). The LIDAR sees
-them (#581): its points laid flat (`band`) are a measurement's, not yet
-served.
+ITS MAP IS LAID FROM ITS LIDAR'S POINTS LAID FLAT (#581's stage 2,
+`Lidar.band`): per bearing the nearest surface between a foot's clearance
+and over its head, levelled through its IMU and set over the floor by its
+model of itself -- the fences, the tables, the couch and the beds with the
+walls -- and laid while it stands or walks in the posture its legs hold,
+bowed too (`maps`). ⚠ Upside down 1.47 m up, the LIDAR's steepest ray meets
+the floor 1.15 m out, so by its feet the D435's points under 1.35 m are a
+layer of their own the planner plans round (`_fold_low`, the quadruped's
+rule, `LOW_MAX_Z`).
 
 Its legs are one of two policies': the WALKING one's while it moves, the
 STANDING one's while it stands to reach (`humanoid.policy`, `humanoid.
@@ -40,7 +42,7 @@ import numpy as np
 from pluggybot import tick
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.arms import SelfModel, kept_value, value_back
-from pluggybot.humanoid.getup import GETUP_NPZ, FallWatch, GetupDriver
+from pluggybot.humanoid.getup import GETUP_NPZ, FallWatch, GetupDriver, tipped
 from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.places import HumanoidPlaces
 from pluggybot.humanoid.policy import StandDriver, StandPolicy
@@ -51,6 +53,7 @@ from pluggybot.humanoid.way import HumanoidWay
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator
 from pluggybot.perception.depth import UNCULLED, DepthCamera, DepthFrame
+from pluggybot.perception.lidar import Scan
 from pluggybot.robot import FIRST, RobotHandle
 
 STILL = (0.0, 0.0, 0.0)
@@ -177,10 +180,17 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   PROGRESS_ALONG_ROUTE = True
   OPTIMISTIC = True
   PROGRESS_MAP_GROWTH = True
-  #: Its IMU's tilt under which the LIDAR's scan is a map of the room: a
-  #: walking trunk rocks a degree or so, and a 1.47 m plane tilted 2 deg
-  #: reaches the floor at 42 m, past the LIDAR's 8.
+  #: Its IMU's tilt under which a depth frame goes into the planner's layer
+  #: and a look finds places (`level`): a walking trunk rocks a degree or so.
   LEVEL_TILT = math.radians(2.0)
+  #: ...and how far its trunk may tip off the posture its legs hold, by its
+  #: IMU (`getup.tipped`), and its LIDAR's points still go into the map
+  #: (`maps`): through its tilt and its model of itself on its feet they are
+  #: laid where they are, bowed or swaying -- walking it tipped up to 6.6
+  #: deg off upright, bowed 52 deg with its tilt read to 0.6 -- and past
+  #: it, it is stumbling or falling, its model of a body standing on its
+  #: soles no longer the body (the get-up's 35 deg, `getup.FALL_TILT_RAD`).
+  MAP_TIP_RAD = math.radians(12.0)
   #: The odometry's tick, s.
   ODO_S = 0.01
 
@@ -216,11 +226,6 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._frame_level = False
     self.low = np.zeros_like(self.grid.grid, dtype=np.float32)
     self._walls_t, self._walls_mask = None, None
-    #: Its LIDAR's points laid flat by height (`Lidar.band`), levelled
-    #: through its IMU, as the scan its map is laid from and matched by,
-    #: where its level ring is (#581's stage 1: a measurement's switch, never
-    #: a deployment's; its stage 2 serves the band).
-    self.band = False
     self._init_way()
     # THE PLACES IT FINDS (`humanoid.places`): the quadruped's search, its
     # looks through the head's navigation camera
@@ -246,6 +251,12 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def level(self) -> bool:
     return self.stand.trunk.attitude.tilt() <= self.LEVEL_TILT
+
+  def maps(self) -> bool:
+    """On its feet, its trunk within `MAP_TIP_RAD` of the posture its legs
+    hold: its LIDAR's points, levelled, are the room's (`_scan`)."""
+    return (self.legs != "getup"
+            and tipped(self.stand.trunk.gravity(), self._held_pitch()) <= self.MAP_TIP_RAD)
 
   def run(self, routine, name: str = ""):
     return tick.run(self.stepper, routine, name)
@@ -616,13 +627,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     start, a stand-up). The map is not touched here."""
     self._build_drivers(self.stand.policy, self.walker.policy)
 
-  def _scan(self) -> tuple:
-    """Its LIDAR's level ring, or with `band` its points laid flat: through
-    its IMU's tilt and set over the floor at its pelvis's height off its
-    legs' encoders (its model of itself), as its depth frames are
-    (`_levelled`)."""
-    if not self.band:
-      return super()._scan()
+  def _scan(self) -> Scan:
+    """Its LIDAR's points laid flat (`Lidar.band`): through its IMU's tilt
+    and set over the floor at its pelvis's height off its legs' encoders
+    (its model of itself), as its depth frames are (`_levelled`)."""
     return self.lidar.band(self.data, self.stand.trunk.attitude.level(),
                            float(self.odo.sm.d.qpos[2]))
 

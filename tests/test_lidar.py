@@ -25,20 +25,22 @@ FENCE = '<geom name="fence" type="box" size="0.02 1.2 0.45" pos="2.0 0 0.45"/>'
 SITE_Z = hm.CHOSEN.head_z + hm.CHOSEN.head_half[2] + hm.CHOSEN.lidar_rise
 
 
-def _post(spec, z: float = SITE_Z) -> None:
+def _post(spec, z: float = SITE_Z, half_h: float = 0.05) -> None:
   """A part of the robot in its own level ring: a post on its pelvis, 0.3 m
-  ahead of the LIDAR, collidable as its own geoms are."""
+  ahead of the LIDAR, `half_h` m above and below it, collidable as its own
+  geoms are."""
   spec.body("pluggybot").add_geom(name="plane_post", type=mujoco.mjtGeom.mjGEOM_BOX,
-                                  pos=[0.3, 0.0, z], size=[0.02, 0.06, 0.05],
+                                  pos=[0.3, 0.0, z], size=[0.02, 0.06, half_h],
                                   contype=1, conaffinity=0)
 
 
-def _world(scenery: str = ROOM, post: bool = False, pitch: float = 0.0):
+def _world(scenery: str = ROOM, post: bool = False, pitch: float = 0.0,
+           post_half_h: float = 0.05):
   """The robot standing (the stand keyframe, its arms hanging) in
   `scenery`, its trunk pitched `pitch` rad forward: (model, data)."""
   spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, scenery=scenery))
   if post:
-    _post(spec)
+    _post(spec, half_h=post_half_h)
   model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
@@ -206,7 +208,8 @@ def test_the_cloud_lies_on_the_room():
   on_wall = ((np.abs(world[:, 0] - 2.98) < 1e-6) | (np.abs(world[:, 0] + 0.98) < 1e-6)
              | (np.abs(np.abs(world[:, 1]) - 1.48) < 1e-6))
   assert (on_floor | on_wall).all()
-  assert on_floor.sum() > 1000 and on_wall.sum() > 1000
+  rays = len(c.looked)
+  assert on_floor.sum() > 0.15 * rays and on_wall.sum() > 0.15 * rays
   assert len(c.peers) == 0
   # ...and every bearing saw something but the few its bracket's post hides
   lidar = _clean(model)
@@ -227,7 +230,7 @@ def test_the_floor_is_struck_however_far_its_middle():
   c = _clean(model).cloud(data)
   site = data.site_xpos[model.site("lidar").id]
   on_floor = np.abs((c.points + site)[:, 2]) < 1e-6
-  assert on_floor.sum() > 3000, f"{on_floor.sum()} returns off the floor"
+  assert on_floor.sum() > 0.3 * len(c.looked), f"{on_floor.sum()} returns off the floor"
 
 
 def _room_range(angles, x0: float = 0.0, fence: bool = False) -> np.ndarray:
@@ -254,22 +257,24 @@ def test_the_band_lays_a_low_fence_the_level_ring_passes_over():
   assert ranges[np.argmin(np.abs(angles))] == pytest.approx(2.98, abs=0.01), \
     "the premise: the ring passes over the fence"
   level, height = _truth(model, data)
-  b_angles, b_ranges, _, _ = lidar.band(data, level, height)
+  b_angles, b_ranges = lidar.band(data, level, height)[:2]
   assert np.allclose(b_ranges, _room_range(b_angles, fence=True), atol=0.02)
   assert lidar_mod.BEARINGS - 5 <= len(b_angles) < lidar_mod.BEARINGS
 
 
 def test_the_band_is_laid_through_the_tilt():
   """Pitched 10 deg forward, its points through the robot's tilt still put
-  the fence's face 1.98 m ahead of its pelvis, the floor out of the band.
-  Laid as if level, the floor ahead rises into it and walls the robot in."""
+  the fence's face 1.98 m ahead of its pelvis, seen from where its sensor
+  is (`Scan.origin`), the floor out of the band. Laid as if level, the
+  floor ahead rises into it and walls the robot in."""
   model, data = _world(ROOM + FENCE, pitch=math.radians(10))
   lidar = _clean(model)
   level, height = _truth(model, data)
-  angles, ranges, _, _ = lidar.band(data, level, height)
-  ahead = np.abs(angles) < math.radians(15)
-  assert np.allclose(ranges[ahead], 1.98 / np.cos(angles[ahead]), atol=0.03)
-  angles, ranges, _, _ = lidar.band(data, np.eye(3), height)
+  scan = lidar.band(data, level, height)
+  ahead = np.abs(scan.angles) < math.radians(15)
+  assert np.allclose(scan.ranges[ahead], (1.98 - scan.origin[0]) / np.cos(scan.angles[ahead]),
+                     atol=0.03)
+  angles, ranges = lidar.band(data, np.eye(3), height)[:2]
   ahead = np.abs(angles) < math.radians(15)
   assert ranges[ahead].min() < 1.5, "the premise: unlevelled, the floor reads as a wall"
 
@@ -292,7 +297,7 @@ def test_the_band_lays_no_free_ray_down_a_return():
   mujoco.mj_forward(model, data)
   lidar = _clean(model)
   level, height = _truth(model, data)
-  angles, ranges, _, _ = lidar.band(data, level, height)
+  angles, ranges = lidar.band(data, level, height)[:2]
   hit = ranges < lidar.max_range - 1e-9
   assert hit.sum() >= 2, "the premise: the band strikes the box"
   gap = np.abs((angles[hit][:, None] - angles[~hit][None, :] + math.pi) % (2 * math.pi) - math.pi)
@@ -328,7 +333,7 @@ def test_the_band_reads_a_wall_where_it_stands():
   level, height = _truth(model, data)
   err = []
   for seed in range(4):
-    angles, ranges, _, _ = Lidar(model, seed=seed).band(data, level, height)
+    angles, ranges = Lidar(model, seed=seed).band(data, level, height)[:2]
     err.append(ranges - _room_range(angles))
   err = np.concatenate(err)
   assert len(err) > 4 * (lidar_mod.BEARINGS - 10)
@@ -373,3 +378,211 @@ def test_its_noise_is_its_robots_own():
   other = Lidar(model, robot_body="r2_pluggybot").scan(data)
   assert all(np.array_equal(a, b) for a, b in zip(first, again))
   assert not np.array_equal(first[1], other[1])
+
+
+def test_a_bearing_clears_no_wall_nearer_than_its_steepest_ray_comes_down():
+  """A box 0.3 m tall 0.75 m ahead is under every ray there (the steepest
+  meets the band's floor 1 m out), so the band reads the wall behind it:
+  laid from the sensor out, that bearing cleared the box a map had from
+  afar as the robot walked up to it. Nearer than where its steepest ray
+  comes down through the band's floor, a bearing clears no cell the map
+  holds a wall in (#581's stage 2), so the box stays as the map had it --
+  and lays floor where nothing was seen, as a robot standing amid cells it
+  never saw from afar, at its boot, needs to find its way off them."""
+  box = '<geom name="low" type="box" size="0.05 0.3 0.15" pos="0.8 0 0.15"/>'
+  model, data = _world(ROOM + box)
+  lidar = _clean(model)
+  level, height = _truth(model, data)
+  scan = lidar.band(data, level, height)
+  ahead = np.argmin(np.abs(scan.angles))
+  assert scan.ranges[ahead] == pytest.approx(2.98, abs=0.03), \
+    "the premise: every ray passes over the box"
+  assert 0.9 < scan.free_from[ahead] < 1.1, scan.free_from[ahead]
+  assert np.all(scan.free_from > 0.9), "a bearing frees floor nearer than its rays come down"
+
+  def laid(free_from):
+    g = OccupancyGrid(x_min=-3, y_min=-3, x_max=7, y_max=7, resolution=0.05)
+    box, unseen = g.world_to_cell(0.75, 0.0), g.world_to_cell(0.5, 0.0)
+    g.grid[box[1], box[0]] = 2.0                    # the box, mapped from afar
+    for _ in range(10):
+      g.update((0.0, 0.0, 0.0), scan.angles, scan.ranges, lidar.max_range,
+               origin=scan.origin, free_from=free_from)
+    return g.grid[box[1], box[0]], g.grid[unseen[1], unseen[0]]
+
+  box, unseen = laid(scan.free_from)
+  assert box == 2.0, "the band cleared a box it cannot see"
+  assert unseen < 0.0, "the band laid no floor where nothing had been seen"
+  assert laid(None)[0] < 0.0, "the premise: freed from the sensor out, the box is cleared"
+
+
+def test_the_bands_floor_rises_with_range():
+  """Walking, the IMU's tilt is off by up to 1.8 deg (its 95th percentile,
+  `BAND_RISE`): levelled 1.8 deg wrong, the floor 4-8 m out reads 0.13-0.25
+  m up, over the band's 0.15 m floor, and walls in a robot in the open. The
+  floor rises with range, so none of it is in the band; with no rise, the
+  premise, the far floor is."""
+  model, data = _world("")                          # no walls: the floor alone
+  lidar = _clean(model)
+  level, height = _truth(model, data)
+  err = math.radians(1.8)
+  tilted = np.array([[math.cos(err), 0.0, -math.sin(err)], [0.0, 1.0, 0.0],
+                     [math.sin(err), 0.0, math.cos(err)]]) @ level
+  scan = lidar.band(data, tilted, height)
+  assert np.all(scan.ranges >= lidar.max_range - 1e-9), \
+    f"the floor read {scan.ranges.min():.2f} m off in the band"
+  scan = lidar.band(data, tilted, height, rise=0.0)
+  assert (scan.ranges < lidar.max_range - 1e-9).any(), \
+    "the premise: with no rise, the far floor tilted 1.8 deg is in the band"
+
+
+def test_a_closed_room_has_no_free_bearing_behind_the_post():
+  """Behind the robot the bracket's post hides most of a bearing's rays,
+  and the one that peeks past it decided the bearing: its point, jittered,
+  landing a bearing over, or a steep ray seeing the band empty for a metre
+  and meeting the floor, laid its bearing free to 8 m through the wall it
+  never saw past -- every bearing round, as the robot turned (#581's stage
+  2: 78 frames in 240 here). A bearing is free only off a ray that stayed in
+  the band to max range and brought nothing back: in a closed room, none,
+  whatever the noise or a walking trunk's tilt."""
+  leaks = []
+  for roll, pitch in ((0.0, 0.0), (0.01, 0.0), (0.0, 0.015), (-0.012, 0.01), (0.02, -0.01)):
+    model, data = _world(ROOM)
+    turn = np.zeros(4)
+    mujoco.mju_mulQuat(turn, np.array([math.cos(roll / 2), math.sin(roll / 2), 0.0, 0.0]),
+                       np.array([math.cos(pitch / 2), 0.0, math.sin(pitch / 2), 0.0]))
+    out = np.zeros(4)
+    mujoco.mju_mulQuat(out, data.qpos[3:7].copy(), turn)
+    data.qpos[3:7] = out
+    mujoco.mj_forward(model, data)
+    level, height = _truth(model, data)
+    for seed in range(20):
+      scan = Lidar(model, seed=seed).band(data, level, height)
+      free = scan.ranges >= lidar_mod.MAX_RANGE - 1e-9
+      leaks += [(roll, pitch, seed, float(np.degrees(a))) for a in scan.angles[free]]
+  assert not leaks, f"{len(leaks)} free bearings in a closed room: {leaks[:4]}"
+
+
+def test_a_dropped_return_frees_nothing():
+  """A return the part drops is no reading, as the level ring's
+  (`scan_split`): taken for nothing back, a near-level ray whose return off
+  the wall was dropped laid its bearing free to 8 m through it -- half the
+  returns dropped, in a closed room, 25 bearings in 50 frames; all of them,
+  every bearing round."""
+  model, data = _world(ROOM)
+  level, height = _truth(model, data)
+  lidar = Lidar(model, seed=3)
+  for dropout in (0.5, 1.0):
+    lidar.dropout = dropout
+    for _ in range(10):
+      scan = lidar.band(data, level, height)
+      assert not (scan.ranges >= lidar_mod.MAX_RANGE - 1e-9).any(), \
+        f"{dropout:.0%} of the returns dropped laid a bearing free"
+  assert not len(lidar.scan_split(data)[0]), \
+    "the premise: every return dropped, the ring says nothing"
+
+
+def test_a_ray_the_rising_floor_meets_short_of_max_range_frees_nothing():
+  """The band's floor RISES to meet a ray under level: the -8 deg ring
+  comes down through it 7.5 m out. Taken for a floor that fell, it stayed
+  in the band to 12.5 m and freed its bearing to 8 m. So, the level rings
+  hidden ahead by a post on the robot and nothing within reach, no bearing
+  behind the post is free; without the post, the level ring frees them."""
+  def ahead(a):
+    return np.abs(a) < math.radians(8)
+  model, data = _world("", post=True, post_half_h=0.035)
+  level, height = _truth(model, data)
+  scan = _clean(model).band(data, level, height)
+  assert not ahead(scan.angles).any(), \
+    f"{int(ahead(scan.angles).sum())} bearings behind the post laid free"
+  model, data = _world("")
+  scan = _clean(model).band(data, level, height)
+  assert ahead(scan.angles).sum() >= 10, "the premise: in the open, the level ring frees them"
+
+
+def _square(half: float) -> str:
+  """A closed square room `half` m from the robot each way, 2.4 m tall."""
+  return "".join(
+    f'<geom name="side_{i}" type="box" size="{sx} {sy} 1.2" pos="{x} {y} 1.2"/>'
+    for i, (sx, sy, x, y) in enumerate([(0.02, half + 0.04, half + 0.02, 0.0),
+                                        (0.02, half + 0.04, -half - 0.02, 0.0),
+                                        (half + 0.04, 0.02, 0.0, half + 0.02),
+                                        (half + 0.04, 0.02, 0.0, -half - 0.02)]))
+
+
+def test_a_bowed_robots_scan_is_laid_from_where_its_sensor_is():
+  """Bowed 52 deg, the sensor is 0.58 m ahead of where it sits on the robot
+  upright. A free bearing laid from there to 8 m ran up to 0.5 m past what
+  its ray reached: in a room 7 m round, 16 bearings through the wall
+  behind. Laid from the scan's origin, where the sensor is, none."""
+  half = 7.0
+  model, data = _world(_square(half), pitch=math.radians(52))
+  level, height = _truth(model, data)
+  for lidar in (_clean(model), Lidar(model, seed=1), Lidar(model, seed=2)):
+    scan = lidar.band(data, level, height)
+    assert scan.origin[0] == pytest.approx(0.58, abs=0.02), \
+      "the premise: bowed, the sensor is half a metre ahead"
+    ox, oy = scan.origin
+    through = []
+    for a in scan.angles[scan.ranges >= lidar.max_range - 1e-9]:
+      c, s = math.cos(a), math.sin(a)
+      wall = min((w - o) / u for w, o, u in ((half, ox, c), (-half, ox, c), (half, oy, s),
+                                             (-half, oy, s)) if abs(u) > 1e-9 and (w - o) / u > 0)
+      if wall < lidar.max_range - 0.05:
+        through.append((round(math.degrees(a), 1), round(wall, 2)))
+    assert not through, f"free bearings through the wall: {through[:6]}"
+
+
+def _cleared(scenery, cell, pitch: float = 0.0, peer: str = "", scans: int = 10):
+  """A wall's cell (`cell`, x, y) the map holds at +2, and what `scans` of
+  the band, laid from where it stands, leave of it; and the last scan."""
+  model, data = _world(scenery, pitch=pitch)
+  lidar = Lidar(model, seed=5)
+  if peer:
+    lidar.exclude_robot(peer)
+  level, height = _truth(model, data)
+  g = OccupancyGrid(x_min=-7, y_min=-7, x_max=7, y_max=7, resolution=0.05)
+  cx, cy = g.world_to_cell(*cell)
+  g.grid[cy, cx] = 2.0
+  for _ in range(scans):
+    scan = lidar.band(data, level, height)
+    g.update((0.0, 0.0, 0.0), scan.angles, scan.ranges, lidar.max_range,
+             origin=scan.origin, free_from=scan.free_from)
+  return g.grid[cy, cx], scan
+
+
+def test_a_bowed_robot_clears_no_wall(monkeypatch):
+  """Bowed, the rings no longer fan down along every bearing -- behind,
+  they point up -- and the steepest, turned past straight down, land
+  behind it a few cm out: taken for those bearings' floor, a low box 2 m
+  behind, under every ray, was cleared through the wall's return 4 m
+  behind, 8 bearings of 9 bowed 52 deg. Tilted past `CLEARS_TILT_RAD` a
+  scan clears no wall."""
+  for deg in (150, 180, 210):
+    a = math.radians(deg)
+    c, s = math.cos(a), math.sin(a)
+    scenery = (f'<geom name="far" type="box" size="0.02 3 1.2" pos="{4 * c} {4 * s} 1.2" '
+               f'euler="0 0 {deg}"/><geom name="low" type="box" size="0.15 0.3 0.25" '
+               f'pos="{2 * c} {2 * s} 0.25" euler="0 0 {deg}"/>')
+    face = (1.84 * c, 1.84 * s)
+    kept, scan = _cleared(scenery, face, pitch=math.radians(52))
+    assert kept == 2.0, f"bowed, the box {deg} deg round was cleared ({kept:+.1f})"
+    assert np.isinf(scan.free_from).all()
+  monkeypatch.setattr(lidar_mod, "CLEARS_TILT_RAD", math.pi / 2)
+  assert _cleared(scenery, face, pitch=math.radians(52))[0] < 0.0, \
+    "the premise: clearing walls bowed, the box is cleared"
+
+
+def test_nothing_low_behind_another_robot_is_cleared():
+  """Another robot 2 m ahead hides a 0.5 m box 3.7 m ahead, and the rings
+  over its head read the wall 6 m ahead: laid out to it, that bearing
+  cleared the box (+5 to -5 in 3 s). Behind another robot nearer than the
+  room, a bearing clears no wall."""
+  wall = '<geom name="far" type="box" size="0.02 3 1.2" pos="6.02 0 1.2"/>'
+  low = '<geom name="low" type="box" size="0.2 0.4 0.25" pos="3.7 0 0.25"/>'
+  peer = ('<body name="peer" pos="2.0 0 0"><geom name="peer_body" type="box" '
+          'size="0.12 0.25 0.72" pos="0 0 0.72"/></body>')
+  kept, scan = _cleared(wall + low + peer, (3.52, 0.0), peer="peer")
+  ahead = np.argmin(np.abs(scan.angles))
+  assert scan.ranges[ahead] == pytest.approx(6.0, abs=0.1), \
+    "the premise: the room ahead reads the wall over its head"
+  assert kept == 2.0, f"the box behind the other robot was cleared ({kept:+.1f})"

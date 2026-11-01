@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-"""The humanoid's LIDAR (issue #581, stage 1; SimNotes, "The 3D LIDAR on the
-head"): the Livox Mid-360S upside down on its head, measured before anything
-is served from its points -- what the robot's own body hides of a frame,
-what a frame costs, and what the scan matcher can fix outdoors with its
-points laid flat (`Lidar.band`) against its level ring (`Lidar.scan`, the
-scan the map is laid from today).
+"""The humanoid's LIDAR (issue #581; SimNotes, "The 3D LIDAR on the head" and
+"The band served"): the Livox Mid-360S upside down on its head -- what the
+robot's own body hides of a frame, what a frame costs, and what the scan
+matcher can fix outdoors with its points laid flat (`Lidar.band`, the scan
+the map is laid from since #581's stage 2) against its level ring
+(`Lidar.scan`, the C1's plane's, which it was laid from before).
 
     MUJOCO_GL=egl uv run python scripts/lidar_spike.py --hidden
                                   # what its body hides of a frame: standing,
@@ -19,8 +19,8 @@ scan the map is laid from today).
     ... --view                    # a walk from the living room to the
                                   # storeroom across the street, its map
                                   # laid from its points laid flat, the
-                                  # band's returns drawn red and the ring's
-                                  # blue (MUJOCO_GL unset)
+                                  # band's returns drawn red and the level
+                                  # ring's blue (MUJOCO_GL unset)
     ... --strip [--out PNG]       # its filmstrip: lidar_spike.png
 
 The truth -- where the robot is, what a ray struck -- is ours, read to
@@ -215,10 +215,12 @@ def cost_table(n: int = 120, repeat: int = 3) -> dict:
 # ---- --probe -------------------------------------------------------------------
 
 def _scan(variant: str, model, data, lidar):
+  """(angles, ranges, where each ray's free run begins): the level ring's,
+  or the band's, the map's since #581's stage 2."""
   if variant == "ring":
-    return lidar.scan(data)
-  a, r, _, _ = lidar.band(data, np.eye(3), hm.stand_height())
-  return a, r
+    return (*lidar.scan(data), None)
+  s = lidar.band(data, np.eye(3), hm.stand_height())
+  return s.angles, s.ranges, s.free_from
 
 
 def lay(variant: str, model, data, lidar, bounds, step: float = 1.0, seed: int = 7):
@@ -233,8 +235,8 @@ def lay(variant: str, model, data, lidar, bounds, step: float = 1.0, seed: int =
     for (x, y) in lattice(z, step=step, inset=step / 2):
       th = float(rng.uniform(-math.pi, math.pi))
       stand_at(model, data, x, y, th)
-      a, r = _scan(variant, model, data, lidar)
-      g.update((x, y, th), a, r, lidar.max_range, origin=(0.0, 0.0))
+      a, r, free_from = _scan(variant, model, data, lidar)
+      g.update((x, y, th), a, r, lidar.max_range, origin=(0.0, 0.0), free_from=free_from)
   return g
 
 
@@ -252,7 +254,7 @@ def probe(variant: str, seed: int = 581) -> list[dict]:
     for (x, y) in lattice(z):
       th = float(rng.uniform(-math.pi, math.pi))
       stand_at(model, data, x, y, th)
-      a, r = _scan(variant, model, data, lidar)
+      a, r, _ = _scan(variant, model, data, lidar)
       m = ScanMatcher(g, origin=(0.0, 0.0), max_range=lidar.max_range).match((x, y, th), a, r)
       rows.append({"variant": variant, "zone": z["name"], "x": x, "y": y, "why": m.why,
                    "held": m.held, "weak": [float(v) for v in m.weak_dir],
@@ -289,8 +291,7 @@ DOT_M = 0.035
 
 def walk_world():
   """The served body in its house at the living room's start, as the loop
-  boots it, its map laid from its points laid flat (`HumanoidMission.band`,
-  the stage's measurement switch): (model, data, body)."""
+  boots it: (model, data, body)."""
   from pluggybot.body import body_for
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   from pluggybot.robot import world_spec
@@ -298,7 +299,6 @@ def walk_world():
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   body = body_for(model, data, grid_bounds=cfg["grid_bounds"])
-  body.mission.band = True
   body.start_at(*cfg["start"])
   return model, data, body
 

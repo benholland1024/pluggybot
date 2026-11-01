@@ -8,7 +8,8 @@ mission N times in separate processes and, in each, hashes:
 
   step    qpos + qvel + ctrl every TRACE_EVERY_S of sim time
   tag     each TagDetector.detect: the rendered camera image, and the decode
-  lidar   each Lidar.scan_split: the bearings and ranges, room and peers
+  lidar   each Lidar.scan_split and Lidar.band: the bearings and ranges,
+          room and peers
   say     every narration line
 
 then aligns the traces and reports the first step whose state differs and
@@ -102,6 +103,17 @@ def child(cfg: dict, trace_path: Path) -> None:
     return out
 
   lidar_mod.Lidar.scan_split = scan_split
+  # ...and `band`, which the humanoid's map is laid from (#581)
+  real_band = lidar_mod.Lidar.band
+
+  def band(self, data, *a, **kw):
+    s = real_band(self, data, *a, **kw)
+    log(k="lidar", t=round(float(data.time), 4),
+        h=_h(np.concatenate([s.angles, s.ranges, s.peer_angles, s.peer_ranges])),
+        n=int(len(s.ranges)), peers=int(len(s.peer_ranges)))
+    return s
+
+  lidar_mod.Lidar.band = band
 
   state = {"next": 0.0}
 

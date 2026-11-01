@@ -148,11 +148,12 @@ def test_a_robot_on_its_side_writes_nothing_into_its_map():
   """Issue #339, off the deployed world: a robot lay on its side scanning,
   half its rays saw the sky, and they went into the map as free space 8 m
   through the walls -- a map its every later life inherited. The height
-  map had the depth camera's frames the same way. Each is a map of the
-  room only while the body stands level, as its own IMU reads it; standing
-  again, each takes its sensor again. The scan matcher is off: on, it
-  refuses a toppled scan anyway (#386), and the level rule would be
-  pinned by nothing."""
+  map had the depth camera's frames the same way. The grid takes the
+  LIDAR's points laid flat only while the trunk is on its feet in the
+  posture its legs hold (`HumanoidMission.maps`, #581), the height map the
+  camera's only while level, each as its own IMU reads it; standing again,
+  each takes its sensor again. The scan matcher is off: on, it refuses a
+  toppled scan anyway (#386), and the rule would be pinned by nothing."""
   life = _humanoid(near_field=True)
   life.body.mission.matcher = None
   grid = life.body.grid
@@ -162,11 +163,15 @@ def test_a_robot_on_its_side_writes_nothing_into_its_map():
   _hold(life, 0.3)
   assert grid.grid.any() and folds, "the premise: standing, both are written"
   _topple_humanoid(life)
-  _hold(life, 0.2)          # its IMU's filter reads a body laid down at once in 0.15 s
-  assert not life.body.level()
+  # ...laid down between two steps, which its gyro never sees: its IMU's
+  # filter reads the tilt off its accelerometer as the body drops, past the
+  # camera's level in 0.15 s and past the map's tip in 0.4 (a fall turns
+  # it, and the gyro reads that as it turns)
+  _hold(life, 0.5)
+  assert not life.body.level() and not life.body.mission.maps()
   before, seen = grid.grid.copy(), len(folds)
   _hold(life, 1.0)                                   # ten scans on its side
-  assert not life.body.level()
+  assert not life.body.level() and not life.body.mission.maps()
   assert (grid.grid == before).all(), "a scan taken on its side went into the map"
   assert len(folds) == seen, "a toppled camera's frames went into the height map"
   life.body.start_at(*world_config(HUMANOID_HOME)["start"])

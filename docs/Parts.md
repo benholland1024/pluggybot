@@ -293,9 +293,9 @@ its colour imager reads the tags within reach (a counter's props, the
 station). The Camera Module 3 above it, pitched 20°, reads the tags on the
 walls that mark places, and is the eye a `look` sees through. The
 Mid-360S rides upside down on a bracket over the head, its rays leaving
-1.47 m up: its level ring is over the tables, the couch and the bed, which
-the depth camera sees, and its points laid flat see them too (#581). The
-IMU rides the pelvis.
+1.47 m up: its map is laid from its points laid flat, which see the tables,
+the couch and the bed, and the depth camera sees them by its feet too
+(#581). The IMU rides the pelvis.
 
 **The bill.** `humanoid/bill.py`, rendered here and written to
 `protocol/parts.json` by `uv run python -m pluggybot.humanoid.bill`: a part

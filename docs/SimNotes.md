@@ -3866,23 +3866,22 @@ legs; and why the wide search took back none of them.
 **What is true now.** The humanoid's LIDAR is a Livox Mid-360S, upside down
 on a bracket over its head (Parts.md, "The LIDAR"): its field is +7 down to
 -52 deg, its rays leave 1.47 m up standing. Its LEVEL RING, the 360 bearings
-at 0 deg, is the scan the map is laid from and matched by, as the RPLIDAR
-C1's plane was, 5 cm higher: served, it behaves as the C1 did. Its points
+at 0 deg, behaves as the RPLIDAR C1's plane did, 5 cm higher. Its points
 LAID FLAT -- per bearing the nearest surface 0.15-2.2 m over the floor,
 through the IMU's tilt (`Lidar.band`) -- see the house's 0.9 m fences, the
-couch, the tables and the beds, and are a measurement's switch
-(`HumanoidMission.band`) until stage 2 serves them. Flown with them, the 14
-drift flights that #572 lost 9 of were 14 of 14 docked, as with the fences
-raised to 1.8 m. A full frame costs 14-17 ms on the deploy box, and two
-robots casting it at 10 Hz ran at about real time (0.97-1.15x).
+couch, the tables and the beds: flown with them, the 14 drift flights that
+#572 lost 9 of were 14 of 14 docked, as with the fences raised to 1.8 m,
+and since stage 2 the map is laid from them ("The band served", below). A
+full frame of 30 rings costs 14-17 ms on the deploy box, and two robots
+casting it at 10 Hz ran at about real time (0.97-1.15x).
 
 ![The 3D LIDAR on the head: a humanoid walks from the living room out by
 the garden's gate, across the street and through the lobby to the
 storeroom, its map laid from its points laid flat; red, each bearing's
 nearest return 0.15-2.2 m over the floor -- the couch, the fences, the
-walls' lower halves -- and blue, the level ring its map is laid from as
-served, the buildings' walls alone; a tile every 15 s and one as it
-arrives (`lidar_spike.py --strip`)](figures/humanoid_lidar_walk.png)
+walls' lower halves -- and blue, the level ring, the buildings' walls
+alone; a tile every 15 s and one as it arrives (`lidar_spike.py
+--strip`)](figures/humanoid_lidar_walk.png)
 
 **The part.** Livox's Mid-360S (its sheet: 360 x 59 deg, 200,000 points a
 second at 10 Hz, a range's sigma <= 2 cm at 10 m and <= 4 cm at 0.2 m, 0.15
@@ -4095,13 +4094,263 @@ sums (`humanoid.world.RESERVE_WH`): the dearer travel with 6.2 W over its
 standing, 17.9 Wh, carried as 18, from 17.5 (its own dock leg ran out of
 time 10 m short, as the C1's had).
 
-**Not done** (#581's stage 2): the band served, through the believed pose
-and the IMU's tilt, so a bowed robot maps and matches; the D435's low
-layer kept only for what the LIDAR cannot see by the feet, measured; every
-reader of the grid checked against it; the matcher's reach read again; the
-dock steady under the band; and the band cut to 15 rings at 10 Hz (Ben's
-call 3), the drift batch flown again on it -- `MAP_EPOCH` bumped at its
-deploy.
+**What came after**: stage 2 served the band ("The band served", below).
+
+## The band served (issue #581, stage 2)
+
+**What is true now.** The humanoid's map is laid from its LIDAR's points
+laid flat (`Lidar.band`, `HumanoidMission._scan`), 15 rings at 10 Hz (Ben's
+call 3), and they are matched and laid while the robot is on its feet in
+the posture its legs hold, bowed too (`maps`): per bearing the nearest
+surface between 0.15 m over the floor, rising 2 deg a metre out, and 2.2 m.
+The matcher leaves out returns nearer than 1 m (`MATCH_MIN_M`), a step walks
+by its legs' reckoning (`step_routine`), and `MAP_EPOCH` is 4. Flown so,
+with the review's fixes (below), #572's 14 drift flights and 16 more
+docked 29 of 30, as the code before the fixes did (the C1 lost 9 of the
+14), and the station 80 of 85 starts, as before them (the stage's 47
+trials docked 43; staging 47, stage 1's band 42).
+Two robots ran at 1.40-1.41x real time on the deploy box, the level ring's
+1.68-1.78.
+
+![The band served: a humanoid walks from the living room out by the
+garden's gate, across the street and through the lobby to the storeroom in
+78 s, its map laid from its points laid flat; red, each bearing's nearest
+return in the band -- the couch, the garden's and the street's fences, the
+counter -- and blue, its level ring, the walls alone; a tile every 15 s
+and one as it arrives (`lidar_spike.py --strip`)](figures/humanoid_band_walk.png)
+
+**The band's floor rises with range** (`BAND_RISE`). Walking, the IMU's
+tilt -- its complementary filter, pulled toward the accelerometer, which
+reads the trunk's sway -- is off by a median 0.8 deg, 1.8 at its 95th
+percentile, 2.1-2.7 at its 99th and 3.6 at worst, over 120 s of the loop's
+explore and a walk home; bowing slowly it is off 0.6 deg at its 95th
+percentile, 52 deg bowed. A floor point 6.9 m out, where the -12 deg ring
+meets the floor, levelled 1.8 deg wrong reads 0.22 m up, in a band whose
+floor is 0.15 m: the floor rises 2 deg a metre out, clearing the 99th
+percentile everywhere in the LIDAR's 8 m, and a fence is still struck to
+the 8 m edge (`test_the_bands_floor_rises_with_range`).
+
+**A bowed robot maps and matches** (`HumanoidMission.maps`). Its points go
+in through the IMU's tilt and its model of itself while its trunk is within
+12 deg of the posture its legs hold (`getup.tipped`, the fall watch's own
+reading of a tip): walking it tipped up to 6.6 deg off upright; a bow is
+the posture, never a tip. Gated on level, as the C1's plane was, a bowed
+robot neither mapped nor matched, and Luca's heading turned 5.2 deg in 300
+s at a counter (#572); bowed at a counter now, its scans are matched
+(`test_a_bowed_humanoid_matches_and_maps_its_lidars_points`). Never while
+the get-up has its legs: no model of a body on its soles is a model of one
+on its side. ⚠ A body laid down between two steps, as a test does it, is
+read by the filter off its accelerometer alone -- the gyro saw no turn --
+past 12 deg only 0.4 s later; a fall turns the body, and the gyro follows
+it.
+
+**What a bearing may free.** Two rules, each a defect the flights found:
+
+- *Behind the bracket's post.* The post hides most of a bearing's rays
+  there, and the one ray that peeked past it decided the bearing: its
+  point, jittered by the part's angle noise, landing a bearing over, or a
+  steep ray seeing the band empty for its first metre and meeting the
+  floor, laid the bearing free to 8 m through the wall behind -- every
+  bearing round as the robot turned, streaks through every wall of the
+  room it looked round in (78 frames in 240 in a closed room, tilted as
+  walking tilts it; stage 1's band did it too, with twice the rays a
+  bearing to hide it). A bearing is free only off a ray that stayed in the
+  band to the 8 m reach and brought nothing back: in a closed room, none
+  (`test_a_closed_room_has_no_free_bearing_behind_the_post`).
+- *Nearer than its steepest ray comes down.* Upside down 1.47 m up, the
+  steepest ray meets the band's floor 1 m out: nearer, every ray passes
+  over whatever is lower than it, and a bearing laid free from the sensor
+  out cleared a low thing mapped from afar as the robot walked up to it.
+  Nearer than that (`Scan.free_from`, per bearing, through the IMU's tilt)
+  a bearing clears no cell the map holds a wall in, and lays floor only
+  where none was seen -- freeing nothing there at all, a robot amid cells
+  it had never seen from afar, at every boot and every stand-up, found no
+  frontier it could reach, and its explore ended at once
+  (`test_a_bearing_clears_no_wall_nearer_than_its_steepest_ray_comes_down`).
+
+Over a 150 s explore, 10 % of the bearings laid free (2,140 of 21,152) were
+ones a noise-free cast from the true pose saw a surface on, at a median
+6.6 m, three in four past 5.5 m: a fence far out, struck by one ring just
+over the band's rising floor, drops in and out with the IMU's tilt, and
+between, its bearing is laid free past it. The fences hold in the map
+(struck more than a third of the time, L_OCC 0.85 against L_FREE 0.4), and
+what is freed is the street beyond them.
+
+**What the review found.** An independent read of the stage found five
+ways the band laid floor it had never seen. Each was shown by a probe and
+is now pinned by a test.
+
+- *The band's floor rises to meet a ray.* Where a ray leaves the band was
+  worked out for a floor that fell away. Standing, the -8 deg ring comes
+  down through the band's floor 7.5 m out, but was taken to stay in it to
+  12.5 m. So a ray that struck a wall under the band's floor freed its
+  bearing through that wall, and `free_from` read 1.06 m where it is 1.00
+  (`test_a_ray_the_rising_floor_meets_short_of_max_range_frees_nothing`).
+- *A scan is laid from where the sensor is* (`Scan.origin`). The band's
+  ranges, and the map's free rays, ran from the sensor's place on the robot
+  standing upright, 0.735 m over the pelvis. Bowed 52 deg, the sensor is
+  0.58 m ahead of that place, so every free bearing behind the robot ran
+  0.6 m past what its ray had reached. In a room 7 m round that was 16
+  bearings through the wall behind, by up to 0.5 m (once 2 m); even a 10
+  deg lean put a free ray 0.4 m through a wall
+  (`test_a_bowed_robots_scan_is_laid_from_where_its_sensor_is`).
+- *Tilted past 30 deg, a scan clears no wall* (`CLEARS_TILT_RAD`). Bowed,
+  the rings no longer fan down along every bearing: behind the robot they
+  point up. Its steepest rings, turned past straight down, land on the
+  bearings behind a few cm out. Taken as those bearings' floor, they let a
+  low box 2 m behind, under every ray, be cleared through the return off
+  the wall beyond: on 2 bearings of 9 at a 40 deg bow, 8 of 9 at 52. Up to
+  35 deg it held on all 9. A bowed scan still lays walls, frees cells no
+  wall was seen in, and is matched (`test_a_bowed_robot_clears_no_wall`).
+- *Behind another robot nearer than the room, a bearing clears no wall.*
+  The rings over the other robot's head read the wall beyond it. Laid out
+  to that wall, they cleared a 0.5 m box the robot hid, from +5 to -5 in 3
+  s (`test_nothing_low_behind_another_robot_is_cleared`).
+- *A dropped return is no reading*, as on the level ring (`scan_split`).
+  Taken as "nothing back", half the returns dropped in a closed room laid
+  25 bearings free in 50 frames (`test_a_dropped_return_frees_nothing`).
+
+**The dock.** With the band, stage 1's dock missed 2-5 of 47; two things
+were the band's.
+
+- *The matcher at the station's near returns* (`MATCH_MIN_M`). Within 1 m
+  the band strikes the station's box, the cup and the plug with a ring or
+  two, at the part's noisiest (4 cm at 0.2 m), where a wall is struck by
+  ten; a box 0.4 m off covers some 40 bearings. Matched, they moved a
+  dock's belief 40-67 cm in 16-19 s, up to 22 mm a move; left out, 26-41
+  cm, and wide starts that missed 2 of 3 docked 3 of 3. What is that near
+  is what the hands work on -- the station, the plug in the hand, a drawer,
+  a door -- and it is still mapped, and the front stop still reads it.
+- *A step walked by the matcher's word* (`HumanoidBody._by_legs`,
+  `StanceOdometry.corrected`). A step stops once what it believes it has
+  walked reaches its length, and the belief it read moved with the
+  matcher's corrections: a sideways step of 8 cm ended 7 cm forward, 4.7 cm
+  inside the seat, and the walker cannot back up so little, so the dock
+  stepped there until its steps ran out, "not lined up". A step now walks,
+  turns and reports by its legs' reckoning alone, the belief less what the
+  matcher and the fixtures corrected it by since the step began
+  (`test_a_step_walks_by_its_legs_never_by_a_correction_the_matcher_made_meanwhile`).
+
+Two things were tried and taken out again, each a defect a flight showed:
+
+- *The matcher held at the station*, the scans laid unmatched from the
+  dock's first look, as an anchor lays them. After the first step toward
+  the seat the tags are out of the colour camera's view, even bowed, and
+  the dock carries the station from its first look through the belief:
+  held on odometry alone, the belief drifted 4-7 cm over two steps, and a
+  seat came out 7 cm wrong, the hand sent 70 mm off the plug.
+- *The station held at the feet*, the plug-in's hand placed in the frame of
+  its soles: pushing the plug home turns the body 3-9 deg on its feet, the
+  IMU following, and the station fix after the plug-in, read through a
+  station that had turned with the feet, put every flight's heading 3-9
+  deg off where it had been within 3 -- once 8 deg, past the matcher's
+  search, and the map was dropped.
+
+The plug-in is staging's, through the belief. What is left at the dock is
+the walker's: a step that lands 4-5 cm inside the seat (its tolerance is
+3, a hand swung into the station's box from 4.9) cannot be backed off --
+asked 4 cm back, five steps moved it 1-5 mm each -- and the dock ends "not
+lined up", as the level ring's did once in stage 1.
+
+**The matcher's reach, read again** (`MATCH_RANGE_M`). It is 6.5 m because
+the C1 read a wall at its 8 m reach short (its long draws clipped to no
+return), and the street's far wall pulled the pose 32 mm a scan. The
+Mid-360S's band reads a wall square ahead within 2-3 mm of where it stands
+out to 7.9 m (60 frames a range, 5-7.95 m: a mean of -1.5 to -3.9 mm, 17 mm
+a bearing), so the bias no longer forces 6.5 m. It stays: in this house the
+band has a fence within 4 m everywhere outdoors, so nothing moved with it,
+and a return past 6.5 m is struck by one to three rings near the band's
+rising floor. A wider world's next limit is the LIDAR's 8 m (`MAX_RANGE`),
+which sets each scan's cost, and the part reaches 40.
+
+**The depth camera's low layer, measured: kept.** Over a 150-240 s explore
+and a walk across the street, the layer blocked 606-812 cells the band's
+map held no wall in, every one laid at least 0.8 m from the robot and
+nearly all 1.2 m or more -- none in the LIDAR's blind ring by the feet.
+What they were, off the truth under each at the end: the bed's top (278
+cells, 0.4 m) and the couch's (133, 0.5 m), two of a plant, four of bare
+floor. The band outlines the bed and the couch from where it stands, one
+return a bearing at the near edge; the camera sees their whole tops. The
+layer stays: it fills in what the band outlines, it sees what is under the
+band's floor -- the flight's first riser, 0.18 m -- and the camera's frames
+are rendered anyway for the near-field map and the peer channel.
+
+**Decor in the band.** The dressing rule kept non-colliding geoms out of
+the level ring's plane; with the band served it keeps them out of the band
+(`test_decor_stays_out_of_the_band_the_map_is_laid_from`, on the house as
+served), but for a tag's size lying on a solid geom (the tags on their
+walls) and the plants, which the robot is meant to see
+(`protocol/hints.json`'s note), as the camera's layer planned round them.
+The test plants three pieces of decor the rule must catch, and it names
+exactly those three: as first written it could not fail, `mj_geomDistance`
+answering its `distmax` when nothing is nearer, so asked at the rule's 1 cm
+every geom inside a wall's bounding sphere lay on the wall -- and asked
+within 2 m, a box 1.08 m from a fence read 0 m, so it is asked a little
+past the rule and never far.
+
+**The drift batch** (`humanoid_drift_spike.py`, #572's 14 flights):
+
+| | C1 | level ring | band, 30 rings (stage 1) | served, 15 rings | 30 rings, served otherwise |
+|---|---|---|---|---|---|
+| docked | 4 of 14 | 7 | 14 | 14 | 13 |
+| lost | 9 | 6 | 0 | 0 | 0 |
+| belief off after the explore, median (max) | 0.42 m | 0.39 (1.67) | 0.11 (0.29) | 0.17 (0.42) | 0.13 (0.41) |
+| at the storeroom | | 0.91 (5.33) | 0.13 (0.46) | 0.23 (0.67) | 0.14 (1.60) |
+| back at the standoff | | 0.80 (6.41) | 0.05 (0.10) | 0.08 (0.29) | 0.05 (0.30) |
+| middle street: scans fixed in every direction | 0 % | 0 % | 95 % | 100 % | |
+| sidewalks and outer streets | 17 % | 9 % | 100 % | 83 % (17 % held along) | |
+
+The 15 rings cost the belief 0.04 m after the explore and 0.09 m at the
+storeroom against 30, the same flights otherwise (the matcher's floor
+0.03 and nothing): the accuracy Ben's call 3 traded for the pair's speed.
+Every flight's station fix put its belief within 0.01 m and 0.6 deg; no
+scan in any flight was refused. The 30-ring flight not docked, and one of
+the matcher's-floor variant's, never lined up on the seat (before steps
+walked by the legs).
+
+Flown again after the review's fixes (above), the 14 flights docked 13, off
+a median 0.11 m after the explore, 0.25 at the storeroom and 0.05 home.
+Rowan, on its second walk home, took a place 1 m off from one search in the
+garden, mid-turn, and the map it laid there had no way to its station. On
+16 seeds no batch had flown, the code before the fixes docked 15 and the
+code after them 16, off the same medians (0.13, 0.31, and 0.10 against
+0.08 home): one flight lost in 30 either way, a draw.
+
+**The station** (`station_spike.py`, the same 47 trials):
+
+| | staging | level ring (stage 1) | band, 30 rings (stage 1) | served |
+|---|---|---|---|---|
+| `--approach`: docked and unplugged | 15 of 15 | 15 | 11 | 15 |
+| `--lost`, belief 0.4-1 m wrong: docked | 16 of 16 | 15 | 15 | 15 |
+| `--walk-in`, from 8 places, explored 120 and 240 s: docked | 16 of 16 | 14 | 16 | 15 |
+
+Both misses never lined up on the seat (above). After the review's fixes
+the same 47 docked 43 (14, 13 and 16): three never lined up on the seat,
+and a search begun 0.94 m off never saw the station. On 33 approaches and
+52 lost starts, the code before the fixes docked 80 of 85, and the code
+after them 80: a search begun 0.92-0.96 m off failed either way, at the
+edge of the metre #572 found it reaches. The probe (`lidar_spike.py
+--probe`) is the band's of stage 1: no outdoor place leaves the heading
+unpinned, and in the rooms 4 % (2 % with 30 rings), the matcher's floor
+leaving a corner a robot faces nothing to fix its heading by.
+
+**What it costs.** On the deploy box, the served pair ran at 1.40 and
+1.41x real time (`humanoid_spike.py --speed`'s pair, one core, the trees
+interleaved), the level ring's at 1.68 and 1.78: stage 1 read 1.17-1.42
+for 15 rings. The energy table is priced again on this head
+(`energy_spike.py --world home_humanoid`): the explore 173.5 W (166.4 on
+the C1's head), a charge 338.8 W net (345.2), and the four hand jobs, all
+passed from the station -- the drawer 4.735 Wh, the door 5.167, the cube
+4.865 (its first pass), the chest 5.254 -- the table carrying the C1's
+head's dearer drawer, door and chest, as its rule says.
+
+**Not done.** A far fence's intermittent ring (above); the walker's seat
+(above); and #581's live reading, a day of the pair with neither robot
+lost outdoors, which opens with the deploy (Observatory.md). #572's
+stage 3 should read this one: a bowed robot's scans now count, so its
+heading at a counter is held by the matcher, and a zero-rate update may be
+needed only where nothing is matched. The world's height map as the store,
+which the grid becomes a projection of, is its own issue.
 
 ## Debugging workflow that worked
 
