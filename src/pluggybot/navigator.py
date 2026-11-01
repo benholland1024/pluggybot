@@ -10,6 +10,7 @@ what only a body can say:
   _nav_routine      one physics step at a forward speed and a yaw rate --
                     the body's own command, yielded (the tick contract)
   level, true_pose  the IMU's gate on the map, and the sim's own check
+  _scan, maps       its scan, and whether one taken now is the map's
   _look_step, _contact_step   its own senses either side of the scan
   run               the blocking twin of `yield from`
 
@@ -36,7 +37,7 @@ from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.mapping.scan_match import ScanMatcher
-from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, robot_geoms
+from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, Scan, robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
 
@@ -465,8 +466,8 @@ class Navigator:
     nothing here; the rover watches for its rack's tag."""
 
   def _scan_step(self) -> None:
-    """The LIDAR, at its own rate: the map (level, and matched) and the
-    front stop's reflex."""
+    """The LIDAR, at its own rate: the map (while it `maps`, matched) and
+    the front stop's reflex."""
     # Scan on a TIME cadence at the part's real rate. The camera scanner ran
     # every 20 physics steps (50 Hz) because a depth render is free in sim; a
     # spinning mirror is not, and pretending otherwise would let the mapper
@@ -480,12 +481,12 @@ class Navigator:
       # that moves. Excluding it from the scan silenced both, and the 0.25 m
       # stop that holds this robot off a wall, a doorpost and a bed was
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
-      angles, ranges, peer_angles, peer_ranges = self._scan()
-      if self.level():
+      angles, ranges, peer_angles, peer_ranges, free_from = self._scan()
+      if self.maps():
         m = self._match(angles, ranges)
         if m is None or self.matcher.fuses(m, self.data.time):
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                           origin=self.LIDAR_ORIGIN)
+                           origin=self.LIDAR_ORIGIN, free_from=free_from)
           if m is not None:
             self.matcher.fused(self.pose, self.data.time)
       elif self.matcher is not None:
@@ -496,11 +497,17 @@ class Navigator:
         if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
 
-  def _scan(self) -> tuple:
+  def _scan(self) -> Scan:
     """One scan, the map's and the other robots' apart (`Lidar.scan_split`):
     the LIDAR's level ring here. A body may lay its LIDAR's points flat
-    instead (`HumanoidMission.band`)."""
-    return self.lidar.scan_split(self.data)
+    instead (`HumanoidMission._scan`)."""
+    return Scan(*self.lidar.scan_split(self.data))
+
+  def maps(self) -> bool:
+    """Whether a scan taken now goes into the map, matched: level (issue
+    #339) here. A body that levels its scan through its IMU says its own
+    (`HumanoidMission.maps`)."""
+    return self.level()
 
   def _front_blocked(self, angles, ranges) -> bool:
     """The front stop's test, over one scan's bearings and ranges (the room

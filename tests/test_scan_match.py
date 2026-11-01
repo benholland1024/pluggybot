@@ -652,3 +652,14 @@ def test_the_stations_look_alone_opens_the_window(house):
   body.start_at(*m.pose)                                   # ...and a stand-up
   assert m.matcher.anchoring == 0, "a stand-up kept the station's window"
   body.close()
+
+
+def test_a_return_within_the_hands_reach_is_no_point_of_the_fit():
+  """What the band sees nearer than `MATCH_MIN_M` is what the hands work on
+  -- the station's box, the plug in the hand, a drawer -- struck by a ring
+  or two at the part's noisiest (#581's stage 2): left out of the fit, and
+  the walls beyond it in."""
+  m = sm.ScanMatcher(OccupancyGrid(-3, -3, 7, 7), origin=(0.0, 0.0))
+  ranges = [0.4, sm.MATCH_MIN_M - 0.01, sm.MATCH_MIN_M, 3.0, sm.MATCH_RANGE_M + 0.1, 8.0]
+  pts = m.points(np.zeros(len(ranges)), ranges)
+  assert np.allclose(pts[:, 0], [sm.MATCH_MIN_M, 3.0]) and np.allclose(pts[:, 1], 0.0)

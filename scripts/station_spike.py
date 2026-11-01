@@ -26,9 +26,6 @@ the house, its station on the living room's wall.
     ... --strip [plug|lost]     # a scene's filmstrip
     ... --lost-from P --lost-off X,Y,DEG   # the lost scene from elsewhere
     ... --out rows.json         # the rows
-    ... --band                  # any of them with its map laid from its
-                                # LIDAR's points laid flat (#581, stage 1:
-                                # `HumanoidMission.band`), not its level ring
 
 Every trial is its own process and flies the served body off its own senses
 (the station off its tags, its port off its model of itself); the truth
@@ -48,15 +45,9 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-#: Every trial's map laid from its LIDAR's points laid flat, not its level
-#: ring (`--band`; `HumanoidMission.band`, #581's stage 1): set by `main`,
-#: handed to each trial's process.
-BAND = False
-
-
 def _child(*args: str) -> list[str]:
-  """A trial's process: this script with `args`, and `--band` with it."""
-  return [sys.executable, __file__, *args, *(["--band"] if BAND else [])]
+  """A trial's process: this script with `args`."""
+  return [sys.executable, __file__, *args]
 
 
 #: A filmstrip's tile, px, and its row.
@@ -91,7 +82,6 @@ def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   body = body_for(model, data)
-  body.mission.band = BAND
   s = body._station
   x0 = st.SEAT_X if at_seat else st.STANDOFF_X
   x, y = s.to_world(x0 - off[0], st.SEAT_Y + off[1])
@@ -311,7 +301,6 @@ def _life():
   station = next(a for a in acts if a.name == "station")
   life.body.step_hooks.append(acts.step_hook(model, data))
   life.max_sim_time = life.explore_deadline = 1e9
-  life.body.mission.band = BAND
   return life, life.body, station
 
 
@@ -832,15 +821,11 @@ def main(argv=None) -> int:
                   help="the scene's filmstrip, station_spike.png (fall: station_spike_fall.png, "
                        "lost: station_spike_lost.png)")
   ap.add_argument("--out", default=None)
-  ap.add_argument("--band", action="store_true",
-                  help="its map laid from its LIDAR's points laid flat (#581, stage 1)")
   ap.add_argument("--one", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-walk-in", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-seat", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-lost", default=None, help=argparse.SUPPRESS)
   args = ap.parse_args(argv)
-  global BAND
-  BAND = args.band
   if args.one:
     print(json.dumps(trial(tuple(json.loads(args.one)))))
     return 0

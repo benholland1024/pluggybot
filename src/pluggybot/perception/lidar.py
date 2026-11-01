@@ -10,19 +10,20 @@ m and <= 4 cm at 0.2 m, its angle's < 0.15 deg, a 0.1 m blind zone, 40 m at
 10 % reflectivity. Upside down, as Unitree's G1 carries one, its field is
 +7 down to -52 deg (`FOV_DEG`). A frame is modelled as rings `RING_DEG`
 apart, `BEARINGS` bearings each -- its manual: "at 0.1 s, coverage is
-similar to a 32-line mechanical LiDAR" -- 30 rings, 10,800 rays, where the
+similar to a 32-line mechanical LiDAR" -- 15 rings, 5,400 rays, where the
 part spreads 20,000 points in a pattern that never repeats.
 
 What it answers:
 
-  scan, scan_split   the LEVEL RING, its 360 bearings at 0 deg: the 2D scan
-                     the map is laid from -- the C1's plane, from this part
-                     (#581's stage 1; its stage 2 lays the band instead)
-  cloud              every return, a point in the sensor's frame, the
-                     room's and another robot's apart
   band               the cloud laid flat: per bearing the nearest surface
                      `BAND_M` over the floor, levelled through the robot's
-                     IMU -- a 2D scan from every ring (flown, not served)
+                     IMU -- the 2D scan the map is laid from and matched by
+                     (#581's stage 2), with where on each bearing its free
+                     run may begin (`Scan`)
+  scan, scan_split   the LEVEL RING, its 360 bearings at 0 deg: the walls
+                     a lost robot steps toward (`HumanoidBody.lost_routine`)
+  cloud              every return, a point in the sensor's frame, the
+                     room's and another robot's apart
 
 Three things are deliberately honest rather than convenient:
 
@@ -64,9 +65,11 @@ LIDAR_PERIOD = 0.1
 #: world grows a sightline the map needs from a standstill.
 MAX_RANGE = 8.0
 #: Its field upside down, deg: the sheet's -7 to +52 turned over. A frame's
-#: rings run from its lower edge, `RING_DEG` apart, `BEARINGS` round each.
+#: rings run from its lower edge, `RING_DEG` apart, `BEARINGS` round each:
+#: 15 rings (Ben's call 3, #581: 30, 2 deg apart, ran the served pair at
+#: 0.97-1.15x real time on the deploy box, 15 at 1.17-1.42x).
 FOV_DEG = (-52.0, 7.0)
-RING_DEG = 2.0
+RING_DEG = 4.0
 BEARINGS = 360
 #: Nearer than this it returns nothing, m (the sheet; 0.1-0.2 m it detects,
 #: its precision unpromised).
@@ -81,10 +84,15 @@ ANGLE_SD = math.radians(0.15)
 #: house is past its 40 m at 10 % reflectivity.
 DROPOUT = 0.02
 #: The band laid flat, m over the floor (`band`): over the floor's points
-#: by more than its noise and its levelling's error at range, up to above
-#: the robot's head -- #572's probe's band, which fixed the heading
-#: everywhere outdoors.
+#: by more than its noise, up to above the robot's head -- #572's probe's
+#: band, which fixed the heading everywhere outdoors...
 BAND_M = (0.15, 2.2)
+#: ...its floor rising this much a metre out, for its levelling's error:
+#: walking, the IMU's tilt is off by a median 0.8 deg, 1.8 at its 95th
+#: percentile and 2.1-2.7 at its 99th (bowed, 0.6 at its 95th), and 1.8
+#: deg lifts the floor 6.9 m out, where the -12 deg ring meets it, to 0.22
+#: m. MEASURED over the loop's explore, a walk home and bows (#581, stage 2).
+BAND_RISE = math.tan(math.radians(2.0))
 
 
 def robot_geoms(model, root_name: str) -> set:
@@ -117,15 +125,30 @@ def _sigma(dist: np.ndarray) -> np.ndarray:
   return np.interp(dist, (r0, r1), (s0, s1))
 
 
+class Scan(NamedTuple):
+  """One scan as the map and the front stop take it: the room's bearings
+  and ranges, another robot's apart (issue #316), and how far out each of
+  the room's bearings may first clear a cell the map holds a wall in, m
+  from the scan's origin (`free_from`; None, from the sensor itself)."""
+  angles: np.ndarray
+  ranges: np.ndarray
+  peer_angles: np.ndarray
+  peer_ranges: np.ndarray
+  free_from: np.ndarray | None = None
+
+
 class Cloud(NamedTuple):
   """One frame's returns, in the sensor's frame (x ahead, z up the robot):
   the room's `points` and another robot's `peers`; `looked` is each ray (in
   `Lidar._dirs`' order) that went somewhere other than the robot itself,
-  and `seen` the bearings (`Lidar.ray_angles`) any of those was cast on."""
+  `seen` the bearings (`Lidar.ray_angles`) any of those was cast on, and
+  the ray each of the room's points and the peers' came back along."""
   points: np.ndarray
   peers: np.ndarray
   seen: np.ndarray
   looked: np.ndarray
+  rays: np.ndarray | None = None
+  peer_rays: np.ndarray | None = None
 
 
 class Lidar:
@@ -266,7 +289,7 @@ class Lidar:
     noisy range along its noisy direction (`Cloud`)."""
     dist, hit = self._cast(data, self._dirs)
     mine, _, peer, room = self._sort(dist, hit)
-    out = []
+    out, rays = [], []
     for which, rng in ((room, self.rng), (peer, self.peer_rng)):
       idx = np.flatnonzero(which)
       kept, r = self._ranges(dist[idx], rng)
@@ -276,28 +299,40 @@ class Lidar:
         jitter = rng.normal(0.0, ANGLE_SD, (2, len(idx)))
         el, az = el + jitter[0], az + jitter[1]
       out.append(_unit(el, az) * r[:, None])
+      rays.append(idx)
     points, peers = out
     seen = np.zeros(BEARINGS, dtype=bool)
     seen[self._bearing[~mine]] = True
-    return Cloud(points, peers, seen, ~mine)
+    return Cloud(points, peers, seen, ~mine, rays[0], rays[1])
 
   def band(self, data, level: np.ndarray, height: float,
-           band_m: tuple[float, float] = BAND_M) -> tuple[np.ndarray, np.ndarray,
-                                                          np.ndarray, np.ndarray]:
-    """The cloud laid flat into a 2D scan, `scan_split`'s four arrays: each
-    point levelled through `level` (the robot's tilt, level from its root
-    body: its IMU's, `imu.Attitude.level`) and set `height` over the floor
-    (its root's, off its own model), and per bearing -- the point's own,
-    levelled, from the scan's origin (the sensor's place on the robot,
-    unlevelled: what the map lays a scan from) -- the nearest whose height
-    is within `band_m`, read as the median of its returns within 3 sigma
-    of that nearest. A bearing with none there is free to max range where a
-    ray, levelled, looked along it; else absent. ⚠ BINNED BY THE BEARING
-    LEVELLED, never the one a ray was cast on: tilted, a steep ray levels a
-    degree or more aside, and a free ray laid down a neighbour's return
-    would clear the very cell it struck. ⚠ THE MEDIAN, NEVER THE NEAREST: a
-    dozen rings strike one wall, and the least of a dozen noisy ranges read
-    every surface 1.7 sigma short, 5-7 cm, a cell into the room each side."""
+           band_m: tuple[float, float] = BAND_M, rise: float = BAND_RISE) -> Scan:
+    """The cloud laid flat into a 2D scan (`Scan`): each point levelled
+    through `level` (the robot's tilt, level from its root body: its IMU's,
+    `imu.Attitude.level`) and set `height` over the floor (its root's, off
+    its own model), and per bearing -- the point's own, levelled, from the
+    scan's origin (the sensor's place on the robot, unlevelled: what the map
+    lays a scan from) -- the nearest whose height is within `band_m`, its
+    floor `rise` higher a metre out, read as the median of its returns
+    within 3 sigma of that nearest. A bearing with none there is free to
+    max range where a ray, levelled, looked along it, staying in the band
+    that far, and brought back nothing in it; else absent. ⚠ BINNED
+    BY THE BEARING LEVELLED, never the one a ray was cast on: tilted, a
+    steep ray levels a degree or more aside, and a free ray laid down a
+    neighbour's return would clear the very cell it struck -- and NO RAY
+    FREES A BEARING THAT BROUGHT BACK A POINT IN THE BAND, OR LEFT THE BAND
+    SHORT OF MAX RANGE: behind the robot, where the bracket's post hides the
+    rest of a bearing's rays, one whose point jittered a bearing over, or a
+    steep one that saw the band empty for a metre and met the floor, laid
+    its bearing free to 8 m through the wall behind, every bearing round as
+    the robot turned. ⚠ THE MEDIAN,
+    NEVER THE NEAREST: a dozen rings strike one wall, and the least of a
+    dozen noisy ranges read every surface 1.7 sigma short, 5-7 cm, a cell
+    into the room each side. ⚠ A BEARING CLEARS A WALL ONLY FROM WHERE ITS
+    STEEPEST RAY COMES DOWN THROUGH THE BAND'S FLOOR (`free_from`, read by
+    `OccupancyGrid.update`): nearer, every ray passes over whatever is lower
+    than it, and a bearing freed from the sensor out cleared a low thing
+    mapped from afar as the robot walked up to it."""
     c = self.cloud(data)
     rot = np.asarray(level, dtype=float) @ self.turn
     base = np.asarray(level, dtype=float) @ self.offset
@@ -308,7 +343,8 @@ class Lidar:
       z = height + q[:, 2]
       v = q[:, :2] - self.offset[:2]
       r = np.hypot(v[:, 0], v[:, 1])
-      keep = (z >= lo) & (z <= hi) & (r < self.max_range)
+      keep = (z >= lo + rise * r) & (z <= hi) & (r < self.max_range)
+      banded = keep
       a, r = np.arctan2(v[keep, 1], v[keep, 0]), r[keep]
       b = _bin(a)
       near = np.full(BEARINGS, np.inf)
@@ -321,21 +357,42 @@ class Lidar:
       have = count > 0
       first = np.cumsum(count) - count
       m0, m1 = (first + (count - 1) // 2)[have], (first + count // 2)[have]
-      # ...the median point's own angle kept
-      return have, a[m0], (r[m0] + r[m1]) / 2
+      # ...the median point's own angle kept, and which points were in the band
+      return have, a[m0], (r[m0] + r[m1]) / 2, banded
 
-    have, angles, ranges = flat(c.points)
-    p_have, peer_angles, peer_ranges = flat(c.peers)
+    have, angles, ranges, banded = flat(c.points)
+    p_have, peer_angles, peer_ranges, p_banded = flat(c.peers)
+    quiet = c.looked.copy()
+    quiet[c.rays[banded]] = False
+    quiet[c.peer_rays[p_banded]] = False
     d = self._dirs[c.looked] @ rot.T
+    bins = _bin(np.arctan2(d[:, 1], d[:, 0]))
+    # where each ray that looked leaves the band, from the scan's origin:
+    # down through its floor, or up through its top
+    flat_d = np.hypot(d[:, 0], d[:, 1])
+    over = height + base[2]
+    falls = -d[:, 2] - rise * flat_d
+    down, up = falls > 1e-9, d[:, 2] > 1e-9
+    t = np.full(len(d), np.inf)
+    t[down] = max(over - lo, 0.0) / falls[down]
+    t[up] = max(hi - over, 0.0) / d[up, 2]
+    leaves = np.full(len(d), np.inf)
+    went = np.isfinite(t)
+    leaves[went] = np.hypot(base[0] + t[went] * d[went, 0] - self.offset[0],
+                            base[1] + t[went] * d[went, 1] - self.offset[1])
     seen = np.zeros(BEARINGS, dtype=bool)
-    seen[_bin(np.arctan2(d[:, 1], d[:, 0]))] = True
+    seen[bins[quiet[c.looked] & (leaves >= self.max_range)]] = True
+    # ...and where a bearing's steepest ray first comes down through the
+    # band's floor -- one that never does vouches for none of it
+    free_from = np.full(BEARINGS, np.inf)
+    np.minimum.at(free_from, bins[down], leaves[down])
     free = seen & ~have & ~p_have
     fa = self.ray_angles[free]
     a = np.concatenate((angles, fa))
-    order = np.argsort(np.concatenate((np.flatnonzero(have), np.flatnonzero(free))),
-                       kind="stable")
+    idx = np.concatenate((np.flatnonzero(have), np.flatnonzero(free)))
+    order = np.argsort(idx, kind="stable")
     r = np.concatenate((ranges, np.full(len(fa), self.max_range)))
-    return a[order], r[order], peer_angles, peer_ranges
+    return Scan(a[order], r[order], peer_angles, peer_ranges, free_from[idx][order])
 
   def hidden(self, data) -> np.ndarray:
     """Which of a frame's rays the robot's own body hides, rings by

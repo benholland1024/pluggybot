@@ -99,6 +99,10 @@ class Walk:
     self.settle_m = settle_m
     #: where the pelvis stands ahead of the feet's middle, m
     self.lean = -handover_m
+    #: its reckoning's ledger of corrections (`StanceOdometry.corrected`),
+    #: and one a matcher makes `correct_at` its command: (dx, dy, dyaw)
+    self.odo = NS(corrected=np.zeros(3))
+    self.correct_at, self.correction = None, (0.0, 0.0, 0.0)
 
   @property
   def stance(self):
@@ -134,6 +138,12 @@ class Walk:
     self.asked.append((vx, vy, w))
     if self.fall_at is not None and len(self.asked) == self.fall_at:
       self.falls += 1
+    if self.correct_at is not None and len(self.asked) == self.correct_at:
+      # a correction from outside the legs' reckoning: the belief moves, the body not
+      x, y, yaw = self.pose
+      d = self.correction
+      self.pose = (x + d[0], y + d[1], yaw + d[2])
+      self.odo.corrected = self.odo.corrected + np.array(d)
     x, y, yaw = self.pose
     c, s = math.cos(yaw), math.sin(yaw)
     nx, ny = x + (c * vx - s * vy) * DT, y + (s * vx + c * vy) * DT
@@ -277,6 +287,27 @@ def test_a_turn_past_pi_ends_and_a_fall_up_to_the_last_settle_is_a_fall():
   assert _step(_walker(walk), 0.3)["why"] == "fell" and len(walk.asked) == 10
   walk = Walk(fall_at=10)
   assert _step(_walker(walk), 0.0, 0.0, 1.0)["why"] == "fell" and len(walk.asked) == 10
+
+
+def test_a_step_walks_by_its_legs_never_by_a_correction_the_matcher_made_meanwhile():
+  """A correction is no step (#581's stage 2): the band's matcher at its
+  station moved the belief 6 cm in a step's 2 s, the step walked by the
+  belief stopped 3.6 cm inside the seat, and the walker cannot back up so
+  little. A step walks, turns and reports by its legs' reckoning alone: the
+  belief jumping 6 cm along its way mid-walk, its feet still go 0.3 m, and
+  its heading corrected 0.1 rad mid-turn, it still turns 0.5."""
+  walk = Walk(coast_s=hb.STEP_STOP_S)
+  walk.correct_at, walk.correction = 60, (0.06, 0.0, 0.0)
+  rep = _step(_walker(walk), 0.3)
+  went = walk.pose[0] - walk.odo.corrected[0]
+  assert rep["why"] == "stepped" and went == pytest.approx(0.3, abs=0.004)
+  assert rep["dx"] == pytest.approx(0.3, abs=0.004), "its report counted the correction"
+  walk = Walk()
+  walk.correct_at, walk.correction = 100, (0.0, 0.0, 0.1)
+  rep = _step(_walker(walk), 0.0, 0.0, 0.5)
+  turned = walk.pose[2] - walk.odo.corrected[2]
+  assert turned == pytest.approx(0.5, abs=hb.TURN_STOP_RAD + TURN_STEP)
+  assert rep["turn"] == pytest.approx(0.5, abs=hb.TURN_STOP_RAD + TURN_STEP)
 
 
 def test_a_step_that_gets_nowhere_says_it_is_blocked_and_one_holding_does_not_move():

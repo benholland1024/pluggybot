@@ -746,10 +746,15 @@ class HumanoidBody(Body):
     ended (`why`: "stepped", "holding" -- a hand holds something, and it
     does not move -- "blocked", "fell", "out of time"), in how long, and
     where its stance went, by its own reckoning, in the stance frame it
-    stood in before (`dx`, `dy`, m; `turn`, rad)."""
+    stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
+    ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
+    correction is no step, and the band's matcher at its station, its
+    corrections walked as steps, stopped a step to the seat 3.6 cm inside it
+    (#581's stage 2)."""
     mi = self.mission
     yield from mi._getup_routine()
-    t0, s0, falls = float(self._d.time), self.stance, mi.falls
+    by_legs = self._by_legs()
+    t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
     if any(self.gripped(s) for s in hm.SIDES):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
 
@@ -765,47 +770,61 @@ class HumanoidBody(Body):
       yield from mi.to_walk_routine()
       why = over() or why
     # the turn, its heading counted unwrapped: wrapped, one past pi never ended
-    heading, turned = mi.pose[2], 0.0
+    heading, turned = by_legs(mi.pose)[2], 0.0
     while (why == "stepped" and abs(turn) > TURN_STOP_RAD
            and turned * math.copysign(1.0, turn) < abs(turn) - TURN_STOP_RAD):
       yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, turn))
-      turned += math.remainder(mi.pose[2] - heading, 2 * math.pi)
-      heading = mi.pose[2]
+      now = by_legs(mi.pose)[2]
+      turned += math.remainder(now - heading, 2 * math.pi)
+      heading = now
       why = over() or why
     # ⚠ A TURN IS TAKEN AS ON THE SPOT: its feet shuffle round, the stance
     # truly moves 2-6 cm and the odometry is 3-7 cm off over it (turns of
     # 17-86 deg) -- so the step's move is the walks' alone, measured from
     # where the turn left the belief
-    s_mid = self.stance
+    s_mid = by_legs(self.stance)
     for a_, l_ in _step_walks(ahead, left):
       if why == "stepped":
-        why = yield from self._walk_routine(a_, l_, over)
+        why = yield from self._walk_routine(a_, l_, over, by_legs)
     yield from mi.to_stand_routine()
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
       yield STILL
     if mi.falls != falls:
       why = "fell"
-    x1, y1, yaw1 = self.stance
+    x1, y1, yaw1 = by_legs(self.stance)
     if not length:
       x1, y1 = s_mid[0], s_mid[1]
     d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi)}
 
-  def _walk_routine(self, ahead, left, over):
+  def _by_legs(self):
+    """A pose of the belief's, (x, y, heading), as the legs' reckoning alone
+    has it since now: less what corrections from outside it have moved the
+    belief by since (`StanceOdometry.corrected`)."""
+    odo = self.mission.odo
+    at = odo.corrected.copy()
+
+    def by_legs(pose):
+      d = odo.corrected - at
+      return pose[0] - float(d[0]), pose[1] - float(d[1]), pose[2] - float(d[2])
+    return by_legs
+
+  def _walk_routine(self, ahead, left, over, by_legs):
     """One straight walk of a step, its legs the walker's: "stepped" once
-    what it believes it has walked, and its speed times `STEP_STOP_S`, reach
-    its length; "blocked" where it gets nowhere; else what `over` says."""
+    what its legs reckon it has walked (`by_legs`), and its speed times
+    `STEP_STOP_S`, reach its length; "blocked" where it gets nowhere; else
+    what `over` says."""
     mi, dt = self.mission, self._m.opt.timestep
     length = math.hypot(ahead, left)
-    x0, y0, yaw = mi.pose
+    x0, y0, yaw = by_legs(mi.pose)
     # the walk's way in the world, and its twist in the trunk's frame
     ux, uy = ahead / length, left / length
     wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
     pace = BACK_V if ahead < -abs(left) else STEP_V
     speed, went, mark = 0.0, 0.0, (float(self._d.time), 0.0)
     while True:
-      x, y, _ = mi.pose
+      x, y, _ = by_legs(mi.pose)
       now = wx * (x - x0) + wy * (y - y0)
       speed += min(1.0, dt / 0.2) * ((now - went) / dt - speed)
       went = now

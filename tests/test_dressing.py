@@ -19,10 +19,11 @@ below is the tollbooth.
 
 ⚠ WHY "non-colliding" IS NOT ENOUGH, measured: the LIDAR's raycast ignores
 contype entirely -- the plants are contype 0 and are MAPPED. So decorative
-safety has a second, independent requirement: stay out of the beam plane
-(the humanoid's, `BEAM_Z`). `test_dressing_in_the_beam_reaches_the_map`
-proves the failure is real by planting a hostile mound and watching the map
-change.
+safety has a second, independent requirement: stay out of the band the map
+is laid from (the humanoid's LIDAR's points laid flat, `lidar.BAND_M` over
+the ground, #581's stage 2), unless it lies on something solid or is meant
+to be seen. `test_dressing_in_the_band_reaches_the_map` proves the failure
+is real by planting a hostile mound and watching the map change.
 """
 
 import tempfile
@@ -35,12 +36,9 @@ import pytest
 
 ROOT = Path(__file__).parent.parent
 
-#: The beam's absolute height, the humanoid standing (its LIDAR's level
-#: ring, over its head, #581), with clearance either side for its trunk's
-#: bob as it walks. A decorative geom whose z-extent crosses this band is in
-#: the map whether it collides or not.
-BEAM_Z = 1.467
-BEAM_CLEAR = 0.05
+#: How near a decorative geom must lie to a solid one to be mapped as part
+#: of it, m: a tag on a wall, a bulb on its pole.
+ON_SOLID_M = 0.01
 
 
 @pytest.fixture(scope="module")
@@ -55,6 +53,12 @@ def trio():
 
 def _body_geoms(model, bid):
   return [g for g in range(model.ngeom) if int(model.geom_bodyid[g]) == bid]
+
+
+def _root_name(model, b):
+  while int(model.body_parentid[b]) != 0:
+    b = int(model.body_parentid[b])
+  return model.body(b).name
 
 
 def _collides(model, g):
@@ -90,17 +94,33 @@ def test_furniture_is_collidable_and_decor_is_not(trio):
       assert not any_solid, f"{name} ({hint}) grew a collision"
 
 
-def test_decor_stays_out_of_the_lidar_beam(trio):
+def test_decor_stays_out_of_the_band_the_map_is_laid_from(trio):
   """The rule that actually keeps the map clean, asserted geometrically:
-  every fully non-colliding body keeps all its geoms clear of the beam
-  band. Collision flags cannot do this job -- the raycast ignores them."""
-  model, data, hints = trio
+  every fully non-colliding body keeps its geoms clear of the band the
+  map is laid from (the LIDAR's points laid flat, `lidar.BAND_M` over the
+  ground) -- or lies on a solid geom, mapped as part of it (a tag on a
+  wall, the garden light's bulb on its pole), or is a plant, which the
+  robot is meant to see (`protocol/hints.json`'s note; the depth camera's
+  layer planned round them before the band did). Collision flags cannot do
+  this job -- the raycast ignores them. The house as served: its tags,
+  the station and the counter go in at load (`humanoid.world`)."""
+  from pluggybot.humanoid import world as hw
+  from pluggybot.perception.lidar import BAND_M
+  _, _, hints = trio
+  model = hw.home_spec().compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  robots = {model.body(b).name for b in range(model.nbody)
+            if model.body(b).name.endswith("pluggybot")}
+  solid = [g for g in range(model.ngeom) if _collides(model, g)
+           and int(model.geom_type[g]) != mujoco.mjtGeom.mjGEOM_PLANE]
   bad = []
   for b in range(1, model.nbody):
     name = model.body(b).name
     geoms = _body_geoms(model, b)
-    if not geoms or any(_collides(model, g) for g in geoms):
-      continue                       # solid things are the MAP's business
+    if (not geoms or any(_collides(model, g) for g in geoms) or hints.get(name) == "plant"
+        or name in robots or _root_name(model, b) in robots):
+      continue                       # solid things are the MAP's business, robots their own
     for g in geoms:
       # The real oriented z-extent (|R| @ half, the world-budget lesson):
       # the first cut used max(geom_size) as a radius, and a 2 mm floor slab
@@ -118,9 +138,15 @@ def test_decor_stays_out_of_the_lidar_beam(trio):
         half = np.array([float(max(size))] * 3)
       rz = float((np.abs(data.geom_xmat[g].reshape(3, 3)) @ half)[2])
       z = float(data.geom_xpos[g][2])
-      if z - rz <= BEAM_Z + BEAM_CLEAR and z + rz >= BEAM_Z - BEAM_CLEAR:
-        bad.append(f"{name}/{model.geom(g).name} spans "
-                   f"z [{z - rz:.3f},{z + rz:.3f}] across the beam")
+      if z + rz < BAND_M[0] or z - rz > BAND_M[1]:
+        continue
+      near = [h for h in solid if np.linalg.norm(data.geom_xpos[g] - data.geom_xpos[h])
+              <= model.geom_rbound[g] + model.geom_rbound[h] + ON_SOLID_M]
+      if any(mujoco.mj_geomDistance(model, data, g, h, ON_SOLID_M, None) <= ON_SOLID_M
+             for h in near):
+        continue
+      bad.append(f"{name}/{model.geom(g).name} spans z [{z - rz:.3f},{z + rz:.3f}] in the "
+                 f"band, on nothing solid")
   assert not bad, "\n".join(bad)
 
 
@@ -142,13 +168,14 @@ def _scan_grid(xml_path):
     body.close()
 
 
-def test_dressing_in_the_beam_reaches_the_map():
+def test_dressing_in_the_band_reaches_the_map():
   """The failure #71's placement rules exist to prevent, demonstrated: a
   non-colliding 1.6 m mound in the garden -- exactly a hill a dresser might
   think 'safe' because contype is 0 -- changes the occupancy grid, because
   the LIDAR raycast never looked at contype. In the real world it would be
   a phantom the planner routes around; here it is the proof that
-  `test_decor_stays_out_of_the_lidar_beam` is about something.
+  `test_decor_stays_out_of_the_band_the_map_is_laid_from` is about
+  something.
 
   The clean scan is taken twice first: determinism is what makes the
   hostile diff meaningful rather than noise.
@@ -174,7 +201,7 @@ def test_dressing_in_the_beam_reaches_the_map():
   changed = int(np.count_nonzero(clean_a != dressed))
   assert changed > 0, (
     "a non-colliding mound in the beam left no trace on the map -- the "
-    "LIDAR started honouring contype, and the beam-band rule needs "
+    "LIDAR started honouring contype, and the band's rule needs "
     "re-deriving")
 
 
@@ -197,24 +224,3 @@ def test_every_hinted_body_validates_against_its_conformance_rule(trio):
                               f"not the ONE box its rule pins"
       assert model.geom(geoms[0]).type == mujoco.mjtGeom.mjGEOM_BOX, \
           f"{name} ({hint}) is not a box"
-
-
-def test_the_beam_constant_is_where_the_sensor_actually_rides():
-  """`BEAM_Z` above is a copy of where the scan really is; a copy that can
-  drift is a rule about nothing. So it is pinned against the COMPILED
-  robot: the world z of the `lidar` site the scanner itself ray-casts from
-  (`perception.lidar` takes it by name), standing in its world. Move the
-  sensor and this fails until the band -- and every judgement made with it
-  -- follows."""
-  from pluggybot.humanoid import world as hw
-  from pluggybot.humanoid.body import HumanoidBody
-  model = hw.home_spec().compile()
-  data = mujoco.MjData(model)
-  body = HumanoidBody(model, data, realtime=False)
-  try:
-    body.start_at(1.5, 0.5, 0.0)
-    z = float(data.site_xpos[model.site("lidar").id][2])
-  finally:
-    body.close()
-  assert abs(z - BEAM_Z) < 0.01, \
-      f"the lidar site rides at z={z:.3f}, BEAM_Z says {BEAM_Z}"

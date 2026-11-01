@@ -26,8 +26,6 @@ and the legs alone, through the true heading.
     ... --explore 240 --trips 2 --rest 60 --no-charge --out run.json
     ... --idle-at 12,0 --idle 180     # first stood idle in the street
     ... --learned                     # its gyro's offset taken off its heading
-    ... --band                        # its map laid from its LIDAR's points laid
-                                      # flat, not its level ring (#581, stage 1)
     ... --table run*.json             # runs side by side, and by zone
 
 `--seed` draws the IMU's offset and scale and the joints' noise: `luca` and
@@ -284,7 +282,7 @@ def _patch(tr: Tracker) -> None:
 
 def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trips: int = 2,
         rest_s: float = 0.0, charge: bool = True, idle_at=None, idle_s: float = 0.0,
-        offset_learned: bool = False, band: bool = False) -> dict:
+        offset_learned: bool = False) -> dict:
   """One humanoid from `start` (`start` Luca's, `hall` Rowan's), its draws
   `seed`'s -- its gyro's offset taken off its heading if `offset_learned`
   (`learned`) -- a look round, the loop's explore for `explore_s`, a walk
@@ -292,16 +290,14 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
   storeroom and back to the station's standoff -- standing still `rest_s`
   at the storeroom, as a job would -- and, if `charge`, the loop's charge
   path and the station's fix as it charges. The rows, each walk's end, the
-  shares over the flight and over each zone. With `band`, its map is laid
-  from its LIDAR's points laid flat (`HumanoidMission.band`, #581)."""
+  shares over the flight and over each zone."""
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   cfg = world_config(HUMANOID_HOME)
   starts = {"start": cfg["start"], "hall": cfg["start2"]}
   life, body, _ = _life()
-  body.mission.band = band
   data, wall = life.data, time.time()
   out = {"seed": seed, "start": start, "exploreS": explore_s, "trips": trips, "restS": rest_s,
-         "idleAt": idle_at, "idleS": idle_s, "learned": offset_learned, "band": band}
+         "idleAt": idle_at, "idleS": idle_s, "learned": offset_learned}
   try:
     life.blacklist, life.floor_explored = set(), False
     body.start_at(*starts[start])
@@ -493,9 +489,6 @@ def main(argv=None) -> int:
                   help="the gyro's offset taken off its heading, as a zero-rate update "
                        "that had learned it would")
   ap.add_argument("--no-charge", action="store_true", help="stop after the last walk")
-  ap.add_argument("--band", action="store_true",
-                  help="its map laid from its LIDAR's points laid flat, not its level ring "
-                       "(#581, stage 1)")
   ap.add_argument("--out", default=None, help="the run, as JSON")
   ap.add_argument("--table", nargs="+", default=None, metavar="JSON",
                   help="runs written by --out, side by side and by zone")
@@ -509,7 +502,7 @@ def main(argv=None) -> int:
     return 0
   idle_at = None if args.idle_at is None else tuple(float(v) for v in args.idle_at.split(","))
   run = fly(args.seed, args.start, args.explore, args.trips, args.rest, not args.no_charge,
-            idle_at, args.idle if idle_at is not None else 0.0, args.learned, args.band)
+            idle_at, args.idle if idle_at is not None else 0.0, args.learned)
   if args.out:
     Path(args.out).write_text(json.dumps(run))
   report(run)
