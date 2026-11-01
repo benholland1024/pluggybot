@@ -480,7 +480,7 @@ class Navigator:
       # that moves. Excluding it from the scan silenced both, and the 0.25 m
       # stop that holds this robot off a wall, a doorpost and a bed was
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
-      angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
+      angles, ranges, peer_angles, peer_ranges = self._scan()
       if self.level():
         m = self._match(angles, ranges)
         if m is None or self.matcher.fuses(m, self.data.time):
@@ -495,6 +495,12 @@ class Navigator:
         all_ranges = np.concatenate((ranges, peer_ranges))
         if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
+
+  def _scan(self) -> tuple:
+    """One scan, the map's and the other robots' apart (`Lidar.scan_split`):
+    the LIDAR's level ring here. A body may lay its LIDAR's points flat
+    instead (`HumanoidMission.band`)."""
+    return self.lidar.scan_split(self.data)
 
   def _front_blocked(self, angles, ranges) -> bool:
     """The front stop's test, over one scan's bearings and ranges (the room

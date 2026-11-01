@@ -85,10 +85,11 @@ fi
 # The allowance and the operator's switch (issue #37) are environment too,
 # and read straight from it by mind/spend.py and mind/mode.py -- no flags, so
 # nothing here has to know they exist: $PLUGGY_WEEKLY_USD, $PLUGGY_SPEND,
-# $PLUGGY_MODE_FILE, $PLUGGY_ESCALATE_TO. ⚠ The mode file and the spend file
-# BOTH belong on the state volume: a budget that reset on restart would be no
-# budget (a mission ends several times an hour here), and a robot paused
-# before a restart must come back paused.
+# $PLUGGY_MODE_FILE, $PLUGGY_ESCALATE_TO. ⚠ Both files must outlive the
+# process: a budget that reset on restart would be no budget (a mission ends
+# several times an hour here), and a robot paused before a restart must come
+# back paused. The spend file is on the state volume; the mode file on the
+# switch's own, read-only here (#562).
 if [ -n "${PLUGGY_ESCALATE_TO:-}" ]; then
   set -- --escalate-to "${PLUGGY_ESCALATE_TO}" "$@"
 fi

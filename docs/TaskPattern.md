@@ -231,9 +231,10 @@ decision off a fixed menu.
 ## 3. The perception ladder for object tasks
 
 A floor object is found only where a sensor can see it, and this is
-measured, not pessimism: the humanoid's LIDAR spins **1.41 m** up, and its
-depth camera sees a counter's height from 0.12 m ahead but the floor only
-from 0.48 m (`humanoid.model`'s `depth_pitch_deg`, `humanoid_spike.py
+measured, not pessimism: the humanoid's map is laid from its LIDAR's level
+ring, **1.47 m** up (its points laid flat see lower, and are not served yet:
+#581), and its depth camera sees a counter's height from 0.12 m ahead but
+the floor only from 0.48 m (`humanoid.model`'s `depth_pitch_deg`, `humanoid_spike.py
 --sensors`). Object tasks therefore come in tiers, and **a task kind must
 state which tier it is written for** (in the kind's comment, as the hand
 jobs state tier 1, `economy/tasks.py`):

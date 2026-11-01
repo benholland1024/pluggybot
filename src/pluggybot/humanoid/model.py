@@ -220,6 +220,12 @@ class HumanoidSpec:
   #: The navigation camera's (the tags on the walls, 0.4-1.2 m up, read
   #: from a metre on).
   nav_pitch_deg: float = 20.0
+  #: The LIDAR's rays' origin over the head's top, m (#581: the unit hangs
+  #: upside down from its bracket, `_lidar`): its steepest, -52 deg, clears
+  #: the head ahead and to either side, and the head's corners hide only
+  #: under -45. At the C1's 4.7 cm the head hid every ray steeper than
+  #: 31-35 deg, the floor out to 2 m (`lidar_spike.py --hidden`).
+  lidar_rise: float = 0.10
   # -- the charge port (#559 stage 2): on the torso's front --
   #: Right of its middle and over the hip axes, m: where the right hand
   #: carries a plug straight in from ahead with its arm clear of the trunk
@@ -288,7 +294,24 @@ def structure(spec: HumanoidSpec = CHOSEN) -> dict[str, tuple]:
     "forearm_tube": (Tube(0.035, 0.002, spec.forearm), 2, "a forearm, 35 x 2 mm 6082 tube"),
     "gripper_adapter": (Plate(hp.GRIPPER.flange ** 2, 0.006), 2,
                         "the plate a gripper bolts to on the wrist's roll"),
+    "lidar_post": (Plate(LIDAR_POST_W * _lidar_post_h(spec), LIDAR_STOCK), 1,
+                   "the LIDAR's post, up the head's back edge on to it, 3 mm 6082"),
+    "lidar_roof": (Plate(hp.LIDAR.size[1] * (hx + hp.LIDAR.size[0] / 2), LIDAR_STOCK), 1,
+                   "the plate the LIDAR's base bolts under, from its post, 3 mm 6082"),
   }
+
+
+#: The LIDAR's bracket (#581): a 20 mm 6082 post, 3 mm thick, up the head's
+#: back edge and ON TO the sensor -- its shadow 3 mm wide, under 2 deg each
+#: side of straight back -- and a plate across the post's top, the sensor's
+#: base bolted under it, its window below (`_lidar`).
+LIDAR_POST_W, LIDAR_STOCK = 0.020, 0.003
+
+
+def _lidar_post_h(spec: HumanoidSpec) -> float:
+  """The post, from the head's top to the plate over the sensor, m: the
+  rays' origin, 5 mm under the sensor (`_lidar`), and the sensor."""
+  return spec.lidar_rise + 0.005 + hp.LIDAR.size[2]
 
 
 def _kg(spec: HumanoidSpec, *names: str, each: bool = False) -> float:
@@ -567,7 +590,6 @@ def _trunk(spec: HumanoidSpec) -> str:
              (0, (1 if s == "left" else -1) * spec.shoulder_pitch_y, spec.shoulder_z), "y")
     for s in SIDES)
   hz0 = spec.head_z
-  lidar = hp.LIDAR
   top = hz0 + hz
   dp = math.radians(spec.depth_pitch_deg)
   npch = math.radians(spec.nav_pitch_deg)
@@ -607,13 +629,34 @@ def _trunk(spec: HumanoidSpec) -> str:
         <geom name="nav_cam" class="visual" type="box" size="0.006 0.012 0.012"
               mass="{_f(hp.CAMERA_KG)}" rgba="0.1 0.1 0.1 1"/>
         <camera name="nav_eye" pos="0.007 0 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
-      </body>
+      </body>{_lidar(spec, top)}"""
+
+
+def _lidar(spec: HumanoidSpec, top: float) -> str:
+  """The LIDAR on its bracket over the head's top (#581): the unit upside
+  down, its window under its base, its rays' origin `lidar_rise` over the
+  head and 5 mm under the unit -- cast from inside the housing, every ray hit
+  the housing (#386) -- the post up the head's back edge, on to the sensor,
+  and the plate the base bolts under. Like the C1 it replaced, it touches
+  nothing: no policy was trained with it to fall on."""
+  ux, uy, uz = (v / 2 for v in hp.LIDAR.size)
+  hx = spec.head_half[0]
+  rise = spec.lidar_rise
+  post_h = _lidar_post_h(spec)
+  roof_x = (ux - hx) / 2
+  return f"""
       <body name="lidar_mount" pos="{_v(0, 0, top)}">
-        <geom name="lidar" class="visual" type="cylinder" size="{_v(lidar.radius, lidar.height / 2)}"
-              pos="{_v(0, 0, lidar.height / 2)}" mass="{_f(lidar.kg)}" rgba="0.05 0.05 0.05 1"/>
-        <!-- 6 mm above the puck, as the quadruped's: cast from inside the
-             housing, every ray hit the housing (#386). -->
-        <site name="lidar" pos="{_v(0, 0, lidar.height + 0.006)}" size="0.005"/>
+        <geom name="lidar" class="visual" type="box" size="{_v(ux, uy, uz)}"
+              pos="{_v(0, 0, rise + 0.005 + uz)}" mass="{_f(hp.LIDAR.kg)}" rgba="0.05 0.05 0.05 1"/>
+        <geom name="lidar_post" class="visual" type="box"
+              size="{_v(LIDAR_POST_W / 2, LIDAR_STOCK / 2, post_h / 2)}"
+              pos="{_v(-hx + LIDAR_POST_W / 2, 0, post_h / 2)}" mass="{_f(_kg(spec, 'lidar_post'))}"
+              rgba="0.75 0.75 0.78 1"/>
+        <geom name="lidar_roof" class="visual" type="box"
+              size="{_v((ux + hx) / 2, uy, LIDAR_STOCK / 2)}"
+              pos="{_v(roof_x, 0, post_h + LIDAR_STOCK / 2)}" mass="{_f(_kg(spec, 'lidar_roof'))}"
+              rgba="0.75 0.75 0.78 1"/>
+        <site name="lidar" pos="{_v(0, 0, rise)}" size="0.005"/>
       </body>"""
 
 

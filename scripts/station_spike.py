@@ -26,6 +26,9 @@ the house, its station on the living room's wall.
     ... --strip [plug|lost]     # a scene's filmstrip
     ... --lost-from P --lost-off X,Y,DEG   # the lost scene from elsewhere
     ... --out rows.json         # the rows
+    ... --band                  # any of them with its map laid from its
+                                # LIDAR's points laid flat (#581, stage 1:
+                                # `HumanoidMission.band`), not its level ring
 
 Every trial is its own process and flies the served body off its own senses
 (the station off its tags, its port off its model of itself); the truth
@@ -44,6 +47,17 @@ from pathlib import Path
 
 import mujoco
 import numpy as np
+
+#: Every trial's map laid from its LIDAR's points laid flat, not its level
+#: ring (`--band`; `HumanoidMission.band`, #581's stage 1): set by `main`,
+#: handed to each trial's process.
+BAND = False
+
+
+def _child(*args: str) -> list[str]:
+  """A trial's process: this script with `args`, and `--band` with it."""
+  return [sys.executable, __file__, *args, *(["--band"] if BAND else [])]
+
 
 #: A filmstrip's tile, px, and its row.
 TILE_W, TILE_H, ROW = 480, 360, 4
@@ -77,6 +91,7 @@ def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   body = body_for(model, data)
+  body.mission.band = BAND
   s = body._station
   x0 = st.SEAT_X if at_seat else st.STANDOFF_X
   x, y = s.to_world(x0 - off[0], st.SEAT_Y + off[1])
@@ -121,7 +136,7 @@ def approach(n: int, parallel: int, seed: int = 559) -> list[dict]:
                                                 rng.uniform(-25, 25))) for _ in range(n)]
 
   def run(off):
-    cmd = [sys.executable, __file__, "--one", json.dumps(off)]
+    cmd = _child("--one", json.dumps(off))
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     try:
       return json.loads(r.stdout.strip().splitlines()[-1])
@@ -185,7 +200,7 @@ def seats(parallel: int) -> list[dict]:
   offs = list(itertools.product(SEAT_BACKS, SEAT_LEFTS, SEAT_TURNS))
 
   def run(off):
-    cmd = [sys.executable, __file__, "--one-seat", json.dumps(off)]
+    cmd = _child("--one-seat", json.dumps(off))
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     try:
       return json.loads(r.stdout.strip().splitlines()[-1])
@@ -259,7 +274,7 @@ def walk_ins(explores: tuple, parallel: int) -> list[dict]:
   trials = [(p, e) for e in explores for p in WALK_IN_FROM]
 
   def run(t):
-    cmd = [sys.executable, __file__, "--one-walk-in", json.dumps(t)]
+    cmd = _child("--one-walk-in", json.dumps(t))
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
     try:
       return json.loads(r.stdout.strip().splitlines()[-1])
@@ -296,6 +311,7 @@ def _life():
   station = next(a for a in acts if a.name == "station")
   life.body.step_hooks.append(acts.step_hook(model, data))
   life.max_sim_time = life.explore_deadline = 1e9
+  life.body.mission.band = BAND
   return life, life.body, station
 
 
@@ -467,8 +483,8 @@ def _fly_losts(trials: list, parallel: int) -> list[dict]:
   """Each `(off, place, explore_s)` a `lost_trial` in a process of its own."""
   def run(t):
     off, place, explore_s = t
-    cmd = [sys.executable, __file__, "--one-lost", json.dumps(
-      {"off": list(off), "from": place, "explore": explore_s})]
+    cmd = _child("--one-lost", json.dumps(
+      {"off": list(off), "from": place, "explore": explore_s}))
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
     try:
       return json.loads(r.stdout.strip().splitlines()[-1])
@@ -816,11 +832,15 @@ def main(argv=None) -> int:
                   help="the scene's filmstrip, station_spike.png (fall: station_spike_fall.png, "
                        "lost: station_spike_lost.png)")
   ap.add_argument("--out", default=None)
+  ap.add_argument("--band", action="store_true",
+                  help="its map laid from its LIDAR's points laid flat (#581, stage 1)")
   ap.add_argument("--one", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-walk-in", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-seat", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-lost", default=None, help=argparse.SUPPRESS)
   args = ap.parse_args(argv)
+  global BAND
+  BAND = args.band
   if args.one:
     print(json.dumps(trial(tuple(json.loads(args.one)))))
     return 0

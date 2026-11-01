@@ -35,11 +35,11 @@ import pytest
 
 ROOT = Path(__file__).parent.parent
 
-#: The beam's absolute height, the humanoid standing (its LIDAR spins on
-#: its head, #507), with clearance either side for its trunk's bob as it
-#: walks. A decorative geom whose z-extent crosses this band is in the map
-#: whether it collides or not.
-BEAM_Z = 1.414
+#: The beam's absolute height, the humanoid standing (its LIDAR's level
+#: ring, over its head, #581), with clearance either side for its trunk's
+#: bob as it walks. A decorative geom whose z-extent crosses this band is in
+#: the map whether it collides or not.
+BEAM_Z = 1.467
 BEAM_CLEAR = 0.05
 
 

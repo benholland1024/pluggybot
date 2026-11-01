@@ -1,4 +1,5 @@
-"""Guards for the LIDAR (perception/lidar.py), on the humanoid's head."""
+"""Guards for the LIDAR (perception/lidar.py): the Mid-360S upside down on
+the humanoid's head (#581)."""
 
 import math
 
@@ -8,123 +9,107 @@ import pytest
 
 from pluggybot.humanoid import model as hm
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
+from pluggybot.perception import lidar as lidar_mod
 from pluggybot.perception.lidar import Lidar
 
 #: A 4 x 3 m box room round the robot, which stands at the origin facing +x:
 #: walls' inner faces at x -0.98 and 2.98, y -1.48 and 1.48, and 2.4 m tall,
-#: a room's (its LIDAR spins at 1.41 m, over a 1.2 m wall).
+#: a room's.
 ROOM = "".join(
   f'<geom name="wall_{i}" type="box" size="{sx} {sy} 1.2" pos="{x} {y} 1.2"/>'
   for i, (sx, sy, x, y) in enumerate([(0.02, 1.5, 3.0, 0.0), (0.02, 1.5, -1.0, 0.0),
                                       (2.0, 0.02, 1.0, 1.5), (2.0, 0.02, 1.0, -1.5)]))
+#: ...and a 0.9 m fence across it 2 m ahead: under the level ring, in the band.
+FENCE = '<geom name="fence" type="box" size="0.02 1.2 0.45" pos="2.0 0 0.45"/>'
+#: The rays' origin over the pelvis, the robot standing (its model).
+SITE_Z = hm.CHOSEN.head_z + hm.CHOSEN.head_half[2] + hm.CHOSEN.lidar_rise
 
 
-def _post(spec) -> None:
-  """A part of the robot in its own scan plane: a post on its pelvis, 0.3 m
-  ahead of the LIDAR, collidable as its own geoms are. Its body is all below
-  the plane its head carries the LIDAR in. (⚠ An arm raised overhead crosses
-  it, and MuJoCo 3.10's `mj_multiRay` misses the raised forearm where
-  `mj_ray` hits it -- an open question, #559.)"""
-  lidar = 0.682                              # m over the pelvis, the head's top
+def _post(spec, z: float = SITE_Z) -> None:
+  """A part of the robot in its own level ring: a post on its pelvis, 0.3 m
+  ahead of the LIDAR, collidable as its own geoms are."""
   spec.body("pluggybot").add_geom(name="plane_post", type=mujoco.mjtGeom.mjGEOM_BOX,
-                                  pos=[0.3, 0.0, lidar], size=[0.02, 0.06, 0.05],
+                                  pos=[0.3, 0.0, z], size=[0.02, 0.06, 0.05],
                                   contype=1, conaffinity=0)
 
 
-@pytest.fixture(scope="module")
-def room_model():
-  return mujoco.MjModel.from_xml_string(hm.body_xml(hm.CHOSEN, scenery=ROOM))
-
-
-@pytest.fixture
-def settled(room_model):
-  """Standing (the stand keyframe), its arms hanging."""
-  data = mujoco.MjData(room_model)
-  mujoco.mj_resetDataKeyframe(room_model, data, 0)
-  mujoco.mj_forward(room_model, data)
-  return data
-
-
-def _clean(model):
-  """A noiseless, dropout-free unit: the geometric truth of the scan."""
-  return Lidar(model, sigma_m=0.0, sigma_frac=0.0, dropout=0.0)
-
-
-def test_scan_covers_the_full_circle(room_model, settled):
-  """360 deg, every bearing a return inside the unit's range."""
-  angles, ranges = _clean(room_model).scan(settled)
-  assert angles.min() < math.radians(-150)
-  assert angles.max() > math.radians(150)
-  assert len(angles) > 300
-  assert np.all(ranges > 0.0)
-  assert np.all(ranges <= 8.0 + 1e-9)
-
-
-def test_the_robot_occludes_itself_and_says_so(room_model, settled):
-  """Standing, nothing of the robot is in its scan plane; a part of it that
-  is (`_post`) hides those bearings, which must be ABSENT, not reported as
-  free space -- a self-hit is an absence of information, and reporting it
-  as max_range would carve a phantom corridor through the map in exactly
-  the direction the robot cannot see."""
-  assert _clean(room_model).blind_fraction(settled) == 0.0, "its own body is in the plane"
-  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, scenery=ROOM))
-  _post(spec)
+def _world(scenery: str = ROOM, post: bool = False, pitch: float = 0.0):
+  """The robot standing (the stand keyframe, its arms hanging) in
+  `scenery`, its trunk pitched `pitch` rad forward: (model, data)."""
+  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, scenery=scenery))
+  if post:
+    _post(spec)
   model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
+  if pitch:
+    out = np.zeros(4)
+    mujoco.mju_mulQuat(out, data.qpos[3:7].copy(),
+                       np.array([math.cos(pitch / 2), 0.0, math.sin(pitch / 2), 0.0]))
+    data.qpos[3:7] = out
   mujoco.mj_forward(model, data)
+  return model, data
+
+
+@pytest.fixture(scope="module")
+def room():
+  return _world()
+
+
+def _clean(model):
+  """No noise and no dropouts: the geometric truth of the scan."""
+  return Lidar(model, noise=False)
+
+
+def _truth(model, data):
+  """The robot's true tilt, level from its root body, and its root's height
+  over the floor: what its IMU and its legs' encoders would say."""
+  root = model.body("pluggybot").id
+  rot = data.xmat[root].reshape(3, 3)
+  yaw = math.atan2(rot[1, 0], rot[0, 0])
+  c, s = math.cos(yaw), math.sin(yaw)
+  return np.array([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]]) @ rot, float(data.xpos[root][2])
+
+
+def _behind(angles, half_deg: float = 2.5) -> np.ndarray:
+  """Bearings within `half_deg` of straight back: the bracket's post."""
+  return np.abs(np.abs(np.degrees(angles)) - 180.0) <= half_deg
+
+
+def test_the_level_ring_covers_the_full_circle(room):
+  """360 deg, every bearing a return inside the unit's range but the few
+  its bracket's post hides behind it, from where the model puts the rays'
+  origin."""
+  model, data = room
+  assert data.site_xpos[model.site("lidar").id][2] == pytest.approx(
+    hm.stand_height() + SITE_Z, abs=0.02)
   lidar = _clean(model)
-  angles, _ = lidar.scan(data)
-  blind = lidar.blind_fraction(data)
-  assert 0.01 < blind < 0.20, (
-    f"blind fraction {blind:.1%} -- either the self-filter is not running, "
-    f"or the mount has been moved somewhere that occludes far too much")
-  # The gap is ONE contiguous sector (the post), not scattered holes...
-  missing = sorted(set(np.round(np.degrees(lidar.ray_angles)).astype(int))
-                   - set(np.round(np.degrees(angles)).astype(int)))
-  assert missing == list(range(missing[0], missing[-1] + 1)), missing
-  # ...and it points at the post, dead ahead of the head
-  assert abs(np.mean(missing)) < 3, f"blind sector centred at {np.mean(missing):.0f} deg"
+  angles, ranges = lidar.scan(data)
+  hidden = np.setdiff1d(np.round(lidar.ray_angles, 9), np.round(angles, 9))
+  assert 1 <= len(hidden) <= 5 and _behind(hidden).all(), np.degrees(hidden)
+  assert angles.min() < math.radians(-175) and angles.max() > math.radians(175)
+  assert np.all(ranges > 0.0) and np.all(ranges <= lidar_mod.MAX_RANGE + 1e-9)
 
 
-def test_noise_is_present_and_bounded(room_model, settled):
-  """A sensor that returns the same number twice is not being modelled."""
-  clean = _clean(room_model)
-  noisy = Lidar(room_model, seed=1)
-  a_c, r_c = clean.scan(settled)
-  a_n, r_n = noisy.scan(settled)
-  truth = dict(zip(np.round(a_c, 6), r_c))
-  paired = [(truth[k], v) for k, v in zip(np.round(a_n, 6), r_n) if k in truth]
-  assert len(paired) > 250
-  err = np.array([n - t for t, n in paired])
-  assert np.any(err != 0.0), "the LIDAR is noiseless -- that is not a sensor"
-  # Each ray against ITS OWN sigma: the model is +/-10 mm + 1 % of range,
-  # so a flat threshold fails on the long rays for no good reason.
-  t = np.array([t for t, _ in paired])
-  hits = t < 8.0 - 1e-9
-  sigma = 0.010 + 0.01 * t
-  assert np.all(np.abs(err[hits]) < 4.0 * sigma[hits]), "noise exceeds 4 sigma"
-  assert (np.abs(err[hits]) / sigma[hits]).mean() < 1.5
-
-
-def test_ranges_match_geometry(room_model, settled):
-  """Ranging accuracy against the model's own geometry: forward and
-  backward through the head span the room wall to wall, 3.96 m."""
-  angles, ranges = _clean(room_model).scan(settled)
+def test_the_level_ring_ranges_match_geometry(room):
+  """Forward and backward the ring spans the room wall to wall, 3.96 m."""
+  model, data = room
+  angles, ranges = _clean(model).scan(data)
   fwd = ranges[np.argmin(np.abs(angles))]
   back = ranges[np.argmin(np.abs(np.abs(angles) - math.pi))]
   assert fwd + back == pytest.approx(3.96, abs=0.002)
   assert fwd > back, "the robot stands nearer the back wall"
 
 
-def test_grid_origin_must_match_the_sensor(room_model, settled):
+def test_grid_origin_must_match_the_sensor(room):
   """occupancy_grid.update takes the sensor's offset from the robot's
   centre (`Navigator.LIDAR_ORIGIN`). The humanoid's LIDAR is over its
   pelvis, but a sensor 0.3 m off it laid with the default would slide the
   entire map by the difference."""
-  angles, ranges = _clean(room_model).scan(settled)
-  root = room_model.body("pluggybot").id
-  head = settled.site_xpos[room_model.site("lidar").id] - settled.xpos[root]
+  model, data = room
+  angles, ranges = _clean(model).scan(data)
+  root = model.body("pluggybot").id
+  head = data.site_xpos[model.site("lidar").id] - data.xpos[root]
   assert np.allclose(head[:2], 0.0), "the premise: the humanoid's is over its pelvis"
   pose = (0.0, 0.0, 0.0)
   a = OccupancyGrid(x_min=-3, y_min=-3, x_max=7, y_max=7, resolution=0.05)
@@ -135,85 +120,256 @@ def test_grid_origin_must_match_the_sensor(room_model, settled):
     "the origin argument does nothing -- the map cannot be sensor-agnostic"
 
 
-def _one_ray_at_a_time(lidar, data):
-  """The scan as it was cast before issue #385: `mj_ray` per bearing, the
-  noise drawn inside the loop. Kept here as the reference the batch must
-  equal bit for bit."""
-  pos = np.array(data.site_xpos[lidar.site_id])
-  mat = np.array(data.site_xmat[lidar.site_id]).reshape(3, 3)
-  dirs = lidar._dirs @ mat.T
-  geomid = np.zeros(1, dtype=np.int32)
-  out = ([], [], [], [])
-  for i in range(lidar.n_rays):
-    dist = mujoco.mj_ray(lidar.model, data, pos, np.ascontiguousarray(dirs[i]),
-                         None, 1, -1, geomid)
-    hit = int(geomid[0])
-    if dist >= 0.0 and hit in lidar._self_geoms:
-      continue
-    peer = dist >= 0.0 and hit in lidar._other_geoms
-    if dist < 0.0 or dist >= lidar.max_range:
-      out[0].append(lidar.ray_angles[i])
-      out[1].append(lidar.max_range)
-      continue
-    rng = lidar.peer_rng if peer else lidar.rng
-    if rng.random() < lidar.dropout:
-      continue
-    noisy = dist + rng.normal(0.0, lidar.sigma_m + lidar.sigma_frac * dist)
-    a, r = (out[2], out[3]) if peer else (out[0], out[1])
-    a.append(lidar.ray_angles[i])
-    r.append(float(np.clip(noisy, 0.02, lidar.max_range)))
-  return tuple(np.asarray(x, dtype=float) for x in out)
+def test_the_robot_occludes_itself_and_says_so(room):
+  """Standing, nothing of the robot is in its level ring; a part of it
+  that is (`_post`) hides those bearings, which must be ABSENT, not
+  reported as free space -- a self-hit is an absence of information, and
+  reporting it as max_range would carve a phantom corridor through the map
+  in exactly the direction the robot cannot see."""
+  model, data = room
+  angles, _ = _clean(model).scan(data)
+  assert len(angles) >= lidar_mod.BEARINGS - 5, "its own body is in the ring"
+  model, data = _world(post=True)
+  lidar = _clean(model)
+  angles, _ = lidar.scan(data)
+  angles = angles[~_behind(angles, 5.0)]
+  missing = sorted(set(range(-170, 171)) - set(np.round(np.degrees(angles)).astype(int)))
+  assert 2 < len(missing) < 40, missing
+  # The gap is ONE contiguous sector (the post), not scattered holes,
+  # pointing at the post, dead ahead of the head
+  assert missing == list(range(missing[0], missing[-1] + 1)), missing
+  assert abs(np.mean(missing)) < 3, f"blind sector centred at {np.mean(missing):.0f} deg"
 
 
-def test_the_batched_scan_is_the_scan_it_replaced():
-  """Issue #385 casts the 360 rays in ONE `mj_multiRay` and keeps the noise
-  loop only for the draws. A day must hash as it did (the parity rule), so
-  every ray is pinned against the per-ray scan it replaced: the self-hits,
-  another robot's returns on their own stream, the dropouts, the bearings
-  that return nothing -- over several poses of the pair in the house, so
-  both noise streams run long enough to drift apart if a draw moved. The
-  other robot's head is under a level scan's plane, so the first is pitched
-  forward, and its scan cuts the other's head; a part of the first in its
-  own plane (`_post`) makes its self-hits."""
-  from pluggybot.humanoid import world as hw
-  from pluggybot.robot import FIRST, SECOND
-  spec = hw.home_spec(second_at=(2.5, 0.5))
-  _post(spec)
+def test_its_mount_hides_little_and_nothing_ahead_or_aside(room):
+  """What the robot's own body hides of a frame, standing with its arms
+  hanging (#581, `HumanoidSpec.lidar_rise`): nothing within 10 deg of
+  ahead or of either side, down to the field's steepest ray -- the head's
+  top clears it there -- and behind only the bracket's post, a sliver;
+  the head's corners hide the steepest rays between."""
+  model, data = room
+  lidar = _clean(model)
+  mine = lidar.hidden(data)
+  deg = np.degrees(lidar.ray_angles)
+  for name, centre in (("ahead", 0.0), ("left", 90.0), ("right", -90.0)):
+    cols = np.abs((deg - centre + 180) % 360 - 180) <= 10
+    assert not mine[:, cols].any(), f"its body hides rays {name}"
+  post = _behind(lidar.ray_angles)
+  assert mine[:, np.abs(np.abs(deg) - 180) <= 1.0].all(), "the premise: the post is behind it"
+  steep = np.degrees(lidar.elevations) < -45
+  assert not mine[~steep][:, ~post].any(), "something but the post above -45 deg"
+  assert lidar.blind_fraction(data) < 0.05
+
+
+def test_a_return_inside_its_blind_zone_is_no_reading():
+  """A thing nearer than 0.1 m returns nothing: no range, and no free
+  space through it either (the sheet's blind zone)."""
+  z = hm.stand_height() + SITE_Z
+  near = f'<geom name="near" type="box" size="0.005 0.008 0.01" pos="0.06 0 {z}"/>'
+  model, data = _world(ROOM + near)
+  angles, _ = _clean(model).scan(data)
+  ahead = np.abs(angles) < math.radians(5)
+  assert not ahead.any(), "a bearing through the blind zone reported something"
+  assert len(angles) > lidar_mod.BEARINGS - 25
+
+
+def test_noise_is_present_and_bounded(room):
+  """A sensor that returns the same number twice is not being modelled:
+  each range against its own sigma, the sheet's line from 4 cm at 0.2 m to
+  2 cm at 10 m -- and each bearing its own 0.15 deg."""
+  model, data = room
+  a_c, r_c = _clean(model).scan(data)
+  a_n, r_n = Lidar(model, seed=1).scan(data)
+  idx = np.abs(a_n[:, None] - a_c[None, :]).argmin(axis=1)
+  t = r_c[idx]
+  hits = t < lidar_mod.MAX_RANGE - 1e-9
+  err = r_n[hits] - t[hits]
+  assert hits.sum() > 300 and np.any(err != 0.0), "the LIDAR is noiseless"
+  sigma = lidar_mod._sigma(t[hits])
+  # ...a bearing's own jitter moves a range along a wall seen askew
+  assert np.all(np.abs(err) < 5.0 * sigma + 0.01), "noise past 5 sigma"
+  assert 0.5 < np.sqrt(np.mean((err / sigma) ** 2)) < 2.0
+  bearing = a_n - a_c[idx]
+  assert 0.5 < np.std(bearing) / lidar_mod.ANGLE_SD < 1.5
+  assert len(a_n) < len(a_c), "no return dropped out"
+
+
+def test_the_cloud_lies_on_the_room():
+  """Every return of a noiseless frame is a point on the room's walls or
+  floor, where the rays truly struck: the sensor's frame is the trunk's,
+  and its origin the site's."""
+  model, data = _world()
+  c = _clean(model).cloud(data)
+  site = data.site_xpos[model.site("lidar").id]
+  world = c.points + site                      # standing level, facing +x
+  on_floor = np.abs(world[:, 2]) < 1e-6
+  on_wall = ((np.abs(world[:, 0] - 2.98) < 1e-6) | (np.abs(world[:, 0] + 0.98) < 1e-6)
+             | (np.abs(np.abs(world[:, 1]) - 1.48) < 1e-6))
+  assert (on_floor | on_wall).all()
+  assert on_floor.sum() > 1000 and on_wall.sum() > 1000
+  assert len(c.peers) == 0
+  # ...and every bearing saw something but the few its bracket's post hides
+  lidar = _clean(model)
+  assert (c.seen | _behind(lidar.ray_angles)).all() and c.seen.sum() >= lidar_mod.BEARINGS - 5
+
+
+def test_the_floor_is_struck_however_far_its_middle():
+  """A plane is infinite, and the frame's steep rays meet the floor 1.15-8 m
+  out wherever the floor's own middle is: the house's is 19 m off at its
+  edge, where a cast cut off at 8 m read nothing off it."""
+  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN))
+  floor = next(g for g in spec.geoms if g.type == mujoco.mjtGeom.mjGEOM_PLANE)
+  floor.pos = [20.0, 0.0, 0.0]
   model = spec.compile()
   data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  c = _clean(model).cloud(data)
+  site = data.site_xpos[model.site("lidar").id]
+  on_floor = np.abs((c.points + site)[:, 2]) < 1e-6
+  assert on_floor.sum() > 3000, f"{on_floor.sum()} returns off the floor"
 
-  def stand(handle, x, y, yaw):
-    q = handle.qpos_adr(model)
-    data.qpos[q:q + 7] = [x, y, hm.stand_height(), math.cos(yaw / 2), 0.0, 0.0,
-                          math.sin(yaw / 2)]
-    for name, v in hm.stand_qpos().items():
-      data.qpos[model.jnt_qposadr[model.joint(handle.el(name)).id]] = v
-  stand(SECOND, 2.5, 0.5, 0.0)
-  batched, reference = Lidar(model, seed=3), Lidar(model, seed=3)
-  for lidar in (batched, reference):
-    lidar.exclude_robot(SECOND.root)
-  own = _clean(model)                   # counts self-hits off the two streams
-  q = FIRST.qpos_adr(model)
-  saw_peer = saw_far = saw_self = False
-  # ⚠ No pose strikes a geom that collides with nothing: MuJoCo 3.10's
-  # `mj_multiRay` passes the garden light's bulb (2.0, -0.5, -0.3 pitched
-  # 0.15, its 46 deg ray) where `mj_ray` hits it -- an open question, #559.
-  for k, (x, y, yaw, pitch) in enumerate([(1.5, 0.5, 0.0, 0.2), (1.0, 0.0, 0.4, 0.0),
-                                          (2.0, -0.5, -0.3, 0.0), (0.5, 1.5, 2.5, 0.0),
-                                          (1.6, 0.6, 0.1, 0.25)] * 3):
-    stand(FIRST, x, y, yaw)
-    tilt = np.zeros(4)
-    mujoco.mju_mulQuat(tilt, data.qpos[q + 3:q + 7].copy(),
-                       np.array([math.cos(pitch / 2), 0.0, math.sin(pitch / 2), 0.0]))
-    data.qpos[q + 3:q + 7] = tilt
-    mujoco.mj_forward(model, data)
-    got, want = batched.scan_split(data), _one_ray_at_a_time(reference, data)
-    for g, w, name in zip(got, want, ("angles", "ranges", "peer angles",
-                                      "peer ranges")):
-      assert g.dtype == w.dtype and np.array_equal(g, w), \
-        f"pose {k}: the batched scan's {name} differ from the per-ray scan's"
-    saw_peer |= got[2].size > 0
-    saw_far |= bool((got[1] == batched.max_range).any())
-    saw_self |= own.blind_fraction(data) > 0.05
-  assert saw_peer and saw_far and saw_self, \
-    "the poses never exercised a peer, a far ray or a self-hit"
+
+def _room_range(angles, x0: float = 0.0, fence: bool = False) -> np.ndarray:
+  """How far the room's walls are along each bearing from `x0` ahead of the
+  pelvis (and the fence's near face, 1.98 m ahead of it and 1.2 m either
+  side, where there is one)."""
+  c, s = np.cos(angles), np.sin(angles)
+  with np.errstate(divide="ignore"):
+    r = np.minimum(np.where(c > 0, (2.98 - x0) / c, (0.98 + x0) / -c), 1.48 / np.abs(s))
+    if fence:
+      ahead = 1.98 - x0
+      r = np.where((c > 0) & (np.abs(ahead * s / c) <= 1.2), np.minimum(r, ahead / c), r)
+  return r
+
+
+def test_the_band_lays_a_low_fence_the_level_ring_passes_over():
+  """#581's point: the 0.9 m fence 2 m ahead is under the level ring,
+  which reads the wall behind it -- and in the band, its near face's 1.98
+  m ahead. Every other bearing is the room's walls, never the floor, and
+  the post's shadow behind is no reading, never free space."""
+  model, data = _world(ROOM + FENCE)
+  lidar = _clean(model)
+  angles, ranges = lidar.scan(data)
+  assert ranges[np.argmin(np.abs(angles))] == pytest.approx(2.98, abs=0.01), \
+    "the premise: the ring passes over the fence"
+  level, height = _truth(model, data)
+  b_angles, b_ranges, _, _ = lidar.band(data, level, height)
+  assert np.allclose(b_ranges, _room_range(b_angles, fence=True), atol=0.02)
+  assert lidar_mod.BEARINGS - 5 <= len(b_angles) < lidar_mod.BEARINGS
+
+
+def test_the_band_is_laid_through_the_tilt():
+  """Pitched 10 deg forward, its points through the robot's tilt still put
+  the fence's face 1.98 m ahead of its pelvis, the floor out of the band.
+  Laid as if level, the floor ahead rises into it and walls the robot in."""
+  model, data = _world(ROOM + FENCE, pitch=math.radians(10))
+  lidar = _clean(model)
+  level, height = _truth(model, data)
+  angles, ranges, _, _ = lidar.band(data, level, height)
+  ahead = np.abs(angles) < math.radians(15)
+  assert np.allclose(ranges[ahead], 1.98 / np.cos(angles[ahead]), atol=0.03)
+  angles, ranges, _, _ = lidar.band(data, np.eye(3), height)
+  ahead = np.abs(angles) < math.radians(15)
+  assert ranges[ahead].min() < 1.5, "the premise: unlevelled, the floor reads as a wall"
+
+
+def test_the_band_lays_no_free_ray_down_a_return():
+  """Tilted, a steep ray's point levels degrees off the bearing it was cast
+  on. Binned by that bearing, a low box 1.4 m ahead -- which only the
+  steep rays reach -- came back on its neighbours' bearings, while its own
+  bearing's rays passed over it and read free: a free ray laid 0.12 deg
+  from its return, clearing the cell it struck. So every return is half a
+  bearing or more from every free ray, the robot rolled 10 deg, in the
+  open."""
+  low = '<geom name="low" type="box" size="0.03 0.03 0.15" pos="1.4 0 0.15"/>'
+  model, data = _world(low)
+  roll = math.radians(10)
+  out = np.zeros(4)
+  mujoco.mju_mulQuat(out, data.qpos[3:7].copy(),
+                     np.array([math.cos(roll / 2), math.sin(roll / 2), 0.0, 0.0]))
+  data.qpos[3:7] = out
+  mujoco.mj_forward(model, data)
+  lidar = _clean(model)
+  level, height = _truth(model, data)
+  angles, ranges, _, _ = lidar.band(data, level, height)
+  hit = ranges < lidar.max_range - 1e-9
+  assert hit.sum() >= 2, "the premise: the band strikes the box"
+  gap = np.abs((angles[hit][:, None] - angles[~hit][None, :] + math.pi) % (2 * math.pi) - math.pi)
+  assert gap.min() >= math.radians(0.5) - 1e-9, \
+    f"a free ray {math.degrees(gap.min()):.2f} deg from a return"
+
+
+def test_the_sensors_turn_is_read_through_its_site_and_its_mount():
+  """The band lays points through the sensor's place and turn on the root
+  (`Lidar.offset`, `Lidar.turn`), read off the model: a site turned on a
+  mount turned is both turns, as the compiled world has them."""
+  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN))
+  spec.body("lidar_mount").quat = [math.cos(0.15), 0.0, 0.0, math.sin(0.15)]
+  spec.site("lidar").quat = [math.cos(0.2), math.sin(0.2), 0.0, 0.0]
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  lidar = _clean(model)
+  root = model.body("pluggybot").id
+  rot = data.xmat[root].reshape(3, 3)
+  site = model.site("lidar").id
+  assert np.allclose(lidar.turn, rot.T @ data.site_xmat[site].reshape(3, 3), atol=1e-9)
+  assert np.allclose(lidar.offset, rot.T @ (data.site_xpos[site] - data.xpos[root]), atol=1e-9)
+
+
+def test_the_band_reads_a_wall_where_it_stands():
+  """A dozen rings or more strike a wall on each bearing, each range with
+  its own noise: the band reads the median of the nearest surface's, never
+  the least of them -- the least of a dozen read every wall 1.7 sigma
+  short, 6-7 cm, a map cell into the room."""
+  model, data = _world()
+  level, height = _truth(model, data)
+  err = []
+  for seed in range(4):
+    angles, ranges, _, _ = Lidar(model, seed=seed).band(data, level, height)
+    err.append(ranges - _room_range(angles))
+  err = np.concatenate(err)
+  assert len(err) > 4 * (lidar_mod.BEARINGS - 10)
+  assert abs(np.mean(err)) < 0.01 and abs(np.median(err)) < 0.01, \
+    f"the band reads the walls {100 * np.median(err):+.1f} cm off"
+
+
+def test_a_turned_mount_lays_its_rays_where_they_went():
+  """A sensor 5 cm ahead of the pelvis and turned 10 deg on it: the level
+  ring and the band read the front wall straight ahead at 2.93 m from it
+  (unturned, the ray read there went 10 deg aside, 2.975 m), and the
+  post's shadow, behind the SENSOR, is 190 deg round the robot -- no
+  reading there, in either, and nothing free anywhere in a closed room."""
+  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, scenery=ROOM))
+  mount = spec.body("lidar_mount")
+  mount.pos = np.asarray(mount.pos) + [0.05, 0.0, 0.0]
+  mount.quat = [math.cos(math.radians(5)), 0.0, 0.0, math.sin(math.radians(5))]
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  lidar = _clean(model)
+  assert lidar.offset[:2] == pytest.approx((0.05, 0.0), abs=1e-6), "the premise"
+  level, height = _truth(model, data)
+  shadow = np.radians(-170.0)
+  for name, (angles, ranges) in (("ring", lidar.scan(data)),
+                                 ("band", lidar.band(data, level, height)[:2])):
+    ahead = np.argmin(np.abs(angles))
+    assert ranges[ahead] == pytest.approx(2.93 / math.cos(angles[ahead]), abs=0.005), name
+    assert np.allclose(ranges, _room_range(angles, x0=0.05), atol=0.02), name
+    off = np.abs((angles - shadow + math.pi) % (2 * math.pi) - math.pi)
+    assert off.min() > math.radians(1.5), f"{name}: a reading in the post's shadow"
+    assert len(angles) >= lidar_mod.BEARINGS - 5, name
+
+
+def test_its_noise_is_its_robots_own():
+  """Two robots' LIDARs draw apart, one robot's the same twice: the seed
+  is off its name (`imu.seed_for`), never `hash()` or a shared 0."""
+  model, data = _world()
+  first = Lidar(model, robot_body="pluggybot").scan(data)
+  again = Lidar(model, robot_body="pluggybot").scan(data)
+  other = Lidar(model, robot_body="r2_pluggybot").scan(data)
+  assert all(np.array_equal(a, b) for a, b in zip(first, again))
+  assert not np.array_equal(first[1], other[1])
