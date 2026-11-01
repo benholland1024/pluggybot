@@ -171,10 +171,10 @@ what the served robots read until a period takes it out.
 
 ⚠ **THE VIEW NARROWS; THE STATE DOES NOT.** `model_state` filters at
 *presentation*. `order_runnable` and `limits_from` read the same dict, and
-`order_runnable` treats an absent `possibleActions` as "nobody supplied
-one" — so a world that *built* a thinner state would quietly stop filtering
-unrunnable standing orders, which is the agent's own fallback changing
-behaviour as a side effect of a prompt change.
+`order_runnable` takes a `take_task` order only for an offer marked
+`claimable` — so a world that *built* a thinner state would quietly refuse
+every such order, which is the agent's own fallback changing behaviour as
+a side effect of a prompt change.
 
 ⚠ **A0 HAS TO HIDE THE SURVIVAL CLOCK.** `survival.aliveS` and
 `survival.deaths` have been in every world's context since issue #107, so an
@@ -231,8 +231,8 @@ zero.
 90 % is dangerous at 10 %. An agent that sets one and dies of it **is the
 result**; code that quietly substituted something safer would be a rail
 wearing a new hat. What *is* filtered is the impossible — a `take_task`
-with nothing on the board, an errand this world could not fund out of a
-full pack (`possibleActions`, never `affordableActions`).
+with nothing on the board, a procedure not in the library — never the
+unaffordable (`affordableActions`).
 
 ⚠ **NOT A FASTER MODEL.** Answering a failed call with a smaller one mixes two
 models into a run. The obvious cheap path is also slow exactly when it is

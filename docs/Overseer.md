@@ -60,9 +60,9 @@ Read it downwards, because the order is the design:
   keeps the raw `energyCostWh`, `battery.wh` and `reserveWh` for the model
   to compare itself); and the fallback is the agent's own standing order
   (§2). ⚠ **The view narrows, the state does not**: the filter is at
-  presentation, because `order_runnable` reads `possibleActions` off the
-  same dict and an absent list means "nobody supplied one" — a thinner state
-  would silently change what the agent's own fallback can do. `RULES` is
+  presentation, because `order_runnable` reads each offer's `claimable` off
+  the same dict — a thinner state would silently change what the agent's own
+  fallback can do. `RULES` is
   part of the arm: a changed word is a changed cached prefix and a new
   period (Observatory.md).
 - **An explicit errand queue outranks a chosen one.** A queued errand runs
@@ -895,8 +895,8 @@ a killed run leaves behind:
 | the order cannot be run | `idle`, order named on the row | an order that could never execute is not one that was never set |
 
 "Cannot be run" is **impossible, never unwise** (`order_runnable`): a
-`take_task` with nothing on the board, or an errand this world could not fund
-out of a *full* pack (`possibleActions`, never `affordableActions`). ⚠ **A
+`take_task` with nothing on the board, or a procedure not in the library —
+never the unaffordable (`affordableActions`). ⚠ **A
 fatal order is measured, not overridden.** `explore` left behind at 90 % is
 dangerous at 10 % and runs anyway; substituting something safer would be a
 rail wearing a new hat.

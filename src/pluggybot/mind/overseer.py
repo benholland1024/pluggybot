@@ -1890,7 +1890,7 @@ def claimable_offers(state: dict) -> list[dict]:
   from pluggybot.economy.tasks import KINDS
   return [t for t in (state.get("offeredTasks") or ())
           if isinstance(t, dict) and t.get("claimable") and t.get("id")
-          and not t.get("needsAnswer") and not t.get("predicts")
+          and not t.get("needsAnswer")
           and getattr(KINDS.get(str(t.get("kind"))), "discharge", "") != "act"]
 
 
