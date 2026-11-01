@@ -4087,8 +4087,10 @@ the posture its legs hold, bowed too (`maps`): per bearing the nearest
 surface between 0.15 m over the floor, rising 2 deg a metre out, and 2.2 m.
 The matcher leaves out returns nearer than 1 m (`MATCH_MIN_M`), a step walks
 by its legs' reckoning (`step_routine`), and `MAP_EPOCH` is 4. Flown so,
-#572's 14 drift flights all docked and none was lost (the C1 lost 9), and
-the station's batches docked 45 of 47 (staging 47, stage 1's band 42).
+with the review's fixes (below), #572's 14 drift flights and 16 more
+docked 29 of 30, as the code before the fixes did (the C1 lost 9 of the
+14), and the station 80 of 85 starts, as before them (the stage's 47
+trials docked 43; staging 47, stage 1's band 42).
 Two robots ran at 1.40-1.41x real time on the deploy box, the level ring's
 1.68-1.78.
 
@@ -4288,6 +4290,14 @@ scan in any flight was refused. The 30-ring flight not docked, and one of
 the matcher's-floor variant's, never lined up on the seat (before steps
 walked by the legs).
 
+Flown again after the review's fixes (above), the 14 flights docked 13, off
+a median 0.11 m after the explore, 0.25 at the storeroom and 0.05 home.
+Rowan, on its second walk home, took a place 1 m off from one search in the
+garden, mid-turn, and the map it laid there had no way to its station. On
+16 seeds no batch had flown, the code before the fixes docked 15 and the
+code after them 16, off the same medians (0.13, 0.31, and 0.10 against
+0.08 home): one flight lost in 30 either way, a draw.
+
 **The station** (`station_spike.py`, the same 47 trials):
 
 | | staging | level ring (stage 1) | band, 30 rings (stage 1) | served |
@@ -4296,7 +4306,12 @@ walked by the legs).
 | `--lost`, belief 0.4-1 m wrong: docked | 16 of 16 | 15 | 15 | 15 |
 | `--walk-in`, from 8 places, explored 120 and 240 s: docked | 16 of 16 | 14 | 16 | 15 |
 
-Both misses never lined up on the seat (above). The probe (`lidar_spike.py
+Both misses never lined up on the seat (above). After the review's fixes
+the same 47 docked 43 (14, 13 and 16): three never lined up on the seat,
+and a search begun 0.94 m off never saw the station. On 33 approaches and
+52 lost starts, the code before the fixes docked 80 of 85, and the code
+after them 80: a search begun 0.92-0.96 m off failed either way, at the
+edge of the metre #572 found it reaches. The probe (`lidar_spike.py
 --probe`) is the band's of stage 1: no outdoor place leaves the heading
 unpinned, and in the rooms 4 % (2 % with 30 rings), the matcher's floor
 leaving a corner a robot faces nothing to fix its heading by.

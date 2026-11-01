@@ -513,10 +513,10 @@ save a filmstrip PNG named after the script.
   times, from 1.5 m or more 0 of 50 -- and a belief comes home past the
   matcher's reach from in and beyond the middle street, the house's map then
   refusing it every scan (#572 stage 2; SimNotes, "Where the humanoids get
-  lost"); with the band (#581's stage 2) 15 of 15 from round the standoff,
-  15 of 16 with the belief 0.4-1 m wrong and 15 of 16 from across the house,
-  each miss a step 4-5 cm inside the seat, which the walker cannot back off;
-  339 W net; the reserve 18 Wh (17.5 before the Mid-360S's 6.2 W, #581).
+  lost"); with the band (#581's stage 2, after its review) 32 of 33 from
+  round the standoff, 48 of 52 with the belief 0.4-1 m wrong and 16 of 16
+  from across the house, most misses a step 4-5 cm inside the seat, which
+  the walker cannot back off, one a search begun 0.94 m off; 339 W net; the reserve 18 Wh (17.5 before the Mid-360S's 6.2 W, #581).
 - **The humanoid's LIDAR is a Livox Mid-360S, upside down over its head,
   and its map is laid from its points laid flat** (#581; `perception/lidar.py`,
   `HumanoidSpec.lidar_rise`, `HumanoidMission._scan`/`maps`,

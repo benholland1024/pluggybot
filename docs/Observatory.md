@@ -39,8 +39,9 @@ observatory is NOT a result: it reports into the issue it informs.
 
 **Why.** #581's stage 2: in and beyond the middle street the level ring saw
 nothing to match, and 9 of #572's 14 drift flights were lost there; and a
-bowed robot neither mapped nor matched. Flown as served: 14 of 14 docked,
-none lost, and the station 45 of 47 (SimNotes, "The band served").
+bowed robot neither mapped nor matched. Flown as served: 29 of 30 drift
+flights docked, and the station 80 of 85 starts (SimNotes, "The band
+served").
 
 **What the period is for.** #581's last box: a day of the pair, neither
 robot lost outdoors -- off the `drift` rows (the belief against the truth,

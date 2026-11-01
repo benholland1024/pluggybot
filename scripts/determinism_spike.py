@@ -8,7 +8,8 @@ mission N times in separate processes and, in each, hashes:
 
   step    qpos + qvel + ctrl every TRACE_EVERY_S of sim time
   tag     each TagDetector.detect: the rendered camera image, and the decode
-  lidar   each Lidar.scan_split: the bearings and ranges, room and peers
+  lidar   each Lidar.scan_split and Lidar.band: the bearings and ranges,
+          room and peers
   say     every narration line
 
 then aligns the traces and reports the first step whose state differs and
