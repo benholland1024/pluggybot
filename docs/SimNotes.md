@@ -3511,6 +3511,11 @@ mouth and let go there. One that fails still ends unplugged: the robot turns
 away, the rope's stop pulls the plug off at 20 N and the balancer takes it
 home.
 
+![The plug-in and the unplug: from its standoff the humanoid walks in, takes
+the plug out of its cup, plugs it into the port on its torso (16 s),
+charges, unplugs it (26.5 s), hands it back to the cup and turns away, a
+tile every 1.5 s (`station_spike.py --strip plug`)](figures/humanoid_station.png)
+
 ![Lost and found by its station: a humanoid 2 m out, its belief set 0.7 m
 nearer the wall than it is, walks to where it believes the standoff is
 (1.45 m off the station's face, the tags above its colour camera), sees
@@ -3548,6 +3553,11 @@ standoff goes again on it.
 none: where the plug sits in the jaws still misses pushes now and then. The
 reserve's own dock leg gave up on the explore's map and is carried by rate;
 one station a world.
+
+![Knocked over plugged in: shoved backward, the humanoid falls, the plug
+breaks away at the port and swings on its rope, and its balancer draws it
+home into the cup about 2 s later as the robot gets up, a tile every 0.5 s
+(`station_spike.py --strip fall`)](figures/humanoid_station_fall.png)
 
 ## The humanoids' first jobs (issue #559, stage 3)
 
