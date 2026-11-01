@@ -276,6 +276,7 @@ save a filmstrip PNG named after the script.
 | `python -m pluggybot.session.host` | #530's session host, the process on the server a person's runs go to (`--endpoint ws://.../api/pluggyworld/sessions/host` or `$PLUGGY_SESSION_ENDPOINT`, `--record DIR` or `$PLUGGY_SESSION_RECORD`, the secret in `$PLUGGYWORLD_TOKEN`): one run at a time, each a child process (`python -m pluggybot.session.attempt`, the job on stdin) streaming to its seat's own path |
 | `scripts/hands_check.py` | #525's capability check: our procedure in the hands' vocabulary for the lid, a drawer, a door's lever and a cube placed (`evaluation.hands_check`), flown at each job's set-outs and graded by its own grader, the bar (6 of 8) written first: `--job J,..`, `--set-outs A-B`, `--jobs`, `--into DIR`, `--read DIR`, `--source JOB` the procedure and its length against the cap, `--view JOB [K]` a flight in the viewer, `--strip JOB [K]` its filmstrip `hands_check.png`; JOB may be a scene (`hands_check.SCENES`): `until`, the lid's lift stopped on its hand's height (#554); `watch`, on where its watch puts the knob (stage 2) |
 | `scripts/practice.py` | #493's graded practice: the mind (`--model`, the deployed by default; `$HF_TOKEN`) writes the humanoid's procedure for the lid, tries it from a fresh set-out, is shown how it ran and the world's grade, and writes again, up to `--attempts` (5) a chest, a fresh robot a chest; the hands' vocabulary (#525; #493's `--pull`, `--verb-tests` and `--path` arms retired, `run.vocabulary` saying which a row flew); `--chests`, `--held-out N` (the frozen commit's seed), `--acquire A-B` the KEPT protocol (practice first, `--until`, `--max-chests`, `--give-up-after`; `--kept FILE` a record's library), `--early-stop` once the bar is out of reach, `--notes` notes and a draft carried, `--no-measure` without the depth camera's `measure` (its own arm), `--unguarded` without a hand's move's stop condition (#554), `--unwatched` without `watch` (its stage 2), `--jobs`, `--into DIR`, `--no-picture`, `--read DIR` the per-task record and what the mind cost |
+| `scripts/lidar_spike.py` | the head's LIDAR (#581 stage 1; SimNotes "The 3D LIDAR on the head"): `--hidden` what the robot's own body hides of a frame, standing and at each of the reach scene's holds; `--cost [--poses N]` ms a frame in the house, the level ring, the cloud and the band beside a D435 frame; `--probe [--variants ring,band]` #572's static probe on its model (does a scan pin the heading at each outdoor point); `--view` a walk across the street, its map from its points laid flat, the band's returns red and the level ring's blue (MUJOCO_GL unset); `--strip` its filmstrip `lidar_spike.png`. The drift, station and speed instruments fly the band with `--band` (`humanoid_drift_spike.py`, `station_spike.py`, `humanoid_spike.py --speed --band`) |
 | `scripts/humanoid_drift_spike.py` | #572's stage 2 (SimNotes "Where the humanoids get lost"): one humanoid flies the loop's explore, walks the loop's walks across the street to the storeroom and back, and charges; its belief against the truth, the error taken apart as it is made into the gyro's heading, the legs' position, the believed heading's, and the matcher's and the station's corrections, over the flight and by zone, beside the odometry alone and the legs alone; `--seed luca\|rowan\|K` the IMU's and joints' draws, `--start start\|hall`, `--explore S`, `--trips N`, `--rest S`, `--idle-at X,Y [--idle S]` stood idle there first, `--learned` its gyro's offset taken off its heading as a zero-rate update that had learned it would, `--no-charge`, `--out`; `--table RUN.json ...` runs side by side and by zone. The stage's other half is `station_spike.py --lost --far [--from near,house,street] [--n N] [--explore S]`: its belief set 1-5 m and 5-20 deg wrong, 2 m out, in the house's rooms and across the street, and how each charge ended; `--view lost --lost-from P --lost-off X,Y,DEG` (or `--strip lost`) its scene, the camera over the robot |
 
 - **The body's training stack lives in `training/`, a uv project of its own** (#377, #507; `training/README.md`): the humanoid's tasks in `humanoid_train/` -- `Pluggy-Humanoid-Stand`, `-Walk`, `-Walk-Rough`, `-Walk-Seeing`, `-Walk-Seeing-Fine`, `-Stairs`, `-Getup`, `-Getup-Head` -- registered and exported by `quad_train`'s one entry point (`python -m quad_train.train <task>`; `python -m quad_train.export ... --task`, which records the joints it drives and their gains; the quadruped's tasks are at `quadruped-final`): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/humanoid.{xml,json}` (`python -m pluggybot.humanoid.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment). ⚠ Running a policy loads none of torch, jax, warp, onnx or mjlab: it reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `humanoid/policy.py` in numpy. ⚠ The joint DRIVERS are MuJoCo's position-mode `dcmotor` (#385), the PD and the envelope in C, commanded as the RobStrides' FOC drivers are in MIT mode (`humanoid/drivers.py`): every command carries its gains — a policy's are its own, an arm's the default gains scaled by `ARM_GAIN_SCALE`, `limp()` holds nothing — so the policies and the arms share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `humanoid.json`. `training/pod.sh` rents a GPU to train on, or CPUs to fly a batch (`create-cpu`), on Vast.ai through its CLI, or on Runpod over the REST API with `PROVIDER=runpod` (#510; `runpodctl pod create` needs a GraphQL-writable key); a pod's id says whose it is, and a card is picked by what a million steps cost (`training/README.md`). ⚠ The `vastai` CLI exits 0 when it is refused, and `destroy` says nothing under `--raw`: read the JSON and the instance, never the exit code. ⚠ On Runpod a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
@@ -379,8 +380,8 @@ save a filmstrip PNG named after the script.
   home. ⚠ A BLIND WALKER GIVES UP WHAT RISKS A FALL (rough4, gone): it
   stood still where asked to walk backward or sideways, on flat ground
   too, and the Navigator backs off. ⚠ ITS TERRAIN IS BOXES ALONE: the box soles blew up on MuJoCo Warp's height
-  fields, a world in seven, and two runs ended in it. ⚠ ITS LIDAR SPINS AT 1.41 m: over the rover's 1.2 m walls a map of
-  its plane alone was empty, so the house's walls are 2.4 m (stage 5). ⚠ A HEADLIGHT LIGHTS THE ROBOT'S CAMERAS (brightened, a
+  fields, a world in seven, and two runs ended in it. ⚠ ITS MAP IS LAID FROM ITS LIDAR'S LEVEL RING, 1.47 m
+  up (#581): over the rover's 1.2 m walls a map of that plane alone was empty, so the house's walls are 2.4 m (stage 5). ⚠ A HEADLIGHT LIGHTS THE ROBOT'S CAMERAS (brightened, a
   tag decoded 3 cm elsewhere): a scene the robot sees by keeps the house's
   light, and a filmstrip brightens its own tiles alone. ⚠ ITS LIMBS MEET
   EACH OTHER AND ITS TRUNK (`model.LEG_GEOMS`' and `ARM_GEOMS`' pairs): the
@@ -511,7 +512,33 @@ save a filmstrip PNG named after the script.
   matcher's reach from in and beyond the middle street, the house's map then
   refusing it every scan (#572 stage 2; SimNotes, "Where the humanoids get
   lost");
-  345 W net; the reserve 17.5 Wh.
+  345 W net; the reserve 18 Wh (17.5 before the Mid-360S's 6.2 W, #581).
+- **The humanoid's LIDAR is a Livox Mid-360S, upside down over its head**
+  (#581 stage 1; `perception/lidar.py`, `HumanoidSpec.lidar_rise`,
+  `tests/test_lidar.py`; Parts.md, "The LIDAR"; SimNotes, "The 3D LIDAR on
+  the head"): a frame is 30 rings 2 deg apart, -52 to +6, 360 bearings each,
+  ONE `mj_multiRay`, with its sheet's range and angle noise and its 0.1 m
+  blind zone (no reading, as a self-hit is none); its robot's own returns
+  dropped, another robot's split out (#316), its noise its robot's own
+  (`imu.seed_for`). ⚠ ITS LEVEL RING IS THE SCAN THE MAP IS LAID FROM, as
+  the C1's plane was. Its points LAID FLAT -- per bearing the nearest
+  surface 0.15-2.2 m over the floor, through the IMU's tilt (`Lidar.band`)
+  -- see the fences, the tables and the couch, and `HumanoidMission.band` is
+  a measurement's switch, never a deployment's, until #581's stage 2 serves
+  it. ⚠ A SURFACE IS READ BY ITS RETURNS' MEDIAN, never the nearest return:
+  a dozen rings strike a wall, and the least of their ranges read every wall
+  6 cm short. ⚠ ITS RAYS LEAVE 10 cm OVER THE HEAD'S TOP, 5 mm under the
+  unit (cast from inside it, every ray hit it): the steepest, -52 deg,
+  clears the head ahead and either side; at the C1's 4.7 cm the head hid
+  every ray under 31-35 deg. ⚠ A FRAME COSTS 14-17 ms on the deploy box (the
+  level ring 0.5-0.7, a D435 frame 11): with the band at 10 Hz the pair ran
+  at about real time (0.97-1.15x, `humanoid_spike.py --speed --band`):
+  stage 2 casts 15 rings at 10 Hz (Ben's call 3, 2026-11-01; 1.17-1.42x).
+  ⚠ WITH THE BAND, A DOCK'S MATCHER MOVED THE BELIEF 3.4 TIMES AS OFTEN at the
+  station's near returns, and the seat and the plug-in, placed through it,
+  failed 2-5 docks in 47 over the band's three versions (the level ring 1,
+  staging none): stage 2's to settle. ⚠ NO CUTOFF ON THE CAST: MuJoCo culls
+  a plane by its centre.
 - **A humanoid is told its own body and world** (#559 stages 3 and 5;
   `Menu.kinds`, `hands_procedure_rule`, `steps.served_hand_facts`;
   `tests/test_humanoid_words.py`; Overseer.md §8b): ⚠ ITS WORDS ARE THE ONLY
@@ -1540,10 +1567,8 @@ save a filmstrip PNG named after the script.
   Python loops over `data.contact[i]` were 49 % of the physics thread
   against 13 % in `mj_step`. A new per-step check goes through the same
   reader (`tests/test_contact_reads.py` shows parity).
-  Likewise the LIDAR's 360 rays are ONE `mj_multiRay` (#385), bit-identical
-  to `mj_ray` one at a time; ⚠ its NOISE is still drawn ray by ray in bearing
-  order, or no flown day hashes the same again
-  (`test_the_batched_scan_is_the_scan_it_replaced`).
+  Likewise a LIDAR frame's rays are ONE `mj_multiRay` (#385, #581), its
+  noise drawn for its returns at once.
 - **Position setpoints are always RAMPED, never written across a gap** — a
   stiff servo handed a step delivers an impulse that has thrown a module off
   the fork and batted a block out of the jaws.
@@ -1676,8 +1701,8 @@ save a filmstrip PNG named after the script.
   `DepthFrame.peers` is the SENSOR's answer, the map is never given a peer
   point, and a rule that read the height map would be the first one.
   `tests/test_near_field.py` pins each rule. ⚠ **The humanoid's planner
-  reads the D435, never the height map**: its LIDAR's plane (1.41 m) is
-  over every table, counter, couch and bed, so the camera's points between
+  reads the D435, never the height map**: its LIDAR's level ring (1.47 m)
+  is over every table, counter, couch and bed, so the camera's points between
   0.08 and 1.35 m are a layer of its own the planner plans round
   (`HumanoidMission._fold_low`, the quadruped's rules, #387) -- within 1.8
   m, three frames of evidence, never beside what the LIDAR maps, each rule

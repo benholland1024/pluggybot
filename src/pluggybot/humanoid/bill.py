@@ -287,9 +287,19 @@ PARTS: tuple[Part, ...] = (
                       "fixed in the head, pitched at the counter and the floor ahead"),
                  Feed("color_eye.fovy", camera("color_eye"), "°",
                       "its colour imager: the tags within reach", expect=42))),
-  _bought("rplidar_c1", usedBy=("lidar_mount",),
-          feeds=(code("humanoid.parts.LIDAR.kg", "kg"),
-                 code_entry("humanoid.parts.ELECTRONICS_W", "lidar", "W", expect=1.15))),
+  _bought("livox_mid360s", usedBy=("lidar_mount",),
+          feeds=(code("humanoid.parts.LIDAR.kg", "kg", expect=0.265),
+                 code_entry("humanoid.parts.ELECTRONICS_W", "lidar", "W", "its sheet's "
+                            "6.5 W through its 12 V converter, 89 %"),
+                 code("perception.lidar.FOV_DEG", "°", "its field upside down, the sheet's "
+                      "-7 to +52 turned over", expect=(-52.0, 7.0)),
+                 code("perception.lidar.LIDAR_PERIOD", "s", "a frame", expect=0.1),
+                 code("perception.lidar.BLIND_M", "m", "its blind zone", expect=0.1),
+                 code("perception.lidar.SIGMA", "m", "a range's 1 sigma at 0.2 m and at "
+                      "10 m", expect=((0.2, 0.04), (10.0, 0.02))),
+                 code("humanoid.model.CHOSEN.lidar_rise", "m", "its rays' origin over the "
+                      "head's top, upside down on its bracket"))),
+  _bought("livox_m12_cable", usedBy=("lidar_mount",)),
   _bought("pi_camera_3", usedBy=("nav_cam_body",),
           feeds=(Feed("nav_eye.fovy", camera("nav_eye"), "°",
                       "the places' tags on the walls, and the eye a look sees through",
@@ -326,6 +336,9 @@ PARTS: tuple[Part, ...] = (
   _fabricated("humanoid_gripper_adapters", "The plates the grippers bolt to on the "
               "wrists' roll, 6 mm 6082", ("gripper_adapter",),
               usedBy=tuple(f"{s}_hand" for s in hm.SIDES)),
+  _fabricated("humanoid_lidar_bracket", "The LIDAR's bracket: a 20 x 3 mm 6082 post up "
+              "the head's back and the plate its base bolts under", ("lidar_post", "lidar_roof"),
+              usedBy=("lidar_mount",)),
   _fabricated("humanoid_shells", "The head's shell and the torso's front cover, "
               "printed in PETG", ("head_shell", "torso_cover"), usedBy=(hm.ROBOT_ROOT,),
               printed=True),
@@ -340,7 +353,7 @@ PARTS: tuple[Part, ...] = (
   _bought("radiomaster_er6", usedBy=(hm.ROBOT_ROOT,)),
   _bought("pololu_rc_relay", usedBy=(hm.ROBOT_ROOT,)),
   _bought("molicel_p28a", quantity=2),
-  _bought("meanwell_ddr_30l_12", usedBy=(hm.ROBOT_ROOT,)),
+  _bought("meanwell_ddr_30l_12", usedBy=(hm.ROBOT_ROOT,), quantity=2),
   _bought("arcol_hs25_47r", usedBy=(hm.ROBOT_ROOT,)),
   _bought("hongfa_hf115f_012", usedBy=(hm.ROBOT_ROOT,)),
   # ---- shop: what the build needs to make its pack, its harness and its
@@ -413,7 +426,10 @@ LINES: tuple[Line, ...] = (
   # ---- sensors -----------------------------------------------------------------
   Line("realsense_d435", 1, "sensors", "none in stock, the maker's standard lead 14 "
        "weeks (DigiKey DE); 21 days at MyBotShop for €419.99"),
-  Line("rplidar_c1", 1, "sensors", "1-3 business days (Funduino)"),
+  Line("livox_mid360s", 1, "sensors", "only 3 left in stock, 1-3 working days (Funduino)"),
+  Line("livox_m12_cable", 1, "sensors", "currently unavailable (Funduino)"),
+  Line("meanwell_ddr_30l_12", 1, "sensors", "in stock, 1-2 business days (Reichelt)",
+       note="the LIDAR's 12 V"),
   Line("pi_camera_3", 1, "sensors", "in stock, 1-3 days (BerryBase)"),
   Line("pi5_camera_cable", 1, "sensors", "in stock, 1-3 days (BerryBase)"),
   Line("tdk_ev_icm42688p", 1, "sensors", "138 in stock, the maker's standard lead 16 "
@@ -444,6 +460,9 @@ LINES: tuple[Line, ...] = (
        allowanceEur=round(2 * MACHINED_EUR, 2),
        basis="two machined plates at €33.33 a machined part (#379's rate), drawn "
              "when the gripper's flange is known (Unitree does not publish it)"),
+  Line("humanoid_lidar_bracket", 1, "frame", None, why=UNDRAWN,
+       allowanceEur=round(2 * MACHINED_EUR, 2),
+       basis="two machined parts at €33.33 a machined part (#379's rate)"),
   Line("igus_kcrm_05", 4, "frame", "ready to ship in 24 hours (igus)"),
   Line("petg_1kg", 2, "frame", None,
        why={"leadTime": "in stock; the page and its terms give no delivery time"}),

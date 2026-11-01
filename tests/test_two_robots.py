@@ -595,8 +595,8 @@ def _pitched(model, data, handle: RobotHandle, x, y, yaw, pitch) -> None:
 def test_a_scan_answers_the_room_and_the_peer_apart():
   """`Lidar.scan_split`: one set of casts, the room's returns and the
   peer's, and `scan()` still answers the map's. The other humanoid's head is
-  under a level scan's plane (1.41 m), so the first is pitched forward and
-  its scan cuts the other's head a metre ahead."""
+  under a level ring (1.47 m), so the first is pitched forward and its ring
+  cuts the other's head a metre ahead."""
   from pluggybot.perception.lidar import Lidar
   model = _pair(second_at=(2.5, 0.5))
   data = mujoco.MjData(model)
@@ -614,27 +614,28 @@ def test_a_scan_answers_the_room_and_the_peer_apart():
   # ⚠ A PEER RETURN MAY NOT DRAW ON THE MAP'S NOISE STREAM (`Lidar.peer_rng`):
   # with one stream, giving the reflex its peer returns would move every
   # reading the MAP takes in a pair world. Counted: at `dropout` 0 every
-  # room ray that HIT draws exactly twice (the dropout roll and the noise),
-  # a ray that returned nothing draws not at all, and a peer ray neither.
+  # room ray that HIT draws exactly three numbers (the dropout roll, its
+  # range's noise and its bearing's), a ray that returned nothing none, and
+  # a peer ray none.
   class Counting:
     def __init__(self, inner):
       self.inner, self.draws = inner, 0
 
-    def random(self, *a, **kw):
-      self.draws += 1
-      return self.inner.random(*a, **kw)
+    def random(self, size=None):
+      self.draws += 1 if size is None else int(np.prod(size))
+      return self.inner.random(size)
 
-    def normal(self, *a, **kw):
-      self.draws += 1
-      return self.inner.normal(*a, **kw)
+    def normal(self, loc=0.0, scale=1.0, size=None):
+      self.draws += 1 if size is None else int(np.prod(size))
+      return self.inner.normal(loc, scale, size)
 
   lidar.dropout = 0.0
   lidar.rng = counted = Counting(np.random.default_rng(7))
   _, room_r, peer_a, _ = lidar.scan_split(data)
   assert peer_a.size, "no peer returns in this scan at all"
   hits = int((room_r < lidar.max_range).sum())
-  assert counted.draws == 2 * hits, \
-    f"the map's stream was drawn {counted.draws} times for {hits} of its own returns"
+  assert counted.draws == 3 * hits, \
+    f"the map's stream drew {counted.draws} numbers for {hits} of its own returns"
   # A world with nobody else in it splits into nothing
   lidar._other_geoms = set()
   lidar._index_geoms()

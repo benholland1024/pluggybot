@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The head's LIDAR is a Mid-360S, its map laid from its level ring (#581, stage 1) — opens when this PR is deployed
+
+**What changed in the world.**
+- **Both robots carry a Livox Mid-360S upside down over the head**, where
+  the RPLIDAR C1 sat on it: 0.36 kg more (the unit and its bracket on the
+  head, its own 12 V converter in the torso), 43.01 kg in all, and 6.2 W
+  more always on (74.9 W). Its standing, walking and get-up policies fly
+  as before on the new head (SimNotes, "The 3D LIDAR on the head").
+- **Its map is laid from the Mid-360S's level ring**, its 360 bearings at
+  0 deg, 1.47 m up where the C1's plane was 1.41: what it sees is what the
+  C1 saw, with the part's own noise. Its points laid flat, which see the
+  fences, are NOT served: that is #581's stage 2.
+- **A deploy starts both robots at their starts on no map**: the head's
+  new shape is a new geometry (`continuation.fingerprint`), so the save
+  keeps the clock, the packs, the deaths and the jobs, as a changed world
+  does.
+- **The return-trip reserve is 18 Wh, from 17.5**, for the 6.2 W the
+  head draws more (`humanoid.world.RESERVE_WH`). The energy table's rows,
+  measured on the C1's head, are not re-priced (its explore drew 173.8 W on
+  this head, 164.8 on staging the same day, against the table's 166.4):
+  stage 2 re-prices them.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #581's stage 1: the part chosen (Ben's call 2, 2026-11-01),
+mounted and measured, before its points are served.
+
+**What the period is for.** That nothing the robots do moved: their drift
+(`drift` rows), their charges and their falls, read against the period
+before. The level ring sees what the C1's plane saw, and the robots should
+be lost outdoors as often. It closes with stage 2's deploy, which lays the
+map from the points laid flat and bumps `MAP_EPOCH`. ⚠ Where the weekend
+hours run, read rates per awake hour (#562's entry, below).
+
 ### The world runs at weekends and is paused in between (#562, stage 1) — opens when an admin turns the site's schedule on, after both halves are deployed
 
 **What changed in the world.**

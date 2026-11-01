@@ -198,6 +198,10 @@ uv run python scripts/humanoid_spike.py --view getup  # up from lying on
 uv run python scripts/station_spike.py --view     # it plugs itself in at its
                                       # station and unplugs (--view fall:
                                       # shoved over plugged in)
+uv run python scripts/lidar_spike.py --view       # its LIDAR's returns as it
+                                      # walks across the street: red, its
+                                      # points laid flat, the fences among
+                                      # them; blue, its level ring (#581)
 uv run python scripts/two_robots.py --world home_humanoid --view --pack hosting
                                       # the humanoid pair living a day in the
                                       # house, as served (#559); `--fast

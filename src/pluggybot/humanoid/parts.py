@@ -429,10 +429,8 @@ def _catalog_kg(part: str) -> float:
   return g / 1000
 
 
-#: The head's sensors, the catalog's parts: the D435 (75 g, its sheet of
-#: March 2026), the Camera Module 3 (4 g) and the RPLIDAR C1 (110 g; its
-#: puck 75.6 mm across and 41 mm tall, as the quadruped's model had it at
-#: the tag `quadruped-final`).
+#: The head's cameras, the catalog's parts: the D435 (75 g, its sheet of
+#: March 2026) and the Camera Module 3 (4 g).
 D435_KG = _catalog_kg("realsense_d435")
 CAMERA_KG = _catalog_kg("pi_camera_3")
 
@@ -461,12 +459,15 @@ PORT_FUNNEL_KG = 0.018
 
 @dataclass(frozen=True)
 class Lidar:
-  radius: float
-  height: float
+  size: tuple[float, float, float]
   kg: float
 
 
-LIDAR = Lidar(radius=0.0378, height=0.041, kg=_catalog_kg("rplidar_c1"))
+#: The head's LIDAR (#581), the catalog's part: Livox's Mid-360S, 65 x 65 x
+#: 60 mm and 265 g by its sheet, riding upside down on a bracket over the
+#: head (`model.HumanoidSpec.lidar_rise`, `structure`'s `lidar_bracket`).
+#: Its rays are modelled in `perception.lidar`.
+LIDAR = Lidar(size=(0.065, 0.065, 0.060), kg=_catalog_kg("livox_mid360s"))
 
 #: What rides the torso besides the pack, by the catalog's parts and their
 #: published masses: the Pi 5 with its cooler and SSD (only their
@@ -474,8 +475,8 @@ LIDAR = Lidar(radius=0.0378, height=0.041, kg=_catalog_kg("rplidar_c1"))
 #: HATs, the 5 V converter, and the e-stop chain's robot half -- the
 #: contactor, the button, the receiver, its relay, the 12 V converter and
 #: the pre-charge resistor and relay (the transmitter and its cells are in
-#: a hand). The fuse, its holder, the connectors and the harness are
-#: `model.ALLOWANCE`'s.
+#: a hand) -- and the LIDAR's own 12 V converter (#581). The fuse, its
+#: holder, the connectors and the harness are `model.ALLOWANCE`'s.
 ELECTRONICS = {
   "pi5 (packed)": 0.065, "pi5 cooler (packed)": 0.029, "pi5 ssd kit (packed)": 0.035,
   "waveshare_can_hat_plus": _catalog_kg("waveshare_can_hat_plus"),
@@ -486,6 +487,7 @@ ELECTRONICS = {
   "radiomaster_er6": _catalog_kg("radiomaster_er6"),
   "pololu_rc_relay": _catalog_kg("pololu_rc_relay"),
   "meanwell_ddr_30l_12": _catalog_kg("meanwell_ddr_30l_12"),
+  "meanwell_ddr_30l_12 (the LIDAR's)": _catalog_kg("meanwell_ddr_30l_12"),
   "arcol_hs25_47r": _catalog_kg("arcol_hs25_47r"),
   "hongfa_hf115f_012": _catalog_kg("hongfa_hf115f_012"),
 }
@@ -494,10 +496,13 @@ ELECTRONICS_KG = sum(ELECTRONICS.values())
 #: What is powered whatever the joints do, W.
 ELECTRONICS_W = {
   # The quadruped's figures (`legs.model.ELECTRONICS_W` at `quadruped-final`): the Pi 5, its
-  # camera and the IMU (Raspberry Pi publishes no load figure), the
-  # RPLIDAR C1's 230 mA at 5 V, the D435 streaming depth.
+  # camera and the IMU (Raspberry Pi publishes no load figure), the D435
+  # streaming depth.
   "compute + cameras": 6.0,
-  "lidar": 1.15,
+  # The Mid-360S's 6.5 W (its sheet; 14 W self-heating below 0 C, which the
+  # house never is, and 18 W for about 8 s as it starts, by its manual)
+  # through its own 12 V converter, 89 % typical (the DDR-30L-12's sheet).
+  "lidar": 6.5 / 0.89,
   "depth camera": 2.0,
   # Twenty-four drivers enabled: the RS03's sheet's "standby current <= 40
   # mA" (the only RS part that publishes one) at the pack's 43.2 V -- an

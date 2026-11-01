@@ -254,7 +254,7 @@ def test_an_errand_that_will_not_fit_is_deferred_and_stays_queued():
   what the pack can spend is not started. Deferred, not dropped -- the job is
   still the job, and the answer is a charge."""
   life = life_with(errands=[job_errand()])
-  life.battery.energy_wh = 0.8            # the drawer's 7.08 + the 17.5 reserve
+  life.battery.energy_wh = 0.8            # the drawer's 7.08 + the 18 reserve
   assert life._afford_next() is False
   assert len(life.errands) == 1, "a deferred errand must survive the charge"
   assert any("DEFER" in line for line in life.log), life.log
@@ -433,8 +433,8 @@ def test_the_prompt_still_never_carries_a_hidden_answer():
 # ---- 3, the gate and the cap -------------------------------------------------
 
 #: About the SMALLEST pack in the margin regime here: the dearest job, the
-#: drawer at 7.082 Wh (#559), plus the 17.5 Wh reserve must fit a charged
-#: pack -- capacity >= 24.582 / 0.9 = 27.3, so 28 -- and these cost one short
+#: drawer at 7.082 Wh (#559), plus the 18 Wh reserve must fit a charged
+#: pack -- capacity >= 25.082 / 0.9 = 27.9, so 28 -- and these cost one short
 #: charge. The regime is what is under test, not the capacity -- the hosting
 #: pack is the same arithmetic with more room in it. A pack below the floor
 #: silently drops to zero margin (the all-or-nothing rule), which is exactly

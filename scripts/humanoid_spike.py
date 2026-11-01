@@ -4046,7 +4046,7 @@ SPEED_ROUTES = (((0.5, 0.5), (-8.5, 4.0)), ((3.0, -1.0), (1.5, 4.5)))
 SPEED_WARM_S = 5.0
 
 
-def speed_world(n: int, seeing: bool = False, bounds=None):
+def speed_world(n: int, seeing: bool = False, bounds=None, band: bool = False):
   """The served house (`humanoid.world.home_spec`: its fixtures, which every
   ray of the robots' LIDARs and depth cameras is cast against) with `n`
   humanoids standing at the starts of `SPEED_ROUTES`: the model, its data
@@ -4067,7 +4067,10 @@ def speed_world(n: int, seeing: bool = False, bounds=None):
   for h in handles:
     _pose(model, data, hm.stand_qpos(), h.prefix)
   walk = StandPolicy(str(SEEING_NPZ)) if seeing else None
-  return model, data, [body_for(model, data, h, grid_bounds=bounds, walk=walk) for h in handles]
+  bodies = [body_for(model, data, h, grid_bounds=bounds, walk=walk) for h in handles]
+  for b in bodies:
+    b.mission.band = band
+  return model, data, bodies
 
 
 def _paces(body, route, until: float, data):
@@ -4080,11 +4083,12 @@ def _paces(body, route, until: float, data):
 
 
 def speed_row(n: int, sim_s: float = 60.0, seeing: bool = False,
-              profile: bool = False) -> dict:
+              profile: bool = False, band: bool = False) -> dict:
   """`n` humanoids pacing their routes for `sim_s` after a warm-up: the
-  wall seconds a sim second took, and (`profile`) where they went."""
+  wall seconds a sim second took, and (`profile`) where they went; with
+  `band` each map laid from its LIDAR's points laid flat (#581)."""
   from pluggybot import tick
-  model, data, bodies = speed_world(n, seeing)
+  model, data, bodies = speed_world(n, seeing, band=band)
   warm = list(zip([b.stepper for b in bodies],
                   [_paces(b, r, SPEED_WARM_S, data) for b, r in zip(bodies, SPEED_ROUTES)]))
   tick.run_many(warm)
@@ -4108,18 +4112,24 @@ def speed_row(n: int, sim_s: float = 60.0, seeing: bool = False,
     print(out.getvalue())
   for b in bodies:
     b.close()
-  return {"n": n, "seeing": seeing, "sim_s": data.time - t_sim0,
+  return {"n": n, "seeing": seeing, "band": band, "sim_s": data.time - t_sim0,
           "wall_s": wall, "rtf": (data.time - t_sim0) / wall}
 
 
-def speed_table(sim_s: float = 60.0, profile: bool = False) -> None:
+def speed_table(sim_s: float = 60.0, profile: bool = False, band: bool = False) -> None:
   """--speed: one humanoid and a pair, on the served walker and on the one
   that sees the ground, the same walks in the served house, one after
-  another (never two at once: they would share the machine)."""
+  another (never two at once: they would share the machine); with `band`,
+  the served walker's again with each map laid from its LIDAR's points
+  laid flat (#581) beside it."""
   print(f"SERVING SPEED, the same walks ({sim_s:g} sim s after {SPEED_WARM_S:g} s):")
-  for n, seeing in ((1, False), (2, False), (1, True), (2, True)):
-    r = speed_row(n, sim_s, seeing, profile)
-    print(f"  humanoid x{r['n']}{' (the walker that sees the ground)' if seeing else ''}: "
+  runs = ((1, False, False), (2, False, False), (1, True, False), (2, True, False))
+  if band:
+    runs = ((1, False, False), (2, False, False), (1, False, True), (2, False, True))
+  for n, seeing, flat in runs:
+    r = speed_row(n, sim_s, seeing, profile, flat)
+    print(f"  humanoid x{r['n']}{' (the walker that sees the ground)' if seeing else ''}"
+          f"{', its map from its points laid flat' if flat else ''}: "
           f"{r['sim_s']:.0f} sim s in {r['wall_s']:.0f} wall s, {r['rtf']:.2f}x real time",
           flush=True)
 
@@ -4194,6 +4204,9 @@ def main(argv=None) -> None:
                   help="the loop's cost: one humanoid and a pair, the same walks in the "
                        "house, timed (--profile: where it goes)")
   ap.add_argument("--profile", action="store_true", help="with --speed")
+  ap.add_argument("--band", action="store_true",
+                  help="with --speed: the served walker's pair again, its maps laid from its "
+                       "LIDAR's points laid flat (#581), in the seeing walker's place")
   ap.add_argument("--jobs", type=int, default=4, help="processes for a table's flights")
   ap.add_argument("--out", default="humanoid_spike.png")
   args = ap.parse_args(argv)
@@ -4246,7 +4259,7 @@ def main(argv=None) -> None:
     climb_table(args.climb or None, jobs=args.jobs)
     house_climb_table(args.climb or None, jobs=args.jobs)
   elif args.speed is not None:
-    speed_table(args.speed, args.profile)
+    speed_table(args.speed, args.profile, args.band)
   elif args.fall is not None:
     fall_table(args.fall or None, jobs=args.jobs)
     house_fall_table(args.fall or None, jobs=args.jobs)
