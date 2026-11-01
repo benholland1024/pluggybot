@@ -17,8 +17,14 @@ the house, its station on the living room's wall.
     ... --lost [--n N] [--parallel P]   # a fresh robot 2 m out, its belief set
                                 # 0.4-1 m wrong: the loop's charge path, its
                                 # lost search and the fix off the station
+    ... --lost --far [--from near,house,street] [--n N] [--explore S]
+                                # from further off (#572): its belief 1-5 m
+                                # and 5-20 deg wrong, 2 m out, in the house's
+                                # rooms or across the street; how each ended
+    ... --lost-table rows.json  # --far's table again, from its --out
     ... --view [plug|fall|lost] # a scene in the viewer, looped (MUJOCO_GL unset)
     ... --strip [plug|lost]     # a scene's filmstrip
+    ... --lost-from P --lost-off X,Y,DEG   # the lost scene from elsewhere
     ... --out rows.json         # the rows
 
 Every trial is its own process and flies the served body off its own senses
@@ -300,46 +306,118 @@ LOST_FROM_X = -2.0
 #: nearer the wall than it is, so the walk to the standoff ends 1.45 m off
 #: the station's face, where its tags are above the colour camera's view.
 LOST_SCENE_OFF = (0.7, 0.0, 0.0)
+#: `--lost --far`'s starts (#572): 2 m out, the house's places and the
+#: facility's across the street (`WALK_IN_FROM`), and the storeroom whose
+#: counter the jobs are at (#559's stage 3) -- each facing the station.
+LOST_FROM = {"station": None, **WALK_IN_FROM, "store": (25.0, -3.0)}
+#: ...in the far table's three groups (`--from` takes a group's name too).
+LOST_GROUPS = {"near": ("station",),
+               "house": ("bedroom", "hall", "kitchen", "workshop", "garden", "garden_south"),
+               "street": ("lobby", "lab", "store")}
+#: ...its belief set this far wrong, m, and turned this much, deg, either
+#: way: what the live pair's had drifted to (#572). 2 m out, a grid of each
+#: (`FAR_GRID_M` by `FAR_GRID_DEG`, a bearing and a side drawn); elsewhere,
+#: drawn.
+FAR_M, FAR_DEG = (1.0, 5.0), (5.0, 20.0)
+FAR_GRID_M, FAR_GRID_DEG = (1.0, 2.0, 3.0, 4.0, 5.0), (5.0, 12.0, 20.0)
 
 
-def lost_start(body, off) -> None:
-  """`body` at `LOST_FROM_X` facing the station, its belief put `off`
-  wrong (m along the station's +x, m across it, deg)."""
+def zone_of(x: float, y: float) -> str:
+  """The house's zone a point is in (`home.ZONES`), or "?"."""
+  from pluggybot.home import world as home
+  for z in home.ZONES:
+    (x0, y0), (x1, y1) = z["min"], z["max"]
+    if x0 <= x <= x1 and y0 <= y <= y1:
+      return z["name"]
+  return "?"
+
+
+def lost_start(body, off, place: str = "station") -> None:
+  """`body` at `place` -- `LOST_FROM_X` facing the station, or one of
+  `LOST_FROM` facing it -- its belief put `off` wrong (m along the
+  station's +x, m across it, deg)."""
   from pluggybot.activity import station as st
   s = body._station
-  x, y = s.to_world(LOST_FROM_X, st.SEAT_Y)
-  body.start_at(x, y, s.yaw)
+  if LOST_FROM[place] is None:
+    (x, y), yaw = s.to_world(LOST_FROM_X, st.SEAT_Y), s.yaw
+  else:
+    x, y = LOST_FROM[place]
+    cx, cy = s.to_world(0.0, 0.0)
+    yaw = math.atan2(cy - y, cx - x)
+  body.start_at(x, y, yaw)
   dx, dy = s.to_world(off[0], off[1])
-  body.mission._set_pose(x + dx - s.x, y + dy - s.y, s.yaw + math.radians(off[2]))
+  body.mission._set_pose(x + dx - s.x, y + dy - s.y, yaw + math.radians(off[2]))
 
 
-def lost_trial(off) -> dict:
-  """A fresh humanoid at `LOST_FROM_X` facing the station, its belief put
-  `off` wrong (m along the station's +x, m across it, deg) on an empty map,
-  and the loop's own charge path (`HubLifecycle.go_charge`): docked or why
-  not, the belief's error before and at the end (m, deg), and the belief's
-  records (`lost`, `fixed`, `searched`)."""
+def _off(belief, truth) -> list:
+  """How far a belief is from the truth: m, and deg (+ turned left of it)."""
+  (bx, by, bh), (tx, ty, th) = belief, truth
+  return [round(math.hypot(bx - tx, by - ty), 3),
+          round(math.degrees(math.remainder(bh - th, 2 * math.pi)), 1)]
+
+
+def _wire(p) -> tuple:
+  """A belief event's pose (`navigator.wire_pose`) back as (x, y, rad)."""
+  return p["x"], p["y"], math.radians(p["yawDeg"])
+
+
+def lost_trial(off, place: str = "station", explore_s: float = 0.0) -> dict:
+  """A fresh humanoid at `place` (`lost_start`), its belief put `off`
+  wrong (m along the station's +x, m across it, deg) on an empty map --
+  explored `explore_s` first, if any, laying its map through that belief
+  as the live pair's were -- and the loop's own charge path
+  (`HubLifecycle.go_charge`): docked or why not, the belief's error at the
+  start, as the charge began, where the lost search began (and where the
+  robot truly was) and at the end (m, deg), how the walk to the standoff
+  last ended, and the belief's records (`lost`, `fixed`, `searched`)."""
   life, body, station = _life()
 
   def err():
-    (bx, by, bh), (tx, ty, th) = body.pose, body.true_pose()
-    return [round(math.hypot(bx - tx, by - ty), 3),
-            round(math.degrees(math.remainder(bh - th, 2 * math.pi)), 1)]
+    return _off(body.pose, body.true_pose())
 
   try:
-    lost_start(body, off)
-    out = {"off": list(off), "offStart": err()}
+    lost_start(body, off, place)
+    out = {"off": list(off), "from": place, "offStart": err()}
+    if explore_s:
+      life.blacklist, life.floor_explored = set(), False
+      body.start_discovery()
+      body.run(body.look_around_routine())
+      life.explore(budget=explore_s, mark_done=False)
+    out.update(exploreS=explore_s, offCharge=err())
     t0 = float(life.data.time)
     out["docked"] = bool(life.go_charge())
+    walk = body.last_drive or {}
     out.update(why=life.charge_failure, s=round(float(life.data.time) - t0, 1), offEnd=err(),
-               falls=body.falls,
-               events=[{k: v for k, v in e.items() if k in ("why", "fixture", "found", "ended",
-                                                          "seconds", "viewpoints", "dropped",
-                                                          "atM")}
-                       for e in body.belief_events])
+               zoneEnd=zone_of(*body.true_pose()[:2]), falls=body.falls,
+               walk={"why": walk.get("why"), "shortM": walk.get("shortM")})
+    events = []
+    for e in body.belief_events:
+      rec = {k: v for k, v in e.items() if k in ("why", "fixture", "found", "ended", "seconds",
+                                                  "viewpoints", "dropped", "atM")}
+      truth = _wire(e["truth"])
+      rec.update(off=_off(_wire(e["before"]), truth), zone=zone_of(*truth[:2]))
+      events.append(rec)
+    out["events"] = events
+    out["outcome"] = outcome(out)
   finally:
     body.close()
   return out
+
+
+def outcome(r: dict) -> str:
+  """How a lost trial ended: docked without a search (the station in sight
+  where its walk ended), found by the search and docked, found and not
+  docked, not found and docked all the same (a retried walk ended in
+  sight of it), not found, or never searched -- its walk gave up further
+  from the standoff than the board decides from."""
+  if r.get("why") == "crashed":
+    return "crashed"
+  searched = next((e for e in r.get("events", []) if e["why"] == "searched"), None)
+  if searched is None:
+    return "docked" if r["docked"] else "never searched"
+  if searched["found"]:
+    return "found, docked" if r["docked"] else "found, not docked"
+  return "missed, docked" if r["docked"] else "not found"
 
 
 def losts(n: int, parallel: int, seed: int = 476) -> list[dict]:
@@ -352,17 +430,7 @@ def losts(n: int, parallel: int, seed: int = 476) -> list[dict]:
     r, a = rng.uniform(0.4, 1.0), rng.uniform(-math.pi, math.pi)
     offs.append(tuple(float(round(v, 3)) for v in (r * math.cos(a), r * math.sin(a),
                                                      rng.uniform(-5.0, 5.0))))
-
-  def run(off):
-    cmd = [sys.executable, __file__, "--one-lost", json.dumps(off)]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
-    try:
-      return json.loads(r.stdout.strip().splitlines()[-1])
-    except (IndexError, json.JSONDecodeError):
-      return {"off": list(off), "docked": False, "why": "crashed", "stderr": r.stderr[-400:]}
-
-  with ThreadPoolExecutor(parallel) as pool:
-    rows = list(pool.map(run, offs))
+  rows = _fly_losts([(off, "station", 0.0) for off in offs], parallel)
   print(f"{'belief set off (m, m, deg)':28s} {'docked':>6s} {'s':>6s} {'off end':>14s}  "
         f"searched  why not")
   for r in rows:
@@ -373,6 +441,87 @@ def losts(n: int, parallel: int, seed: int = 476) -> list[dict]:
           f"{r.get('why', '')}")
   print(f"docked {sum(r['docked'] for r in rows)} of {len(rows)}")
   return rows
+
+
+def far_losts(places: list[str], n: int, parallel: int, explore_s: float = 0.0,
+              seed: int = 572) -> list[dict]:
+  """`--lost --far` (#572): from each of `places` (`LOST_FROM`), the belief
+  set `FAR_M` and `FAR_DEG` wrong -- 2 m out, every cell of the grid; from
+  anywhere else, `n` drawn -- a bearing and a side drawn for each, one
+  process a trial."""
+  rng = np.random.default_rng(seed)
+  trials = []
+  for place in places:
+    cells = ([(r, deg) for r in FAR_GRID_M for deg in FAR_GRID_DEG] if LOST_FROM[place] is None
+             else [(rng.uniform(*FAR_M), rng.uniform(*FAR_DEG)) for _ in range(n)])
+    for r, deg in cells:
+      a, side = rng.uniform(-math.pi, math.pi), rng.choice((-1.0, 1.0))
+      off = tuple(float(round(v, 3)) for v in (r * math.cos(a), r * math.sin(a), side * deg))
+      trials.append((off, place, explore_s))
+  rows = _fly_losts(trials, parallel)
+  lost_table(rows)
+  return rows
+
+
+def _fly_losts(trials: list, parallel: int) -> list[dict]:
+  """Each `(off, place, explore_s)` a `lost_trial` in a process of its own."""
+  def run(t):
+    off, place, explore_s = t
+    cmd = [sys.executable, __file__, "--one-lost", json.dumps(
+      {"off": list(off), "from": place, "explore": explore_s})]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    try:
+      return json.loads(r.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+      return {"off": list(off), "from": place, "docked": False, "why": "crashed",
+              "outcome": "crashed", "stderr": r.stderr[-400:]}
+
+  with ThreadPoolExecutor(parallel) as pool:
+    return list(pool.map(run, trials))
+
+
+def _set_off(r: dict) -> tuple[float, float]:
+  """A trial's belief as it was set wrong: m, and deg."""
+  return math.hypot(r["off"][0], r["off"][1]), r["off"][2]
+
+
+def lost_table(rows: list[dict]) -> None:
+  """A far lost sweep: a line a trial -- where from, how wrong its belief
+  was set, as its charge began and where the search began (and where it
+  truly was), how it ended -- then how each group and each band of the set
+  error ended."""
+  for r in rows:
+    r["outcome"] = outcome(r)
+  print(f"{'from':12s} {'set m/deg':>11s} {'at charge':>13s} {'at search':>13s} "
+        f"{'truly in':12s} {'outcome':17s} {'search s':>8s} {'s':>6s} {'end':>13s}  why not")
+  for r in rows:
+    m, deg = _set_off(r)
+    lost = next((e for e in r.get("events", []) if e["why"] == "lost"), None)
+    found = next((e for e in r.get("events", []) if e["why"] == "searched"), None)
+    print(f"{r.get('from', 'station'):12s} {m:5.2f}/{deg:+5.1f} "
+          f"{str(r.get('offCharge', '-')):>13s} {str(lost['off'] if lost else '-'):>13s} "
+          f"{lost['zone'] if lost else r.get('zoneEnd', '-'):12s} {r['outcome']:17s} "
+          f"{found['seconds'] if found else '-':>8} {r.get('s', 0):6.1f} "
+          f"{str(r.get('offEnd', '-')):>13s}  {'' if r['docked'] else r.get('why', '')}")
+  kinds = ("docked", "found, docked", "found, not docked", "missed, docked", "not found",
+           "never searched", "crashed")
+
+  def line(label, rs):
+    if not rs:
+      return
+    mix = ", ".join(f"{k} {sum(r.get('outcome') == k for r in rs)}" for k in kinds
+                    if any(r.get("outcome") == k for r in rs))
+    print(f"  {label:26s} docked {sum(r['docked'] for r in rs):2d} of {len(rs):2d}  ({mix})")
+
+  print("== how they ended")
+  for group, places in LOST_GROUPS.items():
+    line(group, [r for r in rows if r.get("from", "station") in places])
+  for lo, hi in ((1.0, 2.0), (2.0, 3.0), (3.0, 5.01)):
+    line(f"set {lo:g}-{min(hi, 5):g} m off", [r for r in rows if lo <= _set_off(r)[0] < hi])
+  for lo, hi in ((5.0, 10.0), (10.0, 20.01)):
+    line(f"set {lo:g}-{min(hi, 20):g} deg off",
+         [r for r in rows if lo <= abs(_set_off(r)[1]) < hi])
+  line("all", rows)
 
 
 def hold(seconds: float) -> dict:
@@ -429,15 +578,35 @@ def fall() -> dict:
   return out
 
 
-def strip(scene: str = "plug", out: str = "station_spike.png") -> None:
+#: The lost scene's camera from a start of its own or a belief set wrong
+#: its own way: over the robot wherever it walks, this far off, m, and this
+#: far down, deg -- near plumb, or a 2.4 m wall beside the robot hides it.
+FOLLOW_DIST, FOLLOW_ELEVATION_DEG = 7.0, -75.0
+#: ...and its filmstrip's tile this often, s: a walk and a search from
+#: further off run 100-250 s.
+FOLLOW_EVERY_S = 8.0
+
+
+def _follows(lost) -> bool:
+  """Whether the lost scene's camera follows the robot: from anywhere but
+  its own start and belief (`LOST_SCENE_OFF`), whose fixed view beside the
+  station the robot never leaves."""
+  return LOST_FROM[lost[0]] is not None or tuple(lost[1]) != LOST_SCENE_OFF
+
+
+def strip(scene: str = "plug", out: str = "station_spike.png",
+          lost=("station", LOST_SCENE_OFF)) -> None:
   """The scene headless, a tile every 1.5 s from beside the station -- or,
-  `lost`, every 4 s from further back: the loop's charge path from 2 m
-  out, its belief set wrong (`LOST_SCENE_OFF`)."""
+  `lost`, every 4 s from further back: the loop's charge path from
+  `lost`'s start (2 m out), its belief set `lost`'s offset wrong
+  (`LOST_SCENE_OFF`); given a start or an offset of its own, every 8 s
+  from over the robot (`_follows`)."""
   from PIL import Image, ImageDraw
+  follow = scene == "lost" and _follows(lost)
   if scene == "lost":
     life, body, station = _life()
     model, data = life.model, life.data
-    lost_start(body, LOST_SCENE_OFF)
+    lost_start(body, lost[1], lost[0])
   else:
     model, data, body, station = world()
   r = mujoco.Renderer(model, TILE_H, TILE_W)
@@ -445,23 +614,33 @@ def strip(scene: str = "plug", out: str = "station_spike.png") -> None:
   s = body._station
   every, (lx0, ly0, lz0), dist = ((4.0, *VIEW_CAM["lost"]) if scene == "lost"
                                   else (1.5, (-0.25, 0.0, 0.85), 1.4))
+  if follow:
+    every = FOLLOW_EVERY_S
 
   def hook():
     if data.time < due[0]:
       return
     due[0] = float(data.time) + every
     cam = mujoco.MjvCamera()
-    lx, ly = s.to_world(lx0, ly0)
-    cam.lookat[:] = (lx, ly, lz0)
-    cam.distance, cam.azimuth, cam.elevation = dist, side(s), -12.0
+    if follow:
+      cam.lookat[:] = (*data.xpos[body.root][:2], 0.5)
+      cam.distance, cam.azimuth, cam.elevation = FOLLOW_DIST, 90.0, FOLLOW_ELEVATION_DEG
+    else:
+      lx, ly = s.to_world(lx0, ly0)
+      cam.lookat[:] = (lx, ly, lz0)
+      cam.distance, cam.azimuth, cam.elevation = dist, side(s), -12.0
     light = (model.vis.headlight.ambient.copy(), model.vis.headlight.diffuse.copy())
     model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = 0.5, 0.6
     r.update_scene(data, cam)
     img = Image.fromarray(r.render())
     model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = light
     f = station.flags
-    ImageDraw.Draw(img).text((6, 6), f"{data.time:.1f} s  plugged in: {bool(f['mated'])}  "
-                             f"parked: {f['parked']}", fill=(255, 255, 255))
+    caption = f"{data.time:.1f} s  plugged in: {bool(f['mated'])}  parked: {f['parked']}"
+    if follow:
+      m, deg = _off(body.pose, body.true_pose())
+      caption = (f"{data.time:.1f} s  belief {m:.2f} m {deg:+.0f} deg off  "
+                 f"plugged in: {bool(f['mated'])}")
+    ImageDraw.Draw(img).text((6, 6), caption, fill=(255, 255, 255))
     tiles.append(img)
 
   body.step_hooks.append(hook)
@@ -512,27 +691,37 @@ class _closing:
     return False
 
 
-def view(scene: str) -> None:
+def view(scene: str, lost=("station", LOST_SCENE_OFF)) -> None:
   """A scene in the viewer at real time, again and again until the window
   closes, each from the standoff: `plug` docks, charges and unplugs; `fall`
   docks and is shoved over plugged in; `lost` is the loop's own charge path
-  from 2 m out, its belief set wrong (`LOST_SCENE_OFF`). (From the seat
-  itself, `fall()`'s start, the plug-in took four tries and 73 s: SimNotes.)"""
+  from `lost`'s start (2 m out), its belief set `lost`'s offset wrong
+  (`LOST_SCENE_OFF`) -- given a start or an offset of its own, the camera
+  over the robot (`_follows`). (From the seat itself, `fall()`'s start,
+  the plug-in took four tries and 73 s: SimNotes.)"""
   import time
   import mujoco.viewer
-  print(SCENES[scene] + " Close the window to quit.")
+  follow = scene == "lost" and _follows(lost)
+  print((SCENES[scene] if not follow else
+         f"the `lost` scene from the {lost[0]}, its belief set {lost[1]} wrong: the loop's "
+         "charge path, and how it ends.") + " Close the window to quit.")
   while True:
     life = None
     if scene == "lost":
       life, body, station = _life()
       model, data = life.model, life.data
-      lost_start(body, LOST_SCENE_OFF)
+      lost_start(body, lost[1], lost[0])
     else:
       model, data, body, station = world()
     with mujoco.viewer.launch_passive(model, data) as v, _closing(body):
-      (lx, ly, lz), v.cam.distance = VIEW_CAM[scene]
-      v.cam.lookat[:] = (*body._station.to_world(lx, ly), lz)
-      v.cam.azimuth, v.cam.elevation = side(body._station), VIEW_ELEVATION_DEG
+      if follow:
+        v.cam.type, v.cam.trackbodyid = mujoco.mjtCamera.mjCAMERA_TRACKING, body.root
+        v.cam.distance, v.cam.azimuth = FOLLOW_DIST, 90.0
+        v.cam.elevation = FOLLOW_ELEVATION_DEG
+      else:
+        (lx, ly, lz), v.cam.distance = VIEW_CAM[scene]
+        v.cam.lookat[:] = (*body._station.to_world(lx, ly), lz)
+        v.cam.azimuth, v.cam.elevation = side(body._station), VIEW_ELEVATION_DEG
       wall = time.perf_counter() - float(data.time)
 
       def pace():
@@ -582,10 +771,23 @@ def main(argv=None) -> int:
   ap.add_argument("--seconds", type=float, default=60.0)
   ap.add_argument("--fall", action="store_true")
   ap.add_argument("--walk-in", action="store_true")
-  ap.add_argument("--explore", default="120,240",
-                  help="--walk-in's explores before it walks out, s, comma-separated")
+  ap.add_argument("--explore", default=None,
+                  help="--walk-in's explores before it walks out, s, comma-separated "
+                       "(120,240); --lost's one, after its belief is set wrong (none)")
   ap.add_argument("--seats", action="store_true")
   ap.add_argument("--lost", action="store_true")
+  ap.add_argument("--far", action="store_true",
+                  help="--lost from its belief 1-5 m and 5-20 deg wrong, from --from")
+  ap.add_argument("--from", dest="places", default="near,house,street",
+                  help="--far's starts: places of LOST_FROM or the groups near, house, "
+                       "street, comma-separated")
+  ap.add_argument("--lost-table", default=None, metavar="JSON",
+                  help="--far's table again, from the rows its --out wrote")
+  ap.add_argument("--lost-from", default="station", choices=tuple(LOST_FROM),
+                  help="the lost scene's start (--view lost, --strip lost)")
+  ap.add_argument("--lost-off", default=None, metavar="X,Y,DEG",
+                  help="the lost scene's belief set wrong, m along the station's +x, m "
+                       "across it, deg (0.7,0,0)")
   ap.add_argument("--view", nargs="?", const="plug", choices=("plug", "fall", "lost"))
   ap.add_argument("--strip", nargs="?", const="plug", choices=("plug", "lost"),
                   help="the scene's filmstrip, station_spike.png (lost: station_spike_lost.png)")
@@ -605,20 +807,34 @@ def main(argv=None) -> int:
     print(json.dumps(seat_trial(tuple(json.loads(args.one_seat)))))
     return 0
   if args.one_lost:
-    print(json.dumps(lost_trial(tuple(json.loads(args.one_lost)))))
+    t = json.loads(args.one_lost)
+    print(json.dumps(lost_trial(tuple(t["off"]), t["from"], t["explore"])))
     return 0
+  lost = (args.lost_from, LOST_SCENE_OFF if args.lost_off is None
+          else tuple(float(v) for v in args.lost_off.split(",")))
   if args.view:
-    view(args.view)
+    view(args.view, lost)
     return 0
-  rows = (approach(args.n, args.parallel) if args.approach else
-          seats(args.parallel) if args.seats else
-          losts(args.n, args.parallel) if args.lost else
-          walk_ins(tuple(float(e) for e in args.explore.split(",")), args.parallel)
-          if args.walk_in else
-          [hold(args.seconds)] if args.hold else [fall()] if args.fall else None)
+  if args.lost_table:
+    lost_table(json.loads(Path(args.lost_table).read_text()))
+    return 0
+  if args.lost and args.far:
+    places = [p for name in args.places.split(",") for p in LOST_GROUPS.get(name, (name,))]
+    unknown = [p for p in places if p not in LOST_FROM]
+    if unknown:
+      ap.error(f"--from: no such place {', '.join(unknown)} (of {', '.join(LOST_FROM)})")
+    rows = far_losts(places, args.n, args.parallel, float(args.explore or 0.0))
+  else:
+    rows = (approach(args.n, args.parallel) if args.approach else
+            seats(args.parallel) if args.seats else
+            losts(args.n, args.parallel) if args.lost else
+            walk_ins(tuple(float(e) for e in (args.explore or "120,240").split(",")),
+                     args.parallel)
+            if args.walk_in else
+            [hold(args.seconds)] if args.hold else [fall()] if args.fall else None)
   if rows is None:
     strip(args.strip or "plug", "station_spike_lost.png" if args.strip == "lost"
-          else "station_spike.png")
+          else "station_spike.png", lost)
     return 0
   if args.out:
     Path(args.out).write_text(json.dumps(rows, indent=1))
