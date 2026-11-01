@@ -213,6 +213,23 @@ def test_the_cloud_lies_on_the_room():
   assert (c.seen | _behind(lidar.ray_angles)).all() and c.seen.sum() >= lidar_mod.BEARINGS - 5
 
 
+def test_the_floor_is_struck_however_far_its_middle():
+  """A plane is infinite, and the frame's steep rays meet the floor 1.15-8 m
+  out wherever the floor's own middle is: the house's is 19 m off at its
+  edge, where a cast cut off at 8 m read nothing off it."""
+  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN))
+  floor = next(g for g in spec.geoms if g.type == mujoco.mjtGeom.mjGEOM_PLANE)
+  floor.pos = [20.0, 0.0, 0.0]
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  c = _clean(model).cloud(data)
+  site = data.site_xpos[model.site("lidar").id]
+  on_floor = np.abs((c.points + site)[:, 2]) < 1e-6
+  assert on_floor.sum() > 3000, f"{on_floor.sum()} returns off the floor"
+
+
 def test_the_band_lays_a_low_fence_the_level_ring_passes_over():
   """#581's point: the 0.9 m fence 2 m ahead is under the level ring,
   which reads the wall behind it -- and in the band, its near face's 1.98

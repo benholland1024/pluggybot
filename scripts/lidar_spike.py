@@ -17,9 +17,10 @@ scan the map is laid from today).
                                   # pose, does a scan pin the heading -- the
                                   # level ring's against the band's
     ... --view                    # a walk from the living room to the
-                                  # storeroom across the street, the band's
-                                  # returns drawn red and the ring's blue
-                                  # (MUJOCO_GL unset)
+                                  # storeroom across the street, its map
+                                  # laid from its points laid flat, the
+                                  # band's returns drawn red and the ring's
+                                  # blue (MUJOCO_GL unset)
     ... --strip [--out PNG]       # its filmstrip: lidar_spike.png
 
 The truth -- where the robot is, what a ray struck -- is ours, read to
@@ -288,7 +289,8 @@ DOT_M = 0.035
 
 def walk_world():
   """The served body in its house at the living room's start, as the loop
-  boots it: (model, data, body)."""
+  boots it, its map laid from its points laid flat (`HumanoidMission.band`,
+  the stage's measurement switch): (model, data, body)."""
   from pluggybot.body import body_for
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   from pluggybot.robot import world_spec
@@ -296,6 +298,7 @@ def walk_world():
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   body = body_for(model, data, grid_bounds=cfg["grid_bounds"])
+  body.mission.band = True
   body.start_at(*cfg["start"])
   return model, data, body
 
@@ -347,13 +350,15 @@ def view() -> None:
   from mujoco import viewer as mj_viewer
   from pluggybot import tick
   model, data, body = walk_world()
-  print("the walk: the living room to the storeroom across the street; its LIDAR's "
-        "returns drawn each frame -- red, the band laid flat (0.15-2.2 m over the floor); "
-        "blue, the level ring its map is laid from today. Close the window to quit.")
+  print("the walk: the living room to the storeroom across the street, its map laid from "
+        "its points laid flat; its LIDAR's returns drawn every 0.1 s -- red, the nearest "
+        "0.15-2.2 m over the floor each bearing; blue, the level ring its map is laid from "
+        "as served. Close the window to quit.")
   with mj_viewer.launch_passive(model, data) as viewer:
     viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
     viewer.cam.trackbodyid = body.root
-    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 7.0, 180.0, -35.0
+    # looking east, the way it walks, from behind it
+    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 7.0, 0.0, -35.0
     marks: list = []
     wall0 = time.time() - data.time
 
@@ -387,15 +392,15 @@ def walk_world_start():
   return world_config(HUMANOID_HOME)["start"]
 
 
-def strip(out: str = "lidar_spike.png", tiles: int = 6, w: int = 480, h: int = 360) -> None:
-  """The walk's filmstrip: a tile every so often, the returns drawn, each
-  labelled with where the robot truly is."""
+def strip(out: str = "lidar_spike.png", tiles: int = 9, w: int = 480, h: int = 360) -> None:
+  """The walk's filmstrip: a tile every 15 s from 5 s, the returns drawn,
+  each labelled with where the robot truly is."""
   from PIL import Image, ImageDraw
-  from pluggybot.humanoid.places import zone_of  # noqa: F401  (the house's zones)
+  from station_spike import zone_of
   model, data, body = walk_world()
   r = mujoco.Renderer(model, h, w)
   shots: list = []
-  due = [8.0 + k * 14.0 for k in range(tiles)]
+  due = [5.0 + k * 15.0 for k in range(tiles)]
 
   def shot():
     if due and data.time >= due[0]:
@@ -403,12 +408,13 @@ def strip(out: str = "lidar_spike.png", tiles: int = 6, w: int = 480, h: int = 3
       cam = mujoco.MjvCamera()
       cam.lookat[:] = data.xpos[body.root] + [0.0, 0.0, 0.2]
       _, _, yaw = body.true_pose()
-      cam.distance, cam.azimuth, cam.elevation = 6.5, math.degrees(yaw) + 180.0, -32.0
+      # from behind it, looking the way it faces
+      cam.distance, cam.azimuth, cam.elevation = 6.5, math.degrees(yaw), -32.0
       r.update_scene(data, cam)
       draw(r.scene, dots(model, data, body))
       img = Image.fromarray(r.render())
       x, y, _ = body.true_pose()
-      ImageDraw.Draw(img).text((8, 8), f"t={data.time:5.1f} s  at ({x:.1f}, {y:.1f})",
+      ImageDraw.Draw(img).text((8, 8), f"t={data.time:5.1f} s, in the {zone_of(x, y)}",
                                fill=(255, 255, 255))
       shots.append(img)
 

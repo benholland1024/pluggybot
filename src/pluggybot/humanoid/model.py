@@ -224,7 +224,7 @@ class HumanoidSpec:
   #: upside down from its bracket, `_lidar`): its steepest, -52 deg, clears
   #: the head ahead and to either side, and the head's corners hide only
   #: under -45. At the C1's 4.7 cm the head hid every ray steeper than
-  #: 32-36 deg, the floor out to 2 m (`lidar_spike.py --hidden`).
+  #: 31-35 deg, the floor out to 2 m (`lidar_spike.py --hidden`).
   lidar_rise: float = 0.10
   # -- the charge port (#559 stage 2): on the torso's front --
   #: Right of its middle and over the hip axes, m: where the right hand

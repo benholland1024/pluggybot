@@ -3833,6 +3833,228 @@ while the robot stands where nothing is matched (a zero-rate update, as
 the quadruped's while it lies); its odometry held while a get-up has its
 legs; and why the wide search took back none of them.
 
+## The 3D LIDAR on the head (issue #581, stage 1)
+
+**What is true now.** The humanoid's LIDAR is a Livox Mid-360S, upside
+down on a bracket over its head (Parts.md, "The LIDAR"): its field is +7 down
+to -52 deg, its rays leave 1.47 m up standing. Its LEVEL RING, the 360
+bearings at 0 deg, is the scan the map is laid from and matched by, as the
+RPLIDAR C1's plane was, 5 cm higher: served, it behaves as the C1 did. Its
+points LAID FLAT -- per bearing the nearest 0.15-2.2 m over the floor,
+through the IMU's tilt (`Lidar.band`) -- see the house's 0.9 m fences, the
+couch, the tables and the beds, and are a measurement's switch
+(`HumanoidMission.band`) until stage 2 serves them. Flown with them, the 14
+drift flights that #572 lost 9 of were 14 of 14 docked, as with the fences
+raised to 1.8 m. A full frame costs 14-17 ms on the deploy box, and two
+robots casting it at 10 Hz ran at about real time (0.97-1.15x).
+
+![The 3D LIDAR on the head: a humanoid walks from the living room out by
+the garden's gate, across the street and into the lobby, its map laid from
+its points laid flat; red, each bearing's nearest return 0.15-2.2 m over
+the floor -- the couch, the fences, the walls' lower halves -- and blue,
+the level ring its map is laid from as served, the buildings' walls alone;
+a tile every 15 s (`lidar_spike.py --strip`)](figures/humanoid_lidar_walk.png)
+
+**The part.** Livox's Mid-360S (its sheet: 360 x 59 deg, 200,000 points a
+second at 10 Hz, a range's sigma <= 2 cm at 10 m and <= 4 cm at 0.2 m, 0.15
+deg, a 0.1 m blind zone, 265 g, 6.5 W; €772.95 at Funduino). Unitree's G1
+carries a Mid-360 upside down in its head. Against it:
+
+| | Mid-360S | Unitree L2 | Mid-360L |
+|---|---|---|---|
+| field, deg | 360 x 59 | 360 x 96 | 360 x 44 |
+| upside down, its steepest | -52 | -90 | -34 |
+| points a second | 200,000 | 64,000 | 100,000 |
+| a full round | 0.1 s | 0.18 s | 0.1 s |
+| a range's sigma at 10 m | <= 2 cm | <= 2 cm | <= 3 cm |
+| W, g | 6.5, 265 | 10, 230 | 4.2, 245 |
+| € with VAT | 772.95 (Funduino) | about 437 ($419, Unitree) | none read |
+
+The L2 spreads a third of the points over a field 1.6 times as tall, much
+of it straight down into the body; the Mid-360L's field ends 34 deg down,
+the floor 2.2 m out against the Mid-360S's 1.15. The bill buys the Mid-360S,
+its cable (none in its box), its own 12 V converter (its 18 W start-up and
+the contactor's coil are past one DDR-30L-12's 30 W) and its bracket: €16,322.28
+with contingency, from €15,319.75. Always on, the body draws 74.9 W, 6.2
+more (the unit through its converter, against the C1's 1.15), and weighs
+43.01 kg, 0.36 more (the head 0.24, the converter 0.12).
+
+**Its mount.** Upside down, its window under its base, so it hangs from a
+plate: a 20 x 3 mm 6082 post up the head's back edge, turned ON TO the
+sensor, holds it. Casting from the C1's height, 4.7 cm over the head's top,
+the head hid every ray steeper than 31-35 deg ahead and aside -- the floor
+out to 2 m. Its rays leave 10 cm over the head's top (`lidar_rise`), so the
+steepest, -52 deg, clears the head ahead and to either side and meets the
+floor 1.15 m out. What the robot's own body hides (`lidar_spike.py
+--hidden`, each sector 20 deg either side):
+
+| pose | of a frame | ahead | aside | behind |
+|---|---|---|---|---|
+| standing, arms hanging | 3.8 % | nothing | clear to -50 | the post's 3 bearings |
+| a hand held at a counter, 0.94 m | 4.3 % | clear to -42 (its gripper) | to -50 | the post |
+| at a high shelf, 1.43 m | 6.0 % | nothing | to -50 (its upper arm) | the post |
+| at a low shelf, 0.49 m | 4.7 % | clear to -36 (its gripper) | to -50 | the post |
+| at the floor | 3.6 % | clear to -44 (its gripper, its soles) | to -50 | the post |
+
+The head's corners hide the rings under -45 deg between the four
+directions; the shoulders and the arms hanging hide nothing. The rays are
+cast from 5 mm under the unit, as the C1's were from 6 mm over its puck:
+from inside the housing every ray hit the housing (#386). The unit touches
+nothing in the sim, as the C1 did not.
+
+**The model** (`perception/lidar.py`, `tests/test_lidar.py`). A frame is 30
+rings 2 deg apart, -52 to +6, 360 bearings each, 10,800 rays in ONE
+`mj_multiRay`: its manual has a 0.1 s frame covering the field as "a 32-line
+mechanical LiDAR" does. Each return carries the sheet's range sigma (4 cm at
+0.2 m to 2 cm at 10 m, a line between) and 0.15 deg on each angle; 2 % drop
+out (the C1's model's, carried); one nearer than 0.1 m is no reading, as a
+self-hit is none. Its own robot's returns are dropped, another robot's
+split out for the front stop (#316), its noise its robot's own
+(`imu.seed_for`; the C1's model drew both robots' from seed 0) and kept
+across a restart.
+
+**The policies on the new head.** Flown again on it beside today's staging
+(`humanoid_spike.py --shove`, `--track`, `--fall`), none retrained:
+
+- *shoves*: every one it stood through before it stands through now, and
+  two a step harder (from its left standing, 20 N*s where 15 was; crouched
+  from its right, its feet held to 20);
+- *tracking*: every served command to within 0.01-0.03 of before;
+- *falls*: every get-up on a bare floor stood in the same 2.7-4.4 s, and
+  every fall from a bow was caught and stood; in the house's corners, two
+  stood sooner and one (left, off the landing's edge) now stays down where
+  two of the four already did.
+
+The walking policy's turn asked 0.5 rad/s is two gaits, 0.22-0.27 or
+0.37-0.43 rad/s, by the draw of its senses' noise, on either head (8 draws
+a head and a way; asked 0.4 or 0.6 the heads turned alike): the served
+draw now takes the slower, and its test's bar, 0.3, sat between them. It is
+0.2 now, still far over the 0.08 a policy turned that held its hips' yaw as
+tightly as the G1's.
+
+**What a frame costs** (`lidar_spike.py --cost`, 80 places in the house):
+
+| ms a frame | the dev box | the deploy box, two runs |
+|---|---|---|
+| the level ring, 360 rays | 0.66 | 0.54, 0.74 |
+| the cloud, 10,800 rays | 16.1 | 13.9, 16.7 |
+| the band, laid flat from it | 16.4 | 14.2, 17.8 |
+| a D435 frame, 8,400 rays | 12.4 | 10.7, 10.9 |
+
+Almost all of it is the cast (15.0 ms of the dev box's 16.1). ⚠ It casts
+with no cutoff, as the C1's did: MuJoCo culls a plane by its centre's
+distance, and cut off at 8 m every ray that met the house's floor -- its
+centre 19 m off at the loop's far end -- read nothing (`test_the_floor_is_
+struck_however_far_its_middle`); the floor is under the band and outside
+the ring, so no flight below moved, and the cutoff saved no time. The
+box's frames vary by a fifth from one run to the next, on an idle box: it
+is a shared VPS.
+The pair's real-time multiple there (`humanoid_spike.py --speed --band`,
+one core, each run its own container, the trees interleaved):
+
+| the pair, x real time | runs |
+|---|---|
+| today's staging, the C1 | 1.70, 1.55, 1.61 |
+| this head, its level ring (as served) | 1.52, 1.65, 1.64 |
+| this head, the band at 10 Hz | 0.97, 1.15, 1.08 |
+| ...from 15 rings, 4 deg apart (5,400 rays) | 1.42, 1.17 |
+
+One robot alone: 2.76 (staging), 2.77 (the level ring), 2.01 (the band).
+Served on the level ring, the pair runs as fast as before. With the band
+at 10 Hz each robot casts 108,000 rays a second, 0.28 s of the deploy box's
+every sim second for the pair, and it ran at about real time: serving it
+needs fewer rays a second (call 3): half the rings gave 1.17-1.42.
+
+**The probe on its model** (`lidar_spike.py --probe`: #572's static probe,
+the robot standing at every outdoor point 0.5 m apart, from its true pose,
+its own body in the scene): the share of places a scan does NOT pin the
+heading.
+
+| | C1 (#572) | level ring | band |
+|---|---|---|---|
+| middle street | 68 % | 66 % | 0 % |
+| sidewalks beside it | 38 % | 36 % | 0 % |
+| the loop | 26 % | 26 % | 0 % |
+| block sidewalks | 9 % | 9 % | 0 % |
+| gardens | 7 % | 7 % | 0 % |
+| rooms | 0 % | 0 % | 2 % |
+
+The level ring is the C1's plane, to the place; the band pins every
+outdoor place's heading, as #572's bare sensor did, with the robot's own
+body in the way of its rays (in the middle street 52 % of places in all
+three directions and the rest held along the street).
+
+**The drift batch** (`humanoid_drift_spike.py --band`): #572's 14 flights,
+the same draws and walks, on the new head with its level ring and with its
+band, beside #572's on the C1 and its re-fly with the fences at 1.8 m:
+
+| | C1 | C1, fences 1.8 m | level ring | band |
+|---|---|---|---|---|
+| docked | 4 of 14 | 14 of 14 | 7 of 14 | 14 of 14 |
+| lost | 9 | 0 | 6 | 0 |
+| middle street: scans fixed in every direction | 0 % (82 % nothing to match) | 99 % | 0 % (84 %) | 98 % |
+| gardens | 44 % | 100 % | 44 % | 99 % |
+| sidewalks and outer streets | 17 % (59 % held) | 70 % (30 %) | 9 % (71 %) | 86 % (14 %) |
+| the rooms | 94 % | 100 % | 99 % | 100 % |
+
+With the band no flight was lost, the worst error anywhere 1.64 m (Rowan's
+stand in the street, put right at the station), home from the storeroom
+within 0.0-0.9 m. The level ring lost 6 where the C1 lost 9: one is the
+other, the street blind to both, a flight's luck on where it walked.
+
+**The station's batches** (`station_spike.py`, staging, the level ring and
+the band):
+
+| | staging | level ring | band |
+|---|---|---|---|
+| `--approach`: docked and unplugged | 15 of 15 | 15 of 15 | 13 of 15 |
+| `--lost`, belief 0.4-1 m wrong: docked | 16 of 16 | 15 of 16 | 15 of 16 |
+| `--walk-in`, from 8 places, explored 120 and 240 s: docked | 16 of 16 | 14 of 16 | 14 of 16 |
+
+Staging docked all 47; the level ring missed 3 (a search begun 0.95 m off,
+where #572 found the search reaches about a metre and staging found it;
+a walk from the lobby across the street out of time, #572's known way to
+fail; and a seat it stepped back and forth round, 4-8 cm either side, in
+strides of about 10 cm, until its steps ran out); the band missed 5, every
+one at the dock.
+
+**With the band, the dock is where it is not yet right.** Four of its
+five misses pushed the plug into the funnel three or four times and the
+port never took it; the fifth found and fixed the station and never lined
+up on the seat. Flown again, one of the misses: its matcher moved the
+belief 264 times through the dock against 77 on the level ring, 38 cm of
+moves against 19, at the station's near returns (its box, its cup and
+plug, 0.3-0.5 m off); the seat it steps to and the reach to the plug are
+both placed through that belief, and it took a seat 3.4 cm off and missed
+from it every try. Made its own to the LIDAR -- held or parked -- the
+plug's returns gone, the same start docked in one push; owned only while
+the hand held it, it missed again: it is the station's near returns under
+the matcher, not what the hand carries. Near, the part is noisier than the
+C1's model was (its sheet's 4 cm at 0.2 m, against 1.4 cm at 0.4 m), and
+the level ring's one seat lost (above) is the same failure, once.
+
+**The energy table is not re-priced here; the reserve is.** On this head
+the explore drew 173.8 W (12.35 Wh over 256 s; staging, the same day,
+164.8; the table carries 166.4) and a charge put 339 W net into the pack
+(the table 345). The hand jobs could not be priced: the drawer's and the
+door's walks across the street ended off their counter -- the drawer's
+procedure computed a 0.62 m sidestep past its verb's 0.5, the door's never
+saw its tag -- and staging's drawer did the same the same day (its door
+went in and passed), #572's drift, which the band ends; the cube's reference ended with the cube still
+in its hand, 4 cm over its mat, and the chest's first step then refused to
+carry it. Stage 2 re-prices the table once its walks localize. The reserve moved now, on the pieces its comment
+sums (`humanoid.world.RESERVE_WH`): the dearer travel with 6.2 W over its
+222 s, the dock's leg and the plug-in twice at the 93 W it now draws
+standing, 17.9 Wh, carried as 18, from 17.5 (its own dock leg ran out of
+time 10 m short, as the C1's had).
+
+**Not done** (#581's stage 2): the band served, through the believed pose
+and the IMU's tilt, so a bowed robot maps and matches; the D435's low
+layer kept only for what the LIDAR cannot see by the feet, measured; every
+reader of the grid checked against it; the matcher's reach read again; the
+dock steady under the band; and the band's cost cut to what the pair can
+serve (call 3) -- `MAP_EPOCH` bumped at its deploy.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

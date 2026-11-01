@@ -81,18 +81,66 @@ each sits on the humanoid is under "The humanoid body", below.
 
 ### Vision & ranging
 
-**A 2D LIDAR and one navigation camera, never a stereo pair** (Aug 2026).
+**A LIDAR and one navigation camera, never a stereo pair** (Aug 2026).
 Real SGBM on the sim's own stereo pair, in the best case a pair could ever
 have, produced disparity for only **49.7 %** of the mapper's scan row at
 **593 mm** median error mid-room, against a 50 mm grid cell (σ_z ±649 mm at
 5 m on a 60 mm baseline): rooms are flat painted walls, the classic
-no-disparity case (SimNotes "Sensor-realism pass"). The LIDAR is
-`perception/lidar.py`: 360 rays (one `mj_multiRay`) at the part's 10 Hz,
-±10 mm + 1 % noise and 2 % dropout, under-ranged to 8 m on purpose, and
-self-hits dropped rather than reported as free space. The cameras read the
+no-disparity case (SimNotes "Sensor-realism pass"). The cameras read the
 tags: the charging station's, the props' and the places' signs. The LIDAR
 works in the dark and on textureless walls, and 360° covers a spin, which a
 forward camera's safety reflex never could.
+
+### The LIDAR: Livox Mid-360S, upside down (issue #581)
+
+**A 3D LIDAR, because the world's low things must localize.** The RPLIDAR
+C1 before it spun one plane 1.41 m up, and the house's fences are 0.9 m:
+outdoors it saw only the buildings' walls, 6-8 m off in the middle street,
+and 9 of #572's 14 drift flights came home lost (SimNotes, "Where the
+humanoids get lost"). Raising the fences to 1.8 m fixed it (14 of 14
+docked), and Ben chose the sensor over the fences (2026-11-01): the real
+world has low fences a robot must neither cross nor ignore. The part is
+`perception/lidar.py`: 30 rings 2° apart from -52 to +6°, 360 bearings
+each, in one `mj_multiRay` at its 10 Hz (its manual: a 0.1 s frame covers
+the field as "a 32-line mechanical LiDAR"), its sheet's range noise (≤ 4 cm
+at 0.2 m to ≤ 2 cm at 10 m) and angle noise (0.15°), 2 % dropout, its 0.1 m
+blind zone, under-ranged to 8 m on purpose; the robot's own returns
+dropped, another robot's split out (#316), its noise its robot's own.
+
+**What it answers** (SimNotes, "The 3D LIDAR on the head"): its LEVEL RING,
+the 360 bearings at 0°, is the scan the map is laid from, as the C1's plane
+was; its points LAID FLAT -- per bearing the nearest 0.15-2.2 m over the
+floor, through the IMU's tilt (`Lidar.band`) -- see the fences, the
+tables, the couch and the bed, and are a measurement's switch until #581's
+stage 2 serves them (`HumanoidMission.band`).
+
+**The candidates, and why each lost:**
+- **Unitree L2** ($419 on Unitree's page, about €437 with VAT; 230 g): a
+  third of the Mid-360S's points (64,000 a second) over a field 1.6 times
+  as tall (360 × 96°), a round every 0.18 s, and 10 W against 6.5. Upside
+  down its field reaches straight down, where the body is.
+- **Livox Mid-360L** (its sheet: 360 × 44°, -10 to +34°, 100,000 points a
+  second, ≤ 3 cm at 10 m, 4.2 W, 245 g): no seller's price, and upside down
+  its field ends 34° down: the floor from 2.2 m out, against 1.15.
+- **The D435 folded into the scan**: pitched 40° down, 3 m and 87° ahead,
+  it sees nothing of a fence 3 m to the side, and its cells are cleared by
+  the LIDAR's rays that pass over them: #572's probe pinned the heading at
+  fewer of the street's places with it than without (78 % unpinned).
+- **A second RPLIDAR tilted at the floor**: one line, as the D435's
+  candidates found.
+
+**Its mount.** Upside down, the sheet's -7 to +52° turned over, on a 6082
+bracket: a 20 × 3 mm post up the head's back edge, ON TO the sensor (its
+shadow 3 bearings behind), and a plate over the unit its base bolts under.
+Its rays leave 10 cm over the head's top, 1.47 m up standing, so its
+steepest, -52°, clears the head ahead and to either side and meets the
+floor 1.15 m out; the head's corners hide only the rings under -45°. At the
+C1's 4.7 cm the head hid every ray steeper than 31-35°: the floor out to
+2 m. Standing, the robot hides 3.8 % of a frame; a hand held at a counter,
+a shelf or the floor, 3.6-6 % (`lidar_spike.py --hidden`). It runs off its
+own 12 V converter (its 18 W start-up and the contactor's 13 W are past one
+DDR-30L-12's 30) and takes the Pi 5's Ethernet port. It touches nothing in
+the sim, as the C1 did not: no policy was trained with it to fall on.
 
 ### The near-field depth camera: RealSense D435 (issue #34)
 
@@ -130,8 +178,8 @@ batched ray casts, deterministic and off the GPU.
 0.7 ms (480 KB); a voxel map of the same window to 0.5 m, with the
 free-space carving that lets it forget a moved object, took 111 ms. Voxels
 earn their keep only when what is UNDER an overhang matters. The
-humanoid's planner reads the camera's points under its LIDAR's plane,
-never the map (`HumanoidMission._fold_low`).
+humanoid's planner reads the camera's points under its LIDAR's level
+ring, never the map (`HumanoidMission._fold_low`).
 
 **Its colour imager reads the tags the robot works by** (`spot`;
 `humanoid.body.TAG_CAMERA`): a prop's at the counter and the charging
@@ -242,9 +290,11 @@ D435 is fixed in the head, 1.26 m up and pitched 40° down: it sees the
 counter's height from 0.12 to 1.64 m ahead and the floor from 0.48 m, and
 its colour imager reads the tags within reach (a counter's props, the
 station). The Camera Module 3 above it, pitched 20°, reads the tags on the
-walls that mark places, and is the eye a `look` sees through. The RPLIDAR
-C1 sits on the head, its plane 1.41 m up, over the tables, the couch and the
-bed, which the depth camera has to see. The IMU rides the pelvis.
+walls that mark places, and is the eye a `look` sees through. The
+Mid-360S rides upside down on a bracket over the head, its rays leaving
+1.47 m up: its level ring is over the tables, the couch and the bed, which
+the depth camera sees, and its points laid flat see them too (#581). The
+IMU rides the pelvis.
 
 **The bill.** `humanoid/bill.py`, rendered here and written to
 `protocol/parts.json` by `uv run python -m pluggybot.humanoid.bill`: a part

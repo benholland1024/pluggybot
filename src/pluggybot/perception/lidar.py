@@ -197,14 +197,17 @@ class Lidar:
 
   def _cast(self, data, dirs: np.ndarray):
     """Every ray of `dirs` (n, 3, the sensor's frame) in ONE `mj_multiRay`
-    (issue #385): (distance, geom) a ray, -1 for nothing within reach."""
+    (issue #385): (distance, geom) a ray, -1 for nothing at all. ⚠ NO
+    CUTOFF: MuJoCo culls a plane by its centre's distance, and at 8 m every
+    ray that met the house's floor -- its centre 19 m off -- read nothing
+    (`test_the_floor_is_struck_however_far_its_middle`); one saved no time."""
     pos = np.array(data.site_xpos[self.site_id], dtype=np.float64)
     mat = np.array(data.site_xmat[self.site_id], dtype=np.float64).reshape(3, 3)
     world = np.ascontiguousarray((dirs @ mat.T).reshape(-1))
     n = len(dirs)
     dist, hit = np.zeros(n), np.zeros(n, dtype=np.int32)
     mujoco.mj_multiRay(self.model, data, pos, world, None, 1, -1, hit, dist, None, n,
-                       self.max_range)
+                       mujoco.mjMAXVAL)
     return dist, hit
 
   def _sort(self, dist: np.ndarray, hit: np.ndarray):
