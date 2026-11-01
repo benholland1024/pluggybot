@@ -613,10 +613,13 @@ def _follows(lost) -> bool:
 def strip(scene: str = "plug", out: str = "station_spike.png",
           lost=("station", LOST_SCENE_OFF)) -> None:
   """The scene headless, a tile every 1.5 s from beside the station -- or,
-  `lost`, every 4 s from further back: the loop's charge path from
-  `lost`'s start (2 m out), its belief set `lost`'s offset wrong
-  (`LOST_SCENE_OFF`); given a start or an offset of its own, every 8 s
-  from over the robot (`_follows`)."""
+  `fall`, every 0.5 s from the viewer's wider camera, from just before the
+  shove (its walk in is `plug`'s) until it is up and the plug home -- or,
+  `lost`, every
+  4 s from further back: the loop's charge path from `lost`'s start (2 m
+  out), its belief set `lost`'s offset wrong (`LOST_SCENE_OFF`); given a
+  start or an offset of its own, every 8 s from over the robot
+  (`_follows`)."""
   from PIL import Image, ImageDraw
   follow = scene == "lost" and _follows(lost)
   if scene == "lost":
@@ -629,12 +632,15 @@ def strip(scene: str = "plug", out: str = "station_spike.png",
   tiles, due = [], [0.0]
   s = body._station
   every, (lx0, ly0, lz0), dist = ((4.0, *VIEW_CAM["lost"]) if scene == "lost"
+                                  else (0.5, *VIEW_CAM["fall"]) if scene == "fall"
                                   else (1.5, (-0.25, 0.0, 0.85), 1.4))
   if follow:
     every = FOLLOW_EVERY_S
+  # ...the fall's tiles begin once it is plugged in
+  filming = [scene != "fall"]
 
   def hook():
-    if data.time < due[0]:
+    if not filming[0] or data.time < due[0]:
       return
     due[0] = float(data.time) + every
     cam = mujoco.MjvCamera()
@@ -652,11 +658,15 @@ def strip(scene: str = "plug", out: str = "station_spike.png",
     model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = light
     f = station.flags
     caption = f"{data.time:.1f} s  plugged in: {bool(f['mated'])}  parked: {f['parked']}"
+    if scene == "fall" and body.mission.legs == "getup":
+      caption += "  getting up"
     if follow:
       m, deg = _off(body.pose, body.true_pose())
       caption = (f"{data.time:.1f} s  belief {m:.2f} m {deg:+.0f} deg off  "
                  f"plugged in: {bool(f['mated'])}")
-    ImageDraw.Draw(img).text((6, 6), caption, fill=(255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle(draw.textbbox((6, 6), caption), fill=(0, 0, 0))
+    draw.text((6, 6), caption, fill=(255, 255, 255))
     tiles.append(img)
 
   body.step_hooks.append(hook)
@@ -664,10 +674,23 @@ def strip(scene: str = "plug", out: str = "station_spike.png",
     why = "docked" if life.go_charge() else life.charge_failure
   else:
     why = body.run(body.dock_routine())
+  if scene == "fall" and why == "docked":
+    filming[0], due[0] = True, float(data.time)
   body.run(body.dock_hold_routine(2.0))
   if scene == "plug" and why == "docked":
     body.run(body.undock_routine())
     body.run(body.hold_routine(3.0))
+  elif scene == "fall" and why == "docked":
+    shove(body, model, data)
+    t0 = float(data.time)
+    # ...until it is up and the plug home (`fall`'s 20 s at most), and 2 s on
+    while float(data.time) - t0 < 20.0 and not (
+        float(data.time) - t0 > 2.0 and body.mission.legs != "getup"
+        and station.flags["parked"]):
+      body.run(body.hold_routine(0.25))
+    body.run(body.hold_routine(2.0))
+  if not tiles:
+    raise SystemExit(f"{why}: nothing to draw")
   r.close()
   body.close()
   w, h = tiles[0].size
@@ -805,8 +828,9 @@ def main(argv=None) -> int:
                   help="the lost scene's belief set wrong, m along the station's +x, m "
                        "across it, deg (0.7,0,0)")
   ap.add_argument("--view", nargs="?", const="plug", choices=("plug", "fall", "lost"))
-  ap.add_argument("--strip", nargs="?", const="plug", choices=("plug", "lost"),
-                  help="the scene's filmstrip, station_spike.png (lost: station_spike_lost.png)")
+  ap.add_argument("--strip", nargs="?", const="plug", choices=("plug", "fall", "lost"),
+                  help="the scene's filmstrip, station_spike.png (fall: station_spike_fall.png, "
+                       "lost: station_spike_lost.png)")
   ap.add_argument("--out", default=None)
   ap.add_argument("--band", action="store_true",
                   help="its map laid from its LIDAR's points laid flat (#581, stage 1)")
@@ -853,8 +877,10 @@ def main(argv=None) -> int:
             if args.walk_in else
             [hold(args.seconds)] if args.hold else [fall()] if args.fall else None)
   if rows is None:
-    strip(args.strip or "plug", "station_spike_lost.png" if args.strip == "lost"
-          else "station_spike.png", lost)
+    strip(args.strip or "plug", {"lost": "station_spike_lost.png",
+                                 "fall": "station_spike_fall.png"}.get(args.strip,
+                                                                       "station_spike.png"),
+          lost)
     return 0
   if args.out:
     Path(args.out).write_text(json.dumps(rows, indent=1))

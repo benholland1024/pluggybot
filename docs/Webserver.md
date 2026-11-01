@@ -140,7 +140,8 @@ it explores, then stands by for the shared board's work), `--robot-name-2`
 its display name (default `Rowan`), and the documents live under
 `--thoughts` (`<root>/` and `<root>/r2_pluggybot/`; `--goals`/`--journal`
 are refused, they name one robot's files). One publisher, one board, one
-ledger file with an account each, one operator switch on the primary.
+ledger file with an account each, one operator switch on the primary (a
+pause stops the one loop, and both robots' History hear it, #562).
 
 `serve.py --rate 2.0` runs faster than life; `--free-run` disables pacing to
 measure the machine's real-time multiple; `--record` keeps a v0 recording of
@@ -208,7 +209,14 @@ encodes that matters from this side: `/var/lib/pluggybot` is a named volume
 because boards, the ledger, the task board, the journal and the thought
 files are **world** state, and `restart: unless-stopped` starts the next
 process when one ends — which since #345 carries on from where the last one
-stopped (below) rather than from the start pose. It serves the humanoid
+stopped (below) rather than from the start pose. The operator's switch is
+NOT on it (#562): `mode.json` is on a volume of its own, `pluggy_switch`,
+the website's to write, mounted read-only here at `/var/lib/pluggy-switch`
+(`$PLUGGY_MODE_FILE`), and the website mounts nothing else of the sim's. It
+writes the switch on a schedule too, the hours an admin's setting on the
+site's controls page: weekends as decided, paused in between, from when an
+admin turns it on (Observatory.md's period says since when). It serves the
+humanoid
 pair (`$PLUGGY_BODY`, #559's stage 4) on `--pack hosting` (the humanoid's
 real pack, `humanoid.world.PACK_WH`, 777.6 Wh) rather than the demo cell,
 which flattens fast; the low-battery reserve is deliberately *not* scaled

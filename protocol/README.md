@@ -53,7 +53,7 @@ pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 ### 0.21.0, nothing new: the quadruped retired (its fixtures, `reset_tool`, the screens)
 
 pluggybot #559's stage 5 deletes the quadruped; the tag `quadruped-final`
-(4333f30) is the last commit that serves it. No message's shape moves, so
+(638e1a3) is the last commit that serves it. No message's shape moves, so
 there is no bump, and the served stream is stage 4's: the humanoid pair in
 `home_humanoid_pair`, its prompt and every message the same byte for byte,
 but for the header (below).

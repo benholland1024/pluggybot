@@ -20,7 +20,9 @@ allowed onto it and this is not: a reach-in is recoverable, while mode is the
 control that turns the robot off. A file on the mounted volume has no
 auth surface to get wrong, survives the restart that ends every mission, and
 is readable by a person with `cat` when the website is the thing that is
-broken. The website's admin page writes it; the sim only ever reads it.
+broken. The website's admin page writes it (and its schedule, #562); the sim
+only ever reads it, off a volume of its own the deploy mounts READ-ONLY
+here, never the robots' state volume, which the website does not mount.
 
 ⚠ NOTHING IN THE DECISION PATH CAN WRITE IT. There is no writer here at all
 -- not a private one, not a "for tests" one -- because the file is operator
@@ -48,7 +50,8 @@ from pluggybot.telemetry.protocol import MODES
 DEFAULT_MODE = "llm"
 
 MODE_ENV = "PLUGGY_MODE_FILE"
-DEFAULT_PATH = "/var/lib/pluggybot/mode.json"
+#: The switch's own volume, where the site's compose mounts it (#562).
+DEFAULT_PATH = "/var/lib/pluggy-switch/mode.json"
 
 #: Wall seconds between reads of the file. The check is a stat() at this
 #: cadence rather than a read: a pause should take effect in about a second,
@@ -152,11 +155,12 @@ class ModeSwitch:
 
 
 def open_switch(path: str | os.PathLike | None = None) -> ModeSwitch:
-  """The deployment's switch: `$PLUGGY_MODE_FILE`, then the volume's default
-  location, then nothing at all (which is `llm`, forever, for a demo run)."""
+  """The deployment's switch: `$PLUGGY_MODE_FILE`, then the switch volume's
+  default location, then nothing at all (which is `llm`, forever, for a demo
+  run)."""
   configured = path or os.environ.get(MODE_ENV) or None
   if configured is None and Path(DEFAULT_PATH).parent.is_dir():
-    # Only when the state volume is actually there: a laptop running a demo
-    # should not start reading /var/lib.
+    # Only when the switch's volume is actually there: a laptop running a
+    # demo should not start reading /var/lib.
     configured = DEFAULT_PATH
   return ModeSwitch(configured)

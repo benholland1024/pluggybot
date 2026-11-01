@@ -361,6 +361,29 @@ PAUSE_SLICE_S = 0.25
 #: ...and how often the paused heartbeat goes out, in wall seconds. Slow: it
 #: says one word, and the only thing it has to beat is a viewer's patience.
 MODE_HEARTBEAT_S = 2.0
+
+
+def spoken_span(seconds: float) -> str:
+  """A wall-clock span in the words History says a pause in (issue #562):
+  seconds up to two minutes, minutes up to two hours, hours and minutes up
+  to two days, then days and hours. The pause between two weekends is about
+  490,000 s, a number nobody reads as five days."""
+  def units(n: int, unit: str) -> str:
+    return f"{n} {unit}" + ("" if n == 1 else "s")
+
+  s = round(seconds)
+  if s < 120:
+    return f"{s} s"
+  m = s // 60
+  if m < 120:
+    return units(m, "minute")
+  h, m = divmod(m, 60)
+  if h < 48:
+    return units(h, "hour") + (f" {units(m, 'minute')}" if m else "")
+  d, h = divmod(h, 24)
+  return units(d, "day") + (f" {units(h, 'hour')}" if h else "")
+
+
 # ⚠ `TOP_UP_BELOW` IS GONE (issue #135), AND WHAT KILLED IT WAS THE PAYOUT.
 # It was a floor (0.75) under a CHOSEN `charge`, and its entire stated reason
 # was a points farm: `charge` was a scored task, so an unconditional trip to
@@ -4763,16 +4786,22 @@ class HubLifecycle:
     the heartbeat is a hook of its own: frames are built off SIM time, and
     sim time is exactly what is not moving.
 
-    A pause survives the thing that paused it: the file is on the volume, so
+    A pause survives the thing that paused it: the file is on its volume, so
     a robot paused before a restart comes back paused.
+
+    ⚠ EVERY ROBOT ON THE LOOP IS TOLD (issue #562): a pair's one switch is
+    the first robot's (`pair.build_pair`) and stops the loop both live in,
+    and the second was paused and woken with neither line in its History.
     """
     if self.mode is None:
       return
     if self.mode.poll() != "paused":
       return
     wall0 = time.monotonic()
-    self._say("PAUSED by the operator -- physics stopped, stream alive")
-    self._remember("paused by the operator")
+    told = (self, *self.peers)
+    for life in told:
+      life._say("PAUSED by the operator -- physics stopped, stream alive")
+      life._remember("paused by the operator")
     while self.mode.poll(force=True) == "paused":
       time.sleep(PAUSE_SLICE_S)
       for hook in list(self.pause_hooks):
@@ -4781,8 +4810,9 @@ class HubLifecycle:
     self.paused_s += held
     for hook in list(self.resume_hooks):
       hook(held)
-    self._say(f"RESUMED after {held:.0f} s in {self.mode.mode} mode")
-    self._remember(f"woke up again after {held:.0f} s paused")
+    for life in told:
+      life._say(f"RESUMED after {spoken_span(held)} in {self.mode.mode} mode")
+      life._remember(f"woke up again after {spoken_span(held)} paused")
 
   def _claim_task(self, task_id: str) -> bool:
     """Take one offered job on: a procedure's, the robot's to write, run and
