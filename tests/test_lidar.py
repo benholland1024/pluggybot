@@ -230,10 +230,24 @@ def test_the_floor_is_struck_however_far_its_middle():
   assert on_floor.sum() > 3000, f"{on_floor.sum()} returns off the floor"
 
 
+def _room_range(angles, x0: float = 0.0, fence: bool = False) -> np.ndarray:
+  """How far the room's walls are along each bearing from `x0` ahead of the
+  pelvis (and the fence's near face, 1.98 m ahead of it and 1.2 m either
+  side, where there is one)."""
+  c, s = np.cos(angles), np.sin(angles)
+  with np.errstate(divide="ignore"):
+    r = np.minimum(np.where(c > 0, (2.98 - x0) / c, (0.98 + x0) / -c), 1.48 / np.abs(s))
+    if fence:
+      ahead = 1.98 - x0
+      r = np.where((c > 0) & (np.abs(ahead * s / c) <= 1.2), np.minimum(r, ahead / c), r)
+  return r
+
+
 def test_the_band_lays_a_low_fence_the_level_ring_passes_over():
   """#581's point: the 0.9 m fence 2 m ahead is under the level ring,
   which reads the wall behind it -- and in the band, its near face's 1.98
-  m ahead; the floor never is."""
+  m ahead. Every other bearing is the room's walls, never the floor, and
+  the post's shadow behind is no reading, never free space."""
   model, data = _world(ROOM + FENCE)
   lidar = _clean(model)
   angles, ranges = lidar.scan(data)
@@ -241,9 +255,8 @@ def test_the_band_lays_a_low_fence_the_level_ring_passes_over():
     "the premise: the ring passes over the fence"
   level, height = _truth(model, data)
   b_angles, b_ranges, _, _ = lidar.band(data, level, height)
-  ahead = np.abs(b_angles) < math.radians(20)
-  assert np.allclose(b_ranges[ahead], 1.98 / np.cos(b_angles[ahead]), atol=0.02)
-  assert b_ranges.min() > 0.95, "the floor, or the robot, in the band"
+  assert np.allclose(b_ranges, _room_range(b_angles, fence=True), atol=0.02)
+  assert lidar_mod.BEARINGS - 5 <= len(b_angles) < lidar_mod.BEARINGS
 
 
 def test_the_band_is_laid_through_the_tilt():
@@ -304,6 +317,51 @@ def test_the_sensors_turn_is_read_through_its_site_and_its_mount():
   site = model.site("lidar").id
   assert np.allclose(lidar.turn, rot.T @ data.site_xmat[site].reshape(3, 3), atol=1e-9)
   assert np.allclose(lidar.offset, rot.T @ (data.site_xpos[site] - data.xpos[root]), atol=1e-9)
+
+
+def test_the_band_reads_a_wall_where_it_stands():
+  """A dozen rings or more strike a wall on each bearing, each range with
+  its own noise: the band reads the median of the nearest surface's, never
+  the least of them -- the least of a dozen read every wall 1.7 sigma
+  short, 6-7 cm, a map cell into the room."""
+  model, data = _world()
+  level, height = _truth(model, data)
+  err = []
+  for seed in range(4):
+    angles, ranges, _, _ = Lidar(model, seed=seed).band(data, level, height)
+    err.append(ranges - _room_range(angles))
+  err = np.concatenate(err)
+  assert len(err) > 4 * (lidar_mod.BEARINGS - 10)
+  assert abs(np.mean(err)) < 0.01 and abs(np.median(err)) < 0.01, \
+    f"the band reads the walls {100 * np.median(err):+.1f} cm off"
+
+
+def test_a_turned_mount_lays_its_rays_where_they_went():
+  """A sensor 5 cm ahead of the pelvis and turned 10 deg on it: the level
+  ring and the band read the front wall straight ahead at 2.93 m from it
+  (unturned, the ray read there went 10 deg aside, 2.975 m), and the
+  post's shadow, behind the SENSOR, is 190 deg round the robot -- no
+  reading there, in either, and nothing free anywhere in a closed room."""
+  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, scenery=ROOM))
+  mount = spec.body("lidar_mount")
+  mount.pos = np.asarray(mount.pos) + [0.05, 0.0, 0.0]
+  mount.quat = [math.cos(math.radians(5)), 0.0, 0.0, math.sin(math.radians(5))]
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  lidar = _clean(model)
+  assert lidar.offset[:2] == pytest.approx((0.05, 0.0), abs=1e-6), "the premise"
+  level, height = _truth(model, data)
+  shadow = np.radians(-170.0)
+  for name, (angles, ranges) in (("ring", lidar.scan(data)),
+                                 ("band", lidar.band(data, level, height)[:2])):
+    ahead = np.argmin(np.abs(angles))
+    assert ranges[ahead] == pytest.approx(2.93 / math.cos(angles[ahead]), abs=0.005), name
+    assert np.allclose(ranges, _room_range(angles, x0=0.05), atol=0.02), name
+    off = np.abs((angles - shadow + math.pi) % (2 * math.pi) - math.pi)
+    assert off.min() > math.radians(1.5), f"{name}: a reading in the post's shadow"
+    assert len(angles) >= lidar_mod.BEARINGS - 5, name
 
 
 def test_its_noise_is_its_robots_own():

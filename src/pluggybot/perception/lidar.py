@@ -161,6 +161,12 @@ class Lidar:
     #: The sensor's place and turn in its robot's root frame: what `band`
     #: lays a point through.
     self.offset, self.turn = _site_in(model, self.site_id, robot_body)
+    #: ...and the level ring's bearings in the robot's frame, its rays turned
+    #: as the sensor sits on it (level as it sits: a tilted mount's ring is
+    #: no level one, and is not modelled)
+    turned = self._ring @ self.turn.T
+    self._ring_angles = (self.ray_angles if np.array_equal(self.turn, np.eye(3))
+                         else np.arctan2(turned[:, 1], turned[:, 0]))
     self._self_geoms = self._robot_geoms(model, robot_body)
     #: OTHER robots' geoms (issue #167), kept OUT OF THE MAP: a return off
     #: another robot is no information about the room, and painted in and
@@ -243,7 +249,7 @@ class Lidar:
       idx = np.flatnonzero(which)
       kept, r = self._ranges(dist[idx], rng)
       idx = idx[kept]
-      a = self.ray_angles[idx]
+      a = self._ring_angles[idx]
       if self.noise:
         a = a + rng.normal(0.0, ANGLE_SD, len(a))
       out.append((idx, a, r))
@@ -251,7 +257,7 @@ class Lidar:
     # ...and every bearing that returned nothing within reach: free to it
     fi = np.flatnonzero(far)
     order = np.argsort(np.concatenate((ri, fi)), kind="stable")
-    angles = np.concatenate((ra, self.ray_angles[fi]))[order]
+    angles = np.concatenate((ra, self._ring_angles[fi]))[order]
     ranges = np.concatenate((rr, np.full(len(fi), self.max_range)))[order]
     return angles, ranges, pa, pr
 
@@ -284,11 +290,14 @@ class Lidar:
     (its root's, off its own model), and per bearing -- the point's own,
     levelled, from the scan's origin (the sensor's place on the robot,
     unlevelled: what the map lays a scan from) -- the nearest whose height
-    is within `band_m`. A bearing with none there is free to max range
-    where a ray, levelled, looked along it; else absent. ⚠ BINNED BY THE
-    BEARING LEVELLED, never the one a ray was cast on: tilted, a steep ray
-    levels a degree or more aside, and a free ray laid down a neighbour's
-    return would clear the very cell it struck."""
+    is within `band_m`, read as the median of its returns within 3 sigma
+    of that nearest. A bearing with none there is free to max range where a
+    ray, levelled, looked along it; else absent. ⚠ BINNED BY THE BEARING
+    LEVELLED, never the one a ray was cast on: tilted, a steep ray levels a
+    degree or more aside, and a free ray laid down a neighbour's return
+    would clear the very cell it struck. ⚠ THE MEDIAN, NEVER THE NEAREST: a
+    dozen rings strike one wall, and the least of a dozen noisy ranges read
+    every surface 1.7 sigma short, 5-7 cm, a cell into the room each side."""
     c = self.cloud(data)
     rot = np.asarray(level, dtype=float) @ self.turn
     base = np.asarray(level, dtype=float) @ self.offset
@@ -302,14 +311,18 @@ class Lidar:
       keep = (z >= lo) & (z <= hi) & (r < self.max_range)
       a, r = np.arctan2(v[keep, 1], v[keep, 0]), r[keep]
       b = _bin(a)
-      best = np.full(BEARINGS, np.inf)
-      np.minimum.at(best, b, r)
-      have = np.isfinite(best)
-      # ...each bearing's nearest point, its own angle kept
-      pick = np.zeros(BEARINGS, dtype=np.int64)
-      on = np.flatnonzero(r == best[b])
-      pick[b[on]] = on
-      return have, a[pick[have]], best[have]
+      near = np.full(BEARINGS, np.inf)
+      np.minimum.at(near, b, r)
+      within = r <= near[b] + 3.0 * _sigma(near[b])
+      b, r, a = b[within], r[within], a[within]
+      order = np.lexsort((r, b))
+      b, r, a = b[order], r[order], a[order]
+      count = np.bincount(b, minlength=BEARINGS)
+      have = count > 0
+      first = np.cumsum(count) - count
+      m0, m1 = (first + (count - 1) // 2)[have], (first + count // 2)[have]
+      # ...the median point's own angle kept
+      return have, a[m0], (r[m0] + r[m1]) / 2
 
     have, angles, ranges = flat(c.points)
     p_have, peer_angles, peer_ranges = flat(c.peers)
