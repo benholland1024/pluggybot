@@ -6,7 +6,7 @@ protocol that tries a skill from a set-out and writes a row of the record
 The criteria were written into the grader first; here a run that meets them
 passes and each run that does not -- never opened, let fall, still held,
 left open, the body fallen (#544), merely reported -- fails for the reason
-they give, and a body tipped or its tool lost passes. Every grade is a
+they give, and a body tipped passes. Every grade is a
 bare chest moved by a test's hand, or the stub body: there is no robot in
 it, and the grader cannot tell, which is the point.
 """
@@ -33,9 +33,8 @@ SLOWEST, PLAIN, SPRUNG = 35, 0, 1
 
 def stub_world(task: at.Task, hand: bool = False) -> at.World:
   """A set-out on the stub body (`attempts.set_out`'s shape): the chest on a
-  bare floor, its catch on, and the tool its set-out gives put on -- with
-  `hand`, a mocap box parked far off, which `place_hand` puts onto the
-  lid."""
+  bare floor and its catch on -- with `hand`, a mocap box parked far off,
+  which `place_hand` puts onto the lid."""
   spec = mujoco.MjSpec.from_string(BARE)
   ch.attach_chest(spec, ch.draw(task.chest), (0.0, 0.0), 0.0, tags=False)
   if hand:
@@ -47,8 +46,6 @@ def stub_world(task: at.Task, hand: bool = False) -> at.World:
   body = StubBody(model, data)
   chest = ch.Chest(model, data, ch.draw(task.chest))
   body.step_hooks.append(lambda: chest.sense(model, data))
-  if task.tool is not None:
-    body.run(body.place_tool_routine(task.tool))
   return at.World(task=task, model=model, data=data, body=body, chest=chest,
                   start=(0.0, 0.0, 0.0))
 
@@ -111,7 +108,7 @@ def test_the_lid_is_graded_through_the_one_door_paid_nothing_and_shown_to_no_min
   assert (row.base, row.bonus, row.offered, row.shown) == (0, 0, False, False)
   assert row.secret == ("catchN",)
   shown = [r["task"] for r in scoring.default_table().as_context(challenges=True)]
-  assert "lid" not in shown and "mass" in shown and "stack" in shown
+  assert "lid" not in shown and "program" in shown and "take" in shown
   # the flag is the row's alone: the same row without it would be shown
   spec = {"tier": "auto", "base": 0}
   assert scoring.TaskReward.from_json("lid", spec, offered=False).shown
@@ -257,26 +254,26 @@ def test_never_opened_and_merely_reported_fails_on_the_untouched_world():
   assert not lid.eval_lid(m)[0] and lid.eval_lid(m)[2] == "the lid was never measured"
 
 
-def test_the_body_says_its_falls_tilt_and_tool_and_only_a_fall_fails_a_lid_set_down():
+def test_the_body_says_its_falls_and_tilt_and_only_a_fall_fails_a_lid_set_down():
   """Each asked of the body and none of them named here: the falls its own
-  watch counted, its attitude, the tool its set-out gave
-  (`Body.tool_powered`) -- recorded on the row. A lid set down by a body
-  that tipped and lost its tool passes; one that fell too fails, the fall
-  said first (#544)."""
-  def tipped_and_lost_its_tool(fall: bool):
+  watch counted and its attitude -- recorded on the row, with the tool
+  columns null (the quadruped's claw went with it, #559). A lid set down by
+  a body that tipped passes; one that fell too fails, the fall said first
+  (#544)."""
+  def tipped(fall: bool):
     def skill(body):
       def routine():
         body.falls += int(fall)
         body.attitude = (math.cos(math.radians(35)), math.sin(math.radians(35)), 0.0, 0.0)
-        got = yield from lift(then=lambda b: setattr(b, "holding", None))(body)
+        got = yield from lift()(body)
         return got
       return routine()
     return skill
-  row = run(tipped_and_lost_its_tool(fall=False))
+  row = run(tipped(fall=False))
   m = row["verdict"]["metrics"]
   assert row["verdict"]["ok"], row["verdict"]["reason"]
-  assert (m["falls"], m["tiltDeg"], m["toolSeated"]) == (0, 70.0, False)
-  v = run(tipped_and_lost_its_tool(fall=True))["verdict"]
+  assert (m["falls"], m["tiltDeg"], m["tool"], m["toolSeated"]) == (0, 70.0, None, None)
+  v = run(tipped(fall=True))["verdict"]
   assert not v["ok"] and v["metrics"]["falls"] == 1
   assert v["reason"].startswith("you fell, and a fall fails the try -- opened to 63 deg and set "
                                 "down"), v["reason"]
@@ -310,14 +307,15 @@ def test_a_fall_counts_from_the_attempts_start_to_the_end_of_its_hold():
 def test_an_attempt_is_a_row_of_the_record_and_a_second_is_a_reset_the_world_made():
   row = run(lift(), n=2, info={"process": "code", "skill": "hand", "tokens": 0,
                                "imaginationCpuS": 0.0, "commit": "abc1234"})
-  assert row["task"] == {"chest": PLAIN, "body": "quadruped", "mount": "floor", "grader": "lid"}
+  assert row["task"] == {"chest": PLAIN, "body": "humanoid", "mount": "counter", "grader": "lid"}
   assert row["attempt"] == 2 and row["help"] == {"reset": True, "demonstrations": 0,
                                                  "interventions": 0}
   assert row["process"] == "code" and row["tokens"] == 0 and row["steps"] is None
   assert row["own"] == {"ok": True, "why": "set it down"} and not row["cut"]
   assert row["holdS"] == pytest.approx(lid.HOLD_S, abs=0.01)
   assert row["secret"] == {"catchN": pytest.approx(ch.draw(PLAIN).catch_n, abs=1e-3)}
-  assert row["run"] == {"commit": "abc1234", "budgetS": at.BUDGET_S, "holdS": lid.HOLD_S}
+  assert row["run"] == {"commit": "abc1234", "budgetS": at.Task(chest=PLAIN).limit_s,
+                        "holdS": lid.HOLD_S}
   assert run(lift())["help"]["reset"] is False
 
 
@@ -364,11 +362,12 @@ def test_an_attempt_that_raises_or_whose_world_was_reset_has_no_verdict():
 
 
 def test_a_task_is_data_and_a_set_out_is_measured_for_its_body():
-  t = at.Task(chest=7, body="humanoid", mount="counter")
-  assert at.Task.from_dict(t.as_dict()) == t and t.tool is None
-  assert at.Task(chest=7).tool == "module_claw"
+  t = at.Task(chest=7, grader="door")
+  assert at.Task.from_dict(t.as_dict()) == t and (t.body, t.mount) == ("humanoid", "counter")
   with pytest.raises(ValueError, match="no set-out for the humanoid at a chest on the floor"):
     at.Task(chest=0, body="humanoid", mount="floor")
+  with pytest.raises(ValueError, match="no set-out for the quadruped"):
+    at.Task(chest=0, body="quadruped", mount="floor")     # retired with it (#559)
   with pytest.raises(ValueError):
     at.Task(chest=-1)
   with pytest.raises(ValueError, match="no grader"):
@@ -390,38 +389,55 @@ def test_held_out_chests_are_none_ever_flown_and_their_seed_is_a_frozen_builds()
     at.commit_of("95fcb")
 
 
-# ---- the bodies' own set-outs ----------------------------------------------------------
-
-
-def test_the_quadrupeds_set_out_seats_its_claw_with_the_chest_shut_and_caught():
-  """The set-out the probe's reference flies (#466's placement): the claw
-  put on by the set-out (`Body.place_tool_routine`, a staging), the lid on
-  its stop with its catch applied, the body upright."""
-  world = at.set_out(at.Task(chest=0))
-  try:
-    m, d, body = world.model, world.data, world.body
-    assert body.tool_powered("module_claw")
-    shut = lid.measure(m, d)
-    assert shut["caught"] and abs(shut["angleDeg"]) < 0.5
-    dof = m.jnt_dofadr[m.joint("chest_hinge").id]
-    assert d.qfrc_applied[dof] < 0.0                 # the catch, pulling it shut
-    assert lid.tilt(body.orientation()) < math.radians(5.0)
-  finally:
-    world.close()
+# ---- the body's own set-out ------------------------------------------------------------
 
 
 def test_the_grader_reads_the_humanoids_set_out_unchanged():
-  """The same grader in #507's counter world: the chest's parts by the
-  same names, the humanoid's attitude, and no tool to keep -- nothing in
-  the grader is either body's."""
+  """The grader in #507's counter world: the chest's parts by the same
+  names, the humanoid's attitude, and no tool to keep -- nothing in the
+  grader is the body's."""
   world = at.set_out(at.Task(chest=0, body="humanoid", mount="counter"))
   try:
     watch = lid.Watch(world.model, world.data, world.body)
     watch()
     m = lid.sample_lid(world, None, None, {"at_call": lid.measure(world.model, world.data),
-                                          "watch": watch, "tool": world.task.tool})
+                                          "watch": watch})
     assert m["tool"] is None and m["toolSeated"] is None and m["tiltDeg"] < 5.0
     assert m["topDeg"] == pytest.approx(0.0, abs=0.5) and m["caught"]
     assert np.any(watch.moving) and np.all(watch.own[watch.moving])
   finally:
     world.close()
+
+
+def test_every_flight_is_a_process_of_its_own_even_one_at_a_time(monkeypatch):
+  """`scripts/attempts.py`'s batch (and `hands_check.py`'s, through it): a
+  world dropped in a reused worker is held until the cycle collector runs,
+  so each flight gets a process of its own, a pool of one included."""
+  import importlib.util
+  from pathlib import Path
+  path = Path(__file__).resolve().parents[1] / "scripts" / "attempts.py"
+  spec = importlib.util.spec_from_file_location("attempts_script", path)
+  script = importlib.util.module_from_spec(spec)
+  monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")     # what its import sets
+  spec.loader.exec_module(script)
+  made = []
+
+  class Pool:
+    """Runs here, and keeps what it was built with."""
+
+    def __init__(self, processes, **kwargs):
+      made.append(kwargs)
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *exc):
+      return False
+
+    def map(self, fn, jobs, chunksize=1):
+      return [fn(j) for j in jobs]
+
+  monkeypatch.setattr(script, "Pool", Pool)
+  for n_jobs in (1, 6):
+    assert script.run_pool(abs, [-1, -2], n_jobs) == [1, 2]
+  assert made == [{"maxtasksperchild": 1}] * 2

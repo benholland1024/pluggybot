@@ -1,14 +1,14 @@
-"""Honest sensors (issue #386): what the robot is told by its IMU and its
-encoders, off the parts' datasheets (docs/Parts.md), never the sim's exact
-joint angles and rates. Each rule pinned with a direct call."""
+"""Honest sensors (issue #386): what the robot is told by its IMU, off the
+part's datasheet (docs/Parts.md), never the sim's exact rates. Each rule
+pinned with a direct call. (Its joints read in their drivers' counts:
+`test_humanoid.py`.)"""
 
 import math
 
-import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.perception import encoders, imu
+from pluggybot.perception import imu
 
 
 def test_the_gyro_reads_its_datasheet_noise_density():
@@ -115,47 +115,3 @@ def test_a_slide_too_slow_to_see_teaches_no_more_than_the_part_could_be_off():
     still.rate(part.gyro((0.0, 0.0, math.radians(0.12)), dt), True, dt)
   assert still.still, "the premise: a slide the gate cannot see"
   assert max(abs(b) for b in still.bias) <= imu.BIAS_MAX
-
-
-def test_the_leg_driver_reports_in_its_fields_counts():
-  # 16 bits over +-12.5 rad, 12 over +-65 rad/s (the MIT protocol's fields).
-  assert encoders.LEG_POSITION_LSB == pytest.approx(0.3815e-3, rel=1e-3)
-  q = np.array([0.1234567, -1.2])
-  got = encoders.quantised(q, encoders.LEG_POSITION_LSB)
-  assert np.all(np.abs(got - q) <= encoders.LEG_POSITION_LSB / 2)
-  assert np.allclose(got / encoders.LEG_POSITION_LSB, np.round(got / encoders.LEG_POSITION_LSB))
-
-
-def test_the_legs_odometry_is_told_its_drivers_fields_and_its_imus_rate():
-  # The wiring, not the physics: after a step the leg kinematics ran at
-  # joint angles in whole counts of the driver's field, and the body's rate
-  # was read off the IMU, never the sim's.
-  from pluggybot.legs.model import CHOSEN, body_xml
-  from pluggybot.legs.odometry import LegOdometry
-  model = mujoco.MjModel.from_xml_string(body_xml(CHOSEN))
-  data = mujoco.MjData(model)
-  mujoco.mj_resetDataKeyframe(model, data, 0)
-  mujoco.mj_forward(model, data)
-  odo = LegOdometry(model, data)
-  read = []
-  real = odo.imu.gyro
-  odo.imu.gyro = lambda w, dt: read.append(real(w, dt)) or read[-1]
-  mujoco.mj_step(model, data)
-  odo.step()
-  counts = odo.kin.qpos[odo.qadr] / encoders.LEG_POSITION_LSB
-  assert np.allclose(counts, np.round(counts), atol=1e-6), "the kinematics read the sim's angles"
-  assert read, "the body's rate was not read off the IMU"
-
-
-def test_the_quadruped_attaches_with_its_joint_ranges_in_radians():
-  # The include form carries no <compiler>: parsed on its own, MuJoCo read
-  # the knee's -2.75..-0.35 rad as degrees, and the robot attached into the
-  # home world was thrown into the air by its own joint limits.
-  from pluggybot.legs.model import CHOSEN, attachable, body_xml
-  alone = mujoco.MjModel.from_xml_string(body_xml(CHOSEN))
-  spec = mujoco.MjSpec()
-  spec.attach(attachable(CHOSEN), prefix="", frame=spec.worldbody.add_frame())
-  attached = spec.compile()
-  for name in ("FL_hip_abd", "FL_hip_flex", "FL_knee"):
-    assert np.allclose(attached.jnt_range[attached.joint(name).id],
-                       alone.jnt_range[alone.joint(name).id])

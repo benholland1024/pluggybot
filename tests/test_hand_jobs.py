@@ -21,8 +21,7 @@ from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.scoring import default_table
 from pluggybot.economy.tasks import HAND_JOBS, KINDS, TaskBoard
 from pluggybot.home import storeroom
-from pluggybot.lifecycle import (HUMANOID_HOME, QUAD_HOME, HubLifecycle, task_producer,
-                                 world_targets)
+from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, task_producer, world_targets
 
 
 class _Mind:
@@ -191,14 +190,15 @@ def test_a_job_called_past_its_minutes_fails(tmp_path):
 
 def test_a_restart_puts_back_each_props_newest_draw(tmp_path):
   """The world file carries each prop's compiled draw; an offer that came
-  back off the board still means the one it drew (`restore_counter`)."""
+  back off the board still means the one it drew -- put back as the day
+  begins (`begin` -> `restore_counter`), before anything reads the prop."""
   life = _life(tmp_path)
   task = _offer(life, "open_door")
   k = task.secret["draw"]
   fresh = _life(tmp_path)                       # the same board, a world compiled anew
   dof = int(fresh.model.jnt_dofadr[fresh.model.joint("door_hinge").id])
   assert fresh.model.dof_damping[dof] == pytest.approx(dd.draw(0).damping)
-  fresh.restore_counter()
+  fresh.begin((0.0, 0.0, 0.0))
   assert fresh.model.dof_damping[dof] == pytest.approx(dd.draw(k).damping)
   assert fresh._counter_activity("door").hinge == dd.draw(k)
 
@@ -209,13 +209,13 @@ def test_the_hand_jobs_are_offered_only_where_a_mind_writes_procedures():
   for kind in HAND_JOBS:
     assert KINDS[kind].target_kind in here and KINDS[kind].discharge == "procedure"
   assert not set(storeroom.PROPS) & set(world_targets(HUMANOID_HOME))
-  assert not set(storeroom.PROPS) & set(world_targets(QUAD_HOME, procedures=True))
 
 
 def test_each_jobs_row_is_its_own_shown_only_where_it_is_offered():
   """A served job's row is paid and the practice's beside it unpaid, each
   graded by the same evaluator; the humanoid's table shows its jobs' rows,
-  and the quadruped's -- every row -- none of them, nor the practice's."""
+  and a table naming no world's kinds -- every `shown` row -- none of them,
+  nor the practice's."""
   from pluggybot.economy import scoring
   from pluggybot.mind.overseer import world_kinds
   table = default_table()
@@ -224,19 +224,19 @@ def test_each_jobs_row_is_its_own_shown_only_where_it_is_offered():
     assert table[job].base > 0 == table[check].base
   from pluggybot.economy.cadence import default_cadence
   served = {r["task"] for r in table.as_context(challenges=True,
-                                                kinds=world_kinds(HUMANOID_HOME, "humanoid"))}
+                                                kinds=world_kinds(HUMANOID_HOME))}
   offered = {KINDS[k].task for k in default_cadence(HUMANOID_HOME).kinds}
   assert offered and offered <= set(HAND_JOBS)
   assert served & set(HAND_JOBS) == offered, "a row only where its job is offered"
   assert not set(HAND_JOBS.values()) & served
-  quad = {r["task"] for r in table.as_context(challenges=True)}
-  assert not (set(HAND_JOBS) | set(HAND_JOBS.values())) & quad
+  unnamed = {r["task"] for r in table.as_context(challenges=True)}
+  assert not (set(HAND_JOBS) | set(HAND_JOBS.values())) & unnamed
 
 
 def test_an_offer_says_where_by_the_areas_terms_and_how_long_it_gives():
   """Its address and directions (#419: every number in them a tag) and the
   minutes it gives from the claim; never a position."""
-  from pluggybot.rack.tags import TAG_SIZES
+  from pluggybot.perception.tags import TAG_SIZES
   board = TaskBoard()
   maker = task_producer(board, HUMANOID_HOME, procedures=True)
   offered = list(maker.cadence.kinds)

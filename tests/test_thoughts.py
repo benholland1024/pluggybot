@@ -502,7 +502,7 @@ def test_the_prefix_does_not_move_when_the_robot_writes():
   by WRITER rather than by content: the two files that change during a run
   are exactly the two the robot and the code can write."""
   files = ThoughtFiles()
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",))
   boss = Overseer(menu, thoughts=files, client=FakeClient())
   before = boss.system[0]["text"]
 
@@ -558,7 +558,7 @@ def test_another_constitution_is_the_one_thing_that_should_move_it(tmp_path):
   from the library, no longer edited on the volume).
   """
   root = tmp_path / "thoughts"
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",))
   first = Overseer(menu, thoughts=ThoughtFiles(root), client=FakeClient())
   swapped = ThoughtFiles(root, constitution=constitution.load("curious"))
   second = Overseer(menu, thoughts=swapped, client=FakeClient())
@@ -576,7 +576,7 @@ def test_the_persona_is_the_library_file_rather_than_the_code(tmp_path):
   library.mkdir()
   (library / "serious.md").write_text("You are a very serious robot. Never dawdle.\n")
   charter = constitution.load("serious", library=library)
-  boss = Overseer(Menu(boards=("a",), programs=("house",)),
+  boss = Overseer(Menu(boards=("a",)),
                   thoughts=ThoughtFiles(tmp_path / "thoughts", constitution=charter),
                   client=FakeClient())
   text = boss.system[0]["text"]
@@ -597,7 +597,7 @@ def test_the_robot_is_told_its_name_and_not_its_species(monkeypatch):
   not recognise its own name if a visitor used it.
   """
   monkeypatch.setenv("PLUGGY_ROBOT_NAME", "Luca")
-  boss = Overseer(Menu(boards=("a",), programs=("house",)), client=FakeClient())
+  boss = Overseer(Menu(boards=("a",)), client=FakeClient())
   text = boss.system[0]["text"]
   assert boss.robot_name == "Luca"
   assert "Your name is Luca." in text
@@ -619,10 +619,10 @@ def test_the_name_is_not_frozen_into_the_file_on_disk(tmp_path, monkeypatch):
   assert "Luca" not in files.read(MAIN)
 
   # ...and a rename between runs reaches the robot with no file to edit.
-  first = Overseer(Menu(boards=("a",), programs=("house",)),
+  first = Overseer(Menu(boards=("a",)),
                    thoughts=ThoughtFiles(root), client=FakeClient())
   monkeypatch.setenv("PLUGGY_ROBOT_NAME", "Mika")
-  second = Overseer(Menu(boards=("a",), programs=("house",)),
+  second = Overseer(Menu(boards=("a",)),
                     thoughts=ThoughtFiles(root), client=FakeClient())
   assert "Your name is Luca." in first.system[0]["text"]
   assert "Your name is Mika." in second.system[0]["text"]
@@ -635,7 +635,7 @@ def test_an_unnamed_robot_still_gets_a_readable_name(monkeypatch):
   """The 0.10.0 degrade rule, one layer in: absent must resolve to the
   default, never to "Your name is ." -- the wire header does the same."""
   monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
-  boss = Overseer(Menu(boards=("a",), programs=("house",)), client=FakeClient())
+  boss = Overseer(Menu(boards=("a",)), client=FakeClient())
   assert boss.robot_name == DEFAULT_ROBOT_NAME
   assert f"Your name is {DEFAULT_ROBOT_NAME}." in boss.system[0]["text"]
 
@@ -645,7 +645,7 @@ def test_the_name_reaches_a_served_robot(monkeypatch, tmp_path):
   survive that hop -- it reached the RECORDER back in #39 and stopped
   there, which is why nothing caught this."""
   monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
-  boss = ov.build("home_quad", None, enabled=True, client=FakeClient(),
+  boss = ov.build("home_humanoid", None, enabled=True, client=FakeClient(),
                   thoughts=ThoughtFiles(tmp_path / "thoughts"),
                   robot_name="Luca")
   assert boss.robot_name == "Luca"
@@ -659,14 +659,14 @@ def test_a_decision_can_pin_and_note_without_spending_a_turn():
   """`pin`/`unpin`/`note`/`unnote` are orthogonal to the action, like
   `respond_to`: a robot that had to spend its turn to write a line down
   writes fewer of them than it should."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  menu = Menu(boards=("whiteboard_a",), zones=("garden",))
   boss = Overseer(menu, client=FakeClient(
-    full(action="draw", board="whiteboard_a", program="house",
+    full(action="explore", zone="garden",
          pin="people look at whiteboard_a more than b",
          note={"topic": "boards", "title": "a", "text": "the popular one"},
          cites="#3 #4")))
   decision = boss.decide({})
-  assert decision.action == "draw"          # the action still happened
+  assert (decision.action, decision.zone) == ("explore", "garden")  # it still happened
   assert decision.pin == "people look at whiteboard_a more than b"
   assert decision.note == {"topic": "boards", "title": "a", "text": "the popular one"}
   assert decision.cites == "#3 #4"
@@ -689,7 +689,7 @@ def test_the_schema_offers_both_verbs_and_no_third(menu_home):
 
 @pytest.fixture(scope="module")
 def menu_home():
-  return Menu.for_world("home_quad", board_book("home_quad"))
+  return Menu.for_world("home_humanoid", board_book("home_humanoid"))
 
 
 def test_a_decision_writes_history_and_knowledge_through_the_mission(tmp_path):
@@ -699,13 +699,13 @@ def test_a_decision_writes_history_and_knowledge_through_the_mission(tmp_path):
   from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  boss = Overseer(Menu.for_world("home_quad", None), thoughts=files,
+  boss = Overseer(Menu.for_world("home_humanoid", None), thoughts=files,
                   client=FakeClient(full(action="idle", reason="tidying up",
                                          pin="bay C sticks a little")))
   life = stub_life(overseer=boss, thoughts=files)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
-  life.body.start_at(*world_config("home_quad")["start"])
+  life.body.start_at(*world_config("home_humanoid")["start"])
   try:
     life._decide()
   finally:

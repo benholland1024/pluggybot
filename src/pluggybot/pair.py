@@ -3,8 +3,8 @@
 Each robot is a `HubLifecycle` of its own -- its own body, pack, odometry
 and reserve, its own errand queue, its own day -- built against the same
 `MjModel` and `MjData` through its `RobotHandle`. What is shared is the
-WORLD: the model, the rack and its bays, the tools, the dock, the
-whiteboards' book, the activities. The two day-routines are ticked in turn from
+WORLD: the model, the charging station, the counter, the whiteboards'
+book, the activities. The two day-routines are ticked in turn from
 `tick.run_many`: every step, both robots' commands, one `mj_step`, both
 robots' bookkeeping. No robot ever blocks the other.
 
@@ -20,8 +20,8 @@ and the reason the first attempt at a contested bay ended in "no route").
 What is NOT here: the other robot as a mind -- that is the minds' slice (C)
 and the context they are shown.
 
-The rack is one rack and the dock one dock, contended. Contention is the
-minds' to negotiate and this module arbitrates nothing.
+The station is one station, contended. Contention is the minds' to
+negotiate and this module arbitrates nothing.
 """
 
 from typing import Callable
@@ -34,8 +34,8 @@ import mujoco
 from pluggybot import tick
 from pluggybot.economy.cadence import default_cadence
 from pluggybot.lifecycle import (
-  GAME_TARGET, QUAD_HOME, HubLifecycle, board_book, errand_for_task, errands_for,
-  points_ledger, task_board, task_producer, world_config,
+  HUMANOID_HOME, HubLifecycle, board_book, errands_for, points_ledger, task_board,
+  task_producer, world_config,
 )
 from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import events as ev
@@ -52,7 +52,7 @@ DEFAULT_SECOND_NAME = "Rowan"
 CONSTITUTION_ENVS = (constitutions.NAME_ENV, constitutions.SECOND_NAME_ENV)
 
 
-def build_pair(world: str = QUAD_HOME, pack: str = "demo",
+def build_pair(world: str = HUMANOID_HOME, pack: str = "demo",
                errands=("none", "none"), board_state: str | None = None,
                view: bool = False, realtime: bool = False,
                handles: tuple = (FIRST, SECOND), names: tuple | None = None,
@@ -76,7 +76,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
                 second's is `<root>/<r2 root body>/`), a procedure library
                 under it, a record store, a WALLET and an appetite, an overseer
                 with its own event map and standing order
-    the world   the model, the rack and its bays, the modules, the
+    the world   the model, the station, the counter's props, the
                 whiteboards' book, the activities, and ONE task board with
                 one producer (ticked by the first robot's seam): an offer is
                 the house's, whoever takes it, and a claim by one robot is
@@ -112,8 +112,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   from pluggybot.telemetry.protocol import robot_display_name
   cfg = world_config(world)
   starts = (cfg["start"], cfg["start2"])
-  model = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix,
-                     body=cfg["body"]).compile()
+  model = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix).compile()
   data = mujoco.MjData(model)
   viewer = None
   if view:
@@ -145,7 +144,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   # Which constitution each robot reads (issue #263): named here, else
   # each robot's own environment variable, else the library's default.
   charters = tuple(constitutions.resolve(
-    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i], body=cfg["body"])
+    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i])
     for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
@@ -172,13 +171,13 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
                             procedures=boss is not None, robots=names)
     life = HubLifecycle(model, data, viewer=viewer if i == 0 else None,
                         realtime=realtime, battery_wh=battery_wh or default_wh,
-                        rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                        grid_bounds=cfg["grid_bounds"],
                         low_battery_wh=(reserve_wh if reserve_wh is not None
                                         else cfg["low_battery_wh"]),
                         boards=book,
                         inbox=inboxes[i] if inboxes else None,
                         mode=mode if i == 0 else None,
-                        world=world, errands=errands_for(errand, world, book),
+                        world=world, errands=errands_for(errand),
                         handle=handle, robot_name=name, ledger=ledger,
                         overseer=boss, thoughts=memory,
                         metabolism=hunger, tasks=board,
@@ -188,14 +187,6 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
     # producer: the second stands by for work like the first does.
     life.expects_work = maker is not None
     lives.append(life)
-  # ONE RACK FOR THE PAIR (issue #315). The rack, its bays and the modules
-  # on it are the WORLD's and never prefixed -- tool contention is the
-  # minds' to negotiate -- so both lifecycles hold ONE inventory.
-  for life in lives[1:]:
-    life.rack_inventory = lives[0].rack_inventory
-    # ...and the lost-tool clock is the world's (issue #347): one hand, on
-    # the first robot's seam, or a tool would be put back twice
-    life.lost_tool_after_s = None
   # Each mission is told where the OTHERS say they are (where they lie, once
   # knocked over), its lidar drops their bodies from the scan (see the module
   # doc and `Lidar.exclude_robot`), and its mind is shown what they broadcast
@@ -228,118 +219,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   for life in lives:
     life.activities = activities
     life.encounters = meetings
-  # ...and A GAME FOR TWO (issue #404): where the board can offer hide and
-  # seek -- its target is named where there are minds and two robots --
-  # the pair's referee is in the world from the start
-  if maker is not None and "hide_and_seek" in maker.kinds:
-    referee_games(lives)
   return lives
-
-
-def referee_games(lives: list):
-  """The pair's games of hide and seek, refereed (issues #167, #404).
-
-  ONE referee for the world (`activity/hideseek.py`), built idle in the
-  world's activities -- the stream's header lists activities once -- and
-  kept, game after game: each game on the pair's board, offered by the
-  cadence or by `arrange_game`, is given it as its LAST role is claimed
-  (whichever robot claims first holds the first open role, the hider), and
-  each robot is then queued its role's errand (`errand_for_task(role=)`),
-  nothing before. It senses on the first robot's seam, and when it calls a
-  game, ONE verdict is evaluated off its flags and banked on the WINNER's
-  wallet -- nobody's, when the game was called off -- and the task resolves
-  with it for both. A player who dies calls the game off (`watch`). A pair
-  already refereed keeps its referee, which is returned."""
-  from pluggybot.activity.hideseek import HideAndSeek
-  from pluggybot.economy import scoring
-  first = lives[0]
-  if first.game is not None:
-    return first.game
-  board = first.tasks
-  if board is None:
-    raise ValueError("a game needs the pair's task board (tasks=True)")
-  by_root = {life.root: life for life in lives}
-  game = HideAndSeek(first.model)
-  if first.activities is not None:
-    first.activities.add(game)
-  else:
-    first.body.step_hooks.append(lambda: game.sense(first.model, first.data))
-  for life in lives:
-    life.game = game
-
-  def settle(game) -> None:
-    task = board.get(game.task_id)
-    if task is None or not task.open:
-      return
-    verdict = scoring.evaluate("hide_and_seek", game.measurements())
-    winner = by_root.get(task.claims.get(verdict.metrics.get("winner") or "", ""))
-    paid = winner if verdict.ok else None
-    for life in lives:
-      if life is paid:
-        life._bank(verdict)
-      else:
-        # ...and the one not paid reads it too: its game happened
-        said = (f"hide_and_seek: {verdict.reason} -- nothing for the "
-                f"{life.role_in(task.id) or 'other'}")
-        life._say(f"GAME {said}")
-        life._remember(said)
-    board.resolve(task.id, verdict, t=float(first.data.time),
-                  robot=paid.root if paid is not None else "")
-  game.on_over.append(settle)
-
-  def watch() -> None:
-    # A PLAYER WHO DIES ENDS THE GAME, nobody paid (issue #404): a dead
-    # hider was never found and a dead seeker never sought, and a verdict
-    # either way would pay for a death. Asked every step: two reads.
-    if not game.assigned or game.over_at is not None:
-      return
-    for root in (game.hider.root, game.seeker.root):
-      life = by_root.get(root)
-      if life is not None and life.dead is not None:
-        game.call_off(float(first.data.time), f"{life.robot_name} died")
-        return
-  first.body.step_hooks.append(watch)
-
-  def on_claim(event: dict) -> None:
-    if event.get("type") != "task_claimed":
-      return
-    task = board.get(event.get("id") or "")
-    if (task is None or task.kind != "hide_and_seek" or task.state != "claimed"
-        or set(task.claims) != {"hider", "seeker"}
-        or not set(task.claims.values()) <= set(by_root)):
-      return
-    hider, seeker = by_root[task.claims["hider"]], by_root[task.claims["seeker"]]
-    game.assign(hider=hider.body.handle, seeker=seeker.body.handle,
-                task_id=task.id, t=float(first.data.time))
-    for role, life in (("hider", hider), ("seeker", seeker)):
-      errand = errand_for_task(task, life.world, role=role)
-      if errand is not None:
-        life.errands.append(errand)
-    for life in lives:
-      life._say(f"GAME hide_and_seek: {hider.robot_name} hides, "
-                f"{seeker.robot_name} seeks")
-  board.on_event.append(on_claim)
-  return game
-
-
-def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
-  """Put a game of hide and seek on the pair's board now (issue #167): the
-  offer the cadence makes to a pair with minds, made by hand -- for a test, a
-  demo or a recording -- and refereed by the pair's referee
-  (`referee_games`). Returns the task, and a state whose `game` is the
-  referee once THIS game's roles are taken."""
-  game = referee_games(lives)
-  board = lives[0].tasks
-  task = board.offer(kind, GAME_TARGET, t=t)
-  if task is None:
-    raise ValueError(f"the board would not offer {kind}")
-  state: dict = {"game": None}
-
-  def on_claim(event: dict) -> None:
-    if event.get("id") == task.id and game.task_id == task.id:
-      state["game"] = game
-  board.on_event.append(on_claim)
-  return task, state
 
 
 def arrange_hazards(lives: list, fall_at: float, drain_at: float,
@@ -353,7 +233,6 @@ def arrange_hazards(lives: list, fall_at: float, drain_at: float,
   hashes like any other day: nothing here reads a clock but the sim's.
   Returns what it did, and when, for the caller to assert on."""
   import math
-  from pluggybot.legs import body as qb
   life = lives[who]
   model, data = life.model, life.data
   q = life.body.handle.qpos_adr(model)
@@ -363,7 +242,7 @@ def arrange_hazards(lives: list, fall_at: float, drain_at: float,
   def hook() -> None:
     t = float(data.time)
     if (done["fell"] is None and t >= fall_at and life.dead is None
-        and life.body.posture == qb.STANDING):
+        and life.body.posture == "standing"):
       data.qpos[q + 2] = 0.25                                    # on its side
       data.qpos[q + 3:q + 7] = (math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0)
       data.qvel[v:v + 6] = 0.0
@@ -381,8 +260,8 @@ def record_pair(lives: list, path: str):
   robot's stream as it always was, the second under `robots[<r2 root>]`
   beside it with its own `metabolism`, the header naming both, one `goals`
   and one set of `thought` documents and one `grid` per robot, and every
-  event keyed by the robot that emitted it -- two ledgers' accounts, the
-  pair's encounters and the game's referee. The header's `model` is the
+  event keyed by the robot that emitted it -- two ledgers' accounts and the
+  pair's encounters. The header's `model` is the
   PAIR world's name (`pair_model_name`), because a replayer picks its scene
   off it and the second robot's bodies are in no single-robot scene."""
   from pluggybot.mind import overseer as ov
@@ -455,17 +334,13 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
   return [life.end(aborted) for life in lives]
 
 
-def run_demo_pair(world: str = QUAD_HOME, max_sim_time: float = 300.0,
+def run_demo_pair(world: str = HUMANOID_HOME, max_sim_time: float = 300.0,
                   view: bool = False, realtime: bool = True,
                   pack: str = "demo", errands=("none", "none"),
                   board_state: str | None = None, on_ready=None,
-                  record: str | None = None, game: bool = False,
-                  **kw) -> list[dict]:
+                  record: str | None = None, **kw) -> list[dict]:
   lives = build_pair(world, pack=pack, errands=errands, board_state=board_state,
-                     view=view, realtime=realtime, tasks=kw.pop("tasks", False) or game,
-                     **kw)
-  if game:
-    arrange_game(lives)
+                     view=view, realtime=realtime, **kw)
   if on_ready is not None:
     on_ready(lives)
   return run_pair(lives, max_sim_time=max_sim_time, record=record)

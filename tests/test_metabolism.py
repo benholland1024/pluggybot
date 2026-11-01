@@ -27,14 +27,14 @@ from pluggybot.economy.scoring import RewardTable, default_table, evaluate
 from pluggybot.telemetry.protocol import HUNGER_STATES, PROTOCOL_VERSION
 
 
-#: A carry that actually happened, in the evaluator's own metric names.
-CARRIED = {"picked": True, "stowed": True, "module": "module_lcd"}
+#: A take that actually happened (#228), in the evaluator's own metric names.
+TOOK = {"asked": 2, "taken": 2, "to": "r2_pluggybot"}
 
 #: ...paying 2, the unit of food these tests count in. Pinned here rather
-#: than read off rewards.json: what is under test is the appetite, and a
-#: re-tune of the table (issue #321 took `carry` to 5) must not move it.
+#: than read off the tables: what is under test is the appetite, and a
+#: re-tune of the take's row must not move it.
 UNIT_TABLE = RewardTable({**default_table().tasks,
-                          "carry": replace(default_table()["carry"], base=2)})
+                          "take": replace(default_table()["take"], base=2)})
 
 
 def unit_ledger(**kw) -> Ledger:
@@ -62,11 +62,11 @@ def appetite(**kw) -> Appetite:
   return Appetite(**spec)
 
 
-def fed(ledger, points: int, task: str = "carry") -> None:
+def fed(ledger, points: int, task: str = "take") -> None:
   """Bank `points` by the only door there is -- a real verdict off a real
   evaluator, because `award` refuses anything else."""
   while points > 0:
-    v = evaluate(task, CARRIED, table=ledger.table)
+    v = evaluate(task, TOOK, table=ledger.table)
     assert v.points > 0
     ledger.award(v)
     points -= v.points
@@ -192,8 +192,8 @@ def test_hunger_stops_at_zero_and_never_goes_into_debt():
 
 def test_earnings_over_the_cap_are_refused_out_loud():
   led = unit_ledger(cap=6)
-  v = evaluate("carry", CARRIED, table=led.table)
-  led.award(v)                      # carry pays 2
+  v = evaluate("take", TOOK, table=led.table)
+  led.award(v)                      # a take pays 2
   led.award(v)
   led.award(v)                      # ...and the balance is now full at 6
   entry = led.award(v)
@@ -210,7 +210,7 @@ def test_earnings_over_the_cap_are_refused_out_loud():
 
 def test_a_partial_award_banks_what_fits():
   led = unit_ledger(cap=5)
-  v = evaluate("carry", CARRIED, table=led.table)
+  v = evaluate("take", TOOK, table=led.table)
   led.award(v)
   led.award(v)                      # 4 of 5
   entry = led.award(v)              # 2 offered, 1 fits
@@ -223,7 +223,7 @@ def test_no_cap_means_no_cap_and_no_new_fields():
   are the claim: an entry written without an appetite is byte-identical to
   the ones written before the cap existed."""
   led = unit_ledger()
-  v = evaluate("carry", CARRIED, table=led.table)
+  v = evaluate("take", TOOK, table=led.table)
   entry = None
   for _ in range(50):
     entry = led.award(v)
@@ -232,14 +232,13 @@ def test_no_cap_means_no_cap_and_no_new_fields():
 
 
 def test_a_rating_settles_through_the_cap():
-  """A deferred payout is not a way around a ceiling (issue #16 meets #36)."""
+  """A deferred payout is not a way around a ceiling (issue #16 meets #36):
+  a drawing left waiting on a visitor's rating -- the one deferred payout
+  there is since the drawings went (#559), its entry put as the old award
+  left it."""
   led = unit_ledger(cap=4)
-  v = evaluate("artwork", {"board": "whiteboard_a", "strokes": 6,
-                           "strokesInked": 6, "formMm": 0.6,
-                           "inkedFraction": 0.99, "travelInkFraction": 0.0,
-                           "fill": 0.3}, table=led.table)
-  assert v.pending
-  entry = led.award(v)
+  entry = led._post("pluggybot", "artwork", "visitor", True, None, 0, "ink landed",
+                    {"strokesInked": 6}, t=1.0, pending=True)
   fed(led, 4)                       # fill the balance while the rating flies
   settled = led.settle(entry["seq"], 1.0)
   assert led.balance() == 4
@@ -338,13 +337,13 @@ def test_rate_and_cap_are_data_and_re_tunable_without_a_code_change(tmp_path):
     "version": 1,
     "default": {"pointsPerHour": 45.0, "cap": 90, "satisfiedAt": 45,
                 "hungryAt": 20},
-    "worlds": {"home_quad": {"pointsPerHour": 12.0, "cap": 60}},
+    "worlds": {"home_humanoid": {"pointsPerHour": 12.0, "cap": 60}},
   }))
   base = Appetite.load("elsewhere", path)
   assert base.points_per_hour == 45.0 and base.cap == 90
   # A world block overrides key by key, like cadence.json -- the two
   # thresholds here are not restated and come from the default block.
-  home = Appetite.load("home_quad", path)
+  home = Appetite.load("home_humanoid", path)
   assert home.points_per_hour == 12.0 and home.cap == 60
   assert home.satisfied_at == 45 and home.hungry_at == 20
 
@@ -364,7 +363,7 @@ def test_the_shipped_file_leaves_the_robot_half_its_day():
   is the free time, so an appetite that eats the whole income deletes it
   while still looking like it works.
   """
-  a = Appetite.load("home_quad")
+  a = Appetite.load("home_humanoid")
   duty = a.points_per_hour / MEASURED_POINTS_PER_HOUR
   assert 0.25 <= duty <= 0.60, (
     f"an appetite of {a.points_per_hour}/h against a measured "
@@ -409,7 +408,7 @@ def test_a_future_version_of_the_file_is_refused(tmp_path):
   path = tmp_path / "metabolism.json"
   path.write_text(json.dumps({"version": 99, "default": {}}))
   with pytest.raises(ValueError, match="metabolism version"):
-    Appetite.load("home_quad", path)
+    Appetite.load("home_humanoid", path)
 
 
 def test_the_committed_file_is_the_shipped_default():
@@ -504,7 +503,7 @@ def test_the_appetite_rules_ride_the_cached_prefix_and_only_when_there_is_one():
   from pluggybot.economy.scoring import default_table
   from pluggybot.mind.thoughts import ThoughtFiles
   th = ThoughtFiles.open(None)
-  menu, table = Menu.for_world("home_quad"), default_table()
+  menu, table = Menu.for_world("home_humanoid"), default_table()
   off = system_prompt(th, menu, table, name="Pluggy")[0]["text"]
   on = system_prompt(th, menu, table, name="Pluggy", appetite=True)[0]["text"]
   assert "POINTS ARE WHAT KEEPS YOU RUNNING" not in off
@@ -542,20 +541,6 @@ def test_the_context_carries_the_appetite_and_omits_it_when_there_is_none():
 
 
 # ---- zero is narrative, never a capability lock -------------------------------
-
-
-def test_a_starving_robot_still_looks_worried_and_nothing_else():
-  """The whole of what running out does to the face -- and it must not stomp
-  the states that are about something more urgent than food."""
-  from pluggybot.tools.screen import face_for
-  assert face_for("EXPLORE", 1.0) == face_for("EXPLORE", 1.0,
-                                              hunger="starving")
-  assert face_for("CHARGE", 1.0) == face_for("CHARGE", 1.0, hunger="starving")
-  assert face_for("GO_CHARGE", 0.1) == face_for("GO_CHARGE", 0.1,
-                                                hunger="starving")
-  assert face_for("IDLE", 1.0) == ("idle", "blink")
-  assert face_for("IDLE", 1.0, hunger="starving") == ("worried", "shake")
-  assert face_for("IDLE", 1.0, hunger="hungry") == ("idle", "blink")
 
 
 def test_nothing_in_the_mission_loop_reads_a_balance():
@@ -602,7 +587,6 @@ def test_nothing_in_the_mission_loop_reads_a_balance():
     "_metabolism_step",   # ticks it, narrates, and turns a MISSED payment
                           # into a death (issue #136) -- the one branch that
                           # reads the appetite and changes what happens
-    "_screen_step",       # a starving robot looks worried and nothing else
     "_buy_heart",         # prices the upkeep a purchase must leave behind
     "_true_death",        # clears the carry so a new robot starts solvent
     "_give",              # RECORDS the giver's hunger as a gift's cost
@@ -633,18 +617,19 @@ def test_the_survival_gates_decide_the_same_broke_as_flush(tmp_path):
   """
   from pluggybot import lifecycle as lc
   from pluggybot.economy.tasks import TaskBoard
+  from pluggybot.mission.errand import Errand
 
   from test_body import stub_life
   ledger = Ledger(path=None)
   metab = Metabolism(ledger, Appetite(points_per_hour=30.0, cap=400,
                                       satisfied_at=45, hungry_at=20))
   board = TaskBoard(path=None)
-  life = stub_life(boards=lc.board_book(lc.QUAD_HOME), ledger=ledger,
+  life = stub_life(boards=lc.board_book(lc.HUMANOID_HOME), ledger=ledger,
                    metabolism=metab, tasks=board)
 
   def gates() -> dict:
     """Everything the loop reads before it commits the body to anything."""
-    life.errands = [lc.cage_errand(lc.QUAD_HOME, "feed", task="feed")]
+    life.errands = [Errand(name="open_drawer:drawer")]
     return {
       "needs_charge": life.needs_charge,
       "afford_next": life._afford_next(),
@@ -669,29 +654,30 @@ def test_the_survival_gates_decide_the_same_broke_as_flush(tmp_path):
 
 
 def _starving_day(wallet: int) -> tuple[dict, list, list]:
-  """A charge-then-carry day on the stub, with the appetite read off
+  """A charge-then-errand day on the stub -- the errand a procedure that
+  walks somewhere and waits -- with the appetite read off
   `$PLUGGY_METABOLISM` and `wallet` points to start. Returns the summary,
   every manoeuvre the loop commanded with the state it was in, and the
   wallet and hunger at each command."""
-  from pluggybot.lifecycle import QUAD_HOME, world_config
-  from pluggybot.mission.errand import Errand
-  from pluggybot.procedure.steps import TOOL_BAYS
-  from pluggybot.rack.coupling import STATION_YS
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config, world_facts
+  from pluggybot.mission.errand import programmed_errand
+  from pluggybot.procedure.steps import Program, Step, compile_program
   from pluggybot.tick import MissionAborted
 
   from test_body import stub_life
-  appetite = Appetite.load(QUAD_HOME)
+  appetite = Appetite.load(HUMANOID_HOME)
   ledger = Ledger(path=None, cap=appetite.cap)
   ledger.intervene(wallet, by="test")
   hunger = Metabolism(ledger, appetite)
-  cfg = world_config(QUAD_HOME)
-  carry = Errand(name="carry:module_lcd", module="module_lcd",
-                 station_y=STATION_YS[TOOL_BAYS["module_lcd"]], use_at=(2.0, 1.0))
-  life = stub_life(ledger=ledger, metabolism=hunger, errands=[carry])
+  cfg = world_config(HUMANOID_HOME)
+  walk = programmed_errand(compile_program(Program.single("walk", [
+    Step("drive_to", {"x": 2.0, "y": 1.0}), Step("wait", {"seconds": 2.0})]),
+    world_facts(HUMANOID_HOME)))
+  life = stub_life(ledger=ledger, metabolism=hunger, errands=[walk])
   life.battery.energy_wh = life.low_battery_wh * 0.5        # it must charge
   commands, wallets = [], []
   for name in ("go_to_routine", "dock_routine", "dock_hold_routine",
-               "undock_routine", "fetch_tool_routine", "stow_tool_routine"):
+               "undock_routine"):
     def spy(*a, _real=getattr(life.body, name), _name=name, **kw):
       if (_name, life.state) not in commands[-1:]:
         commands.append((_name, life.state))
@@ -706,11 +692,11 @@ def _starving_day(wallet: int) -> tuple[dict, list, list]:
   return life.run(start=cfg["start"], max_sim_time=900.0), commands, wallets
 
 
-def test_a_starving_robot_still_charges_navigates_and_stows(tmp_path, monkeypatch):
+def test_a_starving_robot_still_charges_and_navigates(tmp_path, monkeypatch):
   """Issue #36's third acceptance criterion, as a whole day on the stub
-  (issue #380): a robot broke from the first command to the last drives to
-  the charger, charges, fetches a module, carries it and hangs it back --
-  and is commanded exactly the day a robot with 400 points is.
+  (issue #380): a robot broke from the first command to the last walks to
+  its station, charges, and walks the errand it was given -- and is
+  commanded exactly the day a robot with 400 points is.
 
   The gates are pinned one by one above; this is the day through them,
   where a gate that arrived through a helper, an errand or the loop's own
@@ -738,15 +724,16 @@ def test_a_starving_robot_still_charges_navigates_and_stows(tmp_path, monkeypatc
   assert wallets and all(p == 0 and h == "starving" for _, p, h in wallets), \
       "not actually broke; this proves nothing"
   assert flush["metabolism"]["consumed"] > 0, "the appetite never ticked"
-  for phase in ("GO_CHARGE", "CHARGE", "SWAP_PICK", "SWAP_RETURN"):
+  for phase in ("GO_CHARGE", "CHARGE", "USE_TOOL"):
     assert phase in {s for s, _, _ in wallets}, f"never commanded in {phase}"
   # ...and it did every single thing anyway, in the order a paid robot did.
   assert commanded == commanded_flush, "being broke changed what it was sent to do"
-  assert broke["swaps_done"] == 2, "a broke robot could not run the errand"
-  assert broke["module_stowed"], "a broke robot could not stow the tool"
+  [walked] = broke["errands"]
+  run = walked["procedure"]
+  assert run["completed"] == run["total"] == 2, "a broke robot could not run the errand"
   assert broke["charge_cycles"] >= 1, "a broke robot could not charge -- this "\
                                       "is the failure the mechanic must never have"
-  # It was still PAID for the work.
-  assert broke["earned"] > 0 and {v["task"] for v in broke["verdicts"]} == {"carry", "charge"}
+  # It was still JUDGED for the work (a procedure's row pays nothing, #321).
+  assert {v["task"] for v in broke["verdicts"]} == {"program", "charge"}
   assert all(v["ok"] for v in broke["verdicts"]), broke["verdicts"]
   assert broke["metabolism"]["state"] in HUNGER_STATES

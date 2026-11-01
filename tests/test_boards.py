@@ -5,8 +5,8 @@ import math
 
 import pytest
 
-from pluggybot.tools.boards import CELL, BoardBook, BoardRecord, decimate
-from pluggybot.tools.drawing import Board, Envelope
+from pluggybot.home.boards import CELL, Board, BoardBook, BoardRecord, decimate
+from pluggybot.home.boards import reach as pen_reach
 from pluggybot.lifecycle import board_book, errands_for
 
 META = json.load(open("models/home_world.meta.json"))
@@ -79,13 +79,16 @@ def test_a_stroke_fills_the_board_and_names_its_program():
 
 
 def test_fill_is_measured_against_the_pens_reach_not_the_slab():
-  """The home boards are 320 x 260 mm; the carriage has 110 mm of travel and
-  the base is parked for the whole drawing. Scoring fill against the slab
+  """The home boards are 320 x 260 mm; the carriage had 100 mm of travel and
+  the base was parked for the whole drawing. Scoring fill against the slab
   would report a board the robot has no way to fill as 12 % after its best
-  possible effort, and "is this board full" would never be true."""
+  possible effort, and "is this board full" would never be true. The pen
+  went with the quadruped (#559); the ink it laid stays, scored against the
+  window it was laid in -- 50 mm either way, the face less 30 mm, the same
+  floats its envelope summed."""
   rec = book()["whiteboard_a"]
-  env = Envelope.for_board(BOARD_A)
-  assert rec.reach == env.size
+  face_z = BOARD_A.half[2] - 0.030
+  assert rec.reach == pen_reach(BOARD_A) == (0.050 - -0.050, face_z - -face_z)
   slab = (BOARD_A.half[1] * 2, BOARD_A.half[2] * 2)
   assert rec.reach[0] < slab[0], "reach must be the intersection, not the slab"
 
@@ -201,7 +204,7 @@ def test_a_saved_reach_never_overrides_the_worlds(tmp_path):
   path.write_text(json.dumps({"version": 1, "boards": {
     "whiteboard_a": {"reach": [9.0, 9.0], "strokes": 1, "cells": [[0, 0]]},
   }}))
-  assert book(path)["whiteboard_a"].reach == Envelope.for_board(BOARD_A).size
+  assert book(path)["whiteboard_a"].reach == pen_reach(BOARD_A)
 
 
 def test_an_unreadable_state_version_is_loud(tmp_path):
@@ -290,7 +293,7 @@ def test_the_remembered_lines_are_capped_and_say_so():
   """An un-erased board must not grow an unbounded state file or an
   unbounded join message. Oldest-first, and counted: a snapshot missing the
   start of a long drawing reports how much it is missing."""
-  from pluggybot.tools.boards import MAX_LINES
+  from pluggybot.home.boards import MAX_LINES
   b = book()
   for _ in range(MAX_LINES + 5):
     b.stroke("whiteboard_a", "house", square(size=0.01))
@@ -320,13 +323,14 @@ def test_a_save_is_atomic(tmp_path):
 
 def test_the_errand_menu_is_by_name():
   """What the overseer will choose from (issue #15): a name, not a pile of
-  flags -- and a name nobody knows is refused, never guessed at."""
-  b = board_book("home_quad")
+  flags -- and a name nobody knows is refused, never guessed at. The one
+  queue left is `none` (#559: a lab act went with the quadruped)."""
+  b = board_book("home_humanoid")
   assert b.names == ["whiteboard_a", "whiteboard_b"]
-  assert [e.name for e in errands_for("feed", "home_quad", b)] == ["feed:lab"]
-  assert errands_for("none", "home_quad", b) == []
-  with pytest.raises(ValueError, match="unknown errand queue"):
-    errands_for("juggle", "home_quad", b)
+  assert errands_for("none") == []
+  for gone in ("juggle", "feed"):
+    with pytest.raises(ValueError, match="unknown errand queue"):
+      errands_for(gone)
 
 
 def test_board_records_round_trip_through_json():

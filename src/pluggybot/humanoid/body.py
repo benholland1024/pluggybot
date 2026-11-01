@@ -27,6 +27,7 @@ from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
 from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, HumanoidMission
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
+from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
 from pluggybot.perception.depth import DepthFrame
 from pluggybot.perception.watch import TagWatch
 from pluggybot.power import Pack
@@ -80,8 +81,17 @@ DEPTH_SEED, DEPTH_REACH_M = 466, 3.0
 #: A watcher's depth camera's own noise stream (`depth_watched`, #530): never
 #: the measured depth's, so watching draws nothing a flight reads.
 WATCH_SEED = 530
-#: What the humanoid does not do yet answers.
-NOT_HERE = "not on the humanoid yet: the quadruped's world (its dock, rack and tools)"
+#: A look at the station moves the belief only past this, m / rad: the
+#: matched belief in the house is good to a few centimetres (#476).
+FIX_TOL_M = 0.10
+FIX_TOL_RAD = math.radians(2.0)
+#: ⚠ A FIX PAST THE MATCHER'S OWN SEARCH DROPS THE MAP: the walls laid while
+#: lost are copies the matcher holds a corrected belief to. MEASURED on the
+#: quadrupeds (#476, `drift_spike.py --lived` at `quadruped-final`): put
+#: at the truth on the deployed pair's own maps, a walk was 1.3 and 1.9 m
+#: out within 20 s, relocated onto a copy; on an empty map, 0.23 m at worst.
+ASKEW_M = SEARCH_M
+ASKEW_RAD = SEARCH_RAD
 
 
 def _yaw(rot: np.ndarray) -> float:
@@ -218,16 +228,13 @@ class HumanoidBody(Body):
     self._station_seen = None
     self._charge_trace: list = []
     self.rack_discovered = False
-    self.swapping_at = None
-    self.peer_at_bay_m = None
     #: Why each hand's last reach ended short of holding (`hand_why`), and
     #: the hands whose reach `stop_hand` stopped (#554).
     self._why: dict[str, str] = {}
     self._halted: set[str] = set()
-    self.bay_wait = None
     self.docked = False
     self.head_camera = handle.el(HEAD_CAMERA)
-    self.collision_steps = self.press_steps = 0
+    self.collision_steps = 0
 
   falls = property(lambda self: self.mission.falls)
 
@@ -454,19 +461,6 @@ class HumanoidBody(Body):
       return 2 * float(self._d.ctrl[act])
     side, k = joint
     return float(self.reach.q_cmd[side][k])
-
-  def arm_torque(self, act: int) -> float:
-    joint = self._arm_joint(act)
-    if joint is None:
-      raise KeyError(f"actuator {act} is not an arm joint's")
-    side, k = joint
-    _, _, tau = self.stand.joints.read(self._d)
-    return float(tau[hm.JOINT_NAMES.index(f"{side}_{hm.ARM[k]}")])
-
-  def retract_arm_routine(self):
-    for s in hm.SIDES:
-      if not self.reach.home(s):
-        yield from self.release_routine(s)
 
   # ---- hands ---------------------------------------------------------------
 
@@ -845,7 +839,7 @@ class HumanoidBody(Body):
 
   def _detector(self):
     if self._tags is None:
-      from pluggybot.rack.tags import TagDetector
+      from pluggybot.perception.tags import TagDetector
       self._tags = TagDetector(self._m, self.handle.el(TAG_CAMERA))
     return self._tags
 
@@ -859,7 +853,7 @@ class HumanoidBody(Body):
     where it does not decode. With `at_height`, the ray through the tag's
     centre is cut at that height instead of PnP's range: {x, y, z, range,
     normal}, the normal into the tag's face, world frame. ⚠ A CUBE WEARS
-    ITS TAG ON EVERY FACE (`rack.tags.TagDetector.detect_all`): the face
+    ITS TAG ON EVERY FACE (`perception.tags.TagDetector.detect_all`): the face
     seen most square-on is the one read -- looking down on the chest's
     knob, the last decoded was its top, seen edge-on."""
     return self._decoded(tag, at_height)
@@ -955,9 +949,6 @@ class HumanoidBody(Body):
   def velocity_routine(self, seconds, v, w):
     return self.mission._drive_routine(seconds, v, w)
 
-  def travel_routine(self, distance, v):
-    return self.mission.travel_routine(distance, v)
-
   grid = property(lambda self: self.mission.grid)
   belief_events = property(lambda self: self.mission.belief_events)
 
@@ -984,9 +975,6 @@ class HumanoidBody(Body):
   def reachable(self, points):
     return self.mission.reachable(points)
 
-  def in_sight(self, x, y) -> bool:
-    return self.mission.in_sight(x, y)
-
   def lost_routine(self, fixture, stop=None):
     """No station in sight where the belief puts it (#476's rule): facing
     where it believes the station is, it steps in until its LIDAR reads the
@@ -998,10 +986,9 @@ class HumanoidBody(Body):
     `stop`, asked between its moves, ends the search. ⚠ NEARER BY WHAT IT
     SENSES, never by its belief: past 1.07 m of the station's face the tags
     are above its colour camera's view, and from viewpoints set on a belief
-    0.7 m off toward the wall every look was further than that. The `lost`
-    and `searched` records are the quadruped's (`belief_event`); its search
-    walks its map outward and forgets it first (`legs.fixtures`), where the
-    humanoid's search keeps it until a fix past the matcher's reach."""
+    0.7 m off toward the wall every look was further than that. Its `lost`
+    and `searched` records are those the quadruped's were (`belief_event`),
+    and its search keeps its map until a fix past the matcher's reach."""
     from pluggybot.humanoid import charge
     if self._station is None:
       return False
@@ -1054,9 +1041,8 @@ class HumanoidBody(Body):
     commissioned (`_station`), as the dock is (#476). Past `FIX_TOL_*` the
     belief moves, and past the matcher's own search (`ASKEW_*`) the map laid
     on the old belief goes too -- kept, a map laid while lost pulled a
-    corrected belief back onto a copy within 20 s (`legs.fixtures`). Its
-    `fixed` record, or None where the look agreed with the belief."""
-    from pluggybot.legs.fixtures import ASKEW_M, ASKEW_RAD, FIX_TOL_M, FIX_TOL_RAD
+    corrected belief back onto a copy within 20 s. Its `fixed` record, or
+    None where the look agreed with the belief."""
     prior = self._station
     x, y, yaw = self.pose
     c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
@@ -1085,78 +1071,12 @@ class HumanoidBody(Body):
 
   # ---- the quadruped's world: not the humanoid's yet -----------------------
 
-  def press_plate_routine(self, tag, patience, stop=None):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def draw_routine(self, board, program, patience, stop=None, on_stroke=None):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def pick_cube_routine(self, tag, patience, stop=None):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def place_cube_routine(self, tag, patience, stop=None):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def put_cube_routine(self, patience, stop=None):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def claw_routine(self, closed):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def held_cube(self):
-    return None
-
-  def survey_routine(self, tag, patience, stop=None, on_count=None):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def hide_routine(self, away_from, reach_m, clear_of_m, patience, stop=None):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def seek_routine(self, base, cover_m, patience, stop=None):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
   def start_discovery(self) -> None:
     """No rack in its world to watch for (#559): the quadruped's went with
     it, and the day begins here all the same."""
 
   def refresh_rack(self):
     return None
-
-  def bay_standoff(self, station_y):
-    raise NotImplementedError(NOT_HERE)
-
-  def fetch_tool_routine(self, station_y, module):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def stow_tool_routine(self, station_y, module):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def place_tool_routine(self, module):
-    raise NotImplementedError(NOT_HERE)
-    yield
-
-  def module_state(self, module):
-    raise NotImplementedError(NOT_HERE)
-
-  def tool_powered(self, module) -> bool:
-    return False
-
-  def seated_on(self, module):
-    return None
-
-  def swap_trace(self) -> str:
-    return ""
 
   def charge_standoff(self):
     """Where its walk to the station ends, facing it: its tags in view, room
@@ -1259,7 +1179,6 @@ class HumanoidBody(Body):
   def watch_for_peers(self, points):
     return self.mission.watch_for_peers(points)
 
-  pressing = property(lambda self: self.mission.pressing)
   peer_holds = property(lambda self: self.mission.peer_holds)
 
   @property

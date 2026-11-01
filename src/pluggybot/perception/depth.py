@@ -6,8 +6,8 @@ D435-class active stereo unit on the body, pitched at the floor ahead, so
 the robot can find things ON and near the floor -- where the scan plane
 never looks. The decision and the runner-up sensors are docs/Parts.md
 "near-field depth camera"; the height map it feeds is
-`perception/heightmap.py`, and the quadruped's planner reads its low points
-(`QuadMission._fold_low`).
+`perception/heightmap.py`, and the humanoid's planner reads its low points
+(`HumanoidMission._planning_grid`).
 
 A DEPTH IMAGE, CAST AS RAYS. Each pixel of the D435's pinhole frustum is one
 `mj_multiRay` ray from the `depth_eye` camera element, so the frame is
@@ -54,7 +54,7 @@ Honest where the part is, and the tests pin each:
   business, and the map takes the believed pose (`HeightMap.update`).
   A legged body (`mount="body"`, #388) gets its points in the root body's
   own frame: its torso pitches 33° on a flight, so no level can be
-  assumed, and the caller applies its attitude estimate (`legs/scan.py`).
+  assumed, and the caller applies its attitude estimate (`humanoid/scan.py`).
 """
 
 from dataclasses import dataclass, field

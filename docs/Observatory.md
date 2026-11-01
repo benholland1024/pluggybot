@@ -2821,7 +2821,7 @@ nothing about.
 **What changed on the wire and in the mind.** The world has a second free
 body, `rack_built` (hint `rack`), beside the first rack in both served
 worlds: three bays at the rack's pitch past bay E, tags 7–9, its stations
-in the first rack's frame (ToolPattern.md §6, route 4). The `autonomous`
+in the first rack's frame (ToolPattern.md §6 at `quadruped-final`, route 4). The `autonomous`
 prompt's workshop rule moved: `build_tool.bay` is the rail's `A`–`C`, the
 five original modules are said to be permanent, and `rack` in the context
 is `{original: [...], built: {A, B, C}}` instead of five letters. A build
@@ -3034,7 +3034,7 @@ whether it notes people at all; whether Ben is still the only visitor.
 ### The bench (#227) — opens when this PR is deployed
 
 **What changed on the wire and in the mind.** The lab's bench became a
-CHALLENGE (Challenges.md §8): `find_mass`, offered on home on the
+CHALLENGE (Challenges.md §8 at `quadruped-final`): `find_mass`, offered on home on the
 `autonomous` arm like the tower, 25 points -- two cubes on the floor in
 front of the workbench, one of known mass, one drawn from a bank per
 offer and set into the world's `body_mass` as the offer lands; the robot

@@ -6,7 +6,7 @@ offscreen renderer -- with multisample antialiasing on, one static scene
 rendered to a different image every time (+-1 in a few dozen shadow-edge
 pixels), the AprilTag decode moved on ~0.6 % of looks, and a moved decode
 is a moved belief and, some minutes later, a different walk.
-`offsamples="0"` in the house's `<visual>` block, which the quadruped's
+`offsamples="0"` in the house's `<visual>` block, which the humanoid's
 world inherits, is the fix, and these tests are what keeps it.
 """
 
@@ -14,18 +14,23 @@ import hashlib
 import os
 import warnings
 
+import math
+
 import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.legs import dock as dk
-from pluggybot.legs import rack as rk
-from pluggybot.legs import world as lw
-from pluggybot.rack import tags
+from pluggybot.humanoid import model as hm
+from pluggybot.humanoid import world as hw
+from pluggybot.perception import tags
+from pluggybot.robot import FIRST
 
-#: Where the nose camera looks across the living room's lit, shadowed floor
-#: -- where MSAA's frames measured apart.
+#: Where the robot's camera looks across the living room's lit, shadowed
+#: floor -- where MSAA's frames measured apart.
 LIVING_ROOM = (-1.0, 1.0, 0.5)
+#: The storeroom's doorway, facing its counter: the counter's row of tags in
+#: the head camera's view (#559).
+STOREROOM_DOOR = (22.8, -3.0, 0.15)
 
 #: Whether MSAA renders that scene differently from one render to the next,
 #: by the RASTERISER that draws it (`GL_RENDERER`, lower case), never the
@@ -50,7 +55,19 @@ ONE_IMAGE_IN = 16
 
 @pytest.fixture(scope="module")
 def model():
-  return lw.home_spec().compile()
+  return hw.home_spec().compile()
+
+
+def _stand(model, data, x, y, yaw) -> None:
+  """The humanoid upright at (x, y) facing `yaw`, as `HumanoidBody.start_at`
+  stands it, and forwarded."""
+  q = FIRST.qpos_adr(model)
+  data.qpos[q:q + 3] = [x, y, hm.stand_height()]
+  data.qpos[q + 3:q + 7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
+  stand = hm.stand_qpos()
+  for name in hm.qpos_order():
+    data.qpos[model.jnt_qposadr[model.joint(FIRST.el(name)).id]] = stand.get(name, 0.0)
+  mujoco.mj_forward(model, data)
 
 
 def _rasteriser() -> str:
@@ -65,7 +82,7 @@ def _frames(model, n: int, pose, camera: str = "nav_eye",
   """The distinct images of `n` renders, stopping at the `until`-th, and the
   rasteriser that drew them."""
   data = mujoco.MjData(model)
-  lw.stand(model, data, "", *pose)
+  _stand(model, data, *pose)
   renderer = mujoco.Renderer(model, 720, 1280)
   # Its context is current. Read before the first render, which leaves a
   # GL_INVALID_ENUM pending that PyOpenGL would raise against this call.
@@ -81,7 +98,7 @@ def _frames(model, n: int, pose, camera: str = "nav_eye",
   return seen, rasteriser
 
 
-def test_the_nose_camera_renders_one_static_scene_to_one_image(model):
+def test_the_head_camera_renders_one_static_scene_to_one_image(model):
   assert model.vis.quality.offsamples == 0, \
     "the robot's cameras render with MSAA on"
   assert len(_frames(model, 8, LIVING_ROOM)[0]) == 1, "the same scene rendered differently"
@@ -149,10 +166,11 @@ def test_the_premise_waits_for_a_second_image_that_comes_late(model, monkeypatch
 def test_the_tag_decode_is_the_same_on_the_same_frame(model):
   """Downstream of the render: the shared detector, two threads and all,
   gives one answer for one image -- so with identical frames the belief
-  cannot drift. The robot at a bay of its rack, reading the rack's tags."""
+  cannot drift. The robot in the storeroom's doorway, reading the counter's
+  row of tags."""
   data = mujoco.MjData(model)
-  lw.stand(model, data, "", *dk.compose(lw.rack_pose(), rk.work_pose(rk.DEFAULT, 0)))
-  eye = tags.TagDetector(model, "nav_eye", tag_size=tags.DOCK_TAG_SIZE)
+  _stand(model, data, *STOREROOM_DOOR)
+  eye = tags.TagDetector(model, "nav_eye")
   try:
     answers = {repr(sorted((k, tuple(round(x, 9) for x in v["t"]))
                            for k, v in eye.detect(data).items()))

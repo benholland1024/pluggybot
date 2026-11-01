@@ -1,8 +1,7 @@
 """The chest on a counter (issue #507, stage 3): #466's drop-handle chest
 set on a counter in the house's empty storeroom, and the humanoid standing
-in front of it -- its hands' demo world, as `evaluation.probe.set_out` is
-the quadruped's probe's. Seeded; no change to the served house (a world of
-its own, as `home_quad_chest` is).
+in front of it -- its hands' demo world. Seeded; no change to the served
+house (a world of its own).
 
 The truth stays here -- where the counter and the chest stand, where the
 knob truly is, whether the pads truly hold it -- OUR staging and grading.
@@ -31,8 +30,8 @@ HOME_XML = "models/home_world.xml"
 #: zones and its boards, which the site draws the house by.
 HOME_META = "models/home_world.meta.json"
 #: A set-out's world on the wire (#530): the house, the humanoid where the
-#: set-out starts it, the counter and its prop -- a world of its own, as
-#: `home_quad_chest` is, and never the served one.
+#: set-out starts it, the counter and its prop -- a world of its own, never
+#: the served one.
 WORLD = "home_humanoid_counter"
 #: Where the humanoid starts: the storeroom, empty (`home.world`'s x 22-28,
 #: y -6-0), facing +x, as #466's probe did.
@@ -61,9 +60,8 @@ EDGE_BACK = 0.12
 #: `set_out(k)`'s seed is this plus k, and the demo's set-out.
 SETOUT_SEED = 5070
 DEMO = 0
-#: The cameras' near plane, m: the quadruped's (`legs.world.NEAR_M`); at
-#: MuJoCo's own, scaled from the house's pinned extent (0.37 m), a hand
-#: near the head was cut.
+#: The cameras' near plane, m: at MuJoCo's own, scaled from the house's
+#: pinned extent (0.37 m), a hand near the head was cut.
 NEAR_M = 0.10
 
 

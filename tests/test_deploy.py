@@ -103,7 +103,7 @@ def _forbidden_modules() -> dict[str, tuple[str, ...]]:
 
 # Run the REAL serve path with the omitted distributions made unimportable.
 # A module-level import scan is not enough and was measured not to be: the
-# detector is imported inside `rack.tags._shared_detector`, so the scan came
+# detector is imported inside `perception.tags._shared_detector`, so the scan came
 # back clean and the first container died building its robot. Blocking the
 # imports and then actually flying the robot catches a lazy import wherever
 # it hides.
@@ -123,30 +123,28 @@ sys.meta_path.insert(0, Blocked(set(sys.argv[1].split(","))))
 import mujoco
 from pluggybot.mind import overseer as ov
 from pluggybot.lifecycle import (
-  QUAD_HOME, HubLifecycle, board_book, errands_for, world_config,
+  HUMANOID_HOME, HubLifecycle, board_book, errands_for, world_config,
 )
 from pluggybot.robot import world_spec
 from pluggybot.telemetry.publisher import WsPublisher
 
-cfg = world_config(QUAD_HOME)
-model = world_spec(cfg["model"], body=cfg["body"]).compile()
+cfg = world_config(HUMANOID_HOME)
+model = world_spec(cfg["model"]).compile()
 data = mujoco.MjData(model)
-book = board_book(QUAD_HOME, state=None)
+book = board_book(HUMANOID_HOME, state=None)
 # The overseer is built and its client is resolved (issue #15): `anthropic`
 # is a real runtime dependency of the serve path, and `Menu.for_world` drags
 # in the stroke library behind it. Enabled explicitly and at the served
 # origin, rather than off $PLUGGY_OVERSEER, so this exercises the path the
 # deploy runs and not the one it happens to be configured for today.
-boss = ov.build(QUAD_HOME, book, enabled=True, origin="unseeded")
+boss = ov.build(HUMANOID_HOME, book, enabled=True, origin="unseeded")
 assert boss.client is not None, boss.usage.errors
-# The lab's job, compiled as the loop builds it from an offer; the served
-# world starts with no errand queue of its own.
-assert errands_for("feed", QUAD_HOME, book)[0].program is not None
+# The served world starts with no errand queue of its own.
 life = HubLifecycle(model, data, battery_wh=cfg["battery_wh"],
-                    rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                    low_battery_wh=cfg["low_battery_wh"], world=QUAD_HOME,
+                    grid_bounds=cfg["grid_bounds"],
+                    low_battery_wh=cfg["low_battery_wh"], world=HUMANOID_HOME,
                     overseer=boss, near_field=True,
-                    errands=errands_for("none", QUAD_HOME, book), boards=book)
+                    errands=errands_for("none"), boards=book)
 activities = cfg["activities"](model, data)
 life.body.step_hooks.append(activities.step_hook(model, data))
 # Port 1 is nothing: the publisher's retry loop is the point, not a peer.
@@ -158,8 +156,8 @@ life.body.step_hooks.append(pub.step_hook)
 try:
   life.body.start_at(*cfg["start"])
   life.body.start_discovery()
-  # the policy, the lidar, the depth camera, the grid, frame building...
-  life.body.mission._drive(0.5, 0.2, 0.3)
+  # the policies, the lidar, the depth camera, the grid, frame building...
+  life.body.run(life.body.velocity_routine(0.5, 0.2, 0.3))
   # ...and the tag detector, which is imported where it is first used
   life.body.detect_tags()
 finally:

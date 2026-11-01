@@ -3,7 +3,7 @@ on, pinned as cheaply as it can be and still fail for the right reason --
 the planner on synthetic grids, the drive's two new endings (the map still
 growing is progress; a stop is an abort, not a give-up), the verb's
 patience and its cap, and the interrupt a walk asks as it goes, recorded
-by both runners. The walk flown whole is behind --endurance."""
+by both runners."""
 
 import heapq
 import math
@@ -15,8 +15,8 @@ import pytest
 from pluggybot import navigator as nav
 from pluggybot import tick
 from pluggybot.body import KeepClear
-from pluggybot.legs.body import QuadMission
-from pluggybot.lifecycle import QUAD_HOME, procedure_outcome, world_facts
+from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.lifecycle import HUMANOID_HOME, procedure_outcome, world_facts
 from pluggybot.mapping import optimistic as op
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.procedure import lang
@@ -24,7 +24,7 @@ from pluggybot.procedure import steps as st
 
 FREE, WALL, UNSEEN = -5.0, 5.0, 0.0
 STEPPER = SimpleNamespace(step=lambda *a: None)
-LEGS = world_facts(QUAD_HOME)
+FACTS = world_facts(HUMANOID_HOME)
 
 
 class _Nav(nav.Navigator):
@@ -181,10 +181,10 @@ def test_the_lattice_search_is_dijkstra_over_its_own_edges():
 # ---- the navigator ---------------------------------------------------------------
 
 
-def test_the_quadruped_walks_into_the_unknown_by_its_own_class_attributes():
+def test_the_humanoid_walks_into_the_unknown_by_its_own_class_attributes():
   """A new behaviour for one body is a class attribute (CLAUDE.md, the body
   bullet), the navigator's own default unchanged."""
-  assert QuadMission.OPTIMISTIC and QuadMission.PROGRESS_MAP_GROWTH
+  assert HumanoidMission.OPTIMISTIC and HumanoidMission.PROGRESS_MAP_GROWTH
   assert not nav.Navigator.OPTIMISTIC and not nav.Navigator.PROGRESS_MAP_GROWTH
 
 
@@ -243,11 +243,10 @@ class _Walk:
   _cells = nav.Navigator._cells
   _left = nav.Navigator._left
   PROGRESS_ALONG_ROUTE = True
-  BACKOFF_V, PEER_CLEARANCE_M = QuadMission.BACKOFF_V, QuadMission.PEER_CLEARANCE_M
-  OTHER_ROBOT_CELLS = QuadMission.OTHER_ROBOT_CELLS
-  DOWN_ROBOT_CELLS = QuadMission.DOWN_ROBOT_CELLS
+  BACKOFF_V, PEER_CLEARANCE_M = HumanoidMission.BACKOFF_V, HumanoidMission.PEER_CLEARANCE_M
+  OTHER_ROBOT_CELLS = HumanoidMission.OTHER_ROBOT_CELLS
+  DOWN_ROBOT_CELLS = HumanoidMission.DOWN_ROBOT_CELLS
   NEW_ROUTE_M = nav.Navigator.NEW_ROUTE_M
-  pressing = False
   ask_way = None
 
   def __init__(self, grows=0, growth=True, step=0.0):
@@ -323,28 +322,15 @@ def test_a_stop_ends_the_walk_as_an_abort_and_its_answer_costs_no_patience():
 
 def test_drive_to_takes_a_patience_the_code_caps():
   verb = st.VERBS["drive_to"]
-  assert st.check_step(verb, {"x": 1.0, "y": 2.0}, LEGS) == []
-  assert st.check_step(verb, {"x": 1.0, "y": 2.0, "patience": 300.0}, LEGS) == []
-  assert st.check_step(verb, {"x": 1.0, "y": 2.0, "patience": 601.0}, LEGS) == [
+  assert st.check_step(verb, {"x": 1.0, "y": 2.0}, FACTS) == []
+  assert st.check_step(verb, {"x": 1.0, "y": 2.0, "patience": 300.0}, FACTS) == []
+  assert st.check_step(verb, {"x": 1.0, "y": 2.0, "patience": 601.0}, FACTS) == [
     f"patience=601.0 is above {st.MAX_PATIENCE_S}"]
-  assert lang.compile_procedure("def go():\n    drive_to(1, 2, 300)\n", LEGS)
+  assert lang.compile_procedure("def go():\n    drive_to(1, 2, 300)\n", FACTS)
   with pytest.raises(st.Refused, match="line 2, drive_to: patience=700.0 is above"):
-    lang.compile_procedure("def go():\n    drive_to(1, 2, patience=700)\n", LEGS)
+    lang.compile_procedure("def go():\n    drive_to(1, 2, patience=700)\n", FACTS)
   with pytest.raises(st.Refused, match="drive_to: needs y"):
-    lang.compile_procedure("def go():\n    drive_to(1)\n", LEGS)
-
-
-def _no_arm(name):
-  """`QuadBody.actuator`: a body with no arm names no actuator (#387)."""
-  raise KeyError(f"no actuator {name!r}")
-
-
-def test_a_body_with_no_arm_has_no_carrying_pose_to_take():
-  """Every verb that moves takes the carrying pose first (`run_verb`), and
-  asking a quadruped for its arm raised: no procedure on legs walked a step
-  (#387's deploy). Found on the way to this stage."""
-  life = SimpleNamespace(model=None, body=SimpleNamespace(actuator=_no_arm))
-  assert st.travel_pose(life, None) == []
+    lang.compile_procedure("def go():\n    drive_to(1)\n", FACTS)
 
 
 def _life(stops_at=None):
@@ -354,7 +340,7 @@ def _life(stops_at=None):
   sim s have passed, latching `aborting` the way the lifecycle does."""
   walks = []
   life = SimpleNamespace(data=SimpleNamespace(time=0.0, ctrl=[0.0]), model=None,
-                         world=QUAD_HOME,
+                         world=HUMANOID_HOME,
                          aborting=False, step_now=None, step_until=None,
                          _say=lambda *a, **k: None,
                          drive_why=lambda x, y: "the walk gave up (why)")
@@ -381,11 +367,10 @@ def _life(stops_at=None):
     yield
   life.interrupted = interrupted
   life.body = SimpleNamespace(pose=(0.0, 0.0, 0.0), last_drive=None,
-                              actuator=_no_arm,
                               pose_xy=lambda: life.body.pose[:2],
                               in_sight=lambda x, y: True,
                               peer_on_the_goal=lambda x, y: None,
-                              module_state=lambda tool: {"on_fork": False},
+                              watch=lambda tag: None,
                               go_to_routine=go, hold_routine=hold)
   life.walks = walks
   return life
@@ -393,7 +378,7 @@ def _life(stops_at=None):
 
 def test_a_verb_the_interrupt_ended_is_stopped_whatever_the_verb():
   """`run_verb` reads the latch: a verb that failed because the robot's
-  own interrupt latched during it -- a `pick` whose way to the cube was
+  own interrupt latched during it -- a `find` whose walk to the area was
   stopped says only that it did not get there -- is `stopped:
   interrupted`; a verb that failed with no interrupt is a failure."""
   def run(life, args):
@@ -425,9 +410,9 @@ def test_a_walk_its_interrupt_stopped_stops_either_runner_as_interrupted():
   program = st.Program.single("out", [st.Step("drive_to", {"x": 3.0, "y": 0.0}),
                                       st.Step("wait", {"seconds": 1.0})])
   source = "def out():\n    drive_to(3, 0)\n    wait(1)\n"
-  for run in (lambda life: st.run_program_routine(life, program, LEGS),
+  for run in (lambda life: st.run_program_routine(life, program, FACTS),
               lambda life: lang.run_procedure_routine(
-                life, lang.compile_procedure(source, LEGS), LEGS)):
+                life, lang.compile_procedure(source, FACTS), FACTS)):
     calm = tick.run(STEPPER, run(_life()))
     assert calm["ok"] and calm["completed"] == 2, "the premise"
     r = tick.run(STEPPER, run(_life(stops_at=5.0)))
@@ -456,39 +441,3 @@ def test_a_decided_walk_to_a_zone_has_the_decided_patience():
   life.explore_routine = lambda *a, **kw: tick.result(None)
   body.run(life._after_decision_routine(Decision(action="explore", zone="lab")))
   assert seen == [lc.ZONE_PATIENCE_S] and lc.ZONE_PATIENCE_S > 60.0
-
-
-# ---- the walk, flown whole ----------------------------------------------------------
-
-
-@pytest.mark.slow
-@pytest.mark.endurance(when=(
-  "src/pluggybot/legs/", "models/quadruped", "models/home_world.xml",
-  "src/pluggybot/navigator.py", "src/pluggybot/mapping/", "src/pluggybot/behavior/",
-  "src/pluggybot/perception/", "src/pluggybot/tick.py"))
-def test_a_fresh_quadruped_walks_to_the_kitchen_by_the_hall():
-  """The integration the rules above are pinned for: a fresh robot at its
-  start pose, an empty map, one look round, and the kitchen (-8.47, 4.03).
-  Before, it walked into the workshop and stood against its wall with the
-  kitchen behind it, `no route` 2.4 m short at 47 s; it arrives by the hall
-  door in 38.6 s (`scripts/unknown_spike.py`, SimNotes "Walking into the
-  unknown"). Behind --endurance (~40 sim s of the walking policy): every
-  rule it exercises is pinned fast in this file."""
-  import mujoco
-  from pluggybot.legs import body as qb
-  from pluggybot.legs import world as lw
-  from pluggybot.lifecycle import world_config
-  cfg = world_config(QUAD_HOME)
-  model = lw.home_spec().compile()
-  data = mujoco.MjData(model)
-  body = qb.QuadBody(model, data, realtime=False, grid_bounds=cfg["grid_bounds"])
-  try:
-    body.start_at(*cfg["start"])
-    hall = []
-    body.step_hooks.append(lambda: hall.append(-5.0 < body.true_pose()[0] < -2.0))
-    body.run(body.look_around_routine())
-    assert body.run(body.go_to_routine(-8.47, 4.03, timeout=120.0)), body.last_drive
-    tx, ty, _ = body.true_pose()
-    assert math.hypot(tx + 8.47, ty - 4.03) < 0.15 and any(hall), "by the hall"
-  finally:
-    body.close()

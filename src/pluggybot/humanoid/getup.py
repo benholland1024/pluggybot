@@ -33,7 +33,7 @@ from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.arms import SelfModel
 from pluggybot.humanoid.policy import StandPolicy, TrunkSense
 from pluggybot.humanoid.senses import JointSense
-from pluggybot.legs.drivers import Drivers
+from pluggybot.humanoid.drivers import Drivers
 
 GETUP_NPZ = Path(__file__).resolve().parents[3] / "models" / "humanoid_getup.npz"
 #: The trunk tipped this far off the posture its legs hold, by the IMU, is

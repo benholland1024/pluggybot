@@ -12,10 +12,9 @@ Usage:
   MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
     # CPU-only rendering, the deploy-server configuration
   ... --world home      # the generated house + garden (issue #6) with the
-                        # quadruped in it (`home_quad`, issue #387), the
-                        # default until #559's stage 5 -- or with the
-                        # humanoid in it (`--body humanoid`, `home_humanoid`,
-                        # deployed since #559's stage 4). Everything the world
+                        # humanoid in it (`home_humanoid`, #559; the
+                        # quadruped's `home_quad` left in its stage 5, and
+                        # `quadruped-final` serves it). Everything the world
                         # implies -- model, scene name, grid extent, battery,
                         # start pose, explore budget -- comes from
                         # lifecycle.world_config(), so this flag can never
@@ -79,9 +78,9 @@ from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.robot import BODIES, world_spec
 from pluggybot.lifecycle import (
-  LOST_TOOL_S, RESTART_AFTER_S, STARTING_POINTS, HubLifecycle, attach_mode_stream,
+  RESTART_AFTER_S, STARTING_POINTS, HubLifecycle, attach_mode_stream,
   board_book, errands_for,
-  points_ledger, task_board, task_producer, world_config, world_for, world_screens,
+  points_ledger, task_board, task_producer, world_config, world_for,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES, INBOUND_TYPES,
@@ -90,8 +89,10 @@ from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
 from pluggybot.telemetry import vitals
 
-#: The errand queues a served world may be asked for (`lifecycle.errands_for`).
-ERRAND_QUEUES = ("none", "care", "feed", "shock")
+#: The errand queues a served world may be asked for (`lifecycle.errands_for`):
+#: none, its jobs coming off the board (the quadruped's acts on the mouse went
+#: with it in #559).
+ERRAND_QUEUES = ("none",)
 
 
 def main() -> None:
@@ -113,18 +114,16 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--endpoint", default="ws://localhost:8765",
                       help="WebSocket endpoint to publish to")
-  parser.add_argument("--world", choices=("home", "home_quad", "home_humanoid"),
+  parser.add_argument("--world", choices=("home", "home_humanoid"),
                       default="home",
                       help="which world to serve: the generated home world "
-                           "(issue #6), with the quadruped in it (`home_quad`) "
-                           "or the humanoid (`home_humanoid`, #559)")
+                           "(issue #6), with the humanoid in it "
+                           "(`home_humanoid`, #559)")
   parser.add_argument("--body", choices=BODIES,
                       default=os.environ.get("PLUGGY_BODY") or None,
-                      help="which body the robots have: the humanoid (#559, "
-                           "deployed from its stage 4: no dock, rack or tools; "
-                           "it charges at its station) or the quadruped (issue "
-                           "#387, until stage 5). Default $PLUGGY_BODY, then "
-                           "the body --world names (home: the quadruped)")
+                      help="which body the robots have: the humanoid (#559; "
+                           "it charges at its station), the one there is. "
+                           "Default $PLUGGY_BODY, then the body --world names")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",
@@ -150,12 +149,6 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                            "test: a served world whose robot is on the floor "
                            "until somebody notices is not a world anybody "
                            "can watch")
-  parser.add_argument("--lost-tool-after", type=float, default=LOST_TOOL_S,
-                      metavar="S",
-                      help="SIM seconds a tool lies on no bay and no fork "
-                           "before the world puts it back (issue #347; 0 "
-                           "disables it). ON here and off in a test, on "
-                           "--restart-after's terms")
   parser.add_argument("--start-points", type=int, default=STARTING_POINTS,
                       metavar="N",
                       help="points a new robot starts with after a true death "
@@ -203,9 +196,8 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                                         " forever)")
   parser.add_argument("--errand", choices=ERRAND_QUEUES, default="none",
                       help="what the robot is FOR this run (issue #12): none "
-                           "(the default: it explores, then stands by for "
-                           "the board's work), or an act on the mouse "
-                           "(`lifecycle.errands_for`)")
+                           "(the default and the one there is: it explores, "
+                           "then stands by for the board's work)")
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
@@ -335,8 +327,9 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                                         "hour (default 60)")
   args = parser.parse_args()
   # WHICH BODY (issue #387): the world a body lives in is its own name --
-  # `home` with legs is `home_quad` -- and everything below keys off it, so
-  # the energy table, the menu and the wire's `model` are the body's.
+  # `home` with the humanoids is `home_humanoid` -- and everything below
+  # keys off it, so the energy table, the menu and the wire's `model` are
+  # the body's.
   try:
     args.world = world_for(args.world, args.body)
   except ValueError as e:
@@ -386,14 +379,11 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # clock goes on decides what an offer's deadline means.
   opened = open_world(args.world_state, args.world)
   snap = opened.snapshot
-  model = world_spec(cfg["model"], body=cfg["body"]).compile()
+  model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   # Board state is the world's, not the run's: loaded before the mission and
   # written back on every stroke, so a restart walks into the house it left.
   book = board_book(args.world, state=args.boards)
-  # The world's displays (issue #13): the lifecycle drives the LCD's face off
-  # its own state, and every screen's content rides in the frames.
-  screens = world_screens(model, data)
   # Points are world state too (issue #14), and the ROBOT's rather than the
   # room's: a balance that resets whenever the container cycles is not a
   # scoreboard. Every mission end is a restart, so the site's rivalry only
@@ -427,8 +417,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # surfaces. Attached on EVERY served world, overseer or not: a loop with
   # no mind still has a history, and the site's Thoughts tab is what a
   # visitor opens first.
-  memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution,
-                             body=cfg["body"])
+  memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution)
   # The weekly allowance (issue #37), and world state on the same terms the
   # ledger is: a mission ends several times an hour here, so a budget that
   # lived in the process would be a budget that reset several times an hour.
@@ -485,10 +474,10 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # The visitor channel (issue #16), attached ALWAYS as of issue #30 -- but
   # what this run advertises it can hear is per-kind (`accepts` below).
   # Suggestions and questions still need an overseer to read them; a rating
-  # settles a ledger row and a `reset_tool` puts a dropped module back on its
-  # bay, and BOTH are handled by code the moment the physics thread drains
-  # them -- a scripted world's tools get lost (and its artwork rated) exactly
-  # as often as a minded one's.
+  # settles a ledger row and an admin's reach-in moves the world, and BOTH
+  # are handled by code the moment the physics thread drains them -- a
+  # scripted world's robots are reset (and its artwork rated) exactly as
+  # often as a minded one's.
   inbox = Inbox()
   # The demo cell flattens in minutes, which reads on a watched stream as a
   # robot that only ever charges; `--pack hosting` is the hours-long one
@@ -500,12 +489,11 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
              else cfg["hosting_battery_wh"])
   life = HubLifecycle(model, data, inbox=inbox,
                       battery_wh=args.battery_wh or pack_wh,
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                      grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=(args.reserve_wh
                                       if args.reserve_wh is not None
                                       else cfg["low_battery_wh"]),
-                      errands=errands_for(args.errand, args.world, book),
-                      screen=next(iter(screens), None),
+                      errands=errands_for(args.errand),
                       overseer=boss, mode=switch,
                       world=args.world,
                       boards=book, ledger=ledger, tasks=tasks,
@@ -521,9 +509,6 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       # `HubLifecycle.restart_after_s`.
                       restart_after_s=(args.restart_after
                                        if args.restart_after > 0 else None),
-                      # ...and a tool on the floor goes home (issue #347)
-                      lost_tool_after_s=(args.lost_tool_after
-                                         if args.lost_tool_after > 0 else None),
                       # ...and a new robot starts with points (issue #419)
                       start_points=args.start_points if args.start_points > 0 else None,
                       near_field=args.near_field)
@@ -590,12 +575,12 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                           heightmap=life.near_field,
                           keyframe_s=args.keyframe_s,
                           activities=activities, boards=book,
-                          screens=screens, ledger=ledger, tasks=tasks,
+                          ledger=ledger, tasks=tasks,
                           # What this run can actually HEAR, per kind
                           # (issues #16, #30). The website reads it: a
                           # message is only "delivered" if somebody who can
                           # act on it got it, and that somebody is an overseer
-                          # -- while a rating or an admin's tool reset is
+                          # -- while a rating or an admin's reach-in is
                           # handled by code and heard on any served world.
                           accepts=(INBOUND_TYPES if boss is not None
                                    else CODE_HANDLED_TYPES),
@@ -663,7 +648,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                                  status_fn=life.telemetry_status,
                                  keyframe_s=args.keyframe_s,
                                  activities=activities, boards=book,
-                                 screens=screens, ledger=ledger, tasks=tasks,
+                                 ledger=ledger, tasks=tasks,
                                  goals=goals_prose, thoughts=memory,
                                  spend=(purse if (boss is not None and boss.spend is not None)
                                         else None),
@@ -775,8 +760,6 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
                      near_field=args.near_field,
                      restart_after_s=(args.restart_after
                                       if args.restart_after > 0 else None),
-                     lost_tool_after_s=(args.lost_tool_after
-                                        if args.lost_tool_after > 0 else None),
                      start_points=args.start_points if args.start_points > 0 else None,
                      constitutions_named=(args.constitution, args.constitution_2),
                      resume=snap)
@@ -785,9 +768,6 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
     life.restart_note = opened.why
   watchdog.sim_time = lambda: first.data.time
   model, data = first.model, first.data
-  screens = world_screens(model, data)
-  for life in lives:
-    life.screen = next(iter(screens), None)
   boss = first.overseer
   arm = "scripted" if boss is None else "autonomous"
   identity = build_identity(
@@ -824,7 +804,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
                         tickets=second.tickets)]
   sink_kw = dict(model_name=pair_model_name(cfg["model_name"]),
                  status_fn=first.telemetry_status, keyframe_s=args.keyframe_s,
-                 activities=first.activities, boards=book, screens=screens,
+                 activities=first.activities, boards=book,
                  ledger=ledger, tasks=tasks,
                  goals=overseer.goals_text(thoughts=first.thoughts),
                  thoughts=first.thoughts, spend=purse if can_spend else None,
@@ -983,16 +963,10 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "",
     print(f"\n---- {label} ----")
   print()
   print(f"mission state          : {r['state']}"
-        f" (swaps={r['swaps_done']}, charges={r['charge_cycles']},"
-        f" stowed={r['module_stowed']})")
+        f" (charges={r['charge_cycles']})")
   for e in r["errands"]:
-    # A draw that never squared up to its board has no `fill` (issue #349).
-    extra = (f"  {e.get('figure')} on {e['board']}, "
-             + (f"board {e['fill']:.0%} full" if e.get("fill") is not None
-                else e.get("error") or "no fill measured")
-             if e.get("board") else "")
     print(f"errand {e['errand']:<20s}: picked={e['picked']}"
-          f" stowed={e['stowed']}{extra}")
+          f" stowed={e['stowed']}")
   print(f"points balance         : {r['points']}"
         f" ({r['earned']} earned over {len(r['verdicts'])} scored task(s))")
   # `.get`, not `[...]`: this is a SUMMARY, and a summary line must never be

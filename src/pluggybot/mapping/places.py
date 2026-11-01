@@ -18,7 +18,7 @@ is known three ways, best first (`facing`):
 
   the FIXTURE  the tags of one fixture -- the lab's row of plate signs --
                fitted to its drawing together: the facing off their
-               baseline, the dock's rule (#88);
+               baseline (#88's rule);
   the TAG      one tag's own rotation, from looks close and oblique enough
                that its pose is not a coin flip (`OBLIQUE_RAD`, `CLOSE_M`);
   the VIEW     where it was last seen from: a sign is read only from in
@@ -107,7 +107,7 @@ class Places:
     self.fixtures = tuple(fixtures)
     self._places: dict[int, Place] = {}
     #: Bumped on every look that changed anything: a reader keeps the last
-    #: it saw (the keep-out layer, `legs.places`).
+    #: it saw (the keep-out layer, `humanoid.mission`'s plates).
     self.version = 0
 
   def __len__(self) -> int:
@@ -195,7 +195,7 @@ class Places:
 
   def _fit(self, fx: Fixture) -> float | None:
     """The fixture's rotation into the map off its known tags (a 2D rigid
-    fit, `legs.dock.fit_dock`'s), or None without a baseline."""
+    fit, `humanoid.charge.fit`'s rule), or None without a baseline."""
     ids = [t for t in fx.layout if t in self._places]
     if len(ids) < 2:
       return None

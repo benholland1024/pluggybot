@@ -3,7 +3,7 @@ stand -- lying on its back, on its front, dropped any way up, or tipping
 over from standing -- by a policy of its own, which the served body hands
 its legs AND arms to once it is falling, and back once it stands.
 
-The quadruped's get-up (`quad_train.getup`, #389) is the template, with
+The quadruped's get-up (#389, at `quadruped-final`) is the template, with
 what a biped needs:
   - all twenty-four joints are the policy's: a body on the floor pushes off
     with its hands, and its arms meet its trunk and legs
@@ -49,7 +49,6 @@ from mjlab.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
 
 from humanoid_train import robot
 from humanoid_train.walk import blown_up
-from quad_train.getup import _quat_from_rpy
 
 _ROBOT = SceneEntityCfg("robot")
 JOINTS = robot.LEGS + robot.ARMS
@@ -142,6 +141,15 @@ def _paid(env, budget_s: float) -> torch.Tensor:
 
 
 # ---- the starts --------------------------------------------------------------------
+
+def _quat_from_rpy(roll, pitch, yaw):
+  cr, sr = torch.cos(roll / 2), torch.sin(roll / 2)
+  cp, sp = torch.cos(pitch / 2), torch.sin(pitch / 2)
+  cy, sy = torch.cos(yaw / 2), torch.sin(yaw / 2)
+  return torch.stack([cr * cp * cy + sr * sp * sy, sr * cp * cy - cr * sp * sy,
+                      cr * sp * cy + sr * cp * sy, cr * cp * sy - sr * sp * cy],
+                     dim=-1)
+
 
 def reset_fallen(env, env_ids, starts: dict | None = None,
                  asset_cfg: SceneEntityCfg = _ROBOT) -> None:

@@ -27,8 +27,7 @@ to 400 N and a planted one's went negative. ⚠ NOR THE IMU's velocity
 against each foot's (the two hypotheses): its height drifted a metre in 8 s
 on flat ground.
 
-The quadruped's `legs.odometry.LegOdometry` is its four feet's; nothing
-here reads the simulator's truth: the scan matcher corrects what slips
+Nothing here reads the simulator's truth: the scan matcher corrects what slips
 (`correct`, the `Navigator`'s `_set_pose`).
 """
 

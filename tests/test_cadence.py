@@ -7,7 +7,7 @@ up and when it goes away, which is a different set of failures:
      robot with nothing asked of it for the rest of a multi-hour run.
   2. ...AND IT DOES NOT GO MAD. Offers are capped, the board is bounded, and
      an offer nobody takes lapses on schedule rather than standing forever.
-  3. NO TARGET IS BOOKED FOREVER, AND NO KIND IS STARVED. The same whiteboard
+  3. NO TARGET IS BOOKED FOREVER, AND NO KIND IS STARVED. The same prop
      back-to-back, or a third kind that never once gets a turn, are the two
      ways a rotation quietly stops being one.
   4. THE TIMING IS CONFIGURATION. Cadence, caps and expiry are read off
@@ -32,17 +32,35 @@ from pluggybot.economy.cadence import (
 from pluggybot.economy import scoring
 from pluggybot.economy.tasks import KINDS, TaskBoard
 
-HOME_TARGETS = {"board": ["whiteboard_a", "whiteboard_b"],
-                "zone": ["garden"], "module": ["module_lcd"]}
+#: The humanoids' house's props, and the pair a take names.
+HOME_TARGETS = {"drawer": ["drawer"], "door": ["door"], "chest": ["chest"],
+                "robot": ["pluggybot", "r2_pluggybot"]}
+#: A paying verdict, the cheapest to satisfy from a dict: the take's (#228).
+TOOK = {"asked": 10, "taken": 10, "to": "r2_pluggybot", "why": ""}
+#: THREE JOBS OVER ONE KIND OF TARGET, of which a world has two -- the shape
+#: of the house's three board jobs over its two whiteboards (#23), which is
+#: what the rotation's fairness is about, and which no world has now (each
+#: hand job has its own prop). Each is the drawer's job under its own name,
+#: judged and paid as that is, registered for the test alone (`shared`).
+SHARED = ("job_a", "job_b", "job_c")
+SHELVES = {"shelf": ["shelf_a", "shelf_b"]}
+
+
+@pytest.fixture
+def shared(monkeypatch):
+  for name in SHARED:
+    monkeypatch.setitem(KINDS, name, dataclasses.replace(
+      KINDS["open_drawer"], name=name, target_kind="shelf", draws=False))
+  return SHARED
 
 
 def cadence(**kw) -> Cadence:
   spec = {"firstAtS": 100.0, "everyS": 100.0, "ttlS": 300.0,
           "cooldownS": 150.0, "maxOffered": 4, "maxTasks": 20, "initial": 3,
-          "kinds": {"whiteboard_answer": {},
-                    "draw_figure": {"programs": ["house", "tree"]},
-                    "rate_artwork": {"programs": ["robot"]},
-                    "count_plants": {}}}
+          "kinds": {"open_drawer": {"params": {"minutes": 16}},
+                    "open_door": {"params": {"minutes": 16}},
+                    "open_chest": {"params": {"minutes": 16}},
+                    "take_points": {"params": {"amount": 10}}}}
   spec.update(kw)
   return Cadence._build("test", spec, None)
 
@@ -119,10 +137,12 @@ def test_a_tick_that_cannot_place_a_job_does_not_catch_up_later():
   Shown to fail by advancing `next_at` by `every_s` instead of setting it
   from `t`: the ticks missed while the board was full come due at once.
   """
-  maker = producer(cadence(everyS=60.0, firstAtS=0.0, initial=0, ttlS=None))
+  maker = producer(cadence(everyS=60.0, firstAtS=0.0, initial=0, ttlS=None,
+                           maxOffered=8))
   # An hour in which nothing may be placed, because every target is booked.
-  for target in ("whiteboard_a", "whiteboard_b", "garden"):
-    kind = "draw_figure" if target.startswith("white") else "count_plants"
+  for kind, target in (("open_drawer", "drawer"), ("open_door", "door"),
+                       ("open_chest", "chest"), ("take_points", "pluggybot"),
+                       ("take_points", "r2_pluggybot")):
     assert maker.board.offer(kind, target, t=0.0) is not None
   maker.tick(3600.0)
   # ...and now one comes free. Exactly one job, not sixty.
@@ -180,15 +200,14 @@ def test_a_healthy_run_shows_claimed_completed_and_lapsed():
     ready = maker.board.claimable(t)
     if not ready:
       continue
-    took = maker.board.claim(ready[0].id, t=t, answer="7")
+    took = maker.board.claim(ready[0].id, t=t)
     assert took is not None
     maker.board.start(took.id, t=t)
     busy_until = t + 400.0
-    # Judged as a `carry`, which is the cheapest evaluator to satisfy from a
+    # Judged as a take, which is the cheapest evaluator to satisfy from a
     # dict: what is under test is the cadence around a robot that finishes
-    # things, not what any particular errand is worth.
-    maker.board.resolve(took.id, scoring.evaluate(
-      "carry", {"picked": True, "stowed": True, "module": "module_lcd"}), t=t)
+    # things, not what any particular job is worth.
+    maker.board.resolve(took.id, scoring.evaluate("take", TOOK), t=t)
   stats = maker.board.stats()
   assert stats["done"] > 3, f"nothing got finished: {stats}"
   assert stats["expired"] > 3, f"nothing ever lapsed: {stats}"
@@ -199,56 +218,47 @@ def test_a_healthy_run_shows_claimed_completed_and_lapsed():
 # ---- fairness ----------------------------------------------------------------
 
 
-def test_the_same_whiteboard_is_not_booked_back_to_back():
+def test_the_same_prop_is_not_booked_back_to_back():
   """The per-target cooldown, which is the third thing issue #23 asks for."""
   beat = cadence(cooldownS=500.0, everyS=50.0, firstAtS=0.0, initial=0,
-                 ttlS=60.0, kinds={"draw_figure": {}})
-  maker = producer(beat, targets={"board": ["whiteboard_a"]})
+                 ttlS=60.0, kinds={"open_drawer": {}})
+  maker = producer(beat, targets={"drawer": ["drawer"]})
   made = run(maker, until=2000.0, step=10.0, seed=False)
   at = [t.created_t for t in made]
   gaps = [b - a for a, b in zip(at, at[1:])]
   assert gaps, "only one offer in 2000 s: the cooldown is not being lifted"
   assert min(gaps) >= beat.cooldown_s, \
-    f"whiteboard_a was re-booked after {min(gaps)} s"
+    f"the drawer was re-booked after {min(gaps)} s"
 
 
-def test_two_boards_are_used_evenly_rather_than_the_first_one_twice():
-  """Least-recently-offered, not first: with `first`, the second whiteboard
-  is scenery."""
+def test_two_targets_are_used_evenly_rather_than_the_first_one_twice():
+  """Least-recently-offered, not first: with `first`, the second target --
+  a whiteboard once, a robot for a take now -- is scenery."""
   maker = producer(cadence(cooldownS=0.0, everyS=50.0, firstAtS=0.0,
                            initial=0, ttlS=40.0,
-                           kinds={"draw_figure": {}}))
+                           kinds={"take_points": {"params": {"amount": 10}}}))
   used = [t.target for t in run(maker, until=1000.0, seed=False)]
-  assert set(used) == {"whiteboard_a", "whiteboard_b"}
-  assert abs(used.count("whiteboard_a") - used.count("whiteboard_b")) <= 1
+  assert set(used) == {"pluggybot", "r2_pluggybot"}
+  assert abs(used.count("pluggybot") - used.count("r2_pluggybot")) <= 1
 
 
-def test_a_kind_behind_two_others_is_not_starved_forever():
+def test_a_kind_behind_two_others_is_not_starved_forever(shared):
   """⚠ MEASURED, and it is why the cursor keeps a passed-over kind at the
   head of the queue rather than advancing past whatever it placed.
 
-  home has THREE board-shaped kinds and TWO whiteboards, so on any cycle one
-  of them cannot be placed. With a cursor that simply advanced on each
+  home had THREE board-shaped kinds and TWO whiteboards, so on any cycle one
+  of them could not be placed. With a cursor that simply advanced on each
   placement, the same two won every time and `rate_artwork` -- the entire
   visitor-rated tier -- was offered ZERO times in four sim-hours. Shown to
-  fail by setting `self.cursor = (index + 1) % n` unconditionally.
+  fail by setting `self.cursor = (index + 1) % n` unconditionally: the
+  third job over the two shelves is never offered.
   """
-  maker = producer()
+  maker = producer(cadence(kinds={**{k: {} for k in shared}, "open_chest": {}}),
+                   targets={**SHELVES, "chest": ["chest"]})
   made = run(maker, until=4 * 3600.0)
   offered = {task.kind for task in made}
   assert offered == set(maker.kinds), \
     f"never offered: {sorted(set(maker.kinds) - offered)}"
-
-
-def test_successive_drawings_are_not_all_the_same_figure():
-  """`programs` rotates, so a day of the site's stream is not one house over
-  and over."""
-  maker = producer(cadence(cooldownS=0.0, everyS=50.0, firstAtS=0.0,
-                           initial=0, ttlS=40.0,
-                           kinds={"draw_figure": {"programs": ["house",
-                                                               "tree"]}}))
-  drawn = [t.params["program"] for t in run(maker, until=600.0, seed=False)]
-  assert set(drawn) == {"house", "tree"}, drawn
 
 
 def test_the_rotation_is_deterministic():
@@ -263,23 +273,20 @@ def test_the_rotation_is_deterministic():
 # ---- the world's furniture ---------------------------------------------------
 
 
-def test_a_world_with_no_whiteboards_offers_fewer_jobs_not_broken_ones():
-  maker = producer(targets={"module": ["module_lcd"]})
-  assert maker.kinds == (), "a board kind was kept in a world with no boards"
+def test_a_world_without_a_jobs_props_offers_fewer_jobs_not_broken_ones():
+  maker = producer(targets={"cube": ["cube"]})
+  assert maker.kinds == (), "a prop's kind was kept in a world without the prop"
   assert run(maker, until=2000.0) == []
-  # ...and a cadence of the carry over the same furniture offers it.
-  bare = producer(cadence(kinds={"fetch_module": {}}),
-                  targets={"module": ["module_lcd"]})
-  assert [t.kind for t in bare.seed(0.0)] == ["fetch_module"]
+  # ...and a cadence of the cube's job over the same furniture offers it.
+  bare = producer(cadence(kinds={"place_cube": {}}), targets={"cube": ["cube"]})
+  assert [t.kind for t in bare.seed(0.0)] == ["place_cube"]
 
 
-def test_the_seed_respects_the_per_target_rule_rather_than_double_booking():
-  """Three board-shaped kinds and the house's two whiteboards, so a seed of
-  four puts up three. Fewer offers, never two jobs on one board."""
-  book = lc.board_book(lc.QUAD_HOME)
-  beat = cadence(initial=4)
-  b = lc.task_board(cadence=beat)
-  seeded = lc.task_producer(b, lc.QUAD_HOME, book, cadence=beat).seed(0.0)
+def test_the_seed_respects_the_per_target_rule_rather_than_double_booking(shared):
+  """Three jobs over two shelves and one over the chest, so a seed of four
+  puts up three. Fewer offers, never two jobs on one shelf."""
+  beat = cadence(initial=4, kinds={**{k: {} for k in shared}, "open_chest": {}})
+  seeded = producer(beat, targets={**SHELVES, "chest": ["chest"]}).seed(0.0)
   targets = [t.target for t in seeded]
   assert len(targets) == len(set(targets)) == 3, targets
 
@@ -296,9 +303,9 @@ def test_every_world_block_in_the_shipped_file_loads():
   for world in ("", *doc["worlds"]):
     beat = default_cadence(world)
     assert all(name in KINDS for name in beat.kinds)
-    # ...and every world offers something but the humanoids' house, whose
-    # jobs were the quadruped's tools' (#559: they come back by its hands)
-    assert beat.kinds or world == lc.HUMANOID_HOME, world
+    # ...and every world offers something (the humanoids' house its hand
+    # jobs, #559)
+    assert beat.kinds, world
     assert beat.every_s > 0 and beat.max_offered <= beat.max_tasks
 
 
@@ -310,12 +317,12 @@ def test_a_deploy_can_point_the_cadence_somewhere_else(tmp_path, monkeypatch):
   path.write_text(json.dumps({
     "version": CADENCE_VERSION,
     "default": {"everyS": 42.0, "ttlS": 99.0, "maxOffered": 2, "maxTasks": 3,
-                "initial": 1, "kinds": {"count_plants": {}}}}))
+                "initial": 1, "kinds": {"open_drawer": {}}}}))
   monkeypatch.setenv(CADENCE_ENV, str(path))
   beat = reload_cadence(world="home")
   try:
     assert beat.every_s == 42.0 and beat.max_offered == 2
-    assert list(beat.kinds) == ["count_plants"]
+    assert list(beat.kinds) == ["open_drawer"]
   finally:
     monkeypatch.delenv(CADENCE_ENV)
     reload_cadence(world="home")
@@ -337,7 +344,7 @@ def test_a_cadence_that_offers_a_job_nothing_can_judge_refuses_to_load():
 ])
 def test_an_impossible_cadence_refuses_to_load(spec, match):
   with pytest.raises(ValueError, match=match):
-    Cadence._build("test", {**{"kinds": {"count_plants": {}}}, **spec}, None)
+    Cadence._build("test", {**{"kinds": {"open_drawer": {}}}, **spec}, None)
 
 
 def test_a_newer_cadence_version_refuses_to_load(tmp_path):
@@ -362,16 +369,16 @@ def test_the_world_only_offers_work_it_could_ever_pay_the_energy_for():
   charge is real and already lives in `Task.claimable`: the offer stands,
   unclaimable, until the pack is legal again.
   """
-  maker = producer(cadence(kinds={"draw_figure": {}, "count_plants": {}}))
-  tiny = min(KINDS["draw_figure"].estimate_wh,
-             KINDS["count_plants"].estimate_wh) - 0.01
+  maker = producer(cadence(kinds={"open_drawer": {}, "open_door": {}}))
+  tiny = min(KINDS["open_drawer"].estimate_wh,
+             KINDS["open_door"].estimate_wh) - 0.01
   assert run(maker, until=2000.0, pack_wh=tiny) == []
   assert maker.deferred > 0, "the deferral was not even noticed"
   # ...and the same world with a pack that could fund them offers both.
-  ok = producer(cadence(kinds={"draw_figure": {}, "count_plants": {}}))
-  both = max(KINDS["draw_figure"].estimate_wh, KINDS["count_plants"].estimate_wh) + 0.5
+  ok = producer(cadence(kinds={"open_drawer": {}, "open_door": {}}))
+  both = max(KINDS["open_drawer"].estimate_wh, KINDS["open_door"].estimate_wh) + 0.5
   assert {t.kind for t in run(ok, until=2000.0, pack_wh=both)} == \
-    {"draw_figure", "count_plants"}
+    {"open_drawer", "open_door"}
 
 
 def test_the_producer_runs_during_a_charge_and_cannot_touch_the_robot():
@@ -389,11 +396,11 @@ def test_the_producer_runs_during_a_charge_and_cannot_touch_the_robot():
   # Priced for the world, as production does (issue #15).
   from pluggybot.economy.energy import load as load_energy
   from test_body import stub_life
-  b = board(energy=load_energy(lc.QUAD_HOME))
+  b = board(energy=load_energy(lc.HUMANOID_HOME))
   life = stub_life(tasks=b, producer=None)
   life.producer = TaskProducer(b, cadence(firstAtS=0.0, everyS=1.0, initial=0,
-                                          kinds={"fetch_module": {}}),
-                               {"module": ["module_lcd"]})
+                                          kinds={"open_drawer": {}}),
+                               {"drawer": ["drawer"]})
   life.state = "CHARGE"
   life.battery.energy_wh = life.low_battery_wh * 0.5
   before = (life.state, list(life.errands), life.battery.energy_wh,
@@ -404,82 +411,6 @@ def test_the_producer_runs_during_a_charge_and_cannot_touch_the_robot():
   assert (life.state, list(life.errands), life.battery.energy_wh,
           list(life.claimed)) == before, \
     "the producer's seam reached into the mission loop"
-
-
-def test_a_use_phase_is_skipped_when_the_robot_never_reached_the_board():
-  """⚠ THE HANG ISSUE #23 FOUND, and it was never about cadence.
-
-  `run_errand` called `mission.drive_to(*errand.use_at)` and THREW THE ANSWER
-  AWAY, then narrated "arrived" whatever had happened. `drive_to` returns
-  False when it stagnated or could not plan, so a use-phase ran anyway --
-  the pen probing for a board seven metres away, forever, until the battery
-  died. Measured: ten minutes of wall clock with nothing in the log after
-  `USE_TOOL: arrived`, and no test in the repo could see it because nothing
-  had ever sent the robot to the FAR whiteboard. The producer does, because
-  it rotates targets instead of always naming the first one.
-
-  What must happen instead is the boring thing: skip the use-phase, put the
-  tool back, and let the evaluator find no ink and fail the job. A robot that
-  could not get there and a robot that got there and drew badly are different
-  events, and both have to end with the module on the rack.
-
-  Shown to fail by restoring the drive as a bare call: the use-phase runs.
-  """
-  from pluggybot.mission.errand import Errand
-  from test_body import stub_life
-  life = stub_life()
-  ran: list[bool] = []
-
-  def use(_life):
-    ran.append(True)
-    return {"drew": True}
-
-  # A destination the robot cannot get to, and a use-phase that records
-  # whether it was reached. Everything physical is stubbed: what is under
-  # test is one branch, not a mission.
-  errand = Errand(name="draw:nowhere", module="module_pen", station_y=0.0,
-                  use_at=(500.0, 500.0), use=use)
-  life.body.go_to_routine = lambda *a, **kw: tick.result(False)
-  result = life.run_errand(errand)
-  assert not ran, "the use-phase ran at a board the robot never reached"
-  assert result["error"] == "never reached the use pose"
-  assert result["stowed"], "the tool was abandoned instead of being put back"
-
-
-def test_an_errand_that_navigates_itself_is_not_skipped_for_falling_short():
-  """...and the OTHER half of that gate, which the first version did not have.
-
-  Skipping the use-phase is right for a pen, which must be at the board. It is
-  wrong for an errand that does its own navigation: the census's `use_at` is
-  the FIRST POINT OF THE SURVEY ROUTE its use-phase then drives itself, so the
-  pre-positioning drive is redundant by construction.
-
-  ⚠ MEASURED, and it cost a fixture. With one gate for every errand, the home
-  showcase recording's drive stopped 1.96 m short of the garden vantage and
-  the census was sent home -- from a spot it had previously surveyed 100 % of
-  the zone from, counting 4 of 4 plants for +20. No committed recording then
-  showed the LCD in `count` mode, which `test_the_home_fixture_shows_the_
-  census_answer` guards and which is half of what the showcase queue exists to
-  show. Set `needs_use_pose` back to True for every errand and that fixture
-  test is what fails.
-  """
-  from pluggybot.mission.errand import Errand
-  from test_body import stub_life
-  life = stub_life()
-  ran: list[bool] = []
-
-  def use(_life):
-    ran.append(True)
-    return {"counted": 4, "truth": 4}
-
-  errand = Errand(name="census:garden", module="module_lcd", station_y=0.0,
-                  use_at=(500.0, 500.0), use=use, needs_use_pose=False)
-  life.body.go_to_routine = lambda *a, **kw: tick.result(False)      # the drive gave up
-  result = life.run_errand(errand)
-  assert ran, "an errand that navigates itself was skipped for a short drive"
-  assert "error" not in result
-  assert result["counted"] == 4
-  assert result["stowed"]
 
 
 def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
@@ -502,14 +433,14 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
   """
   from pluggybot.economy.energy import load as load_energy
   from test_body import stub_life
-  start = lc.world_config(lc.QUAD_HOME)["start"]
-  b = board(energy=load_energy(lc.QUAD_HOME))
+  start = lc.world_config(lc.HUMANOID_HOME)["start"]
+  b = board(energy=load_energy(lc.HUMANOID_HOME))
   life = stub_life(tasks=b)
   # A world that will not offer anything for a long time, so the ONLY thing
   # keeping the loop alive is the decision to wait for it.
   life.producer = TaskProducer(b, cadence(firstAtS=1e6, everyS=1e6, initial=0,
-                                          kinds={"fetch_module": {}}),
-                               {"module": ["module_lcd"]})
+                                          kinds={"open_drawer": {}}),
+                               {"drawer": ["drawer"]})
   # Nothing physical: the branch under test is the last one in `run()`, and
   # mapping a room to reach it would make this a mission test.
   life.explore_routine = lambda *a, **kw: tick.result(setattr(life, "floor_explored", True))
@@ -556,42 +487,40 @@ def test_the_rotation_resumes_where_the_last_mission_left_it(tmp_path):
   maker = producer(beat, b=b)
   assert maker.cursor == 0 and b.producer == {}
   [first] = maker.seed(0.0)
-  assert first.kind == "whiteboard_answer" and b.producer["cursor"] == "draw_figure"
-  b.resolve(first.id, scoring.evaluate("answer", {}, table=b.table), t=1.0)
+  assert first.kind == "open_drawer" and b.producer["cursor"] == "open_door"
+  b.resolve(first.id, scoring.evaluate("take", TOOK, table=b.table), t=1.0)
   [second] = maker.tick(100.0)
-  assert second.kind == "draw_figure" and second.params["program"] == "house"
-  assert b.producer == {"cursor": "rate_artwork", "figure": 1}
+  assert second.kind == "open_door"
+  assert b.producer == {"cursor": "open_chest"}
   # a restart: a fresh producer over the loaded board carries on
   again = producer(beat, b=board(path=path, max_offered=1))
-  assert again.cursor == maker.cursor == 2 and again.figure == 1
-  assert again.kinds[again.cursor] == "rate_artwork"
+  assert again.cursor == maker.cursor == 2
+  assert again.kinds[again.cursor] == "open_chest"
   # ...and a rotation that no longer has that kind starts at the top
-  short = producer(cadence(kinds={"whiteboard_answer": {}, "count_plants": {}}),
+  short = producer(cadence(kinds={"open_drawer": {}, "take_points": {}}),
                    b=board(path=path))
   assert short.cursor == 0
   # nothing persisted (no path): the same code, no file, no error
   assert producer(beat).cursor == 0
 
 
-def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
+def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path, shared):
   """Hourly missions in miniature: missions of 3600 s, the board persisted
   between them, a fresh producer each time, one robot working the jobs it
   can. Without the persisted cursor the last kinds are offered a fraction
-  as often as the first; with it, the cage's two kinds share the lab's one
-  slot evenly, and the bench -- an area of its own since #407, its offer
-  the bench's directions -- is never starved behind them."""
-  from pluggybot.lifecycle import board_book, world_targets
-  targets = world_targets(lc.QUAD_HOME, board_book(lc.QUAD_HOME), procedures=True,
-                          robots=("Luca", "Rowan"))
-  # an eight-kind rotation, the lab's three LAST, on the served world's timing
+  as often as the first; with it, the two LAST jobs share their one slot
+  evenly -- the cage's two kinds and its one lab, as it was measured -- and
+  a third behind them, a target of its own, is never starved either."""
+  targets = {**HOME_TARGETS, "shelf": ["shelf_a"], "cube": ["cube"]}
+  # a six-kind rotation, the shelf's two and the cube's LAST, on the served
+  # world's timing
   beat = cadence(firstAtS=240.0, everyS=240.0, ttlS=720.0, cooldownS=480.0,
                  maxOffered=5, maxTasks=40, initial=4, kinds={
-                   "whiteboard_answer": {}, "draw_figure": {"programs": ["house", "tree"]},
-                   "rate_artwork": {"programs": ["robot"]}, "count_plants": {},
+                   "open_drawer": {}, "open_door": {}, "open_chest": {},
                    "take_points": {"params": {"amount": 10}},
-                   "shock_mouse": {}, "feed_mouse": {}, "find_mass": {}})
+                   "job_a": {}, "job_b": {}, "place_cube": {}})
   path = tmp_path / "tasks.json"
-  # ...a charged pack that funds every kind in it (the census, #407, the dearest)
+  # ...a charged pack that funds every kind in it
   PACK = max(KINDS[k].estimate_wh for k in beat.kinds) + 0.5
   offers: dict = {}
   for _ in range(12):
@@ -610,36 +539,39 @@ def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
       for made in maker.tick(t, pack_wh=PACK):
         offers[made.kind] = offers.get(made.kind, 0) + 1
       if working is not None and t >= busy_until:
-        b.resolve(working.id, scoring.evaluate(working.task, {}, table=b.table), t=t)
+        b.resolve(working.id, scoring.evaluate("take", TOOK, table=b.table), t=t)
         working = None
       if working is None:
         ready = [x for x in b.claimable(t, pack_wh=PACK)
-                 if not x.needs_answer and not x.predicts and KINDS[x.kind].discharge == "errand"]
+                 if KINDS[x.kind].discharge != "act"]
         if ready and b.claim(ready[0].id, t=t, pack_wh=PACK) is not None:
           b.start(ready[0].id, t=t)
           working, busy_until = b[ready[0].id], t + 240.0
     b.save()
-  lab = [offers.get(k, 0) for k in ("shock_mouse", "feed_mouse")]
-  assert min(lab) >= 3 and offers.get("find_mass", 0) >= 3, (lab, offers)
+  shelf = [offers.get(k, 0) for k in ("job_a", "job_b")]
+  assert min(shelf) >= 3 and offers.get("place_cube", 0) >= 3, (shelf, offers)
   # within 3, not 1: the cursor goes BACK to a kind it passed over, so a
-  # lab kind offered in that gap comes round again (measured 17/14/14 with
-  # the bench in the slot, and 23/12/12 with a fresh cursor every mission; a
-  # claim kept across a restart books its target, issue #345)
-  assert max(lab) - min(lab) <= 3, (lab, offers)
+  # shelf kind offered in that gap comes round again (measured on the lab's
+  # cage: 17/14/14 with the bench in the slot, and 23/12/12 with a fresh
+  # cursor every mission; a claim kept across a restart books its target,
+  # issue #345)
+  assert max(shelf) - min(shelf) <= 3, (shelf, offers)
 
 
-def test_a_kind_the_world_can_never_fund_does_not_hold_the_head():
+def test_a_kind_the_world_can_never_fund_does_not_hold_the_head(monkeypatch, shared):
   """A kind passed over keeps the head of the queue -- for a TARGET it waits
   on. One the charged pack can never fund waits on nothing that changes:
   held, the census priced past the pack (#407) pinned the cursor, and of the
   two kinds sharing the lab's one slot behind it only the first was ever
   offered. Shown to fail by letting the energy gate set `passed` again:
-  the feed is offered 0 times."""
+  the second job over the one shelf is offered 0 times."""
+  monkeypatch.setitem(KINDS, "dear_job", dataclasses.replace(
+    KINDS["open_drawer"], name="dear_job", target_kind="far", draws=False,
+    estimate_wh=20.0))
   beat = cadence(firstAtS=10.0, everyS=10.0, ttlS=30.0, cooldownS=0.0, maxOffered=1,
-                 initial=1, kinds={"count_plants": {}, "shock_mouse": {}, "feed_mouse": {}})
-  maker = producer(beat, {"zone": ["garden"], "cage": ["lab"]})
-  assert KINDS["count_plants"].estimate_wh > 8.0
+                 initial=1, kinds={"dear_job": {}, "job_a": {}, "job_b": {}})
+  maker = producer(beat, {"far": ["far"], "shelf": ["shelf_a"]})
   made = [task.kind for task in run(maker, 600.0, pack_wh=8.0)]
-  assert "count_plants" not in made
-  assert made.count("feed_mouse") >= 5 and made.count("shock_mouse") >= 5, made
-  assert abs(made.count("feed_mouse") - made.count("shock_mouse")) <= 1, made
+  assert "dear_job" not in made
+  assert made.count("job_a") >= 5 and made.count("job_b") >= 5, made
+  assert abs(made.count("job_a") - made.count("job_b")) <= 1, made

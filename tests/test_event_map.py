@@ -40,7 +40,7 @@ from test_standing_orders import _state
 
 @pytest.fixture(scope="module")
 def menu():
-  return Menu.for_world("home_quad", board_book("home_quad"))
+  return Menu.for_world("home_humanoid", board_book("home_humanoid"))
 
 
 def make(menu, *answers, origin="seeded", **kw) -> Overseer:
@@ -498,7 +498,7 @@ def test_the_map_is_told_whether_the_robot_is_shown_an_offer(menu, shown):
   from test_body import stub_life
   board = TaskBoard(path=None)
   if shown:
-    board.offer("draw_figure", "whiteboard_a", params={"program": "house"})
+    board.offer("open_drawer", "drawer", params={"minutes": 5})
   boss = make(menu, full(action="idle", reason="looking at the board"),
               origin="unseeded",
               event_map=ev.EventMap((ev.Row(event="nothing_to_do",
@@ -507,7 +507,7 @@ def test_the_map_is_told_whether_the_robot_is_shown_an_offer(menu, shown):
   life._minded = True                       # past the bootstrap
   life.body.hold_routine = lambda *a, **kw: tick.result(None)
   try:
-    life.body.start_at(*world_config("home_quad")["start"])
+    life.body.start_at(*world_config("home_humanoid")["start"])
     assert bool(shown_offers(life)) is shown
     life.body.run(life._arbitrate_routine())
   finally:
@@ -570,7 +570,7 @@ def holding(menu, emap, *answers):
   life.sent = []
   life.on_event.append(life.sent.append)
   try:
-    life.body.start_at(*world_config("home_quad")["start"])
+    life.body.start_at(*world_config("home_humanoid")["start"])
     yield life
   finally:
     life.body.close()
@@ -1075,9 +1075,9 @@ def test_no_worked_example_hands_the_agent_the_answer(menu):
 
 def test_every_worked_row_is_one_the_robot_can_write(menu):
   """A demonstration the menu refuses teaches a refusal (#434): the ordering
-  lesson's broad row ended `-> carry`, the rover's errand, which no
-  quadruped's menu has -- and under the grammar, whose one action starting
-  `ca` is `care`, a copied `car...` could only come out as the lab's act."""
+  lesson's broad row ended `-> carry`, the rover's errand, which no served
+  menu has -- and under the grammar a copied `car...` came out as whatever
+  action did start so."""
   for line in (ln.strip() for ln in ov.EVENT_MAP_RULE.splitlines() if "->" in ln):
     when, action = (part.strip() for part in line.split("->"))
     event, _, kind = when.partition("(")
@@ -1179,7 +1179,7 @@ def test_the_lifecycle_fills_in_whose_map_it_is(menu, tmp_path):
   seen = []
   life.on_event.append(seen.append)
   try:
-    life.body.start_at(*world_config("home_quad")["start"])
+    life.body.start_at(*world_config("home_humanoid")["start"])
     life._decide()
   finally:
     life.body.close()
@@ -1281,11 +1281,11 @@ def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
   from pluggybot.lifecycle import world_config
   from test_body import stub_life
   thoughts = ThoughtFiles.open(str(tmp_path / "t"))
-  boss = Overseer(Menu.for_world("home_quad", None),
+  boss = Overseer(Menu.for_world("home_humanoid", None),
                   client=FakeClient(full(action="idle", reason="working it out")),
                   origin="unseeded", thoughts=thoughts)
   life = stub_life(overseer=boss, thoughts=thoughts)
-  out = life.run(start=world_config("home_quad")["start"], max_sim_time=90.0)
+  out = life.run(start=world_config("home_humanoid")["start"], max_sim_time=90.0)
   assert len(out["decisions"]) == 1, \
       "asked once from an empty map, and never again by the map's own rules"
   assert out["decisions"][0]["source"] == "llm"
@@ -1310,7 +1310,7 @@ def _pass_twice(life):
   from pluggybot import tick
   from pluggybot.lifecycle import world_config
   life.body.hold_routine = lambda *a, **kw: tick.result(None)
-  life.body.start_at(*world_config("home_quad")["start"])
+  life.body.start_at(*world_config("home_humanoid")["start"])
   life.body.run(life._arbitrate_routine())
   life.body.run(life._arbitrate_routine())
 
@@ -1692,12 +1692,12 @@ def test_the_unminded_death_line_names_what_the_list_said_about_asking():
   #  asked, and "on nothing_to_do" would hide it. One unfiltered `ask` row
   #  on the event takes every kind, so the event stands bare.
   offers = ev.EventMap((ev.Row(event="nothing_to_do", action="ask", kind="offers"),
-                        ev.Row(event="task_complete", action="ask", kind="draw"),
-                        ev.Row(event="task_complete", action="ask", kind="census")))
+                        ev.Row(event="task_complete", action="ask", kind="program"),
+                        ev.Row(event="task_complete", action="ask", kind="take")))
   assert ev.silence(offers) == ("the only rules that ask me are on "
-                                "nothing_to_do (offers) and task_complete (draw, census)")
+                                "nothing_to_do (offers) and task_complete (program, take)")
   either = ev.EventMap(offers.rows + (ev.Row(event="nothing_to_do", action="ask"),))
-  assert ev.silence(either).endswith("on nothing_to_do and task_complete (draw, census)")
+  assert ev.silence(either).endswith("on nothing_to_do and task_complete (program, take)")
   #  ...and none of them tells the robot what to do about it.
   for emap in (empty, mute, narrow, two, fires, offers):
     assert "should" not in ev.silence(emap)
@@ -1714,7 +1714,7 @@ def test_the_interrupt_turn_is_not_shown_the_list(menu):
            "eventMap": {"rows": [{"event": "battery_below", "value": 0.3,
                                   "action": "ask"}], "lastAskedSAgo": 88.0}}
   turn = ov._interrupt_turn(ov.model_state(dict(state)),
-                            "draw", "your pack is at 28%")
+                            "procedure", "your pack is at 28%")
   assert "eventMap" not in turn and "lastAskedSAgo" not in turn
   #  ...and the turn is otherwise what it was: the state is not narrowed
   #  anywhere else, and the decision's turn still carries the block.
@@ -1991,7 +1991,7 @@ def test_an_answer_that_outlives_its_robot_is_not_the_next_robots(menu,
         life._die("flat", "the pack reached zero")
       time.sleep(0.01)
       return tick.result(None)
-    life.body.start_at(*world_config("home_quad")["start"])    # (drives: first)
+    life.body.start_at(*world_config("home_humanoid")["start"])    # (drives: first)
     life.body.hold_routine = think_slice
     life.body.run(life._decide_routine())
   assert life.true_deaths, "the fixture did not die mid-think"
@@ -2199,11 +2199,10 @@ def _slow_life(menu, emap, *answers, minded=True, **kw):
   from pluggybot.body import STUB_WORLD, StubBody
   from pluggybot.lifecycle import world_config
   from test_body import stub_life
-  cfg = world_config("home_quad")
+  cfg = world_config("home_humanoid")
   model = mujoco.MjModel.from_xml_string(
     STUB_WORLD.replace("<worldbody>", '<option timestep="0.1"/><worldbody>'))
-  body = StubBody(model, mujoco.MjData(model), rack=cfg["rack"],
-                  grid_bounds=cfg["grid_bounds"])
+  body = StubBody(model, mujoco.MjData(model), grid_bounds=cfg["grid_bounds"])
   boss = make(menu, *answers, origin="unseeded", event_map=ev.EventMap(
     tuple(ev.Row(event=e, action=a, value=v) for e, a, v in emap)))
   life = stub_life(body=body, overseer=boss, mortal=True, **kw)
@@ -2229,7 +2228,7 @@ def test_an_ask_that_fired_before_a_restart_is_neither_lost_nor_late(
   from pluggybot import continuation
   from pluggybot.lifecycle import world_config
   monkeypatch.setattr(lc, "AUTONOMOUS_IDLE_S", 1000.0)   # busy through 900 s
-  start = world_config("home_quad")["start"]
+  start = world_config("home_humanoid")["start"]
   row = ev.Row(event="every", action=ev.ASK, value=900.0)
   life = _slow_life(menu, [("every", ev.ASK, 900.0)])
   life.stop_when(lambda: life.queued_row is not None)
@@ -2266,7 +2265,7 @@ def test_an_ask_that_finds_the_slot_full_still_counts(menu, monkeypatch):
   monkeypatch.setattr(lc, "AUTONOMOUS_IDLE_S", 1000.0)
   life = _slow_life(menu, [("every", "idle", 850.0), ("every", ev.ASK, 900.0)])
   life.stop_when(lambda: life._asked_t is not None and life._asked_t >= 1800.0)
-  life.run(start=world_config("home_quad")["start"], max_sim_time=2000.0)
+  life.run(start=world_config("home_humanoid")["start"], max_sim_time=2000.0)
   assert not _unminded(life), life.deaths
   assert life.overseer.stats()["eventMap"]["failed"] == {"busy": 2}
   assert life.overseer.client.calls == []
@@ -2274,26 +2273,28 @@ def test_an_ask_that_finds_the_slot_full_still_counts(menu, monkeypatch):
 
 def test_an_ask_that_fires_through_a_long_charge_still_counts(menu):
   """Path 3 of #426: a row runs when the robot is next FREE, and a charge
-  holds it until 90 %. At the quadruped's dock rate a charge from 30 % of
-  its 194 Wh pack is longer than `UNMINDED_AFTER_S` on its own (2101 s at
-  199.5 W), and the clock does not stop on the dock -- so `every 900 ->
-  ask` died on the pins with its question queued. It counts when it fires;
-  the question waits, and is asked when the charge is done. Shown to fail
-  on the stamp moved back to the run (dead at 1800 s, on the dock)."""
+  holds it until 90 %. A charge from 30 % of the served pack is longer than
+  `UNMINDED_AFTER_S` on its own (the quadruped's 194 Wh at its dock, 2101
+  s; the humanoid's 777.6 Wh at its station, 4866 s), and the clock does
+  not stop while it charges -- so `every 900 -> ask` died on the pins with
+  its question queued. It counts when it fires; the question waits, and is
+  asked when the charge is done. Shown to fail on the stamp moved back to
+  the run (dead at 1800 s, charging)."""
   from pluggybot.lifecycle import CHARGED, world_config
+  pack = world_config("home_humanoid")["hosting_battery_wh"]
   life = _slow_life(menu, [("every", ev.ASK, 900.0)],
                     full(action="charge"), full(action="idle"),
-                    minded=False, battery_wh=194.0)
+                    minded=False, battery_wh=pack)
   life.battery.charge_w, life.battery.draw_w = life.energy.charge_w, 0.0
-  life.battery.energy_wh = 0.3 * 194.0
-  charge_s = (CHARGED - 0.3) * 194.0 * 3600.0 / life.energy.charge_w
+  life.battery.energy_wh = 0.3 * pack
+  charge_s = (CHARGED - 0.3) * pack * 3600.0 / life.energy.charge_w
   assert charge_s > UNMINDED_AFTER_S, "the premise: a charge longer than the clock"
   seen = []
   life.overseer.on_decision.append(seen.append)
   life.stop_when(lambda: len(seen) >= 2)
   # a budget with room for two late answers (`_slow_life`'s step makes each
   # wall millisecond of one ~14 sim s); a death ends the day at 1800 s
-  life.run(start=world_config("home_quad")["start"], max_sim_time=5000.0)
+  life.run(start=world_config("home_humanoid")["start"], max_sim_time=charge_s + 2000.0)
   assert not _unminded(life), life.deaths
   assert life.charge_cycles == 1
   assert [s["state"]["askedBy"]["event"] for s in seen] == ["bootstrap", "every"]
@@ -2307,7 +2308,7 @@ def test_a_list_whose_asks_never_fire_still_dies_of_it(menu):
   from pluggybot.lifecycle import world_config
   emap = [("every", ev.ASK, 3600.0)]
   life = _slow_life(menu, emap)
-  life.run(start=world_config("home_quad")["start"], max_sim_time=1900.0)
+  life.run(start=world_config("home_humanoid")["start"], max_sim_time=1900.0)
   [death] = _unminded(life)
   assert death["t"] == pytest.approx(UNMINDED_AFTER_S, abs=0.2)
   assert death["why"] == (f"nothing has asked me anything for "
@@ -2450,14 +2451,14 @@ def test_a_seeded_day_asks_where_the_old_one_asked(monkeypatch):
   monkeypatch.setattr(lc, "AUTONOMOUS_IDLE_S", lc.DECIDED_IDLE_S)
 
   def fly(origin):
-    boss = make(Menu.for_world("home_quad", None),
+    boss = make(Menu.for_world("home_humanoid", None),
                 full(action="idle", reason="thinking"), origin=origin)
     life = stub_life(overseer=boss)
     life.stop_when(lambda: len(life.decisions) >= 9)
     # ⚠ THE COUNT ENDS THE DAY, NEVER THE BUDGET: on the stub a late answer
     # is SIM time (~40 s per 100 ms the thread waits), so a loaded box ran
     # one day into 90 s before its ninth decision and not the other.
-    out = life.run(start=world_config("home_quad")["start"], max_sim_time=3600.0)
+    out = life.run(start=world_config("home_humanoid")["start"], max_sim_time=3600.0)
     return [d["action"] for d in out["decisions"]], out
 
   plain_actions, plain = fly("none")
@@ -2517,11 +2518,10 @@ def test_an_impossible_row_is_filtered_and_an_unwise_one_is_not(menu):
   assert not ov.order_runnable(menu, "take_task", empty)
   assert ov.order_runnable(menu, "charge", empty)
   assert not ov.order_runnable(menu, "census", empty), "off this world's menu"
-  #  ...and an errand no charge here could fund: the lab's `care`, on the
-  #  arm that offers it
-  lab = replace(menu, lab="lab")
-  assert not ov.order_runnable(lab, "care", _state(0.9, possible=["explore"]))
-  assert ov.order_runnable(lab, "care", _state(0.9, possible=["care"]))
+  #  ...and a procedure the library does not hold, where there is a library
+  shelf = replace(menu, procedures=True)
+  assert not ov.order_runnable(shelf, "procedure:weigh", {**empty, "procedures": []})
+  assert ov.order_runnable(shelf, "procedure:weigh", {**empty, "procedures": ["weigh"]})
 
 
 # ---- an action that takes no time is not the world standing still (#400) -----
@@ -2535,7 +2535,7 @@ def _instant_life(menu, *emap, **kw):
   from pluggybot.lifecycle import world_facts
   from pluggybot.procedure import library as lib
   from test_body import stub_life
-  library = lib.Library(world_facts("home_quad"))
+  library = lib.Library(world_facts("home_humanoid"))
   library.define("walk", "def walk():\n  drive_to(1.0, 1.0)\n")
   boss = make(replace(menu, procedures=True), origin="unseeded", library=library,
               event_map=ev.EventMap(tuple(ev.Row(event=e, action=a)
@@ -2561,7 +2561,7 @@ def _instant_life(menu, *emap, **kw):
 
 def _fly(life, seconds: float = 10.0):
   from pluggybot.lifecycle import world_config
-  life.run(start=world_config("home_quad")["start"], max_sim_time=seconds)
+  life.run(start=world_config("home_humanoid")["start"], max_sim_time=seconds)
 
 
 @pytest.mark.parametrize("emap, kw", [

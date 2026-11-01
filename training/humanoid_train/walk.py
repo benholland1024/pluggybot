@@ -1,6 +1,6 @@
 """Walking (#507, stage 4): mjlab's G1 velocity recipe on our humanoid,
 made honest where the stock recipe is not -- the quadruped's changes
-(`quad_train.task`), carried over:
+(#377, its walking task, at `quadruped-final`), carried over:
 
   - the ACTOR sees no base linear velocity (the body measures none: an IMU
     integrates acceleration, and its legs' odometry is the body's); the
@@ -30,7 +30,7 @@ precisely, and it stood still at 1 m/s too.
 `-Seeing` (stage 5) is a walker that SEES the ground: the actor is shown a
 height scan, the terrain's height under a grid round its feet and ahead
 (`SCAN`), and the terrain adds flights up and down at the house's tread
-(`SEEING_TERRAINS`), with #388's stairs recipe (`quad_train.stairs`): on a
+(`SEEING_TERRAINS`), with #388's stairs recipe (`stairs.py`): on a
 stair tile most commands walk straight out along a flight, and a swinging
 foot must clear the nose ahead of it. On the robot the scan is the D435's
 map, read at the same grid (`pluggybot.humanoid.scan`). A new policy, not a
@@ -50,6 +50,7 @@ from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg, ObjRef, RingPatternCfg, TerrainHeightSensorCfg
+from mjlab.sensor.raycast_sensor import GridPatternCfg
 from mjlab.tasks.velocity import mdp
 from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 from mjlab.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
@@ -57,9 +58,8 @@ from mjlab.terrains import config as terrain_cfg
 from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
 
 from humanoid_train import robot
+from humanoid_train.stairs import StairsCommandCfg, foot_nose_clearance
 from humanoid_train.stand import HAND_KG, ScriptedArmsCfg, torque_over_rating
-from quad_train.stairs import StairsCommandCfg, foot_nose_clearance
-from quad_train.task import RaisedGridPatternCfg
 
 #: Top commanded speeds: forward and back, sideways (m/s), turning (rad/s),
 #: and where the curriculum starts them. A person walks 1.2-1.4 m/s; the
@@ -301,10 +301,25 @@ STAIRS = ("stairs_up", "stairs_down")
 
 
 @dataclass
+class RaisedGridPatternCfg(GridPatternCfg):
+  """mjlab's height-scan grid with its ray origins `height` above the body
+  (still turned with the heading only), the quadruped's (#388). Cast from
+  the body itself, a ray a metre ahead on a flight of 0.18 m risers starts
+  INSIDE the step above the body and reports the floor under it; the scan's
+  value is unchanged (the body's height over each hit)."""
+
+  height: float = 1.0
+
+  def generate_rays(self, mj_model, device):
+    offsets, directions = super().generate_rays(mj_model, device)
+    offsets[:, 2] = self.height
+    return offsets, directions
+
+
+@dataclass
 class AheadGridPatternCfg(RaisedGridPatternCfg):
-  """The quadruped's raised height-scan grid (#388) with its middle `ahead`
-  of the pelvis: a walker needs the treads in front more than the floor
-  behind."""
+  """The raised height-scan grid with its middle `ahead` of the pelvis: a
+  walker needs the treads in front more than the floor behind."""
 
   ahead: float = 0.3
 

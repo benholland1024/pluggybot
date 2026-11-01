@@ -34,9 +34,12 @@ import re
 from pluggybot.mind.overseer import NEEDS
 
 #: The order the rule checks, first match wins: a robot below its reserve
-#: needs charge whatever its wallet says, a hungry one needs points, one
-#: holding a job with nothing on the fork needs a tool where there is a rack.
-NEED_ORDER = ("charge", "points", "a_tool", "nothing")
+#: needs charge whatever its wallet says, a hungry one needs points. ⚠ A
+#: VESTIGE: `a_tool`, a held job with nothing on the fork, is still one of
+#: the prompt's words for a need (`NEEDS`) and is never the answer -- no
+#: world has had a rack since the quadruped went (#559; #572 had already
+#: stopped the humanoids reading it).
+NEED_ORDER = ("charge", "points", "nothing")
 assert all(n in NEEDS for n in NEED_ORDER)
 
 
@@ -48,9 +51,6 @@ def need_of(other) -> tuple[str, dict]:
     charge   -- the pack is below the reserve (the world's fact, whatever
                 the arm's rails say about acting on it)
     points   -- hungry or starving: upkeep due that the wallet is short for
-    a_tool   -- a claimed job, and nothing on the fork to do it with, in a
-                world whose rack has tools (`rack_inventory`; #572: the
-                humanoids' has none, and every job holder needed one)
     nothing  -- otherwise
   """
   battery = other.battery
@@ -66,15 +66,10 @@ def need_of(other) -> tuple[str, dict]:
     root = other.root
     state["holdsJob"] = any(t.claimed_by == root and t.state in ("claimed", "active")
                             for t in other.tasks.tasks.values())
-  if other.module:
-    on_fork = other.body.module_state(other.module)["on_fork"]
-    state["carrying"] = other.module if on_fork else ""
   if battery.energy_wh < other.low_battery_wh:
     return "charge", state
   if state["hunger"] in ("hungry", "starving"):
     return "points", state
-  if state["holdsJob"] and not state["carrying"] and other.rack_inventory:
-    return "a_tool", state
   return "nothing", state
 
 
@@ -96,10 +91,11 @@ def check_claim(text: str, rack: dict | None = None, boards=None,
   """The first checkable statement in `text`, and its truth -- or None.
 
   Four shapes are checked, each against the world and nothing else:
-    "bay C is empty"            -- `rack` (module -> the bay it HANGS in,
-                                   `HubLifecycle.racked` -- never the
-                                   inventory), a bay nothing hangs in is
-                                   empty
+    "bay C is empty"            -- `rack` (module -> the bay it HANGS in),
+                                   a bay nothing hangs in is empty; ⚠ A
+                                   VESTIGE of the quadruped's rack: the
+                                   lifecycle hands it `{}`, so every bay
+                                   reads empty
     "module_pen is on the rack" -- `rack` again: hung on some bay
     "whiteboard_b is drawn on"  -- `boards` (a BoardBook): strokes on it
     "the charge bay is free"    -- `charging`: is any robot charging now

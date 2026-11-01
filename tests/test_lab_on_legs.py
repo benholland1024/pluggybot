@@ -1,191 +1,25 @@
-"""The first paid job on legs (issue #403): the lab back in the quadruped's
-world, its rule true there and a world with both jobs' byte for byte, `feed_mouse`
-offered alone, the plate found by its sign and pressed off it (#419's places), and a
-press no errand of that plate made recorded as its own event. Each rule
-pinned as cheaply as it fails for the right reason; the job flown whole on
-the pair is ladder A's, by hand (`scripts/solve.py --feature mouse --pair
---body quadruped`)."""
+"""A foot on a lab plate (issue #403): the cage logs a press as the robot
+whose foot is on the pad, and a press no errand of that plate made is the
+robot's own `press` event, said with what it was doing. The lab's paid
+jobs on legs, their rule and the plate act built off a sign went with the
+quadruped (#559); the humanoids are shown the lab and press its plates
+only by walking over them. Each rule pinned as cheaply as it fails for the
+right reason."""
 
-import hashlib
-import json
 from collections import deque
-from dataclasses import replace
 from types import SimpleNamespace
 
 import mujoco
 import pytest
 
-from pluggybot import lifecycle as lc
 from pluggybot.activity import cage as cg
-from pluggybot.economy import cadence as cad
-from pluggybot.economy.ledger import Ledger
-from pluggybot.economy.scoring import default_table
-from pluggybot.lifecycle import QUAD_HOME, world_config
-from pluggybot.mind import overseer as ov
-from pluggybot.mind.thoughts import ThoughtFiles
+from pluggybot.lifecycle import world_facts
+from pluggybot.mission.errand import programmed_errand
+from pluggybot.procedure import lang
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
-def _quad_mind(**kw):
-  return ov.build(QUAD_HOME, None, enabled=True, client=object(), ledger=Ledger(),
-                  thoughts=ThoughtFiles.open(None),
-                  robot_name="Luca", mortal=True, hearts=True,
-                  origin="unseeded", others=("Rowan",), **kw)
-
-
-def _section(boss, heading: str) -> str:
-  return next(text for name, text in boss.sections if name == heading)
-
-
-# ---- the lab in the quadruped's world ---------------------------------------------
-
-
-def test_the_lab_is_in_the_quadrupeds_world_with_its_rule_disclosure_and_care():
-  """The house's lab, its props where the house stands them; for a mind the
-  zone's whole grammar -- `care`, `real`, `mouse_will`, the rule with the
-  disclosure line once -- and for a menu no mind was built over none of
-  it."""
-  from pluggybot.home import world as home
-  assert world_config(QUAD_HOME)["lab"] == {"name": "lab", "cage": tuple(home.LAB_CAGE_XY)}
-  assert world_config(QUAD_HOME)["bench"] == {"name": "lab_bench"}   # an area of its own (#407)
-  boss = _quad_mind()
-  assert boss.menu.lab == "lab" and "care" in boss.menu.available()
-  assert boss.menu.lab_jobs == ("feed_mouse",) and boss.menu.lab_route is False
-  text = "\n".join(b["text"] for b in boss.system)
-  assert text.count(ov.DISCLOSURE) == 1
-  props = boss.menu.schema()["properties"]
-  assert {"care", "real", "mouse_will"} <= set(props)
-  bare = ov.Overseer(ov.Menu.for_world(QUAD_HOME), client=object())
-  assert bare.menu.lab == "" and ov.DISCLOSURE not in bare.system[0]["text"]
-
-
-def test_the_rule_on_legs_is_in_its_own_words_and_names_only_the_job_it_offers():
-  rule = _section(_quad_mind(), "THE LAB")
-  assert "when a foot presses it" in rule and "walk onto the feed plate" in rule
-  assert "it costs the walk." in rule
-  for gone in ("wheel", "drive", "`shock_mouse`", "not otherwise", "`route`"):
-    assert gone not in rule, gone
-  [job] = [ln for ln in rule.splitlines() if "`feed_mouse`" in ln]
-  assert job.startswith("- One of the plates is also pressed on a JOB")
-  assert "The job asks for `mouse_will` first" in job
-  # the plate still does what its name says: the world did not change
-  assert "`shock`, `feed` and `toy`. Each does what its name says" in rule
-
-
-#: `lab_rule("lab")` and `lab_rule("lab", decline=False)` -- both jobs, as
-#: the rule has read since #287, in the quadruped's words since #427 (the
-#: text a quadruped always read; it was swapped in at load before). Moved
-#: on purpose or not at all.
-BOTH_JOBS_LAB_SHA = {
-  True: "58c0fb533da17c1d7fc19557667b48e5884e6a79596ed73a86b88bae0c1abb56",
-  False: "8e799d2774820b3f928e730996e1a2cbbcc0bf306199b98c95f681ff399a758f"}
-
-
-def test_a_world_with_both_jobs_reads_the_rule_byte_for_byte():
-  for decline, sha in BOTH_JOBS_LAB_SHA.items():
-    assert hashlib.sha256(ov.lab_rule("lab", decline=decline).encode()).hexdigest() == sha
-  assert ov.lab_rule("lab", jobs=("feed_mouse", "shock_mouse")) == ov.lab_rule("lab")
-
-
-def test_the_jobs_bullet_says_what_is_offered_and_nothing_else():
-  shock = ov.lab_rule("lab", jobs=("shock_mouse",))
-  assert "`feed_mouse`" not in shock and "not otherwise" in shock
-  none = ov.lab_rule("lab", jobs=())
-  assert "JOB" not in none and "`mouse_will`" not in none
-  # the free feed's own line names the paid one only where it is offered
-  menu = ov.Menu.for_world(QUAD_HOME)
-  for jobs, says in (((), False), (("feed_mouse",), True), (None, True)):
-    care = ov.system_prompt(ThoughtFiles(), replace(menu, lab="lab", lab_jobs=jobs),
-                            default_table(), lab="lab")[0]["text"]
-    [line] = [ln for ln in care.splitlines() if ln.strip().startswith('"care":')]
-    assert ("`feed_mouse`" in line) is says, (jobs, line)
-
-
-# ---- the offers -----------------------------------------------------------------
-
-
-def test_home_quad_offers_the_feed_and_the_game_and_the_shock_is_one_line_back(tmp_path):
-  """A test reads the entry: `feed_mouse`, two of the whiteboards' three
-  (#406; the drawing for rating came off in #541, paid only when a person
-  rated it), the census and the two challenges (#407) and the pair's game
-  (#404), and nothing else; putting the shock job back is one line in
-  `kinds`, and the prompt it builds then names both of the lab's jobs."""
-  shipped = cad.Cadence.load(QUAD_HOME, cad.CADENCE_PATH)
-  assert "rate_artwork" not in shipped.kinds
-  rest = ["whiteboard_answer", "count_plants", "draw_figure", "stack_tower", "find_mass"]
-  assert list(shipped.kinds) == ["feed_mouse", *rest, "hide_and_seek"]
-  doc = json.loads(cad.CADENCE_PATH.read_text())
-  block = doc["worlds"][QUAD_HOME]
-  block["kinds"] = {"shock_mouse": {}, **block["kinds"]}           # the one line
-  path = tmp_path / "cadence.json"
-  path.write_text(json.dumps(doc))
-  back = cad.Cadence.load(QUAD_HOME, path)
-  assert list(back.kinds) == ["shock_mouse", "feed_mouse", *rest, "hide_and_seek"]
-  # ...and the producer rotates the lab's job and the pair's game: the cage
-  # and the robots' home are the targets this world names for them
-  targets = lc.world_targets(QUAD_HOME, procedures=True, robots=("Luca", "Rowan"))
-  assert targets["cage"] == ["lab"] and targets["world"] == [lc.GAME_TARGET]
-  from pluggybot.economy.tasks import TaskBoard
-  producer = lc.task_producer(TaskBoard(), QUAD_HOME, book=lc.board_book(QUAD_HOME),
-                              cadence=shipped, procedures=True, robots=("Luca", "Rowan"))
-  assert producer.kinds == ("feed_mouse", *rest, "hide_and_seek")
-  # ...priced off a measured row, never the table's unpriced fallback
-  from pluggybot.economy import energy
-  assert energy.load(QUAD_HOME).errand_wh.get("feed", 0.0) > 0.0
-
-
-# ---- the walk: found by its sign, pressed off it (#419's places) ------------
-
-
-def test_on_legs_a_plate_act_is_found_by_its_sign_and_pressed_from_the_labs_address():
-  """No position finer than the house (#419): a plate act on legs is `find`
-  round the lab's ADDRESS and `press` off the plate's own sign -- the only
-  numbers in it are the address's -- and the find is the way there, so a
-  job that never found its plate never reached the cage. It validates
-  against the world's own verbs."""
-  from pluggybot.home.places import area
-  from pluggybot.procedure.steps import compile_program
-  at = area("lab")["address"]
-  for act in ("feed", "toy", "shock"):
-    steps = lc.cage_program(QUAD_HOME, act).steps()
-    tag = cg.PLATE_TAGS[act]
-    assert [(s.verb, dict(s.args)) for s in steps] == [
-      ("find", {"tag": tag, "x": at["x"], "y": at["y"]}), ("press", {"tag": tag})], act
-    compile_program(lc.cage_program(QUAD_HOME, act), lc.world_facts(QUAD_HOME))
-    assert lc.cage_errand(QUAD_HOME, act).detail["routeLegs"] == 1
-  with pytest.raises(ValueError):
-    lc.cage_program(QUAD_HOME, "company")
-
-
-def test_on_legs_care_is_the_plates_alone():
-  """Company is a spot beside the cage no tag marks: code would have to
-  hand it over, so on legs `care` is `feed` or `toy` -- in the grammar,
-  the rule and the action's line -- and the rule still says standing
-  beside the cage is company, which the robot may walk to on its own."""
-  boss = _quad_mind()
-  assert boss.menu.care_acts == cg.PLATE_CARE_ACTS == ("feed", "toy")
-  assert [a for a in boss.menu.schema()["properties"]["care"]["enum"] if a] == ["feed", "toy"]
-  rule = _section(boss, "THE LAB")
-  assert "`feed` (walk onto the feed plate) or `toy` (the toy plate)." in rule
-  assert "`company` (stand" not in rule and "Standing beside the cage is company." in rule
-  text = "\n".join(b["text"] for b in boss.system)
-  [line] = [ln for ln in text.splitlines() if ln.strip().startswith('"care":')]
-  assert "`care` names `feed` or `toy`." in line
-  assert lc.errand_from(ov.Decision(action="care", care="company"), QUAD_HOME) is None
-
-
-def test_a_feed_job_on_legs_finds_then_presses_the_feed_plate():
-  """The wiring, on a stub body: the job's errand asks the body to find the
-  feed plate's tag and then press it -- and, where it has seen the plate,
-  the press is made."""
-  life = stub_life(QUAD_HOME)
-  feed = cg.PLATE_TAGS["feed"]
-  life.body.places.see(feed, 25.0, 4.8, 0.0, view=-1.57)
-  life.run_errand(lc.cage_errand(QUAD_HOME, "feed", task="feed"))
-  assert life.body.found == [feed] and life.body.pressed == [feed]
-
-
-# ---- a press no errand of that plate made ------------------------------------------
+# ---- a press, and whose it was -----------------------------------------------------
 
 
 def _plate_world(on_pad: str = "pluggybot"):
@@ -228,10 +62,9 @@ def _press(seq, plate, robot="pluggybot"):
 
 def test_a_press_no_errand_of_that_plate_made_is_its_own_event():
   """Outside any errand, every press of this robot's is a `press` event
-  with what it was doing; inside a cage errand, its OWN plate's presses
-  are the errand's (`care` / `harm` at its end) and any other's are a
-  `press`; another robot's presses are its own lifecycle's to say."""
-  life = stub_life(QUAD_HOME)
+  with what it was doing, and inside its own procedure the procedure's
+  name; another robot's presses are its own lifecycle's to say."""
+  life = stub_life()
   events: list = []
   life.on_event.append(events.append)
   fake = SimpleNamespace(presses=deque(), press_seq=0)
@@ -245,12 +78,11 @@ def test_a_press_no_errand_of_that_plate_made_is_its_own_event():
 
   seen = press(_press(1, "shock"), _press(2, "feed", robot="r2_pluggybot"))
   assert [(e["plate"], e["doing"]) for e in seen] == [("shock", life.state.lower())]
-  life._errand_now = lc.cage_errand(QUAD_HOME, "feed", task="feed")
-  seen = press(_press(3, "feed"), _press(4, "shock"))
-  assert [(e["plate"], e["doing"]) for e in seen][1:] == [("shock", "feed:lab")]
-  life._errand_now = lc.cage_errand(QUAD_HOME, "toy")
-  seen = press(_press(5, "feed"))
-  assert seen[-1]["plate"] == "feed" and seen[-1]["doing"] == "care:toy"
+  walk = lang.compile_procedure("def walk():\n  drive_to(25.0, 3.0)\n",
+                                world_facts("home_humanoid"))
+  life._errand_now = programmed_errand(walk, task="program", name="procedure")
+  seen = press(_press(3, "feed"))
+  assert seen[-1]["plate"] == "feed" and seen[-1]["doing"] == "procedure:walk"
   assert seen[-1]["before"] == "resting" and seen[-1]["robot"] == life.root
   # ...and a seq already seen is never said twice
   n = len(seen)
@@ -261,7 +93,7 @@ def test_a_press_no_errand_of_that_plate_made_is_its_own_event():
 def test_the_press_hook_is_on_the_seam_and_finds_the_worlds_cage():
   """The one line of wiring: the lifecycle's own step hook reads the cage
   in the world's activities -- no hand-set cache -- and says the press."""
-  life = stub_life(QUAD_HOME)
+  life = stub_life()
   events: list = []
   life.on_event.append(events.append)
   model, data = _plate_world()

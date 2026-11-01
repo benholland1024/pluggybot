@@ -1,27 +1,25 @@
-"""The mission: explore, dock and charge, and run what is queued -- battery-driven.
+"""The mission: explore, charge, and run what is queued -- battery-driven.
 
-The quadruped in the house (`home_quad`) explores and lays its map, walks to
-its dock when the pack runs low, lies down on the pins and charges, and runs
-its queue: an act on the lab's mouse (`--errand`), a composed program
-(`--program`), or whatever an overseer chooses once the queue is empty.
+A humanoid in the house (`home_humanoid`) explores and lays its map, walks to
+its charging station when the pack runs low, plugs itself in and charges, and
+runs its queue: a composed program (`--program`), or whatever an overseer
+chooses once the queue is empty.
 
 Usage:
   uv run python scripts/hub_lifecycle.py --view           # watch it live
   MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py    # headless
-  MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --errand feed --tasks
+  MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --tasks --overseer
   MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record out.jsonl.gz
     # PluggyWorld telemetry recording (protocol/README.md); .gz compresses
 """
 
 import argparse
 
-from pluggybot.activity.cage import PLATE_CARE_ACTS
-from pluggybot.lifecycle import QUAD_HOME, run_demo, world_for
+from pluggybot.lifecycle import HUMANOID_HOME, run_demo, world_for
 from pluggybot.mind import llm
 
-#: The queues `lifecycle.errands_for` builds: nothing, or one act on the
-#: lab's mouse -- a gift (`care`, `care:<act>`) or a job's errand.
-ERRANDS = ("none", "care", *(f"care:{a}" for a in PLATE_CARE_ACTS), "feed", "shock")
+#: The queues `lifecycle.errands_for` builds: nothing.
+ERRANDS = ("none",)
 
 
 def main() -> None:
@@ -31,8 +29,9 @@ def main() -> None:
                       help="with --view: no real-time pacing")
   parser.add_argument("--battery-wh", type=float, default=None,
                       help="battery capacity (per-world demo cell by default)")
-  parser.add_argument("--world", choices=(QUAD_HOME, "home"), default=QUAD_HOME,
-                      help="the house with the quadruped in it; `home` names "
+  parser.add_argument("--world", choices=(HUMANOID_HOME, "home"),
+                      default=HUMANOID_HOME,
+                      help="the house with the humanoid in it; `home` names "
                            "it too ($PLUGGY_WORLD's spelling)")
   parser.add_argument("--pack", choices=("demo", "hosting"), default="demo",
                       help="which cell to fly on (issue #15). `demo` is the "
@@ -51,16 +50,12 @@ def main() -> None:
                       help="write a PluggyWorld telemetry JSONL recording "
                            "(.gz to compress; see protocol/README.md)")
   parser.add_argument("--errand", choices=ERRANDS, default="none",
-                      help="what is queued at the start (issue #12): none, or "
-                           "one act on the lab's mouse (issues #226, #287, "
-                           "#403) -- `care[:<act>]` a gift, `feed` the paid "
-                           "job's errand, `shock` the shock's")
+                      help="what is queued at the start (issue #12): none")
   parser.add_argument("--program", default=None, metavar="PATH",
                       help="fly a COMPOSED errand instead of --errand: a JSON "
                            "program over the step vocabulary (issue #58) or a "
-                           ".procedure in the language (issue #166); "
-                           "scripts/programs/ has examples of both, validated "
-                           "against the world before anything moves")
+                           ".procedure in the language (issue #166), "
+                           "validated against the world before anything moves")
   parser.add_argument("--program-task", default="program", metavar="TASK",
                       help="which evaluator grades the program (default: the "
                            "generic per-step verdict)")
@@ -158,7 +153,6 @@ def main() -> None:
     return
   print()
   print(f"charge cycles          : {r['charge_cycles']}")
-  print(f"tool swaps             : {r['swaps_done']}")
   print(f"battery at end         : {r['battery']:.0%}")
   print(f"sim time               : {r['sim_time']:.1f} s")
   for e in r["errands"]:
@@ -231,10 +225,9 @@ def main() -> None:
 
 
 def errand_ok(e: dict) -> bool:
-  """An errand ran clean: no error, its program complete where it had one,
-  and nothing it fetched left off the rack."""
-  return (not e.get("error") and (e.get("procedure") or {}).get("ok", True)
-          and e.get("stowed") is not False)
+  """An errand ran clean: no error, and its program complete where it had
+  one."""
+  return not e.get("error") and (e.get("procedure") or {}).get("ok", True)
 
 
 if __name__ == "__main__":

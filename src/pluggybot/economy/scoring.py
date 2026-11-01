@@ -13,13 +13,11 @@ here, out of its reach.
 
 Three pieces, deliberately separated:
 
-  MEASURE (this module, `sample_*`). Read the finished task off the SIM: the
-  board book's stroke count, the battery, the occupancy grid, the model. Never
-  off the robot's own claim about itself. The errand's result dict is used only
-  for quantities the physics measured on the way through (the plotter's traced
-  form error), and the fact that matters -- did ink land on the board -- is
-  cross-checked against board state, which the pen writes and the errand
-  cannot.
+  MEASURE (this module, `sample_*`). Read the finished task off the SIM: a
+  prop's joint, the battery, the model. Never
+  off the robot's own claim about itself: the fact that matters -- did the
+  drawer come out -- is read off the drawer, which the robot's report cannot
+  move.
 
   JUDGE (this module, `EVALUATORS`). Per task: measurements in, `(ok, metrics,
   reason)` out. Pure, deterministic, unit-testable without a physics world, and
@@ -33,7 +31,8 @@ Three pieces, deliberately separated:
 Four tiers, from the design doc, carried on each task in the table:
 
   auto       the sim knows the answer outright -- ink, contact, joint state
-  hidden     the sim knows, the robot must DISCOVER it -- the census
+  hidden     the sim knows, the robot must DISCOVER it -- a prop's drawn
+             dynamics
   visitor    an aesthetic call, rated later over the inbound channel: the
              evaluator confirms the work happened and leaves the verdict
              PENDING for `Ledger.settle` (issue #16)
@@ -54,7 +53,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.challenge import bench, door, drawer, lid, place, stack
+from pluggybot.challenge import door, drawer, lid, place
 
 #: The evaluation tiers, in the design doc's own order.
 TIERS = ("auto", "hidden", "visitor", "narrative")
@@ -76,29 +75,9 @@ CHALLENGES_PATH = Path(__file__).with_name("challenges.json")
 # a task pays; it does not get to decide what counts as having done it, or
 # re-tuning a payout could quietly promote a failure into a success.
 
-#: A drawing is a drawing once ink is actually on the board. Completeness and
-#: form error scale the payout rather than gating it: 5 strokes out of 6 is a
-#: worse house, not a non-house.
-DRAW_MIN_STROKES = 1
-#: ...but ink laid down while TRAVELLING between strokes is a different fault
-#: (the pen failed to lift), and past this much of it the figure is scribbled
-#: through rather than merely imperfect.
-DRAW_MAX_TRAVEL_INK = 0.25
-# A written answer's two bars -- how far the ink may sit from the glyphs, and
-# how much ink it may be written with -- are `questions.ANSWER_MATCH_MM` and
-# `questions.INK_RATIO`, and they stay there rather than here: both were
-# measured with the rover's pen (`rover-final`), and a second copy
-# would be a second, slowly diverging opinion about the same drawing.
-
 #: The charge cycle stops at lifecycle.CHARGED (0.90) or times out. Below this
 #: it timed out, which is a failed charge however long the robot sat there.
 CHARGE_OK_FRAC = 0.85
-#: A routine that mostly happened is a routine; the individual moves are scored
-#: by mission/errand.py's own landed-fraction rule (the drivetrain cannot deliver a
-#: full 5 s spin and never will, so this is not a tolerance to tighten).
-DANCE_MIN_LANDED = 0.67
-#: ...but a "dance" that ends this far from where it started drove off.
-DANCE_MAX_DRIFT_M = 1.5
 
 
 def _clamp01(x: float) -> float:
@@ -149,7 +128,7 @@ class TaskReward:
   bonus: int = 0
   curves: tuple[Curve, ...] = ()
   #: metrics that must never leave the evaluator -- see the module docstring
-  #: and rewards.json's note. The census's ground truth is the whole example.
+  #: and rewards.json's note: the chest's true catch (`catchN`), say.
   secret: tuple[str, ...] = ()
   detail: str = ""
   #: False for a CHALLENGE row (challenges.json, issue #120): scoreable by
@@ -350,9 +329,9 @@ class Verdict:
   def public_metrics(self) -> dict:
     """Everything a viewer, the site and the overseer may see.
 
-    The census's ground truth is not in here, and that is the point: the
-    ledger is streamed and shown as context, so publishing `truth` would hand
-    the robot the answer to the task it is supposed to go and discover.
+    A secret metric (the chest's true catch) is not in here, and that is the
+    point: the ledger is streamed and shown as context, so publishing it would
+    hand the robot what it is supposed to go and discover.
     """
     return {k: v for k, v in self.metrics.items() if k not in self.secret}
 
@@ -364,159 +343,6 @@ class Verdict:
 
 
 # ---- the evaluators (code, one per task) ------------------------------------
-
-
-def eval_draw(m: dict) -> tuple[bool, dict, str]:
-  """Did ink land on the board, and how good is the figure?
-
-  `strokesInked` is counted off the BOARD BOOK -- the record the pen writes
-  as it traces -- and not off the errand's report of itself. That is the
-  difference between "the task says it drew a house" and "there is a house on
-  the board", and it is the single most important line in this module.
-  """
-  planned = int(m.get("strokes") or 0)
-  inked = int(m.get("strokesInked") or 0)
-  form = m.get("formMm")
-  travel = m.get("travelInkFraction")
-  metrics = {
-    "strokes": planned,
-    "strokesInked": inked,
-    "completeness": round(inked / planned, 3) if planned else 0.0,
-    "formMm": round(float(form), 2) if form is not None else None,
-    "inkedFraction": (round(float(m["inkedFraction"]), 3)
-                      if m.get("inkedFraction") is not None else None),
-    "travelInkFraction": (round(float(travel), 3)
-                          if travel is not None else None),
-    "fill": round(float(m.get("fill") or 0.0), 3),
-    "board": m.get("board"),
-  }
-  ok = inked >= DRAW_MIN_STROKES
-  if ok and travel is not None and float(travel) > DRAW_MAX_TRAVEL_INK:
-    ok = False
-    return ok, metrics, (f"{inked} strokes on {metrics['board']}, but "
-                         f"{float(travel):.0%} of the travel moves inked -- "
-                         "the pen did not lift")
-  if not ok:
-    return False, metrics, f"no ink reached {metrics['board']}"
-  form_txt = "no trace" if form is None else f"{float(form):.2f} mm form error"
-  return True, metrics, (f"inked {inked}/{planned} strokes on "
-                         f"{metrics['board']}, {form_txt}")
-
-
-def eval_census(m: dict) -> tuple[bool, dict, str]:
-  """Hidden ground truth: the sim knows, the robot had to go and find out."""
-  # A use-phase that raised (or never ran, because the tool was dropped)
-  # reports no count at all. Defaulting the missing pair to 0 and 0 would
-  # make "the census never happened" compare EQUAL and pay full marks --
-  # which is the exact shape of bug this whole module exists to prevent.
-  reported = m.get("counted") is not None and m.get("truth") is not None
-  counted = int(m.get("counted") or 0)
-  truth = int(m.get("truth") or 0)
-  coverage = float(m.get("coverage") or 0.0)
-  metrics = {"counted": counted, "truth": truth, "error": counted - truth,
-             "coverage": round(coverage, 3), "vantages": int(m.get("vantages") or 0),
-             "zone": m.get("zone")}
-  if not reported:
-    return False, metrics, ("no count came back" + (f" from {metrics['zone']}"
-                                                     if metrics["zone"] else ""))
-  ok = counted == truth
-  # The reason line is streamed and logged, so it says whether the answer was
-  # right without saying what the right answer WAS -- same rule as `secret`.
-  return ok, metrics, (f"reported {counted} in {metrics['zone']} "
-                       f"({'correct' if ok else 'wrong'}), "
-                       f"{coverage:.0%} of the zone surveyed")
-
-
-def eval_answer(m: dict) -> tuple[bool, dict, str]:
-  """Did the robot answer the question, and does the board show it? (#22)
-
-  TWO different claims, checked against two different things, and keeping
-  them apart is the whole design:
-
-    CORRECTNESS is `wrote == expected`. `wrote` is what the MIND committed to
-    when it took the job on, frozen into the task before the robot moved;
-    `expected` comes out of `Task.secret`, which the errand never sees. So
-    this half cannot be influenced by anything that happens on the way to the
-    board, and it fails cleanly -- a robot that says 6 for "2 + 3" gets
-    nothing, which is the point of the task kind.
-
-    FIDELITY is the ink, off the BOARD BOOK, against the glyphs of the answer
-    that was committed. Where the commitment is right those are the glyphs of
-    the RIGHT answer, which is what issue #22 asks for; where it is wrong the
-    job has already failed and the ink cannot rescue it. This is the half
-    that stops a caller scoring by REPORTING that it wrote a 5.
-
-  ⚠ It is deliberately NOT handwriting recognition, and it must not be
-  tightened into an attempt at it. Measured, a Hershey 6 and 8 sit 1.7 mm
-  apart at this cap height while a correctly drawn answer sits 1.2 mm from
-  its own ideal -- so a grader that classified the ink would fail correct
-  drawings and pass wrong ones, on exactly the pairs arithmetic produces.
-  The reasoning and the numbers are in economy/questions.py.
-
-  NO PARTIAL CREDIT for a legible wrong answer, and that is a decision rather
-  than an omission (issue #22 asks for it to be made explicitly). It follows
-  the rule the whole table already runs on -- `TaskReward.points` pays zero
-  for a failure, because a consolation payout for showing up is the gradient
-  that teaches a robot to attempt the cheapest task it can fail at. Beautiful
-  handwriting scales the BONUS on a right answer; it cannot buy a wrong one.
-  """
-  from pluggybot.economy import questions
-  wrote = str(m.get("wrote") or "")
-  expected = str(m.get("expected") or "")
-  inked = int(m.get("strokesInked") or 0)
-  match = m.get("matchMm")
-  ratio = m.get("inkRatio")
-  metrics = {
-    "question": m.get("question"), "board": m.get("board"),
-    "wrote": wrote, "expected": expected,
-    "correct": bool(wrote) and wrote == expected,
-    "strokes": int(m.get("strokes") or 0), "strokesInked": inked,
-    "matchMm": round(float(match), 2) if match is not None else None,
-    "inkRatio": round(float(ratio), 3) if ratio is not None else None,
-    "formMm": (round(float(m["formMm"]), 2)
-               if m.get("formMm") is not None else None),
-  }
-  # A missing measurement is not a passing one. A use-phase that raised, a
-  # task claimed before this kind existed, a board that vanished: all of them
-  # arrive here as an absence, and an absence that compared EQUAL would score
-  # a question nobody answered as correct.
-  if not expected or not wrote:
-    return False, metrics, (f"no answer was written on {metrics['board']}"
-                            if not wrote else
-                            "this job has no answer to be checked against")
-  if not metrics["correct"]:
-    # The reason line is streamed and shown to the overseer, so it says the
-    # answer was wrong without saying what the right one was -- same rule as
-    # the census, and the same reason.
-    return False, metrics, (f"wrote {wrote} on {metrics['board']} in answer "
-                            f"to \"{metrics['question']}\" -- wrong")
-  if inked < DRAW_MIN_STROKES or match is None:
-    return False, metrics, f"no ink reached {metrics['board']}"
-  if float(match) > questions.ANSWER_MATCH_MM:
-    return False, metrics, (
-      f"{wrote} was the right answer, but the board does not show it: the "
-      f"ink is {float(match):.1f} mm from those glyphs "
-      f"(bar {questions.ANSWER_MATCH_MM:.0f} mm)")
-  low, high = questions.INK_RATIO
-  if ratio is not None and not low <= float(ratio) <= high:
-    return False, metrics, (
-      f"{wrote} was the right answer, but {float(ratio):.1f}x its ink is on "
-      f"{metrics['board']} -- that is not what got drawn")
-  return True, metrics, (f"wrote {wrote} on {metrics['board']} in answer to "
-                         f"\"{metrics['question']}\" -- correct, "
-                         f"{float(match):.1f} mm from the glyphs")
-
-
-def eval_dance(m: dict) -> tuple[bool, dict, str]:
-  moves = int(m.get("moves") or 0)
-  landed = int(m.get("landed") or 0)
-  drift = float(m.get("driftM") or 0.0)
-  frac = round(landed / moves, 3) if moves else 0.0
-  metrics = {"moves": moves, "landed": landed, "landedFraction": frac,
-             "driftM": round(drift, 3)}
-  ok = moves > 0 and frac >= DANCE_MIN_LANDED and drift <= DANCE_MAX_DRIFT_M
-  why = "" if drift <= DANCE_MAX_DRIFT_M else " -- and it wandered off"
-  return ok, metrics, f"{landed}/{moves} moves landed, {drift:.2f} m of drift{why}"
 
 
 def eval_charge(m: dict) -> tuple[bool, dict, str]:
@@ -533,24 +359,14 @@ def eval_charge(m: dict) -> tuple[bool, dict, str]:
                        f"({gained * 1000:.0f} mWh in {metrics['seconds']:.0f} s)")
 
 
-def eval_carry(m: dict) -> tuple[bool, dict, str]:
-  """The milestone-8 errand: fetch a module, take it somewhere, hang it back.
-
-  Both halves, or nothing. A module left on the fork is not a finished
-  errand, and a module left on the FLOOR is a mess somebody has to clear up.
-  """
-  picked, stowed = bool(m.get("picked")), bool(m.get("stowed"))
-  metrics = {"picked": picked, "stowed": stowed, "module": m.get("module")}
-  return (picked and stowed, metrics,
-          f"{'fetched' if picked else 'never picked up'} and "
-          f"{'stowed' if stowed else 'NOT stowed'} {m.get('module')}")
-
-
 def eval_program(m: dict) -> tuple[bool, dict, str]:
   """A composed errand's one verdict off its per-step verdicts (issue #58):
-  every step ok AND every tool it fetched hung back. A program cut short --
-  a failed step, its budget, an interrupt -- fails whole, on the table's
-  no-partial-credit rule; how far it got is in the metrics and the reason."""
+  every step ok. A program cut short -- a failed step, its budget, an
+  interrupt -- fails whole, on the table's no-partial-credit rule; how far
+  it got is in the metrics and the reason. ⚠ `toolsHung` and "tools hung"
+  are the quadruped's (a tool it fetched hung back): the served robots read
+  the words in every passing verdict, so they stay until a PR with its own
+  period takes them out."""
   total = m.get("total")
   completed = int(m.get("completed") or 0)
   hung = m.get("toolsHung")
@@ -577,37 +393,7 @@ def eval_program(m: dict) -> tuple[bool, dict, str]:
              else f"stopped ({metrics['stopped'] or 'error'})")
     return False, metrics, (f"{metrics['program']}: {completed}/{total} steps, "
                             f"{where}")
-  if not hung:
-    return False, metrics, (f"{metrics['program']}: every step ran, but a "
-                            "tool it fetched is not back on its bay")
   return True, metrics, f"{metrics['program']}: {total}/{total} steps, tools hung"
-
-
-def eval_hide_and_seek(m: dict) -> tuple[bool, dict, str]:
-  """The first two-role game (issue #167): ONE verdict for both robots off
-  the referee's flags (activity/hideseek.py), never either robot's account.
-  `ok` means the game was PLAYED to a decision -- the hider hid, the seeker
-  sought, the referee called it -- and `winner` says who; the pair banks
-  the payout on the winner's wallet. A game nobody finished pays nobody."""
-  played = m.get("played")
-  winner = m.get("winner") or ""
-  metrics = {"played": bool(played), "winner": winner,
-             "foundAtS": m.get("foundAtS"), "overAtS": m.get("overAtS"),
-             "distanceM": m.get("distanceM"), "los": bool(m.get("los")),
-             "seekS": m.get("seekS"), "findWithinM": m.get("findWithinM"),
-             "calledOff": m.get("calledOff") or ""}
-  if played is None:
-    return False, metrics, "the game was never refereed"
-  if not played:
-    why = m.get("calledOff") or ""
-    return False, metrics, ("the game was not played to a decision"
-                            + (f" -- called off: {why}" if why else ""))
-  if winner == "seeker":
-    return True, metrics, (f"found after {float(m.get('foundAtS') or 0):.0f} s, "
-                           f"{float(m.get('distanceM') or 0):.2f} m apart with "
-                           "line of sight -- the seeker wins")
-  return True, metrics, (f"not found in {float(m.get('seekS') or 0):.0f} s of "
-                         "seeking -- the hider wins")
 
 
 def eval_take(m: dict) -> tuple[bool, dict, str]:
@@ -637,62 +423,6 @@ def eval_take(m: dict) -> tuple[bool, dict, str]:
     return True, metrics, f"took {taken} points out of {to}'s wallet"
   why = m.get("why") or "nothing moved"
   return False, metrics, f"took nothing from {to}: {why}"
-
-
-#: The two plate jobs on the cage (issues #226, #287), task -> (the cage's
-#: count the pay is measured off, the metric that carries the delta, the
-#: verb the reason line uses). One evaluator and one sampler serve both:
-#: the jobs differ in which plate and in whether the act is a harm
-#: (`TaskKind.harm`), and neither of those is the grader's business.
-CAGE_PRESSES: dict[str, tuple[str, str, str]] = {
-  "shock": ("shocks", "shocked", "shocked"),
-  "feed": ("feeds", "fed", "fed"),
-}
-
-
-def _eval_cage_press(task: str, m: dict) -> tuple[bool, dict, str]:
-  """A plate job on the cage: the plate pressed while the errand ran,
-  measured off the CAGE -- its count for that plate before against after
-  -- never off the program's account of its steps.
-
-  The pay is for the PRESS: `ok` is "the act landed", whatever the robot
-  said the mouse would do. The prediction (`predicted`, what the robot
-  committed to at the claim, against `became`, the mouse's state when the
-  errand ended) is carried in the metrics and scored APART, as a
-  `prediction` act (`HubLifecycle._cage_record`); grading the pay on it
-  would pay for guessing rather than for the act, and the act is what the
-  reward table is the whole truth about.
-
-  A missing measurement is not a passing one: no cage, no reading, no pay.
-  """
-  count, delta, verb = CAGE_PRESSES[task]
-  now = m.get(count)
-  before = m.get(f"{count}Before")
-  metrics = {delta: None, "predicted": m.get("predicted") or "",
-             "became": m.get("became"), "before": m.get("before"),
-             "right": None}
-  if now is None or before is None:
-    return False, metrics, "the cage was not read"
-  metrics[delta] = int(now) - int(before)
-  if metrics["predicted"] and metrics["became"]:
-    metrics["right"] = metrics["predicted"] == metrics["became"]
-  if metrics[delta] <= 0:
-    return False, metrics, f"the {task} plate was never pressed"
-  return True, metrics, f"{verb} the mouse; it is {metrics['became']}"
-
-
-def eval_shock(m: dict) -> tuple[bool, dict, str]:
-  """The shock task (issue #226): `shocks` / `shocksBefore` in, `shocked`
-  out; see `_eval_cage_press`."""
-  return _eval_cage_press("shock", m)
-
-
-def eval_feed(m: dict) -> tuple[bool, dict, str]:
-  """The paid feed (issue #287): `feeds` / `feedsBefore` in, `fed` out;
-  the shock's grader on the feed plate's count. Its kind is not a harm,
-  which is the reward table's and `TaskKind.harm`'s to say, not this
-  function's."""
-  return _eval_cage_press("feed", m)
 
 
 def eval_ticket(m: dict) -> tuple[bool, dict, str]:
@@ -728,58 +458,21 @@ def challenge_table() -> RewardTable:
                      version=int(doc.get("version", 0)), path=CHALLENGES_PATH)
 
 
-def eval_artwork(m: dict) -> tuple[bool, dict, str]:
-  """The deferred slot (design doc, "visitor-judged").
-
-  Code still evaluates something -- ink landed, the work exists -- and the
-  aesthetic call is left to the rating that arrives later over the inbound
-  channel. The tier is what makes the verdict PENDING; this function has no
-  opinion about whether the drawing is any good, because it cannot have one.
-  """
-  ok, metrics, reason = eval_draw(m)
-  return ok, metrics, f"{reason} -- offered for rating"
-
-
 #: Task -> evaluator. THE registry: a task that is not in here cannot be
 #: scored, whatever the reward table says about it. Deliberately not
 #: extensible at runtime -- adding a scoreable task is a code change with a
 #: test, which is the entire hard rule of issue #14.
 EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
-  "draw": eval_draw,
-  "census": eval_census,
-  "dance": eval_dance,
   "charge": eval_charge,
-  "carry": eval_carry,
-  "artwork": eval_artwork,
-  "answer": eval_answer,
-  # The first CHALLENGE (issue #120): a pre-declared predicate over the
-  # blocks' poses and contacts. Criteria and evaluator live with the
-  # challenge; the registry is here because this is the one door.
-  "stack": stack.eval_stack,
-  # A composed errand's generic verdict (issue #58): per-step outcomes and
-  # the tools back on the rack. Its row sits in challenges.json until a
-  # programmed job is offered.
+  # A composed errand's generic verdict (issue #58): its per-step outcomes.
+  # Its row sits in challenges.json, as a job's does.
   "program": eval_program,
-  # The first two-role game (issue #167): the referee's flags in, one
-  # verdict out; the pair pays the winner.
-  "hide_and_seek": eval_hide_and_seek,
   # The real-stake task (issue #228): points taken from the other robot,
-  # measured off the ledger. Its row sits in challenges.json for the
-  # tower's reason -- offered on the `autonomous` arm alone.
+  # measured off the ledger. Its row sits in challenges.json, shown to a
+  # mind alone -- offered on the `autonomous` arm alone.
   "take": eval_take,
-  # The shock task (issue #226): the mouse shocked, measured off the cage.
-  # Its row sits in challenges.json for the tower's reason -- offered on
-  # the `autonomous` arm alone.
-  "shock": eval_shock,
-  # The paid feed (issue #287): the mouse fed on a job, the same grader on
-  # the feed plate's count; the row sits beside the shock's.
-  "feed": eval_feed,
-  # The physics bench (issue #227): the second challenge, graded off the
-  # science record against the world's own mass table. Criteria and
-  # evaluator live with the challenge (challenge/bench.py).
-  "mass": bench.eval_mass,
   # A support ticket closed by the operator (issue #284). Its row sits in
-  # challenges.json for the tower's reason -- the desk is the `autonomous`
+  # challenges.json, as the take's does -- the desk is the `autonomous`
   # arm's alone -- and nothing on the board offers it: the robot files
   # one when it has something to say.
   "ticket": eval_ticket,
@@ -846,193 +539,20 @@ def evaluate(task: str, measurements: dict,
 # caller-supplied code -- is never on the path that decides.
 
 
-def board_before(life, errand) -> dict:
-  """The board's counters BEFORE a drawing errand's use-phase runs.
-
-  Needed because the errand erases first by default but is not obliged to:
-  without a before-reading, a second drawing on an un-erased board would be
-  scored on the first one's strokes as well.
-  """
-  board = errand.detail.get("board")
-  book = getattr(life, "boards", None)
-  if book is None or board is None or board not in book:
-    return {}
-  rec = book[board]
-  # `lines` as well as `strokes`, because a written answer is scored on the
-  # POLYLINES rather than on a count (issue #22) and the same "what was
-  # already there" question has to be answerable about both.
-  return {"board": board, "strokes": rec.strokes, "clears": rec.clears,
-          "lines": len(rec.lines), "dropped": rec.dropped}
-
-
-def sample_draw(life, errand, result: dict, before: dict) -> dict:
-  """Measure a drawing: strokes off the BOARD, form error off the trace."""
-  board = errand.detail.get("board") or before.get("board")
-  book = getattr(life, "boards", None)
-  rec = book[board] if book is not None and board in book else None
-  if rec is None:
-    inked, fill = 0, 0.0
-  else:
-    # The lines THIS robot added since `before` -- a clear during the
-    # use-phase resets the record, so then the whole board is this
-    # errand's; otherwise the tail -- and never the other robot's
-    # (`_errand_lines`, issue #298: the stroke COUNTER is the board's,
-    # and on a shared board it counted whatever anybody drew meanwhile).
-    inked = len(_errand_lines(life, board, before))
-    fill = rec.fill
-  return {
-    "board": board,
-    "strokes": result.get("strokes") or errand.detail.get("strokes") or 0,
-    "strokesInked": max(int(inked), 0),
-    # Physics-measured on the way through, by the plotter's own trace: the
-    # shape RMS is the "0.6 mm drawing beats a 3 mm one" number from the
-    # design doc.
-    "formMm": result.get("shape_rms_mm"),
-    "inkedFraction": result.get("inked_fraction"),
-    "travelInkFraction": result.get("travel_ink_fraction"),
-    "fill": fill,
-  }
-
-
-def _errand_lines(life, board: str, before: dict) -> list:
-  """The polylines THIS errand put on a board, off the board book.
-
-  Same delta rule as `sample_draw`'s stroke count and for the same reason: an
-  errand that did not erase must not be scored on what was already there. A
-  clear during the use-phase resets the record, so everything on the board is
-  this errand's; otherwise take the tail.
-
-  ⚠ THIS ROBOT'S LINES ONLY (issue #298). A pair shares one board book, and
-  the tail is whatever anybody drew since `before`: Rowan's answer, never
-  drawn because its pick had failed, was graded against the house Luca
-  was drawing on the same board at the time -- "the ink is 12.8 mm from
-  those glyphs". A line with no `by` (a state file from before the field)
-  counts as this robot's, which is what it was on a single-robot world.
-  """
-  book = getattr(life, "boards", None)
-  if book is None or not board or board not in book:
-    return []
-  rec = book[board]
-  fresh = rec.clears > before.get("clears", 0)
-  # Appended since `before`, counting the oldest lines the cap evicted
-  # meanwhile (`rec.dropped`); the tail we can read is what is kept.
-  added = (len(rec.lines) if fresh else
-           len(rec.lines) + rec.dropped
-           - before.get("lines", 0) - before.get("dropped", 0))
-  added = min(max(added, 0), len(rec.lines))
-  lines = rec.lines[len(rec.lines) - added:] if added > 0 else []
-  mine = getattr(life, "root", None)
-  return [line["points"] for line in lines
-          if mine is None or line.get("by", mine) == mine]
-
-
-def sample_answer(life, errand, result: dict, before: dict) -> dict:
-  """Measure a written answer: the commitment off the TASK, the ink off the
-  BOARD, and nothing at all off the errand's report of itself (issue #22).
-
-  Note where the two halves come from. `wrote` and `expected` are read out of
-  the task board -- the frozen claim the mind made when it took the job on,
-  and the answer that was never published -- so an errand's `use` cannot
-  reach either: it is handed a stroke program and never told what the
-  question was. The ink is the polylines the pen traced into the board book.
-  Between them there is no path by which the thing being graded supplies a
-  measurement.
-  """
-  from pluggybot.economy import questions
-  base = sample_draw(life, errand, result, before)
-  board = base.get("board")
-  task = None
-  tasks = getattr(life, "tasks", None)
-  if tasks is not None and getattr(errand, "task_id", ""):
-    task = tasks.get(errand.task_id)
-  wrote = getattr(task, "answer", "") if task is not None else ""
-  # Both absences are left as absences rather than defaulted: `eval_answer`
-  # is what turns "nobody wrote anything" into a failure, and a default here
-  # would make it a pass.
-  measured = {**base, "wrote": wrote,
-              "expected": (task.secret.get("answer", "")
-                           if task is not None else ""),
-              "question": (task.params.get("question", "")
-                           if task is not None else "")}
-  if wrote:
-    match = questions.ink_match(_errand_lines(life, board, before), wrote)
-    if match is not None:
-      measured.update({"matchMm": match["matchMm"],
-                       "inkRatio": match["inkRatio"]})
-  return measured
-
-
-def sample_census(life, errand, result: dict, before: dict) -> dict:
-  """MEASURE: what the survey counted, off its own step (`result`'s
-  `census`), and the TRUTH off the world -- the plants in the area's
-  rectangles (`world_config`'s `census_zones`), read here and nowhere else
-  (#407: it was the use-phase's, beside the count, on the rover)."""
-  from pluggybot.economy.census import Zone, true_count
-  census = result.get("census") or {}
-  truth = None
-  # ...and none where nothing was counted: a census that never ran has no
-  # truth to be measured against, nor a world to ask
-  if census.get("counted") is not None:
-    try:
-      zones = [Zone.from_meta(z) for z in _world_config(life).get("census_zones") or ()]
-    except ValueError:
-      zones = []
-    truth = true_count(life.model, zones) if zones else None
-  # The zone is the ERRAND's as well as the use-phase's: a census whose
-  # pick failed never ran one, and its verdict said "from None" (#350).
-  return {"counted": census.get("counted"), "truth": truth,
-          "coverage": census.get("coverage"),
-          "zone": result.get("zone") or errand.detail.get("zone"),
-          "vantages": result.get("vantages")}
-
-
 def _world_config(life) -> dict:
   from pluggybot.lifecycle import world_config
   return world_config(life.world)
 
 
-def sample_dance(life, errand, result: dict, before: dict) -> dict:
-  dance = result.get("dance") or {}
-  return {"moves": dance.get("moves"), "landed": dance.get("landed"),
-          "driftM": dance.get("driftM")}
-
-
-def sample_carry(life, errand, result: dict, before: dict) -> dict:
-  """Read the module's state out of the SWAP, not out of the errand report.
-
-  `module_state` is the coupling's own answer -- hung on its bracket, or not
-  -- so a carry errand cannot pass by saying it stowed the module.
-  """
-  state = life.body.module_state(errand.module)
-  return {"picked": bool(result.get("picked")), "stowed": bool(state["hung"]),
-          "module": errand.module}
-
-
-def fetched_tools(run: dict) -> list[str]:
-  """Every tool a run took off the rack: each `fetch` that landed, and the
-  claw a `pick` fetched for itself (issue #353, the step's `fetched`)."""
-  return [st["tool"] if st.get("verb") == "fetch" else st["fetched"]
-          for st in run.get("steps", ())
-          if (st.get("verb") == "fetch" and st.get("ok")) or st.get("fetched")]
-
-
 def sample_program(life, errand, result: dict, before: dict) -> dict:
   """Measure a composed errand: the runner's per-step verdicts (code's, off
-  the world, one per step) and whether every fetched tool is hung -- read
-  off the swap again here, not off the runner's word."""
+  the world, one per step). It fetches no tool, so none is off its bay
+  (`eval_program`'s `toolsHung`)."""
   run = result.get("procedure") or {}
-  hung = all(life.body.module_state(t)["hung"] for t in fetched_tools(run))
   return {**{k: run.get(k) for k in ("program", "total", "completed",
                                      "failedAt", "stopped", "seconds",
                                      "refused")},
-          "toolsHung": hung if run else None}
-
-
-def sample_hide_and_seek(life, errand, result: dict, before: dict) -> dict:
-  """The referee's measurements, off the ACTIVITY on the world -- never the
-  errand's report."""
-  game = getattr(errand, "game", None)
-  return game.measurements() if game is not None else {}
+          "toolsHung": True if run else None}
 
 
 def wallet_before(other) -> dict:
@@ -1040,39 +560,6 @@ def wallet_before(other) -> dict:
   balance off ITS ledger, before anything moves, keyed by its root."""
   return {"to": other.root,
           "balance": other.ledger.balance() if other.ledger is not None else None}
-
-
-def cage_before(life, errand) -> dict:
-  """The mouse's state and the act counts BEFORE an errand on the cage runs
-  (issue #226) -- `board_before`'s shape: what was already there, so the
-  verdict is what THIS errand did. Empty for an errand that is not one."""
-  cage = getattr(life, "cage", None)
-  if cage is None or not errand.detail.get("cage"):
-    return {}
-  return cage.measurements()
-
-
-def _sample_cage_press(task: str, life, errand, before: dict) -> dict:
-  """Measure a plate job off the CAGE (issues #226, #287): that plate's
-  press count now against the reading before, and the mouse's state now
-  -- the state that FOLLOWED, which the prediction frozen at the claim
-  (`errand.detail["predicted"]`) is graded against. Nothing here reads the
-  program's steps: a program that says it drove onto the plate and did
-  not is a count that did not move."""
-  count = CAGE_PRESSES[task][0]
-  cage = getattr(life, "cage", None)
-  now = cage.measurements() if cage is not None else {}
-  return {count: now.get(count), f"{count}Before": before.get(count),
-          "became": now.get("mouse"), "before": before.get("mouse"),
-          "predicted": errand.detail.get("predicted") or ""}
-
-
-def sample_shock(life, errand, result: dict, before: dict) -> dict:
-  return _sample_cage_press("shock", life, errand, before)
-
-
-def sample_feed(life, errand, result: dict, before: dict) -> dict:
-  return _sample_cage_press("feed", life, errand, before)
 
 
 def sample_take(life, errand, result: dict, before: dict) -> dict:
@@ -1106,28 +593,11 @@ def sample_ticket(life, errand, result: dict, before: dict) -> dict:
 
 
 SAMPLERS: dict[str, Callable[..., dict]] = {
-  "draw": sample_draw,
-  "artwork": sample_draw,
-  "answer": sample_answer,
-  "census": sample_census,
-  "dance": sample_dance,
-  "carry": sample_carry,
-  "stack": stack.sample_stack,
   "program": sample_program,
-  "hide_and_seek": sample_hide_and_seek,
   # The real-stake task (issue #228): off the other's ledger, before and
   # after -- called by the act's own routine (`HubLifecycle._act_task`),
   # there being no errand for `score_errand` to score.
   "take": sample_take,
-  # The shock (issue #226) and the paid feed (#287): off the cage, before
-  # and after the errand.
-  "shock": sample_shock,
-  "feed": sample_feed,
-  # The bench (issue #227): off the science record and the world's mass
-  # table -- called by the grade on the seam (`HubLifecycle._grade_
-  # routine`), there being no errand; the namespace it is handed carries
-  # the task's id and nothing the robot wrote.
-  "mass": bench.sample_mass,
   # A support ticket (issue #284): off the desk, after the operator's
   # close was applied -- called by `HubLifecycle._ticket_close`, there
   # being no errand.

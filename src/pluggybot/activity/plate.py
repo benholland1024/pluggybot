@@ -15,10 +15,9 @@ smallest thing that exercises every part of it:
   TELEMETRY               two flags on the wire, sparse, re-shipped on
                           keyframes
 
-An activity module owns BOTH its geometry and its state machine, the way
-`rack/coupling.py` owns the tool modules' faces. A world generator calls
-`plate_light_xml()` and knows nothing else about it; adding an activity to a
-world is one import and one call.
+An activity module owns BOTH its geometry and its state machine. A world
+generator calls `plate_light_xml()` and knows nothing else about it; adding
+an activity to a world is one import and one call.
 
 ⚠ THIS USED TO BE A GATE, and the change is a decision, not a cleanup
 (issue #93). The gate was designed under an explicit rule -- it blocks no

@@ -7,7 +7,7 @@ root body's mount: the pelvis), and a map that keeps what the camera saw
 (`perception/heightmap.py`), laid through what the robot believes: its
 heading, position and height off its leg odometry (`humanoid.odometry`),
 its tilt off its IMU. The scan is that map read at the policy's grid, as
-the quadruped's is (`legs/scan.py`, #388).
+the quadruped's was (#388).
 
 The camera sees the floor from 0.48 m ahead of the feet, so the ground
 under and behind them is what it saw on the way -- and what its soles FEEL:

@@ -85,8 +85,8 @@ from pathlib import Path
 
 from pluggybot.economy import energy
 from pluggybot.economy.tasks import KINDS, TaskBoard
-from pluggybot.lifecycle import (HUMANOID_HOME, QUAD_HOME, board_book, points_ledger,
-                                 world_config, world_for, world_targets)
+from pluggybot.lifecycle import (HUMANOID_HOME, board_book, points_ledger, world_config,
+                                 world_for, world_targets)
 from pluggybot.mind import llm, look
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import JPEG_MAGIC, MAX_IMAGE_BYTES
@@ -157,23 +157,13 @@ def timeout_share(latencies: list[float], deadline: float) -> float:
   return sum(1 for v in latencies if v > deadline) / len(latencies)
 
 
-#: The served pair's body (`PLUGGY_BODY` in the website's compose.yaml,
-#: the humanoid since #559's stage 4): what `--deployed` measures unless a
-#: body is named.
-SERVED_BODY = "humanoid"
-
-#: The synthetic robot, per world: its paid job (the feed on the
-#: quadrupeds', the drawer on the humanoids', #559), what its record says of
-#: a pass and what it keeps in mind -- and its pack, Wh, run DOWN below what
-#: the offer costs plus the reserve (the feed's `estimateWh`, 1.77, and the
-#: drawer's from the station, 7.08, each with the world's reserve kept back)
+#: The synthetic robot, per world: its paid job (the drawer, #559), what
+#: its record says of a pass and what it keeps in mind -- and its pack, Wh,
+#: run DOWN below what the offer costs plus the reserve (the drawer's
+#: `estimateWh` from the station, 7.08, with the world's reserve kept back)
 #: and falling a little every call, so the standing orders are read against
 #: a battery that moves.
 SYNTHETIC = {
-  QUAD_HOME: {"kind": "feed_mouse", "wh": 5.2,
-              "reason": "the feed plate pressed; the mouse is eating",
-              "did": "found the feed plate by its sign and pressed it",
-              "mind": "the lab is a long walk from the dock"},
   HUMANOID_HOME: {"kind": "open_drawer", "wh": 24.3,
                   "reason": "the drawer out 0.22 m when I said done and 5 s later",
                   "did": "found the storeroom's counter by its tags and pulled "
@@ -247,7 +237,7 @@ def with_picture(state: dict, jpeg: bytes, i: int, world: str) -> dict:
   #541): the `seen` block the lifecycle builds when a look comes back
   (`look.as_context`, one look of the run spent), so the call attaches it
   as an image part of the user turn exactly as a served call does. Taken
-  from where the robots charge between jobs: the dock, or the station."""
+  from where the robots charge between jobs: the station."""
   x, y, yaw = world_config(world)["dock"]
   row = {"ref": f"look:{ROBOT_ROOT}:{i + 1}", "outcome": "seen", "_jpeg": jpeg,
          "at": {"x": round(x, 2), "y": round(y, 2),
@@ -348,15 +338,13 @@ def report_latency(latencies: list[float], boss: Overseer,
 
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("--world", choices=(QUAD_HOME, HUMANOID_HOME, "home"), default="home",
-                      help="the house with the quadrupeds in it, or the humanoids "
-                           "(#559, served from its stage 4); `home` names the "
-                           "one --body names")
+  parser.add_argument("--world", choices=(HUMANOID_HOME, "home"), default="home",
+                      help="the house with the humanoids in it (#559); `home` "
+                           "names it too")
   parser.add_argument("--body", choices=BODIES, default=os.environ.get("PLUGGY_BODY") or None,
-                      help="which body: the quadruped or the humanoid, as "
+                      help="which body: the humanoid, the one there is, as "
                            "`serve.py --body` -- default $PLUGGY_BODY, then "
-                           "with --deployed the served pair's (the humanoid), "
-                           "then the body --world names (home: the quadruped)")
+                           "the body --world names")
   parser.add_argument("--calls", type=int, default=4,
                       help="real decisions to make (each one costs money)")
   parser.add_argument("--model", default=None,
@@ -448,8 +436,6 @@ def main() -> None:
     if not picture.startswith(JPEG_MAGIC) or len(picture) > MAX_IMAGE_BYTES:
       parser.error(f"--image takes a JPEG of at most {MAX_IMAGE_BYTES} bytes, "
                    "as the sim's door does")
-  if args.deployed and args.body is None and args.world == "home":
-    args.body = SERVED_BODY
   try:
     args.world = world_for(args.world, args.body)
   except ValueError as e:
@@ -458,9 +444,9 @@ def main() -> None:
   book = board_book(args.world)
   menu = Menu.for_world(args.world, book)
   # The REAL memory, so the prefix measured here is the prefix a deployment
-  # sends: `Main.md` is in it (issue #38), in the body's words, and the
-  # writable documents are deliberately not -- they ride the user turn below.
-  memory = ThoughtFiles.open(args.thoughts, body=world_config(args.world)["body"])
+  # sends: `Main.md` is in it (issue #38), and the writable documents are
+  # deliberately not -- they ride the user turn below.
+  memory = ThoughtFiles.open(args.thoughts)
   backend = llm.resolve_backend(args.backend, args.model or "")
   model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   if args.deployed:

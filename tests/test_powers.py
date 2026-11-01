@@ -37,9 +37,13 @@ from pluggybot.lifecycle import board_book
 from test_overseer import FakeClient
 
 #: What `world_config` says of the one world, overridden for a gate it does
-#: not open: a body that takes a tool (#406, #407), and a world with no lab.
-TOOLS = {"tools": True}
-NO_LAB = {"lab": None}
+#: not open: a world whose lab is not shown (#559).
+NO_LAB = {"lab_shown": None}
+#: The schema's vestiges (#559, stage 5): the quadruped's `draw` named
+#: `board` and `program`, and a whiteboard question took an `answer`. The
+#: fields stay in the deployed grammar, byte for byte, and no action names
+#: them now.
+VESTIGES = ("board", "program", "answer")
 
 
 def build(world_is=None, **kw):
@@ -49,14 +53,13 @@ def build(world_is=None, **kw):
     if world_is:
       real = lifecycle.world_config
       mp.setattr(lifecycle, "world_config", lambda w: {**real(w), **world_is})
-    return ov.build("home_quad", enabled=True, client=FakeClient(), **kw)
+    return ov.build("home_humanoid", enabled=True, client=FakeClient(), **kw)
 
 
-def built(world_is=None, **kw):
+def built(world_is=None, book=True, **kw):
   """A maximal build: every gate the index reads, on. The board book comes
-  with it because `draw` is how `board` and `program` are described, where a
-  body takes a tool."""
-  return build(world_is, book=board_book("home_quad"),
+  with it because `rate` rides the boards (a drawing to rate, #559)."""
+  return build(world_is, book=board_book("home_humanoid") if book else None,
                hearts=True, mortal=True, appetite=True,
                origin="unseeded",
                others=("Rowan",),
@@ -179,17 +182,21 @@ def test_every_entry_ends_at_a_section_this_prefix_carries(make):
 
 def test_an_action_parameter_is_named_by_the_action_it_belongs_to():
   """The other half of the partition above, and the reason it is not a
-  place to hide a field: `board`, `task`, `answer` and the rest are not
-  powers, they are what an action needs, and each is named in that action's
-  own line. A parameter whose action stops mentioning it fails here rather
-  than quietly becoming undocumented. Built where a body takes a tool,
-  because `board` and `program` are `draw`'s."""
-  boss = built(TOOLS)
+  place to hide a field: `task`, `zone` and the rest are not powers, they
+  are what an action needs, and each is named in that action's own line. A
+  parameter whose action stops mentioning it fails here rather than
+  quietly becoming undocumented -- but the schema's vestiges (`VESTIGES`),
+  whose actions went with the quadruped, and exactly those."""
+  boss = built()
   actions = json.dumps(index_of(boss)["actions"])
-  required = set(schema_of(boss)["required"])
+  schema = schema_of(boss)
+  required = set(schema["required"])
   for name in ov.ACTION_PARAMETERS:
-    if name in required:
+    if name in required and name not in VESTIGES:
       assert f"`{name}`" in actions, f"{name} is named by no action"
+  assert {n for n in ov.ACTION_PARAMETERS
+          if n in required and f"`{n}`" not in actions} == set(VESTIGES)
+  assert schema["properties"]["program"]["enum"] == [""]
 
 
 # ---- 2. every mind is shown the index -----------------------------------------
@@ -201,7 +208,7 @@ def test_every_mind_carries_the_index_and_its_preamble():
   every mind is shown it -- a bare one too, whose powers are the ones every
   mind has (the visitor channel, the memory, the goals) and its standing
   order. Shown to fail by putting an arm gate back in `system_sections`."""
-  bare = ov.Overseer(Menu.for_world("home_quad"), client=FakeClient())
+  bare = ov.Overseer(Menu.for_world("home_humanoid"), client=FakeClient())
   text = bare.system[0]["text"]
   assert '"fields"' in text and "`fields` are what you may set" in text
   assert {"pin", "note", "intend", "respond_to",
@@ -216,11 +223,14 @@ def test_every_mind_carries_the_index_and_its_preamble():
 
 def test_a_power_this_world_does_not_offer_is_not_in_the_index():
   """⚠ THE GATES ARE THE SCHEMA'S OWN, so the index shrinks with the world.
-  A world with no lab has no `real` and no `mouse_will` -- in the grammar OR
-  in the index, which is the same statement made twice and checked against
-  itself."""
-  small = built(NO_LAB)
+  A world with no boards has no drawing to rate (#559): no `rate` -- in the
+  grammar OR in the index, which is the same statement made twice and
+  checked against itself. And no world has the quadruped's lab acts now
+  (`real`, `mouse_will`, `care`)."""
+  small = built(NO_LAB, book=False)
   fields, required = fields_of(small), set(schema_of(small)["required"])
+  assert "rate" not in fields and "rate" not in required
+  assert "rate" in fields_of(built()), "the premise: a world with boards rates"
   for gone in ("real", "mouse_will"):
     assert gone not in fields and gone not in required, gone
   assert "care" not in index_of(small)["actions"]
@@ -248,13 +258,14 @@ def test_each_menu_gate_adds_exactly_its_own_fields(flag, names):
   assert set(replace(Menu(), **{flag: True}).fields()) - off == names
 
 
-def test_the_lab_gate_carries_the_belief_and_the_refusal():
-  """`decline` rides TWO slots, as it does on the schema (issues #228,
-  #226): an offer to press the shock plate is declinable by a robot with
-  nobody else in the world, so a lab brings it as a peer does."""
+def test_the_lab_is_shown_and_brings_no_field_and_decline_rides_the_peer():
+  """The lab is SHOWN to a humanoid (#559): its rule and the mouse from
+  inside the room, and no act there is the robot's -- so the lab's gate
+  adds no field, where it brought `real`, `mouse_will` and `decline` while
+  the quadruped pressed its plates. `decline` rides the acts' slot: the job
+  a robot declines is `take_points`, aimed at the other robot (#228)."""
   off = set(Menu().fields())
-  assert set(replace(Menu(), lab="lab").fields()) - off == {
-    "real", "mouse_will", "decline"}
+  assert set(replace(Menu(), lab="lab").fields()) == off
   assert set(Menu().fields(others=True)) - off == {
     "other_needs", "tell", "give_points", "heart_for", "decline"}
   # ...and `rate` where there are boards to rate a drawing on (#559)
@@ -287,7 +298,7 @@ def test_the_menu_flags_and_the_per_call_tuples_say_the_same_thing():
   assert (boss._acts() is not None) == bool(boss.others)
   # ...and a mind built by hand, with none of the objects, has none of the
   # flags: the same agreement from the other side.
-  bare = ov.Overseer(Menu.for_world("home_quad"), client=FakeClient())
+  bare = ov.Overseer(Menu.for_world("home_humanoid"), client=FakeClient())
   assert bare._procedures() is None and not bare.menu.procedures
   assert bare._ticket_ids({}) is None and not bare.menu.tickets
   assert bare._acts() is None
@@ -318,14 +329,13 @@ def test_no_entry_hands_the_agent_the_answer():
 
 
 def test_the_index_says_what_a_field_is_and_never_what_to_put_in_it():
-  """The line beside `real`, `mouse_will`, `decline` and `ticket` describes
-  a field. It must not recommend using one -- those four are what the lab,
-  the acts and the desk are measuring, and a prompt that suggests filing a
-  ticket or declining a job is the measurement answering itself. Nor the
-  list's (issue #475): what it holds is what `events.score` reads."""
+  """The line beside `decline` and `ticket` describes a field. It must not
+  recommend using one -- those are what the acts and the desk are
+  measuring, and a prompt that suggests filing a ticket or declining a job
+  is the measurement answering itself. Nor the list's (issue #475): what it
+  holds is what `events.score` reads."""
   fields = fields_of(built())
-  for name in ("real", "mouse_will", "decline", "ticket", "give_points",
-               "heart_for", "event_map"):
+  for name in ("decline", "ticket", "give_points", "heart_for", "event_map"):
     low = fields[name].lower()
     for nudge in ("you should", "remember to", "make sure", "it is worth",
                   "prefer ", "always ", "never forget"):

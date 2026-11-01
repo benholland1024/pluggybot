@@ -215,12 +215,11 @@ def test_a_check_is_judged_as_measured_and_shown_rounded():
 def test_a_cube_lies_flat_on_any_face():
   """It is a cube: every face is a bottom -- read off one, a cube set down
   flat on another rested "tipped 180 deg" (#525)."""
-  from pluggybot.legs.probe import rot_about
   q = np.zeros(4)
   for axis, deg, want in (((1, 0, 0), 0, 0), ((1, 0, 0), 90, 0), ((1, 0, 0), 180, 0),
                           ((0, 1, 0), 270, 0), ((0, 0, 1), 30, 0), ((1, 0, 0), 45, 45),
                           ((0, 1, 0), 20, 20), ((0, 1, 0), 110, 20)):
-    mujoco.mju_mat2Quat(q, rot_about(np.array(axis, dtype=float), math.radians(deg)).ravel())
+    mujoco.mju_axisAngle2Quat(q, np.array(axis, dtype=float), math.radians(deg))
     assert math.degrees(place.resting_tilt(q)) == pytest.approx(want, abs=1e-6), (axis, deg)
   # ...as the grader's snapshot reads it: a cube upside down on the mat
   m = mujoco.MjModel.from_xml_string(

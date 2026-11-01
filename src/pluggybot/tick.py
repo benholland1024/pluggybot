@@ -26,8 +26,7 @@ the same trajectory before and after (`scripts/determinism_spike.py
             setpoints before the world steps, `after_step()` is its
             bookkeeping after, `step(command)` is the three for a robot
             alone, `STILL` the command that holds it where it is, and
-            `model` / `data` the world it steps (`Body.stepper`; the
-            quadruped's is `legs.body.QuadStepper`).
+            `model` / `data` the world it steps (`Body.stepper`).
   run       the blocking driver, for scripts, tests and every caller that
             wants the old shape: step until the routine returns.
 

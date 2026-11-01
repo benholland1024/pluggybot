@@ -55,8 +55,7 @@ from pluggybot.economy.tasks import KINDS, TaskBoard
 
 #: The shipped cadence. Overridable per deploy with $PLUGGY_CADENCE, which is
 #: how the deployment re-tunes how busy the world is on a mounted volume
-#: without a rebuild -- the same door economy/rewards.json and economy/questions.json
-#: are opened by.
+#: without a rebuild -- the same door economy/rewards.json is opened by.
 CADENCE_PATH = Path(__file__).with_name("cadence.json")
 CADENCE_ENV = "PLUGGY_CADENCE"
 CADENCE_VERSION = 1
@@ -203,10 +202,9 @@ class TaskProducer:
     self.kinds = tuple(name for name in cadence.kinds
                        if name in KINDS
                        and KINDS[name].target_kind in self.targets)
-    #: THE ROTATION RESUMES WHERE THE LAST MISSION LEFT IT. The cursor and
-    #: the figure counter live in the board's `producer` dict, which the
-    #: board persists with its tasks, and this writes them there IN PLACE
-    #: as they move. The cursor is stored as the kind's NAME, so an edited
+    #: THE ROTATION RESUMES WHERE THE LAST MISSION LEFT IT. The cursor lives
+    #: in the board's `producer` dict, which the board persists with its
+    #: tasks, and this writes it there IN PLACE as it moves. The cursor is stored as the kind's NAME, so an edited
     #: rotation resumes at the same kind or, for a kind that is gone, at
     #: the top. Measured on the deployed world (`TaskBoard.producer`): with
     #: a fresh producer every hourly mission, the last kind in home's list
@@ -216,8 +214,6 @@ class TaskProducer:
     #: rotation cursor over `self.kinds`
     self.cursor = (self.kinds.index(self.state["cursor"])
                    if self.state.get("cursor") in self.kinds else 0)
-    #: ...and over each kind's `programs` list, so successive drawings differ
-    self.figure = int(self.state.get("figure") or 0)
     #: target -> sim time it was last named by an offer
     self.last_offered: dict[str, float] = {}
     #: sim time of the next tick that may place an offer
@@ -377,11 +373,9 @@ class TaskProducer:
   def _build(self, kind: str, target: str) -> tuple[dict, dict]:
     """The params and the secret one offer is made with.
 
-    A kind with a secret -- `whiteboard_answer` (issue #22), `find_mass`
-    (#227) -- draws it off the BOARD's own sequence number -- which survives a
-    restart, so a deployed robot works through the bank instead of being
-    asked the same thing every morning, while a test seeding a fresh board
-    gets the same question every time.
+    A kind with a secret -- a hand job's prop's hidden dynamics (#559) --
+    draws it off the BOARD's own sequence number, which survives a restart,
+    so a test seeding a fresh board gets the same draw every time.
     """
     cfg = self.cadence.kinds.get(kind) or {}
     params: dict = dict(cfg.get("params") or {})
@@ -392,27 +386,6 @@ class TaskProducer:
     if area:
       params.update({"address": dict(area["address"]),
                      "directions": area["directions"]})
-    programs = list(cfg.get("programs") or ())
-    if programs:
-      params["program"] = programs[self.figure % len(programs)]
-      self.figure += 1
-      self.state["figure"] = self.figure
-    if kind == "whiteboard_answer":
-      from pluggybot.economy.questions import default_bank
-      question = default_bank().pick(self.board.seq)
-      params.update({"question": question.ask, "template": question.id})
-      return params, {"answer": question.answer}
-    if kind == "find_mass":
-      # The bench (issue #227): the same rotation, off the same counter.
-      # What the offer TELLS -- the known mass, which tag is which -- is
-      # the module's statement; the unknown is the secret, and the
-      # lifecycle sets it into the world when this offer lands. Where the
-      # cubes are is the area's directions (#407), never a position.
-      from pluggybot.challenge import bench
-      params.update({"known_g": round(bench.KNOWN_MASS_KG * 1000),
-                     "known_tag": bench.MASS_TAG_IDS[0],
-                     "unknown_tag": bench.MASS_TAG_IDS[1]})
-      return params, {"kg": bench.default_bank().pick(self.board.seq)}
     if KINDS[kind].draws:
       # A hand job (#559): its prop's hidden dynamics drawn afresh, off the
       # same counter, set into the world as the offer lands -- the draw's

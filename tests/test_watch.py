@@ -350,7 +350,7 @@ def test_a_watch_reads_the_robots_senses_never_the_simulators_truth(monkeypatch)
   `MjData` a spy -- nothing of where the world says the bodies or the
   camera are (`test_humanoid.TRUTH`, and the camera's pose). The picture is
   the camera's: its render reads the world, as a camera sees it."""
-  from pluggybot.rack.tags import TagDetector
+  from pluggybot.perception.tags import TagDetector
   from test_humanoid import TRUTH, _Spy
   model, data, body, life = _counter()
   spy = _Spy(data)

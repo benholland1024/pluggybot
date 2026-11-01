@@ -17,9 +17,9 @@ the robot perform a convincing rigid-body gesture at a known place that a
 state machine can VERIFY" -- and that verification is what lives here.
 
 This is not a new idea in the repo, it is the oldest one generalised.
-Charging has always worked exactly this way: `legs.dock.dock_charge_contact`
-is a contact-derived criterion and the battery filling is bookkeeping. So is
-`module_power_contact`. Each answers a question about the world with a FACT
+Charging has always worked exactly this way: the station's port catch
+(`activity.station`) is a criterion read off the physics and the battery
+filling is bookkeeping. It answers a question about the world with a FACT
 read out of the physics rather than with a belief about what was commanded. An activity is
 that pattern given a name, a memory, and a way onto the wire.
 

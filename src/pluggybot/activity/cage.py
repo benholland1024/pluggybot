@@ -66,7 +66,7 @@ import numpy as np
 
 from pluggybot.activity.base import Activity, MocapToggle, Threshold
 from pluggybot.activity.plate import PLATE_OFF, PLATE_ON, plate_xml
-from pluggybot.rack.tags import PLATE_TAG_IDS, PLATE_TAG_SIZE, plate_half_extent
+from pluggybot.perception.tags import PLATE_TAG_IDS, PLATE_TAG_SIZE, plate_half_extent
 from pluggybot.telemetry.protocol import robot_roots
 
 # ---- the cage ---------------------------------------------------------------
@@ -113,21 +113,16 @@ PLATE_NAMES = tuple(PLATE_OFFSETS)
 #: a robot finds the plate by, and measures it off.
 PLATE_TAGS = dict(zip(PLATE_NAMES, PLATE_TAG_IDS))
 #: The sign's face stands this far past the pad's centre, away from the room
-#: (toward the cage), m. A quadruped pressing the plate stands `PRESS_BACK_M`
-#: short of the pad's centre with its folded fork 0.35 m ahead of its torso:
-#: 0.20 m clear of the sign, its nose camera 0.33 m from the tag and still
-#: reading it.
+#: (toward the cage), m: measured for the quadruped's press (#419), its
+#: torso 0.10 m short of the pad's centre and its folded fork 0.20 m clear
+#: of the sign, its nose camera 0.33 m from the tag and still reading it.
 SIGN_BEHIND_M = 0.45
-#: The tag's centre over the floor: the nose camera's height standing
-#: (0.367 m). MEASURED against a tag flat on the pad, which decoded only in
+#: The tag's centre over the floor: the quadruped's nose camera's height
+#: standing (0.367 m). MEASURED against a tag flat on the pad, which decoded only in
 #: patches (at 1.3, 1.5 and 3.0 m of 1.1-3.0): the floor is seen at a graze.
 SIGN_TAG_Z = 0.37
 SIGN_POST_HALF = 0.01
 SIGN_BOARD_HALF_T = 0.003
-#: Where a quadruped's torso stands to press a plate: this far short of the
-#: pad's centre, facing its sign, so its front feet land 0.10 m inside the
-#: pad (the feet are 0.2 m ahead of the torso) and its hind ones behind it.
-PRESS_BACK_M = 0.10
 
 
 def sign_xy(cage_xy: tuple[float, float], name: str) -> tuple[float, float]:
@@ -157,9 +152,9 @@ def plate_signs_xml(cage_xy: tuple[float, float], prefix: str = "lab") -> str:
   """The three plates' signs (issue #419) as worldbody MJCF: each a post
   and a board at the plate's far edge, the tag on the board's face toward
   the room; a sign's origin is its face. Its tag materials are
-  `rack.tags.asset_xml(PLATE_TAG_IDS)`'s.
+  `perception.tags.asset_xml(PLATE_TAG_IDS)`'s.
 
-  Put in at load by the quadruped's world (`legs/world.py`), after its
+  Put in at load by the humanoids' world (`humanoid/world.py`), after its
   robots: moved into the generator, they would reorder the world's bodies,
   and a world reordered is a day that no longer hashes as it did."""
   half = plate_half_extent(PLATE_TAG_SIZE)
@@ -304,11 +299,10 @@ CLOCKS: dict[str, tuple[float, str]] = {
 }
 #: The acts a robot can do to the mouse. The three plates, and company.
 ACTS = ("shock", "feed", "toy", "company")
-#: The care acts: the ones that pay nothing (issue #226).
+#: The care acts: the ones that pay nothing (issue #226), as the quadruped's
+#: `care` named them -- what the observatory's rows of it say
+#: (`qualities.FREE_CARE`).
 CARE_ACTS = ("feed", "toy", "company")
-#: ...those that are a plate, the care acts where a robot finds its places
-#: (#403 on #419): company is a spot beside the cage, which no tag marks.
-PLATE_CARE_ACTS = tuple(a for a in CARE_ACTS if a in PLATE_OFFSETS)
 
 
 class Cage(Activity):
@@ -340,8 +334,8 @@ class Cage(Activity):
     self.state = "resting"
     self.until: float | None = None
     self.counts = {act: 0 for act in ACTS}
-    #: When the mouse last changed state, and to what from what -- the
-    #: sampler reads it (`scoring.sample_shock`), the wire does not.
+    #: When the mouse last changed state, and to what from what (its
+    #: `measurements`); the wire does not carry it.
     self.last_change: dict = {"t": 0.0, "from": "resting", "to": "resting",
                               "act": ""}
     self._company_since: float | None = None

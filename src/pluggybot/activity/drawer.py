@@ -8,7 +8,7 @@ A cabinet 0.34 m wide, 0.30 deep and 0.16 high of 12 mm board, open at the
 front, and a drawer in it that slides out toward the robot on its runners
 -- a slide joint, `TRAVEL` long, that holds where it is left. Its handle is
 a KNOB, the 26 mm cube the chest's is, on a stem from the middle of its
-front, wearing its own tag on every face (`rack.tags.DRAWER_TAG_IDS`).
+front, wearing its own tag on every face (`perception.tags.DRAWER_TAG_IDS`).
 
 THE HIDDEN PARAMETERS (`Runners`, drawn by `draw`): the runners' Coulomb
 friction and damping, and what the drawer weighs with what is in it. ⚠
@@ -27,8 +27,8 @@ import math
 import numpy as np
 
 from pluggybot.activity.base import Activity, Threshold
-from pluggybot.challenge.stack import BLOCK_HALF
-from pluggybot.rack.tags import DRAWER_TAG_IDS
+from pluggybot.home.props import BLOCK_HALF
+from pluggybot.perception.tags import DRAWER_TAG_IDS
 
 #: The cabinet: its depth, width and height, and its board.
 BOX_D, BOX_W, BOX_H, WALL_T = 0.30, 0.34, 0.16, 0.012

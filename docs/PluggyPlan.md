@@ -11,8 +11,9 @@ cable each plugs into itself, and take the jobs their hands do at the
 storeroom's counter (a drawer, a cupboard's door, a chest's lid). **The
 quadruped before them** (about 10 kg on four legs, #387), with #378's arm
 taking tools off a rack, fed the mouse, played hide-and-seek, drew and
-counted (#403, #404, #406, #407); its code goes in #559's stage 5, and
-its jobs come back as tasks the hands learn (#560). **What the project works on now is
+counted (#403, #404, #406, #407); #559's stage 5 deleted it (the tag
+`quadruped-final` is the last commit that runs it), and its jobs come back
+as tasks the hands learn (#560). **What the project works on now is
 self-taught generality**: the robot acquiring new skills by its own effort
 through five processes (reuse what it has, try and react, follow
 instructions, copy, and imagine first). It chooses among them, and that
@@ -97,8 +98,8 @@ what it is asked to maximise on our behalf.
 
 **What is not the point any more.** A sellable hobby robot, task throughput,
 maximising points, or being entertaining to watch. Those framings shaped
-milestones 1–13; the pieces stand — the coupling, the tasks, the economy,
-the measurement — but as apparatus, not product. Visitors are witnesses, not customers; the deployed world is an
+milestones 1–13; the pieces stand — the tasks, the economy, the
+measurement — but as apparatus, not product. Visitors are witnesses, not customers; the deployed world is an
 observatory (Evaluation.md §5).
 
 **Principles that came out of M14/M15**, and travel with the mission:
@@ -130,11 +131,16 @@ the quadruped pivot before it, closed on 2026-10-04 with its final status.
   component parameters (motor torque curves, camera FOV, masses, sensor
   noise and blind spots) are modelled on real, purchasable parts, keeping an
   eventual sim-to-real transfer plausible.
-- **Rigid coupling, not a cable.** Manipulating a deformable wire plug is one
-  of the hardest problems in robotics; PluggyBot never does. Its tool and
-  charge couplings are rigid — a gravity latch on a two-joint arm's fork, and
-  a dock it lies down onto, sprung pins pressing up into its belly (#378) —
-  contact-rich alignment, but tractable.
+- **A cable, where only the plug's rigid body is handled.** Manipulating a
+  deformable wire is one of the hardest problems in robotics, and PluggyBot
+  never does it: the humanoid grips its charging plug's rigid body and
+  pushes it into a funnel on its torso, where a magnetic catch seats it,
+  while a tool balancer keeps the rope taut and draws the plug home into its
+  cup (#559's stage 2) — contact-rich alignment, but tractable. In the sim
+  the cable touches nothing: it is a line that pulls the plug home and stops
+  it 0.6 m out (`activity/station.py`), and only the plug collides. (The
+  quadruped's couplings were rigid: a gravity latch on its arm's fork, and a
+  dock it lay down onto, #378.)
 - **Decompose, don't end-to-end.** Each capability uses the cheapest adequate
   technique: supervised learning where labels are free, classical robotics
   where the problem is solved, RL where it earns its keep, and an LLM for the
@@ -145,16 +151,16 @@ the quadruped pivot before it, closed on 2026-10-04 with its final status.
 | Capability | Approach |
 |---|---|
 | Body interface | `body.py` (#380): everything the day loop and the procedure verbs may ask of a body, and the only way they reach one; the command a routine yields is the body's own; a `StubBody` carries the loop's bookkeeping in tests |
-| Body | a ~10 kg quadruped (`legs/`, #377): twelve GIM8108-8 joints with their GDS68 drivers, a walking policy trained in `training/` and run as numpy on the physics thread (`legs/policy.py`), a rest by reflex and a get-up from a fall (`legs/posture.py`), and #378's two-joint arm on its back (`legs/arm.py`, #405); `legs/body.py` is its `Body` (#387). Its replacement, the humanoid (`humanoid/`, #507), is a `Body` too, the served pair in the same house since #559's stage 4 (`home_humanoid`); this table is the quadruped's until stage 5 sweeps it |
-| Ranging | 2D scanning LIDAR (`perception/lidar.py`), RPLIDAR C1-class, 0.51 m up: 360 ray casts (one `mj_multiRay`) with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
-| Near field | RealSense D435-class depth camera on the nose (`perception/depth.py`): batched ray casts, z² noise, the occlusion shadow, out-of-range as unknown. The planner plans round what it sees under the LIDAR's plane (#387); it also feeds a robot-centric 2.5D height map (`perception/heightmap.py`), streamed as `heightmap`, that nothing deciding reads (#34) |
-| Vision | the nose camera; AprilTags on the dock's board, the rack's bays and the places' signs (`rack/tags.py`, `legs/dock.py`, `legs/rack.py`, `legs/places.py`) |
-| Odometry | legged odometry off the joints' CAN fields and an ICM-42688-P IMU read with their datasheets' noise (`legs/odometry.py`, #386), a zero-rate update at rest (#425), a fix off the dock's board (#378) and a rack's bay, and a search for either when one is missing where the belief puts it (#476); every LIDAR scan matched against the robot's own map before it is fused, and the matched pose is the belief (`mapping/scan_match.py`, #386) |
+| Body | the humanoid (`humanoid/`, #507): our own body from real parts, RobStride joints with their drivers and two Dex1-1 grippers, its proportions Booster T2's; standing, walking and get-up policies trained in `training/` and run as numpy on the physics thread (`humanoid/policy.py`, `walk.py`, `getup.py`), its arms an IK reach on its model of itself (`humanoid/reach.py`, `arms.py`); `humanoid/body.py` is its `Body`, the pair served in the house since #559's stage 4 (`home_humanoid`). The quadruped before it (#387) was deleted in stage 5 (`quadruped-final`) |
+| Ranging | 2D scanning LIDAR (`perception/lidar.py`), RPLIDAR C1-class, on the head, 1.41 m up: 360 ray casts (one `mj_multiRay`) with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
+| Near field | RealSense D435-class depth camera on the head (`perception/depth.py`): batched ray casts, z² noise, the occlusion shadow, out-of-range as unknown. The planner plans round what it sees under the LIDAR's plane (#387, `HumanoidMission._fold_low`); it also feeds a robot-centric 2.5D height map (`perception/heightmap.py`), streamed as `heightmap`, that nothing deciding reads (#34) |
+| Vision | the head's cameras: the navigation camera for the places' signs (`humanoid/places.py`), the D435's colour imager for the tags its hands and its station work by (`Body.spot`, `perception/watch.py`, `humanoid/charge.py`); the tags are `perception/tags.py` |
+| Odometry | legged odometry off its joints' drivers and an ICM-42688-P IMU read with their datasheets' noise, the planted foot told at 3 mm (`humanoid/odometry.py`, #386, #507), a fix off its station's tags, and a search by its LIDAR when the station is missing where the belief puts it (#476, #559); every LIDAR scan matched against the robot's own map before it is fused, and the matched pose is the belief (`mapping/scan_match.py`, #386) |
 | Mapping & exploration | log-odds occupancy grid and frontier exploration (`mapping/`); the planner plans through floor it has not seen too, at a price, and finds its doors by finding walls (`mapping/optimistic.py`, #381's walking stage); places, not coordinates: a job names a place, and the robot finds its sign (#419) |
-| Tools | three modules on the rack beside the dock (`legs/rack.py`), taken and hung back by the arm's fork (`legs/swap.py`, #405), powered through the peg. The pen draws on the whiteboards lying in front of them, each found by its tags and its face by touch (`legs/draw.py`, `tools/drawing.py`, #406); the claw takes the cubes it finds by the D435's colour imager, lying (`legs/claw.py`, `tools/claw.py`, #407), and the LCD shows the census's count (`legs/survey.py`) |
+| Hands and charging | the hands' vocabulary (`docs/Hands.md`, #525): position and force moves closed on what a hand feels, its force read off the whole body (`humanoid/reach.py`, `arms.py`), and the feet's `step`; its jobs are the hands' at the storeroom's counter (#559's stage 3). It charges by a cable it plugs into itself at a station on the living room's wall (`activity/station.py`, `humanoid/charge.py`, #559's stage 2) |
 | Behaviour arbitration | `HubLifecycle.run()`: with no mind, charge > queued errand > a claimed job > explore; with one the rails are off, the mind decides after the queue, and its event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
 | Economy | task offers, code-side scoring, a points ledger with upkeep and hearts (TaskPattern.md, Overseer.md §8b) |
-| Imagination | the robot's own world (#466), kept as a tool for imagining first, one process of five (#487): a scene document in a closed language compiled with its own body (`imagination/`), its probe's record replayed there in a worker process, never the world's source; #466's mechanism is the drop-handle chest (`activity/chest.py`), probed from the robot's own senses (`legs/probe.py`) and graded against the truth by `evaluation/imagined.py` and `evaluation/probe.py` |
+| Imagination | the robot's own world, one process of five (#487), postponed (#563): #466's -- a scene language compiled with the quadruped's body, its probe's record replayed there in a worker process -- is at `quadruped-final`; #466's mechanism, the drop-handle chest (`activity/chest.py`), is the humanoids' chest job |
 | Measurement | two arms, `scripted` and the one mind, and the six qualities read as shapes off the deployed world's rows; capability's per-task record off a demo's attempts, each one try from a fresh set-out graded by the world (`evaluation/attempts.py`, `challenge/lid.py`, #493) (Evaluation.md) |
 
 ## Milestones
@@ -171,22 +177,22 @@ record; CLAUDE.md carries the constraints that still bind.
 
 ## Hardware
 
-Nothing is ordered. The next body is a humanoid, built first in simulation
-so that each demo's body-specific parts are built once, for the body that
+Nothing is ordered. The body is a humanoid, built first in simulation so
+that each demo's body-specific parts are built once, for the body that
 will use them (#507; Ben, 2026-10-13). It is drawn from real, purchasable
 parts from its first draft (#487). #379's gate before any order stands, and
-is read once the demos have results. Parts.md holds the quadruped's bill of
-materials.
+is read once the demos have results. Parts.md holds its bill of materials,
+and `protocol/parts.json` is the site's parts page.
 
 ## Tooling
 
 - **Simulation:** MuJoCo. The house and the body are MJCF written by Python
-  generators (`home/world.py`, `legs/model.py`), and the served world is put
-  together at load (`legs/world.py`).
+  generators (`home/world.py`, `humanoid/model.py`), and the served world is
+  put together at load (`humanoid/world.py`).
 - **CAD (later phase):** Onshape, exported to URDF/MJCF via [onshape-to-robot](https://github.com/Rhoban/onshape-to-robot) once the design stabilizes
 - **Learning:** `training/`, a uv project of its own (mjlab, #377): the
-  walking policies and the get-up, exported to `.npz` and run as numpy; it
-  never enters the serving image.
+  humanoid's standing, walking and get-up policies, exported to `.npz` and
+  run as numpy; it never enters the serving image.
 - **Classical vision & robotics:** OpenCV, NumPy
 
 ## Where things are written down
@@ -195,9 +201,9 @@ materials.
   measurement behind it. The first thing an agent session reads.
 - `SimNotes.md` — simulation lessons, in the order they were paid for.
 - `Parts.md` — the real parts, and the sim parameters they feed.
-- `ToolPattern.md`, `ActivityPattern.md`, `TaskPattern.md`, `Challenges.md`
-  — the build recipes: a tool module, a mechanism that owns world state, a
-  job offer, a job nobody scripted.
+- `ActivityPattern.md`, `TaskPattern.md`, `Challenges.md` — the build
+  recipes: a mechanism that owns world state, a job offer, a job nobody
+  scripted.
 - `Overseer.md` — the mind: vocabulary, event map, memory, money, visitors.
 - `Hands.md` — the humanoid's hands' vocabulary: its verbs, the force move,
   the step, the capability check.

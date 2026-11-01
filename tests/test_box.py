@@ -1,8 +1,8 @@
 """What a depth cloud says of a box (issue #466, stage 2; `perception/box.py`):
 its top, an edge seen from in front, an edge whose face looks at the camera,
 which way it faces, and a face toward the robot. The clouds here are made up
--- the rules are about points, and a frame the D435 renders is
-`tests/test_probe.py`'s. Each test draws from a generator of its own, so
+-- the rules are about points, and a frame the D435 renders is the
+opener's to fly (`evaluation/opener.py`). Each test draws from a generator of its own, so
 what it draws is the same whichever tests ran before it (#479's review: one
 shared generator failed the noisiest edge in 139 of 300 orders).
 """

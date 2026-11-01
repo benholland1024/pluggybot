@@ -11,18 +11,16 @@ agent's own event map, validated by the same function as everything else.
 What is here is the MECHANICS, which is what the issue's own last comment
 calls its substance:
 
-  `test_an_aborted_procedure_hangs_its_tool_back_even_with_the_endpoint_down`
-      ⚠ ABORT MEANS STOW, NEVER DROP -- the one rule that cannot be got
-      wrong -- with a dead client, because a row naming an action asks
-      nobody and so still works when the endpoint is down
+  `test_an_aborted_procedure_stops_at_a_safe_point_with_the_endpoint_down`
+      ⚠ AN ABORT STOPS THE JOB AT A SAFE POINT, and is no error -- with a
+      dead client, because a row naming an action asks nobody and so still
+      works when the endpoint is down
   `test_an_interrupt_nobody_answers_aborts_rather_than_carries_on`
       the one place in this design where failing SAFE is right
   `test_a_world_with_no_map_cannot_be_interrupted_at_all`
       no map, no hazard row, so nothing reaches the robot mid-job
 
-The loop's half is a day on the stub body (`tests/test_body.py`); that the
-quadruped's stow hangs a tool on its bay is the rack's own flight
-(`tests/test_quad_rack.py`).
+The loop's half is a day on the stub body (`tests/test_body.py`).
 
 Nothing here touches the network: the client is the injected seam, as in
 tests/test_overseer.py, whose fakes these reuse.
@@ -31,7 +29,7 @@ tests/test_overseer.py, whose fakes these reuse.
 import pytest
 
 from pluggybot.evaluation.arms import arm_flags
-from pluggybot.lifecycle import QUAD_HOME, THINK_SLICE_S, board_book, world_config, world_facts
+from pluggybot.lifecycle import HUMANOID_HOME, THINK_SLICE_S, board_book, world_config, world_facts
 from pluggybot.mind import events as ev
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mission.errand import programmed_errand
@@ -43,7 +41,7 @@ from test_overseer import FakeClient
 
 @pytest.fixture(scope="module")
 def menu():
-  return Menu.for_world(QUAD_HOME, board_book(QUAD_HOME))
+  return Menu.for_world(HUMANOID_HOME, board_book(HUMANOID_HOME))
 
 
 def _state(fraction: float) -> dict:
@@ -51,8 +49,7 @@ def _state(fraction: float) -> dict:
   return {"simTimeS": 100.0,
           "battery": {"fraction": fraction, "wh": 8.0 * fraction,
                       "spendableWh": max(0.0, 8.0 * fraction - 0.9)},
-          "offeredTasks": [], "affordableActions": ["explore", "charge"],
-          "possibleActions": ["explore", "charge"],
+          "offeredTasks": [],
           "tasksThisMission": [], "decisions": 0}
 
 
@@ -93,7 +90,7 @@ def test_the_agent_is_told_which_rows_can_reach_it_mid_job(menu):
   # ...and that stopping is not free, which is the whole of what makes the
   # question answerable.
   assert "Stopping is never free" in text
-  assert "nobody can be reached in time you stow and go" in text
+  assert "nobody can be reached in time you stop and go" in text
 
 
 def test_the_interrupt_asks_a_binary_and_not_an_action(menu):
@@ -115,7 +112,7 @@ def test_the_interrupt_asks_a_binary_and_not_an_action(menu):
 
 
 def _answer(boss, state=None):
-  boss.start_interrupt(state or _state(0.1), "feed:lab",
+  boss.start_interrupt(state or _state(0.1), "procedure",
                        "your pack is at 10%")
   while boss.interrupt_pending:
     pass
@@ -175,15 +172,14 @@ def test_an_interrupt_does_not_disturb_a_decision_in_flight(menu):
 
 
 def test_the_question_names_the_errand_and_what_stopping_costs(menu):
-  """A robot asked "carry on?" without being told it is HOLDING something
-  reads the question as free. `abort` is not "stop", it is "drive back and
-  hang the thing up"."""
+  """A robot asked "carry on?" without being told what stopping costs reads
+  the question as free: the work done so far is scored as it stands."""
   client = FakeClient({"continue_errand": False, "reason": "too low"})
   boss = make(menu, client=client)
   _answer(boss)
   turn = client.calls[-1]["messages"][0]["content"]
-  assert "feed:lab" in turn
-  assert "put the tool back" in turn and "not free" in turn
+  assert "procedure" in turn
+  assert "not free" in turn and "scored as it stands" in turn
   # ...and it rides the SAME cached prefix, byte for byte: a second question,
   # not a second mind.
   assert client.calls[-1]["system"] == boss.system
@@ -193,46 +189,46 @@ def test_the_question_names_the_errand_and_what_stopping_costs(menu):
 
 
 #: The threshold the rows below fire on. The stub's pack is full until the
-#: first fetch, which drops it under this: the row fires mid-errand, never
+#: first walk, which drops it under this: the row fires mid-errand, never
 #: before one started (a row fired between errands is QUEUED, not an
 #: interrupt -- correct, and not what these tests are about).
 MID_ERRAND = 0.7
 
-#: A job that fetches a tool, works with it for a while, and stows it.
-JOB = "def job():\n  fetch(\"module_lcd\")\n  wait(2)\n  wait(2)\n  stow()\n"
+#: A job that walks somewhere and works there for a while.
+JOB = "def job():\n  drive_to(2.0, 1.0)\n  wait(2)\n  wait(2)\n"
 
 
 def _job():
-  return programmed_errand(lang.compile_procedure(JOB, world_facts(QUAD_HOME)),
+  return programmed_errand(lang.compile_procedure(JOB, world_facts(HUMANOID_HOME)),
                            task="program", name="procedure")
 
 
 def _hazard(row, client=None, errands=()):
   """A stub robot whose map is `row`, and whose pack drops under
-  `MID_ERRAND` during its first fetch -- held a think slice, so the seam that
-  reads the map sees the crossing mid-errand (a stub fetch takes no time)."""
-  boss = make(Menu.for_world(QUAD_HOME, None),
+  `MID_ERRAND` during its first walk -- held a think slice, so the seam that
+  reads the map sees the crossing mid-errand (a stub walk takes no time)."""
+  boss = make(Menu.for_world(HUMANOID_HOME, None),
               **({"client": client} if client is not None else {}))
   life = stub_life(overseer=boss, errands=list(errands))
   boss.event_map = ev.EventMap((row,))
-  real, dropped = life.body.fetch_tool_routine, []
+  real, dropped = life.body.go_to_routine, []
 
-  def fetch(*a, **kw):
+  def walk(*a, **kw):
     got = yield from real(*a, **kw)
     if not dropped:
       life.battery.energy_wh = life.battery.capacity_wh * (MID_ERRAND - 0.05)
       dropped.append(float(life.data.time))
       yield from life.body.hold_routine(THINK_SLICE_S)
     return got
-  life.body.fetch_tool_routine = fetch
+  life.body.go_to_routine = walk
   return life
 
 
-def test_an_aborted_procedure_hangs_its_tool_back_even_with_the_endpoint_down():
-  """⚠ THE RULE THAT CANNOT BE GOT WRONG: an errand abandoned with a module
-  on the fork leaves it wherever it stopped, and a module dropped in the
-  rack's approach lane is what stranded a run once. The aborted job ends
-  with its tool HUNG, exactly as a finished one leaves it.
+def test_an_aborted_procedure_stops_at_a_safe_point_with_the_endpoint_down():
+  """⚠ AN ABORT STOPS THE JOB WHERE IT IS SAFE TO: at a verb's end, or a
+  walk's second -- and it is not an error, nor a failed walk (the
+  quadruped's version of this rule hung its tool back; the humanoid
+  carries none, #559).
 
   ⚠ WITH A CLIENT THAT RAISES ON EVERY CALL, which is why a row naming an
   action beats a fixed interrupt: the agent pre-committed, so code carries
@@ -249,9 +245,7 @@ def test_an_aborted_procedure_hangs_its_tool_back_even_with_the_endpoint_down():
   assert entry["asked"] is False, "a row naming an action makes no call"
   assert entry["source"] == "event:battery_below"
   assert out["procedure"]["stopped"] == "interrupted"
-  assert out["procedure"]["completed"] == 1, "the fetch, and nothing after it"
-  assert out["picked"] and out["stowed"], "abort means STOW, never drop"
-  assert life.body.holding is None
+  assert out["procedure"]["completed"] == 1, "the walk, and nothing after it"
   # ⚠ AND IT IS NOT AN ERROR. The job did not fail, it was stopped on
   # purpose -- folding the two would put an act of caution in `whFailed`.
   assert not out.get("error")
@@ -265,25 +259,22 @@ def test_an_aborted_procedure_hangs_its_tool_back_even_with_the_endpoint_down():
 
 def test_a_later_errand_runs_cleanly_after_an_abort():
   """The acceptance criterion's other half, as a day on the stub: three
-  jobs and a hazard row that fires once, during the first fetch -- and
-  every job after the abort fetches, works and hangs its tool back
-  UNINTERRUPTED. The latch is the errand's, not the day's. Shown to fail
-  by dropping `self._aborting = False` from `run_errand_routine`'s
-  per-errand reset."""
+  jobs and a hazard row that fires once, during the first walk -- and
+  every job after the abort walks and works to its end UNINTERRUPTED. The
+  latch is the errand's, not the day's. Shown to fail by dropping
+  `self._aborting = False` from `run_errand_routine`'s per-errand reset."""
   life = _hazard(ev.Row(event="battery_below", action="idle", value=MID_ERRAND),
                  errands=[_job() for _ in range(3)])
   life.stop_when(lambda: len(life.errand_results) >= 3)
-  out = life.run(start=world_config(QUAD_HOME)["start"], max_sim_time=300.0)
+  out = life.run(start=world_config(HUMANOID_HOME)["start"], max_sim_time=300.0)
 
   assert [i["outcome"] for i in out["interrupts"]] == ["aborted"]
   first, *later = out["errands"]
   assert first["procedure"]["stopped"] == "interrupted"
-  assert first["picked"] and first["stowed"]
   assert len(later) == 2, "the day did not go on after the abort"
   for i, e in enumerate(later, start=1):
     assert not e["procedure"].get("stopped"), f"errand {i} inherited the abort"
-    assert e["picked"], f"errand {i} could not fetch its module"
-    assert e["stowed"], f"errand {i} could not hang its module back"
+    assert e["procedure"]["completed"] == e["procedure"]["total"] == 3, e["procedure"]
     assert not e.get("error"), f"errand {i}: {e.get('error')}"
 
 

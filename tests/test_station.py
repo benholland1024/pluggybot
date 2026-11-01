@@ -13,7 +13,7 @@ import pytest
 
 from pluggybot.activity import station as st
 from pluggybot.humanoid import charge
-from pluggybot.rack.tags import STATION_TAG_IDS
+from pluggybot.perception.tags import STATION_TAG_IDS
 
 
 def _house(at_seat=True, pair=False):
@@ -23,7 +23,7 @@ def _house(at_seat=True, pair=False):
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   from pluggybot.robot import world_spec
   cfg = world_config(HUMANOID_HOME)
-  model = world_spec(cfg["model"], cfg["start2"][:2] if pair else None, body="humanoid").compile()
+  model = world_spec(cfg["model"], cfg["start2"][:2] if pair else None).compile()
   data = mujoco.MjData(model)
   body = body_for(model, data)
   s = body._station
@@ -383,7 +383,7 @@ def test_the_unplug_squeezes_the_seated_plug_lightly_first(monkeypatch):
 def test_a_look_at_the_station_fixes_the_belief_and_past_the_matchers_reach_drops_the_map():
   """The station is commissioned as the dock is (#476): its look puts the
   belief where it says the robot stands, and a fix past the matcher's own
-  search (`legs.fixtures.ASKEW_M`) drops the map laid on the old belief."""
+  search (`humanoid.body.ASKEW_M`) drops the map laid on the old belief."""
   from pluggybot.body import RackPose
   model, data, body, station = _house(at_seat=False)
   try:

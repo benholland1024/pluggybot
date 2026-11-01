@@ -5,21 +5,16 @@ and approaches it by sight. Each rule pinned as cheaply as it fails:
   1. THE MEMORY (`mapping/places.py`): merged by tag, following new looks;
      its facing off the row, else the tag, else the view; the row's drawing
      puts a sign not yet seen; forgotten at a true death, kept by a restart.
-  2. THE SIGNS: in the quadruped's house where the drawing says, put in by
-     the world with legs and not by the house's generator.
-  3. THE BODY: a quadruped standing in the lab and looking once remembers
-     the three signs where they are; the planner keeps off every pad it
-     knows; the walking look is paid for by walking; the press stands the
-     front feet on the pad and the fork off the sign; the places ride a
-     restart with the map and go with it at a true death.
+  2. THE SIGNS: in the humanoids' house where the drawing says, put in by
+     the world with its robots and not by the house's generator.
+  3. THE WALKING LOOK is paid for by walking (`humanoid/places.py`; a look
+     and a restart are `test_humanoid_places.py`'s).
   4. THE SEARCH: where the row says first, then the address, then outward
      from the address -- never outward from the robot.
   5. THE VERBS, THE OFFER, THE MIND'S VIEW, THE TRUE DEATH.
 
-The walk that finds a plate and presses it is flown by
-`scripts/places_spike.py` (SimNotes, "Places, not coordinates") and #403's
-paid feed on legs by `scripts/solve.py --body quadruped`; no flight of
-either is in the suite.
+A search across the house is flown by `scripts/solve.py --feature drawer`;
+no flight of one is in the suite.
 """
 
 import json
@@ -27,28 +22,23 @@ import math
 import re
 
 import mujoco
-import numpy as np
 import pytest
 
 from pluggybot import tick
 from pluggybot.activity import cage
-from pluggybot.activity.plate import PLATE_HALF
-from pluggybot.body import KeepClear
 from pluggybot.economy.ledger import Ledger
 from pluggybot.home import places as addresses
 from pluggybot.home import world as home
-from pluggybot.legs import body as qb
-from pluggybot.legs import places as lp
-from pluggybot.legs import world as lw
-from pluggybot.legs.model import CHOSEN
-from pluggybot.lifecycle import (QUAD_HOME, overseer_context, places_context,
+from pluggybot.humanoid import places as lp
+from pluggybot.humanoid import world as hw
+from pluggybot.humanoid.body import HumanoidBody
+from pluggybot.lifecycle import (HUMANOID_HOME, overseer_context, places_context,
                                  world_config, world_facts)
-from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.mapping.places import Fixture, Places
 from pluggybot.mind import overseer as ov
 from pluggybot.procedure import steps as st
 from pluggybot.home.areas import area_ids
-from pluggybot.rack.tags import BLOCK_TAG_IDS, BOARD_TAG_IDS, MASS_TAG_IDS, PLATE_TAG_IDS
+from pluggybot.perception.tags import BLOCK_TAG_IDS, BOARD_TAG_IDS, MASS_TAG_IDS, PLATE_TAG_IDS
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 SHOCK, FEED, TOY = (cage.PLATE_TAGS[n] for n in ("shock", "feed", "toy"))
@@ -134,12 +124,12 @@ def test_a_true_death_forgets_the_places_and_a_restart_keeps_them():
 
 
 @pytest.fixture(scope="module")
-def quad_world():
-  return lw.home_spec().compile()
+def world():
+  return hw.home_spec().compile()
 
 
-def test_the_signs_stand_where_the_rows_drawing_says_and_only_on_legs(quad_world):
-  m = quad_world
+def test_the_signs_stand_where_the_rows_drawing_says_and_only_with_its_robots(world):
+  m = world
   for name in cage.PLATE_NAMES:
     b = m.body(f"lab_{name}_sign").id
     assert tuple(m.body_pos[b][:2]) == pytest.approx(_sign(name))
@@ -154,197 +144,56 @@ def test_the_signs_stand_where_the_rows_drawing_says_and_only_on_legs(quad_world
     assert (home.LAB_CAGE_XY[0] + lx, home.LAB_CAGE_XY[1] + ly) == pytest.approx(_sign(name))
   house = mujoco.MjModel.from_xml_path("models/home_world.xml")
   assert mujoco.mj_name2id(house, mujoco.mjtObj.mjOBJ_BODY, "lab_feed_sign") < 0, \
-    "the signs are the world with legs', not the house generator's"
+    "the signs are the world with its robots', not the house generator's"
 
 
-# ---- 3. the body -------------------------------------------------------------------
+# ---- 3. the walking look ------------------------------------------------------------
 
 
-def _quad(model, x=25.0, y=2.0, yaw=math.pi / 2):
-  cfg = world_config(QUAD_HOME)
-  body = qb.QuadBody(model, mujoco.MjData(model), realtime=False,
-                     grid_bounds=cfg["grid_bounds"])
-  body.mission.start_at(x, y, yaw)
+def _humanoid(model, x=25.0, y=2.0, yaw=math.pi / 2):
+  """A humanoid stood at (x, y) facing `yaw` in the house, its map empty."""
+  body = HumanoidBody(model, mujoco.MjData(model), realtime=False,
+                      grid_bounds=world_config(HUMANOID_HOME)["grid_bounds"])
+  body.start_at(x, y, yaw)
   return body
 
 
-def test_one_look_from_the_lab_remembers_the_signs_where_they_are(quad_world):
-  body = _quad(quad_world)
-  m = body.mission
-  try:
-    assert sorted(m.look_for_places()) == [SHOCK, FEED, TOY]
-    for name in cage.PLATE_NAMES:
-      p = m.places.get(cage.PLATE_TAGS[name])
-      sx, sy = _sign(name)
-      assert math.hypot(p.x - sx, p.y - sy) < 0.02, (name, p)
-      f, src = m.places.facing(p.tag)
-      assert src == "fixture" and abs(f - SOUTH) < math.radians(1.0)
-    # ...and the press is measured off them: the torso short of the pad's
-    # centre, facing the sign
-    px, py = cage.pad_from_sign(*_sign("feed"), SOUTH)
-    x, y, h = m.press_pose(FEED)
-    assert (x, y) == pytest.approx((px, py - cage.PRESS_BACK_M), abs=0.03)
-    assert abs(math.remainder(h - math.pi / 2, 2 * math.pi)) < math.radians(1.0)
-  finally:
-    body.close()
-
-
-def _near_pad(points, pads) -> float:
-  """The nearest any segment of a path comes to a pad's centre, m."""
-  best = math.inf
-  for (ax, ay), (bx, by) in zip(points, points[1:]):
-    for px, py in pads:
-      dx, dy = bx - ax, by - ay
-      k = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy or 1.0)))
-      best = min(best, math.hypot(ax + k * dx - px, ay + k * dy - py))
-  return best
-
-
-def test_a_sign_known_only_by_where_it_was_seen_from_keeps_every_pad_it_could_mean_out(
-    quad_world):
-  """Its face known only by the direction it was seen from -- up to 70 deg
-  off -- a sign's pad is anywhere `SIGN_BEHIND_M` round it, and all of that
-  is kept out; once its face is known, only its pad. Premise: off the view,
-  the pad's own disc misses the pad."""
-  body = _quad(quad_world, 20.0, 0.0, 0.0)
-  m = body.mission
-  try:
-    sx, sy = _sign("feed")
-    view = SOUTH + math.radians(60.0)
-    m.places.see(FEED, sx, sy, 0.0, view=view)
-    assert m.places.facing(FEED)[1] == "view"
-    pad = cage.pad_from_sign(sx, sy, SOUTH)
-    assert math.dist(pad, cage.pad_from_sign(sx, sy, view)) > lp.PAD_KEEP_OUT_M, "premise"
-    mask = m.keep_out()
-    for deg in range(0, 360, 15):
-      cx, cy = m.grid.world_to_cell(*cage.pad_from_sign(sx, sy, math.radians(deg)))
-      assert mask[cy, cx], deg
-    m.places.see(FEED, sx, sy, 1.0, view=view, tag_facing=SOUTH)
-    mask = m.keep_out()
-    cx, cy = m.grid.world_to_cell(*pad)
-    bx, by = m.grid.world_to_cell(sx, sy + cage.SIGN_BEHIND_M)
-    assert mask[cy, cx] and not mask[by, bx]
-  finally:
-    body.close()
-
-
-def test_the_planner_keeps_off_every_pad_it_knows(quad_world, monkeypatch):
-  """The other plates avoided because the robot has seen their signs, not by
-  lanes laid from given coordinates: across the row it plans round its
-  ends. Premise: without the pads kept out, the same plan walks over the
-  feed plate."""
-  body = _quad(quad_world, 25.0, 3.0)
-  m = body.mission
-  try:
-    m.look_for_places()
-    pads = [cage.pad_from_sign(p.x, p.y, m.places.facing(p.tag)[0]) for p in m.places]
-    assert len(pads) == 3
-    mask = m.keep_out()
-    grid = m._planning_grid()
-    for px, py in pads:
-      cx, cy = m.grid.world_to_cell(px, py)
-      assert mask[cy, cx] and grid[cy, cx] > OCC_THRESH
-    route = [m.pose_xy(), *m._plan_to(25.0, 5.1)]
-    assert _near_pad(route, pads) > 0.45, "a route over a known plate"
-    m._plan_memo = None
-    monkeypatch.setattr(type(m), "keep_out", lambda self: None)
-    straight = [m.pose_xy(), *m._plan_to(25.0, 5.1)]
-    assert _near_pad(straight, pads) < 0.2, "premise: the plan ignores the pads"
-  finally:
-    body.close()
-
-
-def test_the_walking_look_is_paid_for_by_walking(quad_world, monkeypatch):
+def test_the_walking_look_is_paid_for_by_walking(world):
   """A look is a render (32 ms on the served box): a robot standing still
   spends none, and walking or turning buys one at most every
-  `LOOK_EVERY_S`."""
-  body = _quad(quad_world)
+  `LOOK_EVERY_S`; getting up, it looks not at all."""
+  from types import SimpleNamespace
+  body = _humanoid(world)
   m = body.mission
   looks = []
-  monkeypatch.setattr(m, "detect_board", lambda: looks.append(float(m.data.time)) or {})
+  m._nav_tags = SimpleNamespace(detect=lambda data: looks.append(float(m.data.time)) or {},
+                                close=lambda: None)
+
+  def moved(ahead=0.0, turned=0.0):
+    x, y, th = m.pose
+    m._set_pose(x + ahead, y, th + turned)
   try:
     m._place_step()
     assert len(looks) == 1, "the first step looks"
     m.data.time += 30.0
     m._place_step()
     assert len(looks) == 1, "standing still bought a render"
-    m.odo.x += lp.LOOK_MOVED_M + 0.05
+    moved(ahead=lp.LOOK_MOVED_M + 0.05)
     m._place_step()
     assert len(looks) == 2
-    m.odo.yaw += lp.LOOK_TURNED_RAD + 0.05
+    moved(turned=lp.LOOK_TURNED_RAD + 0.05)
     m._place_step()
     assert len(looks) == 2, "sooner than LOOK_EVERY_S"
     m.data.time += lp.LOOK_EVERY_S
     m._place_step()
     assert len(looks) == 3
     m.data.time += 10.0
-    m.odo.x += 2.0
-    m.posture = qb.LYING
+    moved(ahead=2.0)
+    m.legs = "getup"
     m._place_step()
-    assert len(looks) == 3, "lying down it does not look"
+    assert len(looks) == 3, "getting up it does not look"
   finally:
     body.close()
-
-
-def test_a_press_stands_the_front_feet_on_the_pad_and_the_fork_off_the_sign(quad_world):
-  """The press pose's arithmetic against the body as built: its front feet
-  inside the pad, its hind feet off it, and its folded fork -- the body's
-  front -- short of the sign."""
-  body = _quad(quad_world, 0.0, 0.0, 0.0)
-  m = body.mission
-  try:
-    d, root = m.data, m.root
-    mujoco.mj_forward(m.model, d)
-    rot = d.xmat[root].reshape(3, 3)
-    feet = [float((rot.T @ (d.site_xpos[s] - d.xpos[root]))[0]) for s in m.feet]
-    arm = [g for g in range(m.model.ngeom)
-           if m.model.body(int(m.model.geom_bodyid[g])).name.startswith("arm_")
-           and m.model.geom_contype[g]]
-    front = max(float((rot.T @ (d.geom_xpos[g] - d.xpos[root]))[0])
-                + float(m.model.geom_rbound[g]) for g in arm)
-  finally:
-    body.close()
-  # in the pad's frame, x toward its sign: the torso at -PRESS_BACK_M
-  torso = -cage.PRESS_BACK_M
-  fore = [torso + f for f in feet if f > 0]
-  hind = [torso + f for f in feet if f < 0]
-  assert all(-PLATE_HALF < x + CHOSEN.foot_r and x + CHOSEN.foot_r < PLATE_HALF for x in fore)
-  assert all(x + CHOSEN.foot_r < -PLATE_HALF for x in hind), hind
-  assert torso + front < cage.SIGN_BEHIND_M - 0.1, (torso + front, "the fork meets the sign")
-
-
-def test_places_ride_a_restart_with_the_map_and_go_with_it_at_a_true_death(quad_world):
-  body = _quad(quad_world)
-  m = body.mission
-  other = None
-  try:
-    m.look_for_places()
-    m.grid.grid[10:20, 10:20] = 3.0
-    m.low[5, 5] = 3.0
-    m.restore_heights({"whiteboard_a": [0.93, 0.95, 0.94]})   # ...and a board's height (#406)
-    m.cubes[23] = (26.68, 1.25, 0, 40.0)                       # ...and a cube it saw (#407)
-    state, arrays = m.kept_state()
-    json.dumps(state)
-    other = _quad(quad_world)
-    assert other.mission.restore_kept(state, arrays)
-    assert [(p.tag, p.x, p.y) for p in other.mission.places] == \
-        [(p.tag, p.x, p.y) for p in m.places]
-    assert other.mission.board_height("whiteboard_a") == m.board_height("whiteboard_a") == 0.94
-    assert other.mission.cubes == {23: (26.68, 1.25, 0, 40.0)}
-    # ...and a map that does not come back brings no places, nor cubes
-    third = qb.QuadBody(quad_world, mujoco.MjData(quad_world), realtime=False,
-                        grid_bounds=(-3, -3, 7, 7))
-    assert not third.mission.restore_kept(state, arrays) and len(third.places) == 0
-    assert third.mission.board_height("whiteboard_a") is None and third.mission.cubes == {}
-    third.close()
-    body.forget_world()
-    assert not m.grid.grid.any() and not m.low.any() and len(m.places) == 0
-    assert m.board_height("whiteboard_a") is None and m.cubes == {}
-    assert m.keep_out() is None
-  finally:
-    body.close()
-    if other is not None:
-      other.close()
 
 
 # ---- 4. the search ------------------------------------------------------------------
@@ -416,12 +265,12 @@ def test_the_search_walks_to_floor_it_has_not_looked_at_before_a_frontier_the_lo
   assert unknown is not None and not lab(*unknown)
 
 
-def test_looked_over_is_in_sight_and_the_walk_goes_round_by_the_door(quad_world):
+def test_looked_over_is_in_sight_and_the_walk_goes_round_by_the_door(world):
   """A look-around marks floor looked over only with no wall between (#403:
   a look in the lobby had marked the lab's floor, 3 m off through a wall,
   looked over), and the walk from the address is the planner's -- round a
   wall by its door, never the straight line through it."""
-  body = _quad(quad_world, 20.0, 0.0, 0.0)
+  body = _humanoid(world, 20.0, 0.0, 0.0)
   m = body.mission
   try:
     g = m.grid
@@ -440,13 +289,13 @@ def test_looked_over_is_in_sight_and_the_walk_goes_round_by_the_door(quad_world)
     body.close()
 
 
-def test_a_find_goes_where_the_row_says_then_to_the_address_then_round_it(quad_world):
+def test_a_find_goes_where_the_row_says_then_to_the_address_then_round_it(world):
   """The order, on a body whose walks and looks are stubbed: the feed plate
   not yet seen but the shock plate's sign read, the first walk is to where
   the row puts the feed plate's standoff; then the address; then the
   lattice round it, the address itself first. And its own interrupt ends
   it, as it ends a walk."""
-  body = _quad(quad_world, 20.0, 0.0, 0.0)
+  body = _humanoid(world, 20.0, 0.0, 0.0)
   m = body.mission
   went = []
 
@@ -476,7 +325,7 @@ def test_a_find_goes_where_the_row_says_then_to_the_address_then_round_it(quad_w
     body.close()
 
 
-def test_a_find_whose_walks_took_it_nowhere_to_look_from_gave_up(quad_world, monkeypatch):
+def test_a_find_whose_walks_took_it_nowhere_to_look_from_gave_up(world, monkeypatch):
   """#439, the find's turn: on afb473a two feeds failed at the find in 23 s,
   the other robot resting in front of the dock with nowhere to step. Every
   walk gave up where it stood, the lattice ran out, and the find said it
@@ -487,7 +336,7 @@ def test_a_find_whose_walks_took_it_nowhere_to_look_from_gave_up(quad_world, mon
   somewhere and looked there is still not found. Its trail keeps every
   walk and look, the looks where they always were."""
   monkeypatch.setattr(lp, "SEARCH_RADIUS_M", lp.SEARCH_STEP_M)   # nine viewpoints, not 49
-  body = _quad(quad_world, 20.0, 0.0, 0.0)
+  body = _humanoid(world, 20.0, 0.0, 0.0)
   m = body.mission
   near, at = (25.2, -2.4), [(20.0, 0.0)]
 
@@ -541,11 +390,11 @@ def test_a_find_whose_walks_took_it_nowhere_to_look_from_gave_up(quad_world, mon
     body.close()
 
 
-def test_a_find_ends_on_its_patience_and_hands_each_walk_only_what_is_left(quad_world):
+def test_a_find_ends_on_its_patience_and_hands_each_walk_only_what_is_left(world):
   """Each walk is handed what is LEFT of the find's patience, never more
   (a 1 s floor walked a program past its budget), and asks the find's time
   as it goes; the find says it ran out, at its patience and not after."""
-  body = _quad(quad_world, 20.0, 0.0, 0.0)
+  body = _humanoid(world, 20.0, 0.0, 0.0)
   m = body.mission
   timeouts, halted = [], []
 
@@ -570,305 +419,19 @@ def test_a_find_ends_on_its_patience_and_hands_each_walk_only_what_is_left(quad_
     body.close()
 
 
-def test_a_press_steps_onto_a_plate_only_with_time_to_step_off_it(quad_world):
-  """The walk in, the hold and the walk out run to their end, so a press
-  starts them only with `FINAL_S` of its patience left, and the walk to
-  the standoff is handed the rest."""
-  body = _quad(quad_world, 25.0, 2.0, -math.pi / 2)
-  m = body.mission
-  timeouts, walked_in = [], []
-
-  def drive(x, y, timeout=90.0, stop=None, beyond=()):
-    timeouts.append(round(timeout, 3))
-    return tick.result(True)
-
-  try:
-    m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = drive
-    m.face_routine = lambda h: tick.result(True)
-    m.look_for_places = lambda: [FEED]
-    m._press_walk_in_routine = lambda tag: walked_in.append(tag) or tick.result("stopped")
-    m._hold_on_routine = lambda pad: tick.result(True)
-    m._press_back_out_routine = lambda: tick.result(None)
-    rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S - 1.0))
-    assert rec["why"] == "out of time" and not walked_in and not timeouts
-    rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 30.0))
-    assert rec["pressed"] and walked_in == [FEED] and timeouts == [30.0]
-    # ...and a walk to the standoff that ran a second over its time ends it there
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): (
-      setattr(m.data, "time", m.data.time + timeout + 1.0) or tick.result(True))
-    rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 30.0))
-    assert rec["why"] == "out of time" and walked_in == [FEED]
-  finally:
-    body.close()
-
-
-def test_a_press_says_the_try_that_failed_and_never_one_that_did_not_begin(quad_world):
-  """#439: the first walk is handed all but `FINAL_S` of the patience, so a
-  walk that used it left the second try none, and that try's "out of time"
-  overwrote the walk's own cause -- 24 of 24 failed live presses, each
-  after 85 s. The press says the walk; a sign not in view from in front of
-  its plate says the sign, and how its look round ended."""
-  body = _quad(quad_world, 25.0, 2.0, -math.pi / 2)
-  m = body.mission
-  tries = []
-
-  def walk(arrives):
-    def drive(x, y, timeout=90.0, stop=None, beyond=()):
-      tries.append(round(timeout, 1))
-      m.data.time += timeout + 0.01            # a walk ends on the step past its time
-      m.last_drive = {"why": "" if arrives else "timeout", "goal": (x, y),
-                      "seconds": round(timeout, 1), "shortM": 0.0 if arrives else 2.0}
-      return tick.result(arrives)
-    return drive
-
-  def blind():
-    m._place_look = (float(m.data.time), m.pose)
-    return []
-
-  try:
-    m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
-    m.face_routine = lambda h: tick.result(True)
-    m.drive_to_routine = walk(arrives=False)
-    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    assert tries == [min(lp.VIEWPOINT_PATIENCE_S, st.PRESS_PATIENCE_S - lp.FINAL_S)]
-    assert rec["why"] == "gave up", "the walk, not the try that never began"
-    [att] = rec["attempts"]
-    assert att["walk"]["why"] == "timeout" and att["why"] == "gave up"
-    assert att["at"] == [pytest.approx(25.0), pytest.approx(2.0)] and len(att["err"]) == 3
-    # ...a sign not in view from in front of its plate, the time out as it looked round
-    tries.clear()
-    m.drive_to_routine = walk(arrives=True)
-    m.look_for_places = blind
-    m._look_around_routine = lambda stop: tick.result(bool(stop()))
-    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    assert rec["why"] == "lost" and len(tries) == 1
-    assert rec["attempts"][0]["looked"] == "cut short" and "walk" not in rec["attempts"][0]
-    # ...or all round it, with the time for another try: no new look moved the
-    # standoff, so it is not walked to again
-    tries.clear()
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): (
-      tries.append(round(timeout, 1)) or tick.result(True))
-    m._look_around_routine = lambda stop: tick.result(False)
-    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    assert rec["why"] == "lost" and len(tries) == 1 and "leftS" not in rec
-    assert [a["looked"] for a in rec["attempts"]] == ["all round"]
-  finally:
-    body.close()
-
-
-def test_a_press_tries_again_only_a_walk_in_that_missed_the_pad(quad_world):
-  """#439 part 3: on 8a61ada each of 16 failed presses ran both tries, and
-  each second try walked from where the first had stopped to the same
-  standoff and gave up as it had, its stop within 32 mm of the first. So a
-  walk there that gave up, or a robot that stays across the way in, ends
-  the press with its time left. What is tried again is a walk in that put
-  no foot on the pad: back to the standoff it backed out short of, a fresh
-  look, and in again -- and only with `FINAL_S` left."""
-  body = _quad(quad_world, 25.0, 2.0, SOUTH)
-  m = body.mission
-  # ...its belief in numpy's floats, as the odometry's first step leaves it
-  m.odo.x, m.odo.y = np.float64(m.odo.x), np.float64(m.odo.y)
-  went, cleared, walked_in = [], [], []
-
-  def walk(arrives):
-    def drive(x, y, timeout=90.0, stop=None, beyond=()):
-      went.append((round(x, 3), round(y, 3)))
-      m.data.time += 5.0
-      m.last_drive = {"why": "" if arrives else "stalled", "goal": (x, y),
-                      "seconds": 5.0, "shortM": 0.0 if arrives else 0.8}
-      return tick.result(arrives)
-    return drive
-
-  def clear(across=None):
-    return lambda way: cleared.append(len(way)) or tick.result(across)
-
-  def hold(*feet, seconds=0.0):
-    felt = iter(feet)
-
-    def on(pad):
-      m.data.time += seconds
-      return tick.result(next(felt))
-    return on
-
-  try:
-    m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
-    m.face_routine = lambda h: tick.result(True)
-    m.look_for_places = lambda: [FEED]
-    m._press_walk_in_routine = lambda tag: walked_in.append(tag) or tick.result("stopped")
-    m._press_back_out_routine = lambda: tick.result(None)
-    # a walk there that stalled: one walk, and the press ends on it
-    m.drive_to_routine = walk(arrives=False)
-    m.clear_way_routine = clear()
-    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    assert rec["why"] == "gave up" and len(went) == 1 and len(rec["attempts"]) == 1
-    assert not cleared and not walked_in and "leftS" not in rec
-    # a robot across the way in that stays: asked off once, never walked into
-    went.clear()
-    m.drive_to_routine = walk(arrives=True)
-    m.clear_way_routine = clear(KeepClear(25.0, 3.6, root="r2_pluggybot", resting=True))
-    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    assert rec["why"] == "in the way" and len(cleared) == 1 and len(went) == 1
-    assert not walked_in
-    # a walk in that put no foot on the pad: in again, from its standoff
-    went.clear()
-    cleared.clear()
-    m.clear_way_routine = clear()
-    m._hold_on_routine = hold(False, True)
-    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    assert rec["pressed"] and walked_in == [FEED, FEED] and len(went) == 2
-    assert went[1] == pytest.approx(m.place_standoff(FEED)[:2], abs=1e-3)
-    assert [a["why"] for a in rec["attempts"]] == ["not pressed", "pressed"]
-    assert "np." not in st.press_trace(rec), "a numpy float's repr, in every live trace"
-    # ...and only with the time for it: the press says how little was left
-    walked_in.clear()
-    m._hold_on_routine = hold(False, seconds=20.0)
-    rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 10.0))
-    assert rec["why"] == "not pressed" and walked_in == [FEED]
-    assert rec["leftS"] == pytest.approx(lp.FINAL_S + 10.0 - 5.0 - 20.0, abs=0.1)
-    assert st.press_trace(rec).endswith(f"no time for #2: {rec['leftS']:.1f} s left")
-  finally:
-    body.close()
-
-
-def test_a_press_walks_there_again_only_to_a_standoff_a_look_moved(quad_world):
-  """#439: a sign out of view from its standoff ends the press -- a second
-  walk there repeated the first -- unless what the look round DID read
-  moved the standoff. Here the feed sign was first seen 40 deg off its face,
-  so its facing is only where it was seen from, and its neighbours' signs,
-  read round the room, fit the row's: the standoff swings onto the axis,
-  and the press walks there once more, and no more."""
-  body = _quad(quad_world, 25.0, 2.0, SOUTH)
-  m = body.mission
-  went = []
-  fx, fy = _sign("feed")
-
-  def drive(x, y, timeout=90.0, stop=None, beyond=()):
-    went.append((round(x, 3), round(y, 3)))
-    m.data.time += 5.0                         # ...so a look after it is a new one
-    return tick.result(True)
-
-  def blind():
-    m._place_look = (float(m.data.time), m.pose)
-    return []
-
-  def neighbours(stop):
-    for name in ("shock", "toy"):
-      m.places.see(cage.PLATE_TAGS[name], *_sign(name), float(m.data.time), view=SOUTH)
-    return tick.result(False)
-
-  try:
-    m.places.see(FEED, fx, fy, 0.0, view=SOUTH + math.radians(40.0))
-    first = m.place_standoff(FEED)
-    m.drive_to_routine = drive
-    m.face_routine = lambda h: tick.result(True)
-    m.look_for_places = blind
-    m._look_around_routine = neighbours
-    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    square = (round(fx, 3), round(fy - lp.STANDOFF_M, 3))
-    assert went == [pytest.approx(first[:2], abs=1e-3), pytest.approx(square, abs=1e-3)]
-    assert rec["why"] == "lost" and [a["why"] for a in rec["attempts"]] == ["lost", "lost"]
-  finally:
-    body.close()
-
-
-def test_a_press_walks_in_from_its_standoff_as_the_look_there_left_it(quad_world):
-  """#403: a sign first seen from 40 deg off its face knows its facing only
-  by where it was seen from, so the first standoff is off the axis; the look
-  there fits the row, and the press walks to the new standoff -- over the
-  planner, the pads kept out -- before the walk in, which is steered straight
-  at the pad with no planner under it. From the old one it crossed the next
-  plate (4 shock presses in #419's spike). A look that moves nothing sends
-  it nowhere."""
-  body = _quad(quad_world, 25.0, 2.0, -math.pi / 2)
-  m = body.mission
-  went, walked_in = [], []
-  fx, fy = _sign("feed")
-
-  def drive(x, y, timeout=90.0, stop=None, beyond=()):
-    went.append((round(x, 3), round(y, 3)))
-    return tick.result(True)
-
-  def look():
-    m.places.see(FEED, fx, fy, float(m.data.time), view=SOUTH, tag_facing=SOUTH)
-    return [FEED]
-
-  try:
-    m.places.see(FEED, fx, fy, 0.0, view=SOUTH + math.radians(40.0))
-    first = m.place_standoff(FEED)
-    m.drive_to_routine = drive
-    m.face_routine = lambda h: tick.result(True)
-    m.look_for_places = look
-    m._press_walk_in_routine = lambda tag: walked_in.append(len(went)) or tick.result("stopped")
-    m._hold_on_routine = lambda pad: tick.result(True)
-    m._press_back_out_routine = lambda: tick.result(None)
-    rec = body.run(m.press_routine(FEED, patience=120.0))
-    square = (round(fx, 3), round(fy - lp.STANDOFF_M, 3))
-    assert went == [pytest.approx(first[:2], abs=1e-3), pytest.approx(square, abs=1e-3)]
-    assert walked_in == [2], "walked in before it stood on the axis"
-    assert rec["pressed"] and "reaim" in rec["attempts"][0]
-    # ...and with the facing known before it went, one walk
-    went.clear()
-    rec = body.run(m.press_routine(FEED, patience=120.0))
-    assert len(went) == 1 and "reaim" not in rec["attempts"][0]
-  finally:
-    body.close()
-
-
-def test_a_place_forgotten_under_a_press_ends_it_backed_off_the_plate(quad_world):
-  """A true death forgets the places on the physics seam while the dying
-  robot's errand still runs: the press ends "not found" -- backed off the
-  plate if it was on its way onto it -- and never on a forgotten pose."""
-  body = _quad(quad_world, 25.0, 2.0, -math.pi / 2)
-  m = body.mission
-  backed = []
-
-  def forget():
-    m.places.forget()
-
-  try:
-    m.face_routine = lambda h: tick.result(True)
-    m._press_back_out_routine = lambda: backed.append(True) or tick.result(None)
-    # ...under the walk in: the sign read, then forgotten
-    m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): tick.result(True)
-    m.look_for_places = lambda: forget() or [FEED]
-    rec = body.run(m.press_routine(FEED, patience=300.0))
-    assert rec["why"] == "not found" and backed == [True]
-    assert rec["attempts"][0]["walkIn"] == "not found"
-    # ...on the walk to its standoff
-    backed.clear()
-    m.places.see(FEED, *_sign("feed"), 1.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): forget() or tick.result(True)
-    rec = body.run(m.press_routine(FEED, patience=300.0))
-    assert rec["why"] == "not found" and not backed
-    # ...and on a look round for a sign not in view there
-    m.places.see(FEED, *_sign("feed"), 2.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): tick.result(True)
-    m.look_for_places = lambda: []
-    m._look_around_routine = lambda stop: forget() or tick.result(False)
-    rec = body.run(m.press_routine(FEED, patience=300.0))
-    assert rec["why"] == "not found" and rec["attempts"][0]["why"] == "lost" and not backed
-  finally:
-    body.close()
-
-
 # ---- 5. the verbs ----------------------------------------------------------------------
 
 
-def test_find_is_a_legs_verb_where_the_world_has_places_and_press_where_its_lab_is(
-    monkeypatch):
-  facts = world_facts(QUAD_HOME)
+def test_find_is_a_verb_where_the_world_has_places_and_nothing_presses(monkeypatch):
+  from pluggybot.perception.tags import COUNTER_TAG_IDS
+  facts = world_facts(HUMANOID_HOME)
   boards = tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
-  assert facts.places == PLATE_TAG_IDS + boards + area_ids()
-  assert facts.plates == PLATE_TAG_IDS
-  assert "find" in facts.verbs and "press" in facts.verbs
+  assert facts.places == PLATE_TAG_IDS + boards + area_ids() + COUNTER_TAG_IDS
+  assert "find" in facts.verbs and "press" not in st.VERBS, "no verb presses a plate"
   assert st.check_step(st.VERBS["find"], {"tag": FEED, "x": 25.2, "y": -2.4}, facts) == []
   assert "no place" in st.check_step(st.VERBS["find"], {"tag": 99, "x": 0, "y": 0}, facts)[0]
   assert "outside the map" in st.check_step(st.VERBS["find"],
                                             {"tag": FEED, "x": 999.0, "y": 0.0}, facts)[0]
-  assert st.check_step(st.VERBS["press"], {"tag": FEED}, facts) == []
-  assert "no plate" in st.check_step(st.VERBS["press"], {"tag": 99}, facts)[0]
   from pluggybot import lifecycle
   real = world_config
 
@@ -876,57 +439,39 @@ def test_find_is_a_legs_verb_where_the_world_has_places_and_press_where_its_lab_
     return lambda world: {k: v for k, v in real(world).items() if k != key}
   # ...a world with no places names none to find
   monkeypatch.setattr(lifecycle, "world_config", without("places"))
-  unplaced = world_facts(QUAD_HOME)
+  unplaced = world_facts(HUMANOID_HOME)
   assert unplaced.places == () and "find" not in unplaced.verbs
   assert "not on this body" in st.check_step(st.VERBS["find"], {"tag": FEED, "x": 1, "y": 1},
                                              unplaced)[0]
-  # ...and `press` only beside the lab and its rule (#403 brought them back):
-  # a world with the plates' tags and no lab has `find` alone
-  monkeypatch.setattr(lifecycle, "world_config", without("lab"))
-  unlabbed = world_facts(QUAD_HOME)
-  assert "press" not in unlabbed.verbs and unlabbed.plates == ()
-  assert "not on this body" in st.check_step(st.VERBS["press"], {"tag": FEED}, unlabbed)[0]
 
 
-def _stub_quad_life(**kw):
-  return stub_life(QUAD_HOME, **kw)
-
-
-def test_the_verbs_say_what_was_found_and_why_not():
-  life = _stub_quad_life()
+def test_the_verb_says_what_was_found_and_why_not():
+  life = stub_life()
   try:
     lost = life.body.run(st.run_verb(life, st.VERBS["find"],
                                      {"tag": FEED, "x": 25.2, "y": -2.4}))
     assert not lost["ok"] and "did not find tag 36 round (25.2, -2.4)" in lost["reason"]
-    pressed = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": FEED}))
-    assert not pressed["ok"] and "find" in pressed["reason"]
     life.body.places.see(FEED, 25.0, 4.83, 0.0, SOUTH)
     found = life.body.run(st.run_verb(life, st.VERBS["find"],
                                       {"tag": FEED, "x": 25.2, "y": -2.4}))
     assert found["ok"] and found["at"] == [25.0, 4.83]
-    assert life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": FEED}))["ok"]
-    assert life.body.found == [FEED, FEED] and life.body.pressed == [FEED, FEED]
+    assert life.body.found == [FEED, FEED]
   finally:
     life.body.close()
 
 
-def test_find_and_press_keep_the_programs_budget_and_pass_on_every_why(monkeypatch):
-  """Both verbs are handed their own patience, and never past the program's
+def test_find_keeps_the_programs_budget_and_passes_on_every_why(monkeypatch):
+  """The verb is handed its own patience, and never past the program's
   budget (`run_verb(until=)`); a why the verb has no words for is passed
   on, never read as running out of time."""
-  life = _stub_quad_life()
+  life = stub_life()
   asked, whys = [], ["out of time", "this body keeps no places"]
 
   def find(tag, near, patience, stop=None):
     asked.append(("find", round(patience, 3)))
     return tick.result({"tag": tag, "found": False, "why": whys.pop(0), "seconds": 1.0})
 
-  def press(tag, patience, stop=None):
-    asked.append(("press", round(patience, 3)))
-    return tick.result({"tag": tag, "pressed": False, "why": "out of time"})
-
   monkeypatch.setattr(life.body, "find_tag_routine", find)
-  monkeypatch.setattr(life.body, "press_plate_routine", press)
   args = {"tag": FEED, "x": 25.2, "y": -2.4}
   try:
     out = life.body.run(st.run_verb(life, st.VERBS["find"], args))
@@ -934,12 +479,7 @@ def test_find_and_press_keep_the_programs_budget_and_pass_on_every_why(monkeypat
     out = life.body.run(st.run_verb(life, st.VERBS["find"], args,
                                     until=float(life.data.time) + 50.0))
     assert out["reason"] == "did not find tag 36: this body keeps no places"
-    out = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": FEED}))
-    assert "ran out of time" in out["reason"]
-    life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": FEED},
-                              until=float(life.data.time) + 50.0))
-    assert asked == [("find", st.FIND_PATIENCE_S), ("find", 50.0),
-                     ("press", st.PRESS_PATIENCE_S), ("press", 50.0)]
+    assert asked == [("find", st.FIND_PATIENCE_S), ("find", 50.0)]
   finally:
     life.body.close()
 
@@ -967,7 +507,7 @@ def test_the_directions_pass_the_dispatcher_test():
     assert numbers == tags, (name, numbers - tags)
   # ...the areas' own tags, and the cubes their directions name (#407), and
   # the storeroom counter's row and the handles under it (#559)
-  from pluggybot.rack import tags
+  from pluggybot.perception import tags
   assert set(addresses.tag_names()) == {*PLATE_TAG_IDS, *area_ids(), *BLOCK_TAG_IDS,
                                         *MASS_TAG_IDS,
                                         *(t for ids in BOARD_TAG_IDS.values() for t in ids),
@@ -981,18 +521,22 @@ def test_a_job_at_a_task_area_carries_its_address_and_directions_and_no_other_do
   from pluggybot.economy.tasks import TaskBoard
   from pluggybot.lifecycle import task_producer
   board = TaskBoard(path=None)
-  assert task_producer(board, QUAD_HOME).facts["places"] == addresses.areas()
-  beat = Cadence(world=QUAD_HOME, first_at_s=0.0, every_s=1.0, ttl_s=100.0,
-                 cooldown_s=0.0, max_offered=5, initial=1, kinds={"feed_mouse": {}})
-  maker = TaskProducer(board, beat, {"cage": ["lab"], "module": ["module_lcd"]},
+  assert task_producer(board, HUMANOID_HOME).facts["places"] == addresses.areas()
+  beat = Cadence(world=HUMANOID_HOME, first_at_s=0.0, every_s=1.0, ttl_s=100.0,
+                 cooldown_s=0.0, max_offered=5, initial=1, kinds={"open_drawer": {}})
+  maker = TaskProducer(board, beat, {"drawer": ["drawer"], "robot": ["r2_pluggybot"]},
                        facts={"places": addresses.areas()})
-  job = maker._offer("feed_mouse", "lab", 0.0)
+  job = maker._offer("open_drawer", "drawer", 0.0)
   shown = job.as_context(0.0)
   assert shown["address"] == addresses.address("facility")
-  assert shown["directions"] == addresses.load()["areas"]["lab"]["directions"]
-  assert not re.search(r"\d", job.description), "a position in the description"
+  assert shown["directions"] == addresses.load()["areas"]["drawer"]["directions"]
+  # ...its numbers are the job's own criterion (how far, how long), never
+  # a position: no point, nor the address's coordinates
+  numbers = set(re.findall(r"-?\d+(?:\.\d+)?", job.description))
+  assert not re.search(r"\(\s*-?\d", job.description), "a point in the description"
+  assert not {f"{shown['address']['x']:g}", f"{shown['address']['y']:g}"} & numbers
   assert job.as_dict()["params"]["address"] == shown["address"], "on the wire too"
-  other = maker._offer("fetch_module", "module_lcd", 0.0)
+  other = maker._offer("take_points", "r2_pluggybot", 0.0)
   assert not {"address", "directions"} & set(other.as_context(0.0))
 
 
@@ -1000,8 +544,8 @@ def test_a_job_at_a_task_area_carries_its_address_and_directions_and_no_other_do
 
 
 def test_the_mind_sees_the_places_it_found_by_name_where_and_when():
-  boss = ov.Overseer(ov.Menu.for_world(QUAD_HOME), client=1)
-  life = _stub_quad_life(overseer=boss)
+  boss = ov.Overseer(ov.Menu.for_world(HUMANOID_HOME), client=1)
+  life = stub_life(overseer=boss)
   try:
     assert overseer_context(life)["places"] == []
     life.body.places.see(FEED, 25.004, 4.8312, 0.0, SOUTH)
@@ -1015,7 +559,7 @@ def test_the_mind_sees_the_places_it_found_by_name_where_and_when():
     life.body.close()
 
 
-def test_a_legs_world_is_never_shown_where_its_furniture_stands(monkeypatch):
+def test_a_world_is_never_shown_where_its_furniture_stands(monkeypatch):
   """The lab's block names no position on a body that finds its places
   (#419): the world knows where the cage stands, and the mind is told the
   room and what is in the cage."""
@@ -1023,11 +567,11 @@ def test_a_legs_world_is_never_shown_where_its_furniture_stands(monkeypatch):
   from types import SimpleNamespace
 
   from pluggybot.lifecycle import HubLifecycle
-  assert "cage" in world_config(QUAD_HOME)["lab"], "premise: the world knows where"
+  assert len(home.LAB_CAGE_XY) == 2, "premise: the world knows where"
   monkeypatch.setattr(HubLifecycle, "cage", property(lambda self: SimpleNamespace(
     context=lambda data, root: {"inRoom": False, "mouse": None})))
-  boss = ov.Overseer(replace(ov.Menu.for_world(QUAD_HOME), lab="lab"), client=1)
-  life = stub_life(QUAD_HOME, overseer=boss)
+  boss = ov.Overseer(replace(ov.Menu.for_world(HUMANOID_HOME), lab="lab"), client=1)
+  life = stub_life(overseer=boss)
   try:
     shown = overseer_context(life)["lab"]
   finally:
@@ -1039,11 +583,10 @@ def test_a_place_found_is_said_once_in_history_and_one_a_restart_brought_back_is
     tmp_path):
   from pluggybot.body import StubBody
   from pluggybot.mind.thoughts import HISTORY, ThoughtFiles
-  cfg = world_config(QUAD_HOME)
-  body = StubBody(rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
+  body = StubBody(grid_bounds=world_config(HUMANOID_HOME)["grid_bounds"])
   body.places.see(SHOCK, 24.0, 4.83, 0.0, SOUTH)          # as a restart brings it back
   thoughts = ThoughtFiles.open(str(tmp_path / "thoughts"))
-  life = stub_life(QUAD_HOME, body=body, thoughts=thoughts)
+  life = stub_life(body=body, thoughts=thoughts)
 
   def said(what):
     return sum(what in line for line in thoughts.volatile()[HISTORY])
@@ -1069,7 +612,7 @@ def test_a_place_found_is_said_once_in_history_and_one_a_restart_brought_back_is
 
 def test_a_true_death_clears_the_map_and_the_places_and_grants_the_start():
   ledger = Ledger()
-  life = _stub_quad_life(ledger=ledger, mortal=True, start_points=30)
+  life = stub_life(ledger=ledger, mortal=True, start_points=30)
   seen = []
   life.on_event.append(seen.append)
   try:
@@ -1088,7 +631,7 @@ def test_a_true_death_clears_the_map_and_the_places_and_grants_the_start():
     life.body.close()
   # ...and none where the world gives none, as before
   plain = Ledger()
-  other = _stub_quad_life(ledger=plain, mortal=True)
+  other = stub_life(ledger=plain, mortal=True)
   try:
     plain.robots["pluggybot"]["hearts"] = 1
     other._die("flat", "the pack ran out")
