@@ -18,8 +18,8 @@ What it answers:
   band               the cloud laid flat: per bearing the nearest surface
                      `BAND_M` over the floor, levelled through the robot's
                      IMU -- the 2D scan the map is laid from and matched by
-                     (#581's stage 2), with where on each bearing its free
-                     run may begin (`Scan`)
+                     (#581's stage 2), with where on each bearing it may
+                     first clear a wall (`Scan`)
   scan, scan_split   the LEVEL RING, its 360 bearings at 0 deg: the walls
                      a lost robot steps toward (`HumanoidBody.lost_routine`)
   cloud              every return, a point in the sensor's frame, the

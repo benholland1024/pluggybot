@@ -50,6 +50,17 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, nothing a consumer reads: the map laid from the LIDAR's points laid flat (pluggybot #581, stage 2)
+
+No message's shape moves, and no bump. What a robot's `grid` shows is new:
+its map is laid from its LIDAR's points laid flat (per bearing the nearest
+surface 0.15-2.2 m over the floor) where it was laid from one plane 1.47 m
+up, so it holds the house's 0.9 m fences, the couch, the beds, the tables
+and the counters beside the walls, and outdoors stops at a fence where it
+ran on over it into the street. The deploy that brings it starts both
+robots on no map (`MAP_EPOCH` 4). Fixtures: the pair's recording flown
+again for its maps.
+
 ### 0.21.0, nothing a consumer reads: the quadruped's leftovers out (pluggybot #579)
 
 pluggybot #579 takes out what #559's stage 5 left of the quadruped on the

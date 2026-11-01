@@ -245,7 +245,7 @@ KINDS: dict[str, TaskKind] = {
              "{minutes} minutes of taking this job and without falling. It is graded "
              "5 s after you say you are done, nothing of yours touching it. No errand "
              "does this: write the procedure, run it, and say you are done.",
-    estimate_wh=4.71, discharge="procedure", draws=True),
+    estimate_wh=4.87, discharge="procedure", draws=True),
   "open_chest": TaskKind(
     "open_chest", task="open_chest", target_kind="chest",
     template="Open the chest's lid past 57 degrees, set it back down shut and let go "
