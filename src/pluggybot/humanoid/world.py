@@ -21,10 +21,14 @@ from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 #: The house the humanoids move into.
 HOME_XML = "models/home_world.xml"
-#: The pack in this world, Wh, a test's (`--pack demo`): small enough that a
-#: day's test charges -- about 13 minutes on its feet at the 93 W it draws
-#: standing. The served pack is the real one (`parts.PACK`).
-DEMO_WH = 20.0
+#: The pack in this world, Wh, a test's (`--pack demo`), never a part: small
+#: enough that a day's test charges -- about 19 minutes on its feet at the
+#: 93 W it draws standing -- and big enough that charged (`CHARGED`) it funds
+#: the dearest job and the reserve both, so the job gate keeps the reserve
+#: as on the served pack (`parts.PACK`): 27 of 25.1 Wh, room for a
+#: re-pricing. At 20 it kept none, a branch the served pack never takes
+#: (#580).
+DEMO_WH = 30.0
 PACK_WH = hp.PACK.wh
 #: The return-trip reserve, Wh: the walk to its station from the house's
 #: worst place and its plug-in, with one failed, on the humanoid (`scripts/energy_spike.py --world

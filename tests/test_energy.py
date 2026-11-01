@@ -40,8 +40,9 @@ from pluggybot.mind.thoughts import GOALS, ThoughtFiles
 from pluggybot.mission.errand import Errand
 
 RESERVE = humanoid_world.RESERVE_WH    # the house's return-trip reserve
-DEMO_WH = humanoid_world.DEMO_WH       # ...a test's pack, too small to keep it
+DEMO_WH = humanoid_world.DEMO_WH       # ...a test's pack, which keeps it too
 HOSTING_WH = humanoid_world.PACK_WH    # what the deployment actually runs
+SMALL_WH = 20.0                        # a pack too small to keep it (the old demo pack)
 
 
 def table(**kw) -> en.EnergyModel:
@@ -105,13 +106,23 @@ def test_the_why_line_says_which_of_the_four_it_is():
 # ---- 2. the margin ----------------------------------------------------------
 
 
-def test_the_demo_pack_keeps_no_margin_it_cannot_fund():
-  """All or nothing, on the humanoids' own table: their test pack (20 Wh)
-  funds its dearest job but not that job AND the 17.5 Wh return trip, so it
-  keeps none of the trip -- a demo cell, whose jobs run on what is left."""
+def test_a_pack_too_small_keeps_no_margin_it_cannot_fund():
+  """All or nothing, on the humanoids' own table: a 20 Wh pack funds the
+  dearest job but not that job AND the 18 Wh return trip, so it keeps none
+  of the trip -- a demo cell, whose jobs run on what is left."""
   t = en.load(HUMANOID_HOME)
-  assert t.dearest_wh() + RESERVE > DEMO_WH * lc.CHARGED >= t.dearest_wh()
-  assert t.margin_wh(DEMO_WH * lc.CHARGED, RESERVE) == 0.0
+  assert t.dearest_wh() + RESERVE > SMALL_WH * lc.CHARGED >= t.dearest_wh()
+  assert t.margin_wh(SMALL_WH * lc.CHARGED, RESERVE) == 0.0
+
+
+def test_the_demo_pack_keeps_the_return_trip_as_the_served_one_does():
+  """#580: the tests' pack funds the dearest job and the reserve both, so a
+  day on it runs the gate the served pack runs. At 20 Wh it kept none, a
+  branch the served pack never takes. A re-priced job or reserve past its
+  room fails this: grow `DEMO_WH`, and re-record the fixture flown on it."""
+  t = en.load(HUMANOID_HOME)
+  assert t.dearest_wh() + RESERVE <= DEMO_WH * lc.CHARGED
+  assert t.margin_wh(DEMO_WH * lc.CHARGED, RESERVE) == RESERVE
 
 
 def test_a_hosting_pack_charges_the_whole_reserve():
@@ -327,15 +338,15 @@ def test_a_task_errand_is_priced_by_its_own_kind_not_by_the_action():
   assert life.affords(errand).cost_wh == en.load(HUMANOID_HOME).cost("open_drawer")
 
 
-def test_the_demo_pack_spends_what_it_holds_with_no_margin_to_keep():
-  """The demo pack funds no margin (above), so `spendable_wh` is the whole
-  pack and what the WORLD can offer is a whole charged pack -- the other
-  side of the all-or-nothing rule from the hosting test below."""
-  life = life_with(battery_wh=DEMO_WH)
+def test_a_pack_with_no_margin_spends_what_it_holds():
+  """A pack too small to fund the margin (above) has `spendable_wh` the
+  whole pack, and what the WORLD can offer is a whole charged pack -- the
+  other side of the all-or-nothing rule from the hosting test below."""
+  life = life_with(battery_wh=SMALL_WH)
   life.battery.energy_wh = RESERVE - 1.0
   assert life.reserve_margin_wh == 0.0
   assert life.spendable_wh == pytest.approx(RESERVE - 1.0)
-  assert life.fundable_wh == pytest.approx(DEMO_WH * lc.CHARGED)
+  assert life.fundable_wh == pytest.approx(SMALL_WH * lc.CHARGED)
 
 
 def test_a_hosting_pack_keeps_the_return_trip_out_of_a_job_s_budget():

@@ -109,7 +109,7 @@ mind has to be free of all three or it measures nothing.
 
 | | where | what it does |
 |---|---|---|
-| **the floor** | `needs_charge` — `battery.energy_wh < low_battery_wh` | an absolute return-trip reserve, a property of the floor plan (17.5 Wh on the humanoids, `humanoid.world.RESERVE_WH`). Top of the loop, never inside an errand |
+| **the floor** | `needs_charge` — `battery.energy_wh < low_battery_wh` | an absolute return-trip reserve, a property of the floor plan (18 Wh on the humanoids, `humanoid.world.RESERVE_WH`). Top of the loop, never inside an errand |
 | **the gate** | `_afford_next` | does the head of the errand queue fit in the pack *right now*? If not: charge, then ask again |
 | **the offer filter** | `Task.claimable` | an offer the pack cannot fund is never *shown* — the model cannot overreach because it cannot see the option |
 

@@ -171,6 +171,12 @@ class TaskKind:
   #: offer lands, the prop set back out with them (`HubLifecycle.
   #: _set_out_counter`) -- a skill over a kind of drawer, never one drawer.
   draws: bool = False
+  #: THE TIME THE JOB GIVES FROM ITS CLAIM, minutes, or None for none: what
+  #: its sentence says (`{minutes}`) and the limit its grade holds it to
+  #: (`HubLifecycle._grade_hands_routine`); an offer's `params` may give
+  #: another (a world's cadence). The kind's, so an offer made any other way
+  #: says it and is held to it too (#580).
+  minutes: int | None = None
 
   def __post_init__(self) -> None:
     if self.discharge not in DISCHARGES:
@@ -190,6 +196,12 @@ class TaskKind:
 class _Blank(dict):
   def __missing__(self, key: str) -> str:
     return ""
+
+
+#: The time a hand job gives from its claim, minutes (`TaskKind.minutes`):
+#: three times the slowest of the offered jobs' references, 313 s from the
+#: station on a fresh map (`scripts/solve.py --from tour`), rounded up.
+HAND_MINUTES = 16
 
 
 KINDS: dict[str, TaskKind] = {
@@ -216,7 +228,7 @@ KINDS: dict[str, TaskKind] = {
   # in the counter's row, its handle by its own (tier 1, TaskPattern.md
   # §3), the area's directions with the offer, never a position. Graded as
   # the checks are, from the claim -- a fall fails it -- to a hold after
-  # `done`, within the minutes the offer gives (`HubLifecycle.
+  # `done`, within the minutes the job gives (`HAND_MINUTES`, `HubLifecycle.
   # _grade_hands_routine`); each offer draws the prop's hidden dynamics
   # afresh. No errand: a procedure the robot writes (`discharge`). MEASURED
   # off the hand-written references from the station (`challenge/
@@ -228,7 +240,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: out that far both "
              "times, nothing of yours touching it in between. No errand does this: "
              "write the procedure, run it, and say you are done.",
-    estimate_wh=7.09, discharge="procedure", draws=True),
+    estimate_wh=7.09, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "open_door": TaskKind(
     "open_door", task="open_door", target_kind="door",
     template="Open the cupboard's door, at least 50 degrees, and let go of it, within "
@@ -237,7 +249,7 @@ KINDS: dict[str, TaskKind] = {
              "are done and again 5 s later: open that far both times, nothing of yours "
              "touching it in between. No errand does this: write the procedure, run "
              "it, and say you are done.",
-    estimate_wh=5.72, discharge="procedure", draws=True),
+    estimate_wh=5.72, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "place_cube": TaskKind(
     "place_cube", task="place_cube", target_kind="cube",
     template="Put the cube on its mat -- resting on it, flat, its middle within 2.5 cm "
@@ -245,7 +257,7 @@ KINDS: dict[str, TaskKind] = {
              "{minutes} minutes of taking this job and without falling. It is graded "
              "5 s after you say you are done, nothing of yours touching it. No errand "
              "does this: write the procedure, run it, and say you are done.",
-    estimate_wh=4.87, discharge="procedure", draws=True),
+    estimate_wh=4.87, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "open_chest": TaskKind(
     "open_chest", task="open_chest", target_kind="chest",
     template="Open the chest's lid past 57 degrees, set it back down shut and let go "
@@ -254,7 +266,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: shut, nothing of "
              "yours touching it. No errand does this: write the procedure, run it, "
              "and say you are done.",
-    estimate_wh=5.99, discharge="procedure", draws=True),
+    estimate_wh=5.99, discharge="procedure", draws=True, minutes=HAND_MINUTES),
 }
 
 #: The hand jobs' graders (#559): each served job's row is its own -- paid,
@@ -342,7 +354,9 @@ class Task:
         "then be judged by code (issue #14)")
     if not target:
       raise ValueError(f"task kind {kind!r} needs a {spec.target_kind} target")
-    params = {str(k): v for k, v in (params or {}).items()}
+    # ...the time the job gives its kind's, where the offer gives none
+    params = ({} if spec.minutes is None else {"minutes": spec.minutes}) | {
+      str(k): v for k, v in (params or {}).items()}
     text = clean(description, MAX_DESCRIPTION) or spec.describe(target, params)
     return cls(id=task_id, kind=kind, target=target,
                description=clean(text, MAX_DESCRIPTION), task=spec.task,

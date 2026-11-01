@@ -1575,17 +1575,18 @@ One number per world, so `Task.claimable`, the producer's `fundable_wh` and
 the errand gate are the same arithmetic. On the humanoid the served pack
 (`humanoid.world.PACK_WH`, 777.6 Wh) funds the dearest job plus the reserve
 many times over, so the full margin is kept and the mid-errand death is
-unreachable there; the test's 20 Wh (`DEMO_WH`), 18 charged, cannot carry
-the drawer's 7.08 Wh and the 17.5 Wh reserve both, so it keeps none.
+unreachable there. The tests' pack (`DEMO_WH`, 30 Wh, 27 charged) carries
+the drawer's 7.08 Wh and the 18 Wh reserve both, so it keeps the margin
+too. At 20 Wh it kept none, a branch the served pack never takes (#580).
 
 ### The reserve, and the hosting pack
 
 The reserve is a property of the **floor plan**, not the battery.
-`humanoid.world.RESERVE_WH` (17.5 Wh) is measured (`energy_spike.py
+`humanoid.world.RESERVE_WH` (18 Wh) is measured (`energy_spike.py
 --reserve`): the worst return BY ROUTE to its station, from the garden
-doorway, as travel (13.72 Wh over 44.6 m) plus the last leg and a plug-in,
-with one failed plug-in priced as another. Re-measure it when the plan
-changes, not when the pack does.
+doorway, as travel (14.1 Wh over 44.6 m, the Mid-360S's 6.2 W included)
+plus the last leg and a plug-in, with one failed plug-in priced as another.
+Re-measure it when the plan changes, not when the pack does.
 
 `--pack hosting` (`$PLUGGY_PACK`; `--battery-wh` still overrides) is the
 served pack, the hours-long work/charge rhythm a watched world runs on. ⚠

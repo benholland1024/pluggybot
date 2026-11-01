@@ -80,6 +80,16 @@ def on_the_goal(nav, b: KeepClear, wx: float, wy: float) -> float | None:
   return d if d < nav._cells(b) * nav.grid.resolution - CLOSE_ENOUGH_M else None
 
 
+def footprint_middle(model, data, gids) -> tuple[float, float]:
+  """The middle of the floor the geoms `gids` cover: their bounding
+  circles, boxed. A humanoid lying straight has it at its pelvis, 3 cm
+  from the middle of its own outline (#580)."""
+  xy = data.geom_xpos[gids, :2]
+  r = model.geom_rbound[gids][:, None]
+  lo, hi = (xy - r).min(axis=0), (xy + r).max(axis=0)
+  return float(lo[0] + hi[0]) / 2.0, float(lo[1] + hi[1]) / 2.0
+
+
 #: How far round another robot's believed centre A* keeps this robot's
 #: centre (issue #167): the map's own inflation (traversable_mask, 7 cells =
 #: 0.35 m, the armed robot's swing) plus the other robot's half-diagonal
@@ -117,7 +127,7 @@ MAKE_WAY_WAIT_S = 30.0
 #: drive plans again every 2 s and walks at most 0.8 m between
 #: (`navigation.V_MAX`), the other robot as far again: from here one coming
 #: nearer is planned round, waited for or asked 1.4 m off at the least,
-#: past a fallen robot's disc (0.90 m).
+#: past a fallen humanoid's disc (1.20 m).
 PAST_M = 3.0
 #: How often a drive looks at which other robots are lying down (issue
 #: #365). A fall or a stand-up moves that robot's disc, and the plan is
@@ -397,17 +407,13 @@ class Navigator:
 
   def footprint_centre(self) -> tuple[float, float]:
     """The middle of the floor this robot's body covers, off the TRUE
-    geometry: its geoms' bounding circles, boxed. MEASURED 0.08 m from the
-    chassis origin upright, and 0.20-0.21 m along the mast lying down.
-    ⚠ Read to ACT, unlike `true_pose`, and only for a robot lying on the
-    floor (issue #365) -- fallen, resting or dead, or stepping aside for the
-    one that reads it (#455): what another robot keeps clear of, because a
-    real one would see a robot-shaped lump there, and the one thing about a
-    fallen robot its own odometry cannot say, nor two maps that disagree."""
-    xy = self.data.geom_xpos[self.body_gids, :2]
-    r = self.model.geom_rbound[self.body_gids][:, None]
-    lo, hi = (xy - r).min(axis=0), (xy + r).max(axis=0)
-    return float(lo[0] + hi[0]) / 2.0, float(lo[1] + hi[1]) / 2.0
+    geometry (`footprint_middle`). ⚠ Read to ACT, unlike `true_pose`, and
+    only for a robot lying on the floor (issue #365) -- fallen, resting or
+    dead, or stepping aside for the one that reads it (#455): what another
+    robot keeps clear of, because a real one would see a robot-shaped lump
+    there, and the one thing about a fallen robot its own odometry cannot
+    say, nor two maps that disagree."""
+    return footprint_middle(self.model, self.data, self.body_gids)
 
   def as_seen(self, wx: float, wy: float) -> tuple[float, float]:
     """A TRUE world point where this robot's own sensors would put it:
