@@ -14,6 +14,7 @@ which is why `SpendBook` takes its clock.
 """
 
 import json
+import re
 import threading
 import time
 
@@ -442,6 +443,46 @@ def test_a_pause_stops_the_physics_and_keeps_the_heartbeat(tmp_path):
   assert len(beats) >= 2, "nothing was telling the site it was still there"
   assert resumed and resumed[0] >= 0.9
   assert life.paused_s >= 0.9
+
+
+def test_a_pause_is_told_to_every_robot_on_the_loop(tmp_path):
+  """⚠ A pair's one switch is the first robot's (`pair.build_pair`) and stops
+  the loop both robots live in, so the second was paused and woken with
+  neither line in its History -- read off the deployed pair on 2026-11-01:
+  Luca's said both, Rowan's nothing (issue #562)."""
+  from test_body import stub_life
+
+  path = tmp_path / "mode.json"
+  path.write_text(json.dumps({"mode": "paused"}))
+  first, second = stub_life(), stub_life()
+  first.mode = ModeSwitch(path)
+  first.peers, second.peers = [second], [first]
+
+  def unpause():
+    time.sleep(0.6)
+    path.write_text(json.dumps({"mode": "llm"}))
+
+  threading.Thread(target=unpause, daemon=True).start()
+  first._mode_step()
+  for life in (first, second):
+    history = life.thoughts.read("History.md")
+    assert "paused by the operator" in history
+    #  How long is the thread's to say, and a loaded machine says more.
+    assert re.search(r"woke up again after \d+ s paused", history)
+    assert re.match(r"RESUMED after \d+ s in llm mode", life.status)
+
+
+def test_a_long_pause_is_said_in_days_and_hours():
+  """The pause between two weekends is ~490,000 s (issue #562): History
+  says how long the way a person would, never a count of seconds."""
+  from pluggybot.lifecycle import spoken_span
+
+  said = {s: spoken_span(s) for s in
+          (42, 119.6, 600, 7140, 7200, 7260, 14_623, 172_800, 490_000)}
+  assert said == {42: "42 s", 119.6: "2 minutes", 600: "10 minutes",
+                  7140: "119 minutes", 7200: "2 hours",
+                  7260: "2 hours 1 minute", 14_623: "4 hours 3 minutes",
+                  172_800: "2 days", 490_000: "5 days 16 hours"}
 
 
 def test_a_pause_is_not_a_sprint():
