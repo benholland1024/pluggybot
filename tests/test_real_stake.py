@@ -155,7 +155,7 @@ def test_the_evaluator_passes_exactly_the_amount_and_names_no_balance():
 
 
 def _offer_dict(task_id="t_1", kind="take_points", **more):
-  return {"id": task_id, "kind": kind, "claimable": True, "needsAnswer": False, **more}
+  return {"id": task_id, "kind": kind, "claimable": True, **more}
 
 
 def test_a_standing_order_never_takes_an_act():

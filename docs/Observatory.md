@@ -10,6 +10,215 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The map laid from the LIDAR's points laid flat (#581, stage 2) — opens when this PR is deployed
+
+**What changed in the world.**
+- **Both robots' maps are laid from their LIDAR's points laid flat**: per
+  bearing the nearest surface between 0.15 m over the floor (rising 2 deg a
+  metre out) and 2.2 m, from 15 rings at 10 Hz (Ben's call 3), matched and
+  laid while each stands or walks in the posture its legs hold, bowed at a
+  counter too. Their maps hold the house's 0.9 m fences, the couch, the
+  beds, the tables and the counters, and outdoors they see the fences along
+  the street, where the level ring saw the buildings' walls alone.
+- **A return nearer than 1 m is no point of the matcher's fit**, and **a
+  step walks by its legs' reckoning**, never by a correction the matcher
+  made meanwhile (its report too: a procedure's `step.*` is the legs' alone).
+- **A deploy starts both robots at their starts on no map**
+  (`continuation.MAP_EPOCH` 4): the save keeps the clock, the packs, the
+  deaths and the jobs, and History says "the map I had was laid before I
+  could see low things, and it is gone". Deployed with stage 1 (released
+  with it or after it), the head's new shape does the same first, and
+  History says the world changed instead.
+- **The served pair runs at about 1.4x real time** on the deploy box (1.40
+  and 1.41x; the level ring's 1.68 and 1.78).
+- **The energy table is priced again on the new head**: the explore 173.5 W
+  (166.4), a charge 338.8 W net (345.2), and the cube's job 4.865 Wh (4.704;
+  not offered); the drawer's, the door's and the chest's keep the C1's
+  head's dearer readings.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #581's stage 2: in and beyond the middle street the level ring saw
+nothing to match, and 9 of #572's 14 drift flights were lost there; and a
+bowed robot neither mapped nor matched. Flown as served: 29 of 30 drift
+flights docked, and the station 80 of 85 starts (SimNotes, "The band
+served").
+
+**What the period is for.** #581's last box: a day of the pair, neither
+robot lost outdoors -- off the `drift` rows (the belief against the truth,
+and each relocation, fix, loss and search) against the periods before, and
+the charges and the falls. ⚠ If stage 1's period never ran alone, the one
+before is the C1's. ⚠ Where the weekend hours run, read rates per awake
+hour (#562's entry, below).
+
+### A fallen robot is kept clear of round its middle, and a stand-up drops a step aside (#580) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A fallen humanoid's disc is round the middle of its body**: the box
+  round its geoms while its get-up holds its joints, and its soles' middle
+  on its feet, as before. Round its soles, its head and shoulders, up to
+  1.5 m away, were outside the disc, and the other robot's plan could walk
+  through them.
+- **That disc is 1.20 m, where it was 1.05.** It covers how far the body
+  reached lying after six falls the get-up took, 0.69-0.92 m, plus the
+  walker's half-width (`humanoid_spike.py --fall`). A walk past a fallen
+  robot goes wider round it, and a doorway or a stretch of hall it lies in
+  stays shut to the other robot until it is up.
+- **A stand-up or a true death drops a step aside under way**, and nothing
+  is said of it. Before, a robot stood up while it was stepping aside
+  walked on toward its old spot for up to 30 s.
+- **Nothing in the prompt, the schema, the arm or the reward table moved,
+  and the offers read as they did.** The hand jobs' 16 minutes are now the
+  kinds' own (`TaskKind.minutes`), so `cadence.json` dropped its three
+  copies of the number, and `dataHashes.cadence` moves.
+
+**Why.** #580: bugs found while #559's stage 5 moved the tests onto the
+humanoid.
+
+**What the period is for.** Touches while one robot is down: `encounter`
+rows with phase `touched` while either robot's frames read `posture`
+`getting_up`. None are expected now. Falls are rare live, so the period may
+close with too few to read, and it should say so.
+
+### The quadruped's leftovers out of what the humanoids read and record, and a stand-up's map in its rules (#579) — opens when this PR is deployed
+
+**What changed in the mind**, on every arm with one, the deployed pair's
+included:
+- **The form** loses `board`, `program` and `answer`, three required fields
+  no action named since #559's stage 5 (`program`'s one choice was `""`, and
+  nothing read `answer`). A `zone` rides an `explore` alone: one written on
+  another answer is dropped, as a `task` off `take_task` already was.
+- **The prefix.** The world's block loses `"figures": []`; `other_needs`
+  no longer offers `a_tool`; THE OTHER ROBOT no longer says the other
+  broadcasts "what it is carrying" (`OTHER_ROBOT_RULE_SHA` moved); the
+  rules' and `take_task`'s example of a kind that is no id is
+  `"open_drawer"` where it was `"draw"`, and `Notes.md`'s example topic
+  `tasks/open_drawer`; `MORTAL_RULE` and the event map's `stood_up` say a
+  robot is stood back up "with no map of the house" (Ben, 2026-11-01: #572's
+  stage 1 made it so, and only History said it). The deployed prefix moved
+  `9bd3cf75…` → `7b238b59…` (54 793 → 54 872 characters). With upkeep on
+  (not deployed), the upkeep rule no longer suggests drawing something.
+- **The turns.** An offer loses `needsAnswer` (always false), the context
+  `rack` (always `{}`), and each of `others` its `carrying` (always `""`);
+  and the other robot's `state` reads `PROCEDURE` while it runs an errand,
+  where it read `SWAP_PICK` and then `USE_TOOL` (the captures below ran no
+  errand, so they do not show it).
+  The interrupt turn asks "Carry on and finish it, or stop now and go?",
+  the cost being the job scored as it stands, where it told the robot to put
+  its tool back on its bracket and stow what it held.
+- **The other robot's `doing`** is its narration line, so it reads the
+  station's words below.
+
+**What changed in the record** (the wire's half is protocol/README.md's):
+- **A robot's `state` is `PROCEDURE`** for an errand, start to end, where
+  it was `SWAP_PICK` and then `USE_TOOL`. ⚠ `RACK_STATES` is `GO_CHARGE`
+  and `CHARGE` alone: a robot standing within 2 m of the station for 90 s
+  after a procedure, refused or run, with the other robot in the world, is
+  narrated as lingering, where a refused one (`SWAP_PICK`) was let be.
+- **Gone**: the header's `screens`; a death's `at.carrying`, `at.swapping`
+  and `at.errand.module`; a `prediction`'s `state.carrying`; a program
+  verdict's `toolsHung` and its reason's ", tools hung"; an attempt row's
+  `tool` and `toolSeated`; and, in the run's report, an errand result's
+  `picked` and `stowed`.
+- **A `tell` claim about the quadruped's rack** ("bay C is empty") is
+  unchecked, where it was graded against an empty rack: every bay empty,
+  so true. A claim about the station or a board is graded as before.
+- **Narration and History name the charging station**: `STATION: lingering
+  …` and `STATION: still …` (were `RACK:`), `standing by: clearing the
+  charging station …`, `WAIT: … the charging station …` with its holder
+  "on the way in to it" or "right in front of it" (were "on the dock's way
+  in" and "on the dock"), `GO_CHARGE: never reached the charging station
+  …; the station was not in sight from there`, `no charge contact (station
+  not seen)` (was `(no board)`), `GO_CHARGE near enough -- …; the station's
+  tags decide`, `GO_CHARGE -> CHARGE (plugged in)` (was `(pins
+  connected)`), `CHARGE: the plug came out` (was `lost the pins`) and
+  `GO_CHARGE FAILED -- stranded away from the charging station …`. An
+  interrupt says `stopping … and going` and History "and stopped" (were
+  `stowing` and "went back"); a walk given up with the other resting in
+  its way says "standing at rest" (was the quadruped's "lying down to
+  rest"); a step aside a hand ended says "a hand of mine was out"; and
+  `PROCEDURE FAILED: something went wrong` no longer says "-- stowing
+  anyway". The site's charge rows read `GO_CHARGE -> CHARGE` and
+  `GO_CHARGE: `, both kept.
+- **A decision names its own action's parameter alone**, in narration
+  (`DECIDE …`) and History (`chose …`): an answer that filled the form's
+  `board` was told back as "chose explore (whiteboard_a)" when it walked to
+  the kitchen, and a zone written on a `charge` as where it charged.
+
+**Why.** #559's stage 5 deleted the quadruped and kept the deployed prompt
+and wire byte for byte, leaving these behind (#579).
+
+**What the period is for.** No behaviour is offered that was not; the
+record is cleaner, and three readings cross the deploy:
+- ⚠ **The linger line**: `RACK: lingering` before, `STATION: lingering`
+  after, and after it a robot standing by the station in `PROCEDURE`
+  counts. Count both words, and read no rise as a change in behaviour.
+- **`other_needs`**: `a_tool` is no longer a choice; its truth was never
+  `a_tool` in this house after #572's stage 1.
+- **A message's claims** (Evaluation.md §3's "findings recorded correctly"):
+  a claim about the quadruped's rack, graded true before (every bay empty),
+  is `unchecked` after, so the true share drops by those rows.
+- **A stand-up's map in the rules**: whether a robot stood back up lays
+  its map again (an `explore`, a walk home) sooner now its rules say the
+  map is gone, beside History's line saying so.
+
+**Measured before it shipped** (`serve.py` as deployed with a fake model,
+its decisions synchronous, staging 2292fb6 -- #581's head and #562's
+schedule in -- against this branch merged with it, 300 sim s from a fresh
+world; ~/pluggybot-training/issue-579): the 8 calls are the same
+decisions, and differ only in the schema (`board`, `program` and `answer`
+gone, `a_tool` out of `other_needs`), the prefix and each turn's
+`offeredTasks`, `others` and `rack`, and History naming each decision's own
+parameter. The recording's 6 786 lines differ only in the header's
+`screens`, the two `prompt` messages, the second robot's `status` in 760
+frames ("standing by: clearing the charging station …"), the 8
+`prediction` states' `carrying` and the History lines; 13 of the 68
+narration lines moved (8 `DECIDE`, 3 `GO_CHARGE -> CHARGE (plugged in)`, 2
+`standing by`). No pose, battery or clock moved, and the saved world's 41
+arrays are bit-identical (the same held on 9126d13, before the merge). Every one of 288 prompt configurations (single or
+pair, upkeep, mortality, the three origins, the eye, escalation, the three
+constitutions) moved in the sections listed above and nowhere else.
+Carried on from production's own save instead, before the merge (the daily backup's of
+2026-11-01 13:54 UTC, at t = 401 163 s, the box on f72f529, whose tree is
+staging's; the world, its board, boards and ledger and both robots' event
+maps, constitutions and procedures, never their memory stores) for 360 sim
+s: the same 10 decisions, the recording moved in the same places only (10
+`prediction` states), 16 of 86 narration lines moved (13 `DECIDE`, 3
+`GO_CHARGE: never reached the charging station …`), and the saved world,
+ledger, task board and boards come out identical.
+
+### The head's LIDAR is a Mid-360S, its map laid from its level ring (#581, stage 1) — opens when this PR is deployed
+
+**What changed in the world.**
+- **Both robots carry a Livox Mid-360S upside down over the head**, where
+  the RPLIDAR C1 sat on it: 0.36 kg more (the unit and its bracket on the
+  head, its own 12 V converter in the torso), 43.01 kg in all, and 6.2 W
+  more always on (74.9 W). Its standing, walking and get-up policies fly
+  as before on the new head (SimNotes, "The 3D LIDAR on the head").
+- **Its map is laid from the Mid-360S's level ring**, its 360 bearings at
+  0 deg, 1.47 m up where the C1's plane was 1.41: what it sees is what the
+  C1 saw, with the part's own noise. Its points laid flat, which see the
+  fences, are NOT served: that is #581's stage 2.
+- **A deploy starts both robots at their starts on no map**: the head's
+  new shape is a new geometry (`continuation.fingerprint`), so the save
+  keeps the clock, the packs, the deaths and the jobs, as a changed world
+  does.
+- **The return-trip reserve is 18 Wh, from 17.5**, for the 6.2 W the
+  head draws more (`humanoid.world.RESERVE_WH`). The energy table's rows,
+  measured on the C1's head, are not re-priced (its explore drew 173.8 W on
+  this head, 164.8 on staging the same day, against the table's 166.4):
+  stage 2 re-prices them.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #581's stage 1: the part chosen (Ben's call 2, 2026-11-01),
+mounted and measured, before its points are served.
+
+**What the period is for.** That nothing the robots do moved: their drift
+(`drift` rows), their charges and their falls, read against the period
+before. The level ring sees what the C1's plane saw, and the robots should
+be lost outdoors as often. It closes with stage 2's deploy, which lays the
+map from the points laid flat and bumps `MAP_EPOCH`. ⚠ Where the weekend
+hours run, read rates per awake hour (#562's entry, below).
+
 ### The world runs at weekends and is paused in between (#562, stage 1) — opens when an admin turns the site's schedule on, after both halves are deployed
 
 **What changed in the world.**

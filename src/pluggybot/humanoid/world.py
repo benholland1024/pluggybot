@@ -21,10 +21,14 @@ from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 #: The house the humanoids move into.
 HOME_XML = "models/home_world.xml"
-#: The pack in this world, Wh, a test's (`--pack demo`): small enough that a
-#: day's test charges -- about a quarter of an hour on its feet at the 80 W
-#: it draws standing. The served pack is the real one (`parts.PACK`).
-DEMO_WH = 20.0
+#: The pack in this world, Wh, a test's (`--pack demo`), never a part: small
+#: enough that a day's test charges -- about 19 minutes on its feet at the
+#: 93 W it draws standing -- and big enough that charged (`CHARGED`) it funds
+#: the dearest job and the reserve both, so the job gate keeps the reserve
+#: as on the served pack (`parts.PACK`): 27 of 25.1 Wh, room for a
+#: re-pricing. At 20 it kept none, a branch the served pack never takes
+#: (#580).
+DEMO_WH = 30.0
 PACK_WH = hp.PACK.wh
 #: The return-trip reserve, Wh: the walk to its station from the house's
 #: worst place and its plug-in, with one failed, on the humanoid (`scripts/energy_spike.py --world
@@ -40,7 +44,12 @@ PACK_WH = hp.PACK.wh
 #: mapped so far": set down at the worst place off the truth, on the map
 #: its explore left), so the leg is the travel's rate and the plug-in's time.
 #: 17.3, carried as 17.5. A property of the floor plan, not of the pack.
-RESERVE_WH = 17.5
+#: ...and the Mid-360S's head draws 6.2 W more always on (#581, stage 1):
+#: its travel measured 13.47 Wh over the same 44.63 m in 222 s (1 Nov; its
+#: dock leg out of time 10 m short), the dearer 13.72 carried with 6.2 W
+#: over those 222 s (14.10), the dock's leg 1.90 and the plug-in twice at
+#: the 93.1 W it now draws standing 1.86: 17.86, carried as 18.
+RESERVE_WH = 18.0
 #: THE PAIR COLLIDES (Ben, 2026-10-14, #455): each robot's colliding geoms
 #: (`contype 1, conaffinity 0` -- they meet only the pairs its model names,
 #: `model.LEG_GEOMS`/`ARM_GEOMS`) get a bit of their own and the other's as

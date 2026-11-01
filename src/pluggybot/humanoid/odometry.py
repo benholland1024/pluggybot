@@ -85,6 +85,11 @@ class StanceOdometry:
     #: Its heading's offset from the IMU's own: the IMU starts where the
     #: body boots, and a correction moves this, never the filter's tilt.
     self.offset = 0.0
+    #: What corrections from outside its reckoning -- a scan match, a
+    #: fixture's look (`correct`) -- have moved the belief by, summed: (x, y,
+    #: heading). A walk measured by the legs alone takes it off
+    #: (`HumanoidBody.step_routine`).
+    self.corrected = np.zeros(3)
     self.foot: int | None = None
     self.last: np.ndarray | None = None
     self.soles = self.sm.soles
@@ -95,8 +100,10 @@ class StanceOdometry:
 
   def correct(self, x: float, y: float, yaw: float) -> None:
     """A scan match's or a fixture's word: here, facing so."""
+    turn = math.remainder(yaw - self.yaw, 2 * math.pi)
+    self.corrected += (float(x) - self.x, float(y) - self.y, turn)
     self.x, self.y = float(x), float(y)
-    self.offset += math.remainder(yaw - self.yaw, 2 * math.pi)
+    self.offset += turn
 
   def _soles(self, q: np.ndarray, gravity_b: np.ndarray) -> np.ndarray:
     """Each sole's bottom middle relative to the pelvis, in the pelvis's

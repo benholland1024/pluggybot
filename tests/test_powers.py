@@ -39,11 +39,6 @@ from test_overseer import FakeClient
 #: What `world_config` says of the one world, overridden for a gate it does
 #: not open: a world whose lab is not shown (#559).
 NO_LAB = {"lab_shown": None}
-#: The schema's vestiges (#559, stage 5): the quadruped's `draw` named
-#: `board` and `program`, and a whiteboard question took an `answer`. The
-#: fields stay in the deployed grammar, byte for byte, and no action names
-#: them now.
-VESTIGES = ("board", "program", "answer")
 
 
 def build(world_is=None, **kw):
@@ -185,18 +180,17 @@ def test_an_action_parameter_is_named_by_the_action_it_belongs_to():
   place to hide a field: `task`, `zone` and the rest are not powers, they
   are what an action needs, and each is named in that action's own line. A
   parameter whose action stops mentioning it fails here rather than
-  quietly becoming undocumented -- but the schema's vestiges (`VESTIGES`),
-  whose actions went with the quadruped, and exactly those."""
+  quietly becoming undocumented -- as the quadruped's drawing's `board` and
+  `program` and a whiteboard question's `answer` were in the form, named by
+  nothing, from #559's stage 5 until #579 took them out."""
   boss = built()
   actions = json.dumps(index_of(boss)["actions"])
   schema = schema_of(boss)
   required = set(schema["required"])
   for name in ov.ACTION_PARAMETERS:
-    if name in required and name not in VESTIGES:
+    if name in required:
       assert f"`{name}`" in actions, f"{name} is named by no action"
-  assert {n for n in ov.ACTION_PARAMETERS
-          if n in required and f"`{n}`" not in actions} == set(VESTIGES)
-  assert schema["properties"]["program"]["enum"] == [""]
+  assert not {"board", "program", "answer"} & set(schema["properties"])
 
 
 # ---- 2. every mind is shown the index -----------------------------------------

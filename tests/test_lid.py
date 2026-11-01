@@ -128,8 +128,7 @@ def test_the_criteria_are_the_issues_and_their_measurements():
 
 PASSED = {"topDeg": 63.8, "downRadS": 0.51, "tiltDeg": 2.8, "falls": 0,
           "touchedDuringHold": [], "angleAtCallDeg": -0.2, "angleDeg": -0.2, "caught": True,
-          "holdS": 5.0, "elapsedS": 84.0, "tool": "module_claw", "toolSeated": True,
-          "catchN": 3.89}
+          "holdS": 5.0, "elapsedS": 84.0, "catchN": 3.89}
 
 
 @pytest.mark.parametrize("change, why", [
@@ -165,11 +164,11 @@ def test_a_pass_says_how_and_pays_nothing_and_its_catch_stays_secret():
   assert "set down in 84 s" in verdict.reason
 
 
-def test_a_fall_fails_the_try_said_first_and_a_tilt_and_a_lost_tool_never():
+def test_a_fall_fails_the_try_said_first_and_a_tilt_never():
   """Ben, 2026-10-25 (#544): a fall fails the try, used or by accident --
   said first, then what the world shows, so a robot that fell on its way to
-  a lid set down is told it was set down. Its tilt and its tool are said
-  and judged by nothing; what a fall is is the body's to say (#520)."""
+  a lid set down is told it was set down. Its tilt is said and judged by
+  nothing; what a fall is is the body's to say (#520)."""
   ok, metrics, why = lid.eval_lid(PASSED | {"falls": 1})
   assert not ok and metrics["falls"] == 1
   assert why == f"you fell, and a fall fails the try -- {lid.eval_lid(PASSED)[2]}"
@@ -179,9 +178,11 @@ def test_a_fall_fails_the_try_said_first_and_a_tilt_and_a_lost_tool_never():
   assert lid.eval_lid(PASSED | {"falls": 3})[2].startswith("you fell 3 times, and a fall")
   # uncounted is unmeasured, and a missing measurement is not a passing one
   assert lid.eval_lid(PASSED | {"falls": None})[::2] == (False, "your falls were never counted")
-  ok, metrics, _ = lid.eval_lid(PASSED | {"tiltDeg": 80.0, "toolSeated": False})
-  assert ok and (metrics["tiltDeg"], metrics["toolSeated"]) == (80.0, False)
-  assert lid.eval_lid(PASSED | {"tool": None, "toolSeated": None})[0]
+  ok, metrics, _ = lid.eval_lid(PASSED | {"tiltDeg": 80.0})
+  assert ok and metrics["tiltDeg"] == 80.0
+  # ...and a row names no tool: the quadruped's claw went (#559), its
+  # columns with #579
+  assert not {"tool", "toolSeated"} & set(metrics)
 
 
 # ---- the world, not the report ------------------------------------------------------
@@ -272,7 +273,7 @@ def test_the_body_says_its_falls_and_tilt_and_only_a_fall_fails_a_lid_set_down()
   row = run(tipped(fall=False))
   m = row["verdict"]["metrics"]
   assert row["verdict"]["ok"], row["verdict"]["reason"]
-  assert (m["falls"], m["tiltDeg"], m["tool"], m["toolSeated"]) == (0, 70.0, None, None)
+  assert (m["falls"], m["tiltDeg"]) == (0, 70.0)
   v = run(tipped(fall=True))["verdict"]
   assert not v["ok"] and v["metrics"]["falls"] == 1
   assert v["reason"].startswith("you fell, and a fall fails the try -- opened to 63 deg and set "
@@ -402,7 +403,7 @@ def test_the_grader_reads_the_humanoids_set_out_unchanged():
     watch()
     m = lid.sample_lid(world, None, None, {"at_call": lid.measure(world.model, world.data),
                                           "watch": watch})
-    assert m["tool"] is None and m["toolSeated"] is None and m["tiltDeg"] < 5.0
+    assert not {"tool", "toolSeated"} & set(m) and m["tiltDeg"] < 5.0
     assert m["topDeg"] == pytest.approx(0.0, abs=0.5) and m["caught"]
     assert np.any(watch.moving) and np.all(watch.own[watch.moving])
   finally:

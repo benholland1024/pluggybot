@@ -363,26 +363,21 @@ def eval_program(m: dict) -> tuple[bool, dict, str]:
   """A composed errand's one verdict off its per-step verdicts (issue #58):
   every step ok. A program cut short -- a failed step, its budget, an
   interrupt -- fails whole, on the table's no-partial-credit rule; how far
-  it got is in the metrics and the reason. ⚠ `toolsHung` and "tools hung"
-  are the quadruped's (a tool it fetched hung back): the served robots read
-  the words in every passing verdict, so they stay until a PR with its own
-  period takes them out."""
+  it got is in the metrics and the reason."""
   total = m.get("total")
   completed = int(m.get("completed") or 0)
-  hung = m.get("toolsHung")
   metrics = {"program": m.get("program"), "total": total,
              "completed": completed, "failedAt": m.get("failedAt"),
-             "stopped": m.get("stopped"), "toolsHung": hung,
-             "seconds": m.get("seconds")}
-  if total is None or hung is None:
+             "stopped": m.get("stopped"), "seconds": m.get("seconds")}
+  if total is None:
     return False, metrics, "the procedure was never measured"
   total = int(total)
   if m.get("refused"):
     return False, metrics, f"{metrics['program']} was refused before it ran"
   # A procedure's `total` is the calls it MADE (issue #264): a run its own
   # budget stopped after every call succeeded has completed == total, and
-  # graded on the count alone it read "2/2 steps, tools hung" -- beside the
-  # History line saying it did not finish. No fraction here either.
+  # graded on the count alone it read "2/2 steps" -- beside the History
+  # line saying it did not finish. No fraction here either.
   if metrics["stopped"] and metrics["failedAt"] is None:
     return False, metrics, (f"{metrics['program']}: did not finish -- stopped "
                             f"({metrics['stopped']}) after {completed} step"
@@ -393,7 +388,7 @@ def eval_program(m: dict) -> tuple[bool, dict, str]:
              else f"stopped ({metrics['stopped'] or 'error'})")
     return False, metrics, (f"{metrics['program']}: {completed}/{total} steps, "
                             f"{where}")
-  return True, metrics, f"{metrics['program']}: {total}/{total} steps, tools hung"
+  return True, metrics, f"{metrics['program']}: {total}/{total} steps"
 
 
 def eval_take(m: dict) -> tuple[bool, dict, str]:
@@ -546,13 +541,11 @@ def _world_config(life) -> dict:
 
 def sample_program(life, errand, result: dict, before: dict) -> dict:
   """Measure a composed errand: the runner's per-step verdicts (code's, off
-  the world, one per step). It fetches no tool, so none is off its bay
-  (`eval_program`'s `toolsHung`)."""
+  the world, one per step)."""
   run = result.get("procedure") or {}
-  return {**{k: run.get(k) for k in ("program", "total", "completed",
-                                     "failedAt", "stopped", "seconds",
-                                     "refused")},
-          "toolsHung": True if run else None}
+  return {k: run.get(k) for k in ("program", "total", "completed",
+                                  "failedAt", "stopped", "seconds",
+                                  "refused")}
 
 
 def wallet_before(other) -> dict:

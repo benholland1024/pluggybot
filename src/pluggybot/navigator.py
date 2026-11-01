@@ -10,6 +10,7 @@ what only a body can say:
   _nav_routine      one physics step at a forward speed and a yaw rate --
                     the body's own command, yielded (the tick contract)
   level, true_pose  the IMU's gate on the map, and the sim's own check
+  _scan, maps       its scan, and whether one taken now is the map's
   _look_step, _contact_step   its own senses either side of the scan
   run               the blocking twin of `yield from`
 
@@ -36,7 +37,7 @@ from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.mapping.scan_match import ScanMatcher
-from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, robot_geoms
+from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, Scan, robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
 
@@ -54,10 +55,10 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
     cause = "stopped by the robot's own interrupt"
   elif why == "peer":
     far, lies = rec.get("peerM"), rec.get("peerDown")
-    # ...and one lying down by choice is resting, never fallen (#387, #415),
-    # and a dead one is neither (#455)
+    # ...and one resting is never fallen (#387, #415; a humanoid rests
+    # standing, #559), and a dead one is neither (#455)
     how = ("lying dead" if rec.get("peerDead") else "lying" if lies
-           else "lying down to rest" if rec.get("peerRests") else "")
+           else "standing at rest" if rec.get("peerRests") else "")
     if far is None:
       cause = f"{peer} in the way"
     elif rec.get("peerAt") == "goal":
@@ -77,6 +78,16 @@ def on_the_goal(nav, b: KeepClear, wx: float, wy: float) -> float | None:
   (`Navigator.ask_off`)."""
   d = math.hypot(b.x - wx, b.y - wy)
   return d if d < nav._cells(b) * nav.grid.resolution - CLOSE_ENOUGH_M else None
+
+
+def footprint_middle(model, data, gids) -> tuple[float, float]:
+  """The middle of the floor the geoms `gids` cover: their bounding
+  circles, boxed. A humanoid lying straight has it at its pelvis, 3 cm
+  from the middle of its own outline (#580)."""
+  xy = data.geom_xpos[gids, :2]
+  r = model.geom_rbound[gids][:, None]
+  lo, hi = (xy - r).min(axis=0), (xy + r).max(axis=0)
+  return float(lo[0] + hi[0]) / 2.0, float(lo[1] + hi[1]) / 2.0
 
 
 #: How far round another robot's believed centre A* keeps this robot's
@@ -116,7 +127,7 @@ MAKE_WAY_WAIT_S = 30.0
 #: drive plans again every 2 s and walks at most 0.8 m between
 #: (`navigation.V_MAX`), the other robot as far again: from here one coming
 #: nearer is planned round, waited for or asked 1.4 m off at the least,
-#: past a fallen robot's disc (0.90 m).
+#: past a fallen humanoid's disc (1.20 m).
 PAST_M = 3.0
 #: How often a drive looks at which other robots are lying down (issue
 #: #365). A fall or a stand-up moves that robot's disc, and the plan is
@@ -396,17 +407,13 @@ class Navigator:
 
   def footprint_centre(self) -> tuple[float, float]:
     """The middle of the floor this robot's body covers, off the TRUE
-    geometry: its geoms' bounding circles, boxed. MEASURED 0.08 m from the
-    chassis origin upright, and 0.20-0.21 m along the mast lying down.
-    ⚠ Read to ACT, unlike `true_pose`, and only for a robot lying on the
-    floor (issue #365) -- fallen, resting or dead, or stepping aside for the
-    one that reads it (#455): what another robot keeps clear of, because a
-    real one would see a robot-shaped lump there, and the one thing about a
-    fallen robot its own odometry cannot say, nor two maps that disagree."""
-    xy = self.data.geom_xpos[self.body_gids, :2]
-    r = self.model.geom_rbound[self.body_gids][:, None]
-    lo, hi = (xy - r).min(axis=0), (xy + r).max(axis=0)
-    return float(lo[0] + hi[0]) / 2.0, float(lo[1] + hi[1]) / 2.0
+    geometry (`footprint_middle`). ⚠ Read to ACT, unlike `true_pose`, and
+    only for a robot lying on the floor (issue #365) -- fallen, resting or
+    dead, or stepping aside for the one that reads it (#455): what another
+    robot keeps clear of, because a real one would see a robot-shaped lump
+    there, and the one thing about a fallen robot its own odometry cannot
+    say, nor two maps that disagree."""
+    return footprint_middle(self.model, self.data, self.body_gids)
 
   def as_seen(self, wx: float, wy: float) -> tuple[float, float]:
     """A TRUE world point where this robot's own sensors would put it:
@@ -465,8 +472,8 @@ class Navigator:
     nothing here; the rover watches for its rack's tag."""
 
   def _scan_step(self) -> None:
-    """The LIDAR, at its own rate: the map (level, and matched) and the
-    front stop's reflex."""
+    """The LIDAR, at its own rate: the map (while it `maps`, matched) and
+    the front stop's reflex."""
     # Scan on a TIME cadence at the part's real rate. The camera scanner ran
     # every 20 physics steps (50 Hz) because a depth render is free in sim; a
     # spinning mirror is not, and pretending otherwise would let the mapper
@@ -480,12 +487,13 @@ class Navigator:
       # that moves. Excluding it from the scan silenced both, and the 0.25 m
       # stop that holds this robot off a wall, a doorpost and a bed was
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
-      angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
-      if self.level():
-        m = self._match(angles, ranges)
+      angles, ranges, peer_angles, peer_ranges, free_from, origin = self._scan()
+      origin = self.LIDAR_ORIGIN if origin is None else origin
+      if self.maps():
+        m = self._match(angles, ranges, origin)
         if m is None or self.matcher.fuses(m, self.data.time):
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                           origin=self.LIDAR_ORIGIN)
+                           origin=origin, free_from=free_from)
           if m is not None:
             self.matcher.fused(self.pose, self.data.time)
       elif self.matcher is not None:
@@ -495,6 +503,18 @@ class Navigator:
         all_ranges = np.concatenate((ranges, peer_ranges))
         if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
+
+  def _scan(self) -> Scan:
+    """One scan, the map's and the other robots' apart (`Lidar.scan_split`):
+    the LIDAR's level ring here. A body may lay its LIDAR's points flat
+    instead (`HumanoidMission._scan`)."""
+    return Scan(*self.lidar.scan_split(self.data))
+
+  def maps(self) -> bool:
+    """Whether a scan taken now goes into the map, matched: level (issue
+    #339) here. A body that levels its scan through its IMU says its own
+    (`HumanoidMission.maps`)."""
+    return self.level()
 
   def _front_blocked(self, angles, ranges) -> bool:
     """The front stop's test, over one scan's bearings and ranges (the room
@@ -510,7 +530,7 @@ class Navigator:
     """The body's contacts, after the scan: nothing here; the rover
     counts its chassis's collisions."""
 
-  def _match(self, angles, ranges):
+  def _match(self, angles, ranges, origin=None):
     """Align the scan with the map it is about to go into (issue #386) and
     move the belief to where the walls put it: the pose the map is laid
     through, the planner plans from and the other robot is told. The match,
@@ -518,7 +538,7 @@ class Navigator:
     if self.matcher is None:
       return None
     before = self.pose
-    m = self.matcher.match(before, angles, ranges)
+    m = self.matcher.match(before, angles, ranges, origin)
     if m.accepted:
       self._set_pose(*m.pose)
       # ...and a wide search's jump is said (issue #476): onto a copy, it

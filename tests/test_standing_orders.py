@@ -45,7 +45,7 @@ def make(menu, *answers, **kw) -> Overseer:
 
 def offer(task_id="t_0007", **kw) -> dict:
   return {"id": task_id, "kind": "open_drawer", "claimable": True,
-          "needsAnswer": False, "estimateWh": 0.85, "expiresInS": 300, **kw}
+          "estimateWh": 0.85, "expiresInS": 300, **kw}
 
 
 # ---- it is an action off the fixed menu, and nothing else --------------------
@@ -179,13 +179,13 @@ def test_an_order_that_cannot_be_run_is_recorded_as_its_own_thing(menu):
 
 def test_an_order_that_takes_a_job_takes_the_oldest_one(menu):
   """An order names an ACTION, so `take_task` still has to pick a job, and
-  it picks the way a mindless policy must: the offer that has been waiting
-  longest, never the best-paying one, and never one that asks a question --
-  a fallback with no mind has no arithmetic to offer."""
+  it picks the way a mindless policy must: the claimable offer that has
+  been waiting longest, never the best-paying one -- a fallback with no mind
+  has no arithmetic to offer."""
   boss = make(menu, RuntimeError("down"))
   boss.standing_order = "take_task"
-  d = boss.decide(_state(0.9, offers=[offer("t_0003", needsAnswer=True),
-                                      offer("t_0009"), offer("t_0011")]))
+  d = boss.decide(_state(0.9, offers=[offer("t_0003", claimable=False),
+                                      offer("t_0009"), offer("t_0011", pays=500)]))
   assert d.action == "take_task" and d.task == "t_0009"
   assert boss.orders_fired == {"take_task": 1}
 

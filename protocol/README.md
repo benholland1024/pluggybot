@@ -22,7 +22,7 @@ the header's `model`. The humanoids' house, served since #559's stage 4:
 MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_humanoid
 MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_humanoid --pair
 MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo \
-  --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 \
+  --near-field --errands none,none --battery 0.22,0.9 --max-sim-time 600 \
   --record protocol/telemetry.home_humanoid_pair.jsonl.gz
 ```
 
@@ -49,6 +49,82 @@ is the world with the second robot attached where the pair starts it, and a
 replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
+
+### 0.21.0, nothing a consumer reads: the map laid from the LIDAR's points laid flat (pluggybot #581, stage 2)
+
+No message's shape moves, and no bump. What a robot's `grid` shows is new:
+its map is laid from its LIDAR's points laid flat (per bearing the nearest
+surface 0.15-2.2 m over the floor) where it was laid from one plane 1.47 m
+up, so it holds the house's 0.9 m fences, the couch, the beds, the tables
+and the counters beside the walls, and outdoors stops at a fence where it
+ran on over it into the street. The deploy that brings it starts both
+robots on no map (`MAP_EPOCH` 4). Fixtures: the pair's recording flown
+again for its maps, on #580's 30 Wh test pack, the second robot starting at
+90 % where it started full: full, its explore on the band left it at 61 %,
+just over its reserve, and it never charged, where the fixture shows both
+robots charge. The first, started low, plugs in at 54 s and charges to
+90 % by 287 s; the second goes to charge at 209 s, waits on the first, and
+asked aside once its charge is done, the first steps 0.6 m (332 s); the
+second charges 387-553 s, and touches the first once (565 s) as it
+leaves. The scenes did not move.
+
+### 0.21.0, nothing new: the pair's day on a bigger test pack (pluggybot #580)
+
+No message's shape moves, and nothing served does: the served pair runs the
+hosting pack. The pair's recording is flown again on the tests' pack, now
+30 Wh where it was 20 (`humanoid.world.DEMO_WH`), so its day moves. The
+first robot, started low, charges once (39-269 s), and its explore's budget
+spent, its day ends; the second explores until 258 s, waits on the first
+standing by the station, asks it aside (it steps 0.3 m) and charges
+(383-528 s). ⚠ The two touch beside the station from 347 s, 22 `touched`
+`encounter` rows while the second walks in, plugs in and charges: the
+first, its day done, stays within 0.6 m of the station after its step
+aside. That is staging's code: flown there with the pack moved alone, the
+day is the same. Nobody falls, so the fallen disc this PR moves is not in
+it. The scenes did not move.
+
+### 0.21.0, nothing a consumer reads: the quadruped's leftovers out (pluggybot #579)
+
+pluggybot #579 takes out what #559's stage 5 left of the quadruped on the
+served stream. No bump: every field that goes had been constant since stage
+5 -- null, empty or false, and `toolsHung` true -- and the site's code reads
+none of them (its types keep them, optional, for the recordings that carry
+them). ⚠ The one value a consumer renders is a robot's `state`: the site
+shows a phrase per state and falls back to the raw token, so it takes
+`PROCEDURE`'s phrase first (rooftop-media-2026 #475), or its visitors read
+`PROCEDURE` until it does.
+
+- **The header** has no `screens` (it was always `[]`).
+- **A robot's `state`** is `PROCEDURE` from an errand's start to its end,
+  where it was `SWAP_PICK` and then `USE_TOOL` (and `SWAP_RETURN` was never
+  entered after stage 5). An open set: older recordings carry the old names.
+- **A `death`'s `at`** has no `carrying` or `swapping` (both null), and its
+  `errand` no `module` (always `""`).
+- **A `prediction`'s `state`**, the need rule's reading of the other robot,
+  has no `carrying` (always `""`), and no guess is `a_tool`.
+- **A `message` between robots grades no claim about the quadruped's
+  rack**: "bay C is empty" or "module_pen is on the rack" is unchecked
+  (`claim` null) where it was graded against an empty rack, every bay
+  empty. A claim about the charging station or a board is graded as before.
+- **A `procedure`'s verdict** (the `program` row's) has no `toolsHung` in
+  its metrics, and a passing one's reason ends "N/N steps" where it ended
+  ", tools hung".
+- **An attempt row** -- the lid grader's metrics, on a session's `ended`
+  and in the record -- has no `tool` or `toolSeated` (both null).
+- **Narration names the charging station** where it said the rack, the
+  charge bay, the dock and its board, and pins (`status`, and the lines of
+  the event stream). The two charge outcomes a consumer counts keep their
+  prefixes, `GO_CHARGE -> CHARGE` and `GO_CHARGE: `, and the words after
+  them move: `GO_CHARGE -> CHARGE (plugged in)`, `GO_CHARGE: never reached
+  the charging station ...`. A line that began `RACK:` begins `STATION:`.
+- **The `prompt` message** carries the period's new prefix (docs/Observatory.md
+  lists what moved in it).
+
+Fixtures: the pair's recording and the counter's, re-flown at this commit
+(no `screens` in either header, the pair's narration in the station's
+words, the counter's attempt row with no tool); the scenes did not move.
+The pair's is the first flown on #581's Mid-360S head, so its day moves
+against the last one for that reason too.
 
 ### 0.21.0, nothing new: the quadruped retired (its fixtures, `reset_tool`, the screens)
 
@@ -2938,7 +3014,7 @@ against the body census.
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (the scene command) |
 | `parts.json` | The **parts list** (issue #185): what the humanoid is made of (#507), each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled body when the file is built — and the bill it totals. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.humanoid.bill` |
 | `scene.home_humanoid_pair.json` | The home world with the HUMANOID pair (#559): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene --world home_humanoid --pair` |
-| `telemetry.home_humanoid_pair.jsonl.gz` | The deployed period's shape: no offers, no upkeep; the first robot, started low, walks to its station, plugs itself in and charges while the second explores -- both maps and near fields | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_humanoid_pair.jsonl.gz` |
+| `telemetry.home_humanoid_pair.jsonl.gz` | The deployed period's shape: no offers, no upkeep; the first robot, started low, walks to its station, plugs itself in and charges while the second explores, then the second charges -- both maps and near fields | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo --near-field --errands none,none --battery 0.22,0.9 --max-sim-time 600 --record protocol/telemetry.home_humanoid_pair.jsonl.gz` |
 | `scene.home_humanoid_counter.json` | A world of one's own (pluggybot #530): the house, the HUMANOID where the counter's set-out starts it, the counter and chest 0 on it (`evaluation.counter`), its `head` camera named -- never the served world | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record ...` (writes it beside the recording) |
 | `telemetry.home_humanoid_counter.jsonl.gz` | The reference's attempt at chest 0 (`evaluation.opener`), streamed as a person's session streams one: the scene after the header, the robot's senses (`readouts`, `depth`), and ONE `attempt` at the end, which passed | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record protocol/telemetry.home_humanoid_counter.jsonl.gz` |
 | `hello.home_humanoid_counter.json` | The session host's `hello` as a fresh host says it (rooftop-media-2026 #441): no build, nothing running; the task, the job, the robot's text and its `index`, which the site's guide for people is checked against | `uv run python -m pluggybot.session.host --hello` |
@@ -3118,7 +3194,6 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
  "world": ["station_plug", "drawer_drawer", ...],      // shared dynamic bodies
  "activities": ["garden_light"],                        // task state machines
  "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces
- "screens": [],                                        // a vestige: always empty (#559)
  "ledger": ["pluggybot"],                               // robots with a balance
  "taskKinds": ["open_drawer", "open_door"],            // jobs it can offer
  "accepts": ["message", "rating"],                      // what it will act on
@@ -3228,7 +3303,7 @@ contract change, recorded here as well as there).
 
 | field | example | what it is |
 | --- | --- | --- |
-| `state` on a robot's frame record | `SWAP_PICK` | a state machine's name for itself |
+| `state` on a robot's frame record | `PROCEDURE` | a state machine's name for itself |
 | `task` on `earned` / an `earning` | `open_drawer` | a row in `economy/rewards.json` or `challenges.json` |
 | `action` on `visitor_reply` | `explore` | an action off the overseer's menu |
 

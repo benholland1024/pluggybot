@@ -16,7 +16,7 @@ import pytest
 
 from pluggybot import lifecycle as lc
 from pluggybot import tick
-from pluggybot.body import RackPose, StubBody
+from pluggybot.body import NOT_SEEN, RackPose, StubBody
 from pluggybot.mind import events as ev
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.procedure import lang
@@ -101,7 +101,7 @@ def test_a_clear_that_did_not_arrive_tries_elsewhere_and_says_so():
   assert len(drives) == 1 + lc.CLEAR_SPOTS, drives
   assert all(life.rack_distance(*d) >= lc.RACK_CLEAR_M for d in drives[1:])
   history = life.thoughts.read("History.md")
-  assert "could not get clear of the rack" in history, history
+  assert "could not get clear of the charging station" in history, history
 
   # ...and a clear that got away is one drive and nothing to report
   life = _life()
@@ -116,7 +116,7 @@ def test_a_clear_that_did_not_arrive_tries_elsewhere_and_says_so():
   life.body.go_to_routine = goes
   assert life.body.run(life._clear_rack_routine()) is True
   assert len(drives) == 1
-  assert "clear of the rack" not in life.thoughts.read("History.md")
+  assert "clear of the charging station" not in life.thoughts.read("History.md")
 
 
 def test_the_loop_leaves_the_rack_before_it_thinks_but_only_for_somebody():
@@ -149,7 +149,7 @@ def test_a_robot_left_standing_at_the_rack_is_logged_once():
   for t in range(0, int(lc.RACK_LINGER_S) + 5):
     life.data.time = float(t)
     life._rack_linger_step()
-  said = [line for line in life.log if "RACK: lingering" in line]
+  said = [line for line in life.log if "STATION: lingering" in line]
   assert len(said) == 1, said
   # ...and a robot AT the rack for what it came for is not lingering
   life = _life(_peer(9.0, 9.0))
@@ -158,21 +158,22 @@ def test_a_robot_left_standing_at_the_rack_is_logged_once():
   for t in range(0, int(lc.RACK_LINGER_S) + 5):
     life.data.time = float(t)
     life._rack_linger_step()
-  assert not [line for line in life.log if "RACK: lingering" in line]
+  assert not [line for line in life.log if "STATION: lingering" in line]
 
 
-def test_a_refused_procedure_beside_the_station_is_not_lingering():
-  """A procedure opens in SWAP_PICK, the quadruped's swap state the frames
-  still carry (#559), and one its world refused stays in it while the loop
-  goes on: that is no linger, as it never was."""
+def test_a_refused_procedure_beside_the_station_is_lingering():
+  """A procedure is no business of the station's (#579): one its world
+  refused leaves the robot in PROCEDURE while the loop goes on, and standing
+  there past the clock is a linger. (The quadruped's procedure opened in
+  SWAP_PICK, a swap at its rack, and the clock let that state be.)"""
   life = _life(_peer(9.0, 9.0))
   _at(life, *_standoff(life))
   life.run_errand(programmed_errand(lang.parse('def x():\n  move("shoulder", 0.1)\n')))
-  assert life.state == "SWAP_PICK"
+  assert life.state == "PROCEDURE" and life.state not in lc.RACK_STATES
   for t in range(0, int(lc.RACK_LINGER_S) + 5):
     life.data.time = float(t)
     life._rack_linger_step()
-  assert not [line for line in life.log if "RACK: lingering" in line]
+  assert len([line for line in life.log if "STATION: lingering" in line]) == 1
 
 
 # ---- rule 2: a taken charge bay is waited for ------------------------------
@@ -198,8 +199,8 @@ def test_a_taken_bay_is_waited_for_out_of_the_way_and_a_freed_one_proceeds():
   assert life.data.time == pytest.approx(20.0, abs=lc.BAY_POLL_S)
   spot = drives[0]
   assert math.hypot(spot[0] - sx, spot[1] - sy) > 0.6, "waited in the lane"
-  assert "Rowan was at the charge bay I needed" in life.thoughts.read("History.md")
-  assert any("WAIT: the charge bay is free after 20 s" in line for line in life.log)
+  assert "Rowan was at the charging station I needed" in life.thoughts.read("History.md")
+  assert any("WAIT: the charging station is free after 20 s" in line for line in life.log)
   assert life.bay_waits == 1
 
   peer.pos[0] = sx + 0.2                       # ...and it comes back as we go in
@@ -207,7 +208,7 @@ def test_a_taken_bay_is_waited_for_out_of_the_way_and_a_freed_one_proceeds():
   assert drives[1] == spot, drives
   assert life.bay_waits == 1
   assert life.thoughts.read("History.md").count(
-    "Rowan was at the charge bay I needed") == 1
+    "Rowan was at the charging station I needed") == 1
 
 
 def test_the_wait_is_bounded_at_three_typical_occupancies_of_a_charge():
@@ -226,7 +227,7 @@ def test_the_wait_is_bounded_at_three_typical_occupancies_of_a_charge():
     assert life.body.run(life._await_bay_routine(sx, sy, "charge", 0.0)) is False
     assert life.data.time == pytest.approx(3 * lc.CHARGE_OCCUPANCY_S, abs=lc.BAY_POLL_S)
     said = life.held_for(("Rowan", 0.2))
-    assert said.startswith("Rowan was standing 0.20 m from the bay")
+    assert said.startswith("Rowan was standing 0.20 m from the charging station")
     assert f"I waited {3 * lc.CHARGE_OCCUPANCY_S:.0f} s for it to leave" in said, said
     assert "charge usually takes" in said
 
@@ -271,7 +272,7 @@ def test_a_taken_charge_bay_is_waited_for_before_the_drive_in():
   assert life.data.time == pytest.approx(3 * lc.CHARGE_OCCUPANCY_S,
                                          abs=lc.BAY_POLL_S)
   assert spins == [], "looked round for a bay somebody was standing on"
-  said = next(line for line in life.log if "GO_CHARGE: never reached the charge bay" in line)
+  said = next(line for line in life.log if "GO_CHARGE: never reached the charging station" in line)
   assert "Rowan was standing 0.20 m from it" in said, said
   assert "I waited 1386 s for it to leave, 3x how long one charge" in said
 
@@ -311,14 +312,15 @@ def test_a_robot_on_the_dock_holds_the_charge_bay_and_is_not_walked_in_on():
       yield
     life.body.dock_routine = dock
     assert life.body.run(life.go_charge_routine()) is leaves
-    assert any("WAIT: Rowan is standing on the dock" in line for line in life.log)
+    assert any("WAIT: Rowan is standing right in front of the charging station" in line
+               for line in life.log)
     assert math.dist(drives[int(late)], (sx, sy)) > 0.6, "waited in the lane"
     if leaves:
       assert docks == [pytest.approx(30.0, abs=lc.BAY_POLL_S)], docks
       continue
     assert docks == [], "walked in on a robot on the dock"
-    said = next(line for line in life.log if "GO_CHARGE: never reached the charge bay" in line)
-    assert "-- Rowan was standing on the dock; I waited 1386 s for it to leave" in said, said
+    said = next(line for line in life.log if "GO_CHARGE: never reached the charging station" in line)
+    assert "-- Rowan was standing right in front of it; I waited 1386 s for it to leave" in said, said
 
 
 def test_a_robot_on_the_docks_way_in_holds_it_as_on_its_standoff_or_seat():
@@ -346,9 +348,10 @@ def test_a_robot_on_the_docks_way_in_holds_it_as_on_its_standoff_or_seat():
   life.body.dock_routine = dock
   assert life.body.run(life.go_charge_routine()) is False
   assert docks == [], "walked in across the robot on the dock's way in"
-  assert any("WAIT: Rowan is standing on the dock's way in" in line for line in life.log)
-  said = next(line for line in life.log if "GO_CHARGE: never reached the charge bay" in line)
-  assert "-- Rowan was standing on the dock's way in; I waited 1386 s" in said, said
+  assert any("WAIT: Rowan is standing on the way in to the charging station" in line
+             for line in life.log)
+  said = next(line for line in life.log if "GO_CHARGE: never reached the charging station" in line)
+  assert "-- Rowan was standing on the way in to it; I waited 1386 s" in said, said
 
 
 def test_a_resting_holder_is_asked_afresh_after_a_no_or_a_yes_that_did_not_move_it():
@@ -407,7 +410,7 @@ def test_a_dock_found_again_after_a_lost_search_is_looked_at_again():
   def dock():
     docks.append((float(life.data.time), list(peer.pos)))
     if len(docks) == 1:
-      return "no board"
+      return NOT_SEEN
     life.body.on_charger = True
     return "docked"
     yield
@@ -484,8 +487,9 @@ def test_an_old_wait_is_not_told_as_this_failures_story():
   life.data.time = 10.0
   assert "I waited 1386 s" in life.held_for(("Rowan", 0.2))
   life.data.time = 4000.0
-  assert life.held_for(("Rowan", 0.2)) == ("Rowan was standing 0.20 m from "
-                                           "the bay, nearer than the planner may route")
+  assert life.held_for(("Rowan", 0.2)) == ("Rowan was standing 0.20 m from the "
+                                           "charging station, nearer than the planner "
+                                           "may route")
 
 
 def test_a_peer_the_lifecycle_cannot_name_is_still_waited_for():

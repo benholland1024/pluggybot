@@ -70,7 +70,7 @@ def test_the_loop_diagram_names_every_death_cause_and_event_type():
   for event in events.EVENT_TYPES:
     assert f"`{event}`" in section, f"event type {event!r} is not in the README's list"
   for event in events.INTERRUPTING_EVENTS:
-    assert event in loop, f"interrupting event {event!r} does not leave USE_TOOL"
+    assert event in loop, f"interrupting event {event!r} does not leave PROCEDURE"
 
 
 def test_every_loop_label_line_fits_the_renderers_width_cap():
@@ -89,7 +89,7 @@ def test_the_memory_diagram_names_exactly_the_robots_verbs_and_real_states():
   verbs = {v for s in text.DOCUMENTS for v in s.verbs}
   assert _diagram_verbs(memory) == verbs
   # The states drawn beside the tiers are the loop's, not invented for the
-  # picture; a node like `USE_TOOL / SWAP_RETURN` names two.
+  # picture; a node like `RECALL / LOOK` would name two.
   drawn = set(re.findall(r"\b([A-Z][A-Z_]{3,})\b", memory))
   drawn -= {"LR", "TB", "MAIN", "GOALS", "TOP", "NOTES", "FIND", "HIST", "USE",
             "VISITOR", "PROCS", "TICKETS"}

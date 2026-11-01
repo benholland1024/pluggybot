@@ -129,23 +129,32 @@ def test_the_schema_constrains_every_parameter_to_the_menu(menu):
   schema = menu.schema()
   assert schema["additionalProperties"] is False
   assert schema["properties"]["action"]["enum"] == list(menu.available())
-  assert set(schema["properties"]["board"]["enum"]) == {*menu.boards, ""}
-  # ...and `program`, a vestige of the drawing errands (#559), names nothing
-  assert schema["properties"]["program"]["enum"] == [""]
   assert set(schema["properties"]["zone"]["enum"]) == {*menu.zones, ""}
+  # ...and nothing of the drawing errands' or the whiteboard questions':
+  # their `board`, `program` and `answer` went from the form in #579
+  assert not {"board", "program", "answer"} & set(schema["properties"])
 
 
 @pytest.mark.parametrize("raw, why", [
   ({"action": "hack_the_ledger"}, "unknown action"),
   ({"action": "draw"}, "unknown action"),
-  ({"action": "explore", "board": "the_ceiling"}, "unknown board"),
-  ({"action": "explore", "program": "a_portrait_of_ben"}, "unknown program"),
   ({"action": "explore", "zone": "the_moon"}, "unknown zone"),
   ({"action": ""}, "unknown action"),
 ])
 def test_an_answer_off_the_menu_is_refused(menu, raw, why):
   with pytest.raises(ValueError, match=why):
     menu.validate(raw)
+
+
+def test_a_parameter_rides_its_own_action_alone(menu):
+  """#579: a decision's narration and its History line named its first
+  filled parameter, whichever action it belonged to -- the form's `board`,
+  which no action named, ahead of all ("chose explore (whiteboard_a)" for a
+  walk to the kitchen), and behind it a zone filled on a `charge`."""
+  d = menu.validate({"action": "charge", "reason": "low", "zone": "garden"})
+  assert d.zone == "" and d.summary() == "charge: low"
+  d = menu.validate({"action": "explore", "reason": "unseen", "zone": "garden"})
+  assert d.zone == "garden" and d.summary() == "explore (garden): unseen"
 
 
 # ---- the failure paths, which are the ones that must never surprise ----------
@@ -185,8 +194,7 @@ def test_a_refused_answer_is_told_to_the_robot_in_the_fallback_reason(menu):
   the fallback decision's reason, in the words `validate` raised -- the
   action and the source stay the fallback's own.
   """
-  offer = {"id": "t_1", "kind": "open_drawer", "claimable": True,
-           "needsAnswer": False}
+  offer = {"id": "t_1", "kind": "open_drawer", "claimable": True}
   boss = make(menu, full(action="take_task", task="t_9",
                          reason="the drawer is mine to open"))
   d = boss.decide({"offeredTasks": [offer], "tasksThisMission": [],

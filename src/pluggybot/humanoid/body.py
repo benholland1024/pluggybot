@@ -19,7 +19,7 @@ import mujoco
 import numpy as np
 
 from pluggybot import tick
-from pluggybot.body import TOPPLE_HOLD_S, Body, RackPose
+from pluggybot.body import NOT_SEEN, TOPPLE_HOLD_S, Body, RackPose
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
@@ -67,7 +67,7 @@ FEET_MOVED_M = 0.05
 #: sprang back 6-8 deg as the legs changed hands, at 1.0 it lands within 2
 #: deg of the turn asked.
 STEP_V, BACK_V, TURN_W = 0.3, 0.4, 1.0
-#: ...stopped once what it believes it has walked, and its speed times this,
+#: ...stopped once what its legs reckon it has walked, and its speed times this,
 #: s, reach the step asked -- its stride carries on that far, about 0.2-0.27
 #: s of its pace -- and a turn this much short, rad.
 STEP_STOP_S, TURN_STOP_RAD = 0.22, math.radians(0.5)
@@ -362,6 +362,7 @@ class HumanoidBody(Body):
       d.qvel[m.jnt_dofadr[m.joint(self.handle.el(name)).id]] = 0.0
     mujoco.mj_forward(m, d)
     self.mission.fresh_drivers()
+    self.mission.drop_aside()
     if self.mission.matcher is not None:
       self.mission.matcher.anchored(on=False)
 
@@ -383,8 +384,18 @@ class HumanoidBody(Body):
     return tuple(float(v) for v in self._d.xquat[self.root])
 
   def footprint_centre(self):
-    sx, sy, _ = self._true_stance()
-    return sx, sy
+    """Its soles' middle on its feet; while its get-up has its joints
+    (`posture`) -- fallen, lying, getting up -- the middle of the floor its
+    body covers (`Navigator.footprint_centre`). ⚠ Round its soles, a
+    fallen robot's disc (`DOWN_ROBOT_CELLS`) left out its head and
+    shoulders, 1.5 m from there, and another robot's plan ran through
+    them (#580). The get-up takes the joints before the death seam reads
+    it down (0.1-0.8 s, six falls); a body with no get-up policy never
+    says it fell, and keeps its soles."""
+    if self.posture == "standing":
+      sx, sy, _ = self._true_stance()
+      return sx, sy
+    return self.mission.footprint_centre()
 
   def as_seen(self, x, y):
     return self.mission.as_seen(x, y)
@@ -740,16 +751,21 @@ class HumanoidBody(Body):
     spot, walks `ahead` and `left` in the frame it then stands in -- one
     motion at `STEP_V` (`BACK_V` backing up), or the one and then the other
     where the walker would not walk that way (`_step_walks`) -- and stands:
-    a walk stops once what it believes it has walked, and its speed times
+    a walk stops once what its legs reckon it has walked, and its speed times
     `STEP_STOP_S`, reach its length, so a stride, about 10 cm, is the least
     it goes. Its legs are the walking policy's meanwhile. Returns how it
     ended (`why`: "stepped", "holding" -- a hand holds something, and it
     does not move -- "blocked", "fell", "out of time"), in how long, and
     where its stance went, by its own reckoning, in the stance frame it
-    stood in before (`dx`, `dy`, m; `turn`, rad)."""
+    stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
+    ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
+    correction is no step, and the band's matcher at its station, its
+    corrections walked as steps, stopped a step to the seat 3.6 cm inside it
+    (#581's stage 2)."""
     mi = self.mission
     yield from mi._getup_routine()
-    t0, s0, falls = float(self._d.time), self.stance, mi.falls
+    by_legs = self._by_legs()
+    t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
     if any(self.gripped(s) for s in hm.SIDES):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
 
@@ -765,47 +781,61 @@ class HumanoidBody(Body):
       yield from mi.to_walk_routine()
       why = over() or why
     # the turn, its heading counted unwrapped: wrapped, one past pi never ended
-    heading, turned = mi.pose[2], 0.0
+    heading, turned = by_legs(mi.pose)[2], 0.0
     while (why == "stepped" and abs(turn) > TURN_STOP_RAD
            and turned * math.copysign(1.0, turn) < abs(turn) - TURN_STOP_RAD):
       yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, turn))
-      turned += math.remainder(mi.pose[2] - heading, 2 * math.pi)
-      heading = mi.pose[2]
+      now = by_legs(mi.pose)[2]
+      turned += math.remainder(now - heading, 2 * math.pi)
+      heading = now
       why = over() or why
     # ⚠ A TURN IS TAKEN AS ON THE SPOT: its feet shuffle round, the stance
     # truly moves 2-6 cm and the odometry is 3-7 cm off over it (turns of
     # 17-86 deg) -- so the step's move is the walks' alone, measured from
     # where the turn left the belief
-    s_mid = self.stance
+    s_mid = by_legs(self.stance)
     for a_, l_ in _step_walks(ahead, left):
       if why == "stepped":
-        why = yield from self._walk_routine(a_, l_, over)
+        why = yield from self._walk_routine(a_, l_, over, by_legs)
     yield from mi.to_stand_routine()
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
       yield STILL
     if mi.falls != falls:
       why = "fell"
-    x1, y1, yaw1 = self.stance
+    x1, y1, yaw1 = by_legs(self.stance)
     if not length:
       x1, y1 = s_mid[0], s_mid[1]
     d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi)}
 
-  def _walk_routine(self, ahead, left, over):
+  def _by_legs(self):
+    """A pose of the belief's, (x, y, heading), as the legs' reckoning alone
+    has it since now: less what corrections from outside it have moved the
+    belief by since (`StanceOdometry.corrected`)."""
+    odo = self.mission.odo
+    at = odo.corrected.copy()
+
+    def by_legs(pose):
+      d = odo.corrected - at
+      return pose[0] - float(d[0]), pose[1] - float(d[1]), pose[2] - float(d[2])
+    return by_legs
+
+  def _walk_routine(self, ahead, left, over, by_legs):
     """One straight walk of a step, its legs the walker's: "stepped" once
-    what it believes it has walked, and its speed times `STEP_STOP_S`, reach
-    its length; "blocked" where it gets nowhere; else what `over` says."""
+    what its legs reckon it has walked (`by_legs`), and its speed times
+    `STEP_STOP_S`, reach its length; "blocked" where it gets nowhere; else
+    what `over` says."""
     mi, dt = self.mission, self._m.opt.timestep
     length = math.hypot(ahead, left)
-    x0, y0, yaw = mi.pose
+    x0, y0, yaw = by_legs(mi.pose)
     # the walk's way in the world, and its twist in the trunk's frame
     ux, uy = ahead / length, left / length
     wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
     pace = BACK_V if ahead < -abs(left) else STEP_V
     speed, went, mark = 0.0, 0.0, (float(self._d.time), 0.0)
     while True:
-      x, y, _ = mi.pose
+      x, y, _ = by_legs(mi.pose)
       now = wx * (x - x0) + wy * (y - y0)
       speed += min(1.0, dt / 0.2) * ((now - went) / dt - speed)
       went = now
@@ -935,10 +965,9 @@ class HumanoidBody(Body):
   last_drive = property(lambda self: self.mission.last_drive)
 
   def gave_up(self, record, peer="the other robot") -> str:
-    """...a humanoid rests standing (#559): the other at rest, standing."""
+    """...a humanoid walks (#559)."""
     from pluggybot.navigator import gave_up
-    return (gave_up(record, peer).replace("the drive gave up", "the walk gave up", 1)
-            .replace("lying down to rest", "standing at rest"))
+    return gave_up(record, peer).replace("the drive gave up", "the walk gave up", 1)
 
   def face_routine(self, heading):
     return self.mission.face_routine(heading)
@@ -958,10 +987,11 @@ class HumanoidBody(Body):
     return dict(m.counts) if m is not None else {}
 
   def forget_world(self) -> None:
-    """A true death (#419): the map, its layer, the walls it is kept off,
-    the plan it last made and the places it found, gone, as the
-    quadruped's."""
+    """`Body.forget_world`: the map, its layer, the walls it is kept off,
+    the plan it last made, the places it found and a step aside under way
+    to a spot on that map (`HumanoidWay.drop_aside`), gone."""
     m = self.mission
+    m.drop_aside()
     m.forget_map()
     m.places.forget()
     m.low[:] = 0.0
@@ -1093,20 +1123,20 @@ class HumanoidBody(Body):
   def dock_routine(self):
     """From the standoff, plugged in (`humanoid.charge`): it faces the
     station, fits it off its tags, steps to the seat as it sees it (again
-    while off it) and plugs itself in. "docked", or why not -- "no board"
-    where the tags were not in sight, as the dock's."""
+    while off it) and plugs itself in. "docked", or why not -- `NOT_SEEN`
+    where the tags were not in sight."""
     from pluggybot.activity import station as st
     from pluggybot.humanoid import charge
     self._charge_trace = []
     if self._station is None:
-      return "no dock"
+      return "no station"
     # ...facing the cup from where it stands, never the station's own
     # heading: from 0.2 m to one side that put the far tag out of view
     cx, cy = self._station.to_world(0.0, 0.0)
     yield from self.face_routine(math.atan2(cy - self.pose[1], cx - self.pose[0]))
     seen = yield from charge.look_routine(self)
     if seen is None:
-      return "no board"
+      return NOT_SEEN
     for _ in range(charge.SEAT_STEPS):
       sx, sy = seen.to_world(st.SEAT_X, st.SEAT_Y)
       x, y, yaw = self.pose

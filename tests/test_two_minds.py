@@ -12,10 +12,9 @@ from pluggybot.pair import build_pair, run_pair
 
 #: ⚠ THE EMPATHY MEASUREMENT'S INPUT. What the robot is told about the other
 #: robot is written once; moving it is a new experiment on every paired
-#: arm, so the change is made here on purpose, with the hash. (The
-#: humanoids' text since #559's stage 5: the quadruped's with its swaps, as
-#: the served pair read it from stage 4.)
-OTHER_ROBOT_RULE_SHA = "4aba7f11221eeaefd3ec4f50b310a8d8ab396801876a08ba1efa6264eb41ce75"
+#: arm, so the change is made here on purpose, with the hash. (Since #579:
+#: what the other carries went, with the quadruped's fork it named.)
+OTHER_ROBOT_RULE_SHA = "4f27bd0de4ebc507de557d9f632f84f9b4015f8246c080b1da1d86a78a923de0"
 
 WORLD = "home_humanoid"
 
@@ -168,8 +167,7 @@ def test_what_a_mind_is_shown_of_the_other_is_the_public_surface_only():
   assert shown[0]["robot"] == "pluggybot" and shown[0]["state"] == a.state
   assert abs(shown[0]["x"] - 0.5) < 0.01 and abs(shown[0]["y"] - 3.0) < 0.01
   assert shown[0]["doing"].startswith("EXPLORE: heading")
-  assert set(shown[0]) == {"name", "robot", "x", "y", "state", "doing",
-                           "carrying", "dead"}
+  assert set(shown[0]) == {"name", "robot", "x", "y", "state", "doing", "dead"}
   # ...and through the whole context: the other's thoughts, goals, battery,
   # points, reasons and secrets are nowhere in it
   ctx = json.dumps(overseer_context(b))

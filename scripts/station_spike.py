@@ -45,6 +45,11 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+def _child(*args: str) -> list[str]:
+  """A trial's process: this script with `args`."""
+  return [sys.executable, __file__, *args]
+
+
 #: A filmstrip's tile, px, and its row.
 TILE_W, TILE_H, ROW = 480, 360, 4
 #: The viewer's camera a scene, fixed from the robot's right (`side`): the
@@ -121,7 +126,7 @@ def approach(n: int, parallel: int, seed: int = 559) -> list[dict]:
                                                 rng.uniform(-25, 25))) for _ in range(n)]
 
   def run(off):
-    cmd = [sys.executable, __file__, "--one", json.dumps(off)]
+    cmd = _child("--one", json.dumps(off))
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     try:
       return json.loads(r.stdout.strip().splitlines()[-1])
@@ -185,7 +190,7 @@ def seats(parallel: int) -> list[dict]:
   offs = list(itertools.product(SEAT_BACKS, SEAT_LEFTS, SEAT_TURNS))
 
   def run(off):
-    cmd = [sys.executable, __file__, "--one-seat", json.dumps(off)]
+    cmd = _child("--one-seat", json.dumps(off))
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     try:
       return json.loads(r.stdout.strip().splitlines()[-1])
@@ -259,7 +264,7 @@ def walk_ins(explores: tuple, parallel: int) -> list[dict]:
   trials = [(p, e) for e in explores for p in WALK_IN_FROM]
 
   def run(t):
-    cmd = [sys.executable, __file__, "--one-walk-in", json.dumps(t)]
+    cmd = _child("--one-walk-in", json.dumps(t))
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
     try:
       return json.loads(r.stdout.strip().splitlines()[-1])
@@ -467,8 +472,8 @@ def _fly_losts(trials: list, parallel: int) -> list[dict]:
   """Each `(off, place, explore_s)` a `lost_trial` in a process of its own."""
   def run(t):
     off, place, explore_s = t
-    cmd = [sys.executable, __file__, "--one-lost", json.dumps(
-      {"off": list(off), "from": place, "explore": explore_s})]
+    cmd = _child("--one-lost", json.dumps(
+      {"off": list(off), "from": place, "explore": explore_s}))
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
     try:
       return json.loads(r.stdout.strip().splitlines()[-1])

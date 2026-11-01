@@ -273,7 +273,7 @@ def test_an_errand_cannot_fake_a_take_it_did_not_make():
 #: true catch beside: secret on the row.
 OPENED = {"topDeg": 63.8, "downRadS": 0.51, "tiltDeg": 2.8, "falls": 0,
           "touchedDuringHold": [], "angleAtCallDeg": -0.2, "angleDeg": -0.2, "caught": True,
-          "holdS": 5.0, "elapsedS": 40.0, "tool": None, "toolSeated": None, "catchN": 3.77}
+          "holdS": 5.0, "elapsedS": 40.0, "catchN": 3.77}
 
 
 def test_hidden_ground_truth_never_leaves_the_evaluator():

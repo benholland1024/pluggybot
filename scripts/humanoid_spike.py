@@ -3486,6 +3486,9 @@ def filmstrip_stairs(out: str, every_s: float = 2.0) -> None:
 
 from pluggybot.humanoid.getup import (COLLAPSED_M, FALL_TILT_RAD, GETUP_NPZ,  # noqa: E402
                                       FallWatch, GetupDriver, over_lower_sole, tipped)
+from pluggybot.body import TOPPLE_TILT_RAD  # noqa: E402
+from pluggybot.navigator import footprint_middle  # noqa: E402
+from pluggybot.perception.lidar import robot_geoms  # noqa: E402
 
 #: The shoves, the robot's frame (x ahead), and how hard, N*s: past what it
 #: stands through every way (`--shove`: 10-20 N*s), it goes over.
@@ -3500,16 +3503,34 @@ FALL_PARTS = {
   "hands": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("gripper", "jaw_a_pad", "jaw_b_pad")),
   "legs": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("thigh", "shank")),
 }
+_CORNERS = np.array([[a, b, c] for a in (-1, 1) for b in (-1, 1) for c in (-1, 1)], dtype=float)
+
+
+def floor_reach(m, d, gids, at) -> float:
+  """How far the geoms `gids` reach on the floor from `at`, m: the corners
+  of each one's own box (`geom_aabb`) where it lies -- graded by us off the
+  truth."""
+  box = m.geom_aabb[gids]
+  local = box[:, None, :3] + _CORNERS[None] * box[:, None, 3:]
+  rot = d.geom_xmat[gids].reshape(-1, 3, 3)
+  xy = (d.geom_xpos[gids][:, None, :] + np.einsum("gij,gkj->gki", rot, local))[..., :2]
+  return float(np.hypot(*(xy.reshape(-1, 2) - np.asarray(at)).T).max())
 
 
 def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS) -> dict:
   """The robot shoved `way` at `ns` N*s, falling as `mode` has it ("stand",
   "limp" or "getup"): what hit first, the parts' peak forces (N), each
   joint's peak torque (N*m, its motor's and its hard stop's) and speed
-  (rad/s), and -- the get-up's -- when it stood again."""
+  (rad/s), -- the get-up's -- when it stood again, and the farthest it
+  reached on the floor from the middle of what it covered while it lay
+  past the death seam's topple (`footprint_middle`: where the other
+  robot's disc round it is, `DOWN_ROBOT_CELLS`)."""
   h = floor_humanoid()
   m, d = h.m, h.d
   ids = {part: [m.geom(g).id for g in gs] for part, gs in FALL_PARTS.items()}
+  gids = np.array(sorted(robot_geoms(m, ROBOT_ROOT)), dtype=int)
+  # ...read once a policy period: every step, it was a third of a step's cost
+  lying, every, stepped = None, max(1, round(h.stand.policy.period / m.opt.timestep)), 0
   floor = m.geom("floor").id
   act = np.array([m.actuator(j).id for j in hm.JOINT_NAMES])
   dof = np.array([m.jnt_dofadr[m.joint(j).id] for j in hm.JOINT_NAMES])
@@ -3572,10 +3593,15 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS)
       if k is not None:
         stop[k] = max(stop[k], abs(float(d.efc_force[r])))
     speed = np.maximum(speed, np.abs(d.qvel[dof]))
+    stepped += 1
+    if stepped % every == 0 and d.xmat[h.root][8] <= math.cos(TOPPLE_TILT_RAD):
+      reach = floor_reach(m, d, gids, footprint_middle(m, d, gids))
+      lying = reach if lying is None else max(lying, reach)
   return {"way": way, "mode": mode, "first": first, "peaks": peaks, "hit": hit, "tau": tau.tolist(),
           "stop": stop.tolist(),
           "speed": speed.tolist(), "took_over_s": took_over, "stood_s": stood_at,
-          "up_at_end": bool(d.xmat[h.root][8] > 0.95 and d.xpos[h.root][2] > 0.6)}
+          "up_at_end": bool(d.xmat[h.root][8] > 0.95 and d.xpos[h.root][2] > 0.6),
+          "lying_reach_m": lying}
 
 
 def _fall_trial(job):
@@ -3599,8 +3625,12 @@ def fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   print("  gears past peak: joints whose torque through the gears passed their part's peak "
         "(the worst, x peak, and which); stops: the hardest a joint was driven into its "
         "hard stop, N*m; past no-load: joints back-driven past their part's no-load speed")
+  print(f"  lying reach: the farthest it reached on the floor, m, from the middle of what it "
+        f"covered while it lay {math.degrees(TOPPLE_TILT_RAD):.0f} deg past upright (the other "
+        "robot's disc round it, `DOWN_ROBOT_CELLS`, covers it and that robot's half-width)")
   print(f"{'way':11s}{'falling as':>11s}{'first hit':>10s}" + "".join(f"{p:>13s}" for p in FALL_PARTS)
-        + f"{'gears past peak':>34s}{'stops':>8s}{'past no-load':>14s}{'stood':>8s}")
+        + f"{'gears past peak':>34s}{'stops':>8s}{'past no-load':>14s}{'stood':>8s}"
+        + f"{'lying reach':>13s}")
   for r in rows:
     share = np.array(r["tau"]) / peak_tau
     over = np.flatnonzero(share > 1.0)
@@ -3608,10 +3638,11 @@ def fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
     fast = int((np.array(r["speed"]) > noload).sum())
     stood = f"{r['stood_s']:.1f}s" if r["stood_s"] else ("up" if r["up_at_end"] else "-")
     gears = f"{len(over)} ({share.max():.1f}x, {worst})" if len(over) else "0"
+    reach = "-" if r["lying_reach_m"] is None else f"{r['lying_reach_m']:.2f}"
     print(f"{r['way']:11s}{r['mode']:>11s}{str(r['first']):>10s}"
           + "".join(f"{'-':>13s}" if r["hit"][p] is None
                     else f"{r['hit'][p]:6.1f} {r['peaks'][p] / 1000:5.1f}" for p in FALL_PARTS)
-          + f"{gears:>34s}{max(r['stop']):8.0f}{fast:>14d}{stood:>8s}")
+          + f"{gears:>34s}{max(r['stop']):8.0f}{fast:>14d}{stood:>8s}{reach:>13s}")
   return rows
 
 
@@ -4067,7 +4098,8 @@ def speed_world(n: int, seeing: bool = False, bounds=None):
   for h in handles:
     _pose(model, data, hm.stand_qpos(), h.prefix)
   walk = StandPolicy(str(SEEING_NPZ)) if seeing else None
-  return model, data, [body_for(model, data, h, grid_bounds=bounds, walk=walk) for h in handles]
+  bodies = [body_for(model, data, h, grid_bounds=bounds, walk=walk) for h in handles]
+  return model, data, bodies
 
 
 def _paces(body, route, until: float, data):
@@ -4188,8 +4220,9 @@ def main(argv=None) -> None:
                        "riser, on the ideal scan and on its own map's")
   ap.add_argument("--fall", nargs="?", const="", default=None, metavar="NPZ",
                   help="shoved over each way: what hits first, how hard, each joint's torque "
-                       "and speed, falling on the standing policy, limp, or the get-up's; in "
-                       "the house; and from each bow a reach takes, what the watch says")
+                       "and speed, how far it reaches lying, falling on the standing policy, "
+                       "limp, or the get-up's; in the house; and from each bow a reach takes, "
+                       "what the watch says")
   ap.add_argument("--speed", nargs="?", type=float, const=60.0, default=None, metavar="SIM_S",
                   help="the loop's cost: one humanoid and a pair, the same walks in the "
                        "house, timed (--profile: where it goes)")

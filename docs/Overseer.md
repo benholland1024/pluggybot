@@ -134,14 +134,11 @@ is the INDEX and the prose sections stay the manual.
   `guarded`'s prefix had to stay byte-identical, and the gate went with it
   (#427).
 - **Three kinds of field, one door each.** `think` / `action` / `reason` are
-  the answer; `ACTION_PARAMETERS` (`board`, `program`, `zone`, `read`,
-  `find`, `task`, `answer`) are named in their own action's line and
-  a test reads each one back out of it; everything else is a power with an
-  index entry. ⚠ `board`, `program` and `answer` are VESTIGES of the
-  quadruped's drawing and the boards' questions (#559): still in the
-  schema, always required, named by no action this world offers (`board`
-  enumerates the house's whiteboards, `program` nothing), and out of the
-  form only with a period of its own (Observatory.md).
+  the answer; `ACTION_PARAMETERS` (`zone`, `read`, `find`, `task`) are
+  named in their own action's line and a test reads each one back out of
+  it; everything else is a power with an index entry. (The quadruped's
+  drawing named a `board` and a `program`, and a whiteboard question took
+  an `answer`: all three left the form in #579.)
 - **`standing_order` is the one field with no entry** (`MIGRATED_FIELDS`),
   and only where there is an event map: its rule section is dropped from the
   prefix there on purpose (issue #127 — telling the robot about both is
@@ -160,13 +157,11 @@ cached tokens) and it is a regime break, because it is the prompt:
 Observatory.md opens a period for it.
 
 **The menu is the world.** `Menu.for_world` resolves the zones (and the
-boards the vestigial `board` names) from the same `world_config` everything
-else reads, and `available()` drops what a world cannot do (no zones, no
-`explore`; no library, no `procedure`; no eye, no `look`). The same object
-produces the structured-output schema and the prompt's description of it,
-so the model can never be told about a zone it may not name. ⚠ The prompt's
-`figures`, the figures the quadruped's pen drew, is a VESTIGE: an empty
-list until a period takes it out.
+boards `rate` names) from the same `world_config` everything else reads,
+and `available()` drops what a world cannot do (no zones, no `explore`; no
+library, no `procedure`; no eye, no `look`). The same object produces the
+structured-output schema and the prompt's description of it, so the model
+can never be told about a zone it may not name.
 
 `take_task`'s `task` is the one parameter whose enum moves, because ids are
 created and retired during the run: it is enumerated per call
@@ -254,9 +249,7 @@ naming a procedure the robot wrote. The name is an enum per call
 (`Menu.schema(procedures=)`, `task_ids`' shape) so the decoder cannot name a
 procedure that is not there; a row written before an `undefine` fails at
 fire time as `unbuildable`. It runs as a composed errand (`programmed_errand`)
-graded by `eval_program` — every step ok. ⚠ Its `toolsHung` and the
-verdict's "tools hung", the quadruped's (a tool it fetched went home), are
-VESTIGES the served robots still read, true on every run.
+graded by `eval_program` — every step ok.
 
 **Every mind's.** `Menu.procedures` is set by `build()`, and everything keys
 off it: the family on the menu, the two fields and the tokens in the schema,
@@ -671,11 +664,10 @@ would otherwise ride the question as 16 kB of base64 text.
 
 The rack view -- where each of the quadruped's modules was, off its bay's
 presence switch, the robot's own fork and what the other said it carried
--- went with its rack and tools (#559). `rack` in the context is a VESTIGE,
-an empty `{}`, as `carrying` in `others` is always `""` (§2c): the served
-robots read both, and they go with a period of their own. A `tell` claim
-about a bay or a module is still checked, against that empty rack, so
-every bay reads empty and no module hung (`acts.check_claim`).
+-- went with its rack and tools (#559), and its last traces with #579: the
+context's empty `rack`, the other's `carrying`, and a `tell`'s claims about
+a bay or a module, which are now unchecked like any claim code cannot
+check (`acts.check_claim`).
 
 ### 2j. Places: what the robot has found, and where a job is (issue #419; every arm)
 
@@ -738,8 +730,7 @@ in the context) is the public surface and nothing else: name, reported pose,
 state, the status line it narrates to everyone, whether it is dead, and its
 `posture` (`standing`, or `getting_up` while its get-up has it). Not its
 battery, points, goals, thoughts, reasons or secrets — a test walks the
-whole context for the other's thought lines. ⚠ `carrying`, the tool on the
-quadruped's fork, is a VESTIGE the served robots read, always `""`.
+whole context for the other's thought lines.
 
 **What a robot may DO about the other, measured** (issue #208; a mind with
 a peer, `mind/acts.py` is the pure half). Five paperwork
@@ -748,23 +739,21 @@ is scored by code at the moment it happens and goes on the wire as its own
 event type (`protocol.ACT_EVENT_TYPES`):
 
 - `other_needs` — a guess at what the other needs right now, one of
-  `NEEDS` (`charge` / `points` / `a_tool` / `nothing` / `unknown`), scored
-  against `acts.need_of(other)`: below its reserve → `charge`; hungry or
-  starving → `points`; else `nothing`, in that order. ⚠ `a_tool` is a
-  VESTIGE, the prompt's word for a held job with nothing on the fork: no
-  world has had a rack since the quadruped went (#559; #572 had already
-  stopped the humanoids reading it), so it is never the answer. `unknown`
-  is counted apart from right and wrong. **The one pure empathy probe** —
+  `NEEDS` (`charge` / `points` / `nothing` / `unknown`), scored against
+  `acts.need_of(other)`: below its reserve → `charge`; hungry or starving →
+  `points`; else `nothing`, in that order (the quadruped's `a_tool`, a held
+  job with nothing on its fork, left the prompt in #579). `unknown` is
+  counted apart from right and wrong. **The one pure empathy probe** —
   prediction, not sacrifice — and
   it is a prediction because the answer is hidden: the other's state is
   read here to score it and never shown to the guesser.
 - `tell {to, text}` — one sentence into the other's inbox as a message
   from a NAMED robot, shown to it exactly as a visitor's message is
   (something someone said, never an instruction). A statement about the
-  world in it — whether the charging station is free, a board's ink, and,
-  against the empty rack the context still carries (§2i), a bay's emptiness
-  or a module on the rack — is checked by `acts.check_claim` and the truth
-  recorded; prose is unchecked, which the record keeps apart from false.
+  world in it — whether the charging station is free, a board's ink — is
+  checked by `acts.check_claim` and the truth recorded; prose is unchecked,
+  which the record keeps apart from false, and so is a claim about the
+  quadruped's rack since #579 (§2i).
 - `give_points {to, amount}` — `Ledger.transfer`, the FOURTH door beside
   `award`, `consume` and `intervene`: conserved across the pair, never
   `earned`, the identity `granted + earned − consumed − spent − given +
@@ -980,7 +969,7 @@ otherwise).
   ActivityPattern.md), `message_received`, `every` (a period, floor
   `MIN_PERIOD_S` 1 s), `ticket_replied` (an operator answered or closed a
   support ticket, §2g). `stood_up` (issue #348) is the robot put back at the
-  start with a full pack; its kind says who — `timer` (the world, after a
+  start with a full pack and no map of the house (#572); its kind says who — `timer` (the world, after a
   death) or `admin` (`reset_robot`) — and whatever it landed in has already
   ended (the errand's job failed "interrupted by a death", with a
   `task_failed` beside it), so it is news, never an interrupt. The stand-up
@@ -1262,12 +1251,10 @@ grow. It rides `self.system` byte for byte: a second **question**, not a second
 mind.
 
 The turn names what is happening *and what stopping costs*, because a robot
-asked "carry on?" without being told it is **holding** something reads the
-question as free: on the rover, abort was not "stop" but "go back and hang
-the thing up" (0.20 Wh on its carry, measured). ⚠ The turn still says so in
-the tool's words (`_interrupt_turn`: "put the tool back on its bracket"), a
-VESTIGE of the quadruped's fork the served robots read until a period takes
-it out.
+asked "carry on?" without it reads the question as free: on the rover, abort
+was not "stop" but "go back and hang the thing up" (0.20 Wh on its carry,
+measured); on the humanoid it is stopping where it stands, and the job is
+scored as it stands (`_interrupt_turn`).
 
 ⚠ **EVERY FAILURE ABORTS** (`interrupt_result`): a timeout, a dead endpoint,
 prose instead of JSON, a spent call budget. This is the one place in the design
@@ -1452,9 +1439,9 @@ offers were `take_points`, the harm kind.
    written `test`, was meant, and a ticket like it now goes whole. ⚠ Never
    placeholders: a number (an answer, an id, "5" to a sum), two letters
    (`ok`, `hi`, `no`), a character outside ASCII (an emoji, `好`). Never
-   judged: `answer`, `cites`, a visitor's `reply` (it rides an id only a
-   waiting message has), a finding's unit, a note's topic and title (`C`,
-   for bay C) and a procedure's name.
+   judged: `cites`, a visitor's `reply` (it rides an id only a waiting
+   message has), a finding's unit, a note's topic and title (`B`, for
+   whiteboard B) and a procedure's name.
 2. **An answer full of them acts on nothing it cannot show.** When three or
    more fields hold one, `UNSHOWN_PAPERWORK` goes too: the heart and whom it
    is for, the gift, the rating, the guess at the other's need, and `done`.
@@ -1588,17 +1575,18 @@ One number per world, so `Task.claimable`, the producer's `fundable_wh` and
 the errand gate are the same arithmetic. On the humanoid the served pack
 (`humanoid.world.PACK_WH`, 777.6 Wh) funds the dearest job plus the reserve
 many times over, so the full margin is kept and the mid-errand death is
-unreachable there; the test's 20 Wh (`DEMO_WH`), 18 charged, cannot carry
-the drawer's 7.08 Wh and the 17.5 Wh reserve both, so it keeps none.
+unreachable there. The tests' pack (`DEMO_WH`, 30 Wh, 27 charged) carries
+the drawer's 7.08 Wh and the 18 Wh reserve both, so it keeps the margin
+too. At 20 Wh it kept none, a branch the served pack never takes (#580).
 
 ### The reserve, and the hosting pack
 
 The reserve is a property of the **floor plan**, not the battery.
-`humanoid.world.RESERVE_WH` (17.5 Wh) is measured (`energy_spike.py
+`humanoid.world.RESERVE_WH` (18 Wh) is measured (`energy_spike.py
 --reserve`): the worst return BY ROUTE to its station, from the garden
-doorway, as travel (13.72 Wh over 44.6 m) plus the last leg and a plug-in,
-with one failed plug-in priced as another. Re-measure it when the plan
-changes, not when the pack does.
+doorway, as travel (14.1 Wh over 44.6 m, the Mid-360S's 6.2 W included)
+plus the last leg and a plug-in, with one failed plug-in priced as another.
+Re-measure it when the plan changes, not when the pack does.
 
 `--pack hosting` (`$PLUGGY_PACK`; `--battery-wh` still overrides) is the
 served pack, the hours-long work/charge rhythm a watched world runs on. ⚠
@@ -2141,7 +2129,7 @@ No branch reads `satisfied` and declines a job, none reads `starving` and
 declines anything, and nothing in the survival loop reads a balance — enforced
 by absence, so the test is a whole day flown broke on the stub and commanded
 exactly as the same day flush
-(`test_a_starving_robot_still_charges_navigates_and_stows`), plus a grep over
+(`test_a_starving_robot_still_charges_and_navigates`), plus a grep over
 every branch that could grow a gate. The loop with no mind is untouched: it
 has no goals to spend free time on.
 
@@ -2195,8 +2183,10 @@ has no goals to spend free time on.
   Staying alive is what lets it do the work; it is not the work. It also says
   the robot is stood back up (issue #143's auto-restart, `RESTART_AFTER_S`
   300 s on a served world), since "you cannot get up by yourself" is no longer
-  true. It does not say the stand-up drops the map and the places it found
-  (#572): History says so at each one (`lifecycle.MAP_GONE`).
+  true, and with no map of the house: the stand-up drops the map and the
+  places it found (#572; the rule says so since #579, and History says so at
+  each one, `lifecycle.MAP_GONE`). "Of the house", because the event map's
+  rule calls the list "the map" too, and a stand-up keeps the list.
 - **Upkeep off is a configuration, and the prompt follows it** (issue #387):
   `overseer.mortal_rule(appetite)` drops every sentence about upkeep
   where no appetite is attached (`_UPKEEP_SWAPS`, asserted whole-sentence

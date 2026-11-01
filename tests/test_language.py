@@ -712,7 +712,7 @@ def test_a_procedure_runs_by_name_as_a_composed_errand():
   assert errand_from(Decision(action="procedure:nope"), library=L) is None
   result = life.run_errand(errand)
   run = result["procedure"]
-  assert run["ok"] and run["completed"] == 3 and result["stowed"]
+  assert run["ok"] and run["completed"] == 3 and "error" not in result
   assert [s["verb"] for s in run["steps"]] == ["drive_to", "drive_to", "face"]
   assert result["verdict"]["ok"] and result["verdict"]["task"] == "program"
 
@@ -725,7 +725,7 @@ def test_a_procedure_cut_short_fails_its_verdict():
   result = life.run_errand(errand_from(Decision(action="procedure:short"),
                                        library=L))
   assert result["procedure"]["failedAt"] == 1 and result["procedure"]["completed"] == 1
-  assert result["stowed"] and not result["verdict"]["ok"]
+  assert not result["verdict"]["ok"]
 
 
 def test_a_failed_run_names_the_line_that_failed_and_why():

@@ -44,10 +44,11 @@ GOAL = (2.6, Y)
 
 def _downed_pair(lie: str = "left", near_field: bool = False):
   """The humanoid pair with the second robot lying across the first one's
-  path, its reckoning 1.8 m off its body the way its errand's walk puts it
-  -- set rather than flown, which is seconds of physics this rule does not
-  need. The pair's OWN wiring is left in place: it is half of what is
-  under test."""
+  path, its get-up holding its joints (as within a fall watch's period of
+  its going over: `HumanoidMission._fell`) and its reckoning 1.8 m off its
+  body the way its errand's walk puts it -- set rather than flown, which is
+  seconds of physics this rule does not need. The pair's OWN wiring is left
+  in place: it is half of what is under test."""
   from pluggybot.pair import build_pair
   me, peer = build_pair(HUMANOID_HOME, near_field=near_field, errands=("none", "none"))
   me.body.start_at(-1.6, Y, 0.0)
@@ -56,6 +57,7 @@ def _downed_pair(lie: str = "left", near_field: bool = False):
   me.data.qpos[adr:adr + 3] = [AT[0], AT[1], LYING_Z]
   me.data.qpos[adr + 3:adr + 7] = LYING[lie]
   mujoco.mj_forward(me.model, me.data)
+  peer.body.mission._fell()
   peer.body.mission.odo.y += 1.8
   me.body.grid.grid[:] = -5.0                     # a mapped, empty room
   return me, peer
@@ -95,15 +97,41 @@ def test_a_robot_lying_down_is_avoided_where_it_lies_not_where_it_says(lie):
   assert math.dist((x, y), body) < 0.02         # a driver that knows where it is
   path = _plan(me, *GOAL)
   assert path is not None and math.dist(path[-1], GOAL) < 0.1
-  # ⚠ Not asserted on the humanoid: the quadruped's plan kept a swing off
-  # every part of the body; a humanoid's disc is round its soles' middle
-  # (`HumanoidBody.footprint_centre`), and lying on its side its head is
-  # 1.44 m from there, past the disc's 1.05 m (an open question, #559).
+  # The plan keeps this robot's centre a swing (the map's own inflation)
+  # off every part of the body, less one cell of rasterising (#580: round
+  # its soles, a 1.05 m disc ran it through the head).
+  swing = mission.INFLATION_CELLS * me.body.grid.resolution
+  near = min(_clearance(p, peer) for p in path)
+  assert near > swing - me.body.grid.resolution, \
+    f"on its {lie}: a waypoint {near:.3f} m from the body"
   # ...where the wiring before #365 -- the reported pose, a standing
   # robot's disc -- planned the straight line, through the robot.
   mission.others = [peer.body.pose_xy]
   straight = _plan(me, *GOAL)
   assert min(_clearance(p, peer) for p in straight) < 0.0
+
+
+@pytest.mark.parametrize("lie", sorted(LYING))
+def test_a_fallen_humanoids_disc_is_round_the_middle_of_its_body(lie):
+  """#580: while its get-up has its joints, the disc's centre is the middle
+  of what it covers (`HumanoidBody.footprint_centre`), and the disc is its
+  own rule round every part of it -- head, LIDAR and soles: the walker's
+  half-width beyond (`FRONT_HALF_M`, its hands hanging). Round its soles,
+  as it stands, the far end was 1.6 m out, past the disc's edge. Stood up,
+  it is its soles' middle again."""
+  me, peer = _downed_pair(lie)
+  assert peer.body.posture == "getting_up"
+  centre = peer.body.footprint_centre()
+  gids = sorted(robot_geoms(peer.model, SECOND.root))
+  xy = peer.data.geom_xpos[gids, :2]
+  reach = float((np.hypot(*(xy - np.asarray(centre)).T) + peer.model.geom_rbound[gids]).max())
+  mission = me.body.mission
+  disc = mission.DOWN_ROBOT_CELLS * me.body.grid.resolution
+  assert reach + mission.FRONT_HALF_M <= disc, \
+    f"on its {lie}: its body reaches {reach:.2f} m from the centre of a {disc:.2f} m disc"
+  peer.body.start_at(*AT, 0.0)
+  assert peer.body.posture == "standing"
+  assert peer.body.footprint_centre() == peer.body._true_stance()[:2]
 
 
 def test_the_body_is_placed_where_the_drivers_own_sensors_would_put_it():
@@ -296,6 +324,6 @@ def test_history_says_a_robot_on_the_floor_is_lying_there():
   back (`posture`, shared with the `WAIT:` narration)."""
   me, peer = _downed_pair()
   blocked = (peer.robot_name or peer.root, 0.4)
-  assert "was lying knocked over 0.40 m from the bay" in me.held_for(blocked)
+  assert "was lying knocked over 0.40 m from the charging station" in me.held_for(blocked)
   peer.stand_up("a test", auto=False)
-  assert "was standing 0.40 m from the bay" in me.held_for(blocked)
+  assert "was standing 0.40 m from the charging station" in me.held_for(blocked)

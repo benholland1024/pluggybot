@@ -274,6 +274,34 @@ def test_a_bowed_humanoid_renders_nothing_for_its_layer_and_lays_no_frame_taken_
     life.body.close()
 
 
+def test_a_bowed_humanoid_matches_and_maps_its_lidars_points():
+  """#581's stage 2: bowed, its head's LIDAR looks at the floor ahead and
+  the walls behind, and its points laid flat through its IMU's tilt are
+  the room's -- matched, and laid into the map -- where a scan gated on
+  level was neither: Luca's heading turned 5.2 deg in 300 s at a counter,
+  no scan matched (#572). The premise: on the old gate, nothing."""
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    life.body.run(life.body.hold_routine(1.0))            # a map to match against
+    life.body.run(life.body.gaze_routine(0.6))            # the bow, held
+    assert not m.level() and m.maps()
+
+    def bowed(seconds):
+      before = sum(m.matcher.counts.values())
+      grid = m.grid.grid.copy()
+      m.matcher.fuse_next()
+      life.body.run(life.body.hold_routine(seconds))
+      return sum(m.matcher.counts.values()) - before, not np.array_equal(m.grid.grid, grid)
+
+    scans, laid = bowed(1.0)
+    assert scans >= 9 and m.matcher.counts.get("ok", 0) > 0 and laid
+    m.maps = m.level                                      # the premise: gated on level
+    assert bowed(1.0) == (0, False)
+  finally:
+    life.body.close()
+
+
 def test_a_humanoids_true_death_forgets_its_plan_and_its_walls():
   """`Body.forget_world` (#419) leaves nothing of the map behind: the plan
   it held and the walls it grew, as the quadruped's."""
@@ -588,10 +616,10 @@ def test_a_mind_judging_what_the_other_humanoid_needs_asks_after_no_tool():
   """A mind's first `other_needs` (#208) asked what was on the other
   humanoid's fork, and the body it asked had none -- the minded day's first
   answer ended it. The need is read off the loop's own state, never a body's
-  fork (`carrying` is a vestige of the quadruped's: empty)."""
+  fork (and since #579 its record names none)."""
   from pluggybot.mind import acts
   need, state = acts.need_of(stub_life(world=HUMANOID_HOME))
-  assert need == "nothing" and state["carrying"] == ""
+  assert need == "nothing" and "carrying" not in state
 
 
 def test_a_humanoid_holding_a_job_needs_no_tool_in_a_house_with_no_rack():

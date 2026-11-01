@@ -170,7 +170,7 @@ def test_a_resting_robot_is_said_to_rest_where_it_is_in_the_way():
   tick.run(STEPPER, drive.drive_to_routine(*GOAL, 60.0))
   rec = drive.last_drive
   assert (rec["peerAt"], rec["peerM"], rec.get("peerRests")) == ("here", 3.6, True)
-  assert gave_up(rec, "Rowan").endswith("(Rowan lying down to rest in the way, 3.6 m off)")
+  assert gave_up(rec, "Rowan").endswith("(Rowan standing at rest in the way, 3.6 m off)")
   on = _Drive([_resting(GOAL[0] + 0.3, 0.0)], says=False)
   tick.run(STEPPER, on.drive_to_routine(*GOAL, 60.0))
   assert (on.last_drive["peerAt"], on.last_drive["peerM"]) == ("goal", 0.3)
@@ -374,6 +374,26 @@ def test_its_own_walk_a_fall_and_a_hand_out_end_the_step_aside(house):
     m.reach.phase["right"] = "hold"
     assert m._aside_command(hmi.STILL, float(m.data.time)) == hmi.STILL
     assert m.last_aside["why"] == "arm out" and m.asides == 3
+  finally:
+    body.close()
+
+
+@pytest.mark.parametrize("how", ["stood up", "forgot its world"])
+def test_a_stand_up_or_a_forgotten_world_drops_the_step_aside(house, how):
+  """#580: stood up somewhere else (`start_at`), or a robot after a true
+  death (`forget_world`), it makes way for nobody. Left under way, a robot
+  stood up walked on to the spot it had been stepping to, until it got
+  there or `ASIDE_BUDGET_S` ran out. Dropped unsaid: a stand-up says in
+  its own line what happened, and a new robot hears nothing of the old."""
+  body, m = _mission(house)
+  try:
+    assert m.make_way(_route(), "pluggybot") and m._aside is not None
+    if how == "stood up":
+      body.start_at(*EAST, 0.0)
+    else:
+      body.forget_world()
+    assert m._aside is None and body.making_way is None
+    assert m.asides == 0 and m.last_aside is None
   finally:
     body.close()
 

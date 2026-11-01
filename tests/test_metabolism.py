@@ -724,7 +724,7 @@ def test_a_starving_robot_still_charges_and_navigates(tmp_path, monkeypatch):
   assert wallets and all(p == 0 and h == "starving" for _, p, h in wallets), \
       "not actually broke; this proves nothing"
   assert flush["metabolism"]["consumed"] > 0, "the appetite never ticked"
-  for phase in ("GO_CHARGE", "CHARGE", "USE_TOOL"):
+  for phase in ("GO_CHARGE", "CHARGE", "PROCEDURE"):
     assert phase in {s for s, _, _ in wallets}, f"never commanded in {phase}"
   # ...and it did every single thing anyway, in the order a paid robot did.
   assert commanded == commanded_flush, "being broke changed what it was sent to do"

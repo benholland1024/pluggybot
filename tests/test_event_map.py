@@ -1718,7 +1718,7 @@ def test_the_interrupt_turn_is_not_shown_the_list(menu):
   assert "eventMap" not in turn and "lastAskedSAgo" not in turn
   #  ...and the turn is otherwise what it was: the state is not narrowed
   #  anywhere else, and the decision's turn still carries the block.
-  assert '"simTimeS"' in turn and "put the tool back" in turn
+  assert '"simTimeS"' in turn and "stop now and go" in turn
   assert '"eventMap"' in ov._user_turn(ov.model_state(dict(state)))
 
 

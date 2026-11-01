@@ -43,6 +43,14 @@ BEHIND_CELLS = 2.0
 #: scan; with returns cut at 6 m the pull was 0.0 mm (sd 3.5). 6.5 m made
 #: the worst error of the trip smallest (0.18 m against 0.23 at 6 and 7).
 MATCH_RANGE_M = 6.5
+#: ...and returns nearer than this, m: what the hands work on -- the
+#: station's box, the plug in the hand, a drawer, a door -- each low surface
+#: struck by one ring or two at the part's noisiest (4 cm at 0.2 m), where a
+#: far wall is struck by ten. MEASURED (#581's stage 2): with them, a dock's
+#: matcher moved the belief 40-67 cm in 16-19 s, a seat step walked by the
+#: belief stopped 3.6 cm inside the seat, and 2 of 3 wide starts never lined
+#: up; without them, 26-41 cm, and 3 of 3 docked.
+MATCH_MIN_M = 1.0
 #: The field's window, m either way: MATCH_RANGE_M and a refresh's travel.
 WINDOW_M = 7.5
 #: The field is recomputed after this much travel from where it was, m, or
@@ -338,14 +346,15 @@ class ScanMatcher:
 
   # ---- the fit ----------------------------------------------------------------
 
-  def points(self, angles, ranges) -> np.ndarray:
-    """The scan's returns short of MATCH_RANGE_M as (N, 2) points in the
-    pose's frame; a ray that hit nothing is not a point."""
+  def points(self, angles, ranges, origin=None) -> np.ndarray:
+    """The scan's returns from MATCH_MIN_M to short of MATCH_RANGE_M as (N,
+    2) points in the pose's frame, taken from `origin` (None: `origin`'s);
+    a ray that hit nothing is not a point."""
     angles = np.asarray(angles, dtype=float)
     ranges = np.asarray(ranges, dtype=float)
-    hit = ranges < min(self.max_range - 1e-6, MATCH_RANGE_M)
+    hit = (ranges >= MATCH_MIN_M) & (ranges < min(self.max_range - 1e-6, MATCH_RANGE_M))
     a, r = angles[hit], ranges[hit]
-    fwd, left = self.origin
+    fwd, left = self.origin if origin is None else origin
     return np.stack([fwd + r * np.cos(a), left + r * np.sin(a)], axis=1)
 
   def _world(self, pose, pts: np.ndarray):
@@ -384,14 +393,15 @@ class ScanMatcher:
     gth = gx * -(wy - y) + gy * (wx - x)
     return d, gx, gy, gth, live
 
-  def match(self, pose, angles, ranges) -> Match:
-    """Align one scan, taken at the believed `pose`, against the map."""
+  def match(self, pose, angles, ranges, origin=None) -> Match:
+    """Align one scan, taken at the believed `pose` from `origin` (None:
+    `origin`'s), against the map."""
     x0, y0, th0 = (float(v) for v in pose)
     if self.anchoring:
       return self._done(pose, "anchored")
     if self.field is None or self._stale(x0, y0):
       self.refresh(x0, y0)
-    pts = self.points(angles, ranges)
+    pts = self.points(angles, ranges, origin)
     if self.field is None or len(pts) < MIN_INLIERS:
       return self._done(pose, "no map" if self.field is None else "sparse")
     at, why, kw = self._judge((x0, y0, th0), pts, self._fit((x0, y0, th0), pts))

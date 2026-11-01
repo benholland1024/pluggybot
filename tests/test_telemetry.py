@@ -503,12 +503,12 @@ def test_a_recording_opens_with_the_ink_already_on_the_walls(mini_model,
   assert snaps[0]["strokes"][0]["points"][0] == [0.0, 0.0]
 
 
-def test_the_header_still_says_screens_and_no_frame_carries_one(mini_model, tmp_path):
+def test_no_header_or_frame_says_screens(mini_model, tmp_path):
   """The LCD screen left with the quadruped (#559), and a frame carries no
-  `screens` block; the header still says `screens`, empty, as every
-  consumer has read it since 0.5.0 -- a vestige, kept for them."""
+  `screens` block; nor does the header since #579, whose `screens: []` no
+  consumer read (the site's type has it optional, as since 0.5.0)."""
   _, lines = record(mini_model, seconds=1.2, tmp=tmp_path, keyframe_s=0.5)
-  assert lines[0]["screens"] == []
+  assert "screens" not in lines[0]
   assert not any("screens" in f for f in frames_of(lines))
 
 

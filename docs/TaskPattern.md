@@ -231,9 +231,10 @@ decision off a fixed menu.
 ## 3. The perception ladder for object tasks
 
 A floor object is found only where a sensor can see it, and this is
-measured, not pessimism: the humanoid's LIDAR spins **1.41 m** up, and its
-depth camera sees a counter's height from 0.12 m ahead but the floor only
-from 0.48 m (`humanoid.model`'s `depth_pitch_deg`, `humanoid_spike.py
+measured, not pessimism: the humanoid's map is laid from its LIDAR's level
+ring, **1.47 m** up (its points laid flat see lower, and are not served yet:
+#581), and its depth camera sees a counter's height from 0.12 m ahead but
+the floor only from 0.48 m (`humanoid.model`'s `depth_pitch_deg`, `humanoid_spike.py
 --sensors`). Object tasks therefore come in tiers, and **a task kind must
 state which tier it is written for** (in the kind's comment, as the hand
 jobs state tier 1, `economy/tasks.py`):
@@ -319,7 +320,10 @@ detail, and it belongs in its written criteria.
 on what happened ALONG the way** -- a lid never let fall, the robot never
 fallen -- is watched from the CLAIM, the job being the robot's from then,
 through the walk there to the hold's end (`HubLifecycle._watch_job`); its
-time limit is the offer's own term, counted from the claim. **And a job
+time limit is the job's own (`TaskKind.minutes`; a world's cadence may give
+another), counted from the claim: a term the job's sentence states and its
+grade reads belongs to the kind, or an offer made outside the cadence lacks
+it (#580). **And a job
 done to a MECHANISM with hidden dynamics draws them afresh at every offer**
 (`TaskKind.draws`, off the board's own sequence, the prop set back out with
 them and put back after a restart), so the skill is over a kind of thing,
@@ -345,7 +349,7 @@ every one below was hit, measured, and given a gate.
   that measured 0.929, and a recording showed a robot claim the job at 88 %
   and die mid-stroke. Costs come from `scripts/energy_spike.py` into
   `economy/energy.json` (the humanoids' hand jobs at 4.70–7.08 Wh from the
-  station, against the 17.5 Wh return-trip reserve,
+  station, against the 18 Wh return-trip reserve,
   `humanoid.world.RESERVE_WH`); a cost key may name a TARGET
   (`action:target`) and wins over the bare action, because one target can
   measurably cost more than another and one number for both either kills
@@ -618,7 +622,8 @@ deployed world runs them.
     Task.secret + the reward row's secret tuple
 [ ] no price in the template; payout only via the reward row (§2.2)
 [ ] scoring tier chosen: auto / hidden / visitor / narrative
-[ ] TaskKind entry; estimate_wh at or above the measured cost
+[ ] TaskKind entry; estimate_wh at or above the measured cost; every term
+    its sentence states and its grade reads (`minutes`) on the kind
 [ ] energy_spike run per world; target-keyed rows where targets differ;
     dearer of two honest measurements; NO padding
 [ ] evaluator: pure, streamable reason, missing measurement == failure
