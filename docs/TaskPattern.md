@@ -321,9 +321,9 @@ on what happened ALONG the way** -- a lid never let fall, the robot never
 fallen -- is watched from the CLAIM, the job being the robot's from then,
 through the walk there to the hold's end (`HubLifecycle._watch_job`); its
 time limit is the job's own (`TaskKind.minutes`; a world's cadence may give
-another), counted from the claim -- kept by the cadence alone, an offer made
-any other way gave no number of minutes and was graded on another limit
-(#580). **And a job
+another), counted from the claim: a term the job's sentence states and its
+grade reads belongs to the kind, or an offer made outside the cadence lacks
+it (#580). **And a job
 done to a MECHANISM with hidden dynamics draws them afresh at every offer**
 (`TaskKind.draws`, off the board's own sequence, the prop set back out with
 them and put back after a restart), so the skill is over a kind of thing,

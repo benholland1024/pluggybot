@@ -7,6 +7,7 @@ the station are `scripts/solve.py --feature drawer|door|cube|chest`'s.
 
 import math
 import re
+from dataclasses import replace
 
 import mujoco
 import pytest
@@ -192,12 +193,15 @@ def test_a_bare_offer_gives_its_kinds_minutes_and_is_graded_on_them(tmp_path):
   """#580: the time a job gives is its kind's (`TaskKind.minutes`). Kept
   by the cadence alone, an offer made any other way -- `TaskBoard.offer`
   in a script or a test -- read "within  minutes", and its grade fell back
-  on the quadruped's 300 s (`lid.TIME_LIMIT_S`)."""
+  on the quadruped's 300 s (`lid.TIME_LIMIT_S`). An offer that carries
+  none, saved before its kind did, is graded on the kind's."""
   for kind in HAND_JOBS:
     task = TaskBoard().offer(kind, KINDS[kind].target_kind)
     assert f"within {HAND_MINUTES} minutes" in task.description, kind
+    assert task.params["minutes"] == HAND_MINUTES
   life = _life(tmp_path)
   task = life.tasks.offer("open_drawer", "drawer", ttl=3000.0, t=float(life.data.time))
+  life.tasks.tasks[task.id] = replace(task, params={})
   assert life._claim_task(task.id)
   life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
   mujoco.mj_forward(life.model, life.data)

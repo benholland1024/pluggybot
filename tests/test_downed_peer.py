@@ -114,18 +114,21 @@ def test_a_robot_lying_down_is_avoided_where_it_lies_not_where_it_says(lie):
 @pytest.mark.parametrize("lie", sorted(LYING))
 def test_a_fallen_humanoids_disc_is_round_the_middle_of_its_body(lie):
   """#580: while its get-up has its joints, the disc's centre is the middle
-  of what it covers (`HumanoidBody.footprint_centre`), and every part of it
-  -- head, LIDAR and soles -- is inside the disc. Round its soles, as it
-  stands, the far end was 1.6 m out, past the disc's edge. Stood up, it is
-  its soles' middle again."""
+  of what it covers (`HumanoidBody.footprint_centre`), and the disc is its
+  own rule round every part of it -- head, LIDAR and soles: the walker's
+  half-width beyond (`FRONT_HALF_M`, its hands hanging). Round its soles,
+  as it stands, the far end was 1.6 m out, past the disc's edge. Stood up,
+  it is its soles' middle again."""
   me, peer = _downed_pair(lie)
   assert peer.body.posture == "getting_up"
   centre = peer.body.footprint_centre()
   gids = sorted(robot_geoms(peer.model, SECOND.root))
   xy = peer.data.geom_xpos[gids, :2]
   reach = float((np.hypot(*(xy - np.asarray(centre)).T) + peer.model.geom_rbound[gids]).max())
-  disc = me.body.mission.DOWN_ROBOT_CELLS * me.body.grid.resolution
-  assert reach < disc, f"on its {lie}: its body reaches {reach:.2f} m from the centre"
+  mission = me.body.mission
+  disc = mission.DOWN_ROBOT_CELLS * me.body.grid.resolution
+  assert reach + mission.FRONT_HALF_M <= disc, \
+    f"on its {lie}: its body reaches {reach:.2f} m from the centre of a {disc:.2f} m disc"
   peer.body.start_at(*AT, 0.0)
   assert peer.body.posture == "standing"
   assert peer.body.footprint_centre() == peer.body._true_stance()[:2]

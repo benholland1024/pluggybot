@@ -389,7 +389,9 @@ class HumanoidBody(Body):
     body covers (`Navigator.footprint_centre`). ⚠ Round its soles, a
     fallen robot's disc (`DOWN_ROBOT_CELLS`) left out its head and
     shoulders, 1.5 m from there, and another robot's plan ran through
-    them (#580)."""
+    them (#580). The get-up takes the joints before the death seam reads
+    it down (0.1-0.8 s, six falls); a body with no get-up policy never
+    says it fell, and keeps its soles."""
     if self.posture == "standing":
       sx, sy, _ = self._true_stance()
       return sx, sy

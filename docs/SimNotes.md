@@ -643,7 +643,9 @@ falls the get-up took, the body reached 0.69-0.92 m from that middle
 (`humanoid_spike.py --fall`, its lying reach; lying straight, 0.80). Its 1.55 m
 from soles to the LIDAR's roof is more than the 1.4 m the disc was sized
 for, so `DOWN_ROBOT_CELLS` is 24 (1.20 m): that reach and the walker's
-half-width.
+half-width. With the standing disc's 10 cm as well (26 cells), two walks of
+four past a robot lying limp in the living room never got by, where at 24
+all four did, none touching it.
 
 ## The stairs curriculum (issue #388)
 

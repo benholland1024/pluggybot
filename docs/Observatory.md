@@ -39,6 +39,8 @@ rows with phase `touched` while either robot's frames read `posture`
 `getting_up`. None are expected now. Falls are rare live, so the period may
 close with too few to read, and it should say so.
 
+### The quadruped's leftovers out of what the humanoids read and record, and a stand-up's map in its rules (#579) — opens when this PR is deployed
+
 **What changed in the mind**, on every arm with one, the deployed pair's
 included:
 - **The form** loses `board`, `program` and `answer`, three required fields

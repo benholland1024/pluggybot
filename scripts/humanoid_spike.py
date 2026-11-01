@@ -3529,7 +3529,8 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS)
   m, d = h.m, h.d
   ids = {part: [m.geom(g).id for g in gs] for part, gs in FALL_PARTS.items()}
   gids = np.array(sorted(robot_geoms(m, ROBOT_ROOT)), dtype=int)
-  lying = None
+  # ...read once a policy period: every step, it was a third of a step's cost
+  lying, every, stepped = None, max(1, round(h.stand.policy.period / m.opt.timestep)), 0
   floor = m.geom("floor").id
   act = np.array([m.actuator(j).id for j in hm.JOINT_NAMES])
   dof = np.array([m.jnt_dofadr[m.joint(j).id] for j in hm.JOINT_NAMES])
@@ -3592,7 +3593,8 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS)
       if k is not None:
         stop[k] = max(stop[k], abs(float(d.efc_force[r])))
     speed = np.maximum(speed, np.abs(d.qvel[dof]))
-    if d.xmat[h.root][8] <= math.cos(TOPPLE_TILT_RAD):
+    stepped += 1
+    if stepped % every == 0 and d.xmat[h.root][8] <= math.cos(TOPPLE_TILT_RAD):
       reach = floor_reach(m, d, gids, footprint_middle(m, d, gids))
       lying = reach if lying is None else max(lying, reach)
   return {"way": way, "mode": mode, "first": first, "peaks": peaks, "hit": hit, "tau": tau.tolist(),

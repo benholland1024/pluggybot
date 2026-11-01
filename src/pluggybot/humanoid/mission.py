@@ -160,8 +160,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   #: The disc round another robot, cells: its outline standing (0.27 m) and
   #: this one's and 10 cm; fallen, the farthest it reaches from the middle
   #: of what it covers (`HumanoidBody.footprint_centre`) and this one's
-  #: half-width -- MEASURED 0.69-0.92 m while lying after a fall its get-up
-  #: took, shoved over six ways (`humanoid_spike.py --fall`, #580).
+  #: half-width -- the reach MEASURED 0.69-0.92 m while lying after a fall
+  #: its get-up took, shoved over six ways (`humanoid_spike.py --fall`,
+  #: #580). ⚠ Not the standing disc's 10 cm as well: at 26 cells, two walks
+  #: of four past one lying in the living room never got by.
   OTHER_ROBOT_CELLS = 13
   DOWN_ROBOT_CELLS = 24
   #: The front stop, from the LIDAR over the pelvis: its toes and its hands

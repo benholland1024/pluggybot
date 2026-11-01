@@ -3888,7 +3888,9 @@ class HubLifecycle:
           yield self.body.STILL
       finally:
         self._unwatch_job(task.id)
-      minutes = task.params.get("minutes")
+      # ...the job's own where the offer carries none (one saved before
+      # its kind did, #580)
+      minutes = task.params.get("minutes") or kind.minutes
       draw = task.secret.get("draw")
       measured = scoring.SAMPLERS[kind.task](
         self, None, None, {"at_call": at_call, "watch": watch,

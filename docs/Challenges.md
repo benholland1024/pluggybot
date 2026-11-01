@@ -319,8 +319,7 @@ departures, both about where an attempt starts:
   (`TaskKind.minutes`, `tasks.HAND_MINUTES`; a world's cadence may give
   another), counted from the claim: 16, three times the slowest pass of the
   references over a tour of the house (313 s, from the station), rounded
-  up. Kept by the cadence alone, an offer made any other way gave no number
-  of minutes and was graded on the quadruped's 300 s (#580).
+  up (TaskPattern.md §4 has why it is the kind's, #580).
 
 **The offer says where by the area's terms** (#419): the facility's
 address, and directions that name the storeroom, the counter, the row's

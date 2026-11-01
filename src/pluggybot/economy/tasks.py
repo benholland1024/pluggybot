@@ -174,9 +174,8 @@ class TaskKind:
   #: THE TIME THE JOB GIVES FROM ITS CLAIM, minutes, or None for none: what
   #: its sentence says (`{minutes}`) and the limit its grade holds it to
   #: (`HubLifecycle._grade_hands_routine`); an offer's `params` may give
-  #: another (a world's cadence). Kept by the cadence alone, an offer made
-  #: any other way read "within  minutes" and its grade fell back on the
-  #: quadruped's 300 s (`challenge.lid.TIME_LIMIT_S`, #580).
+  #: another (a world's cadence). The kind's, so an offer made any other way
+  #: says it and is held to it too (#580).
   minutes: int | None = None
 
   def __post_init__(self) -> None:
