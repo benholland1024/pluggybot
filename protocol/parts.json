@@ -1428,11 +1428,11 @@
      ]
     },
     {
-     "constant": "humanoid.model.CHOSEN.lidar_rise",
+     "constant": "humanoid.model.CHOSEN.lidar_z",
      "where": "code",
-     "value": 0.1,
+     "value": 0.712,
      "unit": "m",
-     "note": "its rays' origin over the head's top, upside down on its bracket"
+     "note": "its rays' origin over the hip axes, upside down in the head"
     }
    ],
    "why": {},
@@ -1848,8 +1848,8 @@
    "note": ""
   },
   {
-   "id": "humanoid_lidar_bracket",
-   "name": "The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under",
+   "id": "humanoid_lidar_frame",
+   "name": "The LIDAR's frame in the head: a 6 x 15 mm 6082 rib up its back and the plate the unit's base bolts under",
    "kind": "structure",
    "status": "chosen",
    "shelves": [
@@ -1857,11 +1857,11 @@
    ],
    "robot": "humanoid",
    "usedBy": [
-    "lidar_mount"
+    "pluggybot"
    ],
    "partNumber": null,
    "source": null,
-   "massG": 89.773,
+   "massG": 105.423,
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
@@ -1869,9 +1869,9 @@
    "capabilities": {},
    "feeds": [
     {
-     "constant": "humanoid.model.structure[lidar_post, lidar_roof]",
+     "constant": "humanoid.model.structure[lidar_rib, lidar_plate]",
      "where": "code",
-     "value": 89.773,
+     "value": 105.423,
      "unit": "g",
      "note": "their volume's mass, the fasteners' and wiring's allowance on it (`humanoid.model.ALLOWANCE`)"
     }
@@ -1886,7 +1886,7 @@
   },
   {
    "id": "humanoid_shells",
-   "name": "The head's shell and the torso's front cover, printed in PETG",
+   "name": "The head's shells, its face, dome and crown, and the torso's front cover, printed in PETG",
    "kind": "structure",
    "status": "chosen",
    "shelves": [
@@ -1898,17 +1898,17 @@
    ],
    "partNumber": null,
    "source": null,
-   "massG": 617.499,
+   "massG": 738.681,
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 2,
+   "quantity": 4,
    "capabilities": {},
    "feeds": [
     {
-     "constant": "humanoid.model.structure[head_shell, torso_cover]",
+     "constant": "humanoid.model.structure[head_shell, head_dome, head_crown, torso_cover]",
      "where": "code",
-     "value": 617.499,
+     "value": 738.681,
      "unit": "g",
      "note": "their volume's mass, the fasteners' and wiring's allowance on it (`humanoid.model.ALLOWANCE`)"
     }
@@ -3182,15 +3182,15 @@
     "note": ""
    },
    {
-    "part": "humanoid_lidar_bracket",
-    "name": "The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under",
+    "part": "humanoid_lidar_frame",
+    "name": "The LIDAR's frame in the head: a 6 x 15 mm 6082 rib up its back and the plate the unit's base bolts under",
     "group": "frame",
     "quantity": 1,
     "priceFor": "each",
     "eachEur": null,
     "lineEur": 66.67,
     "allowance": true,
-    "basis": "two machined parts at €33.33 a machined part (#379's rate)",
+    "basis": "two machined parts at €33.33 a machined part (#379's rate): the crown is printed, the rib that carries it 6082 (printed as narrow, it would sway at about 5 Hz)",
     "leadTime": null,
     "why": {
      "leadTime": "nothing drawn to quote"

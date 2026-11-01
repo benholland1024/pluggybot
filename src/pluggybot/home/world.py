@@ -90,7 +90,7 @@ alone now -- each plans round what its depth camera sees under the LIDAR's
 plane -- and the humanoid climbs it.
 
 The walls are a room's 2.4 m (#507, stage 5): the humanoid's LIDAR spun at
-1.41 m then (its level ring is 1.47 m up now, #581) and saw over the rover's
+1.41 m then (its level ring is 1.44 m up now, #581) and saw over the rover's
 1.2 m walls, every one of them.
 
 Visual hints ride in the SIDECAR, never in geom colors: the robot's cameras

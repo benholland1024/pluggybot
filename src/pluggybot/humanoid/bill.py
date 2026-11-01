@@ -297,8 +297,8 @@ PARTS: tuple[Part, ...] = (
                  code("perception.lidar.BLIND_M", "m", "its blind zone", expect=0.1),
                  code("perception.lidar.SIGMA", "m", "a range's 1 sigma at 0.2 m and at "
                       "10 m", expect=((0.2, 0.04), (10.0, 0.02))),
-                 code("humanoid.model.CHOSEN.lidar_rise", "m", "its rays' origin over the "
-                      "head's top, upside down on its bracket"))),
+                 code("humanoid.model.CHOSEN.lidar_z", "m", "its rays' origin over the hip "
+                      "axes, upside down in the head"))),
   _bought("livox_m12_cable", usedBy=("lidar_mount",)),
   _bought("pi_camera_3", usedBy=("nav_cam_body",),
           feeds=(Feed("nav_eye.fovy", camera("nav_eye"), "°",
@@ -336,11 +336,12 @@ PARTS: tuple[Part, ...] = (
   _fabricated("humanoid_gripper_adapters", "The plates the grippers bolt to on the "
               "wrists' roll, 6 mm 6082", ("gripper_adapter",),
               usedBy=tuple(f"{s}_hand" for s in hm.SIDES)),
-  _fabricated("humanoid_lidar_bracket", "The LIDAR's bracket: a 20 x 3 mm 6082 post up "
-              "the head's back and the plate its base bolts under", ("lidar_post", "lidar_roof"),
-              usedBy=("lidar_mount",)),
-  _fabricated("humanoid_shells", "The head's shell and the torso's front cover, "
-              "printed in PETG", ("head_shell", "torso_cover"), usedBy=(hm.ROBOT_ROOT,),
+  _fabricated("humanoid_lidar_frame", "The LIDAR's frame in the head: a 6 x 15 mm 6082 "
+              "rib up its back and the plate the unit's base bolts under",
+              ("lidar_rib", "lidar_plate"), usedBy=(hm.ROBOT_ROOT,)),
+  _fabricated("humanoid_shells", "The head's shells, its face, dome and crown, and the "
+              "torso's front cover, printed in PETG",
+              ("head_shell", "head_dome", "head_crown", "torso_cover"), usedBy=(hm.ROBOT_ROOT,),
               printed=True),
   _bought("igus_kcrm_05", usedBy=tuple(f"{s}_shank" for s in hm.SIDES), quantity=4),
   _bought("petg_1kg", quantity=2),
@@ -460,9 +461,11 @@ LINES: tuple[Line, ...] = (
        allowanceEur=round(2 * MACHINED_EUR, 2),
        basis="two machined plates at €33.33 a machined part (#379's rate), drawn "
              "when the gripper's flange is known (Unitree does not publish it)"),
-  Line("humanoid_lidar_bracket", 1, "frame", None, why=UNDRAWN,
+  Line("humanoid_lidar_frame", 1, "frame", None, why=UNDRAWN,
        allowanceEur=round(2 * MACHINED_EUR, 2),
-       basis="two machined parts at €33.33 a machined part (#379's rate)"),
+       basis="two machined parts at €33.33 a machined part (#379's rate): the crown is "
+             "printed, the rib that carries it 6082 (printed as narrow, it would sway at "
+             "about 5 Hz)"),
   Line("igus_kcrm_05", 4, "frame", "ready to ship in 24 hours (igus)"),
   Line("petg_1kg", 2, "frame", None,
        why={"leadTime": "in stock; the page and its terms give no delivery time"}),

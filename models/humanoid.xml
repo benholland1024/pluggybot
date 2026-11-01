@@ -56,8 +56,16 @@
             rgba="0.1 0.5 0.2 1"/><geom name="left_hip_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 0.054 0 0 0.106 0" mass="1.95712"/><geom name="right_hip_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.106 0 0 -0.054 0" mass="1.95712"/><geom name="left_shoulder_pitch_motor" class="motor" type="cylinder" size="0.049" fromto="0 0.10295 0.421 0 0.15705 0.421" mass="1.2262"/><geom name="right_shoulder_pitch_motor" class="motor" type="cylinder" size="0.049" fromto="0 -0.15705 0.421 0 -0.10295 0.421" mass="1.2262"/>
       <geom name="neck" class="visual" type="cylinder" size="0.025"
             fromto="0 0 0.42 0 0 0.475" mass="0" rgba="0.3 0.3 0.32 1"/>
-      <geom name="head" class="limb" type="box" size="0.065 0.075 0.08"
-            pos="0 0 0.555" mass="0.375641"/>
+      <geom name="head" class="limb" type="box" size="0.065 0.075 0.0525"
+            pos="0 0 0.5275" mass="0.285674"/>
+      <geom name="head_dome" class="limb" type="sphere" size="0.0625"
+            pos="0 0 0.5975" mass="0.0917659"/>
+      <geom name="head_crown" class="limb" type="cylinder" size="0.059 0.022"
+            pos="0 0 0.743"
+            mass="0.174784"/>
+      <geom name="head_rib" class="limb" type="box" size="0.0075 0.003 0.0895"
+            pos="-0.0515 0 0.6695" mass="0.0500216"
+            rgba="0.75 0.75 0.78 1"/>
       <geom name="charge_port" class="visual" type="box"
             size="0.001 0.01425 0.01425"
             pos="0.086 -0.075 0.168"
@@ -79,18 +87,11 @@
               mass="0.004" rgba="0.1 0.1 0.1 1"/>
         <camera name="nav_eye" pos="0.007 0 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
       </body>
-      <body name="lidar_mount" pos="0 0 0.635">
-        <geom name="lidar" class="visual" type="box" size="0.0325 0.0325 0.03"
-              pos="0 0 0.135" mass="0.265" rgba="0.05 0.05 0.05 1"/>
-        <geom name="lidar_post" class="visual" type="box"
-              size="0.01 0.0015 0.0825"
-              pos="-0.055 0 0.0825" mass="0.0307395"
-              rgba="0.75 0.75 0.78 1"/>
-        <geom name="lidar_roof" class="visual" type="box"
-              size="0.04875 0.0325 0.0015"
-              pos="-0.01625 0 0.1665" mass="0.0590338"
-              rgba="0.75 0.75 0.78 1"/>
-        <site name="lidar" pos="0 0 0.1" size="0.005"/>
+      <body name="lidar_mount" pos="0 0 0.712">
+        <geom name="lidar" class="limb" type="box" size="0.0325 0.0325 0.03"
+              pos="0 0 0.017" mass="0.265"
+              rgba="0.05 0.05 0.05 1"/>
+        <site name="lidar" pos="0 0 0" size="0.005"/>
       </body>
       <body name="left_hip_pitch_link" pos="0 0.08 0">
         <joint name="left_hip_pitch" axis="0 1 0" range="-2.93215 2.23402" armature="0.04" frictionloss="0.6"/>
@@ -271,6 +272,10 @@
     <pair geom1="left_upper_arm" geom2="pelvis"/>
     <pair geom1="left_upper_arm" geom2="torso"/>
     <pair geom1="left_upper_arm" geom2="head"/>
+    <pair geom1="left_upper_arm" geom2="head_dome"/>
+    <pair geom1="left_upper_arm" geom2="head_crown"/>
+    <pair geom1="left_upper_arm" geom2="head_rib"/>
+    <pair geom1="left_upper_arm" geom2="lidar"/>
     <pair geom1="left_upper_arm" geom2="left_thigh"/>
     <pair geom1="left_upper_arm" geom2="left_shank"/>
     <pair geom1="left_upper_arm" geom2="right_thigh"/>
@@ -278,6 +283,10 @@
     <pair geom1="left_forearm" geom2="pelvis"/>
     <pair geom1="left_forearm" geom2="torso"/>
     <pair geom1="left_forearm" geom2="head"/>
+    <pair geom1="left_forearm" geom2="head_dome"/>
+    <pair geom1="left_forearm" geom2="head_crown"/>
+    <pair geom1="left_forearm" geom2="head_rib"/>
+    <pair geom1="left_forearm" geom2="lidar"/>
     <pair geom1="left_forearm" geom2="left_thigh"/>
     <pair geom1="left_forearm" geom2="left_shank"/>
     <pair geom1="left_forearm" geom2="right_thigh"/>
@@ -285,6 +294,10 @@
     <pair geom1="left_gripper" geom2="pelvis"/>
     <pair geom1="left_gripper" geom2="torso"/>
     <pair geom1="left_gripper" geom2="head"/>
+    <pair geom1="left_gripper" geom2="head_dome"/>
+    <pair geom1="left_gripper" geom2="head_crown"/>
+    <pair geom1="left_gripper" geom2="head_rib"/>
+    <pair geom1="left_gripper" geom2="lidar"/>
     <pair geom1="left_gripper" geom2="left_thigh"/>
     <pair geom1="left_gripper" geom2="left_shank"/>
     <pair geom1="left_gripper" geom2="right_thigh"/>
@@ -292,6 +305,10 @@
     <pair geom1="right_upper_arm" geom2="pelvis"/>
     <pair geom1="right_upper_arm" geom2="torso"/>
     <pair geom1="right_upper_arm" geom2="head"/>
+    <pair geom1="right_upper_arm" geom2="head_dome"/>
+    <pair geom1="right_upper_arm" geom2="head_crown"/>
+    <pair geom1="right_upper_arm" geom2="head_rib"/>
+    <pair geom1="right_upper_arm" geom2="lidar"/>
     <pair geom1="right_upper_arm" geom2="left_thigh"/>
     <pair geom1="right_upper_arm" geom2="left_shank"/>
     <pair geom1="right_upper_arm" geom2="right_thigh"/>
@@ -299,6 +316,10 @@
     <pair geom1="right_forearm" geom2="pelvis"/>
     <pair geom1="right_forearm" geom2="torso"/>
     <pair geom1="right_forearm" geom2="head"/>
+    <pair geom1="right_forearm" geom2="head_dome"/>
+    <pair geom1="right_forearm" geom2="head_crown"/>
+    <pair geom1="right_forearm" geom2="head_rib"/>
+    <pair geom1="right_forearm" geom2="lidar"/>
     <pair geom1="right_forearm" geom2="left_thigh"/>
     <pair geom1="right_forearm" geom2="left_shank"/>
     <pair geom1="right_forearm" geom2="right_thigh"/>
@@ -306,6 +327,10 @@
     <pair geom1="right_gripper" geom2="pelvis"/>
     <pair geom1="right_gripper" geom2="torso"/>
     <pair geom1="right_gripper" geom2="head"/>
+    <pair geom1="right_gripper" geom2="head_dome"/>
+    <pair geom1="right_gripper" geom2="head_crown"/>
+    <pair geom1="right_gripper" geom2="head_rib"/>
+    <pair geom1="right_gripper" geom2="lidar"/>
     <pair geom1="right_gripper" geom2="left_thigh"/>
     <pair geom1="right_gripper" geom2="left_shank"/>
     <pair geom1="right_gripper" geom2="right_thigh"/>

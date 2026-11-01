@@ -354,7 +354,7 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 | The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length | 1 | allowance | 40.00 | unknown: nothing drawn to quote | `humanoid.model.structure[upper_arm_tube, forearm_tube]` |
 | The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end | 1 | allowance | 20.00 | unknown: nothing drawn to quote | `humanoid.model.structure[ankle_rod]` |
 | The plates the grippers bolt to on the wrists' roll, 6 mm 6082 | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[gripper_adapter]` |
-| The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[lidar_post, lidar_roof]` |
+| The LIDAR's frame in the head: a 6 x 15 mm 6082 rib up its back and the plate the unit's base bolts under | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[lidar_rib, lidar_plate]` |
 | [igus igubal KCRM-05 rod end, M5 female, right-hand](https://www.igus.de/product/igubal_KCRM_KCLM?artNr=KCRM-05) `KCRM-05` | 4 | 5.43 | 21.72 | ready to ship in 24 hours (igus) | — |
 | [PETG filament, 1.75 mm, 1 kg (DAS FILAMENT)](https://dasfilament.de/produkt/petg-filament-175-mm-schwarz-1-kg/) `F10765` | 2 | 21.00 | 42.00 | unknown: in stock; the page and its terms give no delivery time | — |
 | **safety** | | | **291.58** | | |
@@ -408,7 +408,7 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 - **The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length** (frame), €40.00: 0.8 m of 6082 round tube in two sizes, cut to length; not priced for this bill
 - **The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end** (frame), €20.00: two 0.34 m rods cut from 8 mm tube and threaded M5 at each end
 - **The plates the grippers bolt to on the wrists' roll, 6 mm 6082** (frame), €66.67: two machined plates at €33.33 a machined part (#379's rate), drawn when the gripper's flange is known (Unitree does not publish it)
-- **The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under** (frame), €66.67: two machined parts at €33.33 a machined part (#379's rate)
+- **The LIDAR's frame in the head: a 6 x 15 mm 6082 rib up its back and the plate the unit's base bolts under** (frame), €66.67: two machined parts at €33.33 a machined part (#379's rate): the crown is printed, the rib that carries it 6082 (printed as narrow, it would sway at about 5 Hz)
 - **Rosenberger RoPD panel plug, C003-B1 (magnetic, 60 V DC, 25 A): the charge port on the torso's front** (charging), €40.00: the cable jack's listed $43.58
 - **The charge port's funnel, printed in PETG: 70 mm across its mouth, 15 mm deep** (charging), €1.00: 25 g of PETG
 - **Rosenberger RoPD cable jack, C003-03 (25 A), on Rosenberger's C003 cable: the station's plug** (charging), €45.00: $43.58 at Powell

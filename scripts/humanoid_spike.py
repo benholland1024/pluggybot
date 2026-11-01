@@ -3496,9 +3496,12 @@ FALL_WAYS = {"front": (1, 0), "back": (-1, 0), "left": (0, 1), "right": (0, -1),
              "front-left": (1, 1), "back-right": (-1, -1)}
 FALL_NS = 45.0
 FALL_S = 8.0
-#: The robot's parts, by the geoms that strike the floor.
+#: The robot's parts, by the geoms that strike the floor: the head is its
+#: face and dome, the crown the LIDAR's crown, rib and unit (#581's stage 3,
+#: `model._head`).
 FALL_PARTS = {
-  "head": ("head",), "trunk": ("torso", "pelvis"),
+  "head": ("head", "head_dome"), "crown": ("head_crown", "head_rib", "lidar"),
+  "trunk": ("torso", "pelvis"),
   "arms": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("upper_arm", "forearm")),
   "hands": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("gripper", "jaw_a_pad", "jaw_b_pad")),
   "legs": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("thigh", "shank")),
@@ -3664,9 +3667,10 @@ HOUSE_FALL_S = 15.0
 
 def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = FALL_NS) -> dict:
   """The robot standing at `place` in the house, shoved `way`, its get-up
-  policy taking the fall as the mission hands it: what it struck first and
-  how fast its head went into anything, whether and when it stood, and
-  where its pelvis ended (graded by us off the truth)."""
+  policy taking the fall as the mission hands it: what it struck first, the
+  part of its head that went into anything first and how fast, whether
+  and when it stood, and where its pelvis ended (graded by us off the
+  truth)."""
   at, z, yaw = HOUSE_FALLS[place]
   m, d = standing_world(at=at, yaw=yaw, z=z)
   h = Humanoid(m, d)
@@ -3674,10 +3678,11 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
                       joints=h.stand.joints)
   watch = FallWatch(h.stand.trunk, h.stand.joints)
   ours = {g for g in range(m.ngeom) if _in_robot(m, int(m.geom_bodyid[g]), h.root)}
-  head = m.geom("head").id
+  heads = _head_geoms(m)
   for _ in range(int(1.0 / m.opt.timestep)):
     h.step()
   gen, took, stood, first, head_v = shove(h, FALL_WAYS[way], ns), None, None, None, None
+  head_part = None
   vel = np.zeros(6)
   t0 = d.time
   while d.time - t0 < HOUSE_FALL_S:
@@ -3706,11 +3711,18 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
       if first is None:
         first = next((part for part, gs in FALL_PARTS.items() if m.geom(mine).name in gs),
                      m.geom(mine).name)
-      if mine == head and head_v is None:
-        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, head, vel, 0)
-        head_v = float(np.linalg.norm(vel[3:]))
-  return {"place": place, "way": way, "first": first, "head_v": head_v, "took_s": took,
-          "stood_s": stood, "end_z": float(d.xpos[h.root][2]) - z}
+      if mine in heads and head_v is None:
+        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, mine, vel, 0)
+        head_v, head_part = float(np.linalg.norm(vel[3:])), heads[mine]
+  return {"place": place, "way": way, "first": first, "head_v": head_v, "head_part": head_part,
+          "took_s": took, "stood_s": stood, "end_z": float(d.xpos[h.root][2]) - z}
+
+
+def _head_geoms(m) -> dict[int, str]:
+  """The head's parts, the LIDAR's among them (`model.HEAD_GEOMS`): geom id
+  -> name, for those the model has."""
+  names = {m.geom(g).name for g in range(m.ngeom)}
+  return {m.geom(g).id: g for g in hm.HEAD_GEOMS if g in names}
 
 
 def _in_robot(m, body: int, root: int) -> bool:
@@ -3732,19 +3744,19 @@ def house_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
     rows = pool.map(_house_fall_trial, work)
   print(f"FALLS IN THE HOUSE, shoved {FALL_NS:g} N*s each way, the get-up policy taking each "
-        f"fall: what struck first (a sole aside), the head's speed into anything, m/s, and when "
-        f"it stood from the shove -- or where its pelvis lay over the ground it had stood on "
-        f"after {HOUSE_FALL_S:g} s")
-  print(f"{'place':20s}" + "".join(f"{w:>27s}" for w in HOUSE_WAYS))
+        f"fall: what struck first (a sole aside), the part of the head that went into anything "
+        f"first and its speed, m/s, and when it stood from the shove -- or where its pelvis lay "
+        f"over the ground it had stood on after {HOUSE_FALL_S:g} s")
+  print(f"{'place':20s}" + "".join(f"{w:>34s}" for w in HOUSE_WAYS))
   for place in HOUSE_FALLS:
     cells = []
     for w in HOUSE_WAYS:
       r = next(x for x in rows if x["place"] == place and x["way"] == w)
-      head = "-" if r["head_v"] is None else f"{r['head_v']:.1f}"
+      head = "-" if r["head_v"] is None else f"{r['head_part'][:6]} {r['head_v']:.1f}"
       end = f"stood {r['stood_s']:.1f}s" if r["stood_s"] else (
         "held" if r["took_s"] is None else f"down {r['end_z']:+.2f}")
-      cells.append(f"{(r['first'] or '-')[:6]} {head:>4s} {end:>12s}")
-    print(f"{place:20s}" + "".join(f"{c:>27s}" for c in cells))
+      cells.append(f"{(r['first'] or '-')[:6]} {head:>11s} {end:>12s}")
+    print(f"{place:20s}" + "".join(f"{c:>34s}" for c in cells))
   print("  (down: still on the ground after the watch, its pelvis that high over the ground it "
         "had stood on, m)")
   return rows
@@ -3776,7 +3788,7 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
   as `fall_trial`'s."""
   h = floor_humanoid()
   m, d = h.m, h.d
-  floor, head = m.geom("floor").id, m.geom("head").id
+  floor, heads = m.geom("floor").id, _head_geoms(m)
   part_of = {m.geom(g).id: p for p, gs in FALL_PARTS.items() for g in gs}
   watch = FallWatch(h.stand.trunk, h.stand.joints)
   getup = GetupDriver(m, d, policy=StandPolicy(npz or str(GETUP_NPZ)), trunk=h.stand.trunk,
@@ -3788,7 +3800,7 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
   z0 = float(d.xpos[h.root][2])
   rec = {"posture": tuple(held), "way": way, "ns": ns, "served": served, "tilt_s": None,
          "upright_s": None, "collapse_s": None, "first": None, "hit_s": None, "head_v": None,
-         "took_s": None, "stood_s": None, "max_tip": 0.0}
+         "head_part": None, "took_s": None, "stood_s": None, "max_tip": 0.0}
   t0 = d.time
   _drain(shove(h, FALL_WAYS[way], ns))
   vel = np.zeros(6)
@@ -3822,9 +3834,9 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
         continue
       if rec["first"] is None:
         rec["first"], rec["hit_s"] = part_of[other], d.time - t0
-      if other == head and rec["head_v"] is None:
-        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, head, vel, 0)
-        rec["head_v"] = float(np.linalg.norm(vel[3:]))
+      if other in heads and rec["head_v"] is None:
+        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, other, vel, 0)
+        rec["head_v"], rec["head_part"] = float(np.linalg.norm(vel[3:])), heads[other]
   rec["fell"] = rec["hit_s"] is not None or float(d.xpos[h.root][2]) < z0 - 0.15
   return rec
 
@@ -3881,6 +3893,12 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   print(f"  falls neither check took: {len(missed)}; the most a shove it stood through tipped it "
         f"past its posture: {math.degrees(most):.1f} deg, against the watch's "
         f"{math.degrees(FALL_TILT_RAD):.0f}")
+  struck = {}
+  for r in rows:
+    if r["head_part"]:
+      struck.setdefault(r["head_part"], []).append(r["head_v"])
+  print("  the head's first part into the floor: " + ("; ".join(
+    f"{part} {len(v)}, {_span(v)} m/s" for part, v in sorted(struck.items())) or "none"))
   return rows
 
 
