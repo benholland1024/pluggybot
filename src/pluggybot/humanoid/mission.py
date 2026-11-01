@@ -318,9 +318,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     arms to a fresh reach from where they hang, the grippers as they were
     asked (no policy drives them; built afresh, a shut gripper read as
     never shut, #520) -- and, as at boot, its height the stand's over the
-    ground it stands on, the ground's map laid anew. ⚠ Kept through a fall
-    down the flight, the height was 0.41 m off at the foot, past what a
-    frame registers, for good."""
+    ground it stands on, its planted foot read afresh (its odometry held
+    through the get-up, `_after_physics`), the ground's map laid anew. ⚠
+    Kept through a fall down the flight, the height was 0.41 m off at the
+    foot, past what a frame registers, for good."""
     key = f"humanoid:{self.handle.prefix}"
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
@@ -329,13 +330,18 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.reach = Reach(self.model, self.data, self.stand, prefix=self.handle.prefix, key=key)
     self.reach.grippers.update(grippers)
     self.legs = "stand"
+    self.odo.z, self.odo.foot = hm.stand_height(), None
     if self.head is not None:
       self.head.forget()
-      self.odo.z, self.odo.foot = hm.stand_height(), None
 
   def _after_physics(self) -> None:
-    # The reckoning first: the scan lays its frame through it.
-    if self._steps % self._odo_every == 0:
+    # The reckoning first: the scan lays its frame through it. ⚠ NONE WHILE
+    # THE GET-UP HAS THE LEGS (#572): no foot is planted under a body
+    # tumbling and rising, and followed through it a fall walked the belief
+    # 1.7-2.1 m in flights and Luca's 3.7 m live, past the wide search's 2.
+    # Held, it is off by what the fall moved the body, a metre or so, which
+    # the matcher's searches take back.
+    if self._steps % self._odo_every == 0 and self.legs != "getup":
       q, _, _ = self.stand.joints.read(self.data)
       self.odo.step(q, self.stand.trunk.gravity())
     if self.head is not None:

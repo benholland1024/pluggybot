@@ -10,6 +10,49 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A lost robot looks for its station by its head's camera, and a fall walks no belief (#572, stage 3) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A robot that does not find its station where its belief puts it looks
+  for it by its head's camera** -- round where it stands, then outward from
+  where it believes the station is -- and walks nearer by what it saw until
+  a look near the station puts its belief right. Before, it stepped in
+  toward where it believed the station was and looked with the colour
+  imager, which found it only within about a metre.
+- **Two walks to the station that never got there are a robot lost too**:
+  it searches from where they ended, once a charge (never where the other
+  robot stopped them). The search runs until it finds the station, 600 s,
+  or an empty pack.
+- **A walk to the station is given 6 s a metre of the straight line to it**,
+  at least the 90 s it always had.
+- **A dock that saw the station and never got in goes again from the
+  standoff**, once a charge.
+- **A fall's get-up walks no belief**: the odometry holds while the get-up
+  has the legs, and counts from the foot it stands on once up.
+- **History says a loss in other words**: "I did not find my charging
+  station where I believed it was, so I may not be where I thought, and I am
+  looking round for it" (it said "...was not in sight where I believed it
+  was in front of me, so I am not where I thought, and I am looking for it
+  from nearer"), and a search that saw the station and never got near it
+  says so.
+- **The `drift` rows**: a `searched` row carries `arounds`, and its `ended`
+  may be `out of time` or `seen, never near` beside `found`, `not found`
+  and `interrupted`; a `lost` row may follow walks that never got there.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #572's stage 2: lost past a metre, the search found the station 0
+times in 43, and from across the street the charge's walks ran out of time
+first; and a fall's get-up walked Luca's belief 3.7 m live. Flown (SimNotes,
+"The station found from far off"), its belief set 1-5 m and 5-20 deg wrong:
+118 of 123 docked (staging, 14); explored first, 24 of 27 (staging, 2); the
+drift batch 30 of 30.
+
+**What the period is for.** #572's last box: a day of the pair, every charge
+found, each map corrected there -- off the `drift` rows (`lost`, then
+`searched` with how it `ended`, and its `fixed`), the charges and the
+falls. ⚠ It opens with #581's periods if they deploy together: read it
+against the one before them all, the level ring's.
+
 ### The map laid from the LIDAR's points laid flat (#581, stage 2) — opens when this PR is deployed
 
 **What changed in the world.**

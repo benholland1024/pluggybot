@@ -259,6 +259,13 @@ CHARGE_TIMEOUT_SLACK = 1.4
 #: (1.62 m past the standoff) is within 2.4 m, where one look reads it to
 #: 6 cm (median); with no board in sight the walk's retries go on.
 NEAR_STANDOFF_M = 0.75
+#: The walk to the charge standoff is given this long, s, or this long a
+#: metre of the straight line to it, whichever is the longer (#572): from
+#: the storeroom across the street, 22 m in a straight line, the walk takes
+#: 70-82 s and up to 117, and stage 2's walks from across the street ran out
+#: of their 90 s twice, 3-7 m short. A walk getting nowhere still ends on
+#: its stagnation (`navigator.STAGNATION_S`).
+CHARGE_WALK_S, CHARGE_WALK_S_M = 90.0, 6.0
 #: THE BELIEF AGAINST THE TRUTH, on the sim's own clock (issue #476): a
 #: `drift` row this often per robot, sim s, beside one per event that moved
 #: or lost the belief (`HubLifecycle._belief_step`). A pair at one each
@@ -1377,11 +1384,14 @@ class HubLifecycle:
     # ...the station is the one fixture, and its search keeps the map until
     # a fix past the matcher's reach (`HumanoidBody.lost_routine`)
     if why == "lost":
-      line = (f"{what} was not in sight where I believed it was in front of me, so I "
-              "am not where I thought, and I am looking for it from nearer")
+      line = (f"I did not find {what} where I believed it was, so I may not be where I "
+              "thought, and I am looking round for it")
     elif why == "fixed" and rec.get("dropped"):
       line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
               f"was: the map I had was laid askew, and it is gone")
+    elif why == "searched" and rec.get("ended") == "seen, never near":
+      line = (f"I looked for {what} for {rec.get('seconds', 0):.0f} s and saw it, but never "
+              "got near enough to it to know where I am")
     elif why == "searched" and not rec.get("found"):
       line = f"I looked for {what} for {rec.get('seconds', 0):.0f} s and did not see it"
     elif why == "searched" and not rec.get("dropped"):
@@ -2356,6 +2366,21 @@ class HubLifecycle:
     driven = None                 # the goal the last drive was sent to
     tried = None                  # why a near give-up's approach stopped
     searched = False              # ...and once the station was not seen, lost (#476)
+    redocked = False              # ...and once a dock seen never got in (#572)
+
+    def dock_again() -> bool:
+      # ⚠ A DOCK THAT SAW THE STATION AND NEVER GOT IN GOES AGAIN FROM THE
+      # STANDOFF, ONCE A CHARGE (#572's stage 3): 6 docks of 117 found after
+      # a search ended "not lined up", the walker's step 4-5 cm inside the
+      # seat, which it cannot back off (#581) -- a walk back to the standoff
+      # and in again takes the seat afresh
+      nonlocal redocked
+      if tried == NOT_SEEN or redocked or self.body.charging():
+        return False
+      redocked = True
+      self._say(f"GO_CHARGE again from the standoff -- it never got in: {tried}")
+      return True
+
     while True:
       if self.peers and self._bay_holder(sx, sy, seat) is not None:
         since = float(self.data.time) if since is None else since
@@ -2364,7 +2389,9 @@ class HubLifecycle:
           driven = None           # the wait is why, not any drive before it
           break
       driven = (sx, sy)
-      arrived = yield from self.body.go_to_routine(sx, sy, timeout=90.0)
+      x, y = self.body.pose_xy()
+      arrived = yield from self.body.go_to_routine(
+        sx, sy, timeout=max(CHARGE_WALK_S, CHARGE_WALK_S_M * math.hypot(sx - x, sy - y)))
       if self.peers and self._bay_holder(sx, sy, seat) is not None:
         arrived = False                   # taken again, or the seat was all
         continue                          # along: wait again, above
@@ -2379,8 +2406,10 @@ class HubLifecycle:
         # meanwhile (#455) -- and near enough the station decides, as below.
         if tried == NOT_SEEN and not searched and not self.body.charging():
           searched = True
-          if (yield from self.body.lost_routine("station")):
+          if (yield from self._search_routine()):
             continue
+        if dock_again():
+          continue
         break
       if self._near_standoff(sx, sy):
         # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
@@ -2389,6 +2418,8 @@ class HubLifecycle:
                   "station's tags decide")
         tried = yield from self.body.dock_routine()
         if tried != NOT_SEEN or self.body.charging():
+          if dock_again():
+            continue
           break
         # ...and no station in sight from within NEAR_STANDOFF_M is a robot
         # LOST too (issue #476): the station is in plain sight from there (a
@@ -2396,7 +2427,7 @@ class HubLifecycle:
         # right, the walk goes again, and else its retries as before.
         if not searched:
           searched = True
-          if (yield from self.body.lost_routine("station")):
+          if (yield from self._search_routine()):
             continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
@@ -2404,6 +2435,17 @@ class HubLifecycle:
       seat = self.body.charge_seat()
       spins += 1
       if spins == 2:
+        # ⚠ WALKS THAT NEVER GOT THERE ARE A ROBOT LOST TOO (#572): five of
+        # stage 2's lost flights never searched, their walks to where they
+        # believed the standoff was finding no route through a map that put
+        # walls where they stood. From where they ended it searches, once a
+        # charge -- unless the other robot is what stopped them.
+        rec = self.body.last_drive
+        if not searched and not (rec is not None and rec["why"] == "peer"):
+          searched = True
+          if (yield from self._search_routine()):
+            spins = 1
+            continue
         break
     if not arrived and tried in (None, NOT_SEEN):
       # WHY, and not always "no route" (issue #350): a stall, the other
@@ -2428,6 +2470,11 @@ class HubLifecycle:
       return False
     self._say("GO_CHARGE -> CHARGE (plugged in)")
     return True
+
+  def _search_routine(self) -> Routine:
+    """Lost, the station searched for (`Body.lost_routine`, #572): for its
+    own patience, and never on an empty pack."""
+    return self.body.lost_routine("station", stop=lambda: self.battery.energy_wh <= 0.0)
 
   def _near_standoff(self, sx: float, sy: float) -> bool:
     """Did the walk to the charge standoff give up near enough that the

@@ -3537,22 +3537,19 @@ tile every 1.5 s (`station_spike.py --strip plug`)](figures/humanoid_station.png
 ![Lost and found by its station: a humanoid 2 m out, its belief set 0.7 m
 nearer the wall than it is, walks to where it believes the standoff is
 (1.45 m off the station's face, the tags above its colour camera), sees
-nothing, steps in by its LIDAR, finds the tags, puts its belief right off
-them, and walks in again and plugs itself in, a tile every 4 s
-(`station_spike.py --strip lost`)](figures/humanoid_station_lost.png)
+nothing, looks round by its head's camera and sees the station, walks
+nearer by what it saw, puts its belief right off a look there, and walks
+in again and plugs itself in, a tile every 4 s (`station_spike.py --strip
+lost`)](figures/humanoid_station_lost.png)
 
 **Lost.** No tags in sight from the standoff the belief walked it to, the
 robot is lost (#476's rule), and the station, commissioned as the dock was,
-puts it right: facing where it believes the station is, it steps in until
-its LIDAR reads the wall 0.8 m ahead -- never by its belief, which is what
-is wrong; from viewpoints set on a belief 0.7 m off toward the wall, every
-look was further from the station than 1.07 m -- and looks ahead, 34 and 63
-deg either side (the camera sees 34.5 either side of its axis), turning to
-a lone tag of the two where it sees one, then from a step 0.5 m along the
-wall each way. A look that fits the station is a FIX (`HumanoidBody._fix_at`,
+puts it right: a look that fits the station is a FIX (`HumanoidBody._fix_at`,
 the same as `anchor_at_dock`'s): the belief moved, and past the matcher's own
 search the map laid on the old one dropped, and the loop's walk to the
-standoff goes again on it.
+standoff goes again on it. How it looks for the station is #572's stage 3
+("The station found from far off"): by its head's camera, never by its
+belief.
 
 **Measured** (`scripts/station_spike.py`, the house, one humanoid):
 
@@ -3565,7 +3562,7 @@ standoff goes again on it.
 | the loop's own walk and plug-in (`energy_spike.py`) | 345.2 W net into the pack (energy.json) |
 | the reserve (`energy_spike.py --reserve`) | 13.72 Wh over 44.62 m to the garden doorway, 307.6 mWh/m; carried 17.5 Wh |
 | `--walk-in`: a fresh humanoid explores 120 or 240 s, walks on its own map to each of 8 places across the house (the bedroom, hall, kitchen, workshop, garden and south garden; the lobby and lab across the street), and the loop's own `go_charge` takes it to the station | **docked 15 of 16**, each in 46-131 s, 10 on the first push; its belief 0.04-0.51 m off where it walked to (1.07 m at the lobby after 120 s, which docked on its third push), 0.01-0.42 m once docked, before the charge's own fix; no falls (10 of 16 before) |
-| `--lost`: a fresh humanoid 2 m out facing the station, its belief set 0.7 m wrong each way and 12 drawn 0.4-1 m off and up to 5 deg turned, the loop's own `go_charge` | **docked 16 of 16**: the 14 that saw no station searched and found it in 4-62 s, their fix putting the belief within 0.11 m; the two whose walks ended near enough docked as they were, their fix the charge's own |
+| `--lost`: a fresh humanoid 2 m out facing the station, its belief set 0.7 m wrong each way and 12 drawn 0.4-1 m off and up to 5 deg turned, the loop's own `go_charge` | **docked 16 of 16**: the 14 that saw no station searched and found it in 4-62 s, their fix putting the belief within 0.11 m; the two whose walks ended near enough docked as they were, their fix the charge's own (the search as it was then, stepping in by its LIDAR; by its head's camera, #572's stage 3, 15 of 16) |
 
 **What is not yet.** One walk-in in 16 pushed four times and the port took
 none: where the plug sits in the jaws still misses pushes now and then. The
@@ -3840,26 +3837,16 @@ from the south garden, outside the very wall the station hangs on (the
 figure), 10 from elsewhere in the living room, 10 from the east garden, and
 the rest from the bedroom and the sidewalks and streets.
 
-**What is true now.** Indoors the humanoid's belief holds within 0.1-0.3
-m: its LIDAR fixes every direction there, and the matcher takes off its
-gyro's offset, whatever it is, and its legs' 0.2-2 cm a metre. Outdoors its
-LIDAR sees the buildings' walls alone -- along the sidewalks one at a time,
-the matcher holding the direction along it to odometry, and in the middle
-street none -- and its belief comes home off by more than the matcher's
-search there three ways: walking along the facility's outer walls, a
-heading carried across the street, and standing still where nothing is
-matched; and anywhere, a fall, whose get-up its odometry walks. Back in
-the house, the map refuses it every scan and nothing puts it right but the
-station, whose lost search finds it only from within about a metre; from
-across the street the charge's walks run out of time first.
-
-**Not done** (#572's stage 3, and its stage 4): a search that finds the
-station from further off than a metre, and a charge's walk given the time
-a walk across the street takes; walks to the facility that go in by its
-gates, or a station there (#560's in the research center); the heading held
-while the robot stands where nothing is matched (a zero-rate update, as
-the quadruped's while it lies); its odometry held while a get-up has its
-legs; and why the wide search took back none of them.
+**What was true then, on the C1.** Indoors the belief held within 0.1-0.3
+m, the matcher taking off the gyro's offset and the legs' 0.2-2 cm a metre;
+outdoors the LIDAR saw the buildings' walls alone, and the belief came home
+past the matcher's search by walking along the facility's outer walls, a
+heading carried across the street, standing where nothing was matched, or a
+fall whose get-up its odometry walked; the lost search found the station
+only from within about a metre. What is true now: #581 gave the LIDAR the
+fences (29 of 30 drift flights docked, "The band served"), and #572's stage
+3 gave the search its head's camera, held the odometry through a get-up and
+the charge's walk its time ("The station found from far off").
 
 ## The 3D LIDAR on the head (issue #581, stage 1)
 
@@ -4346,11 +4333,165 @@ head's dearer drawer, door and chest, as its rule says.
 
 **Not done.** A far fence's intermittent ring (above); the walker's seat
 (above); and #581's live reading, a day of the pair with neither robot
-lost outdoors, which opens with the deploy (Observatory.md). #572's
-stage 3 should read this one: a bowed robot's scans now count, so its
-heading at a counter is held by the matcher, and a zero-rate update may be
-needed only where nothing is matched. The world's height map as the store,
-which the grid becomes a projection of, is its own issue.
+lost outdoors, which opens with the deploy (Observatory.md). The world's
+height map as the store, which the grid becomes a projection of, is its
+own issue. (#572's stage 3 read this one for the heading at rest: no
+zero-rate update is needed, "The station found from far off".)
+
+## The station found from far off (issue #572, stage 3)
+
+**What is true now.** A humanoid that does not find its station where its
+belief puts it -- none in sight from the standoff, or no walk there got
+there -- looks for it by its head's camera and walks nearer by what it saw
+(`HumanoidBody.lost_routine`): a look round where it stands, then
+viewpoints outward from where it believes the station is, and once seen,
+to a metre out of the station as that look placed it, where a look fits it
+near enough to put the belief right (`_fix_at`). Its belief set 1-5 m and
+5-20 deg wrong -- 2 m out, from the house's six rooms and across the street
+-- it docked 118 of 123 (staging, from the same starts, 14); explored
+first, laying its map askew through that belief, 24 of 27 (staging 2).
+Begun within 5 m of the truth, its search found the station 107 times in
+107. The walk to the station is given the time its length takes, a dock that
+saw the station and never got in goes again, and a fall's get-up walks no
+belief. The heading needs no hold at rest: with the band, Rowan's draws
+stood 180 s in the middle street and their heading moved 0.1 deg (9 on the
+C1).
+
+![Found from behind its station's wall: a humanoid 2 m out, its belief set
+2 m and 12 deg wrong (stage 2's figure, "Where the humanoids get lost"),
+walks to where it believes the standoff is -- truly the south garden,
+outside the station's own wall -- looks round and searches the garden's
+viewpoints round where it believes the station is, comes in by the garden
+door at about 150 s, sees the station, walks nearer by what it saw, puts
+its belief right (1.7 m and 11 deg) and plugs itself in at 209 s, a tile
+every 16 s (`station_spike.py --strip lost --lost-from station --lost-off
+-1.606,-1.192,12`, every other tile)](figures/humanoid_station_far_found.png)
+
+**What its cameras read of the station** (`station_spike.py --reach`: set
+out of the station's face and off its axis, facing it, a decode of each
+camera; the belief is the truth there, so what is measured is the look).
+The colour imager the dock looks by reads the pair within 1 m and nothing
+past 1.25 m -- the tags rise out of its view -- and it was all the search
+had: from 1.5 m off and further it found the station 0 times in 43 (stage
+2). The head's navigation camera, pitched for the walls' signs, reads both
+60 mm tags square-on from 0.8 m to 4.5 m, one from 30 deg off the station's
+face to 5 m (the parked plug hides the far tag from about 20 deg), and
+from 50 deg only within 1.5 m:
+
+| out of the face | tags the head's camera read, 0 / 15 / 30 / 50 deg off its axis | the pair fitted off them: its facing, its place |
+|---|---|---|
+| 0.8-1.0 m | 2 / 2 / 2 / 1-2 | within 0.7 deg, 8 mm |
+| 1.25-1.5 m | 2 / 2 / 1 / 1 | within 1.9 deg, 10 mm |
+| 2-2.5 m | 2 / 2 / 1 / 0 | 1.0-5.5 deg, 7-54 mm |
+| 3-4.5 m | 0-2 / 0-2 / 1 / 0 | 0.6-28.6 deg, 7-61 mm |
+| 5 m | 0 / 0 / 1 / 0 | |
+
+A far look says where the station is to a few centimetres and which way
+it faces to tens of degrees: the pair is 18 cm across, and a centimetre of
+range between its two tags turns it 3 deg.
+
+**The search** (`charge.LOST_*`, `NEAR_*`):
+
+- *A look round where it stands*, a decode every 60 deg (the places'
+  look-around, `humanoid.places`): lost within a room of it, the robot sees
+  the station from there.
+- *Then viewpoints outward from where it believes the standoff is*, over
+  its own map, the nearest by the walk first, a look round at each, its
+  walks stopping as soon as a decode shows a tag (`next_viewpoint`, the
+  find's search; `HumanoidPlaces.see_station` notes every look of the head
+  that shows one). An askew belief puts the station's believed place in
+  another room or the garden, and the true one a walk or two away. ⚠
+  ROUND THE STATION'S BELIEVED PLACE, NEVER ROUND THE ROBOT: lost 5 m away,
+  a search round itself walks off from the station.
+- *Seen, nearer by what it saw* (`_near_station_routine`): to `NEAR_M` (1
+  m) out of the station as the newest look placed it (`charge.rough`: the
+  pair fitted, or one tag where it is and facing as its own rotation says,
+  either never more than 60 deg off the way it was seen from), facing it,
+  and a look of the colour imager and of the head's camera. ⚠ NEVER A FIX
+  OFF A FAR LOOK: put right 20 deg wrong, the robot lays its map askew
+  again. A look that fits the station there -- the colour imager's, or the
+  head camera's with both tags within 1.6 m (`near_fit`) -- is the fix.
+- *Bounded*: `LOST_PATIENCE_S` (600 s), or the pack empty
+  (`HubLifecycle._search_routine`); seen and never near after two rounds of
+  four tries, it says so (`seen, never near`).
+
+**Walks that never got there, and their time** (`HubLifecycle.
+go_charge_routine`). Five of stage 2's lost flights never searched, their
+walks to where they believed the standoff was finding no route through a
+map laid askew: two walks that gave up anywhere are a robot lost too,
+searched for once from where they ended, unless the other robot stopped
+them. The walk itself is given 6 s a metre of the straight line, at least
+the 90 s it had (`CHARGE_WALK_S_M`): home from the storeroom, 22 m in a
+straight line, #581's drift flights walked 70-82 s and up to 117. And a
+dock that saw the station and never got in goes again from the standoff,
+once a charge: 6 of the 117 stations found in the first sweep were never
+got in, the walker's step 4-5 cm inside the seat, which it cannot back off
+(#581, "The band served").
+
+**A fall** (`HumanoidMission._after_physics`; `humanoid_drift_spike.py
+--falls`: shoved over six ways, 300 N for 0.3 s, after a 120 s explore). The
+odometry stepped while the get-up policy had the legs, following a
+tumbling body's feet: a fall walked the belief 1.7-2.1 m in stage 2's
+flights and Luca's 3.7 m live, past the wide search's 2 m. It is held
+through the get-up, and stood, its planted foot is read afresh -- the foot
+planted before the fall counted the whole get-up's move at once. Luca's
+draws in the workshop and Rowan's in the garden, staging's code and this
+stage's, 9 of 12 stood each (three wedged in the workshop and the garden
+were still getting up at 40 s, on either):
+
+| | staging | the odometry held |
+|---|---|---|
+| the body moved during the get-up | 0.20-1.33 m | the same |
+| the belief moved during the get-up | 0.47-2.10 m | 0.00 |
+| the belief off as it stood | 0.49-2.39 m | 0.07-1.58 |
+| 5 s on | within 0.09 m | within 0.07 |
+
+What a held belief is off by as it stands is what the get-up moved the
+body and what the stagger before the fall left (the legs track a stagger
+under a shove only to 0.1-1.0 m); the matcher's searches took every one
+back within 5 s, the wide search the furthest (`relocated`). Held, the
+belief can be no further off than the fall carried the body; walked, it
+went 3.7 m live.
+
+**The heading at rest, read before and after** (stage 2 asked for it to be
+read first). Rowan's draws stood 180 s in the middle street: on the C1 its
+heading went from +0.4 to +9.2 deg -- its gyro's offset, nothing matched --
+and its next walk passed the facility's gate a metre off and ended 6.2 m
+off. With the band (staging 44f28e4) it went from -0.06 to +0.08 deg,
+every scan matched, and both its flights docked; with the offset taken off
+(`--learned`), 0.81 to 0.81. The band's matcher takes the offset off
+wherever it stands, bowed at a counter too: no zero-rate update.
+
+**Measured** (`station_spike.py --lost --far`, flown on Vast CPU pods, each
+trial a process; staging is 44f28e4, both with the workshop's start moved
+off its table -- stage 2's put the robot inside it):
+
+| | staging | this stage |
+|---|---|---|
+| belief 1-5 m and 5-20 deg wrong: 2 m out (15), the house's six rooms (72), across the street (36) | **14 of 123** docked; 5 never searched, their walks out of time | **118 of 123**; every station found was plugged into |
+| ...explored 120 s first, its map laid through the wrong belief: the rooms (18), across the street (9) | **2 of 27** | **24 of 27** |
+| found, where the search began within 5 m of the truth | 15 of 103 | **107 of 107** |
+| ...where it began 5 m and more off | 0 of 38 | 32 of 40 |
+| the search, when it found the station | median 33 s | median 96 s; 9 in 10 within 242 s |
+| the whole charge, when it docked | median 93 s | median 175 s; 9 in 10 within 381 s |
+
+The drift batch (`humanoid_drift_spike.py`, #572's 14 flights and #581's
+16 more seeds) docked 30 of 30 (#581's review: 29); its beliefs are those
+flights' to the millimetre until the charge, the code unchanged before it.
+The one #581 lost, Rowan's draws on their second walk home, found no route
+to the standoff again; this time it searched, found the station in 58 s
+and docked. The station's own batches: from round the standoff 14 of 15
+(the dock alone, unchanged: one never lined up), its belief 0.4-1 m wrong
+16 of 16 (each search found it in 4-50 s; staging after #581's review, 13),
+from across the house 16 of 16.
+
+**Not done.** What the search does not reach is a robot lost 5 m and more
+off across the street: its walk home ends outside the house's south fence,
+in the street or on its sidewalk, and 8 such searches in 40 ran out of their
+600 s there (or out of viewpoints, once). Stage 4's station in the research
+center would put a robot right before it crossed back, and is Ben's call on
+this reading. The walker's seat (#581) is what is left of a charge from its
+standoff.
 
 ## Debugging workflow that worked
 

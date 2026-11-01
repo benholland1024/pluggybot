@@ -20,8 +20,9 @@ What it answers:
                      IMU -- the 2D scan the map is laid from and matched by
                      (#581's stage 2), with where on each bearing it may
                      first clear a wall (`Scan`)
-  scan, scan_split   the LEVEL RING, its 360 bearings at 0 deg: the walls
-                     a lost robot steps toward (`HumanoidBody.lost_routine`)
+  scan, scan_split   the LEVEL RING, its 360 bearings at 0 deg: the
+                     Navigator's default scan and the instruments' (nothing
+                     the humanoid decides reads it since #572's stage 3)
   cloud              every return, a point in the sensor's frame, the
                      room's and another robot's apart
 
