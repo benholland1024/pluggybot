@@ -3857,8 +3857,9 @@ a tile every 15 s (`lidar_spike.py --strip`)](figures/humanoid_lidar_walk.png)
 
 **The part.** Livox's Mid-360S (its sheet: 360 x 59 deg, 200,000 points a
 second at 10 Hz, a range's sigma <= 2 cm at 10 m and <= 4 cm at 0.2 m, 0.15
-deg, a 0.1 m blind zone, 265 g, 6.5 W; €772.95 at Funduino). Unitree's G1
-carries a Mid-360 upside down in its head. Against it:
+deg, a 0.1 m blind zone, 265 g, 6.5 W; €772.95 at Funduino), Ben's choice
+(call 2, 2026-11-01). Unitree's G1 carries a Mid-360 upside down in its
+head. Against it:
 
 | | Mid-360S | Unitree L2 | Mid-360L |
 |---|---|---|---|
@@ -3963,7 +3964,8 @@ One robot alone: 2.76 (staging), 2.77 (the level ring), 2.01 (the band).
 Served on the level ring, the pair runs as fast as before. With the band
 at 10 Hz each robot casts 108,000 rays a second, 0.28 s of the deploy box's
 every sim second for the pair, and it ran at about real time: serving it
-needs fewer rays a second (call 3): half the rings gave 1.17-1.42.
+needs fewer rays a second. Half the rings gave 1.17-1.42, and stage 2
+casts 15 at 10 Hz (Ben's call 3, 2026-11-01).
 
 **The probe on its model** (`lidar_spike.py --probe`: #572's static probe,
 the robot standing at every outdoor point 0.5 m apart, from its true pose,
@@ -4052,8 +4054,9 @@ time 10 m short, as the C1's had).
 and the IMU's tilt, so a bowed robot maps and matches; the D435's low
 layer kept only for what the LIDAR cannot see by the feet, measured; every
 reader of the grid checked against it; the matcher's reach read again; the
-dock steady under the band; and the band's cost cut to what the pair can
-serve (call 3) -- `MAP_EPOCH` bumped at its deploy.
+dock steady under the band; and the band cut to 15 rings at 10 Hz (Ben's
+call 3), the drift batch flown again on it -- `MAP_EPOCH` bumped at its
+deploy.
 
 ## Debugging workflow that worked
 

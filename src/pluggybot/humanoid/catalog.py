@@ -454,8 +454,8 @@ PARTS: tuple[Part, ...] = (
                   "interface": "100BASE-TX Ethernet",
                   "imu": "ICM-40609",
                   "ip": "IP67"},
-    note="The head's LIDAR since #581, upside down as Unitree's G1 carries a Mid-360: its "
-         "rays reach the floor 1.15 m out and see the house's 0.9 m fences, which the C1's "
+    note="The head's LIDAR since #581 (Ben's call 2, 2026-11-01), upside down as Unitree's "
+         "G1 carries a Mid-360: its rays reach the floor 1.15 m out and see the house's 0.9 m fences, which the C1's "
          "one plane 1.41 m up passed over. Livox's sheet (livoxtech.com/mid-360s/specs): "
          "14 W self-heating below 0 C; the Mid-360's manual adds 18 W for about 8 s at "
          "start-up. Funduino (DE): only 3 left; OpenELAB lists the Mid-360 at EUR 755-812. "

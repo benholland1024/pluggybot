@@ -99,7 +99,8 @@ outdoors it saw only the buildings' walls, 6-8 m off in the middle street,
 and 9 of #572's 14 drift flights came home lost (SimNotes, "Where the
 humanoids get lost"). Raising the fences to 1.8 m fixed it (14 of 14
 docked), and Ben chose the sensor over the fences (2026-11-01): the real
-world has low fences a robot must neither cross nor ignore. The part is
+world has low fences a robot must neither cross nor ignore -- and the
+Mid-360S of the candidates below (call 2, the same day). The part is
 `perception/lidar.py`: 30 rings 2° apart from -52 to +6°, 360 bearings
 each, in one `mj_multiRay` at its 10 Hz (its manual: a 0.1 s frame covers
 the field as "a 32-line mechanical LiDAR"), its sheet's range noise (≤ 4 cm

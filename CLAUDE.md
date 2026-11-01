@@ -530,7 +530,8 @@ save a filmstrip PNG named after the script.
   ahead and either side; at the C1's 4.7 cm the head hid every ray under
   31-35 deg. ⚠ A FRAME COSTS 14-17 ms on the deploy box (the level ring
   0.5-0.7, a D435 frame 11): with the band at 10 Hz the pair ran at about
-  real time (0.97-1.15x, `humanoid_spike.py --speed --band`), call 3's. ⚠
+  real time (0.97-1.15x, `humanoid_spike.py --speed --band`): stage 2
+  casts 15 rings at 10 Hz (Ben's call 3, 2026-11-01; 1.17-1.42x). ⚠
   WITH THE BAND, A DOCK'S MATCHER MOVED THE BELIEF 3.4 TIMES AS OFTEN at the
   station's near returns, and the seat and the plug-in, placed through it,
   failed 5 docks in 47 (the level ring 1, staging none): stage 2's to

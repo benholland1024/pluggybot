@@ -119,14 +119,13 @@ def _sigma(dist: np.ndarray) -> np.ndarray:
 
 class Cloud(NamedTuple):
   """One frame's returns, in the sensor's frame (x ahead, z up the robot):
-  the room's `points` and another robot's `peers`, each with the bearing it
-  was cast on (an index into `Lidar.ray_angles`); `seen` is the bearings
-  any ray of went somewhere other than the robot itself."""
+  the room's `points` and another robot's `peers`; `looked` is each ray (in
+  `Lidar._dirs`' order) that went somewhere other than the robot itself,
+  and `seen` the bearings (`Lidar.ray_angles`) any of those was cast on."""
   points: np.ndarray
-  bearings: np.ndarray
   peers: np.ndarray
-  peer_bearings: np.ndarray
   seen: np.ndarray
+  looked: np.ndarray
 
 
 class Lidar:
@@ -170,19 +169,12 @@ class Lidar:
     #: are real measurements and `scan_split` answers them separately, for
     #: the consumers that must see a robot -- the front stop above all.
     self._other_geoms: set = set()
-    #: Something this robot carries: its own for the scan, as its body is.
-    self._carried_geoms: set = set()
     self._index_geoms()
 
   def _index_geoms(self) -> None:
     """The geom sets as arrays, for a scan's `np.isin`."""
-    self._self_ids = np.fromiter(self._self_geoms | self._carried_geoms, dtype=np.int32)
+    self._self_ids = np.fromiter(self._self_geoms, dtype=np.int32)
     self._other_ids = np.fromiter(self._other_geoms, dtype=np.int32)
-
-  def carry(self, body: str | None) -> None:
-    """A body this robot carries is its own to the scan, or None."""
-    self._carried_geoms = set() if body is None else self._robot_geoms(self.model, body)
-    self._index_geoms()
 
   def exclude_robot(self, root_name: str) -> None:
     """Another robot's body out of the map's returns (see `_other_geoms`)."""
@@ -277,11 +269,11 @@ class Lidar:
       if self.noise:
         jitter = rng.normal(0.0, ANGLE_SD, (2, len(idx)))
         el, az = el + jitter[0], az + jitter[1]
-      out.append((_unit(el, az) * r[:, None], self._bearing[idx]))
-    (points, bearings), (peers, peer_bearings) = out
+      out.append(_unit(el, az) * r[:, None])
+    points, peers = out
     seen = np.zeros(BEARINGS, dtype=bool)
     seen[self._bearing[~mine]] = True
-    return Cloud(points, bearings, peers, peer_bearings, seen)
+    return Cloud(points, peers, seen, ~mine)
 
   def band(self, data, level: np.ndarray, height: float,
            band_m: tuple[float, float] = BAND_M) -> tuple[np.ndarray, np.ndarray,
@@ -289,37 +281,42 @@ class Lidar:
     """The cloud laid flat into a 2D scan, `scan_split`'s four arrays: each
     point levelled through `level` (the robot's tilt, level from its root
     body: its IMU's, `imu.Attitude.level`) and set `height` over the floor
-    (its root's, off its own model), and per bearing the nearest whose
-    height is within `band_m`, its bearing and range from the scan's
-    origin (the sensor's place on the robot, unlevelled: what the map lays
-    a scan from). A bearing with none there that saw anything is free to
-    max range; one the robot hid from itself, absent."""
+    (its root's, off its own model), and per bearing -- the point's own,
+    levelled, from the scan's origin (the sensor's place on the robot,
+    unlevelled: what the map lays a scan from) -- the nearest whose height
+    is within `band_m`. A bearing with none there is free to max range
+    where a ray, levelled, looked along it; else absent. ⚠ BINNED BY THE
+    BEARING LEVELLED, never the one a ray was cast on: tilted, a steep ray
+    levels a degree or more aside, and a free ray laid down a neighbour's
+    return would clear the very cell it struck."""
     c = self.cloud(data)
     rot = np.asarray(level, dtype=float) @ self.turn
     base = np.asarray(level, dtype=float) @ self.offset
     lo, hi = band_m
 
-    def flat(points, bearings):
+    def flat(points):
       q = points @ rot.T + base
       z = height + q[:, 2]
-      keep = (z >= lo) & (z <= hi)
-      v = q[keep, :2] - self.offset[:2]
+      v = q[:, :2] - self.offset[:2]
       r = np.hypot(v[:, 0], v[:, 1])
-      keep_r = r < self.max_range
-      v, r, b = v[keep_r], r[keep_r], bearings[keep][keep_r]
-      a = np.arctan2(v[:, 1], v[:, 0])
+      keep = (z >= lo) & (z <= hi) & (r < self.max_range)
+      a, r = np.arctan2(v[keep, 1], v[keep, 0]), r[keep]
+      b = _bin(a)
       best = np.full(BEARINGS, np.inf)
       np.minimum.at(best, b, r)
-      first = np.isfinite(best)
+      have = np.isfinite(best)
       # ...each bearing's nearest point, its own angle kept
       pick = np.zeros(BEARINGS, dtype=np.int64)
       on = np.flatnonzero(r == best[b])
       pick[b[on]] = on
-      return first, a[pick[first]], best[first]
+      return have, a[pick[have]], best[have]
 
-    have, angles, ranges = flat(c.points, c.bearings)
-    p_have, peer_angles, peer_ranges = flat(c.peers, c.peer_bearings)
-    free = c.seen & ~have & ~p_have
+    have, angles, ranges = flat(c.points)
+    p_have, peer_angles, peer_ranges = flat(c.peers)
+    d = self._dirs[c.looked] @ rot.T
+    seen = np.zeros(BEARINGS, dtype=bool)
+    seen[_bin(np.arctan2(d[:, 1], d[:, 0]))] = True
+    free = seen & ~have & ~p_have
     fa = self.ray_angles[free]
     a = np.concatenate((angles, fa))
     order = np.argsort(np.concatenate((np.flatnonzero(have), np.flatnonzero(free))),
@@ -340,6 +337,11 @@ class Lidar:
     return float(self.hidden(data).mean())
 
 
+def _bin(a: np.ndarray) -> np.ndarray:
+  """Bearings, rad, to the nearest of `Lidar.ray_angles`' indices."""
+  return np.round((np.asarray(a) + math.pi) / (2 * math.pi / BEARINGS)).astype(np.int64) % BEARINGS
+
+
 def _unit(el: np.ndarray, az: np.ndarray) -> np.ndarray:
   """Directions at elevations `el` and bearings `az`, rad: (n, 3)."""
   c = np.cos(el)
@@ -352,7 +354,7 @@ def _site_in(model, site: int, root_name: str) -> tuple[np.ndarray, np.ndarray]:
   pos = np.array(model.site_pos[site], dtype=float)
   mat = np.zeros(9)
   mujoco.mju_quat2Mat(mat, model.site_quat[site])
-  rot = mat.reshape(3, 3)
+  rot = mat.reshape(3, 3).copy()
   try:
     root = model.body(root_name).id
   except KeyError:

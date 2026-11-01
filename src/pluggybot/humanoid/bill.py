@@ -353,7 +353,7 @@ PARTS: tuple[Part, ...] = (
   _bought("radiomaster_er6", usedBy=(hm.ROBOT_ROOT,)),
   _bought("pololu_rc_relay", usedBy=(hm.ROBOT_ROOT,)),
   _bought("molicel_p28a", quantity=2),
-  _bought("meanwell_ddr_30l_12", usedBy=(hm.ROBOT_ROOT,)),
+  _bought("meanwell_ddr_30l_12", usedBy=(hm.ROBOT_ROOT,), quantity=2),
   _bought("arcol_hs25_47r", usedBy=(hm.ROBOT_ROOT,)),
   _bought("hongfa_hf115f_012", usedBy=(hm.ROBOT_ROOT,)),
   # ---- shop: what the build needs to make its pack, its harness and its

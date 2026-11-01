@@ -3,7 +3,7 @@ humanoid -- the map, the planner, the LIDAR, the scan matcher and the drive
 the quadruped walks by -- with what only this body says: where it believes
 it is (its leg odometry and IMU, `humanoid.odometry`), how it walks a
 velocity (its walking policy, `humanoid.walk`), its front stop, and what
-its depth camera sees under its LIDAR's plane.
+its depth camera sees under its LIDAR's level ring.
 
 ⚠ ITS MAP IS LAID FROM ITS LIDAR'S LEVEL RING, 1.47 m up, OVER every
 table, counter, couch and bed in the house: a map of that plane alone plans

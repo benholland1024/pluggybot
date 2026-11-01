@@ -303,21 +303,29 @@ def walk_world():
   return model, data, body
 
 
-def dots(model, data, body) -> list[tuple[np.ndarray, np.ndarray]]:
-  """Where this frame's returns truly are, to draw: per bearing the
-  nearest point in the band (red) and the level ring's returns (blue), off
-  the sensor's true pose -- what it sampled, not where its map put it."""
-  lidar = body.mission.lidar
-  site = model.site(body.handle.el("lidar")).id
-  pos = data.site_xpos[site].copy()
-  mat = data.site_xmat[site].reshape(3, 3).copy()
+def watcher(model, body) -> ld.Lidar:
+  """The LIDAR as a watcher draws it: the robot's own part, cast on a noise
+  stream of its own -- drawn off the robot's, watching moved the flight."""
+  return ld.Lidar(model, site_name=body.handle.el("lidar"), robot_body=body.handle.root,
+                  seed=581)
+
+
+def dots(model, data, lidar: ld.Lidar) -> list[tuple[np.ndarray, np.ndarray]]:
+  """Where this frame's returns truly are, to draw (`lidar`, a `watcher`):
+  per bearing the nearest point in the band (red) and the level ring's
+  returns (blue), off the sensor's true pose -- what it sampled, not where
+  its map put it."""
+  pos = data.site_xpos[lidar.site_id].copy()
+  mat = data.site_xmat[lidar.site_id].reshape(3, 3).copy()
   c = lidar.cloud(data)
   world = c.points @ mat.T + pos
   out = []
   band = (world[:, 2] >= ld.BAND_M[0]) & (world[:, 2] <= ld.BAND_M[1])
-  pts, b = world[band], c.bearings[band]
+  pts = world[band]
   if len(pts):
-    r = np.hypot(pts[:, 0] - pos[0], pts[:, 1] - pos[1])
+    dx, dy = pts[:, 0] - pos[0], pts[:, 1] - pos[1]
+    r = np.hypot(dx, dy)
+    b = ld._bin(np.arctan2(dy, dx))
     best = np.full(ld.BEARINGS, np.inf)
     np.minimum.at(best, b, r)
     keep = r == best[b]
@@ -350,6 +358,7 @@ def view() -> None:
   from mujoco import viewer as mj_viewer
   from pluggybot import tick
   model, data, body = walk_world()
+  eye = watcher(model, body)
   print("the walk: the living room to the storeroom across the street, its map laid from "
         "its points laid flat; its LIDAR's returns drawn every 0.1 s -- red, the nearest "
         "0.15-2.2 m over the floor each bearing; blue, the level ring its map is laid from "
@@ -365,7 +374,7 @@ def view() -> None:
     def frame():
       nonlocal marks
       if int(round(data.time / model.opt.timestep)) % 50 == 0:
-        marks = dots(model, data, body)
+        marks = dots(model, data, eye)
       if int(round(data.time / model.opt.timestep)) % 10 == 0:
         with viewer.lock():
           viewer.user_scn.ngeom = 0
@@ -398,6 +407,7 @@ def strip(out: str = "lidar_spike.png", tiles: int = 9, w: int = 480, h: int = 3
   from PIL import Image, ImageDraw
   from station_spike import zone_of
   model, data, body = walk_world()
+  eye = watcher(model, body)
   r = mujoco.Renderer(model, h, w)
   shots: list = []
   due = [5.0 + k * 15.0 for k in range(tiles)]
@@ -411,7 +421,7 @@ def strip(out: str = "lidar_spike.png", tiles: int = 9, w: int = 480, h: int = 3
       # from behind it, looking the way it faces
       cam.distance, cam.azimuth, cam.elevation = 6.5, math.degrees(yaw), -32.0
       r.update_scene(data, cam)
-      draw(r.scene, dots(model, data, body))
+      draw(r.scene, dots(model, data, eye))
       img = Image.fromarray(r.render())
       x, y, _ = body.true_pose()
       ImageDraw.Draw(img).text((8, 8), f"t={data.time:5.1f} s, in the {zone_of(x, y)}",

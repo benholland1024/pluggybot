@@ -1436,7 +1436,7 @@
     }
    ],
    "why": {},
-   "note": "The head's LIDAR since #581, upside down as Unitree's G1 carries a Mid-360: its rays reach the floor 1.15 m out and see the house's 0.9 m fences, which the C1's one plane 1.41 m up passed over. Livox's sheet (livoxtech.com/mid-360s/specs): 14 W self-heating below 0 C; the Mid-360's manual adds 18 W for about 8 s at start-up. Funduino (DE): only 3 left; OpenELAB lists the Mid-360 at EUR 755-812. It takes the Pi 5's Ethernet port, and its own 12 V converter (`meanwell_ddr_30l_12`: its start-up and the contactor's coil are past one's 30 W). No cable in the box: `livox_m12_cable`."
+   "note": "The head's LIDAR since #581 (Ben's call 2, 2026-11-01), upside down as Unitree's G1 carries a Mid-360: its rays reach the floor 1.15 m out and see the house's 0.9 m fences, which the C1's one plane 1.41 m up passed over. Livox's sheet (livoxtech.com/mid-360s/specs): 14 W self-heating below 0 C; the Mid-360's manual adds 18 W for about 8 s at start-up. Funduino (DE): only 3 left; OpenELAB lists the Mid-360 at EUR 755-812. It takes the Pi 5's Ethernet port, and its own 12 V converter (`meanwell_ddr_30l_12`: its start-up and the contactor's coil are past one's 30 W). No cable in the box: `livox_m12_cable`."
   },
   {
    "id": "livox_m12_cable",
@@ -2169,7 +2169,7 @@
    "dimensionsMm": null,
    "priceEur": 27.1,
    "priceFor": "each",
-   "quantity": 1,
+   "quantity": 2,
    "capabilities": {
     "inputV": "18-75",
     "outputV": "12 (9-13.2 adjustable)",

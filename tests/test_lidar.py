@@ -261,6 +261,51 @@ def test_the_band_is_laid_through_the_tilt():
   assert ranges[ahead].min() < 1.5, "the premise: unlevelled, the floor reads as a wall"
 
 
+def test_the_band_lays_no_free_ray_down_a_return():
+  """Tilted, a steep ray's point levels degrees off the bearing it was cast
+  on. Binned by that bearing, a low box 1.4 m ahead -- which only the
+  steep rays reach -- came back on its neighbours' bearings, while its own
+  bearing's rays passed over it and read free: a free ray laid 0.12 deg
+  from its return, clearing the cell it struck. So every return is half a
+  bearing or more from every free ray, the robot rolled 10 deg, in the
+  open."""
+  low = '<geom name="low" type="box" size="0.03 0.03 0.15" pos="1.4 0 0.15"/>'
+  model, data = _world(low)
+  roll = math.radians(10)
+  out = np.zeros(4)
+  mujoco.mju_mulQuat(out, data.qpos[3:7].copy(),
+                     np.array([math.cos(roll / 2), math.sin(roll / 2), 0.0, 0.0]))
+  data.qpos[3:7] = out
+  mujoco.mj_forward(model, data)
+  lidar = _clean(model)
+  level, height = _truth(model, data)
+  angles, ranges, _, _ = lidar.band(data, level, height)
+  hit = ranges < lidar.max_range - 1e-9
+  assert hit.sum() >= 2, "the premise: the band strikes the box"
+  gap = np.abs((angles[hit][:, None] - angles[~hit][None, :] + math.pi) % (2 * math.pi) - math.pi)
+  assert gap.min() >= math.radians(0.5) - 1e-9, \
+    f"a free ray {math.degrees(gap.min()):.2f} deg from a return"
+
+
+def test_the_sensors_turn_is_read_through_its_site_and_its_mount():
+  """The band lays points through the sensor's place and turn on the root
+  (`Lidar.offset`, `Lidar.turn`), read off the model: a site turned on a
+  mount turned is both turns, as the compiled world has them."""
+  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN))
+  spec.body("lidar_mount").quat = [math.cos(0.15), 0.0, 0.0, math.sin(0.15)]
+  spec.site("lidar").quat = [math.cos(0.2), math.sin(0.2), 0.0, 0.0]
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  lidar = _clean(model)
+  root = model.body("pluggybot").id
+  rot = data.xmat[root].reshape(3, 3)
+  site = model.site("lidar").id
+  assert np.allclose(lidar.turn, rot.T @ data.site_xmat[site].reshape(3, 3), atol=1e-9)
+  assert np.allclose(lidar.offset, rot.T @ (data.site_xpos[site] - data.xpos[root]), atol=1e-9)
+
+
 def test_its_noise_is_its_robots_own():
   """Two robots' LIDARs draw apart, one robot's the same twice: the seed
   is off its name (`imu.seed_for`), never `hash()` or a shared 0."""

@@ -33,8 +33,8 @@ observatory is NOT a result: it reports into the issue it informs.
   stage 2 re-prices them.
 - Nothing in the prompt, the schema, the arm or the reward table moved.
 
-**Why.** #581's stage 1: the part chosen, mounted and measured, before
-its points are served (Ben's call 2 confirms the part).
+**Why.** #581's stage 1: the part chosen (Ben's call 2, 2026-11-01),
+mounted and measured, before its points are served.
 
 **What the period is for.** That nothing the robots do moved: their drift
 (`drift` rows), their charges and their falls, read against the period
