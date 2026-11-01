@@ -1008,15 +1008,20 @@ save a filmstrip PNG named after the script.
   interval and a 10 % share — and the answer comes from `$PLUGGY_ESCALATE_TO`
   (off this period). ⚠ Billed is billed (metered BEFORE the parse). ⚠ **It
   covers the ROUTINE mind** (#225): a spent purse refuses the next call as
-  `fallback:allowance` (policy class). The deployed purse is 9.30 a week (=
-  $40 a month, Ben's cap), ⚠ PINNED IN THE WEBSITE'S `compose.yaml`
-  (rooftop-media-2026 #404): unset, the image's own default is $10, and every
-  run from 2026-09-17 until that pin flew at $10 (Observatory.md). ⚠ Points
-  buy ACCESS, never money. Three operator
+  `fallback:allowance` (policy class). The deployed purse is $20 a week since
+  2026-10-31 (the box's `.env`, over the WEBSITE'S `compose.yaml` pin of
+  9.30, $40 a month, rooftop-media-2026 #404): unset, the image's own
+  default is $10, and every run from 2026-09-17 until that pin flew at $10
+  (Observatory.md). ⚠ Points buy ACCESS, never money. Three operator
   modes from `$PLUGGY_MODE_FILE`, never written by the robot: `llm`,
   `scripted`, `paused`. ⚠ Unreadable or unknown means `llm` (failing safe here
   is failing OPEN). ⚠ A paused robot emits no frames, so `mode` is a MESSAGE
-  with a heartbeat too, and `RealTimePacer.resync()` on resume.
+  with a heartbeat too, and `RealTimePacer.resync()` on resume. ⚠ THE FILE
+  IS ON THE SWITCH'S OWN VOLUME (#562; `pluggy_switch`, read-only in the
+  sim): the website writes it, by hand and on its schedule (weekends as
+  decided, the hours an admin's setting, off until an admin turns it on),
+  and mounts nothing else of the sim's; both robots of a pair are told a
+  pause.
 - **Which model is `$PLUGGY_MODEL`; which backend is `--overseer-backend` /
   `$PLUGGY_OVERSEER_BACKEND`** (issue #19; Overseer.md §6): an `org/name` id
   goes to the HuggingFace router (`mind/llm.py`), a bare id to the Anthropic
