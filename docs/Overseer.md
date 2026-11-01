@@ -750,10 +750,10 @@ event type (`protocol.ACT_EVENT_TYPES`):
 - `tell {to, text}` — one sentence into the other's inbox as a message
   from a NAMED robot, shown to it exactly as a visitor's message is
   (something someone said, never an instruction). A statement about the
-  world in it — whether the charging station is free, a board's ink, and,
-  against the empty rack the context still carries (§2i), a bay's emptiness
-  or a module on the rack — is checked by `acts.check_claim` and the truth
-  recorded; prose is unchecked, which the record keeps apart from false.
+  world in it — whether the charging station is free, a board's ink — is
+  checked by `acts.check_claim` and the truth recorded; prose is unchecked,
+  which the record keeps apart from false, and so is a claim about the
+  quadruped's rack since #579 (§2i).
 - `give_points {to, amount}` — `Ledger.transfer`, the FOURTH door beside
   `award`, `consume` and `intervene`: conserved across the pair, never
   `earned`, the identity `granted + earned − consumed − spent − given +
@@ -1439,9 +1439,9 @@ offers were `take_points`, the harm kind.
    written `test`, was meant, and a ticket like it now goes whole. ⚠ Never
    placeholders: a number (an answer, an id, "5" to a sum), two letters
    (`ok`, `hi`, `no`), a character outside ASCII (an emoji, `好`). Never
-   judged: `answer`, `cites`, a visitor's `reply` (it rides an id only a
-   waiting message has), a finding's unit, a note's topic and title (`C`,
-   for bay C) and a procedure's name.
+   judged: `cites`, a visitor's `reply` (it rides an id only a waiting
+   message has), a finding's unit, a note's topic and title (`B`, for
+   whiteboard B) and a procedure's name.
 2. **An answer full of them acts on nothing it cannot show.** When three or
    more fields hold one, `UNSHOWN_PAPERWORK` goes too: the heart and whom it
    is for, the gift, the rating, the guess at the other's need, and `done`.
@@ -2128,7 +2128,7 @@ No branch reads `satisfied` and declines a job, none reads `starving` and
 declines anything, and nothing in the survival loop reads a balance — enforced
 by absence, so the test is a whole day flown broke on the stub and commanded
 exactly as the same day flush
-(`test_a_starving_robot_still_charges_navigates_and_stows`), plus a grep over
+(`test_a_starving_robot_still_charges_and_navigates`), plus a grep over
 every branch that could grow a gate. The loop with no mind is untouched: it
 has no goals to spend free time on.
 

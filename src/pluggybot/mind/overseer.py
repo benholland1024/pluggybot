@@ -955,7 +955,7 @@ def _word(text) -> str:
 #: goes (a weighing whose method said "none" is still graded). ⚠ Never
 #: judged: `cites` and `respond_to` (ids); a visitor's `reply`
 #: (`PLACEHOLDER_KEPT`); a finding's `unit` (`m`, `s`, `g`); a note's topic
-#: and title, which the robot names (`C`, for bay C); a procedure's `name`
+#: and title, which the robot names (`B`, for whiteboard B); a procedure's `name`
 #: (its `def` line's); the answer's own three and the action's parameters.
 PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
                     "retract", "done", "lookup", "say")
@@ -1852,13 +1852,8 @@ class Menu:
 
 
 def claimable_offers(state: dict) -> list[dict]:
-  """The jobs a standing order may take, oldest first (issue #125).
-
-  Claimable, and never one that asks a question (issue #22): an order fires
-  exactly when the mind is missing, and the two ways code could supply an
-  answer -- reading it out of the bank, or guessing -- are both worse than
-  leaving the offer alone.
-  """
+  """The jobs a standing order may take, oldest first (issue #125): the
+  claimable ones."""
   # ...and never a job whose CLAIM IS THE ACT (issue #228, `TaskKind.
   # discharge == "act"`): taking one does something to another robot, and
   # a standing order taking it would be code deciding that. Only a decision
@@ -1866,7 +1861,6 @@ def claimable_offers(state: dict) -> list[dict]:
   from pluggybot.economy.tasks import KINDS
   return [t for t in (state.get("offeredTasks") or ())
           if isinstance(t, dict) and t.get("claimable") and t.get("id")
-          and not t.get("needsAnswer")
           and getattr(KINDS.get(str(t.get("kind"))), "discharge", "") != "act"]
 
 
@@ -3173,8 +3167,8 @@ def context_for(life, visitors=(), tasks=(),
   empty -- where the caller has none (the probe's synthetic state).
 
   `others` (issue #167) is what the OTHER robots broadcast -- name, reported
-  pose, state, what they carry -- built by `lifecycle.others_context` from
-  their public surface and nothing else.
+  pose, state, the line they narrate -- built by `lifecycle.others_context`
+  from their public surface and nothing else.
 
   Read off the live lifecycle rather than accumulated separately, so it cannot
   drift from what the robot actually is. Everything published elsewhere is

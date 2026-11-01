@@ -48,8 +48,7 @@ class Clock:
 
 def answer(**over) -> str:
   raw = {"action": "explore", "zone": "garden", "reason": "mapping",
-         "board": "", "program": "", "note": "", "respond_to": "",
-         "outcome": "", "reply": "", "task": "", "answer": "",
+         "note": "", "respond_to": "", "outcome": "", "reply": "", "task": "",
          "pin": "", "unpin": "", "escalate": False}
   raw.update(over)
   return json.dumps(raw)

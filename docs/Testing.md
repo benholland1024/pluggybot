@@ -48,7 +48,7 @@ and wall clock tracks the machine. So:
    `tests/test_humanoid_served.py`), short and stopped on its claim.
    ⚠ A stub manoeuvre takes NO sim time, so a step hook never sees one:
    wrap the body's routines and read what the loop commanded, with what
-   (`test_a_starving_robot_still_charges_navigates_and_stows`). And a gate
+   (`test_a_starving_robot_still_charges_and_navigates`). And a gate
    that refuses forever SPINS at one instant instead of failing — the clock
    that would end the day never moves — so end it from the spy with
    `MissionAborted` and fail on that. A stub waiting sim-hours may run a

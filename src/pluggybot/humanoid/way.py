@@ -59,9 +59,6 @@ class HumanoidWay:
   #: MEASURED over six doorways of the house (`scripts/make_way_spike.py`),
   #: the stand-up (2.2 s) and a walk of 0.82-0.88 m took 6.7-8.9 s.
   ASIDE_WALK_M, ASIDE_BUDGET_S = 6.0, 30.0
-  #: It rests standing (`resting`), as its record of a step aside says
-  #: (`last_aside`'s `lay`).
-  RESTS_LYING = False
   #: No step aside under way, and when it last moved, sim s (`_init_way`).
   _aside = None
   last_motion_t = 0.0
@@ -241,7 +238,7 @@ class HumanoidWay:
     self.last_aside = {"by": a["by"], "from": a["from"], "to": a["to"],
                        "at": (round(float(x), 3), round(float(y), 3)),
                        "seconds": round(float(self.data.time) - a["t0"], 1),
-                       "why": why, "lay": self.RESTS_LYING}
+                       "why": why}
     return command
 
   def drive_to_routine(self, wx: float, wy: float, timeout: float = 90.0,

@@ -194,8 +194,7 @@ def test_a_refused_answer_is_told_to_the_robot_in_the_fallback_reason(menu):
   the fallback decision's reason, in the words `validate` raised -- the
   action and the source stay the fallback's own.
   """
-  offer = {"id": "t_1", "kind": "open_drawer", "claimable": True,
-           "needsAnswer": False}
+  offer = {"id": "t_1", "kind": "open_drawer", "claimable": True}
   boss = make(menu, full(action="take_task", task="t_9",
                          reason="the drawer is mine to open"))
   d = boss.decide({"offeredTasks": [offer], "tasksThisMission": [],

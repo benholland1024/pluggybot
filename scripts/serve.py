@@ -965,7 +965,8 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "",
   print(f"mission state          : {r['state']}"
         f" (charges={r['charge_cycles']})")
   for e in r["errands"]:
-    print(f"errand {e['errand']:<20s}: {e.get('error') or 'ran'}")
+    ran = "ran" if (e.get("procedure") or {}).get("ok", True) else "cut short"
+    print(f"errand {e['errand']:<20s}: {e.get('error') or ran}")
   print(f"points balance         : {r['points']}"
         f" ({r['earned']} earned over {len(r['verdicts'])} scored task(s))")
   # `.get`, not `[...]`: this is a SUMMARY, and a summary line must never be

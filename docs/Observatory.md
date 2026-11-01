@@ -29,7 +29,10 @@ included:
   `9bd3cf75…` → `7b238b59…` (54 793 → 54 872 characters). With upkeep on
   (not deployed), the upkeep rule no longer suggests drawing something.
 - **The turns.** An offer loses `needsAnswer` (always false), the context
-  `rack` (always `{}`), and each of `others` its `carrying` (always `""`).
+  `rack` (always `{}`), and each of `others` its `carrying` (always `""`);
+  and the other robot's `state` reads `PROCEDURE` while it runs an errand,
+  where it read `SWAP_PICK` and then `USE_TOOL` (the captures below ran no
+  errand, so they do not show it).
   The interrupt turn asks "Carry on and finish it, or stop now and go?",
   the cost being the job scored as it stands, where it told the robot to put
   its tool back on its bracket and stow what it held.
@@ -82,6 +85,9 @@ record is cleaner, and three readings cross the deploy:
   counts. Count both words, and read no rise as a change in behaviour.
 - **`other_needs`**: `a_tool` is no longer a choice; its truth was never
   `a_tool` in this house after #572's stage 1.
+- **A message's claims** (Evaluation.md §3's "findings recorded correctly"):
+  a claim about the quadruped's rack, graded true before (every bay empty),
+  is `unchecked` after, so the true share drops by those rows.
 - **A stand-up's map in the rules**: whether a robot stood back up lays
   its map again (an `explore`, a walk home) sooner now its rules say the
   map is gone, beside History's line saying so.

@@ -893,7 +893,7 @@ class HubLifecycle:
     #: inside a step hook re-enters it. `interrupted()` resolves it on the
     #: main thread, where the errand is.
     self._interrupt_pending = None
-    #: Set once an interrupt has been resolved as "stow and go", and read by
+    #: Set once an interrupt has been resolved as "stop and go", and read by
     #: every later safe point in the same errand: once the robot is heading
     #: home it must not be asked again, which would be the spin the issue
     #: rules out ("one question, one answer").
@@ -1306,15 +1306,12 @@ class HubLifecycle:
     other = self._peer(rec["by"])
     who = other.robot_name if other is not None else rec["by"]
     moved = math.dist(rec["from"], rec["at"])
-    # ...as the body rested when asked: lying, or a humanoid's standing (#559)
-    lay = rec.get("lay", True)
-    was = "lying across" if lay else "standing in"
+    # ...as the body rested when asked: a humanoid rests standing (#559)
     if rec["why"] == "aside":
-      line = (f"{'stood up and stepped' if lay else 'stepped'} {moved:.1f} m aside "
-              f"for {who}, whose way I was {was}")
+      line = f"stepped {moved:.1f} m aside for {who}, whose way I was standing in"
     else:
-      line = (f"{'stood up to step' if lay else 'set off to step'} aside for {who}, "
-              f"whose way I was {was}, and stopped {moved:.1f} m on: "
+      line = (f"set off to step aside for {who}, whose way I was standing in, "
+              f"and stopped {moved:.1f} m on: "
               f"{ASIDE_ENDED.get(rec['why'], rec['why'])}")
     self._say(f"MADE WAY: {line}")
     self._remember(line)
@@ -2131,7 +2128,8 @@ class HubLifecycle:
     """The per-frame robot record for the telemetry recorder: lifecycle
     state, the _say narration, and the battery gauges. The bare message,
     not the formatted log line -- t and battery already ride in the frame,
-    and the site wants "carrying the module", not a duplicate dashboard."""
+    and the site wants "heading for the kitchen", not a duplicate
+    dashboard."""
     return {
       "state": self.state,
       "status": self.status,
@@ -2492,7 +2490,7 @@ class HubLifecycle:
     `MissionAborted` (the viewer closing) is deliberately NOT caught -- that
     is a request to stop, not a failure to recover from.
     """
-    # ---- interruptible from here to the stow (issue #116) ----
+    # ---- interruptible from here to the errand's end (issue #116) ----
     # ⚠ THE FLAGS ARE PER ERRAND AND CLEARED ON THE WAY IN, never on the way
     # out: an errand that raises must not leave the NEXT one already
     # aborting, and `run_errand`'s use phase is arbitrary caller code that
@@ -4481,10 +4479,10 @@ class HubLifecycle:
     side effect hiding behind an attribute read, in a file where
     `needs_charge` next door is genuinely free.
 
-    Call it at a SAFE POINT -- somewhere the tool is in its carry
-    configuration and stowing is legal (a walk is one at every step, #381).
+    Call it at a SAFE POINT -- somewhere stopping leaves nothing half done:
+    between verbs, and a walk at every step (#381).
 
-    ⚠ ONE QUESTION PER ERRAND. Once the answer is "stow and go" every later
+    ⚠ ONE QUESTION PER ERRAND. Once the answer is "stop and go" every later
     safe point reads the latch and nobody is asked again -- a second
     interrupt inside one errand is a spin, and the robot is already doing the
     thing the answer asked for.

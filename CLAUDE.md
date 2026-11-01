@@ -764,7 +764,7 @@ save a filmstrip PNG named after the script.
   the job the same answer takes is dropped. ⚠ THE ACTION, ITS PARAMETERS, THE
   EVENT MAP, THE STANDING ORDER AND TEXT THAT IS NO PLACEHOLDER STAND
   (measured: nearly all of it was meant). ⚠ A number, two letters and a
-  non-ASCII character are never placeholders; `answer`, `cites`, a visitor's
+  non-ASCII character are never placeholders; `cites`, a visitor's
   `reply`, a unit, a note's topic and title and a procedure's name are never
   judged. ⚠ A `procedure:new` beside a placeholder define runs nothing and its
   `undefine` waits (#264's rule), never a garbled answer. ⚠ A QUOTE

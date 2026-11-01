@@ -33,8 +33,7 @@ def answer(**over) -> str:
   """A complete, valid decision -- every schema key present, as a
   constrained decoder would emit it."""
   raw = {"action": "explore", "zone": "garden", "reason": "mapping",
-         "board": "", "program": "", "note": "", "respond_to": "",
-         "outcome": "", "reply": "", "task": "", "answer": "",
+         "note": "", "respond_to": "", "outcome": "", "reply": "", "task": "",
          "pin": "", "unpin": ""}
   raw.update(over)
   return json.dumps(raw)

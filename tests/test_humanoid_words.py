@@ -171,20 +171,30 @@ def test_what_a_humanoid_is_shown_each_turn_names_no_other_bodys_world():
 #: The quadruped's station in narration's words: its rack and its bays, its
 #: dock, its board and its pins, the tools it fetched and stowed.
 STATION_WORDS = re.compile(r"\b(rack|dock|bays?|pins|fork|tools?|stow\w*|bracket|modules?|"
-                           r"charge bay|lie down|lying down)\b", re.I)
+                           r"charge bay|lie down|lying down|lying across)\b", re.I)
+
+
+#: Where narration, History and the mind's text are written: every module
+#: whose strings a robot or a watcher reads, the parts catalog's and the hint
+#: vocabularies' left out (their racks, modules and pins are real parts).
+NARRATING = ("lifecycle.py", "navigator.py", "continuation.py", "pair.py",
+             "humanoid/body.py", "humanoid/charge.py", "humanoid/way.py",
+             "humanoid/mission.py", "humanoid/places.py", "procedure/steps.py",
+             "procedure/lang.py", "mind/overseer.py", "mind/events.py",
+             "mind/thoughts.py")
 
 
 def test_no_narration_or_history_line_names_the_quadrupeds_station():
   """#579: narration -- a frame's `status`, the event stream, the other
   robot's `doing` -- and History called the humanoids' charging station the
   quadruped's: the rack, the charge bay, the dock and its board, its pins.
-  Every string the loop and the Navigator build them from is read (never a
-  docstring); the one left is `dock`, a key and a token, never said."""
+  Every string those are built from is read (never a docstring); the one
+  left is `dock`, a key and a token, never said."""
   import ast
   from pathlib import Path
   src = Path(__file__).resolve().parents[1] / "src" / "pluggybot"
   said = []
-  for module in ("lifecycle.py", "navigator.py"):
+  for module in NARRATING:
     tree = ast.parse((src / module).read_text())
     docs = {id(node.body[0].value) for node in ast.walk(tree)
             if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef))

@@ -53,9 +53,13 @@ pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 ### 0.21.0, nothing a consumer reads: the quadruped's leftovers out (pluggybot #579)
 
 pluggybot #579 takes out what #559's stage 5 left of the quadruped on the
-served stream. No bump: every field that goes had been constant -- null,
-empty or false -- since stage 5, and none is read by a consumer's code (the
-site's types keep them, optional, for the recordings that carry them).
+served stream. No bump: every field that goes had been constant since stage
+5 -- null, empty or false, and `toolsHung` true -- and the site's code reads
+none of them (its types keep them, optional, for the recordings that carry
+them). ⚠ The one value a consumer renders is a robot's `state`: the site
+shows a phrase per state and falls back to the raw token, so it takes
+`PROCEDURE`'s phrase first (rooftop-media-2026 #475), or its visitors read
+`PROCEDURE` until it does.
 
 - **The header** has no `screens` (it was always `[]`).
 - **A robot's `state`** is `PROCEDURE` from an errand's start to its end,
