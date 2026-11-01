@@ -44,6 +44,7 @@ from pluggybot.activity import cage
 from pluggybot.control import wrap_angle
 from pluggybot.mapping.places import CLOSE_M, OBLIQUE_RAD, Places
 from pluggybot.navigator import DRIVE_STOPPED
+from pluggybot.perception.tags import STATION_TAG_IDS
 from pluggybot.tick import Routine
 
 #: The camera a place is looked for by: the head's, pitched for the walls.
@@ -182,6 +183,9 @@ class HumanoidPlaces:
     self._place_look: tuple[float, tuple[float, float, float] | None] = (-math.inf, None)
     #: The last find's record.
     self.last_find: dict | None = None
+    #: The newest look of its head's camera that saw its station (#572,
+    #: `see_station`), or None.
+    self.station_seen: dict | None = None
     self._nav_tags = None
 
   def _place_detector(self):
@@ -211,15 +215,11 @@ class HumanoidPlaces:
     px, py = float(sm.d.qpos[0]), float(sm.d.qpos[1])
     return x - (c * px - s * py), y - (s * px + c * py), syaw
 
-  def see_places(self, dets: dict) -> list[int]:
-    """Every place tag in one decode into the memory, in the map frame:
-    the camera placed through its model of itself as its odometry last
-    posed it (the stance frame), and the stance into the map -- where the
-    tag is, where it was seen from and, off a look close and oblique enough
-    (`places.OBLIQUE_RAD`), which way its face points."""
-    ids = [i for i in dets if i in self.places.ids]
-    if not ids:
-      return []
+  def _placed(self, dets: dict, ids) -> tuple[np.ndarray, dict]:
+    """Each of `ids` one decode holds, in the map frame: the camera placed
+    through its model of itself as its odometry last posed it (the stance
+    frame), and the stance into the map. (Its eye, {id: (where the tag is,
+    which way its face points out of it, rad)})."""
     sm = self.odo.sm
     mujoco.mj_camlight(sm.m, sm.d)
     cam = sm.m.camera(NAV_CAMERA).id
@@ -227,27 +227,58 @@ class HumanoidPlaces:
     sx, sy, syaw = self._stance_frame()
     c, s = math.cos(syaw), math.sin(syaw)
     rz = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
-    eye = rz @ origin + [sx, sy, 0.0]
-    t = float(self.data.time)
+    out = {}
     for i in ids:
       d = dets[i]
       tx, ty, tz = d["t"]
       # the detector's camera is x right, y down, z ahead; MuJoCo's looks
       # along its -z with y up
       p = rz @ (origin + rot @ np.array([tx, -ty, -tz])) + [sx, sy, 0.0]
+      nx, ny, nz = d["normal"]
+      n = rz @ (rot @ np.array([nx, -ny, -nz]))             # into the face
+      out[i] = (p, math.atan2(-n[1], -n[0]))               # ...and out of it
+    return rz @ origin + [sx, sy, 0.0], out
+
+  def see_places(self, dets: dict) -> list[int]:
+    """Every place tag in one decode into the memory, in the map frame
+    (`_placed`): where the tag is, where it was seen from and, off a look
+    close and oblique enough (`places.OBLIQUE_RAD`), which way its face
+    points."""
+    ids = [i for i in dets if i in self.places.ids]
+    if not ids:
+      return []
+    eye, placed = self._placed(dets, ids)
+    t = float(self.data.time)
+    for i in ids:
+      p, out = placed[i]
       facing = None
-      if abs(d["yaw"]) >= OBLIQUE_RAD and math.hypot(p[0] - eye[0], p[1] - eye[1]) <= CLOSE_M:
-        nx, ny, nz = d["normal"]
-        n = rz @ (rot @ np.array([nx, -ny, -nz]))           # into the face
-        facing = math.atan2(-n[1], -n[0])                  # ...and out of it
+      if abs(dets[i]["yaw"]) >= OBLIQUE_RAD and math.hypot(p[0] - eye[0], p[1] - eye[1]) <= CLOSE_M:
+        facing = out
       self.places.see(i, float(p[0]), float(p[1]), t,
                       math.atan2(eye[1] - p[1], eye[0] - p[0]), facing)
     return ids
 
+  def see_station(self, dets: dict) -> None:
+    """Its charging station's tags in one decode of the head's camera
+    (#572), in the map frame (`_placed`): `station_seen`, the newest such
+    look -- when, from where, and each tag seen, where it is and which way
+    its face points by its own rotation. The station is commissioned, never
+    a place: what it learns here is where its belief puts what it saw."""
+    ids = [i for i in STATION_TAG_IDS if i in dets]
+    if not ids:
+      return
+    eye, placed = self._placed(dets, ids)
+    self.station_seen = {"t": float(self.data.time), "eye": (float(eye[0]), float(eye[1])),
+                         "tags": {i: (tuple(float(v) for v in p), out)
+                                  for i, (p, out) in placed.items()}}
+
   def look_for_places(self) -> list[int]:
-    """One look now: the place tags it decoded."""
+    """One look now: the place tags it decoded -- and its station's, if in
+    view (`see_station`)."""
     self._place_look = (float(self.data.time), self.pose)
-    return self.see_places(self._place_detector().detect(self.data))
+    dets = self._place_detector().detect(self.data)
+    self.see_station(dets)
+    return self.see_places(dets)
 
   def _place_step(self) -> None:
     """The walking look (the module docstring) on its feet and level, never

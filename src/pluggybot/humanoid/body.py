@@ -1006,64 +1006,113 @@ class HumanoidBody(Body):
     return self.mission.reachable(points)
 
   def lost_routine(self, fixture, stop=None):
-    """No station in sight where the belief puts it (#476's rule): facing
-    where it believes the station is, it steps in until its LIDAR reads the
-    wall `charge.LOST_WALL_M` ahead, and looks, ahead and either side of it
-    (`LOST_LOOKS`); then from a step either way along the wall
-    (`LOST_ALONG_M`). A look that fits the station is a FIX, the station
-    commissioned as the dock is (`_fix_at`), so the loop's walk to the
-    standoff goes again on the belief put right. True once a look found it;
-    `stop`, asked between its moves, ends the search. ⚠ NEARER BY WHAT IT
-    SENSES, never by its belief: past 1.07 m of the station's face the tags
-    are above its colour camera's view, and from viewpoints set on a belief
-    0.7 m off toward the wall every look was further than that. Its `lost`
-    and `searched` records are those the quadruped's were (`belief_event`),
-    and its search keeps its map until a fix past the matcher's reach."""
+    """No station in sight where the belief puts it (#476's rule): lost, it
+    looks for its station by its head's camera (`charge.LOST_*`, #572) --
+    round where it stands, then from viewpoints outward from where it
+    believes the station's standoff is, over its own map, nearest by the
+    walk first and a look round at each, its walks watching for the tags (a
+    find's search, `humanoid.places`) -- and once a look has seen them,
+    walks nearer by what it saw (`_near_station_routine`) until a look fits
+    the station near enough to put the belief right by (`_fix_at`): the
+    station commissioned as the dock is. The loop's walk to the standoff
+    then goes again on the belief put right. True once a look did; `stop`,
+    asked between its moves, ends the search, as `charge.LOST_PATIENCE_S`
+    does. ⚠ BY WHAT IT SEES, NEVER BY ITS BELIEF, which is what is wrong:
+    stepping in toward where the belief put the station, the search looked
+    at the wrong wall from 1.5 m off and further, and found it 0 times in
+    43 (#572's stage 2). Its `lost` and `searched` records are those the
+    quadruped's were (`belief_event`), and its search keeps its map until a
+    fix past the matcher's reach."""
     from pluggybot.humanoid import charge
+    from pluggybot.humanoid.places import LOOKED_M, VIEWPOINT_PATIENCE_S, next_viewpoint
     if self._station is None:
       return False
     t0, m = float(self._d.time), self.mission
     m.belief_event("lost", fixture="station")
-    cx, cy = self._station.to_world(0.0, 0.0)
-    found, ended, fix, views = False, "not found", None, 0
-    for along in (0.0, *charge.LOST_ALONG_M):
+    until = t0 + charge.LOST_PATIENCE_S
+    near = self.charge_standoff()[:2]
+    looked: list[tuple[float, float]] = []
+    tried: list[tuple[float, float]] = []
+    since, fix, ended, rounds = t0, None, "", 0
+
+    def over() -> str:
       if stop is not None and stop():
-        ended = "interrupted"
-        break
-      if along:
-        views += 1
-        yield from self.step_routine(0.0, along)
-      else:
-        x, y, _ = self.pose
-        yield from self.face_routine(math.atan2(cy - y, cx - x))
-        wall = self._wall_ahead()
-        if wall is not None and wall > charge.LOST_WALL_M + charge.LOST_WALL_TOL_M:
-          yield from self.step_routine(wall - charge.LOST_WALL_M)
-      facing = self.pose[2]
-      for swing in charge.LOST_LOOKS:
-        yield from self.face_routine(facing + swing)
-        seen = yield from charge.look_routine(self)
-        if seen is not None:
-          fix = self._fix_at(seen)
-          found, ended = True, "found"
+        return "interrupted"
+      return "out of time" if float(self._d.time) >= until else ""
+
+    def seen() -> bool:
+      s = m.station_seen
+      return s is not None and s["t"] >= since
+
+    def halt() -> bool:
+      return seen() or bool(over())
+
+    while not ended:
+      if seen():
+        if rounds == charge.NEAR_ROUNDS:
+          ended = "seen, never near"
           break
-      if found:
+        rounds += 1
+        found, fix = yield from self._near_station_routine(over)
+        if found:
+          ended = "found"
+          break
+        # ...and seen again after this, nearer by it again
+        since = float(self._d.time) + 1e-9
+        continue
+      ended = over()
+      if ended:
         break
-      yield from self.face_routine(facing)
+      here = self.pose_xy()
+      if not any(math.hypot(here[0] - lx, here[1] - ly) < LOOKED_M for lx, ly in looked):
+        yield from m._look_around_routine(halt)
+        looked.append(here)
+        continue
+      wall, seen_over, frontier, walk, known = m._search_map(looked, near)
+      vp = next_viewpoint(near, here, looked, tried, wall, frontier, seen_over, walk, known)
+      if vp is None:
+        ended = "seen, never near" if rounds else "not found"
+        break
+      tried.append(vp)
+      left = until - float(self._d.time)
+      yield from m.drive_to_routine(vp[0], vp[1], timeout=min(left, VIEWPOINT_PATIENCE_S),
+                                    stop=halt)
+    found = ended == "found"
     m.belief_event("searched", found=found, ended=ended, fixture="station",
-                   seconds=round(float(self._d.time) - t0, 1), viewpoints=views,
+                   seconds=round(float(self._d.time) - t0, 1), viewpoints=len(tried),
                    dropped=bool(fix is not None and fix["dropped"]))
     return found
 
-  def _wall_ahead(self) -> float | None:
-    """How far its LIDAR reads what stands dead ahead, m -- the room's
-    returns within `charge.LOST_AHEAD_RAD` of its heading, their median --
-    or None where none came back."""
+  def _near_station_routine(self, over):
+    """Its station seen by its head's camera: nearer by what it saw --
+    `charge.NEAR_M` out of the station's face as the newest look places it
+    (`charge.rough`) -- facing it, and a look of the colour imager (the
+    dock's, `charge.look_routine`) and of the head's camera (`charge.
+    near_fit`), in `charge.NEAR_TRIES` at most: the first that fits the
+    station puts the belief right off it (`_fix_at`). (True and the fix's
+    record -- None where the look agreed with the belief -- or False and
+    None.)"""
     from pluggybot.humanoid import charge
-    angles, ranges, _, _ = self.mission.lidar.scan_split(self._d)
-    ahead = ranges[np.abs(angles) <= charge.LOST_AHEAD_RAD]
-    ahead = ahead[np.isfinite(ahead) & (ahead < self.mission.lidar.max_range)]
-    return float(np.median(ahead)) if ahead.size else None
+    from pluggybot.humanoid.places import VIEWPOINT_PATIENCE_S
+    m = self.mission
+    for _ in range(charge.NEAR_TRIES):
+      if over():
+        break
+      rough = charge.rough(m.station_seen)
+      ax, ay = rough.to_world(-charge.NEAR_M, 0.0)
+      yield from m.drive_to_routine(ax, ay, timeout=VIEWPOINT_PATIENCE_S,
+                                    stop=lambda: bool(over()))
+      cx, cy = rough.to_world(0.0, 0.0)
+      yield from self.face_routine(math.atan2(cy - self.pose[1], cx - self.pose[0]))
+      seen = yield from charge.look_routine(self)
+      if seen is None:
+        t = float(self._d.time)
+        m.look_for_places()
+        if m.station_seen is not None and m.station_seen["t"] >= t:
+          seen = charge.near_fit(m.station_seen)
+      if seen is not None:
+        return True, self._fix_at(seen)
+    return False, None
 
   def _fix_at(self, seen) -> dict | None:
     """The belief put where the station, seen as `seen` (its frame in the

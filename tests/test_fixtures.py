@@ -94,20 +94,46 @@ def test_no_board_from_near_the_standoff_is_a_loss_searched_once_a_charge():
   body.dock_routine = lambda: _no_steps(NOT_SEEN)()
   assert life.go_charge() is False
   assert body.lost_at == ["station"] and len(walks) == 2
-  # ...and a walk that gave up FAR off saw no board from anywhere it should:
-  # no loss, the retries as before
-  body = StubBody()
-  life = stub_life(body=body)
+  # ...and walks that gave up FAR off, both of them, are a robot lost too
+  # (#572): five of stage 2's lost flights never searched, their walks
+  # finding no route through a map laid askew. Searched for once, from
+  # where they ended -- never where the other robot is what stopped them.
+  for why, searched in (("no_route", ["station"]), ("peer", [])):
+    body = StubBody()
+    life = stub_life(body=body)
+    walks.clear()
 
-  def far(x, y, timeout=90.0, stop=None):
-    body.last_drive = {"why": "no_route", "goal": (float(x), float(y)),
-                       "seconds": 1.0, "shortM": 6.0}
-    return False
-    yield
+    def far(x, y, timeout=90.0, stop=None, why=why):
+      walks.append((x, y))
+      body.last_drive = {"why": why, "goal": (float(x), float(y)),
+                         "seconds": 1.0, "shortM": 6.0}
+      return False
+      yield
 
-  body.go_to_routine = far
-  assert life.go_charge() is False
-  assert body.lost_at == []
+    body.go_to_routine = far
+    assert life.go_charge() is False
+    assert body.lost_at == searched and len(walks) == 2, why
+
+
+def test_the_walk_to_the_station_is_given_the_time_its_length_takes():
+  # #572: the walk home from the storeroom takes 70-117 s, and was given
+  # 90; from across the street, stage 2's walks ran out of it twice
+  from pluggybot.lifecycle import CHARGE_WALK_S, CHARGE_WALK_S_M
+  for start in ((0.5, 0.0, 0.0), (25.0, 0.0, 0.0)):
+    body = StubBody(pose=start)
+    life = stub_life(body=body)
+    patience = []
+
+    def walk(x, y, timeout=90.0, stop=None):
+      patience.append((timeout, math.hypot(x - start[0], y - start[1])))
+      return True
+      yield
+
+    body.go_to_routine = walk
+    life.go_charge()
+    timeout, far = patience[0]
+    assert timeout == max(CHARGE_WALK_S, CHARGE_WALK_S_M * far), (start, timeout, far)
+  assert timeout > 120.0, "from 25 m off it was given the 90 s it always was"
 
 
 # ---- on the wire, and in History -------------------------------------------------
@@ -144,8 +170,8 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
   assert drift[1]["errorM"] == 0.0 and drift[1]["dropped"] and drift[1]["fixture"] == "station"
   assert all(r["robot"] == life.root and "seq" not in r for r in drift)
   said = _history(life)
-  assert any("my charging station was not in sight" in ln and "from nearer" in ln
-             for ln in said)
+  assert any("I did not find my charging station where I believed it was" in ln
+             and "looking round for it" in ln for ln in said)
   assert any("my charging station put me 2.0 m and 17 deg" in ln and "is gone" in ln
              for ln in said)
   assert len(said) == 2, "a fix within the map's reach went into History"
@@ -154,7 +180,10 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
                           "I looked for my charging station for 156 s and did not see it"),
                          (6, dict(found=True, fixture="station", dropped=False),
                           "found my charging station, near where I believed I was"),
-                         (7, dict(found=True, fixture="station", dropped=True), None)):
+                         (7, dict(found=True, fixture="station", dropped=True), None),
+                         (8, dict(found=False, ended="seen, never near", fixture="station"),
+                          "for 156 s and saw it, but never got near enough to it to know "
+                          "where I am")):
     body.belief_events.append(_event(seq, "searched", (3.1, 2.0, 0.3), (3.1, 2.0, 0.3),
                                      (3.1, 2.0, 0.3), seconds=156.4, **kw))
     life._belief_step()

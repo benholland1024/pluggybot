@@ -19,9 +19,11 @@ THE UNPLUG (`unplug_routine`): the open jaws slid along the seated plug from
   behind its back, shut, pulled straight off past the connector's 20 N
   (`UNPLUG_N`), carried to the cup's mouth -- the balancer takes it from
   there -- and let go.
-LOST (`HumanoidBody.lost_routine`): no station where the belief puts it, and
-  a look from nearer the wall, as its LIDAR reads it (`LOST_*`), fixes the
-  belief off its tags.
+LOST (`HumanoidBody.lost_routine`): no station where the belief puts it; it
+  looks for its tags by its head's camera, round where it stands and then
+  outward from where it believes the station is, and seen, walks nearer by
+  what it saw (`rough`) until a look fits the station near enough to fix the
+  belief by (`LOST_*`, `NEAR_*`).
 """
 
 from __future__ import annotations
@@ -101,20 +103,33 @@ CUP_SHORT_M = 0.025
 SEAT_TOL_M, SEAT_IN_M, SEAT_TOL_RAD = 0.06, 0.03, math.radians(6.0)
 #: ...in at most this many looks and steps (the last a look alone).
 SEAT_STEPS = 6
-#: A lost robot, facing where it believes the station is, steps in until
-#: its LIDAR reads the wall this far ahead, m, give or take this -- the
-#: station's face is `st.BOX_DEPTH_M` nearer, so its tags are well inside
-#: the 1.07 m past which they are above the colour camera's view -- reading
-#: the returns this far either side of dead ahead, rad...
-LOST_WALL_M, LOST_WALL_TOL_M, LOST_AHEAD_RAD = 0.8, 0.05, 0.1
-#: ...looks there, ahead and then this far either side, rad (the colour
-#: camera sees 34.5 deg either side of its axis): 0.38 m off the wall and
-#: 0.65 m to the station's right, the look at 0.6 saw one tag of its two,
-#: the station 60 deg round...
-LOST_LOOKS = (0.0, 0.6, -0.6, 1.1, -1.1)
-#: ...and then from a step this far along the wall to its left, and from
-#: one back past where it stood to its right, m.
-LOST_ALONG_M = (0.5, -1.0)
+#: A LOST robot looks for its station by its head's camera (#572), which
+#: reads the station's 60 mm tags much further than the colour imager's
+#: 1.07 m. MEASURED (`station_spike.py --reach`): both square-on to 4.5 m,
+#: one from 30 deg off the station's face to 5 m -- the parked plug hides
+#: the far tag past about 20 deg -- and from 50 deg off within 1.5 m. It
+#: looks round where it stands, then from viewpoints outward from where it
+#: believes the station is (`humanoid.places`' search), for this long at
+#: most, s -- or until `stop`, the pack's (`HubLifecycle.go_charge`).
+LOST_PATIENCE_S = 600.0
+#: ...and seen, it walks this far out of the station's face, m, as `rough`
+#: places it -- the colour imager reads the pair from there -- faces it and
+#: looks, in this many tries at most. ⚠ NEARER BY WHAT IT SAW, NEVER A FIX
+#: OFF A FAR LOOK: the head's camera places a tag to 1-4 cm out to 4 m, but
+#: the pair is 18 cm across, and its facing came out 6-12 deg off at 2 m and
+#: 13-66 at 3.5-4.5 (one 2.5 m look read both tags 0.26 m long).
+NEAR_M, NEAR_TRIES = 1.0, 4
+#: ...and seen again after tries that never fitted it, nearer by that look
+#: again, this many times in all.
+NEAR_ROUNDS = 2
+#: A look of the head's camera fits the station to fix by once both its tags
+#: are this near, m: within 1.5 m, at most 15 deg off its face, the pair's
+#: facing came out within 2.5 deg and its place within 6 mm.
+NEAR_FIT_M = 1.6
+#: ...and a far look's facing is taken only within this of the way it was
+#: seen from, rad (a sign is read only from in front of it): else the robot
+#: walks in along its line of sight.
+VIEW_RAD = math.radians(60.0)
 
 
 def fit(spots: dict) -> RackPose | None:
@@ -166,6 +181,42 @@ def look_routine(body):
   x, y, _ = body.pose
   yield from body.face_routine(math.atan2(one[0]["y"] - y, one[0]["x"] - x))
   return look(body)
+
+
+def rough(seen: dict) -> RackPose:
+  """The station as one look of the head's camera places it (`HumanoidPlaces.
+  see_station`), to walk nearer by: the pair fitted where both tags are in
+  it, else the one tag where it is, facing as its own rotation says --
+  either facing only within `VIEW_RAD` of the way it was seen from, and
+  otherwise that way."""
+  tags = seen["tags"]
+  ex, ey = seen["eye"]
+  fitted = fit({t: p for t, (p, _) in tags.items()}) if len(tags) == 2 else None
+  if fitted is not None:
+    x, y, out = fitted.x, fitted.y, fitted.yaw + math.pi
+  else:
+    t, (p, out) = next(iter(tags.items()))
+    x, y = p[0], p[1]
+  view = math.atan2(ey - y, ex - x)
+  if abs(math.remainder(out - view, 2 * math.pi)) > VIEW_RAD:
+    out = view
+  if fitted is None:
+    # ...the one tag where its drawing puts it either side of the cup
+    ly = st.tag_layout()[t][1]
+    x, y = x - math.sin(out) * ly, y + math.cos(out) * ly
+  return RackPose(float(x), float(y), math.remainder(out + math.pi, 2 * math.pi))
+
+
+def near_fit(seen: dict | None) -> RackPose | None:
+  """The station fitted off one look of the head's camera where both its
+  tags were in it within `NEAR_FIT_M` of its eye -- near enough to fix the
+  belief by -- else None."""
+  if seen is None or len(seen["tags"]) != 2:
+    return None
+  ex, ey = seen["eye"]
+  if any(math.hypot(p[0] - ex, p[1] - ey) > NEAR_FIT_M for p, _ in seen["tags"].values()):
+    return None
+  return fit({t: p for t, (p, _) in seen["tags"].items()})
 
 
 def port(body) -> tuple[np.ndarray, np.ndarray]:
