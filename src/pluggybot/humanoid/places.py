@@ -185,7 +185,7 @@ class HumanoidPlaces:
     self.last_find: dict | None = None
     #: The newest look of its head's camera that saw its station (#572,
     #: `see_station`), or None.
-    self.station_seen: dict | None = None
+    self.station_sighting: dict | None = None
     self._nav_tags = None
 
   def _place_detector(self):
@@ -260,7 +260,7 @@ class HumanoidPlaces:
 
   def see_station(self, dets: dict) -> None:
     """Its charging station's tags in one decode of the head's camera
-    (#572), in the map frame (`_placed`): `station_seen`, the newest such
+    (#572), in the map frame (`_placed`): `station_sighting`, the newest such
     look -- when, from where, and each tag seen, where it is and which way
     its face points by its own rotation. The station is commissioned, never
     a place: what it learns here is where its belief puts what it saw."""
@@ -268,9 +268,9 @@ class HumanoidPlaces:
     if not ids:
       return
     eye, placed = self._placed(dets, ids)
-    self.station_seen = {"t": float(self.data.time), "eye": (float(eye[0]), float(eye[1])),
-                         "tags": {i: (tuple(float(v) for v in p), out)
-                                  for i, (p, out) in placed.items()}}
+    self.station_sighting = {
+      "t": float(self.data.time), "eye": (float(eye[0]), float(eye[1])),
+      "tags": {i: (tuple(float(v) for v in p), out) for i, (p, out) in placed.items()}}
 
   def look_for_places(self) -> list[int]:
     """One look now: the place tags it decoded -- and its station's, if in

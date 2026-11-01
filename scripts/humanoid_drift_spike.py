@@ -27,6 +27,8 @@ and the legs alone, through the true heading.
     ... --idle-at 12,0 --idle 180     # first stood idle in the street
     ... --learned                     # its gyro's offset taken off its heading
     ... --table run*.json             # runs side by side, and by zone
+    ... --falls [--fall-explore S]    # shoved over six ways after an explore:
+                                      # the belief as it stands, and after (#572)
 
 `--seed` draws the IMU's offset and scale and the joints' noise: `luca` and
 `rowan` are the served pair's own (the first robot's and the second's),
@@ -359,6 +361,128 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
   return out
 
 
+# ---- a fall (#572's stage 3) -----------------------------------------------------
+
+#: `--falls`: shoved over after the explore -- this hard, N, this long, s
+#: (`station_spike.shove`'s), from each of these directions off its heading,
+#: deg -- its belief read as its get-up stands it, after it has stood this
+#: long, s, and after a look round.
+SHOVE_N, SHOVE_S = 300.0, 0.3
+SHOVES_DEG = (0.0, 60.0, 120.0, 180.0, 240.0, 300.0)
+STOOD_S = 5.0
+#: ...waiting for its get-up this long at most, s (`HumanoidBody.GETUP_BUDGET_S`'s
+#: margin: the slowest in the house stood at 30).
+GETUP_WAIT_S = 40.0
+
+
+def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
+         shove_deg: float = 0.0) -> dict:
+  """One humanoid from `start`, its draws `seed`'s, the loop's explore for
+  `explore_s`, then shoved over from `shove_deg` off its heading: how far
+  its get-up truly moved it -- from the step it took the legs to the step
+  it handed them back -- and its belief between those steps; its belief's
+  error (m, deg) at each, `STOOD_S` after and after a look round; and the
+  matcher's verdicts and the belief's records since the shove. A fall's
+  get-up holds its odometry (#572): stood, the belief is off by what the
+  get-up moved it, and the matcher's searches take that back."""
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  cfg = world_config(HUMANOID_HOME)
+  starts = {"start": cfg["start"], "hall": cfg["start2"]}
+  life, body, _ = _life()
+  data, model, wall = life.data, life.model, time.time()
+  m = body.mission
+
+  def off():
+    (bx, by, bh), (tx, ty, th) = body.pose, body.true_pose()
+    return [round(math.hypot(bx - tx, by - ty), 3), round(math.degrees(wrap(bh - th)), 1)]
+
+  out = {"seed": seed, "start": start, "exploreS": explore_s, "shoveDeg": shove_deg}
+  try:
+    life.blacklist, life.floor_explored = set(), False
+    body.start_at(*starts[start])
+    out.update(draws(body, seed))
+    body.start_discovery()
+    body.run(body.look_around_routine())
+    life.explore(budget=explore_s, mark_done=False)
+    out.update(before=off(), zone=zone_of(*body.true_pose()[:2]))
+    x0, y0, yaw = body.true_pose()
+    # ...the steps the get-up takes the legs and hands them back, read on
+    # the physics seam, before any scan is matched after it
+    seam = {}
+
+    def at_seam():
+      legs = m.legs
+      if legs == "getup" and "fell" not in seam:
+        seam["fell"] = (body.true_pose(), off(), body.pose)
+      elif legs != "getup" and "fell" in seam and "stood" not in seam:
+        seam["stood"] = (body.true_pose(), off(), body.pose)
+    body.step_hooks.append(at_seam)
+    counts0 = dict(body.match_counts)
+    seq0 = max((e["seq"] for e in body.belief_events), default=0)
+    push = np.array([math.cos(yaw + math.radians(shove_deg)),
+                     math.sin(yaw + math.radians(shove_deg)), 0.0]) * SHOVE_N
+    for _ in range(int(round(SHOVE_S / model.opt.timestep))):
+      data.xfrc_applied[body.root, :3] = push
+      body.run(body.hold_routine(model.opt.timestep))
+    data.xfrc_applied[body.root] = 0.0
+    t0 = float(data.time)
+    while float(data.time) - t0 < GETUP_WAIT_S and not (m.falls and m.legs == "stand"):
+      body.run(body.hold_routine(0.05))
+    x1, y1, _ = body.true_pose()
+    out.update(falls=m.falls, stood=m.falls > 0 and m.legs == "stand",
+               getupS=round(float(data.time) - t0, 1),
+               moved=round(math.hypot(x1 - x0, y1 - y0), 3))
+    if "stood" in seam:
+      (fx, fy, _), at_fall, (bx0, by0, _) = seam["fell"]
+      (sx, sy, _), at_stood, (bx1, by1, _) = seam["stood"]
+      out.update(getupMoved=round(math.hypot(sx - fx, sy - fy), 3),
+                 beliefMoved=round(math.hypot(bx1 - bx0, by1 - by0), 3), atFall=at_fall,
+                 atStood=at_stood)
+    body.run(body.hold_routine(STOOD_S))
+    out["afterStood"] = off()
+    body.run(body.look_around_routine())
+    out["afterLook"] = off()
+    out["verdicts"] = {k: v - counts0.get(k, 0) for k, v in body.match_counts.items()
+                       if v != counts0.get(k, 0)}
+    out["events"] = [e["why"] for e in body.belief_events if e["seq"] > seq0]
+    out["wallS"] = round(time.time() - wall, 1)
+  finally:
+    body.close()
+  return out
+
+
+def falls(seed: str, start: str, explore_s: float, parallel: int) -> list[dict]:
+  """`fall` from each of `SHOVES_DEG`, one process a fall, and the table."""
+  import subprocess
+  from concurrent.futures import ThreadPoolExecutor
+
+  def run(deg):
+    cmd = [sys.executable, __file__, "--one-fall",
+           json.dumps({"seed": seed, "start": start, "explore": explore_s, "deg": deg})]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    try:
+      return json.loads(r.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+      return {"seed": seed, "shoveDeg": deg, "crashed": r.stderr[-400:]}
+
+  with ThreadPoolExecutor(parallel) as pool:
+    rows = list(pool.map(run, SHOVES_DEG))
+  print(f"{'shove':>5s} {'zone':12s} {'fell':>4s} {'up s':>5s} {'moved':>6s} {'get-up':>6s} "
+        f"{'belief':>6s} {'off as it fell':>14s} {'as it stood':>13s} {f'{STOOD_S:g} s on':>13s} "
+        f"{'after a look':>13s}  records")
+  for r in rows:
+    if "crashed" in r:
+      print(f"{r['shoveDeg']:5.0f} crashed: {r['crashed'][-200:]}")
+      continue
+    print(f"{r['shoveDeg']:5.0f} {r['zone']:12s} {r['falls']:4d} {r['getupS']:5.1f} "
+          f"{r['moved']:6.2f} {r.get('getupMoved', float('nan')):6.2f} "
+          f"{r.get('beliefMoved', float('nan')):6.2f} "
+          f"{str(r.get('atFall', '-')):>14s} {str(r.get('atStood', '-')):>13s} "
+          f"{str(r['afterStood']):>13s} {str(r['afterLook']):>13s}  "
+          f"{', '.join(r['events']) or '-'}")
+  return rows
+
+
 # ---- the report -----------------------------------------------------------------
 
 
@@ -489,10 +613,25 @@ def main(argv=None) -> int:
                   help="the gyro's offset taken off its heading, as a zero-rate update "
                        "that had learned it would")
   ap.add_argument("--no-charge", action="store_true", help="stop after the last walk")
+  ap.add_argument("--falls", action="store_true",
+                  help="after an explore of --fall-explore s, shoved over six ways, a "
+                       "process each: the belief as it stands and after (#572)")
+  ap.add_argument("--fall-explore", type=float, default=120.0)
+  ap.add_argument("--parallel", type=int, default=3, help="--falls' processes at once")
   ap.add_argument("--out", default=None, help="the run, as JSON")
   ap.add_argument("--table", nargs="+", default=None, metavar="JSON",
                   help="runs written by --out, side by side and by zone")
+  ap.add_argument("--one-fall", default=None, help=argparse.SUPPRESS)
   args = ap.parse_args(argv)
+  if args.one_fall:
+    t = json.loads(args.one_fall)
+    print(json.dumps(fall(t["seed"], t["start"], t["explore"], t["deg"])))
+    return 0
+  if args.falls:
+    rows = falls(args.seed, args.start, args.fall_explore, args.parallel)
+    if args.out:
+      Path(args.out).write_text(json.dumps(rows))
+    return 0
   if args.table:
     runs = [json.loads(Path(p).read_text()) for p in args.table]
     for run in runs:

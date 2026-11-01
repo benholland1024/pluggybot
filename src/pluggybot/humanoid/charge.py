@@ -115,16 +115,16 @@ LOST_PATIENCE_S = 600.0
 #: ...and seen, it walks this far out of the station's face, m, as `rough`
 #: places it -- the colour imager reads the pair from there -- faces it and
 #: looks, in this many tries at most. ⚠ NEARER BY WHAT IT SAW, NEVER A FIX
-#: OFF A FAR LOOK: the head's camera places a tag to 1-4 cm out to 4 m, but
-#: the pair is 18 cm across, and its facing came out 6-12 deg off at 2 m and
-#: 13-66 at 3.5-4.5 (one 2.5 m look read both tags 0.26 m long).
+#: OFF A FAR LOOK: past 2 m the head's camera places a tag to 1-8 cm, but
+#: the pair is 18 cm across, and its facing came out 1-5.5 deg off at 2-2.5
+#: m and up to 29 deg at 3-4.5 m (66 in a probe; once both tags 0.26 m long).
 NEAR_M, NEAR_TRIES = 1.0, 4
 #: ...and seen again after tries that never fitted it, nearer by that look
 #: again, this many times in all.
 NEAR_ROUNDS = 2
 #: A look of the head's camera fits the station to fix by once both its tags
-#: are this near, m: within 1.5 m, at most 15 deg off its face, the pair's
-#: facing came out within 2.5 deg and its place within 6 mm.
+#: are this near, m: within 1.5 m -- both read only within 15 deg of its
+#: face -- the pair's facing came out within 1.9 deg, its place 1.3 cm.
 NEAR_FIT_M = 1.6
 #: ...and a far look's facing is taken only within this of the way it was
 #: seen from, rad (a sign is read only from in front of it): else the robot

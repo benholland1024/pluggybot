@@ -444,7 +444,7 @@ def test_the_head_camera_places_the_stations_tags_from_across_the_room():
     body.run(body.hold_routine(0.6))
     assert charge.look(body) is None, "the colour imager read it from 2 m"
     m.look_for_places()
-    seen = m.station_seen
+    seen = m.station_sighting
     assert seen is not None and set(seen["tags"]) == set(STATION_TAG_IDS)
     for t, (p, _) in seen["tags"].items():
       x, y = s.to_world(0.0, st.tag_layout()[t][1])
@@ -467,7 +467,7 @@ def test_a_lost_humanoid_looks_round_by_its_head_and_walks_nearer_by_what_it_saw
 
     def around(halt):
       acts.append("around")
-      m.station_seen = {**_sighting(s, 3.0), "t": float(data.time)}
+      m.station_sighting = {**_sighting(s, 3.0), "t": float(data.time)}
       return True
       yield
 

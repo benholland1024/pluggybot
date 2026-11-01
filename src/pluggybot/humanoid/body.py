@@ -1041,7 +1041,7 @@ class HumanoidBody(Body):
       return "out of time" if float(self._d.time) >= until else ""
 
     def seen() -> bool:
-      s = m.station_seen
+      s = m.station_sighting
       return s is not None and s["t"] >= since
 
     def halt() -> bool:
@@ -1080,7 +1080,7 @@ class HumanoidBody(Body):
     found = ended == "found"
     m.belief_event("searched", found=found, ended=ended, fixture="station",
                    seconds=round(float(self._d.time) - t0, 1), viewpoints=len(tried),
-                   dropped=bool(fix is not None and fix["dropped"]))
+                   arounds=len(looked), dropped=bool(fix is not None and fix["dropped"]))
     return found
 
   def _near_station_routine(self, over):
@@ -1098,7 +1098,7 @@ class HumanoidBody(Body):
     for _ in range(charge.NEAR_TRIES):
       if over():
         break
-      rough = charge.rough(m.station_seen)
+      rough = charge.rough(m.station_sighting)
       ax, ay = rough.to_world(-charge.NEAR_M, 0.0)
       yield from m.drive_to_routine(ax, ay, timeout=VIEWPOINT_PATIENCE_S,
                                     stop=lambda: bool(over()))
@@ -1108,8 +1108,8 @@ class HumanoidBody(Body):
       if seen is None:
         t = float(self._d.time)
         m.look_for_places()
-        if m.station_seen is not None and m.station_seen["t"] >= t:
-          seen = charge.near_fit(m.station_seen)
+        if m.station_sighting is not None and m.station_sighting["t"] >= t:
+          seen = charge.near_fit(m.station_sighting)
       if seen is not None:
         return True, self._fix_at(seen)
     return False, None

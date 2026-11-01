@@ -136,7 +136,31 @@ def test_the_walk_to_the_station_is_given_the_time_its_length_takes():
   assert timeout > 120.0, "from 25 m off it was given the 90 s it always was"
 
 
-# ---- on the wire, and in History -------------------------------------------------
+def test_a_dock_that_saw_the_station_and_never_got_in_goes_again_once():
+  # #572: 6 docks of 117 found after a search ended "not lined up", the
+  # walker's step inside the seat; walked back to the standoff and in
+  # again, once a charge -- and never for a station not seen, the search's
+  for says, docks_n, charged in ((["not lined up", "stopped"], 2, True),
+                                 (["not lined up", "not lined up", "stopped"], 2, False),
+                                 ([NOT_SEEN, NOT_SEEN], 1, False)):
+    body = StubBody()
+    life = stub_life(body=body)
+    docks, walks = [], []
+
+    def dock(says=says):
+      docks.append(1)
+      said = says[len(docks) - 1]
+      body.on_charger = said == "stopped"
+      return said
+      yield
+
+    def walk(x, y, timeout=90.0, stop=None):
+      walks.append((x, y))
+      return True
+      yield
+    body.dock_routine, body.go_to_routine = dock, walk
+    assert life.go_charge() is charged, says
+    assert len(docks) == docks_n and len(walks) == docks_n, (says, docks, walks)
 
 
 def _event(seq, why, before, after, truth, **kw):

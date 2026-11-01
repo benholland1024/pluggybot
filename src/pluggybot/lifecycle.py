@@ -2366,6 +2366,21 @@ class HubLifecycle:
     driven = None                 # the goal the last drive was sent to
     tried = None                  # why a near give-up's approach stopped
     searched = False              # ...and once the station was not seen, lost (#476)
+    redocked = False              # ...and once a dock seen never got in (#572)
+
+    def dock_again() -> bool:
+      # ⚠ A DOCK THAT SAW THE STATION AND NEVER GOT IN GOES AGAIN FROM THE
+      # STANDOFF, ONCE A CHARGE (#572's stage 3): 6 docks of 117 found after
+      # a search ended "not lined up", the walker's step 4-5 cm inside the
+      # seat, which it cannot back off (#581) -- a walk back to the standoff
+      # and in again takes the seat afresh
+      nonlocal redocked
+      if tried == NOT_SEEN or redocked or self.body.charging():
+        return False
+      redocked = True
+      self._say(f"GO_CHARGE again from the standoff -- the dock said: {tried}")
+      return True
+
     while True:
       if self.peers and self._bay_holder(sx, sy, seat) is not None:
         since = float(self.data.time) if since is None else since
@@ -2393,6 +2408,8 @@ class HubLifecycle:
           searched = True
           if (yield from self._search_routine()):
             continue
+        if dock_again():
+          continue
         break
       if self._near_standoff(sx, sy):
         # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
