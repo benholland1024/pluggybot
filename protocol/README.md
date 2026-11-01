@@ -86,6 +86,8 @@ site's types keep them, optional, for the recordings that carry them).
 Fixtures: the pair's recording and the counter's, re-flown at this commit
 (no `screens` in either header, the pair's narration in the station's
 words, the counter's attempt row with no tool); the scenes did not move.
+The pair's is the first flown on #581's Mid-360S head, so its day moves
+against the last one for that reason too.
 
 ### 0.21.0, nothing new: the quadruped retired (its fixtures, `reset_tool`, the screens)
 
