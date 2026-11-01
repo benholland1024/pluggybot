@@ -332,9 +332,6 @@ class FrameBuilder:
       "world": self.world_names,
       "activities": self.activities.names if self.activities else [],
       "boards": self.boards.names if self.boards else [],
-      # ⚠ A VESTIGE: the quadruped's LCD faces (issue #13), none since
-      # #559 took it; the site reads the key, and a period changes it.
-      "screens": [],
       "ledger": self.ledger.names if self.ledger else [],
       # The task KINDS this producer can offer (0.9.0, issue #21). Not the
       # task ids: unlike every other block above, the tasks block's keys are

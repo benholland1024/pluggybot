@@ -205,8 +205,7 @@ Before doing anything, read the doc that owns what you are about to touch:
   The job is the lid inside the TASK's time limit, the budget
   (`attempts.LIMIT_S`, the grader's `limitS`: 3x the humanoid reference's
   slowest pass at 0f98e24, 68 s); its tilt is recorded, the body's to say
-  -- the grader names no part (a row's `tool` and `toolSeated` are null
-  vestiges, below). It imports nothing of the chest's: everything loads
+  -- the grader names no part. It imports nothing of the chest's: everything loads
   `scoring`. ⚠ Held-out chests start at `HELD_OUT_FROM` (1,000,000), drawn
   by the frozen commit's first seven hex digits (`seed_of`; a pod's
   `COMMIT` file, a dirty tree refused), and a reading says what it
@@ -545,8 +544,11 @@ save a filmstrip PNG named after the script.
   WORDS -- the rules, the reward table's rows and the constitutions are what
   the served pair reads, byte for byte (stage 5 took out the quadruped's
   text and the swaps that made the humanoid's from it), and a test reads
-  every prompt for the quadruped's world. Its reward table is its world's rows (the charge's, a procedure's,
-  a ticket's and its jobs'), `rate` only where there are boards; its
+  every prompt, turn and context for the quadruped's world (#579 took out
+  the last of it: the form's `board`, `program` and `answer`, an offer's
+  `needsAnswer`, the context's `rack`, the other's `carrying`). Its reward
+  table is its world's rows (the charge's, a procedure's, a ticket's and
+  its jobs'), `rate` only where there are boards; its
   procedures are its practice's hands, every switch on, its walks over its
   map (`drive_to`, `face`), `find` where its world has places (the
   readings `find.x`/`find.y`/`find.facing`, in its map), no bumper, and its
@@ -762,7 +764,7 @@ save a filmstrip PNG named after the script.
   the job the same answer takes is dropped. ⚠ THE ACTION, ITS PARAMETERS, THE
   EVENT MAP, THE STANDING ORDER AND TEXT THAT IS NO PLACEHOLDER STAND
   (measured: nearly all of it was meant). ⚠ A number, two letters and a
-  non-ASCII character are never placeholders; `answer`, `cites`, a visitor's
+  non-ASCII character are never placeholders; `cites`, a visitor's
   `reply`, a unit, a note's topic and title and a procedure's name are never
   judged. ⚠ A `procedure:new` beside a placeholder define runs nothing and its
   `undefine` waits (#264's rule), never a garbled answer. ⚠ A QUOTE
@@ -905,7 +907,7 @@ save a filmstrip PNG named after the script.
     (`Decision.scripted` means "a fallback produced this"); the CURRENT map
     rides the stream as `event_map` on open and on every edit, and a world
     with no map sends none.
-- **An errand can be interrupted, and abort means stow** (issue #116;
+- **An errand can be interrupted, and abort means stop** (issue #116;
   Overseer.md "The mid-errand interrupt"): `events.INTERRUPTING_EVENTS` is
   `battery_below` + `points_below`, the hazards that get WORSE while the
   errand finishes. NOT a rung: a property of the event map, so off where
@@ -915,9 +917,10 @@ save a filmstrip PNG named after the script.
   **Every failure aborts** — the one place failing SAFE is right. ⚠ The seam
   only SETS A FLAG (a call between physics steps re-enters the hook; #143
   measured a RecursionError); `HubLifecycle.interrupted()` resolves it and is
-  a METHOD; ONE question per errand, the abort LATCHES. ⚠ Abort means STOW,
-  never drop, at a safe point, and an abort is NOT an `error`: what
-  it did is SCORED AS IT STANDS. ⚠ `needs_charge` and `interrupted()` are not
+  a METHOD; ONE question per errand, the abort LATCHES. ⚠ Abort means STOP
+  at a safe point (the quadruped's stowed its tool first; the humanoid has
+  none to stow), and an abort is NOT an `error`: what it did is SCORED AS
+  IT STANDS. ⚠ `needs_charge` and `interrupted()` are not
   the same check. ⚠ A procedure's walk is a safe point every second (#381):
   a verb whose walk the interrupt ended is `stopped: interrupted` in BOTH
   runners (`steps.run_verb` reads the `aborting` latch), never a failed step.
@@ -1293,22 +1296,6 @@ save a filmstrip PNG named after the script.
   `validate`), and a `why` for a non-null field fails; `partNumber` is what
   you order by, and a class of part stays null. Nothing in `economy/` or
   `mind/` imports it.
-- ⚠ **The quadruped's VESTIGES on served surfaces stay until a PR with a
-  period of its own takes them out** (#579; #559's stage 5 left the deployed
-  prompt byte for byte, and moved the wire only in its header's `taskKinds`,
-  `accepts` and `dataHashes`; Observatory.md): the decision schema's
-  `answer`, `board` and `program` fields (the decision's `answer` always
-  ""), the prompt's `"figures": []`, an offer's `"needsAnswer": false`, the
-  context's `"rack": {}` and another robot's `"carrying": ""`, the `a_tool`
-  need (a word of the prompt's, never the answer: #572), a `tell` claim
-  about a bay graded against an empty rack, the header's `"screens": []`,
-  `death.swapping` (null), an errand's `SWAP_PICK` → `USE_TOOL` states (⚠
-  `SWAP_PICK`, which a refused procedure stays in, is no linger:
-  `RACK_STATES`) and a program verdict's `toolsHung`, an attempt row's
-  `tool` and `toolSeated` (null), the interrupt turn's "put the tool back on
-  its bracket", and narration that says "the rack", "the charge bay", "the
-  dock's board" and "pins connected". The fields are marked `⚠ A VESTIGE`
-  where they are made: taking one out changes what the served robots read.
 - **A recording is a MIXED stream**: event lines ride between frames; dispatch
   on `type`, no `type` means frame, ignore a type you do not know. Ink is
   NEVER MuJoCo geometry — a stroke is a `draw` event, painted in the browser

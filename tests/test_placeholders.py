@@ -38,10 +38,9 @@ def _validate(raw, **kw):
 def _quiet(**fields) -> dict:
   """An answer that says nothing but its action, as the schema has it:
   every field present, `""` / `false` / an empty object where unused."""
-  raw = {"think": "", "action": "idle", "reason": "", "board": "",
-         "program": "", "zone": "", "read": "", "find": "", "respond_to": "",
-         "outcome": "", "reply": "", "say": "", "task": "", "answer": "",
-         "pin": "",
+  raw = {"think": "", "action": "idle", "reason": "", "zone": "", "read": "",
+         "find": "", "respond_to": "", "outcome": "", "reply": "", "say": "",
+         "task": "", "pin": "",
          "unpin": "", "note": {"topic": "", "title": "", "text": ""},
          "unnote": "", "cites": "", "intend": "", "drop_goal": "", "serves": "",
          "standing_order": "", "buy_heart": False, "event_map": [],

@@ -50,6 +50,49 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, nothing a consumer reads: the quadruped's leftovers out (pluggybot #579)
+
+pluggybot #579 takes out what #559's stage 5 left of the quadruped on the
+served stream. No bump: every field that goes had been constant since stage
+5 -- null, empty or false, and `toolsHung` true -- and the site's code reads
+none of them (its types keep them, optional, for the recordings that carry
+them). ⚠ The one value a consumer renders is a robot's `state`: the site
+shows a phrase per state and falls back to the raw token, so it takes
+`PROCEDURE`'s phrase first (rooftop-media-2026 #475), or its visitors read
+`PROCEDURE` until it does.
+
+- **The header** has no `screens` (it was always `[]`).
+- **A robot's `state`** is `PROCEDURE` from an errand's start to its end,
+  where it was `SWAP_PICK` and then `USE_TOOL` (and `SWAP_RETURN` was never
+  entered after stage 5). An open set: older recordings carry the old names.
+- **A `death`'s `at`** has no `carrying` or `swapping` (both null), and its
+  `errand` no `module` (always `""`).
+- **A `prediction`'s `state`**, the need rule's reading of the other robot,
+  has no `carrying` (always `""`), and no guess is `a_tool`.
+- **A `message` between robots grades no claim about the quadruped's
+  rack**: "bay C is empty" or "module_pen is on the rack" is unchecked
+  (`claim` null) where it was graded against an empty rack, every bay
+  empty. A claim about the charging station or a board is graded as before.
+- **A `procedure`'s verdict** (the `program` row's) has no `toolsHung` in
+  its metrics, and a passing one's reason ends "N/N steps" where it ended
+  ", tools hung".
+- **An attempt row** -- the lid grader's metrics, on a session's `ended`
+  and in the record -- has no `tool` or `toolSeated` (both null).
+- **Narration names the charging station** where it said the rack, the
+  charge bay, the dock and its board, and pins (`status`, and the lines of
+  the event stream). The two charge outcomes a consumer counts keep their
+  prefixes, `GO_CHARGE -> CHARGE` and `GO_CHARGE: `, and the words after
+  them move: `GO_CHARGE -> CHARGE (plugged in)`, `GO_CHARGE: never reached
+  the charging station ...`. A line that began `RACK:` begins `STATION:`.
+- **The `prompt` message** carries the period's new prefix (docs/Observatory.md
+  lists what moved in it).
+
+Fixtures: the pair's recording and the counter's, re-flown at this commit
+(no `screens` in either header, the pair's narration in the station's
+words, the counter's attempt row with no tool); the scenes did not move.
+The pair's is the first flown on #581's Mid-360S head, so its day moves
+against the last one for that reason too.
+
 ### 0.21.0, nothing new: the quadruped retired (its fixtures, `reset_tool`, the screens)
 
 pluggybot #559's stage 5 deletes the quadruped; the tag `quadruped-final`
@@ -3118,7 +3161,6 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
  "world": ["station_plug", "drawer_drawer", ...],      // shared dynamic bodies
  "activities": ["garden_light"],                        // task state machines
  "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces
- "screens": [],                                        // a vestige: always empty (#559)
  "ledger": ["pluggybot"],                               // robots with a balance
  "taskKinds": ["open_drawer", "open_door"],            // jobs it can offer
  "accepts": ["message", "rating"],                      // what it will act on
@@ -3228,7 +3270,7 @@ contract change, recorded here as well as there).
 
 | field | example | what it is |
 | --- | --- | --- |
-| `state` on a robot's frame record | `SWAP_PICK` | a state machine's name for itself |
+| `state` on a robot's frame record | `PROCEDURE` | a state machine's name for itself |
 | `task` on `earned` / an `earning` | `open_drawer` | a row in `economy/rewards.json` or `challenges.json` |
 | `action` on `visitor_reply` | `explore` | an action off the overseer's menu |
 

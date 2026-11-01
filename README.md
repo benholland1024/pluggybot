@@ -32,7 +32,7 @@ stateDiagram-v2
     [*] --> DECIDE : wake
 
     DECIDE --> GO_CHARGE : battery below the<br/>reserve (the floor) ·<br/>the next errand will<br/>not fit (the gate) ·<br/>chose charge ·<br/>a map row said charge
-    GO_CHARGE --> CHARGE : both pins conduct
+    GO_CHARGE --> CHARGE : plugged in
     CHARGE --> DECIDE : charged
     GO_CHARGE --> DEAD : stranded
 
@@ -42,10 +42,8 @@ stateDiagram-v2
     DECIDE --> LOOK : chose look
     LOOK --> DECIDE : a picture came ·<br/>or none inside 10 s
 
-    DECIDE --> SWAP_PICK : an errand is queued
-    SWAP_PICK --> USE_TOOL : module on the fork
-    USE_TOOL --> SWAP_RETURN : finished · or interrupted<br/>(battery_below ·<br/>points_below)
-    SWAP_RETURN --> DECIDE : tool hung back in its bay
+    DECIDE --> PROCEDURE : an errand is queued
+    PROCEDURE --> DECIDE : finished · or interrupted<br/>(battery_below ·<br/>points_below)
 
     DECIDE --> EXPLORE : map unfinished ·<br/>chose explore
     EXPLORE --> DECIDE
@@ -56,9 +54,7 @@ stateDiagram-v2
     DECIDE --> DECIDE : idle · standing by ·<br/>no rule fired
 
     DECIDE --> DEAD : flat · stuck ·<br/>unpaid · unminded
-    SWAP_PICK --> DEAD : flat · stuck
-    USE_TOOL --> DEAD : flat · stuck
-    SWAP_RETURN --> DEAD : flat · stuck
+    PROCEDURE --> DEAD : flat · stuck
     EXPLORE --> DEAD : flat · stuck
     DEAD --> DECIDE : reset by a person ·<br/>stood up by the timer<br/>(served)
 ```
@@ -69,13 +65,11 @@ where the agent's own map says whether to consult it (`EVENT_TYPES`:
 `battery_below`, `battery_above`, `points_below`, `message_received`,
 `every`, `ticket_replied`, `stood_up`). The floor and the gate are the
 rails of the loop with no mind, and are off wherever there is one; the
-interrupt out of `USE_TOOL` is a row of the agent's map, and abort means
-stow. An errand is a procedure the robot wrote, run by a decision, a
-standing order or a map row, or a program a run started with (`--program`).
-Its states keep the quadruped's names and labels, which fetched a tool,
-used it and hung it back: an errand now runs as `SWAP_PICK` then
-`USE_TOOL`, nothing is fetched, and nothing enters `SWAP_RETURN` (a
-vestige; a later period renames them). `RECALL` reads a key or finds
+interrupt out of `PROCEDURE` is a row of the agent's map, and abort means
+stop: the errand ends at its next safe point and is scored as it stands.
+An errand is a procedure the robot wrote, run by a decision, a standing
+order or a map row, or a program a run started with (`--program`), and it
+runs in `PROCEDURE` whatever it does. `RECALL` reads a key or finds
 by text, standing still; what it found rides the next turn, at most three
 recalls in a row. `LOOK` (issue #275) asks the website for a picture from
 the head camera's pose and stands still until it comes; the picture rides
@@ -123,7 +117,7 @@ flowchart TB
         TICKETS["tickets/<br/>ticket"]
     end
     DEAD([DEAD])
-    USE["SWAP_PICK / USE_TOOL<br/>/ SWAP_RETURN"]
+    USE["PROCEDURE"]
     VISITOR(a visitor · the other robot ·<br/>an operator)
     HIST["history — tail shown:<br/>decisions · thinks ·<br/>verdicts · deaths ·<br/>interventions · messages"]
 

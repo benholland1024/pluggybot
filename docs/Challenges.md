@@ -208,11 +208,10 @@ and judged by nothing, and learned skills leaned on it: a hard pull swung a
 door open and the body over with it, every held-out try of one door arm
 (#535). A failed verdict says the fall first, then what the world shows
 (`lid.fell`), and the job tells the robot the rule. Said beside, and
-judged by nothing: its worst tilt (`Body.orientation`); a row still carries
-`tool` and `toolSeated`, both null since the quadruped's staged claw went
-(#559). What a fall is, is the body's to say, so the grader names none: the
-humanoid's watch is its trunk 35 deg past the posture its legs hold, by its
-IMU, or its pelvis sunk -- so a bow its reach asks is no fall (#520). The
+judged by nothing: its worst tilt (`Body.orientation`). What a fall is,
+is the body's to say, so the grader names none: the humanoid's watch is its
+trunk 35 deg past the posture its legs hold, by its IMU, or its pelvis sunk
+-- so a bow its reach asks is no fall (#520). The
 numbers are judged as measured and only shown
 rounded; the call is wherever the attempt ended (Evaluation.md §4); the
 reason never carries the catch, whose number is secret on the row.

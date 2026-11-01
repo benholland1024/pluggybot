@@ -19,7 +19,7 @@ import mujoco
 import numpy as np
 
 from pluggybot import tick
-from pluggybot.body import TOPPLE_HOLD_S, Body, RackPose
+from pluggybot.body import NOT_SEEN, TOPPLE_HOLD_S, Body, RackPose
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
@@ -935,10 +935,9 @@ class HumanoidBody(Body):
   last_drive = property(lambda self: self.mission.last_drive)
 
   def gave_up(self, record, peer="the other robot") -> str:
-    """...a humanoid rests standing (#559): the other at rest, standing."""
+    """...a humanoid walks (#559)."""
     from pluggybot.navigator import gave_up
-    return (gave_up(record, peer).replace("the drive gave up", "the walk gave up", 1)
-            .replace("lying down to rest", "standing at rest"))
+    return gave_up(record, peer).replace("the drive gave up", "the walk gave up", 1)
 
   def face_routine(self, heading):
     return self.mission.face_routine(heading)
@@ -1093,20 +1092,20 @@ class HumanoidBody(Body):
   def dock_routine(self):
     """From the standoff, plugged in (`humanoid.charge`): it faces the
     station, fits it off its tags, steps to the seat as it sees it (again
-    while off it) and plugs itself in. "docked", or why not -- "no board"
-    where the tags were not in sight, as the dock's."""
+    while off it) and plugs itself in. "docked", or why not -- `NOT_SEEN`
+    where the tags were not in sight."""
     from pluggybot.activity import station as st
     from pluggybot.humanoid import charge
     self._charge_trace = []
     if self._station is None:
-      return "no dock"
+      return "no station"
     # ...facing the cup from where it stands, never the station's own
     # heading: from 0.2 m to one side that put the far tag out of view
     cx, cy = self._station.to_world(0.0, 0.0)
     yield from self.face_routine(math.atan2(cy - self.pose[1], cx - self.pose[0]))
     seen = yield from charge.look_routine(self)
     if seen is None:
-      return "no board"
+      return NOT_SEEN
     for _ in range(charge.SEAT_STEPS):
       sx, sy = seen.to_world(st.SEAT_X, st.SEAT_Y)
       x, y, yaw = self.pose

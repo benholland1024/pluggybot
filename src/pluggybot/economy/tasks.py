@@ -456,11 +456,6 @@ class Task:
             "description": self.description, "state": self.state,
             "from": self.source, "pays": reward["base"] + reward["bonus"],
             "tier": reward["tier"], "estimateWh": round(self.estimate_wh, 3),
-            # ...and whether taking it means answering something: never,
-            # since the whiteboard questions went with the quadruped (#559).
-            # ⚠ A VESTIGE the served robots read on every offer: dropping it
-            # changes what they are shown, a PR with its own period.
-            "needsAnswer": False,
             # ...and WHERE IT IS (issue #419): the building's rough address
             # and the task area's directions, named only where the job names
             # a place, so every other offer reads as it did

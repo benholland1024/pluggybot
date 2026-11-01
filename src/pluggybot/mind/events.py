@@ -231,12 +231,10 @@ REMOVE = "remove"
 #: agent that continues through every warning is the null this arm exists to
 #: detect. The two are only legible apart.
 #:
-#: ⚠ `abort` MEANS STOW, NEVER DROP. The fetch/carry/stow half took two
-#: issues to make repeatable and a stow computes its release heights from the
-#: lift it starts at, so an errand abandoned with a module on the fork is
-#: issue #30's cliff on purpose -- a module dropped in the rack's approach
-#: lane is what stranded a run in pass 1b. Abort is "put the tool back and
-#: go", and it COSTS ENERGY, which is the honest version of the choice.
+#: ⚠ `abort` MEANS STOP AT A SAFE POINT, NEVER MID-MOVE: the errand ends at
+#: its next verb (a walk's every step), and what it did is scored as it
+#: stands -- the cost of the choice. (The rover's and the quadruped's abort
+#: put their tool back first: one dropped in the rack's lane stranded a run.)
 INTERRUPT_OUTCOMES = ("continued", "aborted")
 
 ACTION_FAILURES = (

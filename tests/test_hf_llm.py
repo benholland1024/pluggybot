@@ -229,9 +229,8 @@ def test_a_slash_model_reaches_the_llm_through_the_same_seam(monkeypatch):
     (200, {"data": [{"id": "org/model-8b", "providers": [
       {"status": "live", "pricing": {"input": 0.05, "output": 0.25}}]}]}),
     ok_payload(json.dumps({"action": "explore", "zone": "garden",
-                           "reason": "mapping", "board": "", "program": "",
-                           "note": "", "respond_to": "", "outcome": "",
-                           "reply": "", "task": "", "answer": ""}),
+                           "reason": "mapping", "note": "", "respond_to": "",
+                           "outcome": "", "reply": "", "task": ""}),
                prompt_tokens=2000, completion_tokens=50),
   ])
   monkeypatch.setattr(llm, "_default_fetch", fetch)

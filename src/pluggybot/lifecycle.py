@@ -1,20 +1,16 @@
 """The mission loop: explore, charge, run the errands and the mind's choices.
 
 The loop that names the project -- explore until the battery runs low, go
-to the dock, charge, resume -- with an errand queue and a mind:
+to the charging station, charge, resume -- with an errand queue and a mind:
 
   EXPLORE ---- battery low ----> GO_CHARGE --> CHARGE --+
-     ^  frontier-walk the map       walk to the  lie on  |
-     |                              dock         the pins|
+     ^  frontier-walk the map       walk to the  plug    |
+     |                              station      in      |
      |                                                  |
      +--------- recharged, errand pending --------------+
                               |
                               v
-                    SWAP_PICK -> (use the tool) -> SWAP_RETURN -> DONE
-
-(The swap states are the quadruped's: a procedure still passes through
-SWAP_PICK and USE_TOOL, which the served frames carry, and SWAP_RETURN is
-never entered since #559 deleted it.)
+                    PROCEDURE (the errand's program or procedure) -> DONE
 
 Two things were measured once and hold for any body: the pack drains
 against the body's real actuator effort (`Body.pack`), and charging is
@@ -40,7 +36,7 @@ from pluggybot.behavior.navigation import STRIKES_TO_FINISH
 from pluggybot.contacts import contact_pairs
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.body import (  # noqa: F401 -- the topple's old home
-  TOPPLE_HOLD_S, TOPPLE_TILT_RAD, Body, KeepClear, body_for,
+  NOT_SEEN, TOPPLE_HOLD_S, TOPPLE_TILT_RAD, Body, KeepClear, body_for,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -78,7 +74,7 @@ from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
 
 State = Literal["EXPLORE", "GO_CHARGE", "CHARGE", "DECIDE", "RECALL", "LOOK",
-                "SWAP_PICK", "USE_TOOL", "SWAP_RETURN", "DEAD", "DONE"]
+                "PROCEDURE", "DEAD", "DONE"]
 #: How often a robot standing still for its picture (issue #275) checks
 #: the inbox for it, in sim seconds: the slice its stand-still is cut
 #: into. Short enough that a picture is taken up within a fifth of a
@@ -333,10 +329,9 @@ RACK_LINGER_S = 90.0
 #: median 462 s; the humanoids' charges are not yet measured against it.
 CHARGE_OCCUPANCY_S = 462.0
 WAIT_OCCUPANCIES = 3.0
-#: What a robot does AT the rack: not lingering, whatever the clock says.
-#: SWAP_PICK is the swap state a procedure opens in (a vestige the frames
-#: carry), and one its world refused stays in it.
-RACK_STATES = ("SWAP_PICK", "GO_CHARGE", "CHARGE")
+#: What a robot does AT the station: not lingering, whatever the clock says.
+#: A procedure is no business of the station's, refused or run.
+RACK_STATES = ("GO_CHARGE", "CHARGE")
 #: How often a waiting robot looks again, sim seconds.
 BAY_POLL_S = 1.0
 #: The dock's way in is held as its standoff is (#455), at points this far
@@ -436,16 +431,6 @@ TASKS_SHOWN = 5
 LOCALS_SHOWN = 12
 #: What History's own "[t=NNNNs] " stamp takes of a line's `MAX_LINE_CHARS`.
 HISTORY_STAMP_ROOM = 16
-#: What a bay approach that came away empty-handed DID, in the words the
-#: robot reads back (issue #264): `Body.fetch_tool_routine` answers
-#: one of these and every caller used to throw it away, so History said "the
-#: pick missed" for a robot that never reached the rack (`no-route` has its
-#: own sentence in `pick_failure`). A key missing here is the bare miss.
-PICK_WHY = {
-  "stalled": "the fork stalled against something on the way in",
-  "timeout": "the approach ran out of time before the fork was in",
-  "arrived": "the fork went in and came out without it",
-}
 #: How a procedure the robot wrote stopped short without a failed step
 #: (`lang.run_procedure_routine`'s `stopped`), in the History line's words.
 PROCEDURE_STOPS = {
@@ -908,7 +893,7 @@ class HubLifecycle:
     #: inside a step hook re-enters it. `interrupted()` resolves it on the
     #: main thread, where the errand is.
     self._interrupt_pending = None
-    #: Set once an interrupt has been resolved as "stow and go", and read by
+    #: Set once an interrupt has been resolved as "stop and go", and read by
     #: every later safe point in the same errand: once the robot is heading
     #: home it must not be asked again, which would be the spin the issue
     #: rules out ("one question, one answer").
@@ -1305,9 +1290,7 @@ class HubLifecycle:
       return False
     if was is None:
       # ...a humanoid rests standing (#559): it steps aside where it stands
-      self._say(f"MAKE WAY: lying across {who}'s way -- standing up to step aside"
-                if self.body.posture == "lying"
-                else f"MAKE WAY: resting across {who}'s way -- stepping aside")
+      self._say(f"MAKE WAY: resting across {who}'s way -- stepping aside")
     return True
 
   def _aside_step(self) -> None:
@@ -1323,15 +1306,12 @@ class HubLifecycle:
     other = self._peer(rec["by"])
     who = other.robot_name if other is not None else rec["by"]
     moved = math.dist(rec["from"], rec["at"])
-    # ...as the body rested when asked: lying, or a humanoid's standing (#559)
-    lay = rec.get("lay", True)
-    was = "lying across" if lay else "standing in"
+    # ...as the body rested when asked: a humanoid rests standing (#559)
     if rec["why"] == "aside":
-      line = (f"{'stood up and stepped' if lay else 'stepped'} {moved:.1f} m aside "
-              f"for {who}, whose way I was {was}")
+      line = f"stepped {moved:.1f} m aside for {who}, whose way I was standing in"
     else:
-      line = (f"{'stood up to step' if lay else 'set off to step'} aside for {who}, "
-              f"whose way I was {was}, and stopped {moved:.1f} m on: "
+      line = (f"set off to step aside for {who}, whose way I was standing in, "
+              f"and stopped {moved:.1f} m on: "
               f"{ASIDE_ENDED.get(rec['why'], rec['why'])}")
     self._say(f"MADE WAY: {line}")
     self._remember(line)
@@ -1439,10 +1419,10 @@ class HubLifecycle:
     """Where the robot is and what it is doing, for a death to carry (issue
     #362): seven topples in a week could not be read because the event said
     only the cause. The TRUE pose beside the believed one (drift is a
-    suspect), the lean, the state, what is on the fork and what every axis
-    is commanded to, the errand and the procedure step running, the swap's
-    bay, and the nearest peer -- measured between the chassis, as the
-    encounters measure it. Nothing here decides anything.
+    suspect), the lean, the state, what every axis is commanded to, the
+    errand and the procedure step running, and the nearest peer -- measured
+    between the chassis, as the encounters measure it. Nothing here decides
+    anything.
 
     ⚠ IT NEVER RAISES: it runs on the physics seam inside `_die`, and a
     diagnostic that threw there would lose the death it describes."""
@@ -1470,14 +1450,10 @@ class HubLifecycle:
                "towardDeg": None if toward is None else round(toward, 1),
                "toward": None if toward is None else lean_word(toward)},
       "state": self.state, "status": self.status[:200],
-      # ⚠ ...and what was on its fork, None too
-      "carrying": None, "setpoints": setpoints(self),
+      "setpoints": setpoints(self),
       "errand": None if errand is None else
-        # ⚠ `module` is a vestige on the wire's `death` (a quadruped's tool)
-        {"name": errand.name, "task": errand.task_id, "module": ""},
+        {"name": errand.name, "task": errand.task_id},
       "step": None if self.step_now is None else dict(self.step_now),
-      # ⚠ A VESTIGE on the wire's `death`: the quadruped's swap's bay, None
-      "swapping": None,
     }
     if self.peers:
       me = self.body.root_xy()
@@ -1755,10 +1731,10 @@ class HubLifecycle:
     return math.inf if r is None else math.hypot(px - r.x, py - r.y)
 
   def held_for(self, blocked: tuple[str, float], where: str = "standoff",
-               what: str = "the bay") -> str:
-    """Who held a bay this robot gave up on, and for how long it was
-    waited for (issue #346) -- one clause, for a pick, a stow or a charge,
-    `where` the holder was (`_bay_holder`)."""
+               what: str = "the charging station") -> str:
+    """Who held the station this robot gave up on, and for how long it was
+    waited for (issue #346) -- one clause, `where` the holder was
+    (`_bay_holder`)."""
     w = self.last_bay_wait
     said = holder(self.peers, blocked[0], where, blocked[1], what, "was") + (
       ", nearer than the planner may route" if where == "standoff" else "")
@@ -1829,16 +1805,16 @@ class HubLifecycle:
     if self.home_pose is None or self.rack_distance(px, py) >= RACK_CLEAR_M:
       return True
     hx, hy = self.home_pose[0], self.home_pose[1]
-    self._say(f"standing by: clearing the rack for the others -- back to "
-              f"({hx:.1f}, {hy:.1f})")
+    self._say(f"standing by: clearing the charging station for the others -- "
+              f"back to ({hx:.1f}, {hy:.1f})")
     yield from self.body.go_to_routine(hx, hy)
     tried = [(hx, hy)]
     for spot in self._clear_spots()[:CLEAR_SPOTS]:
       px, py, _ = self.body.pose
       if self.rack_distance(px, py) >= RACK_CLEAR_M:
         break
-      self._say(f"RACK: still {self.rack_distance(px, py):.1f} m from the "
-                f"rack after heading for ({tried[-1][0]:.1f}, "
+      self._say(f"STATION: still {self.rack_distance(px, py):.1f} m from the "
+                f"charging station after heading for ({tried[-1][0]:.1f}, "
                 f"{tried[-1][1]:.1f}) -- trying ({spot[0]:.1f}, {spot[1]:.1f})")
       tried.append(spot)
       yield from self.body.go_to_routine(*spot, timeout=CLEAR_DRIVE_S)
@@ -1846,11 +1822,11 @@ class HubLifecycle:
     d = self.rack_distance(px, py)
     if len(tried) > 1 or d < RACK_CLEAR_M:
       self._remember(
-        f"cleared the rack for the others after {len(tried)} tries, at "
-        f"({px:.1f}, {py:.1f})" if d >= RACK_CLEAR_M else
-        f"could not get clear of the rack: tried {len(tried)} spots and "
-        f"ended {d:.1f} m from it at ({px:.1f}, {py:.1f}), where I am in "
-        "the way of anyone swapping or charging there")
+        f"cleared the charging station for the others after {len(tried)} "
+        f"tries, at ({px:.1f}, {py:.1f})" if d >= RACK_CLEAR_M else
+        f"could not get clear of the charging station: tried {len(tried)} "
+        f"spots and ended {d:.1f} m from it at ({px:.1f}, {py:.1f}), where I "
+        "am in the way of anyone charging there")
     return d >= RACK_CLEAR_M
 
   def _clear_spots(self) -> list[tuple[float, float]]:
@@ -1906,9 +1882,9 @@ class HubLifecycle:
       self._linger_since, self._linger_said = t, False
     elif not self._linger_said and t - self._linger_since >= RACK_LINGER_S:
       self._linger_said = True
-      self._say(f"RACK: lingering {t - self._linger_since:.0f} s within "
-                f"{self.rack_distance(px, py):.2f} m of the rack while "
-                f"{self.state} -- in the way of the others",
+      self._say(f"STATION: lingering {t - self._linger_since:.0f} s within "
+                f"{self.rack_distance(px, py):.2f} m of the charging station "
+                f"while {self.state} -- in the way of the others",
                 detail=f"pose ({px:.2f}, {py:.2f})")
 
   def _waiting_spot(self, sx: float,
@@ -1997,7 +1973,7 @@ class HubLifecycle:
     named = self.peer_at(hx, hy)
     who = named[0] if named is not None else "another robot"
     bound, of = self.wait_bound(kind, sx, sy)
-    what = "the charge bay" if kind == "charge" else "the bay"
+    what = "the charging station"
     first = self.last_bay_wait is None or self.last_bay_wait.get("since") != since
     # EVERY time, not only the first: a drive that found the bay taken again
     # stops at the edge of the holder's disc, which is its way out.
@@ -2152,7 +2128,8 @@ class HubLifecycle:
     """The per-frame robot record for the telemetry recorder: lifecycle
     state, the _say narration, and the battery gauges. The bare message,
     not the formatted log line -- t and battery already ride in the frame,
-    and the site wants "carrying the module", not a duplicate dashboard."""
+    and the site wants "heading for the kitchen", not a duplicate
+    dashboard."""
     return {
       "state": self.state,
       "status": self.status,
@@ -2351,15 +2328,13 @@ class HubLifecycle:
     return self.body.run(self.go_charge_routine())
 
   def go_charge_routine(self) -> Routine:
-    """Navigate to the charge bay and press until the pins connect.
+    """Walk to the charging station and plug in until the pack takes the
+    charger's current.
 
     The terminal half is `Body.dock_routine` (issue #32): the standoff
-    computed from the believed rack pose is only how the robot gets to the
-    NEIGHBOURHOOD -- the approach itself is re-measured off the charge bay's
-    own tag and verified-retried, exactly as every tool-bay approach already
-    was. The blind creep this replaces forgave ~6 cm / ~10 deg of belief
-    error, and a long shift's accumulated drift walked straight out of that
-    envelope roughly once an hour on a hosting pack.
+    computed from the believed station pose is only how the robot gets to
+    the NEIGHBOURHOOD -- the approach itself is re-measured off the
+    station's own tags, as a belief drifts over a long shift.
     """
     self.charge_failure = ""
     if not self.charger:
@@ -2368,23 +2343,19 @@ class HubLifecycle:
     self.body.refresh_rack()
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
-    # Route-failure retry, same as swap_at_bay's: when nothing is reachable,
-    # spin to buy map (and possibly the rack tag) and try again.
-    # ⚠ THE CHARGE BAY IS NOT A TOOL BAY, and the difference is the whole
-    # asymmetry (issue #313). The same arithmetic applies -- a peer within
-    # 0.45 m of this standoff puts it outside anything the planner may
-    # route to, and MEASURED on the rack prior the neighbouring tool bay is
-    # 0.200 m from it, so a robot swapping there blocks this approach
-    # outright -- but a bay given up is a lost errand and a charge given up
-    # is a death. So a taken charge bay is WAITED FOR (issue #346), for 3x
-    # a charge's typical occupancy, and neither the pack nor an interrupt
-    # ends that wait: charging is what either would ask for. ⚠ Taken is the
-    # standoff OR THE SEAT (#455): a robot lying on the dock is a metre past
-    # the standoff, and the walk in, which sees no robot, lay on it.
+    # Route-failure retry: when nothing is reachable, look round to buy map
+    # (and possibly the station's tags) and try again.
+    # ⚠ A CHARGE GIVEN UP IS A DEATH (issue #313): a peer within 0.45 m of
+    # this standoff puts it outside anything the planner may route to, so a
+    # taken station is WAITED FOR (issue #346), for 3x a charge's typical
+    # occupancy, and neither the pack nor an interrupt ends that wait:
+    # charging is what either would ask for. ⚠ Taken is the standoff OR THE
+    # WAY IN OR THE SEAT (#455): the walk in, which sees no robot, walked
+    # into one standing there.
     spins, since, arrived = 0, None, False
     driven = None                 # the goal the last drive was sent to
     tried = None                  # why a near give-up's approach stopped
-    searched = False              # ...and once that was no board, lost (#476)
+    searched = False              # ...and once the station was not seen, lost (#476)
     while True:
       if self.peers and self._bay_holder(sx, sy, seat) is not None:
         since = float(self.data.time) if since is None else since
@@ -2395,37 +2366,37 @@ class HubLifecycle:
       driven = (sx, sy)
       arrived = yield from self.body.go_to_routine(sx, sy, timeout=90.0)
       if self.peers and self._bay_holder(sx, sy, seat) is not None:
-        arrived = False                   # taken again, or the dock was all
+        arrived = False                   # taken again, or the seat was all
         continue                          # along: wait again, above
       if arrived:
-        # Line up on the bay's own tag and creep until the electrical
+        # Line up on the station's own tags and plug in until the electrical
         # criterion fires -- position is believed, contact is known.
         tried = yield from self.body.dock_routine()
-        # ⚠ NO BOARD FROM THE STANDOFF THE WALK ARRIVED AT IS A ROBOT LOST
-        # (issue #476): Rowan walked to the same wrong place 31 times until
-        # it died flat. Put right, it walks back by the loop -- the bay
-        # looked at again, for the other may have docked meanwhile (#455)
-        # -- and near enough the board decides, as below.
-        if tried == "no board" and not searched and not self.body.charging():
+        # ⚠ NO STATION SEEN FROM THE STANDOFF THE WALK ARRIVED AT IS A ROBOT
+        # LOST (issue #476): Rowan walked to the same wrong place 31 times
+        # until it died flat. Put right, it walks back by the loop -- the
+        # station looked at again, for the other may have plugged in
+        # meanwhile (#455) -- and near enough the station decides, as below.
+        if tried == NOT_SEEN and not searched and not self.body.charging():
           searched = True
-          if (yield from self.body.lost_routine("dock")):
+          if (yield from self.body.lost_routine("station")):
             continue
         break
       if self._near_standoff(sx, sy):
         # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
         # (rooftop's `chargeOutcome`): this attempt's one outcome comes after
         self._say(f"GO_CHARGE near enough -- {self.drive_why(sx, sy)}; the "
-                  "dock's board decides")
+                  "station's tags decide")
         tried = yield from self.body.dock_routine()
-        if tried != "no board" or self.body.charging():
+        if tried != NOT_SEEN or self.body.charging():
           break
-        # ...and no board in sight from within NEAR_STANDOFF_M is a robot
-        # LOST too (issue #476): the board is in plain sight from there (a
+        # ...and no station in sight from within NEAR_STANDOFF_M is a robot
+        # LOST too (issue #476): the station is in plain sight from there (a
         # walk 4.6 m off gave up 0.7 m short, twice). Once a charge; put
         # right, the walk goes again, and else its retries as before.
         if not searched:
           searched = True
-          if (yield from self.body.lost_routine("dock")):
+          if (yield from self.body.lost_routine("station")):
             continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
@@ -2434,18 +2405,18 @@ class HubLifecycle:
       spins += 1
       if spins == 2:
         break
-    if not arrived and tried in (None, "no board"):
+    if not arrived and tried in (None, NOT_SEEN):
       # WHY, and not always "no route" (issue #350): a stall, the other
       # robot and the clock read the same until the drive said which. Of
       # the goal last DRIVEN to -- a spin moves the standoff after it, and
       # a trip that ended in a wait that gave up is the wait's. Whoever
-      # held the bay is IN the reason: History and a stranded death read it
-      # (issue #424).
+      # held the station is IN the reason: History and a stranded death
+      # read it (issue #424).
       holder = self._bay_holder(*(driven or (sx, sy)), seat)
       blocked = None if holder is None else self.peer_at(*holder[:2])
-      self.charge_failure = "never reached the charge bay" + (
+      self.charge_failure = "never reached the charging station" + (
         "" if driven is None else f": {self.drive_why(*driven)}") + (
-        "" if tried is None else "; the board was not in sight from there") + (
+        "" if tried is None else "; the station was not in sight from there") + (
         "" if blocked is None else f" -- {self.held_for(blocked, holder[3], 'it')}")
       self._say(f"GO_CHARGE: {self.charge_failure}")
       return False
@@ -2455,12 +2426,12 @@ class HubLifecycle:
       self._say(f"GO_CHARGE: {self.charge_failure}",
                 detail=self.body.charge_trace())
       return False
-    self._say("GO_CHARGE -> CHARGE (pins connected)")
+    self._say("GO_CHARGE -> CHARGE (plugged in)")
     return True
 
   def _near_standoff(self, sx: float, sy: float) -> bool:
     """Did the walk to the charge standoff give up near enough that the
-    board decides (`NEAR_STANDOFF_M`), as its own record says? Never for
+    station decides (`NEAR_STANDOFF_M`), as its own record says? Never for
     the other robot in the way: that is waited for, or routed round."""
     rec = self.body.last_drive
     return (rec is not None and rec["why"] not in ("", "peer")
@@ -2471,28 +2442,22 @@ class HubLifecycle:
     return self.body.run(self.charge_routine())
 
   def charge_routine(self) -> Routine:
-    """Hold the press until full, then back off."""
+    """Stay plugged in until full, then unplug."""
     t0 = self.data.time
     # What the evaluator measures this cycle against (issue #14). Read BEFORE
-    # the press, because "charged" is a gain in a real quantity -- a cycle
-    # that sat on the pins conducting nothing has an end fraction and no
-    # energy behind it.
+    # the charge, because "charged" is a gain in a real quantity -- a cycle
+    # plugged in conducting nothing has an end fraction and no energy behind
+    # it.
     before = {"t": t0, "frac": self.battery.fraction,
               "wh": self.battery.energy_wh}
-    # ⚠ THE PRESS IS NOT TRAVEL. The robot is held against the rack's pins
-    # for the whole cycle -- minutes of it -- with the wheels turning and the
-    # chassis stationary. Left to integrate that, dead reckoning gained
-    # 828 mm of imaginary progress, and every pose downstream was computed in
-    # the wrong frame: the next tool fetch drove to a standoff it believed it
-    # had reached, a metre from the bay, and came away with nothing.
-    # See `Body.docked`: a caller that knows it is held says so, and a
-    # contact that flickers does not un-pin it.
+    # ⚠ CHARGING IS NOT TRAVEL: held on the charger for the whole cycle,
+    # nothing the body does is counted (`Body.docked`; the rover's held
+    # press once gained 828 mm of imaginary progress), and a contact that
+    # flickers does not let it go.
     self.body.docked = True
-    # THE DOCK IS THE RE-ANCHOR (issue #42). Called with the pins already
-    # conducting -- go_charge verified that -- which is the one moment the
-    # robot's true pose is known to millimetres by construction. This is
-    # where a shift's accumulated dead-reckoning drift dies, instead of
-    # compounding until a terminal maneuver walks out of its envelope.
+    # THE STATION IS THE RE-ANCHOR (issue #42): plugged in -- go_charge
+    # verified that -- the robot's pose is known by construction, and a
+    # shift's accumulated drift dies here instead of compounding.
     self.body.anchor_at_dock()
     try:
       timeout = self.charge_timeout
@@ -2500,10 +2465,10 @@ class HubLifecycle:
              and self.data.time - t0 < timeout):
         yield from self.body.dock_hold_routine(0.25)
         if not self.charging_now:
-          # contact dropped: press again briefly, then give up on this attempt
+          # contact dropped: plug in again once, then give up on this attempt
           yield from self.body.redock_routine()
           if not self.charging_now:
-            self._say("CHARGE: lost the pins")
+            self._say("CHARGE: the plug came out")
             self._bank(scoring.score_charge(self, before))
             return
     finally:
@@ -2525,7 +2490,7 @@ class HubLifecycle:
     `MissionAborted` (the viewer closing) is deliberately NOT caught -- that
     is a request to stop, not a failure to recover from.
     """
-    # ---- interruptible from here to the stow (issue #116) ----
+    # ---- interruptible from here to the errand's end (issue #116) ----
     # ⚠ THE FLAGS ARE PER ERRAND AND CLEARED ON THE WAY IN, never on the way
     # out: an errand that raises must not leave the NEXT one already
     # aborting, and `run_errand`'s use phase is arbitrary caller code that
@@ -2540,10 +2505,7 @@ class HubLifecycle:
     # what a marker on the website shows.
     if errand.task_id and self.tasks is not None:
       self.tasks.start(errand.task_id, t=float(self.data.time))
-    # ⚠ A VESTIGE: the quadruped's swap states, which a procedure passes
-    # through (SWAP_PICK, then USE_TOOL) and the served robots' frames and
-    # the other's context still carry.
-    self.state = "SWAP_PICK"
+    self.state = "PROCEDURE"
     # What this errand actually took, measured (issue #15). Recorded on every
     # errand and not only in the spike, because an estimate that is never
     # compared against an outcome is a number nobody can tell has gone stale
@@ -2573,7 +2535,7 @@ class HubLifecycle:
             result["task_id"] = closed.id
             self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
       self.errand_results.append(result)
-      self._occur("task_complete" if used["stowed"] and "error" not in used
+      self._occur("task_complete" if "error" not in used
                   else "task_failed", errand.name)
       self._errand_name = ""
       self._errand_now = None
@@ -2613,11 +2575,9 @@ class HubLifecycle:
       return {"procedure": {"program": program.name, "refused": e.reasons,
                             "total": len(program.steps()), "completed": 0,
                             "steps": [], "ok": False},
-              "picked": False, "stowed": True,
               "error": f"refused: {e}"}
     self._emit({**base, "t": round(t, 3), "outcome": "validated",
                 "steps": len(program.steps())})
-    self.state = "USE_TOOL"
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
@@ -2629,11 +2589,8 @@ class HubLifecycle:
       run = {"program": program.name, "total": len(program.steps()),
              "completed": 0, "steps": [], "ok": False,
              "error": f"{type(e).__name__}: {e}"}
-      self._say("PROCEDURE FAILED: something went wrong -- stowing anyway",
+      self._say("PROCEDURE FAILED: something went wrong",
                 detail=run["error"])
-    # ⚠ A VESTIGE: "stowing anyway" above is the quadruped's (a tool on its
-    # fork went home), as is the verdict's `toolsHung` (`sample_program`): no
-    # verb fetches one now, and the served robots still read both.
     # WHERE AND WHY IT FAILED ride with the count (rooftop-media-2026
     # #342): `failedAt` counts verb calls EXECUTED, so inside a loop it
     # names no line of the source, and the step's own reason was on no
@@ -2666,7 +2623,7 @@ class HubLifecycle:
     if is_proc or run.get("locals"):
       for line in procedure_outcome(program.name, run):
         self._remember(line)
-    return {"procedure": run, "picked": False, "stowed": True,
+    return {"procedure": run,
             **({"error": run["error"]} if "error" in run else {})}
 
   def _afford_next(self) -> bool:
@@ -2737,8 +2694,7 @@ class HubLifecycle:
     as the honest failure it is.
     """
     self.errand_results.append({
-      "errand": errand.name,
-      "picked": False, "stowed": True, "skipped": fit.state,
+      "errand": errand.name, "skipped": fit.state,
       "estimateWh": round(fit.cost_wh, 4), "energyWh": 0.0,
       "error": fit.why(),
     })
@@ -3633,9 +3589,7 @@ class HubLifecycle:
         self._told += 1
         msg_id = f"{self.root}:{self._told}"
         checked = rules.check_claim(
-          # ⚠ A VESTIGE: a claim about the quadruped's rack ("bay C is
-          # empty") is still graded, against a rack that holds nothing
-          decision.tell["text"], rack={}, boards=self.boards,
+          decision.tell["text"], boards=self.boards,
           charging=any(life.state == "CHARGE" for life in (self, *self.peers)))
         landed = to.inbox.offer({"type": "message", "id": msg_id,
                                  "from": self.robot_name,
@@ -4525,10 +4479,10 @@ class HubLifecycle:
     side effect hiding behind an attribute read, in a file where
     `needs_charge` next door is genuinely free.
 
-    Call it at a SAFE POINT -- somewhere the tool is in its carry
-    configuration and stowing is legal (a walk is one at every step, #381).
+    Call it at a SAFE POINT -- somewhere stopping leaves nothing half done:
+    between verbs, and a walk at every step (#381).
 
-    ⚠ ONE QUESTION PER ERRAND. Once the answer is "stow and go" every later
+    ⚠ ONE QUESTION PER ERRAND. Once the answer is "stop and go" every later
     safe point reads the latch and nobody is asked again -- a second
     interrupt inside one errand is a spin, and the robot is already doing the
     thing the answer asked for.
@@ -4568,7 +4522,7 @@ class HubLifecycle:
       self._abort_from_wh = self.battery.energy_wh
       entry.update(outcome="aborted", source=f"event:{row.event}",
                    why=f"{row.describe()}")
-      self._say(f"INTERRUPT {row.describe()} at {frac:.0%} -- stowing "
+      self._say(f"INTERRUPT {row.describe()} at {frac:.0%} -- stopping "
                 f"{self._errand_name} and going")
     else:
       answer = self._ask_interrupt(row)
@@ -4579,7 +4533,7 @@ class HubLifecycle:
                    source=answer["source"], why=answer["why"])
       self._say(f"INTERRUPT at {frac:.0%}: "
                 + ("carrying on with " if answer["continue"]
-                   else "stowing and going -- ")
+                   else "stopping and going -- ")
                 + f"{self._errand_name}"
                 + (f" ({answer['why']})" if answer["why"] else "")
                 + ("" if answer["source"] == "llm"
@@ -4590,7 +4544,7 @@ class HubLifecycle:
     # next decision is made knowing it did.
     self._remember(f"was interrupted at {frac:.0%} part-way through "
                    f"{self._errand_name} and "
-                   + ("carried on" if not self._aborting else "went back"))
+                   + ("carried on" if not self._aborting else "stopped"))
     # ⚠ NO TYPED WIRE EVENT, AND THAT IS DELIBERATE -- #127's rule for the
     # map itself, one issue on: a new message type is a protocol bump, a
     # fixture regeneration and a two-repo event. The narration line above
@@ -5432,11 +5386,10 @@ class HubLifecycle:
     self._errand_now = None
     self._deferrals.pop(errand.name, None)
     t = float(self.data.time)
-    # `picked`/`stowed`/`energyWh` are the errand's to say and it did not
-    # get to: the stand-up took the body, the pack and the tool home
+    # `energyWh` is the errand's to say and it did not get to: the
+    # stand-up took the body and the pack home
     self.errand_results.append({
-      "errand": errand.name, "picked": None,
-      "stowed": None, "energyWh": None,
+      "errand": errand.name, "energyWh": None,
       "estimateWh": round(self.affords(errand).cost_wh, 4),
       "error": DEATH_ENDED, "stoodUp": True})
     if errand.program is not None:
@@ -5456,9 +5409,10 @@ class HubLifecycle:
     self._remember(f"dying cut short {errand.name}")
 
   def _charge_trip_routine(self) -> Routine:
-    """GO_CHARGE then CHARGE, the loop's way to the rack: a dock that fails
-    is `_strand`'s, and a stand-up ends either half (issue #348) -- a flat
-    death waits up to 1386 s for a taken charge bay (#346), past the timer."""
+    """GO_CHARGE then CHARGE, the loop's way to the station: a plug-in that
+    fails is `_strand`'s, and a stand-up ends either half (issue #348) -- a
+    flat death waits up to 1386 s for a taken station (#346), past the
+    timer."""
     self.state = "GO_CHARGE"
     reached = yield from self._until_stood_up_routine(self.go_charge_routine())
     if reached is STOOD_UP:
@@ -5470,11 +5424,11 @@ class HubLifecycle:
     yield from self._until_stood_up_routine(self.charge_routine())
 
   def _strand(self) -> None:
-    """A failed dock is a `stuck` death (issue #107): "unable to reach the
-    rack" is the third of Evaluation.md §3's causes, and it ends the day
-    only if nobody can reset the robot."""
+    """A failed charge is a `stuck` death (issue #107): "unable to reach
+    the charger" is the third of Evaluation.md §3's causes, and it ends the
+    day only if nobody can reset the robot."""
     self.stranded = True
-    self._say("GO_CHARGE FAILED -- stranded off the dock at "
+    self._say("GO_CHARGE FAILED -- stranded away from the charging station at "
               f"{self.battery.fraction:.0%}")
     self._die("stuck", f"could not reach the charger, stranded at "
                        f"{self.battery.fraction:.0%}"
@@ -5865,10 +5819,10 @@ class HubLifecycle:
                 f"{self.dead['why']}")
       self._remember(f"the day ended dead ({self.dead['cause']})")
     elif self.stranded:
-      # An IMMORTAL run's failed dock, worded exactly as it was before
-      # issue #107: nothing died, the day simply ended off the dock.
-      self._say("GO_CHARGE FAILED -- mission over, stranded off the dock "
-                f"at {self.battery.fraction:.0%}")
+      # An IMMORTAL run's failed charge: nothing died, the day simply ended
+      # away from the station.
+      self._say("GO_CHARGE FAILED -- mission over, stranded away from the "
+                f"charging station at {self.battery.fraction:.0%}")
       self._remember("could not reach the charger -- stranded at "
                      f"{self.battery.fraction:.0%}"
                      + (f": {self.charge_failure}" if self.charge_failure else ""))
@@ -6096,15 +6050,15 @@ def lean_word(toward_deg: float) -> str:
 
 
 def holder(peers, who: str, where: str, near: float, what: str, verb: str = "is") -> str:
-  """A robot holding a bay another waits for, as one clause (issues #346,
-  #455): on its standoff, on the dock's way in, or on the dock
-  (`HubLifecycle._bay_holder`)."""
+  """A robot holding the station another waits for, as one clause (issues
+  #346, #455): on its standoff, on its way in, or on the seat right in
+  front of it (`HubLifecycle._bay_holder`)."""
   how = posture(peers, who)
   if where == "standoff":
     return f"{who} {verb} {how} {near:.2f} m from {what}"
   if where == "lane":
-    return f"{who} {verb} {how} on the dock's way in"
-  return f"{who} {verb} {'' if how == 'lying down to rest' else how + ' '}on the dock"
+    return f"{who} {verb} {how} on the way in to {what}"
+  return f"{who} {verb} {how} right in front of {what}"
 
 
 def _unclipped_words(clip: dict) -> str:
@@ -6117,20 +6071,17 @@ def posture(peers, name: str) -> str:
   """The posture of the robot NAMED, as a narration or History line puts
   it: "lying knocked over" for one on the floor (issue #365), else
   "standing".
-  A line saying a robot on the floor STOOD at the bay reads as a robot in
-  the way on purpose, and History is what the mind reads back."""
+  A line saying a robot on the floor STOOD at the station reads as a robot
+  in the way on purpose, and History is what the mind reads back."""
   for p in peers:
     if (p.robot_name or p.root) == name:
       if getattr(p, "dead", None) is not None:
         return "lying dead"                          # (issue #455)
       if p.down():
         return "lying knocked over"
-      # ...and one lying down by choice is resting, never fallen (#387) --
-      # a humanoid rests standing (#559). `getattr`, because a test's
-      # stand-in peer need not have a posture.
+      # ...and one resting is never fallen: a humanoid rests standing (#559)
       if getattr(p.body, "resting", False):
-        return ("lying down to rest" if getattr(p.body, "posture", "lying") == "lying"
-                else "standing at rest")
+        return "standing at rest"
       return "standing"
   return "standing"
 
@@ -6143,7 +6094,7 @@ ASIDE_ENDED = {"its own walk": "my own walk took over",
                "no route": "I found no way there",
                "out of time": "it took too long",
                "met something": "I met something on the way",
-               "arm out": "my arm was out of its stow"}
+               "arm out": "a hand of mine was out"}
 #: ...and why it could not step aside at all (issue #455, `Body.way_refused`),
 #: as its narration says it -- once a while, so a no is heard. Standing or
 #: mid-move it is in nobody's way by its own rule, and says nothing.
@@ -6156,18 +6107,16 @@ WAY_REFUSED = {"charging": "I am plugged in at my charging station",
 
 def others_context(life) -> list[dict]:
   """What the OTHER robots broadcast (issue #167): the public surface and
-  nothing else -- name, reported pose, state, the status line they narrate
-  to everyone, and what they carry. Not their battery, points, goals,
-  thoughts, reasons or secrets: those are theirs, and a robot that could
-  read them would not need to infer them. ⚠ `carrying` is the quadruped's
-  (the tool on its fork) and always "" now: a VESTIGE the served robots
-  read, which goes with a PR of its own period."""
+  nothing else -- name, reported pose, state and the status line they
+  narrate to everyone. Not their battery, points, goals, thoughts, reasons
+  or secrets: those are theirs, and a robot that could read them would not
+  need to infer them."""
   out = []
   for other in life.peers:
     x, y = other.body.pose_xy()
     out.append({"name": other.robot_name, "robot": other.root,
                 "x": round(x, 2), "y": round(y, 2), "state": other.state,
-                "doing": other.status[:120], "carrying": "",
+                "doing": other.status[:120],
                 "dead": other.dead["cause"] if other.dead else None,
                 # ...and whether it is lying down to rest (issue #387): a
                 # posture anyone in the room can see, never a fall
@@ -6324,15 +6273,10 @@ def overseer_context(life) -> dict:
   # with who wrote it: a report of what somebody said, never a turn.
   if life.overseer is not None and getattr(life.overseer.menu, "tickets", False):
     state["tickets"] = life.tickets.as_context()
-  # THE RACK (issue #351): where each tool IS, off its bay's switch, this
-  # robot's fork and what the others say they carry. A fact, not a rail.
-  # ⚠ A VESTIGE: the quadruped's rack view (issue #351), empty since its
-  # tools went (#559) and still in what the served robots read.
-  state["rack"] = {}
   # THE PLACES IT HAS FOUND (issue #419): each task area's tag where it saw
   # it in its own map, by what the area's directions call it, and how long
-  # ago -- its own knowledge, on every arm, as the rack view is. Absent where
-  # the body keeps none (the rover), `[]` where it has found none yet.
+  # ago -- its own knowledge, on every arm. Absent where the body keeps
+  # none, `[]` where it has found none yet.
   if life.body.places is not None:
     state["places"] = places_context(life)
   return state

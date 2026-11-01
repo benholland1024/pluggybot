@@ -32,9 +32,7 @@ THE CRITERIA, written first. An attempt passes when:
 Said beside, and gating nothing: its worst tilt (`Body.orientation`). ⚠
 What a fall is, is THAT BODY'S TO SAY, and nothing here names it: the
 humanoid's is its trunk 35 deg past the posture its legs hold or its pelvis
-sunk (`humanoid.getup`). ⚠ A row still carries `tool` and `toolSeated`, both
-null: the quadruped's claw, staged by its set-out, went with it in #559, and
-the record's columns are a period's to change.
+sunk (`humanoid.getup`).
 
 Everything else is the robot's business: how it finds the knob, which way
 it pulls, whether it lies down. `sample_lid` reads nothing off the skill's
@@ -235,8 +233,6 @@ def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None
     "caught": end.get("caught"),
     "holdS": (end["t"] - call["t"]) if "t" in call and "t" in end else None,
     "elapsedS": (call["t"] - started) if "t" in call and started is not None else None,
-    "tool": None,
-    "toolSeated": None,
     "catchN": None if catch_n is None else float(catch_n),
     "limitS": None if limit_s is None else float(limit_s),
   }
@@ -252,7 +248,7 @@ def eval_lid(m: dict) -> tuple[bool, dict, str]:
   verdict out, judged on the numbers as measured and shown rounded. The
   reason says what the world shows and never the catch, a fall first."""
   raw = {k: m.get(k) for k in ("topDeg", "downRadS", "tiltDeg", "falls", "angleAtCallDeg",
-                               "angleDeg", "caught", "holdS", "elapsedS", "tool", "toolSeated",
+                               "angleDeg", "caught", "holdS", "elapsedS",
                                "catchN", "limitS")}
   metrics = {k: (round(float(v), SHOWN[k]) if k in SHOWN and v is not None else v)
              for k, v in raw.items()}

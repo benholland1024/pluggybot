@@ -8,7 +8,7 @@ and search at its station are `test_station.py`'s; what they measure is
 
 import math
 
-from pluggybot.body import StubBody
+from pluggybot.body import NOT_SEEN, StubBody
 from pluggybot.lifecycle import DRIFT_EVERY_S
 from pluggybot.mind.thoughts import HISTORY
 from pluggybot.navigator import wire_pose
@@ -39,13 +39,13 @@ def test_a_charge_with_no_board_where_it_arrived_searches_and_docks_again():
   def dock():
     docks.append(1)
     body.on_charger = len(docks) > 1
-    return "no board" if len(docks) == 1 else "stopped"
+    return NOT_SEEN if len(docks) == 1 else "stopped"
     yield
 
   body.dock_routine = dock
   body.finds_fixture = True
   assert life.go_charge() is True
-  assert body.lost_at == ["dock"] and len(docks) == 2
+  assert body.lost_at == ["station"] and len(docks) == 2
   assert body.went[-1] == body.went[-2], "the standoff was not walked to again"
   # ...and a walk back that gives up near the standoff lets the board decide,
   # as the first walk's does
@@ -70,9 +70,9 @@ def test_a_charge_with_no_board_where_it_arrived_searches_and_docks_again():
   body = StubBody()
   life = stub_life(body=body)
   docks.clear()
-  body.dock_routine = lambda: _no_steps("no board")()
+  body.dock_routine = lambda: _no_steps(NOT_SEEN)()
   assert life.go_charge() is False
-  assert body.lost_at == ["dock"]
+  assert body.lost_at == ["station"]
 
 
 def test_no_board_from_near_the_standoff_is_a_loss_searched_once_a_charge():
@@ -91,9 +91,9 @@ def test_no_board_from_near_the_standoff_is_a_loss_searched_once_a_charge():
     yield
 
   body.go_to_routine = short
-  body.dock_routine = lambda: _no_steps("no board")()
+  body.dock_routine = lambda: _no_steps(NOT_SEEN)()
   assert life.go_charge() is False
-  assert body.lost_at == ["dock"] and len(walks) == 2
+  assert body.lost_at == ["station"] and len(walks) == 2
   # ...and a walk that gave up FAR off saw no board from anywhere it should:
   # no loss, the retries as before
   body = StubBody()

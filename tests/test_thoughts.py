@@ -945,7 +945,7 @@ def test_a_decision_can_set_and_drop_a_goal_without_spending_a_turn(files):
   """`intend` / `drop_goal` / `serves` are FIELDS, like `pin` and
   `unpin`: the robot sets a goal on the decision it was already making, so
   writing one down costs it nothing."""
-  d = ov.Decision(action="draw", board="whiteboard_a",
+  d = ov.Decision(action="draw",
                   intend="ink both boards this week",
                   serves="ink both boards this week")
   assert d.action == "draw", "the action was spent on paperwork"

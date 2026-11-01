@@ -588,10 +588,10 @@ def test_a_mind_judging_what_the_other_humanoid_needs_asks_after_no_tool():
   """A mind's first `other_needs` (#208) asked what was on the other
   humanoid's fork, and the body it asked had none -- the minded day's first
   answer ended it. The need is read off the loop's own state, never a body's
-  fork (`carrying` is a vestige of the quadruped's: empty)."""
+  fork (and since #579 its record names none)."""
   from pluggybot.mind import acts
   need, state = acts.need_of(stub_life(world=HUMANOID_HOME))
-  assert need == "nothing" and state["carrying"] == ""
+  assert need == "nothing" and "carrying" not in state
 
 
 def test_a_humanoid_holding_a_job_needs_no_tool_in_a_house_with_no_rack():
