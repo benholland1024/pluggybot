@@ -20,7 +20,7 @@ What it answers:
                      (#581's stage 1; its stage 2 lays the band instead)
   cloud              every return, a point in the sensor's frame, the
                      room's and another robot's apart
-  band               the cloud laid flat: per bearing the nearest return
+  band               the cloud laid flat: per bearing the nearest surface
                      `BAND_M` over the floor, levelled through the robot's
                      IMU -- a 2D scan from every ring (flown, not served)
 

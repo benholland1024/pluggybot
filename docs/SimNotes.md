@@ -3835,12 +3835,12 @@ legs; and why the wide search took back none of them.
 
 ## The 3D LIDAR on the head (issue #581, stage 1)
 
-**What is true now.** The humanoid's LIDAR is a Livox Mid-360S, upside
-down on a bracket over its head (Parts.md, "The LIDAR"): its field is +7 down
-to -52 deg, its rays leave 1.47 m up standing. Its LEVEL RING, the 360
-bearings at 0 deg, is the scan the map is laid from and matched by, as the
-RPLIDAR C1's plane was, 5 cm higher: served, it behaves as the C1 did. Its
-points LAID FLAT -- per bearing the nearest 0.15-2.2 m over the floor,
+**What is true now.** The humanoid's LIDAR is a Livox Mid-360S, upside down
+on a bracket over its head (Parts.md, "The LIDAR"): its field is +7 down to
+-52 deg, its rays leave 1.47 m up standing. Its LEVEL RING, the 360 bearings
+at 0 deg, is the scan the map is laid from and matched by, as the RPLIDAR
+C1's plane was, 5 cm higher: served, it behaves as the C1 did. Its points
+LAID FLAT -- per bearing the nearest surface 0.15-2.2 m over the floor,
 through the IMU's tilt (`Lidar.band`) -- see the house's 0.9 m fences, the
 couch, the tables and the beds, and are a measurement's switch
 (`HumanoidMission.band`) until stage 2 serves them. Flown with them, the 14
@@ -3849,11 +3849,12 @@ raised to 1.8 m. A full frame costs 14-17 ms on the deploy box, and two
 robots casting it at 10 Hz ran at about real time (0.97-1.15x).
 
 ![The 3D LIDAR on the head: a humanoid walks from the living room out by
-the garden's gate, across the street and into the lobby, its map laid from
-its points laid flat; red, each bearing's nearest return 0.15-2.2 m over
-the floor -- the couch, the fences, the walls' lower halves -- and blue,
-the level ring its map is laid from as served, the buildings' walls alone;
-a tile every 15 s (`lidar_spike.py --strip`)](figures/humanoid_lidar_walk.png)
+the garden's gate, across the street and through the lobby to the
+storeroom, its map laid from its points laid flat; red, each bearing's
+nearest return 0.15-2.2 m over the floor -- the couch, the fences, the
+walls' lower halves -- and blue, the level ring its map is laid from as
+served, the buildings' walls alone; a tile every 15 s and one as it
+arrives (`lidar_spike.py --strip`)](figures/humanoid_lidar_walk.png)
 
 **The part.** Livox's Mid-360S (its sheet: 360 x 59 deg, 200,000 points a
 second at 10 Hz, a range's sigma <= 2 cm at 10 m and <= 4 cm at 0.2 m, 0.15
@@ -3912,7 +3913,12 @@ out (the C1's model's, carried); one nearer than 0.1 m is no reading, as a
 self-hit is none. Its own robot's returns are dropped, another robot's
 split out for the front stop (#316), its noise its robot's own
 (`imu.seed_for`; the C1's model drew both robots' from seed 0) and kept
-across a restart.
+across a restart. Laid flat, a bearing reads the nearest surface in the
+band by the median of its returns within 3 sigma of the nearest: a dozen
+rings or more strike a wall on each bearing, and the least of their noisy
+ranges read every wall 1.7 sigma short, 6.4 cm in the test's room, a map
+cell into it; the median reads 0.5 cm short
+(`test_the_band_reads_a_wall_where_it_stands`).
 
 **The policies on the new head.** Flown again on it beside today's staging
 (`humanoid_spike.py --shove`, `--track`, `--fall`), none retrained:
@@ -3942,16 +3948,18 @@ tightly as the G1's.
 | the band, laid flat from it | 16.4 | 14.2, 17.8 |
 | a D435 frame, 8,400 rays | 12.4 | 10.7, 10.9 |
 
-Almost all of it is the cast (15.0 ms of the dev box's 16.1). ⚠ It casts
-with no cutoff, as the C1's did: MuJoCo culls a plane by its centre's
-distance, and cut off at 8 m every ray that met the house's floor -- its
-centre 19 m off at the loop's far end -- read nothing (`test_the_floor_is_
-struck_however_far_its_middle`); the floor is under the band and outside
-the ring, so no flight below moved, and the cutoff saved no time. The
-box's frames vary by a fifth from one run to the next, on an idle box: it
-is a shared VPS.
-The pair's real-time multiple there (`humanoid_spike.py --speed --band`,
-one core, each run its own container, the trees interleaved):
+Almost all of it is the cast (15.0 ms of the dev box's 16.1); reading each
+bearing by its median (above) costs 0.5 ms a frame more than by its nearest
+return (1.8 ms against 1.3 to lay a frame flat, the same places on the dev
+box, after this table was measured). ⚠ It casts with no cutoff, as the C1's
+did: MuJoCo culls a plane by its centre's distance, and cut off at 8 m every
+ray that met the house's floor -- its centre 19 m off at the loop's far end
+-- read nothing (`test_the_floor_is_ struck_however_far_its_middle`); the
+floor is under the band and outside the ring, so no flight below moved, and
+the cutoff saved no time. The box's frames vary by a fifth from one run to
+the next, on an idle box: it is a shared VPS. The pair's real-time multiple
+there (`humanoid_spike.py --speed --band`, one core, each run its own
+container, the trees interleaved):
 
 | the pair, x real time | runs |
 |---|---|
@@ -3983,7 +3991,7 @@ heading.
 
 The level ring is the C1's plane, to the place; the band pins every
 outdoor place's heading, as #572's bare sensor did, with the robot's own
-body in the way of its rays (in the middle street 52 % of places in all
+body in the way of its rays (in the middle street 49 % of places in all
 three directions and the rest held along the street).
 
 **The drift batch** (`humanoid_drift_spike.py --band`): #572's 14 flights,
@@ -3994,46 +4002,55 @@ band, beside #572's on the C1 and its re-fly with the fences at 1.8 m:
 |---|---|---|---|---|
 | docked | 4 of 14 | 14 of 14 | 7 of 14 | 14 of 14 |
 | lost | 9 | 0 | 6 | 0 |
-| middle street: scans fixed in every direction | 0 % (82 % nothing to match) | 99 % | 0 % (84 %) | 98 % |
-| gardens | 44 % | 100 % | 44 % | 99 % |
-| sidewalks and outer streets | 17 % (59 % held) | 70 % (30 %) | 9 % (71 %) | 86 % (14 %) |
+| middle street: scans fixed in every direction | 0 % (82 % nothing to match) | 99 % | 0 % (84 %) | 95 % (5 % held) |
+| gardens | 44 % | 100 % | 44 % | 100 % |
+| sidewalks and outer streets | 17 % (59 % held) | 70 % (30 %) | 9 % (71 %) | 100 % |
 | the rooms | 94 % | 100 % | 99 % | 100 % |
 
-With the band no flight was lost, the worst error anywhere 1.64 m (Rowan's
-stand in the street, put right at the station), home from the storeroom
-within 0.0-0.9 m. The level ring lost 6 where the C1 lost 9: one is the
-other, the street blind to both, a flight's luck on where it walked.
+With the band no flight was lost: its belief was off by a median 0.11 m as
+the explore ended (the level ring's 0.39, the C1's 0.42), every trip ended
+home within 0.1 m, and the worst error anywhere, 1.66 m, was a fall's
+get-up in the living room, put right by the wide search 5 s later. The
+band was flown at each of its three versions -- binned by the bearing its
+ray was cast on, then by its own bearing levelled, then read by its median
+-- and docked 14, 13 and 14 (the one lost, a walk the planner found no
+route for), off a median 0.29, 0.16 and 0.11 m after the explore. The level
+ring lost 6 where the C1 lost 9: one is the other, the street blind to
+both, a flight's luck on where it walked.
 
 **The station's batches** (`station_spike.py`, staging, the level ring and
 the band):
 
 | | staging | level ring | band |
 |---|---|---|---|
-| `--approach`: docked and unplugged | 15 of 15 | 15 of 15 | 13 of 15 |
+| `--approach`: docked and unplugged | 15 of 15 | 15 of 15 | 11 of 15 |
 | `--lost`, belief 0.4-1 m wrong: docked | 16 of 16 | 15 of 16 | 15 of 16 |
-| `--walk-in`, from 8 places, explored 120 and 240 s: docked | 16 of 16 | 14 of 16 | 14 of 16 |
+| `--walk-in`, from 8 places, explored 120 and 240 s: docked | 16 of 16 | 14 of 16 | 16 of 16 |
 
 Staging docked all 47; the level ring missed 3 (a search begun 0.95 m off,
 where #572 found the search reaches about a metre and staging found it;
 a walk from the lobby across the street out of time, #572's known way to
 fail; and a seat it stepped back and forth round, 4-8 cm either side, in
-strides of about 10 cm, until its steps ran out); the band missed 5, every
-one at the dock.
+strides of about 10 cm, until its steps ran out); the band missed 5, four
+at the dock and a search begun 1.03 m off. Over the band's three versions
+the dock missed 5, 2 and 4 of the 47, and the same 15 starts docked 13, 15
+and 11: which start misses is a draw, the failure the same.
 
-**With the band, the dock is where it is not yet right.** Four of its
-five misses pushed the plug into the funnel three or four times and the
-port never took it; the fifth found and fixed the station and never lined
-up on the seat. Flown again, one of the misses: its matcher moved the
-belief 264 times through the dock against 77 on the level ring, 38 cm of
-moves against 19, at the station's near returns (its box, its cup and
-plug, 0.3-0.5 m off); the seat it steps to and the reach to the plug are
-both placed through that belief, and it took a seat 3.4 cm off and missed
-from it every try. Made its own to the LIDAR -- held or parked -- the
-plug's returns gone, the same start docked in one push; owned only while
-the hand held it, it missed again: it is the station's near returns under
-the matcher, not what the hand carries. Near, the part is noisier than the
-C1's model was (its sheet's 4 cm at 0.2 m, against 1.4 cm at 0.4 m), and
-the level ring's one seat lost (above) is the same failure, once.
+**With the band, the dock is where it is not yet right.** Each miss there
+either pushed the plug into the funnel three or four times and the port
+never took it, or never lined up on the seat. Flown again, one of the first
+version's misses: its matcher moved the belief 264 times through the dock
+against 77 on the level ring, 38 cm of moves against 19, at the station's
+near returns (its box, its cup and plug, 0.3-0.5 m off); the seat it steps
+to and the reach to the plug are both placed through that belief, and it
+took a seat 3.4 cm off and missed from it every try. Made its own to the
+LIDAR -- held or parked -- the plug's returns gone, the same start docked in
+one push; owned only while the hand held it, it missed again: it is the
+station's near returns under the matcher, not what the hand carries; read by
+its median, the near returns' bias gone, it misses as often. Near, the part
+is noisier than the C1's model was (its sheet's 4 cm at 0.2 m, against 1.4
+cm at 0.4 m), and the level ring's one seat lost (above) is the same
+failure, once.
 
 **The energy table is not re-priced here; the reserve is.** On this head
 the explore drew 173.8 W (12.35 Wh over 256 s; staging, the same day,

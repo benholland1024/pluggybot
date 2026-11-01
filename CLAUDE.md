@@ -516,26 +516,29 @@ save a filmstrip PNG named after the script.
 - **The humanoid's LIDAR is a Livox Mid-360S, upside down over its head**
   (#581 stage 1; `perception/lidar.py`, `HumanoidSpec.lidar_rise`,
   `tests/test_lidar.py`; Parts.md, "The LIDAR"; SimNotes, "The 3D LIDAR on
-  the head"): a frame is 30 rings 2 deg apart, -52 to +6, 360 bearings
-  each, ONE `mj_multiRay`, with its sheet's range and angle noise and its
-  0.1 m blind zone (no reading, as a self-hit is none); its robot's own
-  returns dropped, another robot's split out (#316), its noise its robot's
-  own (`imu.seed_for`). ⚠ ITS LEVEL RING IS THE SCAN THE MAP IS LAID FROM,
-  as the C1's plane was. Its points LAID FLAT -- per bearing the nearest
-  0.15-2.2 m over the floor, through the IMU's tilt (`Lidar.band`) -- see
-  the fences, the tables and the couch, and `HumanoidMission.band` is a
-  measurement's switch, never a deployment's, until #581's stage 2 serves
-  it. ⚠ ITS RAYS LEAVE 10 cm OVER THE HEAD'S TOP, 5 mm under the unit (cast
-  from inside it, every ray hit it): the steepest, -52 deg, clears the head
-  ahead and either side; at the C1's 4.7 cm the head hid every ray under
-  31-35 deg. ⚠ A FRAME COSTS 14-17 ms on the deploy box (the level ring
-  0.5-0.7, a D435 frame 11): with the band at 10 Hz the pair ran at about
-  real time (0.97-1.15x, `humanoid_spike.py --speed --band`): stage 2
-  casts 15 rings at 10 Hz (Ben's call 3, 2026-11-01; 1.17-1.42x). ⚠
-  WITH THE BAND, A DOCK'S MATCHER MOVED THE BELIEF 3.4 TIMES AS OFTEN at the
+  the head"): a frame is 30 rings 2 deg apart, -52 to +6, 360 bearings each,
+  ONE `mj_multiRay`, with its sheet's range and angle noise and its 0.1 m
+  blind zone (no reading, as a self-hit is none); its robot's own returns
+  dropped, another robot's split out (#316), its noise its robot's own
+  (`imu.seed_for`). ⚠ ITS LEVEL RING IS THE SCAN THE MAP IS LAID FROM, as
+  the C1's plane was. Its points LAID FLAT -- per bearing the nearest
+  surface 0.15-2.2 m over the floor, through the IMU's tilt (`Lidar.band`)
+  -- see the fences, the tables and the couch, and `HumanoidMission.band` is
+  a measurement's switch, never a deployment's, until #581's stage 2 serves
+  it. ⚠ A SURFACE IS READ BY ITS RETURNS' MEDIAN, never the nearest return:
+  a dozen rings strike a wall, and the least of their ranges read every wall
+  6 cm short. ⚠ ITS RAYS LEAVE 10 cm OVER THE HEAD'S TOP, 5 mm under the
+  unit (cast from inside it, every ray hit it): the steepest, -52 deg,
+  clears the head ahead and either side; at the C1's 4.7 cm the head hid
+  every ray under 31-35 deg. ⚠ A FRAME COSTS 14-17 ms on the deploy box (the
+  level ring 0.5-0.7, a D435 frame 11): with the band at 10 Hz the pair ran
+  at about real time (0.97-1.15x, `humanoid_spike.py --speed --band`):
+  stage 2 casts 15 rings at 10 Hz (Ben's call 3, 2026-11-01; 1.17-1.42x).
+  ⚠ WITH THE BAND, A DOCK'S MATCHER MOVED THE BELIEF 3.4 TIMES AS OFTEN at the
   station's near returns, and the seat and the plug-in, placed through it,
-  failed 5 docks in 47 (the level ring 1, staging none): stage 2's to
-  settle. ⚠ NO CUTOFF ON THE CAST: MuJoCo culls a plane by its centre.
+  failed 2-5 docks in 47 over the band's three versions (the level ring 1,
+  staging none): stage 2's to settle. ⚠ NO CUTOFF ON THE CAST: MuJoCo culls
+  a plane by its centre.
 - **A humanoid is told its own body and world** (#559 stages 3 and 5;
   `Menu.kinds`, `hands_procedure_rule`, `steps.served_hand_facts`;
   `tests/test_humanoid_words.py`; Overseer.md §8b): ⚠ ITS WORDS ARE THE ONLY

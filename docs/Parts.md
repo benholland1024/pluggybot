@@ -110,8 +110,8 @@ dropped, another robot's split out (#316), its noise its robot's own.
 
 **What it answers** (SimNotes, "The 3D LIDAR on the head"): its LEVEL RING,
 the 360 bearings at 0°, is the scan the map is laid from, as the C1's plane
-was; its points LAID FLAT -- per bearing the nearest 0.15-2.2 m over the
-floor, through the IMU's tilt (`Lidar.band`) -- see the fences, the
+was; its points LAID FLAT -- per bearing the nearest surface 0.15-2.2 m
+over the floor, through the IMU's tilt (`Lidar.band`) -- see the fences, the
 tables, the couch and the bed, and are a measurement's switch until #581's
 stage 2 serves them (`HumanoidMission.band`).
 

@@ -402,14 +402,16 @@ def walk_world_start():
 
 
 def strip(out: str = "lidar_spike.png", tiles: int = 9, w: int = 480, h: int = 360) -> None:
-  """The walk's filmstrip: a tile every 15 s from 5 s, the returns drawn,
-  each labelled with where the robot truly is."""
+  """The walk's filmstrip: a tile every 15 s from 5 s, and one where the
+  walk ends if its row has room, the returns drawn, each labelled with
+  where the robot truly is."""
   from PIL import Image, ImageDraw
   from station_spike import zone_of
   model, data, body = walk_world()
   eye = watcher(model, body)
   r = mujoco.Renderer(model, h, w)
   shots: list = []
+  cols = 3
   due = [5.0 + k * 15.0 for k in range(tiles)]
 
   def shot():
@@ -430,9 +432,11 @@ def strip(out: str = "lidar_spike.png", tiles: int = 9, w: int = 480, h: int = 3
 
   body.step_hooks.append(shot)
   body.run(walk_routine(body))
+  if len(shots) % cols:
+    due[:] = [data.time]
+    shot()
   body.close()
   r.close()
-  cols = 3
   rows = math.ceil(len(shots) / cols)
   sheet = Image.new("RGB", (cols * w, rows * h), (0, 0, 0))
   for k, img in enumerate(shots):
