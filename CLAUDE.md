@@ -1255,7 +1255,7 @@ save a filmstrip PNG named after the script.
   you order by, and a class of part stays null. Nothing in `economy/` or
   `mind/` imports it.
 - ⚠ **The quadruped's VESTIGES on served surfaces stay until a PR with a
-  period of its own takes them out** (#559's stage 5 left the deployed
+  period of its own takes them out** (#579; #559's stage 5 left the deployed
   prompt byte for byte, and moved the wire only in its header's `taskKinds`,
   `accepts` and `dataHashes`; Observatory.md): the decision schema's
   `answer`, `board` and `program` fields (the decision's `answer` always
