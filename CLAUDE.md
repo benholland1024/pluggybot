@@ -1256,19 +1256,20 @@ save a filmstrip PNG named after the script.
   `mind/` imports it.
 - ⚠ **The quadruped's VESTIGES on served surfaces stay until a PR with a
   period of its own takes them out** (#559's stage 5 left the deployed
-  prompt byte for byte, and moved the wire only in its header's
-  `taskKinds`, `accepts` and `dataHashes`; Observatory.md): the decision schema's
+  prompt byte for byte, and moved the wire only in its header's `taskKinds`,
+  `accepts` and `dataHashes`; Observatory.md): the decision schema's
   `answer`, `board` and `program` fields (the decision's `answer` always
   ""), the prompt's `"figures": []`, an offer's `"needsAnswer": false`, the
   context's `"rack": {}` and another robot's `"carrying": ""`, the `a_tool`
-  need (a word of the prompt's, never the answer: #572), a `tell` claim about a bay graded against
-  an empty rack, the header's `"screens": []`, `death.swapping` (null), an
-  errand's `SWAP_PICK` → `USE_TOOL` states and a run's `toolsHung`, an
-  attempt row's `tool` and `toolSeated` (null), the interrupt turn's "put
-  the tool back on its bracket", and narration that says "the rack", "the
-  charge bay", "the dock's board" and "pins connected". The fields are
-  marked `⚠ A VESTIGE` where they are made: taking one out changes what the
-  served robots read.
+  need (a word of the prompt's, never the answer: #572), a `tell` claim
+  about a bay graded against an empty rack, the header's `"screens": []`,
+  `death.swapping` (null), an errand's `SWAP_PICK` → `USE_TOOL` states (⚠
+  `SWAP_PICK`, which a refused procedure stays in, is no linger:
+  `RACK_STATES`) and a program verdict's `toolsHung`, an attempt row's
+  `tool` and `toolSeated` (null), the interrupt turn's "put the tool back on
+  its bracket", and narration that says "the rack", "the charge bay", "the
+  dock's board" and "pins connected". The fields are marked `⚠ A VESTIGE`
+  where they are made: taking one out changes what the served robots read.
 - **A recording is a MIXED stream**: event lines ride between frames; dispatch
   on `type`, no `type` means frame, ignore a type you do not know. Ink is
   NEVER MuJoCo geometry — a stroke is a `draw` event, painted in the browser

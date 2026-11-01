@@ -307,6 +307,36 @@ def test_a_restart_keeps_the_hand_job_its_robot_holds_and_says_so(tmp_path):
              for ln in said), said
 
 
+def test_a_restart_during_an_errand_keeps_the_job_and_says_so(tmp_path, monkeypatch):
+  """...and a job with an ERRAND behind it comes back claimed by its robot,
+  its errand queued again under the task's id, and History names what was
+  cut short. No kind the humanoids are offered is discharged by an errand
+  (#559), so the kind is a copy of the drawer's carrying its steps."""
+  import dataclasses
+  from pluggybot.economy.tasks import KINDS
+  from pluggybot.procedure.steps import Program, Step
+  monkeypatch.setitem(KINDS, "errand_job", dataclasses.replace(
+    KINDS["open_drawer"], name="errand_job", discharge="errand", draws=False))
+  life = _stub(tmp_path, tasks=True)
+  steps = Program.single("job", [Step("wait", {"seconds": 1.0})]).as_dict()
+  task = life.tasks.offer("errand_job", "drawer",
+                          params={"minutes": 16, "procedure": steps}, t=0.0)
+  assert life._claim_task(task.id)
+  [errand] = life.errands
+  life.tasks.start(task.id)                       # the errand is running...
+  life._errand_now = errand                       # ...and the world stops
+  snap = _saved(life, tmp_path)
+
+  back = _stub(tmp_path, tasks=True, rebase=False)
+  assert back.tasks[task.id].state == "claimed"   # not failed
+  assert back.tasks[task.id].claimed_by == back.root
+  _prelude(back, snap)
+  assert [e.task_id for e in back.errands] == [task.id]
+  assert any(f"the restart cut short {errand.name}; the job {task.id} "
+             "(errand_job) is still mine, and is queued again" in ln
+             for ln in _history(back)), _history(back)
+
+
 def test_the_board_keeps_a_claim_and_gives_back_what_nobody_can_finish(tmp_path):
   """`TaskBoard.load`'s rule since #345: a procedure job claimed or active
   comes back as it was (its robot says `done`); a job nothing in the new

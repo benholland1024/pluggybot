@@ -354,11 +354,6 @@ LANE_STEP_M = 0.25
 #: reachable means waiting where it stands.
 WAIT_BACK_M = (0.8, 1.2)
 WAIT_SIDE_M = (0.9, 1.3)
-#: A RETURN THAT FAILED IS TRIED AGAIN before anything else starts (issue
-#: #346), this many times per tool left on the fork. Bounded, because a
-#: stow that misses for a mechanical reason misses again; the waits inside
-#: each try are what cover a bay that was taken.
-STOW_RETRIES = 2
 #: WALL seconds per slice while the operator has the robot PAUSED (issue
 #: #37). Wall rather than sim, because sim time is precisely what is not
 #: moving -- this is the cadence of the heartbeat that tells the site it is

@@ -4940,10 +4940,9 @@ def model_state(state: dict, survival: bool = True) -> dict:
   ⚠ THE FILTER IS AT PRESENTATION, NOT AT CONSTRUCTION, and that is
   load-bearing. `order_runnable` and `limits_from` read the same state
   dict, and a world that built a thinner one would quietly change what its
-  own FALLBACK can do -- `order_runnable` would stop
-  filtering unrunnable errands the moment `possibleActions` went missing,
-  because an absent list means "nobody supplied one". So the state stays
-  whole and only the view narrows.
+  own FALLBACK can do -- `order_runnable` takes a standing `take_task` only
+  for an offer marked `claimable`, and would refuse every one the moment
+  the mark went missing. So the state stays whole and only the view narrows.
 
   `survival` is the A0/A1 rung (Evaluation.md §2): the survival clock has
   been in every world's context since issue #107, so A0 has to take it back

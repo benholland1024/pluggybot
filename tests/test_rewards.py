@@ -84,6 +84,9 @@ def test_the_shipped_table_is_loadable_and_every_row_is_scoreable():
   # #120): a challenge is scoreable by the ledger and hashed into no result.
   assert {r["task"] for r in TABLE.as_context()} == set(TABLE.offered) - unscoreable
   assert set(TABLE.names) - set(TABLE.offered) == set(scoring.challenge_table().names)
+  # ...and a challenge row is graded off the world, so it has a sampler too
+  for name in scoring.challenge_table().names:
+    assert name in scoring.EVALUATORS and name in scoring.SAMPLERS, name
 
 
 def test_a_table_is_read_from_a_file_not_from_code(tmp_path):

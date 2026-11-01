@@ -407,3 +407,37 @@ def test_the_grader_reads_the_humanoids_set_out_unchanged():
     assert np.any(watch.moving) and np.all(watch.own[watch.moving])
   finally:
     world.close()
+
+
+def test_every_flight_is_a_process_of_its_own_even_one_at_a_time(monkeypatch):
+  """`scripts/attempts.py`'s batch (and `hands_check.py`'s, through it): a
+  world dropped in a reused worker is held until the cycle collector runs,
+  so each flight gets a process of its own, a pool of one included."""
+  import importlib.util
+  from pathlib import Path
+  path = Path(__file__).resolve().parents[1] / "scripts" / "attempts.py"
+  spec = importlib.util.spec_from_file_location("attempts_script", path)
+  script = importlib.util.module_from_spec(spec)
+  monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")     # what its import sets
+  spec.loader.exec_module(script)
+  made = []
+
+  class Pool:
+    """Runs here, and keeps what it was built with."""
+
+    def __init__(self, processes, **kwargs):
+      made.append(kwargs)
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *exc):
+      return False
+
+    def map(self, fn, jobs, chunksize=1):
+      return [fn(j) for j in jobs]
+
+  monkeypatch.setattr(script, "Pool", Pool)
+  for n_jobs in (1, 6):
+    assert script.run_pool(abs, [-1, -2], n_jobs) == [1, 2]
+  assert made == [{"maxtasksperchild": 1}] * 2

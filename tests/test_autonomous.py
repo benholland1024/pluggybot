@@ -93,6 +93,12 @@ def test_the_filter_is_at_presentation_and_the_state_stays_whole():
   ov.model_state(state, survival=False)
   assert state["possibleActions"] == ["explore", "charge"], "not mutated"
   assert state["offeredTasks"][0]["claimable"] is False and "survival" in state
+  # ...and the fallback reads what the view hides: a standing `take_task`
+  # runs only on an offer marked claimable, so off the view it never would
+  assert ov.order_runnable(MENU, "take_task", state) is False
+  open_ = {**state, "offeredTasks": [{**state["offeredTasks"][0], "claimable": True}]}
+  assert ov.order_runnable(MENU, "take_task", open_) is True
+  assert ov.order_runnable(MENU, "take_task", ov.model_state(open_)) is False
 
 
 # ---- taking a job the pack cannot fund ----------------------------------------

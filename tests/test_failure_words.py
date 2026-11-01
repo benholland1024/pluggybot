@@ -19,6 +19,7 @@ import pytest
 from pluggybot import tick
 from pluggybot.activity import cage
 from pluggybot.body import KeepClear, StubBody
+from pluggybot.economy import scoring
 from pluggybot.humanoid.mission import HumanoidMission
 from pluggybot.lifecycle import (NEAR_STANDOFF_M, HUMANOID_HOME, HubLifecycle, board_book,
                                  world_config)
@@ -117,6 +118,20 @@ def _drive(fake, goal=(5.0, 0.0), timeout=60.0):
 def _stand_in(fake):
   fake._stand_in = (0.2, 0.0)
   return [(0.2, 0.0)]
+
+
+def test_the_lead_moves_no_point_and_leaves_a_pass_alone():
+  """A failed verdict leads with the errand's own failure (#350), and that is
+  all the lead does: the points and the metrics are the bare verdict's, and
+  a pass is never told it failed."""
+  failed = "out of time"
+  short = {"asked": 25, "taken": 0, "to": "r2_pluggybot", "why": "held less"}
+  v = scoring.evaluate("take", short, failed=failed)
+  bare = scoring.evaluate("take", short)
+  assert v.reason == f"{failed} -- {bare.reason}"
+  assert (v.ok, v.points, v.metrics) == (bare.ok, bare.points, bare.metrics)
+  won = scoring.evaluate("take", {**short, "taken": 25, "why": ""}, failed=failed)
+  assert won.ok and won.points > 0 and not won.reason.startswith(failed)
 
 
 CAUSES = {

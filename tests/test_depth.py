@@ -50,6 +50,23 @@ def room():
   return _world()
 
 
+def test_a_bowing_bodys_camera_leaves_the_attitude_to_the_caller():
+  """A frame's points come back in the torso's own axes, never levelled: the
+  humanoid bows to 63 deg, and the scan and the near field level what it
+  sees by the IMU themselves. Pitched 20 deg forward, the floor's points
+  land on the floor through the body's attitude, and 0.1 m off it through a
+  level one."""
+  model, data = _world()
+  pitch = math.radians(20)
+  data.qpos[3:7] = [math.cos(pitch / 2), 0.0, math.sin(pitch / 2), 0.0]
+  mujoco.mj_forward(model, data)
+  points = _clean(model).frame(data).points
+  assert len(points) > 1000
+  assert np.abs(_in_world(model, data, points)[:, 2]).max() < 1e-6
+  body = data.xpos[model.body("pluggybot").id]
+  assert np.abs((body + points)[:, 2]).max() > 0.1
+
+
 def test_a_thing_on_the_floor_measures_its_height_and_place():
   """A 5 cm cube 0.9 m ahead: one clean frame into the height map finds
   ONE thing there, 50 mm tall to 3 mm, 30 mm in place."""

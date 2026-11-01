@@ -353,6 +353,8 @@ def test_a_job_with_an_errand_behind_it_is_failed_by_the_stand_up(monkeypatch):
   monkeypatch.setitem(KINDS, "errand_job", dataclasses.replace(
     KINDS["open_drawer"], name="errand_job", discharge="errand", draws=False))
   board = TaskBoard()
+  said: list[dict] = []
+  board.on_event.append(said.append)
   life = _life(tasks=board)
   try:
     task = board.offer("errand_job", "drawer", params={"minutes": 16}, t=0.0)
@@ -365,6 +367,9 @@ def test_a_job_with_an_errand_behind_it_is_failed_by_the_stand_up(monkeypatch):
     assert out is STOOD_UP
     assert board[task.id].state == "failed"
     assert board[task.id].verdict["reason"] == DEATH_ENDED
+    assert [m["state"] for m in said if m["type"] == "task_resolved"] == ["failed"]
+    assert any(f"dying cut short {errand.name}; the job {task.id} (errand_job) "
+               f"is failed: {DEATH_ENDED}" in ln for ln in _history(life))
   finally:
     life.body.close()
 
