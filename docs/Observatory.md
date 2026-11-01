@@ -87,21 +87,22 @@ record is cleaner, and three readings cross the deploy:
   map is gone, beside History's line saying so.
 
 **Measured before it shipped** (`serve.py` as deployed with a fake model,
-its decisions synchronous, staging 9126d13 against this branch, 300 sim s
-from a fresh world; ~/pluggybot-training/issue-579): the 8 calls are the
-same decisions, and differ only in the schema (`board`, `program` and
-`answer` gone, `a_tool` out of `other_needs`), the prefix and each turn's
+its decisions synchronous, staging 2292fb6 -- #581's head and #562's
+schedule in -- against this branch merged with it, 300 sim s from a fresh
+world; ~/pluggybot-training/issue-579): the 8 calls are the same
+decisions, and differ only in the schema (`board`, `program` and `answer`
+gone, `a_tool` out of `other_needs`), the prefix and each turn's
 `offeredTasks`, `others` and `rack`, and History naming each decision's own
-parameter. The recording's 6 874 lines differ only in the header's
-`screens`, the two `prompt` messages, the second robot's `status` in 887
+parameter. The recording's 6 786 lines differ only in the header's
+`screens`, the two `prompt` messages, the second robot's `status` in 760
 frames ("standing by: clearing the charging station …"), the 8
 `prediction` states' `carrying` and the History lines; 13 of the 68
 narration lines moved (8 `DECIDE`, 3 `GO_CHARGE -> CHARGE (plugged in)`, 2
 `standing by`). No pose, battery or clock moved, and the saved world's 41
-arrays are bit-identical. Every one of 288 prompt configurations (single or
+arrays are bit-identical (the same held on 9126d13, before the merge). Every one of 288 prompt configurations (single or
 pair, upkeep, mortality, the three origins, the eye, escalation, the three
 constitutions) moved in the sections listed above and nowhere else.
-Carried on from production's own save instead (the daily backup's of
+Carried on from production's own save instead, before the merge (the daily backup's of
 2026-11-01 13:54 UTC, at t = 401 163 s, the box on f72f529, whose tree is
 staging's; the world, its board, boards and ledger and both robots' event
 maps, constitutions and procedures, never their memory stores) for 360 sim
