@@ -632,6 +632,19 @@ stood up it is avoided where it says it is again. A line about a robot on the
 floor says it is "lying knocked over" (`posture`), never "standing";
 `tests/test_downed_peer.py` pins each rule.
 
+**On the humanoid** (#580): the middle of its footprint is the box round its
+geoms while its get-up holds its joints, and its soles' middle on its feet
+(`HumanoidBody.footprint_centre`). The disc first went round its soles, so
+its head and shoulders, up to 1.5 m away, were outside the disc, and the
+other robot's plan ran through them. The get-up takes the joints 0.1-0.8 s
+before the trunk passes `TOPPLE_TILT_RAD` (six shoves in the house), so the
+disc is round the middle the whole time the robot is down. Lying after the
+falls the get-up took, the body reached 0.69-0.92 m from that middle
+(`humanoid_spike.py --fall`, its lying reach; lying straight, 0.80). Its 1.55 m
+from soles to the LIDAR's roof is more than the 1.4 m the disc was sized
+for, so `DOWN_ROBOT_CELLS` is 24 (1.20 m): that reach and the walker's
+half-width.
+
 ## The stairs curriculum (issue #388)
 
 The quadruped's curriculum, which the humanoid's walkers train on
@@ -1245,7 +1258,10 @@ the nearest floor it has SEEN, reached round the asker, `aside_clear_m` off
 every point of the way -- the way the asker sent is then open whatever it
 plans. Any command that moves takes over at once; a fall ends it. It is
 said ("MAKE WAY ...", "MADE WAY ..."), and remembered once over: the body
-moved and the mind did not decide it. A restart's save waits it out.
+moved and the mind did not decide it. A restart's save waits it out. A
+stand-up or a forgotten map (a true death) drops it unsaid
+(`HumanoidWay.drop_aside`, #580): left under way, a humanoid stood up walked
+on to the spot it had been stepping to.
 
 **Measured** on the quadruped pair, seven scenes in the house: before, six
 walks of seven gave up at once; after, all seven arrived, the resting

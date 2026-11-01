@@ -320,7 +320,10 @@ detail, and it belongs in its written criteria.
 on what happened ALONG the way** -- a lid never let fall, the robot never
 fallen -- is watched from the CLAIM, the job being the robot's from then,
 through the walk there to the hold's end (`HubLifecycle._watch_job`); its
-time limit is the offer's own term, counted from the claim. **And a job
+time limit is the job's own (`TaskKind.minutes`; a world's cadence may give
+another), counted from the claim -- kept by the cadence alone, an offer made
+any other way gave no number of minutes and was graded on another limit
+(#580). **And a job
 done to a MECHANISM with hidden dynamics draws them afresh at every offer**
 (`TaskKind.draws`, off the board's own sequence, the prop set back out with
 them and put back after a restart), so the skill is over a kind of thing,
@@ -619,7 +622,8 @@ deployed world runs them.
     Task.secret + the reward row's secret tuple
 [ ] no price in the template; payout only via the reward row (§2.2)
 [ ] scoring tier chosen: auto / hidden / visitor / narrative
-[ ] TaskKind entry; estimate_wh at or above the measured cost
+[ ] TaskKind entry; estimate_wh at or above the measured cost; every term
+    its sentence states and its grade reads (`minutes`) on the kind
 [ ] energy_spike run per world; target-keyed rows where targets differ;
     dearer of two honest measurements; NO padding
 [ ] evaluator: pure, streamable reason, missing measurement == failure
