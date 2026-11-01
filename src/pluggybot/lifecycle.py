@@ -2378,7 +2378,7 @@ class HubLifecycle:
       if tried == NOT_SEEN or redocked or self.body.charging():
         return False
       redocked = True
-      self._say(f"GO_CHARGE again from the standoff -- the dock said: {tried}")
+      self._say(f"GO_CHARGE again from the standoff -- it never got in: {tried}")
       return True
 
     while True:
