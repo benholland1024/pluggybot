@@ -1259,9 +1259,10 @@ save a filmstrip PNG named after the script.
   pluggybot.telemetry.scene --world home_humanoid [--pair]` -- rerun after
   changing ANY geometry in that world -- and the pair's recording,
   `scripts/two_robots.py --world home_humanoid --fast --pack demo
-  --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600
+  --near-field --errands none,none --battery 0.22,0.9 --max-sim-time 600
   --record protocol/telemetry.home_humanoid_pair.jsonl.gz` (the first
-  plugs in at its station and charges, the other explores): NO
+  plugs in at its station and charges while the other explores, then the
+  other, which starts at 90 % so that it must): NO
   `--metabolism` there, and no `--tasks`, so no fixture carries a job. The
   quadrupeds' (`home_quad`, `home_quad_pair`, `home_quad_chest`) went with
   them in #559's stage 5; the site keeps its copies, frozen at
