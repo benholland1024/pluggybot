@@ -196,6 +196,10 @@ uv run python scripts/lidar_spike.py --view       # its LIDAR's returns as it
                                       # walks across the street: red, its
                                       # points laid flat, the fences among
                                       # them; blue, its level ring (#581)
+uv run python scripts/lidar_spike.py --view head  # the head built round its
+                                      # LIDAR, turning: where its steepest
+                                      # rings meet the floor, and what its
+                                      # own body hides (#581, stage 3)
 uv run python scripts/two_robots.py --world home_humanoid --view --pack hosting
                                       # the humanoid pair living a day in the
                                       # house, as served (#559); `--fast

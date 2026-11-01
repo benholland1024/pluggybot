@@ -101,19 +101,20 @@ humanoids get lost"). Raising the fences to 1.8 m fixed it (14 of 14
 docked), and Ben chose the sensor over the fences (2026-11-01): the real
 world has low fences a robot must neither cross nor ignore -- and the
 Mid-360S of the candidates below (call 2, the same day). The part is
-`perception/lidar.py`: 30 rings 2° apart from -52 to +6°, 360 bearings
-each, in one `mj_multiRay` at its 10 Hz (its manual: a 0.1 s frame covers
+`perception/lidar.py`: 15 rings 4° apart from -52 to +4°, 360 bearings
+each (Ben's call 3: 30 rings, 2° apart, ran the served pair too slowly),
+in one `mj_multiRay` at its 10 Hz (its manual: a 0.1 s frame covers
 the field as "a 32-line mechanical LiDAR"), its sheet's range noise (≤ 4 cm
 at 0.2 m to ≤ 2 cm at 10 m) and angle noise (0.15°), 2 % dropout, its 0.1 m
 blind zone, under-ranged to 8 m on purpose; the robot's own returns
 dropped, another robot's split out (#316), its noise its robot's own.
 
-**What it answers** (SimNotes, "The 3D LIDAR on the head"): its LEVEL RING,
-the 360 bearings at 0°, is the scan the map is laid from, as the C1's plane
-was; its points LAID FLAT -- per bearing the nearest surface 0.15-2.2 m
-over the floor, through the IMU's tilt (`Lidar.band`) -- see the fences, the
-tables, the couch and the bed, and are a measurement's switch until #581's
-stage 2 serves them (`HumanoidMission.band`).
+**What it answers** (SimNotes, "The 3D LIDAR on the head" and "The band
+served"): its points LAID FLAT -- per bearing the nearest surface 0.15-2.2 m
+over the floor, through the IMU's tilt (`Lidar.band`) -- are the scan the
+map is laid from and matched by (#581's stage 2): they see the fences, the
+tables, the couch and the bed. Its LEVEL RING, the 360 bearings at 0°, is
+the C1's plane.
 
 **The candidates, and why each lost:**
 - **Unitree L2** ($419 on Unitree's page, about €437 with VAT; 230 g): a
@@ -130,18 +131,35 @@ stage 2 serves them (`HumanoidMission.band`).
 - **A second RPLIDAR tilted at the floor**: one line, as the D435's
   candidates found.
 
-**Its mount.** Upside down, the sheet's -7 to +52° turned over, on a 6082
-bracket: a 20 × 3 mm post up the head's back edge, ON TO the sensor (its
-shadow 3 bearings behind), and a plate over the unit its base bolts under.
-Its rays leave 10 cm over the head's top, 1.47 m up standing, so its
-steepest, -52°, clears the head ahead and to either side and meets the
-floor 1.15 m out; the head's corners hide only the rings under -45°. At the
-C1's 4.7 cm the head hid every ray steeper than 31-35°: the floor out to
-2 m. Standing, the robot hides 3.8 % of a frame; a hand held at a counter,
-a shelf or the floor, 3.6-6 % (`lidar_spike.py --hidden`). It runs off its
-own 12 V converter (its 18 W start-up and the contactor's 13 W are past one
-DDR-30L-12's 30) and takes the Pi 5's Ethernet port. It touches nothing in
-the sim, as the C1 did not: no policy was trained with it to fall on.
+**Its mount: in the head** (#581's stage 3). Stage 1 hung it from a 20 × 3
+mm post 10 cm over the head, and Ben rejected that (2026-11-01). It put a
+€773 sensor at the robot's highest point, on a strip that swayed at about
+12 Hz with the unit on it, where a fall or a door frame would find it
+first. It is upside down now, the sheet's -7 to +52° turned over, and the
+head is built round it, as Unitree's G1 carries its Mid-360 ("in the
+middle of the head, inverted"):
+- **The crown and the rib:** its base bolts under a 6082 plate inside a
+  printed crown, which a 6 × 15 mm 6082 rib carries up the head's back,
+  edge-on to the sensor. The rib's shadow is 7 bearings behind. It rises
+  9 cm out of the dome and sways at about 50 Hz with the unit on it.
+- **The window:** open all round, between the crown and a printed dome
+  over the face. Its manual allows nothing in its field, "including glass",
+  and wants 10 mm of air round it. The dome lies inside the steepest ray's
+  cone, so it hides nothing.
+- **Its height:** its rays leave 0.712 m over the hips, 1.44 m up
+  standing. That is the lowest point from which the steepest ray, -52°,
+  clears the face's corners (13 cm under it) and the navigation camera;
+  the shoulders' motors hide that ray aside.
+- **What it hides:** standing, 2.6 % of a frame (on the post, 4.8 %); a
+  hand held at a counter, a shelf or the floor, 3.2-5.9 % (3.6-6.9 %).
+  Lower, the head hides more: 3.5 % at 0.70 m, 5.5 % at 0.69 m and 18 % at
+  0.66 m (`lidar_spike.py --hidden --heights`).
+- **Its power:** its own 12 V converter (its 18 W start-up and the
+  contactor's 13 W are past one DDR-30L-12's 30); it takes the Pi 5's
+  Ethernet port.
+
+Every part collides, the unit too, and in a hard fall the crown strikes
+first (SimNotes, "The sensor in the head").
 
 ### The near-field depth camera: RealSense D435 (issue #34)
 
@@ -291,11 +309,11 @@ D435 is fixed in the head, 1.26 m up and pitched 40° down: it sees the
 counter's height from 0.12 to 1.64 m ahead and the floor from 0.48 m, and
 its colour imager reads the tags within reach (a counter's props, the
 station). The Camera Module 3 above it, pitched 20°, reads the tags on the
-walls that mark places, and is the eye a `look` sees through. The
-Mid-360S rides upside down on a bracket over the head, its rays leaving
-1.47 m up: its map is laid from its points laid flat, which see the tables,
-the couch and the bed, and the depth camera sees them by its feet too
-(#581). The IMU rides the pelvis.
+walls that mark places, and is the eye a `look` sees through: it rides the
+dome over the face. The Mid-360S is upside down in the head, under its
+crown, its rays leaving 1.44 m up: its map is laid from its points laid
+flat, which see the tables, the couch and the bed, and the depth camera
+sees them by its feet too (#581). The IMU rides the pelvis.
 
 **The bill.** `humanoid/bill.py`, rendered here and written to
 `protocol/parts.json` by `uv run python -m pluggybot.humanoid.bill`: a part

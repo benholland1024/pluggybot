@@ -579,9 +579,9 @@ def view_head() -> None:
         "steepest rings meet it (-52 red, -48 orange, -44 yellow), and magenta where a ray "
         "its own body hides strikes it. Close the window to quit.")
   with mj_viewer.launch_passive(model, data) as viewer:
-    cam = _head_cam(model, data, "head", 1.6, 215.0, -20.0)
-    viewer.cam.lookat[:] = cam.lookat
-    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 1.6, 215.0, -20.0
+    # over the robot, between its head and the rings round its feet
+    viewer.cam.lookat[:] = data.xpos[model.body("pluggybot").id] + [0.0, 0.0, 0.2]
+    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 3.4, 215.0, -32.0
     with viewer.lock():
       draw(viewer.user_scn, marks)
     while viewer.is_running():
