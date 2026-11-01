@@ -214,8 +214,9 @@ NOT on it (#562): `mode.json` is on a volume of its own, `pluggy_switch`,
 the website's to write, mounted read-only here at `/var/lib/pluggy-switch`
 (`$PLUGGY_MODE_FILE`), and the website mounts nothing else of the sim's. It
 writes the switch on a schedule too, the hours an admin's setting on the
-site's controls page: the deployed world runs at weekends and is paused in
-between (Observatory.md). It serves the humanoid
+site's controls page: weekends as decided, paused in between, from when an
+admin turns it on (Observatory.md's period says since when). It serves the
+humanoid
 pair (`$PLUGGY_BODY`, #559's stage 4) on `--pack hosting` (the humanoid's
 real pack, `humanoid.world.PACK_WH`, 777.6 Wh) rather than the demo cell,
 which flattens fast; the low-battery reserve is deliberately *not* scaled

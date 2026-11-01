@@ -1018,9 +1018,10 @@ save a filmstrip PNG named after the script.
   is failing OPEN). ⚠ A paused robot emits no frames, so `mode` is a MESSAGE
   with a heartbeat too, and `RealTimePacer.resync()` on resume. ⚠ THE FILE
   IS ON THE SWITCH'S OWN VOLUME (#562; `pluggy_switch`, read-only in the
-  sim): the website writes it, by hand and on its schedule (the deployed
-  world runs at weekends, the hours an admin's setting), and mounts nothing
-  else of the sim's; both robots of a pair are told a pause.
+  sim): the website writes it, by hand and on its schedule (weekends as
+  decided, the hours an admin's setting, off until an admin turns it on),
+  and mounts nothing else of the sim's; both robots of a pair are told a
+  pause.
 - **Which model is `$PLUGGY_MODEL`; which backend is `--overseer-backend` /
   `$PLUGGY_OVERSEER_BACKEND`** (issue #19; Overseer.md §6): an `org/name` id
   goes to the HuggingFace router (`mind/llm.py`), a bare id to the Anthropic

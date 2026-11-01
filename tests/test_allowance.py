@@ -14,6 +14,7 @@ which is why `SpendBook` takes its clock.
 """
 
 import json
+import re
 import threading
 import time
 
@@ -466,8 +467,9 @@ def test_a_pause_is_told_to_every_robot_on_the_loop(tmp_path):
   for life in (first, second):
     history = life.thoughts.read("History.md")
     assert "paused by the operator" in history
-    assert "woke up again after 1 s paused" in history
-    assert life.status.startswith("RESUMED after 1 s")
+    #  How long is the thread's to say, and a loaded machine says more.
+    assert re.search(r"woke up again after \d+ s paused", history)
+    assert re.match(r"RESUMED after \d+ s in llm mode", life.status)
 
 
 def test_a_long_pause_is_said_in_days_and_hours():

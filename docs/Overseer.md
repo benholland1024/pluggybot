@@ -2098,7 +2098,8 @@ the budget (§8b).
 writes it** — `tests/test_allowance.py` asserts there is no writer in the
 module at all. The website writes it, on a volume of its own the sim mounts
 read-only (#562): by an admin's hand, and on a schedule whose hours are an
-admin's setting (the deployed world's are weekends, Observatory.md). The
+admin's setting (weekends, as decided; off until an admin turns it on, and
+Observatory.md's period says since when). The
 schedule writes only where its own answer changes, so a hand on the switch
 between its hours stands until the next boundary.
 
