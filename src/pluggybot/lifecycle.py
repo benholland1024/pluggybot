@@ -2418,6 +2418,8 @@ class HubLifecycle:
                   "station's tags decide")
         tried = yield from self.body.dock_routine()
         if tried != NOT_SEEN or self.body.charging():
+          if dock_again():
+            continue
           break
         # ...and no station in sight from within NEAR_STANDOFF_M is a robot
         # LOST too (issue #476): the station is in plain sight from there (a
@@ -2470,9 +2472,8 @@ class HubLifecycle:
     return True
 
   def _search_routine(self) -> Routine:
-    """Lost, the station searched for (`Body.lost_routine`) for as long as
-    the pack has charge to search on (#572): finding it is all a robot that
-    cannot charge has to spend it on."""
+    """Lost, the station searched for (`Body.lost_routine`, #572): for its
+    own patience, and never on an empty pack."""
     return self.body.lost_routine("station", stop=lambda: self.battery.energy_wh <= 0.0)
 
   def _near_standoff(self, sx: float, sy: float) -> bool:
