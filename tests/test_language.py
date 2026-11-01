@@ -706,10 +706,10 @@ def test_a_procedure_runs_by_name_as_a_composed_errand():
   L = lib.Library(HOME)
   L.define("pace", 'def pace():\n  n = 0\n'
                    '  while n < 2:\n    drive_to(1, 1)\n    n += 1\n  face(0.5)\n')
-  errand = errand_from(Decision(action="procedure:pace"), WORLD, library=L)
+  errand = errand_from(Decision(action="procedure:pace"), library=L)
   assert errand is not None and errand.name == "procedure"
   assert errand.program is L.get("pace")
-  assert errand_from(Decision(action="procedure:nope"), WORLD, library=L) is None
+  assert errand_from(Decision(action="procedure:nope"), library=L) is None
   result = life.run_errand(errand)
   run = result["procedure"]
   assert run["ok"] and run["completed"] == 3 and result["stowed"]
@@ -723,7 +723,7 @@ def test_a_procedure_cut_short_fails_its_verdict():
   L = lib.Library(HOME)
   L.define("short", 'def short():\n  wait(1)\n  drive_to(1, 1)\n  face(0.5)\n')
   result = life.run_errand(errand_from(Decision(action="procedure:short"),
-                                       WORLD, library=L))
+                                       library=L))
   assert result["procedure"]["failedAt"] == 1 and result["procedure"]["completed"] == 1
   assert result["stowed"] and not result["verdict"]["ok"]
 
@@ -744,7 +744,7 @@ def test_a_failed_run_names_the_line_that_failed_and_why():
   L.define("loop", 'def loop():\n  for i in range(2):\n    wait(0.1)\n  drive_to(1, 1)\n')
   L.define("fine", 'def fine():\n  for i in range(2):\n    wait(0.1)\n')
   for name in ("loop", "fine"):
-    life.run_errand(errand_from(Decision(action=f"procedure:{name}"), WORLD, library=L))
+    life.run_errand(errand_from(Decision(action=f"procedure:{name}"), library=L))
   aborted, ran = [e for e in events if e.get("type") == "procedure"
                   and e["outcome"] in ("aborted", "ran")]
   assert aborted["name"] == "loop" and aborted["outcome"] == "aborted"

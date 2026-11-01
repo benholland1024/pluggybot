@@ -53,7 +53,7 @@ pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 ### 0.21.0, nothing new: the quadruped retired (its fixtures, `reset_tool`, the screens)
 
 pluggybot #559's stage 5 deletes the quadruped; the tag `quadruped-final`
-(6f9456b) is the last commit that serves it. No message's shape moves, so
+(4333f30) is the last commit that serves it. No message's shape moves, so
 there is no bump, and the served stream is stage 4's: the humanoid pair in
 `home_humanoid_pair`, its prompt and every message the same byte for byte,
 but for the header (below).
@@ -2834,7 +2834,7 @@ hanging in its bay is `off`, and so is a half-seated one on the fork.
 **Why `board_snapshot` had to exist.** Keyframes re-ship every board's
 counters, but no keyframe re-ships the LINES: a stroke is an event that
 happens once. So a browser that opens the page after the pen has moved on —
-or after the producer restarted onto a state file, since `tools/boards.py` now
+or after the producer restarted onto a state file, since `home/boards.py` now
 persists the polylines themselves — sees a board reporting 40 % fill with
 nothing painted on it. The snapshot is what closes that gap. It is sent when
 a stream opens (a recording carries it right after the header; the live

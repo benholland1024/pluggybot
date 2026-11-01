@@ -434,21 +434,20 @@ def test_the_context_is_the_live_lifecycle_and_carries_no_truth(menu):
 
 
 @pytest.mark.parametrize("action", ["idle", "explore", "charge"])
-def test_the_non_errand_actions_build_no_errand(book, action):
-  assert errand_from(Decision(action=action), "home_humanoid", book) is None
+def test_the_non_errand_actions_build_no_errand(action):
+  assert errand_from(Decision(action=action)) is None
 
 
-def test_an_impossible_errand_is_none_rather_than_an_exception(book):
+def test_an_impossible_errand_is_none_rather_than_an_exception():
   """A decision is untrusted input in exactly the way a visitor message will
   be (issue #16). The mission loop's answer to "I cannot do that" is to ask
   again, never to end."""
   from pluggybot.lifecycle import world_facts
   from pluggybot.procedure.library import Library
-  assert errand_from(Decision(action="procedure:nothing_by_that_name"),
-                     "home_humanoid", book) is None
+  assert errand_from(Decision(action="procedure:nothing_by_that_name")) is None
   library = Library(world_facts("home_humanoid"))
   assert errand_from(Decision(action="procedure:nothing_by_that_name"),
-                     "home_humanoid", book, library=library) is None
+                     library=library) is None
 
 
 def test_a_zone_resolves_to_somewhere_inside_it():

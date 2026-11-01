@@ -68,6 +68,20 @@ def _attach_humanoid(spec: mujoco.MjSpec, pos, prefix: str, rgba, bits=None) -> 
   spec.attach(robot, prefix=prefix, frame=frame)
 
 
+def _attach_tags(spec: mujoco.MjSpec, ids, body_xml: str) -> None:
+  """Tags' textures and materials (`tags/tag<i>.png`), then the fixture
+  that wears them, attached to the world."""
+  for i in ids:
+    spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
+                     file=f"tags/tag{i}.png")
+    mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
+                            reflectance=0.0)
+    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{i}"
+  child = mujoco.MjSpec.from_string(
+    f'<mujoco><compiler angle="radian"/><worldbody>{body_xml}</worldbody></mujoco>')
+  spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
+
+
 def _attach_signs(spec: mujoco.MjSpec) -> None:
   """The lab's plate signs (issue #419; `activity.cage.plate_signs_xml`)
   and their tags' textures, where the house has a lab."""
@@ -75,16 +89,7 @@ def _attach_signs(spec: mujoco.MjSpec) -> None:
   from pluggybot.home import world as home
   if not any(b.name == "lab_cage" for b in spec.worldbody.bodies):
     return
-  for i in PLATE_TAG_IDS:
-    spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
-                     file=f"tags/tag{i}.png")
-    mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
-                            reflectance=0.0)
-    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{i}"
-  child = mujoco.MjSpec.from_string(
-    "<mujoco><compiler angle=\"radian\"/><worldbody>"
-    + cage.plate_signs_xml(home.LAB_CAGE_XY) + "</worldbody></mujoco>")
-  spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
+  _attach_tags(spec, PLATE_TAG_IDS, cage.plate_signs_xml(home.LAB_CAGE_XY))
 
 
 def _attach_board_tags(spec: mujoco.MjSpec) -> None:
@@ -96,32 +101,15 @@ def _attach_board_tags(spec: mujoco.MjSpec) -> None:
   names = [n for n in home.BOARDS if n in BOARD_TAG_IDS]
   if not names:
     return
-  for i in (t for n in names for t in BOARD_TAG_IDS[n]):
-    spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
-                     file=f"tags/tag{i}.png")
-    mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
-                            reflectance=0.0)
-    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{i}"
-  body = "".join(board_tags_xml(n, Board.from_meta(home.BOARDS[n])) for n in names)
-  child = mujoco.MjSpec.from_string(
-    f'<mujoco><compiler angle="radian"/><worldbody>{body}</worldbody></mujoco>')
-  spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
+  _attach_tags(spec, (t for n in names for t in BOARD_TAG_IDS[n]),
+               "".join(board_tags_xml(n, Board.from_meta(home.BOARDS[n])) for n in names))
 
 
 def _attach_area_tags(spec: mujoco.MjSpec) -> None:
   """The task areas' tags (issue #407; `home.areas`), and their
   textures."""
   from pluggybot.home import areas
-  for i in areas.area_ids():
-    spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
-                     file=f"tags/tag{i}.png")
-    mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
-                            reflectance=0.0)
-    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{i}"
-  child = mujoco.MjSpec.from_string(
-    f'<mujoco><compiler angle="radian"/><worldbody>{areas.area_tags_xml()}'
-    '</worldbody></mujoco>')
-  spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
+  _attach_tags(spec, areas.area_ids(), areas.area_tags_xml())
 
 
 def station_pose() -> tuple[float, float, float]:

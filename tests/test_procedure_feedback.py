@@ -38,7 +38,7 @@ def test_a_procedure_cut_short_tells_the_robot_the_line_and_the_reason():
   life.on_event.append(events.append)
   L = lib.Library(lc.world_facts(WORLD))
   L.define("walk", 'def walk():\n  drive_to(1, 1)\n  wait(1)\n')
-  life.run_errand(errand_from(Decision(action="procedure:walk"), WORLD, library=L))
+  life.run_errand(errand_from(Decision(action="procedure:walk"), library=L))
   history = life.thoughts.read("History.md")
   assert ("the procedure walk did not finish -- it stopped at line 2, drive_to: "
           "did not arrive at (1, 1): no route there on my map, at (0.0, 0.0) "
@@ -56,7 +56,7 @@ def test_a_call_refused_at_run_time_is_named_once():
   life = stub_life()
   L = lib.Library(lc.world_facts(WORLD))
   L.define("big", "def big():\n  t = 99\n  find(t, 1, 1)\n")
-  life.run_errand(errand_from(Decision(action="procedure:big"), WORLD, library=L))
+  life.run_errand(errand_from(Decision(action="procedure:big"), library=L))
   assert ("it stopped at line 3, find: tag 99 names no place this world has "
           "(places: 35 to 46, 60 to 63) (0 steps had run)") in life.thoughts.read("History.md")
 
@@ -67,7 +67,7 @@ def test_an_argument_the_run_cannot_compute_is_named_by_its_call():
   life = stub_life()
   L = lib.Library(lc.world_facts(WORLD))
   L.define("u", "def u():\n  t = 0\n  wait(1 / t)\n")
-  life.run_errand(errand_from(Decision(action="procedure:u"), WORLD, library=L))
+  life.run_errand(errand_from(Decision(action="procedure:u"), library=L))
   assert "it stopped at line 3, wait: division by zero" in life.thoughts.read("History.md")
 
 
@@ -77,7 +77,7 @@ def test_a_local_is_said_with_every_digit():
   life = stub_life()
   L = lib.Library(lc.world_facts(WORLD))
   L.define("big", "def big():\n  t = 1234567\n  u = 2.5\n  wait(0.1)\n")
-  life.run_errand(errand_from(Decision(action="procedure:big"), WORLD, library=L))
+  life.run_errand(errand_from(Decision(action="procedure:big"), library=L))
   assert "it ended with t = 1234567, u = 2.5" in life.thoughts.read("History.md")
 
 
@@ -87,7 +87,7 @@ def test_a_procedure_that_finished_says_so():
   life = stub_life()
   L = lib.Library(lc.world_facts(WORLD))
   L.define("tidy", 'def tidy():\n  wait(1)\n  face(0.5)\n')
-  life.run_errand(errand_from(Decision(action="procedure:tidy"), WORLD, library=L))
+  life.run_errand(errand_from(Decision(action="procedure:tidy"), library=L))
   history = life.thoughts.read("History.md")
   assert re.search(r"ran the procedure tidy to its end \(2 steps\)$", history, re.M)
 
@@ -316,7 +316,7 @@ def test_a_failed_step_puts_its_trace_in_the_log_and_never_the_status():
   life.say_hooks.append(lambda t, msg, *a: said.append(msg))
   L = lib.Library(lc.world_facts(WORLD))
   L.define("look", "def look():\n  find(35, 1, 1)\n")
-  life.run_errand(errand_from(Decision(action="procedure:look"), WORLD, library=L))
+  life.run_errand(errand_from(Decision(action="procedure:look"), library=L))
   assert any("belief off +3,-12 mm" in line for line in life.log)
   assert any("PROCEDURE look failed at step 1" in msg for msg in said)
   assert not any("belief off" in msg for msg in said)

@@ -327,10 +327,10 @@ def test_the_errand_menu_is_by_name():
   queue left is `none` (#559: a lab act went with the quadruped)."""
   b = board_book("home_humanoid")
   assert b.names == ["whiteboard_a", "whiteboard_b"]
-  assert errands_for("none", "home_humanoid", b) == []
+  assert errands_for("none") == []
   for gone in ("juggle", "feed"):
     with pytest.raises(ValueError, match="unknown errand queue"):
-      errands_for(gone, "home_humanoid", b)
+      errands_for(gone)
 
 
 def test_board_records_round_trip_through_json():

@@ -20,10 +20,10 @@ rather than a thing it promises not to:
   what to attempt; code decides what it was worth.
 
   IT CANNOT SEE A HIDDEN ANSWER. The context is built from `public_metrics()`
-  and `TaskReward.as_context()`, both of which drop `secret` metrics -- so the
-  census's ground truth is not in the prompt for the task whose whole point is
-  going and counting. Guarded in tests, because the leak would be silent and
-  the robot would simply get suspiciously good at one task.
+  and `TaskReward.as_context()`, both of which drop `secret` metrics -- so a
+  job's hidden answer is never in the prompt for the task whose whole point is
+  finding it out. Guarded in tests, because the leak would be silent and the
+  robot would simply get suspiciously good at one task.
 
   IT CANNOT BLOCK THE PHYSICS. The call runs on a worker thread and the
   lifecycle keeps STEPPING THE SIM while it flies (`HubLifecycle._decide`), so
@@ -1218,8 +1218,8 @@ class Menu:
   def available(self) -> tuple[str, ...]:
     """The actions that are actually possible here.
 
-    A world with no whiteboards is not offered `draw`, and one with nothing
-    countable is not offered `census`. Offering an action the world cannot
+    A world with no zones is not offered `explore`, and a mind with no
+    library is not offered `procedure`. Offering an action the world cannot
     perform is how a decision loop discovers a dead end by driving into it.
     """
     # `take_task` is offered unconditionally, and unlike the entries below
@@ -3205,8 +3205,8 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
   Read off the live lifecycle rather than accumulated separately, so it cannot
   drift from what the robot actually is. Everything published elsewhere is
   published here on the same terms -- `verdicts` are already redacted by
-  `Verdict.public_metrics`, so the census's ground truth is not reachable
-  through this dict either.
+  `Verdict.public_metrics`, so a hidden answer is not reachable through
+  this dict either.
   """
   battery = life.battery
   boards = {}
@@ -3291,8 +3291,8 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
     # The jobs on offer (issue #21). Already framed by `Task.as_context`:
     # what the job is, what it pays off the reward table, and whether it can
     # be afforded right now. A task kind with an ANSWER keeps it in
-    # `Task.secret`, which has no path into this dict -- the census's
-    # redacted ground truth, one layer up.
+    # `Task.secret`, which has no path into this dict -- the verdicts'
+    # redacted answers, one layer up.
     "offeredTasks": list(tasks),
     # THE ALLOWANCE, SHOWN AND UNREACHABLE (issue #37). Exactly the reward
     # table's rule, one layer out: the robot is told what its thinking has

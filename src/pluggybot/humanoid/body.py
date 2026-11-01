@@ -87,9 +87,9 @@ FIX_TOL_M = 0.10
 FIX_TOL_RAD = math.radians(2.0)
 #: ⚠ A FIX PAST THE MATCHER'S OWN SEARCH DROPS THE MAP: the walls laid while
 #: lost are copies the matcher holds a corrected belief to. MEASURED on the
-#: quadrupeds (#476, `drift_spike.py --lived`): put at the truth on the
-#: deployed pair's own maps, a walk was 1.3 and 1.9 m out within 20 s,
-#: relocated onto a copy; on an empty map, 0.23 m at worst.
+#: quadrupeds (#476, `drift_spike.py --lived` at `quadruped-final`): put
+#: at the truth on the deployed pair's own maps, a walk was 1.3 and 1.9 m
+#: out within 20 s, relocated onto a copy; on an empty map, 0.23 m at worst.
 ASKEW_M = SEARCH_M
 ASKEW_RAD = SEARCH_RAD
 

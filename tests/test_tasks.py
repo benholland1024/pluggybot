@@ -561,7 +561,7 @@ def test_a_claimed_task_builds_an_errand_that_carries_its_id(monkeypatch):
   errand is the verdict that closes the offer."""
   b = board()
   task = offered(b, kind=errand_kind(monkeypatch), params={"procedure": waits()})
-  errand = lc.errand_for_task(task, lc.HUMANOID_HOME, None)
+  errand = lc.errand_for_task(task, lc.HUMANOID_HOME)
   assert errand is not None
   assert errand.task_id == task.id
   assert errand.task == KINDS[task.kind].task == "open_drawer"
@@ -574,19 +574,19 @@ def test_a_task_this_world_cannot_build_is_left_alone_not_failed(monkeypatch):
   b = board()
   kind = errand_kind(monkeypatch)
   task = offered(b, kind=kind)                           # no procedure to run
-  assert lc.errand_for_task(task, lc.HUMANOID_HOME, None) is None
+  assert lc.errand_for_task(task, lc.HUMANOID_HOME) is None
   assert b[task.id].state == "offered"
   # ...and one whose procedure names a verb this body has not (the
   # quadruped's fetch) -- while the same job with one it has is built
   from pluggybot.procedure.steps import Program, Step
   fetches = Program.single("job", [Step("fetch", {"tool": "module_pen"})]).as_dict()
   assert lc.errand_for_task(offered(b, kind=kind, params={"procedure": fetches}),
-                            lc.HUMANOID_HOME, None) is None
+                            lc.HUMANOID_HOME) is None
   assert lc.errand_for_task(offered(b, kind=kind, params={"procedure": waits()}),
-                            lc.HUMANOID_HOME, None) is not None
+                            lc.HUMANOID_HOME) is not None
   # ...and a job whose procedure the robot writes builds none at all
   assert lc.errand_for_task(offered(b, params={"procedure": waits()}),
-                            lc.HUMANOID_HOME, None) is None
+                            lc.HUMANOID_HOME) is None
 
 
 # ---- the loop: charge priority, and the end-to-end flight ---------------------
@@ -667,4 +667,4 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
     f"below its reserve (legal again at t={legal_at[0]:.1f} s)")
   # ...and the job really was buildable throughout, so the ordering was
   # tested rather than dodged by an offer nothing could have accepted.
-  assert lc.errand_for_task(task, lc.HUMANOID_HOME, None) is not None
+  assert lc.errand_for_task(task, lc.HUMANOID_HOME) is not None

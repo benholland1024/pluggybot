@@ -157,7 +157,7 @@ def job_routine(life, kind: str, world: str):
   for source in sources:
     name = lang.compile_procedure(source, facts).name
     library.define(name, source)
-    errand = errand_from(ov.Decision(action=f"procedure:{name}"), world, library=library)
+    errand = errand_from(ov.Decision(action=f"procedure:{name}"), library=library)
     result = yield from life.run_errand_routine(errand)
     run = result.get("procedure") or {}
     runs.append(run)

@@ -267,12 +267,6 @@ LOOP_Y = (PAVEMENT_Y[0] - LOOP_W, PAVEMENT_Y[1] + LOOP_W)
 #: L-shaped, and an L is not a rect, so it is two zones sharing a `kind`
 #: rather than one zone with a hole in the middle of its bounding box.
 #:
-#: ⚠ `garden` is still the EAST rectangle alone, and the census still surveys
-#: it. All four plants are inside it and `true_count` counts by prefix WITHIN
-#: the zone rect, so the census's hidden answer is unchanged at 4 -- which is
-#: what keeps the committed recording and `test_the_home_fixture_shows_the_
-#: census_answer` describing the same world they always did.
-#:
 #: The loop (issue #215) is four `street_*` legs, the long ones spanning the
 #: corners. The MIDDLE street runs on through the sidewalk band to meet it
 #: at both ends, so the band is broken there and each property has its own
@@ -731,8 +725,7 @@ def build_home_world() -> tuple[str, dict]:
         f"plant_{i}", "plant")
 
   # The reference activity. Its module owns BOTH the geometry and the state
-  # machine (activity/plate.py), so a world adds one by calling one function
-  # -- the same shape as rack/coupling.py owning the tool modules' faces.
+  # machine (activity/plate.py), so a world adds one by calling one function.
   # The PAD is hinted `plate` and says what it is for (`plates` below, the
   # site's glyph); the light itself has no hint, because there is no `light`
   # in the vocabulary and inventing one ahead of a consumer is how a shared

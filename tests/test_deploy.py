@@ -144,7 +144,7 @@ life = HubLifecycle(model, data, battery_wh=cfg["battery_wh"],
                     grid_bounds=cfg["grid_bounds"],
                     low_battery_wh=cfg["low_battery_wh"], world=HUMANOID_HOME,
                     overseer=boss, near_field=True,
-                    errands=errands_for("none", HUMANOID_HOME, book), boards=book)
+                    errands=errands_for("none"), boards=book)
 activities = cfg["activities"](model, data)
 life.body.step_hooks.append(activities.step_hook(model, data))
 # Port 1 is nothing: the publisher's retry loop is the point, not a peer.

@@ -336,7 +336,9 @@ RACK_LINGER_S = 90.0
 CHARGE_OCCUPANCY_S = 462.0
 WAIT_OCCUPANCIES = 3.0
 #: What a robot does AT the rack: not lingering, whatever the clock says.
-RACK_STATES = ("GO_CHARGE", "CHARGE")
+#: SWAP_PICK is the swap state a procedure opens in (a vestige the frames
+#: carry), and one its world refused stays in it.
+RACK_STATES = ("SWAP_PICK", "GO_CHARGE", "CHARGE")
 #: How often a waiting robot looks again, sim seconds.
 BAY_POLL_S = 1.0
 #: The dock's way in is held as its standoff is (#455), at points this far
@@ -624,8 +626,8 @@ class HubLifecycle:
     #: Every robot's geoms, what touching a prop is read against
     #: (`_worked_props`), once asked.
     self._robot_geoms: set | None = None
-    #: ...and every grade the loop ran, for the run record: the task, the
-    #: verdict, what touched the tower during the hold.
+    #: ...and every grade the loop ran, for the run record: the task and
+    #: its verdict.
     self.grades: list[dict] = []
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
@@ -2210,7 +2212,7 @@ class HubLifecycle:
       # ⚠ `verdict.reason` and not `public_metrics`: the reason line is
       # already redacted of a hidden answer (issue #14), and History is read
       # back into the model's own context, so a file built out of raw
-      # metrics would hand the census its ground truth by the back door.
+      # metrics would hand a hidden answer back by the back door.
       self._remember(f"{verdict.task}: {verdict.reason}")
       return None
     entry = self.ledger.award(verdict, t=float(self.data.time))
@@ -2625,10 +2627,9 @@ class HubLifecycle:
              "error": f"{type(e).__name__}: {e}"}
       self._say("PROCEDURE FAILED: something went wrong -- stowing anyway",
                 detail=run["error"])
-    # ⚠ A VESTIGE: "stowing anyway" above and `toolsHung` below are the
-    # quadruped's (a tool on its fork went home): no verb fetches one now,
-    # and the served robots still read both.
-    run["toolsHung"] = True
+    # ⚠ A VESTIGE: "stowing anyway" above is the quadruped's (a tool on its
+    # fork went home), as is the verdict's `toolsHung` (`sample_program`): no
+    # verb fetches one now, and the served robots still read both.
     # WHERE AND WHY IT FAILED ride with the count (rooftop-media-2026
     # #342): `failedAt` counts verb calls EXECUTED, so inside a loop it
     # names no line of the source, and the step's own reason was on no
@@ -4859,7 +4860,7 @@ class HubLifecycle:
         return False
       errand = None
     else:
-      errand = errand_for_task(task, self.world, self.boards)
+      errand = errand_for_task(task, self.world)
       if errand is None:
         # Offered in a world that cannot build it. Not fatal and not a
         # claim: leaving it offered lets it lapse honestly rather than be
@@ -5165,7 +5166,7 @@ class HubLifecycle:
         yield from self.body.hold_routine(DECIDED_IDLE_S)
         return "unbuildable"
       decision = dataclasses.replace(decision, action=PROCEDURE_PREFIX + name)
-    errand = errand_from(decision, self.world, self.boards,
+    errand = errand_from(decision,
                          library=getattr(self.overseer, "library", None))
     if errand is None:
       # Vocabulary and world agreed on an action nothing can build. Not an
@@ -5377,7 +5378,7 @@ class HubLifecycle:
         self._remember(f"{prefix}the job {task.id} ({task.kind}) is failed: "
                        f"{taken.verdict['reason']}")
         continue
-      errand = errand_for_task(task, self.world, self.boards)
+      errand = errand_for_task(task, self.world)
       if errand is None:
         self.tasks.release(task.id)
         self._say(f"TASK {task.id}: offered again -- nothing here builds it")
@@ -6112,11 +6113,10 @@ def task_producer(board, world: str, book=None, cadence=None,
                       facts=facts)
 
 
-def errands_for(kind: str, world: str, book=None) -> list:
+def errands_for(kind: str) -> list:
   """The named errand queues a demo or the website can ask for: `none`
-  since the quadruped's -- a lab act, the census, a board's job -- went
-  with it (#559). A lookup by NAME, so adding a queue never means adding an
-  argument to serve.py."""
+  since the quadruped's went with it (#559). A lookup by NAME, so adding a
+  queue never means adding an argument to serve.py."""
   if kind == "none":
     return []
   raise ValueError(f"unknown errand queue {kind!r} (none)")
@@ -6125,8 +6125,8 @@ def errands_for(kind: str, world: str, book=None) -> list:
 # ---- the overseer's seams (issue #15) ---------------------------------------
 
 
-def errand_from(decision, world: str, book=None, library=None):
-  """An overseer decision -> an errand, or None if this world cannot build it.
+def errand_from(decision, library=None):
+  """An overseer decision -> an errand, or None if it builds none.
 
   None rather than an exception: a decision is untrusted input in exactly the
   way a visitor message will be (issue #16), and the mission loop's response
@@ -6149,7 +6149,7 @@ def errand_from(decision, world: str, book=None, library=None):
   return None
 
 
-def errand_for_task(task, world: str, book=None):
+def errand_for_task(task, world: str):
   """A claimed TASK -> the errand that discharges it, or None (issue #21).
 
   The sibling of `errand_from` and deliberately the same shape: a task is
@@ -6161,8 +6161,8 @@ def errand_for_task(task, world: str, book=None):
   job also closes the offer -- one evaluation, two consumers. It never
   carries the task's `secret`. A job the robot writes the procedure for
   has none (issue #207): the robot runs it and says `done`. The quadruped's
-  errands -- a board's, the census, the plates', the game's -- went with it
-  (#559); what is left is a task carrying the procedure that discharges it.
+  errands went with it (#559); what is left is a task carrying the
+  procedure that discharges it.
   """
   from pluggybot.economy.tasks import KINDS
   spec = KINDS.get(task.kind)
@@ -6772,7 +6772,7 @@ def run_demo(start=None, view: bool = False,
                       boards=book, ledger=ledger,
                       overseer=boss, mode=switch,
                       world=world,
-                      errands=(errands_for(errand, world, book)
+                      errands=(errands_for(errand)
                                if program is None else
                                [programmed_errand(load_program(program, world),
                                                   task=program_task)]),

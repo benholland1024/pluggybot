@@ -18,6 +18,8 @@ from pluggybot import lifecycle as lc
 from pluggybot import tick
 from pluggybot.body import RackPose, StubBody
 from pluggybot.mind import events as ev
+from pluggybot.mission.errand import programmed_errand
+from pluggybot.procedure import lang
 from pluggybot.robot import SECOND
 
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
@@ -153,6 +155,20 @@ def test_a_robot_left_standing_at_the_rack_is_logged_once():
   life = _life(_peer(9.0, 9.0))
   _at(life, sx, sy)
   life.state = "CHARGE"
+  for t in range(0, int(lc.RACK_LINGER_S) + 5):
+    life.data.time = float(t)
+    life._rack_linger_step()
+  assert not [line for line in life.log if "RACK: lingering" in line]
+
+
+def test_a_refused_procedure_beside_the_station_is_not_lingering():
+  """A procedure opens in SWAP_PICK, the quadruped's swap state the frames
+  still carry (#559), and one its world refused stays in it while the loop
+  goes on: that is no linger, as it never was."""
+  life = _life(_peer(9.0, 9.0))
+  _at(life, *_standoff(life))
+  life.run_errand(programmed_errand(lang.parse('def x():\n  move("shoulder", 0.1)\n')))
+  assert life.state == "SWAP_PICK"
   for t in range(0, int(lc.RACK_LINGER_S) + 5):
     life.data.time = float(t)
     life._rack_linger_step()

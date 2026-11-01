@@ -70,7 +70,7 @@ from pathlib import Path
 
 #: The shipped table. `$PLUGGY_ENERGY` re-points it, which is how a deploy
 #: re-tunes costs on a mounted volume without a rebuild -- the door
-#: economy/rewards.json, economy/questions.json and economy/cadence.json are opened by.
+#: economy/rewards.json and economy/cadence.json are opened by.
 ENERGY_PATH = Path(__file__).with_name("energy.json")
 ENERGY_ENV = "PLUGGY_ENERGY"
 ENERGY_VERSION = 1

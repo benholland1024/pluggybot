@@ -367,9 +367,10 @@ def test_a_program_cut_short_is_scored_as_it_stands():
   result = life.run_errand(programmed_errand(p))
   run = result["procedure"]
   assert run["failedAt"] == 1 and run["completed"] == 1
-  assert result["stowed"] and run["toolsHung"]          # the quadruped's words, kept
-  v = scoring.evaluate("program", scoring.sample_program(life, programmed_errand(p),
-                                                          result, {}), table=TABLE)
+  assert result["stowed"]
+  measured = scoring.sample_program(life, programmed_errand(p), result, {})
+  assert measured["toolsHung"] is True                  # the quadruped's words, kept
+  v = scoring.evaluate("program", measured, table=TABLE)
   assert not v.ok and v.points == 0 and "1/3 steps, step 2 failed" in v.reason
   assert events[-1]["outcome"] == "aborted" and events[-1]["failedAt"] == 1
 
@@ -435,7 +436,7 @@ def test_a_program_rides_a_task_into_its_state_and_back(errand_kind):
   # ...and on the wire, the tasks block carries it whole
   assert Program.from_dict(task.as_dict()["params"]["procedure"]) == p
   # ...and the task builds the composed errand, graded by its own kind
-  errand = errand_for_task(back, WORLD, book=None)
+  errand = errand_for_task(back, WORLD)
   assert errand is not None and errand.program == p and errand.task == "program"
   assert errand.task_id == "t_1"
 
@@ -444,7 +445,7 @@ def test_a_task_carrying_an_invalid_program_builds_nothing(errand_kind):
   task = Task.create(errand_kind, "drawer", "t_2",
                      params={"procedure": {"name": "x", "steps": [{"verb": "fly"}]},
                              "minutes": 5})
-  assert errand_for_task(task, WORLD, book=None) is None
+  assert errand_for_task(task, WORLD) is None
 
 
 #: The least a recorder records: a floor and a robot's root.

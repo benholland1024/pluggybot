@@ -529,10 +529,10 @@ def test_every_errand_the_menu_builds_names_a_task_that_can_be_scored():
   the errand NAME -- so a renamed errand silently stops being scored. This is
   the guard on that: the one errand a mind's menu builds is its procedure's,
   named `procedure` and graded as a `program`."""
-  from pluggybot.lifecycle import HUMANOID_HOME, errand_from
+  from pluggybot.lifecycle import errand_from
   from pluggybot.mind.overseer import Decision
   library = SimpleNamespace(get=lambda name: SimpleNamespace(name=name, steps=lambda: ()))
-  errand = errand_from(Decision(action="procedure:p"), HUMANOID_HOME, library=library)
+  errand = errand_from(Decision(action="procedure:p"), library=library)
   assert errand.name == "procedure" and errand.task in scoring.EVALUATORS, errand.task
   assert Errand("take:r2_pluggybot").task == "take"
 

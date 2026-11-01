@@ -493,7 +493,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       low_battery_wh=(args.reserve_wh
                                       if args.reserve_wh is not None
                                       else cfg["low_battery_wh"]),
-                      errands=errands_for(args.errand, args.world, book),
+                      errands=errands_for(args.errand),
                       overseer=boss, mode=switch,
                       world=args.world,
                       boards=book, ledger=ledger, tasks=tasks,
@@ -965,13 +965,8 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "",
   print(f"mission state          : {r['state']}"
         f" (charges={r['charge_cycles']})")
   for e in r["errands"]:
-    # A draw that never squared up to its board has no `fill` (issue #349).
-    extra = (f"  {e.get('figure')} on {e['board']}, "
-             + (f"board {e['fill']:.0%} full" if e.get("fill") is not None
-                else e.get("error") or "no fill measured")
-             if e.get("board") else "")
     print(f"errand {e['errand']:<20s}: picked={e['picked']}"
-          f" stowed={e['stowed']}{extra}")
+          f" stowed={e['stowed']}")
   print(f"points balance         : {r['points']}"
         f" ({r['earned']} earned over {len(r['verdicts'])} scored task(s))")
   # `.get`, not `[...]`: this is a SUMMARY, and a summary line must never be

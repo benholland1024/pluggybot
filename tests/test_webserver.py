@@ -1035,18 +1035,6 @@ _RESULT = {"state": "DONE", "charge_cycles": 0, "sim_time": 100.0, "verdicts": [
            "points": 0, "earned": 0}
 
 
-def test_the_report_builds_from_a_draw_that_never_reached_its_board(capsys):
-  """Issue #349: a draw that never squares up returns its board and figure
-  but no `fill`, and the end-of-run summary died on `e['fill']`."""
-  never = {"errand": "draw:whiteboard_a", "picked": True, "stowed": True,
-           "board": "whiteboard_a", "figure": "house", "squared": False,
-           "error": "never squared up to the board"}
-  drew = dict(never, error=None, squared=True, fill=0.25)
-  out = _report(dict(_RESULT, errands=[never, drew]), capsys)
-  assert "house on whiteboard_a, never squared up to the board" in out
-  assert "house on whiteboard_a, board 25% full" in out
-
-
 def test_a_carried_on_run_reports_its_own_real_time_multiple(capsys):
   """Since #345 the clock carries on across a restart, and the summary
   divided the WHOLE clock by one process's wall time: the deployed log read
