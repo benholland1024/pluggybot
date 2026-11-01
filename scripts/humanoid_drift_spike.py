@@ -257,12 +257,12 @@ def _patch(tr: Tracker) -> None:
     if m is tr.m:
       tr.moved(before, m.pose)
 
-  def matched(m, angles, ranges):
+  def matched(m, angles, ranges, origin=None):
     if m is not tr.m:
-      return match(m, angles, ranges)
+      return match(m, angles, ranges, origin)
     tr.source = "matcher"
     try:
-      got = match(m, angles, ranges)
+      got = match(m, angles, ranges, origin)
     finally:
       tr.source = "set"
     if got is not None:
