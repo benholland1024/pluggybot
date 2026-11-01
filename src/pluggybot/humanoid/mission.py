@@ -158,10 +158,12 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   #: inflation is that and 8 cm, as the quadruped's covers its half-width.
   INFLATION_CELLS = 7
   #: The disc round another robot, cells: its outline standing (0.27 m) and
-  #: this one's and 10 cm; fallen, a 1.4 m body from the middle of its
-  #: footprint, 0.75 m, and this one's half-width.
+  #: this one's and 10 cm; fallen, the farthest it reaches from the middle
+  #: of what it covers (`HumanoidBody.footprint_centre`) and this one's
+  #: half-width -- MEASURED 0.69-0.92 m while lying after a fall its get-up
+  #: took, shoved over six ways (`humanoid_spike.py --fall`, #580).
   OTHER_ROBOT_CELLS = 13
-  DOWN_ROBOT_CELLS = 21
+  DOWN_ROBOT_CELLS = 24
   #: The front stop, from the LIDAR over the pelvis: its toes and its hands
   #: hanging reach 0.2 m ahead of it, and it stops 0.2 m short of them --
   #: inside the clearance the planner grants (the inflation and 8 cm).

@@ -19,7 +19,7 @@ from pluggybot.body import STUB_WORLD, StubBody
 from pluggybot.challenge import door, drawer, lid, place
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.scoring import default_table
-from pluggybot.economy.tasks import HAND_JOBS, KINDS, TaskBoard
+from pluggybot.economy.tasks import HAND_JOBS, HAND_MINUTES, KINDS, TaskBoard
 from pluggybot.home import storeroom
 from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, task_producer, world_targets
 
@@ -188,6 +188,23 @@ def test_a_job_called_past_its_minutes_fails(tmp_path):
   assert not verdict["ok"] and "the job allows" in verdict["reason"]
 
 
+def test_a_bare_offer_gives_its_kinds_minutes_and_is_graded_on_them(tmp_path):
+  """#580: the time a job gives is its kind's (`TaskKind.minutes`). Kept
+  by the cadence alone, an offer made any other way -- `TaskBoard.offer`
+  in a script or a test -- read "within  minutes", and its grade fell back
+  on the quadruped's 300 s (`lid.TIME_LIMIT_S`)."""
+  for kind in HAND_JOBS:
+    task = TaskBoard().offer(kind, KINDS[kind].target_kind)
+    assert f"within {HAND_MINUTES} minutes" in task.description, kind
+  life = _life(tmp_path)
+  task = life.tasks.offer("open_drawer", "drawer", ttl=3000.0, t=float(life.data.time))
+  assert life._claim_task(task.id)
+  life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  mujoco.mj_forward(life.model, life.data)
+  verdict = _grade(life, task.id)
+  assert verdict["ok"] and verdict["metrics"]["limitS"] == 60.0 * HAND_MINUTES
+
+
 def test_a_restart_puts_back_each_props_newest_draw(tmp_path):
   """The world file carries each prop's compiled draw; an offer that came
   back off the board still means the one it drew -- put back as the day
@@ -244,10 +261,11 @@ def test_an_offer_says_where_by_the_areas_terms_and_how_long_it_gives():
   # set it down off the mat, 0 of 8
   assert set(offered) == set(HAND_JOBS) - {"place_cube"}
   for kind in offered:
-    params, secret = maker._build(kind, KINDS[kind].target_kind)
-    assert params["address"]["house"] == "facility" and params["minutes"] > 0
-    assert set(secret) == {"draw"}
-    for n in re.findall(r"\d+(?:\.\d+)?", params["directions"]):
+    task = maker._offer(kind, KINDS[kind].target_kind, 0.0)
+    assert task.params["address"]["house"] == "facility"
+    assert f"within {HAND_MINUTES} minutes" in task.description
+    assert set(task.secret) == {"draw"}
+    for n in re.findall(r"\d+(?:\.\d+)?", task.params["directions"]):
       assert int(float(n)) in TAG_SIZES, f"{kind}: {n} is no tag"
 
 
