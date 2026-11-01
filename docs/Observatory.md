@@ -10,6 +10,59 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The world runs at weekends and is paused in between (#562, stage 1) — opens when an admin turns the site's schedule on, after both halves are deployed
+
+**What changed in the world.**
+- **It runs 16 hours a week**: Saturday and Sunday 10:00–18:00, Berlin
+  time (`Europe/Berlin`), and is paused in between (Ben, 2026-10-29). The
+  site throws the operator's switch on a schedule (rooftop-media-2026's
+  half): `llm` at the start of the hours and `paused` at their end, and
+  only where the schedule's own answer changes, so an admin's switch
+  between the hours stands until the next boundary. The hours, the days
+  and the time zone are an admin's settings on the site's controls page,
+  changed without a release: a change of them is a line in this entry,
+  with its date.
+- **Sim time does not pass while paused**, so nothing the world runs on it
+  notices the gap: deaths, offers, the stand-up clock, `unminded`. Both
+  robots' History say the pause and how long it was (`woke up again after
+  5 days 16 hours paused`); until this deploy only the first robot's did.
+- **What runs on wall time does.** The spend book is a rolling seven days
+  of wall-clock time, so a week's purse is spent across 16 hours instead
+  of 168. A visitor's message sent while paused waits in the sim's inbox,
+  up to 32 a robot (`inbox.MAX_QUEUE`), the oldest dropped past that.
+- **The switch is on a volume of its own** (`pluggy_switch`), the site's,
+  mounted read-only in the sim, and the site no longer mounts the robots'
+  state volume. The switch had never worked on the box: the site's user
+  could not write the state volume's directory, until Ben gave its group
+  write by hand on 2026-11-01 (`pluggy:1000`, `drwxrwxr-x`). From then
+  until this deploy, the internet-facing site could replace the files at
+  the top of that volume (`world.npz`, `ledger.json`, `boards.json`,
+  `tasks_humanoid.json`, `spend.json`), though not `thoughts/`. The
+  permissions go back with this deploy (`755`, the sim's own group).
+
+**The purse deployed is $20 a week**, since 2026-10-31 ~17:45 UTC (Ben,
+the box's `.env` over compose's 9.30). No entry said so until this one.
+The quadrupeds' last week had spent the 9.30 (2,083 calls, $0.0045 a
+call), so the humanoid period's decisions up to then were
+`fallback:allowance` from 15 minutes in, and those after it flew on $20.
+
+**Why.** Ben (2026-10-31): so the hours the robots run are well funded for
+learning new tasks (offline practice cost about $3 a robot a task, #535,
+#554), and so he can look over how they spend their time.
+
+**What the period is for.**
+- **What an awake hour costs**, per robot, across the first weekends, and
+  the purse set from it (#562's acceptance). Whether the purse binds
+  inside the hours: `fallback:allowance` decisions on a weekend.
+- **How the robots spend the hours**: jobs taken, written for and passed,
+  chat answered, and what they make of being paused (their History, their
+  notes).
+- **Chat that waited**: messages sent while paused, how many reached a
+  robot when it woke, and any dropped past 32.
+- ⚠ **A rate per day is not a rate per day here**: a day is eight awake
+  hours or none. Read rates per awake hour (or per sim hour, which is the
+  same thing while paused) against the around-the-clock periods before it.
+
 ### A robot's chat line may run to 1000 characters, and admins may send 30 an hour (rooftop-media-2026 #465) — opens when this PR is deployed, after rooftop-media-2026's half
 
 **What changed in the mind.** The VISITORS rule, on every arm with a mind:

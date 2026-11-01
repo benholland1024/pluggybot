@@ -2036,7 +2036,7 @@ being switched off cannot reach the switch.
 | ceiling | where | what it stops |
 |---|---|---|
 | the provider balance | the HuggingFace account, topped up by hand | everything. Deliberately not code |
-| the weekly allowance | `mind/spend.py`, `$PLUGGY_WEEKLY_USD` (default $10; deployed 9.30 = $40 a month) | a month's money going in an afternoon — the ROUTINE mind's as well as the escalations', since #225 |
+| the weekly allowance | `mind/spend.py`, `$PLUGGY_WEEKLY_USD` (default $10; compose's 9.30 = $40 a month; deployed 20.00 since 2026-10-31, the box's `.env`) | a month's money going in an afternoon — the ROUTINE mind's as well as the escalations', since #225 |
 | the hourly call cap | `CALLS_PER_HOUR` | a loop bug |
 
 The spend book is wall-clock stamps in a file on the state volume
@@ -2096,7 +2096,11 @@ the budget (§8b).
 
 `mind/mode.py` reads a JSON file (`$PLUGGY_MODE_FILE`, polled) and **never
 writes it** — `tests/test_allowance.py` asserts there is no writer in the
-module at all. The website's admin page writes it.
+module at all. The website writes it, on a volume of its own the sim mounts
+read-only (#562): by an admin's hand, and on a schedule whose hours are an
+admin's setting (the deployed world's are weekends, Observatory.md). The
+schedule writes only where its own answer changes, so a hand on the switch
+between its hours stands until the next boundary.
 
 | mode | what happens |
 |---|---|
@@ -2114,6 +2118,11 @@ module at all. The website's admin page writes it.
   and ignores lag, so five minutes paused would run at up to 2.9× to catch up;
   `RealTimePacer.resync()` on resume is the fix and `attach_mode_stream` wires
   all of it.
+- ⚠ **Every robot on the loop is told** (#562): a pair's one switch is the
+  first robot's and stops the loop both live in, and both Histories say
+  "paused by the operator" and how long the pause was, in days and hours
+  where it was long (`lifecycle.spoken_span`). Sim time does not pass while
+  paused, so nothing else the robots run on notices the gap.
 
 ## 8b. Upkeep, hearts, and the one thing satisfaction changes (issues #36, #135, #136)
 
