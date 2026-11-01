@@ -481,12 +481,13 @@ class Navigator:
       # that moves. Excluding it from the scan silenced both, and the 0.25 m
       # stop that holds this robot off a wall, a doorpost and a bed was
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
-      angles, ranges, peer_angles, peer_ranges, free_from = self._scan()
+      angles, ranges, peer_angles, peer_ranges, free_from, origin = self._scan()
+      origin = self.LIDAR_ORIGIN if origin is None else origin
       if self.maps():
-        m = self._match(angles, ranges)
+        m = self._match(angles, ranges, origin)
         if m is None or self.matcher.fuses(m, self.data.time):
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                           origin=self.LIDAR_ORIGIN, free_from=free_from)
+                           origin=origin, free_from=free_from)
           if m is not None:
             self.matcher.fused(self.pose, self.data.time)
       elif self.matcher is not None:
@@ -523,7 +524,7 @@ class Navigator:
     """The body's contacts, after the scan: nothing here; the rover
     counts its chassis's collisions."""
 
-  def _match(self, angles, ranges):
+  def _match(self, angles, ranges, origin=None):
     """Align the scan with the map it is about to go into (issue #386) and
     move the belief to where the walls put it: the pose the map is laid
     through, the planner plans from and the other robot is told. The match,
@@ -531,7 +532,7 @@ class Navigator:
     if self.matcher is None:
       return None
     before = self.pose
-    m = self.matcher.match(before, angles, ranges)
+    m = self.matcher.match(before, angles, ranges, origin)
     if m.accepted:
       self._set_pose(*m.pose)
       # ...and a wide search's jump is said (issue #476): onto a copy, it

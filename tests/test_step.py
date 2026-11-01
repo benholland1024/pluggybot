@@ -8,7 +8,7 @@ are SimNotes' "Stepping toward the work".
   2. a step carries nothing: holding something, nothing moves;
   3. the humanoid's step hands its legs to the walker before it measures
      anything, turns first -- its heading counted unwrapped -- stops its
-     walk where what it believes it has walked and its stride's carry reach
+     walk where what its legs reckon it has walked and its stride's carry reach
      the step, walks an oblique step the walker would skew as two, reports a
      turn as on the spot, says `blocked` where its walk gets nowhere and
      `fell` for a fall up to its last settle, commands nothing once fallen,
@@ -208,7 +208,7 @@ def _step(body, *args, fall_in_settle=False):
 def test_the_humanoids_step_stops_where_its_stride_carries_it_to_the_step():
   """At the walker's slowest its feet slid and its odometry counted a
   stride backward; at `STEP_V` it lifts them, and stopped commanding at
-  what it believes it has walked plus its speed times `STEP_STOP_S`, the
+  what its legs reckon it has walked plus its speed times `STEP_STOP_S`, the
   stride's carry takes it to the step asked (#525). The fake walk is at
   its pace from the first command, which its speed's reading takes 0.2 s
   to follow, so the steps here are long enough for the reading to have."""
@@ -364,3 +364,19 @@ def test_the_odometry_takes_a_shuffles_swing_foot_off_the_floor(monkeypatch):
   odo.z = 0.9
   _shuffle(odo)
   assert odo.foot == 0 and odo.x < -0.03
+
+
+def test_the_odometry_sums_what_corrections_moved_its_belief_by():
+  """A step walks by its legs' reckoning: the belief less what corrections
+  from outside it moved it by since the step began (`_by_legs`, #581's
+  stage 2). The ledger is every correction's move summed, its turn the
+  short way round."""
+  att = NS(yaw=lambda: 0.3)
+  odo = od.StanceOdometry(NS(soles=[0, 1]), att, x=1.0, y=2.0)
+  odo.correct(1.1, 1.95, 0.35)
+  odo.correct(1.0, 2.05, 0.25)
+  assert odo.corrected == pytest.approx([0.0, 0.05, -0.05])
+  assert (odo.x, odo.y, odo.yaw) == pytest.approx((1.0, 2.05, 0.25))
+  odo = od.StanceOdometry(NS(soles=[0, 1]), NS(yaw=lambda: 3.1))
+  odo.correct(0.0, 0.0, -3.1)
+  assert odo.corrected[2] == pytest.approx(2 * math.pi - 6.2)

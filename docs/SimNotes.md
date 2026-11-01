@@ -4148,13 +4148,47 @@ it.
   frontier it could reach, and its explore ended at once
   (`test_a_bearing_clears_no_wall_nearer_than_its_steepest_ray_comes_down`).
 
-Over a 150 s explore, 9 % of the bearings laid free (2,259 of 26,075) were
+Over a 150 s explore, 10 % of the bearings laid free (2,140 of 21,152) were
 ones a noise-free cast from the true pose saw a surface on, at a median
-7.1 m: a fence near the 8 m edge, struck by one ring just over the band's
-rising floor, drops in and out with the IMU's tilt, and between, its
-bearing is laid free past it. The fences hold in the map (struck more than
-a third of the time, L_OCC 0.85 against L_FREE 0.4), and what is freed is
-the street beyond them.
+6.6 m, three in four past 5.5 m: a fence far out, struck by one ring just
+over the band's rising floor, drops in and out with the IMU's tilt, and
+between, its bearing is laid free past it. The fences hold in the map
+(struck more than a third of the time, L_OCC 0.85 against L_FREE 0.4), and
+what is freed is the street beyond them.
+
+**What the review found.** An independent read of the stage found five
+ways the band laid floor it had never seen. Each was shown by a probe and
+is now pinned by a test.
+
+- *The band's floor rises to meet a ray.* Where a ray leaves the band was
+  worked out for a floor that fell away. Standing, the -8 deg ring comes
+  down through the band's floor 7.5 m out, but was taken to stay in it to
+  12.5 m. So a ray that struck a wall under the band's floor freed its
+  bearing through that wall, and `free_from` read 1.06 m where it is 1.00
+  (`test_a_ray_the_rising_floor_meets_short_of_max_range_frees_nothing`).
+- *A scan is laid from where the sensor is* (`Scan.origin`). The band's
+  ranges, and the map's free rays, ran from the sensor's place on the robot
+  standing upright, 0.735 m over the pelvis. Bowed 52 deg, the sensor is
+  0.58 m ahead of that place, so every free bearing behind the robot ran
+  0.6 m past what its ray had reached. In a room 7 m round that was 16
+  bearings through the wall behind, by up to 0.5 m (once 2 m); even a 10
+  deg lean put a free ray 0.4 m through a wall
+  (`test_a_bowed_robots_scan_is_laid_from_where_its_sensor_is`).
+- *Tilted past 30 deg, a scan clears no wall* (`CLEARS_TILT_RAD`). Bowed,
+  the rings no longer fan down along every bearing: behind the robot they
+  point up. Its steepest rings, turned past straight down, land on the
+  bearings behind a few cm out. Taken as those bearings' floor, they let a
+  low box 2 m behind, under every ray, be cleared through the return off
+  the wall beyond: on 2 bearings of 9 at a 40 deg bow, 8 of 9 at 52. Up to
+  35 deg it held on all 9. A bowed scan still lays walls, frees cells no
+  wall was seen in, and is matched (`test_a_bowed_robot_clears_no_wall`).
+- *Behind another robot nearer than the room, a bearing clears no wall.*
+  The rings over the other robot's head read the wall beyond it. Laid out
+  to that wall, they cleared a 0.5 m box the robot hid, from +5 to -5 in 3
+  s (`test_nothing_low_behind_another_robot_is_cleared`).
+- *A dropped return is no reading*, as on the level ring (`scan_split`).
+  Taken as "nothing back", half the returns dropped in a closed room laid
+  25 bearings free in 50 frames (`test_a_dropped_return_frees_nothing`).
 
 **The dock.** With the band, stage 1's dock missed 2-5 of 47; two things
 were the band's.
@@ -4224,9 +4258,15 @@ are rendered anyway for the near-field map and the peer channel.
 **Decor in the band.** The dressing rule kept non-colliding geoms out of
 the level ring's plane; with the band served it keeps them out of the band
 (`test_decor_stays_out_of_the_band_the_map_is_laid_from`, on the house as
-served), but for those lying on a solid geom (the tags on their walls, the
-garden light's bulb) and the plants, which the robot is meant to see
+served), but for a tag's size lying on a solid geom (the tags on their
+walls) and the plants, which the robot is meant to see
 (`protocol/hints.json`'s note), as the camera's layer planned round them.
+The test plants three pieces of decor the rule must catch, and it names
+exactly those three: as first written it could not fail, `mj_geomDistance`
+answering its `distmax` when nothing is nearer, so asked at the rule's 1 cm
+every geom inside a wall's bounding sphere lay on the wall -- and asked
+within 2 m, a box 1.08 m from a fence read 0 m, so it is asked a little
+past the rule and never far.
 
 **The drift batch** (`humanoid_drift_spike.py`, #572's 14 flights):
 

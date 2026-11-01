@@ -312,7 +312,7 @@ class _FixedMatcher(sm.ScanMatcher):
     super().__init__(grid)
     self.answer = answer
 
-  def match(self, pose, angles, ranges):
+  def match(self, pose, angles, ranges, origin=None):
     return self.answer
 
 

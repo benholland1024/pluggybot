@@ -67,7 +67,7 @@ FEET_MOVED_M = 0.05
 #: sprang back 6-8 deg as the legs changed hands, at 1.0 it lands within 2
 #: deg of the turn asked.
 STEP_V, BACK_V, TURN_W = 0.3, 0.4, 1.0
-#: ...stopped once what it believes it has walked, and its speed times this,
+#: ...stopped once what its legs reckon it has walked, and its speed times this,
 #: s, reach the step asked -- its stride carries on that far, about 0.2-0.27
 #: s of its pace -- and a turn this much short, rad.
 STEP_STOP_S, TURN_STOP_RAD = 0.22, math.radians(0.5)
@@ -740,7 +740,7 @@ class HumanoidBody(Body):
     spot, walks `ahead` and `left` in the frame it then stands in -- one
     motion at `STEP_V` (`BACK_V` backing up), or the one and then the other
     where the walker would not walk that way (`_step_walks`) -- and stands:
-    a walk stops once what it believes it has walked, and its speed times
+    a walk stops once what its legs reckon it has walked, and its speed times
     `STEP_STOP_S`, reach its length, so a stride, about 10 cm, is the least
     it goes. Its legs are the walking policy's meanwhile. Returns how it
     ended (`why`: "stepped", "holding" -- a hand holds something, and it

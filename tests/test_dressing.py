@@ -21,8 +21,8 @@ below is the tollbooth.
 contype entirely -- the plants are contype 0 and are MAPPED. So decorative
 safety has a second, independent requirement: stay out of the band the map
 is laid from (the humanoid's LIDAR's points laid flat, `lidar.BAND_M` over
-the ground, #581's stage 2), unless it lies on something solid or is meant
-to be seen. `test_dressing_in_the_band_reaches_the_map` proves the failure
+the ground, #581's stage 2), unless it is a tag on something solid or is
+meant to be seen. `test_dressing_in_the_band_reaches_the_map` proves the failure
 is real by planting a hostile mound and watching the map change.
 """
 
@@ -37,8 +37,11 @@ import pytest
 ROOT = Path(__file__).parent.parent
 
 #: How near a decorative geom must lie to a solid one to be mapped as part
-#: of it, m: a tag on a wall, a bulb on its pole.
+#: of it, m: a tag on a wall...
 ON_SOLID_M = 0.01
+#: ...and how big it may be, its bounding radius, m: a tag's 15 cm square
+#: (0.106). Bigger, touching or not, it is a shape of its own in the map.
+ON_SOLID_RBOUND_M = 0.11
 
 
 @pytest.fixture(scope="module")
@@ -63,6 +66,20 @@ def _root_name(model, b):
 
 def _collides(model, g):
   return int(model.geom_contype[g]) != 0 or int(model.geom_conaffinity[g]) != 0
+
+
+def _on_solid(model, data, g, solid) -> bool:
+  """Whether geom `g`, no bigger than `ON_SOLID_RBOUND_M`, lies within
+  `ON_SOLID_M` of one of `solid`. ⚠ `mj_geomDistance` answers its `distmax`
+  for anything farther, so it is asked a little further out than the rule
+  (asked at it, every geom within a wall's bounding sphere was on it) --
+  and never far: asked within 2 m, a box 1.08 m from a fence read 0 m."""
+  if model.geom_rbound[g] > ON_SOLID_RBOUND_M:
+    return False
+  near = [h for h in solid if np.linalg.norm(data.geom_xpos[g] - data.geom_xpos[h])
+          <= model.geom_rbound[g] + model.geom_rbound[h] + ON_SOLID_M]
+  return any(mujoco.mj_geomDistance(model, data, g, h, 2 * ON_SOLID_M, None) <= ON_SOLID_M
+             for h in near)
 
 
 def test_no_tree_or_hill_ships_without_meeting_its_own_rules(trio):
@@ -98,28 +115,39 @@ def test_decor_stays_out_of_the_band_the_map_is_laid_from(trio):
   """The rule that actually keeps the map clean, asserted geometrically:
   every fully non-colliding body keeps its geoms clear of the band the
   map is laid from (the LIDAR's points laid flat, `lidar.BAND_M` over the
-  ground) -- or lies on a solid geom, mapped as part of it (a tag on a
-  wall, the garden light's bulb on its pole), or is a plant, which the
-  robot is meant to see (`protocol/hints.json`'s note; the depth camera's
-  layer planned round them before the band did). Collision flags cannot do
-  this job -- the raycast ignores them. The house as served: its tags,
-  the station and the counter go in at load (`humanoid.world`)."""
+  ground) -- or is no bigger than a tag and lies on a solid geom, mapped as
+  part of it (a tag on a wall), or is a plant, which the robot is meant to
+  see (`protocol/hints.json`'s note; the depth camera's layer planned round
+  them before the band did). Collision flags cannot do this job -- the
+  raycast ignores them. The house as served (its tags, the station and the
+  counter go in at load, `humanoid.world`), and three pieces of decor it
+  must catch: the mound `test_dressing_in_the_band_reaches_the_map` shows
+  in the map, an ornament out in a room and a slab flush on a fence."""
   from pluggybot.humanoid import world as hw
   from pluggybot.perception.lidar import BAND_M
   _, _, hints = trio
-  model = hw.home_spec().compile()
+  spec = hw.home_spec()
+  hostile = {"hostile_mound": ([8.5, -4.0, 0.8], [0.4, 0.4, 0.8]),
+             "hostile_ornament": ([-6.0, 8.0, 1.0], [0.05, 0.05, 0.05]),
+             "hostile_slab": ([9.88, -3.0, 0.5], [0.1, 0.3, 0.3])}
+  for name, (pos, size) in hostile.items():
+    spec.worldbody.add_body(name=name, pos=pos).add_geom(
+      name=f"{name}_geom", type=mujoco.mjtGeom.mjGEOM_BOX, size=size, contype=0, conaffinity=0)
+  model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
   robots = {model.body(b).name for b in range(model.nbody)
             if model.body(b).name.endswith("pluggybot")}
-  solid = [g for g in range(model.ngeom) if _collides(model, g)
+  def ours(b):
+    return model.body(b).name in robots or _root_name(model, b) in robots
+  solid = [g for g in range(model.ngeom) if _collides(model, g) and not ours(model.geom_bodyid[g])
            and int(model.geom_type[g]) != mujoco.mjtGeom.mjGEOM_PLANE]
   bad = []
   for b in range(1, model.nbody):
     name = model.body(b).name
     geoms = _body_geoms(model, b)
     if (not geoms or any(_collides(model, g) for g in geoms) or hints.get(name) == "plant"
-        or name in robots or _root_name(model, b) in robots):
+        or ours(b)):
       continue                       # solid things are the MAP's business, robots their own
     for g in geoms:
       # The real oriented z-extent (|R| @ half, the world-budget lesson):
@@ -140,14 +168,11 @@ def test_decor_stays_out_of_the_band_the_map_is_laid_from(trio):
       z = float(data.geom_xpos[g][2])
       if z + rz < BAND_M[0] or z - rz > BAND_M[1]:
         continue
-      near = [h for h in solid if np.linalg.norm(data.geom_xpos[g] - data.geom_xpos[h])
-              <= model.geom_rbound[g] + model.geom_rbound[h] + ON_SOLID_M]
-      if any(mujoco.mj_geomDistance(model, data, g, h, ON_SOLID_M, None) <= ON_SOLID_M
-             for h in near):
+      if _on_solid(model, data, g, solid):
         continue
       bad.append(f"{name}/{model.geom(g).name} spans z [{z - rz:.3f},{z + rz:.3f}] in the "
                  f"band, on nothing solid")
-  assert not bad, "\n".join(bad)
+  assert sorted(b.split("/")[0] for b in bad) == sorted(hostile), "\n".join(bad)
 
 
 def _scan_grid(xml_path):

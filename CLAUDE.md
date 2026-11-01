@@ -540,14 +540,22 @@ save a filmstrip PNG named after the script.
   wall 6 cm short). ⚠ A BEARING IS FREE ONLY OFF A RAY THAT STAYED IN THE
   BAND TO MAX RANGE AND BROUGHT NOTHING BACK: behind the bracket's post one
   ray peeking past laid its bearing free to 8 m through the wall behind,
-  every bearing round as the robot turned. ⚠ NEARER THAN WHERE ITS STEEPEST
-  RAY COMES DOWN THROUGH THE BAND'S FLOOR (`Scan.free_from`, about 1 m) A
-  BEARING CLEARS NO WALL (`OccupancyGrid.update`): its rays pass over what
-  is lower, and cleared a low thing mapped from afar; it lays floor where no
-  wall was seen, or a robot amid cells it never saw from afar -- every boot,
-  every stand-up -- found no frontier to explore. ⚠ ITS RAYS LEAVE 10 cm
-  OVER THE HEAD'S TOP, 5 mm under the unit (cast from inside it, every ray
-  hit it). The level ring stays, for the lost search's wall ahead
+  every bearing round as the robot turned; a return the part dropped is no
+  reading, and the band's floor RISES to meet a ray under level. ⚠ A SCAN
+  IS LAID FROM WHERE THE SENSOR IS, levelled (`Scan.origin`): bowed 52 deg
+  it is 0.58 m ahead of its place upright, and laid from that place, free
+  bearings ran up to 0.5 m through the wall behind. ⚠ NEARER THAN WHERE ITS
+  STEEPEST RAY COMES DOWN THROUGH THE BAND'S FLOOR (`Scan.free_from`, about
+  1 m) A BEARING CLEARS NO WALL (`OccupancyGrid.update`): its rays pass
+  over what is lower, and cleared a low thing mapped from afar; it lays
+  floor where no wall was seen, or a robot amid cells it never saw from afar
+  -- every boot, every stand-up -- found no frontier to explore. ⚠ NOR
+  BEHIND ANOTHER ROBOT NEARER THAN THE ROOM (the rings over its head read
+  the wall beyond), NOR ANY TILTED PAST `CLEARS_TILT_RAD` (30 deg: bowed,
+  the steepest rings turn past straight down onto the bearings behind, and
+  a low box 2 m behind was cleared on 8 bearings of 9). ⚠ ITS RAYS LEAVE
+  10 cm OVER THE HEAD'S TOP, 5 mm under the unit (cast from inside it, every
+  ray hit it). The level ring stays, for the lost search's wall ahead
   (`HumanoidBody._wall_ahead`). ⚠ NO CUTOFF ON THE CAST: MuJoCo culls a
   plane by its centre.
 - **A humanoid is told its own body and world** (#559 stages 3 and 5;
@@ -1719,7 +1727,7 @@ save a filmstrip PNG named after the script.
   beside the band, MEASURED (#581's stage 2): it adds the tops of the bed
   and the couch, which the band outlines from where it stands, and what lies
   under the band's floor (the flight's first riser); nothing it laid was
-  first seen nearer than 1.2 m.
+  first seen nearer than 0.8 m.
 - **The robot can die, and a person or a timer stands it up** (issue #107;
   Evaluation.md §6): `HubLifecycle._death_step` on the physics seam — `flat`
   at zero pack, `stuck` (toppled past `TOPPLE_TILT_RAD` for the body's
