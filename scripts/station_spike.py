@@ -316,8 +316,10 @@ LOST_FROM_X = -2.0
 LOST_SCENE_OFF = (0.7, 0.0, 0.0)
 #: `--lost --far`'s starts (#572): 2 m out, the house's places and the
 #: facility's across the street (`WALK_IN_FROM`), and the storeroom whose
-#: counter the jobs are at (#559's stage 3) -- each facing the station.
-LOST_FROM = {"station": None, **WALK_IN_FROM, "store": (25.0, -3.0)}
+#: counter the jobs are at (#559's stage 3) -- each facing the station. ⚠
+#: NOT THE WORKSHOP'S WALK-IN GOAL, its table's middle: started there, the
+#: robot was thrown out of the table, and laid its map wedged against it.
+LOST_FROM = {"station": None, **WALK_IN_FROM, "workshop": (-8.5, -0.8), "store": (25.0, -3.0)}
 #: ...in the far table's three groups (`--from` takes a group's name too).
 LOST_GROUPS = {"near": ("station",),
                "house": ("bedroom", "hall", "kitchen", "workshop", "garden", "garden_south"),
