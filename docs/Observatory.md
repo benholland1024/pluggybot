@@ -10,6 +10,35 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A fallen robot is kept clear of round its middle, and a stand-up drops a step aside (#580) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A fallen humanoid's disc is round the middle of its body**: the box
+  round its geoms while its get-up holds its joints, and its soles' middle
+  on its feet, as before. Round its soles, its head and shoulders, up to
+  1.5 m away, were outside the disc, and the other robot's plan could walk
+  through them.
+- **That disc is 1.20 m, where it was 1.05.** It covers how far the body
+  reached lying after six falls the get-up took, 0.69-0.92 m, plus the
+  walker's half-width (`humanoid_spike.py --fall`). A walk past a fallen
+  robot goes wider round it, and a doorway or a stretch of hall it lies in
+  stays shut to the other robot until it is up.
+- **A stand-up or a true death drops a step aside under way**, and nothing
+  is said of it. Before, a robot stood up while it was stepping aside
+  walked on toward its old spot for up to 30 s.
+- **Nothing in the prompt, the schema, the arm or the reward table moved,
+  and the offers read as they did.** The hand jobs' 16 minutes are now the
+  kinds' own (`TaskKind.minutes`), so `cadence.json` dropped its three
+  copies of the number, and `dataHashes.cadence` moves.
+
+**Why.** #580: bugs found while #559's stage 5 moved the tests onto the
+humanoid.
+
+**What the period is for.** Touches while one robot is down: `encounter`
+rows with phase `touched` while either robot's frames read `posture`
+`getting_up`. None are expected now. Falls are rare live, so the period may
+close with too few to read, and it should say so.
+
 ### The quadruped's leftovers out of what the humanoids read and record, and a stand-up's map in its rules (#579) — opens when this PR is deployed
 
 **What changed in the mind**, on every arm with one, the deployed pair's

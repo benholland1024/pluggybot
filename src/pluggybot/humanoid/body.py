@@ -362,6 +362,7 @@ class HumanoidBody(Body):
       d.qvel[m.jnt_dofadr[m.joint(self.handle.el(name)).id]] = 0.0
     mujoco.mj_forward(m, d)
     self.mission.fresh_drivers()
+    self.mission.drop_aside()
     if self.mission.matcher is not None:
       self.mission.matcher.anchored(on=False)
 
@@ -383,8 +384,18 @@ class HumanoidBody(Body):
     return tuple(float(v) for v in self._d.xquat[self.root])
 
   def footprint_centre(self):
-    sx, sy, _ = self._true_stance()
-    return sx, sy
+    """Its soles' middle on its feet; while its get-up has its joints
+    (`posture`) -- fallen, lying, getting up -- the middle of the floor its
+    body covers (`Navigator.footprint_centre`). ⚠ Round its soles, a
+    fallen robot's disc (`DOWN_ROBOT_CELLS`) left out its head and
+    shoulders, 1.5 m from there, and another robot's plan ran through
+    them (#580). The get-up takes the joints before the death seam reads
+    it down (0.1-0.8 s, six falls); a body with no get-up policy never
+    says it fell, and keeps its soles."""
+    if self.posture == "standing":
+      sx, sy, _ = self._true_stance()
+      return sx, sy
+    return self.mission.footprint_centre()
 
   def as_seen(self, x, y):
     return self.mission.as_seen(x, y)
@@ -957,10 +968,11 @@ class HumanoidBody(Body):
     return dict(m.counts) if m is not None else {}
 
   def forget_world(self) -> None:
-    """A true death (#419): the map, its layer, the walls it is kept off,
-    the plan it last made and the places it found, gone, as the
-    quadruped's."""
+    """`Body.forget_world`: the map, its layer, the walls it is kept off,
+    the plan it last made, the places it found and a step aside under way
+    to a spot on that map (`HumanoidWay.drop_aside`), gone."""
     m = self.mission
+    m.drop_aside()
     m.forget_map()
     m.places.forget()
     m.low[:] = 0.0

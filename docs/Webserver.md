@@ -221,7 +221,7 @@ pair (`$PLUGGY_BODY`, #559's stage 4) on `--pack hosting` (the humanoid's
 real pack, `humanoid.world.PACK_WH`, 777.6 Wh) rather than the demo cell,
 which flattens fast; the low-battery reserve is deliberately *not* scaled
 with the pack — it is the absolute energy needed to reach the station, a
-property of the floor plan (`humanoid.world.RESERVE_WH`, 17.5 Wh). Which
+property of the floor plan (`humanoid.world.RESERVE_WH`, 18 Wh). Which
 arm the served world flies is `$PLUGGY_ARM` / `$PLUGGY_ORIGIN`:
 `autonomous`, both robots, `unseeded` (issue #206; the argument is
 Evaluation.md §2).

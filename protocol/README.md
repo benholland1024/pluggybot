@@ -50,6 +50,21 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, nothing new: the pair's day on a bigger test pack (pluggybot #580)
+
+No message's shape moves, and nothing served does: the served pair runs the
+hosting pack. The pair's recording is flown again on the tests' pack, now
+30 Wh where it was 20 (`humanoid.world.DEMO_WH`), so its day moves. The
+first robot, started low, charges once (39-269 s), and its explore's budget
+spent, its day ends; the second explores until 258 s, waits on the first
+standing by the station, asks it aside (it steps 0.3 m) and charges
+(383-528 s). ⚠ The two touch beside the station from 347 s, 22 `touched`
+`encounter` rows while the second walks in, plugs in and charges: the
+first, its day done, stays within 0.6 m of the station after its step
+aside. That is staging's code: flown there with the pack moved alone, the
+day is the same. Nobody falls, so the fallen disc this PR moves is not in
+it. The scenes did not move.
+
 ### 0.21.0, nothing a consumer reads: the quadruped's leftovers out (pluggybot #579)
 
 pluggybot #579 takes out what #559's stage 5 left of the quadruped on the
@@ -2981,7 +2996,7 @@ against the body census.
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (the scene command) |
 | `parts.json` | The **parts list** (issue #185): what the humanoid is made of (#507), each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled body when the file is built — and the bill it totals. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.humanoid.bill` |
 | `scene.home_humanoid_pair.json` | The home world with the HUMANOID pair (#559): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene --world home_humanoid --pair` |
-| `telemetry.home_humanoid_pair.jsonl.gz` | The deployed period's shape: no offers, no upkeep; the first robot, started low, walks to its station, plugs itself in and charges while the second explores -- both maps and near fields | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_humanoid_pair.jsonl.gz` |
+| `telemetry.home_humanoid_pair.jsonl.gz` | The deployed period's shape: no offers, no upkeep; the first robot, started low, walks to its station, plugs itself in and charges while the second explores, then the second charges -- both maps and near fields | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_humanoid_pair.jsonl.gz` |
 | `scene.home_humanoid_counter.json` | A world of one's own (pluggybot #530): the house, the HUMANOID where the counter's set-out starts it, the counter and chest 0 on it (`evaluation.counter`), its `head` camera named -- never the served world | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record ...` (writes it beside the recording) |
 | `telemetry.home_humanoid_counter.jsonl.gz` | The reference's attempt at chest 0 (`evaluation.opener`), streamed as a person's session streams one: the scene after the header, the robot's senses (`readouts`, `depth`), and ONE `attempt` at the end, which passed | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record protocol/telemetry.home_humanoid_counter.jsonl.gz` |
 | `hello.home_humanoid_counter.json` | The session host's `hello` as a fresh host says it (rooftop-media-2026 #441): no build, nothing running; the task, the job, the robot's text and its `index`, which the site's guide for people is checked against | `uv run python -m pluggybot.session.host --hello` |

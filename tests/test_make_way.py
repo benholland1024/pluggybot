@@ -378,6 +378,26 @@ def test_its_own_walk_a_fall_and_a_hand_out_end_the_step_aside(house):
     body.close()
 
 
+@pytest.mark.parametrize("how", ["stood up", "forgot its world"])
+def test_a_stand_up_or_a_forgotten_world_drops_the_step_aside(house, how):
+  """#580: stood up somewhere else (`start_at`), or a robot after a true
+  death (`forget_world`), it makes way for nobody. Left under way, a robot
+  stood up walked on to the spot it had been stepping to, until it got
+  there or `ASIDE_BUDGET_S` ran out. Dropped unsaid: a stand-up says in
+  its own line what happened, and a new robot hears nothing of the old."""
+  body, m = _mission(house)
+  try:
+    assert m.make_way(_route(), "pluggybot") and m._aside is not None
+    if how == "stood up":
+      body.start_at(*EAST, 0.0)
+    else:
+      body.forget_world()
+    assert m._aside is None and body.making_way is None
+    assert m.asides == 0 and m.last_aside is None
+  finally:
+    body.close()
+
+
 # ---- 3. the pair's channel, a death, and what is said ---------------------------
 
 

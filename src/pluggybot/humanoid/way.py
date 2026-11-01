@@ -229,6 +229,13 @@ class HumanoidWay:
     from pluggybot.humanoid.mission import command_for
     return command_for(v, 0.0, w)
 
+  def drop_aside(self) -> None:
+    """The step aside under way ends unsaid: the robot was put elsewhere (a
+    stand-up) or is not the one that agreed to it (a true death). Left
+    under way, a robot stood up walked on to the spot it was stepping to
+    before (#580)."""
+    self._aside, self.making_way = None, None
+
   def _end_aside(self, why: str, command):
     """The step aside is over: its record, and the command to apply."""
     a, self._aside = self._aside, None
