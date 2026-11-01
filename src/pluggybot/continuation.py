@@ -4,13 +4,12 @@ and the world put back from it.
 The served world's process ends -- a deploy, a crash, an out-of-memory
 kill, the `PLUGGY_MAX_SIM_TIME` ceiling -- and the next one used to build
 the world from its XML: both robots at their spawn poses on a full pack
-with an empty map, every module back on its bay, and the job in hand
-failed. The volume kept the robot's WRITING (thoughts, ledger, boards, the
+with an empty map and the job in hand failed. The volume kept the robot's WRITING (thoughts, ledger, boards, the
 task board) and nothing it had DONE. So a robot at 5 % in minute 59 woke
 at 100 %, which is the buffer the sixth quality measures, refilled free.
 
-This module keeps the rest: every body by name (robots, modules, cubes,
-the mouse), the sim clock, each robot's pack, believed pose, occupancy grid,
+This module keeps the rest: every body by name (robots, the counter's
+props, the mouse), the sim clock, each robot's pack, believed pose, occupancy grid,
 height map, rack belief, clocks and whether it is dead, the world's
 activities and the producer's schedule. `Keeper` writes it every
 `SAVE_EVERY_S` and at shutdown; `restore` puts it back after `begin()` and
@@ -25,8 +24,8 @@ lies dead for an hour. `max_sim_time` is a RUN's budget from where it
 starts (`HubLifecycle._day_routine`).
 
 ⚠ BODIES ARE MATCHED BY NAME, never by state-vector layout: a new build's
-world reorders `qpos`, and a name the world lacks (a built tool, in a world
-saved before #489) is skipped. A joint
+world reorders `qpos`, and a name the world lacks (a quadruped's tool, in
+a world saved before #559) is skipped. A joint
 may be unnamed (the rover's world had 11 of 24), so a joint's key is its
 body's name and its index there. And the solver's WARM START is kept: MEASURED, without
 it the same step diverges by 1e-12 and a parity check means nothing.
@@ -35,9 +34,9 @@ it the same step diverges by 1e-12 and a parity check means nothing.
 pass -- its contacts, positions, sensors -- is the one its last step began
 with, a step behind its `qpos`, and everything between two steps reads it.
 Forwarded fresh at the saved instant instead, a restore parted wherever the
-walking policy decided on its first step (one save in ten) and could answer
-"what is on my fork" otherwise; so a save carries where that step began
-(`LastStep`) and a restore steps it again (`replay`).
+walking policy decided on its first step (one save in ten); so a save
+carries where that step began (`LastStep`) and a restore steps it again
+(`replay`).
 """
 
 from __future__ import annotations
@@ -85,6 +84,10 @@ MAPS_DROPPED = "the map I had was laid askew, and it is gone"
 #: body in it (#559, `lifecycle.HOUSES`): the robot carries on in a new one,
 #: the clock, its pack, its deaths and its jobs with it.
 BODY_CHANGED = "I have a new body since then"
+#: The quadrupeds' served pack, Wh (12S1P Molicel P45B; `quadruped-final`):
+#: the one other body's world in the house (`home_quad`), so the pack its
+#: saves made before they carried `capacityWh` were on.
+QUAD_PACK_WH = 12 * 3.6 * 4.5
 
 
 def fingerprint(model) -> str:
@@ -432,8 +435,8 @@ def same_house(saved, world: str) -> bool:
 
 def restore(lives, snap: Snapshot) -> dict:
   """Put a saved world back into freshly built lifecycles: after every
-  `begin()` (the bench's mass set) and before any day
-  routine is driven.
+  `begin()` (the counter's draws set) and before any day routine is
+  driven.
 
   The clock always continues. The bodies, the poses and the maps are put
   back only where the world is the one they were saved in (`fingerprint`)
@@ -476,8 +479,7 @@ def restore(lives, snap: Snapshot) -> dict:
       # robot at 40 % wakes at 40 %, never at 194 Wh of 778. A save from
       # before packs were saved with their size is another body's world
       # carried on from where it was served, on its served pack.
-      from pluggybot.lifecycle import world_config
-      was = kept.get("capacityWh") or world_config(snap.meta["world"])["hosting_battery_wh"]
+      was = kept.get("capacityWh") or QUAD_PACK_WH
       kept = {**kept, "energyWh": life.battery.capacity_wh * float(kept["energyWh"]) / float(was)}
     life.restore_kept(kept, arrays, in_place=same, why=why)
     restored.append(life.root)
@@ -495,9 +497,8 @@ def restore(lives, snap: Snapshot) -> dict:
 # ---- the keeper ----------------------------------------------------------------
 
 
-#: The postures a save waits out (`Body.posture`): the quadruped's two
-#: scripted moves and its get-up, `QuadMission.MOVING`, held to it by a test.
-MOVING_POSTURES = ("lying_down", "standing_up", "getting_up")
+#: The postures a save waits out (`Body.posture`): a get-up part-way.
+MOVING_POSTURES = ("getting_up",)
 
 
 class Keeper:
@@ -533,11 +534,9 @@ class Keeper:
   def busy(self) -> bool:
     """A robot mid stand-up is half stood up: its settle drive steps the
     sim with the pose moved and the pack not yet refilled. ...And a body
-    mid-move (issue #387): a quadruped lying down, standing up or getting
-    up is a scripted move or a policy part-way, which no file holds; one
-    mid-swap (issue #405), its fork maybe half under a peg; and one
-    stepping aside for the other robot (issue #415), a walk no routine
-    holds. A stop waits too: killed first, the world comes back from the
+    mid-move (issue #387): one getting up is a policy part-way, which no
+    file holds; one with a hand out (`Body.working`); and one stepping
+    aside for the other robot (issue #415), a walk no routine holds. A stop waits too: killed first, the world comes back from the
     save before."""
     return any(life._standing_up or life.body.posture in MOVING_POSTURES
                or life.body.working or life.body.making_way is not None

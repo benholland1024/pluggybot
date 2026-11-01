@@ -17,11 +17,12 @@ from pluggybot.economy.ledger import HEARTS
 from pluggybot.lifecycle import board_book
 from pluggybot.mind import overseer as ov
 
-WORLD = "home_quad"
+WORLD = "home_humanoid"
 
 
 def _menu():
-  """A mind's menu on legs with every power the served pair has."""
+  """A mind's menu in the humanoids' house with every power the served
+  pair has (the lab is shown, #559)."""
   return dataclasses.replace(ov.Menu.for_world(WORLD, board_book(WORLD)),
                              procedures=True, wiki=True, tickets=True,
                              lab="lab", look=True)
@@ -50,7 +51,7 @@ def _quiet(**fields) -> dict:
          "retract": "", "other_needs": "", "tell": {"to": "", "text": ""},
          "give_points": {"to": "", "amount": 0}, "heart_for": "",
          "rate": {"board": "", "quality": 0}, "decline": {"task": "", "reason": ""},
-         "care": "", "real": "", "mouse_will": "", "lookup": "",
+         "lookup": "",
          "ticket": {"kind": "", "title": "", "text": ""},
          "ticket_reply": {"ticket": "", "text": ""}}
   return {**raw, **fields}
@@ -128,11 +129,13 @@ def test_a_word_the_form_coined_is_a_placeholder_in_a_field_of_its_own():
   d = _validate({"think": "", "action": "idle", "reason": "", "lookup": "heart_for"})
   assert d.lookup == "", "filler stood in an answer missing its keys"
   # ⚠ ...but an object is judged by its own names alone: a finding is named
-  # for what it measures (Luca, t=1058451.09)
-  finding = {"quantity": "mouse_will", "value": 1, "unit": "state",
-             "method": "mouse last seen resting after a feed", "topic": "lab"}
+  # for what it measures (Luca's `mouse_will`, t=1058451.09, when that was
+  # the lab's field), a name the form coined included
+  finding = {"quantity": "give_points", "value": 10, "unit": "points",
+             "method": "what Rowan was given at the last restart", "topic": "points"}
+  assert "give_points" in ov.COINED, "the premise: the form coined it"
   d = _validate(_quiet(record=finding))
-  assert d.record["quantity"] == "mouse_will" and d.left_out is None
+  assert d.record["quantity"] == "give_points" and d.left_out is None
 
 
 def test_a_field_named_by_an_everyday_word_is_judged_only_as_its_own():
@@ -157,19 +160,21 @@ def test_a_field_named_by_an_everyday_word_is_judged_only_as_its_own():
 
 def test_a_quote_of_a_findings_name_takes_the_finding_out():
   """A finding is named for what it measures, and a quote of its name picks
-  it out: Luca recorded `mouse_will = 1 state` (t=1058451.09) and later
-  retracted it. A gate on every quote that was a field's name blanked this
-  one (found in review): a coined quote is left out only where the answer
-  is full of placeholders."""
+  it out, a name the form coined included: Luca recorded `mouse_will = 1
+  state` (t=1058451.09), when that was the lab's field, and later retracted
+  it. A gate on every quote that was a field's name blanked this one (found
+  in review): a coined quote is left out only where the answer is full of
+  placeholders."""
   from pluggybot.mind.thoughts import FINDINGS, ThoughtFiles
   memory = ThoughtFiles(None)
-  line = memory.record({"quantity": "mouse_will", "value": 1, "unit": "state",
-                        "method": "mouse last seen resting after a feed"})
-  d = _validate(_quiet(retract="mouse_will"))
-  assert d.retract == "mouse_will" and d.left_out is None
+  line = memory.record({"quantity": "give_points", "value": 10, "unit": "points",
+                        "method": "what Rowan was given at the last restart"})
+  assert "give_points" in ov.COINED, "the premise: the form coined it"
+  d = _validate(_quiet(retract="give_points"))
+  assert d.retract == "give_points" and d.left_out is None
   memory.retract(d.retract)
   assert line not in memory.read(FINDINGS)
-  d = _validate(_quiet(retract="mouse_will", pin="n", intend="x", lookup="none"))
+  d = _validate(_quiet(retract="give_points", pin="n", intend="x", lookup="none"))
   assert d.retract == "" and d.left_out["why"] == "filled"
 
 
@@ -207,10 +212,6 @@ def test_a_real_short_value_stands():
   for said in ("ok", "hi", "no"):
     d = _validate(_quiet(tell={"to": "Rowan", "text": said}))
     assert d.tell == {"to": "Rowan", "text": said} and d.left_out is None
-  # ...the answer to a question job, a digit
-  d = _validate(_quiet(action="take_task", task="t_0759", answer="8"),
-                answering=("t_0759",))
-  assert d.answer == "8" and d.left_out is None
   # ...a finding's one-letter unit, and record ids
   finding = {"quantity": "cube_mass", "value": 0.42, "unit": "g",
              "method": "read the claw's load at rest", "topic": "mass_bench"}

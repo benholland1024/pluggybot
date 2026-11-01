@@ -36,7 +36,7 @@ import math
 import numpy as np
 
 from pluggybot.challenge import lid
-from pluggybot.rack.coupling import contact_pairs
+from pluggybot.contacts import contact_pairs
 
 #: 1: within this of the mat's middle, m (the mat's half side is 0.04: the
 #: cube's whole bottom on it), resting within this of its top, m, and

@@ -15,21 +15,17 @@ is supposed to be believed.
 life reads its predecessor's `History.md` death line on every decision --
 which is the whole of what dying costs. True death archives it.
 
-The loop's bookkeeping, pinned on the stub body (`tests/test_body.py`);
-the tool a stand-up takes home, on the served quadruped.
+The loop's bookkeeping, pinned on the stub body (`tests/test_body.py`).
 """
 
-import math
 
-import mujoco
 import pytest
 
 from pluggybot import lifecycle as lc
-from pluggybot.lifecycle import AUTO_RESTART_BY, QUAD_HOME, HubLifecycle, world_config
+from pluggybot.lifecycle import AUTO_RESTART_BY, HUMANOID_HOME, HubLifecycle, world_config
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.thoughts import HISTORY
-from pluggybot.robot import world_spec
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
@@ -43,7 +39,7 @@ PAST_S = TIMER_S + 1.0
 
 
 def _born(life) -> HubLifecycle:
-  start = world_config(QUAD_HOME)["start"]
+  start = world_config(HUMANOID_HOME)["start"]
   life.body.start_at(*start)
   life.home_pose = tuple(start)
   life.survival_since = float(life.data.time)
@@ -248,44 +244,3 @@ def test_the_death_line_survives_the_restart_and_the_next_life_reads_it():
   assert any("died" in line for line in ctx["thoughts"][HISTORY])
   assert ctx["survival"]["deaths"] == 1, "the death is not forgotten either"
   assert ctx["survival"]["aliveS"] < 5.0, "but the clock is a NEW life"
-
-
-# ---- the refusals it inherits -------------------------------------------
-
-
-def test_the_timer_does_not_wait_behind_a_seated_module_and_takes_it_home(
-    monkeypatch):
-  """⚠ REVERSED BY ISSUE #348. The timer used to wait for the errand to put a
-  seated tool down -- "wait until the errand returns", which Ben rejected
-  (2026-09-24): behind an errand that never returns, the robot never gets
-  up. The day loop now closes the routine a stand-up lands in
-  (`test_stand_up.py`), so the timer fires at its time and the tool comes
-  home with the robot (#311's rescue). Shown to fail with the wait put back.
-
-  ⚠ The seam RECOMPUTES `tool_powered` from the coupling on every step, so
-  the seated module is faked where the fork is read, rather than by setting
-  the attribute, which the next step would overwrite."""
-  cfg = world_config(QUAD_HOME)
-  model = world_spec(cfg["model"]).compile()
-  life = _born(HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                            world=QUAD_HOME,
-                            battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                            grid_bounds=cfg["grid_bounds"],
-                            low_battery_wh=cfg["low_battery_wh"],
-                            mortal=True, restart_after_s=1.0))
-  try:
-    monkeypatch.setattr(life.body.mission, "tool_powered", lambda m: m is not None)
-    monkeypatch.setattr(life.body.mission, "seated_on", lambda m: life.root)
-    assert life.module, "a lifecycle names the module it carries"
-    adr = int(life.model.jnt_qposadr[int(life.model.body(life.module).jntadr[0])])
-    life.data.qpos[adr:adr + 3] = (1.0, 1.0, 0.4)          # off its bay
-    mujoco.mj_forward(life.model, life.data)
-    home = list(life.model.qpos0[adr:adr + 3])
-    _kill(life)
-    assert life.tool_powered, "the seam did not see the seated module"
-    _hold(life, 1.5)
-    assert life.dead is None, "the timer waited behind the seated module"
-    assert math.dist(life.data.qpos[adr:adr + 3], home) < 0.05, \
-        "the tool was left where the robot fell"
-  finally:
-    life.body.close()

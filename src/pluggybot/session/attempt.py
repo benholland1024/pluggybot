@@ -39,7 +39,7 @@ from pluggybot.telemetry.protocol import ROBOT_ROOT
 #: The world a session's stream names (`evaluation.counter.WORLD`).
 WORLD = ct.WORLD
 #: A world of its own has no pack; its record says full, as the chest
-#: demo's does (`scripts/imagine_chest.py`), because a frame's robot record
+#: demo's did (#466, at `quadruped-final`), because a frame's robot record
 #: carries one.
 FULL = {"frac": 1.0, "watts": 0.0, "charging": False}
 #: The child waits this long, wall s, for its stream to open before it

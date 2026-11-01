@@ -1,15 +1,15 @@
-"""A humanoid is told its own body and world (issue #559, stage 3): the
-constitutions' body paragraph and every rule in its words -- it charges
+"""A humanoid is told its own body and world (issue #559, stages 3 and 5):
+the constitutions' body paragraph and every rule in its words -- it charges
 standing at its station by a cable it plugs into itself, it has no rack,
 no tool and no question jobs -- its reward table its world's rows alone,
 and its procedures in its hands' vocabulary as its practice states it.
 
-⚠ THE CONSTITUTIONS ARE THE HUMANOID'S, AND THE RULES THE QUADRUPED'S:
-the library files are what the served humanoids read, byte for byte, and a
-quadruped's are them swapped at load (`constitution.for_body`, #559's stage
-4); the rules are the quadruped's text, and a humanoid's are them swapped
-(`overseer.for_body`) -- each until the quadruped goes. Every rule here is
-pinned on the prompt as it is built, nothing flown.
+⚠ THE HUMANOID'S WORDS ARE THE TEXT (stage 5): the quadruped's rules and
+constitutions were swapped into them at load until it went, and are gone
+with it; what the served pair reads is the rules and the library files as
+written, byte for byte. So none of the quadruped's words -- nor the
+rover's before it (#376) -- may be in anything a robot reads. Every rule
+here is pinned on the prompt as it is built, nothing flown.
 """
 
 import itertools
@@ -19,7 +19,7 @@ from dataclasses import replace
 
 import pytest
 
-from pluggybot.lifecycle import HUMANOID_HOME, QUAD_HOME, board_book, world_facts
+from pluggybot.lifecycle import HUMANOID_HOME, board_book, world_facts
 from pluggybot.mind import acts
 from pluggybot.mind import constitution as c
 from pluggybot.mind import overseer as ov
@@ -36,16 +36,28 @@ QUADRUPED_WORDS = re.compile(
   r"\b(four-legged|small dog|dock|lie down|lying|lie on|rack|bay [A-E]|bays|fork|bumper|"
   r"tools?|modules?|module_\w+|stow|pen|claw|LCD|needsAnswer|whole number of at most)\b",
   re.I)
+#: ...nor the rover's (#376 deleted it), which the quadruped's rules were
+#: written over in #427.
+ROVER_WORDS = ("two-wheeled", "wheel", "chassis", "the mast", "set_lift", "lift",
+               "hub's charge bay", "your \"hub\"", "LCD face", "drive onto")
 
 
-def _sections(world, **flags):
-  menu = Menu.for_world(world, board_book(world))
+def _foreign(text: str) -> str:
+  """The first word of another body's world in `text`, with its context,
+  or "" where there is none."""
+  hit = QUADRUPED_WORDS.search(text)
+  if hit is not None:
+    return text[max(0, hit.start() - 120):hit.end() + 60]
+  return next((w for w in ROVER_WORDS if w in text), "")
+
+
+def _sections(**flags):
+  menu = Menu.for_world(HUMANOID_HOME, board_book(HUMANOID_HOME))
   menu = replace(menu, procedures=flags.pop("procedures", False),
-                                wiki=flags.get("wiki", False),
-                                tickets=flags.get("tickets", False),
-                                look=flags.get("look", False))
-  body = "humanoid" if world == HUMANOID_HOME else "quadruped"
-  thoughts = ThoughtFiles(None, constitution=c.resolve(body=body))
+                 wiki=flags.get("wiki", False),
+                 tickets=flags.get("tickets", False),
+                 look=flags.get("look", False))
+  thoughts = ThoughtFiles(None, constitution=c.resolve())
   return ov.system_sections(thoughts, menu, default_table(), name="Luca",
                             procedures=menu.procedures, **flags)
 
@@ -66,43 +78,47 @@ def _configurations():
   yield {"event_map": True, "mortal": True, "others": ("Rowan",), "acts": True}
 
 
-def test_the_humanoid_reads_the_files_and_the_quadruped_its_own_body_in_them():
+def test_every_constitution_is_the_humanoids_in_its_own_words():
   """Every library file opens with the humanoid's paragraph and keeps its
   disposition; it hands over no answer (`test_constitution`'s regexes) and
-  names no dock, rack or tool -- and a quadruped, until it goes, reads the
-  same file with its own body swapped in, the rest sentence for sentence."""
+  names none of the quadruped's world -- its dock, its rack, its tools --
+  nor the rover's. Resolved, a name is its file as written."""
   from test_constitution import _ACT, _TACTIC
   for name in c.names():
-    hum, quad = c.load(name), c.for_body(c.load(name), "quadruped")
-    assert c.for_body(hum, "humanoid") is hum, "the humanoid's is the file's"
-    assert quad.name == name and quad.sha == c.sha_of(quad.text) != hum.sha
-    assert hum.text.startswith("You are a humanoid robot")
-    assert quad.text.startswith("You are a four-legged robot")
-    assert not QUADRUPED_WORDS.search(hum.text), QUADRUPED_WORDS.search(hum.text)
-    for text in (hum.text, quad.text):
-      assert not re.search(r"\d", text) and "->" not in text and "%" not in text
-      assert not _TACTIC.search(text) and not _ACT.search(text)
-    # ...the rest of it, sentence for sentence
-    tail = hum.text.split("\n\n", 1)[1]
-    for old, new in c.BODY_SWAPS["quadruped"][1:]:
-      tail = tail.replace(old, new)
-    assert quad.text.split("\n\n", 1)[1] == tail
-  assert c.resolve("curious", body="humanoid") == c.load("curious")
-  assert c.resolve("curious", body="quadruped") == c.for_body(c.load("curious"), "quadruped")
+    text = c.load(name).text
+    assert text.startswith("You are a humanoid robot"), name
+    assert not _foreign(text), (name, _foreign(text))
+    assert not re.search(r"\d", text) and "->" not in text and "%" not in text
+    assert not _TACTIC.search(text) and not _ACT.search(text)
+    assert c.resolve(name) == c.load(name)
 
 
-def test_a_file_whose_sentence_moved_is_refused_rather_than_read_half_swapped():
-  moved = c.Constitution.of("default", c.load("default").text.replace("as tall as a child", "tall"))
-  with pytest.raises(ValueError, match="no longer says"):
-    c.for_body(moved, "quadruped")
+def test_the_served_pair_reads_the_rules_and_its_constitution_as_written(monkeypatch):
+  """The deployed menu (#206, Evaluation.md §2): the pair as `serve.py`
+  builds it, through `pair.build_pair` -- a mind each, the other named,
+  mortal, unseeded, jobs on offer -- and each mind's whole prefix in its own
+  words; each reads its constitution's file byte for byte, swapped into
+  nothing at load."""
+  from pluggybot.pair import build_pair
+  for env in ("PLUGGY_LOOK", c.NAME_ENV, c.SECOND_NAME_ENV):
+    monkeypatch.delenv(env, raising=False)
+  lives = build_pair(HUMANOID_HOME, overseer=True, origin="unseeded", mortal=True,
+                     tasks=True, names=("Luca", "Rowan"),
+                     constitutions_named=("default", "curious"))
+  for life, other in zip(lives, ("Rowan", "Luca")):
+    sections = dict(life.overseer.sections)
+    assert "THE OTHER ROBOT" in sections and other in sections["THE OTHER ROBOT"]
+    text = life.overseer.system[0]["text"]
+    assert not _foreign(text), (life.robot_name, _foreign(text))
+    charter = life.thoughts.constitution
+    assert charter == c.load(charter.name) and charter.text in text
+  assert [life.thoughts.constitution.name for life in lives] == ["default", "curious"]
 
 
-def test_the_probe_measures_each_bodys_served_prompt_in_its_own_words(monkeypatch, capsys):
-  """`overseer_probe.py --deployed --prompt --body humanoid` (#559's stage
-  4): the prefix the served pair sends, in the humanoid's words -- and the
-  quadruped's in its own. The probe opened its thought files in no body's
-  words, which a body's constitution is not read in. Named no body, it
-  measures the served pair's, the humanoid's."""
+def test_the_probe_measures_the_served_prompt_in_the_humanoids_words(monkeypatch, capsys):
+  """`overseer_probe.py --deployed --prompt` (#559's stage 4): the prefix
+  the served pair sends, in the humanoid's words, named a body or not --
+  the humanoid is the one there is."""
   import importlib.util
   import sys
   from pathlib import Path
@@ -111,49 +127,33 @@ def test_the_probe_measures_each_bodys_served_prompt_in_its_own_words(monkeypatc
   probe = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(probe)
   monkeypatch.delenv("PLUGGY_BODY", raising=False)
-  for body, own, other in (("humanoid", "You are a humanoid robot", "four-legged"),
-                           ("quadruped", "You are a four-legged robot", "humanoid robot"),
-                           (None, "You are a humanoid robot", "four-legged")):
+  for body in ("humanoid", None):
     monkeypatch.setattr(sys, "argv", ["overseer_probe.py", "--deployed", "--prompt",
                                       "--backend", "local"]
                         + (["--body", body] if body else []))
     probe.main()
     out = capsys.readouterr().out
-    assert own in out and other not in out, body
+    assert "You are a humanoid robot" in out and not _foreign(out), (body, _foreign(out))
 
 
 @pytest.mark.parametrize("flags", list(_configurations()), ids=lambda f: ",".join(f) or "bare")
-def test_no_humanoid_prompt_names_the_quadrupeds_world(flags):
-  text = "\n\n".join(t for _, t in _sections(HUMANOID_HOME, **flags))
-  hit = QUADRUPED_WORDS.search(text)
-  assert hit is None, text[max(0, hit.start() - 120):hit.end() + 60]
-
-
-def test_every_swap_is_read_in_some_humanoid_prompt_and_the_quadrupeds_is_its_own():
-  """A swap whose sentence moved would leave the quadruped's words in a
-  humanoid's prompt silently: each is found in some configuration's
-  quadruped text, and none of a quadruped's prompt is swapped."""
-  quad = "\n\n".join("\n\n".join(t for _, t in _sections(QUAD_HOME, **f))
-                     for f in _configurations())
-  for old, new in ov.BODY_SWAPS["humanoid"]:
-    assert old in quad, f"BODY_SWAPS' sentence moved: {old[:60]!r}"
-  assert ov.for_body(quad, "quadruped") == quad
+def test_no_humanoid_prompt_names_another_bodys_world(flags):
+  text = "\n\n".join(t for _, t in _sections(**flags))
+  assert not _foreign(text), _foreign(text)
 
 
 def test_a_humanoid_is_shown_only_the_reward_rows_its_world_can_pay():
   """None of the quadruped's jobs is offered in its house: the table is
   the charge's, a procedure's and a ticket's (`overseer.ALWAYS_SHOWN`) and
-  its own jobs', the hands' on the storeroom's counter (stage 3); and the
-  quadruped's is every row it always was."""
+  its own jobs', the hands' on the storeroom's counter (stage 3)."""
   from pluggybot.economy.cadence import default_cadence
   from pluggybot.economy.tasks import KINDS
   rows = {r["task"] for r in default_table().as_context(
     challenges=True, kinds=Menu.for_world(HUMANOID_HOME).kinds)}
   jobs = {KINDS[k].task for k in default_cadence(HUMANOID_HOME).kinds}
   assert jobs and rows == set(ov.ALWAYS_SHOWN) | jobs
-  assert Menu.for_world(QUAD_HOME).kinds is None
-  menu = Menu.for_world(HUMANOID_HOME, board_book(HUMANOID_HOME))
-  assert menu.body == "humanoid" and menu.programs == () and menu.boards
+  assert Menu.for_world(HUMANOID_HOME, board_book(HUMANOID_HOME)).boards, \
+    "its house has its whiteboards"
 
 
 def test_a_humanoids_procedures_are_its_hands_and_its_walks_every_switch_on():
@@ -167,8 +167,7 @@ def test_a_humanoids_procedures_are_its_hands_and_its_walks_every_switch_on():
   assert set(hands.sensors) <= set(facts.sensors) and "bumper" not in facts.sensors
   assert {"battery.wh", "battery.frac", "points"} <= set(facts.sensors)
   assert facts.axes == axes.BODY_AXES["humanoid"] and facts.hands == axes.HANDS
-  assert facts.verb_tests and facts.math and facts.guarded and facts.tools == ()
-  assert world_facts(QUAD_HOME).verbs[:5] == st.BODY_VERBS, "the quadruped's are its own"
+  assert facts.verb_tests and facts.math and facts.guarded
 
 
 def test_a_humanoids_procedure_rule_is_its_practices_language_and_body():
@@ -194,7 +193,7 @@ def test_a_humanoids_procedure_rule_is_its_practices_language_and_body():
   for a in facts.axes:
     assert f"  {a}:" in rule, a
   assert "  shoulder:" not in rule and "fetch(" not in rule
-  text = "\n\n".join(t for _, t in _sections(HUMANOID_HOME, procedures=True))
+  text = "\n\n".join(t for _, t in _sections(procedures=True))
   assert rule in text, "the humanoid's prompt carries it"
 
 
@@ -203,7 +202,7 @@ def test_a_humanoids_claim_about_its_station_is_checked():
   assert acts.check_claim("the charging station is free", charging=False) == (
     "the charging station is free", True)
   assert acts.check_claim("the charge bay is taken", charging=True)[1]
-  text = "\n\n".join(t for _, t in _sections(HUMANOID_HOME, others=("Rowan",), acts=True))
+  text = "\n\n".join(t for _, t in _sections(others=("Rowan",), acts=True))
   assert '("the charging station is free")' in text
 
 
@@ -219,6 +218,6 @@ def test_a_world_with_no_boards_offers_no_drawing_to_rate():
     assert ("rate" in menu.fields(others=True)) is rated
   assert "- `rate`" not in ov.acts_rule(rate=False) and "Five paperwork" in ov.acts_rule(False)
   assert ov.acts_rule(rate=True) == ov.ACTS_RULE
-  for name, text in itertools.chain(_sections(HUMANOID_HOME, others=("Rowan",), acts=True)):
+  for name, text in itertools.chain(_sections(others=("Rowan",), acts=True)):
     if name == "WHAT YOU CAN DO ABOUT THE OTHER ROBOT":
       assert "- `rate`" in text, "the humanoid's house has its whiteboards"

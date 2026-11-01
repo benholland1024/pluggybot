@@ -40,8 +40,8 @@ Usage:
 
 import os
 
-# One BLAS thread before numpy loads (quad_spike.py: a policy's small
-# products doubled a step on six).
+# One BLAS thread before numpy loads (a policy's small products doubled a
+# step on six).
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 import argparse  # noqa: E402

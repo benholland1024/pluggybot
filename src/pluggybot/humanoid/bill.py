@@ -1,40 +1,45 @@
-"""The humanoid's bill of materials (issue #507): what it is built from,
-kept as `rack/catalog.py` keeps the quadruped's and checked by the same
-rules -- a part's facts once, every feed READ off `models/humanoid.xml` or
-the live constant (an `expect` where the sheet's number IS the sim's), a
-number nobody publishes `null` with its why, and a part nothing has been
-drawn for an ALLOWANCE with its basis, never a price. Parts.md's "The
-humanoid body" carries the rendering (`uv run python -m
-pluggybot.humanoid.bill`), and a test fails if the two differ.
+"""The humanoid's bill of materials (issues #379, #507): what it is built
+from, and the build the site's parts page shows (#185) -- checked by the
+catalog's rules (`humanoid/catalog.py`): a part's facts once, every feed
+READ off `models/humanoid.xml` or the live constant (an `expect` where the
+sheet's number IS the sim's), a number nobody publishes `null` with its
+why, and a part nothing has been drawn for an ALLOWANCE with its basis,
+never a price. `uv run python -m pluggybot.humanoid.bill` writes Parts.md's
+"The humanoid body" bill and `protocol/parts.json`, and a test fails if
+either differs.
 
-A part the quadruped's bill already buys keeps its facts there
-(`_shared`): one part number, one price and one mass. The shop's tools,
-the gantry and the bench rig are that bill's too, and not bought twice.
-
-Not in `protocol/parts.json`: the site's parts page shows the served
-robot's build (#185), and this bill joins it when the humanoid is served.
+A part bought off a seller's page keeps its facts in the catalog
+(`catalog.PARTS`, `_bought`): one part number, one price and one mass,
+`humanoid.parts` reading the same masses. The shop's tools are bought here
+too: the humanoid is the one build since the quadruped's went (#559). ⚠
+NOT IN IT YET: a gantry to hang a 43 kg body from and a bench rig for its
+first leg, neither drawn; the quadruped's were sized for 10 kg.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import replace
 from pathlib import Path
 
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
-from pluggybot.rack import catalog as cat
-from pluggybot.rack.catalog import (PRINTED, Feed, Line, Part, actuator, camera, code,
-                                    code_entry, joint, same)
+from pluggybot.humanoid import catalog as cat
+from pluggybot.humanoid.catalog import (PRINTED, Feed, Line, Part, actuator, camera, code,
+                                        code_entry, joint, same)
 
 ROBOT = "humanoid"
 WORLDS = {ROBOT: hm.MODEL_XML}
 SHELVES = ("build",)
-#: When this bill's own lines were read; the parts it shares with the
-#: quadruped's carry that bill's reading (`cat.CHECKED`).
-CHECKED = f"2026-10-16, the charging lines 2026-10-30 (the parts shared with the quadruped's bill: {cat.CHECKED})"
+#: The days this bill's prices were read: its own parts, its charging lines,
+#: and the catalog's parts (the shop's among them) at the catalog's reading.
+#: The site prints the oldest, a day, as "on or after"; Parts.md says all three.
+READ_ON = ("2026-10-16", "2026-10-30", cat.CHECKED)
+CHECKED = (f"{READ_ON[0]}, the charging lines {READ_ON[1]} (the catalog's parts, the "
+           f"shop's among them: {READ_ON[2]})")
 GROUPS = ("actuation", "grippers", "power", "compute", "sensors", "frame",
-          "safety", "charging", "spares")
+          "safety", "charging", "spares", "shop")
 BOM_START = ("<!-- humanoid bom: rendered by `uv run python -m pluggybot.humanoid.bill` "
              "from humanoid/bill.py's LINES; edit those, not this -->")
 BOM_END = "<!-- /humanoid bom -->"
@@ -88,13 +93,11 @@ def _actuator(pid: str, motor, page: str, size: dict, inertia: float, note: str)
     "(`humanoid.parts.RS_DOCS`); the link is where it is bought.")
 
 
-def _shared(pid: str, *, usedBy=(), feeds=(), quantity: int = 1, note: str | None = None,
-            id: str | None = None) -> Part:
-  """A part the quadruped's bill already buys: its facts from there, its
-  use and its feeds this body's."""
-  p = cat.by_id()[pid]
-  return replace(p, id=id or pid, robot=ROBOT, usedBy=tuple(usedBy), feeds=tuple(feeds),
-                 quantity=quantity, note=p.note if note is None else note)
+def _bought(pid: str, *, usedBy=(), feeds=(), quantity: int = 1) -> Part:
+  """A part bought off a seller's page: its facts the catalog's
+  (`catalog.PARTS`), its use and its feeds this body's."""
+  return replace(cat.by_id()[pid], robot=ROBOT, usedBy=tuple(usedBy), feeds=tuple(feeds),
+                 quantity=quantity)
 
 
 def _structure_g(names: tuple[str, ...]):
@@ -153,12 +156,9 @@ PARTS: tuple[Part, ...] = (
             {"diameter": 46, "length": 44}, 7e-4,
             "The wrists' roll, after the pitch: it turns only the gripper. 191 g in "
             "its manual, 243 on the sheet's page."),
-  _shared("amass_xt30_22_pair", usedBy=(hm.ROBOT_ROOT,), quantity=26,
-          note="Power and CAN in one, a driver's (RobStride's drivers take an XT30 "
-               "and a GH1.25)."),
-  _shared("lapp_unitronic_can", usedBy=(hm.ROBOT_ROOT,), quantity=15,
-          note="Four buses, six drivers each, daisy-chained."),
-  _shared("silicone_wire_14awg", usedBy=(hm.ROBOT_ROOT,), quantity=30),
+  _bought("amass_xt30_22_pair", usedBy=(hm.ROBOT_ROOT,), quantity=26),
+  _bought("lapp_unitronic_can", usedBy=(hm.ROBOT_ROOT,), quantity=15),
+  _bought("silicone_wire_14awg", usedBy=(hm.ROBOT_ROOT,), quantity=30),
   # ---- grippers ----------------------------------------------------------------
   Part(
     "dex1_1", "Unitree Dex1-1 parallel gripper (Standard)", "actuator", "chosen",
@@ -197,21 +197,19 @@ PARTS: tuple[Part, ...] = (
        note="The Dex1-1 talks RS-485 at 6 Mbps through Unitree's own library; a "
             "Pi's CAN HATs do not."),
   # ---- power -------------------------------------------------------------------
-  _shared("molicel_p45b", usedBy=(hm.ROBOT_ROOT,), quantity=hp.PACK.cells,
+  _bought("molicel_p45b", usedBy=(hm.ROBOT_ROOT,), quantity=hp.PACK.cells,
           feeds=(code("humanoid.parts.PACK.wh", "Wh", f"{hp.PACK.series}S{hp.PACK.parallel}P"),
                  code("humanoid.parts.PACK.kg", "kg", "the cells, the BMS, the strip and "
                       "the printed case"))),
-  _shared("jbd_bms_12s_120a", usedBy=(hm.ROBOT_ROOT,)),
-  _shared("hilumin_strip_10m"),
-  _shared("meanwell_ddr_60l_5", usedBy=(hm.ROBOT_ROOT,),
+  _bought("jbd_bms_12s_120a", usedBy=(hm.ROBOT_ROOT,)),
+  _bought("hilumin_strip_10m"),
+  _bought("meanwell_ddr_60l_5", usedBy=(hm.ROBOT_ROOT,),
           feeds=(code_entry("humanoid.parts.ELECTRONICS_W", "compute + cameras", "W"),)),
-  _shared("amass_xt90s", quantity=3),
-  _shared("victron_midi_60a"),
-  _shared("victron_midi_holder"),
-  _shared("silicone_wire_10awg", quantity=4),
-  _shared("noeifevo_charger_12s",
-          note="The bench charger: 216 W at the pack's nominal 43.2 V, 3.6 h from "
-               "empty. The station's own is the NPB-750-48 (#559)."),
+  _bought("amass_xt90s", quantity=3),
+  _bought("victron_midi_60a"),
+  _bought("victron_midi_holder"),
+  _bought("silicone_wire_10awg", quantity=4),
+  _bought("noeifevo_charger_12s"),
   # ---- charging by its cable (#559 stage 2: `activity.station`) ----------------
   Part("ropd_panel_plug", "Rosenberger RoPD panel plug, C003-B1 (magnetic, 60 V DC, "
        "25 A): the charge port on the torso's front", "power", "candidate", SHELVES,
@@ -271,30 +269,33 @@ PARTS: tuple[Part, ...] = (
        note="Its rope clipped to the plug's back, its stop at 0.6 m; how its pull "
             "varies over its stroke is unpublished."),
   # ---- compute -----------------------------------------------------------------
-  _shared("raspberry_pi_5_quad", id="raspberry_pi_5", usedBy=(hm.ROBOT_ROOT,),
+  _bought("raspberry_pi_5", usedBy=(hm.ROBOT_ROOT,),
           feeds=(code_entry("humanoid.parts.ELECTRONICS", "pi5 (packed)", "kg",
                             "its packed weight, an upper bound"),)),
-  _shared("pi5_active_cooler"),
-  _shared("pi_ssd_kit_256"),
-  _shared("waveshare_can_hat_plus", usedBy=(hm.ROBOT_ROOT,),
+  _bought("pi5_active_cooler"),
+  _bought("pi_ssd_kit_256"),
+  _bought("waveshare_can_hat_plus", usedBy=(hm.ROBOT_ROOT,),
           feeds=(code_entry("humanoid.parts.ELECTRONICS", "waveshare_can_hat_plus", "kg"),)),
-  _shared("waveshare_can_fd_hat", usedBy=(hm.ROBOT_ROOT,),
+  _bought("waveshare_can_fd_hat", usedBy=(hm.ROBOT_ROOT,),
           feeds=(code_entry("humanoid.parts.ELECTRONICS", "waveshare_can_fd_hat", "kg"),)),
   # ---- sensors -----------------------------------------------------------------
-  _shared("quad_realsense_d435", id="realsense_d435", usedBy=("depth_cam_body",),
+  _bought("realsense_d435", usedBy=("depth_cam_body",),
           feeds=(Feed("depth_eye.fovy", camera("depth_eye"), "°",
                       "the depth field's vertical angle", expect=58),
                  code("humanoid.parts.D435_KG", "kg"),
                  code("humanoid.model.CHOSEN.depth_pitch_deg", "°",
-                      "fixed in the head, pitched at the counter and the floor ahead"))),
-  _shared("quad_rplidar_c1", id="rplidar_c1", usedBy=("lidar_mount",),
+                      "fixed in the head, pitched at the counter and the floor ahead"),
+                 Feed("color_eye.fovy", camera("color_eye"), "°",
+                      "its colour imager: the tags within reach", expect=42))),
+  _bought("rplidar_c1", usedBy=("lidar_mount",),
           feeds=(code("humanoid.parts.LIDAR.kg", "kg"),
                  code_entry("humanoid.parts.ELECTRONICS_W", "lidar", "W", expect=1.15))),
-  _shared("pi_camera_3", usedBy=("nav_cam_body",),
-          feeds=(Feed("nav_eye.fovy", camera("nav_eye"), "°", "the tags' camera",
+  _bought("pi_camera_3", usedBy=("nav_cam_body",),
+          feeds=(Feed("nav_eye.fovy", camera("nav_eye"), "°",
+                      "the places' tags on the walls, and the eye a look sees through",
                       expect=41),)),
-  _shared("pi5_camera_cable", usedBy=("nav_cam_body",)),
-  _shared("tdk_ev_icm42688p", usedBy=(hm.ROBOT_ROOT,),
+  _bought("pi5_camera_cable", usedBy=("nav_cam_body",)),
+  _bought("tdk_ev_icm42688p", usedBy=(hm.ROBOT_ROOT,),
           feeds=(code("perception.imu.GYRO_NOISE", "rad/s/√Hz", "its sheet's noise"),)),
   # ---- frame -------------------------------------------------------------------
   Part("humanoid_brackets", "The motors' brackets: two 5 mm 6082 plates a joint, each "
@@ -328,29 +329,31 @@ PARTS: tuple[Part, ...] = (
   _fabricated("humanoid_shells", "The head's shell and the torso's front cover, "
               "printed in PETG", ("head_shell", "torso_cover"), usedBy=(hm.ROBOT_ROOT,),
               printed=True),
-  _shared("igus_kcrm_05", usedBy=tuple(f"{s}_shank" for s in hm.SIDES), quantity=4,
-          note="The ankles' rods: one at each end."),
-  _shared("petg_1kg", quantity=2,
-          note="The head's shell, the torso's cover, the pack's case and the "
-               "cameras' and the LIDAR's mounts."),
+  _bought("igus_kcrm_05", usedBy=tuple(f"{s}_shank" for s in hm.SIDES), quantity=4),
+  _bought("petg_1kg", quantity=2),
   # ---- safety ------------------------------------------------------------------
-  _shared("albright_sw80b549", usedBy=(hm.ROBOT_ROOT,),
+  _bought("albright_sw80b549", usedBy=(hm.ROBOT_ROOT,),
           feeds=(code_entry("humanoid.parts.ELECTRONICS_W", "contactor", "W",
                             "its coil held, through the 12 V converter"),)),
-  _shared("schneider_xb5as8442", usedBy=(hm.ROBOT_ROOT,)),
-  _shared("radiomaster_pocket"),
-  _shared("radiomaster_er6", usedBy=(hm.ROBOT_ROOT,)),
-  _shared("pololu_rc_relay", usedBy=(hm.ROBOT_ROOT,)),
-  _shared("molicel_p28a", quantity=2),
-  _shared("meanwell_ddr_30l_12", usedBy=(hm.ROBOT_ROOT,)),
-  _shared("arcol_hs25_47r", usedBy=(hm.ROBOT_ROOT,)),
-  _shared("hongfa_hf115f_012", usedBy=(hm.ROBOT_ROOT,)),
+  _bought("schneider_xb5as8442", usedBy=(hm.ROBOT_ROOT,)),
+  _bought("radiomaster_pocket"),
+  _bought("radiomaster_er6", usedBy=(hm.ROBOT_ROOT,)),
+  _bought("pololu_rc_relay", usedBy=(hm.ROBOT_ROOT,)),
+  _bought("molicel_p28a", quantity=2),
+  _bought("meanwell_ddr_30l_12", usedBy=(hm.ROBOT_ROOT,)),
+  _bought("arcol_hs25_47r", usedBy=(hm.ROBOT_ROOT,)),
+  _bought("hongfa_hf115f_012", usedBy=(hm.ROBOT_ROOT,)),
+  # ---- shop: what the build needs to make its pack, its harness and its
+  # printed parts, and to power its first leg up on the bench ----------------
+  *(_bought(pid) for pid in ("korad_ka6005p", "ucan_v1", "kweld_kit", "kweld_kcap",
+                             "engineer_pa09", "knipex_9762145a", "pinecil_v2",
+                             "unit_ut161e", "proxxon_mc5", "wera_950pks9", "bambu_p1s")),
 )
 
-#: What the allowances rest on: a machined 6082 part at a job shop, as the
-#: quadruped's bill sizes its legs' (€800 for twenty-four parts: €33.33 a
-#: part), and AluFritze's configurator for a plain plate (€20.02 for 300 x
-#: 150 mm in 3 mm).
+#: What the allowances rest on: a machined 6082 part at a job shop, at the
+#: rate the quadruped's legs were priced at in #379 (€800 for twenty-four
+#: parts: €33.33 a part), and AluFritze's configurator for a plain plate
+#: (€20.02 for 300 x 150 mm in 3 mm).
 MACHINED_EUR = 800.0 / 24
 
 LINES: tuple[Line, ...] = (
@@ -418,19 +421,20 @@ LINES: tuple[Line, ...] = (
   # ---- frame -------------------------------------------------------------------
   Line("humanoid_brackets", 1, "frame", None, why=UNDRAWN,
        allowanceEur=round(48 * MACHINED_EUR, 2),
-       basis="forty-eight machined 6082 plates with their fasteners, at the "
-             "quadruped's bill's rate for its legs' (€800 for twenty-four parts)"),
+       basis="forty-eight machined 6082 plates with their fasteners, at €33.33 a "
+             "machined part (#379's rate for the quadruped's legs: €800 for "
+             "twenty-four)"),
   Line("humanoid_trunk_plates", 1, "frame", None, why=UNDRAWN, allowanceEur=300.0,
-       basis="eight 3 mm 6082 plates, as the quadruped's frame (€300 for six to "
-             "eight): AluFritze's configurator prices a plain 300 x 150 mm one at "
-             "€20.02; a plate with holes is priced from its drawing"),
+       basis="eight 3 mm 6082 plates, as #379 priced the quadruped's frame (€300 "
+             "for six to eight): AluFritze's configurator prices a plain 300 x 150 mm "
+             "one at €20.02; a plate with holes is priced from its drawing"),
   Line("humanoid_leg_plates", 1, "frame", None, why=UNDRAWN,
        allowanceEur=round(8 * MACHINED_EUR, 2),
-       basis="eight machined side plates at the quadruped's bill's rate a part"),
+       basis="eight machined side plates at €33.33 a machined part (#379's rate)"),
   Line("humanoid_soles", 1, "frame", None, why=UNDRAWN,
        allowanceEur=round(2 * MACHINED_EUR + 20.0, 2),
-       basis="two machined sole plates at the quadruped's bill's rate a part, and "
-             "€20 of 5 mm rubber sheet"),
+       basis="two machined sole plates at €33.33 a machined part (#379's rate), "
+             "and €20 of 5 mm rubber sheet"),
   Line("humanoid_arm_tubes", 1, "frame", None, why=UNDRAWN, allowanceEur=40.0,
        basis="0.8 m of 6082 round tube in two sizes, cut to length; not priced for "
              "this bill"),
@@ -438,8 +442,8 @@ LINES: tuple[Line, ...] = (
        basis="two 0.34 m rods cut from 8 mm tube and threaded M5 at each end"),
   Line("humanoid_gripper_adapters", 1, "frame", None, why=UNDRAWN,
        allowanceEur=round(2 * MACHINED_EUR, 2),
-       basis="two machined plates at the quadruped's bill's rate a part, drawn when "
-             "the gripper's flange is known (Unitree does not publish it)"),
+       basis="two machined plates at €33.33 a machined part (#379's rate), drawn "
+             "when the gripper's flange is known (Unitree does not publish it)"),
   Line("igus_kcrm_05", 4, "frame", "ready to ship in 24 hours (igus)"),
   Line("petg_1kg", 2, "frame", None,
        why={"leadTime": "in stock; the page and its terms give no delivery time"}),
@@ -463,21 +467,38 @@ LINES: tuple[Line, ...] = (
   Line("rs02", 1, "spares", OE_LEAD),
   Line("molicel_p45b", 4, "spares", "ready to ship in 1-2 days (akkuteile.de)"),
   Line("victron_midi_60a", 2, "spares", "in stock, 1-3 working days (Klimaworld)"),
+  # ---- shop --------------------------------------------------------------------
+  Line("korad_ka6005p", 1, "shop", "in stock, 1-3 business days (Welectron)",
+       note="a leg's first power-ups; it charges the kCap and runs the Pinecil"),
+  Line("ucan_v1", 1, "shop", "in stock, 1-3 days (Eckstein)"),
+  Line("kweld_kit", 1, "shop", "28 in stock (keenlab)"),
+  Line("kweld_kcap", 1, "shop", "41 in stock (keenlab)"),
+  Line("engineer_pa09", 1, "shop", "31 in stock, ships the same day (Kiwi, NL)"),
+  Line("knipex_9762145a", 1, "shop", "in stock, 1-2 business days (Reichelt)"),
+  Line("pinecil_v2", 1, "shop", "in stock, ships the same day (eleshop)"),
+  Line("unit_ut161e", 1, "shop", "expected on 2026-10-07 (eleshop)"),
+  Line("proxxon_mc5", 1, "shop", "in stock, 1-2 business days (Reichelt)"),
+  Line("wera_950pks9", 1, "shop", "in stock, 1-2 business days (Reichelt)"),
+  Line("bambu_p1s", 1, "shop", "ships from the EU warehouse in 1-3 business days (Bambu Lab)"),
 )
 
 
 def build() -> dict:
-  """Every feed read off the humanoid's model and the live constants: the
-  catalog's own reading (`rack.catalog.build`), on this bill's parts."""
+  """The catalog as the site's parts page reads it (`protocol/parts.json`,
+  issue #185): every part with each feed read off the humanoid's model and
+  the live constants, and the bill off this bill's lines (`build`) -- no
+  budget: #379's was set for the quadruped's build."""
   import mujoco
   spec = mujoco.MjSpec.from_file(WORLDS[ROBOT])
   parts = [p.as_dict(spec) for p in PARTS]
   ids = [p["id"] for p in parts]
   assert len(ids) == len(set(ids)), "duplicate part id"
   return {
-    "worlds": dict(WORLDS), "shelves": list(SHELVES), "parts": parts,
-    "humanoid": cat.bom({p["id"]: p for p in parts}, lines=LINES, groups=GROUPS,
-                        checked=CHECKED, budget_usd=None),
+    "schema": cat.SCHEMA, "worlds": dict(WORLDS), "kinds": list(cat.KINDS),
+    "statuses": list(cat.STATUSES), "shelves": list(SHELVES),
+    "nullable": list(cat.NULLABLE), "parts": parts,
+    "build": cat.bom({p["id"]: p for p in parts}, lines=LINES, groups=GROUPS,
+                     checked=min(READ_ON), budget_usd=None),
   }
 
 
@@ -487,7 +508,7 @@ def problems(fixture: dict) -> dict:
   parts = {p["id"]: p for p in fixture["parts"]}
   out = {pid: r for pid, p in parts.items()
          if (r := cat.validate(p, worlds=WORLDS, shelves=SHELVES))}
-  out.update({f"line:{ln['part']}": r for ln in fixture["humanoid"]["lines"]
+  out.update({f"line:{ln['part']}": r for ln in fixture["build"]["lines"]
               if (r := cat.validate_line(ln, parts, groups=GROUPS))})
   if off := cat.mismatches(fixture):
     out["mismatches"] = off
@@ -495,21 +516,27 @@ def problems(fixture: dict) -> dict:
 
 
 def with_bill(doc: str, fixture: dict) -> str:
-  return cat.with_bill(doc, fixture, key="humanoid", markers=(BOM_START, BOM_END))
+  return cat.with_bill(doc, fixture, (BOM_START, BOM_END), read_on=CHECKED)
 
 
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+  parser.add_argument("-o", "--out", default="protocol/parts.json",
+                      help="the catalog the site's parts page reads")
   parser.add_argument("--doc", default="docs/Parts.md",
-                      help="the doc whose humanoid bill is re-rendered")
+                      help="the doc whose bill is re-rendered")
   args = parser.parse_args()
   fixture = build()
   if bad := problems(fixture):
     raise SystemExit(f"refusing to write a dishonest bill: {bad}")
+  out = Path(args.out)
+  out.parent.mkdir(parents=True, exist_ok=True)
+  out.write_text(json.dumps(fixture, indent=1, ensure_ascii=False) + "\n")
   doc = Path(args.doc)
   doc.write_text(with_bill(doc.read_text(), fixture))
-  t = fixture["humanoid"]["totals"]
-  print(f"{doc}: {len(fixture['parts'])} parts, {len(LINES)} lines, "
+  t = fixture["build"]["totals"]
+  print(f"{out}, {doc}: {len(fixture['parts'])} parts, {len(LINES)} lines, "
+        f"{sum(len(p['feeds']) for p in fixture['parts'])} feeds, "
         f"€{t['totalEur']:,.2f} (${t['totalUsd']:,.2f})")
 
 

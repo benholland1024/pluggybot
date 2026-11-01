@@ -1,19 +1,19 @@
 """The humanoid's reference opener (issue #493, stage 2): our opener as code
 on the humanoid's hands -- the cheapest other way to open the chest, and the
-quadruped's probe's (`legs/probe.py`) plan on another body: the box
-measured, the lid's arc planned, the hand carried along it and back. Built
-on `Body`'s members alone: the body is all a skill is handed.
+quadruped's probe's plan (#466's stage 2) on another body: the box measured,
+the lid's arc planned, the hand carried along it and back. Built on
+`Body`'s members alone: the body is all a skill is handed.
 
 CODE'S FORESIGHT, stated -- what a robot learning the job would have to
-find for itself, as the probe's docstring states its own:
-  - the knob wears tag 53 (`rack.tags.CHEST_TAG_IDS`) on every face, a cube
+find for itself:
+  - the knob wears tag 53 (`perception.tags.CHEST_TAG_IDS`) on every face, a cube
     `KNOB_M` on a side: its middle half a cube in from the face read;
   - the box in front is lidded, its lid hinged along the back edge of its
     top, and the knob hangs on a drop handle from a pin at the tip of the
     bracket out of the lid's front edge: gripped, the knob moves as that pin
-    does about the hinge (`legs.probe.pin_path`). The top, its back edge and
-    the bracket's tip are MEASURED off the D435's depth at the part's 848 x
-    480 (`legs.probe.guess`; the hinge a board's thickness high, as there);
+    does about the hinge (`pin_path`). The top, its back edge and the
+    bracket's tip are MEASURED off the D435's depth at the part's 848 x 480
+    (`guess`: the hinge is the top's back edge, the pin the bracket's tip);
   - it is gripped from the front, the fingers tilted and the jaws closing
     along the hinge's line -- at the first tilt (`TILTS_DEG`) from which
     the robot's model of itself FOLLOWS the whole arc (`Body.hand_follows`);
@@ -44,11 +44,13 @@ angle, which it does not see.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass, field
 
 import numpy as np
 
-from pluggybot.legs.probe import DEPTH_H, DEPTH_MIN_Z, DEPTH_W, Guess, guess, rot_about
-from pluggybot.rack.tags import CHEST_TAG_IDS
+from pluggybot.perception import box
+from pluggybot.perception.box import DEPTH_H, DEPTH_MIN_Z, DEPTH_W
+from pluggybot.perception.tags import CHEST_TAG_IDS
 from pluggybot.tick import Routine
 
 #: The knob's tag, and the knob's size, m: the cube the claw is proven on.
@@ -85,6 +87,121 @@ SPEED, STIFFNESS = 0.05, 1.0
 #: carried back down the arc while still up, and up by less than this, m,
 #: it is down.
 STEP_PATIENCE_S, DOWNS, HOME_M = 6.0, 3, 0.03
+#: What a guess reads: the points within this of the knob, m (the box is
+#: 0.3 m wide and the knob hangs 0.1 m in front of it).
+NEAR_M = 0.45
+#: The bracket: the top's points within this of the knob across (m), more
+#: than this in front of the lid's front edge; the lid's front edge off the
+#: top's points further across than `BESIDE_M`. Its tip is read with its
+#: face toward the camera (`perception.box.faced_edge`).
+TONGUE_HALF_M, TONGUE_GAP_M, BESIDE_M = 0.015, 0.004, 0.03
+#: A guess whose pin is not this far off its hinge is no lid, m.
+RADIUS_M = (0.10, 0.60)
+
+
+def rot_about(axis, angle: float) -> np.ndarray:
+  """The rotation by `angle` (rad) about the unit `axis` (Rodrigues)."""
+  a = np.asarray(axis, dtype=float) / np.linalg.norm(axis)
+  k = np.array([[0.0, -a[2], a[1]], [a[2], 0.0, -a[0]], [-a[1], a[0], 0.0]])
+  return np.eye(3) + math.sin(angle) * k + (1.0 - math.cos(angle)) * (k @ k)
+
+
+def pin_path(knob, pin, hinge, axis):
+  """The knob's middle with the lid at `s` (rad), in whatever frame the
+  points are: held, it moves as its pin does about the hinge's line
+  (through `hinge`, along `axis`), and does not turn."""
+  r = np.subtract(pin, hinge)
+  k0 = np.asarray(knob, dtype=float)
+
+  def path(s: float) -> np.ndarray:
+    return k0 + rot_about(axis, s) @ r - r
+  return path
+
+
+@dataclass(frozen=True)
+class Guess:
+  """What code makes of the box (the module docstring's foresight), in the
+  map frame: the knob where it hangs, the box's facing (`yaw`, +x
+  into the box), its top's height, a point on the hinge's line and the
+  pin. `seen` is what each was read off, counted."""
+  knob: tuple[float, float, float]
+  yaw: float
+  top: float
+  hinge: tuple[float, float, float]
+  pin: tuple[float, float, float]
+  seen: dict = field(default_factory=dict)
+
+  @property
+  def axis(self) -> np.ndarray:
+    """The hinge's axis: across the box, to its left seen from the front --
+    the turn about it that lifts the lid's front edge is +."""
+    return np.array([-math.sin(self.yaw), math.cos(self.yaw), 0.0])
+
+  @property
+  def radius(self) -> float:
+    """The pin's distance off the hinge's line, m."""
+    r = np.subtract(self.pin, self.hinge)
+    return float(np.linalg.norm(r - (r @ self.axis) * self.axis))
+
+  def path(self, s: float) -> np.ndarray:
+    """The knob's middle with the lid at `s` (rad), map frame."""
+    return pin_path(self.knob, self.pin, self.hinge, self.axis)(s)
+
+  def lid_at(self, knob) -> float:
+    """The lid's angle that puts the knob at `knob` (map frame), rad: the
+    turn of the pin's offset off the hinge that `knob` implies."""
+    a = self.axis
+    r = np.subtract(self.pin, self.hinge)
+    q = np.asarray(knob, dtype=float) - np.asarray(self.knob) + r
+    r, q = r - (r @ a) * a, q - (q @ a) * a
+    return math.atan2(float(a @ np.cross(r, q)), float(r @ q))
+
+  def as_dict(self) -> dict:
+    return {"knob": list(self.knob), "yaw": self.yaw, "top": self.top,
+            "hinge": list(self.hinge), "pin": list(self.pin), "radius": self.radius,
+            "seen": dict(self.seen)}
+
+  @classmethod
+  def from_dict(cls, d: dict) -> "Guess":
+    return cls(knob=tuple(d["knob"]), yaw=d["yaw"], top=d["top"], hinge=tuple(d["hinge"]),
+               pin=tuple(d["pin"]), seen=dict(d.get("seen", {})))
+
+
+def guess(cloud: np.ndarray, knob, hint: float) -> Guess | str:
+  """The box off depth points (k, 3, map frame) and the knob where it
+  hangs (map), `hint` the direction it was seen in (rad): a `Guess`, or why
+  there is none. The foresight is the module docstring's: the hinge is the
+  top's back edge, the pin the tip of the top's tongue over the knob."""
+  pts = np.asarray(cloud, dtype=float)
+  k = np.asarray(knob, dtype=float)
+  near = pts[np.hypot(pts[:, 0] - k[0], pts[:, 1] - k[1]) < NEAR_M]
+  top = box.top_height(near)
+  if top is None:
+    return "no top seen"
+  on = near[box.on_top(near, top)]
+  yaw = box.facing(on[:, :2], hint)
+  if yaw is None:
+    return "too little of the top seen"
+  u = np.array([math.cos(yaw), math.sin(yaw)])
+  v = np.array([-u[1], u[0]])
+  rel = on[:, :2] - k[:2]
+  pu, pv = rel @ u, rel @ v
+  far = box.edge(pu, far=True)
+  front = box.edge(pu[np.abs(pv) > BESIDE_M], far=False)
+  if far is None or front is None:
+    return "the top's edges not seen"
+  tongue = (np.abs(pv) < TONGUE_HALF_M) & (pu < front - TONGUE_GAP_M)
+  tip = box.faced_edge(pu[tongue], far=False)
+  if tip is None:
+    return "no handle's bracket seen"
+  at = k[:2] + float(pv[tongue].mean()) * v
+  g = Guess(knob=tuple(float(x) for x in k), yaw=float(yaw), top=float(top),
+            hinge=(*(float(x) for x in at + far * u), float(top)),
+            pin=(*(float(x) for x in at + tip * u), float(on[tongue, 2].mean())),
+            seen={"near": int(len(near)), "top": int(len(on)), "tongue": int(tongue.sum())})
+  if not RADIUS_M[0] <= g.radius <= RADIUS_M[1]:
+    return f"no lid: its pin {g.radius:.2f} m off its hinge"
+  return g
 
 
 def _frame(approach, closing) -> np.ndarray:
@@ -113,8 +230,8 @@ def knob_seen(body) -> Routine:
 
 
 def measure(body, knob: np.ndarray) -> Routine:
-  """The box off the depth camera (`legs.probe.guess`): a `Guess`, or why
-  there is none."""
+  """The box off the depth camera (`guess`): a `Guess`, or why there is
+  none."""
   cloud = yield from body.depth_cloud(DEPTH_W, DEPTH_H, DEPTH_MIN_Z, frames=FRAMES,
                                       apart=APART_S)
   # ⚠ ONLY WHAT STANDS OVER THE KNOB: a lid's top is above its own knob, and

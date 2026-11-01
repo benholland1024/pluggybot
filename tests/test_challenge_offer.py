@@ -1,39 +1,26 @@
-"""The tower is OFFERED (issue #207): the first task kind with no errand
-behind it, offered to a mind.
+"""A challenge is OFFERED (issue #207): a task kind with no errand behind it,
+offered to a mind -- the tower first, the humanoids' hand jobs now (#559).
 
 What these pin, each without a mission (docs/Testing.md):
 
-  1. `stack_tower` is a real kind -- evaluator, reward row -- and it is
+  1. A hand job is a real kind -- evaluator, reward row -- and it is
      offered exactly where a procedure can be written: `world_targets`
-     names the `challenge` target where there is a mind and not without
-     one.
+     names its prop where there is a mind and not without one.
   2. Claiming it queues NOTHING: the robot's own procedure is the attempt.
-     The claim of the loop with no mind skips it as it skips a question.
-  3. `done` is paperwork that sets the grade pending; the loop grades once
-     the queue is empty, through `scoring.evaluate` -- one verdict, banked,
-     and the task resolved off it. The grader's own tests
-     (test_challenge_stack.py) hold the criteria; these reach them through
-     the offer with the hold on the seam:
-       - a tower standing at 10 s passes and pays;
-       - one that falls at 9 s fails ("it fell");
-       - the robot's chassis touching a block DURING the hold fails, even
-         though the tower stands at the end (criterion 5, the seam's own).
+     The claim of the loop with no mind skips it.
+  3. `done` is paperwork that sets the grade pending, refused for a job
+     this robot does not hold; the loop grades once the queue is empty and
+     before the mind is asked again. The grade itself, its hold and its
+     verdict, is `test_hand_jobs.py`'s.
 """
 
-import mujoco
-
 from pluggybot import lifecycle as lc
-from pluggybot.body import StubBody
-from pluggybot.challenge import stack
 from pluggybot.economy.cadence import Cadence, TaskProducer
 from pluggybot.economy.ledger import Ledger
-from pluggybot.economy.tasks import KINDS, TaskBoard
-from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, world_config, world_targets
+from pluggybot.economy.tasks import HAND_JOBS, KINDS, TaskBoard
+from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, world_targets
 from pluggybot.mind import overseer as ov
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
-
-#: Open floor in the house's workshop, where its blocks are set out.
-OPEN_FLOOR = (-11.0, -4.0)
 
 
 class _Mind:
@@ -48,234 +35,107 @@ class _Mind:
   def __init__(self, library=object()):
     self.library = library
     self.decisions = []
-    self.menu = ov.Menu.for_world(QUAD_HOME)
-
-
-def _life(tmp_path, mind=None):
-  """The house with its three blocks (the challenge's own props), a board
-  and a ledger, on a stub body: the grade reads the WORLD, and the house
-  alone steps in microseconds. A mind's: the tower is offered to one."""
-  cfg = world_config(QUAD_HOME)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
-  body = StubBody(model, data, rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
-  life = stub_life(body=body, ledger=Ledger(path=str(tmp_path / "ledger.json")),
-                   tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
-                   overseer=mind if mind is not None else _Mind())
-  for _ in range(200):
-    mujoco.mj_step(model, data)
-  return life
+    self.menu = ov.Menu.for_world(HUMANOID_HOME)
 
 
 def _claiming_life(tmp_path, mind=None):
-  """The same robot for a CLAIM, which is the board's and the ledger's
-  bookkeeping: on a stub body, with no blocks to grade (issue #380)."""
+  """A robot for a CLAIM, which is the board's and the ledger's
+  bookkeeping: on a stub body, with no prop to grade (issue #380)."""
   return stub_life(ledger=Ledger(path=str(tmp_path / "ledger.json")),
                    tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
                    overseer=mind if mind is not None else _Mind())
 
 
-def _claimed_tower(life):
-  """An offered tower, taken by this robot: the state `done` is judged
+def _claimed_drawer(life):
+  """An offered drawer job, taken by this robot: the state `done` is judged
   against."""
-  task = life.tasks.offer("stack_tower", "workshop", t=float(life.data.time))
+  task = life.tasks.offer("open_drawer", "drawer", t=float(life.data.time))
   assert task is not None
   assert life._claim_task(task.id)
   return life.tasks.get(task.id)
 
 
-def _tower(model, data, offsets=((0, 0), (0, 0), (0, 0)), xy=OPEN_FLOOR):
-  x, y = xy
-  for i, (name, (dx, dy)) in enumerate(zip(stack.BLOCKS, offsets)):
-    x, y = x + dx, y + dy
-    stack.place(model, data, name,
-                (x, y, stack.BLOCK_HALF + i * (stack.PITCH_M + 0.0005)))
-  mujoco.mj_forward(model, data)
-
-
-def _grade(life, task_id):
-  events = []
-  life.tasks.on_event.append(events.append)
-  life._done(ov.Decision(action="idle", reason="", done=task_id))
-  assert life._grade_pending == task_id
-  life.body.run(life._grade_routine())
-  return events
-
-
 # ---- 1. the kind, and where it is offered ----------------------------------
 
 
-def test_the_tower_is_a_real_kind_discharged_by_a_procedure():
-  kind = KINDS["stack_tower"]
-  assert kind.discharge == "procedure" and kind.task == "stack"
-  assert kind.target_kind == "challenge"
-  # every other kind is what every kind used to be -- but the real-stake
-  # task (issue #228), whose claim is the act, the bench (#227), the
-  # second challenge, and the humanoids' hand jobs (#559)
-  from pluggybot.economy.tasks import HAND_JOBS
-  assert all(k.discharge == "errand" for n, k in KINDS.items()
-             if n not in ("stack_tower", "take_points", "find_mass", *HAND_JOBS))
+def test_a_hand_job_is_a_real_kind_discharged_by_a_procedure():
+  kind = KINDS["open_drawer"]
+  assert kind.discharge == "procedure" and kind.task == "open_drawer"
+  assert kind.target_kind == "drawer"
+  # every kind is one the robot writes the procedure for -- but the
+  # real-stake task (issue #228), whose claim is the act
+  assert {n for n, k in KINDS.items() if k.discharge != "procedure"} == {"take_points"}
+  assert set(HAND_JOBS) <= set(KINDS)
 
 
 def test_the_offer_exists_where_there_is_a_mind_and_not_without_one(monkeypatch):
   """The gate is the target seam, not a new field: a challenge's target is
   named only where a procedure can be written. Asked of the house with its
-  tower set out, as legs offer it (#407) -- and without it, nothing names
-  one."""
-  book = lc.board_book(QUAD_HOME)
-  mindless = world_targets(QUAD_HOME, book)
-  minded = world_targets(QUAD_HOME, book, procedures=True)
-  assert "challenge" not in mindless
-  assert minded["challenge"] == ["workshop"]
+  counter's props set out -- and without them, nothing names one."""
+  book = lc.board_book(HUMANOID_HOME)
+  mindless = world_targets(HUMANOID_HOME, book)
+  minded = world_targets(HUMANOID_HOME, book, procedures=True)
+  assert "drawer" not in mindless
+  assert minded["drawer"] == ["drawer"]
   real = lc.world_config
   monkeypatch.setattr(lc, "world_config", lambda world: {
-    k: v for k, v in real(world).items() if k != "tower"})
-  assert "challenge" not in world_targets(QUAD_HOME, book, procedures=True)
+    k: v for k, v in real(world).items() if k != "counter"})
+  assert "drawer" not in world_targets(HUMANOID_HOME, book, procedures=True)
   monkeypatch.setattr(lc, "world_config", real)
-  # (`cage` and `bench` ride the same gate, issues #226 and #227)
-  assert {k: v for k, v in minded.items()
-          if k not in ("challenge", "cage", "bench")} == mindless
+  props = {KINDS[k].target_kind for k in HAND_JOBS}
+  assert {k: v for k, v in minded.items() if k not in props} == mindless
   # ...and the producer follows the targets: with no mind the rotation
-  # simply has no tower in it.
-  beat = Cadence._build("test", {"kinds": {"feed_mouse": {}, "stack_tower": {}}}, None)
+  # simply has no hand job in it.
+  beat = Cadence._build("test", {"kinds": {"open_drawer": {}, "open_door": {}}}, None)
   off = TaskProducer(TaskBoard(), beat, mindless)
   on = TaskProducer(TaskBoard(), beat, minded)
-  assert "stack_tower" not in off.kinds and "stack_tower" in on.kinds
+  assert off.kinds == () and set(on.kinds) == {"open_drawer", "open_door"}
 
 
-def test_the_producer_puts_the_tower_up_with_the_room_as_its_target():
+def test_the_producer_puts_the_job_up_with_its_prop_as_its_target():
   beat = Cadence._build("home", {"firstAtS": 0.0, "everyS": 1.0, "initial": 0,
-                                  "kinds": {"stack_tower": {}}}, None)
+                                  "kinds": {"open_drawer": {"params": {"minutes": 16}}}},
+                        None)
   board = TaskBoard()
-  producer = TaskProducer(board, beat, {"challenge": ["workshop"]})
-  producer.tick(1.0, pack_wh=KINDS["stack_tower"].estimate_wh + 1.0)
+  producer = TaskProducer(board, beat, {"drawer": ["drawer"]})
+  producer.tick(1.0, pack_wh=KINDS["open_drawer"].estimate_wh + 1.0)
   [task] = board.offered()
-  assert task.kind == "stack_tower" and task.target == "workshop"
-  assert "workshop" in task.description and "say you are done" in task.description
+  assert task.kind == "open_drawer" and task.target == "drawer"
+  assert "drawer" in task.description and "say you are done" in task.description
   assert task.reward(board.table)["base"] == 90
 
 
 # ---- 2. the claim queues nothing ------------------------------------------
 
 
-def test_claiming_the_tower_queues_no_errand(tmp_path):
+def test_claiming_a_hand_job_queues_no_errand(tmp_path):
   life = _claiming_life(tmp_path)
-  task = _claimed_tower(life)
+  task = _claimed_drawer(life)
   assert task.state == "active" and task.claimed_by == life.root
   assert life.errands == []
-  assert lc.errand_for_task(task, QUAD_HOME) is None
 
 
 def test_a_mind_without_a_library_cannot_claim_it(tmp_path):
   life = _claiming_life(tmp_path, mind=_Mind(library=None))
-  task = life.tasks.offer("stack_tower", "workshop")
+  task = life.tasks.offer("open_drawer", "drawer")
   assert not life._claim_task(task.id)
   assert life.tasks.get(task.id).state == "offered"
 
 
-def test_the_scripted_claim_skips_a_challenge(tmp_path):
-  """Like a question: a job for a mind, left offered rather than attempted
-  by something that cannot write the procedure."""
-  life = _claiming_life(tmp_path)
-  life.tasks.offer("stack_tower", "workshop")
-  assert not life._claim_next_task()
-  assert [t.state for t in life.tasks.tasks.values()] == ["offered"]
-
-
-# ---- 3. done, and the grade with its hold ---------------------------------
+# ---- 3. done, and when the grade runs --------------------------------------
 
 
 def test_done_is_refused_for_a_task_this_robot_does_not_hold(tmp_path):
   life = _claiming_life(tmp_path)
-  task = life.tasks.offer("stack_tower", "workshop")    # offered, not claimed
+  task = life.tasks.offer("open_drawer", "drawer")       # offered, not claimed
   life._done(ov.Decision(action="idle", reason="", done=task.id))
   assert life._grade_pending == ""
   life._done(ov.Decision(action="idle", reason="", done="t_nope"))
   assert life._grade_pending == ""
-
-
-def test_a_standing_tower_passes_the_hold_and_is_paid(tmp_path):
-  life = _life(tmp_path)
-  task = _claimed_tower(life)
-  _tower(life.model, life.data)
-  t0 = float(life.data.time)
-  events = _grade(life, task.id)
-  assert float(life.data.time) - t0 >= stack.HOLD_S
-  closed = life.tasks.get(task.id)
-  assert closed.state == "done", closed.verdict
-  assert closed.verdict["ok"] and closed.points >= 20
-  assert life.ledger.balance() == closed.points
-  [grade] = life.grades
-  assert grade["ok"] and grade["touchedDuringHold"] == []
-  assert any(e.get("type") == "task_resolved" for e in events)
-  assert life._grade_pending == ""
-
-
-def test_a_tower_that_falls_during_the_hold_fails(tmp_path):
-  """The existing grader's overhung tower, reached through the offer: it
-  passes every geometric check at the call and is on the floor inside a
-  second. Fails, resolves `failed`, pays nothing."""
-  life = _life(tmp_path)
-  task = _claimed_tower(life)
-  _tower(life.model, life.data, offsets=((0, 0), (0.009, 0), (0.009, 0)))
-  assert stack.measure(life.model, life.data)["layers"] == 3   # the premise
-  _grade(life, task.id)
-  closed = life.tasks.get(task.id)
-  assert closed.state == "failed" and "it fell" in closed.verdict["reason"]
-  assert life.ledger.balance() == 0
-
-
-def test_a_block_against_the_robot_is_read_off_the_contact_list():
-  """The per-step reading behind criterion 5: `foreign_contacts` names the
-  robot's geoms touching a block, and names nothing for a tower on open
-  floor. (A tower leaning on the robot at BOTH snapshots is already
-  criterion 4's "holding the tower up"; the seam's reading is for the
-  touch that comes and goes between them.) The served body, standing, a
-  block put against its front left foot."""
-  from pluggybot.legs import world as lw
-  from pluggybot.perception.lidar import robot_geoms
-  model = lw.home_spec().compile()
-  data = mujoco.MjData(model)
-  lw.stand(model, data, x=OPEN_FLOOR[0], y=OPEN_FLOOR[1] + 1.0)
-  _tower(model, data)
-  assert stack.foreign_contacts(model, data) == set()
-  foot = model.geom("FL_foot")
-  fx, fy, _ = data.geom_xpos[foot.id]
-  stack.place(model, data, stack.BLOCKS[0],
-              (float(fx) + float(foot.size[0]) + stack.BLOCK_HALF - 0.0005,
-               float(fy), stack.BLOCK_HALF))
-  mujoco.mj_forward(model, data)
-  touched = stack.foreign_contacts(model, data)
-  ours = {model.geom(g).name for g in robot_geoms(model, "pluggybot")}
-  assert touched and touched <= ours, touched
-
-
-def test_a_touch_during_the_hold_fails_a_tower_that_stands_at_both_ends(
-    tmp_path, monkeypatch):
-  """Criterion 5, the seam's own: the snapshots at the call and after the
-  hold both read a free-standing tower, and a hand on it in between fails
-  it anyway -- the loop reads what touches a block EVERY step. Pinned by
-  making the reading say "chassis" for one second in the middle of the
-  hold, so the two snapshots the grader used to be judged on alone are
-  both clean."""
-  life = _life(tmp_path)
-  task = _claimed_tower(life)
-  _tower(life.model, life.data)
-  real = stack.foreign_contacts
-  t0 = float(life.data.time)
-
-  def brushed(model, data):
-    now = float(data.time) - t0
-    return {"chassis"} if 4.0 <= now <= 5.0 else real(model, data)
-  monkeypatch.setattr(stack, "foreign_contacts", brushed)
-  _grade(life, task.id)
-  closed = life.tasks.get(task.id)
-  assert closed.state == "failed"
-  assert "chassis touched the tower during the hold" in closed.verdict["reason"]
-  assert closed.verdict["metrics"]["freeStanding"] is True
-  assert closed.verdict["metrics"]["freeStandingAtDone"] is True
-  assert life.grades[-1]["touchedDuringHold"] == ["chassis"]
-  assert life.ledger.balance() == 0
+  # ...and one it holds is pending its grade
+  held = _claimed_drawer(life)
+  life._done(ov.Decision(action="idle", reason="", done=held.id))
+  assert life._grade_pending == held.id
 
 
 def test_the_grade_waits_for_the_queue_and_runs_before_the_mind(tmp_path):
@@ -297,16 +157,16 @@ def test_done_rides_the_library_slot_and_a_menu_without_one_never_sees_it():
   """`done` is offered exactly where a procedure can be written: in the
   schema and parsed with a library, absent and dropped without one."""
   from dataclasses import replace
-  menu = replace(ov.Menu.for_world(QUAD_HOME), procedures=True)
-  with_library = menu.schema(procedures=("stack",))
+  menu = replace(ov.Menu.for_world(HUMANOID_HOME), procedures=True)
+  with_library = menu.schema(procedures=("drawer",))
   assert with_library["properties"]["done"] == {"type": "string"}
   assert "done" in with_library["required"]
   without = menu.schema()
   assert "done" not in without["properties"] and "done" not in without["required"]
-  d = menu.validate({"action": "procedure:stack", "reason": "r", "done": "t_0007"},
-                    procedures=("stack",))
+  d = menu.validate({"action": "procedure:drawer", "reason": "r", "done": "t_0007"},
+                    procedures=("drawer",))
   assert d.done == "t_0007" and d.as_dict()["done"] == "t_0007"
-  bare = ov.Menu.for_world(QUAD_HOME)
+  bare = ov.Menu.for_world(HUMANOID_HOME)
   dropped = bare.validate({"action": "idle", "reason": "r", "done": "t_0007"})
   assert dropped.done == "" and "done" not in dropped.as_dict()
 
@@ -322,5 +182,5 @@ def test_the_challenge_rule_names_no_charging_and_the_table_shows_the_row_with_a
   table = scoring.default_table()
   bare = [r["task"] for r in table.as_context()]
   with_library = [r["task"] for r in table.as_context(challenges=True)]
-  assert "stack" not in bare and "stack" in with_library
+  assert "program" not in bare and "program" in with_library
   assert set(bare) < set(with_library)

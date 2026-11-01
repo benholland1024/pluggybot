@@ -1,13 +1,15 @@
-"""ONNX -> npz: the trained actor as plain arrays, for `pluggybot.legs.policy`.
+"""ONNX -> npz: the trained actor as plain arrays, for `pluggybot.humanoid.policy`.
 
-  python -m quad_train.export RUN.onnx ../models/quadruped_policy.npz \\
-      --gpu "GTX 1660 Super" --wall "1 h 20 min" --envs 2048 --iterations 2000
+  python -m quad_train.export RUN.onnx ../models/humanoid_walk.npz \\
+      --task Pluggy-Humanoid-Walk --gpu "RTX 5090 (Vast.ai)" --wall "0:23" \\
+      --envs 4096 --iterations 3000          # --joints all: the get-up's
 
 mjlab writes an ONNX file at every checkpoint: a normaliser (Sub, Div) and an
 MLP of Gemm + Elu. Its initializers are read with `onnx` alone (protobuf, no
 torch), together with the metadata the file carries (joint order, default
 pose, action scale, observation terms), and the training facts #377 asks to
-be kept with every policy (the GPU, the wall time, the environment count).
+be kept with every policy (the task, the GPU, the wall time, the environment
+count) beside the gains the served sim drives it with (`body_facts`).
 """
 
 import argparse
@@ -17,8 +19,6 @@ import json
 import numpy as np
 import onnx
 from onnx import numpy_helper
-
-from quad_train import robot
 
 
 def load(path: str) -> dict:
@@ -44,7 +44,7 @@ def load(path: str) -> dict:
 
 
 def forward(arrays: dict, obs: np.ndarray) -> np.ndarray:
-  """The numpy forward pass, as `pluggybot.legs.policy.WalkingPolicy.act`."""
+  """The numpy forward pass, as `pluggybot.humanoid.policy.StandPolicy.act`."""
   x = (obs.astype(np.float64) - arrays["obs_mean"]) / arrays["obs_div"]
   n = int(arrays["layers"])
   for k in range(n):
@@ -68,15 +68,12 @@ def check(path: str, arrays: dict, samples: int = 256) -> float:
   return worst
 
 
-def body_facts(body: str, joints: str = "legs") -> dict:
-  """What the served sim must drive a policy with, by body: the quadruped's
-  one gain pair for its twelve joints; the humanoid's action joints -- its
-  legs, or all its joints for a policy that drives its arms too (#507's
-  get-up) -- each one's own pair as training drove it (an arm's scaled by
-  `ARM_GAIN_SCALE`), and the gains its scripted arms held (#507)."""
-  if body == "quadruped":
-    return {"train_dt": robot.TRAIN_DT, "decimation": 4,
-            "stiffness": robot.STIFFNESS, "damping": robot.DAMPING}
+def body_facts(joints: str = "legs") -> dict:
+  """What the served sim must drive a policy with: the humanoid's action
+  joints -- its legs, or all its joints for a policy that drives its arms
+  too (#507's get-up) -- each one's own pair as training drove it (an arm's
+  scaled by `ARM_GAIN_SCALE`), and the gains its scripted arms held (#507).
+  The quadruped's one pair for its twelve joints went with it (#559)."""
   from humanoid_train import robot as hr
   driven = hr.LEGS + (hr.ARMS if joints == "all" else ())
   scale = {j: (hr.ARM_GAIN_SCALE if j in hr.ARMS else (1.0, 1.0)) for j in driven}
@@ -95,8 +92,12 @@ def main(argv=None) -> None:
   ap.add_argument("--wall", required=True, help="training wall time")
   ap.add_argument("--envs", type=int, required=True)
   ap.add_argument("--iterations", type=int, required=True)
-  ap.add_argument("--task", default="Pluggy-Quad-Flat")
-  ap.add_argument("--body", choices=("quadruped", "humanoid"), default="quadruped")
+  ap.add_argument("--task", required=True,
+                  help="the task it was trained on, recorded with it (a default "
+                       "was recorded silently wherever an export left it out)")
+  ap.add_argument("--body", choices=("humanoid",), default="humanoid",
+                  help="the body it drives: the humanoid, the one body since the "
+                       "quadruped went (#559); kept so a documented command runs")
   ap.add_argument("--joints", choices=("legs", "all"), default="legs",
                   help="the humanoid's joints the policy drives")
   args = ap.parse_args(argv)
@@ -110,7 +111,7 @@ def main(argv=None) -> None:
     "task": args.task, "gpu": args.gpu, "wall": args.wall,
     "envs": args.envs, "iterations": args.iterations,
     "env_steps": args.envs * args.iterations * 24, "onnx_sha256": onnx_sha,
-    **body_facts(args.body, args.joints),
+    **body_facts(args.joints),
   }))
   np.savez(args.out, **arrays)
   print(f"wrote {args.out}: {int(arrays['layers'])} layers, "

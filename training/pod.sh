@@ -304,8 +304,7 @@ case $cmd in
   setup)
     "${ssh_[@]}" "mkdir -p $remote/models $remote/training /workspace/runs"
     tar -C "$repo" -czf - --exclude=.venv --exclude=runs --exclude=MUJOCO_LOG.TXT \
-      --exclude=__pycache__ training models/quadruped.xml models/quadruped.json \
-      models/humanoid.xml models/humanoid.json \
+      --exclude=__pycache__ training models/humanoid.xml models/humanoid.json \
       | "${ssh_[@]}" "tar -C $remote -xzf -"
     "${ssh_[@]}" bash -s <<'EOF'
 set -e
@@ -383,8 +382,8 @@ echo "$(.venv/bin/python -V), commit $(cat COMMIT)"
 # the house as the spikes build it, and one frame off the colour imager
 MUJOCO_GL=osmesa .venv/bin/python -c "
 import mujoco
-from pluggybot.legs import world as lw
-m = lw.home_spec().compile(); d = mujoco.MjData(m); mujoco.mj_forward(m, d)
+from pluggybot.humanoid import world as hw
+m = hw.home_spec().compile(); d = mujoco.MjData(m); mujoco.mj_forward(m, d)
 r = mujoco.Renderer(m, 72, 128); r.update_scene(d, 'color_eye')
 print('the house built, a frame rendered', r.render().shape); r.close()"
 EOF

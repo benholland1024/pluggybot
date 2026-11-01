@@ -97,45 +97,43 @@ def test_an_exception_from_the_step_is_thrown_into_the_routine():
 # ---- parity on real physics, in miniature ------------------------------------
 
 
-@pytest.fixture(scope="module")
-def quad_world():
-  from pluggybot.legs import world as lw
-  return lw.home_spec().compile()
-
-
 def _hash(data):
   return np.ascontiguousarray(np.concatenate([data.qpos, data.qvel, data.ctrl])).tobytes()
 
 
-def test_the_blocking_twin_and_the_ticked_routine_are_one_trajectory(quad_world):
+def test_the_blocking_twin_and_the_ticked_routine_are_one_trajectory():
   """The whole refactor's claim, at the scale a test can afford: driving a
   manoeuvre by its blocking name and ticking its routine from outside step
   the same commands in the same order and leave the world in the same state
-  -- byte for byte, the quadruped's policy, posture machine and reckoning
-  all in the loop. The scripted day's version of this is
-  `scripts/determinism_spike.py --compare`."""
-  from pluggybot.legs.body import QuadMission
-  from pluggybot.lifecycle import QUAD_HOME, world_config
-  bounds = world_config(QUAD_HOME)["grid_bounds"]
-  a = mujoco.MjData(quad_world)
-  ma = QuadMission(quad_world, a, realtime=False, grid_bounds=bounds)
-  ma.start_at(1.5, 0.5, 0.0)
-  ma.run(ma._drive_routine(0.3, 0.3, 0.6))
-  ma.face(0.3)
+  -- byte for byte, the humanoid's policies, its legs' hand-over and its
+  reckoning all in the loop. The scripted day's version of this is
+  `scripts/determinism_spike.py --compare`. Each on a house of its own: the
+  drivers set their gains in the MODEL, so a second body on the first's
+  model starts from the first's last gains."""
+  from pluggybot.humanoid import world as hw
+  from pluggybot.humanoid.body import HumanoidBody
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  bounds = world_config(HUMANOID_HOME)["grid_bounds"]
+  house_a, house_b = hw.home_spec().compile(), hw.home_spec().compile()
+  a = mujoco.MjData(house_a)
+  ba = HumanoidBody(house_a, a, realtime=False, grid_bounds=bounds)
+  ba.start_at(1.5, 0.5, 0.0)
+  ba.run(ba.velocity_routine(0.6, 0.3, 0.3))
+  ba.run(ba.face_routine(0.3))
 
-  b = mujoco.MjData(quad_world)
-  mb = QuadMission(quad_world, b, realtime=False, grid_bounds=bounds)
-  mb.start_at(1.5, 0.5, 0.0)
-  for routine in (mb._drive_routine(0.3, 0.3, 0.6), mb.face_routine(0.3)):
+  b = mujoco.MjData(house_b)
+  bb = HumanoidBody(house_b, b, realtime=False, grid_bounds=bounds)
+  bb.start_at(1.5, 0.5, 0.0)
+  for routine in (bb.velocity_routine(0.6, 0.3, 0.3), bb.face_routine(0.3)):
     step = tick.Step(routine)
     cmd = step.tick()
     while cmd is not None:
-      mb.stepper.step(cmd)
+      bb.stepper.step(cmd)
       cmd = step.tick()
   assert a.time > 0.5 and _hash(a) == _hash(b)
-  assert ma.pose == mb.pose
-  ma.close()
-  mb.close()
+  assert ba.pose == bb.pose
+  ba.close()
+  bb.close()
 
 
 # ---- the fence: a routine call is nothing until it is driven ---------------

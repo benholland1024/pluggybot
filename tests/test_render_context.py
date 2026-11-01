@@ -10,19 +10,19 @@ is the flag, and that it survives `update_scene`.
 
 import mujoco
 
-from pluggybot.legs import world as lw
-from pluggybot.rack.tags import DOCK_TAG_SIZE, TagDetector
+from pluggybot.humanoid import world as hw
+from pluggybot.perception.tags import TagDetector
 
 F = mujoco.mjtRndFlag
 
 
 def test_the_detector_renders_without_shadows_or_reflections_and_keeps_it_so():
-  model = lw.home_spec().compile()
+  model = hw.home_spec().compile()
   data = mujoco.MjData(model)
-  lw.stand(model, data, "", 1.5, 0.5, 0.0)
+  mujoco.mj_forward(model, data)
   # The world is what makes the pass dear: many shadow-casting lights.
   assert model.nlight >= 8 and all(model.light_castshadow)
-  det = TagDetector(model, "nav_eye", tag_size=DOCK_TAG_SIZE)
+  det = TagDetector(model, "nav_eye")
   assert det.renderer.scene.flags[F.mjRND_SHADOW] == 0
   assert det.renderer.scene.flags[F.mjRND_REFLECTION] == 0
   # `update_scene` runs on every look and must not put them back.

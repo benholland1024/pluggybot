@@ -1,150 +1,52 @@
 """The development loop a robot needs to finish a challenge (issue #264):
-the sentence a failed pick is said in, the fork checked before a fetch
-drives anywhere, the one History line a procedure leaves, and the
-one-answer replacement the prompt promises -- each rule pinned in
-milliseconds.
+the one History line a procedure leaves, the one-answer replacement the
+prompt promises, a procedure run on the answer that defines it, what a
+failed walk says, and a failed step's trace -- each rule pinned in
+milliseconds. (The sentence a failed pick was said in, and the fork checked
+before a fetch, went with the quadruped's tools: #559.)
 """
 
+import math
 import re
 from types import SimpleNamespace
 
 import pytest
 
 from pluggybot import lifecycle as lc
+from pluggybot import navigator as nav
 from pluggybot import tick
 from pluggybot.lifecycle import HubLifecycle, errand_from
-from pluggybot.mind.overseer import Decision, FIELD_INDEX, PROCEDURE_HEAD
+from pluggybot.mind.overseer import Decision, FIELD_INDEX, HANDS_PROCEDURE_HEAD
 from pluggybot.procedure import library as lib
 from pluggybot.procedure import steps as st
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
-from test_procedure import _stub_swaps
 
-WORLD = "home_quad"
-
-
-# ---- 1. one sentence for a failed pick ---------------------------------------
+WORLD = "home_humanoid"
 
 
-def _self(on_forks=(), blocked=None, hung=True):
-  """A stand-in `self` for `HubLifecycle.pick_failure`: its peers (each
-  holding what `on_forks` names), the peer-at-bay verdict, the bay."""
-  peers = [SimpleNamespace(robot_name=name, root=f"r_{name}", module=held,
-                           body=SimpleNamespace(
-                             module_state=lambda t, held=held: {"on_fork": t == held}))
-           for name, held in on_forks]
-  me = SimpleNamespace(
-    peers=peers, peer_at_the_bay=lambda station_y: blocked, last_bay_wait=None,
-    body=SimpleNamespace(module_state=lambda t: {"on_fork": False, "hung": hung}))
-  me.held_for = lambda b: HubLifecycle.held_for(me, b)
-  return me
-
-
-def test_a_failed_pick_names_who_holds_the_tool_before_anything_else():
-  """Carrying is the others' PUBLIC surface, and "it was not on its bay"
-  sent Luca guessing ("Suspect Rowan took the pen") at what code knew."""
-  me = _self(on_forks=[("Rowan", "module_claw")], blocked=("Rowan", 0.2))
-  assert (HubLifecycle.pick_failure(me, "module_claw", 0.1, "arrived")
-          == "module_claw is on Rowan's fork")
-
-
-def test_a_failed_pick_tells_a_miss_from_an_approach_that_never_got_there():
-  miss = HubLifecycle.pick_failure(_self(), "module_pen", 0.1, "arrived")
-  assert miss == ("the pick missed and it is still on its bay "
-                  "(the fork went in and came out without it)")
-  stall = HubLifecycle.pick_failure(_self(), "module_pen", 0.1, "stalled")
-  assert "stalled" in stall and stall.startswith("the pick missed")
-  never = HubLifecycle.pick_failure(_self(), "module_pen", 0.1, "no-route")
-  assert "no pick was tried" in never and "missed" not in never
-  # ...and a lane the refine could not get back into (#339's budget)
-  held_off = HubLifecycle.pick_failure(_self(), "module_pen", 0.1, "blocked")
-  assert "blocked, so no pick was tried" in held_off and "missed" not in held_off
-  blocked = HubLifecycle.pick_failure(_self(blocked=("Rowan", 0.14)),
-                                      "module_pen", 0.1, "peer-at-bay")
-  assert blocked.startswith("Rowan was standing 0.14 m from the bay")
-  lost = HubLifecycle.pick_failure(_self(hung=False), "module_pen", 0.1, "arrived")
-  assert lost == "it was not on its bay, and no robot is carrying it"
-
-
-def test_a_tool_that_came_onto_this_fork_unseated_is_not_called_lost():
-  """A half-seated pick: on this robot's own fork, no power contact. It fell
-  through every case to "not on its bay, and no robot is carrying it"."""
-  me = SimpleNamespace(peers=[], peer_at_the_bay=lambda station_y: None,
-                       body=SimpleNamespace(
-                         module_state=lambda t: {"on_fork": True, "hung": False}))
-  said = HubLifecycle.pick_failure(me, "module_claw", 0.1, "arrived")
-  assert said.startswith("module_claw came onto the fork but did not seat")
-
-
-# ---- 2. the fork, before a fetch drives anywhere ---------------------------
-
-
-def _fetching_life(carrying: str | None, seated: bool = False):
-  drove = []
-
-  def fetch(station, module):
-    drove.append(("pick", module))
-    return tick.result("arrived")
-
-  def state(tool):
-    return {"on_fork": tool == carrying, "hung": tool != carrying}
-  life = SimpleNamespace(
-    rack_inventory=dict(st.TOOL_BAYS), module="", swaps_done=0,
-    model=None, data=None,
-    body=SimpleNamespace(fetch_tool_routine=fetch, module_state=state,
-                         tool_powered=lambda tool: seated,
-                         swap_trace=lambda: "no swap recorded"),
-    pick_failure=lambda tool, station, why: "the pick missed and it is still on its bay")
-  return life, drove
-
-
-def _fetch(life, tool):
-  return tick.run(SimpleNamespace(step=lambda *a: None),
-                  st._fetch(life, {"tool": tool}))
-
-
-def test_a_fetch_with_another_tool_on_the_fork_drives_nowhere_and_says_so():
-  life, drove = _fetching_life(carrying="module_pen")
-  verdict = _fetch(life, "module_claw")
-  assert not verdict["ok"] and drove == []
-  assert verdict["reason"] == "the fork already holds module_pen; stow it first"
-
-
-def test_a_fetch_of_the_tool_already_on_the_fork_has_it():
-  life, drove = _fetching_life(carrying="module_claw", seated=True)
-  verdict = _fetch(life, "module_claw")
-  assert verdict["ok"] and drove == [] and life.module == "module_claw"
-
-
-def test_a_failed_fetch_carries_the_reason_the_errand_would_have_said():
-  life, drove = _fetching_life(carrying=None)
-  verdict = _fetch(life, "module_claw")
-  assert drove == [("pick", "module_claw")] and not verdict["ok"]
-  assert verdict["reason"] == ("could not pick up module_claw: the pick missed "
-                               "and it is still on its bay")
-
-
-# ---- 3. one History line per procedure the robot wrote ---------------------
+# ---- 1. one History line per procedure the robot wrote ---------------------
 
 
 def test_a_procedure_cut_short_tells_the_robot_the_line_and_the_reason():
-  """The deployed pair's `stack3`, cut to its first two lines: the fetch
-  fails, and the robot is told where and why -- on the History it reads,
-  and as `failedReason` on the wire."""
+  """A walk that never arrives, on a procedure's first line: the robot is
+  told where and why -- on the History it reads, and as `failedReason` on
+  the wire."""
   life = stub_life()
-  _stub_swaps(life, fetch_ok=False, hung=True)
+  life.body.go_to_routine = lambda *a, **kw: tick.result(False)
+  life.drive_why = lambda x, y, record=None: "no route there on my map"
   events = []
   life.on_event.append(events.append)
   L = lib.Library(lc.world_facts(WORLD))
-  L.define("stack3", 'def stack3():\n  fetch("module_claw")\n  wait(1)\n')
-  life.run_errand(errand_from(Decision(action="procedure:stack3"), WORLD, library=L))
+  L.define("walk", 'def walk():\n  drive_to(1, 1)\n  wait(1)\n')
+  life.run_errand(errand_from(Decision(action="procedure:walk"), library=L))
   history = life.thoughts.read("History.md")
-  assert ("the procedure stack3 did not finish -- it stopped at line 2, fetch: "
-          "could not pick up module_claw: the pick missed and it is still on its "
-          "bay (the fork went in and came out without it) (0 steps had run)") in history
+  assert ("the procedure walk did not finish -- it stopped at line 2, drive_to: "
+          "did not arrive at (1, 1): no route there on my map, at (0.0, 0.0) "
+          "(0 steps had run)") in history
   cut = next(e for e in events if e.get("type") == "procedure"
              and e.get("outcome") == "aborted")
   assert cut["failedLine"] == 2
-  assert cut["failedReason"].startswith("could not pick up module_claw")
+  assert cut["failedReason"].startswith("did not arrive at (1, 1)")
 
 
 def test_a_call_refused_at_run_time_is_named_once():
@@ -153,10 +55,10 @@ def test_a_call_refused_at_run_time_is_named_once():
   `line 3, pick: pick(tag=99) ...` (#463)."""
   life = stub_life()
   L = lib.Library(lc.world_facts(WORLD))
-  L.define("big", "def big():\n  t = 99\n  pick(t)\n")
-  life.run_errand(errand_from(Decision(action="procedure:big"), WORLD, library=L))
-  assert ("it stopped at line 3, pick: tag 99 names no cube this world has "
-          "(cubes: 20 to 24) (0 steps had run)") in life.thoughts.read("History.md")
+  L.define("big", "def big():\n  t = 99\n  find(t, 1, 1)\n")
+  life.run_errand(errand_from(Decision(action="procedure:big"), library=L))
+  assert ("it stopped at line 3, find: tag 99 names no place this world has "
+          "(places: 35 to 46, 60 to 63) (0 steps had run)") in life.thoughts.read("History.md")
 
 
 def test_an_argument_the_run_cannot_compute_is_named_by_its_call():
@@ -165,7 +67,7 @@ def test_an_argument_the_run_cannot_compute_is_named_by_its_call():
   life = stub_life()
   L = lib.Library(lc.world_facts(WORLD))
   L.define("u", "def u():\n  t = 0\n  wait(1 / t)\n")
-  life.run_errand(errand_from(Decision(action="procedure:u"), WORLD, library=L))
+  life.run_errand(errand_from(Decision(action="procedure:u"), library=L))
   assert "it stopped at line 3, wait: division by zero" in life.thoughts.read("History.md")
 
 
@@ -175,7 +77,7 @@ def test_a_local_is_said_with_every_digit():
   life = stub_life()
   L = lib.Library(lc.world_facts(WORLD))
   L.define("big", "def big():\n  t = 1234567\n  u = 2.5\n  wait(0.1)\n")
-  life.run_errand(errand_from(Decision(action="procedure:big"), WORLD, library=L))
+  life.run_errand(errand_from(Decision(action="procedure:big"), library=L))
   assert "it ended with t = 1234567, u = 2.5" in life.thoughts.read("History.md")
 
 
@@ -184,8 +86,8 @@ def test_a_procedure_that_finished_says_so():
   of #264's probes set `done` before the run, and the grade found one block."""
   life = stub_life()
   L = lib.Library(lc.world_facts(WORLD))
-  L.define("tidy", 'def tidy():\n  fetch("module_claw")\n  stow()\n')
-  life.run_errand(errand_from(Decision(action="procedure:tidy"), WORLD, library=L))
+  L.define("tidy", 'def tidy():\n  wait(1)\n  face(0.5)\n')
+  life.run_errand(errand_from(Decision(action="procedure:tidy"), library=L))
   history = life.thoughts.read("History.md")
   assert re.search(r"ran the procedure tidy to its end \(2 steps\)$", history, re.M)
 
@@ -234,19 +136,19 @@ def test_a_long_reason_never_costs_a_run_its_readout():
                                           "error": "KeyError: 'axis'"})
   assert line == "the procedure weigh did not finish -- it stopped on a fault inside the run"
 
-# ---- 4. a replacement is one answer, as the prompt says --------------------
+# ---- 2. a replacement is one answer, as the prompt says --------------------
 
 
 def test_one_answer_replaces_a_procedure_and_the_prompt_says_it_can():
   """The lifecycle has always applied `undefine` before `define`; the robot
   was told "there is no replace -- undefine, then define" and read it as two
   turns. The claim and the behaviour are pinned together."""
-  assert "no replace" not in PROCEDURE_HEAD
-  assert "on\nthe same answer" in PROCEDURE_HEAD or "same answer" in PROCEDURE_HEAD
+  assert "no replace" not in HANDS_PROCEDURE_HEAD
+  assert "on\nthe same answer" in HANDS_PROCEDURE_HEAD or "same answer" in HANDS_PROCEDURE_HEAD
   assert any(name == "undefine" and "same answer" in text
              for name, _, _, text in FIELD_INDEX)
   life = SimpleNamespace(data=SimpleNamespace(time=0.0), world=WORLD,
-                         rack_inventory=None, root="pluggybot",
+                         root="pluggybot",
                          _say=lambda *a, **k: None, _remember=lambda *a, **k: None,
                          _emit=lambda e: None)
   L = lib.Library(lc.world_facts(WORLD), cap=2)
@@ -268,7 +170,7 @@ def test_a_refused_define_says_the_undefine_goes_on_the_same_answer():
   assert "(it holds 1)" in said                     # never "2 of 1"
 
 
-# ---- 5. a procedure is run on the answer that defines it -------------------
+# ---- 3. a procedure is run on the answer that defines it -------------------
 
 
 def _menu():
@@ -318,7 +220,7 @@ def _deciding_life(library):
 def test_procedure_new_runs_what_the_same_answer_defined_and_not_another():
   from pluggybot.mind.overseer import PROCEDURE_NEW
   L = lib.Library(lc.world_facts(WORLD))
-  L.define("old", "def old():\n  fetch(\"module_claw\")\n  stow()\n")
+  L.define("old", "def old():\n  wait(1)\n  face(0.5)\n")
   life, events = _deciding_life(L)
   decision = Decision(action=PROCEDURE_NEW, reason="weigh it now",
                       define={"name": "weigh", "source": "def weigh():\n  wait(1)\n"})
@@ -372,16 +274,7 @@ def test_new_is_not_a_name_a_procedure_may_take():
     L.define("new", "def new():\n  wait(1)\n")
 
 
-# ---- 6. a failed grade and a failed drive say what they read ---------------
-
-
-def test_a_bench_grade_with_no_finding_says_what_it_reads():
-  """Luca wrote its 207.8 g as a NOTE under findings/tasks; the grade said
-  "nothing since the claim" and Luca learned a timing lesson instead."""
-  from pluggybot.challenge import bench
-  ok, _, reason = bench.eval_mass({"truth": 0.2, "reported": None})
-  assert not ok
-  assert "`record`" in reason and "mass_bench" in reason and "notes are not read" in reason
+# ---- 4. a failed drive says what it read ------------------------------------
 
 
 def test_a_drive_that_did_not_arrive_says_where_it_stopped_and_why():
@@ -398,125 +291,34 @@ def test_a_drive_that_did_not_arrive_says_where_it_stopped_and_why():
   assert verdict["why"] == "the drive gave up (why)" and asked == [(4.0, 6.0)]
 
 
-# ---- 7. a stow puts the tool back as a pick left it, first -----------------
-
-
-def test_a_stow_restores_the_carry_configuration_before_the_return():
-  """A return computes its approach from the pose it STARTS at, and a
-  procedure may have moved the arm anywhere: the arm goes back to its
-  carrying pose first. This is the order of the calls."""
-  calls = []
-
-  def rec(name):
-    def make(*a, **kw):
-      calls.append(name)
-      return tick.result("arrived")
-    return make
-  body = SimpleNamespace(module_state=lambda t: {"on_fork": t == "module_claw",
-                                                 "hung": t != "module_claw"},
-                         retract_arm_routine=rec("retract_arm"),
-                         stow_tool_routine=rec("return"),
-                         swap_trace=lambda: "no swap recorded", held_cube=lambda: None)
-  life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
-                         model=None, world=WORLD, body=body)
-  tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
-  assert calls == ["retract_arm", "return"]
-
-
-def test_a_cube_in_the_claw_is_set_down_before_the_claw_goes_back():
-  """A claw hung back holding a cube is a cube hung on the rack (#407): a
-  stow puts it down first, where the robot stands. Shown to fail by dropping
-  the check from `carry_configuration_routine`: the claw went back full."""
-  calls, held = [], [23]
-
-  def rec(name):
-    def make(*a, **kw):
-      calls.append(name)
-      if name == "put":
-        held.clear()
-        return tick.result({"put": True, "held": 23})
-      return tick.result("arrived")
-    return make
-  body = SimpleNamespace(module_state=lambda t: {"on_fork": t == "module_claw",
-                                                 "hung": t != "module_claw"},
-                         put_cube_routine=rec("put"), retract_arm_routine=rec("retract_arm"),
-                         stow_tool_routine=rec("return"), swap_trace=lambda: "",
-                         held_cube=lambda: held[0] if held else None)
-  life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
-                         model=None, world=WORLD, body=body)
-  tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
-  assert calls == ["put", "retract_arm", "return"]
-
-
-def test_a_cube_no_put_can_set_down_is_let_go_before_the_claw_goes_back():
-  """A put that found no room (or could not reach) left the cube in the
-  jaws, and the stow hung the claw back holding it, reporting it "set
-  down" (review of #407). Now it lets go where it stands, and says so."""
-  calls, held = [], [21]
-
-  def put(*a, **kw):
-    calls.append("put")
-    return tick.result({"put": False, "why": "no room", "held": 21})
-
-  def jaws(closed):
-    calls.append("open" if not closed else "shut")
-    if not closed:
-      held.clear()
-    return tick.result(True)
-
-  def rec(name):
-    def make(*a, **kw):
-      calls.append(name)
-      return tick.result("arrived")
-    return make
-  def no_actuator(name):                    # the claw's own axes are not here
-    raise KeyError(name)
-  body = SimpleNamespace(held_cube=lambda: held[0] if held else None,
-                         put_cube_routine=put, claw_routine=jaws,
-                         retract_arm_routine=rec("retract_arm"))
-  life = SimpleNamespace(body=body, model=SimpleNamespace(actuator=no_actuator))
-  out = tick.run(SimpleNamespace(step=lambda *a: None),
-                 st.carry_configuration_routine(life, "module_claw"))
-  assert out == {"setDown": None, "dropped": 21}
-  assert calls == ["put", "open", "retract_arm"]
-
-
-# ---- 8. a failed swap leaves its trace in the log --------------------------
+# ---- 5. a failed step leaves its trace in the log --------------------------
 
 
 def test_the_trace_measures_the_belief_against_the_true_pose():
-  """Every live pick missed for a reason no local reproduction showed; the
-  trace says how far the belief had drifted from the truth when it tried --
-  on the served body, its reckoning against its torso."""
-  import mujoco
-  from pluggybot.legs import body as qb
-  from pluggybot.legs.world import home_spec
-  model = home_spec().compile()
-  body = qb.QuadBody(model, mujoco.MjData(model), realtime=False,
-                     grid_bounds=lc.world_config(WORLD)["grid_bounds"])
-  m = body.mission
-  m.start_at(1.0, 1.0, 0.5)
-  start = m.truth_error()
-  assert start == pytest.approx([0.0, 0.0, 0.0], abs=5.0)
-  m.odo.x += 0.012
-  assert m.truth_error()[0] - start[0] == pytest.approx(12.0, abs=0.2)
+  """A walk's evidence says how far the belief had drifted from the truth
+  when it gave up (a find's trace, a drift row): the belief minus the true
+  pose, mm and degrees, the heading's difference wrapped."""
+  me = SimpleNamespace(true_pose=lambda: (1.0, 1.0, 3.1), pose=(1.012, 0.995, -3.1))
+  dx, dy, dyaw = nav.Navigator.truth_error(me)
+  assert (dx, dy) == pytest.approx((12.0, -5.0))
+  assert dyaw == pytest.approx(round(math.degrees(2 * math.pi - 6.2), 2))   # not -355
 
 
-def test_a_failed_pick_puts_its_trace_in_the_log_and_never_the_status():
+def test_a_failed_step_puts_its_trace_in_the_log_and_never_the_status():
   """`_say`'s message is the robot's status line on the site -- a sentence
-  it could say; the trace is evidence, `detail`, the log's alone."""
-  from pluggybot.mission.errand import Errand
-  from pluggybot.rack.coupling import STATION_YS
+  it could say; a step's trace is evidence, `detail`, the log's alone."""
   life = stub_life()
-  _stub_swaps(life, fetch_ok=False)
-  life.body.swap_trace = lambda: "route ok; #1 fix plane:2, belief off +3,-12 mm"
+  life.body.find_tag_routine = lambda tag, near, patience, stop=None: tick.result({
+    "tag": tag, "found": False, "why": "out of time", "seconds": 12.0,
+    "trail": [{"to": "address", "goal": (1.0, 1.0), "why": "gave up", "shortM": 0.4,
+               "seconds": 9.0}], "err": (3.0, -12.0, 0.4)})
   said = []
   life.say_hooks.append(lambda t, msg, *a: said.append(msg))
-  life.run_errand(Errand(name="carry:test", module="module_lcd",
-                         station_y=STATION_YS[0], use_at=(1.0, 1.0),
-                         use=lambda _l: {}, needs_use_pose=False))
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("look", "def look():\n  find(35, 1, 1)\n")
+  life.run_errand(errand_from(Decision(action="procedure:look"), library=L))
   assert any("belief off +3,-12 mm" in line for line in life.log)
-  assert any("SWAP_PICK FAILED" in msg for msg in said)
+  assert any("PROCEDURE look failed at step 1" in msg for msg in said)
   assert not any("belief off" in msg for msg in said)
 
 
@@ -539,21 +341,6 @@ def test_undefine_can_name_an_entry_that_cannot_run(tmp_path):
   assert {"new", "broken", "ok"} <= set(props["undefine"]["enum"])
   assert "procedure:broken" not in props["action"]["enum"]
   assert props["action"]["enum"].count("procedure:new") == 1
-
-
-def test_a_module_the_world_lacks_on_a_peers_record_is_carried_by_nobody():
-  """`carrying` reads a peer's last module; one that is no body in the world
-  (a built tool, before #489) raised where `_carried` has always guarded
-  it -- reached from every failed pick's sentence, too."""
-  def gone(name):
-    raise KeyError(name)
-  peer = SimpleNamespace(module="probe", body=SimpleNamespace(module_state=gone))
-  assert lc.carrying(peer) == ""
-  # ...and it is the FORK that is read, not the module a robot was last sent
-  # for: a failed stow of the claw, then an errand for the pen
-  riding = SimpleNamespace(module="module_pen", body=SimpleNamespace(
-    module_state=lambda t: {"on_fork": t == "module_claw"}))
-  assert lc.carrying(riding) == "module_claw"
 
 
 def test_making_room_for_a_refused_procedure_keeps_the_one_it_would_have_replaced():

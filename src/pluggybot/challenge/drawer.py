@@ -34,7 +34,7 @@ import math
 import numpy as np
 
 from pluggybot.challenge import lid
-from pluggybot.rack.coupling import contact_pairs
+from pluggybot.contacts import contact_pairs
 
 #: 1: out this far, m: a drawer a hand can reach into (its tray 0.26 m
 #: deep), and 0.09 short of its runners' end.

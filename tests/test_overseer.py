@@ -22,7 +22,7 @@ import pytest
 
 from pluggybot.mind import overseer as ov
 from pluggybot.lifecycle import (
-  board_book, cage_errand, errand_from, world_config, zone_centre,
+  board_book, errand_from, world_config, zone_centre,
 )
 from pluggybot.mind.overseer import Decision, Menu, Overseer
 from pluggybot.economy.scoring import default_table
@@ -95,19 +95,12 @@ def full(**kw) -> dict:
 
 @pytest.fixture(scope="module")
 def book():
-  return board_book("home_quad")
+  return board_book("home_humanoid")
 
 
 @pytest.fixture(scope="module")
 def menu(book):
-  return Menu.for_world("home_quad", book)
-
-
-@pytest.fixture(scope="module")
-def tooled(menu):
-  """The same world's menu for a body that takes a tool (`Menu.tools`),
-  which no served body does until #406/#407: the tool errands."""
-  return replace(menu, tools=True)
+  return Menu.for_world("home_humanoid", book)
 
 
 def make(menu, *answers, **kw) -> Overseer:
@@ -121,26 +114,15 @@ def make(menu, *answers, **kw) -> Overseer:
 def test_the_menu_offers_only_what_the_world_can_do(book):
   """Offering an action the world cannot perform is how a decision loop
   finds a dead end by driving into it, so it is simply not on the menu."""
-  home = Menu.for_world("home_quad", book)
+  home = Menu.for_world("home_humanoid", book)
   assert set(home.boards) == {"whiteboard_a", "whiteboard_b"}
-  assert home.census_zone == "garden"
   assert "explore" in home.available()
-  # The house has whiteboards and a garden, but its body takes no tool
-  # (`world_config`'s `tools`): none of the tool errands is offered.
-  assert not {"draw", "census", "carry", "dance"} & set(home.available())
-  # ...and a body that takes one, in a world with no whiteboards, nothing
-  # countable and no rooms, is offered the carry and nothing that needs them.
-  bare = Menu(tools=True)
-  assert "carry" in bare.available()
-  assert not {"draw", "census", "explore"} & set(bare.available())
-
-
-def test_text_is_not_an_offerable_figure(menu):
-  """Hershey lettering takes arbitrary caller text, which is the surface
-  issue #16 is about. It comes back when visitor text has somewhere safe to
-  land -- until then the model cannot ask the robot to write words."""
-  assert "text" not in menu.programs
-  assert "house" in menu.programs
+  # ...and a world with no rooms, no library and no eye is offered none of
+  # what needs them; each power brings its own action
+  bare = Menu()
+  assert set(bare.available()) == {"take_task", "idle", "charge", "recall"}
+  assert "procedure" in replace(bare, procedures=True).available()
+  assert "look" in replace(bare, look=True).available()
 
 
 def test_the_schema_constrains_every_parameter_to_the_menu(menu):
@@ -148,6 +130,8 @@ def test_the_schema_constrains_every_parameter_to_the_menu(menu):
   assert schema["additionalProperties"] is False
   assert schema["properties"]["action"]["enum"] == list(menu.available())
   assert set(schema["properties"]["board"]["enum"]) == {*menu.boards, ""}
+  # ...and `program`, a vestige of the drawing errands (#559), names nothing
+  assert schema["properties"]["program"]["enum"] == [""]
   assert set(schema["properties"]["zone"]["enum"]) == {*menu.zones, ""}
 
 
@@ -162,15 +146,6 @@ def test_the_schema_constrains_every_parameter_to_the_menu(menu):
 def test_an_answer_off_the_menu_is_refused(menu, raw, why):
   with pytest.raises(ValueError, match=why):
     menu.validate(raw)
-
-
-def test_a_drawing_without_a_choice_still_draws(tooled):
-  """A `draw` with the parameters left blank picks the first board and figure
-  rather than failing: the model committed to the task, and refusing over an
-  unfilled optional would send a perfectly good decision to the fallback."""
-  d = tooled.validate({"action": "draw", "reason": "the wall is bare"})
-  assert d.board == tooled.boards[0]
-  assert d.program == tooled.programs[0]
 
 
 # ---- the failure paths, which are the ones that must never surprise ----------
@@ -204,21 +179,21 @@ def test_a_broken_answer_falls_back_to_the_agents_own_order(menu, answer,
 
 
 def test_a_refused_answer_is_told_to_the_robot_in_the_fallback_reason(menu):
-  """Issue #296. A malformed `answer` used to reach History as a bare
-  `[fallback:garbled]`: the model whose "8.0" was refused saw a turn vanish
-  and learned nothing, then filed a ticket saying it had answered 3. The
-  refusal now rides the fallback decision's reason, in the words `validate`
-  raised -- the action and the source stay the fallback's own.
+  """Issue #296. A refused answer used to reach History as a bare
+  `[fallback:garbled]`: the model whose answer was refused saw a turn vanish
+  and learned nothing, then filed a ticket about it. The refusal now rides
+  the fallback decision's reason, in the words `validate` raised -- the
+  action and the source stay the fallback's own.
   """
-  offer = {"id": "t_1", "kind": "whiteboard_answer", "claimable": True,
-           "needsAnswer": True}
-  boss = make(menu, full(action="take_task", task="t_1", answer="8.0",
-                         reason="a tricycle has 3 wheels"))
+  offer = {"id": "t_1", "kind": "open_drawer", "claimable": True,
+           "needsAnswer": False}
+  boss = make(menu, full(action="take_task", task="t_9",
+                         reason="the drawer is mine to open"))
   d = boss.decide({"offeredTasks": [offer], "tasksThisMission": [],
                    "decisions": 0})
   assert d.source == "fallback:garbled" and d.scripted
-  assert "your answer was refused: task 't_1' asks a question and the " \
-         "answer '8.0' is not one: a whole number of at most 2 digits" in d.reason
+  assert ("your answer was refused: task 't_9' is not on offer "
+          "(claimable: t_1)") in d.reason
   assert d.summary().endswith("[fallback:garbled]")
   # ...and only a GARBLED answer has words to carry: a dead endpoint says
   # nothing the robot could act on.
@@ -362,7 +337,7 @@ def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
     menu, client=FakeClient(), thoughts=ThoughtFiles(),
     origin="unseeded", appetite=True, mortal=True,
     escalate_to="Qwen/Qwen3-235B-A22B-Instruct-2507",
-    library=Library(world_facts("home_quad"), root=tmp_path / "procedures"),
+    library=Library(world_facts("home_humanoid"), root=tmp_path / "procedures"),
     others=("Rowan",))
   for boss in (bare, everything):
     msg = boss.prompt_message(4.5, robot="r2_pluggybot")
@@ -428,29 +403,29 @@ def test_the_stable_prefix_is_byte_identical_across_calls(menu):
 
 
 def test_the_prompt_never_carries_a_hidden_answer(menu):
-  """The census knows how many plants are really in the garden. The overseer
-  must not, or the task whose whole point is going and counting arrives
-  pre-solved in its own context."""
-  text = json.dumps(default_table().as_context())
-  assert "secret" not in text
-  assert "truth" not in text
-  # ...and the same rule downstream: a banked census verdict is redacted by
-  # `Verdict.public_metrics`, which is what `context_for` replays.
-  assert "truth" not in json.dumps(
-    [r for r in default_table().as_context() if r["task"] == "census"])
+  """The chest knows its catch (`catchN`, secret on the `open_chest` row).
+  The overseer must not, or the job whose point is finding out arrives
+  pre-solved in its own context: the humanoid's table, its chest's row
+  shown, names neither the secret nor its metric."""
+  rows = default_table().as_context(challenges=True,
+                                    kinds=ov.world_kinds("home_humanoid"))
+  assert "catchN" in default_table()["open_chest"].secret, "the premise"
+  assert any(r["task"] == "open_chest" for r in rows), "the premise: its row is shown"
+  text = json.dumps(rows)
+  assert "secret" not in text and "catchN" not in text
 
 
 def test_the_context_is_the_live_lifecycle_and_carries_no_truth(menu):
   """`context_for` reads the running robot rather than a parallel tally, so
   what the overseer is told cannot drift from what the robot is."""
   life = stub_life()
-  life.verdicts.append({"task": "census", "ok": False, "points": 0,
-                        "reason": "reported 3 in garden (wrong)",
-                        "metrics": {"counted": 3, "coverage": 0.4}})
+  life.verdicts.append({"task": "open_drawer", "ok": False, "points": 0,
+                        "reason": "the drawer never opened",
+                        "metrics": {"openedM": 0.01}})
   state = ov.context_for(life)
   assert state["points"] == 0
   assert state["battery"]["fraction"] == pytest.approx(1.0, abs=0.01)
-  assert state["tasksThisMission"] == ["census"]
+  assert state["tasksThisMission"] == ["open_drawer"]
   assert state["visitorMessages"] == []         # nobody has said anything
   assert "truth" not in json.dumps(state)
 
@@ -459,32 +434,30 @@ def test_the_context_is_the_live_lifecycle_and_carries_no_truth(menu):
 
 
 @pytest.mark.parametrize("action", ["idle", "explore", "charge"])
-def test_the_non_errand_actions_build_no_errand(book, action):
-  assert errand_from(Decision(action=action), "home_quad", book) is None
+def test_the_non_errand_actions_build_no_errand(action):
+  assert errand_from(Decision(action=action)) is None
 
 
-def test_an_impossible_errand_is_none_rather_than_an_exception(book):
+def test_an_impossible_errand_is_none_rather_than_an_exception():
   """A decision is untrusted input in exactly the way a visitor message will
   be (issue #16). The mission loop's answer to "I cannot do that" is to ask
   again, never to end."""
-  # Company is a spot beside the cage no tag marks, so no plate program can
-  # be built for it on legs, and the builder raises
-  with pytest.raises(ValueError):
-    cage_errand("home_quad", "company")
-  assert errand_from(Decision(action="care", care="company"),
-                     "home_quad", book) is None
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.procedure.library import Library
+  assert errand_from(Decision(action="procedure:nothing_by_that_name")) is None
+  library = Library(world_facts("home_humanoid"))
   assert errand_from(Decision(action="procedure:nothing_by_that_name"),
-                     "home_quad", book) is None
+                     library=library) is None
 
 
 def test_a_zone_resolves_to_somewhere_inside_it():
-  x, y = zone_centre("home_quad", "garden")
-  garden = next(z for z in world_config("home_quad")["zones"]
+  x, y = zone_centre("home_humanoid", "garden")
+  garden = next(z for z in world_config("home_humanoid")["zones"]
                 if z["name"] == "garden")
   assert garden["min"][0] <= x <= garden["max"][0]
   assert garden["min"][1] <= y <= garden["max"][1]
   with pytest.raises(ValueError):
-    zone_centre("home_quad", "the_attic")
+    zone_centre("home_humanoid", "the_attic")
 
 
 # ---- memory ------------------------------------------------------------------
@@ -509,7 +482,7 @@ def test_a_think_persists_and_is_bounded_and_streams(tmp_path):
   assert ov.THOUGHTS_SHOWN == 2
   # The cap is `validate`'s (the schema cannot say "a paragraph").
   raw = full(action="idle", think="x" * (ov.THINK_CHARS * 3))
-  assert len(Menu(boards=(), programs=()).validate(raw).think) == ov.THINK_CHARS
+  assert len(Menu(boards=()).validate(raw).think) == ov.THINK_CHARS
 
 
 # ---- cost accounting ---------------------------------------------------------
@@ -546,8 +519,8 @@ def test_effort_is_never_sent(menu):
 
 def test_the_overseer_is_off_unless_asked_for(monkeypatch, book):
   monkeypatch.delenv(ov.ENABLE_ENV, raising=False)
-  assert ov.build("home_quad", book) is None
-  boss = ov.build("home_quad", book, enabled=True, client=FakeClient())
+  assert ov.build("home_humanoid", book) is None
+  boss = ov.build("home_humanoid", book, enabled=True, client=FakeClient())
   assert boss is not None
 
 
@@ -582,7 +555,7 @@ def test_a_mind_that_never_charges_is_never_charged_for():
       asked_after.append(life.charge_cycles)
       return super().create(**kwargs)
 
-  boss = Overseer(Menu.for_world("home_quad", None),
+  boss = Overseer(Menu.for_world("home_humanoid", None),
                   client=Watched(*[full(action="idle", reason="I would rather not")] * 2))
   # `charge_scale` fills the pack in a tenth of the time, so a charge the
   # loop slipped in would land inside the budget rather than outlast it
@@ -594,7 +567,7 @@ def test_a_mind_that_never_charges_is_never_charged_for():
   # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54): the mind has been asked
   # and has answered twice.
   life.stop_when(lambda: sum(d["source"] == "llm" for d in life.decisions) >= 2)
-  r = life.run(world_config("home_quad")["start"], max_sim_time=200.0,
+  r = life.run(world_config("home_humanoid")["start"], max_sim_time=200.0,
                explore_budget=10.0)
 
   assert asked_after, "the mind was never consulted at all"
@@ -608,7 +581,7 @@ def test_a_think_reaches_the_store_the_wire_and_the_narration():
   """A decision's think is written once, streamed once (as the `journal`
   message), and readable next time -- the loop that makes it memory rather
   than a log (issue #221)."""
-  boss = Overseer(Menu.for_world("home_quad", None),
+  boss = Overseer(Menu.for_world("home_humanoid", None),
                   client=FakeClient(full(action="idle", reason="resting",
                                          think="bay A sticks a little")))
   life = stub_life(overseer=boss)
@@ -616,7 +589,7 @@ def test_a_think_reaches_the_store_the_wire_and_the_narration():
   life.thoughts.on_event.append(streamed.append)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
-  life.body.start_at(*world_config("home_quad")["start"])
+  life.body.start_at(*world_config("home_humanoid")["start"])
   try:
     life._decide()
   finally:
@@ -650,12 +623,12 @@ def test_a_charge_at_eighty_percent_is_allowed_and_pays_nothing():
   """
   from pluggybot.economy.scoring import evaluate
 
-  boss = Overseer(Menu.for_world("home_quad", None),
+  boss = Overseer(Menu.for_world("home_humanoid", None),
                   client=FakeClient(full(action="charge",
                                          reason="topping up while it is "
                                                 "convenient")))
   life = stub_life(overseer=boss)
-  life.body.start_at(*world_config("home_quad")["start"])
+  life.body.start_at(*world_config("home_humanoid")["start"])
   life.battery.energy_wh = life.battery.capacity_wh * 0.80
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
@@ -684,12 +657,12 @@ def test_the_sim_keeps_running_while_the_overseer_thinks():
   """A slow API must cost the robot a pause, not the world a freeze. The
   telemetry stream is built off physics steps, so a blocking call here would
   stop every viewer's clock for the length of an HTTP request."""
-  boss = Overseer(Menu.for_world("home_quad", None),
+  boss = Overseer(Menu.for_world("home_humanoid", None),
                   client=FakeClient(full(action="idle", reason="."),
                                     delay=0.6),
                   timeout_s=2.0)
   life = stub_life(overseer=boss)
-  life.body.start_at(*world_config("home_quad")["start"])
+  life.body.start_at(*world_config("home_humanoid")["start"])
   life.max_sim_time = 60.0
   life.explore_deadline = life.data.time + 1.0
   life.blacklist, life.floor_explored = set(), True

@@ -190,7 +190,7 @@ def test_two_chests_in_one_world_share_the_knobs_one_tag():
 
 def test_the_knob_wears_its_tag_and_the_committed_png_is_the_generators():
   from PIL import Image
-  from pluggybot.rack.tags import TAG_DIR, TAG_SIZES, BLOCK_TAG_SIZE, tag_image
+  from pluggybot.perception.tags import TAG_DIR, TAG_SIZES, BLOCK_TAG_SIZE, tag_image
   png = np.asarray(Image.open(ROOT / TAG_DIR / f"tag{ch.KNOB_TAG_ID}.png"))
   assert np.array_equal(png, tag_image(ch.KNOB_TAG_ID))
   assert TAG_SIZES[ch.KNOB_TAG_ID] == BLOCK_TAG_SIZE

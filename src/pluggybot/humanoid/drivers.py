@@ -1,0 +1,71 @@
+"""The humanoid's drivers, commanded as the robot commands them (issue #385).
+
+A joint's driver is its actuator's FOC driver in MIT mode (`humanoid.parts`):
+every command carries its own target and PD gains, so the policies and the
+arms take turns on the same drivers. In the sim each is a MuJoCo `dcmotor`
+in position mode (`actuator.JointLimits.dcmotor` has the algebra), the PD
+and the torque-speed envelope in C on every physics step, and a command
+writes the gains it carries into the model:
+
+  pd(target, stiffness, damping)   a target and its gains, held between
+                                   commands -- a policy's
+  limp()                           holding nothing: no stiffness, and the
+                                   damping set to cancel the motor's
+                                   back-EMF (kd = -K)
+
+⚠ The gains live in the MODEL, not the data: a restart builds them fresh
+from the XML's defaults until the next command writes its own.
+"""
+
+import mujoco
+import numpy as np
+
+#: Where MuJoCo 3.10 keeps a `dcmotor`'s numbers in `actuator_gainprm`.
+R, K, KP, KD, VMAX = 0, 1, 4, 6, 7
+
+
+class Drivers:
+  """A body's drivers on `joints`, in their order, each a `dcmotor`."""
+
+  def __init__(self, model, data, prefix: str = "", *, joints):
+    self.prefix = prefix
+    self.joints = tuple(joints)
+    self.rebind(model, data)
+    #: Whether the last command was a torque or limp, whose gains a held
+    #: target must not inherit.
+    self.torqued = False
+
+  def rebind(self, model, data) -> None:
+    """The drivers on a world, by name."""
+    prefix = self.prefix
+    self.m, self.d = model, data
+    self.act = np.array([model.actuator(f"{prefix}{n}").id for n in self.joints])
+    self.qadr = np.array([model.jnt_qposadr[model.joint(f"{prefix}{n}").id]
+                          for n in self.joints])
+    if not (model.actuator_dyntype[self.act] == mujoco.mjtDyn.mjDYN_DCMOTOR).all():
+      raise ValueError("these joints have no drivers to command (torque motors)")
+    g = model.actuator_gainprm[self.act]
+    self._r, self._k = g[:, R].copy(), g[:, K].copy()
+
+  def gains(self) -> tuple[np.ndarray, np.ndarray]:
+    """The torque PD (stiffness, damping) the drivers run now."""
+    g = self.m.actuator_gainprm[self.act]
+    return g[:, KP] * self._k / self._r, (g[:, KD] + self._k) * self._k / self._r
+
+  def pd(self, target: np.ndarray, stiffness, damping) -> None:
+    g = self.m.actuator_gainprm
+    g[self.act, KP] = stiffness * self._r / self._k
+    g[self.act, KD] = damping * self._r / self._k - self._k
+    self.d.ctrl[self.act] = target
+    self.torqued = False
+
+  def limp(self) -> None:
+    g = self.m.actuator_gainprm
+    g[self.act, KP] = 0.0
+    g[self.act, KD] = -self._k
+    self.torqued = True
+
+  def set_bus(self, volts: float) -> None:
+    """The pack at `volts`: only the drivers' voltage clamp moves (K and R
+    are the motor's own)."""
+    self.m.actuator_gainprm[self.act, VMAX] = volts

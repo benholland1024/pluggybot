@@ -13,9 +13,9 @@ import re
 import subprocess
 from pathlib import Path
 
-from pluggybot.economy import cadence, energy, metabolism, questions, scoring
+from pluggybot.economy import cadence, energy, metabolism, scoring
 
-#: The five files that each change the regime, resolved exactly as the sim
+#: The four files that each change the regime, resolved exactly as the sim
 #: resolves them -- the env override wins -- so the header hashes the file
 #: the run actually read.
 DATA_FILES: dict[str, tuple[Path, str]] = {
@@ -23,7 +23,6 @@ DATA_FILES: dict[str, tuple[Path, str]] = {
   "cadence": (cadence.CADENCE_PATH, cadence.CADENCE_ENV),
   "energy": (energy.ENERGY_PATH, energy.ENERGY_ENV),
   "metabolism": (metabolism.METABOLISM_PATH, metabolism.METABOLISM_ENV),
-  "questions": (questions.BANK_PATH, questions.BANK_ENV),
 }
 
 #: Where the serving image bakes its git sha (issue #132). `.git` is
@@ -61,8 +60,8 @@ def world_hash(world: str) -> str:
 
   visit(root)
   # ...and the body put in at load (issue #387), which the XML does not
-  # name: the quadruped's generated model, its drivers' gains and the
-  # policies it walks and gets up on -- a retrained policy is a new regime
+  # name: its generated model, its drivers' gains and the policies it
+  # stands, walks and gets up on -- a retrained policy is a new regime
   for rel in BODY_FILES[world_config(world)["body"]]:
     visit(REPO / rel)
   return digest.hexdigest()
@@ -72,10 +71,7 @@ def world_hash(world: str) -> str:
 #: the humanoid's (#559) its generated model -- `humanoid.model` writes it
 #: off the code that builds the body, and a test fails it stale -- its arms'
 #: calibrated friction and its three policies.
-BODY_FILES = {"quadruped": ("models/quadruped.xml", "models/quadruped.json",
-                            "models/quadruped_policy.npz",
-                            "models/quadruped_getup.npz"),
-              "humanoid": ("models/humanoid.xml", "models/humanoid.json",
+BODY_FILES = {"humanoid": ("models/humanoid.xml", "models/humanoid.json",
                            "models/humanoid_friction.json",
                            "models/humanoid_stand.npz", "models/humanoid_walk.npz",
                            "models/humanoid_getup.npz")}
@@ -86,17 +82,13 @@ def body_identity(world: str) -> dict:
   of each policy it runs, by role -- the humanoid's (#559) its standing,
   walking and get-up policies'."""
   from pluggybot.lifecycle import world_config
+  from pluggybot.humanoid.getup import GETUP_NPZ
+  from pluggybot.humanoid.policy import STAND_NPZ, StandPolicy
+  from pluggybot.humanoid.walk import WALK_NPZ
   body = world_config(world)["body"]
-  if body == "humanoid":
-    from pluggybot.humanoid.getup import GETUP_NPZ
-    from pluggybot.humanoid.policy import STAND_NPZ, StandPolicy
-    from pluggybot.humanoid.walk import WALK_NPZ
-    return {"name": body, "policies": {role: StandPolicy(path).sha256 for role, path in
-                                       (("stand", STAND_NPZ), ("walk", WALK_NPZ),
-                                        ("getup", GETUP_NPZ))}}
-  from pluggybot.legs.body import policies
-  walk, getup = policies()
-  return {"name": body, "policies": {"walk": walk.sha256, "getup": getup.sha256}}
+  return {"name": body, "policies": {role: StandPolicy(path).sha256 for role, path in
+                                     (("stand", STAND_NPZ), ("walk", WALK_NPZ),
+                                      ("getup", GETUP_NPZ))}}
 
 
 def data_hashes(world: str) -> dict[str, str]:
@@ -198,7 +190,7 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
     # what the robot "saw" then depends on it. ABSENT where the arm cannot
     # look, on the rung's terms.
     **({"eyes": eyes} if eyes else {}),
-    # ...and WHICH BODY (issue #387): the quadruped and the policies it
+    # ...and WHICH BODY (issue #387): the humanoid and the policies it
     # walks and gets up on (`body_identity`).
     **({"body": dict(body)} if body else {}),
   }

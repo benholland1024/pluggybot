@@ -11,7 +11,7 @@ from pluggybot.activity.base import (
   Activity, ActivitySet, GeomToggle, MocapToggle, Threshold,
 )
 from pluggybot.activity.plate import PLATE_ON, PLATE_TRAVEL, PlateLight
-from pluggybot.legs import world as lw
+from pluggybot.humanoid import world as hw
 from pluggybot.telemetry.protocol import PROTOCOL_VERSION
 from pluggybot.telemetry.recorder import FrameBuilder
 
@@ -23,9 +23,9 @@ def home_model():
 
 
 @pytest.fixture(scope="module")
-def quad_model():
-  """The served house, `home_quad`: a stream needs a robot on it."""
-  return lw.home_spec().compile()
+def served_model():
+  """The served house, `home_humanoid`: a stream needs a robot on it."""
+  return hw.home_spec().compile()
 
 
 # ---- Threshold: hysteresis and latching -------------------------------------
@@ -204,13 +204,13 @@ class _Fake(Activity):
 
 
 @pytest.fixture
-def builder_pair(quad_model):
+def builder_pair(served_model):
   """Two FrameBuilders over ONE ActivitySet -- serve.py --record's shape."""
-  data = mujoco.MjData(quad_model)
+  data = mujoco.MjData(served_model)
   act = _Fake()
   act.set(state="closed")
   acts = ActivitySet([act])
-  fb = FrameBuilder(quad_model, data, hz=1000.0, model_name="home_quad",
+  fb = FrameBuilder(served_model, data, hz=1000.0, model_name="home_humanoid",
                     keyframe_s=0.0, activities=acts)
   return data, act, acts, fb
 
@@ -288,18 +288,18 @@ def test_a_keyframe_reships_activity_state(builder_pair):
   assert frame["activities"] == {"fake": {"state": "closed"}}
 
 
-def test_two_sinks_over_one_activity_set_stay_independent(quad_model):
+def test_two_sinks_over_one_activity_set_stay_independent(served_model):
   """`serve.py --record` runs a publisher AND a recorder over one physics,
   each with its own FrameBuilder. This failed while it was being written:
   the "already emitted" memory lived on the Activity, so the two sinks ate
   each other's deltas and each shipped a random half of the changes.
   """
-  data = mujoco.MjData(quad_model)
+  data = mujoco.MjData(served_model)
   act = _Fake()
   act.set(state="closed")
   acts = ActivitySet([act])
-  a = FrameBuilder(quad_model, data, hz=1000.0, keyframe_s=0.0, activities=acts)
-  b = FrameBuilder(quad_model, data, hz=1000.0, keyframe_s=0.0, activities=acts)
+  a = FrameBuilder(served_model, data, hz=1000.0, keyframe_s=0.0, activities=acts)
+  b = FrameBuilder(served_model, data, hz=1000.0, keyframe_s=0.0, activities=acts)
   assert a.build()["activities"] == {"fake": {"state": "closed"}}
   assert b.build()["activities"] == {"fake": {"state": "closed"}}, \
     "the second sink lost the opening state to the first"
@@ -310,7 +310,7 @@ def test_two_sinks_over_one_activity_set_stay_independent(quad_model):
     "the second sink lost a state change to the first"
 
 
-def test_a_real_light_turning_on_reaches_a_telemetry_frame(quad_model):
+def test_a_real_light_turning_on_reaches_a_telemetry_frame(served_model):
   """End to end: a load on the plate -> flag flips -> the flip is on the wire.
 
   Activity state being CARRIED is not a CHANGE propagating: here the pad is
@@ -318,18 +318,18 @@ def test_a_real_light_turning_on_reaches_a_telemetry_frame(quad_model):
   senses it, and the frames carry the light coming on -- and keep it on,
   sparsely.
   """
-  data = mujoco.MjData(quad_model)
-  acts = ActivitySet([PlateLight(quad_model, data)])
-  fb = FrameBuilder(quad_model, data, hz=20.0, model_name="home_quad",
+  data = mujoco.MjData(served_model)
+  acts = ActivitySet([PlateLight(served_model, data)])
+  fb = FrameBuilder(served_model, data, hz=20.0, model_name="home_humanoid",
                     activities=acts)
-  pad = quad_model.body("garden_plate").id
+  pad = served_model.body("garden_plate").id
   seen = []
-  hook = acts.step_hook(quad_model, data)
-  steps = round(6.0 / quad_model.opt.timestep)
+  hook = acts.step_hook(served_model, data)
+  steps = round(6.0 / served_model.opt.timestep)
   for k in range(steps):
     # 25 N (a 10 kg body's share on one foot) from 2 s to 4 s
     data.xfrc_applied[pad, 2] = -25.0 if steps // 3 <= k < 2 * steps // 3 else 0.0
-    mujoco.mj_step(quad_model, data)
+    mujoco.mj_step(served_model, data)
     hook()
     frame = fb.build()
     if frame is not None and "activities" in frame:

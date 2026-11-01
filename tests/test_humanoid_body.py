@@ -46,22 +46,13 @@ def test_the_humanoid_answers_every_body_member_as_body_declares_it(floor_body):
     assert want == have, (name, want, have)
 
 
-def test_a_world_with_neither_body_is_refused_one():
+def test_a_world_with_no_humanoid_is_refused_a_body():
+  """The humanoid is the one body `body_for` builds (the quadruped left in
+  #559): a world with none under this robot's names is refused one."""
   model = mujoco.MjModel.from_xml_string(
     '<mujoco><worldbody><geom type="plane" size="1 1 0.1"/></worldbody></mujoco>')
-  with pytest.raises(ValueError, match="quadruped and the humanoid"):
+  with pytest.raises(ValueError, match="no body under"):
     body_for(model, mujoco.MjData(model))
-
-
-def test_the_quadruped_refuses_a_hand():
-  """The hands' members are the humanoid's: the quadruped's planar arm says
-  so rather than pretending (no world needed to ask it)."""
-  from pluggybot.legs.body import QuadBody
-  quad = object.__new__(QuadBody)
-  with pytest.raises(NotImplementedError, match="planar|plane"):
-    next(quad.reach_routine("left", (0.0, 0.0, 1.0)))
-  with pytest.raises(NotImplementedError):
-    quad.gripped("left")
 
 
 def test_the_humanoid_finds_reaches_and_grips_the_chests_knob_through_body():

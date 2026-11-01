@@ -12,10 +12,12 @@ from pluggybot.pair import build_pair, run_pair
 
 #: ⚠ THE EMPATHY MEASUREMENT'S INPUT. What the robot is told about the other
 #: robot is written once; moving it is a new experiment on every paired
-#: arm, so the change is made here on purpose, with the hash.
-OTHER_ROBOT_RULE_SHA = "6e2215bec757f10a9f402c3e24ef2d0856b6466fcdbb596595807040fffea62b"
+#: arm, so the change is made here on purpose, with the hash. (The
+#: humanoids' text since #559's stage 5: the quadruped's with its swaps, as
+#: the served pair read it from stage 4.)
+OTHER_ROBOT_RULE_SHA = "4aba7f11221eeaefd3ec4f50b310a8d8ab396801876a08ba1efa6264eb41ce75"
 
-WORLD = "home_quad"
+WORLD = "home_humanoid"
 
 
 def stub_pair(root=None, ledger_state=None, *, tasks=False,
@@ -24,8 +26,8 @@ def stub_pair(root=None, ledger_state=None, *, tasks=False,
   """Two lifecycles on stub bodies in one world, wired as `build_pair`
   wires a pair's BOOKKEEPING: one ledger with an account each, a memory
   each (the second under the first's root), a mind each told the other's
-  name, one board whose producer is the first robot's, one rack inventory,
-  and each the other's peer. The bodies' mutual awareness and the world's
+  name, one board whose producer is the first robot's, and each the other's
+  peer. The bodies' mutual awareness and the world's
   activities are left out: nothing here moves. That the two wirings agree
   is `test_two_minds_have_two_memories_two_wallets_and_one_board`'s."""
   from pathlib import Path
@@ -63,8 +65,8 @@ def stub_pair(root=None, ledger_state=None, *, tasks=False,
                     ledger=wallet, appetite=hunger is not None,
                     others=tuple(n for n in names if n != name),
                     client=(clients or (FakeClient(), FakeClient()))[i])
-    body = StubBody(model, data, handle=handle, rack=cfg["rack"],
-                    grid_bounds=cfg["grid_bounds"], charge_w=energy.load(WORLD).charge_w)
+    body = StubBody(model, data, handle=handle, grid_bounds=cfg["grid_bounds"],
+                    charge_w=energy.load(WORLD).charge_w)
     lives.append(stub_life(WORLD, body=body, handle=handle, robot_name=name,
                            ledger=wallet, overseer=mind, thoughts=memory,
                            metabolism=hunger, tasks=board, boards=book,
@@ -73,7 +75,6 @@ def stub_pair(root=None, ledger_state=None, *, tasks=False,
                            errands=list(errands[i])))
   a, b = lives
   a.expects_work = b.expects_work = maker is not None
-  b.rack_inventory, b.lost_tool_after_s = a.rack_inventory, None
   a.peers, b.peers = [b], [a]
   return a, b
 
@@ -93,8 +94,7 @@ def wiring(lives) -> dict:
                                                                     b.metabolism),
     "board": (a.tasks is b.tasks, a.producer is not None, b.producer is None),
     "targets": a.producer.targets.get("robot"),
-    "rack": a.rack_inventory is b.rack_inventory,
-    "work": (a.expects_work, b.expects_work, b.lost_tool_after_s),
+    "work": (a.expects_work, b.expects_work),
     "peers": (a.peers == [b], b.peers == [a]),
     "arm": (a.autonomous, b.autonomous, a.overseer._acts(), b.overseer._acts()),
   }
@@ -184,31 +184,34 @@ def test_two_minds_keep_their_own_books_through_one_loop(tmp_path):
   sharing one clock (issue #380): each robot's decisions are its own
   mind's, the SECOND robot's paid job pays the second robot only, and each
   writes its own History. The wiring is pinned above; this is one loop not
-  crossing it.
+  crossing it. The paid job is a ticket the second robot filed, closed by
+  an operator on its own seam (issue #284; a carry paid it before the
+  quadruped's tools went, #559).
 
   Shown to fail by letting `Account` leave `robot` unfilled: every
   earning then lands on the first robot.
   """
-  from pluggybot.mission.errand import Errand
+  from pluggybot.mind.inbox import Inbox
   from pluggybot.robot import SECOND
   from test_overseer import FakeClient, full
-  carry = Errand(name="carry:module_lcd", module="module_lcd", station_y=0.0,
-                 use_at=(1.0, 1.0), needs_use_pose=False)
   lives = stub_pair(tmp_path / "t", str(tmp_path / "ledger.json"),
                     clients=tuple(FakeClient(full(action="idle", reason=f"{name} watching"))
                                   for name in ("Pluggy", "Rowan")),
-                    errands=((), (carry,)))
+                    inboxes=(Inbox(), Inbox()))
   a, b = lives
   assert a.overseer.others == ("Rowan",) and b.overseer.others == ("Pluggy",)
-  # The claim ends the day; the budget has room for late answers, which on
+  ticket = b.tickets.open("bug", "the drawer sticks", "it needs a harder pull", t=0.0)
+  b.inbox.offer({"type": "ticket_close", "id": "tc_1", "from": "ben",
+                 "ticket": ticket.id, "text": "fixed"})
+  # The close ends the day; the budget has room for late answers, which on
   # the stub are SIM time.
   results = run_pair(lives, max_sim_time=600.0, stop_when=lambda ls: (
-    ls[1].swaps_done >= 2 and all(len(life.decisions) >= 2 for life in ls)))
-  assert results[1]["swaps_done"] >= 2 and all(r["dead"] is None for r in results)
+    ls[1].ledger.balance() > 0 and all(len(life.decisions) >= 2 for life in ls)))
+  assert all(r["dead"] is None for r in results)
   for r, name in zip(results, ("Pluggy", "Rowan")):
     llm = [d for d in r["decisions"] if d["source"] == "llm"]
     assert llm and all(d["reason"] == f"{name} watching" for d in llm), r["decisions"]
-  assert results[1]["points"] > 0, "the carry paid the second robot"
+  assert results[1]["points"] > 0, "the close paid the second robot"
   assert results[0]["points"] == 0, "...and only the second robot"
   assert (tmp_path / "t" / "History.md").exists()
   assert (tmp_path / "t" / SECOND.root / "History.md").exists()

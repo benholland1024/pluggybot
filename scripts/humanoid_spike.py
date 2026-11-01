@@ -75,8 +75,8 @@ Usage:
 
 import os
 
-# One BLAS thread before numpy loads (the quadruped's lesson: small matrix
-# products ran slower on six).
+# One BLAS thread before numpy loads (small matrix products ran slower on
+# six).
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 import argparse  # noqa: E402
@@ -89,8 +89,8 @@ import numpy as np  # noqa: E402
 
 from pluggybot.humanoid import model as hm  # noqa: E402
 from pluggybot.humanoid import parts as hp  # noqa: E402
-from pluggybot.legs.actuator import driver_gains  # noqa: E402
-from pluggybot.legs.drivers import Drivers  # noqa: E402
+from pluggybot.humanoid.actuator import driver_gains  # noqa: E402
+from pluggybot.humanoid.drivers import Drivers  # noqa: E402
 from pluggybot.telemetry.protocol import ROBOT_ROOT  # noqa: E402
 
 HOME_XML = "models/home_world.xml"
@@ -186,7 +186,7 @@ def held_world(at=GANTRY_XY, yaw: float = GANTRY_YAW) -> tuple:
   """The house with the humanoid held up on its gantry in the living room: the
   model, its data at the stand pose, and the drivers. The house is the
   generator's file as it is (no robot in it, and no change to the served
-  world: `legs.world` builds that one)."""
+  world: `humanoid.world` builds that one)."""
   spec = mujoco.MjSpec.from_file(HOME_XML)
   robot = hm.attachable()
   h = hm.stand_height() + HANG_CLEAR
@@ -223,14 +223,14 @@ def held_world(at=GANTRY_XY, yaw: float = GANTRY_YAW) -> tuple:
   return model, data, drivers
 
 
-def _pose(model, data, q: dict) -> None:
+def _pose(model, data, q: dict, prefix: str = "") -> None:
   for name in hm.qpos_order():
-    data.qpos[model.jnt_qposadr[model.joint(name).id]] = q.get(name, 0.0)
+    data.qpos[model.jnt_qposadr[model.joint(prefix + name).id]] = q.get(name, 0.0)
   mujoco.mj_forward(model, data)
 
 
 #: The gains the scenes' commands carry: each joint's loop tuned on its own
-#: rotor as the policies' are (`legs.actuator.driver_gains`, 10 Hz at
+#: rotor as the policies' are (`humanoid.actuator.driver_gains`, 10 Hz at
 #: damping ratio 2) times the arms' scale (`hm.ARM_GAIN_SCALE`): a scene
 #: has no policy offsetting its targets. Inside every part's MIT range (the
 #: RS00's Kp to 500, the RS04's to 5000).
@@ -783,7 +783,7 @@ AMBIENT_C = (30.0, 40.0)
 
 def copper_w(motor, tau: float) -> float:
   """Heat in a winding at output torque `tau`, W: 1.5 R I^2 with I = tau /
-  Kt the phase current's amplitude (`legs.actuator.JointLimits.copper_w`)."""
+  Kt the phase current's amplitude (`humanoid.actuator.JointLimits.copper_w`)."""
   i = tau / motor.kt
   return 1.5 * motor.r_phase * i * i
 
@@ -2414,8 +2414,8 @@ def drive(body, routine):
 def demo_scene(body, model, data, records: list | None = None):
   """The `demo` scene, once: yields a line when a part begins or ends."""
   from pluggybot.evaluation import counter as ct
+  from pluggybot.activity.chest import KNOB
   from pluggybot.humanoid.body import _rz
-  from pluggybot.tools.claw import CUBE_HALF
   rec = {}
   if records is not None:
     records.append(rec)
@@ -2427,7 +2427,7 @@ def demo_scene(body, model, data, records: list | None = None):
     yield "  its tag does not decode from here"
     return
   # The knob is a cube: its middle is half a cube in from the face read.
-  knob = np.array([seen["x"], seen["y"], seen["z"]]) + CUBE_HALF * np.array(seen["normal"])
+  knob = np.array([seen["x"], seen["y"], seen["z"]]) + KNOB * np.array(seen["normal"])
   rec["seen_off_m"] = float(np.linalg.norm(knob - truly))
   yield (f"  the knob, by its tag, {seen['range']:.2f} m off: {100 * rec['seen_off_m']:.1f} cm "
          "from where it truly is")
@@ -2475,7 +2475,7 @@ def knob_grip(tilt: float) -> np.ndarray:
 
 
 def ch_tag() -> int:
-  from pluggybot.rack.tags import CHEST_TAG_IDS
+  from pluggybot.perception.tags import CHEST_TAG_IDS
   return CHEST_TAG_IDS[0]
 
 
@@ -4034,12 +4034,10 @@ def filmstrip_falls(scene: str, out: str, every_s: float = 0.3) -> None:
 
 
 # ---- stage 5: whether it can be served --------------------------------------------------
-# The served quadruped pair runs ~1.1x real time on the deploy box, on ONE
-# physics thread (#385). The humanoid has twice the joints. What decides
-# whether it can be served is its loop's cost against the quadruped's in
-# the same house, the same walks, the same senses -- each body through the
-# Navigator, its LIDAR matched to its map, its depth camera's low layer --
-# so the ratio scales the pair's measured served speed. Graded by the clock.
+# ONE physics thread steps a served pair (#385), so what decides whether the
+# humanoid can be served is its loop's cost: each body through the
+# Navigator, its LIDAR matched to its map, its depth camera's low layer, the
+# same walks in the served house. Graded by the clock.
 
 #: The walks each robot paces back and forth, (from, to): the first
 #: through the hall into the kitchen, the second from the living room into
@@ -4048,45 +4046,26 @@ SPEED_ROUTES = (((0.5, 0.5), (-8.5, 4.0)), ((3.0, -1.0), (1.5, 4.5)))
 SPEED_WARM_S = 5.0
 
 
-def speed_world(kind: str, n: int, seeing: bool = False, bounds=None):
-  """The house with `n` robots of `kind` ("humanoid" or "quadruped") at the
-  starts of `SPEED_ROUTES`: the model, its data and the bodies, their maps
-  over `bounds` (the house's own by default; `grid_spike.py` grows them)."""
+def speed_world(n: int, seeing: bool = False, bounds=None):
+  """The served house (`humanoid.world.home_spec`: its fixtures, which every
+  ray of the robots' LIDARs and depth cameras is cast against) with `n`
+  humanoids standing at the starts of `SPEED_ROUTES`: the model, its data
+  and the bodies, their maps over `bounds` (the house's own by default;
+  `grid_spike.py` grows them)."""
   import json
   from pluggybot.body import body_for
+  from pluggybot.humanoid.world import home_spec
   from pluggybot.robot import RobotHandle
   if bounds is None:
     b = json.load(open(HOME_XML.replace(".xml", ".meta.json")))["gridBounds"]
     bounds = (b[0], b[1], b[2], b[3]) if isinstance(b, list) else (b["xMin"], b["yMin"], b["xMax"], b["yMax"])
   handles = [RobotHandle(p) for p in ("", "r2_")[:n]]
   starts = [r[0] for r in SPEED_ROUTES[:n]]
-  if kind == "quadruped":
-    from pluggybot.legs import world as lw
-    spec = lw.home_spec(first_at=starts[0], second_at=starts[1] if n > 1 else None)
-    model = spec.compile()
-    data = mujoco.MjData(model)
-    for h, (x, y) in zip(handles, starts):
-      lw.stand(model, data, h.prefix, x, y)
-    mujoco.mj_forward(model, data)
-    return model, data, [body_for(model, data, h, grid_bounds=bounds) for h in handles]
-  # The quadruped's world's fixtures too -- its dock, rack, the lab's signs
-  # and the boards' and areas' tags -- which every ray of both robots'
-  # LIDARs and depth cameras is cast against.
-  from pluggybot.legs import world as lw
-  spec = mujoco.MjSpec.from_file(HOME_XML)
-  for h, (x, y) in zip(handles, starts):
-    frame = spec.worldbody.add_frame()
-    frame.pos = [x, y, 0.0]
-    spec.attach(hm.attachable(), prefix=h.prefix, frame=frame)
-  lw._attach_dock(spec, lw.dock_pose())
-  lw._attach_rack(spec, lw.rack_pose())
-  lw._attach_signs(spec)
-  lw._attach_board_tags(spec)
-  lw._attach_area_tags(spec)
+  spec = home_spec(first_at=starts[0], second_at=starts[1] if n > 1 else None)
   model = spec.compile()
   data = mujoco.MjData(model)
   for h in handles:
-    _pose(model, data, {f"{h.prefix}{j}": v for j, v in hm.stand_qpos().items()})
+    _pose(model, data, hm.stand_qpos(), h.prefix)
   walk = StandPolicy(str(SEEING_NPZ)) if seeing else None
   return model, data, [body_for(model, data, h, grid_bounds=bounds, walk=walk) for h in handles]
 
@@ -4100,12 +4079,12 @@ def _paces(body, route, until: float, data):
     k = 1 - k
 
 
-def speed_row(kind: str, n: int, sim_s: float = 60.0, seeing: bool = False,
+def speed_row(n: int, sim_s: float = 60.0, seeing: bool = False,
               profile: bool = False) -> dict:
-  """`n` robots of `kind` pacing their routes for `sim_s` after a warm-up:
-  the wall seconds a sim second took, and (`profile`) where they went."""
+  """`n` humanoids pacing their routes for `sim_s` after a warm-up: the
+  wall seconds a sim second took, and (`profile`) where they went."""
   from pluggybot import tick
-  model, data, bodies = speed_world(kind, n, seeing)
+  model, data, bodies = speed_world(n, seeing)
   warm = list(zip([b.stepper for b in bodies],
                   [_paces(b, r, SPEED_WARM_S, data) for b, r in zip(bodies, SPEED_ROUTES)]))
   tick.run_many(warm)
@@ -4129,27 +4108,20 @@ def speed_row(kind: str, n: int, sim_s: float = 60.0, seeing: bool = False,
     print(out.getvalue())
   for b in bodies:
     b.close()
-  return {"kind": kind, "n": n, "seeing": seeing, "sim_s": data.time - t_sim0,
+  return {"n": n, "seeing": seeing, "sim_s": data.time - t_sim0,
           "wall_s": wall, "rtf": (data.time - t_sim0) / wall}
 
 
 def speed_table(sim_s: float = 60.0, profile: bool = False) -> None:
-  """--speed: the quadruped pair, one humanoid and a humanoid pair, the
-  same walks in the same house, one process each in turn (never two at
-  once: they would share the machine)."""
-  rows = []
-  for kind, n, seeing in (("quadruped", 2, False), ("humanoid", 1, False), ("humanoid", 2, False),
-                          ("humanoid", 1, True), ("humanoid", 2, True)):
-    rows.append(speed_row(kind, n, sim_s, seeing, profile))
-    r = rows[-1]
-    print(f"  {r['kind']} x{r['n']}{' (the walker that sees the ground)' if seeing else ''}: {r['sim_s']:.0f} sim s in "
-          f"{r['wall_s']:.0f} wall s, {r['rtf']:.2f}x real time", flush=True)
-  quad = rows[0]["rtf"]
-  print(f"SERVING SPEED, the same walks ({sim_s:g} sim s after {SPEED_WARM_S:g} s), "
-        "against the quadruped pair:")
-  for r in rows:
-    print(f"  {r['kind']} x{r['n']}{' seeing' if r['seeing'] else ''}: {r['rtf']:.2f}x real time "
-          f"here, {r['rtf'] / quad:.2f} of the quadruped pair's")
+  """--speed: one humanoid and a pair, on the served walker and on the one
+  that sees the ground, the same walks in the served house, one after
+  another (never two at once: they would share the machine)."""
+  print(f"SERVING SPEED, the same walks ({sim_s:g} sim s after {SPEED_WARM_S:g} s):")
+  for n, seeing in ((1, False), (2, False), (1, True), (2, True)):
+    r = speed_row(n, sim_s, seeing, profile)
+    print(f"  humanoid x{r['n']}{' (the walker that sees the ground)' if seeing else ''}: "
+          f"{r['sim_s']:.0f} sim s in {r['wall_s']:.0f} wall s, {r['rtf']:.2f}x real time",
+          flush=True)
 
 
 SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
@@ -4219,8 +4191,8 @@ def main(argv=None) -> None:
                        "and speed, falling on the standing policy, limp, or the get-up's; in "
                        "the house; and from each bow a reach takes, what the watch says")
   ap.add_argument("--speed", nargs="?", type=float, const=60.0, default=None, metavar="SIM_S",
-                  help="the loop's cost: the quadruped pair, one humanoid and a pair, the same "
-                       "walks in the house, timed (--profile: where it goes)")
+                  help="the loop's cost: one humanoid and a pair, the same walks in the "
+                       "house, timed (--profile: where it goes)")
   ap.add_argument("--profile", action="store_true", help="with --speed")
   ap.add_argument("--jobs", type=int, default=4, help="processes for a table's flights")
   ap.add_argument("--out", default="humanoid_spike.png")

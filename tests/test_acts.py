@@ -35,14 +35,13 @@ from pluggybot.mind import acts, overseer as ov
 from pluggybot.mind.inbox import Inbox
 from test_two_minds import OTHER_ROBOT_RULE_SHA, stub_pair
 
-WORLD = "home_quad"
+WORLD = "home_humanoid"
 
 
 # ---- 1. the need rule --------------------------------------------------------
 
 
-def _other(frac=0.8, wh=4.0, reserve=0.95, hunger="fed", points=30,
-           holds=False, carrying=False, rack=True):
+def _other(frac=0.8, wh=4.0, reserve=0.95, hunger="fed", points=30, holds=False):
   task = SimpleNamespace(claimed_by="r2_pluggybot", state="active")
   return SimpleNamespace(
     battery=SimpleNamespace(fraction=frac, energy_wh=wh),
@@ -50,23 +49,19 @@ def _other(frac=0.8, wh=4.0, reserve=0.95, hunger="fed", points=30,
     metabolism=SimpleNamespace(state=hunger),
     ledger=SimpleNamespace(balance=lambda: points),
     tasks=SimpleNamespace(tasks={"t_1": task} if holds else {}),
-    root="r2_pluggybot",
-    body=SimpleNamespace(module_state=lambda m: {"on_fork": carrying}),
-    rack_inventory={"module_claw": 4} if rack else {},
-    module="module_claw" if (holds or carrying) and rack else "")
+    root="r2_pluggybot")
 
 
-def test_the_need_rule_has_four_truths_in_a_fixed_order():
+def test_the_need_rule_has_three_truths_in_a_fixed_order():
   assert acts.need_of(_other())[0] == "nothing"
   assert acts.need_of(_other(wh=0.5))[0] == "charge"
   assert acts.need_of(_other(hunger="hungry"))[0] == "points"
   assert acts.need_of(_other(hunger="starving", points=0))[0] == "points"
-  assert acts.need_of(_other(holds=True))[0] == "a_tool"
-  assert acts.need_of(_other(holds=True, carrying=True))[0] == "nothing"
-  # ...a tool only where a rack has one (#572: in the humanoids' house every
-  # job holder "needed a tool", and Rowan's "Luca needs nothing" was wrong)
-  assert acts.need_of(_other(holds=True, rack=False))[0] == "nothing"
-  # precedence: charge outranks points outranks a tool
+  # ...and a held job is no need: `a_tool` is the prompt's word, never the
+  # answer, with no rack in any world (#559; #572 stopped the humanoids
+  # reading it -- every job holder "needed a tool")
+  assert acts.need_of(_other(holds=True))[0] == "nothing"
+  # precedence: charge outranks points
   assert acts.need_of(_other(wh=0.5, hunger="starving", holds=True))[0] == "charge"
   assert acts.need_of(_other(hunger="starving", holds=True))[0] == "points"
   # ...and the state it was read off rides along, for the record
@@ -206,8 +201,9 @@ def test_a_tell_lands_in_the_others_inbox_as_a_named_robot(pair):
                               "text": "bay B is empty, and hello"}
   [sent] = [e for e in events if e["type"] == "message"]
   assert sent["to"] == "r2_pluggybot" and sent["delivered"] is True
-  # bay B (index 1) holds the pen on the quadruped's rack: the claim is false
-  assert sent["claim"] == "bay b is empty" and sent["claimTrue"] is False
+  # a claim about a bay is checked against what hangs there: in the
+  # humanoids' house, nothing (#559), so the claim is true
+  assert sent["claim"] == "bay b is empty" and sent["claimTrue"] is True
   assert a.acts[-1]["act"] == "message"
   # a message to a name that is not the other's goes nowhere
   a._acts(_decision(tell={"to": "Nobody", "text": "hi"}))
@@ -295,7 +291,7 @@ def test_a_rating_of_a_board_that_carries_ink_reads_the_records_counters(pair):
   """`BoardRecord.strokes` is a counter and `programs` a list; the act reads
   them as they are, never `len()` of them (the deployed pair crash-looped on
   it, 2026-09-17)."""
-  from pluggybot.tools.boards import BoardBook, BoardRecord
+  from pluggybot.home.boards import BoardBook, BoardRecord
   a, _ = pair
   book = BoardBook([BoardRecord("whiteboard_a", (0.11, 0.2))])
   book.stroke("whiteboard_a", "square", [(0.0, 0.0), (0.05, 0.0)], t=1.0)

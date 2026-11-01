@@ -1,9 +1,10 @@
 """Camera safety: the tag detector cannot be fooled by the scenery (issue #69).
 
-"Camera-safe" is the whole qualifier on M13's dressing. The quadruped's
-nose camera (`nav_eye`) drives its terminal manoeuvres off AprilTag PnP
-poses -- the walk into its dock, a bay of its rack, a plate's sign -- and a
-false decode does not degrade gracefully: it steers the robot into them.
+"Camera-safe" is the whole qualifier on M13's dressing. The humanoid's
+head camera (`nav_eye`) finds its places and its charging station off
+AprilTag PnP poses -- the station's pair, a task area's tag, a plate's sign
+-- and a false decode does not degrade gracefully: it steers the robot
+into them.
 
 The survey renders the home world through the robot's real camera at the
 detector's real resolution, from poses covering every zone, and asserts
@@ -16,35 +17,34 @@ probe rather than assumed.
 
 ⚠ This file WRITES NOTHING into models/ (the tags PNG write race is a
 documented -n auto flake in generator-calling tests): the hostile world is
-compiled from a scratch directory of symlinks, and every render is at a
-fixed resolution through `rack.tags.TagDetector`'s own renderer.
+the served world's spec with one body added, and every render is at a
+fixed resolution through `perception.tags.TagDetector`'s own renderer.
 """
 
 import math
-import tempfile
-from pathlib import Path
 
 import mujoco
 import numpy as np
 import pytest
 
 from pluggybot.home import world as home
-from pluggybot.legs import world as lw
 from pluggybot.home.areas import area_ids
-from pluggybot.rack.tags import (
-  BLOCK_TAG_IDS, BOARD_TAG_IDS, DOCK_TAG_IDS, DOCK_TAG_SIZE, LEGS_BUILT_TAG_IDS,
-  LEGS_RACK_TAG_IDS, MASS_TAG_IDS, PLATE_TAG_IDS, TagDetector,
+from pluggybot.humanoid import model as hm
+from pluggybot.humanoid import world as hw
+from pluggybot.perception.tags import (
+  BLOCK_TAG_IDS, BOARD_TAG_IDS, CHEST_TAG_IDS, COUNTER_TAG_IDS, CUBE_TAG_IDS, DOOR_TAG_IDS,
+  DRAWER_TAG_IDS, MASS_TAG_IDS, MAT_TAG_IDS, PLATE_TAG_IDS, STATION_TAG_IDS, TagDetector,
 )
+from pluggybot.robot import FIRST
 
-ROOT = Path(__file__).parent.parent
-
-#: Every id the home world may legally decode: its dock's, its rack's, the
-#: lab's plate signs, the whiteboards' pairs, the tower's blocks, the
-#: bench's masses, the tower's, bench's and garden's area tags, and the
-#: built-tool rail's bays' (#407).
-LEGAL_IDS = frozenset({*DOCK_TAG_IDS, *LEGS_RACK_TAG_IDS, *LEGS_BUILT_TAG_IDS,
-                       *PLATE_TAG_IDS, *(t for ids in BOARD_TAG_IDS.values() for t in ids),
-                       *BLOCK_TAG_IDS, *MASS_TAG_IDS, *area_ids()})
+#: Every id the home world may legally decode: the lab's plate signs, the
+#: whiteboards' pairs, the tower's blocks, the bench's masses, the tower's,
+#: bench's and garden's area tags, the charging station's pair, and the
+#: storeroom counter's row and its props' (#559).
+LEGAL_IDS = frozenset({*PLATE_TAG_IDS, *(t for ids in BOARD_TAG_IDS.values() for t in ids),
+                       *BLOCK_TAG_IDS, *MASS_TAG_IDS, *area_ids(), *STATION_TAG_IDS,
+                       *COUNTER_TAG_IDS, *CHEST_TAG_IDS, *DRAWER_TAG_IDS, *DOOR_TAG_IDS,
+                       *CUBE_TAG_IDS, *MAT_TAG_IDS})
 
 #: PnP range vs ground-truth distance, worst case, clean world. Measured on
 #: the full survey: the translation half of a tag pose is millimetre-true
@@ -86,9 +86,21 @@ def _tag_truth(model, data):
   return truth
 
 
+def _stand(model, data, x, y, yaw):
+  """The humanoid upright at (x, y) facing `yaw`, as `HumanoidBody.start_at`
+  stands it, and forwarded."""
+  q = FIRST.qpos_adr(model)
+  data.qpos[q:q + 3] = [x, y, hm.stand_height()]
+  data.qpos[q + 3:q + 7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
+  stand = hm.stand_qpos()
+  for name in hm.qpos_order():
+    data.qpos[model.jnt_qposadr[model.joint(FIRST.el(name)).id]] = stand.get(name, 0.0)
+  mujoco.mj_forward(model, data)
+
+
 def _survey(model, data, poses, yaws=YAWS):
   """Render every (pose, yaw) through nav_eye and collect violations."""
-  det = TagDetector(model, "nav_eye", tag_size=DOCK_TAG_SIZE)
+  det = TagDetector(model, "nav_eye")
   # ⚠ Forward BEFORE reading truth: a fresh MjData's geom_xpos is zeros, and
   # ground truth read from it puts every tag at the origin -- which made the
   # survey's first run flag every honest decode as a copy 1.48 m off. The
@@ -101,7 +113,7 @@ def _survey(model, data, poses, yaws=YAWS):
     for name, x, y in poses:
       for k in range(yaws):
         yaw = 2 * math.pi * k / yaws
-        lw.stand(model, data, "", x, y, yaw)
+        _stand(model, data, x, y, yaw)
         cam = np.array(data.cam_xpos[cam_id], dtype=float)
         for tid, d in det.detect(data).items():
           where = f"{name} ({x:.1f},{y:.1f}) yaw {math.degrees(yaw):.0f}"
@@ -121,7 +133,7 @@ def _survey(model, data, poses, yaws=YAWS):
 
 @pytest.fixture(scope="module")
 def home_pair():
-  model = lw.home_spec().compile()
+  model = hw.home_spec().compile()
   return model, mujoco.MjData(model)
 
 
@@ -138,37 +150,34 @@ def test_every_zone_decodes_only_what_is_there(home_pair):
 # ---- the adversarial probe ---------------------------------------------------
 
 
+#: The tag the hostile print copies: the charging station's first.
+COPIED = STATION_TAG_IDS[0]
+
+
 def _hostile_world():
-  """The home world plus one wall picture that is a COPY of the rack's
-  first tag.
+  """The home world plus one wall picture that is a COPY of the charging
+  station's first tag.
 
   Exactly the decoration the hint freeze forbade, built on purpose: a
-  0.24 m framed print of tag id 29 on the living room's west wall, where a
-  visitor might hang art. Compiled from a scratch directory of symlinks so
-  nothing under models/ is written or disturbed.
+  0.24 m framed print of the station's tag on the living room's west wall,
+  at a head camera's height, where a visitor might hang art. Added to the
+  served world's spec, so nothing under models/ is written or disturbed.
   """
-  scratch = Path(tempfile.mkdtemp(prefix="hostile_home_"))
-  for entry in (ROOT / "models").iterdir():
-    (scratch / entry.name).symlink_to(entry)
-  xml = (ROOT / "models" / "home_world.xml").read_text()
-  picture = '''
-    <body name="wall_art" pos="-1.955 -0.5 0.55">
-      <geom name="wall_art_print" type="box" size="0.005 0.12 0.12"
-            material="tagmat29" contype="0" conaffinity="0"/>
-    </body>
-  </worldbody>'''
-  hostile = scratch / "hostile_home.xml"
-  hostile.write_text(xml.replace("  </worldbody>", picture, 1))
-  return lw.home_spec(path=str(hostile)).compile()
+  spec = hw.home_spec()
+  art = spec.worldbody.add_body(name="wall_art", pos=[-1.955, -0.5, 1.2])
+  art.add_geom(name="wall_art_print", type=mujoco.mjtGeom.mjGEOM_BOX,
+               size=[0.005, 0.12, 0.12], material=f"tagmat{COPIED}",
+               contype=0, conaffinity=0)
+  return spec.compile()
 
 
 def test_a_picture_of_a_tag_trips_the_survey():
   """A harness with nothing adversarial in it is decor, so this PASSES BY
-  DEMONSTRATING CONFUSION: hang a print of the rack's tag on the
+  DEMONSTRATING CONFUSION: hang a print of the station's tag on the
   living-room wall and the survey must catch it.
 
-  What the false decode actually is: the detector reports tag 29 -- the
-  rack's, which a fetch would walk toward -- at a range that is no tag 29's.
+  What the false decode actually is: the detector reports the station's tag
+  -- which a charge would walk toward -- at a range that is no such tag's.
   The id is legal, which is why a subset check alone is not a harness; the
   RANGE against the tags of that id is what convicts the copy. This is the
   concrete failure that keeps wall pictures browser-only (#66): a picture
@@ -178,4 +187,4 @@ def test_a_picture_of_a_tag_trips_the_survey():
   data = mujoco.MjData(model)
   bad = _survey(model, data, [("living", 1.5, 0.25)])
   assert bad, "the survey did not notice a copied tag hung as wall art"
-  assert any("tag 29" in b for b in bad), "\n".join(bad)
+  assert any(f"tag {COPIED}" in b for b in bad), "\n".join(bad)

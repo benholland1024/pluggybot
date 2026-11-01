@@ -22,18 +22,17 @@ is the physics itself.
     ... --nthreads 1            # the AprilTag detector single-threaded
     ... --compare DIR           # re-read traces without flying
     ... --pair --pack demo --battery-fraction 0.4 --sim-s 420
-                                # issue #387: the PAIR's day, with a fall and
-                                # a death arranged (`--fall-at`,
-                                # `--drain-at`), the whole world hashed
+                                # the PAIR's day, with a fall and a death
+                                # arranged (`--fall-at`, `--drain-at`), the
+                                # whole world hashed
     ... --resume-at 400         # issue #345: the day flown straight through,
                                 # against the same day saved at the first
                                 # idle moment past t=400 and carried on from
                                 # the save in a new process -- identical
                                 # after the restore point, or a restart
                                 # changes the world
-    ... --errand none --no-economy --on-fork module_claw --resume-at 20
-                                # issue #420: the same, saved between two
-                                # failed returns of a tool on the fork
+
+The world is the humanoids' house (`home_humanoid`, #559).
 """
 
 import argparse
@@ -63,7 +62,7 @@ def child(cfg: dict, trace_path: Path) -> None:
 
   from pluggybot.lifecycle import run_demo
   from pluggybot.perception import lidar as lidar_mod
-  from pluggybot.rack import tags
+  from pluggybot.perception import tags
 
   out = open(trace_path, "w")
 
@@ -119,8 +118,6 @@ def child(cfg: dict, trace_path: Path) -> None:
             wh=round(life.battery.energy_wh, 6), s=life.state)
     life.body.step_hooks.append(step)
     life.say_hooks.append(lambda t, msg: log(k="say", t=round(float(t), 3), msg=msg))
-    if cfg.get("onFork") and not cfg.get("resume"):
-      life.at_loop_top.append(_seat_on_fork(life, cfg["onFork"], log))
     if cfg.get("saveAt") is not None:
       # the SAVING arm of --resume-at: the world written at the first pass
       # of the day loop past the mark -- where nothing is in flight -- and
@@ -169,54 +166,9 @@ def child(cfg: dict, trace_path: Path) -> None:
   out.close()
 
 
-def _seat_on_fork(life, module: str, log):
-  """`--on-fork` (issue #420), an at-loop-top hook: at the first pass,
-  `module` seated on the fork at the carry pose as a pick leaves it, and
-  another tool hung in its bay, so every return of it fails. The economy
-  that once put a tool there offers legs no jobs that fetch one."""
-  import mujoco
-  import numpy as np
-
-  from pluggybot.legs import arm as am
-  from pluggybot.legs import rack as rk
-  from pluggybot.rack.coupling import PEG_ABOVE_BODY
-  done = []
-
-  def seat() -> None:
-    if done:
-      return
-    done.append(True)
-    mis, m, d = life.body.mission, life.model, life.data
-
-    def free(name):
-      j = m.body(name).jntadr[0]
-      return int(m.jnt_qposadr[j]), int(m.jnt_dofadr[j])
-    (q, v), other = free(module), next(t for t in rk.TOOL_BAYS if t != module)
-    (oq, ov) = free(other)
-    d.qpos[oq:oq + 7] = m.qpos0[q:q + 7]           # hung where `module` hangs
-    d.qvel[ov:ov + 6] = 0.0
-    mis.arm.hold_at(*am.CARRY_Q)
-    arm = {n: m.jnt_qposadr[m.joint(mis.handle.el(f"arm_{n}")).id]
-           for n in ("shoulder", "elbow", "wrist")}
-    d.qpos[arm["shoulder"]], d.qpos[arm["elbow"]] = am.CARRY_Q
-    d.qpos[arm["wrist"]] = -sum(am.CARRY_Q)
-    mujoco.mj_forward(m, d)
-    rot = d.xmat[mis.root].reshape(3, 3)
-    peg = (d.site_xpos[m.site(mis.handle.el("arm_seat")).id]
-           + rot @ np.array([0.0, 0.0, mis.arm_spec.fork.seat_rise() + 0.0003]))
-    yaw = math.atan2(rot[1, 0], rot[0, 0]) + math.pi
-    d.qpos[q:q + 3] = peg - np.array([0.0, 0.0, PEG_ABOVE_BODY])
-    d.qpos[q + 3:q + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
-    d.qvel[v:v + 6] = 0.0
-    mujoco.mj_forward(m, d)
-    mis.carry(module)
-    log(k="onFork", t=round(float(d.time), 4), module=module, bayTakenBy=other)
-  return seat
-
-
 def _pair_child(cfg: dict, st: Path, log, out) -> None:
   """The PAIR's scripted home day (issue #387), the whole world hashed:
-  the first robot starts low and walks to the dock, the second is
+  the first robot starts low and walks to its station, the second is
   knocked over and later emptied (`pair.arrange_hazards`), dies `flat` and
   is stood up -- every posture and both halves of a death, twice alike."""
   import numpy as np
@@ -376,24 +328,21 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict) -> int:
 
 
 def main() -> int:
-  from pluggybot.lifecycle import HUMANOID_HOME, QUAD_HOME, world_for
+  from pluggybot.lifecycle import HUMANOID_HOME, world_for
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--child", nargs=2, metavar=("CFG", "TRACE"))
   ap.add_argument("--runs", type=int, default=2)
   ap.add_argument("--sim-s", type=float, default=1500.0)
-  ap.add_argument("--world", choices=(QUAD_HOME, HUMANOID_HOME, "home"), default=QUAD_HOME,
-                  help="the house with the quadruped in it (`home` names it too), or with "
-                       "the humanoid (#559)")
+  ap.add_argument("--world", choices=(HUMANOID_HOME, "home"), default=HUMANOID_HOME,
+                  help="the house with the humanoid in it (#559; `home` names it too)")
   ap.add_argument("--pack", default="hosting")
   ap.add_argument("--errand", default="none",
-                  help="the queue at the start (`lifecycle.errands_for`): "
-                       "none, care, care:<act>, feed or shock")
+                  help="the queue at the start (`lifecycle.errands_for`): none")
   ap.add_argument("--battery-fraction", type=float, default=1.0,
                   help="the pack at the start: low, and the day charges")
   ap.add_argument("--no-economy", dest="economy", action="store_false",
-                  help="no job offers and no upkeep: the first quadruped "
-                       "period's shape (issue #387)")
+                  help="no job offers and no upkeep")
   ap.add_argument("--nthreads", type=int, default=None,
                   help="AprilTag detector threads (the shipped detector uses 2)")
   ap.add_argument("--sequential", action="store_true")
@@ -412,10 +361,6 @@ def main() -> int:
                   help="issue #345: fly the day straight through AND saved at "
                        "the first idle moment past T then carried on from the "
                        "save in a new process; the two must be identical after")
-  ap.add_argument("--on-fork", default=None, metavar="MODULE",
-                  help="issue #420: MODULE seated on the fork at the loop's "
-                       "first pass, its bay taken by another tool, so every "
-                       "return fails and a save lands between two")
   args = ap.parse_args()
   if args.child:
     child(json.loads(Path(args.child[0]).read_text()), Path(args.child[1]))
@@ -426,17 +371,12 @@ def main() -> int:
   if args.pair and args.resume_at is not None:
     # the pair's child has no save hook: three flights, then no `saved` row
     ap.error("--resume-at flies one robot's day, not --pair")
-  if args.on_fork is not None:
-    from pluggybot.legs.rack import TOOL_BAYS
-    if args.pair or args.on_fork not in TOOL_BAYS:
-      ap.error(f"--on-fork seats one of {sorted(TOOL_BAYS)} on one robot's fork, "
-               "not --pair's")
   out = Path(args.out or tempfile.mkdtemp(prefix="pluggy-det-spike-"))
   out.mkdir(parents=True, exist_ok=True)
   world = world_for(args.world)
   cfg = {"world": world, "pack": args.pack, "simS": args.sim_s,
          "errand": args.errand, "nthreads": args.nthreads, "economy": args.economy,
-         "batteryFraction": args.battery_fraction, "onFork": args.on_fork}
+         "batteryFraction": args.battery_fraction}
   if args.pair:
     cfg.update(pair=True, fallAt=args.fall_at,
                drainAt=args.drain_at, restartAfterS=args.restart_after,

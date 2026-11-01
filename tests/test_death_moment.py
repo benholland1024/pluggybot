@@ -9,8 +9,8 @@ THE ROBOT FALLS, because the death is the body's `stuck_after_s` later and
 the errand has had that long to react.
 
 The row's bookkeeping is pinned on the stub body (`tests/test_body.py`);
-the true pose beside the believed one, and the arm's setpoints, on the
-served quadruped.
+the true pose beside the believed one, and the arms' setpoints, on the
+served humanoid.
 """
 
 import math
@@ -21,8 +21,8 @@ import pytest
 
 from pluggybot import lifecycle as lc
 from pluggybot.body import StubBody
-from pluggybot.legs import model as qm
-from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, world_config
+from pluggybot.humanoid import model as hm
+from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, world_config
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.procedure import axes, lang
 from pluggybot.procedure import steps as st
@@ -32,7 +32,7 @@ from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
 def _born(life) -> HubLifecycle:
-  start = world_config(QUAD_HOME)["start"]
+  start = world_config(HUMANOID_HOME)["start"]
   life.body.start_at(*start)
   life.home_pose = tuple(start)
   life.survival_since = float(life.data.time)
@@ -43,12 +43,12 @@ def _life(**kw) -> HubLifecycle:
   return _born(stub_life(mortal=True, **kw))
 
 
-def _quad() -> HubLifecycle:
-  cfg = world_config(QUAD_HOME)
+def _humanoid() -> HubLifecycle:
+  cfg = world_config(HUMANOID_HOME)
   model = world_spec(cfg["model"]).compile()
   return _born(HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                            world=QUAD_HOME,
-                            battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                            world=HUMANOID_HOME,
+                            battery_wh=cfg["battery_wh"],
                             grid_bounds=cfg["grid_bounds"],
                             low_battery_wh=cfg["low_battery_wh"], mortal=True))
 
@@ -68,23 +68,20 @@ def _stop_on_death(life) -> None:
   life.body.step_hooks.append(hook)
 
 
-def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running(
-    monkeypatch):
+def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running():
   """The acceptance test: a procedure errand, the pack emptied during its
   second step. The row names the errand, the step by count and source line,
-  the state, the module on the fork and every axis's setpoint -- the arm's
-  -- and the true pose beside the believed one, which are read apart (the
-  belief is pushed 0.25 m off)."""
-  life = _quad()
+  the state and every axis's setpoint -- the arms' -- and the true pose
+  beside the believed one, which are read apart (the belief is pushed 0.25 m
+  off). `carrying` is a vestige of the quadruped's fork: None."""
+  life = _humanoid()
   try:
     seen = _deaths(life)
-    sx, sy, syaw = world_config(QUAD_HOME)["start"]
-    src = "def pen_check():\n  wait(0.5)\n  wait(5)\n"
-    proc = lang.compile_procedure(src, lc.world_facts(QUAD_HOME))
+    sx, sy, syaw = world_config(HUMANOID_HOME)["start"]
+    src = "def check():\n  wait(0.5)\n  wait(5)\n"
+    proc = lang.compile_procedure(src, lc.world_facts(HUMANOID_HOME))
     errand = programmed_errand(proc, task="program", name="procedure")
-    # the fork holds the pen, as far as anything that asks can tell
-    monkeypatch.setattr(st, "_carried", lambda life: "module_pen")
-    # ...and the belief kept 0.25 m off: matched (#386), the scans would take
+    # ...the belief kept 0.25 m off: matched (#386), the scans would take
     # it out before the death this reads it at
     life.body.mission.matcher = None
     life.body.mission.odo.x += 0.25
@@ -102,12 +99,12 @@ def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running(
     at = seen[0]["at"]
     assert at["t"] == seen[0]["t"], "a flat death is read as it happens"
     assert at["errand"]["name"] == "procedure"
-    assert at["step"] == {"procedure": "pen_check", "n": 2, "line": 3,
+    assert at["step"] == {"procedure": "check", "n": 2, "line": 3,
                           "verb": "wait", "args": {"seconds": 5.0}}
     assert at["state"] == "USE_TOOL"
-    assert at["carrying"] == "module_pen"
-    stow = qm.CHOSEN.arm.stow
-    assert at["setpoints"] == {"shoulder": round(stow[0], 4), "elbow": round(stow[1], 4)}
+    assert at["carrying"] is None
+    stand = hm.stand_qpos()                      # the arms hang where it stood
+    assert at["setpoints"] == {n: round(stand.get(n, 0.0), 4) for n in axes.HUMANOID_JOINTS}
     assert at["pose"]["x"] == pytest.approx(sx, abs=0.03)
     assert at["pose"]["y"] == pytest.approx(sy, abs=0.03)
     assert at["pose"]["yawDeg"] == pytest.approx(math.degrees(syaw), abs=1.5)
@@ -217,10 +214,10 @@ def test_setpoints_are_the_bodys_and_a_body_without_the_joint_reads_none():
   """What a death reads: the body's own axes, and from a body with no
   actuator for one (the stub's), nothing -- never a failed death."""
   from types import SimpleNamespace
-  life = _quad()
+  life = _humanoid()
   try:
     view = SimpleNamespace(body=life.body, model=life.model, data=life.data)
-    assert set(axes.setpoints(view)) == {"shoulder", "elbow"}
+    assert set(axes.setpoints(view)) == set(axes.HUMANOID_JOINTS)
   finally:
     life.body.close()
   assert axes.setpoints(stub_life()) == {}

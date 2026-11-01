@@ -24,7 +24,7 @@ import pytest
 
 from pluggybot.evaluation.identity import build_identity
 from pluggybot.lifecycle import (
-  LOOK_SLICE_S, QUAD_HOME, HubLifecycle, overseer_context, world_config,
+  LOOK_SLICE_S, HUMANOID_HOME, HubLifecycle, overseer_context, world_config,
 )
 from pluggybot.mind import events, llm, look
 from pluggybot.mind import overseer as ov
@@ -32,7 +32,6 @@ from pluggybot.mind.inbox import (
   JPEG_MAGIC, MAX_IMAGE_BYTES, MAX_IMAGE_RAW_BYTES, MAX_RAW_BYTES, Inbox,
 )
 from pluggybot.mind.overseer import LOOK_S, MAX_LOOK_RUN, Menu, Overseer
-from pluggybot.robot import FIRST, world_spec
 from pluggybot.telemetry.protocol import (
   CODE_HANDLED_TYPES, INBOUND_TYPES, LOOK_OUTCOMES, LOOK_WHYS,
   WORLD_INBOUND_TYPES,
@@ -189,53 +188,18 @@ def test_the_camera_pose_is_the_cameras_and_says_which_way_it_looks():
                                           abs=1e-4)
 
 
-def test_a_quadruped_looks_through_its_own_head_camera():
-  """The camera is the BODY's (issue #408). The eye asked every body for
-  the rover's `left_eye`; on legs that was a KeyError on the physics
-  thread, and on the served pair it took the process down -- 35 exits in
-  48 h, three of them resetting the world from XML. A quadruped's look
-  goes out from its nose camera, facing the way the body faces."""
-  cfg = world_config(QUAD_HOME)
-  model = world_spec(cfg["model"], body="quadruped").compile()
-  data = mujoco.MjData(model)
-  inbox = Inbox()
-  inbox.offer(renderer_message(True))      # a renderer is there (issue #357)
-  life = HubLifecycle(model, data, realtime=False, world=QUAD_HOME,
-                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], inbox=inbox)
-  seen = []
-  life.on_event.append(seen.append)
-  try:
-    life.body.start_at(*cfg["start"])
-    assert life.body.head_camera == FIRST.el("nav_eye")
-    routine = life._look_routine()
-    next(routine)                            # the request is out
-    asked = [m for m in seen if m["type"] == "look"]
-    assert [m["outcome"] for m in asked] == ["asked"]
-    camera = asked[0]["camera"]
-    assert camera == look.camera_pose(model, data, FIRST.el("nav_eye"))
-    yaw = life.body.true_pose()[2]
-    assert camera["forward"] == pytest.approx([math.cos(yaw), math.sin(yaw), 0.0], abs=1e-3)
-    assert camera["up"] == pytest.approx([0.0, 0.0, 1.0], abs=1e-3)
-    assert 0.3 < camera["pos"][2] < 0.5, "the nose's height, not the floor's"
-    routine.close()
-  finally:
-    life.body.close()
-
-
 # ---- the arm ----------------------------------------------------------------------
 
 
 def test_look_is_a_minds_and_a_bare_menu_has_none_of_it():
-  auto = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
+  auto = ov.build(HUMANOID_HOME, enabled=True, client=FakeClient())
   assert auto.menu.look and "look" in auto.menu.available()
   assert "look" in auto.menu.schema()["properties"]["action"]["enum"]
   assert "look" not in auto.menu.schema(look=False)["properties"]["action"]["enum"]
   assert dict(auto.sections)["LOOKING"] == ov.LOOK_RULE
   # A menu no mind was built over offers none of it, and the rules do not
   # name it.
-  bare = Overseer(Menu.for_world(QUAD_HOME), client=FakeClient())
+  bare = Overseer(Menu.for_world(HUMANOID_HOME), client=FakeClient())
   assert not bare.menu.look and "look" not in bare.menu.available()
   assert "look" not in bare.menu.schema()["properties"]["action"]["enum"]
   assert "LOOKING" not in dict(bare.sections)
@@ -251,7 +215,7 @@ def test_look_is_a_minds_and_a_bare_menu_has_none_of_it():
 
 
 def test_a_look_is_never_an_order_and_never_a_map_row():
-  auto = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
+  auto = ov.build(HUMANOID_HOME, enabled=True, client=FakeClient())
   assert "look" not in auto.menu.orderable(())
   assert "look" not in auto.menu.schema(standing_orders=True)["properties"]["standing_order"]["enum"]
   with pytest.raises(ValueError, match="cannot be `look`"):
@@ -272,15 +236,16 @@ def test_looks_left_takes_the_action_off_the_call_and_the_state_says_so():
 
 def _eyed_stub():
   """A stub body whose head camera is `EYE_WORLD`'s: the eye's bookkeeping
-  with no robot to look through (the quadruped's own is pinned above)."""
+  with no robot to look through (the humanoid's own head is pinned in
+  `test_humanoid_served.py`)."""
   from pluggybot.body import StubBody
   from pluggybot.economy import energy
-  cfg = world_config(QUAD_HOME)
+  cfg = world_config(HUMANOID_HOME)
   model = mujoco.MjModel.from_xml_string(EYE_WORLD)
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
-  body = StubBody(model, data, rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                  charge_w=energy.load(QUAD_HOME).charge_w)
+  body = StubBody(model, data, grid_bounds=cfg["grid_bounds"],
+                  charge_w=energy.load(HUMANOID_HOME).charge_w)
   body.head_camera = "eye"
   return body
 
@@ -289,7 +254,7 @@ def _looker(*answers, inbox=None, renderer: bool | None = True):
   """A mind that looks, on the eyed stub. `renderer` is the website's word
   (issue #357): a renderer is there unless a test says otherwise, and None
   says nothing at all."""
-  boss = ov.build(QUAD_HOME, enabled=True, client=FakeClient(*answers))
+  boss = ov.build(HUMANOID_HOME, enabled=True, client=FakeClient(*answers))
   inbox = Inbox() if inbox is None else inbox
   if renderer is not None:
     inbox.offer(renderer_message(renderer))
@@ -551,7 +516,7 @@ def test_the_word_decides_whether_a_wait_begins_and_never_ends_one():
 
 
 def test_a_mind_with_no_eye_has_no_seen_block_and_its_turn_is_a_string():
-  boss = Overseer(Menu.for_world(QUAD_HOME, None), client=FakeClient())
+  boss = Overseer(Menu.for_world(HUMANOID_HOME, None), client=FakeClient())
   life = stub_life(overseer=boss)
   try:
     state = overseer_context(life)
@@ -650,7 +615,7 @@ def test_the_picture_never_reaches_any_turn_as_text_including_an_interrupt():
   assert ov.model_state({"battery": {}}) is not None
   # ...and the interrupt's own turn.
   assert b64[:32] not in ov._interrupt_turn(ov.model_state(state), "draw", "low")
-  auto = ov.build(QUAD_HOME, enabled=True,
+  auto = ov.build(HUMANOID_HOME, enabled=True,
                   client=FakeClient({"continue_errand": True, "reason": "nearly done"}))
   auto.start_interrupt(state, "draw", "your pack is at 10%")
   while auto.interrupt_pending:
@@ -704,13 +669,13 @@ def test_a_stop_thrown_into_a_look_closes_the_request():
 
 def test_the_eye_can_be_switched_off_for_a_mind_that_takes_no_picture(monkeypatch):
   monkeypatch.setenv(ov.LOOK_ENV, "0")
-  off = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
+  off = ov.build(HUMANOID_HOME, enabled=True, client=FakeClient())
   assert not off.menu.look and "look" not in off.menu.available()
   assert "LOOKING" not in dict(off.sections)
   monkeypatch.delenv(ov.LOOK_ENV)
-  on = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
+  on = ov.build(HUMANOID_HOME, enabled=True, client=FakeClient())
   assert on.menu.look
-  assert not ov.build(QUAD_HOME, enabled=True, client=FakeClient(),
+  assert not ov.build(HUMANOID_HOME, enabled=True, client=FakeClient(),
                       look=False).menu.look
 
 
@@ -722,10 +687,10 @@ def test_a_heading_is_reported_wrapped():
 
 
 def test_which_model_looked_is_in_the_build_identity_and_absent_without_an_eye():
-  seen = build_identity(QUAD_HOME, arm="autonomous", model="org/m:cheapest",
+  seen = build_identity(HUMANOID_HOME, arm="autonomous", model="org/m:cheapest",
                         backend="huggingface", eyes="org/m:cheapest", commit="abc")
   assert seen["eyes"] == "org/m:cheapest" and seen["model"] == "org/m:cheapest"
-  blind = build_identity(QUAD_HOME, arm="autonomous", model="org/m", backend="huggingface",
+  blind = build_identity(HUMANOID_HOME, arm="autonomous", model="org/m", backend="huggingface",
                          commit="abc")
   assert "eyes" not in blind
 

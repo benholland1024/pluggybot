@@ -125,7 +125,7 @@ def test_a_block_is_capped_in_characters_and_says_what_it_cut():
 
 
 def test_recall_is_an_action_and_never_an_order():
-  menu = Menu.for_world("home_quad", None)
+  menu = Menu.for_world("home_humanoid", None)
   assert "recall" in menu.available()
   schema = menu.schema(standing_orders=True, event_map=True)
   assert "recall" in schema["properties"]["action"]["enum"]
@@ -136,7 +136,7 @@ def test_recall_is_an_action_and_never_an_order():
     ov.standing_order("recall", menu)
   with pytest.raises(ValueError):
     ev.row({"event": "every", "action": "recall", "value": 60, "kind": ""}, menu)
-  assert not ov.order_runnable(menu, "recall", {"possibleActions": ["carry"]})
+  assert not ov.order_runnable(menu, "recall", {})
   # ...and at the cap it leaves the action enum for that call.
   assert "recall" not in menu.schema(recall=False)["properties"]["action"]["enum"]
   assert ov._recall_allowed({}) and ov._recall_allowed({"recallsLeft": 1})
@@ -144,7 +144,7 @@ def test_recall_is_an_action_and_never_an_order():
 
 
 def test_a_recall_names_what_it_looks_up_or_is_malformed():
-  menu = Menu.for_world("home_quad", None)
+  menu = Menu.for_world("home_humanoid", None)
   d = menu.validate(full(action="recall", read="tasks", find="pen"))
   assert (d.read, d.find) == ("tasks", "pen") and d.summary().startswith("recall (read tasks find 'pen')")
   with pytest.raises(ValueError):
@@ -159,10 +159,10 @@ def test_a_recall_names_what_it_looks_up_or_is_malformed():
 
 
 def _chain(*answers):
-  boss = Overseer(Menu.for_world("home_quad", None), client=FakeClient(*answers))
+  boss = Overseer(Menu.for_world("home_humanoid", None), client=FakeClient(*answers))
   life = stub_life(overseer=boss)
   life.thoughts.remember("draw on whiteboard_b failed", t=1.0)
-  life.body.start_at(*world_config("home_quad")["start"])
+  life.body.start_at(*world_config("home_humanoid")["start"])
   life.max_sim_time = 0.0            # a fallback's explore ends where it starts
   return boss, life
 

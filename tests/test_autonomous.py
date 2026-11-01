@@ -17,10 +17,7 @@ from pluggybot.mind.overseer import Menu, Overseer
 
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
-#: ...with the tool errands (`Menu.tools`), which no served body has until
-#: #406/#407: the actions these rules are worked through.
-MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",),
-            tools=True)
+MENU = Menu(zones=("garden",), boards=("whiteboard_a",))
 
 
 def _life(mind: bool = False, **kw):
@@ -60,23 +57,21 @@ def test_a_mind_is_told_the_rules():
 
 def _state() -> dict:
   return {"battery": {"fraction": 0.4, "wh": 3.2, "reserveWh": 0.9},
-          "affordableActions": ["draw"], "possibleActions": ["draw", "census"],
           "survival": {"aliveS": 1200.0, "deaths": 0},
-          "energyCostWh": {"draw": 0.85, "census": 1.18},
+          "energyCostWh": {"explore": 0.85, "charge": 0.0},
           "offeredTasks": [{"id": "t_0001", "claimable": False,
-                            "estimateWh": 1.18, "kind": "census"}]}
+                            "estimateWh": 7.09, "kind": "open_drawer"}]}
 
 
 def test_the_verdicts_code_computed_are_what_the_mind_is_not_shown():
-  """`affordableActions` and `claimable` are arithmetic code did on the
-  model's behalf, and the mind is flown to find out whether the model can do
-  it. ⚠ The RAW NUMBERS all stay -- nothing is hidden except the answer."""
+  """An offer's `claimable` is arithmetic code did on the model's behalf,
+  and the mind is flown to find out whether the model can do it. ⚠ The RAW
+  NUMBERS all stay -- nothing is hidden except the answer."""
   shown = ov.model_state(_state(), survival=True)
-  assert "affordableActions" not in shown and "possibleActions" not in shown
   assert "claimable" not in shown["offeredTasks"][0]
-  assert shown["energyCostWh"] == {"draw": 0.85, "census": 1.18}
+  assert shown["energyCostWh"] == {"explore": 0.85, "charge": 0.0}
   assert shown["battery"]["wh"] == 3.2 and shown["battery"]["reserveWh"] == 0.9
-  assert shown["offeredTasks"][0]["estimateWh"] == 1.18
+  assert shown["offeredTasks"][0]["estimateWh"] == 7.09
 
 
 def test_a0_hides_the_survival_clock_and_a1_puts_it_back():
@@ -87,18 +82,20 @@ def test_a0_hides_the_survival_clock_and_a1_puts_it_back():
   assert "survival" in ov.model_state(_state(), survival=True)
 
 
-def test_the_filter_is_at_presentation_so_the_fallback_still_works():
-  """⚠ The state stays WHOLE and only the view narrows. `order_runnable`
-  reads `possibleActions` off the same dict and treats an absent list as
-  'nobody supplied one' -- so a world that built a thinner state would
-  quietly stop filtering unrunnable orders, which is the agent's own
-  fallback changing behaviour as a side effect of a prompt change."""
+def test_the_filter_is_at_presentation_and_the_state_stays_whole():
+  """⚠ The state stays WHOLE and only the view narrows: `order_runnable`
+  and `limits_from` read the same dict the model's view is cut from, and a
+  view cut out of it in place would change what the agent's own fallback
+  reads as a side effect of a prompt change."""
   state = _state()
   ov.model_state(state, survival=False)
-  assert state["possibleActions"] == ["draw", "census"], "not mutated"
-  assert ov.order_runnable(MENU, "draw", state) is True
-  assert ov.order_runnable(MENU, "draw", {**state, "possibleActions":
-                                          ["census"]}) is False
+  assert state["offeredTasks"][0]["claimable"] is False and "survival" in state
+  # ...and the fallback reads what the view hides: a standing `take_task`
+  # runs only on an offer marked claimable, so off the view it never would
+  assert ov.order_runnable(MENU, "take_task", state) is False
+  open_ = {**state, "offeredTasks": [{**state["offeredTasks"][0], "claimable": True}]}
+  assert ov.order_runnable(MENU, "take_task", open_) is True
+  assert ov.order_runnable(MENU, "take_task", ov.model_state(open_)) is False
 
 
 # ---- taking a job the pack cannot fund ----------------------------------------
@@ -108,7 +105,7 @@ def test_an_unaffordable_offer_is_takeable():
   """The offer filter is a rail, so refusing the `take_task` in `validate`
   would put it back at the last possible moment -- and taking a job it
   cannot finish is precisely the mistake the mind is free to make."""
-  _, offered, _, _ = ov.limits_from(_state())
+  _, offered = ov.limits_from(_state())
   assert offered == ("t_0001",)
 
 
@@ -149,8 +146,7 @@ def test_all_three_rails_still_fire_with_no_mind():
   assert life.claim_budget_wh == life.spendable_wh, "the offer filter"
   # ...and the gate, which is the one that actually does the work: an errand
   # priced above what is left must not be startable.
-  dear = Task.create("rate_artwork", "whiteboard_a", "t_0001",
-                     estimate_wh=1.18)
+  dear = Task.create("open_drawer", "drawer", "t_0001", estimate_wh=1.18)
   assert dear.claimable(0.0, life.claim_budget_wh) is False
   assert dear.claimable(0.0, None) is True, "...and off, it is takeable"
 
@@ -169,7 +165,7 @@ def test_an_offer_the_pack_cannot_fund_is_shown_exactly_where_the_filter_is_off(
   from pluggybot.economy.tasks import TaskBoard
   board = TaskBoard(path=None)
   life = _life(mind=mind, tasks=board)
-  task = board.offer("draw_figure", "whiteboard_a", params={"program": "house"})
+  task = board.offer("open_drawer", "drawer")
   life.battery.energy_wh = life.reserve_margin_wh + task.estimate_wh / 2
   assert not task.claimable(0.0, life.spendable_wh), "the pack cannot fund it"
   shown = [t["id"] for t in lc.shown_offers(life)]
@@ -323,7 +319,7 @@ def test_an_empty_board_takes_take_task_off_the_menu_for_that_call():
   """
   empty = MENU.schema(task_ids=())["properties"]["action"]["enum"]
   assert "take_task" not in empty
-  assert "draw" in empty and "charge" in empty, "only that one action goes"
+  assert "explore" in empty and "charge" in empty, "only that one action goes"
   # ...and it is BACK the moment something is on offer.
   assert "take_task" in MENU.schema(task_ids=("t_1",))["properties"]["action"]["enum"]
   # ⚠ `None` is not `()`: a caller with no ids to hand constrains nothing.

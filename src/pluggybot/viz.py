@@ -41,8 +41,8 @@ class Recorder:
   speed) or a timelapse (4.0) for free by changing only the sample interval.
 
   inset_camera renders a second, model-mounted camera as a picture-in-picture
-  -- e.g. `claw_eye`, the camera on the claw module itself. That view exists
-  inside the sim and no screen capture of the viewer can reach it.
+  -- e.g. a camera on the robot itself. That view exists inside the sim and
+  no screen capture of the viewer can reach it.
   """
 
   def __init__(self, model, path: str, *, track_body: str | None = None,

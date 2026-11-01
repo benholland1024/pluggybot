@@ -33,51 +33,45 @@ import pytest
 
 from pluggybot import lifecycle as lc
 from pluggybot.economy import energy as en
-from pluggybot.legs import model as legs_model
-from pluggybot.legs import world as legs_world
-from pluggybot.lifecycle import QUAD_HOME
+from pluggybot.humanoid import world as humanoid_world
+from pluggybot.lifecycle import HUMANOID_HOME
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.thoughts import GOALS, ThoughtFiles
 from pluggybot.mission.errand import Errand
 
-RESERVE = legs_world.RESERVE_WH    # the house's return-trip reserve
-DEMO_WH = legs_world.DEMO_WH       # ...its demo pack, which funds it
-HOSTING_WH = legs_model.PACK_WH    # what the deployment actually runs
+RESERVE = humanoid_world.RESERVE_WH    # the house's return-trip reserve
+DEMO_WH = humanoid_world.DEMO_WH       # ...a test's pack, too small to keep it
+HOSTING_WH = humanoid_world.PACK_WH    # what the deployment actually runs
 
 
 def table(**kw) -> en.EnergyModel:
-  spec = {"world": "test", "errand_wh": {"draw": 0.93, "census": 0.97,
-                                         "carry": 0.69, "dance": 0.79}}
+  spec = {"world": "test", "errand_wh": {"open_drawer": 7.08, "open_door": 5.72,
+                                         "place_cube": 4.70, "open_chest": 5.98}}
   spec.update(kw)
   return en.EnergyModel(**spec)
 
 
-def feed_errand() -> Errand:
-  """The one paid job on legs, as the loop builds it from an offer."""
-  return lc.cage_errand(QUAD_HOME, "feed", task="feed")
-
-
-def tooled(menu):
-  """A menu for a body that takes a tool (`Menu.tools`), which no served
-  body does until #406/#407: the tool errands on it."""
-  return replace(menu, tools=True)
+def job_errand() -> Errand:
+  """A job's errand as the gate prices it: the drawer's, by its table row
+  (`Errand.task` off the name's prefix)."""
+  return Errand(name="open_drawer:drawer")
 
 
 # ---- 1. three answers, not two ----------------------------------------------
 
 
 @pytest.mark.parametrize("energy_wh, charged_wh, cost_wh, want, runs", [
-  # A hosting pack with plenty in it: just do the job.
-  (7.0, 7.2, None, en.OK, True),
+  # A pack that funds margins with plenty in it: just do the job.
+  (30.0, 36.0, None, en.OK, True),
   # The same pack, nearly flat: the job fits a full charge, so charge first.
-  (1.0, 7.2, None, en.CHARGE_FIRST, False),
+  (10.0, 36.0, None, en.CHARGE_FIRST, False),
   # A pack that funds margins and still cannot cover THIS job -- which can
   # only be a job priced above the table, i.e. a task's own per-kind
   # estimate. Never, in this world.
-  (7.0, 7.2, 9.0, en.BEYOND, False),
+  (30.0, 36.0, 20.0, en.BEYOND, False),
   # A DEMO cell, which has no margin to fund: smaller than its jobs on
   # purpose, so the job is attempted and the cell is what gets named.
-  (0.90, 0.90, None, en.OVERSPEND, True),
+  (5.0, 5.0, None, en.OVERSPEND, True),
 ])
 def test_affordability_has_a_now_a_later_a_never_and_a_demo_cell(
     energy_wh, charged_wh, cost_wh, want, runs):
@@ -86,7 +80,7 @@ def test_affordability_has_a_now_a_later_a_never_and_a_demo_cell(
   `beyond` returned as `charge_first` is the loop charging and retrying
   forever; `overspend` returned as `beyond` deletes a job from a cell that
   was always too small for it and ran it anyway."""
-  fit = table().afford("census", energy_wh=energy_wh, charged_wh=charged_wh,
+  fit = table().afford("open_chest", energy_wh=energy_wh, charged_wh=charged_wh,
                        reserve_wh=RESERVE, cost_wh=cost_wh)
   assert fit.state == want, fit.why()
   assert fit.ok is runs
@@ -99,30 +93,31 @@ def test_the_why_line_says_which_of_the_four_it_is():
   t = table()
 
   def why(**kw) -> str:
-    return t.afford("census", reserve_wh=RESERVE, **kw).why()
+    return t.afford("open_chest", reserve_wh=RESERVE, **kw).why()
 
-  assert "charging first" in why(energy_wh=1.0, charged_wh=7.2)
-  assert "not possible in this world" in why(energy_wh=7.0, charged_wh=7.2,
-                                             cost_wh=9.0)
-  assert "smaller than this job" in why(energy_wh=0.9, charged_wh=0.9)
-  assert "costs about" in why(energy_wh=7.0, charged_wh=7.2)
+  assert "charging first" in why(energy_wh=10.0, charged_wh=36.0)
+  assert "not possible in this world" in why(energy_wh=30.0, charged_wh=36.0,
+                                             cost_wh=20.0)
+  assert "smaller than this job" in why(energy_wh=5.0, charged_wh=5.0)
+  assert "costs about" in why(energy_wh=30.0, charged_wh=36.0)
 
 
 # ---- 2. the margin ----------------------------------------------------------
 
 
-def test_the_demo_pack_charges_the_whole_margin():
-  """The served world's demo pack funds its dearest job AND the return
-  trip, so it keeps the trip in hand like the hosting one, and the
-  mid-errand death is not reachable on the world the tests fly."""
-  t = en.load(QUAD_HOME)
-  assert t.margin_wh(DEMO_WH * lc.CHARGED, RESERVE) == RESERVE
+def test_the_demo_pack_keeps_no_margin_it_cannot_fund():
+  """All or nothing, on the humanoids' own table: their test pack (20 Wh)
+  funds its dearest job but not that job AND the 17.5 Wh return trip, so it
+  keeps none of the trip -- a demo cell, whose jobs run on what is left."""
+  t = en.load(HUMANOID_HOME)
+  assert t.dearest_wh() + RESERVE > DEMO_WH * lc.CHARGED >= t.dearest_wh()
+  assert t.margin_wh(DEMO_WH * lc.CHARGED, RESERVE) == 0.0
 
 
 def test_a_hosting_pack_charges_the_whole_reserve():
   """...and the same table on a battery the deployment actually runs keeps
   the return trip in hand, which is the entire point."""
-  t = en.load(QUAD_HOME)
+  t = en.load(HUMANOID_HOME)
   assert t.margin_wh(HOSTING_WH * lc.CHARGED, RESERVE) == RESERVE
 
 
@@ -135,15 +130,15 @@ def test_the_margin_flips_on_the_dearest_errand_not_the_mean():
 
 
 def test_a_targets_own_row_is_priced_apart_from_the_bare_action():
-  """A cost key may name a TARGET (`care:feed`), which wins over the bare
-  action's row: two plates, or two whiteboards, are not the same trip.
+  """A cost key may name a TARGET (`open_drawer:far`), which wins over the
+  bare action's row: two plates, or two whiteboards, were not the same trip.
   Padding the table is the fix not to reach for; a second measured row
   costs nothing and is true."""
-  t = en.load(QUAD_HOME)
-  assert t.cost("care", "feed") == t.errand_wh["care:feed"] != t.cost("care")
+  t = table(errand_wh={"open_drawer": 7.08, "open_drawer:far": 8.31, "open_door": 5.72})
+  assert t.cost("open_drawer", "far") == t.errand_wh["open_drawer:far"] != t.cost("open_drawer")
   # ...and an unmeasured target falls back to the bare action rather than to
   # the dearest thing in the world.
-  assert t.cost("care", "nowhere") == t.cost("care")
+  assert t.cost("open_drawer", "nowhere") == t.cost("open_drawer")
   # The margin has to survive the DEAREST thing the robot can be asked for,
   # per-target rows included, or a hosting pack could still be caught out.
   assert t.dearest_wh() >= max(t.errand_wh.values())
@@ -151,9 +146,9 @@ def test_a_targets_own_row_is_priced_apart_from_the_bare_action():
 
 def test_a_task_offer_is_priced_for_the_target_it_names():
   from pluggybot.economy.tasks import TaskBoard
-  board = TaskBoard(energy=table(errand_wh={"draw": 0.93, "draw:whiteboard_b": 1.11}))
-  near = board.offer("draw_figure", "whiteboard_a", params={"program": "house"})
-  far = board.offer("draw_figure", "whiteboard_b", params={"program": "house"})
+  board = TaskBoard(energy=table(errand_wh={"open_drawer": 7.08, "open_drawer:far": 8.31}))
+  near = board.offer("open_drawer", "drawer", params={"minutes": 16})
+  far = board.offer("open_drawer", "far", params={"minutes": 16})
   assert far.estimate_wh > near.estimate_wh, (near.estimate_wh, far.estimate_wh)
 
 
@@ -171,16 +166,16 @@ def test_a_free_errand_is_refused_at_load(tmp_path):
   one thing it must never say."""
   bad = tmp_path / "energy.json"
   bad.write_text(json.dumps({"version": en.ENERGY_VERSION,
-                             "worlds": {QUAD_HOME: {"errandWh": {"feed": 0.0}}}}))
+                             "worlds": {HUMANOID_HOME: {"errandWh": {"open_drawer": 0.0}}}}))
   with pytest.raises(ValueError, match="zero or less"):
-    en.load(QUAD_HOME, bad)
+    en.load(HUMANOID_HOME, bad)
 
 
 def test_a_version_this_build_does_not_know_is_refused(tmp_path):
   bad = tmp_path / "energy.json"
   bad.write_text(json.dumps({"version": en.ENERGY_VERSION + 7}))
   with pytest.raises(ValueError, match="energy version"):
-    en.load(QUAD_HOME, bad)
+    en.load(HUMANOID_HOME, bad)
 
 
 def test_the_shipped_table_is_the_one_the_deploy_can_repoint(tmp_path, monkeypatch):
@@ -188,9 +183,9 @@ def test_the_shipped_table_is_the_one_the_deploy_can_repoint(tmp_path, monkeypat
   $PLUGGY_CADENCE: a mounted file, no rebuild."""
   mine = tmp_path / "energy.json"
   mine.write_text(json.dumps({"version": en.ENERGY_VERSION,
-                              "worlds": {QUAD_HOME: {"errandWh": {"feed": 3.5}}}}))
+                              "worlds": {HUMANOID_HOME: {"errandWh": {"open_drawer": 3.5}}}}))
   monkeypatch.setenv(en.ENERGY_ENV, str(mine))
-  assert en.load(QUAD_HOME).cost("feed") == 3.5
+  assert en.load(HUMANOID_HOME).cost("open_drawer") == 3.5
 
 
 def _shipped_worlds() -> list[str]:
@@ -215,7 +210,7 @@ def test_a_task_kind_is_never_priced_below_the_errand_that_discharges_it():
   dearest: dict = {}
   for world in _shipped_worlds():
     for key, wh in en.load(world).errand_wh.items():
-      # `care` and `care:feed` are the same JOB priced for different
+      # `care` and `care:feed` were the same JOB priced for different
       # targets, and the fallback has to cover the dearest of them: it is
       # what a world nobody has measured is charged, and there is no target
       # row there to correct it.
@@ -230,19 +225,18 @@ def test_a_task_kind_is_never_priced_below_the_errand_that_discharges_it():
       f"{floor} Wh {spec.task} -- re-run scripts/energy_spike.py")
 
 
-def test_every_shipped_world_prices_every_errand_it_can_build():
-  """A world that can build an errand it has no measurement for falls back to
-  its dearest, which is safe but is not a measurement. This is the reminder
-  to run scripts/energy_spike.py when a world learns a new trick."""
+def test_every_shipped_world_prices_every_job_it_offers():
+  """A world that offers a job it has no measurement for prices it at the
+  kind's own guess, which is not a measurement. This is the reminder to run
+  scripts/energy_spike.py when a world learns a new trick."""
+  from pluggybot.economy.cadence import default_cadence
+  from pluggybot.economy.tasks import KINDS
   for world in _shipped_worlds():
-    book = lc.board_book(world)
     priced = set(en.load(world).errand_wh)
-    for action in (*ov.ERRAND_ACTIONS, "feed", "shock"):
-      try:
-        lc.errands_for(action, world, book)
-      except ValueError:
-        continue                      # this world cannot do it at all
-      assert action in priced, f"{world} can do {action} and has no cost for it"
+    offered = default_cadence(world).kinds
+    assert offered, world
+    for kind in offered:
+      assert KINDS[kind].task in priced, f"{world} offers {kind} and has no cost for it"
 
 
 # ---- 3 & 4. the gate in the mission loop ------------------------------------
@@ -259,16 +253,16 @@ def test_an_errand_that_will_not_fit_is_deferred_and_stays_queued():
   """THE ACCEPTANCE CRITERION, as arithmetic: an errand whose cost exceeds
   what the pack can spend is not started. Deferred, not dropped -- the job is
   still the job, and the answer is a charge."""
-  life = life_with(errands=[feed_errand()])
-  life.battery.energy_wh = 0.8            # feed 1.77 + the 3.7 reserve
+  life = life_with(errands=[job_errand()])
+  life.battery.energy_wh = 0.8            # the drawer's 7.08 + the 17.5 reserve
   assert life._afford_next() is False
   assert len(life.errands) == 1, "a deferred errand must survive the charge"
   assert any("DEFER" in line for line in life.log), life.log
 
 
 def test_the_same_errand_runs_once_the_pack_can_pay_for_it():
-  life = life_with(errands=[feed_errand()])
-  life.battery.energy_wh = life.energy.cost("feed") + RESERVE + 1.0
+  life = life_with(errands=[job_errand()])
+  life.battery.energy_wh = life.energy.cost("open_drawer") + RESERVE + 1.0
   assert life._afford_next() is True
   assert len(life.errands) == 1
 
@@ -277,41 +271,42 @@ def test_an_errand_no_charge_could_cover_is_dropped_not_deferred():
   """⚠ THE SPIN. `beyond` deferred would be: charge, still short, charge
   again, forever -- a robot that never does anything, wearing a safety
   feature's clothes. It is dropped, said out loud, and the loop moves on."""
-  life = life_with(errands=[Errand(name="huge", module="module_lcd",
-                                   station_y=0.0, use_at=(1.5, 1.8),
-                                   task="carry", estimate_wh=HOSTING_WH)])
+  life = life_with(errands=[Errand(name="huge", task="open_drawer",
+                                   estimate_wh=HOSTING_WH)])
   assert life._afford_next() is True       # nothing left to gate
   assert life.errands == []
   assert any("SKIP" in line and "not possible in this world" in line
              for line in life.log), life.log
 
 
-def test_the_demo_pack_funds_the_dearest_job_with_the_reserve_intact():
-  """No shipped world offers a job bigger than its own charged pack less the
-  reserve, so `overspend` is reachable only synthetically -- and it stays
-  guarded there, in
-  `test_affordability_has_a_now_a_later_a_never_and_a_demo_cell`, which
-  builds its own too-small cell. The four answers still exist and still must
-  not collapse; a future world that exercises the fourth is flown again."""
-  # the dearest row: the garden's census (#407), as the board prices its offer
-  board = lc.task_board(world=QUAD_HOME)
-  census = board.offer("count_plants", "garden", t=0.0)
-  errand = lc.errand_for_task(census, QUAD_HOME)
-  life = life_with(battery_wh=DEMO_WH, errands=[errand])
-  assert errand.estimate_wh == life.energy.dearest_wh() == life.energy.cost("census")
+def test_the_hosting_pack_funds_the_dearest_job_with_the_reserve_intact():
+  """No shipped world offers a job bigger than its own charged pack, so
+  `overspend` is reachable only synthetically -- and it stays guarded
+  there, in `test_affordability_has_a_now_a_later_a_never_and_a_demo_cell`,
+  which builds its own too-small cell. The four answers still exist and
+  still must not collapse; a future world that exercises the fourth is
+  flown again. The pack the deployment runs funds the dearest job with the
+  return trip in hand."""
+  # the dearest row: the drawer (#559), as the board prices its offer
+  board = lc.task_board(world=HUMANOID_HOME)
+  drawer = board.offer("open_drawer", "drawer", t=0.0)
+  errand = Errand(name="open_drawer:drawer", task_id=drawer.id,
+                  estimate_wh=drawer.estimate_wh)
+  life = life_with(battery_wh=HOSTING_WH, errands=[errand])
+  assert errand.estimate_wh == life.energy.dearest_wh() == life.energy.cost("open_drawer")
   assert life.energy.dearest_wh() + RESERVE <= life.charged_wh, \
-      "the demo pack no longer holds reserve + the dearest job"
+      "the hosting pack no longer holds reserve + the dearest job"
   assert life._afford_next() is True
   assert len(life.errands) == 1
   assert not any("smaller than this job" in line for line in life.log), \
-      "the demo pack went back to overspending"
+      "the hosting pack went back to overspending"
 
 
 def test_an_errand_deferred_too_often_is_given_up_on():
   """The other spin, and a different fault: the pack COULD hold this job and
   does not, which means charging is what is broken. Two goes, then the errand
   is dropped rather than blocking the queue behind it."""
-  life = life_with(errands=[feed_errand()])
+  life = life_with(errands=[job_errand()])
   life.battery.energy_wh = 0.8
   for _ in range(lc.MAX_ERRAND_DEFERRALS):
     assert life._afford_next() is False    # ...charge would go here
@@ -325,25 +320,22 @@ def test_a_task_errand_is_priced_by_its_own_kind_not_by_the_action():
   per-action figure cannot. The task's has to win, or a far target is
   priced as the near one."""
   life = life_with()
-  errand = feed_errand()
+  errand = job_errand()
   errand.estimate_wh = 3.0
   assert life.affords(errand).cost_wh == 3.0
   errand.estimate_wh = 0.0
-  assert life.affords(errand).cost_wh == en.load(QUAD_HOME).cost("feed")
+  assert life.affords(errand).cost_wh == en.load(HUMANOID_HOME).cost("open_drawer")
 
 
-def test_the_demo_pack_keeps_the_return_trip_out_of_a_job_s_budget():
-  """The demo pack funds the margin, so `spendable_wh` is the pack LESS the
-  reserve -- the same shape the hosting test below asserts."""
+def test_the_demo_pack_spends_what_it_holds_with_no_margin_to_keep():
+  """The demo pack funds no margin (above), so `spendable_wh` is the whole
+  pack and what the WORLD can offer is a whole charged pack -- the other
+  side of the all-or-nothing rule from the hosting test below."""
   life = life_with(battery_wh=DEMO_WH)
-  # A pack ABOVE the reserve, said relative to it: spendable energy is
-  # clamped at zero under it, which is a different claim.
-  life.battery.energy_wh = RESERVE + 1.0
-  assert life.reserve_margin_wh == RESERVE
-  assert life.spendable_wh == pytest.approx(1.0)
-  # ...and what the WORLD can offer shrinks by the same reserve: `fundable_wh`
-  # is a charged pack less the margin.
-  assert life.fundable_wh == pytest.approx(DEMO_WH * lc.CHARGED - RESERVE)
+  life.battery.energy_wh = RESERVE - 1.0
+  assert life.reserve_margin_wh == 0.0
+  assert life.spendable_wh == pytest.approx(RESERVE - 1.0)
+  assert life.fundable_wh == pytest.approx(DEMO_WH * lc.CHARGED)
 
 
 def test_a_hosting_pack_keeps_the_return_trip_out_of_a_job_s_budget():
@@ -359,7 +351,7 @@ def test_a_charge_timeout_is_sized_against_the_pack_it_has_to_fill():
   narrating "CHARGE complete (65 %)" every cycle."""
   demo = life_with(battery_wh=DEMO_WH)
   host = life_with(battery_wh=HOSTING_WH)
-  rate = en.load(QUAD_HOME).charge_w
+  rate = en.load(HUMANOID_HOME).charge_w
   assert demo.charge_timeout >= demo.charged_wh * 3600.0 / rate
   assert demo.charge_timeout >= lc.CHARGE_TIMEOUT_MIN
   # Long enough to actually put a hosting pack's worth in at the measured
@@ -371,11 +363,12 @@ def test_a_charge_timeout_is_sized_against_the_pack_it_has_to_fill():
 # ---- 5. what the model is shown ---------------------------------------------
 
 
-def lab_menu():
-  """The house's menu with the lab's `care` on it -- the one errand a mind
-  may choose on legs, and so the one the prompt prices."""
-  menu = replace(ov.Menu.for_world(QUAD_HOME, lc.board_book(QUAD_HOME)), lab="lab")
-  return replace(menu, costs_wh=en.load(QUAD_HOME).as_context(menu.available()))
+def priced_menu():
+  """The humanoids' menu with a measured cost on it. Their own menu names no
+  errand the table prices (a job's price rides its offer), so the cost is
+  put on: what is under test is where a cost rides, not what it is."""
+  menu = ov.Menu.for_world(HUMANOID_HOME, lc.board_book(HUMANOID_HOME))
+  return replace(menu, costs_wh={"explore": 4.2})
 
 
 def test_the_costs_ride_the_cached_prefix_and_not_the_turn():
@@ -383,39 +376,37 @@ def test_the_costs_ride_the_cached_prefix_and_not_the_turn():
   stable half. Putting it in the volatile turn would invalidate the prompt
   cache on every call for a number that never changes -- the classic silent
   invalidator docs/Overseer.md §6 is about."""
-  menu = lab_menu()
+  menu = priced_menu()
   prompt = ov.system_prompt(ThoughtFiles(texts={GOALS: "be useful"}), menu,
                              ov.default_table())
   text = prompt[0]["text"]
   assert "energyCostWh" in text
-  assert '"care"' in text and str(menu.costs_wh["care"]) in text
+  assert '"explore": 4.2' in text
 
 
 def test_only_measured_costs_are_shown_to_the_model():
   """⚠ `cost()` answers for ANY name, because the gate has to price an
   unmeasured errand at something. Printing that fallback would tell the model
-  that `idle` costs 1.86 Wh -- false, and exactly the confident wrong number
+  that `idle` costs 7 Wh -- false, and exactly the confident wrong number
   the rest of this design keeps out of the prompt."""
-  for menu in (lab_menu(), ov.Menu.for_world(QUAD_HOME, lc.board_book(QUAD_HOME))):
-    assert set(menu.costs_wh) <= set(en.load(QUAD_HOME).errand_wh)
-    for free in ("idle", "explore", "charge", "take_task"):
-      assert free not in menu.costs_wh
+  t = en.load(HUMANOID_HOME)
+  assert t.as_context(("idle", "explore", "open_drawer")) == {"open_drawer": 7.082}
+  assert t.cost("idle") == t.dearest_wh(), "the gate still prices it"
+  menu = ov.Menu.for_world(HUMANOID_HOME, lc.board_book(HUMANOID_HOME))
+  assert set(menu.costs_wh) <= set(t.errand_wh)
+  for free in ("idle", "explore", "charge", "take_task"):
+    assert free not in menu.costs_wh
 
 
 def test_an_order_filters_on_what_the_world_can_do_never_on_the_pack_now():
-  """⚠ IMPOSSIBLE, NOT UNWISE (`order_runnable`). An errand missing from
-  `possibleActions` is one no charge here covers, and an order naming it has
-  nothing to act on; one the pack cannot pay for THIS SECOND
-  (`affordableActions`) is dangerous and runs anyway -- an agent that sets a
-  fatal order and dies of it is the result. And a caller that supplies no
-  list -- a unit test, an older context dict -- must not be read as "this
-  robot can do nothing"."""
-  menu = tooled(ov.Menu.for_world(QUAD_HOME, lc.board_book(QUAD_HOME)))
-  state = {"decisions": 0, "affordableActions": [],
-           "possibleActions": ["draw", "carry"]}
-  assert ov.order_runnable(menu, "draw", state)
-  assert not ov.order_runnable(menu, "dance", state)
-  assert ov.order_runnable(menu, "draw", {"decisions": 0})
+  """⚠ IMPOSSIBLE, NOT UNWISE (`order_runnable`). An order with nothing to
+  act on -- a job when none is on offer -- is filtered; one the pack cannot
+  pay for THIS SECOND is dangerous and runs anyway -- an agent that sets a
+  fatal order and dies of it is the result."""
+  menu = ov.Menu.for_world(HUMANOID_HOME, lc.board_book(HUMANOID_HOME))
+  flat = {"decisions": 0, "battery": {"fraction": 0.0, "wh": 0.0}}
+  assert ov.order_runnable(menu, "explore", flat)
+  assert not ov.order_runnable(menu, "take_task", flat)
 
 
 def test_the_context_carries_what_the_pack_can_actually_spend():
@@ -425,32 +416,30 @@ def test_the_context_carries_what_the_pack_can_actually_spend():
   allowed to spend."""
   life = life_with(battery_wh=HOSTING_WH)
   life.battery.energy_wh = RESERVE + 3.0
-  state = ov.context_for(life, affordable=["care"], possible=["care", "explore"])
+  state = ov.context_for(life)
   assert state["battery"]["wh"] == pytest.approx(RESERVE + 3.0)
   assert state["battery"]["spendableWh"] == pytest.approx(3.0)
-  assert state["affordableActions"] == ["care"]
-  assert state["possibleActions"] == ["care", "explore"]
 
 
 def test_the_prompt_still_never_carries_a_hidden_answer():
   """The energy block is new context, and new context is a new chance to
   leak. Same claim as `test_the_prompt_never_carries_a_hidden_answer`, made
   again against the half of the prompt this issue touched."""
-  text = ov.system_prompt(ThoughtFiles(texts={GOALS: "be useful"}), lab_menu(),
+  text = ov.system_prompt(ThoughtFiles(texts={GOALS: "be useful"}), priced_menu(),
                           ov.default_table())[0]["text"]
   assert "truth" not in text.lower().split("energycostwh")[-1]
 
 
 # ---- 3, the gate and the cap -------------------------------------------------
 
-#: About the SMALLEST pack in the margin regime here: the dearest errand,
-#: the garden's census at 13.31 Wh (#407), plus the 3.7 Wh reserve must fit
-#: a charged pack -- capacity >= 17.01 / 0.9 = 18.9, so 19 -- and these cost
-#: one short charge. The regime is what is under test, not the capacity -- the
-#: hosting pack is the same arithmetic with more room in it. A pack below
-#: the floor silently drops to zero margin (the all-or-nothing rule), which
-#: is exactly what the first assertion catches.
-MARGIN_PACK_WH = 19.0
+#: About the SMALLEST pack in the margin regime here: the dearest job, the
+#: drawer at 7.082 Wh (#559), plus the 17.5 Wh reserve must fit a charged
+#: pack -- capacity >= 24.582 / 0.9 = 27.3, so 28 -- and these cost one short
+#: charge. The regime is what is under test, not the capacity -- the hosting
+#: pack is the same arithmetic with more room in it. A pack below the floor
+#: silently drops to zero margin (the all-or-nothing rule), which is exactly
+#: what the first assertion catches.
+MARGIN_PACK_WH = 28.0
 
 
 # What regresses is a RULE -- an inequality in `_afford_next`, the loop bound
@@ -468,16 +457,16 @@ def test_the_gate_refuses_an_errand_the_pack_cannot_finish_and_permits_one_it_ca
   """
   life = life_with(battery_wh=MARGIN_PACK_WH)
   assert life.reserve_margin_wh == RESERVE, "not in the margin regime"
-  cost = life.energy.cost("feed")
-  assert cost + RESERVE <= life.charged_wh, "the feed must be fundable"
+  cost = life.energy.cost("open_drawer")
+  assert cost + RESERVE <= life.charged_wh, "the drawer must be fundable"
 
   # Just short of cost + reserve: the gate must send the robot to charge.
-  life.errands = [feed_errand()]
+  life.errands = [job_errand()]
   life.battery.energy_wh = cost + RESERVE - 0.01
   assert life._afford_next() is False, "started an errand it could not finish"
   assert life.errands, "a deferred errand was dropped rather than kept"
   # Just over: the same errand runs.
-  life.errands = [feed_errand()]
+  life.errands = [job_errand()]
   life.battery.energy_wh = cost + RESERVE + 0.01
   assert life._afford_next() is True, "refused an errand the pack covers"
 
@@ -537,7 +526,7 @@ def test_the_scaled_cap_still_clears_the_time_a_full_charge_takes(pack_wh,
 @pytest.mark.parametrize("scale", [1.0, 5.0])
 def test_a_charge_at_the_tables_own_rate_completes_inside_its_cap(scale):
   """⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, through `charge()`:
-  a 40 Wh pack from 0.9 Wh, on a stub whose pins net exactly the table's
+  a 60 Wh pack from 0.9 Wh, on a stub whose pins net exactly the table's
   `chargeW` -- the slowest press measured -- reaches CHARGED rather than
   hitting its cap partway up and narrating "CHARGE complete (65 %)", which
   is what the deployed 8 Wh sim once did. At 1x that takes longer than the
@@ -551,15 +540,14 @@ def test_a_charge_at_the_tables_own_rate_completes_inside_its_cap(scale):
   from pluggybot.body import STUB_WORLD, StubBody
 
   from test_body import stub_life
-  cfg = lc.world_config(QUAD_HOME)
+  cfg = lc.world_config(HUMANOID_HOME)
   # The stub's clock at 10 ms rather than 2: the press in a fifth of the
   # steps, and nothing the stub steps is physics.
   model = mujoco.MjModel.from_xml_string(
     STUB_WORLD.replace("<worldbody>", '<option timestep="0.01"/><worldbody>'))
-  body = StubBody(model, mujoco.MjData(model), rack=cfg["rack"],
-                  grid_bounds=cfg["grid_bounds"])
-  # 40 Wh: a pack the table's press takes longer than the old 400 s to fill
-  life = stub_life(body=body, battery_wh=40.0, errands=[], charge_scale=scale)
+  body = StubBody(model, mujoco.MjData(model), grid_bounds=cfg["grid_bounds"])
+  # 60 Wh: a pack the table's press takes longer than the old 400 s to fill
+  life = stub_life(body=body, battery_wh=60.0, errands=[], charge_scale=scale)
   life.battery.draw_w = life.battery.charge_w - life.energy.charge_w
   life.battery.energy_wh = 0.9
   topped: list[float] = []
@@ -567,7 +555,7 @@ def test_a_charge_at_the_tables_own_rate_completes_inside_its_cap(scale):
     lambda _t, msg: topped.append(life.battery.fraction)
     if msg.startswith("CHARGE complete") else None)
   t0 = float(life.data.time)
-  assert life.go_charge(), "never reached the dock"
+  assert life.go_charge(), "never reached the station"
   life.charge()
   took = float(life.data.time) - t0
   assert topped and topped[0] >= lc.CHARGED, \

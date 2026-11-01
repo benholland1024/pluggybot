@@ -1,50 +1,6 @@
-"""Training the quadruped's walking policy (#377). Registers the tasks with
-mjlab; `python -m quad_train.train <task> ...` runs mjlab's own trainer."""
-
-from mjlab.tasks.registry import register_mjlab_task
-from mjlab.tasks.velocity.rl import VelocityOnPolicyRunner
-
-from quad_train.getup import getup_env_cfg
-from quad_train.posture import posture_env_cfg
-from quad_train.rl import ppo_runner_cfg
-from quad_train.task import flat_env_cfg, rough_env_cfg
-
-register_mjlab_task(
-  task_id="Pluggy-Quad-Flat",
-  env_cfg=flat_env_cfg(),
-  play_env_cfg=flat_env_cfg(play=True),
-  rl_cfg=ppo_runner_cfg(),
-  runner_cls=VelocityOnPolicyRunner,
-)
-
-register_mjlab_task(
-  task_id="Pluggy-Quad-Rough",
-  env_cfg=rough_env_cfg(),
-  play_env_cfg=rough_env_cfg(play=True),
-  rl_cfg=ppo_runner_cfg(),
-  runner_cls=VelocityOnPolicyRunner,
-)
-
-register_mjlab_task(
-  task_id="Pluggy-Quad-Getup",
-  env_cfg=getup_env_cfg(),
-  play_env_cfg=getup_env_cfg(play=True),
-  rl_cfg=ppo_runner_cfg(),
-  runner_cls=VelocityOnPolicyRunner,
-)
-
-register_mjlab_task(
-  task_id="Pluggy-Quad-Posture",
-  env_cfg=posture_env_cfg(),
-  play_env_cfg=posture_env_cfg(play=True),
-  rl_cfg=ppo_runner_cfg(),
-  runner_cls=VelocityOnPolicyRunner,
-)
-
-register_mjlab_task(
-  task_id="Pluggy-Quad-Rough-Perceptive",
-  env_cfg=rough_env_cfg(perceptive=True),
-  play_env_cfg=rough_env_cfg(play=True, perceptive=True),
-  rl_cfg=ppo_runner_cfg(),
-  runner_cls=VelocityOnPolicyRunner,
-)
+"""The training entry point (`python -m quad_train.train <task>`) and the
+exporter (`python -m quad_train.export`, ONNX to the `.npz` the served sim
+runs). It registers no task of its own: the humanoid's are `humanoid_train`'s.
+Its name is the quadruped's, whose tasks lived here until it was retired
+(#559; `quadruped-final` has them), kept because `pod.sh`, the README and
+the docs' commands name it."""

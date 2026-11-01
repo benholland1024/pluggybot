@@ -9,8 +9,8 @@ body's internals.
               (`challenge/lid.py`), the chest (`chest.draw(k)`), where it
               stands (`mount`) and which body tries it
   set_out     the task's declared start, BUILT AFRESH: the world, the body
-              where it starts with the tool its set-out gives it, the chest
-              shut and caught, its catch applied every step
+              where it starts, the chest shut and caught, its catch applied
+              every step
   attempt     ONE TRY from the set-out: the skill run inside its budget, the
               call, the hold, one verdict through `scoring.evaluate` -- and
               the record's row
@@ -19,7 +19,8 @@ body's internals.
 
 THE PROTOCOL:
   - an attempt is one try from the declared start; the skill's own retries
-    inside it (the probe's walk-ins, `legs.probe.TRIES`) are not attempts;
+    inside it (the reference opener's grips, `opener.GRIPS`) are not
+    attempts;
   - between attempts the WORLD resets the chest and the robot to their
     set-out -- each attempt is a fresh build of it -- and every reset is help
     the world gave, counted on its row (`help.reset`);
@@ -64,21 +65,20 @@ import mujoco
 import numpy as np
 
 from pluggybot.activity import chest as ch
-from pluggybot.body import body_for
 from pluggybot.challenge import door, drawer, lid, place
 from pluggybot.economy import scoring
-from pluggybot.imagination.rollout import UNSTABLE
 
 #: The set-outs: which body before which mount, each the world its
-#: placements were measured for -- the quadruped before a chest on the floor
-#: (`evaluation.probe`, #466's stage 2) and the humanoid at a counter
+#: placements were measured for -- the humanoid at a counter
 #: (`evaluation.counter`, #507). Another pair is refused: a placement is
-#: measured for the body that reaches from it.
-SET_OUTS = (("quadruped", "floor"), ("humanoid", "counter"))
-#: The tool each body's set-out gives it: the quadruped's claw, put on by
-#: the set-out (`Body.place_tool_routine`) where a real run fetches it from
-#: the rack; the humanoid's hands are its own.
-TOOLS = {"quadruped": "module_claw", "humanoid": None}
+#: measured for the body that reaches from it (the quadruped's before a
+#: chest on the floor went with it, #559).
+SET_OUTS = (("humanoid", "counter"),)
+#: MuJoCo's counters of a world it found unstable and reset: a 10 g part on
+#: a spring of 40 N*m/rad was reset 124 times in one rollout, every reading
+#: finite (the review of #473).
+UNSTABLE = (mujoco.mjtWarning.mjWARN_BADQPOS, mujoco.mjtWarning.mjWARN_BADQVEL,
+            mujoco.mjtWarning.mjWARN_BADQACC)
 #: The graders a task may name: the lid's, and the hands' capability
 #: checks' (#525; docs/Hands.md), each watched every step and measured at
 #: the call in its own way (`WATCHED`). A check is the humanoid's at its
@@ -95,12 +95,12 @@ SETTLE_S = 0.5
 #: harness makes the call at the latest (`lid.TIME_LIMIT_S`)...
 BUDGET_S = lid.TIME_LIMIT_S
 #: ...each set-out's own (`Task.limit_s`): the task's data beside the code
-#: that grades it, handed to the grader as `limitS`. The quadruped's probe
-#: takes 84-100 s of its 300; the humanoid's is three times its reference's
-#: slowest pass (Ben, 2026-10-17: `evaluation.opener`, 17.7-22.5 s over its
-#: 32 public chests at 0f98e24), set before #493's stage 3 flew.
+#: that grades it, handed to the grader as `limitS`. The humanoid's is three
+#: times its reference's slowest pass (Ben, 2026-10-17: `evaluation.opener`,
+#: 17.7-22.5 s over its 32 public chests at 0f98e24), set before #493's
+#: stage 3 flew.
 REFERENCE_S = 22.54
-LIMIT_S = {("quadruped", "floor"): BUDGET_S, ("humanoid", "counter"): 3 * REFERENCE_S}
+LIMIT_S = {("humanoid", "counter"): 3 * REFERENCE_S}
 #: ...and a job's own where it has one: the door's three times OUR door
 #: procedure's slowest pass (#535: `evaluation.hands_check.DOOR`, 10.8-35.8
 #: s over its 32 public set-outs at 70bf773, 20 passing), set before any
@@ -121,7 +121,6 @@ FLATTERS = (
   "the chests are drawn to suit the probe: each shuts harder than its spring, friction "
   "and damping hold it over the probe's sweeps, and its catch stops at 4 N",
   "one geometry: the chests differ only in their hidden dynamics",
-  "the quadruped's claw is put on by the set-out, not fetched from the rack",
   "the humanoid is stood at its counter: walking to the chest is not the task",
   "the humanoid's mind is told the knob's size and its tag: what it would see",
   "with `measure`, a flat top's height and edges are our code's reading of its depth camera",
@@ -200,8 +199,8 @@ class Task:
   stands and `grader` the challenge that judges it."""
 
   chest: int
-  body: str = "quadruped"
-  mount: str = "floor"
+  body: str = "humanoid"
+  mount: str = "counter"
   grader: str = "lid"
 
   def __post_init__(self) -> None:
@@ -221,11 +220,6 @@ class Task:
     """The job's time limit at this set-out, s: its own where it has one
     (`JOB_LIMIT_S`), else its set-out's (`LIMIT_S`)."""
     return JOB_LIMIT_S.get(self.grader, LIMIT_S[(self.body, self.mount)])
-
-  @property
-  def tool(self) -> str | None:
-    """The tool the set-out gives the body, or None."""
-    return TOOLS[self.body]
 
   @property
   def held_out(self) -> bool:
@@ -260,30 +254,15 @@ class World:
 
 def set_out(task: Task, policy=None) -> World:
   """The task's declared start, built afresh: the chest shut where its
-  set-out stands it, the body where it starts and with its set-out's tool.
-  `policy` is the humanoid's standing policy, where a caller has one."""
+  set-out stands it and the body where it starts. `policy` is the
+  humanoid's standing policy, where a caller has one."""
   if task.grader in CHECKS:
     return _check_set_out(task, policy)
-  if task.body == "quadruped":
-    from pluggybot.evaluation import probe as ep
-    from pluggybot.home import world as home
-    so = ep.set_out(task.chest)
-    model = ep.spec_of(so).compile()
-    data = mujoco.MjData(model)
-    mujoco.mj_forward(model, data)
-    body = body_for(model, data, realtime=False, grid_bounds=home.GRID_BOUNDS)
-    body.start_at(*so.start)
-  else:
-    from pluggybot.evaluation import counter as ct
-    so = ct.set_out(task.chest)
-    model, data, body = ct.world(so, policy)
+  from pluggybot.evaluation import counter as ct
+  so = ct.set_out(task.chest)
+  model, data, body = ct.world(so, policy)
   chest = ch.Chest(model, data, so.lid)
   body.step_hooks.append(lambda: chest.sense(model, data))
-  if task.tool is not None:
-    body.run(body.place_tool_routine(task.tool))
-    if not body.tool_powered(task.tool):
-      body.close()
-      raise RuntimeError(f"the set-out could not seat {task.tool}")
   body.run(body.hold_routine(SETTLE_S))
   return World(task=task, model=model, data=data, body=body, chest=chest,
                start=tuple(so.start))
@@ -384,7 +363,6 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float | None = None
     raise Unstable(f"MuJoCo found the world unstable and reset it ({', '.join(reset)})")
   measured = scoring.SAMPLERS[task.grader](
     world, None, said, {"at_call": at_call, "watch": watch, "started": t0,
-                        "tool": task.tool,
                         "catchN": world.chest.lid.catch_n if world.chest is not None else None,
                         "limitS": budget_s})
   # A cut attempt that failed says so first (`evaluate(failed=)`): what it

@@ -145,7 +145,7 @@ class FrameBuilder:
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None, boards=None, screens=None,
+               activities=None, boards=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
                thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
@@ -181,9 +181,7 @@ class FrameBuilder:
     # here for the same reason activities are: a drawing has no body, so its
     # state reaches a viewer through this block or not at all.
     self.boards = boards
-    # ...and so does a face (issue #13). Third duck of the same shape.
-    self.screens = screens
-    # ...and so does a balance (issue #14). Fourth, keyed by ROBOT rather
+    # ...and so does a balance (issue #14). Third, keyed by ROBOT rather
     # than by world feature -- which is the only difference, and the frame
     # builder does not care.
     self.ledger = ledger
@@ -275,7 +273,6 @@ class FrameBuilder:
     # deltas. Same reason `_last` holds poses here rather than on the bodies.
     self._last_acts: dict[str, dict] = {}
     self._last_boards: dict[str, dict] = {}
-    self._last_screens: dict[str, dict] = {}
     self._last_ledger: dict[str, dict] = {}
     # ...and the whole tasks block, as one value. `None` rather than `{}` so
     # a board that is genuinely empty still ships once, which is what tells a
@@ -335,7 +332,9 @@ class FrameBuilder:
       "world": self.world_names,
       "activities": self.activities.names if self.activities else [],
       "boards": self.boards.names if self.boards else [],
-      "screens": self.screens.names if self.screens else [],
+      # ⚠ A VESTIGE: the quadruped's LCD faces (issue #13), none since
+      # #559 took it; the site reads the key, and a period changes it.
+      "screens": [],
       "ledger": self.ledger.names if self.ledger else [],
       # The task KINDS this producer can offer (0.9.0, issue #21). Not the
       # task ids: unlike every other block above, the tasks block's keys are
@@ -486,7 +485,6 @@ class FrameBuilder:
     self._last.clear()
     self._last_acts.clear()
     self._last_boards.clear()
-    self._last_screens.clear()
     self._last_ledger.clear()
     self._last_tasks = None
     self._last_spend.clear()
@@ -514,7 +512,6 @@ class FrameBuilder:
       # again), so the flag is the only record of it anywhere in the stream.
       self._last_acts.clear()
       self._last_boards.clear()
-      self._last_screens.clear()
       self._last_ledger.clear()
       self._last_tasks = None
       self._last_spend.clear()
@@ -568,10 +565,6 @@ class FrameBuilder:
       boards = self._sparse(self.boards.snapshot(), self._last_boards)
       if boards:
         frame["boards"] = boards
-    if self.screens is not None:
-      screens = self._sparse(self.screens.snapshot(), self._last_screens)
-      if screens:
-        frame["screens"] = screens
     if self.ledger is not None:
       points = self._sparse(self.ledger.snapshot(), self._last_ledger)
       if points:
@@ -739,7 +732,7 @@ class TelemetryRecorder:
                status_fn: Callable[[], dict] | None = None,
                model_name: str | None = None,
                keyframe_s: float = KEYFRAME_S,
-               activities=None, boards=None, screens=None,
+               activities=None, boards=None,
                ledger=None, tasks=None, accepts=(), goals: str = "",
                thoughts=None, spend=None, mode=None, metabolism=None,
                steering: bool = False,
@@ -751,7 +744,7 @@ class TelemetryRecorder:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
-                                 screens=screens, ledger=ledger, tasks=tasks,
+                                 ledger=ledger, tasks=tasks,
                                  accepts=accepts, goals=goals,
                                  thoughts=thoughts, spend=spend,
                                  mode=mode, metabolism=metabolism,

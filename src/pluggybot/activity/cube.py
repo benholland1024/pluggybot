@@ -5,7 +5,7 @@ is sensed of it. On the humanoids' storeroom counter (#559,
 `home.storeroom`), never the quadrupeds' world.
 
 The cube is the chest's knob's 26 mm cube, loose on the counter, wearing
-its own tag on every face (`rack.tags.CUBE_TAG_IDS`). The mat is a plate
+its own tag on every face (`perception.tags.CUBE_TAG_IDS`). The mat is a plate
 80 mm square and 4 mm thick on the counter beside it, its top wearing its
 own tag across it (`MAT_TAG_IDS`).
 
@@ -22,8 +22,8 @@ import math
 import numpy as np
 
 from pluggybot.activity.base import Activity, Threshold
-from pluggybot.challenge.stack import BLOCK_HALF
-from pluggybot.rack.tags import CUBE_TAG_IDS, MAT_TAG_IDS
+from pluggybot.home.props import BLOCK_HALF
+from pluggybot.perception.tags import CUBE_TAG_IDS, MAT_TAG_IDS
 
 #: The cube's half side, m: the chest's knob's.
 CUBE = BLOCK_HALF

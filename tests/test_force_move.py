@@ -177,7 +177,7 @@ def test_a_giving_pull_follows_the_hand_across_its_way_and_a_holding_one_keeps_i
 def test_a_pulls_turn_gives_to_what_it_holds_but_never_about_the_jaws_line():
   """A lid's weight bent the wrist about the jaws' line, and a turn that
   gave there followed it 70 deg down and out of the arm's reach (#525)."""
-  from pluggybot.legs.probe import rot_about
+  from pluggybot.evaluation.opener import rot_about
   for axis, gives in ((np.array([1.0, 0.0, 0.0]), False), (np.array([0.0, 0.0, 1.0]), True)):
     for give in (True, False):
       r = _pulling(np.array([0.0, 0.0, 1.0]), give=give)
@@ -474,7 +474,7 @@ def test_a_pull_whose_arm_misses_goes_on_and_never_back_to_a_posture_it_left():
 def test_a_paths_point_with_no_turn_keeps_the_one_before():
   """`via`'s point with no turn keeps the one before -- the hand's own,
   first -- never the next one given (#525)."""
-  from pluggybot.legs.probe import rot_about
+  from pluggybot.evaluation.opener import rot_about
   r = _bare_reach()
   own = rot_about(np.array([0.0, 1.0, 0.0]), math.radians(20.0))
   _out_hand(r, H, own)

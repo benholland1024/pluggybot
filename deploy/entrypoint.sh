@@ -65,9 +65,8 @@ fi
 # scripts/serve.py -- $PLUGGY_METABOLISM names a metabolism.json on the volume
 # and IMPLIES the mechanic, the way $PLUGGY_TASKS implies a task board. So is
 # every other tuning file the sim reads for itself: $PLUGGY_REWARDS (what a
-# job pays), $PLUGGY_CADENCE (how busy the world is), $PLUGGY_QUESTIONS (the
-# question bank) and $PLUGGY_ENERGY (what an errand costs). Mount a file, no
-# rebuild, no flag here.
+# job pays), $PLUGGY_CADENCE (how busy the world is) and $PLUGGY_ENERGY (what
+# an errand costs). Mount a file, no rebuild, no flag here.
 # ⚠ Unset means the robot never gets hungry and its balance is unbounded,
 # which is what every world did before #36 -- turning hunger on in a
 # deployment is a deliberate act, because the rate and the cap are still

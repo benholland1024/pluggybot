@@ -53,7 +53,7 @@ with points would have a reason to grind, and one that could buy points with
 money would have a reward table denominated in Ben's invoice.
 
 The numbers are DATA (`economy/metabolism.json`, `$PLUGGY_METABOLISM`), the
-fifth such file after rewards, cadence, questions and energy, and they are
+fourth such file after rewards, cadence and energy, and they are
 MEASURED, and RE-MEASURED whenever the economy moves: three chained
 1-sim-hour `home` runs on the hosting pack bank 80 points/hour under the
 #135/#136 economy (65 before it, when `charge` still paid), so the shipped
@@ -75,14 +75,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 #: What the robot's appetite may be called on the wire. A two-repo vocabulary
-#: on `FACE_STATES`' terms, so it lives in telemetry/protocol.py with the rest
+#: on `VISUAL_HINTS`' terms, so it lives in telemetry/protocol.py with the rest
 #: of them; imported here because this is the module that DECIDES which one is
 #: true, and a consumer of this one should not have to know that.
 from pluggybot.telemetry.protocol import HUNGER_STATES, ROBOT_ROOT  # noqa: F401
 
 #: The shipped appetite. Overridable per deploy with $PLUGGY_METABOLISM, the
-#: same door economy/rewards.json, cadence.json, questions.json and
-#: energy.json are opened by.
+#: same door economy/rewards.json, cadence.json and energy.json are opened
+#: by.
 METABOLISM_PATH = Path(__file__).with_name("metabolism.json")
 METABOLISM_ENV = "PLUGGY_METABOLISM"
 METABOLISM_VERSION = 1

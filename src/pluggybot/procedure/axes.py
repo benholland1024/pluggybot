@@ -12,9 +12,7 @@ writes `data.ctrl`, and this module is not on it.
 
 Both are REGISTRIES, not constants: a new tool or body adds its entries
 and the language does not change. A body's own axes are always present --
-the quadruped's `shoulder` and `elbow` (`BODY_AXES`) -- and its senses; a
-sensor a tool carries is present when that tool is on the fork
-(`requires`).
+the humanoid's arm joints (`BODY_AXES`) -- and its senses.
 """
 
 import math
@@ -24,7 +22,6 @@ from typing import Callable
 
 import numpy as np
 
-from pluggybot.legs.arm import ARM_SLEW, ArmSpec
 from pluggybot.perception.watch import WATCH_HZ
 from pluggybot.tick import Routine
 
@@ -54,7 +51,6 @@ class Sensor:
   name: str
   read: Callable[..., float]    # (life) -> float
   doc: str
-  requires: str = ""
   #: how often its part reads it afresh while the body moves, s -- what a
   #: hand's move may stop on, read no oftener (#554) -- or None for what a
   #: verb last reported, which no move changes
@@ -73,14 +69,6 @@ class Sensor:
 HAND_EVERY_S = 0.01
 
 
-#: The quadruped's arm (issue #405): each joint is an axis and a sensor,
-#: in radians, walked by the arm's own driver (`legs.arm.ArmDriver`, at most
-#: `ARM_SLEW`) -- the shoulder's elevation off straight ahead, the elbow's
-#: angle off the upper arm's line. The ranges are the joints' own.
-ARM_JOINTS = ("shoulder", "elbow")
-_ARM = ArmSpec()
-
-
 def _ramp(actuator: str, settle: float = 0.5):
   def run(life, target: float) -> Routine:
     axis = next(a for a in AXES.values() if a.actuator == actuator)
@@ -97,28 +85,9 @@ def _held(actuator: str):
   return lambda life: life.body.setpoint(life.body.actuator(actuator))
 
 
-AXES: dict[str, Axis] = {
-  "shoulder": Axis("shoulder", *_ARM.shoulder_range, ARM_SLEW, "rad",
-                   "the arm's shoulder: 0 is the upper arm straight ahead, + "
-                   f"raises it; {_ARM.stow[0]:.2f} lies it back along the body, "
-                   "folded", actuator="arm_shoulder", setpoint=_held("arm_shoulder")),
-  "elbow": Axis("elbow", *_ARM.elbow_range, ARM_SLEW, "rad",
-                "the arm's elbow: the forearm off the upper arm's line, 0 "
-                f"straight, - bends it down; {_ARM.stow[1]:.2f} folds it back "
-                "along the upper arm", actuator="arm_elbow",
-                setpoint=_held("arm_elbow")),
-}
-for _a in list(AXES.values()):
-  if _a.run is None:
-    AXES[_a.name] = Axis(**{**_a.__dict__, "run": _ramp(_a.actuator)})
-
-
-def _joint(life, name: str, body: bool = True) -> float:
-  """A joint position, measured. `body` joints are this robot's (prefixed
-  by its handle, issue #167); a module's joint is the world's."""
-  if body:
-    name = life.body.handle.el(name)
-  return float(life.data.qpos[life.model.joint(name).qposadr[0]])
+#: Every axis a program may move, by name: the humanoid's arm joints
+#: (`_humanoid_axes`, below).
+AXES: dict[str, Axis] = {}
 
 
 def noise(life, key: str, sigma: float) -> float:
@@ -143,35 +112,11 @@ SENSORS: dict[str, Sensor] = {
                    if life.ledger is not None else 0.0, "the balance"),
   "time": Sensor("time", lambda life: float(life.data.time), "sim seconds",
                  every_s=HAND_EVERY_S),
-  "bumper": Sensor("bumper", lambda life: 1.0 if life.body.pressing else 0.0,
-                   "1 while its body presses against something"),
-  "shoulder": Sensor("shoulder", lambda life: _joint(life, "arm_shoulder"),
-                     "the arm's shoulder, rad, measured"),
-  "elbow": Sensor("elbow", lambda life: _joint(life, "arm_elbow"),
-                  "the arm's elbow, rad, measured"),
-  "claw.holding": Sensor(
-    "claw.holding", lambda life: 1.0 if life.body.held_cube() is not None else 0.0,
-    "1 while the claw's jaws hold a cube, both pads on it", requires="module_claw"),
-  # THE ARM'S SCALE (issue #407): each motor's torque as its driver reports
-  # it, off the current (`perception.encoders.torque_reading`)
-  "shoulder.torque": Sensor(
-    "shoulder.torque", lambda life: life.body.arm_torque(life.body.actuator("arm_shoulder")),
-    "the shoulder motor's torque, N*m, as its driver reports it: what it "
-    "holds the arm up with, + raising"),
-  "elbow.torque": Sensor(
-    "elbow.torque", lambda life: life.body.arm_torque(life.body.actuator("arm_elbow")),
-    "the elbow motor's torque, N*m, as its driver reports it: what it holds "
-    "the forearm and whatever it carries up with, + raising"),
 }
-#: What every body reads (issue #387): its pack, its wallet, the clock and
-#: its bumper...
-BODY_SENSORS = ("battery.frac", "battery.wh", "points", "time", "bumper")
-#: ...and a legged body its arm's two joints (issue #405) and its motors'
-#: torques (#407).
-ARM_TORQUES = ("shoulder.torque", "elbow.torque")
-LEGS_SENSORS = BODY_SENSORS + ARM_JOINTS + ARM_TORQUES
-#: ...and what the claw's verbs feel (issue #407), where the world has it.
-CLAW_SENSORS = ("claw.holding",)
+#: What every body reads (issue #387): its pack, its wallet and the clock.
+#: (The quadruped's bumper read the contact list, a stand-in no sense of the
+#: humanoid's took up: #502.)
+BODY_SENSORS = ("battery.frac", "battery.wh", "points", "time")
 
 
 # ---- the humanoid's hands (issue #493) -------------------------------------------
@@ -334,9 +279,9 @@ WATCH_SENSORS = tuple(f"watch.{k}" for k in ("x", "y", "z", "nx", "ny", "nz", "e
 
 # The humanoid's arm joints: each an axis (the motor level a hand's verbs
 # are built from), walked by `Body.ramp_routine`. ⚠ No sensor reads one:
-# the quadruped's `shoulder` and `elbow` read the simulator's `qpos`, a
-# stand-in no new sense extends -- a hand's place is read off its encoders
-# through the robot's model of itself (`left.x`, `Body.hand_at`).
+# the quadruped's arm's read the simulator's `qpos`, a stand-in no new sense
+# extended -- a hand's place is read off its encoders through the robot's
+# model of itself (`left.x`, `Body.hand_at`).
 #: How fast a humanoid's arm joint is walked, rad/s (`humanoid.reach.JOINT_RATE`).
 HUMANOID_SLEW = 1.0
 
@@ -356,8 +301,8 @@ def _humanoid_axes() -> tuple[str, ...]:
 
 
 HUMANOID_JOINTS = _humanoid_axes()
-#: Each body's own axes, present whatever is on its fork.
-BODY_AXES = {"quadruped": ARM_JOINTS, "humanoid": HUMANOID_JOINTS}
+#: Each body's own axes, present whatever it holds.
+BODY_AXES = {"humanoid": HUMANOID_JOINTS}
 #: ...and the reports of a pull (#493, the force move #525): how far it
 #: went, the hardest it pushed and the way the hand was going at its end.
 PULL_SENSORS = ("pull.moved", "pull.force", "pull.dx", "pull.dy", "pull.dz")
@@ -452,5 +397,4 @@ def describe() -> dict:
   return {"axes": [{"name": a.name, "lo": a.lo, "hi": a.hi, "speed": a.speed,
                     "unit": a.unit, "doc": a.doc}
                    for a in AXES.values()],
-          "sensors": [{"name": s.name, "doc": s.doc, "requires": s.requires}
-                      for s in SENSORS.values()]}
+          "sensors": [{"name": s.name, "doc": s.doc} for s in SENSORS.values()]}

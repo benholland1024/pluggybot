@@ -8,7 +8,7 @@ hung on a hinge down its left edge (the robot's left) so it swings open
 toward the robot, and a LEVER HANDLE: an arm 9 cm long from a pivot on the
 door's face near the hinge, pointing toward the door's free edge, sprung
 back up and stopped at `LEVER_TRAVEL`, its tip the chest's 26 mm cube
-wearing its own tag on every face (`rack.tags.DOOR_TAG_IDS`), in the door's
+wearing its own tag on every face (`perception.tags.DOOR_TAG_IDS`), in the door's
 middle. ⚠ HINGED ON THE LEFT: hung on its right, the door swung into the
 left arm that held its lever and stopped there, 36-45 deg open; ⚠ AND THE
 LEVER POINTING AWAY FROM IT: pointing toward the hinge, pressing it down
@@ -34,8 +34,8 @@ import math
 import numpy as np
 
 from pluggybot.activity.base import Activity, Threshold
-from pluggybot.challenge.stack import BLOCK_HALF
-from pluggybot.rack.tags import DOOR_TAG_IDS
+from pluggybot.home.props import BLOCK_HALF
+from pluggybot.perception.tags import DOOR_TAG_IDS
 
 #: The carcass: depth, width, height and board, m.
 BOX_D, BOX_W, BOX_H, WALL_T = 0.24, 0.24, 0.30, 0.012

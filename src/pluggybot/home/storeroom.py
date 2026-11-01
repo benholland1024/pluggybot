@@ -26,7 +26,7 @@ import numpy as np
 
 from pluggybot.evaluation import counter as ct
 from pluggybot.home import world as home
-from pluggybot.rack.tags import COUNTER_TAG_IDS, plate_half_extent, AREA_TAG_SIZE
+from pluggybot.perception.tags import COUNTER_TAG_IDS, plate_half_extent, AREA_TAG_SIZE
 
 #: The counter: its top's height and depth, the practice's (`evaluation.
 #: counter`), its back on the storeroom's east wall.
@@ -302,7 +302,7 @@ def touched_by(model, data, prop: str, geoms) -> bool:
   """Whether anything of `geoms` (a robot's) touches the prop: one being
   worked is no target for an offer, which would set it out from under the
   hand (`HubLifecycle._worked_props`)."""
-  from pluggybot.rack.coupling import contact_pairs
+  from pluggybot.contacts import contact_pairs
   mine = set(_subtree(model, prop))
   own = np.isin(model.geom_bodyid, list(mine))
   g = contact_pairs(data)

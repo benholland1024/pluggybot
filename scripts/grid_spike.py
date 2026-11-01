@@ -6,7 +6,7 @@ A robot's map is a grid of 5 cm cells over the world's rectangle, and
 that grows with the cells -- at today's size (`home.world.GRID_BOUNDS`,
 469,200 cells) and at 2x, 3x and 4x as many, the bounds grown evenly round
 the house by whole half metres, so every cell of today's map, and of the
-planner's lattice, is where it was -- through the bodies' own code, each
+planner's lattice, is where it was -- through the humanoid's own code, each
 scale in a process of its own:
 
   per scan, per depth frame and per second: the map's update, the camera's
@@ -23,21 +23,18 @@ scale in a process of its own:
 
 The scan work, the masks and the plans run on #215's synthetic grid --
 known floor with one wall across three quarters of it -- planned corner to
-corner. The matcher runs on the house's true floor where it is. The PNG and
-the save run on the house as a robot that walked everywhere would map it
-(the floor it can reach and the walls round that, nothing else), stacked k
-times along y: a world k times the house, no copy inside DEFLATE's 32 kB
-window of another. Both bodies plan with one planner at one inflation (7
-cells), so the plans are timed once; the scan work is each body's own.
+corner. The matcher, the PNG and the save run on the house as a robot that
+walked everywhere would map it (the floor it can reach and the walls round
+that, nothing else) -- the matcher where it is, the PNG and the save
+stacked k times along y: a world k times the house, no copy inside
+DEFLATE's 32 kB window of another.
 
     MUJOCO_GL=egl uv run python scripts/grid_spike.py            # the table
     ... --scales 1,2       # multiples of today's cells (default 1,2,3,4)
     ... --repeat 9         # calls a median is taken over (default 9)
-    ... --walks [SIM_S]    # and the pairs walking #507's routes (`humanoid_
-                           # spike.py --speed`) at each scale, quadrupeds and
-                           # humanoids, SIM_S after the warm-up (default 60)
-    ... --across           # and one fresh quadruped from the living room to
-                           # the west street, the house's longest walk
+    ... --walks [SIM_S]    # and the humanoid pair walking #507's routes
+                           # (`humanoid_spike.py --speed`) at each scale,
+                           # SIM_S after the warm-up (default 60)
     ... --out FILE         # every row as JSON
 """
 
@@ -78,26 +75,20 @@ EDGE_M = 1e-6
 CORNER = 0.03
 #: The house a robot that walked everywhere holds is laid by its own senses
 #: from a spot every `LAY_EVERY_M` of the floor it can reach, each spot
-#: `LAY_CLEAR_M` clear of anything it could walk into (`unknown_spike.py`'s
-#: targets' margin).
+#: `LAY_CLEAR_M` clear of anything it could walk into (the planner's
+#: inflation, 0.35 m, and a margin).
 LAY_EVERY_M, LAY_CLEAR_M = 1.0, 0.45
-#: The across walk's goal (`unknown_spike.py`'s zones): the house's longest
-#: walk from the living room, 43.6 m by the true route.
-ACROSS_TO = "street_west"
-#: What each body's map work is counted at a walked sim second: the scan
-#: and the frames at their parts' rates (`lidar.LIDAR_PERIOD`, each body's
-#: `DEPTH_PERIOD`), the growth at `navigator.MAP_LOOK_S`, the image at the
+#: What the map work is counted at a walked sim second: the scan and the
+#: frames at their parts' rates (`lidar.LIDAR_PERIOD`, `humanoid.mission.
+#: DEPTH_PERIOD`), the growth at `navigator.MAP_LOOK_S`, the image at the
 #: live `GRID_HZ`, a plan every 2 s (`Navigator.drive_to_routine`).
-SCAN_HZ, GROWTH_HZ, IMAGE_HZ, PLAN_HZ = 10.0, 1.0, 1.0, 0.5
-FRAME_HZ = {"quadruped": 10.0, "humanoid": 5.0}
+SCAN_HZ, FRAME_HZ, GROWTH_HZ, IMAGE_HZ, PLAN_HZ = 10.0, 5.0, 1.0, 1.0, 0.5
 #: The methods timed in flight: (module, class, method, label). `walls` is
 #: called inside `layer` and `field` inside `match`: `TOTAL` is the rest.
 TOTAL = ("update", "layer", "growth", "match", "plans")
 WRAPS = (
   ("pluggybot.mapping.occupancy_grid", "OccupancyGrid", "update", "update"),
-  ("pluggybot.legs.body", "QuadMission", "_walls", "walls"),
   ("pluggybot.humanoid.mission", "HumanoidMission", "_walls", "walls"),
-  ("pluggybot.legs.body", "QuadMission", "_fold_low", "layer"),
   ("pluggybot.humanoid.mission", "HumanoidMission", "_fold_low", "layer"),
   ("pluggybot.navigator", "Navigator", "_known_cells", "growth"),
   ("pluggybot.mapping.scan_match", "ScanMatcher", "match", "match"),
@@ -110,8 +101,8 @@ WRAPS = (
 
 
 def today() -> tuple[float, float, float, float]:
-  from pluggybot.lifecycle import QUAD_HOME, world_config
-  return tuple(float(v) for v in world_config(QUAD_HOME)["grid_bounds"])
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  return tuple(float(v) for v in world_config(HUMANOID_HOME)["grid_bounds"])
 
 
 def bounds_at(scale: float) -> tuple[float, float, float, float]:
@@ -149,7 +140,7 @@ def synthetic(shape) -> np.ndarray:
 
 def lay_house(path: Path) -> dict:
   """The house as a robot that walked everywhere holds it, laid by the
-  quadruped's own senses at today's size: from a spot every `LAY_EVERY_M`
+  humanoid's own senses at today's size: from a spot every `LAY_EVERY_M`
   of the floor it can reach from its start, a LIDAR scan into its map and a
   depth frame into its camera's layer, a quarter turn further round at each
   spot, at the true pose. The map and the layer go to `path`."""
@@ -157,13 +148,13 @@ def lay_house(path: Path) -> dict:
   from scipy import ndimage
 
   from humanoid_spike import speed_world
-  from pluggybot.lifecycle import QUAD_HOME, world_config
-  from unknown_spike import true_floor
-  model, data, (body,) = speed_world("quadruped", 1)
+  from make_way_spike import true_floor
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  model, data, (body,) = speed_world(1)
   m = body.mission
   body.run(body.hold_routine(0.5))
   g = m.grid
-  sx, sy = g.world_to_cell(*world_config(QUAD_HOME)["start"][:2])
+  sx, sy = g.world_to_cell(*world_config(HUMANOID_HOME)["start"][:2])
   labels, _ = ndimage.label(true_floor(model, g) < 0)
   floor = labels == labels[sy, sx]
   clear = ndimage.distance_transform_edt(floor) * RES >= LAY_CLEAR_M
@@ -287,78 +278,69 @@ def table_one(scale: float, repeat: int, house_path: str) -> dict:
     house, house_low = laid["grid"], laid["low"]
   ox = round((today()[0] - bounds[0]) / RES)
   oy = round((today()[1] - bounds[1]) / RES)
-  for kind in ("quadruped", "humanoid"):
-    model, data, (body,) = speed_world(kind, 1, bounds=bounds)
-    m = body.mission
-    body.run(body.hold_routine(0.5))          # a scan and a depth frame
-    shape = m.grid.grid.shape
-    row["cells"] = int(shape[0] * shape[1])
-    row["shape"] = [int(shape[0]), int(shape[1])]
-    syn = synthetic(shape)
-    m.grid.grid[:] = syn
-    angles, ranges, _, _ = m.lidar.scan_split(data)
-    pose = m.pose
-    frame = m._frame if m._frame is not None else m._levelled(m.depth.frame(data))
-    points = frame.points
+  model, data, (body,) = speed_world(1, bounds=bounds)
+  m = body.mission
+  body.run(body.hold_routine(0.5))          # a scan and a depth frame
+  shape = m.grid.grid.shape
+  row["cells"] = int(shape[0] * shape[1])
+  row["shape"] = [int(shape[0]), int(shape[1])]
+  syn = synthetic(shape)
+  m.grid.grid[:] = syn
+  angles, ranges, _, _ = m.lidar.scan_split(data)
+  pose = m.pose
+  frame = m._frame if m._frame is not None else m._levelled(m.depth.frame(data))
+  points = frame.points
 
-    def walls():
-      m._walls_t = None
-      return m._walls()
+  def walls():
+    m._walls_t = None
+    return m._walls()
 
-    r = {"update": timed(lambda: m.grid.update(pose, angles, ranges, m.lidar.max_range,
-                                               origin=m.LIDAR_ORIGIN), repeat),
-         "walls": timed(walls, repeat)}
-    m.grid.grid[:] = syn
-    walls()
-    r["layer"] = timed(lambda: m._fold_low(points), repeat)
-    r["growth"] = timed(m._known_cells, repeat)
-    r["image"] = timed(m.grid.to_image, repeat)
-    fps = FRAME_HZ[kind]
-    r["perSimS"] = (SCAN_HZ * r["update"] + min(SCAN_HZ, fps) * r["walls"] + fps * r["layer"]
-                    + GROWTH_HZ * r["growth"] + IMAGE_HZ * r["image"])
-    if kind == "quadruped":
-      r.update(_plans(m, syn, repeat, optimistic, astar, traversable_mask, find_frontiers,
-                      ndimage))
-      r["perSimS"] += PLAN_HZ * r["planHop"]
-      # the matcher, on the house where it is
-      m.grid.grid[...] = 0.0
-      m.grid.grid[oy:oy + house.shape[0], ox:ox + house.shape[1]] = house
-      x, y, th = m.true_pose()
-      r["field"] = timed(lambda: m.matcher.refresh(x, y), repeat)
-      m.matcher.refresh(x, y)
-      r["match"] = timed(lambda: m.matcher.match((x, y, th), angles, ranges), repeat)
-      r["matcherMb"] = m.matcher.field.nbytes / 1e6
-      r["robotMb"] = r["matcherMb"] + sum(a.nbytes for a in (m.grid.grid, m.low, m._walls_mask,
-                                                             m._floor)) / 1e6
-      # the wire and the save: the house a robot walked everywhere, k times
-      one = OccupancyGrid(*today(), resolution=RES)
-      big, low = stacked(house, scale), stacked(house_low, scale)
-      g = OccupancyGrid(one.x_min, one.y_min, one.x_max,
-                        one.y_min + big.shape[0] * RES + EDGE_M, resolution=RES)
-      g.grid = big
-      r["wireImage"] = timed(g.to_image, repeat)
-      img = g.to_image()
-      r["wirePng"] = timed(lambda: encode_grid_png(img), repeat)
-      r["wirePngKb"] = len(encode_grid_png(img)) / 1000.0
-      hm = HeightMap()
-      arrays = {}
-      for root in ("pluggybot", "r2_pluggybot"):
-        arrays.update({f"{root}/grid": big, f"{root}/low": low,
-                       f"{root}/matchField": m.matcher.field,
-                       f"{root}/heightmap": hm.height, f"{root}/heightcount": hm.count})
-      with tempfile.TemporaryDirectory(dir=str(HERE.parent)) as d:
-        sizes = [save_pair(arrays, Path(d)) for _ in range(3)]
-      r["saveMb"] = sizes[0][0]
-      r["saveMs"] = float(np.median([s[1] for s in sizes]))
-      r["saveRawMb"] = sum(a.nbytes for a in arrays.values()) / 1e6
-    else:
-      r["perSimS"] += PLAN_HZ * row["quadruped"]["planHop"]
-      x, y, _ = m.pose
-      m._plan_optimistic(x + 3.0, y)
-      r["robotMb"] = sum(a.nbytes for a in (m.grid.grid, m.low, m._walls_mask, m._floor)) / 1e6
-      r["robotMb"] += row["quadruped"]["matcherMb"]
-    row[kind] = r
-    body.close()
+  r = {"update": timed(lambda: m.grid.update(pose, angles, ranges, m.lidar.max_range,
+                                             origin=m.LIDAR_ORIGIN), repeat),
+       "walls": timed(walls, repeat)}
+  m.grid.grid[:] = syn
+  walls()
+  r["layer"] = timed(lambda: m._fold_low(points), repeat)
+  r["growth"] = timed(m._known_cells, repeat)
+  r["image"] = timed(m.grid.to_image, repeat)
+  r["perSimS"] = (SCAN_HZ * r["update"] + min(SCAN_HZ, FRAME_HZ) * r["walls"]
+                  + FRAME_HZ * r["layer"] + GROWTH_HZ * r["growth"] + IMAGE_HZ * r["image"])
+  r.update(_plans(m, syn, repeat, optimistic, astar, traversable_mask, find_frontiers,
+                  ndimage))
+  r["perSimS"] += PLAN_HZ * r["planHop"]
+  # the matcher, on the house where it is
+  m.grid.grid[...] = 0.0
+  m.grid.grid[oy:oy + house.shape[0], ox:ox + house.shape[1]] = house
+  x, y, th = m.true_pose()
+  r["field"] = timed(lambda: m.matcher.refresh(x, y), repeat)
+  m.matcher.refresh(x, y)
+  r["match"] = timed(lambda: m.matcher.match((x, y, th), angles, ranges), repeat)
+  r["matcherMb"] = m.matcher.field.nbytes / 1e6
+  r["robotMb"] = r["matcherMb"] + sum(a.nbytes for a in (m.grid.grid, m.low, m._walls_mask,
+                                                         m._floor)) / 1e6
+  # the wire and the save: the house a robot walked everywhere, k times
+  one = OccupancyGrid(*today(), resolution=RES)
+  big, low = stacked(house, scale), stacked(house_low, scale)
+  g = OccupancyGrid(one.x_min, one.y_min, one.x_max,
+                    one.y_min + big.shape[0] * RES + EDGE_M, resolution=RES)
+  g.grid = big
+  r["wireImage"] = timed(g.to_image, repeat)
+  img = g.to_image()
+  r["wirePng"] = timed(lambda: encode_grid_png(img), repeat)
+  r["wirePngKb"] = len(encode_grid_png(img)) / 1000.0
+  hm = HeightMap()
+  arrays = {}
+  for root in ("pluggybot", "r2_pluggybot"):
+    arrays.update({f"{root}/grid": big, f"{root}/low": low,
+                   f"{root}/matchField": m.matcher.field,
+                   f"{root}/heightmap": hm.height, f"{root}/heightcount": hm.count})
+  with tempfile.TemporaryDirectory(dir=str(HERE.parent)) as d:
+    sizes = [save_pair(arrays, Path(d)) for _ in range(3)]
+  r["saveMb"] = sizes[0][0]
+  r["saveMs"] = float(np.median([s[1] for s in sizes]))
+  r["saveRawMb"] = sum(a.nbytes for a in arrays.values()) / 1e6
+  row.update(r)
+  body.close()
   row["peakRssMb"] = peak_rss_mb()
   return row
 
@@ -414,14 +396,14 @@ def _plans(m, syn, repeat, optimistic, astar, traversable_mask, find_frontiers, 
 # ---- in flight ------------------------------------------------------------------
 
 
-def walks_one(kind: str, scale: float, sim_s: float) -> dict:
-  """The pair of `kind` walking #507's routes (`humanoid_spike.py
-  --speed`) for `sim_s` after its warm-up, the maps over `scale`'s bounds:
-  real time, and the map's work a sim second for each robot."""
+def walks_one(scale: float, sim_s: float) -> dict:
+  """The humanoid pair walking #507's routes (`humanoid_spike.py --speed`)
+  for `sim_s` after its warm-up, the maps over `scale`'s bounds: real time,
+  and the map's work a sim second for each robot."""
   from humanoid_spike import SPEED_ROUTES, SPEED_WARM_S, _paces, speed_world
   from pluggybot import tick
   timers = Timers()
-  model, data, bodies = speed_world(kind, 2, bounds=bounds_at(scale))
+  model, data, bodies = speed_world(2, bounds=bounds_at(scale))
   tick.run_many([(b.stepper, _paces(b, r, SPEED_WARM_S, data))
                  for b, r in zip(bodies, SPEED_ROUTES)])
   timers.reset()
@@ -439,7 +421,7 @@ def walks_one(kind: str, scale: float, sim_s: float) -> dict:
       arrays[f"{m.handle.root}/matchField"] = m.matcher.field
   with tempfile.TemporaryDirectory(dir=str(HERE.parent)) as d:
     save_mb, save_ms = save_pair(arrays, Path(d))
-  out = {"kind": kind, "scale": scale, "cells": int(bodies[0].mission.grid.grid.size),
+  out = {"scale": scale, "cells": int(bodies[0].mission.grid.grid.size),
          "simS": round(sim, 2), "wallS": round(wall, 2), "rtf": round(sim / wall, 3),
          "msPerSimS": timers.per_sim_s(sim, robots=len(bodies)),
          "plans": timers.n.get("plans", 0),
@@ -448,41 +430,6 @@ def walks_one(kind: str, scale: float, sim_s: float) -> dict:
          "peakRssMb": round(peak_rss_mb(), 1)}
   for b in bodies:
     b.close()
-  return out
-
-
-def across_one(scale: float, patience: float) -> dict:
-  """One fresh quadruped from the living room to `ACROSS_TO`, its map over
-  `scale`'s bounds: the walk, its plans, and the map's work a sim second."""
-  import mujoco
-
-  from pluggybot.legs import body as qb
-  from unknown_spike import targets, world
-  cfg, model, grid, truth = world()
-  zone = [z for z in cfg["zones"] if z["name"] == ACROSS_TO]
-  goal = targets(truth, grid, zone)[ACROSS_TO]
-  timers = Timers()
-  data = mujoco.MjData(model)
-  body = qb.QuadBody(model, data, realtime=False, grid_bounds=bounds_at(scale))
-  m = body.mission
-  body.pack(1000.0, 1.0)
-  m.start_at(*cfg["start"])
-  body.run(body.look_around_routine())
-  timers.reset()
-  t_sim0 = float(data.time)
-  t0 = time.perf_counter()
-  arrived = body.run(body.go_to_routine(*goal, timeout=patience))
-  wall = time.perf_counter() - t0
-  sim = float(data.time) - t_sim0
-  out = {"scale": scale, "cells": int(m.grid.grid.size), "goal": list(goal),
-         "arrived": bool(arrived), "why": (m.last_drive or {}).get("why", ""),
-         "simS": round(sim, 1), "wallS": round(wall, 1), "rtf": round(sim / wall, 3),
-         "plans": timers.n.get("plans", 0),
-         "planMsMean": round(1000.0 * timers.s.get("plans", 0.0) / max(1, timers.n.get("plans", 0)), 1),
-         "msPerSimS": timers.per_sim_s(sim),
-         "end": [round(v, 3) for v in m.true_pose()],
-         "peakRssMb": round(peak_rss_mb(), 1)}
-  body.close()
   return out
 
 
@@ -502,51 +449,48 @@ def report_table(rows: list[dict]) -> None:
   def line(label: str, cells: list, fmt: str = "{:10.2f}") -> None:
     print(f"  {label:44s}" + "".join(fmt.format(c) if c is not None else f"{'-':>10s}"
                                       for c in cells))
-  q = [r["quadruped"] for r in rows]
-  h = [r["humanoid"] for r in rows]
+
+  def each(key: str) -> list:
+    return [r[key] for r in rows]
   print(f"  {'cells':44s}" + "".join(f"{r['cells']:>10,d}" for r in rows))
   print(f"  {'x today':44s}" + "".join(f"{r['cells'] / rows[0]['cells']:10.2f}" for r in rows))
   print("PER SCAN, FRAME OR SECOND, ms a call")
-  line("the map's update (a scan, 10 Hz)", [r["update"] for r in q])
-  line("the walls, quadruped (its window, a scan)", [r["walls"] for r in q])
-  line("the walls, humanoid (the grid, a frame)", [r["walls"] for r in h])
-  line("the camera's layer, quadruped (10 Hz)", [r["layer"] for r in q])
-  line("the camera's layer, humanoid (5 Hz)", [r["layer"] for r in h])
-  line("the map's growth (1 Hz walking)", [r["growth"] for r in q])
-  line("the grid's image for the wire (1 Hz live)", [r["image"] for r in q])
-  line("=> map work a walked sim second, quadruped", [r["perSimS"] for r in q], "{:10.1f}")
-  line("=> map work a walked sim second, humanoid", [r["perSimS"] for r in h], "{:10.1f}")
+  line("the map's update (a scan, 10 Hz)", each("update"))
+  line("the walls (its window, a frame)", each("walls"))
+  line("the camera's layer (5 Hz)", each("layer"))
+  line("the map's growth (1 Hz walking)", each("growth"))
+  line("the grid's image for the wire (1 Hz live)", each("image"))
+  line("=> map work a walked sim second", each("perSimS"), "{:10.1f}")
   print("A WALK'S PLAN ON THE LATTICE (every 2 s walking), ms")
-  line("across the grid, corner to corner", [r["planAcross"] for r in q], "{:10.1f}")
-  line("  the planning grid (the camera's burn-in)", [r["planGrid"] for r in q], "{:10.1f}")
-  line("  the costs (the inflation's transform)", [r["planCosts"] for r in q], "{:10.1f}")
-  line("  the lattice's cells (coarsen)", [r["planCoarsen"] for r in q], "{:10.1f}")
-  line("  the route: weights, Dijkstra, the path", [r["planRoute"] for r in q], "{:10.1f}")
-  line("    of which the weights", [r["planWeigh"] for r in q], "{:10.1f}")
-  line("a 3 m hop", [r["planHop"] for r in q], "{:10.1f}")
-  line("the lattice's build, once a process", [r["latticeBuildMs"] for r in q], "{:10.0f}")
+  line("across the grid, corner to corner", each("planAcross"), "{:10.1f}")
+  line("  the planning grid (the camera's burn-in)", each("planGrid"), "{:10.1f}")
+  line("  the costs (the inflation's transform)", each("planCosts"), "{:10.1f}")
+  line("  the lattice's cells (coarsen)", each("planCoarsen"), "{:10.1f}")
+  line("  the route: weights, Dijkstra, the path", each("planRoute"), "{:10.1f}")
+  line("    of which the weights", each("planWeigh"), "{:10.1f}")
+  line("a 3 m hop", each("planHop"), "{:10.1f}")
+  line("the lattice's build, once a process", each("latticeBuildMs"), "{:10.0f}")
   print("AN EXPLORE'S LEG (`navigation.plan`)")
-  line("the mask, ms", [r["mask"] for r in q], "{:10.1f}")
-  line("the frontiers, ms", [r["frontiers"] for r in q], "{:10.1f}")
-  line("the robot's own component (label), ms", [r["label"] for r in q], "{:10.1f}")
-  line("A* across the grid (pure Python), s", [r["astarS"] for r in q])
+  line("the mask, ms", each("mask"), "{:10.1f}")
+  line("the frontiers, ms", each("frontiers"), "{:10.1f}")
+  line("the robot's own component (label), ms", each("label"), "{:10.1f}")
+  line("A* across the grid (pure Python), s", each("astarS"))
   print("THE SCAN MATCHER (its field every 1 m walked or 20 fused scans), ms")
-  line("the field", [r["field"] for r in q])
-  line("one match", [r["match"] for r in q])
+  line("the field", each("field"))
+  line("one match", each("match"))
   print("ON THE WIRE, the house mapped and stacked")
-  line("the image, ms (physics thread)", [r["wireImage"] for r in q])
-  line("its PNG, ms (the sender's thread)", [r["wirePng"] for r in q], "{:10.1f}")
-  line("its PNG, kB in base64", [r["wirePngKb"] for r in q], "{:10.1f}")
+  line("the image, ms (physics thread)", each("wireImage"))
+  line("its PNG, ms (the sender's thread)", each("wirePng"), "{:10.1f}")
+  line("its PNG, kB in base64", each("wirePngKb"), "{:10.1f}")
   print("WORLD.NPZ, the pair's maps (every 60 sim s, physics thread)")
-  line("raw, MB", [r["saveRawMb"] for r in q], "{:10.1f}")
-  line("on disk, MB", [r["saveMb"] for r in q])
-  line("the write, ms", [r["saveMs"] for r in q], "{:10.0f}")
+  line("raw, MB", each("saveRawMb"), "{:10.1f}")
+  line("on disk, MB", each("saveMb"))
+  line("the write, ms", each("saveMs"), "{:10.0f}")
   print("MEMORY, MB")
-  line("a quadruped's map arrays", [r["robotMb"] for r in q], "{:10.1f}")
-  line("a humanoid's map arrays", [r["robotMb"] for r in h], "{:10.1f}")
-  line("a plan's peak, over them", [r["planPeakMb"] for r in q], "{:10.1f}")
-  line("the lattice, once a process", [r["latticeMb"] for r in q], "{:10.1f}")
-  line("the process's peak RSS", [r["peakRssMb"] for r in rows], "{:10.0f}")
+  line("a robot's map arrays", each("robotMb"), "{:10.1f}")
+  line("a plan's peak, over them", each("planPeakMb"), "{:10.1f}")
+  line("the lattice, once a process", each("latticeMb"), "{:10.1f}")
+  line("the process's peak RSS", each("peakRssMb"), "{:10.0f}")
 
 
 def _breakdown(ms: dict) -> str:
@@ -555,29 +499,16 @@ def _breakdown(ms: dict) -> str:
 
 
 def report_walks(rows: list[dict]) -> None:
-  print(f"  {'pair':10s} {'cells':>10s} {'sim s':>6s} {'wall s':>7s} {'real time':>9s} "
-        f"{'vs 1x':>6s} {'wall ms':>8s} {'map ms':>7s} {'plans':>6s}")
-  print(f"  {'':10s} {'':>10s} {'':>6s} {'':>7s} {'':>9s} {'':>6s} {'a sim s':>8s} "
-        f"{'a robot':>7s}")
-  base = {}
+  print(f"  {'cells':>10s} {'sim s':>6s} {'wall s':>7s} {'real time':>9s} "
+        f"{'vs first':>8s} {'wall ms':>8s} {'map ms':>7s} {'plans':>6s}")
+  print(f"  {'':>10s} {'':>6s} {'':>7s} {'':>9s} {'':>8s} {'a sim s':>8s} {'a robot':>7s}")
   for r in rows:
-    base.setdefault(r["kind"], r["rtf"])
-    print(f"  {r['kind']:10s} {r['cells']:>10,d} {r['simS']:6.1f} {r['wallS']:7.1f} "
-          f"{r['rtf']:8.2f}x {r['rtf'] / base[r['kind']]:6.3f} {1000.0 / r['rtf']:8.0f} "
+    print(f"  {r['cells']:>10,d} {r['simS']:6.1f} {r['wallS']:7.1f} "
+          f"{r['rtf']:8.2f}x {r['rtf'] / rows[0]['rtf']:8.3f} {1000.0 / r['rtf']:8.0f} "
           f"{r['msPerSimS']['total']:7.1f} {r['plans']:6d}")
     print(f"  {'':10s} {_breakdown(r['msPerSimS'])}")
     print(f"  {'':10s} ends {r['ends']}; save {r['saveMb']:.2f} MB in {r['saveMs']:.0f} ms; "
           f"peak RSS {r['peakRssMb']:.0f} MB")
-
-
-def report_across(rows: list[dict]) -> None:
-  for r in rows:
-    print(f"  {r['cells']:>10,d} cells: {'arrived' if r['arrived'] else r['why']} "
-          f"in {r['simS']:.1f} sim s, {r['wallS']:.1f} wall s ({r['rtf']:.2f}x real time, "
-          f"{1000.0 / r['rtf']:.0f} wall ms a sim s), {r['plans']} plans at "
-          f"{r['planMsMean']:.1f} ms; end {r['end']}")
-    print(f"  {'':10s}  map ms a sim second {r['msPerSimS']['total']:.1f}: "
-          f"{_breakdown(r['msPerSimS'])}; peak RSS {r['peakRssMb']:.0f} MB")
 
 
 def main(argv=None) -> int:
@@ -587,10 +518,7 @@ def main(argv=None) -> int:
   ap.add_argument("--repeat", type=int, default=9, help="calls a median is taken over (9)")
   ap.add_argument("--no-table", action="store_true", help="skip the table")
   ap.add_argument("--walks", nargs="?", type=float, const=60.0, default=None, metavar="SIM_S",
-                  help="the pairs' walks at each scale, SIM_S after the warm-up (60)")
-  ap.add_argument("--across", action="store_true",
-                  help=f"one fresh quadruped from the living room to {ACROSS_TO} at each scale")
-  ap.add_argument("--patience", type=float, default=300.0, help="--across's walk, s (300)")
+                  help="the humanoid pair's walks at each scale, SIM_S after the warm-up (60)")
   ap.add_argument("--out", default=None, help="every row as JSON")
   ap.add_argument("--one", nargs="+", default=None, help=argparse.SUPPRESS)
   args = ap.parse_args(argv)
@@ -600,10 +528,8 @@ def main(argv=None) -> int:
       out = lay_house(Path(rest[0]))
     elif what == "table":
       out = table_one(float(rest[0]), int(rest[1]), rest[2])
-    elif what == "walks":
-      out = walks_one(rest[0], float(rest[1]), float(rest[2]))
     else:
-      out = across_one(float(rest[0]), float(rest[1]))
+      out = walks_one(float(rest[0]), float(rest[1]))
     print(json.dumps(out))
     return 0
   scales = [float(s) for s in args.scales.split(",")]
@@ -620,16 +546,11 @@ def main(argv=None) -> int:
           f"{result['house']['knownShare']:.0%} of its grid known")
     report_table(rows)
   if args.walks is not None:
-    rows = [r for kind in ("quadruped", "humanoid") for s in scales
-            if (r := _one(["walks", kind, str(s), str(args.walks)])) is not None]
+    rows = [r for s in scales
+            if (r := _one(["walks", str(s), str(args.walks)])) is not None]
     result["walks"] = rows
-    print(f"THE PAIRS' WALKS (#507's routes, {args.walks:g} sim s after the warm-up)")
+    print(f"THE PAIR'S WALKS (#507's routes, {args.walks:g} sim s after the warm-up)")
     report_walks(rows)
-  if args.across:
-    rows = [r for s in scales if (r := _one(["across", str(s), str(args.patience)])) is not None]
-    result["across"] = rows
-    print(f"ACROSS THE HOUSE (a fresh quadruped, the living room to {ACROSS_TO})")
-    report_across(rows)
   if args.out:
     Path(args.out).write_text(json.dumps(result, indent=1))
   return 0

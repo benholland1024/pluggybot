@@ -17,8 +17,8 @@ encoders say where the trunk is in it.
 
 A command is the RobStride's MIT command: a target, the gains it rides on,
 and a torque fed forward (here the target offset by it over the stiffness,
-as `legs.drivers` carries a torque). The gains are the policy's
-(`legs.actuator.driver_gains`) times `model.ARM_GAIN_SCALE`, times the
+as `humanoid.drivers` carries a torque). The gains are the policy's
+(`humanoid.actuator.driver_gains`) times `model.ARM_GAIN_SCALE`, times the
 caller's `stiffness`, the damping by its square root (the loop's damping
 ratio kept): a compliant pull is a low stiffness.
 """
@@ -32,8 +32,8 @@ import numpy as np
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.senses import GripperSense
-from pluggybot.legs.actuator import driver_gains
-from pluggybot.legs.drivers import Drivers
+from pluggybot.humanoid.actuator import driver_gains
+from pluggybot.humanoid.drivers import Drivers
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 #: The inverse kinematics' damping (damped least squares, m), its largest

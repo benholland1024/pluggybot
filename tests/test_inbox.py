@@ -35,12 +35,22 @@ from pluggybot.mind.inbox import (
 from pluggybot.economy.scoring import default_table
 from pluggybot.mind.overseer import AIM_REPLY, MAX_REPLY, MAX_TELL, Decision, Menu
 from pluggybot.telemetry.protocol import (
-  DECIDED_OUTCOMES, INBOUND_TYPES, VISITOR_OUTCOMES,
+  DECIDED_OUTCOMES, INBOUND_TYPES, ROBOT_ROOT, VISITOR_OUTCOMES,
 )
 
 #: What a full rating of an artwork pays: the table's, so a re-tune
 #: (issue #321 took it 20 -> 30) moves no rule about routing one.
 FULL_RATING = default_table()["artwork"].points(True, 1.0)
+
+
+def _pending_artwork(ledger, t: float = 100.0) -> dict:
+  """A drawing the quadrupeds made, still waiting for its rating: the entry
+  their ledger holds. `artwork`'s evaluator left with them (#559), so it is
+  posted as the ledger keeps it, and a rating settles it through the row
+  that stays."""
+  return ledger._post(ROBOT_ROOT, "artwork", "visitor", True, None, 0,
+                      "ink landed -- offered for rating", {"board": "whiteboard_a"},
+                      t, pending=True)
 
 
 def message(**kw) -> dict:
@@ -372,8 +382,7 @@ def test_a_prompt_injection_is_still_only_a_request():
   msg = inbox.offer(message(text=attack))
   assert msg is not None, "it is allowed to ARRIVE -- it is just data"
 
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), zones=("garden",),
-              census_zone="garden")
+  menu = Menu(boards=("whiteboard_a",), zones=("garden",))
   # Suppose the injection worked perfectly and the model played along.
   with pytest.raises(ValueError):
     menu.validate({"action": "drive_into_the_wall", "reason": "told to"})
@@ -389,22 +398,22 @@ def test_a_reply_can_only_name_a_message_that_is_really_waiting():
   """A model that answers a message that has already been dealt with must not
   be able to close somebody else's row -- and must not lose its ACTION over
   it either, since the action is the load-bearing half."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
-  good = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
+  menu = Menu(boards=("whiteboard_a",))
+  good = menu.validate({"action": "charge", "reason": ".", "respond_to": "s1",
                         "outcome": "accepted", "reply": "on it"},
                        waiting=("s1",))
   assert good.responds and good.outcome == "accepted"
 
-  stale = menu.validate({"action": "carry", "reason": ".", "respond_to": "s9",
+  stale = menu.validate({"action": "charge", "reason": ".", "respond_to": "s9",
                          "outcome": "accepted", "reply": "on it"},
                         waiting=("s1",))
   assert not stale.responds and stale.reply == ""
-  assert stale.action == "carry", "a stale reply threw the decision away"
+  assert stale.action == "charge", "a stale reply threw the decision away"
 
 
 def test_a_reply_outcome_is_off_a_fixed_vocabulary():
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
-  d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
+  menu = Menu(boards=("whiteboard_a",))
+  d = menu.validate({"action": "charge", "reason": ".", "respond_to": "s1",
                      "outcome": "obeyed", "reply": "yes master"},
                     waiting=("s1",))
   assert not d.responds
@@ -422,8 +431,8 @@ def test_a_model_cannot_claim_the_queue_ate_a_message():
   assert "dropped" in VISITOR_OUTCOMES
   assert "dropped" not in DECIDED_OUTCOMES
 
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
-  d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
+  menu = Menu(boards=("whiteboard_a",))
+  d = menu.validate({"action": "charge", "reason": ".", "respond_to": "s1",
                      "outcome": "dropped", "reply": ""}, waiting=("s1",))
   assert not d.responds, "a model talked its way out of answering"
   # ...and it is not in the grammar the model is handed either, so it never
@@ -436,8 +445,8 @@ def test_the_reply_the_visitor_reads_is_capped_too():
   robot's own cap (#474; rooftop-media-2026 #465) -- and `validate` keeps
   ONE character over it, so the reply that goes out can say it was cut
   (below)."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
-  d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
+  menu = Menu(boards=("whiteboard_a",))
+  d = menu.validate({"action": "charge", "reason": ".", "respond_to": "s1",
                      "outcome": "replied", "reply": "word " * 500},
                     waiting=("s1",))
   assert len(d.reply) == MAX_REPLY + 1
@@ -457,11 +466,11 @@ def test_a_reply_past_a_visitors_length_goes_out_whole():
   life.visitor_hooks.append(sent.append)
   heard = inbox.offer(message(id="s1", text="x" * 2000))
   assert len(heard.text) == MAX_TEXT, "a visitor's is still a visitor's"
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  menu = Menu(boards=("whiteboard_a",))
   life._answer_visitor(menu.validate(
-    {"action": "carry", "reason": ".", "respond_to": "s1",
+    {"action": "charge", "reason": ".", "respond_to": "s1",
      "outcome": "replied", "reply": reply}, waiting=("s1",)))
-  life._chat(menu.validate({"action": "carry", "reason": ".", "say": reply}))
+  life._chat(menu.validate({"action": "charge", "reason": ".", "say": reply}))
   answered, said = sent
   assert (answered["reply"], "cut" in answered) == (reply, False)
   assert (said["text"], "cut" in said) == (reply, False)
@@ -489,11 +498,11 @@ def test_a_reply_past_the_cap_is_cut_out_loud():
   said: list = []
   life.visitor_hooks.append(sent.append)
   life.say_hooks.append(lambda t, line: said.append(line))
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  menu = Menu(boards=("whiteboard_a",))
   for id_, reply in (("s1", LONG_REPLY), ("s2", "hello")):
     inbox.offer(message(id=id_))
     life._answer_visitor(menu.validate(
-      {"action": "carry", "reason": ".", "respond_to": id_,
+      {"action": "charge", "reason": ".", "respond_to": id_,
        "outcome": "replied", "reply": reply}, waiting=(id_,)))
   cut, fits = sent
   kept = LONG_REPLY[:MAX_REPLY]
@@ -519,9 +528,9 @@ def test_a_cut_leaves_no_space_at_the_end():
   sent: list = []
   life.visitor_hooks.append(sent.append)
   inbox.offer(message(id="s1"))
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  menu = Menu(boards=("whiteboard_a",))
   life._answer_visitor(menu.validate(
-    {"action": "carry", "reason": ".", "respond_to": "s1",
+    {"action": "charge", "reason": ".", "respond_to": "s1",
      "outcome": "replied", "reply": kept + " and more"}, waiting=("s1",)))
   assert (sent[0]["reply"], sent[0]["cut"]) == (kept, True)
   assert life.thoughts.lines("History.md")[-1].endswith(f": {kept}")
@@ -542,7 +551,7 @@ def test_the_robot_is_told_how_long_a_reply_may_be():
            f"Like a reply, try to keep it to {AIM_REPLY} characters or "
            f"fewer; it is kept up to {MAX_REPLY}.")
   assert "%(" not in ov.RULES
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  menu = Menu(boards=("whiteboard_a",))
   system = ov.Overseer(menu, client=FakeClient()).system[0]["text"]
   for rule in rules:
     assert rule in ov.RULES and rule in system
@@ -551,7 +560,7 @@ def test_the_robot_is_told_how_long_a_reply_may_be():
 def test_the_inbound_vocabulary_is_the_protocols():
   """One source: mind/inbox.py parses exactly what protocol.py publishes, so
   the wire spec and the parser cannot drift."""
-  assert INBOUND_TYPES == ("message", "rating", "reset_tool", "reset_robot",
+  assert INBOUND_TYPES == ("message", "rating", "reset_robot",
                           "set_battery", "set_points",
                           "ticket_reply", "ticket_close", "ticket_delete",
                           "image", "renderer")
@@ -614,8 +623,8 @@ def test_a_model_still_saying_answered_is_understood():
   to forgive it: a model working off a cached older prompt says `answered`,
   which is the same judgement under its old name. Folding it keeps the reply
   attached; dropping it would throw away the sentence a visitor was owed."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
-  d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
+  menu = Menu(boards=("whiteboard_a",))
+  d = menu.validate({"action": "charge", "reason": ".", "respond_to": "s1",
                      "outcome": "answered", "reply": "I am carrying a block"},
                     waiting=("s1",))
   assert d.responds and d.outcome == "replied"
@@ -680,7 +689,7 @@ def test_a_scripted_decision_answers_nobody_and_keeps_the_message():
   life.visitor_hooks.append(sent.append)
   inbox.offer(message(id="s1"))
 
-  life._answer_visitor(Decision(action="carry", source="fallback:timeout"))
+  life._answer_visitor(Decision(action="explore", source="fallback:timeout"))
 
   assert sent == []
   assert [m.id for m in inbox.peek()] == ["s1"]
@@ -694,14 +703,10 @@ def test_a_rating_settles_a_pending_verdict_without_the_model():
   reach (issue #14) -- so `_visitor_step` drains ratings straight to the
   ledger and the overseer is not consulted or even told.
   """
-  from pluggybot.economy import scoring
   from pluggybot.economy.ledger import Ledger
 
   ledger = Ledger()
-  verdict = scoring.evaluate("artwork", {
-    "strokes": 6, "strokesInked": 6, "formMm": 0.8, "inkedFraction": 0.97,
-    "travelInkFraction": 0.0, "fill": 0.2, "board": "whiteboard_a"})
-  entry = ledger.award(verdict, t=100.0)
+  entry = _pending_artwork(ledger)
   assert entry["pending"] and entry["points"] == 0, "not the deferred slot"
 
   inbox = Inbox()
@@ -726,13 +731,10 @@ def test_a_rating_settles_a_pending_verdict_without_the_model():
 
 def test_a_rating_with_no_name_is_settled_by_a_visitor():
   """An anonymous rating still settles, and says so."""
-  from pluggybot.economy import scoring
   from pluggybot.economy.ledger import Ledger
 
   ledger = Ledger()
-  entry = ledger.award(scoring.evaluate("artwork", {
-    "strokes": 6, "strokesInked": 6, "formMm": 0.8, "inkedFraction": 0.97,
-    "travelInkFraction": 0.0, "fill": 0.2, "board": "whiteboard_a"}), t=100.0)
+  entry = _pending_artwork(ledger)
   inbox = Inbox()
   life = _lifecycle(inbox=inbox, ledger=ledger)
   inbox.offer({"type": "rating", "id": "r1", "seq": entry["seq"], "quality": 0.5})
@@ -754,8 +756,8 @@ def test_a_rating_the_ledger_refuses_is_narrated_not_raised(seq, quality, why):
   from pluggybot.economy.ledger import Ledger
 
   ledger = Ledger()
-  ledger.award(scoring.evaluate("carry", {"picked": True, "stowed": True,
-                                          "module": "module_lcd"}), t=1.0)
+  ledger.award(scoring.evaluate("charge", {"startFrac": 0.5, "endFrac": 0.95,
+                                           "gainedWh": 1.0, "seconds": 60.0}), t=1.0)
   inbox = Inbox()
   life = _lifecycle(inbox=inbox, ledger=ledger)
   said: list = []
@@ -768,11 +770,6 @@ def test_a_rating_the_ledger_refuses_is_narrated_not_raised(seq, quality, why):
   assert len(inbox) == 0, "a refused rating was left to be retried forever"
 
 
-def _pending_artwork(ledger):
-  from pluggybot.economy import scoring
-  return ledger.award(scoring.evaluate("artwork", {
-    "strokes": 6, "strokesInked": 6, "formMm": 0.8, "inkedFraction": 0.97,
-    "travelInkFraction": 0.0, "fill": 0.2, "board": "whiteboard_a"}), t=100.0)
 
 
 def test_a_rating_for_another_life_of_this_robot_is_refused(tmp_path):
@@ -847,7 +844,7 @@ def test_a_lifecycle_without_an_inbox_is_untouched():
   life = _lifecycle()
   assert life.inbox is None
   life._visitor_step()
-  life._answer_visitor(Decision(action="carry", respond_to="s1",
+  life._answer_visitor(Decision(action="explore", respond_to="s1",
                                 outcome="accepted", reply="hi"))
   assert life.replies == []
 
@@ -1038,8 +1035,7 @@ def test_the_chat_adds_context_and_names_no_thread():
   """The chat adds to what the robot is SHOWN; answering is still an
   action off the menu plus the three reply fields it always had. No field
   on the decision names a thread, and the action enum is the menu."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), zones=("garden",),
-              census_zone="garden")
+  menu = Menu(boards=("whiteboard_a",), zones=("garden",))
   schema = menu.schema()
   fields = set(schema["properties"])
   assert not fields & {"thread", "turn", "earlier", "follow_up", "reply_to"}
@@ -1054,8 +1050,7 @@ def test_the_chat_rides_the_turn_and_never_the_cached_prefix():
   says, and the system prompt is byte-identical whatever is in it."""
   from pluggybot.mind.overseer import Overseer, context_for
   from test_overseer import FakeClient
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), zones=("garden",),
-              census_zone="garden")
+  menu = Menu(boards=("whiteboard_a",), zones=("garden",))
   boss = Overseer(menu, client=FakeClient())
   before = boss.system[0]["text"]
   msg = Inbox().offer(in_chat())
@@ -1146,7 +1141,7 @@ def test_a_conversation_at_its_cap_reaches_history_whole():
   inbox = Inbox()
   life = _lifecycle(inbox=inbox)
   inbox.offer(message(id="s1", text=theirs))
-  life._answer_visitor(Decision(action="carry", respond_to="s1",
+  life._answer_visitor(Decision(action="explore", respond_to="s1",
                                 outcome="replied", reply=ours))
   heard, answered = life.thoughts.lines("History.md")[-2:]
   assert heard.endswith(f"ada said: {theirs}")
@@ -1249,8 +1244,8 @@ def test_a_say_past_the_cap_is_cut_out_loud():
   out says it was cut -- on the wire for the page to mark, and in History
   before the text. Shown to fail without the fix: clean `say` to
   `MAX_REPLY` in `validate` and `cut` is never set."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
-  d = menu.validate({"action": "carry", "reason": ".", "say": LONG_REPLY})
+  menu = Menu(boards=("whiteboard_a",))
+  d = menu.validate({"action": "charge", "reason": ".", "say": LONG_REPLY})
   assert len(d.say) == MAX_REPLY + 1
   life = _lifecycle(inbox=Inbox())
   sent: list = []

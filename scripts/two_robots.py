@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 """Two robots in one world, from one physics loop (issue #167, M12).
 
-The quadruped pair in the house (`home_quad`, issue #387): each robot runs
-its own day -- explores, docks when its pack runs low, runs its queue --
-against one model, one dock, one rack and one task board, ticked in turn
-from `tick.run_many`. `--view` watches it live. `--world home_humanoid` is
-the humanoid pair in the same house, the served one (issue #559): no dock,
-rack or tools, one charging station they share, a day of mapping the house
-on their own legs -- and its fixture recording, `--fast --pack demo
---near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600
---record protocol/telemetry.home_humanoid_pair.jsonl.gz`.
+The humanoid pair in the house (`home_humanoid`, issue #559), the served
+one: each robot runs its own day -- explores, charges at the station they
+share when its pack runs low, runs its queue -- against one model and one
+task board, ticked in turn from `tick.run_many`. `--view` watches it live;
+the fixture recording is `--fast --pack demo --near-field --errands
+none,none --battery 0.22,1.0 --max-sim-time 600 --record
+protocol/telemetry.home_humanoid_pair.jsonl.gz`.
 
     MUJOCO_GL=egl uv run python scripts/two_robots.py --view
-    ... --errands feed,none        # the first walks to the lab and feeds
     ... --overseer --tasks --thoughts /tmp/two   # two minds, one job board
-    ... --world home_humanoid --view --pack hosting   # the humanoid pair's day
-    ... --world home_humanoid --fast --pack hosting --strip two_robots.png
+    ... --view --pack hosting                    # the pair's day on the served pack
+    ... --fast --pack hosting --strip two_robots.png
                                    # ...headless, a tile of each every 20 s
 """
 
@@ -23,7 +20,7 @@ import argparse
 import json
 import math
 
-from pluggybot.lifecycle import HUMANOID_HOME, QUAD_HOME, world_for
+from pluggybot.lifecycle import HUMANOID_HOME, world_for
 from pluggybot.pair import run_demo_pair
 
 #: A filmstrip's tile, px, and its row.
@@ -75,10 +72,9 @@ def save_strip(tiles: list, out: str) -> None:
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument("--world", choices=(QUAD_HOME, HUMANOID_HOME, "home"), default=QUAD_HOME,
-                  help="the house with the quadruped pair, its dock and rack "
-                       "(issue #387; `home` names it too), or with the humanoid "
-                       "pair (#559)")
+  ap.add_argument("--world", choices=(HUMANOID_HOME, "home"), default=HUMANOID_HOME,
+                  help="the house with the humanoid pair in it (#559; `home` "
+                       "names it too)")
   ap.add_argument("--strip", default=None, metavar="PNG",
                   help="a filmstrip of the day: each robot from above and behind "
                        "every --strip-every sim seconds (use with --fast)")
@@ -89,7 +85,7 @@ def main() -> None:
   ap.add_argument("--pack", choices=("demo", "hosting"), default="demo")
   ap.add_argument("--errands", default="none,none", metavar="A,B",
                   help="each robot's preset queue (`lifecycle.errands_for`): "
-                       "none, care, care:<act>, feed or shock")
+                       "none")
   ap.add_argument("--boards", default=None, metavar="PATH")
   ap.add_argument("--overseer", action="store_true",
                   help="two MINDS (issue #167 slice C): each robot its own "
@@ -111,7 +107,7 @@ def main() -> None:
                        "protocol/telemetry.<world>_pair.jsonl.gz)")
   ap.add_argument("--battery", default=None, metavar="A,B",
                   help="each robot's pack at the start, as a fraction (the "
-                       "quadruped fixture starts the first low, so it docks)")
+                       "fixture starts the first low, so it charges)")
   ap.add_argument("--names", default=None, metavar="A,B",
                   help="the two display names (default Pluggy,Rowan; "
                        "$PLUGGY_ROBOT_NAME_2 sets the second)")
@@ -145,10 +141,10 @@ def main() -> None:
     save_strip(tiles, args.strip)
   for i, r in enumerate(results, 1):
     print(f"robot {i}: {r['state']} at {r['battery']:.0%}, "
-          f"{r['charge_cycles']} charge(s), {r['swaps_done']} swaps, "
+          f"{r['charge_cycles']} charge(s), "
           f"{len(r['errands'])} errand(s), dead={r['dead']}")
-  print(json.dumps([{k: r[k] for k in ("state", "battery", "swaps_done",
-                                        "sim_time", "dead")} for r in results]))
+  print(json.dumps([{k: r[k] for k in ("state", "battery", "sim_time", "dead")}
+                    for r in results]))
 
 
 if __name__ == "__main__":

@@ -301,7 +301,7 @@ def test_the_record_is_offered_with_the_library_and_nowhere_else():
   """The verbs ride the library's slot, the document rides the context
   only where they do, and the rule rides a prefix with a library only."""
   assert "Findings.md" not in ov.RULES and "Findings.md" in ov.FINDINGS_RULE
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",))
   assert "record" not in menu.schema()["properties"]
   props = menu.schema(procedures=())["properties"]
   assert props["record"]["properties"]["value"] == {"type": "number"}

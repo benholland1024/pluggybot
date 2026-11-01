@@ -26,15 +26,16 @@ MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast -
   --record protocol/telemetry.home_humanoid_pair.jsonl.gz
 ```
 
-...and the quadrupeds' (#387), the same three with `--world home_quad` and
-`home_quad_pair`'s recording, until stage 5 deletes them.
+The quadrupeds' scenes and recordings (`home_quad`, `home_quad_pair`,
+`home_quad_chest`) went with them in #559's stage 5; the site keeps its
+vendored copies, frozen at `quadruped-final`.
 
 ⚠ **The recording is the deployed period's shape.** `--tasks`, `--metabolism`
 and `--near-field` are each off by default, so a recording made without one
 carries no `tasks` / `metabolism` block or `heightmap` lines, and the website
 has nothing to build its markers, its hunger gauge or its floor map against.
-The committed recordings are #387's and #559's periods with no job on them
-— `--near-field`, no offers and no upkeep, so `taskKinds` and
+The committed pair recording is #559's period with no job on it —
+`--near-field`, no offers and no upkeep, so `taskKinds` and
 `hungerStates` are empty; a recording for a period that runs offers or
 upkeep takes those flags too.
 
@@ -48,6 +49,44 @@ is the world with the second robot attached where the pair starts it, and a
 replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
+
+### 0.21.0, nothing new: the quadruped retired (its fixtures, `reset_tool`, the screens)
+
+pluggybot #559's stage 5 deletes the quadruped; the tag `quadruped-final`
+(4333f30) is the last commit that serves it. No message's shape moves, so
+there is no bump, and the served stream is stage 4's: the humanoid pair in
+`home_humanoid_pair`, its prompt and every message the same byte for byte,
+but for the header (below).
+
+- **The quadrupeds' fixtures are gone from this directory**:
+  `scene.home_quad.json`, `scene.home_quad_pair.json` and
+  `telemetry.home_quad_pair.jsonl.gz`, the demo's `scene.home_quad_chest.json`
+  and `telemetry.home_quad_chest.jsonl.gz`, and the textures of tags 25-34
+  (the dock's board and the rack's bays) and 47-52 (the built-tool rail).
+  The site keeps its vendored copies, frozen at `quadruped-final`; those tag
+  ids are retired, never reused.
+- **The header moves three ways.** `accepts` no longer names `reset_tool`
+  (the tools it put back went with the quadruped), and one sent anyway is
+  an unknown kind, dropped at the door. `taskKinds` is the kinds this build
+  knows, on a run with a board: `take_points` and the hands' four
+  (`open_drawer`, `open_door`, `place_cube`, `open_chest`). `build.dataHashes`
+  has no `questions` (the whiteboard questions went with the boards' jobs).
+- **The screens are a vestige**: the header's `screens` is always `[]` and
+  no frame carries a `screens` block -- the quadruped's LCD went, and with it
+  `FACE_STATES`, `SCREEN_HINTS` and `SCREEN_MODES`. The key stays because the
+  site reads it. So do the wire's other vestiges, each to go with a period of
+  its own: `death.swapping` (null), a frame's `state` passing `SWAP_PICK` then
+  `USE_TOOL` on an errand, a decision's `answer` (always ""), and an attempt
+  row's `tool` and `toolSeated` (null).
+- **No robot draws and nothing imagines**: no `draw` comes from a robot's
+  errand (a board's ink from before still opens as its `board_snapshot`), and
+  no `imagined` event is sent (#563 brings an imagination back).
+- **`parts.json`, which is not on the wire, is the humanoid's bill** (`uv
+  run python -m pluggybot.humanoid.bill`): `worlds` names `humanoid`, 64
+  parts where the quadruped's had 78, its groups its own (the grippers, the
+  charging station; no arm, tools, rack or dock), and no budget
+  (`budgetUsd` and `totals.budgetEur` null). `schema` stays 1, as when the
+  workshop's shelf went.
 
 ### 0.21.0, additive: a robot's line may run to 1000 characters (`visitor_reply.reply`, `chat.text`, a robot's line of `earlier`)
 
@@ -409,9 +448,9 @@ over the real object:
   are kept as `Task.secret` is, and the scene a demo carries draws its
   hidden weight with no alpha, so no scene shows where it sits.
 
-The demo's recording and its scene are `scripts/imagine_chest.py --demo K
---record PATH`'s, named `home_quad_chest` (a world of its own: the house,
-the quadruped and one drawn chest).
+The demo's recording and its scene were `scripts/imagine_chest.py --demo K
+--record PATH`'s (at `quadruped-final`), named `home_quad_chest` (a world of
+its own: the house, the quadruped and one drawn chest).
 
 ### 0.21.0, additive: a conversation is 500 characters both ways, and a cut reply says so (`visitor_reply.cut`)
 
@@ -2795,7 +2834,7 @@ hanging in its bay is `off`, and so is a half-seated one on the fork.
 **Why `board_snapshot` had to exist.** Keyframes re-ship every board's
 counters, but no keyframe re-ships the LINES: a stroke is an event that
 happens once. So a browser that opens the page after the pen has moved on —
-or after the producer restarted onto a state file, since `tools/boards.py` now
+or after the producer restarted onto a state file, since `home/boards.py` now
 persists the polylines themselves — sees a board reporting 40 % fill with
 nothing painted on it. The snapshot is what closes that gap. It is sent when
 a stream opens (a recording carries it right after the header; the live
@@ -2893,15 +2932,13 @@ against the body census.
 
 | File | What | Regenerate with |
 |---|---|---|
-| `scene.home_quad.json` | The generated home world with ONE quadruped and its dock (issue #387), with visual hints + zones + spawns | `uv run python -m pluggybot.telemetry.scene --world home_quad` |
+| `scene.home_humanoid.json` | The generated home world with ONE humanoid, its charging station and the storeroom's counter (#559), with visual hints + zones + spawns, and the station's rope as a `cables` entry | `uv run python -m pluggybot.telemetry.scene --world home_humanoid` |
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `hints.json` | The visual-hint **conformance fixture** (issue #66): per hint, one body in `scene_dict`'s exact shape plus a machine-readable rule | `uv run python -m pluggybot.telemetry.hints` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (the scene command) |
-| `parts.json` | The **parts list** (issue #185): what Pluggy and its rack are made of, each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled world when the file is built. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.rack.catalog` |
-| `scene.home_quad_pair.json` | The home world with the QUADRUPED pair and its dock (issue #387): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene --world home_quad --pair` |
-| `telemetry.home_quad_pair.jsonl.gz` | The quadruped period's shape: no offers, no upkeep, #378's arm stowed on both backs (#405); the first robot, started low, walks to the dock, lies on it and charges while the second explores, then rests by reflex -- both maps and near fields. Started at 0.42 (#387's), the first robot left for the dock only once the second had finished and lay resting across its way home, and died stranded (#405: a finished robot does not yield) | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_quad_pair.jsonl.gz` |
-| `scene.home_quad_chest.json` | The demo's world (pluggybot #466): the house, ONE quadruped where the demo set-out starts it and the drawn chest where it stands (`evaluation.probe.spec_of`, `DEMO`) -- a world of its own, never the served one | `scripts/imagine_chest.py --demo 0 --record ...` (writes it beside the recording) |
-| `telemetry.home_quad_chest.jsonl.gz` | The demo's flight: the probe from the robot's own senses, the robot lying still while it imagines, and the ONE `imagined` event the site draws its ghost from; its author's answers vary run to run, so a new recording draws a new model | `MUJOCO_GL=egl uv run python scripts/imagine_chest.py --demo 0 --record protocol/telemetry.home_quad_chest.jsonl.gz --remote HOST:PORT` (`$HF_TOKEN`; the workers on a pod) |
+| `parts.json` | The **parts list** (issue #185): what the humanoid is made of (#507), each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled body when the file is built — and the bill it totals. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.humanoid.bill` |
+| `scene.home_humanoid_pair.json` | The home world with the HUMANOID pair (#559): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene --world home_humanoid --pair` |
+| `telemetry.home_humanoid_pair.jsonl.gz` | The deployed period's shape: no offers, no upkeep; the first robot, started low, walks to its station, plugs itself in and charges while the second explores -- both maps and near fields | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_humanoid_pair.jsonl.gz` |
 | `scene.home_humanoid_counter.json` | A world of one's own (pluggybot #530): the house, the HUMANOID where the counter's set-out starts it, the counter and chest 0 on it (`evaluation.counter`), its `head` camera named -- never the served world | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record ...` (writes it beside the recording) |
 | `telemetry.home_humanoid_counter.jsonl.gz` | The reference's attempt at chest 0 (`evaluation.opener`), streamed as a person's session streams one: the scene after the header, the robot's senses (`readouts`, `depth`), and ONE `attempt` at the end, which passed | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record protocol/telemetry.home_humanoid_counter.jsonl.gz` |
 | `hello.home_humanoid_counter.json` | The session host's `hello` as a fresh host says it (rooftop-media-2026 #441): no build, nothing running; the task, the job, the robot's text and its `index`, which the site's guide for people is checked against | `uv run python -m pluggybot.session.host --hello` |
@@ -2924,10 +2961,10 @@ files are already resolved. Top level:
 ```jsonc
 {
   "protocolVersion": "0.3.0",
-  "model": "home_quad",
+  "model": "home_humanoid",
   "upAxis": "z",              // see "conventions" below
   "bodies": [ ... ],
-  "textures": [{"name": "tagtex25", "file": "tagtex25.png", "width": 240, "height": 240}]
+  "textures": [{"name": "tagtex58", "file": "tagtex58.png", "width": 240, "height": 240}]
 }
 ```
 
@@ -3007,12 +3044,13 @@ looks authoritative.
   own frame, and a builder that respects it works for a couch against any
   wall.
 - **`collides` is not decoration.** It is already not constant in the house:
-  `wall`, `fence`, `rack` and `whiteboard` collide; `floor`, `ground` and
+  `wall`, `fence` and `whiteboard` collide (and `rack`, which no world has
+  carried since #559); `floor`, `ground` and
   **`plant`** do not — a plant is mapped and driven through. Where it is true,
   art outside the marker must sit above the robot or read as non-solid. A
   tree's canopy is the case it exists for.
 - **`build: "reskin"`** on `rack` and `robot` means keep the primitives'
-  silhouette and dress it. The rack's bays are where tools physically go, and
+  silhouette and dress it. The rack's bays were where tools physically went, and
   the robot's outline is the shape the physics used — a visitor watching it
   squeeze through a doorway is watching that shape, so art that flattered it
   would be lying about the sim.
@@ -3073,21 +3111,21 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
 
 ```jsonc
 // header
-{"type": "header", "protocolVersion": "0.6.0", "model": "home_quad", "hz": 20.0,
+{"type": "header", "protocolVersion": "0.6.0", "model": "home_humanoid", "hz": 20.0,
  "keyframeS": 5.0,                                      // sim s between keyframes
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
  "robotNames": {"pluggybot": "Pluggy"},                 // id → display name (0.10.0)
- "world": ["rack", "module_lcd", ...],                  // shared dynamic bodies
+ "world": ["station_plug", "drawer_drawer", ...],      // shared dynamic bodies
  "activities": ["garden_light"],                        // task state machines
  "boards": ["whiteboard_a", "whiteboard_b"],            // drawing surfaces
- "screens": ["module_lcd"],                             // display modules
+ "screens": [],                                        // a vestige: always empty (#559)
  "ledger": ["pluggybot"],                               // robots with a balance
- "taskKinds": ["draw_figure", "count_plants"],          // jobs it can offer
+ "taskKinds": ["open_drawer", "open_door"],            // jobs it can offer
  "accepts": ["message", "rating"],                      // what it will act on
  "build": {                                            // WHICH BUILD (0.15.0+,
    "commit": "21f44dc",                                //  additive; see below)
    "dataHashes": {"rewards": "f55a…", "cadence": "ab3c…", "energy": "144a…",
-                  "metabolism": "3937…", "questions": "8554…", "world": "b946…"},
+                  "metabolism": "3937…", "world": "b946…"},
    "arm": "autonomous", "rung": "A0", "model": "Qwen/Qwen3-4B-Instruct-2507",
    "backend": "huggingface",
    "packWh": 8.0, "reserveWh": 0.9, "deadlineS": 90.0}}
@@ -3102,7 +3140,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    //  ⚠ BOTH ARE THE SIM TALKING TO ITSELF -- see "Narration is not UI copy"
    //  below before a consumer prints either one.
    "battery": {"frac": 0.61, "watts": 14.2, "charging": false}}},
- "world": {"module_lcd": [x, y, z, qw, qx, qy, qz]},
+ "world": {"station_plug": [x, y, z, qw, qx, qy, qz]},
  "activities": {"garden_light": {"state": "on", "pressed": false}},
  "boards": {"whiteboard_a": {"programs": ["house"], "strokes": 7,
                              "inkM": 0.459,          // metres of ink laid down
@@ -3110,13 +3148,11 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
                              "clears": 1,
                              "clearedAt": "2026-08-16T08:01:09+00:00",
                              "drawnAt": "2026-08-16T08:01:47+00:00"}},
- "screens": {"module_lcd": {"mode": "face", "powered": true,
-                            "face": "curious", "hint": "blink"}},
  "ledger": {"pluggybot": {"balance": 39, "earned": 39, "spent": 0,
                           "tasks": 3, "pending": 0,
-                          "recent": [{"seq": 3, "task": "census", "points": 20,
+                          "recent": [{"seq": 3, "task": "open_drawer", "points": 90,
                                       "ok": true, "t": 412.5}]}},
- "tasks": {"t_0001": {"id": "t_0001", "kind": "draw_figure",
+ "tasks": {"t_0001": {"id": "t_0001", "kind": "open_drawer",
                       "state": "done", ...}}}   // WHOLE, not merged
 ```
 
@@ -3125,8 +3161,8 @@ body; later frames carry only bodies that moved > 0.5 mm (or the quat
 equivalent) since they were last emitted. A body absent from a frame is
 unchanged — a replayer holds the last value it saw. `bodies`, `world` and
 `activities` are omitted entirely when empty; `state`/`status`/`battery`
-ride in every frame. **Activity flags, board state, screen content and the
-points ledger are sparse on the same rule as poses** and re-ship on every
+ride in every frame. **Activity flags, board state and the points ledger
+are sparse on the same rule as poses** and re-ship on every
 keyframe (0.3.0, 0.4.0, 0.5.0, 0.6.0). Positions are rounded to 0.1 mm.
 
 **`tasks` is the exception**, and the only one: it is sparse in *time* like
@@ -3151,7 +3187,7 @@ inside a physics step.
 ⚠ **`visitor_reply.outcome` gains a fourth value, `dropped`**
 (rooftop-media-2026 #124). Additive, and no version bump: a consumer that has
 never heard of it falls through to whatever it already does with an outcome it
-does not know, which is the `FACE_STATES` rule.
+does not know, the rule for every open set on this wire.
 
 ```jsonc
 {"type": "visitor_reply", "t": 412.5, "robot": "pluggybot", "id": "m_02",
@@ -3193,15 +3229,15 @@ contract change, recorded here as well as there).
 | field | example | what it is |
 | --- | --- | --- |
 | `state` on a robot's frame record | `SWAP_PICK` | a state machine's name for itself |
-| `task` on `earned` / an `earning` | `census` | a row in `economy/rewards.json` |
-| `action` on `visitor_reply` | `dance` | one of the overseer's `ERRAND_ACTIONS` |
+| `task` on `earned` / an `earning` | `open_drawer` | a row in `economy/rewards.json` or `challenges.json` |
+| `action` on `visitor_reply` | `explore` | an action off the overseer's menu |
 
 The website printed the first of them in bold under a label a visitor could
 read, and it measured **27 % of the home recording** spent telling somebody
 the robot was doing something called `SWAP_PICK`. These are identifiers a
 client should map to its own words; the site now renders a phrase per token
 and falls back to the raw token for one it has never heard of — all three are
-OPEN sets, on the same terms as `FACE_STATES` and `taskKinds`, so a new
+OPEN sets, on the same terms as `taskKinds`, so a new
 lifecycle state or reward row costs a consumer the phrasing and never the
 fact.
 

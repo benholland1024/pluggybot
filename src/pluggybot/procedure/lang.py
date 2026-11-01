@@ -9,18 +9,18 @@ routine; nothing here calls `exec`, `eval` or `compile`, and a program that
 uses any construct outside the grammar is refused with the line it broke,
 before a single step runs. The grammar:
 
-    def go_and_look():                      # one def, no arguments
+    def reach_and_look():                   # one def, no arguments
         budget(steps=60, seconds=300)       # optional, first; capped by code
         n = 0                               # locals, arithmetic
-        fetch("module_lcd")                 # a verb, arguments literal or computed
+        drive_to(1.0, 2.0)                  # a verb, arguments literal or computed
         for i in range(3):                  # a literal count, <= MAX_ITER
-            drive(0.0, 0.8, 1.5)
-            if read("bumper") < 1:
+            face(0.5 * i)
+            if read("battery.frac") < 0.5:
                 wait(2)
-        while read("shoulder") < 1.0 and n < 10:      # capped at MAX_ITER
-            move("shoulder", read("shoulder") + 0.1)  # the motor level: a ramped setpoint
+        while read("left.z") < 1.0 and n < 10:        # capped at MAX_ITER
+            reach("left", 0.3, 0.2, read("left.z") + 0.05)
             n = n + 1
-        stow()
+        withdraw("left")
 
   statements   verb(...)  name = expr  name += expr  if/elif/else  for name in
                range(N)  while cond  pass  return  budget(...)
@@ -32,7 +32,7 @@ before a single step runs. The grammar:
 Totality by construction: every loop is bounded (a literal count, or the
 cap), a program declares a step budget and a sim-time budget and the
 vocabulary caps both, and the interpreter checks them at every verb -- which
-is a safe point (steps.py). Abort means stow, as for every program.
+is a safe point (steps.py).
 
 Where it stands on the fence: a procedure reaches the motors only through a
 verb (`move` is `Body.ramp_routine`), the scoring path not at all -- a
@@ -63,9 +63,6 @@ MAX_NESTING = 4
 #: RecursionError out of the define and ended the served process (#500).
 MAX_EXPR_DEPTH = 50
 NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
-#: The verbs that need the claw (issue #407): what `references` says a
-#: procedure reaches for -- a `pick` fetches it onto an empty fork (#353).
-CLAW_TOOL_VERBS = frozenset(st.CLAW_VERBS)
 #: Names a local may not shadow: the language's own words and every verb.
 RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
                       "if", "elif", "else", "for", "while", "in", "return",
@@ -142,73 +139,6 @@ class Procedure:
             return found
       return None
     return walk(self.body)
-
-  def references(self) -> dict:
-    """What this procedure reaches for: the axes a `move` names, the sensors
-    a `read` names, and the modules a `fetch` names -- in source order,
-    deduplicated (issue #324).
-
-    ⚠ `tools` IS NOT REDUNDANT WITH `axes`. The high-level verbs declare no
-    tool: `draw` needs the pen, `pick`/`place`/`grip` need the claw, and
-    `Verb` carries nothing that says so -- each checks inside its own body.
-    So a procedure of `fetch("module_pen"); draw(...); stow()` names no axis
-    at all, and reading its needs off axes alone answered "none", which is
-    worse than saying nothing. A `fetch` target is the procedure declaring
-    which tool it is about, and it is right there in the source -- and so
-    is a `pick`, which fetches the claw onto an empty fork (issue #353).
-
-    PURE: the tree only, no world. Which MODULE a sensor needs is
-    `axes.SENSORS[...].requires`, and resolving that is the caller's job
-    (`Library.as_context`).
-
-    Every ROLE is walked, not just `body`: they are the same tuple for
-    anything `define` produces (single-role), and this cannot silently
-    under-report if that ever stops being true.
-    """
-    axes_named: list[str] = []
-    sensors: list[str] = []
-    tools: list[str] = []
-
-    def expr(e):
-      if not isinstance(e, tuple):
-        return
-      if e[0] == "read" and isinstance(e[1], str):
-        sensors.append(e[1])
-      for sub in e[1:]:
-        expr(sub)
-
-    def walk(block):
-      for st_ in block:
-        if st_[0] == "verb":
-          for name, value in st_[2].items():
-            if value[0] == "str":
-              if st_[1] == "move" and name == "axis":
-                axes_named.append(value[1])
-              elif st_[1] == "fetch" and name == "tool":
-                tools.append(value[1])
-            expr(value)
-          if st_[1] in CLAW_TOOL_VERBS:
-            tools.append("module_claw")
-        elif st_[0] == "set":
-          expr(st_[2])
-        elif st_[0] == "if":
-          for cond, body in st_[1]:
-            if cond[0] == "try":
-              walk((cond[2],))
-            else:
-              expr(cond)
-            walk(body)
-          walk(st_[2])
-        elif st_[0] == "repeat":
-          walk(st_[3])
-        elif st_[0] == "while":
-          expr(st_[1])
-          walk(st_[2])
-    for block in (self.roles.values() or (self.body,)):
-      walk(block)
-    return {"axes": tuple(dict.fromkeys(axes_named)),
-            "sensors": tuple(dict.fromkeys(sensors)),
-            "tools": tuple(dict.fromkeys(tools))}
 
   def as_dict(self) -> dict:
     return {"name": self.name, "source": self.source,
@@ -658,8 +588,6 @@ def _eval(expr, env: dict, life, facts: WorldFacts) -> float:
     sensor = axes.SENSORS.get(expr[1])
     if sensor is None:
       raise _Stop(f"unknown sensor {expr[1]!r}")
-    if sensor.requires and st._carried(life) != sensor.requires:
-      raise _Stop(f"sensor {expr[1]!r} needs {sensor.requires} on the fork")
     try:
       return float(sensor.read(life))
     except axes.NoReading as no:
