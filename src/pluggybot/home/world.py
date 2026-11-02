@@ -470,8 +470,9 @@ COUNTERS = (
 #: either end.
 STUDY_TABLE = ((STUDY_X[0] + STUDY_X[1]) / 2, -3.0, (0.40, 0.60, 0.36))
 #: A tree's trunk, radius and height, m: what the robot avoids and its
-#: LIDAR returns off (the canopy is the site's art, over the robot).
-TRUNK_R, TRUNK_H = 0.15, 2.5
+#: LIDAR returns off -- a park tree's, so the site's canopy, its art, hangs
+#: over a humanoid's head (the band reads only to 2.2 m).
+TRUNK_R, TRUNK_H = 0.15, 3.5
 
 #: THE TOWER'S BLOCKS (issue #207; `home/props.py`): three 26 mm cubes on
 #: the workshop floor, a block's throw apart, in the room's south-west

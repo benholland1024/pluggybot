@@ -611,11 +611,11 @@
       <geom name="loading_rack_board_2" type="box" pos="0.0000 0.0000 0.9500" size="1.2800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
       <geom name="loading_rack_board_3" type="box" pos="0.0000 0.0000 1.3500" size="1.2800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
     </body>
-    <body name="park_tree_0" pos="-3.5000 -14.5000 1.2500">
-      <geom name="park_tree_0_trunk" type="cylinder" size="0.1500 1.2500" rgba="0.40 0.32 0.24 1"/>
+    <body name="park_tree_0" pos="-3.5000 -14.5000 1.7500">
+      <geom name="park_tree_0_trunk" type="cylinder" size="0.1500 1.7500" rgba="0.40 0.32 0.24 1"/>
     </body>
-    <body name="park_tree_1" pos="3.0000 -19.5000 1.2500">
-      <geom name="park_tree_1_trunk" type="cylinder" size="0.1500 1.2500" rgba="0.40 0.32 0.24 1"/>
+    <body name="park_tree_1" pos="3.0000 -19.5000 1.7500">
+      <geom name="park_tree_1_trunk" type="cylinder" size="0.1500 1.7500" rgba="0.40 0.32 0.24 1"/>
     </body>
     <body name="stairs" pos="-3.5000 -4.5000 0">
       <geom name="stairs_step_0" type="box" pos="-0.9500 0.7500 0.0900" size="0.5500 0.7500 0.0900" rgba="0.58 0.54 0.50 1"/>
