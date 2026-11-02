@@ -760,6 +760,7 @@ class _FakeLife:
     # the flags the keeper sets and reads.
     self.world_fingerprint = "fake"
     self.continuing = False
+    self.stopping = ""
     self._standing_up = False
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}
@@ -1617,3 +1618,42 @@ def test_serve_keeps_the_world_and_a_signal_only_asks_it_to_stop(monkeypatch, tm
   finally:
     for sig, h in before.items():
       signal.signal(sig, h)
+
+
+def test_a_run_ended_mid_move_gives_back_the_count_it_was_restored_on(monkeypatch, tmp_path):
+  """Issue #594. A run ends through the keeper's `finish`, handed the save
+  it carried on from: ended with a body mid-move -- a stop asked while
+  paused stops at once -- it saves nothing, and the restore `load` counted
+  for this process goes back where it was. Ended by `save()`, as before,
+  a busy world was written; handed nothing, the count stood."""
+  import signal
+
+  import numpy as np
+
+  from pluggybot import continuation
+  from pluggybot.lifecycle import HUMANOID_HOME
+  path = tmp_path / "w.npz"
+  continuation.write(continuation.Snapshot(
+    {"format": continuation.FORMAT, "world": HUMANOID_HOME, "resumes": 1,
+     "physics": {"t": 5.0}}), path)
+
+  class _MidMove(_FakeLife):
+    def run(self, *a, **kw):
+      self.body.working = True
+      return super().run(*a, **kw)
+
+  serve = _load_serve()
+  built: dict = {}
+  monkeypatch.setattr(serve, "HubLifecycle",
+                      lambda model, data, **kw: built.setdefault("life", _MidMove(model, data, **kw)))
+  monkeypatch.setattr(serve, "WsPublisher", _FakePublisher)
+  monkeypatch.setattr(sys, "argv", ["serve.py", "--free-run", "--world", "home",
+                                    "--world-state", str(path)])
+  before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
+  try:
+    serve.main()
+  finally:
+    for sig, h in before.items():
+      signal.signal(sig, h)
+  assert built["life"].run_kwargs["resume"].meta["resumes"] == 2, "carried on, counted"
+  assert json.loads(str(np.load(path)["meta"]))["resumes"] == 1
