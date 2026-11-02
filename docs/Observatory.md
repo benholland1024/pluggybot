@@ -10,7 +10,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A ticket's close pays again, `say` is open again, and a stop while paused saves (#594) — opens when this PR is deployed
+### A ticket's close pays again, `say` is open again, a stop while paused saves, and a wake says how long the world slept (#594) — opens when this PR is deployed
 
 **What changed in the world.**
 - **An operator's close pays its 25 again, and the robot is shown it.**
@@ -34,14 +34,19 @@ observatory is NOT a result: it reports into the issue it informs.
   and the fourth start began the world again at t=0. With a body mid-move
   it saves nothing, the minute-old save stands, and the restart is not
   counted.
+- **A wake says how long the world was paused**, from when the site paused
+  it (the mode file's `at`). A process started into a pause counted from
+  its own start: on 11-01 a wake said 117 s, and with #562's schedule a
+  weekday deploy would have told the robots they slept since it.
 - Nothing in the prompt, the schema, the arm or the reward table moved.
 
 **Why.** #594, read off the live world on 34cd4e3 on 11-02.
 
 **What the period is for.** #594's acceptance: on the release, the first
 close pays +25 and shows in that robot's `tickets.closed`; a `say` goes out
-and `sayAgainInS` never reads over 1200; and a deploy while paused comes
-back at the moment it paused, never "could not carry on". ⚠ From 10-27 to
+and `sayAgainInS` never reads over 1200; a deploy while paused comes back
+at the moment it paused, never "could not carry on"; and after a pause that
+spans a restart, the wake line says how long the world was paused. ⚠ From 10-27 to
 the deploy no `say` was the robot's choice: read what a robot says unasked
 from this period on, never against that stretch.
 

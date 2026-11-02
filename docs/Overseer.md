@@ -2119,8 +2119,12 @@ between its hours stands until the next boundary.
 - ⚠ **Every robot on the loop is told** (#562): a pair's one switch is the
   first robot's and stops the loop both live in, and both Histories say
   "paused by the operator" and how long the pause was, in days and hours
-  where it was long (`lifecycle.spoken_span`). Sim time does not pass while
-  paused, so nothing else the robots run on notices the gap.
+  where it was long (`lifecycle.spoken_span`). ⚠ How long the WORLD was
+  paused (#594): counted from when the site paused it, the file's `at`
+  (`ModeSwitch.at`), where that is longer than this process has held it. A
+  process started into a pause counted from its own start, and on 11-01 a
+  wake said 117 s. Sim time does not pass while paused, so nothing else the
+  robots run on notices the gap.
 
 ## 8b. Upkeep, hearts, and the one thing satisfaction changes (issues #36, #135, #136)
 

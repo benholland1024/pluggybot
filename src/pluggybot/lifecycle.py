@@ -4808,12 +4808,18 @@ class HubLifecycle:
     (`Keeper.finish`). Held here, that hook never ran: a deploy's SIGTERM
     went unhonoured and the process was killed unsaved. Nothing resumed, so
     nothing says it did.
+
+    ⚠ A WAKE SAYS HOW LONG THE WORLD SLEPT (#594): since the site paused it
+    (the file's `at`, `ModeSwitch.at`), where that is longer than this
+    process has held it. A process started into a pause counted from its own
+    start, and on 11-01 a wake said 117 s.
     """
     if self.mode is None:
       return
     if self.mode.poll() != "paused":
       return
     wall0 = time.monotonic()
+    paused_at = self.mode.at
     told = (self, *self.peers)
     for life in told:
       life._say("PAUSED by the operator -- physics stopped, stream alive")
@@ -4830,9 +4836,10 @@ class HubLifecycle:
       return
     for hook in list(self.resume_hooks):
       hook(held)
+    slept = held if paused_at is None else max(held, time.time() - paused_at)
     for life in told:
-      life._say(f"RESUMED after {spoken_span(held)} in {self.mode.mode} mode")
-      life._remember(f"woke up again after {spoken_span(held)} paused")
+      life._say(f"RESUMED after {spoken_span(slept)} in {self.mode.mode} mode")
+      life._remember(f"woke up again after {spoken_span(slept)} paused")
 
   def _claim_task(self, task_id: str) -> bool:
     """Take one offered job on: a procedure's, the robot's to write, run and

@@ -1095,7 +1095,8 @@ save a filmstrip PNG named after the script.
   sim): the website writes it, by hand and on its schedule (weekends as
   decided, the hours an admin's setting, off until an admin turns it on),
   and mounts nothing else of the sim's; both robots of a pair are told a
-  pause.
+  pause, and a wake says how long the WORLD slept, off the file's `at`
+  (#594: a process started into a pause said 117 s of hours).
 - **Which model is `$PLUGGY_MODEL`; which backend is `--overseer-backend` /
   `$PLUGGY_OVERSEER_BACKEND`** (issue #19; Overseer.md §6): an `org/name` id
   goes to the HuggingFace router (`mind/llm.py`), a bare id to the Anthropic
