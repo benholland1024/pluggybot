@@ -248,34 +248,71 @@ def test_a_humanoid_plugs_itself_in_from_its_seat():
 
 class _Says:
   """A body whose hand does what each test says, and records what it was
-  asked: the plug-in's and the unplug's rules, with no physics."""
+  asked: the plug-in's and the unplug's rules, with no physics. Its belief
+  (`stance`, where it believes its feet are) stays put unless a test's
+  `drift` moves it on a routine's call, and it sees the station where a
+  test's `sees` puts it in the frame of its feet (None: nothing in sight);
+  every hand's target is kept with the belief it was sent under."""
 
-  def __init__(self, reaches=lambda rot: True):
+  def __init__(self, reaches=lambda rot: True, sees=None, drift=None):
     self.reaches, self.asked, self.grips, self.moves = reaches, [], [], []
     self.plugged = False
     self.gap = 2.0 * st.PLUG_R_M          # ...shut on the plug's jack
+    self.stance = (0.0, 0.0, 0.0)
+    self.sees, self.drift = sees, drift
+    self.reached, self.pushed, self.said = [], [], []
 
   def _done(self, value):
     return value
     yield
 
+  def _call(self, what):
+    self.said.append(what)
+    if self.drift is not None:
+      self.stance = self.drift(self.stance)
+
+  def to_world(self, p):
+    x, y, yaw = self.stance
+    c, s = math.cos(yaw), math.sin(yaw)
+    return np.array([x + c * p[0] - s * p[1], y + s * p[0] + c * p[1], p[2]])
+
+  def spot(self, tag):
+    self.said.append("spot")
+    at = self.sees() if callable(self.sees) else self.sees
+    if at is None:
+      return None
+    lx, ly, lz = st.tag_layout()[tag]
+    x, y, z = self.to_world((*st.to_world((at.x, at.y, at.yaw), lx, ly), lz))
+    return {"x": x, "y": y, "z": z}
+
+  def gaze_routine(self, down):
+    self._call("gaze")
+    return self._done(None)
+
   def reach_routine(self, side, pos, rot=None, **kw):
     self.asked.append(np.asarray(rot))
+    self.reached.append((np.asarray(pos), self.stance))
+    self._call("reach")
     return self._done(self.reaches(np.asarray(rot)))
 
   def move_hand_routine(self, side, pos, turns=None, **kw):
-    self.moves.append((np.asarray(pos), turns))
+    self.moves.append((np.asarray(pos), turns, self.stance))
+    self._call("move")
     return self._done({"why": "arrived"})
 
   def grip_routine(self, side, closed, force=None):
     self.grips.append((closed, force))
+    self._call("grip")
     return self._done(True)
 
   def pull_routine(self, side, way, force, distance, **kw):
     self.plugged = force == charge.PUSH_N
+    self.pushed.append((np.asarray(way), self.stance))
+    self._call("push")
     return self._done({"why": "held fast", "along": 0.02})
 
   def hold_routine(self, seconds):
+    self._call(("hold", seconds))
     return self._done(None)
 
   def release_routine(self, side):
@@ -318,7 +355,8 @@ def test_the_hand_takes_the_plug_by_its_grips_in_turn(monkeypatch):
   assert [np.allclose(r, charge._grip(into, s)) for r, s in zip(body.asked, (swung, straight))] \
       == [True, True]
   assert np.allclose(body.moves[0][0], charge.parked_grip(station, near))
-  assert np.allclose(body.moves[1][1][0], charge._grip(np.array([-1.0, 0.0, 0.0]), straight))
+  carry = next(turns for _, turns, _ in body.moves if turns is not None)
+  assert np.allclose(carry[0], charge._grip(np.array([-1.0, 0.0, 0.0]), straight))
   assert trace[-1]["swing"] == 0
   shut = [f for closed, f in body.grips if closed]
   assert shut == [charge.GRIP_MIN_N, charge.GRIP_N], shut
@@ -359,7 +397,7 @@ def test_jaws_shut_on_the_boss_draw_back_along_the_plug_and_shut_again(monkeypat
     assert [t["swing"] for t in trace] == [round(math.degrees(swing))]
     assert len(body.asked) == reaches
     drawn = charge.parked_grip(station, back) - into * charge.BOSS_BACK_M
-    assert any(np.allclose(pos, drawn) for pos, _ in body.moves), "drawn back off the boss"
+    assert any(np.allclose(pos, drawn) for pos, _, _ in body.moves), "drawn back off the boss"
 
 
 def test_the_unplug_squeezes_the_seated_plug_lightly_first(monkeypatch):
@@ -375,6 +413,144 @@ def test_the_unplug_squeezes_the_seated_plug_lightly_first(monkeypatch):
   assert _drive(charge.unplug_routine(body, RackPose(1.0, 0.0, 0.0), [])) == "unplugged"
   shut = [f for closed, f in body.grips if closed]
   assert shut[:2] == [charge.GRIP_MIN_N, charge.UNPLUG_GRIP_N], shut
+
+
+def _in_feet(v, stance, point=True):
+  """A believed world point (or a direction, or a turn's columns) in the
+  frame of the feet a belief `stance` put them in."""
+  x, y, yaw = stance
+  c, s = math.cos(yaw), math.sin(yaw)
+  r = np.array([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]])
+  v = np.asarray(v, float)
+  return r @ (v - ([x, y, 0.0] if point else 0.0)) if v.ndim == 1 else r @ v
+
+
+def _turn(v, rad):
+  c, s = math.cos(rad), math.sin(rad)
+  return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]]) @ np.asarray(v, float)
+
+
+#: The port as the plug-in's tests' bodies' models of themselves have it, in
+#: the frame of their feet: 8 cm ahead, on the right, facing the station.
+_PORT = (np.array([0.08, -0.075, 0.9]), np.array([1.0, 0.0, 0.0]))
+
+
+def _port(body):
+  """`charge.port` on a body that only says: its model's port, in the
+  believed world at this instant."""
+  return body.to_world(_PORT[0]), _turn(_PORT[1], body.stance[2])
+
+
+def test_the_plug_in_carries_the_station_as_its_feet_would(monkeypatch):
+  """#596: from a look to the push the feet turned 1.6-7.7 deg where they
+  stood while the belief moved its stance 5-25 mm -- the matcher's
+  corrections, its legs reading the turn as a walk. A hand sent through
+  the believed world went with that move (a plug-in missed four times the
+  same way); one held in the frame of its feet, with the turn. The station
+  is carried as the feet carry it: never moved by the belief's move, turned
+  as the belief turns -- the line, the grip and the hand's turn there."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", _port)
+  at = RackPose(0.35, -0.075, 0.0)          # where the look sees it, from its feet
+
+  def drift(s):
+    return s[0] + 0.006, s[1] - 0.004, s[2] + math.radians(0.4)
+  body = _Says(sees=at, drift=drift)
+  station = RackPose(*body.to_world((at.x, at.y, 0.0))[:2], at.yaw)
+  assert _drive(charge.plug_in_routine(body, station, [])) == "plugged in"
+  looked = body.said.index("spot")
+  turned0 = sum(1 for w in body.said[:looked] if w != "spot") * math.radians(0.4)
+  swing, back = charge.GRIPS[0]
+
+  def truly(q, stance):
+    """A point of the station's frame where it truly is from the feet now:
+    the look's, turned back by what the feet have turned since."""
+    return _turn((*st.to_world((at.x, at.y, at.yaw), *q[:2]), q[2]), turned0 - stance[2])
+  grip = (-st.BOSS_M - 0.003 - st.PLUG_LEN_M + back, 0.0, st.CUP_Z)
+  (line, s0), = body.reached
+  assert np.allclose(_in_feet(line, s0), truly((grip[0] - charge.LINE_BACK_M, 0.0, grip[2]), s0))
+  assert np.allclose(_in_feet(body.asked[0], s0),
+                     charge._grip(_turn((1.0, 0.0, 0.0), turned0 - s0[2]), swing))
+  # ...slid there, and there again as it is once there: the feet turned
+  (to_grip, _, s1), (again, _, s2) = body.moves[:2]
+  assert np.allclose(_in_feet(to_grip, s1), truly(grip, s1))
+  assert np.allclose(_in_feet(again, s2), truly(grip, s2)) and not np.allclose(again, to_grip)
+
+
+def test_each_try_looks_at_the_station_again(monkeypatch):
+  """#596: a retry on the first try's look is a retried constant -- the
+  same look, the same hand, the same miss, four times -- and pushing the
+  plug home turns the body on its feet (#581). Each try is placed off a
+  look of its own; one that sees nothing goes on the look it came to its
+  seat by."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", _port)
+  looks = [RackPose(0.35, -0.075, 0.0), RackPose(0.33, -0.05, math.radians(-5.0)), None]
+  body = _Says()
+  body.sees = lambda: looks[len(body.pushed)]
+  plugged = body.pull_routine
+
+  def push(*a, **kw):
+    r = yield from plugged(*a, **kw)
+    body.plugged = len(body.pushed) == 3
+    return r
+  body.pull_routine = push
+  station = RackPose(0.36, -0.07, math.radians(2.0))
+  trace = []
+  assert _drive(charge.plug_in_routine(body, station, trace)) == "plugged in"
+  back = charge.GRIPS[0][1]
+  # ...each try's move onto the plug, the one after its reach to the line
+  moves = [w for w in body.said if w in ("reach", "move")]
+  grips = [body.moves[moves[:i].count("move")][0] for i, w in enumerate(moves) if w == "reach"]
+  assert [np.allclose(g, charge.parked_grip(s, back)) for g, s in
+          zip(grips, (looks[0], looks[1], station))] == [True, True, True]
+  assert [t["looked"] for t in trace] == [True, True, False]
+
+
+def test_the_first_look_waits_for_the_trunks_tilt_to_settle(monkeypatch):
+  """#596: for a second or two after a step, its IMU's filter read the
+  trunk's tilt 0.4-0.6 deg off, and the look that placed the hand put the
+  station 5-12 mm off. The first try's look is taken after `LOOK_SETTLE_S`
+  standing still, a few of the filter's time constants; a later one's after
+  the balancer's `PARK_WAIT_S`, no shorter."""
+  from pluggybot.body import RackPose
+  from pluggybot.perception.imu import TAU_S
+  monkeypatch.setattr(charge, "port", _port)
+  body = _Says(sees=RackPose(0.35, -0.075, 0.0))
+  assert _drive(charge.plug_in_routine(body, RackPose(0.35, -0.075, 0.0), [])) == "plugged in"
+  first = body.said.index("spot")
+  assert ("hold", charge.LOOK_SETTLE_S) in body.said[:first]
+  assert charge.LOOK_SETTLE_S >= 2.0 * TAU_S and charge.PARK_WAIT_S >= charge.LOOK_SETTLE_S
+
+
+def test_the_plug_goes_to_the_port_as_read_at_each_move_and_is_let_go_where_it_stops(monkeypatch):
+  """#596: read once, a posture taken to carry the plug moved the port 6 mm
+  before the push. Each move goes to the port as read at its instant, and
+  the push along its way out as read then. ⚠ The jaws open where the push
+  stops, pressed on the body: put back on its line after (the arm's spring
+  slid the hand 6-11 mm on every push), the plug was let go 9-12 mm off the
+  body, near the port's 15, and the port took fewer."""
+  from pluggybot.body import RackPose
+  reads = []
+
+  def moving_port(body):
+    reads.append(len(reads))
+    p, out = _PORT
+    return body.to_world(p + (0.0, 0.003 * len(reads), 0.0)), _turn(out, body.stance[2])
+  monkeypatch.setattr(charge, "port", moving_port)
+  body = _Says(sees=RackPose(0.35, -0.075, 0.0))
+  assert _drive(charge.plug_in_routine(body, RackPose(0.35, -0.075, 0.0), [])) == "plugged in"
+  swing, back = charge.GRIPS[0]
+  p, out = _PORT
+  (carry, turns, _), (push_from, _, _) = body.moves[-2:]
+  port_at = [p + (0.0, 0.003 * (k + 1), 0.0) for k in range(len(reads))]
+  assert len(reads) == 3
+  assert np.allclose(carry, port_at[0] + out * (back + charge.OUT_M))
+  assert np.allclose(push_from, port_at[1] + out * (back + charge.PUSH_FROM_M))
+  (way, _), = body.pushed
+  assert np.allclose(way, -out)
+  after = body.said[body.said.index("push") + 1:]
+  assert after[:2] == ["grip", ("hold", 0.3)] and body.grips[-1] == (False, None)
 
 
 # ---- lost, and found by the station -------------------------------------------------
