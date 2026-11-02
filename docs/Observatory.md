@@ -10,6 +10,42 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A robot whose run ends first keeps its senses, and a humanoid standing settled keeps its heading (#593) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A robot whose run's budget passes between its errands holds as one
+  waiting for work does until the other's run ends**: through its body's
+  own hold, so its scans are matched and laid. Before, it was held still
+  with none matched, for as long as the other's charge outlasted the
+  budget (20-55 minutes on 11-01/02), and its gyro's offset turned its
+  heading meanwhile. Its `drift` samples in `DONE` now carry `matched`
+  counts.
+- **A humanoid rested 30 s after anything moved it** -- a motion command,
+  a hand at work, a get-up, a stand-up's warp -- **holds its heading** while
+  its IMU agrees nothing turns it, and learns its gyro's offset, which it
+  takes off its heading from then on, walking too. Where its scans are
+  matched the matcher holds its heading as before; where none are (every
+  scan refused, a robot lost), a robot standing there no longer turns 3 deg
+  a minute (Rowan's offset, near the part's worst): standing, it turns no
+  more than 1.5-2.6 deg off the heading it stopped with. ⚠ A robot already
+  lost keeps the error it stood with.
+- **A death on the pair says where the robot was again** (`at`, #362):
+  every death of the humanoid pair since #559's stage 4 carried only a
+  `TypeError` (Rowan's two on 11-01/02 among them), its pose and its peer
+  read off the nearest `drift` sample instead.
+- Nothing in the prompt, the schema, the arm or the reward table moved, and
+  no map is dropped at the deploy.
+
+**Why.** #593: on 34cd4e3 Rowan stood in `DONE` four times while Luca
+finished a charge, its heading turned 105-161 deg, and each next run
+carried on from that belief, lost: one flat death 40 m lost, and a fall.
+
+**What the period is for.** #593's last box: a live day on the release with
+no `drift` sample in `DONE` whose `matched` is `{}`, and no `DONE` stretch
+that turns the heading past 6 deg -- off the `drift` rows against the
+period before. ⚠ A robot lost at the deploy stays lost until the station's
+fix or a death puts it right: read the stretches that begin after one.
+
 ### The map laid from the LIDAR's points laid flat (#581, stage 2) — opens when this PR is deployed
 
 **What changed in the world.**

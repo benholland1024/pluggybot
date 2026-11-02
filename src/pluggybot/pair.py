@@ -6,7 +6,9 @@ and reserve, its own errand queue, its own day -- built against the same
 WORLD: the model, the charging station, the counter, the whiteboards'
 book, the activities. The two day-routines are ticked in turn from
 `tick.run_many`: every step, both robots' commands, one `mj_step`, both
-robots' bookkeeping. No robot ever blocks the other.
+robots' bookkeeping. No robot ever blocks the other. A run ends robot by
+robot, each between its errands, and a robot whose day has ended holds as
+one waiting for work does, its senses on, until the other's ends (#593).
 
 Mutual awareness, the honest half: each mission is handed the other's
 REPORTED pose (`Body.others`) -- what a robot may know of another over
@@ -34,8 +36,8 @@ import mujoco
 from pluggybot import tick
 from pluggybot.economy.cadence import default_cadence
 from pluggybot.lifecycle import (
-  HUMANOID_HOME, HubLifecycle, board_book, errands_for, points_ledger, task_board,
-  task_producer, world_config,
+  HUMANOID_HOME, WAIT_FOR_WORK_S, HubLifecycle, board_book, errands_for, points_ledger,
+  task_board, task_producer, world_config,
 )
 from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import events as ev
@@ -306,7 +308,11 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
              record: str | None = None, resume=None) -> list[dict]:
   """Both days from one loop; each robot's summary in order. `resume` is a
   saved world (issue #345), put back once both robots' `begin` has run
-  and before either day moves."""
+  and before either day moves. A robot whose day ends first waits through
+  its body's own hold, as one waiting for work does: its scans matched and
+  laid. ⚠ Held `STILL` by the loop instead (#593), its gyro's offset turned
+  Rowan's heading 105-161 deg in the 20-55 minutes the other's charge
+  outlasted its day, and the next run carried on from that belief, lost."""
   cfg = world_config(lives[0].world)
   starts = starts or (cfg["start"], cfg["start2"])
   budget = explore_budget if explore_budget is not None else cfg["explore_budget"]
@@ -323,7 +329,9 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
   aborted = False
   try:
     tick.run_many([(life.body.stepper, day) for life, day in zip(lives, days)],
-                  name="pair")
+                  name="pair",
+                  waits=[(lambda life=life: life.body.hold_routine(WAIT_FOR_WORK_S))
+                         for life in lives])
   except MissionAborted:
     aborted = True
   finally:
