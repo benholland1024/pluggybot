@@ -1236,6 +1236,30 @@ def test_the_say_clock_outlives_the_process(tmp_path):
   assert again.thoughts.last_said() == 500.0
 
 
+def test_a_clock_gone_back_behind_the_last_line_opens_the_gate():
+  """⚠ The world started over at t=0 (issue #594), and the last line, said
+  at t=2,374,869 on the old clock, held the next one 27 days off: every
+  `say` since was refused, 87 of Luca's and 49 of Rowan's, the state
+  reading `sayAgainInS` near 2.3 million. A line said after now is a clock
+  that went back, and the gate is open -- then held from the next line on
+  the new clock. Shown to fail without the `t < last` clause."""
+  from pluggybot.mind.overseer import context_for, say_again_in
+  life = _lifecycle(inbox=Inbox())
+  sent: list = []
+  life.visitor_hooks.append(sent.append)
+  life.data.time = 2_374_869.0
+  life._chat(Decision(action="explore", say="before the world started over"))
+  life.data.time = 61_000.0
+  assert say_again_in(life.thoughts, 61_000.0) is None
+  assert "sayAgainInS" not in context_for(life, thoughts=life.thoughts)
+  life._chat(Decision(action="explore", say="after it"))
+  assert [m["text"] for m in sent] == ["before the world started over", "after it"]
+  life.data.time = 61_060.0
+  life._chat(Decision(action="explore", say="too soon"))
+  assert [m["text"] for m in sent][-1] == "after it"
+  assert context_for(life, thoughts=life.thoughts)["sayAgainInS"] == 1140
+
+
 def test_a_say_past_the_cap_is_cut_out_loud():
   """A `say` reaches the same people a reply does, at the same length
   (#474's): `validate` keeps one character over, and the line that goes

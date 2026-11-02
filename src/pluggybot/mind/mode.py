@@ -39,6 +39,7 @@ paused it. A malformed value is reported and ignored.
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from pluggybot.telemetry.protocol import MODES
@@ -73,6 +74,10 @@ class ModeSwitch:
     self.path = Path(path) if path else None
     self.clock = clock or time.monotonic
     self.mode = DEFAULT_MODE
+    #: When the site set the mode the file says (its `at`, in epoch
+    #: seconds), or None where it names none: what a wake counts the
+    #: world's pause from, past this process's start (#594).
+    self.at: float | None = None
     self.on_change: list = []
     self.errors: list[str] = []
     self._next_poll = 0.0
@@ -107,9 +112,10 @@ class ModeSwitch:
     self._apply(self._read())
     return self.mode
 
-  def _read(self) -> str:
+  def _read(self) -> tuple[str, float | None]:
+    """The mode the file says, and when it was set (`at`)."""
     if self.path is None or not self.path.exists():
-      return DEFAULT_MODE
+      return DEFAULT_MODE, None
     try:
       raw = json.loads(self.path.read_text())
     except (json.JSONDecodeError, OSError) as e:
@@ -117,18 +123,19 @@ class ModeSwitch:
       # read. Say so once and keep running in whatever mode was last valid.
       self._note(f"mode file unreadable ({type(e).__name__}) -- staying "
                  f"{self.mode}")
-      return self.mode
+      return self.mode, self.at
     mode = str((raw or {}).get("mode", "")).strip().lower()
     if mode not in MODES:
       self._note(f"mode file says {mode!r}, which is not one of "
                  f"{', '.join(MODES)} -- staying {self.mode}")
-      return self.mode
-    return mode
+      return self.mode, self.at
+    return mode, _epoch((raw or {}).get("at"))
 
-  def _apply(self, mode: str) -> None:
+  def _apply(self, read: tuple[str, float | None]) -> None:
+    mode, at = read
     if mode == self.mode:
-      return
-    was, self.mode = self.mode, mode
+      return                    # ...`at` too: in this process, the first stamp
+    was, self.mode, self.at = self.mode, mode, at
     for hook in list(self.on_change):
       hook(was, mode)
 
@@ -152,6 +159,16 @@ class ModeSwitch:
 
   def snapshot(self) -> dict:
     return {"mode": self.mode, "notes": list(self.errors[-2:])}
+
+
+def _epoch(value) -> float | None:
+  """An instant as the site writes one (ISO 8601, `Z`), in epoch seconds,
+  or None."""
+  try:
+    at = datetime.fromisoformat(str(value))
+  except (TypeError, ValueError):
+    return None
+  return (at if at.tzinfo else at.replace(tzinfo=timezone.utc)).timestamp()
 
 
 def open_switch(path: str | os.PathLike | None = None) -> ModeSwitch:

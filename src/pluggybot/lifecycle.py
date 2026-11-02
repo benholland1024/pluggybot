@@ -585,6 +585,9 @@ class HubLifecycle:
     #: Set by a `continuation.Keeper`: the world is saved, so the end of a
     #: run ends nothing and History does not say it did.
     self.continuing = False
+    #: ...and why its process was asked to stop (`Keeper.request_stop`: a
+    #: deploy's SIGTERM), or "": a pause ends on it (`_mode_step`, #594).
+    self.stopping = ""
     #: What `continuation.restore` put back, for the day routine's first
     #: lines; None on a world that started from its XML.
     self.resumed: dict | None = None
@@ -3515,6 +3518,9 @@ class HubLifecycle:
       entry = self._bank(verdict)
       if entry is not None:
         self.tickets.pay(ticket.id, entry["points"], entry["seq"])
+      # ...and only then the closed ones trimmed (#594): trimmed first, a
+      # close the desk ranked past its twentieth was measured as no ticket
+      self.tickets.trim()
       said = (f"{text_registry.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
               f": {ticket.closed_text}" if ticket.closed_text else "")
       paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
@@ -4143,9 +4149,10 @@ class HubLifecycle:
     the website keeps it as a line of the robot's chat, and History files
     it as the chat's. Rationed at `SAY_EVERY_S` off the store's own record
     of the last one (`ThoughtFiles.last_said`: a restart keeps the clock, a
-    true death forgets it), and cut at a reply's length -- both OUT LOUD,
-    on #474's terms: one too soon is not said and History says when the
-    next may go, and a cut one says where.
+    true death forgets it, and a clock gone back behind it opens the gate,
+    `say_again_in`), and cut at a reply's length -- both OUT LOUD, on
+    #474's terms: one too soon is not said and History says when the next
+    may go, and a cut one says where.
     """
     if not decision.say:
       return
@@ -4795,27 +4802,47 @@ class HubLifecycle:
     ⚠ EVERY ROBOT ON THE LOOP IS TOLD (issue #562): a pair's one switch is
     the first robot's (`pair.build_pair`) and stops the loop both live in,
     and the second was paused and woken with neither line in its History.
+
+    ⚠ A STOP ENDS THE PAUSE, AND NO PAUSE BEGINS AFTER ONE (#594,
+    `stopping`): the keeper's hook, later on this seam, stops the world at
+    this step, and the run's end saves it unless a living body was mid-move
+    (`Keeper.finish`). Held here, that hook never ran: a deploy's SIGTERM
+    went unhonoured and the process was killed unsaved. Nothing resumed, so
+    nothing says it did.
+
+    ⚠ A WAKE SAYS HOW LONG THE WORLD SLEPT (#594): since the site paused it
+    (the file's `at`, `ModeSwitch.at`), where that is longer than this
+    process has held it. A process started into a pause counted from its own
+    start, and on 11-01 a wake said 117 s.
     """
     if self.mode is None:
       return
     if self.mode.poll() != "paused":
       return
+    if self.stopping:
+      return                    # ...polled, for the keeper's `paused` to read
     wall0 = time.monotonic()
+    paused_at = self.mode.at
     told = (self, *self.peers)
     for life in told:
       life._say("PAUSED by the operator -- physics stopped, stream alive")
       life._remember("paused by the operator")
-    while self.mode.poll(force=True) == "paused":
+    while self.mode.poll(force=True) == "paused" and not self.stopping:
       time.sleep(PAUSE_SLICE_S)
       for hook in list(self.pause_hooks):
         hook(time.monotonic() - wall0)
     held = time.monotonic() - wall0
     self.paused_s += held
+    if self.stopping and self.mode.paused:
+      for life in told:
+        life._say(f"STOPPING while paused: {self.stopping}")
+      return
     for hook in list(self.resume_hooks):
       hook(held)
+    slept = held if paused_at is None else max(held, time.time() - paused_at)
     for life in told:
-      life._say(f"RESUMED after {spoken_span(held)} in {self.mode.mode} mode")
-      life._remember(f"woke up again after {spoken_span(held)} paused")
+      life._say(f"RESUMED after {spoken_span(slept)} in {self.mode.mode} mode")
+      life._remember(f"woke up again after {spoken_span(slept)} paused")
 
   def _claim_task(self, task_id: str) -> bool:
     """Take one offered job on: a procedure's, the robot's to write, run and
@@ -5851,6 +5878,12 @@ class HubLifecycle:
       else:
         break
 
+    if self.dead is None and not self.battery.empty:
+      # ...and never AT the station (#594): a day that ended there -- its
+      # budget passed in a charge, or nothing left to do after one -- was
+      # DONE in the other robot's way in, 0.37 m off it on the pair
+      # recording's day until asked aside, and 0.88 m off it from then on
+      yield from self._leave_rack_routine()
     self.state = "DONE"
     if self.continuing:
       # NOTHING ENDED (issue #345): the world is saved and the next run
@@ -6726,7 +6759,8 @@ def run_demo(start=None, view: bool = False,
   # pause becoming a sprint, and that is true of a viewer run too.
   attach_mode_stream(life, [recorder.emit] if recorder is not None else [])
   life.restart_note = loaded.why
-  keeper = continuation.Keeper([life], world_state) if world_state else None
+  keeper = (continuation.Keeper([life], world_state, carried_on=loaded.snapshot)
+            if world_state else None)
   # ⚠ SEEDED LAST, after every hook is attached. `TaskBoard.offer` emits a
   # `task_offered` the moment it is called, so seeding at construction time
   # put the offers on the floor before the recorder existed -- a recording
@@ -6743,7 +6777,7 @@ def run_demo(start=None, view: bool = False,
                  explore_budget=explore_budget or cfg["explore_budget"],
                  resume=loaded.snapshot)
     if keeper is not None:
-      keeper.save()
+      keeper.finish()
     return r
   finally:
     if recorder is not None:

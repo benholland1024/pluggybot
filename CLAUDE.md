@@ -1027,7 +1027,12 @@ save a filmstrip PNG named after the script.
   and survives a true death. Three admin inbound kinds (`ticket_reply` /
   `ticket_close` / `ticket_delete`); a close PAYS the `ticket` row ONCE through
   `scoring.evaluate` + `_bank` (a replayed close answers `paid: false`; ⚠ NOT
-  the visitor tier's `settle`: a true death restarts the ledger's `seq`). ⚠ No
+  the visitor tier's `settle`: a true death restarts the ledger's `seq`). ⚠
+  CLOSES ARE ORDERED BY THE DESK'S OWN COUNT (one from before the count by
+  its id), NEVER SIM TIME, AND TRIMMED ONLY ONCE PAID (#594, `Desk.closes`,
+  `Desk.trim`): after a start-over put the clock back to 0, a close on a
+  full desk ranked behind twenty from the old clock and was trimmed before
+  it was paid. ⚠ No
   decision field closes a ticket, and nothing in `economy/` imports the desk.
   The website's half (`pw_tickets`, the Tickets card on `/controls`) holds an
   admin action until the `ref` comes back.
@@ -1104,7 +1109,9 @@ save a filmstrip PNG named after the script.
   sim): the website writes it, by hand and on its schedule (weekends as
   decided, the hours an admin's setting, off until an admin turns it on),
   and mounts nothing else of the sim's; both robots of a pair are told a
-  pause.
+  pause, and a wake says how long the WORLD slept, off the file's `at`
+  (#594: a process started into a pause counted from its own start, 117 s
+  of a pause hours long).
 - **Which model is `$PLUGGY_MODEL`; which backend is `--overseer-backend` /
   `$PLUGGY_OVERSEER_BACKEND`** (issue #19; Overseer.md §6): an `org/name` id
   goes to the HuggingFace router (`mind/llm.py`), a bare id to the Anthropic
@@ -1164,7 +1171,16 @@ save a filmstrip PNG named after the script.
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
   or mid-move (a humanoid getting up is a policy part-way, one with a hand
   out is `Body.working`, one stepping aside is a walk no routine holds;
-  `Keeper.busy`), NEVER on a crash. ⚠ ANOTHER BODY IN THE SAME HOUSE CARRIES ON (#559,
+  `Keeper.busy`), NEVER on a crash. ⚠ A STOP ASKED WHILE PAUSED ENDS THE
+  PAUSE (#594, `HubLifecycle.stopping`): the world stops at that step, and
+  the run's end (`Keeper.finish`) saves it -- unless a LIVING body was
+  mid-move, when it gives back the restore `load` counted -- a paused world
+  steps nothing, so the keeper's hook never ran, the process was killed
+  unsaved, and three restarts while paused started the world over. ⚠ Every
+  other run's end saves as it always did, whatever a body is doing (skipped
+  for `busy`, an end inside a death's 300 s came back from before the fall,
+  alive). ⚠ ANOTHER BODY IN
+  THE SAME HOUSE CARRIES ON (#559,
   `lifecycle.HOUSES`, `continuation.same_house`): a `home_quad` save in
   `home_humanoid` keeps the clock, the deaths and the jobs as a changed
   world does, never the bodies or maps, and the pack at the SHARE it was
@@ -1234,7 +1250,8 @@ save a filmstrip PNG named after the script.
   `read chat` widens the window. ⚠ The robot may `say` something unasked:
   a `chat` message, cut out loud as a reply is and RATIONED at `SAY_EVERY_S`
   (1200, a visitor's three an hour) off the STORE's clock
-  (`ThoughtFiles.last_said`); while it holds the state shows
+  (`ThoughtFiles.last_said`; a last line stamped after now is a clock gone
+  back, and the gate is open, #594); while it holds the state shows
   `sayAgainInS` (`say_again_in`, the gate's own reading), and a refusal is
   a SHORT History line, the attempt quoted to `QUOTED_CHARS` (the deployed
   model sent a `say` on 2 of 4 turns with the wait in front of it); a
