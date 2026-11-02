@@ -124,10 +124,13 @@ T2 = Reference()
 
 #: Material densities, kg/m^3: 6082-T6 aluminium plate (2.70 g/cm^3, the
 #: alloy's datasheet), PETG printed solid (1.27: a 2 mm shell is all wall),
-#: and the sole's rubber (NR/SBR sheet, 1.2-1.5 g/cm^3; the lower).
+#: the sole's rubber (NR/SBR sheet, 1.2-1.5 g/cm^3; the lower), and the
+#: head's padded rim's TPU (1.23, its filament's sheet: `catalog`'s
+#: `tpu_1kg`).
 ALUMINIUM = 2700.0
 PETG = 1270.0
 RUBBER = 1200.0
+TPU = 1230.0
 #: Fasteners and wiring on top of a fabricated part's own mass: a stated
 #: allowance, 15 % (the quadruped's frame budget carried its fasteners in
 #: its estimate; a drawing replaces this with a count).
@@ -212,17 +215,19 @@ class HumanoidSpec:
   wrist: float = 0.03
   # -- the head: fixed on the torso, the sensors in it (`parts`), built
   # round the LIDAR (`_head`) --
-  #: The face, the box the depth camera rides: half-extents and its middle
-  #: over the hip axes. Under its top's corners, 0.13 m below the LIDAR's
-  #: rays' origin, the field's steepest ray clears it all round; over it
-  #: the dome rises inside that ray (`DOME`).
-  head_half: tuple[float, float, float] = (0.065, 0.075, 0.0525)
-  head_z: float = 0.5275
-  #: The depth camera's height over the hip axes, on the face's front, and
-  #: the navigation camera's on the dome's: where both rode before the head
-  #: was built round the LIDAR (#581, stage 3), seeing what they saw.
+  #: The head's radius, m: the face's below the LIDAR's window and the
+  #: cap's over it, one cylinder (#581, stage 3: a crown narrower than the
+  #: face read as a puck on top of the head).
+  head_r: float = 0.068
+  #: The face's foot over the hip axes, m; its top is where the field's
+  #: steepest ray passes its edge (`face_top`).
+  face_lo: float = 0.475
+  #: The depth camera's height over the hip axes, on the face's front,
+  #: where it rode before the head was built round the LIDAR; and the
+  #: navigation camera's over it, brought 3.5 cm down into the face with
+  #: the LIDAR (#581, stage 3: on the dome, its front held the rays at 0.711).
   depth_cam_z: float = 0.535
-  nav_cam_z: float = 0.60
+  nav_cam_z: float = 0.565
   #: The depth camera's pitch below level, deg: a counter's height (0.94 m)
   #: from 0.12 m ahead and the floor from 0.48 m (`humanoid_spike.py
   #: --sensors`).
@@ -231,13 +236,12 @@ class HumanoidSpec:
   #: from a metre on).
   nav_pitch_deg: float = 20.0
   #: The LIDAR's rays' origin over the hip axes, m (#581, stage 3: the unit
-  #: upside down in the head, `_lidar`): the lowest from which its steepest
-  #: ray, -52 deg, clears the face's corners and the navigation camera, the
-  #: highest thing ahead; the shoulders' motors hide that ray aside (from
-  #: stage 1's 0.735, nothing). Lower, the head hides more: 3.5 % of a frame
-  #: at 0.70, 5.5 at 0.69 (-48 too), 18 at 0.66, against 2.6 here
-  #: (`lidar_spike.py --hidden --heights`).
-  lidar_z: float = 0.712
+  #: upside down in the head, `_lidar`): 9 mm over the lowest from which its
+  #: steepest ray, -52 deg, clears the depth camera's front corners (0.671).
+  #: The shoulders' motors hide that ray and the -48 deg one aside, 1.2 %
+  #: of a frame more than at stage 1's 0.735 (`lidar_spike.py --hidden
+  #: --heights`).
+  lidar_z: float = 0.68
   # -- the charge port (#559 stage 2): on the torso's front --
   #: Right of its middle and over the hip axes, m: where the right hand
   #: carries a plug straight in from ahead with its arm clear of the trunk
@@ -281,7 +285,7 @@ def structure(spec: HumanoidSpec = CHOSEN) -> dict[str, tuple]:
   is). The generator lays them and the bill buys them."""
   px, py, pz = spec.pelvis_half
   tx, ty, tz = spec.torso_half
-  hx, hy, hz = spec.head_half
+  r, top, cap_lo = spec.head_r, face_top(spec), _rim_lo(spec) + RIM[1]
   foot = spec.foot_len * spec.foot_w
   return {
     "pelvis_side": (Plate(2 * px * 2 * pz, 0.003), 2, "the pelvis's sides, 3 mm 6082"),
@@ -292,13 +296,18 @@ def structure(spec: HumanoidSpec = CHOSEN) -> dict[str, tuple]:
                   "the torso's top, the shoulders' and the neck's mount"),
     "torso_cover": (Plate(2 * ty * 2 * tz, 0.002, PETG), 1,
                     "the torso's front cover, printed in PETG"),
-    "head_shell": (Plate(2 * (4 * hx * hy + 4 * hx * hz + 4 * hy * hz), 0.002, PETG), 1,
-                   "the face, the head's shell round the depth camera, printed in PETG"),
-    "head_dome": (Plate(2 * math.pi * _dome(spec)[0] * _dome_h(spec), 0.002, PETG), 1,
-                  "the dome over the face, the navigation camera's mount, printed in PETG"),
-    "head_crown": (Plate(2 * math.pi * CROWN_R * _crown_h(spec) + math.pi * CROWN_R ** 2,
-                         CROWN_WALL, PETG), 1,
-                   "the crown round the LIDAR's base, printed in PETG"),
+    "head_shell": (Plate(2 * math.pi * r * (top - spec.face_lo) + math.pi * r ** 2, 0.002,
+                         PETG), 1, "the face, the head's shell under its window, printed in PETG"),
+    "head_visor": (Plate(2 * VISOR[2] * (_visor_top(spec) - VISOR[3]), 0.002, PETG), 1,
+                   "the visor over the face's front, the cameras in it, printed in PETG"),
+    "head_dome": (Plate(2 * math.pi * DOME_R * (_dome_z(spec) + DOME_R - top), 0.002, PETG), 1,
+                  "the dome over the face, under the window, printed in PETG"),
+    "head_back": (Plate(math.radians(2 * BACK[0]) * r * (_back_top(spec) - top), BACK[2], PETG),
+                  1, "the back's panels, round its back half up to the window, printed in PETG"),
+    "head_cap": (Plate(2 * math.pi * r * (spec.lidar_z + CAP_TOP - cap_lo) + math.pi * r ** 2,
+                       CAP_WALL, PETG), 1, "the cap over the LIDAR's base, printed in PETG"),
+    "head_rim": (Plate(2 * math.pi * (r + RIM[0] / 2) * RIM[1], RIM[0], TPU), 1,
+                 "the cap's padded rim, printed in TPU"),
     "thigh_plate": (Plate(0.06 * spec.thigh, 0.005), 4,
                     "a thigh's side plates, 60 mm wide, 5 mm 6082"),
     "shank_plate": (Plate(0.05 * spec.shank, 0.004), 4,
@@ -311,62 +320,107 @@ def structure(spec: HumanoidSpec = CHOSEN) -> dict[str, tuple]:
     "forearm_tube": (Tube(0.035, 0.002, spec.forearm), 2, "a forearm, 35 x 2 mm 6082 tube"),
     "gripper_adapter": (Plate(hp.GRIPPER.flange ** 2, 0.006), 2,
                         "the plate a gripper bolts to on the wrist's roll"),
-    "lidar_rib": (Plate(RIB[1] * _rib_h(spec), RIB[0]), 1,
-                  "the rib up the head's back that carries the crown, 6 x 15 mm 6082"),
-    "lidar_plate": (Plate(hp.LIDAR.size[1] * (hp.LIDAR.size[0] / 2 + RIB[2] + RIB[1]),
-                          PLATE_T), 1,
-                    "the plate the LIDAR's base bolts under, on the rib, 3 mm 6082"),
+    "lidar_fin": (Plate((r - FIN[1]) * (spec.lidar_z + hp.LIDAR.origin - top), FIN[0]), 1,
+                  "the fin up the head's back that carries the cap, 6 mm 6082"),
+    "lidar_plate": (Plate(hp.LIDAR.size[1] * (hp.LIDAR.size[0] / 2 + r), PLATE_T), 1,
+                    "the plate the LIDAR's base bolts under, on the fin, 3 mm 6082"),
   }
 
 
-# The head built round the LIDAR (#581, stage 3; `_head`): the unit upside
-# down, its window open all round between the face and the crown -- its
-# manual: nothing in its field, "including glass" -- the crown carried by
-# one rib behind, edge-on to the sensor. Stage 1's post, a 20 x 3 mm strip
-# 0.17 m over the head, swayed sideways at about 12 Hz with the unit on it;
-# the rib, rising 9 cm out of the dome to the crown, at about 50 (each as a
-# cantilever of 6082, 69 GPa, the unit, crown and plate at its end).
-#: The dome over the face, a sphere's cap (the site draws no ellipsoid), m:
-#: its radius where it meets the face's top, and how far under the rays'
-#: origin its crest is (3.9 cm under the unit's window). It lies inside the
-#: steepest ray's cone, so it hides nothing, and it closes the window round
-#: the unit to a band; the navigation camera rides its front.
-DOME = (0.06, 0.052)
+# The head built round the LIDAR (#581, stage 3; `_head`; SimNotes, "The
+# sensor in the head"): the unit upside down, its window open all round --
+# its manual: nothing in its field, "including glass" -- between the face
+# and the cap, one cylinder (`HumanoidSpec.head_r`); the cap carried by a
+# fin behind, edge-on to the sensor, and the back half closed under the
+# rings the band is laid from. Every part keeps `FIELD_CLEAR` out of the
+# field but the fin and the back's panels, which hide what they are drawn to.
+#: The LIDAR's field upside down, deg (`perception.lidar.FOV_DEG`: its
+#: sheet's -7 to +52 turned over), and how far the head keeps out of it, m.
+FIELD_DEG = (-52.0, 7.0)
+FIELD_CLEAR = 0.002
+#: Where the cameras ride, m ahead of the hip axes: the depth camera's
+#: middle and the navigation camera's, as on stage 1's face.
+DEPTH_CAM_X, NAV_CAM_X = 0.0775, 0.069
 #: The navigation camera's housing, half-extents, m (a Camera Module 3).
 NAV_CAM_HALF = (0.006, 0.012, 0.012)
-#: The crown, a PETG cylinder over the unit's base, m: its radius -- the
-#: manual's 10 mm of air round the unit's corners -- and its wall.
-CROWN_R, CROWN_WALL = 0.059, 0.003
-#: The rib, 6082 bar, m: across (its shadow, 4 deg each side of straight
-#: back), deep (along the rays), and its inner face behind the sensor -- the
-#: manual's 10 mm of air behind the unit, its outer face flush with the
-#: crown's.
-RIB = (0.006, 0.015, 0.044)
-#: The plate under the crown that the unit's base bolts to, m.
+#: The visor, the plate over the face's front the cameras sit in, m: its
+#: back and front, half its width and its foot over the hip axes. Its top
+#: is under the steepest ray at its corners (`_visor_top`).
+VISOR = (0.045, 0.070, 0.050, 0.487)
+#: The dome over the face, the slope under the window, m: a sphere inside
+#: the steepest ray's cone (the site draws no ellipsoid), rising from the
+#: face's top 6 mm in from its edge.
+DOME_R = 0.066
+#: The cap's padded rim, TPU: how far it stands proud of the head, the
+#: first of it a fall meets, and how tall it is, m.
+RIM = (0.004, 0.012)
+#: The cap's top over the rays' origin, and its wall, m: 18 mm over the
+#: unit's base, its plate and the cap's wall between them, so that no plane
+#: meets the unit before the head does (8 mm, 0.01 m lower).
+CAP_TOP, CAP_WALL = 0.065, 0.003
+#: The fin that carries the cap, 6082, m: its thickness (its shadow, 4 deg
+#: each side of straight back) and its inner face behind the sensor, the
+#: manual's 10 mm of air behind the unit; its outer face is the head's.
+FIN = (0.006, 0.0425)
+#: The back's panels, PETG, round its back half: how far round from
+#: straight back each way, deg; how many; their thickness, m; and the ray
+#: their top edge lies on at their middle, deg -- the ring above it, -24
+#: deg, passes 1 mm over their corners, and the one under it, -28, meets
+#: them. The band's walls and the fences come off its rings from -8 to -24
+#: deg; the steeper ones behind see the floor within 2.6 m. Over the
+#: house, #572's probe pins every outdoor place with the panels as without
+#: them (closed to every ring over +-55 deg, the loop's places went 3 %
+#: unpinned and the rooms' 7: `lidar_spike.py --probe`).
+BACK = (90.0, 7, 0.004, -26.0)
+#: The plate under the cap that the unit's base bolts to, m.
 PLATE_T = 0.003
+#: The visor's, the dome's and the back's inner face's colour, the PETG's
+#: own black, unpainted (the head's shell is painted the robot's livery);
+#: the rim's black TPU.
+VISOR_RGBA, RIM_RGBA = "0.09 0.1 0.12 1", "0.06 0.06 0.07 1"
 
 
-def _dome_h(spec: HumanoidSpec) -> float:
-  """The dome's crest over the face's top, m."""
-  return spec.lidar_z - DOME[1] - (spec.head_z + spec.head_half[2])
+def _tan(deg: float) -> float:
+  return math.tan(math.radians(deg))
 
 
-def _dome(spec: HumanoidSpec) -> tuple[float, float]:
-  """The dome's sphere: its radius and its middle over the hip axes, m --
-  through the circle `DOME[0]` across on the face's top and the crest."""
-  a, h = DOME[0], _dome_h(spec)
-  r = (a * a + h * h) / (2 * h)
-  return r, spec.head_z + spec.head_half[2] + h - r
+def _under(spec: HumanoidSpec, r: float) -> float:
+  """The highest a part `r` m off the LIDAR's axis may reach under its
+  window, over the hip axes, m: `FIELD_CLEAR` under the steepest ray."""
+  return spec.lidar_z - _tan(-FIELD_DEG[0]) * r - FIELD_CLEAR
 
 
-def _crown_h(spec: HumanoidSpec) -> float:
-  """The crown, from where the unit's window begins to over its plate, m."""
-  return hp.LIDAR.origin - hp.LIDAR.window + PLATE_T + CROWN_WALL
+def face_top(spec: HumanoidSpec = CHOSEN) -> float:
+  """The face's top over the hip axes, m: its edge under the steepest ray."""
+  return _under(spec, spec.head_r)
 
 
-def _rib_h(spec: HumanoidSpec) -> float:
-  """The rib, from the face's top to the plate under the crown, m."""
-  return spec.lidar_z + hp.LIDAR.origin - (spec.head_z + spec.head_half[2])
+def _visor_top(spec: HumanoidSpec) -> float:
+  return _under(spec, math.hypot(VISOR[1], VISOR[2]))
+
+
+def _dome_z(spec: HumanoidSpec) -> float:
+  """The dome's middle over the hip axes, m: deep enough that the sphere
+  stays `FIELD_CLEAR` inside the steepest ray's cone."""
+  return spec.lidar_z - (DOME_R + FIELD_CLEAR) / math.cos(math.radians(-FIELD_DEG[0]))
+
+
+def _rim_lo(spec: HumanoidSpec) -> float:
+  """The rim's underside over the hip axes, m: over the unit's window and
+  `FIELD_CLEAR` over the field's highest ray at its edge."""
+  out = _tan(FIELD_DEG[1]) * (spec.head_r + RIM[0]) + FIELD_CLEAR
+  return spec.lidar_z + max(hp.LIDAR.window, out)
+
+
+def _back_panel(spec: HumanoidSpec) -> tuple[float, float]:
+  """A back panel's half-width and its top over the hip axes, m: wide
+  enough to meet the next one, its top on the ray `BACK[3]` at its middle."""
+  half_w = spec.head_r * math.tan(math.radians(BACK[0] / BACK[1])) + 0.0005
+  return half_w, spec.lidar_z - _tan(-BACK[3]) * (spec.head_r - BACK[2] / 2)
+
+
+def _back_top(spec: HumanoidSpec) -> float:
+  return _back_panel(spec)[1]
 
 
 def _kg(spec: HumanoidSpec, *names: str, each: bool = False) -> float:
@@ -632,7 +686,6 @@ def _trunk(spec: HumanoidSpec) -> str:
   sensors in it."""
   px, py, pz = spec.pelvis_half
   tx, ty, tz = spec.torso_half
-  hx, hy, hz = spec.head_half
   pelvis = _kg(spec, "pelvis_side", "pelvis_deck")
   torso = _kg(spec, "torso_side", "torso_back", "torso_top", "torso_cover")
   pack = hp.PACK
@@ -643,7 +696,6 @@ def _trunk(spec: HumanoidSpec) -> str:
     _housing(f"{s}_shoulder_pitch_motor", spec.motor(f"{s}_shoulder_pitch"),
              (0, (1 if s == "left" else -1) * spec.shoulder_pitch_y, spec.shoulder_z), "y")
     for s in SIDES)
-  hz0 = spec.head_z
   dp = math.radians(spec.depth_pitch_deg)
   npch = math.radians(spec.nav_pitch_deg)
   return f"""
@@ -659,7 +711,7 @@ def _trunk(spec: HumanoidSpec) -> str:
             pos="{_v(tx - 0.05, 0, spec.torso_z + 0.06)}" mass="{_f(hp.ELECTRONICS_KG)}"
             rgba="0.1 0.5 0.2 1"/>{hips}{shoulders}
       <geom name="neck" class="visual" type="cylinder" size="0.025"
-            fromto="{_v(0, 0, spec.torso_z + tz, 0, 0, hz0 - hz)}" mass="0" rgba="0.3 0.3 0.32 1"/>{_head(spec)}
+            fromto="{_v(0, 0, spec.torso_z + tz, 0, 0, spec.face_lo)}" mass="0" rgba="0.3 0.3 0.32 1"/>{_head(spec)}
       <geom name="charge_port" class="visual" type="box"
             size="{_v(hp.PORT_FLANGE[0] / 2, hp.PORT_FLANGE[1] / 2, hp.PORT_FLANGE[1] / 2)}"
             pos="{_v(tx + hp.PORT_FLANGE[0] / 2, spec.port_y, spec.port_z)}"
@@ -670,13 +722,13 @@ def _trunk(spec: HumanoidSpec) -> str:
             mass="{_f(hp.PORT_FUNNEL_KG)}" rgba="0.2 0.2 0.22 0.35"/>
       <site name="charge_port" pos="{_v(tx + hp.PORT_FLANGE[0], spec.port_y, spec.port_z)}"
             zaxis="1 0 0" size="0.004"/>
-      <body name="depth_cam_body" pos="{_v(hx + 0.0125, 0, spec.depth_cam_z)}" euler="{_v(0, dp, 0)}">
+      <body name="depth_cam_body" pos="{_v(DEPTH_CAM_X, 0, spec.depth_cam_z)}" euler="{_v(0, dp, 0)}">
         <geom name="depth_cam" class="visual" type="box" size="0.0125 0.045 0.0125"
               mass="{_f(hp.D435_KG)}" rgba="0.2 0.2 0.2 1"/>
         <camera name="depth_eye" pos="0.013 0 0" xyaxes="0 -1 0 0 0 1" fovy="58"/>
         <camera name="color_eye" pos="0.013 -0.015 0" xyaxes="0 -1 0 0 0 1" fovy="42"/>
       </body>
-      <body name="nav_cam_body" pos="{_v(hx + 0.004, 0, spec.nav_cam_z)}" euler="{_v(0, npch, 0)}">
+      <body name="nav_cam_body" pos="{_v(NAV_CAM_X, 0, spec.nav_cam_z)}" euler="{_v(0, npch, 0)}">
         <geom name="nav_cam" class="visual" type="box" size="{_v(*NAV_CAM_HALF)}"
               mass="{_f(hp.CAMERA_KG)}" rgba="0.1 0.1 0.1 1"/>
         <camera name="nav_eye" pos="0.007 0 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
@@ -684,36 +736,63 @@ def _trunk(spec: HumanoidSpec) -> str:
 
 
 def _head(spec: HumanoidSpec) -> str:
-  """The head built round the LIDAR (#581, stage 3): the face, the box the
-  depth camera rides; the dome over it, the navigation camera's; over them
-  the window, open all round, the unit's own (`_lidar`); and the crown
-  round the unit's base, carried by the rib up the head's back. Every part
-  collides, as the head did, and a fall on the crown is the crown's."""
-  hx, hy, hz = spec.head_half
-  top = spec.head_z + hz
-  dome_r, dome_z = _dome(spec)
-  crown_h, rib_h = _crown_h(spec), _rib_h(spec)
-  crown_lo = spec.lidar_z + hp.LIDAR.window
-  across, deep, inner = RIB
-  return f"""
-      <geom name="head" class="limb" type="box" size="{_v(hx, hy, hz)}"
-            pos="{_v(0, 0, spec.head_z)}" mass="{_f(_kg(spec, 'head_shell'))}"/>
-      <geom name="head_dome" class="limb" type="sphere" size="{_f(dome_r)}"
-            pos="{_v(0, 0, dome_z)}" mass="{_f(_kg(spec, 'head_dome'))}"/>
-      <geom name="head_crown" class="limb" type="cylinder" size="{_v(CROWN_R, crown_h / 2)}"
-            pos="{_v(0, 0, crown_lo + crown_h / 2)}"
-            mass="{_f(_kg(spec, 'head_crown', 'lidar_plate'))}"/>
-      <geom name="head_rib" class="limb" type="box" size="{_v(deep / 2, across / 2, rib_h / 2)}"
-            pos="{_v(-inner - deep / 2, 0, top + rib_h / 2)}" mass="{_f(_kg(spec, 'lidar_rib'))}"
-            rgba="0.75 0.75 0.78 1"/>"""
+  """The head built round the LIDAR (#581, stage 3): the face, the cylinder
+  the cameras ride in its visor, and the dome over it, the slope under the
+  window; the window, the unit's own (`_lidar`), open all round but where
+  the fin that carries the cap crosses it, and where the back's panels
+  close it under the band's rings; the cap over the unit's base, on its
+  padded rim. Every part collides but the panels' painted inner faces, and
+  a fall on the head is the rim's and the cap's."""
+  r, z = spec.head_r, spec.lidar_z
+  lo, top = spec.face_lo, face_top(spec)
+  back, front, half_w, foot = VISOR
+  rim_lo = _rim_lo(spec)
+  cap_lo, cap_hi = rim_lo + RIM[1], z + CAP_TOP
+  thick, inner = FIN
+  fin_lo, fin_hi = top - 0.004, z + hp.LIDAR.origin
+  out = f"""
+      <geom name="head" class="limb" type="cylinder" size="{_v(r, (top - lo) / 2)}"
+            pos="{_v(0, 0, (lo + top) / 2)}" mass="{_f(_kg(spec, 'head_shell'))}"/>
+      <geom name="head_visor" class="limb" type="box"
+            size="{_v((front - back) / 2, half_w, (_visor_top(spec) - foot) / 2)}"
+            pos="{_v((back + front) / 2, 0, (foot + _visor_top(spec)) / 2)}"
+            mass="{_f(_kg(spec, 'head_visor'))}" rgba="{VISOR_RGBA}"/>
+      <geom name="head_dome" class="limb" type="sphere" size="{_f(DOME_R)}"
+            pos="{_v(0, 0, _dome_z(spec))}" mass="{_f(_kg(spec, 'head_dome'))}" rgba="{VISOR_RGBA}"/>
+      <geom name="head_rim" class="limb" type="cylinder" size="{_v(r + RIM[0], RIM[1] / 2)}"
+            pos="{_v(0, 0, rim_lo + RIM[1] / 2)}" mass="{_f(_kg(spec, 'head_rim'))}"
+            rgba="{RIM_RGBA}"/>
+      <geom name="head_cap" class="limb" type="cylinder" size="{_v(r, (cap_hi - cap_lo) / 2)}"
+            pos="{_v(0, 0, (cap_lo + cap_hi) / 2)}"
+            mass="{_f(_kg(spec, 'head_cap', 'lidar_plate'))}"/>
+      <geom name="head_fin" class="limb" type="box"
+            size="{_v((r - inner) / 2, thick / 2, (fin_hi - fin_lo) / 2)}"
+            pos="{_v(-(r + inner) / 2, 0, (fin_lo + fin_hi) / 2)}"
+            mass="{_f(_kg(spec, 'lidar_fin'))}"/>"""
+  arc, n, wall, _ = BACK
+  half_w, back_hi = _back_panel(spec)
+  step = math.radians(2 * arc / n)
+  for k in range(n):
+    a = math.pi - math.radians(arc) + step * (k + 0.5)
+    c, s = math.cos(a), math.sin(a)
+    for name, rad, half_t, kind, extra in (
+        (f"head_back{k}", r - wall / 2, wall / 2, "limb",
+         f'mass="{_f(_kg(spec, "head_back") / n)}"'),
+        (f"head_back{k}_inside", r - wall - 0.0005, 0.0005, "visual",
+         f'mass="0" rgba="{VISOR_RGBA}"')):
+      out += f"""
+      <geom name="{name}" class="{kind}" type="box" size="{_v(half_t, half_w, (back_hi - top) / 2 + 0.002)}"
+            pos="{_v(rad * c, rad * s, (top + back_hi) / 2 - 0.002)}" euler="{_v(0, 0, a)}" {extra}/>"""
+  return out
 
 
 def _lidar(spec: HumanoidSpec) -> str:
   """The LIDAR upside down in the head (#581): its base bolted under the
-  crown's plate, its window under it and open all round (`_head`), its rays'
-  origin `lidar_z` over the hip axes. A body of its own, so that its rays
-  never meet its own housing -- they leave through its window
-  (`perception.lidar.Lidar`) -- and it collides as the head does."""
+  cap's plate -- on rubber isolators, the bill's, rigid here -- its window
+  under it (`_head`), its rays' origin `lidar_z` over the hip axes. A body
+  of its own, so that its rays never meet its own housing -- they leave
+  through its window (`perception.lidar.Lidar`) -- and it collides as the
+  head does."""
   ux, uy, uz = (v / 2 for v in hp.LIDAR.size)
   return f"""
       <body name="lidar_mount" pos="{_v(0, 0, spec.lidar_z)}">
@@ -847,7 +926,8 @@ LEG_GEOMS = ("thigh", "shank", "sole")
 ARM_GEOMS = ("upper_arm", "forearm", "gripper")
 #: The head's parts (`_head`) and the LIDAR in it, which an arm raised by
 #: the head meets as it meets the trunk.
-HEAD_GEOMS = ("head", "head_dome", "head_crown", "head_rib", "lidar")
+HEAD_GEOMS = (("head", "head_visor", "head_dome", "head_rim", "head_cap", "head_fin", "lidar")
+              + tuple(f"head_back{k}" for k in range(BACK[1])))
 TRUNK_GEOMS = ("pelvis", "torso") + HEAD_GEOMS
 
 

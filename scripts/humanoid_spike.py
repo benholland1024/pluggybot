@@ -194,7 +194,7 @@ def held_world(at=GANTRY_XY, yaw: float = GANTRY_YAW) -> tuple:
   frame.pos = [at[0], at[1], h - hm.stand_height()]
   frame.quat = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
   spec.attach(robot, prefix="", frame=frame)
-  top = h + hm.CHOSEN.head_z + 0.35
+  top = h + hm.CHOSEN.lidar_z + hm.CAP_TOP + 0.13
   _gantry(spec, at[0], at[1], yaw, top)
   strap = spec.worldbody.add_geom(
     name="gantry_strap", type=mujoco.mjtGeom.mjGEOM_CAPSULE, size=[0.008, 0, 0],
@@ -3497,10 +3497,12 @@ FALL_WAYS = {"front": (1, 0), "back": (-1, 0), "left": (0, 1), "right": (0, -1),
 FALL_NS = 45.0
 FALL_S = 8.0
 #: The robot's parts, by the geoms that strike the floor: the head is its
-#: face and dome, the crown the LIDAR's crown, rib and unit (#581's stage 3,
-#: `model._head`).
+#: face, visor, dome and back, the cap the cap with its padded rim and the
+#: fin that carries it, and the unit the LIDAR, which no fall should reach
+#: (#581's stage 3, `model._head`).
 FALL_PARTS = {
-  "head": ("head", "head_dome"), "crown": ("head_crown", "head_rib", "lidar"),
+  "head": ("head", "head_visor", "head_dome") + tuple(f"head_back{k}" for k in range(hm.BACK[1])),
+  "cap": ("head_rim", "head_cap", "head_fin"), "unit": ("lidar",),
   "trunk": ("torso", "pelvis"),
   "arms": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("upper_arm", "forearm")),
   "hands": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("gripper", "jaw_a_pad", "jaw_b_pad")),
@@ -3682,7 +3684,7 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
   for _ in range(int(1.0 / m.opt.timestep)):
     h.step()
   gen, took, stood, first, head_v = shove(h, FALL_WAYS[way], ns), None, None, None, None
-  head_part = None
+  head_part, unit, unit_v = None, m.geom("lidar").id, None
   vel = np.zeros(6)
   t0 = d.time
   while d.time - t0 < HOUSE_FALL_S:
@@ -3714,8 +3716,12 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
       if mine in heads and head_v is None:
         mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, mine, vel, 0)
         head_v, head_part = float(np.linalg.norm(vel[3:])), heads[mine]
+      if mine == unit and unit_v is None:
+        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, mine, vel, 0)
+        unit_v = float(np.linalg.norm(vel[3:]))
   return {"place": place, "way": way, "first": first, "head_v": head_v, "head_part": head_part,
-          "took_s": took, "stood_s": stood, "end_z": float(d.xpos[h.root][2]) - z}
+          "unit_v": unit_v, "took_s": took, "stood_s": stood,
+          "end_z": float(d.xpos[h.root][2]) - z}
 
 
 def _head_geoms(m) -> dict[int, str]:
@@ -3759,6 +3765,9 @@ def house_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
     print(f"{place:20s}" + "".join(f"{c:>34s}" for c in cells))
   print("  (down: still on the ground after the watch, its pelvis that high over the ground it "
         "had stood on, m)")
+  touched = [f"{r['place']} {r['way']} at {r['unit_v']:.1f} m/s" for r in rows
+             if r["unit_v"] is not None]
+  print(f"  the LIDAR itself touched anything: {', '.join(touched) or 'in no fall'}")
   return rows
 
 
@@ -3800,7 +3809,7 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
   z0 = float(d.xpos[h.root][2])
   rec = {"posture": tuple(held), "way": way, "ns": ns, "served": served, "tilt_s": None,
          "upright_s": None, "collapse_s": None, "first": None, "hit_s": None, "head_v": None,
-         "head_part": None, "took_s": None, "stood_s": None, "max_tip": 0.0}
+         "head_part": None, "unit_v": None, "took_s": None, "stood_s": None, "max_tip": 0.0}
   t0 = d.time
   _drain(shove(h, FALL_WAYS[way], ns))
   vel = np.zeros(6)
@@ -3837,6 +3846,9 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
       if other in heads and rec["head_v"] is None:
         mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, other, vel, 0)
         rec["head_v"], rec["head_part"] = float(np.linalg.norm(vel[3:])), heads[other]
+      if heads.get(other) == "lidar" and rec["unit_v"] is None:
+        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, other, vel, 0)
+        rec["unit_v"] = float(np.linalg.norm(vel[3:]))
   rec["fell"] = rec["hit_s"] is not None or float(d.xpos[h.root][2]) < z0 - 0.15
   return rec
 
@@ -3899,6 +3911,9 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
       struck.setdefault(r["head_part"], []).append(r["head_v"])
   print("  the head's first part into the floor: " + ("; ".join(
     f"{part} {len(v)}, {_span(v)} m/s" for part, v in sorted(struck.items())) or "none"))
+  unit = [r["unit_v"] for r in rows if r["unit_v"] is not None]
+  print(f"  the LIDAR itself touched the floor: {len(unit)} falls" + (f", {_span(unit)} m/s"
+                                                                       if unit else ""))
   return rows
 
 

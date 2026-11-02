@@ -469,7 +469,7 @@ class Lidar:
 
 #: The head's LIDAR (#581), the catalog's part: Livox's Mid-360S, 65 x 65 x
 #: 60 mm and 265 g by its sheet, upside down in the head, its base bolted
-#: under the crown (`model._head`, `HumanoidSpec.lidar_z`). Its manual puts
+#: under the cap (`model._head`, `HumanoidSpec.lidar_z`). Its manual puts
 #: the IMU chip 44.12 mm under the rays' origin, on the base's board: the
 #: origin 47 mm over the base's face, 13 mm short of the window's end, and
 #: its +7 deg ray leaves the 65 mm housing 4 mm over it -- the window carried

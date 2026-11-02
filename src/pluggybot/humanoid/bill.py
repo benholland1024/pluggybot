@@ -300,6 +300,7 @@ PARTS: tuple[Part, ...] = (
                  code("humanoid.model.CHOSEN.lidar_z", "m", "its rays' origin over the hip "
                       "axes, upside down in the head"))),
   _bought("livox_m12_cable", usedBy=("lidar_mount",)),
+  _bought("rs_189_3249", usedBy=("lidar_mount",)),
   _bought("pi_camera_3", usedBy=("nav_cam_body",),
           feeds=(Feed("nav_eye.fovy", camera("nav_eye"), "°",
                       "the places' tags on the walls, and the eye a look sees through",
@@ -336,15 +337,18 @@ PARTS: tuple[Part, ...] = (
   _fabricated("humanoid_gripper_adapters", "The plates the grippers bolt to on the "
               "wrists' roll, 6 mm 6082", ("gripper_adapter",),
               usedBy=tuple(f"{s}_hand" for s in hm.SIDES)),
-  _fabricated("humanoid_lidar_frame", "The LIDAR's frame in the head: a 6 x 15 mm 6082 "
-              "rib up its back and the plate the unit's base bolts under",
-              ("lidar_rib", "lidar_plate"), usedBy=(hm.ROBOT_ROOT,)),
-  _fabricated("humanoid_shells", "The head's shells, its face, dome and crown, and the "
-              "torso's front cover, printed in PETG",
-              ("head_shell", "head_dome", "head_crown", "torso_cover"), usedBy=(hm.ROBOT_ROOT,),
-              printed=True),
+  _fabricated("humanoid_lidar_frame", "The LIDAR's frame in the head: a 6 mm 6082 fin up "
+              "its back and the plate the unit's base bolts under",
+              ("lidar_fin", "lidar_plate"), usedBy=(hm.ROBOT_ROOT,)),
+  _fabricated("humanoid_shells", "The head's shells, its face, visor, dome, back and cap, "
+              "and the torso's front cover, printed in PETG",
+              ("head_shell", "head_visor", "head_dome", "head_back", "head_cap", "torso_cover"),
+              usedBy=(hm.ROBOT_ROOT,), printed=True),
+  _fabricated("humanoid_head_rim", "The cap's padded rim, the first of the head a fall "
+              "meets, printed in TPU", ("head_rim",), usedBy=(hm.ROBOT_ROOT,), printed=True),
   _bought("igus_kcrm_05", usedBy=tuple(f"{s}_shank" for s in hm.SIDES), quantity=4),
   _bought("petg_1kg", quantity=2),
+  _bought("tpu_1kg"),
   # ---- safety ------------------------------------------------------------------
   _bought("albright_sw80b549", usedBy=(hm.ROBOT_ROOT,),
           feeds=(code_entry("humanoid.parts.ELECTRONICS_W", "contactor", "W",
@@ -429,6 +433,8 @@ LINES: tuple[Line, ...] = (
        "weeks (DigiKey DE); 21 days at MyBotShop for €419.99"),
   Line("livox_mid360s", 1, "sensors", "only 3 left in stock, 1-3 working days (Funduino)"),
   Line("livox_m12_cable", 1, "sensors", "currently unavailable (Funduino)"),
+  Line("rs_189_3249", 1, "sensors", "temporarily out of stock: 19 ship from 2026-11-30, 41 "
+       "more from 2026-12-07 (RS)", note="the LIDAR's isolators"),
   Line("meanwell_ddr_30l_12", 1, "sensors", "in stock, 1-2 business days (Reichelt)",
        note="the LIDAR's 12 V"),
   Line("pi_camera_3", 1, "sensors", "in stock, 1-3 days (BerryBase)"),
@@ -463,12 +469,14 @@ LINES: tuple[Line, ...] = (
              "when the gripper's flange is known (Unitree does not publish it)"),
   Line("humanoid_lidar_frame", 1, "frame", None, why=UNDRAWN,
        allowanceEur=round(2 * MACHINED_EUR, 2),
-       basis="two machined parts at €33.33 a machined part (#379's rate): the crown is "
-             "printed, the rib that carries it 6082 (printed as narrow, it would sway at "
-             "about 5 Hz)"),
+       basis="two machined parts at €33.33 a machined part (#379's rate): the cap is "
+             "printed, the fin that carries it 6082 (a printed fin as thin would sway with "
+             "the unit on it)"),
   Line("igus_kcrm_05", 4, "frame", "ready to ship in 24 hours (igus)"),
   Line("petg_1kg", 2, "frame", None,
        why={"leadTime": "in stock; the page and its terms give no delivery time"}),
+  Line("tpu_1kg", 1, "frame", None,
+       why={"leadTime": "in stock; the page gives no delivery time"}, note="the head's rim"),
   # ---- safety ------------------------------------------------------------------
   Line("albright_sw80b549", 1, "safety", None,
        why={"leadTime": "the page states none (it can be put in the cart)"}),

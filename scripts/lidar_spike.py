@@ -11,11 +11,11 @@ before).
                                   # what its body hides of a frame: standing,
                                   # and a hand held at each of the reach
                                   # scene's heights (`humanoid_spike.py`)
-    ... --hidden --heights 0.66,0.70,0.712
+    ... --hidden --heights 0.67,0.68,0.70
                                   # standing, the head built round the unit
                                   # with its rays' origin at each height over
                                   # the hips (`HumanoidSpec.lidar_z`): what a
-                                  # lower crown costs
+                                  # lower head costs
     ... --view head               # the head built round it, turning in the
                                   # viewer, where its steep rings meet the
                                   # floor drawn (MUJOCO_GL unset)
@@ -120,7 +120,7 @@ def level_of(yaw: float) -> np.ndarray:
 
 def hidden_report(model, data, lidar, label: str) -> dict:
   """What the robot's own body hides of one frame: its share; in each
-  sector, how many bearings it hides whole (the rib's), and down to which
+  sector, how many bearings it hides whole (the fin's), and down to which
   ring every other bearing there is clear, and whose geoms hide anything
   there."""
   mine = lidar.hidden(data)
@@ -184,19 +184,20 @@ def print_hidden(rows: list[dict]) -> None:
 def heights_table(heights: list[float]) -> list[dict]:
   """--hidden --heights: standing, arms hanging, the head built round the
   unit with its rays' origin at each height over the hips (`HumanoidSpec.
-  lidar_z`; the crown and the rib follow it, the face and the cameras stay):
-  what it hides, and how high the crown's top is over the floor."""
+  lidar_z`; the face's top, the visor, the dome, the back, the cap and the
+  fin follow it, the cameras stay): what it hides, and how high the cap's
+  top is over the floor."""
   rows = []
   for z in heights:
     model = mujoco.MjModel.from_xml_string(hm.body_xml(hm.CHOSEN.with_(lidar_z=z)))
     data = mujoco.MjData(model)
     mujoco.mj_resetDataKeyframe(model, data, 0)
     mujoco.mj_forward(model, data)
-    crown = model.geom("head_crown").id
-    top = float(data.geom_xpos[crown][2] + model.geom_size[crown][1])
+    cap = model.geom("head_cap").id
+    top = float(data.geom_xpos[cap][2] + model.geom_size[cap][1])
     row = hidden_report(model, data, ld.Lidar(model), f"its rays' origin {z:.3f} m over the "
-                        f"hips, the crown's top {top:.3f} m up")
-    rows.append({**row, "lidarZ": z, "crownTopM": round(top, 3)})
+                        f"hips, the cap's top {top:.3f} m up")
+    rows.append({**row, "lidarZ": z, "capTopM": round(top, 3)})
   print_hidden(rows)
   return rows
 
@@ -502,8 +503,9 @@ def head_world():
 
 def head_marks(model, data) -> list[tuple[np.ndarray, np.ndarray]]:
   """Where the three steepest rings meet the floor, and where every ray
-  its body hides strikes it -- the rib behind, the shoulders' motors aside
-  -- off a noiseless cast from where the sensor is."""
+  its body hides strikes it -- the fin and the back's panels behind, the
+  shoulders' motors aside -- off a noiseless cast from where the sensor
+  is."""
   lidar = ld.Lidar(model, noise=False)
   dist, hit = lidar._cast(data, lidar._dirs)
   pos = data.site_xpos[lidar.site_id].copy()
@@ -521,32 +523,39 @@ def head_marks(model, data) -> list[tuple[np.ndarray, np.ndarray]]:
 
 #: The strip's tiles: (lookat over the head, or over the robot's feet;
 #: distance, azimuth, elevation; label). The robot faces +x; azimuth 0
-#: looks along +x, from behind it.
+#: looks along +x, from behind it. Three at eye level, three from 36 deg
+#: up, the site camera's (`VIEW_DIR` in the site's `camera.ts`), where a
+#: line through the window lands on the dark dome beyond it; the steep
+#: rings on the floor; and the robot as the site's follow camera frames it.
 HEAD_TILES = (
-  ("head", 0.75, 215.0, -12.0, "from ahead and to its left: the face, the dome, the window, "
-                                "the crown"),
-  ("head", 0.75, 270.0, -5.0, "from its left: the window open all round"),
-  ("head", 0.75, 25.0, -12.0, "from behind: the rib that carries the crown"),
-  ("head", 0.9, 200.0, -55.0, "from above, ahead"),
+  ("head", 0.8, 215.0, -8.0, "eye level, ahead and to its left: the visor, the dome, the "
+                              "window, the cap on its rim"),
+  ("head", 0.8, 270.0, -3.0, "eye level, its left: the back's panels under the window"),
+  ("head", 0.8, 30.0, -8.0, "eye level, behind: the fin that carries the cap"),
+  ("head", 0.9, 205.0, -36.0, "the site's 36 deg, ahead and to its left"),
+  ("head", 0.9, 290.0, -36.0, "the site's 36 deg, its left"),
+  ("head", 0.9, 30.0, -36.0, "the site's 36 deg, behind"),
   ("feet", 4.2, 215.0, -38.0, "the steepest rings on the floor: -52 red, -48 orange, -44 "
                               "yellow; hidden rays magenta"),
-  ("feet", 4.6, 180.0, -89.0, "from overhead: the rib's shadow behind, the shoulders' at "
-                              "-52"),
+  ("feet", 4.6, 180.0, -89.0, "from overhead: the back's shadow behind, the shoulders' "
+                              "aside"),
+  ("body", 3.0, 200.0, -36.0, "as the site's follow camera frames it, 3 m off"),
 )
 
 
 def _head_cam(model, data, where: str, dist: float, az: float, el: float):
   cam = mujoco.MjvCamera()
   root = model.body("pluggybot").id
-  over = hm.CHOSEN.lidar_z - 0.03 if where == "head" else -hm.stand_height()
+  over = {"head": hm.CHOSEN.lidar_z - 0.06, "feet": -hm.stand_height(), "body": 0.0}[where]
   cam.lookat[:] = data.xpos[root] + [0.0, 0.0, over]
   cam.distance, cam.azimuth, cam.elevation = dist, az, el
   return cam
 
 
 def strip_head(out: str = "lidar_head.png", w: int = 480, h: int = 360) -> None:
-  """The head built round the LIDAR from four sides, and where its
-  steepest rings meet the floor round it (`HEAD_TILES`)."""
+  """The head built round the LIDAR, at eye level and from the site's
+  angle, where its steepest rings meet the floor round it, and the robot
+  as the site frames it (`HEAD_TILES`)."""
   from PIL import Image, ImageDraw
   model, data = head_world()
   marks = head_marks(model, data)
@@ -574,10 +583,11 @@ def view_head() -> None:
   from mujoco import viewer as mj_viewer
   model, data = head_world()
   marks = head_marks(model, data)
-  print("the head built round the LIDAR, turning: the face and its cameras, the dome, the "
-        "window open all round, the crown and the rib behind; on the floor, where its three "
-        "steepest rings meet it (-52 red, -48 orange, -44 yellow), and magenta where a ray "
-        "its own body hides strikes it. Close the window to quit.")
+  print("the head built round the LIDAR, turning: the face and its cameras in the visor, the "
+        "dome, the window, the back's panels under it and the fin, the cap on its padded rim; "
+        "on the floor, where its three steepest rings meet it (-52 red, -48 orange, -44 "
+        "yellow), and magenta where a ray its own body hides strikes it. Close the window to "
+        "quit.")
   with mj_viewer.launch_passive(model, data) as viewer:
     # over the robot, between its head and the rings round its feet
     viewer.cam.lookat[:] = data.xpos[model.body("pluggybot").id] + [0.0, 0.0, 0.2]

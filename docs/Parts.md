@@ -356,15 +356,16 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 | [Raspberry Pi SSD Kit, 256 GB (M.2 HAT+ and NVMe)](https://www.berrybase.de/raspberry-pi-ssd-kit-fuer-raspberry-pi-5-256gb) `SC1675` | 1 | 54.90 | 54.90 | not deliverable now (BerryBase); the 512 GB kit is in stock at Reichelt for €166.10 | — |
 | [Waveshare 2-CH CAN HAT+ (MCP2515, isolated) for the Raspberry Pi](https://eckstein-shop.de/WaveShare-2CH-Isolated-CAN-Bus-Expansion-HAT-for-Raspberry-Pi) `27338` | 1 | 29.95 | 29.95 | in stock, 1-3 days (Eckstein) | `humanoid.parts.ELECTRONICS['waveshare_can_hat_plus']` |
 | [Waveshare 2-CH CAN FD HAT (MCP2518FD, isolated) for the Raspberry Pi](https://www.welectron.com/Waveshare-17075-2-CH-CAN-FD-HAT_1) `17075` | 1 | 51.90 | 51.90 | in stock (short supply), 1-3 business days (Welectron) | `humanoid.parts.ELECTRONICS['waveshare_can_fd_hat']` |
-| **sensors** | | | **1,296.90** | | |
+| **sensors** | | | **1,306.93** | | |
 | [RealSense D435 depth camera (active IR stereo)](https://www.digikey.de/de/products/detail/realsense/82635AWGDVKPRQ/9926002) `D435` | 1 | 340.01 | 340.01 | none in stock, the maker's standard lead 14 weeks (DigiKey DE); 21 days at MyBotShop for €419.99 | `depth_eye.fovy`, `humanoid.parts.D435_KG`, `humanoid.model.CHOSEN.depth_pitch_deg`, +1 |
 | [Livox Mid-360S 3D LIDAR (360 x 59 deg, non-repetitive scan)](https://funduino.com/en/products/livox-mid-360s-lidar) `Mid-360S` | 1 | 772.95 | 772.95 | only 3 left in stock, 1-3 working days (Funduino) | `humanoid.parts.LIDAR.kg`, `humanoid.parts.ELECTRONICS_W['lidar']`, `perception.lidar.FOV_DEG`, +4 |
 | [Livox connection cable: M12 aviation connector to power, Ethernet and signal wires, 1.5 m](https://funduino.com/en/products/three-core-livox-connection-cable) `Livox Three Wire Aviation Connector` | 1 | 89.95 | 89.95 | currently unavailable (Funduino) | — |
+| [Rubber-metal buffers, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO, a pack of 4)](https://de.rs-online.com/web/p/schwingungsdampfer/1893249) `189-3249` | 1 | 10.03 /pack of 4 | 10.03 | temporarily out of stock: 19 ship from 2026-11-30, 41 more from 2026-12-07 (RS) | — |
 | [Mean Well DDR-30L-12 DC-DC converter, 18-75 V in, 12 V 2.5 A, isolated (DIN rail)](https://www.reichelt.com/de/en/shop/product/dc_dc_converter_30w_12v_2_5a-256735) `DDR-30L-12` | 1 | 27.10 | 27.10 | in stock, 1-2 business days (Reichelt) | — |
 | [Raspberry Pi Camera Module 3](https://www.berrybase.de/raspberry-pi-camera-module-3-12mp) `Camera Module 3` | 1 | 28.90 | 28.90 | in stock, 1-3 days (BerryBase) | `nav_eye.fovy` |
 | [Raspberry Pi camera cable, standard to mini, 200 mm](https://www.berrybase.de/raspberry-pi-camera-cable-standard-mini-200mm) `SC1128` | 1 | 1.20 | 1.20 | in stock, 1-3 days (BerryBase) | — |
 | [TDK InvenSense ICM-42688-P evaluation board (IMU)](https://www.digikey.de/de/products/detail/tdk-invensense/EV-ICM-42688-P/18634550) `EV_ICM-42688-P` | 1 | 36.79 | 36.79 | 138 in stock, the maker's standard lead 16 weeks (DigiKey DE) | `perception.imu.GYRO_NOISE` |
-| **frame** | | | **2,510.40** | | |
+| **frame** | | | **2,545.40** | | |
 | The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners | 1 | allowance | 1,600.00 | unknown: nothing drawn to quote | `humanoid.model._bracket` |
 | The pelvis's and the torso's frame: 3 mm 6082 plates | 1 | allowance | 300.00 | unknown: nothing drawn to quote | `humanoid.model.structure[pelvis_side, pelvis_deck, torso_side, torso_back, torso_top]` |
 | The thighs' and shanks' side plates, 5 and 4 mm 6082 | 1 | allowance | 266.67 | unknown: nothing drawn to quote | `humanoid.model.structure[thigh_plate, shank_plate]` |
@@ -372,9 +373,10 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 | The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length | 1 | allowance | 40.00 | unknown: nothing drawn to quote | `humanoid.model.structure[upper_arm_tube, forearm_tube]` |
 | The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end | 1 | allowance | 20.00 | unknown: nothing drawn to quote | `humanoid.model.structure[ankle_rod]` |
 | The plates the grippers bolt to on the wrists' roll, 6 mm 6082 | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[gripper_adapter]` |
-| The LIDAR's frame in the head: a 6 x 15 mm 6082 rib up its back and the plate the unit's base bolts under | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[lidar_rib, lidar_plate]` |
+| The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[lidar_fin, lidar_plate]` |
 | [igus igubal KCRM-05 rod end, M5 female, right-hand](https://www.igus.de/product/igubal_KCRM_KCLM?artNr=KCRM-05) `KCRM-05` | 4 | 5.43 | 21.72 | ready to ship in 24 hours (igus) | — |
 | [PETG filament, 1.75 mm, 1 kg (DAS FILAMENT)](https://dasfilament.de/produkt/petg-filament-175-mm-schwarz-1-kg/) `F10765` | 2 | 21.00 | 42.00 | unknown: in stock; the page and its terms give no delivery time | — |
+| [TPU filament (flexible, Shore 94A), 1.75 mm, 1 kg (DAS FILAMENT)](https://dasfilament.de/produkt/tpu-v2-filament-flexibel-175-mm-schwarz-1-kg/) `F10908` | 1 | 35.00 | 35.00 | unknown: in stock; the page gives no delivery time | — |
 | **safety** | | | **291.58** | | |
 | [Albright SW80B contactor, 12 V coil, with blowouts (100 A, 96 V DC)](https://www.rijregeling.nl/en/product/albright-contactors-and-accessories/sw80-series/sw80b549-albright-contactor-12v-contactor/) `SW80B549` | 1 | 82.28 | 82.28 | unknown: the page states none (it can be put in the cart) | `humanoid.parts.ELECTRONICS_W['contactor']` |
 | [Schneider Harmony XB5AS8442 emergency stop, 40 mm twist-release head, 1 NC](https://www.reichelt.com/de/en/shop/product/emergency_stop_switch_harmony_xb5_twist_unlock_22_mm_1_nc-382385) `XB5AS8442` | 1 | 30.95 | 30.95 | available on 2026-10-01 (Reichelt) | — |
@@ -412,10 +414,10 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 
 | | € | $ |
 |---|---|---|
-| priced lines | 11,510.61 | |
+| priced lines | 11,555.64 | |
 | allowances (nothing designed yet) | 2,682.68 | |
-| contingency, 15% | 2,128.99 | |
-| **total** | **16,322.28** | **18,612.30** |
+| contingency, 15% | 2,135.75 | |
+| **total** | **16,374.07** | **18,671.35** |
 
 **The allowances**, each a sum set aside, never a price:
 - **A USB to RS-485 adapter that runs at the grippers' 6 Mbps** (grippers), €30.00: an FTDI-class USB to RS-485 adapter good for 6 Mbps; none chosen
@@ -426,7 +428,7 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 - **The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length** (frame), €40.00: 0.8 m of 6082 round tube in two sizes, cut to length; not priced for this bill
 - **The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end** (frame), €20.00: two 0.34 m rods cut from 8 mm tube and threaded M5 at each end
 - **The plates the grippers bolt to on the wrists' roll, 6 mm 6082** (frame), €66.67: two machined plates at €33.33 a machined part (#379's rate), drawn when the gripper's flange is known (Unitree does not publish it)
-- **The LIDAR's frame in the head: a 6 x 15 mm 6082 rib up its back and the plate the unit's base bolts under** (frame), €66.67: two machined parts at €33.33 a machined part (#379's rate): the crown is printed, the rib that carries it 6082 (printed as narrow, it would sway at about 5 Hz)
+- **The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under** (frame), €66.67: two machined parts at €33.33 a machined part (#379's rate): the cap is printed, the fin that carries it 6082 (a printed fin as thin would sway with the unit on it)
 - **Rosenberger RoPD panel plug, C003-B1 (magnetic, 60 V DC, 25 A): the charge port on the torso's front** (charging), €40.00: the cable jack's listed $43.58
 - **The charge port's funnel, printed in PETG: 70 mm across its mouth, 15 mm deep** (charging), €1.00: 25 g of PETG
 - **Rosenberger RoPD cable jack, C003-03 (25 A), on Rosenberger's C003 cable: the station's plug** (charging), €45.00: $43.58 at Powell

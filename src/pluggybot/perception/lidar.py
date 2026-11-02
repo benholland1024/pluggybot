@@ -347,7 +347,7 @@ class Lidar:
     neighbour's return would clear the very cell it struck -- and NO RAY
     FREES A BEARING THAT BROUGHT BACK A POINT IN THE BAND, OR LEFT THE BAND
     SHORT OF MAX RANGE: behind the robot, where a part of it hides the rest
-    of a bearing's rays (the rib now), one whose point jittered a bearing over, or a
+    of a bearing's rays (the fin now), one whose point jittered a bearing over, or a
     steep one that saw the band empty for a metre and met the floor, laid
     its bearing free to 8 m through the wall behind, every bearing round as
     the robot turned. ⚠ THE MEDIAN,
