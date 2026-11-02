@@ -68,6 +68,15 @@ VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.4), 0.4, 1.0
 #: The standing policy's hand-back: the walking one is held still this
 #: long first, s, its stride settled.
 SETTLE_S = 0.8
+#: Its heading is held at a standstill (`imu.HeadingHold`, #593) once it has
+#: rested this long since its last motion command, s. MEASURED, a humanoid
+#: stopped turns on as it settles: on either policy 0.3-0.75 deg/s at once,
+#: 0.03-0.08 at 20 s, under 0.001 from 45 s; after a turn on the spot 2,
+#: 0.34 and 0.07 at 40 s. Held so, its scans unmatched, on the part's worst
+#: offset, it was off by at most 3.6 deg from the rest's 8.6 s or 20 s (the
+#: settle taken for stillness), 3.0 from 60 s (the offset's own first), and
+#: 1.5-2.6 from 30 s; unheld, 9 in three minutes.
+HOLD_AFTER_S = 30.0
 
 #: THE DEPTH CAMERA'S OBSTACLES: a point this high over the floor, and no
 #: higher, is something the body walks into -- over a foot's clearance
@@ -257,6 +266,11 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     hold: its LIDAR's points, levelled, are the room's (`_scan`)."""
     return (self.legs != "getup"
             and tipped(self.stand.trunk.gravity(), self._held_pitch()) <= self.MAP_TIP_RAD)
+
+  def _settled(self) -> bool:
+    """Resting (`HumanoidWay.resting`) past its settle, `HOLD_AFTER_S`:
+    its heading held (`odometry`'s, `imu.HeadingHold`)."""
+    return self.resting and float(self.data.time) - self.last_motion_t >= HOLD_AFTER_S
 
   def run(self, routine, name: str = ""):
     return tick.run(self.stepper, routine, name)
@@ -461,7 +475,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.odo = StanceOdometry(SelfModel(), att, x, y, z=hm.stand_height(),
                               terrain=None if self.head is None else self.head.under,
                               felt=None if self.head is None else self.head.feel,
-                              ground_at=None if self.head is None else self.head.ground_at)
+                              ground_at=None if self.head is None else self.head.ground_at,
+                              clock=lambda: float(data.time), settled=self._settled)
     self.odo.correct(x, y, yaw)
     self.legs = "stand"
 

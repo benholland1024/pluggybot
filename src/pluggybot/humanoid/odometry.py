@@ -1,6 +1,7 @@
 """Where the walking humanoid is, from its own senses (issue #507, stage 4):
 leg odometry for a biped. The heading is its IMU's (`perception.imu.
-Attitude`, the gyro integrated, the tilt held to gravity); the position
+Attitude`, the gyro integrated, the tilt held to gravity), held while it
+stands settled at rest (`imu.HeadingHold`, #593); the position
 moves as the foot it stands on does not -- each tick, the planted sole's
 place relative to the pelvis, in the pelvis's level frame, off the legs'
 encoders through the robot's model of itself (`arms.SelfModel`); the pelvis
@@ -37,6 +38,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.humanoid.arms import SelfModel, kept_value, value_back
+from pluggybot.perception.imu import HeadingHold
 
 #: The planted foot changes once the other sole is this much lower, m: a
 #: swing foot lifts 5-10 cm walking, and both down differ by millimetres --
@@ -66,7 +68,8 @@ class StanceOdometry:
   planted foot (module docstring)."""
 
   def __init__(self, self_model: SelfModel, attitude, x: float = 0.0, y: float = 0.0,
-               z: float | None = None, terrain=None, felt=None, ground_at=None):
+               z: float | None = None, terrain=None, felt=None, ground_at=None,
+               clock=None, settled=None):
     self.sm = self_model
     self.att = attitude
     self.x, self.y = float(x), float(y)
@@ -83,8 +86,16 @@ class StanceOdometry:
     #: it (`_contact`).
     self.ground_at = ground_at
     #: Its heading's offset from the IMU's own: the IMU starts where the
-    #: body boots, and a correction moves this, never the filter's tilt.
+    #: body boots, and a correction moves this, never the filter's tilt; so
+    #: does the hold (`_turn`).
     self.offset = 0.0
+    #: The sim's clock, s, and the body's word that it has settled at rest
+    #: (`clock()`, `settled()`): its heading held there (`imu.HeadingHold`,
+    #: #593). With no clock the heading is the IMU's alone.
+    self.clock, self.settled = clock, settled
+    self.hold = HeadingHold()
+    #: When the heading last ticked, and what the IMU's read then.
+    self._heading_at: tuple[float, float] | None = None
     #: What corrections from outside its reckoning -- a scan match, a
     #: fixture's look (`correct`) -- have moved the belief by, summed: (x, y,
     #: heading). A walk measured by the legs alone takes it off
@@ -148,6 +159,7 @@ class StanceOdometry:
   def step(self, q: np.ndarray, gravity_b: np.ndarray) -> None:
     """One tick: the joints as their drivers report them (`hm.JOINT_NAMES`
     order) and gravity in the trunk's frame (the IMU's filter)."""
+    self._turn()
     soles = self._soles(q, gravity_b)
     if self.z is None:
       self.z = -float(self.low.min())
@@ -198,14 +210,35 @@ class StanceOdometry:
       return k
     return int(np.argmin(np.where(known, np.abs(self.z + corners[:, 2] - g), np.inf)))
 
+  def _turn(self) -> None:
+    """The heading's tick: what the IMU turned since the last one, less the
+    offset learned -- or, settled at rest, nothing (`imu.HeadingHold`) --
+    moved into `offset`, the filter untouched."""
+    if self.clock is None:
+      return
+    t, yaw = float(self.clock()), self.att.yaw()
+    if self._heading_at is not None and t > self._heading_at[0]:
+      dyaw = math.remainder(yaw - self._heading_at[1], 2 * math.pi)
+      held = self.settled is not None and self.settled()
+      self.offset += self.hold.turn(dyaw, t - self._heading_at[0], held) - dyaw
+    self._heading_at = (t, yaw)
+
   def kept_state(self) -> dict:
     """Its reckoning for a restart (#345; served since #559): the pelvis it
-    believes, and the planted foot it counts from (`foot`, `last`)."""
+    believes, the planted foot it counts from (`foot`, `last`), and its
+    heading's hold."""
     return {"x": self.x, "y": self.y, "z": self.z, "offset": self.offset,
-            "foot": self.foot, "last": kept_value(self.last)}
+            "foot": self.foot, "last": kept_value(self.last),
+            "hold": self.hold.kept_state(),
+            "headingAt": None if self._heading_at is None else list(self._heading_at)}
 
   def restore_kept(self, state: dict) -> None:
     self.x, self.y, self.offset = state["x"], state["y"], state["offset"]
     self.z = state.get("z")
     self.foot, self.last = state.get("foot"), value_back(state.get("last"))
+    # ...a save from before the hold (#593) learned nothing, and ticks anew
+    if "hold" in state:
+      self.hold.restore_kept(state["hold"])
+    at = state.get("headingAt")
+    self._heading_at = None if at is None else (float(at[0]), float(at[1]))
 

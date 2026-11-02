@@ -82,10 +82,10 @@ def draws(body, seed: str) -> dict:
 
 def learned(body) -> None:
   """The gyro's offset taken off what its heading filter integrates, as a
-  zero-rate update that had learned it would (`imu.Standstill`, the
-  quadruped's: nothing under `humanoid/` has one, #572) -- learned
-  exactly, at once. The walking policy still reads the gyro raw, as the
-  quadruped's did: only the reckoning was changed."""
+  zero-rate update that had learned it would -- learned exactly, at once,
+  where the odometry's own learns it settled at rest (`imu.HeadingHold`,
+  #593). The walking policy still reads the gyro raw: only the reckoning
+  was changed."""
   trunk = body.mission.stand.trunk
   att, offset = trunk.attitude, trunk.imu.gyro_bias.copy()
   step = att.step
