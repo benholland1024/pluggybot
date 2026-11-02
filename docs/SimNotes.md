@@ -4649,10 +4649,10 @@ viewpoints outward from where it believes the station is, and once seen,
 to a metre out of the station as that look placed it, where a look fits it
 near enough to put the belief right (`_fix_at`). Its belief set 1-5 m and
 5-20 deg wrong -- 2 m out, from the house's six rooms and across the street
--- it docked 118 of 123 (staging, from the same starts, 14); explored
-first, laying its map askew through that belief, 24 of 27 (staging 2).
-Begun within 5 m of the truth, its search found the station 107 times in
-107. The walk to the station is given the time its length takes, a dock that
+-- it docked 121 of 123 (staging, from the same starts, 14); explored
+first, laying its map askew through that belief, 23 of 27 (staging 1).
+Begun within 5 m of the truth, its search found the station 109 times in
+109. The walk to the station is given the time its length takes, a dock that
 saw the station and never got in goes again, and a fall's get-up walks no
 belief. Where its scans are matched its heading needs no hold at rest:
 with the band, Rowan's draws stood 180 s in the middle street and their
@@ -4663,10 +4663,11 @@ heading moved 0.1 deg (9 on the C1); where none are, #593's hold keeps it.
 walks to where it believes the standoff is -- truly the south garden,
 outside the station's own wall -- looks round and searches the garden's
 viewpoints round where it believes the station is, comes in by the garden
-door at about 150 s, sees the station, walks nearer by what it saw, puts
-its belief right (1.7 m and 11 deg) and plugs itself in at 209 s, a tile
+door at about 155 s, sees the station, walks nearer by what it saw, puts
+its belief right (1.7 m and 11 deg) and plugs itself in at 199 s, a tile
 every 16 s (`station_spike.py --strip lost --lost-from station --lost-off
--1.606,-1.192,12`, every other tile)](figures/humanoid_station_far_found.png)
+-1.606,-1.192,12`, every other tile and the
+last)](figures/humanoid_station_far_found.png)
 
 **What its cameras read of the station** (`station_spike.py --reach`: set
 out of the station's face and off its axis, facing it, a decode of each
@@ -4681,11 +4682,15 @@ from 50 deg only within 1.5 m:
 
 | out of the face | tags the head's camera read, 0 / 15 / 30 / 50 deg off its axis | the pair fitted off them: its facing, its place |
 |---|---|---|
-| 0.8-1.0 m | 2 / 2 / 2 / 1-2 | within 0.7 deg, 8 mm |
-| 1.25-1.5 m | 2 / 2 / 1 / 1 | within 1.9 deg, 10 mm |
-| 2-2.5 m | 2 / 2 / 1 / 0 | 1.0-5.5 deg, 7-54 mm |
-| 3-4.5 m | 0-2 / 0-2 / 1 / 0 | 0.6-28.6 deg, 7-61 mm |
+| 0.8-1.0 m | 2 / 2 / 2 / 1-2 | within 0.7 deg, 7 mm |
+| 1.25-1.5 m | 2 / 2 / 1 / 1 | within 2.4 deg, 6 mm |
+| 2-2.5 m | 2 / 2 / 1 / 0 | 1.0-14.4 deg, 0-51 mm |
+| 3-4.5 m | 0-2 / 0-2 / 1 / 0 | 1.1-40.2 deg, 4-47 mm |
 | 5 m | 0 / 0 / 1 / 0 | |
+
+(On #581's stage 3 head, its navigation camera 3.5 cm lower; on the first
+head the same tags read, and the pair's facing came out within 1.9 deg to
+1.5 m, 1.0-5.5 deg at 2-2.5 m and up to 28.6 deg at 3-4.5 m.)
 
 A far look says where the station is to a few centimetres and which way
 it faces to tens of degrees: the pair is 18 cm across, and a centimetre of
@@ -4736,23 +4741,29 @@ tumbling body's feet: a fall walked the belief 1.7-2.1 m in stage 2's
 flights and Luca's 3.7 m live, past the wide search's 2 m. It is held
 through the get-up, and stood, its planted foot is read afresh -- the foot
 planted before the fall counted the whole get-up's move at once. Luca's
-draws in the workshop and Rowan's in the garden, staging's code and this
-stage's, 9 of 12 stood each (three wedged in the workshop and the garden
-were still getting up at 40 s, on either):
+draws in the hall and Rowan's in the bedroom, where their explores end on
+#581's stage 3 head, staging's code and this stage's: 8 of 12 shoves put
+the robot down on either (it stood through the rest), and every one stood
+within 5 s:
 
 | | staging | the odometry held |
 |---|---|---|
-| the body moved during the get-up | 0.20-1.33 m | the same |
-| the belief moved during the get-up | 0.47-2.10 m | 0.00 |
-| the belief off as it stood | 0.49-2.39 m | 0.07-1.58 |
-| 5 s on | within 0.09 m | within 0.07 |
+| the body moved during the get-up | 0.10-1.35 m | the same |
+| the belief moved during the get-up | 0.66-1.80 m | 0.00 |
+| the belief off as it stood | 0.64-1.79 m | 0.04-1.38 |
+| 5 s on, back within 0.11 m | 5 of 8 | 7 of 8 |
 
 What a held belief is off by as it stands is what the get-up moved the
 body and what the stagger before the fall left (the legs track a stagger
-under a shove only to 0.1-1.0 m); the matcher's searches took every one
-back within 5 s, the wide search the furthest (`relocated`). Held, the
+under a shove only to 0.1-1.0 m). The matcher's searches took most back
+within 5 s. The held one they did not, Rowan's draws shoved from 240 deg,
+the get-up carrying the body 1.35 m, stood 1.37 m off with its scans
+sliding -- refused, never fused, so its map stays true -- and is left to
+the station's look at its next charge; walked, staging left three 0.6-1.2
+m off, two on scans the matcher held along a wall. (On the first head, in
+the workshop and the garden, every one came back within 5 s.) Held, the
 belief can be no further off than the fall carried the body; walked, it
-went 3.7 m live.
+went 3.7 m live. The three falls in this stage's far sweeps all docked.
 
 **The heading at rest, read before and after** (stage 2 asked for it to be
 read first). Rowan's draws stood 180 s in the middle street: on the C1 its
@@ -4766,33 +4777,46 @@ update is needed there. Where nothing is matched -- every scan refused, a
 robot lost -- #593 holds the heading at a standstill ("A robot left
 standing when its run ends, and a heading held at a standstill").
 
-**Measured** (`station_spike.py --lost --far`, flown on Vast CPU pods, each
-trial a process; staging is 44f28e4, both with the workshop's start moved
-off its table -- stage 2's put the robot inside it):
+**Measured** (`station_spike.py --lost --far`, flown on a Vast CPU pod, each
+trial a process; staging is 15e37db -- #581's stage 3 head, its navigation
+camera 3.5 cm lower, and #593's heading hold -- both with the workshop's
+start moved off its table, where stage 2's put the robot inside it; the
+times over the 123):
 
 | | staging | this stage |
 |---|---|---|
-| belief 1-5 m and 5-20 deg wrong: 2 m out (15), the house's six rooms (72), across the street (36) | **14 of 123** docked; 5 never searched, their walks out of time | **118 of 123**; every station found was plugged into |
-| ...explored 120 s first, its map laid through the wrong belief: the rooms (18), across the street (9) | **2 of 27** | **24 of 27** |
-| found, where the search began within 5 m of the truth | 15 of 103 | **107 of 107** |
-| ...where it began 5 m and more off | 0 of 38 | 32 of 40 |
-| the search, when it found the station | median 33 s | median 96 s; 9 in 10 within 242 s |
-| the whole charge, when it docked | median 93 s | median 175 s; 9 in 10 within 381 s |
+| belief 1-5 m and 5-20 deg wrong: 2 m out (15), the house's six rooms (72), across the street (36) | **14 of 123** docked; 4 never searched, their walks out of time | **121 of 123**; every station found was plugged into |
+| ...explored 120 s first, its map laid through the wrong belief: the rooms (18), across the street (9) | **1 of 27** | **23 of 27** |
+| found, where the search began within 5 m of the truth | 13 of 105 | **109 of 109** |
+| ...where it began 5 m and more off | 0 of 37 | 32 of 38 |
+| the search, when it found the station | median 40 s | median 95 s; 9 in 10 within 307 s |
+| the whole charge, when it docked | median 91 s | median 177 s; 9 in 10 within 440 s |
 
-The drift batch (`humanoid_drift_spike.py`, #572's 14 flights and #581's
-16 more seeds) docked 30 of 30 (#581's review: 29); its beliefs are those
-flights' to the millimetre until the charge, the code unchanged before it.
-The one #581 lost, Rowan's draws on their second walk home, found no route
-to the standoff again; this time it searched, found the station in 58 s
-and docked. The station's own batches: from round the standoff 14 of 15
-(the dock alone, unchanged: one never lined up), its belief 0.4-1 m wrong
-16 of 16 (each search found it in 4-50 s; staging after #581's review, 13),
-from across the house 16 of 16.
+On the first head (staging 44f28e4) the same sweeps read 118 of 123 and 24
+of 27 (staging 14 and 2), every search begun within 5 m finding it.
+
+The drift batch (`humanoid_drift_spike.py`, #581's stage 3's 60: #572's 14
+flights and seeds 3-29 from either start) docked 60 of 60, none lost and
+none fallen, its beliefs staging's to the centimetre until the charge
+(staging docked 59, its miss a plug the port never took). On this head
+before #593's hold (#581's stage 3 alone) one was lost: seed 16 from the
+start fell in the garden at 255 s and stood believing itself 3 m off, the
+get-up having walked its odometry. With #593's heading hold its explore
+goes otherwise and it never falls, here or on staging, and its own commit
+flown again on another pod's CPU parted from that flight within 100 s and
+fell nowhere, so what the get-up's hold does for it is read off the falls
+above. The station's
+own batches, as #581's stage 3 flew them: from round the standoff 15 of 15
+and 33 of 33, its belief 0.4-1 m wrong 16 of 16 and 51 of 52 (every search
+found it, in 2-235 s; the miss a plug the port never took), from across
+the house 16 of 16 -- 131 of 132, where staging docked 124 (four never
+lined up, which the dock's retry takes, two walks that gave up 0.2 m
+short, and two plugs the port never took).
 
 **Not done.** What the search does not reach is a robot lost 5 m and more
 off across the street: its walk home ends outside the house's south fence,
-in the street or on its sidewalk, and 8 such searches in 40 ran out of their
-600 s there (or out of viewpoints, once). Stage 4's station in the research
+in the street or on its sidewalk, and 6 such searches in 38, begun 6.1-9.2 m
+off, ran out of their 600 s there. Stage 4's station in the research
 center would put a robot right before it crossed back, and is Ben's call on
 this reading. The walker's seat (#581) is what is left of a charge from its
 standoff.

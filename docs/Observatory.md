@@ -43,9 +43,9 @@ observatory is NOT a result: it reports into the issue it informs.
 **Why.** #572's stage 2: lost past a metre, the search found the station 0
 times in 43, and from across the street the charge's walks ran out of time
 first; and a fall's get-up walked Luca's belief 3.7 m live. Flown (SimNotes,
-"The station found from far off"), its belief set 1-5 m and 5-20 deg wrong:
-118 of 123 docked (staging, 14); explored first, 24 of 27 (staging, 2); the
-drift batch 30 of 30.
+"The station found from far off") on #581's stage 3 head, its belief set 1-5
+m and 5-20 deg wrong: 121 of 123 docked (staging, 14); explored first, 23 of
+27 (staging, 1); the drift batch 60 of 60 (staging, 59).
 
 **What the period is for.** #572's last box: a day of the pair, every charge
 found, each map corrected there -- off the `drift` rows (`lost`, then

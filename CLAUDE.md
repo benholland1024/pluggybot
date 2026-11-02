@@ -503,7 +503,7 @@ save a filmstrip PNG named after the script.
   look placed it (`charge.rough`); a look that fits it near (`near_fit`,
   the colour imager's or within 1.6 m the head's) is a fix (`_fix_at`, the
   anchor's too), ⚠ NEVER A FAR ONE: past 2 m the pair's facing reads up to
-  29 deg off. Searched too after walks that never got there (unless the other
+  40 deg off. Searched too after walks that never got there (unless the other
   robot stopped them), bounded by the pack; the walk itself is given 6 s a
   metre of the straight line (`CHARGE_WALK_S_M`). ⚠ A SQUEEZE HOLDS THE PLUG ONLY AT THE JACK'S WIDTH
   (`PLUG_GAP_TOL_M`): wider is the station's boss, and the hand draws back
@@ -513,17 +513,17 @@ save a filmstrip PNG named after the script.
   (`step_routine`, #581's stage 2): the band's matcher at the station, its
   corrections walked as steps, stopped one 3.6 cm inside the seat, and the
   walker cannot back up so little. Measured: plugged in from 140 of 140 seats over the
-  seat check (110 before), unplugged 140 of them; with the band (#581's
-  stage 2, after its review) 32 of 33 from round the standoff and 16 of 16
-  from across the house, most misses a step 4-5 cm inside the seat, which
-  the walker cannot back off (a dock that never got in goes again from the
-  standoff, once a charge, #572 stage 3); ⚠ ITS BELIEF SET 1-5 M AND 5-20
-  DEG WRONG, 118 of 123 docked and, explored first on a map laid through it,
-  24 of 27 (staging, the same starts: 14 and 2), every search begun within
-  5 m of the truth finding the station (107 of 107), and 8 of 40 begun
-  further off, across the street, running out of their 600 s outside the
-  house's south fence (#572 stage 3; SimNotes, "The station found from far
-  off"); 16 of 16 with it 0.4-1 m wrong; 339 W net; the reserve 18 Wh (17.5 before the Mid-360S's 6.2 W, #581).
+  seat check (110 before), unplugged 140 of them; on #581's stage 3 head 48
+  of 48 from round the standoff and 16 of 16 from across the house, a dock
+  that never got in going again from the standoff, once a charge (#572
+  stage 3: the walker cannot back off a step 4-5 cm inside the seat); ⚠ ITS
+  BELIEF SET 1-5 M AND 5-20 DEG WRONG, 121 of 123 docked and, explored
+  first on a map laid through it, 23 of 27 (staging, the same starts: 14
+  and 1), every search begun within 5 m of the truth finding the station
+  (109 of 109), and 6 of 38 begun further off, across the street, running
+  out of their 600 s outside the house's south fence (#572 stage 3;
+  SimNotes, "The station found from far off"); 67 of 68 with it 0.4-1 m
+  wrong, the miss a plug the port never took; 339 W net; the reserve 18 Wh (17.5 before the Mid-360S's 6.2 W, #581).
 - **The humanoid's LIDAR is a Livox Mid-360S, upside down in its head,
   and its map is laid from its points laid flat** (#581; `perception/lidar.py`,
   `HumanoidSpec.lidar_z`, `model._head`, `HumanoidMission._scan`/`maps`,
