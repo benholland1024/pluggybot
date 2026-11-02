@@ -521,11 +521,12 @@ entirely" should hold on the ledger too.
 **Closes are counted, never timed** (#594). The desk keeps the newest
 twenty closed tickets and shows three, newest first by its own count of
 closes (`closes`, kept in `counter.json` beside the ids; a ticket closed
-before the count ranks below every counted one), and trims only once a
-close is paid. Ordered by sim time, the start-over of 10-27 left each desk
-holding twenty closes stamped up to t=2,141,262: every close made after it
-ranked twenty-first and was trimmed before `eval_ticket` read it (five on
-11-02 paid nothing), and the three shown never changed.
+before the count ranks below every counted one, by its id), and trims only
+once a close is paid. Ordered by sim time, the start-over of 10-27 left
+each desk holding closes stamped up to t=2,141,262 on the old clock: once
+a desk was full, every close made after it ranked twenty-first and was
+trimmed before `eval_ticket` read it (the five on 11-02 paid nothing; the
+six on 10-31 found room), and the three shown never changed.
 
 **Why the desk is the lifecycle's and not the mind's.** `HubLifecycle.
 tickets` exists with or without a mind; `Menu.tickets` (set by `build()`
@@ -2123,8 +2124,11 @@ between its hours stands until the next boundary.
   paused (#594): counted from when the site paused it, the file's `at`
   (`ModeSwitch.at`), where that is longer than this process has held it. A
   process started into a pause counted from its own start, and on 11-01 a
-  wake said 117 s. Sim time does not pass while paused, so nothing else the
-  robots run on notices the gap.
+  wake said 117 s. ⚠ The site stamps `at` on every write, so a pause
+  written again (an admin's second press; the schedule's retry after a
+  failed write) restamps it, and a process started after that counts from
+  the second stamp. Sim time does not pass while paused, so nothing else
+  the robots run on notices the gap.
 
 ## 8b. Upkeep, hearts, and the one thing satisfaction changes (issues #36, #135, #136)
 
@@ -2387,7 +2391,10 @@ restart keeps it and a true death forgets it, with no kept state of its
 own. ⚠ A last line stamped after now is a clock gone back, and the gate is
 open (#594): after the world started over at t=0 on 10-27, a line said at
 t=2,374,869 held the next one 27 days off, and by 11-02 136 `say`s had
-been refused. ⚠ A placeholder `say` (`n`) is read as nothing said
+been refused. A crash's rewind (a minute at most, `SAVE_EVERY_S`) opens it
+too, for one line: held at the line's stamp instead, the gate would read a
+constant 1200 s for as long as the clock stayed behind it -- the 27 days
+again. ⚠ A placeholder `say` (`n`) is read as nothing said
 (`PLACEHOLDER_TEXT`): a public chat is the worst place for one.
 
 **Ratings never touch the overseer.** A `rating` settles a deferred

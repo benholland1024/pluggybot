@@ -21,7 +21,7 @@ observatory is NOT a result: it reports into the issue it informs.
   five closes on 11-02 paid +0 each. The three closes each robot is shown
   had not changed since 10-27. The first close after the deploy is the
   first counted one, and the twenty from before the count age out as new
-  ones come.
+  ones come, oldest id first.
 - **A `say` goes out again**: a last line stamped after now is a clock gone
   back, and the gate is open. Every `say` since 10-27 was refused (Luca's
   last line was at t=2,374,869 and Rowan's at t=2,370,582, on the clock
@@ -31,18 +31,21 @@ observatory is NOT a result: it reports into the issue it informs.
   pause, the world stops at that step and is saved, and the restart carries
   on from the moment it paused. Before, the process was killed unsaved and
   each restart while paused counted toward `MAX_RESUMES`: three on 11-01,
-  and the fourth start began the world again at t=0. With a body mid-move
-  it saves nothing, the minute-old save stands, and the restart is not
-  counted.
+  and the fourth start began the world again at t=0. With a living body
+  mid-move it saves nothing, the minute-old save stands, and the restart
+  is not counted. ⚠ This release's own deploy stops a process on the old
+  code: deployed while paused, that one is still killed unsaved and counts
+  a restore, so it goes out with the world running.
 - **A wake says how long the world was paused**, from when the site paused
   it (the mode file's `at`). A process started into a pause counted from
   its own start: on 11-01 a wake said 117 s, and with #562's schedule a
   weekday deploy would have told the robots they slept since it.
 - **A day that ends at the charging station leaves it first**, where there
   is another robot, as a decision does. On the pair recording's day, flown
-  on the release, Rowan's day ended 18 s after its charge, 0.88 m from the
-  station: it stood `DONE` in Luca's way until asked aside, then lingered
-  there 90 s (`STATION: lingering ... while DONE`).
+  on the release, Rowan's day ended 18 s after its charge, 0.37 m from the
+  station: it stood `DONE` in Luca's way in until Luca asked it aside, then
+  0.88 m off it to the run's end (`STATION: lingering ... while DONE`).
+  Walking clear instead, it let Luca plug in 21 s sooner, at the first try.
 - Nothing in the prompt, the schema, the arm or the reward table moved.
 
 **Why.** #594, read off the live world on 34cd4e3 on 11-02.
@@ -52,9 +55,9 @@ close pays +25 and shows in that robot's `tickets.closed`; a `say` goes out
 and `sayAgainInS` never reads over 1200; a deploy while paused comes back
 at the moment it paused, never "could not carry on"; after a pause that
 spans a restart, the wake line says how long the world was paused; and no
-`STATION: lingering` line says `while DONE`. ⚠ From 10-27 to
-the deploy no `say` was the robot's choice: read what a robot says unasked
-from this period on, never against that stretch.
+`STATION: lingering` line says `while DONE`. ⚠ From 10-27 to the deploy no
+`say` was the robot's choice: read what a robot says unasked from this
+period on, never against that stretch.
 
 ### A lost robot looks for its station by its head's camera, and a fall walks no belief (#572, stage 3) — opens when this PR is deployed
 
