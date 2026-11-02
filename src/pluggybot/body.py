@@ -257,9 +257,9 @@ class Body(abc.ABC):
     never an act."""
 
   @abc.abstractmethod
-  def root_xy(self):
-    """Its root body's true (x, y): what distances between robots are
-    measured between in the sim's own records."""
+  def root_xy(self) -> tuple[float, float]:
+    """Its root body's true (x, y), two floats: what distances between
+    robots are measured between in the sim's own records."""
 
   @abc.abstractmethod
   def orientation(self):
@@ -980,7 +980,7 @@ class StubBody(Body):
     return self.pose
 
   def root_xy(self):
-    return np.array([self.x, self.y])
+    return self.x, self.y
 
   def orientation(self):
     return self.attitude
