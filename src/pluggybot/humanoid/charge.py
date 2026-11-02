@@ -7,6 +7,9 @@ station off its two tags (`fit`), its port off its model of itself
 (`Body.charging`).
 
 THE PLUG-IN (`plug_in_routine`), its right hand, standing at the seat:
+  each try off a look of its own, taken standing still, the station carried
+  from that instant as its feet would carry it (`_carried`, #596) and the
+  port read afresh at each move;
   the hand on the parked plug's line short of its grip, jaws upright, the
   fingers across it (`GRIPS`, the first that gets round it);
   open, slid along the plug's axis over the parked plug to its grip --
@@ -35,6 +38,7 @@ import numpy as np
 from pluggybot.activity import station as st
 from pluggybot.body import RackPose
 from pluggybot.humanoid.arms import GRIP_MIN_N, frame
+from pluggybot.perception.imu import TAU_S
 from pluggybot.perception.tags import STATION_TAG_IDS
 
 #: The hand that plugs in: the port is right of the trunk's middle.
@@ -77,7 +81,12 @@ LOW_LOOK_RAD = 0.2
 #: where it carries it to, m off the port.
 LINE_BACK_M, OUT_M = 0.10, 0.05
 #: The push to the body, N and m: from 1 cm off the port, until the hand
-#: feels this or has gone this far.
+#: feels this or has gone this far. ⚠ LET GO WHERE IT STOPS, PRESSED ON THE
+#: BODY: the arm's spring slides the hand 6-11 mm to the right and 4-6 mm
+#: down as it pushes, the plug well inside the port's 22 mm all the same;
+#: put back on its line after, or pushed again from as far across, the plug
+#: was let go 9-12 mm off the body, near the port's 15, and of 140 seats'
+#: let-goes the port missed 20 and 26 where it missed 1 (#596).
 PUSH_N, PUSH_M, PUSH_FROM_M = 10.0, 0.03, 0.010
 #: ...and a miss -- the balancer takes the plug home, and the hand fetches
 #: it again -- pushed this far to one side, m, along the fingers: the one
@@ -88,6 +97,12 @@ TRIES = 4
 #: and its cup's draw-in): at 2.5 the hand closed on the plug's place before
 #: it was there, 2 tries in 15.
 PARK_WAIT_S = 4.0
+#: The first try's look is taken standing still this long, s (a later one's
+#: after `PARK_WAIT_S`): the trunk's tilt is its IMU's filter's, which for a
+#: second or two after a step read it 0.4-0.6 deg off, and through the 0.9 m
+#: from its soles up to the station's tags that put the station 5-12 mm off;
+#: three of the filter's time constants on, 0.05 deg (#596).
+LOOK_SETTLE_S = 3.0 * TAU_S
 #: The pull that unplugs it, N, past the connector's hold (`st.BREAK_N`):
 #: standing, the robot pulls about 35 N.
 UNPLUG_N = 30.0
@@ -157,16 +172,21 @@ def look(body) -> RackPose | None:
   return fit(spots)
 
 
-def look_low_routine(body):
+def look_low_routine(body, then=None):
   """`look`, and where it sees no pair, a look bowed `LOW_LOOK_RAD`,
-  standing again after it: the station's frame, or None."""
-  seen = look(body)
-  if seen is not None:
-    return seen
+  standing again after it: the station's frame, or None -- or what `then`
+  makes of it at the look's own instant (`_carried`: standing up again
+  moves the belief)."""
+  def seen():
+    s = look(body)
+    return s if s is None or then is None else then(body, s)
+  got = seen()
+  if got is not None:
+    return got
   yield from body.gaze_routine(LOW_LOOK_RAD)
-  seen = look(body)
+  got = seen()
   yield from body.gaze_routine(0.0)
-  return seen
+  return got
 
 
 def look_routine(body):
@@ -219,9 +239,33 @@ def near_fit(seen: dict | None) -> RackPose | None:
   return fit({t: p for t, (p, _) in seen["tags"].items()})
 
 
+def _carried(body, seen: RackPose):
+  """The station a look saw (`seen`, the believed world) as a function of
+  the instant, for a try's hand moves: moved as far as the belief has moved
+  its stance since the look -- standing, its feet stay where they stood, so
+  a stance moved is the belief's own doing -- and never turned with it: the
+  body turns on its feet, and the belief's turn is that turn, its gyro's.
+  Each target is taken off it at its move's instant, which a move takes
+  straight back into the frame of its feet (`to_stance`). ⚠ NEITHER THE
+  BELIEVED WORLD NOR THE FRAME OF THE FEET (#596): from a look to the push
+  the feet turned 1.6-7.7 deg where they stood, their middle under 1 mm,
+  while the belief moved its stance 5-25 mm -- the matcher's corrections,
+  and its legs reading the turn as a walk. Through the believed world the
+  hand went with that move, four tries the same way; held in the frame of
+  its feet, with the turn, 18 mm at the plug."""
+  x0, y0, _ = body.stance
+
+  def now() -> RackPose:
+    x, y, _ = body.stance
+    return RackPose(seen.x + x - x0, seen.y + y - y0, seen.yaw)
+  return now
+
+
 def port(body) -> tuple[np.ndarray, np.ndarray]:
   """Its port's place and outward normal in the believed world, off its
-  model of itself posed by its senses (the encoders, the IMU)."""
+  model of itself posed by its senses (the encoders, the IMU): read at the
+  instant a move goes to it, which takes it straight back into the frame
+  of its feet."""
   body.reach._pose()
   sm = body.reach.self_model
   sid = sm.m.site("charge_port").id
@@ -258,10 +302,11 @@ def _squeeze_routine(body, force: float):
   return (yield from body.grip_routine(SIDE, True, force=force))
 
 
-def _take_routine(body, grip: np.ndarray, into: np.ndarray):
-  """Shut on the plug, the hand at `grip`: None, or why not -- shut wider
+def _take_routine(body, line):
+  """Shut on the plug, the hand at its grip: None, or why not -- shut wider
   than its jack (`PLUG_GAP_TOL_M`), on the station's boss, opened, drawn
-  `BOSS_BACK_M` back along the plug and shut again, once."""
+  `BOSS_BACK_M` back along the plug (`line`, `_fetch_routine`'s) and shut
+  again, once."""
   for k in range(2):
     if not (yield from _squeeze_routine(body, GRIP_N)):
       return "it could not grip the plug"
@@ -271,27 +316,37 @@ def _take_routine(body, grip: np.ndarray, into: np.ndarray):
     if k or gap < 2.0 * st.PLUG_R_M:
       return f"its jaws shut {gap * 1000:.0f} mm apart, on something not the plug"
     yield from body.grip_routine(SIDE, False)
-    r = yield from body.move_hand_routine(SIDE, grip - into * BOSS_BACK_M, speed=0.04)
+    r = yield from body.move_hand_routine(SIDE, line(BOSS_BACK_M)[0], speed=0.04)
     if r["why"] != "arrived":
       return f"its hand did not draw back off the station's boss ({r['why']})"
 
 
-def _fetch_routine(body, station: RackPose, swing: float, back: float):
+def _fetch_routine(body, station, swing: float, back: float):
   """The open jaws onto the parked plug along its axis (`GRIPS`' one) and
-  shut on it: None, or why not -- the hand let go and home again."""
-  into = np.array([math.cos(station.yaw), math.sin(station.yaw), 0.0])    # into the wall
-  grip = parked_grip(station, back)
+  shut on it, `station` where `_carried` has it at each instant: None, or
+  why not -- the hand let go and home again."""
+  def line(short):
+    """The plug's line `short` back from its grip, now; and into the wall."""
+    s = station()
+    into = np.array([math.cos(s.yaw), math.sin(s.yaw), 0.0])
+    return parked_grip(s, back) - into * short, into
   yield from body.grip_routine(SIDE, False)
   # ...on the plug's line LINE_BACK_M short of its grip, wherever the
   # robot stands: 5 cm off the port, a robot standing 5 cm in from its
   # seat swung its jaws into the parked plug's nose
   why = None
-  if not (yield from body.reach_routine(SIDE, grip - into * LINE_BACK_M, _grip(into, swing))):
+  at, into = line(LINE_BACK_M)
+  if not (yield from body.reach_routine(SIDE, at, _grip(into, swing))):
     why = f"its hand did not get to the plug's line ({body.hand_why(SIDE)})"
   else:
-    r = yield from body.move_hand_routine(SIDE, grip, speed=0.06)
+    r = yield from body.move_hand_routine(SIDE, line(0.0)[0], speed=0.06)
+    if r["why"] == "arrived":
+      # ...and there again as the station is once it has slid there: its
+      # feet turned meanwhile, 7.7 mm at the grip (#596) -- or as near as
+      # its arm goes: at the seat check's furthest corner, out of reach
+      yield from body.move_hand_routine(SIDE, line(0.0)[0], speed=0.02)
     why = (f"its hand did not get round the plug ({r['why']})" if r["why"] != "arrived"
-           else (yield from _take_routine(body, grip, into)))
+           else (yield from _take_routine(body, line)))
   if why is not None:
     yield from body.grip_routine(SIDE, False)
     yield from body.release_routine(SIDE)
@@ -299,31 +354,40 @@ def _fetch_routine(body, station: RackPose, swing: float, back: float):
 
 
 def plug_in_routine(body, station: RackPose, trace: list):
-  """The plug-in (the module docstring): "plugged in", or why not."""
+  """The plug-in (the module docstring): "plugged in", or why not --
+  `station` the look it came to its seat by, which a try that sees no
+  station goes on."""
   for k, aside in enumerate((0.0, *SEARCH_M)[:TRIES]):
-    if k:
-      yield from body.hold_routine(PARK_WAIT_S)       # the balancer takes it home
+    # ...standing still before its look (`LOOK_SETTLE_S`), and after a miss
+    # while the balancer takes the plug home
+    yield from body.hold_routine(PARK_WAIT_S if k else LOOK_SETTLE_S)
+    carried = yield from look_low_routine(body, then=_carried)
+    looked = carried is not None
+    carried = carried or _carried(body, station)
     for swing, back in GRIPS:
-      why = yield from _fetch_routine(body, station, swing, back)
+      why = yield from _fetch_routine(body, carried, swing, back)
       if why is None:
         break
     else:
       return why
-    # ...the port where the body now stands it: a posture taken to reach
-    # the plug moves it
-    p, out = port(body)
-    seat = p + out * back                               # the hand, the plug on the port
-    left = np.cross((0.0, 0.0, 1.0), out)
-    left = left / np.linalg.norm(left)
-    yield from body.move_hand_routine(SIDE, seat + out * OUT_M, speed=0.06,
-                                      turns=[_grip(out, swing)])
-    yield from body.move_hand_routine(SIDE, seat + out * PUSH_FROM_M + left * aside, speed=0.04)
-    pushed = yield from body.pull_routine(SIDE, -out, PUSH_N, PUSH_M, speed=0.02, give=False)
+
+    def to_port(off, aside=0.0):
+      """The hand `off` out of the port with the plug on it, `aside` to the
+      port's left, and the port's way out -- the port read at this instant:
+      a posture taken to carry the plug moved it 6 mm before the push (#596)."""
+      p, out = port(body)
+      left = np.cross((0.0, 0.0, 1.0), out)
+      return p + out * (back + off) + left / np.linalg.norm(left) * aside, out
+    at, out = to_port(OUT_M)
+    yield from body.move_hand_routine(SIDE, at, speed=0.06, turns=[_grip(out, swing)])
+    yield from body.move_hand_routine(SIDE, to_port(PUSH_FROM_M, aside)[0], speed=0.04)
+    pushed = yield from body.pull_routine(SIDE, -port(body)[1], PUSH_N, PUSH_M, speed=0.02,
+                                          give=False)
     # ...let go in the funnel: the magnet and the funnel draw it home, as
     # they never could against the hand
     yield from body.grip_routine(SIDE, False)
     yield from body.hold_routine(0.3)
-    trace.append({"try": k, "aside": aside, "swing": round(math.degrees(swing)),
+    trace.append({"try": k, "looked": looked, "aside": aside, "swing": round(math.degrees(swing)),
                   "push": pushed["why"], "along": pushed.get("along"),
                   "mated": body.charging()})
     yield from body.release_routine(SIDE)

@@ -17,6 +17,7 @@ import pytest
 from pluggybot import lifecycle as lc
 from pluggybot import tick
 from pluggybot.body import NOT_SEEN, RackPose, StubBody
+from pluggybot.economy import energy
 from pluggybot.mind import events as ev
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.procedure import lang
@@ -139,6 +140,34 @@ def test_the_loop_leaves_the_rack_before_it_thinks_but_only_for_somebody():
     life.body.go_to_routine = lambda *a, **kw: (drives.append(a[:2]), tick.result(False))[1]
     life.body.run(life._leave_rack_routine())
     assert bool(drives) is (peer is not None), drives
+
+
+def test_a_day_that_ends_at_the_station_leaves_it_for_the_other():
+  """...and so does a day that ENDS there (#594). The pair recording's day,
+  flown on the release (d9bc943): Rowan's charge ended at 292 s and its
+  day 18 s later with nothing left to do, 0.37 m from the station -- DONE
+  in Luca's way in until Luca asked it aside, then 0.88 m off it to the
+  run's end (`STATION: lingering`). A day ending there leaves first, as a
+  decision would, where there is another robot; alone, it ends where it
+  ends. Shown to fail without the leave."""
+  cfg = lc.world_config("home_humanoid")
+  x, y, yaw = cfg["dock"]
+  for other in (None, stub_life()):
+    # `_life`'s station, charging at the world's measured rate: one charge
+    life = stub_life(body=StubBody(rack=RackPose(x, y, yaw + math.pi),
+                                   grid_bounds=cfg["grid_bounds"],
+                                   charge_w=energy.load("home_humanoid").charge_w))
+    if other is not None:
+      other.body.start_at(9.0, 9.0, 0.0)
+      life.peers = [other]
+      _reported(life, other.body.pose_xy)
+    life.battery.energy_wh = life.low_battery_wh * 0.5        # it must charge
+    summary = life.run(start=cfg["start"], max_sim_time=3600.0, explore_budget=0.0)
+    assert summary["charge_cycles"] == 1 and summary["state"] == "DONE"
+    assert summary["sim_time"] < 3600.0, "ended with nothing left to do, as Rowan's"
+    px, py, _ = life.body.pose
+    assert (life.rack_distance(px, py) >= lc.RACK_CLEAR_M) is (other is not None), \
+      (other, life.rack_distance(px, py))
 
 
 def test_a_robot_left_standing_at_the_rack_is_logged_once():

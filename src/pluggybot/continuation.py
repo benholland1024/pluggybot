@@ -429,6 +429,24 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
   return Loaded(snap)
 
 
+def uncount(path: str | os.PathLike, counted: int) -> bool:
+  """Give back the restore `load` counted (`counted`, the count it wrote),
+  where the file still holds it: a process that stopped cleanly and could
+  save nothing (`Keeper.finish`) did not die of what it restored. True if
+  given back; reported and survived otherwise, as a failed save is."""
+  try:
+    snap = read(path)
+    if int(snap.meta.get("resumes", 0)) != counted:
+      return False
+    snap.meta["resumes"] = max(0, counted - 1)
+    write(snap, path)
+  except Exception as e:                    # noqa: BLE001 -- a stop, never a crash
+    print(f"world state: could not give back this restart's count "
+          f"({type(e).__name__}: {e})")
+    return False
+  return True
+
+
 def same_house(saved, world: str) -> bool:
   """Is a save of `saved` the same house as `world`, another body in it
   (#559: the quadrupeds' house carried on by the humanoids)? It then comes
@@ -506,6 +524,12 @@ def restore(lives, snap: Snapshot) -> dict:
 MOVING_POSTURES = ("getting_up",)
 
 
+def _mid_move(life) -> bool:
+  """Is this robot part-way through something no file holds (`Keeper.busy`)?"""
+  return (life._standing_up or life.body.posture in MOVING_POSTURES
+          or life.body.working or life.body.making_way is not None)
+
+
 class Keeper:
   """Saves the world on the physics seam every `every_s`, and on request.
 
@@ -518,10 +542,17 @@ class Keeper:
   way through a death -- and a state saved from there is half one thing.
   `request_stop` only sets a flag; the next step boundary raises
   `MissionAborted`, which ends the day the way `stop_when` does.
+
+  ⚠ A STOP ENDS A PAUSE (#594): a paused world steps nothing, so the flag
+  is read in the pause too (`HubLifecycle.stopping`) and the step it
+  paused in stops. Never read there, a deploy's SIGTERM was never honoured,
+  the process was killed unsaved, and on 2026-11-01 three restarts while
+  paused counted up to `MAX_RESUMES` and the fourth started the world over.
   """
 
   def __init__(self, lives, path: str | os.PathLike,
-               every_s: float = SAVE_EVERY_S) -> None:
+               every_s: float = SAVE_EVERY_S,
+               carried_on: Snapshot | None = None) -> None:
     self.lives = list(lives)
     self.path = Path(path)
     self.every_s = float(every_s)
@@ -530,6 +561,12 @@ class Keeper:
     self.last_error: str | None = None
     self.last_save_s: float | None = None
     self.stop_requested = ""
+    #: The count `load` wrote for the save this process carried on from,
+    #: or None: what `finish` gives back where it can save nothing.
+    self.counted = (int(carried_on.meta.get("resumes", 0))
+                    if carried_on is not None else None)
+    #: Was a body mid-move when a paused world stopped (`step_hook`)?
+    self.stopped_mid_move = False
     self._next: float | None = None
     self.last_step = LastStep(self.lives[0])
     for life in self.lives:
@@ -541,14 +578,21 @@ class Keeper:
     sim with the pose moved and the pack not yet refilled. ...And a body
     mid-move (issue #387): one getting up is a policy part-way, which no
     file holds; one with a hand out (`Body.working`); and one stepping
-    aside for the other robot (issue #415), a walk no routine holds. A stop waits too: killed first, the world comes back from the
-    save before."""
-    return any(life._standing_up or life.body.posture in MOVING_POSTURES
-               or life.body.working or life.body.making_way is not None
-               for life in self.lives)
+    aside for the other robot (issue #415), a walk no routine holds. A stop
+    waits too, killed first, the world comes back from the save before --
+    but in a paused world it does not wait (`step_hook`)."""
+    return any(_mid_move(life) for life in self.lives)
 
   def step_hook(self) -> None:
     self.last_step.hook()                 # every step, busy or not: a save
+    if self.stop_requested and self.paused():
+      # ...at once: waited out, a body mid-move would step on in a world
+      # the operator stopped. Only the living count: a robot lying dead is
+      # mid get-up until it is stood up, and saved as any run's end saves
+      # it (`finish`).
+      self.stopped_mid_move = any(_mid_move(life) for life in self.lives
+                                  if life.dead is None)
+      raise MissionAborted(f"stopping: {self.stop_requested}")
     if self.busy():                       # after a busy stretch replays too
       return
     if self.stop_requested:
@@ -560,8 +604,33 @@ class Keeper:
       self._next = t + self.every_s
       self.save()
 
+  def paused(self) -> bool:
+    """Is the operator's switch at `paused`? A pair's one is the first
+    robot's (`pair.build_pair`)."""
+    switch = self.lives[0].mode
+    return switch is not None and switch.paused
+
   def request_stop(self, why: str) -> None:
     self.stop_requested = why
+    for life in self.lives:
+      life.stopping = why
+
+  def finish(self) -> bool:
+    """The save a run ends with, after its day; True if it was written.
+    ⚠ NONE WHERE A PAUSED WORLD STOPPED WITH A LIVING BODY MID-MOVE
+    (`step_hook`), and then the restore this process counted is given back,
+    where no save came after it (`uncount`): a clean stop is no crash.
+    ⚠ ANY OTHER END SAVES, whatever a body is doing: skipped for `busy`, a
+    run ending by its budget while a robot lay dead -- mid get-up until its
+    stand-up, 300 s -- came back from before its fall, alive (#594's
+    review)."""
+    if not self.stopped_mid_move:
+      return self.save()
+    print("world state: not saved at the end -- the world was stopped while "
+          "paused with a body mid-move")
+    if self.saves == 0 and self.counted is not None:
+      uncount(self.path, self.counted)
+    return False
 
   def save(self) -> bool:
     """Write the world now. A failed save is reported and survived: the

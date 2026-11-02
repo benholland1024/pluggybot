@@ -8,6 +8,9 @@ the house, its station on the living room's wall.
     ... --hold [--seconds S]    # plugged in: the pack's gain, W, and the plug held
     ... --fall                  # shoved over plugged in: the breakaway, the
                                 # plug home, the robot up again
+    ... --anatomy               # #596's scene, the first robot's plug-in taken
+                                # apart: the looks, the plug in its jaws, its
+                                # feet and its belief since the look, the port
     ... --seats [--parallel P]  # started at seats over what the seat check
                                 # accepts (3 cm in to 6 cm back, 6 cm across,
                                 # 6 deg): plugged in and unplugged or why not
@@ -32,7 +35,8 @@ the house, its station on the living room's wall.
 
 Every trial is its own process and flies the served body off its own senses
 (the station off its tags, its port off its model of itself); the truth
-(where the plug is, whether it fell) is ours, read to grade it.
+(where the plug is, whether it fell) is ours, read to grade it -- every
+trial's row says where each try let the plug go against the port (`letGo`).
 """
 
 from __future__ import annotations
@@ -96,14 +100,58 @@ def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
   return model, data, body, station
 
 
+def let_goes(body) -> list:
+  """Where the plug-in let the plug go against the port, a try at a time
+  (mm: across it, + to the robot's left; up; out of the port's face): the
+  sim's truth, read to grade the trial, never the robot's (#596: the port
+  takes a plug let go within 22 mm across and 15 out). The list fills as
+  the tries let go."""
+  from pluggybot.humanoid import charge
+  m, d = body._m, body._d
+  port = m.site(f"{body.handle.prefix}charge_port").id
+  face = m.site("station_plug_face").id
+  pull, grip, out, pushed = body.pull_routine, body.grip_routine, [], [False]
+
+  def push(side, way, force, *a, **kw):
+    pushed[0] = pushed[0] or force == charge.PUSH_N
+    return (yield from pull(side, way, force, *a, **kw))
+
+  def let_go(side, closed, *a, **kw):
+    if pushed[0] and not closed:
+      pushed[0] = False
+      n = d.site_xmat[port].reshape(3, 3)[:, 2]
+      left = np.cross((0.0, 0.0, 1.0), n)
+      left = left / np.linalg.norm(left)
+      v = d.site_xpos[face] - d.site_xpos[port]
+      out.append([round(float(v @ e) * 1000, 1) for e in (left, np.cross(n, left), n)])
+    return (yield from grip(side, closed, *a, **kw))
+  body.pull_routine, body.grip_routine = push, let_go
+  return out
+
+
+def let_go_line(rows: list[dict]) -> str:
+  """Every trial's let-goes (`let_goes`), across the port: how many, their
+  middle (signed: + to the robot's left), how far off they spread, and how
+  many the port could take there (`station.CAPTURE_LATERAL_M`)."""
+  from pluggybot.activity import station as st
+  across = np.array([p[0] for r in rows for p in r.get("letGo") or ()])
+  if not len(across):
+    return "let go: none read"
+  a = np.abs(across)
+  return (f"let go {len(a)} times: across the port, the median {np.median(across):+.1f} mm, off it "
+          f"the 90th percentile {np.percentile(a, 90):.1f} and the worst {a.max():.1f}; "
+          f"within {st.CAPTURE_LATERAL_M * 1000:.0f} mm {int((a <= st.CAPTURE_LATERAL_M * 1000).sum())}")
+
+
 def trial(off) -> dict:
   """From `off` round the standoff: docked, a few seconds charging,
   unplugged."""
   model, data, body, station = world(off)
+  let_go = let_goes(body)
   t0 = float(data.time)
   why = body.run(body.dock_routine())
   out = {"off": list(off), "dock": why, "dockS": round(float(data.time) - t0, 1),
-         "charging": body.charging(), "falls": body.falls}
+         "charging": body.charging(), "falls": body.falls, "letGo": let_go}
   trace = list(body._charge_trace)
   out["seatSteps"] = sum(1 for t in trace if "seat" in t) - 1
   out["pushes"] = sum(1 for t in trace if "try" in t)
@@ -147,6 +195,7 @@ def approach(n: int, parallel: int, seed: int = 559) -> list[dict]:
   unplugged = [r for r in docked if r.get("unplugged") and r.get("parked")]
   print(f"docked {len(docked)} of {len(rows)}; unplugged and parked {len(unplugged)} of {len(docked)}; "
         f"falls {sum(r.get('fallsAfter', 0) for r in rows)}")
+  print(let_go_line(rows))
   return rows
 
 
@@ -174,10 +223,11 @@ def seat_trial(off) -> dict:
   if seen is None:
     return {**out, "why": "no look"}
   trace = []
+  let_go = let_goes(body)
   t0 = float(data.time)
   why = body.run(charge.plug_in_routine(body, seen, trace))
   out.update(why=why, s=round(float(data.time) - t0, 1), tries=len(trace),
-             swing=trace[-1]["swing"] if trace else None, falls=body.falls)
+             swing=trace[-1]["swing"] if trace else None, falls=body.falls, letGo=let_go)
   if why == "plugged in":
     t1 = float(data.time)
     out["unplug"] = body.run(charge.unplug_routine(body, seen, []))
@@ -210,6 +260,7 @@ def seats(parallel: int) -> list[dict]:
   print(f"plugged in {len(docked)} of {len(rows)} (swung {sum(r['swing'] == 20 for r in docked)}, "
         f"straight across {sum(r['swing'] == 0 for r in docked)}); unplugged and the plug home "
         f"{len(home)} of {len(docked)}; falls {sum(r.get('fallsAfter', r.get('falls', 0)) for r in rows)}")
+  print(let_go_line(rows))
   return rows
 
 
@@ -252,10 +303,11 @@ def walk_in(place: str, explore_s: float) -> dict:
     out.update(outS=round(float(data.time) - t0, 1), fromM=round(math.hypot(tx - x, ty - y), 2),
                offThere=off(), parked=bool(station.flags["parked"]))
     t1 = float(data.time)
+    let_go = let_goes(body)
     out["docked"] = bool(life.go_charge())
     out.update(why=life.charge_failure, inS=round(float(data.time) - t1, 1), offEnd=off(),
                tries=sum(1 for t in body._charge_trace if "try" in t), falls=body.falls,
-               trace=body.charge_trace())
+               trace=body.charge_trace(), letGo=let_go)
   finally:
     body.close()
   return out
@@ -285,6 +337,7 @@ def walk_ins(explores: tuple, parallel: int) -> list[dict]:
           f"{r.get('inS', 0):6.1f} {str(r.get('offEnd', '-')):>12s} {r.get('tries', 0):5d} "
           f"{r.get('falls', '-')!s:>5s}  {r.get('why', '')}")
   print(f"docked {sum(r['docked'] for r in rows)} of {len(rows)}")
+  print(let_go_line(rows))
   return rows
 
 
@@ -395,11 +448,12 @@ def lost_trial(off, place: str = "station", explore_s: float = 0.0) -> dict:
       life.explore(budget=explore_s, mark_done=False)
     out.update(exploreS=explore_s, offCharge=err())
     t0 = float(life.data.time)
+    let_go = let_goes(body)
     out["docked"] = bool(life.go_charge())
     walk = body.last_drive or {}
     out.update(why=life.charge_failure, s=round(float(life.data.time) - t0, 1), offEnd=err(),
                zoneEnd=zone_of(*body.true_pose()[:2]), falls=body.falls,
-               walk={"why": walk.get("why"), "shortM": walk.get("shortM")})
+               walk={"why": walk.get("why"), "shortM": walk.get("shortM")}, letGo=let_go)
     events = []
     for e in body.belief_events:
       rec = {k: v for k, v in e.items() if k in ("why", "fixture", "found", "ended", "seconds",
@@ -450,6 +504,7 @@ def losts(n: int, parallel: int, seed: int = 476) -> list[dict]:
           f"{'-' if found is None else (found['ended'] + ' ' + str(found['seconds']) + ' s'):9s} "
           f"{r.get('why', '')}")
   print(f"docked {sum(r['docked'] for r in rows)} of {len(rows)}")
+  print(let_go_line(rows))
   return rows
 
 
@@ -661,6 +716,137 @@ FOLLOW_DIST, FOLLOW_ELEVATION_DEG = 7.0, -75.0
 #: ...and its filmstrip's tile this often, s: a walk and a search from
 #: further off run 100-250 s.
 FOLLOW_EVERY_S = 8.0
+
+
+#: `--anatomy`'s scene, #596's: the pair recording's world with the first
+#: robot sent to charge at once (`two_robots.py --world home_humanoid --fast
+#: --pack demo --near-field --errands none,none --battery 0.22,0.9`), for
+#: this long, s.
+ANATOMY_BATTERY, ANATOMY_S = (0.22, 0.9), 150.0
+
+
+def anatomy(seconds: float = ANATOMY_S) -> list[dict]:
+  """#596's scene, the first robot's plug-in taken apart, a row an event
+  (mm and deg): the sim's truth beside what the robot believes, never fed
+  to it, and no sensor read, so the flight is the one unwatched.
+    look     the station it fitted, less the truth, both from its feet
+    squeeze  the plug against the hand as its jaws begin to shut: off their
+             middle along the fingers (+ to the palm), and how far behind
+             the plug's face the hand is (45 meant); and since the try's
+             look, how its feet truly moved and turned (`feet`) and how its
+             belief moved its stance (`belief`), each in the look's frame
+    gripped  the jack in the shut jaws, the same two
+    push, pushed, let go   the hand and the plug against the port: across
+             it (+ to the robot's left), up, out of its face
+    plug_in  how the plug-in ended, and its tries."""
+  from pluggybot.humanoid import charge
+  from pluggybot.humanoid.world import station_pose
+  from pluggybot.pair import run_demo_pair
+  rows = []
+
+  def mm(v):
+    return [round(float(x) * 1000, 1) for x in v]
+
+  def frame_of(frame, p):
+    x, y, yaw = frame
+    c, s = math.cos(yaw), math.sin(yaw)
+    dx, dy = p[0] - x, p[1] - y
+    return np.array([c * dx + s * dy, -s * dx + c * dy, p[2] if len(p) > 2 else 0.0])
+
+  def moved(a, b):
+    """`b` from `a`, in `a`'s frame: mm, mm, deg."""
+    v = frame_of(a, b)
+    return mm(v[:2]) + [round(math.degrees(math.remainder(b[2] - a[2], 2 * math.pi)), 2)]
+
+  def install(body):
+    m, d = body._m, body._d
+    pre = body.handle.prefix
+    grip_site = m.site(f"{pre}{charge.SIDE}_grip").id
+    port = m.site(f"{pre}charge_port").id
+    plug, jack = m.body("station_plug").id, m.geom("station_jack").id
+    face = m.site("station_plug_face").id
+    at = {"look": None, "pushed": False}
+
+    def say(kind, **kw):
+      rows.append({"t": round(float(d.time), 2), "kind": kind, **kw})
+      print(json.dumps(rows[-1]), flush=True)
+
+    def in_hand(point):
+      """`point` (on the plug's axis) from the grip site: off the jaws'
+      middle along the fingers, + to the palm, and the grip site's way
+      behind the plug's face."""
+      r = d.site_xmat[grip_site].reshape(3, 3)
+      a = r.T @ d.xmat[plug].reshape(3, 3)[:, 0]
+      o = r.T @ (point - d.site_xpos[grip_site])
+      z = np.array([0.0, 0.0, 1.0]) - a[2] * a
+      perp = o - (o @ a) * a
+      behind = r.T @ (d.site_xpos[face] - d.site_xpos[grip_site])
+      return {"palm": round(float(perp @ (z / np.linalg.norm(z))) * 1000, 1),
+              "behind": round(float(behind @ a) * 1000, 1)}
+
+    def at_port(what):
+      n = d.site_xmat[port].reshape(3, 3)[:, 2]
+      left = np.cross((0.0, 0.0, 1.0), n)
+      left = left / np.linalg.norm(left)
+      v = what - d.site_xpos[port]
+      return mm([v @ left, v @ np.cross(n, left), v @ n])
+
+    look = charge.look
+
+    def looked(b):
+      seen = look(b)
+      if b is body and seen is not None:
+        ts = body._true_stance()
+        at["look"] = (tuple(body.stance), ts)
+        sx, sy, syaw = station_pose()
+        e = frame_of(body.stance, (seen.x, seen.y)) - frame_of(ts, (sx, sy))
+        say("look", station=mm(e[:2]) + [round(math.degrees(math.remainder(
+          (seen.yaw - body.stance[2]) - (syaw - ts[2]), 2 * math.pi)), 2)])
+      return seen
+    charge.look = looked
+    grip, pull, plug_in = body.grip_routine, body.pull_routine, charge.plug_in_routine
+
+    def gripping(side, closed, force=None):
+      squeeze = closed and force == charge.GRIP_MIN_N and not body.charging()
+      if squeeze:
+        since = {} if at["look"] is None else {
+          "feet": moved(at["look"][1], body._true_stance()),
+          "belief": moved(at["look"][0], tuple(body.stance))}
+        say("squeeze", plug=in_hand(d.xpos[plug]), **since)
+      if at["pushed"] and not closed:
+        at["pushed"] = False
+        say("let go", plug=at_port(d.site_xpos[face]))
+      r = yield from grip(side, closed, force)
+      if squeeze:
+        say("gripped", jack=in_hand(d.geom_xpos[jack]))
+      return r
+
+    def pushing(side, way, force, *a, **kw):
+      if force != charge.PUSH_N:
+        return (yield from pull(side, way, force, *a, **kw))
+      say("push", hand=at_port(d.site_xpos[grip_site]), plug=at_port(d.site_xpos[face]))
+      r = yield from pull(side, way, force, *a, **kw)
+      say("pushed", hand=at_port(d.site_xpos[grip_site]), plug=at_port(d.site_xpos[face]),
+          why=r["why"])
+      at["pushed"] = True
+      return r
+
+    def plugging(b, station, trace):
+      r = yield from plug_in(b, station, trace)
+      if b is body:
+        say("plug_in", result=r, tries=sum(1 for t in trace if "try" in t))
+      return r
+    body.grip_routine, body.pull_routine = gripping, pushing
+    charge.plug_in_routine = plugging
+
+  def ready(lives):
+    for life, frac in zip(lives, ANATOMY_BATTERY):
+      life.battery.energy_wh = life.battery.capacity_wh * frac
+    install(lives[0].body)
+
+  run_demo_pair(world="home_humanoid", max_sim_time=seconds, realtime=False, pack="demo",
+                errands=("none", "none"), near_field=True, on_ready=ready)
+  return rows
 
 
 def _follows(lost) -> bool:
@@ -893,6 +1079,9 @@ def main(argv=None) -> int:
   ap.add_argument("--strip", nargs="?", const="plug", choices=("plug", "fall", "lost"),
                   help="the scene's filmstrip, station_spike.png (fall: station_spike_fall.png, "
                        "lost: station_spike_lost.png)")
+  ap.add_argument("--anatomy", action="store_true",
+                  help="#596's scene, the first robot's plug-in taken apart: the look, the "
+                       "plug in the hand, the feet and the belief since the look, the port")
   ap.add_argument("--out", default=None)
   ap.add_argument("--one", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-walk-in", default=None, help=argparse.SUPPRESS)
@@ -928,6 +1117,7 @@ def main(argv=None) -> int:
     rows = far_losts(places, args.n, args.parallel, float(args.explore or 0.0))
   else:
     rows = (approach(args.n, args.parallel) if args.approach else
+            anatomy() if args.anatomy else
             reach() if args.reach else
             seats(args.parallel) if args.seats else
             losts(args.n, args.parallel) if args.lost else

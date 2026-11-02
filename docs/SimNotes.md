@@ -597,10 +597,12 @@ wait until the errand's time ran out.
 **What is true now:** the rack the loop works round is the humanoid's
 charging station (`body.rack_prior`, the station's frame). After an
 interaction there, a robot with somebody else in the world leaves it before
-it decides (`_leave_rack_routine`) and checks that it got there
-(`RACK_CLEAR_M`, `CLEAR_SPOTS`; History says where it ended); one that stays
-within its reach for `RACK_LINGER_S` doing nothing is logged `RACK:
-lingering`. A taken charge seat is waited for
+it decides, and before its day ends there (#594: DONE 0.37 m off it, a
+robot stood in the other's way in until asked aside), with
+`_leave_rack_routine`, and
+checks that it got there (`RACK_CLEAR_M`, `CLEAR_SPOTS`; History says where
+it ended); one that stays within its reach for `RACK_LINGER_S` doing nothing
+is logged `STATION: lingering`. A taken charge seat is waited for
 (`HubLifecycle._await_bay_routine`) for 3× the typical charge
 (`CHARGE_OCCUPANCY_S`, measured on the quadruped pair; the humanoids' are
 not yet), and a failed charge approach logs `charge_trace`.
@@ -3507,9 +3509,10 @@ look at the seat that sees no pair is taken again bowed 0.2 rad: nearer the
 station than its seat the tags are under the colour camera's view, and on
 the fit from before its last step, the step's odometry put the hand on the
 boss from both grips. Pushed to
-the body, plugs landed 12-33 mm across the port and 7-10 mm low: the hand
-knows where it holds one to 1-2 cm (its encoders and backlash, and the plug
-free along the Dex1-1's 80 mm pads), so the funnel round the port is 70 mm
+the body, plugs landed 12-33 mm across the port and 7-10 mm low -- most of
+it where the hand was sent, through a belief that moved (#596) -- and the
+hand knows where it holds one to 1-2 cm (its encoders and backlash, and the
+plug free along the Dex1-1's 80 mm pads), so the funnel round the port is 70 mm
 across -- as wide as the housing, 40 mm off the plug's axis, clears -- and
 takes a plug anywhere in its mouth (⚠ the funnel is the catch's, as the cup
 is: drawn, never touched). A miss is fetched again from the cup and pushed a
@@ -3564,10 +3567,9 @@ belief.
 | `--walk-in`: a fresh humanoid explores 120 or 240 s, walks on its own map to each of 8 places across the house (the bedroom, hall, kitchen, workshop, garden and south garden; the lobby and lab across the street), and the loop's own `go_charge` takes it to the station | **docked 15 of 16**, each in 46-131 s, 10 on the first push; its belief 0.04-0.51 m off where it walked to (1.07 m at the lobby after 120 s, which docked on its third push), 0.01-0.42 m once docked, before the charge's own fix; no falls (10 of 16 before) |
 | `--lost`: a fresh humanoid 2 m out facing the station, its belief set 0.7 m wrong each way and 12 drawn 0.4-1 m off and up to 5 deg turned, the loop's own `go_charge` | **docked 16 of 16**: the 14 that saw no station searched and found it in 4-62 s, their fix putting the belief within 0.11 m; the two whose walks ended near enough docked as they were, their fix the charge's own (the search as it was then, stepping in by its LIDAR; by its head's camera, #572's stage 3, 15 of 16) |
 
-**What is not yet.** One walk-in in 16 pushed four times and the port took
-none: where the plug sits in the jaws still misses pushes now and then. The
-reserve's own dock leg gave up on the explore's map and is carried by rate;
-one station a world.
+**What is not yet.** The reserve's own dock leg gave up on the explore's map
+and is carried by rate; one station a world. (A walk-in that pushed four
+times and the port took none was #596's: "A plug-in that missed every try".)
 
 ![Knocked over plugged in: shoved backward, the humanoid falls, the plug
 breaks away at the port and swings on its rope, and its balancer draws it
@@ -4820,6 +4822,92 @@ off, ran out of their 600 s there. Stage 4's station in the research
 center would put a robot right before it crossed back, and is Ben's call on
 this reading. The walker's seat (#581) is what is left of a charge from its
 standoff.
+
+## A plug-in that missed every try (issue #596)
+
+**What the scene showed.** The pair recording's world with the first robot
+sent to charge at 22 % (`two_robots.py --world home_humanoid --fast --pack
+demo --near-field --errands none,none --battery 0.22,0.9`): on llvmpipe its
+plug-in missed the port four times the same way, each letting the plug go
+31-35 mm to the right of it, where the port takes it within 22, and the
+robot died `stuck`; since #591 a dock that never got in goes again from the
+standoff, and it plugged in on its second approach, at 137.7 s. On the GTX
+the same scene plugged in at once.
+
+**Where the hand's error came from** (`station_spike.py --anatomy`, the
+issue's scene, the truth beside what the robot believes). Four things, each
+a few millimetres to two centimetres, all in how the hand was sent:
+
+- *The belief moves under a robot standing still.* From the look the
+  plug-in went on to its squeeze, the feet turned 1.6-7.7 deg where they
+  stood, their middle under 1 mm, while the belief moved its stance 5-25
+  mm: the matcher's corrections at the station's near returns, and the
+  legs' reckoning reading the turn as a walk (alone, 10-30 mm). Each of the
+  hand's targets went through the believed world at its move's instant,
+  and went with that move. Held in the frame of the feet instead, they went
+  with the turn: 18 mm at the plug.
+- *A look just after a step reads the trunk's tilt off.* For a second or
+  two after a step the IMU's filter (`imu.TAU_S`, 1 s) read it 0.4-0.6 deg
+  off, and through the 0.9 m from the soles up to the station's tags that
+  put the station 5-12 mm off from its feet; three seconds standing, 0.05
+  deg and a millimetre or two.
+- *A retry was a retried constant*: every try went on the dock's last look.
+- *The port, read once, moved 6 mm before the push*: a posture taken to
+  carry the plug moves the trunk it is on.
+
+In staging's first try the hand shut 59 mm behind the plug's face, on the
+station's boss; drawn back off it through the moved belief again, it took
+the plug 22 mm behind its face and 16 mm deep in the jaws, and the
+gripper's housing met the belly with the plug 25 mm off the port.
+
+**The plug-in now** (`humanoid/charge.py`). Each try looks at the station
+afresh, the first after `LOOK_SETTLE_S` standing still, and carries what it
+saw to each move's instant as the feet carry it (`_carried`): as far as the
+belief has moved its stance -- standing, the feet stay where they stood --
+and never turned with it, the body turning on its feet as the belief does.
+Slid onto the plug, the hand goes there again as the station is then (its
+feet turned meanwhile, 7.7 mm at the grip), or as near as its arm goes. The
+port is read at each move. On the issue's scene the plug sat 2.7 mm off the
+jaws' middle on llvmpipe and 0.1 mm on the GTX (staging, 15-21), the hand
+1.8 and 2.4 mm off the port's line before the push, and each plugged in at
+the first try.
+
+**The push.** Pressed on the body, the arm's spring slides the hand 6-11 mm
+to the right and 4-6 mm down as it pushes, the plug with it, well inside
+the port's 22 mm; and the plug is let go where the push stops, pressed on
+the body. Put back on its line after the push, or pushed again from as far
+across as the first slid, it was let go 9-12 mm off the body, near the
+port's 15, and of 140 seats' let-goes the port missed 20 and 26 where,
+pressed on the body, it missed 1.
+
+**Measured** (`station_spike.py`, staging and the plug-in now flown on one
+Vast pod, an AMD EPYC 7B12, osmesa; every trial's row says where each try
+let the plug go against the port, `letGo`):
+
+| | staging | the plug-in now |
+|---|---|---|
+| `--seats`: 140 seats over what the seat check accepts | plugged in 138; 181 let-goes, 43 missed: 14 over 22 mm across, 26 over 15 mm out | 139; 140 let-goes, 1 missed (27 mm out) |
+| `--approach --n 30`: 33 starts round the standoff (`--approach`'s 15 first) | docked 33; 45 let-goes | 33; 33 |
+| `--lost --n 48`: 52 beliefs set 0.4-1 m wrong (`--lost`'s 16 first) | 51; 78 let-goes | 52; 52 |
+| `--walk-in`: explored 120 s, walked to 8 places across the house | docked 8; 10 let-goes | 8; 8 |
+| the issue's scene | four misses, then docked on its second approach (137.7 s) | the first try (45.9 s) |
+| across the port at a let-go, a batch's median; its worst | -12 to -15 mm; 22-55 | -12 to -13; 15-17 |
+
+The seat it now loses is the seat check's furthest corner -- 6 cm behind
+the seat, 6 cm to its right, turned 6 deg right -- where the arm stretched
+shut on the plug near its nose, the first push let it go 27 mm off the
+body, and the retry's reach fell short; staging docked there, and lost two
+of its own corners (3 cm in, 4-6 cm left, turned 6 deg left), pushing four
+times. 3 cm in from the seat the plug is let go 10-13 mm off the body,
+inside the port's 15 with the least room. `--walk-in`'s 240 s explore walks
+nowhere, on staging too: from where that explore leaves the robot every
+walk out stalls in 10 s, so its eight rows are one trial.
+
+**What is true now.** A try's hand is placed off a look of its own, taken
+standing still, carried as the feet carry it -- moved with the belief's
+stance and never turned with it -- with the port read at each move; and it
+lets go where its push stops: over the four batches' 233 starts it docked
+232 with 233 pushes, where staging docked 230 with 314.
 
 ## Debugging workflow that worked
 

@@ -10,6 +10,85 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The plug-in placed off each try's own look (#596) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A humanoid plugging in looks at the station again before each try**,
+  the first look after standing still 3 s: a dock takes about 3 s longer.
+- **Its hand is placed off that look as its feet would carry it**: moved as
+  far as its belief moves its stance, never turned with it; the port is read
+  at each of the hand's moves, and the hand, slid onto the plug, goes there
+  once more as the station is then.
+- **It lets go where its push stops**, as before.
+- **The charge's trace** (the log's, after a charge that never plugged in)
+  carries `looked` on each try: whether that try's look saw the station.
+- Nothing in the prompt, the schema, the arm or the reward table moved, nor
+  the station, the body or the house.
+
+**Why.** #596: from the look to the squeeze the feet turned 1.6-7.7 deg where
+they stood while the belief moved the stance 5-25 mm, and a hand sent
+through the believed world missed the port the same way four times, each
+retry on the same look; the pair recording's first robot died of it on
+llvmpipe. Flown (SimNotes, "A plug-in that missed every try"), staging and
+the branch on one pod: 139 of 140 seats plugged in where staging plugged 138,
+and with 140 pushes where staging needed 181; from round the standoff 33 of
+33 at a push each (staging 45 pushes); its belief 0.4-1 m wrong 52 of 52
+(staging 51).
+
+**What the period is for.** No charge ends "no charge contact (it pushed the
+plug in and the port never took it)", and no `stuck` death says so: read off
+the charges' narration and the `death` rows. ⚠ It may open with #594's
+period if the two deploy together: read it against the one before them.
+
+### Closes pay and `say` speaks again, a stop while paused saves, a wake counts the world's pause, and a day's end leaves the station (#594) — opens when this PR is deployed
+
+**What changed in the world.**
+- **An operator's close pays its 25 again, and the robot is shown it.**
+  Each desk orders its closed tickets by its own count of closes, never
+  by sim time, and trims them only once a close is paid. Since the world
+  started over on 10-27, a close ranked behind the twenty stamped on the
+  old clock once a desk was full, and was trimmed before it was paid: the
+  five closes on 11-02 paid +0 each. The three closes each robot is shown
+  had not changed since 10-27. The first close after the deploy is the
+  first counted one, and the twenty from before the count age out as new
+  ones come, oldest id first.
+- **A `say` goes out again**: a last line stamped after now is a clock gone
+  back, and the gate is open. Every `say` since 10-27 was refused (Luca's
+  last line was at t=2,374,869 and Rowan's at t=2,370,582, on the clock
+  before the start-over), and every turn showed `sayAgainInS` near 2.3
+  million. The ration holds again from the first line on the new clock.
+- **A stop while paused saves the world**: a deploy's SIGTERM ends the
+  pause, the world stops at that step and is saved, and the restart carries
+  on from the moment it paused. Before, the process was killed unsaved and
+  each restart while paused counted toward `MAX_RESUMES`: three on 11-01,
+  and the fourth start began the world again at t=0. With a living body
+  mid-move it saves nothing, the minute-old save stands, and the restart
+  is not counted. ⚠ This release's own deploy stops a process on the old
+  code: deployed while paused, that one is still killed unsaved and counts
+  a restore, so it goes out with the world running.
+- **A wake says how long the world was paused**, from when the site paused
+  it (the mode file's `at`). A process started into a pause counted from
+  its own start: on 11-01 a wake said 117 s, and with #562's schedule a
+  weekday deploy would have told the robots they slept since it.
+- **A day that ends at the charging station leaves it first**, where there
+  is another robot, as a decision does. On the pair recording's day, flown
+  on the release, Rowan's day ended 18 s after its charge, 0.37 m from the
+  station: it stood `DONE` in Luca's way in until Luca asked it aside, then
+  0.88 m off it to the run's end (`STATION: lingering ... while DONE`).
+  Walking clear instead, it let Luca plug in 21 s sooner, at the first try.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #594, read off the live world on 34cd4e3 on 11-02.
+
+**What the period is for.** #594's acceptance: on the release, the first
+close pays +25 and shows in that robot's `tickets.closed`; a `say` goes out
+and `sayAgainInS` never reads over 1200; a deploy while paused comes back
+at the moment it paused, never "could not carry on"; after a pause that
+spans a restart, the wake line says how long the world was paused; and no
+`STATION: lingering` line says `while DONE`. ⚠ From 10-27 to the deploy no
+`say` was the robot's choice: read what a robot says unasked from this
+period on, never against that stretch.
+
 ### A lost robot looks for its station by its head's camera, and a fall walks no belief (#572, stage 3) — opens when this PR is deployed
 
 **What changed in the world.**

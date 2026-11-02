@@ -150,12 +150,93 @@ def test_the_context_shows_open_threads_and_what_came_of_closed_ones(tmp_path):
   snap = d.snapshot(5.0, "pluggybot")
   assert snap["type"] == "tickets" and [t["id"] for t in snap["tickets"]] == ["tk_0001"]
   assert snap["tickets"][0]["thread"][0]["from"] == "ben"
-  # ...and the record keeps the newest MAX_CLOSED closed tickets only.
+  # ...and the record keeps the newest MAX_CLOSED closed tickets only, once
+  # each close is paid (`trim`).
   for i in range(desk.MAX_CLOSED + 2):
     t = d.open("idea", f"i{i}", "x", t=10.0 + i)
     d.close(t.id, by="ben", text="", t=11.0 + i)
+    d.trim()
   assert len(d.closed_tickets()) == desk.MAX_CLOSED
   assert d.get("tk_0002") is None, "the oldest closed one aged out"
+
+
+#: The newest closes on each deployed desk on 2026-11-02 that came after
+#: the 10-27 start-over (issue #594): stamped on the new clock, under every
+#: close the old one stamped.
+AFTER_THE_START_OVER = 3
+
+
+def _closed_on_the_old_clock(root) -> None:
+  """A desk as each deployed robot's held it on 2026-11-02 (issue #594),
+  written before the desk counted its closes: `MAX_CLOSED` closes, all but
+  the newest `AFTER_THE_START_OVER` stamped on a clock a start-over put
+  back to 0, up to t=2,141,262, and those at t=340,000-360,000."""
+  root.mkdir(parents=True)
+  for i in range(1, desk.MAX_CLOSED + 1):
+    newer = i > desk.MAX_CLOSED - AFTER_THE_START_OVER
+    rec = desk.Ticket(id=f"tk_{i:04d}", kind="idea", title=f"old {i}",
+                      text="asked", t=float(i), state="closed", closed_by="ben",
+                      closed_t=(360_000.0 - 10_000 * (desk.MAX_CLOSED - i) if newer
+                                else 2_141_262.0 - (desk.MAX_CLOSED - i))).as_record()
+    del rec["closedN"]
+    (root / f"tk_{i:04d}{desk.SUFFIX}").write_text(json.dumps(rec))
+  (root / desk.COUNTER).write_text(json.dumps({"seq": desk.MAX_CLOSED}))
+
+
+def test_a_close_on_a_clock_that_went_back_is_paid_kept_and_shown_first(tmp_path):
+  """⚠ Ordered by sim time, a close made after a start-over ranked behind
+  the twenty from the old clock and was trimmed before it was paid -- five
+  of them on 2026-11-02, each `'' is not a ticket kind`, +0 points -- and
+  the three shown had been the same since the world started over (issue
+  #594). Closes are ordered by the desk's own count, below which every
+  close from before the count ranks -- by its id, never its clock, or the
+  three closed after the start-over were shown last and trimmed first (the
+  review) -- and trimmed once paid."""
+  _closed_on_the_old_clock(tmp_path / "tickets")
+  ledger = Ledger()
+  life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
+  try:
+    life.data.time = 55_794.0
+    new = life.tickets.open("bug", "new", "after the start-over", t=55_000.0)
+    life.inbox.offer({"type": "ticket_close", "id": "tc_1", "from": "ben",
+                      "ticket": new.id, "text": "fixed"})
+    life._visitor_step()
+    assert ledger.balance() == 25
+    assert life.tickets.get(new.id).points == 25, "trimmed before it was paid"
+    assert [t["id"] for t in life.tickets.as_context()["closed"]] == [
+      new.id, "tk_0020", "tk_0019"]
+    assert len(life.tickets.closed_tickets()) == desk.MAX_CLOSED
+    assert life.tickets.get("tk_0001") is None, "the oldest of the old clock's went"
+  finally:
+    life.body.close()
+  # ...and the count is the desk's record, kept beside the ids and found
+  # again off the tickets where the counter's file is lost.
+  assert desk.Desk(tmp_path / "tickets").closes == 1
+  (tmp_path / "tickets" / desk.COUNTER).unlink()
+  again = desk.Desk(tmp_path / "tickets")
+  assert again.closes == 1 and again.closed_tickets()[0].id == new.id
+
+
+def test_a_close_is_paid_before_the_closed_ones_are_trimmed(tmp_path, monkeypatch):
+  """...and whatever the order, a close is paid off the ticket it closed:
+  put back on the old clock's order, the close above ranks twenty-first
+  and goes in the trim, but only once it is paid (issue #594). Trimmed in
+  `close`, it was measured as no ticket at all."""
+  monkeypatch.setattr(desk.Desk, "closed_tickets", lambda self: sorted(
+    (t for t in self.tickets.values() if not t.open),
+    key=lambda t: t.closed_t or 0.0, reverse=True))
+  _closed_on_the_old_clock(tmp_path / "tickets")
+  ledger = Ledger()
+  life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
+  try:
+    new = life.tickets.open("bug", "new", "after the start-over", t=0.0)
+    life.inbox.offer({"type": "ticket_close", "id": "tc_1", "from": "ben",
+                      "ticket": new.id, "text": "fixed"})
+    life._visitor_step()
+    assert ledger.balance() == 25
+    assert life.tickets.get(new.id) is None, "the old order trims it, once paid"
+  finally:
+    life.body.close()
 
 
 def test_the_desk_writes_through_the_store_and_the_gate():

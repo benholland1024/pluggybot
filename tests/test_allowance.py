@@ -471,6 +471,38 @@ def test_a_pause_is_told_to_every_robot_on_the_loop(tmp_path):
     assert re.match(r"RESUMED after \d+ s in llm mode", life.status)
 
 
+def test_a_wake_says_how_long_the_world_slept_not_this_process(tmp_path):
+  """⚠ A process started into a pause -- a deploy, a restart -- timed the
+  pause from its own start: on 2026-11-01 a wake said 117 s, and with
+  #562's schedule a weekday deploy would tell the robots they had slept
+  since it (issue #594). The site's file says when it paused the world
+  (`at`), and a wake counts from there; a file with none counts as this
+  process saw it (above). Shown to fail on the process's own count."""
+  from datetime import datetime, timedelta, timezone
+
+  from test_body import stub_life
+
+  def site(mode: str, at: datetime) -> str:
+    # ...as `writeMode` writes it (rooftop-media-2026 `server/pluggyMode.ts`)
+    return json.dumps({"mode": mode, "by": "the schedule",
+                       "at": at.isoformat(timespec="milliseconds").replace("+00:00", "Z")})
+
+  path = tmp_path / "mode.json"
+  path.write_text(site("paused", datetime.now(timezone.utc) - timedelta(days=2)))
+  life = stub_life()
+  life.mode = ModeSwitch(path)
+
+  def wake():
+    time.sleep(0.6)
+    path.write_text(site("llm", datetime.now(timezone.utc)))
+
+  threading.Thread(target=wake, daemon=True).start()
+  life._mode_step()
+  assert "woke up again after 2 days paused" in life.thoughts.read("History.md")
+  assert life.status == "RESUMED after 2 days in llm mode"
+  assert life.paused_s < 60, "the pacer's resync is this process's own wait"
+
+
 def test_a_long_pause_is_said_in_days_and_hours():
   """The pause between two weekends is ~490,000 s (issue #562): History
   says how long the way a person would, never a count of seconds."""
