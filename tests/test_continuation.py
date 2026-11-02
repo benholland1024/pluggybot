@@ -657,7 +657,8 @@ def _carried_on(life, tmp_path, resumes: int = 0):
 
 
 def _resumes(path) -> int:
-  return json.loads(str(np.load(path)["meta"]))["resumes"]
+  with np.load(path) as npz:
+    return json.loads(str(npz["meta"]))["resumes"]
 
 
 def _stopped_while_paused(life, keeper, tmp_path) -> list[float]:
@@ -724,6 +725,46 @@ def test_a_stop_while_paused_and_mid_move_saves_nothing_and_gives_its_count_back
   life.body.posture = "standing"        # ...whatever the way out then says
   assert not keeper.finish() and keeper.saves == 0
   assert _resumes(path) == 1, "a clean stop counted as a crash"
+
+
+def test_a_runs_end_saves_whatever_a_body_is_doing_a_robot_lying_dead_too(tmp_path):
+  """⚠ ...and only that stop goes unsaved, a LIVING body mid-move (#594's
+  review). A robot lying in a death is mid get-up until it is stood up --
+  its legs the get-up policy's for the 300 s before its stand-up -- and an
+  end skipped for `busy` brought it back, the next run, from before its
+  fall: alive, its heart already spent. A run's end saves as it always
+  did, whatever a body is doing, and a paused stop counts the living
+  alone."""
+  life = _stub(tmp_path)
+  path, snap = _carried_on(life, tmp_path)
+  keeper = continuation.Keeper([life], path, every_s=1e9, carried_on=snap)
+  life._die("stuck", "fell and could not get up")
+  life.body.posture = "getting_up"
+  assert keeper.busy() and keeper.finish() and _resumes(path) == 0
+  _stopped_while_paused(life, keeper, tmp_path)
+  with pytest.raises(MissionAborted, match="SIGTERM"):
+    _hold(life, 1.0)
+  assert keeper.finish() and keeper.saves == 2
+
+
+def test_no_pause_begins_once_a_stop_is_asked(tmp_path):
+  """...and no pause BEGINS once a stop is asked (#594's review). The
+  switch is still read, so the keeper stops a paused world at the step it
+  sees it; but nothing blocks, and nothing says it paused -- entered after
+  a stop, a pause said so in both robots' History on every step for as
+  long as the keeper had not raised."""
+  from pluggybot.mind.mode import ModeSwitch
+  life = _stub(tmp_path)
+  keeper = continuation.Keeper([life], tmp_path / "world.npz", every_s=1e9)
+  keeper.request_stop("SIGTERM")
+  switch = tmp_path / "mode.json"
+  switch.write_text(json.dumps({"mode": "paused"}))
+  life.mode = ModeSwitch(switch)
+  life._mode_step()
+  assert life.mode.paused and "paused by the operator" not in life.thoughts.texts[HISTORY]
+  with pytest.raises(MissionAborted, match="SIGTERM"):
+    _hold(life, 1.0)
+  assert keeper.finish()
 
 
 def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):

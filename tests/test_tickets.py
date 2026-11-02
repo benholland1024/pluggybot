@@ -160,15 +160,24 @@ def test_the_context_shows_open_threads_and_what_came_of_closed_ones(tmp_path):
   assert d.get("tk_0002") is None, "the oldest closed one aged out"
 
 
+#: The newest closes on each deployed desk on 2026-11-02 that came after
+#: the 10-27 start-over (issue #594): stamped on the new clock, under every
+#: close the old one stamped.
+AFTER_THE_START_OVER = 3
+
+
 def _closed_on_the_old_clock(root) -> None:
-  """A desk as each deployed robot's held it on 2026-11-02 (issue #594):
-  `MAX_CLOSED` closes stamped on a clock a start-over put back to 0, up to
-  t=2,141,262, written before the desk counted its closes."""
+  """A desk as each deployed robot's held it on 2026-11-02 (issue #594),
+  written before the desk counted its closes: `MAX_CLOSED` closes, all but
+  the newest `AFTER_THE_START_OVER` stamped on a clock a start-over put
+  back to 0, up to t=2,141,262, and those at t=340,000-360,000."""
   root.mkdir(parents=True)
   for i in range(1, desk.MAX_CLOSED + 1):
+    newer = i > desk.MAX_CLOSED - AFTER_THE_START_OVER
     rec = desk.Ticket(id=f"tk_{i:04d}", kind="idea", title=f"old {i}",
-                      text="asked", t=330_000.0 + i, state="closed",
-                      closed_by="ben", closed_t=2_141_262.0 - (desk.MAX_CLOSED - i)).as_record()
+                      text="asked", t=float(i), state="closed", closed_by="ben",
+                      closed_t=(360_000.0 - 10_000 * (desk.MAX_CLOSED - i) if newer
+                                else 2_141_262.0 - (desk.MAX_CLOSED - i))).as_record()
     del rec["closedN"]
     (root / f"tk_{i:04d}{desk.SUFFIX}").write_text(json.dumps(rec))
   (root / desk.COUNTER).write_text(json.dumps({"seq": desk.MAX_CLOSED}))
@@ -180,7 +189,9 @@ def test_a_close_on_a_clock_that_went_back_is_paid_kept_and_shown_first(tmp_path
   of them on 2026-11-02, each `'' is not a ticket kind`, +0 points -- and
   the three shown had been the same since the world started over (issue
   #594). Closes are ordered by the desk's own count, below which every
-  close from before the count ranks, and trimmed once paid."""
+  close from before the count ranks -- by its id, never its clock, or the
+  three closed after the start-over were shown last and trimmed first (the
+  review) -- and trimmed once paid."""
   _closed_on_the_old_clock(tmp_path / "tickets")
   ledger = Ledger()
   life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))

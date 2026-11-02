@@ -38,7 +38,9 @@ Rules, each pinned in `tests/test_tickets.py`:
   closes (`closes`, in the counter's record): by sim time, a world started
   over at t=0 put each new close behind twenty from the old clock, and it
   was trimmed before it was paid. A ticket closed before the count ranks
-  below every counted one, and the trim (`trim`) waits for the pay.
+  below every counted one, and by its id among them (their `closedT` is on
+  whichever clock they were closed on); the trim (`trim`) waits for the
+  pay.
 
   NOTHING HERE MOVES A BALANCE. The desk records what the ledger paid
   (`pay`), it does not pay: the payout is `scoring.evaluate("ticket")`'s
@@ -85,6 +87,14 @@ STATES = ("open", "closed")
 class DeskRefused(ValueError):
   """The desk would not take it, and says why -- narrated, on the wire as
   a `ticket` event with outcome `refused`, never swallowed."""
+
+
+def _number(ticket_id: str) -> int:
+  """A ticket's id as the counter numbered it (`tk_0042` is 42), or 0."""
+  try:
+    return int(str(ticket_id).split("_")[-1])
+  except ValueError:
+    return 0
 
 
 def _clean(value: object, limit: int) -> str:
@@ -247,10 +257,7 @@ class Desk:
     # copied by hand): never hand out an id, or a close's count, that is
     # already taken.
     for ticket in self.tickets.values():
-      try:
-        self.seq = max(self.seq, int(ticket.id.split("_")[-1]))
-      except ValueError:
-        pass
+      self.seq = max(self.seq, _number(ticket.id))
       self.closes = max(self.closes, ticket.closed_n or 0)
 
   def _save(self, ticket: Ticket) -> None:
@@ -269,9 +276,9 @@ class Desk:
 
   def closed_tickets(self) -> list[Ticket]:
     """Closed, newest close first: on the desk's count, and one closed
-    before the count by its clock, below every counted one."""
+    before the count by its id, below every counted one."""
     return sorted((t for t in self.tickets.values() if not t.open),
-                  key=lambda t: (t.closed_n or 0, t.closed_t or 0.0), reverse=True)
+                  key=lambda t: (t.closed_n or 0, _number(t.id)), reverse=True)
 
   def open_ids(self) -> tuple[str, ...]:
     return tuple(t.id for t in self.open_tickets())

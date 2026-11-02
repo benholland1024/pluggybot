@@ -134,7 +134,7 @@ class ModeSwitch:
   def _apply(self, read: tuple[str, float | None]) -> None:
     mode, at = read
     if mode == self.mode:
-      return                    # ...`at` too: a mode written again was set first
+      return                    # ...`at` too: in this process, the first stamp
     was, self.mode, self.at = self.mode, mode, at
     for hook in list(self.on_change):
       hook(was, mode)

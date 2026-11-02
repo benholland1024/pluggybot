@@ -524,6 +524,12 @@ def restore(lives, snap: Snapshot) -> dict:
 MOVING_POSTURES = ("getting_up",)
 
 
+def _mid_move(life) -> bool:
+  """Is this robot part-way through something no file holds (`Keeper.busy`)?"""
+  return (life._standing_up or life.body.posture in MOVING_POSTURES
+          or life.body.working or life.body.making_way is not None)
+
+
 class Keeper:
   """Saves the world on the physics seam every `every_s`, and on request.
 
@@ -572,18 +578,20 @@ class Keeper:
     sim with the pose moved and the pack not yet refilled. ...And a body
     mid-move (issue #387): one getting up is a policy part-way, which no
     file holds; one with a hand out (`Body.working`); and one stepping
-    aside for the other robot (issue #415), a walk no routine holds. A stop waits too: killed first, the world comes back from the
-    save before."""
-    return any(life._standing_up or life.body.posture in MOVING_POSTURES
-               or life.body.working or life.body.making_way is not None
-               for life in self.lives)
+    aside for the other robot (issue #415), a walk no routine holds. A stop
+    waits too, killed first, the world comes back from the save before --
+    but in a paused world it does not wait (`step_hook`)."""
+    return any(_mid_move(life) for life in self.lives)
 
   def step_hook(self) -> None:
     self.last_step.hook()                 # every step, busy or not: a save
     if self.stop_requested and self.paused():
       # ...at once: waited out, a body mid-move would step on in a world
-      # the operator stopped (`finish` saves it where none was)
-      self.stopped_mid_move = self.busy()
+      # the operator stopped. Only the living count: a robot lying dead is
+      # mid get-up until it is stood up, and saved as any run's end saves
+      # it (`finish`).
+      self.stopped_mid_move = any(_mid_move(life) for life in self.lives
+                                  if life.dead is None)
       raise MissionAborted(f"stopping: {self.stop_requested}")
     if self.busy():                       # after a busy stretch replays too
       return
@@ -609,13 +617,17 @@ class Keeper:
 
   def finish(self) -> bool:
     """The save a run ends with, after its day; True if it was written.
-    ⚠ NONE WITH A BODY MID-MOVE (`busy`: a paused world stops in one), and
-    then the restore this process counted is given back, where no save
-    came after it (`uncount`): a clean stop is no crash."""
-    if not (self.stopped_mid_move or self.busy()):
+    ⚠ NONE WHERE A PAUSED WORLD STOPPED WITH A LIVING BODY MID-MOVE
+    (`step_hook`), and then the restore this process counted is given back,
+    where no save came after it (`uncount`): a clean stop is no crash.
+    ⚠ ANY OTHER END SAVES, whatever a body is doing: skipped for `busy`, a
+    run ending by its budget while a robot lay dead -- mid get-up until its
+    stand-up, 300 s -- came back from before its fall, alive (#594's
+    review)."""
+    if not self.stopped_mid_move:
       return self.save()
-    print("world state: not saved at the end -- a body is mid-move, and the "
-          "last save stands")
+    print("world state: not saved at the end -- the world was stopped while "
+          "paused with a body mid-move")
     if self.saves == 0 and self.counted is not None:
       uncount(self.path, self.counted)
     return False

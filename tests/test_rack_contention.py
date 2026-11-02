@@ -145,10 +145,11 @@ def test_the_loop_leaves_the_rack_before_it_thinks_but_only_for_somebody():
 def test_a_day_that_ends_at_the_station_leaves_it_for_the_other():
   """...and so does a day that ENDS there (#594). The pair recording's day,
   flown on the release (d9bc943): Rowan's charge ended at 292 s and its
-  day 18 s later with nothing left to do, 0.88 m from the station -- DONE
-  in Luca's way until asked aside, then lingering there 90 s. A day ending
-  there leaves first, as a decision would, where there is another robot;
-  alone, it ends where it ends. Shown to fail without the leave."""
+  day 18 s later with nothing left to do, 0.37 m from the station -- DONE
+  in Luca's way in until Luca asked it aside, then 0.88 m off it to the
+  run's end (`STATION: lingering`). A day ending there leaves first, as a
+  decision would, where there is another robot; alone, it ends where it
+  ends. Shown to fail without the leave."""
   cfg = lc.world_config("home_humanoid")
   x, y, yaw = cfg["dock"]
   for other in (None, stub_life()):

@@ -4803,8 +4803,9 @@ class HubLifecycle:
     the first robot's (`pair.build_pair`) and stops the loop both live in,
     and the second was paused and woken with neither line in its History.
 
-    ⚠ A STOP ENDS THE PAUSE (#594, `stopping`): the keeper's hook, later on
-    this seam, stops the world at this step, and the run's end saves it
+    ⚠ A STOP ENDS THE PAUSE, AND NO PAUSE BEGINS AFTER ONE (#594,
+    `stopping`): the keeper's hook, later on this seam, stops the world at
+    this step, and the run's end saves it unless a living body was mid-move
     (`Keeper.finish`). Held here, that hook never ran: a deploy's SIGTERM
     went unhonoured and the process was killed unsaved. Nothing resumed, so
     nothing says it did.
@@ -4818,6 +4819,8 @@ class HubLifecycle:
       return
     if self.mode.poll() != "paused":
       return
+    if self.stopping:
+      return                    # ...polled, for the keeper's `paused` to read
     wall0 = time.monotonic()
     paused_at = self.mode.at
     told = (self, *self.peers)
@@ -5878,8 +5881,8 @@ class HubLifecycle:
     if self.dead is None and not self.battery.empty:
       # ...and never AT the station (#594): a day that ended there -- its
       # budget passed in a charge, or nothing left to do after one -- was
-      # DONE in the other robot's way, 0.88 m off it for 90 s on the pair
-      # recording's day
+      # DONE in the other robot's way in, 0.37 m off it on the pair
+      # recording's day until asked aside, and 0.88 m off it from then on
       yield from self._leave_rack_routine()
     self.state = "DONE"
     if self.continuing:
