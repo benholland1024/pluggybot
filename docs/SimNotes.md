@@ -3707,8 +3707,8 @@ corrections: the humanoid's heading is its IMU's alone
 the error to 1e-13 m and 1e-11 deg. A flight's draws are its IMU's offset
 and scale and its joints' noise: Luca's and Rowan's own, and other seeds;
 `--learned` takes the gyro's offset off what its heading integrates, as a
-zero-rate update that had learned it would (the quadruped's
-`imu.Standstill`, #425: nothing under `humanoid/` has one).
+zero-rate update that had learned it would (the quadruped's, #425: the
+humanoid had none until #593, below).
 
 | flight, from | gyro offset, deg/min | along the facility's outer walls | worst | home from the storeroom | the charge |
 |---|---|---|---|---|---|
@@ -4349,8 +4349,71 @@ head's dearer drawer, door and chest, as its rule says.
 lost outdoors, which opens with the deploy (Observatory.md). #572's
 stage 3 should read this one: a bowed robot's scans now count, so its
 heading at a counter is held by the matcher, and a zero-rate update may be
-needed only where nothing is matched. The world's height map as the store,
+needed only where nothing is matched (#593 holds it there, below). The world's height map as the store,
 which the grid becomes a projection of, is its own issue.
+
+## A robot left standing when its run ends, and a heading held at a standstill (issue #593)
+
+**What the live pair showed.** On 34cd4e3 (2026-11-01 and 02) Rowan stood
+in `DONE` four times for 20-55 minutes before a restart, no scan matched,
+its heading turning by its gyro's offset (3 deg a minute, near the part's
+worst) until it was 105-161 deg off. Each next run carried on from that
+belief (#345): a wide search put it 2.6 m and 176 deg off, a room turned
+round, and it died flat 40 m lost; later a false fit 7 m off, and a fall
+5-20 m lost. Luca never stood in `DONE`: each time it was the robot still
+charging.
+
+**Why.** A run ends robot by robot: the day loop checks its budget between
+errands, so a robot charging passes it inside the charge, and the other's
+day ends first. `tick.run_many` held the finished robot `STILL`, running
+its stepper's bookkeeping -- the odometry, integrating the gyro -- and
+nothing its routines do between steps, where a scan is matched and laid
+(`Navigator._after_step`).
+
+**The finished robot's wait** (`run_many`'s `waits`, given by `run_pair`):
+its body's own hold, as a robot waiting for work holds, until the other's
+day ends; the loop still ends on that step, and the wait is closed there.
+Flown, the served pair in the house, Rowan's day over at 6 s and Luca's
+exploring, running low and charging past the run's budget to 478 s
+(`done_flight`, scratch; Rowan's draws, its offset +2.98 deg a minute):
+
+| Rowan in `DONE`, 472 s | heading off at most | belief off at most | scans matched |
+|---|---|---|---|
+| held `STILL` by the loop (before) | 23.4 deg, its offset times the time | 6 cm | 61 before its day ended, then none |
+| its body's hold | 0.09 deg | 1.2 cm | 4,700, ten a second |
+
+**A heading held at a standstill** (`imu.HeadingHold` in the odometry,
+#425's zero-rate update on the heading alone, the filter's tilt the
+accelerometer's). Where nothing is matched -- every scan refused, a robot
+lost -- the same offset turns a standing robot. One humanoid in the house,
+its matcher off, its gyro's offset the part's worst (0.05 deg/s each axis),
+stood three minutes after three scenes (`hold_probe`, scratch):
+
+| standing still | the body's own turn as it settled | held from 30 s (served) | from 20 s | unheld, at 3 min |
+|---|---|---|---|---|
+| booted, the standing policy | 5.6 deg: 0.75 deg/s at once, 0.08 at 20 s, under 0.001 from 45 s | 1.59 deg | 1.40 | 9.0 |
+| after a 2 m walk, the walker | 1.5 deg, 0.03 deg/s at 20 s | 1.49 | 1.08 | 8.9 |
+| after a turn on the spot, the walker | 16.1 deg: 2 deg/s, 0.34 at 20 s, 0.07 at 40, under 0.01 from 60 | 2.63 | 3.56 | 8.9 |
+
+Rested 20 s, its sway in heading smoothed to under 0.091 deg/s (p99 0.05)
+on either policy, inside the gate's 0.2, and the hold held throughout; it
+learned the offset to 0.049-0.050 deg/s. What it cannot tell from rest is
+the settle's slow real turn: what of it comes once the hold begins is
+taken for stillness, and the offset turns the heading until then. Begun at
+the rest's 8.6 s (as the quadruped's was) the worst was 3.6 deg, at 60 s
+3.0. Over the three, 30 s's worst (2.6) is second only to 40 s's (2.4),
+and it keeps a commoner rest's -- after a walk, a boot -- under 1.6 deg,
+where 40 s let the offset turn it 2.
+
+**What is true now.** A robot whose day ends first holds as one waiting
+for work does, its scans matched, until the other's ends. A humanoid
+resting 30 s past its last motion command holds its heading while its IMU
+agrees nothing turns it, and takes off its heading the offset it learned
+there, walking too: standing where nothing is matched it is off by what
+its offset turned it in those 30 s and what of its settle came after,
+1.5-2.6 deg at the part's worst, where its offset turned it 3 deg a minute
+unheld. Where its scans are matched, the matcher holds its heading as
+before.
 
 ## Debugging workflow that worked
 

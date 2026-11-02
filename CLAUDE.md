@@ -1446,7 +1446,12 @@ save a filmstrip PNG named after the script.
   every robot's `after_step` — the same three things in the same order, so a
   robot alone is unchanged. `HubLifecycle.run()` is `begin()` + `end()`, which `run_pair`
   shares one loop between. ⚠ A hook's `MissionAborted` is thrown into EVERY
-  live routine, then re-raised: one robot's stop is the day's stop. ⚠ Mutual awareness is the REPORTED pose (a
+  live routine, then re-raised: one robot's stop is the day's stop. ⚠ A
+  ROBOT WHOSE DAY ENDS FIRST HOLDS THROUGH ITS BODY'S OWN HOLD until the
+  other's ends (`run_many`'s `waits`, #593): a run ends robot by robot, and
+  held STILL by the loop -- its stepper's bookkeeping, none of its
+  routines' -- Rowan matched no scan for 20-55 minutes while Luca charged,
+  its heading turned 105-161 deg, and the next run carried on lost. ⚠ Mutual awareness is the REPORTED pose (a
   network fact) -- but a robot STILL, fallen, resting or dead, is kept
   clear of where its BODY lies, placed as the other's own sensors would, and
   the depth camera's hold skips it (`keep_clear`, `_near_field_step`; #365,
@@ -1690,7 +1695,15 @@ save a filmstrip PNG named after the script.
   (issue #386; `perception/imu.py`, `humanoid/senses.py`, Parts.md's
   table): an ICM-42688-P, every joint off its driver's reply (the
   RobStrides' CAN fields, `senses.JointSense`), the tilt off the IMU
-  (`imu.Attitude`); one noise stream per robot, kept across a restart.
+  (`imu.Attitude`); one noise stream per robot, kept across a restart. ⚠
+  SETTLED AT REST, THE HEADING IS HELD (`imu.HeadingHold`, #593; the
+  odometry's, the filter untouched): resting `HOLD_AFTER_S` (30 s) past its
+  last motion command, its heading turns by nothing while the IMU agrees
+  nothing turns it, and the gyro's offset is learned and taken off from
+  then on. A humanoid stopped turns on as it settles (0.34 deg/s 20 s after
+  a turn on the spot), and held from the rest's 8.6 s it was off by up to
+  3.6 deg, from 30 s 1.5-2.6; unheld, no scan matched, its offset turned it
+  3 deg a minute.
   The sim's own checks (`true_pose`, deaths, traces) read the truth and
   never feed a belief. ⚠ NOR WHAT A BODY TOUCHES (Ben, 2026-10-15): the
   contact list and whose geom it was are the sim's, so new code that
