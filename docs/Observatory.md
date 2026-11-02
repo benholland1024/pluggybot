@@ -37,9 +37,8 @@ and with 140 pushes where staging needed 181; from round the standoff 33 of
 
 **What the period is for.** No charge ends "no charge contact (it pushed the
 plug in and the port never took it)", and no `stuck` death says so: read off
-the charges' narration and the `death` rows. ⚠ It may open with #594's,
-#572's stage 3 and #581's stage 3 periods if they deploy together: read it
-against the one before them all.
+the charges' narration and the `death` rows. ⚠ It may open with #594's
+period if the two deploy together: read it against the one before them.
 
 ### Closes pay and `say` speaks again, a stop while paused saves, a wake counts the world's pause, and a day's end leaves the station (#594) — opens when this PR is deployed
 
