@@ -16,9 +16,11 @@ before).
                                   # with its rays' origin at each height over
                                   # the hips (`HumanoidSpec.lidar_z`): what a
                                   # lower head costs
-    ... --view head               # the head built round it, turning in the
-                                  # viewer, where its steep rings meet the
-                                  # floor drawn (MUJOCO_GL unset)
+    ... --view head               # the head built round it, close, turning
+                                  # in the viewer (MUJOCO_GL unset)
+    ... --view rings              # the robot from further off, where its
+                                  # steep rings meet the floor and where the
+                                  # rays its body hides would have
     ... --strip head [--out PNG]  # its filmstrip: lidar_head.png
     ... --cost [--poses N]        # ms a frame in the house: the level ring,
                                   # the cloud, the band, the depth camera's
@@ -502,22 +504,24 @@ def head_world():
 
 
 def head_marks(model, data) -> list[tuple[np.ndarray, np.ndarray]]:
-  """Where the three steepest rings meet the floor, and where every ray
-  its body hides strikes it -- the fin and the back's panels behind, the
-  shoulders' motors aside -- off a noiseless cast from where the sensor
-  is."""
+  """Where the three steepest rings meet the floor, and where each ray its
+  body hides -- the fin and the back's panels behind, the shoulders'
+  motors aside -- would have met it: the floor it does not see, off a
+  noiseless cast from where the sensor is. (Drawn where they meet the body,
+  the back's hidden rays buried the head in marks.)"""
   lidar = ld.Lidar(model, noise=False)
   dist, hit = lidar._cast(data, lidar._dirs)
   pos = data.site_xpos[lidar.site_id].copy()
-  mat = data.site_xmat[lidar.site_id].reshape(3, 3)
-  ends = pos + (lidar._dirs @ mat.T) * dist[:, None]
-  mine = np.isin(hit, lidar._self_ids)
+  dirs = lidar._dirs @ data.site_xmat[lidar.site_id].reshape(3, 3).T
+  ends = pos + dirs * dist[:, None]
+  mine = np.isin(hit, lidar._self_ids) & (dirs[:, 2] < -1e-6)
   ring = np.repeat(np.arange(len(lidar.elevations)), ld.BEARINGS)
   floor = model.geom("floor").id
   out = []
   for k, rgba in RING_MARKS:
     out += [(p, rgba) for p in ends[(ring == k) & (hit == floor)]]
-  out += [(p, HIDDEN_RGBA) for p in ends[mine]]
+  down = pos + dirs[mine] * (pos[2] / -dirs[mine, 2])[:, None]
+  out += [(p, HIDDEN_RGBA) for p in down]
   return out
 
 
@@ -536,7 +540,7 @@ HEAD_TILES = (
   ("head", 0.9, 290.0, -36.0, "the site's 36 deg, its left"),
   ("head", 0.9, 30.0, -36.0, "the site's 36 deg, behind"),
   ("feet", 4.2, 215.0, -38.0, "the steepest rings on the floor: -52 red, -48 orange, -44 "
-                              "yellow; hidden rays magenta"),
+                              "yellow; where its hidden rays would land, magenta"),
   ("feet", 4.6, 180.0, -89.0, "from overhead: the back's shadow behind, the shoulders' "
                               "aside"),
   ("body", 3.0, 200.0, -36.0, "as the site's follow camera frames it, 3 m off"),
@@ -577,26 +581,35 @@ def strip_head(out: str = "lidar_head.png", w: int = 480, h: int = 360) -> None:
   print(f"wrote {out}: {len(tiles)} tiles")
 
 
-def view_head() -> None:
-  """The head in the viewer, turning slowly round it, the marks drawn;
-  looped until the window closes."""
+def view_head(marks: bool = False) -> None:
+  """The head in the viewer, close and turning slowly round it; with
+  `marks`, the robot from further off and the marks on the floor round it
+  (`head_marks`). Looped until the window closes."""
   from mujoco import viewer as mj_viewer
   model, data = head_world()
-  marks = head_marks(model, data)
-  print("the head built round the LIDAR, turning: the face and its cameras in the visor, the "
-        "dome, the window, the back's panels under it and the fin, the cap on its padded rim; "
-        "on the floor, where its three steepest rings meet it (-52 red, -48 orange, -44 "
-        "yellow), and magenta where a ray its own body hides strikes it. Close the window to "
-        "quit.")
+  root = data.xpos[model.body("pluggybot").id]
+  if marks:
+    print("the floor round the robot standing: where its three steepest rings meet it (-52 "
+          "red, -48 orange, -44 yellow), and magenta where a ray its own body hides would "
+          "have met it -- the back's panels hide the steep rings behind it, the shoulders' "
+          "motors the steepest aside. Close the window to quit.")
+  else:
+    print("the head built round the LIDAR, turning: the face and its cameras in the visor, the "
+          "dome, the window with the unit in it, the back's panels under the window and the "
+          "fin up the middle of the back, the cap on its padded rim. `--view rings` draws "
+          "what its rays reach on the floor. Close the window to quit.")
   with mj_viewer.launch_passive(model, data) as viewer:
-    # over the robot, between its head and the rings round its feet
-    viewer.cam.lookat[:] = data.xpos[model.body("pluggybot").id] + [0.0, 0.0, 0.2]
-    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 3.4, 215.0, -32.0
-    with viewer.lock():
-      draw(viewer.user_scn, marks)
+    if marks:
+      viewer.cam.lookat[:] = root + [0.0, 0.0, 0.2]
+      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 3.4, 215.0, -32.0
+      with viewer.lock():
+        draw(viewer.user_scn, head_marks(model, data))
+    else:
+      viewer.cam.lookat[:] = root + [0.0, 0.0, hm.CHOSEN.lidar_z - 0.06]
+      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 1.1, 215.0, -20.0
     while viewer.is_running():
       with viewer.lock():
-        viewer.cam.azimuth = (viewer.cam.azimuth + 0.4) % 360.0
+        viewer.cam.azimuth = (viewer.cam.azimuth + 0.3) % 360.0
       viewer.sync()
       time.sleep(1 / 60)
 
@@ -612,15 +625,20 @@ def main(argv=None) -> int:
   ap.add_argument("--probe", action="store_true",
                   help="#572's static probe: the level ring against the band")
   ap.add_argument("--variants", default="ring,band", help="--probe's: ring, band or both")
-  ap.add_argument("--view", nargs="?", const="walk", default=None, choices=("walk", "head"),
-                  help="the walk, or the head, in the viewer (MUJOCO_GL unset)")
+  ap.add_argument("--view", nargs="?", const="walk", default=None,
+                  choices=("walk", "head", "rings"),
+                  help="the walk, the head, or what its rings reach on the floor, in the "
+                       "viewer (MUJOCO_GL unset)")
   ap.add_argument("--strip", nargs="?", const="walk", default=None, choices=("walk", "head"),
                   help="the walk's filmstrip, or the head's")
   ap.add_argument("--out", default=None, help="rows as JSON (--hidden, --cost, --probe), "
                   "or the filmstrip's PNG")
   args = ap.parse_args(argv)
   if args.view:
-    view_head() if args.view == "head" else view()
+    if args.view == "walk":
+      view()
+    else:
+      view_head(marks=args.view == "rings")
     return 0
   if args.strip == "head":
     strip_head(args.out or "lidar_head.png")
