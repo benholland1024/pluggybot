@@ -245,15 +245,49 @@ def test_run_many_drives_a_finished_robot_by_its_wait_until_the_last_returns():
   assert booked == [0, 1, "returned", "closed"]
 
 
-def test_a_robot_whose_day_ends_first_holds_through_its_body_until_the_others_ends():
+def test_a_waits_own_exception_is_raised_as_it_is_never_thrown_into_the_others():
+  """A finished robot's wait that raises between its steps (its scan match,
+  a look) raises as a live routine's own exception does: thrown into the
+  others, a procedure's `except Exception` took the waiting robot's error
+  for its own failure and both days went on."""
+  log: list = []
+  a, b = _Swap(log, "a"), _Swap(log, "b")
+  seen: list = []
+
+  def ra():
+    yield 0.1, 0.0
+
+  def rb():
+    try:
+      for _ in range(5):
+        yield 0.2, 0.0
+    except RuntimeError:
+      seen.append("b caught it")
+      for _ in range(5):
+        yield 0.2, 0.0
+
+  def wait():
+    yield 0.0, 0.5
+    raise RuntimeError("its scan")
+
+  with pytest.raises(RuntimeError, match="its scan"):
+    tick.run_many([(a, ra()), (b, rb())], waits=[wait, None], step=lambda: None)
+  assert seen == []
+
+
+def test_a_robot_whose_day_ends_first_holds_through_its_body_until_the_others_ends(monkeypatch):
   """#593, the pair's wiring, on the stub: a run ends robot by robot,
   between each one's errands, and Luca's charge outlasted Rowan's day by
   20-55 minutes four times in a day. Held STILL by the loop, Rowan matched
   no scan while its gyro turned its heading 105-161 deg, and the next run
   carried on from that belief, lost. Its wait is its body's own hold, as a
   robot waiting for work holds, here counted. Shown to fail with
-  `run_pair`'s `waits` taken out: it holds nothing once its day is over."""
+  `run_pair`'s `waits` taken out: it holds nothing once its day is over.
+  Luca stands by in 4 s slices, so its day ends at 32 s, inside one of
+  Rowan's 5 s holds: a wait finished first would end the run at 35."""
+  from pluggybot import lifecycle
   from pluggybot.pair import run_pair
+  monkeypatch.setattr(lifecycle, "WAIT_FOR_WORK_S", 4.0)
   model, data = StubBody.world()
   model.opt.timestep = 0.05                 # nothing stepped here is physics
   luca = stub_life(body=StubBody(model, data), robot_name="Luca")
@@ -271,11 +305,11 @@ def test_a_robot_whose_day_ends_first_holds_through_its_body_until_the_others_en
   rowan.body.hold_routine = counted
   first, second = run_pair([luca, rowan], max_sim_time=30.0, explore_budget=0.0)
   assert first["state"] == second["state"] == "DONE"
-  assert second["sim_time"] == pytest.approx(30.0, abs=0.06), \
+  assert second["sim_time"] == pytest.approx(32.0, abs=0.06), \
     "the run ends with the other's day, never a slice of the wait later"
   assert held and held[0] <= 0.1, "held from its day's end..."
-  assert held[-1] == pytest.approx(30.0, abs=0.11), "...to the other's"
-  assert len(held) == pytest.approx(30.0 / 0.05, abs=2), "every step between"
+  assert held[-1] == pytest.approx(32.0, abs=0.11), "...to the other's"
+  assert len(held) == pytest.approx(32.0 / 0.05, abs=2), "every step between"
 
 
 def _mission(at=(1.0, 1.0)):

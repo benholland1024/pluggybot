@@ -120,7 +120,9 @@ def run_many(pairs, name: str = "", step=None, waits=None) -> list:
 
   An exception from the step -- a hook's `MissionAborted` -- is thrown into
   EVERY live routine, so each one's cleanup runs (the swap timestep, the
-  press flag), and then re-raised: one robot's stop is the day's stop.
+  press flag), and then re-raised: one robot's stop is the day's stop. A
+  routine's own exception, a wait's too, is raised as it is: thrown into
+  the others, a waiting robot's sensing error read as their failure.
   Returns each routine's result, in order.
   """
   steps = [Step(r, f"{name}:{i}") for i, (_, r) in enumerate(pairs)]
@@ -146,10 +148,11 @@ def run_many(pairs, name: str = "", step=None, waits=None) -> list:
   cmds = [st.tick() for st in steps]
   try:
     while any(c is not None for c in cmds):
+      now = [c if c is not None else held(i) for i, c in enumerate(cmds)]
       exc = None
       try:
-        for i, (sw, c) in enumerate(zip(steppers, cmds)):
-          sw.apply(c if c is not None else held(i))
+        for sw, c in zip(steppers, now):
+          sw.apply(c)
         step()
         for sw in steppers:
           sw.after_step()
