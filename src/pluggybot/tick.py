@@ -103,53 +103,79 @@ class Step:
       return None
 
 
-def run_many(pairs, name: str = "", step=None) -> list:
+def run_many(pairs, name: str = "", step=None, waits=None) -> list:
   """Drive several robots' routines from ONE physics loop (issue #167).
 
   `pairs` is `[(stepper, routine), ...]`, one per robot. Each step: every
   robot's command is applied (`apply`), the world steps ONCE, every robot's
   bookkeeping runs (`after_step`) -- the three things `step` does for one
   robot, in the same order, so a robot alone here is the robot alone
-  there. A robot whose routine has returned holds `STILL` and waits for
-  the others; the loop ends when all have returned.
+  there. A robot whose routine has returned waits for the others: driven by
+  its WAIT where `waits` gives it one -- a callable handing back a routine,
+  begun again whenever it returns -- else held at `STILL`. The loop ends
+  when every robot's routine has returned, and a wait is closed where it
+  stands. ⚠ Held at `STILL`, a robot gets its stepper's bookkeeping and
+  nothing its routines do between steps: a humanoid's scans are matched
+  there, and one held so for most of an hour lost its heading (#593).
 
   An exception from the step -- a hook's `MissionAborted` -- is thrown into
   EVERY live routine, so each one's cleanup runs (the swap timestep, the
-  press flag), and then re-raised: one robot's stop is the day's stop.
+  press flag), and then re-raised: one robot's stop is the day's stop. A
+  routine's own exception, a wait's too, is raised as it is: thrown into
+  the others, a waiting robot's sensing error read as their failure.
   Returns each routine's result, in order.
   """
   steps = [Step(r, f"{name}:{i}") for i, (_, r) in enumerate(pairs)]
   steppers = [sw for sw, _ in pairs]
+  waits = list(waits) if waits is not None else [None] * len(steps)
+  waiting: list[Step | None] = [None] * len(steps)
   if step is None:
     import mujoco
 
     def step():
       mujoco.mj_step(steppers[0].model, steppers[0].data)
+
+  def held(i: int) -> Command:
+    """The command robot `i` steps with once its routine has returned."""
+    if waits[i] is None:
+      return steppers[i].STILL
+    cmd = waiting[i].tick() if waiting[i] is not None else None
+    if cmd is None:
+      waiting[i] = Step(waits[i](), f"{name}:{i}:wait")
+      cmd = waiting[i].tick()
+    return steppers[i].STILL if cmd is None else cmd
+
   cmds = [st.tick() for st in steps]
-  while any(c is not None for c in cmds):
-    exc = None
-    try:
-      for sw, c in zip(steppers, cmds):
-        sw.apply(c if c is not None else sw.STILL)
-      step()
-      for sw in steppers:
-        sw.after_step()
-    except BaseException as e:  # noqa: BLE001 -- re-raised inside every routine
-      exc = e
-    if exc is not None:
-      first = None
-      for i, st in enumerate(steps):
-        if cmds[i] is None:
-          continue
-        try:
-          cmds[i] = st.tick(exc)
-        except BaseException as e:  # noqa: BLE001
-          first = first or e
-          cmds[i] = None
-      if first is not None:
-        raise first
-      continue
-    cmds = [st.tick() if c is not None else None for st, c in zip(steps, cmds)]
+  try:
+    while any(c is not None for c in cmds):
+      now = [c if c is not None else held(i) for i, c in enumerate(cmds)]
+      exc = None
+      try:
+        for sw, c in zip(steppers, now):
+          sw.apply(c)
+        step()
+        for sw in steppers:
+          sw.after_step()
+      except BaseException as e:  # noqa: BLE001 -- re-raised inside every routine
+        exc = e
+      if exc is not None:
+        first = None
+        for i, st in enumerate(steps):
+          if cmds[i] is None:
+            continue
+          try:
+            cmds[i] = st.tick(exc)
+          except BaseException as e:  # noqa: BLE001
+            first = first or e
+            cmds[i] = None
+        if first is not None:
+          raise first
+        continue
+      cmds = [st.tick() if c is not None else None for st, c in zip(steps, cmds)]
+  finally:
+    for w in waiting:
+      if w is not None:
+        w.routine.close()
   return [st.result for st in steps]
 
 

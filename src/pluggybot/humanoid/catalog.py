@@ -455,7 +455,7 @@ PARTS: tuple[Part, ...] = (
                   "imu": "ICM-40609",
                   "ip": "IP67"},
     note="The head's LIDAR since #581 (Ben's call 2, 2026-11-01), upside down as Unitree's "
-         "G1 carries a Mid-360: its rays reach the floor 1.15 m out and see the house's 0.9 m fences, which the C1's "
+         "G1 carries a Mid-360: its rays reach the floor 1.10 m out and see the house's 0.9 m fences, which the C1's "
          "one plane 1.41 m up passed over. Livox's sheet (livoxtech.com/mid-360s/specs): "
          "14 W self-heating below 0 C; the Mid-360's manual adds 18 W for about 8 s at "
          "start-up. Funduino (DE): only 3 left; OpenELAB lists the Mid-360 at EUR 755-812. "
@@ -599,6 +599,32 @@ PARTS: tuple[Part, ...] = (
     priceEur=21.0,
     why={"dimensionsMm": "a 1 kg spool"},
     note="The head's shell, the torso's cover, the pack's case and the cameras' mounts.",
+  ),
+  Part(
+    "tpu_1kg", "TPU filament (flexible, Shore 94A), 1.75 mm, 1 kg (DAS FILAMENT)",
+    "structure", "chosen", ("build",), (),
+    partNumber="F10908",
+    source="https://dasfilament.de/produkt/tpu-v2-filament-flexibel-175-mm-schwarz-1-kg/",
+    massG=1000,
+    priceEur=35.0,
+    capabilities={"shoreA": 94, "densityGPerCm3": 1.23},
+    why={"dimensionsMm": "a 1 kg spool"},
+    note="The head's padded rim (#581, stage 3), read 2026-11-02. The page asks for a "
+         "direct-drive extruder, which the P1S has.",
+  ),
+  Part(
+    "rs_189_3249", "Rubber-metal buffer, M3 male to male, 8 x 8 mm, natural rubber, Shore "
+    "A60 (RS PRO)",
+    "fastener", "chosen", ("build",), (),
+    partNumber="189-3249",
+    source="https://de.rs-online.com/web/p/schwingungsdampfer/1893249",
+    dimensionsMm={"diameter": 8, "height": 8},
+    priceEur=2.5075,
+    capabilities={"thread": "M3 male, both ends", "compressionLoadKg": 4.4, "shoreA": 60},
+    why={"massG": "not published"},
+    note="The LIDAR's base on the cap's plate, one in each of its four M3 holes (5 mm deep, "
+         "the Mid-360S's manual), so a blow on the cap reaches the unit through rubber (#581, "
+         "stage 3). Sold in packs of four, €10.03 (€8.43 ex VAT), read 2026-11-02.",
   ),
   Part(
     "albright_sw80b549", "Albright SW80B contactor, 12 V coil, with blowouts (100 A, 96 V DC)",

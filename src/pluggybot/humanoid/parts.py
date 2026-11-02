@@ -461,13 +461,22 @@ PORT_FUNNEL_KG = 0.018
 class Lidar:
   size: tuple[float, float, float]
   kg: float
+  #: Its rays' origin over its base's face, m, and where its window begins
+  #: under that origin (toward the base).
+  origin: float
+  window: float
 
 
 #: The head's LIDAR (#581), the catalog's part: Livox's Mid-360S, 65 x 65 x
-#: 60 mm and 265 g by its sheet, riding upside down on a bracket over the
-#: head (`model.HumanoidSpec.lidar_rise`, `structure`'s `lidar_bracket`).
-#: Its rays are modelled in `perception.lidar`.
-LIDAR = Lidar(size=(0.065, 0.065, 0.060), kg=_catalog_kg("livox_mid360s"))
+#: 60 mm and 265 g by its sheet, upside down in the head, its base bolted
+#: under the cap (`model._head`, `HumanoidSpec.lidar_z`). Its manual puts
+#: the IMU chip 44.12 mm under the rays' origin, on the base's board: the
+#: origin 47 mm over the base's face, 13 mm short of the window's end, and
+#: its +7 deg ray leaves the 65 mm housing 4 mm over it -- the window carried
+#: from 9 mm over the origin (unpublished: the cap's edge as drawn). Its
+#: rays are modelled in `perception.lidar`.
+LIDAR = Lidar(size=(0.065, 0.065, 0.060), kg=_catalog_kg("livox_mid360s"), origin=0.047,
+              window=0.009)
 
 #: What rides the torso besides the pack, by the catalog's parts and their
 #: published masses: the Pi 5 with its cooler and SSD (only their

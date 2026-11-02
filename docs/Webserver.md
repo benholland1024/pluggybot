@@ -230,7 +230,9 @@ Evaluation.md §2).
 
 The served process ends for four reasons: a deploy, a crash, an out-of-memory
 kill, and the `PLUGGY_MAX_SIM_TIME` ceiling (3600 sim s in compose, so every
-hour). Until #345 each new process built the world from its XML: both robots
+hour). The ceiling ends each robot's day between its errands, so a charge can
+carry one on most of an hour past the other, which holds as one waiting for
+work does, its senses on (#593). Until #345 each new process built the world from its XML: both robots
 at their spawn poses on a full pack, both maps empty, every module back on
 its bay, and the job in hand failed. The volume kept what the robots had
 WRITTEN and nothing they had done, so the sixth quality's buffer was refilled

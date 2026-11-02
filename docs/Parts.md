@@ -101,19 +101,20 @@ humanoids get lost"). Raising the fences to 1.8 m fixed it (14 of 14
 docked), and Ben chose the sensor over the fences (2026-11-01): the real
 world has low fences a robot must neither cross nor ignore -- and the
 Mid-360S of the candidates below (call 2, the same day). The part is
-`perception/lidar.py`: 30 rings 2° apart from -52 to +6°, 360 bearings
-each, in one `mj_multiRay` at its 10 Hz (its manual: a 0.1 s frame covers
+`perception/lidar.py`: 15 rings 4° apart from -52 to +4°, 360 bearings
+each (Ben's call 3: 30 rings, 2° apart, ran the served pair too slowly),
+in one `mj_multiRay` at its 10 Hz (its manual: a 0.1 s frame covers
 the field as "a 32-line mechanical LiDAR"), its sheet's range noise (≤ 4 cm
 at 0.2 m to ≤ 2 cm at 10 m) and angle noise (0.15°), 2 % dropout, its 0.1 m
 blind zone, under-ranged to 8 m on purpose; the robot's own returns
 dropped, another robot's split out (#316), its noise its robot's own.
 
-**What it answers** (SimNotes, "The 3D LIDAR on the head"): its LEVEL RING,
-the 360 bearings at 0°, is the scan the map is laid from, as the C1's plane
-was; its points LAID FLAT -- per bearing the nearest surface 0.15-2.2 m
-over the floor, through the IMU's tilt (`Lidar.band`) -- see the fences, the
-tables, the couch and the bed, and are a measurement's switch until #581's
-stage 2 serves them (`HumanoidMission.band`).
+**What it answers** (SimNotes, "The 3D LIDAR on the head" and "The band
+served"): its points LAID FLAT -- per bearing the nearest surface 0.15-2.2 m
+over the floor, through the IMU's tilt (`Lidar.band`) -- are the scan the
+map is laid from and matched by (#581's stage 2): they see the fences, the
+tables, the couch and the bed. Its LEVEL RING, the 360 bearings at 0°, is
+the C1's plane.
 
 **The candidates, and why each lost:**
 - **Unitree L2** ($419 on Unitree's page, about €437 with VAT; 230 g): a
@@ -130,18 +131,42 @@ stage 2 serves them (`HumanoidMission.band`).
 - **A second RPLIDAR tilted at the floor**: one line, as the D435's
   candidates found.
 
-**Its mount.** Upside down, the sheet's -7 to +52° turned over, on a 6082
-bracket: a 20 × 3 mm post up the head's back edge, ON TO the sensor (its
-shadow 3 bearings behind), and a plate over the unit its base bolts under.
-Its rays leave 10 cm over the head's top, 1.47 m up standing, so its
-steepest, -52°, clears the head ahead and to either side and meets the
-floor 1.15 m out; the head's corners hide only the rings under -45°. At the
-C1's 4.7 cm the head hid every ray steeper than 31-35°: the floor out to
-2 m. Standing, the robot hides 3.8 % of a frame; a hand held at a counter,
-a shelf or the floor, 3.6-6 % (`lidar_spike.py --hidden`). It runs off its
-own 12 V converter (its 18 W start-up and the contactor's 13 W are past one
-DDR-30L-12's 30) and takes the Pi 5's Ethernet port. It touches nothing in
-the sim, as the C1 did not: no policy was trained with it to fall on.
+**Its mount: in the head** (#581's stage 3). Stage 1 hung it from a 20 × 3
+mm post 10 cm over the head, and Ben rejected that (2026-11-01): it put a
+€773 sensor at the robot's highest point, on a strip that swayed at about
+12 Hz, where a fall or a door frame would find it first. It is upside down
+now, the sheet's -7 to +52° turned over, and the head is built round it,
+one cylinder 136 mm across above and below its window (SimNotes, "The
+sensor in the head"):
+- **The window:** open all round between the face and the cap; its manual
+  allows nothing in its field, "including glass", and wants 10 mm of air
+  round it. Every part of the head keeps 2 mm out of the whole field but
+  the fin and the back's panels (below).
+- **The cap:** its base bolts under a 6082 plate inside a printed cap, on
+  four M3 rubber-metal buffers (`rs_189_3249`) so a blow on the cap reaches
+  it through rubber. The cap rides a padded rim printed in TPU, 4 mm proud,
+  the first of the head a fall meets.
+- **The fin and the back:** one 6 mm 6082 fin up the head's back carries
+  the cap, edge-on to the sensor: its shadow is 9 bearings. Seven printed
+  panels round the back half close the window under -26°: the rings the
+  band's walls and fences come off, -24° and up, pass over them, and the
+  steeper ones, the floor within 2.6 m behind, meet them. #572's probe pins
+  every outdoor place with them as without them; a back closed to every
+  ring over ±55° left 3 % of the street loop unpinned.
+- **Its height:** its rays leave 0.68 m over the hips, 1.41 m up standing,
+  4 mm over the lowest from which the steepest ray, -52°, clears the
+  navigation camera's front, which came 3.5 cm down into the face with it.
+  The cap's top is 1.48 m up, and 18 mm over the unit's base: no plane
+  meets the unit before the head does.
+- **What it hides:** standing, 25.6 % of a frame, nearly all of it the back's
+  steep rays; a hand held at a counter, a shelf or the floor, 26-29 %
+  (`lidar_spike.py --hidden`). Nothing within 60° of ahead.
+- **Its power:** its own 12 V converter (its 18 W start-up and the
+  contactor's 13 W are past one DDR-30L-12's 30); it takes the Pi 5's
+  Ethernet port.
+
+Every part collides, the unit too; in a fall the rim and the cap strike
+first.
 
 ### The near-field depth camera: RealSense D435 (issue #34)
 
@@ -291,11 +316,11 @@ D435 is fixed in the head, 1.26 m up and pitched 40° down: it sees the
 counter's height from 0.12 to 1.64 m ahead and the floor from 0.48 m, and
 its colour imager reads the tags within reach (a counter's props, the
 station). The Camera Module 3 above it, pitched 20°, reads the tags on the
-walls that mark places, and is the eye a `look` sees through. The
-Mid-360S rides upside down on a bracket over the head, its rays leaving
-1.47 m up: its map is laid from its points laid flat, which see the tables,
-the couch and the bed, and the depth camera sees them by its feet too
-(#581). The IMU rides the pelvis.
+walls that mark places, and is the eye a `look` sees through. Both sit in
+the face's dark visor. The Mid-360S is upside down in the head, under its
+cap, its rays leaving 1.41 m up: its map is laid from its points laid
+flat, which see the tables, the couch and the bed, and the depth camera
+sees them by its feet too (#581). The IMU rides the pelvis.
 
 **The bill.** `humanoid/bill.py`, rendered here and written to
 `protocol/parts.json` by `uv run python -m pluggybot.humanoid.bill`: a part
@@ -338,15 +363,16 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 | [Raspberry Pi SSD Kit, 256 GB (M.2 HAT+ and NVMe)](https://www.berrybase.de/raspberry-pi-ssd-kit-fuer-raspberry-pi-5-256gb) `SC1675` | 1 | 54.90 | 54.90 | not deliverable now (BerryBase); the 512 GB kit is in stock at Reichelt for €166.10 | — |
 | [Waveshare 2-CH CAN HAT+ (MCP2515, isolated) for the Raspberry Pi](https://eckstein-shop.de/WaveShare-2CH-Isolated-CAN-Bus-Expansion-HAT-for-Raspberry-Pi) `27338` | 1 | 29.95 | 29.95 | in stock, 1-3 days (Eckstein) | `humanoid.parts.ELECTRONICS['waveshare_can_hat_plus']` |
 | [Waveshare 2-CH CAN FD HAT (MCP2518FD, isolated) for the Raspberry Pi](https://www.welectron.com/Waveshare-17075-2-CH-CAN-FD-HAT_1) `17075` | 1 | 51.90 | 51.90 | in stock (short supply), 1-3 business days (Welectron) | `humanoid.parts.ELECTRONICS['waveshare_can_fd_hat']` |
-| **sensors** | | | **1,296.90** | | |
+| **sensors** | | | **1,306.93** | | |
 | [RealSense D435 depth camera (active IR stereo)](https://www.digikey.de/de/products/detail/realsense/82635AWGDVKPRQ/9926002) `D435` | 1 | 340.01 | 340.01 | none in stock, the maker's standard lead 14 weeks (DigiKey DE); 21 days at MyBotShop for €419.99 | `depth_eye.fovy`, `humanoid.parts.D435_KG`, `humanoid.model.CHOSEN.depth_pitch_deg`, +1 |
 | [Livox Mid-360S 3D LIDAR (360 x 59 deg, non-repetitive scan)](https://funduino.com/en/products/livox-mid-360s-lidar) `Mid-360S` | 1 | 772.95 | 772.95 | only 3 left in stock, 1-3 working days (Funduino) | `humanoid.parts.LIDAR.kg`, `humanoid.parts.ELECTRONICS_W['lidar']`, `perception.lidar.FOV_DEG`, +4 |
 | [Livox connection cable: M12 aviation connector to power, Ethernet and signal wires, 1.5 m](https://funduino.com/en/products/three-core-livox-connection-cable) `Livox Three Wire Aviation Connector` | 1 | 89.95 | 89.95 | currently unavailable (Funduino) | — |
+| [Rubber-metal buffer, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO)](https://de.rs-online.com/web/p/schwingungsdampfer/1893249) `189-3249` | 4 | 2.51 | 10.03 | temporarily out of stock: 19 ship from 2026-11-30, 41 more from 2026-12-07 (RS) | — |
 | [Mean Well DDR-30L-12 DC-DC converter, 18-75 V in, 12 V 2.5 A, isolated (DIN rail)](https://www.reichelt.com/de/en/shop/product/dc_dc_converter_30w_12v_2_5a-256735) `DDR-30L-12` | 1 | 27.10 | 27.10 | in stock, 1-2 business days (Reichelt) | — |
 | [Raspberry Pi Camera Module 3](https://www.berrybase.de/raspberry-pi-camera-module-3-12mp) `Camera Module 3` | 1 | 28.90 | 28.90 | in stock, 1-3 days (BerryBase) | `nav_eye.fovy` |
 | [Raspberry Pi camera cable, standard to mini, 200 mm](https://www.berrybase.de/raspberry-pi-camera-cable-standard-mini-200mm) `SC1128` | 1 | 1.20 | 1.20 | in stock, 1-3 days (BerryBase) | — |
 | [TDK InvenSense ICM-42688-P evaluation board (IMU)](https://www.digikey.de/de/products/detail/tdk-invensense/EV-ICM-42688-P/18634550) `EV_ICM-42688-P` | 1 | 36.79 | 36.79 | 138 in stock, the maker's standard lead 16 weeks (DigiKey DE) | `perception.imu.GYRO_NOISE` |
-| **frame** | | | **2,510.40** | | |
+| **frame** | | | **2,545.40** | | |
 | The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners | 1 | allowance | 1,600.00 | unknown: nothing drawn to quote | `humanoid.model._bracket` |
 | The pelvis's and the torso's frame: 3 mm 6082 plates | 1 | allowance | 300.00 | unknown: nothing drawn to quote | `humanoid.model.structure[pelvis_side, pelvis_deck, torso_side, torso_back, torso_top]` |
 | The thighs' and shanks' side plates, 5 and 4 mm 6082 | 1 | allowance | 266.67 | unknown: nothing drawn to quote | `humanoid.model.structure[thigh_plate, shank_plate]` |
@@ -354,9 +380,10 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 | The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length | 1 | allowance | 40.00 | unknown: nothing drawn to quote | `humanoid.model.structure[upper_arm_tube, forearm_tube]` |
 | The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end | 1 | allowance | 20.00 | unknown: nothing drawn to quote | `humanoid.model.structure[ankle_rod]` |
 | The plates the grippers bolt to on the wrists' roll, 6 mm 6082 | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[gripper_adapter]` |
-| The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[lidar_post, lidar_roof]` |
+| The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[lidar_fin, lidar_plate]` |
 | [igus igubal KCRM-05 rod end, M5 female, right-hand](https://www.igus.de/product/igubal_KCRM_KCLM?artNr=KCRM-05) `KCRM-05` | 4 | 5.43 | 21.72 | ready to ship in 24 hours (igus) | — |
 | [PETG filament, 1.75 mm, 1 kg (DAS FILAMENT)](https://dasfilament.de/produkt/petg-filament-175-mm-schwarz-1-kg/) `F10765` | 2 | 21.00 | 42.00 | unknown: in stock; the page and its terms give no delivery time | — |
+| [TPU filament (flexible, Shore 94A), 1.75 mm, 1 kg (DAS FILAMENT)](https://dasfilament.de/produkt/tpu-v2-filament-flexibel-175-mm-schwarz-1-kg/) `F10908` | 1 | 35.00 | 35.00 | unknown: in stock; the page gives no delivery time | — |
 | **safety** | | | **291.58** | | |
 | [Albright SW80B contactor, 12 V coil, with blowouts (100 A, 96 V DC)](https://www.rijregeling.nl/en/product/albright-contactors-and-accessories/sw80-series/sw80b549-albright-contactor-12v-contactor/) `SW80B549` | 1 | 82.28 | 82.28 | unknown: the page states none (it can be put in the cart) | `humanoid.parts.ELECTRONICS_W['contactor']` |
 | [Schneider Harmony XB5AS8442 emergency stop, 40 mm twist-release head, 1 NC](https://www.reichelt.com/de/en/shop/product/emergency_stop_switch_harmony_xb5_twist_unlock_22_mm_1_nc-382385) `XB5AS8442` | 1 | 30.95 | 30.95 | available on 2026-10-01 (Reichelt) | — |
@@ -394,10 +421,10 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 
 | | € | $ |
 |---|---|---|
-| priced lines | 11,510.61 | |
+| priced lines | 11,555.64 | |
 | allowances (nothing designed yet) | 2,682.68 | |
-| contingency, 15% | 2,128.99 | |
-| **total** | **16,322.28** | **18,612.30** |
+| contingency, 15% | 2,135.75 | |
+| **total** | **16,374.07** | **18,671.35** |
 
 **The allowances**, each a sum set aside, never a price:
 - **A USB to RS-485 adapter that runs at the grippers' 6 Mbps** (grippers), €30.00: an FTDI-class USB to RS-485 adapter good for 6 Mbps; none chosen
@@ -408,7 +435,7 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 - **The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length** (frame), €40.00: 0.8 m of 6082 round tube in two sizes, cut to length; not priced for this bill
 - **The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end** (frame), €20.00: two 0.34 m rods cut from 8 mm tube and threaded M5 at each end
 - **The plates the grippers bolt to on the wrists' roll, 6 mm 6082** (frame), €66.67: two machined plates at €33.33 a machined part (#379's rate), drawn when the gripper's flange is known (Unitree does not publish it)
-- **The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under** (frame), €66.67: two machined parts at €33.33 a machined part (#379's rate)
+- **The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under** (frame), €66.67: two machined parts at €33.33 a machined part (#379's rate): the cap is printed, the fin that carries it 6082 (a printed fin as thin would sway with the unit on it)
 - **Rosenberger RoPD panel plug, C003-B1 (magnetic, 60 V DC, 25 A): the charge port on the torso's front** (charging), €40.00: the cable jack's listed $43.58
 - **The charge port's funnel, printed in PETG: 70 mm across its mouth, 15 mm deep** (charging), €1.00: 25 g of PETG
 - **Rosenberger RoPD cable jack, C003-03 (25 A), on Rosenberger's C003 cable: the station's plug** (charging), €45.00: $43.58 at Powell
