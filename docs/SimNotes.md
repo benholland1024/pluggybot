@@ -597,10 +597,11 @@ wait until the errand's time ran out.
 **What is true now:** the rack the loop works round is the humanoid's
 charging station (`body.rack_prior`, the station's frame). After an
 interaction there, a robot with somebody else in the world leaves it before
-it decides (`_leave_rack_routine`) and checks that it got there
-(`RACK_CLEAR_M`, `CLEAR_SPOTS`; History says where it ended); one that stays
-within its reach for `RACK_LINGER_S` doing nothing is logged `RACK:
-lingering`. A taken charge seat is waited for
+it decides, and before its day ends there (#594: DONE 0.88 m off it, a
+robot stood in the other's way for 90 s), with `_leave_rack_routine`, and
+checks that it got there (`RACK_CLEAR_M`, `CLEAR_SPOTS`; History says where
+it ended); one that stays within its reach for `RACK_LINGER_S` doing nothing
+is logged `STATION: lingering`. A taken charge seat is waited for
 (`HubLifecycle._await_bay_routine`) for 3× the typical charge
 (`CHARGE_OCCUPANCY_S`, measured on the quadruped pair; the humanoids' are
 not yet), and a failed charge approach logs `charge_trace`.

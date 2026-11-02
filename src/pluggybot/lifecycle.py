@@ -5875,6 +5875,12 @@ class HubLifecycle:
       else:
         break
 
+    if self.dead is None and not self.battery.empty:
+      # ...and never AT the station (#594): a day that ended there -- its
+      # budget passed in a charge, or nothing left to do after one -- was
+      # DONE in the other robot's way, 0.88 m off it for 90 s on the pair
+      # recording's day
+      yield from self._leave_rack_routine()
     self.state = "DONE"
     if self.continuing:
       # NOTHING ENDED (issue #345): the world is saved and the next run

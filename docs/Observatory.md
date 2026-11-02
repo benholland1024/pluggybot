@@ -10,7 +10,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A ticket's close pays again, `say` is open again, a stop while paused saves, and a wake says how long the world slept (#594) — opens when this PR is deployed
+### Closes pay and `say` speaks again, a stop while paused saves, a wake counts the world's pause, and a day's end leaves the station (#594) — opens when this PR is deployed
 
 **What changed in the world.**
 - **An operator's close pays its 25 again, and the robot is shown it.**
@@ -38,6 +38,11 @@ observatory is NOT a result: it reports into the issue it informs.
   it (the mode file's `at`). A process started into a pause counted from
   its own start: on 11-01 a wake said 117 s, and with #562's schedule a
   weekday deploy would have told the robots they slept since it.
+- **A day that ends at the charging station leaves it first**, where there
+  is another robot, as a decision does. On the pair recording's day, flown
+  on the release, Rowan's day ended 18 s after its charge, 0.88 m from the
+  station: it stood `DONE` in Luca's way until asked aside, then lingered
+  there 90 s (`STATION: lingering ... while DONE`).
 - Nothing in the prompt, the schema, the arm or the reward table moved.
 
 **Why.** #594, read off the live world on 34cd4e3 on 11-02.
@@ -45,8 +50,9 @@ observatory is NOT a result: it reports into the issue it informs.
 **What the period is for.** #594's acceptance: on the release, the first
 close pays +25 and shows in that robot's `tickets.closed`; a `say` goes out
 and `sayAgainInS` never reads over 1200; a deploy while paused comes back
-at the moment it paused, never "could not carry on"; and after a pause that
-spans a restart, the wake line says how long the world was paused. ⚠ From 10-27 to
+at the moment it paused, never "could not carry on"; after a pause that
+spans a restart, the wake line says how long the world was paused; and no
+`STATION: lingering` line says `while DONE`. ⚠ From 10-27 to
 the deploy no `say` was the robot's choice: read what a robot says unasked
 from this period on, never against that stretch.
 
