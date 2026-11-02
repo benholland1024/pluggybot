@@ -22,7 +22,7 @@ the header's `model`. The humanoids' house, served since #559's stage 4:
 MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_humanoid
 MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_humanoid --pair
 MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo \
-  --near-field --errands none,none --battery 0.22,0.9 --max-sim-time 600 \
+  --near-field --errands none,none --battery 0.9,0.22 --max-sim-time 600 \
   --record protocol/telemetry.home_humanoid_pair.jsonl.gz
 ```
 
@@ -54,13 +54,17 @@ pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
 No message's shape moves, and no bump. What a scene draws of each
 humanoid's head is new, in shapes a replayer already draws:
-- On the robot's root body, the `head` box is shorter, its top 0.58 m over
-  the hips (0.635 before).
-- Three geoms join it there: `head_dome` (a sphere over the face),
-  `head_crown` (a cylinder round the LIDAR's base) and `head_rib` (a box up
-  the head's back).
-- The body `lidar_mount` moves down to 0.712 m over the hips, its `lidar`
-  box in the window between the dome and the crown; `lidar_post` and
+- On the robot's root body, `head` is a cylinder now (a box before), 136
+  mm across, its top 0.59 m over the hips (0.635 before). Beside it:
+  `head_visor` (a box on its front, the cameras in it), `head_dome` (a
+  sphere over it), `head_cap` and `head_rim` (cylinders, the cap and its
+  padded rim over the window), `head_fin` (a box up the head's back) and
+  `head_back0`-`head_back6` with their `_inside` faces (boxes, turned
+  about the vertical, round the back half). The visor, the dome, the rim
+  and the panels' inner faces carry their own dark rgba, as the cameras
+  do, so a second robot's livery leaves them alone.
+- The body `lidar_mount` moves down to 0.68 m over the hips, its `lidar`
+  box in the window between the dome and the cap; `lidar_post` and
   `lidar_roof` are gone.
 
 The deploy that brings it starts both robots at their starts on no map: the
@@ -3030,7 +3034,7 @@ against the body census.
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (the scene command) |
 | `parts.json` | The **parts list** (issue #185): what the humanoid is made of (#507), each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled body when the file is built — and the bill it totals. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.humanoid.bill` |
 | `scene.home_humanoid_pair.json` | The home world with the HUMANOID pair (#559): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene --world home_humanoid --pair` |
-| `telemetry.home_humanoid_pair.jsonl.gz` | The deployed period's shape: no offers, no upkeep; the first robot, started low, walks to its station, plugs itself in and charges while the second explores, then the second charges -- both maps and near fields | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo --near-field --errands none,none --battery 0.22,0.9 --max-sim-time 600 --record protocol/telemetry.home_humanoid_pair.jsonl.gz` |
+| `telemetry.home_humanoid_pair.jsonl.gz` | The deployed period's shape: no offers, no upkeep; the second robot, started low, walks to its station, plugs itself in and charges while the first explores, then the first charges -- both maps and near fields (the roles swapped on #581's head: from its own start the first robot's plug-in misses the port 3.5 cm aside, every try) | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_humanoid --fast --pack demo --near-field --errands none,none --battery 0.9,0.22 --max-sim-time 600 --record protocol/telemetry.home_humanoid_pair.jsonl.gz` |
 | `scene.home_humanoid_counter.json` | A world of one's own (pluggybot #530): the house, the HUMANOID where the counter's set-out starts it, the counter and chest 0 on it (`evaluation.counter`), its `head` camera named -- never the served world | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record ...` (writes it beside the recording) |
 | `telemetry.home_humanoid_counter.jsonl.gz` | The reference's attempt at chest 0 (`evaluation.opener`), streamed as a person's session streams one: the scene after the header, the robot's senses (`readouts`, `depth`), and ONE `attempt` at the end, which passed | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record protocol/telemetry.home_humanoid_counter.jsonl.gz` |
 | `hello.home_humanoid_counter.json` | The session host's `hello` as a fresh host says it (rooftop-media-2026 #441): no build, nothing running; the task, the job, the robot's text and its `index`, which the site's guide for people is checked against | `uv run python -m pluggybot.session.host --hello` |

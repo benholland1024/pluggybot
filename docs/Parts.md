@@ -132,34 +132,41 @@ the C1's plane.
   candidates found.
 
 **Its mount: in the head** (#581's stage 3). Stage 1 hung it from a 20 × 3
-mm post 10 cm over the head, and Ben rejected that (2026-11-01). It put a
+mm post 10 cm over the head, and Ben rejected that (2026-11-01): it put a
 €773 sensor at the robot's highest point, on a strip that swayed at about
-12 Hz with the unit on it, where a fall or a door frame would find it
-first. It is upside down now, the sheet's -7 to +52° turned over, and the
-head is built round it, as Unitree's G1 carries its Mid-360 ("in the
-middle of the head, inverted"):
-- **The crown and the rib:** its base bolts under a 6082 plate inside a
-  printed crown, which a 6 × 15 mm 6082 rib carries up the head's back,
-  edge-on to the sensor. The rib's shadow is 7 bearings behind. It rises
-  9 cm out of the dome and sways at about 50 Hz with the unit on it.
-- **The window:** open all round, between the crown and a printed dome
-  over the face. Its manual allows nothing in its field, "including glass",
-  and wants 10 mm of air round it. The dome lies inside the steepest ray's
-  cone, so it hides nothing.
-- **Its height:** its rays leave 0.712 m over the hips, 1.44 m up
-  standing. That is the lowest point from which the steepest ray, -52°,
-  clears the face's corners (13 cm under it) and the navigation camera;
-  the shoulders' motors hide that ray aside.
-- **What it hides:** standing, 2.6 % of a frame (on the post, 4.8 %); a
-  hand held at a counter, a shelf or the floor, 3.2-5.9 % (3.6-6.9 %).
-  Lower, the head hides more: 3.5 % at 0.70 m, 5.5 % at 0.69 m and 18 % at
-  0.66 m (`lidar_spike.py --hidden --heights`).
+12 Hz, where a fall or a door frame would find it first. It is upside down
+now, the sheet's -7 to +52° turned over, and the head is built round it,
+one cylinder 136 mm across above and below its window (SimNotes, "The
+sensor in the head"):
+- **The window:** open all round between the face and the cap; its manual
+  allows nothing in its field, "including glass", and wants 10 mm of air
+  round it. Every part of the head keeps 2 mm out of the whole field but
+  the fin and the back's panels (below).
+- **The cap:** its base bolts under a 6082 plate inside a printed cap, on
+  four M3 rubber-metal buffers (`rs_189_3249`) so a blow on the cap reaches
+  it through rubber. The cap rides a padded rim printed in TPU, 4 mm proud,
+  the first of the head a fall meets.
+- **The fin and the back:** one 6 mm 6082 fin up the head's back carries
+  the cap, edge-on to the sensor: its shadow is 9 bearings. Seven printed
+  panels round the back half close the window under -26°: the rings the
+  band's walls and fences come off, -24° and up, pass over them, and the
+  steeper ones, the floor within 2.6 m behind, meet them. #572's probe pins
+  every outdoor place with them as without them; a back closed to every
+  ring over ±55° left 3 % of the street loop unpinned.
+- **Its height:** its rays leave 0.68 m over the hips, 1.41 m up standing,
+  4 mm over the lowest from which the steepest ray, -52°, clears the
+  navigation camera's front, which came 3.5 cm down into the face with it.
+  The cap's top is 1.48 m up, and 18 mm over the unit's base: no plane
+  meets the unit before the head does.
+- **What it hides:** standing, 25.6 % of a frame, nearly all of it the back's
+  steep rays; a hand held at a counter, a shelf or the floor, 26-29 %
+  (`lidar_spike.py --hidden`). Nothing within 60° of ahead.
 - **Its power:** its own 12 V converter (its 18 W start-up and the
   contactor's 13 W are past one DDR-30L-12's 30); it takes the Pi 5's
   Ethernet port.
 
-Every part collides, the unit too, and in a hard fall the crown strikes
-first (SimNotes, "The sensor in the head").
+Every part collides, the unit too; in a fall the rim and the cap strike
+first.
 
 ### The near-field depth camera: RealSense D435 (issue #34)
 
@@ -309,9 +316,9 @@ D435 is fixed in the head, 1.26 m up and pitched 40° down: it sees the
 counter's height from 0.12 to 1.64 m ahead and the floor from 0.48 m, and
 its colour imager reads the tags within reach (a counter's props, the
 station). The Camera Module 3 above it, pitched 20°, reads the tags on the
-walls that mark places, and is the eye a `look` sees through: it rides the
-dome over the face. The Mid-360S is upside down in the head, under its
-crown, its rays leaving 1.44 m up: its map is laid from its points laid
+walls that mark places, and is the eye a `look` sees through. Both sit in
+the face's dark visor. The Mid-360S is upside down in the head, under its
+cap, its rays leaving 1.41 m up: its map is laid from its points laid
 flat, which see the tables, the couch and the bed, and the depth camera
 sees them by its feet too (#581). The IMU rides the pelvis.
 
@@ -360,7 +367,7 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 | [RealSense D435 depth camera (active IR stereo)](https://www.digikey.de/de/products/detail/realsense/82635AWGDVKPRQ/9926002) `D435` | 1 | 340.01 | 340.01 | none in stock, the maker's standard lead 14 weeks (DigiKey DE); 21 days at MyBotShop for €419.99 | `depth_eye.fovy`, `humanoid.parts.D435_KG`, `humanoid.model.CHOSEN.depth_pitch_deg`, +1 |
 | [Livox Mid-360S 3D LIDAR (360 x 59 deg, non-repetitive scan)](https://funduino.com/en/products/livox-mid-360s-lidar) `Mid-360S` | 1 | 772.95 | 772.95 | only 3 left in stock, 1-3 working days (Funduino) | `humanoid.parts.LIDAR.kg`, `humanoid.parts.ELECTRONICS_W['lidar']`, `perception.lidar.FOV_DEG`, +4 |
 | [Livox connection cable: M12 aviation connector to power, Ethernet and signal wires, 1.5 m](https://funduino.com/en/products/three-core-livox-connection-cable) `Livox Three Wire Aviation Connector` | 1 | 89.95 | 89.95 | currently unavailable (Funduino) | — |
-| [Rubber-metal buffers, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO, a pack of 4)](https://de.rs-online.com/web/p/schwingungsdampfer/1893249) `189-3249` | 1 | 10.03 /pack of 4 | 10.03 | temporarily out of stock: 19 ship from 2026-11-30, 41 more from 2026-12-07 (RS) | — |
+| [Rubber-metal buffer, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO)](https://de.rs-online.com/web/p/schwingungsdampfer/1893249) `189-3249` | 4 | 2.51 | 10.03 | temporarily out of stock: 19 ship from 2026-11-30, 41 more from 2026-12-07 (RS) | — |
 | [Mean Well DDR-30L-12 DC-DC converter, 18-75 V in, 12 V 2.5 A, isolated (DIN rail)](https://www.reichelt.com/de/en/shop/product/dc_dc_converter_30w_12v_2_5a-256735) `DDR-30L-12` | 1 | 27.10 | 27.10 | in stock, 1-2 business days (Reichelt) | — |
 | [Raspberry Pi Camera Module 3](https://www.berrybase.de/raspberry-pi-camera-module-3-12mp) `Camera Module 3` | 1 | 28.90 | 28.90 | in stock, 1-3 days (BerryBase) | `nav_eye.fovy` |
 | [Raspberry Pi camera cable, standard to mini, 200 mm](https://www.berrybase.de/raspberry-pi-camera-cable-standard-mini-200mm) `SC1128` | 1 | 1.20 | 1.20 | in stock, 1-3 days (BerryBase) | — |

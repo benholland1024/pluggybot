@@ -1470,7 +1470,7 @@
   },
   {
    "id": "rs_189_3249",
-   "name": "Rubber-metal buffers, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO, a pack of 4)",
+   "name": "Rubber-metal buffer, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO)",
    "kind": "fastener",
    "status": "chosen",
    "shelves": [
@@ -1487,9 +1487,9 @@
     "diameter": 8,
     "height": 8
    },
-   "priceEur": 10.03,
-   "priceFor": "pack of 4",
-   "quantity": 1,
+   "priceEur": 2.5075,
+   "priceFor": "each",
+   "quantity": 4,
    "capabilities": {
     "thread": "M3 male, both ends",
     "compressionLoadKg": 4.4,
@@ -1499,7 +1499,7 @@
    "why": {
     "massG": "not published"
    },
-   "note": "The LIDAR's base on the cap's plate, one in each of its four M3 holes (5 mm deep, the Mid-360S's manual), so a blow on the cap reaches the unit through rubber (#581, stage 3). €8.43 a pack ex VAT, read 2026-11-02."
+   "note": "The LIDAR's base on the cap's plate, one in each of its four M3 holes (5 mm deep, the Mid-360S's manual), so a blow on the cap reaches the unit through rubber (#581, stage 3). Sold in packs of four, €10.03 (€8.43 ex VAT), read 2026-11-02."
   },
   {
    "id": "pi_camera_3",
@@ -3112,17 +3112,17 @@
    },
    {
     "part": "rs_189_3249",
-    "name": "Rubber-metal buffers, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO, a pack of 4)",
+    "name": "Rubber-metal buffer, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO)",
     "group": "sensors",
-    "quantity": 1,
-    "priceFor": "pack of 4",
-    "eachEur": 10.03,
+    "quantity": 4,
+    "priceFor": "each",
+    "eachEur": 2.5075,
     "lineEur": 10.03,
     "allowance": false,
     "basis": "",
     "leadTime": "temporarily out of stock: 19 ship from 2026-11-30, 41 more from 2026-12-07 (RS)",
     "why": {},
-    "note": "the LIDAR's isolators"
+    "note": "the LIDAR's isolators, a pack of four"
    },
    {
     "part": "meanwell_ddr_30l_12",

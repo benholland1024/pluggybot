@@ -613,19 +613,18 @@ PARTS: tuple[Part, ...] = (
          "direct-drive extruder, which the P1S has.",
   ),
   Part(
-    "rs_189_3249", "Rubber-metal buffers, M3 male to male, 8 x 8 mm, natural rubber, Shore "
-    "A60 (RS PRO, a pack of 4)",
+    "rs_189_3249", "Rubber-metal buffer, M3 male to male, 8 x 8 mm, natural rubber, Shore "
+    "A60 (RS PRO)",
     "fastener", "chosen", ("build",), (),
     partNumber="189-3249",
     source="https://de.rs-online.com/web/p/schwingungsdampfer/1893249",
     dimensionsMm={"diameter": 8, "height": 8},
-    priceEur=10.03,
-    priceFor="pack of 4",
+    priceEur=2.5075,
     capabilities={"thread": "M3 male, both ends", "compressionLoadKg": 4.4, "shoreA": 60},
     why={"massG": "not published"},
     note="The LIDAR's base on the cap's plate, one in each of its four M3 holes (5 mm deep, "
          "the Mid-360S's manual), so a blow on the cap reaches the unit through rubber (#581, "
-         "stage 3). €8.43 a pack ex VAT, read 2026-11-02.",
+         "stage 3). Sold in packs of four, €10.03 (€8.43 ex VAT), read 2026-11-02.",
   ),
   Part(
     "albright_sw80b549", "Albright SW80B contactor, 12 V coil, with blowouts (100 A, 96 V DC)",

@@ -300,7 +300,7 @@ PARTS: tuple[Part, ...] = (
                  code("humanoid.model.CHOSEN.lidar_z", "m", "its rays' origin over the hip "
                       "axes, upside down in the head"))),
   _bought("livox_m12_cable", usedBy=("lidar_mount",)),
-  _bought("rs_189_3249", usedBy=("lidar_mount",)),
+  _bought("rs_189_3249", usedBy=("lidar_mount",), quantity=4),
   _bought("pi_camera_3", usedBy=("nav_cam_body",),
           feeds=(Feed("nav_eye.fovy", camera("nav_eye"), "°",
                       "the places' tags on the walls, and the eye a look sees through",
@@ -433,8 +433,8 @@ LINES: tuple[Line, ...] = (
        "weeks (DigiKey DE); 21 days at MyBotShop for €419.99"),
   Line("livox_mid360s", 1, "sensors", "only 3 left in stock, 1-3 working days (Funduino)"),
   Line("livox_m12_cable", 1, "sensors", "currently unavailable (Funduino)"),
-  Line("rs_189_3249", 1, "sensors", "temporarily out of stock: 19 ship from 2026-11-30, 41 "
-       "more from 2026-12-07 (RS)", note="the LIDAR's isolators"),
+  Line("rs_189_3249", 4, "sensors", "temporarily out of stock: 19 ship from 2026-11-30, 41 "
+       "more from 2026-12-07 (RS)", note="the LIDAR's isolators, a pack of four"),
   Line("meanwell_ddr_30l_12", 1, "sensors", "in stock, 1-2 business days (Reichelt)",
        note="the LIDAR's 12 V"),
   Line("pi_camera_3", 1, "sensors", "in stock, 1-3 days (BerryBase)"),
