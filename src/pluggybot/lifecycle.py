@@ -4146,9 +4146,10 @@ class HubLifecycle:
     the website keeps it as a line of the robot's chat, and History files
     it as the chat's. Rationed at `SAY_EVERY_S` off the store's own record
     of the last one (`ThoughtFiles.last_said`: a restart keeps the clock, a
-    true death forgets it), and cut at a reply's length -- both OUT LOUD,
-    on #474's terms: one too soon is not said and History says when the
-    next may go, and a cut one says where.
+    true death forgets it, and a clock gone back behind it opens the gate,
+    `say_again_in`), and cut at a reply's length -- both OUT LOUD, on
+    #474's terms: one too soon is not said and History says when the next
+    may go, and a cut one says where.
     """
     if not decision.say:
       return
