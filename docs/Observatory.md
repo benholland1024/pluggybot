@@ -10,6 +10,40 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The LIDAR built into the head (#581, stage 3) — opens when this PR is deployed
+
+**What changed in the world.**
+- **Both robots' heads are built round their LIDARs**: the Mid-360S upside
+  down under a printed crown that a 6082 rib carries up the head's back,
+  its window open all round between the crown and a dome over the face,
+  where stage 1 hung it from a post 10 cm over the head. Every part
+  collides, the unit too, so a fall onto the head's top lands on the
+  crown. The robot is 1.50 m tall at the crown, where the post's plate
+  reached 1.535 m. The cameras are where they were.
+- **Its rays leave 1.44 m up** (1.47 on the post), and the robot hides 2.6 %
+  of a frame (4.8 %): the rib's 7 bearings behind, and the steepest ring
+  where the shoulders' motors stand.
+- **A deploy starts both robots at their starts on no map**: the head's
+  shape is new geometry (`continuation.fingerprint`), so the save keeps the
+  clock, the packs, the deaths and the jobs, and History says the world
+  changed. No `MAP_EPOCH` bump: the maps were not laid wrong.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #581's stage 3 (Ben, 2026-11-01): the post put a €773 sensor at
+the robot's highest point on a strip that swayed, where a fall or a door
+frame would find it first, and the sim could not show it, because the unit
+and the post touched nothing. Flown on the new head beside the post: over
+60 drift flights a head, 58 docked on each and none lost (the post lost
+1), the belief's error one distribution; the station 127 of 132 starts
+(the post 123); the get-up stood from every bare-floor and bowed fall, and
+in the house from 16 of 20, as on the post (SimNotes, "The sensor in the
+head").
+
+**What the period is for.** #581's last box, carried over from stage 2's
+period if that never ran alone: a day of the pair, neither robot lost
+outdoors, off the `drift` rows; and the falls, now that the crown takes a
+fall's strike. ⚠ Where the weekend hours run, read rates per awake hour.
+
 ### The map laid from the LIDAR's points laid flat (#581, stage 2) — opens when this PR is deployed
 
 **What changed in the world.**

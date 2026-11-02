@@ -50,6 +50,22 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, nothing a consumer reads: the head built round the LIDAR (pluggybot #581, stage 3)
+
+No message's shape moves, and no bump. What a scene draws of each
+humanoid's head is new, in shapes a replayer already draws:
+- On the robot's root body, the `head` box is shorter, its top 0.58 m over
+  the hips (0.635 before).
+- Three geoms join it there: `head_dome` (a sphere over the face),
+  `head_crown` (a cylinder round the LIDAR's base) and `head_rib` (a box up
+  the head's back).
+- The body `lidar_mount` moves down to 0.712 m over the hips, its `lidar`
+  box in the window between the dome and the crown; `lidar_post` and
+  `lidar_roof` are gone.
+
+The deploy that brings it starts both robots at their starts on no map: the
+head's shape is new geometry.
+
 ### 0.21.0, nothing a consumer reads: the map laid from the LIDAR's points laid flat (pluggybot #581, stage 2)
 
 No message's shape moves, and no bump. What a robot's `grid` shows is new:

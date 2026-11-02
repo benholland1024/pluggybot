@@ -233,10 +233,10 @@ class HumanoidSpec:
   #: The LIDAR's rays' origin over the hip axes, m (#581, stage 3: the unit
   #: upside down in the head, `_lidar`): the lowest from which its steepest
   #: ray, -52 deg, clears the face's corners and the navigation camera, the
-  #: highest thing ahead; the shoulders' motors hide it aside, as they hid
-  #: nothing from stage 1's 0.735. Lower, the head hides more: 3.5 % of a
-  #: frame at 0.70, 5.8 at 0.69 (-48 too), 19 at 0.66, against 2.6 here
-  #: (`lidar_spike.py --hidden`).
+  #: highest thing ahead; the shoulders' motors hide that ray aside (from
+  #: stage 1's 0.735, nothing). Lower, the head hides more: 3.5 % of a frame
+  #: at 0.70, 5.5 at 0.69 (-48 too), 18 at 0.66, against 2.6 here
+  #: (`lidar_spike.py --hidden --heights`).
   lidar_z: float = 0.712
   # -- the charge port (#559 stage 2): on the torso's front --
   #: Right of its middle and over the hip axes, m: where the right hand

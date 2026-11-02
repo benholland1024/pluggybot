@@ -539,7 +539,7 @@ save a filmstrip PNG named after the script.
   a bowed robot neither mapped nor matched). ⚠ A SURFACE IS READ BY ITS
   RETURNS' MEDIAN, never the nearest return (the least of a dozen read every
   wall 6 cm short). ⚠ A BEARING IS FREE ONLY OFF A RAY THAT STAYED IN THE
-  BAND TO MAX RANGE AND BROUGHT NOTHING BACK: behind stage 2's post one
+  BAND TO MAX RANGE AND BROUGHT NOTHING BACK: behind stage 1's post one
   ray peeking past laid its bearing free to 8 m through the wall behind,
   every bearing round as the robot turned; a return the part dropped is no
   reading, and the band's floor RISES to meet a ray under level. ⚠ A SCAN
@@ -562,7 +562,7 @@ save a filmstrip PNG named after the script.
   in a camera's view (each a test). Its rays leave `lidar_z` over the hips
   (0.712, 1.44 m up), the lowest point from which its steepest ray clears the face
   and the navigation camera: lower, the head hides more of a frame (3.5 %
-  at 0.70, 19 at 0.66; 2.6 here, stage 1's post 4.8). ⚠ ITS RAYS SKIP ITS
+  at 0.70, 18 at 0.66; 2.6 here, stage 1's post 4.8). ⚠ ITS RAYS SKIP ITS
   OWN HOUSING (`Lidar._housing`, the unit's own body): cast from inside it,
   every ray met it. The level ring stays, for the lost search's wall ahead
   (`HumanoidBody._wall_ahead`). ⚠ NO CUTOFF ON THE CAST: MuJoCo culls a

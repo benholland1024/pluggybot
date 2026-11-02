@@ -523,7 +523,7 @@ def test_the_bands_floor_rises_with_range():
 
 
 def test_a_closed_room_has_no_free_bearing_behind_the_rib():
-  """Behind the robot a part of it (stage 2's bracket's post, the rib that
+  """Behind the robot a part of it (stage 1's bracket's post, the rib that
   carries the crown now) hides most of a bearing's rays, and the one that
   peeks past it decided the bearing: its point, jittered,
   landing a bearing over, or a steep ray seeing the band empty for a metre
