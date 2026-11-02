@@ -1428,15 +1428,15 @@
      ]
     },
     {
-     "constant": "humanoid.model.CHOSEN.lidar_rise",
+     "constant": "humanoid.model.CHOSEN.lidar_z",
      "where": "code",
-     "value": 0.1,
+     "value": 0.68,
      "unit": "m",
-     "note": "its rays' origin over the head's top, upside down on its bracket"
+     "note": "its rays' origin over the hip axes, upside down in the head"
     }
    ],
    "why": {},
-   "note": "The head's LIDAR since #581 (Ben's call 2, 2026-11-01), upside down as Unitree's G1 carries a Mid-360: its rays reach the floor 1.15 m out and see the house's 0.9 m fences, which the C1's one plane 1.41 m up passed over. Livox's sheet (livoxtech.com/mid-360s/specs): 14 W self-heating below 0 C; the Mid-360's manual adds 18 W for about 8 s at start-up. Funduino (DE): only 3 left; OpenELAB lists the Mid-360 at EUR 755-812. It takes the Pi 5's Ethernet port, and its own 12 V converter (`meanwell_ddr_30l_12`: its start-up and the contactor's coil are past one's 30 W). No cable in the box: `livox_m12_cable`."
+   "note": "The head's LIDAR since #581 (Ben's call 2, 2026-11-01), upside down as Unitree's G1 carries a Mid-360: its rays reach the floor 1.10 m out and see the house's 0.9 m fences, which the C1's one plane 1.41 m up passed over. Livox's sheet (livoxtech.com/mid-360s/specs): 14 W self-heating below 0 C; the Mid-360's manual adds 18 W for about 8 s at start-up. Funduino (DE): only 3 left; OpenELAB lists the Mid-360 at EUR 755-812. It takes the Pi 5's Ethernet port, and its own 12 V converter (`meanwell_ddr_30l_12`: its start-up and the contactor's coil are past one's 30 W). No cable in the box: `livox_m12_cable`."
   },
   {
    "id": "livox_m12_cable",
@@ -1467,6 +1467,39 @@
     "dimensionsMm": "a 1.5 m cable"
    },
    "note": "The Mid-360S ships without one (its box: the sensor, a cloth, a key and M3 screws). DJI calls it a development cable and recommends a made-up one for a permanent install; Funduino lists it beside the Mid-360S, currently unavailable."
+  },
+  {
+   "id": "rs_189_3249",
+   "name": "Rubber-metal buffer, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO)",
+   "kind": "fastener",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "humanoid",
+   "usedBy": [
+    "lidar_mount"
+   ],
+   "partNumber": "189-3249",
+   "source": "https://de.rs-online.com/web/p/schwingungsdampfer/1893249",
+   "massG": null,
+   "dimensionsMm": {
+    "diameter": 8,
+    "height": 8
+   },
+   "priceEur": 2.5075,
+   "priceFor": "each",
+   "quantity": 4,
+   "capabilities": {
+    "thread": "M3 male, both ends",
+    "compressionLoadKg": 4.4,
+    "shoreA": 60
+   },
+   "feeds": [],
+   "why": {
+    "massG": "not published"
+   },
+   "note": "The LIDAR's base on the cap's plate, one in each of its four M3 holes (5 mm deep, the Mid-360S's manual), so a blow on the cap reaches the unit through rubber (#581, stage 3). Sold in packs of four, €10.03 (€8.43 ex VAT), read 2026-11-02."
   },
   {
    "id": "pi_camera_3",
@@ -1848,8 +1881,8 @@
    "note": ""
   },
   {
-   "id": "humanoid_lidar_bracket",
-   "name": "The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under",
+   "id": "humanoid_lidar_frame",
+   "name": "The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under",
    "kind": "structure",
    "status": "chosen",
    "shelves": [
@@ -1857,11 +1890,11 @@
    ],
    "robot": "humanoid",
    "usedBy": [
-    "lidar_mount"
+    "pluggybot"
    ],
    "partNumber": null,
    "source": null,
-   "massG": 89.773,
+   "massG": 125.476,
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
@@ -1869,9 +1902,9 @@
    "capabilities": {},
    "feeds": [
     {
-     "constant": "humanoid.model.structure[lidar_post, lidar_roof]",
+     "constant": "humanoid.model.structure[lidar_fin, lidar_plate]",
      "where": "code",
-     "value": 89.773,
+     "value": 125.476,
      "unit": "g",
      "note": "their volume's mass, the fasteners' and wiring's allowance on it (`humanoid.model.ALLOWANCE`)"
     }
@@ -1886,7 +1919,7 @@
   },
   {
    "id": "humanoid_shells",
-   "name": "The head's shell and the torso's front cover, printed in PETG",
+   "name": "The head's shells, its face, visor, dome, back and cap, and the torso's front cover, printed in PETG",
    "kind": "structure",
    "status": "chosen",
    "shelves": [
@@ -1898,17 +1931,54 @@
    ],
    "partNumber": null,
    "source": null,
-   "massG": 617.499,
+   "massG": 720.17,
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 2,
+   "quantity": 6,
    "capabilities": {},
    "feeds": [
     {
-     "constant": "humanoid.model.structure[head_shell, torso_cover]",
+     "constant": "humanoid.model.structure[head_shell, head_visor, head_dome, head_back, head_cap, torso_cover]",
      "where": "code",
-     "value": 617.499,
+     "value": 720.17,
+     "unit": "g",
+     "note": "their volume's mass, the fasteners' and wiring's allowance on it (`humanoid.model.ALLOWANCE`)"
+    }
+   ],
+   "why": {
+    "partNumber": "3D-printed, not bought",
+    "source": "3D-printed, not bought",
+    "dimensionsMm": "the drawing's; `humanoid.model.structure` sizes it",
+    "priceEur": "printed: filament only, unpriced"
+   },
+   "note": ""
+  },
+  {
+   "id": "humanoid_head_rim",
+   "name": "The cap's padded rim, the first of the head a fall meets, printed in TPU",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "humanoid",
+   "usedBy": [
+    "pluggybot"
+   ],
+   "partNumber": null,
+   "source": null,
+   "massG": 29.862,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "humanoid.model.structure[head_rim]",
+     "where": "code",
+     "value": 29.862,
      "unit": "g",
      "note": "their volume's mass, the fasteners' and wiring's allowance on it (`humanoid.model.ALLOWANCE`)"
     }
@@ -1975,6 +2045,33 @@
     "dimensionsMm": "a 1 kg spool"
    },
    "note": "The head's shell, the torso's cover, the pack's case and the cameras' mounts."
+  },
+  {
+   "id": "tpu_1kg",
+   "name": "TPU filament (flexible, Shore 94A), 1.75 mm, 1 kg (DAS FILAMENT)",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "humanoid",
+   "usedBy": [],
+   "partNumber": "F10908",
+   "source": "https://dasfilament.de/produkt/tpu-v2-filament-flexibel-175-mm-schwarz-1-kg/",
+   "massG": 1000,
+   "dimensionsMm": null,
+   "priceEur": 35.0,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {
+    "shoreA": 94,
+    "densityGPerCm3": 1.23
+   },
+   "feeds": [],
+   "why": {
+    "dimensionsMm": "a 1 kg spool"
+   },
+   "note": "The head's padded rim (#581, stage 3), read 2026-11-02. The page asks for a direct-drive extruder, which the P1S has."
   },
   {
    "id": "albright_sw80b549",
@@ -3014,6 +3111,20 @@
     "note": ""
    },
    {
+    "part": "rs_189_3249",
+    "name": "Rubber-metal buffer, M3 male to male, 8 x 8 mm, natural rubber, Shore A60 (RS PRO)",
+    "group": "sensors",
+    "quantity": 4,
+    "priceFor": "each",
+    "eachEur": 2.5075,
+    "lineEur": 10.03,
+    "allowance": false,
+    "basis": "",
+    "leadTime": "temporarily out of stock: 19 ship from 2026-11-30, 41 more from 2026-12-07 (RS)",
+    "why": {},
+    "note": "the LIDAR's isolators, a pack of four"
+   },
+   {
     "part": "meanwell_ddr_30l_12",
     "name": "Mean Well DDR-30L-12 DC-DC converter, 18-75 V in, 12 V 2.5 A, isolated (DIN rail)",
     "group": "sensors",
@@ -3182,15 +3293,15 @@
     "note": ""
    },
    {
-    "part": "humanoid_lidar_bracket",
-    "name": "The LIDAR's bracket: a 20 x 3 mm 6082 post up the head's back and the plate its base bolts under",
+    "part": "humanoid_lidar_frame",
+    "name": "The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under",
     "group": "frame",
     "quantity": 1,
     "priceFor": "each",
     "eachEur": null,
     "lineEur": 66.67,
     "allowance": true,
-    "basis": "two machined parts at €33.33 a machined part (#379's rate)",
+    "basis": "two machined parts at €33.33 a machined part (#379's rate): the cap is printed, the fin that carries it 6082 (a printed fin as thin would sway with the unit on it)",
     "leadTime": null,
     "why": {
      "leadTime": "nothing drawn to quote"
@@ -3226,6 +3337,22 @@
      "leadTime": "in stock; the page and its terms give no delivery time"
     },
     "note": ""
+   },
+   {
+    "part": "tpu_1kg",
+    "name": "TPU filament (flexible, Shore 94A), 1.75 mm, 1 kg (DAS FILAMENT)",
+    "group": "frame",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": 35.0,
+    "lineEur": 35.0,
+    "allowance": false,
+    "basis": "",
+    "leadTime": null,
+    "why": {
+     "leadTime": "in stock; the page gives no delivery time"
+    },
+    "note": "the head's rim"
    },
    {
     "part": "albright_sw80b549",
@@ -3581,19 +3708,19 @@
    }
   ],
   "totals": {
-   "sourcedEur": 11510.61,
+   "sourcedEur": 11555.64,
    "allowanceEur": 2682.68,
-   "contingencyEur": 2128.99,
-   "totalEur": 16322.28,
-   "totalUsd": 18612.3,
+   "contingencyEur": 2135.75,
+   "totalEur": 16374.07,
+   "totalUsd": 18671.35,
    "budgetEur": null,
    "byGroup": {
     "actuation": 5086.4,
     "grippers": 1436.9,
     "power": 635.9,
     "compute": 327.55,
-    "sensors": 1296.9,
-    "frame": 2510.4,
+    "sensors": 1306.93,
+    "frame": 2545.4,
     "safety": 291.58,
     "charging": 370.87,
     "spares": 931.98,

@@ -504,7 +504,10 @@ def test_the_force_at_the_hand_is_read_off_the_arms_motor_currents():
       felt.append(reach.force["left"].copy())
   felt = np.mean(felt, axis=0)
   # The world pushes the hand with -push; the hand pushes back with +push.
-  assert np.abs(felt - push).max() < 1.5, felt
+  # ⚠ What the joints' friction holds at a hold is a draw of the flight
+  # there: held within 2 cm of here, the worst axis read 0.6-1.7 N off, on
+  # stage 1's head and #581's stage 3's alike (36 holds), 1.5 inside it.
+  assert np.abs(felt - push).max() < 2.0, felt
 
 
 def test_a_hand_that_meets_something_on_its_way_stops_short():

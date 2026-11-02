@@ -10,6 +10,43 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The LIDAR built into the head (#581, stage 3) — opens when this PR is deployed
+
+**What changed in the world.**
+- **Both robots' heads are built round their LIDARs**, where stage 1 hung
+  each from a post 10 cm over the head: one cylinder above and below the
+  unit's window, the cap over it on a padded rim, a dark visor on the face,
+  a fin behind carrying the cap. Every part collides, the unit too, so a
+  fall onto the head lands on the rim and the cap. The robot is 1.48 m tall
+  at the cap, where the post's plate reached 1.535 m.
+- **Its rays leave 1.41 m up** (1.47 on the post). The navigation camera
+  came 3.5 cm down with them; the depth camera is where it was.
+- **The head's back closes the window under -26 deg round its back half**:
+  the rings the map's walls and fences come off pass over it, and the
+  floor within 2.6 m behind the robot is not seen. The robot hides 25.6 %
+  of a frame, nearly all of it those floor rays (4.8 % on the post).
+- **A deploy starts both robots at their starts on no map**: the head's
+  shape is new geometry (`continuation.fingerprint`), so the save keeps the
+  clock, the packs, the deaths and the jobs, and History says the world
+  changed. No `MAP_EPOCH` bump: the maps were not laid wrong.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #581's stage 3 (Ben, 2026-11-01 and 11-02): the post put a €773
+sensor at the robot's highest point on a strip that swayed, where a fall
+or a door frame would find it first, and the sim could not show it; the
+stage's first head, a crown narrower than the face on a rib, still read as
+mounted over the head. Flown on the reshaped head beside both: over 60
+drift flights a head, 58 docked on each, the belief after the explore
+tighter (a median 0.06 m off, against 0.12); the station 126 of 132 starts
+(127 and 123); every outdoor place pinned in #572's probe; the get-up stood
+from every bare-floor and bowed fall, and in the house from 15 of 20 (16
+on both before) (SimNotes, "The sensor in the head").
+
+**What the period is for.** #581's last box, carried over from stage 2's
+period if that never ran alone: a day of the pair, neither robot lost
+outdoors, off the `drift` rows; and the falls, now that the head takes a
+fall's strike. ⚠ Where the weekend hours run, read rates per awake hour.
+
 ### A robot whose run ends first keeps its senses, and a humanoid standing settled keeps its heading (#593) — opens when this PR is deployed
 
 **What changed in the world.**

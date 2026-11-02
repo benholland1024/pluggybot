@@ -22,7 +22,12 @@ ROOM = "".join(
 #: ...and a 0.9 m fence across it 2 m ahead: under the level ring, in the band.
 FENCE = '<geom name="fence" type="box" size="0.02 1.2 0.45" pos="2.0 0 0.45"/>'
 #: The rays' origin over the pelvis, the robot standing (its model).
-SITE_Z = hm.CHOSEN.head_z + hm.CHOSEN.head_half[2] + hm.CHOSEN.lidar_rise
+SITE_Z = hm.CHOSEN.lidar_z
+#: The fin's shadow, deg either side of straight back (`model.FIN`: its
+#: width at its inner face, behind the sensor).
+FIN_DEG = math.degrees(math.atan2(hm.FIN[0] / 2, hm.FIN[1]))
+#: ...and how many of the level ring's bearings that is, at most.
+FIN_BEARINGS = 2 * math.ceil(FIN_DEG) + 1
 
 
 def _post(spec, z: float = SITE_Z, half_h: float = 0.05) -> None:
@@ -73,33 +78,35 @@ def _truth(model, data):
   return np.array([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]]) @ rot, float(data.xpos[root][2])
 
 
-def _behind(angles, half_deg: float = 2.5) -> np.ndarray:
-  """Bearings within `half_deg` of straight back: the bracket's post."""
+def _behind(angles, half_deg: float = FIN_DEG + 0.6) -> np.ndarray:
+  """Bearings within `half_deg` of straight back: the fin's shadow."""
   return np.abs(np.abs(np.degrees(angles)) - 180.0) <= half_deg
 
 
 def test_the_level_ring_covers_the_full_circle(room):
   """360 deg, every bearing a return inside the unit's range but the few
-  its bracket's post hides behind it, from where the model puts the rays'
-  origin."""
+  the fin that carries the cap hides behind it, from where the model puts
+  the rays' origin."""
   model, data = room
   assert data.site_xpos[model.site("lidar").id][2] == pytest.approx(
     hm.stand_height() + SITE_Z, abs=0.02)
   lidar = _clean(model)
   angles, ranges = lidar.scan(data)
   hidden = np.setdiff1d(np.round(lidar.ray_angles, 9), np.round(angles, 9))
-  assert 1 <= len(hidden) <= 5 and _behind(hidden).all(), np.degrees(hidden)
-  assert angles.min() < math.radians(-175) and angles.max() > math.radians(175)
+  assert 1 <= len(hidden) <= FIN_BEARINGS and _behind(hidden).all(), np.degrees(hidden)
+  edge = math.radians(180 - FIN_DEG - 1.5)
+  assert angles.min() < -edge and angles.max() > edge
   assert np.all(ranges > 0.0) and np.all(ranges <= lidar_mod.MAX_RANGE + 1e-9)
 
 
 def test_the_level_ring_ranges_match_geometry(room):
-  """Forward and backward the ring spans the room wall to wall, 3.96 m."""
+  """Every bearing reads the room's walls where they stand, 2.98 m ahead
+  and 0.98 behind."""
   model, data = room
   angles, ranges = _clean(model).scan(data)
+  assert np.allclose(ranges, _room_range(angles), atol=0.002)
   fwd = ranges[np.argmin(np.abs(angles))]
   back = ranges[np.argmin(np.abs(np.abs(angles) - math.pi))]
-  assert fwd + back == pytest.approx(3.96, abs=0.002)
   assert fwd > back, "the robot stands nearer the back wall"
 
 
@@ -130,7 +137,7 @@ def test_the_robot_occludes_itself_and_says_so(room):
   in exactly the direction the robot cannot see."""
   model, data = room
   angles, _ = _clean(model).scan(data)
-  assert len(angles) >= lidar_mod.BEARINGS - 5, "its own body is in the ring"
+  assert len(angles) >= lidar_mod.BEARINGS - FIN_BEARINGS, "its own body is in the ring"
   model, data = _world(post=True)
   lidar = _clean(model)
   angles, _ = lidar.scan(data)
@@ -143,24 +150,193 @@ def test_the_robot_occludes_itself_and_says_so(room):
   assert abs(np.mean(missing)) < 3, f"blind sector centred at {np.mean(missing):.0f} deg"
 
 
-def test_its_mount_hides_little_and_nothing_ahead_or_aside(room):
+def test_the_head_hides_nothing_ahead_and_behind_only_the_floors_rays(room):
   """What the robot's own body hides of a frame, standing with its arms
-  hanging (#581, `HumanoidSpec.lidar_rise`): nothing within 10 deg of
-  ahead or of either side, down to the field's steepest ray -- the head's
-  top clears it there -- and behind only the bracket's post, a sliver;
-  the head's corners hide the steepest rays between."""
+  hanging (#581's stage 3, `HumanoidSpec.lidar_z`): nothing within 60 deg of
+  ahead, down to the field's steepest ray -- it clears the depth camera's
+  corners, the visor and the navigation camera; the rings the band's walls
+  and fences come off, -24 deg and up, hidden nowhere but on the fin's few
+  bearings behind; and the steeper rings, the floor's within 2.6 m, hidden
+  round the back half by its panels (`model.BACK`) and aside by the
+  shoulders' motors -- a quarter of a frame, nearly all of it floor."""
   model, data = room
   lidar = _clean(model)
   mine = lidar.hidden(data)
   deg = np.degrees(lidar.ray_angles)
-  for name, centre in (("ahead", 0.0), ("left", 90.0), ("right", -90.0)):
-    cols = np.abs((deg - centre + 180) % 360 - 180) <= 10
-    assert not mine[:, cols].any(), f"its body hides rays {name}"
-  post = _behind(lidar.ray_angles)
-  assert mine[:, np.abs(np.abs(deg) - 180) <= 1.0].all(), "the premise: the post is behind it"
-  steep = np.degrees(lidar.elevations) < -45
-  assert not mine[~steep][:, ~post].any(), "something but the post above -45 deg"
-  assert lidar.blind_fraction(data) < 0.05
+  assert not mine[:, np.abs(deg) <= 60].any(), "its body hides rays ahead"
+  fin = _behind(lidar.ray_angles)
+  assert mine[:, np.abs(np.abs(deg) - 180) <= 1.0].all(), "the premise: the fin is behind it"
+  band = np.degrees(lidar.elevations) > -25    # its walls' and its fences' rings, -24 and up
+  assert not mine[band][:, ~fin].any(), "a ring the band is laid from, hidden off the fin"
+  assert mine[~band][:, np.abs(deg) >= 180 - hm.BACK[0] + 2].all(), \
+    "the premise: the back's panels close the steeper rings round the back half"
+  _, hit = lidar._cast(data, lidar._dirs)
+  by = {model.geom(int(g)).name for g in hit.reshape(mine.shape)[mine]}
+  assert {n.removesuffix("_inside") for n in by} <= (
+    {f"head_back{k}" for k in range(hm.BACK[1])}
+    | {"head_fin", "left_shoulder_roll_motor", "right_shoulder_roll_motor"}), by
+  assert lidar.blind_fraction(data) < 0.27
+
+
+def test_the_lidar_and_the_head_round_it_collide():
+  """#581's stage 3: no part of the head is the sim's alone -- the face,
+  its visor, the dome, the cap and its rim, the fin, the back's panels and
+  the LIDAR in them each meet the world as the head did (stage 1's unit,
+  post and plate touched nothing, and a fall passed through them), and a
+  box laid on the cap rests on it. Only the panels' painted inner faces
+  are drawn and nothing else."""
+  model = mujoco.MjModel.from_xml_string(hm.body_xml(hm.CHOSEN))
+  mount = model.body("lidar_mount").id
+  parts = set(hm.HEAD_GEOMS) | {model.geom(g).name for g in range(model.ngeom)
+                                if model.geom_bodyid[g] == mount}
+  for name in sorted(parts):
+    assert model.geom_contype[model.geom(name).id] & 1, f"{name} touches nothing"
+  drawn = {model.geom(g).name for g in range(model.ngeom)
+           if model.geom(g).name.startswith("head") and not model.geom_contype[g]}
+  assert drawn == {f"head_back{k}_inside" for k in range(hm.BACK[1])}, drawn
+  model, data = _world()
+  cap = model.geom("head_cap").id
+  top = data.geom_xpos[cap][2] + model.geom_size[cap][1]
+  lid = f'<geom name="lid" type="box" size="0.3 0.3 0.01" pos="0 0 {top + 0.008}"/>'
+  model, data = _world(lid)
+  touching = {frozenset((model.geom(c.geom1).name, model.geom(c.geom2).name))
+              for c in data.contact[:data.ncon]}
+  assert frozenset(("head_cap", "lid")) in touching, touching
+
+
+def _surface(model, data, g: int, n: int = 48) -> np.ndarray:
+  """Points over geom `g`'s surface, the world's frame: a box's corners and
+  its edges' points, a cylinder's two rims, a sphere's every way."""
+  size, t = model.geom_size[g], model.geom_type[g]
+  if t == mujoco.mjtGeom.mjGEOM_BOX:
+    k = np.linspace(-1, 1, 9)
+    a, b, c = np.meshgrid(k, k, k, indexing="ij")
+    on = (np.abs(a) == 1).astype(int) + (np.abs(b) == 1) + (np.abs(c) == 1) >= 2
+    local = np.stack([a[on], b[on], c[on]], axis=1) * size
+  elif t == mujoco.mjtGeom.mjGEOM_CYLINDER:
+    th = np.linspace(0, 2 * math.pi, n, endpoint=False)
+    ring = np.stack([size[0] * np.cos(th), size[0] * np.sin(th)], axis=1)
+    local = np.vstack([np.column_stack([ring, np.full(n, z)]) for z in (-size[1], size[1])])
+  elif t == mujoco.mjtGeom.mjGEOM_SPHERE:
+    u, v = np.meshgrid(np.linspace(0, math.pi, n), np.linspace(0, 2 * math.pi, n))
+    local = size[0] * np.stack([np.sin(u) * np.cos(v), np.sin(u) * np.sin(v), np.cos(u)],
+                               axis=-1).reshape(-1, 3)
+  else:
+    raise ValueError(t)
+  return data.geom_xpos[g] + local @ data.geom_xmat[g].reshape(3, 3).T
+
+
+def test_no_part_of_the_head_is_in_the_lidars_field_but_the_fin_and_the_back(room):
+  """The rings are a sim's sample of the field, and the part's is whole: +7
+  down to -52 deg upside down (`model.FIELD_DEG`, its sheet's). Every part of
+  the head keeps out of it -- under its steepest ray or over its highest, by
+  `FIELD_CLEAR` -- but the fin that carries the cap and the back's panels,
+  which hide what they are drawn to hide (the test above): a face, a rim
+  or a cap that grazed a field the rings step over would hide rays the
+  real unit casts."""
+  model, data = room
+  site = model.site("lidar").id
+  origin, rot = data.site_xpos[site], data.site_xmat[site].reshape(3, 3)
+  lo, hi = (math.tan(math.radians(a)) for a in hm.FIELD_DEG)
+  ours = [g for g in range(model.ngeom) if model.geom(g).name.startswith("head")
+          and not model.geom(g).name.startswith(("head_fin", "head_back"))]
+  assert len(ours) == 5, [model.geom(g).name for g in ours]
+  for g in ours:
+    p = (_surface(model, data, g) - origin) @ rot
+    p[:, 2] *= -1                          # upside down: the unit's up is the world's down
+    r, z = np.hypot(p[:, 0], p[:, 1]), -p[:, 2]
+    clear = np.minimum(np.abs(z - hi * r), np.abs(z - lo * r))
+    inside = (z < hi * r) & (z > lo * r)
+    name = model.geom(g).name
+    assert not inside.any(), f"{name} is in the field"
+    assert clear.min() > hm.FIELD_CLEAR / 2, f"{name} grazes the field ({clear.min():.4f} m)"
+
+
+def _reach(model, data, g: int, u: np.ndarray) -> np.ndarray:
+  """How far geom `g` reaches along each unit direction in `u` (k, 3), m:
+  its support function."""
+  c, R, s, t = (data.geom_xpos[g], data.geom_xmat[g].reshape(3, 3), model.geom_size[g],
+                model.geom_type[g])
+  local = u @ R
+  if t == mujoco.mjtGeom.mjGEOM_BOX:
+    return u @ c + np.abs(local) @ s
+  if t == mujoco.mjtGeom.mjGEOM_SPHERE:
+    return u @ c + s[0]
+  if t == mujoco.mjtGeom.mjGEOM_CYLINDER:
+    a = np.abs(local[:, 2])
+    return u @ c + s[1] * a + s[0] * np.sqrt(np.clip(1 - a * a, 0, 1))
+  raise ValueError(t)
+
+
+def test_no_plane_meets_the_lidar_before_its_head(room):
+  """#581's stage 3: the unit lies inside its head's other parts by a
+  margin every way -- the floor in a fall, a wall, a door frame, a shelf
+  over it -- so whatever comes at the head meets the rim, the cap, the face
+  or the back first (the head's support every way past the unit's, read
+  off the shapes). At least 15 mm (18: the cap's top over the unit's base),
+  and 20 within 60 deg of level, the ways a fall meets a head; stage 3's
+  first head held 6 over its unit, and its hard falls put the unit on the
+  floor behind the crown."""
+  model, data = room
+  k = np.arange(20000) + 0.5
+  polar, az = np.arccos(1 - 2 * k / len(k)), math.pi * (1 + 5 ** 0.5) * k
+  local = np.stack([np.cos(az) * np.sin(polar), np.sin(az) * np.sin(polar), np.cos(polar)], 1)
+  u = local @ data.xmat[model.body("pluggybot").id].reshape(3, 3).T
+  head = [g for g in range(model.ngeom) if model.geom(g).name.startswith("head")
+          and model.geom_contype[g]]
+  margin = (np.max([_reach(model, data, g, u) for g in head], axis=0)
+            - _reach(model, data, model.geom("lidar").id, u))
+  assert margin.min() > 0.015, margin.min()
+  level = np.abs(local[:, 2]) < math.sin(math.radians(60))
+  assert margin[level].min() > 0.020, margin[level].min()
+
+
+def test_its_rays_leave_through_its_window_never_its_housing(room):
+  """The unit is a body of its own round its rays' origin (`model._lidar`),
+  and a cast skips it (`Lidar._housing`): its rays leave through its
+  window. Cast from inside its housing, every ray met the housing and the
+  robot saw nothing (#386)."""
+  model, data = room
+  lidar = _clean(model)
+  assert len(lidar.scan(data)[0]) >= lidar_mod.BEARINGS - FIN_BEARINGS
+  lidar._housing = -1
+  assert not len(lidar.scan(data)[0]), "the premise: its housing is round its rays' origin"
+
+
+def _frame_hits(model, data, cam: str, aspect: float = 16 / 9, n: tuple = (64, 36)) -> set:
+  """The robot's own geoms within 2 m a camera's frame meets: rays over it,
+  `aspect` wide."""
+  ours = lidar_mod.robot_geoms(model, "pluggybot")
+  c = model.camera(cam).id
+  ty = math.tan(math.radians(model.cam_fovy[c]) / 2)
+  u, v = np.meshgrid(np.linspace(-ty * aspect, ty * aspect, n[0]), np.linspace(-ty, ty, n[1]))
+  local = np.stack([u.ravel(), v.ravel(), -np.ones(u.size)], axis=1)
+  dirs = local @ data.cam_xmat[c].reshape(3, 3).T
+  dirs /= np.linalg.norm(dirs, axis=1)[:, None]
+  dist, hit = np.zeros(len(dirs)), np.zeros(len(dirs), dtype=np.int32)
+  mujoco.mj_multiRay(model, data, data.cam_xpos[c].copy(), dirs.reshape(-1), None, 1, -1, hit,
+                     dist, None, len(dirs), mujoco.mjMAXVAL)
+  return {model.geom(int(g)).name for g, r in zip(hit, dist) if g in ours and r < 2.0}
+
+
+def test_the_cameras_see_nothing_of_the_head_round_the_lidar(room):
+  """The head was built round the LIDAR with its cameras where they rode
+  (#581's stage 3): the depth camera, its colour imager and the
+  navigation camera each see nothing of the robot standing -- the cap,
+  the fin and the unit are behind and over them. A hand held up in front
+  of the face is seen, the premise."""
+  model, data = room
+  for cam in ("depth_eye", "color_eye", "nav_eye"):
+    assert not _frame_hits(model, data, cam), cam
+  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, scenery=ROOM))
+  spec.body("pluggybot").add_geom(name="raised_hand", type=mujoco.mjtGeom.mjGEOM_BOX,
+                                  pos=[0.4, 0.0, hm.CHOSEN.nav_cam_z], size=[0.04, 0.04, 0.04],
+                                  contype=1, conaffinity=0)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  assert "raised_hand" in _frame_hits(model, data, "nav_eye"), "the premise"
 
 
 def test_a_return_inside_its_blind_zone_is_no_reading():
@@ -172,7 +348,8 @@ def test_a_return_inside_its_blind_zone_is_no_reading():
   angles, _ = _clean(model).scan(data)
   ahead = np.abs(angles) < math.radians(5)
   assert not ahead.any(), "a bearing through the blind zone reported something"
-  assert len(angles) > lidar_mod.BEARINGS - 25
+  # ...and every bearing but the box's own 17 and the fin's behind did
+  assert len(angles) >= lidar_mod.BEARINGS - 19 - FIN_BEARINGS
 
 
 def test_noise_is_present_and_bounded(room):
@@ -211,9 +388,10 @@ def test_the_cloud_lies_on_the_room():
   rays = len(c.looked)
   assert on_floor.sum() > 0.15 * rays and on_wall.sum() > 0.15 * rays
   assert len(c.peers) == 0
-  # ...and every bearing saw something but the few its bracket's post hides
+  # ...and every bearing saw something but the few the fin hides
   lidar = _clean(model)
-  assert (c.seen | _behind(lidar.ray_angles)).all() and c.seen.sum() >= lidar_mod.BEARINGS - 5
+  assert (c.seen | _behind(lidar.ray_angles)).all()
+  assert c.seen.sum() >= lidar_mod.BEARINGS - FIN_BEARINGS
 
 
 def test_the_floor_is_struck_however_far_its_middle():
@@ -250,7 +428,7 @@ def test_the_band_lays_a_low_fence_the_level_ring_passes_over():
   """#581's point: the 0.9 m fence 2 m ahead is under the level ring,
   which reads the wall behind it -- and in the band, its near face's 1.98
   m ahead. Every other bearing is the room's walls, never the floor, and
-  the post's shadow behind is no reading, never free space."""
+  the fin's shadow behind is no reading, never free space."""
   model, data = _world(ROOM + FENCE)
   lidar = _clean(model)
   angles, ranges = lidar.scan(data)
@@ -259,7 +437,7 @@ def test_the_band_lays_a_low_fence_the_level_ring_passes_over():
   level, height = _truth(model, data)
   b_angles, b_ranges = lidar.band(data, level, height)[:2]
   assert np.allclose(b_ranges, _room_range(b_angles, fence=True), atol=0.02)
-  assert lidar_mod.BEARINGS - 5 <= len(b_angles) < lidar_mod.BEARINGS
+  assert lidar_mod.BEARINGS - FIN_BEARINGS <= len(b_angles) < lidar_mod.BEARINGS
 
 
 def test_the_band_is_laid_through_the_tilt():
@@ -341,12 +519,19 @@ def test_the_band_reads_a_wall_where_it_stands():
     f"the band reads the walls {100 * np.median(err):+.1f} cm off"
 
 
+def _off(angles, deg: float) -> np.ndarray:
+  """How far each bearing is from `deg`, rad, round the circle."""
+  return np.abs((angles - math.radians(deg) + math.pi) % (2 * math.pi) - math.pi)
+
+
 def test_a_turned_mount_lays_its_rays_where_they_went():
   """A sensor 5 cm ahead of the pelvis and turned 10 deg on it: the level
   ring and the band read the front wall straight ahead at 2.93 m from it
-  (unturned, the ray read there went 10 deg aside, 2.975 m), and the
-  post's shadow, behind the SENSOR, is 190 deg round the robot -- no
-  reading there, in either, and nothing free anywhere in a closed room."""
+  (unturned, the ray read there went 10 deg aside, 2.975 m), and the fin's
+  shadow -- the fin is the trunk's, straight behind the sensor -- is 180
+  deg round the robot, where the fin is, not 170, where the sensor's own
+  bearings would put the rays that met it: no reading there, in either,
+  and nothing free anywhere in a closed room."""
   spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, scenery=ROOM))
   mount = spec.body("lidar_mount")
   mount.pos = np.asarray(mount.pos) + [0.05, 0.0, 0.0]
@@ -358,15 +543,14 @@ def test_a_turned_mount_lays_its_rays_where_they_went():
   lidar = _clean(model)
   assert lidar.offset[:2] == pytest.approx((0.05, 0.0), abs=1e-6), "the premise"
   level, height = _truth(model, data)
-  shadow = np.radians(-170.0)
   for name, (angles, ranges) in (("ring", lidar.scan(data)),
                                  ("band", lidar.band(data, level, height)[:2])):
     ahead = np.argmin(np.abs(angles))
     assert ranges[ahead] == pytest.approx(2.93 / math.cos(angles[ahead]), abs=0.005), name
     assert np.allclose(ranges, _room_range(angles, x0=0.05), atol=0.02), name
-    off = np.abs((angles - shadow + math.pi) % (2 * math.pi) - math.pi)
-    assert off.min() > math.radians(1.5), f"{name}: a reading in the post's shadow"
-    assert len(angles) >= lidar_mod.BEARINGS - 5, name
+    assert _off(angles, 180.0).min() > math.radians(1.2), f"{name}: a reading in the fin's shadow"
+    assert _off(angles, 170.0).min() < math.radians(0.6), f"{name}: no reading 170 deg round"
+    assert len(angles) >= lidar_mod.BEARINGS - FIN_BEARINGS, name
 
 
 def test_its_noise_is_its_robots_own():
@@ -435,9 +619,10 @@ def test_the_bands_floor_rises_with_range():
     "the premise: with no rise, the far floor tilted 1.8 deg is in the band"
 
 
-def test_a_closed_room_has_no_free_bearing_behind_the_post():
-  """Behind the robot the bracket's post hides most of a bearing's rays,
-  and the one that peeks past it decided the bearing: its point, jittered,
+def test_a_closed_room_has_no_free_bearing_behind_the_fin():
+  """Behind the robot a part of it (stage 1's bracket's post, the fin that
+  carries the cap now) hides most of a bearing's rays, and the one that
+  peeks past it decided the bearing: its point, jittered,
   landing a bearing over, or a steep ray seeing the band empty for a metre
   and meeting the floor, laid its bearing free to 8 m through the wall it
   never saw past -- every bearing round, as the robot turned (#581's stage
@@ -510,7 +695,7 @@ def _square(half: float) -> str:
 
 
 def test_a_bowed_robots_scan_is_laid_from_where_its_sensor_is():
-  """Bowed 52 deg, the sensor is 0.58 m ahead of where it sits on the robot
+  """Bowed 52 deg, the sensor is 0.56 m ahead of where it sits on the robot
   upright. A free bearing laid from there to 8 m ran up to 0.5 m past what
   its ray reached: in a room 7 m round, 16 bearings through the wall
   behind. Laid from the scan's origin, where the sensor is, none."""
@@ -519,7 +704,7 @@ def test_a_bowed_robots_scan_is_laid_from_where_its_sensor_is():
   level, height = _truth(model, data)
   for lidar in (_clean(model), Lidar(model, seed=1), Lidar(model, seed=2)):
     scan = lidar.band(data, level, height)
-    assert scan.origin[0] == pytest.approx(0.58, abs=0.02), \
+    assert scan.origin[0] == pytest.approx(SITE_Z * math.sin(math.radians(52)), abs=0.01), \
       "the premise: bowed, the sensor is half a metre ahead"
     ox, oy = scan.origin
     through = []
@@ -556,20 +741,24 @@ def test_a_bowed_robot_clears_no_wall(monkeypatch):
   behind it a few cm out: taken for those bearings' floor, a low box 2 m
   behind, under every ray, was cleared through the wall's return 4 m
   behind, 8 bearings of 9 bowed 52 deg. Tilted past `CLEARS_TILT_RAD` a
-  scan clears no wall."""
-  for deg in (150, 180, 210):
+  scan clears no wall. (Since the head's back closed its steep rings round
+  the back half, #581's stage 3, the ones that turn past straight down
+  bowed are a side's, and land beside it: a box 105 or 255 deg round is the
+  one they clear.)"""
+  def behind(deg):
     a = math.radians(deg)
     c, s = math.cos(a), math.sin(a)
-    scenery = (f'<geom name="far" type="box" size="0.02 3 1.2" pos="{4 * c} {4 * s} 1.2" '
-               f'euler="0 0 {deg}"/><geom name="low" type="box" size="0.15 0.3 0.25" '
-               f'pos="{2 * c} {2 * s} 0.25" euler="0 0 {deg}"/>')
-    face = (1.84 * c, 1.84 * s)
-    kept, scan = _cleared(scenery, face, pitch=math.radians(52))
-    assert kept == 2.0, f"bowed, the box {deg} deg round was cleared ({kept:+.1f})"
+    return ((f'<geom name="far" type="box" size="0.02 3 1.2" pos="{4 * c} {4 * s} 1.2" '
+             f'euler="0 0 {deg}"/><geom name="low" type="box" size="0.15 0.3 0.25" '
+             f'pos="{2 * c} {2 * s} 0.25" euler="0 0 {deg}"/>'), (1.84 * c, 1.84 * s))
+  for deg in (105, 150, 180, 210, 255):
+    kept, scan = _cleared(*behind(deg), pitch=math.radians(52), scans=20)
+    assert kept >= 2.0, f"bowed, the box {deg} deg round was cleared ({kept:+.1f})"
     assert np.isinf(scan.free_from).all()
   monkeypatch.setattr(lidar_mod, "CLEARS_TILT_RAD", math.pi / 2)
-  assert _cleared(scenery, face, pitch=math.radians(52))[0] < 0.0, \
-    "the premise: clearing walls bowed, the box is cleared"
+  for deg in (105, 255):
+    assert _cleared(*behind(deg), pitch=math.radians(52), scans=20)[0] < 0.0, \
+      f"the premise: clearing walls bowed, the box {deg} deg round is cleared"
 
 
 def test_nothing_low_behind_another_robot_is_cleared():

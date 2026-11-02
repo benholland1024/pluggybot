@@ -10,8 +10,8 @@ ITS MAP IS LAID FROM ITS LIDAR'S POINTS LAID FLAT (#581's stage 2,
 and over its head, levelled through its IMU and set over the floor by its
 model of itself -- the fences, the tables, the couch and the beds with the
 walls -- and laid while it stands or walks in the posture its legs hold,
-bowed too (`maps`). ⚠ Upside down 1.47 m up, the LIDAR's steepest ray meets
-the floor 1.15 m out, so by its feet the D435's points under 1.35 m are a
+bowed too (`maps`). ⚠ Upside down 1.41 m up, the LIDAR's steepest ray meets
+the floor 1.10 m out, so by its feet the D435's points under 1.35 m are a
 layer of their own the planner plans round (`_fold_low`, the quadruped's
 rule, `LOW_MAX_Z`).
 
@@ -82,7 +82,7 @@ HOLD_AFTER_S = 30.0
 #: THE DEPTH CAMERA'S OBSTACLES: a point this high over the floor, and no
 #: higher, is something the body walks into -- over a foot's clearance
 #: (the walking policy is trained on flat ground), under the LIDAR's level
-#: ring (1.47 m) less a margin. ...and a point under `FLOOR_Z` is floor.
+#: ring (1.41 m) less a margin. ...and a point under `FLOOR_Z` is floor.
 LOW_MIN_Z, LOW_MAX_Z, FLOOR_Z = 0.08, 1.35, 0.03
 #: The quadruped's rules for the layer (#387), kept: points within this
 #: of the trunk, three frames' evidence, never beside what the LIDAR maps.
