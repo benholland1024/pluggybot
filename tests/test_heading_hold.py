@@ -11,7 +11,9 @@ heading past the matcher's 6 deg reach in two minutes; standing in `DONE`,
 Each rule pinned without a flight (docs/Testing.md): the odometry fed a
 heading and a clock, the hold's own arithmetic in `test_sensor_noise.py`,
 and the one line of wiring on a body that steps nothing. The flights that
-measured the settle are SimNotes' "A heading held at a standstill".
+measured the settle are SimNotes' "A robot left standing when its run
+ends, and a heading held at a standstill" (`humanoid_drift_spike.py
+--still`).
 """
 
 import json
@@ -23,6 +25,7 @@ import pytest
 
 from pluggybot.body import body_for
 from pluggybot.humanoid import mission as hu
+from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import odometry as od
 from pluggybot.mapping import scan_match
 from pluggybot.perception import imu
@@ -109,9 +112,10 @@ def test_the_body_settles_past_its_settle_resting_and_tells_its_odometry():
       setattr(m, what, {"legs": "getup", "driving": 1}[what])
       assert not m._settled(), what
       setattr(m, what, back)
-    m.reach.phase["left"] = "reach"
+    side = hm.SIDES[0]
+    m.reach.phase[side] = "reach"
     assert not m._settled(), "a hand out"
-    m.reach.phase["left"] = "rest"
+    m.reach.phase[side] = "rest"
     body.start_at(0.0, 0.0, 0.0)
     m.data.time = 100.0
     assert m.odo.settled == m._settled and m.odo.clock() == 100.0

@@ -256,22 +256,22 @@ def test_a_robot_whose_day_ends_first_holds_through_its_body_until_the_others_en
   from pluggybot.pair import run_pair
   model, data = StubBody.world()
   model.opt.timestep = 0.05                 # nothing stepped here is physics
-  done = stub_life(body=StubBody(model, data))
-  busy = stub_life(body=StubBody(model, data, handle=SECOND), robot_name="Rowan")
-  busy.expects_work = True                  # stands by until the run's end
+  luca = stub_life(body=StubBody(model, data), robot_name="Luca")
+  rowan = stub_life(body=StubBody(model, data, handle=SECOND), robot_name="Rowan")
+  luca.expects_work = True                  # stands by until the run's end
   held: list[float] = []
-  hold = done.body.hold_routine
+  hold = rowan.body.hold_routine
 
   def counted(seconds):
     for cmd in hold(seconds):
-      if done.state == "DONE":
+      if rowan.state == "DONE":
         held.append(float(data.time))
       yield cmd
 
-  done.body.hold_routine = counted
-  first, second = run_pair([done, busy], max_sim_time=30.0, explore_budget=0.0)
+  rowan.body.hold_routine = counted
+  first, second = run_pair([luca, rowan], max_sim_time=30.0, explore_budget=0.0)
   assert first["state"] == second["state"] == "DONE"
-  assert first["sim_time"] == pytest.approx(30.0, abs=0.06), \
+  assert second["sim_time"] == pytest.approx(30.0, abs=0.06), \
     "the run ends with the other's day, never a slice of the wait later"
   assert held and held[0] <= 0.1, "held from its day's end..."
   assert held[-1] == pytest.approx(30.0, abs=0.11), "...to the other's"

@@ -23,10 +23,10 @@ observatory is NOT a result: it reports into the issue it informs.
 - **A humanoid rested 30 s past its last motion command holds its
   heading** while its IMU agrees nothing turns it, and learns its gyro's
   offset, which it takes off its heading from then on, walking too. Where
-  its scans are matched nothing changes; where none are (every scan
-  refused, a robot lost), a robot standing there no longer turns 3 deg a
-  minute (Rowan's offset, near the part's worst), but stays within 1.5-2.6
-  deg of where it stopped.
+  its scans are matched the matcher holds its heading as before; where none
+  are (every scan refused, a robot lost), a robot standing there no longer
+  turns 3 deg a minute (Rowan's offset, near the part's worst): its heading
+  stays within 1.5-2.6 deg of the truth.
 - **A death on the pair says where the robot was again** (`at`, #362):
   every death of the humanoid pair since #559's stage 4 carried only a
   `TypeError` (Rowan's two on 11-01/02 among them), its pose and its peer
