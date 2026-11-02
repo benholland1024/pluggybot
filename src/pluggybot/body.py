@@ -297,9 +297,9 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def lost_routine(self, fixture: str, stop=None) -> Routine:
     """`fixture` (its charging station) is not in sight where the belief
-    puts it in plain sight (issue #476): unless another robot can hide it,
-    the robot is lost, drops its map and looks round for the fixture until
-    it puts it right or `stop` says so. True once it has."""
+    puts it in plain sight, or no walk to it got there (issues #476, #572):
+    the robot is lost, and looks round for the fixture until it puts its
+    belief right or `stop` says so. True once it has."""
 
   # ---- the charger's frame ------------------------------------------------
 
