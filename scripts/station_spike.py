@@ -118,7 +118,7 @@ def let_goes(body) -> list:
   from pluggybot.humanoid import charge
   m, d = body._m, body._d
   port = m.site(f"{body.handle.prefix}charge_port").id
-  face = m.site("station_plug_face").id
+  face = m.site(f"{body.mission.station}_plug_face").id
   pull, grip, out, pushed = body.pull_routine, body.grip_routine, [], [False]
 
   def push(side, way, force, *a, **kw):
