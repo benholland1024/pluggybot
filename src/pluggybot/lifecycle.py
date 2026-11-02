@@ -1458,7 +1458,7 @@ class HubLifecycle:
     if self.peers:
       me = self.body.root_xy()
       def apart(o) -> float:
-        return float(math.hypot(*(o.body.root_xy() - me)))
+        return float(math.dist(o.body.root_xy(), me))
       near = min(self.peers, key=apart)
       # ...and whether it is DEAD, which its state alone does not say: a
       # robot knocked over mid-errand keeps the errand's state until that

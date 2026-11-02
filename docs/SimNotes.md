@@ -3707,8 +3707,8 @@ corrections: the humanoid's heading is its IMU's alone
 the error to 1e-13 m and 1e-11 deg. A flight's draws are its IMU's offset
 and scale and its joints' noise: Luca's and Rowan's own, and other seeds;
 `--learned` takes the gyro's offset off what its heading integrates, as a
-zero-rate update that had learned it would (the quadruped's
-`imu.Standstill`, #425: nothing under `humanoid/` has one).
+zero-rate update that had learned it would (the quadruped's, #425: the
+humanoid had none until #593, below).
 
 | flight, from | gyro offset, deg/min | along the facility's outer walls | worst | home from the storeroom | the charge |
 |---|---|---|---|---|---|
@@ -4340,7 +4340,7 @@ head's dearer drawer, door and chest, as its rule says.
 lost outdoors, which opens with the deploy (Observatory.md). #572's
 stage 3 should read this one: a bowed robot's scans now count, so its
 heading at a counter is held by the matcher, and a zero-rate update may be
-needed only where nothing is matched. The world's height map as the store,
+needed only where nothing is matched (#593 holds it there, below). The world's height map as the store,
 which the grid becomes a projection of, is its own issue.
 
 ## The sensor in the head (issue #581, stage 3)
@@ -4568,6 +4568,86 @@ The robot weighs 43.18 kg, 0.03 more than the first head.
   plug off its catch and against the torso.
 - **#581's live reading**, a day of the pair with neither robot lost
   outdoors, opens with the deploy (Observatory.md).
+
+## A robot left standing when its run ends, and a heading held at a standstill (issue #593)
+
+**What the live pair showed.** On 34cd4e3 (2026-11-01 and 02) Rowan stood
+in `DONE` four times for 20-55 minutes before a restart, no scan matched,
+its heading turning by its gyro's offset (3 deg a minute, near the part's
+worst) until it was 105-161 deg off. Each next run carried on from that
+belief (#345): a wide search put it 2.6 m and 176 deg off, a room turned
+round, and it died flat 40 m lost; later a false fit 7 m off, and a fall
+5-20 m lost. Luca never stood in `DONE`: each time it was the robot still
+charging.
+
+**Why.** A run ends robot by robot: the day loop checks its budget between
+errands, so a robot charging passes it inside the charge, and the other's
+day ends first. `tick.run_many` held the finished robot `STILL`, running
+its stepper's bookkeeping -- the odometry, integrating the gyro -- and
+nothing its routines do between steps, where a scan is matched and laid
+(`Navigator._after_step`).
+
+**The finished robot's wait** (`run_many`'s `waits`, given by `run_pair`):
+its body's own hold, as a robot waiting for work holds, until the other's
+day ends; the loop still ends on that step, and the wait is closed there.
+Flown, the served pair in the house, Rowan's day over at 6 s and Luca's
+exploring, running low and charging past the run's budget to 478 s
+(`humanoid_drift_spike.py --done`; Rowan's draws, its offset +2.98 deg a
+minute), with each of #593's two fixes taken out and both:
+
+| Rowan in `DONE`, 472 s | heading off at most | belief off at most | scans matched while it waited |
+|---|---|---|---|
+| held `STILL` by the loop, no hold (before: `--no-wait --no-hold`) | 23.4 deg, its offset times the time | 6 cm | none |
+| held `STILL`, its heading held (`--no-wait`) | 1.7 deg | 6 cm | none |
+| its body's hold and its heading's (served) | 0.10 deg | 1.2 cm | 4,666, ten a second |
+
+**A heading held at a standstill** (`imu.HeadingHold` in the odometry,
+#425's zero-rate update on the heading alone, the filter's tilt the
+accelerometer's). Where nothing is matched -- every scan refused, a robot
+lost -- the same offset turns a standing robot. One humanoid in the house,
+its matcher off, its gyro's offset the part's worst (0.05 deg/s each axis),
+stood three minutes after three scenes (`humanoid_drift_spike.py --still
+boot|walk|turn`; `--hold-after S` for a hold begun elsewhere in the rest):
+
+| standing still | the body's own turn as it settled | held from 30 s (served) | from 20 s | unheld, at 3 min |
+|---|---|---|---|---|
+| booted, the standing policy | 5.6 deg: 0.75 deg/s at once, 0.08 at 20 s, under 0.001 from 45 s | 1.60 deg | 1.40 | 9.0 |
+| after a 2 m walk, the walker | 1.5 deg, 0.03 deg/s at 20 s | 1.49 | 1.07 | 9.0 |
+| after a turn on the spot, the walker | 16.1 deg: 2 deg/s, 0.34 at 20 s, 0.07 at 40, under 0.01 from 60 | 2.63 | 3.56 | 8.9 |
+
+Settled, the rate its gate reads -- its heading's, less the offset
+learned, smoothed -- stayed under 0.09 deg/s (p99 0.05-0.06) on either
+policy, inside the gate's 0.2, and the hold held throughout; it learned
+the offset to 0.049-0.050 deg/s. What it cannot tell from rest is the
+settle's slow real turn: what of it comes once the hold begins is taken
+for stillness, and the offset turns the heading until then. Begun at the
+rest's 8.6 s (as the quadruped's was) the worst was 3.6 deg, at 60 s 3.0.
+Over the three, 30 s's worst (2.6) is second only to 40 s's (2.4), and it
+keeps a commoner rest's -- after a walk, a boot -- at 1.5-1.6 deg, where
+40 s let the offset turn it 2.0.
+
+The drift spike counts what the hold takes off as a heading share of its
+own, `hold`, so its shares add up to the error again: Rowan's draws,
+explored 60 s and stood 90 s in the bedroom with the matcher on, the hold
+took 2.8 deg off the gyro's 7.9, to a residual of 1e-13 deg.
+
+The 30 s count from anything that moved the body, never the walk command
+alone: a stand-up's warp, a get-up and a hand's work move it without one,
+and it settles after each. Counted off the walk command, the hold began
+the moment a stand-up warped the robot back to its start, and held it
+through the settle a boot turns through: off by 2.36 deg where the boot's
+was 1.60 (`--still standup`, standing 60 s and then put back at its
+start).
+
+**What is true now.** A robot whose day ends first holds as one waiting
+for work does, its scans matched, until the other's ends. A humanoid
+resting 30 s after anything moved it holds its heading while its IMU
+agrees nothing turns it, and takes off its heading the offset it learned
+there, walking too: standing where nothing is matched it turns off the
+heading it stopped with by what its offset turned it in those 30 s and
+what of its settle came after, 1.5-2.6 deg at the part's worst, where its
+offset turned it 3 deg a minute unheld. Where its scans are matched, the
+matcher holds its heading as before.
 
 ## Debugging workflow that worked
 
