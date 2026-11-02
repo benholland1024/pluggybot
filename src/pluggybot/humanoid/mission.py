@@ -69,7 +69,7 @@ VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.4), 0.4, 1.0
 #: long first, s, its stride settled.
 SETTLE_S = 0.8
 #: Its heading is held at a standstill (`imu.HeadingHold`, #593) once it has
-#: rested this long since its last motion command, s. MEASURED
+#: rested this long since anything moved it (`_settled`), s. MEASURED
 #: (`humanoid_drift_spike.py --still --hold-after S`), a humanoid stopped
 #: turns on as it settles: on either policy 0.3-0.75 deg/s at once,
 #: 0.03-0.08 at 20 s, under 0.001 from 45 s; after a turn on the spot 2,
@@ -226,6 +226,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.legs = "stand"
     #: Falls the get-up policy has taken over.
     self.falls = 0
+    #: When something but a walk command last moved it, sim s, and the
+    #: falls it had counted then: the heading's hold waits from it too
+    #: (`_settled`).
+    self._moved_t, self._falls_seen = float(data.time), 0
     #: A tag watched while it moves (`perception.watch.TagWatch`, the
     #: body's `watch`), stepped after every physics step; None for none.
     self.sight = None
@@ -269,9 +273,18 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
             and tipped(self.stand.trunk.gravity(), self._held_pitch()) <= self.MAP_TIP_RAD)
 
   def _settled(self) -> bool:
-    """Resting (`HumanoidWay.resting`) past its settle, `HOLD_AFTER_S`:
-    its heading held (`odometry`'s, `imu.HeadingHold`)."""
-    return self.resting and float(self.data.time) - self.last_motion_t >= HOLD_AFTER_S
+    """Its heading held (`odometry`'s, `imu.HeadingHold`): `HOLD_AFTER_S`
+    since anything moved it -- a motion command, or busy (`_busy`: a hand
+    out, a walk of its own, a step aside, a get-up), a fall, a warp
+    (`fresh_drivers`). ⚠ Not the motion command alone: a stand-up's warp
+    and a get-up's end leave that where it was, and the hold began at once,
+    inside the very settle it waits out -- after a warp 2.36 deg off where
+    from a boot 1.60 (`humanoid_drift_spike.py --still standup`)."""
+    t = float(self.data.time)
+    if self._busy() or self.falls != self._falls_seen:
+      self._moved_t, self._falls_seen = t, self.falls
+      return False
+    return t - max(self.last_motion_t, self._moved_t) >= HOLD_AFTER_S
 
   def run(self, routine, name: str = ""):
     return tick.run(self.stepper, routine, name)
@@ -541,6 +554,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     memo = self._plan_memo
     return ({"legs": self.legs, "falls": self.falls, "steps": self._steps,
              "lastMotion": self.last_motion_t,
+             "moved": [self._moved_t, self._falls_seen],
              "odometry": o.kept_state(),
              "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
                        "rate": kept_value(trunk.rate)},
@@ -577,6 +591,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.falls = int(state["falls"])
     self._steps = int(state["steps"])
     self.last_motion_t = float(state.get("lastMotion", 0.0))
+    # ...a save from before the hold (#593): its clock starts at the restore
+    moved = state.get("moved", [float(self.data.time), self.falls])
+    self._moved_t, self._falls_seen = float(moved[0]), int(moved[1])
     self.odo.restore_kept(state["odometry"])
     trunk = self.stand.trunk
     trunk.imu.restore_kept(state["trunk"]["imu"])
@@ -640,8 +657,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def fresh_drivers(self) -> None:
     """Its drivers and senses built again where the body stands now (a
-    start, a stand-up). The map is not touched here."""
+    start, a stand-up): a body moved, which the heading's hold waits out
+    (`_settled`). The map is not touched here."""
     self._build_drivers(self.stand.policy, self.walker.policy)
+    self._moved_t = float(self.data.time)
 
   def _scan(self) -> Scan:
     """Its LIDAR's points laid flat (`Lidar.band`): through its IMU's tilt

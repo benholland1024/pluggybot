@@ -1,7 +1,8 @@
 """A humanoid standing still keeps its heading (issue #593, its second fix).
 
-Settled at rest -- resting, and `HOLD_AFTER_S` past its last motion command
--- its odometry turns its heading by nothing while the IMU's own heading
+Settled at rest -- `HOLD_AFTER_S` after anything moved it: a motion
+command, a hand out, a get-up, a warp -- its odometry turns its heading by
+nothing while the IMU's own heading
 agrees that nothing turns the body, and learns the gyro's offset
 (`imu.HeadingHold`, #425's zero-rate update on the heading alone). Unheld,
 wherever no scan was matched, Rowan's offset (3 deg a minute) turned its
@@ -98,8 +99,9 @@ def test_the_body_settles_past_its_settle_resting_and_tells_its_odometry():
   """The wiring: settled is RESTING (no walk of its own, no step aside, no
   hand out, on its feet) and `HOLD_AFTER_S` past its last motion command
   -- the settle a stopped humanoid turns through, measured 0.34 deg/s 20 s
-  after a turn on the spot -- and the odometry asks it, and the sim's
-  clock, every tick, its drivers fresh or not."""
+  after a turn on the spot; what else moves it, the next test -- and the
+  odometry asks it, and the sim's clock, every tick, its drivers fresh or
+  not."""
   body = body_for(*_floor())
   try:
     m = body.mission
@@ -119,6 +121,48 @@ def test_the_body_settles_past_its_settle_resting_and_tells_its_odometry():
     body.start_at(0.0, 0.0, 0.0)
     m.data.time = 100.0
     assert m.odo.settled == m._settled and m.odo.clock() == 100.0
+  finally:
+    body.close()
+
+
+def test_the_holds_clock_restarts_at_whatever_moved_the_body():
+  """A stand-up's warp, a fall's get-up and a hand's work move the body
+  with no walk command, and it settles after each. Read off the walk
+  command alone, the hold began at once after them, inside the settle it
+  waits out; each restarts its clock, and the clock rides a restart."""
+  body = body_for(*_floor())
+  try:
+    m = body.mission
+    m.last_motion_t, m.data.time = 0.0, 100.0
+    assert m._settled(), "long at rest"
+
+    def settled_from(t: float) -> None:
+      m.data.time = t + hu.HOLD_AFTER_S - 0.1
+      assert not m._settled()
+      m.data.time = t + hu.HOLD_AFTER_S
+      assert m._settled()
+
+    body.start_at(0.0, 0.0, 0.0)               # a stand-up's warp
+    assert not m._settled()
+    settled_from(100.0)
+    m.falls += 1                                # a fall, its get-up over
+    m.data.time = 200.0
+    assert not m._settled()
+    settled_from(200.0)
+    side = hm.SIDES[0]
+    m.reach.phase[side] = "reach"               # a hand at work until 310 s
+    for t in (300.0, 310.0):
+      m.data.time = t
+      assert not m._settled()
+    m.reach.phase[side] = "rest"
+    settled_from(310.0)
+    state, arrays = m.kept_state()
+    m._moved_t, m._falls_seen = -1.0, -1
+    m.restore_kept(state, arrays)
+    assert (m._moved_t, m._falls_seen) == (310.0, m.falls)
+    del state["moved"]                          # ...and the deployed save
+    m.restore_kept(state, arrays)
+    assert m._moved_t == float(m.data.time)
   finally:
     body.close()
 

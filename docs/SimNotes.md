@@ -4414,15 +4414,23 @@ own, `hold`, so its shares add up to the error again: Rowan's draws,
 explored 60 s and stood 90 s in the bedroom with the matcher on, the hold
 took 2.8 deg off the gyro's 7.9, to a residual of 1e-13 deg.
 
+The 30 s count from anything that moved the body, never the walk command
+alone: a stand-up's warp, a get-up and a hand's work move it without one,
+and it settles after each. Counted off the walk command, the hold began
+the moment a stand-up warped the robot back to its start, and held it
+through the settle a boot turns through: off by 2.36 deg where the boot's
+was 1.60 (`--still standup`, standing 60 s and then put back at its
+start).
+
 **What is true now.** A robot whose day ends first holds as one waiting
 for work does, its scans matched, until the other's ends. A humanoid
-resting 30 s past its last motion command holds its heading while its IMU
+resting 30 s after anything moved it holds its heading while its IMU
 agrees nothing turns it, and takes off its heading the offset it learned
-there, walking too: standing where nothing is matched it is off by what
-its offset turned it in those 30 s and what of its settle came after,
-1.5-2.6 deg at the part's worst, where its offset turned it 3 deg a minute
-unheld. Where its scans are matched, the matcher holds its heading as
-before.
+there, walking too: standing where nothing is matched it turns off the
+heading it stopped with by what its offset turned it in those 30 s and
+what of its settle came after, 1.5-2.6 deg at the part's worst, where its
+offset turned it 3 deg a minute unheld. Where its scans are matched, the
+matcher holds its heading as before.
 
 ## Debugging workflow that worked
 

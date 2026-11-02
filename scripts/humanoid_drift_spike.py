@@ -30,7 +30,7 @@ and the legs alone, through the true heading.
     ... --idle-at 12,0 --idle 180     # first stood idle in the street
     ... --learned                     # its gyro's offset taken off its heading
     ... --table run*.json             # runs side by side, and by zone
-    ... --still boot|walk|turn        # #593: standing after it, no scan matched
+    ... --still boot|walk|turn|standup  # #593: standing after it, no scan matched
     ... --done [--no-wait] [--no-hold]  # #593: the pair, the second's day over first
 
 `--seed` draws the IMU's offset and scale and the joints' noise: `luca` and
@@ -40,10 +40,10 @@ error apart; nothing here steers off it.
 
 #593's two scenes (SimNotes, "A robot left standing when its run ends, and a
 heading held at a standstill"): `--still` stands one humanoid still
-`--seconds` (180) after booting, a walk or a turn on the spot, its scan
-matcher off -- as when every scan is refused -- and its gyro's offset the
-part's worst, its heading held and its IMU's own against the truth
-(`--hold-after S` moves when the hold may begin); `--done` flies the served
+`--seconds` (180) after booting, a walk, a turn on the spot or a
+stand-up's warp, its scan matcher off -- as when every scan is refused --
+and its gyro's offset the part's worst, its heading held and its IMU's own
+against the truth (`--hold-after S` moves when the hold may begin); `--done` flies the served
 pair with the second robot's day over at once while the first's runs on,
 past the run's `--seconds` (300) if it charges, and reads the second's
 belief while it waits -- `--no-wait` held STILL by the loop, `--no-hold`
@@ -383,16 +383,17 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
 # ---- #593: standing where nothing is matched, and a run that ends first -------------
 
 #: `--still`'s scenes before it stands: none since it booted, a walk this far
-#: ahead, m, and a turn on the spot this far, rad.
-STILL_WALK_M, STILL_TURN_RAD = 2.0, 1.5
+#: ahead, m, a turn on the spot this far, rad, and a stand-up's warp back to
+#: its start after standing this long there, s (`HubLifecycle._stand_up`).
+STILL_WALK_M, STILL_TURN_RAD, STILL_STANDUP_S = 2.0, 1.5, 60.0
 
 
 def still(scene: str, seconds: float = 180.0, hold_after: float | None = None) -> dict:
   """One humanoid at the first robot's start, its scan matcher off and its
   gyro's offset the part's worst on every axis, standing still `seconds`
-  after `scene` (`boot`, `walk`, `turn`): what its body turned as it
-  settled, and at each tick of its reckoning its believed heading -- held
-  at a standstill (`imu.HeadingHold`) from `hold_after` s of rest, the
+  after `scene` (`boot`, `walk`, `turn`, `standup`): what its body turned as
+  it settled, and at each tick of its reckoning its believed heading --
+  held at a standstill (`imu.HeadingHold`) from `hold_after` s of rest, the
   served `HOLD_AFTER_S` if None -- and its IMU's own, against the truth."""
   from pluggybot.humanoid import mission as hu
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
@@ -402,16 +403,25 @@ def still(scene: str, seconds: float = 180.0, hold_after: float | None = None) -
   life, body, _ = _life()
   data, wall = life.data, time.time()
   m = body.mission
-  try:
-    body.start_at(*world_config(HUMANOID_HOME)["start"])
-    m.matcher = None
+  start = world_config(HUMANOID_HOME)["start"]
+
+  def worst() -> None:                          # the part's worst, on a fresh IMU too
     m.stand.trunk.imu.gyro_bias[:] = (GYRO_BIAS, -GYRO_BIAS, GYRO_BIAS)
+
+  try:
+    body.start_at(*start)
+    m.matcher = None
+    worst()
     if scene == "walk":
       x, y, yaw = m.pose
       body.run(body.go_to_routine(x + STILL_WALK_M * math.cos(yaw),
                                   y + STILL_WALK_M * math.sin(yaw), timeout=30.0))
     elif scene == "turn":
       body.run(body.face_routine(m.pose[2] + STILL_TURN_RAD))
+    elif scene == "standup":
+      body.run(body.hold_routine(STILL_STANDUP_S))
+      body.start_at(*start)
+      worst()
     t0, (_, _, th0), b0 = float(data.time), m.true_pose(), m.odo.yaw
     a0, att = m.stand.trunk.attitude.yaw(), m.stand.trunk.attitude
     ticks: list[tuple] = []
@@ -660,7 +670,7 @@ def main(argv=None) -> int:
   ap.add_argument("--out", default=None, help="the run, as JSON")
   ap.add_argument("--table", nargs="+", default=None, metavar="JSON",
                   help="runs written by --out, side by side and by zone")
-  ap.add_argument("--still", default=None, choices=("boot", "walk", "turn"),
+  ap.add_argument("--still", default=None, choices=("boot", "walk", "turn", "standup"),
                   help="#593: standing still after it, its matcher off and its gyro's "
                        "offset the part's worst: its heading held and unheld")
   ap.add_argument("--hold-after", type=float, default=None, metavar="S",

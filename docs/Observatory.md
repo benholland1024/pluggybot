@@ -20,13 +20,15 @@ observatory is NOT a result: it reports into the issue it informs.
   budget (20-55 minutes on 11-01/02), and its gyro's offset turned its
   heading meanwhile. Its `drift` samples in `DONE` now carry `matched`
   counts.
-- **A humanoid rested 30 s past its last motion command holds its
-  heading** while its IMU agrees nothing turns it, and learns its gyro's
-  offset, which it takes off its heading from then on, walking too. Where
-  its scans are matched the matcher holds its heading as before; where none
-  are (every scan refused, a robot lost), a robot standing there no longer
-  turns 3 deg a minute (Rowan's offset, near the part's worst): its heading
-  stays within 1.5-2.6 deg of the truth.
+- **A humanoid rested 30 s after anything moved it** -- a motion command,
+  a hand at work, a get-up, a stand-up's warp -- **holds its heading** while
+  its IMU agrees nothing turns it, and learns its gyro's offset, which it
+  takes off its heading from then on, walking too. Where its scans are
+  matched the matcher holds its heading as before; where none are (every
+  scan refused, a robot lost), a robot standing there no longer turns 3 deg
+  a minute (Rowan's offset, near the part's worst): standing, it turns no
+  more than 1.5-2.6 deg off the heading it stopped with. ⚠ A robot already
+  lost keeps the error it stood with.
 - **A death on the pair says where the robot was again** (`at`, #362):
   every death of the humanoid pair since #559's stage 4 carried only a
   `TypeError` (Rowan's two on 11-01/02 among them), its pose and its peer
