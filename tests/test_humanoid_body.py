@@ -6,6 +6,7 @@ against the truth by us. Each as cheap as it fails for the right reason;
 SimNotes, "The humanoid behind Body", has the design."""
 
 import inspect
+import math
 import sys
 from pathlib import Path
 
@@ -165,6 +166,47 @@ def test_a_ramp_a_fall_let_go_of_ends_there():
   assert m.legs == "getup", "the ramp ran on past the fall"
   body.run(m._getup_routine())
   assert np.allclose(m.reach.q_to["left"], m.reach.rest["left"])
+
+
+class _Swinging(_Rising):
+  """A get-up that swings one leg's hip forward as it rises, `n` steps, the
+  other's knee folded up out of the way, and stands that way: the foot it
+  stands on moves under its pelvis, as a real get-up's feet do."""
+
+  def __init__(self, n: int, data, hip: int, knee: int):
+    super().__init__(n)
+    self.d, self.hip, self.knee = data, hip, knee
+
+  def step(self) -> None:
+    super().step()
+    k = min(1.0, self.steps / self.n)
+    self.d.qpos[self.hip], self.d.qpos[self.knee] = -0.5 * k, 1.2 * k
+
+
+def test_a_get_up_walks_no_belief():
+  """#572: the odometry stepped while the get-up had the legs, following a
+  tumbling body's feet -- a fall walked the belief 1.7-2.1 m in flights and
+  Luca's 3.7 m live, past the wide search's 2 m. It is held through the
+  get-up, and stood, it counts from the foot it stands on then: the foot it
+  stood on before the fall counted the whole get-up's move at once."""
+  model, data = _floor()
+  body = body_for(model, data)
+  m = body.mission
+  body.run(body.settle_routine(model.opt.timestep * 3 * m._odo_every))
+  planted, other = hm.SIDES[m.odo.foot], hm.SIDES[1 - m.odo.foot]
+  adr = lambda name: model.jnt_qposadr[model.joint(name).id]  # noqa: E731
+  m.getup = _Swinging(300, data, adr(f"{planted}_hip_pitch"), adr(f"{other}_knee"))
+  falls = iter([True])
+  m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  body.run(body.settle_routine(model.opt.timestep * m._fall_every))  # the watch takes a fall
+  assert m.legs == "getup"
+  before = (m.odo.x, m.odo.y)
+  body.run(m._getup_routine())                              # ...and it stands
+  assert m.legs == "stand"
+  assert (m.odo.x, m.odo.y) == before, "the get-up walked the belief"
+  body.run(body.settle_routine(model.opt.timestep * m._odo_every))
+  assert math.hypot(m.odo.x - before[0], m.odo.y - before[1]) < 0.05, \
+    "stood, it counted the get-up's move off the foot it stood on before"
 
 
 class _Homing:

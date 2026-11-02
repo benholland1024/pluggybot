@@ -202,6 +202,116 @@ def test_run_many_throws_a_hook_exception_into_every_live_routine():
   assert sorted(seen) == ["a-finally", "b-finally"]
 
 
+def test_run_many_drives_a_finished_robot_by_its_wait_until_the_last_returns():
+  """#593: a robot whose routine has returned is driven by its WAIT -- its
+  commands, and what the wait does between steps, which a STILL from the
+  loop never runs -- begun again whenever it returns; the loop still ends
+  on the step the last routine returns, and the wait is closed there."""
+  log: list = []
+  a, b = _Swap(log, "a"), _Swap(log, "b")
+  booked: list = []
+
+  def ra():
+    yield 0.1, 0.0
+    return "a-done"
+
+  def rb():
+    for _ in range(4):
+      yield 0.2, 0.0
+    return "b-done"
+
+  def waiting():
+    try:
+      for k in range(2):
+        yield 0.0, 0.5
+        booked.append(k)                  # after its step, as a scan is matched
+    except GeneratorExit:
+      booked.append("closed")
+      raise
+    booked.append("returned")
+
+  made: list = []                         # held here, so no collector closes one
+
+  def wait():
+    made.append(waiting())
+    return made[-1]
+
+  results = tick.run_many([(a, ra()), (b, rb())], waits=[wait, None],
+                          step=lambda: log.append(("world", "step")))
+  assert results == ["a-done", "b-done"]
+  assert [c for who, what, *c in log if (who, what) == ("a", "before")] == \
+      [[(0.1, 0.0)], [(0.0, 0.5)], [(0.0, 0.5)], [(0.0, 0.5)]]
+  assert log.count(("world", "step")) == 4, "no step past the last routine's"
+  assert booked == [0, 1, "returned", "closed"]
+
+
+def test_a_waits_own_exception_is_raised_as_it_is_never_thrown_into_the_others():
+  """A finished robot's wait that raises between its steps (its scan match,
+  a look) raises as a live routine's own exception does: thrown into the
+  others, a procedure's `except Exception` took the waiting robot's error
+  for its own failure and both days went on."""
+  log: list = []
+  a, b = _Swap(log, "a"), _Swap(log, "b")
+  seen: list = []
+
+  def ra():
+    yield 0.1, 0.0
+
+  def rb():
+    try:
+      for _ in range(5):
+        yield 0.2, 0.0
+    except RuntimeError:
+      seen.append("b caught it")
+      for _ in range(5):
+        yield 0.2, 0.0
+
+  def wait():
+    yield 0.0, 0.5
+    raise RuntimeError("its scan")
+
+  with pytest.raises(RuntimeError, match="its scan"):
+    tick.run_many([(a, ra()), (b, rb())], waits=[wait, None], step=lambda: None)
+  assert seen == []
+
+
+def test_a_robot_whose_day_ends_first_holds_through_its_body_until_the_others_ends(monkeypatch):
+  """#593, the pair's wiring, on the stub: a run ends robot by robot,
+  between each one's errands, and Luca's charge outlasted Rowan's day by
+  20-55 minutes four times in a day. Held STILL by the loop, Rowan matched
+  no scan while its gyro turned its heading 105-161 deg, and the next run
+  carried on from that belief, lost. Its wait is its body's own hold, as a
+  robot waiting for work holds, here counted. Shown to fail with
+  `run_pair`'s `waits` taken out: it holds nothing once its day is over.
+  Luca stands by in 4 s slices, so its day ends at 32 s, inside one of
+  Rowan's 5 s holds: a wait finished first would end the run at 35."""
+  from pluggybot import lifecycle
+  from pluggybot.pair import run_pair
+  monkeypatch.setattr(lifecycle, "WAIT_FOR_WORK_S", 4.0)
+  model, data = StubBody.world()
+  model.opt.timestep = 0.05                 # nothing stepped here is physics
+  luca = stub_life(body=StubBody(model, data), robot_name="Luca")
+  rowan = stub_life(body=StubBody(model, data, handle=SECOND), robot_name="Rowan")
+  luca.expects_work = True                  # stands by until the run's end
+  held: list[float] = []
+  hold = rowan.body.hold_routine
+
+  def counted(seconds):
+    for cmd in hold(seconds):
+      if rowan.state == "DONE":
+        held.append(float(data.time))
+      yield cmd
+
+  rowan.body.hold_routine = counted
+  first, second = run_pair([luca, rowan], max_sim_time=30.0, explore_budget=0.0)
+  assert first["state"] == second["state"] == "DONE"
+  assert second["sim_time"] == pytest.approx(32.0, abs=0.06), \
+    "the run ends with the other's day, never a slice of the wait later"
+  assert held and held[0] <= 0.1, "held from its day's end..."
+  assert held[-1] == pytest.approx(32.0, abs=0.11), "...to the other's"
+  assert len(held) == pytest.approx(32.0 / 0.05, abs=2), "every step between"
+
+
 def _mission(at=(1.0, 1.0)):
   """A humanoid in the house on a mapped and empty floor: its body, to
   close, and its mission, the planner's own `self`."""

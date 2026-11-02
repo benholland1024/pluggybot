@@ -155,13 +155,17 @@ class HumanoidWay:
   def _hand_out(self) -> bool:
     return any(p != "rest" for p in self.reach.phase.values())
 
+  def _busy(self) -> bool:
+    """Moving by more than a walk command: getting up, inside a walk of its
+    own, stepping aside, or a hand out."""
+    return (self.legs == "getup" or bool(self.driving) or self._aside is not None
+            or self._hand_out())
+
   @property
   def resting(self) -> bool:
     """Resting STANDING: no motion command for `REST_S`, no walk of its own,
     no hand out and on its feet."""
-    return (self.legs != "getup" and not self.driving and self._aside is None
-            and not self._hand_out()
-            and float(self.data.time) - self.last_motion_t >= REST_S)
+    return not self._busy() and float(self.data.time) - self.last_motion_t >= REST_S
 
   def _way_refusal(self) -> str:
     return ("charging" if self.plugged_in()

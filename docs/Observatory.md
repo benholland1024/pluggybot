@@ -10,6 +10,123 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A lost robot looks for its station by its head's camera, and a fall walks no belief (#572, stage 3) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A robot that does not find its station where its belief puts it looks
+  for it by its head's camera** -- round where it stands, then outward from
+  where it believes the station is -- and walks nearer by what it saw until
+  a look near the station puts its belief right. Before, it stepped in
+  toward where it believed the station was and looked with the colour
+  imager, which found it only within about a metre.
+- **Two walks to the station that never got there are a robot lost too**:
+  it searches from where they ended, once a charge (never where the other
+  robot stopped them). The search runs until it finds the station, 600 s,
+  or an empty pack.
+- **A walk to the station is given 6 s a metre of the straight line to it**,
+  at least the 90 s it always had.
+- **A dock that saw the station and never got in goes again from the
+  standoff**, once a charge.
+- **A fall's get-up walks no belief**: the odometry holds while the get-up
+  has the legs, and counts from the foot it stands on once up.
+- **History says a loss in other words**: "I did not find my charging
+  station where I believed it was, so I may not be where I thought, and I am
+  looking round for it" (it said "...was not in sight where I believed it
+  was in front of me, so I am not where I thought, and I am looking for it
+  from nearer"), and a search that saw the station and never got near it
+  says so.
+- **The `drift` rows**: a `searched` row carries `arounds`, and its `ended`
+  may be `out of time` or `seen, never near` beside `found`, `not found`
+  and `interrupted`; a `lost` row may follow walks that never got there.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #572's stage 2: lost past a metre, the search found the station 0
+times in 43, and from across the street the charge's walks ran out of time
+first; and a fall's get-up walked Luca's belief 3.7 m live. Flown (SimNotes,
+"The station found from far off") on #581's stage 3 head, its belief set 1-5
+m and 5-20 deg wrong: 121 of 123 docked (staging, 14); explored first, 23 of
+27 (staging, 1); the drift batch 60 of 60 (staging, 59).
+
+**What the period is for.** #572's last box: a day of the pair, every charge
+found, each map corrected there -- off the `drift` rows (`lost`, then
+`searched` with how it `ended`, and its `fixed`), the charges and the
+falls. ⚠ It opens with #581's stage 3 and #593's periods if they deploy
+together: read it against the one before them all, the band's (#581,
+stage 2).
+
+### The LIDAR built into the head (#581, stage 3) — opens when this PR is deployed
+
+**What changed in the world.**
+- **Both robots' heads are built round their LIDARs**, where stage 1 hung
+  each from a post 10 cm over the head: one cylinder above and below the
+  unit's window, the cap over it on a padded rim, a dark visor on the face,
+  a fin behind carrying the cap. Every part collides, the unit too, so a
+  fall onto the head lands on the rim and the cap. The robot is 1.48 m tall
+  at the cap, where the post's plate reached 1.535 m.
+- **Its rays leave 1.41 m up** (1.47 on the post). The navigation camera
+  came 3.5 cm down with them; the depth camera is where it was.
+- **The head's back closes the window under -26 deg round its back half**:
+  the rings the map's walls and fences come off pass over it, and the
+  floor within 2.6 m behind the robot is not seen. The robot hides 25.6 %
+  of a frame, nearly all of it those floor rays (4.8 % on the post).
+- **A deploy starts both robots at their starts on no map**: the head's
+  shape is new geometry (`continuation.fingerprint`), so the save keeps the
+  clock, the packs, the deaths and the jobs, and History says the world
+  changed. No `MAP_EPOCH` bump: the maps were not laid wrong.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #581's stage 3 (Ben, 2026-11-01 and 11-02): the post put a €773
+sensor at the robot's highest point on a strip that swayed, where a fall
+or a door frame would find it first, and the sim could not show it; the
+stage's first head, a crown narrower than the face on a rib, still read as
+mounted over the head. Flown on the reshaped head beside both: over 60
+drift flights a head, 58 docked on each, the belief after the explore
+tighter (a median 0.06 m off, against 0.12); the station 126 of 132 starts
+(127 and 123); every outdoor place pinned in #572's probe; the get-up stood
+from every bare-floor and bowed fall, and in the house from 15 of 20 (16
+on both before) (SimNotes, "The sensor in the head").
+
+**What the period is for.** #581's last box, carried over from stage 2's
+period if that never ran alone: a day of the pair, neither robot lost
+outdoors, off the `drift` rows; and the falls, now that the head takes a
+fall's strike. ⚠ Where the weekend hours run, read rates per awake hour.
+
+### A robot whose run ends first keeps its senses, and a humanoid standing settled keeps its heading (#593) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A robot whose run's budget passes between its errands holds as one
+  waiting for work does until the other's run ends**: through its body's
+  own hold, so its scans are matched and laid. Before, it was held still
+  with none matched, for as long as the other's charge outlasted the
+  budget (20-55 minutes on 11-01/02), and its gyro's offset turned its
+  heading meanwhile. Its `drift` samples in `DONE` now carry `matched`
+  counts.
+- **A humanoid rested 30 s after anything moved it** -- a motion command,
+  a hand at work, a get-up, a stand-up's warp -- **holds its heading** while
+  its IMU agrees nothing turns it, and learns its gyro's offset, which it
+  takes off its heading from then on, walking too. Where its scans are
+  matched the matcher holds its heading as before; where none are (every
+  scan refused, a robot lost), a robot standing there no longer turns 3 deg
+  a minute (Rowan's offset, near the part's worst): standing, it turns no
+  more than 1.5-2.6 deg off the heading it stopped with. ⚠ A robot already
+  lost keeps the error it stood with.
+- **A death on the pair says where the robot was again** (`at`, #362):
+  every death of the humanoid pair since #559's stage 4 carried only a
+  `TypeError` (Rowan's two on 11-01/02 among them), its pose and its peer
+  read off the nearest `drift` sample instead.
+- Nothing in the prompt, the schema, the arm or the reward table moved, and
+  no map is dropped at the deploy.
+
+**Why.** #593: on 34cd4e3 Rowan stood in `DONE` four times while Luca
+finished a charge, its heading turned 105-161 deg, and each next run
+carried on from that belief, lost: one flat death 40 m lost, and a fall.
+
+**What the period is for.** #593's last box: a live day on the release with
+no `drift` sample in `DONE` whose `matched` is `{}`, and no `DONE` stretch
+that turns the heading past 6 deg -- off the `drift` rows against the
+period before. ⚠ A robot lost at the deploy stays lost until the station's
+fix or a death puts it right: read the stretches that begin after one.
+
 ### The map laid from the LIDAR's points laid flat (#581, stage 2) — opens when this PR is deployed
 
 **What changed in the world.**

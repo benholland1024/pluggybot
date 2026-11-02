@@ -890,8 +890,8 @@ def _pair_recording() -> list[dict]:
 def test_the_pair_recording_gives_every_robot_the_same_shape():
   """The pair fixture (0.20.0): two robots from one loop, and everything
   the wire keys by robot present for BOTH -- bodies, status, goals,
-  documents, map. The served shape (#181, #559): the first robot walks to
-  its station and charges, the second explores."""
+  documents, map. The served shape (#181, #559): one robot walks to its
+  station and charges while the other explores, then the other."""
   from pluggybot.mind.thoughts import NAMES
   from pluggybot.robot import FIRST, SECOND
   lines = _pair_recording()
@@ -1005,7 +1005,7 @@ def test_two_cables_nobody_named_are_two_cables():
 def test_the_humanoid_pair_recording_is_the_served_periods_shape():
   """The served pair's fixture (#559's stage 4), what the site replays
   while the world is paused: no job on it -- no `tasks` block, no appetite
-  -- and every frame says each robot's posture; the first plugs in at its
+  -- and every frame says each robot's posture; one plugs in at its
   station and charges standing, the plug moving with it, then the other
   (the whole day's shape is `test_the_recording_is_a_whole_served_day`'s)."""
   from pluggybot.robot import FIRST, SECOND

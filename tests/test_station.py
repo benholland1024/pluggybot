@@ -401,38 +401,136 @@ def test_a_look_at_the_station_fixes_the_belief_and_past_the_matchers_reach_drop
     body.close()
 
 
-def test_a_lost_humanoid_steps_in_by_its_lidar_and_along_the_wall_until_it_sees_it(monkeypatch):
-  """`lost_routine`: facing where it believes the station is, it steps in
-  until its LIDAR reads the wall `LOST_WALL_M` ahead -- never by its belief,
-  which is what is wrong -- and looks ahead and either side; then from a
-  step along the wall. The look that finds it fixes the belief."""
+def _sighting(s, eye_x, tags=STATION_TAG_IDS, facing=None):
+  """A look of the head's camera at the station `s` from `eye_x` m out of
+  its face (`HumanoidPlaces.see_station`'s record): each of `tags` where it
+  is, its face out of the station, or as `facing` says."""
+  out = s.yaw + math.pi if facing is None else facing
+  layout = st.tag_layout()
+  return {"t": 0.0, "eye": s.to_world(-eye_x, 0.0),
+          "tags": {t: ((*s.to_world(0.0, layout[t][1]), layout[t][2]), out) for t in tags}}
+
+
+def test_a_far_look_says_where_to_walk_nearer_to_and_only_a_near_one_fixes():
+  """#572: the head's camera places a tag to a few cm from 4 m, but the
+  pair's facing only to 6-66 deg there; within 1.5 m to 2.5. So a far look
+  says where to walk nearer to (`rough`) -- the pair fitted, or one tag
+  where it is, facing as it reads, never facing away from where it was
+  seen from -- and only a near one is fitted to fix the belief by."""
+  from pluggybot.body import RackPose
+  s = RackPose(3.5, -1.88, -math.pi / 2)
+  for tags in (STATION_TAG_IDS, STATION_TAG_IDS[:1], STATION_TAG_IDS[1:]):
+    r = charge.rough(_sighting(s, 3.0, tags))
+    assert (r.x, r.y, r.yaw) == pytest.approx((s.x, s.y, s.yaw)), tags
+  # ...a facing read 80 deg off the way it was seen from: that way instead,
+  # 3 m out on its axis and 9 cm across it from the tag
+  r = charge.rough(_sighting(s, 3.0, STATION_TAG_IDS[:1], facing=s.yaw + math.pi + 1.4))
+  assert abs(math.remainder(r.yaw - s.yaw, 2 * math.pi)) < math.radians(2.0)
+  assert math.hypot(r.x - s.x, r.y - s.y) < 0.01
+  assert charge.near_fit(_sighting(s, 3.0)) is None, "a fix off a far look"
+  assert charge.near_fit(_sighting(s, 1.2, STATION_TAG_IDS[:1])) is None, "a fix off one tag"
+  near = charge.near_fit(_sighting(s, 1.2))
+  assert (near.x, near.y, near.yaw) == pytest.approx((s.x, s.y, s.yaw))
+
+
+def test_the_head_camera_places_the_stations_tags_from_across_the_room():
+  """One decode of the head's camera, 2 m out of the station's face: both
+  tags placed through its model of itself (`see_station`) within a few cm,
+  where the colour imager the dock looks by sees neither."""
+  model, data, body, station = _house(at_seat=False)
+  try:
+    s, m = body._station, body.mission
+    body.start_at(*s.to_world(-2.0, 0.0), s.yaw)
+    body.run(body.hold_routine(0.6))
+    assert charge.look(body) is None, "the colour imager read it from 2 m"
+    m.look_for_places()
+    seen = m.station_sighting
+    assert seen is not None and set(seen["tags"]) == set(STATION_TAG_IDS)
+    for t, (p, _) in seen["tags"].items():
+      x, y = s.to_world(0.0, st.tag_layout()[t][1])
+      assert math.hypot(p[0] - x, p[1] - y) < 0.04, (t, p, (x, y))
+  finally:
+    body.close()
+
+
+def test_a_lost_humanoid_looks_round_by_its_head_and_walks_nearer_by_what_it_saw(monkeypatch):
+  """`lost_routine` (#572): a look round where it stands first, by its
+  head's camera; seen, it walks to `NEAR_M` out of the station's face as
+  the look placed it -- by what it saw, never by its belief, which is what
+  is wrong -- faces it, and the look that fits the station fixes the
+  belief."""
   from pluggybot.body import RackPose
   model, data, body, station = _house(at_seat=False)
   try:
-    s = body._station
-    steps, looks = [], []
+    s, m = body._station, body.mission
+    acts = []
 
-    def step(ahead, left=0.0, turn=0.0, patience=0.0):
-      steps.append((round(ahead, 3), round(left, 3)))
-      return {"why": "stepped"}
+    def around(halt):
+      acts.append("around")
+      m.station_sighting = {**_sighting(s, 3.0), "t": float(data.time)}
+      return True
+      yield
+
+    def drive(x, y, timeout=90.0, stop=None):
+      acts.append(("walk", round(x, 3), round(y, 3)))
+      return True
       yield
 
     def face(heading):
       return True
       yield
-    monkeypatch.setattr(body, "_wall_ahead", lambda: 1.5)
-    monkeypatch.setattr(body, "step_routine", step)
-    monkeypatch.setattr(body, "face_routine", face)
+
     def look(b):
-      looks.append(1)
-      return RackPose(s.x + 0.7, s.y, s.yaw) if len(looks) == len(charge.LOST_LOOKS) + 1 else None
+      acts.append("look")
+      return RackPose(s.x + 0.7, s.y, s.yaw)
       yield
+    monkeypatch.setattr(m, "_look_around_routine", around)
+    monkeypatch.setattr(m, "drive_to_routine", drive)
+    monkeypatch.setattr(body, "face_routine", face)
     monkeypatch.setattr(charge, "look_routine", look)
-    assert body.run(body.lost_routine("dock"))
-    assert steps == [(round(1.5 - charge.LOST_WALL_M, 3), 0.0), (0.0, charge.LOST_ALONG_M[0])]
+    assert body.run(body.lost_routine("station"))
+    ax, ay = s.to_world(-charge.NEAR_M, 0.0)
+    assert acts == ["around", ("walk", round(ax, 3), round(ay, 3)), "look"], acts
     events = [e["why"] for e in body.belief_events]
     assert events == ["lost", "fixed", "searched"], events
-    assert body.belief_events[-1]["found"] and body.belief_events[-1]["viewpoints"] == 1
+    assert body.belief_events[-1]["found"] and body.belief_events[-1]["dropped"]
+  finally:
+    body.close()
+
+
+def test_unseen_a_lost_humanoid_searches_outward_from_where_it_believes_the_station_is(
+    monkeypatch):
+  """No station in its look round: it walks to viewpoints round where it
+  believes the station's standoff is, over its own map -- never round
+  itself, wherever its lost walk ended -- a look round at each, until the
+  station is seen or `stop` says."""
+  from pluggybot.humanoid.places import LOOKED_M, SEARCH_STEP_M
+  model, data, body, station = _house(at_seat=False)
+  try:
+    s, m = body._station, body.mission
+    body.start_at(*s.to_world(-4.5, 2.5), s.yaw)              # lost, across the room
+    body.run(body.hold_routine(1.0))
+    walks, arounds = [], []
+
+    def around(halt):
+      arounds.append(body.pose_xy())
+      return False
+      yield
+
+    def drive(x, y, timeout=90.0, stop=None):
+      walks.append((x, y))
+      return True
+      yield
+    monkeypatch.setattr(m, "_look_around_routine", around)
+    monkeypatch.setattr(m, "drive_to_routine", drive)
+    assert not body.run(body.lost_routine("station", stop=lambda: len(walks) >= 2))
+    sx, sy = body.charge_standoff()[:2]
+    here = body.pose_xy()
+    assert len(arounds) == 1 and len(walks) == 2, (arounds, walks)
+    assert math.hypot(walks[0][0] - sx, walks[0][1] - sy) <= SEARCH_STEP_M, walks
+    assert math.hypot(walks[0][0] - here[0], walks[0][1] - here[1]) > LOOKED_M
+    last = body.belief_events[-1]
+    assert last["why"] == "searched" and last["ended"] == "interrupted" and not last["found"]
   finally:
     body.close()
 
@@ -453,8 +551,8 @@ def test_a_lost_humanoid_says_it_looks_for_its_station_and_whether_it_found_it()
                                "truth": at, "fixture": "station", **kw})
   life._belief_step()
   said = [ln for ln in life.thoughts.texts[HISTORY].splitlines() if ln.strip()]
-  assert any("my charging station was not in sight" in ln and "from nearer" in ln
-             for ln in said), said
+  assert any("I did not find my charging station where I believed it was" in ln
+             and "looking round for it" in ln for ln in said), said
   assert any(ln.endswith("I looked for my charging station for 41 s and did not see it")
              for ln in said), said
   assert not any("dock" in ln or "rack" in ln for ln in said), said

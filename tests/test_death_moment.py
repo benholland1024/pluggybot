@@ -196,7 +196,9 @@ def test_the_lean_word_is_the_nearest_of_four():
 def test_a_death_on_a_pair_names_the_nearest_peer_and_how_far_off():
   """Measured between the two bodies' roots -- what the encounter rows
   measure -- and each robot names the other, with whether it is dead: a
-  peer knocked over mid-errand keeps its errand's state."""
+  peer knocked over mid-errand keeps its errand's state. ⚠ A root is two
+  floats, the humanoid's and so the stub's: subtracted as arrays, every
+  death of the served pair carried only a `TypeError`, and no pose (#593)."""
   model, data = StubBody.world()
   me = _life(body=StubBody(model, data))
   peer = _life(body=StubBody(model, data, handle=SECOND), robot_name="Rowan")

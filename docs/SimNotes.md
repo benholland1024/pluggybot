@@ -3537,22 +3537,19 @@ tile every 1.5 s (`station_spike.py --strip plug`)](figures/humanoid_station.png
 ![Lost and found by its station: a humanoid 2 m out, its belief set 0.7 m
 nearer the wall than it is, walks to where it believes the standoff is
 (1.45 m off the station's face, the tags above its colour camera), sees
-nothing, steps in by its LIDAR, finds the tags, puts its belief right off
-them, and walks in again and plugs itself in, a tile every 4 s
-(`station_spike.py --strip lost`)](figures/humanoid_station_lost.png)
+nothing, looks round by its head's camera and sees the station, walks
+nearer by what it saw, puts its belief right off a look there, and walks
+in again and plugs itself in, a tile every 4 s (`station_spike.py --strip
+lost`)](figures/humanoid_station_lost.png)
 
 **Lost.** No tags in sight from the standoff the belief walked it to, the
 robot is lost (#476's rule), and the station, commissioned as the dock was,
-puts it right: facing where it believes the station is, it steps in until
-its LIDAR reads the wall 0.8 m ahead -- never by its belief, which is what
-is wrong; from viewpoints set on a belief 0.7 m off toward the wall, every
-look was further from the station than 1.07 m -- and looks ahead, 34 and 63
-deg either side (the camera sees 34.5 either side of its axis), turning to
-a lone tag of the two where it sees one, then from a step 0.5 m along the
-wall each way. A look that fits the station is a FIX (`HumanoidBody._fix_at`,
+puts it right: a look that fits the station is a FIX (`HumanoidBody._fix_at`,
 the same as `anchor_at_dock`'s): the belief moved, and past the matcher's own
 search the map laid on the old one dropped, and the loop's walk to the
-standoff goes again on it.
+standoff goes again on it. How it looks for the station is #572's stage 3
+("The station found from far off"): by its head's camera, never by its
+belief.
 
 **Measured** (`scripts/station_spike.py`, the house, one humanoid):
 
@@ -3565,7 +3562,7 @@ standoff goes again on it.
 | the loop's own walk and plug-in (`energy_spike.py`) | 345.2 W net into the pack (energy.json) |
 | the reserve (`energy_spike.py --reserve`) | 13.72 Wh over 44.62 m to the garden doorway, 307.6 mWh/m; carried 17.5 Wh |
 | `--walk-in`: a fresh humanoid explores 120 or 240 s, walks on its own map to each of 8 places across the house (the bedroom, hall, kitchen, workshop, garden and south garden; the lobby and lab across the street), and the loop's own `go_charge` takes it to the station | **docked 15 of 16**, each in 46-131 s, 10 on the first push; its belief 0.04-0.51 m off where it walked to (1.07 m at the lobby after 120 s, which docked on its third push), 0.01-0.42 m once docked, before the charge's own fix; no falls (10 of 16 before) |
-| `--lost`: a fresh humanoid 2 m out facing the station, its belief set 0.7 m wrong each way and 12 drawn 0.4-1 m off and up to 5 deg turned, the loop's own `go_charge` | **docked 16 of 16**: the 14 that saw no station searched and found it in 4-62 s, their fix putting the belief within 0.11 m; the two whose walks ended near enough docked as they were, their fix the charge's own |
+| `--lost`: a fresh humanoid 2 m out facing the station, its belief set 0.7 m wrong each way and 12 drawn 0.4-1 m off and up to 5 deg turned, the loop's own `go_charge` | **docked 16 of 16**: the 14 that saw no station searched and found it in 4-62 s, their fix putting the belief within 0.11 m; the two whose walks ended near enough docked as they were, their fix the charge's own (the search as it was then, stepping in by its LIDAR; by its head's camera, #572's stage 3, 15 of 16) |
 
 **What is not yet.** One walk-in in 16 pushed four times and the port took
 none: where the plug sits in the jaws still misses pushes now and then. The
@@ -3707,8 +3704,8 @@ corrections: the humanoid's heading is its IMU's alone
 the error to 1e-13 m and 1e-11 deg. A flight's draws are its IMU's offset
 and scale and its joints' noise: Luca's and Rowan's own, and other seeds;
 `--learned` takes the gyro's offset off what its heading integrates, as a
-zero-rate update that had learned it would (the quadruped's
-`imu.Standstill`, #425: nothing under `humanoid/` has one).
+zero-rate update that had learned it would (the quadruped's, #425: the
+humanoid had none until #593, below).
 
 | flight, from | gyro offset, deg/min | along the facility's outer walls | worst | home from the storeroom | the charge |
 |---|---|---|---|---|---|
@@ -3840,33 +3837,27 @@ from the south garden, outside the very wall the station hangs on (the
 figure), 10 from elsewhere in the living room, 10 from the east garden, and
 the rest from the bedroom and the sidewalks and streets.
 
-**What is true now.** Indoors the humanoid's belief holds within 0.1-0.3
-m: its LIDAR fixes every direction there, and the matcher takes off its
-gyro's offset, whatever it is, and its legs' 0.2-2 cm a metre. Outdoors its
-LIDAR sees the buildings' walls alone -- along the sidewalks one at a time,
-the matcher holding the direction along it to odometry, and in the middle
-street none -- and its belief comes home off by more than the matcher's
-search there three ways: walking along the facility's outer walls, a
-heading carried across the street, and standing still where nothing is
-matched; and anywhere, a fall, whose get-up its odometry walks. Back in
-the house, the map refuses it every scan and nothing puts it right but the
-station, whose lost search finds it only from within about a metre; from
-across the street the charge's walks run out of time first.
-
-**Not done** (#572's stage 3, and its stage 4): a search that finds the
-station from further off than a metre, and a charge's walk given the time
-a walk across the street takes; walks to the facility that go in by its
-gates, or a station there (#560's in the research center); the heading held
-while the robot stands where nothing is matched (a zero-rate update, as
-the quadruped's while it lies); its odometry held while a get-up has its
-legs; and why the wide search took back none of them.
+**What was true then, on the C1.** Indoors the belief held within 0.1-0.3
+m, the matcher taking off the gyro's offset and the legs' 0.2-2 cm a metre;
+outdoors the LIDAR saw the buildings' walls alone, and the belief came home
+past the matcher's search by walking along the facility's outer walls, a
+heading carried across the street, standing where nothing was matched, or a
+fall whose get-up its odometry walked; the lost search found the station
+only from within about a metre. What is true now: #581 gave the LIDAR the
+fences (29 of 30 drift flights docked, "The band served"), and #572's stage
+3 gave the search its head's camera, held the odometry through a get-up and
+the charge's walk its time ("The station found from far off"); #593 holds
+the heading of a robot standing where nothing is matched ("A robot left
+standing when its run ends, and a heading held at a standstill").
 
 ## The 3D LIDAR on the head (issue #581, stage 1)
 
 **What is true now.** The humanoid's LIDAR is a Livox Mid-360S, upside down
-on a bracket over its head (Parts.md, "The LIDAR"): its field is +7 down to
--52 deg, its rays leave 1.47 m up standing. Its LEVEL RING, the 360 bearings
-at 0 deg, behaves as the RPLIDAR C1's plane did, 5 cm higher. Its points
+(Parts.md, "The LIDAR"): its field is +7 down to -52 deg. This stage hung
+it from a bracket over the head, its rays 1.47 m up standing; stage 3
+built the head round it, its rays 1.41 m up ("The sensor in the head",
+below). Its LEVEL RING, the 360 bearings at 0 deg, behaves as the RPLIDAR
+C1's plane did, a few cm higher. Its points
 LAID FLAT -- per bearing the nearest surface 0.15-2.2 m over the floor,
 through the IMU's tilt (`Lidar.band`) -- see the house's 0.9 m fences, the
 couch, the tables and the beds: flown with them, the 14 drift flights that
@@ -3908,28 +3899,15 @@ with contingency, from €15,319.75. Always on, the body draws 74.9 W, 6.2
 more (the unit through its converter, against the C1's 1.15), and weighs
 43.01 kg, 0.36 more (the head 0.24, the converter 0.12).
 
-**Its mount.** Upside down, its window under its base, so it hangs from a
-plate: a 20 x 3 mm 6082 post up the head's back edge, turned ON TO the
-sensor, holds it. Casting from the C1's height, 4.7 cm over the head's top,
-the head hid every ray steeper than 31-35 deg ahead and aside -- the floor
-out to 2 m. Its rays leave 10 cm over the head's top (`lidar_rise`), so the
-steepest, -52 deg, clears the head ahead and to either side and meets the
-floor 1.15 m out. What the robot's own body hides (`lidar_spike.py
---hidden`, each sector 20 deg either side):
-
-| pose | of a frame | ahead | aside | behind |
-|---|---|---|---|---|
-| standing, arms hanging | 3.8 % | nothing | clear to -50 | the post's 3 bearings |
-| a hand held at a counter, 0.94 m | 4.3 % | clear to -42 (its gripper) | to -50 | the post |
-| at a high shelf, 1.43 m | 6.0 % | nothing | to -50 (its upper arm) | the post |
-| at a low shelf, 0.49 m | 4.7 % | clear to -36 (its gripper) | to -50 | the post |
-| at the floor | 3.6 % | clear to -44 (its gripper, its soles) | to -50 | the post |
-
-The head's corners hide the rings under -45 deg between the four
-directions; the shoulders and the arms hanging hide nothing. The rays are
-cast from 5 mm under the unit, as the C1's were from 6 mm over its puck:
-from inside the housing every ray hit the housing (#386). The unit touches
-nothing in the sim, as the C1 did not.
+**Its mount, this stage's** (stage 3 built the head round it instead;
+"The sensor in the head", below). The unit hung upside down from a plate
+on a 20 x 3 mm 6082 post up the head's back edge, turned on to the sensor,
+its rays 10 cm over the head's top so the steepest ray cleared the head
+ahead and to either side. Cast from the C1's height, 4.7 cm over the head,
+the head hid every ray steeper than 31-35 deg, the floor out to 2 m. It
+touched nothing in the sim. Standing, the robot hid 3.8 % of a frame of 30
+rings (4.8 % of 15, stage 2's): the post's 3 bearings behind, and the
+head's corners under -45 deg.
 
 **The model** (`perception/lidar.py`, `tests/test_lidar.py`). A frame is 30
 rings 2 deg apart, -52 to +6, 360 bearings each, 10,800 rays in ONE
@@ -4094,7 +4072,8 @@ sums (`humanoid.world.RESERVE_WH`): the dearer travel with 6.2 W over its
 standing, 17.9 Wh, carried as 18, from 17.5 (its own dock leg ran out of
 time 10 m short, as the C1's had).
 
-**What came after**: stage 2 served the band ("The band served", below).
+**What came after**: stage 2 served the band ("The band served", below),
+and stage 3 built the head round the unit ("The sensor in the head").
 
 ## The band served (issue #581, stage 2)
 
@@ -4156,9 +4135,10 @@ it.
   walking tilts it; stage 1's band did it too, with twice the rays a
   bearing to hide it). A bearing is free only off a ray that stayed in the
   band to the 8 m reach and brought nothing back: in a closed room, none
-  (`test_a_closed_room_has_no_free_bearing_behind_the_post`).
-- *Nearer than its steepest ray comes down.* Upside down 1.47 m up, the
-  steepest ray meets the band's floor 1 m out: nearer, every ray passes
+  (`test_a_closed_room_has_no_free_bearing_behind_the_fin`).
+- *Nearer than its steepest ray comes down.* Upside down 1.41 m up, the
+  steepest ray meets the band's floor 1 m out (2.8 m behind the robot, under
+  the head's back since stage 3): nearer, every ray passes
   over whatever is lower than it, and a bearing laid free from the sensor
   out cleared a low thing mapped from afar as the robot walked up to it.
   Nearer than that (`Scan.free_from`, per bearing, through the IMU's tilt)
@@ -4346,11 +4326,500 @@ head's dearer drawer, door and chest, as its rule says.
 
 **Not done.** A far fence's intermittent ring (above); the walker's seat
 (above); and #581's live reading, a day of the pair with neither robot
-lost outdoors, which opens with the deploy (Observatory.md). #572's
-stage 3 should read this one: a bowed robot's scans now count, so its
-heading at a counter is held by the matcher, and a zero-rate update may be
-needed only where nothing is matched. The world's height map as the store,
-which the grid becomes a projection of, is its own issue.
+lost outdoors, which opens with the deploy (Observatory.md). The world's
+height map as the store, which the grid becomes a projection of, is its
+own issue. (#572's stage 3 read this one for the heading at rest: where
+its scans are matched, bowed at a counter too, no zero-rate update is
+needed, "The station found from far off"; where none are, #593 holds it,
+below.)
+
+## The sensor in the head (issue #581, stage 3)
+
+**What is true now.** The Mid-360S is built into the head (Parts.md, "The
+LIDAR"), the head one cylinder 136 mm across above and below its window:
+- **The face**, under the window: its front a dark visor the cameras sit
+  in, a dark dome over it inside the steepest ray's cone.
+- **The window:** open all round, but where a 6 mm 6082 fin behind carries
+  the cap, and where seven printed panels round the back half close it
+  under -26 deg.
+- **The cap**, over the window: the unit's base bolted under a plate in
+  it, on four rubber-metal buffers, and a padded TPU rim 4 mm proud round
+  its foot.
+- **Collision:** every part collides, the unit too.
+- **Height:** its rays leave 0.68 m over the hips, 1.41 m up standing, 4
+  mm over the lowest from which its steepest ray, -52 deg, clears the
+  navigation camera's front; the cap's top is 1.48 m up.
+- **What it hides:** standing, 25.6 % of a frame, nearly all of it the
+  back's steep rays: the floor within 2.6 m behind.
+
+Flown against stage 3's first head and stage 1's post (`~/pluggybot-training/
+issue-581/batches/hf1`, beside stage 3's batches), nothing measurably got
+worse:
+- **Drift:** over 60 flights a head, 58 docked on each, and the belief
+  after the explore is tighter: a median 0.06 m off, against 0.12 on both.
+- **Station:** 126 of 132 starts (the first head 127, the post 123).
+- **Probe:** every outdoor place pinned; the rooms 2 % unpinned (4 %).
+- **Hands:** 17 of 32 (the first head 17, the post 18).
+- **Policies:** none retrained; the shoves are the first head's, cell for
+  cell.
+- **Falls:** the rim and the cap take a fall; as served, the unit grazed the
+  floor once in 74 falls, at 1.4 m/s (below).
+
+![The sensor in the head: at eye level from ahead, its left and behind; from
+the site camera's 36 deg the same three ways; where the three steepest rings
+meet the floor round it -- ahead only, the back's panels closing them behind
+-- and from overhead; and the robot as the site's follow camera frames it
+(`lidar_spike.py --strip head`)](figures/humanoid_lidar_head.png)
+
+**Why.** Stage 1 hung the unit from a 20 x 3 mm post 10 cm over the head,
+and Ben called it fragile and impractical (2026-11-01): a €773 sensor at
+the highest point, on a strip that swayed at about 12 Hz, where a fall
+lands first and a door frame or a shelf catches it, and in the sim it
+touched nothing. This stage's first head (b13045b) built a crown round the
+unit's base on a 6 x 15 mm rib, over a dome on the box face. Seeing it, Ben
+found it still read as mounted above the head, not in it (2026-11-02):
+the crown, narrower than the face, read as a puck on a stick. He chose to
+keep the Mid-360 and reshape the head (`~/pluggybot-training/issue-581/
+HEAD_BRIEF.md`), and picked this head of three he was shown.
+
+**What fixed the head's shape.** Three things:
+- *The cone.* Upside down, the field runs from +7 down to -52 deg. Below
+  the window a part r off the axis must sit 1.28 r under the rays' origin,
+  above it 0.12 r over it. So at the head's edge the window is 1.4 times
+  the head's radius tall, and at eye level you see through it whatever the
+  head's shape: an open window cannot be closed by styling. Every part
+  keeps 2 mm out of the whole field (`model.FIELD_CLEAR`; the sim's rings
+  step over most of it, so a test checks the shapes against the field).
+- *The site's camera.* It looks down 36 deg (`VIEW_DIR` in the site's
+  `camera.ts`), and from there a line through the window lands on the dark
+  dome on its far side. So the visor, the dome, the rim and the panels'
+  inner faces are one dark colour (the PETG's and the TPU's own black,
+  unpainted: the livery is paint, and `robot.paint` leaves them), and from
+  the site's angle the window reads as one dark band across one head.
+- *The manual.* Nothing in the field, "including glass", and 10 mm of air
+  round the unit.
+
+**The back keeps the rings the band is laid from** (`model.BACK`). A back
+closed over every ring would make the head read as one from behind, and
+it cost localization: closed over +-55 deg, #572's probe (`lidar_spike.py
+--probe`) left 3 % of the street loop's places and 7 % of the rooms' with
+the heading unpinned (the head without it: 0 and 4), the gardens' fully
+pinned share falling from 99 % to 84 %. The band's walls come off its
+middle rings: from 1.41 m up, the rings from -8 to -24 deg meet a 2.4 m
+wall anywhere from 0.5 to 9 m off inside the band, and a 0.9 m fence from 1
+to 3 m. The steeper ones meet the floor within 2.6 m. So the panels close
+only the rings under -26 deg, round the back half: the -24 deg ring passes
+1 mm over their corners and the -28 deg one meets them (a test). The probe
+pins every outdoor place with them as without them, and the rooms' 2 %
+unpinned, against 4. What the robot gives up is the floor and anything low
+within 2.6 m behind it and aside, where it barely walks: the Navigator never
+walks it sideways, and its walker barely backs up (an undock turns away).
+The panels and the fin are the only parts in the field. One fin carries the
+cap, edge-on to the sensor: its shadow is 9 bearings, every ring.
+
+**Lower.** Stage 3's first head held its rays at 0.712 m over the hips: the
+navigation camera rode the dome, its front 0.613 m up, and the box face's
+corners, 0.099 m off the axis, bound there. The face is a cylinder now, its
+edge 0.068 m off the axis, and the navigation camera comes 3.5 cm down into
+the face, over the depth camera: the rays come down 3.2 cm, to 4 mm over
+where the navigation camera's front meets the -52 deg ray (at 0.67 it met
+it ahead), 9 over the depth camera's corners. The depth camera is where it
+rode. Lower costs the shoulders' motors aside, under the -48 deg ring: 0.5
+% of a frame against stage 1's height.
+
+**Its rays leave through its window.** The unit is a body of its own round
+its rays' origin. Its manual puts the IMU chip 44.12 mm under the origin,
+so the origin is about 47 mm over the base's face and 13 mm short of the
+window's end. A cast skips the unit's own body (`Lidar._housing`, MuJoCo's
+`bodyexclude`): cast from inside the housing, every ray met it
+(`test_its_rays_leave_through_its_window_never_its_housing`).
+
+**What it hides** (`lidar_spike.py --hidden --heights`), standing, arms
+hanging, the head built round the unit at each height of its rays' origin
+(the face's top, the visor, the dome, the back, the cap and the fin follow
+it; the cameras stay):
+
+| rays' origin over the hips | the cap's top, standing | of a frame | what hides more |
+|---|---|---|---|
+| 0.735 (stage 1's height) | 1.532 m | 25.1 % | the back's steep rays, the fin |
+| 0.712 (stage 3's first head) | 1.509 m | 25.3 % | and the shoulders' motors at -52 aside |
+| 0.69 | 1.487 m | 25.6 % | and at -48 |
+| **0.68 (served)** | **1.477 m** | **25.6 %** | |
+| 0.67 | 1.467 m | 26.0 % | and the navigation camera at -52 ahead |
+
+Nothing within 60 deg of ahead is hidden, nor any ray of the band's rings
+off the fin's bearings. In the reach scene's holds (`--hidden`) it hides
+26.4 % with a hand at a counter, 29.2 % at a high shelf, 27.2 % at a low
+shelf and 27.8 % at the floor. No camera sees any part of the head
+(`test_the_cameras_see_nothing_of_the_head_round_the_lidar`).
+
+**A fall onto the head is the rim's and the cap's.** The unit lies inside
+the head's other parts by 18 mm at the least, straight up, where the cap's
+top is over its base; and by 20 mm or more within 60 deg of level, the ways
+a fall meets a head (`test_no_plane_meets_the_lidar_before_its_head`; the
+first head's held 6 over its unit). On the bill a padded rim and rubber
+buffers under the unit's base take a blow through rubber; the sim's unit
+is rigid on the trunk.
+
+**Where the head strikes, and how fast** (`humanoid_spike.py --fall`, the unit
+a part of its own):
+- **Hard falls**, the robot limp or on the standing policy alone, shoved
+  back, aside or back-right: the cap strikes first, at 4.7-6.2 m/s, the
+  floor pushing back 4-9 kN. In 4 of those 12 the unit then grazes the
+  floor, at 1.1-2.8 m/s and under 50 N: MuJoCo's soft contact lets the cap
+  sink 2-4 cm at those speeds, past the rim's 2.6 cm. On the first head the
+  unit met the floor in 8 of the 12, at up to 4.9 m/s.
+- **Falls the get-up takes**, as served: on a bare floor the head touched
+  in 3 of the 6 ways, at up to 4.8 m/s (front, the face and the cap), the
+  floor pushing back 0.2 kN at most; in the house's 20 the visor struck
+  first at 3.8-4.2 m/s or the cap at up to 5.0. The unit touched nothing in
+  any of them.
+- **Falls from a bow:** the cap is first into the floor 36 times (1.3-6.0
+  m/s), the rim 16 (0.3-4.8), the visor 9 (1.7-3.1) and the face once. The
+  unit grazed the floor in 16 falls on the standing policy alone (0.3-2.7
+  m/s), and in 1 of the 48 the get-up takes (1.4 m/s).
+- **The get-up stood** from every bare-floor fall (2.8-4.2 s), from all 48
+  bowed falls as served, and in the house from 15 of 20. Falling forward
+  off the landing's edge it stays down now, as on the post, where the
+  first head stood: CLAUDE.md's "off the landing ... still end stuck". The
+  other four are the first head's.
+
+**The batches** (one pod; the first head's and the post's rows are stage
+3's, the sim deterministic: stage 3's staging run reproduced stage 2's
+batches flight for flight):
+
+| | the post | the first head | reshaped |
+|---|---|---|---|
+| drift, 60 flights: docked (lost) | 58 (1) | 58 (0) | 58 (1) |
+| falls in the flights | 3 | 1 | 2 |
+| belief off after the explore, median / 75th / max, m | 0.12 / 0.25 / 0.48 | 0.12 / 0.23 / 0.48 | 0.06 / 0.17 / 0.51 |
+| at the storeroom | 0.32 / 0.47 / 0.79 | 0.23 / 0.40 / 0.73 | 0.21 / 0.41 / 2.96 |
+| station: `--approach`, 48 starts | 46 | 48 | 48 |
+| `--lost`, 68 | 61 | 63 | 62 |
+| `--walk-in`, 16 | 16 | 16 | 16 |
+| hands, 32 flights | 18 | 17 | 17 |
+| probe: outdoor places / rooms unpinned | 0 / 4 % | 0 / 4 % | 0 / 2 % |
+
+- **The drift:** after the explore the reshaped head's belief is tighter
+  (Mann-Whitney p 0.02 against the post, 0.14 against the first head; the
+  spreads one, p 0.2-0.3), and at the storeroom the three are one
+  distribution (p 0.2-0.7). Its lost flight (seed 16 from the start) fell
+  in the garden at 255 s and got up believing itself 3 m from where it
+  stood, and never found its way back: a fall's get-up walking the
+  odometry, which #591 (#572's stage 3) fixes. Its other fall, in the
+  garden too, was fixed off the map 3.6 s after it stood.
+- **The station's misses** are every head's: not lined up, and a walk that
+  gave up 0.2 m short. The pair's recording found one more: from its own
+  start the first robot's plug-in misses the port 3.5 cm aside, on all four
+  tries, every time. The plug arrives off the port and meets the torso
+  (where it sits along the jaws' pads is not measured), and the starting
+  charge does not move that walk, so the fixture swaps which robot starts
+  low.
+- **The policies**, none retrained (`--shove`, `--track`): the shoves it
+  stands through are the first head's, cell for cell (from its left,
+  standing, 15 N*s where the post held 20). Every command tracks within
+  0.03 of the first head's but the 0.5 rad/s turn, 0.21 against 0.28 (the
+  post 0.23), inside the two gaits its noise draws (stage 1).
+- **The hands:** the lid 6 of 8 (its bar met: set-out 5 passes now), the
+  drawer 4, the door 5 (set-out 2 out of reach where it passed) and the
+  cube 2, at the post's set-outs (0 fell). Flown again with every contact
+  on the head logged, neither miss touched it.
+
+**What it costs.** Nothing measurable (`humanoid_spike.py --speed`, the three
+heads interleaved twice on the pod, a Xeon that runs the served pair at
+0.7x real time where the deploy box runs it at 1.4): the pair at 0.77 and
+0.71x on this head, 0.73 and 0.71 on the first and 0.69 and 0.72 on the
+post; one humanoid at 1.40 and 1.38x, 1.47 and 1.34, and 1.29 and 1.39.
+One head's two rounds differ by more than the heads do. The panels add
+seven contact geoms a robot, and the arms' pairs with the trunk and the
+head go from 66 to 120: a bounding-sphere check each a step.
+
+**The bill.** The rib's allowance becomes the fin-and-plate's, two machined
+parts, the same €66.67. The visor, the dome, the back and the cap are
+printed with the face in PETG; the rim in TPU (`tpu_1kg`, €35), and the
+unit sits on four of RS's M3 rubber-metal buffers (`rs_189_3249`, €10.03 a
+pack of four). The total is €16,374.07, €51.79 more with the contingency.
+The robot weighs 43.18 kg, 0.03 more than the first head.
+
+**What is left.**
+- **Other parts outside the body still touch nothing in the sim**, as
+  before this stage: the D435 stands 2.5 cm proud of the visor and the
+  charge port's funnel 1.5 cm proud of the torso; the motors' housings are
+  visual too, though the limbs' capsules cover most of them. Each wants
+  the same treatment as the LIDAR: collide, then fly the batch again.
+- **The unit still grazes the floor in some falls**, the rim and the
+  buffers being on the bill and not in the physics: MuJoCo's soft contact
+  sinks the cap 2-4 cm in a hard fall, past the rim's 2.6 cm. A rim 2 cm
+  proud of the head (a 4 cm margin, read as a brim) or a stiffer contact
+  on the head's parts would end it; the second changes what the get-up
+  meets.
+- **The plug-in's grip along the jaws is not measured**: from the pair's
+  own start the first robot misses the port 3.5 cm aside every time, the
+  plug off its catch and against the torso.
+- **#581's live reading**, a day of the pair with neither robot lost
+  outdoors, opens with the deploy (Observatory.md).
+
+## A robot left standing when its run ends, and a heading held at a standstill (issue #593)
+
+**What the live pair showed.** On 34cd4e3 (2026-11-01 and 02) Rowan stood
+in `DONE` four times for 20-55 minutes before a restart, no scan matched,
+its heading turning by its gyro's offset (3 deg a minute, near the part's
+worst) until it was 105-161 deg off. Each next run carried on from that
+belief (#345): a wide search put it 2.6 m and 176 deg off, a room turned
+round, and it died flat 40 m lost; later a false fit 7 m off, and a fall
+5-20 m lost. Luca never stood in `DONE`: each time it was the robot still
+charging.
+
+**Why.** A run ends robot by robot: the day loop checks its budget between
+errands, so a robot charging passes it inside the charge, and the other's
+day ends first. `tick.run_many` held the finished robot `STILL`, running
+its stepper's bookkeeping -- the odometry, integrating the gyro -- and
+nothing its routines do between steps, where a scan is matched and laid
+(`Navigator._after_step`).
+
+**The finished robot's wait** (`run_many`'s `waits`, given by `run_pair`):
+its body's own hold, as a robot waiting for work holds, until the other's
+day ends; the loop still ends on that step, and the wait is closed there.
+Flown, the served pair in the house, Rowan's day over at 6 s and Luca's
+exploring, running low and charging past the run's budget to 478 s
+(`humanoid_drift_spike.py --done`; Rowan's draws, its offset +2.98 deg a
+minute), with each of #593's two fixes taken out and both:
+
+| Rowan in `DONE`, 472 s | heading off at most | belief off at most | scans matched while it waited |
+|---|---|---|---|
+| held `STILL` by the loop, no hold (before: `--no-wait --no-hold`) | 23.4 deg, its offset times the time | 6 cm | none |
+| held `STILL`, its heading held (`--no-wait`) | 1.7 deg | 6 cm | none |
+| its body's hold and its heading's (served) | 0.10 deg | 1.2 cm | 4,666, ten a second |
+
+**A heading held at a standstill** (`imu.HeadingHold` in the odometry,
+#425's zero-rate update on the heading alone, the filter's tilt the
+accelerometer's). Where nothing is matched -- every scan refused, a robot
+lost -- the same offset turns a standing robot. One humanoid in the house,
+its matcher off, its gyro's offset the part's worst (0.05 deg/s each axis),
+stood three minutes after three scenes (`humanoid_drift_spike.py --still
+boot|walk|turn`; `--hold-after S` for a hold begun elsewhere in the rest):
+
+| standing still | the body's own turn as it settled | held from 30 s (served) | from 20 s | unheld, at 3 min |
+|---|---|---|---|---|
+| booted, the standing policy | 5.6 deg: 0.75 deg/s at once, 0.08 at 20 s, under 0.001 from 45 s | 1.60 deg | 1.40 | 9.0 |
+| after a 2 m walk, the walker | 1.5 deg, 0.03 deg/s at 20 s | 1.49 | 1.07 | 9.0 |
+| after a turn on the spot, the walker | 16.1 deg: 2 deg/s, 0.34 at 20 s, 0.07 at 40, under 0.01 from 60 | 2.63 | 3.56 | 8.9 |
+
+Settled, the rate its gate reads -- its heading's, less the offset
+learned, smoothed -- stayed under 0.09 deg/s (p99 0.05-0.06) on either
+policy, inside the gate's 0.2, and the hold held throughout; it learned
+the offset to 0.049-0.050 deg/s. What it cannot tell from rest is the
+settle's slow real turn: what of it comes once the hold begins is taken
+for stillness, and the offset turns the heading until then. Begun at the
+rest's 8.6 s (as the quadruped's was) the worst was 3.6 deg, at 60 s 3.0.
+Over the three, 30 s's worst (2.6) is second only to 40 s's (2.4), and it
+keeps a commoner rest's -- after a walk, a boot -- at 1.5-1.6 deg, where
+40 s let the offset turn it 2.0.
+
+The drift spike counts what the hold takes off as a heading share of its
+own, `hold`, so its shares add up to the error again: Rowan's draws,
+explored 60 s and stood 90 s in the bedroom with the matcher on, the hold
+took 2.8 deg off the gyro's 7.9, to a residual of 1e-13 deg.
+
+The 30 s count from anything that moved the body, never the walk command
+alone: a stand-up's warp, a get-up and a hand's work move it without one,
+and it settles after each. Counted off the walk command, the hold began
+the moment a stand-up warped the robot back to its start, and held it
+through the settle a boot turns through: off by 2.36 deg where the boot's
+was 1.60 (`--still standup`, standing 60 s and then put back at its
+start).
+
+**What is true now.** A robot whose day ends first holds as one waiting
+for work does, its scans matched, until the other's ends. A humanoid
+resting 30 s after anything moved it holds its heading while its IMU
+agrees nothing turns it, and takes off its heading the offset it learned
+there, walking too: standing where nothing is matched it turns off the
+heading it stopped with by what its offset turned it in those 30 s and
+what of its settle came after, 1.5-2.6 deg at the part's worst, where its
+offset turned it 3 deg a minute unheld. Where its scans are matched, the
+matcher holds its heading as before.
+
+## The station found from far off (issue #572, stage 3)
+
+**What is true now.** A humanoid that does not find its station where its
+belief puts it -- none in sight from the standoff, or no walk there got
+there -- looks for it by its head's camera and walks nearer by what it saw
+(`HumanoidBody.lost_routine`): a look round where it stands, then
+viewpoints outward from where it believes the station is, and once seen,
+to a metre out of the station as that look placed it, where a look fits it
+near enough to put the belief right (`_fix_at`). Its belief set 1-5 m and
+5-20 deg wrong -- 2 m out, from the house's six rooms and across the street
+-- it docked 121 of 123 (staging, from the same starts, 14); explored
+first, laying its map askew through that belief, 23 of 27 (staging 1).
+Begun within 5 m of the truth, its search found the station 109 times in
+109. The walk to the station is given the time its length takes, a dock that
+saw the station and never got in goes again, and a fall's get-up walks no
+belief. Where its scans are matched its heading needs no hold at rest:
+with the band, Rowan's draws stood 180 s in the middle street and their
+heading moved 0.1 deg (9 on the C1); where none are, #593's hold keeps it.
+
+![Found from behind its station's wall: a humanoid 2 m out, its belief set
+2 m and 12 deg wrong (stage 2's figure, "Where the humanoids get lost"),
+walks to where it believes the standoff is -- truly the south garden,
+outside the station's own wall -- looks round and searches the garden's
+viewpoints round where it believes the station is, comes in by the garden
+door at about 155 s, sees the station, walks nearer by what it saw, puts
+its belief right (1.7 m and 11 deg) and plugs itself in at 199 s, a tile
+every 16 s (`station_spike.py --strip lost --lost-from station --lost-off
+-1.606,-1.192,12`, every other tile and the
+last)](figures/humanoid_station_far_found.png)
+
+**What its cameras read of the station** (`station_spike.py --reach`: set
+out of the station's face and off its axis, facing it, a decode of each
+camera; the belief is the truth there, so what is measured is the look).
+The colour imager the dock looks by reads the pair within 1 m and nothing
+past 1.25 m -- the tags rise out of its view -- and it was all the search
+had: from 1.5 m off and further it found the station 0 times in 43 (stage
+2). The head's navigation camera, pitched for the walls' signs, reads both
+60 mm tags square-on from 0.8 m to 4.5 m, one from 30 deg off the station's
+face to 5 m (the parked plug hides the far tag from about 20 deg), and
+from 50 deg only within 1.5 m:
+
+| out of the face | tags the head's camera read, 0 / 15 / 30 / 50 deg off its axis | the pair fitted off them: its facing, its place |
+|---|---|---|
+| 0.8-1.0 m | 2 / 2 / 2 / 1-2 | within 0.7 deg, 7 mm |
+| 1.25-1.5 m | 2 / 2 / 1 / 1 | within 2.4 deg, 6 mm |
+| 2-2.5 m | 2 / 2 / 1 / 0 | 1.0-14.4 deg, 0-51 mm |
+| 3-4.5 m | 0-2 / 0-2 / 1 / 0 | 1.1-40.2 deg, 4-47 mm |
+| 5 m | 0 / 0 / 1 / 0 | |
+
+(On #581's stage 3 head, its navigation camera 3.5 cm lower; on the first
+head the same tags read, and the pair's facing came out within 1.9 deg to
+1.5 m, 1.0-5.5 deg at 2-2.5 m and up to 28.6 deg at 3-4.5 m.)
+
+A far look says where the station is to a few centimetres and which way
+it faces to tens of degrees: the pair is 18 cm across, and a centimetre of
+range between its two tags turns it 3 deg.
+
+**The search** (`charge.LOST_*`, `NEAR_*`):
+
+- *A look round where it stands*, a decode every 60 deg (the places'
+  look-around, `humanoid.places`): lost within a room of it, the robot sees
+  the station from there.
+- *Then viewpoints outward from where it believes the standoff is*, over
+  its own map, the nearest by the walk first, a look round at each, its
+  walks stopping as soon as a decode shows a tag (`next_viewpoint`, the
+  find's search; `HumanoidPlaces.see_station` notes every look of the head
+  that shows one). An askew belief puts the station's believed place in
+  another room or the garden, and the true one a walk or two away. ⚠
+  ROUND THE STATION'S BELIEVED PLACE, NEVER ROUND THE ROBOT: lost 5 m away,
+  a search round itself walks off from the station.
+- *Seen, nearer by what it saw* (`_near_station_routine`): to `NEAR_M` (1
+  m) out of the station as the newest look placed it (`charge.rough`: the
+  pair fitted, or one tag where it is and facing as its own rotation says,
+  either never more than 60 deg off the way it was seen from), facing it,
+  and a look of the colour imager and of the head's camera. ⚠ NEVER A FIX
+  OFF A FAR LOOK: put right 20 deg wrong, the robot lays its map askew
+  again. A look that fits the station there -- the colour imager's, or the
+  head camera's with both tags within 1.6 m (`near_fit`) -- is the fix.
+- *Bounded*: `LOST_PATIENCE_S` (600 s), or the pack empty
+  (`HubLifecycle._search_routine`); seen and never near after two rounds of
+  four tries, it says so (`seen, never near`).
+
+**Walks that never got there, and their time** (`HubLifecycle.
+go_charge_routine`). Five of stage 2's lost flights never searched, their
+walks to where they believed the standoff was finding no route through a
+map laid askew: two walks that gave up anywhere are a robot lost too,
+searched for once from where they ended, unless the other robot stopped
+them. The walk itself is given 6 s a metre of the straight line, at least
+the 90 s it had (`CHARGE_WALK_S_M`): home from the storeroom, 22 m in a
+straight line, #581's drift flights walked 70-82 s and up to 117. And a
+dock that saw the station and never got in goes again from the standoff,
+once a charge: 6 of the 117 stations found in the first sweep were never
+got in, the walker's step 4-5 cm inside the seat, which it cannot back off
+(#581, "The band served").
+
+**A fall** (`HumanoidMission._after_physics`; `humanoid_drift_spike.py
+--falls`: shoved over six ways, 300 N for 0.3 s, after a 120 s explore). The
+odometry stepped while the get-up policy had the legs, following a
+tumbling body's feet: a fall walked the belief 1.7-2.1 m in stage 2's
+flights and Luca's 3.7 m live, past the wide search's 2 m. It is held
+through the get-up, and stood, its planted foot is read afresh -- the foot
+planted before the fall counted the whole get-up's move at once. Luca's
+draws in the hall and Rowan's in the bedroom, where their explores end on
+#581's stage 3 head, staging's code and this stage's: 8 of 12 shoves put
+the robot down on either (it stood through the rest), and every one stood
+within 5 s:
+
+| | staging | the odometry held |
+|---|---|---|
+| the body moved during the get-up | 0.10-1.35 m | the same |
+| the belief moved during the get-up | 0.66-1.80 m | 0.00 |
+| the belief off as it stood | 0.64-1.79 m | 0.04-1.38 |
+| 5 s on, back within 0.11 m | 5 of 8 | 7 of 8 |
+
+What a held belief is off by as it stands is what the get-up moved the
+body and what the stagger before the fall left (the legs track a stagger
+under a shove only to 0.1-1.0 m). The matcher's searches took most back
+within 5 s. The held one they did not, Rowan's draws shoved from 240 deg,
+the get-up carrying the body 1.35 m, stood 1.37 m off with its scans
+sliding -- refused, never fused, so its map stays true -- and is left to
+the station's look at its next charge; walked, staging left three 0.6-1.2
+m off, two on scans the matcher held along a wall. (On the first head, in
+the workshop and the garden, every one came back within 5 s.) Held, the
+belief can be no further off than the fall carried the body; walked, it
+went 3.7 m live. The three falls in this stage's far sweeps all docked.
+
+**The heading at rest, read before and after** (stage 2 asked for it to be
+read first). Rowan's draws stood 180 s in the middle street: on the C1 its
+heading went from +0.4 to +9.2 deg -- its gyro's offset, nothing matched --
+and its next walk passed the facility's gate a metre off and ended 6.2 m
+off. With the band (staging 44f28e4) it went from -0.06 to +0.08 deg,
+every scan matched, and both its flights docked; with the offset taken off
+(`--learned`), 0.81 to 0.81. The band's matcher takes the offset off
+wherever its scans are matched, bowed at a counter too: no zero-rate
+update is needed there. Where nothing is matched -- every scan refused, a
+robot lost -- #593 holds the heading at a standstill ("A robot left
+standing when its run ends, and a heading held at a standstill").
+
+**Measured** (`station_spike.py --lost --far`, flown on a Vast CPU pod, each
+trial a process; staging is 15e37db -- #581's stage 3 head, its navigation
+camera 3.5 cm lower, and #593's heading hold -- both with the workshop's
+start moved off its table, where stage 2's put the robot inside it; the
+times over the 123):
+
+| | staging | this stage |
+|---|---|---|
+| belief 1-5 m and 5-20 deg wrong: 2 m out (15), the house's six rooms (72), across the street (36) | **14 of 123** docked; 4 never searched, their walks out of time | **121 of 123**; every station found was plugged into |
+| ...explored 120 s first, its map laid through the wrong belief: the rooms (18), across the street (9) | **1 of 27** | **23 of 27** |
+| found, where the search began within 5 m of the truth | 13 of 105 | **109 of 109** |
+| ...where it began 5 m and more off | 0 of 37 | 32 of 38 |
+| the search, when it found the station | median 40 s | median 95 s; 9 in 10 within 307 s |
+| the whole charge, when it docked | median 91 s | median 177 s; 9 in 10 within 440 s |
+
+On the first head (staging 44f28e4) the same sweeps read 118 of 123 and 24
+of 27 (staging 14 and 2), every search begun within 5 m finding it.
+
+The drift batch (`humanoid_drift_spike.py`, #581's stage 3's 60: #572's 14
+flights and seeds 3-29 from either start) docked 60 of 60, none lost and
+none fallen, its beliefs staging's to the centimetre until the charge
+(staging docked 59, its miss a plug the port never took). On this head
+before #593's hold (#581's stage 3 alone) one was lost: seed 16 from the
+start fell in the garden at 255 s and stood believing itself 3 m off, the
+get-up having walked its odometry. With #593's heading hold its explore
+goes otherwise and it never falls, here or on staging, and its own commit
+flown again on another pod's CPU parted from that flight within 100 s and
+fell nowhere, so what the get-up's hold does for it is read off the falls
+above. The station's
+own batches, as #581's stage 3 flew them: from round the standoff 15 of 15
+and 33 of 33, its belief 0.4-1 m wrong 16 of 16 and 51 of 52 (every search
+found it, in 2-235 s; the miss a plug the port never took), from across
+the house 16 of 16 -- 131 of 132, where staging docked 124 (four never
+lined up, which the dock's retry takes, two walks that gave up 0.2 m
+short, and two plugs the port never took).
+
+**Not done.** What the search does not reach is a robot lost 5 m and more
+off across the street: its walk home ends outside the house's south fence,
+in the street or on its sidewalk, and 6 such searches in 38, begun 6.1-9.2 m
+off, ran out of their 600 s there. Stage 4's station in the research
+center would put a robot right before it crossed back, and is Ben's call on
+this reading. The walker's seat (#581) is what is left of a charge from its
+standoff.
 
 ## Debugging workflow that worked
 

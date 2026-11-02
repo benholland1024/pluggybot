@@ -22,6 +22,9 @@ the house, its station on the living room's wall.
                                 # and 5-20 deg wrong, 2 m out, in the house's
                                 # rooms or across the street; how each ended
     ... --lost-table rows.json  # --far's table again, from its --out
+    ... --reach                 # how far its cameras read the station's tags:
+                                # each camera's tags decoded, out of the face and
+                                # off its axis, and the head camera's fit (#572)
     ... --view [plug|fall|lost] # a scene in the viewer, looped (MUJOCO_GL unset)
     ... --strip [plug|lost]     # a scene's filmstrip
     ... --lost-from P --lost-off X,Y,DEG   # the lost scene from elsewhere
@@ -313,8 +316,10 @@ LOST_FROM_X = -2.0
 LOST_SCENE_OFF = (0.7, 0.0, 0.0)
 #: `--lost --far`'s starts (#572): 2 m out, the house's places and the
 #: facility's across the street (`WALK_IN_FROM`), and the storeroom whose
-#: counter the jobs are at (#559's stage 3) -- each facing the station.
-LOST_FROM = {"station": None, **WALK_IN_FROM, "store": (25.0, -3.0)}
+#: counter the jobs are at (#559's stage 3) -- each facing the station. ⚠
+#: NOT THE WORKSHOP'S WALK-IN GOAL, its table's middle: started there, the
+#: robot was thrown out of the table, and laid its map wedged against it.
+LOST_FROM = {"station": None, **WALK_IN_FROM, "workshop": (-8.5, -0.8), "store": (25.0, -3.0)}
 #: ...in the far table's three groups (`--from` takes a group's name too).
 LOST_GROUPS = {"near": ("station",),
                "house": ("bedroom", "hall", "kitchen", "workshop", "garden", "garden_south"),
@@ -398,7 +403,7 @@ def lost_trial(off, place: str = "station", explore_s: float = 0.0) -> dict:
     events = []
     for e in body.belief_events:
       rec = {k: v for k, v in e.items() if k in ("why", "fixture", "found", "ended", "seconds",
-                                                  "viewpoints", "dropped", "atM")}
+                                                  "viewpoints", "arounds", "dropped", "atM")}
       truth = _wire(e["truth"])
       rec.update(off=_off(_wire(e["before"]), truth), zone=zone_of(*truth[:2]))
       events.append(rec)
@@ -527,6 +532,72 @@ def lost_table(rows: list[dict]) -> None:
     line(f"set {lo:g}-{min(hi, 20):g} deg off",
          [r for r in rows if lo <= abs(_set_off(r)[1]) < hi])
   line("all", rows)
+
+
+#: `--reach`: the robot this far out of the station's face, m, along lines
+#: this far off its axis, deg (to its left), facing the station and turned
+#: this far off it, deg -- each a decode of the head's camera and of the
+#: colour imager.
+REACH_M = (0.6, 0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0)
+REACH_DEG = (0.0, 15.0, 30.0, 50.0, 65.0)
+REACH_TURNS_DEG = (-4.0, 4.0)
+
+
+def reach() -> list[dict]:
+  """How far its cameras read the station's two tags (#572): at each place
+  of `REACH_M` by `REACH_DEG`, facing the station `REACH_TURNS_DEG` off, held
+  0.6 s, one decode of the head's camera and one of the colour imager -- the
+  tags each read -- and, off the head's, each tag placed as `see_station`
+  places it and the pair fitted (`charge.fit`), against where they truly
+  are. The belief is the truth here: what is measured is the look."""
+  from pluggybot.activity import station as st
+  from pluggybot.humanoid import charge
+  from pluggybot.humanoid.body import TAG_CAMERA
+  from pluggybot.humanoid.places import NAV_CAMERA
+  from pluggybot.perception.tags import STATION_TAG_IDS, TagDetector
+  model, data, body, _ = world()
+  s, m = body._station, body.mission
+  cams = {name: TagDetector(model, body.handle.el(cam))
+          for name, cam in (("head", NAV_CAMERA), ("colour", TAG_CAMERA))}
+  truth = {t: s.to_world(0.0, y) for t, (_, y, _) in st.tag_layout().items()}
+  rows = []
+  try:
+    for dist in REACH_M:
+      for off in REACH_DEG:
+        for turn in REACH_TURNS_DEG:
+          a = math.radians(off)
+          x, y = s.to_world(-dist * math.cos(a), dist * math.sin(a))
+          cx, cy = s.to_world(0.0, 0.0)
+          body.start_at(x, y, math.atan2(cy - y, cx - x) + math.radians(turn))
+          body.run(body.hold_routine(0.6))
+          r = {"m": dist, "offDeg": off, "turnDeg": turn}
+          for name, det in cams.items():
+            r[name] = sorted(t for t in det.detect(data) if t in STATION_TAG_IDS)
+          dets = cams["head"].detect(data)
+          ids = [t for t in STATION_TAG_IDS if t in dets]
+          if ids:
+            _, placed = m._placed(dets, ids)
+            r["tagM"] = max(round(math.hypot(p[0] - truth[t][0], p[1] - truth[t][1]), 3)
+                            for t, (p, _) in placed.items())
+            fit = charge.fit({t: p for t, (p, _) in placed.items()})
+            if fit is not None:
+              r["fitM"] = round(math.hypot(fit.x - s.x, fit.y - s.y), 3)
+              r["fitDeg"] = round(math.degrees(math.remainder(fit.yaw - s.yaw, 2 * math.pi)), 1)
+          rows.append(r)
+  finally:
+    for det in cams.values():
+      det.close()
+    body.close()
+  print(f"{'out, m':>6s} {'off':>4s}  {'tags read: head, colour':24s}"
+        f"{'head: worst tag':>16s} {'the pair fitted':>16s}")
+  for dist in REACH_M:
+    for off in REACH_DEG:
+      rs = [r for r in rows if r["m"] == dist and r["offDeg"] == off]
+      read = "  ".join(f"{len(r['head'])},{len(r['colour'])}" for r in rs)
+      tag = ", ".join(f"{r['tagM']:.3f}" for r in rs if "tagM" in r) or "-"
+      fit = ", ".join(f"{r['fitM']:.3f} m {r['fitDeg']:+.1f}" for r in rs if "fitM" in r) or "-"
+      print(f"{dist:6.2f} {off:4.0f}  {read:24s}{tag:>16s} {fit:>32s}")
+  return rows
 
 
 def hold(seconds: float) -> dict:
@@ -811,6 +882,8 @@ def main(argv=None) -> int:
                        "street, comma-separated")
   ap.add_argument("--lost-table", default=None, metavar="JSON",
                   help="--far's table again, from the rows its --out wrote")
+  ap.add_argument("--reach", action="store_true",
+                  help="how far its cameras read the station's tags, and the head's fit")
   ap.add_argument("--lost-from", default="station", choices=tuple(LOST_FROM),
                   help="the lost scene's start (--view lost, --strip lost)")
   ap.add_argument("--lost-off", default=None, metavar="X,Y,DEG",
@@ -855,6 +928,7 @@ def main(argv=None) -> int:
     rows = far_losts(places, args.n, args.parallel, float(args.explore or 0.0))
   else:
     rows = (approach(args.n, args.parallel) if args.approach else
+            reach() if args.reach else
             seats(args.parallel) if args.seats else
             losts(args.n, args.parallel) if args.lost else
             walk_ins(tuple(float(e) for e in (args.explore or "120,240").split(",")),
