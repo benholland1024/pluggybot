@@ -206,6 +206,28 @@ def test_a_close_on_a_clock_that_went_back_is_paid_kept_and_shown_first(tmp_path
   assert again.closes == 1 and again.closed_tickets()[0].id == new.id
 
 
+def test_a_close_is_paid_before_the_closed_ones_are_trimmed(tmp_path, monkeypatch):
+  """...and whatever the order, a close is paid off the ticket it closed:
+  put back on the old clock's order, the close above ranks twenty-first
+  and goes in the trim, but only once it is paid (issue #594). Trimmed in
+  `close`, it was measured as no ticket at all."""
+  monkeypatch.setattr(desk.Desk, "closed_tickets", lambda self: sorted(
+    (t for t in self.tickets.values() if not t.open),
+    key=lambda t: t.closed_t or 0.0, reverse=True))
+  _closed_on_the_old_clock(tmp_path / "tickets")
+  ledger = Ledger()
+  life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
+  try:
+    new = life.tickets.open("bug", "new", "after the start-over", t=0.0)
+    life.inbox.offer({"type": "ticket_close", "id": "tc_1", "from": "ben",
+                      "ticket": new.id, "text": "fixed"})
+    life._visitor_step()
+    assert ledger.balance() == 25
+    assert life.tickets.get(new.id) is None, "the old order trims it, once paid"
+  finally:
+    life.body.close()
+
+
 def test_the_desk_writes_through_the_store_and_the_gate():
   """`mind/tickets.py` is an OWNER in the registry's sense: it calls
   `admit` and never touches the disk itself (tests/test_text.py walks it);
