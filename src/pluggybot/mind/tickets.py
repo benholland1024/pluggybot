@@ -33,6 +33,13 @@ Rules, each pinned in `tests/test_tickets.py`:
   `paid` False, and the lifecycle re-emits the acknowledgement with the
   points that were banked the first time.
 
+  CLOSES ARE COUNTED, NEVER TIMED (#594). The newest `MAX_CLOSED` closed
+  tickets are kept, and `CLOSED_SHOWN` shown, by the desk's own count of
+  closes (`closes`, in the counter's record): by sim time, a world started
+  over at t=0 put each new close behind twenty from the old clock, and it
+  was trimmed before it was paid. A ticket closed before the count ranks
+  below every counted one, and the trim (`trim`) waits for the pay.
+
   NOTHING HERE MOVES A BALANCE. The desk records what the ledger paid
   (`pay`), it does not pay: the payout is `scoring.evaluate("ticket")`'s
   in the lifecycle, off the table, like every other.
@@ -67,7 +74,8 @@ THREAD_SHOWN = 4
 #: the one thing that teaches what is worth asking.
 MAX_CLOSED = 20
 CLOSED_SHOWN = 3
-#: The counter's record: the one key under the store that is not a ticket.
+#: The counters' record, the ids' and the closes': the one key under the
+#: store that is not a ticket.
 COUNTER = "counter.json"
 
 ROBOT, OPERATOR = TICKET_SENDERS
@@ -136,6 +144,10 @@ class Ticket:
   #: terms: every text on a ticket says whether it is all of itself.
   closed_cut: bool = False
   closed_t: float | None = None
+  #: Which close this was on the desk's own count (`Desk.closes`), the
+  #: order closed tickets are kept and shown in; None for one closed
+  #: before the count existed.
+  closed_n: int | None = None
   #: What the ledger paid at the close, and the entry's `seq` -- recorded
   #: by `pay`, so a replayed close can answer with the same figure.
   points: int | None = None
@@ -153,8 +165,8 @@ class Ticket:
             "thread": [line.as_dict() for line in self.thread],
             "closedBy": self.closed_by, "closedText": self.closed_text,
             "closedCut": self.closed_cut,
-            "closedT": self.closed_t, "points": self.points, "seq": self.seq,
-            "cut": self.cut}
+            "closedT": self.closed_t, "closedN": self.closed_n,
+            "points": self.points, "seq": self.seq, "cut": self.cut}
 
   @classmethod
   def from_record(cls, rec: dict) -> "Ticket":
@@ -170,6 +182,7 @@ class Ticket:
                closed_text=str(rec.get("closedText", "")),
                closed_cut=bool(rec.get("closedCut")),
                closed_t=rec.get("closedT"),
+               closed_n=(None if rec.get("closedN") is None else int(rec["closedN"])),
                points=rec.get("points"), seq=rec.get("seq"),
                cut=bool(rec.get("cut")))
 
@@ -197,7 +210,7 @@ class Ticket:
 
 
 class Desk:
-  """The robot's tickets, open and recently closed, and the counter."""
+  """The robot's tickets, open and recently closed, and the counters."""
 
   def __init__(self, root: str | os.PathLike | None = None) -> None:
     #: The one path to the disk (issue #217): a `Store`, the volume's or
@@ -205,6 +218,8 @@ class Desk:
     self.store: Store = FileStore(root) if root is not None else MemoryStore()
     self.tickets: dict[str, Ticket] = {}
     self.seq = 0
+    #: Closes made on this desk, ever: what orders the closed ones (#594).
+    self.closes = 0
     self.refusals: list[dict] = []
     self._load()
 
@@ -224,23 +239,26 @@ class Desk:
       if ticket.kind in TICKET_KINDS and ticket.state in STATES:
         self.tickets[ticket.id] = ticket
     try:
-      self.seq = int(json.loads(self.store.read(COUNTER) or "{}").get("seq", 0))
+      counts = json.loads(self.store.read(COUNTER) or "{}")
+      self.seq, self.closes = int(counts.get("seq", 0)), int(counts.get("closes", 0))
     except (ValueError, TypeError):
-      self.seq = 0
+      self.seq = self.closes = 0
     # A record older than its counter (a counter file lost, a directory
-    # copied by hand): never hand out an id that is already taken.
+    # copied by hand): never hand out an id, or a close's count, that is
+    # already taken.
     for ticket in self.tickets.values():
       try:
         self.seq = max(self.seq, int(ticket.id.split("_")[-1]))
       except ValueError:
         pass
+      self.closes = max(self.closes, ticket.closed_n or 0)
 
   def _save(self, ticket: Ticket) -> None:
     self.store.write(f"{ticket.id}{SUFFIX}",
                      json.dumps(ticket.as_record(), indent=1, sort_keys=True) + "\n")
 
   def _save_counter(self) -> None:
-    self.store.write(COUNTER, json.dumps({"seq": self.seq}) + "\n")
+    self.store.write(COUNTER, json.dumps({"seq": self.seq, "closes": self.closes}) + "\n")
 
   def get(self, ticket_id: str) -> Ticket | None:
     return self.tickets.get(str(ticket_id or ""))
@@ -250,9 +268,10 @@ class Desk:
     return sorted((t for t in self.tickets.values() if t.open), key=lambda t: t.t)
 
   def closed_tickets(self) -> list[Ticket]:
-    """Closed, newest close first."""
+    """Closed, newest close first: on the desk's count, and one closed
+    before the count by its clock, below every counted one."""
     return sorted((t for t in self.tickets.values() if not t.open),
-                  key=lambda t: (t.closed_t or 0.0), reverse=True)
+                  key=lambda t: (t.closed_n or 0, t.closed_t or 0.0), reverse=True)
 
   def open_ids(self) -> tuple[str, ...]:
     return tuple(t.id for t in self.open_tickets())
@@ -315,7 +334,8 @@ class Desk:
             t: float) -> tuple[Ticket | None, bool]:
     """End a ticket with a message. `(ticket, changed)`: None for a ticket
     the desk does not hold; `changed` False for one already closed -- a
-    replayed close, answered with the record and paid nothing."""
+    replayed close, answered with the record and paid nothing. The closed
+    ones are trimmed by `trim`, once this close is paid."""
     ticket = self.get(ticket_id)
     if ticket is None:
       return None, False
@@ -325,8 +345,10 @@ class Desk:
     ticket.closed_by = _clean(by, 40)
     ticket.closed_text, ticket.closed_cut = _cut(text, MAX_LINE)
     ticket.closed_t = round(float(t), 3)
+    self.closes += 1
+    ticket.closed_n = self.closes
+    self._save_counter()
     self._save(ticket)
-    self._trim_closed()
     return ticket, True
 
   def pay(self, ticket_id: str, points: int, seq: int) -> None:
@@ -344,7 +366,9 @@ class Desk:
       self.store.remove(f"{ticket.id}{SUFFIX}")
     return ticket
 
-  def _trim_closed(self) -> None:
+  def trim(self) -> None:
+    """Keep the newest `MAX_CLOSED` closed tickets. Run once a close is
+    paid (`HubLifecycle._ticket_close`): the pay is measured off the desk."""
     for old in self.closed_tickets()[MAX_CLOSED:]:
       self.tickets.pop(old.id, None)
       self.store.remove(f"{old.id}{SUFFIX}")

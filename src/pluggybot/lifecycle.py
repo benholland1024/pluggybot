@@ -3515,6 +3515,9 @@ class HubLifecycle:
       entry = self._bank(verdict)
       if entry is not None:
         self.tickets.pay(ticket.id, entry["points"], entry["seq"])
+      # ...and only then the closed ones trimmed (#594): trimmed first, a
+      # close the desk ranked past its twentieth was measured as no ticket
+      self.tickets.trim()
       said = (f"{text_registry.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
               f": {ticket.closed_text}" if ticket.closed_text else "")
       paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
