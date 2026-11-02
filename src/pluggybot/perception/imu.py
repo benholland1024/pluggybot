@@ -110,10 +110,10 @@ class Imu:
 #: rest (its own word) is still once its heading, less the offset learned so
 #: far and smoothed over STILL_TAU_S, turns under STILL_RATE, rad/s -- 4x
 #: the part's worst offset (nothing learned yet), 45 sigma of the smoothed
-#: noise. MEASURED, a humanoid rested 20 s sways its heading under 0.091
-#: deg/s smoothed (p99 0.05), on the standing policy or the walker, so what
-#: trips it is a push: the part of one missed before it trips is STILL_RATE
-#: * STILL_TAU_S, 0.04 deg.
+#: noise. MEASURED (`humanoid_drift_spike.py --still`), a humanoid settled
+#: on the standing policy or the walker read under 0.09 deg/s (p99 0.06) as
+#: it swayed, so what trips it is a push: the part of one missed before it
+#: trips is STILL_RATE * STILL_TAU_S, 0.04 deg.
 STILL_RATE = math.radians(0.2)
 STILL_TAU_S = 0.2
 #: ...and while still, the offset is learned over this, s (a running

@@ -69,8 +69,9 @@ VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.4), 0.4, 1.0
 #: long first, s, its stride settled.
 SETTLE_S = 0.8
 #: Its heading is held at a standstill (`imu.HeadingHold`, #593) once it has
-#: rested this long since its last motion command, s. MEASURED, a humanoid
-#: stopped turns on as it settles: on either policy 0.3-0.75 deg/s at once,
+#: rested this long since its last motion command, s. MEASURED
+#: (`humanoid_drift_spike.py --still --hold-after S`), a humanoid stopped
+#: turns on as it settles: on either policy 0.3-0.75 deg/s at once,
 #: 0.03-0.08 at 20 s, under 0.001 from 45 s; after a turn on the spot 2,
 #: 0.34 and 0.07 at 40 s. Held so, its scans unmatched, on the part's worst
 #: offset, it was off by at most 3.6 deg from the rest's 8.6 s or 20 s (the

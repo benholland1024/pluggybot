@@ -9,7 +9,10 @@ Its error is taken apart as it is made -- each tick of its reckoning, each
 move of the belief from outside it -- into what put it there:
 
   gyro      the heading its IMU's integration adds: the humanoid's heading
-            is its IMU's alone (`humanoid.odometry`), so its legs put none
+            is its IMU's (`humanoid.odometry`), so its legs put none
+  hold      what its reckoning took off the gyro's: the turn it held still
+            at a standstill and the offset it learned there (`imu.
+            HeadingHold`, #593)
   legs      the position its legs' odometry adds, each step laid through
             the TRUE heading
   heading   the position the believed heading adds: the same steps laid
@@ -27,11 +30,24 @@ and the legs alone, through the true heading.
     ... --idle-at 12,0 --idle 180     # first stood idle in the street
     ... --learned                     # its gyro's offset taken off its heading
     ... --table run*.json             # runs side by side, and by zone
+    ... --still boot|walk|turn        # #593: standing after it, no scan matched
+    ... --done [--no-wait] [--no-hold]  # #593: the pair, the second's day over first
 
 `--seed` draws the IMU's offset and scale and the joints' noise: `luca` and
 `rowan` are the served pair's own (the first robot's and the second's),
 anything else a draw keyed by it. The truth is ours, read to take the
 error apart; nothing here steers off it.
+
+#593's two scenes (SimNotes, "A robot left standing when its run ends, and a
+heading held at a standstill"): `--still` stands one humanoid still
+`--seconds` (180) after booting, a walk or a turn on the spot, its scan
+matcher off -- as when every scan is refused -- and its gyro's offset the
+part's worst, its heading held and its IMU's own against the truth
+(`--hold-after S` moves when the hold may begin); `--done` flies the served
+pair with the second robot's day over at once while the first's runs on,
+past the run's `--seconds` (300) if it charges, and reads the second's
+belief while it waits -- `--no-wait` held STILL by the loop, `--no-hold`
+with no heading hold, both as the loop was before #593.
 """
 
 from __future__ import annotations
@@ -60,7 +76,7 @@ WALK_TIMEOUT_S = 300.0
 #: The position's shares and the heading's, in the order they are said;
 #: `set` is any other move of the belief (none in a flight here).
 SHARES = ("legs", "heading", "matcher", "station", "set")
-TURNS = ("gyro", "matcher", "station", "set")
+TURNS = ("gyro", "hold", "matcher", "station", "set")
 
 
 def wrap(a: float) -> float:
@@ -129,8 +145,11 @@ class Tracker:
 
   def tick(self, odo, before) -> None:
     """One tick of the reckoning (`StanceOdometry.step`): its step, laid
-    through the heading it believed, against the truth's."""
-    bx, by, byaw = before
+    through the heading it believed, against the truth's; and what its
+    hold took off the gyro's turn (`imu.HeadingHold`: its heading's
+    `offset`, which nothing else moves inside a tick)."""
+    bx, by, byaw, boff = before
+    held = odo.offset - boff
     dx, dy = odo.x - bx, odo.y - by
     c, s = math.cos(byaw), math.sin(byaw)
     ahead, left = c * dx + s * dy, -s * dx + c * dy
@@ -145,13 +164,14 @@ class Tracker:
     a, turned = self.att.yaw(), wrap(th - ph)
     gyro = wrap(a - self.att_yaw) - turned
     self.att_yaw = a
-    g = a + self.gyro_ref
+    self.turns["gyro"] += gyro
+    self.turns["hold"] += held
+    g = a + self.gyro_ref + self.turns["hold"]
     self.odo_only += (math.cos(g) * ahead - math.sin(g) * left,
                       math.sin(g) * ahead + math.cos(g) * left)
     self.legs_only += laid
     self.shares["legs"] += legs
     self.shares["heading"] += heading
-    self.turns["gyro"] += gyro
     walked = math.hypot(tx - px, ty - py)
     self.walked, self.turned = self.walked + walked, self.turned + turned
     t = float(self.d.time)
@@ -160,6 +180,7 @@ class Tracker:
     z["walkedM"] += walked
     z["turnedRad"] += turned
     z["gyro"] += gyro
+    z["holdTurn"] += held
     z["legs"] += legs
     z["heading"] += heading
     self.truth, self.t = (tx, ty, th), t
@@ -246,7 +267,7 @@ def _patch(tr: Tracker) -> None:
   match, fix_at = HumanoidMission._match, HumanoidBody._fix_at
 
   def ticked(odo, q, gravity_b):
-    before = (odo.x, odo.y, odo.yaw)
+    before = (odo.x, odo.y, odo.yaw, odo.offset)
     step(odo, q, gravity_b)
     if odo is tr.m.odo:
       tr.tick(odo, before)
@@ -359,6 +380,149 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
   return out
 
 
+# ---- #593: standing where nothing is matched, and a run that ends first -------------
+
+#: `--still`'s scenes before it stands: none since it booted, a walk this far
+#: ahead, m, and a turn on the spot this far, rad.
+STILL_WALK_M, STILL_TURN_RAD = 2.0, 1.5
+
+
+def still(scene: str, seconds: float = 180.0, hold_after: float | None = None) -> dict:
+  """One humanoid at the first robot's start, its scan matcher off and its
+  gyro's offset the part's worst on every axis, standing still `seconds`
+  after `scene` (`boot`, `walk`, `turn`): what its body turned as it
+  settled, and at each tick of its reckoning its believed heading -- held
+  at a standstill (`imu.HeadingHold`) from `hold_after` s of rest, the
+  served `HOLD_AFTER_S` if None -- and its IMU's own, against the truth."""
+  from pluggybot.humanoid import mission as hu
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  from pluggybot.perception.imu import GYRO_BIAS
+  if hold_after is not None:
+    hu.HOLD_AFTER_S = float(hold_after)
+  life, body, _ = _life()
+  data, wall = life.data, time.time()
+  m = body.mission
+  try:
+    body.start_at(*world_config(HUMANOID_HOME)["start"])
+    m.matcher = None
+    m.stand.trunk.imu.gyro_bias[:] = (GYRO_BIAS, -GYRO_BIAS, GYRO_BIAS)
+    if scene == "walk":
+      x, y, yaw = m.pose
+      body.run(body.go_to_routine(x + STILL_WALK_M * math.cos(yaw),
+                                  y + STILL_WALK_M * math.sin(yaw), timeout=30.0))
+    elif scene == "turn":
+      body.run(body.face_routine(m.pose[2] + STILL_TURN_RAD))
+    t0, (_, _, th0), b0 = float(data.time), m.true_pose(), m.odo.yaw
+    a0, att = m.stand.trunk.attitude.yaw(), m.stand.trunk.attitude
+    ticks: list[tuple] = []
+
+    def tick() -> None:
+      if (m._steps - 1) % m._odo_every:        # ...right after the reckoning's tick
+        return
+      turned = wrap(m.true_pose()[2] - th0)
+      ticks.append((float(data.time) - t0, turned, wrap(m.odo.yaw - b0) - turned,
+                    wrap(att.yaw() - a0) - turned, m._settled(), m.odo.hold.smooth))
+
+    body.step_hooks.append(tick)
+    body.run(body.hold_routine(seconds))
+  finally:
+    body.close()
+  t, turned, held, unheld, settled, smooth = (np.array(v) for v in zip(*ticks))
+  every = max(1, round(1.0 / max(t[1] - t[0], 1e-9)))
+  # ...the rate the hold's gate reads while it may hold: its margin to `STILL_RATE`
+  gate = np.degrees(np.abs(smooth[settled])) if settled.any() else np.zeros(1)
+  return {"scene": scene, "seconds": seconds, "holdAfterS": hu.HOLD_AFTER_S, "legs": m.legs,
+          "bodyTurnedDeg": round(math.degrees(turned[-1]), 2),
+          "heldWorstDeg": round(math.degrees(np.abs(held).max()), 2),
+          "unheldDeg": round(math.degrees(unheld[-1]), 2),
+          "settledFromS": round(float(t[np.argmax(settled)]), 2) if settled.any() else None,
+          "gateWorstDegS": round(float(gate.max()), 4),
+          "gateP99DegS": round(float(np.percentile(gate, 99)), 4),
+          "learnedDegS": round(math.degrees(m.odo.hold.bias), 4),
+          "worstOffsetDegS": round(math.degrees(GYRO_BIAS), 4),
+          "rows": [[round(float(t[k]), 2), round(math.degrees(turned[k]), 3),
+                    round(math.degrees(held[k]), 3), round(math.degrees(unheld[k]), 3)]
+                   for k in range(0, len(t), every)],
+          "wallS": round(time.time() - wall, 1)}
+
+
+def done(seconds: float = 300.0, wait: bool = True, hold: bool = True) -> dict:
+  """The served pair in the house, the second robot's day over at once --
+  its explore stubbed done, no work expected -- while the first's runs on:
+  standing by for work, exploring, and charging past the run's `seconds`
+  if it runs low. The second's belief against the truth every 10 s, and
+  its matcher's verdicts, while it waits; without `wait` held STILL by the
+  loop, without `hold` with no heading hold, as the loop was before #593."""
+  from pluggybot import pair, tick
+  from pluggybot.humanoid.mission import HumanoidMission
+  from pluggybot.lifecycle import HUMANOID_HOME
+  if not wait:
+    run_many = tick.run_many
+    tick.run_many = lambda pairs, name="", step=None, waits=None: run_many(pairs, name, step)
+  if not hold:
+    HumanoidMission._settled = lambda self: False
+  wall = time.time()
+  lives = pair.build_pair(HUMANOID_HOME, pack="demo", errands=("none", "none"))
+  first, second = lives
+  first.expects_work = True
+
+  def explored(*args, **kw):
+    second.floor_explored = True
+    return "no-frontiers"
+    yield
+
+  second.explore_routine = explored
+  rows: list[dict] = []
+  due = [0.0]
+
+  def sample() -> None:
+    t = float(second.data.time)
+    if t < due[0]:
+      return
+    due[0] = t + 10.0
+    tx, ty, tyaw = second.body.true_pose()
+    bx, by, byaw = second.body.pose
+    rows.append({"t": round(t, 1), "state": second.state, "other": first.state,
+                 "errM": round(math.hypot(bx - tx, by - ty), 3),
+                 "headingDeg": round(math.degrees(wrap(byaw - tyaw)), 2),
+                 "matched": dict(second.body.match_counts)})
+
+  second.body.step_hooks.append(sample)
+  ends = pair.run_pair(lives, max_sim_time=seconds, explore_budget=seconds)
+  due[0] = 0.0
+  sample()
+  waiting = [r for r in rows if r["state"] == "DONE"]
+  ok = [r["matched"].get("ok", 0) for r in waiting] or [0]
+  return {"seconds": seconds, "wait": wait, "hold": hold,
+          "doneFromS": waiting[0]["t"] if waiting else None, "endS": ends[0]["sim_time"],
+          "headingWorstDeg": max((abs(r["headingDeg"]) for r in waiting), default=None),
+          "errWorstM": max((r["errM"] for r in waiting), default=None),
+          "matchedWaiting": ok[-1] - ok[0], "rows": rows, "wallS": round(time.time() - wall, 1)}
+
+
+def still_report(run: dict) -> None:
+  print(f"== --still {run['scene']}, the hold from {run['holdAfterS']:.0f} s of rest "
+        f"(it began at {run['settledFromS']} s), the legs the {run['legs']}'s: its body turned "
+        f"{run['bodyTurnedDeg']:+.2f} deg as it settled; held, off by at most "
+        f"{run['heldWorstDeg']:.2f} deg; unheld, {run['unheldDeg']:+.2f} at {run['seconds']:.0f} s; "
+        f"its gate read at most {run['gateWorstDegS']:.4f} deg/s (p99 {run['gateP99DegS']:.4f}); "
+        f"it learned {run['learnedDegS']:.4f} deg/s (the part's worst {run['worstOffsetDegS']:.4f}); "
+        f"{run['wallS']:.0f} s")
+  print(f"  {'t':>6s} {'body turned':>11s} {'held off':>8s} {'unheld off':>10s} deg")
+  for t, turned, held, unheld in run["rows"][::10]:
+    print(f"  {t:6.1f} {turned:+11.3f} {held:+8.3f} {unheld:+10.3f}")
+
+
+def done_report(run: dict) -> None:
+  print(f"== --done{'' if run['wait'] else ' --no-wait'}{'' if run['hold'] else ' --no-hold'}: "
+        f"the second robot's day over at {run['doneFromS']} s, the run's at {run['endS']:.3f} s; "
+        f"waiting, its heading off by at most {run['headingWorstDeg']} deg and its belief "
+        f"{run['errWorstM']} m, {run['matchedWaiting']} scans matched; {run['wallS']:.0f} s")
+  for r in run["rows"][::5]:
+    print(f"  t={r['t']:6.1f} {r['state']:9s} (the first {r['other']:9s}) "
+          f"{r['errM']:6.3f} m {r['headingDeg']:+7.2f} deg  matched {r['matched']}")
+
+
 # ---- the report -----------------------------------------------------------------
 
 
@@ -381,7 +545,8 @@ def report(run: dict) -> None:
   scale = run["gyroScalePct"][2] / 100 * last["turnedDeg"]
   print(f"  the gyro's share {last['turn']['gyro']:+.1f} deg over {last['t']:.0f} s: its offset "
         f"alone {offset:+.1f}, its scale over the {last['turnedDeg']:+.0f} deg truly turned "
-        f"{scale:+.1f}, the rest {last['turn']['gyro'] - offset - scale:+.1f}")
+        f"{scale:+.1f}, the rest {last['turn']['gyro'] - offset - scale:+.1f}; the hold's "
+        f"{last['turn'].get('hold', 0.0):+.1f}")
   print(f"  explore {run['exploreS']:.0f} s: {run['explored']}, ended {run['afterExplore']} off")
   for w in run["walks"]:
     print(f"  {w['walk']:7s} " + (f"{'there' if w['there'] else 'NOT THERE'} in {w['s']:.0f} s, "
@@ -394,15 +559,17 @@ def report(run: dict) -> None:
           (f", {run['anchored']} after the station's fix" if "anchored" in run else ""))
   print(f"  {'at the end of':12s} {'t':>6s} {'belief m/deg':>13s} {'odom alone':>13s} "
         f"{'legs alone':>10s} | {'legs':>5s} {'heading':>7s} {'matcher':>7s} {'station':>7s} m "
-        f"| {'gyro':>6s} {'matcher':>7s} {'station':>7s} deg")
+        f"| {'gyro':>6s} {'hold':>6s} {'matcher':>7s} {'station':>7s} deg")
   ends = [r for k, r in enumerate(run["rows"])
           if k + 1 == len(run["rows"]) or run["rows"][k + 1]["phase"] != r["phase"]]
   for r in ends:
     s, t = r["share"], r["turn"]
+    held = t.get("hold", 0.0)                # ...none in a run from before #593
     print(f"  {r['phase']:12s} {r['t']:6.0f} {r['errM']:6.2f}/{r['errDeg']:+6.1f} "
-          f"{r['odoM']:6.2f}/{t['gyro']:+6.1f} {r['legsM']:10.2f} | {_norm(s['legs']):5.2f} "
-          f"{_norm(s['heading']):7.2f} {_norm(s['matcher']):7.2f} {_norm(s['station']):7.2f}   "
-          f"| {t['gyro']:+6.1f} {t['matcher']:+7.1f} {t['station']:+7.1f}")
+          f"{r['odoM']:6.2f}/{t['gyro'] + held:+6.1f} {r['legsM']:10.2f} | "
+          f"{_norm(s['legs']):5.2f} {_norm(s['heading']):7.2f} {_norm(s['matcher']):7.2f} "
+          f"{_norm(s['station']):7.2f}   | {t['gyro']:+6.1f} {held:+6.1f} {t['matcher']:+7.1f} "
+          f"{t['station']:+7.1f}")
   worst = max(run["rows"], key=lambda r: r["errM"])
   print(f"  worst {worst['errM']:.2f} m ({worst['errDeg']:+.1f} deg) at t={worst['t']:.0f} in "
         f"the {worst['zone']}, {worst['phase']}")
@@ -415,31 +582,31 @@ FACILITY = ("lobby", "lab", "store")
 
 def zone_report(runs: list[dict]) -> None:
   """What each zone added over `runs`, per minute there and per metre
-  walked there: the gyro's heading and the matcher's, the legs' position,
-  the believed heading's and the matcher's -- and the matcher's verdicts
-  and its returns a scan."""
+  walked there: the gyro's heading, the hold's and the matcher's, the legs'
+  position, the believed heading's and the matcher's -- and the matcher's
+  verdicts and its returns a scan."""
   tot: dict[str, dict] = {}
   for run in runs:
     for z in run["zones"]:
       t = tot.setdefault(z["zone"], {"s": 0.0, "walkedM": 0.0, "verdicts": {}, "scans": 0,
-                                     "returns": 0.0, "gyroDeg": 0.0, "matcherDeg": 0.0,
-                                     "stationDeg": 0.0, "legsM": 0.0, "headingM": 0.0,
-                                     "matcherM": 0.0})
+                                     "returns": 0.0, "gyroDeg": 0.0, "holdDeg": 0.0,
+                                     "matcherDeg": 0.0, "stationDeg": 0.0, "legsM": 0.0,
+                                     "headingM": 0.0, "matcherM": 0.0})
       t["s"] += z["s"]
       t["walkedM"] += z["walkedM"]
       t["scans"] += z["scans"]
       t["returns"] += z["returnsPerScan"] * z["scans"]
-      for k in ("gyroDeg", "matcherDeg", "stationDeg"):
-        t[k] += abs(z[k])
+      for k in ("gyroDeg", "holdDeg", "matcherDeg", "stationDeg"):
+        t[k] += abs(z.get(k, 0.0))           # ...no hold in a run from before #593
       for k in ("legsM", "headingM", "matcherM"):
         t[k] += _norm(z[k])
       for k, v in z["verdicts"].items():
         t["verdicts"][k] = t["verdicts"].get(k, 0) + v
   print(f"== by zone, {len(runs)} runs: each run's own sum in the zone, its size, added up "
         "(a share that grew and shrank there reads small)")
-  print(f"  {'zone':16s} {'min':>5s} {'m':>6s} | {'gyro':>5s} {'match':>5s} deg/min | "
-        f"{'legs':>5s} {'head':>5s} {'match':>5s} cm/m | {'ok':>4s} {'held':>4s} {'none':>4s} "
-        f"{'refused':>7s} % of scans | returns")
+  print(f"  {'zone':16s} {'min':>5s} {'m':>6s} | {'gyro':>5s} {'hold':>5s} {'match':>5s} "
+        f"deg/min | {'legs':>5s} {'head':>5s} {'match':>5s} cm/m | {'ok':>4s} {'held':>4s} "
+        f"{'none':>4s} {'refused':>7s} % of scans | returns")
   order = sorted(tot, key=lambda n: (n not in INSIDE, n in FACILITY, n))
   for name in order:
     t = tot[name]
@@ -448,6 +615,7 @@ def zone_report(runs: list[dict]) -> None:
     none = sum(v.get(k, 0) for k in ("no map", "sparse", "unconstrained"))
     refused = sum(v.get(k, 0) for k in ("inconsistent", "slid"))
     print(f"  {name:16s} {mins:5.1f} {t['walkedM']:6.1f} | {t['gyroDeg'] / max(mins, 1e-9):5.2f} "
+          f"{t['holdDeg'] / max(mins, 1e-9):5.2f} "
           f"{t['matcherDeg'] / max(mins, 1e-9):5.2f}         | "
           f"{100 * t['legsM'] / metres:5.1f} {100 * t['headingM'] / metres:5.1f} "
           f"{100 * t['matcherM'] / metres:5.1f}      | {100 * v.get('ok', 0) / n:4.0f} "
@@ -492,7 +660,32 @@ def main(argv=None) -> int:
   ap.add_argument("--out", default=None, help="the run, as JSON")
   ap.add_argument("--table", nargs="+", default=None, metavar="JSON",
                   help="runs written by --out, side by side and by zone")
+  ap.add_argument("--still", default=None, choices=("boot", "walk", "turn"),
+                  help="#593: standing still after it, its matcher off and its gyro's "
+                       "offset the part's worst: its heading held and unheld")
+  ap.add_argument("--hold-after", type=float, default=None, metavar="S",
+                  help="--still: the hold may begin this long into a rest (served: "
+                       "`HOLD_AFTER_S`)")
+  ap.add_argument("--done", action="store_true",
+                  help="#593: the pair, the second robot's day over first; its belief "
+                       "while it waits")
+  ap.add_argument("--no-wait", action="store_true",
+                  help="--done: a finished robot held STILL by the loop, as before #593")
+  ap.add_argument("--no-hold", action="store_true",
+                  help="--done: no heading hold at a standstill, as before #593")
+  ap.add_argument("--seconds", type=float, default=None,
+                  help="--still: how long it stands (180); --done: the run's budget (300)")
   args = ap.parse_args(argv)
+  if args.still or args.done:
+    if args.still:
+      run = still(args.still, args.seconds or 180.0, args.hold_after)
+      still_report(run)
+    else:
+      run = done(args.seconds or 300.0, wait=not args.no_wait, hold=not args.no_hold)
+      done_report(run)
+    if args.out:
+      Path(args.out).write_text(json.dumps(run))
+    return 0
   if args.table:
     runs = [json.loads(Path(p).read_text()) for p in args.table]
     for run in runs:

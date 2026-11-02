@@ -4375,35 +4375,44 @@ its body's own hold, as a robot waiting for work holds, until the other's
 day ends; the loop still ends on that step, and the wait is closed there.
 Flown, the served pair in the house, Rowan's day over at 6 s and Luca's
 exploring, running low and charging past the run's budget to 478 s
-(`done_flight`, scratch; Rowan's draws, its offset +2.98 deg a minute):
+(`humanoid_drift_spike.py --done`; Rowan's draws, its offset +2.98 deg a
+minute), with each of #593's two fixes taken out and both:
 
-| Rowan in `DONE`, 472 s | heading off at most | belief off at most | scans matched |
+| Rowan in `DONE`, 472 s | heading off at most | belief off at most | scans matched while it waited |
 |---|---|---|---|
-| held `STILL` by the loop (before) | 23.4 deg, its offset times the time | 6 cm | 61 before its day ended, then none |
-| its body's hold | 0.09 deg | 1.2 cm | 4,700, ten a second |
+| held `STILL` by the loop, no hold (before: `--no-wait --no-hold`) | 23.4 deg, its offset times the time | 6 cm | none |
+| held `STILL`, its heading held (`--no-wait`) | 1.7 deg | 6 cm | none |
+| its body's hold and its heading's (served) | 0.10 deg | 1.2 cm | 4,666, ten a second |
 
 **A heading held at a standstill** (`imu.HeadingHold` in the odometry,
 #425's zero-rate update on the heading alone, the filter's tilt the
 accelerometer's). Where nothing is matched -- every scan refused, a robot
 lost -- the same offset turns a standing robot. One humanoid in the house,
 its matcher off, its gyro's offset the part's worst (0.05 deg/s each axis),
-stood three minutes after three scenes (`hold_probe`, scratch):
+stood three minutes after three scenes (`humanoid_drift_spike.py --still
+boot|walk|turn`; `--hold-after S` for a hold begun elsewhere in the rest):
 
 | standing still | the body's own turn as it settled | held from 30 s (served) | from 20 s | unheld, at 3 min |
 |---|---|---|---|---|
-| booted, the standing policy | 5.6 deg: 0.75 deg/s at once, 0.08 at 20 s, under 0.001 from 45 s | 1.59 deg | 1.40 | 9.0 |
-| after a 2 m walk, the walker | 1.5 deg, 0.03 deg/s at 20 s | 1.49 | 1.08 | 8.9 |
+| booted, the standing policy | 5.6 deg: 0.75 deg/s at once, 0.08 at 20 s, under 0.001 from 45 s | 1.60 deg | 1.40 | 9.0 |
+| after a 2 m walk, the walker | 1.5 deg, 0.03 deg/s at 20 s | 1.49 | 1.07 | 9.0 |
 | after a turn on the spot, the walker | 16.1 deg: 2 deg/s, 0.34 at 20 s, 0.07 at 40, under 0.01 from 60 | 2.63 | 3.56 | 8.9 |
 
-Rested 20 s, its sway in heading smoothed to under 0.091 deg/s (p99 0.05)
-on either policy, inside the gate's 0.2, and the hold held throughout; it
-learned the offset to 0.049-0.050 deg/s. What it cannot tell from rest is
-the settle's slow real turn: what of it comes once the hold begins is
-taken for stillness, and the offset turns the heading until then. Begun at
-the rest's 8.6 s (as the quadruped's was) the worst was 3.6 deg, at 60 s
-3.0. Over the three, 30 s's worst (2.6) is second only to 40 s's (2.4),
-and it keeps a commoner rest's -- after a walk, a boot -- under 1.6 deg,
-where 40 s let the offset turn it 2.
+Settled, the rate its gate reads -- its heading's, less the offset
+learned, smoothed -- stayed under 0.09 deg/s (p99 0.05-0.06) on either
+policy, inside the gate's 0.2, and the hold held throughout; it learned
+the offset to 0.049-0.050 deg/s. What it cannot tell from rest is the
+settle's slow real turn: what of it comes once the hold begins is taken
+for stillness, and the offset turns the heading until then. Begun at the
+rest's 8.6 s (as the quadruped's was) the worst was 3.6 deg, at 60 s 3.0.
+Over the three, 30 s's worst (2.6) is second only to 40 s's (2.4), and it
+keeps a commoner rest's -- after a walk, a boot -- at 1.5-1.6 deg, where
+40 s let the offset turn it 2.0.
+
+The drift spike counts what the hold takes off as a heading share of its
+own, `hold`, so its shares add up to the error again: Rowan's draws,
+explored 60 s and stood 90 s in the bedroom with the matcher on, the hold
+took 2.8 deg off the gyro's 7.9, to a residual of 1e-13 deg.
 
 **What is true now.** A robot whose day ends first holds as one waiting
 for work does, its scans matched, until the other's ends. A humanoid
