@@ -252,3 +252,32 @@ def test_the_belief_against_the_truth_is_sampled_with_the_verdicts_since():
                                              {"ok": 3}]
   assert samples[0]["errorM"] == 0.0 and samples[0]["believed"] == wire_pose((1.0, 2.0, 0.0))
   assert samples[0]["posture"] == "standing" and samples[0]["state"] == life.state
+
+
+def test_a_search_that_found_another_station_walks_to_that_one():
+  # #560: three stations, and a lost robot fixes off whichever it sees and
+  # charges there (`HumanoidBody._near_station_routine`). The loop's walk
+  # goes again to the standoff of the station the search found -- the old
+  # standoff, walked to again, was the station it never found
+  from pluggybot.body import RackPose
+  body = StubBody()
+  life = stub_life(body=body)
+  docks = []
+
+  def dock():
+    docks.append(1)
+    body.on_charger = len(docks) > 1
+    return NOT_SEEN if len(docks) == 1 else "stopped"
+    yield
+
+  def found_another(fixture, stop=None):
+    body.lost_at.append(fixture)
+    body.rack = body.rack_prior = RackPose(9.0, -4.0, 0.0)
+    return True
+    yield
+
+  body.dock_routine, body.lost_routine = dock, found_another
+  assert life.go_charge() is True and len(docks) == 2
+  first, again = body.went[-2], body.went[-1]
+  assert again == body.charge_standoff()[:2] != first, \
+      f"walked to {again} again, not the station it found ({body.charge_standoff()[:2]})"

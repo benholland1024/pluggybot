@@ -138,16 +138,18 @@ class HumanoidPack(Pack):
     return self.draw_w + float((1.5 * self.r * i * i).sum())
 
 
-def _station_frame(model):
-  """The first charging station's frame in a compiled world (`activity.
-  station`'s, its body's pose), or None."""
-  try:
-    b = model.body("station")
-  except KeyError:
-    return None
-  q = b.quat
-  yaw = math.atan2(2 * (q[0] * q[3] + q[1] * q[2]), 1 - 2 * (q[2] ** 2 + q[3] ** 2))
-  return RackPose(float(b.pos[0]), float(b.pos[1]), yaw)
+def station_frames(model) -> dict[str, tuple[RackPose, tuple[int, ...]]]:
+  """Every charging station in a compiled world (`activity.station.
+  station_names`), the house's first: its frame (`activity.station`'s, its
+  body's pose) and its tags. COMMISSIONED, each of them (#560)."""
+  from pluggybot.activity.station import station_names, station_tags
+  out = {}
+  for name in station_names(model):
+    b = model.body(name)
+    q = b.quat
+    yaw = math.atan2(2 * (q[0] * q[3] + q[1] * q[2]), 1 - 2 * (q[2] ** 2 + q[3] ** 2))
+    out[name] = (RackPose(float(b.pos[0]), float(b.pos[1]), yaw), station_tags(model, name))
+  return out
 
 
 class _SharedDepth:
@@ -216,14 +218,12 @@ class HumanoidBody(Body):
     self.geom_ids = np.array([g for g in range(model.ngeom)
                               if self.mission._under_root(int(model.geom_bodyid[g]))],
                              dtype=np.int32)
-    #: Its charging station's frame (#559, `activity.station`'s: +x into
-    #: the wall), the COMMISSIONED pose, off the compiled world as the
-    #: quadruped's dock is -- None where the world has none -- and as the
-    #: loop works round it (`Body.rack`: +x out into the room).
-    self._station = _station_frame(model)
-    self.rack = self.rack_prior = (None if self._station is None else
-                                   RackPose(self._station.x, self._station.y,
-                                            self._station.yaw + math.pi))
+    #: Its world's charging stations (#559; #560's three), each a
+    #: COMMISSIONED pose off the compiled world as the quadruped's dock was,
+    #: and the one a charge goes to (`choose_station`) -- its mission's, which
+    #: a restart keeps: the house's until it chooses.
+    self.mission.stations = station_frames(model)
+    self.mission.station = next(iter(self.mission.stations), None)
     #: ...and the station as it last saw it.
     self._station_seen = None
     self._charge_trace: list = []
@@ -237,6 +237,43 @@ class HumanoidBody(Body):
     self.collision_steps = 0
 
   falls = property(lambda self: self.mission.falls)
+
+  @property
+  def _station(self) -> RackPose | None:
+    """The chosen station's frame (`activity.station`'s: +x into the wall),
+    or None where the world has none."""
+    st = self.mission.stations.get(self.mission.station)
+    return None if st is None else st[0]
+
+  @property
+  def station_tags(self) -> tuple[int, ...]:
+    """The chosen station's tags: which pair a look fits it by."""
+    st = self.mission.stations.get(self.mission.station)
+    return () if st is None else st[1]
+
+  @property
+  def rack(self) -> RackPose | None:
+    """The chosen station as the loop works round it (`Body.rack`: +x out
+    into the room)."""
+    s = self._station
+    return None if s is None else RackPose(s.x, s.y, s.yaw + math.pi)
+
+  rack_prior = rack
+
+  def choose_station(self) -> None:
+    """The station whose catch holds its plug, else the nearest by a walk
+    over its own map (`Navigator.nearest_by_walk`), its standoff the
+    walk's end -- through floor it has not seen at the planner's price, as
+    it would walk there."""
+    m = self.mission
+    held = m.plugged_at()
+    if held is not None:
+      m.station = held
+    elif len(m.stations) > 1:
+      from pluggybot.activity import station as st
+      m.station = m.nearest_by_walk(
+        {name: frame.to_world(st.STANDOFF_X, st.SEAT_Y)
+         for name, (frame, _) in m.stations.items()})
 
   @property
   def rights_itself(self) -> bool:
@@ -1028,7 +1065,7 @@ class HumanoidBody(Body):
     if self._station is None:
       return False
     t0, m = float(self._d.time), self.mission
-    m.belief_event("lost", fixture="station")
+    m.belief_event("lost", fixture="station", station=m.station)
     until = t0 + charge.LOST_PATIENCE_S
     near = self.charge_standoff()[:2]
     looked: list[tuple[float, float]] = []
@@ -1080,7 +1117,8 @@ class HumanoidBody(Body):
     found = ended == "found"
     m.belief_event("searched", found=found, ended=ended, fixture="station",
                    seconds=round(float(self._d.time) - t0, 1), viewpoints=len(tried),
-                   arounds=len(looked), dropped=bool(fix is not None and fix["dropped"]))
+                   arounds=len(looked), dropped=bool(fix is not None and fix["dropped"]),
+                   station=m.station)
     return found
 
   def _near_station_routine(self, over):
@@ -1091,13 +1129,16 @@ class HumanoidBody(Body):
     near_fit`), in `charge.NEAR_TRIES` at most: the first that fits the
     station puts the belief right off it (`_fix_at`). (True and the fix's
     record -- None where the look agreed with the belief -- or False and
-    None.)"""
+    None.) ⚠ THE STATION IT SAW, WHICHEVER (#560): its charge goes there
+    -- each station is commissioned, and its pair says which it is -- for a
+    lost robot looking for one station sees another as often."""
     from pluggybot.humanoid import charge
     from pluggybot.humanoid.places import VIEWPOINT_PATIENCE_S
     m = self.mission
     for _ in range(charge.NEAR_TRIES):
       if over():
         break
+      m.station = m.station_sighting.get("station", m.station)
       rough = charge.rough(m.station_sighting)
       ax, ay = rough.to_world(-charge.NEAR_M, 0.0)
       yield from m.drive_to_routine(ax, ay, timeout=VIEWPOINT_PATIENCE_S,
@@ -1139,7 +1180,7 @@ class HumanoidBody(Body):
       self.mission.matcher.anchored()
     return self.mission.belief_event("fixed", (x, y, yaw), fixture="station", tags=2,
                                      atM=round(math.hypot(seen.x - x, seen.y - y), 2),
-                                     moved=True, dropped=dropped)
+                                     moved=True, dropped=dropped, station=self.mission.station)
 
   places = property(lambda self: self.mission.places)
 

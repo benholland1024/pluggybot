@@ -313,15 +313,27 @@ def _places_the_robot_can_be_sent():
       yield zone["name"] + " corner", (cx + sx * CORNER_INSET_M, cy + sy * CORNER_INSET_M)
 
 
+def _to_the_nearest_station():
+  """`(x, y) -> metres` by route to the NEAREST charging station's standoff
+  (#560: one in each building), the walk the robot's charge chooses
+  (`Body.choose_station`), over the compiled world."""
+  from pluggybot.activity import station as st
+  model = _model()
+  reads = [_route_lengths(model, st.to_world(pose, st.STANDOFF_X, st.SEAT_Y))[1]
+           for pose, _ in hw.stations().values()]
+  return lambda x, y: min(r(x, y) for r in reads)
+
+
 def test_the_documented_worst_return_point_is_still_the_worst():
   """`HOME_WORST_RETURN` names the point `humanoid.world.RESERVE_WH` is
   measured from; a comment saying "the worst case is X" rots the moment
   somebody moves a wall, so the claim is checked against the compiled
-  world's own routes to the living room's south wall (`RETURN_END`).
+  world's own routes to the nearest charging station's standoff (#560:
+  three of them; the worst path ends at the mall's, `RETURN_END`).
 
-  BY ROUTE, not by straight line (issue #215): the loop's east legs are the
-  farthest as the crow flies and among the nearest as the robot walks,
-  because the living room is reached only through the middle street's gate.
+  BY ROUTE, not by straight line (issue #215): the loop's far corners are
+  the farthest as the crow flies and nearer as the robot walks, because a
+  station is reached only through its building's doors.
 
   ⚠ This asserts WHERE the worst case is and that the documented path is
   that route's length, not that the reserve covers it -- that is
@@ -336,9 +348,7 @@ def test_the_documented_worst_return_point_is_still_the_worst():
       f"the routed distance from HOME_WORST_RETURN is now {routed:.2f} m, " \
       f"not the documented {home.HOME_WORST_RETURN_M} m"
 
-  # A robot stands in the living room, off the wall's face.
-  goal = (end[0], end[1] + 0.7)
-  _, metres = _route_lengths(_model(), goal)
+  metres = _to_the_nearest_station()
   ranked = sorted(((metres(x, y), where, (x, y))
                    for where, (x, y) in _places_the_robot_can_be_sent()
                    if math.isfinite(metres(x, y))), reverse=True)
@@ -347,7 +357,7 @@ def test_the_documented_worst_return_point_is_still_the_worst():
   assert math.isfinite(documented_m), "HOME_WORST_RETURN is not reachable"
   assert documented_m >= farthest_m - 0.05 * farthest_m, (
     f"{where} at {point[0]:.2f},{point[1]:.2f} routes {farthest_m:.1f} m from "
-    f"RETURN_END against HOME_WORST_RETURN's {documented_m:.1f} m. The "
+    f"its nearest station against HOME_WORST_RETURN's {documented_m:.1f} m. The "
     f"documented worst case is no longer the worst; re-measure the reserve.")
   # ...and the documented waypoints are that route, not a scenic one: the
   # raster's 8-connected path is within a tenth of the waypoint path.
@@ -360,8 +370,9 @@ def test_every_zone_can_be_reached_from_the_living_room():
   """A zone the router cannot reach is a room the robot can be sent to and
   cannot get home from -- and the reserve's worst case would be silently
   measured over the rest. Every named region routes."""
-  end = home.RETURN_END
-  _, metres = _route_lengths(_model(), (end[0], end[1] + 0.7))
+  from pluggybot.activity import station as st
+  pose, _ = hw.stations()["station"]
+  _, metres = _route_lengths(_model(), st.to_world(pose, st.STANDOFF_X, st.SEAT_Y))
   unreachable = [where for where, (x, y) in _places_the_robot_can_be_sent()
                  if where.endswith("centre") and not math.isfinite(metres(x, y))]
   assert not unreachable, f"no route from the living room to: {unreachable}"

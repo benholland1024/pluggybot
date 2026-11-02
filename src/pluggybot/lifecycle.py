@@ -2354,6 +2354,9 @@ class HubLifecycle:
       self.charge_failure = NO_CHARGER
       return False
     self.body.refresh_rack()
+    # ...the station this charge goes to, of the world's (#560): the nearest
+    # by its own map's walk, or the one a search finds instead (below)
+    self.body.choose_station()
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
     # Route-failure retry: when nothing is reachable, look round to buy map
@@ -2410,6 +2413,8 @@ class HubLifecycle:
         if tried == NOT_SEEN and not searched and not self.body.charging():
           searched = True
           if (yield from self._search_routine()):
+            sx, sy, hd = self.body.charge_standoff()   # the station it found (#560)
+            seat = self.body.charge_seat()
             continue
         if dock_again():
           continue
@@ -2431,6 +2436,8 @@ class HubLifecycle:
         if not searched:
           searched = True
           if (yield from self._search_routine()):
+            sx, sy, hd = self.body.charge_standoff()
+            seat = self.body.charge_seat()
             continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
@@ -2447,6 +2454,8 @@ class HubLifecycle:
         if not searched and not (rec is not None and rec["why"] == "peer"):
           searched = True
           if (yield from self._search_routine()):
+            sx, sy, hd = self.body.charge_standoff()
+            seat = self.body.charge_seat()
             spins = 1
             continue
         break
@@ -5935,10 +5944,10 @@ def home_activities(model, data):
   # room a camera there would see it from.
   acts = [PlateLight(model, data),
           Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])), shock=False)]
-  # ...and the humanoids' charging station, where the world has one (#559)
-  if any(model.body(b).name == "station" for b in range(model.nbody)):
-    from pluggybot.activity.station import Station
-    acts.append(Station(model, data))
+  # ...and the humanoids' charging stations, where the world has them (#559,
+  # #560: one in each building)
+  from pluggybot.activity.station import Station, station_names
+  acts += [Station(model, data, name) for name in station_names(model)]
   # ...and the storeroom counter's props, where the world has it (#559,
   # stage 3): the chest's catch and the door's latch are physics they apply
   from pluggybot.home import storeroom

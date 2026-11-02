@@ -328,6 +328,13 @@ class Body(abc.ABC):
   # ---- the dock ------------------------------------------------------------
 
   @abc.abstractmethod
+  def choose_station(self) -> None:
+    """Which of its world's charging stations this charge goes to (#560: one
+    in each building): the one its plug is in, else the nearest by a walk
+    over its own map. `rack`, `rack_prior`, `charge_standoff` and
+    `charge_seat` are that station's until the next choice."""
+
+  @abc.abstractmethod
   def charge_standoff(self) -> tuple[float, float, float]:
     """Where it stands to begin docking -- (x, y, heading) off the rack it
     believes in."""
@@ -1010,6 +1017,9 @@ class StubBody(Body):
 
   def charge_seat(self):
     return self.rack.to_world(0.0, 0.0)
+
+  def choose_station(self) -> None:
+    """A stub's one rack is its station."""
 
   def dock_routine(self):
     self.on_charger = True

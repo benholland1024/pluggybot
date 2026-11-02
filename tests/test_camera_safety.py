@@ -33,16 +33,19 @@ from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import world as hw
 from pluggybot.perception.tags import (
   BLOCK_TAG_IDS, BOARD_TAG_IDS, CHEST_TAG_IDS, COUNTER_TAG_IDS, CUBE_TAG_IDS, DOOR_TAG_IDS,
-  DRAWER_TAG_IDS, MASS_TAG_IDS, MAT_TAG_IDS, PLATE_TAG_IDS, STATION_TAG_IDS, TagDetector,
+  DRAWER_TAG_IDS, MASS_TAG_IDS, MAT_TAG_IDS, PLATE_TAG_IDS, STATION_2_TAG_IDS,
+  STATION_3_TAG_IDS, STATION_TAG_IDS, TagDetector,
 )
 from pluggybot.robot import FIRST
 
 #: Every id the home world may legally decode: the lab's plate signs, the
 #: whiteboards' pairs, the tower's blocks, the bench's masses, the tower's,
-#: bench's and garden's area tags, the charging station's pair, and the
-#: storeroom counter's row and its props' (#559).
+#: bench's and garden's area tags (and the grown world's places', #560),
+#: the charging stations' pairs, and the storeroom counter's row and its
+#: props' (#559).
 LEGAL_IDS = frozenset({*PLATE_TAG_IDS, *(t for ids in BOARD_TAG_IDS.values() for t in ids),
                        *BLOCK_TAG_IDS, *MASS_TAG_IDS, *area_ids(), *STATION_TAG_IDS,
+                       *STATION_2_TAG_IDS, *STATION_3_TAG_IDS,
                        *COUNTER_TAG_IDS, *CHEST_TAG_IDS, *DRAWER_TAG_IDS, *DOOR_TAG_IDS,
                        *CUBE_TAG_IDS, *MAT_TAG_IDS})
 

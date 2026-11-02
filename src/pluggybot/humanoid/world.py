@@ -122,14 +122,28 @@ def _attach_area_tags(spec: mujoco.MjSpec) -> None:
 
 
 def station_pose() -> tuple[float, float, float]:
-  """The charging station's frame in the world, (x, y, yaw rad): its face on
-  the living room's south wall where the quadrupeds' dock lay (x 3.5), +x
-  into the wall (`activity.station`'s frame). The COMMISSIONED pose, which
-  a robot at it fixes its belief to."""
+  """The house's charging station's frame in the world, (x, y, yaw rad): its
+  face on the living room's south wall where the quadrupeds' dock lay (x
+  3.5), +x into the wall (`activity.station`'s frame). The COMMISSIONED
+  pose, which a robot at it fixes its belief to."""
+  return stations()["station"][0]
+
+
+def stations() -> dict[str, tuple[tuple[float, float, float], tuple[int, int]]]:
+  """Every charging station by its body's name: its frame in the world (as
+  `station_pose`'s) and its tags. The house's, and #560's two -- the
+  research center's at its lobby's south end, the mall's at its
+  concourse's: each on a south wall, a robot facing it south, and each
+  COMMISSIONED, as the house's is. Which one a robot charges at is its body's
+  to choose (`HumanoidBody.charge_standoff`)."""
   from pluggybot.activity import station as st
   from pluggybot.home import world as home
-  wall = home.HOUSE_Y[0] + home.WALL_HALF_T          # the wall's inner face
-  return 3.5, wall + st.BOX_DEPTH_M, -math.pi / 2
+  from pluggybot.perception.tags import STATION_2_TAG_IDS, STATION_3_TAG_IDS, STATION_TAG_IDS
+
+  tags = {"station": STATION_TAG_IDS, "station_facility": STATION_2_TAG_IDS,
+          "station_mall": STATION_3_TAG_IDS}
+  return {name: ((x, wall_y + home.WALL_HALF_T + st.BOX_DEPTH_M, -math.pi / 2), tags[name])
+          for name, (x, wall_y) in home.STATION_WALLS.items()}
 
 
 def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
@@ -149,8 +163,9 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   _attach_board_tags(spec)
   _attach_area_tags(spec)
   from pluggybot.activity.station import attach_station
-  attach_station(spec, station_pose(), roots=(ROBOT_ROOT,) + ((second_prefix + ROBOT_ROOT,)
-                                                               if pair else ()))
+  roots = (ROBOT_ROOT,) + ((second_prefix + ROBOT_ROOT,) if pair else ())
+  for name, (pose, tags) in stations().items():
+    attach_station(spec, pose, name=name, roots=roots, tags=tags)
   # ...and the storeroom's counter, its four jobs' props and its row of tags
   # (stage 3, `home.storeroom`)
   from pluggybot.home import storeroom

@@ -22,13 +22,16 @@
   "counter",
   "cage",
   "mouse",
-  "plate"
+  "plate",
+  "chair",
+  "shelf"
  ],
  "oneBoxHints": [
   "couch",
   "bed",
   "table",
-  "counter"
+  "counter",
+  "chair"
  ],
  "hints": {
   "wall": {
@@ -1628,6 +1631,282 @@
        0.0,
        0.0,
        0.005
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "chair": {
+   "marker": "box",
+   "markers": 1,
+   "collides": true,
+   "build": "replace",
+   "axes": {
+    "depth": "size0",
+    "width": "size1",
+    "height": "size2"
+   },
+   "note": "EXACTLY ONE BOX: the seat's footprint up to the top of its back. A sitter faces the body's +x, so the back is on its -x side and the seat at about half the height; the body's quat turns it to its table. The robot plans round the whole box.",
+   "body": {
+    "name": "hint_chair",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "chair",
+    "pos": [
+     0.0,
+     60.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_chair_0",
+      "type": "box",
+      "size": [
+       0.45,
+       0.45,
+       0.9
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.45
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "shelf": {
+   "marker": "many",
+   "markers": 7,
+   "collides": true,
+   "build": "reskin",
+   "axes": {},
+   "note": "MANY boxes, kept, as the stairs are: two upright ENDS, a BACK (along the back edge for a shelf against a wall, down the middle for a gondola stocked from both sides) and four BOARDS, 0.15, 0.55, 0.95 and 1.35 m up, 1.5 m tall in all. Its front faces the body's +y. What a task sets out stands on a board, so the boards are where they are: dress them, never move them. Empty in the world itself: the dishware and the stock are each task's own.",
+   "body": {
+    "name": "hint_shelf",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "shelf",
+    "pos": [
+     0.0,
+     63.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_shelf_0",
+      "type": "box",
+      "size": [
+       0.02,
+       0.35,
+       1.5
+      ],
+      "pos": [
+       -0.99,
+       0.0,
+       0.75
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_shelf_1",
+      "type": "box",
+      "size": [
+       0.02,
+       0.35,
+       1.5
+      ],
+      "pos": [
+       0.99,
+       0.0,
+       0.75
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_shelf_2",
+      "type": "box",
+      "size": [
+       1.96,
+       0.02,
+       1.5
+      ],
+      "pos": [
+       0.0,
+       -0.165,
+       0.75
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_shelf_3",
+      "type": "box",
+      "size": [
+       1.96,
+       0.35,
+       0.02
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.15
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_shelf_4",
+      "type": "box",
+      "size": [
+       1.96,
+       0.35,
+       0.02
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.55
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_shelf_5",
+      "type": "box",
+      "size": [
+       1.96,
+       0.35,
+       0.02
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.95
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_shelf_6",
+      "type": "box",
+      "size": [
+       1.96,
+       0.35,
+       0.02
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       1.35
       ],
       "quat": [
        1.0,

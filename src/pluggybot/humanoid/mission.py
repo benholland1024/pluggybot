@@ -581,7 +581,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
                           self.depth.peer_rng.bit_generator.state],
              "match": match,
              # ...and the places it has found, with the map they are laid in
-             "places": self.places.kept_state()},
+             "places": self.places.kept_state(),
+             # ...and the station its charge went to (#560): restarted plugged
+             # in at the mall, an unplug would reach for the house's plug
+             "station": self.station},
             arrays)
 
   def restore_kept(self, state: dict, arrays: dict) -> bool:
@@ -637,6 +640,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.lidar.peer_rng.bit_generator.state = state["lidarRng"][1]
     self.depth.rng.bit_generator.state = state["depthRng"][0]
     self.depth.peer_rng.bit_generator.state = state["depthRng"][1]
+    if state.get("station") in self.stations:
+      self.station = state["station"]
     if self.head is not None:
       self.head.forget()
     grid = arrays.get("grid")

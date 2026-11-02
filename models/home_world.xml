@@ -31,7 +31,7 @@
   </asset>
   <worldbody>
     <light pos="0 0 3" dir="0 0 -1"/>
-    <geom name="floor" type="plane" pos="8.0000 0.0000 0" size="25.5000 11.5000 0.1" rgba="0.5 0.5 0.5 1"/>
+    <geom name="floor" type="plane" pos="8.0000 -9.5000 0" size="25.5000 21.0000 0.1" rgba="0.5 0.5 0.5 1"/>
     <light pos="1.5 0.5 3" dir="0 0 -1"/>
     <light pos="1.5 4.5 3" dir="0 0 -1"/>
     <light pos="7.5 2.0 3" dir="0 0 -1"/>
@@ -44,9 +44,23 @@
     <light pos="25.0000 3.0000 3" dir="0 0 -1"/>
     <light pos="25.0000 -3.0000 3" dir="0 0 -1"/>
     <light pos="8.0000 9.0000 3" dir="0 0 -1"/>
-    <light pos="8.0000 -9.0000 3" dir="0 0 -1"/>
+    <light pos="8.0000 -28.0000 3" dir="0 0 -1"/>
     <light pos="-15.0000 0.0000 3" dir="0 0 -1"/>
     <light pos="31.0000 0.0000 3" dir="0 0 -1"/>
+    <light pos="-0.2500 -4.0000 3" dir="0 0 -1"/>
+    <light pos="3.2500 -4.0000 3" dir="0 0 -1"/>
+    <light pos="17.5000 -3.0000 3" dir="0 0 -1"/>
+    <light pos="17.5000 -13.0000 3" dir="0 0 -1"/>
+    <light pos="17.5000 -21.0000 3" dir="0 0 -1"/>
+    <light pos="22.0000 -13.0000 3" dir="0 0 -1"/>
+    <light pos="26.5000 -13.0000 3" dir="0 0 -1"/>
+    <light pos="22.0000 -21.0000 3" dir="0 0 -1"/>
+    <light pos="26.5000 -21.0000 3" dir="0 0 -1"/>
+    <light pos="-6.5000 -17.0000 3" dir="0 0 -1"/>
+    <light pos="4.5000 -17.0000 3" dir="0 0 -1"/>
+    <light pos="22.0000 -7.5000 3" dir="0 0 -1"/>
+    <light pos="-15.0000 -17.0000 3" dir="0 0 -1"/>
+    <light pos="31.0000 -17.0000 3" dir="0 0 -1"/>
 
     <body name="wall_west_0" pos="-2.0000 -1.5000 1.2000">
       <geom name="wall_west_0_geom" type="box" size="0.0200 0.5000 1.2000" rgba="0.78 0.75 0.70 1"/>
@@ -54,8 +68,14 @@
     <body name="wall_west_1" pos="-2.0000 3.0000 1.2000">
       <geom name="wall_west_1_geom" type="box" size="0.0200 3.0000 1.2000" rgba="0.78 0.75 0.70 1"/>
     </body>
-    <body name="wall_south" pos="1.5000 -2.0000 1.2000">
-      <geom name="wall_south_geom" type="box" size="3.5000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
+    <body name="wall_south_0" pos="-1.3750 -2.0000 1.2000">
+      <geom name="wall_south_0_geom" type="box" size="0.6250 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_south_1" pos="0.9500 -2.0000 1.2000">
+      <geom name="wall_south_1_geom" type="box" size="0.7000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_south_2" pos="3.8250 -2.0000 1.2000">
+      <geom name="wall_south_2_geom" type="box" size="1.1750 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
     </body>
     <body name="wall_north" pos="1.5000 6.0000 1.2000">
       <geom name="wall_north_geom" type="box" size="3.5000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
@@ -102,8 +122,17 @@
     <body name="wall_hall_east" pos="-2.0000 -4.0000 1.2000">
       <geom name="wall_hall_east_geom" type="box" size="0.0200 2.0000 1.2000" rgba="0.78 0.75 0.70 1"/>
     </body>
-    <body name="fence_south" pos="4.0000 -6.0000 0.4500">
-      <geom name="fence_south_geom" type="box" size="6.0000 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
+    <body name="fence_south" pos="7.5000 -6.0000 0.4500">
+      <geom name="fence_south_geom" type="box" size="2.5000 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
+    </body>
+    <body name="wall_rooms_south" pos="1.5000 -6.0000 1.2000">
+      <geom name="wall_rooms_south_geom" type="box" size="3.5000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_rooms_east" pos="5.0000 -4.0000 1.2000">
+      <geom name="wall_rooms_east_geom" type="box" size="0.0200 2.0000 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_rooms_div" pos="1.5000 -4.0000 1.2000">
+      <geom name="wall_rooms_div_geom" type="box" size="0.0200 2.0000 1.2000" rgba="0.78 0.75 0.70 1"/>
     </body>
     <body name="fence_north" pos="7.5000 6.0000 0.4500">
       <geom name="fence_north_geom" type="box" size="2.5000 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
@@ -114,8 +143,8 @@
     <body name="fence_east_1" pos="10.0000 4.8000 0.4500">
       <geom name="fence_east_1_geom" type="box" size="0.0200 1.2000 0.4500" rgba="0.55 0.45 0.35 1"/>
     </body>
-    <body name="fence_2_west_0" pos="16.0000 -1.7000 0.4500">
-      <geom name="fence_2_west_0_geom" type="box" size="0.0200 4.3000 0.4500" rgba="0.55 0.45 0.35 1"/>
+    <body name="fence_2_west_0" pos="16.0000 1.3000 0.4500">
+      <geom name="fence_2_west_0_geom" type="box" size="0.0200 1.3000 0.4500" rgba="0.55 0.45 0.35 1"/>
     </body>
     <body name="fence_2_west_1" pos="16.0000 4.8000 0.4500">
       <geom name="fence_2_west_1_geom" type="box" size="0.0200 1.2000 0.4500" rgba="0.55 0.45 0.35 1"/>
@@ -123,14 +152,23 @@
     <body name="fence_2_north" pos="17.5000 6.0000 0.4500">
       <geom name="fence_2_north_geom" type="box" size="1.5000 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
     </body>
-    <body name="fence_2_south" pos="17.5000 -6.0000 0.4500">
-      <geom name="fence_2_south_geom" type="box" size="1.5000 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
+    <body name="wall_2_west_0" pos="19.0000 -4.7500 1.2000">
+      <geom name="wall_2_west_0_geom" type="box" size="0.0200 1.2500 1.2000" rgba="0.78 0.75 0.70 1"/>
     </body>
-    <body name="wall_2_west_0" pos="19.0000 -1.7000 1.2000">
-      <geom name="wall_2_west_0_geom" type="box" size="0.0200 4.3000 1.2000" rgba="0.78 0.75 0.70 1"/>
+    <body name="wall_2_west_1" pos="19.0000 0.0500 1.2000">
+      <geom name="wall_2_west_1_geom" type="box" size="0.0200 2.5500 1.2000" rgba="0.78 0.75 0.70 1"/>
     </body>
-    <body name="wall_2_west_1" pos="19.0000 4.8000 1.2000">
-      <geom name="wall_2_west_1_geom" type="box" size="0.0200 1.2000 1.2000" rgba="0.78 0.75 0.70 1"/>
+    <body name="wall_2_west_2" pos="19.0000 4.8000 1.2000">
+      <geom name="wall_2_west_2_geom" type="box" size="0.0200 1.2000 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_study_west" pos="16.0000 -3.0000 1.2000">
+      <geom name="wall_study_west_geom" type="box" size="0.0200 3.0000 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_study_south" pos="17.5000 -6.0000 1.2000">
+      <geom name="wall_study_south_geom" type="box" size="1.5000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_study_north" pos="17.5000 0.0000 1.2000">
+      <geom name="wall_study_north_geom" type="box" size="1.5000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
     </body>
     <body name="wall_2_north" pos="23.5000 6.0000 1.2000">
       <geom name="wall_2_north_geom" type="box" size="4.5000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
@@ -153,16 +191,82 @@
     <body name="wall_lab_div" pos="25.0000 0.0000 1.2000">
       <geom name="wall_lab_div_geom" type="box" size="3.0000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
     </body>
-    <body name="fence_loop_west" pos="-16.5000 0.0000 0.4500">
-      <geom name="fence_loop_west_geom" type="box" size="0.0200 10.5000 0.4500" rgba="0.55 0.45 0.35 1"/>
+    <body name="fence_park_north_0" pos="-6.8750 -9.0000 0.4500">
+      <geom name="fence_park_north_0_geom" type="box" size="5.1250 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
     </body>
-    <body name="fence_loop_east" pos="32.5000 0.0000 0.4500">
-      <geom name="fence_loop_east_geom" type="box" size="0.0200 10.5000 0.4500" rgba="0.55 0.45 0.35 1"/>
+    <body name="fence_park_north_1" pos="4.8750 -9.0000 0.4500">
+      <geom name="fence_park_north_1_geom" type="box" size="5.1250 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
+    </body>
+    <body name="fence_park_south" pos="-1.0000 -25.0000 0.4500">
+      <geom name="fence_park_south_geom" type="box" size="11.0000 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
+    </body>
+    <body name="fence_park_west" pos="-12.0000 -17.0000 0.4500">
+      <geom name="fence_park_west_geom" type="box" size="0.0200 8.0000 0.4500" rgba="0.55 0.45 0.35 1"/>
+    </body>
+    <body name="fence_park_east_0" pos="10.0000 -21.3750 0.4500">
+      <geom name="fence_park_east_0_geom" type="box" size="0.0200 3.6250 0.4500" rgba="0.55 0.45 0.35 1"/>
+    </body>
+    <body name="fence_park_east_1" pos="10.0000 -12.6250 0.4500">
+      <geom name="fence_park_east_1_geom" type="box" size="0.0200 3.6250 0.4500" rgba="0.55 0.45 0.35 1"/>
+    </body>
+    <body name="wall_mall_west_0" pos="16.0000 -21.2500 1.2000">
+      <geom name="wall_mall_west_0_geom" type="box" size="0.0200 3.7500 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_mall_west_1" pos="16.0000 -12.7500 1.2000">
+      <geom name="wall_mall_west_1_geom" type="box" size="0.0200 3.7500 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_mall_north_0" pos="16.5000 -9.0000 1.2000">
+      <geom name="wall_mall_north_0_geom" type="box" size="0.5000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_mall_north_1" pos="23.0000 -9.0000 1.2000">
+      <geom name="wall_mall_north_1_geom" type="box" size="5.0000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_mall_south" pos="22.0000 -25.0000 1.2000">
+      <geom name="wall_mall_south_geom" type="box" size="6.0000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_mall_east_0" pos="28.0000 -23.8750 1.2000">
+      <geom name="wall_mall_east_0_geom" type="box" size="0.0200 1.1250 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_mall_east_1" pos="28.0000 -15.1250 1.2000">
+      <geom name="wall_mall_east_1_geom" type="box" size="0.0200 6.1250 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_concourse_east_0" pos="19.0000 -23.2500 1.2000">
+      <geom name="wall_concourse_east_0_geom" type="box" size="0.0200 1.7500 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_concourse_east_1" pos="19.0000 -17.0000 1.2000">
+      <geom name="wall_concourse_east_1_geom" type="box" size="0.0200 3.5000 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_concourse_east_2" pos="19.0000 -10.7500 1.2000">
+      <geom name="wall_concourse_east_2_geom" type="box" size="0.0200 1.7500 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_mall_div" pos="23.5000 -17.0000 1.2000">
+      <geom name="wall_mall_div_geom" type="box" size="4.5000 0.0200 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_pass_0" pos="25.0000 -16.8000 1.2000">
+      <geom name="wall_pass_0_geom" type="box" size="0.0200 0.2000 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_pass_1" pos="25.0000 -15.0500 1.2000">
+      <geom name="wall_pass_1_geom" type="box" size="0.0200 0.5500 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_pass_2" pos="25.0000 -10.2500 1.2000">
+      <geom name="wall_pass_2_geom" type="box" size="0.0200 1.2500 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_loading_0" pos="25.0000 -22.0000 1.2000">
+      <geom name="wall_loading_0_geom" type="box" size="0.0200 3.0000 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="wall_loading_1" pos="25.0000 -17.5000 1.2000">
+      <geom name="wall_loading_1_geom" type="box" size="0.0200 0.5000 1.2000" rgba="0.78 0.75 0.70 1"/>
+    </body>
+    <body name="fence_loop_west" pos="-16.5000 -9.5000 0.4500">
+      <geom name="fence_loop_west_geom" type="box" size="0.0200 20.0000 0.4500" rgba="0.55 0.45 0.35 1"/>
+    </body>
+    <body name="fence_loop_east" pos="32.5000 -9.5000 0.4500">
+      <geom name="fence_loop_east_geom" type="box" size="0.0200 20.0000 0.4500" rgba="0.55 0.45 0.35 1"/>
     </body>
     <body name="fence_loop_north" pos="8.0000 10.5000 0.4500">
       <geom name="fence_loop_north_geom" type="box" size="24.5000 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
     </body>
-    <body name="fence_loop_south" pos="8.0000 -10.5000 0.4500">
+    <body name="fence_loop_south" pos="8.0000 -29.5000 0.4500">
       <geom name="fence_loop_south_geom" type="box" size="24.5000 0.0200 0.4500" rgba="0.55 0.45 0.35 1"/>
     </body>
     <body name="home_floor" pos="1.5000 2.0000 0.0010">
@@ -189,20 +293,44 @@
     <body name="store_floor" pos="25.0000 -3.0000 0.0010">
       <geom name="store_floor_geom" type="box" size="3.0000 3.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="garden_south_ground" pos="4.0000 -4.0000 0.0010">
-      <geom name="garden_south_ground_geom" type="box" size="6.0000 2.0000 0.0010" rgba="0.45 0.52 0.40 1" contype="0" conaffinity="0"/>
+    <body name="room_west_floor" pos="-0.2500 -4.0000 0.0010">
+      <geom name="room_west_floor_geom" type="box" size="1.7500 2.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="room_east_floor" pos="3.2500 -4.0000 0.0010">
+      <geom name="room_east_floor_geom" type="box" size="1.7500 2.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="study_floor" pos="17.5000 -3.0000 0.0010">
+      <geom name="study_floor_geom" type="box" size="1.5000 3.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="concourse_floor" pos="17.5000 -17.0000 0.0010">
+      <geom name="concourse_floor_geom" type="box" size="1.5000 8.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="dining_floor" pos="22.0000 -13.0000 0.0010">
+      <geom name="dining_floor_geom" type="box" size="3.0000 4.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="restaurant_kitchen_floor" pos="26.5000 -13.0000 0.0010">
+      <geom name="restaurant_kitchen_floor_geom" type="box" size="1.5000 4.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="shop_floor" pos="22.0000 -21.0000 0.0010">
+      <geom name="shop_floor_geom" type="box" size="3.0000 4.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="loading_floor" pos="26.5000 -21.0000 0.0010">
+      <geom name="loading_floor_geom" type="box" size="1.5000 4.0000 0.0010" rgba="0.62 0.55 0.45 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="garden_south_ground" pos="7.5000 -4.0000 0.0010">
+      <geom name="garden_south_ground_geom" type="box" size="2.5000 2.0000 0.0010" rgba="0.45 0.52 0.40 1" contype="0" conaffinity="0"/>
     </body>
     <body name="sidewalk_ground" pos="10.7500 0.0000 0.0010">
       <geom name="sidewalk_ground_geom" type="box" size="0.7500 6.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="street_ground" pos="13.0000 0.0000 0.0010">
-      <geom name="street_ground_geom" type="box" size="1.5000 7.5000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
+    <body name="street_ground" pos="13.0000 -9.5000 0.0010">
+      <geom name="street_ground_geom" type="box" size="1.5000 17.0000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
     </body>
     <body name="sidewalk_2_ground" pos="15.2500 0.0000 0.0010">
       <geom name="sidewalk_2_ground_geom" type="box" size="0.7500 6.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="garden_2_ground" pos="17.5000 0.0000 0.0010">
-      <geom name="garden_2_ground_geom" type="box" size="1.5000 6.0000 0.0010" rgba="0.45 0.52 0.40 1" contype="0" conaffinity="0"/>
+    <body name="garden_2_ground" pos="17.5000 3.0000 0.0010">
+      <geom name="garden_2_ground_geom" type="box" size="1.5000 3.0000 0.0010" rgba="0.45 0.52 0.40 1" contype="0" conaffinity="0"/>
     </body>
     <body name="sidewalk_north_ground" pos="-1.0000 6.7500 0.0010">
       <geom name="sidewalk_north_ground_geom" type="box" size="12.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
@@ -210,11 +338,32 @@
     <body name="sidewalk_2_north_ground" pos="22.0000 6.7500 0.0010">
       <geom name="sidewalk_2_north_ground_geom" type="box" size="7.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="sidewalk_south_ground" pos="-1.0000 -6.7500 0.0010">
-      <geom name="sidewalk_south_ground_geom" type="box" size="12.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    <body name="sidewalk_south_ground" pos="-1.0000 -7.5000 0.0010">
+      <geom name="sidewalk_south_ground_geom" type="box" size="12.5000 1.5000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="sidewalk_2_south_ground" pos="22.0000 -6.7500 0.0010">
-      <geom name="sidewalk_2_south_ground_geom" type="box" size="7.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    <body name="alley_ground" pos="22.0000 -7.5000 0.0010">
+      <geom name="alley_ground_geom" type="box" size="7.5000 1.5000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="park_ground" pos="-1.0000 -17.0000 0.0010">
+      <geom name="park_ground_geom" type="box" size="11.0000 8.0000 0.0010" rgba="0.45 0.52 0.40 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="sidewalk_park_ground" pos="10.7500 -17.0000 0.0010">
+      <geom name="sidewalk_park_ground_geom" type="box" size="0.7500 8.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="sidewalk_park_west_ground" pos="-12.7500 -17.0000 0.0010">
+      <geom name="sidewalk_park_west_ground_geom" type="box" size="0.7500 8.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="sidewalk_park_south_ground" pos="-1.0000 -25.7500 0.0010">
+      <geom name="sidewalk_park_south_ground_geom" type="box" size="12.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="sidewalk_mall_ground" pos="15.2500 -17.0000 0.0010">
+      <geom name="sidewalk_mall_ground_geom" type="box" size="0.7500 8.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="sidewalk_mall_east_ground" pos="28.7500 -17.0000 0.0010">
+      <geom name="sidewalk_mall_east_ground_geom" type="box" size="0.7500 8.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="sidewalk_mall_south_ground" pos="22.0000 -25.7500 0.0010">
+      <geom name="sidewalk_mall_south_ground_geom" type="box" size="7.5000 0.7500 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
     </body>
     <body name="sidewalk_west_ground" pos="-12.7500 0.0000 0.0010">
       <geom name="sidewalk_west_ground_geom" type="box" size="0.7500 6.0000 0.0010" rgba="0.68 0.67 0.64 1" contype="0" conaffinity="0"/>
@@ -225,14 +374,14 @@
     <body name="street_north_ground" pos="8.0000 9.0000 0.0010">
       <geom name="street_north_ground_geom" type="box" size="24.5000 1.5000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="street_south_ground" pos="8.0000 -9.0000 0.0010">
+    <body name="street_south_ground" pos="8.0000 -28.0000 0.0010">
       <geom name="street_south_ground_geom" type="box" size="24.5000 1.5000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="street_west_ground" pos="-15.0000 0.0000 0.0010">
-      <geom name="street_west_ground_geom" type="box" size="1.5000 7.5000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
+    <body name="street_west_ground" pos="-15.0000 -9.5000 0.0010">
+      <geom name="street_west_ground_geom" type="box" size="1.5000 17.0000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
     </body>
-    <body name="street_east_ground" pos="31.0000 0.0000 0.0010">
-      <geom name="street_east_ground_geom" type="box" size="1.5000 7.5000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
+    <body name="street_east_ground" pos="31.0000 -9.5000 0.0010">
+      <geom name="street_east_ground_geom" type="box" size="1.5000 17.0000 0.0010" rgba="0.30 0.30 0.32 1" contype="0" conaffinity="0"/>
     </body>
     <body name="whiteboard_a" pos="-1.9700 1.0000 0.3000">
       <geom name="board" type="box" size="0.0100 0.1600 0.1300" rgba="0.95 0.95 0.93 1" friction="0.25" priority="1"/>
@@ -371,6 +520,102 @@
     </body>
     <body name="furniture_table" pos="-8.5000 -2.0000 0.3700">
       <geom name="furniture_table_geom" type="box" size="0.6000 0.4000 0.3700" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_0" pos="20.8000 -11.2000 0.3600">
+      <geom name="dining_table_0_geom" type="box" size="0.4000 0.4000 0.3600" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_0_chair_0" pos="20.8000 -10.5250 0.4500" quat="0.707107 0 0 -0.707107">
+      <geom name="dining_table_0_chair_0_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_0_chair_1" pos="20.8000 -11.8750 0.4500" quat="0.707107 0 0 0.707107">
+      <geom name="dining_table_0_chair_1_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_1" pos="23.0000 -11.2000 0.3600">
+      <geom name="dining_table_1_geom" type="box" size="0.4000 0.4000 0.3600" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_1_chair_0" pos="23.0000 -10.5250 0.4500" quat="0.707107 0 0 -0.707107">
+      <geom name="dining_table_1_chair_0_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_1_chair_1" pos="23.0000 -11.8750 0.4500" quat="0.707107 0 0 0.707107">
+      <geom name="dining_table_1_chair_1_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_2" pos="20.8000 -14.8000 0.3600">
+      <geom name="dining_table_2_geom" type="box" size="0.4000 0.4000 0.3600" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_2_chair_0" pos="20.8000 -14.1250 0.4500" quat="0.707107 0 0 -0.707107">
+      <geom name="dining_table_2_chair_0_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_2_chair_1" pos="20.8000 -15.4750 0.4500" quat="0.707107 0 0 0.707107">
+      <geom name="dining_table_2_chair_1_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_3" pos="23.0000 -14.8000 0.3600">
+      <geom name="dining_table_3_geom" type="box" size="0.4000 0.4000 0.3600" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_3_chair_0" pos="23.0000 -14.1250 0.4500" quat="0.707107 0 0 -0.707107">
+      <geom name="dining_table_3_chair_0_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="dining_table_3_chair_1" pos="23.0000 -15.4750 0.4500" quat="0.707107 0 0 0.707107">
+      <geom name="dining_table_3_chair_1_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="expo_counter" pos="25.0000 -13.0000 0.4500">
+      <geom name="expo_counter_geom" type="box" size="0.3000 1.5000 0.4500" rgba="0.60 0.56 0.50 1"/>
+    </body>
+    <body name="kitchen_worktop" pos="26.6400 -9.3200 0.4500">
+      <geom name="kitchen_worktop_geom" type="box" size="1.3400 0.3000 0.4500" rgba="0.60 0.56 0.50 1"/>
+    </body>
+    <body name="shop_checkout" pos="20.4000 -19.0000 0.4500">
+      <geom name="shop_checkout_geom" type="box" size="0.3000 0.9000 0.4500" rgba="0.60 0.56 0.50 1"/>
+    </body>
+    <body name="study_table" pos="17.5000 -3.0000 0.3600">
+      <geom name="study_table_geom" type="box" size="0.4000 0.6000 0.3600" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="study_table_chair_0" pos="17.5000 -2.1250 0.4500" quat="0.707107 0 0 -0.707107">
+      <geom name="study_table_chair_0_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="study_table_chair_1" pos="17.5000 -3.8750 0.4500" quat="0.707107 0 0 0.707107">
+      <geom name="study_table_chair_1_geom" type="box" size="0.2250 0.2250 0.4500" rgba="0.50 0.42 0.34 1"/>
+    </body>
+    <body name="kitchen_shelf" pos="27.8050 -12.5000 0" quat="0.707107 0 0 0.707107">
+      <geom name="kitchen_shelf_end_0" type="box" pos="-0.9900 0.0000 0.7500" size="0.0100 0.1750 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="kitchen_shelf_end_1" type="box" pos="0.9900 0.0000 0.7500" size="0.0100 0.1750 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="kitchen_shelf_back" type="box" pos="0.0000 -0.1650 0.7500" size="0.9800 0.0100 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="kitchen_shelf_board_0" type="box" pos="0.0000 0.0000 0.1500" size="0.9800 0.1750 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="kitchen_shelf_board_1" type="box" pos="0.0000 0.0000 0.5500" size="0.9800 0.1750 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="kitchen_shelf_board_2" type="box" pos="0.0000 0.0000 0.9500" size="0.9800 0.1750 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="kitchen_shelf_board_3" type="box" pos="0.0000 0.0000 1.3500" size="0.9800 0.1750 0.0100" rgba="0.62 0.60 0.56 1"/>
+    </body>
+    <body name="shop_gondola" pos="22.5000 -21.6000 0" quat="0.707107 0 0 0.707107">
+      <geom name="shop_gondola_end_0" type="box" pos="-1.9900 0.0000 0.7500" size="0.0100 0.4000 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_gondola_end_1" type="box" pos="1.9900 0.0000 0.7500" size="0.0100 0.4000 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_gondola_back" type="box" pos="0.0000 0.0000 0.7500" size="1.9800 0.0100 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_gondola_board_0" type="box" pos="0.0000 0.0000 0.1500" size="1.9800 0.4000 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_gondola_board_1" type="box" pos="0.0000 0.0000 0.5500" size="1.9800 0.4000 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_gondola_board_2" type="box" pos="0.0000 0.0000 0.9500" size="1.9800 0.4000 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_gondola_board_3" type="box" pos="0.0000 0.0000 1.3500" size="1.9800 0.4000 0.0100" rgba="0.62 0.60 0.56 1"/>
+    </body>
+    <body name="shop_shelf" pos="24.7800 -22.2000 0" quat="0.707107 0 0 0.707107">
+      <geom name="shop_shelf_end_0" type="box" pos="-2.5900 0.0000 0.7500" size="0.0100 0.2000 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_shelf_end_1" type="box" pos="2.5900 0.0000 0.7500" size="0.0100 0.2000 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_shelf_back" type="box" pos="0.0000 -0.1900 0.7500" size="2.5800 0.0100 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_shelf_board_0" type="box" pos="0.0000 0.0000 0.1500" size="2.5800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_shelf_board_1" type="box" pos="0.0000 0.0000 0.5500" size="2.5800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_shelf_board_2" type="box" pos="0.0000 0.0000 0.9500" size="2.5800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="shop_shelf_board_3" type="box" pos="0.0000 0.0000 1.3500" size="2.5800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
+    </body>
+    <body name="loading_rack" pos="26.5000 -24.7800 0" quat="1.000000 0 0 0.000000">
+      <geom name="loading_rack_end_0" type="box" pos="-1.2900 0.0000 0.7500" size="0.0100 0.2000 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="loading_rack_end_1" type="box" pos="1.2900 0.0000 0.7500" size="0.0100 0.2000 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="loading_rack_back" type="box" pos="0.0000 -0.1900 0.7500" size="1.2800 0.0100 0.7500" rgba="0.62 0.60 0.56 1"/>
+      <geom name="loading_rack_board_0" type="box" pos="0.0000 0.0000 0.1500" size="1.2800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="loading_rack_board_1" type="box" pos="0.0000 0.0000 0.5500" size="1.2800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="loading_rack_board_2" type="box" pos="0.0000 0.0000 0.9500" size="1.2800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
+      <geom name="loading_rack_board_3" type="box" pos="0.0000 0.0000 1.3500" size="1.2800 0.2000 0.0100" rgba="0.62 0.60 0.56 1"/>
+    </body>
+    <body name="park_tree_0" pos="-3.5000 -14.5000 1.2500">
+      <geom name="park_tree_0_trunk" type="cylinder" size="0.1500 1.2500" rgba="0.40 0.32 0.24 1"/>
+    </body>
+    <body name="park_tree_1" pos="3.0000 -19.5000 1.2500">
+      <geom name="park_tree_1_trunk" type="cylinder" size="0.1500 1.2500" rgba="0.40 0.32 0.24 1"/>
     </body>
     <body name="stairs" pos="-3.5000 -4.5000 0">
       <geom name="stairs_step_0" type="box" pos="-0.9500 0.7500 0.0900" size="0.5500 0.7500 0.0900" rgba="0.58 0.54 0.50 1"/>

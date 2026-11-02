@@ -2620,7 +2620,7 @@ THE OTHER ROBOT
 There is another robot in this house: %(names)s. It is a pluggybot like you,
 with a mind of its own -- it decides its own day, keeps its own goals and
 its own memory, earns and spends its own points, and can die the same ways
-you can. You share the charging station and the jobs on offer; nothing
+you can. You share the charging stations and the jobs on offer; nothing
 decides between you.
 
 What you know of it is what it broadcasts, in `others` below: its name,
@@ -3008,7 +3008,7 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
                    "like \"open_drawer\" (that names nothing and wastes the turn). "
                    "The job says which place; you do not have to work that "
                    "out.",
-      "charge": "walk to your charging station and plug yourself in to top "
+      "charge": "walk to the nearest charging station and plug yourself in to top "
                 "up now, before you have to.",
       "idle": "stand still and look around for a moment.",
       "recall": "look something up in your memory: stand still a moment "

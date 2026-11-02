@@ -4,18 +4,15 @@ Issue #71 arrived mostly done: #68 shipped every furniture hint it names
 (`couch`, `bed`, `table`, `counter`, and `stairs` besides), so what was left
 was the one genuine decision and the guards that make the rules survivable.
 
-⚠ THE DECISION: NO IN-WORLD TREES OR HILLS, the issue's own escape hatch
-("if the expanded house does not actually need one, ship no in-world trees
-and let the horizon carry the look" -- rooftop#127 owns the horizon). It is
-also the only self-consistent outcome: the frozen conformance rules
-(protocol/hints.json, #66) say a `tree` and a `hill` COLLIDE -- "a tree the
-robot may drive through is a tree it will park in" -- while #71 requires
-every decorative body non-colliding and THE MAP UNCHANGED. Nothing can be
-all three of collidable, decorative and invisible to the map, so an in-world
-tree is a real obstacle or it is a lie, and this world ships neither. The
-day the house wants a real tree, it arrives as a mapped obstacle under the
-#66 rules and `test_no_tree_or_hill_ships_without_meeting_its_own_rules`
-below is the tollbooth.
+⚠ THE DECISION: AN IN-WORLD TREE OR HILL IS A REAL OBSTACLE OR NONE. The
+frozen conformance rules (protocol/hints.json, #66) say a `tree` and a
+`hill` COLLIDE -- "a tree the robot may drive through is a tree it will park
+in" -- while #71 requires every decorative body non-colliding and THE MAP
+UNCHANGED. Nothing can be all three of collidable, decorative and invisible
+to the map, so an in-world tree is a real obstacle or it is a lie. #71
+shipped none; the park's two trees (#560) are real -- trunks the robot maps,
+walks round and routes round (`test_a_tree_or_hill_ships_only_as_a_real_
+obstacle` below is the tollbooth).
 
 ⚠ WHY "non-colliding" IS NOT ENOUGH, measured: the LIDAR's raycast ignores
 contype entirely -- the plants are contype 0 and are MAPPED. So decorative
@@ -82,18 +79,26 @@ def _on_solid(model, data, g, solid) -> bool:
              for h in near)
 
 
-def test_no_tree_or_hill_ships_without_meeting_its_own_rules(trio):
-  """The recorded decision, as a tollbooth rather than prose. If a future
-  layout adds one, this fails until whoever adds it has read the module
-  docstring's contradiction and decided which side wins: a REAL tree
-  (collidable per hints.json, mapped, priced into the reserve's routes and
-  the camera-safety survey) -- in which case extend this test to assert
-  exactly that -- or no tree. There is no third, invisible-solid option."""
-  model, _, hints = trio
-  offenders = [b for b, h in hints.items() if h in ("tree", "hill")]
-  assert not offenders, (
-    f"{offenders} arrived hinted tree/hill: decide against the rules in "
-    f"tests/test_dressing.py's docstring before shipping them")
+def test_a_tree_or_hill_ships_only_as_a_real_obstacle(trio):
+  """The recorded decision, as a tollbooth rather than prose (the module
+  docstring): every tree or hill is REAL -- collidable per hints.json, and
+  standing in the band the map is laid from (`lidar.BAND_M`), so it is
+  mapped, routed round by the reserve's routes (`test_world_budget`) and
+  in the camera-safety survey's world. There is no third, invisible-solid
+  option. The park's trees (#560) are the first; shown to fail on a trunk
+  made decor."""
+  from pluggybot.perception.lidar import BAND_M
+  model, data, hints = trio
+  trees = [b for b, h in hints.items() if h in ("tree", "hill")]
+  assert trees, "the park's trees are gone: if on purpose, so is this test's reason"
+  for name in trees:
+    geoms = _body_geoms(model, model.body(name).id)
+    assert any(_collides(model, g) for g in geoms), \
+        f"{name} is a {hints[name]} the robot walks through: decor or an obstacle, never both"
+    tops = [data.geom_xpos[g][2] + model.geom_rbound[g] for g in geoms]
+    bottoms = [data.geom_xpos[g][2] - model.geom_rbound[g] for g in geoms]
+    assert min(bottoms) < BAND_M[1] and max(tops) > BAND_M[0], \
+        f"{name} stands out of the band the map is laid from: the map never sees it"
 
 
 def test_furniture_is_collidable_and_decor_is_not(trio):
@@ -105,7 +110,8 @@ def test_furniture_is_collidable_and_decor_is_not(trio):
     geoms = _body_geoms(model, model.body(name).id)
     any_solid = any(_collides(model, g) for g in geoms)
     if hint in ("couch", "bed", "table", "counter", "stairs", "wall",
-                "fence", "whiteboard", "rack", "cage", "mouse", "plate"):
+                "fence", "whiteboard", "rack", "cage", "mouse", "plate",
+                "tree", "chair", "shelf"):
       assert any_solid, f"{name} ({hint}) stopped colliding"
     elif hint in ("floor", "ground", "sidewalk", "street", "plant"):
       assert not any_solid, f"{name} ({hint}) grew a collision"

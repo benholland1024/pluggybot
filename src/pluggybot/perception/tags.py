@@ -96,6 +96,19 @@ STATION_TAG_SIZE = 0.060
 #: chest, the drawers, the cupboard and the cube -- the areas' 120 mm, read
 #: by the humanoid's navigation camera from across the room.
 COUNTER_TAG_IDS = (60, 61, 62, 63)
+#: The grown world's charging stations (issue #560; `humanoid.world.STATIONS`):
+#: the research center's and the mall's, a pair each as the house's is --
+#: which pair a robot sees says which station it is looking at.
+STATION_2_TAG_IDS = (64, 65)
+STATION_3_TAG_IDS = (66, 67)
+#: ...and its places' tags (`home/areas.py`), the areas' 120 mm: a pair
+#: either side of the restaurant's pass, a pair on the shop's north wall,
+#: the park's sign, one in each robot's room and one in the study room.
+RESTAURANT_TAG_IDS = (68, 69)
+SHOP_TAG_IDS = (70, 71)
+PARK_TAG_IDS = (72,)
+ROOM_TAG_IDS = (73, 74)
+STUDY_TAG_IDS = (75,)
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -110,11 +123,14 @@ TAG_SIZES = {**{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in CHEST_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in (*DRAWER_TAG_IDS, *DOOR_TAG_IDS, *CUBE_TAG_IDS)},
              **{i: MAT_TAG_SIZE for i in MAT_TAG_IDS},
-             **{i: STATION_TAG_SIZE for i in STATION_TAG_IDS},
+             **{i: STATION_TAG_SIZE for i in (*STATION_TAG_IDS, *STATION_2_TAG_IDS,
+                                              *STATION_3_TAG_IDS)},
              **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS},
              **{i: BOARD_TAG_SIZE for ids in BOARD_TAG_IDS.values() for i in ids},
              **{i: AREA_TAG_SIZE for i in (*TOWER_TAG_IDS, *BENCH_TAG_IDS, *GARDEN_TAG_IDS,
-                                           *COUNTER_TAG_IDS)}}
+                                           *COUNTER_TAG_IDS, *RESTAURANT_TAG_IDS,
+                                           *SHOP_TAG_IDS, *PARK_TAG_IDS, *ROOM_TAG_IDS,
+                                           *STUDY_TAG_IDS)}}
 
 TAG_DIR = Path("models/tags")
 

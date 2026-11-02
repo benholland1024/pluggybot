@@ -13,8 +13,9 @@ from pluggybot.pair import build_pair, run_pair
 #: ⚠ THE EMPATHY MEASUREMENT'S INPUT. What the robot is told about the other
 #: robot is written once; moving it is a new experiment on every paired
 #: arm, so the change is made here on purpose, with the hash. (Since #579:
-#: what the other carries went, with the quadruped's fork it named.)
-OTHER_ROBOT_RULE_SHA = "4f27bd0de4ebc507de557d9f632f84f9b4015f8246c080b1da1d86a78a923de0"
+#: what the other carries went, with the quadruped's fork it named; since
+#: #560: the charging stations they share are three, one in each building.)
+OTHER_ROBOT_RULE_SHA = "a63ef30bf3bb4ed6cbfe21492fdc2211feabf9d23024a2ee3b2049e0bfce0233"
 
 WORLD = "home_humanoid"
 
