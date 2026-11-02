@@ -10,6 +10,37 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The plug-in placed off each try's own look (#596) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A humanoid plugging in looks at the station again before each try**,
+  the first look after standing still 3 s: a dock takes about 3 s longer.
+- **Its hand is placed off that look as its feet would carry it**: moved as
+  far as its belief moves its stance, never turned with it; the port is read
+  at each of the hand's moves, and the hand, slid onto the plug, goes there
+  once more as the station is then.
+- **It lets go where its push stops**, as before.
+- **The charge's trace** (the log's, after a charge that never plugged in)
+  carries `looked` on each try: whether that try's look saw the station.
+- Nothing in the prompt, the schema, the arm or the reward table moved, nor
+  the station, the body or the house.
+
+**Why.** #596: from the look to the squeeze the feet turned 1.6-7.7 deg where
+they stood while the belief moved the stance 5-25 mm, and a hand sent
+through the believed world missed the port the same way four times, each
+retry on the same look; the pair recording's first robot died of it on
+llvmpipe. Flown (SimNotes, "A plug-in that missed every try"), staging and
+the branch on one pod: 139 of 140 seats plugged in where staging plugged 138,
+and with 140 pushes where staging needed 181; from round the standoff 33 of
+33 at a push each (staging 45 pushes); its belief 0.4-1 m wrong 52 of 52
+(staging 51).
+
+**What the period is for.** No charge ends "no charge contact (it pushed the
+plug in and the port never took it)", and no `stuck` death says so: read off
+the charges' narration and the `death` rows. ⚠ It may open with #572's
+stage 3 and #581's stage 3 periods if they deploy together: read it against
+the one before them all.
+
 ### A lost robot looks for its station by its head's camera, and a fall walks no belief (#572, stage 3) — opens when this PR is deployed
 
 **What changed in the world.**

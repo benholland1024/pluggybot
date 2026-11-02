@@ -267,7 +267,7 @@ save a filmstrip PNG named after the script.
 | `scripts/grid_spike.py` | #558: what a robot's map costs as the world grows, at 1-4x today's cells (the bounds grown round the house), each scale its own process, through the humanoid's own code: each scan's, frame's and plan's work, the explore's mask and A*, the matcher's field, the wire's PNG, `world.npz`, memory, on #215's synthetic grid and the house laid by the robot's own senses; `--walks [SIM_S]` the humanoid pair walking #507's routes at each scale; `--scales`, `--repeat`, `--no-table`, `--out` |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair` (`--fall-at`, `--drain-at`); `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345); `--no-economy`, `--sequential`, `--nthreads` |
 | `scripts/make_way_spike.py` | #415 on two legs (#559): the humanoid pair in the house on true-floor maps, one robot resting standing in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B`, `--drift`/`--drift-walker` a map laid off the world, `--standing S`, `--near-field` |
-| `scripts/station_spike.py` | the humanoid's charging station (#559 stage 2; SimNotes "The humanoid's charging station"): `--approach [--n N] [--parallel P]` docked and unplugged or why not from seeded starts round the standoff, one process a trial; `--seats` started at 140 seats over what the seat check accepts: plugged in and unplugged or why not; `--lost [--n N]` a fresh robot 2 m out, its belief set 0.4-1 m wrong: the loop's charge path, its lost search and the fix; `--lost --far [--from near,house,street] [--n N] [--explore S]` its belief set 1-5 m and 5-20 deg wrong (#572), 2 m out, in the house's rooms and across the street, explored first or not, and how each charge ended (`--lost-table ROWS` its table again); `--reach` how far its head's camera and its colour imager read the station's tags, out of its face and off its axis, and the head's fit of the pair (#572 stage 3); `--hold [--seconds S]` plugged in: the charger's watts against what it draws; `--fall` shoved over plugged in: the breakaway, the plug home, the robot up; `--walk-in [--explore 120,240]` explored, walked out to 8 places across the house on its own map, then the loop's own `go_charge`; `--view [plug\|fall\|lost]` in the viewer, looped (MUJOCO_GL unset), `--lost-from P --lost-off X,Y,DEG` the lost scene from elsewhere, the camera over the robot; `--strip [plug\|fall\|lost]` its filmstrip, `station_spike.png` (`_fall`, `_lost`) |
+| `scripts/station_spike.py` | the humanoid's charging station (#559 stage 2; SimNotes "The humanoid's charging station"): `--approach [--n N] [--parallel P]` docked and unplugged or why not from seeded starts round the standoff, one process a trial; `--seats` started at 140 seats over what the seat check accepts: plugged in and unplugged or why not; `--lost [--n N]` a fresh robot 2 m out, its belief set 0.4-1 m wrong: the loop's charge path, its lost search and the fix; `--lost --far [--from near,house,street] [--n N] [--explore S]` its belief set 1-5 m and 5-20 deg wrong (#572), 2 m out, in the house's rooms and across the street, explored first or not, and how each charge ended (`--lost-table ROWS` its table again); `--reach` how far its head's camera and its colour imager read the station's tags, out of its face and off its axis, and the head's fit of the pair (#572 stage 3); `--hold [--seconds S]` plugged in: the charger's watts against what it draws; `--fall` shoved over plugged in: the breakaway, the plug home, the robot up; `--anatomy` #596's scene, the first robot's plug-in taken apart: each look's fit, the plug in the jaws, how the feet and the belief moved since the look, the hand and the plug at the port (every batch's rows say where each try let the plug go, `letGo`); `--walk-in [--explore 120,240]` explored, walked out to 8 places across the house on its own map, then the loop's own `go_charge`; `--view [plug\|fall\|lost]` in the viewer, looped (MUJOCO_GL unset), `--lost-from P --lost-off X,Y,DEG` the lost scene from elsewhere, the camera over the robot; `--strip [plug\|fall\|lost]` its filmstrip, `station_spike.png` (`_fall`, `_lost`) |
 | `scripts/solve.py --feature drawer` | ladder A of #264 on the humanoid's hands (#559): a hand job (`--feature drawer\|door\|cube\|chest`: `open_drawer`, `open_door`, `place_cube`, `open_chest`) offered on the storeroom's counter, its prop drawn (`--draw K`) and set out, claimed, the reference's two procedures (`challenge/solutions.py`) run as the robot's, `done`, graded on the seam; a fresh humanoid on a fresh map from the station (`--from station\|store`, or `tour`: flight k from the next of eight places across the house), `--n` draws a process each (`--jobs`, `--into DIR`), `--view`, `--strip` (`--strip-out PATH`); filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the quadruped's pen drew is symmetric |
 | `scripts/humanoid_spike.py` | the humanoid (#507; SimNotes "The humanoid body", "The humanoid stands, reaches and grasps", "The humanoid behind Body", "The humanoid walks", "The humanoid climbs, falls and gets up" and "One walker that sees the ground", Parts.md "The humanoid body"): `--view body` the body held up on a gantry in the house, each joint through its range, then the grippers; `--view stand` its standing policy shoved, crouching and bowing, `--view reach` a hand to a counter, a high shelf, a low shelf and the floor through `Body`, its get-up loaded, `--view grasp` a drawer's handle gripped and pulled, `--view pull` a locked handle pulled at `pull`'s most, 20 N, each way (#544), `--view bar` the `pull` verb on it at its most, back, up, forward and down (#547), `--view feel` 20 N staged at a held-out hand, what its arm and its whole body read (#547), `--view demo` the chest's knob on a counter found by its tag, reached and gripped through `Body`, `--view walk` living room to kitchen and back on its own map, `--view rough` the walker that sees the ground (not served) across doorsteps, paving, a slope and blocks, `--view stairs` it up the house's flight on its own map, round on the landing and down, `--view fall` shoved over three ways, its get-up taking each fall, `--view getup` up off its back, its front and its side (`--strip SCENE` the filmstrip, `--policy NPZ` another standing policy, `--getup-policy NPZ`); `--mass` beside the T2's published model, `--torque` held in our physics and the walking, the stairs and the get-up FLOWN, `--thermal`, `--energy`, `--sensors`; `--friction [--write]` its arm joints' friction calibrated in free air beside the sheets', kept in `models/humanoid_friction.json`; `--shove` the shoves it stands through, `--envelope` the reach flown floor to over the head, `--hold` a locked handle pulled harder, `--pulls` a hand pulling each of 14 ways at a counter's height until it falls, `--bar` the force move on the locked handle each way at 10 and 20 N (`--oracle` closed on its true force: the loop's floor), `--feel` what its arm and its whole body read of 20 N staged at the grip, still and swaying (#547), `--handover [N]` the walk's hand-over at a standstill through `step` (#544), `--demo-table [N]` the demo's set-outs flown through `Body`, `--track` / `--rough [NPZ,...]` the served and any walker asked each command on a bare floor / over a doorstep, paving, a slope and blocks (one that sees the ground on its own map), `--odometry` the leg odometry against the truth, `--climb [NPZ]` flights of five at each riser up and down on the ideal scan and its own map, `--fall [NPZ]` shoved over six ways standing, limp or getting up (how far it reaches lying: the fallen disc's, #580; which of the head's parts struck and how fast, and whether the LIDAR itself did, #581), in five places in the house, and from each bow a reach takes (#520), `--speed [SIM_S]` the real-time multiple of one humanoid and a pair, the same walks in the house (`--profile`); filmstrip `humanoid_spike.png` |
@@ -509,21 +509,34 @@ save a filmstrip PNG named after the script.
   (`PLUG_GAP_TOL_M`): wider is the station's boss, and the hand draws back
   along the plug and grips again. ⚠ THE UNPLUG LETS GO AT THE CUP'S MOUTH
   (`CUP_SHORT_M`): carried to the seat, the plug was driven into the boss
-  and the robot fell. ⚠ A STEP TO THE SEAT WALKS BY ITS LEGS' RECKONING
-  (`step_routine`, #581's stage 2): the band's matcher at the station, its
+  and the robot fell. ⚠ A TRY'S HAND IS PLACED OFF A LOOK OF ITS OWN, TAKEN
+  STANDING STILL, THE STATION CARRIED AS THE FEET CARRY IT (#596;
+  `charge._carried`, `LOOK_SETTLE_S`; SimNotes, "A plug-in that missed
+  every try"): moved as far as the belief moves its stance, never turned
+  with it -- standing, the feet turned 1.6-7.7 deg where they stood while
+  the belief moved its stance 5-25 mm, and a hand sent through the
+  believed world missed the same way four times; a look just after a step
+  read the trunk's tilt 0.5 deg off; the port read at each move. ⚠ THE
+  PLUG IS LET GO WHERE THE PUSH STOPS, pressed on the body: put back on
+  its line after (the push slides the hand 6-11 mm), it was let go 9-12 mm
+  off the body and the port missed 20 let-goes in 140 seats. ⚠ A STEP TO
+  THE SEAT WALKS BY ITS LEGS' RECKONING (`step_routine`, #581's stage 2):
+  the band's matcher at the station, its
   corrections walked as steps, stopped one 3.6 cm inside the seat, and the
-  walker cannot back up so little. Measured: plugged in from 140 of 140 seats over the
-  seat check (110 before), unplugged 140 of them; on #581's stage 3 head 48
-  of 48 from round the standoff and 16 of 16 from across the house, a dock
-  that never got in going again from the standoff, once a charge (#572
-  stage 3: the walker cannot back off a step 4-5 cm inside the seat); ⚠ ITS
+  walker cannot back up so little. Measured: plugged in from 139 of 140 seats over the
+  seat check, all but one at the first push (#596: staging 138, its pushes
+  missed 43 times), unplugged all of them; from round the standoff 33 of 33
+  at a push each (#596) and on #581's stage 3 head 16 of 16 from across the
+  house, a dock that never got in going again from the standoff, once a
+  charge (#572 stage 3: the walker cannot back off a step 4-5 cm inside the
+  seat); ⚠ ITS
   BELIEF SET 1-5 M AND 5-20 DEG WRONG, 121 of 123 docked and, explored
   first on a map laid through it, 23 of 27 (staging, the same starts: 14
   and 1), every search begun within 5 m of the truth finding the station
   (109 of 109), and 6 of 38 begun further off, across the street, running
   out of their 600 s outside the house's south fence (#572 stage 3;
-  SimNotes, "The station found from far off"); 67 of 68 with it 0.4-1 m
-  wrong, the miss a plug the port never took; 339 W net; the reserve 18 Wh (17.5 before the Mid-360S's 6.2 W, #581).
+  SimNotes, "The station found from far off"); 52 of 52 with it 0.4-1 m
+  wrong (#596; staging 51, the miss a plug the port never took); 339 W net; the reserve 18 Wh (17.5 before the Mid-360S's 6.2 W, #581).
 - **The humanoid's LIDAR is a Livox Mid-360S, upside down in its head,
   and its map is laid from its points laid flat** (#581; `perception/lidar.py`,
   `HumanoidSpec.lidar_z`, `model._head`, `HumanoidMission._scan`/`maps`,
@@ -1277,13 +1290,13 @@ save a filmstrip PNG named after the script.
   and the station's rope as a `cables` entry), `uv run python -m
   pluggybot.telemetry.scene --world home_humanoid [--pair]` -- rerun after
   changing ANY geometry in that world -- and the pair's recording,
-  `scripts/two_robots.py --world home_humanoid --fast --pack demo
-  --near-field --errands none,none --battery 0.9,0.22 --max-sim-time 600
-  --record protocol/telemetry.home_humanoid_pair.jsonl.gz` (the second,
-  started low, plugs in at its station and charges while the first
-  explores, then the first, which starts at 90 % so that it must; ⚠ from
-  its own start the first robot's plug-in misses the port 3.5 cm aside,
-  every try, on #581's head): NO
+  `MUJOCO_GL=osmesa scripts/two_robots.py --world home_humanoid --fast
+  --pack demo --near-field --errands none,none --battery 0.22,0.9
+  --max-sim-time 600 --record protocol/telemetry.home_humanoid_pair.jsonl.gz`
+  (the first plugs in at its station and charges while the other explores,
+  then the other, which starts at 90 % so that it must; ⚠ on osmesa, the
+  deployed box's rasteriser: on a GPU's the cameras see otherwise and the
+  day goes otherwise, #596): NO
   `--metabolism` there, and no `--tasks`, so no fixture carries a job. The
   quadrupeds' (`home_quad`, `home_quad_pair`, `home_quad_chest`) went with
   them in #559's stage 5; the site keeps its copies, frozen at
