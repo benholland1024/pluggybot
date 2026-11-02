@@ -264,6 +264,17 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   from the last minute's save. The ledger, the boards and the task board
   are written on every event and are not rewound, so a job paid in that
   minute stays paid.
+- **A stop while paused** (#594). A paused world blocks inside its step
+  hook and steps nothing, so the keeper's hook never ran: a deploy's
+  SIGTERM was never honoured, Docker killed the process unsaved, and its
+  restore counted as one that died. On 2026-11-01 three restarts while
+  paused each restored t=401,163, and the fourth start began the world
+  again at t=0. Now a stop ends the pause within a slice and the world
+  stops at that step, without stepping on to wait out a body mid-move. The
+  run's end (`Keeper.finish`) saves where no body is mid-move; otherwise it
+  saves nothing, the last save stands, and the restore `load` counted for
+  this process is given back (`continuation.uncount`): a clean stop is no
+  crash.
 - **Put back.** `continuation.load` finds the save before the task board is
   built. Each lifecycle's `begin()` puts back the counter's props' hidden
   draws (`restore_counter`), then `continuation.restore` puts the bodies

@@ -518,6 +518,15 @@ death archives the ledger and restarts `seq`, so a pending `seq` filed
 before one would settle a NEW robot's entry — and because "erases it
 entirely" should hold on the ledger too.
 
+**Closes are counted, never timed** (#594). The desk keeps the newest
+twenty closed tickets and shows three, newest first by its own count of
+closes (`closes`, kept in `counter.json` beside the ids; a ticket closed
+before the count ranks below every counted one), and trims only once a
+close is paid. Ordered by sim time, the start-over of 10-27 left each desk
+holding twenty closes stamped up to t=2,141,262: every close made after it
+ranked twenty-first and was trimmed before `eval_ticket` read it (five on
+11-02 paid nothing), and the three shown never changed.
+
 **Why the desk is the lifecycle's and not the mind's.** `HubLifecycle.
 tickets` exists with or without a mind; `Menu.tickets` (set by `build()`
 for every mind) is what offers the two fields, the block and the rule. A
@@ -2371,7 +2380,10 @@ calls): a `say` on 2 of 6 quiet turns, and on 2 of 4 turns with
 a short line in the dozen History shows. ⚠ The clock is the STORE's
 (`ThoughtFiles.last_said`, the newest `chat`/`said` row's sim time): a
 restart keeps it and a true death forgets it, with no kept state of its
-own. ⚠ A placeholder `say` (`n`) is read as nothing said
+own. ⚠ A last line stamped after now is a clock gone back, and the gate is
+open (#594): after the world started over at t=0 on 10-27, a line said at
+t=2,374,869 held the next one 27 days off, and by 11-02 136 `say`s had
+been refused. ⚠ A placeholder `say` (`n`) is read as nothing said
 (`PLACEHOLDER_TEXT`): a public chat is the worst place for one.
 
 **Ratings never touch the overseer.** A `rating` settles a deferred

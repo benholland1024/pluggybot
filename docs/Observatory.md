@@ -10,6 +10,41 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A ticket's close pays again, `say` is open again, and a stop while paused saves (#594) — opens when this PR is deployed
+
+**What changed in the world.**
+- **An operator's close pays its 25 again, and the robot is shown it.**
+  Each desk orders its closed tickets by its own count of closes, never
+  by sim time, and trims them only once a close is paid. Since the world
+  started over on 10-27, a close ranked behind the twenty stamped on the
+  old clock once a desk was full, and was trimmed before it was paid: the
+  five closes on 11-02 paid +0 each. The three closes each robot is shown
+  had not changed since 10-27. The first close after the deploy is the
+  first counted one, and the twenty from before the count age out as new
+  ones come.
+- **A `say` goes out again**: a last line stamped after now is a clock gone
+  back, and the gate is open. Every `say` since 10-27 was refused (Luca's
+  last line was at t=2,374,869 and Rowan's at t=2,370,582, on the clock
+  before the start-over), and every turn showed `sayAgainInS` near 2.3
+  million. The ration holds again from the first line on the new clock.
+- **A stop while paused saves the world**: a deploy's SIGTERM ends the
+  pause, the world stops at that step and is saved, and the restart carries
+  on from the moment it paused. Before, the process was killed unsaved and
+  each restart while paused counted toward `MAX_RESUMES`: three on 11-01,
+  and the fourth start began the world again at t=0. With a body mid-move
+  it saves nothing, the minute-old save stands, and the restart is not
+  counted.
+- Nothing in the prompt, the schema, the arm or the reward table moved.
+
+**Why.** #594, read off the live world on 34cd4e3 on 11-02.
+
+**What the period is for.** #594's acceptance: on the release, the first
+close pays +25 and shows in that robot's `tickets.closed`; a `say` goes out
+and `sayAgainInS` never reads over 1200; and a deploy while paused comes
+back at the moment it paused, never "could not carry on". ⚠ From 10-27 to
+the deploy no `say` was the robot's choice: read what a robot says unasked
+from this period on, never against that stretch.
+
 ### A lost robot looks for its station by its head's camera, and a fall walks no belief (#572, stage 3) — opens when this PR is deployed
 
 **What changed in the world.**
