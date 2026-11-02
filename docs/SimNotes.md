@@ -3866,7 +3866,7 @@ legs; and why the wide search took back none of them.
 **What is true now.** The humanoid's LIDAR is a Livox Mid-360S, upside down
 (Parts.md, "The LIDAR"): its field is +7 down to -52 deg. This stage hung
 it from a bracket over the head, its rays 1.47 m up standing; stage 3
-built the head round it, its rays 1.44 m up ("The sensor in the head",
+built the head round it, its rays 1.41 m up ("The sensor in the head",
 below). Its LEVEL RING, the 360 bearings at 0 deg, behaves as the RPLIDAR
 C1's plane did, a few cm higher. Its points
 LAID FLAT -- per bearing the nearest surface 0.15-2.2 m over the floor,
@@ -4146,9 +4146,10 @@ it.
   walking tilts it; stage 1's band did it too, with twice the rays a
   bearing to hide it). A bearing is free only off a ray that stayed in the
   band to the 8 m reach and brought nothing back: in a closed room, none
-  (`test_a_closed_room_has_no_free_bearing_behind_the_rib`).
-- *Nearer than its steepest ray comes down.* Upside down 1.44 m up, the
-  steepest ray meets the band's floor 1 m out: nearer, every ray passes
+  (`test_a_closed_room_has_no_free_bearing_behind_the_fin`).
+- *Nearer than its steepest ray comes down.* Upside down 1.41 m up, the
+  steepest ray meets the band's floor 1 m out (2.8 m behind the robot, under
+  the head's back since stage 3): nearer, every ray passes
   over whatever is lower than it, and a bearing laid free from the sensor
   out cleared a low thing mapped from afar as the robot walked up to it.
   Nearer than that (`Scan.free_from`, per bearing, through the IMU's tilt)
@@ -4345,202 +4346,226 @@ which the grid becomes a projection of, is its own issue.
 ## The sensor in the head (issue #581, stage 3)
 
 **What is true now.** The Mid-360S is built into the head (Parts.md, "The
-LIDAR"):
-- **The unit:** upside down, its base bolted under a plate inside a printed
-  crown, which a 6 x 15 mm 6082 rib carries up the head's back.
-- **The window:** open all round, between the crown and a printed dome over
-  the face.
+LIDAR"), the head one cylinder 136 mm across above and below its window:
+- **The face**, under the window: its front a dark visor the cameras sit
+  in, a dark dome over it inside the steepest ray's cone.
+- **The window:** open all round, but where a 6 mm 6082 fin behind carries
+  the cap, and where seven printed panels round the back half close it
+  under -26 deg.
+- **The cap**, over the window: the unit's base bolted under a plate in
+  it, on four rubber-metal buffers, and a padded TPU rim 4 mm proud round
+  its foot.
 - **Collision:** every part collides, the unit too.
-- **Height:** its rays leave 0.712 m over the hips, 1.44 m up standing
-  (stage 1's post: 1.47). That is the lowest point from which its steepest
-  ray, -52 deg, clears the face's corners and the navigation camera.
-- **What it hides:** standing, 2.6 % of a frame (on the post, 4.8 %), and
-  less than on the post in every reach scene's hold.
+- **Height:** its rays leave 0.68 m over the hips, 1.41 m up standing, 4
+  mm over the lowest from which its steepest ray, -52 deg, clears the
+  navigation camera's front; the cap's top is 1.48 m up.
+- **What it hides:** standing, 25.6 % of a frame, nearly all of it the
+  back's steep rays: the floor within 2.6 m behind.
 
-Flown against the post, nothing measurably changed:
-- **Drift:** over 60 flights a head, 58 docked on each, none lost in the
-  head (one on the post), and the belief's error is one distribution.
-- **Station:** it docked 127 of 132 starts (the post 123).
-- **Probe:** its places are the post's.
-- **Hands:** 17 of 32 passed (the post 18).
-- **Policies:** none retrained.
-- **Falls:** in a hard fall the crown strikes first, at the speed the
-  post's unit would have met the floor.
+Flown against stage 3's first head and stage 1's post (`~/pluggybot-training/
+issue-581/batches/hf1`, beside stage 3's batches), nothing measurably got
+worse:
+- **Drift:** over 60 flights a head, 58 docked on each, and the belief
+  after the explore is tighter: a median 0.06 m off, against 0.12 on both.
+- **Station:** 126 of 132 starts (the first head 127, the post 123).
+- **Probe:** every outdoor place pinned; the rooms 2 % unpinned (4 %).
+- **Hands:** 17 of 32 (the first head 17, the post 18).
+- **Policies:** none retrained; the shoves are the first head's, cell for
+  cell.
+- **Falls:** the rim and the cap take a fall; as served, the unit grazed the
+  floor once in 74 falls, at 1.4 m/s (below).
 
-![The sensor in the head: the face and its cameras, the dome over it, the
-unit's window open all round under the crown, and the rib behind that
-carries it, seen from ahead, aside, behind and above; then where the three
-steepest rings meet the floor round the robot standing -- the rib's shadow
-behind, every ring, and the shoulders' motors at -52 aside (`lidar_spike.py
---strip head`)](figures/humanoid_lidar_head.png)
+![The sensor in the head: at eye level from ahead, its left and behind; from
+the site camera's 36 deg the same three ways; where the three steepest rings
+meet the floor round it -- ahead only, the back's panels closing them behind
+-- and from overhead; and the robot as the site's follow camera frames it
+(`lidar_spike.py --strip head`)](figures/humanoid_lidar_head.png)
 
-**Why.** Stage 1 hung the unit from a 20 x 3 mm post 10 cm over the head.
-Ben, seeing it released (2026-11-01), called it fragile and impractical.
-On a real robot it put a €773 sensor at the highest point, on a strip that
-sways at about 12 Hz with the unit on it, where a fall lands first and a
-door frame or a shelf catches it. The sim could show none of it: the unit,
-the post and its plate were visual geoms that touched nothing, and falls
-passed through them. Unitree's G1 carries the same Mid-360 "in the middle
-of the head, inverted".
+**Why.** Stage 1 hung the unit from a 20 x 3 mm post 10 cm over the head,
+and Ben called it fragile and impractical (2026-11-01): a €773 sensor at
+the highest point, on a strip that swayed at about 12 Hz, where a fall
+lands first and a door frame or a shelf catches it, and in the sim it
+touched nothing. This stage's first head (b13045b) built a crown round the
+unit's base on a 6 x 15 mm rib, over a dome on the box face. Seeing it, Ben
+found it still read as mounted above the head, not in it (2026-11-02):
+the crown, narrower than the face, read as a puck on a stick. He chose to
+keep the Mid-360 and reshape the head (`~/pluggybot-training/issue-581/
+HEAD_BRIEF.md`), and picked this head of three he was shown.
 
-**What fixed the head's shape.** Three constraints:
-- *The steepest ray.* Upside down, the field reaches 52 deg under level.
-  Anything of the robot below the window and outside that ray's cone
-  hides rays. The face's top corners, 0.099 m off the axis, need 0.127 m of
-  drop under the rays' origin before the -52 ray passes them.
-- *The cameras stay where they rode.* The D435 and its colour imager are
-  what the hands, the station and the tags are tuned to; the navigation
-  camera reads the places. The navigation camera, 7.5 cm ahead of the axis
-  with its top 0.613 m over the hips, is the highest thing ahead: the -52
-  ray clears it from 0.712 m.
-- *The manual.* Nothing in the field, "including glass" (so no clear
-  window ring), and 10 mm of air round the unit.
+**What fixed the head's shape.** Three things:
+- *The cone.* Upside down, the field runs from +7 down to -52 deg. Below
+  the window a part r off the axis must sit 1.28 r under the rays' origin,
+  above it 0.12 r over it. So at the head's edge the window is 1.4 times
+  the head's radius tall, and at eye level you see through it whatever the
+  head's shape: an open window cannot be closed by styling. Every part
+  keeps 2 mm out of the whole field (`model.FIELD_CLEAR`; the sim's rings
+  step over most of it, so a test checks the shapes against the field).
+- *The site's camera.* It looks down 36 deg (`VIEW_DIR` in the site's
+  `camera.ts`), and from there a line through the window lands on the dark
+  dome on its far side. So the visor, the dome, the rim and the panels'
+  inner faces are one dark colour (the PETG's and the TPU's own black,
+  unpainted: the livery is paint, and `robot.paint` leaves them), and from
+  the site's angle the window reads as one dark band across one head.
+- *The manual.* Nothing in the field, "including glass", and 10 mm of air
+  round the unit.
 
-So the face's top comes down from 0.635 to 0.58 m, its corners 13 cm under
-the origin. A dome rises from it inside the ray's cone, so it hides
-nothing; it is a sphere's cap, as the site draws no ellipsoid. The
-navigation camera rides the dome's front. The window is the band between
-the dome and the crown, a cylinder round the unit's base with 10 mm of air
-at the unit's corners. One rib carries the crown, behind, edge-on to the
-sensor: its shadow is 7 bearings, every ring, where the post's was 3. It
-rises 9 cm out of the dome and sways at about 50 Hz with the unit on it;
-printed as narrow, it would sway at about 5 Hz, so it is 6082.
+**The back keeps the rings the band is laid from** (`model.BACK`). A back
+closed over every ring would make the head read as one from behind, and
+it cost localization: closed over +-55 deg, #572's probe (`lidar_spike.py
+--probe`) left 3 % of the street loop's places and 7 % of the rooms' with
+the heading unpinned (the head without it: 0 and 4), the gardens' fully
+pinned share falling from 99 % to 84 %. The band's walls come off its
+middle rings: from 1.41 m up, the rings from -8 to -24 deg meet a 2.4 m
+wall anywhere from 0.5 to 9 m off inside the band, and a 0.9 m fence from 1
+to 3 m. The steeper ones meet the floor within 2.6 m. So the panels close
+only the rings under -26 deg, round the back half: the -24 deg ring passes
+1 mm over their corners and the -28 deg one meets them (a test). The probe
+pins every outdoor place with them as without them, and the rooms' 2 %
+unpinned, against 4. What the robot gives up is the floor and anything low
+within 2.6 m behind it and aside, where it barely walks: the Navigator never
+walks it sideways, and its walker barely backs up (an undock turns away).
+The panels and the fin are the only parts in the field. One fin carries the
+cap, edge-on to the sensor: its shadow is 9 bearings, every ring.
+
+**Lower.** Stage 3's first head held its rays at 0.712 m over the hips: the
+navigation camera rode the dome, its front 0.613 m up, and the box face's
+corners, 0.099 m off the axis, bound there. The face is a cylinder now, its
+edge 0.068 m off the axis, and the navigation camera comes 3.5 cm down into
+the face, over the depth camera: the rays come down 3.2 cm, to 4 mm over
+where the navigation camera's front meets the -52 deg ray (at 0.67 it met
+it ahead), 9 over the depth camera's corners. The depth camera is where it
+rode. Lower costs the shoulders' motors aside, under the -48 deg ring: 0.5
+% of a frame against stage 1's height.
 
 **Its rays leave through its window.** The unit is a body of its own round
 its rays' origin. Its manual puts the IMU chip 44.12 mm under the origin,
 so the origin is about 47 mm over the base's face and 13 mm short of the
 window's end. A cast skips the unit's own body (`Lidar._housing`, MuJoCo's
-`bodyexclude`): cast from inside the housing, every ray met it, which is
-why stage 1 cast from 5 mm under the unit (#386). The robot's other parts
-still hide what they hide, the crown and the rib among them
+`bodyexclude`): cast from inside the housing, every ray met it
 (`test_its_rays_leave_through_its_window_never_its_housing`).
 
-**What it hides, and what a lower crown costs** (Ben's call 4;
-`lidar_spike.py --hidden --heights`). Standing, arms hanging, the head
-built round the unit at each height of its rays' origin; the face and the
-cameras stay, and the dome, crown and rib follow:
+**What it hides** (`lidar_spike.py --hidden --heights`), standing, arms
+hanging, the head built round the unit at each height of its rays' origin
+(the face's top, the visor, the dome, the back, the cap and the fin follow
+it; the cameras stay):
 
-| rays' origin over the hips | the crown's top, standing | of a frame | what hides more |
+| rays' origin over the hips | the cap's top, standing | of a frame | what hides more |
 |---|---|---|---|
-| 0.735 (stage 1's height) | 1.520 m | 1.9 % | the rib alone |
-| 0.712 (served) | 1.497 m | 2.6 % | the rib, and the shoulders' motors at -52 aside |
-| 0.70 | 1.485 m | 3.5 % | and the navigation camera at -52 ahead |
-| 0.69 | 1.475 m | 5.5 % | -48 too, ahead and aside |
-| 0.66 | 1.445 m | 17.6 % | down to -32 ahead (the face), to -40 aside |
-| stage 1's post | 1.535 m | 4.8 % | the post, and the head's corners under -45 |
+| 0.735 (stage 1's height) | 1.532 m | 25.1 % | the back's steep rays, the fin |
+| 0.712 (stage 3's first head) | 1.509 m | 25.3 % | and the shoulders' motors at -52 aside |
+| 0.69 | 1.487 m | 25.6 % | and at -48 |
+| **0.68 (served)** | **1.477 m** | **25.6 %** | |
+| 0.67 | 1.467 m | 26.0 % | and the navigation camera at -52 ahead |
 
-In the reach scene's holds (`--hidden`) it hides 3.2 % with a hand at a
-counter (the post 5.3 %), 5.9 % at a high shelf (6.9), 3.8 % at a low
-shelf (5.8) and 3.4 % at the floor (4.7). No camera sees any part of the
-head (`test_the_cameras_see_nothing_of_the_head_round_the_lidar`), and no
-arm met one through the reach scene's holds.
+Nothing within 60 deg of ahead is hidden, nor any ray of the band's rings
+off the fin's bearings. In the reach scene's holds (`--hidden`) it hides
+26.4 % with a hand at a counter, 29.2 % at a high shelf, 27.2 % at a low
+shelf and 27.8 % at the floor. No camera sees any part of the head
+(`test_the_cameras_see_nothing_of_the_head_round_the_lidar`).
 
-**A fall onto the head is the crown's now** (`humanoid_spike.py --fall`,
-both heads on one pod; on the post, where its unit, post and plate touched
-nothing, each part's speed as a corner of it first reached the floor):
+**A fall onto the head is the rim's and the cap's.** The unit lies inside
+the head's other parts by 18 mm at the least, straight up, where the cap's
+top is over its base; and by 20 mm or more within 60 deg of level, the ways
+a fall meets a head (`test_no_plane_meets_the_lidar_before_its_head`; the
+first head's held 6 over its unit). On the bill a padded rim and rubber
+buffers under the unit's base take a blow through rubber; the sim's unit
+is rigid on the trunk.
 
+**Where the head strikes, and how fast** (`humanoid_spike.py --fall`, the unit
+a part of its own):
 - **Hard falls**, the robot limp or on the standing policy alone, shoved
-  back, aside or back-right. On the post, its plate and unit would have
-  struck first, 10-20 ms before the head, at 4.9-6.5 m/s. Built in, the
-  crown strikes there first, at 4.8-6.3 m/s, and the unit sits behind it.
-  MuJoCo's soft contact lets the crown sink 26-41 mm into the floor at
-  those speeds, so the unit behind it touches too; a real crown would have
-  to take that.
-- **Falls the get-up takes**, as served: the head touched the floor in 2
-  of the 6 ways (front at 3.2 m/s on the face, the dome and the crown
-  together; back-right, the crown at 0.4). The post's head touched in 3
-  (front 2.8, right 1.5, back-right 0.1).
-- **The get-up stood** on both heads: every bare-floor fall in 2.8-4.1 s
-  (the post's 2.7-4.4), and every one of the 48 falls from a bow (into the
-  floor, the crown first 36 times at 0.3-6.3 m/s, the face or dome 20 at
-  0.9-4.1).
-- **In the house**, it stood in 16 of 20 on both heads, but not the same
-  ones. Falling forward off the landing's edge it stands now, where it
-  stayed down. Falling left beside a wall it stays down, where it stood:
-  its taller crown meets the wall first, the robot slides down onto its
-  side instead of sitting against the wall, and the get-up does not
-  stand from there. That is CLAUDE.md's "falls into a wall ... still end
-  stuck", met at a new place.
+  back, aside or back-right: the cap strikes first, at 4.7-6.2 m/s, the
+  floor pushing back 4-9 kN. In 4 of those 12 the unit then grazes the
+  floor, at 1.1-2.8 m/s and under 50 N: MuJoCo's soft contact lets the cap
+  sink 2-4 cm at those speeds, past the rim's 2.6 cm. On the first head the
+  unit met the floor in 8 of the 12, at up to 4.9 m/s.
+- **Falls the get-up takes**, as served: on a bare floor the head touched
+  in 3 of the 6 ways, at up to 4.8 m/s (front, the face and the cap), the
+  floor pushing back 0.2 kN at most; in the house's 20 the visor struck
+  first at 3.8-4.2 m/s or the cap at up to 5.0. The unit touched nothing in
+  any of them.
+- **Falls from a bow:** the cap is first into the floor 36 times (1.3-6.0
+  m/s), the rim 16 (0.3-4.8), the visor 9 (1.7-3.1) and the face once. The
+  unit grazed the floor in 16 falls on the standing policy alone (0.3-2.7
+  m/s), and in 1 of the 48 the get-up takes (1.4 m/s).
+- **The get-up stood** from every bare-floor fall (2.8-4.2 s), from all 48
+  bowed falls as served, and in the house from 15 of 20. Falling forward
+  off the landing's edge it stays down now, as on the post, where the
+  first head stood: CLAUDE.md's "off the landing ... still end stuck". The
+  other four are the first head's.
 
-No policy was retrained (`--shove`, `--track` flown too):
+**The batches** (one pod; the first head's and the post's rows are stage
+3's, the sim deterministic: stage 3's staging run reproduced stage 2's
+batches flight for flight):
 
-- **The shoves** it stands through are the post's in 15 cells of 16. From
-  its left, standing, it holds 15 N*s where the post's head held 20; stage
-  1 found the C1's head at 15 there.
-- **Every command tracks** to within 0.01 of the post's, but the 0.5 rad/s
-  turn: 0.28 against 0.23, inside the two gaits its noise draws (stage 1).
+| | the post | the first head | reshaped |
+|---|---|---|---|
+| drift, 60 flights: docked (lost) | 58 (1) | 58 (0) | 58 (1) |
+| falls in the flights | 3 | 1 | 2 |
+| belief off after the explore, median / 75th / max, m | 0.12 / 0.25 / 0.48 | 0.12 / 0.23 / 0.48 | 0.06 / 0.17 / 0.51 |
+| at the storeroom | 0.32 / 0.47 / 0.79 | 0.23 / 0.40 / 0.73 | 0.21 / 0.41 / 2.96 |
+| station: `--approach`, 48 starts | 46 | 48 | 48 |
+| `--lost`, 68 | 61 | 63 | 62 |
+| `--walk-in`, 16 | 16 | 16 | 16 |
+| hands, 32 flights | 18 | 17 | 17 |
+| probe: outdoor places / rooms unpinned | 0 / 4 % | 0 / 4 % | 0 / 2 % |
 
-**The batches, against the post.** Staging (44f28e4), flown on the same
-pod beside this head, flew stage 2's 30 drift flights to stage 2's own
-numbers, flight for flight: the sim is deterministic, and #580 moved
-nothing they touch. So the post's column is both.
+- **The drift:** after the explore the reshaped head's belief is tighter
+  (Mann-Whitney p 0.02 against the post, 0.14 against the first head; the
+  spreads one, p 0.2-0.3), and at the storeroom the three are one
+  distribution (p 0.2-0.7). Its lost flight (seed 16 from the start) fell
+  in the garden at 255 s and got up believing itself 3 m from where it
+  stood, and never found its way back: a fall's get-up walking the
+  odometry, which #591 (#572's stage 3) fixes. Its other fall, in the
+  garden too, was fixed off the map 3.6 s after it stood.
+- **The station's misses** are every head's: not lined up, and a walk that
+  gave up 0.2 m short. The pair's recording found one more: from its own
+  start the first robot's plug-in misses the port 3.5 cm aside, on all four
+  tries, every time. The plug arrives off the port and meets the torso
+  (where it sits along the jaws' pads is not measured), and the starting
+  charge does not move that walk, so the fixture swaps which robot starts
+  low.
+- **The policies**, none retrained (`--shove`, `--track`): the shoves it
+  stands through are the first head's, cell for cell (from its left,
+  standing, 15 N*s where the post held 20). Every command tracks within
+  0.03 of the first head's but the 0.5 rad/s turn, 0.21 against 0.28 (the
+  post 0.23), inside the two gaits its noise draws (stage 1).
+- **The hands:** the lid 6 of 8 (its bar met: set-out 5 passes now), the
+  drawer 4, the door 5 (set-out 2 out of reach where it passed) and the
+  cube 2, at the post's set-outs (0 fell). Flown again with every contact
+  on the head logged, neither miss touched it.
 
-| | the post | in the head |
-|---|---|---|
-| drift, stage 2's 30 flights: docked (lost) | 29 (1) | 30 (0) |
-| belief off after the explore, median / 75th / max, m | 0.11 / 0.19 / 0.36 | 0.08 / 0.28 / 0.48 |
-| at the storeroom | 0.26 / 0.40 / 0.57 | 0.21 / 0.52 / 0.73 |
-| back at the standoff | 0.07 / 0.12 / 0.89 | 0.05 / 0.10 / 0.48 |
-| falls in the flights | 0 | 1 |
-| drift, 30 seeds no batch had flown: docked (lost) | 29 (0) | 28 (0) |
-| after the explore, median / 75th / max, m | 0.15 / 0.30 / 0.48 | 0.13 / 0.19 / 0.48 |
-| at the storeroom | 0.36 / 0.52 / 0.79 | 0.24 / 0.33 / 0.69 |
-| station: `--approach`, 15 and 33 starts | 14, 32 | 15, 33 |
-| `--lost`, 16 and 52 starts | 13, 48 | 15, 48 |
-| `--walk-in`, 16 | 16 | 16 |
+**What it costs.** Nothing measurable (`humanoid_spike.py --speed`, the three
+heads interleaved twice on the pod, a Xeon that runs the served pair at
+0.7x real time where the deploy box runs it at 1.4): the pair at 0.77 and
+0.71x on this head, 0.73 and 0.71 on the first and 0.69 and 0.72 on the
+post; one humanoid at 1.40 and 1.38x, 1.47 and 1.34, and 1.29 and 1.39.
+One head's two rounds differ by more than the heads do. The panels add
+seven contact geoms a robot, and the arms' pairs with the trunk and the
+head go from 66 to 120: a bounding-sphere check each a step.
 
-On stage 2's 30 flights this head's spread read wider, so 30 seeds no
-batch had flown were flown on both heads:
-- **Stage 2's flights:** after the explore, a standard deviation of 0.14 m
-  against the post's 0.09; a test for spread put that at p 0.1.
-- **The fresh seeds:** there the post read wider, 0.30 m at its 75th
-  percentile against 0.19, with 3 falls against none.
-- **All 60 flights a head:** the two are one distribution. 58 docked on
-  each, the misses at the seat, as in stage 2; 1 was lost on the post and
-  none in the head. After the explore the belief was off by a median 0.12
-  m on both, with a standard deviation of 0.12 on both (spread p 0.8); at
-  the storeroom by 0.32 and 0.23 (p 0.8).
-
-A new head is a new trajectory for every flight, and 30 flights do not pin
-a spread. The one fall in the head's flights, in the garden walking home,
-touched nothing before it went over: no part of the robot but its soles
-met anything in the 130 s before.
-
-The probe (`lidar_spike.py --probe`) is stage 2's to two points a zone: no
-outdoor place leaves the heading unpinned, and in the rooms 4 % (stage 2's
-4 %).
-
-**The hands** (`hands_check.py`, its 32 flights on each head; the arms
-meet the head's parts now). The lid passed 5 of 8 and the drawer 4 on both
-heads, at the same set-outs; placing the cube passed 2 on both, at other
-set-outs. The door passed 6, where the post passed 7: at set-out 4 its
-reaches came out out of reach, with no arm touching any part of the head,
-as at set-out 3 on both. The robot's head is 0.14 kg heavier, so each
-flight goes its own way and a reach at its edge lands on either side. Both
-heads fall short of the check's bar on the same three jobs.
-
-**What it costs.** Nothing measurable (`humanoid_spike.py --speed`, the
-trees interleaved on the pod, an old Xeon that runs the served pair at
-0.84x real time where the deploy box runs it at 1.4): the pair at 0.84
-and 0.85x on this head and 0.84 twice on the post, one humanoid at
-1.58-1.59x against 1.60. The new parts and their pairs with the arms are a
-few more contact checks a step, and a frame casts the same rays.
-
-**The bill.** The bracket's allowance becomes the rib-and-plate's: two
-machined parts, the same €66.67. The crown and the dome are printed with
-the face. The total stays €16,322.28. The robot weighs 43.15 kg, 0.14 more.
+**The bill.** The rib's allowance becomes the fin-and-plate's, two machined
+parts, the same €66.67. The visor, the dome, the back and the cap are
+printed with the face in PETG; the rim in TPU (`tpu_1kg`, €35), and the
+unit sits on four of RS's M3 rubber-metal buffers (`rs_189_3249`, €10.03 a
+pack of four). The total is €16,374.07, €51.79 more with the contingency.
+The robot weighs 43.18 kg, 0.03 more than the first head.
 
 **What is left.**
 - **Other parts outside the body still touch nothing in the sim**, as
-  before this stage: the D435 stands 3 cm proud of the face, the
-  navigation camera 1.5 cm proud of the dome, and the charge port's funnel
-  1.5 cm proud of the torso; the motors' housings are visual too, though
-  the limbs' capsules cover most of them. A face-down fall passes through
-  the D435's glass. Each wants the same treatment as the LIDAR: collide,
-  then fall the batch again.
-- **A crown that takes a hard fall's 5-6 m/s** is a printed shell in the
-  bill; the real one would want its rim padded, or to be printed in
-  something that gives.
+  before this stage: the D435 stands 2.5 cm proud of the visor and the
+  charge port's funnel 1.5 cm proud of the torso; the motors' housings are
+  visual too, though the limbs' capsules cover most of them. Each wants
+  the same treatment as the LIDAR: collide, then fly the batch again.
+- **The unit still grazes the floor in some falls**, the rim and the
+  buffers being on the bill and not in the physics: MuJoCo's soft contact
+  sinks the cap 2-4 cm in a hard fall, past the rim's 2.6 cm. A rim 2 cm
+  proud of the head (a 4 cm margin, read as a brim) or a stiffer contact
+  on the head's parts would end it; the second changes what the get-up
+  meets.
+- **The plug-in's grip along the jaws is not measured**: from the pair's
+  own start the first robot misses the port 3.5 cm aside every time, the
+  plug off its catch and against the torso.
 - **#581's live reading**, a day of the pair with neither robot lost
   outdoors, opens with the deploy (Observatory.md).
 

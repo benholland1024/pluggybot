@@ -3911,9 +3911,10 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
       struck.setdefault(r["head_part"], []).append(r["head_v"])
   print("  the head's first part into the floor: " + ("; ".join(
     f"{part} {len(v)}, {_span(v)} m/s" for part, v in sorted(struck.items())) or "none"))
-  unit = [r["unit_v"] for r in rows if r["unit_v"] is not None]
-  print(f"  the LIDAR itself touched the floor: {len(unit)} falls" + (f", {_span(unit)} m/s"
-                                                                       if unit else ""))
+  for served, how in ((False, "on the standing policy alone"), (True, "as served")):
+    unit = [r["unit_v"] for r in rows if r["unit_v"] is not None and r["served"] == served]
+    print(f"  the LIDAR itself touched the floor {how}: {len(unit)} falls"
+          + (f", {_span(unit)} m/s" if unit else ""))
   return rows
 
 
