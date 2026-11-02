@@ -106,9 +106,12 @@ def say_again_in(thoughts, t: float) -> int | None:
   that shows the wait (`sayAgainInS`) and the gate that holds it
   (`lifecycle._chat`) are one reading. ⚠ SHOWN BEFORE IT BITES: the
   deployed model wrote a `say` on 2 of 6 quiet turns, and every refusal is
-  a History line in the dozen it reads."""
+  a History line in the dozen it reads. ⚠ A LAST LINE SAID AFTER NOW IS A
+  CLOCK THAT WENT BACK, and the gate is open (#594: the world started over
+  at t=0, and a line said at t=2,374,869 shut it for 27 days): the
+  metabolism's rule for time run backward."""
   last = thoughts.last_said() if thoughts is not None else None
-  if last is None or t - last >= SAY_EVERY_S:
+  if last is None or t < last or t - last >= SAY_EVERY_S:
     return None
   return math.ceil(SAY_EVERY_S - (t - last))
 

@@ -647,6 +647,126 @@ def test_a_save_waits_out_a_get_up_part_way(tmp_path):
   assert keeper.saves >= 1
 
 
+def _carried_on(life, tmp_path, resumes: int = 0):
+  """A save on the volume, carried on from as a start does (`load`, which
+  counts it): the file and the snapshot `load` handed back."""
+  path = tmp_path / "world.npz"
+  continuation.write(continuation.capture([life], life.world_fingerprint,
+                                          resumes=resumes), path)
+  return path, continuation.load(path, HUMANOID_HOME).snapshot
+
+
+def _resumes(path) -> int:
+  with np.load(path) as npz:
+    return json.loads(str(npz["meta"]))["resumes"]
+
+
+def _stopped_while_paused(life, keeper, tmp_path) -> list[float]:
+  """The operator's switch at `paused` (`HubLifecycle._mode_step`), and a
+  stop asked in the pause's first slice, as `serve.keep_world`'s handler
+  asks it. Bounded: unfixed, the pause held until the switch turned, here
+  four slices on. The slices the pause lasted."""
+  from pluggybot.mind.mode import ModeSwitch
+  switch = tmp_path / "mode.json"
+  switch.write_text(json.dumps({"mode": "paused"}))
+  life.mode = ModeSwitch(switch)
+  slices: list[float] = []
+
+  def beat(held_s):
+    slices.append(held_s)
+    if len(slices) == 1:
+      keeper.request_stop("SIGTERM")
+    elif len(slices) == 4:
+      switch.write_text(json.dumps({"mode": "llm"}))
+
+  life.pause_hooks.append(beat)
+  return slices
+
+
+def test_a_stop_asked_while_paused_ends_the_pause_and_saves(tmp_path):
+  """⚠ A paused world steps nothing, so the keeper's hook -- what saves
+  and what honours a stop -- never ran: a deploy's SIGTERM was never
+  honoured and the process was killed unsaved, its restore counted as one
+  that died. On 2026-11-01 three restarts while paused, and the fourth
+  start began the world again at t=0 (issue #594). A stop asked in a pause
+  ends it within a slice, the world stops at the end of that step, and the
+  save it ends with puts the count back to 0."""
+  life = _stub(tmp_path)
+  path, snap = _carried_on(life, tmp_path)
+  assert _resumes(path) == 1
+  keeper = continuation.Keeper([life], path, every_s=1e9, carried_on=snap)
+  slices = _stopped_while_paused(life, keeper, tmp_path)
+  t0 = float(life.data.time)
+  with pytest.raises(MissionAborted, match="SIGTERM"):
+    _hold(life, 1.0)
+  assert len(slices) == 1, "the pause outlived the stop"
+  assert float(life.data.time) == pytest.approx(t0 + life.model.opt.timestep), \
+    "stopped at the step it paused in"
+  assert keeper.finish() and _resumes(path) == 0
+  assert "STOPPING while paused: SIGTERM" in life.status
+  assert "woke up" not in life.thoughts.texts[HISTORY], "nothing resumed"
+
+
+def test_a_stop_while_paused_and_mid_move_saves_nothing_and_gives_its_count_back(tmp_path):
+  """...where a body is mid-move (`Keeper.busy`), no file holds it, and a
+  paused world is not stepped on to wait it out: it stops at once, unsaved
+  (the last save stands), and the restore its process counted goes back
+  where it was, for a clean stop is no crash (issue #594)."""
+  life = _stub(tmp_path)
+  path, snap = _carried_on(life, tmp_path, resumes=1)
+  assert _resumes(path) == 2
+  keeper = continuation.Keeper([life], path, every_s=1e9, carried_on=snap)
+  _stopped_while_paused(life, keeper, tmp_path)
+  life.body.posture = "getting_up"
+  t0 = float(life.data.time)
+  with pytest.raises(MissionAborted, match="SIGTERM"):
+    _hold(life, 1.0)
+  assert float(life.data.time) == pytest.approx(t0 + life.model.opt.timestep)
+  life.body.posture = "standing"        # ...whatever the way out then says
+  assert not keeper.finish() and keeper.saves == 0
+  assert _resumes(path) == 1, "a clean stop counted as a crash"
+
+
+def test_a_runs_end_saves_whatever_a_body_is_doing_a_robot_lying_dead_too(tmp_path):
+  """⚠ ...and only that stop goes unsaved, a LIVING body mid-move (#594's
+  review). A robot lying in a death is mid get-up until it is stood up --
+  its legs the get-up policy's for the 300 s before its stand-up -- and an
+  end skipped for `busy` brought it back, the next run, from before its
+  fall: alive, its heart already spent. A run's end saves as it always
+  did, whatever a body is doing, and a paused stop counts the living
+  alone."""
+  life = _stub(tmp_path)
+  path, snap = _carried_on(life, tmp_path)
+  keeper = continuation.Keeper([life], path, every_s=1e9, carried_on=snap)
+  life._die("stuck", "fell and could not get up")
+  life.body.posture = "getting_up"
+  assert keeper.busy() and keeper.finish() and _resumes(path) == 0
+  _stopped_while_paused(life, keeper, tmp_path)
+  with pytest.raises(MissionAborted, match="SIGTERM"):
+    _hold(life, 1.0)
+  assert keeper.finish() and keeper.saves == 2
+
+
+def test_no_pause_begins_once_a_stop_is_asked(tmp_path):
+  """...and no pause BEGINS once a stop is asked (#594's review). The
+  switch is still read, so the keeper stops a paused world at the step it
+  sees it; but nothing blocks, and nothing says it paused -- entered after
+  a stop, a pause said so in both robots' History on every step for as
+  long as the keeper had not raised."""
+  from pluggybot.mind.mode import ModeSwitch
+  life = _stub(tmp_path)
+  keeper = continuation.Keeper([life], tmp_path / "world.npz", every_s=1e9)
+  keeper.request_stop("SIGTERM")
+  switch = tmp_path / "mode.json"
+  switch.write_text(json.dumps({"mode": "paused"}))
+  life.mode = ModeSwitch(switch)
+  life._mode_step()
+  assert life.mode.paused and "paused by the operator" not in life.thoughts.texts[HISTORY]
+  with pytest.raises(MissionAborted, match="SIGTERM"):
+    _hold(life, 1.0)
+  assert keeper.finish()
+
+
 def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
   """The deployed shape (issue #181): one world, two robots, ONE save --
   both packs, both poses, both maps, keyed by each robot's root -- and the
