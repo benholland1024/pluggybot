@@ -388,17 +388,42 @@ one set of clocks (`CLOCKS`: on its side `SIDE_S` 120 s then hiding
 plates in front of the cage (`shock`, `feed`, `toy`, each the garden
 plate) act on their rising edge; a robot inside `COMPANY_M` (1.0 m) of the
 cage for `COMPANY_S` (10 s) is company, once per visit. No picture: the
-state IS what the robot sees, and it sees it only from inside the lab
-(`Cage.context` off the robot's TRUE pose, the room a camera there would
-see; from anywhere else `mouse` is null — TaskPattern.md §2's rule, the
-mouse's state being what a sensor would have to discover). The mouse is a
-mocap body, moved between five pre-allocated poses — `MocapToggle`'s first
-live consumer.
+state IS what the robot sees, and it sees it only while the cage is in its
+head camera's picture (`Cage.context`, #605; `cageInView` in the `lab`
+block); otherwise `mouse` is null — TaskPattern.md §2's rule, the mouse's
+state being what a sensor would have to discover. The picture is the
+body's head camera (`Body.head_camera`) in a look's frame (`mind.look`'s
+640 × 480 at the camera's own fovy): the camera and the frame a look's
+picture is taken with. Rays from where the camera IS toward 69 points on
+the cage's skin (`sight_points`) see it where one meets it before anything
+else, so a wall, a jamb, the other robot or its own arm hides it. They
+agree with a segmentation render of that picture at all 2,166 poses #605's
+review compared, standing and bowed (`test_mouse.py` pins 12). The site's
+own look hides the looker's body (`EyeDriver.vue`), none of which is in
+the frame standing (0 of 4,800 rays at three places), and draws the other
+robot a little larger than its geoms: it differs only where an arm is
+raised into the picture or at the other robot's edge. ⚠ NEVER THE ROOM THE
+ROBOT STANDS IN: a room's edge is a line in
+the world, and Rowan bracketed the lab's (22.0-22.6 m) by asking — its
+true position, read off the flag. ⚠ ONE `mj_ray` A RAY, NEVER
+`mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere off its centre
+of mass, its offset unturned, and the cage's inertial frame is turned, so
+rays at its far walls' tops passed through them. ⚠ The head camera is
+pitched 20° down for the walls' tags: standing and facing the cage, it
+loses it within 0.88-1.04 m of its middle by the side (1.04 straight in
+front, 0.94 from either end, 0.88 on the diagonals), so a robot giving
+company (`COMPANY_M`, 1.0 m) sees the mouse only from its edge, and from
+straight in front not at all. A bow turns the camera down and sees it
+nearer (15° is enough at 0.7 m); the depth camera's colour imager, 40°
+down, would see it too, and is not counted. The mouse is a mocap body,
+moved between five pre-allocated poses — `MocapToggle`'s first live
+consumer.
 
 **The humanoids are SHOWN the lab and act in nothing there** (#559's stage
 4; Ben, 2026-10-31; `lab_shown` in the world's config, `Menu.lab`). No job
 of theirs uses the plates, so they are told the room, its plates, the mouse
-from inside it and the disclosure line in `LAB_SHOWN`, which says what is
+while their head camera sees the cage and the disclosure line in
+`LAB_SHOWN`, which says what is
 there and what the plates do now and prescribes nothing — no act and no
 field. Their cage's shock plate is switched off (`Cage(shock=False)`: no
 act, no count, no press, no flag), and a press pays nothing.

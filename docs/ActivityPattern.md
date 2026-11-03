@@ -289,8 +289,10 @@ deltas and each shipped a random half of the state changes. Guarded by
    inputs from three plates AND from the robots' poses (company is a chassis
    within a radius for a while, once per visit), a pure
    `_advance(now, presses, company)` a test drives with a fake press and a
-   fake clock (docs/Testing.md), and a `context()` that answers only from
-   inside the room. A world may switch a plate off (`Cage(shock=False)`: the humanoids'
+   fake clock (docs/Testing.md), and a `context()` that answers only while
+   the cage is in the robot's head camera's picture (#605: rays from where
+   the camera is; never the room it stands in, whose edge is a line in the
+   world). A world may switch a plate off (`Cage(shock=False)`: the humanoids'
    house, `lifecycle.home_activities`), and a press of it is nothing -- no
    act, no count, no record. No program presses a plate now: a foot crossing
    a live one presses it, and `Cage.presser` names whose (a `press` row on
