@@ -3941,17 +3941,21 @@ class HubLifecycle:
           yield self.body.STILL
       finally:
         self._unwatch_job(task.id)
-      # ...the job's own where the offer carries none (one saved before
-      # its kind did, #580)
-      minutes = task.params.get("minutes") or kind.minutes
       draw = task.secret.get("draw")
       measured = scoring.SAMPLERS[kind.task](
         self, None, None, {"at_call": at_call, "watch": watch,
                            "started": task.claimed_t if task.claimed_t is not None else t0,
-                           "limitS": 60.0 * float(minutes) if minutes else None,
+                           "limitS": task.limit_s,
                            "catchN": (storeroom.drawn(prop, int(draw)).catch_n
                                       if check == "lid" and draw is not None else None)})
     verdict = scoring.evaluate(kind.task, measured, failed=failed)
+    self._settle_job(task, verdict, t0, f"{'passed' if verdict.ok else 'failed'} the job "
+                                        f"{task.kind}: {verdict.reason}")
+
+  def _settle_job(self, task, verdict, t0: float, said: str) -> None:
+    """A hand job closed on its verdict (`_grade_hands_routine`,
+    `_run_out`): banked, resolved on the board, recorded, `said` in
+    History, and the event map told."""
     entry = self._bank(verdict)
     closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
     if closed is not None:
@@ -3959,9 +3963,36 @@ class HubLifecycle:
     self.grades.append({"task": task.id, "kind": task.kind, "t": round(t0, 3),
                         "ok": verdict.ok, "reason": verdict.reason,
                         "points": entry["points"] if entry is not None else 0})
-    self._remember(f"{'passed' if verdict.ok else 'failed'} the job "
-                   f"{task.kind}: {verdict.reason}")
+    self._remember(said)
     self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
+
+  def _out_of_time(self, task) -> bool:
+    """A job this robot holds past the time it gives (`Task.out_of_time`,
+    #602) and no grade is to judge: a `done` pending, or a grade holding,
+    is its grade's, never cut short by the clock."""
+    watch = self._job_watches.get(task.id)
+    return (task.out_of_time(float(self.data.time))
+            and task.id != self._grade_pending
+            and not (watch is not None and watch.holding))
+
+  def _run_out(self, task) -> None:
+    """A hand job held past the time it gives (#602), failed through its
+    grade's door: its check's evaluator on what its watch read, with no
+    call. Its watch is unhooked and its prop free to be offered again;
+    nothing moves the body. Held, it booked its prop until a `done` that
+    could only fail it (three booked all three of the counter's, 11-03)."""
+    from pluggybot.economy.tasks import KINDS
+    kind = KINDS[task.kind]
+    limit = task.limit_s
+    watch = self._unwatch_job(task.id)
+    check = HAND_JOBS.get(kind.task)
+    measured = ({} if check is None else _hand_grader(check).measurements(
+      None, None, watch, started=task.claimed_t, limit_s=limit))
+    verdict = scoring.evaluate(kind.task, measured,
+                               failed=f"not done within the {limit:.0f} s the job allows")
+    self._say(f"TASK {task.id}: out of time -- not done within the {limit:.0f} s it allows")
+    self._settle_job(task, verdict, float(self.data.time),
+                     f"failed the job {task.id} ({task.kind}): {verdict.reason}")
 
   def _define(self, decision) -> None:
     """Apply a decision's `define` / `undefine` to the library (issue #166).
@@ -4376,6 +4407,10 @@ class HubLifecycle:
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
       self._say(f"TASK {task.id} expired: {task.description}")
+    # ...and a job this robot holds past the time it gives (#602)
+    for task in self.tasks.held_by(self.root):
+      if self._out_of_time(task):
+        self._run_out(task)
     # ...and a hand job's watch whose job ended some other way than its
     # grade (#559: a true death, an admin): it reads nothing more
     for task_id in [t for t in self._job_watches
@@ -5363,6 +5398,11 @@ class HubLifecycle:
                 if task.id == cut_task else "")
       if task.target in here.get(KINDS[task.kind].target_kind, ()):
         self._watch_job(task.id)
+        if self._out_of_time(task):
+          # ...never "still mine" first (#602): a claim a start-over moved
+          # can be out of time from the new clock's 0
+          self._run_out(task)
+          continue
         self._say(f"TASK {task.id}: still mine after the restart")
         self._remember(f"{prefix}the job {task.id} ({task.kind}) is still "
                        "mine -- the procedure is mine to run, and to say done")

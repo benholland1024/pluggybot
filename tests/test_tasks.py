@@ -337,6 +337,60 @@ def test_an_offer_keeps_the_life_it_had_left_across_a_restart(tmp_path):
   assert board(path=old)[was.id].deadline == 3845.0
 
 
+def test_a_held_claim_moves_with_the_clock_as_an_offers_deadline_does(tmp_path):
+  """A held job's time counts from its claim (#602), so a start-over moves
+  the claim as it moves an offer's deadline: by the last save's clock, and
+  below 0 too, held before the save being held still. Only deadlines moved,
+  and a claim stood in the old clock's future. A world that carries on keeps
+  its claims as written."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  held = offered(b, t=900.0)                                     # 16 minutes
+  b.claim(held.id, t=1000.0)
+  b.start(held.id, t=1000.0)
+  standing = offered(b, kind="open_door", target="door", ttl=900.0, t=1200.0)
+  back = board(path=path)
+  assert back[held.id].claimed_t == -200.0
+  assert back[standing.id].deadline == 900.0
+  assert not back[held.id].out_of_time(760.0) and back[held.id].out_of_time(761.0)
+  assert board(path=path, rebase=False)[held.id].claimed_t == 1000.0
+
+
+def test_a_claim_is_never_later_than_the_last_change_saved(tmp_path):
+  """A claim is one of the board's saved changes, so none is later than the
+  last (`simTime`). One that is was left on the old clock by a start-over
+  that moved only deadlines: t_0004, taken on 10-31 before 11-01's
+  start-over, read 227,000 s ahead of the clock on 11-03 and could never run
+  out (#602). It is held from the last change saved: it was held by then."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  held = offered(b, kind="open_door", target="door")
+  b.claim(held.id, t=358359.0)
+  b.start(held.id, t=358359.0)
+  doc = json.loads(path.read_text())
+  doc["simTime"] = 103158.0                     # the clock since put back
+  path.write_text(json.dumps(doc))
+  back = board(path=path, rebase=False)
+  assert back[held.id].claimed_t == 103158.0 and back[held.id].out_of_time(131000.0)
+  assert board(path=path)[held.id].claimed_t == 0.0     # ...and from a start-over's 0
+
+
+def test_a_board_that_carries_on_keeps_its_last_change(tmp_path):
+  """...and so every file this build writes keeps that: on a clock that
+  carries on, the last change saved stays the last, though the world came
+  back from a save before its board's (a crash's minute) and a change after
+  it is stamped earlier. Read as 0, the change at 450 s became the last, and
+  the next load held the claim made at 500 s from 450."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  held = offered(b, t=500.0)
+  b.claim(held.id, t=500.0)
+  back = board(path=path, rebase=False)
+  assert back.sim_t == 500.0
+  offered(back, kind="open_door", target="door", t=450.0)
+  assert board(path=path, rebase=False)[held.id].claimed_t == 500.0
+
+
 def test_a_task_interrupted_by_a_restart_is_said_on_the_wire_once(tmp_path):
   """`load` runs before any hook exists, so a job a restart failed left no
   row: on the observatory the bench's one claim read `active` for five

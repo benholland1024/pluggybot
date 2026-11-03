@@ -23,6 +23,8 @@ from pluggybot.economy.scoring import default_table
 from pluggybot.economy.tasks import HAND_JOBS, HAND_MINUTES, KINDS, TaskBoard
 from pluggybot.home import storeroom
 from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, task_producer, world_targets
+from pluggybot.mind import overseer as ov
+from pluggybot.mind.thoughts import HISTORY
 
 
 class _Mind:
@@ -78,7 +80,6 @@ def _joint_q(life, name: str) -> int:
 
 
 def _grade(life, task_id: str) -> dict:
-  from pluggybot.mind import overseer as ov
   life._done(ov.Decision(action="idle", reason="", done=task_id))
   life.body.run(life._grade_routine())
   return dict(life.tasks.get(task_id).verdict or {})
@@ -179,14 +180,93 @@ def test_a_fall_since_the_claim_fails_the_job(tmp_path):
 
 def test_a_job_called_past_its_minutes_fails(tmp_path):
   """The time a job gives runs from its claim (`minutes`), whatever the
-  robot did in between."""
+  robot did in between: its `done` waiting on the queue, the grade's call
+  came 1 s on."""
   life = _life(tmp_path)
   task = _offer(life, "open_drawer", minutes=0.01)
   assert life._claim_task(task.id)
   life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  life._done(ov.Decision(action="idle", reason="", done=task.id))
   life.body.run(life.body.hold_routine(1.0))
+  life.body.run(life._grade_routine())
+  verdict = life.tasks.get(task.id).verdict
+  assert not verdict["ok"] and "called 1 s after the start" in verdict["reason"]
+
+
+def test_a_job_held_past_its_minutes_is_failed_and_its_prop_offered_again(tmp_path):
+  """#602: held, a job ended only on a `done` that could only fail it, and
+  booked its prop for good -- three held booked all three of the counter's,
+  and nothing was offered from 02:22 UTC on 11-03. Past its minutes the
+  board's sweep fails it in its grader's words, unhooks its watch and tells
+  its holder's History; and its prop is offered again."""
+  life = _life(tmp_path)
+  life.producer = task_producer(life.tasks, HUMANOID_HOME, procedures=True)
+  task = _offer(life, "open_drawer", minutes=1)
+  assert life._claim_task(task.id)
+  life.data.time += 60.0
+  life._task_step()
+  assert life.tasks.get(task.id).state == "active", "its minute is not yet past"
+  life.data.time += 1.0
+  life._task_step()
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed"
+  assert ended.verdict["reason"].startswith("not done within the 60 s the job allows")
+  assert task.id not in life._job_watches
+  assert not any(isinstance(h, drawer.Watch) for h in life.body.step_hooks)
+  assert (f"failed the job {task.id} (open_drawer): not done within"
+          in life.thoughts.texts[HISTORY])
+  for _ in range(3):
+    life.data.time += 600.0
+    life._task_step()
+  assert any(t.target == "drawer" and t.id != task.id for t in life.tasks.tasks.values())
+
+
+def test_a_grade_holding_past_the_limit_is_never_cut_short(tmp_path):
+  """The sweep leaves a grade to its grader (#602): called at 58 s of 60,
+  the drawer held out through the hold that ends at 63 s passes. Cut
+  mid-hold, the pass was lost and the job banked twice."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer", minutes=1)
+  assert life._claim_task(task.id)
+  life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  mujoco.mj_forward(life.model, life.data)
+  life.data.time += 58.0
   verdict = _grade(life, task.id)
-  assert not verdict["ok"] and "the job allows" in verdict["reason"]
+  assert verdict["ok"], verdict["reason"]
+  assert len(life.verdicts) == 1
+
+
+def test_a_done_pending_past_the_limit_is_its_grades_to_judge(tmp_path):
+  """...and a `done` waiting on the queue is its grade's too, judged in
+  the grade's own words at its call, never "not done"."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_chest", minutes=1)
+  assert life._claim_task(task.id)
+  life.data.time += 58.0
+  life._done(ov.Decision(action="idle", reason="", done=task.id))
+  life.data.time += 5.0
+  life._task_step()
+  assert life.tasks.get(task.id).state == "active"
+  life.body.run(life._grade_routine())
+  verdict = life.tasks.get(task.id).verdict
+  assert "called 63 s after the start, past the 60 s the job allows" in verdict["reason"]
+
+
+def test_a_start_over_moves_a_held_claim_and_fails_one_out_of_time_at_once(tmp_path):
+  """A start-over moves a held claim with the clock (#602, the board's
+  `rebase`): held 100 s of its 60 when the world began again at 0, it is
+  failed as the day begins, never "still mine" first."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer", minutes=1)
+  assert life._claim_task(task.id)
+  life.data.time = 100.0
+  _offer(life, "open_door")                     # the board's last change, at 100 s
+  again = _life(tmp_path)                       # the same board, a world begun at 0
+  assert again.tasks.get(task.id).claimed_t == -100.0
+  again._resume_jobs(None)
+  assert again.tasks.get(task.id).state == "failed"
+  said = again.thoughts.texts[HISTORY]
+  assert "still mine" not in said and f"failed the job {task.id} (open_drawer)" in said
 
 
 def test_a_bare_offer_gives_its_kinds_minutes_and_is_graded_on_them(tmp_path):

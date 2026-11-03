@@ -390,6 +390,22 @@ class Task:
   def overdue(self, now: float) -> bool:
     return self.deadline is not None and float(now) >= self.deadline
 
+  @property
+  def limit_s(self) -> float | None:
+    """The time the job gives from its claim, s, or None for none: the
+    offer's `minutes`, else its kind's (one saved before its kind gave any,
+    #580) -- what its grade holds it to, and what it is held to (#602)."""
+    spec = KINDS.get(self.kind)
+    minutes = self.params.get("minutes") or (spec.minutes if spec is not None else None)
+    return 60.0 * float(minutes) if minutes else None
+
+  def out_of_time(self, now: float) -> bool:
+    """Held past the time it gives from its claim (#602): a `done` now could
+    only fail it, on its grader's own time criterion."""
+    limit = self.limit_s
+    return (self.state in ("claimed", "active") and limit is not None
+            and self.claimed_t is not None and float(now) - self.claimed_t > limit)
+
   def claimable(self, now: float, pack_wh: float | None = None) -> bool:
     """May a robot take this on, right now?
 
@@ -562,7 +578,7 @@ class TaskBoard:
     self.producer: dict = {}
     #: Sim time of the last change saved, so a restart can give an open
     #: offer the life it had LEFT rather than a deadline in a clock that
-    #: no longer exists (see `load`).
+    #: no longer exists, and a held job the time it has had (see `load`).
     self.sim_t = 0.0
     #: Tasks a restart failed (`load`), until `announce_interrupted` puts
     #: them on the wire.
@@ -778,10 +794,10 @@ class TaskBoard:
   def expire_due(self, t: float) -> list[Task]:
     """Lapse every OFFERED task past its deadline. Returns what lapsed.
 
-    Only offered ones. A task the robot has already taken is its problem
-    now: abandoning a job mid-errand would leave a module on the fork, and
-    the deadline is about how long an OFFER stands, not about interrupting
-    work in progress.
+    Only offered ones: the deadline is how long an OFFER stands. A job the
+    robot has taken never lapses -- one held past the time it gives is
+    FAILED by its holder's loop (`HubLifecycle._run_out`, #602), because it
+    was attempted.
     """
     gone = []
     for task in list(self.tasks.values()):
@@ -873,11 +889,13 @@ class TaskBoard:
     offered again, its claim cleared.
 
     ⚠ `rebase`: an offer's deadline is moved to a clock that starts at 0 --
-    what it had left at the last save (`simTime`). A world that carries on
-    from a saved one (issue #345) keeps its clock, and its deadlines as
-    written; one that starts from its XML starts at 0, where an offer made
-    at 3606 s of a mission could otherwise never lapse (measured, 2026-09-22).
-    A file with no `simTime` (an older build's) is loaded as it was.
+    what it had left at the last save (`simTime`) -- and a held job's claim
+    with it (#602). A world that carries on from a saved one (issue #345)
+    keeps its clock, and its deadlines and claims as written; one that
+    starts from its XML starts at 0, where an offer made at 3606 s of a
+    mission could otherwise never lapse (measured, 2026-09-22), nor a job
+    taken then run out. A file with no `simTime` (an older build's) is
+    loaded as it was.
     """
     target = Path(path) if path is not None else self.path
     if target is None or not target.exists():
@@ -893,6 +911,8 @@ class TaskBoard:
     self.producer = dict(doc.get("producer") or {})
     saved_t = doc.get("simTime")
     shift = float(saved_t) if (saved_t is not None and rebase) else None
+    # ...the last change saved still the last, on a clock that carries on
+    self.sim_t = float(saved_t) if (saved_t is not None and not rebase) else 0.0
     self.tasks = {}
     self.interrupted = []
     for spec in doc.get("tasks", ()):
@@ -929,6 +949,15 @@ class TaskBoard:
         # CLAIM too: its deadline means nothing while it is held, and is the
         # offer's again if it is given back (`release`).
         task = replace(task, deadline=round(max(0.0, task.deadline - shift), 3))
+      if task.state in ("claimed", "active") and task.claimed_t is not None \
+          and saved_t is not None:
+        # ...and a HELD job's claim, which its time counts from (#602): by
+        # the same shift, and below 0 too, held before the save being held
+        # still. ⚠ Never later than the last change saved, its own claim one
+        # of them: left on the old clock by a start-over before #602, t_0004
+        # read as taken 227,000 s ahead of the clock, and could not run out.
+        claimed = min(task.claimed_t, float(saved_t)) - (shift or 0.0)
+        task = replace(task, claimed_t=round(claimed, 3))
       self.tasks[task.id] = task
     self.seq = max(self.seq, len(self.tasks))
     return self
