@@ -321,10 +321,11 @@ departures, both about where an attempt starts:
   references over a tour of the house (313 s, from the station), rounded
   up (TaskPattern.md §4 has why it is the kind's, #580). Held past them
   with no `done` waiting on its grade, the job is failed at its holder's
-  next pass of the day loop, between what the robot does ("not graded
-  within the 960 s the job allows -- the drawer was never measured",
-  `HubLifecycle._run_out_held`, #602), and its prop is free to be offered
-  again.
+  next pass of the day loop, between what the robot does, or at once on a
+  charge trip ("not graded within the 960 s the job allows -- the drawer
+  was never measured", `HubLifecycle._run_out_held`, #602), and its prop is
+  free to be offered again. While it holds one, the robot is shown it with
+  the time left (`heldTasks`, `leftS`).
 
 **The offer says where by the area's terms** (#419): the facility's
 address, and directions that name the storeroom, the counter, the row's

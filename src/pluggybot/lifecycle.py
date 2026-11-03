@@ -3981,9 +3981,10 @@ class HubLifecycle:
 
   def _run_out_held(self) -> None:
     """Every job this robot holds past the time it gives, failed (#602).
-    ⚠ FROM THE DAY LOOP'S PASS, BETWEEN WHAT THE ROBOT DOES, NEVER ON THE
-    SEAM: freed there, a prop was set out from under the procedure still
-    working it -- and a grade's hold cut short."""
+    ⚠ FROM THE DAY LOOP'S PASS, BETWEEN WHAT THE ROBOT DOES, AND ON THE SEAM
+    ONLY ON A CHARGE TRIP (`_task_step`): freed on the seam mid-procedure, a
+    prop was set out from under the procedure still working it -- and a
+    grade's hold cut short."""
     for task in (self.tasks.held_by(self.root) if self.tasks is not None else ()):
       if self._out_of_time(task):
         self._run_out(task)
@@ -4424,6 +4425,11 @@ class HubLifecycle:
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
       self._say(f"TASK {task.id} expired: {task.description}")
+    # ...and on a charge trip, away from the counter with its hands home, a
+    # job it holds past the time it gives (#602): left to the loop's pass, a
+    # 74-minute charge held t_0024 and its drawer 69 minutes past its limit
+    if self.state in ("GO_CHARGE", "CHARGE"):
+      self._run_out_held()
     # ...and a hand job's watch whose job ended some other way than its
     # grade (#559: a true death, an admin): it reads nothing more
     for task_id in [t for t in self._job_watches
@@ -6332,6 +6338,10 @@ def overseer_context(life) -> dict:
   visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
   offers = shown_offers(life)
   state = ov.context_for(life, visitors=visitors, tasks=offers,
+                         # ...and what it has taken, with each job's time
+                         # left (#602)
+                         held=(life.tasks.held_context(life.root, float(life.data.time))
+                               if life.tasks is not None else None),
                          # The two thought files that change during a run
                          # (issue #38). The other two are already in the
                          # cached prefix, and putting these there instead is

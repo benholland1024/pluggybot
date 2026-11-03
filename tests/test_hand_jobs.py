@@ -259,6 +259,43 @@ def test_the_day_loops_pass_runs_out_a_job_held_past_its_minutes(tmp_path, monke
   assert life.tasks.get(task.id).state == "failed"
 
 
+def test_on_a_charge_trip_the_seam_runs_a_job_out(tmp_path):
+  """...and on a charge trip, away from the counter with its hands home,
+  the seam fails it: left to the loop's pass, a 74-minute charge held
+  t_0024 and its drawer 69 minutes past its limit (#602, read live on
+  11-03)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer", minutes=1)
+  assert life._claim_task(task.id)
+  life.state = "CHARGE"
+  life.data.time += 59.0
+  life.body.run(life.body.hold_routine(2.0))
+  assert life.tasks.get(task.id).state == "failed"
+
+
+def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
+  """#602: a robot was shown an offer and nothing of the job once it took
+  it, and spent its recalls finding out when it had ("I'm holding the
+  open_chest job but I don't actually know when I took it", Rowan, 11-03).
+  While it holds one, its context lists it (`heldTasks`): what it is,
+  where, and `leftS`; its own alone, the board being shared -- and the
+  rule names what the context carries."""
+  from test_two_minds import stub_pair
+  from pluggybot.lifecycle import overseer_context
+  a, b = stub_pair(tasks=True)
+  drawer_job = a.tasks.offer("open_drawer", "drawer", t=0.0)
+  door_job = a.tasks.offer("open_door", "door", t=0.0)
+  assert "heldTasks" not in overseer_context(a)
+  assert a._claim_task(drawer_job.id) and b._claim_task(door_job.id)
+  a.data.time += 100.0
+  held = ov.model_state(overseer_context(a))["heldTasks"]
+  assert [h["id"] for h in held] == [drawer_job.id]
+  assert held[0]["leftS"] == 60.0 * HAND_MINUTES - 100.0
+  assert held[0]["description"] == drawer_job.description
+  assert [h["id"] for h in overseer_context(b)["heldTasks"]] == [door_job.id]
+  assert "`heldTasks`" in ov.CHALLENGE_RULE and "`leftS`" in ov.CHALLENGE_RULE
+
+
 def test_a_grade_holding_past_the_limit_is_never_cut_short(tmp_path):
   """A grade is its grader's (#602): called at 58 s of 60, the drawer held
   out through the hold that ends at 63 s passes. Run out on the seam, the

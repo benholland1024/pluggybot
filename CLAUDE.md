@@ -626,9 +626,12 @@ save a filmstrip PNG named after the script.
   `done` that could only fail it, three held jobs booked all three of the
   counter's props, and nothing was offered from 02:22 UTC on 11-03; a
   `done` pending is the grade's. ⚠ AT ITS HOLDER'S PASS OF THE DAY LOOP,
-  NEVER ON THE SEAM: freed there, its prop was set out under the procedure
-  still working it. ⚠ A true death fails its robot's jobs in that robot's
-  own records. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
+  AND ON THE SEAM ONLY ON A CHARGE TRIP: freed on the seam mid-procedure,
+  its prop was set out under the procedure still working it; left to the
+  pass, a 74-minute charge held one 69 minutes past its limit. ⚠ A true
+  death fails its robot's jobs in that robot's own records. ⚠ ITS HOLDER
+  IS SHOWN IT, and the time it has left (`heldTasks`, `leftS`): without it
+  the robots spent their recalls finding out when they took it. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
   prop out, its activity renewed in place (`renew`), put back after a
   restart (`restore_counter`, in `begin`, before the activities' kept
