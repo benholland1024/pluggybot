@@ -569,14 +569,14 @@ def test_a_world_is_never_shown_where_its_furniture_stands(monkeypatch):
   from pluggybot.lifecycle import HubLifecycle
   assert len(home.LAB_CAGE_XY) == 2, "premise: the world knows where"
   monkeypatch.setattr(HubLifecycle, "cage", property(lambda self: SimpleNamespace(
-    context=lambda data, root: {"inRoom": False, "mouse": None})))
+    context=lambda model, data, camera, aspect: {"cageInView": False, "mouse": None})))
   boss = ov.Overseer(replace(ov.Menu.for_world(HUMANOID_HOME), lab="lab"), client=1)
   life = stub_life(overseer=boss)
   try:
     shown = overseer_context(life)["lab"]
   finally:
     life.body.close()
-  assert shown == {"room": "lab", "inRoom": False, "mouse": None}
+  assert shown == {"room": "lab", "cageInView": False, "mouse": None}
 
 
 def test_a_place_found_is_said_once_in_history_and_one_a_restart_brought_back_is_not(
