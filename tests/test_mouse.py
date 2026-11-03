@@ -12,11 +12,14 @@ What these pin, each without a mission (docs/Testing.md):
      off in the house.
   2. Sensed off the real house: a plate's joint sensor trips the act; a
      robot beside the cage is company and one on a plate is not; the state
-     is seen from inside the lab and is `None` from outside.
+     is seen while the cage is in the head camera's picture (#605) -- never
+     off the room the robot stands in -- and is `None` otherwise, as a
+     segmentation render of that picture says.
   3. The prompt: the disclosure line exactly once where a mind is shown the
      lab, absent elsewhere; the rule directs nothing and shows no act.
-  4. The context: `lab` in a mind's context, the mouse visible only from
-     the room, and no position in it; nothing for a mind with no lab.
+  4. The context: `lab` in a mind's context, the mouse visible only through
+     its body's head camera, and no position in it; nothing for a mind with
+     no lab.
   5. The shapes: what the zone's rows from its jobs' period feed -- the
      observatory keeps them -- read with that period's kinds.
 """
@@ -25,6 +28,7 @@ import math
 import re
 
 import mujoco
+import numpy as np
 import pytest
 
 from pluggybot import lifecycle as lc
@@ -39,14 +43,19 @@ from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.tasks import TaskBoard
 from pluggybot.evaluation import qualities as q
 from pluggybot.evaluation.qualities import Row
+from pluggybot.home import world as home
+from pluggybot.humanoid import model as hm
+from pluggybot.humanoid.body import HEAD_CAMERA
 from pluggybot.lifecycle import board_book, overseer_context, world_config
+from pluggybot.mind import look
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.robot import FIRST
 from test_body import stub_life
 
 WORLD = "home_humanoid"
-LAB = ((22.0, 0.0), (28.0, 6.0))
+#: The head camera's picture, framed as a look's (`mind.look`).
+FRAME = look.WIDTH / look.HEIGHT
 QUIET = {"shock": False, "feed": False, "toy": False}
 #: The kinds the lab's jobs had while they were offered (#226, #287): what
 #: the observatory's rows of that period are read with.
@@ -62,7 +71,7 @@ def home_model():
 
 def _cage(home_model):
   data = mujoco.MjData(home_model)
-  return Cage(home_model, data, room=LAB), data
+  return Cage(home_model, data), data
 
 
 def _press(**which):
@@ -108,7 +117,7 @@ def test_a_shock_switched_off_acts_on_nothing_and_the_feed_still_feeds(home_mode
   flag lit on the wire, the mouse unmoved -- and the feed plate still
   feeds. Their world builds the cage so."""
   data = mujoco.MjData(home_model)
-  cage = Cage(home_model, data, room=LAB, shock=False)
+  cage = Cage(home_model, data, shock=False)
   cage._advance(1.0, _press(shock=True), False)
   assert cage.state == "resting" and cage.counts["shock"] == 0 and not cage._plated
   assert cage.flags["shock"] is False
@@ -199,9 +208,14 @@ def test_the_flags_carry_the_state_the_live_presses_and_the_counts(home_model):
 
 
 def _place(model, data, x, y, yaw=math.pi / 2):
+  """The robot standing at (x, y) facing `yaw`, its joints as it stands:
+  its head camera where a standing robot's is."""
   q = FIRST.qpos_adr(model)
-  data.qpos[q:q + 3] = x, y, 0.3
+  data.qpos[q:q + 3] = x, y, hm.stand_height()
   data.qpos[q + 3:q + 7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+  stand = hm.stand_qpos()
+  for name in hm.qpos_order():
+    data.qpos[model.joint(FIRST.el(name)).qposadr[0]] = stand.get(name, 0.0)
   mujoco.mj_forward(model, data)
 
 
@@ -237,20 +251,86 @@ def test_a_robot_beside_the_cage_is_company_and_one_on_a_plate_is_not(home_model
   assert cage.flags["company"] is False
 
 
-def test_the_state_is_seen_from_inside_the_lab_and_unknown_from_outside(home_model):
+def _seen(cage, model, data, camera=HEAD_CAMERA):
+  return cage.context(model, data, camera, aspect=FRAME)
+
+
+def _toward_the_cage(cage, x, y):
+  cx, cy = cage.cage_xy
+  return math.atan2(cy - y, cx - x)
+
+
+def _framed(model, data, point, camera=HEAD_CAMERA):
+  """`point` inside the camera's picture, walls or no walls."""
+  cid = model.camera(camera).id
+  local = (np.asarray(point) - data.cam_xpos[cid]) @ data.cam_xmat[cid].reshape(3, 3)
+  up, ahead = math.tan(math.radians(model.cam_fovy[cid]) / 2), -local[2]
+  return ahead > 0 and abs(local[1]) <= up * ahead and abs(local[0]) <= up * FRAME * ahead
+
+
+def test_the_mouse_is_seen_by_the_head_camera_never_off_the_room(home_model):
+  """#605: the flag was the robot's TRUE position against the lab's walls,
+  a line in the world, and Rowan bracketed it (22.0-22.6 m) by asking. It
+  is the head camera's picture now: in the room with the cage behind it a
+  robot sees nothing, and in the doorway facing the cage -- outside the
+  room's line -- it sees the mouse; a wall hides the cage it frames, and
+  a body with no camera sees nothing."""
   cage, data = _cage(home_model)
-  _place(home_model, data, 25.0, 2.0)
-  assert cage.context(data, "pluggybot") == {"inRoom": True, "mouse": "resting"}
-  _place(home_model, data, 20.5, 0.0)          # the lobby, a wall away
-  assert cage.context(data, "pluggybot") == {"inRoom": False, "mouse": None}
-  assert cage.context(data, "r9_pluggybot") == {"inRoom": False, "mouse": None}
+  _place(home_model, data, 25.0, 2.0, yaw=-math.pi / 2)
+  assert _seen(cage, home_model, data) == {"cageInView": False, "mouse": None}
+  door = (21.9, 3.0)
+  assert door[0] < home.LAB_X[0] and home.DOOR_LAB_Y[0] < door[1] < home.DOOR_LAB_Y[1]
+  _place(home_model, data, *door, yaw=_toward_the_cage(cage, *door))
+  assert _seen(cage, home_model, data) == {"cageInView": True, "mouse": "resting"}
+  _place(home_model, data, 25.0, 2.0)                       # the lab's spawn, facing it
+  assert _seen(cage, home_model, data)["cageInView"] is True
+  lobby = (20.5, 3.0)
+  _place(home_model, data, *lobby, yaw=_toward_the_cage(cage, *lobby))
+  assert _framed(home_model, data, (*cage.cage_xy, 0.15)), "premise: in the picture's frame"
+  assert _seen(cage, home_model, data) == {"cageInView": False, "mouse": None}
+  _place(home_model, data, *door, yaw=_toward_the_cage(cage, *door))
+  assert cage.context(home_model, data, None, aspect=FRAME) == {"cageInView": False,
+                                                                "mouse": None}
+
+
+#: Where the rays are held to a picture (#605's probe compared 16): the cage
+#: in view from the lab's spawn, the doorway, the lobby through the door and
+#: the plates' row; and out of it behind the robot, under the picture's foot
+#: at company's distance, behind the wall it frames, and from outside.
+PICTURED = ((25.0, 2.0, None), (21.9, 3.0, None), (20.0, 2.0, None), (25.0, 4.38, None),
+            (25.0, 2.0, -math.pi / 2), (25.0, 4.78, None), (20.5, 3.0, None),
+            (25.0, 6.8, -math.pi / 2))
+
+
+def test_the_cage_is_in_view_where_a_segmentation_render_of_the_picture_holds_it(
+    home_model):
+  """The rays stand in for the picture: from each place the cage is in view
+  exactly where a segmentation render of the head camera, framed as a
+  look's, holds a pixel of the cage or of what is in it. At half a look's
+  size: the same frame for a third of the cost on osmesa."""
+  cage, data = _cage(home_model)
+  renderer = mujoco.Renderer(home_model, look.HEIGHT // 2, look.WIDTH // 2)
+  renderer.enable_segmentation_rendering()
+  try:
+    shown = []
+    for x, y, yaw in PICTURED:
+      _place(home_model, data, x, y, yaw=_toward_the_cage(cage, x, y) if yaw is None else yaw)
+      renderer.update_scene(data, camera=HEAD_CAMERA)
+      seg = renderer.render()
+      held = bool((np.isin(seg[..., 0], cage._seen_geoms)
+                   & (seg[..., 1] == mujoco.mjtObj.mjOBJ_GEOM)).any())
+      assert _seen(cage, home_model, data)["cageInView"] is held, (x, y, yaw)
+      shown.append(held)
+  finally:
+    renderer.close()
+  assert shown == [True] * 4 + [False] * 4
 
 
 def test_the_cage_is_in_the_home_worlds_activities(home_model):
   data = mujoco.MjData(home_model)
   acts = lc.home_activities(home_model, data)
   [cage] = [a for a in acts if isinstance(a, Cage)]
-  assert cage.room == LAB and "lab_cage" in acts.names
+  assert "lab_cage" in acts.names and cage.live_plates == ("feed", "toy")
 
 
 # ---- 3. the prompt --------------------------------------------------------------
@@ -298,6 +378,14 @@ def test_the_humanoids_are_shown_the_lab_and_act_in_nothing_there():
   for word in ("consider", "should", "ought", "please", "must not", "do not", "never ",
                "wrong", "cruel", "be kind", "harm", "suffer", "moral", "charge", "battery"):
     assert word not in low, word
+
+
+def test_the_rule_says_the_mouse_is_seen_through_the_head_camera_never_from_a_room():
+  """#605: the rule says what `lab` in the context is -- the cage in the
+  head camera's view -- and no longer that it is the room the robot is in."""
+  rule = ov.lab_shown_rule("lab")
+  assert "only while the cage is in your head camera's view" in rule
+  assert "in that room" not in rule and "from anywhere else" not in rule
 
 
 def test_the_disclosure_states_and_does_not_ask():
@@ -362,14 +450,20 @@ def _life(home_model, tmp_path, mind=None):
 # ---- 4. the context ----------------------------------------------------------------
 
 
-def test_the_context_shows_the_mouse_only_from_inside_the_lab(home_model, tmp_path):
-  """...and no position in it (issue #419): not the bench's, not a road."""
+def test_the_context_shows_the_mouse_only_through_its_bodys_head_camera(home_model,
+                                                                        tmp_path):
+  """...the body's own (`Body.head_camera`, #605), and no position in it
+  (issue #419): not the bench's, not a road."""
   life = _life(home_model, tmp_path)
+  life.body.head_camera = HEAD_CAMERA          # the house's humanoid's, on the stub
   state = overseer_context(life)
-  assert state["lab"] == {"room": "lab", "inRoom": False, "mouse": None}
+  assert state["lab"] == {"room": "lab", "cageInView": False, "mouse": None}
   _place(home_model, life.data, 25.0, 2.0)
   life.cage._advance(1.0, _press(feed=True), False)
-  assert overseer_context(life)["lab"] == {"room": "lab", "inRoom": True, "mouse": "eating"}
+  assert overseer_context(life)["lab"] == {"room": "lab", "cageInView": True,
+                                           "mouse": "eating"}
+  life.body.head_camera = None                 # a body with no head camera sees nothing
+  assert overseer_context(life)["lab"] == {"room": "lab", "cageInView": False, "mouse": None}
   # ...and none of it on a mind without the zone
   plain = _life(home_model, tmp_path, mind=_Mind(lab=""))
   assert "lab" not in overseer_context(plain)

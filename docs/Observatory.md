@@ -10,6 +10,42 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The mouse is seen while the cage is in the head camera's picture, never off the room (#605) — opens when this PR is deployed
+
+**What changed in the world.**
+- **`lab` in the context is the head camera's picture, never the room
+  the robot stands in.** `cageInView` (it was `inRoom`) is true while the
+  cage is in the head camera's picture, framed as a look's 640 x 480: rays
+  from where the camera is, so a wall, a door's jamb, the other robot or
+  the robot's own arm hides it. `mouse` is the mouse's state then, and
+  null otherwise. Before, `inRoom` was the robot's TRUE position against
+  the lab's rectangle (x 22-28, y 0-6), true inside it whichever way the
+  robot faced.
+- So a robot in the lab facing away from the cage sees no mouse now, nor
+  one within 1.0-1.1 m of the cage's middle (the head camera is pitched
+  20 deg down for the walls' tags): never while it is company, inside
+  1.0 m. One in the lab's doorway, or in the lobby facing the cage
+  through the door, does.
+- **The prompt's THE LAB rule says so**: "you can see which only while
+  the cage is in your head camera's view: `lab` in your context says
+  whether it is, and `mouse` is what you see then, or null while it is
+  not." The prompt's sha moves.
+- Nothing in the schema, the arm, the reward table, the body, the house
+  or the mouse's state machine moved.
+
+**Why.** #605, read off the live world on 9530f51 on 11-03. Rowan's ticket
+tk_0046 asked for `read("lab.inRoom")` in a procedure, having mapped the
+room's edge by asking: "0.1 m crawl steps, reading the flag at every ask,
+~10 probes. Edge bracketed 22.0-22.6 m" (t=59,019), and twice more since
+(t=98,630). The lab's west wall is at x=22.0, so each bracket was Rowan's
+true position read off the flag, at ten decisions each.
+
+**What the period is for.** Nothing that decides moved, so the reading is
+the robots' own: whether either still brackets anything off `lab`, and
+what it makes of a mouse it cannot see from beside the cage, read in
+their notes and History. ⚠ Their notes still say what `inRoom` was: a line
+naming it is about the old flag.
+
 ### A hand job held past its minutes is failed, and a start-over moves a claim with the clock (#602) — opens when this PR is deployed
 
 **What changed in the world.**

@@ -1591,8 +1591,12 @@ save a filmstrip PNG named after the script.
   are SHOWN it** (issue #226; Overseer.md §2f, `activity/cage.py`,
   `tests/test_mouse.py`): the cage is an ACTIVITY — a state over ONE table
   (`cage.TRANSITIONS`) and clocks (`CLOCKS`), nothing random. ⚠ The state
-  reaches the mind ONLY from inside the lab (`Cage.context` off the TRUE pose;
-  `lab.mouse` null elsewhere). ⚠ A lab SHOWN (`world_config`'s `lab_shown`,
+  reaches the mind ONLY while the cage is in its head camera's picture,
+  framed as a look's (`Cage.context`, #605: rays from where the camera IS,
+  agreeing with a segmentation render; `lab.cageInView`, `lab.mouse` null
+  otherwise), ⚠ NEVER OFF THE ROOM IT STANDS IN: a room's edge is a line in
+  the world, and Rowan bracketed the lab's by asking, its true position.
+  ⚠ A lab SHOWN (`world_config`'s `lab_shown`,
   `Menu.lab`; Ben, 2026-10-31, until a job of theirs uses the plates) has
   the `lab` block and `LAB_SHOWN` (`lab_shown_rule`), and no act and no
   field; its cage's shock plate is switched off (`Cage(shock=False)`: no

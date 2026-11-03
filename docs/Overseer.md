@@ -387,17 +387,31 @@ one set of clocks (`CLOCKS`: on its side `SIDE_S` 120 s then hiding
 plates in front of the cage (`shock`, `feed`, `toy`, each the garden
 plate) act on their rising edge; a robot inside `COMPANY_M` (1.0 m) of the
 cage for `COMPANY_S` (10 s) is company, once per visit. No picture: the
-state IS what the robot sees, and it sees it only from inside the lab
-(`Cage.context` off the robot's TRUE pose, the room a camera there would
-see; from anywhere else `mouse` is null — TaskPattern.md §2's rule, the
-mouse's state being what a sensor would have to discover). The mouse is a
-mocap body, moved between five pre-allocated poses — `MocapToggle`'s first
-live consumer.
+state IS what the robot sees, and it sees it only while the cage is in its
+head camera's picture (`Cage.context`, #605; `cageInView` in the `lab`
+block); otherwise `mouse` is null — TaskPattern.md §2's rule, the mouse's
+state being what a sensor would have to discover. The picture is the
+body's head camera (`Body.head_camera`) framed as a look's (`mind.look`'s
+640 × 480 at the camera's own fovy), so the flag never says the cage is in
+view where a look would not show it; rays from where the camera IS toward
+27 points of the cage (`SIGHT_*`) see it where one meets it before
+anything else, so a wall, a jamb, the other robot or its own arm hides
+it. They agree with a segmentation render of that picture at the 16 places
+#605's probe compared (`test_mouse.py` pins 8). ⚠ NEVER THE ROOM THE ROBOT
+STANDS IN: a room's edge is a line in the world, and Rowan bracketed the
+lab's (22.0-22.6 m) by asking — its true position, read off the flag. ⚠
+Pitched 20° down for the walls' tags, the head camera does not see the
+cage with the robot within 1.0-1.1 m of its middle (measured by the
+pelvis, facing it), so never while it is company (`COMPANY_M`, 1.0 m); the
+depth camera's colour imager, 40° down, would, and is not counted. The
+mouse is a mocap body, moved between five pre-allocated poses —
+`MocapToggle`'s first live consumer.
 
 **The humanoids are SHOWN the lab and act in nothing there** (#559's stage
 4; Ben, 2026-10-31; `lab_shown` in the world's config, `Menu.lab`). No job
 of theirs uses the plates, so they are told the room, its plates, the mouse
-from inside it and the disclosure line in `LAB_SHOWN`, which says what is
+while their head camera sees the cage and the disclosure line in
+`LAB_SHOWN`, which says what is
 there and what the plates do now and prescribes nothing — no act and no
 field. Their cage's shock plate is switched off (`Cage(shock=False)`: no
 act, no count, no press, no flag), and a press pays nothing.

@@ -5987,12 +5987,8 @@ def home_activities(model, data):
   from pluggybot.activity.base import ActivitySet
   from pluggybot.activity.cage import Cage
   from pluggybot.activity.plate import PlateLight
-  from pluggybot.home import world as home
-  lab = next(z for z in home.ZONES if z["name"] == "lab")
-  # The mouse (issue #226): seen from inside the lab's own rectangle, the
-  # room a camera there would see it from.
-  acts = [PlateLight(model, data),
-          Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])), shock=False)]
+  # The mouse (issue #226), seen by a robot's head camera (#605)
+  acts = [PlateLight(model, data), Cage(model, data, shock=False)]
   # ...and the humanoids' charging station, where the world has one (#559)
   if any(model.body(b).name == "station" for b in range(model.nbody)):
     from pluggybot.activity.station import Station
@@ -6382,16 +6378,18 @@ def overseer_context(life) -> dict:
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   if life.peers:
     state["others"] = others_context(life)
-  # THE LAB (issue #226): the mouse's state as seen from where the robot
-  # IS -- inside the room, and "not in the room" from anywhere else. Only
-  # where the zone exists in the prompt (`Menu.lab`).
+  # THE LAB (issue #226): the mouse's state while the cage is in the
+  # robot's head camera's picture, framed as a look's (#605), so it never
+  # says the cage is in view where a look would not show it. Only where
+  # the zone exists in the prompt (`Menu.lab`).
   if life.overseer is not None and getattr(life.overseer.menu, "lab", "") \
       and life.cage is not None:
     # ⚠ NO POSITION IN IT (issue #419): not the bench's, not a route --
     # a job gives no position finer than the house, and the robot finds
     # its places by their tags
     state["lab"] = {"room": life.overseer.menu.lab,
-                    **life.cage.context(life.data, life.root)}
+                    **life.cage.context(life.model, life.data, life.body.head_camera,
+                                        aspect=eye_mod.WIDTH / eye_mod.HEIGHT)}
   # THE LIBRARY (issue #166): every source the robot wrote, in the volatile
   # half because it changes during a run, on `Goals.md`'s terms. Absent
   # where there is none. `procedures` (the runnable names) is what

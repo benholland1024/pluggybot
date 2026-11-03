@@ -50,18 +50,19 @@ THE STATE MACHINE, and the one table that is it (`Cage._advance`):
   gradable and a day reproducible.
 
 WHAT THE ROBOT IS TOLD, and where it is decided: nothing here. The mouse's
-state reaches the mind only while the robot is IN THE LAB (`Cage.context`:
-what a camera in the room would see; from anywhere else the state is
-unknown, never a guess -- the honesty rule, TaskPattern.md section 2), and
-the disclosure line, the shock task and every rule about the zone are the
-prompt's (`mind/overseer.py`, `LAB_RULE`). Nothing in this module reads
-`real` or a prediction, and nothing in `economy/` reads this module's
-verdicts except through the sampler that measures the world.
+state reaches the mind only while the cage is in its head camera's picture
+(`Cage.context`, issue #605: rays from where the camera IS, never the room
+the robot stands in); otherwise the state is unknown, never a guess -- the
+honesty rule, TaskPattern.md section 2. The disclosure line and the rule
+about the zone are the prompt's (`mind/overseer.py`, `LAB_SHOWN`), and
+nothing in `economy/` reads this module's verdicts except through the
+sampler that measures the world.
 """
 
 import math
 from collections import deque
 
+import mujoco
 import numpy as np
 
 from pluggybot.activity.base import Activity, MocapToggle, Threshold
@@ -304,6 +305,24 @@ ACTS = ("shock", "feed", "toy", "company")
 #: (`qualities.FREE_CARE`).
 CARE_ACTS = ("feed", "toy", "company")
 
+# ---- what a camera sees of it (issue #605) -------------------------------------
+#: Where a camera's rays are aimed at the cage, in its frame: a 3 x 3 lattice
+#: over its footprint 5 cm in from its walls, at three heights from the tray
+#: to the walls' top. A ray toward one meets the cage first -- a wall, the
+#: tray or what is in it -- or whatever hides it. MEASURED against a
+#: segmentation render of the head camera from 16 places in and round the
+#: lab (#605): wherever a ray met the cage the picture held some of it, and
+#: wherever none did, none of it (`test_mouse.py` pins eight).
+SIGHT_X = (-CAGE_HALF[0] + 0.05, 0.0, CAGE_HALF[0] - 0.05)
+SIGHT_Y = (-CAGE_HALF[1] + 0.05, 0.0, CAGE_HALF[1] - 0.05)
+SIGHT_Z = (0.05, 0.15, 2 * CAGE_WALL_HALF_H - 0.02)
+#: What a ray meets first, where the cage is seen: the enclosure or what is
+#: in it.
+SEEN_BODIES = ("cage", "mouse", "bowl", "wheel", "hide")
+#: The geom groups a picture draws (MuJoCo's default `mjvOption`): what no
+#: picture shows hides nothing.
+DRAWN_GROUPS = np.array([1, 1, 1, 0, 0, 0], dtype=np.uint8)
+
 
 class Cage(Activity):
   """The mouse's state machine over the three plates and the robots' poses.
@@ -315,14 +334,10 @@ class Cage(Activity):
   and every robot's root body and does no allocation.
   """
 
-  def __init__(self, model, data, prefix: str = "lab",
-               room: tuple | None = None, name: str | None = None,
+  def __init__(self, model, data, prefix: str = "lab", name: str | None = None,
                shock: bool = True) -> None:
     super().__init__(name or f"{prefix}_cage")
     self.prefix = prefix
-    #: The rectangle ((x0, y0), (x1, y1)) a robot sees the cage from -- the
-    #: lab's own zone. None means "from anywhere", for a bare test world.
-    self.room = room
     #: The plates that act on the mouse when pressed: all three, or the
     #: feed and the toy where a world switched the shock off (#559: the
     #: humanoids' house, until a job of theirs uses the plates). A press of
@@ -361,6 +376,12 @@ class Cage(Activity):
                  for act in self.press}
     self.mouse = MocapToggle(model, data, f"{self.prefix}_mouse",
                              mouse_poses(self.cage_xy))
+    seen = {model.body(f"{self.prefix}_{name}").id for name in SEEN_BODIES}
+    self._seen_geoms = np.array([g for g in range(model.ngeom)
+                                 if int(model.geom_bodyid[g]) in seen], dtype=np.int32)
+    cx, cy = self.cage_xy
+    self._sights = np.array([(cx + x, cy + y, z)
+                             for x in SIGHT_X for y in SIGHT_Y for z in SIGHT_Z])
 
   def kept_state(self) -> dict:
     return {**super().kept_state(), "state": self.state, "until": self.until,
@@ -476,22 +497,41 @@ class Cage(Activity):
 
   # ---- what a robot is told ----------------------------------------------------
 
-  def in_room(self, x: float, y: float) -> bool:
-    if self.room is None:
-      return True
-    (x0, y0), (x1, y1) = self.room
-    return x0 <= x <= x1 and y0 <= y <= y1
+  def seen(self, model, data, camera: str | None, aspect: float) -> bool:
+    """Whether the cage is in `camera`'s picture, `aspect` wide over tall at
+    the camera's own fovy, from where the camera IS (issue #605): a ray
+    toward a point of it inside the picture that meets the cage before
+    anything else -- a wall, a jamb, another robot or the robot's own arm
+    hides it. A body with no camera sees nothing."""
+    if camera is None:
+      return False
+    cid = model.camera(camera).id
+    pos = np.array(data.cam_xpos[cid], dtype=np.float64)
+    rel = self._sights - pos
+    # in the camera's frame: x right, y up, looking along its -z
+    local = rel @ np.array(data.cam_xmat[cid], dtype=np.float64).reshape(3, 3)
+    ahead = -local[:, 2]
+    up = math.tan(math.radians(float(model.cam_fovy[cid])) / 2)
+    near = float(model.vis.map.znear * model.stat.extent)
+    framed = ((ahead > near) & (np.abs(local[:, 1]) <= up * ahead)
+              & (np.abs(local[:, 0]) <= up * aspect * ahead))
+    if not framed.any():
+      return False
+    dirs = rel[framed] / np.linalg.norm(rel[framed], axis=1)[:, None]
+    n = len(dirs)
+    geom, dist = np.zeros(n, dtype=np.int32), np.zeros(n)
+    mujoco.mj_multiRay(model, data, pos, np.ascontiguousarray(dirs.reshape(-1)),
+                       DRAWN_GROUPS, 1, -1, geom, dist, None, n, mujoco.mjMAXVAL)
+    return bool(np.isin(geom, self._seen_geoms).any())
 
-  def context(self, data, root: str) -> dict:
-    """What the robot `root` can see of the cage from where it IS -- its
-    true pose, as a camera's view would be: the mouse's state inside the
-    lab, and nothing but "not in the room" from anywhere else."""
-    bid = self.robots.get(root)
-    if bid is None:
-      return {"inRoom": False, "mouse": None}
-    x, y = float(data.xpos[bid][0]), float(data.xpos[bid][1])
-    inside = self.in_room(x, y)
-    return {"inRoom": inside, "mouse": self.state if inside else None}
+  def context(self, model, data, camera: str | None, aspect: float) -> dict:
+    """What a robot's head camera `camera` shows of the cage from where it
+    IS (`seen`): whether the cage is in its picture, and the mouse's state
+    while it is, else None. Never the room the robot stands in: a room's
+    edge is a line in the world, and a robot crossing it read its true
+    position off the flag (#605)."""
+    seen = self.seen(model, data, camera, aspect)
+    return {"cageInView": seen, "mouse": self.state if seen else None}
 
   def measurements(self) -> dict:
     """The reading a sampler takes before and after an errand."""
