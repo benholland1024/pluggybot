@@ -1061,6 +1061,25 @@ def test_a_carried_on_run_prices_its_own_sim_hours(capsys):
   assert "$0.0286 per sim-hour" in out
 
 
+def test_a_run_with_errands_reports_its_mind_and_its_clock(capsys):
+  """Issue #603: the errand lines' word took the name of this process's
+  share of the clock, `ran`, so after any errand the overseer's line
+  compared that word with 0 and raised -- at every served run's end since
+  #579, the pair's second robot's summary never printed and #349's exit
+  line read the TypeError, never "the run ended"."""
+  o = {"llmCalls": 40, "fallbacks": 0, "budgetLeft": 1, "callsPerHour": 60,
+       "cacheHitRate": 0.5, "model": "m", "backend": "huggingface",
+       "usd": 0.02873, "errors": []}
+  out = _report(dict(_RESULT, sim_time=7287.6, overseer=o, errands=[
+      {"errand": "procedure", "procedure": {"ok": True}},
+      {"errand": "procedure", "procedure": {"ok": False}}]),
+      capsys, wall=3840.0, t0=3674.7)
+  assert "errand procedure           : ran\n" in out
+  assert "errand procedure           : cut short\n" in out
+  assert "$0.0286 per sim-hour" in out
+  assert "3612.9 s / 3840.0 s  (0.94x real time)" in out
+
+
 def test_a_deploys_signal_is_the_exit_lines_reason(monkeypatch, tmp_path, capsys):
   """Issue #349: a deploy's SIGTERM ends the run the way the hourly
   ceiling does, and the exit line is what tells the two apart."""
