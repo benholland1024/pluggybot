@@ -89,11 +89,35 @@ Rules the states carry, each decided explicitly:
   website reads as a bug.
 - **Only OFFERED tasks expire.** A deadline is how long an *offer* stands,
   never a licence to abandon a claimed job — walking away mid-job leaves the
-  work half done, which is a different and worse event.
+  work half done, which is a different and worse event. A held job with a
+  time of its own (a hand job's `minutes`) is not left standing past it
+  either: there a `done` could only fail it, so its holder's loop FAILS it
+  through its grade's door, and its target is free for the next offer
+  (#602). It is failed, never expired, because it was attempted. It is
+  failed at the loop's pass, between what the robot does, and on the
+  physics seam only while its holder is on a charge trip: freed on the seam
+  mid-procedure, its target was set out from under the procedure still
+  working it, and left to the pass, a 74-minute charge kept one booked 69
+  minutes past its limit. A `done` waiting to be graded is left to the
+  grade, and a true death fails the jobs its robot held, in that robot's
+  own records. The holder is shown each job it holds with the time it has
+  left (`heldTasks`, `leftS`) -- a network fact: the board knows when the
+  job was taken, as it knows how long an offer stands.
 - **The board is bounded** (40 held, 6 offered at once), and resolved tasks
   age out oldest-first. An OPEN task is never dropped to make room: dropping a
   job the robot might still do and that job lapsing are different events, and
   only one of them has an honest name on the wire.
+- **The board's orders are its own count** (`Task.number`, the id's number;
+  #610): what ages out first, which offer's draw a restart puts back on its
+  prop, and the order offers are listed in. ⚠ Never a stamp (`createdT`,
+  `resolvedT`): a start-over sets the clock back to 0, and after 11-01's the
+  tasks stamped on the clock before it ranked newest. t_0002 would have
+  outlasted every task resolved before the new clock passed it, more than
+  204,000 s, and every restart put an old offer's draw back on its prop
+  over the job held there. The site lists the board on the same count. A
+  robot's held jobs are in the order it claimed them (`held_by`): a claim
+  is moved with the clock at a start-over (#602), and ties go by the
+  count.
 - **A restart keeps a claim with the robot that made it** (issue #345). The
   robot is still that robot. A job `claimed` or `active` comes back claimed
   by it. A procedure job stays `active` for its robot to finish and say
@@ -107,7 +131,9 @@ Rules the states carry, each decided explicitly:
   `failed` ("interrupted by a restart") and is announced once, a claimed
   one is offered again with its claim cleared. And an offer is re-priced
   by the world's energy table on load, never by the kind's generic
-  figure.
+  figure. A world that starts again at 0 moves a held claim with the
+  clock, as it moves an offer's deadline, and writes both down as the day
+  begins (#602).
 
 ---
 

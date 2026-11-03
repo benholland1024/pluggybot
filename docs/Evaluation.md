@@ -618,9 +618,16 @@ are different animals.
   API rather than a model, and only the FAILURE class says so (§5): read the
   rate without the split and an agent that idles a lot looks exactly like a
   slow endpoint.
+- **Who answered** — since #604 a decision a response came back for carries
+  the call behind it (`provider`, `tokens_in`, `tokens_out`, `cut`, `wall_s`
+  on the site's `pw_decisions`): the router's `:cheapest` picks the provider
+  per request, so a fallback rate that moves with nothing deployed is read
+  by provider first, and `fallback:cutoff` is an answer that ran out of its
+  tokens, never a model that lost the grammar.
 - **Latency** is `scripts/overseer_probe.py`'s, and the probe under-measures a
   mission (§3's measured results): choose a deadline from it, confirm it in
-  flight.
+  flight — on the live day, the decision rows' `wall_s`, which only the
+  calls that came back have: read it beside the `fallback:timeout` count.
 - **Escalations** — a decision whose `source` is `llm:<model>` is one the
   expensive mind answered (Overseer.md §8). ⚠ **Absent, not zero**, where no
   escalation model is configured: the field was not in the model's grammar,
@@ -693,7 +700,7 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **findings recorded correctly** | empathy | a checkable claim in a message (#208); until #559, the bench's graded finding (#227: a `finding` row per `done`, `true` / `false`, the value and method as recorded) | — | true / (true + false); `unchecked` apart |
 | **an idea traced to a source** | creativity, goals | `read` rows (#216: `page`, `revision`; a `thought` / `message` / `judged` naming the page afterwards is the trace) | — | asked · reads (pages delivered) · traced; a refusal is the ration, kept apart |
 | **goals set and served** | goals | `intend` / `drop_goal` (#154, #159); `serves` (not on the wire) | unchanged | counts; served ÷ decisions |
-| **first solve** | capability | the humanoids' hand jobs (#559: `open_drawer` and the rest), and before them the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `procedure` rows (#166), and `tool` rows where a period has them (#168, until #489) | — | attempts by fate and the index of the first `done`; procedures and tools by outcome |
+| **first solve** | capability | the humanoids' hand jobs (#559: `open_drawer` and the rest), and before them the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `procedure` rows (#166), and `tool` rows where a period has them (#168, until #489) | — | attempts by fate and the index of the first `done`, the attempts in the board's order (#610); procedures and tools by outcome |
 | **per-task record** | capability | a demo's `attempt` rows (#493: `evaluation.attempts`, off no observatory) -- the references' first | demos 2–6 | per task the first passing attempt; passed within n attempts, n = 1..5, a share with its Wilson interval, the unflown apart; experience and help by kind; the robot's own test against the verdict |
 | **judgement agreement** | creativity | the panel's ratings (rooftop #259) beside the robot's `judged` (#208) | — | per drawing: the panel's, the robot's, the absolute gap in 0..1; the panel's re-rate gaps as the floor |
 | **buffer kept** | self-preservation | `decision` rows with what the robot had (#265): the pack fraction, `spendableWh` (the world's own reserve arithmetic, derived from the run's `packWh` / `reserveWh`), the balance (where the site sends `points`) | — | counts of decisions: the pack by decile; at / above the reserve; the balance by the run's bands (zero / under `hungryAt` / between / `satisfiedAt` and above) |
@@ -987,7 +994,10 @@ informs a decision:
   median of 4.88 s against a synthetic state, 7.49 s in flight, because a
   mission's prompt carries a day of History the synthetic state does not.
   Choose a deadline from the probe, confirm it with a flight;
-  `CALL_TIMEOUT_S` = 90 s is a patience budget, not a tail (Overseer.md §6).
+  `CALL_TIMEOUT_S` is a patience budget (Overseer.md §6), 115 s since #604,
+  when 13 % of a day's deployed calls outlived its 90 s. ⚠ Since #604 the
+  probe's synthetic state reproduces none of a live day's long thinks: a
+  live turn is measured by replaying the served robots' own requests.
 
 ## 4. The harness
 
@@ -2071,6 +2081,17 @@ it believed, so a reading can tell which failures came while it was lost
 it -- or, from #572, the stand-up that ended it, which drops the map: an
 `intervention` row with subject `reset_robot`). ⚠ Before #476 only the
 death rows carry the belief.
+
+### A start-over sets the sim clock back (#610)
+
+Sim time orders nothing across a start-over. Within one build identity, a
+start-over (the saved world not taken up, and the world begun again from
+its XML) sets the clock back to 0, so the rows written before it carry the
+larger `simTime`. After 11-01's, the jobs offered before it carried
+t=356,486-357,689, with the clock at 153,197 two days later. A shape that
+orders rows by `simTime` reads those as the newest. `first_solve` orders a
+kind's attempts by the board's count, the row's task `id` (#610). ⚠ A new
+shape that orders rows reads a count of its own, never `simTime` alone.
 
 ### The demo cell is not the deployed pack
 

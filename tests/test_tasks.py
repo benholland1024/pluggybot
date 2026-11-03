@@ -223,11 +223,35 @@ def test_expiry_only_touches_offers_never_work_in_progress():
 
 def test_claimable_is_oldest_first_and_deterministic():
   """A scripted policy that is not reproducible makes every mission test a
-  different test (`Math.random`-shaped bugs, twice paid for in this repo)."""
+  different test (`Math.random`-shaped bugs, twice paid for in this repo).
+  Oldest on the board's own count (#610): an offer made before a start-over
+  is stamped on the clock before it, and is still the older."""
   b = board()
-  a = offered(b, t=5.0)
-  c = offered(b, kind="open_door", target="door", t=1.0)
-  assert [t.id for t in b.claimable(10.0, 9.0)] == [c.id, a.id]
+  a = offered(b, t=357_000.0)                            # before the start-over
+  c = offered(b, kind="open_door", target="door", t=1.0)  # after it
+  assert [t.id for t in b.claimable(10.0, 9.0)] == [a.id, c.id]
+
+
+def test_the_boards_count_is_read_as_a_number_past_four_digits():
+  """`Task.number` reads the id as the count it is: past t_9999 an id has
+  five digits, and as text t_10000 sorts before t_9999."""
+  b = board()
+  b.seq = 9_998
+  first, second = offered(b), offered(b, kind="open_door", target="door")
+  assert (first.id, second.id) == ("t_9999", "t_10000")
+  assert [t.id for t in b.claimable(10.0, 9.0)] == [first.id, second.id]
+
+
+def test_held_jobs_claimed_at_one_instant_are_in_the_boards_count():
+  """`held_by` is the order a robot took its jobs in, and a start-over's
+  clamp gives every claim ahead of the board's last change that change's
+  time (#602): tied, they are in the board's count, never the id as text."""
+  b = board()
+  b.seq = 9_998
+  first, second = offered(b), offered(b, kind="open_door", target="door")
+  for task in (first, second):
+    assert b.claim(task.id, robot="r", t=5.0) is not None
+  assert [t.id for t in b.held_by("r")] == [first.id, second.id]
 
 
 # ---- the board is bounded ----------------------------------------------------
@@ -256,6 +280,23 @@ def test_resolved_tasks_age_out_but_open_ones_never_do():
   assert b.stats()["dropped"] == b.dropped
 
 
+def test_a_full_board_forgets_its_lowest_numbered_closed_task(tmp_path):
+  """Oldest on the board's own count, never by its stamp (#610): by
+  `resolvedT`, a task resolved on the clock before a start-over ranked as
+  the newest, and every newer one was forgotten first -- t_0002, for more
+  than 204,000 s from 11-03."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path, max_tasks=3, max_offered=99)
+  old = offered(b, t=356_727.0, ttl=900.0)
+  b.expire_due(357_627.0)                 # lapsed, on the clock before
+  again = board(path=path, max_tasks=3, max_offered=99)   # the world begun again at 0
+  newer = [offered(again, t=t, ttl=5.0) for t in (10.0, 20.0)]
+  again.expire_due(30.0)
+  offered(again, t=40.0)                  # one more than the board holds
+  assert old.id not in again
+  assert all(t.id in again for t in newer)
+
+
 # ---- persistence -------------------------------------------------------------
 
 
@@ -279,6 +320,20 @@ def test_a_task_outlives_a_restart(tmp_path):
   assert back[finished.id].points > 0
   # The counter, not the length: an id is never reused after a trim.
   assert back.next_id() != standing.id
+
+
+def test_a_board_loaded_never_numbers_a_task_below_one_it_holds(tmp_path):
+  """The board is ordered by its count (#610), so a file whose `seq` is
+  behind its tasks' numbers (edited by hand, say) must not number the next
+  one below them, where it would be the first forgotten."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  b.seq = 41
+  for _ in range(3):
+    offered(b)                            # t_0042 to t_0044
+  doc = json.loads(path.read_text())
+  path.write_text(json.dumps({**doc, "seq": 0}))
+  assert offered(board(path=path)).id == "t_0045"
 
 
 def _act_under_way(b: TaskBoard, t: float = 1.0) -> Task:
@@ -335,6 +390,79 @@ def test_an_offer_keeps_the_life_it_had_left_across_a_restart(tmp_path):
   del doc["simTime"]
   old.write_text(json.dumps(doc))
   assert board(path=old)[was.id].deadline == 3845.0
+
+
+def test_a_held_claim_moves_with_the_clock_as_an_offers_deadline_does(tmp_path):
+  """A held job's time counts from its claim (#602), so a start-over moves
+  the claim as it moves an offer's deadline: by the last save's clock, and
+  below 0 too, held before the save being held still. Only deadlines moved,
+  and a claim stood in the old clock's future. A world that carries on keeps
+  its claims as written."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  held = offered(b, t=900.0)                                     # 16 minutes
+  b.claim(held.id, t=1000.0)
+  b.start(held.id, t=1000.0)
+  standing = offered(b, kind="open_door", target="door", ttl=900.0, t=1200.0)
+  back = board(path=path)
+  assert back[held.id].claimed_t == -200.0
+  assert back[standing.id].deadline == 900.0
+  assert not back[held.id].out_of_time(760.0) and back[held.id].out_of_time(761.0)
+  assert board(path=path, rebase=False)[held.id].claimed_t == 1000.0
+
+
+def test_a_claim_is_never_later_than_the_last_change_saved(tmp_path):
+  """A claim is one of the board's saved changes, so none is later than the
+  last (`simTime`). One that is was left on the old clock by a start-over
+  that moved only deadlines: t_0004, taken on 10-31 before 11-01's
+  start-over, read 227,000 s ahead of the clock on 11-03 and could never run
+  out (#602). It is held from the last change saved: it was held by then."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  held = offered(b, kind="open_door", target="door")
+  b.claim(held.id, t=358359.0)
+  b.start(held.id, t=358359.0)
+  doc = json.loads(path.read_text())
+  doc["simTime"] = 103158.0                     # the clock since put back
+  path.write_text(json.dumps(doc))
+  back = board(path=path, rebase=False)
+  assert back[held.id].claimed_t == 103158.0 and back[held.id].out_of_time(131000.0)
+  assert board(path=path)[held.id].claimed_t == 0.0     # ...and from a start-over's 0
+
+
+def test_a_board_that_carries_on_keeps_its_last_change(tmp_path):
+  """...and so every file this build writes keeps that: on a clock that
+  carries on, the last change saved stays the last, though the world came
+  back from a save before its board's (a crash's minute) and a change after
+  it is stamped earlier. Read as 0, the change at 450 s became the last, and
+  the next load held the claim made at 500 s from 450."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  held = offered(b, t=500.0)
+  b.claim(held.id, t=500.0)
+  back = board(path=path, rebase=False)
+  assert back.sim_t == 500.0
+  offered(back, kind="open_door", target="door", t=450.0)
+  assert board(path=path, rebase=False)[held.id].claimed_t == 500.0
+
+
+def test_a_held_job_says_what_is_left_of_the_time_it_gives(tmp_path):
+  """`leftS` (#602): what is left of a held job's minutes from its claim,
+  never below 0 -- and from a claim a start-over moved, still counting the
+  time it was held before the save. A job that gives no time, or was never
+  taken, has none to show."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  held = offered(b, t=900.0)                                     # 16 minutes
+  b.claim(held.id, robot="pluggybot", t=1000.0)
+  b.start(held.id, t=1000.0)
+  assert b[held.id].left_s(1100.0) == 860.0 and b[held.id].left_s(9999.0) == 0.0
+  assert b.held_context("pluggybot", 1100.0)[0]["leftS"] == 860.0
+  assert b.held_context("r2_pluggybot", 1100.0) == []
+  offered(b, kind="open_door", target="door", ttl=900.0, t=1200.0)  # the save at 1200
+  assert board(path=path)[held.id].left_s(0.0) == 760.0
+  act = b.offer("take_points", "r2_pluggybot", params={"amount": 25}, t=0.0)
+  assert b[act.id].left_s(0.0) is None
 
 
 def test_a_task_interrupted_by_a_restart_is_said_on_the_wire_once(tmp_path):

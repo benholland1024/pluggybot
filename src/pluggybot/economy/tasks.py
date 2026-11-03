@@ -286,6 +286,16 @@ def kind_names() -> list[str]:
   return list(KINDS)
 
 
+def task_number(task_id: object) -> int:
+  """A task id's number on its board's own count (`t_0042` is 42), or 0 for
+  an id no board numbered. Whatever orders tasks reads it, never a stamp: a
+  start-over sets the clock back, never the count (#610)."""
+  try:
+    return int(str(task_id).split("_")[-1])
+  except ValueError:
+    return 0
+
+
 # ---- one task ----------------------------------------------------------------
 
 
@@ -376,6 +386,12 @@ class Task:
   def open(self) -> bool:
     return self.state in OPEN_STATES
 
+  @property
+  def number(self) -> int:
+    """Its number on the board's own count (`task_number`): what orders the
+    board (#610)."""
+    return task_number(self.id)
+
   def reward(self, table: RewardTable | None = None) -> dict:
     """What the table says this pays, right now.
 
@@ -389,6 +405,31 @@ class Task:
 
   def overdue(self, now: float) -> bool:
     return self.deadline is not None and float(now) >= self.deadline
+
+  @property
+  def limit_s(self) -> float | None:
+    """The time the job gives from its claim, s, or None for none: the
+    offer's `minutes`, else its kind's (one saved before its kind gave any,
+    #580) -- what its grade holds it to, and past which its holder's loop
+    fails it (#602)."""
+    spec = KINDS.get(self.kind)
+    minutes = self.params.get("minutes") or (spec.minutes if spec is not None else None)
+    return 60.0 * float(minutes) if minutes else None
+
+  def out_of_time(self, now: float) -> bool:
+    """Held past the time it gives from its claim (#602): a `done` now could
+    only fail it, on its grader's own time criterion."""
+    limit = self.limit_s
+    return (self.state in ("claimed", "active") and limit is not None
+            and self.claimed_t is not None and float(now) - self.claimed_t > limit)
+
+  def left_s(self, now: float) -> float | None:
+    """What is left of the time it gives from its claim, s, never below 0;
+    None where it gives none or it was never taken (#602)."""
+    limit = self.limit_s
+    if limit is None or self.claimed_t is None:
+      return None
+    return max(0.0, limit - (float(now) - self.claimed_t))
 
   def claimable(self, now: float, pack_wh: float | None = None) -> bool:
     """May a robot take this on, right now?
@@ -470,16 +511,29 @@ class Task:
             "description": self.description, "state": self.state,
             "from": self.source, "pays": reward["base"] + reward["bonus"],
             "tier": reward["tier"], "estimateWh": round(self.estimate_wh, 3),
-            # ...and WHERE IT IS (issue #419): the building's rough address
-            # and the task area's directions, named only where the job names
-            # a place, so every other offer reads as it did
-            **({"address": dict(self.params["address"])}
-               if isinstance(self.params.get("address"), dict) else {}),
-            **({"directions": str(self.params["directions"])}
-               if self.params.get("directions") else {}),
+            **self._where(),
             "claimable": self.claimable(now, pack_wh),
             "expiresInS": (None if self.deadline is None
                            else round(self.deadline - float(now), 1))}
+
+  def as_held(self, now: float) -> dict:
+    """How the robot holding a job is shown it (#602): what it is, where,
+    and what is left of the time it gives (`leftS`), which the board knows
+    as it knows how long an offer stands. Without it the robots spent their
+    recalls finding out when they took a job."""
+    left = self.left_s(now)
+    return {"id": self.id, "kind": self.kind, "target": self.target,
+            "description": self.description, **self._where(),
+            "leftS": None if left is None else round(left, 1)}
+
+  def _where(self) -> dict:
+    """WHERE IT IS (issue #419): the building's rough address and the task
+    area's directions, named only where the job names a place, so every
+    other job reads as it did."""
+    return {**({"address": dict(self.params["address"])}
+               if isinstance(self.params.get("address"), dict) else {}),
+            **({"directions": str(self.params["directions"])}
+               if self.params.get("directions") else {})}
 
   @classmethod
   def from_json(cls, spec: dict) -> "Task":
@@ -562,7 +616,7 @@ class TaskBoard:
     self.producer: dict = {}
     #: Sim time of the last change saved, so a restart can give an open
     #: offer the life it had LEFT rather than a deadline in a clock that
-    #: no longer exists (see `load`).
+    #: no longer exists, and a held job the time it has had (see `load`).
     self.sim_t = 0.0
     #: Tasks a restart failed (`load`), until `announce_interrupted` puts
     #: them on the wire.
@@ -603,10 +657,11 @@ class TaskBoard:
 
   def held_by(self, robot: str) -> list[Task]:
     """The open jobs one robot has taken on and not finished, in the order
-    it took them (issue #345)."""
+    it took them (issue #345): by the claim's time, which a start-over
+    moves with the clock (#602), and on a tie by the board's count."""
     return sorted((t for t in self.tasks.values()
                    if t.state in ("claimed", "active") and t.claimed_by == robot),
-                  key=lambda t: (t.claimed_t or 0.0, t.id))
+                  key=lambda t: (t.claimed_t or 0.0, t.number, t.id))
 
   def offered(self) -> list[Task]:
     return [t for t in self.tasks.values() if t.state == "offered"]
@@ -616,10 +671,12 @@ class TaskBoard:
 
     Oldest first, and deterministically so: a scripted policy has to be
     reproducible or a mission test that exercises it is a different test
-    every run.
+    every run. Oldest on the board's own count (`Task.number`), never by
+    `createdT`: an offer that outlives a start-over is stamped on the clock
+    before it, and listed after every newer one (#610).
     """
     ready = [t for t in self.offered() if t.claimable(now, pack_wh)]
-    return sorted(ready, key=lambda t: (t.created_t, t.id))
+    return sorted(ready, key=lambda t: (t.number, t.id))
 
   def snapshot(self) -> dict:
     return {tid: task.snapshot(self.table) for tid, task in self.tasks.items()}
@@ -645,6 +702,11 @@ class TaskBoard:
              if t.id not in hidden
              and not (reader and t.target_kind == "robot" and t.target == reader)]
     return [t.as_context(now, pack_wh, self.table) for t in shown[:limit]]
+
+  def held_context(self, robot: str, now: float) -> list[dict]:
+    """The jobs `robot` holds as it is shown them (`Task.as_held`, #602), in
+    the order it took them; only its own, on a shared board."""
+    return [t.as_held(now) for t in self.held_by(robot)]
 
   def stats(self) -> dict:
     counts = {state: 0 for state in TASK_STATES}
@@ -778,10 +840,10 @@ class TaskBoard:
   def expire_due(self, t: float) -> list[Task]:
     """Lapse every OFFERED task past its deadline. Returns what lapsed.
 
-    Only offered ones. A task the robot has already taken is its problem
-    now: abandoning a job mid-errand would leave a module on the fork, and
-    the deadline is about how long an OFFER stands, not about interrupting
-    work in progress.
+    Only offered ones: the deadline is how long an OFFER stands. A job the
+    robot has taken never lapses -- one held past the time it gives is
+    FAILED by its holder's loop (`HubLifecycle._run_out_held`, #602), because it
+    was attempted.
     """
     gone = []
     for task in list(self.tasks.values()):
@@ -809,6 +871,11 @@ class TaskBoard:
   def _trim(self) -> None:
     """Age out resolved tasks, oldest first. Open ones are never dropped.
 
+    ⚠ OLDEST ON THE BOARD'S OWN COUNT (`Task.number`), never by `resolvedT`:
+    a start-over sets the clock back to 0, and t_0002, resolved at t=357,627
+    on the clock before 11-01's, was kept over every task resolved before
+    the new clock passed it: more than 204,000 s on from 11-03 (#610).
+
     A dropped task is not an expired one and does not get an event: expiry
     is something that HAPPENED to a job in the world, while this is the
     board forgetting a job that is already over. Counted, so a truncated
@@ -818,7 +885,7 @@ class TaskBoard:
       closed = [t for t in self.tasks.values() if not t.open]
       if not closed:
         return
-      oldest = min(closed, key=lambda t: (t.resolved_t or 0.0, t.id))
+      oldest = min(closed, key=lambda t: (t.number, t.id))
       del self.tasks[oldest.id]
       self.dropped += 1
 
@@ -873,11 +940,15 @@ class TaskBoard:
     offered again, its claim cleared.
 
     ⚠ `rebase`: an offer's deadline is moved to a clock that starts at 0 --
-    what it had left at the last save (`simTime`). A world that carries on
-    from a saved one (issue #345) keeps its clock, and its deadlines as
-    written; one that starts from its XML starts at 0, where an offer made
-    at 3606 s of a mission could otherwise never lapse (measured, 2026-09-22).
-    A file with no `simTime` (an older build's) is loaded as it was.
+    what it had left at the last save (`simTime`) -- and a held job's claim
+    with it (#602), in memory: the day's `begin` writes it down, never
+    `load`, which would write down an interrupted act's failure before it
+    is announced. A world that carries on from a saved one (issue #345)
+    keeps its clock, and its deadlines and claims as written; one that
+    starts from its XML starts at 0, where an offer made at 3606 s of a
+    mission could otherwise never lapse (measured, 2026-09-22), nor a job
+    taken then run out. A file with no `simTime` (an older build's) is
+    loaded as it was.
     """
     target = Path(path) if path is not None else self.path
     if target is None or not target.exists():
@@ -893,6 +964,8 @@ class TaskBoard:
     self.producer = dict(doc.get("producer") or {})
     saved_t = doc.get("simTime")
     shift = float(saved_t) if (saved_t is not None and rebase) else None
+    # ...the last change saved still the last, on a clock that carries on
+    self.sim_t = float(saved_t) if (saved_t is not None and not rebase) else 0.0
     self.tasks = {}
     self.interrupted = []
     for spec in doc.get("tasks", ()):
@@ -929,8 +1002,21 @@ class TaskBoard:
         # CLAIM too: its deadline means nothing while it is held, and is the
         # offer's again if it is given back (`release`).
         task = replace(task, deadline=round(max(0.0, task.deadline - shift), 3))
+      if task.state in ("claimed", "active") and task.claimed_t is not None \
+          and saved_t is not None:
+        # ...and a HELD job's claim, which its time counts from (#602): by
+        # the same shift, and below 0 too, held before the save being held
+        # still. ⚠ Never later than the last change saved, its own claim one
+        # of them: left on the old clock by a start-over before #602, t_0004
+        # read as taken 227,000 s ahead of the clock, and could not run out.
+        claimed = min(task.claimed_t, float(saved_t)) - (shift or 0.0)
+        task = replace(task, claimed_t=round(claimed, 3))
       self.tasks[task.id] = task
-    self.seq = max(self.seq, len(self.tasks))
+    # ⚠ Never a number below one the board holds, as the desk's counter
+    # (`tickets.Desk`): the board is ordered by it (#610), and a file with a
+    # stale `seq` would number its next task below them -- the first one
+    # forgotten, its draw never put back -- or hand out a held task's id.
+    self.seq = max([self.seq, len(self.tasks), *(t.number for t in self.tasks.values())])
     return self
 
   def announce_interrupted(self, t: float = 0.0) -> list[Task]:

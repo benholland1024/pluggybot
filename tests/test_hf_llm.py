@@ -190,6 +190,74 @@ def test_a_streamed_answer_its_tokens_ran_out_on_says_so(monkeypatch):
     assert create(fake_fetch([(status, payload)])).stop_reason == stop
 
 
+def test_an_answer_not_streamed_says_who_answered(monkeypatch):
+  """Issue #604: the deployed mind's answers are NOT streamed, and only the
+  streamed path read the router's header, so a quarter of its answers
+  coming back empty could not say who sent them. The header rides the
+  answer either way; an endpoint that names nobody names nobody."""
+  class Answered:
+    status = 200
+
+    def __init__(self, headers):
+      self.headers = headers
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *a):
+      return False
+
+    def read(self):
+      return json.dumps({"choices": [{"message": {"content": '{"action": "idle"}'}}],
+                         "usage": {"prompt_tokens": 9, "completion_tokens": 3}}).encode()
+  for headers, provider in (({"x-inference-provider": "baseten"}, "baseten"), ({}, None)):
+    monkeypatch.setattr(llm.urllib.request, "urlopen",
+                        lambda req, timeout, h=headers: Answered(h))
+    status, payload = llm._default_fetch(llm.ROUTER + "/chat/completions", {"model": "m"},
+                                         {}, 5.0)
+    assert status == 200 and create(fake_fetch([(status, payload)])).provider == provider
+
+
+def cut_payload(text="", finish="length"):
+  """What the router answered the deployed mind a quarter of the time from
+  04:00 UTC on 11-03 (issue #604): its reasoning took the budget, and the
+  answer came back empty, billed in full."""
+  return (200, {"choices": [{"message": {"content": text}, "finish_reason": finish}],
+                "usage": {"prompt_tokens": 14000, "completion_tokens": 8192},
+                "provider": "baseten"})
+
+
+def test_an_answer_its_tokens_ran_out_on_is_a_cutoff_not_garbled():
+  """Issue #604: a quarter of the deployed minds' answers came back EMPTY
+  and read `fallback:garbled` ("decision was not JSON: ''"), while the
+  adapter knew the tokens had run out. A cut-off is a FAILURE of its own,
+  said to the robot as what it was -- both robots believed their JSON was
+  being refused -- and the decision names who answered and what it billed.
+  Shown to fail before the fix: `fallback:garbled`, and no `call`. The
+  robot is told the tokens the provider says it spent, which one capping
+  below the ask makes fewer than the budget (here 8,192 of 16,384)."""
+  boss = Overseer(Menu(zones=("garden",)), client=HFClient(
+    token="hf_test", fetch=fake_fetch([cut_payload()])))
+  d = boss.decide({"decisions": 0})
+  assert d.source == "fallback:cutoff" and d.scripted
+  assert overseer.fallback_class(d.source) == "failure"
+  assert overseer.MAX_TOKENS_AUTONOMOUS != 8192
+  assert ("your answer was cut off: it ran out of its 8,192 tokens "
+          "before it was written") in d.reason
+  call = d.as_dict()["call"]
+  assert (call["provider"], call["tokensIn"], call["tokensOut"], call["cut"]) == (
+    "baseten", 14000, 8192, True)
+  # ...and only a cut-off: an empty answer that says it FINISHED is
+  # garbled, and one that ran out with its JSON whole is an answer
+  answered = json.dumps({"action": "explore", "zone": "garden", "reason": "mapping"})
+  for payload, source, cut in ((cut_payload(finish="stop"), "fallback:garbled", False),
+                               (cut_payload(text=answered), "llm", True)):
+    d = Overseer(Menu(zones=("garden",)), client=HFClient(
+      token="hf_test", fetch=fake_fetch([payload]))).decide({"decisions": 0})
+    assert d.source == source and "cut off" not in d.reason
+    assert d.call["provider"] == "baseten" and d.call["cut"] is cut
+
+
 def test_a_missing_token_fails_at_construction(monkeypatch):
   """The opposite of `anthropic.Anthropic()`, whose late failure is why the
   cool-off exists: with no token there is nothing to back off FROM, so the

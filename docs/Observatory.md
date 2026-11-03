@@ -90,6 +90,231 @@ observatory is NOT a result: it reports into the issue it informs.
 - ⚠ **Not a period to pool across**: the world, the maps, the stations and
   two phrases of the prompt all moved.
 
+### A restart puts each counter prop back on its own job's draw, and the board forgets its oldest job first (#610) — opens when this PR is deployed
+
+**What changed in the world.**
+- **After a restart, each of the counter's props carries the hidden
+  dynamics its newest offer drew**, newest on the board's own count (the
+  id's number). Before, it was the newest by `createdT`, and the four
+  offers made before 11-01's start-over (t_0001 to t_0004) were stamped on
+  the clock before it, ahead of every offer since. So every restart put one
+  of their draws back on its prop over the offer or job standing there.
+  Each old offer was right only while it was itself its prop's job:
+  - the chest got t_0003's from t_0005's offer (t=41,767), and the drawer
+    t_0001's from t_0007's (t=50,647), until each old task was trimmed on
+    11-03 as the board passed its 40 tasks;
+  - the door got t_0004's from its first offer after t_0004 was failed at
+    the 11-03 deploy (t=143,569) until this one. Once t_0004 was trimmed,
+    t_0002's would have followed.
+- **A full board forgets its lowest-numbered closed task first**, where it
+  forgot the one with the earliest `resolvedT`. At this deploy t_0002 is
+  the next forgotten, and t_0004 the one after, unless the old rule has
+  reached it first: it was failed on the new clock (t=143,569). By
+  `resolvedT`, t_0002 (expired at 357,627 on the old clock) would have
+  outlasted every task resolved before the clock passed it, more than
+  204,000 s after 11-03's reading.
+- **The offers a robot is shown are listed oldest first on the same
+  count.** No live effect: the humanoids' offers all fit in the five
+  shown.
+- **An offer made between the world's last save and a crash has its prop
+  set out again** as the world comes back (`set_out_unseen`); the save
+  keeps the board's count to tell (`boardSeq`). Before, the world came back
+  from before the offer set its prop out, and a drawer the last job left
+  out stood out under the standing offer. ⚠ The deploy's own restart
+  carries on from a save written without the count, so it sets nothing out;
+  every save after it keeps the count.
+- **The site lists the board on the same count** (rooftop-media-2026
+  #488): the jobs list and each prop's pile. Before, t_0002 read as
+  the door's most recently finished job.
+- Nothing in the prompt, the schema, the arm, the reward table, the job
+  texts, the body or the house moved. No grader reads the draw: the
+  drawer's and the door's measure the world, and the lid's catch is a
+  secret metric no criterion reads. So every verdict was true of the world
+  as it was, but a job on an old draw ran on that draw's dynamics.
+
+**Why.** #610, read off the live board on 314a5f9 (t=153,197, 40 tasks).
+The 11-03 03:15 UTC backup shows all three props: by `createdT` a restart
+put the chest on t_0003's draw while t_0020 was held there, and the drawer
+on t_0001's (the compiled draw) while t_0016 was. The door was right then
+only because t_0004, its old-clock offer, was the job held on it.
+
+**What the period is for.** #610's live box: after the deploy's restart,
+t_0002 is the first task the board forgets once it is over its 40, and
+t_0004 the second if it is still there, read off `tasks_humanoid.json`. No
+restart puts their draws back on the door, and none can once they are
+gone. ⚠ In the stretches above, an offer or a job on a prop across a
+restart was on the old offer's draw from the restart on: read those jobs
+as jobs on a fixed draw, not "a skill over a kind of drawer".
+
+### The mind's budget is 16,384 tokens and its patience 115 s, and a decision a response came back for says who answered it (#604) — opens when this PR is deployed
+
+**What changed in the mind and on the wire.**
+- **`CALL_TIMEOUT_S` is 115 s** (90 s since #117): the router's gateway
+  answers a non-streamed request silent for 120 s with a 504, and 115 ends
+  a call as our own `timeout` first.
+- **`MAX_TOKENS_AUTONOMOUS` is 16,384** (8,192 since #225), sized so the
+  fastest provider's full think comes back inside the deadline, and the
+  escalation's follows it. The mid-errand interrupt's is 4,096 (1,024 since
+  #116), twice its longest think on a live turn; it says who answered on
+  its INTERRUPT line and in the run's `interrupts`.
+- **An answer its tokens ran out on is `fallback:cutoff`**, a failure,
+  never `garbled`; the robot is told "your answer was cut off: it ran out
+  of its 16,384 tokens before it was written" (the count the provider
+  reports) where it read "decision was not JSON: ''", and a cut-off
+  interrupt says "the answer ran out of its tokens". A cut-off backs no
+  endpoint off, as a garbled answer does not.
+- **The prompt's map rule lists `cutoff`** among the reasons a
+  `decision_failed` rule may name, and `no-client` among the failures
+  where the rule had left it out. The prompt's sha moves. ⚠ A kept
+  `decision_failed (garbled)` rule no longer fires on an empty answer,
+  which is `cutoff` now: neither robot's kept map had one at 03:15 UTC on
+  11-03 (Rowan's `failure` rule takes both).
+- **A decision a response came back for names its call**: a `call` event
+  just before its DECIDE line on the live stream, filed by the site on the
+  decision row (`pw_decisions.provider`, `tokens_in`, `tokens_out`, `cut`,
+  `wall_s`, rooftop-media-2026's migration 0051), and on the console beside
+  the line. A timeout, a map row and a policy fallback name nobody.
+- **A fallback keeps what was recalled, once**: the lines a `recall` looked
+  up wait for the mind's next answer of its own, where any fallback dropped
+  them; a second fallback running drops them. Read it in the `recall` rows:
+  fewer recalls of the same thing twice in a row.
+- Nothing in the arm, the menu, the reward table, the body or the house
+  moved, and the model is the same `zai-org/GLM-5.3-Flash:cheapest`.
+
+**Why.** #604: from 04:00 UTC on 11-03 a quarter of the answers came back
+empty and billed, and on 314a5f9 that afternoon 22 of 159 asked were empty
+and 16 timed out, 16 of the 38 on the turn after a `recall`; that day 146
+calls outlived the 90 s deadline. Measured on the live robots' own turns
+(Overseer.md §6, "The budget"): baseten, which answered 41 of 44
+`:cheapest` calls, thought up to 17k tokens on a turn carrying two recalls
+(3 of 5 past 8,192, 1 past 16,384), and answered once in 94.6 s; novita,
+tied with it at one price, never answered a non-streamed call before the
+router's 504 at 120 s.
+
+**What the period is for.** #604's live box: empty answers back near #225's
+1 in 50. Read the decision rows by `provider`: `fallback:cutoff` should be
+rare, and where it is not, its `tokens_out` is the budget and its provider
+says whose think it was. ⚠ Not this period's fix: the `fallback:timeout`
+rows of a provider that never answers in time, which name nobody (no
+response came back); if they stay near a tenth, the deployment's model id
+(`:cheapest` against one provider) is the lever, and Ben's. Each now holds
+the robot 115 s, not 90. ⚠ `wall_s` is only the calls that came back: read
+it against 115 s beside the timeouts' count, never alone.
+
+### The mouse is seen while the cage is in the head camera's picture, never off the room (#605) — opens when this PR is deployed
+
+**What changed in the world.**
+- **`lab` in the context is the head camera's picture, never the room
+  the robot stands in.** `cageInView` (it was `inRoom`) is true while the
+  cage is in the head camera's picture, framed as a look's 640 x 480: rays
+  from where the camera is, so a wall, a door's jamb, the other robot or
+  the robot's own arm hides it. `mouse` is the mouse's state then, and
+  null otherwise. Before, `inRoom` was the robot's TRUE position against
+  the lab's rectangle (x 22-28, y 0-6), true inside it whichever way the
+  robot faced.
+- So a robot in the lab facing away from the cage sees no mouse now. Nor
+  does one standing within 0.88-1.04 m of the cage's middle, by the side
+  (the head camera is pitched 20 deg down for the walls' tags), so a robot
+  giving company, inside 1.0 m, sees it only from company's edge, and
+  from straight in front not at all. One in the lab's doorway, or in the
+  lobby facing the cage through the door, does.
+- **The prompt's THE LAB rule says so**: "you can see which only while
+  the cage is in your head camera's view: `lab` in your context says
+  whether it is, and `mouse` is what you see then, or null while it is
+  not." The prompt's sha moves.
+- Nothing in the schema, the arm, the reward table, the body, the house
+  or the mouse's state machine moved.
+
+**Why.** #605, read off the live world on 9530f51 on 11-03. Rowan's ticket
+tk_0046 asked for `read("lab.inRoom")` in a procedure, having mapped the
+room's edge by asking: "0.1 m crawl steps, reading the flag at every ask,
+~10 probes. Edge bracketed 22.0-22.6 m" (t=59,019), and twice more since
+(t=98,630). The lab's west wall is at x=22.0, so each bracket was Rowan's
+true position read off the flag, at ten decisions each.
+
+**What the period is for.** Nothing that decides moved, so the reading is
+the robots' own: whether either still brackets anything off `lab`, and
+what it makes of a mouse it mostly cannot see while it is company, read
+in their notes and History. ⚠ Their notes still say what `inRoom` was: a line
+naming it is about the old flag. ⚠ Released with #609's period below (the
+held jobs' time left, also a prompt change), the two open as one break.
+
+### A robot is shown the jobs it holds and the time each has left, and a charge trip runs one out (#602) — opens when this PR is deployed
+
+**What changed in the world.**
+- **Each robot's context lists the jobs it holds** (`heldTasks`), only
+  while it holds one: id, kind, the job's text, where it is, and `leftS`,
+  the seconds left of the time it gives from the claim, never below 0. The
+  CHALLENGES rule says so in one sentence. The prompt's sha moves.
+- **A job held past its minutes is also failed during a charge trip**, at
+  once, where it waited for the loop's next pass. The robot is away from
+  the counter with its hands home, so its prop can be set out safely.
+- Nothing else in the schema, the arm, the reward table, the job texts, the
+  body or the house moved.
+
+**Why.** #602's two, read live on 11-03 after #606's release.
+- Before the robots were shown held jobs, they spent their recalls finding
+  out when they took them ("I'm holding the open_chest job but I don't
+  actually know when I took it", Rowan, 11-03).
+- In #606's first hours, every run-out came within 100 s of its limit but
+  one. Luca went to charge holding t_0024. The charge took 4,447 s (36 % to
+  90 %), and the job, with its drawer, stayed booked 69 minutes past its
+  limit, until the next restart ran it out.
+
+**What the period is for.** Whether the robots stop spending recalls on
+when they took a job, read off their `recall` rows. And no claim outlives
+its limit through a charge, unless a `done` of its waits on the grade (a
+`done` said with or before a `charge` is graded after it, in the
+grader's words): read off `tasks_humanoid.json`'s resolved rows,
+`resolvedT - claimedT` beside each holder's `charge` rows. ⚠ #606's
+period was a few hours long before this one opened: read the two apart.
+
+### A hand job held past its minutes is failed, and a start-over moves a claim with the clock (#602) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A hand job held past its minutes is failed** at its holder's next pass
+  of the day loop, between what it does: at once where it is idle or
+  thinking, and once its procedure ends where one is running, so its prop
+  is never set out under it. It fails through its grade's door: 0 points,
+  a `task_resolved` that says `failed`, the event map's `task_failed`, and
+  its holder's History says "failed the job t_0016 (open_drawer): not
+  graded within the 960 s the job allows -- the drawer was never
+  measured". Its prop is then free for the next offer. Before, a held job
+  ended only on its holder's `done`, which past its minutes could only
+  fail it, and it booked its prop until then. A `done` waiting on the
+  queue is still the grade's.
+- **A true death fails the jobs its robot held**, in that robot's own
+  records ("the robot that took it ran out of lives"), before they are
+  archived: the next robot neither holds them nor hears of them.
+- **The prompt's CHALLENGES rule says so**: a claimed challenge stands
+  "until you say done, or until the time its description gives is up; a
+  failed grade closes it as failed, and so does that time running out".
+  The prompt's sha moves; the job texts do not.
+- **A start-over moves a held claim with the clock**, as it moves an
+  offer's deadline, and a claim is never later than the board's last saved
+  change. t_0004 was taken on 10-31 at t=358,359, on the clock before
+  11-01's start-over, and on 11-03 it read 227,000 s ahead of the clock.
+  Held from the board's last change instead, it is failed as the day
+  begins after the deploy, with t_0016 and t_0020.
+- Nothing in the schema, the arm, the reward table, the body or the house
+  moved.
+
+**Why.** #602, read off the live world on 9530f51 on 11-03: three held jobs
+past their 16 minutes booked all three of the counter's props, and nothing
+was offered from 02:22 UTC. Since the humanoid switch (10-31 17:02 UTC)
+there were 20 offers, 17 claims, 14 failed, 3 lapsed and none passed.
+Rowan held t_0013 for 5.9 h and t_0019 for 3.6 h, each ended by its own
+`done` "past the 960 s the job allows".
+
+**What the period is for.** #602's live box: no job held past its limit,
+and the counter's jobs offered again. Read off `tasks_humanoid.json`'s open
+rows and the `task` rows: no claim outlives its 16 minutes by more than
+what its holder was doing then took, unless a `done` of its waits on the
+grade; and offers resume at the producer's next tick, one a tick (240 s).
+⚠ The deploy's restart fails the three held jobs at once: read the
+period's failures from after them. ⚠ The robots are still not shown a held
+job's time left (#602's option 2).
+
 ### The plug-in placed off each try's own look (#596) — opens when this PR is deployed
 
 **What changed in the world.**

@@ -73,7 +73,7 @@ SEARCH_URL = "https://en.wikipedia.org/w/rest.php/v1/search/page?q={q}&limit=3"
 #: a generic one is throttled or refused.
 USER_AGENT = "PluggyBot/1.0 (https://rooftop-media.org/pluggyworld) python-urllib"
 #: Wall seconds one request may take. Inside the decision's own deadline
-#: (`overseer.CALL_TIMEOUT_S` 90), because the read runs on the decision's
+#: (`overseer.CALL_TIMEOUT_S` 115), because the read runs on the decision's
 #: worker thread after the answer parsed: a slow Wikipedia costs the robot
 #: a longer pause, never the world a freeze.
 TIMEOUT_S = 10.0

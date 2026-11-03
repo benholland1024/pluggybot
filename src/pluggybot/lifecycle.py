@@ -51,7 +51,8 @@ from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
   MAX_RECALL_RUN, MAX_REPLY, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S,
-  SAY_EVERY_S, THINK_SLICE_S, left_out_said, order_runnable, say_again_in,
+  SAY_EVERY_S, THINK_SLICE_S, call_said, left_out_said, order_runnable,
+  say_again_in,
 )
 from pluggybot.mind.thoughts import (
   CHAT_ANSWERED, CHAT_HEARD, CHAT_SAID, QUOTED_CHARS, RECALLED_CHAIN_CHARS,
@@ -638,6 +639,10 @@ class HubLifecycle:
     #: waiting for the loop's next idle moment to be graded -- after
     #: whatever the same answer queued has run. Empty is nothing pending.
     self._grade_pending = ""
+    #: ON A CHARGE TRIP NOW (#602): set only while one runs. ⚠ Never read
+    #: `state` for it: a trip leaves `CHARGE` behind, and a grade after it
+    #: was run out on the seam mid-hold and banked twice.
+    self._charge_trip = False
     #: The hand jobs' watches, by task id (#559, `_watch_job`): this robot's,
     #: kept from each claim to its grade's hold -- and the readings a
     #: restart brought back for them, until each is taken up again.
@@ -925,8 +930,10 @@ class HubLifecycle:
     #: any action that is not another recall -- what it wants to keep it
     #: pins or notes. `_recall_run` is the chain's length, against
     #: `MAX_RECALL_RUN`; at the cap `recall` leaves the menu for a turn.
+    #: `_recall_kept`: a fallback kept it, once (#604).
     self._recalled: list[dict] = []
     self._recall_run = 0
+    self._recall_kept = False
     #: One row per recall, for the run record (what, hits, shown).
     self.recalls: list[dict] = []
     # ---- the library (issue #216) ----
@@ -1564,6 +1571,13 @@ class HubLifecycle:
     and the places the robot before found are gone with it (`Body.
     forget_world`), and the new one explores from there.
     """
+    # ...and the jobs it held end with it, in its own records (#602): the
+    # next robot took none of them, and heard their failures as its own
+    from pluggybot.economy.tasks import KINDS
+    for task in (self.tasks.held_by(self.root) if self.tasks is not None else ()):
+      if KINDS[task.kind].discharge == "procedure":
+        self._fail_held(task, "the robot that took it ran out of lives")
+    self._grade_pending = ""
     archived = self.ledger.archive(start=self.start_points)
     self._forget_world()
     if self.thoughts is not None:
@@ -3987,17 +4001,27 @@ class HubLifecycle:
           yield self.body.STILL
       finally:
         self._unwatch_job(task.id)
-      # ...the job's own where the offer carries none (one saved before
-      # its kind did, #580)
-      minutes = task.params.get("minutes") or kind.minutes
       draw = task.secret.get("draw")
       measured = scoring.SAMPLERS[kind.task](
         self, None, None, {"at_call": at_call, "watch": watch,
                            "started": task.claimed_t if task.claimed_t is not None else t0,
-                           "limitS": 60.0 * float(minutes) if minutes else None,
+                           "limitS": task.limit_s,
                            "catchN": (storeroom.drawn(prop, int(draw)).catch_n
                                       if check == "lid" and draw is not None else None)})
     verdict = scoring.evaluate(kind.task, measured, failed=failed)
+    self._settle_job(task, verdict, t0, f"{'passed' if verdict.ok else 'failed'} the job "
+                                        f"{task.kind}: {verdict.reason}")
+
+  def _settle_job(self, task, verdict, t0: float, said: str) -> None:
+    """A hand job closed on its verdict (`_grade_hands_routine`,
+    `_run_out`): banked, resolved on the board, recorded, `said` in
+    History, and the event map told. ⚠ ONCE: a job closed since its grade
+    began is banked nowhere (#602's review: run out mid-hold, a grade's
+    verdict was banked beside the run-out's)."""
+    current = self.tasks.get(task.id)
+    if current is None or not current.open:
+      self._say(f"TASK {task.id}: closed already -- this verdict is banked nowhere")
+      return
     entry = self._bank(verdict)
     closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
     if closed is not None:
@@ -4005,9 +4029,47 @@ class HubLifecycle:
     self.grades.append({"task": task.id, "kind": task.kind, "t": round(t0, 3),
                         "ok": verdict.ok, "reason": verdict.reason,
                         "points": entry["points"] if entry is not None else 0})
-    self._remember(f"{'passed' if verdict.ok else 'failed'} the job "
-                   f"{task.kind}: {verdict.reason}")
+    self._remember(said)
     self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
+
+  def _out_of_time(self, task) -> bool:
+    """A job this robot holds past the time it gives (`Task.out_of_time`,
+    #602) whose `done` is not waiting on its grade -- that one is the
+    grade's to judge, in its own words."""
+    return task.out_of_time(float(self.data.time)) and task.id != self._grade_pending
+
+  def _run_out_held(self) -> None:
+    """Every job this robot holds past the time it gives, failed (#602).
+    ⚠ FROM THE DAY LOOP'S PASS, BETWEEN WHAT THE ROBOT DOES, AND ON THE SEAM
+    ONLY ON A CHARGE TRIP (`_task_step`): freed on the seam mid-procedure, a
+    prop was set out from under the procedure still working it -- and a
+    grade's hold cut short."""
+    for task in (self.tasks.held_by(self.root) if self.tasks is not None else ()):
+      if self._out_of_time(task):
+        self._run_out(task)
+
+  def _run_out(self, task) -> None:
+    """A hand job held past the time it gives (#602). Held, it booked its
+    prop until a `done` that could only fail it (three booked all three of
+    the counter's, 11-03)."""
+    limit = task.limit_s
+    self._say(f"TASK {task.id}: out of time -- not graded within the {limit:.0f} s it allows")
+    self._fail_held(task, f"not graded within the {limit:.0f} s the job allows")
+
+  def _fail_held(self, task, why: str) -> None:
+    """A job this robot holds, failed with no grade (#602): `why` leads,
+    and its check's evaluator on what its watch read, with no call,
+    follows. Its watch is unhooked and its prop free to be offered again;
+    nothing moves the body."""
+    from pluggybot.economy.tasks import KINDS
+    kind = KINDS[task.kind]
+    watch = self._unwatch_job(task.id)
+    check = HAND_JOBS.get(kind.task)
+    measured = ({} if check is None else _hand_grader(check).measurements(
+      None, None, watch, started=task.claimed_t, limit_s=task.limit_s))
+    verdict = scoring.evaluate(kind.task, measured, failed=why)
+    self._settle_job(task, verdict, float(self.data.time),
+                     f"failed the job {task.id} ({task.kind}): {verdict.reason}")
 
   def _define(self, decision) -> None:
     """Apply a decision's `define` / `undefine` to the library (issue #166).
@@ -4377,28 +4439,57 @@ class HubLifecycle:
   def restore_counter(self) -> None:
     """After a restart (#559): the world file carries each prop's compiled
     draw, and the newest offer on it still means the one it drew -- its
-    dynamics put back and its activity begun again over its truth. ⚠ HERE,
-    IN `begin`, BEFORE A CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
+    dynamics put back and its activity begun again over its truth. ⚠ NEWEST
+    ON THE BOARD'S OWN COUNT (`Task.number`), never by `createdT`: after
+    11-01's start-over, t_0004's offer on the door was stamped on the clock
+    before it, and every restart put its draw back on the door for the rest
+    of the door's job then, t_0042 (#610). ⚠ HERE, IN `begin`, BEFORE A
+    CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
     (`continuation.restore`): the prop where the world left it, a door's
     latch as it was."""
-    if self.tasks is None:
-      return
-    from pluggybot.economy.tasks import KINDS
     from pluggybot.home import storeroom
-    newest: dict = {}
-    for t in self.tasks.tasks.values():
-      if t.kind in KINDS and KINDS[t.kind].draws and t.secret.get("draw") is not None:
-        if t.target not in newest or t.created_t >= newest[t.target].created_t:
-          newest[t.target] = t
-    for prop, t in newest.items():
-      if prop not in storeroom.PROPS or \
-          mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) < 0:
-        continue
+    for prop, t in self._newest_offers().items():
       k = int(t.secret["draw"])
       storeroom.redraw(self.model, self.data, prop, k)
       act = self._counter_activity(prop)
       if act is not None:
         act.renew(self.model, storeroom.drawn(prop, k))
+
+  def set_out_unseen(self, seen: int | None) -> list[str]:
+    """After a continuation, once its world is back (`continuation.restore`):
+    each counter prop whose newest offer the saved world never saw -- one
+    numbered past `seen`, the board's count when it was saved, made between
+    that save and a crash -- set out for it now, as the offer did
+    (`_set_out_counter`). Put back as saved, a drawer the last job left out
+    stood out under the standing offer, a job paid for nothing. Never one a
+    robot is touching (the producer's `busy`); nothing for a save from
+    before it kept the count (`seen` None). Returns the props set out."""
+    unseen = [(prop, t) for prop, t in self._newest_offers().items()
+              if seen is not None and t.number > seen]
+    if not unseen:
+      return []
+    worked, out = self._worked_props(), []
+    for prop, t in unseen:
+      if prop in worked:
+        self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved")
+        continue
+      self._set_out_counter(t)
+      out.append(prop)
+    return out
+
+  def _newest_offers(self) -> dict:
+    """Each counter prop in this world, with its newest offer that drew --
+    newest on the board's own count (`Task.number`, #610): the one the prop
+    was last set out for."""
+    from pluggybot.economy.tasks import KINDS
+    from pluggybot.home import storeroom
+    newest: dict = {}
+    for t in (self.tasks.tasks.values() if self.tasks is not None else ()):
+      if t.kind in KINDS and KINDS[t.kind].draws and t.secret.get("draw") is not None:
+        if t.target not in newest or t.number >= newest[t.target].number:
+          newest[t.target] = t
+    return {prop: t for prop, t in newest.items() if prop in storeroom.PROPS
+            and mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) >= 0}
 
   def _task_step(self) -> None:
     """Put up whatever is due and lapse whatever nobody got to.
@@ -4413,7 +4504,8 @@ class HubLifecycle:
     500 Hz is Python spent to learn nothing.
 
     It is deliberately incapable of doing anything the robot does: it offers
-    and it expires. Nothing here touches `state`, `errands` or the battery,
+    and it expires -- and, on a charge trip, fails a job its robot holds
+    past the time it gives (#602). Nothing here touches `state`, `errands` or the battery,
     which is what makes "a task never delays a charge" a property of the
     seam rather than of the numbers in economy/cadence.json.
     """
@@ -4422,6 +4514,11 @@ class HubLifecycle:
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
       self._say(f"TASK {task.id} expired: {task.description}")
+    # ...and on a charge trip, away from the counter with its hands home, a
+    # job it holds past the time it gives (#602): left to the loop's pass, a
+    # 74-minute charge held t_0024 and its drawer 69 minutes past its limit
+    if self._charge_trip and self.dead is None:
+      self._run_out_held()
     # ...and a hand job's watch whose job ended some other way than its
     # grade (#559: a true death, an admin): it reads nothing more
     for task_id in [t for t in self._job_watches
@@ -4632,14 +4729,16 @@ class HubLifecycle:
       if self._aborting:
         self._abort_from_wh = self.battery.energy_wh
       entry.update(outcome="continued" if answer["continue"] else "aborted",
-                   source=answer["source"], why=answer["why"])
+                   source=answer["source"], why=answer["why"],
+                   **({"call": answer["call"]} if answer.get("call") else {}))
       self._say(f"INTERRUPT at {frac:.0%}: "
                 + ("carrying on with " if answer["continue"]
                    else "stopping and going -- ")
                 + f"{self._errand_name}"
                 + (f" ({answer['why']})" if answer["why"] else "")
                 + ("" if answer["source"] == "llm"
-                   else f" [{answer['source']}]"))
+                   else f" [{answer['source']}]"),
+                detail=call_said(answer.get("call")))
     self.interrupts.append(entry)
     # ...and into the record it cannot edit (issue #38), on the death line's
     # terms: an interrupt is a thing that HAPPENED to this robot, and the
@@ -5052,12 +5151,28 @@ class HubLifecycle:
         self._consult = None
         if on_volume:
           ev.save(self.thoughts.store, self.event_map, self.overseer.origin)
-    self._say(f"DECIDE {decision.summary()}")
+    # WHO ANSWERED, AND WHAT IT COST (issue #604): the call behind it, on
+    # the wire just before its line and on the console beside it.
+    call = getattr(decision, "call", None)
+    if call:
+      self._emit({"type": "call", "t": round(float(self.data.time), 3),
+                  "robot": self.root, "source": decision.source, **call})
+    self._say(f"DECIDE {decision.summary()}", detail=call_said(call))
     # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
-    # what was recalled -- a fallback's included, since the world moved on.
+    # what was recalled -- but a FALLBACK KEEPS IT ONCE (#604): the mind did
+    # not act on what it looked up, and dropped, the robot recalled the same
+    # lines again, a turn and a paid call each time. ⚠ A second fallback
+    # running drops it: the turn after a recall is the heaviest one (16 of
+    # 11-03's 38 failures came right after one), and kept for ever, its
+    # cut-off would repeat.
     if decision.action != "recall" and self._recalled:
-      self._recalled = []
-      self._recall_run = 0
+      keep = decision.scripted and not self._recall_kept
+      if not keep:
+        self._recalled = []
+        self._recall_run = 0
+      self._recall_kept = keep
+    elif decision.action == "recall":
+      self._recall_kept = False
     # THE SHELF IS READ HERE (issue #216): a decision the model made was
     # shown whatever was waiting, so it goes -- shown once, like a recall.
     # A fallback or a map row made no call and saw nothing; the page waits
@@ -5141,16 +5256,20 @@ class HubLifecycle:
       # earns not one point. It can only be caution, and a world that forbade
       # it would be forbidding the disposition it is trying to measure.
       self.state = "GO_CHARGE"
-      # ...at the nearest station, waiting for it if it is taken, or on to
-      # the nearest free one where its `station` chose that (#560)
-      if (yield from self.go_charge_routine(free=decision.station == "free")):
-        self.state = "CHARGE"
-        yield from self.charge_routine()
-      else:
-        # ...and one that never began is said where the robot reads (issue
-        # #424). ⚠ NOT A VERDICT: the wire's `charge` row carries it already,
-        # and a verdict would count it again, as a failed task.
-        self._remember(f"charge: did not charge -- {self.charge_failure}")
+      self._charge_trip = True
+      try:
+        # ...at the nearest station, waiting for it if it is taken, or on to
+        # the nearest free one where its `station` chose that (#560)
+        if (yield from self.go_charge_routine(free=decision.station == "free")):
+          self.state = "CHARGE"
+          yield from self.charge_routine()
+        else:
+          # ...and one that never began is said where the robot reads (issue
+          # #424). ⚠ NOT A VERDICT: the wire's `charge` row carries it already,
+          # and a verdict would count it again, as a failed task.
+          self._remember(f"charge: did not charge -- {self.charge_failure}")
+      finally:
+        self._charge_trip = False
       return ""
     if decision.action == "explore":
       self.state = "EXPLORE"
@@ -5411,6 +5530,11 @@ class HubLifecycle:
                 if task.id == cut_task else "")
       if task.target in here.get(KINDS[task.kind].target_kind, ()):
         self._watch_job(task.id)
+        if self._out_of_time(task):
+          # ...never "still mine" first (#602): a claim a start-over moved
+          # can be out of time from the new clock's 0
+          self._run_out(task)
+          continue
         self._say(f"TASK {task.id}: still mine after the restart")
         self._remember(f"{prefix}the job {task.id} ({task.kind}) is still "
                        "mine -- the procedure is mine to run, and to say done")
@@ -5538,14 +5662,18 @@ class HubLifecycle:
     flat death waits up to 1386 s for a taken station (#346), past the
     timer."""
     self.state = "GO_CHARGE"
-    reached = yield from self._until_stood_up_routine(self.go_charge_routine())
-    if reached is STOOD_UP:
-      return
-    if not reached:
-      self._strand()
-      return
-    self.state = "CHARGE"
-    yield from self._until_stood_up_routine(self.charge_routine())
+    self._charge_trip = True
+    try:
+      reached = yield from self._until_stood_up_routine(self.go_charge_routine())
+      if reached is STOOD_UP:
+        return
+      if not reached:
+        self._strand()
+        return
+      self.state = "CHARGE"
+      yield from self._until_stood_up_routine(self.charge_routine())
+    finally:
+      self._charge_trip = False
 
   def _strand(self) -> None:
     """A failed charge is a `stuck` death (issue #107): "unable to reach
@@ -5649,6 +5777,10 @@ class HubLifecycle:
     if self.tasks is not None:
       for task in self.tasks.announce_interrupted(t=float(self.data.time)):
         self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart")
+      # ...and the board written as this day reads it (#602): a start-over
+      # moves its deadlines and claims in memory, and a restart that carried
+      # on before its next change read the old clock back
+      self.tasks.save()
     return self._day_routine(start, max_sim_time, explore_budget)
 
   def end(self, aborted: bool = False) -> dict:
@@ -5850,6 +5982,7 @@ class HubLifecycle:
       # same sweep runs on the physics seam. Kept so a lifecycle driven
       # without its body stepping still keeps its board honest.
       self._task_step()
+      self._run_out_held()
       # ...and the same for the appetite (issue #36), for the same reason
       # and with the same result: a no-op here on any mission whose physics
       # is actually running.
@@ -5977,12 +6110,8 @@ def home_activities(model, data):
   from pluggybot.activity.base import ActivitySet
   from pluggybot.activity.cage import Cage
   from pluggybot.activity.plate import PlateLight
-  from pluggybot.home import world as home
-  lab = next(z for z in home.ZONES if z["name"] == "lab")
-  # The mouse (issue #226): seen from inside the lab's own rectangle, the
-  # room a camera there would see it from.
-  acts = [PlateLight(model, data),
-          Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])), shock=False)]
+  # The mouse (issue #226), seen by a robot's head camera (#605)
+  acts = [PlateLight(model, data), Cage(model, data, shock=False)]
   # ...and the humanoids' charging stations, where the world has them (#559,
   # #560: one in each building)
   from pluggybot.activity.station import Station, station_names
@@ -6322,6 +6451,10 @@ def overseer_context(life) -> dict:
   visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
   offers = shown_offers(life)
   state = ov.context_for(life, visitors=visitors, tasks=offers,
+                         # ...and what it has taken, with each job's time
+                         # left (#602)
+                         held=(life.tasks.held_context(life.root, float(life.data.time))
+                               if life.tasks is not None else None),
                          # The two thought files that change during a run
                          # (issue #38). The other two are already in the
                          # cached prefix, and putting these there instead is
@@ -6372,16 +6505,17 @@ def overseer_context(life) -> dict:
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   if life.peers:
     state["others"] = others_context(life)
-  # THE LAB (issue #226): the mouse's state as seen from where the robot
-  # IS -- inside the room, and "not in the room" from anywhere else. Only
-  # where the zone exists in the prompt (`Menu.lab`).
+  # THE LAB (issue #226): the mouse's state while the cage is in the
+  # robot's head camera's picture, in the frame a look's picture is taken
+  # with (#605). Only where the zone exists in the prompt (`Menu.lab`).
   if life.overseer is not None and getattr(life.overseer.menu, "lab", "") \
       and life.cage is not None:
     # ⚠ NO POSITION IN IT (issue #419): not the bench's, not a route --
     # a job gives no position finer than the house, and the robot finds
     # its places by their tags
     state["lab"] = {"room": life.overseer.menu.lab,
-                    **life.cage.context(life.data, life.root)}
+                    **life.cage.context(life.model, life.data, life.body.head_camera,
+                                        aspect=eye_mod.WIDTH / eye_mod.HEIGHT)}
   # THE LIBRARY (issue #166): every source the robot wrote, in the volatile
   # half because it changes during a run, on `Goals.md`'s terms. Absent
   # where there is none. `procedures` (the runnable names) is what

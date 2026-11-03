@@ -475,13 +475,19 @@ def first_solve(rows: Iterable[Row],
   unit: per challenge kind, attempts by fate and the attempt index of the
   first `done` (None if never); tools and procedures as counts by outcome,
   which are the observatory's own words and are not summed.
+
+  ⚠ ATTEMPTS IN THE BOARD'S ORDER, its count (the row's task `id`, #610),
+  sim time only within one task: a start-over sets the clock back inside
+  one build, and by `simTime` the jobs from before it read as the newest.
   """
+  from pluggybot.economy.tasks import task_number   # evaluation reads economy, never the reverse
   if challenge_kinds is None:
     challenge_kinds = challenge_kinds_today()
   tasks = [r for r in _kind(rows, "task") if r.data.get("kind") in challenge_kinds]
   out: dict = {"challenges": {}, "tools": None, "procedures": None}
   for kind in challenge_kinds:
-    mine = sorted((r for r in tasks if r.data.get("kind") == kind), key=lambda r: r.t)
+    mine = sorted((r for r in tasks if r.data.get("kind") == kind),
+                  key=lambda r: (task_number(r.data.get("id")), r.t))
     fates = Counter(r.subject for r in mine)
     attempts = [r for r in mine if r.subject in ("done", "failed")]
     first = next((i + 1 for i, r in enumerate(attempts) if r.subject == "done"), None)
