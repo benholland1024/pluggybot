@@ -1606,8 +1606,9 @@ save a filmstrip PNG named after the script.
   `lab.cageInView`, `lab.mouse` null otherwise), ⚠ NEVER OFF THE ROOM IT
   STANDS IN: a room's edge is a line in the world, and Rowan bracketed the
   lab's by asking, its true position. ⚠ ONE `mj_ray` A RAY, NEVER
-  `mj_multiRay` (MuJoCo 3.10 culls a body whose inertial frame is turned
-  by a misplaced sphere: rays at the cage's far walls passed through them).
+  `mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere misplaced
+  where the body's inertial frame is turned, as the cage's is, and rays at
+  its far walls passed through them.
   ⚠ A lab SHOWN (`world_config`'s `lab_shown`,
   `Menu.lab`; Ben, 2026-10-31, until a job of theirs uses the plates) has
   the `lab` block and `LAB_SHOWN` (`lab_shown_rule`), and no act and no

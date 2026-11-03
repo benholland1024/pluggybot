@@ -399,9 +399,11 @@ the cage's skin (`sight_points`) see it where one meets it before anything
 else, so a wall, a jamb, the other robot or its own arm hides it. They
 agree with a segmentation render of that picture at all 2,166 poses #605's
 review compared, standing and bowed (`test_mouse.py` pins 12). The site's
-own look differs only at the margins: it hides the looker's body
-(`EyeDriver.vue`) and draws the other robot a little larger than its
-geoms. ⚠ NEVER THE ROOM THE ROBOT STANDS IN: a room's edge is a line in
+own look hides the looker's body (`EyeDriver.vue`), none of which is in
+the frame standing (0 of 4,800 rays at three places), and draws the other
+robot a little larger than its geoms: it differs only where an arm is
+raised into the picture or at the other robot's edge. ⚠ NEVER THE ROOM THE
+ROBOT STANDS IN: a room's edge is a line in
 the world, and Rowan bracketed the lab's (22.0-22.6 m) by asking — its
 true position, read off the flag. ⚠ ONE `mj_ray` A RAY, NEVER
 `mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere off its centre
@@ -411,10 +413,11 @@ pitched 20° down for the walls' tags: standing and facing the cage, it
 loses it within 0.88-1.04 m of its middle by the side (1.04 straight in
 front, 0.94 from either end, 0.88 on the diagonals), so a robot giving
 company (`COMPANY_M`, 1.0 m) sees the mouse only from its edge, and from
-straight in front not at all. A bow, the camera turned down, sees it
-nearer, and the depth camera's colour imager, 40° down, would, and is not
-counted. The mouse is a mocap body, moved between five pre-allocated
-poses — `MocapToggle`'s first live consumer.
+straight in front not at all. A bow turns the camera down and sees it
+nearer (15° is enough at 0.7 m); the depth camera's colour imager, 40°
+down, would see it too, and is not counted. The mouse is a mocap body,
+moved between five pre-allocated poses — `MocapToggle`'s first live
+consumer.
 
 **The humanoids are SHOWN the lab and act in nothing there** (#559's stage
 4; Ben, 2026-10-31; `lab_shown` in the world's config, `Menu.lab`). No job

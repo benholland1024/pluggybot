@@ -251,7 +251,7 @@ def test_a_robot_beside_the_cage_is_company_and_one_on_a_plate_is_not(home_model
   assert cage.flags["company"] is False
 
 
-def _seen(cage, model, data, camera=HEAD_CAMERA):
+def _shown(cage, model, data, camera=HEAD_CAMERA):
   return cage.context(model, data, camera, aspect=FRAME)
 
 
@@ -277,17 +277,17 @@ def test_the_mouse_is_seen_by_the_head_camera_never_off_the_room(home_model):
   a body with no camera sees nothing."""
   cage, data = _cage(home_model)
   _place(home_model, data, 25.0, 2.0, yaw=-math.pi / 2)
-  assert _seen(cage, home_model, data) == {"cageInView": False, "mouse": None}
+  assert _shown(cage, home_model, data) == {"cageInView": False, "mouse": None}
   door = (21.9, 3.0)
   assert door[0] < home.LAB_X[0] and home.DOOR_LAB_Y[0] < door[1] < home.DOOR_LAB_Y[1]
   _place(home_model, data, *door, yaw=_toward_the_cage(cage, *door))
-  assert _seen(cage, home_model, data) == {"cageInView": True, "mouse": "resting"}
+  assert _shown(cage, home_model, data) == {"cageInView": True, "mouse": "resting"}
   _place(home_model, data, 25.0, 2.0)                       # the lab's spawn, facing it
-  assert _seen(cage, home_model, data)["cageInView"] is True
+  assert _shown(cage, home_model, data)["cageInView"] is True
   lobby = (20.5, 3.0)
   _place(home_model, data, *lobby, yaw=_toward_the_cage(cage, *lobby))
   assert _framed(home_model, data, (*cage.cage_xy, 0.15)), "premise: in the picture's frame"
-  assert _seen(cage, home_model, data) == {"cageInView": False, "mouse": None}
+  assert _shown(cage, home_model, data) == {"cageInView": False, "mouse": None}
   _place(home_model, data, *door, yaw=_toward_the_cage(cage, *door))
   assert cage.context(home_model, data, None, aspect=FRAME) == {"cageInView": False,
                                                                 "mouse": None}
@@ -328,7 +328,7 @@ def test_the_cage_is_in_view_where_a_segmentation_render_of_the_picture_holds_it
       held = bool((np.isin(seg[..., 0], list(cage._seen_geoms))
                    & (seg[..., 1] == mujoco.mjtObj.mjOBJ_GEOM)).any())
       assert held is shown, ("premise", x, y, yaw)
-      assert _seen(cage, home_model, data)["cageInView"] is held, (x, y, yaw)
+      assert _shown(cage, home_model, data)["cageInView"] is held, (x, y, yaw)
   finally:
     renderer.close()
 

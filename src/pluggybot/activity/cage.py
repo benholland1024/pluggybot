@@ -309,7 +309,8 @@ CARE_ACTS = ("feed", "toy", "company")
 #: Where a camera's rays are aimed at the cage (`sight_points`): its walls'
 #: outer faces, ends and tops `SIGHT_INSET_M` inside them, `SIGHT_ALONG`
 #: points along the south and north walls and the west and east, at
-#: `SIGHT_Z`; and the tray's middle at mid-thickness. Each lies inside the
+#: `SIGHT_Z`; and a 3 x 3 lattice over the tray's middle at mid-thickness,
+#: for a picture looking down into it. Each lies inside the
 #: cage, so a ray toward one meets it first or meets what hides it. On its
 #: skin because a picture's edge cuts the cage there: 5 cm in, views holding
 #: up to 4,700 px of it went unseen. MEASURED against a segmentation render
@@ -548,8 +549,8 @@ class Cage(Activity):
     while it is, else None. Never the room the robot stands in: a room's
     edge is a line in the world, and a robot crossing it read its true
     position off the flag (#605)."""
-    seen = self.seen(model, data, camera, aspect)
-    return {"cageInView": seen, "mouse": self.state if seen else None}
+    in_view = self.seen(model, data, camera, aspect)
+    return {"cageInView": in_view, "mouse": self.state if in_view else None}
 
   def measurements(self) -> dict:
     """The reading a sampler takes before and after an errand."""
