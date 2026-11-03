@@ -219,13 +219,14 @@ from pluggybot.mind.look import LOOK_S, MAX_LOOK_RUN  # noqa: E402, F401
 #: spends the budget it needed to close the object.
 #: ⚠ A REASONING MODEL SPENDS IT ON ITS REASONING FIRST, and what it cannot
 #: finish is an empty answer, billed in full: `fallback:cutoff` (#604).
-#: 16,384 SINCE #604, measured on the live robots' own turns: one carrying
+#: 12,288 SINCE #604, measured on the live robots' own turns: one carrying
 #: two recalled blocks thought 3.1k-17.0k tokens on baseten, 3 of 5 past
-#: 8,192 (the pick's 8,192, #225) and 1 of 5 past 16,384, the longest
-#: answered in 88.7 s -- about all the fastest provider writes inside
-#: `CALL_TIMEOUT_S`, so a bigger budget needs a bigger deadline (Overseer.md
-#: §6). A ceiling, not a spend: an answer of 800 tokens pays for 800.
-MAX_TOKENS_AUTONOMOUS = 16384
+#: the pick's 8,192 (#225) and 1 of 5 past 12,288. ⚠ SIZED TO THE DEADLINE:
+#: the fastest provider writes a long answer at 176-191 tokens a second, so
+#: 12,288 comes back in ~75 s, a cut-off metered and said; at 16,384 (~95 s)
+#: a think that ran out would be a timeout past `CALL_TIMEOUT_S`, unmetered
+#: and counted toward the cooloff (Overseer.md §6). A ceiling, not a spend.
+MAX_TOKENS_AUTONOMOUS = 12288
 #: ...and the mid-errand interrupt's (issue #116): one boolean and a
 #: sentence, after the same reasoning. At 1,024, 4 of 8 asked on a live
 #: robot's turn ran out of it (#604), and a failed interrupt stops the errand.
@@ -4281,7 +4282,9 @@ class Overseer:
     return answer
 
   def _interrupt_fallback(self, why: str) -> dict:
-    return {"continue": False, "why": "nobody answered -- stopping and going",
+    said = ("the answer ran out of its tokens" if why == "cutoff"
+            else "nobody answered")
+    return {"continue": False, "why": f"{said} -- stopping and going",
             "source": f"fallback:{why}"}
 
   def _call_interrupt(self, state: dict, errand: str, why: str) -> None:
@@ -4697,8 +4700,9 @@ class Overseer:
       elif slot["error"] == "cutoff":
         # ...and a cut-off is said as what it was (issue #604): read as
         # "decision was not JSON: ''", both robots believed their JSON was
-        # being refused.
-        slot["cut"] = self.max_tokens
+        # being refused. The tokens the provider says it spent, which a
+        # provider capping lower than the ask makes fewer than the budget.
+        slot["cut"] = (call or {}).get("tokensOut") or self.max_tokens
     # ⚠ PUBLISHING AND RELEASING ARE ONE CRITICAL SECTION. `result()` returns
     # the moment `_slot` is set, so anything done between setting it and
     # clearing `_in_flight` is a window in which the caller has its answer and

@@ -1139,17 +1139,20 @@ save a filmstrip PNG named after the script.
   `response_format`; refused once → prose, and `constrained` goes False and
   SAYS so); no bare `{"type": "object"}` in the schema; every request carries
   `llm.USER_AGENT`. ⚠ A reasoning model needs its budget
-  (`MAX_TOKENS_AUTONOMOUS` 16,384 since #604, the interrupt's `MAX_TOKENS`
+  (`MAX_TOKENS_AUTONOMOUS` 12,288 since #604, the interrupt's `MAX_TOKENS`
   and the escalation's with it; an answer its tokens ran out on is
   `fallback:cutoff`, billed): on the live robots' own turns a turn after
-  two recalls thought up to 17k tokens, and 16,384 is about what the
-  fastest provider writes inside `CALL_TIMEOUT_S` (Overseer.md §6, "The
-  budget"). ⚠ `:cheapest` ties three providers at one price and they think
-  differently: measured, baseten long and fast, deepinfra briefly, novita
-  long and too slow for any non-streamed call (the router's 504 at 120 s).
-  Every decision row says who answered (`Decision.call`, the `call` event,
-  `pw_decisions.provider`). Money has THREE states: "no API cost",
-  "unknown" (`priced: false`), a number.
+  two recalls thought up to 17k tokens. ⚠ THE BUDGET IS SIZED TO
+  `CALL_TIMEOUT_S`: the fastest provider writes 12,288 in ~75 s, so a think
+  that runs out is a cut-off metered and said; at 16,384 (~95 s) it would
+  be a timeout, unmetered and counted toward the cooloff (Overseer.md §6,
+  "The budget"). ⚠ `:cheapest` ties three providers at one price and they
+  think differently: measured, baseten long and fast, deepinfra briefly,
+  novita long and too slow for any non-streamed call (the router's 504 at
+  120 s). A decision a response came back for says who answered
+  (`Decision.call`, the `call` event, `pw_decisions.provider`); a timeout
+  names nobody. Money has THREE states: "no API cost", "unknown"
+  (`priced: false`), a number.
 - **What an errand costs** (`economy/energy.py` + `energy.json`,
   `$PLUGGY_ENERGY`; Overseer.md §5).
   `needs_charge` is checked BETWEEN errands, so every errand is priced

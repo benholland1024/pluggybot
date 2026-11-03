@@ -253,6 +253,7 @@ def test_a_cut_off_answer_is_no_dead_endpoint_and_stops_an_errand(menu):
     time.sleep(0.005)
   answer = boss.interrupt_result()
   assert answer["source"] == "fallback:cutoff" and answer["continue"] is False
+  assert answer["why"].startswith("the answer ran out of its tokens")
   assert client.calls[-1]["max_tokens"] == ov.MAX_TOKENS_AUTONOMOUS
 
 

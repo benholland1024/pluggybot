@@ -626,7 +626,8 @@ are different animals.
   tokens, never a model that lost the grammar.
 - **Latency** is `scripts/overseer_probe.py`'s, and the probe under-measures a
   mission (§3's measured results): choose a deadline from it, confirm it in
-  flight — on the live day, the decision rows' `wall_s`.
+  flight — on the live day, the decision rows' `wall_s`, which only the
+  calls that came back have: read it beside the `fallback:timeout` count.
 - **Escalations** — a decision whose `source` is `llm:<model>` is one the
   expensive mind answered (Overseer.md §8). ⚠ **Absent, not zero**, where no
   escalation model is configured: the field was not in the model's grammar,

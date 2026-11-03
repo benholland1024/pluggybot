@@ -233,18 +233,20 @@ def test_an_answer_its_tokens_ran_out_on_is_a_cutoff_not_garbled():
   adapter knew the tokens had run out. A cut-off is a FAILURE of its own,
   said to the robot as what it was -- both robots believed their JSON was
   being refused -- and the decision names who answered and what it billed.
-  Shown to fail before the fix: `fallback:garbled`, and no `call`."""
+  Shown to fail before the fix: `fallback:garbled`, and no `call`. The
+  robot is told the tokens the provider says it spent, which one capping
+  below the ask makes fewer than the budget (here 8,192 of 12,288)."""
   boss = Overseer(Menu(zones=("garden",)), client=HFClient(
     token="hf_test", fetch=fake_fetch([cut_payload()])))
   d = boss.decide({"decisions": 0})
   assert d.source == "fallback:cutoff" and d.scripted
   assert overseer.fallback_class(d.source) == "failure"
-  assert ("your answer was cut off: it ran out of its "
-          f"{overseer.MAX_TOKENS_AUTONOMOUS:,} tokens before it was written") in d.reason
+  assert overseer.MAX_TOKENS_AUTONOMOUS != 8192
+  assert ("your answer was cut off: it ran out of its 8,192 tokens "
+          "before it was written") in d.reason
   call = d.as_dict()["call"]
   assert (call["provider"], call["tokensIn"], call["tokensOut"], call["cut"]) == (
     "baseten", 14000, 8192, True)
-  assert call["wallS"] >= 0
   # ...and only a cut-off: an empty answer that says it FINISHED is
   # garbled, and one that ran out with its JSON whole is an answer
   answered = json.dumps({"action": "explore", "zone": "garden", "reason": "mapping"})

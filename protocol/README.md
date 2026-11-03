@@ -61,18 +61,18 @@ came back empty and billed, read `fallback:garbled`, and nothing on the
 wire could say who sent them or why they stopped. One event type and one
 `fallback:` reason are new:
 
-- **`call`**: one per decision a response came back for, just before its
-  `DECIDE` line, at the same `t` and `robot`: `source` (the decision's),
-  `provider` (who answered: the router's `x-inference-provider`, null
-  where nothing names one), `tokensIn`, `tokensOut`, `cut` (its tokens
-  ran out) and `wallS` (the request, asked to answered). None for a
-  decision no call answered: a map row, a policy fallback, a timeout. The
-  decision carries the same record as `call` in `decisions[]`, and the
-  console has it beside its `DECIDE` line.
+- **`call`**: one per decision a response came back for, at the same `t`
+  and `robot` as its `DECIDE` line and, on the live stream, just before
+  it: `source` (the decision's), `provider` (who answered: the router's
+  `x-inference-provider`, null where nothing names one), `tokensIn`,
+  `tokensOut`, `cut` (its tokens ran out) and `wallS` (the request, asked
+  to answered). None for a decision no call answered: a map row, a policy
+  fallback, a timeout. The decision carries the same record as `call` in
+  `decisions[]`, and the console has it beside its `DECIDE` line.
 
   ```jsonc
   {"type": "call", "t": 129950.3, "robot": "pluggybot", "source": "fallback:cutoff",
-   "provider": "baseten", "tokensIn": 29811, "tokensOut": 8192, "cut": true, "wallS": 61.4}
+   "provider": "baseten", "tokensIn": 29811, "tokensOut": 12288, "cut": true, "wallS": 71.4}
   ```
 
 - **`fallback:cutoff`**, a decision's `source` (the `DECIDE` line's tail):
