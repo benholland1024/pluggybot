@@ -1302,7 +1302,7 @@ save a filmstrip PNG named after the script.
   `PLUGGY_MODE_FILE`, `PLUGGY_WEEKLY_USD`, `PLUGGY_ESCALATE_TO`,
   `PLUGGY_THOUGHTS`, `PLUGGY_MODEL`, `PLUGGY_OVERSEER_BACKEND`; the secret is
   `$PLUGGYWORLD_TOKEN`. ⚠ A lazy import is the failure mode
-  (`perception.tags._shared_detector` imports the detector inside a function):
+  (`perception.tags.kept_detector` imports the detector inside a function):
   `tests/test_deploy.py` blocks the omitted packages and flies the robot; a
   new runtime dependency goes in the requirements too, and a training stack
   never does (#375). This repo owns the IMAGE; the website repo owns the

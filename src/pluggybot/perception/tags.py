@@ -223,13 +223,29 @@ def _shared_detector():
 
   Detection here is synchronous and single-threaded, so one detector serves
   every camera, and it is deliberately never destroyed: nothing frees it
-  twice if nothing frees it at all.
+  twice if nothing frees it at all -- not even at exit (`kept_detector`).
   """
   global _DETECTOR
   if _DETECTOR is None:
-    from pupil_apriltags import Detector
-    _DETECTOR = Detector(families=FAMILY, nthreads=2, quad_decimate=1.0)
+    _DETECTOR = kept_detector(families=FAMILY, nthreads=2, quad_decimate=1.0)
   return _DETECTOR
+
+
+def kept_detector(**params):
+  """A pupil-apriltags `Detector` never destroyed: the OS takes it back at
+  exit. ⚠ ITS OWN `__del__` IS A USE-AFTER-FREE: it frees the tag families,
+  then destroys the detector, which reads them (`quick_decode_uninit`) --
+  at every exit, as the module's globals go, and a segfault wherever another
+  thread had reused that memory first (#560: a drift flight in twenty, after
+  writing its results; the deployed quadrupeds' restarts, 1 in 39). With
+  freed memory overwritten it crashed every time (`test_tag_detector.py`)."""
+  from pupil_apriltags import Detector
+
+  class Kept(Detector):
+    def __del__(self):
+      pass
+
+  return Kept(**params)
 
 
 class TagDetector:
