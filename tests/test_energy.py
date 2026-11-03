@@ -108,7 +108,7 @@ def test_the_why_line_says_which_of_the_four_it_is():
 
 def test_a_pack_too_small_keeps_no_margin_it_cannot_fund():
   """All or nothing, on the humanoids' own table: a 20 Wh pack funds the
-  dearest job but not that job AND the 18 Wh return trip, so it keeps none
+  dearest job but not that job AND the 19.5 Wh return trip, so it keeps none
   of the trip -- a demo cell, whose jobs run on what is left."""
   t = en.load(HUMANOID_HOME)
   assert t.dearest_wh() + RESERVE > SMALL_WH * lc.CHARGED >= t.dearest_wh()
@@ -444,13 +444,13 @@ def test_the_prompt_still_never_carries_a_hidden_answer():
 # ---- 3, the gate and the cap -------------------------------------------------
 
 #: About the SMALLEST pack in the margin regime here: the dearest job, the
-#: drawer at 7.082 Wh (#559), plus the 18 Wh reserve must fit a charged
-#: pack -- capacity >= 25.082 / 0.9 = 27.9, so 28 -- and these cost one short
-#: charge. The regime is what is under test, not the capacity -- the hosting
+#: drawer at 7.082 Wh (#559), plus the 19.5 Wh reserve (#560) must fit a
+#: charged pack -- capacity >= 26.582 / 0.9 = 29.5, so 29.6 -- and these cost
+#: one short charge. The regime is what is under test, not the capacity -- the hosting
 #: pack is the same arithmetic with more room in it. A pack below the floor
 #: silently drops to zero margin (the all-or-nothing rule), which is exactly
 #: what the first assertion catches.
-MARGIN_PACK_WH = 28.0
+MARGIN_PACK_WH = 29.6
 
 
 # What regresses is a RULE -- an inequality in `_afford_next`, the loop bound
