@@ -1633,7 +1633,9 @@ save a filmstrip PNG named after the script.
   (absent means the primary); the operator switch is the primary's. ⚠ The
   served humanoid pair runs at ~1.4× real time on the deploy box (1.40x and
   1.41x with the LIDAR's band, #581's stage 2; 1.62x and 1.65x on its level
-  ring, #559; SimNotes, "The band served"): ONE physics thread, so more
+  ring, #559; SimNotes, "The band served") -- ~1.2× in the grown world, by a
+  pod's ratio (#560: 14 % slower, 59 % of it the LIDAR's cast against 115
+  more geoms; SimNotes, "The grown world"): ONE physics thread, so more
   cores do not move it. ⚠ THE TAG CAMERA RENDERS
   WITHOUT SHADOWS: under osmesa a 1280×720 home frame cost 1113 ms with its
   sixteen shadow-casting lights and 32 ms without
@@ -1707,7 +1709,9 @@ save a filmstrip PNG named after the script.
   robot 0.6 m back into it; `start_at` closes the window. ⚠ A RETURN NEARER
   THAN `MATCH_MIN_M` (1 m) IS NO POINT OF THE FIT (#581's stage 2): what the
   hands work on, struck by a ring or two at the part's noisiest -- matched,
-  the band's matcher moved a dock's belief 40-67 cm in 16-19 s. ⚠ NOT HELD
+  the band's matcher moved a dock's belief 40-67 cm in 16-19 s; and every
+  return short of the LIDAR's 8 m reach is (`MATCH_RANGE_M`, #560: at the
+  C1's 6.5 m the park's middle, 8 m from any fence, went unpinned). ⚠ NOT HELD
   AT THE STATION: after a step toward the seat the tags are out of view, and
   the belief carries the station between looks -- held on odometry alone,
   it drifted 4-7 cm over two steps and a seat came out 7 cm wrong.

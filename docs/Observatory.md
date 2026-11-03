@@ -10,6 +10,75 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The world grows: the park and the mall, a room for each robot, and a station in each building (#560, stage 1) — opens when both halves are deployed, this PR's and rooftop-media-2026's
+
+**What changed in the world.** The world itself, and where a robot charges.
+
+- **The house is a 2x2 grid** (SimNotes, "The grown world"): today's row
+  north, and south of it the park beside the house and the mall beside the
+  research center, the middle street down both rows, a pedestrian alley
+  between the research center and the mall, the loop round all four. The
+  map is 51 x 42 m, 856,800 cells (469,200 before). Two rooms off the living
+  room's south wall, one for each robot (where the garden wrapped south); a
+  study room in the research center (where the south half of its front
+  garden was). The park is a fenced lawn with two gates, two trees and a
+  sign; the mall a concourse with the restaurant (dining room, expo line,
+  kitchen) and the store (shop, loading zone) off it, every table, counter
+  and shelf empty. 39 zones, which an `explore(zone)` may name.
+- **Three charging stations**: the house's, the research center's (at its
+  lobby's south end) and the mall's (at its concourse's). A charge goes to
+  the one its body chooses: the one its plug is in, else the nearest by a
+  walk over its own map; a lost robot fixes off whichever station it sees
+  and charges there. Each takes one robot, and a charge waits only for the
+  other robot at the same station. `drift` rows say which station
+  (`station`).
+- **The prompt moved in three places**: the other-robot rule says the robots
+  share the charging stations (`OTHER_ROBOT_RULE_SHA` re-pinned: the
+  empathy measurement's input), and `charge` walks to "the nearest charging
+  station", and the zones an `explore(zone)` may name are the grown
+  world's (`sidewalk_2_south` is the `alley`, 15 are new): `prompt_sha`
+  `7b238b59…` → `699ddb1d…`, 54,872 → 55,145 chars, 17 sections both
+  (`overseer_probe.py --deployed --prompt`). The constitutions are unchanged
+  ("your charging station" reads as the one it charges at).
+- **The places**: the restaurant, the shop, the park, each robot's room and
+  the study room have an address and directions (`home/places.json`) and
+  tags, for stage 2's jobs; no job is offered at them yet. The facility's
+  address is where it was (its offset widened to keep it so).
+- **The scan matcher reads every return the map does**, to 8 m (6.5 m
+  before): the park's middle is 8 m from its nearest fence.
+- **The return-trip reserve is 19.5 Wh** (`reserveWh`, 18 before): from the
+  world's worst place, the park's west sidewalk, to the mall's station,
+  measured.
+- **The speed**: about 1.20x real time on the deploy box, by a pod's
+  ratio (staging 0.710x there, the grown world 0.610x; the box ran staging
+  at 1.40x); its own number waits for a quiet box.
+- **The first start carries on as a changed world** (`fingerprint`): the
+  clock, the packs, the deaths and the jobs, never the bodies' poses or the
+  maps -- both robots stand up at their commissioned starts and lay their
+  maps again, History saying why. A held hand job carries on. Flown from
+  the deployed save (the 11-02 backup, `serve.py` as deployed, a fake
+  model): each robot told "the world itself changed since then", Luca at
+  83 % and Rowan at 56 %, their jobs still theirs.
+- **The site draws it** (rooftop-media-2026's half): the mall painted its
+  own, chairs and shelves built, the mall's tops bare, the park's crowns
+  over a humanoid's head.
+
+**What the period is for.**
+
+- **Charging at three stations**: which station each charge goes to
+  (`drift` rows' `station`, the charges' narration), plug-ins and misses at
+  the new two, lost searches that end at another station than the one
+  sought, and `flat` deaths.
+- **The belief across the grown world**: `drift` rows in the second row,
+  the park's middle above all; whether a robot that crosses the park comes
+  out lost.
+- **Where the robots go unasked**: visits to the park, the mall and their
+  rooms (an `explore(zone)` naming one, and their poses), with no job there.
+- **The speed** on the deploy box (`vitals`, the real-time multiple):
+  against the period before.
+- ⚠ **Not a period to pool across**: the world, the maps, the stations and
+  two phrases of the prompt all moved.
+
 ### The plug-in placed off each try's own look (#596) — opens when this PR is deployed
 
 **What changed in the world.**

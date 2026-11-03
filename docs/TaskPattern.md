@@ -134,7 +134,7 @@ sight. Worked through what reaches the robot:
 | the description ("Pull the drawer out of its cabinet, at least 15 cm, and let go of it…") | ✅ | a work order over a network |
 | the building's ADDRESS: its position a few metres off, and how far off it may be (`address`, `home/places.json`) | ✅ | what converting a street address gets, once the robot knows where its own charger is: the station is commissioned, so the address arrives in the robot's map (`home.places`) |
 | the task area's DIRECTIONS: which house and room, what stands there, which tag marks which part (`directions`) | ✅ | what a person who has never been there could write; every number in them is a tag (`test_places.py` reads them) |
-| where its CHARGING STATION is | ✅ | commissioned: the owner installed it (#559), and its tags fix the robot's belief as it charges (#476) |
+| where its CHARGING STATIONS are | ✅ | commissioned: the owner installed them (#559; one in each building since #560), and a station's tags fix the robot's belief as it charges (#476) |
 | where a task area is — the storeroom's counter, a plate, a whiteboard | ❌ | found by its tag, searched for round the address, remembered (`humanoid/places.py`); handed over in the world's frame, its drift is the target's: #414's 0.45 m put a foot on the shock plate |
 | where the robot found a place before (the `places` block) | ✅ | not a delivery: its own knowledge, in its own map, forgotten at a true death |
 | another robot's reported pose (`others`) | ✅ | what the other robot says on the network, never a sensor's |

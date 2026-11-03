@@ -2173,7 +2173,7 @@ has no goals to spend free time on.
   its predecessor's goals included (issue #154: they were the dead robot's,
   and inheriting them would hand back the one thing dying costs), nor its
   map and the places it found (#419, `Body.forget_world`): it knows where
-  its charging station is and nothing else. ⚠ **It starts with points to
+  its charging stations are and nothing else. ⚠ **It starts with points to
   explore with** where the world gives some (`lifecycle.STARTING_POINTS`,
   200 -- a heart's price -- on a served world; `serve.py --start-points`,
   off in a test): booked `granted`, a term in the ledger's identity and

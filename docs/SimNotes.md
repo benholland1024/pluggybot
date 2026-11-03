@@ -4906,6 +4906,127 @@ stance and never turned with it -- with the port read at each move; and it
 lets go where its push stops: over the four batches' 233 starts it docked
 232 with 233 pushes, where staging docked 230 with 314.
 
+## The grown world (issue #560, stage 1)
+
+**What is true now.** The house is a 2x2 grid inside one fence
+(`home/world.py`): today's row north -- the house, the middle street, the
+research center -- and south of it the PARK beside the house and the MALL
+beside the research center, the middle street running on between the
+columns, a pedestrian ALLEY (3 m) between the research center and the mall,
+the house's south sidewalk widened to the same 3 m between the house and the
+park, and the loop round all four. The second row is 16 m tall: the map is
+51 x 42 m, 856,800 cells -- 1.83 times the one row's 469,200, 46 % of
+#558's cap. The house gained a room for each robot (`room_west` and
+`room_east`, off the living room's south wall, where the garden wrapped;
+`home.ROOM_OF` names whose by root body, never a name); the research center
+a study room (the south half of its front garden, off the lobby, a table and
+two chairs: for studies with the robots as subjects, #557). The park is a
+lawn behind a garden fence, a 1.5 m gate on its north and on its east
+(across from the mall's front door), two trees and a sign in its middle. The
+mall is a concourse down its west side, as the research center's lobby runs
+down its own, with the restaurant (its dining room, four tables of two; the
+expo line, a pass in the kitchen's wall with its counter in it and a staff
+door beside it; the kitchen, its worktop and its dish shelf) and the store
+(the shop, its checkout, a gondola and a wall shelf; behind a staff door the
+loading zone, its rack and a door out to the sidewalk) side by side off it.
+Every table, counter and shelf is scenery and stands empty: the dishware and
+the stock are each task's own (stage 2), and every geom is one the LIDAR's
+rays are cast against.
+
+**Three charging stations**, one in each building, each on a south wall
+facing north, as the house's: the research center's at its lobby's south
+end, the mall's at its concourse's (`home.STATION_WALLS`,
+`humanoid.world.stations`), each its own tag pair (64-65, 66-67) and its
+own activity. Which one a charge goes to is the body's, once a charge
+(`Body.choose_station`): the one its plug is in, else the nearest by a walk
+over its OWN map (`Navigator.nearest_by_walk`: the planner's lattice
+through the unknown at its price, one Dijkstra and three readings). From
+the park's west sidewalk the house's is nearer as the crow flies (22.8 m)
+and further by every way round the fenced park (49 m against the mall's
+47); with nothing mapped, the house's wins there -- the robot's map, never
+the world's. A lost robot fixes off WHICHEVER station it sees, its pair
+saying which, and charges there; the loop walks to that station's standoff
+after (`test_a_search_that_found_another_station_walks_to_that_one`). The
+choice rides a restart. A station takes one robot, and the #346 wait is
+per station.
+
+**The reserve's worst place** is now the middle of the park's west
+sidewalk, where every way round the fenced park is long: 47.3 m on the
+test's raster to the mall's station, through the park gate to gate, and
+49.4 to the house's (`HOME_WORST_RETURN_PATH`: 49.65 m of waypoints; the
+one station's worst, the loop's south-west corner, was 49.64). MEASURED
+(`energy_spike.py --reserve`, a pod): the walk 14.20 Wh in 301 s -- an upper
+bound, its 54.8 m wandering past the waypoints' 42.4 -- and from the mall's
+door the loop's own charge, down the concourse and plugged in at the mall's
+station, 4.38 Wh: 18.57, carried with a plug-in tried again as 19.5
+(`humanoid.world.RESERVE_WH`; 18 before).
+
+**Localization** (`lidar_spike.py --probe`, the band, the share of places
+0.5 m apart whose scan leaves the heading unpinned):
+
+| group | n | matcher to 6.5 m | to 8.0 m |
+|---|---|---|---|
+| middle street, sidewalks, the loop, the alley | 4,032 | 0 % | 0 % |
+| gardens | 312 | 0 % | 0 % |
+| rooms (the robots' and the study room with the old) | 1,320 | 2 % | 2 % |
+| the mall | 768 | 5 % | 5 % |
+| the park | 1,408 | 10 % | 2 % |
+| the park's middle (within 3 m of its centre) | 112 | 71 % | 26 % |
+
+The park's middle is 8 m from its north and south fences and 11 m from its
+east and west, past the matcher's 6.5 m (`MATCH_RANGE_M`, set on the C1's
+recorded lab trip against a far wall's pull): only its two trunks and its
+sign are in reach. Read at the map's own 8 m it pins 74 % of it; four more
+trees round the middle pinned 37 %, and both ranges raised to 12 m 79 %,
+for half as much again of each scan's cost. **So the matcher reads the
+map's whole 8 m** (`MATCH_RANGE_M`; the band reads a wall within 3 mm out to
+7.9 m, "The band served"). Flown on one pod -- the drift spike, eight
+flights an arm, two of them standing 180 s in the park's middle -- the
+belief's worst error had a median of 0.13 m at 8.0 against 0.15 at 6.5
+(the worst 0.30 and 0.43), its error at the end 0.05 and 0.06, every flight
+docked; in the park it stayed within 0.23 m (0.35 at 6.5). The same flight
+flown twice on the pod was bit-identical.
+
+**What it costs.** The served pair's walks (`humanoid_spike.py --speed`'s
+pair, the same walks in the house as every reading since #507), one pod
+(Vast, a Xeon E5-2697 v4), staging and this branch a process at a time,
+interleaved three times: staging 0.716, 0.705 and 0.710x real time, the
+grown world 0.612, 0.612 and 0.607x -- 14 % slower -- and the pair walking
+in the mall 0.609, 0.600 and 0.611x. The deploy box served staging's pair at
+1.40x, so the grown world there would be about 1.20x; its own number waits
+for a quiet box (the live reading runs there). Profiled (osmesa, the dev box), the
+grown world's extra wall time is 59 % the LIDAR's cast (11.7 to 15.1 ms a
+frame: 115 more geoms), 18 % the bigger grid's scan updates and plans
+(#558's table), 13 % the physics' steps and 4 % the renders' extra lights.
+A lever left for later: the visual-only floor and ground slabs and the tags
+(55 boxes, 1-3 mm over what is behind them) cost a quarter of each cast
+(13.5 to 9.9 ms in the house), but they share the rendered geom groups with
+what the LIDAR must see -- the robots' own visual meshes among them -- so
+leaving them out of the cast is a change to what it returns from the other
+robot and from itself, not a free one.
+
+**Flown at the new stations** (`station_spike.py --approach --n 30
+--station`, the same 33 starts round each standoff, one pod): the house's
+docked 32, the research center's 30 and the mall's 33 of 33, every one
+unplugged and its plug parked, none fell. The house's one miss was a start
+that missed at the research center too ("not lined up", the seat's steps);
+the research center's other two, another not lined up and a grip that never
+got round the plug. In the loop a dock that saw its station and never got in
+goes again from the standoff, once a charge.
+
+**Carried on from the deployed save** (the 11-02 backup, `serve.py` as
+deployed with a fake model): the world changed, so each robot stood up at
+its start with its pack (Luca 83 %, Rowan 56 %), its jobs still its own, its
+map dropped, History saying why. In that flight Rowan charged at the house's
+station from 56 %; Luca, choosing to charge at 82 %, found it taken, waited
+its 1,386 s bound and gave up, though both new stations stood free: a charge
+goes to the NEAREST station and waits for it there, #208's contention per
+station (a decided charge that never began costs time, never a heart).
+
+**Not done.** The tasks (stage 2). The second story (the mall's, #557's
+first idea) waits for maps by floor; the park's rough patch for the walker
+that sees the ground.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
