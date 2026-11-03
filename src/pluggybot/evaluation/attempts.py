@@ -143,10 +143,27 @@ DOOR_FLATTERS = (
 )
 
 
+#: ...and what a reading of the table's place flatters (#560).
+TABLE_FLATTERS = (
+  "each piece and the place's card carry a tag: finding them is reading a fiducial",
+  "one place: the set-outs differ only in where the dishware waits, by a few cm, and in its "
+  "hidden weights",
+  "the humanoid is stood at the place, its chair taken away: walking to the table is not the task",
+  "the table is a top on legs: the served room's are solid boxes, which a crouching robot's "
+  "thighs meet",
+  "the humanoid's mind is told each piece's size and tag, and where each goes: what it would "
+  "see and be told",
+  "with `measure`, a flat top's height and edges are our code's reading of its depth camera",
+  WATCH_FLATTERS,
+  "resets are free and exact, and nothing breaks",
+  "MuJoCo against MuJoCo: an upper bound on hardware",
+)
+
+
 def flatters(grader: str = "lid") -> tuple[str, ...]:
-  """What a reading of `grader`'s job flatters: the door's own, else the
-  lid's (`FLATTERS`)."""
-  return DOOR_FLATTERS if grader == "door" else FLATTERS
+  """What a reading of `grader`'s job flatters: the door's or the table's
+  own, else the lid's (`FLATTERS`)."""
+  return {"door": DOOR_FLATTERS, "table": TABLE_FLATTERS}.get(grader, FLATTERS)
 
 
 #: The chests flown in public before any held-out draw: #466's batches flew

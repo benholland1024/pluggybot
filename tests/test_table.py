@@ -303,3 +303,13 @@ def test_the_practice_job_states_the_place_and_never_where_its_dishware_waits():
   assert f"{100 * table.SPOTS['plate'][0]:.0f} cm from the card" in text
   assert f"{at.JOB_LIMIT_S['table']:.0f} s at most" in text
   assert ep.THINGS["table"] == "table"
+
+
+def test_a_tables_reading_says_what_it_flatters():
+  """A reading says what it flatters (`attempts.FLATTERS`): the table's
+  its own -- its legs and its chair away -- never the lid's knob."""
+  from pluggybot.evaluation import attempts as at
+  said = at.flatters("table")
+  assert any("top on legs" in f for f in said) and any("chair" in f for f in said)
+  assert not any("knob" in f for f in said)
+  assert at.WATCH_FLATTERS in said
