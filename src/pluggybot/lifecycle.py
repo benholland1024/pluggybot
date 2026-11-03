@@ -4400,9 +4400,6 @@ class HubLifecycle:
     latch as it was."""
     from pluggybot.home import storeroom
     for prop, t in self._newest_offers().items():
-      if prop not in storeroom.PROPS or \
-          mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) < 0:
-        continue
       k = int(t.secret["draw"])
       storeroom.redraw(self.model, self.data, prop, k)
       act = self._counter_activity(prop)
@@ -4418,12 +4415,12 @@ class HubLifecycle:
     stood out under the standing offer, a job paid for nothing. Never one a
     robot is touching (the producer's `busy`); nothing for a save from
     before it kept the count (`seen` None). Returns the props set out."""
-    if self.tasks is None or seen is None:
+    unseen = [(prop, t) for prop, t in self._newest_offers().items()
+              if seen is not None and t.number > seen]
+    if not unseen:
       return []
     worked, out = self._worked_props(), []
-    for prop, t in self._newest_offers().items():
-      if t.number <= seen:
-        continue
+    for prop, t in unseen:
       if prop in worked:
         self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved")
         continue
@@ -4432,15 +4429,18 @@ class HubLifecycle:
     return out
 
   def _newest_offers(self) -> dict:
-    """Each counter prop's newest offer with a draw, on the board's own count
-    (`Task.number`, #610): the one its prop was last set out for."""
+    """Each counter prop in this world, with its newest offer that drew --
+    newest on the board's own count (`Task.number`, #610): the one the prop
+    was last set out for."""
     from pluggybot.economy.tasks import KINDS
+    from pluggybot.home import storeroom
     newest: dict = {}
     for t in (self.tasks.tasks.values() if self.tasks is not None else ()):
       if t.kind in KINDS and KINDS[t.kind].draws and t.secret.get("draw") is not None:
         if t.target not in newest or t.number >= newest[t.target].number:
           newest[t.target] = t
-    return newest
+    return {prop: t for prop, t in newest.items() if prop in storeroom.PROPS
+            and mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) >= 0}
 
   def _task_step(self) -> None:
     """Put up whatever is due and lapse whatever nobody got to.

@@ -286,7 +286,7 @@ def kind_names() -> list[str]:
   return list(KINDS)
 
 
-def task_number(task_id) -> int:
+def task_number(task_id: object) -> int:
   """A task id's number on its board's own count (`t_0042` is 42), or 0 for
   an id no board numbered. Whatever orders tasks reads it, never a stamp: a
   start-over sets the clock back, never the count (#610)."""

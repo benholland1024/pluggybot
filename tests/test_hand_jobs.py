@@ -522,6 +522,15 @@ def test_an_offer_the_saved_world_never_saw_has_its_prop_set_out_again(tmp_path)
   assert again.data.qpos[hinge] == pytest.approx(0.3), "the door as the world was saved"
 
 
+def test_a_restore_names_only_the_props_it_set_out(tmp_path):
+  """...and in a world without the counter, an offer on the drawer past the
+  saved count sets nothing out, and is not said to have."""
+  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+  life = stub_life(tasks=TaskBoard(path=str(tmp_path / "tasks.json")))
+  life.tasks.offer("open_drawer", "drawer", secret={"draw": 3})
+  assert life.set_out_unseen(0) == []
+
+
 def test_the_hand_jobs_are_offered_only_where_a_mind_writes_procedures():
   """Each prop is a target of its own kind, on the challenges' gate."""
   here = world_targets(HUMANOID_HOME, procedures=True)
