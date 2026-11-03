@@ -12,9 +12,10 @@ Two protocols (Evaluation.md §4):
   chests running at their first try or has practiced `--max-chests`; then
   each held-out chest gets a copy of it, frozen, and the bar is read there.
 
-  --job J              lid (the chest's, default) or door (the cupboard's,
-                       #535): its job text, its time limit and its grader,
-                       and nothing else changed (`evaluation.practice.JOBS`)
+  --job J              lid (the chest's, default), door (the cupboard's,
+                       #535) or table (a place laid, #560): its job text, its
+                       time limit and its grader, and nothing else changed
+                       (`evaluation.practice.JOBS`)
   --chests A-B|A,B,..  the chests (default 0-31: the public set-outs)
   --held-out N         N chests nobody has flown instead, by the frozen
                        build's seed (`attempts.seed_of`; a dirty tree is

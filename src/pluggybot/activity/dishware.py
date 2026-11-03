@@ -179,7 +179,6 @@ def attach_card(spec, at, yaw: float, z: float, tags: bool = True, name: str = "
   """The place card standing at `at` (x, y) on the surface `z` up, its face
   -- and its tag -- toward `yaw` (the diner): fixed scenery."""
   import mujoco
-  c, s = math.cos(yaw), math.sin(yaw)
   # the card's frame: its x across its face, its y out of it toward the diner
   q = [math.cos((yaw - math.pi / 2) / 2), 0.0, 0.0, math.sin((yaw - math.pi / 2) / 2)]
   body = spec.worldbody.add_body(name=name, pos=[float(at[0]), float(at[1]), float(z)], quat=q)
@@ -190,7 +189,6 @@ def attach_card(spec, at, yaw: float, z: float, tags: bool = True, name: str = "
     body.add_geom(name=f"{name}_tag", type=mujoco.mjtGeom.mjGEOM_BOX,
                   size=[half, FILM / 2, half], pos=[0, CARD[1] + FILM / 2, CARD[2]],
                   contype=0, conaffinity=0, mass=0.0, material=_material(spec, CARD_TAG_ID))
-  del c, s
   return body
 
 

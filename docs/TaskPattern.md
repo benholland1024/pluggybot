@@ -358,6 +358,12 @@ done to a MECHANISM with hidden dynamics draws them afresh at every offer**
 them and put back after a restart), so the skill is over a kind of thing,
 never one of it.
 
+ⓘ *Found by building the table (#560):* **a drop is a FREE piece's fall.**
+A piece's speed read at every step reads the hand's own carry: the cube's
+line failed two cubes held fast while the carry swung them down at 0.6-1.0
+m/s. The table's grader reads a piece's fall only while nothing of the
+robot touches it (`table.Watch`).
+
 **Measure a grader's bar before you pick it.** A verdict that tempts you
 toward perception-grade checking gets the spike first, in the units the
 machine's error is measured in: a Hershey 6 and 8 at 50 mm caps sit 1.7 mm
@@ -639,6 +645,12 @@ deployed world runs them.
    any pattern yet.
 5. **`visitor` and `overseer` task sources are vocabulary, not yet paths.**
    The caps and cleaning are already in place for the day they are (§2.2).
+6. **No job carries a thing across a walk** (found by building the table,
+   #560): `step` refuses while a gripper holds, so every piece a job moves
+   is picked and placed from one stance, and its set-out puts each within
+   a carry of where it goes. Where #560 had the dishware wait on the expo
+   counter or another table, it waits beside the place (SimNotes, "Setting
+   a table").
 
 ---
 

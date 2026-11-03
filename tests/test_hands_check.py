@@ -41,7 +41,7 @@ SRC = Path(__file__).parent.parent / "src" / "pluggybot"
 
 def test_every_checks_procedure_is_the_language_a_mind_is_given():
   facts = st.hand_facts()
-  assert set(hc.JOBS) == {"lid", "drawer", "door", "place"}
+  assert set(hc.JOBS) == {"lid", "drawer", "door", "place", "table"}
   for job, source in hc.JOBS.items():
     proc = hc.compiled(job)
     assert len(source) <= lang.MAX_SOURCE_CHARS, job
@@ -154,6 +154,7 @@ def _stub_set_out(task):
   """A check's set-out on the stub body (`attempts.set_out`'s shape): its
   prop on a bare floor, its activity sensing every step."""
   from pluggybot.activity import cube as cb
+  from pluggybot.activity import dishware as dish
   from pluggybot.body import StubBody
   from pluggybot.evaluation import attempts as at
   from test_lid import BARE
@@ -163,6 +164,10 @@ def _stub_set_out(task):
     dw.attach_cabinet(spec, dw.draw(k), (0.5, 0.0), tags=False)
   elif task.grader == "door":
     dr.attach_cupboard(spec, dr.draw(k), (0.5, 0.0), tags=False)
+  elif task.grader == "table":
+    dish.attach_card(spec, (0.6, 0.0), math.pi, 0.0, tags=False)
+    for i, p in enumerate(dish.PIECES):
+      dish.ATTACH[p](spec, (0.4, 0.3 * i - 0.3), 0.0, 0.0, 0.2, 0.7, tags=False)
   else:
     cb.attach_props(spec, cb.draw(k), (0.4, 0.0), (0.4, 0.2), tags=False)
   model = spec.compile()
@@ -171,13 +176,14 @@ def _stub_set_out(task):
   body = StubBody(model, data)
   act = {"drawer": lambda: dw.Drawer(model, data, dw.draw(k)),
          "door": lambda: dr.Door(model, data, dr.draw(k)),
-         "place": lambda: cb.Cube(model, data, cb.draw(k), 0.0)}[task.grader]()
+         "place": lambda: cb.Cube(model, data, cb.draw(k), 0.0),
+         "table": lambda: dish.Dishware(model, data, dish.draw(k), 0.0)}[task.grader]()
   body.step_hooks.append(lambda: act.sense(model, data))
   return at.World(task=task, model=model, data=data, body=body, chest=None,
                   start=(0.0, 0.0, 0.0), activity=act)
 
 
-@pytest.mark.parametrize("grader", ["lid", "drawer", "door", "place"])
+@pytest.mark.parametrize("grader", ["lid", "drawer", "door", "place", "table"])
 def test_a_stub_bodys_fall_fails_every_grader_through_its_attempt(grader):
   """Ben, 2026-10-25 (#544): every grader fails an attempt in which the
   body's own watch counted a fall (`Body.falls`, the stub's counter: what

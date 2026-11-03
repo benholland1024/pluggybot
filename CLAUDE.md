@@ -681,6 +681,19 @@ save a filmstrip PNG named after the script.
   `solve.py --from tour` (the bar 6), 16 minutes each (3x the slowest
   pass, 313 s); ⚠ NOT the cube (0 of 8, set down off its mat). Each pays
   90, Ben's call.
+- **A table set is #560's first task, graded offline and NOT offered**
+  (`activity/dishware.py`, `challenge/table.py`, `counter.table_set_out`,
+  `hands_check.TABLE`, `practice.py --job table`; Challenges.md §12;
+  SimNotes, "Setting a table"): a plate, a fork and a cup laid at a place
+  card on the restaurant's dining table 0, the dishware beside the place
+  (⚠ a walk carries nothing: `step` refuses while a gripper holds). ⚠ The
+  set-out's table is a TOP ON LEGS and its south chair is taken away: the
+  served room's tables are boxes, and crouching to reach the robot's
+  thighs met one at about 200 N. ⚠ A DROP IS A FREE PIECE'S FALL
+  (`table.Watch`): read at every step, the cube's line failed cubes held
+  fast in a swinging carry. ⚠ Our procedure lays 0 places of 8 (the bar
+  6): each piece at an edge of the hands' reach at 0.72 m -- so no offer,
+  and no row in `rewards.json`. Tags 90-93; 76-89 are left for the store's.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).

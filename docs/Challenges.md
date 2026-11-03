@@ -361,4 +361,36 @@ before they flew (`solve.py --from tour`; SimNotes, "The humanoids' first
 jobs"): the drawer 8, the door 8, the chest 7. Each job's energy is its
 reference flown from the station (`energy.json`). The cube's reference set
 it down 2-7 cm off its mat's middle all 8 times, so `place_cube` is
-defined, graded and priced but not offered.
+defined, graded and priced but not offered (why: SimNotes, "Setting a
+table").
+
+## 12. Lay a place at a table (issue #560, its first task)
+
+The restaurant's first job, easy mode: a plate, a fork and a cup laid at a
+place card on one of the dining room's tables (`challenge/table.py`, the
+dishware `activity/dishware.py`, the set-out `counter.table_set_out`),
+practiced offline as the checks are (`practice.py --job table`).
+
+**The criteria**, written before any procedure flew them, in the PLACE's
+frame -- from the foot of the card's face, toward the diner and to the
+diner's left: (1) 5 s after the call each piece rests at its spot (the
+plate's middle on the place's line, the fork beside it on the left, the cup
+to the right and further in: `SPOTS`) within 2.5 cm, on the table and never
+on another piece, the plate and the fork flat and the cup upright within 10
+deg, and the fork along the line, its head toward the card, within 15 deg;
+(2) no piece nothing of the robot touched ever came down faster than 0.5
+m/s -- let go over the table, or knocked over; (3) nothing of the robot
+touches a piece during the hold; (4) in time; (5) no fall, the lid's (6).
+Said beside, gating nothing: whether each piece was lifted, how far each
+was off at the call, the fork's turn and the body's worst tilt.
+
+**One departure from the cube's**: a drop is a FREE piece's fall, never a
+held one's carry. The cube's line reads its cube at every step, and its
+check failed two cubes held fast while the carry's posture swung the hand
+down at 0.6-1.0 m/s (SimNotes, "Setting a table").
+
+**The departure from the checks' rows: none** -- `shown: false`, paying 0;
+no world offers it until Ben's word.
+
+**What it cannot grade**, beyond §6: whether the place is pleasing -- a
+plate 2 cm off its spot passes -- and anything but its three pieces.
