@@ -651,10 +651,11 @@ class TaskBoard:
 
   def held_by(self, robot: str) -> list[Task]:
     """The open jobs one robot has taken on and not finished, in the order
-    it took them (issue #345)."""
+    it took them (issue #345): by the claim's time, which a start-over
+    moves with the clock (#602), and on a tie by the board's count."""
     return sorted((t for t in self.tasks.values()
                    if t.state in ("claimed", "active") and t.claimed_by == robot),
-                  key=lambda t: (t.claimed_t or 0.0, t.id))
+                  key=lambda t: (t.claimed_t or 0.0, t.number, t.id))
 
   def offered(self) -> list[Task]:
     return [t for t in self.tasks.values() if t.state == "offered"]
@@ -866,8 +867,8 @@ class TaskBoard:
 
     ⚠ OLDEST ON THE BOARD'S OWN COUNT (`Task.number`), never by `resolvedT`:
     a start-over sets the clock back to 0, and t_0002, resolved at t=357,627
-    on the clock before 11-01's, was kept over every newer task, for 204,000
-    s more on 11-03 (#610).
+    on the clock before 11-01's, was kept over every task resolved before
+    the new clock passed it: more than 204,000 s on from 11-03 (#610).
 
     A dropped task is not an expired one and does not get an event: expiry
     is something that HAPPENED to a job in the world, while this is the
@@ -1005,7 +1006,11 @@ class TaskBoard:
         claimed = min(task.claimed_t, float(saved_t)) - (shift or 0.0)
         task = replace(task, claimed_t=round(claimed, 3))
       self.tasks[task.id] = task
-    self.seq = max(self.seq, len(self.tasks))
+    # ⚠ Never a number below one the board holds, as the desk's counter
+    # (`tickets.Desk`): the board is ordered by it (#610), and a file with a
+    # stale `seq` would number its next task below them -- the first one
+    # forgotten, its draw never put back -- or hand out a held task's id.
+    self.seq = max([self.seq, len(self.tasks), *(t.number for t in self.tasks.values())])
     return self
 
   def announce_interrupted(self, t: float = 0.0) -> list[Task]:

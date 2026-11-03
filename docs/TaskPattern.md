@@ -112,9 +112,12 @@ Rules the states carry, each decided explicitly:
   prop, and the order offers are listed in. ⚠ Never a stamp (`createdT`,
   `resolvedT`): a start-over sets the clock back to 0, and after 11-01's the
   tasks stamped on the clock before it ranked newest. t_0002 would have
-  outlasted every newer task for 204,000 s, and every restart put an old
-  offer's draw back on its prop over the job held there. The site lists the
-  board on the same count.
+  outlasted every task resolved before the new clock passed it, more than
+  204,000 s, and every restart put an old offer's draw back on its prop
+  over the job held there. The site lists the board on the same count. A
+  robot's held jobs are in the order it claimed them (`held_by`): a claim
+  is moved with the clock at a start-over (#602), and ties go by the
+  count.
 - **A restart keeps a claim with the robot that made it** (issue #345). The
   robot is still that robot. A job `claimed` or `active` comes back claimed
   by it. A procedure job stays `active` for its robot to finish and say

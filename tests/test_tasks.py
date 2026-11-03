@@ -242,6 +242,18 @@ def test_the_boards_count_is_read_as_a_number_past_four_digits():
   assert [t.id for t in b.claimable(10.0, 9.0)] == [first.id, second.id]
 
 
+def test_held_jobs_claimed_at_one_instant_are_in_the_boards_count():
+  """`held_by` is the order a robot took its jobs in, and a start-over's
+  clamp gives every claim ahead of the board's last change that change's
+  time (#602): tied, they are in the board's count, never the id as text."""
+  b = board()
+  b.seq = 9_998
+  first, second = offered(b), offered(b, kind="open_door", target="door")
+  for task in (first, second):
+    assert b.claim(task.id, robot="r", t=5.0) is not None
+  assert [t.id for t in b.held_by("r")] == [first.id, second.id]
+
+
 # ---- the board is bounded ----------------------------------------------------
 
 
@@ -271,8 +283,8 @@ def test_resolved_tasks_age_out_but_open_ones_never_do():
 def test_a_full_board_forgets_its_lowest_numbered_closed_task(tmp_path):
   """Oldest on the board's own count, never by its stamp (#610): by
   `resolvedT`, a task resolved on the clock before a start-over ranked as
-  the newest, and every newer one was forgotten first -- t_0002, for
-  204,000 s on 11-03."""
+  the newest, and every newer one was forgotten first -- t_0002, for more
+  than 204,000 s from 11-03."""
   path = tmp_path / "tasks.json"
   b = board(path=path, max_tasks=3, max_offered=99)
   old = offered(b, t=356_727.0, ttl=900.0)
@@ -308,6 +320,20 @@ def test_a_task_outlives_a_restart(tmp_path):
   assert back[finished.id].points > 0
   # The counter, not the length: an id is never reused after a trim.
   assert back.next_id() != standing.id
+
+
+def test_a_board_loaded_never_numbers_a_task_below_one_it_holds(tmp_path):
+  """The board is ordered by its count (#610), so a file whose `seq` is
+  behind its tasks' numbers (edited by hand, say) must not number the next
+  one below them, where it would be the first forgotten."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  b.seq = 41
+  for _ in range(3):
+    offered(b)                            # t_0042 to t_0044
+  doc = json.loads(path.read_text())
+  path.write_text(json.dumps({**doc, "seq": 0}))
+  assert offered(board(path=path)).id == "t_0045"
 
 
 def _act_under_way(b: TaskBoard, t: float = 1.0) -> Task:

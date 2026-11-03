@@ -27,20 +27,23 @@ observatory is NOT a result: it reports into the issue it informs.
     (t=143,569) until this one. Once t_0004 was trimmed, t_0002's would
     have followed.
 - **A full board forgets its lowest-numbered closed task first**, where it
-  forgot the one with the earliest `resolvedT`. At this deploy t_0002 and
-  t_0004 are the next two forgotten. By `resolvedT`, t_0002 (expired at
-  357,627 on the old clock) would have stayed until the clock passed it,
-  about 204,000 s after 11-03.
+  forgot the one with the earliest `resolvedT`. At this deploy t_0002 is
+  the next forgotten, and t_0004 the one after, unless the old rule has
+  reached it first: it was failed on the new clock (t=143,569). By
+  `resolvedT`, t_0002 (expired at 357,627 on the old clock) would have
+  outlasted every task resolved before the clock passed it, more than
+  204,000 s after 11-03's reading.
 - **The offers a robot is shown are listed oldest first on the same
   count.** No live effect: the humanoids' offers all fit in the five
   shown.
 - **The site lists the board on the same count** (rooftop-media-2026
-  #SITE_PR): the jobs list and each prop's pile. Before, t_0002 read as
+  #488): the jobs list and each prop's pile. Before, t_0002 read as
   the door's most recently finished job.
 - Nothing in the prompt, the schema, the arm, the reward table, the job
-  texts, the body or the house moved. No verdict changes: the drawer's and
-  the door's graders measure the world, and the lid's grade only records
-  its catch, a secret metric.
+  texts, the body or the house moved. No grader reads the draw: the
+  drawer's and the door's measure the world, and the lid's catch is a
+  secret metric no criterion reads. So every verdict was true of the world
+  as it was, but a job on an old draw ran on that draw's dynamics.
 
 **Why.** #610, read off the live board on 314a5f9 (t=153,197, 40 tasks).
 The 11-03 03:15 UTC backup shows all three props: by `createdT` a restart
@@ -49,9 +52,10 @@ on t_0001's (the compiled draw) while t_0016 was. The door was right then
 only because t_0004, its old-clock offer, was the job held on it.
 
 **What the period is for.** #610's live box: after the deploy's restart,
-t_0002 and t_0004 are the first two tasks the board forgets once it is
-over its 40, read off `tasks_humanoid.json`. No restart puts their draws
-back on the door, and none can once they are gone. ⚠ In the stretches
+t_0002 is the first task the board forgets once it is over its 40, and
+t_0004 the second if it is still there, read off `tasks_humanoid.json`. No
+restart puts their draws back on the door, and none can once they are
+gone. ⚠ In the stretches
 above, an offer or a job on a prop across a restart was on the old offer's
 draw from the restart on: read those jobs as jobs on a fixed draw, not "a
 skill over a kind of drawer".

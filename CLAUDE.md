@@ -1850,12 +1850,14 @@ save a filmstrip PNG named after the script.
   context — only the state file (`Task.as_state`). Claiming only QUEUES an
   errand below `needs_charge`. Expiry is an outcome, not a deletion, and only
   OFFERED tasks expire: a held job past the time it gives is FAILED, never
-  expired, because it was attempted (#602). ⚠ THE BOARD IS ORDERED BY ITS
-  OWN COUNT (`Task.number`), NEVER BY A STAMP (#610; TaskPattern.md): a
-  start-over sets the clock back, and by `createdT` and `resolvedT` the
-  tasks from before it ranked newest, outlasting the trim and putting their
-  draws back on their props at every restart; the site lists by the same
-  count. Off by default (`--tasks`, `$PLUGGY_TASKS`).
+  expired, because it was attempted (#602). ⚠ THE BOARD'S ORDERS ARE ITS
+  OWN COUNT (`Task.number`), NEVER A STAMP (#610; TaskPattern.md): what it
+  forgets first, whose draw a restart puts back on a prop, and the offers
+  listed. A start-over sets the clock back, and by `createdT` and
+  `resolvedT` the tasks from before it ranked newest, outlasting the trim
+  and putting their draws back at every restart; the site lists by the
+  same count. Held jobs go by their claims (`held_by`), which a start-over
+  moves with the clock. Off by default (`--tasks`, `$PLUGGY_TASKS`).
 - **When work appears is `economy/cadence.py` + `cadence.json`, and it is
   DATA** (issue #23; TaskPattern.md §5): `tasks.py` says what a job IS,
   `rewards.json` what it PAYS, `cadence.json` when it TURNS UP,
