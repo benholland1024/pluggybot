@@ -272,8 +272,10 @@ queued has run, so "run my procedure, then grade me" is one answer; the
 grade is the job's own (its check's evaluator, watching from the claim --
 a fall anywhere fails it -- to a hold after `done` the robot is told to
 stand clear of), and the loop with no mind never sees the field or the
-offer. `CHALLENGE_RULE` says all of this to the mind and, like every rule
-on this arm, demonstrates nothing about charging.
+offer. A job held past the time its description gives is failed by the
+loop, its prop offered again (#602). `CHALLENGE_RULE` says all of this to
+the mind and, like every rule on this arm, demonstrates nothing about
+charging.
 
 **A procedure's variables are its readout** (issue #227). Nothing a
 procedure `read` reached the mind before: the run's verdicts said which

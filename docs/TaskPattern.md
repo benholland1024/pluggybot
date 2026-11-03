@@ -89,7 +89,13 @@ Rules the states carry, each decided explicitly:
   website reads as a bug.
 - **Only OFFERED tasks expire.** A deadline is how long an *offer* stands,
   never a licence to abandon a claimed job — walking away mid-job leaves the
-  work half done, which is a different and worse event.
+  work half done, which is a different and worse event. A held job with a
+  time of its own (a hand job's `minutes`) is not left standing past it
+  either: there a `done` could only fail it, so its holder's loop FAILS it
+  through its grade's door, in the grader's words, and its target is free
+  for the next offer (#602). It is failed, never expired, because it was
+  attempted. A `done` waiting to be graded, or a grade's hold under way, is
+  left to the grade.
 - **The board is bounded** (40 held, 6 offered at once), and resolved tasks
   age out oldest-first. An OPEN task is never dropped to make room: dropping a
   job the robot might still do and that job lapsing are different events, and
@@ -107,7 +113,8 @@ Rules the states carry, each decided explicitly:
   `failed` ("interrupted by a restart") and is announced once, a claimed
   one is offered again with its claim cleared. And an offer is re-priced
   by the world's energy table on load, never by the kind's generic
-  figure.
+  figure. A world that starts again at 0 moves a held claim with the
+  clock, as it moves an offer's deadline (#602).
 
 ---
 

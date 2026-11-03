@@ -319,7 +319,10 @@ departures, both about where an attempt starts:
   (`TaskKind.minutes`, `tasks.HAND_MINUTES`; a world's cadence may give
   another), counted from the claim: 16, three times the slowest pass of the
   references over a tour of the house (313 s, from the station), rounded
-  up (TaskPattern.md §4 has why it is the kind's, #580).
+  up (TaskPattern.md §4 has why it is the kind's, #580). Held past them
+  with no `done`, the job is failed in the grader's words ("not done
+  within the 960 s the job allows", `HubLifecycle._run_out`, #602), and
+  its prop is free to be offered again.
 
 **The offer says where by the area's terms** (#419): the facility's
 address, and directions that name the storeroom, the counter, the row's
