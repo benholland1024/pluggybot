@@ -259,18 +259,67 @@ def test_the_day_loops_pass_runs_out_a_job_held_past_its_minutes(tmp_path, monke
   assert life.tasks.get(task.id).state == "failed"
 
 
-def test_on_a_charge_trip_the_seam_runs_a_job_out(tmp_path):
-  """...and on a charge trip, away from the counter with its hands home,
-  the seam fails it: left to the loop's pass, a 74-minute charge held
-  t_0024 and its drawer 69 minutes past its limit (#602, read live on
-  11-03)."""
+def _trip(life, walk_s: float) -> None:
+  """A charge trip's walk and charge on the stub, each taking time as a
+  real one does (the stub's own take none)."""
+  def walk():
+    yield from life.body.hold_routine(walk_s)
+    return True
+
+  def charge():
+    yield from life.body.hold_routine(1.0)
+  life.go_charge_routine = walk
+  life.charge_routine = charge
+
+
+@pytest.mark.parametrize("path", ["loop", "decided"])
+def test_on_a_charge_trip_the_seam_runs_a_job_out(tmp_path, path):
+  """...and on a charge trip, the loop's or a decided one, away from the
+  counter with its hands home, the seam fails it: left to the loop's pass,
+  a 74-minute charge held t_0024 and its drawer 69 minutes past its limit
+  (#602, read live on 11-03). The trip over, the seam fails nothing."""
   life = _life(tmp_path)
   task = _offer(life, "open_drawer", minutes=1)
   assert life._claim_task(task.id)
-  life.state = "CHARGE"
   life.data.time += 59.0
-  life.body.run(life.body.hold_routine(2.0))
+  _trip(life, walk_s=2.0)
+  if path == "loop":
+    life.body.run(life._charge_trip_routine())
+  else:
+    life._after_decision(ov.Decision(action="charge", reason=""))
   assert life.tasks.get(task.id).state == "failed"
+  assert not life._charge_trip and life.state == "CHARGE", "the trip over, its state left"
+
+
+def test_a_robot_dead_on_a_charge_trip_has_its_jobs_left_for_its_stand_up(tmp_path):
+  """...but not while it lies dead there: as anywhere else, its jobs wait
+  for the loop's first pass after its stand-up."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer", minutes=1)
+  assert life._claim_task(task.id)
+  life.data.time += 59.0
+  life._charge_trip = True
+  life.dead = {"t": float(life.data.time), "cause": "unminded"}
+  life.body.run(life.body.hold_routine(2.0))
+  assert life.tasks.get(task.id).state == "active"
+
+
+def test_a_job_closed_since_its_grade_began_is_banked_nowhere(tmp_path):
+  """A job is settled once (#602's review): closed some other way while
+  its grade held, it banks no second verdict."""
+  from pluggybot.economy.scoring import evaluate
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  mujoco.mj_forward(life.model, life.data)
+
+  def close_once():
+    if life.tasks.get(task.id).open:
+      life.tasks.resolve(task.id, evaluate("open_drawer", {}), t=float(life.data.time))
+  life.body.step_hooks.append(close_once)
+  _grade(life, task.id)
+  assert life.verdicts == [] and life.ledger.robots.get(life.root, {}).get("balance", 0) == 0
 
 
 def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
@@ -296,16 +345,21 @@ def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
   assert "`heldTasks`" in ov.CHALLENGE_RULE and "`leftS`" in ov.CHALLENGE_RULE
 
 
-def test_a_grade_holding_past_the_limit_is_never_cut_short(tmp_path):
+@pytest.mark.parametrize("left", ["", "CHARGE", "GO_CHARGE"])
+def test_a_grade_holding_past_the_limit_is_never_cut_short(tmp_path, left):
   """A grade is its grader's (#602): called at 58 s of 60, the drawer held
   out through the hold that ends at 63 s passes. Run out on the seam, the
-  hold was cut, the pass lost and the job banked twice."""
+  hold was cut, the pass lost and the job banked twice -- after a charge
+  too, its state left behind (`done` and `charge` on one answer: #609's
+  review)."""
   life = _life(tmp_path)
   task = _offer(life, "open_drawer", minutes=1)
   assert life._claim_task(task.id)
   life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
   mujoco.mj_forward(life.model, life.data)
   life.data.time += 58.0
+  if left:
+    life.state = left
   verdict = _grade(life, task.id)
   assert verdict["ok"], verdict["reason"]
   assert len(life.verdicts) == 1

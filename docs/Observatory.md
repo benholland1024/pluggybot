@@ -34,8 +34,10 @@ observatory is NOT a result: it reports into the issue it informs.
 
 **What the period is for.** Whether the robots stop spending recalls on
 when they took a job, read off their `recall` rows. And no claim outlives
-its limit through a charge: read off `tasks_humanoid.json`'s resolved
-rows, `resolvedT - claimedT` beside each holder's `charge` rows. ⚠ #606's
+its limit through a charge, unless a `done` of its waits on the grade (a
+`done` said with or before a `charge` is graded after it, in the
+grader's words): read off `tasks_humanoid.json`'s resolved rows,
+`resolvedT - claimedT` beside each holder's `charge` rows. ⚠ #606's
 period was a few hours long before this one opened: read the two apart.
 
 ### A hand job held past its minutes is failed, and a start-over moves a claim with the clock (#602) — opens when this PR is deployed

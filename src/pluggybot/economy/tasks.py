@@ -823,7 +823,7 @@ class TaskBoard:
 
     Only offered ones: the deadline is how long an OFFER stands. A job the
     robot has taken never lapses -- one held past the time it gives is
-    FAILED by its holder's loop (`HubLifecycle._run_out`, #602), because it
+    FAILED by its holder's loop (`HubLifecycle._run_out_held`, #602), because it
     was attempted.
     """
     gone = []
