@@ -66,6 +66,61 @@ gone. ⚠ In the stretches above, an offer or a job on a prop across a
 restart was on the old offer's draw from the restart on: read those jobs
 as jobs on a fixed draw, not "a skill over a kind of drawer".
 
+### The mind's budget is 16,384 tokens and its patience 115 s, and a decision a response came back for says who answered it (#604) — opens when this PR is deployed
+
+**What changed in the mind and on the wire.**
+- **`CALL_TIMEOUT_S` is 115 s** (90 s since #117): the router's gateway
+  answers a non-streamed request silent for 120 s with a 504, and 115 ends
+  a call as our own `timeout` first.
+- **`MAX_TOKENS_AUTONOMOUS` is 16,384** (8,192 since #225), sized so the
+  fastest provider's full think comes back inside the deadline, and the
+  escalation's follows it. The mid-errand interrupt's is 4,096 (1,024 since
+  #116), twice its longest think on a live turn; it says who answered on
+  its INTERRUPT line and in the run's `interrupts`.
+- **An answer its tokens ran out on is `fallback:cutoff`**, a failure,
+  never `garbled`; the robot is told "your answer was cut off: it ran out
+  of its 16,384 tokens before it was written" (the count the provider
+  reports) where it read "decision was not JSON: ''", and a cut-off
+  interrupt says "the answer ran out of its tokens". A cut-off backs no
+  endpoint off, as a garbled answer does not.
+- **The prompt's map rule lists `cutoff`** among the reasons a
+  `decision_failed` rule may name, and `no-client` among the failures
+  where the rule had left it out. The prompt's sha moves. ⚠ A kept
+  `decision_failed (garbled)` rule no longer fires on an empty answer,
+  which is `cutoff` now: neither robot's kept map had one at 03:15 UTC on
+  11-03 (Rowan's `failure` rule takes both).
+- **A decision a response came back for names its call**: a `call` event
+  just before its DECIDE line on the live stream, filed by the site on the
+  decision row (`pw_decisions.provider`, `tokens_in`, `tokens_out`, `cut`,
+  `wall_s`, rooftop-media-2026's migration 0051), and on the console beside
+  the line. A timeout, a map row and a policy fallback name nobody.
+- **A fallback keeps what was recalled, once**: the lines a `recall` looked
+  up wait for the mind's next answer of its own, where any fallback dropped
+  them; a second fallback running drops them. Read it in the `recall` rows:
+  fewer recalls of the same thing twice in a row.
+- Nothing in the arm, the menu, the reward table, the body or the house
+  moved, and the model is the same `zai-org/GLM-5.3-Flash:cheapest`.
+
+**Why.** #604: from 04:00 UTC on 11-03 a quarter of the answers came back
+empty and billed, and on 314a5f9 that afternoon 22 of 159 asked were empty
+and 16 timed out, 16 of the 38 on the turn after a `recall`; that day 146
+calls outlived the 90 s deadline. Measured on the live robots' own turns
+(Overseer.md §6, "The budget"): baseten, which answered 41 of 44
+`:cheapest` calls, thought up to 17k tokens on a turn carrying two recalls
+(3 of 5 past 8,192, 1 past 16,384), and answered once in 94.6 s; novita,
+tied with it at one price, never answered a non-streamed call before the
+router's 504 at 120 s.
+
+**What the period is for.** #604's live box: empty answers back near #225's
+1 in 50. Read the decision rows by `provider`: `fallback:cutoff` should be
+rare, and where it is not, its `tokens_out` is the budget and its provider
+says whose think it was. ⚠ Not this period's fix: the `fallback:timeout`
+rows of a provider that never answers in time, which name nobody (no
+response came back); if they stay near a tenth, the deployment's model id
+(`:cheapest` against one provider) is the lever, and Ben's. Each now holds
+the robot 115 s, not 90. ⚠ `wall_s` is only the calls that came back: read
+it against 115 s beside the timeouts' count, never alone.
+
 ### The mouse is seen while the cage is in the head camera's picture, never off the room (#605) — opens when this PR is deployed
 
 **What changed in the world.**

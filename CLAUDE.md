@@ -210,18 +210,27 @@ Before doing anything, read the doc that owns what you are about to touch:
   by the frozen commit's first seven hex digits (`seed_of`; a pod's
   `COMMIT` file, a dirty tree refused), and a reading says what it
   flatters (`FLATTERS`) and that it is weaker than a sealed pool.
-- **`CALL_TIMEOUT_S` is 90 s and is a patience budget, not a tail** (issue
-  #117; Overseer.md §6 "The deadline"): a decision lost to a clock is the one
-  failure that is purely ours. `ESCALATE_TIMEOUT_S` (120) is an ordering above
-  it; `llm.LOCAL_TIMEOUT_S` is a FLOOR (a 27.3 s cold load). ⚠
-  `scripts/overseer_probe.py --calls 50` under-measures a mission by about
-  half: choose the deadline from the probe, confirm it with a flight.
+- **`CALL_TIMEOUT_S` is 115 s and is a patience budget** (issues #117,
+  #604; Overseer.md §6 "The deadline"): a decision lost to a clock is the
+  one failure that is purely ours. 90 s until #604, when 13 % of the
+  deployed calls outlived it. ⚠ NOT 120: the router's gateway answers a
+  non-streamed request silent for 120 s with a 504, so nothing comes later,
+  and 115 plus `POLL_GRACE_S` ends the call as our own `timeout` first.
+  `ESCALATE_TIMEOUT_S` (120) is an ordering above it; `llm.LOCAL_TIMEOUT_S`
+  is a FLOOR (a 27.3 s cold load). ⚠ The token budget is sized to it: one
+  moves with the other. ⚠ `scripts/overseer_probe.py --calls 50`
+  under-measures a mission by about half: choose the deadline from the
+  probe, confirm it with a flight.
 - **A fallback's reason is FAILURE or POLICY, and the partition is ONE**
   (issues #117, #141): `overseer.POLICY_FALLBACKS` / `FAILURE_FALLBACKS` /
-  `fallback_class` (`timeout`/`offline`/`garbled`/`busy`/`no-client` are
-  failures; `budget`/`idle-run`/`cooloff`/`scripted-mode` are the policy
-  working), read by `decision_failed` rows and never re-derived. Adding a
-  reason is additive, renaming one is breaking (two-repo contract).
+  `fallback_class` (`timeout`/`offline`/`garbled`/`cutoff`/`busy`/`no-client`
+  are failures; `budget`/`idle-run`/`cooloff`/`scripted-mode`/`allowance`
+  are the policy working), read by `decision_failed` rows and never
+  re-derived. Adding a reason is additive, renaming one is breaking
+  (two-repo contract). ⚠ `cutoff` is an answer whose tokens ran out before
+  it was written (the response's `stop_reason`, and its text unparsed;
+  #604), never `garbled`: read as "decision was not JSON: ''", both robots
+  believed their JSON was refused.
 - **Two arms: `scripted`, the loop with no mind, and `autonomous`, the one
   mind** (issues #115, #427; Evaluation.md §2). There is no control: what is
   measured is the observatory's rows. A mind takes THREE rails off —
@@ -1016,7 +1025,9 @@ save a filmstrip PNG named after the script.
   what it tried (#409), never swallowed; on EVERY arm, memory is not
   a rail. ⚠ **`think` is the FIRST property of the decision schema**
   (constrained decoding follows property order). ⚠ **`recall` is an ACTION**,
-  never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`;
+  never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`; its
+  chain ends at any other action but a fallback's, which keeps it ONCE, a
+  second running dropping it (#604: the post-recall turn is the heaviest);
   `tests/test_recall.py` pins each rule. ⚠ **The ownership split is the
   instrument** for quality five: nothing in `economy/` may read the goals. ⚠
   The prompt-cache split is by WRITER
@@ -1145,9 +1156,18 @@ save a filmstrip PNG named after the script.
   `response_format`; refused once → prose, and `constrained` goes False and
   SAYS so); no bare `{"type": "object"}` in the schema; every request carries
   `llm.USER_AGENT`. ⚠ A reasoning model needs its budget
-  (`MAX_TOKENS_AUTONOMOUS` 8192; an unfinished `<think>` is
-  `fallback:garbled`, billed). Money has THREE states: "no API cost",
-  "unknown" (`priced: false`), a number.
+  (`MAX_TOKENS_AUTONOMOUS` 16,384 since #604, the escalation's with it;
+  the interrupt's `MAX_TOKENS` 4,096, twice its longest think, so a robot
+  asked as its pack runs low is not held still for minutes; an answer its
+  tokens ran out on is `fallback:cutoff`, billed). ⚠ THE BUDGET IS SIZED TO
+  `CALL_TIMEOUT_S`: past the deadline a think that ran out is a timeout,
+  unmetered, counted toward the cooloff and naming nobody, where inside it
+  it is a cut-off metered and said (Overseer.md §6, "The budget"). ⚠
+  `:cheapest`'s providers are not one mind: measure a candidate BY PROVIDER
+  on the live robots' own turns, never the probe's synthetic one alone. A
+  decision a response came back for says who answered (`Decision.call`,
+  the `call` event, `pw_decisions.provider`). Money has THREE states: "no
+  API cost", "unknown" (`priced: false`), a number.
 - **What an errand costs** (`economy/energy.py` + `energy.json`,
   `$PLUGGY_ENERGY`; Overseer.md §5).
   `needs_charge` is checked BETWEEN errands, so every errand is priced

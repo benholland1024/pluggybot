@@ -43,7 +43,7 @@ from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import Overseer
 
 from test_body import stub_life
-from test_overseer import FakeClient, full
+from test_overseer import CutResponse, FakeClient, full
 
 
 #: What a Python exception looks like when it reaches prose. Deliberately a
@@ -88,16 +88,17 @@ def test_the_fallback_vocabulary_is_closed_and_documented():
   docs/Overseer.md had never had.
 
   ⚠ NOT a two-repo vocabulary in the `VISUAL_HINTS` sense, which the issue
-  slightly overstates and which is worth being exact about: `source` is not a
-  wire field and nothing in the website parses it. It reaches a reader as TEXT
-  inside the status line and inside `History.md`. So adding a token needs no
-  website change -- but renaming one is still near-irreversible, because every
-  committed RECORDING keeps saying the old token forever and a rename migrates
-  none of them. Add freely, rename almost never.
+  slightly overstates and which is worth being exact about: `source` reaches
+  a reader as TEXT inside the status line and inside `History.md`, and the
+  site's observatory reads it off the DECIDE line's `[fallback:...]` tail,
+  any token alike. So adding a token needs no website change -- but renaming
+  one is still near-irreversible, because every committed RECORDING keeps
+  saying the old token forever and a rename migrates none of them. Add
+  freely, rename almost never (`cutoff`, issue #604, was added).
   """
   assert ov.FALLBACK_REASONS == (
     "timeout", "offline", "garbled", "budget", "cooloff", "busy",
-    "idle-run", "no-client", "scripted-mode", "allowance")
+    "idle-run", "no-client", "scripted-mode", "allowance", "cutoff")
   # No duplicates, and every one of them is a token a human could read rather
   # than a class name: lowercase, no colons, no spaces.
   assert len(set(ov.FALLBACK_REASONS)) == len(ov.FALLBACK_REASONS)
@@ -117,6 +118,7 @@ def test_the_fallback_vocabulary_is_closed_and_documented():
   (TimeoutError("timed out"), "timeout"),
   (ValueError("no JSON object could be decoded"), "garbled"),
   (KeyError("content"), "garbled"),
+  (ov.CutOff("its tokens ran out before the answer was written: ''"), "cutoff"),
 ])
 def test_every_transport_failure_buckets_to_a_token(boom, expect):
   assert ov.fallback_reason(boom) == expect
@@ -166,6 +168,30 @@ def test_the_operator_still_gets_the_class_and_the_message():
   # of the five `stats()` shows.
   assert len(boss.usage.errors) == 1, boss.usage.errors
   assert boss.stats()["fallbacks"] == 1
+
+
+def test_a_decision_puts_its_call_on_the_wire_before_its_line():
+  """Issue #604: the observatory files a decision off its DECIDE line, so
+  the call behind it -- who answered, what it billed, whether it was cut
+  off -- rides a `call` event just before that line and at its `t`, and the
+  record keeps it. The console has it beside the line, as evidence; the
+  robot's own voice carries none of it."""
+  life = stub_life()
+  life.max_sim_time = 0.0
+  life.overseer = Overseer(_menu(), client=FakeClient(CutResponse("")))
+  seen = []
+  life.on_event.append(seen.append)
+  life.say_hooks.append(lambda t, line: seen.append(
+    {"type": "line", "t": round(t, 3), "line": line}))
+  life._decide()
+  i = next(k for k, m in enumerate(seen) if m["type"] == "call")
+  call, line = seen[i], seen[i + 1]
+  assert line["type"] == "line" and line["line"].startswith("DECIDE")
+  assert line["line"].endswith("[fallback:cutoff]") and "baseten" not in line["line"]
+  assert (call["t"], call["robot"]) == (line["t"], life.root)
+  assert (call["source"], call["provider"], call["cut"]) == ("fallback:cutoff", "baseten", True)
+  assert life.decisions[-1]["call"]["provider"] == "baseten"
+  assert any("DECIDE" in ln and "[baseten: 1200 in, 60 out, cut off" in ln for ln in life.log)
 
 
 def test_a_policy_fallback_is_still_not_an_incident():
