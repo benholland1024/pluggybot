@@ -1112,7 +1112,7 @@ def build_home_world() -> tuple[str, dict]:
       ((WING_X[0] + WING_X[1]) / 2, (KITCHEN_Y[0] + KITCHEN_Y[1]) / 2),
       ((WING_X[0] + WING_X[1]) / 2, (WORKSHOP_Y[0] + WORKSHOP_Y[1]) / 2),
       ((HALL_X[0] + HALL_X[1]) / 2, 0.0),
-      ((hx0 + gx1) / 2, (GARDEN_SOUTH_Y[0] + GARDEN_SOUTH_Y[1]) / 2),
+      ((ROOMS_X[1] + gx1) / 2, (GARDEN_SOUTH_Y[0] + GARDEN_SOUTH_Y[1]) / 2),
       ((STREET_X[0] + STREET_X[1]) / 2, 0.0),
       # The second house and the loop (issue #215).
       ((LOBBY_X[0] + LOBBY_X[1]) / 2, 0.0),
