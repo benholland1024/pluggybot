@@ -2703,8 +2703,9 @@ seconds, and NOTHING may touch it in between: stand clear, or a hand that \
 steadied it counts as holding it up. A claimed challenge stands until you \
 say done, or until the time its description gives is up; a failed grade \
 closes it as failed, and so does that time running out -- it may be offered \
-again. Said before the work stands (with an `explore`, say), `done` is \
-graded as things are and fails.
+again. While you hold one it is in `heldTasks`, its `leftS` the seconds of \
+that time still left. Said before the work stands (with an `explore`, say), \
+`done` is graded as things are and fails.
 """
 
 
@@ -3143,7 +3144,7 @@ def prompt_sha(system: list[dict]) -> str:
   return hashlib.sha256("".join(p["text"] for p in system).encode()).hexdigest()
 
 
-def context_for(life, visitors=(), tasks=(),
+def context_for(life, visitors=(), tasks=(), held=None,
                 thoughts: ThoughtFiles | None = None,
                 allowance: dict | None = None,
                 metabolism: dict | None = None,
@@ -3174,6 +3175,9 @@ def context_for(life, visitors=(), tasks=(),
   `others` (issue #167) is what the OTHER robots broadcast -- name, reported
   pose, state, the line they narrate -- built by `lifecycle.others_context`
   from their public surface and nothing else.
+
+  `held` (#602) is the jobs this robot holds, as `TaskBoard.held_context`
+  frames them; absent while it holds none.
 
   Read off the live lifecycle rather than accumulated separately, so it cannot
   drift from what the robot actually is. Everything published elsewhere is
@@ -3261,6 +3265,8 @@ def context_for(life, visitors=(), tasks=(),
     # `Task.secret`, which has no path into this dict -- the verdicts'
     # redacted answers, one layer up.
     "offeredTasks": list(tasks),
+    # ...and the jobs it has taken, with the time each has left (#602)
+    **({"heldTasks": list(held)} if held else {}),
     # THE ALLOWANCE, SHOWN AND UNREACHABLE (issue #37). Exactly the reward
     # table's rule, one layer out: the robot is told what its thinking has
     # cost this week and how much is left, and there is no field on a

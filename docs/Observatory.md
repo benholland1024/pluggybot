@@ -45,7 +45,38 @@ true position read off the flag, at ten decisions each.
 the robots' own: whether either still brackets anything off `lab`, and
 what it makes of a mouse it mostly cannot see while it is company, read
 in their notes and History. ⚠ Their notes still say what `inRoom` was: a line
-naming it is about the old flag.
+naming it is about the old flag. ⚠ Released with #609's period below (the
+held jobs' time left, also a prompt change), the two open as one break.
+
+### A robot is shown the jobs it holds and the time each has left, and a charge trip runs one out (#602) — opens when this PR is deployed
+
+**What changed in the world.**
+- **Each robot's context lists the jobs it holds** (`heldTasks`), only
+  while it holds one: id, kind, the job's text, where it is, and `leftS`,
+  the seconds left of the time it gives from the claim, never below 0. The
+  CHALLENGES rule says so in one sentence. The prompt's sha moves.
+- **A job held past its minutes is also failed during a charge trip**, at
+  once, where it waited for the loop's next pass. The robot is away from
+  the counter with its hands home, so its prop can be set out safely.
+- Nothing else in the schema, the arm, the reward table, the job texts, the
+  body or the house moved.
+
+**Why.** #602's two, read live on 11-03 after #606's release.
+- Before the robots were shown held jobs, they spent their recalls finding
+  out when they took them ("I'm holding the open_chest job but I don't
+  actually know when I took it", Rowan, 11-03).
+- In #606's first hours, every run-out came within 100 s of its limit but
+  one. Luca went to charge holding t_0024. The charge took 4,447 s (36 % to
+  90 %), and the job, with its drawer, stayed booked 69 minutes past its
+  limit, until the next restart ran it out.
+
+**What the period is for.** Whether the robots stop spending recalls on
+when they took a job, read off their `recall` rows. And no claim outlives
+its limit through a charge, unless a `done` of its waits on the grade (a
+`done` said with or before a `charge` is graded after it, in the
+grader's words): read off `tasks_humanoid.json`'s resolved rows,
+`resolvedT - claimedT` beside each holder's `charge` rows. ⚠ #606's
+period was a few hours long before this one opened: read the two apart.
 
 ### A hand job held past its minutes is failed, and a start-over moves a claim with the clock (#602) — opens when this PR is deployed
 
