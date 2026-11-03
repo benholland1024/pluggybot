@@ -621,7 +621,14 @@ save a filmstrip PNG named after the script.
   own row (paid, `shown: false`: shown where a world names it,
   `Menu.kinds`), graded by its check's evaluator. ⚠ WATCHED FROM THE CLAIM to the hold after `done`: a fall on
   the way fails it; its `minutes` count from the claim; its readings ride a
-  restart (`jobWatches`). ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
+  restart (`jobWatches`). ⚠ HELD PAST ITS MINUTES IT IS FAILED (#602;
+  `Task.out_of_time`, `HubLifecycle._run_out_held`): ending only on a
+  `done` that could only fail it, three held jobs booked all three of the
+  counter's props, and nothing was offered from 02:22 UTC on 11-03; a
+  `done` pending is the grade's. ⚠ AT ITS HOLDER'S PASS OF THE DAY LOOP,
+  NEVER ON THE SEAM: freed there, its prop was set out under the procedure
+  still working it. ⚠ A true death fails its robot's jobs in that robot's
+  own records. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
   prop out, its activity renewed in place (`renew`), put back after a
   restart (`restore_counter`, in `begin`, before the activities' kept
@@ -1836,7 +1843,9 @@ save a filmstrip PNG named after the script.
   the ANSWER lives in `Task.secret`, in no `as_dict`, snapshot or model
   context — only the state file (`Task.as_state`). Claiming only QUEUES an
   errand below `needs_charge`. Expiry is an outcome, not a deletion, and only
-  OFFERED tasks expire. Off by default (`--tasks`, `$PLUGGY_TASKS`).
+  OFFERED tasks expire: a held job past the time it gives is FAILED, never
+  expired, because it was attempted (#602). Off by default (`--tasks`,
+  `$PLUGGY_TASKS`).
 - **When work appears is `economy/cadence.py` + `cadence.json`, and it is
   DATA** (issue #23; TaskPattern.md §5): `tasks.py` says what a job IS,
   `rewards.json` what it PAYS, `cadence.json` when it TURNS UP,
@@ -1847,10 +1856,13 @@ save a filmstrip PNG named after the script.
   A kind passed over for want of a target KEEPS the head of the queue; one
   the charged pack can never fund does not (#407: it starved the second of
   two kinds sharing a slot behind it); one offer per tick; nothing random. ⚠ **The rotation SURVIVES A RESTART** (the cursor lives in
-  `TaskBoard.producer`), an open offer's deadline is REBASED on load (except
-  where the world carries on, `rebase=False`), an offer is re-priced by the
-  world's energy table on load, and only a job a restart failed is
-  announced in `begin()` (`announce_interrupted`). `tests/test_cadence.py`,
+  `TaskBoard.producer`), an open offer's deadline and a held job's claim are
+  REBASED on load (except where the world carries on, `rebase=False`; ⚠ a
+  claim is never later than the last change saved, #602: one a start-over
+  left on the old clock could never run out; ⚠ moved in memory, written in
+  `begin()`), an offer is re-priced by the world's energy table on load,
+  and only a job a restart failed is announced in `begin()`
+  (`announce_interrupted`). `tests/test_cadence.py`,
   `tests/test_tasks.py` and `tests/test_continuation.py` pin each. When work
   may still ARRIVE (`HubLifecycle.expects_work`) the loop stands by in
   `WAIT_FOR_WORK_S` slices rather than end the day.
