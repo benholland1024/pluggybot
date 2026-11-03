@@ -96,7 +96,7 @@ STATION_TAG_SIZE = 0.060
 #: chest, the drawers, the cupboard and the cube -- the areas' 120 mm, read
 #: by the humanoid's navigation camera from across the room.
 COUNTER_TAG_IDS = (60, 61, 62, 63)
-#: The grown world's charging stations (issue #560; `humanoid.world.STATIONS`):
+#: The grown world's charging stations (issue #560; `humanoid.world.stations`):
 #: the research center's and the mall's, a pair each as the house's is --
 #: which pair a robot sees says which station it is looking at.
 STATION_2_TAG_IDS = (64, 65)

@@ -124,6 +124,69 @@ def test_a_sighting_names_the_station_its_pair_belongs_to(world):
     body.close()
 
 
+def test_a_fix_is_laid_off_the_station_whose_pair_it_fitted(world, monkeypatch):
+  # the colour imager's look failed and the head's fresh decode fitted
+  # ANOTHER station's pair: the belief is put right off that station's
+  # commissioned pose, never off the one the try began with
+  from pluggybot.body import RackPose
+  from pluggybot.humanoid import charge
+  _, data = world
+  body = _body(world)
+  try:
+    m = body.mission
+    m.station, m.station_sighting = "station", {"station": "station", "t": 0.0}
+
+    def done(*a, **kw):
+      return True
+      yield
+
+    def unseen(*a, **kw):
+      return None
+      yield
+
+    def decoded():
+      m.station_sighting = {"station": "station_mall", "t": float(data.time) + 1.0}
+    monkeypatch.setattr(m, "drive_to_routine", done)
+    monkeypatch.setattr(body, "face_routine", done)
+    monkeypatch.setattr(m, "look_for_places", decoded)
+    monkeypatch.setattr(charge, "rough", lambda seen: RackPose(0.0, 0.0, 0.0))
+    monkeypatch.setattr(charge, "look_routine", unseen)
+    monkeypatch.setattr(charge, "near_fit", lambda seen: RackPose(1.0, 2.0, 0.0))
+    monkeypatch.setattr(body, "_fix_at", lambda seen: {"at": m.station})
+    assert body.run(body._near_station_routine(lambda: False)) == (True, {"at": "station_mall"})
+  finally:
+    body.close()
+
+
+def test_a_station_whose_plug_is_parked_reads_no_port_once_armed(world, monkeypatch):
+  # three stations sensed every step, most with nobody near: armed beside a
+  # parked plug a port has nothing to take and nothing to re-arm, and its
+  # offset is not read (32 us a station a step, 12 without it)
+  from pluggybot.activity.station import Station
+  model, data = world
+  mujoco.mj_forward(model, data)
+  s = Station(model, data, "station_mall")
+  read = []
+  monkeypatch.setattr(s, "_port_offset", lambda d, port: read.append(port) or (1.0, 1.0, 0.0))
+  monkeypatch.setattr(s, "_take", lambda d, eq: None)
+  assert data.eq_active[s.cup]
+  s.sense(model, data)
+  assert read == []
+  # ...a port still to re-arm is read, to be
+  eq, (_, port) = next(iter(s.ports.items()))
+  s._armed[eq] = False
+  s.sense(model, data)
+  assert read == [port] and s._armed[eq]
+  # ...and out of its cup, every port is read again
+  read.clear()
+  data.eq_active[s.cup] = 0
+  try:
+    s.sense(model, data)
+    assert len(read) == len(s.ports)
+  finally:
+    data.eq_active[s.cup] = 1
+
+
 def test_the_station_a_charge_went_to_rides_a_restart(world):
   # restarted plugged in at the mall, an unplug would reach for the house's
   # plug: the choice is kept state (`HumanoidMission.kept_state`)

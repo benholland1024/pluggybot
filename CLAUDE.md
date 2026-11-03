@@ -547,7 +547,9 @@ save a filmstrip PNG named after the script.
   (109 of 109), and 6 of 38 begun further off, across the street, running
   out of their 600 s outside the house's south fence (#572 stage 3;
   SimNotes, "The station found from far off"); 52 of 52 with it 0.4-1 m
-  wrong (#596; staging 51, the miss a plug the port never took); 339 W net; the reserve 18 Wh (17.5 before the Mid-360S's 6.2 W, #581).
+  wrong (#596; staging 51, the miss a plug the port never took); 339 W net;
+  the reserve 19.5 Wh, to the nearest station from the park's west sidewalk
+  (18 to the one station before #560).
 - **The humanoid's LIDAR is a Livox Mid-360S, upside down in its head,
   and its map is laid from its points laid flat** (#581; `perception/lidar.py`,
   `HumanoidSpec.lidar_z`, `model._head`, `HumanoidMission._scan`/`maps`,

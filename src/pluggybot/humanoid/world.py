@@ -126,7 +126,7 @@ def stations() -> dict[str, tuple[tuple[float, float, float], tuple[int, int]]]:
   research center's at its lobby's south end, the mall's at its
   concourse's: each on a south wall, a robot facing it south, and each
   COMMISSIONED, as the house's is. Which one a robot charges at is its body's
-  to choose (`HumanoidBody.charge_standoff`)."""
+  to choose (`Body.choose_station`)."""
   from pluggybot.activity import station as st
   from pluggybot.home import world as home
   from pluggybot.perception.tags import STATION_2_TAG_IDS, STATION_3_TAG_IDS, STATION_TAG_IDS

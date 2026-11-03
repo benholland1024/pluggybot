@@ -1059,9 +1059,9 @@ def main(argv=None) -> int:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--approach", action="store_true")
-  ap.add_argument("--station", default=None,
-                  help="--approach and --seats at this station (#560: station, station_facility "
-                       "or station_mall; the house's by default)")
+  from pluggybot.home import world as home
+  ap.add_argument("--station", default=None, choices=sorted(home.STATION_WALLS),
+                  help="--approach and --seats at this station (#560; the house's by default)")
   ap.add_argument("--n", type=int, default=12)
   ap.add_argument("--parallel", type=int, default=3)
   ap.add_argument("--hold", action="store_true")

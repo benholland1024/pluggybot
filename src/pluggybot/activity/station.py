@@ -410,8 +410,8 @@ class Station(Activity):
   def sense(self, model, data) -> None:
     mated = ""
     for eq, (root, port) in self.ports.items():
-      out = data.site_xmat[port].reshape(3, 3)[:, 2]
       if data.eq_active[eq]:
+        out = data.site_xmat[port].reshape(3, 3)[:, 2]
         self._draw_in(data, eq)
         # ...judged once seated: a hand still on the plug fights its draw-in
         if self._pull.get(eq) is None and self._off(self._load(data, eq), out) >= BREAK_N:
@@ -420,6 +420,10 @@ class Station(Activity):
         else:
           mated = model.body(root).name
           continue
+      # ...armed, its plug in the cup: nothing to take and nothing to re-arm,
+      # at most stations every step (#560: three, 32 us a step each)
+      if self._armed[eq] and data.eq_active[self.cup]:
+        continue
       gap, lateral, tilt = self._port_offset(data, port)
       if not self._armed[eq]:
         self._armed[eq] = gap > CLEAR_M or lateral > CLEAR_M

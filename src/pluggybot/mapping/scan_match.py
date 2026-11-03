@@ -37,13 +37,15 @@ REACH_M = 0.30
 #: is one cell, and its returns land on both sides of that cell's centre.
 BEHIND_CELLS = 2.0
 #: Returns at or past this range are left out, m: the map's own reach
-#: (`lidar.MAX_RANGE`) since #560. The park's middle is 8 m from its nearest
-#: fence, and at 6.5 m (set on the C1's 2D LIDAR, whose far wall pulled the
-#: pose) the static probe left its heading unpinned at 71 % of places, at
-#: 8.0 26 % (`lidar_spike.py --probe`, the band); flown (the drift spike,
-#: eight flights an arm on one pod, two of them standing in the park), the
-#: belief's worst error was a median 0.13 m at 8.0 against 0.15 at 6.5, no
-#: flight worse (SimNotes, "The grown world").
+#: (`lidar.MAX_RANGE`) since #560, the park's middle 8 m from its nearest
+#: fence. ⚠ A WALL AT THE REACH IS SEEN SHORT where its long draws are
+#: clipped to "no return": the C1 2D LIDAR's far wall pulled the pose 32 mm
+#: a scan, so its cut was 6.5 m. The band's sigma there is 2.4 cm and it
+#: reads a surface by its returns' median: matched from the true pose where
+#: a scan has returns 7.5-8 m out, the pull was 1.0 mm (p95 2.1) at 8.0
+#: against 0.8 (1.9) at 6.5, and the park's middle went from its heading
+#: unpinned at 71 % of places to 19 % (`lidar_spike.py --probe`, the band;
+#: SimNotes, "The grown world").
 MATCH_RANGE_M = 8.0
 #: ...and returns nearer than this, m: what the hands work on -- the
 #: station's box, the plug in the hand, a drawer, a door -- each low surface
@@ -53,12 +55,14 @@ MATCH_RANGE_M = 8.0
 #: belief stopped 3.6 cm inside the seat, and 2 of 3 wide starts never lined
 #: up; without them, 26-41 cm, and 3 of 3 docked.
 MATCH_MIN_M = 1.0
-#: The field's window, m either way: MATCH_RANGE_M and a refresh's travel.
-WINDOW_M = 7.5
 #: The field is recomputed after this much travel from where it was, m, or
 #: this many fused scans: 5 ms a refresh; a fresher field did no better.
 REFRESH_M = 1.0
 REFRESH_SCANS = 20
+#: The field's window, m either way: MATCH_RANGE_M and a refresh's travel,
+#: for a point outside it pulls on nothing -- left at 7.5 m with returns read
+#: to 8, the park's middle stayed unpinned at 26 % of places, not 19 (#560).
+WINDOW_M = MATCH_RANGE_M + REFRESH_M
 #: The robust weight's scale, m (Cauchy): a point this far off its wall
 #: counts half, one three times as far a tenth.
 ROBUST_M = 0.05

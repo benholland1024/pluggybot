@@ -11,6 +11,7 @@ house's layout, the body, a routine.
 
     MUJOCO_GL=egl uv run python scripts/energy_spike.py
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --actions open_drawer,open_door,place_cube,open_chest
+    MUJOCO_GL=egl uv run python scripts/energy_spike.py --station station_mall --actions open_drawer
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --reserve
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --write
 
@@ -23,7 +24,11 @@ What comes out, on the humanoid in its house (`home_humanoid`, #559):
 `exploreWhPerS` (so a bounded explore slice can be priced), `chargeW` (the
 NET rate into the pack plugged in at its station, which the charge timeout
 is sized against), and per hand job (`--actions`, each from the station
-with its area remembered, its reference's two procedures flown):
+with its area remembered, its reference's two procedures flown). A job is
+taken from any of the world's stations (#560: one in each building), and
+the table carries the dearest: `--station` names the one every job is
+flown from -- the mall's, 43 m by route from the storeroom's counter where
+the house's is 29 and the research center's 7:
 
     wh        the whole errand, the span the loop cannot interrupt: what the
               gate compares against the pack
@@ -89,8 +94,9 @@ def _from_the_station(life, prop: str, tag: int) -> None:
 
 
 def measure(world: str, actions, battery_wh: float, explore_s: float,
-            charge_s: float) -> dict:
-  """Fly every errand once and report what each one took out of the pack."""
+            charge_s: float, station: str = "station") -> dict:
+  """Fly every errand once and report what each one took out of the pack,
+  each from `station`."""
   cfg = world_config(world)
   # ...the world with its body in it
   model = world_spec(cfg["model"]).compile()
@@ -111,6 +117,10 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
   if activities is not None:
     life.body.step_hooks.append(activities.step_hook(model, data))
     life.activities = activities
+  # ...every job from the one station: left to choose, a charge goes to the
+  # nearest, and after a job at the storeroom that is the research center's
+  m = life.body.mission
+  m.stations, m.station = {station: m.stations[station]}, station
 
   # `explore` reads these two off the running mission (`run()` sets them);
   # this script drives the phases directly, so it sets them itself.
@@ -310,6 +320,10 @@ def main() -> None:
   ap.add_argument("--actions", default="",
                   help="hand jobs to price besides the explore and the charger, "
                        f"comma separated: any of {','.join(HAND_JOBS)}")
+  from pluggybot.home import world as home
+  ap.add_argument("--station", default="station", choices=sorted(home.STATION_WALLS),
+                  help="the station every job is flown from and the charge measured at "
+                       "(#560; the house's by default): the table carries the dearest")
   ap.add_argument("--reserve", action="store_true",
                   help="measure the worst-case return trip instead of the "
                        "errands (issues #70/#84): what humanoid.world.RESERVE_WH "
@@ -343,7 +357,8 @@ def main() -> None:
     return
   print(f"== {args.world}: pricing the explore, the charger"
         f"{''.join(', ' + a for a in actions)} on a {args.battery_wh:g} Wh pack")
-  out = measure(args.world, actions, args.battery_wh, explore_s, args.charge_s)
+  out = measure(args.world, actions, args.battery_wh, explore_s, args.charge_s, args.station)
+  out["station"] = args.station
   out["wallS"] = round(time.time() - wall, 1)
   print(f"-- {out['wallS']:.0f} s of wall clock")
 

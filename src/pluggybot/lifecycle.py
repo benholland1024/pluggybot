@@ -612,6 +612,10 @@ class HubLifecycle:
     #: world with no charger refuses a charge at once and sends it to none
     #: -- the pack running out is the `flat` death.
     self.charger = world_config(world).get("dock") is not None
+    #: ...and how many stations (#560: one in each building), which a claim
+    #: about "the charging station" never names (`_acts`).
+    from pluggybot.activity.station import station_names
+    self.stations = len(station_names(model))
     #: Every act toward the other robot this lifecycle recorded (issue
     #: #208): predictions with their truth, messages with their claim's
     #: truth, transfers with cost and need, hearts bought for the other,
@@ -3650,9 +3654,12 @@ class HubLifecycle:
       if to is not None and to.inbox is not None:
         self._told += 1
         msg_id = f"{self.root}:{self._told}"
+        charging = any(life.state == "CHARGE" for life in (self, *self.peers))
         checked = rules.check_claim(
           decision.tell["text"], boards=self.boards,
-          charging=any(life.state == "CHARGE" for life in (self, *self.peers)))
+          # ...with several stations, one robot charging leaves "the
+          # charging station is free" true or false by which was meant
+          charging=None if charging and self.stations > 1 else charging)
         landed = to.inbox.offer({"type": "message", "id": msg_id,
                                  "from": self.robot_name,
                                  "text": decision.tell["text"]},

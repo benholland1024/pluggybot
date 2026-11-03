@@ -1592,10 +1592,11 @@ too. At 20 Wh it kept none, a branch the served pack never takes (#580).
 ### The reserve, and the hosting pack
 
 The reserve is a property of the **floor plan**, not the battery.
-`humanoid.world.RESERVE_WH` (18 Wh) is measured (`energy_spike.py
---reserve`): the worst return BY ROUTE to its station, from the garden
-doorway, as travel (14.1 Wh over 44.6 m, the Mid-360S's 6.2 W included)
-plus the last leg and a plug-in, with one failed plug-in priced as another.
+`humanoid.world.RESERVE_WH` (19.5 Wh) is measured (`energy_spike.py
+--reserve`): the worst return BY ROUTE to the nearest station, from the
+park's west sidewalk to the mall's (#560), as travel (14.2 Wh, its walk
+54.8 m where the waypoints are 42.4, the Mid-360S's 6.2 W included) plus
+the last leg and a plug-in, with one failed plug-in priced as another.
 Re-measure it when the plan changes, not when the pack does.
 
 `--pack hosting` (`$PLUGGY_PACK`; `--battery-wh` still overrides) is the

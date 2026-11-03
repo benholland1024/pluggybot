@@ -1151,6 +1151,9 @@ class HumanoidBody(Body):
         m.look_for_places()
         if m.station_sighting is not None and m.station_sighting["t"] >= t:
           seen = charge.near_fit(m.station_sighting)
+          # ...fitted on the pair this look saw, whichever station's
+          if seen is not None:
+            m.station = m.station_sighting.get("station", m.station)
       if seen is not None:
         return True, self._fix_at(seen)
     return False, None

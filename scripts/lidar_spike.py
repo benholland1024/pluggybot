@@ -316,30 +316,25 @@ def probe_summary(rows: list[dict]) -> None:
   the heading and one (held along a wall), and not the heading."""
   print(f"\n=== {rows[0]['variant']}: places whose scan pins ...")
   print(f"  {'':16s} {'n':>4s} | {'all 3':>6s} {'heading':>8s} {'NOT heading':>11s} | returns")
-  for grp, names in GROUPS.items():
-    rs = [r for r in rows if r["zone"] in names]
-    if not rs:
-      continue
+
+  def line(label: str, rs: list[dict], tail: str = "") -> None:
     n = len(rs)
     acc = [r for r in rs if r["why"] == "ok"]
     full = sum(1 for r in acc if r["held"] == 0)
     heading = sum(1 for r in acc if r["held"] == 1 and abs(r["weak"][2]) < 0.5)
     pc = lambda k: f"{100 * k / n:5.0f}%"  # noqa: E731
-    print(f"  {grp:16s} {n:4d} | {pc(full):>6s} {pc(heading):>8s} {pc(n - full - heading):>11s} "
-          f"| {np.mean([r['returns'] for r in rs]):6.0f}")
+    print(f"  {label:16s} {n:4d} | {pc(full):>6s} {pc(heading):>8s} {pc(n - full - heading):>11s} "
+          f"| {np.mean([r['returns'] for r in rs]):6.0f}{tail}")
+  for grp, names in GROUPS.items():
+    rs = [r for r in rows if r["zone"] in names]
+    if rs:
+      line(grp, rs)
   from pluggybot.home import world as home
   cx, cy = sum(home.PARK_X) / 2, sum(home.PARK_Y) / 2
   mid = [r for r in rows if r["zone"] == "park"
          and math.hypot(r["x"] - cx, r["y"] - cy) <= PARK_MIDDLE_M]
   if mid:
-    n = len(mid)
-    acc = [r for r in mid if r["why"] == "ok"]
-    full = sum(1 for r in acc if r["held"] == 0)
-    heading = sum(1 for r in acc if r["held"] == 1 and abs(r["weak"][2]) < 0.5)
-    whys = sorted({r["why"] for r in mid})
-    print(f"  {'the park middle':16s} {n:4d} | {100 * full / n:5.0f}% {100 * heading / n:7.0f}% "
-          f"{100 * (n - full - heading) / n:10.0f}% | {np.mean([r['returns'] for r in mid]):6.0f}"
-          f"  (verdicts: {', '.join(whys)})")
+    line("the park middle", mid, f"  (verdicts: {', '.join(sorted({r['why'] for r in mid}))})")
 
 
 # ---- --view and --strip -----------------------------------------------------------
