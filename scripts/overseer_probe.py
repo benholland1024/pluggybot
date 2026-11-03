@@ -336,6 +336,30 @@ def report_latency(latencies: list[float], boss: Overseer,
     print(f"late even at {held_to:g} s        : {late}")
 
 
+def report_calls(boss: Overseer) -> None:
+  """WHO ANSWERED, AND WHAT IT TOOK (issue #604): `:cheapest` picks the
+  provider per request, and the providers tied at the cheapest price think
+  at different speeds -- so the calls by provider, how many ran out of the
+  budget (a cut-off is billed in full: what a budget too small costs), and
+  the output tokens and seconds each took, beside the deadline."""
+  by: dict = {}
+  for d in boss.decisions:
+    if d.call:
+      by.setdefault(d.call["provider"] or "unnamed", []).append(d.call)
+  if not by:
+    return
+  print(f"\nwho answered, at a budget of {boss.max_tokens} tokens "
+        f"(the deadline is {CALL_TIMEOUT_S:g} s)")
+  print("  provider          calls  cut off   out median / max   s median / max")
+  for name, calls in sorted(by.items()):
+    out = dist([c["tokensOut"] for c in calls])
+    wall = dist([c["wallS"] for c in calls])
+    cut = sum(1 for c in calls if c["cut"])
+    print(f"  {name:<16} {len(calls):6d}  {cut:7d}   {out['median']:6.0f} / "
+          f"{out['max']:<6d}  {wall['median']:5.1f} / {wall['max']:.1f}")
+    print(f"    raw (out, s): {' '.join(f'{c['tokensOut']},{c['wallS']:.0f}' for c in calls)}")
+
+
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--world", choices=(HUMANOID_HOME, "home"), default="home",
@@ -400,11 +424,12 @@ def main() -> None:
                            "the deadline has to be chosen from")
   parser.add_argument("--max-tokens", type=int, default=None, metavar="N",
                       help="override the answer budget (`MAX_TOKENS_"
-                           "AUTONOMOUS`, 8192). A "
+                           f"AUTONOMOUS`, {ov.MAX_TOKENS_AUTONOMOUS}). A "
                            "reasoning model spends it on its reasoning "
-                           "first and an empty or cut-off answer is "
-                           "`fallback:garbled`; this is how the budget a "
-                           "candidate needs is MEASURED rather than argued")
+                           "first and an answer it ran out on is "
+                           "`fallback:cutoff`; this is how the budget a "
+                           "candidate needs is MEASURED rather than argued "
+                           "(issue #604: by provider, beside the deadline)")
   parser.add_argument("--tokens-only", action="store_true",
                       help="count the prefix and stop -- no API calls")
   parser.add_argument("--prompt", action="store_true",
@@ -604,7 +629,10 @@ def main() -> None:
     print(f"   {dt:5.2f}s  in={delta['inputTokens']}"
           f" out={delta['outputTokens']}"
           f" cache_read={delta['cacheReadTokens']}"
-          f" cache_write={delta['cacheWriteTokens']}")
+          f" cache_write={delta['cacheWriteTokens']}"
+          + (f"  by {decision.call['provider'] or 'unnamed'}"
+             + (", CUT OFF" if decision.call["cut"] else "")
+             if decision.call else ""))
 
   stats = boss.stats()
   print("\n" + json.dumps(stats, indent=1))
@@ -619,9 +647,10 @@ def main() -> None:
           "\nescalation cost        : unknown -- no published rates")
   # The acceptance criteria, in the units they were written in. A decision
   # every ~2 minutes of sim time is the design doc's cadence.
-  per_call = stats["usd"] / max(1, stats["llmCalls"])
+  per_call = stats["usd"] / max(1, sum(1 for d in boss.decisions if d.call))
   valid = sum(1 for d in boss.decisions if not d.scripted)
   report_latency(latencies, boss, args.timeout)
+  report_calls(boss)
   report_energy(boss)
   report_orders(orders)
   print(f"valid decisions        : {valid}/{args.calls}"

@@ -118,9 +118,10 @@ def test_the_task_id_is_a_grammar():
   constrained = MENU.schema(task_ids=("t_0007",))["properties"]["task"]
   assert constrained == {"type": "string", "enum": ["t_0007", ""]}
   assert Overseer(MENU)._task_ids(("t_0007",)) == ("t_0007",)
-  # ...and the seventh was a TRUNCATION, so a decision gets the big budget;
-  # the interrupt, one boolean and a sentence, keeps the small one.
-  assert Overseer(MENU).max_tokens == ov.MAX_TOKENS_AUTONOMOUS > ov.MAX_TOKENS
+  # ...and the seventh was a TRUNCATION, so a decision gets the big budget,
+  # and since #604 the interrupt too: one boolean and a sentence, after the
+  # same reasoning, and at 1,024 4 of 8 on a live turn ran out of it.
+  assert Overseer(MENU).max_tokens == ov.MAX_TOKENS_AUTONOMOUS == ov.MAX_TOKENS
 
 
 # ---- the three rails ----------------------------------------------------------

@@ -213,20 +213,23 @@ MAX_RECALL_RUN = 3
 #: many in a row. The numbers are `mind/look.py`'s; the run cap is
 #: re-exported because the schema and the lifecycle both read it.
 from pluggybot.mind.look import LOOK_S, MAX_LOOK_RUN  # noqa: E402, F401
-#: The mid-errand interrupt's budget: one boolean and a sentence (issue #116).
-MAX_TOKENS = 1024
-#: ...and a decision's (issue #115). An answer cut off mid-write is
-#: `fallback:garbled`, billed: the write fields and `reason` are free strings
-#: with no length in the schema (a `maxLength` risks a silent downgrade to
-#: prose on the structured-output subset), and a model that writes a long
-#: thing to remember spends the budget it needed to close the object.
-#: ⚠ 8192 SINCE THE PICK REASONS (issue #225). A reasoning model spends the
-#: budget on its reasoning FIRST, and what it cannot finish is an EMPTY
-#: answer, billed in full: at 2048, GLM-5.3-Flash and DeepSeek-V4.1-Flash
-#: each lost 1 in 8 on the deployed prompt; at 8192, 0 and 1 in 50, with
-#: the answer itself still ~800 tokens. The budget is a ceiling, not a
-#: spend -- a model that answers in 800 pays for 800.
-MAX_TOKENS_AUTONOMOUS = 8192
+#: A decision's budget (issue #115). The write fields and `reason` are free
+#: strings with no length in the schema (a `maxLength` risks a silent
+#: downgrade to prose on the structured-output subset), so a long answer
+#: spends the budget it needed to close the object.
+#: ⚠ A REASONING MODEL SPENDS IT ON ITS REASONING FIRST, and what it cannot
+#: finish is an empty answer, billed in full: `fallback:cutoff` (#604).
+#: 16,384 SINCE #604, measured on the live robots' own turns: one carrying
+#: two recalled blocks thought 3.1k-17.0k tokens on baseten, 3 of 5 past
+#: 8,192 (the pick's 8,192, #225) and 1 of 5 past 16,384, the longest
+#: answered in 88.7 s -- about all the fastest provider writes inside
+#: `CALL_TIMEOUT_S`, so a bigger budget needs a bigger deadline (Overseer.md
+#: §6). A ceiling, not a spend: an answer of 800 tokens pays for 800.
+MAX_TOKENS_AUTONOMOUS = 16384
+#: ...and the mid-errand interrupt's (issue #116): one boolean and a
+#: sentence, after the same reasoning. At 1,024, 4 of 8 asked on a live
+#: robot's turn ran out of it (#604), and a failed interrupt stops the errand.
+MAX_TOKENS = MAX_TOKENS_AUTONOMOUS
 
 #: THE ESCALATION (issue #37). Routine decisions run on whatever backend the
 #: world was started with -- free, if that is the local model -- and the robot
@@ -245,9 +248,10 @@ MAX_TOKENS_AUTONOMOUS = 8192
 #: refusing; it is `MAX_TOKENS_AUTONOMOUS` since #225 for the same reason
 #: one level up -- a reasoning escalation (`zai-org/GLM-5.2`, measured)
 #: came back EMPTY on every call at 1024, $0.012 a call for nothing, and
-#: answered 4 of 5 at 8192 ($0.016, 25-86 s). The deployed world escalates
-#: to nothing this period (docs/Observatory.md); the constant is what a
-#: reasoning target needs when one is named.
+#: answered 4 of 5 at 8192 ($0.016, 25-86 s); it follows the constant up
+#: (#604). The deployed world escalates to nothing this period
+#: (docs/Observatory.md); the constant is what a reasoning target needs
+#: when one is named.
 ESCALATE_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 ESCALATE_MAX_TOKENS = MAX_TOKENS_AUTONOMOUS
 #: ⚠ SCARCITY HAS TO BITE, and these two are how. A budget that covers most
@@ -3528,8 +3532,9 @@ class Overseer:
     #: THE MEASUREMENT SEAM (issue #106). Each hook gets one dict per
     #: decision -- `state` (the context the model was shown, verbatim),
     #: `decision`, `wallS` (asked -> answered) and `error` (the vendor's
-    #: text behind a `garbled` / `offline`, which `usage.errors` forgets
-    #: after five). Read-only: nothing here can change what was decided.
+    #: text behind a `garbled` / `cutoff` / `offline`, which `usage.errors`
+    #: forgets after five); the call itself is `decision.call` (#604).
+    #: Read-only: nothing here can change what was decided.
     #: Pass 1a of M14 had to monkeypatch three methods to see this; the
     #: harness gets it from one list, on the same terms as `say_hooks`.
     self.on_decision: list[Callable[[dict], None]] = []

@@ -10,6 +10,44 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The mind's budget is 16,384 tokens, and every decision says who answered it (#604) — opens when this PR is deployed
+
+**What changed in the mind and on the wire.**
+- **`MAX_TOKENS_AUTONOMOUS` is 16,384** (8,192 since #225), and the
+  mid-errand interrupt's budget follows it (1,024 since #116), as the
+  escalation's does. `CALL_TIMEOUT_S` stays 90 s.
+- **An answer its tokens ran out on is `fallback:cutoff`**, a failure,
+  never `garbled`; the robot is told "your answer was cut off: it ran out
+  of its 16,384 tokens before it was written" where it read "decision was
+  not JSON: ''". A cut-off backs no endpoint off, as a garbled answer does
+  not.
+- **The prompt's map rule lists `cutoff`** among the reasons a
+  `decision_failed` rule may name, and `no-client` among the failures
+  where the rule had left it out. The prompt's sha moves.
+- **Every decision a response came back for names its call**: a `call`
+  event just before its DECIDE line, filed by the site on the decision row
+  (`pw_decisions.provider`, `tokens_in`, `tokens_out`, `cut`, `wall_s`,
+  rooftop-media-2026's migration 0051), and on the console beside the line.
+- Nothing in the arm, the menu, the reward table, the body or the house
+  moved, and the model is the same `zai-org/GLM-5.3-Flash:cheapest`.
+
+**Why.** #604: from 04:00 UTC on 11-03 a quarter of the answers came back
+empty and billed, and on 314a5f9 that afternoon 22 of 159 asked were empty
+and 16 timed out, mostly on the turn after a `recall`. Measured on the live
+robots' own turns (Overseer.md §6, "The budget"): baseten, which answered
+41 of 44 `:cheapest` calls, thought up to 17k tokens on a turn carrying
+two recalls (3 of 5 past 8,192); novita, tied with it at one price, never
+answered a non-streamed call before the router's 504 at 120 s.
+
+**What the period is for.** #604's live box: empty answers back near #225's
+1 in 50. Read the decision rows by `provider`: `fallback:cutoff` should be
+rare, and where it is not, its `tokens_out` is the budget and its provider
+says whose think it was. ⚠ Not this period's fix: the `fallback:timeout`
+rows on a provider that never answers in time; if they stay near a tenth,
+the deployment's model id (`:cheapest` against one provider) is the lever,
+and Ben's. ⚠ Read `wall_s` against 90 s: the budget is sized to the
+deadline, and an answer near 16,384 tokens arrives near it.
+
 ### A hand job held past its minutes is failed, and a start-over moves a claim with the clock (#602) — opens when this PR is deployed
 
 **What changed in the world.**

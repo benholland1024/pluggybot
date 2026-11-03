@@ -618,9 +618,15 @@ are different animals.
   API rather than a model, and only the FAILURE class says so (§5): read the
   rate without the split and an agent that idles a lot looks exactly like a
   slow endpoint.
+- **Who answered** — since #604 a decision a response came back for carries
+  the call behind it (`provider`, `tokens_in`, `tokens_out`, `cut`, `wall_s`
+  on the site's `pw_decisions`): the router's `:cheapest` picks the provider
+  per request, so a fallback rate that moves with nothing deployed is read
+  by provider first, and `fallback:cutoff` is an answer that ran out of its
+  tokens, never a model that lost the grammar.
 - **Latency** is `scripts/overseer_probe.py`'s, and the probe under-measures a
   mission (§3's measured results): choose a deadline from it, confirm it in
-  flight.
+  flight — on the live day, the decision rows' `wall_s`.
 - **Escalations** — a decision whose `source` is `llm:<model>` is one the
   expensive mind answered (Overseer.md §8). ⚠ **Absent, not zero**, where no
   escalation model is configured: the field was not in the model's grammar,
