@@ -239,9 +239,8 @@ def test_a_cut_off_answer_is_no_dead_endpoint_and_stops_an_errand(menu):
   """Issue #604, the two other places a cut-off lands. Cut-offs running
   start no cooloff -- the endpoint answered, as a garbled one does (#115)
   -- and are listed for the operator once each, with their class; a cut-off
-  interrupt is `fallback:cutoff`, and aborts as every failure there does,
-  so it is asked with a decision's budget (at 1,024, 4 of 8 on a live turn
-  ran out)."""
+  interrupt is `fallback:cutoff`, names who answered, and aborts as every
+  failure there does; it is asked with its own budget (`MAX_TOKENS`)."""
   client = FakeClient(CutResponse(""))
   boss = Overseer(menu, client=client)
   for _ in range(ov.MAX_CONSECUTIVE_ERRORS + 1):
@@ -254,7 +253,8 @@ def test_a_cut_off_answer_is_no_dead_endpoint_and_stops_an_errand(menu):
   answer = boss.interrupt_result()
   assert answer["source"] == "fallback:cutoff" and answer["continue"] is False
   assert answer["why"].startswith("the answer ran out of its tokens")
-  assert client.calls[-1]["max_tokens"] == ov.MAX_TOKENS_AUTONOMOUS
+  assert (answer["call"]["provider"], answer["call"]["cut"]) == ("baseten", True)
+  assert client.calls[-1]["max_tokens"] == ov.MAX_TOKENS
 
 
 def test_a_slow_call_is_abandoned_rather_than_waited_on(menu):

@@ -195,7 +195,7 @@ THINK_SLICE_S = 0.1
 #: Longest `think` kept, in characters (issue #221): ~250 tokens, a solid
 #: paragraph -- room to weigh three options. Output tokens are the slow and
 #: dear half of a call (5x the input price on the Anthropic path; on a 4B
-#: the latency IS the output length, against the 90 s deadline), so the cap
+#: the latency IS the output length, against `CALL_TIMEOUT_S`), so the cap
 #: is small and enforced in `validate` rather than begged for in the
 #: prompt. Truncating scratch is harmless; a model that fills it every
 #: turn is a phase 2 reading.
@@ -232,9 +232,13 @@ from pluggybot.mind.look import LOOK_S, MAX_LOOK_RUN  # noqa: E402, F401
 #: counted toward the cooloff (Overseer.md §6). A ceiling, not a spend.
 MAX_TOKENS_AUTONOMOUS = 16384
 #: ...and the mid-errand interrupt's (issue #116): one boolean and a
-#: sentence, after the same reasoning. At 1,024, 4 of 8 asked on a live
-#: robot's turn ran out of it (#604), and a failed interrupt stops the errand.
-MAX_TOKENS = MAX_TOKENS_AUTONOMOUS
+#: sentence, after the same reasoning. On the live robots' own turns it
+#: thought 489-1,846 tokens (#604), 7 of 20 past the 1,024 it had, and a
+#: failed interrupt stops the errand. ⚠ NOT the decision's budget: it is
+#: asked as the pack runs low, mid-errand, and 4,096 -- twice the longest --
+#: comes back in ~28 s where 16,384 could stand the robot still for most of
+#: two minutes.
+MAX_TOKENS = 4096
 
 #: THE ESCALATION (issue #37). Routine decisions run on whatever backend the
 #: world was started with -- free, if that is the local model -- and the robot
@@ -276,7 +280,9 @@ ESCALATE_ASSUMED_IN = 3500
 #: does (issue #117: 30 -> 120 when the routine deadline went 8 -> 90).
 #: ⚠ Measured, the escalation is not in fact the slow one: the 235B pick
 #: answers in 2.05 s (docs/Overseer.md section 8). This is headroom for the
-#: case where it is, not a prediction that it will be.
+#: case where it is, not a prediction that it will be. ⚠ Through the router
+#: it can be no more: the gateway answers a non-streamed request silent for
+#: 120 s with a 504 (#604), which is `offline`, and the cheap answer stands.
 ESCALATE_TIMEOUT_S = 120.0
 
 #: Claude Haiku 4.5, USD per million tokens (skill: claude-api). Used only to
@@ -1412,7 +1418,7 @@ class Menu:
         #
         # The cost is real and is latency, not correctness: a schema that
         # changes per call is a grammar the server recompiles. That is
-        # affordable against a 90 s deadline and 7.5 s calls (issue #117).
+        # affordable against a deadline of minutes and calls of seconds (#117).
         # `None` -- a caller with no ids to hand -- keeps the free string.
         "task": (enum(task_ids) if task_ids else {"type": "string"}),
         # The thought files (issues #38, #221). Free strings, capped in
@@ -4273,7 +4279,8 @@ class Overseer:
       return self._int_in_flight
 
   def interrupt_result(self) -> dict:
-    """`{"continue": bool, "why": str, "source": str}`.
+    """`{"continue": bool, "why": str, "source": str}`, and `call` where a
+    response came back (`_call_record`, #604), a cut-off's included.
 
     ⚠ EVERY FAILURE ABORTS, and this is the one place in the whole design
     where failing SAFE is the right default rather than failing open. The
@@ -4288,6 +4295,8 @@ class Overseer:
     answer = slot.get("answer")
     if answer is None:
       answer = self._interrupt_fallback(slot.get("error") or "timeout")
+      if slot.get("call"):
+        answer["call"] = slot["call"]
     self.interrupts.append(dict(answer))
     return answer
 
@@ -4298,7 +4307,9 @@ class Overseer:
             "source": f"fallback:{why}"}
 
   def _call_interrupt(self, state: dict, errand: str, why: str) -> None:
+    call = None
     try:
+      asked = self.clock()
       response = self.client.messages.create(
         model=self.model, max_tokens=MAX_TOKENS,
         system=self.system,
@@ -4308,16 +4319,21 @@ class Overseer:
           model_state(state, survival=self.show_survival),
           errand, why)}],
       )
+      wall = self.clock() - asked
       self._meter(response)
       self._bank_decision()
+      call = _call_record(response, wall)
       raw = _extract_json(response)
       answer = {"continue": bool(raw.get("continue_errand")),
-                "why": clean(raw.get("reason"), MAX_WHY), "source": "llm"}
+                "why": clean(raw.get("reason"), MAX_WHY), "source": "llm",
+                "call": call}
       slot = {"answer": answer}
     except Exception as e:                  # noqa: BLE001 -- see interrupt_result
       self.usage.errors.append(
         f"interrupt: {type(e).__name__}: {e}"[:200])
       slot = {"error": fallback_reason(e)}
+      if call is not None:
+        slot["call"] = call
     with self._int_lock:
       self._int_slot = slot
       self._int_in_flight = False
@@ -4657,9 +4673,10 @@ class Overseer:
       # is parsed, because a reasoning model that spent its whole budget
       # thinking and returned nothing was charged for every token of it,
       # and metering after `validate` counted that call as free.
-      call = _call_record(response, self.clock() - asked)
+      wall = self.clock() - asked
       self._meter(response)
       self._bank_decision()
+      call = _call_record(response, wall)
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
                                     offered=offered,
                                     standing_orders=True,

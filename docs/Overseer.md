@@ -1774,12 +1774,22 @@ time, and no budget moves those.
   and naming nobody: at the old 90 s this budget was 12,288 for that reason
   (the review's catch). A bigger budget needs a bigger deadline, which a
   non-streamed call cannot use past the gateway's 120 s.
-- **The interrupt follows it** (`MAX_TOKENS`, 1,024 since #116): asked on a
-  live turn, 4 of 8 ran out of it, and the 4 answered used 667-1,019; a
-  failed interrupt stops the errand, so a `battery_below -> ask` row read as
-  "stop" half the time. `ESCALATE_MAX_TOKENS` follows it too.
+- **The interrupt's is 4,096** (`MAX_TOKENS`, 1,024 since #116): asked on
+  the live robots' turns it thought 489-1,846 tokens (12 of 12 answered at
+  32,768), and 7 of 20 ran out of the 1,024; a failed interrupt stops the
+  errand, so a `battery_below -> ask` row read as "stop" a third of the
+  time. ⚠ Not the decision's 16,384: it is asked as the pack runs low,
+  mid-errand, and twice its longest think comes back in ~28 s where the
+  decision's budget could hold the robot still for most of two minutes.
+  `ESCALATE_MAX_TOKENS` follows the decision's.
 - ⚠ **A cut-off of 16,384 bills about $0.012** at ~25k tokens in, against
   $0.008 at 8,192: the ceiling is only paid where an answer needs it.
+- ⚠ **A timeout bills what nobody meters**: no response reaches `_meter`,
+  so the purse (`$PLUGGY_WEEKLY_USD`) never sees whatever the provider
+  billed for a call the deadline or the gateway gave up on -- and at 16,384
+  that can be twice what it could at 8,192. Whether the router bills it is
+  not known here: the router's own bill beside the spend record over a day
+  of timeouts says.
 - **The robot is told the tokens the provider says it spent** (a provider
   capping below the ask spends fewer), and a cut-off interrupt says "the
   answer ran out of its tokens", not "nobody answered".

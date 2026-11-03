@@ -4654,14 +4654,16 @@ class HubLifecycle:
       if self._aborting:
         self._abort_from_wh = self.battery.energy_wh
       entry.update(outcome="continued" if answer["continue"] else "aborted",
-                   source=answer["source"], why=answer["why"])
+                   source=answer["source"], why=answer["why"],
+                   **({"call": answer["call"]} if answer.get("call") else {}))
       self._say(f"INTERRUPT at {frac:.0%}: "
                 + ("carrying on with " if answer["continue"]
                    else "stopping and going -- ")
                 + f"{self._errand_name}"
                 + (f" ({answer['why']})" if answer["why"] else "")
                 + ("" if answer["source"] == "llm"
-                   else f" [{answer['source']}]"))
+                   else f" [{answer['source']}]"),
+                detail=call_said(answer.get("call")))
     self.interrupts.append(entry)
     # ...and into the record it cannot edit (issue #38), on the death line's
     # terms: an interrupt is a thing that HAPPENED to this robot, and the

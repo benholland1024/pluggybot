@@ -18,8 +18,9 @@ observatory is NOT a result: it reports into the issue it informs.
   a call as our own `timeout` first.
 - **`MAX_TOKENS_AUTONOMOUS` is 16,384** (8,192 since #225), sized so the
   fastest provider's full think comes back inside the deadline, and the
-  mid-errand interrupt's budget follows it (1,024 since #116), as the
-  escalation's does.
+  escalation's follows it. The mid-errand interrupt's is 4,096 (1,024 since
+  #116), twice its longest think on a live turn; it says who answered on
+  its INTERRUPT line and in the run's `interrupts`.
 - **An answer its tokens ran out on is `fallback:cutoff`**, a failure,
   never `garbled`; the robot is told "your answer was cut off: it ran out
   of its 16,384 tokens before it was written" (the count the provider
