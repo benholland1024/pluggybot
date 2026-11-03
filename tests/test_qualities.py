@@ -196,6 +196,16 @@ def test_first_solve_counts_the_attempts_before_the_first_done():
   assert out["procedures"] == {"ran": 1}
 
 
+def test_first_solve_reads_the_attempts_in_the_boards_order_across_a_start_over():
+  """#610: a start-over sets the clock back inside one build. By `simTime`,
+  an attempt failed on the clock before it sorted after every attempt
+  since, and a first solve on the second attempt read as on the first."""
+  rows = [Row("task", "failed", t=356_974, data={"kind": "open_drawer", "id": "t_0003"}),
+          Row("task", "done", t=60_262, data={"kind": "open_drawer", "id": "t_0007"}),
+          Row("task", "failed", t=61_109, data={"kind": "open_drawer", "id": "t_0008"})]
+  assert q.first_solve(rows)["challenges"]["open_drawer"]["firstSolveAttempt"] == 2
+
+
 def test_first_solve_reports_no_tools_as_absent_and_no_solve_as_none():
   out = q.first_solve([Row("task", "failed", data={"kind": "open_drawer"})])
   assert out["challenges"]["open_drawer"]["firstSolveAttempt"] is None

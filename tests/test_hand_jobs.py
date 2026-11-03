@@ -50,13 +50,14 @@ def _counter_world():
   return model, mujoco.MjData(model)
 
 
-def _life(tmp_path):
-  """A humanoid world's lifecycle on a stub at the counter: its board, its
+def _life(tmp_path, rebase: bool = True):
+  """A humanoid world's lifecycle on a stub at the counter: its board (as a
+  start-over loads it, or `rebase=False` as a continuation does), its
   ledger, a mind, the counter's activities on its seam."""
   model, data = _counter_world()
   body = StubBody(model, data, grid_bounds=(-3.0, -8.0, 30.0, 8.0))
   life = HubLifecycle(model, data, realtime=False, world=HUMANOID_HOME, body=body,
-                      tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
+                      tasks=TaskBoard(path=str(tmp_path / "tasks.json"), rebase=rebase),
                       ledger=Ledger(path=str(tmp_path / "ledger.json")), overseer=_Mind())
   acts = ActivitySet(storeroom.activities(model, data))
   body.step_hooks.append(acts.step_hook(model, data))
@@ -473,6 +474,61 @@ def test_a_restart_puts_back_each_props_newest_draw(tmp_path):
   fresh.begin((0.0, 0.0, 0.0))
   assert fresh.model.dof_damping[dof] == pytest.approx(dd.draw(k).damping)
   assert fresh._counter_activity("door").hinge == dd.draw(k)
+
+
+def test_the_draw_put_back_is_the_newest_offers_on_the_boards_count(tmp_path):
+  """...newest on the board's own count, never by its stamp (#610): an
+  offer on the door lapsed before a start-over is stamped on the clock
+  before it, ahead of the door's offer since, and by `createdT` every
+  restart put the old offer's draw back on the door."""
+  life = _life(tmp_path)
+  life.data.time = 356_727.0
+  old = _offer(life, "open_door")
+  life.tasks.expire_due(359_727.0)              # lapsed, on the clock before
+  again = _life(tmp_path)                       # the world begun again at 0
+  again.data.time = 100.0
+  new = _offer(again, "open_door")              # the door's job now
+  fresh = _life(tmp_path)                       # ...and the next restart
+  assert fresh.tasks.get(old.id).created_t > fresh.tasks.get(new.id).created_t
+  assert fresh.tasks.get(new.id).state == "offered"
+  fresh.begin((0.0, 0.0, 0.0))
+  assert fresh._counter_activity("door").hinge == dd.draw(new.secret["draw"])
+
+
+def test_an_offer_the_saved_world_never_saw_has_its_prop_set_out_again(tmp_path):
+  """A crash between an offer and the world's next save brings the world
+  back from before the offer set its prop out (#610's review): the drawer
+  the last job left out stood out under the standing offer, a job paid for
+  nothing. The restore sets out a prop whose newest offer is numbered past
+  the board's count the save kept, and leaves one whose offer it saw as it
+  was saved -- by the count, never the stamp: the door's offer is stamped on
+  the clock before a start-over, ahead of the save's."""
+  from pluggybot import continuation
+  life = _life(tmp_path)
+  slide, hinge = _joint_q(life, "drawer_slide"), _joint_q(life, "door_hinge")
+  life.data.time = 357_689.0
+  _offer(life, "open_door")                     # seen: offered before the save
+  life.data.time = 100.0                        # ...and the world begun again since
+  life.data.qpos[slide] = 0.2                   # left out by the last job
+  life.data.qpos[hinge] = 0.3                   # the door, worked since its offer
+  path = tmp_path / "world.npz"
+  continuation.write(continuation.capture([life], life.world_fingerprint), path)
+  _offer(life, "open_drawer")                   # set out shut ... and then the crash
+  again = _life(tmp_path, rebase=False)         # the same board, carried on
+  again.begin((0.0, 0.0, 0.0))
+  got = continuation.restore([again], continuation.read(path))
+  assert got["inPlace"] and got["setOut"] == ["drawer"]
+  assert again.data.qpos[slide] == 0.0, "set out for the offer it never saw"
+  assert again.data.qpos[hinge] == pytest.approx(0.3), "the door as the world was saved"
+
+
+def test_a_restore_names_only_the_props_it_set_out(tmp_path):
+  """...and in a world without the counter, an offer on the drawer past the
+  saved count sets nothing out, and is not said to have."""
+  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+  life = stub_life(tasks=TaskBoard(path=str(tmp_path / "tasks.json")))
+  life.tasks.offer("open_drawer", "drawer", secret={"draw": 3})
+  assert life.set_out_unseen(0) == []
 
 
 def test_the_hand_jobs_are_offered_only_where_a_mind_writes_procedures():

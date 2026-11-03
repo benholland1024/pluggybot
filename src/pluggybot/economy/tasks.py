@@ -286,6 +286,16 @@ def kind_names() -> list[str]:
   return list(KINDS)
 
 
+def task_number(task_id: object) -> int:
+  """A task id's number on its board's own count (`t_0042` is 42), or 0 for
+  an id no board numbered. Whatever orders tasks reads it, never a stamp: a
+  start-over sets the clock back, never the count (#610)."""
+  try:
+    return int(str(task_id).split("_")[-1])
+  except ValueError:
+    return 0
+
+
 # ---- one task ----------------------------------------------------------------
 
 
@@ -375,6 +385,12 @@ class Task:
   @property
   def open(self) -> bool:
     return self.state in OPEN_STATES
+
+  @property
+  def number(self) -> int:
+    """Its number on the board's own count (`task_number`): what orders the
+    board (#610)."""
+    return task_number(self.id)
 
   def reward(self, table: RewardTable | None = None) -> dict:
     """What the table says this pays, right now.
@@ -641,10 +657,11 @@ class TaskBoard:
 
   def held_by(self, robot: str) -> list[Task]:
     """The open jobs one robot has taken on and not finished, in the order
-    it took them (issue #345)."""
+    it took them (issue #345): by the claim's time, which a start-over
+    moves with the clock (#602), and on a tie by the board's count."""
     return sorted((t for t in self.tasks.values()
                    if t.state in ("claimed", "active") and t.claimed_by == robot),
-                  key=lambda t: (t.claimed_t or 0.0, t.id))
+                  key=lambda t: (t.claimed_t or 0.0, t.number, t.id))
 
   def offered(self) -> list[Task]:
     return [t for t in self.tasks.values() if t.state == "offered"]
@@ -654,10 +671,12 @@ class TaskBoard:
 
     Oldest first, and deterministically so: a scripted policy has to be
     reproducible or a mission test that exercises it is a different test
-    every run.
+    every run. Oldest on the board's own count (`Task.number`), never by
+    `createdT`: an offer that outlives a start-over is stamped on the clock
+    before it, and listed after every newer one (#610).
     """
     ready = [t for t in self.offered() if t.claimable(now, pack_wh)]
-    return sorted(ready, key=lambda t: (t.created_t, t.id))
+    return sorted(ready, key=lambda t: (t.number, t.id))
 
   def snapshot(self) -> dict:
     return {tid: task.snapshot(self.table) for tid, task in self.tasks.items()}
@@ -852,6 +871,11 @@ class TaskBoard:
   def _trim(self) -> None:
     """Age out resolved tasks, oldest first. Open ones are never dropped.
 
+    ⚠ OLDEST ON THE BOARD'S OWN COUNT (`Task.number`), never by `resolvedT`:
+    a start-over sets the clock back to 0, and t_0002, resolved at t=357,627
+    on the clock before 11-01's, was kept over every task resolved before
+    the new clock passed it: more than 204,000 s on from 11-03 (#610).
+
     A dropped task is not an expired one and does not get an event: expiry
     is something that HAPPENED to a job in the world, while this is the
     board forgetting a job that is already over. Counted, so a truncated
@@ -861,7 +885,7 @@ class TaskBoard:
       closed = [t for t in self.tasks.values() if not t.open]
       if not closed:
         return
-      oldest = min(closed, key=lambda t: (t.resolved_t or 0.0, t.id))
+      oldest = min(closed, key=lambda t: (t.number, t.id))
       del self.tasks[oldest.id]
       self.dropped += 1
 
@@ -988,7 +1012,11 @@ class TaskBoard:
         claimed = min(task.claimed_t, float(saved_t)) - (shift or 0.0)
         task = replace(task, claimed_t=round(claimed, 3))
       self.tasks[task.id] = task
-    self.seq = max(self.seq, len(self.tasks))
+    # ⚠ Never a number below one the board holds, as the desk's counter
+    # (`tickets.Desk`): the board is ordered by it (#610), and a file with a
+    # stale `seq` would number its next task below them -- the first one
+    # forgotten, its draw never put back -- or hand out a held task's id.
+    self.seq = max([self.seq, len(self.tasks), *(t.number for t in self.tasks.values())])
     return self
 
   def announce_interrupted(self, t: float = 0.0) -> list[Task]:

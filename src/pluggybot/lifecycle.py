@@ -4393,28 +4393,57 @@ class HubLifecycle:
   def restore_counter(self) -> None:
     """After a restart (#559): the world file carries each prop's compiled
     draw, and the newest offer on it still means the one it drew -- its
-    dynamics put back and its activity begun again over its truth. ⚠ HERE,
-    IN `begin`, BEFORE A CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
+    dynamics put back and its activity begun again over its truth. ⚠ NEWEST
+    ON THE BOARD'S OWN COUNT (`Task.number`), never by `createdT`: after
+    11-01's start-over, t_0004's offer on the door was stamped on the clock
+    before it, and every restart put its draw back on the door for the rest
+    of the door's job then, t_0042 (#610). ⚠ HERE, IN `begin`, BEFORE A
+    CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
     (`continuation.restore`): the prop where the world left it, a door's
     latch as it was."""
-    if self.tasks is None:
-      return
-    from pluggybot.economy.tasks import KINDS
     from pluggybot.home import storeroom
-    newest: dict = {}
-    for t in self.tasks.tasks.values():
-      if t.kind in KINDS and KINDS[t.kind].draws and t.secret.get("draw") is not None:
-        if t.target not in newest or t.created_t >= newest[t.target].created_t:
-          newest[t.target] = t
-    for prop, t in newest.items():
-      if prop not in storeroom.PROPS or \
-          mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) < 0:
-        continue
+    for prop, t in self._newest_offers().items():
       k = int(t.secret["draw"])
       storeroom.redraw(self.model, self.data, prop, k)
       act = self._counter_activity(prop)
       if act is not None:
         act.renew(self.model, storeroom.drawn(prop, k))
+
+  def set_out_unseen(self, seen: int | None) -> list[str]:
+    """After a continuation, once its world is back (`continuation.restore`):
+    each counter prop whose newest offer the saved world never saw -- one
+    numbered past `seen`, the board's count when it was saved, made between
+    that save and a crash -- set out for it now, as the offer did
+    (`_set_out_counter`). Put back as saved, a drawer the last job left out
+    stood out under the standing offer, a job paid for nothing. Never one a
+    robot is touching (the producer's `busy`); nothing for a save from
+    before it kept the count (`seen` None). Returns the props set out."""
+    unseen = [(prop, t) for prop, t in self._newest_offers().items()
+              if seen is not None and t.number > seen]
+    if not unseen:
+      return []
+    worked, out = self._worked_props(), []
+    for prop, t in unseen:
+      if prop in worked:
+        self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved")
+        continue
+      self._set_out_counter(t)
+      out.append(prop)
+    return out
+
+  def _newest_offers(self) -> dict:
+    """Each counter prop in this world, with its newest offer that drew --
+    newest on the board's own count (`Task.number`, #610): the one the prop
+    was last set out for."""
+    from pluggybot.economy.tasks import KINDS
+    from pluggybot.home import storeroom
+    newest: dict = {}
+    for t in (self.tasks.tasks.values() if self.tasks is not None else ()):
+      if t.kind in KINDS and KINDS[t.kind].draws and t.secret.get("draw") is not None:
+        if t.target not in newest or t.number >= newest[t.target].number:
+          newest[t.target] = t
+    return {prop: t for prop, t in newest.items() if prop in storeroom.PROPS
+            and mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) >= 0}
 
   def _task_step(self) -> None:
     """Put up whatever is due and lapse whatever nobody got to.

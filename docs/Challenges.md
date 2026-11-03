@@ -335,7 +335,10 @@ sequence number, `Task.secret["draw"]`), set into the compiled world as the
 offer lands with the prop set back out (`HubLifecycle._set_out_counter`,
 `storeroom.redraw`, `storeroom.set_out`), its activity begun again over
 the draw's truth (`renew`), and put back after a restart
-(`restore_counter`): a skill over a kind of drawer, never one drawer. ⚠ No
+(`restore_counter`, the prop's newest offer on the board's own count, never
+by its stamp: TaskPattern.md §1, "The lifecycle", #610; and set out again
+where the world came back from before its offer, `set_out_unseen`:
+Webserver.md): a skill over a kind of drawer, never one drawer. ⚠ No
 offer lands on a prop a robot is touching (`_worked_props`, the
 producer's `busy`): set out from under a hand, a door was clamped shut
 round it, and a drawer left out was a job paid for nothing.

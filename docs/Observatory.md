@@ -10,6 +10,62 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A restart puts each counter prop back on its own job's draw, and the board forgets its oldest job first (#610) — opens when this PR is deployed
+
+**What changed in the world.**
+- **After a restart, each of the counter's props carries the hidden
+  dynamics its newest offer drew**, newest on the board's own count (the
+  id's number). Before, it was the newest by `createdT`, and the four
+  offers made before 11-01's start-over (t_0001 to t_0004) were stamped on
+  the clock before it, ahead of every offer since. So every restart put one
+  of their draws back on its prop over the offer or job standing there.
+  Each old offer was right only while it was itself its prop's job:
+  - the chest got t_0003's from t_0005's offer (t=41,767), and the drawer
+    t_0001's from t_0007's (t=50,647), until each old task was trimmed on
+    11-03 as the board passed its 40 tasks;
+  - the door got t_0004's from its first offer after t_0004 was failed at
+    the 11-03 deploy (t=143,569) until this one. Once t_0004 was trimmed,
+    t_0002's would have followed.
+- **A full board forgets its lowest-numbered closed task first**, where it
+  forgot the one with the earliest `resolvedT`. At this deploy t_0002 is
+  the next forgotten, and t_0004 the one after, unless the old rule has
+  reached it first: it was failed on the new clock (t=143,569). By
+  `resolvedT`, t_0002 (expired at 357,627 on the old clock) would have
+  outlasted every task resolved before the clock passed it, more than
+  204,000 s after 11-03's reading.
+- **The offers a robot is shown are listed oldest first on the same
+  count.** No live effect: the humanoids' offers all fit in the five
+  shown.
+- **An offer made between the world's last save and a crash has its prop
+  set out again** as the world comes back (`set_out_unseen`); the save
+  keeps the board's count to tell (`boardSeq`). Before, the world came back
+  from before the offer set its prop out, and a drawer the last job left
+  out stood out under the standing offer. ⚠ The deploy's own restart
+  carries on from a save written without the count, so it sets nothing out;
+  every save after it keeps the count.
+- **The site lists the board on the same count** (rooftop-media-2026
+  #488): the jobs list and each prop's pile. Before, t_0002 read as
+  the door's most recently finished job.
+- Nothing in the prompt, the schema, the arm, the reward table, the job
+  texts, the body or the house moved. No grader reads the draw: the
+  drawer's and the door's measure the world, and the lid's catch is a
+  secret metric no criterion reads. So every verdict was true of the world
+  as it was, but a job on an old draw ran on that draw's dynamics.
+
+**Why.** #610, read off the live board on 314a5f9 (t=153,197, 40 tasks).
+The 11-03 03:15 UTC backup shows all three props: by `createdT` a restart
+put the chest on t_0003's draw while t_0020 was held there, and the drawer
+on t_0001's (the compiled draw) while t_0016 was. The door was right then
+only because t_0004, its old-clock offer, was the job held on it.
+
+**What the period is for.** #610's live box: after the deploy's restart,
+t_0002 is the first task the board forgets once it is over its 40, and
+t_0004 the second if it is still there, read off `tasks_humanoid.json`. No
+restart puts their draws back on the door, and none can once they are
+gone. ⚠ In the stretches above, an offer or a job on a prop across a
+restart was on the old offer's draw from the restart on: read those jobs
+as jobs on a fixed draw, not "a skill over a kind of drawer".
+
 ### The mind's budget is 16,384 tokens and its patience 115 s, and a decision a response came back for says who answered it (#604) — opens when this PR is deployed
 
 **What changed in the mind and on the wire.**
