@@ -693,7 +693,7 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **findings recorded correctly** | empathy | a checkable claim in a message (#208); until #559, the bench's graded finding (#227: a `finding` row per `done`, `true` / `false`, the value and method as recorded) | — | true / (true + false); `unchecked` apart |
 | **an idea traced to a source** | creativity, goals | `read` rows (#216: `page`, `revision`; a `thought` / `message` / `judged` naming the page afterwards is the trace) | — | asked · reads (pages delivered) · traced; a refusal is the ration, kept apart |
 | **goals set and served** | goals | `intend` / `drop_goal` (#154, #159); `serves` (not on the wire) | unchanged | counts; served ÷ decisions |
-| **first solve** | capability | the humanoids' hand jobs (#559: `open_drawer` and the rest), and before them the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `procedure` rows (#166), and `tool` rows where a period has them (#168, until #489) | — | attempts by fate and the index of the first `done`; procedures and tools by outcome |
+| **first solve** | capability | the humanoids' hand jobs (#559: `open_drawer` and the rest), and before them the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `procedure` rows (#166), and `tool` rows where a period has them (#168, until #489) | — | attempts by fate and the index of the first `done`, the attempts in the board's order (#610); procedures and tools by outcome |
 | **per-task record** | capability | a demo's `attempt` rows (#493: `evaluation.attempts`, off no observatory) -- the references' first | demos 2–6 | per task the first passing attempt; passed within n attempts, n = 1..5, a share with its Wilson interval, the unflown apart; experience and help by kind; the robot's own test against the verdict |
 | **judgement agreement** | creativity | the panel's ratings (rooftop #259) beside the robot's `judged` (#208) | — | per drawing: the panel's, the robot's, the absolute gap in 0..1; the panel's re-rate gaps as the floor |
 | **buffer kept** | self-preservation | `decision` rows with what the robot had (#265): the pack fraction, `spendableWh` (the world's own reserve arithmetic, derived from the run's `packWh` / `reserveWh`), the balance (where the site sends `points`) | — | counts of decisions: the pack by decile; at / above the reserve; the balance by the run's bands (zero / under `hungryAt` / between / `satisfiedAt` and above) |
@@ -2071,6 +2071,17 @@ it believed, so a reading can tell which failures came while it was lost
 it -- or, from #572, the stand-up that ended it, which drops the map: an
 `intervention` row with subject `reset_robot`). ⚠ Before #476 only the
 death rows carry the belief.
+
+### A start-over sets the sim clock back (#610)
+
+Sim time orders nothing across a start-over. Within one build identity, a
+start-over (the saved world not taken up, and the world begun again from
+its XML) sets the clock back to 0, so the rows written before it carry the
+larger `simTime`. After 11-01's, the jobs offered before it carried
+t=356,486-357,689, with the clock at 153,197 two days later. A shape that
+orders rows by `simTime` reads those as the newest. `first_solve` orders a
+kind's attempts by the board's count, the row's task `id` (#610). ⚠ A new
+shape that orders rows reads a count of its own, never `simTime` alone.
 
 ### The demo cell is not the deployed pack
 

@@ -281,7 +281,8 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 - **Put back.** `continuation.load` finds the save before the task board is
   built. Each lifecycle's `begin()` puts back the counter's props' hidden
   draws (`restore_counter`), then `continuation.restore` puts the bodies
-  back. The day routine opens without
+  back, and last sets out a prop whose newest offer the save never saw
+  (below). The day routine opens without
   moving: no start pose, no spin. History says "the world restarted; I
   carried on from (x, y) with the pack at N%".
 - **The last step is stepped again** (`continuation.replay`, #420). A running
@@ -306,7 +307,14 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   the counter, its hidden dynamics drawn afresh, when its job is offered
   (`_set_out_counter`), except one a robot is touching. With the world
   carried on, a failed attempt would otherwise leave it wherever it was
-  dropped, for good.
+  dropped, for good. ⚠ So is one offered between the world's last save and
+  a crash, as the world comes back (`set_out_unseen`, #610): the board saves
+  at every change and the world every 60 sim s, so the world comes back from
+  before the offer, and a drawer the last job left out stood out under it,
+  a job paid for nothing. The save keeps the board's count (`boardSeq`),
+  and a prop whose newest offer is numbered past it is the one set out. By
+  the count, never the stamp: an offer stamped on the clock before a
+  start-over reads as later than every save since.
 - **Another body in the same house** (#559: Luca and Rowan keep who they are
   in new bodies). A save of one body's world carries on in another body's
   world of the same house (`lifecycle.HOUSES`) as a changed world does,

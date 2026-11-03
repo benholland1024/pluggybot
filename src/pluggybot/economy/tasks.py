@@ -286,6 +286,16 @@ def kind_names() -> list[str]:
   return list(KINDS)
 
 
+def task_number(task_id) -> int:
+  """A task id's number on its board's own count (`t_0042` is 42), or 0 for
+  an id no board numbered. Whatever orders tasks reads it, never a stamp: a
+  start-over sets the clock back, never the count (#610)."""
+  try:
+    return int(str(task_id).split("_")[-1])
+  except ValueError:
+    return 0
+
+
 # ---- one task ----------------------------------------------------------------
 
 
@@ -378,13 +388,9 @@ class Task:
 
   @property
   def number(self) -> int:
-    """Its number on the board's own count (`t_0042` is 42), or 0 for an id
-    the board did not number. The board is ordered by it, never by a stamp:
-    a start-over sets the clock back, never the count (#610)."""
-    try:
-      return int(self.id.split("_")[-1])
-    except ValueError:
-      return 0
+    """Its number on the board's own count (`task_number`): what orders the
+    board (#610)."""
+    return task_number(self.id)
 
   def reward(self, table: RewardTable | None = None) -> dict:
     """What the table says this pays, right now.

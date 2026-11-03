@@ -638,7 +638,10 @@ save a filmstrip PNG named after the script.
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
   prop out, its activity renewed in place (`renew`), put back after a
   restart (`restore_counter`, in `begin`, before the activities' kept
-  state); ⚠ NO OFFER LANDS ON A PROP A ROBOT IS TOUCHING (the producer's
+  state), and an offer made between the world's last save and a crash has
+  its prop set out again once the world is back (`set_out_unseen`, off the
+  board's count the save keeps, `boardSeq`, never a stamp; #610); ⚠ NO
+  OFFER LANDS ON A PROP A ROBOT IS TOUCHING (the producer's
   `busy`): set out from under a hand, a drawer left out was paid for
   nothing. ⚠ Its `find` (`HumanoidPlaces.find_routine`, its world's places
   `world_places`; below, "Places, not coordinates") looks with the head's
@@ -1864,7 +1867,8 @@ save a filmstrip PNG named after the script.
   expired, because it was attempted (#602). ⚠ THE BOARD'S ORDERS ARE ITS
   OWN COUNT (`Task.number`), NEVER A STAMP (#610; TaskPattern.md): what it
   forgets first, whose draw a restart puts back on a prop, and the offers
-  listed. A start-over sets the clock back, and by `createdT` and
+  listed, as are a reading's attempts (`first_solve`; Evaluation.md §5). A
+  start-over sets the clock back, and by `createdT` and
   `resolvedT` the tasks from before it ranked newest, outlasting the trim
   and putting their draws back at every restart; the site lists by the
   same count. Held jobs go by their claims (`held_by`), which a start-over
