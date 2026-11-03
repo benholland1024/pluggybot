@@ -98,12 +98,14 @@ sees:
   own (`park_sign`), unhinted.
 - **`drift` rows carry `station`** on `lost`, `searched` and `fixed`:
   which station the charge went to, or was fixed off.
-- **The pair's recording is flown again** in the grown world (osmesa): the
+- **The pair's recording is flown again** in the grown world (osmesa), on
+  the 33 Wh test pack (`humanoid.world.DEMO_WH`, 30 before: charged, it
+  funds the jobs priced from the mall's station and the reserve both): the
   first robot, started low, plugs in at the house's station at 38 s and
-  charges to 90 % while the second explores; the second goes to charge at
-  160 s under the new 19.5 Wh reserve, waits for the house's station (the
-  nearest for both) until the first clears it, and plugs in at 320 s. Both
-  done at 490 s. The counter's scene and recording too, since the counter
+  charges while the second explores; the second goes to charge at 235 s
+  under the new 19.5 Wh reserve, waits for the house's station (the
+  nearest for both) until it is free at 310 s, and plugs in at 342 s. Both
+  done at 534 s. The counter's scene and recording too, since the counter
   stands in the house (chest 0 passed in 23.6 s).
 - A world change is a new build identity (`dataHashes.world`), and every
   day's trajectory is different (docs/Observatory.md).

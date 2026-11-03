@@ -351,8 +351,8 @@ every one below was hit, measured, and given a gate.
   fatal in either direction: the first table guessed 0.35 Wh for a drawing
   that measured 0.929, and a recording showed a robot claim the job at 88 %
   and die mid-stroke. Costs come from `scripts/energy_spike.py` into
-  `economy/energy.json` (the humanoids' hand jobs at 4.70–7.08 Wh from the
-  station, against the 18 Wh return-trip reserve,
+  `economy/energy.json` (the humanoids' hand jobs at 7.14–9.86 Wh from the
+  dearest station, the mall's, against the 19.5 Wh return-trip reserve,
   `humanoid.world.RESERVE_WH`); a cost key may name a TARGET
   (`action:target`) and wins over the bare action, because one target can
   measurably cost more than another and one number for both either kills

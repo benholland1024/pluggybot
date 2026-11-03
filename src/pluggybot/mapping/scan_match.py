@@ -44,8 +44,9 @@ BEHIND_CELLS = 2.0
 #: reads a surface by its returns' median: matched from the true pose where
 #: a scan has returns 7.5-8 m out, the pull was 1.0 mm (p95 2.1) at 8.0
 #: against 0.8 (1.9) at 6.5, and the park's middle went from its heading
-#: unpinned at 71 % of places to 19 % (`lidar_spike.py --probe`, the band;
-#: SimNotes, "The grown world").
+#: unpinned at 71 % of places to 26 % (`lidar_spike.py --probe`, the band);
+#: flown, the belief's worst error was a median 0.13 m against 0.15 (the
+#: drift spike, eight flights an arm on one pod; SimNotes, "The grown world").
 MATCH_RANGE_M = 8.0
 #: ...and returns nearer than this, m: what the hands work on -- the
 #: station's box, the plug in the hand, a drawer, a door -- each low surface
@@ -59,10 +60,13 @@ MATCH_MIN_M = 1.0
 #: this many fused scans: 5 ms a refresh; a fresher field did no better.
 REFRESH_M = 1.0
 REFRESH_SCANS = 20
-#: The field's window, m either way: MATCH_RANGE_M and a refresh's travel,
-#: for a point outside it pulls on nothing -- left at 7.5 m with returns read
-#: to 8, the park's middle stayed unpinned at 26 % of places, not 19 (#560).
-WINDOW_M = MATCH_RANGE_M + REFRESH_M
+#: The field's window, m either way: a point outside it pulls on nothing.
+#: ⚠ SHORT OF MATCH_RANGE_M AND A REFRESH'S TRAVEL ON PURPOSE (#560): grown
+#: to their 9 m, the static probe pinned the park's middle better (19 % of
+#: places unpinned against 26) on a map laid from the true poses, but flown
+#: on the robot's own map the drift spike's worst error was a median 0.21 m
+#: against 0.13 at 7.5 (the same eight flights, five worse, one 0.13 to 0.47).
+WINDOW_M = 7.5
 #: The robust weight's scale, m (Cauchy): a point this far off its wall
 #: counts half, one three times as far a tenth.
 ROBUST_M = 0.05

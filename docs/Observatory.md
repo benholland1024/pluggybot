@@ -49,6 +49,10 @@ observatory is NOT a result: it reports into the issue it informs.
 - **The return-trip reserve is 19.5 Wh** (`reserveWh`, 18 before): from the
   world's worst place, the park's west sidewalk, to the mall's station,
   measured.
+- **The hand jobs are priced from the mall's station**, the dearest of
+  three (`energy.json`): the drawer 7.14 Wh, the door 7.72, the chest 7.46
+  (7.08, 5.72 and 5.98 before) -- each offer's price, which the minds are
+  shown, moves.
 - **The speed**: about 1.20x real time on the deploy box, by a pod's
   ratio (staging 0.710x there, the grown world 0.610x; the box ran staging
   at 1.40x); its own number waits for a quiet box.

@@ -3670,8 +3670,9 @@ prop at draw k. **The bar, written before they flew: 6 of 8.**
 
 No falls in the 32. The slowest pass took 313 s from the station, and each
 job allows 16 minutes from the claim (three times it, rounded up). Priced
-from the station with the place remembered (`energy.json`): the drawer
-7.08 Wh, the door 5.72, the chest 5.98.
+from the station with the place remembered (`energy.json`; since #560 the
+dearest of three, the mall's): the drawer 7.14 Wh, the door 7.72, the
+chest 7.46.
 
 **What is not yet.** The cube: offered once a reference places it (its
 check passed 3-4 of 8 at its own set-outs, the fingers against a 26 mm cube
@@ -4987,6 +4988,21 @@ belief's worst error had a median of 0.13 m at 8.0 against 0.15 at 6.5
 docked; in the park it stayed within 0.23 m (0.35 at 6.5). The same flight
 flown twice on the pod was bit-identical.
 
+**A wall at the reach, and the field's window.** The C1's far wall at its
+8 m reach was seen short -- its long draws clipped to "no return" -- and
+pulled the pose 32 mm a scan, which is why its cut was 6.5 m. The band's
+is not: matched from the true pose at the 1,328 places whose scan has ten
+returns or more 7.5-8 m out, the pull was 1.0 mm (p95 2.1) at 8.0 against
+0.8 (1.9) at 6.5 -- its sigma is 2.4 cm there, and it reads a surface by
+its returns' median. The field the fit reads (`WINDOW_M`) stayed 7.5 m
+either way, short of the reach and a refresh's 1 m of travel, so a point
+past it pulls on nothing. Grown to 9 m, the probe pinned the park's middle
+better (19 % unpinned against 26) on its map laid from the true poses;
+flown on the robot's own map -- the drift spike's same eight flights, on
+a pod where staging's arm replayed bit for bit -- the worst error's median
+went from 0.13 m to 0.21, five flights worse and one from 0.13 to 0.47 m
+in the living room. So the window stays where it flew best.
+
 **What it costs.** The served pair's walks (`humanoid_spike.py --speed`'s
 pair, the same walks in the house as every reading since #507), one pod
 (Vast, a Xeon E5-2697 v4), staging and this branch a process at a time,
@@ -5013,6 +5029,26 @@ that missed at the research center too ("not lined up", the seat's steps);
 the research center's other two, another not lined up and a grip that never
 got round the plug. In the loop a dock that saw its station and never got in
 goes again from the standoff, once a charge.
+
+**The hand jobs are priced from the mall's station.** A job is taken from
+any of the three, and the energy table carries the dearest: the mall's,
+43 m by route from the storeroom's counter, where the house's is 29 and
+the research center's 7. Flown from it (`energy_spike.py --station
+station_mall`, a process each on one pod): the drawer 7.138 Wh, the door
+7.720 and the chest 7.463, each passed (from the house's station 4.74,
+5.17 and 5.25 on 1 Nov, the table carrying the C1's dearer 7.08, 5.72 and
+5.98), and the cube 9.858, a placement that failed after four reaches.
+Left to choose, the spike measured every job after the first from the
+research center's, the nearest once the robot had been to the storeroom;
+`--station` pins one. The tests' pack (`DEMO_WH`) grew from 30 Wh to 33,
+so that charged it still funds the dearest job and the reserve both (29.7
+of 29.36), and the pair's fixture was flown again on it.
+
+**Three stations sensed every step** (`Station.sense`, on the physics
+seam) cost 32 us a step each, against a pair's 229 us `mj_step`; an armed
+port beside a parked plug is no longer read -- it has nothing to take and
+nothing to re-arm -- so a parked station costs 12 us, and the three what
+one did. The drift spike's flights replayed bit for bit across it.
 
 **Carried on from the deployed save** (the 11-02 backup, `serve.py` as
 deployed with a fake model): the world changed, so each robot stood up at

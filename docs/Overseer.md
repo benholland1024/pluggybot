@@ -1525,9 +1525,10 @@ oversized on purpose: a demo cell measures where the robot *died*, not what
 the job costs. Re-run it (`--write`) after anything that changes what an
 errand does. The shipped table for the humanoid (`energy.json`,
 `home_humanoid`): its hand jobs, each its reference's procedures flown
-from its station with the place remembered — `open_drawer` 7.082 Wh,
-`open_door` 5.715, `open_chest` 5.984, `place_cube` 4.704 — exploring at
-46.2 mWh/s, and 345.2 W net into a body plugged in at its station.
+from the dearest of its stations, the mall's (#560), with the place
+remembered — `open_drawer` 7.138 Wh, `open_door` 7.720, `open_chest`
+7.463, `place_cube` 9.858 (a placement that failed) — exploring at 48.2
+mWh/s, and 338.8 W net into a body plugged in at its station.
 
 - ⚠ **A key may name a target**, and `<errand>:<target>` wins over
   `<errand>` (the rover's `draw` cost 0.929 Wh at the near board and 1.065
@@ -1540,8 +1541,10 @@ from its station with the place remembered — `open_drawer` 7.082 Wh,
   An errand's cost depends on where the robot is standing *and on how much of
   the map it already has* — a first errand on a fresh map plans and searches
   through unexplored space, so a row is measured from the station with the
-  place remembered — and on the run (the drawer's two procedures measured
-  7.036 and 7.082 Wh, and 7.082 is carried). The failure directions are not
+  place remembered — on which station it charged at (the door measured
+  5.17 Wh from the house's, 7.72 from the mall's, and 7.72 is carried) and
+  on the run (the drawer's two procedures once measured 7.036 and 7.082
+  Wh, and the dearer was carried). The failure directions are not
   symmetric: an over-estimate is a charge nobody needed, an under-estimate
   is a robot dead in the garden.
 - **The invariant is not "never exceeded"; it is that an overrun smaller than
@@ -1567,7 +1570,7 @@ with them. Collapsing any pair is a real bug:
 capability a demo cell was built to run flat on. Nothing spins either way: an
 errand deferred `MAX_ERRAND_DEFERRALS` (2) times is dropped, because at that
 point charging is what is broken. The humanoid's demo cell overspends on
-nothing (its dearest job, 7.08 Wh, fits the 18 Wh it charges to), so the
+nothing (its dearest job, 9.86 Wh, fits the 29.7 Wh it charges to), so the
 fourth answer is guarded synthetically.
 
 ### ⚠ The margin is all-or-nothing, and that is the design
@@ -1585,9 +1588,10 @@ One number per world, so `Task.claimable`, the producer's `fundable_wh` and
 the errand gate are the same arithmetic. On the humanoid the served pack
 (`humanoid.world.PACK_WH`, 777.6 Wh) funds the dearest job plus the reserve
 many times over, so the full margin is kept and the mid-errand death is
-unreachable there. The tests' pack (`DEMO_WH`, 30 Wh, 27 charged) carries
-the drawer's 7.08 Wh and the 18 Wh reserve both, so it keeps the margin
-too. At 20 Wh it kept none, a branch the served pack never takes (#580).
+unreachable there. The tests' pack (`DEMO_WH`, 33 Wh, 29.7 charged) carries
+the cube's 9.86 Wh and the 19.5 Wh reserve both, so it keeps the margin
+too (#560 grew it from 30). At 20 Wh it kept none, a branch the served
+pack never takes (#580).
 
 ### The reserve, and the hosting pack
 

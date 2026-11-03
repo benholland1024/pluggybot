@@ -1158,8 +1158,11 @@ save a filmstrip PNG named after the script.
   - **where two honest measurements disagree the table carries the dearer**,
     and a cost key may name a TARGET. Padding is never the fix; a second
     measured row is. ⚠ Every row is measured FROM THE STATION, the place a
-    job is taken from (a first job flown from the explore's end, or a first
-    search of a fresh map, is not carried). An overrun smaller than the
+    job is taken from -- with several, the DEAREST (#560: the mall's, 43 m by
+    route from the storeroom's counter; `energy_spike.py --station`: left
+    to choose, a job is measured from the nearest) -- and a first job flown
+    from the explore's end, or a first search of a fresh map, is not
+    carried. An overrun smaller than the
     margin cannot strand the robot; a
     bigger one is a stale table and the loop says so at 10 % over;
   - **a timeout in seconds is a timeout in watt-hours**: `charge_timeout`

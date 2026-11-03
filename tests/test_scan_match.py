@@ -153,22 +153,6 @@ def test_the_matcher_reads_every_return_short_of_the_lidars_reach():
   assert np.allclose(pts[:, 0], [1.0, 6.6, 7.5, 7.99])
 
 
-def test_a_wall_at_the_reach_still_pulls_after_a_refreshs_travel():
-  # #560: a point outside the field's window pulls on nothing, and a robot
-  # walks up to REFRESH_M from where its field was computed before it is
-  # computed again -- so the window is the reach and that walk. Left at
-  # 7.5 m with returns read to 8, a wall 7.95 m ahead of a robot 0.99 m on
-  # toward it fell outside, and the park's middle stayed unpinned at 26 % of
-  # places, not 19.
-  wall = 0.99 + 7.95
-  hall = [(-1.0, -1.0, wall, -1.0), (-1.0, 2.0, wall, 2.0), (wall, -1.0, wall, 2.0)]
-  g = mapped(hall, (-1.5, -2.0, 10.0, 3.0), [(1.5, 0.5, 0.0), (3.0, 0.5, 0.0), (5.0, 0.5, 0.0)])
-  m = sm.ScanMatcher(g, max_range=8.0)
-  m.refresh(0.0, 0.5)
-  _, _, _, _, live = m.distance((0.99, 0.5, 0.0), m.points(np.zeros(1), np.array([7.95])))
-  assert live[0]
-
-
 def test_the_field_is_signed_and_crosses_zero_on_the_walls_first_cell(room):
   # + in front of a wall, - inside the band of cells it is marked with,
   # zero on the centre of the first: a point behind the face is pulled back
