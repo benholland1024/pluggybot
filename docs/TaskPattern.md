@@ -94,11 +94,15 @@ Rules the states carry, each decided explicitly:
   either: there a `done` could only fail it, so its holder's loop FAILS it
   through its grade's door, and its target is free for the next offer
   (#602). It is failed, never expired, because it was attempted. It is
-  failed at the loop's pass, between what the robot does, never on the
-  physics seam: freed mid-procedure, its target was set out from under the
-  procedure still working it. A `done` waiting to be graded is left to the
+  failed at the loop's pass, between what the robot does, and on the
+  physics seam only while its holder is on a charge trip: freed on the seam
+  mid-procedure, its target was set out from under the procedure still
+  working it, and left to the pass, a 74-minute charge kept one booked 69
+  minutes past its limit. A `done` waiting to be graded is left to the
   grade, and a true death fails the jobs its robot held, in that robot's
-  own records.
+  own records. The holder is shown each job it holds with the time it has
+  left (`heldTasks`, `leftS`) -- a network fact: the board knows when the
+  job was taken, as it knows how long an offer stands.
 - **The board is bounded** (40 held, 6 offered at once), and resolved tasks
   age out oldest-first. An OPEN task is never dropped to make room: dropping a
   job the robot might still do and that job lapsing are different events, and

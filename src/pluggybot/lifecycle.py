@@ -629,6 +629,10 @@ class HubLifecycle:
     #: waiting for the loop's next idle moment to be graded -- after
     #: whatever the same answer queued has run. Empty is nothing pending.
     self._grade_pending = ""
+    #: ON A CHARGE TRIP NOW (#602): set only while one runs. ⚠ Never read
+    #: `state` for it: a trip leaves `CHARGE` behind, and a grade after it
+    #: was run out on the seam mid-hold and banked twice.
+    self._charge_trip = False
     #: The hand jobs' watches, by task id (#559, `_watch_job`): this robot's,
     #: kept from each claim to its grade's hold -- and the readings a
     #: restart brought back for them, until each is taken up again.
@@ -3962,7 +3966,13 @@ class HubLifecycle:
   def _settle_job(self, task, verdict, t0: float, said: str) -> None:
     """A hand job closed on its verdict (`_grade_hands_routine`,
     `_run_out`): banked, resolved on the board, recorded, `said` in
-    History, and the event map told."""
+    History, and the event map told. ⚠ ONCE: a job closed since its grade
+    began is banked nowhere (#602's review: run out mid-hold, a grade's
+    verdict was banked beside the run-out's)."""
+    current = self.tasks.get(task.id)
+    if current is None or not current.open:
+      self._say(f"TASK {task.id}: closed already -- this verdict is banked nowhere")
+      return
     entry = self._bank(verdict)
     closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
     if closed is not None:
@@ -3981,9 +3991,10 @@ class HubLifecycle:
 
   def _run_out_held(self) -> None:
     """Every job this robot holds past the time it gives, failed (#602).
-    ⚠ FROM THE DAY LOOP'S PASS, BETWEEN WHAT THE ROBOT DOES, NEVER ON THE
-    SEAM: freed there, a prop was set out from under the procedure still
-    working it -- and a grade's hold cut short."""
+    ⚠ FROM THE DAY LOOP'S PASS, BETWEEN WHAT THE ROBOT DOES, AND ON THE SEAM
+    ONLY ON A CHARGE TRIP (`_task_step`): freed on the seam mid-procedure, a
+    prop was set out from under the procedure still working it -- and a
+    grade's hold cut short."""
     for task in (self.tasks.held_by(self.root) if self.tasks is not None else ()):
       if self._out_of_time(task):
         self._run_out(task)
@@ -4415,7 +4426,8 @@ class HubLifecycle:
     500 Hz is Python spent to learn nothing.
 
     It is deliberately incapable of doing anything the robot does: it offers
-    and it expires. Nothing here touches `state`, `errands` or the battery,
+    and it expires -- and, on a charge trip, fails a job its robot holds
+    past the time it gives (#602). Nothing here touches `state`, `errands` or the battery,
     which is what makes "a task never delays a charge" a property of the
     seam rather than of the numbers in economy/cadence.json.
     """
@@ -4424,6 +4436,11 @@ class HubLifecycle:
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
       self._say(f"TASK {task.id} expired: {task.description}")
+    # ...and on a charge trip, away from the counter with its hands home, a
+    # job it holds past the time it gives (#602): left to the loop's pass, a
+    # 74-minute charge held t_0024 and its drawer 69 minutes past its limit
+    if self._charge_trip and self.dead is None:
+      self._run_out_held()
     # ...and a hand job's watch whose job ended some other way than its
     # grade (#559: a true death, an admin): it reads nothing more
     for task_id in [t for t in self._job_watches
@@ -5143,14 +5160,18 @@ class HubLifecycle:
       # earns not one point. It can only be caution, and a world that forbade
       # it would be forbidding the disposition it is trying to measure.
       self.state = "GO_CHARGE"
-      if (yield from self.go_charge_routine()):
-        self.state = "CHARGE"
-        yield from self.charge_routine()
-      else:
-        # ...and one that never began is said where the robot reads (issue
-        # #424). ⚠ NOT A VERDICT: the wire's `charge` row carries it already,
-        # and a verdict would count it again, as a failed task.
-        self._remember(f"charge: did not charge -- {self.charge_failure}")
+      self._charge_trip = True
+      try:
+        if (yield from self.go_charge_routine()):
+          self.state = "CHARGE"
+          yield from self.charge_routine()
+        else:
+          # ...and one that never began is said where the robot reads (issue
+          # #424). ⚠ NOT A VERDICT: the wire's `charge` row carries it already,
+          # and a verdict would count it again, as a failed task.
+          self._remember(f"charge: did not charge -- {self.charge_failure}")
+      finally:
+        self._charge_trip = False
       return ""
     if decision.action == "explore":
       self.state = "EXPLORE"
@@ -5543,14 +5564,18 @@ class HubLifecycle:
     flat death waits up to 1386 s for a taken station (#346), past the
     timer."""
     self.state = "GO_CHARGE"
-    reached = yield from self._until_stood_up_routine(self.go_charge_routine())
-    if reached is STOOD_UP:
-      return
-    if not reached:
-      self._strand()
-      return
-    self.state = "CHARGE"
-    yield from self._until_stood_up_routine(self.charge_routine())
+    self._charge_trip = True
+    try:
+      reached = yield from self._until_stood_up_routine(self.go_charge_routine())
+      if reached is STOOD_UP:
+        return
+      if not reached:
+        self._strand()
+        return
+      self.state = "CHARGE"
+      yield from self._until_stood_up_routine(self.charge_routine())
+    finally:
+      self._charge_trip = False
 
   def _strand(self) -> None:
     """A failed charge is a `stuck` death (issue #107): "unable to reach
@@ -6332,6 +6357,10 @@ def overseer_context(life) -> dict:
   visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
   offers = shown_offers(life)
   state = ov.context_for(life, visitors=visitors, tasks=offers,
+                         # ...and what it has taken, with each job's time
+                         # left (#602)
+                         held=(life.tasks.held_context(life.root, float(life.data.time))
+                               if life.tasks is not None else None),
                          # The two thought files that change during a run
                          # (issue #38). The other two are already in the
                          # cached prefix, and putting these there instead is

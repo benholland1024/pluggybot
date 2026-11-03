@@ -273,7 +273,8 @@ grade is the job's own (its check's evaluator, watching from the claim --
 a fall anywhere fails it -- to a hold after `done` the robot is told to
 stand clear of), and the loop with no mind never sees the field or the
 offer. A job held past the time its description gives is failed by the
-loop, its prop offered again (#602). `CHALLENGE_RULE` says all of this to
+loop, its prop offered again, and while the robot holds one its context
+lists it with that time's remainder (`heldTasks`, `leftS`; #602). `CHALLENGE_RULE` says all of this to
 the mind and, like every rule on this arm, demonstrates nothing about
 charging.
 

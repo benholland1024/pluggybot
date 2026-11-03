@@ -407,6 +407,14 @@ class Task:
     return (self.state in ("claimed", "active") and limit is not None
             and self.claimed_t is not None and float(now) - self.claimed_t > limit)
 
+  def left_s(self, now: float) -> float | None:
+    """What is left of the time it gives from its claim, s, never below 0;
+    None where it gives none or it was never taken (#602)."""
+    limit = self.limit_s
+    if limit is None or self.claimed_t is None:
+      return None
+    return max(0.0, limit - (float(now) - self.claimed_t))
+
   def claimable(self, now: float, pack_wh: float | None = None) -> bool:
     """May a robot take this on, right now?
 
@@ -487,16 +495,29 @@ class Task:
             "description": self.description, "state": self.state,
             "from": self.source, "pays": reward["base"] + reward["bonus"],
             "tier": reward["tier"], "estimateWh": round(self.estimate_wh, 3),
-            # ...and WHERE IT IS (issue #419): the building's rough address
-            # and the task area's directions, named only where the job names
-            # a place, so every other offer reads as it did
-            **({"address": dict(self.params["address"])}
-               if isinstance(self.params.get("address"), dict) else {}),
-            **({"directions": str(self.params["directions"])}
-               if self.params.get("directions") else {}),
+            **self._where(),
             "claimable": self.claimable(now, pack_wh),
             "expiresInS": (None if self.deadline is None
                            else round(self.deadline - float(now), 1))}
+
+  def as_held(self, now: float) -> dict:
+    """How the robot holding a job is shown it (#602): what it is, where,
+    and what is left of the time it gives (`leftS`), which the board knows
+    as it knows how long an offer stands. Without it the robots spent their
+    recalls finding out when they took a job."""
+    left = self.left_s(now)
+    return {"id": self.id, "kind": self.kind, "target": self.target,
+            "description": self.description, **self._where(),
+            "leftS": None if left is None else round(left, 1)}
+
+  def _where(self) -> dict:
+    """WHERE IT IS (issue #419): the building's rough address and the task
+    area's directions, named only where the job names a place, so every
+    other job reads as it did."""
+    return {**({"address": dict(self.params["address"])}
+               if isinstance(self.params.get("address"), dict) else {}),
+            **({"directions": str(self.params["directions"])}
+               if self.params.get("directions") else {})}
 
   @classmethod
   def from_json(cls, spec: dict) -> "Task":
@@ -663,6 +684,11 @@ class TaskBoard:
              and not (reader and t.target_kind == "robot" and t.target == reader)]
     return [t.as_context(now, pack_wh, self.table) for t in shown[:limit]]
 
+  def held_context(self, robot: str, now: float) -> list[dict]:
+    """The jobs `robot` holds as it is shown them (`Task.as_held`, #602), in
+    the order it took them; only its own, on a shared board."""
+    return [t.as_held(now) for t in self.held_by(robot)]
+
   def stats(self) -> dict:
     counts = {state: 0 for state in TASK_STATES}
     for task in self.tasks.values():
@@ -797,7 +823,7 @@ class TaskBoard:
 
     Only offered ones: the deadline is how long an OFFER stands. A job the
     robot has taken never lapses -- one held past the time it gives is
-    FAILED by its holder's loop (`HubLifecycle._run_out`, #602), because it
+    FAILED by its holder's loop (`HubLifecycle._run_out_held`, #602), because it
     was attempted.
     """
     gone = []
