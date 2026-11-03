@@ -258,8 +258,8 @@ def test_the_local_deadline_survives_a_cold_model_load():
   the model, arrived as `fallback:timeout` with the model still working on
   an answer nobody would read. Measured three for three.
 
-  ⚠ Since issue #117 the API deadline is 90 s and covers a cold load by
-  itself, so `LOCAL_TIMEOUT_S` is a FLOOR rather than the local answer. The
+  ⚠ Since issue #117 the API deadline (90 s, 115 since #604) covers a cold
+  load by itself, so `LOCAL_TIMEOUT_S` is a FLOOR rather than the local answer. The
   invariant that matters is unchanged and is asserted directly: whatever
   either number is, the local path -- the one with the measured slow case --
   is never given LESS patience than an endpoint across the internet.

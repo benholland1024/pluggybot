@@ -583,6 +583,17 @@ LEFT_OUT_EVENT_TYPES = ("left_out",)
 #: a decline named the job the same answer took. The first that holds.
 LEFT_OUT_WHYS = ("filled", "placeholder", "decline")
 
+#: THE CALL BEHIND A DECISION (issue #604), additive on the wire, no bump:
+#: one `call` event per decision a response came back for, at its DECIDE
+#: line's `t` and, on the live stream, just before it -- `source`,
+#: `provider` (who answered: the router's `x-inference-provider`, null
+#: where nothing names one), `tokensIn`, `tokensOut`, `cut` (its tokens ran
+#: out) and `wallS` (the request, asked to answered). None for a decision
+#: no call answered: a map row, a policy fallback, a timeout. The
+#: observatory files the fields on the decision row of the same robot and
+#: `t`; the decision carries the same record as `call` in `decisions[]`.
+CALL_EVENT_TYPES = ("call",)
+
 #: THE BELIEF AGAINST THE TRUTH (issue #476), additive on the wire, no
 #: bump: a `drift` event per robot every `lifecycle.DRIFT_EVERY_S` and at
 #: every event that moved its belief outside a scan match or lost it, with

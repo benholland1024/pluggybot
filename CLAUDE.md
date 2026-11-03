@@ -210,18 +210,27 @@ Before doing anything, read the doc that owns what you are about to touch:
   by the frozen commit's first seven hex digits (`seed_of`; a pod's
   `COMMIT` file, a dirty tree refused), and a reading says what it
   flatters (`FLATTERS`) and that it is weaker than a sealed pool.
-- **`CALL_TIMEOUT_S` is 90 s and is a patience budget, not a tail** (issue
-  #117; Overseer.md §6 "The deadline"): a decision lost to a clock is the one
-  failure that is purely ours. `ESCALATE_TIMEOUT_S` (120) is an ordering above
-  it; `llm.LOCAL_TIMEOUT_S` is a FLOOR (a 27.3 s cold load). ⚠
-  `scripts/overseer_probe.py --calls 50` under-measures a mission by about
-  half: choose the deadline from the probe, confirm it with a flight.
+- **`CALL_TIMEOUT_S` is 115 s and is a patience budget** (issues #117,
+  #604; Overseer.md §6 "The deadline"): a decision lost to a clock is the
+  one failure that is purely ours. 90 s until #604, when 13 % of the
+  deployed calls outlived it. ⚠ NOT 120: the router's gateway answers a
+  non-streamed request silent for 120 s with a 504, so nothing comes later,
+  and 115 plus `POLL_GRACE_S` ends the call as our own `timeout` first.
+  `ESCALATE_TIMEOUT_S` (120) is an ordering above it; `llm.LOCAL_TIMEOUT_S`
+  is a FLOOR (a 27.3 s cold load). ⚠ The token budget is sized to it: one
+  moves with the other. ⚠ `scripts/overseer_probe.py --calls 50`
+  under-measures a mission by about half: choose the deadline from the
+  probe, confirm it with a flight.
 - **A fallback's reason is FAILURE or POLICY, and the partition is ONE**
   (issues #117, #141): `overseer.POLICY_FALLBACKS` / `FAILURE_FALLBACKS` /
-  `fallback_class` (`timeout`/`offline`/`garbled`/`busy`/`no-client` are
-  failures; `budget`/`idle-run`/`cooloff`/`scripted-mode` are the policy
-  working), read by `decision_failed` rows and never re-derived. Adding a
-  reason is additive, renaming one is breaking (two-repo contract).
+  `fallback_class` (`timeout`/`offline`/`garbled`/`cutoff`/`busy`/`no-client`
+  are failures; `budget`/`idle-run`/`cooloff`/`scripted-mode`/`allowance`
+  are the policy working), read by `decision_failed` rows and never
+  re-derived. Adding a reason is additive, renaming one is breaking
+  (two-repo contract). ⚠ `cutoff` is an answer whose tokens ran out before
+  it was written (the response's `stop_reason`, and its text unparsed;
+  #604), never `garbled`: read as "decision was not JSON: ''", both robots
+  believed their JSON was refused.
 - **Two arms: `scripted`, the loop with no mind, and `autonomous`, the one
   mind** (issues #115, #427; Evaluation.md §2). There is no control: what is
   measured is the observatory's rows. A mind takes THREE rails off —
@@ -626,13 +635,22 @@ save a filmstrip PNG named after the script.
   `done` that could only fail it, three held jobs booked all three of the
   counter's props, and nothing was offered from 02:22 UTC on 11-03; a
   `done` pending is the grade's. ⚠ AT ITS HOLDER'S PASS OF THE DAY LOOP,
-  NEVER ON THE SEAM: freed there, its prop was set out under the procedure
-  still working it. ⚠ A true death fails its robot's jobs in that robot's
-  own records. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
+  AND ON THE SEAM ONLY ON A CHARGE TRIP (`_charge_trip`, ⚠ never `state`,
+  which a trip leaves at `CHARGE`: a grade after one was cut mid-hold and
+  banked twice): freed on the seam mid-procedure, its prop was set out
+  under the procedure still working it; left to the pass, a 74-minute
+  charge held one 69 minutes past its limit. A job is settled once
+  (`_settle_job`). ⚠ A true
+  death fails its robot's jobs in that robot's own records. ⚠ ITS HOLDER
+  IS SHOWN IT, and the time it has left (`heldTasks`, `leftS`): without it
+  the robots spent their recalls finding out when they took it. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
   prop out, its activity renewed in place (`renew`), put back after a
   restart (`restore_counter`, in `begin`, before the activities' kept
-  state); ⚠ NO OFFER LANDS ON A PROP A ROBOT IS TOUCHING (the producer's
+  state), and an offer made between the world's last save and a crash has
+  its prop set out again once the world is back (`set_out_unseen`, off the
+  board's count the save keeps, `boardSeq`, never a stamp; #610); ⚠ NO
+  OFFER LANDS ON A PROP A ROBOT IS TOUCHING (the producer's
   `busy`): set out from under a hand, a drawer left out was paid for
   nothing. ⚠ Its `find` (`HumanoidPlaces.find_routine`, its world's places
   `world_places`; below, "Places, not coordinates") looks with the head's
@@ -1007,7 +1025,9 @@ save a filmstrip PNG named after the script.
   what it tried (#409), never swallowed; on EVERY arm, memory is not
   a rail. ⚠ **`think` is the FIRST property of the decision schema**
   (constrained decoding follows property order). ⚠ **`recall` is an ACTION**,
-  never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`;
+  never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`; its
+  chain ends at any other action but a fallback's, which keeps it ONCE, a
+  second running dropping it (#604: the post-recall turn is the heaviest);
   `tests/test_recall.py` pins each rule. ⚠ **The ownership split is the
   instrument** for quality five: nothing in `economy/` may read the goals. ⚠
   The prompt-cache split is by WRITER
@@ -1052,7 +1072,10 @@ save a filmstrip PNG named after the script.
   and the JPEG rides the NEXT turn as `seen`, an image part of the user turn
   (`llm.image_part`). ⚠ The dressing may never contradict the geometry where
   the robot can reach. ⚠ NO CAPTION, EVER: nothing the lifecycle emits says
-  what is IN the picture; the MIND looks (`build.eyes` names the model). ⚠ The
+  what is IN the picture; the MIND looks (`build.eyes` names the model). The
+  lab's `cageInView` (#605) is the cage's own sensor, cast off the world at
+  each decision through the camera and frame a look takes, never read off a
+  picture. ⚠ The
   bytes leave the state in `model_state`. `$PLUGGY_LOOK=0` turns the eye
   off. ⚠ ONLY THE WEBSITE'S WORD THAT A RENDERER IS THERE OFFERS `look`
   (#357): the `renderer` inbound kind, a STATE the door keeps
@@ -1133,9 +1156,18 @@ save a filmstrip PNG named after the script.
   `response_format`; refused once → prose, and `constrained` goes False and
   SAYS so); no bare `{"type": "object"}` in the schema; every request carries
   `llm.USER_AGENT`. ⚠ A reasoning model needs its budget
-  (`MAX_TOKENS_AUTONOMOUS` 8192; an unfinished `<think>` is
-  `fallback:garbled`, billed). Money has THREE states: "no API cost",
-  "unknown" (`priced: false`), a number.
+  (`MAX_TOKENS_AUTONOMOUS` 16,384 since #604, the escalation's with it;
+  the interrupt's `MAX_TOKENS` 4,096, twice its longest think, so a robot
+  asked as its pack runs low is not held still for minutes; an answer its
+  tokens ran out on is `fallback:cutoff`, billed). ⚠ THE BUDGET IS SIZED TO
+  `CALL_TIMEOUT_S`: past the deadline a think that ran out is a timeout,
+  unmetered, counted toward the cooloff and naming nobody, where inside it
+  it is a cut-off metered and said (Overseer.md §6, "The budget"). ⚠
+  `:cheapest`'s providers are not one mind: measure a candidate BY PROVIDER
+  on the live robots' own turns, never the probe's synthetic one alone. A
+  decision a response came back for says who answered (`Decision.call`,
+  the `call` event, `pw_decisions.provider`). Money has THREE states: "no
+  API cost", "unknown" (`priced: false`), a number.
 - **What an errand costs** (`economy/energy.py` + `energy.json`,
   `$PLUGGY_ENERGY`; Overseer.md §5).
   `needs_charge` is checked BETWEEN errands, so every errand is priced
@@ -1591,8 +1623,16 @@ save a filmstrip PNG named after the script.
   are SHOWN it** (issue #226; Overseer.md §2f, `activity/cage.py`,
   `tests/test_mouse.py`): the cage is an ACTIVITY — a state over ONE table
   (`cage.TRANSITIONS`) and clocks (`CLOCKS`), nothing random. ⚠ The state
-  reaches the mind ONLY from inside the lab (`Cage.context` off the TRUE pose;
-  `lab.mouse` null elsewhere). ⚠ A lab SHOWN (`world_config`'s `lab_shown`,
+  reaches the mind ONLY while the cage is in its head camera's picture,
+  framed as a look's (`Cage.context`, #605: rays from where the camera IS
+  to the cage's skin, agreeing with a segmentation render at 2,166 poses;
+  `lab.cageInView`, `lab.mouse` null otherwise), ⚠ NEVER OFF THE ROOM IT
+  STANDS IN: a room's edge is a line in the world, and Rowan bracketed the
+  lab's by asking, its true position. ⚠ ONE `mj_ray` A RAY, NEVER
+  `mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere misplaced
+  where the body's inertial frame is turned, as the cage's is, and rays at
+  its far walls passed through them.
+  ⚠ A lab SHOWN (`world_config`'s `lab_shown`,
   `Menu.lab`; Ben, 2026-10-31, until a job of theirs uses the plates) has
   the `lab` block and `LAB_SHOWN` (`lab_shown_rule`), and no act and no
   field; its cage's shock plate is switched off (`Cage(shock=False)`: no
@@ -1844,8 +1884,15 @@ save a filmstrip PNG named after the script.
   context — only the state file (`Task.as_state`). Claiming only QUEUES an
   errand below `needs_charge`. Expiry is an outcome, not a deletion, and only
   OFFERED tasks expire: a held job past the time it gives is FAILED, never
-  expired, because it was attempted (#602). Off by default (`--tasks`,
-  `$PLUGGY_TASKS`).
+  expired, because it was attempted (#602). ⚠ THE BOARD'S ORDERS ARE ITS
+  OWN COUNT (`Task.number`), NEVER A STAMP (#610; TaskPattern.md): what it
+  forgets first, whose draw a restart puts back on a prop, and the offers
+  listed, as are a reading's attempts (`first_solve`; Evaluation.md §5). A
+  start-over sets the clock back, and by `createdT` and
+  `resolvedT` the tasks from before it ranked newest, outlasting the trim
+  and putting their draws back at every restart; the site lists by the
+  same count. Held jobs go by their claims (`held_by`), which a start-over
+  moves with the clock. Off by default (`--tasks`, `$PLUGGY_TASKS`).
 - **When work appears is `economy/cadence.py` + `cadence.json`, and it is
   DATA** (issue #23; TaskPattern.md §5): `tasks.py` says what a job IS,
   `rewards.json` what it PAYS, `cadence.json` when it TURNS UP,

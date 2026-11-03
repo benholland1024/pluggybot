@@ -344,7 +344,10 @@ def capture(lives, fingerprint_: str, resumes: int = 0,
   world = {"activities": ({a.name: a.kept_state() for a in first.activities}
                           if first.activities is not None else {}),
            "producer": (first.producer.kept_state()
-                        if first.producer is not None else None)}
+                        if first.producer is not None else None),
+           # ...and the board's count, the offers this world has set out
+           # (`HubLifecycle.set_out_unseen`)
+           "boardSeq": first.tasks.seq if first.tasks is not None else None}
   meta = {"format": FORMAT, "world": first.world, "fingerprint": fingerprint_,
           "mapEpoch": MAP_EPOCH,
           "savedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -514,7 +517,12 @@ def restore(lives, snap: Snapshot) -> dict:
     # ...and a robot saved lying inside the other, from before the pair
     # collided (issue #455), put clear before a step throws them apart
     matched["unclipped"] = [life.root for life in lives[1:] if life.unclip()]
-  return {"inPlace": same, "t": snap.t, "robots": restored, **matched}
+  # ...and, after the step stepped again, the props of offers made between
+  # the save and a crash set out for them (#610's review): the world comes
+  # back from before their set-outs
+  set_out = first.set_out_unseen(state.get("boardSeq"))
+  return {"inPlace": same, "t": snap.t, "robots": restored, **matched,
+          **({"setOut": set_out} if set_out else {})}
 
 
 # ---- the keeper ----------------------------------------------------------------

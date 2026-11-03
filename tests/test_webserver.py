@@ -1036,6 +1036,10 @@ def _report(r, capsys, **kw):
 _RESULT = {"state": "DONE", "charge_cycles": 0, "sim_time": 100.0, "verdicts": [],
            "points": 0, "earned": 0}
 
+_OVERSEER = {"llmCalls": 40, "fallbacks": 0, "budgetLeft": 1, "callsPerHour": 60,
+             "cacheHitRate": 0.5, "model": "m", "backend": "huggingface",
+             "usd": 0.02873, "errors": []}
+
 
 def test_a_carried_on_run_reports_its_own_real_time_multiple(capsys):
   """Since #345 the clock carries on across a restart, and the summary
@@ -1053,12 +1057,25 @@ def test_a_carried_on_run_prices_its_own_sim_hours(capsys):
   """The same mistake one line up: the spend is this process's and the
   clock is the world's, so the deployed log read "$0.0142 per sim-hour" for
   a run that spent $0.0287 in one sim-hour of its own."""
-  o = {"llmCalls": 40, "fallbacks": 0, "budgetLeft": 1, "callsPerHour": 60,
-       "cacheHitRate": 0.5, "model": "m", "backend": "huggingface",
-       "usd": 0.02873, "errors": []}
-  out = _report(dict(_RESULT, errands=[], sim_time=7287.6, overseer=o),
+  out = _report(dict(_RESULT, errands=[], sim_time=7287.6, overseer=_OVERSEER),
                 capsys, wall=3840.0, t0=3674.7)
   assert "$0.0286 per sim-hour" in out
+
+
+def test_a_run_with_errands_reports_its_mind_and_its_clock(capsys):
+  """Issue #603: the errand lines' word took the name of this process's
+  share of the clock, `ran` (#579's review), so after any errand the
+  overseer's line compared that word with 0 and raised. On the box that was
+  every hourly end: the pair's second robot's summary never printed, and
+  #349's exit line read the TypeError, never "the run ended"."""
+  errands = [{"errand": "procedure", "procedure": {"ok": True}},
+             {"errand": "procedure", "procedure": {"ok": False}}]
+  out = _report(dict(_RESULT, errands=errands, sim_time=7287.6,
+                     overseer=_OVERSEER), capsys, wall=3840.0, t0=3674.7)
+  assert "errand procedure           : ran\n" in out
+  assert "errand procedure           : cut short\n" in out
+  assert "$0.0286 per sim-hour" in out
+  assert "3612.9 s / 3840.0 s  (0.94x real time)" in out
 
 
 def test_a_deploys_signal_is_the_exit_lines_reason(monkeypatch, tmp_path, capsys):

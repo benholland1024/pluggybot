@@ -54,6 +54,46 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, nothing new on the wire: a task's `id` is the board's count, and orders it (pluggybot #610)
+
+No message's shape moves, and no bump. What a consumer may rely on is
+stated now: a task's `id` is `t_` and the board's own count (`t_0042` is
+42, with five digits past `t_9999`), which only grows. The sim orders its
+board by it: what it forgets first, whose draw a restart puts back on a
+prop, and the offers it lists. The site's jobs list and piles order by it
+too (rooftop-media-2026 #488). ⚠ Never by `createdT` or `resolvedT`:
+they are timeline data on the sim clock of the moment, and a start-over
+sets that clock back to 0, so a job from before one carries the larger
+stamps (on 11-03 t_0002's `resolvedT` was 357,627, with the clock at
+153,197). The id's format is pinned in `tests/test_tasks.py`.
+
+### 0.21.0, additive: the call behind a decision (`call`), and an answer cut off (`fallback:cutoff`)
+
+pluggybot #604. From 04:00 UTC on 11-03 a quarter of the minds' answers
+came back empty and billed, read `fallback:garbled`, and nothing on the
+wire could say who sent them or why they stopped. One event type and one
+`fallback:` reason are new:
+
+- **`call`**: one per decision a response came back for, at the same `t`
+  and `robot` as its `DECIDE` line and, on the live stream, just before
+  it: `source` (the decision's), `provider` (who answered: the router's
+  `x-inference-provider`, null where nothing names one), `tokensIn`,
+  `tokensOut`, `cut` (its tokens ran out) and `wallS` (the request, asked
+  to answered). None for a decision no call answered: a map row, a policy
+  fallback, a timeout. The decision carries the same record as `call` in
+  `decisions[]`, and the console has it beside its `DECIDE` line.
+
+  ```jsonc
+  {"type": "call", "t": 129950.3, "robot": "pluggybot", "source": "fallback:cutoff",
+   "provider": "baseten", "tokensIn": 29811, "tokensOut": 16384, "cut": true, "wallS": 96.8}
+  ```
+
+- **`fallback:cutoff`**, a decision's `source` (the `DECIDE` line's tail):
+  somebody answered, and its tokens ran out before the answer was written.
+  A failure, as `garbled` is, and an interrupt's answer may carry it too.
+
+No fixture carries one (the pair's recording has no mind).
+
 ### 0.21.0, nothing a consumer reads: the head built round the LIDAR (pluggybot #581, stage 3)
 
 No message's shape moves, and no bump. What a scene draws of each

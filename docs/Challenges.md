@@ -321,10 +321,11 @@ departures, both about where an attempt starts:
   references over a tour of the house (313 s, from the station), rounded
   up (TaskPattern.md §4 has why it is the kind's, #580). Held past them
   with no `done` waiting on its grade, the job is failed at its holder's
-  next pass of the day loop, between what the robot does ("not graded
-  within the 960 s the job allows -- the drawer was never measured",
-  `HubLifecycle._run_out_held`, #602), and its prop is free to be offered
-  again.
+  next pass of the day loop, between what the robot does, or at once on a
+  charge trip ("not graded within the 960 s the job allows -- the drawer
+  was never measured", `HubLifecycle._run_out_held`, #602), and its prop is
+  free to be offered again. While it holds one, the robot is shown it with
+  the time left (`heldTasks`, `leftS`).
 
 **The offer says where by the area's terms** (#419): the facility's
 address, and directions that name the storeroom, the counter, the row's
@@ -334,7 +335,10 @@ sequence number, `Task.secret["draw"]`), set into the compiled world as the
 offer lands with the prop set back out (`HubLifecycle._set_out_counter`,
 `storeroom.redraw`, `storeroom.set_out`), its activity begun again over
 the draw's truth (`renew`), and put back after a restart
-(`restore_counter`): a skill over a kind of drawer, never one drawer. ⚠ No
+(`restore_counter`, the prop's newest offer on the board's own count, never
+by its stamp: TaskPattern.md §1, "The lifecycle", #610; and set out again
+where the world came back from before its offer, `set_out_unseen`:
+Webserver.md): a skill over a kind of drawer, never one drawer. ⚠ No
 offer lands on a prop a robot is touching (`_worked_props`, the
 producer's `busy`): set out from under a hand, a door was clamped shut
 round it, and a drawer left out was a job paid for nothing.

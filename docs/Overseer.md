@@ -273,7 +273,8 @@ grade is the job's own (its check's evaluator, watching from the claim --
 a fall anywhere fails it -- to a hold after `done` the robot is told to
 stand clear of), and the loop with no mind never sees the field or the
 offer. A job held past the time its description gives is failed by the
-loop, its prop offered again (#602). `CHALLENGE_RULE` says all of this to
+loop, its prop offered again, and while the robot holds one its context
+lists it with that time's remainder (`heldTasks`, `leftS`; #602). `CHALLENGE_RULE` says all of this to
 the mind and, like every rule on this arm, demonstrates nothing about
 charging.
 
@@ -387,17 +388,42 @@ one set of clocks (`CLOCKS`: on its side `SIDE_S` 120 s then hiding
 plates in front of the cage (`shock`, `feed`, `toy`, each the garden
 plate) act on their rising edge; a robot inside `COMPANY_M` (1.0 m) of the
 cage for `COMPANY_S` (10 s) is company, once per visit. No picture: the
-state IS what the robot sees, and it sees it only from inside the lab
-(`Cage.context` off the robot's TRUE pose, the room a camera there would
-see; from anywhere else `mouse` is null — TaskPattern.md §2's rule, the
-mouse's state being what a sensor would have to discover). The mouse is a
-mocap body, moved between five pre-allocated poses — `MocapToggle`'s first
-live consumer.
+state IS what the robot sees, and it sees it only while the cage is in its
+head camera's picture (`Cage.context`, #605; `cageInView` in the `lab`
+block); otherwise `mouse` is null — TaskPattern.md §2's rule, the mouse's
+state being what a sensor would have to discover. The picture is the
+body's head camera (`Body.head_camera`) in a look's frame (`mind.look`'s
+640 × 480 at the camera's own fovy): the camera and the frame a look's
+picture is taken with. Rays from where the camera IS toward 69 points on
+the cage's skin (`sight_points`) see it where one meets it before anything
+else, so a wall, a jamb, the other robot or its own arm hides it. They
+agree with a segmentation render of that picture at all 2,166 poses #605's
+review compared, standing and bowed (`test_mouse.py` pins 12). The site's
+own look hides the looker's body (`EyeDriver.vue`), none of which is in
+the frame standing (0 of 4,800 rays at three places), and draws the other
+robot a little larger than its geoms: it differs only where an arm is
+raised into the picture or at the other robot's edge. ⚠ NEVER THE ROOM THE
+ROBOT STANDS IN: a room's edge is a line in
+the world, and Rowan bracketed the lab's (22.0-22.6 m) by asking — its
+true position, read off the flag. ⚠ ONE `mj_ray` A RAY, NEVER
+`mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere off its centre
+of mass, its offset unturned, and the cage's inertial frame is turned, so
+rays at its far walls' tops passed through them. ⚠ The head camera is
+pitched 20° down for the walls' tags: standing and facing the cage, it
+loses it within 0.88-1.04 m of its middle by the side (1.04 straight in
+front, 0.94 from either end, 0.88 on the diagonals), so a robot giving
+company (`COMPANY_M`, 1.0 m) sees the mouse only from its edge, and from
+straight in front not at all. A bow turns the camera down and sees it
+nearer (15° is enough at 0.7 m); the depth camera's colour imager, 40°
+down, would see it too, and is not counted. The mouse is a mocap body,
+moved between five pre-allocated poses — `MocapToggle`'s first live
+consumer.
 
 **The humanoids are SHOWN the lab and act in nothing there** (#559's stage
 4; Ben, 2026-10-31; `lab_shown` in the world's config, `Menu.lab`). No job
 of theirs uses the plates, so they are told the room, its plates, the mouse
-from inside it and the disclosure line in `LAB_SHOWN`, which says what is
+while their head camera sees the cage and the disclosure line in
+`LAB_SHOWN`, which says what is
 there and what the plates do now and prescribes nothing — no act and no
 field. Their cage's shock plate is switched off (`Cage(shock=False)`: no
 act, no count, no press, no flag), and a press pays nothing.
@@ -1349,9 +1375,10 @@ a fallback. `Decision.scripted` means "a fallback produced this".
 | `llm` | — | a real answer |
 | `llm:<model>` | — | …from the escalation model (issue #37) |
 | `event:<type>` | — | a row of the agent's own event map (issue #127) |
-| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (90 s, §6) |
+| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (115 s, §6) |
 | `fallback:offline` | failure | nobody answered — transport, HTTP, auth, rate limit, 5xx |
 | `fallback:garbled` | failure | somebody answered, and it was not a decision |
+| `fallback:cutoff` | failure | somebody answered, and its tokens ran out before the answer was written (issue #604; §6) |
 | `fallback:busy` | failure | the previous call is still out there; a second is not piled on |
 | `fallback:no-client` | failure | no SDK, no key, no endpoint: it was never asked |
 | `fallback:budget` | policy | the hourly call budget (`CALLS_PER_HOUR` 60) is spent |
@@ -1390,9 +1417,9 @@ question nobody asked (Evaluation.md §2).
 It exists because a missing API key does *not* fail at client construction —
 `anthropic.Anthropic()` builds fine and raises on the first request — so
 "kill the key and the robot keeps working" would otherwise mean "and hammers a
-doomed endpoint sixty times an hour". ⚠ A `garbled` answer does not count
-toward it: the endpoint is fine in that story, and summing them once cost a
-flown day (four bad task ids, then 238 decisions on `fallback:cooloff`).
+doomed endpoint sixty times an hour". ⚠ A `garbled` or `cutoff` answer does
+not count toward it: the endpoint is fine in that story, and summing them once
+cost a flown day (four bad task ids, then 238 decisions on `fallback:cooloff`).
 
 ### Placeholders: a field written when nothing was meant (issue #462)
 
@@ -1688,9 +1715,10 @@ asked directly, and it split the catalogue in two:
 reasoning model that answered charged first, with the arithmetic in its
 reason** ("0.9 Wh won't cover the 0.992 Wh it costs"). The issue's
 constraint — instruct-tuned, not thinking — was written against truncation,
-and the cure for truncation is the budget (`MAX_TOKENS_AUTONOMOUS` 8192; at
-2048 the Flash models lost one answer in eight to an EMPTY, fully billed
-reply), not the family. The rate the bill is priced at is the observatory's
+and the cure for truncation is the budget (`MAX_TOKENS_AUTONOMOUS`, 8192 at
+the pick and 16,384 since #604, below; at 2048 the Flash models lost one
+answer in eight to an EMPTY, fully billed reply), not the family. The rate
+the bill is priced at is the observatory's
 own: the newest 1000 decisions span 73 h, 13.6 LLM calls an hour for the
 pair (22 over the whole week, which includes the crash-loop days); the
 monthly figure is that rate × 720 h × the probe's per-call cost, and
@@ -1723,16 +1751,79 @@ Two rules the first sweep taught still hold:
   field is retried once with the schema in prose, and then
   `Overseer.constrained` goes False and says so once in `usage.errors`.
 - **A reasoning model needs its budget, and the budget is a ceiling, not a
-  spend**: GLM-5.3-Flash answers in ~800 tokens under an 8192 cap. The
-  adapter strips a completed `<think>` block; an unfinished one is an empty
-  answer and `fallback:garbled`, billed.
+  spend**: GLM-5.3-Flash answers most turns in 1-3k tokens. The adapter
+  strips a completed `<think>` block; an answer its tokens ran out on
+  (`stop_reason` `max_tokens`, its text unparsed) is `fallback:cutoff`,
+  billed, and says so to the robot (#604).
 
 Two small-model quirks, both measured and both closed: the offer id (a kind
 name in `task` instead of an id — the prompt spells the id shape and the
 probe's synthetic state carries a claimable offer so it stays measurable;
-the ids are an enum, §2), and truncation mid-write, which is why
-`MAX_TOKENS_AUTONOMOUS` is what it is. Both were measured on A0's quiet
-series; §2 has the first's numbers.
+the ids are an enum, §2), and truncation mid-write. Both were measured on
+A0's quiet series; §2 has the first's numbers.
+
+### The budget, and who answers under `:cheapest` (#604)
+
+From 04:00 UTC on 11-03 a quarter of the answers came back EMPTY and
+billed, read `fallback:garbled`, and a tenth timed out, with nothing
+deployed changed; nearly half the empties came on the turn after a
+`recall`. The probe's synthetic turn reproduced neither (30 of 30 at a
+median of 786 tokens), so the turns measured are the live robots' OWN:
+`serve.py` as deployed, restored from the 03:15 UTC backup of the live
+world with a fake model that records each request (each robot's turn
+without a recall, then with one and two recalled blocks, the queries the
+robots were making), each request sent again through the deployed adapter.
+
+| who answered (non-streamed, as deployed) | calls | tokens out | longest | |
+|---|---|---|---|---|
+| `:cheapest` → baseten | 41 | 760–16,986 | 94.6 s | the turn carrying two recalls: 3,128 / 4,603 / 10,905 / 11,776 / 16,986 — 3 of 5 past 8,192, 1 past 16,384 |
+| `:cheapest` → nobody | 3 of 44 | — | 120 s | the router's gateway answers 504 to a request silent for 120 s |
+| `:deepinfra`, pinned | 20 | 342–1,996 | 27 s | never near a budget |
+| `:novita`, pinned | 2 | — | 120 s | 504 both times; STREAMED it wrote 3,418 tokens in 53 s, and 8,192 with no answer in 128 s |
+
+So the three providers `:cheapest` ties at one price are three minds as far
+as a deadline is concerned: baseten thinks long and fast (~170-190 tokens a
+second on a long answer), deepinfra briefly, and novita long at ~64 a
+second, which no non-streamed call outlasts. The empties are the long
+thinks a budget cuts off; the timeouts are calls that never come back in
+time, and no budget moves those.
+
+- **`MAX_TOKENS_AUTONOMOUS` is 16,384**: on the worst turn measured, cut-offs
+  3 of 5 → 1 of 5, the 10,905 and 11,776 answered and the 16,986 cut off.
+- ⚠ **THE BUDGET IS SIZED TO THE DEADLINE**: baseten writes a long answer
+  at 176-191 tokens a second plus ~5 s of reading, so 16,384 comes back in
+  ~98 s, inside `CALL_TIMEOUT_S` (115 s, below) with ~15 s to spare, and a
+  think that runs out is a cut-off, metered and said. Past the deadline it
+  would be a timeout, which no response reaches `_meter` from, counted
+  toward the cooloff (`MAX_CONSECUTIVE_ERRORS`, where a cut-off is not),
+  and naming nobody: at the old 90 s this budget was 12,288 for that reason
+  (the review's catch). A bigger budget needs a bigger deadline, which a
+  non-streamed call cannot use past the gateway's 120 s.
+- **The interrupt's is 4,096** (`MAX_TOKENS`, 1,024 since #116): asked on
+  the live robots' turns it thought 489-1,846 tokens (12 of 12 answered at
+  32,768), and 7 of 20 ran out of the 1,024; a failed interrupt stops the
+  errand, so a `battery_below -> ask` row read as "stop" a third of the
+  time. ⚠ Not the decision's 16,384: it is asked as the pack runs low,
+  mid-errand, and twice its longest think comes back in ~28 s where the
+  decision's budget could hold the robot still for most of two minutes.
+  `ESCALATE_MAX_TOKENS` follows the decision's.
+- ⚠ **A cut-off of 16,384 bills about $0.012** at ~25k tokens in, against
+  $0.008 at 8,192: the ceiling is only paid where an answer needs it.
+- ⚠ **A timeout bills what nobody meters**: no response reaches `_meter`,
+  so the purse (`$PLUGGY_WEEKLY_USD`) never sees whatever the provider
+  billed for a call the deadline or the gateway gave up on -- and at 16,384
+  that can be twice what it could at 8,192. Whether the router bills it is
+  not known here: the router's own bill beside the spend record over a day
+  of timeouts says.
+- **The robot is told the tokens the provider says it spent** (a provider
+  capping below the ask spends fewer), and a cut-off interrupt says "the
+  answer ran out of its tokens", not "nobody answered".
+- **Not done here**: the timeouts are a provider the policy picks, and the
+  model id is the deployment's (`$PLUGGY_MODEL`): pinned to one provider,
+  or answers STREAMED (`llm.stream_fetch`, practice's), they would not hang;
+  either is a decision of its own. The decision rows name who answered or
+  ran out (`pw_decisions.provider`); a timeout brings back no header and
+  names nobody, so which provider hangs is read by pinning one, as here.
 
 ### The local backend
 
@@ -1754,7 +1845,7 @@ wants the machine a served world already assumes: the sim's own container.
 
 ### The deadline
 
-`CALL_TIMEOUT_S` = 90 s. The probe (`scripts/overseer_probe.py --calls 50`,
+`CALL_TIMEOUT_S` = 115 s (90 s from #117 to #604). The probe (`scripts/overseer_probe.py --calls 50`,
 quiet, the deployed pick) reports the latency **distribution** and the timeout
 share each candidate deadline would cost: median 4.88 s, p95 6.59, max
 **7.38 against the old 8** — 0 % timeouts and no margin, which is why any
@@ -1766,12 +1857,21 @@ Choose the deadline from the probe, confirm it with a flight. ⚠ Since #225
 the probe measures the DEPLOYED prompt (`--deployed`) — the numbers above are
 the `guarded` prompt's, a quarter the size, and on the deployed one the 4B
 read 37 s median with calls at 120 s; the pick's tail (p95 25 s, max 43 s)
-is what the 90 s now stands against.
+was what the 90 s stood against.
 
-90 is **not** read off the tail — nothing measured is within twelve times of
-it. It is a patience budget: a decision lost to a clock is the one failure
-that is purely ours. A cap is only *spent* when a call is slow — at the median
-the day's thinking is ~98 sim-s (2.7 %) whatever the cap is.
+The deadline is a patience budget: a decision lost to a clock is the one
+failure that is purely ours. A cap is only *spent* when a call is slow — at
+the median the day's thinking is ~98 sim-s (2.7 %) whatever the cap is. 90
+was not read off the tail; ⚠ by #604 the tail had reached it: on 11-03 13 %
+of the deployed calls (146 in a day) outlived 90 s, and on the live robots'
+own turns the longest answers took 88.7 s (16,986 tokens) and 94.6 s. So
+**115**: the router's gateway answers a non-streamed request silent for 120
+s with a 504 (measured four times, at 120.2-120.3 s), so no answer comes
+later, and 115 plus `POLL_GRACE_S` (117) ends a call as our own `timeout`
+before it, never the gateway's `offline`. The token budget is sized to it
+(above, "The budget"). ⚠ The 25 s it adds is paid by every call that hangs
+— a provider that never answers in time stands the robot still 115 s, not
+90 — which is the pinned provider's argument, not this number's.
 `ESCALATE_TIMEOUT_S` (120) follows as an ordering, not a number, and the probe
 holds its calls to 2× the deadline (`PROBE_TIMEOUT_S`), never to the deadline
 under test.
@@ -1925,7 +2025,14 @@ gate every document write passes (the files' `append`, the library's
   `#id [where] text`, ≤ `RECALLED_CHARS` 4000) rides the NEXT turn as
   `recalled`. **The chain**: blocks accumulate (≤ `RECALLED_CHAIN_CHARS`
   8000, oldest first out) until any action but another recall, which clears
-  them — what it wants to keep it pins or notes. `MAX_RECALL_RUN` (3):
+  them — what it wants to keep it pins or notes. ⚠ **A fallback keeps the
+  chain once** (#604): the mind never acted on what it looked up, and
+  dropped, the robot recalled the same lines again, a turn and a paid call
+  each time ("the recalled grip1 and grip16 lines died with them again").
+  A second fallback running drops it: the turn after a recall is the
+  heaviest (16 of 11-03's 38 failures came right after one), and kept for
+  ever its cut-off would repeat. A map row's action still clears it.
+  `MAX_RECALL_RUN` (3):
   `recallsLeft` is in the state and at 0 `recall` leaves the action enum for
   that call (the `take_task`-with-an-empty-board pattern), so a fourth is
   malformed. A recall never finds the record of a recall. ⚠ A standing order
@@ -2066,7 +2173,7 @@ The robot sets **`escalate`** on the decision it was already making, so the
 routing costs **no extra call**. Code then decides, in `why_not_escalate`,
 against gates the model sees the effects of and not the levers: the allowance
 has room for the estimate (`ESCALATE_ASSUMED_IN` 3500 input tokens × the
-escalation model's rates plus the full `ESCALATE_MAX_TOKENS` ceiling, 8192 since #225 —
+escalation model's rates plus the full `ESCALATE_MAX_TOKENS` ceiling, 16,384 since #604 —
 the pessimistic direction); `ESCALATE_MIN_INTERVAL_S` (10 min) since the last;
 no more than `ESCALATE_SHARE` (10 %) of the run's decisions, the first always
 allowed. **Every failure keeps the cheap answer** — a timeout, a 403, prose —
