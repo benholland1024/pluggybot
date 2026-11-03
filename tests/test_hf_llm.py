@@ -235,7 +235,7 @@ def test_an_answer_its_tokens_ran_out_on_is_a_cutoff_not_garbled():
   being refused -- and the decision names who answered and what it billed.
   Shown to fail before the fix: `fallback:garbled`, and no `call`. The
   robot is told the tokens the provider says it spent, which one capping
-  below the ask makes fewer than the budget (here 8,192 of 12,288)."""
+  below the ask makes fewer than the budget (here 8,192 of 16,384)."""
   boss = Overseer(Menu(zones=("garden",)), client=HFClient(
     token="hf_test", fetch=fake_fetch([cut_payload()])))
   d = boss.decide({"decisions": 0})

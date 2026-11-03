@@ -1350,7 +1350,7 @@ a fallback. `Decision.scripted` means "a fallback produced this".
 | `llm` | — | a real answer |
 | `llm:<model>` | — | …from the escalation model (issue #37) |
 | `event:<type>` | — | a row of the agent's own event map (issue #127) |
-| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (90 s, §6) |
+| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (115 s, §6) |
 | `fallback:offline` | failure | nobody answered — transport, HTTP, auth, rate limit, 5xx |
 | `fallback:garbled` | failure | somebody answered, and it was not a decision |
 | `fallback:cutoff` | failure | somebody answered, and its tokens ran out before the answer was written (issue #604; §6) |
@@ -1691,7 +1691,7 @@ reasoning model that answered charged first, with the arithmetic in its
 reason** ("0.9 Wh won't cover the 0.992 Wh it costs"). The issue's
 constraint — instruct-tuned, not thinking — was written against truncation,
 and the cure for truncation is the budget (`MAX_TOKENS_AUTONOMOUS`, 8192 at
-the pick and 12,288 since #604, below; at 2048 the Flash models lost one
+the pick and 16,384 since #604, below; at 2048 the Flash models lost one
 answer in eight to an EMPTY, fully billed reply), not the family. The rate
 the bill is priced at is the observatory's
 own: the newest 1000 decisions span 73 h, 13.6 LLM calls an hour for the
@@ -1751,7 +1751,7 @@ robots were making), each request sent again through the deployed adapter.
 
 | who answered (non-streamed, as deployed) | calls | tokens out | longest | |
 |---|---|---|---|---|
-| `:cheapest` → baseten | 41 | 760–16,986 | 94.6 s | the turn carrying two recalls: 3,128 / 4,603 / 10,905 / 11,776 / 16,986 — 3 of 5 past 8,192, 1 past 12,288 (and 16,384) |
+| `:cheapest` → baseten | 41 | 760–16,986 | 94.6 s | the turn carrying two recalls: 3,128 / 4,603 / 10,905 / 11,776 / 16,986 — 3 of 5 past 8,192, 1 past 16,384 |
 | `:cheapest` → nobody | 3 of 44 | — | 120 s | the router's gateway answers 504 to a request silent for 120 s |
 | `:deepinfra`, pinned | 20 | 342–1,996 | 27 s | never near a budget |
 | `:novita`, pinned | 2 | — | 120 s | 504 both times; STREAMED it wrote 3,418 tokens in 53 s, and 8,192 with no answer in 128 s |
@@ -1763,22 +1763,22 @@ second, which no non-streamed call outlasts. The empties are the long
 thinks a budget cuts off; the timeouts are calls that never come back in
 time, and no budget moves those.
 
-- **`MAX_TOKENS_AUTONOMOUS` is 12,288**: on the worst turn measured, cut-offs
-  3 of 5 → 1 of 5, the 10,905 and 11,776 answered and the 16,986 cut off
-  (as it would be at 16,384).
+- **`MAX_TOKENS_AUTONOMOUS` is 16,384**: on the worst turn measured, cut-offs
+  3 of 5 → 1 of 5, the 10,905 and 11,776 answered and the 16,986 cut off.
 - ⚠ **THE BUDGET IS SIZED TO THE DEADLINE**: baseten writes a long answer
-  at 176-191 tokens a second plus ~5 s of reading, so 12,288 comes back in
-  ~75 s and a think that runs out is a cut-off, metered and said. At 16,384
-  (~95 s at 176) it would come back after `CALL_TIMEOUT_S`: a timeout, which
-  no response reaches `_meter` from, counted toward the cooloff
-  (`MAX_CONSECUTIVE_ERRORS`, where a cut-off is not), and naming nobody. A
-  bigger budget needs a bigger deadline, which a non-streamed call cannot
-  use past the gateway's 120 s.
+  at 176-191 tokens a second plus ~5 s of reading, so 16,384 comes back in
+  ~98 s, inside `CALL_TIMEOUT_S` (115 s, below) with ~15 s to spare, and a
+  think that runs out is a cut-off, metered and said. Past the deadline it
+  would be a timeout, which no response reaches `_meter` from, counted
+  toward the cooloff (`MAX_CONSECUTIVE_ERRORS`, where a cut-off is not),
+  and naming nobody: at the old 90 s this budget was 12,288 for that reason
+  (the review's catch). A bigger budget needs a bigger deadline, which a
+  non-streamed call cannot use past the gateway's 120 s.
 - **The interrupt follows it** (`MAX_TOKENS`, 1,024 since #116): asked on a
   live turn, 4 of 8 ran out of it, and the 4 answered used 667-1,019; a
   failed interrupt stops the errand, so a `battery_below -> ask` row read as
   "stop" half the time. `ESCALATE_MAX_TOKENS` follows it too.
-- ⚠ **A cut-off of 12,288 bills about $0.010** at ~25k tokens in, against
+- ⚠ **A cut-off of 16,384 bills about $0.012** at ~25k tokens in, against
   $0.008 at 8,192: the ceiling is only paid where an answer needs it.
 - **The robot is told the tokens the provider says it spent** (a provider
   capping below the ask spends fewer), and a cut-off interrupt says "the
@@ -1810,7 +1810,7 @@ wants the machine a served world already assumes: the sim's own container.
 
 ### The deadline
 
-`CALL_TIMEOUT_S` = 90 s. The probe (`scripts/overseer_probe.py --calls 50`,
+`CALL_TIMEOUT_S` = 115 s (90 s from #117 to #604). The probe (`scripts/overseer_probe.py --calls 50`,
 quiet, the deployed pick) reports the latency **distribution** and the timeout
 share each candidate deadline would cost: median 4.88 s, p95 6.59, max
 **7.38 against the old 8** — 0 % timeouts and no margin, which is why any
@@ -1822,17 +1822,21 @@ Choose the deadline from the probe, confirm it with a flight. ⚠ Since #225
 the probe measures the DEPLOYED prompt (`--deployed`) — the numbers above are
 the `guarded` prompt's, a quarter the size, and on the deployed one the 4B
 read 37 s median with calls at 120 s; the pick's tail (p95 25 s, max 43 s)
-is what the 90 s now stands against.
+was what the 90 s stood against.
 
-90 was **not** read off the tail. It is a patience budget: a decision lost to
-a clock is the one failure that is purely ours. A cap is only *spent* when a
-call is slow — at the median the day's thinking is ~98 sim-s (2.7 %)
-whatever the cap is. ⚠ Since #604 the tail is at it: on the live robots'
-own turns the longest answers took 88.7 s (16,986 tokens) and 94.6 s, and
-the token budget is sized so the fastest provider's full think comes back
-inside it with ~15 s to spare (above, "The budget"). Raising it buys
-answers between 90 s and the router's 120 s gateway, and costs every hung
-call the same seconds standing still.
+The deadline is a patience budget: a decision lost to a clock is the one
+failure that is purely ours. A cap is only *spent* when a call is slow — at
+the median the day's thinking is ~98 sim-s (2.7 %) whatever the cap is. 90
+was not read off the tail; ⚠ by #604 the tail had reached it: on 11-03 13 %
+of the deployed calls (146 in a day) outlived 90 s, and on the live robots'
+own turns the longest answers took 88.7 s (16,986 tokens) and 94.6 s. So
+**115**: the router's gateway answers a non-streamed request silent for 120
+s with a 504 (measured four times, at 120.2-120.3 s), so no answer comes
+later, and 115 plus `POLL_GRACE_S` (117) ends a call as our own `timeout`
+before it, never the gateway's `offline`. The token budget is sized to it
+(above, "The budget"). ⚠ The 25 s it adds is paid by every call that hangs
+— a provider that never answers in time stands the robot still 115 s, not
+90 — which is the pinned provider's argument, not this number's.
 `ESCALATE_TIMEOUT_S` (120) follows as an ordering, not a number, and the probe
 holds its calls to 2× the deadline (`PROBE_TIMEOUT_S`), never to the deadline
 under test.
@@ -2127,7 +2131,7 @@ The robot sets **`escalate`** on the decision it was already making, so the
 routing costs **no extra call**. Code then decides, in `why_not_escalate`,
 against gates the model sees the effects of and not the levers: the allowance
 has room for the estimate (`ESCALATE_ASSUMED_IN` 3500 input tokens × the
-escalation model's rates plus the full `ESCALATE_MAX_TOKENS` ceiling, 12,288 since #604 —
+escalation model's rates plus the full `ESCALATE_MAX_TOKENS` ceiling, 16,384 since #604 —
 the pessimistic direction); `ESCALATE_MIN_INTERVAL_S` (10 min) since the last;
 no more than `ESCALATE_SHARE` (10 %) of the run's decisions, the first always
 allowed. **Every failure keeps the cheap answer** — a timeout, a 403, prose —

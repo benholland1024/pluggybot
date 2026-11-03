@@ -10,16 +10,19 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### The mind's budget is 12,288 tokens, and a decision a response came back for says who answered it (#604) — opens when this PR is deployed
+### The mind's budget is 16,384 tokens and its patience 115 s, and a decision a response came back for says who answered it (#604) — opens when this PR is deployed
 
 **What changed in the mind and on the wire.**
-- **`MAX_TOKENS_AUTONOMOUS` is 12,288** (8,192 since #225), and the
+- **`CALL_TIMEOUT_S` is 115 s** (90 s since #117): the router's gateway
+  answers a non-streamed request silent for 120 s with a 504, and 115 ends
+  a call as our own `timeout` first.
+- **`MAX_TOKENS_AUTONOMOUS` is 16,384** (8,192 since #225), sized so the
+  fastest provider's full think comes back inside the deadline, and the
   mid-errand interrupt's budget follows it (1,024 since #116), as the
-  escalation's does. `CALL_TIMEOUT_S` stays 90 s: the budget is sized so
-  the fastest provider's full think comes back inside it.
+  escalation's does.
 - **An answer its tokens ran out on is `fallback:cutoff`**, a failure,
   never `garbled`; the robot is told "your answer was cut off: it ran out
-  of its 12,288 tokens before it was written" (the count the provider
+  of its 16,384 tokens before it was written" (the count the provider
   reports) where it read "decision was not JSON: ''", and a cut-off
   interrupt says "the answer ran out of its tokens". A cut-off backs no
   endpoint off, as a garbled answer does not.
@@ -39,20 +42,23 @@ observatory is NOT a result: it reports into the issue it informs.
 
 **Why.** #604: from 04:00 UTC on 11-03 a quarter of the answers came back
 empty and billed, and on 314a5f9 that afternoon 22 of 159 asked were empty
-and 16 timed out, 16 of the 38 on the turn after a `recall`. Measured on the live
-robots' own turns (Overseer.md §6, "The budget"): baseten, which answered
-41 of 44 `:cheapest` calls, thought up to 17k tokens on a turn carrying
-two recalls (3 of 5 past 8,192, 1 past 12,288); novita, tied with it at one
-price, never answered a non-streamed call before the router's 504 at 120 s.
+and 16 timed out, 16 of the 38 on the turn after a `recall`; that day 146
+calls outlived the 90 s deadline. Measured on the live robots' own turns
+(Overseer.md §6, "The budget"): baseten, which answered 41 of 44
+`:cheapest` calls, thought up to 17k tokens on a turn carrying two recalls
+(3 of 5 past 8,192, 1 past 16,384), and answered once in 94.6 s; novita,
+tied with it at one price, never answered a non-streamed call before the
+router's 504 at 120 s.
 
 **What the period is for.** #604's live box: empty answers back near #225's
 1 in 50. Read the decision rows by `provider`: `fallback:cutoff` should be
 rare, and where it is not, its `tokens_out` is the budget and its provider
 says whose think it was. ⚠ Not this period's fix: the `fallback:timeout`
-rows, which name nobody (no response came back); if they stay near a
-tenth, the deployment's model id (`:cheapest` against one provider) is the
-lever, and Ben's. ⚠ `wall_s` is only the calls that came back: read it
-against 90 s beside the timeouts' count, never alone.
+rows of a provider that never answers in time, which name nobody (no
+response came back); if they stay near a tenth, the deployment's model id
+(`:cheapest` against one provider) is the lever, and Ben's. Each now holds
+the robot 115 s, not 90. ⚠ `wall_s` is only the calls that came back: read
+it against 115 s beside the timeouts' count, never alone.
 
 ### A robot is shown the jobs it holds and the time each has left, and a charge trip runs one out (#602) — opens when this PR is deployed
 

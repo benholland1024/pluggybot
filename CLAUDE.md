@@ -210,14 +210,17 @@ Before doing anything, read the doc that owns what you are about to touch:
   by the frozen commit's first seven hex digits (`seed_of`; a pod's
   `COMMIT` file, a dirty tree refused), and a reading says what it
   flatters (`FLATTERS`) and that it is weaker than a sealed pool.
-- **`CALL_TIMEOUT_S` is 90 s and is a patience budget, not a tail** (issue
-  #117; Overseer.md §6 "The deadline"): a decision lost to a clock is the one
-  failure that is purely ours. `ESCALATE_TIMEOUT_S` (120) is an ordering above
-  it; `llm.LOCAL_TIMEOUT_S` is a FLOOR (a 27.3 s cold load). ⚠
-  `scripts/overseer_probe.py --calls 50` under-measures a mission by about
-  half: choose the deadline from the probe, confirm it with a flight. ⚠
-  Since #604 the tail is at it (the live robots' longest answers 88.7 and
-  94.6 s), and the token budget is sized to it: one moves with the other.
+- **`CALL_TIMEOUT_S` is 115 s and is a patience budget** (issues #117,
+  #604; Overseer.md §6 "The deadline"): a decision lost to a clock is the
+  one failure that is purely ours. 90 s until #604, when 13 % of the
+  deployed calls outlived it. ⚠ NOT 120: the router's gateway answers a
+  non-streamed request silent for 120 s with a 504, so nothing comes later,
+  and 115 plus `POLL_GRACE_S` ends the call as our own `timeout` first.
+  `ESCALATE_TIMEOUT_S` (120) is an ordering above it; `llm.LOCAL_TIMEOUT_S`
+  is a FLOOR (a 27.3 s cold load). ⚠ The token budget is sized to it: one
+  moves with the other. ⚠ `scripts/overseer_probe.py --calls 50`
+  under-measures a mission by about half: choose the deadline from the
+  probe, confirm it with a flight.
 - **A fallback's reason is FAILURE or POLICY, and the partition is ONE**
   (issues #117, #141): `overseer.POLICY_FALLBACKS` / `FAILURE_FALLBACKS` /
   `fallback_class` (`timeout`/`offline`/`garbled`/`cutoff`/`busy`/`no-client`
@@ -1145,14 +1148,14 @@ save a filmstrip PNG named after the script.
   `response_format`; refused once → prose, and `constrained` goes False and
   SAYS so); no bare `{"type": "object"}` in the schema; every request carries
   `llm.USER_AGENT`. ⚠ A reasoning model needs its budget
-  (`MAX_TOKENS_AUTONOMOUS` 12,288 since #604, the interrupt's `MAX_TOKENS`
+  (`MAX_TOKENS_AUTONOMOUS` 16,384 since #604, the interrupt's `MAX_TOKENS`
   and the escalation's with it; an answer its tokens ran out on is
   `fallback:cutoff`, billed): on the live robots' own turns a turn after
   two recalls thought up to 17k tokens. ⚠ THE BUDGET IS SIZED TO
-  `CALL_TIMEOUT_S`: the fastest provider writes 12,288 in ~75 s, so a think
-  that runs out is a cut-off metered and said; at 16,384 (~95 s) it would
-  be a timeout, unmetered and counted toward the cooloff (Overseer.md §6,
-  "The budget"). ⚠ `:cheapest` ties three providers at one price and they
+  `CALL_TIMEOUT_S`: the fastest provider writes 16,384 in ~98 s, inside the
+  115 s, so a think that runs out is a cut-off metered and said; past the
+  deadline it would be a timeout, unmetered and counted toward the cooloff
+  (Overseer.md §6, "The budget"). ⚠ `:cheapest` ties three providers at one price and they
   think differently: measured, baseten long and fast, deepinfra briefly,
   novita long and too slow for any non-streamed call (the router's 504 at
   120 s). A decision a response came back for says who answered

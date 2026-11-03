@@ -153,13 +153,16 @@ MODEL = "claude-haiku-4-5"
 #: probe under-measures by roughly half. Choose a deadline from the probe;
 #: confirm it with a flight. Zero timeouts in those five days.
 #:
-#: So 90 s is NOT read off the tail -- nothing measured is within twelve
-#: times of it. It is a deliberate PATIENCE budget, and the reasoning is the
-#: project's rather than the distribution's: this world exists to let a mind
-#: make a complicated choice, and a decision lost to a clock is the one
-#: failure that is purely ours. A minute and a half is where a slow answer
-#: stops being slow and becomes a hang -- and an escalation, which buys a
-#: bigger mind, gets the full two.
+#: It is a deliberate PATIENCE budget, and the reasoning is the project's
+#: rather than the distribution's: this world exists to let a mind make a
+#: complicated choice, and a decision lost to a clock is the one failure
+#: that is purely ours. ⚠ 115 s SINCE #604, when the tail reached it: on
+#: 11-03 13 % of the deployed calls outlived 90 s, and the live robots' own
+#: turns answered in up to 94.6 s. Not 120: the router's gateway answers a
+#: non-streamed request silent for 120 s with a 504, so no answer comes
+#: later, and 115 plus `POLL_GRACE_S` ends the call as our own `timeout`
+#: first. `MAX_TOKENS_AUTONOMOUS` is sized to it; an escalation, which buys
+#: a bigger mind, gets `ESCALATE_TIMEOUT_S`.
 #:
 #: ⚠ AND A DEADLINE IS A CAP, NOT A COST. It is spent only when a call is
 #: actually slow: `_decide` STEPS the sim while one is in flight
@@ -171,13 +174,13 @@ MODEL = "claude-haiku-4-5"
 #:
 #:   - a DEAD endpoint cannot spend much of it: three failures in a row
 #:     start a cooloff (`MAX_CONSECUTIVE_ERRORS`, `COOLOFF_BASE_S`, which
-#:     doubles), and a cooled-off decision is scripted instantly. ~810 sim-s
-#:     across a 3600 s day, worst case.
+#:     doubles), and a cooled-off decision is scripted instantly. ~1000
+#:     sim-s across a 3600 s day, worst case.
 #:   - an endpoint that is SLOW BUT ALIVE, answering just under the cap
-#:     every time, is the expensive one: 1800 sim-s, half the day and half
+#:     every time, is the expensive one: ~2300 sim-s, most of the day and
 #:     the pack. Nothing observed is remotely like this, and if it ever
 #:     happens the fallback rate is what says so.
-CALL_TIMEOUT_S = 90.0
+CALL_TIMEOUT_S = 115.0
 #: ...and the outer poll deadline, which must be the looser of the two or a
 #: call that finishes at 7.9 s would be discarded by its own supervisor.
 POLL_GRACE_S = 2.0
@@ -219,14 +222,15 @@ from pluggybot.mind.look import LOOK_S, MAX_LOOK_RUN  # noqa: E402, F401
 #: spends the budget it needed to close the object.
 #: ⚠ A REASONING MODEL SPENDS IT ON ITS REASONING FIRST, and what it cannot
 #: finish is an empty answer, billed in full: `fallback:cutoff` (#604).
-#: 12,288 SINCE #604, measured on the live robots' own turns: one carrying
+#: 16,384 SINCE #604, measured on the live robots' own turns: one carrying
 #: two recalled blocks thought 3.1k-17.0k tokens on baseten, 3 of 5 past
-#: the pick's 8,192 (#225) and 1 of 5 past 12,288. ⚠ SIZED TO THE DEADLINE:
-#: the fastest provider writes a long answer at 176-191 tokens a second, so
-#: 12,288 comes back in ~75 s, a cut-off metered and said; at 16,384 (~95 s)
-#: a think that ran out would be a timeout past `CALL_TIMEOUT_S`, unmetered
-#: and counted toward the cooloff (Overseer.md §6). A ceiling, not a spend.
-MAX_TOKENS_AUTONOMOUS = 12288
+#: the pick's 8,192 (#225) and 1 of 5 past 16,384. ⚠ SIZED TO THE DEADLINE:
+#: the fastest provider writes a long answer at 176-191 tokens a second
+#: after ~5 s of reading, so 16,384 comes back in ~98 s, inside
+#: `CALL_TIMEOUT_S` with ~15 s to spare, a cut-off metered and said; past
+#: the deadline a think that ran out would be a timeout, unmetered and
+#: counted toward the cooloff (Overseer.md §6). A ceiling, not a spend.
+MAX_TOKENS_AUTONOMOUS = 16384
 #: ...and the mid-errand interrupt's (issue #116): one boolean and a
 #: sentence, after the same reasoning. At 1,024, 4 of 8 asked on a live
 #: robot's turn ran out of it (#604), and a failed interrupt stops the errand.

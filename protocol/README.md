@@ -72,7 +72,7 @@ wire could say who sent them or why they stopped. One event type and one
 
   ```jsonc
   {"type": "call", "t": 129950.3, "robot": "pluggybot", "source": "fallback:cutoff",
-   "provider": "baseten", "tokensIn": 29811, "tokensOut": 12288, "cut": true, "wallS": 71.4}
+   "provider": "baseten", "tokensIn": 29811, "tokensOut": 16384, "cut": true, "wallS": 96.8}
   ```
 
 - **`fallback:cutoff`**, a decision's `source` (the `DECIDE` line's tail):
