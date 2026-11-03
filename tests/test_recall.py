@@ -6,6 +6,8 @@ lifecycle with a fake client (three ten-second stands, no errand); the
 enums a recall may not appear in; `askedBy` off the arbitration seam.
 """
 
+import json
+
 import pytest
 
 from pluggybot.lifecycle import world_config
@@ -19,7 +21,7 @@ from pluggybot.mind.thoughts import (
 )
 
 from test_body import stub_life
-from test_overseer import FakeClient, full
+from test_overseer import CutResponse, FakeClient, full
 
 
 # ---- the lookup ----------------------------------------------------------------
@@ -210,20 +212,62 @@ def test_the_chain_accumulates_and_an_external_action_clears_it():
   assert '"recalls": list(self.recalls)' in inspect.getsource(HubLifecycle.end)
 
 
-def test_the_fourth_recall_in_a_row_is_refused_and_the_chain_ends():
+def test_the_fourth_recall_in_a_row_is_refused_and_the_chain_cannot_grow():
+  """The cap holds through a fallback: the refused fourth keeps the chain
+  once (#604), still three blocks and `recall` still off the menu, and the
+  next answer of the mind's own ends it."""
   boss, life = _chain(*([full(action="recall", read="history")] * 4),
                       full(action="idle"))
+  from pluggybot.lifecycle import overseer_context
   try:
     for _ in range(3):
       life._decide()
     assert life._recall_run == ov.MAX_RECALL_RUN == 3
-    from pluggybot.lifecycle import overseer_context
     assert overseer_context(life)["recallsLeft"] == 0
     life._decide()                            # the fourth: malformed
+    assert boss.decisions[-1].source == "fallback:garbled"
+    assert life._recall_run == 3 and len(life._recalled) == 3
+    assert overseer_context(life)["recallsLeft"] == 0
+    life._decide()                            # idle, the mind's own
   finally:
     life.body.close()
-  assert boss.decisions[-1].source == "fallback:garbled"
+  assert boss.decisions[-1].source == "llm"
   assert life._recall_run == 0 and life._recalled == []
+
+
+def test_a_fallback_keeps_the_chain_once_and_a_second_drops_it():
+  """Issue #604: the turn after a recall is the one that ran out of its
+  tokens or its time (16 of 11-03's 38 failures came right after one), and
+  its fallback dropped what the mind had looked up -- so the robot recalled
+  the same lines again, a turn and a paid call each time ("the recalled
+  grip1 and grip16 lines died with them again"). A fallback keeps the chain
+  ONCE, shown to the next answer of the mind's own; a second fallback
+  running drops it, since the heaviest turn kept for ever would repeat its
+  cut-off. Shown to fail before the fix: the first fallback dropped it."""
+  boss, life = _chain(full(action="recall", find="whiteboard"),
+                      CutResponse(""),                  # cut off: kept
+                      full(action="idle"),              # the mind's own
+                      full(action="recall", find="whiteboard"),
+                      CutResponse(""), CutResponse(""))  # two running: dropped
+  try:
+    life._decide()
+    life._decide()
+    assert boss.decisions[-1].source == "fallback:cutoff"
+    assert [b["find"] for b in life._recalled] == ["whiteboard"] and life._recall_run == 1
+    life._decide()
+    assert boss.decisions[-1].source == "llm"
+    turn = boss.client.calls[2]["messages"][0]["content"]
+    shown = json.loads(turn.split("right now.\n\n", 1)[1].rsplit("\n\nWhat do", 1)[0])
+    assert [b["find"] for b in shown["recalled"]] == ["whiteboard"], "not shown to the mind"
+    assert life._recalled == [] and life._recall_run == 0
+    life._decide()
+    life._decide()
+    assert life._recalled and boss.decisions[-1].source == "fallback:cutoff"
+    life._decide()
+  finally:
+    life.body.close()
+  assert boss.decisions[-1].source == "fallback:cutoff"
+  assert life._recalled == [] and life._recall_run == 0
 
 
 def test_a_map_row_that_asks_says_what_asked(monkeypatch):

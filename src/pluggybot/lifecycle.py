@@ -921,8 +921,10 @@ class HubLifecycle:
     #: any action that is not another recall -- what it wants to keep it
     #: pins or notes. `_recall_run` is the chain's length, against
     #: `MAX_RECALL_RUN`; at the cap `recall` leaves the menu for a turn.
+    #: `_recall_kept`: a fallback kept it, once (#604).
     self._recalled: list[dict] = []
     self._recall_run = 0
+    self._recall_kept = False
     #: One row per recall, for the run record (what, hits, shown).
     self.recalls: list[dict] = []
     # ---- the library (issue #216) ----
@@ -5080,10 +5082,20 @@ class HubLifecycle:
                   "robot": self.root, "source": decision.source, **call})
     self._say(f"DECIDE {decision.summary()}", detail=call_said(call))
     # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
-    # what was recalled -- a fallback's included, since the world moved on.
+    # what was recalled -- but a FALLBACK KEEPS IT ONCE (#604): the mind did
+    # not act on what it looked up, and dropped, the robot recalled the same
+    # lines again, a turn and a paid call each time. ⚠ A second fallback
+    # running drops it: the turn after a recall is the heaviest one (16 of
+    # 11-03's 38 failures came right after one), and kept for ever, its
+    # cut-off would repeat.
     if decision.action != "recall" and self._recalled:
-      self._recalled = []
-      self._recall_run = 0
+      keep = decision.scripted and not self._recall_kept
+      if not keep:
+        self._recalled = []
+        self._recall_run = 0
+      self._recall_kept = keep
+    elif decision.action == "recall":
+      self._recall_kept = False
     # THE SHELF IS READ HERE (issue #216): a decision the model made was
     # shown whatever was waiting, so it goes -- shown once, like a recall.
     # A fallback or a map row made no call and saw nothing; the page waits

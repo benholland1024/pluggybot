@@ -1022,7 +1022,9 @@ save a filmstrip PNG named after the script.
   what it tried (#409), never swallowed; on EVERY arm, memory is not
   a rail. ⚠ **`think` is the FIRST property of the decision schema**
   (constrained decoding follows property order). ⚠ **`recall` is an ACTION**,
-  never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`;
+  never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`; its
+  chain ends at any other action but a fallback's, which keeps it ONCE, a
+  second running dropping it (#604: the post-recall turn is the heaviest);
   `tests/test_recall.py` pins each rule. ⚠ **The ownership split is the
   instrument** for quality five: nothing in `economy/` may read the goals. ⚠
   The prompt-cache split is by WRITER

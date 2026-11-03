@@ -1990,7 +1990,14 @@ gate every document write passes (the files' `append`, the library's
   `#id [where] text`, ≤ `RECALLED_CHARS` 4000) rides the NEXT turn as
   `recalled`. **The chain**: blocks accumulate (≤ `RECALLED_CHAIN_CHARS`
   8000, oldest first out) until any action but another recall, which clears
-  them — what it wants to keep it pins or notes. `MAX_RECALL_RUN` (3):
+  them — what it wants to keep it pins or notes. ⚠ **A fallback keeps the
+  chain once** (#604): the mind never acted on what it looked up, and
+  dropped, the robot recalled the same lines again, a turn and a paid call
+  each time ("the recalled grip1 and grip16 lines died with them again").
+  A second fallback running drops it: the turn after a recall is the
+  heaviest (16 of 11-03's 38 failures came right after one), and kept for
+  ever its cut-off would repeat. A map row's action still clears it.
+  `MAX_RECALL_RUN` (3):
   `recallsLeft` is in the state and at 0 `recall` leaves the action enum for
   that call (the `take_task`-with-an-empty-board pattern), so a fourth is
   malformed. A recall never finds the record of a recall. ⚠ A standing order

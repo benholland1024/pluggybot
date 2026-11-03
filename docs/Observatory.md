@@ -37,6 +37,10 @@ observatory is NOT a result: it reports into the issue it informs.
   decision row (`pw_decisions.provider`, `tokens_in`, `tokens_out`, `cut`,
   `wall_s`, rooftop-media-2026's migration 0051), and on the console beside
   the line. A timeout, a map row and a policy fallback name nobody.
+- **A fallback keeps what was recalled, once**: the lines a `recall` looked
+  up wait for the mind's next answer of its own, where any fallback dropped
+  them; a second fallback running drops them. Read it in the `recall` rows:
+  fewer recalls of the same thing twice in a row.
 - Nothing in the arm, the menu, the reward table, the body or the house
   moved, and the model is the same `zai-org/GLM-5.3-Flash:cheapest`.
 
