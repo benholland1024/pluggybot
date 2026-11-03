@@ -618,9 +618,16 @@ are different animals.
   API rather than a model, and only the FAILURE class says so (§5): read the
   rate without the split and an agent that idles a lot looks exactly like a
   slow endpoint.
+- **Who answered** — since #604 a decision a response came back for carries
+  the call behind it (`provider`, `tokens_in`, `tokens_out`, `cut`, `wall_s`
+  on the site's `pw_decisions`): the router's `:cheapest` picks the provider
+  per request, so a fallback rate that moves with nothing deployed is read
+  by provider first, and `fallback:cutoff` is an answer that ran out of its
+  tokens, never a model that lost the grammar.
 - **Latency** is `scripts/overseer_probe.py`'s, and the probe under-measures a
   mission (§3's measured results): choose a deadline from it, confirm it in
-  flight.
+  flight — on the live day, the decision rows' `wall_s`, which only the
+  calls that came back have: read it beside the `fallback:timeout` count.
 - **Escalations** — a decision whose `source` is `llm:<model>` is one the
   expensive mind answered (Overseer.md §8). ⚠ **Absent, not zero**, where no
   escalation model is configured: the field was not in the model's grammar,
@@ -987,7 +994,10 @@ informs a decision:
   median of 4.88 s against a synthetic state, 7.49 s in flight, because a
   mission's prompt carries a day of History the synthetic state does not.
   Choose a deadline from the probe, confirm it with a flight;
-  `CALL_TIMEOUT_S` = 90 s is a patience budget, not a tail (Overseer.md §6).
+  `CALL_TIMEOUT_S` is a patience budget (Overseer.md §6), 115 s since #604,
+  when 13 % of a day's deployed calls outlived its 90 s. ⚠ Since #604 the
+  probe's synthetic state reproduces none of a live day's long thinks: a
+  live turn is measured by replaying the served robots' own requests.
 
 ## 4. The harness
 

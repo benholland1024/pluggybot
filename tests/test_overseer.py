@@ -55,12 +55,20 @@ class FakeResponse:
     self.usage = FakeUsage(**usage)
 
 
+class CutResponse(FakeResponse):
+  """An answer its tokens ran out on (issue #604), as the adapter returns
+  one: the SDK's `max_tokens`, and who answered."""
+  stop_reason = "max_tokens"
+  provider = "baseten"
+
+
 class FakeClient:
   """`.messages.create(**kw)` -> whatever the script says, in order.
 
-  `answers` may hold dicts (a decision), strings (raw text), or exceptions
-  (raised). The last entry repeats forever, so a test does not have to know
-  how many times the overseer will ask.
+  `answers` may hold dicts (a decision), strings (raw text), exceptions
+  (raised) or a `FakeResponse` (returned as it is). The last entry repeats
+  forever, so a test does not have to know how many times the overseer
+  will ask.
   """
 
   def __init__(self, *answers, delay: float = 0.0, usage: dict | None = None):
@@ -77,6 +85,8 @@ class FakeClient:
     answer = self.answers[min(len(self.calls) - 1, len(self.answers) - 1)]
     if isinstance(answer, Exception):
       raise answer
+    if isinstance(answer, FakeResponse):
+      return answer
     return FakeResponse(answer, **self.usage)
 
 
@@ -208,6 +218,43 @@ def test_a_refused_answer_is_told_to_the_robot_in_the_fallback_reason(menu):
   offline = make(menu, RuntimeError("connection reset")).decide(
     {"offeredTasks": [offer], "tasksThisMission": [], "decisions": 0})
   assert offline.source == "fallback:offline" and "refused" not in offline.reason
+
+
+def test_the_decision_names_the_call_behind_it(menu):
+  """Issue #604: the decision row says who answered, what it billed, and
+  how long the request took -- an answer of the model's own as well as a
+  cut-off -- and carries nothing where no call answered (a dead endpoint;
+  `CutOff`'s test, in test_hf_llm.py, has the provider)."""
+  d = Overseer(menu, client=FakeClient(
+    full(action="explore", reason="."),
+    usage={"input_tokens": 14000, "output_tokens": 900})).decide({})
+  assert d.source == "llm"
+  assert {k: v for k, v in d.as_dict()["call"].items() if k != "wallS"} == {
+    "provider": None, "tokensIn": 14000, "tokensOut": 900, "cut": False}
+  offline = make(menu, RuntimeError("connection reset")).decide({})
+  assert offline.call is None and "call" not in offline.as_dict()
+
+
+def test_a_cut_off_answer_is_no_dead_endpoint_and_stops_an_errand(menu):
+  """Issue #604, the two other places a cut-off lands. Cut-offs running
+  start no cooloff -- the endpoint answered, as a garbled one does (#115)
+  -- and are listed for the operator once each, with their class; a cut-off
+  interrupt is `fallback:cutoff`, names who answered, and aborts as every
+  failure there does; it is asked with its own budget (`MAX_TOKENS`)."""
+  client = FakeClient(CutResponse(""))
+  boss = Overseer(menu, client=client)
+  for _ in range(ov.MAX_CONSECUTIVE_ERRORS + 1):
+    assert boss.decide({}).source == "fallback:cutoff"
+  assert len(client.calls) == ov.MAX_CONSECUTIVE_ERRORS + 1, "a cut-off backed off"
+  assert all(e.startswith("call: CutOff: ") for e in boss.usage.errors), boss.usage.errors
+  boss.start_interrupt({}, "the drawer", "battery_below")
+  while boss.interrupt_pending:
+    time.sleep(0.005)
+  answer = boss.interrupt_result()
+  assert answer["source"] == "fallback:cutoff" and answer["continue"] is False
+  assert answer["why"].startswith("the answer ran out of its tokens")
+  assert (answer["call"]["provider"], answer["call"]["cut"]) == ("baseten", True)
+  assert client.calls[-1]["max_tokens"] == ov.MAX_TOKENS
 
 
 def test_a_slow_call_is_abandoned_rather_than_waited_on(menu):

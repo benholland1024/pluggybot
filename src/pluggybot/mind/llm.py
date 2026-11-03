@@ -209,14 +209,20 @@ def _default_fetch(url: str, body: dict | None, headers: dict,
 
   An HTTP error status is RETURNED rather than raised, because a 4xx body is
   data this module reads (the retry decision, the endpoint's error message);
-  only transport-level failures raise.
+  only transport-level failures raise. An answer keeps who sent it, as
+  `stream_fetch`'s does (`provider`, the router's `x-inference-provider`;
+  issue #604: the deployed mind's empty answers could not say).
   """
   data = json.dumps(body).encode() if body is not None else None
   req = urllib.request.Request(url, data=data, headers=headers,
                                method="POST" if body is not None else "GET")
   try:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-      return resp.status, json.loads(resp.read().decode())
+      payload = json.loads(resp.read().decode())
+      provider = resp.headers.get("x-inference-provider")
+      if provider and isinstance(payload, dict):
+        payload.setdefault("provider", provider)
+      return resp.status, payload
   except urllib.error.HTTPError as e:
     try:
       payload = json.loads(e.read().decode())
