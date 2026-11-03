@@ -397,6 +397,7 @@ FALLBACK_REASONS = (
   "no-client",      # no SDK, no key, no endpoint: never asked at all
   "scripted-mode",  # the operator turned the spending off (issue #37)
   "allowance",      # the weekly USD allowance is spent (issue #225)
+  "cutoff",         # it answered, and its tokens ran out first (issue #604)
 )
 
 #: ...AND THEY FALL INTO TWO CLASSES, which is the line `_record` had been
@@ -435,17 +436,30 @@ def fallback_class(source: str) -> str:
       else "failure"
 
 
+class CutOff(ValueError):
+  """An answer whose tokens ran out before it was written (issue #604). A
+  reasoning model spends its budget on its reasoning FIRST, so what it
+  could not finish comes back empty or half a JSON object, billed in full:
+  read off the response's own `stop_reason` (`max_tokens`, the SDK's word
+  and `llm.ChatClient`'s for a `finish_reason` of `length`), and only where
+  the text did not parse -- a cut-off answer that did is an answer."""
+
+
 def fallback_reason(e: BaseException) -> str:
   """Which token stands for this exception on the wire.
 
-  Three buckets, because three is what a reader can act on: the call ran out
-  of time, nobody answered, or somebody answered with something that was not a
-  decision. Anything unrecognised reads as `offline` -- the common case by far
-  is the network, and the exact class is one line away in `Usage.errors` for
-  whoever needs more than the bucket.
+  Four buckets, because four is what a reader can act on: the call ran out
+  of time, nobody answered, somebody answered with something that was not a
+  decision, or somebody answered and its tokens ran out before the answer
+  was written (`CutOff`, issue #604: the budget's to fix, never the model's
+  grammar). Anything unrecognised reads as `offline` -- the common case by
+  far is the network, and the exact class is one line away in
+  `Usage.errors` for whoever needs more than the bucket.
   """
   if isinstance(e, TimeoutError):
     return "timeout"
+  if isinstance(e, CutOff):
+    return "cutoff"
   # `_extract_json` and `Menu.validate` both raise ValueError; a response whose
   # SHAPE is wrong surfaces as KeyError/TypeError from reading it. All three
   # are the same story: the answer came back and could not be used.
@@ -684,6 +698,14 @@ class Decision:
   #: answer took, and an undefine that waits for its define. None where
   #: nothing was. Said once in History and as a `left_out` event.
   left_out: dict | None = None
+  #: THE CALL BEHIND IT (issue #604): `{provider, tokensIn, tokensOut, cut,
+  #: wallS}` -- who answered (the router's `x-inference-provider`, None
+  #: where nothing names one), what it billed, whether its tokens ran out,
+  #: and how long it took. Set by code on every decision a response came
+  #: back for, a `garbled` or `cutoff` fallback's included -- an empty
+  #: answer is the one that most needs saying who sent it -- and None
+  #: where none did. A `call` event on the wire beside the DECIDE line.
+  call: dict | None = None
   source: str = "llm"
 
   @property
@@ -756,6 +778,7 @@ class Decision:
             **({"ticket": dict(self.ticket)} if self.ticket else {}),
             **({"ticketReply": dict(self.ticket_reply)} if self.ticket_reply else {}),
             **({"leftOut": dict(self.left_out)} if self.left_out else {}),
+            **({"call": dict(self.call)} if self.call else {}),
             "source": self.source}
 
   def summary(self) -> str:
@@ -2487,6 +2510,7 @@ rule with the same `event`, `kind` and `value` out of the list.
   timeout        the answer did not come back in time
   offline        nobody answered at all -- the line is down
   garbled        somebody answered, and it was not a decision
+  cutoff         the answer ran out of its tokens before it was written
   budget         you have used up this hour's questions
   cooloff        too many failures in a row, so the line is being left alone
   busy           the last question is still out there
@@ -2496,9 +2520,9 @@ rule with the same `event`, `kind` and `value` out of the list.
   allowance      this week's money for thinking is spent
 
 ...or one of two words for a whole group of them: `failure` is something \
-going WRONG -- the first three, and `busy` -- and `policy` is this working \
-as intended, which is the rest. Leave `kind` empty and the rule takes any of \
-them.
+going WRONG -- the first four, `busy` and `no-client` -- and `policy` is \
+this working as intended, which is the rest. Leave `kind` empty and the rule \
+takes any of them.
 
 These are worth telling apart. A `timeout` says the line is slow and trying \
 again in a moment may work; a `garbled` says something answered badly and \
@@ -3875,6 +3899,7 @@ class Overseer:
       waiting, offered = limits_from(state)
       recall = _recall_allowed(state)
       look = _look_allowed(state)
+      asked = self.clock()
       response = self.escalation_client.messages.create(
         model=self.escalate_model, max_tokens=self.escalate_max_tokens,
         system=self.system,
@@ -3895,6 +3920,7 @@ class Overseer:
           model_state(state, survival=self.show_survival),
           _pictures(state), self.escalate_backend)}],
       )
+      call = _call_record(response, self.clock() - asked)
       better = self.menu.validate(_extract_json(response), waiting=waiting,
                                   offered=offered,
                                   standing_orders=True,
@@ -3920,7 +3946,7 @@ class Overseer:
     # `escalate` is cleared on the way out: a bigger model asking for a
     # bigger model is a loop with a price tag. `source` names the mind, so
     # the wire can show WHICH answer the money bought.
-    return replace(better, escalate=False,
+    return replace(better, escalate=False, call=call,
                    source=f"llm:{self.escalate_model}")
 
   def _bank_decision(self) -> None:
@@ -4146,6 +4172,12 @@ class Overseer:
         decision = replace(decision, reason=(f"{decision.reason} -- your "
                                              f"answer was refused: "
                                              f"{slot['refused']}"))
+      if slot.get("cut"):
+        decision = replace(decision, reason=(
+          f"{decision.reason} -- your answer was cut off: it ran out of its "
+          f"{slot['cut']:,} tokens before it was written"))
+      if slot.get("call"):
+        decision = replace(decision, call=slot["call"])
       # The vendor's own words for what went wrong, for the measurement
       # seam: `_call` wrote them to `usage.errors` a moment ago.
       error = next((e for e in reversed(self.usage.errors)
@@ -4465,12 +4497,13 @@ class Overseer:
       # read like an incident report, which is how a real incident gets
       # missed. ⚠ THE TUPLE, not a fourth copy of the list (issue #141):
       # this is where the two classes were first drawn.
-      # ...and `offline` / `garbled` are skipped for the opposite reason
-      # (issue #76): `_call` has ALREADY written a line for them carrying the
+      # ...and `offline` / `garbled` / `cutoff` are skipped for the opposite
+      # reason (issue #76): `_call` has ALREADY written a line for them carrying the
       # exception class, so re-listing the bucket would bury it.
       if (fallback_class(decision.source) != "policy"
           and decision.source not in ("fallback:offline",
-                                      "fallback:garbled")):
+                                      "fallback:garbled",
+                                      "fallback:cutoff")):
         self.usage.errors.append(decision.source)
     else:
       self.usage.llm_calls += 1
@@ -4564,6 +4597,7 @@ class Overseer:
   # ---- the call (worker thread; must never touch the sim) ------------------
 
   def _call(self, state: dict) -> None:
+    call = None
     try:
       # BEFORE the request: the offered ids are part of the GRAMMAR as well
       # as of the check afterwards (issue #115).
@@ -4576,6 +4610,7 @@ class Overseer:
       # thing in the state that is not text, attached in the backend's own
       # shape (`llm.image_part`) and stripped from the JSON the model reads.
       look = _look_allowed(state)
+      asked = self.clock()
       response = self.client.messages.create(
         model=self.model,
         max_tokens=self.max_tokens,
@@ -4604,6 +4639,7 @@ class Overseer:
       # is parsed, because a reasoning model that spent its whole budget
       # thinking and returned nothing was charged for every token of it,
       # and metering after `validate` counted that call as free.
+      call = _call_record(response, self.clock() - asked)
       self._meter(response)
       self._bank_decision()
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
@@ -4615,6 +4651,7 @@ class Overseer:
                                     recall=recall,
                                     tickets=self._ticket_ids(state),
                                     look=look)
+      decision = replace(decision, call=call)
       self._note_unconstrained()
       # ...and, if the robot asked for a bigger mind and code agrees it can
       # afford one, the answer this returns is the expensive one's (issue
@@ -4644,12 +4681,19 @@ class Overseer:
       # `stats()` shows.
       self.usage.errors.append(f"call: {type(e).__name__}: {e}"[:200])
       slot = {"error": fallback_reason(e)}
+      if call is not None:
+        slot["call"] = call
       if slot["error"] == "garbled":
         # THE REFUSAL, IN WORDS, FOR THE ROBOT (issue #296): a malformed
         # answer used to reach History as a bare `[fallback:garbled]`, so a
         # model whose "8.0" was refused saw a turn vanish and learned
         # nothing. `result` folds this into the fallback's reason.
         slot["refused"] = clean(str(e), MAX_WHY)
+      elif slot["error"] == "cutoff":
+        # ...and a cut-off is said as what it was (issue #604): read as
+        # "decision was not JSON: ''", both robots believed their JSON was
+        # being refused.
+        slot["cut"] = self.max_tokens
     # ⚠ PUBLISHING AND RELEASING ARE ONE CRITICAL SECTION. `result()` returns
     # the moment `_slot` is set, so anything done between setting it and
     # clearing `_in_flight` is a window in which the caller has its answer and
@@ -4662,7 +4706,7 @@ class Overseer:
       self._in_flight = False
       if "decision" in slot:
         self._errors_in_a_row = 0
-      elif slot.get("error") == "garbled":
+      elif slot.get("error") in ("garbled", "cutoff"):
         # ⚠ A MALFORMED ANSWER IS NOT A DEAD ENDPOINT (issue #115). This
         # counter exists for one thing -- an endpoint nobody is answering,
         # the missing-API-key case `MAX_CONSECUTIVE_ERRORS` was written for
@@ -4680,7 +4724,8 @@ class Overseer:
         #
         # The endpoint is fine in that story, so the streak is left where it
         # is: not incremented, and not reset either, because a garbled answer
-        # is no evidence the transport recovered.
+        # is no evidence the transport recovered. A cut-off likewise (issue
+        # #604): it answered, and ran out of room.
         pass
       else:
         self._errors_in_a_row += 1
@@ -4982,10 +5027,34 @@ def _extract_json(response) -> dict:
   try:
     raw = json.loads(text)
   except json.JSONDecodeError as e:
+    if getattr(response, "stop_reason", None) == "max_tokens":
+      raise CutOff("its tokens ran out before the answer was written: "
+                   f"{text[:120]!r}") from e
     raise ValueError(f"decision was not JSON: {text[:120]!r}") from e
   if not isinstance(raw, dict):
     raise ValueError(f"decision was not an object: {type(raw).__name__}")
   return raw
+
+
+def _call_record(response, wall_s: float) -> dict:
+  """`Decision.call`: what a response says of the call that brought it
+  (issue #604)."""
+  usage = getattr(response, "usage", None)
+  return {"provider": getattr(response, "provider", None),
+          "tokensIn": int(getattr(usage, "input_tokens", 0) or 0),
+          "tokensOut": int(getattr(usage, "output_tokens", 0) or 0),
+          "cut": getattr(response, "stop_reason", None) == "max_tokens",
+          "wallS": round(wall_s, 3)}
+
+
+def call_said(call: dict | None) -> str:
+  """A decision's call (`Decision.call`) as the operator's evidence beside
+  its DECIDE line, or "" where no call answered it."""
+  if not call:
+    return ""
+  return (f"{call.get('provider') or 'unnamed'}: {call.get('tokensIn', 0)} in, "
+          f"{call.get('tokensOut', 0)} out{', cut off' if call.get('cut') else ''}, "
+          f"{float(call.get('wallS') or 0):.1f} s")
 
 
 # ---- construction ------------------------------------------------------------

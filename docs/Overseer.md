@@ -1352,6 +1352,7 @@ a fallback. `Decision.scripted` means "a fallback produced this".
 | `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (90 s, §6) |
 | `fallback:offline` | failure | nobody answered — transport, HTTP, auth, rate limit, 5xx |
 | `fallback:garbled` | failure | somebody answered, and it was not a decision |
+| `fallback:cutoff` | failure | somebody answered, and its tokens ran out before the answer was written (issue #604; §6) |
 | `fallback:busy` | failure | the previous call is still out there; a second is not piled on |
 | `fallback:no-client` | failure | no SDK, no key, no endpoint: it was never asked |
 | `fallback:budget` | policy | the hourly call budget (`CALLS_PER_HOUR` 60) is spent |
@@ -1390,9 +1391,9 @@ question nobody asked (Evaluation.md §2).
 It exists because a missing API key does *not* fail at client construction —
 `anthropic.Anthropic()` builds fine and raises on the first request — so
 "kill the key and the robot keeps working" would otherwise mean "and hammers a
-doomed endpoint sixty times an hour". ⚠ A `garbled` answer does not count
-toward it: the endpoint is fine in that story, and summing them once cost a
-flown day (four bad task ids, then 238 decisions on `fallback:cooloff`).
+doomed endpoint sixty times an hour". ⚠ A `garbled` or `cutoff` answer does
+not count toward it: the endpoint is fine in that story, and summing them once
+cost a flown day (four bad task ids, then 238 decisions on `fallback:cooloff`).
 
 ### Placeholders: a field written when nothing was meant (issue #462)
 

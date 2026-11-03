@@ -51,7 +51,8 @@ from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
   MAX_RECALL_RUN, MAX_REPLY, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S,
-  SAY_EVERY_S, THINK_SLICE_S, left_out_said, order_runnable, say_again_in,
+  SAY_EVERY_S, THINK_SLICE_S, call_said, left_out_said, order_runnable,
+  say_again_in,
 )
 from pluggybot.mind.thoughts import (
   CHAT_ANSWERED, CHAT_HEARD, CHAT_SAID, QUOTED_CHARS, RECALLED_CHAIN_CHARS,
@@ -5054,7 +5055,13 @@ class HubLifecycle:
         self._consult = None
         if on_volume:
           ev.save(self.thoughts.store, self.event_map, self.overseer.origin)
-    self._say(f"DECIDE {decision.summary()}")
+    # WHO ANSWERED, AND WHAT IT COST (issue #604): the call behind it, on
+    # the wire just before its line and on the console beside it.
+    call = getattr(decision, "call", None)
+    if call:
+      self._emit({"type": "call", "t": round(float(self.data.time), 3),
+                  "robot": self.root, "source": decision.source, **call})
+    self._say(f"DECIDE {decision.summary()}", detail=call_said(call))
     # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
     # what was recalled -- a fallback's included, since the world moved on.
     if decision.action != "recall" and self._recalled:
