@@ -262,6 +262,106 @@ def cube_set_out(k: int) -> CubeSetOut:
                     start=(START[0], START[1], 0.0))
 
 
+#: A TABLE SET (#560's first task, easy mode): the restaurant's dining table
+#: 0 (`home.world.DINING_TABLES`), its south place laid. Its table here is a
+#: top on legs: the served room's is one box, and a robot standing at it met
+#: the box with its thighs as it crouched to reach (SimNotes, "Setting a
+#: table"). Its south chair is taken away: the robot stands at the place.
+#: The table's top, m, and its top's thickness and its legs' half side and
+#: inset, m.
+TABLE_H, TABLE_TOP_T, TABLE_LEG, TABLE_LEG_IN = 0.72, 0.03, 0.025, 0.05
+TABLE_I = 0
+#: The place's own frame, T: from the middle of the table's south edge, x
+#: into the table and y to the diner's left (the robot's, standing at the
+#: place). The card stands this far in, m, its face toward the diner.
+CARD_IN = 0.36
+#: Where the robot stands, m: its soles' middle this far out of the table's
+#: edge, on the place's line, facing in -- its hands, hanging, a few cm
+#: behind the edge.
+TABLE_GAP = 0.13
+#: Where each piece is set out in T (x, y, m), how far either way it is drawn
+#: off it (m), and how far its turn is (rad): beside the place, each a carry
+#: from where it goes, never on it. The fork lies along x, its head in.
+TABLE_SOURCES = {"plate": ((0.30, 0.165), (0.010, 0.008), math.pi),
+                 "fork": ((0.30, 0.32), (0.008, 0.005), math.radians(6.0)),
+                 "cup": ((0.29, -0.31), (0.012, 0.010), math.pi)}
+#: `table_set_out(k)`'s stream is this and k: a stream of its own, never the
+#: pieces' hidden draw's (`dishware.draw`).
+TABLE_SEED = 5602
+
+
+@dataclass(frozen=True)
+class TableSetOut:
+  """Place k at the dining table (#560): the pieces' hidden parameters
+  (`dishware.draw(k)`), where each is set out (world x, y, yaw), the card's
+  foot (x, y) and facing, and the humanoid's start (x, y, heading)."""
+  k: int
+  load: object
+  pieces: dict
+  card: tuple[float, float, float]
+  start: tuple[float, float, float]
+  counter: None = None
+
+  def attach(self, spec) -> None:
+    from pluggybot.activity import dishware as dw
+    tx, ty = _dining_table()
+    half = _table_half()
+    for name in (f"dining_table_{TABLE_I}", f"dining_table_{TABLE_I}_chair_1"):
+      spec.delete(spec.body(name))
+    top = spec.worldbody.add_body(name=f"dining_table_{TABLE_I}", pos=[tx, ty, 0.0])
+    top.add_geom(name=f"dining_table_{TABLE_I}_geom", type=mujoco.mjtGeom.mjGEOM_BOX,
+                 size=[half, half, TABLE_TOP_T / 2], pos=[0, 0, TABLE_H - TABLE_TOP_T / 2],
+                 rgba=[0.50, 0.42, 0.34, 1])
+    leg_h = (TABLE_H - TABLE_TOP_T) / 2
+    for i, (sx, sy) in enumerate(((1, 1), (1, -1), (-1, 1), (-1, -1))):
+      top.add_geom(name=f"dining_table_{TABLE_I}_leg{i}", type=mujoco.mjtGeom.mjGEOM_BOX,
+                   size=[TABLE_LEG, TABLE_LEG, leg_h],
+                   pos=[sx * (half - TABLE_LEG_IN), sy * (half - TABLE_LEG_IN), leg_h],
+                   rgba=[0.45, 0.37, 0.30, 1])
+    dw.attach_card(spec, self.card[:2], self.card[2], TABLE_H)
+    for name, (x, y, yaw) in self.pieces.items():
+      dw.ATTACH[name](spec, (x, y), yaw, TABLE_H, getattr(self.load, f"{name}_kg"),
+                      self.load.friction)
+
+
+def _dining_table() -> tuple[float, float]:
+  from pluggybot.home import world as hw
+  return hw.DINING_TABLES[TABLE_I]
+
+
+def _table_half() -> float:
+  from pluggybot.home import world as hw
+  return hw.DINING_TABLE_HALF[0]
+
+
+def place_to_world(px: float, py: float) -> tuple[float, float]:
+  """A point of the place's frame T in the world: the table's south edge's
+  middle, x north into the table, y west."""
+  tx, ty = _dining_table()
+  return tx - py, ty - _table_half() + px
+
+
+def table_set_out(k: int) -> TableSetOut:
+  """Place `k` (seeded): the pieces set out round `TABLE_SOURCES`, each
+  drawn off it and turned, off a stream of its own; the robot at the place
+  facing in (north)."""
+  from pluggybot.activity import dishware as dw
+  if k < 0:
+    raise ValueError(f"a set-out is a whole number from 0, not {k}")
+  rng = np.random.default_rng((TABLE_SEED, k))
+  north = math.pi / 2
+  pieces = {}
+  for name in dw.PIECES:
+    (x, y), (dx, dy), turn = TABLE_SOURCES[name]
+    px, py = x + float(rng.uniform(-dx, dx)), y + float(rng.uniform(-dy, dy))
+    pieces[name] = (*place_to_world(px, py), north + float(rng.uniform(-turn, turn)))
+  cx, cy = place_to_world(CARD_IN, 0.0)
+  sx, sy = place_to_world(-TABLE_GAP, 0.0)
+  # the start is the pelvis's: the soles' middle stands `_stance_ahead()` before it
+  start = (sx, sy - _stance_ahead(), north)
+  return TableSetOut(k=k, load=dw.draw(k), pieces=pieces, card=(cx, cy, -north), start=start)
+
+
 def world(so, policy=None):
   """A set-out's world: the house with the humanoid standing at its start,
   the counter and the prop on it -- the chest (`SetOut`), or a check's
@@ -286,12 +386,13 @@ def model_of(so):
   frame.pos = [so.start[0], so.start[1], 0.0]
   frame.quat = [math.cos(so.start[2] / 2), 0.0, 0.0, math.sin(so.start[2] / 2)]
   spec.attach(hm.attachable(), prefix="", frame=frame)
-  cx, cy, cyaw = so.counter
-  body = spec.worldbody.add_body(name="counter", pos=[cx + COUNTER_D / 2, cy, 0.0],
-                                 quat=[math.cos(cyaw / 2), 0.0, 0.0, math.sin(cyaw / 2)])
-  body.add_geom(name="counter", type=mujoco.mjtGeom.mjGEOM_BOX,
-                size=[COUNTER_D / 2, COUNTER_W / 2, COUNTER_H / 2], pos=[0, 0, COUNTER_H / 2],
-                rgba=[0.86, 0.85, 0.82, 1])
+  if so.counter is not None:
+    cx, cy, cyaw = so.counter
+    body = spec.worldbody.add_body(name="counter", pos=[cx + COUNTER_D / 2, cy, 0.0],
+                                   quat=[math.cos(cyaw / 2), 0.0, 0.0, math.sin(cyaw / 2)])
+    body.add_geom(name="counter", type=mujoco.mjtGeom.mjGEOM_BOX,
+                  size=[COUNTER_D / 2, COUNTER_W / 2, COUNTER_H / 2], pos=[0, 0, COUNTER_H / 2],
+                  rgba=[0.86, 0.85, 0.82, 1])
   if isinstance(so, SetOut):
     ch.attach_chest(spec, so.lid, so.chest[:2], so.chest[2], z=COUNTER_H)
   else:
