@@ -98,6 +98,9 @@ sees:
   own (`park_sign`), unhinted.
 - **`drift` rows carry `station`** on `lost`, `searched` and `fixed`:
   which station the charge went to, or was fixed off.
+- **A decision may carry `station`**, `"free"`, on a `charge` alone (absent
+  otherwise): the mind chose to go on to the nearest station nobody
+  holds where its nearest is taken, rather than wait for it.
 - **The pair's recording is flown again** in the grown world (osmesa), on
   the 33 Wh test pack (`humanoid.world.DEMO_WH`, 30 before: charged, it
   funds the jobs priced from the mall's station and the reserve both): the

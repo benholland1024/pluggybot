@@ -328,11 +328,13 @@ class Body(abc.ABC):
   # ---- the dock ------------------------------------------------------------
 
   @abc.abstractmethod
-  def choose_station(self) -> None:
+  def choose_station(self, free=None) -> str | None:
     """Which of its world's charging stations this charge goes to (#560: one
     in each building): the one its plug is in, else the nearest by a walk
-    over its own map. `rack`, `rack_prior`, `charge_standoff` and
-    `charge_seat` are that station's until the next choice."""
+    over its own map -- of those `free((x, y) standoff, (x, y) seat)` says
+    are free, where it is given. `rack`, `rack_prior`, `charge_standoff`
+    and `charge_seat` are that station's until the next choice. Its name,
+    or None where none is free (the choice left as it was)."""
 
   @abc.abstractmethod
   def charge_standoff(self) -> tuple[float, float, float]:
@@ -837,6 +839,11 @@ class StubBody(Body):
     self.attitude = (1.0, 0.0, 0.0, 0.0)
     #: every place it was sent, in order
     self.went: list[tuple[float, float]] = []
+    #: ...its world's stations by name, where a test gives it several (#560;
+    #: else its one rack), and where another robot stands, for
+    #: `peer_on_the_goal`
+    self.stations: dict = {}
+    self.peers_on: list[tuple[float, float]] = []
     #: the places it knows (a test sees them in, `places.see`), and the tags
     #: a find was asked for, in order
     from pluggybot.home.areas import area_ids
@@ -1018,8 +1025,19 @@ class StubBody(Body):
   def charge_seat(self):
     return self.rack.to_world(0.0, 0.0)
 
-  def choose_station(self) -> None:
-    """A stub's one rack is its station."""
+  def choose_station(self, free=None):
+    """A stub's racks are its stations (`stations`, else its one rack): the
+    nearest of the free ones as the crow flies."""
+    racks = self.stations or {"station": self.rack}
+    ways = {name: (r.to_world(0.5, 0.0), r.to_world(0.0, 0.0)) for name, r in racks.items()}
+    if free is not None:
+      ways = {name: way for name, way in ways.items() if free(*way)}
+    if not ways:
+      return None
+    name = min(ways, key=lambda n: math.dist(ways[n][0], (self.x, self.y)))
+    if self.stations:
+      self.rack = self.rack_prior = racks[name]
+    return name
 
   def dock_routine(self):
     self.on_charger = True
@@ -1077,7 +1095,8 @@ class StubBody(Body):
     return self.sight
 
   def peer_on_the_goal(self, x, y):
-    return None
+    near = min((math.dist(p, (x, y)) for p in self.peers_on), default=math.inf)
+    return near if near <= 0.45 else None
 
   def watch_for_peers(self, points):
     return None

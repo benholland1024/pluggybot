@@ -30,14 +30,19 @@ observatory is NOT a result: it reports into the issue it informs.
   the one its body chooses: the one its plug is in, else the nearest by a
   walk over its own map; a lost robot fixes off whichever station it sees
   and charges there. Each takes one robot, and a charge waits only for the
-  other robot at the same station. `drift` rows say which station
+  other robot at the same station -- unless its mind chose otherwise: a
+  decided `charge` with `station: "free"` goes on to the nearest station
+  nobody holds (Ben's call; waiting is the default, and an event-map row's
+  or a standing order's charge waits). `drift` rows say which station
   (`station`).
-- **The prompt moved in three places**: the other-robot rule says the robots
+- **The prompt moved in four places**: the other-robot rule says the robots
   share the charging stations (`OTHER_ROBOT_RULE_SHA` re-pinned: the
-  empathy measurement's input), and `charge` walks to "the nearest charging
-  station", and the zones an `explore(zone)` may name are the grown
-  world's (`sidewalk_2_south` is the `alley`, 15 are new): `prompt_sha`
-  `7b238b59…` → `699ddb1d…`, 54,872 → 55,145 chars, 17 sections both
+  empathy measurement's input); `charge` walks to "the nearest charging
+  station" and takes an optional `station` ("free": on to the nearest
+  station nobody is at when the nearest is taken), a new field of the
+  form; and the zones an `explore(zone)` may name are the grown world's
+  (`sidewalk_2_south` is the `alley`, 15 are new): `prompt_sha`
+  `7b238b59…` → `e6cadfdd…`, 54,872 → 55,280 chars, 17 sections both
   (`overseer_probe.py --deployed --prompt`). The constitutions are unchanged
   ("your charging station" reads as the one it charges at).
 - **The places**: the restaurant, the shop, the park, each robot's room and
@@ -72,7 +77,9 @@ observatory is NOT a result: it reports into the issue it informs.
 - **Charging at three stations**: which station each charge goes to
   (`drift` rows' `station`, the charges' narration), plug-ins and misses at
   the new two, lost searches that end at another station than the one
-  sought, and `flat` deaths.
+  sought, and `flat` deaths; how often a mind chose `station: "free"`
+  (the decision's `station`) and passed a taken station for a free one
+  (`GO_CHARGE on to the nearest free charging station`), against the waits.
 - **The belief across the grown world**: `drift` rows in the second row,
   the park's middle above all; whether a robot that crosses the park comes
   out lost.

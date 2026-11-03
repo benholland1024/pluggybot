@@ -1540,7 +1540,11 @@ save a filmstrip PNG named after the script.
   chose (`Body.choose_station`, below) and WAITS while the other is on
   that station's WAY IN or its SEAT, not only its standoff (the lifecycle's
   #346 wait, `Body.charge_seat`, `LANE_STEP_M`), and asks one resting on the
-  way off it (`Body.ask_off`; afresh after a no, never one on the seat). ⚠
+  way off it (`Body.ask_off`; afresh after a no, never one on the seat) --
+  unless its MIND chose otherwise (Ben, 2026-11-03: a decided `charge`'s
+  `station: "free"` goes on to the nearest station nobody holds,
+  `MAX_STATION_SWITCHES`; waiting is the default, and an event-map row's or
+  a standing order's charge waits). ⚠
   THE PAIR COLLIDES (Ben, 2026-10-14, #455; `humanoid.world.PAIR_BITS`):
   each robot meets every solid geom of the other and none of its own, and
   AVOIDANCE keeps them apart -- before, they passed through each other, and

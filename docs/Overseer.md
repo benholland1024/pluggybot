@@ -80,7 +80,7 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 |---|---|---|
 | `take_task` | accept a job the world is OFFERING and do it (issue #21) | `task` |
 | `explore` | frontier-drive for `DECIDED_EXPLORE_S` (45 s); optionally head for a zone first. History says whether the zone was reached (the drive's cause when not) and how the explore ended, `EXPLORE_ENDS` (issue #424) | `zone` |
-| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424) | — |
+| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424). At the nearest station, waiting for it while another robot holds it, or with `station: "free"` on to the nearest station nobody holds (#560, Ben's call: the robot's to decide, waiting the default) | `station` |
 | `idle` | stand still for `AUTONOMOUS_IDLE_S` (60 s), so an idling agent cannot re-decide faster than `CALLS_PER_HOUR` | — |
 | `recall` | look something up in memory and stand still `RECALL_S` (10 s); the lines arrive on the next turn, at most `MAX_RECALL_RUN` (3) in a row (issue #221, §7) | `read` (a key), `find` (words) |
 | `procedure:<name>` | run a procedure the robot wrote, from its own library (issue #166, §2b) | — |
@@ -134,7 +134,7 @@ is the INDEX and the prose sections stay the manual.
   `guarded`'s prefix had to stay byte-identical, and the gate went with it
   (#427).
 - **Three kinds of field, one door each.** `think` / `action` / `reason` are
-  the answer; `ACTION_PARAMETERS` (`zone`, `read`, `find`, `task`) are
+  the answer; `ACTION_PARAMETERS` (`zone`, `station`, `read`, `find`, `task`) are
   named in their own action's line and a test reads each one back out of
   it; everything else is a power with an index entry. (The quadruped's
   drawing named a `board` and a `program`, and a whiteboard question took

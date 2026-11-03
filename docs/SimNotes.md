@@ -5057,7 +5057,11 @@ map dropped, History saying why. In that flight Rowan charged at the house's
 station from 56 %; Luca, choosing to charge at 82 %, found it taken, waited
 its 1,386 s bound and gave up, though both new stations stood free: a charge
 goes to the NEAREST station and waits for it there, #208's contention per
-station (a decided charge that never began costs time, never a heart).
+station (a decided charge that never began costs time, never a heart). So
+the robot decides (Ben, 3 Nov): a decided `charge` with `station: "free"`
+passes a taken station for the nearest one nobody holds, at most
+`MAX_STATION_SWITCHES` a charge, and waiting stays the default -- an
+event-map row's charge and a standing order's.
 
 **Not done.** The tasks (stage 2). The second story (the mall's, #557's
 first idea) waits for maps by floor; the park's rough patch for the walker

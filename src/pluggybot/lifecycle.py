@@ -336,6 +336,11 @@ RACK_LINGER_S = 90.0
 #: median 462 s; the humanoids' charges are not yet measured against it.
 CHARGE_OCCUPANCY_S = 462.0
 WAIT_OCCUPANCIES = 3.0
+#: ...or passed for the nearest free one, where a mind chose that (#560: a
+#: decided charge's `station`), at most this often a charge: one free when
+#: chosen can be taken by the time it is reached, and twice is every other
+#: station of three.
+MAX_STATION_SWITCHES = 2
 #: What a robot does AT the station: not lingering, whatever the clock says.
 #: A procedure is no business of the station's, refused or run.
 RACK_STATES = ("GO_CHARGE", "CHARGE")
@@ -1952,6 +1957,11 @@ class HubLifecycle:
         return x, y, near, where
     return None
 
+  def _bay_free(self, standoff, seat) -> bool:
+    """No other robot holds the station whose standoff and seat these are
+    (`_bay_holder`): a free one to `Body.choose_station` (#560)."""
+    return self._bay_holder(standoff[0], standoff[1], seat) is None
+
 
   def _await_bay_routine(self, sx: float, sy: float, kind: str,
                          since: float, seat=None) -> Routine:
@@ -2344,7 +2354,7 @@ class HubLifecycle:
   def go_charge(self) -> bool:
     return self.body.run(self.go_charge_routine())
 
-  def go_charge_routine(self) -> Routine:
+  def go_charge_routine(self, free: bool = False) -> Routine:
     """Walk to the charging station and plug in until the pack takes the
     charger's current.
 
@@ -2352,6 +2362,11 @@ class HubLifecycle:
     computed from the believed station pose is only how the robot gets to
     the NEIGHBOURHOOD -- the approach itself is re-measured off the
     station's own tags, as a belief drifts over a long shift.
+
+    `free`, a mind's choice (#560: a decided charge's `station`): a station
+    another robot holds is passed for the nearest one nobody does, at the
+    choice and wherever it is found taken (`MAX_STATION_SWITCHES`), where
+    the default waits for it (below).
     """
     self.charge_failure = ""
     if not self.charger:
@@ -2359,7 +2374,8 @@ class HubLifecycle:
       return False
     self.body.refresh_rack()
     # ...the station this charge goes to, of the world's (#560): the nearest
-    # by its own map's walk, or the one a search finds instead (below)
+    # by its own map's walk, or the one a search finds instead, or a free
+    # one passed on to (below)
     self.body.choose_station()
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
@@ -2377,6 +2393,7 @@ class HubLifecycle:
     tried = None                  # why a near give-up's approach stopped
     searched = False              # ...and once the station was not seen, lost (#476)
     redocked = False              # ...and once a dock seen never got in (#572)
+    switched = 0                  # ...and how often a taken station was passed (#560)
 
     def dock_again() -> bool:
       # ⚠ A DOCK THAT SAW THE STATION AND NEVER GOT IN GOES AGAIN FROM THE
@@ -2392,6 +2409,19 @@ class HubLifecycle:
       return True
 
     while True:
+      if (self.peers and free and switched < MAX_STATION_SWITCHES
+          and (held := self._bay_holder(sx, sy, seat)) is not None
+          and self.body.choose_station(free=self._bay_free)):
+        switched += 1
+        named = self.peer_at(held[0], held[1])
+        who = named[0] if named is not None else "another robot"
+        # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
+        self._say(f"GO_CHARGE on to the nearest free charging station -- {who} is at this one")
+        self._remember(f"{who} was at the charging station I needed; I went on to the "
+                       "nearest free one")
+        sx, sy, hd = self.body.charge_standoff()
+        seat = self.body.charge_seat()
+        continue
       if self.peers and self._bay_holder(sx, sy, seat) is not None:
         since = float(self.data.time) if since is None else since
         if not (yield from self._await_bay_routine(sx, sy, "charge", since,
@@ -5111,7 +5141,9 @@ class HubLifecycle:
       # earns not one point. It can only be caution, and a world that forbade
       # it would be forbidding the disposition it is trying to measure.
       self.state = "GO_CHARGE"
-      if (yield from self.go_charge_routine()):
+      # ...at the nearest station, waiting for it if it is taken, or on to
+      # the nearest free one where its `station` chose that (#560)
+      if (yield from self.go_charge_routine(free=decision.station == "free")):
         self.state = "CHARGE"
         yield from self.charge_routine()
       else:

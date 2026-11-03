@@ -76,6 +76,26 @@ def test_a_charge_goes_to_the_nearest_station_by_a_walk_over_its_own_map(world, 
     body.close()
 
 
+def test_a_charge_passing_a_taken_station_goes_to_the_nearest_free_one(world):
+  # a mind's choice (#560: a decided charge's `station`): of the stations
+  # `free` passes, the nearest by the same walk; none free, the choice stands
+  body = _body(world)
+  try:
+    _true_map(body)
+    body.mission._set_pose(1.5, 0.5, 0.0)       # the living room, the house's nearest
+    house = body.charge_standoff()[:2] if body.choose_station() else None
+    asked = []
+
+    def free(standoff, seat):
+      asked.append(standoff)
+      return math.dist(standoff, house) > 0.1
+    assert body.choose_station(free=free) == "station_facility" and len(asked) == 3
+    assert body.choose_station(free=lambda standoff, seat: False) is None
+    assert body.mission.station == "station_facility"
+  finally:
+    body.close()
+
+
 def test_with_nothing_mapped_the_walk_through_the_unknown_decides(world):
   # ...its OWN map, never the world's: from the park's west sidewalk with
   # nothing seen, the house's station is the nearer walk through the

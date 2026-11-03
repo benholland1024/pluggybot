@@ -260,20 +260,26 @@ class HumanoidBody(Body):
 
   rack_prior = rack
 
-  def choose_station(self) -> None:
+  def choose_station(self, free=None) -> str | None:
     """The station whose catch holds its plug, else the nearest by a walk
     over its own map (`Navigator.nearest_by_walk`), its standoff the
     walk's end -- through floor it has not seen at the planner's price, as
-    it would walk there."""
+    it would walk there -- of those `free` passes, where given."""
+    from pluggybot.activity import station as st
     m = self.mission
     held = m.plugged_at()
     if held is not None:
       m.station = held
-    elif len(m.stations) > 1:
-      from pluggybot.activity import station as st
-      m.station = m.nearest_by_walk(
-        {name: frame.to_world(st.STANDOFF_X, st.SEAT_Y)
-         for name, (frame, _) in m.stations.items()})
+      return held
+    ways = {name: (frame.to_world(st.STANDOFF_X, st.SEAT_Y), frame.to_world(st.SEAT_X, st.SEAT_Y))
+            for name, (frame, _) in m.stations.items()}
+    if free is not None:
+      ways = {name: way for name, way in ways.items() if free(*way)}
+    if not ways:
+      return None
+    m.station = (next(iter(ways)) if len(ways) == 1 else
+                 m.nearest_by_walk({name: way[0] for name, way in ways.items()}))
+    return m.station
 
   @property
   def rights_itself(self) -> bool:

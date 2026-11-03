@@ -130,6 +130,7 @@ def test_the_schema_constrains_every_parameter_to_the_menu(menu):
   assert schema["additionalProperties"] is False
   assert schema["properties"]["action"]["enum"] == list(menu.available())
   assert set(schema["properties"]["zone"]["enum"]) == {*menu.zones, ""}
+  assert set(schema["properties"]["station"]["enum"]) == {"free", ""}
   # ...and nothing of the drawing errands' or the whiteboard questions':
   # their `board`, `program` and `answer` went from the form in #579
   assert not {"board", "program", "answer"} & set(schema["properties"])
@@ -139,6 +140,7 @@ def test_the_schema_constrains_every_parameter_to_the_menu(menu):
   ({"action": "hack_the_ledger"}, "unknown action"),
   ({"action": "draw"}, "unknown action"),
   ({"action": "explore", "zone": "the_moon"}, "unknown zone"),
+  ({"action": "charge", "station": "the_mall"}, "unknown station"),
   ({"action": ""}, "unknown action"),
 ])
 def test_an_answer_off_the_menu_is_refused(menu, raw, why):
@@ -155,6 +157,13 @@ def test_a_parameter_rides_its_own_action_alone(menu):
   assert d.zone == "" and d.summary() == "charge: low"
   d = menu.validate({"action": "explore", "reason": "unseen", "zone": "garden"})
   assert d.zone == "garden" and d.summary() == "explore (garden): unseen"
+  # ...a charge's `station` (#560, Ben's call: wait for a taken station or
+  # go on to a free one) on a charge alone, and on the wire as it chose
+  d = menu.validate({"action": "charge", "reason": "low", "station": "free"})
+  assert d.station == "free" and d.summary() == "charge (free): low"
+  assert d.as_dict()["station"] == "free"
+  d = menu.validate({"action": "explore", "reason": "unseen", "station": "free"})
+  assert d.station == "" and "station" not in d.as_dict()
 
 
 # ---- the failure paths, which are the ones that must never surprise ----------
