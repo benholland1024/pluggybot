@@ -622,10 +622,13 @@ save a filmstrip PNG named after the script.
   `Menu.kinds`), graded by its check's evaluator. ⚠ WATCHED FROM THE CLAIM to the hold after `done`: a fall on
   the way fails it; its `minutes` count from the claim; its readings ride a
   restart (`jobWatches`). ⚠ HELD PAST ITS MINUTES IT IS FAILED (#602;
-  `Task.out_of_time`, `HubLifecycle._run_out`, on the holder's sweep):
-  ending only on a `done` that could only fail it, three held jobs booked
-  all three of the counter's props and nothing was offered for a day; a
-  `done` pending or a grade holding is the grade's. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
+  `Task.out_of_time`, `HubLifecycle._run_out_held`): ending only on a
+  `done` that could only fail it, three held jobs booked all three of the
+  counter's props, and nothing was offered from 02:22 UTC on 11-03; a
+  `done` pending is the grade's. ⚠ AT ITS HOLDER'S PASS OF THE DAY LOOP,
+  NEVER ON THE SEAM: freed there, its prop was set out under the procedure
+  still working it. ⚠ A true death fails its robot's jobs in that robot's
+  own records. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
   prop out, its activity renewed in place (`renew`), put back after a
   restart (`restore_counter`, in `begin`, before the activities' kept
@@ -1856,9 +1859,10 @@ save a filmstrip PNG named after the script.
   `TaskBoard.producer`), an open offer's deadline and a held job's claim are
   REBASED on load (except where the world carries on, `rebase=False`; ⚠ a
   claim is never later than the last change saved, #602: one a start-over
-  left on the old clock could never run out), an offer is re-priced by the
-  world's energy table on load, and only a job a restart failed is
-  announced in `begin()` (`announce_interrupted`). `tests/test_cadence.py`,
+  left on the old clock could never run out; ⚠ moved in memory, written in
+  `begin()`), an offer is re-priced by the world's energy table on load,
+  and only a job a restart failed is announced in `begin()`
+  (`announce_interrupted`). `tests/test_cadence.py`,
   `tests/test_tasks.py` and `tests/test_continuation.py` pin each. When work
   may still ARRIVE (`HubLifecycle.expects_work`) the loop stands by in
   `WAIT_FOR_WORK_S` slices rather than end the day.

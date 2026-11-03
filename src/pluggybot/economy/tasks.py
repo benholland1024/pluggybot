@@ -394,7 +394,8 @@ class Task:
   def limit_s(self) -> float | None:
     """The time the job gives from its claim, s, or None for none: the
     offer's `minutes`, else its kind's (one saved before its kind gave any,
-    #580) -- what its grade holds it to, and what it is held to (#602)."""
+    #580) -- what its grade holds it to, and past which its holder's loop
+    fails it (#602)."""
     spec = KINDS.get(self.kind)
     minutes = self.params.get("minutes") or (spec.minutes if spec is not None else None)
     return 60.0 * float(minutes) if minutes else None
@@ -890,7 +891,9 @@ class TaskBoard:
 
     ⚠ `rebase`: an offer's deadline is moved to a clock that starts at 0 --
     what it had left at the last save (`simTime`) -- and a held job's claim
-    with it (#602). A world that carries on from a saved one (issue #345)
+    with it (#602), in memory: the day's `begin` writes it down, never
+    `load`, which would write down an interrupted act's failure before it
+    is announced. A world that carries on from a saved one (issue #345)
     keeps its clock, and its deadlines and claims as written; one that
     starts from its XML starts at 0, where an offer made at 3606 s of a
     mission could otherwise never lapse (measured, 2026-09-22), nor a job

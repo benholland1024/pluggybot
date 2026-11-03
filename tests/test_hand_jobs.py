@@ -22,7 +22,8 @@ from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.scoring import default_table
 from pluggybot.economy.tasks import HAND_JOBS, HAND_MINUTES, KINDS, TaskBoard
 from pluggybot.home import storeroom
-from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, task_producer, world_targets
+from pluggybot.lifecycle import (HUMANOID_HOME, HubLifecycle, task_producer, world_config,
+                                 world_targets)
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.thoughts import HISTORY
 
@@ -37,6 +38,7 @@ class _Mind:
   spend = None
   library = object()
   decisions: list = []
+  model, backend = "none", "stub"                 # what the day's first lines name
 
 
 def _counter_world():
@@ -193,27 +195,43 @@ def test_a_job_called_past_its_minutes_fails(tmp_path):
   assert not verdict["ok"] and "called 1 s after the start" in verdict["reason"]
 
 
+class _Stop(Exception):
+  pass
+
+
+def _day_begun(life) -> None:
+  """`begin` and its day routine driven up to the loop's first pass."""
+  def stop():
+    raise _Stop
+  life.at_loop_top.append(stop)
+  with pytest.raises(_Stop):
+    life.body.run(life.begin(world_config(life.world)["start"]))
+
+
 def test_a_job_held_past_its_minutes_is_failed_and_its_prop_offered_again(tmp_path):
   """#602: held, a job ended only on a `done` that could only fail it, and
   booked its prop for good -- three held booked all three of the counter's,
-  and nothing was offered from 02:22 UTC on 11-03. Past its minutes the
-  board's sweep fails it in its grader's words, unhooks its watch and tells
-  its holder's History; and its prop is offered again."""
+  and nothing was offered from 02:22 UTC on 11-03. Past its minutes it is
+  failed at its holder's next pass of the day loop, never on the seam:
+  freed there, its prop was set out from under the procedure still working
+  it. Its watch is unhooked, its holder's History told, and its prop
+  offered again."""
   life = _life(tmp_path)
   life.producer = task_producer(life.tasks, HUMANOID_HOME, procedures=True)
   task = _offer(life, "open_drawer", minutes=1)
   assert life._claim_task(task.id)
-  life.data.time += 60.0
-  life._task_step()
+  life.data.time += 59.0
+  life._run_out_held()
   assert life.tasks.get(task.id).state == "active", "its minute is not yet past"
-  life.data.time += 1.0
-  life._task_step()
+  life.body.run(life.body.hold_routine(2.0))
+  assert life.tasks.get(task.id).state == "active", "the seam runs nothing out"
+  life._run_out_held()
   ended = life.tasks.get(task.id)
   assert ended.state == "failed"
-  assert ended.verdict["reason"].startswith("not done within the 60 s the job allows")
+  assert ended.verdict["reason"].startswith("not graded within the 60 s the job allows")
   assert task.id not in life._job_watches
   assert not any(isinstance(h, drawer.Watch) for h in life.body.step_hooks)
-  assert (f"failed the job {task.id} (open_drawer): not done within"
+  assert (f"failed the job {task.id} (open_drawer): not graded within"
           in life.thoughts.texts[HISTORY])
   for _ in range(3):
     life.data.time += 600.0
@@ -221,10 +239,30 @@ def test_a_job_held_past_its_minutes_is_failed_and_its_prop_offered_again(tmp_pa
   assert any(t.target == "drawer" and t.id != task.id for t in life.tasks.tasks.values())
 
 
+def test_the_day_loops_pass_runs_out_a_job_held_past_its_minutes(tmp_path, monkeypatch):
+  """...wired into the loop's pass, after the board's sweep, and before
+  anything the robot does next."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer", minutes=1)
+  assert life._claim_task(task.id)
+
+  def a_minute_on():
+    assert life.tasks.get(task.id).state == "active", "in time as the day began"
+    life.data.time += 61.0
+
+  def stop():
+    raise _Stop
+  monkeypatch.setattr(life, "_visitor_step", a_minute_on)
+  monkeypatch.setattr(life, "_metabolism_step", stop)
+  with pytest.raises(_Stop):
+    life.body.run(life.begin(world_config(life.world)["start"]))
+  assert life.tasks.get(task.id).state == "failed"
+
+
 def test_a_grade_holding_past_the_limit_is_never_cut_short(tmp_path):
-  """The sweep leaves a grade to its grader (#602): called at 58 s of 60,
-  the drawer held out through the hold that ends at 63 s passes. Cut
-  mid-hold, the pass was lost and the job banked twice."""
+  """A grade is its grader's (#602): called at 58 s of 60, the drawer held
+  out through the hold that ends at 63 s passes. Run out on the seam, the
+  hold was cut, the pass lost and the job banked twice."""
   life = _life(tmp_path)
   task = _offer(life, "open_drawer", minutes=1)
   assert life._claim_task(task.id)
@@ -238,24 +276,26 @@ def test_a_grade_holding_past_the_limit_is_never_cut_short(tmp_path):
 
 def test_a_done_pending_past_the_limit_is_its_grades_to_judge(tmp_path):
   """...and a `done` waiting on the queue is its grade's too, judged in
-  the grade's own words at its call, never "not done"."""
+  the grade's own words at its call, never "not graded"."""
   life = _life(tmp_path)
   task = _offer(life, "open_chest", minutes=1)
   assert life._claim_task(task.id)
   life.data.time += 58.0
   life._done(ov.Decision(action="idle", reason="", done=task.id))
   life.data.time += 5.0
-  life._task_step()
+  life._run_out_held()
   assert life.tasks.get(task.id).state == "active"
   life.body.run(life._grade_routine())
   verdict = life.tasks.get(task.id).verdict
   assert "called 63 s after the start, past the 60 s the job allows" in verdict["reason"]
 
 
-def test_a_start_over_moves_a_held_claim_and_fails_one_out_of_time_at_once(tmp_path):
+def test_a_start_over_moves_a_held_claim_and_fails_one_out_of_time_as_the_day_begins(tmp_path):
   """A start-over moves a held claim with the clock (#602, the board's
   `rebase`): held 100 s of its 60 when the world began again at 0, it is
-  failed as the day begins, never "still mine" first."""
+  failed as its jobs are taken up, after the day's first line and never
+  "still mine" first -- not during the look round that seeds the map,
+  before the robot has woken."""
   life = _life(tmp_path)
   task = _offer(life, "open_drawer", minutes=1)
   assert life._claim_task(task.id)
@@ -263,10 +303,50 @@ def test_a_start_over_moves_a_held_claim_and_fails_one_out_of_time_at_once(tmp_p
   _offer(life, "open_door")                     # the board's last change, at 100 s
   again = _life(tmp_path)                       # the same board, a world begun at 0
   assert again.tasks.get(task.id).claimed_t == -100.0
-  again._resume_jobs(None)
+  # ...its look round stepping the world, as the body's does (the stub's is none)
+  again.body.look_around_routine = lambda: again.body.hold_routine(2.0)
+  _day_begun(again)
   assert again.tasks.get(task.id).state == "failed"
-  said = again.thoughts.texts[HISTORY]
-  assert "still mine" not in said and f"failed the job {task.id} (open_drawer)" in said
+  lines = again.thoughts.texts[HISTORY].splitlines()
+  woke = next(i for i, ln in enumerate(lines) if "woke up" in ln)
+  failed = next(i for i, ln in enumerate(lines) if f"failed the job {task.id}" in ln)
+  assert woke < failed and not any("still mine" in ln for ln in lines)
+
+
+def test_a_start_overs_moved_clock_is_written_as_the_day_begins(tmp_path):
+  """...and written down then (`begin`): moved in memory alone, a restart
+  that carried on before the board's next change read the old clock back,
+  a claim ahead of the clock again, and kept its `simTime` for the next
+  start-over to move every claim past its limit by."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.data.time = 100.0
+  _offer(life, "open_door")
+  again = _life(tmp_path)
+  again.begin(world_config(HUMANOID_HOME)["start"])
+  kept = TaskBoard(path=str(tmp_path / "tasks.json"), rebase=False)
+  assert kept.get(task.id).claimed_t == -100.0 and kept.sim_t == 0.0
+
+
+def test_a_true_death_ends_the_jobs_its_robot_held_in_its_own_records(tmp_path):
+  """A true death fails the jobs its robot held, before its records go
+  (#602): kept under its root, one ran out into the next robot's History,
+  ledger and event map, whose only inheritance is being told it is not the
+  first."""
+  from pluggybot.economy.ledger import HEARTS
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  for _ in range(HEARTS - 1):
+    life.ledger.lose_heart(life.root)
+  life._die("flat", "the pack ran out")
+  assert life.true_deaths
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed"
+  assert ended.verdict["reason"].startswith("the robot that took it ran out of lives")
+  assert task.id not in life._job_watches
+  assert "failed the job" not in life.thoughts.texts[HISTORY]
 
 
 def test_a_bare_offer_gives_its_kinds_minutes_and_is_graded_on_them(tmp_path):

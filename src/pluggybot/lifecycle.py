@@ -1555,6 +1555,13 @@ class HubLifecycle:
     and the places the robot before found are gone with it (`Body.
     forget_world`), and the new one explores from there.
     """
+    # ...and the jobs it held end with it, in its own records (#602): the
+    # next robot took none of them, and heard their failures as its own
+    from pluggybot.economy.tasks import KINDS
+    for task in (self.tasks.held_by(self.root) if self.tasks is not None else ()):
+      if KINDS[task.kind].discharge == "procedure":
+        self._fail_held(task, "the robot that took it ran out of lives")
+    self._grade_pending = ""
     archived = self.ledger.archive(start=self.start_points)
     self._forget_world()
     if self.thoughts is not None:
@@ -3968,29 +3975,39 @@ class HubLifecycle:
 
   def _out_of_time(self, task) -> bool:
     """A job this robot holds past the time it gives (`Task.out_of_time`,
-    #602) and no grade is to judge: a `done` pending, or a grade holding,
-    is its grade's, never cut short by the clock."""
-    watch = self._job_watches.get(task.id)
-    return (task.out_of_time(float(self.data.time))
-            and task.id != self._grade_pending
-            and not (watch is not None and watch.holding))
+    #602) whose `done` is not waiting on its grade -- that one is the
+    grade's to judge, in its own words."""
+    return task.out_of_time(float(self.data.time)) and task.id != self._grade_pending
+
+  def _run_out_held(self) -> None:
+    """Every job this robot holds past the time it gives, failed (#602).
+    ⚠ FROM THE DAY LOOP'S PASS, BETWEEN WHAT THE ROBOT DOES, NEVER ON THE
+    SEAM: freed there, a prop was set out from under the procedure still
+    working it -- and a grade's hold cut short."""
+    for task in (self.tasks.held_by(self.root) if self.tasks is not None else ()):
+      if self._out_of_time(task):
+        self._run_out(task)
 
   def _run_out(self, task) -> None:
-    """A hand job held past the time it gives (#602), failed through its
-    grade's door: its check's evaluator on what its watch read, with no
-    call. Its watch is unhooked and its prop free to be offered again;
-    nothing moves the body. Held, it booked its prop until a `done` that
-    could only fail it (three booked all three of the counter's, 11-03)."""
+    """A hand job held past the time it gives (#602). Held, it booked its
+    prop until a `done` that could only fail it (three booked all three of
+    the counter's, 11-03)."""
+    limit = task.limit_s
+    self._say(f"TASK {task.id}: out of time -- not graded within the {limit:.0f} s it allows")
+    self._fail_held(task, f"not graded within the {limit:.0f} s the job allows")
+
+  def _fail_held(self, task, why: str) -> None:
+    """A job this robot holds, failed with no grade (#602): `why` leads,
+    and its check's evaluator on what its watch read, with no call,
+    follows. Its watch is unhooked and its prop free to be offered again;
+    nothing moves the body."""
     from pluggybot.economy.tasks import KINDS
     kind = KINDS[task.kind]
-    limit = task.limit_s
     watch = self._unwatch_job(task.id)
     check = HAND_JOBS.get(kind.task)
     measured = ({} if check is None else _hand_grader(check).measurements(
-      None, None, watch, started=task.claimed_t, limit_s=limit))
-    verdict = scoring.evaluate(kind.task, measured,
-                               failed=f"not done within the {limit:.0f} s the job allows")
-    self._say(f"TASK {task.id}: out of time -- not done within the {limit:.0f} s it allows")
+      None, None, watch, started=task.claimed_t, limit_s=task.limit_s))
+    verdict = scoring.evaluate(kind.task, measured, failed=why)
     self._settle_job(task, verdict, float(self.data.time),
                      f"failed the job {task.id} ({task.kind}): {verdict.reason}")
 
@@ -4407,10 +4424,6 @@ class HubLifecycle:
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
       self._say(f"TASK {task.id} expired: {task.description}")
-    # ...and a job this robot holds past the time it gives (#602)
-    for task in self.tasks.held_by(self.root):
-      if self._out_of_time(task):
-        self._run_out(task)
     # ...and a hand job's watch whose job ended some other way than its
     # grade (#559: a true death, an admin): it reads nothing more
     for task_id in [t for t in self._job_watches
@@ -5641,6 +5654,10 @@ class HubLifecycle:
     if self.tasks is not None:
       for task in self.tasks.announce_interrupted(t=float(self.data.time)):
         self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart")
+      # ...and the board written as this day reads it (#602): a start-over
+      # moves its deadlines and claims in memory, and a restart that carried
+      # on before its next change read the old clock back
+      self.tasks.save()
     return self._day_routine(start, max_sim_time, explore_budget)
 
   def end(self, aborted: bool = False) -> dict:
@@ -5842,6 +5859,7 @@ class HubLifecycle:
       # same sweep runs on the physics seam. Kept so a lifecycle driven
       # without its body stepping still keeps its board honest.
       self._task_step()
+      self._run_out_held()
       # ...and the same for the appetite (issue #36), for the same reason
       # and with the same result: a no-op here on any mission whose physics
       # is actually running.

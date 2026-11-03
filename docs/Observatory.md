@@ -13,15 +13,20 @@ observatory is NOT a result: it reports into the issue it informs.
 ### A hand job held past its minutes is failed, and a start-over moves a claim with the clock (#602) — opens when this PR is deployed
 
 **What changed in the world.**
-- **A hand job held past its minutes is failed** within a second of them,
-  through its grade's door: 0 points, a `task_resolved` that says `failed`,
-  the event map's `task_failed`, and its holder's History says "failed the
-  job t_0016 (open_drawer): not done
-  within the 960 s the job allows -- the drawer was never measured". Its
-  prop is then free for the next offer. Before, a held job ended only on
-  its holder's `done`, which past its minutes could only fail it, and it
-  booked its prop until then. A `done` waiting on the queue, or a grade's
-  hold under way, is still the grade's.
+- **A hand job held past its minutes is failed** at its holder's next pass
+  of the day loop, between what it does: at once where it is idle or
+  thinking, and once its procedure ends where one is running, so its prop
+  is never set out under it. It fails through its grade's door: 0 points,
+  a `task_resolved` that says `failed`, the event map's `task_failed`, and
+  its holder's History says "failed the job t_0016 (open_drawer): not
+  graded within the 960 s the job allows -- the drawer was never
+  measured". Its prop is then free for the next offer. Before, a held job
+  ended only on its holder's `done`, which past its minutes could only
+  fail it, and it booked its prop until then. A `done` waiting on the
+  queue is still the grade's.
+- **A true death fails the jobs its robot held**, in that robot's own
+  records ("the robot that took it ran out of lives"), before they are
+  archived: the next robot neither holds them nor hears of them.
 - **The prompt's CHALLENGES rule says so**: a claimed challenge stands
   "until you say done, or until the time its description gives is up; a
   failed grade closes it as failed, and so does that time running out".
@@ -44,8 +49,9 @@ Rowan held t_0013 for 5.9 h and t_0019 for 3.6 h, each ended by its own
 
 **What the period is for.** #602's live box: no job held past its limit,
 and the counter's jobs offered again. Read off `tasks_humanoid.json`'s open
-rows and the `task` rows: every claim resolves within its 16 minutes and a
-second, and offers resume at the producer's next tick, one a tick (240 s).
+rows and the `task` rows: no claim outlives its 16 minutes by more than
+what its holder was doing then took, unless a `done` of its waits on the
+grade; and offers resume at the producer's next tick, one a tick (240 s).
 ⚠ The deploy's restart fails the three held jobs at once: read the
 period's failures from after them. ⚠ The robots are still not shown a held
 job's time left (#602's option 2).
