@@ -475,6 +475,25 @@ def test_a_restart_puts_back_each_props_newest_draw(tmp_path):
   assert fresh._counter_activity("door").hinge == dd.draw(k)
 
 
+def test_the_draw_put_back_is_the_newest_offers_on_the_boards_count(tmp_path):
+  """...newest on the board's own count, never by its stamp (#610): an
+  offer on the door lapsed before a start-over is stamped on the clock
+  before it, ahead of the door's offer since, and by `createdT` every
+  restart put the old offer's draw back on the door."""
+  life = _life(tmp_path)
+  life.data.time = 356_727.0
+  old = _offer(life, "open_door")
+  life.tasks.expire_due(359_727.0)              # lapsed, on the clock before
+  again = _life(tmp_path)                       # the world begun again at 0
+  again.data.time = 100.0
+  new = _offer(again, "open_door")              # the door's job now
+  fresh = _life(tmp_path)                       # ...and the next restart
+  assert fresh.tasks.get(old.id).created_t > fresh.tasks.get(new.id).created_t
+  assert fresh.tasks.get(new.id).state == "offered"
+  fresh.begin((0.0, 0.0, 0.0))
+  assert fresh._counter_activity("door").hinge == dd.draw(new.secret["draw"])
+
+
 def test_the_hand_jobs_are_offered_only_where_a_mind_writes_procedures():
   """Each prop is a target of its own kind, on the challenges' gate."""
   here = world_targets(HUMANOID_HOME, procedures=True)

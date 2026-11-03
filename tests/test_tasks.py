@@ -223,11 +223,23 @@ def test_expiry_only_touches_offers_never_work_in_progress():
 
 def test_claimable_is_oldest_first_and_deterministic():
   """A scripted policy that is not reproducible makes every mission test a
-  different test (`Math.random`-shaped bugs, twice paid for in this repo)."""
+  different test (`Math.random`-shaped bugs, twice paid for in this repo).
+  Oldest on the board's own count (#610): an offer made before a start-over
+  is stamped on the clock before it, and is still the older."""
   b = board()
-  a = offered(b, t=5.0)
-  c = offered(b, kind="open_door", target="door", t=1.0)
-  assert [t.id for t in b.claimable(10.0, 9.0)] == [c.id, a.id]
+  a = offered(b, t=357_000.0)                            # before the start-over
+  c = offered(b, kind="open_door", target="door", t=1.0)  # after it
+  assert [t.id for t in b.claimable(10.0, 9.0)] == [a.id, c.id]
+
+
+def test_the_boards_count_is_read_as_a_number_past_four_digits():
+  """`Task.number` reads the id as the count it is: past t_9999 an id has
+  five digits, and as text t_10000 sorts before t_9999."""
+  b = board()
+  b.seq = 9_998
+  first, second = offered(b), offered(b, kind="open_door", target="door")
+  assert (first.id, second.id) == ("t_9999", "t_10000")
+  assert [t.id for t in b.claimable(10.0, 9.0)] == [first.id, second.id]
 
 
 # ---- the board is bounded ----------------------------------------------------
@@ -254,6 +266,23 @@ def test_resolved_tasks_age_out_but_open_ones_never_do():
   assert len(b) <= 3
   assert b.dropped >= 3
   assert b.stats()["dropped"] == b.dropped
+
+
+def test_a_full_board_forgets_its_lowest_numbered_closed_task(tmp_path):
+  """Oldest on the board's own count, never by its stamp (#610): by
+  `resolvedT`, a task resolved on the clock before a start-over ranked as
+  the newest, and every newer one was forgotten first -- t_0002, for
+  204,000 s on 11-03."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path, max_tasks=3, max_offered=99)
+  old = offered(b, t=356_727.0, ttl=900.0)
+  b.expire_due(357_627.0)                 # lapsed, on the clock before
+  again = board(path=path, max_tasks=3, max_offered=99)   # the world begun again at 0
+  newer = [offered(again, t=t, ttl=5.0) for t in (10.0, 20.0)]
+  again.expire_due(30.0)
+  offered(again, t=40.0)                  # one more than the board holds
+  assert old.id not in again
+  assert all(t.id in again for t in newer)
 
 
 # ---- persistence -------------------------------------------------------------

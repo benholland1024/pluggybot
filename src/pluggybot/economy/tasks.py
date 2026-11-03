@@ -376,6 +376,16 @@ class Task:
   def open(self) -> bool:
     return self.state in OPEN_STATES
 
+  @property
+  def number(self) -> int:
+    """Its number on the board's own count (`t_0042` is 42), or 0 for an id
+    the board did not number. The board is ordered by it, never by a stamp:
+    a start-over sets the clock back, never the count (#610)."""
+    try:
+      return int(self.id.split("_")[-1])
+    except ValueError:
+      return 0
+
   def reward(self, table: RewardTable | None = None) -> dict:
     """What the table says this pays, right now.
 
@@ -654,10 +664,12 @@ class TaskBoard:
 
     Oldest first, and deterministically so: a scripted policy has to be
     reproducible or a mission test that exercises it is a different test
-    every run.
+    every run. Oldest on the board's own count (`Task.number`), never by
+    `createdT`: an offer that outlives a start-over is stamped on the clock
+    before it, and listed after every newer one (#610).
     """
     ready = [t for t in self.offered() if t.claimable(now, pack_wh)]
-    return sorted(ready, key=lambda t: (t.created_t, t.id))
+    return sorted(ready, key=lambda t: (t.number, t.id))
 
   def snapshot(self) -> dict:
     return {tid: task.snapshot(self.table) for tid, task in self.tasks.items()}
@@ -852,6 +864,11 @@ class TaskBoard:
   def _trim(self) -> None:
     """Age out resolved tasks, oldest first. Open ones are never dropped.
 
+    ⚠ OLDEST ON THE BOARD'S OWN COUNT (`Task.number`), never by `resolvedT`:
+    a start-over sets the clock back to 0, and t_0002, resolved at t=357,627
+    on the clock before 11-01's, was kept over every newer task, for 204,000
+    s more on 11-03 (#610).
+
     A dropped task is not an expired one and does not get an event: expiry
     is something that HAPPENED to a job in the world, while this is the
     board forgetting a job that is already over. Counted, so a truncated
@@ -861,7 +878,7 @@ class TaskBoard:
       closed = [t for t in self.tasks.values() if not t.open]
       if not closed:
         return
-      oldest = min(closed, key=lambda t: (t.resolved_t or 0.0, t.id))
+      oldest = min(closed, key=lambda t: (t.number, t.id))
       del self.tasks[oldest.id]
       self.dropped += 1
 

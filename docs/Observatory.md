@@ -10,6 +10,52 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A restart puts each counter prop back on its own job's draw, and the board forgets its oldest job first (#610) — opens when this PR is deployed
+
+**What changed in the world.**
+- **After a restart, each of the counter's props carries the hidden
+  dynamics its newest offer drew**, newest on the board's own count (the
+  id's number). Before, it was the newest by `createdT`, and the four
+  offers made before 11-01's start-over (t_0001 to t_0004) were stamped on
+  the clock before it, ahead of every offer since. So every restart put one
+  of their draws back on its prop over the offer or job standing there.
+  Each old offer was right only while it was itself its prop's job:
+  - the chest got t_0003's from t_0005's offer (t=41,767), and the drawer
+    t_0001's from t_0007's (t=50,647), until each old task was trimmed on
+    11-03 as the board passed its 40 tasks;
+  - the door got t_0004's from t_0004's failure at the 11-03 deploy
+    (t=143,569) until this one. Once t_0004 was trimmed, t_0002's would
+    have followed.
+- **A full board forgets its lowest-numbered closed task first**, where it
+  forgot the one with the earliest `resolvedT`. At this deploy t_0002 and
+  t_0004 are the next two forgotten. By `resolvedT`, t_0002 (expired at
+  357,627 on the old clock) would have stayed until the clock passed it,
+  about 204,000 s after 11-03.
+- **The offers a robot is shown are listed oldest first on the same
+  count.** No live effect: the humanoids' offers all fit in the five
+  shown.
+- **The site lists the board on the same count** (rooftop-media-2026
+  #SITE_PR): the jobs list and each prop's pile. Before, t_0002 read as
+  the door's most recently finished job.
+- Nothing in the prompt, the schema, the arm, the reward table, the job
+  texts, the body or the house moved. No verdict changes: the drawer's and
+  the door's graders measure the world, and the lid's grade only records
+  its catch, a secret metric.
+
+**Why.** #610, read off the live board on 314a5f9 (t=153,197, 40 tasks).
+The 11-03 03:15 UTC backup shows all three props: by `createdT` a restart
+put the chest on t_0003's draw while t_0020 was held there, and the drawer
+on t_0001's (the compiled draw) while t_0016 was. The door was right then
+only because t_0004, its old-clock offer, was the job held on it.
+
+**What the period is for.** #610's live box: after the deploy's restart,
+t_0002 and t_0004 are the first two tasks the board forgets once it is
+over its 40, read off `tasks_humanoid.json`. No restart puts their draws
+back on the door, and none can once they are gone. ⚠ In the stretches
+above, an offer or a job on a prop across a restart was on the old offer's
+draw from the restart on: read those jobs as jobs on a fixed draw, not "a
+skill over a kind of drawer".
+
 ### A robot is shown the jobs it holds and the time each has left, and a charge trip runs one out (#602) — opens when this PR is deployed
 
 **What changed in the world.**

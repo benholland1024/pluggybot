@@ -4390,8 +4390,12 @@ class HubLifecycle:
   def restore_counter(self) -> None:
     """After a restart (#559): the world file carries each prop's compiled
     draw, and the newest offer on it still means the one it drew -- its
-    dynamics put back and its activity begun again over its truth. ⚠ HERE,
-    IN `begin`, BEFORE A CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
+    dynamics put back and its activity begun again over its truth. ⚠ NEWEST
+    ON THE BOARD'S OWN COUNT (`Task.number`), never by `createdT`: after
+    11-01's start-over, t_0004's offer on the door was stamped on the clock
+    before it, and every restart put its draw back on the door for the rest
+    of the door's job then, t_0042 (#610). ⚠ HERE, IN `begin`, BEFORE A
+    CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
     (`continuation.restore`): the prop where the world left it, a door's
     latch as it was."""
     if self.tasks is None:
@@ -4401,7 +4405,7 @@ class HubLifecycle:
     newest: dict = {}
     for t in self.tasks.tasks.values():
       if t.kind in KINDS and KINDS[t.kind].draws and t.secret.get("draw") is not None:
-        if t.target not in newest or t.created_t >= newest[t.target].created_t:
+        if t.target not in newest or t.number >= newest[t.target].number:
           newest[t.target] = t
     for prop, t in newest.items():
       if prop not in storeroom.PROPS or \
