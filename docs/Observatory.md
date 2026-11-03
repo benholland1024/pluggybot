@@ -21,11 +21,12 @@ observatory is NOT a result: it reports into the issue it informs.
   null otherwise. Before, `inRoom` was the robot's TRUE position against
   the lab's rectangle (x 22-28, y 0-6), true inside it whichever way the
   robot faced.
-- So a robot in the lab facing away from the cage sees no mouse now, nor
-  one within 1.0-1.1 m of the cage's middle (the head camera is pitched
-  20 deg down for the walls' tags): never while it is company, inside
-  1.0 m. One in the lab's doorway, or in the lobby facing the cage
-  through the door, does.
+- So a robot in the lab facing away from the cage sees no mouse now. Nor
+  does one standing within 0.88-1.04 m of the cage's middle, by the side
+  (the head camera is pitched 20 deg down for the walls' tags), so a robot
+  giving company, inside 1.0 m, sees it only from company's edge, and
+  from straight in front not at all. One in the lab's doorway, or in the
+  lobby facing the cage through the door, does.
 - **The prompt's THE LAB rule says so**: "you can see which only while
   the cage is in your head camera's view: `lab` in your context says
   whether it is, and `mouse` is what you see then, or null while it is
@@ -42,8 +43,8 @@ true position read off the flag, at ten decisions each.
 
 **What the period is for.** Nothing that decides moved, so the reading is
 the robots' own: whether either still brackets anything off `lab`, and
-what it makes of a mouse it cannot see from beside the cage, read in
-their notes and History. ⚠ Their notes still say what `inRoom` was: a line
+what it makes of a mouse it mostly cannot see while it is company, read
+in their notes and History. ⚠ Their notes still say what `inRoom` was: a line
 naming it is about the old flag.
 
 ### A hand job held past its minutes is failed, and a start-over moves a claim with the clock (#602) — opens when this PR is deployed

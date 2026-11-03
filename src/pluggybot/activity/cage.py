@@ -306,22 +306,39 @@ ACTS = ("shock", "feed", "toy", "company")
 CARE_ACTS = ("feed", "toy", "company")
 
 # ---- what a camera sees of it (issue #605) -------------------------------------
-#: Where a camera's rays are aimed at the cage, in its frame: a 3 x 3 lattice
-#: over its footprint 5 cm in from its walls, at three heights from the tray
-#: to the walls' top. A ray toward one meets the cage first -- a wall, the
-#: tray or what is in it -- or whatever hides it. MEASURED against a
-#: segmentation render of the head camera from 16 places in and round the
-#: lab (#605): wherever a ray met the cage the picture held some of it, and
-#: wherever none did, none of it (`test_mouse.py` pins eight).
-SIGHT_X = (-CAGE_HALF[0] + 0.05, 0.0, CAGE_HALF[0] - 0.05)
-SIGHT_Y = (-CAGE_HALF[1] + 0.05, 0.0, CAGE_HALF[1] - 0.05)
-SIGHT_Z = (0.05, 0.15, 2 * CAGE_WALL_HALF_H - 0.02)
+#: Where a camera's rays are aimed at the cage (`sight_points`): its walls'
+#: outer faces, ends and tops `SIGHT_INSET_M` inside them, `SIGHT_ALONG`
+#: points along the south and north walls and the west and east, at
+#: `SIGHT_Z`; and the tray's middle at mid-thickness. Each lies inside the
+#: cage, so a ray toward one meets it first or meets what hides it. On its
+#: skin because a picture's edge cuts the cage there: 5 cm in, views holding
+#: up to 4,700 px of it went unseen. MEASURED against a segmentation render
+#: of the head camera at 2,166 poses in and round the lab, standing and
+#: bowed (#605's review): never seen where the picture held none of it, and
+#: never unseen where it held any.
+SIGHT_INSET_M = 0.0005
+SIGHT_ALONG = (7, 5)
+SIGHT_Z = (0.01, 0.15, 2 * CAGE_WALL_HALF_H - SIGHT_INSET_M)
 #: What a ray meets first, where the cage is seen: the enclosure or what is
 #: in it.
 SEEN_BODIES = ("cage", "mouse", "bowl", "wheel", "hide")
 #: The geom groups a picture draws (MuJoCo's default `mjvOption`): what no
 #: picture shows hides nothing.
 DRAWN_GROUPS = np.array([1, 1, 1, 0, 0, 0], dtype=np.uint8)
+
+
+def sight_points(cage_xy: tuple[float, float]) -> np.ndarray:
+  """Where a camera's rays are aimed at the cage (`SIGHT_INSET_M`), world
+  (x, y, z), (n, 3)."""
+  ox, oy = CAGE_HALF[0] - SIGHT_INSET_M, CAGE_HALF[1] - SIGHT_INSET_M
+  pts = set()
+  for x in np.linspace(-ox, ox, SIGHT_ALONG[0]):
+    pts |= {(float(x), y, z) for y in (-oy, oy) for z in SIGHT_Z}
+  for y in np.linspace(-oy, oy, SIGHT_ALONG[1]):
+    pts |= {(x, float(y), z) for x in (-ox, ox) for z in SIGHT_Z}
+  pts |= {(x, y, CAGE_TRAY_HALF_T) for x in (-0.2, 0.0, 0.2) for y in (-0.1, 0.0, 0.1)}
+  cx, cy = cage_xy
+  return np.array(sorted((cx + x, cy + y, z) for x, y, z in pts))
 
 
 class Cage(Activity):
@@ -377,11 +394,9 @@ class Cage(Activity):
     self.mouse = MocapToggle(model, data, f"{self.prefix}_mouse",
                              mouse_poses(self.cage_xy))
     seen = {model.body(f"{self.prefix}_{name}").id for name in SEEN_BODIES}
-    self._seen_geoms = np.array([g for g in range(model.ngeom)
-                                 if int(model.geom_bodyid[g]) in seen], dtype=np.int32)
-    cx, cy = self.cage_xy
-    self._sights = np.array([(cx + x, cy + y, z)
-                             for x in SIGHT_X for y in SIGHT_Y for z in SIGHT_Z])
+    self._seen_geoms = frozenset(g for g in range(model.ngeom)
+                                 if int(model.geom_bodyid[g]) in seen)
+    self._sights = sight_points(self.cage_xy)
 
   def kept_state(self) -> dict:
     return {**super().kept_state(), "state": self.state, "until": self.until,
@@ -515,14 +530,17 @@ class Cage(Activity):
     near = float(model.vis.map.znear * model.stat.extent)
     framed = ((ahead > near) & (np.abs(local[:, 1]) <= up * ahead)
               & (np.abs(local[:, 0]) <= up * aspect * ahead))
-    if not framed.any():
-      return False
-    dirs = rel[framed] / np.linalg.norm(rel[framed], axis=1)[:, None]
-    n = len(dirs)
-    geom, dist = np.zeros(n, dtype=np.int32), np.zeros(n)
-    mujoco.mj_multiRay(model, data, pos, np.ascontiguousarray(dirs.reshape(-1)),
-                       DRAWN_GROUPS, 1, -1, geom, dist, None, n, mujoco.mjMAXVAL)
-    return bool(np.isin(geom, self._seen_geoms).any())
+    hit = np.zeros(1, dtype=np.int32)
+    for v in rel[framed] / np.linalg.norm(rel[framed], axis=1)[:, None]:
+      # ⚠ ONE RAY AT A TIME, never `mj_multiRay`: MuJoCo 3.10 culls a body
+      # there by a sphere it centres off the body's centre of mass without
+      # turning the offset into the world, and the cage's inertial frame is
+      # turned -- its sphere sat 6 cm east and 6 cm low, and rays at the far
+      # walls' tops passed through them to the floor (#605's review).
+      mujoco.mj_ray(model, data, pos, v, DRAWN_GROUPS, 1, -1, hit)
+      if int(hit[0]) in self._seen_geoms:
+        return True
+    return False
 
   def context(self, model, data, camera: str | None, aspect: float) -> dict:
     """What a robot's head camera `camera` shows of the cage from where it

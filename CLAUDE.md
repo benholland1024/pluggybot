@@ -1052,7 +1052,10 @@ save a filmstrip PNG named after the script.
   and the JPEG rides the NEXT turn as `seen`, an image part of the user turn
   (`llm.image_part`). ⚠ The dressing may never contradict the geometry where
   the robot can reach. ⚠ NO CAPTION, EVER: nothing the lifecycle emits says
-  what is IN the picture; the MIND looks (`build.eyes` names the model). ⚠ The
+  what is IN the picture; the MIND looks (`build.eyes` names the model). The
+  lab's `cageInView` (#605) is the cage's own sensor, cast off the world at
+  each decision through the camera and frame a look takes, never read off a
+  picture. ⚠ The
   bytes leave the state in `model_state`. `$PLUGGY_LOOK=0` turns the eye
   off. ⚠ ONLY THE WEBSITE'S WORD THAT A RENDERER IS THERE OFFERS `look`
   (#357): the `renderer` inbound kind, a STATE the door keeps
@@ -1592,10 +1595,13 @@ save a filmstrip PNG named after the script.
   `tests/test_mouse.py`): the cage is an ACTIVITY — a state over ONE table
   (`cage.TRANSITIONS`) and clocks (`CLOCKS`), nothing random. ⚠ The state
   reaches the mind ONLY while the cage is in its head camera's picture,
-  framed as a look's (`Cage.context`, #605: rays from where the camera IS,
-  agreeing with a segmentation render; `lab.cageInView`, `lab.mouse` null
-  otherwise), ⚠ NEVER OFF THE ROOM IT STANDS IN: a room's edge is a line in
-  the world, and Rowan bracketed the lab's by asking, its true position.
+  framed as a look's (`Cage.context`, #605: rays from where the camera IS
+  to the cage's skin, agreeing with a segmentation render at 2,166 poses;
+  `lab.cageInView`, `lab.mouse` null otherwise), ⚠ NEVER OFF THE ROOM IT
+  STANDS IN: a room's edge is a line in the world, and Rowan bracketed the
+  lab's by asking, its true position. ⚠ ONE `mj_ray` A RAY, NEVER
+  `mj_multiRay` (MuJoCo 3.10 culls a body whose inertial frame is turned
+  by a misplaced sphere: rays at the cage's far walls passed through them).
   ⚠ A lab SHOWN (`world_config`'s `lab_shown`,
   `Menu.lab`; Ben, 2026-10-31, until a job of theirs uses the plates) has
   the `lab` block and `LAB_SHOWN` (`lab_shown_rule`), and no act and no

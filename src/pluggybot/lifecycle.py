@@ -6379,9 +6379,8 @@ def overseer_context(life) -> dict:
   if life.peers:
     state["others"] = others_context(life)
   # THE LAB (issue #226): the mouse's state while the cage is in the
-  # robot's head camera's picture, framed as a look's (#605), so it never
-  # says the cage is in view where a look would not show it. Only where
-  # the zone exists in the prompt (`Menu.lab`).
+  # robot's head camera's picture, in the frame a look's picture is taken
+  # with (#605). Only where the zone exists in the prompt (`Menu.lab`).
   if life.overseer is not None and getattr(life.overseer.menu, "lab", "") \
       and life.cage is not None:
     # ⚠ NO POSITION IN IT (issue #419): not the bench's, not a route --

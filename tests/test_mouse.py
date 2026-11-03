@@ -293,13 +293,22 @@ def test_the_mouse_is_seen_by_the_head_camera_never_off_the_room(home_model):
                                                                 "mouse": None}
 
 
-#: Where the rays are held to a picture (#605's probe compared 16): the cage
-#: in view from the lab's spawn, the doorway, the lobby through the door and
-#: the plates' row; and out of it behind the robot, under the picture's foot
-#: at company's distance, behind the wall it frames, and from outside.
-PICTURED = ((25.0, 2.0, None), (21.9, 3.0, None), (20.0, 2.0, None), (25.0, 4.38, None),
-            (25.0, 2.0, -math.pi / 2), (25.0, 4.78, None), (20.5, 3.0, None),
-            (25.0, 6.8, -math.pi / 2))
+#: Where the rays are held to a picture (#605's review compared 2,166), and
+#: whether it holds the cage: (x, y, heading or None for its middle,
+#: shown). In view from the lab's spawn, the doorway, the lobby through the
+#: door and the plates' row; out of it behind the robot, under the
+#: picture's foot at company's distance, behind the wall it frames and from
+#: outside. Then the review's: in view from the south and from the east,
+#: only the far walls' tops at the picture's foot (3,178 and 3,160 px of a
+#: look's -- unseen aimed 5 cm in, and by `mj_multiRay` from the east), and
+#: at a 4:3 picture's side but not a square one's (2,047 px), and out of
+#: view at a 16:9 picture's side but not a 4:3 one's (9,251 px at 16:9).
+PICTURED = ((25.0, 2.0, None, True), (21.9, 3.0, None, True), (20.0, 2.0, None, True),
+            (25.0, 4.38, None, True), (25.0, 2.0, -math.pi / 2, False),
+            (25.0, 4.78, None, False), (20.5, 3.0, None, False),
+            (25.0, 6.8, -math.pi / 2, False),
+            (25.0, 4.5, None, True), (26.0, 5.5, math.pi, True),
+            (24.5, 3.0, math.radians(46.0), True), (23.0, 3.5, math.radians(7.0), False))
 
 
 def test_the_cage_is_in_view_where_a_segmentation_render_of_the_picture_holds_it(
@@ -312,18 +321,16 @@ def test_the_cage_is_in_view_where_a_segmentation_render_of_the_picture_holds_it
   renderer = mujoco.Renderer(home_model, look.HEIGHT // 2, look.WIDTH // 2)
   renderer.enable_segmentation_rendering()
   try:
-    shown = []
-    for x, y, yaw in PICTURED:
+    for x, y, yaw, shown in PICTURED:
       _place(home_model, data, x, y, yaw=_toward_the_cage(cage, x, y) if yaw is None else yaw)
       renderer.update_scene(data, camera=HEAD_CAMERA)
       seg = renderer.render()
-      held = bool((np.isin(seg[..., 0], cage._seen_geoms)
+      held = bool((np.isin(seg[..., 0], list(cage._seen_geoms))
                    & (seg[..., 1] == mujoco.mjtObj.mjOBJ_GEOM)).any())
+      assert held is shown, ("premise", x, y, yaw)
       assert _seen(cage, home_model, data)["cageInView"] is held, (x, y, yaw)
-      shown.append(held)
   finally:
     renderer.close()
-  assert shown == [True] * 4 + [False] * 4
 
 
 def test_the_cage_is_in_the_home_worlds_activities(home_model):
@@ -452,8 +459,10 @@ def _life(home_model, tmp_path, mind=None):
 
 def test_the_context_shows_the_mouse_only_through_its_bodys_head_camera(home_model,
                                                                         tmp_path):
-  """...the body's own (`Body.head_camera`, #605), and no position in it
-  (issue #419): not the bench's, not a road."""
+  """...the body's own (`Body.head_camera`, #605) in a look's frame -- the
+  cage at a 4:3 picture's side is in view and at a 16:9 one's is not
+  (`PICTURED`'s last two) -- and no position in it (issue #419): not the
+  bench's, not a road."""
   life = _life(home_model, tmp_path)
   life.body.head_camera = HEAD_CAMERA          # the house's humanoid's, on the stub
   state = overseer_context(life)
@@ -462,6 +471,10 @@ def test_the_context_shows_the_mouse_only_through_its_bodys_head_camera(home_mod
   life.cage._advance(1.0, _press(feed=True), False)
   assert overseer_context(life)["lab"] == {"room": "lab", "cageInView": True,
                                            "mouse": "eating"}
+  _place(home_model, life.data, 24.5, 3.0, yaw=math.radians(46.0))
+  assert overseer_context(life)["lab"]["cageInView"] is True
+  _place(home_model, life.data, 23.0, 3.5, yaw=math.radians(7.0))
+  assert overseer_context(life)["lab"]["cageInView"] is False
   life.body.head_camera = None                 # a body with no head camera sees nothing
   assert overseer_context(life)["lab"] == {"room": "lab", "cageInView": False, "mouse": None}
   # ...and none of it on a mind without the zone
