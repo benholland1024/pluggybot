@@ -4234,16 +4234,13 @@ the walker's: a step that lands 4-5 cm inside the seat (its tolerance is
 asked 4 cm back, five steps moved it 1-5 mm each -- and the dock ends "not
 lined up", as the level ring's did once in stage 1.
 
-**The matcher's reach, read again** (`MATCH_RANGE_M`). It is 6.5 m because
-the C1 read a wall at its 8 m reach short (its long draws clipped to no
-return), and the street's far wall pulled the pose 32 mm a scan. The
-Mid-360S's band reads a wall square ahead within 2-3 mm of where it stands
-out to 7.9 m (60 frames a range, 5-7.95 m: a mean of -1.5 to -3.9 mm, 17 mm
-a bearing), so the bias no longer forces 6.5 m. It stays: in this house the
-band has a fence within 4 m everywhere outdoors, so nothing moved with it,
-and a return past 6.5 m is struck by one to three rings near the band's
-rising floor. A wider world's next limit is the LIDAR's 8 m (`MAX_RANGE`),
-which sets each scan's cost, and the part reaches 40.
+**The matcher's reach, read again** (`MATCH_RANGE_M`). It was 6.5 m because
+the C1 read a wall at its 8 m reach short. The Mid-360S's band reads a wall
+square ahead within 2-3 mm of where it stands out to 7.9 m (60 frames a
+range, 5-7.95 m: a mean of -1.5 to -3.9 mm, 17 mm a bearing), so the bias
+no longer forced 6.5 m; it stayed while this house had a fence within 4 m
+everywhere outdoors. **What is true now:** it is the map's 8 m, for the
+grown world's park ("The grown world", #560).
 
 **The depth camera's low layer, measured: kept.** Over a 150-240 s explore
 and a walk across the street, the layer blocked 606-812 cells the band's

@@ -36,13 +36,15 @@ REACH_M = 0.30
 #: Unseen cells this close behind a wall are its inside, cells: a thin wall
 #: is one cell, and its returns land on both sides of that cell's centre.
 BEHIND_CELLS = 2.0
-#: Returns at or past this range are left out, m. MEASURED on a recorded
-#: lab trip: a wall at the LIDAR's 8 m reach is seen SHORT -- its long
-#: draws are clipped to "no return", and the map clears it with the same
-#: rays -- and the street's far wall pulled the pose 32 mm toward it every
-#: scan; with returns cut at 6 m the pull was 0.0 mm (sd 3.5). 6.5 m made
-#: the worst error of the trip smallest (0.18 m against 0.23 at 6 and 7).
-MATCH_RANGE_M = 6.5
+#: Returns at or past this range are left out, m: the map's own reach
+#: (`lidar.MAX_RANGE`) since #560. The park's middle is 8 m from its nearest
+#: fence, and at 6.5 m (set on the C1's 2D LIDAR, whose far wall pulled the
+#: pose) the static probe left its heading unpinned at 71 % of places, at
+#: 8.0 26 % (`lidar_spike.py --probe`, the band); flown (the drift spike,
+#: eight flights an arm on one pod, two of them standing in the park), the
+#: belief's worst error was a median 0.13 m at 8.0 against 0.15 at 6.5, no
+#: flight worse (SimNotes, "The grown world").
+MATCH_RANGE_M = 8.0
 #: ...and returns nearer than this, m: what the hands work on -- the
 #: station's box, the plug in the hand, a drawer, a door -- each low surface
 #: struck by one ring or two at the part's noisiest (4 cm at 0.2 m), where a

@@ -62,8 +62,9 @@ LIDAR_PERIOD = 0.1
 #: cost (360 rays x 320 samples at 8 m), and a no-return ray only clears free
 #: space the robot will scan again as it walks. Under-ranging the part is the
 #: conservative error -- a return past 8 m is dropped, never invented -- and
-#: the matcher reads 6.5 m of it (`scan_match.MATCH_RANGE_M`). Raise it if a
-#: world grows a sightline the map needs from a standstill.
+#: the matcher reads all of it (`scan_match.MATCH_RANGE_M`, #560: the park's
+#: middle). Raise it if a world grows a sightline the map needs from a
+#: standstill.
 MAX_RANGE = 8.0
 #: Its field upside down, deg: the sheet's -7 to +52 turned over. A frame's
 #: rings run from its lower edge, `RING_DEG` apart, `BEARINGS` round each:
