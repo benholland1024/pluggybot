@@ -5145,6 +5145,12 @@ the humanoid at the table's south place; flights in
 - *Shape is not the plate's trouble*: a 4 cm wall and a 3 cm handle laid 8
   plates of 32 and no fork.
 
+![Our procedure at the table's set-out 0: the cup carried by the right hand
+and set down by the card (5-20 s), then -- after a step and the plate, out
+of these tiles -- the fork's carry run out of reach, the left arm still out
+over the place at the call (`scripts/hands_check.py --strip table 0`;
+`--view table K` watches one)](figures/hands_table.png)
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

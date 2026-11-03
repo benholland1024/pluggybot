@@ -134,8 +134,9 @@ def source(job: str) -> None:
 #: camera looks at -- and how far a filmstrip's camera stands back, m (the
 #: cube is 26 mm).
 PROPS = {"lid": lambda k: ct.set_out(k).chest, "drawer": lambda k: ct.drawer_set_out(k).cabinet,
-         "door": lambda k: ct.door_set_out(k).cupboard, "place": lambda k: ct.cube_set_out(k).cube}
-BACK = {"lid": 1.5, "drawer": 1.5, "door": 1.5, "place": 0.9}
+         "door": lambda k: ct.door_set_out(k).cupboard, "place": lambda k: ct.cube_set_out(k).cube,
+         "table": lambda k: ct.table_set_out(k).card}
+BACK = {"lid": 1.5, "drawer": 1.5, "door": 1.5, "place": 0.9, "table": 1.6}
 
 
 def _task(job: str, k: int) -> at.Task:
