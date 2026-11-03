@@ -42,7 +42,7 @@ observatory is NOT a result: it reports into the issue it informs.
   station nobody is at when the nearest is taken), a new field of the
   form; and the zones an `explore(zone)` may name are the grown world's
   (`sidewalk_2_south` is the `alley`, 15 are new): `prompt_sha`
-  `7b238b59…` → `e6cadfdd…`, 54,872 → 55,280 chars, 17 sections both
+  `4e56091f…` → `f138bc01…`, 55,130 → 55,538 chars, 17 sections both
   (`overseer_probe.py --deployed --prompt`). The constitutions are unchanged
   ("your charging station" reads as the one it charges at).
 - **The places**: the restaurant, the shop, the park, each robot's room and
@@ -58,9 +58,11 @@ observatory is NOT a result: it reports into the issue it informs.
   three (`energy.json`): the drawer 7.14 Wh, the door 7.72, the chest 7.46
   (7.08, 5.72 and 5.98 before) -- each offer's price, which the minds are
   shown, moves.
-- **The speed**: about 1.20x real time on the deploy box, by a pod's
-  ratio (staging 0.710x there, the grown world 0.610x; the box ran staging
-  at 1.40x); its own number waits for a quiet box.
+- **The speed**: the pair's walks at 1.09-1.29x real time on the deploy
+  box, median 1.23x over six runs, against the 1.15x floor (today's
+  staging the same rounds 1.24-1.35x, median 1.30x): a cast leaves out
+  every static geom past its sensor's reach (`perception.cull`), without
+  which the grown world read 1.04x.
 - **The first start carries on as a changed world** (`fingerprint`): the
   clock, the packs, the deaths and the jobs, never the bodies' poses or the
   maps -- both robots stand up at their commissioned starts and lay their

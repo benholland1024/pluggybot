@@ -612,7 +612,11 @@ save a filmstrip PNG named after the script.
   every ray met it. The level ring stays for the instruments and as the
   Navigator's default scan; nothing the humanoid decides reads it since
   #572's stage 3. ⚠ NO CUTOFF ON THE CAST: MuJoCo culls a plane by its
-  centre.
+  centre. ⚠ A STATIC GEOM PAST A SENSOR'S REACH IS LEFT OUT OF ITS CAST
+  (`perception.cull`, #560; the LIDAR's and the depth camera's): every geom
+  costs every ray, reachable or not, and the readings are the same bit for
+  bit (`test_cull.py`) -- judged afresh each cast, as activities move and
+  resize geoms.
 - **A humanoid is told its own body and world** (#559 stages 3 and 5;
   `Menu.kinds`, `hands_procedure_rule`, `steps.served_hand_facts`;
   `tests/test_humanoid_words.py`; Overseer.md §8b): ⚠ ITS WORDS ARE THE ONLY
@@ -1687,12 +1691,12 @@ save a filmstrip PNG named after the script.
   under the PAIR world's name (`robot.pair_model_name`). `serve.py --pair`
   serves both through ONE publisher; a reach-in's `robot` picks its inbox
   (absent means the primary); the operator switch is the primary's. ⚠ The
-  served humanoid pair runs at ~1.4× real time on the deploy box (1.40x and
-  1.41x with the LIDAR's band, #581's stage 2; 1.62x and 1.65x on its level
-  ring, #559; SimNotes, "The band served") -- ~1.2× in the grown world, by a
-  pod's ratio (#560: 14 % slower, 59 % of it the LIDAR's cast against 115
-  more geoms; SimNotes, "The grown world"): ONE physics thread, so more
-  cores do not move it. ⚠ THE TAG CAMERA RENDERS
+  served humanoid pair's walks run at ~1.2× real time on the deploy box in
+  the grown world (#560, 3 Nov: 1.09-1.29x over six runs, median 1.23x,
+  against Ben's 1.15x floor; staging's the same rounds 1.24-1.35x, median
+  1.30x; 1.04x before the cast's cull, `perception.cull`; SimNotes, "The
+  grown world") -- 1.40x and 1.41x on #581's stage 2: ONE physics thread,
+  so more cores do not move it. ⚠ THE TAG CAMERA RENDERS
   WITHOUT SHADOWS: under osmesa a 1280×720 home frame cost 1113 ms with its
   sixteen shadow-casting lights and 32 ms without
   (`tests/test_render_context.py`).

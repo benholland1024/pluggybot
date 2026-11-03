@@ -5004,22 +5004,24 @@ went from 0.13 m to 0.21, five flights worse and one from 0.13 to 0.47 m
 in the living room. So the window stays where it flew best.
 
 **What it costs.** The served pair's walks (`humanoid_spike.py --speed`'s
-pair, the same walks in the house as every reading since #507), one pod
-(Vast, a Xeon E5-2697 v4), staging and this branch a process at a time,
-interleaved three times: staging 0.716, 0.705 and 0.710x real time, the
-grown world 0.612, 0.612 and 0.607x -- 14 % slower -- and the pair walking
-in the mall 0.609, 0.600 and 0.611x. The deploy box served staging's pair at
-1.40x, so the grown world there would be about 1.20x; its own number waits
-for a quiet box (the live reading runs there). Profiled (osmesa, the dev box), the
-grown world's extra wall time is 59 % the LIDAR's cast (11.7 to 15.1 ms a
-frame: 115 more geoms), 18 % the bigger grid's scan updates and plans
-(#558's table), 13 % the physics' steps and 4 % the renders' extra lights.
-A lever left for later: the visual-only floor and ground slabs and the tags
-(55 boxes, 1-3 mm over what is behind them) cost a quarter of each cast
-(13.5 to 9.9 ms in the house), but they share the rendered geom groups with
-what the LIDAR must see -- the robots' own visual meshes among them -- so
-leaving them out of the cast is a change to what it returns from the other
-robot and from itself, not a free one.
+pair, the same walks in the house as every reading since #507). On the
+deploy box (3 Nov, the world paused by its schedule; #558's recipe, the
+serving image a container a tree pinned to one idle core, the trees
+interleaved), the grown world first read 0.94, 1.13 and 1.04x against
+today's staging's 1.24-1.35x -- under the 1.15x floor Ben set. Profiled on
+a pod it was 14 % slower, 59 % of that the LIDAR's cast. ⚠ EVERY GEOM IN THE
+MODEL COSTS EVERY RAY of an `mj_multiRay`, reachable or not: the band cost
+9.4 ms a frame on staging's 236 geoms and 12.6 on the grown world's 351,
+and its cutoff saved nothing, again; geom groups a cast leaves out do drop
+out. So a cast leaves out every static geom past its sensor's reach
+(`perception.cull`, the LIDAR's and the depth camera's, 177-241 of the 248
+at each place): the same readings bit for bit (`test_cull.py`), and the
+box's walks went to **1.09, 1.29, 1.25, 1.25, 1.10 and 1.21x, median
+1.23x**, staging's 1.24, 1.33, 1.29, 1.35, 1.30 and 1.31x (median 1.30x)
+the same rounds: 7 % slower, where it was 19 %. A further lever, not built:
+the visual-only floor and ground slabs and the tags (55 boxes, 1-3 mm over
+what is behind them) inside a sensor's reach -- left out, a return moves
+by their millimetres, so a flight is no longer the same flight.
 
 **Flown at the new stations** (`station_spike.py --approach --n 30
 --station`, the same 33 starts round each standoff, one pod): the house's
