@@ -391,6 +391,25 @@ def test_a_board_that_carries_on_keeps_its_last_change(tmp_path):
   assert board(path=path, rebase=False)[held.id].claimed_t == 500.0
 
 
+def test_a_held_job_says_what_is_left_of_the_time_it_gives(tmp_path):
+  """`leftS` (#602): what is left of a held job's minutes from its claim,
+  never below 0 -- and from a claim a start-over moved, still counting the
+  time it was held before the save. A job that gives no time, or was never
+  taken, has none to show."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  held = offered(b, t=900.0)                                     # 16 minutes
+  b.claim(held.id, robot="pluggybot", t=1000.0)
+  b.start(held.id, t=1000.0)
+  assert b[held.id].left_s(1100.0) == 860.0 and b[held.id].left_s(9999.0) == 0.0
+  assert b.held_context("pluggybot", 1100.0)[0]["leftS"] == 860.0
+  assert b.held_context("r2_pluggybot", 1100.0) == []
+  offered(b, kind="open_door", target="door", ttl=900.0, t=1200.0)  # the save at 1200
+  assert board(path=path)[held.id].left_s(0.0) == 760.0
+  act = b.offer("take_points", "r2_pluggybot", params={"amount": 25}, t=0.0)
+  assert b[act.id].left_s(0.0) is None
+
+
 def test_a_task_interrupted_by_a_restart_is_said_on_the_wire_once(tmp_path):
   """`load` runs before any hook exists, so a job a restart failed left no
   row: on the observatory the bench's one claim read `active` for five
