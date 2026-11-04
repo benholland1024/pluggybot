@@ -10,6 +10,35 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The hands' small fixes: a step judged once its feet stride, a way out judged as the way home is, a pressed hand eased before it shuts (#560, stage (a)) — opens when this PR is deployed
+
+**What changed in the world.** The served pair's hands and feet, on every
+hand job, procedure and plug-in:
+- **A `step` is "blocked" only once its feet stride** (a sole off the
+  floor), or where they never do in 2 s.
+- **A reach from the hanging arm goes out round by its side** where
+  straight would sweep the arm low ahead of the robot (`Reach.way_out`): a
+  reach takes 1-2.5 s longer, a dock about 2 s.
+- **A hand pressed on what it met is eased to where it is before its jaws
+  shut** (`Reach.ease`).
+- **The side way home's roll comes in with the shoulder pitched back.**
+- Nothing in the prompt, the schema, the arm or the reward table moved, nor
+  the station, the body's parts or the house.
+
+**Why.** #560's table found four defects in the hands (SimNotes, "Setting a
+table"): a sidestep from the standing policy's stance shuffled unseen and
+read "blocked"; the straight way out drove a hanging hand into a table at
+353-359 N; a cube's grip dragged its jaws across the board and turned the
+feet 4-6 deg; and the side way home dragged a jaw over a counter the robot
+stood turned to, turning it 20 deg. Flown before and after on one pod: the
+served jobs from the tour, the drawer 7 and 7 of 8, the door 8 and 8, the
+chest 5 and 5; the station 36 of 36 docks from round the standoff and 139 of
+140 seats, both.
+
+**What the period is for.** Charges still plug in (no `stuck` death and no
+charge narrated "no charge contact"), and the hand jobs' grades hold: read
+off the charges' narration and the `death` rows, and the jobs' verdicts.
+
 ### The world grows: the park and the mall, a room for each robot, and a station in each building (#560, stage 1) — opens when both halves are deployed, this PR's and rooftop-media-2026's
 
 **What changed in the world.** The world itself, and where a robot charges.
