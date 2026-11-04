@@ -1440,8 +1440,8 @@ a fallback. `Decision.scripted` means "a fallback produced this".
 | `llm` | — | a real answer |
 | `llm:<model>` | — | …from the escalation model (issue #37) |
 | `event:<type>` | — | a row of the agent's own event map (issue #127) |
-| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (115 s, §6) |
-| `fallback:offline` | failure | nobody answered — transport, HTTP, auth, rate limit, 5xx |
+| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (300 s, §6): nothing came back, or a stream was still being written (it names who) |
+| `fallback:offline` | failure | nobody answered — transport, HTTP, auth, rate limit, 5xx, a stream closed mid-answer |
 | `fallback:garbled` | failure | somebody answered, and it was not a decision |
 | `fallback:cutoff` | failure | somebody answered, and its tokens ran out before the answer was written (issue #604; §6) |
 | `fallback:busy` | failure | the previous call is still out there; a second is not piled on |
@@ -1851,49 +1851,147 @@ robots were making), each request sent again through the deployed adapter.
 | `:deepinfra`, pinned | 20 | 342–1,996 | 27 s | never near a budget |
 | `:novita`, pinned | 2 | — | 120 s | 504 both times; STREAMED it wrote 3,418 tokens in 53 s, and 8,192 with no answer in 128 s |
 
-So the three providers `:cheapest` ties at one price are three minds as far
-as a deadline is concerned: baseten thinks long and fast (~170-190 tokens a
-second on a long answer), deepinfra briefly, and novita long at ~64 a
-second, which no non-streamed call outlasts. The empties are the long
-thinks a budget cuts off; the timeouts are calls that never come back in
-time, and no budget moves those.
+So the three providers `:cheapest` ties at one price were three minds as
+far as a deadline was concerned: baseten thought long and fast, deepinfra
+briefly, and novita long and slowly, which no non-streamed call outlasted.
+The empties were the long thinks a budget cut off; the timeouts were calls
+that never came back in time, which no budget moves. #604 raised the budget
+to 16,384 and the deadline to 115 s, the most a call not streamed could
+use, and made a cut-off `fallback:cutoff`: its follow-up, below, streams.
 
-- **`MAX_TOKENS_AUTONOMOUS` is 16,384**: on the worst turn measured, cut-offs
-  3 of 5 → 1 of 5, the 10,905 and 11,776 answered and the 16,986 cut off.
-- ⚠ **THE BUDGET IS SIZED TO THE DEADLINE**: baseten writes a long answer
-  at 176-191 tokens a second plus ~5 s of reading, so 16,384 comes back in
-  ~98 s, inside `CALL_TIMEOUT_S` (115 s, below) with ~15 s to spare, and a
-  think that runs out is a cut-off, metered and said. Past the deadline it
-  would be a timeout, which no response reaches `_meter` from, counted
-  toward the cooloff (`MAX_CONSECUTIVE_ERRORS`, where a cut-off is not),
-  and naming nobody: at the old 90 s this budget was 12,288 for that reason
-  (the review's catch). A bigger budget needs a bigger deadline, which a
-  non-streamed call cannot use past the gateway's 120 s.
-- **The interrupt's is 4,096** (`MAX_TOKENS`, 1,024 since #116): asked on
-  the live robots' turns it thought 489-1,846 tokens (12 of 12 answered at
-  32,768), and 7 of 20 ran out of the 1,024; a failed interrupt stops the
-  errand, so a `battery_below -> ask` row read as "stop" a third of the
-  time. ⚠ Not the decision's 16,384: it is asked as the pack runs low,
-  mid-errand, and twice its longest think comes back in ~28 s where the
-  decision's budget could hold the robot still for most of two minutes.
-  `ESCALATE_MAX_TOKENS` follows the decision's.
-- ⚠ **A cut-off of 16,384 bills about $0.012** at ~25k tokens in, against
-  $0.008 at 8,192: the ceiling is only paid where an answer needs it.
-- ⚠ **A timeout bills what nobody meters**: no response reaches `_meter`,
-  so the purse (`$PLUGGY_WEEKLY_USD`) never sees whatever the provider
-  billed for a call the deadline or the gateway gave up on -- and at 16,384
-  that can be twice what it could at 8,192. Whether the router bills it is
-  not known here: the router's own bill beside the spend record over a day
-  of timeouts says.
+- **The interrupt's budget is 4,096** (`MAX_TOKENS`, 1,024 since #116):
+  asked on the live robots' turns it thought 489-1,846 tokens (12 of 12
+  answered at 32,768), and 7 of 20 ran out of the 1,024; a failed interrupt
+  stops the errand, so a `battery_below -> ask` row read as "stop" a third
+  of the time. ⚠ Never the decision's: it is asked as the pack runs low,
+  mid-errand, and twice its longest think comes back in ~28 s.
+- ⚠ **A timeout bills what nobody meters**: no usage reaches `_meter`, so
+  the purse (`$PLUGGY_WEEKLY_USD`) never sees whatever the provider billed
+  for a call the deadline gave up on. Whether the router bills it is not
+  known here: the router's own bill beside the spend record over a day of
+  timeouts says.
 - **The robot is told the tokens the provider says it spent** (a provider
   capping below the ask spends fewer), and a cut-off interrupt says "the
   answer ran out of its tokens", not "nobody answered".
-- **Not done here**: the timeouts are a provider the policy picks, and the
-  model id is the deployment's (`$PLUGGY_MODEL`): pinned to one provider,
-  or answers STREAMED (`llm.stream_fetch`, practice's), they would not hang;
-  either is a decision of its own. The decision rows name who answered or
-  ran out (`pw_decisions.provider`); a timeout brings back no header and
-  names nobody, so which provider hangs is read by pinning one, as here.
+
+### Streamed, and how hard each mind thinks (#604's follow-up)
+
+Ben's calls of 11-04: pin a faster provider, be generous with the call's
+time and tokens, since a cut or timed-out answer is billed and thrown away,
+and consider a stronger model, paid for by running less (16 hours a week
+since #562). So the robots' calls STREAM (`llm.deadline_fetch`): the
+gateway's 120 s no longer ends one, and a provider that held a non-streamed
+answer to the end answers. Measured as #604 did, on the live robots' own
+turns: 24 from the 03:15 UTC backup of 11-04, on staging as it will deploy
+(the robots' own constitutions, their History, recall chains to two
+blocks, the heaviest a live turn carries), each sent again streamed through
+the deployed adapter at 65,536 tokens and held to 600 s, so no tail was cut,
+two at a time per model as the pair asks; each answer judged by the
+deployed `Menu.validate` on the captured menu. Rows and scripts:
+`~/pluggybot-training/issue-604-stream/`.
+
+| model, provider, effort | calls | valid | wall s, median / p90 / max | tokens out, median / max | $ a call | its interrupts |
+|---|---|---|---|---|---|---|
+| GLM-5.3-Flash, baseten | 29 | 28 | 40.6 / 80.7 / 98.2 | 5,179 / 19,739 | 0.0070 | 4 of 4, ≤ 20 s |
+| ... `high` | 16 | 16 | 36.1 / 83.2 / 114 | 5,104 / 13,702 | 0.0072 | 2 of 2 |
+| ... `low` | 16 | 16 | 10.0 / 14.0 / 14.1 | 1,437 / 2,091 | 0.0049 | 2 of 2, ≤ 6 s |
+| GLM-5.3-Flash, deepinfra | 32 | 31 | 12.5 / 22.1 / 54.9 | 1,498 / 5,923 | 0.0050 | 8 of 8, ≤ 8.4 s |
+| GLM-5.3-Flash, novita | 12 | 12 | 197 / 315 / 315 | 18,068 / 26,945 | 0.0132 | **0 of 2**: both ran out of 4,096 |
+| DeepSeek-V4.1-Flash, baseten | 7 | 7 | 86 / 212 / 212 | 20,762 / 50,789 | 0.0459 | 2 of 2 |
+| ... `low` | 20 | 20 | 31.9 / 61.6 / 115 | 7,530 / 26,637 | 0.0202 | 2 of 2, ≤ 11 s |
+| DeepSeek-V4.1-Flash, deepinfra (no reasoning) | 31 | 31 | 12.6 / 17.1 / 26.5 | 1,618 / 2,289 | 0.0066 | 8 of 8, ≤ 4.5 s |
+| ... `low` | 16 | 16 | 30.1 / 72.9 / 99.3 | 5,946 / 14,669 | 0.0096 | 2 of 2, ≤ 9 s |
+| ... `high` | 4 | 4 | 205 / 356 / 356 | 23,319 / 58,993 | 0.0264 | |
+| Qwen3.5-397B-A17B, deepinfra | 29 | 29 | 17.1 / 89.4 / 101 | 1,018 / 5,991 | 0.0184 | 4 of 4, ≤ 21 s |
+
+The misses: a map rule with an unknown kind (GLM on deepinfra; DeepSeek on
+deepinfra did it on the probe), a `recall` naming nothing; and on the probe
+one baseten stream failed mid-answer ("Stream ended before generation
+completed", `offline`). What the table says:
+
+- **The three minds were the providers' default EFFORT.** A reasoning
+  model's think is set by `reasoning_effort` (GLM-5.3-Flash: low, high,
+  max, the card's default max; DeepSeek-V4.1-Flash: low, high, and 1-100 by
+  its card, untried), and the router passes it: unset, each provider applies
+  its own. DeepSeek thought a median of 21k tokens a turn on baseten (51k
+  the most) and none on deepinfra; 7.5k at `low` on baseten, 5.9k at `low`
+  and 23k at `high` on deepinfra.
+  `$PLUGGY_REASONING_EFFORT` names it for the deployment (`overseer.
+  EFFORT_ENV`; sent on every call, said in the header as
+  `build.reasoningEffort`; the chat backends' alone: the Anthropic path's
+  `effort` is a 400 on Haiku 4.5). Unset is today's: the provider's.
+- **novita is the one to keep the robots off**: 197 s a decision, 2 of 12
+  past five minutes, and both its interrupts ran out of their 4,096 tokens
+  thinking (a cut-off interrupt aborts the errand). Under `:cheapest` it
+  takes a share of the calls; pinned elsewhere, none.
+- **Every candidate SEES**, through every provider: each read a red "38"
+  beside a green circle, with and without the decision's schema beside the
+  picture, and described the site's garden (`seetest.py`). GLM-5.3 and
+  DeepSeek-V4-Pro, the text-only ones, are not candidates. ⚠ The live
+  robots have never been shown a picture: no eye has run on the deploy box
+  (§2h), so `look` has been off their menu since #357.
+- **The probe's energy gate no longer separates them** (`overseer_probe.py
+  --deployed --image`, 12 calls each): every configuration charged first,
+  none took the job it could not pay for -- so whether the stronger model
+  decides better is not measured here (below).
+
+What a long think costs. The robot STANDS STILL while it thinks (`_decide`,
+`hold_routine`), at the ~93 W a humanoid draws standing, while its world
+goes on: the other robot works, offers come and go, a held job's minutes
+run. 300 s of it is 7.8 Wh, 40 % of the reserve (19.5 Wh); and the call's
+wall comes out of the 1800 s the robot's map has to ask again in
+(`lifecycle.UNMINDED_AFTER_S`, stamped at the ASK: #317 chose 1800 with a
+1.31x margin over the worst healthy gap, which a 300 s call can take). At
+the live pair's ~48 calls an hour (Luca 30, Rowan 16; 11-01 to 11-03), the
+MEDIAN think stands each robot still ~5 minutes of its hour on deepinfra and
+~16 on baseten -- today's regime, mostly baseten's under `:cheapest`.
+
+The numbers, and why:
+- **`CALL_TIMEOUT_S` is 300 s** (115 s since #604): every flowing think
+  measured fits but novita's slowest. A stream still writing at it is
+  `fallback:timeout` (`StillWriting`), naming who was answering, never
+  metered; one the far side closed is `offline` (`StreamClosed`); a whole
+  JSON before either is an answer.
+- **`llm.STREAM_SILENCE_S` is 60 s**: each read's, so a stream that sends
+  nothing (a hang) ends there, not at the deadline; the slowest first byte
+  measured was 13 s (novita), and one cold DeepSeek call took 244 s
+  streaming.
+- **`MAX_TOKENS_AUTONOMOUS` is 24,576** (16,384 since #604): it covers
+  every think measured on baseten's GLM (19,739 the most) and 19 of
+  DeepSeek-at-`low`'s 20, and comes back inside 300 s at 85 tokens a second
+  after a 10 s first byte -- 15 of baseten's 17 long answers wrote at
+  100-212. Slower, a think that runs out is a timeout, not a cut-off.
+- **`INTERRUPT_TIMEOUT_S` is 115 s**, its own: the interrupt holds a
+  low-pack robot still mid-errand, and its 4,096 tokens come back in ~70 s
+  at the slowest writer measured (Qwen on deepinfra, 60 a second).
+- **`ESCALATE_TIMEOUT_S` is 360 s**, an ordering above the decision's.
+
+Which mind, then -- the deployment's to set (`$PLUGGY_MODEL`,
+`$PLUGGY_REASONING_EFFORT`), recommended 11-05 at the pair's ~48 calls an
+hour, 16 hours a week (768 calls) against the $20 purse:
+
+- **Now: `zai-org/GLM-5.3-Flash:baseten`, no effort named.** The mind the
+  robots mostly had (#604: 41 of 44 `:cheapest` calls landed there), made
+  reliable: 28 of 29 live turns valid, every think back inside 98 s and the
+  longest (19,739 tokens) inside the budget, its interrupts 4 of 4; ~$5 a
+  week. Pinned, no call lands on novita.
+- **A stronger model, as a period of its own: `deepseek-ai/DeepSeek-V4.1-
+  Flash:deepinfra` at `low`.** 16 of 16 live turns valid, a median of 30 s
+  and 99 s the most, ~6k tokens a think, $0.0096 a call (~$7 a week), and
+  the router's catalogue lists structured output for deepinfra's (not
+  baseten's). Not measured to decide
+  better -- the energy gate passes every candidate -- but larger and newer
+  (552B, 8-16B active, 10 Sep 2026; GLM-5.3-Flash 320B, 18B active, 25 Aug),
+  its card's agentic numbers above GLM-5.3's, and it wrote #560's first
+  table procedure that fit and ran. ⚠ Its effort is the whole difference:
+  at deepinfra's default it does not reason at all, and at baseten's it
+  thought a median of 21k tokens a turn, 51k the most ($0.046 a call, up to
+  three and a half minutes).
+- **Faster: GLM-5.3-Flash on baseten at `low`**: 16 of 16 valid, a median
+  of 10 s, ~1.4k tokens, ~$4 a week; each robot stands still ~4 minutes of
+  its hour where baseten's default stands it ~16 -- a shallower think.
+- ⚠ **Not `:cheapest`**: it still lands on novita, whose decisions take
+  three minutes and whose interrupts run out of their tokens.
 
 ### The local backend
 
@@ -1915,7 +2013,8 @@ wants the machine a served world already assumes: the sim's own container.
 
 ### The deadline
 
-`CALL_TIMEOUT_S` = 115 s (90 s from #117 to #604). The probe (`scripts/overseer_probe.py --calls 50`,
+`CALL_TIMEOUT_S` = 300 s, streamed (90 s from #117 to #604, 115 s to its
+follow-up; above, "Streamed"). The probe (`scripts/overseer_probe.py --calls 50`,
 quiet, the deployed pick) reports the latency **distribution** and the timeout
 share each candidate deadline would cost: median 4.88 s, p95 6.59, max
 **7.38 against the old 8** — 0 % timeouts and no margin, which is why any
@@ -1930,21 +2029,18 @@ read 37 s median with calls at 120 s; the pick's tail (p95 25 s, max 43 s)
 was what the 90 s stood against.
 
 The deadline is a patience budget: a decision lost to a clock is the one
-failure that is purely ours. A cap is only *spent* when a call is slow — at
-the median the day's thinking is ~98 sim-s (2.7 %) whatever the cap is. 90
-was not read off the tail; ⚠ by #604 the tail had reached it: on 11-03 13 %
-of the deployed calls (146 in a day) outlived 90 s, and on the live robots'
-own turns the longest answers took 88.7 s (16,986 tokens) and 94.6 s. So
-**115**: the router's gateway answers a non-streamed request silent for 120
-s with a 504 (measured four times, at 120.2-120.3 s), so no answer comes
-later, and 115 plus `POLL_GRACE_S` (117) ends a call as our own `timeout`
-before it, never the gateway's `offline`. The token budget is sized to it
-(above, "The budget"). ⚠ The 25 s it adds is paid by every call that hangs
-— a provider that never answers in time stands the robot still 115 s, not
-90 — which is the pinned provider's argument, not this number's.
-`ESCALATE_TIMEOUT_S` (120) follows as an ordering, not a number, and the probe
-holds its calls to 2× the deadline (`PROBE_TIMEOUT_S`), never to the deadline
-under test.
+failure that is purely ours. A cap is only *spent* when a call is slow, but
+a slow call is spent standing still (above, "What a long think costs"). By
+#604 the tail had reached 90 s (13 % of the deployed calls on 11-03), and a
+call not streamed could use no more than 115: the router's gateway answers
+a request silent for 120 s with a 504 (measured four times, at 120.2-120.3
+s). Streamed, **300**: every flowing think measured on the live turns but
+novita's slowest. A stream silent for `llm.STREAM_SILENCE_S` (60 s) ends
+there, so a provider that never answers stands the robot still a minute,
+not the deadline. The token budget is sized to it (above). The interrupt
+keeps its own `INTERRUPT_TIMEOUT_S` (115 s), `ESCALATE_TIMEOUT_S` (360)
+follows as an ordering, not a number, and the probe holds its calls to 2×
+the deadline (`PROBE_TIMEOUT_S`), never to the deadline under test.
 
 ### Money has three states
 
@@ -2435,7 +2531,7 @@ PLUGGY_ARM=autonomous PLUGGY_ORIGIN=unseeded PLUGGY_PAIR=1 HF_TOKEN=... \
 
 Environment (the deploy configures with `environment:` alone): `PLUGGY_ARM`,
 `PLUGGY_RUNG`, `PLUGGY_ORIGIN`, `PLUGGY_OVERSEER`, `PLUGGY_MODEL`,
-`PLUGGY_OVERSEER_BACKEND`, `PLUGGY_OVERSEER_URL`, `PLUGGY_ESCALATE_TO`,
+`PLUGGY_REASONING_EFFORT`, `PLUGGY_OVERSEER_BACKEND`, `PLUGGY_OVERSEER_URL`, `PLUGGY_ESCALATE_TO`,
 `PLUGGY_WEEKLY_USD`, `PLUGGY_SPEND`, `PLUGGY_MODE_FILE`,
 `PLUGGY_THOUGHTS`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`,
 `PLUGGY_ENERGY`. `ANTHROPIC_API_KEY`, `HF_TOKEN` and `PLUGGY_OVERSEER_KEY` are

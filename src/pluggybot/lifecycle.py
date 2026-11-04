@@ -5984,8 +5984,10 @@ class HubLifecycle:
     # Said on scripted runs too: "nothing is choosing" is the answer a
     # reader most needs, and the one an absent line quietly hides.
     if self.overseer is not None:
+      effort = getattr(self.overseer, "reasoning_effort", None)
       self._remember(f"thinking with {self.overseer.model} "
-                     f"({self.overseer.backend})")
+                     f"({self.overseer.backend}"
+                     + (f", effort {effort}" if effort else "") + ")")
     else:
       self._remember("nobody is choosing today -- flying the scripted "
                      "rotation")

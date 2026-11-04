@@ -10,6 +10,58 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The robots' calls stream, with 300 s of patience and 24,576 tokens, and how hard the model thinks is the deployment's to name (#604's follow-up) — opens when this PR is deployed
+
+**What changed in the mind and on the wire.**
+- **The routine mind's calls stream** (`llm.deadline_fetch`), held to the
+  deadline in all: not streamed, none outlived the router's gateway (a 504
+  at 120 s of silence), and novita held its answers to the end.
+- **`CALL_TIMEOUT_S` is 300 s** (115 s since #604) and
+  **`MAX_TOKENS_AUTONOMOUS` 24,576** (16,384), the escalation's following
+  both (360 s); a stream silent for 60 s ends there.
+- **The interrupt keeps 115 s**, its own (`INTERRUPT_TIMEOUT_S`; it had the
+  decision's), and its 4,096 tokens.
+- **A stream still being written at the deadline is `fallback:timeout` and
+  names who was answering**: its `call` carries the `provider` and a
+  `wallS` about 300, its tokens 0 (a stream's count comes at its end); one
+  the far side closed mid-answer is `offline`; neither is metered. A
+  timeout where nothing came back still names nobody.
+- **`$PLUGGY_REASONING_EFFORT`, new and unset**: sent as `reasoning_effort`
+  on every call where set, said as `build.reasoningEffort` and in History's
+  "thinking with" line; unset is the provider's own default, as before.
+- **The model id is the deployment's** (`$PLUGGY_MODEL`, the box's `.env`):
+  if it moves with this release -- recommended, `zai-org/GLM-5.3-Flash:
+  baseten` (Overseer.md §6, "Streamed") -- that is this period too, and
+  `build.model` says which.
+- Nothing in the prompt, the schema, the menu, the arm, the reward table,
+  the body or the house moved.
+
+**Why.** Ben's calls of 11-04 (pin a faster provider, be generous with the
+call's time and tokens, consider a stronger model). In the week before the
+11-03 pause, of about 3,370 calls to the mind 415 came back empty and 293
+timed out, about 1 in 5 (1 in 3 on the last afternoon); on 34cd4e3, 9530f51
+and 314a5f9, 20, 34 and 32 % of the calls asked failed. On the live robots'
+own turns, streamed (Overseer.md §6): GLM-5.3-Flash on baseten answered 28
+of 29 (median 41 s, the longest 98 s and 19,739 tokens), on novita in a
+median of 197 s with 2 of 12 past five minutes and both its interrupts cut
+off.
+
+**What the period is for.**
+- **The failure rate**: `timeout`, `cutoff`, `garbled`, `offline` and
+  `busy` among the calls asked, by `pw_decisions.provider`, against #604's
+  periods' fifth to a third; on the replays, 1 in 29 on baseten was refused
+  and 1 in 12 of the probe's lost to a stream the provider dropped.
+- **How long a think stands a robot still**: the decision rows' `wall_s`
+  (now every streamed call's, a timeout's too) against 300 s, and what it
+  costs a held job's minutes.
+- **The unminded clock**: `unminded` deaths, and how near the robots' asks
+  run to 1800 s, now that a call may take 300 of them.
+- **The purse**: a week's spend against $20 (about $5 on the recommended
+  pin; `:cheapest` is dearer, novita thinking 18k tokens a turn).
+- ⚠ **Not a period to pool with #604's for anything the mind's latency or
+  failures decide**, and if the model id moved with it, not for anything
+  the mind decides at all.
+
 ### The hands' small fixes: a step given 2 s to get going, a way out judged as the way home is, a pressed hand eased before it shuts (#560, stage (a)) — opens when this PR is deployed
 
 **What changed in the world.** The served pair's hands and feet, on every

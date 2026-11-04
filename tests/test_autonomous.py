@@ -126,6 +126,22 @@ def test_the_task_id_is_a_grammar():
   assert ov.MAX_TOKENS >= 2 * 1846
 
 
+def test_the_budget_is_sized_to_the_deadline():
+  """#604's follow-up, streamed: a think that runs out of its budget INSIDE
+  the deadline is a cut-off, metered and said; one still going at the
+  deadline is a timeout, unmetered and counted toward the cooloff. So the
+  budget covers the longest think measured on the live turns (19,739
+  tokens, GLM-5.3-Flash on baseten; 22,382, DeepSeek-V4.1-Flash at effort
+  `low`) and comes back inside the deadline at 85 tokens a second after a
+  10 s first byte (15 of baseten's 17 long answers wrote at 100-212); the
+  interrupt's comes back inside its own patience at the slowest writer
+  measured, 60 a second. Fails at #604's pair (16,384 tokens, 115 s)."""
+  assert ov.MAX_TOKENS_AUTONOMOUS > 22382
+  assert ov.MAX_TOKENS_AUTONOMOUS / 85 + 10 <= ov.CALL_TIMEOUT_S
+  assert ov.MAX_TOKENS / 60 + 10 <= ov.INTERRUPT_TIMEOUT_S
+  assert ov.ESCALATE_MAX_TOKENS == ov.MAX_TOKENS_AUTONOMOUS
+
+
 # ---- the three rails ----------------------------------------------------------
 
 

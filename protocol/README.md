@@ -54,6 +54,25 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: how hard the mind thinks (`build.reasoningEffort`), and a timeout that names who was answering (pluggybot #604's follow-up)
+
+The robots' calls stream now, to a deadline of 300 s (docs/Overseer.md §6).
+On the wire:
+
+- **`build.reasoningEffort`**: how hard the mind was asked to think
+  (`$PLUGGY_REASONING_EFFORT`, the model's own word, `low` or `high`).
+  ⚠ **ABSENT where none was named**, which is the provider's own default
+  -- as `rung` is absent where there is no ladder.
+- **A `fallback:timeout` decision may carry its `call`**: a stream still
+  being written at the deadline came from someone, so the `call` event
+  names the `provider` and `wallS` (about the deadline), with `tokensIn`
+  and `tokensOut` 0: a stream's count comes at its end, and none came.
+  A timeout where nothing came back still names nobody, and so do a map
+  row and a policy fallback. `cut` stays the budget's.
+
+No bump: the field is new and optional, and a `call` on a timeout is the
+`call` event every consumer already files.
+
 ### 0.21.0, additive: procedures that call procedures (pluggybot #560, stage (b))
 
 The language takes a source of one def or more, the first the one that
@@ -2367,6 +2386,7 @@ run is exactly the granularity a consumer wants to group by. `accepts` and
 | `arm` | `scripted` / `autonomous` (docs/Evaluation.md §2; `guarded`, the control retired in #427, appears only in streams from before it). The deployed world is `autonomous` (#206), and it says so rather than being assumed. ⚠ It is what RAN, not what was asked for: an arm whose mind could not be built at all is a `scripted` day |
 | `rung` | which rung of the `autonomous` ladder — `A0` (the survival clock hidden) or `A1` (restored). ⚠ **ABSENT on an arm with no ladder**, rather than null: "which mind" is a question every arm answers and "which rung" is not one `scripted` has |
 | `model`, `backend` | which mind is deciding, and by which road — `Qwen/…` on the router and the same id served locally are different regimes |
+| `reasoningEffort` | how hard the mind was asked to think (`low`, `high`; pluggybot #604's follow-up). ⚠ **ABSENT where none was named**: the provider's own default, and one model at two providers' defaults thought 1.5k and 5.2k tokens a turn |
 | `packWh`, `reserveWh`, `deadlineS` | the three world parameters each already shown to move behaviour. The deadline is not a data file, so no hash catches it |
 | `constitutions` | which constitution each robot was told it is, per robot root -- `{root: {name, sha}}` (pluggybot #263, the entry above). ⚠ Absent on a header built without one |
 

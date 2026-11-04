@@ -218,6 +218,123 @@ def test_a_stream_the_far_side_closed_mid_answer_says_so(monkeypatch):
     assert create(fake_fetch([(status, payload)])).stop_reason == stop
 
 
+def test_a_robots_stream_is_held_to_its_deadline_in_all(monkeypatch):
+  """#604's follow-up: the robots' calls stream, so nothing but our own
+  deadline ends a long think -- not streamed, none outlived the router's
+  gateway (a 504 at 120 s of silence). A stream still going at the deadline
+  ends "deadline", what it reasoned so far and who was answering kept, and
+  each read waits at most `STREAM_SILENCE_S`, never the whole deadline.
+  Shown to fail without the wall: the stream was read to its end."""
+  now = [0.0]
+
+  def tick():
+    now[0] += 1.0
+    return now[0]
+  monkeypatch.setattr(llm, "monotonic", tick)
+  seen = {}
+
+  class Thinking:
+    headers = {"x-inference-provider": "baseten"}
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *a):
+      return False
+
+    def __iter__(self):
+      for _ in range(1000):
+        yield b'data: {"choices": [{"delta": {"reasoning_content": "hm "}}]}\n'
+
+  def urlopen(req, timeout):
+    seen.update(timeout=timeout, body=json.loads(req.data))
+    return Thinking()
+  monkeypatch.setattr(llm.urllib.request, "urlopen", urlopen)
+  status, payload = llm.deadline_fetch(llm.ROUTER + "/chat/completions", {"model": "m"},
+                                       {}, 10.0)
+  choice = payload["choices"][0]
+  assert status == 200 and choice["finish_reason"] == "deadline"
+  assert payload["provider"] == "baseten"
+  assert 0 < choice["message"]["content"].count("hm") <= 10
+  assert seen["body"]["stream"] is True and seen["timeout"] == 10.0
+  llm.deadline_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 300.0)
+  assert seen["timeout"] == llm.STREAM_SILENCE_S < 300.0
+  assert create(fake_fetch([(status, payload)])).stop_reason == "deadline"
+
+
+def test_the_robots_calls_stream(monkeypatch):
+  """#604's follow-up, the one line of wiring: the router's client the
+  overseer builds streams, held to the call's own deadline. Shown to fail
+  before it: `_default_fetch`, a call not streamed."""
+  monkeypatch.setenv(llm.TOKEN_ENV, "hf_test")
+  monkeypatch.setattr(HFClient, "pricing", lambda self, model: (0.15, 0.5))
+  client = llm.build_client("huggingface", "org/m", timeout=300.0)
+  assert client.fetch is llm.deadline_fetch and client.timeout == 300.0
+  boss = Overseer(Menu(zones=("garden",)), model="org/m")
+  assert boss.client.fetch is llm.deadline_fetch
+  assert boss.client.timeout == overseer.CALL_TIMEOUT_S
+
+
+def test_how_hard_it_thinks_is_ours_to_say(monkeypatch):
+  """#604's follow-up: unset, `reasoning_effort` is the PROVIDER's default,
+  and on the live turns GLM-5.3-Flash thought 1.5k tokens a turn on
+  deepinfra and 5.2k on baseten, DeepSeek-V4.1-Flash none on deepinfra and
+  15-51k on baseten. `$PLUGGY_REASONING_EFFORT` names it: on every request
+  where it is set and on none where not, and said in `stats()` and the
+  header. Shown to fail before it: no request carried one."""
+  from pluggybot.evaluation.identity import build_identity
+  fetch = fake_fetch([ok_payload('{"action": "idle"}'), ok_payload('{"action": "idle"}')])
+  create(fetch)
+  assert "reasoning_effort" not in fetch.calls[0]["body"]
+  HFClient(token="hf_test", fetch=fetch, reasoning_effort="low").messages.create(
+    model="org/model-8b", max_tokens=64, system=SYSTEM,
+    messages=[{"role": "user", "content": "state"}])
+  assert fetch.calls[1]["body"]["reasoning_effort"] == "low"
+  monkeypatch.setenv(llm.TOKEN_ENV, "hf_test")
+  monkeypatch.setenv(overseer.EFFORT_ENV, "low")
+  monkeypatch.setattr(HFClient, "pricing", lambda self, model: (0.15, 0.5))
+  boss = overseer.build("home_humanoid", enabled=True, model="org/m")
+  assert boss.reasoning_effort == boss.client.reasoning_effort == "low"
+  assert boss.stats()["reasoningEffort"] == "low"
+  header = dict(arm="autonomous", commit="x", hashes={})
+  assert build_identity("home_humanoid", effort="low", **header)["reasoningEffort"] == "low"
+  assert "reasoningEffort" not in build_identity("home_humanoid", **header)
+  monkeypatch.delenv(overseer.EFFORT_ENV)
+  assert overseer.build("home_humanoid", enabled=True, model="org/m").reasoning_effort is None
+
+
+def test_an_answer_still_being_written_at_its_deadline_is_a_timeout():
+  """#604's follow-up: streamed, a long think can meet our own deadline
+  mid-answer. It is `fallback:timeout`, our patience and a failure, never
+  `garbled` (its text is half a think); it names who was answering, it
+  counts toward the cooloff as a timeout always did, and it is NEVER
+  metered or banked: a stream's count of its tokens comes at its end, none
+  came, and booked at none the purse would read it free. Its JSON whole
+  before the stop, it is an answer; a stream the far side closed is
+  `offline`. Shown to fail before the fix: `fallback:garbled`, banked."""
+  from pluggybot.mind.spend import SpendBook
+
+  def payload(text, finish):
+    return (200, {"choices": [{"message": {"content": text}, "finish_reason": finish}],
+                  "usage": {}, "provider": "baseten"})
+
+  def decide(script):
+    book = SpendBook(None)
+    boss = Overseer(Menu(zones=("garden",)), spend=book, client=HFClient(
+      token="hf_test", fetch=fake_fetch([script])))
+    return boss, book, boss.decide({"decisions": 0})
+  boss, book, d = decide(payload("<think>weighing the drawer against the", "deadline"))
+  assert d.source == "fallback:timeout" and overseer.fallback_class(d.source) == "failure"
+  assert d.call["provider"] == "baseten" and not d.call["cut"]
+  assert (boss.usage.input_tokens, boss.usage.output_tokens, book.entries) == (0, 0, [])
+  assert boss._errors_in_a_row == 1
+  boss, book, d = decide(payload("<think>hm</think>the stream went aw", "closed"))
+  assert d.source == "fallback:offline" and book.entries == []
+  answered = json.dumps({"action": "explore", "zone": "garden", "reason": "mapping"})
+  boss, book, d = decide(payload(answered, "deadline"))
+  assert d.source == "llm" and d.action == "explore"
+
+
 def test_an_answer_not_streamed_says_who_answered(monkeypatch):
   """Issue #604: the deployed mind's answers are NOT streamed, and only the
   streamed path read the router's header, so a quarter of its answers
@@ -320,7 +437,9 @@ def test_an_unanswered_catalogue_prices_as_unknown_not_zero():
 
 def test_a_slash_model_reaches_the_llm_through_the_same_seam(monkeypatch):
   """End to end through Overseer: an HF answer becomes an ordinary `llm`
-  decision, metered with the router's own rates."""
+  decision, metered with the router's own rates. ⚠ The robots' fetch is
+  `deadline_fetch` since #604's follow-up, the catalogue's read included:
+  a fake of `_default_fetch` alone let the decision out to the network."""
   fetch = fake_fetch([
     (200, {"data": [{"id": "org/model-8b", "providers": [
       {"status": "live", "pricing": {"input": 0.05, "output": 0.25}}]}]}),
@@ -329,7 +448,7 @@ def test_a_slash_model_reaches_the_llm_through_the_same_seam(monkeypatch):
                            "outcome": "", "reply": "", "task": ""}),
                prompt_tokens=2000, completion_tokens=50),
   ])
-  monkeypatch.setattr(llm, "_default_fetch", fetch)
+  monkeypatch.setattr(llm, "deadline_fetch", fetch)
   monkeypatch.setenv(llm.TOKEN_ENV, "hf_test")
   boss = Overseer(Menu(zones=("garden",)), model="org/model-8b")
   decision = boss.decide({"decisions": 0})

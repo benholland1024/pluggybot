@@ -66,6 +66,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from time import monotonic
 from types import SimpleNamespace
 
 #: Which backend decides. `auto` is the default and infers from the model id,
@@ -232,17 +233,19 @@ def _default_fetch(url: str, body: dict | None, headers: dict,
 
 
 def stream_fetch(url: str, body: dict | None, headers: dict,
-                 timeout: float) -> tuple[int, dict]:
+                 timeout: float, wall_s: float | None = None) -> tuple[int, dict]:
   """`_default_fetch` over a STREAM, for an answer longer than a gateway
   waits: the request asks for `stream`, and the deltas are put back
   together as the one JSON a request not streamed is answered with (its
   reasoning before its answer, in `<think>`, as `_answer_text` reads it),
   why it ended (`finish_reason`: "length" where the tokens ran out) and
   who answered (`provider`, the router's `x-inference-provider`).
-  `timeout` is each read's. MEASURED (#466): the router's gateway answers
-  504 to a request silent for 120 s, and the deployed model, shown a
-  picture, reasoned past it. ⚠ A stream that ends with no `[DONE]` and no
-  `finish_reason` was closed by the far side mid-answer, and ends
+  `timeout` is each read's, and `wall_s`, where given, the whole
+  exchange's: a stream still going at it ends "deadline", its answer as
+  far as it got (`deadline_fetch`). MEASURED (#466): the router's gateway
+  answers 504 to a request silent for 120 s, and the deployed model, shown
+  a picture, reasoned past it. ⚠ A stream that ends with no `[DONE]` and
+  no `finish_reason` was closed by the far side mid-answer, and ends
   "closed": the router closes a stream at 20 minutes, and three of #560's
   table answers, still thinking at 1,200.3 s, read as ended and empty."""
   if body is None:
@@ -253,10 +256,15 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   content, reasoning, usage = [], [], {}
   provider = finish = None
   done = False
+  end = None if wall_s is None else monotonic() + wall_s
   try:
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout if wall_s is None
+                                else min(timeout, wall_s)) as resp:
       provider = resp.headers.get("x-inference-provider")
       for raw in resp:
+        if end is not None and monotonic() >= end:
+          finish = "deadline"
+          break
         line = raw.decode("utf-8", "replace").strip()
         if not line.startswith("data:"):
           continue
@@ -287,6 +295,24 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
                "usage": usage, "provider": provider}
 
 
+#: The longest a robot's stream may go silent before it is given up, s
+#: (`deadline_fetch`): each read's timeout, where the call's own deadline is
+#: the whole exchange's. ⚠ A silent read outlives the deadline by up to
+#: this, and a worker still reading makes the next decision `busy`.
+STREAM_SILENCE_S = 60.0
+
+
+def deadline_fetch(url: str, body: dict | None, headers: dict,
+                   timeout: float) -> tuple[int, dict]:
+  """The robots' calls, STREAMED and held to `timeout` IN ALL (#604's
+  follow-up): `stream_fetch` with the call's deadline as its wall, and a
+  read silent for `STREAM_SILENCE_S` given up. Not streamed, a call could
+  not outlive the router's gateway (a 504 at 120 s of silence), and a
+  provider that held a non-streamed answer to the end never came back."""
+  return stream_fetch(url, body, headers, min(timeout, STREAM_SILENCE_S),
+                      wall_s=timeout)
+
+
 class ChatClient:
   """An OpenAI-compatible endpoint, wearing the Anthropic client's shape.
 
@@ -303,10 +329,17 @@ class ChatClient:
 
   def __init__(self, base_url: str = LOCAL_URL, token: str | None = None,
                timeout: float = 8.0, fetch=None,
-               label: str = "chat backend") -> None:
+               label: str = "chat backend",
+               reasoning_effort: str | None = None) -> None:
     self.base_url = (base_url or LOCAL_URL).rstrip("/")
     self.token = (token or "").strip()
     self.timeout = timeout
+    #: How hard a reasoning model thinks, sent as the request's
+    #: `reasoning_effort` where set (`overseer.EFFORT_ENV`), the model's
+    #: own words ("low", "high"): unset, the PROVIDER's default, and the
+    #: same model thinks 1.5k tokens on one and 18k on another (#604's
+    #: follow-up; Overseer.md §6).
+    self.reasoning_effort = (reasoning_effort or "").strip() or None
     self.label = label
     self.fetch = fetch or _default_fetch
     # `.messages.create(...)` -- the seam, shaped like the SDK's.
@@ -322,8 +355,11 @@ class ChatClient:
     return headers
 
   def _create(self, model: str, max_tokens: int, system, output_config=None,
-              messages=()) -> SimpleNamespace:
-    """`messages.create`, translated: Anthropic call shape in, shim out."""
+              messages=(), timeout: float | None = None) -> SimpleNamespace:
+    """`messages.create`, translated: Anthropic call shape in, shim out.
+    `timeout` is this call's patience where it is not the client's, as the
+    SDK takes one per request (the interrupt's, `INTERRUPT_TIMEOUT_S`)."""
+    timeout = self.timeout if timeout is None else timeout
     # The system prompt arrives as Anthropic content blocks (the cached-prefix
     # shape); the endpoint wants one system message. cache_control is dropped
     # -- there is nothing here for it to mark.
@@ -336,13 +372,15 @@ class ChatClient:
       "messages": [{"role": "system", "content": sys_text},
                    *[dict(m) for m in messages]],
     }
+    if self.reasoning_effort:
+      body["reasoning_effort"] = self.reasoning_effort
     if schema is not None:
       body["response_format"] = {
         "type": "json_schema",
         "json_schema": {"name": "decision", "schema": schema, "strict": True},
       }
     url = f"{self.base_url}/chat/completions"
-    status, payload = self.fetch(url, body, self._headers(), self.timeout)
+    status, payload = self.fetch(url, body, self._headers(), timeout)
     if (400 <= status < 500 and schema is not None
         and _blames_format(payload)):
       # This endpoint does not do constrained decoding. Spell the schema out
@@ -356,7 +394,7 @@ class ChatClient:
                             "content": sys_text + FORMAT_NOTE
                             + json.dumps(schema, sort_keys=True)},
                            *[dict(m) for m in messages]]
-      status, payload = self.fetch(url, retry, self._headers(), self.timeout)
+      status, payload = self.fetch(url, retry, self._headers(), timeout)
     if status != 200 or "error" in payload:
       raise RuntimeError(_error_line(self.label, status, payload))
     text = _answer_text(payload)
@@ -372,8 +410,9 @@ class ChatClient:
       ),
       # the SDK's word for an answer its tokens ran out on (#493), and ours
       # for one whose stream closed before it ended (`stream_fetch`, #560)
-      stop_reason=("max_tokens" if finish == "length" else "closed" if finish == "closed"
-                   else "end_turn"),
+      # or was still going at its deadline (`deadline_fetch`)
+      stop_reason=("max_tokens" if finish == "length"
+                   else finish if finish in ("closed", "deadline") else "end_turn"),
       provider=payload.get("provider"))
 
 
@@ -389,7 +428,7 @@ class HFClient(ChatClient):
   """
 
   def __init__(self, token: str | None = None, timeout: float = 8.0,
-               fetch=None) -> None:
+               fetch=None, reasoning_effort: str | None = None) -> None:
     token = token or os.environ.get(TOKEN_ENV, "").strip()
     if not token:
       # Failing HERE is deliberate -- see the module docstring. The overseer
@@ -397,7 +436,8 @@ class HFClient(ChatClient):
       # `fallback:no-client`, exactly as it does for a missing SDK.
       raise ValueError(f"${TOKEN_ENV} is not set")
     super().__init__(base_url=ROUTER, token=token, timeout=timeout,
-                     fetch=fetch, label="HF router")
+                     fetch=fetch, label="HF router",
+                     reasoning_effort=reasoning_effort)
 
   def pricing(self, model: str) -> tuple[float, float] | None:
     """(USD per Mtok in, out) for a model, off the router's own catalogue.
@@ -443,7 +483,8 @@ class HFClient(ChatClient):
 
 
 def build_client(backend: str, model: str, timeout: float = 8.0,
-                 base_url: str | None = None, token: str | None = None):
+                 base_url: str | None = None, token: str | None = None,
+                 reasoning_effort: str | None = None):
   """The one place that knows which vendor is which (issue #19).
 
   Every caller above this is vendor-blind: the overseer holds a thing with
@@ -455,7 +496,8 @@ def build_client(backend: str, model: str, timeout: float = 8.0,
   Raises rather than returning None. The overseer catches everything here and
   degrades to `fallback:no-client` with the reason in `usage.errors`, which
   is how a missing key has always been reported and is more use than a silent
-  scripted run.
+  scripted run. `reasoning_effort` is the chat backends' alone: the
+  Anthropic path's `effort` is a 400 on Haiku 4.5 (Overseer.md §6).
   """
   if backend == "anthropic":
     # Lazy because `anthropic` is a runtime dependency of the SERVE path and
@@ -466,7 +508,10 @@ def build_client(backend: str, model: str, timeout: float = 8.0,
     import anthropic
     return anthropic.Anthropic(timeout=timeout, max_retries=0)
   if backend == "huggingface":
-    return HFClient(timeout=timeout, token=token)
+    # STREAMED, and held to `timeout` in all (`deadline_fetch`): a call not
+    # streamed could not outlive the router's gateway, 120 s of silence.
+    return HFClient(timeout=timeout, token=token, fetch=deadline_fetch,
+                    reasoning_effort=reasoning_effort)
   if backend not in CHAT_BACKENDS:
     raise ValueError(f"unknown overseer backend {backend!r}")
   if not model:
@@ -481,7 +526,8 @@ def build_client(backend: str, model: str, timeout: float = 8.0,
     # A local endpoint takes no key and should not be sent one; a third-party
     # one usually wants its own, which is not $HF_TOKEN.
     token=None if local else (token or os.environ.get(KEY_ENV, "").strip()),
-    label="local backend" if local else "openai-compatible backend")
+    label="local backend" if local else "openai-compatible backend",
+    reasoning_effort=reasoning_effort)
 
 
 def _blames_format(payload: dict) -> bool:
