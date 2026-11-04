@@ -406,6 +406,9 @@ def postures(sm: WaistModel, legs=rc.POSTURES) -> list[Posture]:
       p = Posture(height, pitch, dict(w), i, q, ok)
       if ok:
         pose(sm, p)
+        # ⚠ a turned or bowed trunk at the hips' deepest bow folds into a
+        # thigh: a yaw of 15-30 deg there put the torso's corner 1-2.5 cm in
+        p.ok = trunk_clear(sm) >= -SELF_M
         for s in hm.SIDES:
           p.shoulder[s] = sm.d.xpos[sm.m.body(f"{s}_shoulder_roll_link").id].copy()
       out.append(p)
@@ -625,6 +628,19 @@ def self_clear(sm: WaistModel, side: str) -> float:
   return worst
 
 
+def trunk_clear(sm: WaistModel) -> float:
+  """How far the trunk above the hips (the torso, the head, the waist's
+  links) is from the thighs and shanks as posed, m (negative: through
+  them) -- the robot's own drawing meets its own parts only in the pairs it
+  names, and none is the trunk's against a thigh."""
+  m, d = sm.m, sm.d
+  upper = [n for n in list(hm.TRUNK_GEOMS) + ["torso_low"]
+           if n != "pelvis" and mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, n) >= 0]
+  legs = [f"{s}_{g}" for s in hm.SIDES for g in ("thigh", "shank")]
+  return min(float(mujoco.mj_geomDistance(m, d, m.geom(a).id, m.geom(b).id, 0.1, None))
+             for a in upper for b in legs)
+
+
 def costs(sm: WaistModel, side: str, p: "Posture", q_goal, q_pre, pos, rot, edge) -> dict:
   """What a planned reach costs once the statue is balanced again with the
   arm out at its goal (as the policy moves its pelvis back for one): whether
@@ -713,7 +729,7 @@ def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
       if not (ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL):
         ok = False
         break
-      worst_self = min(worst_self, self_clear(sm, side))
+      worst_self = min(worst_self, self_clear(sm, side), trunk_clear(sm) if chain else 1.0)
       if edge is not None:
         worst_into = max(worst_into, into_table(sm, edge))
     if ok and chain:
