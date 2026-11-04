@@ -680,7 +680,7 @@ def carry_points(pick, put) -> list[np.ndarray]:
 
 
 def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
-               reach_m: float, chain: bool = False):
+               reach_m: float, chain: bool = False, edge: float | None = None):
   """The least bent posture from which `side`'s grip FOLLOWS `points` in
   turn at `rot` -- the first solved from the seeds, each next on from the
   last, as a carried hand goes (`Reach.carry`, `path_for`) -- within the
@@ -689,7 +689,8 @@ def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
   the same solve as the hand goes, from the posture's, and the statue
   balanced again at the end with the waist and the arm where they got to,
   which must still reach the last point. Returns (posture, the arm at the
-  end, the waist at the end)."""
+  end, the waist at the end, the way's least clearance of the robot's own
+  parts and deepest into the table, m: `edge` the table's)."""
   pts = [np.asarray(p, dtype=float) for p in points]
   # a waist in the chain moves the shoulder too: at most about 0.18 m, a turn
   # of 60 deg on the yaw's 0.18 m radius, or the pitch's 0.75 rad on 0.24
@@ -700,6 +701,9 @@ def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
     pose(sm, p)
     q, ep, er = rc.solve_seeded(sm, side, pts[0], rot)
     ok = ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL
+    # the carry's worst clearance of the robot's own parts and of the table
+    # on its way, m (`self_clear`, `into_table`)
+    worst_self, worst_into = 1.0, 0.0
     for x in pts[1:] if ok else ():
       sm._set_arm(side, q)
       if chain:
@@ -709,6 +713,9 @@ def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
       if not (ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL):
         ok = False
         break
+      worst_self = min(worst_self, self_clear(sm, side))
+      if edge is not None:
+        worst_into = max(worst_into, into_table(sm, edge))
     if ok and chain:
       # the statue balanced again as it ended, the waist where it got to
       w = dict(sm.waist)
@@ -722,7 +729,7 @@ def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
       _, ep, er = sm.solve_chain(side, pts[-1], rot)
       ok = balanced and ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL
     if ok:
-      return p, q, dict(sm.waist)
+      return p, q, dict(sm.waist), worst_self, worst_into
   return None
 
 
@@ -746,18 +753,15 @@ def evaluate_piece(task: dict) -> dict:
     if chain and not sm.waist_adr:
       continue
     t0 = time.perf_counter()
-    got = carry_plan(sm, side, order, pts, rot, reach_m, chain=chain)
+    got = carry_plan(sm, side, order, pts, rot, reach_m, chain=chain, edge=task["edge"])
     out[f"{key}_s"] = round(time.perf_counter() - t0, 3)
     out[key] = got is not None
     if got is not None:
-      p, q_end, w_end = got
+      p, q_end, w_end, worst_self, worst_into = got
       out[f"{key}_posture"] = p.label()
       out[f"{key}_waist"] = {k: round(v, 4) for k, v in w_end.items()}
-      sm.set_waist(w_end)
-      pose(sm, Posture(p.height, p.pitch, w_end, p.legs_index, p.q, p.ok))
-      sm._set_arm(side, q_end)
-      out[f"into_{key}"] = round(into_table(sm, task["edge"]), 4)
-      out[f"self_{key}"] = round(self_clear(sm, side), 4)
+      out[f"into_{key}"] = round(worst_into, 4)
+      out[f"self_{key}"] = round(worst_self, 4)
   return out
 
 
