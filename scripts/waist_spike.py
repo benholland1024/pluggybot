@@ -99,7 +99,8 @@ def _housing(name: str, motor, at, axis: str) -> ET.Element:
   return ET.fromstring(hm._housing(name, motor, at, axis))
 
 
-def waist_xml(kind: str, spec: hm.HumanoidSpec = hm.CHOSEN, pack_below: bool = True) -> str:
+def waist_xml(kind: str, spec: hm.HumanoidSpec = hm.CHOSEN, pack_below: bool = True,
+              scenery: str = "") -> str:
   """The robot's drawing with the candidate's waist (`CANDIDATES[kind]`):
   today's generated MJCF with the trunk cut at the waist -- the root keeps
   the pelvis, its IMU and the legs; a yaw's link the pelvis's top; the
@@ -109,7 +110,7 @@ def waist_xml(kind: str, spec: hm.HumanoidSpec = hm.CHOSEN, pack_below: bool = T
   above keeps its place through a `<frame>` that undoes its link's offset,
   so the zero pose is today's body, plus the waist's motors and link."""
   joints = CANDIDATES[kind]
-  root = ET.fromstring(hm.body_xml(spec))
+  root = ET.fromstring(hm.body_xml(spec, scenery=scenery))
   for key in root.findall("keyframe"):
     root.remove(key)
   body = next(b for b in root.iter("body") if b.get("name") == ROBOT_ROOT)
@@ -181,9 +182,10 @@ class WaistModel(ha.SelfModel):
   """`arms.SelfModel` on a candidate's drawing, its waist set by `waist`
   (joint name -> rad) whenever it is posed."""
 
-  def __init__(self, kind: str = "none", pack_below: bool = True):
+  def __init__(self, kind: str = "none", pack_below: bool = True, scenery: str = ""):
     self.kind = kind
-    self.m = mujoco.MjModel.from_xml_string(waist_xml(kind, pack_below=pack_below))
+    self.m = mujoco.MjModel.from_xml_string(waist_xml(kind, pack_below=pack_below,
+                                                      scenery=scenery))
     self.d = mujoco.MjData(self.m)
     m = self.m
     self.qadr = np.array([m.jnt_qposadr[m.joint(n).id] for n in hm.JOINT_NAMES])
@@ -202,6 +204,54 @@ class WaistModel(ha.SelfModel):
     self.waist_dof = {WAIST_JOINTS[j]: int(m.jnt_dofadr[m.joint(WAIST_JOINTS[j]).id])
                       for j in CANDIDATES[kind]}
     self.waist = {n: 0.0 for n in self.waist_adr}
+
+  def solve_chain(self, side: str, pos, rot=None, iters: int = 80):
+    """`SelfModel.solve` with the waist's joints in `side`'s arm's chain: the
+    damped least-squares solve over the arm's six and the waist's, from where
+    they are, every joint `RANGE_MARGIN` inside its range; the waist's angles
+    left in `self.waist`. Returns the arm's joints and how far off, m and
+    rad."""
+    m, d = self.m, self.d
+    arm = self.arm[side]
+    names = list(self.waist_adr)
+    wj = [m.joint(n).id for n in names]
+    lo = np.concatenate([self.ranges[arm, 0], m.jnt_range[wj, 0]]) + ha.RANGE_MARGIN
+    hi = np.concatenate([self.ranges[arm, 1], m.jnt_range[wj, 1]]) - ha.RANGE_MARGIN
+    cols = np.concatenate([self.vadr[arm], [self.waist_dof[n] for n in names]]).astype(int)
+    q = np.clip(np.concatenate([self.q[arm], [self.waist[n] for n in names]]), lo, hi)
+
+    def put(q):
+      self.q[arm] = q[:6]
+      d.qpos[self.qadr[arm]] = q[:6]
+      for k, n in enumerate(names):
+        self.waist[n] = float(q[6 + k])
+        d.qpos[self.waist_adr[n]] = q[6 + k]
+      mujoco.mj_kinematics(m, d)
+      mujoco.mj_comPos(m, d)
+
+    put(q)
+    for _ in range(iters):
+      have_p, have_r = self.grip_pose(side)
+      e_p = np.asarray(pos, dtype=float) - have_p
+      jp, jr = np.zeros((3, m.nv)), np.zeros((3, m.nv))
+      mujoco.mj_jacSite(m, d, jp, jr, self.grip[side])
+      if rot is None:
+        e, j = e_p, jp[:, cols]
+        er = 0.0
+      else:
+        e_r = ha._rot_error(np.asarray(rot), have_r)
+        er = float(np.linalg.norm(e_r))
+        e = np.concatenate([e_p, ha.IK_ROT_WEIGHT * e_r])
+        j = np.vstack([jp[:, cols], ha.IK_ROT_WEIGHT * jr[:, cols]])
+      if float(np.linalg.norm(e_p)) < ha.IK_POS_TOL and er < ha.IK_ROT_TOL:
+        break
+      dq = j.T @ np.linalg.solve(j @ j.T + ha.IK_DAMPING ** 2 * np.eye(len(e)), e)
+      q = np.clip(q + np.clip(dq, -ha.IK_STEP, ha.IK_STEP), lo, hi)
+      put(q)
+    have_p, have_r = self.grip_pose(side)
+    ep = float(np.linalg.norm(np.asarray(pos) - have_p))
+    er = 0.0 if rot is None else float(np.linalg.norm(ha._rot_error(np.asarray(rot), have_r)))
+    return q[:6].copy(), ep, er
 
   def set_waist(self, waist: dict) -> None:
     self.waist = {n: float(waist.get(n, 0.0)) for n in self.waist_adr}
@@ -630,26 +680,49 @@ def carry_points(pick, put) -> list[np.ndarray]:
 
 
 def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
-               reach_m: float):
+               reach_m: float, chain: bool = False):
   """The least bent posture from which `side`'s grip FOLLOWS `points` in
   turn at `rot` -- the first solved from the seeds, each next on from the
   last, as a carried hand goes (`Reach.carry`, `path_for`) -- within the
-  reach's own tolerance; or None."""
+  reach's own tolerance; or None. The waist HELD at the posture's (as a
+  carry holds its posture today), or, `chain`, IN THE ARM'S CHAIN: turned by
+  the same solve as the hand goes, from the posture's, and the statue
+  balanced again at the end with the waist and the arm where they got to,
+  which must still reach the last point. Returns (posture, the arm at the
+  end, the waist at the end)."""
   pts = [np.asarray(p, dtype=float) for p in points]
+  # a waist in the chain moves the shoulder too: at most about 0.18 m, a turn
+  # of 60 deg on the yaw's 0.18 m radius, or the pitch's 0.75 rad on 0.24
+  reach_far = reach_m + 0.005 + (0.25 if chain else 0.0)
   for p in table:
-    if not p.ok or any(np.linalg.norm(x - p.shoulder[side]) > reach_m + 0.005 for x in pts):
+    if not p.ok or any(np.linalg.norm(x - p.shoulder[side]) > reach_far for x in pts):
       continue
     pose(sm, p)
     q, ep, er = rc.solve_seeded(sm, side, pts[0], rot)
     ok = ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL
     for x in pts[1:] if ok else ():
       sm._set_arm(side, q)
-      q, ep, er = sm.solve(side, x, rot, iters=80)
+      if chain:
+        q, ep, er = sm.solve_chain(side, x, rot)
+      else:
+        q, ep, er = sm.solve(side, x, rot, iters=80)
       if not (ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL):
         ok = False
         break
+    if ok and chain:
+      # the statue balanced again as it ended, the waist where it got to
+      w = dict(sm.waist)
+      arm_end = rc._arm(side, q)
+      legs, balanced = static_legs(sm, p.height, p.pitch, arms=arm_end)
+      qq = p.q.copy()
+      for n, v in {**arm_end, **legs}.items():
+        qq[hm.JOINT_NAMES.index(n)] = v
+      sm.set_waist(w)
+      sm.pose(qq, gravity_of(p.pitch))
+      _, ep, er = sm.solve_chain(side, pts[-1], rot)
+      ok = balanced and ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL
     if ok:
-      return p, q
+      return p, q, dict(sm.waist)
   return None
 
 
@@ -665,17 +738,23 @@ def evaluate_piece(task: dict) -> dict:
   rot = GRIPS[task["grip"]]
   if out.get("flipped"):
     rot = rot @ np.diag([-1.0, -1.0, 1.0])
-  t0 = time.perf_counter()
-  got = carry_plan(sm, side, table, carry_points(task["pos"], task["put"]), rot, reach_m)
-  out["carry_s"] = round(time.perf_counter() - t0, 3)
-  out["carried"] = got is not None
-  if got is not None:
-    p, q_end = got
-    out["carry_posture"] = p.label()
-    out["carry_waist"] = {k: round(v, 4) for k, v in p.waist.items()}
-    sm._set_arm(side, q_end)
-    out["into_carry"] = round(into_table(sm, task["edge"]), 4)
-    out["self_carry"] = round(self_clear(sm, side), 4)
+  pts = carry_points(task["pos"], task["put"])
+  for chain, key in ((False, "carried"), (True, "chained")):
+    if chain and not sm.waist_adr:
+      continue
+    t0 = time.perf_counter()
+    got = carry_plan(sm, side, table, pts, rot, reach_m, chain=chain)
+    out[f"{key}_s"] = round(time.perf_counter() - t0, 3)
+    out[key] = got is not None
+    if got is not None:
+      p, q_end, w_end = got
+      out[f"{key}_posture"] = p.label()
+      out[f"{key}_waist"] = {k: round(v, 4) for k, v in w_end.items()}
+      sm.set_waist(w_end)
+      pose(sm, Posture(p.height, p.pitch, w_end, p.legs_index, p.q, p.ok))
+      sm._set_arm(side, q_end)
+      out[f"into_{key}"] = round(into_table(sm, task["edge"]), 4)
+      out[f"self_{key}"] = round(self_clear(sm, side), 4)
   return out
 
 
@@ -933,26 +1012,36 @@ def report_window(rows) -> None:
         "one posture. A width counts each 1 cm cell.")
   for kind in _kinds(rows):
     print(f"\n== {kind}")
-    across = {}
+    across, across_chain = {}, {}
     for name, (side, _, _, step) in PIECES.items():
       both = {}
       for r in _by(rows, kind=kind, piece=name):
         v = _ok(r)
         if r["which"] == "pick":
-          both.setdefault((r["dx"], r["dy"]), {})["carry"] = (
-            v and r.get("carried", False) and r.get("into_carry", 0.0) <= INTO_M
-            and r.get("self_carry", 1.0) >= -SELF_M)
+          for key, name_ in (("carried", "carry"), ("chained", "chain")):
+            both.setdefault((r["dx"], r["dy"]), {})[name_] = (
+              v and r.get(key, False) and r.get(f"into_{key}", 0.0) <= INTO_M
+              and r.get(f"self_{key}", 1.0) >= -SELF_M)
         both.setdefault((r["dx"], r["dy"]), {})[r["which"]] = v
       lat = [dy for (dx, dy), v in both.items() if dx == 0.0 and v.get("carry")]
       pick = [dy for (dx, dy), v in both.items() if dx == 0.0 and v.get("pick")]
       put = [dy for (dx, dy), v in both.items() if dx == 0.0 and v.get("put")]
       ahead = [dx for (dx, dy), v in both.items() if dy == step and v.get("carry")]
+      chain = [dy for (dx, dy), v in both.items() if dx == 0.0 and v.get("chain")]
+      chain_ahead = [dx for (dx, dy), v in both.items() if dy == step and v.get("chain")]
       across[name] = set(lat)
+      across_chain.setdefault(name, set()).update(chain)
       print(f"  {name:5s} ({side} hand; the procedure stands at dy {step:+.2f}): picked up and carried {_fmt(_intervals(lat, 0.01))}")
       print(f"        picked up alone {_fmt(_intervals(pick, 0.01))}; set down alone {_fmt(_intervals(put, 0.01))}")
       print(f"        ahead, at dy {step:+.2f}: picked up and carried at dx {_fmt(_intervals(ahead, 0.01))}")
+      if any("chained" in r for r in _by(rows, kind=kind, piece=name)):
+        print(f"        the waist in the arm's chain: carried {_fmt(_intervals(chain, 0.01))}; "
+              f"ahead {_fmt(_intervals(chain_ahead, 0.01))}")
     one = set.intersection(*across.values()) if across else set()
     print(f"  ONE STANCE for the whole place (dx 0): {_fmt(_intervals(sorted(one), 0.01))}")
+    if across_chain and all(across_chain.values()):
+      one = set.intersection(*across_chain.values())
+      print(f"  ...the waist in the arm's chain: {_fmt(_intervals(sorted(one), 0.01))}")
 
 
 def report_envelope(rows) -> None:
@@ -1125,6 +1214,84 @@ def mass_table(kinds) -> None:
                     (hp.RS02, hp.RS03, hp.RS04)) + ")")
 
 
+#: The picture's reaches (`--strip`): the cup and the plate where our
+#: procedure picks them up from its start, unstepped, and the table's middle.
+STRIP = (("the cup, picked up", "right", (0.42, -0.31, 0.78)),
+         ("the plate's wall, unstepped", "left", (0.43, 0.246, 0.767)),
+         ("the table's middle", "left", (0.42, 0.0, 0.77)))
+#: The table as the set-out has it, for the picture: its top's half-size
+#: (`home.world.DINING_TABLE_HALF`), the edge `TABLE_GAP` ahead.
+TABLE_HALF = 0.4
+
+
+def strip(kinds, out: str) -> None:
+  """--strip: each candidate's statue at each of `STRIP`'s reaches: the
+  least bent posture that reaches it with slack and passes every check the
+  sweeps make (`_ok`), the arm at its goal and the legs balanced for it, the
+  table drawn and a marker where the grip goes; a tile a reach, a row a
+  candidate. (The posture's label: the pelvis's height off the stand's and
+  its pitch, then the waist's angles, deg.)"""
+  from PIL import Image, ImageDraw
+  w, h = 420, 340
+  table = (f'<geom name="table_top" type="box" size="{TABLE_HALF} {TABLE_HALF} {TABLE_TOP_T / 2}" '
+           f'pos="{TABLE_GAP + TABLE_HALF} 0 {TABLE_H - TABLE_TOP_T / 2}" rgba="0.55 0.45 0.35 1" '
+           f'contype="0" conaffinity="0"/>')
+  marks = "".join(f'<site name="goal{k}" pos="{x} {y} {z}" size="0.018" rgba="0.95 0.2 0.2 1"/>'
+                  for k, (_, _, (x, y, z)) in enumerate(STRIP))
+  tiles = []
+  for kind in kinds:
+    sm = WaistModel(kind, scenery=table + marks)
+    table_ = postures(sm)
+    reach_m = arm_reach(sm)
+    r = mujoco.Renderer(sm.m, h, w)
+    opt = mujoco.MjvOption()
+    opt.sitegroup[:] = 1
+    for name, side, pos in STRIP:
+      goal = ha.HandGoal(np.array(pos), GRIPS["t45"])
+      got = None
+      for p in table_:
+        if not p.ok:
+          continue
+        planned = plan_in(sm, side, goal, p, reach_m)
+        if planned is None:
+          continue
+        _, q_goal, _, q_pre, rot = planned
+        if _ok({"reached": True, **costs(sm, side, p, q_goal, q_pre, np.array(pos), rot, TABLE_GAP)}):
+          got = (p, q_goal)
+          break
+      label = f"{kind}: {name}"
+      if got is None:
+        pose(sm, table_[0])
+        label += ": no posture reaches it"
+      else:
+        p, q_goal = got
+        arm_goal = rc._arm(side, q_goal)
+        sm.set_waist(p.waist)
+        legs, _ = static_legs(sm, p.height, p.pitch, arms=arm_goal)
+        q = p.q.copy()
+        for n, v in {**arm_goal, **legs}.items():
+          q[hm.JOINT_NAMES.index(n)] = v
+        sm.pose(q, gravity_of(p.pitch))
+        label += f": {p.label()}"
+      cam = mujoco.MjvCamera()
+      cam.lookat[:] = (0.2, 0.0, 0.8)
+      cam.distance, cam.azimuth, cam.elevation = 2.3, 200.0, -26.0
+      r.update_scene(sm.d, cam, opt)
+      img = Image.fromarray(r.render())
+      draw = ImageDraw.Draw(img)
+      draw.rectangle((0, 0, w, 18), fill=(20, 20, 24))
+      draw.text((6, 4), label, fill=(255, 255, 255))
+      tiles.append(img)
+    r.close()
+  cols = len(STRIP)
+  rows = (len(tiles) + cols - 1) // cols
+  sheet = Image.new("RGB", (w * cols, h * rows), (255, 255, 255))
+  for k, tile in enumerate(tiles):
+    sheet.paste(tile, (w * (k % cols), h * (k // cols)))
+  sheet.save(out)
+  print(f"wrote {out}")
+
+
 def read_rows(into: str) -> list[dict]:
   import json
   import os
@@ -1156,6 +1323,7 @@ def main() -> None:
   ap.add_argument("--alternatives", action="store_true",
                   help="every posture at a dozen named reaches, for the part")
   ap.add_argument("--mass", action="store_true", help="each candidate's mass and centre of mass")
+  ap.add_argument("--strip", metavar="PNG", help="each candidate's statue at three of the table's reaches")
   ap.add_argument("--all", action="store_true", help="every sweep")
   ap.add_argument("--candidates", default=",".join(CANDIDATES))
   ap.add_argument("--jobs", type=int, default=3)
@@ -1178,6 +1346,9 @@ def main() -> None:
     return
   if args.mass:
     mass_table(kinds)
+    return
+  if args.strip:
+    strip(kinds, args.strip)
     return
   tasks = []
   if args.bands or args.all:
