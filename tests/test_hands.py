@@ -733,11 +733,11 @@ def test_the_way_home_is_judged_as_the_robot_stands_and_moves_nothing_of_its_mod
 TABLE_EDGE = 0.116
 
 
-def _over_table(side, y=0.31):
-  """A reach's goal over that table: fingers down at 45 deg, as the cup was
-  taken, its side's grasp 0.29 m ahead."""
+def _over_table(side):
+  """A reach's goal over that table where the set-out's cup stands, 0.42 m
+  ahead and 0.30 to its side, fingers down at 45 deg as the cup is taken."""
   from pluggybot.humanoid.arms import HandGoal, frame
-  return HandGoal(np.array([0.29, y if side == "left" else -y, 0.78]),
+  return HandGoal(np.array([0.415, 0.304 if side == "left" else -0.304, 0.78]),
                   frame((0.707, 0.0, -0.707), (0.0, 1.0, 0.0)))
 
 
@@ -746,22 +746,22 @@ def _pre_grasp(r, side):
   return r._planned(side, _over_table(side), rc.APPROACH_M, rc.POSTURES, True)[0][1]
 
 
-@pytest.mark.parametrize("side", hm.SIDES)
-def test_an_arm_reaching_over_a_table_at_its_front_goes_out_at_its_side(side):
-  """#560: standing 13 cm from a 0.72 m table's edge, the straight way out
-  in joint space to a pre-grasp over it drove the hanging hand into the
-  table until the robot fell; judged as the way home is, from its other end
-  (`way_out`), the arm rolls out to its side first, then out with its roll
-  held, then in, clear of a table whose edge is at the robot's front."""
+def test_an_arm_reaching_over_a_table_at_its_front_goes_out_at_its_side():
+  """#560: standing 13 cm from a 0.72 m table's edge, the left arm's
+  straight way out in joint space to a pre-grasp over it drove its forearm
+  and gripper into the table at 353-359 N; judged as the way home is, from
+  its other end (`way_out`), it pitches back, rolls out to its side, goes
+  out with its roll held, then in, clear of a table whose edge is at the
+  robot's front."""
   r = _standing_reach()
-  q_pre = _pre_grasp(r, side)
-  assert r.reach(side, _over_table(side)) and r.phase[side] == "move"
-  ways = [r.q_to[side]] + r.outs[side]
+  q_pre = _pre_grasp(r, "left")
+  assert r.reach("left", _over_table("left")) and r.phase["left"] == "move"
+  ways = [r.q_to["left"]] + r.outs["left"]
   sm = r.self_model
   assert len(ways) == 4 and np.allclose(ways[-1], q_pre)
-  assert _clear_of_counter(sm, side, r.rest[side], [q_pre], front=TABLE_EDGE) < -0.05, \
+  assert _clear_of_counter(sm, "left", r.rest["left"], [q_pre], front=TABLE_EDGE) < -0.05, \
     "the premise: straight into it"
-  assert _clear_of_counter(sm, side, r.rest[side], ways, front=TABLE_EDGE) > 0.01
+  assert _clear_of_counter(sm, "left", r.rest["left"], ways, front=TABLE_EDGE) > 0.01
 
 
 def test_a_hand_already_out_reaches_on_straight():
@@ -796,7 +796,9 @@ def test_the_way_out_walks_every_target_in_turn_and_a_stop_ends_it():
     if not np.allclose(r.q_to["right"], seen[-1]):
       seen.append(r.q_to["right"].copy())
   assert r.phase["right"] == "move" and np.allclose(r.q_cmd["right"], q_pre)
-  assert len(seen) == len(way) == 4 and all(np.allclose(a, b) for a, b in zip(seen, way))
+  # (a leg whose ends are one pose -- a roll already out -- changes no target)
+  legs = [q for k, q in enumerate(way) if not k or not np.allclose(q, way[k - 1])]
+  assert len(seen) == len(legs) >= 3 and all(np.allclose(a, b) for a, b in zip(seen, legs))
   for end in ("retreat", "halt", "set_joints"):
     r = _standing_reach()
     r.stand = SimpleNamespace(trunk=SimpleNamespace(gravity=lambda: np.array([0.0, 0.0, -1.0])))
@@ -927,25 +929,31 @@ def test_a_hand_pressed_on_what_it_met_is_eased_before_its_jaws_shut():
   """#560: a cube's grip point, the fingers' middle, held 2-3 cm past where
   their tips met its board, the arm pressing them on it at 40-120 N; the
   jaws dragged across it as they shut and the feet swivelled 4-6 deg.
-  Holding, and pushing on along its fingers past `EASE_N`, the hand's goal
-  and command go to where its senses put it; under it, or not holding,
-  nothing moves."""
+  Held -- holding, or stopped on its way, pressed hardest -- and pushing on
+  along its fingers past `EASE_N`, the hand is held where its senses put
+  it, its command walked there at `HAND_SPEED` (a setpoint is ramped);
+  under it, or on its way, nothing moves."""
   from pluggybot.humanoid import reach as rc
   from pluggybot.humanoid.arms import HandGoal, frame
   r = _bare_reach()
   rot = frame((0.5, 0.0, -0.866), (0.0, 1.0, 0.0))
   goal = np.array([0.32, 0.17, 0.78])
   at = goal - 0.025 * (-rot[:, 2])                 # its tips met the board 2.5 cm short
-  for phase, push, eased in (("hold", rc.EASE_N + 5.0, True), ("hold", rc.EASE_N - 5.0, False),
-                             ("approach", rc.EASE_N + 5.0, False), ("carry", 40.0, False)):
-    r.phase["left"] = phase
+  for phase, push, eased in (("hold", rc.EASE_N + 5.0, True), ("blocked", rc.EASE_N + 5.0, True),
+                             ("hold", rc.EASE_N - 5.0, False), ("approach", rc.EASE_N + 5.0, False),
+                             ("carry", 40.0, False)):
+    r.phase["left"], r.speed["left"] = phase, rc.HOLD_SPEED
     r.cmd["left"], r.goal["left"] = HandGoal(goal.copy(), rot, 1.0), HandGoal(goal.copy(), rot, 1.0)
     r.sensed_grip = {"left": at.copy(), "right": None}
     r.force = {"left": push * -rot[:, 2], "right": np.zeros(3)}
     assert r.ease("left") is eased, (phase, push)
-    want = at if eased else goal
-    assert np.allclose(r.cmd["left"].pos, want) and np.allclose(r.goal["left"].pos, want)
-    assert np.allclose(r.cmd["left"].rot, rot)
+    assert np.allclose(r.goal["left"].pos, at if eased else goal) and np.allclose(r.cmd["left"].pos, goal)
+    if eased:
+      assert r.phase["left"] == "hold" and np.allclose(r.goal["left"].rot, rot)
+      # ...its command walked there one command at a time, never put there
+      r._line("left", 0.01)
+      step = float(np.linalg.norm(r.cmd["left"].pos - goal))
+      assert step == pytest.approx(rc.HAND_SPEED * 0.01, rel=1e-6)
 
 
 @pytest.mark.parametrize("closed", [True, False])

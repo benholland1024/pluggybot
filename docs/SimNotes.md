@@ -2363,17 +2363,19 @@ read against the truth (`_true_stance`):
   a walk measured from before it counted as walked (ok, without a step),
   and the hand-over outlasted the 1 s a walk is given to get anywhere,
   which read as `blocked` on a bare floor.
-- *Nor is a walk judged before its feet stride* (#560): it is `blocked`
-  only once a sole is `odometry.SWAP_M` off the floor by its model of
-  itself and it then goes nowhere, or where none is in `STEP_START_S`.
-  Handed the standing policy's stance after a reach -- 23 cm between the
-  soles' middles, the walker's own 18 -- the walker loads its right foot
-  first whichever way it is asked: a sidestep to the left lifts within
-  0.25 s, one to the right shuffles 0.6-1.1 s first, its feet sliding where
-  the legs' reckoning cannot see (it read 0.6-3.9 cm of the 1.9-6.1 they
-  went), and 2 of 7 at the table's set-outs were blocked. The retry that
-  went had begun from the walker's own stance, which the shuffle had left;
-  waiting, or the walker held still first, changed neither.
+- *A walk's first window is 2 s* (`STEP_START_S`, #560), then 1 cm in each
+  second after. Handed the standing policy's stance after a reach -- 23 cm
+  between the soles' middles, the walker's own 18 -- the walker loads its
+  right foot first whichever way it is asked: a sidestep to the left lifts
+  within 0.25 s, one to the right slides 0.6-1.1 s first, where the legs'
+  reckoning cannot see (it read 0.6-3.9 cm of the 1.9-6.1 they went), and
+  in a 1 s window 2 of 7 at the table's set-outs read `blocked`. The retry
+  that went had begun from the walker's own stance, which the slide had
+  left; waiting, or the walker held still first, changed neither. ⚠ Not a
+  foot's lift, judged off the robot's model of itself: through the slide
+  it read the soles 4-5 mm apart when they were under 2, and 2 when one
+  had lifted 7. ⚠ The slide is in no report: such a step lands where it is
+  asked, but its `step.dx/dy` read 3-4 cm short of 21.
 - *The walker skews an oblique walk*: it raises a forward speed under
   `V_MIN` to it and leaves the sideways one, so a step at `STEP_V` more than
   48 deg off straight ahead walked 12 cm further ahead than asked. Such a
@@ -5172,9 +5174,8 @@ the humanoid at the table's south place; flights in
   its piece is read: read first, the hand came down on the cup's rim 2-5
   cm off, and it was laid 5 of 32 where 21.
 - *A sidestep after an arm's way home was "blocked"* (6 of 32 tries): the
-  walker shuffled its first second, unseen (Stepping toward the work); a
-  walk is judged once its feet stride now (stage (a)), and none of 41
-  blocked.
+  walker slid its first second, unseen (Stepping toward the work); a
+  walk's first window is 2 s now (stage (a)), and none of 41 blocked.
 - *The reach's approach starts where the posture left the hand*, 3-5 cm
   from its pre-grasp, and converges diagonally: tall things are clipped.
   Sent through its pre-grasp instead (`Reach`, tried and not kept), the cup

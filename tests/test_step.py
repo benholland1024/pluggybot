@@ -87,7 +87,7 @@ class Walk:
   nowhere; the legs handed to it in `handover_s`, the pelvis coming
   `handover_m` forward over the feet meanwhile (out of a bow); a fall
   at its command `fall_at`; and its first `shuffle_s` of walking a
-  shuffle, both soles down and the believed pose still (the feet slide)."""
+  shuffle, the believed pose still (the feet slide)."""
 
   def __init__(self, coast_s=0.22, wall=None, turn_drift=0.0, handover_s=0.0, handover_m=0.0,
                fall_at=None, settle_m=0.0, shuffle_s=0.0):
@@ -101,9 +101,8 @@ class Walk:
     #: where the pelvis stands ahead of the feet's middle, m
     self.lean = -handover_m
     #: its reckoning's ledger of corrections (`StanceOdometry.corrected`),
-    #: and one a matcher makes `correct_at` its command: (dx, dy, dyaw);
-    #: and each sole's lowest corner, m (`StanceOdometry.low`)
-    self.odo = NS(corrected=np.zeros(3), low=np.zeros(2))
+    #: and one a matcher makes `correct_at` its command: (dx, dy, dyaw)
+    self.odo = NS(corrected=np.zeros(3))
     self.correct_at, self.correction = None, (0.0, 0.0, 0.0)
     self.shuffle_s, self.walked_s = shuffle_s, 0.0
 
@@ -151,11 +150,8 @@ class Walk:
     c, s = math.cos(yaw), math.sin(yaw)
     nx, ny = x + (c * vx - s * vy) * DT, y + (s * vx + c * vy) * DT
     if vx or vy:
-      # a stride lifts a sole off the floor; a shuffle slides them both
       self.walked_s += DT
-      shuffling = self.walked_s <= self.shuffle_s
-      self.odo.low = np.array([0.0, 0.0 if shuffling else 0.01])
-      if shuffling:
+      if self.walked_s <= self.shuffle_s:
         nx, ny = x, y
     if w and not (vx or vy):
       nx += self.turn_drift
@@ -320,16 +316,14 @@ def test_a_step_walks_by_its_legs_never_by_a_correction_the_matcher_made_meanwhi
   assert rep["turn"] == pytest.approx(0.5, abs=hb.TURN_STOP_RAD + TURN_STEP)
 
 
-def test_a_step_is_judged_blocked_only_once_its_feet_stride():
-  """Handed the standing policy's stance after a reach (23 cm between the
-  soles' middles, the walker's own 18), the walker loads its right foot
-  first whichever way it is asked: asked to the right, its feet slid
-  0.6-1.1 s before its first stride, which its legs' reckoning cannot see,
-  and 2 sidesteps of 7 at the table read "blocked" (#560). Its walk is
-  judged once a sole is off the floor (`odometry.SWAP_M`)."""
+def test_a_step_is_given_its_first_window_to_get_going():
+  """From the standing policy's stance after a reach, a sidestep to the
+  right slid up to 1.1 s before its first stride, unseen by its legs'
+  reckoning, and 2 of 7 at the table read "blocked" in a 1 s window (#560):
+  a walk's first window is `STEP_START_S`."""
   walk = Walk(coast_s=hb.STEP_STOP_S, shuffle_s=1.1)
   rep = _step(_walker(walk), 0.0, -0.21)
-  assert rep["why"] == "stepped", "a shuffle before its first stride read as blocked"
+  assert rep["why"] == "stepped", "a slide before its first stride read as blocked"
   assert rep["dy"] == pytest.approx(-0.21, abs=0.01)
 
 
@@ -337,11 +331,11 @@ def test_a_step_that_gets_nowhere_says_it_is_blocked_and_one_holding_does_not_mo
   walk = Walk(wall=0.05)
   rep = _step(_walker(walk), 0.3)
   assert rep["why"] == "blocked" and rep["dx"] == pytest.approx(0.05, abs=0.002)
-  assert walk.t <= 2 * hb.STEP_STUCK_S + 0.01
+  assert walk.t <= hb.STEP_START_S + hb.STEP_STUCK_S + 0.01
   # ...and a walk given less time than it takes runs out of it
   walk = Walk()
   assert _step(_walker(walk), 0.3, 0.0, 0.0, 0.1)["why"] == "out of time"
-  # ...and one whose feet never leave the floor, once it has had its start
+  # ...and one that never gets going, once its first window is over
   walk = Walk(shuffle_s=60.0)
   rep = _step(_walker(walk), 0.0, -0.21)
   assert rep["why"] == "blocked" and hb.STEP_START_S <= walk.t <= hb.STEP_START_S + 0.01

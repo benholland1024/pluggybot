@@ -683,7 +683,8 @@ save a filmstrip PNG named after the script.
   it), then turn once off the handle's tag to each prop's `STANCE`, a
   little left of square (squared, the way home pushed the drawer back in).
   OFFERED: the drawer, the door and the chest, 8, 8 and 7 of 8 over
-  `solve.py --from tour` (the bar 6), 16 minutes each (3x the slowest
+  `solve.py --from tour` (the bar 6; on #560's stage (a) pod, a Threadripper,
+  7, 8 and 5, before its fixes and after), 16 minutes each (3x the slowest
   pass, 313 s); ⚠ NOT the cube (0 of 8, set down off its mat). Each pays
   90, Ben's call.
 - **A table set is #560's first task, graded offline and NOT offered**
@@ -803,9 +804,9 @@ save a filmstrip PNG named after the script.
   empty, a turn on the spot and a walk on the walking policy, its report
   where the stance went in the frame before (`step.*`) -- ⚠ measured only
   once the walker has the legs (out of a bow the pelvis came 16 cm forward
-  on its own), ⚠ `blocked` only once its feet stride (`STEP_START_S`: from
-  the stand's stance after a reach a sidestep to the right slid 0.6-1.1 s,
-  unseen by its odometry, #560), an oblique step the walker would skew walked as two, a
+  on its own), ⚠ its first window `STEP_START_S` (2 s: from the stand's
+  stance after a reach a sidestep to the right slid up to 1.1 s, unseen by
+  its odometry, and read `blocked` in 1 s, #560), an oblique step the walker would skew walked as two, a
   turn's 2-6 cm of shuffle uncounted (the odometry is worse over it); ⚠ a
   humanoid with a hand out keeps its posture to look (a bow carried the
   hand 43 cm up). A verb test and the maths are in every hands

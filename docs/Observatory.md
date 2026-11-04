@@ -10,12 +10,12 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### The hands' small fixes: a step judged once its feet stride, a way out judged as the way home is, a pressed hand eased before it shuts (#560, stage (a)) — opens when this PR is deployed
+### The hands' small fixes: a step given 2 s to get going, a way out judged as the way home is, a pressed hand eased before it shuts (#560, stage (a)) — opens when this PR is deployed
 
 **What changed in the world.** The served pair's hands and feet, on every
 hand job, procedure and plug-in:
-- **A `step` is "blocked" only once its feet stride** (a sole off the
-  floor), or where they never do in 2 s.
+- **A `step` is given 2 s to get going** before it can read "blocked"
+  (1 s each window after).
 - **A reach from the hanging arm goes out round by its side** where
   straight would sweep the arm low ahead of the robot (`Reach.way_out`): a
   reach takes 1-2.5 s longer, a dock about 2 s.

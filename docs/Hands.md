@@ -101,7 +101,7 @@ and its feet, which the walking policy moves.
 | `close_hand(hand, force)` | shuts the gripper with at most `force` a pad, 5-120 N, a hand pressed on what it met eased to where it is first (`Reach.ease`) | `hand.held`, `hand.gap` | closed on nothing it holds | the Dex1-1's torque limit, its encoder and current |
 | `open_hand(hand)` | opens the gripper | -- | -- | -- |
 | `withdraw(hand)` | the hand back along its way in, then the arm home: straight, or out to its side first and lowered there, its shoulder pitched back, where that keeps the arm higher in front of the robot than straight would (SimNotes, "The way home"); ok once its drivers read it home | -- | not home by `RELEASE_S` (something holds it); a fall | `Reach.way_home` on the robot's model of itself, `Reach.home` |
-| `step(ahead, left, turn)` | the feet to the work, its hands home first: a turn on the spot, then a walk in the frame it then stands in -- one motion, or ahead then left where the walker would skew it -- and a stand; a walk goes at least a stride, about 10 cm | `step.dx/dy` (where the stance went, in the frame it stood in before), `step.turn`; the verb's text turns a place read before into the frame after | holding something (nothing moves), blocked (judged once its feet stride), fell, out of time. ⚠ A turn's shuffle moves the feet 2-6 cm the report does not count | the walking policy, the legs' odometry |
+| `step(ahead, left, turn)` | the feet to the work, its hands home first: a turn on the spot, then a walk in the frame it then stands in -- one motion, or ahead then left where the walker would skew it -- and a stand; a walk goes at least a stride, about 10 cm | `step.dx/dy` (where the stance went, in the frame it stood in before), `step.turn`; the verb's text turns a place read before into the frame after | holding something (nothing moves), blocked (nowhere in its first 2 s, or 1 cm in a second after), fell, out of time. ⚠ A turn's shuffle moves the feet 2-6 cm the report does not count, and a sidestep's first slide from the stance a reach leaves 1-4 cm | the walking policy, the legs' odometry |
 
 Beside them stay `wait` and `move(axis, target)` -- the motor level, one arm
 joint walked to a setpoint -- and the sensors `time` and each hand's place,
@@ -123,7 +123,10 @@ move's first command, and the first reading past N (strictly) stops the
 move where it is, as its own stops do (`Body.stop_hand`, `Reach.halt`): a
 carry or a pull where the hand IS, a reach on its line in where its command
 is, and one still swinging out where its arm is commanded and its body in
-the posture it had got to -- out, every way. The verb is ok, its verdict
+the posture it had got to -- out, every way. ⚠ A reach's way out may go
+round by its side (`Reach.way_out`, #560), its hand 1.0-1.1 m up and 0.74 m
+from the body's middle, and it is read there too: a condition on the hand's
+height or place may stop it out at its side. The verb is ok, its verdict
 says what it read (`until`), and `<verb>.stopped` reads 1. A condition
 already met stops a move before it moves; one never met ends the move as it
 would have ended. Waiting out a get-up, no hand is stopped. What a verb
@@ -272,7 +275,7 @@ docs/figures/hands_JOB.png`; `--view JOB K` watches one in the viewer.)
 **The table's place (#560)**, a job added after: 1 of 8 -- not met, and
 not offered; its pieces each at an edge of what the hands reach at a 0.72 m
 table (SimNotes, "Setting a table"). **The hands' small fixes at a table**
-(#560's stage (a), SimNotes there): a step judged once its feet stride, a
+(#560's stage (a), SimNotes there): a step given 2 s to get going, a
 way out judged as the way home is, a pressed hand eased before it shuts,
 and the side way's roll in pitched back. Flown on one machine before and
 after them (a pod's Threadripper 3970X, osmesa): the lid 6 to 7, the drawer
