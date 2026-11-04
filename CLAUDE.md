@@ -683,8 +683,8 @@ save a filmstrip PNG named after the script.
   it), then turn once off the handle's tag to each prop's `STANCE`, a
   little left of square (squared, the way home pushed the drawer back in).
   OFFERED: the drawer, the door and the chest, 8, 8 and 7 of 8 over
-  `solve.py --from tour` (the bar 6; on #560's stage (a) pod, a Threadripper,
-  7, 8 and 5, before its fixes and after), 16 minutes each (3x the slowest
+  `solve.py --from tour` (the bar 6; on #560's stage (a) pods, before its
+  fixes and after, 7, 8 and 7 on a Xeon and 7, 8 and 5 on a Threadripper), 16 minutes each (3x the slowest
   pass, 313 s); ⚠ NOT the cube (0 of 8, set down off its mat). Each pays
   90, Ben's call.
 - **A table set is #560's first task, graded offline and NOT offered**

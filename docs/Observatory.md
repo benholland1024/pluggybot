@@ -30,10 +30,11 @@ table"): a sidestep from the standing policy's stance shuffled unseen and
 read "blocked"; the straight way out drove a hanging hand into a table at
 353-359 N; a cube's grip dragged its jaws across the board and turned the
 feet 4-6 deg; and the side way home dragged a jaw over a counter the robot
-stood turned to, turning it 20 deg. Flown before and after on one pod: the
-served jobs from the tour, the drawer 7 and 7 of 8, the door 8 and 8, the
-chest 5 and 5; the station 36 of 36 docks from round the standoff and 139 of
-140 seats, both.
+stood turned to, turning it 20 deg. Flown before and after on one pod (a
+Xeon Gold 6152): the served jobs from the tour, the drawer 7 and 7 of 8,
+the door 8 and 8, the chest 7 and 7 (5 and 5 on a Threadripper); the
+station 36 of 36 docks from round the standoff and 139 of 140 seats, both,
+the seats' falls 3 to 1.
 
 **What the period is for.** Charges still plug in (no `stuck` death and no
 charge narrated "no charge contact"), and the hand jobs' grades hold: read

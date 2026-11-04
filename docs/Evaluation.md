@@ -1837,12 +1837,12 @@ the reference: 19 of 32 [0.42, 0.74] at one try.
 **The table's place, its reference first** (#560's first task, easy mode;
 Challenges.md §12): our procedure in the hands' vocabulary
 (`hands_check.TABLE`) flown over its set-outs before any mind practices it,
-the bar the check's, 6 of set-outs 0-7, written before this job was. **1 of
-8, the bar not met, and 1 of 32 public set-outs**; by each piece's own
-criteria the cup was laid 21 times, the plate 22 and the fork twice (it
-comes last) -- since the hands' small fixes (#560's stage (a)); before
-them, on the same machine, 21, 9 and once, and no place (#615's own
-machine: 21, 7 and none). So by §7's ladder A the job is a defect, not an
+the bar the check's, 6 of set-outs 0-7, written before this job was. **0 of
+8 (1 on another pod), the bar not met, and 6 of 32 held-out set-outs**; by
+each piece's own criteria there the cup was laid 23 times, the plate 24 and
+the fork 6 (it comes last) -- since the hands' small fixes (#560's stage
+(a)); before them, on the same pod, 23, 6 and none, and no place (#615's
+own machine, on the public 32: 21, 7 and none). So by §7's ladder A the job is a defect, not an
 offer: what this body reaches at a 0.72 m table, a stance a piece, is
 narrower than the work (SimNotes, "Setting a table"). No practice
 arm has flown it. One try on the deployed model, a smoke of the harness,

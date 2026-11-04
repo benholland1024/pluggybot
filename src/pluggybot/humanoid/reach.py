@@ -617,10 +617,12 @@ class Reach:
     c, at = self.cmd[side], self.sensed_grip[side]
     if self.phase[side] not in ("hold", "blocked") or c is None or at is None:
       return False
-    rot = self.grip_now(side)[1] if c.rot is None else np.asarray(c.rot, dtype=float)
+    # ...its fingers' way as its loop last posed it: a fresh read of its
+    # joints would draw on their noise
+    rot = self.self_model.grip_pose(side)[1] if c.rot is None else np.asarray(c.rot, dtype=float)
     if float(self.force[side] @ -rot[:, 2]) <= EASE_N:
       return False
-    self.goal[side] = HandGoal(at.copy(), c.rot, c.stiffness)
+    self.goal[side] = HandGoal(at.copy(), None if c.rot is None else rot.copy(), c.stiffness)
     self.speed[side], self.phase[side] = HAND_SPEED, "hold"
     return True
 

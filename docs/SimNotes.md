@@ -5098,12 +5098,13 @@ table, is built and graded offline (Challenges.md §12): the dishware
 across its body, a fork by its thick handle, and a place card), its grader,
 its set-out (`counter.table_set_out`) and our procedure (`hands_check.TABLE`,
 1,401 characters of the language's 1,500). **Our procedure does not meet the
-bar**, so the job is not offered: 1 of the check's 8 set-outs (the bar 6)
-and 1 of 32 public ones; laid by each piece's own criteria, the cup 21 of
-32, the plate 22, the fork 2 (it comes last, after a step) -- since the
-hands' small fixes (#560's stage (a), below; before them, on the same
-machine, 21, 9 and 1). Every part of the place sits at an edge of what this
-body reaches at a 0.72 m table, below.
+bar**, so the job is not offered: 0 of the check's 8 set-outs (the bar 6;
+1 on another pod) and 6 of 32 held out; laid by each piece's own criteria
+over the 32 held out, the cup 23, the plate 24, the fork 6 (it comes last,
+after a step) -- since the hands' small fixes (#560's stage (a), below;
+before them, on the same pod, 23, 6 and none, and no place). Every part of
+the place sits at an edge of what this body reaches at a 0.72 m table,
+below.
 
 **Why the cube missed its mat** (#559's `place_cube`, 0 of 8; its check's
 procedure flown at set-outs 0-7, the truth beside the belief at every
@@ -5115,8 +5116,8 @@ verb):
   they shut, and the feet swivel 4-6 deg in 0.2 s. The mat, read in the
   stance frame before the grip, is 3.7-5.4 cm off by the carry (set-outs 0,
   2 and 4, whose carries then ran out of reach). Eased to where it is
-  before its jaws shut (`Reach.ease`, stage (a)), the shut turns the soles
-  0.5-1.1 deg.
+  before its jaws shut (`Reach.ease`, stage (a)), its command walked there,
+  the shut turns the soles 0.5-1.7 deg.
 - *A held cube's carry reads as a drop.* The carry's posture swings the
   hand +-5 cm at up to 1 m/s with the cube held fast, and the grader's 0.5
   m/s line, read at every step, failed two cubes set down 0.7 and 1.3 cm
@@ -5161,7 +5162,8 @@ the humanoid at the table's south place; flights in
   band at 19 of 32 grips (the left gripper "closed on nothing"). A blocked
   step's retry walked about 5 cm further (its slide unseen), and 6 of 7
   such gripped the plate where 5 of 24 others did: at 0.26 m, the step now
-  landing where it is asked (stage (a)), the plate is laid 22 of 32.
+  landing where it is asked (stage (a)), the plate is laid 21-22 of the
+  public 32 and 24 of 32 held out (at 0.21, 4 and 4).
 - *Flat tags* read to 2-4 mm from 0.37-0.53 m ahead, nothing nearer, and
   nothing 45 deg to the side after a 0.21 m step: the plate and the fork
   are read from the start, as offsets from the card.

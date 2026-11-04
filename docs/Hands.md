@@ -272,16 +272,18 @@ docs/figures/hands_JOB.png`; `--view JOB K` watches one in the viewer.)
 | door | **6 of 8** | 2: opened 44 deg, its pull out of reach; 4: never opened, its reaches out of reach or stopped short |
 | place | 3 of 8 | 2, 4: the carry to the mat out of reach; 5, 7: let fall at 0.6 m/s; 6: set down 3 cm from the mat's middle |
 
-**The table's place (#560)**, a job added after: 1 of 8 -- not met, and
-not offered; its pieces each at an edge of what the hands reach at a 0.72 m
-table (SimNotes, "Setting a table"). **The hands' small fixes at a table**
-(#560's stage (a), SimNotes there): a step given 2 s to get going, a
-way out judged as the way home is, a pressed hand eased before it shuts,
-and the side way's roll in pitched back. Flown on one machine before and
-after them (a pod's Threadripper 3970X, osmesa): the lid 6 to 7, the drawer
-4 and 4, the door 5 and 5, the cube 4 to 5 (2 and 4 gained, the grip's
-scrub gone; 6 lost), the table 0 to 1 -- and the served jobs from the
-tour, the drawer 7 and 7, the door 8 and 8, the chest 5 and 5.
+**The table's place (#560)**, a job added after: 0 of 8 -- not met, and
+not offered; 6 of 32 held-out set-outs laid; its pieces each at an edge of
+what the hands reach at a 0.72 m table (SimNotes, "Setting a table"). **The
+hands' small fixes at a table** (#560's stage (a), SimNotes there): a step
+given 2 s to get going, a way out judged as the way home is, a pressed hand
+eased before it shuts, and the side way's roll in pitched back. Flown on one
+pod before and after them (a Xeon Gold 6152, osmesa): the lid 6 to 7, the
+drawer 4 and 4, the door 5 to 6, the cube 4 to 5 (2 and 4 gained, the
+grip's scrub gone; 6 lost), the table 0 and 0 -- and the served jobs from
+the tour, the drawer 7 and 7, the door 8 and 8, the chest 7 and 7. A first
+pod (a Threadripper 3970X) read the same but the door 5 and 5, the table 0
+to 1 and the chest 5 and 5.
 
 **Our procedures were written against the set-outs they are checked on.**
 The review redrew the drawer's, the door's and the cube's set-outs (each

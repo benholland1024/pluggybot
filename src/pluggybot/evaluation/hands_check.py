@@ -254,10 +254,11 @@ PLACE = '''def place_cube():
 #: each reach, and the plate and the fork from the start, as offsets from
 #: the card: flat on the table, their tags are out of the head camera's view
 #: nearer than about 0.37 m, and to its side after a step. The step aside
-#: is 0.26 m (0.21, the plate laid 4 of 32 to 22). Each piece is gripped
-#: from above and behind at 45 deg, lifted, carried at that height, set down
-#: by a force move holding its line until it presses on the table, let go,
-#: and the open hand lifted clear before it goes home.
+#: is 0.26 m: at 0.21 the plate was laid 4 of 32 held-out set-outs, at 0.26
+#: 24 (SimNotes). Each piece is gripped from above and behind at 45 deg,
+#: lifted, carried at that height, set down by a force move holding its line
+#: until it presses on the table, let go, and the open hand lifted clear
+#: before it goes home.
 #: ⚠ IT DOES NOT MEET THE BAR (SimNotes, "Setting a table"): the bands the
 #: hands reach at a 0.72 m table are too narrow for every piece's grip.
 TABLE = '''def lay_place():
