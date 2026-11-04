@@ -482,9 +482,20 @@ save a filmstrip PNG named after the script.
 - **The humanoid charges by a cable it plugs into itself** (#559 stage 2;
   `activity/station.py`, `humanoid/charge.py`, `tests/test_station.py`;
   SimNotes, "The humanoid's charging station"): a station on the living
-  room's wall (where the quadrupeds' dock lay), a plug on a tool balancer that draws it
+  room's wall (where the quadrupeds' dock lay) -- and since #560 one in
+  each building, the research center lobby's and the mall concourse's, each
+  its own tag pair (58-59, 64-65, 66-67; `humanoid.world.stations`) -- a
+  plug on a tool balancer that draws it
   home into a cup, a magnetic RoPD port on the torso's front (Ben,
-  2026-10-30: no trunk point is in a head camera's view). The station is an
+  2026-10-30: no trunk point is in a head camera's view). ⚠ WHICH STATION
+  IS THE BODY'S TO CHOOSE, ONCE A CHARGE (`Body.choose_station`, #560;
+  SimNotes, "The grown world"): the one its plug is in, else the nearest
+  by a walk over its OWN map (`Navigator.nearest_by_walk`; from the park's
+  west sidewalk the house's is nearer as the crow flies and further by
+  every way round the fenced park), and a lost robot fixes off whichever
+  station it sees and charges there (its pair says which; the loop walks
+  to that standoff after); kept across a restart (restarted plugged in at
+  the mall, an unplug reached for the house's plug). The station is an
   activity of two CATCHES, each a weld taken where the plug is and drawn to
   its seat: the port (off past 20 N, the sheets' minimum) and the cup (off
   only to a pull straight out). ⚠ A CATCH TAKES ONLY A PLUG NO GRIPPER PAD
@@ -545,7 +556,9 @@ save a filmstrip PNG named after the script.
   (109 of 109), and 6 of 38 begun further off, across the street, running
   out of their 600 s outside the house's south fence (#572 stage 3;
   SimNotes, "The station found from far off"); 52 of 52 with it 0.4-1 m
-  wrong (#596; staging 51, the miss a plug the port never took); 339 W net; the reserve 18 Wh (17.5 before the Mid-360S's 6.2 W, #581).
+  wrong (#596; staging 51, the miss a plug the port never took); 339 W net;
+  the reserve 19.5 Wh, to the nearest station from the park's west sidewalk
+  (18 to the one station before #560).
 - **The humanoid's LIDAR is a Livox Mid-360S, upside down in its head,
   and its map is laid from its points laid flat** (#581; `perception/lidar.py`,
   `HumanoidSpec.lidar_z`, `model._head`, `HumanoidMission._scan`/`maps`,
@@ -599,7 +612,11 @@ save a filmstrip PNG named after the script.
   every ray met it. The level ring stays for the instruments and as the
   Navigator's default scan; nothing the humanoid decides reads it since
   #572's stage 3. ⚠ NO CUTOFF ON THE CAST: MuJoCo culls a plane by its
-  centre.
+  centre. ⚠ A STATIC GEOM PAST A SENSOR'S REACH IS LEFT OUT OF ITS CAST
+  (`perception.cull`, #560; the LIDAR's and the depth camera's): every geom
+  costs every ray, reachable or not, and the readings are the same bit for
+  bit (`test_cull.py`) -- judged afresh each cast, as activities move and
+  resize geoms.
 - **A humanoid is told its own body and world** (#559 stages 3 and 5;
   `Menu.kinds`, `hands_procedure_rule`, `steps.served_hand_facts`;
   `tests/test_humanoid_words.py`; Overseer.md §8b): ⚠ ITS WORDS ARE THE ONLY
@@ -1184,8 +1201,11 @@ save a filmstrip PNG named after the script.
   - **where two honest measurements disagree the table carries the dearer**,
     and a cost key may name a TARGET. Padding is never the fix; a second
     measured row is. ⚠ Every row is measured FROM THE STATION, the place a
-    job is taken from (a first job flown from the explore's end, or a first
-    search of a fresh map, is not carried). An overrun smaller than the
+    job is taken from -- with several, the DEAREST (#560: the mall's, 43 m by
+    route from the storeroom's counter; `energy_spike.py --station`: left
+    to choose, a job is measured from the nearest) -- and a first job flown
+    from the explore's end, or a first search of a fresh map, is not
+    carried. An overrun smaller than the
     margin cannot strand the robot; a
     bigger one is a stale table and the loop says so at 10 % over;
   - **a timeout in seconds is a timeout in watt-hours**: `charge_timeout`
@@ -1325,7 +1345,7 @@ save a filmstrip PNG named after the script.
   `PLUGGY_MODE_FILE`, `PLUGGY_WEEKLY_USD`, `PLUGGY_ESCALATE_TO`,
   `PLUGGY_THOUGHTS`, `PLUGGY_MODEL`, `PLUGGY_OVERSEER_BACKEND`; the secret is
   `$PLUGGYWORLD_TOKEN`. ⚠ A lazy import is the failure mode
-  (`perception.tags._shared_detector` imports the detector inside a function):
+  (`perception.tags.kept_detector` imports the detector inside a function):
   `tests/test_deploy.py` blocks the omitted packages and flies the robot; a
   new runtime dependency goes in the requirements too, and a training stack
   never does (#375). This repo owns the IMAGE; the website repo owns the
@@ -1343,7 +1363,7 @@ save a filmstrip PNG named after the script.
 - **Protocol fixtures are GENERATED** (`protocol/`; a replayer picks its
   scene off the `model` header): the scenes of the SERVED pair's house,
   `home_humanoid` and `home_humanoid_pair` (#559's stage 4; + tag textures,
-  and the station's rope as a `cables` entry), `uv run python -m
+  and each station's rope as a `cables` entry), `uv run python -m
   pluggybot.telemetry.scene --world home_humanoid [--pair]` -- rerun after
   changing ANY geometry in that world -- and the pair's recording,
   `MUJOCO_GL=osmesa scripts/two_robots.py --world home_humanoid --fast
@@ -1428,9 +1448,16 @@ save a filmstrip PNG named after the script.
   layout constant in `home/world.py` (the committed pair is tested against the
   generator). ⚠ So the generator runs in the suite while other workers load
   the house: a tag texture it writes goes in WHOLE, and a current one is left
-  alone (`tags.write_tag_pngs`, #440). Two houses inside one fence and a
-  street loop (#215; Observatory.md has the layout); a room names its
-  `building` and the site paints walls by it. ⚠ THE WALLS ARE A ROOM'S
+  alone (`tags.write_tag_pngs`, #440). A 2x2 grid inside one fence (#560
+  stage 1; SimNotes, "The grown world"): the house and the research center
+  north, the park and the mall south, the middle street between the columns,
+  the alley between the research center and the mall, the loop round all
+  four; a room names its `building` (`house`, `facility`, `mall`) and the
+  site paints walls by it. ⚠ NOTHING A TASK WILL SET OUT STANDS THERE
+  BEFORE IT: the restaurant's dishware and the store's stock are each
+  task's own (#560: every free body costs the physics, every geom a ray).
+  ⚠ The park's trees are REAL obstacles, mapped and routed round
+  (`test_dressing.py`'s tollbooth): never decor. ⚠ THE WALLS ARE A ROOM'S
   2.4 m AND THE STAIRS ARE STEPS (#507 stage 5; `stairs_geoms`): five 0.18
   m risers on 0.30 m treads to a 0.9 m landing behind half walls, laid
   where the site drew its flight in the rover's one solid box; the `stairs`
@@ -1438,8 +1465,8 @@ save a filmstrip PNG named after the script.
   ⚠ The lab's and the workshop's props (`activity/cage.py`, `home/props.py`:
   the cage, the tower's blocks and the bench, whose jobs went with the
   quadruped) are geometry the generator emits; behaviour is added beside
-  it. The house carries no robot. ⚠ The grid is 469,200
-  cells, a quarter of `occupancy_grid.MAX_CELLS` (1,876,800, the largest
+  it. The house carries no robot. ⚠ The grid is 856,800
+  cells (#560; 469,200 before), 46 % of `occupancy_grid.MAX_CELLS` (1,876,800, the largest
   grid measured: #558, `scripts/grid_spike.py`): walks plan on the compiled
   lattice, and what grows with the cells is each scan's update, each plan's
   inflation transform and weights, the save, and the explore's frontier
@@ -1447,8 +1474,9 @@ save a filmstrip PNG named after the script.
   box); the humanoid pays its walls and its arrival's replans oftener
   (SimNotes, "The map's size limit"). ⚠ The one world, `home_humanoid`, is
   built at LOAD from that file (`humanoid/world.py`): the humanoid(s), then
-  the lab plates' signs (#419), the boards' and the areas' tags, its station
-  and the storeroom's counter -- one house, no second XML; its robots are
+  the lab plates' signs (#419), the boards' and the areas' tags and the
+  park's sign, its three stations and the storeroom's counter -- one house,
+  no second XML; its robots are
   attached AFTER the house, so read them by name. ⚠ THE CAMERAS' NEAR PLANE: MuJoCo
   scales `visual.map.znear` by the extent it derives from the bounding box,
   and the house's loop silently pushed it from 0.37 to 0.70 m, so the extent
@@ -1549,11 +1577,17 @@ save a filmstrip PNG named after the script.
   -- and every sensor keeps the other robot OUT OF THE MAP AND IN THE
   DRIVE: painted into the grid, a peer walls in the robot it passed;
   dropped from the scan, the front stop is blind to the one obstacle that
-  moves. ⚠ One station: contention is the minds' opportunity (#208) and the
-  geometry must not settle it -- but a charge WAITS while the other is on
-  the station's WAY IN or its SEAT, not only its standoff (the lifecycle's
+  moves. ⚠ A station takes one robot (three stations since #560, one in
+  each building): contention is the minds' opportunity (#208) and the
+  geometry must not settle it -- a charge goes to the station its body
+  chose (`Body.choose_station`, below) and WAITS while the other is on
+  that station's WAY IN or its SEAT, not only its standoff (the lifecycle's
   #346 wait, `Body.charge_seat`, `LANE_STEP_M`), and asks one resting on the
-  way off it (`Body.ask_off`; afresh after a no, never one on the seat). ⚠
+  way off it (`Body.ask_off`; afresh after a no, never one on the seat) --
+  unless its MIND chose otherwise (Ben, 2026-11-03: a decided `charge`'s
+  `station: "free"` goes on to the nearest station nobody holds,
+  `MAX_STATION_SWITCHES`; waiting is the default, and an event-map row's or
+  a standing order's charge waits). ⚠
   THE PAIR COLLIDES (Ben, 2026-10-14, #455; `humanoid.world.PAIR_BITS`):
   each robot meets every solid geom of the other and none of its own, and
   AVOIDANCE keeps them apart -- before, they passed through each other, and
@@ -1657,10 +1691,12 @@ save a filmstrip PNG named after the script.
   under the PAIR world's name (`robot.pair_model_name`). `serve.py --pair`
   serves both through ONE publisher; a reach-in's `robot` picks its inbox
   (absent means the primary); the operator switch is the primary's. ⚠ The
-  served humanoid pair runs at ~1.4× real time on the deploy box (1.40x and
-  1.41x with the LIDAR's band, #581's stage 2; 1.62x and 1.65x on its level
-  ring, #559; SimNotes, "The band served"): ONE physics thread, so more
-  cores do not move it. ⚠ THE TAG CAMERA RENDERS
+  served humanoid pair's walks run at ~1.2× real time on the deploy box in
+  the grown world (#560, 3 Nov: 1.09-1.29x over six runs, median 1.23x,
+  against Ben's 1.15x floor; staging's the same rounds 1.24-1.35x, median
+  1.30x; 1.04x before the cast's cull, `perception.cull`; SimNotes, "The
+  grown world") -- 1.40x and 1.41x on #581's stage 2: ONE physics thread,
+  so more cores do not move it. ⚠ THE TAG CAMERA RENDERS
   WITHOUT SHADOWS: under osmesa a 1280×720 home frame cost 1113 ms with its
   sixteen shadow-casting lights and 32 ms without
   (`tests/test_render_context.py`).
@@ -1733,7 +1769,9 @@ save a filmstrip PNG named after the script.
   robot 0.6 m back into it; `start_at` closes the window. ⚠ A RETURN NEARER
   THAN `MATCH_MIN_M` (1 m) IS NO POINT OF THE FIT (#581's stage 2): what the
   hands work on, struck by a ring or two at the part's noisiest -- matched,
-  the band's matcher moved a dock's belief 40-67 cm in 16-19 s. ⚠ NOT HELD
+  the band's matcher moved a dock's belief 40-67 cm in 16-19 s; and every
+  return short of the LIDAR's 8 m reach is (`MATCH_RANGE_M`, #560: at the
+  C1's 6.5 m the park's middle, 8 m from any fence, went unpinned). ⚠ NOT HELD
   AT THE STATION: after a step toward the seat the tags are out of view, and
   the belief carries the station between looks -- held on odometry alone,
   it drifted 4-7 cm over two steps and a seat came out 7 cm wrong.
@@ -1746,16 +1784,16 @@ save a filmstrip PNG named after the script.
 - **The commissioned station outranks the robot's map, and one missing
   where the belief puts it is a robot LOST** (issue #476, on two legs #559;
   `HumanoidBody._fix_at`, `lost_routine`; SimNotes, "The humanoid's charging
-  station"): the station is commissioned, as the quadrupeds' dock was, and
-  a look at its two tags past `FIX_TOL_*` moves the belief and lays the map
-  again round it; ⚠ PAST THE MATCHER'S SEARCH (`ASKEW_*`) THE MAP AND ITS
+  station"): each station is commissioned (#560: three), as the
+  quadrupeds' dock was, and a look at its two tags past `FIX_TOL_*` moves
+  the belief and lays the map again round it; ⚠ PAST THE MATCHER'S SEARCH (`ASKEW_*`) THE MAP AND ITS
   PLACES ARE DROPPED: kept, a map laid while lost pulled a corrected belief
   onto a copy within 20 s. The station not in sight from the standoff a
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost
   (`Body.lost_routine`, by its LIDAR, never its belief: above), searched
-  ONCE a charge. Each relocation, fix, loss and search is a `drift` row,
-  beside a sample every `DRIFT_EVERY_S`; ⚠ the truth rides those rows and
-  never what the robot reads.
+  ONCE a charge. Each relocation, fix, loss and search is a `drift` row
+  (which station, `station`), beside a sample every `DRIFT_EVERY_S`; ⚠ the
+  truth rides those rows and never what the robot reads.
 - **A robot walks into the unknown** (issue #381's walking stage;
   `mapping/optimistic.py`, `Navigator.OPTIMISTIC`, on in `HumanoidMission`;
   SimNotes, "Walking into the unknown"): it plans through floor it has not seen at `UNKNOWN_COST` a
@@ -1774,8 +1812,9 @@ save a filmstrip PNG named after the script.
   (its middle a few metres off, in the robot's map) and the area's
   `directions` -- NEVER A FINER POSITION, not for a while, not for
   furniture (Ben, 2026-09-29); a test reads every number in the directions
-  as a tag. ⚠ The station is COMMISSIONED, as the dock and the tool rack
-  were (Ben, 2026-09-29); everything else is FOUND. A place is a tag merged
+  as a tag; an outdoor place's address is its own zone's middle (the
+  park, #560). ⚠ The stations are COMMISSIONED, as the dock and the tool
+  rack were (Ben, 2026-09-29); everything else is FOUND. A place is a tag merged
   by identity, never by distance, in the robot's own map; its facing off
   its fixture's drawing (two signs of the row), else its own rotation from
   a look >= 35 deg off and <= 3 m (square-on PnP swings +-10 deg), else

@@ -84,6 +84,12 @@ VISUAL_HINTS = (
   # purpose -- a shock plate and a feed plate are the same pad with a
   # different label, and the label is data.
   "plate",
+  # v6 (issue #560): the grown world's restaurant, store and study room. A
+  # `chair` is ONE BOX like the furniture; a `shelf` is MANY -- its ends, its
+  # back and its boards -- kept, because what a task sets on it stands on a
+  # board. The dining tables are `table`s, the expo line's, the checkout's
+  # and the kitchen's worktops `counter`s, the park's trees `tree`s.
+  "chair", "shelf",
 )
 
 #: What a pressure plate is FOR, by the plate body's name in `scene.plates`
@@ -96,12 +102,13 @@ VISUAL_HINTS = (
 PLATE_PURPOSES = ("light", "shock", "feed", "toy")
 
 #: Which BUILDING a room zone is in (issue #215's follow-up): the house with
-#: the rack, and the facility with the lab. A two-repo vocabulary on
+#: the robots' station and rooms, the facility with the lab (the research
+#: center), and the mall (#560). A two-repo vocabulary on
 #: VISUAL_HINTS' terms -- the site paints each building's walls by these
 #: names and the sim only says which is which, because a wall colour in the
 #: sim is what the robot's cameras render and the art is the site's. Adding
 #: one is additive; renaming one breaks the site's paint.
-BUILDINGS = ("house", "facility")
+BUILDINGS = ("house", "facility", "mall")
 
 # The visitor channel's vocabularies (issue #16).
 # Two-repo contracts on the same terms as VISUAL_HINTS: the

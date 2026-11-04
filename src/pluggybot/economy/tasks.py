@@ -231,8 +231,8 @@ KINDS: dict[str, TaskKind] = {
   # `done`, within the minutes the job gives (`HAND_MINUTES`, `HubLifecycle.
   # _grade_hands_routine`); each offer draws the prop's hidden dynamics
   # afresh. No errand: a procedure the robot writes (`discharge`). MEASURED
-  # off the hand-written references from the station (`challenge/
-  # solutions.py`, `energy.json`); the fallback a touch above.
+  # off the hand-written references from the dearest station, the mall's
+  # (`challenge/solutions.py`, `energy.json`); the fallback a touch above.
   "open_drawer": TaskKind(
     "open_drawer", task="open_drawer", target_kind="drawer",
     template="Pull the drawer out of its cabinet, at least 15 cm, and let go of it, "
@@ -240,7 +240,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: out that far both "
              "times, nothing of yours touching it in between. No errand does this: "
              "write the procedure, run it, and say you are done.",
-    estimate_wh=7.09, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=7.14, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "open_door": TaskKind(
     "open_door", task="open_door", target_kind="door",
     template="Open the cupboard's door, at least 50 degrees, and let go of it, within "
@@ -249,7 +249,7 @@ KINDS: dict[str, TaskKind] = {
              "are done and again 5 s later: open that far both times, nothing of yours "
              "touching it in between. No errand does this: write the procedure, run "
              "it, and say you are done.",
-    estimate_wh=5.72, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=7.72, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "place_cube": TaskKind(
     "place_cube", task="place_cube", target_kind="cube",
     template="Put the cube on its mat -- resting on it, flat, its middle within 2.5 cm "
@@ -257,7 +257,7 @@ KINDS: dict[str, TaskKind] = {
              "{minutes} minutes of taking this job and without falling. It is graded "
              "5 s after you say you are done, nothing of yours touching it. No errand "
              "does this: write the procedure, run it, and say you are done.",
-    estimate_wh=4.87, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=9.86, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "open_chest": TaskKind(
     "open_chest", task="open_chest", target_kind="chest",
     template="Open the chest's lid past 57 degrees, set it back down shut and let go "
@@ -266,7 +266,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: shut, nothing of "
              "yours touching it. No errand does this: write the procedure, run it, "
              "and say you are done.",
-    estimate_wh=5.99, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=7.47, discharge="procedure", draws=True, minutes=HAND_MINUTES),
 }
 
 #: The hand jobs' graders (#559): each served job's row is its own -- paid,

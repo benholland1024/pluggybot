@@ -437,7 +437,7 @@ def test_a_humanoid_plugged_in_at_its_station_says_no_to_a_way_it_cuts():
     _open_floor(m, x, y)
     way = [(x - 1.5, y), (x + 1.5, y)]
     life.data.time += REST_S
-    (port,) = m.port_eqs
+    port = m.port_eqs[0]                        # the house's station's, of three (#560)
     life.data.eq_active[port] = 1
     assert life.body.charging() and life.body.resting and not life.body.docked
     assert not life.body.make_way(way, "r2_pluggybot")

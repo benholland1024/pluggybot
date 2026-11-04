@@ -510,6 +510,10 @@ class Decision:
   #: which were the same thing on request.
   think: str = ""
   zone: str = ""
+  #: CHARGE's parameter (#560, a station in each building): "free" goes on
+  #: to the nearest station nobody holds where the nearest is taken; "",
+  #: the default, waits there for it.
+  station: str = ""
   #: RECALL's parameters (issue #221): a key to `read` and/or words to
   #: `find`. Set only on a `recall`; the lines come back on the NEXT turn.
   read: str = ""
@@ -758,6 +762,7 @@ class Decision:
   def as_dict(self) -> dict:
     return {"action": self.action, "reason": self.reason, "think": self.think,
             "zone": self.zone,
+            **({"station": self.station} if self.station else {}),
             **({"read": self.read} if self.read else {}),
             **({"find": self.find} if self.find else {}),
             "respondTo": self.respond_to, "outcome": self.outcome,
@@ -803,7 +808,7 @@ class Decision:
     if self.action == "recall":
       detail = " ".join(p for p in (f"read {self.read}" if self.read else "",
                                     f"find {self.find!r}" if self.find else "") if p)
-    detail = detail or self.zone or self.task
+    detail = detail or self.zone or self.station or self.task
     if detail:
       what = f"{what} ({detail})"
     # The source is shown for anything the MODEL did not answer -- a
@@ -956,7 +961,7 @@ MIGRATED_FIELDS = ("standing_order",)
 #: block above, so the index would say it twice. The test asserts exactly
 #: that -- every name here appears in the text of the actions it belongs
 #: to -- which is what keeps this from becoming a place to hide a field.
-ACTION_PARAMETERS = ("zone", "read", "find", "task")
+ACTION_PARAMETERS = ("zone", "station", "read", "find", "task")
 
 #: ...and the three that ARE the answer: what the robot thought, what it
 #: chose, and why.
@@ -1359,7 +1364,7 @@ class Menu:
     return {
       "type": "object",
       "additionalProperties": False,
-      "required": ["think", "action", "reason", "zone",
+      "required": ["think", "action", "reason", "zone", "station",
                    "read", "find",
                    "respond_to", "outcome", "reply", "say", "task",
                    "pin", "unpin", "note", "unnote", "cites",
@@ -1386,6 +1391,9 @@ class Menu:
         "think": {"type": "string"},
         "action": {"type": "string", "enum": actions},
         "zone": enum(self.zones),
+        # CHARGE's choice where its nearest station is taken (#560):
+        # "free" for the nearest nobody holds, empty to wait for it
+        "station": enum(("free",)),
         # RECALL's two parameters (issue #221): `read` a key (a note's
         # `topic/title`, a topic, a line's `#number`), `find` a few words
         # to search for. Free strings -- what they name changes every call
@@ -1670,6 +1678,9 @@ class Menu:
     zone = str(raw.get("zone", "") or "").strip()
     if zone and zone not in self.zones:
       raise ValueError(f"unknown zone {zone!r}")
+    station = str(raw.get("station", "") or "").strip()
+    if station not in ("", "free"):
+      raise ValueError(f"unknown station {station!r}: \"free\" or nothing")
     read = clean(raw.get("read"), MAX_LINE_CHARS) if action == "recall" else ""
     find = clean(raw.get("find"), MAX_LINE_CHARS) if action == "recall" else ""
     if action == "recall" and not recall:
@@ -1846,6 +1857,7 @@ class Menu:
                     # below: a zone filled on a `charge` was narrated and
                     # filed in History as where it charged
                     zone=zone if action == "explore" else "",
+                    station=station if action == "charge" else "",
                     read=read, find=find,
                     respond_to=respond_to, outcome=outcome, reply=reply,
                     say=say,
@@ -2659,7 +2671,7 @@ THE OTHER ROBOT
 There is another robot in this house: %(names)s. It is a pluggybot like you,
 with a mind of its own -- it decides its own day, keeps its own goals and
 its own memory, earns and spends its own points, and can die the same ways
-you can. You share the charging station and the jobs on offer; nothing
+you can. You share the charging stations and the jobs on offer; nothing
 decides between you.
 
 What you know of it is what it broadcasts, in `others` below: its name,
@@ -3050,8 +3062,10 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
                    "like \"open_drawer\" (that names nothing and wastes the turn). "
                    "The job says which place; you do not have to work that "
                    "out.",
-      "charge": "walk to your charging station and plug yourself in to top "
-                "up now, before you have to.",
+      "charge": "walk to the nearest charging station and plug yourself in to top "
+                "up now, before you have to. Optional `station`: \"free\" goes on "
+                "to the nearest station nobody is at when the nearest is taken; "
+                "left empty, you wait there for it.",
       "idle": "stand still and look around for a moment.",
       "recall": "look something up in your memory: stand still a moment "
                 "and see it on your next turn. Needs `read` (a key) and/or "

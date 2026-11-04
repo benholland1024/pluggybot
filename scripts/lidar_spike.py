@@ -58,16 +58,27 @@ from pluggybot.humanoid import model as hm  # noqa: E402
 from pluggybot.perception import lidar as ld  # noqa: E402
 
 HOME_META = "models/home_world.meta.json"
-#: The probe's groups of the house's zones, as #572's probe read them.
+#: The probe's groups of the house's zones, as #572's probe read them, and
+#: the grown world's (#560): its sidewalks and the alley beside the old, the
+#: robots' rooms and the study room with the rooms, the park and the mall
+#: apart -- and the park's middle (`PARK_MIDDLE_M`) on a line of its own.
 GROUPS = {
   "middle street": ("street",),
-  "sidewalks by it": ("sidewalk", "sidewalk_2"),
+  "sidewalks by it": ("sidewalk", "sidewalk_2", "sidewalk_park", "sidewalk_mall"),
   "gardens": ("garden", "garden_south", "garden_2"),
-  "block sidewalks": ("sidewalk_north", "sidewalk_south", "sidewalk_2_north",
-                      "sidewalk_2_south", "sidewalk_west", "sidewalk_east"),
+  "block sidewalks": ("sidewalk_north", "sidewalk_south", "sidewalk_2_north", "alley",
+                      "sidewalk_west", "sidewalk_east", "sidewalk_park_west",
+                      "sidewalk_park_south", "sidewalk_mall_east", "sidewalk_mall_south"),
   "the loop": ("street_north", "street_south", "street_west", "street_east"),
-  "rooms": ("kitchen", "workshop", "hall", "living", "bedroom", "lobby", "lab", "store"),
+  "rooms": ("kitchen", "workshop", "hall", "living", "bedroom", "lobby", "lab", "store",
+            "room_west", "room_east", "study_room"),
+  "the mall": ("concourse", "dining_room", "restaurant_kitchen", "shop", "loading_zone"),
+  "the park": ("park",),
 }
+#: The park's middle, for its own line: within this of the park's centre, m
+#: -- further than the matcher's reach (`scan_match.MATCH_RANGE_M`) from any
+#: fence, with only its trees and its sign near.
+PARK_MIDDLE_M = 3.0
 #: Sectors of a frame a report names, deg from straight ahead, each
 #: `SECTOR_DEG` either side.
 SECTORS = {"ahead": 0.0, "left": 90.0, "behind": 180.0, "right": -90.0}
@@ -305,17 +316,25 @@ def probe_summary(rows: list[dict]) -> None:
   the heading and one (held along a wall), and not the heading."""
   print(f"\n=== {rows[0]['variant']}: places whose scan pins ...")
   print(f"  {'':16s} {'n':>4s} | {'all 3':>6s} {'heading':>8s} {'NOT heading':>11s} | returns")
-  for grp, names in GROUPS.items():
-    rs = [r for r in rows if r["zone"] in names]
-    if not rs:
-      continue
+
+  def line(label: str, rs: list[dict], tail: str = "") -> None:
     n = len(rs)
     acc = [r for r in rs if r["why"] == "ok"]
     full = sum(1 for r in acc if r["held"] == 0)
     heading = sum(1 for r in acc if r["held"] == 1 and abs(r["weak"][2]) < 0.5)
     pc = lambda k: f"{100 * k / n:5.0f}%"  # noqa: E731
-    print(f"  {grp:16s} {n:4d} | {pc(full):>6s} {pc(heading):>8s} {pc(n - full - heading):>11s} "
-          f"| {np.mean([r['returns'] for r in rs]):6.0f}")
+    print(f"  {label:16s} {n:4d} | {pc(full):>6s} {pc(heading):>8s} {pc(n - full - heading):>11s} "
+          f"| {np.mean([r['returns'] for r in rs]):6.0f}{tail}")
+  for grp, names in GROUPS.items():
+    rs = [r for r in rows if r["zone"] in names]
+    if rs:
+      line(grp, rs)
+  from pluggybot.home import world as home
+  cx, cy = sum(home.PARK_X) / 2, sum(home.PARK_Y) / 2
+  mid = [r for r in rows if r["zone"] == "park"
+         and math.hypot(r["x"] - cx, r["y"] - cy) <= PARK_MIDDLE_M]
+  if mid:
+    line("the park middle", mid, f"  (verdicts: {', '.join(sorted({r['why'] for r in mid}))})")
 
 
 # ---- --view and --strip -----------------------------------------------------------

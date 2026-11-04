@@ -149,13 +149,14 @@ def _f(v: float) -> str:
   return f"{v:.6g}"
 
 
-def tag_layout() -> dict[int, tuple[float, float, float]]:
-  """Each tag's centre in the station's frame, by id: its drawing, what a
-  robot knows of the station before it sees it."""
-  return {STATION_TAG_IDS[0]: (0.0, TAG_Y, CUP_Z), STATION_TAG_IDS[1]: (0.0, -TAG_Y, CUP_Z)}
+def tag_layout(tags=STATION_TAG_IDS) -> dict[int, tuple[float, float, float]]:
+  """Each tag's centre in the station's frame, by id -- a station's pair,
+  the house's by default (#560: each station its own) -- its drawing, what
+  a robot knows of the station before it sees it."""
+  return {tags[0]: (0.0, TAG_Y, CUP_Z), tags[1]: (0.0, -TAG_Y, CUP_Z)}
 
 
-def station_xml(name: str = "station") -> str:
+def station_xml(name: str = "station", tags=STATION_TAG_IDS) -> str:
   """The station as a document to attach (`attach_station`): its box, the
   cup and the tags drawn on its face, the plug on its balancer's rope, the
   cup's catch. The robots' catches are added by `attach_station`."""
@@ -168,7 +169,7 @@ def station_xml(name: str = "station") -> str:
        f'<site name="{name}_rope" pos="{_f(-BOSS_M - 0.003)} 0 {_f(CUP_Z)}" size="0.004"/>',
        f'<site name="{name}_seat" pos="{_f(-BOSS_M - 0.003)} 0 {_f(CUP_Z)}" size="0.004" '
        f'zaxis="-1 0 0"/>']
-  for tag_id, (x, y, z) in tag_layout().items():
+  for tag_id, (x, y, z) in tag_layout(tags).items():
     g.append(f'<geom name="{name}_tag{tag_id}" type="box" size="0.001 {_f(half)} {_f(half)}" '
              f'pos="{_f(x - 0.001)} {_f(y)} {_f(z)}" contype="0" conaffinity="0" '
              f'material="tagmat{tag_id}"/>')
@@ -199,12 +200,14 @@ def station_xml(name: str = "station") -> str:
           f'solref="0.004 1"/></equality></mujoco>')
 
 
-def attach_station(spec, pose, name: str = "station", roots=("pluggybot",)) -> None:
+def attach_station(spec, pose, name: str = "station", roots=("pluggybot",),
+                   tags=STATION_TAG_IDS) -> None:
   """A station into a world's `spec` at `pose` (x, y, yaw rad: its frame,
-  above), with a catch for each robot's port (`roots`, the robots' root
-  bodies, attached first), and its tags' textures once a world."""
+  above), named `name` and wearing `tags`, with a catch for each robot's
+  port (`roots`, the robots' root bodies, attached first), and its tags'
+  textures once a world."""
   import mujoco
-  for tag_id in STATION_TAG_IDS:
+  for tag_id in tags:
     if spec.texture(f"tagtex{tag_id}") is None:
       spec.add_texture(name=f"tagtex{tag_id}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
                        file=f"tags/tag{tag_id}.png")
@@ -215,11 +218,26 @@ def attach_station(spec, pose, name: str = "station", roots=("pluggybot",)) -> N
   frame = spec.worldbody.add_frame()
   frame.pos = [float(x), float(y), 0.0]
   frame.quat = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
-  spec.attach(mujoco.MjSpec.from_string(station_xml(name)), prefix="", frame=frame)
+  spec.attach(mujoco.MjSpec.from_string(station_xml(name, tags)), prefix="", frame=frame)
   for root in roots:
     spec.add_equality(name=f"{name}_port_{root}", type=mujoco.mjtEq.mjEQ_WELD,
                       objtype=mujoco.mjtObj.mjOBJ_BODY, name1=root, name2=f"{name}_plug",
                       active=False, solref=[0.004, 1.0])
+
+
+def station_names(model) -> list[str]:
+  """Every station in a compiled world, by its body's name, in the world's
+  order: a body with a cup's catch (`{name}_cup`) -- the house's first."""
+  return [model.body(int(model.eq_obj1id[e])).name for e in range(model.neq)
+          if model.equality(e).name == f"{model.body(int(model.eq_obj1id[e])).name}_cup"]
+
+
+def station_tags(model, name: str) -> tuple[int, ...]:
+  """A station's tags off its compiled body: the ids its face wears."""
+  b = model.body(name).id
+  pre = f"{name}_tag"
+  return tuple(sorted(int(model.geom(g).name[len(pre):]) for g in range(model.ngeom)
+                      if int(model.geom_bodyid[g]) == b and model.geom(g).name.startswith(pre)))
 
 
 def to_world(pose, x: float, y: float) -> tuple[float, float]:
@@ -392,8 +410,8 @@ class Station(Activity):
   def sense(self, model, data) -> None:
     mated = ""
     for eq, (root, port) in self.ports.items():
-      out = data.site_xmat[port].reshape(3, 3)[:, 2]
       if data.eq_active[eq]:
+        out = data.site_xmat[port].reshape(3, 3)[:, 2]
         self._draw_in(data, eq)
         # ...judged once seated: a hand still on the plug fights its draw-in
         if self._pull.get(eq) is None and self._off(self._load(data, eq), out) >= BREAK_N:
@@ -402,6 +420,10 @@ class Station(Activity):
         else:
           mated = model.body(root).name
           continue
+      # ...armed, its plug in the cup: nothing to take and nothing to re-arm,
+      # at most stations every step (#560: three, 32 us a step each)
+      if self._armed[eq] and data.eq_active[self.cup]:
+        continue
       gap, lateral, tilt = self._port_offset(data, port)
       if not self._armed[eq]:
         self._armed[eq] = gap > CLEAR_M or lateral > CLEAR_M

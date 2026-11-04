@@ -1,13 +1,15 @@
 {
   "notes": [
     "PLACES, NOT COORDINATES (issue #419): what a job may tell a robot about where it is sent. At most the building's ADDRESS and written DIRECTIONS for the task area -- TaskPattern.md §2's dispatcher test: could someone who cannot see the room have written it? Everything finer the robot finds by the area's tags and remembers itself (`mapping/places.py`).",
-    "`houses`: each building's ADDRESS ERROR, metres in the map's axes: the deliberate offset between the middle of the building's rooms (`home.places.house_middle`, off the generator's zones) and where its address puts it -- what a street address converted to a position gets, a few metres off. Fixed per house, nothing random. The facility's lands its address in the storeroom, a wall away from the lab: the honest case, not the kind one. `withinM` is how far off the address says it may be.",
+    "`houses`: each ADDRESSED place's ADDRESS ERROR, metres in the map's axes: the deliberate offset between the middle of the building's rooms (`home.places.house_middle`, off the generator's zones; for the park, its own zone) and where its address puts it -- what a street address converted to a position gets, a few metres off. Fixed per house, nothing random. The facility's lands its address in the storeroom, a wall away from the lab: the honest case, not the kind one (3.2 m east since #560 added the study room to its rooms, the address where it was); the mall's lands in its dining room, the park's south-west of its sign. `withinM` is how far off the address says it may be.",
     "`areas`: each task area by the name a job targets -- its building, the directions a person would write for someone who has never been there, and its tags by what the directions call them. Changing the words changes what the robot is told, and is a new Observatory period like any prompt change."
   ],
   "withinM": 4.0,
   "houses": {
     "house": [-1.8, 2.3],
-    "facility": [1.7, -2.4]
+    "facility": [3.2, -2.4],
+    "mall": [1.4, 2.3],
+    "park": [-2.2, -1.9]
   },
   "areas": {
     "lab": {
@@ -59,6 +61,36 @@
       "house": "facility",
       "directions": "The storeroom is the south-east room of the second house, the one across the middle street from your own house: in through its front garden and its lobby, and the storeroom's door is on the lobby's east side, south of the lab's. A long counter stands against the storeroom's east wall, and a row of four tags is on the wall above it, one over each thing on the counter: from left to right as you face them, tag 60 over a chest, tag 61 over a cabinet of drawers, tag 62 over a cupboard and tag 63 over a cube and its mat. The cube carries tag 56 on every face, and the mat beside it, a little further from you, carries tag 57 across its top.",
       "tags": {"60": "the storeroom counter's tag over the chest", "61": "the storeroom counter's tag over the drawers", "62": "the storeroom counter's tag over the cupboard", "63": "the storeroom counter's tag over the cube", "56": "the cube", "57": "the cube's mat"}
+    },
+    "restaurant": {
+      "house": "mall",
+      "directions": "The mall is south of the second house, across the alley between them, on the middle street's east side: in through its front door on the street, or its door from the alley, into the concourse that runs down its west side. The restaurant's dining room door is on the concourse's east side, the north of its two doors. In the dining room's east wall is the expo line, the pass from the kitchen with its counter in it, and a pair of tags is on the wall either side of the pass: tag 68 on the left and tag 69 on the right as you face it. The kitchen's door is beside the pass, on its right.",
+      "tags": {"68": "the restaurant pass's left tag", "69": "the restaurant pass's right tag"}
+    },
+    "shop": {
+      "house": "mall",
+      "directions": "The mall is south of the second house, across the alley between them, on the middle street's east side: in through its front door on the street, or its door from the alley, into the concourse that runs down its west side. The store's door is on the concourse's east side, the south of its two doors. Its checkout counter is beside the door; its shelves run down the room, one stocked from both sides in the middle and one along its back wall, where a staff door leads to the loading zone. A pair of tags is on its north wall: tag 70 on the left and tag 71 on the right as you face them.",
+      "tags": {"70": "the store's left tag", "71": "the store's right tag"}
+    },
+    "park": {
+      "house": "park",
+      "directions": "The park is the fenced lawn south of your own house, across the sidewalk behind it: in by its gate in the north fence, or by its gate on the middle street's sidewalk, across from the mall's front door. Its sign stands in the middle of the lawn, tag 72 on its face toward the north-east, and two trees stand near it.",
+      "tags": {"72": "the park's sign"}
+    },
+    "room_west": {
+      "house": "house",
+      "directions": "The robots' rooms are in your own house, off the living room, where its charging station is: two rooms side by side, each with its own door in the living room's south wall. The west room's door is the one further from the charging station. Its tag, tag 73, is on the room's south wall, facing its door.",
+      "tags": {"73": "the west room's tag"}
+    },
+    "room_east": {
+      "house": "house",
+      "directions": "The robots' rooms are in your own house, off the living room, where its charging station is: two rooms side by side, each with its own door in the living room's south wall. The east room's door is the one nearer the charging station. Its tag, tag 74, is on the room's south wall, facing its door.",
+      "tags": {"74": "the east room's tag"}
+    },
+    "study_room": {
+      "house": "facility",
+      "directions": "The study room is in the second house, the one across the middle street from your own house: in through its front garden and its lobby, and the study room's door is on the lobby's west side, across from the storeroom's. A table stands in it with a chair at either end. Its tag, tag 75, is on its west wall, facing its door.",
+      "tags": {"75": "the study room's tag"}
     }
   }
 }

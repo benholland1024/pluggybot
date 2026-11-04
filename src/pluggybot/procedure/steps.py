@@ -1299,9 +1299,10 @@ def _tags(tags: tuple[int, ...]) -> str:
   """A world's tags, a run of three or more as `lo to hi`: a refused define
   is one History line, cut at 400 characters, and the twelve places listed
   in full twice cut #463's own refused rewrite short (401). Never `lo..hi`,
-  which reads as leaving `hi` out."""
+  which reads as leaving `hi` out. In order: the grown world's places
+  (#560) came after the counter's in the world's own order."""
   runs: list[list[int]] = []
-  for t in tags:
+  for t in sorted(tags):
     if runs and t == runs[-1][-1] + 1:
       runs[-1].append(t)
     else:

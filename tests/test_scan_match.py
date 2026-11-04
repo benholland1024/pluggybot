@@ -140,15 +140,17 @@ def test_a_scan_with_no_map_under_it_is_no_match():
   assert not got.accepted and got.why == "no map"
 
 
-def test_returns_near_the_lidars_reach_are_left_out():
-  # A wall at the edge of reach is seen short: its long draws are clipped
-  # to "no return", and the map clears it with the same rays. Matched, the
-  # street's far wall pulled the pose 3 cm toward it every scan (MEASURED
-  # on a recorded lab trip: +31.6 mm mean, 0.0 once cut at 6 m).
-  m = sm.ScanMatcher(OccupancyGrid(-1, -1, 7, 5, 0.05), max_range=8.0)
-  ranges = np.array([1.0, sm.MATCH_RANGE_M - 0.01, sm.MATCH_RANGE_M + 0.01, 7.9, 8.0])
+def test_the_matcher_reads_every_return_short_of_the_lidars_reach():
+  # #560: the park's middle is 8 m from its nearest fence, and the band
+  # reads a wall within 2-3 mm out to 7.9 m (#581) -- so every return the
+  # map reads is a point of the fit, and only "no return" (the reach
+  # itself) is none. At the C1's 6.5 m the probe left the park's middle
+  # unpinned at 71 % of places.
+  assert sm.MATCH_RANGE_M >= 8.0
+  m = sm.ScanMatcher(OccupancyGrid(-1, -1, 9, 5, 0.05), max_range=8.0)
+  ranges = np.array([1.0, 6.6, 7.5, 7.99, 8.0])
   pts = m.points(np.zeros(5), ranges)
-  assert len(pts) == 2
+  assert np.allclose(pts[:, 0], [1.0, 6.6, 7.5, 7.99])
 
 
 def test_the_field_is_signed_and_crosses_zero_on_the_walls_first_cell(room):

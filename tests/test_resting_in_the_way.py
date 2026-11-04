@@ -326,7 +326,7 @@ def test_a_no_is_said_once_a_while_and_with_why(tmp_path):
   try:
     way = [me.body.pose_xy(), REST_AT, (1.5, Y)]
     said = lambda: [ln for ln in peer.log if "asked me off its way" in ln]  # noqa: E731
-    (port,) = peer.body.mission.port_eqs
+    port = peer.body.mission.port_eqs[0]                # the house's, of three (#560)
     peer.data.eq_active[port] = 1                       # plugged in
     assert not me.body.ask_way(peer.root, way)
     assert peer.status == ("MAKE WAY: Luca asked me off its way, and I cannot: "

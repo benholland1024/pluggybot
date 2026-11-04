@@ -72,9 +72,8 @@ def child(cfg: dict, trace_path: Path) -> None:
     out.flush()
 
   if cfg.get("nthreads"):
-    from pupil_apriltags import Detector
-    tags._DETECTOR = Detector(families=tags.FAMILY, nthreads=int(cfg["nthreads"]),
-                              quad_decimate=1.0)
+    tags._DETECTOR = tags.kept_detector(families=tags.FAMILY, nthreads=int(cfg["nthreads"]),
+                                        quad_decimate=1.0)
 
   real_detect = tags.TagDetector.detect
 

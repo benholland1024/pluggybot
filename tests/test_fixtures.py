@@ -252,3 +252,78 @@ def test_the_belief_against_the_truth_is_sampled_with_the_verdicts_since():
                                              {"ok": 3}]
   assert samples[0]["errorM"] == 0.0 and samples[0]["believed"] == wire_pose((1.0, 2.0, 0.0))
   assert samples[0]["posture"] == "standing" and samples[0]["state"] == life.state
+
+
+def test_a_search_that_found_another_station_walks_to_that_one():
+  # #560: three stations, and a lost robot fixes off whichever it sees and
+  # charges there (`HumanoidBody._near_station_routine`). The loop's walk
+  # goes again to the standoff of the station the search found -- the old
+  # standoff, walked to again, was the station it never found
+  from pluggybot.body import RackPose
+  body = StubBody()
+  life = stub_life(body=body)
+  docks = []
+
+  def dock():
+    docks.append(1)
+    body.on_charger = len(docks) > 1
+    return NOT_SEEN if len(docks) == 1 else "stopped"
+    yield
+
+  def found_another(fixture, stop=None):
+    body.lost_at.append(fixture)
+    body.rack = body.rack_prior = RackPose(9.0, -4.0, 0.0)
+    return True
+    yield
+
+  body.dock_routine, body.lost_routine = dock, found_another
+  assert life.go_charge() is True and len(docks) == 2
+  first, again = body.went[-2], body.went[-1]
+  assert again == body.charge_standoff()[:2] != first, \
+      f"walked to {again} again, not the station it found ({body.charge_standoff()[:2]})"
+
+
+def _held_station_pair():
+  """Two robots on stubs, the first's world two stations -- the house's and
+  one 10 m off -- and the other robot standing on the house's seat."""
+  from pluggybot.body import RackPose
+  from test_two_minds import stub_pair  # noqa: I001 -- tests/ is on sys.path
+  a, b = stub_pair()
+  body = a.body
+  body.x, body.y = 3.0, 2.0
+  body.stations = {"station": RackPose(0.0, 0.0, 0.0), "station_mall": RackPose(10.0, 0.0, 0.0)}
+  body.rack = body.rack_prior = body.stations["station"]
+  body.peers_on = [body.stations["station"].to_world(0.0, 0.0)]
+  hold = body.hold_routine
+
+  def leaves(seconds):
+    body.peers_on.clear()           # ...and leaves while one waits for it
+    return hold(seconds)
+
+  def dock():
+    body.on_charger = True
+    return "docked"
+    yield
+  body.hold_routine, body.dock_routine = leaves, dock
+  return a, body
+
+
+def test_a_charge_that_chose_a_free_station_passes_a_taken_one():
+  # Ben's call (#560): a robot decides for itself whether to wait for a
+  # taken station or go on to the nearest free one (a decided charge's
+  # `station`), and waiting is the default -- an event-map row's charge and
+  # a standing order's
+  a, body = _held_station_pair()
+  assert body.run(a.go_charge_routine(free=True)) is True
+  mall = body.stations["station_mall"].to_world(0.5, 0.0)
+  assert body.went[-1] == mall and body.went.count(mall) == 1, body.went
+  assert any("on to the nearest free charging station" in line for line in a.log), a.log
+  assert not any("WAIT:" in line for line in a.log), a.log
+
+
+def test_a_charge_left_to_wait_waits_for_its_station():
+  a, body = _held_station_pair()
+  assert body.run(a.go_charge_routine()) is True
+  assert body.went[-1] == body.stations["station"].to_world(0.5, 0.0), body.went
+  assert any("WAIT:" in line for line in a.log) and \
+      not any("nearest free" in line for line in a.log), a.log

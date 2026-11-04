@@ -254,6 +254,9 @@ class _Says:
   test's `sees` puts it in the frame of its feet (None: nothing in sight);
   every hand's target is kept with the belief it was sent under."""
 
+  #: The station it charges at: the house's pair (`HumanoidBody.station_tags`).
+  station_tags = STATION_TAG_IDS
+
   def __init__(self, reaches=lambda rot: True, sees=None, drift=None):
     self.reaches, self.asked, self.grips, self.moves = reaches, [], [], []
     self.plugged = False

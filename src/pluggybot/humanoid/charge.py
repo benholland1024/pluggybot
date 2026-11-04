@@ -147,11 +147,12 @@ NEAR_FIT_M = 1.6
 VIEW_RAD = math.radians(60.0)
 
 
-def fit(spots: dict) -> RackPose | None:
+def fit(spots: dict, tags=STATION_TAG_IDS) -> RackPose | None:
   """The station's frame (`activity.station`'s: +x into the wall) off its
-  two tags' places in the believed world, or None without both: its facing
-  is their baseline's (#88)."""
-  a, b = (spots.get(i) for i in STATION_TAG_IDS)
+  two tags' places in the believed world -- `tags`, the station's pair, the
+  house's by default -- or None without both: its facing is their
+  baseline's (#88)."""
+  a, b = (spots.get(i) for i in tags)
   if a is None or b is None:
     return None
   a, b = np.asarray(a[:2], float), np.asarray(b[:2], float)
@@ -164,12 +165,13 @@ def fit(spots: dict) -> RackPose | None:
 
 
 def look(body) -> RackPose | None:
-  """Both tags spotted from where it stands, and the station fitted."""
+  """Both of its chosen station's tags (`HumanoidBody.station_tags`) spotted
+  from where it stands, and the station fitted."""
   spots = {}
-  for tag in STATION_TAG_IDS:
+  for tag in body.station_tags:
     s = body.spot(tag)
     spots[tag] = None if s is None else (s["x"], s["y"], s["z"])
-  return fit(spots)
+  return fit(spots, body.station_tags)
 
 
 def look_low_routine(body, then=None):
@@ -193,8 +195,9 @@ def look_routine(body):
   """`look`, and where it spots one tag of the two, facing that one and
   looking again: the other is beside it, past the edge of the view. The
   station's frame, or None."""
-  spots = {t: body.spot(t) for t in STATION_TAG_IDS}
-  seen = fit({t: None if s is None else (s["x"], s["y"], s["z"]) for t, s in spots.items()})
+  spots = {t: body.spot(t) for t in body.station_tags}
+  seen = fit({t: None if s is None else (s["x"], s["y"], s["z"]) for t, s in spots.items()},
+             body.station_tags)
   one = [s for s in spots.values() if s is not None]
   if seen is not None or len(one) != 1:
     return seen
@@ -211,7 +214,8 @@ def rough(seen: dict) -> RackPose:
   otherwise that way."""
   tags = seen["tags"]
   ex, ey = seen["eye"]
-  fitted = fit({t: p for t, (p, _) in tags.items()}) if len(tags) == 2 else None
+  pair = seen.get("ids", STATION_TAG_IDS)
+  fitted = fit({t: p for t, (p, _) in tags.items()}, pair) if len(tags) == 2 else None
   if fitted is not None:
     x, y, out = fitted.x, fitted.y, fitted.yaw + math.pi
   else:
@@ -222,7 +226,7 @@ def rough(seen: dict) -> RackPose:
     out = view
   if fitted is None:
     # ...the one tag where its drawing puts it either side of the cup
-    ly = st.tag_layout()[t][1]
+    ly = st.tag_layout(pair)[t][1]
     x, y = x - math.sin(out) * ly, y + math.cos(out) * ly
   return RackPose(float(x), float(y), math.remainder(out + math.pi, 2 * math.pi))
 
@@ -236,7 +240,7 @@ def near_fit(seen: dict | None) -> RackPose | None:
   ex, ey = seen["eye"]
   if any(math.hypot(p[0] - ex, p[1] - ey) > NEAR_FIT_M for p, _ in seen["tags"].values()):
     return None
-  return fit({t: p for t, (p, _) in seen["tags"].items()})
+  return fit({t: p for t, (p, _) in seen["tags"].items()}, seen.get("ids", STATION_TAG_IDS))
 
 
 def _carried(body, seen: RackPose):

@@ -47,6 +47,7 @@ from typing import NamedTuple
 import mujoco
 import numpy as np
 
+from pluggybot.perception.cull import StaticCull
 from pluggybot.perception.imu import seed_for
 
 #: The Navigator's default for where a body's LIDAR rides from its pose
@@ -62,8 +63,9 @@ LIDAR_PERIOD = 0.1
 #: cost (360 rays x 320 samples at 8 m), and a no-return ray only clears free
 #: space the robot will scan again as it walks. Under-ranging the part is the
 #: conservative error -- a return past 8 m is dropped, never invented -- and
-#: the matcher reads 6.5 m of it (`scan_match.MATCH_RANGE_M`). Raise it if a
-#: world grows a sightline the map needs from a standstill.
+#: the matcher reads all of it (`scan_match.MATCH_RANGE_M`, #560: the park's
+#: middle). Raise it if a world grows a sightline the map needs from a
+#: standstill.
 MAX_RANGE = 8.0
 #: Its field upside down, deg: the sheet's -7 to +52 turned over. A frame's
 #: rings run from its lower edge, `RING_DEG` apart, `BEARINGS` round each:
@@ -170,7 +172,7 @@ class Lidar:
 
   def __init__(self, model, site_name: str = "lidar", robot_body: str = "pluggybot",
                seed: int | None = None, max_range: float = MAX_RANGE,
-               noise: bool = True) -> None:
+               noise: bool = True, cull: bool = True) -> None:
     self.model = model
     self.site_id = model.site(site_name).id
     #: The body the sensor's housing is (the site's, where it is no robot's
@@ -182,6 +184,9 @@ class Lidar:
     except KeyError:
       self._housing = -1
     self.max_range = max_range
+    #: What a cast leaves out past its reach (`perception.cull`; `cull=False`
+    #: casts everything, the measure of its being the same frame).
+    self._cull = StaticCull(model) if cull else None
     #: No range or angle noise and no dropouts: the geometry's truth, for a
     #: test or a probe.
     self.noise = noise
@@ -244,14 +249,23 @@ class Lidar:
     housing skipped (`_housing`). ⚠ NO CUTOFF: MuJoCo culls a plane by its
     centre's distance, and at 8 m every ray that met the house's floor -- its
     centre 19 m off -- read nothing
-    (`test_the_floor_is_struck_however_far_its_middle`); one saved no time."""
+    (`test_the_floor_is_struck_however_far_its_middle`); one saved no time.
+    ⚠ A STATIC GEOM PAST ITS REACH IS LEFT OUT (`perception.cull`, #560):
+    one whose nearest point is past `max_range` could only return what
+    `_sort` calls far, as a ray that met nothing is, and noise is drawn for
+    the returns alone -- so the frame is the same frame, bit for bit
+    (`test_a_cast_leaves_out_nothing_it_could_reach`)."""
     pos = np.array(data.site_xpos[self.site_id], dtype=np.float64)
     mat = np.array(data.site_xmat[self.site_id], dtype=np.float64).reshape(3, 3)
     world = np.ascontiguousarray((dirs @ mat.T).reshape(-1))
     n = len(dirs)
     dist, hit = np.zeros(n), np.zeros(n, dtype=np.int32)
-    mujoco.mj_multiRay(self.model, data, pos, world, None, 1, self._housing, hit, dist, None,
-                       n, mujoco.mjMAXVAL)
+    if self._cull is not None:
+      self._cull.multi_ray(data, pos, world, self._housing, hit, dist, n, mujoco.mjMAXVAL,
+                           self.max_range)
+    else:
+      mujoco.mj_multiRay(self.model, data, pos, world, None, 1, self._housing, hit, dist, None,
+                         n, mujoco.mjMAXVAL)
     return dist, hit
 
   def _sort(self, dist: np.ndarray, hit: np.ndarray):

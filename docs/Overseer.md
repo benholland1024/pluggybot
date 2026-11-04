@@ -80,7 +80,7 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 |---|---|---|
 | `take_task` | accept a job the world is OFFERING and do it (issue #21) | `task` |
 | `explore` | frontier-drive for `DECIDED_EXPLORE_S` (45 s); optionally head for a zone first. History says whether the zone was reached (the drive's cause when not) and how the explore ended, `EXPLORE_ENDS` (issue #424) | `zone` |
-| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424) | — |
+| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424). At the nearest station, waiting for it while another robot holds it, or with `station: "free"` on to the nearest station nobody holds (#560, Ben's call: the robot's to decide, waiting the default) | `station` |
 | `idle` | stand still for `AUTONOMOUS_IDLE_S` (60 s), so an idling agent cannot re-decide faster than `CALLS_PER_HOUR` | — |
 | `recall` | look something up in memory and stand still `RECALL_S` (10 s); the lines arrive on the next turn, at most `MAX_RECALL_RUN` (3) in a row (issue #221, §7) | `read` (a key), `find` (words) |
 | `procedure:<name>` | run a procedure the robot wrote, from its own library (issue #166, §2b) | — |
@@ -134,7 +134,7 @@ is the INDEX and the prose sections stay the manual.
   `guarded`'s prefix had to stay byte-identical, and the gate went with it
   (#427).
 - **Three kinds of field, one door each.** `think` / `action` / `reason` are
-  the answer; `ACTION_PARAMETERS` (`zone`, `read`, `find`, `task`) are
+  the answer; `ACTION_PARAMETERS` (`zone`, `station`, `read`, `find`, `task`) are
   named in their own action's line and a test reads each one back out of
   it; everything else is a power with an index entry. (The quadruped's
   drawing named a `board` and a `program`, and a whiteboard question took
@@ -1554,9 +1554,10 @@ oversized on purpose: a demo cell measures where the robot *died*, not what
 the job costs. Re-run it (`--write`) after anything that changes what an
 errand does. The shipped table for the humanoid (`energy.json`,
 `home_humanoid`): its hand jobs, each its reference's procedures flown
-from its station with the place remembered — `open_drawer` 7.082 Wh,
-`open_door` 5.715, `open_chest` 5.984, `place_cube` 4.704 — exploring at
-46.2 mWh/s, and 345.2 W net into a body plugged in at its station.
+from the dearest of its stations, the mall's (#560), with the place
+remembered — `open_drawer` 7.138 Wh, `open_door` 7.720, `open_chest`
+7.463, `place_cube` 9.858 (a placement that failed) — exploring at 48.2
+mWh/s, and 338.8 W net into a body plugged in at its station.
 
 - ⚠ **A key may name a target**, and `<errand>:<target>` wins over
   `<errand>` (the rover's `draw` cost 0.929 Wh at the near board and 1.065
@@ -1569,8 +1570,10 @@ from its station with the place remembered — `open_drawer` 7.082 Wh,
   An errand's cost depends on where the robot is standing *and on how much of
   the map it already has* — a first errand on a fresh map plans and searches
   through unexplored space, so a row is measured from the station with the
-  place remembered — and on the run (the drawer's two procedures measured
-  7.036 and 7.082 Wh, and 7.082 is carried). The failure directions are not
+  place remembered — on which station it charged at (the door measured
+  5.17 Wh from the house's, 7.72 from the mall's, and 7.72 is carried) and
+  on the run (the drawer's two procedures once measured 7.036 and 7.082
+  Wh, and the dearer was carried). The failure directions are not
   symmetric: an over-estimate is a charge nobody needed, an under-estimate
   is a robot dead in the garden.
 - **The invariant is not "never exceeded"; it is that an overrun smaller than
@@ -1596,7 +1599,7 @@ with them. Collapsing any pair is a real bug:
 capability a demo cell was built to run flat on. Nothing spins either way: an
 errand deferred `MAX_ERRAND_DEFERRALS` (2) times is dropped, because at that
 point charging is what is broken. The humanoid's demo cell overspends on
-nothing (its dearest job, 7.08 Wh, fits the 18 Wh it charges to), so the
+nothing (its dearest job, 9.86 Wh, fits the 29.7 Wh it charges to), so the
 fourth answer is guarded synthetically.
 
 ### ⚠ The margin is all-or-nothing, and that is the design
@@ -1614,17 +1617,19 @@ One number per world, so `Task.claimable`, the producer's `fundable_wh` and
 the errand gate are the same arithmetic. On the humanoid the served pack
 (`humanoid.world.PACK_WH`, 777.6 Wh) funds the dearest job plus the reserve
 many times over, so the full margin is kept and the mid-errand death is
-unreachable there. The tests' pack (`DEMO_WH`, 30 Wh, 27 charged) carries
-the drawer's 7.08 Wh and the 18 Wh reserve both, so it keeps the margin
-too. At 20 Wh it kept none, a branch the served pack never takes (#580).
+unreachable there. The tests' pack (`DEMO_WH`, 33 Wh, 29.7 charged) carries
+the cube's 9.86 Wh and the 19.5 Wh reserve both, so it keeps the margin
+too (#560 grew it from 30). At 20 Wh it kept none, a branch the served
+pack never takes (#580).
 
 ### The reserve, and the hosting pack
 
 The reserve is a property of the **floor plan**, not the battery.
-`humanoid.world.RESERVE_WH` (18 Wh) is measured (`energy_spike.py
---reserve`): the worst return BY ROUTE to its station, from the garden
-doorway, as travel (14.1 Wh over 44.6 m, the Mid-360S's 6.2 W included)
-plus the last leg and a plug-in, with one failed plug-in priced as another.
+`humanoid.world.RESERVE_WH` (19.5 Wh) is measured (`energy_spike.py
+--reserve`): the worst return BY ROUTE to the nearest station, from the
+park's west sidewalk to the mall's (#560), as travel (14.2 Wh, its walk
+54.8 m where the waypoints are 42.4, the Mid-360S's 6.2 W included) plus
+the last leg and a plug-in, with one failed plug-in priced as another.
 Re-measure it when the plan changes, not when the pack does.
 
 `--pack hosting` (`$PLUGGY_PACK`; `--battery-wh` still overrides) is the
@@ -2282,7 +2287,7 @@ has no goals to spend free time on.
   its predecessor's goals included (issue #154: they were the dead robot's,
   and inheriting them would hand back the one thing dying costs), nor its
   map and the places it found (#419, `Body.forget_world`): it knows where
-  its charging station is and nothing else. ⚠ **It starts with points to
+  its charging stations are and nothing else. ⚠ **It starts with points to
   explore with** where the world gives some (`lifecycle.STARTING_POINTS`,
   200 -- a heart's price -- on a served world; `serve.py --start-points`,
   off in a test): booked `granted`, a term in the ledger's identity and

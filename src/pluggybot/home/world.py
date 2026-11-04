@@ -111,6 +111,7 @@ import math
 from pluggybot.activity.plate import (
   plate_light_xml,
 )
+from pluggybot.activity import station as _station
 from pluggybot.activity.cage import PLATE_NAMES, cage_xml
 from pluggybot.home.props import BLOCKS, bench_xml, block_xml
 from pluggybot.perception.tags import BLOCK_TAG_IDS, asset_xml, write_tag_pngs
@@ -173,12 +174,6 @@ FENCE_HALF_H = 0.45           # 0.9 m garden fence: lidar (0.223 m) sees it
 #: How far the drawn ground reaches past the property on every side. A metre,
 #: so the fence line is not the literal edge of the visible world.
 GROUND_MARGIN = 1.0
-
-#: The living room's south wall at x = 0.5, where the rover's rack stood
-#: (#376 deleted it): the last waypoint of the worst return
-#: (`HOME_WORST_RETURN_PATH`), the route a return-trip reserve is measured
-#: over (`humanoid.world.RESERVE_WH`).
-RETURN_END = (0.5, HOUSE_Y[0] + WALL_HALF_T)
 
 # Whiteboards: wall-mounted drawing surfaces (the milestone-8 board port).
 # `heading` is the robot's heading when squared up to the board; `half` is
@@ -257,10 +252,72 @@ BLOCK_X = (WING_X[0], PLOT_2_X[1])
 BLOCK_Y = PROPERTY_Y
 PAVEMENT_W = 1.5
 LOOP_W = 3.0
+
+# ---- the second row (issue #560, stage 1) ------------------------------------
+# A 2x2 grid: the two properties above are its NORTH row, and a second row
+# south of them holds the PARK beside the house and the MALL beside the
+# research center, the middle street running on between the columns. Between
+# the rows, a pedestrian strip as wide as a street: the house's south
+# sidewalk in the west column, the ALLEY in the east. The loop goes round
+# all four: the map is 1.83 times the one row's (`GRID_BOUNDS`), under
+# #558's 4x cap with the headroom #560 asked for.
+ROW_GAP = 3.0
+ROW2_H = 16.0
+ROW2_Y = (BLOCK_Y[0] - ROW_GAP - ROW2_H, BLOCK_Y[0] - ROW_GAP)
 PAVEMENT_X = (BLOCK_X[0] - PAVEMENT_W, BLOCK_X[1] + PAVEMENT_W)
-PAVEMENT_Y = (BLOCK_Y[0] - PAVEMENT_W, BLOCK_Y[1] + PAVEMENT_W)
+PAVEMENT_Y = (ROW2_Y[0] - PAVEMENT_W, BLOCK_Y[1] + PAVEMENT_W)
 LOOP_X = (PAVEMENT_X[0] - LOOP_W, PAVEMENT_X[1] + LOOP_W)
 LOOP_Y = (PAVEMENT_Y[0] - LOOP_W, PAVEMENT_Y[1] + LOOP_W)
+
+#: THE ROBOTS' ROOMS (#557, #560): the west part of the garden that wrapped
+#: south of the house, two rooms side by side off the living room, each with
+#: its own door in the living room's south wall -- the east one's at its
+#: west end, clear of a robot plugged in at the station (x 3.5). Which robot's
+#: is which is `ROOM_OF` (by the robot's root body, never a name).
+ROOMS_X = HOUSE_X
+ROOMS_Y = (PROPERTY_Y[0], HOUSE_Y[0])
+ROOM_DIV_X = 1.5
+DOOR_ROOM_WEST_X = (-0.75, 0.25)
+DOOR_ROOM_EAST_X = (1.65, 2.65)
+ROOM_OF = {"pluggybot": "room_west", "r2_pluggybot": "room_east"}
+
+#: THE RESEARCH CENTER's study room (#557: the robots as consenting subjects
+#: of studies), the south half of its front garden, off the lobby by a door
+#: across from the storeroom's.
+STUDY_X = GARDEN_2_X
+STUDY_Y = (PROPERTY_Y[0], 0.0)
+DOOR_STUDY_Y = (-3.5, -2.5)
+
+#: THE PARK (#560): open ground behind a garden fence, its gates 1.5 m -- one
+#: from the house's south sidewalk, one from the middle street's, across from
+#: the mall's front door -- and two trees.
+PARK_X = (BLOCK_X[0], SIDEWALK_X[0])
+PARK_Y = ROW2_Y
+PARK_GATE_NORTH_X = (-1.75, -0.25)
+PARK_GATE_EAST_Y = (-17.75, -16.25)
+TREES = ((-3.5, -14.5), (3.0, -19.5))
+
+#: THE MALL (#560): a concourse down its west side, as the research center's
+#: lobby runs down its own, and off it the restaurant (north) and the store
+#: (south), side by side on one floor. The restaurant is a dining room and a
+#: kitchen with the expo line between them -- a pass in the wall that its
+#: counter fills, and a staff door beside it; the store is the shop and,
+#: behind its east wall, the loading zone, with a door out to the sidewalk
+#: for deliveries.
+MALL_X = PLOT_2_X
+MALL_Y = ROW2_Y
+CONCOURSE_X = (MALL_X[0], 19.0)
+BACK_X = 25.0                                  # the kitchen's and the loading zone's west wall
+RESTAURANT_Y = (-17.0, MALL_Y[1])
+SHOP_Y = (MALL_Y[0], RESTAURANT_Y[0])
+DOOR_MALL_Y = (-17.5, -16.5)                   # street -> concourse
+DOOR_MALL_ALLEY_X = (17.0, 18.0)               # alley -> concourse
+DOOR_DINING_Y = (-13.5, -12.5)                 # concourse -> dining room
+DOOR_SHOP_Y = (-21.5, -20.5)                   # concourse -> shop
+EXPO_Y = (-14.5, -11.5)                        # the pass, its counter in it
+DOOR_KITCHEN_2_Y = (-16.6, -15.6)              # dining room -> kitchen, staff
+DOOR_LOADING_Y = (-19.0, -18.0)                # shop -> loading zone, staff
+DOOR_DELIVERY_Y = (-22.75, -21.25)             # loading zone -> sidewalk, 1.5 m
 
 #: The plot, tiled. Every zone is ONE RECTANGLE and together they cover the
 #: property exactly once -- `tests/test_home_world.py` checks both halves of
@@ -292,7 +349,7 @@ ZONES = (
   {"name": "garden", "kind": "garden",
    "min": [GARDEN_X[0], HOUSE_Y[0]], "max": [GARDEN_X[1], HOUSE_Y[1]]},
   {"name": "garden_south", "kind": "garden",
-   "min": [HOUSE_X[0], GARDEN_SOUTH_Y[0]], "max": [GARDEN_X[1], GARDEN_SOUTH_Y[1]]},
+   "min": [ROOMS_X[1], GARDEN_SOUTH_Y[0]], "max": [GARDEN_X[1], GARDEN_SOUTH_Y[1]]},
   {"name": "sidewalk", "kind": "outdoor",
    "min": [SIDEWALK_X[0], PROPERTY_Y[0]], "max": [SIDEWALK_X[1], PROPERTY_Y[1]]},
   {"name": "street", "kind": "outdoor",
@@ -301,7 +358,7 @@ ZONES = (
   {"name": "sidewalk_2", "kind": "outdoor",
    "min": [SIDEWALK_2_X[0], PROPERTY_Y[0]], "max": [SIDEWALK_2_X[1], PROPERTY_Y[1]]},
   {"name": "garden_2", "kind": "garden",
-   "min": [GARDEN_2_X[0], PROPERTY_Y[0]], "max": [GARDEN_2_X[1], PROPERTY_Y[1]]},
+   "min": [GARDEN_2_X[0], STUDY_Y[1]], "max": [GARDEN_2_X[1], PROPERTY_Y[1]]},
   {"name": "lobby", "kind": "room", "building": "facility",
    "min": [LOBBY_X[0], PROPERTY_Y[0]], "max": [LOBBY_X[1], PROPERTY_Y[1]]},
   {"name": "lab", "kind": "room", "building": "facility",
@@ -309,14 +366,16 @@ ZONES = (
   {"name": "store", "kind": "room", "building": "facility",
    "min": [LAB_X[0], STORE_Y[0]], "max": [LAB_X[1], STORE_Y[1]]},
   # ---- each property's ring of sidewalk, and the loop -----------------------
+  # ⚠ Between the rows (#560) the strip is the house's south sidewalk and
+  # the alley, as deep as a street: the band's south legs moved to row 2.
   {"name": "sidewalk_north", "kind": "outdoor",
    "min": [PAVEMENT_X[0], BLOCK_Y[1]], "max": [STREET_X[0], PAVEMENT_Y[1]]},
   {"name": "sidewalk_2_north", "kind": "outdoor",
    "min": [STREET_X[1], BLOCK_Y[1]], "max": [PAVEMENT_X[1], PAVEMENT_Y[1]]},
   {"name": "sidewalk_south", "kind": "outdoor",
-   "min": [PAVEMENT_X[0], PAVEMENT_Y[0]], "max": [STREET_X[0], BLOCK_Y[0]]},
-  {"name": "sidewalk_2_south", "kind": "outdoor",
-   "min": [STREET_X[1], PAVEMENT_Y[0]], "max": [PAVEMENT_X[1], BLOCK_Y[0]]},
+   "min": [PAVEMENT_X[0], ROW2_Y[1]], "max": [STREET_X[0], BLOCK_Y[0]]},
+  {"name": "alley", "kind": "outdoor",
+   "min": [STREET_X[1], ROW2_Y[1]], "max": [PAVEMENT_X[1], BLOCK_Y[0]]},
   {"name": "sidewalk_west", "kind": "outdoor",
    "min": [PAVEMENT_X[0], BLOCK_Y[0]], "max": [BLOCK_X[0], BLOCK_Y[1]]},
   {"name": "sidewalk_east", "kind": "outdoor",
@@ -329,11 +388,91 @@ ZONES = (
    "min": [LOOP_X[0], PAVEMENT_Y[0]], "max": [PAVEMENT_X[0], PAVEMENT_Y[1]]},
   {"name": "street_east", "kind": "outdoor",
    "min": [PAVEMENT_X[1], PAVEMENT_Y[0]], "max": [LOOP_X[1], PAVEMENT_Y[1]]},
+  # ---- the grown world (issue #560) -------------------------------------------
+  {"name": "room_west", "kind": "room", "building": "house",
+   "min": [ROOMS_X[0], ROOMS_Y[0]], "max": [ROOM_DIV_X, ROOMS_Y[1]]},
+  {"name": "room_east", "kind": "room", "building": "house",
+   "min": [ROOM_DIV_X, ROOMS_Y[0]], "max": [ROOMS_X[1], ROOMS_Y[1]]},
+  {"name": "study_room", "kind": "room", "building": "facility",
+   "min": [STUDY_X[0], STUDY_Y[0]], "max": [STUDY_X[1], STUDY_Y[1]]},
+  {"name": "park", "kind": "park",
+   "min": [PARK_X[0], PARK_Y[0]], "max": [PARK_X[1], PARK_Y[1]]},
+  {"name": "concourse", "kind": "room", "building": "mall",
+   "min": [CONCOURSE_X[0], MALL_Y[0]], "max": [CONCOURSE_X[1], MALL_Y[1]]},
+  {"name": "dining_room", "kind": "room", "building": "mall",
+   "min": [CONCOURSE_X[1], RESTAURANT_Y[0]], "max": [BACK_X, RESTAURANT_Y[1]]},
+  {"name": "restaurant_kitchen", "kind": "room", "building": "mall",
+   "min": [BACK_X, RESTAURANT_Y[0]], "max": [MALL_X[1], RESTAURANT_Y[1]]},
+  {"name": "shop", "kind": "room", "building": "mall",
+   "min": [CONCOURSE_X[1], SHOP_Y[0]], "max": [BACK_X, SHOP_Y[1]]},
+  {"name": "loading_zone", "kind": "room", "building": "mall",
+   "min": [BACK_X, SHOP_Y[0]], "max": [MALL_X[1], SHOP_Y[1]]},
+  # ...each new property's ring of sidewalk: its front on the middle street,
+  # its far side and its south strip
+  {"name": "sidewalk_park", "kind": "outdoor",
+   "min": [SIDEWALK_X[0], ROW2_Y[0]], "max": [SIDEWALK_X[1], ROW2_Y[1]]},
+  {"name": "sidewalk_park_west", "kind": "outdoor",
+   "min": [PAVEMENT_X[0], ROW2_Y[0]], "max": [BLOCK_X[0], ROW2_Y[1]]},
+  {"name": "sidewalk_park_south", "kind": "outdoor",
+   "min": [PAVEMENT_X[0], PAVEMENT_Y[0]], "max": [STREET_X[0], ROW2_Y[0]]},
+  {"name": "sidewalk_mall", "kind": "outdoor",
+   "min": [SIDEWALK_2_X[0], ROW2_Y[0]], "max": [SIDEWALK_2_X[1], ROW2_Y[1]]},
+  {"name": "sidewalk_mall_east", "kind": "outdoor",
+   "min": [BLOCK_X[1], ROW2_Y[0]], "max": [PAVEMENT_X[1], ROW2_Y[1]]},
+  {"name": "sidewalk_mall_south", "kind": "outdoor",
+   "min": [STREET_X[1], PAVEMENT_Y[0]], "max": [PAVEMENT_X[1], ROW2_Y[0]]},
 )
 
 #: The loop's four legs, in order round it -- what `tests/test_home_world.py`
 #: walks to check the ring is closed.
 LOOP_ZONES = ("street_north", "street_east", "street_south", "street_west")
+
+# ---- the grown world's furniture (issue #560) ---------------------------------
+# Scenery: nothing here moves, and nothing a task will set out (the dishware,
+# the store's stock) stands here before a task sets it out -- every free body
+# costs the physics, and every geom is one each LIDAR ray is cast against.
+#: The dining room's tables: 0.8 m square at a table's 0.72 m (the
+#: storeroom counter's height, which the hands' jobs were measured at), two
+#: rows of two either side of the aisle the concourse's door opens on, with
+#: two chairs each, north and south: east and west of a table is where a
+#: robot stands to set it.
+DINING_TABLE_HALF = (0.40, 0.40, 0.36)
+DINING_TABLES = ((20.8, -11.2), (23.0, -11.2), (20.8, -14.8), (23.0, -14.8))
+#: A chair: its footprint and the top of its back, m, set this far off its
+#: table's edge.
+CHAIR_HALF = (0.225, 0.225, 0.45)
+CHAIR_GAP = 0.05
+#: The expo line's counter in its pass (`EXPO_Y`), across the wall: a
+#: kitchen counter's 0.90 m.
+EXPO_HALF = (0.30, (EXPO_Y[1] - EXPO_Y[0]) / 2, 0.45)
+#: A shelf: its boards' centres over the floor and its height, m -- what is
+#: put on it at a hand's reach -- and its panels' thickness.
+SHELF_BOARDS_Z = (0.15, 0.55, 0.95, 1.35)
+SHELF_H, SHELF_T = 1.5, 0.02
+#: The shelves, (name, centre x, y, length, depth, yaw rad, both sides): the
+#: kitchen's for its dishware against its east wall; in the shop a gondola
+#: stocked both sides and one along its back wall (its staff door clear);
+#: the loading zone's rack on its south wall. A shelf's front faces its
+#: frame's +y, turned by its yaw.
+SHELVES = (
+  ("kitchen_shelf", MALL_X[1] - WALL_HALF_T - 0.175, -12.5, 2.0, 0.35, math.pi / 2, False),
+  ("shop_gondola", 22.5, -21.6, 4.0, 0.8, math.pi / 2, True),
+  ("shop_shelf", BACK_X - WALL_HALF_T - 0.2, -22.2, 5.2, 0.4, math.pi / 2, False),
+  ("loading_rack", 26.5, MALL_Y[0] + WALL_HALF_T + 0.2, 2.6, 0.4, 0.0, False),
+)
+#: The counters, (name, centre x, y, half-extents): the kitchen's worktop on
+#: its north wall, and the shop's checkout by its door.
+COUNTERS = (
+  ("kitchen_worktop", 26.64, RESTAURANT_Y[1] - WALL_HALF_T - 0.30, (1.34, 0.30, 0.45)),
+  ("shop_checkout", 20.4, -19.0, (0.30, 0.90, 0.45)),
+)
+#: The study room's table, its long side down the room, and a chair at
+#: either end.
+STUDY_TABLE = ((STUDY_X[0] + STUDY_X[1]) / 2, -3.0, (0.40, 0.60, 0.36))
+#: A tree's trunk, radius and height, m: what the robot avoids and its
+#: LIDAR returns off -- a park tree's, so the site's canopy, its art, hangs
+#: over a humanoid's head (the band reads only to 2.2 m).
+TRUNK_R, TRUNK_H = 0.15, 3.5
 
 #: THE TOWER'S BLOCKS (issue #207; `home/props.py`): three 26 mm cubes on
 #: the workshop floor, a block's throw apart, in the room's south-west
@@ -387,35 +526,55 @@ SPAWNS = {
 GRID_BOUNDS = (LOOP_X[0] - GROUND_MARGIN, LOOP_Y[0] - GROUND_MARGIN,
                LOOP_X[1] + GROUND_MARGIN, LOOP_Y[1] + GROUND_MARGIN)
 
-#: The point the reserve is measured from (`humanoid.world.RESERVE_WH`): one
-#: robot-length inside the loop's south-west corner, the farthest a robot
-#: can stand from the living room BY ROUTE (issue #215) -- not by straight
-#: line: the loop's east legs are further as the crow flies and closer as the
-#: robot walks, because the living room is reached only through the middle
-#: street's gate at y=3.1. Named rather than left implicit so `tests/test_world_
-#: budget.py` can check the claim against the compiled world's own routes --
-#: a comment saying "the worst case is X" rots the moment somebody moves a
-#: wall, and #68 and #215 between them moved most of them.
-HOME_WORST_RETURN = (LOOP_X[0] + 0.4, LOOP_Y[0] + 0.4)
+#: The charging stations' places (#559; #560's, one in each building): each
+#: on a south wall -- the living room's where the quadrupeds' dock lay, the
+#: research center lobby's and the mall concourse's, each at its end -- as
+#: (x along the wall, the wall's y). `humanoid.world.stations` stands each
+#: there; a robot charging faces it south.
+STATION_WALLS = {"station": (3.5, HOUSE_Y[0]),
+                 "station_facility": (sum(LOBBY_X) / 2, PROPERTY_Y[0]),
+                 "station_mall": (sum(CONCOURSE_X) / 2, MALL_Y[0])}
 
-#: ...and the route home from there, as the waypoints a return actually
-#: threads: onto the sidewalk band, east along its south leg to the first
-#: house's own sidewalk, north up that to the gate, through the gate,
-#: through the garden doorway, to `RETURN_END`. Kept here rather than in the
-#: test because it is a fact about the floor plan, and the plan lives in
-#: this file; the test checks it against the compiled world's own routes.
+#: The point the reserve is measured from (`humanoid.world.RESERVE_WH`): the
+#: farthest a robot can stand from its NEAREST charging station BY ROUTE
+#: (#560: one in each building) -- the middle of the park's west sidewalk,
+#: where every way round the fenced park is long: 47.3 m on the test's
+#: raster to the mall's station through the park, gate to gate, and 49.4
+#: to the house's, where the one station's worst (the loop's south-west
+#: corner, #215) was 49.6. By route, never by straight line: the loop's far
+#: corners are further as the crow flies and nearer as the robot walks.
+#: Named rather than left implicit so `tests/test_world_budget.py` can check
+#: the claim against the compiled world's own routes -- a comment saying
+#: "the worst case is X" rots the moment somebody moves a wall.
+HOME_WORST_RETURN = ((PAVEMENT_X[0] + BLOCK_X[0]) / 2, sum(ROW2_Y) / 2)
+
+#: ...and the route from there, as the waypoints a return actually threads:
+#: north up the sidewalk to the strip between the rows, east along it to the
+#: park's north gate, across the park to its east gate, over the middle
+#: street into the mall's front door, and down its concourse to `RETURN_END`,
+#: the mall's station's standoff, where the dock begins. Kept here rather
+#: than in the test because it is a fact about the floor plan, and the plan
+#: lives in this file; the test checks it against the compiled world's own
+#: routes.
+_BETWEEN_ROWS_Y = (ROW2_Y[1] + BLOCK_Y[0]) / 2
+#: The mall's station's standoff (`activity.station`'s frame: +x into its
+#: south wall, so its +y is the world's +x).
+RETURN_END = (STATION_WALLS["station_mall"][0] + _station.SEAT_Y,
+              STATION_WALLS["station_mall"][1] + WALL_HALF_T + _station.BOX_DEPTH_M
+              - _station.STANDOFF_X)
 HOME_WORST_RETURN_PATH = (
   HOME_WORST_RETURN,
-  (PAVEMENT_X[0] + PAVEMENT_W / 2, PAVEMENT_Y[0] + PAVEMENT_W / 2),  # the band's SW corner
-  (sum(SIDEWALK_X) / 2, PAVEMENT_Y[0] + PAVEMENT_W / 2),  # east along it, to our sidewalk
-  (sum(SIDEWALK_X) / 2, STREET_DOOR_Y),      # north up the sidewalk
-  (SIDEWALK_X[0], STREET_DOOR_Y),            # the street doorway
-  (GARDEN_X[0], sum(DOOR_GARDEN_Y) / 2.0),   # the garden doorway
+  (HOME_WORST_RETURN[0], _BETWEEN_ROWS_Y),             # up to the strip
+  (sum(PARK_GATE_NORTH_X) / 2, _BETWEEN_ROWS_Y),       # east along it
+  (sum(PARK_GATE_NORTH_X) / 2, PARK_Y[1]),             # the park's north gate
+  (PARK_X[1], sum(PARK_GATE_EAST_Y) / 2),              # across to its east gate
+  (MALL_X[0], sum(DOOR_MALL_Y) / 2),                   # the mall's front door
   RETURN_END,
 )
-#: Its length. Measured 2026-09-19 against the plan above; 15.59 m before
-#: #215 and 11.96 m before #68.
-HOME_WORST_RETURN_M = 49.64
+#: Its length, m: the waypoints' (2026-11-03). 49.64 m before #560 (the one
+#: station's, from the loop's south-west corner), 15.59 before #215 and
+#: 11.96 before #68.
+HOME_WORST_RETURN_M = 49.65
 
 #: ⚠ THE CAMERAS' NEAR PLANE IS PINNED HERE, and the loop is why (issue
 #: #215). MuJoCo derives a model `statistic.extent` from the geometry's
@@ -477,6 +636,48 @@ def _wall_run(prefix: str, x0: float, x1: float, y0: float, y1: float,
     else:
       bodies.append(_box_body(n, x0, mid, half_h, WALL_HALF_T, half, half_h, rgba))
   return bodies
+
+
+def _quat(yaw: float) -> str:
+  return f"{math.cos(yaw / 2):.6f} 0 0 {math.sin(yaw / 2):.6f}"
+
+
+def _chair_xml(name: str, cx: float, cy: float, yaw: float) -> str:
+  """A chair: ONE BOX, its seat's footprint to the top of its back
+  (`hints.ONE_BOX_HINTS`), a sitter facing its frame's +x -- `yaw` in the
+  world -- so its back is its -x side."""
+  hx, hy, hz = CHAIR_HALF
+  return (f'    <body name="{name}" pos="{cx:.4f} {cy:.4f} {hz:.4f}" quat="{_quat(yaw)}">\n'
+          f'      <geom name="{name}_geom" type="box" size="{hx:.4f} {hy:.4f} {hz:.4f}" '
+          f'rgba="0.50 0.42 0.34 1"/>\n'
+          f'    </body>')
+
+
+def shelf_geoms(length: float, depth: float, double: bool = False) -> list[
+    tuple[str, tuple[float, float, float], tuple[float, float, float]]]:
+  """A shelf's boxes, (suffix, centre, half-extents) in its own frame -- x
+  along it, y out of its front, the floor under its middle: its two ends,
+  its back (against the wall behind it, or down the middle of a gondola
+  stocked from both sides), and its boards (`SHELF_BOARDS_Z`)."""
+  t = SHELF_T / 2
+  h = SHELF_H / 2
+  back_y = 0.0 if double else -depth / 2 + t
+  out = [("end_0", (-length / 2 + t, 0.0, h), (t, depth / 2, h)),
+         ("end_1", (length / 2 - t, 0.0, h), (t, depth / 2, h)),
+         ("back", (0.0, back_y, h), (length / 2 - 2 * t, t, h))]
+  out += [(f"board_{i}", (0.0, 0.0, z), (length / 2 - 2 * t, depth / 2, t))
+          for i, z in enumerate(SHELF_BOARDS_Z)]
+  return out
+
+
+def _shelf_xml(name: str, cx: float, cy: float, length: float, depth: float,
+               yaw: float, double: bool) -> str:
+  geoms = "\n".join(
+    f'      <geom name="{name}_{s}" type="box" pos="{c[0]:.4f} {c[1]:.4f} {c[2]:.4f}" '
+    f'size="{hh[0]:.4f} {hh[1]:.4f} {hh[2]:.4f}" rgba="0.62 0.60 0.56 1"/>'
+    for s, c, hh in shelf_geoms(length, depth, double))
+  return (f'    <body name="{name}" pos="{cx:.4f} {cy:.4f} 0" quat="{_quat(yaw)}">\n'
+          f'{geoms}\n    </body>')
 
 
 def stairs_geoms() -> list[tuple[str, tuple[float, float, float], tuple[float, float, float]]]:
@@ -567,7 +768,8 @@ def build_home_world() -> tuple[str, dict]:
     ("wall_west", _wall_run("wall_west", hx0, hx0, hy0, hy1,
                             WALL_HALF_H, WALL_RGBA, gaps=(DOOR_HALL_Y,))),
     ("wall_south", _wall_run("wall_south", hx0, hx1, hy0, hy0,
-                             WALL_HALF_H, WALL_RGBA)),
+                             WALL_HALF_H, WALL_RGBA,
+                             gaps=(DOOR_ROOM_WEST_X, DOOR_ROOM_EAST_X))),
     ("wall_north", _wall_run("wall_north", hx0, hx1, hy1, hy1,
                              WALL_HALF_H, WALL_RGBA)),
     ("wall_east", _wall_run("wall_east", hx1, hx1, hy0, hy1, WALL_HALF_H,
@@ -602,9 +804,18 @@ def build_home_world() -> tuple[str, dict]:
     # ---- the garden's fences ------------------------------------------------
     # ⚠ `fence_south` moved from y=-2 (x 5..10) to the PROPERTY's south edge,
     # and `fence_east` now runs the full height: the garden wraps south of the
-    # house, so the old south fence is interior lawn now.
-    ("fence_south", _wall_run("fence_south", hx0, gx1, py0, py0,
+    # house, so the old south fence is interior lawn now -- and since #560 it
+    # starts at the robots' rooms, whose own wall is the rest of that edge.
+    ("fence_south", _wall_run("fence_south", ROOMS_X[1], gx1, py0, py0,
                               FENCE_HALF_H, FENCE_RGBA)),
+    # ---- the robots' rooms (issue #560) ------------------------------------
+    # The hall's own east wall is the west room's west wall.
+    ("wall_rooms_south", _wall_run("wall_rooms_south", ROOMS_X[0], ROOMS_X[1], py0, py0,
+                                   WALL_HALF_H, WALL_RGBA)),
+    ("wall_rooms_east", _wall_run("wall_rooms_east", ROOMS_X[1], ROOMS_X[1],
+                                  ROOMS_Y[0], ROOMS_Y[1], WALL_HALF_H, WALL_RGBA)),
+    ("wall_rooms_div", _wall_run("wall_rooms_div", ROOM_DIV_X, ROOM_DIV_X,
+                                 ROOMS_Y[0], ROOMS_Y[1], WALL_HALF_H, WALL_RGBA)),
     ("fence_north", _wall_run("fence_north", gx0, gx1, hy1, hy1,
                               FENCE_HALF_H, FENCE_RGBA)),
     ("fence_east", _wall_run("fence_east", gx1, gx1, py0, py1,
@@ -616,15 +827,20 @@ def build_home_world() -> tuple[str, dict]:
     # the house's west wall carries the front door, the lobby's east wall
     # both inner doorways, and the lab and the store are divided at y=0.
     ("fence_2_west", _wall_run("fence_2_west", GARDEN_2_X[0], GARDEN_2_X[0],
-                               py0, py1, FENCE_HALF_H, FENCE_RGBA,
+                               STUDY_Y[1], py1, FENCE_HALF_H, FENCE_RGBA,
                                gaps=(DOOR_GARDEN_2_Y,))),
     ("fence_2_north", _wall_run("fence_2_north", GARDEN_2_X[0], GARDEN_2_X[1],
                                 py1, py1, FENCE_HALF_H, FENCE_RGBA)),
-    ("fence_2_south", _wall_run("fence_2_south", GARDEN_2_X[0], GARDEN_2_X[1],
-                                py0, py0, FENCE_HALF_H, FENCE_RGBA)),
     ("wall_2_west", _wall_run("wall_2_west", HOUSE_2_X[0], HOUSE_2_X[0],
                               py0, py1, WALL_HALF_H, WALL_RGBA,
-                              gaps=(DOOR_LOBBY_Y,))),
+                              gaps=(DOOR_STUDY_Y, DOOR_LOBBY_Y))),
+    # ...and its study room (#560), where the front garden's south half was
+    ("wall_study_west", _wall_run("wall_study_west", STUDY_X[0], STUDY_X[0],
+                                  STUDY_Y[0], STUDY_Y[1], WALL_HALF_H, WALL_RGBA)),
+    ("wall_study_south", _wall_run("wall_study_south", STUDY_X[0], STUDY_X[1],
+                                   STUDY_Y[0], STUDY_Y[0], WALL_HALF_H, WALL_RGBA)),
+    ("wall_study_north", _wall_run("wall_study_north", STUDY_X[0], STUDY_X[1],
+                                   STUDY_Y[1], STUDY_Y[1], WALL_HALF_H, WALL_RGBA)),
     ("wall_2_north", _wall_run("wall_2_north", HOUSE_2_X[0], HOUSE_2_X[1],
                                py1, py1, WALL_HALF_H, WALL_RGBA)),
     ("wall_2_south", _wall_run("wall_2_south", HOUSE_2_X[0], HOUSE_2_X[1],
@@ -636,6 +852,43 @@ def build_home_world() -> tuple[str, dict]:
                                   gaps=(DOOR_STORE_Y, DOOR_LAB_Y))),
     ("wall_lab_div", _wall_run("wall_lab_div", LAB_X[0], LAB_X[1],
                                LAB_Y[0], LAB_Y[0], WALL_HALF_H, WALL_RGBA)),
+    # ---- the park (issue #560): a garden's fence, a gate north and east -----
+    ("fence_park_north", _wall_run("fence_park_north", PARK_X[0], PARK_X[1],
+                                   PARK_Y[1], PARK_Y[1], FENCE_HALF_H, FENCE_RGBA,
+                                   gaps=(PARK_GATE_NORTH_X,))),
+    ("fence_park_south", _wall_run("fence_park_south", PARK_X[0], PARK_X[1],
+                                   PARK_Y[0], PARK_Y[0], FENCE_HALF_H, FENCE_RGBA)),
+    ("fence_park_west", _wall_run("fence_park_west", PARK_X[0], PARK_X[0],
+                                  PARK_Y[0], PARK_Y[1], FENCE_HALF_H, FENCE_RGBA)),
+    ("fence_park_east", _wall_run("fence_park_east", PARK_X[1], PARK_X[1],
+                                  PARK_Y[0], PARK_Y[1], FENCE_HALF_H, FENCE_RGBA,
+                                  gaps=(PARK_GATE_EAST_Y,))),
+    # ---- the mall (issue #560) ----------------------------------------------
+    # Its front door on the middle street and a door to the alley, both into
+    # the concourse; the concourse's east wall carries the restaurant's and
+    # the store's doors; the expo line's wall its pass and the kitchen's staff
+    # door; the store's back wall the loading zone's staff door, and the
+    # loading zone a door out to the sidewalk.
+    ("wall_mall_west", _wall_run("wall_mall_west", MALL_X[0], MALL_X[0],
+                                 MALL_Y[0], MALL_Y[1], WALL_HALF_H, WALL_RGBA,
+                                 gaps=(DOOR_MALL_Y,))),
+    ("wall_mall_north", _wall_run("wall_mall_north", MALL_X[0], MALL_X[1],
+                                  MALL_Y[1], MALL_Y[1], WALL_HALF_H, WALL_RGBA,
+                                  gaps=(DOOR_MALL_ALLEY_X,))),
+    ("wall_mall_south", _wall_run("wall_mall_south", MALL_X[0], MALL_X[1],
+                                  MALL_Y[0], MALL_Y[0], WALL_HALF_H, WALL_RGBA)),
+    ("wall_mall_east", _wall_run("wall_mall_east", MALL_X[1], MALL_X[1],
+                                 MALL_Y[0], MALL_Y[1], WALL_HALF_H, WALL_RGBA,
+                                 gaps=(DOOR_DELIVERY_Y,))),
+    ("wall_concourse_east", _wall_run("wall_concourse_east", CONCOURSE_X[1], CONCOURSE_X[1],
+                                      MALL_Y[0], MALL_Y[1], WALL_HALF_H, WALL_RGBA,
+                                      gaps=(DOOR_SHOP_Y, DOOR_DINING_Y))),
+    ("wall_mall_div", _wall_run("wall_mall_div", CONCOURSE_X[1], MALL_X[1],
+                                RESTAURANT_Y[0], RESTAURANT_Y[0], WALL_HALF_H, WALL_RGBA)),
+    ("wall_pass", _wall_run("wall_pass", BACK_X, BACK_X, RESTAURANT_Y[0], RESTAURANT_Y[1],
+                            WALL_HALF_H, WALL_RGBA, gaps=(DOOR_KITCHEN_2_Y, EXPO_Y))),
+    ("wall_loading", _wall_run("wall_loading", BACK_X, BACK_X, SHOP_Y[0], SHOP_Y[1],
+                               WALL_HALF_H, WALL_RGBA, gaps=(DOOR_LOADING_Y,))),
     # ---- the fence around the street ----------------------------------------
     # Unbroken: the loop is the whole outdoors now, and a world with no way
     # out has no invisible ends. The horizon is the website's.
@@ -679,27 +932,50 @@ def build_home_world() -> tuple[str, dict]:
     ("lobby_floor", LOBBY_X, PROPERTY_Y),
     ("lab_floor", LAB_X, LAB_Y),
     ("store_floor", LAB_X, STORE_Y),
+    # The grown world (issue #560): the robots' rooms, the study room and the
+    # mall's rooms.
+    ("room_west_floor", (ROOMS_X[0], ROOM_DIV_X), ROOMS_Y),
+    ("room_east_floor", (ROOM_DIV_X, ROOMS_X[1]), ROOMS_Y),
+    ("study_floor", STUDY_X, STUDY_Y),
+    ("concourse_floor", CONCOURSE_X, MALL_Y),
+    ("dining_floor", (CONCOURSE_X[1], BACK_X), RESTAURANT_Y),
+    ("restaurant_kitchen_floor", (BACK_X, MALL_X[1]), RESTAURANT_Y),
+    ("shop_floor", (CONCOURSE_X[1], BACK_X), SHOP_Y),
+    ("loading_floor", (BACK_X, MALL_X[1]), SHOP_Y),
   ):
     add(_box_body(name, (fx0 + fx1) / 2, (fy0 + fy1) / 2, 0.001,
                   (fx1 - fx0) / 2, (fy1 - fy0) / 2, 0.001, FLOOR_RGBA,
                   extra=visual), name, "floor")
   for name, (ox0, ox1), (oy0, oy1), rgba, hint in (
-    ("garden_south_ground", (hx0, gx1), GARDEN_SOUTH_Y, GROUND_RGBA, "ground"),
+    ("garden_south_ground", (ROOMS_X[1], gx1), GARDEN_SOUTH_Y, GROUND_RGBA, "ground"),
     ("sidewalk_ground", SIDEWALK_X, PROPERTY_Y, SIDEWALK_RGBA, "sidewalk"),
     # The middle street runs on through the sidewalk band to the loop.
     ("street_ground", STREET_X, PAVEMENT_Y, STREET_RGBA, "street"),
     # The second house's front, and the loop (issue #215): one slab per
     # zone, so the surfaces are the zones a visitor sees.
     ("sidewalk_2_ground", SIDEWALK_2_X, PROPERTY_Y, SIDEWALK_RGBA, "sidewalk"),
-    ("garden_2_ground", GARDEN_2_X, PROPERTY_Y, GROUND_RGBA, "ground"),
+    ("garden_2_ground", GARDEN_2_X, (STUDY_Y[1], PROPERTY_Y[1]), GROUND_RGBA, "ground"),
     ("sidewalk_north_ground", (PAVEMENT_X[0], STREET_X[0]),
      (BLOCK_Y[1], PAVEMENT_Y[1]), SIDEWALK_RGBA, "sidewalk"),
     ("sidewalk_2_north_ground", (STREET_X[1], PAVEMENT_X[1]),
      (BLOCK_Y[1], PAVEMENT_Y[1]), SIDEWALK_RGBA, "sidewalk"),
     ("sidewalk_south_ground", (PAVEMENT_X[0], STREET_X[0]),
-     (PAVEMENT_Y[0], BLOCK_Y[0]), SIDEWALK_RGBA, "sidewalk"),
-    ("sidewalk_2_south_ground", (STREET_X[1], PAVEMENT_X[1]),
-     (PAVEMENT_Y[0], BLOCK_Y[0]), SIDEWALK_RGBA, "sidewalk"),
+     (ROW2_Y[1], BLOCK_Y[0]), SIDEWALK_RGBA, "sidewalk"),
+    ("alley_ground", (STREET_X[1], PAVEMENT_X[1]),
+     (ROW2_Y[1], BLOCK_Y[0]), SIDEWALK_RGBA, "sidewalk"),
+    # The second row (issue #560): the park's lawn, and each new property's
+    # ring of sidewalk.
+    ("park_ground", PARK_X, PARK_Y, GROUND_RGBA, "ground"),
+    ("sidewalk_park_ground", SIDEWALK_X, ROW2_Y, SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_park_west_ground", (PAVEMENT_X[0], BLOCK_X[0]), ROW2_Y,
+     SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_park_south_ground", (PAVEMENT_X[0], STREET_X[0]),
+     (PAVEMENT_Y[0], ROW2_Y[0]), SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_mall_ground", SIDEWALK_2_X, ROW2_Y, SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_mall_east_ground", (BLOCK_X[1], PAVEMENT_X[1]), ROW2_Y,
+     SIDEWALK_RGBA, "sidewalk"),
+    ("sidewalk_mall_south_ground", (STREET_X[1], PAVEMENT_X[1]),
+     (PAVEMENT_Y[0], ROW2_Y[0]), SIDEWALK_RGBA, "sidewalk"),
     ("sidewalk_west_ground", (PAVEMENT_X[0], BLOCK_X[0]), BLOCK_Y,
      SIDEWALK_RGBA, "sidewalk"),
     ("sidewalk_east_ground", (BLOCK_X[1], PAVEMENT_X[1]), BLOCK_Y,
@@ -776,6 +1052,37 @@ def build_home_world() -> tuple[str, dict]:
   add(_box_body("furniture_table", -8.5, -2.0, 0.37, 0.60, 0.40, 0.37,
                 "0.50 0.42 0.34 1"), "furniture_table", "table")
 
+  # The grown world's furniture (issue #560): the dining room's tables and
+  # chairs, the expo line's counter in its pass, the study room's table, the
+  # counters and the shelves -- each a hinted body, scenery all.
+  def chairs(name, cx, cy, half_y):
+    off = half_y + CHAIR_GAP + CHAIR_HALF[1]
+    for k, (dy, yaw) in enumerate(((off, -math.pi / 2), (-off, math.pi / 2))):
+      add(_chair_xml(f"{name}_chair_{k}", cx, cy + dy, yaw), f"{name}_chair_{k}", "chair")
+
+  for i, (tx, ty) in enumerate(DINING_TABLES):
+    hx_, hy_, hz_ = DINING_TABLE_HALF
+    add(_box_body(f"dining_table_{i}", tx, ty, hz_, hx_, hy_, hz_, "0.50 0.42 0.34 1"),
+        f"dining_table_{i}", "table")
+    chairs(f"dining_table_{i}", tx, ty, hy_)
+  add(_box_body("expo_counter", BACK_X, sum(EXPO_Y) / 2, EXPO_HALF[2], *EXPO_HALF,
+                "0.60 0.56 0.50 1"), "expo_counter", "counter")
+  for name, cx, cy, half in COUNTERS:
+    add(_box_body(name, cx, cy, half[2], *half, "0.60 0.56 0.50 1"), name, "counter")
+  sx_, sy_, shalf = STUDY_TABLE
+  add(_box_body("study_table", sx_, sy_, shalf[2], *shalf, "0.50 0.42 0.34 1"),
+      "study_table", "table")
+  chairs("study_table", sx_, sy_, shalf[1])
+  for name, cx, cy, length, depth, yaw, double in SHELVES:
+    add(_shelf_xml(name, cx, cy, length, depth, yaw, double), name, "shelf")
+  # ...and the park's trees: a trunk each, solid, its canopy the site's
+  for i, (px, py) in enumerate(TREES):
+    add(f'    <body name="park_tree_{i}" pos="{px:.4f} {py:.4f} {TRUNK_H / 2:.4f}">\n'
+        f'      <geom name="park_tree_{i}_trunk" type="cylinder" '
+        f'size="{TRUNK_R:.4f} {TRUNK_H / 2:.4f}" rgba="0.40 0.32 0.24 1"/>\n'
+        f'    </body>',
+        f"park_tree_{i}", "tree")
+
   # The staircase (module docstring): one body, its boxes the steps, the
   # landing and its half walls. It fills a dead end -- the hall runs y -6..6
   # and nothing lies south of it.
@@ -805,7 +1112,7 @@ def build_home_world() -> tuple[str, dict]:
       ((WING_X[0] + WING_X[1]) / 2, (KITCHEN_Y[0] + KITCHEN_Y[1]) / 2),
       ((WING_X[0] + WING_X[1]) / 2, (WORKSHOP_Y[0] + WORKSHOP_Y[1]) / 2),
       ((HALL_X[0] + HALL_X[1]) / 2, 0.0),
-      ((hx0 + gx1) / 2, (GARDEN_SOUTH_Y[0] + GARDEN_SOUTH_Y[1]) / 2),
+      ((ROOMS_X[1] + gx1) / 2, (GARDEN_SOUTH_Y[0] + GARDEN_SOUTH_Y[1]) / 2),
       ((STREET_X[0] + STREET_X[1]) / 2, 0.0),
       # The second house and the loop (issue #215).
       ((LOBBY_X[0] + LOBBY_X[1]) / 2, 0.0),
@@ -815,6 +1122,22 @@ def build_home_world() -> tuple[str, dict]:
       ((LOOP_X[0] + LOOP_X[1]) / 2, (LOOP_Y[0] + PAVEMENT_Y[0]) / 2),
       ((LOOP_X[0] + PAVEMENT_X[0]) / 2, 0.0),
       ((PAVEMENT_X[1] + LOOP_X[1]) / 2, 0.0),
+      # The grown world (issue #560): each new room, the park's two halves,
+      # the alley and the loop's legs down the second row.
+      ((ROOMS_X[0] + ROOM_DIV_X) / 2, sum(ROOMS_Y) / 2),
+      ((ROOM_DIV_X + ROOMS_X[1]) / 2, sum(ROOMS_Y) / 2),
+      (sum(STUDY_X) / 2, sum(STUDY_Y) / 2),
+      (sum(CONCOURSE_X) / 2, sum(RESTAURANT_Y) / 2),
+      (sum(CONCOURSE_X) / 2, sum(SHOP_Y) / 2),
+      ((CONCOURSE_X[1] + BACK_X) / 2, sum(RESTAURANT_Y) / 2),
+      ((BACK_X + MALL_X[1]) / 2, sum(RESTAURANT_Y) / 2),
+      ((CONCOURSE_X[1] + BACK_X) / 2, sum(SHOP_Y) / 2),
+      ((BACK_X + MALL_X[1]) / 2, sum(SHOP_Y) / 2),
+      (PARK_X[0] + (PARK_X[1] - PARK_X[0]) / 4, sum(PARK_Y) / 2),
+      (PARK_X[1] - (PARK_X[1] - PARK_X[0]) / 4, sum(PARK_Y) / 2),
+      ((STREET_X[1] + PAVEMENT_X[1]) / 2, (ROW2_Y[1] + BLOCK_Y[0]) / 2),
+      ((LOOP_X[0] + PAVEMENT_X[0]) / 2, sum(ROW2_Y) / 2),
+      ((PAVEMENT_X[1] + LOOP_X[1]) / 2, sum(ROW2_Y) / 2),
     ))
 
   # The tower's blocks (issue #207): the challenge's own props, in the
@@ -877,6 +1200,9 @@ def build_home_world() -> tuple[str, dict]:
     # Every pressure plate and what it is FOR (`protocol.PLATE_PURPOSES`),
     # by body name: the site draws a glyph on the pad for visitors.
     "plates": plates,
+    # Each robot's room (#560), by its root body -- never a name: whose room
+    # is whose is the world's fact, what a robot is called is its own.
+    "rooms": dict(ROOM_OF),
     "gridBounds": list(GRID_BOUNDS),
   }
   return xml, meta

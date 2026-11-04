@@ -27,9 +27,11 @@ def load(path: str | None = None) -> dict:
 
 
 def house_middle(house: str) -> tuple[float, float]:
-  """The middle of a building's rooms (`home.world.ZONES` naming it), m."""
+  """The middle of a building's rooms (`home.world.ZONES` naming it), or of
+  the outdoor place that is the zone by that name (the park, #560), m."""
   from pluggybot.home import world as home
-  rooms = [z for z in home.ZONES if z.get("building") == house]
+  rooms = ([z for z in home.ZONES if z.get("building") == house]
+           or [z for z in home.ZONES if z["name"] == house and "building" not in z])
   if not rooms:
     raise ValueError(f"no building {house!r} in the home world")
   x0 = min(z["min"][0] for z in rooms)

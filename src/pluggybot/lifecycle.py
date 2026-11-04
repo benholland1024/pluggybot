@@ -337,6 +337,11 @@ RACK_LINGER_S = 90.0
 #: median 462 s; the humanoids' charges are not yet measured against it.
 CHARGE_OCCUPANCY_S = 462.0
 WAIT_OCCUPANCIES = 3.0
+#: ...or passed for the nearest free one, where a mind chose that (#560: a
+#: decided charge's `station`), at most this often a charge: one free when
+#: chosen can be taken by the time it is reached, and twice is every other
+#: station of three.
+MAX_STATION_SWITCHES = 2
 #: What a robot does AT the station: not lingering, whatever the clock says.
 #: A procedure is no business of the station's, refused or run.
 RACK_STATES = ("GO_CHARGE", "CHARGE")
@@ -613,6 +618,10 @@ class HubLifecycle:
     #: world with no charger refuses a charge at once and sends it to none
     #: -- the pack running out is the `flat` death.
     self.charger = world_config(world).get("dock") is not None
+    #: ...and how many stations (#560: one in each building), which a claim
+    #: about "the charging station" never names (`_acts`).
+    from pluggybot.activity.station import station_names
+    self.stations = len(station_names(model))
     #: Every act toward the other robot this lifecycle recorded (issue
     #: #208): predictions with their truth, messages with their claim's
     #: truth, transfers with cost and need, hearts bought for the other,
@@ -1962,6 +1971,11 @@ class HubLifecycle:
         return x, y, near, where
     return None
 
+  def _bay_free(self, standoff, seat) -> bool:
+    """No other robot holds the station whose standoff and seat these are
+    (`_bay_holder`): a free one to `Body.choose_station` (#560)."""
+    return self._bay_holder(standoff[0], standoff[1], seat) is None
+
 
   def _await_bay_routine(self, sx: float, sy: float, kind: str,
                          since: float, seat=None) -> Routine:
@@ -2354,7 +2368,7 @@ class HubLifecycle:
   def go_charge(self) -> bool:
     return self.body.run(self.go_charge_routine())
 
-  def go_charge_routine(self) -> Routine:
+  def go_charge_routine(self, free: bool = False) -> Routine:
     """Walk to the charging station and plug in until the pack takes the
     charger's current.
 
@@ -2362,12 +2376,21 @@ class HubLifecycle:
     computed from the believed station pose is only how the robot gets to
     the NEIGHBOURHOOD -- the approach itself is re-measured off the
     station's own tags, as a belief drifts over a long shift.
+
+    `free`, a mind's choice (#560: a decided charge's `station`): a station
+    another robot holds is passed for the nearest one nobody does, at the
+    choice and wherever it is found taken (`MAX_STATION_SWITCHES`), where
+    the default waits for it (below).
     """
     self.charge_failure = ""
     if not self.charger:
       self.charge_failure = NO_CHARGER
       return False
     self.body.refresh_rack()
+    # ...the station this charge goes to, of the world's (#560): the nearest
+    # by its own map's walk, or the one a search finds instead, or a free
+    # one passed on to (below)
+    self.body.choose_station()
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
     # Route-failure retry: when nothing is reachable, look round to buy map
@@ -2384,6 +2407,7 @@ class HubLifecycle:
     tried = None                  # why a near give-up's approach stopped
     searched = False              # ...and once the station was not seen, lost (#476)
     redocked = False              # ...and once a dock seen never got in (#572)
+    switched = 0                  # ...and how often a taken station was passed (#560)
 
     def dock_again() -> bool:
       # ⚠ A DOCK THAT SAW THE STATION AND NEVER GOT IN GOES AGAIN FROM THE
@@ -2399,6 +2423,19 @@ class HubLifecycle:
       return True
 
     while True:
+      if (self.peers and free and switched < MAX_STATION_SWITCHES
+          and (held := self._bay_holder(sx, sy, seat)) is not None
+          and self.body.choose_station(free=self._bay_free)):
+        switched += 1
+        named = self.peer_at(held[0], held[1])
+        who = named[0] if named is not None else "another robot"
+        # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
+        self._say(f"GO_CHARGE on to the nearest free charging station -- {who} is at this one")
+        self._remember(f"{who} was at the charging station I needed; I went on to the "
+                       "nearest free one")
+        sx, sy, hd = self.body.charge_standoff()
+        seat = self.body.charge_seat()
+        continue
       if self.peers and self._bay_holder(sx, sy, seat) is not None:
         since = float(self.data.time) if since is None else since
         if not (yield from self._await_bay_routine(sx, sy, "charge", since,
@@ -2424,6 +2461,8 @@ class HubLifecycle:
         if tried == NOT_SEEN and not searched and not self.body.charging():
           searched = True
           if (yield from self._search_routine()):
+            sx, sy, hd = self.body.charge_standoff()   # the station it found (#560)
+            seat = self.body.charge_seat()
             continue
         if dock_again():
           continue
@@ -2445,6 +2484,8 @@ class HubLifecycle:
         if not searched:
           searched = True
           if (yield from self._search_routine()):
+            sx, sy, hd = self.body.charge_standoff()
+            seat = self.body.charge_seat()
             continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
@@ -2461,6 +2502,8 @@ class HubLifecycle:
         if not searched and not (rec is not None and rec["why"] == "peer"):
           searched = True
           if (yield from self._search_routine()):
+            sx, sy, hd = self.body.charge_standoff()
+            seat = self.body.charge_seat()
             spins = 1
             continue
         break
@@ -3655,9 +3698,12 @@ class HubLifecycle:
       if to is not None and to.inbox is not None:
         self._told += 1
         msg_id = f"{self.root}:{self._told}"
+        charging = any(life.state == "CHARGE" for life in (self, *self.peers))
         checked = rules.check_claim(
           decision.tell["text"], boards=self.boards,
-          charging=any(life.state == "CHARGE" for life in (self, *self.peers)))
+          # ...with several stations, one robot charging leaves "the
+          # charging station is free" true or false by which was meant
+          charging=None if charging and self.stations > 1 else charging)
         landed = to.inbox.offer({"type": "message", "id": msg_id,
                                  "from": self.robot_name,
                                  "text": decision.tell["text"]},
@@ -5212,7 +5258,9 @@ class HubLifecycle:
       self.state = "GO_CHARGE"
       self._charge_trip = True
       try:
-        if (yield from self.go_charge_routine()):
+        # ...at the nearest station, waiting for it if it is taken, or on to
+        # the nearest free one where its `station` chose that (#560)
+        if (yield from self.go_charge_routine(free=decision.station == "free")):
           self.state = "CHARGE"
           yield from self.charge_routine()
         else:
@@ -6064,10 +6112,10 @@ def home_activities(model, data):
   from pluggybot.activity.plate import PlateLight
   # The mouse (issue #226), seen by a robot's head camera (#605)
   acts = [PlateLight(model, data), Cage(model, data, shock=False)]
-  # ...and the humanoids' charging station, where the world has one (#559)
-  if any(model.body(b).name == "station" for b in range(model.nbody)):
-    from pluggybot.activity.station import Station
-    acts.append(Station(model, data))
+  # ...and the humanoids' charging stations, where the world has them (#559,
+  # #560: one in each building)
+  from pluggybot.activity.station import Station, station_names
+  acts += [Station(model, data, name) for name in station_names(model)]
   # ...and the storeroom counter's props, where the world has it (#559,
   # stage 3): the chest's catch and the door's latch are physics they apply
   from pluggybot.home import storeroom

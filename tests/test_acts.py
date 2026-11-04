@@ -215,6 +215,27 @@ def test_a_tell_lands_in_the_others_inbox_as_a_named_robot(pair):
   assert told["delivered"] and told["claim"] is None and told["claimTrue"] is None
 
 
+def test_a_claim_about_the_station_with_several_is_checked_only_while_none_is_taken(pair):
+  # #560, a station in each building: "the charging station is free" names
+  # none. Nobody charging, it is true of every one; one robot charging, it is
+  # true or false by which was meant, and unchecked -- never graded false
+  # against a robot charging in another building
+  a, b = pair
+  events = []
+  a.on_event.append(events.append)
+
+  def told():
+    a._acts(_decision(tell={"to": "Rowan", "text": "the charging station is free"}))
+    return [e for e in events if e["type"] == "message"][-1]["claimTrue"]
+  a.stations = 3
+  assert told() is True
+  b.state = "CHARGE"
+  assert told() is None
+  # ...where there is one, the robot charging is on it
+  a.stations = 1
+  assert told() is False
+
+
 def test_a_prediction_is_scored_off_the_others_real_state(pair):
   a, b = pair
   events = []

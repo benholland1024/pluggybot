@@ -54,6 +54,65 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: the grown world (pluggybot #560, stage 1)
+
+The house grows into a 2x2 grid: today's row north, and south of it the
+PARK beside the house and the MALL beside the research center, the
+middle street running on between the columns, a pedestrian ALLEY between
+the research center and the mall, and the loop round all four (49 x 40 m
+inside its fence, where it was 49 x 21). No shape moved; what a consumer
+sees:
+
+- **Both humanoid scenes are new** (235 bodies, 267 for the pair; 39
+  zones). New zones: the robots' two rooms off the living room
+  (`room_west`, `room_east`), the research center's `study_room` (the south
+  half of its front garden, so `garden_2` is its north half), the `park`
+  (kind `park`, no building), the mall's `concourse`, `dining_room`,
+  `restaurant_kitchen`, `shop` and `loading_zone`, the `alley` (it replaces
+  `sidewalk_2_south`), and the second row's sidewalks (`sidewalk_park`,
+  `sidewalk_park_west`, `sidewalk_park_south`, `sidewalk_mall`,
+  `sidewalk_mall_east`, `sidewalk_mall_south`). `sidewalk_south` is the
+  3 m strip between the rows now; `garden_south` starts at the robots'
+  rooms. Every room names its building; nothing outdoors does.
+- **A building, additive** (`BUILDINGS`): `mall`.
+- **Two hints, additive** (`VISUAL_HINTS`, `hints.json`): `chair` -- ONE
+  BOX, the seat's footprint to the top of its back, a sitter facing the
+  body's +x -- and `shelf` -- MANY boxes kept, a RESKIN: two ends, a back
+  (at its back edge against a wall, down its middle for a gondola stocked
+  both sides) and four boards, 0.15-1.35 m up, its front the body's +y.
+  The dining tables and the study table are `table`s, the expo line's,
+  the checkout's and the kitchen's worktops `counter`s, the park's two
+  trunks `tree`s -- the first in-world trees: solid, mapped, the canopy the
+  site's. The world itself sets nothing on a table or a shelf: the
+  dishware and the stock are each task's.
+- **Three stations**, one in each building: the house's (`station`, tags
+  58-59), the research center's (`station_facility`, 64-65, at its lobby's
+  south end) and the mall's (`station_mall`, 66-67, at its concourse's
+  south end), each with its plug as a dynamic body (`<name>_plug`) and its
+  rope as a `cables` entry (`<name>_rope`), and each an activity of its
+  own name. The header's `world` census carries the three plugs.
+- **Tag textures** `tagtex64.png`-`tagtex75.png`: the two new stations'
+  pairs, and the new places' tags -- the restaurant's pair beside its pass
+  (68-69), the shop's pair (70-71), the park's sign (72), one in each robot's
+  room (73-74) and the study room's (75). The park's sign is a body of its
+  own (`park_sign`), unhinted.
+- **`drift` rows carry `station`** on `lost`, `searched` and `fixed`:
+  which station the charge went to, or was fixed off.
+- **A decision may carry `station`**, `"free"`, on a `charge` alone (absent
+  otherwise): the mind chose to go on to the nearest station nobody
+  holds where its nearest is taken, rather than wait for it.
+- **The pair's recording is flown again** in the grown world (osmesa), on
+  the 33 Wh test pack (`humanoid.world.DEMO_WH`, 30 before: charged, it
+  funds the jobs priced from the mall's station and the reserve both): the
+  first robot, started low, plugs in at the house's station at 38 s and
+  charges while the second explores; the second goes to charge at 235 s
+  under the new 19.5 Wh reserve, waits for the house's station (the
+  nearest for both) until it is free at 310 s, and plugs in at 342 s. Both
+  done at 534 s. The counter's scene and recording too, since the counter
+  stands in the house (chest 0 passed in 23.6 s).
+- A world change is a new build identity (`dataHashes.world`), and every
+  day's trajectory is different (docs/Observatory.md).
+
 ### 0.21.0, nothing new on the wire: a task's `id` is the board's count, and orders it (pluggybot #610)
 
 No message's shape moves, and no bump. What a consumer may rely on is
