@@ -229,22 +229,24 @@ from pluggybot.mind.look import LOOK_S, MAX_LOOK_RUN  # noqa: E402, F401
 #: spends the budget it needed to close the object.
 #: ⚠ A REASONING MODEL SPENDS IT ON ITS REASONING FIRST, and what it cannot
 #: finish is an empty answer, billed in full: `fallback:cutoff` (#604).
-#: 24,576 SINCE #604's follow-up (16,384 since #604, 8,192 at #225's pick),
-#: measured on the live robots' own turns streamed: GLM-5.3-Flash on baseten
-#: thought 1.1k-19.7k tokens in 29 calls, the 19,739 one past #604's budget,
-#: and DeepSeek-V4.1-Flash at effort `low` up to 22.4k. ⚠ SIZED TO THE
-#: DEADLINE: 24,576 comes back inside `CALL_TIMEOUT_S` at 85 tokens a second
-#: or more after a first byte under 10 s -- 15 of baseten's 17 long answers
-#: wrote at 100-212 -- a cut-off metered and said; slower, a think that ran
-#: out is a timeout, unmetered and counted toward the cooloff (Overseer.md
-#: §6), and novita, at 76-94, thinks to it. A ceiling, not a spend.
-MAX_TOKENS_AUTONOMOUS = 24576
+#: 32,768 SINCE #604's follow-up (16,384 since #604, 8,192 at #225's pick),
+#: measured streamed: on the live robots' turns GLM-5.3-Flash on baseten
+#: thought 1.1k-19.7k tokens (29 calls), and FLOWN, writing and mending its
+#: procedures, a median of 11.3k and 22.2k-24.6k on 3 of 13, one cut off at
+#: 24,576; DeepSeek-V4.1-Flash at `low`, up to 26.6k. ⚠ SIZED TO THE
+#: DEADLINE: 32,768 comes back inside `CALL_TIMEOUT_S` at 112 tokens a
+#: second or more, its wall in -- the flight's thinks over 10k wrote at
+#: 114-246 -- a cut-off metered and said; slower (2 of the replays' 17 long
+#: answers wrote at 100-106; novita at 76-94), a think that ran out is a
+#: timeout, booked at an estimate and counted toward the cooloff (Overseer.md
+#: §6). A ceiling, not a spend.
+MAX_TOKENS_AUTONOMOUS = 32768
 #: ...and the mid-errand interrupt's (issue #116): one boolean and a
 #: sentence, after the same reasoning. On the live robots' own turns it
 #: thought 489-1,846 tokens (#604), 7 of 20 past the 1,024 it had, and a
 #: failed interrupt stops the errand. ⚠ NOT the decision's budget: it is
 #: asked as the pack runs low, mid-errand, and 4,096 -- twice the longest --
-#: comes back in ~28 s where 24,576 could stand the robot still for three
+#: comes back in ~28 s where 32,768 could stand the robot still for four
 #: minutes and more; it keeps its own deadline too (`INTERRUPT_TIMEOUT_S`).
 MAX_TOKENS = 4096
 
@@ -470,33 +472,16 @@ class CutOff(ValueError):
 
 class StillWriting(TimeoutError):
   """A streamed answer still being written at its deadline (`llm.
-  deadline_fetch`, #604's follow-up): `timeout`, our own patience, as a
-  call that never came back in time always was -- but it names who was
-  answering, and is never metered: a stream's count of its tokens comes at
-  its end, and none came."""
+  deadline_fetch`, #604's follow-up), its text unparsed: `timeout`, our
+  own patience, as a call that never came back in time always was -- but
+  it names who was answering, and is booked at an estimate of what it
+  streamed (`llm.stream_fetch`): its count comes at its end, and none came."""
 
 
 class StreamClosed(ConnectionError):
   """A stream the far side closed mid-answer (`llm.stream_fetch`'s
-  "closed"): nobody finished answering, `offline`, never `garbled`."""
-
-
-def _unfinished(response) -> Exception | None:
-  """Why a response's stream never finished its answer, or None: stopped
-  at our deadline (`StillWriting`) or closed by the far side
-  (`StreamClosed`), and only where its text did not parse -- a JSON whole
-  before the stop is an answer, as a cut-off's is."""
-  stop = getattr(response, "stop_reason", None)
-  if stop not in ("deadline", "closed"):
-    return None
-  try:
-    _extract_json(response)
-    return None
-  except ValueError:
-    pass
-  if stop == "deadline":
-    return StillWriting("the answer was still being written at the deadline")
-  return StreamClosed("the stream was closed before the answer was written")
+  "closed"), its text unparsed: nobody finished answering, `offline`,
+  never `garbled`."""
 
 
 def fallback_reason(e: BaseException) -> str:
@@ -3875,6 +3860,9 @@ class Overseer:
     if not self._esc_ready:
       self._esc_ready = True
       try:
+        # ⚠ No `reasoning_effort`: it is the routine mind's (`EFFORT_ENV`,
+        # the header's `reasoningEffort`), in that model's own words, and an
+        # escalation is another model, at its provider's own default.
         self._esc_client = llm.build_client(
           self.escalate_backend, self.escalate_model,
           timeout=ESCALATE_TIMEOUT_S, base_url=self.escalate_url)
@@ -4016,11 +4004,6 @@ class Overseer:
           _pictures(state), self.escalate_backend)}],
       )
       call = _call_record(response, self.clock() - asked)
-      unfinished = _unfinished(response)
-      if unfinished is not None:
-        # unmetered, as the routine call's (`_call`): the cheap answer stands
-        response = None
-        raise unfinished
       better = self.menu.validate(_extract_json(response), waiting=waiting,
                                   offered=offered,
                                   standing_orders=True,
@@ -4400,9 +4383,6 @@ class Overseer:
           errand, why)}],
       )
       call = _call_record(response, self.clock() - asked)
-      unfinished = _unfinished(response)
-      if unfinished is not None:
-        raise unfinished
       self._meter(response)
       self._bank_decision()
       raw = _extract_json(response)
@@ -4754,13 +4734,9 @@ class Overseer:
       # BILLED IS BILLED (issue #225): metered and banked before the answer
       # is parsed, because a reasoning model that spent its whole budget
       # thinking and returned nothing was charged for every token of it,
-      # and metering after `validate` counted that call as free. ⚠ Not a
-      # stream that never finished (`_unfinished`): its count of tokens
-      # comes at its end, and booked at none it would read free.
+      # and metering after `validate` counted that call as free -- a stream
+      # stopped mid-answer too, at an estimate (`llm.stream_fetch`).
       call = _call_record(response, self.clock() - asked)
-      unfinished = _unfinished(response)
-      if unfinished is not None:
-        raise unfinished
       self._meter(response)
       self._bank_decision()
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
@@ -5152,9 +5128,14 @@ def _extract_json(response) -> dict:
   try:
     raw = json.loads(text)
   except json.JSONDecodeError as e:
-    if getattr(response, "stop_reason", None) == "max_tokens":
+    stop = getattr(response, "stop_reason", None)
+    if stop == "max_tokens":
       raise CutOff("its tokens ran out before the answer was written: "
                    f"{text[:120]!r}") from e
+    if stop == "deadline":
+      raise StillWriting("the answer was still being written at the deadline") from e
+    if stop == "closed":
+      raise StreamClosed("the stream was closed before the answer was written") from e
     raise ValueError(f"decision was not JSON: {text[:120]!r}") from e
   if not isinstance(raw, dict):
     raise ValueError(f"decision was not an object: {type(raw).__name__}")
@@ -5165,9 +5146,12 @@ def _call_record(response, wall_s: float) -> dict:
   """`Decision.call`: what a response says of the call that brought it
   (issue #604)."""
   usage = getattr(response, "usage", None)
+  # ⚠ ABSENT IS NONE, NEVER 0: a stream whose count never came is booked at
+  # an estimate (`llm.stream_fetch`), and the row says no count came
+  counted = not getattr(response, "usage_estimated", False)
   return {"provider": getattr(response, "provider", None),
-          "tokensIn": int(getattr(usage, "input_tokens", 0) or 0),
-          "tokensOut": int(getattr(usage, "output_tokens", 0) or 0),
+          "tokensIn": int(getattr(usage, "input_tokens", 0) or 0) if counted else None,
+          "tokensOut": int(getattr(usage, "output_tokens", 0) or 0) if counted else None,
           "cut": getattr(response, "stop_reason", None) == "max_tokens",
           "wallS": round(wall_s, 3)}
 
@@ -5177,8 +5161,12 @@ def call_said(call: dict | None) -> str:
   its DECIDE line, or "" where no call answered it."""
   if not call:
     return ""
-  return (f"{call.get('provider') or 'unnamed'}: {call.get('tokensIn', 0)} in, "
-          f"{call.get('tokensOut', 0)} out{', cut off' if call.get('cut') else ''}, "
+
+  def count(key):
+    n = call.get(key, 0)
+    return "?" if n is None else n        # no count came (`_call_record`)
+  return (f"{call.get('provider') or 'unnamed'}: {count('tokensIn')} in, "
+          f"{count('tokensOut')} out{', cut off' if call.get('cut') else ''}, "
           f"{float(call.get('wallS') or 0):.1f} s")
 
 
@@ -5296,7 +5284,7 @@ def build(world: str, book=None, enabled: bool | None = None,
   backend = llm.resolve_backend(
     backend or os.environ.get(BACKEND_ENV, "").strip() or "auto", model)
   model = model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
-  effort = (reasoning_effort or os.environ.get(EFFORT_ENV, "")).strip() or None
+  effort = reasoning_effort or os.environ.get(EFFORT_ENV)
   from pluggybot.procedure.library import Library
   menu = Menu.for_world(world, book)
   # ⚠ EVERY POWER IS A MIND'S, NARROWED BY WHAT THE WORLD HAS (issue #427:

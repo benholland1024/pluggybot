@@ -241,13 +241,16 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   why it ended (`finish_reason`: "length" where the tokens ran out) and
   who answered (`provider`, the router's `x-inference-provider`).
   `timeout` is each read's, and `wall_s`, where given, the whole
-  exchange's: a stream still going at it ends "deadline", its answer as
-  far as it got (`deadline_fetch`). MEASURED (#466): the router's gateway
-  answers 504 to a request silent for 120 s, and the deployed model, shown
-  a picture, reasoned past it. ⚠ A stream that ends with no `[DONE]` and
-  no `finish_reason` was closed by the far side mid-answer, and ends
-  "closed": the router closes a stream at 20 minutes, and three of #560's
-  table answers, still thinking at 1,200.3 s, read as ended and empty."""
+  exchange's: no read waits past it (a worker still reading makes the next
+  decision `busy`), and a stream still going at it ends "deadline", its
+  answer as far as it got (`deadline_fetch`). MEASURED (#466): the
+  router's gateway answers 504 to a request silent for 120 s, and the
+  deployed model, shown a picture, reasoned past it. ⚠ A stream that ends
+  with no `[DONE]` and no `finish_reason` was closed by the far side
+  mid-answer, and ends "closed": the router closes a stream at 20 minutes,
+  and three of #560's table answers, still thinking at 1,200.3 s, read as
+  ended and empty. ⚠ One whose count never came is booked at an estimate
+  (`_estimated_usage`, `usageEstimated`), never at none."""
   if body is None:
     return _default_fetch(url, body, headers, timeout)
   data = json.dumps({**body, "stream": True,
@@ -261,26 +264,38 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
     with urllib.request.urlopen(req, timeout=timeout if wall_s is None
                                 else min(timeout, wall_s)) as resp:
       provider = resp.headers.get("x-inference-provider")
-      for raw in resp:
-        if end is not None and monotonic() >= end:
-          finish = "deadline"
-          break
-        line = raw.decode("utf-8", "replace").strip()
-        if not line.startswith("data:"):
-          continue
-        chunk = line[len("data:"):].strip()
-        if chunk == "[DONE]":
-          done = True
-          break
-        d = json.loads(chunk)
-        if "error" in d:
-          return 500, d
-        usage = d.get("usage") or usage
-        for choice in d.get("choices") or ():
-          delta = choice.get("delta") or {}
-          reasoning.append(str(delta.get("reasoning_content") or delta.get("reasoning") or ""))
-          content.append(str(delta.get("content") or ""))
-          finish = choice.get("finish_reason") or finish
+      sock = _socket_of(resp) if end is not None else None
+      try:
+        for raw in resp:
+          if end is not None:
+            now = monotonic()
+            if now >= end:
+              finish = "deadline"
+              break
+            if sock is not None:
+              sock.settimeout(min(timeout, end - now))
+          line = raw.decode("utf-8", "replace").strip()
+          if not line.startswith("data:"):
+            continue
+          chunk = line[len("data:"):].strip()
+          if chunk == "[DONE]":
+            done = True
+            break
+          d = json.loads(chunk)
+          if "error" in d:
+            return 500, d
+          usage = d.get("usage") or usage
+          for choice in d.get("choices") or ():
+            delta = choice.get("delta") or {}
+            reasoning.append(str(delta.get("reasoning_content") or delta.get("reasoning") or ""))
+            content.append(str(delta.get("content") or ""))
+            finish = choice.get("finish_reason") or finish
+      except TimeoutError:
+        # a read the wall cut short is the deadline; one silent for its
+        # whole `timeout` before it, a stream nobody is writing
+        if end is None or monotonic() < end - WALL_SLACK_S:
+          raise
+        finish = "deadline"
   except urllib.error.HTTPError as e:
     try:
       payload = json.loads(e.read().decode())
@@ -291,15 +306,65 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   text = (f"<think>{thought}</think>" if thought else "") + "".join(content)
   if finish is None and not done:
     finish = "closed"
-  return 200, {"choices": [{"message": {"content": text}, "finish_reason": finish}],
-               "usage": usage, "provider": provider}
+  payload = {"choices": [{"message": {"content": text}, "finish_reason": finish}],
+             "usage": usage, "provider": provider}
+  if not usage:
+    payload.update(usage=_estimated_usage(body, thought + "".join(content)),
+                   usageEstimated=True)
+  return 200, payload
+
+
+#: How near the wall a read's timeout must come to be read as the
+#: deadline rather than as a silent stream (`stream_fetch`), s.
+WALL_SLACK_S = 0.5
+#: Characters a token, MEASURED on the live turns (#604's follow-up
+#: review): 2.9-3.8 of a streamed answer, its reasoning included, and 3.5
+#: of a request, on baseten and deepinfra. The low end, so a stream whose
+#: count never came is booked on the dear side, as a cap should be.
+CHARS_PER_TOKEN = 3.0
+#: ...and a picture's, measured on the deployed model (#541: about 510 a
+#: 640 x 480 JPEG) -- never its base64's characters.
+IMAGE_TOKENS = 510
+
+
+def _estimated_usage(body: dict, streamed: str) -> dict:
+  """What a stream whose count never came is booked at: its request's text
+  and what it streamed, at `CHARS_PER_TOKEN`, each picture `IMAGE_TOKENS`.
+  An ESTIMATE, and the payload says so (`usageEstimated`): billed is billed
+  (#225), and a stream stopped at its deadline, booked at none, would read
+  free to the purse it was billed against."""
+  chars = pictures = 0
+  for message in body.get("messages") or ():
+    parts = message.get("content")
+    if isinstance(parts, str):
+      chars += len(parts)
+      continue
+    for part in parts or ():
+      if isinstance(part, dict) and part.get("type") == "text":
+        chars += len(part.get("text") or "")
+      elif isinstance(part, dict):
+        pictures += 1
+  return {"prompt_tokens": round(chars / CHARS_PER_TOKEN) + pictures * IMAGE_TOKENS,
+          "completion_tokens": round(len(streamed) / CHARS_PER_TOKEN)}
+
+
+def _socket_of(resp):
+  """The socket under a urllib response (`http.client` keeps it at
+  `fp.raw._sock`), so a read can be held to the wall's time left; None
+  where it cannot be had, and each read then waits its whole `timeout`."""
+  try:
+    return resp.fp.raw._sock
+  except AttributeError:
+    return None
 
 
 #: The longest a robot's stream may go silent before it is given up, s
-#: (`deadline_fetch`): each read's timeout, where the call's own deadline is
-#: the whole exchange's. ⚠ A silent read outlives the deadline by up to
-#: this, and a worker still reading makes the next decision `busy`.
-STREAM_SILENCE_S = 60.0
+#: (`deadline_fetch`): each read's timeout, and never past the call's own
+#: deadline (`stream_fetch`). As long as a call not streamed waited for its
+#: first byte (#604's 115 s): the slowest first byte measured on the live
+#: turns was 13 s, and a provider that never answers costs this, not the
+#: deadline.
+STREAM_SILENCE_S = 115.0
 
 
 def deadline_fetch(url: str, body: dict | None, headers: dict,
@@ -413,7 +478,10 @@ class ChatClient:
       # or was still going at its deadline (`deadline_fetch`)
       stop_reason=("max_tokens" if finish == "length"
                    else finish if finish in ("closed", "deadline") else "end_turn"),
-      provider=payload.get("provider"))
+      provider=payload.get("provider"),
+      # ...and whether its usage is the provider's count or our estimate of
+      # a stream whose count never came (`stream_fetch`)
+      usage_estimated=bool(payload.get("usageEstimated")))
 
 
 class HFClient(ChatClient):

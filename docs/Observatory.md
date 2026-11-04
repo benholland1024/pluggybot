@@ -10,21 +10,23 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### The robots' calls stream, with 300 s of patience and 24,576 tokens, and how hard the model thinks is the deployment's to name (#604's follow-up) — opens when this PR is deployed
+### The robots' calls stream, with 300 s of patience and 32,768 tokens, and how hard the model thinks is the deployment's to name (#604's follow-up) — opens when this PR is deployed
 
 **What changed in the mind and on the wire.**
 - **The routine mind's calls stream** (`llm.deadline_fetch`), held to the
   deadline in all: not streamed, none outlived the router's gateway (a 504
   at 120 s of silence), and novita held its answers to the end.
 - **`CALL_TIMEOUT_S` is 300 s** (115 s since #604) and
-  **`MAX_TOKENS_AUTONOMOUS` 24,576** (16,384), the escalation's following
-  both (360 s); a stream silent for 60 s ends there.
+  **`MAX_TOKENS_AUTONOMOUS` 32,768** (16,384), the escalation's following
+  both (360 s); a stream silent for 115 s ends there, and no read waits
+  past the deadline.
 - **The interrupt keeps 115 s**, its own (`INTERRUPT_TIMEOUT_S`; it had the
   decision's), and its 4,096 tokens.
 - **A stream still being written at the deadline is `fallback:timeout` and
   names who was answering**: its `call` carries the `provider` and a
-  `wallS` about 300, its tokens 0 (a stream's count comes at its end); one
-  the far side closed mid-answer is `offline`; neither is metered. A
+  `wallS` about 300, its tokens null (a stream's count comes at its end);
+  one the far side closed mid-answer is `offline`. Both are BOOKED at an
+  estimate of what they streamed (`llm.CHARS_PER_TOKEN`), never free. A
   timeout where nothing came back still names nobody.
 - **`$PLUGGY_REASONING_EFFORT`, new and unset**: sent as `reasoning_effort`
   on every call where set, said as `build.reasoningEffort` and in History's
@@ -44,7 +46,9 @@ and 314a5f9, 20, 34 and 32 % of the calls asked failed. On the live robots'
 own turns, streamed (Overseer.md §6): GLM-5.3-Flash on baseten answered 28
 of 29 (median 41 s, the longest 98 s and 19,739 tokens), on novita in a
 median of 197 s with 2 of 12 past five minutes and both its interrupts cut
-off.
+off. Flown 21 minutes on baseten, writing and mending procedures, 12 of 13
+answered, the 13th cut off at 24,576 tokens (a median of 11.3k and 64 s),
+and the robots stood still thinking 40-53 % of the flight.
 
 **What the period is for.**
 - **The failure rate**: `timeout`, `cutoff`, `garbled`, `offline` and
@@ -52,8 +56,9 @@ off.
   periods' fifth to a third; on the replays, 1 in 29 on baseten was refused
   and 1 in 12 of the probe's lost to a stream the provider dropped.
 - **How long a think stands a robot still**: the decision rows' `wall_s`
-  (now every streamed call's, a timeout's too) against 300 s, and what it
-  costs a held job's minutes.
+  (now every streamed call's, a timeout's too) against 300 s, the share of
+  each robot's hour it adds up to (flown: 40-53 %), and what it costs a held
+  job's minutes.
 - **The unminded clock**: `unminded` deaths, and how near the robots' asks
   run to 1800 s, now that a call may take 300 of them.
 - **The purse**: a week's spend against $20 (about $5 on the recommended

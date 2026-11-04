@@ -219,7 +219,8 @@ Before doing anything, read the doc that owns what you are about to touch:
   ⚠ A LONG THINK IS SPENT STANDING STILL (~93 W, the world going on; 300 s
   is 40 % of the reserve) and comes out of the 1800 s between asks
   (`UNMINDED_AFTER_S`, stamped at the ask). ⚠ A stream silent for
-  `llm.STREAM_SILENCE_S` (60) ends there. `INTERRUPT_TIMEOUT_S` (115) is the
+  `llm.STREAM_SILENCE_S` (115) ends there, and no read waits past the
+  deadline (a worker still reading makes the next decision `busy`). `INTERRUPT_TIMEOUT_S` (115) is the
   interrupt's own, never the decision's; `ESCALATE_TIMEOUT_S` (360) is an
   ordering above it; `llm.LOCAL_TIMEOUT_S` is a FLOOR (a 27.3 s cold load).
   ⚠ The token budget is sized to it: one moves with the other. ⚠
@@ -235,8 +236,10 @@ Before doing anything, read the doc that owns what you are about to touch:
   it was written (the response's `stop_reason`, and its text unparsed;
   #604), never `garbled`: read as "decision was not JSON: ''", both robots
   believed their JSON was refused. ⚠ A stream still being written at the
-  deadline is `timeout` (`StillWriting`: it names who, and is never
-  metered), and one closed mid-answer `offline` (`StreamClosed`).
+  deadline is `timeout` (`StillWriting`: it names who), and one closed
+  mid-answer `offline` (`StreamClosed`); either, its count never come, is
+  BOOKED AT AN ESTIMATE (`llm.CHARS_PER_TOKEN`), never free, and its row's
+  tokens are null.
 - **Two arms: `scripted`, the loop with no mind, and `autonomous`, the one
   mind** (issues #115, #427; Evaluation.md §2). There is no control: what is
   measured is the observatory's rows. A mind takes THREE rails off —
@@ -1221,13 +1224,13 @@ save a filmstrip PNG named after the script.
   `response_format`; refused once → prose, and `constrained` goes False and
   SAYS so); no bare `{"type": "object"}` in the schema; every request carries
   `llm.USER_AGENT`. ⚠ A reasoning model needs its budget
-  (`MAX_TOKENS_AUTONOMOUS` 24,576 since #604's follow-up, the escalation's
+  (`MAX_TOKENS_AUTONOMOUS` 32,768 since #604's follow-up, the escalation's
   with it; the interrupt's `MAX_TOKENS` 4,096, twice its longest think, so a
   robot asked as its pack runs low is not held still for minutes; an answer
   its tokens ran out on is `fallback:cutoff`, billed). ⚠ THE BUDGET IS SIZED
   TO `CALL_TIMEOUT_S`: past the deadline a think that ran out is a timeout,
-  unmetered and counted toward the cooloff, where inside it it is a cut-off
-  metered and said (`test_the_budget_is_sized_to_the_deadline`). ⚠
+  booked at an estimate and counted toward the cooloff, where inside it it
+  is a cut-off metered and said (`test_the_budget_is_sized_to_the_deadline`). ⚠
   `:cheapest`'s providers are not one mind, and the difference is mostly
   their default EFFORT: `$PLUGGY_REASONING_EFFORT` names it (the request's
   `reasoning_effort`; unset, the provider's; `build.reasoningEffort`) --

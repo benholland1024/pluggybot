@@ -1865,11 +1865,12 @@ use, and made a cut-off `fallback:cutoff`: its follow-up, below, streams.
   stops the errand, so a `battery_below -> ask` row read as "stop" a third
   of the time. ⚠ Never the decision's: it is asked as the pack runs low,
   mid-errand, and twice its longest think comes back in ~28 s.
-- ⚠ **A timeout bills what nobody meters**: no usage reaches `_meter`, so
-  the purse (`$PLUGGY_WEEKLY_USD`) never sees whatever the provider billed
-  for a call the deadline gave up on. Whether the router bills it is not
-  known here: the router's own bill beside the spend record over a day of
-  timeouts says.
+- ⚠ **A timeout where nothing came back bills what nobody meters**: no
+  usage reaches `_meter`, so the purse (`$PLUGGY_WEEKLY_USD`) never sees
+  whatever the provider billed for it -- a stream silent to the end, or a
+  call not streamed (a stream stopped mid-answer is booked at an estimate,
+  below). Whether the router bills it is not known here: the router's own
+  bill beside the spend record over a day of timeouts says.
 - **The robot is told the tokens the provider says it spent** (a provider
   capping below the ask spends fewer), and a cut-off interrupt says "the
   answer ran out of its tokens", not "nobody answered".
@@ -1935,6 +1936,16 @@ completed", `offline`). What the table says:
   none took the job it could not pay for -- so whether the stronger model
   decides better is not measured here (below).
 
+**Flown, the replays under-measured the long thinks**, as the probe always
+has a mission: this branch, the pair from the same backup on the real mind
+(`zai-org/GLM-5.3-Flash:baseten`, its default effort), paced at real time
+for 21 minutes. Both robots held a hand job and spent the flight writing
+and mending its procedure, which the replayed turns (recalls and idles)
+never reached: 12 of 13 calls answered and the 13th cut off at 24,576
+tokens after 208 s (the budget is 32,768 since); a median of 11.3k tokens
+and 64 s, 3 of 13 past 20k, 208 s the longest. ⚠ Luca stood still thinking
+53 % of the flight and Rowan 40 % (`rows/flight1/calls.jsonl`).
+
 What a long think costs. The robot STANDS STILL while it thinks (`_decide`,
 `hold_routine`), at the ~93 W a humanoid draws standing, while its world
 goes on: the other robot works, offers come and go, a held job's minutes
@@ -1942,25 +1953,37 @@ run. 300 s of it is 7.8 Wh, 40 % of the reserve (19.5 Wh); and the call's
 wall comes out of the 1800 s the robot's map has to ask again in
 (`lifecycle.UNMINDED_AFTER_S`, stamped at the ASK: #317 chose 1800 with a
 1.31x margin over the worst healthy gap, which a 300 s call can take). At
-the live pair's ~48 calls an hour (Luca 30, Rowan 16; 11-01 to 11-03), the
-MEDIAN think stands each robot still ~5 minutes of its hour on deepinfra and
-~16 on baseten -- today's regime, mostly baseten's under `:cheapest`.
+the live pair's ~48 calls an hour (Luca ~31, Rowan ~17; 11-01 to 11-03), the
+MEDIAN replayed think stands each robot still ~5 minutes of its hour on
+deepinfra and ~16 on baseten, and flown on procedure work, at baseten's
+default, half of it -- today's regime, mostly baseten's under `:cheapest`.
+⚠ A decision that escalates stands it still for the escalation's 360 s on
+top (off on the deployed world).
 
 The numbers, and why:
 - **`CALL_TIMEOUT_S` is 300 s** (115 s since #604): every flowing think
   measured fits but novita's slowest. A stream still writing at it is
-  `fallback:timeout` (`StillWriting`), naming who was answering, never
-  metered; one the far side closed is `offline` (`StreamClosed`); a whole
-  JSON before either is an answer.
-- **`llm.STREAM_SILENCE_S` is 60 s**: each read's, so a stream that sends
-  nothing (a hang) ends there, not at the deadline; the slowest first byte
-  measured was 13 s (novita), and one cold DeepSeek call took 244 s
-  streaming.
-- **`MAX_TOKENS_AUTONOMOUS` is 24,576** (16,384 since #604): it covers
-  every think measured on baseten's GLM (19,739 the most) and 19 of
-  DeepSeek-at-`low`'s 20, and comes back inside 300 s at 85 tokens a second
-  after a 10 s first byte -- 15 of baseten's 17 long answers wrote at
-  100-212. Slower, a think that runs out is a timeout, not a cut-off.
+  `fallback:timeout` (`StillWriting`), naming who was answering; one the far
+  side closed is `offline` (`StreamClosed`); a whole JSON before either is
+  an answer. ⚠ No read waits past the deadline (`stream_fetch` holds the
+  socket to the wall's time left: a worker still reading would make the
+  next decision `busy`).
+- ⚠ **A stream whose count never came is BOOKED AT AN ESTIMATE**, never at
+  none (billed is billed, #225; the review's catch): its request's text and
+  what it streamed at `llm.CHARS_PER_TOKEN` (3.0: 2.9-3.8 a token measured,
+  the low end), a picture at `IMAGE_TOKENS`; its `call` row says no count
+  came (`tokensIn`/`tokensOut` null). Only such a stream: a provider's own
+  count stands.
+- **`llm.STREAM_SILENCE_S` is 115 s**: each read's, as long as a call not
+  streamed waited for its first byte, so a provider that never answers
+  costs that, not the deadline; the slowest first byte measured was 13 s
+  (novita), and one cold DeepSeek call took 244 s, its bytes flowing.
+- **`MAX_TOKENS_AUTONOMOUS` is 32,768** (16,384 since #604): flown, the
+  robots writing and mending procedures thought past what the replays
+  caught (below), one cut off at 24,576; 32,768 comes back inside 300 s at
+  112 tokens a second, its wall in -- the flight's thinks over 10k wrote at
+  114-246. Slower (2 of the replays' 17 long answers wrote at 100-106), a
+  think that runs out is a timeout, not a cut-off.
 - **`INTERRUPT_TIMEOUT_S` is 115 s**, its own: the interrupt holds a
   low-pack robot still mid-errand, and its 4,096 tokens come back in ~70 s
   at the slowest writer measured (Qwen on deepinfra, 60 a second).
@@ -1972,14 +1995,17 @@ hour, 16 hours a week (768 calls) against the $20 purse:
 
 - **Now: `zai-org/GLM-5.3-Flash:baseten`, no effort named.** The mind the
   robots mostly had (#604: 41 of 44 `:cheapest` calls landed there), made
-  reliable: 28 of 29 live turns valid, every think back inside 98 s and the
-  longest (19,739 tokens) inside the budget, its interrupts 4 of 4; ~$5 a
-  week. Pinned, no call lands on novita.
+  reliable: 28 of 29 replayed turns valid and every think back inside 98 s;
+  flown, 12 of 13 answered, the one cut off at a budget since raised; its
+  interrupts 4 of 4; ~$5-8 a week (the flight's thinks were twice the
+  replays'). Pinned, no call lands on novita. ⚠ Its cost is TIME: a
+  median of 41 s a replayed decision and 64 s a flown one, and flown on
+  procedure work each robot stood still thinking half the time.
 - **A stronger model, as a period of its own: `deepseek-ai/DeepSeek-V4.1-
-  Flash:deepinfra` at `low`.** 16 of 16 live turns valid, a median of 30 s
-  and 99 s the most, ~6k tokens a think, $0.0096 a call (~$7 a week), and
-  the router's catalogue lists structured output for deepinfra's (not
-  baseten's). Not measured to decide
+  Flash:deepinfra` at `low`.** 16 of 16 replayed turns valid, a median of
+  30 s and 99 s the most, ~6k tokens a think, $0.0096 a call (~$7 a week),
+  and the router's catalogue lists structured output for deepinfra's (not
+  baseten's); not flown. Not measured to decide
   better -- the energy gate passes every candidate -- but larger and newer
   (552B, 8-16B active, 10 Sep 2026; GLM-5.3-Flash 320B, 18B active, 25 Aug),
   its card's agentic numbers above GLM-5.3's, and it wrote #560's first
@@ -1987,9 +2013,10 @@ hour, 16 hours a week (768 calls) against the $20 purse:
   at deepinfra's default it does not reason at all, and at baseten's it
   thought a median of 21k tokens a turn, 51k the most ($0.046 a call, up to
   three and a half minutes).
-- **Faster: GLM-5.3-Flash on baseten at `low`**: 16 of 16 valid, a median
-  of 10 s, ~1.4k tokens, ~$4 a week; each robot stands still ~4 minutes of
-  its hour where baseten's default stands it ~16 -- a shallower think.
+- **Faster: GLM-5.3-Flash on baseten at `low`**: 16 of 16 replayed turns
+  valid, a median of 10 s, ~1.4k tokens, ~$4 a week, not flown; each robot
+  stands still a quarter of what baseten's default stands it -- a
+  shallower think.
 - ⚠ **Not `:cheapest`**: it still lands on novita, whose decisions take
   three minutes and whose interrupts run out of their tokens.
 
@@ -2035,8 +2062,8 @@ a slow call is spent standing still (above, "What a long think costs"). By
 call not streamed could use no more than 115: the router's gateway answers
 a request silent for 120 s with a 504 (measured four times, at 120.2-120.3
 s). Streamed, **300**: every flowing think measured on the live turns but
-novita's slowest. A stream silent for `llm.STREAM_SILENCE_S` (60 s) ends
-there, so a provider that never answers stands the robot still a minute,
+novita's slowest. A stream silent for `llm.STREAM_SILENCE_S` (115 s) ends
+there, so a provider that never answers stands the robot still that long,
 not the deadline. The token budget is sized to it (above). The interrupt
 keeps its own `INTERRUPT_TIMEOUT_S` (115 s), `ESCALATE_TIMEOUT_S` (360)
 follows as an ordering, not a number, and the probe holds its calls to 2×

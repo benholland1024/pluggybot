@@ -66,7 +66,8 @@ On the wire:
 - **A `fallback:timeout` decision may carry its `call`**: a stream still
   being written at the deadline came from someone, so the `call` event
   names the `provider` and `wallS` (about the deadline), with `tokensIn`
-  and `tokensOut` 0: a stream's count comes at its end, and none came.
+  and `tokensOut` NULL: a stream's count comes at its end, and none came
+  (the sim books an estimate of its own; the row says no count came).
   A timeout where nothing came back still names nobody, and so do a map
   row and a policy fallback. `cut` stays the budget's.
 

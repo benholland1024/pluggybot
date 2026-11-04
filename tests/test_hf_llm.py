@@ -8,6 +8,7 @@ that fails for reasons that are not about the code.
 """
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -218,23 +219,28 @@ def test_a_stream_the_far_side_closed_mid_answer_says_so(monkeypatch):
     assert create(fake_fetch([(status, payload)])).stop_reason == stop
 
 
-def test_a_robots_stream_is_held_to_its_deadline_in_all(monkeypatch):
-  """#604's follow-up: the robots' calls stream, so nothing but our own
-  deadline ends a long think -- not streamed, none outlived the router's
-  gateway (a 504 at 120 s of silence). A stream still going at the deadline
-  ends "deadline", what it reasoned so far and who was answering kept, and
-  each read waits at most `STREAM_SILENCE_S`, never the whole deadline.
-  Shown to fail without the wall: the stream was read to its end."""
+THINKING = b'data: {"choices": [{"delta": {"reasoning_content": "hm "}}]}\n'
+
+
+def thinking_stream(monkeypatch, lines=1000, stall_at=None, clock=None):
+  """A router answer thinking `lines` lines, under a clock ticking a second
+  a read; `stall_at` makes a read past it time out, the clock jumped to
+  `clock`. Returns what `urlopen` was asked, and the socket's timeouts."""
   now = [0.0]
 
   def tick():
     now[0] += 1.0
     return now[0]
   monkeypatch.setattr(llm, "monotonic", tick)
-  seen = {}
+  seen = {"socket": []}
+
+  class Socket:
+    def settimeout(self, s):
+      seen["socket"].append(s)
 
   class Thinking:
     headers = {"x-inference-provider": "baseten"}
+    fp = SimpleNamespace(raw=SimpleNamespace(_sock=Socket()))
 
     def __enter__(self):
       return self
@@ -243,13 +249,29 @@ def test_a_robots_stream_is_held_to_its_deadline_in_all(monkeypatch):
       return False
 
     def __iter__(self):
-      for _ in range(1000):
-        yield b'data: {"choices": [{"delta": {"reasoning_content": "hm "}}]}\n'
+      for i in range(lines):
+        if stall_at is not None and i == stall_at:
+          now[0] = clock
+          raise TimeoutError("timed out")
+        yield THINKING
 
   def urlopen(req, timeout):
     seen.update(timeout=timeout, body=json.loads(req.data))
     return Thinking()
   monkeypatch.setattr(llm.urllib.request, "urlopen", urlopen)
+  return seen
+
+
+def test_a_robots_stream_is_held_to_its_deadline_in_all(monkeypatch):
+  """#604's follow-up: the robots' calls stream, so nothing but our own
+  deadline ends a long think -- not streamed, none outlived the router's
+  gateway (a 504 at 120 s of silence). A stream still going at the deadline
+  ends "deadline", what it reasoned so far and who was answering kept; no
+  read waits past the wall (a worker still reading makes the next decision
+  `busy`: the review's catch), and one the wall cut short is the deadline;
+  a stream silent its whole `STREAM_SILENCE_S` before it is a timeout.
+  Shown to fail without the wall: the stream was read to its end."""
+  seen = thinking_stream(monkeypatch)
   status, payload = llm.deadline_fetch(llm.ROUTER + "/chat/completions", {"model": "m"},
                                        {}, 10.0)
   choice = payload["choices"][0]
@@ -257,9 +279,41 @@ def test_a_robots_stream_is_held_to_its_deadline_in_all(monkeypatch):
   assert payload["provider"] == "baseten"
   assert 0 < choice["message"]["content"].count("hm") <= 10
   assert seen["body"]["stream"] is True and seen["timeout"] == 10.0
+  assert seen["socket"] == sorted(seen["socket"], reverse=True) and seen["socket"][-1] <= 1.0
+  assert create(fake_fetch([(status, payload)])).stop_reason == "deadline"
+  seen = thinking_stream(monkeypatch, lines=3)
   llm.deadline_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 300.0)
   assert seen["timeout"] == llm.STREAM_SILENCE_S < 300.0
-  assert create(fake_fetch([(status, payload)])).stop_reason == "deadline"
+  thinking_stream(monkeypatch, stall_at=3, clock=400.0)
+  status, payload = llm.deadline_fetch(llm.ROUTER + "/chat/completions", {"model": "m"},
+                                       {}, 300.0)
+  assert payload["choices"][0]["finish_reason"] == "deadline"
+  thinking_stream(monkeypatch, stall_at=3, clock=120.0)
+  with pytest.raises(TimeoutError):
+    llm.deadline_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 300.0)
+
+
+def test_a_stream_whose_count_never_came_is_booked_at_an_estimate(monkeypatch):
+  """#604's follow-up review: a stream stopped at its deadline (or by a
+  provider that sends no count) bills what it streamed, and its usage comes
+  at its end: booked at none it would read free to the purse. So it is
+  booked at an ESTIMATE, said as one -- its request's text and what it
+  streamed at `CHARS_PER_TOKEN` (2.9-3.8 a token measured, the low end), a
+  picture at `IMAGE_TOKENS`, never its base64."""
+  thinking_stream(monkeypatch)
+  body = {"model": "m", "messages": [
+    {"role": "system", "content": "x" * 3000},
+    {"role": "user", "content": [{"type": "image_url", "image_url": {"url": "data:" + "A" * 9000}},
+                                 {"type": "text", "text": "y" * 600}]}]}
+  _, payload = llm.deadline_fetch(llm.ROUTER + "/chat/completions", body, {}, 10.0)
+  streamed = len(payload["choices"][0]["message"]["content"]) - len("<think></think>")
+  assert payload["usageEstimated"] is True
+  assert payload["usage"] == {"prompt_tokens": round(3600 / llm.CHARS_PER_TOKEN) + llm.IMAGE_TOKENS,
+                              "completion_tokens": round(streamed / llm.CHARS_PER_TOKEN)}
+  resp = create(fake_fetch([(200, payload)]))
+  assert resp.usage_estimated and resp.usage.output_tokens > 0
+  # a provider's own count stands, and says nothing of an estimate
+  assert not create(fake_fetch([ok_payload('{"action": "idle"}')])).usage_estimated
 
 
 def test_the_robots_calls_stream(monkeypatch):
@@ -303,33 +357,41 @@ def test_how_hard_it_thinks_is_ours_to_say(monkeypatch):
   assert overseer.build("home_humanoid", enabled=True, model="org/m").reasoning_effort is None
 
 
-def test_an_answer_still_being_written_at_its_deadline_is_a_timeout():
+def test_an_answer_still_being_written_at_its_deadline_is_a_timeout(monkeypatch):
   """#604's follow-up: streamed, a long think can meet our own deadline
   mid-answer. It is `fallback:timeout`, our patience and a failure, never
-  `garbled` (its text is half a think); it names who was answering, it
-  counts toward the cooloff as a timeout always did, and it is NEVER
-  metered or banked: a stream's count of its tokens comes at its end, none
-  came, and booked at none the purse would read it free. Its JSON whole
-  before the stop, it is an answer; a stream the far side closed is
-  `offline`. Shown to fail before the fix: `fallback:garbled`, banked."""
+  `garbled` (its text is half a think); it names who was answering, its
+  row says no count came (`None`, never 0), it counts toward the cooloff
+  as a timeout always did, and it is BOOKED at its estimate, as every
+  billed call is (the review's catch: unbooked, the purse read it free).
+  Its JSON whole before the stop, it is an answer; a stream the far side
+  closed is `offline`. Shown to fail before the fix: `fallback:garbled`."""
   from pluggybot.mind.spend import SpendBook
+  thinking_stream(monkeypatch)
+  _, still = llm.deadline_fetch(llm.ROUTER + "/chat/completions",
+                                {"model": "m", "messages": [{"role": "user", "content": "s"}]},
+                                {}, 10.0)
 
   def payload(text, finish):
-    return (200, {"choices": [{"message": {"content": text}, "finish_reason": finish}],
-                  "usage": {}, "provider": "baseten"})
+    choice = {"message": {"content": text}, "finish_reason": finish}
+    return (200, {**still, "choices": [choice]})
 
   def decide(script):
     book = SpendBook(None)
     boss = Overseer(Menu(zones=("garden",)), spend=book, client=HFClient(
       token="hf_test", fetch=fake_fetch([script])))
+    boss.usage.usd_per_mtok_in, boss.usage.usd_per_mtok_out = 0.15, 0.5
     return boss, book, boss.decide({"decisions": 0})
-  boss, book, d = decide(payload("<think>weighing the drawer against the", "deadline"))
+  boss, book, d = decide((200, still))
   assert d.source == "fallback:timeout" and overseer.fallback_class(d.source) == "failure"
   assert d.call["provider"] == "baseten" and not d.call["cut"]
-  assert (boss.usage.input_tokens, boss.usage.output_tokens, book.entries) == (0, 0, [])
+  assert d.call["tokensIn"] is None and d.call["tokensOut"] is None
+  assert boss.usage.output_tokens == still["usage"]["completion_tokens"] > 0
+  assert len(book.entries) == 1 and book.spent > 0
   assert boss._errors_in_a_row == 1
+  assert "? in, ? out" in overseer.call_said(d.call)
   boss, book, d = decide(payload("<think>hm</think>the stream went aw", "closed"))
-  assert d.source == "fallback:offline" and book.entries == []
+  assert d.source == "fallback:offline" and len(book.entries) == 1
   answered = json.dumps({"action": "explore", "zone": "garden", "reason": "mapping"})
   boss, book, d = decide(payload(answered, "deadline"))
   assert d.source == "llm" and d.action == "explore"
