@@ -281,7 +281,8 @@ def test_a_define_that_would_close_a_loop_through_the_library_is_refused():
   L.define("b", "def b():\n  wait(1)\n")
   L.define("c", "def c():\n  b()\n")
   L.undefine("b")
-  with pytest.raises(lib.LibraryRefused, match="line 2, c: c cannot run now -- line 2: unknown"):
+  with pytest.raises(lib.LibraryRefused, match="c calls b, which calls c: a def may not call "
+                                                 "itself"):
     L.define("b", "def b():\n  c()\n")
   assert L.names() == ("c",)
 
@@ -347,6 +348,7 @@ def test_the_served_rule_says_the_librarys_calls_and_the_index_says_calls():
   assert ov.HANDS_PROCEDURE_CALLS in rule
   assert f"A source may hold several defs, all within its {lang.MAX_SOURCE_CHARS:,}" in rule
   assert mp.vocabulary_index(HOME)["calls"] is True
+  assert mp.vocabulary_index(HOME)["callDepth"] == lang.MAX_CALL_DEPTH
   assert mp.vocabulary_index(NO_CALLS)["calls"] is False
 
 
@@ -393,3 +395,79 @@ def test_a_try_says_the_def_each_step_ran_in():
   report = mp.run_report(1, r, {"ok": False, "reason": "x"}, 1.0, False)
   assert "and stopped at line 5, drive_to (in b): did not arrive" in report, report
   assert "  line 4 wait (in b): ok" in report, report
+
+
+# ---- the review's (each reproduced before its fix) ------------------------------
+
+
+def test_a_rewrite_that_would_call_round_through_its_caller_keeps_the_one_it_had():
+  """`check` judged the define on the library as it stood, where `b`
+  still called the old `a`: passed, the undefine took `a`, and the define
+  was then refused -- the robot's procedure gone in the answer that was
+  rewriting it (#264's loss). Judged on the library it makes, it is the
+  loop it is, and nothing is taken."""
+  L = lib.Library(HOME)
+  L.define("a", "def a():\n  wait(1)\n")
+  L.define("b", "def b():\n  a()\n")
+  [why] = L.check("a", "def a():\n  b()\n", freeing="a")
+  assert why == "b calls a, which calls b: a def may not call itself, by way of another or not"
+  life = stub_life(WORLD)
+  life.overseer = SimpleNamespace(library=L, event_map=None)
+  life._define(Decision(action="idle", reason="r", undefine="a",
+                        define={"name": "a", "source": "def a():\n  b()\n"}))
+  assert L.names() == ("a", "b") and L.runnable() == ("a", "b")
+  assert "could not rewrite the procedure a -- the one I had is kept" in life.thoughts.read(
+    "History.md")
+
+
+def test_an_undefine_beside_a_define_of_another_says_what_it_stopped_itself():
+  life = stub_life(WORLD)
+  L = lib.Library(HOME)
+  life.overseer = SimpleNamespace(library=L, event_map=None)
+  L.define("x", "def x():\n  wait(1)\n")
+  L.define("b", "def b():\n  x()\n")
+  L.define("c", "def c():\n  b()\n")
+  life._define(Decision(action="idle", reason="r", undefine="x",
+                        define={"name": "y", "source": "def y():\n  wait(2)\n"}))
+  history = life.thoughts.read("History.md")
+  assert ("forgot the procedure x -- b, which calls x, cannot run until a x is written again; "
+          "c, which calls b, cannot run either") in history, history
+  assert "wrote the procedure y\n" in history or history.rstrip().endswith("wrote the procedure y")
+
+
+def test_a_name_passed_on_to_an_argument_its_callee_never_uses_keeps_its_kind():
+  src = ('def m():\n  f("left")\ndef f(h):\n  g(h)\n  open_hand(h)\n'
+         'def g(k):\n  wait(1)\n')
+  proc = compile_ok(src)
+  assert proc.defs["f"].names == {"h"}
+  r, _ = run(src.replace("open_hand(h)", "wait(2)"))
+  assert r["ok"] and [s["verb"] for s in r["steps"]] == ["wait", "wait"]
+
+
+def test_a_call_of_one_that_cannot_run_is_no_procedure_that_calls_no_verb():
+  L = lib.Library(HOME)
+  L.define("b", "def b():\n  wait(1)\n")
+  L.define("c", "def c():\n  b()\n")
+  L.undefine("b")
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("a", "def a():\n  c()\n")
+  assert not any("calls no verb" in r for r in e.value.reasons), e.value.reasons
+
+
+def test_a_kept_procedure_named_as_a_verb_still_runs_and_only_a_def_it_calls_may_not():
+  """Its first def is run, never called by its own source: refused, a
+  kept procedure named so before calls were would stop running at the
+  deploy's load."""
+  assert compile_ok("def wait():\n  face(1)\n").name == "wait"
+  assert any("'face' is the language's own name" in r
+             for r in refusals("def a():\n  wait(1)\ndef face():\n  wait(2)\n"))
+
+
+def test_the_readout_names_each_procedures_own_defs_and_an_argument_it_set():
+  L = lib.Library(HOME)
+  L.define("pa", "def pa():\n  h()\ndef h():\n  x = 1\n  wait(1)\n")
+  L.define("pb", "def pb():\n  h()\ndef h():\n  x = 2\n  wait(1)\n")
+  L.define("top", "def top(z=1.0):\n  pa()\n  pb()\n  z += 1\n  q(3)\n"
+                  "def q(n):\n  n = n * 2\n  wait(1)\n")
+  r, _ = run_entry(L, "top")
+  assert r["ok"] and r["locals"] == {"z": 2.0, "pa.h.x": 1.0, "pb.h.x": 2.0, "q.n": 6.0}

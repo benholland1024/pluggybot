@@ -111,12 +111,28 @@ class Library:
     return Entry(name, source, proc, [])
 
   def _relink(self) -> None:
-    """Every entry compiled against today's world and the library: each
-    after the ones it calls (#560), and those that call round to
-    themselves through each other marked so -- after every change, so a
-    caller whose callee went is marked, and one whose callee came back
-    runs again."""
-    calls = {n: self._calls(src) - {n} for n, src in self.sources.items()}
+    """Every entry compiled against today's world and the library (#560)
+    -- after every change, so a caller whose callee went is marked, and
+    one whose callee came back runs again."""
+    self.entries = self._compiled(self.sources)
+
+  def _trial(self, name: str, source: str, freeing: str = "") -> tuple[dict, Entry]:
+    """The library as it would stand with `source` under `name` and
+    `freeing` gone, compiled as `_relink` compiles it, and that entry: a
+    define is judged on the library it makes, so a rewrite that would call
+    round to itself through a caller of the one it replaces is refused
+    BEFORE the undefine -- judged on the library as it stood, it was
+    passed, the undefine took the old one, and the define was refused."""
+    sources = {n: src for n, src in self.sources.items() if n != freeing}
+    sources[name] = source
+    entries = self._compiled(sources)
+    return entries, entries[name]
+
+  def _compiled(self, sources: dict[str, str]) -> dict[str, Entry]:
+    """Each source compiled against the world and the others: each after
+    the ones it calls, and those that call round to themselves through
+    each other marked so."""
+    calls = {n: self._calls(src, sources) - {n} for n, src in sources.items()}
     order: list[str] = []
     state: dict[str, int] = {}
     looped: dict[str, list] = {}
@@ -132,20 +148,20 @@ class Library:
           visit(c, path + [c])
       state[n] = 2
       order.append(n)
-    for n in self.sources:
+    for n in sources:
       if n not in state:
         visit(n, [n])
     linked: dict = {}
     entries: dict[str, Entry] = {}
     for n in order:
       if n in looped:
-        entries[n] = Entry(n, self.sources[n], None, [lang._round(looped[n])])
+        entries[n] = Entry(n, sources[n], None, [lang._round(looped[n])])
       else:
-        entries[n] = self._entry(n, self.sources[n], linked)
+        entries[n] = self._entry(n, sources[n], linked)
       linked[n] = entries[n].procedure or entries[n].reasons
-    self.entries = {n: entries[n] for n in self.sources}
+    return {n: entries[n] for n in sources}
 
-  def _calls(self, source: str) -> set[str]:
+  def _calls(self, source: str, sources: dict | None = None) -> set[str]:
     """The library's names a source calls, its own defs aside: what it is
     compiled after."""
     if not getattr(self.facts, "calls", False):
@@ -157,12 +173,7 @@ class Library:
     own = {fn.name for fn in tree.body if isinstance(fn, ast.FunctionDef)}
     named = {n.func.id for n in ast.walk(tree)
              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
-    return (named - own) & set(self.sources)
-
-  def _linkable(self, freeing: str = "") -> dict:
-    """What a new source may call: every entry but `freeing`, compiled or
-    the reasons it is not."""
-    return {n: e.procedure or e.reasons for n, e in self.entries.items() if n != freeing}
+    return (named - own) & set(self.sources if sources is None else sources)
 
   # ---- reading -------------------------------------------------------------
 
@@ -173,6 +184,20 @@ class Library:
     """What may be run by name -- an action, an order, a row: an entry that
     compiles and runs with nothing passing it arguments."""
     return tuple(n for n, e in self.entries.items() if e.valid and e.procedure.alone)
+
+  def calls_of(self, name: str) -> set[str]:
+    """The procedures `name`'s source calls by name, its own defs aside --
+    one the library no longer holds among them."""
+    from pluggybot.procedure import steps as st
+    try:
+      tree = ast.parse(self.sources.get(name, ""))
+    except (SyntaxError, ValueError, MemoryError, RecursionError):
+      return set()
+    own = {fn.name for fn in tree.body if isinstance(fn, ast.FunctionDef)}
+    named = {n.func.id for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    return named - own - set(st.language(self.facts)) - set(lang.MATH) - {"read", "budget",
+                                                                            "range"}
 
   def get(self, name: str) -> lang.Procedure | None:
     entry = self.entries.get(name)
@@ -226,25 +251,19 @@ class Library:
       reasons.append(f"the library is full (it holds {self.cap}) -- an "
                      "`undefine` on the same answer as this define makes room "
                      "first")
-    proc = None
+    entries = None
     if not reasons:
-      try:
-        proc = lang.compile_procedure(source, self.facts, library=self._linkable(),
-                                      alone=False)
-      except Refused as e:
-        reasons.extend(e.reasons)
-      else:
-        if proc.name != name:
-          reasons.append(f"the def is named {proc.name!r}, not {name!r}")
-    if reasons or proc is None:
+      entries, entry = self._trial(name, source)
+      reasons.extend(_defined(entry))
+    if reasons or entries is None:
       self.refusals.append({"t": t, "verb": "define", "name": name,
                             "reasons": reasons})
       raise LibraryRefused(reasons)
     self.sources[name] = source
+    self.entries = entries
     self.defined += 1
     self.store.write(f"{name}{SUFFIX}", source)
-    self._relink()
-    return self.entries[name].procedure or proc
+    return self.entries[name].procedure
 
   def admit(self, name: str, source: str, verdict, t: float = 0.0) -> lang.Procedure:
     """VERIFIED ADMISSION (issue #493, #487's library): `define`, but only
@@ -299,9 +318,9 @@ class Library:
                      "first")
     if reasons:
       return reasons
-    try:
-      proc = lang.compile_procedure(source, self.facts, library=self._linkable(freeing),
-                                    alone=False)
-    except Refused as e:
-      return list(e.reasons)
-    return [] if proc.name == name else [f"the def is named {proc.name!r}, not {name!r}"]
+    return _defined(self._trial(name, source, freeing)[1])
+
+
+def _defined(entry: Entry) -> list[str]:
+  """Why a define is refused, off the entry the library it makes compiles."""
+  return [] if entry.valid else list(entry.reasons)

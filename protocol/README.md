@@ -75,7 +75,8 @@ number); in a robot's library, one procedure calls another. On the wire:
   statements, the most one run may.
 - **`hello.sourceChars` is 3,000** (1,500 before), and **`hello.index`
   carries `calls`**: whether a source's defs may call each other, `true`
-  for the session's world; the language section says how.
+  for the session's world, and `callDepth`, how deep calls may go (4; 0
+  where there are none); the language section says how.
 
 No bump: every field is new and optional, and a page that does not know
 them draws a run as before -- a nested step at its own line.

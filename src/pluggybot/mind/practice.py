@@ -275,7 +275,9 @@ def vocabulary_index(facts: WorldFacts) -> dict:
           "hands": list(facts.hands),
           "math": dict(lang.MATH) if facts.math else {},
           "verbTests": facts.verb_tests,
-          "calls": facts.calls}
+          "calls": facts.calls,
+          # ...and how deep they go, the text's number (a page's guide says it)
+          "callDepth": lang.MAX_CALL_DEPTH if facts.calls else 0}
 
 
 #: What the robot carries to its next chest (#493, Ben, 2026-10-18: what a

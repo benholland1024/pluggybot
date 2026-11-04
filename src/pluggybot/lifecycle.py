@@ -482,14 +482,21 @@ def explore_outcome(zone: str, ended: str, seconds: float,
 def callers_moved(library, before: set, changed: str) -> str:
   """What a define or an undefine did to the procedures that call
   `changed` (#560), as History says it: those that compiled and no longer
-  do, and those that compile again -- "" where none moved. `before` is
-  the names that compiled before the answer's change."""
+  do -- one calling it, and one calling one of those -- and those that
+  compile again; "" where none moved. `before` is the names that compiled
+  before the change."""
   after = {n for n, e in library.entries.items() if e.valid}
+  broken = sorted((before - after - {changed}) & set(library.entries))
   said = []
-  for n in sorted((before - after - {changed}) & set(library.entries)):
-    said.append(f"{n}, which calls {changed}, cannot run until a {changed} is written again"
-                if changed not in library.entries
-                else f"{n} cannot run now: {library.entries[n].reasons[0]}")
+  for n in broken:
+    calls = library.calls_of(n)
+    via = sorted(c for c in calls if c in broken)
+    if changed not in library.entries and changed in calls:
+      said.append(f"{n}, which calls {changed}, cannot run until a {changed} is written again")
+    elif via:
+      said.append(f"{n}, which calls {', '.join(via)}, cannot run either")
+    else:
+      said.append(f"{n} cannot run now: {library.entries[n].reasons[0]}")
   mended = sorted(after - before - {changed})
   if mended:
     said.append(f"{', '.join(mended)} can run again")
@@ -4166,9 +4173,15 @@ class HubLifecycle:
                     "verb": "undefine", "reasons": list(e.reasons), **shelf()})
       else:
         self._say(f"PROCEDURE undefined {decision.undefine}")
-        moved = "" if decision.define else callers_moved(library, compiled, decision.undefine)
+        # ...what it stopped, said on its own line -- but where the same
+        # answer writes the name again, a replacement, the define says
+        # what the two did together
+        replaced = bool(decision.define) and name == decision.undefine
+        moved = "" if replaced else callers_moved(library, compiled, decision.undefine)
         self._remember(f"forgot the procedure {decision.undefine}"
                        + (f" -- {moved}" if moved else ""))
+        if not replaced:
+          compiled = {n for n, e in library.entries.items() if e.valid}
         self._emit({**base, "outcome": "undefined", "name": decision.undefine,
                     **shelf()})
     if decision.define:

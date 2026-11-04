@@ -1123,7 +1123,8 @@ save a filmstrip PNG named after the script.
   (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and checked at every verb; a computed
   argument by the same `check_arg`. ⚠ A SOURCE IS `MAX_SOURCE_CHARS` (3,000,
   #560; 1,500 before), SAID IN THE TEXT, and one over it that parses is
-  refused with every reason (the cap's alone hid #615's six other faults).
+  refused with every reason (the cap's alone hid #615's six other faults;
+  a served answer is cut one past the cap, and hears the cap alone).
   ⚠ A RUN IS `MAX_STATEMENTS` (100,000, ~0.1 s: four nested loops in one
   def could run 10^8 on the physics thread). ⚠ DEFS CALL DEFS where the
   facts give calls (`WorldFacts.calls`, #560: every hands world, the served

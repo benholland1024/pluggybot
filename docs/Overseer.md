@@ -223,7 +223,9 @@ most `MAX_SOURCE_CHARS` (3,000 since #560: of 4,838 sources minds wrote in
 practice, never told the cap, 421 were over 1,500 and 47 over 3,000), and
 the text says so; one over it that parses is refused with every reason, the
 cap's first (#615's smoke: three repairs of a 5,458-character source heard
-only its length).
+only its length) -- where it arrives whole, in practice and a person's run:
+a served answer's source is cut one past the cap (`define`'s clip), and
+hears the cap alone.
 
 **Procedures that call procedures** (#560, Ben's decision of 2026-11-04:
 modular, reusable subroutines), wherever the world's facts give calls

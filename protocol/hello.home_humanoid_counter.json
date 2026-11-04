@@ -735,7 +735,8 @@
    "sqrt": 1
   },
   "verbTests": true,
-  "calls": true
+  "calls": true,
+  "callDepth": 4
  },
  "sourceChars": 3000,
  "running": null

@@ -73,7 +73,9 @@ MAX_SOURCE_CHARS = 3000
 #: ...and past this one is refused on its length alone, unparsed: under it,
 #: a source over the cap is read and refused with every reason, where the
 #: cap's alone hid them all (#615's smoke: three repairs of 5,458 characters
-#: taught a mind its length and none of its six other faults).
+#: taught a mind its length and none of its six other faults). ⚠ A served
+#: answer's source is cut one past the cap (`overseer`'s `define`), and so
+#: hears the cap alone.
 MAX_PARSE_CHARS = 65536
 MAX_NESTING = 4
 #: How deep calls go below the def that runs (#560): `a` calling `b` is one.
@@ -573,6 +575,7 @@ class _Parser:
         else:
           linked = self.library[callee]
           if not isinstance(linked, Procedure):
+            self.unknown = True                # its verbs are uncounted
             self.call = (callee, line)
             self.refuse(call, f"{callee} cannot run now -- "
                               + (linked[0] if linked else "it does not compile"))
@@ -639,6 +642,10 @@ class _Parser:
         self.refuse(node, f"{param} takes a number, not a name in quotes")
         return _REFUSED
       return ("str", node.value)               # unused by its def: a name or a number
+    if kind is None and isinstance(node, ast.Name) and node.id in self.params:
+      # ...and an argument of the caller's passed on as it is, typing it
+      # neither way (read as a number, a name passed on was refused)
+      return ("pass", node.id)
     return self.expr(node)
 
   def _deepest(self, d: str, out: dict, by_def: dict) -> str:
@@ -713,7 +720,7 @@ def _parse(source: str, verbs: dict | None = None, verb_tests: bool = False,
     if fn.name in p.own:                   # name a def written below it
       p.refuse(fn, f"two defs are named {fn.name}")
       continue
-    p.own[fn.name] = _header(p, fn)
+    p.own[fn.name] = _header(p, fn, fn is fns[0])
   for fn in fns:
     params = p.own[fn.name][0]
     for x in params:
@@ -757,14 +764,17 @@ def _parse(source: str, verbs: dict | None = None, verb_tests: bool = False,
                    linked=linked, depth=depth, numbers=numbers), p.reasons
 
 
-def _header(p: _Parser, fn) -> tuple:
+def _header(p: _Parser, fn, first: bool) -> tuple:
   """A def's name and arguments: (its arguments, their defaults, its line).
   Where defs call none, a procedure takes none."""
   if not NAME_RE.match(fn.name):
     p.refuse(fn, f"{fn.name!r} is not a name this language allows "
                  "(lowercase, digits, underscores, 32 characters)")
-  elif p.calls and (fn.name in RESERVED or fn.name in p.verbs or fn.name in MATH):
-    # a call by it would be the verb's: `wait(1)` in a source with a `def wait`
+  elif (p.calls and not first
+        and (fn.name in RESERVED or fn.name in p.verbs or fn.name in MATH)):
+    # a call by it would be the verb's: `wait(1)` in a source with a `def
+    # wait` -- after the first only, which is run, never called by its own
+    # source, so a kept procedure named before calls were is kept running
     p.refuse(fn, f"{fn.name!r} is the language's own name: a def takes a name of its own")
   a = fn.args
   line = getattr(fn, "lineno", 0)
@@ -1285,8 +1295,13 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     try:
       for p in target.params:
         value = args.get(p, target.defaults.get(p))
-        sub[p] = (_name(value, env) if value[0] in NAMED + ("str",)
-                  else _eval(value, env, life, facts))
+        if value[0] == "pass":
+          if value[1] not in env:
+            raise _Stop(f"{value[1]!r} was read before it was set")
+          sub[p] = env[value[1]]
+        else:
+          sub[p] = (_name(value, env) if value[0] in NAMED + ("str",)
+                    else _eval(value, env, life, facts))
     except _Stop as no:
       # an argument it could not compute fails the call, at its own line
       if not held:
@@ -1296,6 +1311,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
         raise _Failed() from None
       return False
     inside = At(home, name, at.depth + 1, held)
+    bound = dict(sub)
     try:
       yield from block(target.body, sub, inside)
     except _Return:
@@ -1312,9 +1328,14 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
       fault(stop.why, line, "expr", inside)
       return False
     finally:
+      # a def's own variables, and an argument it set; keyed by the def --
+      # in another of the library's procedures, by that procedure too, as
+      # two of them may each keep a def of one name
+      key = (name if home is proc else home.name if name == home.name
+             else f"{home.name}.{name}")
       for k, v in sub.items():
-        if k not in target.params and isinstance(v, float):
-          inner[f"{name}.{k}"] = round(v, 6)
+        if isinstance(v, float) and (k not in target.params or v != bound[k]):
+          inner[f"{key}.{k}"] = round(v, 6)
     return True
 
   def block(stmts, env: dict, at: At) -> Routine:
@@ -1387,7 +1408,8 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     # mind through these, and through nothing else; a callee's, as it last
     # ended, beside them (#560)
     result["locals"] = {**{k: round(float(v), 6) for k, v in env.items()
-                           if isinstance(v, float) and k not in proc.params}, **inner}
+                           if isinstance(v, float)
+                           and (k not in proc.params or v != proc.defaults[k][1])}, **inner}
     # ...and a watch it began ends with it (#554): no picture for nobody
     if "watch" in (facts.verbs or ()):
       life.body.watch(None)

@@ -23,7 +23,8 @@ words it is told.
   a caller whose callee went is kept and marked, and one whose first def
   takes an argument with no default is callable but no action.
 - **A source may be 3,000 characters** (1,500 before), and the language's
-  text says so; a source over it that parses is refused with every reason.
+  text says so; a served answer over it is still cut one past the cap and
+  hears the cap alone.
   The library still holds 8, so the most its sources can add to a turn
   doubles, 12,000 to 24,000 characters; on 11-03 the robots' sources sat at
   a median of 846.
