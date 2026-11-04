@@ -65,7 +65,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.activity import chest as ch
-from pluggybot.challenge import door, drawer, lid, place
+from pluggybot.challenge import door, drawer, lid, place, table
 from pluggybot.economy import scoring
 
 #: The set-outs: which body before which mount, each the world its
@@ -83,9 +83,10 @@ UNSTABLE = (mujoco.mjtWarning.mjWARN_BADQPOS, mujoco.mjtWarning.mjWARN_BADQVEL,
 #: checks' (#525; docs/Hands.md), each watched every step and measured at
 #: the call in its own way (`WATCHED`). A check is the humanoid's at its
 #: counter; its set-out k is `chest` (the lid's name for it).
-GRADERS = ("lid", "drawer", "door", "place")
+GRADERS = ("lid", "drawer", "door", "place", "table")
 WATCHED = {"lid": (lid.Watch, lid.measure), "drawer": (drawer.Watch, drawer.measure),
-           "door": (door.Watch, door.measure), "place": (place.Watch, place.measure)}
+           "door": (door.Watch, door.measure), "place": (place.Watch, place.measure),
+           "table": (table.Watch, table.measure)}
 CHECKS = tuple(g for g in GRADERS if g != "lid")
 #: Every set-out ends standing still this long, s: the catch pulls only
 #: once a step has run (`activity.chest.Chest.sense`), and the humanoid's
@@ -106,7 +107,7 @@ LIMIT_S = {("humanoid", "counter"): 3 * REFERENCE_S}
 #: s over its 32 public set-outs at 70bf773, 20 passing), set before any
 #: mind flew it, as the lid's was.
 DOOR_REFERENCE_S = 35.81
-JOB_LIMIT_S = {"door": 3 * DOOR_REFERENCE_S}
+JOB_LIMIT_S = {"door": 3 * DOOR_REFERENCE_S, "table": 300.0}
 #: ...a WATCHED tag's pictures are sharp (#554's stage 2). MEASURED: in our
 #: lid procedure the knob's tag crossed the picture at 270-440 px/s in a
 #: reach or a lift (the 90th percentile at three set-outs), 2.7-4.4 px in a
@@ -142,10 +143,27 @@ DOOR_FLATTERS = (
 )
 
 
+#: ...and what a reading of the table's place flatters (#560).
+TABLE_FLATTERS = (
+  "each piece and the place's card carry a tag: finding them is reading a fiducial",
+  "one place: the set-outs differ only in where the dishware waits, by a few cm, and in its "
+  "hidden weights",
+  "the humanoid is stood at the place, its chair taken away: walking to the table is not the task",
+  "the table is a top on legs: the served room's are solid boxes, which a crouching robot's "
+  "thighs meet",
+  "the humanoid's mind is told each piece's size and tag, and where each goes: what it would "
+  "see and be told",
+  "with `measure`, a flat top's height and edges are our code's reading of its depth camera",
+  WATCH_FLATTERS,
+  "resets are free and exact, and nothing breaks",
+  "MuJoCo against MuJoCo: an upper bound on hardware",
+)
+
+
 def flatters(grader: str = "lid") -> tuple[str, ...]:
-  """What a reading of `grader`'s job flatters: the door's own, else the
-  lid's (`FLATTERS`)."""
-  return DOOR_FLATTERS if grader == "door" else FLATTERS
+  """What a reading of `grader`'s job flatters: the door's or the table's
+  own, else the lid's (`FLATTERS`)."""
+  return {"door": DOOR_FLATTERS, "table": TABLE_FLATTERS}.get(grader, FLATTERS)
 
 
 #: The chests flown in public before any held-out draw: #466's batches flew
@@ -288,6 +306,11 @@ def _check_set_out(task: Task, policy=None) -> World:
     so = ct.cube_set_out(task.chest)
     model, data, body = ct.world(so, policy)
     act = cb.Cube(model, data, so.load, ct.COUNTER_H + ct.BOARD_H)
+  elif task.grader == "table":
+    from pluggybot.activity import dishware as dw
+    so = ct.table_set_out(task.chest)
+    model, data, body = ct.world(so, policy)
+    act = dw.Dishware(model, data, so.load, ct.TABLE_H)
   body.step_hooks.append(lambda: act.sense(model, data))
   body.run(body.hold_routine(SETTLE_S))
   return World(task=task, model=model, data=data, body=body, chest=None,

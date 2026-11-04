@@ -242,8 +242,71 @@ PLACE = '''def place_cube():
   withdraw("left")
 '''
 
+#: THE TABLE'S PLACE (#560): the card's tag and each piece's off their tags
+#: and each piece worked from a stance of its own, its hands home and empty
+#: between (`step`): the cup first, by the right hand, from where the robot
+#: stands; then a step to the right and the plate, pinched by its left wall,
+#: and a step back and the fork, by its handle, both by the left hand. Before
+#: its first reach an arm is rolled out and folded (`move`): hanging, its
+#: hand is under the table's top, and a reach's way out swept it into the
+#: table. The card is read again just before each reach -- the stance turns
+#: where the robot stands, 2-3 deg in its first seconds and a little with
+#: each move -- and the plate and the fork are read from the start, as
+#: offsets from the card: flat on the table, their tags are out of the head
+#: camera's view nearer than about 0.37 m, and to its side after a step.
+#: Each piece is gripped from above and behind at 45 deg, lifted, carried at
+#: that height, set down by a force move holding its line until it presses
+#: on the table, let go, and the open hand lifted clear before it goes home.
+#: ⚠ IT DOES NOT MEET THE BAR (SimNotes, "Setting a table"): the bands the
+#: hands reach at a 0.72 m table are too narrow for every piece's grip.
+TABLE = '''def lay_place():
+  budget(steps=120, seconds=400)
+  move("right_shoulder_roll", -0.9)
+  move("right_elbow", 1.4)
+  open_hand("right")
+  spot(93)
+  u = read("spot.x") - 0.07
+  v = read("spot.y") - 0.24
+  spot(91)
+  reach("right", read("spot.x"), read("spot.y"), read("spot.z") - 0.03, 0.707, 0, -0.707, 0, 1, 0)
+  close_hand("right", 40)
+  pull("right", 0, 0, 1, 20, 0.05, give=0)
+  move_hand("right", u, v, read("right.z"))
+  pull("right", 0, 0, -1, 6, 0.09, give=0)
+  open_hand("right")
+  move_hand("right", read("right.x") - 0.04, read("right.y"), read("right.z") + 0.07)
+  withdraw("right")
+  spot(93)
+  k = read("spot.x")
+  m = read("spot.y")
+  spot(90)
+  px = read("spot.x") - k
+  py = read("spot.y") - m + 0.081
+  spot(92)
+  fx = read("spot.x") - k
+  fy = read("spot.y") - m
+  for i in range(2):
+    wait(2)
+    if not step(0, 0.33 * i - 0.21):
+      step(0, 0.33 * i - 0.21)
+    move("left_shoulder_roll", 0.9)
+    move("left_elbow", 1.4)
+    open_hand("left")
+    spot(93)
+    k = read("spot.x")
+    m = read("spot.y")
+    reach("left", k + px + (fx - px) * i, m + py + (fy - py) * i, 0.767 - 0.005 * i, 0.707, 0, -0.707, 0, 1, 0)
+    close_hand("left", 40)
+    pull("left", 0, 0, 1, 20, 0.05, give=0)
+    move_hand("left", k - 0.19, m + 0.081 + 0.079 * i, read("left.z"))
+    pull("left", 0, 0, -1, 6, 0.09, give=0)
+    open_hand("left")
+    move_hand("left", read("left.x") - 0.04, read("left.y"), read("left.z") + 0.07)
+    withdraw("left")
+'''
+
 #: The jobs, each its grader (`attempts.GRADERS`) and its procedure.
-JOBS = {"lid": LID, "drawer": DRAWER, "door": DOOR, "place": PLACE}
+JOBS = {"lid": LID, "drawer": DRAWER, "door": DOOR, "place": PLACE, "table": TABLE}
 #: A SCENE to watch, never a job the check grades (#554): the lid's
 #: procedure with its lift STOPPED ON ITS HAND'S HEIGHT 10 cm up -- the lid
 #: held part open for two seconds -- then lifted the rest of the way and set

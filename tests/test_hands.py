@@ -1421,7 +1421,10 @@ def test_the_doors_job_is_its_graders_and_names_no_way_to_do_it():
 #: every flight's prompt starts from one, so it changes only on purpose,
 #: pinned again here.
 JOB_SHA = {"lid": "ab4facadbd286f2e50d36f1fd47c6842b80953d40e5992dc7cc51a7886988b7d",
-           "door": "e9e6e4821a092d14137683c9502cfcb0f8ce1b7b407d511f077074793dd49c67"}
+           "door": "e9e6e4821a092d14137683c9502cfcb0f8ce1b7b407d511f077074793dd49c67",
+           "table": "92cd112ee170316c6667f29db651dab898a3e5cd384456dcb75da675fb7e6064"}
+#: ...and what each job's fall sentence says ends however it does.
+ENDS = {"lid": "lid", "door": "door", "table": "place"}
 
 
 def test_every_job_tells_the_robot_a_fall_fails_the_try():
@@ -1437,7 +1440,7 @@ def test_every_job_tells_the_robot_a_fall_fails_the_try():
     job = " ".join(ep.job_for(at.Task(chest=0, body="humanoid", mount="counter",
                                       grader=grader)).split())
     assert (f"If you fall during a try or in the {lid.HOLD_S:.0f} s after it, the try fails, "
-            f"however the {'lid' if grader == 'lid' else 'door'} ends.") in job, grader
+            f"however the {ENDS[grader]} ends.") in job, grader
     assert "loses you the time" not in job, grader
     assert hashlib.sha256(template.encode()).hexdigest() == JOB_SHA[grader], grader
 

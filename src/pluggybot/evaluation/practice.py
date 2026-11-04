@@ -33,9 +33,11 @@ import math
 import time
 
 from pluggybot.activity import chest as ch
+from pluggybot.activity import dishware as dw
 from pluggybot.activity import door as dr
-from pluggybot.challenge import door, lid
+from pluggybot.challenge import door, lid, table
 from pluggybot.evaluation import attempts as at
+from pluggybot.evaluation import counter as ct
 from pluggybot.procedure import lang
 from pluggybot.procedure.library import MAX_PROCEDURES
 from pluggybot.procedure.steps import WorldFacts
@@ -93,11 +95,38 @@ times, and between them nothing of yours may touch the door, its lever or
 the lever's tip. A try may take {{limit:.0f}} s at most. If you fall during a
 try or in the {door.HOLD_S:.0f} s after it, the try fails, however the door ends."""
 
+#: The table's (#560), written before any mind flew it: what stands there --
+#: the card and the dishware, each its tag and its size -- and its grader's
+#: criteria (`challenge/table.py`), where each piece goes as the job states
+#: it, and nothing of how; never where the dishware waits (finding it is the
+#: job).
+TABLE_JOB = f"""In front of you is a table, its edge {100 * ct.TABLE_GAP:.0f} cm before your feet. On it,
+at your place, stands a card facing you, carrying tag {dw.CARD_TAG_ID}; a plate, a
+cup and a fork wait on the table near it. The plate is {200 * dw.PLATE_R:.0f} cm across, with a
+wall {1000 * dw.PLATE_H:.0f} mm high round it, and carries tag {dw.TAG_OF["plate"]} in its middle; the cup is
+{2000 * dw.CUP_R:.0f} mm across and {1000 * dw.CUP_H:.0f} mm tall, with tag {dw.TAG_OF["cup"]} on its lid; the fork is
+{100 * (2 * dw.HANDLE[0] + 2 * dw.HEAD[0]):.0f} cm long, its handle {2000 * dw.HANDLE[1]:.0f} mm wide and {2000 * dw.HANDLE[2]:.0f} mm tall, with tag {dw.TAG_OF["fork"]}
+on the handle's middle.
+
+Lay the place, each piece where it goes measured from the foot of the card's
+face, along the line straight from it toward you: the plate's middle on the
+line, {100 * table.SPOTS["plate"][0]:.0f} cm from the card; the fork's handle's middle {100 * table.SPOTS["fork"][1]:.0f} cm to the line's
+left (your left as you face the card) and {100 * table.SPOTS["fork"][0]:.0f} cm from the card, the fork
+lying along the line with its head toward the card; the cup's middle
+{-100 * table.SPOTS["cup"][1]:.0f} cm to the line's right and {100 * table.SPOTS["cup"][0]:.0f} cm from the card. Each must rest on the
+table within {100 * table.PLACE_M:.1f} cm of where it goes, the plate and the fork lying flat
+and the cup standing upright within {math.degrees(table.UPRIGHT_RAD):.0f} degrees, and the fork along the
+line within {math.degrees(table.FORK_RAD):.0f} degrees. Set each down: let fall or knocked over, no piece
+may come down faster than {table.DROP_M_S:.1f} m/s. The world grades the job when your
+procedure ends and again {table.HOLD_S:.0f} s later, and between them nothing of yours
+may touch a piece. A try may take {{limit:.0f}} s at most. If you fall during a
+try or in the {table.HOLD_S:.0f} s after it, the try fails, however the place ends."""
+
 #: The jobs a practice flies, by their graders' names (`attempts.GRADERS`),
 #: and what its texts call the thing a robot stands at (`Practice.thing`):
 #: the job's own word for it.
-JOBS = {"lid": JOB, "door": DOOR_JOB}
-THINGS = {"lid": "box", "door": "cupboard"}
+JOBS = {"lid": JOB, "door": DOOR_JOB, "table": TABLE_JOB}
+THINGS = {"lid": "box", "door": "cupboard", "table": "table"}
 
 
 def job_for(task: at.Task) -> str:

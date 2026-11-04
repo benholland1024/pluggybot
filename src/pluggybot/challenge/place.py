@@ -15,7 +15,8 @@ THE CRITERIA, written first. An attempt passes when:
      `RESTING_M` of the mat's top, and flat on a face -- any: it is a
      cube -- within `UPRIGHT_RAD` (`resting_tilt`);
   2. SET DOWN, NEVER DROPPED: at no moment, through the attempt and the
-     hold, did the cube come down faster than `DROP_M_S`;
+     hold, did the cube come down faster than `DROP_M_S` while nothing of
+     the robot touched it -- let go over the mat, or knocked off;
   3. LET GO: nothing of the robot touches the cube at any moment of the
      hold;
   4. IN TIME: the call came within the task's time limit of the attempt's
@@ -24,9 +25,9 @@ THE CRITERIA, written first. An attempt passes when:
      to the end of the hold, the lid's criterion 6 (`lid.judged`).
 
 Said beside, and gating nothing: whether it was ever lifted, the furthest
-it was from the mat at the call and the body's worst tilt. How it picks
-the cube up and carries it is the robot's business -- sliding it there
-passes as well as carrying it.
+it was from the mat at the call, the fastest it ever came down (held too)
+and the body's worst tilt. How it picks the cube up and carries it is the
+robot's business -- sliding it there passes as well as carrying it.
 """
 
 from __future__ import annotations
@@ -42,8 +43,10 @@ from pluggybot.contacts import contact_pairs
 #: cube's whole bottom on it), resting within this of its top, m, and
 #: flat on a face within this, rad.
 PLACE_M, RESTING_M, UPRIGHT_RAD = 0.025, 0.004, math.radians(10.0)
-#: 2: coming down no faster than this, m/s: let go 1.3 cm over the mat, a
-#: cube lands at 0.5.
+#: 2: a free cube coming down no faster than this, m/s: let go 1.3 cm over
+#: the mat, a cube lands at 0.5. ⚠ FREE: read at every step, the line failed
+#: cubes held fast while the carry's posture swung the hand down at 0.6-1.0
+#: m/s (#560; SimNotes, "Setting a table").
 DROP_M_S = 0.5
 #: The hold and the default time, the lid's.
 HOLD_S, TIME_LIMIT_S = lid.HOLD_S, lid.TIME_LIMIT_S
@@ -51,9 +54,10 @@ HOLD_S, TIME_LIMIT_S = lid.HOLD_S, lid.TIME_LIMIT_S
 
 class Watch:
   """OUR reading of an attempt, every physics step (a step hook): the
-  fastest the cube came down, how high it ever was, the robot's worst tilt
-  and its falls, and -- once `hold` -- what of the robot touched the cube.
-  Off the true state. The robot never sees it."""
+  fastest the cube came down, and the fastest while nothing of the robot
+  touched it, how high it ever was, the robot's worst tilt and its falls,
+  and -- once `hold` -- what of the robot touched the cube. Off the true
+  state. The robot never sees it."""
 
   def __init__(self, model, data, body=None, name: str = "cube") -> None:
     self.model, self.data, self.body, self.name = model, data, body, name
@@ -64,6 +68,7 @@ class Watch:
     self.z0 = None
     self.highest = 0.0
     self.fastest_down = 0.0
+    self.fastest_free = 0.0
     self.mine = None if body is None else np.zeros(model.ngeom, dtype=bool)
     if body is not None:
       self.mine[list(body.geom_ids)] = True
@@ -83,12 +88,14 @@ class Watch:
     claim): the attempt's readings and its falls so far, never the hold's --
     a job a restart cut is called again."""
     return {"z0": self.z0, "highest": self.highest, "fastestDown": self.fastest_down,
-            "worstTilt": self.worst_tilt, "falls": self.falls()}
+            "fastestFree": self.fastest_free, "worstTilt": self.worst_tilt,
+            "falls": self.falls()}
 
   def restore_kept(self, state: dict) -> None:
     self.z0 = state.get("z0", self.z0)
     self.highest = float(state.get("highest", 0.0))
     self.fastest_down = float(state.get("fastestDown", 0.0))
+    self.fastest_free = float(state.get("fastestFree", self.fastest_down))
     self.worst_tilt = state.get("worstTilt", self.worst_tilt)
     lid.kept_falls(self, state)
 
@@ -98,17 +105,23 @@ class Watch:
       self.z0 = z
     self.highest = max(self.highest, z - self.z0)
     # the free joint's linear velocity is the world's, at the body's origin
-    self.fastest_down = max(self.fastest_down, -float(self.data.qvel[self.dof + 2]))
+    down = -float(self.data.qvel[self.dof + 2])
+    self.fastest_down = max(self.fastest_down, down)
     if self.body is not None:
       self.worst_tilt = max(self.worst_tilt, lid.tilt(self.body.orientation()))
-    if self.holding and self.mine is not None:
+    held = False
+    if self.mine is not None:
       g = contact_pairs(self.data)
       if g.shape[0]:
         a_, b_ = g[:, 0], g[:, 1]
         hit = ((a_ == self.geom) & self.mine[b_]) | ((b_ == self.geom) & self.mine[a_])
-        for x, y in g[hit].tolist():
-          other = y if x == self.geom else x
-          self.touched.add(self.model.geom(other).name or f"geom {other}")
+        held = bool(hit.any())
+        if self.holding:
+          for x, y in g[hit].tolist():
+            other = y if x == self.geom else x
+            self.touched.add(self.model.geom(other).name or f"geom {other}")
+    if not held:
+      self.fastest_free = max(self.fastest_free, down)
 
 
 def resting_tilt(quat) -> float:
@@ -140,6 +153,7 @@ def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None
   return {
     "liftedM": w.highest if w is not None else None,
     "fastestDownMS": w.fastest_down if w is not None else None,
+    "fastestFreeMS": w.fastest_free if w is not None else None,
     "robotTiltDeg": (math.degrees(w.worst_tilt)
                      if w is not None and w.worst_tilt is not None else None),
     "falls": w.falls() if w is not None else None,
@@ -155,19 +169,21 @@ def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None
 
 
 #: What a verdict shows of each number, decimal places: judged unrounded.
-SHOWN = {"liftedM": 3, "fastestDownMS": 3, "robotTiltDeg": 1, "offAtCallM": 3, "offM": 3,
-         "aboveM": 4, "tiltDeg": 1, "holdS": 2, "elapsedS": 2, "limitS": 1}
+SHOWN = {"liftedM": 3, "fastestDownMS": 3, "fastestFreeMS": 3, "robotTiltDeg": 1,
+         "offAtCallM": 3, "offM": 3, "aboveM": 4, "tiltDeg": 1, "holdS": 2, "elapsedS": 2,
+         "limitS": 1}
 
 
 def eval_place(m: dict) -> tuple[bool, dict, str]:
   """The pre-declared predicate: pure, judged on the numbers as measured
   and shown rounded, a fall first."""
-  raw = {k: m.get(k) for k in ("liftedM", "fastestDownMS", "robotTiltDeg", "falls", "offAtCallM",
-                               "offM", "aboveM", "tiltDeg", "holdS", "elapsedS", "limitS")}
+  raw = {k: m.get(k) for k in ("liftedM", "fastestDownMS", "fastestFreeMS", "robotTiltDeg",
+                               "falls", "offAtCallM", "offM", "aboveM", "tiltDeg", "holdS",
+                               "elapsedS", "limitS")}
   metrics = {k: (round(float(v), SHOWN[k]) if k in SHOWN and v is not None else v)
              for k, v in raw.items()}
   metrics["touchedDuringHold"] = list(m.get("touchedDuringHold") or ())
-  for key in ("fastestDownMS", "offM", "aboveM", "tiltDeg", "holdS", "elapsedS"):
+  for key in ("fastestFreeMS", "offM", "aboveM", "tiltDeg", "holdS", "elapsedS"):
     if raw[key] is None:
       return False, metrics, "the cube was never measured"
   ok, reason = lid.judged(raw["falls"], *_place(raw, metrics))
@@ -185,9 +201,9 @@ def _place(raw: dict, metrics: dict) -> tuple[bool, str]:
     return False, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
                    f"the {limit:.0f} s the job allows")
   off, above, tilt = 100 * float(raw["offM"]), 100 * float(raw["aboveM"]), float(raw["tiltDeg"])
-  if float(raw["fastestDownMS"]) > DROP_M_S:
-    return False, (f"the cube came down at {float(raw['fastestDownMS']):.1f} m/s -- "
-                   f"dropped, not set down (no faster than {DROP_M_S:.1f})")
+  if float(raw["fastestFreeMS"]) > DROP_M_S:
+    return False, (f"the cube came down at {float(raw['fastestFreeMS']):.1f} m/s with nothing "
+                   f"holding it -- dropped, not set down (no faster than {DROP_M_S:.1f})")
   if off > 100 * PLACE_M or abs(above) > 100 * RESTING_M:
     where = f"{off:.0f} cm from the mat's middle" + (f", {above:.0f} cm over it" if above > 1 else "")
     return False, f"the cube ended {where}: it must rest on the mat, within {100 * PLACE_M:.1f} cm of its middle"
