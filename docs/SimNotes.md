@@ -2363,6 +2363,19 @@ read against the truth (`_true_stance`):
   a walk measured from before it counted as walked (ok, without a step),
   and the hand-over outlasted the 1 s a walk is given to get anywhere,
   which read as `blocked` on a bare floor.
+- *A walk's first window is 2 s* (`STEP_START_S`, #560), then 1 cm in each
+  second after. Handed the standing policy's stance after a reach -- 23 cm
+  between the soles' middles, the walker's own 18 -- the walker loads its
+  right foot first whichever way it is asked: a sidestep to the left lifts
+  within 0.25 s, one to the right slides 0.6-1.1 s first, where the legs'
+  reckoning cannot see (it read 0.6-3.9 cm of the 1.9-6.1 they went), and
+  in a 1 s window 2 of 7 at the table's set-outs read `blocked`. The retry
+  that went had begun from the walker's own stance, which the slide had
+  left; waiting, or the walker held still first, changed neither. ⚠ Not a
+  foot's lift, judged off the robot's model of itself: through the slide
+  it read the soles 4-5 mm apart when they were under 2, and 2 when one
+  had lifted 7. ⚠ The slide is in no report: such a step lands where it is
+  asked, but its `step.dx/dy` read 3-4 cm short of 21.
 - *The walker skews an oblique walk*: it raises a forward speed under
   `V_MIN` to it and leaves the sideways one, so a step at `STEP_V` more than
   48 deg off straight ahead walked 12 cm further ahead than asked. Such a
@@ -2498,16 +2511,24 @@ under the hand with its edge 8 cm behind it (30):
 - The capability check (#525) is unchanged: the lid at 7 set-outs of 8,
   the drawer 3, the door 6 (set-outs 3 and 4 trading a pass: its
   procedure withdraws mid-job, and the reaches after begin from the arm
-  home), the cube 3, no falls. Its cube's last `withdraw` now says "held"
-  at 3 set-outs: the procedure steps in until the counter is 2-6 cm ahead
-  of the soles' middle, where the arm's own rest runs into it, and the jaw
-  comes down on its edge. The old walk home ended on the counter there
-  too, or on the cube's mat, and said ok.
+  home), the cube 3, no falls. Its cube's last `withdraw` now said "held"
+  at 3 set-outs, a jaw on the counter's edge (where, below). The old walk
+  home ended on the counter there too, or on the cube's mat, and said ok.
 
 ⚠ The side way assumes the space at the robot's side is clear, as
 straight assumed the space under the hand was: its hand goes out to 0.74 m
 from the body's middle, 1.0-1.1 m up. Nothing checks either against the
 depth picture, which does not see beside the robot.
+
+⚠ *Lowered in the hanging arm's line, it met a counter the robot stood
+turned to* (#560). The cube check steps in until its counter's face is 3-4
+cm ahead of the toes, and the step turns the stance 3.5-4 deg on its own;
+the side way's roll came in 9 cm ahead, out at 0.55 m to the side, where
+the turned face was nearer, and its pads came down on the top's edge, the
+roll in dragging them over it for 10 s at 30-48 N and turning the robot
+20 deg. The roll now comes in with the shoulder pitched back
+(`HOME_BACK`), then the arm forward to its rest: on its model that clears
+a counter at the toes turned 10 deg to it.
 
 ⚠ *A hand still caught after the line out is lifted by the side way.* In
 3 of those 9 tries a jaw was left under a drop handle's knob, its grip
@@ -5076,12 +5097,14 @@ table, is built and graded offline (Challenges.md §12): the dishware
 (`activity/dishware.py`: a plate pinched by its wall, a lidded cup taken
 across its body, a fork by its thick handle, and a place card), its grader,
 its set-out (`counter.table_set_out`) and our procedure (`hands_check.TABLE`,
-1,452 characters of the language's 1,500). **Our procedure does not meet the
-bar**, so the job is not offered: 0 of the check's 8 set-outs (the bar 6)
-and 0 of 32 public ones; laid by each piece's own criteria, the cup 21 of
-32 (0.3-2.5 cm off), the plate 7, the fork none (it comes last, after a
-step). Every part of the place sits at an edge of what this body reaches at
-a 0.72 m table, below.
+1,401 characters of the language's 3,000). **Our procedure does not meet the
+bar**, so the job is not offered: 0 of the check's 8 set-outs (the bar 6;
+1 on another pod) and 6 of 32 held out; laid by each piece's own criteria
+over the 32 held out, the cup 23, the plate 24, the fork 6 (it comes last,
+after a step) -- since the hands' small fixes (#560's stage (a), below;
+before them, on the same pod, 23, 6 and none, and no place). Every part of
+the place sits at an edge of what this body reaches at a 0.72 m table,
+below.
 
 **Why the cube missed its mat** (#559's `place_cube`, 0 of 8; its check's
 procedure flown at set-outs 0-7, the truth beside the belief at every
@@ -5092,8 +5115,9 @@ verb):
   17 and 14 N at four contacts); the jaws then drag the pads across it as
   they shut, and the feet swivel 4-6 deg in 0.2 s. The mat, read in the
   stance frame before the grip, is 3.7-5.4 cm off by the carry (set-outs 0,
-  2 and 4, whose carries then ran out of reach). Where the shut turned it
-  0.5-1 deg (1 and 6) the cube was laid.
+  2 and 4, whose carries then ran out of reach). Eased to where it is
+  before its jaws shut (`Reach.ease`, stage (a)), its command walked there,
+  the shut turns the soles 0.5-1.7 deg.
 - *A held cube's carry reads as a drop.* The carry's posture swings the
   hand +-5 cm at up to 1 m/s with the cube held fast, and the grader's 0.5
   m/s line, read at every step, failed two cubes set down 0.7 and 1.3 cm
@@ -5101,8 +5125,12 @@ verb):
   piece alone (Ben's call): re-flown, the check lays 4 of 8 (1, 3, 5 and
   6; the bar 6), the two carries 0.97 and 0.59 m/s held and 0.21 and 0.23
   free.
-- *The way home catches the counter*: a jaw on its edge, 15 s, the robot
-  turned 20 deg (1 and 6, after the cube was down).
+- *The way home caught the counter*: a jaw on its edge, 15 s, the robot
+  turned 20 deg (1 and 6, after the cube was down) -- the side way's roll
+  coming in at the robot's side, where the counter it stood turned to was
+  nearer; it now comes in pitched back ("The way home"), and turns the robot
+  0.2-1.8 deg. With both, the check lays 5 of 8 (2 and 4 gained, 6 lost;
+  4 of 8 before them, on the same machine).
 
 **What the table took, each measured** (a scratch world and the set-out,
 the humanoid at the table's south place; flights in
@@ -5115,11 +5143,13 @@ the humanoid at the table's south place; flights in
 - *A solid table meets the thighs.* Crouching to reach, the robot pressed
   the dining table's box with both thighs at about 200 N from 13 cm out; the
   set-out's table is a top on legs. The served room's tables are boxes.
-- *The way out sweeps a hanging hand into the table.* Standing 13 cm out,
-  the hanging hand is under the top and 4 cm from its side: a reach's
-  joint-space way out pushed into it until the robot fell, and opening a
-  hanging hand alone pushed 171 N. From 22 cm out it clears; from 13, an arm
-  first rolled out and folded (`move`) meets the table with 0 N.
+- *The way out swept a hanging hand into the table.* Standing 13 cm out,
+  the hanging grip is 7 mm behind the top's edge, its top at the
+  underside's height: straight in joint space, a reach's way out drove the
+  left forearm and gripper into the table at 353-359 N. It is judged as the
+  way home is now (`Reach.way_out`, stage (a)): from the hanging arm, round
+  by its side, and the table is met with 0 N. Opening a hanging hand alone
+  pushed 171 N (#615's scratch world).
 - *Each hand works its own side, in bands.* Flown from 13 cm out at the
   legged table: fingers straight down at |y| 0.24-0.40 m (0.18-0.42 ahead),
   tilted 45-60 deg at |y| 0.24-0.48 (0.30-0.48 ahead), and a near strip at
@@ -5128,18 +5158,26 @@ the humanoid at the table's south place; flights in
   only 2-3 cm above its grasp's height (fingers down at the cup: 0.82 m held,
   0.84 out of reach). So a place and its dishware need a stance a piece --
   the robot sidesteps, its hands empty -- and a stance's window is about 3
-  cm wide where a sidestep lands +-3 cm: the plate's wall, read right, was
-  past the band at 19 of 32 grips (the left gripper "closed on nothing").
+  cm wide: at a 0.21 m sidestep the plate's wall, read right, was past the
+  band at 19 of 32 grips (the left gripper "closed on nothing"). A blocked
+  step's retry walked about 5 cm further (its slide unseen), and 6 of 7
+  such gripped the plate where 5 of 24 others did: at 0.26 m, the step now
+  landing where it is asked (stage (a)), the plate is laid 21-22 of the
+  public 32 and 24 of 32 held out (at 0.21, 4 and 4).
 - *Flat tags* read to 2-4 mm from 0.37-0.53 m ahead, nothing nearer, and
   nothing 45 deg to the side after a 0.21 m step: the plate and the fork
   are read from the start, as offsets from the card.
 - *The stance turns where it stands*: 2-3 deg in its first seconds after a
-  set-out (4.9 deg in 15 s), and 0.5-1 deg with each arm move -- a place
-  read before is stale, 1-2 cm at 0.4 m; the card is read again before each
-  reach.
-- *A sidestep right after an arm's way home went nowhere* in its first
-  second and was "blocked" (6 of 32 tries); begun 3 s later, the same step
-  stepped. Our procedure tries a blocked step again.
+  set-out (4.9 deg in 15 s), and as an arm goes out, the reaching side's
+  foot 7.5-8.6 deg a reach to the cup -- the same at half and a quarter of
+  the arm's speed, so the standing policy's stance under an arm held out,
+  not its swing. A place read before is stale; the card is read again
+  before each reach, and each arm is rolled out and folded (`move`) before
+  its piece is read: read first, the hand came down on the cup's rim 2-5
+  cm off, and it was laid 5 of 32 where 21.
+- *A sidestep after an arm's way home was "blocked"* (6 of 32 tries): the
+  walker slid its first second, unseen (Stepping toward the work); a
+  walk's first window is 2 s now (stage (a)), and none of 41 blocked.
 - *The reach's approach starts where the posture left the hand*, 3-5 cm
   from its pre-grasp, and converges diagonally: tall things are clipped.
   Sent through its pre-grasp instead (`Reach`, tried and not kept), the cup
@@ -5147,10 +5185,11 @@ the humanoid at the table's south place; flights in
 - *Shape is not the plate's trouble*: a 4 cm wall and a 3 cm handle laid 8
   plates of 32 and no fork.
 
-![Our procedure at the table's set-out 0: the cup carried by the right hand
-and set down by the card (5-20 s), then -- after a step and the plate, out
-of these tiles -- the fork's carry run out of reach, the left arm still out
-over the place at the call (`scripts/hands_check.py --strip table 0`;
+![Our procedure at the table's set-out 4, the first place it laid: the cup
+carried by the right hand and set down by the card (5-10 s), that arm home
+the side way (15 s), then a step aside and the plate, a step back and the
+fork, both by the left hand -- the plate 1.5 cm, the cup 1.5 and the fork
+2.1 from where each goes (`scripts/hands_check.py --strip table 4`;
 `--view table K` watches one)](figures/hands_table.png)
 
 ## Debugging workflow that worked

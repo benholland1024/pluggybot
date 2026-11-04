@@ -75,6 +75,12 @@ STEP_STOP_S, TURN_STOP_RAD = 0.22, math.radians(0.5)
 #: this long, s; and stood still this long after, s, the standing policy's
 #: own settle.
 STEP_STUCK_M, STEP_STUCK_S, STEP_PATIENCE_S, STEP_SETTLE_S = 0.01, 1.0, 15.0, 0.5
+#: ...its first window this long, s: from the standing policy's stance after
+#: a reach a sidestep to the right slid up to 1.1 s before its first stride,
+#: unseen by the legs' reckoning, and a 1 s window read it "blocked" (#560;
+#: SimNotes, "Stepping toward the work"). ⚠ Not a foot's lift: the model of
+#: itself read a sole 4-5 mm off through the slide that was under 2.
+STEP_START_S = 2.0
 #: Its measured depth's own noise stream (`depth_cloud`) and how far its
 #: rays reach, m: the probe's seed, and a counter's chest within arm's reach.
 DEPTH_SEED, DEPTH_REACH_M = 466, 3.0
@@ -597,6 +603,9 @@ class HumanoidBody(Body):
     yield from self.mission.to_stand_routine()
     g = self.reach.grippers[side]
     if closed:
+      # ...a hand pressed on what it met eased first (`Reach.ease`): pressed,
+      # its jaws dragged across a cube's board as they shut (#560)
+      self.reach.ease(side)
       g.shut(force)
     else:
       g.open()
@@ -867,8 +876,8 @@ class HumanoidBody(Body):
   def _walk_routine(self, ahead, left, over, by_legs):
     """One straight walk of a step, its legs the walker's: "stepped" once
     what its legs reckon it has walked (`by_legs`), and its speed times
-    `STEP_STOP_S`, reach its length; "blocked" where it gets nowhere; else
-    what `over` says."""
+    `STEP_STOP_S`, reach its length; "blocked" where it gets nowhere in a
+    window, its first `STEP_START_S`; else what `over` says."""
     mi, dt = self.mission, self._m.opt.timestep
     length = math.hypot(ahead, left)
     x0, y0, yaw = by_legs(mi.pose)
@@ -876,7 +885,7 @@ class HumanoidBody(Body):
     ux, uy = ahead / length, left / length
     wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
     pace = BACK_V if ahead < -abs(left) else STEP_V
-    speed, went, mark = 0.0, 0.0, (float(self._d.time), 0.0)
+    speed, went, mark, window = 0.0, 0.0, (float(self._d.time), 0.0), STEP_START_S
     while True:
       x, y, _ = by_legs(mi.pose)
       now = wx * (x - x0) + wy * (y - y0)
@@ -884,10 +893,10 @@ class HumanoidBody(Body):
       went = now
       if went + max(speed, 0.0) * STEP_STOP_S >= length:
         return "stepped"
-      if float(self._d.time) - mark[0] >= STEP_STUCK_S:
+      if float(self._d.time) - mark[0] >= window:
         if went - mark[1] < STEP_STUCK_M:
           return "blocked"
-        mark = (float(self._d.time), went)
+        mark, window = (float(self._d.time), went), STEP_STUCK_S
       why = over()
       if why is not None:
         return why

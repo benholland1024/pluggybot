@@ -1838,16 +1838,18 @@ the reference: 19 of 32 [0.42, 0.74] at one try.
 Challenges.md §12): our procedure in the hands' vocabulary
 (`hands_check.TABLE`) flown over its set-outs before any mind practices it,
 the bar the check's, 6 of set-outs 0-7, written before this job was. **0 of
-8, the bar not met, and 0 of 32 public set-outs** [0.00, 0.11]; by each
-piece's own criteria the cup was laid 21 times, the plate 7 and the fork
-never (it comes last). So by §7's ladder A the job is a defect, not an
+8 (1 on another pod), the bar not met, and 6 of 32 held-out set-outs**; by
+each piece's own criteria there the cup was laid 23 times, the plate 24 and
+the fork 6 (it comes last) -- since the hands' small fixes (#560's stage
+(a)); before them, on the same pod, 23, 6 and none, and no place (#615's
+own machine, on the public 32: 21, 7 and none). So by §7's ladder A the job is a defect, not an
 offer: what this body reaches at a 0.72 m table, a stance a piece, is
-narrower than a sidestep lands (SimNotes, "Setting a table"). No practice
+narrower than the work (SimNotes, "Setting a table"). No practice
 arm has flown it. One try on the deployed model, a smoke of the harness,
 ran it end to end and wrote no procedure that ran: its first answer spent
 its 128,000 tokens thinking, and its sources then came to 5,458, 1,915 and
 1,608 characters, each over the language's 1,500 ($0.11) -- ours fits at
-1,452 only pressed hard.
+1,401.
 
 **Defs that call defs, and 3,000 characters** (#560's stage (b), Ben's
 decision of 2026-11-04). Every hands world's language -- the practice's,

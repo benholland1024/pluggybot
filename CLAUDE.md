@@ -326,7 +326,12 @@ save a filmstrip PNG named after the script.
   (#520). ⚠ A WITHDRAW IS OK ONCE ITS ARM IS HOME (`Reach.home`: the rest
   commanded and read by its drivers), by the way `Reach.way_home` judges
   on the same model: straight in joint space, an arm raised before its
-  shoulder came down on the counter's edge (#539). ⚠ No force guard on
+  shoulder came down on the counter's edge (#539), and its side way's roll
+  comes in pitched back (`reach.HOME_BACK`: lowered in the hanging arm's
+  line, it dragged a jaw over a counter the robot stood turned to for 10 s,
+  #560). ⚠ A REACH'S WAY OUT IS JUDGED SO TOO, from its other end
+  (`Reach.way_out`, #560): straight, a hanging grip at a table 13 cm out was
+  driven into its top. ⚠ No force guard on
   it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
   home"). Training's arms are SCRIPTED,
@@ -678,7 +683,8 @@ save a filmstrip PNG named after the script.
   it), then turn once off the handle's tag to each prop's `STANCE`, a
   little left of square (squared, the way home pushed the drawer back in).
   OFFERED: the drawer, the door and the chest, 8, 8 and 7 of 8 over
-  `solve.py --from tour` (the bar 6), 16 minutes each (3x the slowest
+  `solve.py --from tour` (the bar 6; on #560's stage (a) pods, before its
+  fixes and after, 7, 8 and 7 on a Xeon and 7, 8 and 5 on a Threadripper), 16 minutes each (3x the slowest
   pass, 313 s); ⚠ NOT the cube (0 of 8, set down off its mat). Each pays
   90, Ben's call.
 - **A table set is #560's first task, graded offline and NOT offered**
@@ -790,12 +796,17 @@ save a filmstrip PNG named after the script.
   takes the Dex1-1's 5-120 N, `held` against half of it ⚠ ON THE
   SQUEEZE'S RUNNING MEAN (`arms.SQUEEZE_S`, sampled every physics step:
   one reading's 5.1 N of noise misread a 15 N grip 7 % of the time): ⚠ at
-  120 N a lever could not turn in the jaws. The FEET's move is `step`
+  120 N a lever could not turn in the jaws; ⚠ a hand pressed on what it met
+  is eased to where it is before it shuts (`Reach.ease`, `EASE_N`: pressed,
+  a cube's jaws dragged across its board and the feet swivelled 4-6 deg,
+  #560). The FEET's move is `step`
   (`HumanoidBody.step_routine`, `tests/test_step.py`): hands home and
   empty, a turn on the spot and a walk on the walking policy, its report
   where the stance went in the frame before (`step.*`) -- ⚠ measured only
   once the walker has the legs (out of a bow the pelvis came 16 cm forward
-  on its own), an oblique step the walker would skew walked as two, a
+  on its own), ⚠ its first window `STEP_START_S` (2 s: from the stand's
+  stance after a reach a sidestep to the right slid up to 1.1 s, unseen by
+  its odometry, and read `blocked` in 1 s, #560), an oblique step the walker would skew walked as two, a
   turn's 2-6 cm of shuffle uncounted (the odometry is worse over it); ⚠ a
   humanoid with a hand out keeps its posture to look (a bow carried the
   hand 43 cm up). A verb test and the maths are in every hands
