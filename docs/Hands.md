@@ -155,12 +155,15 @@ may read it, at a picture's rate; one whose sensor never had a reading
 says so. The procedure's end, or the next `watch`, ends it. Its scene is
 `scripts/hands_check.py --view watch`.
 
-**The language** is the served robots' (`procedure/lang.py`), with two
+**The language** is the served robots' (`procedure/lang.py`), with three
 switches on wherever there are hands (`steps.hand_facts`): a verb may be an
-`if`'s test (`WorldFacts.verb_tests`), and an expression may call `sin`,
-`cos`, `atan2` and `sqrt` (`WorldFacts.math`). Its caps are unchanged:
-1,500 characters, nesting 4, `for` over a literal count of at most 100,
-`while` stopped at 100 rounds, 200 verb calls, the budget's seconds.
+`if`'s test (`WorldFacts.verb_tests`), an expression may call `sin`,
+`cos`, `atan2` and `sqrt` (`WorldFacts.math`), and a source's defs may call
+each other with arguments, a hand's name among them (`WorldFacts.calls`,
+#560; Overseer.md §2b). Its caps: 3,000 characters a source (#560; 1,500
+before), nesting 4, `for` over a literal count of at most 100, `while`
+stopped at 100 rounds, 200 verb calls, the budget's seconds, calls 4 deep
+and 100,000 statements a run.
 
 ## 4. The force move
 

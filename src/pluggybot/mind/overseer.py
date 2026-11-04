@@ -2710,7 +2710,7 @@ ends, one line in your History says how far it got, and if it stopped short,
 the line and the reason; the values of its variables follow, on that line or
 the next: that is how a number you `read` inside a procedure reaches you.
 
-To add one: `define: {"name": "<name>", "source": "<the def, as text>"}`
+To add one: `define: {"name": "<name>", "source": "<its source, as text>"}`
 on any answer; it costs no turn. To run it on that same answer, choose the
 action `procedure:new`: it runs the procedure the answer defines, and
 nothing at all if the define is refused. To remove one: `undefine: "<name>"`. To
@@ -2719,6 +2719,16 @@ the same answer: the undefine is done first. The library holds %(cap)d and
 refuses out loud when full, and an `undefine` on the same answer makes room
 first. Your library, with each source, is in `procedures` below; an entry
 marked not runnable says why.
+"""
+#: ...and where a procedure may call another (`WorldFacts.calls`, #560),
+#: the library's terms for it: the language's (below) say the rest.
+HANDS_PROCEDURE_CALLS = """A procedure may call another of your library by the name it is kept under,
+as it calls a def of its own source (THE LANGUAGE, below) -- its own def,
+where it has one of that name. One whose first def takes an argument with
+no default runs only when another calls it, and is marked not runnable for
+that. A procedure that calls one you no longer have, or one that cannot
+run, is kept, marked not runnable, and runs again once a procedure of that
+name can.
 """
 _ATTEMPT_ONLY = ("Both grippers start shut. ",)
 
@@ -2730,13 +2740,15 @@ def hands_procedure_rule(places: tuple = ()) -> str:
   from pluggybot.mind import practice
   from pluggybot.procedure.library import MAX_PROCEDURES
   from pluggybot.procedure.steps import served_hand_facts
-  sections = dict(practice.system_sections(served_hand_facts(places=places)))
+  facts = served_hand_facts(places=places)
+  sections = dict(practice.system_sections(facts))
   body = sections["your body"]
   for cut in _ATTEMPT_ONLY:
     assert cut in body, f"the practice's body moved: {cut!r}"
     body = body.replace(cut, "")
-  return (HANDS_PROCEDURE_HEAD % {"cap": MAX_PROCEDURES} + "\n" + sections["the language"]
-          + "\n\n" + body)
+  return (HANDS_PROCEDURE_HEAD % {"cap": MAX_PROCEDURES}
+          + ("\n" + HANDS_PROCEDURE_CALLS if facts.calls else "")
+          + "\n" + sections["the language"] + "\n\n" + body)
 
 
 CHALLENGE_RULE = """\

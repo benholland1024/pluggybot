@@ -54,6 +54,32 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: procedures that call procedures (pluggybot #560, stage (b))
+
+The language takes a source of one def or more, the first the one that
+runs, and a def calls another by its name with arguments (a name, or a
+number); in a robot's library, one procedure calls another. On the wire:
+
+- **A step that ran inside a call says where** (a run's `steps`, the
+  practice's rows and a session's `attempt`): `in`, the def it ran in, and
+  `entry`, the library procedure whose source holds its `line` where that
+  is not the run's own -- absent at the procedure's own def. A step whose
+  failure a call's `if` read carries `tested: true`, as a tested verb's
+  does, and a fault an `if` read has no `i` (no verb ran).
+- **An `aborted` run's `failedIn` and `failedEntry`**: the failed step's
+  `in` and `entry`, beside `failedLine` (whose source it is, where
+  `failedEntry` names another).
+- **A run's `locals` carry each callee's**, as it last ended, keyed
+  `callee.name` after the procedure's own (`{"k": 3, "turn.b": 0.5}`).
+- **A run may stop at `statements`** (`stopped`): it ran 100,000
+  statements, the most one run may.
+- **`hello.sourceChars` is 3,000** (1,500 before), and **`hello.index`
+  carries `calls`**: whether a source's defs may call each other, `true`
+  for the session's world; the language section says how.
+
+No bump: every field is new and optional, and a page that does not know
+them draws a run as before -- a nested step at its own line.
+
 ### 0.21.0, additive: the grown world (pluggybot #560, stage 1)
 
 The house grows into a 2x2 grid: today's row north, and south of it the

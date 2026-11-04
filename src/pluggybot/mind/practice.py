@@ -61,7 +61,8 @@ LANGUAGE = """THE LANGUAGE
 
 A procedure is Python-SHAPED text, read and never executed, and it may use
 only what is listed here. It is checked whole before anything moves and
-refused, with the line at fault, if it uses anything else.
+refused, with the line at fault, if it uses anything else. Its source may
+be at most %(cap)s characters.
 
   def wave():                         # one def, no arguments, a lowercase name
       budget(steps=40, seconds=60)    # optional, first; both capped
@@ -79,9 +80,9 @@ Statements: a verb call, `name = expr`, `name += expr`, `if/elif/else`,
 `pass`, `return` (alone). Expressions: numbers, your variables,
 `read("sensor")`, + - * /, comparisons, `and`/`or`/`not`. Nothing else: no
 other calls, no strings but a verb's or a read's argument, no imports, no
-trigonometry. A procedure runs until it ends, a verb fails, or its budget
-runs out; a verb fails when the world says it did not do what it said --
-and then the procedure stops there. A verb's numbers come back only
+trigonometry. A procedure runs until it ends, a verb fails, its budget
+runs out or it has run %(statements)s statements; a verb fails when the
+world says it did not do what it said -- and then the procedure stops there. A verb's numbers come back only
 through `read`, and your variables are your readout."""
 #: ...where the world gives the maths (`WorldFacts.math`), what replaces
 #: its "no trigonometry".
@@ -90,12 +91,50 @@ trigonometry."""
 MATH_TEXT = """no imports -- but
 `sin(a)`, `cos(a)` (a in radians), `atan2(y, x)` and `sqrt(v)` may be used
 in an expression."""
+#: ...where a source may hold defs that call each other (`WorldFacts.calls`,
+#: #560), what replaces the one def's words, and the calls: generic, its
+#: example nothing a job does.
+ONE_DEF = "# one def, no arguments, a lowercase name"
+FIRST_DEF = "# the def that runs, a lowercase name"
+NO_CALLS = """no
+other calls, no strings but a verb's or a read's argument,"""
+SOME_CALLS = """no
+other calls but your defs' (below), no strings but a name a verb, a read or
+a def is given,"""
+CALLS = """
+A source may hold several defs, all within its %(cap)s characters. The
+first is the procedure, and runs; each def after it is one it may call by
+its name -- a statement of its own -- and they may call each other, with
+arguments as a verb takes them, in order or by keyword, each a number or a
+name in quotes:
+
+  def greet():
+      sway("left", 0.30, 0.25)
+      sway("right", 0.30, -0.25, 1.20)
+
+  def sway(hand, x, y, z=1.30):       # z is 1.30 where a call leaves it out
+      reach(hand, x, y, z)
+      high = read(hand + ".z") + 0.05
+      move_hand(hand, x, y + 0.10, high)
+      withdraw(hand)
+
+An argument a def uses where a verb or `read` takes a name holds a name,
+and names join with + (`hand + ".z"`); any other holds a number. A call
+does what its def does, and stops the procedure where its def stops short:
+a verb in it failed, or its arithmetic did. A def's variables are its own,
+and its last ones ride your readout after yours (`sway.high`). The first
+def takes no argument without a default; a def may not call itself,
+through another or not, and calls go at most %(depth)d deep. The run has the
+first def's budget, and every call spends from it."""
 #: ...and where a verb may be an `if`'s test (`WorldFacts.verb_tests`).
 VERB_TESTS = """
 A verb may also stand alone as the test of an `if` or an `elif` -- `if
 move_hand("left", 0.3, 0.2, 0.9):` or `if not reach(...):` -- and then it
 runs as the test: true when it did what it said, false when it did not,
 and its failing does not stop the procedure."""
+#: ...a call too, where it may be one.
+CALL_TESTS = """ So may a call: true when its def
+ran to its end or a `return`, false where it stopped short."""
 #: ...and where a hand's move may stop on a reading (`WorldFacts.guarded`,
 #: #554): generic, its example nothing a job does.
 GUARD = """
@@ -167,15 +206,33 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
   ax = "\n".join(f"  {a.name}: {a.lo:g}..{a.hi:g} {a.unit} -- {a.doc}"
                  for a in (axes.AXES[n] for n in facts.axes))
   return [("what you do", WHAT_YOU_DO),
-          ("the language", (LANGUAGE.replace(NO_TRIG, MATH_TEXT) if facts.math else LANGUAGE)
-           + (VERB_TESTS if facts.verb_tests else "")
-           + (GUARD % {"rate": round(1.0 / axes.HAND_EVERY_S), "n": GUARD_EXAMPLE_N,
-                       "watched": (WATCHED % {"hz": WATCH_HZ}
-                                   if "watch" in (facts.verbs or ()) else "")}
-              if facts.guarded else "")),
+          ("the language", language_text(facts)),
           ("your body", YOUR_BODY % {"verbs": verbs, "sensors": sensors, "axes": ax,
                                      "slew": axes.HUMANOID_SLEW}),
           ("your answer", ANSWER % {"cap": f"{MAX_TOKENS:,}", "aim": f"{AIM_TOKENS:,}"})]
+
+
+def language_text(facts: WorldFacts) -> str:
+  """"The language" as `facts` give it: its cap, and where they say so the
+  maths, defs that call each other (#560), a verb -- and a call -- as an
+  `if`'s test, and a hand's move that stops on a reading."""
+  from pluggybot.procedure import axes
+  cap = f"{lang.MAX_SOURCE_CHARS:,}"
+  text = LANGUAGE % {"cap": cap, "statements": f"{lang.MAX_STATEMENTS:,}"}
+  if facts.math:
+    text = text.replace(NO_TRIG, MATH_TEXT)
+  if facts.calls:
+    for old in (ONE_DEF, NO_CALLS):
+      assert old in text, f"the language's text moved: {old!r}"
+    text = (text.replace(ONE_DEF, FIRST_DEF).replace(NO_CALLS, SOME_CALLS)
+            + CALLS % {"cap": cap, "depth": lang.MAX_CALL_DEPTH})
+  if facts.verb_tests:
+    text += VERB_TESTS + (CALL_TESTS if facts.calls else "")
+  if facts.guarded:
+    text += GUARD % {"rate": round(1.0 / axes.HAND_EVERY_S), "n": GUARD_EXAMPLE_N,
+                     "watched": (WATCHED % {"hz": WATCH_HZ}
+                                 if "watch" in (facts.verbs or ()) else "")}
+  return text
 
 
 def system_prompt(facts: WorldFacts) -> str:
@@ -188,10 +245,11 @@ def vocabulary_index(facts: WorldFacts) -> dict:
   its arguments in order -- the list a name is one of (`choices`), and the
   default of one that may be left out, or that it is `optional`, the verb
   doing without it (#554) -- each sensor, each axis with its range, the
-  hands, the maths an expression may call and whether a verb may be an
-  `if`'s test. Off the registries the sections are rendered from, so it
-  lists what the robot is told and nothing it is not: no argument's
-  bounds, which the robot meets only in a refusal."""
+  hands, the maths an expression may call, whether a verb may be an
+  `if`'s test and whether a source's defs may call each other (#560). Off
+  the registries the sections are rendered from, so it lists what the
+  robot is told and nothing it is not: no argument's bounds, which the
+  robot meets only in a refusal."""
   from pluggybot.procedure import axes
   table = language(facts)
   docs = {s["name"]: s["doc"] for s in axes.describe()["sensors"]}
@@ -216,7 +274,8 @@ def vocabulary_index(facts: WorldFacts) -> dict:
                    for a in (axes.AXES[n] for n in facts.axes)],
           "hands": list(facts.hands),
           "math": dict(lang.MATH) if facts.math else {},
-          "verbTests": facts.verb_tests}
+          "verbTests": facts.verb_tests,
+          "calls": facts.calls}
 
 
 #: What the robot carries to its next chest (#493, Ben, 2026-10-18: what a
@@ -485,10 +544,10 @@ def run_report(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool)
     stopped, cut_in = ran.get("stopped"), ran.get("inFlight")
     if "failedAt" in ran and ran["steps"]:
       bad = ran["steps"][-1]
-      head += (f" and stopped at line {bad.get('line', '?')}, {bad.get('verb')}: "
+      head += (f" and stopped at line {bad.get('line', '?')}, {bad.get('verb')}{_in(bad)}: "
                f"{bad.get('reason', 'it failed')}")
     elif stopped:
-      head += f" and stopped: {stopped}"
+      head += f" and stopped: {lang.STOPS.get(stopped, stopped)}"
     elif cut and cut_in:
       head += f" and was at line {cut_in['line']}, {cut_in['verb']}, when the time ran out"
     else:
@@ -499,8 +558,9 @@ def run_report(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool)
               "FAILED, read by its `if`, and the procedure went on" if step.get("tested")
               else "FAILED")
       said = {k: v for k, v in step.items()
-              if k not in ("i", "verb", "line", "ok", "reason", "trace", "felt", "tested")}
-      lines.append(f"  line {step.get('line', '?')} {step.get('verb')}: {word}"
+              if k not in ("i", "verb", "line", "ok", "reason", "trace", "felt", "tested",
+                           "in", "entry")}
+      lines.append(f"  line {step.get('line', '?')} {step.get('verb')}{_in(step)}: {word}"
                    + (f" -- {step['reason']}" if step.get("reason") else "")
                    + (f" {json.dumps(said, default=str)}" if said else ""))
       if step.get("felt"):
@@ -515,3 +575,8 @@ def run_report(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool)
     lines.append(f"The try's time ran out after {sim_s:.0f} s.")
   lines += ["", f"THE GRADE: {'PASSED' if verdict['ok'] else 'failed'} -- {verdict['reason']}"]
   return "\n".join(lines)
+
+
+def _in(step: dict) -> str:
+  """The def a step ran in, where it ran inside a call (#560)."""
+  return f" (in {step['in']})" if step.get("in") else ""
