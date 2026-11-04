@@ -19,8 +19,17 @@ What survives a restart: the sources. Each is recompiled against TODAY's
 world when the library loads, and one that no longer validates is kept,
 listed, and marked invalid rather than deleted -- the robot wrote it, and a
 world that moved under it is a fact it should be shown.
+
+A PROCEDURE MAY CALL ANOTHER OF THE LIBRARY (#560) where the world allows
+calls, so every entry is compiled against the others, callees first, and
+again after every change (`_relink`): a caller whose callee is gone, or no
+longer runs, is kept and marked as one the world moved under is, and runs
+again once a callee of that name does. An entry whose def takes arguments
+with no defaults runs only when another calls it: it compiles, and is no
+action (`runnable`).
 """
 
+import ast
 import os
 import re
 from dataclasses import dataclass
@@ -69,6 +78,9 @@ class Library:
     #: two-entry library) and never widens it -- `text.admit` reads both.
     self.store: Store = FileStore(root) if root is not None else MemoryStore()
     self.cap = min(cap, ROW.cap)
+    #: what the robot wrote, by name, in the order kept; `entries` is each
+    #: compiled against the world and the others (`_relink`)
+    self.sources: dict[str, str] = {}
     self.entries: dict[str, Entry] = {}
     self.refusals: list[dict] = []
     self.defined = 0
@@ -76,20 +88,21 @@ class Library:
     for key in self.store.keys(suffix=SUFFIX):
       name = key[:-len(SUFFIX)]
       if _NAME.match(name):
-        self.entries[name] = self._entry(name, self.store.read(key) or "")
+        self.sources[name] = self.store.read(key) or ""
+    self._relink()
 
   @property
   def root(self):
     return self.store.root if isinstance(self.store, FileStore) else None
 
-  def _entry(self, name: str, source: str) -> Entry:
+  def _entry(self, name: str, source: str, library: dict | None = None) -> Entry:
     if name == "new":
       # saved before `procedure:new` existed (issue #264): kept and shown, not
       # runnable, so the token keeps its one meaning and the slot can be freed
       return Entry(name, source, None, [NEW_REFUSED + " -- undefine it and write "
                                         "it again under another name"])
     try:
-      proc = lang.compile_procedure(source, self.facts)
+      proc = lang.compile_procedure(source, self.facts, library=library, alone=False)
     except Refused as e:
       return Entry(name, source, None, list(e.reasons))
     if proc.name != name:
@@ -97,13 +110,94 @@ class Library:
                    [f"the def is named {proc.name!r}, the entry {name!r}"])
     return Entry(name, source, proc, [])
 
+  def _relink(self) -> None:
+    """Every entry compiled against today's world and the library (#560)
+    -- after every change, so a caller whose callee went is marked, and
+    one whose callee came back runs again."""
+    self.entries = self._compiled(self.sources)
+
+  def _trial(self, name: str, source: str, freeing: str = "") -> tuple[dict, Entry]:
+    """The library as it would stand with `source` under `name` and
+    `freeing` gone, compiled as `_relink` compiles it, and that entry: a
+    define is judged on the library it makes, so a rewrite that would call
+    round to itself through a caller of the one it replaces is refused
+    BEFORE the undefine -- judged on the library as it stood, it was
+    passed, the undefine took the old one, and the define was refused."""
+    sources = {n: src for n, src in self.sources.items() if n != freeing}
+    sources[name] = source
+    entries = self._compiled(sources)
+    return entries, entries[name]
+
+  def _compiled(self, sources: dict[str, str]) -> dict[str, Entry]:
+    """Each source compiled against the world and the others: each after
+    the ones it calls, and those that call round to themselves through
+    each other marked so."""
+    calls = {n: self._calls(src, sources) - {n} for n, src in sources.items()}
+    order: list[str] = []
+    state: dict[str, int] = {}
+    looped: dict[str, list] = {}
+
+    def visit(n: str, path: list) -> None:
+      state[n] = 1
+      for c in sorted(calls[n]):
+        if state.get(c) == 1:
+          loop = path[path.index(c):] + [c]
+          for m in loop[:-1]:
+            looped.setdefault(m, loop)
+        elif c not in state:
+          visit(c, path + [c])
+      state[n] = 2
+      order.append(n)
+    for n in sources:
+      if n not in state:
+        visit(n, [n])
+    linked: dict = {}
+    entries: dict[str, Entry] = {}
+    for n in order:
+      if n in looped:
+        entries[n] = Entry(n, sources[n], None, [lang._round(looped[n])])
+      else:
+        entries[n] = self._entry(n, sources[n], linked)
+      linked[n] = entries[n].procedure or entries[n].reasons
+    return {n: entries[n] for n in sources}
+
+  def _calls(self, source: str, sources: dict | None = None) -> set[str]:
+    """The library's names a source calls, its own defs aside: what it is
+    compiled after."""
+    if not getattr(self.facts, "calls", False):
+      return set()
+    try:
+      tree = ast.parse(source)
+    except (SyntaxError, ValueError, MemoryError, RecursionError):
+      return set()
+    own = {fn.name for fn in tree.body if isinstance(fn, ast.FunctionDef)}
+    named = {n.func.id for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    return (named - own) & set(self.sources if sources is None else sources)
+
   # ---- reading -------------------------------------------------------------
 
   def names(self) -> tuple[str, ...]:
     return tuple(self.entries)
 
   def runnable(self) -> tuple[str, ...]:
-    return tuple(n for n, e in self.entries.items() if e.valid)
+    """What may be run by name -- an action, an order, a row: an entry that
+    compiles and runs with nothing passing it arguments."""
+    return tuple(n for n, e in self.entries.items() if e.valid and e.procedure.alone)
+
+  def calls_of(self, name: str) -> set[str]:
+    """The procedures `name`'s source calls by name, its own defs aside --
+    one the library no longer holds among them."""
+    from pluggybot.procedure import steps as st
+    try:
+      tree = ast.parse(self.sources.get(name, ""))
+    except (SyntaxError, ValueError, MemoryError, RecursionError):
+      return set()
+    own = {fn.name for fn in tree.body if isinstance(fn, ast.FunctionDef)}
+    named = {n.func.id for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    return named - own - set(st.language(self.facts)) - set(lang.MATH) - {"read", "budget",
+                                                                            "range"}
 
   def get(self, name: str) -> lang.Procedure | None:
     entry = self.entries.get(name)
@@ -111,13 +205,19 @@ class Library:
 
   def as_context(self) -> list[dict]:
     """What the robot is shown of its own library: every source, and why an
-    entry is not runnable if it is not. (Which tools a procedure needed was
-    said too while the quadruped carried its rack's, #324.)"""
+    entry is not runnable if it is not -- one that takes arguments, that it
+    runs only when called (#560). (Which tools a procedure needed was said
+    too while the quadruped carried its rack's, #324.)"""
     out = []
     for e in self.entries.values():
-      row = {"name": e.name, "source": e.source, "runnable": e.valid}
+      called = e.valid and not e.procedure.alone
+      row = {"name": e.name, "source": e.source, "runnable": e.valid and not called}
       if e.reasons:
         row["reasons"] = e.reasons
+      elif called:
+        takes = [p for p in e.procedure.params if p not in e.procedure.defaults]
+        row["reasons"] = [f"it takes {', '.join(takes)}: it runs only when another "
+                          "procedure calls it"]
       out.append(row)
     return out
 
@@ -151,23 +251,19 @@ class Library:
       reasons.append(f"the library is full (it holds {self.cap}) -- an "
                      "`undefine` on the same answer as this define makes room "
                      "first")
-    proc = None
+    entries = None
     if not reasons:
-      try:
-        proc = lang.compile_procedure(source, self.facts)
-      except Refused as e:
-        reasons.extend(e.reasons)
-      else:
-        if proc.name != name:
-          reasons.append(f"the def is named {proc.name!r}, not {name!r}")
-    if reasons or proc is None:
+      entries, entry = self._trial(name, source)
+      reasons.extend(_defined(entry))
+    if reasons or entries is None:
       self.refusals.append({"t": t, "verb": "define", "name": name,
                             "reasons": reasons})
       raise LibraryRefused(reasons)
-    self.entries[name] = Entry(name, source, proc, [])
+    self.sources[name] = source
+    self.entries = entries
     self.defined += 1
     self.store.write(f"{name}{SUFFIX}", source)
-    return proc
+    return self.entries[name].procedure
 
   def admit(self, name: str, source: str, verdict, t: float = 0.0) -> lang.Procedure:
     """VERIFIED ADMISSION (issue #493, #487's library): `define`, but only
@@ -190,9 +286,10 @@ class Library:
       self.refusals.append({"t": t, "verb": "undefine", "name": name,
                             "reasons": [f"no procedure named {name!r}"]})
       raise LibraryRefused([f"no procedure named {name!r}"])
-    del self.entries[name]
+    del self.sources[name]
     self.undefined += 1
     self.store.remove(f"{name}{SUFFIX}")
+    self._relink()
 
   def check(self, name: str, source: str, freeing: str = "") -> list[str]:
     """What `define` would refuse this source for once `freeing` -- an entry
@@ -221,8 +318,9 @@ class Library:
                      "first")
     if reasons:
       return reasons
-    try:
-      proc = lang.compile_procedure(source, self.facts)
-    except Refused as e:
-      return list(e.reasons)
-    return [] if proc.name == name else [f"the def is named {proc.name!r}, not {name!r}"]
+    return _defined(self._trial(name, source, freeing)[1])
+
+
+def _defined(entry: Entry) -> list[str]:
+  """Why a define is refused, off the entry the library it makes compiles."""
+  return [] if entry.valid else list(entry.reasons)

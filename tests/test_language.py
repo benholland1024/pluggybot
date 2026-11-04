@@ -81,9 +81,20 @@ def test_the_served_example_compiles_on_its_world():
 @pytest.mark.parametrize("src, needle", [
   ("wait(1)\n", "exactly one `def name():`"),
   ("def a():\n  wait(1)\ndef b():\n  wait(1)\n", "exactly one `def"),
-  ("def A():\n  wait(1)\n", "not a name this language allows"),
   ("def x(y):\n  wait(1)\n", "takes no arguments"),
   ("@dec\ndef x():\n  wait(1)\n", "takes no arguments and no decorators"),
+])
+def test_where_the_world_gives_no_calls_a_procedure_is_one_def_with_no_arguments(src, needle):
+  """The language as it was before #560's calls, in a world that gives
+  none (`WorldFacts.calls`); the hands' worlds give them (test_calls.py)."""
+  reasons = refusals(src, replace(HOME, calls=False))
+  assert any(needle in r for r in reasons), reasons
+
+
+@pytest.mark.parametrize("src, needle", [
+  ("wait(1)\n", "a source is one def or more"),
+  ("@dec\ndef x():\n  wait(1)\n", "no decorators"),
+  ("def A():\n  wait(1)\n", "not a name this language allows"),
   ("def x():\n  pass\n", "calls no verb"),
   ("def x():\n  \"\"\"only a docstring\"\"\"\n", "has no steps"),
   ("def x():\n  import os\n", "line 2: Import is not part"),

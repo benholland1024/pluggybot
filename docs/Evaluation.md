@@ -1849,6 +1849,20 @@ its 128,000 tokens thinking, and its sources then came to 5,458, 1,915 and
 1,608 characters, each over the language's 1,500 ($0.11) -- ours fits at
 1,452 only pressed hard.
 
+**Defs that call defs, and 3,000 characters** (#560's stage (b), Ben's
+decision of 2026-11-04). Every hands world's language -- the practice's,
+a person's session and the served pair's -- takes a source of one def or
+more, the first the one that runs, a def calling another with arguments
+(Overseer.md §2b), and a source of 3,000 characters, stated in the text
+(1,500 before, and unstated: a mind learned it from a refusal, and the
+rounds above lost 11 to 43 sources an arm to it). A practice row's
+language is its commit's: ⚠ rows from before and after are NEVER POOLED.
+In practice a source's calls name its own defs alone -- the kept
+procedures are shown, never called -- so the KEPT protocol keeps each pass
+as the source it ran, its callees in it (`keep`, `program`: a pass's
+whole source is one program), and no later pass can change what an
+earlier one called.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

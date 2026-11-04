@@ -695,6 +695,9 @@ def test_the_hellos_index_lists_what_the_robots_text_lists():
   told = dict(re.findall(r"`(\w+)\(([^)]*)\)`", MATH_TEXT))
   assert {f: len(a.split(", ")) for f, a in told.items()} == index["math"]
   assert index["verbTests"] and "stand alone as the test of an `if`" in grammar
+  # ...and that a source's defs may call each other (#560), how deep
+  assert index["calls"] and "A source may hold several defs" in grammar
+  assert f"calls go at most {index['callDepth']} deep" in grammar
   # what each argument is and the list it names are its verb's, and the
   # index carries nothing more: no argument's bounds, which the robot meets
   # only in a refusal
@@ -703,7 +706,8 @@ def test_the_hellos_index_lists_what_the_robots_text_lists():
     for arg in v["args"]:
       spec = table[v["verb"]].args[arg["name"]]
       assert (arg["kind"], arg.get("choices")) == (spec.kind, spec.choices), (v["verb"], arg)
-  assert set(index) == {"verbs", "sensors", "axes", "hands", "math", "verbTests"}
+  assert set(index) == {"verbs", "sensors", "axes", "hands", "math", "verbTests", "calls",
+                        "callDepth"}
   assert all(set(v) == {"verb", "doc", "args"} for v in index["verbs"])
   assert all(set(a) <= {"name", "kind", "choices", "default", "optional"}
              for v in index["verbs"] for a in v["args"])

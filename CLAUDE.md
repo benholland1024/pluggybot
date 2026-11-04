@@ -1134,10 +1134,28 @@ save a filmstrip PNG named after the script.
   `axes.SENSORS`): a new tool or body adds its entries there and the language
   does not change. Budgets (`budget(steps=, seconds=)`) are capped by code
   (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and checked at every verb; a computed
-  argument by the same `check_arg`. The library (`MAX_PROCEDURES` 8; `define
+  argument by the same `check_arg`. ⚠ A SOURCE IS `MAX_SOURCE_CHARS` (3,000,
+  #560; 1,500 before), SAID IN THE TEXT, and one over it that parses is
+  refused with every reason (the cap's alone hid #615's six other faults;
+  a served answer is cut one past the cap, and hears the cap alone).
+  ⚠ A RUN IS `MAX_STATEMENTS` (100,000, ~0.1 s: four nested loops in one
+  def could run 10^8 on the physics thread). ⚠ DEFS CALL DEFS where the
+  facts give calls (`WorldFacts.calls`, #560: every hands world, the served
+  pair's too; `tests/test_calls.py`): a source holds one def or more, the
+  FIRST runs (no argument without a default), and a def calls another --
+  its own source's, else in a library the library's -- as a statement or
+  an `if`'s test, its arguments numbers or names typed by their use (names
+  join with `+`, the one thing a name does), a name a call passes checked
+  against the world through the calls it came by (`lang._named`); one
+  budget, the first def's; `MAX_CALL_DEPTH` 4, never round to itself; no
+  returned value, and a callee's locals ride the readout as `callee.name`.
+  The library (`MAX_PROCEDURES` 8; `define
   {name, source}` / `undefine`) survives a restart and is recompiled against
   today's world; a REPLACEMENT IS ONE ANSWER (`_define` removes before it
-  adds). ⚠ Invoked as `procedure:<name>` (the action, a standing order or a
+  adds). ⚠ EVERY ENTRY IS RECOMPILED AGAINST THE OTHERS, CALLEES FIRST,
+  AFTER EVERY CHANGE (`Library._relink`): a caller whose callee went is kept
+  and marked, and History says it (`callers_moved`); one whose first def
+  needs arguments is callable, never `runnable`. ⚠ Invoked as `procedure:<name>` (the action, a standing order or a
   map row; `order_runnable` reads `state["procedures"]`); `procedure:new`
   (`PROCEDURE_NEW`) runs what the SAME answer defines (the enum is built
   before the answer) and never as an order or a row. ⚠ EVERY RUN LEAVES ONE

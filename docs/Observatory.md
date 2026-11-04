@@ -10,6 +10,61 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Procedures that call procedures, and a source of 3,000 characters (#560, stage (b)) — opens when this PR is deployed
+
+**What changed in the world.** What a robot's procedures may say, and the
+words it is told.
+- **A procedure's source may hold several defs**, the first the one that
+  runs, and a def calls another by its name, with arguments -- numbers, or
+  names such as a hand's, joined with `+` -- as a statement or an `if`'s
+  test, on the run's one budget, at most 4 calls deep and never round to
+  itself (Overseer.md §2b). **One procedure in the library may call
+  another**: each entry is compiled against the others after every change,
+  a caller whose callee went is kept and marked, and one whose first def
+  takes an argument with no default is callable but no action.
+- **A source may be 3,000 characters** (1,500 before), and the language's
+  text says so; a served answer over it is still cut one past the cap and
+  hears the cap alone.
+  The library still holds 8, so the most its sources can add to a turn
+  doubles, 12,000 to 24,000 characters; on 11-03 the robots' sources sat at
+  a median of 846.
+- **A run stops at 100,000 statements** (`stopped: statements`), the text
+  says so, and History says it in words.
+- **History says what a define or an undefine did to the procedures that
+  call it** ("forgot the procedure turn -- both, which calls turn, cannot
+  run until a turn is written again").
+- **The prompt moved in two places**: the procedure rule's head (the
+  library's calls, and `define`'s `source` "its source" where it read "the
+  def") and the language (the cap, the statements, the calls and a call as
+  a test, one worked example) -- the practice's sections byte for byte, as
+  ever: `prompt_sha` `f138bc01…` → `60e70aa9…`, 55,538 → 57,348 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`). The schema, the
+  menu, the reward table, the jobs and the body did not move.
+- **The session host's `hello`** carries the same language, `sourceChars`
+  3,000 and `index.calls` (rooftop-media-2026's guide is held to it).
+
+**Why.** Ben's decision on #560 (2026-11-04): modular, reusable
+subroutines, and room. Of 4,838 sources minds wrote in practice, never told
+the cap, 421 were over 1,500 and 47 over 3,000; #615's table practice wrote
+5,458, 1,915 and 1,608, and none ran. Live, both libraries were full
+nearly always ("the library is full" the commonest refusal, 86 in 17 hours
+of 11-03), and they kept their walks beside their jobs (`go_storeroom`,
+`chest_go`), one walk-or-step block written three times in one source.
+
+**What the period is for.**
+- **Whether the robots write calls**: defines with several defs, and
+  entries that call entries (`procedure` events' sources), against the
+  refusals new to it (a call's arguments, a name it passes, a loop, the
+  depth) and the old ones -- nesting past 4 was 36 of 153 refusals on
+  11-03, and a def is a way out of it.
+- **The library's fill**: "the library is full" against the period before,
+  and how many entries are callable only.
+- **The cost**: the turns' tokens in, against the period before -- the
+  prefix grew 1,810 characters, and a library's sources may grow to 3,000
+  each.
+- ⚠ **Not a period to pool with the last for anything the procedures
+  decide**: the language and its words moved.
+
 ### The world grows: the park and the mall, a room for each robot, and a station in each building (#560, stage 1) — opens when both halves are deployed, this PR's and rooftop-media-2026's
 
 **What changed in the world.** The world itself, and where a robot charges.

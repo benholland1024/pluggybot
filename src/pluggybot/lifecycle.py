@@ -450,6 +450,7 @@ PROCEDURE_STOPS = {
   "budget": "it ran out of the time its budget gave it",
   "steps": "it ran out of the steps its budget gave it",
   "interrupted": "it was interrupted",
+  "statements": "it ran the most statements one run may",
 }
 #: How a decided explore ended (`explore_routine`'s answer), in its History
 #: line's words (issue #424). A key missing here is the run's own end.
@@ -478,6 +479,30 @@ def explore_outcome(zone: str, ended: str, seconds: float,
           f"{EXPLORE_ENDS[ended]}")
 
 
+def callers_moved(library, before: set, changed: str) -> str:
+  """What a define or an undefine did to the procedures that call
+  `changed` (#560), as History says it: those that compiled and no longer
+  do -- one calling it, and one calling one of those -- and those that
+  compile again; "" where none moved. `before` is the names that compiled
+  before the change."""
+  after = {n for n, e in library.entries.items() if e.valid}
+  broken = sorted((before - after - {changed}) & set(library.entries))
+  said = []
+  for n in broken:
+    calls = library.calls_of(n)
+    via = sorted(c for c in calls if c in broken)
+    if changed not in library.entries and changed in calls:
+      said.append(f"{n}, which calls {changed}, cannot run until a {changed} is written again")
+    elif via:
+      said.append(f"{n}, which calls {', '.join(via)}, cannot run either")
+    else:
+      said.append(f"{n} cannot run now: {library.entries[n].reasons[0]}")
+  mended = sorted(after - before - {changed})
+  if mended:
+    said.append(f"{', '.join(mended)} can run again")
+  return "; ".join(said)
+
+
 def procedure_outcome(name: str, run: dict) -> list[str]:
   """The History a procedure the robot wrote leaves behind (issue #264):
   how far it got, and -- when it stopped short -- the line, the verb and
@@ -504,7 +529,12 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
     failed = next((s for s in steps if s.get("i") == at), None) if at is not None else None
     stopped = run.get("stopped")
     if failed is not None:
-      where = (f"line {failed['line']}, {failed.get('verb', 'a step')}"
+      # ...in a call, the def it ran in, and where that is another of the
+      # library's procedures, the line is of ITS source (#560)
+      where = (f"line {failed['line']}"
+               + (f" of {failed['entry']}" if failed.get("entry") else "")
+               + f", {failed.get('verb', 'a step')}"
+               + (f" (in {failed['in']})" if failed.get("in") and not failed.get("entry") else "")
                if failed.get("line") else "an expression" if failed.get("verb") == "expr"
                else failed.get("verb", "a step"))
       why = f"it stopped at {where}: {failed.get('reason') or 'the step failed'}"
@@ -2713,6 +2743,10 @@ class HubLifecycle:
                 "completed": run["completed"], "total": run["total"],
                 "failedAt": run.get("failedAt"), "stopped": run.get("stopped"),
                 **({"failedLine": failed["line"]} if failed.get("line") else {}),
+                # ...and, in a call (#560), the def it ran in and the
+                # library's procedure whose source holds that line
+                **({"failedIn": failed["in"]} if failed.get("in") else {}),
+                **({"failedEntry": failed["entry"]} if failed.get("entry") else {}),
                 **({"failedReason": failed["reason"]} if failed.get("reason") else {}),
                 **({"locals": shown} if shown else {})})
     # ...and the steps that went through their evidence, the log's alone: a
@@ -4087,6 +4121,9 @@ class HubLifecycle:
     from pluggybot.procedure.library import LibraryRefused
     t = float(self.data.time)
     base = {"type": "procedure", "t": round(t, 3), "robot": self.root}
+    # what compiles before this answer's change: a procedure that calls the
+    # one it changes may stop, or start, running (#560)
+    compiled = {n for n, e in library.entries.items() if e.valid}
 
     def shelf() -> dict:
       # The library AS IT STANDS after this event, and its cap (rooftop-
@@ -4136,7 +4173,15 @@ class HubLifecycle:
                     "verb": "undefine", "reasons": list(e.reasons), **shelf()})
       else:
         self._say(f"PROCEDURE undefined {decision.undefine}")
-        self._remember(f"forgot the procedure {decision.undefine}")
+        # ...what it stopped, said on its own line -- but where the same
+        # answer writes the name again, a replacement, the define says
+        # what the two did together
+        replaced = bool(decision.define) and name == decision.undefine
+        moved = "" if replaced else callers_moved(library, compiled, decision.undefine)
+        self._remember(f"forgot the procedure {decision.undefine}"
+                       + (f" -- {moved}" if moved else ""))
+        if not replaced:
+          compiled = {n for n, e in library.entries.items() if e.valid}
         self._emit({**base, "outcome": "undefined", "name": decision.undefine,
                     **shelf()})
     if decision.define:
@@ -4152,7 +4197,10 @@ class HubLifecycle:
       else:
         self._defined_now = proc.name
         self._say(f"PROCEDURE defined {proc.name} ({proc.verbs} verbs)")
-        self._remember(f"wrote the procedure {proc.name}")
+        # ...and, a replacement, what it did to the procedures that call it
+        moved = callers_moved(library, compiled, proc.name)
+        self._remember(f"wrote the procedure {proc.name}"
+                       + (f" -- {moved}" if moved else ""))
         self._emit({**base, "outcome": "defined", "name": proc.name,
                     "program": proc.as_dict(), **shelf()})
 
@@ -5331,6 +5379,17 @@ class HubLifecycle:
                        f"same answer defines, and that define was {why}")
         yield from self.body.hold_routine(DECIDED_IDLE_S)
         return "unbuildable"
+      defined = getattr(self.overseer, "library", None)
+      defined = defined.get(name) if defined is not None else None
+      if defined is not None and not defined.alone:
+        # ...and one whose def takes arguments is called, never run (#560)
+        takes = ", ".join(p for p in defined.params if p not in defined.defaults)
+        self._say(f"DECIDE: {PROCEDURE_NEW} ran nothing -- {name} takes {takes}")
+        self._remember(f"ran nothing: `{PROCEDURE_NEW}` runs the procedure the same answer "
+                       f"defines, and {name} takes {takes}: it runs only when another "
+                       "procedure calls it")
+        yield from self.body.hold_routine(DECIDED_IDLE_S)
+        return "unbuildable"
       decision = dataclasses.replace(decision, action=PROCEDURE_PREFIX + name)
     errand = errand_from(decision,
                          library=getattr(self.overseer, "library", None))
@@ -6282,7 +6341,8 @@ def errand_from(decision, library=None):
     if decision.action.startswith(PROCEDURE_PREFIX):
       name = decision.action[len(PROCEDURE_PREFIX):]
       proc = library.get(name) if library is not None else None
-      if proc is None:
+      if proc is None or not getattr(proc, "alone", True):
+        # ...and one that takes arguments runs only when another calls it
         return None
       return programmed_errand(proc, task="program", name="procedure")
   except (ValueError, KeyError, IndexError):

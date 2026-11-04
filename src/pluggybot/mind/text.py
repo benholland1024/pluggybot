@@ -166,7 +166,7 @@ DEFAULT_MAIN = _constitution.load(_constitution.DEFAULT_NAME).text + "\n"
 
 #: How many procedures the robot may keep. Small on purpose: every source
 #: rides the user turn of the prompt so the robot can read what it wrote,
-#: and 8 x MAX_SOURCE_CHARS is ~3 000 tokens at the cap.
+#: and 8 x MAX_SOURCE_CHARS (3,000 since #560) is ~6,000 tokens at the cap.
 MAX_PROCEDURES = 8
 
 

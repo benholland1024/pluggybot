@@ -17,16 +17,16 @@ prompt is the prompt handing over the answer.
 """
 
 #: THE HUMANOIDS' HAND JOBS (#559, stage 3; SimNotes, "The humanoids' first
-#: jobs", has what flying took): each TWO procedures, one would pass the
-#: language's cap (`lang.MAX_SOURCE_CHARS`). The walk there finds the row's
-#: NEIGHBOUR first (a find stops at its tag's first sight, and one tag alone
-#: left the walk's `face` 17-20 deg off the wall), stands 1.3 m out of the
-#: wall's face (nearer, the planner's margin round the counter takes the
-#: goal), turns ONCE off the handle's tag read from there to `STANCE`, steps
-#: to 30 cm short, then looks again and steps the last 30 cm (a step after a
-#: turn falls a tenth short; a short one overshoots by up to 3.6 cm). Then
-#: the check's own procedure (`evaluation.hands_check.JOBS`; the drawer's is
-#: `DRAWER_JOB`).
+#: jobs", has what flying took): each TWO procedures, written when one would
+#: have passed the language's cap (1,500 then, `lang.MAX_SOURCE_CHARS`). The
+#: walk there finds the row's NEIGHBOUR first (a find stops at its tag's
+#: first sight, and one tag alone left the walk's `face` 17-20 deg off the
+#: wall), stands 1.3 m out of the wall's face (nearer, the planner's margin
+#: round the counter takes the goal), turns ONCE off the handle's tag read
+#: from there to `STANCE`, steps to 30 cm short, then looks again and steps
+#: the last 30 cm (a step after a turn falls a tenth short; a short one
+#: overshoots by up to 3.6 cm). Then the check's own procedure
+#: (`evaluation.hands_check.JOBS`; the drawer's is `DRAWER_JOB`).
 APPROACH = '''def to_%(prop)s():
   budget(steps=16, seconds=900)
   find(%(beside)d, %(ax)g, %(ay)g, 600)
