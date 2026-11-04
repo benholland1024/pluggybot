@@ -695,8 +695,17 @@ def carry_points(pick, put) -> list[np.ndarray]:
   return pts + [b - np.array([0.0, 0.0, LIFT_M * k / m]) for k in range(1, m + 1)]
 
 
+#: How far a carried hand's solve may miss on its way, m and rad: the reach's
+#: own tolerance (`arms.REACH_POS_TOL`, `REACH_ROT_TOL`) -- the measure that
+#: reproduces #615's flights on today's body -- or the served carry's, where
+#: a miss takes another posture (`reach.REPLAN_M`, `REPLAN_ROT`). The end
+#: is reached within the reach's own either way.
+STRICT, LOOSE = (ha.REACH_POS_TOL, ha.REACH_ROT_TOL), (rc.REPLAN_M, rc.REPLAN_ROT)
+
+
 def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
-               reach_m: float, chain: bool = False, edge: float | None = None):
+               reach_m: float, chain: bool = False, edge: float | None = None,
+               tol=STRICT):
   """The least bent posture from which `side`'s grip FOLLOWS `points` in
   turn at `rot` -- the first solved from the seeds, each next on from the
   last, as a carried hand goes (`Reach.carry`, `path_for`) -- within the
@@ -720,13 +729,14 @@ def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
     # the carry's worst clearance of the robot's own parts and of the table
     # on its way, m (`self_clear`, `into_table`)
     worst_self, worst_into = 1.0, 0.0
-    for x in pts[1:] if ok else ():
+    for k, x in enumerate(pts[1:] if ok else (), 1):
       sm._set_arm(side, q)
       if chain:
         q, ep, er = sm.solve_chain(side, x, rot)
       else:
         q, ep, er = sm.solve(side, x, rot, iters=80)
-      if not (ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL):
+      pos_tol, rot_tol = STRICT if k == len(pts) - 1 else tol
+      if not (ep < pos_tol and er < rot_tol):
         ok = False
         break
       worst_self = min(worst_self, self_clear(sm, side), trunk_clear(sm) if chain else 1.0)
@@ -765,11 +775,12 @@ def evaluate_piece(task: dict) -> dict:
   # the pick-up's own posture first: a carry begins where the reach ended
   first = [p for p in table if p.label() == out["posture"]]
   order = first + [p for p in table if p.label() != out["posture"]]
-  for chain, key in ((False, "carried"), (True, "chained")):
+  for chain, key, tol in ((False, "carried", STRICT), (True, "chained", STRICT),
+                         (False, "carried_loose", LOOSE), (True, "chained_loose", LOOSE)):
     if chain and not sm.waist_adr:
       continue
     t0 = time.perf_counter()
-    got = carry_plan(sm, side, order, pts, rot, reach_m, chain=chain, edge=task["edge"])
+    got = carry_plan(sm, side, order, pts, rot, reach_m, chain=chain, edge=task["edge"], tol=tol)
     out[f"{key}_s"] = round(time.perf_counter() - t0, 3)
     out[key] = got is not None
     if got is not None:
@@ -1035,13 +1046,14 @@ def report_window(rows) -> None:
         "one posture. A width counts each 1 cm cell.")
   for kind in _kinds(rows):
     print(f"\n== {kind}")
-    across, across_chain = {}, {}
+    across, across_chain, across_loose = {}, {}, {}
     for name, (side, _, _, step) in PIECES.items():
       both = {}
       for r in _by(rows, kind=kind, piece=name):
         v = _ok(r)
         if r["which"] == "pick":
-          for key, name_ in (("carried", "carry"), ("chained", "chain")):
+          for key, name_ in (("carried", "carry"), ("chained", "chain"),
+                             ("carried_loose", "carry_loose"), ("chained_loose", "chain_loose")):
             both.setdefault((r["dx"], r["dy"]), {})[name_] = (
               v and r.get(key, False) and r.get(f"into_{key}", 0.0) <= INTO_M
               and r.get(f"self_{key}", 1.0) >= -SELF_M)
@@ -1052,19 +1064,32 @@ def report_window(rows) -> None:
       ahead = [dx for (dx, dy), v in both.items() if dy == step and v.get("carry")]
       chain = [dy for (dx, dy), v in both.items() if dx == 0.0 and v.get("chain")]
       chain_ahead = [dx for (dx, dy), v in both.items() if dy == step and v.get("chain")]
+      loose = {m_: [dy for (dx, dy), v in both.items() if dx == 0.0 and v.get(m_)]
+               for m_ in ("carry_loose", "chain_loose")}
       across[name] = set(lat)
       across_chain.setdefault(name, set()).update(chain)
+      for m_, ys in loose.items():
+        across_loose.setdefault(m_, {}).setdefault(name, set()).update(ys)
       print(f"  {name:5s} ({side} hand; the procedure stands at dy {step:+.2f}): picked up and carried {_fmt(_intervals(lat, 0.01))}")
       print(f"        picked up alone {_fmt(_intervals(pick, 0.01))}; set down alone {_fmt(_intervals(put, 0.01))}")
       print(f"        ahead, at dy {step:+.2f}: picked up and carried at dx {_fmt(_intervals(ahead, 0.01))}")
       if any("chained" in r for r in _by(rows, kind=kind, piece=name)):
         print(f"        the waist in the arm's chain: carried {_fmt(_intervals(chain, 0.01))}; "
               f"ahead {_fmt(_intervals(chain_ahead, 0.01))}")
+      if any("carried_loose" in r for r in _by(rows, kind=kind, piece=name)):
+        print(f"        at the served carry's tolerance: carried {_fmt(_intervals(loose['carry_loose'], 0.01))}"
+              + (f"; the waist in the chain {_fmt(_intervals(loose['chain_loose'], 0.01))}"
+                 if any("chained_loose" in r for r in _by(rows, kind=kind, piece=name)) else ""))
     one = set.intersection(*across.values()) if across else set()
     print(f"  ONE STANCE for the whole place (dx 0): {_fmt(_intervals(sorted(one), 0.01))}")
     if across_chain and all(across_chain.values()):
       one = set.intersection(*across_chain.values())
       print(f"  ...the waist in the arm's chain: {_fmt(_intervals(sorted(one), 0.01))}")
+    for m_, by in across_loose.items():
+      if len(by) == len(PIECES):
+        one = set.intersection(*by.values())
+        print(f"  ...at the served carry's tolerance, {'the waist in the chain' if 'chain' in m_ else 'held'}: "
+              f"{_fmt(_intervals(sorted(one), 0.01))}")
 
 
 def report_envelope(rows) -> None:
