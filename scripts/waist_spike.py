@@ -739,11 +739,14 @@ def evaluate_piece(task: dict) -> dict:
   if out.get("flipped"):
     rot = rot @ np.diag([-1.0, -1.0, 1.0])
   pts = carry_points(task["pos"], task["put"])
+  # the pick-up's own posture first: a carry begins where the reach ended
+  first = [p for p in table if p.label() == out["posture"]]
+  order = first + [p for p in table if p.label() != out["posture"]]
   for chain, key in ((False, "carried"), (True, "chained")):
     if chain and not sm.waist_adr:
       continue
     t0 = time.perf_counter()
-    got = carry_plan(sm, side, table, pts, rot, reach_m, chain=chain)
+    got = carry_plan(sm, side, order, pts, rot, reach_m, chain=chain)
     out[f"{key}_s"] = round(time.perf_counter() - t0, 3)
     out[key] = got is not None
     if got is not None:
