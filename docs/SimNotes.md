@@ -5097,7 +5097,7 @@ table, is built and graded offline (Challenges.md §12): the dishware
 (`activity/dishware.py`: a plate pinched by its wall, a lidded cup taken
 across its body, a fork by its thick handle, and a place card), its grader,
 its set-out (`counter.table_set_out`) and our procedure (`hands_check.TABLE`,
-1,401 characters of the language's 1,500). **Our procedure does not meet the
+1,401 characters of the language's 3,000). **Our procedure does not meet the
 bar**, so the job is not offered: 0 of the check's 8 set-outs (the bar 6;
 1 on another pod) and 6 of 32 held out; laid by each piece's own criteria
 over the 32 held out, the cup 23, the plate 24, the fork 6 (it comes last,

@@ -463,7 +463,10 @@ of one's own").
   text -- with what they list as data (`index`), which the site's guide for
   people is checked against (rooftop #441). A `run` is checked against the
   language first: refused, every reason at once, and nothing built; else
-  handed to a child. ONE RUN AT A
+  handed to a child. A person's source is the language's as the robot's
+  is (since #560: up to 3,000 characters, `sourceChars`, its defs calling
+  each other, the first the one that runs), and a session has no library:
+  a call names a def of the same source. ONE RUN AT A
   TIME: a second is `busy`; a `cancel` stops a run only when it names its
   session AND attempt (a late one for the run before stops nothing); a
   child past `CHILD_S` (600 wall s) is stopped, and a child that would not

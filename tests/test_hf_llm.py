@@ -190,6 +190,34 @@ def test_a_streamed_answer_its_tokens_ran_out_on_says_so(monkeypatch):
     assert create(fake_fetch([(status, payload)])).stop_reason == stop
 
 
+def test_a_stream_the_far_side_closed_mid_answer_says_so(monkeypatch):
+  """#560's table smoke: the router closes a stream at 20 minutes, and three
+  answers still thinking at 1,200.3 s read as ended -- empty, "not JSON" --
+  and were asked again as if nothing had happened. A stream that ends with
+  no `[DONE]` and no `finish_reason` was closed mid-answer; one that says
+  `[DONE]` with no reason ended."""
+  def stream(lines):
+    class Answered:
+      headers = {}
+
+      def __enter__(self):
+        return self
+
+      def __exit__(self, *a):
+        return False
+
+      def __iter__(self):
+        yield from lines
+    return Answered()
+  thinking = b'data: {"choices": [{"delta": {"reasoning_content": "hm, and hm"}}]}\n'
+  for lines, finish, stop in (([thinking], "closed", "closed"),
+                              ([thinking, b"data: [DONE]\n"], None, "end_turn")):
+    monkeypatch.setattr(llm.urllib.request, "urlopen", lambda req, timeout: stream(lines))
+    status, payload = llm.stream_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 5.0)
+    assert payload["choices"][0]["finish_reason"] == finish
+    assert create(fake_fetch([(status, payload)])).stop_reason == stop
+
+
 def test_an_answer_not_streamed_says_who_answered(monkeypatch):
   """Issue #604: the deployed mind's answers are NOT streamed, and only the
   streamed path read the router's header, so a quarter of its answers

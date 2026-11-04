@@ -1160,6 +1160,35 @@ def test_an_answer_cut_off_is_asked_again_saying_so():
   assert "128,000 tokens" in prompt and "64,000" in prompt
 
 
+def test_an_answer_whose_stream_closed_is_asked_again_saying_so():
+  """#560's table smoke: three answers, each still thinking when the
+  router closed its stream at 20 minutes, read as "not JSON" and were
+  asked again as if nothing had happened. A stream closed mid-answer is a
+  cut, and the retry says how long and how much it was."""
+  class ClosedMind(Mind):
+    def __init__(self, *sources):
+      super().__init__(*sources)
+      self.closed = 1
+
+    def create(self, **kw):
+      if self.closed:
+        self.closed -= 1
+        self.asked.append(kw)
+        return NS(content=[NS(type="text", text="")], stop_reason="closed",
+                  usage=NS(input_tokens=100, output_tokens=98703))
+      return super().create(**kw)
+  mind = ClosedMind('def a():\n    wait(1)\n')
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), ep.JOB.format(limit=30), retry_wait_s=0.0)
+  turn = pr.first()
+  assert [t.kind for t in pr.turns] == ["first", "retry"]
+  cut = pr.turns[0]
+  assert cut.cut and cut.closed and cut.error.startswith("cut off: its stream closed after")
+  assert cut.as_dict()["closed"] is True and turn.procedure is not None
+  asked = mind.asked[1]["messages"][-1]["content"]
+  assert asked.startswith(mp.CLOSED_NOTE.format(minutes=cut.wall_s / 60, tokens=98703))
+  assert "98,703 tokens" in asked
+
+
 def _pass(name, source, chest, attempt):
   return {"name": name, "source": source, "chest": chest, "attempt": attempt}
 

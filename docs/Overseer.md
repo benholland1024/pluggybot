@@ -189,10 +189,11 @@ vocabulary with every switch on (docs/Hands.md; `steps.served_hand_facts`)
 in range(N)` with a literal N, `while` with a hard iteration cap, `return`;
 and where the world's facts say so, as the served humanoid's do, a verb as
 an `if`'s test, the maths (`sin`, `cos`, `atan2`, `sqrt`) and a hand's move
-that stops on a reading (`until=`). Anything else
-— an import, an attribute, a string outside a verb's argument, another call
-— is refused with the line at fault, before a step runs, and every reason at
-once (`tests/test_language.py` has one case per construct). A refusal inside
+that stops on a reading (`until=`), and defs that call defs (below). Anything else
+— an import, an attribute, a string outside a name a verb, a read or a call
+takes, a call of anything but a verb or a def — is refused with the line at
+fault, before a step runs, and every reason at once (`tests/test_language.py`
+and `tests/test_calls.py` have one case per construct). A refusal inside
 a call names the call, once, as History names a step that failed: `line 3,
 wait: seconds=99.0 is above 60.0` (#463: the robot never sees a refused
 define's source again, so a line alone pointed at nothing it could read).
@@ -213,15 +214,79 @@ loop is bounded; the interpreter checks budgets and `interrupted()` at every
 verb, which is a safe point, and a walk inside a verb asks it every second
 on the way (issue #381: a verb it ended is `stopped: interrupted`, an abort
 and never a failed step); a runaway `while` stops at `MAX_ITER` as
-`loop-cap`; a failed step, an arithmetic fault (division by zero, a local
+`loop-cap`, and a run at `MAX_STATEMENTS` (100,000, about 0.1 s of the
+physics thread: four nested loops in one def could run 10^8) as
+`statements`; a failed step, an arithmetic fault (division by zero, a local
 read before it was set) or a computed argument outside a verb's range ends
-the procedure with the step and the reason in the record.
+the procedure with the step and the reason in the record. A source is at
+most `MAX_SOURCE_CHARS` (3,000 since #560: of 4,838 sources minds wrote in
+practice, never told the cap, 421 were over 1,500 and 47 over 3,000), and
+the text says so; one over it that parses is refused with every reason, the
+cap's first (#615's smoke: three repairs of a 5,458-character source heard
+only its length) -- where it arrives whole, in practice and a person's run:
+a served answer's source is cut one past the cap (`define`'s clip), and
+hears the cap alone.
+
+**Procedures that call procedures** (#560, Ben's decision of 2026-11-04:
+modular, reusable subroutines), wherever the world's facts give calls
+(`WorldFacts.calls`: every hands world, the practice's, a person's session
+and the served pair's):
+- **A source holds one def or more, and its FIRST runs.** A def calls
+  another by its name, as a statement or alone as an `if`'s test (where
+  `verb_tests`), passing arguments as a verb takes them, by position or
+  keyword, with literal defaults. A call names a def of its own source --
+  or, in a library, another of the library's procedures; its own source's
+  def where both have the name.
+- **An argument holds a number or a name, typed by its use**: used where a
+  verb or `read` takes a name, it holds one (a call passes it in quotes, or
+  passes on an argument of its own that holds one), and names join with
+  `+` (`read(hand + ".z")`, `until=hand + ".fz"`) -- the one thing a name
+  can do; anything else holds a number. Used both ways, set, or defaulted
+  the other kind, it is refused. A name a call passes is checked against
+  the world before anything moves, at the line that uses it and through the
+  calls it came by (`lang._named`: `line 6, open_hand: hand='middle' is not
+  one of left, right -- called at line 2, b > line 4, c`).
+- **One run, one budget**: the first def's `budget` is the run's, a
+  callee's own counts only when it runs as the procedure, every verb in
+  every call counts toward the steps, and calls go at most
+  `MAX_CALL_DEPTH` (4) deep, never round to themselves (refused, the loop
+  named). The first def takes no argument without a default (it runs with
+  nothing passing it one), but a library's may: it is then callable and no
+  action (`Library.runnable`, `as_context` says why).
+- **A call does what its def does**: true when it ran to its end or a
+  `return`; a verb failing in it ends the run as anywhere, the step saying
+  where it ran (`in`, and `entry` for another library procedure's source,
+  whose line it is) -- unless the call is an `if`'s test, which reads it
+  false (the failing step `tested`) and goes on, a fault in its arithmetic
+  likewise; the run's own limits end the run either way. An argument the
+  run cannot compute fails the call at its own line.
+- **A def's variables are its own**, and as each call ends its last ones
+  ride the readout after the caller's, as `callee.name` (#227's readout:
+  nothing else of a callee reaches the mind). No value is returned and
+  `return` takes none: a callee's numbers come back as a verb's do, through
+  `read` of what the body reported, or the readout.
+- **In the library, every entry is compiled against the others, callees
+  first, after every change** (`Library._relink`): a caller whose callee
+  was undefined, or no longer compiles, is kept and marked not runnable
+  with why, and runs again once a callee of that name does -- History
+  says which on the answer that moved it (`callers_moved`: "forgot the
+  procedure turn -- both, which calls turn, cannot run until a turn is
+  written again"). A define that would close a loop through the library is
+  refused (a caller left waiting is no procedure to call), and a restart
+  compiles each entry after those it calls, whatever the files' order.
+- ⚠ **Not built, and why**: a returned value (`x = f()`, `return x`) -- an
+  expression that ran verbs would make expressions routines, and a test
+  would read a number where it reads a verb's truth; `return False` -- a
+  call's truth is what the world says its verbs did, never its own word;
+  and string variables beyond an argument. Each is a later call.
 
 **The library** (`procedure/library.py`) is a directory of sources beside the
 thought files (`$PLUGGY_THOUGHTS/procedures/`), the robot's on
 `Goals.md`'s terms — a DOCUMENT row in `mind/text.py` (§7), capped at
 `MAX_PROCEDURES` (8, because every source rides the user turn so the robot
-can read what it wrote). Two verbs, both
+can read what it wrote: at most 24,000 characters at the cap since #560,
+where the live libraries' sources sat at a median of 846 on 2026-11-03,
+both robots' full nearly always). Two verbs, both
 decision *fields* so writing one costs no turn: `define: {name, source}` and
 `undefine: name`. A redefinition on its own is refused; a **replacement names
 the old one in `undefine` on the same answer**, and the undefine is applied
