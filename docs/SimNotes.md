@@ -3676,7 +3676,7 @@ chest 7.46.
 
 **What is not yet.** The cube: offered once a reference places it (its
 check passed 3-4 of 8 at its own set-outs, the fingers against a 26 mm cube
-on a board). From the station, every flight's belief ended 2.3-2.5 m off
+on a board). Why its reference misses: "Setting a table". From the station, every flight's belief ended 2.3-2.5 m off
 the truth, the street crossed on a fresh map, and passed: the counter's
 places are laid in the map its walks plan on. A lid let fall once in 8.
 
@@ -5068,6 +5068,90 @@ event-map row's charge and a standing order's.
 **Not done.** The tasks (stage 2). The second story (the mall's, #557's
 first idea) waits for maps by floor; the park's rough patch for the walker
 that sees the ground.
+
+## Setting a table (issue #560, its first task)
+
+**What is true now.** #560's first task, a place laid at the restaurant's
+table, is built and graded offline (Challenges.md §12): the dishware
+(`activity/dishware.py`: a plate pinched by its wall, a lidded cup taken
+across its body, a fork by its thick handle, and a place card), its grader,
+its set-out (`counter.table_set_out`) and our procedure (`hands_check.TABLE`,
+1,452 characters of the language's 1,500). **Our procedure does not meet the
+bar**, so the job is not offered: 0 of the check's 8 set-outs (the bar 6)
+and 0 of 32 public ones; laid by each piece's own criteria, the cup 21 of
+32 (0.3-2.5 cm off), the plate 7, the fork none (it comes last, after a
+step). Every part of the place sits at an edge of what this body reaches at
+a 0.72 m table, below.
+
+**Why the cube missed its mat** (#559's `place_cube`, 0 of 8; its check's
+procedure flown at set-outs 0-7, the truth beside the belief at every
+verb):
+
+- *The grip scrubs the stance round.* Aimed at the cube's middle, the
+  fingertips meet the board first and the reach holds pressing it (45, 42,
+  17 and 14 N at four contacts); the jaws then drag the pads across it as
+  they shut, and the feet swivel 4-6 deg in 0.2 s. The mat, read in the
+  stance frame before the grip, is 3.7-5.4 cm off by the carry (set-outs 0,
+  2 and 4, whose carries then ran out of reach). Where the shut turned it
+  0.5-1 deg (1 and 6) the cube was laid.
+- *A held cube's carry reads as a drop.* The carry's posture swings the
+  hand +-5 cm at up to 1 m/s with the cube held fast, and the grader's 0.5
+  m/s line, read at every step, failed two cubes set down 0.7 and 1.3 cm
+  from the mat's middle (3 and 5). Both graders now read a drop off a free
+  piece alone (Ben's call): re-flown, the check lays 4 of 8 (1, 3, 5 and
+  6; the bar 6), the two carries 0.97 and 0.59 m/s held and 0.21 and 0.23
+  free.
+- *The way home catches the counter*: a jaw on its edge, 15 s, the robot
+  turned 20 deg (1 and 6, after the cube was down).
+
+**What the table took, each measured** (a scratch world and the set-out,
+the humanoid at the table's south place; flights in
+`~/pluggybot-training/issue-560-table/`):
+
+- *A walk carries nothing*: `step` refuses while a gripper holds
+  (`"holding"`), so a piece is picked and placed from one stance, and the
+  dishware waits on the table beside the place -- never on the expo
+  counter or another table, as #560 first had it.
+- *A solid table meets the thighs.* Crouching to reach, the robot pressed
+  the dining table's box with both thighs at about 200 N from 13 cm out; the
+  set-out's table is a top on legs. The served room's tables are boxes.
+- *The way out sweeps a hanging hand into the table.* Standing 13 cm out,
+  the hanging hand is under the top and 4 cm from its side: a reach's
+  joint-space way out pushed into it until the robot fell, and opening a
+  hanging hand alone pushed 171 N. From 22 cm out it clears; from 13, an arm
+  first rolled out and folded (`move`) meets the table with 0 N.
+- *Each hand works its own side, in bands.* Flown from 13 cm out at the
+  legged table: fingers straight down at |y| 0.24-0.40 m (0.18-0.42 ahead),
+  tilted 45-60 deg at |y| 0.24-0.48 (0.30-0.48 ahead), and a near strip at
+  |y| 0.08-0.16 (0.18-0.30 ahead); neither hand the middle 0.08 m. One carry
+  does not cross from a band to the strip (out of reach), and a reach holds
+  only 2-3 cm above its grasp's height (fingers down at the cup: 0.82 m held,
+  0.84 out of reach). So a place and its dishware need a stance a piece --
+  the robot sidesteps, its hands empty -- and a stance's window is about 3
+  cm wide where a sidestep lands +-3 cm: the plate's wall, read right, was
+  past the band at 19 of 32 grips (the left gripper "closed on nothing").
+- *Flat tags* read to 2-4 mm from 0.37-0.53 m ahead, nothing nearer, and
+  nothing 45 deg to the side after a 0.21 m step: the plate and the fork
+  are read from the start, as offsets from the card.
+- *The stance turns where it stands*: 2-3 deg in its first seconds after a
+  set-out (4.9 deg in 15 s), and 0.5-1 deg with each arm move -- a place
+  read before is stale, 1-2 cm at 0.4 m; the card is read again before each
+  reach.
+- *A sidestep right after an arm's way home went nowhere* in its first
+  second and was "blocked" (6 of 32 tries); begun 3 s later, the same step
+  stepped. Our procedure tries a blocked step again.
+- *The reach's approach starts where the posture left the hand*, 3-5 cm
+  from its pre-grasp, and converges diagonally: tall things are clipped.
+  Sent through its pre-grasp instead (`Reach`, tried and not kept), the cup
+  was laid 5 of 8 either way.
+- *Shape is not the plate's trouble*: a 4 cm wall and a 3 cm handle laid 8
+  plates of 32 and no fork.
+
+![Our procedure at the table's set-out 0: the cup carried by the right hand
+and set down by the card (5-20 s), then -- after a step and the plate, out
+of these tiles -- the fork's carry run out of reach, the left arm still out
+over the place at the call (`scripts/hands_check.py --strip table 0`;
+`--view table K` watches one)](figures/hands_table.png)
 
 ## Debugging workflow that worked
 

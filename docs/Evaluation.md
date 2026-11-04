@@ -1834,6 +1834,21 @@ the reference: 19 of 32 [0.42, 0.74] at one try.
   and stage 1 found. Spend: $3.91 -- the arms $3.81, the smokes $0.10; the
   reference cost no tokens.
 
+**The table's place, its reference first** (#560's first task, easy mode;
+Challenges.md §12): our procedure in the hands' vocabulary
+(`hands_check.TABLE`) flown over its set-outs before any mind practices it,
+the bar the check's, 6 of set-outs 0-7, written before this job was. **0 of
+8, the bar not met, and 0 of 32 public set-outs** [0.00, 0.11]; by each
+piece's own criteria the cup was laid 21 times, the plate 7 and the fork
+never (it comes last). So by §7's ladder A the job is a defect, not an
+offer: what this body reaches at a 0.72 m table, a stance a piece, is
+narrower than a sidestep lands (SimNotes, "Setting a table"). No practice
+arm has flown it. One try on the deployed model, a smoke of the harness,
+ran it end to end and wrote no procedure that ran: its first answer spent
+its 128,000 tokens thinking, and its sources then came to 5,458, 1,915 and
+1,608 characters, each over the language's 1,500 ($0.11) -- ours fits at
+1,452 only pressed hard.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

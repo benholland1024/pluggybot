@@ -1,14 +1,14 @@
 """The hands' capability check (issue #525; docs/Hands.md, "The capability
 check"): for each generic job -- the chest's lid, a drawer, a cupboard's
-door by its lever, a cube picked and placed on a mat -- the procedure we
-wrote in the hands' vocabulary (`evaluation.hands_check`), flown at the
+door by its lever, a cube picked and placed on a mat, a place set at a
+table (#560) -- the procedure we wrote in the hands' vocabulary (`evaluation.hands_check`), flown at the
 job's set-outs (`evaluation.counter`) and graded by the job's own grader
 (`challenge/<job>.py`); the bar (`BAR` of `SET_OUTS` a job) was written
 before it flew. Each flight is one attempt (`evaluation.attempts`): the
 world built afresh, the procedure run inside the job's time, the call, the
 hold, one verdict.
 
-  --job J[,J,..]       lid, drawer, door, place (default: all four)
+  --job J[,J,..]       lid, drawer, door, place, table (default: all five)
   --set-outs A-B|A,..  the set-outs (default: the check's, 0-7)
   --held-out N         N set-outs nobody has flown instead, by the frozen
                        build's seed (`attempts.seed_of`; a dirty tree is
@@ -134,8 +134,9 @@ def source(job: str) -> None:
 #: camera looks at -- and how far a filmstrip's camera stands back, m (the
 #: cube is 26 mm).
 PROPS = {"lid": lambda k: ct.set_out(k).chest, "drawer": lambda k: ct.drawer_set_out(k).cabinet,
-         "door": lambda k: ct.door_set_out(k).cupboard, "place": lambda k: ct.cube_set_out(k).cube}
-BACK = {"lid": 1.5, "drawer": 1.5, "door": 1.5, "place": 0.9}
+         "door": lambda k: ct.door_set_out(k).cupboard, "place": lambda k: ct.cube_set_out(k).cube,
+         "table": lambda k: ct.table_set_out(k).card}
+BACK = {"lid": 1.5, "drawer": 1.5, "door": 1.5, "place": 0.9, "table": 1.6}
 
 
 def _task(job: str, k: int) -> at.Task:

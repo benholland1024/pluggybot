@@ -109,6 +109,14 @@ SHOP_TAG_IDS = (70, 71)
 PARK_TAG_IDS = (72,)
 ROOM_TAG_IDS = (73, 74)
 STUDY_TAG_IDS = (75,)
+#: A table set (#560, `activity.dishware`): the plate's, the cup's and the
+#: fork's, each printed on a face of its own -- the plate's floor, the cup's
+#: lid, the fork's handle -- and the place card's, which a place is laid at;
+#: each its black square, m. From 90: the ids after the places' are left for
+#: the store's stock.
+DISH_TAG_IDS = (90, 91, 92)
+PLACE_TAG_IDS = (93,)
+DISH_TAG_SIZES = {90: 0.048, 91: 0.040, 92: 0.019, 93: 0.080}
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -130,7 +138,8 @@ TAG_SIZES = {**{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: AREA_TAG_SIZE for i in (*TOWER_TAG_IDS, *BENCH_TAG_IDS, *GARDEN_TAG_IDS,
                                            *COUNTER_TAG_IDS, *RESTAURANT_TAG_IDS,
                                            *SHOP_TAG_IDS, *PARK_TAG_IDS, *ROOM_TAG_IDS,
-                                           *STUDY_TAG_IDS)}}
+                                           *STUDY_TAG_IDS)},
+             **DISH_TAG_SIZES}
 
 TAG_DIR = Path("models/tags")
 

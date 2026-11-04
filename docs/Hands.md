@@ -243,6 +243,7 @@ its 8 set-outs** (`evaluation/hands_check.py`, `BAR`, `SET_OUTS`).
 | drawer | `challenge/drawer.py`: 15 cm out, let go | a cabinet on the counter, its knob where a chest's is | pull straight out |
 | door | `challenge/door.py`: 50 deg open, let go | a cupboard hinged on its left, its lever's tip 0.40-0.44 ahead | press the lever, let go, look: a door already open is done; else grip it lightly and pull toward the body, then on the hand's way |
 | place | `challenge/place.py`: on the mat within 2.5 cm, flat on a face, set down, let go | a cube 0.40-0.46 ahead on a 6 cm board -- in sight, out of reach where the robot stands -- the mat 6-8 cm further | a step in until the cube is 0.32 ahead, what it read turned into the frame it then stands in; grip it from above-front; lift, carry, set down holding the line |
+| table (#560) | `challenge/table.py`: a plate, a fork and a cup each at its spot off a place card, set down, let go | the dishware beside a place on the restaurant's table, the robot at the place (`counter.table_set_out`) | the cup by the right hand where it stands, then a step aside a piece for the plate and the fork by the left; each arm rolled out and folded before it reaches; the card read again before each reach |
 
 The procedures and what each knows that a mind would have to find out are
 in `hands_check.py`; `scripts/hands_check.py --source JOB` prints one.
@@ -267,6 +268,13 @@ docs/figures/hands_JOB.png`; `--view JOB K` watches one in the viewer.)
 | drawer | 3 of 8 | 4, 5: no grip, its reaches stopped short (at 4 the jaw's pad on the counter); 2: the pull out of reach 8 mm out; 6, 7: held fast at its 15 N, 2 and 11 cm out |
 | door | **6 of 8** | 2: opened 44 deg, its pull out of reach; 4: never opened, its reaches out of reach or stopped short |
 | place | 3 of 8 | 2, 4: the carry to the mat out of reach; 5, 7: let fall at 0.6 m/s; 6: set down 3 cm from the mat's middle |
+
+**The table's place (#560)**, a job added after: 0 of 8 -- not met, and
+not offered; its pieces each at an edge of what the hands reach at a 0.72 m
+table (SimNotes, "Setting a table"). **The cube flown again** there, its
+drop now a free cube's fall (Ben's call): 4 of 8 (1, 3, 5, 6) -- 0, 2 and 4
+its carry out of reach after the grip turned the stance 4-6 deg, 7 its left
+gripper closed on nothing.
 
 **Our procedures were written against the set-outs they are checked on.**
 The review redrew the drawer's, the door's and the cube's set-outs (each
@@ -403,6 +411,12 @@ there (§4's "A tag watched while the robot moves").
 - **A small thing low down, or a knob on a short stem.** The fingers are 8
   cm and the grip point their middle, so their tips meet the surface before
   a steep grip reaches a small object's middle (§5).
+- **Lay a place at a dining table.** At a 0.72 m table each hand reaches
+  its own side in bands a few centimetres deep and a few above the grasp,
+  one carry never crossing from one band to the next, and a walk carries
+  nothing: a place and its dishware take a stance a piece, and a sidestep
+  lands as far off as a stance's window is wide (SimNotes, "Setting a
+  table"; Challenges.md §12).
 - **A reading of how far what it holds has turned** (a lid's angle, which
   every arm of #493 said it lacked). Measured off the hinge's own sensor at
   chests 0-7, the robot's own readings carry it, each in one phase: its
