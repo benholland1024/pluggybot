@@ -588,7 +588,8 @@ def test_the_humanoids_grip_shuts_with_the_force_asked():
       return 0.026, 15.0
   body = object.__new__(hb.HumanoidBody)
   grip = Grip()
-  body.mission = NS(to_stand_routine=lambda: iter(()), reach=NS(grippers={"left": grip}))
+  body.mission = NS(to_stand_routine=lambda: iter(()),
+                     reach=NS(grippers={"left": grip}, ease=lambda side: False))
   body.hold_routine = lambda seconds: iter(())
   for _ in body.grip_routine("left", True, 15.0):
     pass

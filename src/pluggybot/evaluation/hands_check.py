@@ -246,19 +246,24 @@ PLACE = '''def place_cube():
 #: and each piece worked from a stance of its own, its hands home and empty
 #: between (`step`): the cup first, by the right hand, from where the robot
 #: stands; then a step to the right and the plate, pinched by its left wall,
-#: and a step back and the fork, by its handle, both by the left hand. The
-#: card is read again just before each reach -- the stance turns where the
-#: robot stands, 2-3 deg in its first seconds and a little with each move --
-#: and the plate and the fork are read from the start, as offsets from the
-#: card: flat on the table, their tags are out of the head camera's view
-#: nearer than about 0.37 m, and to its side after a step. Each piece is
-#: gripped from above and behind at 45 deg, lifted, carried at that height,
-#: set down by a force move holding its line until it presses on the table,
-#: let go, and the open hand lifted clear before it goes home.
+#: and a step back and the fork, by its handle, both by the left hand. Each
+#: arm is rolled out and folded (`move`) BEFORE the card and its piece are
+#: read: the stance turns as an arm goes out (SimNotes, "Setting a table"),
+#: and read first, the cup was 2-5 cm off where the hand came down on it
+#: (laid 5 of 32 where folded first 21). The card is read again just before
+#: each reach, and the plate and the fork from the start, as offsets from
+#: the card: flat on the table, their tags are out of the head camera's view
+#: nearer than about 0.37 m, and to its side after a step. The step aside
+#: is 0.26 m (0.21, the plate laid 4 of 32 to 22). Each piece is gripped
+#: from above and behind at 45 deg, lifted, carried at that height, set down
+#: by a force move holding its line until it presses on the table, let go,
+#: and the open hand lifted clear before it goes home.
 #: ⚠ IT DOES NOT MEET THE BAR (SimNotes, "Setting a table"): the bands the
 #: hands reach at a 0.72 m table are too narrow for every piece's grip.
 TABLE = '''def lay_place():
   budget(steps=120, seconds=400)
+  move("right_shoulder_roll", -0.9)
+  move("right_elbow", 1.4)
   open_hand("right")
   spot(93)
   u = read("spot.x") - 0.07
@@ -282,7 +287,9 @@ TABLE = '''def lay_place():
   fx = read("spot.x") - k
   fy = read("spot.y") - m
   for i in range(2):
-    step(0, 0.33 * i - 0.21)
+    step(0, 0.43 * i - 0.26)
+    move("left_shoulder_roll", 0.9)
+    move("left_elbow", 1.4)
     open_hand("left")
     spot(93)
     k = read("spot.x")

@@ -94,14 +94,14 @@ and its feet, which the walking policy moves.
 | `spot(tag)` | stands still and looks for a tag -- as it stands, then bowing lower (`SPOT_GAZES`) until it sees it -- and stands up again | `spot.x/y/z` (the face's middle), `spot.nx..nz` (into the thing it is on), `spot.ex..ez` (along an edge), `spot.range` | not in view from where it stands | the head camera's tag detector (`perception.tags`), `Body.gaze_routine` |
 | `watch(tag)` | keeps the head camera reading a tag while the procedure goes on, 15 pictures a second, each read 0.1 s after it was taken; ends with the procedure or the next `watch` | as `spot`'s, where the newest picture that showed it put it (`watch.*`), and `watch.seen` (whether the newest picture shows it), `watch.age` | not in view as it begins: it watches on | `spot`'s decode, placed through the robot's model of itself as its arm's loop last posed it (`perception.watch`) |
 | `measure(x, y)` | the depth camera's look at what stands at (x, y) | `object.top/near/far/left/right` | no flat top seen | the D435's cloud (`perception/box.py`) |
-| `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it, then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
+| `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it -- straight in joint space, or round by its side where straight would sweep the arm low ahead of the robot (`Reach.way_out`, the way home's judgment) -- then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
 | `via(hand, x, y, z, turn)` | adds a point to the hand's next move; nothing moves | -- | a path holds 40 points | -- |
 | `move_hand(hand, x, y, z, speed, stiffness, turn)` | a hand that is out carried along a line, or through its `via` points, as ONE motion from one posture | as `reach` | out of reach (planned or partway), held back | `Reach.carry`, `path_for` |
 | `pull(hand, dx, dy, dz, force, distance, speed, give)` | THE FORCE MOVE (§4), at most 20 N: what the standing body holds, pushing away around two thirds of it (#544) | `pull.moved`, `pull.force` (the hardest along its way, as felt), `pull.dx..dz` (the way the hand was going at its end) | ok whenever it pulled; why it stopped (distance, held fast, let go, out of reach, feet moved) is the record's | `Reach.pull` |
-| `close_hand(hand, force)` | shuts the gripper with at most `force` a pad, 5-120 N | `hand.held`, `hand.gap` | closed on nothing it holds | the Dex1-1's torque limit, its encoder and current |
+| `close_hand(hand, force)` | shuts the gripper with at most `force` a pad, 5-120 N, a hand pressed on what it met eased to where it is first (`Reach.ease`) | `hand.held`, `hand.gap` | closed on nothing it holds | the Dex1-1's torque limit, its encoder and current |
 | `open_hand(hand)` | opens the gripper | -- | -- | -- |
-| `withdraw(hand)` | the hand back along its way in, then the arm home: straight, or out to its side first and lowered there where that keeps the arm higher in front of the robot than straight would (SimNotes, "The way home"); ok once its drivers read it home | -- | not home by `RELEASE_S` (something holds it); a fall | `Reach.way_home` on the robot's model of itself, `Reach.home` |
-| `step(ahead, left, turn)` | the feet to the work, its hands home first: a turn on the spot, then a walk in the frame it then stands in -- one motion, or ahead then left where the walker would skew it -- and a stand; a walk goes at least a stride, about 10 cm | `step.dx/dy` (where the stance went, in the frame it stood in before), `step.turn`; the verb's text turns a place read before into the frame after | holding something (nothing moves), blocked, fell, out of time. ⚠ A turn's shuffle moves the feet 2-6 cm the report does not count | the walking policy, the legs' odometry |
+| `withdraw(hand)` | the hand back along its way in, then the arm home: straight, or out to its side first and lowered there, its shoulder pitched back, where that keeps the arm higher in front of the robot than straight would (SimNotes, "The way home"); ok once its drivers read it home | -- | not home by `RELEASE_S` (something holds it); a fall | `Reach.way_home` on the robot's model of itself, `Reach.home` |
+| `step(ahead, left, turn)` | the feet to the work, its hands home first: a turn on the spot, then a walk in the frame it then stands in -- one motion, or ahead then left where the walker would skew it -- and a stand; a walk goes at least a stride, about 10 cm | `step.dx/dy` (where the stance went, in the frame it stood in before), `step.turn`; the verb's text turns a place read before into the frame after | holding something (nothing moves), blocked (judged once its feet stride), fell, out of time. ⚠ A turn's shuffle moves the feet 2-6 cm the report does not count | the walking policy, the legs' odometry |
 
 Beside them stay `wait` and `move(axis, target)` -- the motor level, one arm
 joint walked to a setpoint -- and the sensors `time` and each hand's place,
@@ -243,7 +243,7 @@ its 8 set-outs** (`evaluation/hands_check.py`, `BAR`, `SET_OUTS`).
 | drawer | `challenge/drawer.py`: 15 cm out, let go | a cabinet on the counter, its knob where a chest's is | pull straight out |
 | door | `challenge/door.py`: 50 deg open, let go | a cupboard hinged on its left, its lever's tip 0.40-0.44 ahead | press the lever, let go, look: a door already open is done; else grip it lightly and pull toward the body, then on the hand's way |
 | place | `challenge/place.py`: on the mat within 2.5 cm, flat on a face, set down, let go | a cube 0.40-0.46 ahead on a 6 cm board -- in sight, out of reach where the robot stands -- the mat 6-8 cm further | a step in until the cube is 0.32 ahead, what it read turned into the frame it then stands in; grip it from above-front; lift, carry, set down holding the line |
-| table (#560) | `challenge/table.py`: a plate, a fork and a cup each at its spot off a place card, set down, let go | the dishware beside a place on the restaurant's table, the robot at the place (`counter.table_set_out`) | the cup by the right hand where it stands, then a step aside a piece for the plate and the fork by the left; each arm rolled out and folded before it reaches; the card read again before each reach |
+| table (#560) | `challenge/table.py`: a plate, a fork and a cup each at its spot off a place card, set down, let go | the dishware beside a place on the restaurant's table, the robot at the place (`counter.table_set_out`) | the cup by the right hand where it stands, then a step aside a piece for the plate and the fork by the left; each arm rolled out and folded before the card and its piece are read; the card read again before each reach |
 
 The procedures and what each knows that a mind would have to find out are
 in `hands_check.py`; `scripts/hands_check.py --source JOB` prints one.
@@ -269,12 +269,16 @@ docs/figures/hands_JOB.png`; `--view JOB K` watches one in the viewer.)
 | door | **6 of 8** | 2: opened 44 deg, its pull out of reach; 4: never opened, its reaches out of reach or stopped short |
 | place | 3 of 8 | 2, 4: the carry to the mat out of reach; 5, 7: let fall at 0.6 m/s; 6: set down 3 cm from the mat's middle |
 
-**The table's place (#560)**, a job added after: 0 of 8 -- not met, and
+**The table's place (#560)**, a job added after: 1 of 8 -- not met, and
 not offered; its pieces each at an edge of what the hands reach at a 0.72 m
-table (SimNotes, "Setting a table"). **The cube flown again** there, its
-drop now a free cube's fall (Ben's call): 4 of 8 (1, 3, 5, 6) -- 0, 2 and 4
-its carry out of reach after the grip turned the stance 4-6 deg, 7 its left
-gripper closed on nothing.
+table (SimNotes, "Setting a table"). **The hands' small fixes at a table**
+(#560's stage (a), SimNotes there): a step judged once its feet stride, a
+way out judged as the way home is, a pressed hand eased before it shuts,
+and the side way's roll in pitched back. Flown on one machine before and
+after them (a pod's Threadripper 3970X, osmesa): the lid 6 to 7, the drawer
+4 and 4, the door 5 and 5, the cube 4 to 5 (2 and 4 gained, the grip's
+scrub gone; 6 lost), the table 0 to 1 -- and the served jobs from the
+tour, the drawer 7 and 7, the door 8 and 8, the chest 5 and 5.
 
 **Our procedures were written against the set-outs they are checked on.**
 The review redrew the drawer's, the door's and the cube's set-outs (each
@@ -399,15 +403,18 @@ there (§4's "A tag watched while the robot moves").
   way): no slide or pivot verb, nor yet a job needing one.
 - **A walk with something in hand.** A step carries nothing: the walking
   policy walks with its arms home.
-- **A way home that looks, or feels.** The way home is judged on the
-  robot's model of itself alone (#539): it takes what the hand worked over
-  to lie under it ahead of the robot's front, and the space at its side to
-  be clear. Nothing checks either against the depth picture: an arm with
-  none of it ahead, as over its head, comes home straight through whatever
-  stands there, and a hand still caught on something after the line out
-  takes it along (a jaw left under a knob lifted a shut lid). A guard on
-  the hand's force could not yet tell that from a blocked reach's press
-  (SimNotes, "The way home").
+- **A way out or home that looks, or feels.** Both are judged on the
+  robot's model of itself alone (#539, #560): what the hand works over is
+  taken to lie under it ahead of the robot's front, and the space at its
+  side and behind its front to be clear -- the side way rolls the arm out
+  where it hangs and brings it in pitched back, clear on its model of a
+  surface at the robot's toes turned up to 10 deg to it; any nearer, and
+  its own rest is inside it. Nothing checks either against the depth
+  picture: an arm with none of it ahead, as over its head, comes home
+  straight through whatever stands there, and a hand still caught on
+  something after the line out takes it along (a jaw left under a knob
+  lifted a shut lid). A guard on the hand's force could not yet tell that
+  from a blocked reach's press (SimNotes, "The way home").
 - **A small thing low down, or a knob on a short stem.** The fingers are 8
   cm and the grip point their middle, so their tips meet the surface before
   a steep grip reaches a small object's middle (§5).

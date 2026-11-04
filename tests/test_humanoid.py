@@ -486,7 +486,7 @@ def test_the_force_at_the_hand_is_read_off_the_arms_motor_currents():
   from pluggybot.humanoid.arms import FORWARD, HandGoal
   model, data, stand, reach = _standing()
   assert reach.reach("left", HandGoal(np.array([0.42, 0.2, 0.9]), FORWARD))
-  _fly(model, data, stand, reach, 3.0)
+  _fly(model, data, stand, reach, 6.0)
   assert reach.done("left")
   hand = model.body("left_hand").id
   site = model.site("left_grip").id
@@ -522,7 +522,7 @@ def test_a_hand_that_meets_something_on_its_way_stops_short():
   model, data, stand, reach = _standing(box)
   root = model.body(hm.ROBOT_ROOT).id
   assert reach.reach("left", HandGoal(np.array([0.55, 0.2, 0.94]), FORWARD))
-  _fly(model, data, stand, reach, 4.0)
+  _fly(model, data, stand, reach, 8.0)
   assert reach.phase["left"] == "blocked"
   # Standing in the posture its plan asked (a crouch), upright: not fallen.
   assert data.xpos[root][2] > 0.45 and data.xmat[root][8] > 0.9
