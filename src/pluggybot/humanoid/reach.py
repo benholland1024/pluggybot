@@ -81,6 +81,12 @@ BLOCKED_M, BLOCKED_N = 0.03, 30.0
 #: still, and a deep bow's folding read 81.5 N at the hand for an instant
 #: as its approach began. A push lasts; a transient does not.
 BLOCKED_S = 0.15
+#: A hand HOLDING whose force pushes on along its fingers past this, N, is
+#: eased before its jaws shut (`ease`, #560): its command moved to where the
+#: hand is. ⚠ A cube's grip point, the fingers' middle, held 2-3 cm past
+#: where their tips met its board: the arm pressed them on it at 40-120 N,
+#: the jaws dragged across it as they shut, and the feet swivelled 4-6 deg.
+EASE_N = 10.0
 #: The posture's own loop: the pelvis's height and the trunk's pitch as the
 #: robot's model of itself has them (its legs' encoders, its IMU) held to
 #: the plan's by trimming what the policy is asked -- this much of the
@@ -206,11 +212,26 @@ PULL_STIFFNESS = 0.6
 #: stays near its shoulder's height, and lowered at its side the arm
 #: reaches 9 cm ahead.
 HOME_DIP_M, HOME_ROLL = 0.01, 1.3
+#: ...its roll in -- lowered at its side -- with its shoulder pitched this
+#: much back, rad, then forward to its rest (#560). ⚠ Lowered in the hanging
+#: arm's line, 9 cm ahead, it came down 55 cm out on a counter the robot stood
+#: 3-4 cm from, turned 6 deg, and dragged a jaw over its top for 10 s, the
+#: robot turning 20 deg; on its model this far back clears one turned 10.
+HOME_BACK = 0.2
 #: ...sampled every this much of its furthest joint's walk, rad.
 HOME_SAMPLE_RAD = 0.05
 #: ...and home is the rest commanded and its drivers reading every joint
 #: within this of it, rad (they read to 0.0026).
 HOME_RAD = 0.05
+#: THE WAY OUT (`way_out`, #560) is the way home from its other end: from an
+#: arm with none of it ahead of the front, straight to its pre-grasp unless
+#: that takes some part of it ahead of the front lower than the lowest of it
+#: there at the pre-grasp -- over whatever the hand goes to work on -- else
+#: the side way reversed: pitched back, rolled out, its other joints out with
+#: its roll held there, then rolled in. ⚠ Straight, a hanging grip 7 mm behind
+#: a 0.72 m table's edge, its top at the top's underside, was driven into the
+#: table, and a jaw struck a counter's face 30-56 N on each of the cube
+#: check's ways out.
 
 #: The postures a reach may take, in the order they are tried -- the least
 #: bent first: the pelvis's height off the stand's, m, and the trunk's
@@ -430,6 +451,19 @@ def dip(sm: SelfModel, side: str, q0, ways, low: float, ahead: float) -> float:
   return worst
 
 
+def _side_way(side: str, q_out, q_home) -> list[np.ndarray]:
+  """The side way from an arm at `q_out` to `q_home` in joint space: rolled
+  out to its side (`HOME_ROLL`, or further where it is already), its other
+  joints to `q_home`'s with its shoulder pitched `HOME_BACK` back, its roll
+  then in, and its pitch forward -- the targets in turn."""
+  k, p = hm.ARM.index("shoulder_roll"), hm.ARM.index("shoulder_pitch")
+  out = seed(side, (0.0, HOME_ROLL, 0.0, 0.0, 0.0, 0.0))[k]
+  raised, lowered, back = (np.asarray(q, dtype=float).copy() for q in (q_out, q_home, q_home))
+  raised[k] = lowered[k] = raised[k] if abs(raised[k]) > HOME_ROLL else out
+  lowered[p] = back[p] = back[p] + HOME_BACK
+  return [raised, lowered, back, np.asarray(q_home, dtype=float).copy()]
+
+
 class Reach:
   """The arms and grippers of one body beside its standing policy (module
   docstring). A hand's PHASE: `rest` (hanging), `move` (joint space to the
@@ -455,9 +489,11 @@ class Reach:
     self.cmd: dict[str, HandGoal | None] = {s: None for s in hm.SIDES}
     self.q_to = {s: self.rest[s].copy() for s in hm.SIDES}
     self.q_cmd = {s: self.rest[s].copy() for s in hm.SIDES}
-    #: Each arm's way home still to walk after `q_to` (`way_home`), and
-    #: every joint as its driver last read it (`home`), unread at first.
+    #: Each arm's way home still to walk after `q_to` (`way_home`), and its
+    #: way out (`way_out`); and every joint as its driver last read it
+    #: (`home`), unread at first.
     self.homes: dict[str, list] = {s: [] for s in hm.SIDES}
+    self.outs: dict[str, list] = {s: [] for s in hm.SIDES}
     self.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
     #: How far the last solve left the model's grip off its command, m, and
     #: whether the reach's plan had slack (`plan`).
@@ -516,11 +552,12 @@ class Reach:
     if plan_ is None:
       return False
     posture, q_pre, _, self.slack[side] = plan_
+    self.outs[side] = self.way_out(side, q_pre)
     self.hold_posture(*posture)
     self._off[side] = 0.0
     self.speed[side] = HAND_SPEED
     self.goal[side] = goal
-    self.q_to[side] = q_pre
+    self.q_to[side] = self.outs[side].pop(0)
     self.phase[side] = "move"
     return True
 
@@ -576,7 +613,22 @@ class Reach:
     k = self.goal[side].stiffness
     self.goal[side], self.cmd[side] = HandGoal(pos.copy(), rot.copy(), k), HandGoal(pos, rot, k)
     self.q_to[side] = self.q_cmd[side].copy()
+    self.outs[side] = []
     self.phase[side] = "blocked"
+    return True
+
+  def ease(self, side: str) -> bool:
+    """A hand holding (`hold`) whose force pushes on along its fingers past
+    `EASE_N`: its goal and its command moved to where its senses put it, its
+    turn kept -- its arm's spring no longer pressing it on what it met. True
+    where it was eased."""
+    c, at = self.cmd[side], self.sensed_grip[side]
+    if self.phase[side] != "hold" or c is None or c.rot is None or at is None:
+      return False
+    fingers = -np.asarray(c.rot, dtype=float)[:, 2]
+    if float(self.force[side] @ fingers) <= EASE_N:
+      return False
+    c.pos, self.goal[side].pos = at.copy(), at.copy()
     return True
 
   def out(self, side: str) -> bool:
@@ -810,6 +862,7 @@ class Reach:
     and held there: the motor level's (`Body.ramp_routine`), its hand's
     goal let go."""
     self.goal[side] = self.cmd[side] = None
+    self.outs[side] = []
     self.q_to[side] = np.asarray(q, dtype=float).copy()
     self.phase[side] = "joints"
 
@@ -849,7 +902,8 @@ class Reach:
     alone -- or, where that walk takes some part of the arm further ahead
     than the robot's front (`front`) and lower than the lowest of it there
     now, the side way: rolled out to its side (`HOME_ROLL`), its other
-    joints home, then its roll. The side way only where it dips less."""
+    joints home but its shoulder pitched back (`HOME_BACK`), its roll, then
+    its pitch. The side way only where it dips less."""
     sm = self._planner_model()
     sm.q = self.self_model.q.copy()
     sm.d.qpos[:] = self.self_model.d.qpos
@@ -867,17 +921,43 @@ class Reach:
     straight = dip(sm, side, q0, [rest], low, ahead)
     if straight <= HOME_DIP_M:
       return [rest]
-    k = hm.ARM.index("shoulder_roll")
-    out = seed(side, (0.0, HOME_ROLL, 0.0, 0.0, 0.0, 0.0))[k]
-    raised, lowered = q0.copy(), rest.copy()
-    raised[k] = lowered[k] = q0[k] if abs(q0[k]) > HOME_ROLL else out
-    aside = [raised, lowered, rest]
+    aside = _side_way(side, q0, rest)
     return aside if dip(sm, side, q0, aside, low, ahead) < straight else [rest]
+
+  def way_out(self, side: str, q_to) -> list[np.ndarray]:
+    """The joint targets an arm walks out through from its command to `q_to`,
+    a reach's pre-grasp: the way home's judgment from its other end, on the
+    robot's model of itself as it stands (`HOME_DIP_M`) -- `q_to` alone, or,
+    from an arm with none of it ahead of the robot's front whose walk there
+    takes some part of it further ahead and lower than the lowest of it there
+    at `q_to`, the side way home walked back (`_side_way`). The side way only
+    where it dips less."""
+    sm = self._planner_model()
+    sm.q = self.self_model.q.copy()
+    sm.d.qpos[:] = self.self_model.d.qpos
+    q0, q1 = self.q_cmd[side].copy(), np.asarray(q_to, dtype=float).copy()
+    ahead = front(sm, side, self.rest[side])
+    sm._set_arm(side, q0)
+    if (outline(sm, side)[:, 0] > ahead).any():
+      # a hand already out sweeps nothing aside on its way to the next
+      return [q1]
+    sm._set_arm(side, q1)
+    p = outline(sm, side)
+    there = p[p[:, 0] > ahead]
+    if not len(there):
+      return [q1]
+    low = float(there[:, 1].min())
+    straight = dip(sm, side, q0, [q1], low, ahead)
+    if straight <= HOME_DIP_M:
+      return [q1]
+    aside = _side_way(side, q1, q0)[::-1][1:] + [q1]
+    return aside if dip(sm, side, q0, aside, low, ahead) < straight else [q1]
 
   def _go_home(self, side: str) -> None:
     """The arm on its way home (`way_home`), its goal let go; the posture
     back to the stand once no hand is out."""
     self.goal[side] = self.cmd[side] = None
+    self.outs[side] = []
     self.homes[side] = self.way_home(side)
     self.q_to[side] = self.homes[side].pop(0)
     self.phase[side] = "home"
@@ -972,7 +1052,7 @@ class Reach:
 
   #: What a restart carries of a reach (#559, `HumanoidMission.kept_state`):
   #: every hand's phase and commands, its filters and what it last read.
-  KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "sensed", "miss", "slack",
+  KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report")
 
@@ -1284,7 +1364,9 @@ class Reach:
         there = self._joints(s, dt)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s] = 0.0
-        if phase == "move" and there and self.stand.settled and self._posture_there(dt):
+        if phase == "move" and there and self.outs[s]:
+          self.q_to[s] = self.outs[s].pop(0)
+        elif phase == "move" and there and self.stand.settled and self._posture_there(dt):
           pos, rot = sm.grip_pose(s)
           self.cmd[s] = HandGoal(pos, rot, self.goal[s].stiffness)
           self.phase[s] = "approach"

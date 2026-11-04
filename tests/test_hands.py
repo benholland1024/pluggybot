@@ -402,6 +402,7 @@ def _bare_reach():
   r.q_to = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.q_cmd = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.miss, r._off = {s: 0.0 for s in hm.SIDES}, {s: 0.0 for s in hm.SIDES}
+  r.slack = {s: True for s in hm.SIDES}
   r.speed = {s: rc.HAND_SPEED for s in hm.SIDES}
   r.pulls = {s: None for s in hm.SIDES}
   r.report = {s: None for s in hm.SIDES}
@@ -410,6 +411,7 @@ def _bare_reach():
   r.hold_posture = lambda height, pitch: r.postures.append((height, pitch))
   r.grippers = {s: _Grip() for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
+  r.outs = {s: [] for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
   # the whole body's reading off: the senses here are a test's stubs, not a
   # body's (`_feel`'s own tests turn it on)
@@ -497,12 +499,13 @@ def _sent_home(r, side, q0):
   return [r.q_to[side]] + r.homes[side]
 
 
-def _clear_of_counter(sm, side, q0, ways, front=0.279, top=0.72) -> float:
+def _clear_of_counter(sm, side, q0, ways, front=0.279, top=0.72, turned=0.0) -> float:
   """The least distance from a counter as wide as the world -- its front
-  edge `front` ahead of the soles' middle, its top `top` up (chest 0's) --
-  to the arm's solid parts, m (negative: into it), as the arm walks in
-  joint space from `q0` through `ways`: each capsule's axis less its
-  radius, each box's corners."""
+  edge `front` ahead of the soles' middle, its top `top` up (chest 0's),
+  the robot `turned` deg toward it on the arm's side (its edge nearer
+  there) -- to the arm's solid parts, m (negative: into it), as the arm
+  walks in joint space from `q0` through `ways`: each capsule's axis less
+  its radius, each box's corners."""
   import itertools
   import mujoco
   worst, prev = math.inf, np.asarray(q0, dtype=float)
@@ -518,7 +521,8 @@ def _clear_of_counter(sm, side, q0, ways, front=0.279, top=0.72) -> float:
           pts, r = [pos + rot @ (np.array(c) * size)
                     for c in itertools.product((-1, 1), repeat=3)], 0.0
         for p in pts:
-          off = (front - p[0], p[2] - top)          # outside by either
+          edge = front - math.tan(math.radians(turned)) * abs(p[1])
+          off = (edge - p[0], p[2] - top)          # outside by either
           d = math.hypot(max(off[0], 0), max(off[1], 0)) if max(off) > 0 else max(off)
           worst = min(worst, d - r)
     prev = w
@@ -565,6 +569,31 @@ def test_an_arm_none_of_it_ahead_of_the_robots_front_goes_straight_home():
   assert r.homes["left"] == [] and np.allclose(r.q_to["left"], r.rest["left"])
 
 
+#: Where the cube check's left arm began its way home at set-out 0, the cube
+#: set down (#560): its grip had left its roll at 2.75 rad.
+CUBE_DOWN = np.array([0.9433, 2.7543, 0.0736, 2.0231, -0.5382, 1.0559])
+
+
+@pytest.mark.parametrize("start", ["cube", "raised"])
+def test_an_arm_comes_home_behind_a_counter_it_stands_turned_to(monkeypatch, start):
+  """#560: the cube check stood 3-4 cm from its counter's face, turned 6
+  deg to it; lowered in the hanging arm's line, the side way came down 55
+  cm out, where the edge was nearer, and dragged a jaw over its top for
+  10 s, the robot turning 20 deg. Its roll comes in pitched back
+  (`HOME_BACK`). On the statue, the edge 2 cm nearer: the live arm hangs
+  that much further forward."""
+  from pluggybot.humanoid import reach as rc
+  q0 = CUBE_DOWN if start == "cube" else _of("left", RAISED)
+  r = _standing_reach()
+  ways = _sent_home(r, "left", q0)
+  assert _clear_of_counter(r.self_model, "left", q0, ways, front=0.13, turned=6.0) > 0.005
+  monkeypatch.setattr(rc, "HOME_BACK", 0.0)
+  r = _standing_reach()
+  ways = _sent_home(r, "left", q0)
+  assert _clear_of_counter(r.self_model, "left", q0, ways, front=0.13, turned=6.0) < -0.01, \
+    "the premise: lowered in its hanging line, onto it"
+
+
 @pytest.mark.parametrize("side", hm.SIDES)
 def test_the_side_way_rolls_an_arm_out_to_its_own_side(side):
   """From a counter's height (the grip 0.30 m ahead, 0.25 out, 0.85 up), its
@@ -580,7 +609,7 @@ def test_the_side_way_rolls_an_arm_out_to_its_own_side(side):
   q0, miss, _ = rc.solve_seeded(r.self_model, side, np.array([0.30, y, 0.85]), None)
   assert miss < 0.01 and abs(q0[k]) < rc.HOME_ROLL
   ways = _sent_home(r, side, q0)
-  assert len(ways) == 3
+  assert len(ways) == 4
   assert ways[0][k] * outward == pytest.approx(rc.HOME_ROLL) and ways[1][k] == ways[0][k]
   q0 = _of(side, RAISED)
   ways = _sent_home(_standing_reach(), side, q0)
@@ -601,7 +630,7 @@ def test_an_arm_no_lower_on_its_way_home_ahead_of_its_toes_goes_straight_there()
   assert r.homes["right"] == [] and np.allclose(r.q_to["right"], r.rest["right"])
 
 
-@pytest.mark.parametrize("straight,aside,taken", [(0.5, 0.0, 1), (5.0, 8.0, 1), (5.0, 0.0, 3)])
+@pytest.mark.parametrize("straight,aside,taken", [(0.5, 0.0, 1), (5.0, 8.0, 1), (5.0, 0.0, 4)])
 def test_the_side_way_is_taken_only_past_the_margin_and_where_it_dips_less(
     monkeypatch, straight, aside, taken):
   """`way_home`'s rule over the dips its judge gives each way, in
@@ -638,7 +667,7 @@ def test_a_second_retreat_partway_home_leaves_the_way_be():
   r.q_cmd["right"] = (RAISED + r.rest["right"]) / 2
   r.retreat("right")
   got = [r.q_to["right"]] + r.homes["right"]
-  assert len(got) == len(way) == 3 and all(np.allclose(a, b) for a, b in zip(way, got))
+  assert len(got) == len(way) == 4 and all(np.allclose(a, b) for a, b in zip(way, got))
 
 
 def _stepped(r):
@@ -667,7 +696,7 @@ def test_the_walk_home_walks_every_target_in_turn_then_rests():
     if r.phase["right"] != "home":
       break
   assert r.phase["right"] == "rest" and np.allclose(r.q_cmd["right"], r.rest["right"])
-  assert len(seen) == len(way) == 3 and all(np.allclose(a, b) for a, b in zip(seen, way))
+  assert len(seen) == len(way) == 4 and all(np.allclose(a, b) for a, b in zip(seen, way))
 
 
 def test_the_joints_an_arm_is_judged_home_by_are_its_drivers_reading():
@@ -697,6 +726,87 @@ def test_the_way_home_is_judged_as_the_robot_stands_and_moves_nothing_of_its_mod
   got = _sent_home(r, "right", RAISED)
   assert len(got) == len(want) and all(np.allclose(a, b) for a, b in zip(want, got))
   assert np.array_equal(r.self_model.q, live[0]) and np.array_equal(r.self_model.d.qpos, live[1])
+
+
+#: A table's edge at the robot's front (#560's set-out, 13 cm out): 7 mm
+#: ahead of the hanging grip, whose top is at the top's underside.
+TABLE_EDGE = 0.116
+
+
+def _over_table(side, y=0.31):
+  """A reach's goal over that table: fingers down at 45 deg, as the cup was
+  taken, its side's grasp 0.29 m ahead."""
+  from pluggybot.humanoid.arms import HandGoal, frame
+  return HandGoal(np.array([0.29, y if side == "left" else -y, 0.78]),
+                  frame((0.707, 0.0, -0.707), (0.0, 1.0, 0.0)))
+
+
+def _pre_grasp(r, side):
+  from pluggybot.humanoid import reach as rc
+  return r._planned(side, _over_table(side), rc.APPROACH_M, rc.POSTURES, True)[0][1]
+
+
+@pytest.mark.parametrize("side", hm.SIDES)
+def test_an_arm_reaching_over_a_table_at_its_front_goes_out_at_its_side(side):
+  """#560: standing 13 cm from a 0.72 m table's edge, the straight way out
+  in joint space to a pre-grasp over it drove the hanging hand into the
+  table until the robot fell; judged as the way home is, from its other end
+  (`way_out`), the arm rolls out to its side first, then out with its roll
+  held, then in, clear of a table whose edge is at the robot's front."""
+  r = _standing_reach()
+  q_pre = _pre_grasp(r, side)
+  assert r.reach(side, _over_table(side)) and r.phase[side] == "move"
+  ways = [r.q_to[side]] + r.outs[side]
+  sm = r.self_model
+  assert len(ways) == 4 and np.allclose(ways[-1], q_pre)
+  assert _clear_of_counter(sm, side, r.rest[side], [q_pre], front=TABLE_EDGE) < -0.05, \
+    "the premise: straight into it"
+  assert _clear_of_counter(sm, side, r.rest[side], ways, front=TABLE_EDGE) > 0.01
+
+
+def test_a_hand_already_out_reaches_on_straight():
+  """The side way is an arm's from its own side: one out ahead of the
+  robot's front walks straight to its next pre-grasp, sweeping nothing it
+  worked over aside."""
+  from pluggybot.humanoid import reach as rc
+  r = _standing_reach()
+  q0, miss, _ = rc.solve_seeded(r.self_model, "right", np.array([0.35, -0.25, 0.85]), None)
+  assert miss < 0.01
+  r.q_cmd["right"] = q0
+  q_pre = _pre_grasp(_standing_reach(), "right")
+  assert len(r.way_out("right", q_pre)) == 1
+
+
+def test_the_way_out_walks_every_target_in_turn_and_a_stop_ends_it():
+  """The loop walks the way out target by target to the pre-grasp, the
+  approach waiting on its last (the posture held back here); and a way out
+  ended -- withdrawn, stopped (`halt`), or an arm moved joint by joint --
+  walks none of what was left of it."""
+  from types import SimpleNamespace
+  from pluggybot.humanoid.arms import HandGoal
+  r = _stepped(_standing_reach())
+  r.stand = SimpleNamespace(settled=False)
+  q_pre = _pre_grasp(r, "right")
+  way = r.way_out("right", q_pre)
+  r.goal["right"] = HandGoal(np.zeros(3), None, 1.0)
+  r.q_to["right"], r.outs["right"], r.phase["right"] = way[0].copy(), [q.copy() for q in way[1:]], "move"
+  seen = [r.q_to["right"].copy()]
+  for _ in range(2000):
+    r._update(0.01)
+    if not np.allclose(r.q_to["right"], seen[-1]):
+      seen.append(r.q_to["right"].copy())
+  assert r.phase["right"] == "move" and np.allclose(r.q_cmd["right"], q_pre)
+  assert len(seen) == len(way) == 4 and all(np.allclose(a, b) for a, b in zip(seen, way))
+  for end in ("retreat", "halt", "set_joints"):
+    r = _standing_reach()
+    r.stand = SimpleNamespace(trunk=SimpleNamespace(gravity=lambda: np.array([0.0, 0.0, -1.0])))
+    r.goal["right"] = HandGoal(np.zeros(3), None, 1.0)
+    r.q_to["right"], r.outs["right"], r.phase["right"] = way[0].copy(), [way[1].copy()], "move"
+    if end == "set_joints":
+      r.set_joints("right", r.rest["right"])
+    else:
+      getattr(r, end)("right", *(("until",) if end == "halt" else ()))
+    assert r.outs["right"] == [], end
 
 
 def test_a_carry_that_stops_says_how_short_it_fell_and_holds_the_turn_it_was_asked():
@@ -799,7 +909,8 @@ def test_a_shut_grippers_word_waits_until_its_jaws_have_closed_or_held():
     def read(self):
       return (2 * HELD_GAP_M, 0.0)
   b = object.__new__(hb.HumanoidBody)
-  b.mission = NS(to_stand_routine=lambda: iter(()), reach=NS(grippers={"left": Jaws()}))
+  b.mission = NS(to_stand_routine=lambda: iter(()),
+                 reach=NS(grippers={"left": Jaws()}, ease=lambda side: False))
 
   def hold(seconds):
     clock["t"] += seconds
@@ -810,6 +921,58 @@ def test_a_shut_grippers_word_waits_until_its_jaws_have_closed_or_held():
   with pytest.raises(StopIteration) as done:
     next(routine)
   assert done.value.value is True
+
+
+def test_a_hand_pressed_on_what_it_met_is_eased_before_its_jaws_shut():
+  """#560: a cube's grip point, the fingers' middle, held 2-3 cm past where
+  their tips met its board, the arm pressing them on it at 40-120 N; the
+  jaws dragged across it as they shut and the feet swivelled 4-6 deg.
+  Holding, and pushing on along its fingers past `EASE_N`, the hand's goal
+  and command go to where its senses put it; under it, or not holding,
+  nothing moves."""
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import HandGoal, frame
+  r = _bare_reach()
+  rot = frame((0.5, 0.0, -0.866), (0.0, 1.0, 0.0))
+  goal = np.array([0.32, 0.17, 0.78])
+  at = goal - 0.025 * (-rot[:, 2])                 # its tips met the board 2.5 cm short
+  for phase, push, eased in (("hold", rc.EASE_N + 5.0, True), ("hold", rc.EASE_N - 5.0, False),
+                             ("approach", rc.EASE_N + 5.0, False), ("carry", 40.0, False)):
+    r.phase["left"] = phase
+    r.cmd["left"], r.goal["left"] = HandGoal(goal.copy(), rot, 1.0), HandGoal(goal.copy(), rot, 1.0)
+    r.sensed_grip = {"left": at.copy(), "right": None}
+    r.force = {"left": push * -rot[:, 2], "right": np.zeros(3)}
+    assert r.ease("left") is eased, (phase, push)
+    want = at if eased else goal
+    assert np.allclose(r.cmd["left"].pos, want) and np.allclose(r.goal["left"].pos, want)
+    assert np.allclose(r.cmd["left"].rot, rot)
+
+
+@pytest.mark.parametrize("closed", [True, False])
+def test_a_shut_eases_its_hand_first_and_an_open_does_not(closed):
+  from pluggybot.humanoid import body as hb
+  order = []
+
+  class Jaws:
+    def shut(self, force=None):
+      order.append("shut")
+
+    def open(self, width=None):
+      order.append("open")
+
+    def held(self):
+      return True
+
+    def read(self):
+      return (0.02, 50.0)
+  b = object.__new__(hb.HumanoidBody)
+  b.mission = NS(to_stand_routine=lambda: iter(()),
+                 reach=NS(grippers={"left": Jaws()}, ease=lambda side: order.append("ease")))
+  b.hold_routine = lambda seconds: iter(())
+  b.run = None
+  for _ in b.grip_routine("left", closed):
+    pass
+  assert order == (["ease", "shut"] if closed else ["open"])
 
 
 def test_the_mind_is_told_the_time_limit_its_try_is_cut_at():
