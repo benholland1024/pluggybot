@@ -361,8 +361,8 @@ never one of it.
 ⓘ *Found by building the table (#560):* **a drop is a FREE piece's fall.**
 A piece's speed read at every step reads the hand's own carry: the cube's
 line failed two cubes held fast while the carry swung them down at 0.6-1.0
-m/s. The table's grader reads a piece's fall only while nothing of the
-robot touches it (`table.Watch`).
+m/s. The table's grader and the cube's read a piece's fall only while
+nothing of the robot touches it (`table.Watch`, `place.Watch`).
 
 **Measure a grader's bar before you pick it.** A verdict that tempts you
 toward perception-grade checking gets the spike first, in the units the

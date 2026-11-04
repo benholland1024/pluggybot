@@ -271,7 +271,10 @@ docs/figures/hands_JOB.png`; `--view JOB K` watches one in the viewer.)
 
 **The table's place (#560)**, a job added after: 0 of 8 -- not met, and
 not offered; its pieces each at an edge of what the hands reach at a 0.72 m
-table (SimNotes, "Setting a table").
+table (SimNotes, "Setting a table"). **The cube flown again** there, its
+drop now a free cube's fall (Ben's call): 4 of 8 (1, 3, 5, 6) -- 0, 2 and 4
+its carry out of reach after the grip turned the stance 4-6 deg, 7 its left
+gripper closed on nothing.
 
 **Our procedures were written against the set-outs they are checked on.**
 The review redrew the drawer's, the door's and the cube's set-outs (each

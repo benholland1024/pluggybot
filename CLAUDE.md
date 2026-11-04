@@ -690,8 +690,8 @@ save a filmstrip PNG named after the script.
   set-out's table is a TOP ON LEGS and its south chair is taken away: the
   served room's tables are boxes, and crouching to reach the robot's
   thighs met one at about 200 N. ⚠ A DROP IS A FREE PIECE'S FALL
-  (`table.Watch`): read at every step, the cube's line failed cubes held
-  fast in a swinging carry. ⚠ Our procedure lays 0 places of 8 (the bar
+  (`table.Watch`, and the cube's `place.Watch`, Ben's call): read at every
+  step, the cube's line failed cubes held fast in a swinging carry. ⚠ Our procedure lays 0 places of 8 (the bar
   6): each piece at an edge of the hands' reach at 0.72 m -- so no offer,
   and no row in `rewards.json`. Tags 90-93; 76-89 are left for the store's.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;

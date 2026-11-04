@@ -5097,8 +5097,10 @@ verb):
 - *A held cube's carry reads as a drop.* The carry's posture swings the
   hand +-5 cm at up to 1 m/s with the cube held fast, and the grader's 0.5
   m/s line, read at every step, failed two cubes set down 0.7 and 1.3 cm
-  from the mat's middle (3 and 5). The table's grader reads a drop off a
-  free piece alone.
+  from the mat's middle (3 and 5). Both graders now read a drop off a free
+  piece alone (Ben's call): re-flown, the check lays 4 of 8 (1, 3, 5 and
+  6; the bar 6), the two carries 0.97 and 0.59 m/s held and 0.21 and 0.23
+  free.
 - *The way home catches the counter*: a jaw on its edge, 15 s, the robot
   turned 20 deg (1 and 6, after the cube was down).
 
