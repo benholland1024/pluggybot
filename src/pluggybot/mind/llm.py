@@ -241,7 +241,10 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   who answered (`provider`, the router's `x-inference-provider`).
   `timeout` is each read's. MEASURED (#466): the router's gateway answers
   504 to a request silent for 120 s, and the deployed model, shown a
-  picture, reasoned past it."""
+  picture, reasoned past it. ⚠ A stream that ends with no `[DONE]` and no
+  `finish_reason` was closed by the far side mid-answer, and ends
+  "closed": the router closes a stream at 20 minutes, and three of #560's
+  table answers, still thinking at 1,200.3 s, read as ended and empty."""
   if body is None:
     return _default_fetch(url, body, headers, timeout)
   data = json.dumps({**body, "stream": True,
@@ -249,6 +252,7 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   req = urllib.request.Request(url, data=data, headers=headers, method="POST")
   content, reasoning, usage = [], [], {}
   provider = finish = None
+  done = False
   try:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
       provider = resp.headers.get("x-inference-provider")
@@ -258,6 +262,7 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
           continue
         chunk = line[len("data:"):].strip()
         if chunk == "[DONE]":
+          done = True
           break
         d = json.loads(chunk)
         if "error" in d:
@@ -276,6 +281,8 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
     return e.code, payload
   thought = "".join(reasoning)
   text = (f"<think>{thought}</think>" if thought else "") + "".join(content)
+  if finish is None and not done:
+    finish = "closed"
   return 200, {"choices": [{"message": {"content": text}, "finish_reason": finish}],
                "usage": usage, "provider": provider}
 
@@ -363,8 +370,10 @@ class ChatClient:
         cache_read_input_tokens=0,
         cache_creation_input_tokens=0,
       ),
-      # the SDK's word for an answer its tokens ran out on (#493)
-      stop_reason="max_tokens" if finish == "length" else "end_turn",
+      # the SDK's word for an answer its tokens ran out on (#493), and ours
+      # for one whose stream closed before it ended (`stream_fetch`, #560)
+      stop_reason=("max_tokens" if finish == "length" else "closed" if finish == "closed"
+                   else "end_turn"),
       provider=payload.get("provider"))
 
 

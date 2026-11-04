@@ -189,10 +189,16 @@ One JSON object: "think" first -- your reasoning -- then "source": the
 whole procedure, as text. Your reply, your thinking included, is cut off
 at %(cap)s tokens, and a reply cut off is lost: take what thinking you
 need, and finish well inside %(aim)s."""
-#: What an answer asked again after it was cut off is told first.
+#: What an answer asked again after it was cut off is told first...
 CUT_NOTE = ("(Your last reply ran out of its {tokens:,} tokens, your thinking "
             "included, before you wrote your answer, and it was lost. Think less "
             "this time, and answer.)")
+#: ...and one whose stream closed first (`llm.stream_fetch`'s "closed", #560:
+#: the router closes a stream at 20 minutes, and asked again as if nothing
+#: had happened, three table answers ran into it in turn).
+CLOSED_NOTE = ("(Your last reply was cut off after {minutes:.0f} minutes and {tokens:,} "
+               "tokens, your thinking included, before you wrote your answer, and it "
+               "was lost. Think less this time, and answer.)")
 
 
 def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
@@ -381,14 +387,16 @@ class Turn:
   tokens: tuple[int, int] = (0, 0)
   wall_s: float = 0.0
   provider: str | None = None
-  #: its tokens ran out before it was written
+  #: its tokens ran out before it was written, or its stream closed (`closed`)
   cut: bool = False
+  closed: bool = False
 
   def as_dict(self) -> dict:
     return {"kind": self.kind, "think": (self.answer or {}).get("think"),
             "source": (self.answer or {}).get("source"), "refused": list(self.refused),
             "error": self.error, "tokensIn": self.tokens[0], "tokensOut": self.tokens[1],
-            "wallS": round(self.wall_s, 1), "provider": self.provider, "cut": self.cut}
+            "wallS": round(self.wall_s, 1), "provider": self.provider, "cut": self.cut,
+            "closed": self.closed}
 
 
 class Practice:
@@ -429,10 +437,13 @@ class Practice:
                      int(getattr(usage, "output_tokens", 0) or 0))
       turn.provider = getattr(response, "provider", None)
       turn.wall_s = time.monotonic() - t0
-      turn.cut = getattr(response, "stop_reason", None) == "max_tokens"
+      stop = getattr(response, "stop_reason", None)
+      turn.cut, turn.closed = stop in ("max_tokens", "closed"), stop == "closed"
       turn.answer = extract(response, "notes" if notes else "source")
     except Exception as e:                                # noqa: BLE001 -- said why
-      turn.error = (f"cut off: its {self.max_tokens:,} tokens ran out before the answer "
+      turn.error = (f"cut off: its stream closed after {turn.wall_s:.0f} s, before the "
+                    "answer was written" if turn.closed else
+                    f"cut off: its {self.max_tokens:,} tokens ran out before the answer "
                     "was written" if turn.cut else f"{type(e).__name__}: {e}")
       turn.wall_s = time.monotonic() - t0
       self.messages.pop()
@@ -459,8 +470,9 @@ class Practice:
                          + "\n\nWrite it again, the whole procedure, every reason answered.")
       elif turn.cut and turn.error and retries < MAX_RETRIES and self._last is not None:
         retries += 1
-        turn = self._ask("retry", self._last, note=CUT_NOTE.format(tokens=self.max_tokens),
-                         notes=self._notes)
+        note = (CLOSED_NOTE.format(minutes=turn.wall_s / 60, tokens=turn.tokens[1])
+                if turn.closed else CUT_NOTE.format(tokens=self.max_tokens))
+        turn = self._ask("retry", self._last, note=note, notes=self._notes)
       elif " 429" in turn.error and waits < RATE_WAITS and self._last is not None:
         waits += 1
         time.sleep(self.rate_wait_s * waits)
