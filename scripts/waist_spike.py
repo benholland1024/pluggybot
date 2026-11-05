@@ -143,7 +143,7 @@ def waist_xml(kind: str, spec: hm.HumanoidSpec = hm.CHOSEN, pack_below: bool = T
       e = ET.Element("geom", {"name": name, "class": "limb", "type": "box",
                               "size": f"{_f(tx)} {_f(ty)} {_f((b - a) / 2)}",
                               "pos": f"0 0 {_f((a + b) / 2)}",
-                              "mass": _f(kg * (b - a) / (hi - lo))})
+                              "mass": _f(kg * (b - a) / (hi - lo - 2 * gap))})
       upper.append(e)
   lower = [e for e in upper if _el_name(e) in BELOW_PITCH and pack_below and "pitch" in joints]
   upper = [e for e in upper if e not in lower]
@@ -445,8 +445,9 @@ def plan(sm: WaistModel, side: str, goal: ha.HandGoal, table: list[Posture],
   """`reach.plan` over `table`'s postures: the least bent from which the
   hand reaches `goal` and its pre-grasp WITH `REACH_MARGIN_M` to spare,
   else the least bent at full stretch -- the grip's jaws either way round
-  where `flip` (as `Reach._planned` tries them). Returns (posture, arm at
-  the goal, slack) or None."""
+  where `flip` (as `Reach._planned` tries them). Returns (posture, the arm
+  at the goal, slack, the arm at the pre-grasp, the grip's turn taken) or
+  None."""
   rots = [goal.rot]
   if flip and goal.rot is not None:
     rots.append(goal.rot @ np.diag([-1.0, -1.0, 1.0]))
@@ -761,7 +762,7 @@ def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
         qq[hm.JOINT_NAMES.index(n)] = v
       sm.set_waist(w)
       sm.pose(qq, gravity_of(p.pitch))
-      _, ep, er = sm.solve_chain(side, pts[-1], rot)
+      q, ep, er = sm.solve_chain(side, pts[-1], rot)
       ok = balanced and ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL
     if ok:
       return p, q, dict(sm.waist), worst_self, worst_into
@@ -811,9 +812,9 @@ def plan_in(sm: WaistModel, side: str, goal: ha.HandGoal, p: "Posture", reach_m:
 #: Each part a joint holds with, for a reach's worst share of its stall
 #: rating (`alternatives`): the legs' and the shoulder's as `parts.DRIVES`
 #: has them, the waist's the candidates'.
-HOLDERS = {"waist_pitch": PITCH_MOTOR, "waist_yaw": YAW_MOTOR, "hip_pitch": hp.RS04,
-           "knee": hp.RS04, "ankle_pitch": hp.RS04, "shoulder_pitch": hp.RS03,
-           "shoulder_roll": hp.RS03}
+HOLDERS = {"waist_pitch": PITCH_MOTOR, "waist_yaw": YAW_MOTOR,
+           **{k: hp.DRIVES[k] for k in ("hip_pitch", "knee", "ankle_pitch", "shoulder_pitch",
+                                        "shoulder_roll")}}
 
 
 def share(tau: dict) -> tuple[float, str]:
@@ -864,14 +865,18 @@ def run(tasks: list[dict], jobs: int, into: str | None) -> list[dict]:
   if into:
     os.makedirs(into, exist_ok=True)
     path = os.path.join(into, "rows.jsonl")
+    if os.path.exists(path):
+      # a record is one run's: rows of two runs would be counted together
+      sys.exit(f"{path} exists: --into a directory of its own")
   rows, t0 = [], time.perf_counter()
-  fh = open(path, "a") if path else None
+  fh = open(path, "w") if path else None
+  # ⚠ The pool's workers are REUSED (`_CACHE`: a candidate's postures are
+  # built once a process, 16 s for both joints'): no world is built here,
+  # only the robot's own drawing, so nothing piles up as a house world does
+  # in a reused worker (CLAUDE.md's `maxtasksperchild=1` is the flights').
+  pool = mp.get_context("spawn").Pool(jobs) if jobs > 1 else None
   try:
-    if jobs <= 1:
-      it = map(_evaluate, tasks)
-    else:
-      pool = mp.get_context("spawn").Pool(jobs)
-      it = pool.imap(_evaluate, tasks, chunksize=4)
+    it = pool.imap(_evaluate, tasks, chunksize=4) if pool else map(_evaluate, tasks)
     for k, row in enumerate(it, 1):
       rows.append(row)
       if fh:
@@ -879,10 +884,10 @@ def run(tasks: list[dict], jobs: int, into: str | None) -> list[dict]:
         fh.flush()
       if k % 50 == 0 or k == len(tasks):
         print(f"  {k}/{len(tasks)} rows, {time.perf_counter() - t0:.0f} s", flush=True)
-    if jobs > 1:
-      pool.close()
-      pool.join()
   finally:
+    if pool:
+      pool.terminate()
+      pool.join()
     if fh:
       fh.close()
   return rows
@@ -1294,7 +1299,15 @@ def reposture_carry(kind: str, piece: str, dy: float) -> dict:
   rot = got[4]
   pts = carry_points(pick, put)
   n = len(pts)
-  reach = {}
+
+  def clear():
+    """The arm as posed clear of the table and of the robot's own parts."""
+    return self_clear(sm, side) >= -SELF_M and into_table(sm, TABLE_GAP) <= INTO_M
+
+  # where a posture can take the hand held still: each point solved from the
+  # seeds, the arm put back where the best solve left it before it is judged
+  # (`solve_seeded` leaves the model at the last seed it tried)
+  seeded = {}
   for i, p in enumerate(table):
     pose(sm, p)
     for k, x in enumerate(pts):
@@ -1302,10 +1315,14 @@ def reposture_carry(kind: str, piece: str, dy: float) -> dict:
         continue
       q, ep, er = rc.solve_seeded(sm, side, x, rot)
       tol = STRICT if k == n - 1 else LOOSE
-      if (ep < tol[0] and er < tol[1] and self_clear(sm, side) >= -SELF_M
-          and into_table(sm, TABLE_GAP) <= INTO_M):
-        reach[(k, i)] = q
-  start = [(0, i) for i, p in enumerate(table) if p.label() == got[0].label() and (0, i) in reach]
+      sm._set_arm(side, q)
+      if ep < tol[0] and er < tol[1] and clear():
+        seeded[(k, i)] = q
+  # a node is (point, posture) with the arm that got it there: on along the
+  # posture from THAT arm, judged as it lands; or another posture, the hand
+  # held still, from that posture's own solve of the point
+  start = [(0, i) for i, p in enumerate(table) if p.label() == got[0].label() and (0, i) in seeded]
+  arm = {node: seeded[node] for node in start}
   seen, todo, prev = set(start), deque(start), {}
   end = None
   while todo:
@@ -1313,19 +1330,21 @@ def reposture_carry(kind: str, piece: str, dy: float) -> dict:
     if k == n - 1:
       end = (k, i)
       break
-    if (k + 1, i) in reach and (k + 1, i) not in seen:
+    if (k + 1, i) not in seen and np.linalg.norm(pts[k + 1] - table[i].shoulder[side]) <= r + 0.005:
       pose(sm, table[i])
-      sm._set_arm(side, reach[(k, i)])
-      _, ep, er = sm.solve(side, pts[k + 1], rot, iters=80)
+      sm._set_arm(side, arm[(k, i)])
+      q, ep, er = sm.solve(side, pts[k + 1], rot, iters=80)
       tol = STRICT if k + 1 == n - 1 else LOOSE
-      if ep < tol[0] and er < tol[1]:
+      if ep < tol[0] and er < tol[1] and clear():
         seen.add((k + 1, i))
         prev[(k + 1, i)] = (k, i)
+        arm[(k + 1, i)] = q
         todo.append((k + 1, i))
     for j in range(len(table)):
-      if (k, j) in reach and (k, j) not in seen:
+      if (k, j) in seeded and (k, j) not in seen:
         seen.add((k, j))
         prev[(k, j)] = (k, i)
+        arm[(k, j)] = seeded[(k, j)]
         todo.append((k, j))
   out = {"kind": kind, "piece": piece, "dy": dy, "picked": True, "points": n,
          "carried": end is not None, "furthest": max((k for k, _ in seen), default=-1)}
@@ -1340,7 +1359,7 @@ def reposture_carry(kind: str, piece: str, dy: float) -> dict:
   return out
 
 
-#: The picture's reaches (`--strip`):#: The picture's reaches (`--strip`): the cup and the plate where our
+#: The picture's reaches (`--strip`): the cup and the plate where our
 #: procedure picks them up from its start, unstepped, and the table's middle.
 STRIP = (("the cup, picked up", "right", (0.42, -0.31, 0.78)),
          ("the plate's wall, unstepped", "left", (0.43, 0.246, 0.767)),

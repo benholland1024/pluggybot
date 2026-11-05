@@ -5219,12 +5219,12 @@ waist turns the head's sensors, the port and the arms and nothing below
 
 | candidate | its axis over the hip axes | range | part (stalled, N*m) | adds | rides on it |
 |---|---|---|---|---|---|
-| pitch | 0.18 m (the T2's 0.182), the pack below it | 32 deg back, 43 deg forward (the T2's) | RS04 (28.5) | 1.90 kg: the motor and its bracket | 14.4 kg, its centre 0.11 m over the axis |
+| pitch | 0.18 m (the T2's 0.182), the pack below it | 32 deg back, 43 deg forward (the T2's) | RS04 (28.5) | 1.96 kg: the motor and its bracket | 14.4 kg, its centre 0.11 m over the axis |
 | yaw | 0.06 m, the pelvis's top: the motor stood in the pelvis's middle, where the hips' pitch motors leave 108 mm | +-60 deg, all of it used by the reaches (the T2 turns +-138) | RS03 (13) | 1.73 kg: the motor, its bracket and a 5 mm turntable plate | 19.5 kg, its centre 0.18 m up the axis |
-| both | the yaw below the pitch, the T2's and the G1's order: a bow goes where the shoulders face | | | 3.63 kg (43.18 -> 46.81) | |
+| both | the yaw below the pitch, the T2's and the G1's order: a bow goes where the shoulders face | | | 3.68 kg (43.18 -> 46.86) | |
 
-The whole body's centre of mass rises 0.3 cm with the yaw, 0.9 with the
-pitch and 1.2 with both.
+The whole body's centre of mass rises 0.3 cm with the yaw, 1.0 with the
+pitch and 1.3 with both.
 
 **How a reach is measured**, as `reach.plan` plans one:
 - A posture is the legs' (`reach.POSTURES`) and the waist's angles (its
