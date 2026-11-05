@@ -71,14 +71,16 @@ from pluggybot.telemetry.protocol import ROBOT_ROOT
 #: T2's height (its waist pitch 0.182 m over its hips), the pack below it.
 YAW_Z = 0.06
 PITCH_Z = 0.18
-#: The waist's ranges, rad: the pitch is the T2's (-43 deg back... +32 deg
-#: here forward is POSITIVE, the trunk bowed over its hips as the posture's
-#: pitch is), the yaw +-60 deg (the T2's turns +-138; past 60 here no reach
-#: at a table grew, below).
+#: The waist's ranges, rad, forward and to the left POSITIVE: the pitch the
+#: T2's, 32 deg back and 43 forward; the yaw +-60 deg, all of it used by the
+#: table's reaches (the T2 turns +-138: wider is untried).
 PITCH_RANGE = (-0.558505, 0.750492)
 YAW_RANGE = (-1.05, 1.05)
-#: The parts: the yaw an RS03 (it holds no weight standing upright), the
-#: pitch an RS04 (the trunk's whole upper half bows on it).
+#: The parts, by what each holds as a stalled motor (SimNotes, "A waist,
+#: measured before it is built"): the yaw an RS03 (8.1 N*m at most over the
+#: table's reaches, 10.1 under a 20 N `pull` sideways: an RS02's 6 would
+#: not), the pitch an RS04 (the trunk's upper half bows on it: 32-35 N*m at
+#: the deepest, past even the RS04's 28.5).
 YAW_MOTOR, PITCH_MOTOR = hp.RS03, hp.RS04
 #: The link between them: a 5 mm 6082 turntable plate the pelvis's
 #: footprint, with `model.ALLOWANCE`.
@@ -718,8 +720,9 @@ def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
                tol=STRICT):
   """The least bent posture from which `side`'s grip FOLLOWS `points` in
   turn at `rot` -- the first solved from the seeds, each next on from the
-  last, as a carried hand goes (`Reach.carry`, `path_for`) -- within the
-  reach's own tolerance; or None. The waist HELD at the posture's (as a
+  last, as a carried hand goes (`Reach.carry`, `path_for`) -- within `tol`
+  on its way and the reach's own at its end; or None. The waist HELD at the
+  posture's (as a
   carry holds its posture today), or, `chain`, IN THE ARM'S CHAIN: turned by
   the same solve as the hand goes, from the posture's, and the statue
   balanced again at the end with the waist and the arm where they got to,

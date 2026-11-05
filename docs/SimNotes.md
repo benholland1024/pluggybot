@@ -5207,10 +5207,12 @@ high shelf come into reach in front of the shoulder. A waist pitch keeps the
 legs at the stand, but it adds little reach and holds its RS04 near its
 limit. **Neither widens the plate's or the fork's stance window**: our
 procedure's carry into a put-down near the body's middle stays out of reach
-with any waist. No policy holds a waist yet, so every number here is a
-STATUE's: what the body could reach and hold still, planned as the served
-reach plans. That is an upper bound on what a policy will do, and it is
-compared with today's body planned the same way, never with a flight.
+with any waist. Ben's call (2026-11-05): the yaw alone, on an RS03, built
+once those put-downs are measured with other grips, paths and hands. No
+policy holds a waist yet, so every number here is a STATUE's: what the body
+could reach and hold still, planned as the served reach plans. That is an
+upper bound on what a policy will do, and it is compared with today's body
+planned the same way, never with a flight.
 
 **The candidates**, each today's generated drawing with a waist put in at
 the pelvis's top. Its zero pose is today's body to a micrometre, and the
@@ -5224,7 +5226,10 @@ waist turns the head's sensors, the port and the arms and nothing below
 | both | the yaw below the pitch, the T2's and the G1's order: a bow goes where the shoulders face | | | 3.68 kg (43.18 -> 46.86) | |
 
 The whole body's centre of mass rises 0.3 cm with the yaw, 1.0 with the
-pitch and 1.3 with both.
+pitch and 1.3 with both. The yaw's motor fits the pelvis with room; the
+pitch's does not quite: at 0.18 m the RS04's 120 mm housing takes the top
+2.4 cm of the pack's 74 mm, so a pitch built would raise its axis or lay the
+pack flatter.
 
 **How a reach is measured**, as `reach.plan` plans one:
 - A posture is the legs' (`reach.POSTURES`) and the waist's angles (its
@@ -5254,7 +5259,7 @@ of 32); and no single stance lays the whole place. Without the carry the
 statue found an 8-11 cm plate window and one stance for everything, which
 the flights refute: a carry, not a reach, is where a place fails. The
 statue's BANDS are wider than the flown ones: fingers down, |y| 0.24-0.56
-where #615 flew 0.24-0.40. The plan's slack does not cover what the
+with slack where #615 flew 0.24-0.40. The plan's slack does not cover what the
 standing policy does to a posture (it stood 2 cm under the height asked,
 and the stance turns 5-8 deg as an arm goes out). So a band below is a
 statue's, beside today's statue.
@@ -5338,7 +5343,7 @@ Picked up alone, or set down alone, the plate and the fork each open to
 27-53 cm of stances with the yaw. What stays shut is the CARRY between
 them, toward a put-down near the body's middle (the plate's wall set down
 0.30 m ahead and 8 cm left of the middle, the fork 16 cm): the arm's solve
-misses its points there by 1-2 cm. No way of carrying that a waist allows
+misses its points there by 1-4 cm. No way of carrying that a waist allows
 changes it:
 - the waist held in its posture, as a carry holds one today;
 - the waist turning in the arm's chain as the hand goes;
@@ -5381,8 +5386,9 @@ body's middle, at this grip and with this hand.
 - *The policies.* The stand is retrained: the waist scripted as the arms
   are, with stage (a)'s yaw anchor on each sole. The walk and the get-up are
   flown on the new body first, the waist held stiff and unseen (a policy
-  picks the joints it sees by name, `StandPolicy.joint_names`), and
-  retrained only if they fail; the seeing walker (not served) likewise. At
+  picks the joints it sees by name, `StandPolicy.joint_names`, once its
+  check that they are all the body's joints is a subset's), and retrained
+  only if they fail; the seeing walker (not served) likewise. At
   training/README.md's cost per million steps on a 5090, one try of the
   served three is 1.7 GPU-hours and $1.02 (the stand 31 min and $0.27, the
   walk 23 min and $0.19, the get-up 49 min and $0.56), and the seeing
