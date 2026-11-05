@@ -260,9 +260,13 @@ is the first joint to add if a stage's measurement comes up short, and #560's
 table did for the waist: each hand works only its own side of a place. A
 waist was measured on the robot's model of itself before anything is built
 (SimNotes, "A waist, measured before it is built"), and Ben chose its yaw
-alone, on an RS03 at the pelvis's top (+1.73 kg; 2026-11-05): it is built
-once the carries into the table's put-downs near the body's middle, which
-no waist made, are measured with other grips, paths and hands. Nor a force
+alone, on an RS03 at the pelvis's top (+1.73 kg; 2026-11-05), to be built
+once the carries into the table's put-downs near the body's middle were
+measured with other grips, paths and hands. They were (SimNotes, "The
+table's put-downs, measured before the waist is built"): on today's body
+the plate's opens with another grip and the fork's does not, and with the
+yaw, its grip asked the other way round, both open and one stance lays the
+whole place. Nor a force
 sensor at either wrist (#544): `pull` asks at most what the standing body holds, 20 N, and shown a
 hand's true force in training's physics the standing policy held 60 N, where
 the robot's own readings will not do -- the arm's currents read too rough,

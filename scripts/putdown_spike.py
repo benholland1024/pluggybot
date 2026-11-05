@@ -104,8 +104,6 @@ PLATE_GRIP_M = 0.081
 GRIP_Z = {n: ws.PIECES[n][1][2] for n in ws.PIECES}
 #: The hand our procedure takes each with.
 HAND = {n: ws.PIECES[n][0] for n in ws.PIECES}
-#: Where each sidestep of our procedure puts the stance, m across (`ws.PIECES`).
-PROCEDURE_DY = {n: ws.PIECES[n][3] for n in ws.PIECES}
 
 #: The dishware's other layouts (`ct.TABLE_SOURCES`' T frame, each piece's
 #: middle): Ben's call 4 lets the restaurant change when the job is offered.
@@ -299,8 +297,7 @@ def _grip(piece: str, middle, side: str, lev: Lever, tilt: float,
 def carries(lev: Lever, piece: str) -> list[Carry]:
   """`lev`'s carries of `piece`, start frame: one, or a relay's two."""
   side = lev.hand or HAND[piece]
-  src = ct.TABLE_SOURCES[piece][0] if lev.layout == "today" else LAYOUTS[lev.layout][piece]
-  middle = _start(src)
+  middle = _start(LAYOUTS[lev.layout][piece])
   spot = SPOT[piece]
   legs = [(middle, spot, side)]
   if lev.relay is not None:
@@ -879,12 +876,17 @@ def window(rows, kind, lever, piece, leg, model) -> list[tuple[float, float]]:
                and r["piece"] == piece and r.get("leg", 0) == leg and good(r, model)])
 
 
+def measured(kind: str, model: str) -> bool:
+  """Whether `model` is measured on `kind` (`REPOSE_KINDS`)."""
+  return model != "repose" or kind in REPOSE_KINDS
+
+
 def clears(rows, kind, name, model) -> dict:
   """Each of lever `name`'s pieces (a relay's legs each) on `kind` by
   `model`: its widest window, cm, and where -- or None where the lever
   does not measure it by `model`."""
   lev = LEVERS[name]
-  if model not in lev.models:
+  if model not in lev.models or not measured(kind, model):
     return {}
   out = {}
   for piece in lev.pieces:
@@ -905,7 +907,7 @@ def report_bar(rows) -> None:
         "leg of a relay), by each measure: the levers that clear it, and how wide")
   for kind in kinds:
     print(f"\n== {kind}")
-    for model in ("one", "repose", "served"):
+    for model in [m for m in ("one", "repose", "served") if measured(kind, m)]:
       got = []
       for name in levers:
         c = clears(rows, kind, name, model)
@@ -914,7 +916,7 @@ def report_bar(rows) -> None:
           got.append(f"{name} (" + ", ".join(f"{k} {c[k][0]}" for k in need) + ")")
       print(f"  {model:7s} " + ("; ".join(got) if got else "none"))
     for piece in ("plate", "fork"):
-      for model in ("one", "repose", "served"):
+      for model in [m for m in ("one", "repose", "served") if measured(kind, m)]:
         best = []
         for name in levers:
           c = clears(rows, kind, name, model)
@@ -947,7 +949,8 @@ def report(rows) -> None:
           ws_ = []
           for model in ("one", "repose", "served"):
             if model in lev.models:
-              ws_.append(f"{widest(window(rows, kind, name, piece, leg, model)):2d}")
+              ws_.append(f"{widest(window(rows, kind, name, piece, leg, model)):2d}"
+                         if measured(kind, model) else " -")
           tag = piece if len(legs) == 1 else f"{piece}.{leg + 1}"
           cells.append(f"{tag} {'/'.join(ws_)}")
       print(f"  {name:18s} " + "   ".join(cells))
@@ -961,7 +964,7 @@ def report(rows) -> None:
         for leg in legs:
           one = window(rows, kind, name, piece, leg, "one")
           line_ = f"  {name:18s} {piece}{'' if len(legs) == 1 else f'.{leg + 1}'}: {ws._fmt(one)}"
-          if "repose" in lev.models:
+          if "repose" in lev.models and measured(kind, "repose"):
             rp = window(rows, kind, name, piece, leg, "repose")
             if rp != one:
               line_ += f"; repose {ws._fmt(rp)}"

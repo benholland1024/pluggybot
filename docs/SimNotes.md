@@ -5104,7 +5104,9 @@ over the 32 held out, the cup 23, the plate 24, the fork 6 (it comes last,
 after a step) -- since the hands' small fixes (#560's stage (a), below;
 before them, on the same pod, 23, 6 and none, and no place). Every part of
 the place sits at an edge of what this body reaches at a 0.72 m table,
-below.
+below; the levers that move those edges, and what a waist yaw does to them,
+are stage (c2)'s ("The table's put-downs, measured before the waist is
+built").
 
 **Why the cube missed its mat** (#559's `place_cube`, 0 of 8; its check's
 procedure flown at set-outs 0-7, the truth beside the belief at every
@@ -5205,14 +5207,17 @@ was measured**: each hand reaches past the middle of the table, every
 pick-up our procedure makes is made standing tall, and the floor and the
 high shelf come into reach in front of the shoulder. A waist pitch keeps the
 legs at the stand, but it adds little reach and holds its RS04 near its
-limit. **Neither widens the plate's or the fork's stance window**: our
-procedure's carry into a put-down near the body's middle stays out of reach
-with any waist. Ben's call (2026-11-05): the yaw alone, on an RS03, built
-once those put-downs are measured with other grips, paths and hands. No
-policy holds a waist yet, so every number here is a STATUE's: what the body
-could reach and hold still, planned as the served reach plans. That is an
-upper bound on what a policy will do, and it is compared with today's body
-planned the same way, never with a flight.
+limit. **Neither widens the plate's or the fork's stance window with our
+procedure's grip as it asks it**: its carry into a put-down near the body's
+middle stays out of reach with any waist -- but asked the other way round,
+the yaw opens both, and one stance lays the whole place (stage (c2), "The
+table's put-downs, measured before the waist is built", below). Ben's call
+(2026-11-05): the yaw alone, on an RS03, built once those put-downs were
+measured with other grips, paths and hands. No policy holds a waist yet, so
+every number here is a STATUE's: what the body could reach and hold still,
+planned as the served reach plans. That is an upper bound on what a policy
+will do, and it is compared with today's body planned the same way, never
+with a flight.
 
 **The candidates**, each today's generated drawing with a waist put in at
 the pelvis's top. Its zero pose is today's body to a micrometre, and the
@@ -5357,9 +5362,11 @@ changes it:
 Today's body, by the same search, carries the plate from our procedure's
 0.26 m step with one change of posture (a bow, then standing), where the
 flights laid it 21-24 times of 32; and the fork from its own stance not at
-all, where they laid it 6 times. So the place's limit is not the waist's to
-remove: it is our procedure's straight carry into a put-down near the
-body's middle, at this grip and with this hand.
+all, where they laid it 6 times. So with this grip, asked as our procedure
+asks it, the place's limit is not the waist's to remove -- and the grip is
+the lever: today the reach takes it half a turn round, the one way that
+carries, and the yaw lets it take it as asked, which never carries (stage
+(c2), below).
 
 **What building it would cost.**
 - *The model and its generated files*: `humanoid/model.py` (the trunk cut at
@@ -5421,6 +5428,140 @@ cm for the cup and the plate's wall and reaches no posture for the table's
 middle; the pitch bows 9 deg for both and 43 deg over the table for the
 middle; the yaw stands tall, turned 15-30 deg (`scripts/waist_spike.py
 --strip`)](figures/waist_table.png)
+
+## The table's put-downs, measured before the waist is built (issue #560, stage (c2))
+
+**What is true now.** On today's body the PLATE's carry opens with its grip
+and the FORK's does not open: gripped 30 deg round its wall from straight
+ahead rather than at its side, the plate is picked up and carried from 13 cm
+of stances by every measure below -- from where the robot stands for the
+cup, no step -- and flown, it is laid 27 of 32 held-out set-outs (23
+before), 33 and 34 of the 34 times it was reached in two runs; no lever
+opens the fork by every measure but a relay, which loses the fork in flight.
+The best fork flown, gripped 60 deg down, is laid 12 and 17 of 32 in two
+flights of it (6 before): 9 and 14 places of 32 (4 before), and 2 and 1 of
+the check's 8 (the bar 6). **The waist yaw opens both, its grip asked the
+other way round**: the plate's and the fork's windows open from 3 cm to 21
+(35 tilted 60 deg), and one stance lays the whole place -- 21 cm of stances
+by both measures run on it. #620 found no waist widened them because it
+asked our procedure's grip, which on today's body the reach only ever takes
+the other way round (asked as it is written, never flipped, neither piece is
+carried from anywhere), and which the yaw puts in reach as asked -- so it is
+taken, and never carries. The yaw at +-90 adds little to +-60. Every number
+is a statue's but the flights'.
+
+**How it is measured** (`scripts/putdown_spike.py`, on the robot's model of
+itself as #620's instrument measures a reach). A lever's WINDOW is the
+stances, 1 cm apart across, from which the hand picks a piece up -- clear of
+the table and of its own parts, still reached once balanced again -- and
+carries it where it goes and sets it down, clear; the bar, written before
+anything was measured, a window of 6 cm (twice a sidestep's +-3 cm) for
+every piece. Three measures of the carry, because they disagree:
+- *one posture* follows it all, the reach's postures, at the reach's own
+  tolerance: #620's `--window`, reproduced cell by cell (`--check`: 48
+  cells);
+- *repose*, #620's `--reposture`: the posture changed on the way, the hand
+  held still, wherever any posture reaches -- reproduced at 12 cells; run
+  on today's body alone (on a waist it tries every posture at every point,
+  36 s of a stance's 57);
+- *served*, new: our procedure's verbs as the served reach makes them,
+  every posture one of the carry's own (`reach.HOLD_POSTURES`: three bows
+  at full height the reach's lack) -- each `pull` in the posture `path_for`
+  plans, a straight `move_hand` in the one `posture_for` finds for its end
+  and another at most once a second where it misses, a turn or a `via` path
+  in the one `path_for` plans for it all.
+
+On our procedure today they read the plate 3, 8 and 7 cm, the fork 3, 7 and
+5, and the cup 25, 30 and 26. Its plate step, 0.26 m, is at the served
+window's edge (laid 24 of 32 at #618), its fork stance, 0.09, outside all
+three (6 of 32).
+
+**The levers** (62, `--list`), each on today's body, the yaw and the yaw at
++-90, and the widest window, cm, by one posture / repose / served (the bar
+6; the relays a leg each):
+
+| lever | plate today | fork today | plate, yaw | fork, yaw |
+|---|---|---|---|---|
+| our procedure: 45 deg, the jaws as it asks, a 5 cm lift, straight | 3 / 8 / 7 | 3 / 7 / 5 | 3 / - / 3 | 3 / - / 3 |
+| the jaws as asked, never the other way round | 0 / 0 / 0 | 0 / 0 / 0 | 0 / - / 0 | 0 / - / 0 |
+| the jaws asked the other way round | 3 / 11 / 7 | 3 / 11 / 5 | 21 / - / 21 | 21 / - / 23 |
+| tilted 60 deg, the jaws the other way round | 1 / 8 / 9 | 1 / 7 / 8 | 35 / - / 35 | 35 / - / 36 |
+| fingers straight down | 0 / 2 / 2 | 0 / 3 / 2 | 16-23 / - / 10 | 16-22 / - / 11 |
+| the plate's wall gripped 30 deg round from ahead | 13 / 13 / 13 | | 14 / - / 10 | |
+| the plate turned 45 deg about the upright on its way | 22 / - / 24 | | 44 / - / 20 | |
+| the fork's handle 3 cm nearer its end | | 3 / 7 / 7 | | 3 / - / 4 |
+| lifted 15 cm; through a point 5 cm out ahead | 3 / 5 / 6; 3 / - / 6 | 3 / 6 / 6; 3 / - / 8 | 1-3 | 1-3 |
+| the right hand (the plate's right wall) | 11-22 / 11-22 / 6-13 | 0 / 0 / 0-1 | 19-35 / - / 10-16 | 1-11 / - / 9-12 |
+| the stance 5 cm back, or nearer (knee room) | 2 / 7-8 / 6 | 1 / 7-10 / 6 | 5-7 / - / 2-5 | 5-7 / - / 1-2 |
+| the stance turned 10-30 deg | 0-5 / 0-6 / 0-7 | 0-3 / 0-6 / 0-5 | 0-7 / - / 1-6 | 1-4 / - / 1-4 |
+| the dishware waiting nearer the edge | 8 / 8 / 3 | 7 / 7 / 6 | 4 / - / 2 | 5 / - / 2 |
+| a relay: set down halfway, a step, taken up again | 8+9 / 10+9 / 8+9 | 7+9 / 10+12 / 7+8 | 10+16 / - / 12+17 | 12+10 / - / 8+11 |
+
+- *The jaws are the yaw's lever.* A two-jaw grip is the same grip half a
+  turn round its fingers (`Reach._planned` takes the other where the asked
+  plans nothing). Today every pick-up of the plate and the fork in a window
+  is planned the other way round; with the yaw, ours as asked is planned,
+  and carries nowhere. Asked the other way round and tilted 60 deg, on the
+  yaw, the whole place -- the cup by our procedure's grip -- is laid from
+  one stance 0.04-0.24 m to the left of where the robot starts: one step of
+  about 0.14 m, and none between the pieces.
+- *Where the plate is gripped is today's plate's lever*: its wall 30 deg
+  round from straight ahead puts the hand out in front of its shoulder at
+  both ends of the carry, where at its side the put-down is near the body's
+  middle. Turned about the upright on its way (`move_hand`'s turn: the
+  plate is round, and turns with the hand) it opens wider, 22-24 cm, and is
+  not yet flown.
+- ⚠ *A tilt turned on the way* (picked up at 45 deg, set down at 60 or 90)
+  reads wide on the statue and cannot be used: the turn is about the jaws'
+  own line, which runs through the plate's middle, so a plate held firmly
+  turns with the hand, and nothing pulls it level.
+- *A relay* clears the bar on the statue, piece by piece, and flown it loses
+  the fork: after a step the robot knows where it set the fork down by its
+  legs' reckoning, which misses a sidestep's slide (the grip closed on
+  nothing 6 times in 40), or by the fork's tag, read far to the side (unseen
+  8 times; laid 3 cm off 16).
+- *The yaw at +-90* widens few windows past +-60's: tilted 60, the plate 50
+  and the fork 47 served (35 and 36).
+
+**Flown** on one machine (an EPYC 7J13, osmesa, as deployed: our procedure
+flown again there repeated all 40 flights exactly), our procedure changed
+by each lever alone, at the check's set-outs 0-7 and #618's 32 held-out
+ones. The two that bought something are kept as scenes
+(`hands_check.SCENES`; `scripts/hands_check.py --view table_rim30_t60 K`
+watches one), flown again as kept -- the same procedure but for half a
+second's stand before the plate, which moved 10 verdicts of 40: a flight's
+outcome is that chaotic, so the two runs are both given:
+
+| our procedure, changed | places at 0-7 (the bar 6) | places of 32 | cup / plate / fork of 32 |
+|---|---|---|---|
+| as it is | 0 | 4 | 23 / 23 / 6 |
+| standing at the served windows' middles (0.29 and 0.19 m) | 0 | 3 | 23 / 12 / 4 |
+| both pieces gripped 60 deg down, at their windows | 0 | 2 | 23 / 21 / 2 |
+| the plate gripped 30 deg round, from where it stands (`table_rim30`) | 1, 1 | 2, 1 | 23 / 27 / 3, 2 |
+| ...and the fork at 60 deg, from 6.5 cm to the right (`table_rim30_t60`) | 2, 1 | 9, 14 | 23 / 27 / 12, 17 |
+| ...and the fork relayed | 0 | 0 | 23 / 27 / 0 |
+| ...and relayed, its tag read again | 0 | 2 | 23 / 27 / 2 |
+
+- ⚠ *The statue's windows sit a few cm off the flown ones*: stood at the
+  served windows' middles, the plate's pick-up stopped short 16 times in 40,
+  and our procedure's own 0.26 m step -- the window's edge on the statue --
+  laid it 23 of 32. Compare statue to statue, and fly what is chosen.
+- *The cup is a place's limit too*: laid 23 of 32 whatever the lever (it
+  comes first, unchanged), its grip closing on nothing at 4 set-outs of 40,
+  and knocked off the table before the plate is reached at 5 others -- the
+  same set-outs whatever the lever.
+
+![Our procedure changed by the two levers that bought something, at the
+check's set-out 0, the one of the 8 it laid whole: the cup as ever (5-15
+s), then the plate gripped 30 deg round its wall from where the robot
+stands (25 s) and the fork at 60 deg after a step -- the plate 0.4 cm, the
+cup 0.6 and the fork 2.0 from where each goes (`MUJOCO_GL=osmesa
+scripts/hands_check.py --strip table_rim30_t60 0`; `--view` watches
+it)](figures/hands_table_putdown.png)
+
+**What it cannot say.** Whether the standing policy, retrained for the yaw,
+holds these postures; how far the stance turns as an arm goes out on a body
+whose trunk turns instead (#620's open half); and the yaw's windows flown.
 
 ## Debugging workflow that worked
 
