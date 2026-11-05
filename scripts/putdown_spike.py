@@ -647,7 +647,8 @@ def served(sm, side, hold, p_pick, q_pick, pick, taken, moves, plan_pts, fixed, 
     its line, a miss past `REPLAN_M` or `REPLAN_ROT` taking the least bent
     posture that reaches where it is (`posture_for`) with the hand held
     still -- or, through way points or turning (`fixed`), the one posture
-    `path_for` plans for them all;
+    `path_for` plans for them all; a posture planned at most once a second
+    of the line (`REPLAN_EVERY`);
   - each point solved on from the last, the arm continuing from where it
     is commanded (a posture taken mid-move keeps the arm's branch); a miss
     past `BLOCKED_M` or `HOLD_ROT_TOL` is out of reach; a carry arrives
@@ -672,11 +673,14 @@ def served(sm, side, hold, p_pick, q_pick, pick, taken, moves, plan_pts, fixed, 
     else:
       take(path_for(sm, side, hold, here.label(), q, [at] + plan_pts[k], reach_m))
     ws.pose(sm, here)
-    ep = 0.0
-    for x, r in mv:
+    ep, planned = 0.0, -REPLAN_EVERY
+    for j, (x, r) in enumerate(mv):
       sm._set_arm(side, q)
       q2, ep, er = sm.solve(side, x, r, iters=80)
-      if name == "carry" and not fixed and (ep > rc.REPLAN_M or er > rc.REPLAN_ROT):
+      if (name == "carry" and not fixed and (ep > rc.REPLAN_M or er > rc.REPLAN_ROT)
+          and j - planned >= REPLAN_EVERY):
+        # ...at most once a second, as the served carry plans one
+        planned = j
         p = posture_for(sm, side, hold, here.label(), q, x, r, reach_m)
         if p is not None and p.label() != here.label():
           take(p)
@@ -701,6 +705,17 @@ def served(sm, side, hold, p_pick, q_pick, pick, taken, moves, plan_pts, fixed, 
 # ---- one task: a carry from one stance ----------------------------------------
 
 _HOLD: dict = {}
+
+
+#: Where #620's search over postures (`repose`) is run: today's body, where
+#: it is the measure that agrees with the flights at our procedure's plate
+#: step. On a waist the served carry measures posture changes (`served`):
+#: the search tries every posture at every point (36 s of a yaw stance's
+#: 57), and on the yaw #620 found it carried neither the plate nor the fork.
+REPOSE_KINDS = ("none",)
+#: A straight carry takes another posture at most once in this many points
+#: of its line: `reach.REPLAN_S` at `HOLD_SPEED`, `CARRY_STEP_M` apart.
+REPLAN_EVERY = max(1, round(rc.REPLAN_S * rc.HOLD_SPEED / ws.CARRY_STEP_M))
 
 
 def _hold(kind: str):
@@ -748,7 +763,7 @@ def evaluate(task: dict) -> dict:
   out["one"] = bool(got1 is not None and got1[3] <= ws.INTO_M and got1[2] >= -ws.SELF_M)
   if got1 is not None:
     out["one_posture"], out["one_into"], out["one_self"] = got1[0].label(), round(got1[3], 4), round(got1[2], 4)
-  if "repose" in lev.models:
+  if "repose" in lev.models and kind in REPOSE_KINDS:
     if out["one"]:
       out["repose"] = True
     else:
@@ -859,6 +874,53 @@ def window(rows, kind, lever, piece, leg, model) -> list[tuple[float, float]]:
                and r["piece"] == piece and r.get("leg", 0) == leg and good(r, model)])
 
 
+def clears(rows, kind, name, model) -> dict:
+  """Each of lever `name`'s pieces (a relay's legs each) on `kind` by
+  `model`: its widest window, cm, and where -- or None where the lever
+  does not measure it by `model`."""
+  lev = LEVERS[name]
+  if model not in lev.models:
+    return {}
+  out = {}
+  for piece in lev.pieces:
+    legs = sorted({r.get("leg", 0) for r in rows if r["lever"] == name and r["piece"] == piece})
+    for leg in legs:
+      iv = window(rows, kind, name, piece, leg, model)
+      best = max(iv, key=lambda ab: ab[1] - ab[0], default=None)
+      out[piece if len(legs) == 1 else f"{piece}.{leg + 1}"] = (widest(iv), best)
+  return out
+
+
+def report_bar(rows) -> None:
+  """The bar (`BAR_CM`) lever by lever: which clear it for the plate and
+  the fork (a relay's every leg), by each measure."""
+  kinds = [k for k in KINDS if any(r["kind"] == k for r in rows)]
+  levers = [n for n in LEVERS if any(r["lever"] == n for r in rows)]
+  print(f"\nTHE BAR: a window of at least {BAR_CM} cm for the plate and for the fork (every "
+        "leg of a relay), by each measure: the levers that clear it, and how wide")
+  for kind in kinds:
+    print(f"\n== {kind}")
+    for model in ("one", "repose", "served"):
+      got = []
+      for name in levers:
+        c = clears(rows, kind, name, model)
+        need = [k for k in c if k.split(".")[0] in ("plate", "fork")]
+        if need and all(c[k][0] >= BAR_CM for k in need):
+          got.append(f"{name} (" + ", ".join(f"{k} {c[k][0]}" for k in need) + ")")
+      print(f"  {model:7s} " + ("; ".join(got) if got else "none"))
+    for piece in ("plate", "fork"):
+      for model in ("one", "repose", "served"):
+        best = []
+        for name in levers:
+          c = clears(rows, kind, name, model)
+          for k, (w, ab) in c.items():
+            if k.split(".")[0] == piece and w >= BAR_CM:
+              best.append((w, f"{name}{k[len(piece):]} {w} ({ab[0]:+.2f}..{ab[1]:+.2f})"))
+        best.sort(key=lambda b: -b[0])
+        print(f"  {piece:5s} {model:7s} " + ("; ".join(b[1] for b in best[:12]) if best else "none")
+              + (f"; and {len(best) - 12} more" if len(best) > 12 else ""))
+
+
 def report(rows) -> None:
   errs = [r for r in rows if "error" in r]
   if errs:
@@ -901,6 +963,7 @@ def report(rows) -> None:
           if "served" in lev.models:
             line_ += f"; served {ws._fmt(window(rows, kind, name, piece, leg, 'served'))}"
           print(line_)
+  report_bar(rows)
 
 
 def check(windows: bool = True) -> None:
