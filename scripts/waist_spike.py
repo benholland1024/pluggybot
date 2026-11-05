@@ -14,6 +14,7 @@ pelvis's height and pitch, `reach.POSTURES`) and the waist's angles.
   yaw        a waist yaw at the pelvis's top, `YAW_Z`
   pitch_yaw  both, the yaw below the pitch (the T2's and the G1's order: a
              bow is toward where the shoulders face)
+  yaw90      the yaw at +-90 deg (#560's stage (c2), `scripts/putdown_spike.py`)
 
 Nothing here is served, trained or flown: no policy holds a waist yet, so
 every number is a statue's -- what the body could reach and hold still,
@@ -73,9 +74,11 @@ YAW_Z = 0.06
 PITCH_Z = 0.18
 #: The waist's ranges, rad, forward and to the left POSITIVE: the pitch the
 #: T2's, 32 deg back and 43 forward; the yaw +-60 deg, all of it used by the
-#: table's reaches (the T2 turns +-138: wider is untried).
+#: table's reaches (the T2 turns +-138), and `yaw90`'s the same yaw at +-90
+#: (#560's stage (c2): Ben's call 2, "try wider").
 PITCH_RANGE = (-0.558505, 0.750492)
 YAW_RANGE = (-1.05, 1.05)
+YAW_RANGES = {"yaw90": (-1.58, 1.58)}
 #: The parts, by what each holds as a stalled motor (SimNotes, "A waist,
 #: measured before it is built"): the yaw an RS03 (8.1 N*m at most over the
 #: table's reaches, 10.1 under a 20 N `pull` sideways: an RS02's 6 would
@@ -87,7 +90,7 @@ YAW_MOTOR, PITCH_MOTOR = hp.RS03, hp.RS04
 LINK_PLATE = hm.Plate(2 * hm.CHOSEN.pelvis_half[0] * 2 * hm.CHOSEN.pelvis_half[1], 0.005)
 
 CANDIDATES = {"none": (), "pitch": ("pitch",), "yaw": ("yaw",),
-              "pitch_yaw": ("yaw", "pitch")}
+              "pitch_yaw": ("yaw", "pitch"), "yaw90": ("yaw",)}
 WAIST_JOINTS = {"yaw": "waist_yaw", "pitch": "waist_pitch"}
 
 #: What rides the pelvis whatever the waist: the root's own.
@@ -161,7 +164,7 @@ def waist_xml(kind: str, spec: hm.HumanoidSpec = hm.CHOSEN, pack_below: bool = T
     centre = (0.0, 0.0, z - motor.length / 2) if j == "yaw" else (0.0, 0.0, z)
     parent.append(_housing(f"waist_{j}_motor", motor, (centre[0], centre[1], centre[2] - at), axis))
     link = ET.SubElement(parent, "body", {"name": f"waist_{j}_link", "pos": f"0 0 {_f(z - at)}"})
-    lo, hi = YAW_RANGE if j == "yaw" else PITCH_RANGE
+    lo, hi = YAW_RANGES.get(kind, YAW_RANGE) if j == "yaw" else PITCH_RANGE
     ET.SubElement(link, "joint", {
       "name": WAIST_JOINTS[j], "axis": "0 0 1" if j == "yaw" else "0 1 0",
       "range": f"{_f(lo)} {_f(hi)}", "armature": _f(motor.armature),
@@ -306,6 +309,7 @@ class WaistModel(ha.SelfModel):
 #: of 0.15 to its range's end, the yaw either way in steps of 15 deg.
 WAIST_PITCHES = (0.0, 0.15, 0.3, 0.45, 0.6, 0.75)
 WAIST_YAWS = tuple(math.radians(a) for a in (0, 15, -15, 30, -30, 45, -45, 60, -60))
+WAIST_YAWS_OF = {"yaw90": WAIST_YAWS + tuple(math.radians(a) for a in (75, -75, 90, -90))}
 #: A statue balances when its soles are flat on the floor and its centre of
 #: mass over their middle within this, m (`reach.static_legs`' residuals).
 BALANCED_M = 0.005
@@ -314,7 +318,7 @@ BALANCED_M = 0.005
 def waist_settings(kind: str) -> list[dict]:
   joints = CANDIDATES[kind]
   pitches = WAIST_PITCHES if "pitch" in joints else (0.0,)
-  yaws = WAIST_YAWS if "yaw" in joints else (0.0,)
+  yaws = WAIST_YAWS_OF.get(kind, WAIST_YAWS) if "yaw" in joints else (0.0,)
   out = []
   for p, y in itertools.product(pitches, yaws):
     w = {}
