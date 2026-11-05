@@ -220,9 +220,10 @@ Before doing anything, read the doc that owns what you are about to touch:
   is 40 % of the reserve) and comes out of the 1800 s between asks
   (`UNMINDED_AFTER_S`, stamped at the ask). ⚠ A stream silent for
   `llm.STREAM_SILENCE_S` (115) ends there, and no read waits past the
-  deadline (a worker still reading makes the next decision `busy`). `INTERRUPT_TIMEOUT_S` (115) is the
-  interrupt's own, never the decision's; `ESCALATE_TIMEOUT_S` (360) is an
-  ordering above it; `llm.LOCAL_TIMEOUT_S` is a FLOOR (a 27.3 s cold load).
+  deadline (a worker still reading makes the next decision `busy`).
+  `INTERRUPT_TIMEOUT_S` (115) is the interrupt's own, never the decision's;
+  `ESCALATE_TIMEOUT_S` (360) is an ordering above it; `llm.LOCAL_TIMEOUT_S`
+  is a FLOOR (a 27.3 s cold load).
   ⚠ The token budget is sized to it: one moves with the other. ⚠
   `scripts/overseer_probe.py --calls 50` under-measures a mission by about
   half: choose from the live robots' own turns, confirm with a flight.
@@ -236,10 +237,11 @@ Before doing anything, read the doc that owns what you are about to touch:
   it was written (the response's `stop_reason`, and its text unparsed;
   #604), never `garbled`: read as "decision was not JSON: ''", both robots
   believed their JSON was refused. ⚠ A stream still being written at the
-  deadline is `timeout` (`StillWriting`: it names who), and one closed
+  deadline is `timeout` (`StillWriting`: it names who, and the robot is
+  told its answer was still being written), and one that closed or failed
   mid-answer `offline` (`StreamClosed`); either, its count never come, is
   BOOKED AT AN ESTIMATE (`llm.CHARS_PER_TOKEN`), never free, and its row's
-  tokens are null.
+  tokens are null. Only with a wall: practice's streams are as they were.
 - **Two arms: `scripted`, the loop with no mind, and `autonomous`, the one
   mind** (issues #115, #427; Evaluation.md §2). There is no control: what is
   measured is the observatory's rows. A mind takes THREE rails off —
@@ -1216,7 +1218,9 @@ save a filmstrip PNG named after the script.
   SDK, `local` to ollama, `openai-compatible` to somebody else's endpoint; the
   non-SDK backends are ONE adapter (`llm.ChatClient`) and `llm.build_client`
   is the only function that knows a vendor. The deployed pick is
-  **`zai-org/GLM-5.3-Flash:cheapest`** (#225). ⚠ **The provider is the model
+  **`zai-org/GLM-5.3-Flash:baseten`** (the box's `.env`, pinned 2026-11-05
+  in #604's follow-up; `:cheapest` from #225 until then, three providers
+  that were three minds). ⚠ **The provider is the model
   id's to say** (`org/name:<provider>`, `:cheapest`): a BARE id is billed at
   the router's preference (measured ten times the cheapest rate). ⚠ **A
   candidate is measured through the DEPLOYED prompt** (`overseer_probe.py
@@ -1230,16 +1234,16 @@ save a filmstrip PNG named after the script.
   its tokens ran out on is `fallback:cutoff`, billed). ⚠ THE BUDGET IS SIZED
   TO `CALL_TIMEOUT_S`: past the deadline a think that ran out is a timeout,
   booked at an estimate and counted toward the cooloff, where inside it it
-  is a cut-off metered and said (`test_the_budget_is_sized_to_the_deadline`). ⚠
-  `:cheapest`'s providers are not one mind, and the difference is mostly
+  is a cut-off metered and said (`test_the_budget_is_sized_to_the_deadline`).
+  ⚠ `:cheapest`'s providers are not one mind, and the difference is mostly
   their default EFFORT: `$PLUGGY_REASONING_EFFORT` names it (the request's
   `reasoning_effort`; unset, the provider's; `build.reasoningEffort`) --
   one model thought 1.5k tokens a turn on deepinfra and 5.2k on baseten,
-  another none and up to 51k. Measure a candidate BY PROVIDER AND EFFORT on the
-  live robots' own turns, never the probe's synthetic one alone. A decision
-  a response came back for says who answered (`Decision.call`, the `call`
-  event, `pw_decisions.provider`). Money has THREE states: "no API cost",
-  "unknown" (`priced: false`), a number.
+  another none and up to 51k. Measure a candidate BY PROVIDER AND EFFORT on
+  the live robots' own turns, never the probe's synthetic one alone, and
+  confirm it flown. A decision a response came back for says who answered
+  (`Decision.call`, the `call` event, `pw_decisions.provider`). Money has
+  THREE states: "no API cost", "unknown" (`priced: false`), a number.
 - **What an errand costs** (`economy/energy.py` + `energy.json`,
   `$PLUGGY_ENERGY`; Overseer.md §5).
   `needs_charge` is checked BETWEEN errands, so every errand is priced

@@ -560,3 +560,23 @@ def test_nothing_in_economy_reads_the_measurement():
       if isinstance(node, ast.Import):
         assert not any("evaluation" in a.name for a in node.names), \
           f"{path.name} imports the measurement"
+
+
+def test_a_runs_effort_is_part_of_its_regime():
+  """#604's follow-up review: `$PLUGGY_REASONING_EFFORT` moves the mind in
+  the box's `.env`, with no new commit, and one model thought 1.4k tokens a
+  turn at `low` and 5.2k at its provider's default -- so the observatory's
+  regime names it where a run does (the site files `reasoningEffort`), and
+  a run naming none keeps the label it always had. Shown to fail before:
+  the two efforts were one regime."""
+  import importlib.util
+  spec = importlib.util.spec_from_file_location(
+    "qualities_script", Path(__file__).resolve().parent.parent / "scripts" / "qualities.py")
+  script = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(script)
+  run = {"arm": "autonomous", "commit": "abc1234", "world": "home_humanoid_pair",
+         "model": "zai-org/GLM-5.3-Flash:baseten"}
+  assert script.regime_of(run) == ("autonomous · abc1234 · home_humanoid_pair · "
+                                   "zai-org/GLM-5.3-Flash:baseten")
+  assert script.regime_of({**run, "reasoningEffort": None}) == script.regime_of(run)
+  assert script.regime_of({**run, "reasoningEffort": "low"}) != script.regime_of(run)

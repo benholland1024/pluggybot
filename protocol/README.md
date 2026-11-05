@@ -63,12 +63,16 @@ On the wire:
   (`$PLUGGY_REASONING_EFFORT`, the model's own word, `low` or `high`).
   ⚠ **ABSENT where none was named**, which is the provider's own default
   -- as `rung` is absent where there is no ladder.
-- **A `fallback:timeout` decision may carry its `call`**: a stream still
-  being written at the deadline came from someone, so the `call` event
-  names the `provider` and `wallS` (about the deadline), with `tokensIn`
-  and `tokensOut` NULL: a stream's count comes at its end, and none came
-  (the sim books an estimate of its own; the row says no count came).
-  A timeout where nothing came back still names nobody, and so do a map
+- **A `fallback:timeout` or `offline` decision may carry its `call`**: a
+  stream still being written at the deadline, or one that failed after its
+  first delta, came from someone, so the `call` event names the `provider`
+  and `wallS`.
+- **`tokensIn` and `tokensOut` may be NULL**: on any call whose stream
+  sent no count -- one stopped at the deadline, one that failed or closed
+  mid-answer, one from a provider that sends none, an answer included. A
+  stream's count comes at its end; the sim books an estimate of its own,
+  and the row says no count came.
+- A timeout where nothing came back still names nobody, and so do a map
   row and a policy fallback. `cut` stays the budget's.
 
 No bump: the field is new and optional, and a `call` on a timeout is the

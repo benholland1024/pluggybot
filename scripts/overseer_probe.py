@@ -353,13 +353,16 @@ def report_calls(boss: Overseer) -> None:
   print(f"\nwho answered, at a budget of {boss.max_tokens} tokens "
         f"(the deadline is {CALL_TIMEOUT_S:g} s)")
   print("  provider          calls  cut off   out median / max   s median / max")
+  def count(n, width=6):
+    # a stream whose count never came says so (`_call_record`: None)
+    return f"{'?':>{width}}" if n is None else f"{n:{width}.0f}"
   for name, calls in sorted(by.items()):
     out = dist([c["tokensOut"] for c in calls])
     wall = dist([c["wallS"] for c in calls])
     cut = sum(1 for c in calls if c["cut"])
-    print(f"  {name:<16} {len(calls):6d}  {cut:7d}   {out['median']:6.0f} / "
-          f"{out['max']:<6d}  {wall['median']:5.1f} / {wall['max']:.1f}")
-    print(f"    raw (out, s): {' '.join(f'{c['tokensOut']},{c['wallS']:.0f}' for c in calls)}")
+    print(f"  {name:<16} {len(calls):6d}  {cut:7d}   {count(out['median'])} / "
+          f"{count(out['max'], 0):<6}  {wall['median']:5.1f} / {wall['max']:.1f}")
+    print(f"    raw (out, s): {' '.join(f'{count(c['tokensOut'], 0)},{c['wallS']:.0f}' for c in calls)}")
 
 
 def main() -> None:

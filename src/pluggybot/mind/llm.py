@@ -62,6 +62,7 @@ talk to one HTTP endpoint sixty times an hour -- least of all to talk to one
 on localhost.
 """
 
+import http.client
 import json
 import os
 import urllib.error
@@ -249,22 +250,29 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   with no `[DONE]` and no `finish_reason` was closed by the far side
   mid-answer, and ends "closed": the router closes a stream at 20 minutes,
   and three of #560's table answers, still thinking at 1,200.3 s, read as
-  ended and empty. ⚠ One whose count never came is booked at an estimate
-  (`_estimated_usage`, `usageEstimated`), never at none."""
+  ended and empty. ⚠ WITH A WALL (the robots' calls), a stream that fails
+  after its first delta -- an error chunk, a read silent for its whole
+  `timeout`, a reset -- ends "failed", what it streamed and who sent it
+  kept (`streamError` says how), and one whose count never came is booked
+  at an estimate (`_estimated_usage`, `usageEstimated`), never at none:
+  each was billed. Without one (practice's), as it always was."""
   if body is None:
     return _default_fetch(url, body, headers, timeout)
   data = json.dumps({**body, "stream": True,
                      "stream_options": {"include_usage": True}}).encode()
   req = urllib.request.Request(url, data=data, headers=headers, method="POST")
   content, reasoning, usage = [], [], {}
-  provider = finish = None
-  done = False
+  provider = finish = failed = None
+  done = streamed = False
   end = None if wall_s is None else monotonic() + wall_s
   try:
     with urllib.request.urlopen(req, timeout=timeout if wall_s is None
                                 else min(timeout, wall_s)) as resp:
       provider = resp.headers.get("x-inference-provider")
       sock = _socket_of(resp) if end is not None else None
+      if sock is not None:
+        # from the headers on: the first line may wait too
+        sock.settimeout(max(0.001, min(timeout, end - monotonic())))
       try:
         for raw in resp:
           if end is not None:
@@ -283,19 +291,34 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
             break
           d = json.loads(chunk)
           if "error" in d:
-            return 500, d
+            if end is None or not streamed:
+              return 500, d
+            err = d["error"]
+            said = err.get("message") if isinstance(err, dict) else err
+            failed = f"the stream failed mid-answer: {str(said or d)[:160]}"
+            break
           usage = d.get("usage") or usage
           for choice in d.get("choices") or ():
             delta = choice.get("delta") or {}
             reasoning.append(str(delta.get("reasoning_content") or delta.get("reasoning") or ""))
             content.append(str(delta.get("content") or ""))
+            streamed = streamed or bool(reasoning[-1] or content[-1])
             finish = choice.get("finish_reason") or finish
       except TimeoutError:
         # a read the wall cut short is the deadline; one silent for its
         # whole `timeout` before it, a stream nobody is writing
-        if end is None or monotonic() < end - WALL_SLACK_S:
+        if end is not None and monotonic() >= end - WALL_SLACK_S:
+          finish = "deadline"
+        elif end is None or not streamed:
           raise
-        finish = "deadline"
+        else:
+          failed = f"the stream was silent for {timeout:g} s mid-answer"
+      except (OSError, http.client.HTTPException, ValueError) as e:
+        # ...and one that broke mid-answer (a reset, a cut chunk, a line
+        # that was not JSON) was billed for what it streamed
+        if end is None or not streamed:
+          raise
+        failed = f"the stream broke mid-answer: {type(e).__name__}: {e}"[:200]
   except urllib.error.HTTPError as e:
     try:
       payload = json.loads(e.read().decode())
@@ -304,11 +327,15 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
     return e.code, payload
   thought = "".join(reasoning)
   text = (f"<think>{thought}</think>" if thought else "") + "".join(content)
-  if finish is None and not done:
+  if failed:
+    finish = "failed"
+  elif finish is None and not done:
     finish = "closed"
   payload = {"choices": [{"message": {"content": text}, "finish_reason": finish}],
              "usage": usage, "provider": provider}
-  if not usage:
+  if failed:
+    payload["streamError"] = failed
+  if not usage and end is not None:
     payload.update(usage=_estimated_usage(body, thought + "".join(content)),
                    usageEstimated=True)
   return 200, payload
@@ -445,6 +472,7 @@ class ChatClient:
         "json_schema": {"name": "decision", "schema": schema, "strict": True},
       }
     url = f"{self.base_url}/chat/completions"
+    asked = monotonic()
     status, payload = self.fetch(url, body, self._headers(), timeout)
     if (400 <= status < 500 and schema is not None
         and _blames_format(payload)):
@@ -459,7 +487,10 @@ class ChatClient:
                             "content": sys_text + FORMAT_NOTE
                             + json.dumps(schema, sort_keys=True)},
                            *[dict(m) for m in messages]]
-      status, payload = self.fetch(url, retry, self._headers(), timeout)
+      # ...in the time the call has left: a second whole `timeout` would
+      # outlive the overseer's deadline, and the next decision be `busy`
+      left = max(0.001, timeout - (monotonic() - asked))
+      status, payload = self.fetch(url, retry, self._headers(), left)
     if status != 200 or "error" in payload:
       raise RuntimeError(_error_line(self.label, status, payload))
     text = _answer_text(payload)
@@ -477,8 +508,10 @@ class ChatClient:
       # for one whose stream closed before it ended (`stream_fetch`, #560)
       # or was still going at its deadline (`deadline_fetch`)
       stop_reason=("max_tokens" if finish == "length"
-                   else finish if finish in ("closed", "deadline") else "end_turn"),
+                   else finish if finish in ("closed", "deadline", "failed") else "end_turn"),
       provider=payload.get("provider"),
+      # how a stream that failed mid-answer failed (`stream_fetch`)
+      stream_error=payload.get("streamError"),
       # ...and whether its usage is the provider's count or our estimate of
       # a stream whose count never came (`stream_fetch`)
       usage_estimated=bool(payload.get("usageEstimated")))

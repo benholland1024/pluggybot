@@ -701,8 +701,11 @@ renderer must not hand the robot a picture of where it used to be.
 
 **A missing renderer is said, not waited out (issue #357).** Until it,
 nothing could tell a slow renderer from a missing one: the renderer went
-undeployed until #541, and every look on the served pair stood its ten
-seconds for nobody (51 in 30 days, all `none`). The website's hub now says
+undeployed, and every look on the served pair stood its ten seconds for
+nobody (51 in 30 days, all `none`). ⚠ It stayed undeployed until
+2026-11-05, started by hand: #541 put it in `rooftop-deploy`, but the copy
+installed on the box predated it (`sudo deploy/install.sh` never re-ran), so
+no look before then was ever answered. The website's hub now says
 whether a renderer is connected — the `renderer` inbound kind, `{connected}`, when
 it reads a header that names the kind, whenever one comes or goes, and
 again every heartbeat, so a word lost on the way heals in 30 s — and the
@@ -1755,9 +1758,12 @@ before parsing.
 
 ### The pick, and the doctrine
 
-**`zai-org/GLM-5.3-Flash:cheapest`** on the router (issue #225, Ben's
-$40-a-month cap; the sweep is below, the period is Observatory.md). The
-suffix is part of the pick: `:cheapest` pins the router's provider policy,
+**`zai-org/GLM-5.3-Flash:baseten`** on the router since 2026-11-05 (the
+box's `.env`, Ben's pin in #604's follow-up, below, "Streamed": `:cheapest`
+from #225 until then, three providers that were three minds), chosen by
+#225's sweep under Ben's $40-a-month cap (below; the periods are
+Observatory.md). The suffix is part of the pick: it pins the provider or the
+router's provider policy (`:cheapest`),
 and a bare id is routed by the router's own preference and billed at that
 provider's rate — measured ten times apart on the same call
 (`llm.HFClient.pricing` prices a named provider as itself, `:cheapest` and a
@@ -1929,8 +1935,9 @@ completed", `offline`). What the table says:
   beside a green circle, with and without the decision's schema beside the
   picture, and described the site's garden (`seetest.py`). GLM-5.3 and
   DeepSeek-V4-Pro, the text-only ones, are not candidates. ⚠ The live
-  robots have never been shown a picture: no eye has run on the deploy box
-  (§2h), so `look` has been off their menu since #357.
+  robots had never been shown a picture: no eye had run on the deploy box
+  (§2h; the installed `rooftop-deploy` predated #541's eye block), so `look`
+  had been off their menu since 10-03. Started by hand on 2026-11-05.
 - **The probe's energy gate no longer separates them** (`overseer_probe.py
   --deployed --image`, 12 calls each): every configuration charged first,
   none took the job it could not pay for -- so whether the stronger model
@@ -1963,9 +1970,11 @@ top (off on the deployed world).
 The numbers, and why:
 - **`CALL_TIMEOUT_S` is 300 s** (115 s since #604): every flowing think
   measured fits but novita's slowest. A stream still writing at it is
-  `fallback:timeout` (`StillWriting`), naming who was answering; one the far
-  side closed is `offline` (`StreamClosed`); a whole JSON before either is
-  an answer. ⚠ No read waits past the deadline (`stream_fetch` holds the
+  `fallback:timeout` (`StillWriting`), naming who was answering, and the
+  robot is told "your answer was still being written when its 300 s ran
+  out", as a cut-off is told its tokens ran out (streamed and pinned, a
+  timeout is mostly its own think, not nobody's); one the far side closed
+  is `offline` (`StreamClosed`); a whole JSON before either is an answer. ⚠ No read waits past the deadline (`stream_fetch` holds the
   socket to the wall's time left: a worker still reading would make the
   next decision `busy`).
 - ⚠ **A stream whose count never came is BOOKED AT AN ESTIMATE**, never at
@@ -1973,7 +1982,11 @@ The numbers, and why:
   what it streamed at `llm.CHARS_PER_TOKEN` (3.0: 2.9-3.8 a token measured,
   the low end), a picture at `IMAGE_TOKENS`; its `call` row says no count
   came (`tokensIn`/`tokensOut` null). Only such a stream: a provider's own
-  count stands.
+  count stands. So too a stream that FAILED after its first delta -- an
+  error chunk ("Stream ended before generation completed", 1 in 12 of the
+  probe's on baseten), a read silent its whole `STREAM_SILENCE_S`, a reset
+  -- `offline` (`StreamClosed`), its call and its words kept. ⚠ Only with
+  a wall, the robots' calls: practice's streams are as they were.
 - **`llm.STREAM_SILENCE_S` is 115 s**: each read's, as long as a call not
   streamed waited for its first byte, so a provider that never answers
   costs that, not the deadline; the slowest first byte measured was 13 s
@@ -1991,7 +2004,8 @@ The numbers, and why:
 
 Which mind, then -- the deployment's to set (`$PLUGGY_MODEL`,
 `$PLUGGY_REASONING_EFFORT`), recommended 11-05 at the pair's ~48 calls an
-hour, 16 hours a week (768 calls) against the $20 purse:
+hour, 16 hours a week (768 calls) against the $20 purse. Ben took the
+first, pinned in the box's `.env` on 2026-11-05 (no effort named):
 
 - **Now: `zai-org/GLM-5.3-Flash:baseten`, no effort named.** The mind the
   robots mostly had (#604: 41 of 44 `:cheapest` calls landed there), made

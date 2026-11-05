@@ -160,10 +160,11 @@ MODEL = "claude-haiku-4-5"
 #: (`llm.deadline_fetch`): not streamed, no call outlived the router's
 #: gateway, a 504 at 120 s of silence (#604's 115 s), and a provider that
 #: held its answer to the end never came back. On the live robots' own
-#: turns (Overseer.md §6) GLM-5.3-Flash thought up to 81 s on baseten and
-#: 284 s on novita (25,062 tokens): a flowing think is ended only by this,
-#: a silent stream by `llm.STREAM_SILENCE_S`. `MAX_TOKENS_AUTONOMOUS` is
-#: sized to it; the interrupt keeps its own (`INTERRUPT_TIMEOUT_S`).
+#: turns (Overseer.md §6) GLM-5.3-Flash thought up to 98 s on baseten, and
+#: flown writing procedures 208 s, and 315 s on novita (26,945 tokens): a
+#: flowing think is ended only by this, a silent stream by
+#: `llm.STREAM_SILENCE_S`. `MAX_TOKENS_AUTONOMOUS` is sized to it; the
+#: interrupt keeps its own (`INTERRUPT_TIMEOUT_S`).
 #:
 #: ⚠ A DEADLINE IS A CAP, NOT A COST -- but a long think IS one: `_decide`
 #: steps the sim while a call is in flight (`THINK_SLICE_S`), the robot
@@ -173,7 +174,9 @@ MODEL = "claude-haiku-4-5"
 #: call's wall comes out of the 1800 s its map has to ask again in
 #: (`lifecycle.UNMINDED_AFTER_S`, stamped at the ask). At the live pair's
 #: ~48 calls an hour, the MEDIAN think stands each robot still ~5 minutes
-#: of its hour on deepinfra and ~16 on baseten. The two ways to spend the
+#: of its hour on deepinfra and ~16 on baseten -- flown on procedure work,
+#: half of it, and the robot is told when one outlived it (`StillWriting`).
+#: The two ways to spend the
 #: cap itself: a DEAD endpoint cannot, much -- a silent stream ends at
 #: `STREAM_SILENCE_S`, and three failures in a row start a cooloff
 #: (`MAX_CONSECUTIVE_ERRORS`, `COOLOFF_BASE_S`, doubling); a mind SLOW BUT
@@ -188,8 +191,9 @@ POLL_GRACE_S = 2.0
 #: robot still mid-errand, and "carry on?" must not take a decision's
 #: 300 s. #604's 115 s, unchanged: its answer is `MAX_TOKENS` (4,096, below),
 #: which the slowest writer measured (Qwen3.5-397B on deepinfra, 60 tokens a
-#: second) finishes in ~70 s after a first byte under 10 s, and on the live
-#: turns it thought 181-1,005 tokens and answered in at most 8.4 s.
+#: second) finishes in ~70 s after a first byte under 10 s; on the live
+#: turns it thought 162-2,918 tokens and answered within 21 s everywhere but
+#: novita, where both ran out of the 4,096 still thinking.
 INTERRUPT_TIMEOUT_S = 115.0
 #: Hard client-side call budget, per ROLLING wall-clock hour, per overseer.
 #: From day one, per the issue: a loop bug that burns money silently is the
@@ -479,9 +483,10 @@ class StillWriting(TimeoutError):
 
 
 class StreamClosed(ConnectionError):
-  """A stream the far side closed mid-answer (`llm.stream_fetch`'s
-  "closed"), its text unparsed: nobody finished answering, `offline`,
-  never `garbled`."""
+  """A stream the far side closed, or that failed, mid-answer (`llm.
+  stream_fetch`'s "closed" and "failed"), its text unparsed: nobody
+  finished answering, `offline`, never `garbled` -- booked at an estimate
+  of what it streamed, and its words, where it failed, in the error."""
 
 
 def fallback_reason(e: BaseException) -> str:
@@ -746,8 +751,10 @@ class Decision:
   #: where nothing names one), what it billed, whether its tokens ran out,
   #: and how long it took. Set by code on every decision a response came
   #: back for, a `garbled` or `cutoff` fallback's included -- an empty
-  #: answer is the one that most needs saying who sent it -- and None
-  #: where none did. A `call` event on the wire beside the DECIDE line.
+  #: answer is the one that most needs saying who sent it -- and a stream
+  #: stopped at the deadline's (`StillWriting`), whose tokens are None: its
+  #: count never came. None where nothing came back. A `call` event on the
+  #: wire beside the DECIDE line.
   call: dict | None = None
   source: str = "llm"
 
@@ -3545,8 +3552,11 @@ class Overseer:
     # thinking with before it has thought anything.
     self.backend = llm.resolve_backend(backend, model)
     self.base_url = base_url
-    #: How hard it thinks (`EFFORT_ENV`), or None: the provider's default.
-    self.reasoning_effort = (reasoning_effort or "").strip() or None
+    #: How hard it thinks (`EFFORT_ENV`), or None: the provider's default
+    #: -- and None on the Anthropic path, which sends none (`llm.
+    #: build_client`): the header says what RAN.
+    effort = (reasoning_effort or "").strip() or None
+    self.reasoning_effort = None if self.backend == "anthropic" else effort
     self.calls_per_hour = calls_per_hour
     # ⚠ PER BACKEND, because a local model has to be loaded before it can
     # think: 27.3 s cold against 3.4-5.5 s warm, measured (mind/llm.py). One
@@ -3559,6 +3569,9 @@ class Overseer:
       self.timeout_s, llm.default_timeout(self.backend, INTERRUPT_TIMEOUT_S))
     self.clock = clock
     self.usage = Usage()
+    if effort and self.reasoning_effort is None:
+      self.usage.errors.append(f"effort: the {self.backend} backend sends no "
+                               f"reasoning_effort, so {effort!r} is not sent")
     # ---- the allowance (issue #37) ----
     # A SECOND mind, bought a decision at a time. Configured or not; unset is
     # the default and the whole feature is then absent, including from the
@@ -4259,6 +4272,10 @@ class Overseer:
         decision = replace(decision, reason=(
           f"{decision.reason} -- your answer was cut off: it ran out of its "
           f"{slot['cut']:,} tokens before it was written"))
+      if slot.get("late"):
+        decision = replace(decision, reason=(
+          f"{decision.reason} -- your answer was still being written when its "
+          f"{slot['late']:.0f} s ran out"))
       if slot.get("call"):
         decision = replace(decision, call=slot["call"])
       # The vendor's own words for what went wrong, for the measurement
@@ -4355,14 +4372,16 @@ class Overseer:
       slot, self._int_slot = self._int_slot, {}
     answer = slot.get("answer")
     if answer is None:
-      answer = self._interrupt_fallback(slot.get("error") or "timeout")
+      answer = self._interrupt_fallback(slot.get("error") or "timeout",
+                                        late=bool(slot.get("late")))
       if slot.get("call"):
         answer["call"] = slot["call"]
     self.interrupts.append(dict(answer))
     return answer
 
-  def _interrupt_fallback(self, why: str) -> dict:
+  def _interrupt_fallback(self, why: str, late: bool = False) -> dict:
     said = ("the answer ran out of its tokens" if why == "cutoff"
+            else "the answer was still being written when its time ran out" if late
             else "nobody answered")
     return {"continue": False, "why": f"{said} -- stopping and going",
             "source": f"fallback:{why}"}
@@ -4394,6 +4413,8 @@ class Overseer:
       self.usage.errors.append(
         f"interrupt: {type(e).__name__}: {e}"[:200])
       slot = {"error": fallback_reason(e)}
+      if isinstance(e, StillWriting):
+        slot["late"] = True
       if call is not None:
         slot["call"] = call
     with self._int_lock:
@@ -4786,6 +4807,11 @@ class Overseer:
         # model whose "8.0" was refused saw a turn vanish and learned
         # nothing. `result` folds this into the fallback's reason.
         slot["refused"] = clean(str(e), MAX_WHY)
+      elif isinstance(e, StillWriting):
+        # ...and a think still being written when its deadline came, as a
+        # cut-off is (#604's follow-up): streamed and pinned, a timeout is
+        # mostly the robot's own long think, never "nobody answered".
+        slot["late"] = self.timeout_s
       elif slot["error"] == "cutoff":
         # ...and a cut-off is said as what it was (issue #604): read as
         # "decision was not JSON: ''", both robots believed their JSON was
@@ -5134,8 +5160,10 @@ def _extract_json(response) -> dict:
                    f"{text[:120]!r}") from e
     if stop == "deadline":
       raise StillWriting("the answer was still being written at the deadline") from e
-    if stop == "closed":
-      raise StreamClosed("the stream was closed before the answer was written") from e
+    if stop in ("closed", "failed"):
+      how = getattr(response, "stream_error", None)
+      raise StreamClosed("the stream ended before the answer was written"
+                         + (f" -- {how}" if how else "")) from e
     raise ValueError(f"decision was not JSON: {text[:120]!r}") from e
   if not isinstance(raw, dict):
     raise ValueError(f"decision was not an object: {type(raw).__name__}")
