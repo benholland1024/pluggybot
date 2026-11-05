@@ -5192,6 +5192,236 @@ fork, both by the left hand -- the plate 1.5 cm, the cup 1.5 and the fork
 2.1 from where each goes (`scripts/hands_check.py --strip table 4`;
 `--view table K` watches one)](figures/hands_table.png)
 
+## A waist, measured before it is built (issue #560, stage (c))
+
+**What is true now.** The body has no waist: the pelvis, the torso and the
+head are one rigid body, the IMU on the pelvis. Parts.md says why the T2's
+waist was left out and that it is the first joint to add if a stage's
+measurement comes up short; #560's table is that measurement (above: each
+hand works only its own side of a place). Three candidates were measured on
+the robot's model of itself (`scripts/waist_spike.py`), and none is built.
+**A waist yaw, one RS03 at the pelvis's top (+1.73 kg), buys most of what
+was measured**: each hand reaches past the middle of the table, every
+pick-up our procedure makes is made standing tall, and the floor and the
+high shelf come into reach in front of the shoulder. A waist pitch keeps the
+legs at the stand, but it adds little reach and holds its RS04 near its
+limit. **Neither widens the plate's or the fork's stance window**: our
+procedure's carry into a put-down near the body's middle stays out of reach
+with any waist. Ben's call (2026-11-05): the yaw alone, on an RS03, built
+once those put-downs are measured with other grips, paths and hands. No
+policy holds a waist yet, so every number here is a STATUE's: what the body
+could reach and hold still, planned as the served reach plans. That is an
+upper bound on what a policy will do, and it is compared with today's body
+planned the same way, never with a flight.
+
+**The candidates**, each today's generated drawing with a waist put in at
+the pelvis's top. Its zero pose is today's body to a micrometre, and the
+waist turns the head's sensors, the port and the arms and nothing below
+(`tests/test_waist_spike.py`):
+
+| candidate | its axis over the hip axes | range | part (stalled, N*m) | adds | rides on it |
+|---|---|---|---|---|---|
+| pitch | 0.18 m (the T2's 0.182), the pack below it | 32 deg back, 43 deg forward (the T2's) | RS04 (28.5) | 1.96 kg: the motor and its bracket | 14.4 kg, its centre 0.11 m over the axis |
+| yaw | 0.06 m, the pelvis's top: the motor stood in the pelvis's middle, where the hips' pitch motors leave 108 mm | +-60 deg, all of it used by the reaches (the T2 turns +-138) | RS03 (13) | 1.73 kg: the motor, its bracket and a 5 mm turntable plate | 19.5 kg, its centre 0.18 m up the axis |
+| both | the yaw below the pitch, the T2's and the G1's order: a bow goes where the shoulders face | | | 3.68 kg (43.18 -> 46.86) | |
+
+The whole body's centre of mass rises 0.3 cm with the yaw, 1.0 with the
+pitch and 1.3 with both. The yaw's motor fits the pelvis with room; the
+pitch's does not quite: at 0.18 m the RS04's 120 mm housing takes the top
+2.4 cm of the pack's 74 mm, so a pitch built would raise its axis or lay the
+pack flatter.
+
+**How a reach is measured**, as `reach.plan` plans one:
+- A posture is the legs' (`reach.POSTURES`) and the waist's angles (its
+  pitch in steps of 0.15 rad, its yaw in steps of 15 deg), tried least bent
+  first on a statue balanced over the soles (`reach.static_legs`).
+- The arm's six joints are solved for the goal and the pre-grasp 8 cm back,
+  with 1.5 cm of slack; the other grip half a turn round only where the one
+  asked plans nothing (`Reach._planned`).
+- The statue is then balanced again with the arm out, as the policy moves
+  its pelvis back for one. It must still reach, keep its centre of mass over
+  its soles, keep the arm and the trunk out of the table's top (13 cm out,
+  as the set-out stands) and the arm out of its own trunk and legs.
+- A posture whose trunk folds into a thigh stands nowhere: at the hips'
+  deepest bow a yaw of 15-30 deg put the torso's corner 1-2.5 cm into one.
+- A window adds our procedure's carry (lifted 5 cm, carried straight, set
+  down), followed from one posture, each point solved on from the last and
+  checked for clearance on its way.
+
+**The method, checked on today's body.** The planner reproduces
+`reach.plan` cell for cell over #615's grid. With the carry, today's
+windows land where #615's flights did: the plate's wall is picked up and
+carried from a 3 cm stretch of stances, 0.29-0.31 m to the right (our
+procedure steps 0.26, where a carry that changes posture once makes it,
+below; laid 21-24 times of 32 there); the fork's stretch is 12 cm from where our
+procedure stands for it (laid 6 times of 32); the cup's is 25 cm (laid 23
+of 32); and no single stance lays the whole place. Without the carry the
+statue found an 8-11 cm plate window and one stance for everything, which
+the flights refute: a carry, not a reach, is where a place fails. The
+statue's BANDS are wider than the flown ones: fingers down, |y| 0.24-0.56
+with slack where #615 flew 0.24-0.40. The plan's slack does not cover what the
+standing policy does to a posture (it stood 2 cm under the height asked,
+and the stance turns 5-8 deg as an arm goes out). So a band below is a
+statue's, beside today's statue.
+
+**At the table** (the left hand at 0.77 m, where the pieces are gripped;
+the right is its mirror). Reached clear over the grid 0.10-0.62 m ahead and
+-0.20 to +0.60 across, in 4 cm cells:
+
+| | fingers down | tilted 45 deg (our grip) | between the two hands' bands, \|y\| < 0.24 (down / tilted) | across the middle, y < 0 | the legs at the stand's (down / tilted) |
+|---|---|---|---|---|---|
+| today | 0.107 m^2 | 0.194 m^2 | 0 / 19 cells | none | 15 % / 46 % |
+| pitch | 0.114 | 0.205 | 2 / 33 | none | 80 % / 65 % |
+| yaw | 0.229 | 0.264 | 73 / 73 | 27 / 16 | 30 % / 45 % |
+| both | 0.234 | 0.251 | 94 / 73 | 40 / 23 | 79 % / 75 % |
+
+- *The yaw doubles the fingers-down band and fills the middle.* Fingers
+  down, the left hand reaches clear to 0.20 m past the middle (the grid's
+  edge) from 0.26 to 0.54 m ahead, 27 cells; tilted, past it more patchily
+  and further out (0.34-0.62 m, 16 cells), its forearm dipping into the
+  table's top nearer the edge. Today's reaches neither past the middle.
+  Across at a single distance (`--across`) the run has gaps where the first
+  plan fails once balanced again.
+- *Every pick-up our procedure makes is made standing tall with a yaw*
+  (`--alternatives`, every posture tried): the cup's, the plate's and the
+  fork's from the start, and the table's middle near and far, the worst
+  joint at 38-57 % of its part's stall rating. Today each needs a crouch or
+  a bow, the knee at 81-84 % of an RS04's.
+- *The put-downs nearest the body still crouch 8 cm*, whichever the waist:
+  the plate's wall set down 8 cm left of the middle and the fork 16 cm,
+  both 0.30 m ahead, are reached from one to four postures, the knee at
+  76-82 %.
+- *The pitch keeps the legs at the stand*: the waist bows where the hips
+  and the knees did, and over the table's reaches the knee's median load
+  falls from 22 N*m to 5. Its reach grows little: the far edge 4-8 cm, and
+  never across the middle.
+
+**The envelope** (the left hand in front of its shoulder, 0.2 m out; 77
+cells from 0.09 to 1.55 m up and 0.15 to 0.75 m ahead; `--envelope`):
+reached clear with slack, today 36, the pitch 49, the yaw 59 and both 56
+(a candidate with more postures can count fewer: the planner keeps its
+first plan, and more of them fail once balanced again). The floor (0.09 m)
+today only at the toes and at full stretch; the pitch and the yaw reach it
+0.15-0.45 m ahead, and both to 0.55. The high shelf (1.43 m), today
+0.35-0.45 m ahead; the yaw 0.15-0.55. The floor is reached from the hips'
+deepest bows, the hips and the knees at 87-101 % of their stall ratings
+with any waist.
+
+**Balance.** Every reach found stood balanced: the statue keeps its centre
+of mass over the soles' middle fore and aft, as the policy moves its pelvis,
+and across it stayed at least 10.4 cm inside the soles' outline.
+
+**The part**, sized by a pose held as a stalled motor (`Motor.stall_torque`),
+1 kg in the hand:
+- *The yaw: an RS03.* It holds at most 8.1 N*m over the table's reaches
+  (its median 0, its 90th percentile 2.4) and 2.4 over the envelope; 14
+  with the pitch bowed over it. A 20 N `pull` sideways at a hand (the
+  verb's most) puts up to 10.1 N*m on it: 78 % of the RS03's 13 N*m
+  stalled, where an RS02's 6 would not hold it. Its winding takes 1 W at
+  3 N*m and 10.5 at 10.
+- *The pitch: an RS04, at its limit.* It holds a median 14-15 N*m over the
+  table's reaches, 26-27 at the 90th percentile and 32-35 at the deepest
+  (the envelope's), past the RS04's 28.5 stalled in 2-5 % of reaches (the
+  worst held 130 s by its sheet); a vertical pull adds up to 10.2. Its
+  winding takes 10 W at 13 N*m, 22 at 20 and 44 at 28.5, where each knee it
+  relieves took 31 W at 24 N*m.
+- *Each driver's standby* is the bill's 1.7 W.
+
+**The stance window** (`--window`, `--reposture`): where the stance may
+stand, moved across in 1 cm steps at the procedure's 13 cm from the edge,
+and the hand pick a piece up with our procedure's grip (45 deg, the jaws
+across) and carry it where it goes as our procedure does:
+
+| | the cup | the plate | the fork | one stance for the whole place |
+|---|---|---|---|---|
+| today | 25 cm | 3 cm (0.29-0.31 m to the right) | 3 cm, 12 cm from where our procedure stands | none |
+| pitch | 13 + 31 cm | 2 cm | 4 + 2 cm | none |
+| yaw | 67 cm | 1-3 cm stretches | 3 + 3 cm | none |
+| both | 33 + 34 cm | 1 cm | 3 + 1 cm | a few single cells, the waist turning in the arm's chain |
+
+Picked up alone, or set down alone, the plate and the fork each open to
+27-53 cm of stances with the yaw. What stays shut is the CARRY between
+them, toward a put-down near the body's middle (the plate's wall set down
+0.30 m ahead and 8 cm left of the middle, the fork 16 cm): the arm's solve
+misses its points there by 1-4 cm. No way of carrying that a waist allows
+changes it:
+- the waist held in its posture, as a carry holds one today;
+- the waist turning in the arm's chain as the hand goes;
+- either at the reach's own tolerance or at the served carry's
+  (`reach.REPLAN_M`, `REPLAN_ROT`);
+- the posture changed on the way with the hand held still, as a served
+  carry may change it (`--reposture`). From the start, the yaw's plate
+  carry gets 10 of its 14 points (today's 3) and the fork's 6-8, and neither
+  arrives.
+
+Today's body, by the same search, carries the plate from our procedure's
+0.26 m step with one change of posture (a bow, then standing), where the
+flights laid it 21-24 times of 32; and the fork from its own stance not at
+all, where they laid it 6 times. So the place's limit is not the waist's to
+remove: it is our procedure's straight carry into a put-down near the
+body's middle, at this grip and with this hand.
+
+**What building it would cost.**
+- *The model and its generated files*: `humanoid/model.py` (the trunk cut at
+  the waist, a joint list of 25 or 26, the keyframes, the actuators,
+  `training_constants`), `parts.DRIVES`, the bill (an RS03 at €215.95 and an
+  RS04 at €254.75, with their brackets and the turntable plate at #379's
+  €33.33 a machined part: €316 for the yaw, €321 for the pitch, €637 for
+  both before the contingency). Then `models/humanoid.{xml,json}`, Parts.md's
+  bill and `protocol/parts.json`, `models/humanoid_friction.json` (the
+  waist's rows), and the three humanoid scenes and both recordings, which the
+  site re-vendors first.
+- *What is perceived through the model of itself.* The tag cameras and the
+  station's port are placed through it already (`mj_camlight` on the
+  self-model, `charge`'s port site): they follow once `JointSense` reads the
+  waist and `SelfModel.pose` sets it. The LIDAR's place and turn on the trunk
+  (`HumanoidMission.LIDAR_ORIGIN`, `Lidar._site_in`) and the depth camera's
+  mount (`depth._fixed_mount`, which refuses a joint on its way) are fixed at
+  construction; each must be posed off the waist's encoders every frame,
+  and the band's and the depth frame's levelling (`Lidar.band`, `_levelled`)
+  must compose the waist's turn over the pelvis's tilt. The whole body's
+  force reading (`SelfModel.felt`) gains the waist's rows, since the waist
+  carries the arm's load to the legs. A tip or a topple is still read off
+  the pelvis's IMU.
+- *The policies.* The stand is retrained: the waist scripted as the arms
+  are, with stage (a)'s yaw anchor on each sole. The walk and the get-up are
+  flown on the new body first, the waist held stiff and unseen (a policy
+  picks the joints it sees by name, `StandPolicy.joint_names`, once its
+  check that they are all the body's joints is a subset's), and retrained
+  only if they fail; the seeing walker (not served) likewise. At
+  training/README.md's cost per million steps on a 5090, one try of the
+  served three is 1.7 GPU-hours and $1.02 (the stand 31 min and $0.27, the
+  walk 23 min and $0.19, the get-up 49 min and $0.56), and the seeing
+  walker's 3.3 h and $2.14. #507 trained them all, every try, for $12.15.
+- *Flown again*, each a CPU pod's batch (about $0.1-0.2, as stage (a)'s
+  were): every hands check, the served jobs (`solve.py --from tour`), the
+  station (`station_spike.py --approach`, `--seats`, `--lost`), the body's
+  tables (`humanoid_spike.py --torque`, `--shove`, `--envelope`, `--pulls`,
+  `--feel`, `--bar`, `--fall`), the LIDAR's (`lidar_spike.py --probe`,
+  `--hidden`), the drift spike, the continuation's parity
+  (`determinism_spike.py --resume-at`), and the pair's real-time multiple
+  on the deploy box: the waist costs the bare robot 2.4-4.8 us a step
+  (+7-11 % of its own step), about 0.5 % of the served pair's (an
+  estimate; the box reads 1.23x against Ben's 1.15x floor).
+- *The deployed pair's body changes*: a new Observatory period, and a
+  restart over the changed geometry keeps the clock, the packs, the deaths
+  and the jobs but drops the bodies and the maps (`continuation.fingerprint`).
+
+**What a statue cannot say.** Whether the standing policy holds these
+postures (today's statue bands are wider than the flown ones, above); whether
+the stance still turns as an arm goes out (stage (a) measured the crouch's
+share at 5.2 deg of 8.2, and a waist that keeps the legs at the stand may
+take it away, which only a retrained stand can show); and how a yaw turned
+for a reach lays the LIDAR's band (held at zero while walking, the band is
+today's).
+
+![Each candidate's statue at three of the table's reaches, as the planner
+takes them clear of the table and of its own body: today's body crouches 16
+cm for the cup and the plate's wall and reaches no posture for the table's
+middle; the pitch bows 9 deg for both and 43 deg over the table for the
+middle; the yaw stands tall, turned 15-30 deg (`scripts/waist_spike.py
+--strip`)](figures/waist_table.png)
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

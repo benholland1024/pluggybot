@@ -27,8 +27,10 @@ money, training and serving speed (#507, rule 4):
   a gripper an arm   a parallel gripper on sale (rule 2), its jaws one
                      motor's
   not here           the T2's waist (pitch, roll, yaw): the hips bend the
-                     body to a low reach and the legs' yaws turn it, and no
-                     demo's task asks the shoulders to turn on the hips;
+                     body to a low reach and the legs' yaws turn it (#560's
+                     table asks the shoulders to turn on the hips: a waist is
+                     measured, not built -- SimNotes, "A waist, measured
+                     before it is built");
                      its head's two joints: the depth camera is fixed,
                      pitched at the counter and the floor ahead, and a
                      shelf above the head is out of its view; its seventh
