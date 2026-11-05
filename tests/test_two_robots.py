@@ -28,6 +28,10 @@ from pluggybot.robot import FIRST, SECOND, RobotHandle
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 from test_unknown import STEPPER, _Walk
 
+#: The waist's reading at its zero, where these tests' bodies stand (#560's stage (c3):
+#: the head's sensors ride the waist, and a frame is laid through its reading).
+W0 = {"waist_yaw": 0.0}
+
 SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 #: Where a second robot is parked out of the way: the kitchen.
 PARK = (-8.0, 4.0)
@@ -714,7 +718,7 @@ def test_a_scan_answers_the_room_and_the_peer_apart():
   _pitched(model, data, FIRST, 1.5, 0.5, 0.0, 0.2)
   lidar = Lidar(model, seed=3)
   lidar.exclude_robot(SECOND.root)
-  angles, ranges, peer_angles, peer_ranges = lidar.scan_split(data)
+  angles, ranges, peer_angles, peer_ranges = lidar.scan_split(data, W0)
   ahead = np.abs(peer_angles) < 0.15
   assert ahead.any() and peer_ranges[ahead].min() < 1.2, \
     "the peer's own returns are missing"
@@ -741,7 +745,7 @@ def test_a_scan_answers_the_room_and_the_peer_apart():
 
   lidar.dropout = 0.0
   lidar.rng = counted = Counting(np.random.default_rng(7))
-  _, room_r, peer_a, _ = lidar.scan_split(data)
+  _, room_r, peer_a, _ = lidar.scan_split(data, W0)
   assert peer_a.size, "no peer returns in this scan at all"
   hits = int((room_r < lidar.max_range).sum())
   assert counted.draws == 3 * hits, \
@@ -749,7 +753,7 @@ def test_a_scan_answers_the_room_and_the_peer_apart():
   # A world with nobody else in it splits into nothing
   lidar._other_geoms = set()
   lidar._index_geoms()
-  _, _, alone_a, alone_r = lidar.scan_split(data)
+  _, _, alone_a, alone_r = lidar.scan_split(data, W0)
   assert alone_a.size == 0 and alone_r.size == 0
 
 

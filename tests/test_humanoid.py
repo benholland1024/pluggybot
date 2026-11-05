@@ -436,18 +436,24 @@ def test_a_reach_solved_in_one_jump_from_a_hanging_arm_misses_and_the_plan_finds
   _, miss, _ = sm.solve("left", goal.pos, goal.rot)
   assert miss > 0.05, miss
   found = plan("left", goal)
-  assert found is not None and found[0] == (0.0, 0.0)
+  assert found is not None and found[0] == (0.0, 0.0, 0.0)
 
 
-def test_the_floor_is_reached_only_close_in_from_the_deepest_bow():
+def test_the_floor_is_reached_close_in_from_the_deepest_bow_and_further_turned():
   """The envelope's low edge, on the robot's model of itself: 0.09 m up,
-  fingers down, 0.18 m ahead is reached from the deepest posture the
-  standing policy holds, and 0.45 m ahead from none."""
+  fingers down. The waist held home, 0.18 m ahead is reached from the
+  deepest posture the standing policy holds, and 0.45 m ahead from none --
+  turned at the waist (#560's stage (c3); #620 measured 0.15-0.45 m), 0.45
+  is reached too, and 0.65 from none."""
   from pluggybot.humanoid.arms import DOWN, HandGoal
-  from pluggybot.humanoid.reach import POSTURES, plan
-  near = plan("left", HandGoal(np.array([0.18, 0.2, 0.09]), DOWN))
-  assert near is not None and near[0] == POSTURES[-1]
-  assert plan("left", HandGoal(np.array([0.45, 0.2, 0.09]), DOWN)) is None
+  from pluggybot.humanoid.reach import POSTURES, plan, with_waist
+  home = with_waist(POSTURES, yaws=(0.0,))
+  near = plan("left", HandGoal(np.array([0.18, 0.2, 0.09]), DOWN), postures=home)
+  assert near is not None and near[0] == (*POSTURES[-1], 0.0)
+  assert plan("left", HandGoal(np.array([0.45, 0.2, 0.09]), DOWN), postures=home) is None
+  far = plan("left", HandGoal(np.array([0.45, 0.2, 0.09]), DOWN))
+  assert far is not None and far[0][2] != 0.0
+  assert plan("left", HandGoal(np.array([0.65, 0.2, 0.09]), DOWN)) is None
 
 
 def test_a_grip_is_judged_by_the_grippers_own_reading():
@@ -519,9 +525,13 @@ def test_a_hand_that_meets_something_on_its_way_stops_short():
   def box(spec):
     spec.worldbody.add_geom(name="in_the_way", type=mujoco.mjtGeom.mjGEOM_BOX,
                             size=[0.05, 0.3, 0.3], pos=[0.42, 0.2, 0.9])
+  from pluggybot.humanoid.reach import POSTURES, with_waist
   model, data, stand, reach = _standing(box)
   root = model.body(hm.ROBOT_ROOT).id
-  assert reach.reach("left", HandGoal(np.array([0.55, 0.2, 0.94]), FORWARD))
+  # ...the waist home, as the scene was drawn: turned, the arm's way out to
+  # its pre-grasp sweeps into the box, which no reach knows of
+  assert reach.reach("left", HandGoal(np.array([0.55, 0.2, 0.94]), FORWARD),
+                     postures=with_waist(POSTURES, yaws=(0.0,)))
   _fly(model, data, stand, reach, 8.0)
   assert reach.phase["left"] == "blocked"
   # Standing in the posture its plan asked (a crouch), upright: not fallen.
@@ -540,3 +550,85 @@ def test_a_hand_goes_in_only_once_the_trunk_is_still():
   assert not reach._posture_there(0.01)
   stand.trunk.rate = np.zeros(3)
   assert reach._posture_there(0.01)
+
+
+def test_the_heads_cameras_are_placed_through_the_waist_on_the_model_of_itself():
+  """#560's stage (c3): the robot's model of itself sets the waist off its
+  reading (`SelfModel.pose`), so every camera placed through it -- the
+  colour imager the tags are read by, the navigation camera the places
+  are, the depth camera -- and the charge port are where the world has
+  them, in the pelvis's frame, the waist turned; placed with the waist at
+  zero, they are 0.4 rad round."""
+  from pluggybot.humanoid.arms import SelfModel
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  data.qpos[model.jnt_qposadr[model.joint("waist_yaw").id]] = 0.4
+  mujoco.mj_forward(model, data)
+  q = np.array([data.qpos[model.jnt_qposadr[model.joint(n).id]] for n in hm.JOINT_NAMES])
+  root = model.body(hm.ROBOT_ROOT).id
+  gravity = data.xmat[root].reshape(3, 3).T @ np.array([0.0, 0.0, -1.0])
+
+  def placed(m, d):
+    r, at = d.xmat[m.body(hm.ROBOT_ROOT).id].reshape(3, 3), d.xpos[m.body(hm.ROBOT_ROOT).id]
+    out = {c: (r.T @ (d.cam_xpos[m.camera(c).id] - at)) for c in ("color_eye", "nav_eye", "depth_eye")}
+    out["charge_port"] = r.T @ (d.site_xpos[m.site("charge_port").id] - at)
+    return out
+  truly = placed(model, data)
+  sm = SelfModel()
+  for waist, near in ((0.4, True), (0.0, False)):
+    q[hm.JOINT_NAMES.index("waist_yaw")] = waist
+    sm.pose(q, gravity)
+    mujoco.mj_camlight(sm.m, sm.d)
+    for name, at in placed(sm.m, sm.d).items():
+      assert bool(np.abs(at - truly[name]).max() < 1e-9) is near, (waist, name)
+
+
+def test_a_posture_is_the_legs_and_the_waists_least_bent_first_as_620_ordered_them():
+  """#560's stage (c3), Ben's call: a posture is chosen with its waist angle,
+  as #620's were -- its postures by the waist's grid, the least bent first
+  by #620's own cost (`waist_spike.bent`)."""
+  import sys
+  from pathlib import Path
+  from pluggybot.humanoid import reach as rc
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+  import waist_spike as ws
+  assert rc.WAIST_YAWS == ws.WAIST_YAWS
+  for legs, table in ((rc.POSTURES, rc.REACH_POSTURES), (rc.HOLD_POSTURES, rc.CARRY_POSTURES)):
+    pairs = [(i, k) for i in range(len(legs)) for k in range(len(ws.WAIST_YAWS))]
+    pairs.sort(key=lambda ik: ws.bent(ik[0], {"waist_yaw": ws.WAIST_YAWS[ik[1]]}))
+    assert table == tuple((*legs[i], ws.WAIST_YAWS[k]) for i, k in pairs)
+
+
+def test_a_turned_trunk_folded_into_a_thigh_stands_nowhere():
+  """At the hips' deepest bow a turn of 15-30 deg puts the torso's corner
+  1-2.5 cm into a thigh (#620): the robot's drawing meets its own parts only
+  in the pairs it names, so the planner rules those postures out
+  (`reach.stands`), and no other of the reach's 72 or the carry's 99."""
+  import math
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import SelfModel
+  sm = SelfModel()
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  folds = {(-0.25, 1.1, math.radians(a)) for a in (15, -15, 30, -30)}
+  for table in (rc.REACH_POSTURES, rc.CARRY_POSTURES):
+    assert {p for p in table if not rc.stands(sm, p, q0)} == folds
+
+
+def test_no_arm_takes_its_grip_further_from_its_shoulder_than_its_reach():
+  """A plan skips a posture whose goal is past the arm's reach of its
+  shoulder (`reach.out_of_reach`): nothing lost only if no arm, however it
+  is bent, takes the grip further than the reach it measures."""
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import SelfModel
+  sm = SelfModel()
+  rng = np.random.default_rng(560)
+  lo, hi = sm.ranges[:, 0], sm.ranges[:, 1]
+  for side in hm.SIDES:
+    most = rc.arm_reach(sm, side)
+    shoulder = sm.m.body(f"{side}_shoulder_roll_link").id
+    for _ in range(500):
+      sm.pose(rng.uniform(lo, hi), np.array([0.0, 0.0, -1.0]))
+      far = np.linalg.norm(sm.d.site_xpos[sm.grip[side]] - sm.d.xpos[shoulder])
+      assert far <= most + 1e-9, (side, far, most)
+

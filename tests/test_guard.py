@@ -430,14 +430,14 @@ def test_a_halted_reach_on_its_way_out_holds_its_arm_and_its_body_where_they_are
     q[hm.JOINT_NAMES.index(n)] -= 0.3
   gravity = np.array([math.sin(0.2), 0.0, -math.cos(0.2)])
   r.self_model.pose(q, gravity)
-  r.posture_now = lambda: np.array([-0.07, 0.2])
+  r.posture_now = lambda: np.array([-0.07, 0.2, 0.1])
   r.goal["left"] = HandGoal(H.copy(), np.eye(3), 0.7)
   r.q_to["left"] = r.rest["left"] + 0.6
   r.q_cmd["left"] = r.rest["left"] + 0.25
   arm = r.q_cmd["left"].copy()
   r.phase["left"] = "move"
   assert r.halt("left", "until")
-  assert r.postures[-1] == (-0.07, 0.2), "the body held in the posture it has got to"
+  assert r.postures[-1] == (-0.07, 0.2, 0.1), "the body held in the posture it has got to"
   assert r.phase["left"] == "blocked" and r.out("left") and r.done("left")
   assert np.allclose(r.q_to["left"], arm) and np.allclose(r.q_cmd["left"], arm)
   # the grip those joints put it at on the body as it is, asked of a model

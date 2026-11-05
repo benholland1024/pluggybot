@@ -344,13 +344,13 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 
 | part | qty | € each | € line | lead time | feeds |
 |---|---|---|---|---|---|
-| **actuation** | | | **5,086.40** | | |
+| **actuation** | | | **5,307.35** | | |
 | [RobStride RS04 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride04-qdd-120n-m-integrated-joint-motor-module) `RS04` | 8 | 254.75 | 2,038.00 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_pitch.forcerange`, `left_hip_pitch.armature`, `humanoid.parts.RS04.rated_torque`, +2 |
-| [RobStride RS03 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride03-qdd-60n-m-integrated-joint-motor-module) `RS03` | 8 | 215.95 | 1,727.60 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_yaw.forcerange`, `left_hip_yaw.armature`, `humanoid.parts.RS03.rated_torque`, +2 |
+| [RobStride RS03 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride03-qdd-60n-m-integrated-joint-motor-module) `RS03` | 9 | 215.95 | 1,943.55 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_yaw.forcerange`, `left_hip_yaw.armature`, `humanoid.parts.RS03.rated_torque`, +2 |
 | [RobStride RS02 joint actuator (7.75:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride02-qdd-17n-m-joint-motor-module-dual-encoders) `RS02` | 4 | 149.95 | 599.80 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_shoulder_yaw.forcerange`, `left_shoulder_yaw.armature`, `humanoid.parts.RS02.rated_torque`, +2 |
 | [RobStride RS00 joint actuator (10:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride00-qdd-14n-m-integrated-joint-motor-module) `RS00` | 2 | 129.95 | 259.90 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_wrist_pitch.forcerange`, `left_wrist_pitch.armature`, `humanoid.parts.RS00.rated_torque`, +2 |
 | [RobStride RS05 joint actuator (7.75:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride05-qdd-joint-motor-module) `RS05` | 2 | 106.95 | 213.90 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_wrist_roll.forcerange`, `left_wrist_roll.armature`, `humanoid.parts.RS05.rated_torque`, +2 |
-| [Amass XT30(2+2) connector pair: power and signal in one (male, female and pins)](https://www.3dptronics.com/electronics/xt3022-connectors-pair) `XT30(2+2)` | 30 | 5.00 /pair | 150.00 | dispatched within 2-3 days, UPS or DHL (3DPTronics, Italy) | — |
+| [Amass XT30(2+2) connector pair: power and signal in one (male, female and pins)](https://www.3dptronics.com/electronics/xt3022-connectors-pair) `XT30(2+2)` | 31 | 5.00 /pair | 155.00 | dispatched within 2-3 days, UPS or DHL (3DPTronics, Italy) | — |
 | [LAPP UNITRONIC BUS CAN 1 x 2 x 0.22 mm², shielded, by the metre](https://www.conrad.de/de/p/lapp-2170260-1-busleitung-unitronic-bus-1-x-2-x-0-22-mm-violett-meterware-603992.html) `2170260/1` | 15 | 1.98 | 29.70 | 176 m in stock, delivered on 2026-09-30 (Conrad) | — |
 | [Silicone wire, 14 AWG (2.08 mm²), 1 m](https://www.mylipo.de/Silikonkabel-14AWG-208mm-schwarz_1) `SK14S / SK14R` | 30 | 2.25 | 67.50 | available now, 1-3 working days (MyLipo) | — |
 | **grippers** | | | **1,436.90** | | |
@@ -381,14 +381,15 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 | [Raspberry Pi Camera Module 3](https://www.berrybase.de/raspberry-pi-camera-module-3-12mp) `Camera Module 3` | 1 | 28.90 | 28.90 | in stock, 1-3 days (BerryBase) | `nav_eye.fovy` |
 | [Raspberry Pi camera cable, standard to mini, 200 mm](https://www.berrybase.de/raspberry-pi-camera-cable-standard-mini-200mm) `SC1128` | 1 | 1.20 | 1.20 | in stock, 1-3 days (BerryBase) | — |
 | [TDK InvenSense ICM-42688-P evaluation board (IMU)](https://www.digikey.de/de/products/detail/tdk-invensense/EV-ICM-42688-P/18634550) `EV_ICM-42688-P` | 1 | 36.79 | 36.79 | 138 in stock, the maker's standard lead 16 weeks (DigiKey DE) | `perception.imu.GYRO_NOISE` |
-| **frame** | | | **2,545.40** | | |
-| The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners | 1 | allowance | 1,600.00 | unknown: nothing drawn to quote | `humanoid.model._bracket` |
+| **frame** | | | **2,645.40** | | |
+| The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners | 1 | allowance | 1,666.67 | unknown: nothing drawn to quote | `humanoid.model._bracket` |
 | The pelvis's and the torso's frame: 3 mm 6082 plates | 1 | allowance | 300.00 | unknown: nothing drawn to quote | `humanoid.model.structure[pelvis_side, pelvis_deck, torso_side, torso_back, torso_top]` |
 | The thighs' and shanks' side plates, 5 and 4 mm 6082 | 1 | allowance | 266.67 | unknown: nothing drawn to quote | `humanoid.model.structure[thigh_plate, shank_plate]` |
 | The soles: a 6 mm 6082 plate and its 5 mm rubber | 1 | allowance | 86.67 | unknown: nothing drawn to quote | `humanoid.model.structure[sole_plate, sole_rubber]` |
 | The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length | 1 | allowance | 40.00 | unknown: nothing drawn to quote | `humanoid.model.structure[upper_arm_tube, forearm_tube]` |
 | The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end | 1 | allowance | 20.00 | unknown: nothing drawn to quote | `humanoid.model.structure[ankle_rod]` |
 | The plates the grippers bolt to on the wrists' roll, 6 mm 6082 | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[gripper_adapter]` |
+| The waist's turntable plate over the pelvis, the torso's frame on it: 5 mm 6082 | 1 | allowance | 33.33 | unknown: nothing drawn to quote | `humanoid.model.structure[waist_plate]` |
 | The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[lidar_fin, lidar_plate]` |
 | [igus igubal KCRM-05 rod end, M5 female, right-hand](https://www.igus.de/product/igubal_KCRM_KCLM?artNr=KCRM-05) `KCRM-05` | 4 | 5.43 | 21.72 | ready to ship in 24 hours (igus) | — |
 | [PETG filament, 1.75 mm, 1 kg (DAS FILAMENT)](https://dasfilament.de/produkt/petg-filament-175-mm-schwarz-1-kg/) `F10765` | 2 | 21.00 | 42.00 | unknown: in stock; the page and its terms give no delivery time | — |
@@ -430,20 +431,21 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 
 | | € | $ |
 |---|---|---|
-| priced lines | 11,555.64 | |
-| allowances (nothing designed yet) | 2,682.68 | |
-| contingency, 15% | 2,135.75 | |
-| **total** | **16,374.07** | **18,671.35** |
+| priced lines | 11,776.59 | |
+| allowances (nothing designed yet) | 2,782.68 | |
+| contingency, 15% | 2,183.89 | |
+| **total** | **16,743.16** | **19,092.23** |
 
 **The allowances**, each a sum set aside, never a price:
 - **A USB to RS-485 adapter that runs at the grippers' 6 Mbps** (grippers), €30.00: an FTDI-class USB to RS-485 adapter good for 6 Mbps; none chosen
-- **The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners** (frame), €1,600.00: forty-eight machined 6082 plates with their fasteners, at €33.33 a machined part (#379's rate for the quadruped's legs: €800 for twenty-four)
+- **The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners** (frame), €1,666.67: fifty machined 6082 plates with their fasteners, at €33.33 a machined part (#379's rate for the quadruped's legs: €800 for twenty-four)
 - **The pelvis's and the torso's frame: 3 mm 6082 plates** (frame), €300.00: eight 3 mm 6082 plates, as #379 priced the quadruped's frame (€300 for six to eight): AluFritze's configurator prices a plain 300 x 150 mm one at €20.02; a plate with holes is priced from its drawing
 - **The thighs' and shanks' side plates, 5 and 4 mm 6082** (frame), €266.67: eight machined side plates at €33.33 a machined part (#379's rate)
 - **The soles: a 6 mm 6082 plate and its 5 mm rubber** (frame), €86.67: two machined sole plates at €33.33 a machined part (#379's rate), and €20 of 5 mm rubber sheet
 - **The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length** (frame), €40.00: 0.8 m of 6082 round tube in two sizes, cut to length; not priced for this bill
 - **The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end** (frame), €20.00: two 0.34 m rods cut from 8 mm tube and threaded M5 at each end
 - **The plates the grippers bolt to on the wrists' roll, 6 mm 6082** (frame), €66.67: two machined plates at €33.33 a machined part (#379's rate), drawn when the gripper's flange is known (Unitree does not publish it)
+- **The waist's turntable plate over the pelvis, the torso's frame on it: 5 mm 6082** (frame), €33.33: one machined part at €33.33 a machined part (#379's rate)
 - **The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under** (frame), €66.67: two machined parts at €33.33 a machined part (#379's rate): the cap is printed, the fin that carries it 6082 (a printed fin as thin would sway with the unit on it)
 - **Rosenberger RoPD panel plug, C003-B1 (magnetic, 60 V DC, 25 A): the charge port on the torso's front** (charging), €40.00: the cable jack's listed $43.58
 - **The charge port's funnel, printed in PETG: 70 mm across its mouth, 15 mm deep** (charging), €1.00: 25 g of PETG

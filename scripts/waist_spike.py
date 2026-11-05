@@ -66,6 +66,12 @@ from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 # ---- the candidates' drawing -------------------------------------------------
 
+#: The body every candidate is drawn from: today's before the waist was built
+#: (#560's stage (c3) built `yaw` into `model.CHOSEN`, pinned to this
+#: instrument's), and its joints (`model.joint_names`).
+TODAY = hm.CHOSEN.with_(waist_yaw=False)
+JOINTS = hm.joint_names(TODAY)
+
 #: The waist's axes over the hip pitch axes, m. The yaw at the pelvis's top
 #: (its motor stood in the pelvis's middle, between the hips' pitch motors:
 #: they leave |y| < 0.054 free, an RS03's 98 mm fits); the pitch at the
@@ -113,7 +119,7 @@ def _housing(name: str, motor, at, axis: str) -> ET.Element:
   return ET.fromstring(hm._housing(name, motor, at, axis))
 
 
-def waist_xml(kind: str, spec: hm.HumanoidSpec = hm.CHOSEN, pack_below: bool = True,
+def waist_xml(kind: str, spec: hm.HumanoidSpec = TODAY, pack_below: bool = True,
               scenery: str = "") -> str:
   """The robot's drawing with the candidate's waist (`CANDIDATES[kind]`):
   today's generated MJCF with the trunk cut at the waist -- the root keeps
@@ -202,17 +208,19 @@ class WaistModel(ha.SelfModel):
                                                       scenery=scenery))
     self.d = mujoco.MjData(self.m)
     m = self.m
-    self.qadr = np.array([m.jnt_qposadr[m.joint(n).id] for n in hm.JOINT_NAMES])
-    self.vadr = np.array([m.jnt_dofadr[m.joint(n).id] for n in hm.JOINT_NAMES])
-    self.ranges = np.array([hm.joint_range(n) for n in hm.JOINT_NAMES])
+    self.qadr = np.array([m.jnt_qposadr[m.joint(n).id] for n in JOINTS])
+    self.vadr = np.array([m.jnt_dofadr[m.joint(n).id] for n in JOINTS])
+    self.ranges = np.array([hm.joint_range(n) for n in JOINTS])
     self.grip = {s: m.site(f"{s}_grip").id for s in hm.SIDES}
     self.soles = [m.geom(f"{s}_sole").id for s in hm.SIDES]
     self.root = m.body(ROBOT_ROOT).id
-    self.arm = {s: np.array([hm.JOINT_NAMES.index(f"{s}_{j}") for j in hm.ARM])
+    self.arm = {s: np.array([JOINTS.index(f"{s}_{j}") for j in hm.ARM])
                 for s in hm.SIDES}
-    self.leg = {s: np.array([hm.JOINT_NAMES.index(f"{s}_{j}") for j in hm.LEG])
+    self.leg = {s: np.array([JOINTS.index(f"{s}_{j}") for j in hm.LEG])
                 for s in hm.SIDES}
-    self.q = np.zeros(len(hm.JOINT_NAMES))
+    self.q = np.zeros(len(JOINTS))
+    # ...its waist its own (`waist_adr`), and nothing the served planner keeps
+    self.waist, self.statues = np.zeros(0, dtype=int), {}
     self.waist_adr = {WAIST_JOINTS[j]: int(m.jnt_qposadr[m.joint(WAIST_JOINTS[j]).id])
                       for j in CANDIDATES[kind]}
     self.waist_dof = {WAIST_JOINTS[j]: int(m.jnt_dofadr[m.joint(WAIST_JOINTS[j]).id])
@@ -345,7 +353,7 @@ def static_legs(sm: WaistModel, height: float, pitch: float, arms: dict | None =
   whether they do (`BALANCED_M`): a deep bow on a waist may have no statue."""
   m, d = sm.m, sm.d
   root, sole = sm.root, sm.soles[0]
-  adr = {n: sm.qadr[k] for k, n in enumerate(hm.JOINT_NAMES)}
+  adr = {n: sm.qadr[k] for k, n in enumerate(JOINTS)}
   h = hm.stand_height() + height
   quat = np.zeros(4)
   mujoco.mju_euler2Quat(quat, np.array([0.0, pitch, 0.0]), "XYZ")
@@ -409,7 +417,7 @@ def postures(sm: WaistModel, legs=rc.POSTURES) -> list[Posture]:
   """Every posture the candidate may take -- the legs' (`reach.POSTURES`)
   with each of its waist's settings -- least bent first, each with its
   statue (the arms hanging, as `reach.plan` balances them)."""
-  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in JOINTS])
   out = []
   for i, (height, pitch) in enumerate(legs):
     for w in waist_settings(sm.kind):
@@ -417,7 +425,7 @@ def postures(sm: WaistModel, legs=rc.POSTURES) -> list[Posture]:
       leg_q, ok = static_legs(sm, height, pitch)
       q = q0.copy()
       for n, v in leg_q.items():
-        q[hm.JOINT_NAMES.index(n)] = v
+        q[JOINTS.index(n)] = v
       p = Posture(height, pitch, dict(w), i, q, ok)
       if ok:
         pose(sm, p)
@@ -439,7 +447,7 @@ def pose(sm: WaistModel, p: Posture) -> None:
 def arm_reach(sm: WaistModel, side: str = "left") -> float:
   """The furthest the grip gets from its shoulder's roll axis, m: the arm
   straight, the wrist straight."""
-  q0 = np.zeros(len(hm.JOINT_NAMES))
+  q0 = np.zeros(len(JOINTS))
   sm.set_waist({})
   sm.pose(q0, np.array([0.0, 0.0, -1.0]))
   sh = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id]
@@ -670,7 +678,7 @@ def costs(sm: WaistModel, side: str, p: "Posture", q_goal, q_pre, pos, rot, edge
   legs, ok = static_legs(sm, p.height, p.pitch, arms=arm_goal)
   q = p.q.copy()
   for n, v in {**arm_goal, **legs}.items():
-    q[hm.JOINT_NAMES.index(n)] = v
+    q[JOINTS.index(n)] = v
   sm.pose(q, gravity_of(p.pitch))
   out["balanced"] = bool(ok)
   com = sm.d.subtree_com[sm.root][:2].copy()
@@ -682,10 +690,10 @@ def costs(sm: WaistModel, side: str, p: "Posture", q_goal, q_pre, pos, rot, edge
   tau = held(sm, LOAD_KG, side)
   out["tau"] = {n: round(float(tau[sm.waist_dof[n]]), 3) for n in sm.waist_dof}
   for k in ("hip_pitch", "knee", "ankle_pitch"):
-    out["tau"][k] = round(max(abs(float(tau[sm.vadr[hm.JOINT_NAMES.index(f"{s}_{k}")]]))
+    out["tau"][k] = round(max(abs(float(tau[sm.vadr[JOINTS.index(f"{s}_{k}")]]))
                               for s in hm.SIDES), 3)
   for k in ("shoulder_pitch", "shoulder_roll"):
-    out["tau"][k] = round(abs(float(tau[sm.vadr[hm.JOINT_NAMES.index(f"{side}_{k}")]])), 3)
+    out["tau"][k] = round(abs(float(tau[sm.vadr[JOINTS.index(f"{side}_{k}")]])), 3)
   _, ep, er = rc.solve_seeded(sm, side, pos, rot, q_goal)
   out["still_reaches"] = bool(ep < ha.REACH_POS_TOL and er < ha.REACH_ROT_TOL)
   sm._set_arm(side, q_pre)
@@ -766,7 +774,7 @@ def carry_plan(sm: WaistModel, side: str, table: list[Posture], points, rot,
       legs, balanced = static_legs(sm, p.height, p.pitch, arms=arm_end)
       qq = p.q.copy()
       for n, v in {**arm_end, **legs}.items():
-        qq[hm.JOINT_NAMES.index(n)] = v
+        qq[JOINTS.index(n)] = v
       sm.set_waist(w)
       sm.pose(qq, gravity_of(p.pitch))
       q, ep, er = sm.solve_chain(side, pts[-1], rot)
@@ -1264,7 +1272,7 @@ def mass_table(kinds) -> None:
   base = None
   for kind in kinds:
     sm = WaistModel(kind)
-    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in JOINTS])
     sm.pose(q0, np.array([0.0, 0.0, -1.0]))
     m, d = sm.m, sm.d
     total = float(m.body_subtreemass[sm.root])
@@ -1422,7 +1430,7 @@ def strip(kinds, out: str) -> None:
         legs, _ = static_legs(sm, p.height, p.pitch, arms=arm_goal)
         q = p.q.copy()
         for n, v in {**arm_goal, **legs}.items():
-          q[hm.JOINT_NAMES.index(n)] = v
+          q[JOINTS.index(n)] = v
         sm.pose(q, gravity_of(p.pitch))
         label += f": {p.label()}"
       cam = mujoco.MjvCamera()

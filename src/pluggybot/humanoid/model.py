@@ -26,11 +26,13 @@ money, training and serving speed (#507, rule 4):
                      the roll last, so the jaws turn about their own axis
   a gripper an arm   a parallel gripper on sale (rule 2), its jaws one
                      motor's
-  not here           the T2's waist (pitch, roll, yaw): the hips bend the
-                     body to a low reach and the legs' yaws turn it (#560's
-                     table asks the shoulders to turn on the hips: a waist is
-                     measured, not built -- SimNotes, "A waist, measured
-                     before it is built");
+  the waist's yaw    at the pelvis's top (#560, stage (c3)): each hand
+                     reaches past the middle of a table and every pick-up
+                     is made standing tall (SimNotes, "A waist, measured
+                     before it is built", and "The waist built")
+  not here           the T2's waist's pitch and roll: the hips bend the
+                     body to a low reach (Ben, 2026-11-05: a pitch only if
+                     the stance still turns as an arm goes out);
                      its head's two joints: the depth camera is fixed,
                      pitched at the counter and the floor ahead, and a
                      shelf above the head is out of its view; its seventh
@@ -62,29 +64,52 @@ SIDES = ("left", "right")
 LEG = ("hip_pitch", "hip_roll", "hip_yaw", "knee", "ankle_pitch", "ankle_roll")
 ARM = ("shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow",
        "wrist_pitch", "wrist_roll")
+#: The waist's joints, the trunk's own (no side): its yaw, at the pelvis's
+#: top (#560, stage (c3)).
+WAIST = ("waist_yaw",)
 #: Every actuated joint but the grippers', in the order qpos carries them:
-#: the left leg, the right leg, then each arm (its gripper's jaws follow its
-#: wrist in qpos; read them by name).
-JOINT_NAMES = (tuple(f"{s}_{j}" for s in SIDES for j in LEG)
+#: the left leg, the right leg, the waist, then each arm (its gripper's jaws
+#: follow its wrist in qpos; read them by name). A body drawn without the
+#: waist (`HumanoidSpec.waist_yaw`, the instruments' today's body) has
+#: `joint_names(spec)`.
+JOINT_NAMES = (tuple(f"{s}_{j}" for s in SIDES for j in LEG) + WAIST
                + tuple(f"{s}_{j}" for s in SIDES for j in ARM))
 #: A gripper's two jaws: one slide each, the second held to the first.
 JAWS = ("jaw_a", "jaw_b")
-#: The body each kind of joint turns, a side's name before it.
+#: The body each kind of joint turns, a side's name before it (the waist's,
+#: no side's: `body_of`).
 BODY_OF = {"hip_pitch": "hip_pitch_link", "hip_roll": "hip_roll_link",
            "hip_yaw": "thigh", "knee": "shank", "ankle_pitch": "ankle_pitch_link",
            "ankle_roll": "foot", "shoulder_pitch": "shoulder_pitch_link",
            "shoulder_roll": "shoulder_roll_link", "shoulder_yaw": "upper_arm",
-           "elbow": "forearm", "wrist_pitch": "wrist", "wrist_roll": "hand"}
+           "elbow": "forearm", "wrist_pitch": "wrist", "wrist_roll": "hand",
+           "waist_yaw": "waist_yaw_link"}
 
 
 def kind(joint: str) -> str:
-  """`left_knee` -> `knee`: which part drives a joint."""
-  return joint.split("_", 1)[1]
+  """`left_knee` -> `knee`: which part drives a joint; a waist joint is its
+  own kind."""
+  return joint if joint in WAIST else joint.split("_", 1)[1]
 
 
 def side(joint: str) -> int:
-  """+1 for the robot's left, -1 for its right."""
+  """+1 for the robot's left, -1 for its right, 0 for the waist's."""
+  if joint in WAIST:
+    return 0
   return 1 if joint.startswith("left") else -1
+
+
+def body_of(joint: str) -> str:
+  """The body a joint turns: `left_knee` -> `left_shank`."""
+  if joint in WAIST:
+    return BODY_OF[joint]
+  return f"{joint.split('_', 1)[0]}_{BODY_OF[kind(joint)]}"
+
+
+def joint_names(spec: "HumanoidSpec") -> tuple[str, ...]:
+  """A body's actuated joints, `JOINT_NAMES`' order: without the waist where
+  the spec has none."""
+  return tuple(j for j in JOINT_NAMES if spec.waist_yaw or j not in WAIST)
 
 
 # ---- the reference -----------------------------------------------------------
@@ -197,12 +222,22 @@ class HumanoidSpec:
   foot_len: float = 0.22
   foot_w: float = 0.09
   heel: float = 0.07
-  # -- the trunk: one rigid body from the hips to the head --
+  # -- the trunk: the pelvis, and over the waist the torso and the head --
   #: The pelvis, round the hip pitch motors, and the torso above it:
   #: half-extents and the torso's centre over the hip axes.
   pelvis_half: tuple[float, float, float] = (0.07, 0.115, 0.06)
   torso_half: tuple[float, float, float] = (0.085, 0.115, 0.18)
   torso_z: float = 0.24
+  #: The waist's yaw (#560, stage (c3); Ben, 2026-11-05: as #620 measured it,
+  #: `scripts/waist_spike.py`'s `yaw`): its axis up the pelvis's middle, its
+  #: link at the pelvis's top, `waist_z` over the hip axes, its motor stood
+  #: in the pelvis's middle between the hips' pitch motors (they leave |y| <
+  #: 0.054 free, an RS03's 98 mm fits); the torso, the pack, the head and its
+  #: sensors, the port and the arms ride it, the IMU and the legs the
+  #: pelvis. False draws the body before it: one rigid trunk, the drawing
+  #: #620's and #621's instruments measure from.
+  waist_yaw: bool = True
+  waist_z: float = 0.06
   # -- the arms --
   #: The shoulder pitch joint (on the torso's side) over the hip axes, and
   #: the roll axis outboard of it: the arm hangs on the roll's line.
@@ -277,6 +312,9 @@ MODEL_XML = "models/humanoid.xml"
 #: command too (`humanoid.arms`), and training's scripted arms hold the same
 #: (`training/humanoid_train`).
 ARM_GAIN_SCALE = (4.0, 2.0)
+#: ...and the waist's commands theirs (`humanoid.reach.Waist`), as the arms'
+#: are scripted beside a standing policy.
+WAIST_GAIN_SCALE = (4.0, 2.0)
 #: The body's constants for `training/`, which cannot import this package.
 CONSTANTS_JSON = "models/humanoid.json"
 
@@ -290,7 +328,11 @@ def structure(spec: HumanoidSpec = CHOSEN) -> dict[str, tuple]:
   tx, ty, tz = spec.torso_half
   r, top, cap_lo = spec.head_r, face_top(spec), _rim_lo(spec) + RIM[1]
   foot = spec.foot_len * spec.foot_w
+  waist = {"waist_plate": (Plate(2 * px * 2 * py, 0.005), 1,
+                           "the waist's turntable plate over the pelvis, the torso's "
+                           "frame on it, 5 mm 6082")} if spec.waist_yaw else {}
   return {
+    **waist,
     "pelvis_side": (Plate(2 * px * 2 * pz, 0.003), 2, "the pelvis's sides, 3 mm 6082"),
     "pelvis_deck": (Plate(2 * px * 2 * py, 0.003), 2, "the pelvis's top and bottom"),
     "torso_side": (Plate(2 * tx * 2 * tz, 0.003), 2, "the torso's sides, 3 mm 6082"),
@@ -466,6 +508,9 @@ RANGES = {
   # +-90 deg points the gripper down at a counter with the forearm level.
   "wrist_pitch": (-1.6, 1.6),
   "wrist_roll": (-2.059489, 2.059489),
+  # Ours (Ben, 2026-11-05): +-60 deg, all of it used by #620's table
+  # reaches (the T2 turns +-138); to the left positive.
+  "waist_yaw": (-1.05, 1.05),
 }
 #: Joints whose range mirrors on the right (a roll or yaw turns the other way).
 MIRRORED = ("hip_roll", "hip_yaw", "ankle_roll", "shoulder_roll", "shoulder_yaw",
@@ -667,9 +712,10 @@ def _actuators(spec: HumanoidSpec) -> str:
   line and its own gains (`humanoid.actuator.JointLimits.dcmotor`, issue
   #385's algebra), then the grippers'."""
   rows = []
-  lim = JointLimits.of_motors([spec.motor(j) for j in JOINT_NAMES])
-  gains = [driver_gains(spec.motor(j)) for j in JOINT_NAMES]
-  for jn, d in zip(JOINT_NAMES, lim.dcmotor([g[0] for g in gains], [g[1] for g in gains])):
+  names = joint_names(spec)
+  lim = JointLimits.of_motors([spec.motor(j) for j in names])
+  gains = [driver_gains(spec.motor(j)) for j in names]
+  for jn, d in zip(names, lim.dcmotor([g[0] for g in gains], [g[1] for g in gains])):
     rows.append(
       f'    <dcmotor name="{jn}" joint="{jn}" input="position" '
       f'motorconst="{_exact(*d["motorconst"])}" resistance="{_exact(d["resistance"])}" '
@@ -683,10 +729,15 @@ def _actuators(spec: HumanoidSpec) -> str:
   return "\n".join(rows)
 
 
-def _trunk(spec: HumanoidSpec) -> str:
-  """The pelvis, torso and head: one rigid body (there is no waist), with
-  the hips' and shoulders' pitch motors, the pack, the electronics and the
-  sensors in it."""
+def _trunk(spec: HumanoidSpec) -> dict[str, str]:
+  """The pelvis, the torso and the head, with the hips' and shoulders'
+  pitch motors, the pack, the electronics and the sensors, in the pieces
+  `body_xml` lays: the pelvis's own (its IMU and box), the hips' motors on
+  it, and what rides above the waist -- the torso with the pack and the
+  electronics, the shoulders' motors, and the neck, the head, the port and
+  the sensors. Without the waist they are one rigid body, in that order but
+  the hips' motors after the torso's three (the drawing before #560's
+  stage (c3), to the byte)."""
   px, py, pz = spec.pelvis_half
   tx, ty, tz = spec.torso_half
   pelvis = _kg(spec, "pelvis_side", "pelvis_deck")
@@ -701,10 +752,10 @@ def _trunk(spec: HumanoidSpec) -> str:
     for s in SIDES)
   dp = math.radians(spec.depth_pitch_deg)
   npch = math.radians(spec.nav_pitch_deg)
-  return f"""
+  return {"pelvis": f"""
       <site name="imu" pos="0 0 0" size="0.01"/>
       <geom name="pelvis" class="limb" type="box" size="{_v(px, py, pz)}"
-            mass="{_f(pelvis)}"/>
+            mass="{_f(pelvis)}"/>""", "hips": hips, "torso": f"""
       <geom name="torso" class="limb" type="box" size="{_v(tx, ty, tz)}"
             pos="{_v(0, 0, spec.torso_z)}" mass="{_f(torso)}"/>
       <geom name="pack" class="visual" type="box" size="{_v(*pack.half)}"
@@ -712,7 +763,7 @@ def _trunk(spec: HumanoidSpec) -> str:
             mass="{_f(pack.kg)}" rgba="0.15 0.15 0.2 1"/>
       <geom name="electronics" class="visual" type="box" size="0.04 0.08 0.05"
             pos="{_v(tx - 0.05, 0, spec.torso_z + 0.06)}" mass="{_f(hp.ELECTRONICS_KG)}"
-            rgba="0.1 0.5 0.2 1"/>{hips}{shoulders}
+            rgba="0.1 0.5 0.2 1"/>""", "shoulders": shoulders, "head": f"""
       <geom name="neck" class="visual" type="cylinder" size="0.025"
             fromto="{_v(0, 0, spec.torso_z + tz, 0, 0, spec.face_lo)}" mass="0" rgba="0.3 0.3 0.32 1"/>{_head(spec)}
       <geom name="charge_port" class="visual" type="box"
@@ -735,7 +786,32 @@ def _trunk(spec: HumanoidSpec) -> str:
         <geom name="nav_cam" class="visual" type="box" size="{_v(*NAV_CAM_HALF)}"
               mass="{_f(hp.CAMERA_KG)}" rgba="0.1 0.1 0.1 1"/>
         <camera name="nav_eye" pos="0.007 0 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
-      </body>{_lidar(spec)}"""
+      </body>{_lidar(spec)}"""}
+
+
+#: The waist's turntable plate's colour: the aluminium's own, unpainted.
+WAIST_PLATE_RGBA = "0.6 0.6 0.62 1"
+
+
+def _waist(spec: HumanoidSpec, above: str) -> str:
+  """The waist's yaw (`HumanoidSpec.waist_yaw`): its motor stood in the
+  pelvis's middle, the link it turns at the pelvis's top with the turntable
+  plate on it, and `above` -- everything that rides it -- laid through a
+  frame that undoes the link's offset, so the waist at zero is the body
+  without it, every part where it was (#620's `waist_spike.waist_xml("yaw")`,
+  pinned to it)."""
+  m, z = spec.motor("waist_yaw"), spec.waist_z
+  px, py, _ = spec.pelvis_half
+  plate = structure(spec)["waist_plate"][0]
+  return f"""
+      {_housing("waist_yaw_motor", m, (0, 0, z - m.length / 2), "z")}
+      <body name="{BODY_OF['waist_yaw']}" pos="{_v(0, 0, z)}">
+        {_joint("waist_yaw", "z", m)}
+        <geom name="waist_plate" class="visual" type="box" size="{_v(px, py, plate.thick / 2)}"
+              pos="{_v(0, 0, plate.thick / 2)}" mass="{_f(plate.kg)}" rgba="{WAIST_PLATE_RGBA}"/>
+        <frame pos="{_v(0, 0, -z)}">{above}
+        </frame>
+      </body>"""
 
 
 def _head(spec: HumanoidSpec) -> str:
@@ -822,6 +898,12 @@ def body_xml(spec: HumanoidSpec = CHOSEN, *, root: str = ROBOT_ROOT,
   h0 = stand_height(spec)
   legs = "".join(_leg(spec, s) for s in SIDES)
   arms = "".join(_arm(spec, s) for s in SIDES)
+  t = _trunk(spec)
+  if spec.waist_yaw:
+    body = (t["pelvis"] + t["hips"] + legs
+            + _waist(spec, t["torso"] + t["shoulders"] + t["head"] + arms))
+  else:
+    body = t["pelvis"] + t["torso"] + t["hips"] + t["shoulders"] + t["head"] + legs + arms
   robot = f"""
   <default>
     <default class="humanoid">
@@ -849,7 +931,7 @@ def body_xml(spec: HumanoidSpec = CHOSEN, *, root: str = ROBOT_ROOT,
 
   <worldbody>
     <body name="{root}" pos="{_v(0, 0, h0)}" childclass="humanoid">
-      <freejoint name="{root}_root"/>{_trunk(spec)}{legs}{arms}
+      <freejoint name="{root}_root"/>{body}
     </body>
   </worldbody>
 
@@ -951,10 +1033,12 @@ def _foot_sensors() -> str:
   return "\n".join(f'    <touch name="{s}_foot_touch" site="{s}_foot"/>' for s in SIDES)
 
 
-def qpos_order() -> list[str]:
+def qpos_order(spec: HumanoidSpec = CHOSEN) -> list[str]:
   """Every hinge and slide joint in the order qpos carries them after the
-  free joint's seven: the tree's (legs, then each arm and its jaws)."""
+  free joint's seven: the tree's (legs, the waist, then each arm and its
+  jaws)."""
   order = [f"{s}_{j}" for s in SIDES for j in LEG]
+  order += [j for j in WAIST if spec.waist_yaw]
   for s in SIDES:
     order += [f"{s}_{j}" for j in ARM] + [f"{s}_{j}" for j in JAWS]
   return order
@@ -964,7 +1048,7 @@ def _keyframes(spec: HumanoidSpec) -> str:
   rows = []
   for name, q, h in (("stand", stand_qpos(spec), stand_height(spec)),
                      ("zero", {}, spec.leg_length)):
-    joints = " ".join(_f(q.get(j, 0.0)) for j in qpos_order())
+    joints = " ".join(_f(q.get(j, 0.0)) for j in qpos_order(spec))
     rows.append(f'    <key name="{name}" qpos="0 0 {_f(h)} 1 0 0 0 {joints}"/>')
   return "\n  <keyframe>\n" + "\n".join(rows) + "\n  </keyframe>"
 
@@ -995,7 +1079,8 @@ def training_constants(spec: HumanoidSpec = CHOSEN) -> dict:
   its own part's numbers, on the pack's nominal bus."""
   from pluggybot.humanoid import actuator as act
   joints = {}
-  for j in JOINT_NAMES:
+  names = joint_names(spec)
+  for j in names:
     m = spec.motor(j).at_voltage(act.BUS_V_NOMINAL)
     kp, kd = driver_gains(spec.motor(j))
     joints[j] = {
@@ -1009,7 +1094,12 @@ def training_constants(spec: HumanoidSpec = CHOSEN) -> dict:
   return {
     "root": ROBOT_ROOT,
     "joints": joints,
-    "order": list(JOINT_NAMES),
+    "order": list(names),
+    # ...and by what drives them: the legs the policies', the waist and the
+    # arms scripted in training as the served reach drives them
+    "groups": {"legs": [j for j in names if kind(j) in LEG],
+               "waist": [j for j in names if j in WAIST],
+               "arms": [j for j in names if kind(j) in ARM]},
     "feet": [f"{s}_foot" for s in SIDES],
     "stand_height": round(stand_height(spec), 6),
     "stand_qpos": {j: round(v, 6) for j, v in stand_qpos(spec).items()},
@@ -1017,6 +1107,7 @@ def training_constants(spec: HumanoidSpec = CHOSEN) -> dict:
     "gripper": {"name": hp.GRIPPER.name, "stroke": hp.GRIPPER.stroke,
                 "grip_force_n": hp.GRIPPER.grip_force_n},
     "arm_gain_scale": list(ARM_GAIN_SCALE),
+    "waist_gain_scale": list(WAIST_GAIN_SCALE),
   }
 
 

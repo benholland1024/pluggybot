@@ -7,9 +7,11 @@ The legs are the policy's; the arms are NOT. On the robot they follow an
 inverse-kinematics reach (`pluggybot.humanoid.arms`), so here they follow a
 script that sends them, joint by joint, somewhere new every few seconds
 (`ScriptedArms`), with their own weight fed forward as the reach's commands
-carry it. The policy sees their encoders and so where their mass is; it is
-paid for the posture it was asked, for its feet staying where they are, and
-charged for torque past a part's continuous rating. What disturbs it:
+carry it -- and the waist's yaw likewise (#560's stage (c3): the reach turns
+it to its posture's angle, `ScriptedWaist`). The policy sees their encoders
+and so where their mass is; it is paid for the posture it was asked, for its
+feet staying where they are and as they were turned (`feet_anchor`,
+`feet_yaw_anchor`), and charged for torque past a part's continuous rating. What disturbs it:
 shoves to the trunk, a load in each hand (`HAND_KG`), and pulls and pushes
 at the hands (`HAND_N`) -- a handle gripped and drawn back -- each ramped up
 over the first iterations (`DISTURBANCE_STAGES`).
@@ -248,6 +250,79 @@ class ScriptedArms(ActionTerm):
     self.timer[ids] = torch.empty(len(ids), device=self.device).uniform_(0.0, ARM_MOVE_S[0])
 
 
+#: The waist's goals, rad: either way to the posture grid's 60 deg
+#: (`pluggybot.humanoid.reach.WAIST_YAWS`); a share at zero, where it rests;
+#: and how fast it is turned, rad/s (`reach.WAIST_RATE`).
+WAIST_GOAL = 1.0472
+WAIST_REST_SHARE = 0.3
+WAIST_RATE = 0.6
+
+
+@dataclass(kw_only=True)
+class ScriptedWaistCfg(ActionTermCfg):
+  entity_name: str = "robot"
+  rest_share: float = WAIST_REST_SHARE
+
+  def build(self, env) -> "ScriptedWaist":
+    return ScriptedWaist(self, env)
+
+
+class ScriptedWaist(ActionTerm):
+  """The waist as the policy meets it, as the served reach turns it to a
+  posture's angle: not its to move (no action), sent to a new angle every
+  `ARM_MOVE_S` -- uniform within `WAIST_GOAL`, or home (`rest_share`) --
+  its target ramped at `WAIST_RATE`, the trunk above it held with its weight
+  fed forward (the bias force at its joint, as the served command carries
+  it off the robot's model of itself)."""
+
+  def __init__(self, cfg: ScriptedWaistCfg, env):
+    super().__init__(cfg, env)
+    ids, _ = self._entity.find_joints(robot.WAIST, preserve_order=True)
+    self.ids = torch.tensor(ids, device=self.device, dtype=torch.long)
+    self.rest = self._entity.data.default_joint_pos[:, self.ids].clone()
+    self.target = self.rest.clone()
+    self.goal = self.rest.clone()
+    self.timer = torch.zeros(self.num_envs, device=self.device)
+    self._raw = torch.zeros(self.num_envs, 0, device=self.device)
+
+  @property
+  def action_dim(self) -> int:
+    return 0
+
+  @property
+  def raw_action(self) -> torch.Tensor:
+    return self._raw
+
+  def _new_goals(self, env_ids: torch.Tensor) -> None:
+    n = len(env_ids)
+    goal = torch.empty(n, len(self.ids), device=self.device).uniform_(-WAIST_GOAL, WAIST_GOAL)
+    rest = torch.rand(n, 1, device=self.device) < self.cfg.rest_share
+    self.goal[env_ids] = torch.where(rest, self.rest[env_ids], goal)
+    self.timer[env_ids] = torch.empty(n, device=self.device).uniform_(*ARM_MOVE_S)
+
+  def process_actions(self, actions: torch.Tensor) -> None:
+    dt = self._env.step_dt
+    self.timer -= dt
+    due = torch.nonzero(self.timer <= 0).flatten()
+    if len(due):
+      self._new_goals(due)
+    step = WAIST_RATE * dt
+    self.target += torch.clamp(self.goal - self.target, -step, step)
+
+  def apply_actions(self) -> None:
+    self._entity.set_joint_position_target(self.target, joint_ids=self.ids)
+    bias = self._entity.data._joint_dof_field("qfrc_bias")[:, self.ids]
+    self._entity.set_joint_effort_target(bias, joint_ids=self.ids)
+
+  def reset(self, env_ids=None) -> None:
+    ids = torch.arange(self.num_envs, device=self.device) if env_ids is None else env_ids
+    if isinstance(ids, slice):
+      ids = torch.arange(self.num_envs, device=self.device)[ids]
+    self.target[ids] = self.rest[ids]
+    self.goal[ids] = self.rest[ids]
+    self.timer[ids] = torch.empty(len(ids), device=self.device).uniform_(0.0, ARM_MOVE_S[0])
+
+
 # ---- feet that stay where they are -------------------------------------------------------
 
 def feet_still(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -288,6 +363,41 @@ class feet_anchor:
     return (torch.norm(pos - self.anchor, dim=-1) * self.valid).sum(dim=1)
 
 
+def _yaw(quat: torch.Tensor) -> torch.Tensor:
+  """A (w, x, y, z) quaternion's heading, rad."""
+  w, x, y, z = quat.unbind(-1)
+  return torch.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
+
+class feet_yaw_anchor:
+  """Each sole's turn from the heading the episode's stance put it at,
+  rad, summed, down or lifted: `feet_anchor`'s rule for the soles' heading
+  (#560's stage (c3)). MEASURED on the stand that knew no waist (stage (a),
+  `hands_check` at a table): a crouch and a bow turned the right sole 5.2
+  deg where it stood, an arm held out 4.6-4.8, both 8.2-8.4 -- a reach's
+  stance frame turning under its target."""
+
+  def __init__(self, cfg: RewardTermCfg, env):
+    self.entity = env.scene["robot"]
+    ids, _ = self.entity.find_sites(robot.FEET, preserve_order=True)
+    self.ids = torch.tensor(ids, device=env.device, dtype=torch.long)
+    self.anchor = torch.zeros(env.num_envs, len(ids), device=env.device)
+    self.valid = torch.zeros(env.num_envs, len(ids), dtype=torch.bool, device=env.device)
+
+  def reset(self, env_ids=None) -> None:
+    self.valid[slice(None) if env_ids is None else env_ids] = False
+
+  def __call__(self, env, sensor_name: str, free_rad: float = 0.0) -> torch.Tensor:
+    """...charged past `free_rad` (a flag: `--env.rewards.feet-yaw-anchor.params.free-rad`)."""
+    yaw = _yaw(self.entity.data.site_quat_w[:, self.ids])
+    down = env.scene[sensor_name].data.found > 0
+    first = down & ~self.valid
+    self.anchor = torch.where(first, yaw, self.anchor)
+    self.valid = self.valid | down
+    turned = torch.remainder(yaw - self.anchor + torch.pi, 2 * torch.pi) - torch.pi
+    return (torch.clamp(turned.abs() - free_rad, min=0.0) * self.valid).sum(dim=1)
+
+
 def feet_down(env, sensor_name: str) -> torch.Tensor:
   """1 while both soles touch the ground."""
   found = env.scene[sensor_name].data.found
@@ -300,6 +410,12 @@ def torque_over_rating(env, asset_cfg: SceneEntityCfg, rated: torch.Tensor) -> t
   (SimNotes, "The humanoid body": a held torque is a stalled motor)."""
   tau = env.scene[asset_cfg.name].data.actuator_force[:, asset_cfg.actuator_ids]
   return torch.sum(torch.clamp(tau.abs() / rated.to(tau.device) - 1.0, min=0.0), dim=1)
+
+
+#: The soles' turn's charge, a radian (`feet_yaw_anchor`): a sole turned 5
+#: deg is charged as one slid 2 cm (`feet_anchor`'s -10 a metre) -- its toe
+#: swings about that far.
+FEET_YAW_WEIGHT = -2.5
 
 
 # ---- falls ----------------------------------------------------------------------------
@@ -394,6 +510,7 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   action.scale = robot.ACTION_SCALE
   action.preserve_order = True
   cfg.actions["arms"] = ScriptedArmsCfg()
+  cfg.actions["waist"] = ScriptedWaistCfg()
 
   # The observations: no base velocity, no twist; the posture asked; every
   # joint's encoder, the arms' too (where their mass is).
@@ -466,6 +583,9 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     params={"asset_cfg": SceneEntityCfg("robot", site_names=robot.FEET)})
   rewards["feet_anchor"] = RewardTermCfg(
     func=feet_anchor, weight=-10.0, params={"sensor_name": "feet_ground_contact"})
+  rewards["feet_yaw_anchor"] = RewardTermCfg(
+    func=feet_yaw_anchor, weight=FEET_YAW_WEIGHT,
+    params={"sensor_name": "feet_ground_contact", "free_rad": 0.0})
   rewards["feet_down"] = RewardTermCfg(
     func=feet_down, weight=0.5, params={"sensor_name": "feet_ground_contact"})
   legs = SceneEntityCfg("robot", actuator_names=robot.LEGS, preserve_order=True)

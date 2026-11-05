@@ -475,9 +475,11 @@ class HumanoidBody(Body):
   def actuator(self, name: str) -> int:
     """An arm joint's driver or a gripper's, by its bare name
     (`left_elbow`, `right_gripper`): its id. The legs are the standing
-    policy's, never a caller's."""
+    policy's and the waist the reach's posture's, never a caller's."""
     if name in hm.JOINT_NAMES and hm.kind(name) in hm.LEG:
       raise KeyError(f"{name} is the standing policy's")
+    if name in hm.WAIST:
+      raise KeyError(f"{name} is the reach's posture's")
     return int(self._m.actuator(self.handle.el(name)).id)
 
   def ramp_routine(self, act: int, target: float, speed: float, settle: float = 0.0):
@@ -536,7 +538,7 @@ class HumanoidBody(Body):
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     self._why[side] = "out of reach"
     self._halted.discard(side)
-    postures = reach_.POSTURES
+    postures = reach_.REACH_POSTURES
     if path is not None:
       # the posture the hand then follows its path in, and that one alone
       ways = [self.to_stance(q) for q in path]
@@ -633,14 +635,20 @@ class HumanoidBody(Body):
     p = self.to_world(self.reach.grip_now(side)[0] if got is None else got)
     return float(p[0]), float(p[1]), float(p[2])
 
-  def hand_watched(self, side):
+  def _watched(self) -> np.ndarray:
+    """Every joint as the watcher's own reading has it (#530: a page's
+    streams draw on their own noise, never the flight's)."""
     if self._watch is None:
       from pluggybot.humanoid.arms import SelfModel
       from pluggybot.humanoid.senses import JointSense
       self._watch = (JointSense(self._m, prefix=self.handle.prefix,
                                 key=f"watch:{self.handle.prefix}"), SelfModel())
-    sense, sm = self._watch
-    q, _, _ = sense.read(self._d)
+    q, _, _ = self._watch[0].read(self._d)
+    return q
+
+  def hand_watched(self, side):
+    q = self._watched()
+    sm = self._watch[1]
     sm.pose(q, self.mission.stand.trunk.gravity())
     p = self.to_world(sm.grip_pose(side)[0])
     return float(p[0]), float(p[1]), float(p[2])
@@ -651,7 +659,9 @@ class HumanoidBody(Body):
     if self._depth_watch is None or self._depth_watch[0] != key:
       self._depth_watch = (key, DepthCamera(self._m, self.handle, width=key[0], height=key[1],
                                             mount="body", seed=WATCH_SEED, reach=DEPTH_REACH_M))
-    return self._depth_watch[1].frame(self._d).z
+    # ...its mount through the waist as the watcher reads it
+    q, sm = self._watched(), self._watch[1]
+    return self._depth_watch[1].frame(self._d, dict(zip(hm.WAIST, q[sm.waist]))).z
 
   def hand_follows(self, side, poses, rot=None) -> bool:
     return self.reach.path_for(side, [self.to_stance(p) for p in poses],
@@ -690,7 +700,7 @@ class HumanoidBody(Body):
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
     """Its D435's points, each frame placed through its pelvis in its model
     of itself (posed off its encoders and IMU) and its stance: the camera
-    sits on its trunk, which no waist turns."""
+    rides the waist, its frame posed off the waist's reading."""
     from pluggybot.perception.depth import DepthCamera
     key = (int(width), int(height), float(min_z))
     if getattr(self, "_depth", (None,))[0] != key:
@@ -701,9 +711,9 @@ class HumanoidBody(Body):
     out = []
     for _ in range(int(frames)):
       yield from self.hold_routine(apart)
-      pts = cam.frame(self._d).points
       self.reach._pose()
       sm = self.reach.self_model
+      pts = cam.frame(self._d, dict(zip(hm.WAIST, sm.q[sm.waist]))).points
       rot = np.zeros(9)
       mujoco.mju_quat2Mat(rot, sm.d.qpos[3:7])
       inside = pts @ rot.reshape(3, 3).T + sm.d.qpos[0:3]

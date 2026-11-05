@@ -122,6 +122,7 @@
     "left_foot",
     "right_thigh",
     "right_foot",
+    "waist_yaw_link",
     "left_shoulder_pitch_link",
     "left_shoulder_roll_link",
     "right_shoulder_pitch_link",
@@ -136,7 +137,7 @@
    },
    "priceEur": 215.95,
    "priceFor": "each",
-   "quantity": 8,
+   "quantity": 9,
    "capabilities": {
     "peakNm": 60.0,
     "ratedNm": 20.0,
@@ -151,7 +152,7 @@
      "where": "model",
      "value": 60,
      "unit": "N·m",
-     "note": "every RS03 driver's clip: left_hip_yaw, left_ankle_roll, right_hip_yaw, right_ankle_roll, left_shoulder_pitch, left_shoulder_roll, right_shoulder_pitch, right_shoulder_roll",
+     "note": "every RS03 driver's clip: left_hip_yaw, left_ankle_roll, right_hip_yaw, right_ankle_roll, waist_yaw, left_shoulder_pitch, left_shoulder_roll, right_shoulder_pitch, right_shoulder_roll",
      "expect": 60
     },
     {
@@ -185,7 +186,7 @@
     }
    ],
    "why": {},
-   "note": "The hips' yaw, the ankles' roll and the shoulders' pitch and roll. K-Bot uses it at hip roll and yaw. 880 g in its manual, 928 on the sheet's page. Its facts are RobStride's own manuals and spec sheet (`humanoid.parts.RS_DOCS`); the link is where it is bought."
+   "note": "The hips' yaw, the ankles' roll, the shoulders' pitch and roll and the waist's yaw. K-Bot uses it at hip roll and yaw. 880 g in its manual, 928 on the sheet's page. Its facts are RobStride's own manuals and spec sheet (`humanoid.parts.RS_DOCS`); the link is where it is bought."
   },
   {
    "id": "rs02",
@@ -426,7 +427,7 @@
    "dimensionsMm": null,
    "priceEur": 5.0,
    "priceFor": "pair",
-   "quantity": 26,
+   "quantity": 27,
    "capabilities": {
     "wiring": "16, 18 or 20 AWG (Amass)",
     "ratedA": "15 with 18 AWG (Amass)"
@@ -1626,19 +1627,19 @@
    ],
    "partNumber": null,
    "source": null,
-   "massG": 7061.112,
+   "massG": 7359.316,
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 48,
+   "quantity": 50,
    "capabilities": {},
    "feeds": [
     {
      "constant": "humanoid.model._bracket",
      "where": "code",
-     "value": 7061.112,
+     "value": 7359.316,
      "unit": "g",
-     "note": "all forty-eight, riding each motor's housing in the model (`model._housing`)"
+     "note": "all fifty, riding each motor's housing in the model (`model._housing`)"
     }
    ],
    "why": {
@@ -1868,6 +1869,43 @@
      "constant": "humanoid.model.structure[gripper_adapter]",
      "where": "code",
      "value": 134.136,
+     "unit": "g",
+     "note": "their volume's mass, the fasteners' and wiring's allowance on it (`humanoid.model.ALLOWANCE`)"
+    }
+   ],
+   "why": {
+    "partNumber": "made to a drawing not yet drawn",
+    "source": "made to a drawing not yet drawn",
+    "dimensionsMm": "the drawing's; `humanoid.model.structure` sizes it",
+    "priceEur": "nothing drawn to quote: an allowance in the bill"
+   },
+   "note": ""
+  },
+  {
+   "id": "humanoid_waist_plate",
+   "name": "The waist's turntable plate over the pelvis, the torso's frame on it: 5 mm 6082",
+   "kind": "structure",
+   "status": "chosen",
+   "shelves": [
+    "build"
+   ],
+   "robot": "humanoid",
+   "usedBy": [
+    "waist_yaw_link"
+   ],
+   "partNumber": null,
+   "source": null,
+   "massG": 499.905,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "humanoid.model.structure[waist_plate]",
+     "where": "code",
+     "value": 499.905,
      "unit": "g",
      "note": "their volume's mass, the fasteners' and wiring's allowance on it (`humanoid.model.ALLOWANCE`)"
     }
@@ -2670,15 +2708,15 @@
     "part": "rs03",
     "name": "RobStride RS03 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V",
     "group": "actuation",
-    "quantity": 8,
+    "quantity": 9,
     "priceFor": "each",
     "eachEur": 215.95,
-    "lineEur": 1727.6,
+    "lineEur": 1943.55,
     "allowance": false,
     "basis": "",
     "leadTime": "pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms)",
     "why": {},
-    "note": "the hips' yaw, the ankles' roll, the shoulders' pitch and roll"
+    "note": "the hips' yaw, the ankles' roll, the shoulders' pitch and roll, the waist's yaw"
    },
    {
     "part": "rs02",
@@ -2726,10 +2764,10 @@
     "part": "amass_xt30_22_pair",
     "name": "Amass XT30(2+2) connector pair: power and signal in one (male, female and pins)",
     "group": "actuation",
-    "quantity": 30,
+    "quantity": 31,
     "priceFor": "pair",
     "eachEur": 5.0,
-    "lineEur": 150.0,
+    "lineEur": 155.0,
     "allowance": false,
     "basis": "",
     "leadTime": "dispatched within 2-3 days, UPS or DHL (3DPTronics, Italy)",
@@ -3187,9 +3225,9 @@
     "quantity": 1,
     "priceFor": "each",
     "eachEur": null,
-    "lineEur": 1600.0,
+    "lineEur": 1666.67,
     "allowance": true,
-    "basis": "forty-eight machined 6082 plates with their fasteners, at €33.33 a machined part (#379's rate for the quadruped's legs: €800 for twenty-four)",
+    "basis": "fifty machined 6082 plates with their fasteners, at €33.33 a machined part (#379's rate for the quadruped's legs: €800 for twenty-four)",
     "leadTime": null,
     "why": {
      "leadTime": "nothing drawn to quote"
@@ -3286,6 +3324,22 @@
     "lineEur": 66.67,
     "allowance": true,
     "basis": "two machined plates at €33.33 a machined part (#379's rate), drawn when the gripper's flange is known (Unitree does not publish it)",
+    "leadTime": null,
+    "why": {
+     "leadTime": "nothing drawn to quote"
+    },
+    "note": ""
+   },
+   {
+    "part": "humanoid_waist_plate",
+    "name": "The waist's turntable plate over the pelvis, the torso's frame on it: 5 mm 6082",
+    "group": "frame",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 33.33,
+    "allowance": true,
+    "basis": "one machined part at €33.33 a machined part (#379's rate)",
     "leadTime": null,
     "why": {
      "leadTime": "nothing drawn to quote"
@@ -3708,19 +3762,19 @@
    }
   ],
   "totals": {
-   "sourcedEur": 11555.64,
-   "allowanceEur": 2682.68,
-   "contingencyEur": 2135.75,
-   "totalEur": 16374.07,
-   "totalUsd": 18671.35,
+   "sourcedEur": 11776.59,
+   "allowanceEur": 2782.68,
+   "contingencyEur": 2183.89,
+   "totalEur": 16743.16,
+   "totalUsd": 19092.23,
    "budgetEur": null,
    "byGroup": {
-    "actuation": 5086.4,
+    "actuation": 5307.35,
     "grippers": 1436.9,
     "power": 635.9,
     "compute": 327.55,
     "sensors": 1306.93,
-    "frame": 2545.4,
+    "frame": 2645.4,
     "safety": 291.58,
     "charging": 370.87,
     "spares": 931.98,

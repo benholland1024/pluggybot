@@ -49,6 +49,7 @@ import numpy as np
 
 from pluggybot.perception.cull import StaticCull
 from pluggybot.perception.imu import seed_for
+from pluggybot.perception.mount import site_mount
 
 #: The Navigator's default for where a body's LIDAR rides from its pose
 #: point, m forward and left (the rover's, `rover-final`); the humanoid
@@ -208,15 +209,15 @@ class Lidar:
     self._dirs = _unit(self._el, self._az)
     self._ring = _unit(np.zeros(BEARINGS), self.ray_angles)
     self._bearing = np.tile(np.arange(BEARINGS), len(self.elevations))
-    #: The sensor's place and turn in its robot's root frame: what `band`
-    #: lays a point through.
-    self.offset, self.turn = _site_in(model, self.site_id, robot_body)
-    #: ...and the level ring's bearings in the robot's frame, its rays turned
-    #: as the sensor sits on it (level as it sits: a tilted mount's ring is
-    #: no level one, and is not modelled)
-    turned = self._ring @ self.turn.T
-    self._ring_angles = (self.ray_angles if np.array_equal(self.turn, np.eye(3))
-                         else np.arctan2(turned[:, 1], turned[:, 0]))
+    #: The sensor's mount, its place and turn in its robot's root frame:
+    #: what `band` lays a point through, and the level ring's bearings are
+    #: turned by -- each joint on its way (the humanoid's waist, #560's
+    #: stage (c3)) at the reading a frame is handed (`joints=`), and a mount
+    #: with none fixed once, here (`perception.mount`).
+    self.mount = site_mount(model, self.site_id, robot_body)
+    if not self.mount.joints:
+      self.offset, self.turn = self.mount.pose()
+      self._ring_angles = self._ring_in(self.turn)
     self._self_geoms = self._robot_geoms(model, robot_body)
     #: OTHER robots' geoms (issue #167), kept OUT OF THE MAP: a return off
     #: another robot is no information about the room, and painted in and
@@ -226,6 +227,23 @@ class Lidar:
     #: the consumers that must see a robot -- the front stop above all.
     self._other_geoms: set = set()
     self._index_geoms()
+
+  def _ring_in(self, turn: np.ndarray) -> np.ndarray:
+    """The level ring's bearings in the robot's frame, its rays turned as
+    the sensor sits on it (level as it sits: a tilted mount's ring is no
+    level one, and is not modelled)."""
+    if np.array_equal(turn, np.eye(3)):
+      return self.ray_angles
+    turned = self._ring @ turn.T
+    return np.arctan2(turned[:, 1], turned[:, 0])
+
+  def _mounted(self, joints: dict | None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(place, turn, the level ring's bearings) in the robot's root frame,
+    the mount's joints at `joints` (`perception.mount.Mount.pose`)."""
+    if not self.mount.joints:
+      return self.offset, self.turn, self._ring_angles
+    offset, turn = self.mount.pose(joints)
+    return offset, turn, self._ring_in(turn)
 
   def _index_geoms(self) -> None:
     """The geom sets as arrays, for a scan's `np.isin`."""
@@ -288,20 +306,22 @@ class Lidar:
       r = r + rng.normal(0.0, 1.0, len(r)) * _sigma(r)
     return kept, np.clip(r, BLIND_M, self.max_range)
 
-  def scan(self, data) -> tuple[np.ndarray, np.ndarray]:
+  def scan(self, data, joints: dict | None = None) -> tuple[np.ndarray, np.ndarray]:
     """(angles, ranges) of the level ring in the ROBOT's frame; a bearing
     the robot hides from itself is absent. THE MAP's answer: another
     robot's returns are not in it (`scan_split` answers them)."""
-    angles, ranges, _, _ = self.scan_split(data)
+    angles, ranges, _, _ = self.scan_split(data, joints)
     return angles, ranges
 
-  def scan_split(self, data) -> tuple[np.ndarray, np.ndarray,
-                                      np.ndarray, np.ndarray]:
+  def scan_split(self, data, joints: dict | None = None) -> tuple[np.ndarray, np.ndarray,
+                                                                  np.ndarray, np.ndarray]:
     """The level ring, one set of casts and two honest answers (issue
     #316): `(angles, ranges, peer_angles, peer_ranges)` -- the room, then
     the bearings that came back off ANOTHER ROBOT. Short arrays where the
     robot hides a bearing from itself: "I cannot see that way" contributes
-    nothing, never free space."""
+    nothing, never free space. Its bearings are the robot's, its mount's
+    joints at `joints` (`_mounted`)."""
+    ring_angles = self._mounted(joints)[2]
     dist, hit = self._cast(data, self._ring)
     _, far, peer, room = self._sort(dist, hit)
     out = []
@@ -309,7 +329,7 @@ class Lidar:
       idx = np.flatnonzero(which)
       kept, r = self._ranges(dist[idx], rng)
       idx = idx[kept]
-      a = self._ring_angles[idx]
+      a = ring_angles[idx]
       if self.noise:
         a = a + rng.normal(0.0, ANGLE_SD, len(a))
       out.append((idx, a, r))
@@ -317,7 +337,7 @@ class Lidar:
     # ...and every bearing that returned nothing within reach: free to it
     fi = np.flatnonzero(far)
     order = np.argsort(np.concatenate((ri, fi)), kind="stable")
-    angles = np.concatenate((ra, self._ring_angles[fi]))[order]
+    angles = np.concatenate((ra, ring_angles[fi]))[order]
     ranges = np.concatenate((rr, np.full(len(fi), self.max_range)))[order]
     return angles, ranges, pa, pr
 
@@ -343,11 +363,15 @@ class Lidar:
     return Cloud(points, peers, seen, ~mine, rays[0], rays[1], far)
 
   def band(self, data, level: np.ndarray, height: float,
-           band_m: tuple[float, float] = BAND_M, rise: float = BAND_RISE) -> Scan:
+           band_m: tuple[float, float] = BAND_M, rise: float = BAND_RISE,
+           joints: dict | None = None) -> Scan:
     """The cloud laid flat into a 2D scan (`Scan`): each point levelled
     through `level` (the robot's tilt, level from its root body: its IMU's,
-    `imu.Attitude.level`) and set `height` over the floor (its root's, off
-    its own model), and per bearing -- the point's own, levelled, from the
+    `imu.Attitude.level`) composed with its mount's turn -- each joint on
+    the way at `joints` as its driver reads it (the waist's, #560's stage
+    (c3): the IMU rides the pelvis, the LIDAR the waist) -- and set `height`
+    over the floor (its root's, off its own model), and per bearing -- the
+    point's own, levelled, from the
     scan's origin, the sensor's place levelled (`Scan.origin`, what the map
     lays the scan from) -- the nearest whose height is within `band_m`, its
     floor `rise` higher a metre out, read as the median of its returns
@@ -378,9 +402,10 @@ class Lidar:
     SENSOR IS, never where it sits on the robot upright: bowed 52 deg it is
     0.58 m ahead of that, and a free ray laid from there ran 0.6 m past what
     its ray reached, through a wall 7.5 m behind."""
+    offset, turn, _ = self._mounted(joints)
     c = self.cloud(data)
     level = np.asarray(level, dtype=float)
-    rot, base = level @ self.turn, level @ self.offset
+    rot, base = level @ turn, level @ offset
     lo, hi = band_m
 
     def flat(points):
@@ -469,24 +494,3 @@ def _unit(el: np.ndarray, az: np.ndarray) -> np.ndarray:
   """Directions at elevations `el` and bearings `az`, rad: (n, 3)."""
   c = np.cos(el)
   return np.stack([c * np.cos(az), c * np.sin(az), np.sin(el)], axis=1)
-
-
-def _site_in(model, site: int, root_name: str) -> tuple[np.ndarray, np.ndarray]:
-  """A site's place and turn in its robot's root body's frame, off the
-  model: (3,) and (3, 3); the world's frame where there is no such body."""
-  pos = np.array(model.site_pos[site], dtype=float)
-  mat = np.zeros(9)
-  mujoco.mju_quat2Mat(mat, model.site_quat[site])
-  rot = mat.reshape(3, 3).copy()
-  try:
-    root = model.body(root_name).id
-  except KeyError:
-    root = 0
-  body = int(model.site_bodyid[site])
-  while body not in (root, 0):
-    mujoco.mju_quat2Mat(mat, model.body_quat[body])
-    m = mat.reshape(3, 3).copy()
-    pos = model.body_pos[body] + m @ pos
-    rot = m @ rot
-    body = int(model.body_parentid[body])
-  return pos, rot

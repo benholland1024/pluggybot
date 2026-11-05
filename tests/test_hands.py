@@ -39,7 +39,7 @@ def test_the_arms_friction_is_kept_as_calibrated_and_matches_their_motors_sheets
   against what its motors' sheets give the model (ours, never the
   robot's): a stale table -- a motor changed, the file left -- fails."""
   table = friction.load()
-  assert set(table) == {f"{s}_{j}" for s in hm.SIDES for j in hm.ARM}
+  assert set(table) == {f"{s}_{j}" for s in hm.SIDES for j in hm.ARM} | set(hm.WAIST)
   for name, row in table.items():
     sheet = hp.friction_nm(hm.CHOSEN.motor(name))
     assert row["coulomb"] == pytest.approx(sheet, rel=0.1), name
@@ -406,9 +406,13 @@ def _bare_reach():
   r.speed = {s: rc.HAND_SPEED for s in hm.SIDES}
   r.pulls = {s: None for s in hm.SIDES}
   r.report = {s: None for s in hm.SIDES}
-  r.posture = np.zeros(2)
+  r.posture = np.zeros(3)
   r.postures = []
-  r.hold_posture = lambda height, pitch: r.postures.append((height, pitch))
+  r.hold_posture = lambda height, pitch, waist=0.0: r.postures.append((height, pitch, waist))
+  r.waist_cmd = np.zeros(len(hm.WAIST))
+  # ...its waist's driver commanded as recorded, never a world's
+  r.waist_sent = []
+  r.waist = NS(command=lambda target, feed: r.waist_sent.append(np.array(target)))
   r.grippers = {s: _Grip() for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.outs = {s: [] for s in hm.SIDES}
@@ -463,7 +467,7 @@ def test_an_arm_with_no_line_out_withdraws_home_in_joint_space(phase):
   r.retreat("left")
   assert r.phase["left"] == "home" and r.goal["left"] is None
   assert np.allclose(([r.q_to["left"]] + r.homes["left"])[-1], r.rest["left"])
-  assert r.postures == [(0.0, 0.0)]
+  assert r.postures == [(0.0, 0.0, 0.0)]
 
 
 #: Where the arm's walk home began in #539's flights, raised before its
@@ -743,7 +747,7 @@ def _over_table(side):
 
 def _pre_grasp(r, side):
   from pluggybot.humanoid import reach as rc
-  return r._planned(side, _over_table(side), rc.APPROACH_M, rc.POSTURES, True)[0][1]
+  return r._planned(side, _over_table(side), rc.APPROACH_M, rc.REACH_POSTURES, True)[0][1]
 
 
 def test_an_arm_reaching_over_a_table_at_its_front_goes_out_at_its_side():
@@ -835,8 +839,8 @@ def test_a_carry_keeps_the_turn_it_was_asked_and_a_path_of_turns_keeps_its_postu
   r.phase["left"] = "hold"
   r.grip_now = lambda side: (h.copy(), sagged)
   planned = []
-  r.posture_for = lambda side, pos, rot=None: planned.append(rot) or (0.0, 0.0)
-  r.path_for = lambda side, poses, rot=None: planned.append(rot) or (0.0, 0.0)
+  r.posture_for = lambda side, pos, rot=None: planned.append(rot) or (0.0, 0.0, 0.0)
+  r.path_for = lambda side, poses, rot=None: planned.append(rot) or (0.0, 0.0, 0.0)
   assert r.carry("left", h + [0.0, 0.0, 0.05])
   assert np.allclose(planned[-1], asked) and np.allclose(r.cmd["left"].rot, asked)
   assert not r.pulls["left"]["fixed"]
@@ -851,8 +855,9 @@ def test_a_two_jaw_grip_is_planned_half_a_turn_round_where_asked_and_never_when_
   from pluggybot.humanoid.arms import HandGoal
   asked = _turned(10.0)
 
-  def plan(side, goal, model=None, postures=rc.POSTURES, approach=rc.APPROACH_M):
-    return None if np.allclose(goal.rot, asked) else ((0.0, 0.0), np.zeros(6), np.zeros(6), True)
+  def plan(side, goal, model=None, postures=rc.REACH_POSTURES, approach=rc.APPROACH_M):
+    return None if np.allclose(goal.rot, asked) else ((0.0, 0.0, 0.0), np.zeros(6), np.zeros(6),
+                                                      True)
   monkeypatch.setattr(rc, "plan", plan)
   r = _bare_reach()
   r.slack = {s: True for s in hm.SIDES}
@@ -1320,13 +1325,15 @@ def test_a_chest_is_shown_what_the_robot_kept():
 def test_a_hand_reaches_its_own_side_as_the_body_plans_it_nothing_moved():
   """What a reach out of reach says of the other hand is the reach's own
   plan, in the believed world frame (`Body.hand_reaches`, `Reach.plans`):
-  the humanoid at its counter, each hand asked a point 0.2 m to its own
-  side and to the other's -- and nothing moved by asking."""
+  the humanoid at its counter, the left hand asked a point 0.5 m to its
+  side, which the right reaches no longer -- turned at the waist, it plans
+  to 0.4 m past the middle (#560's stage (c3)) -- and nothing moved by
+  asking."""
   from pluggybot.evaluation import attempts as at
   world = at.set_out(at.Task(chest=0, body="humanoid", mount="counter"))
   try:
     body = world.body
-    left = body.to_world(np.array([0.35, 0.20, 0.85]))
+    left = body.to_world(np.array([0.35, 0.50, 0.85]))
     before = body.reach.phase["left"], tuple(body.reach.posture)
     assert body.hand_reaches("left", left)
     assert not body.hand_reaches("right", left)

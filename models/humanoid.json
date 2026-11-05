@@ -181,6 +181,21 @@
     0.314159
    ]
   },
+  "waist_yaw": {
+   "motor": "RobStride RS03",
+   "peak_torque": 60.0,
+   "rated_torque": 20.0,
+   "saturation_torque": 140.4,
+   "noload_speed": 18.378317,
+   "armature": 0.02,
+   "frictionloss": 0.3,
+   "stiffness": 78.956835,
+   "damping": 5.026548,
+   "range": [
+    -1.05,
+    1.05
+   ]
+  },
   "left_shoulder_pitch": {
    "motor": "RobStride RS03",
    "peak_torque": 60.0,
@@ -375,6 +390,7 @@
   "right_knee",
   "right_ankle_pitch",
   "right_ankle_roll",
+  "waist_yaw",
   "left_shoulder_pitch",
   "left_shoulder_roll",
   "left_shoulder_yaw",
@@ -388,6 +404,39 @@
   "right_wrist_pitch",
   "right_wrist_roll"
  ],
+ "groups": {
+  "legs": [
+   "left_hip_pitch",
+   "left_hip_roll",
+   "left_hip_yaw",
+   "left_knee",
+   "left_ankle_pitch",
+   "left_ankle_roll",
+   "right_hip_pitch",
+   "right_hip_roll",
+   "right_hip_yaw",
+   "right_knee",
+   "right_ankle_pitch",
+   "right_ankle_roll"
+  ],
+  "waist": [
+   "waist_yaw"
+  ],
+  "arms": [
+   "left_shoulder_pitch",
+   "left_shoulder_roll",
+   "left_shoulder_yaw",
+   "left_elbow",
+   "left_wrist_pitch",
+   "left_wrist_roll",
+   "right_shoulder_pitch",
+   "right_shoulder_roll",
+   "right_shoulder_yaw",
+   "right_elbow",
+   "right_wrist_pitch",
+   "right_wrist_roll"
+  ]
+ },
  "feet": [
   "left_foot",
   "right_foot"
@@ -412,6 +461,10 @@
   "grip_force_n": 120.0
  },
  "arm_gain_scale": [
+  4.0,
+  2.0
+ ],
+ "waist_gain_scale": [
   4.0,
   2.0
  ]

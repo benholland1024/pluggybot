@@ -20,6 +20,10 @@ from pluggybot.perception.depth import UNCULLED, DepthCamera
 from pluggybot.perception.lidar import Lidar
 from pluggybot.robot import FIRST
 
+#: The waist's reading at its zero, where these tests' bodies stand (#560's stage (c3):
+#: the head's sensors ride the waist, and a frame is laid through its reading).
+W0 = {"waist_yaw": 0.0}
+
 #: From the living room to the park's west sidewalk, by way of the street,
 #: the research center, the mall and the park: (x, y, heading).
 PLACES = [(1.5, 0.5, 0.3), (4.0, -4.0, -1.0), (12.5, 1.0, 1.5), (20.5, 1.0, 1.0),
@@ -64,10 +68,10 @@ def test_a_cast_leaves_out_nothing_it_could_reach(world):
   left_out = []
   for x, y, yaw in PLACES:
     _stand(model, data, x, y, yaw)
-    band = [lid.band(data, np.eye(3), hm.stand_height()) for lid in lidars]
+    band = [lid.band(data, np.eye(3), hm.stand_height(), joints=W0) for lid in lidars]
     assert _same(*band), f"the band at ({x}, {y})"
-    assert _same(*[lid.scan_split(data) for lid in lidars]), f"the level ring at ({x}, {y})"
-    assert _same(*[cam.frame(data) for cam in depths]), f"the depth frame at ({x}, {y})"
+    assert _same(*[lid.scan_split(data, W0) for lid in lidars]), f"the level ring at ({x}, {y})"
+    assert _same(*[cam.frame(data, W0) for cam in depths]), f"the depth frame at ({x}, {y})"
     assert np.array_equal(model.geom_group, groups), "a cast left a geom in the cull's group"
     site = data.site_xpos[lidars[1].site_id]
     left_out.append(len(lidars[1]._cull.far(data, site, lidars[1].max_range)))
@@ -98,7 +102,7 @@ def test_what_is_left_out_is_judged_where_and_how_big_it_is_now():
   assert {"far_box", "far_cyl", "far_cap", "far_ball"} <= out and not {"near", "long"} & out, out
 
   def same_band():
-    return _same(*[lid.band(data, np.eye(3), hm.stand_height()) for lid in lidars])
+    return _same(*[lid.band(data, np.eye(3), hm.stand_height(), joints=W0) for lid in lidars])
   assert same_band()
   # ...an activity moves a geom into reach (`activity.base` writes
   # `geom_pos`), and grows another (`geom_size`): each is cast where it is now

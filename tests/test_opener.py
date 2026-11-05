@@ -21,6 +21,10 @@ from pluggybot.perception import box
 from pluggybot.perception.depth import DepthCamera
 from pluggybot.robot import FIRST
 
+#: The waist's reading at its zero, where these tests' bodies stand (#560's stage (c3):
+#: the head's sensors ride the waist, and a frame is laid through its reading).
+W0 = {"waist_yaw": 0.0}
+
 FLOOR = ('<mujoco><compiler angle="radian" autolimits="true"/>'
          '<option timestep="0.002" integrator="implicitfast"/>'
          '<worldbody><geom name="floor" type="plane" size="20 20 0.1"/></worldbody></mujoco>')
@@ -54,7 +58,7 @@ def scene():
                     min_z=box.DEPTH_MIN_Z, mount="body", seed=466)
   root = m.body(FIRST.root).id
   rot = d.xmat[root].reshape(3, 3)
-  cloud = np.concatenate([cam.frame(d).points @ rot.T + d.xpos[root] for _ in range(3)])
+  cloud = np.concatenate([cam.frame(d, W0).points @ rot.T + d.xpos[root] for _ in range(3)])
   return SimpleNamespace(cloud=cloud, knob=d.geom_xpos[m.geom("chest_knob").id].copy(),
                          pin=d.xanchor[m.joint("chest_pin").id].copy(),
                          hinge=d.xanchor[m.joint("chest_hinge").id].copy())
