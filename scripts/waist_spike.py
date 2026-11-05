@@ -21,18 +21,27 @@ an upper bound on what a policy will.
 
   --bands          the table's bands: each hand's reach at the table's
                    height, fingers down and tilted 45 deg, every candidate
-  --window         the stance window at the table's place: how far the
-                   stance may land from where our procedure asks and its
-                   hand still reach each piece and where it goes
+  --window         the stance window at the table's place: where the
+                   stance may stand and its hand pick each piece up and
+                   carry it where it goes as our procedure does -- the waist
+                   held and in the arm's chain, at the reach's own tolerance
+                   and at the served carry's
   --envelope       the reach scene's envelope (SimNotes, "The humanoid
                    stands, reaches and grasps"): the floor to over the head
   --across         at the counter's height, how far across the middle each
                    hand reaches
-  --part           the waist's held torques at the postures its reaches
-                   take, with a load, against each part's stall rating;
-                   its mass and where it moves the centre of mass; its draw
+  --alternatives   every posture at a dozen named reaches: the part is
+                   sized by the least a reach needs, never the first found
+  --reposture      the plate's and the fork's carries, the posture changed
+                   on their way as the served carry may change it
+  --mass           each candidate's mass and what rides its waist
+  --strip PNG      each candidate's statue at three of the table's reaches
+  --all            the sweeps (bands, window, envelope, across,
+                   alternatives); `--into DIR` writes DIR/rows.jsonl, a row
+                   a reach, and `--read DIR` prints the reports off it
   --candidates A,B which candidates (default all)
-  --jobs N         processes (default 3); run it under a memory cap
+  --jobs N         processes (default 3): ~13 CPU-hours for `--all`, so a
+                   pod's batch (`training/pod.sh batch`), or under a cap
 """
 
 import argparse
@@ -1097,8 +1106,8 @@ def report_envelope(rows) -> None:
   if not rows:
     return
   print("\nTHE ENVELOPE: the left hand in front of its shoulder (y 0.2), stance frame; a cell the "
-        "grip that plans, with slack first (F forward, U tilted 45 deg up, D down; lower case at "
-        "full stretch; ? not once balanced again; . none)")
+        "grip that plans, clear and with slack first (F forward, U tilted 45 deg up, D down; lower "
+        "case at full stretch; ? not once balanced again; ! through its own body; . none)")
   for kind in _kinds(rows):
     print(f"\n== {kind}   z \\ x " + " ".join(f"{x:>5.2f}" for x in ENVELOPE_X))
     for z in reversed(ENVELOPE_Z):
@@ -1108,10 +1117,12 @@ def report_envelope(rows) -> None:
         if not got:
           cells.append(".")
           continue
-        best = min(got, key=lambda r: (not r["slack"], not r.get("still_reaches", True), "FUD".index(r["grip"])))
+        best = min(got, key=lambda r: (not _ok(r), not r["slack"], "FUD".index(r["grip"])))
         c = best["grip"] if best["slack"] else best["grip"].lower()
         if not best.get("still_reaches", True) or not best.get("balanced", True):
           c += "?"
+        if min(best.get("self_goal", 1.0), best.get("self_pre", 1.0)) < -SELF_M:
+          c += "!"
         cells.append(c)
       print(f"   {z:5.2f}        " + " ".join(f"{c:>5s}" for c in cells))
 
@@ -1262,7 +1273,74 @@ def mass_table(kinds) -> None:
                     (hp.RS02, hp.RS03, hp.RS04)) + ")")
 
 
-#: The picture's reaches (`--strip`): the cup and the plate where our
+def reposture_carry(kind: str, piece: str, dy: float) -> dict:
+  """--reposture: whether `piece`'s carry from a stance `dy` across could be
+  made by a carry that takes ANOTHER POSTURE on its way, where no one posture
+  follows it all (the served carry's `onward`, `Reach.posture_for`): a search
+  over (carry point, posture), along a posture each next point solved on from
+  the last within the served carry's tolerance (`LOOSE`; the last within the
+  reach's own), and a posture changed with the hand held still where both
+  reach the point, every point clear of the table and of the robot's own
+  parts. Returns how far it got, and the postures it took."""
+  from collections import deque
+  side, pick, put, _ = PIECES[piece]
+  pick = np.array(pick) - (0.0, dy, 0.0)
+  put = np.array(put) - (0.0, dy, 0.0)
+  sm, table, r = _models(kind)
+  table = [p for p in table if p.ok]
+  got = plan(sm, side, ha.HandGoal(pick, GRIPS["t45"]), table, r)
+  if got is None:
+    return {"kind": kind, "piece": piece, "dy": dy, "picked": False}
+  rot = got[4]
+  pts = carry_points(pick, put)
+  n = len(pts)
+  reach = {}
+  for i, p in enumerate(table):
+    pose(sm, p)
+    for k, x in enumerate(pts):
+      if np.linalg.norm(x - p.shoulder[side]) > r + 0.005:
+        continue
+      q, ep, er = rc.solve_seeded(sm, side, x, rot)
+      tol = STRICT if k == n - 1 else LOOSE
+      if (ep < tol[0] and er < tol[1] and self_clear(sm, side) >= -SELF_M
+          and into_table(sm, TABLE_GAP) <= INTO_M):
+        reach[(k, i)] = q
+  start = [(0, i) for i, p in enumerate(table) if p.label() == got[0].label() and (0, i) in reach]
+  seen, todo, prev = set(start), deque(start), {}
+  end = None
+  while todo:
+    k, i = todo.popleft()
+    if k == n - 1:
+      end = (k, i)
+      break
+    if (k + 1, i) in reach and (k + 1, i) not in seen:
+      pose(sm, table[i])
+      sm._set_arm(side, reach[(k, i)])
+      _, ep, er = sm.solve(side, pts[k + 1], rot, iters=80)
+      tol = STRICT if k + 1 == n - 1 else LOOSE
+      if ep < tol[0] and er < tol[1]:
+        seen.add((k + 1, i))
+        prev[(k + 1, i)] = (k, i)
+        todo.append((k + 1, i))
+    for j in range(len(table)):
+      if (k, j) in reach and (k, j) not in seen:
+        seen.add((k, j))
+        prev[(k, j)] = (k, i)
+        todo.append((k, j))
+  out = {"kind": kind, "piece": piece, "dy": dy, "picked": True, "points": n,
+         "carried": end is not None, "furthest": max((k for k, _ in seen), default=-1)}
+  if end is not None:
+    labels, node = [], end
+    while True:
+      labels.append(table[node[1]].label())
+      if node not in prev:
+        break
+      node = prev[node]
+    out["postures"] = [lab for k, lab in enumerate(labels[::-1]) if k == 0 or lab != labels[::-1][k - 1]]
+  return out
+
+
+#: The picture's reaches (`--strip`):#: The picture's reaches (`--strip`): the cup and the plate where our
 #: procedure picks them up from its start, unstepped, and the table's middle.
 STRIP = (("the cup, picked up", "right", (0.42, -0.31, 0.78)),
          ("the plate's wall, unstepped", "left", (0.43, 0.246, 0.767)),
@@ -1372,6 +1450,8 @@ def main() -> None:
                   help="every posture at a dozen named reaches, for the part")
   ap.add_argument("--mass", action="store_true", help="each candidate's mass and centre of mass")
   ap.add_argument("--strip", metavar="PNG", help="each candidate's statue at three of the table's reaches")
+  ap.add_argument("--reposture", action="store_true",
+                  help="the plate's and the fork's carries, a posture changed on their way")
   ap.add_argument("--all", action="store_true", help="every sweep")
   ap.add_argument("--candidates", default=",".join(CANDIDATES))
   ap.add_argument("--jobs", type=int, default=3)
@@ -1397,6 +1477,21 @@ def main() -> None:
     return
   if args.strip:
     strip(kinds, args.strip)
+    return
+  if args.reposture:
+    jobs = [(k, name, dy) for k in kinds for name in ("plate", "fork")
+            for dy in sorted({PIECES[name][3], 0.0})]
+    with mp.get_context("spawn").Pool(max(1, args.jobs)) as pool:
+      for out in pool.starmap(reposture_carry, jobs):
+        if not out["picked"]:
+          verdict = "not picked up"
+        elif out["carried"]:
+          verdict = (f"CARRIED, its postures {' -> '.join(out['postures'])}")
+        elif out["furthest"] < 0:
+          verdict = "not carried: its pick-up's posture holds no point of it"
+        else:
+          verdict = f"not carried: as far as point {out['furthest']} of {out['points'] - 1}"
+        print(f"  {out['kind']:9s} {out['piece']:5s} from dy {out['dy']:+.2f}: {verdict}", flush=True)
     return
   tasks = []
   if args.bands or args.all:

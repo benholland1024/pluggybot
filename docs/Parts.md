@@ -253,11 +253,15 @@ because a joint costs money, training and serving speed (#507, rule 4):
 | grippers | Unitree **Dex1-1** (90 mm, 5–120 N, 550 g) | a parallel gripper on sale, built for a humanoid this size, that takes a stiffness in each command and reports its angle and a torque estimate |
 
 **Not here, and why:** the T2's waist (three joints: the hips bend the body
-to a low reach and the legs' yaws turn it, and no demo asks the shoulders to
-turn on the hips), its head's two (the depth camera is fixed, pitched at the
-counter and the floor ahead; a shelf above the head is out of its view), and
-its seventh arm joint (redundancy, not reach). Each is the first joint to add
-if a stage's measurement comes up short. Nor a force sensor at either wrist
+to a low reach and the legs' yaws turn it), its head's two (the depth camera
+is fixed, pitched at the counter and the floor ahead; a shelf above the head
+is out of its view), and its seventh arm joint (redundancy, not reach). Each
+is the first joint to add if a stage's measurement comes up short, and #560's
+table did for the waist: each hand works only its own side of a place. A
+waist was measured on the robot's model of itself before anything is built
+(SimNotes, "A waist, measured before it is built"): its yaw on an RS03 at the
+pelvis's top (+1.73 kg) and its pitch on an RS04 (+1.90 kg) are the parts it
+would take. Whether to build one is Ben's call. Nor a force sensor at either wrist
 (#544): `pull` asks at most what the standing body holds, 20 N, and shown a
 hand's true force in training's physics the standing policy held 60 N, where
 the robot's own readings will not do -- the arm's currents read too rough,
