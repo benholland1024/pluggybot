@@ -201,9 +201,14 @@ def _levers() -> dict:
                        f"from straight ahead (90 its left side), tilted {t:.0f}", rim=rim,
                        tilt=t, pieces=("plate",)))
   for rim in (45.0, 60.0, 120.0, 135.0):
-    out.append(Lever(f"spin{rim:.0f}", f"the plate picked up by its left side and turned on its "
-                     f"way, set down gripped {rim:.0f} deg round", put_rim=rim, flip=False,
-                     pieces=("plate",), models=("one", "served")))
+    for j in (1, -1):
+      # ⚠ our procedure's plate grip plans only the other way round (`only+`
+      # carries nothing), so the jaws as asked never flipped measure nothing
+      out.append(Lever(f"spin{rim:.0f}{'' if j > 0 else '-'}", f"the plate picked up by its left "
+                       f"side and turned on its way about the upright, set down gripped {rim:.0f} "
+                       f"deg round, the jaws {'as asked' if j > 0 else 'the other way round'}",
+                       put_rim=rim, jaws=j, flip=False, pieces=("plate",),
+                       models=("one", "served")))
   for a in (-0.03, 0.03):
     out.append(Lever(f"along{a * 100:+.0f}", f"the fork's handle gripped {a * 100:+.0f} cm "
                      "toward its head", along=a, pieces=("fork",)))
