@@ -156,34 +156,45 @@ MODEL = "claude-haiku-4-5"
 #: It is a deliberate PATIENCE budget, and the reasoning is the project's
 #: rather than the distribution's: this world exists to let a mind make a
 #: complicated choice, and a decision lost to a clock is the one failure
-#: that is purely ours. ⚠ 115 s SINCE #604, when the tail reached it: on
-#: 11-03 13 % of the deployed calls outlived 90 s, and the live robots' own
-#: turns answered in up to 94.6 s. Not 120: the router's gateway answers a
-#: non-streamed request silent for 120 s with a 504, so no answer comes
-#: later, and 115 plus `POLL_GRACE_S` ends the call as our own `timeout`
-#: first. `MAX_TOKENS_AUTONOMOUS` is sized to it; an escalation, which buys
-#: a bigger mind, gets `ESCALATE_TIMEOUT_S`.
+#: that is purely ours. ⚠ 300 s SINCE #604's follow-up, STREAMED
+#: (`llm.deadline_fetch`): not streamed, no call outlived the router's
+#: gateway, a 504 at 120 s of silence (#604's 115 s), and a provider that
+#: held its answer to the end never came back. On the live robots' own
+#: turns (Overseer.md §6) GLM-5.3-Flash thought up to 98 s on baseten, and
+#: flown writing procedures 208 s, and 315 s on novita (26,945 tokens): a
+#: flowing think is ended only by this, a silent stream by
+#: `llm.STREAM_SILENCE_S`. `MAX_TOKENS_AUTONOMOUS` is sized to it; the
+#: interrupt keeps its own (`INTERRUPT_TIMEOUT_S`).
 #:
-#: ⚠ AND A DEADLINE IS A CAP, NOT A COST. It is spent only when a call is
-#: actually slow: `_decide` STEPS the sim while one is in flight
-#: (`THINK_SLICE_S`), so this bounds sim seconds spent standing still at
-#: ~8.5 W of electronics. At the measured median and ~20 decisions a day
-#: that is 98 sim-s -- 2.7 % of an hour-long day, 0.23 Wh of an 8 Wh pack,
-#: and it does not move when the cap does. The two ways to actually spend
-#: the cap:
-#:
-#:   - a DEAD endpoint cannot spend much of it: three failures in a row
-#:     start a cooloff (`MAX_CONSECUTIVE_ERRORS`, `COOLOFF_BASE_S`, which
-#:     doubles), and a cooled-off decision is scripted instantly. ~1000
-#:     sim-s across a 3600 s day, worst case.
-#:   - an endpoint that is SLOW BUT ALIVE, answering just under the cap
-#:     every time, is the expensive one: ~2300 sim-s, most of the day and
-#:     the pack. Nothing observed is remotely like this, and if it ever
-#:     happens the fallback rate is what says so.
-CALL_TIMEOUT_S = 115.0
+#: ⚠ A DEADLINE IS A CAP, NOT A COST -- but a long think IS one: `_decide`
+#: steps the sim while a call is in flight (`THINK_SLICE_S`), the robot
+#: standing still at the ~93 W a humanoid draws standing while its world
+#: goes on: the other robot, the board, a held job's minutes. 300 s of it
+#: is 7.8 Wh, 40 % of the reserve (`humanoid.world.RESERVE_WH`), and a
+#: call's wall comes out of the 1800 s its map has to ask again in
+#: (`lifecycle.UNMINDED_AFTER_S`, stamped at the ask). At the live pair's
+#: ~48 calls an hour, the MEDIAN think stands each robot still ~5 minutes
+#: of its hour on deepinfra and ~16 on baseten -- flown on procedure work,
+#: half of it, and the robot is told when one outlived it (`StillWriting`).
+#: The two ways to spend the
+#: cap itself: a DEAD endpoint cannot, much -- a silent stream ends at
+#: `STREAM_SILENCE_S`, and three failures in a row start a cooloff
+#: (`MAX_CONSECUTIVE_ERRORS`, `COOLOFF_BASE_S`, doubling); a mind SLOW BUT
+#: ALIVE, thinking to the cap every time, can, and the fallback rate and
+#: the `call` rows' `wallS` are what say so.
+CALL_TIMEOUT_S = 300.0
 #: ...and the outer poll deadline, which must be the looser of the two or a
 #: call that finishes at 7.9 s would be discarded by its own supervisor.
 POLL_GRACE_S = 2.0
+#: THE MID-ERRAND INTERRUPT'S PATIENCE (issue #116), its own since the
+#: decision's went to minutes: asked as the pack runs low, it holds the
+#: robot still mid-errand, and "carry on?" must not take a decision's
+#: 300 s. #604's 115 s, unchanged: its answer is `MAX_TOKENS` (4,096, below),
+#: which the slowest writer measured (Qwen3.5-397B on deepinfra, 60 tokens a
+#: second) finishes in ~70 s after a first byte under 10 s; on the live
+#: turns it thought 162-2,918 tokens and answered within 21 s everywhere but
+#: novita, where both ran out of the 4,096 still thinking.
+INTERRUPT_TIMEOUT_S = 115.0
 #: Hard client-side call budget, per ROLLING wall-clock hour, per overseer.
 #: From day one, per the issue: a loop bug that burns money silently is the
 #: failure mode that is only noticed on an invoice.
@@ -222,22 +233,25 @@ from pluggybot.mind.look import LOOK_S, MAX_LOOK_RUN  # noqa: E402, F401
 #: spends the budget it needed to close the object.
 #: ⚠ A REASONING MODEL SPENDS IT ON ITS REASONING FIRST, and what it cannot
 #: finish is an empty answer, billed in full: `fallback:cutoff` (#604).
-#: 16,384 SINCE #604, measured on the live robots' own turns: one carrying
-#: two recalled blocks thought 3.1k-17.0k tokens on baseten, 3 of 5 past
-#: the pick's 8,192 (#225) and 1 of 5 past 16,384. ⚠ SIZED TO THE DEADLINE:
-#: the fastest provider writes a long answer at 176-191 tokens a second
-#: after ~5 s of reading, so 16,384 comes back in ~98 s, inside
-#: `CALL_TIMEOUT_S` with ~15 s to spare, a cut-off metered and said; past
-#: the deadline a think that ran out would be a timeout, unmetered and
-#: counted toward the cooloff (Overseer.md §6). A ceiling, not a spend.
-MAX_TOKENS_AUTONOMOUS = 16384
+#: 32,768 SINCE #604's follow-up (16,384 since #604, 8,192 at #225's pick),
+#: measured streamed: on the live robots' turns GLM-5.3-Flash on baseten
+#: thought 1.1k-19.7k tokens (29 calls), and FLOWN, writing and mending its
+#: procedures, a median of 11.3k and 22.2k-24.6k on 3 of 13, one cut off at
+#: 24,576; DeepSeek-V4.1-Flash at `low`, up to 26.6k. ⚠ SIZED TO THE
+#: DEADLINE: 32,768 comes back inside `CALL_TIMEOUT_S` at 112 tokens a
+#: second or more, its wall in -- the flight's thinks over 10k wrote at
+#: 114-246 -- a cut-off metered and said; slower (2 of the replays' 17 long
+#: answers wrote at 100-106; novita at 76-94), a think that ran out is a
+#: timeout, booked at an estimate and counted toward the cooloff (Overseer.md
+#: §6). A ceiling, not a spend.
+MAX_TOKENS_AUTONOMOUS = 32768
 #: ...and the mid-errand interrupt's (issue #116): one boolean and a
 #: sentence, after the same reasoning. On the live robots' own turns it
 #: thought 489-1,846 tokens (#604), 7 of 20 past the 1,024 it had, and a
 #: failed interrupt stops the errand. ⚠ NOT the decision's budget: it is
 #: asked as the pack runs low, mid-errand, and 4,096 -- twice the longest --
-#: comes back in ~28 s where 16,384 could stand the robot still for most of
-#: two minutes.
+#: comes back in ~28 s where 32,768 could stand the robot still for four
+#: minutes and more; it keeps its own deadline too (`INTERRUPT_TIMEOUT_S`).
 MAX_TOKENS = 4096
 
 #: THE ESCALATION (issue #37). Routine decisions run on whatever backend the
@@ -280,10 +294,10 @@ ESCALATE_ASSUMED_IN = 3500
 #: does (issue #117: 30 -> 120 when the routine deadline went 8 -> 90).
 #: ⚠ Measured, the escalation is not in fact the slow one: the 235B pick
 #: answers in 2.05 s (docs/Overseer.md section 8). This is headroom for the
-#: case where it is, not a prediction that it will be. ⚠ Through the router
-#: it can be no more: the gateway answers a non-streamed request silent for
-#: 120 s with a 504 (#604), which is `offline`, and the cheap answer stands.
-ESCALATE_TIMEOUT_S = 120.0
+#: case where it is, not a prediction that it will be. Through the router it
+#: streams as the routine call does (`llm.deadline_fetch`, #604's follow-up),
+#: so the gateway's 120 s no longer bounds it, and the ordering holds.
+ESCALATE_TIMEOUT_S = 360.0
 
 #: Claude Haiku 4.5, USD per million tokens (skill: claude-api). Used only to
 #: report a cost per sim-hour -- nothing here spends or gates on money.
@@ -458,6 +472,21 @@ class CutOff(ValueError):
   read off the response's own `stop_reason` (`max_tokens`, the SDK's word
   and `llm.ChatClient`'s for a `finish_reason` of `length`), and only where
   the text did not parse -- a cut-off answer that did is an answer."""
+
+
+class StillWriting(TimeoutError):
+  """A streamed answer still being written at its deadline (`llm.
+  deadline_fetch`, #604's follow-up), its text unparsed: `timeout`, our
+  own patience, as a call that never came back in time always was -- but
+  it names who was answering, and is booked at an estimate of what it
+  streamed (`llm.stream_fetch`): its count comes at its end, and none came."""
+
+
+class StreamClosed(ConnectionError):
+  """A stream the far side closed, or that failed, mid-answer (`llm.
+  stream_fetch`'s "closed" and "failed"), its text unparsed: nobody
+  finished answering, `offline`, never `garbled` -- booked at an estimate
+  of what it streamed, and its words, where it failed, in the error."""
 
 
 def fallback_reason(e: BaseException) -> str:
@@ -722,8 +751,10 @@ class Decision:
   #: where nothing names one), what it billed, whether its tokens ran out,
   #: and how long it took. Set by code on every decision a response came
   #: back for, a `garbled` or `cutoff` fallback's included -- an empty
-  #: answer is the one that most needs saying who sent it -- and None
-  #: where none did. A `call` event on the wire beside the DECIDE line.
+  #: answer is the one that most needs saying who sent it -- and a stream
+  #: stopped at the deadline's (`StillWriting`), whose tokens are None: its
+  #: count never came. None where nothing came back. A `call` event on the
+  #: wire beside the DECIDE line.
   call: dict | None = None
   source: str = "llm"
 
@@ -3498,6 +3529,7 @@ class Overseer:
                library=None,
                others: tuple = (),
                wiki: "reading.Wiki | None" = None,
+               reasoning_effort: str | None = None,
                clock: Callable[[], float] = time.monotonic) -> None:
     self.menu = menu
     self.table = table if table is not None else default_table()
@@ -3520,6 +3552,11 @@ class Overseer:
     # thinking with before it has thought anything.
     self.backend = llm.resolve_backend(backend, model)
     self.base_url = base_url
+    #: How hard it thinks (`EFFORT_ENV`), or None: the provider's default
+    #: -- and None on the Anthropic path, which sends none (`llm.
+    #: build_client`): the header says what RAN.
+    effort = (reasoning_effort or "").strip() or None
+    self.reasoning_effort = None if self.backend == "anthropic" else effort
     self.calls_per_hour = calls_per_hour
     # ⚠ PER BACKEND, because a local model has to be loaded before it can
     # think: 27.3 s cold against 3.4-5.5 s warm, measured (mind/llm.py). One
@@ -3527,8 +3564,14 @@ class Overseer:
     # local path's first decision a certainty of failure.
     self.timeout_s = (llm.default_timeout(self.backend, CALL_TIMEOUT_S)
                       if timeout_s is None else timeout_s)
+    #: ...and the interrupt's, never past the decision's own.
+    self.interrupt_timeout_s = min(
+      self.timeout_s, llm.default_timeout(self.backend, INTERRUPT_TIMEOUT_S))
     self.clock = clock
     self.usage = Usage()
+    if effort and self.reasoning_effort is None:
+      self.usage.errors.append(f"effort: the {self.backend} backend sends no "
+                               f"reasoning_effort, so {effort!r} is not sent")
     # ---- the allowance (issue #37) ----
     # A SECOND mind, bought a decision at a time. Configured or not; unset is
     # the default and the whole feature is then absent, including from the
@@ -3784,7 +3827,8 @@ class Overseer:
       try:
         self._client = llm.build_client(self.backend, self.model,
                                         timeout=self.timeout_s,
-                                        base_url=self.base_url)
+                                        base_url=self.base_url,
+                                        reasoning_effort=self.reasoning_effort)
         self._meter_rates()
       except Exception as e:                # noqa: BLE001 -- see docstring
         # No SDK, no key, no local runtime listening: all the same story from
@@ -3829,6 +3873,9 @@ class Overseer:
     if not self._esc_ready:
       self._esc_ready = True
       try:
+        # ⚠ No `reasoning_effort`: it is the routine mind's (`EFFORT_ENV`,
+        # the header's `reasoningEffort`), in that model's own words, and an
+        # escalation is another model, at its provider's own default.
         self._esc_client = llm.build_client(
           self.escalate_backend, self.escalate_model,
           timeout=ESCALATE_TIMEOUT_S, base_url=self.escalate_url)
@@ -4225,6 +4272,10 @@ class Overseer:
         decision = replace(decision, reason=(
           f"{decision.reason} -- your answer was cut off: it ran out of its "
           f"{slot['cut']:,} tokens before it was written"))
+      if slot.get("late"):
+        decision = replace(decision, reason=(
+          f"{decision.reason} -- your answer was still being written when its "
+          f"{slot['late']:.0f} s ran out"))
       if slot.get("call"):
         decision = replace(decision, call=slot["call"])
       # The vendor's own words for what went wrong, for the measurement
@@ -4273,7 +4324,7 @@ class Overseer:
     """
     with self._int_lock:
       self._int_slot = {}
-      self._int_deadline = self.clock() + self.timeout_s + POLL_GRACE_S
+      self._int_deadline = self.clock() + self.interrupt_timeout_s + POLL_GRACE_S
       if self._int_in_flight:
         self._int_slot = {"answer": self._interrupt_fallback("busy")}
         return
@@ -4321,14 +4372,16 @@ class Overseer:
       slot, self._int_slot = self._int_slot, {}
     answer = slot.get("answer")
     if answer is None:
-      answer = self._interrupt_fallback(slot.get("error") or "timeout")
+      answer = self._interrupt_fallback(slot.get("error") or "timeout",
+                                        late=bool(slot.get("late")))
       if slot.get("call"):
         answer["call"] = slot["call"]
     self.interrupts.append(dict(answer))
     return answer
 
-  def _interrupt_fallback(self, why: str) -> dict:
+  def _interrupt_fallback(self, why: str, late: bool = False) -> dict:
     said = ("the answer ran out of its tokens" if why == "cutoff"
+            else "the answer was still being written when its time ran out" if late
             else "nobody answered")
     return {"continue": False, "why": f"{said} -- stopping and going",
             "source": f"fallback:{why}"}
@@ -4339,6 +4392,8 @@ class Overseer:
       asked = self.clock()
       response = self.client.messages.create(
         model=self.model, max_tokens=MAX_TOKENS,
+        # its own patience, to the stream's wall: the client's is a decision's
+        timeout=self.interrupt_timeout_s,
         system=self.system,
         output_config={"format": {"type": "json_schema",
                                   "schema": self.interrupt_schema()}},
@@ -4346,10 +4401,9 @@ class Overseer:
           model_state(state, survival=self.show_survival),
           errand, why)}],
       )
-      wall = self.clock() - asked
+      call = _call_record(response, self.clock() - asked)
       self._meter(response)
       self._bank_decision()
-      call = _call_record(response, wall)
       raw = _extract_json(response)
       answer = {"continue": bool(raw.get("continue_errand")),
                 "why": clean(raw.get("reason"), MAX_WHY), "source": "llm",
@@ -4359,6 +4413,8 @@ class Overseer:
       self.usage.errors.append(
         f"interrupt: {type(e).__name__}: {e}"[:200])
       slot = {"error": fallback_reason(e)}
+      if isinstance(e, StillWriting):
+        slot["late"] = True
       if call is not None:
         slot["call"] = call
     with self._int_lock:
@@ -4699,11 +4755,11 @@ class Overseer:
       # BILLED IS BILLED (issue #225): metered and banked before the answer
       # is parsed, because a reasoning model that spent its whole budget
       # thinking and returned nothing was charged for every token of it,
-      # and metering after `validate` counted that call as free.
-      wall = self.clock() - asked
+      # and metering after `validate` counted that call as free -- a stream
+      # stopped mid-answer too, at an estimate (`llm.stream_fetch`).
+      call = _call_record(response, self.clock() - asked)
       self._meter(response)
       self._bank_decision()
-      call = _call_record(response, wall)
       decision = self.menu.validate(_extract_json(response), waiting=waiting,
                                     offered=offered,
                                     standing_orders=True,
@@ -4751,6 +4807,11 @@ class Overseer:
         # model whose "8.0" was refused saw a turn vanish and learned
         # nothing. `result` folds this into the fallback's reason.
         slot["refused"] = clean(str(e), MAX_WHY)
+      elif isinstance(e, StillWriting):
+        # ...and a think still being written when its deadline came, as a
+        # cut-off is (#604's follow-up): streamed and pinned, a timeout is
+        # mostly the robot's own long think, never "nobody answered".
+        slot["late"] = self.timeout_s
       elif slot["error"] == "cutoff":
         # ...and a cut-off is said as what it was (issue #604): read as
         # "decision was not JSON: ''", both robots believed their JSON was
@@ -4914,6 +4975,9 @@ class Overseer:
             # somebody's datacentre, and the cost line's meaning depends on
             # which.
             "backend": self.backend,
+            # ...and how hard it was asked to think (`EFFORT_ENV`): None is
+            # the provider's own default, which differs by provider.
+            "reasoningEffort": self.reasoning_effort,
             "constrained": self.constrained,
             "budgetLeft": self.budget_left(),
             "callsPerHour": self.calls_per_hour,
@@ -5090,9 +5154,16 @@ def _extract_json(response) -> dict:
   try:
     raw = json.loads(text)
   except json.JSONDecodeError as e:
-    if getattr(response, "stop_reason", None) == "max_tokens":
+    stop = getattr(response, "stop_reason", None)
+    if stop == "max_tokens":
       raise CutOff("its tokens ran out before the answer was written: "
                    f"{text[:120]!r}") from e
+    if stop == "deadline":
+      raise StillWriting("the answer was still being written at the deadline") from e
+    if stop in ("closed", "failed"):
+      how = getattr(response, "stream_error", None)
+      raise StreamClosed("the stream ended before the answer was written"
+                         + (f" -- {how}" if how else "")) from e
     raise ValueError(f"decision was not JSON: {text[:120]!r}") from e
   if not isinstance(raw, dict):
     raise ValueError(f"decision was not an object: {type(raw).__name__}")
@@ -5103,9 +5174,12 @@ def _call_record(response, wall_s: float) -> dict:
   """`Decision.call`: what a response says of the call that brought it
   (issue #604)."""
   usage = getattr(response, "usage", None)
+  # ⚠ ABSENT IS NONE, NEVER 0: a stream whose count never came is booked at
+  # an estimate (`llm.stream_fetch`), and the row says no count came
+  counted = not getattr(response, "usage_estimated", False)
   return {"provider": getattr(response, "provider", None),
-          "tokensIn": int(getattr(usage, "input_tokens", 0) or 0),
-          "tokensOut": int(getattr(usage, "output_tokens", 0) or 0),
+          "tokensIn": int(getattr(usage, "input_tokens", 0) or 0) if counted else None,
+          "tokensOut": int(getattr(usage, "output_tokens", 0) or 0) if counted else None,
           "cut": getattr(response, "stop_reason", None) == "max_tokens",
           "wallS": round(wall_s, 3)}
 
@@ -5115,8 +5189,12 @@ def call_said(call: dict | None) -> str:
   its DECIDE line, or "" where no call answered it."""
   if not call:
     return ""
-  return (f"{call.get('provider') or 'unnamed'}: {call.get('tokensIn', 0)} in, "
-          f"{call.get('tokensOut', 0)} out{', cut off' if call.get('cut') else ''}, "
+
+  def count(key):
+    n = call.get(key, 0)
+    return "?" if n is None else n        # no count came (`_call_record`)
+  return (f"{call.get('provider') or 'unnamed'}: {count('tokensIn')} in, "
+          f"{count('tokensOut')} out{', cut off' if call.get('cut') else ''}, "
           f"{float(call.get('wallS') or 0):.1f} s")
 
 
@@ -5137,6 +5215,15 @@ BACKEND_ENV = "PLUGGY_OVERSEER_BACKEND"
 #: the default and means the robot has no expensive option at all -- the
 #: field is then absent from its schema and its prompt.
 ESCALATE_ENV = "PLUGGY_ESCALATE_TO"
+#: ...and HOW HARD it thinks (#604's follow-up): the request's
+#: `reasoning_effort`, in the model's own words ("low", "high"; GLM-5.3-Flash
+#: takes low/high/max, DeepSeek-V4.1-Flash low and high, measured -- its
+#: card's 1-100 untried). Unset is the PROVIDER's default, and that is three
+#: minds at one price: on the live turns GLM-5.3-Flash thought 1.5k tokens a
+#: turn on deepinfra and 5.2k on baseten (1.4k at `low`), DeepSeek-V4.1-Flash
+#: none on deepinfra (5.9k at `low`) and 15-51k on baseten (7.5k at `low`).
+#: A mind setting, so the header says it (`build.reasoningEffort`).
+EFFORT_ENV = "PLUGGY_REASONING_EFFORT"
 #: Whether the robot may LOOK (issue #275). Unset is on; `0`
 #: turns the eye off for a deployment whose mind cannot take an image (a
 #: text-only local model would lose the turn after every look to a
@@ -5188,6 +5275,7 @@ def build(world: str, book=None, enabled: bool | None = None,
           others: tuple = (),
           timeout_s: float | None = None,
           look: bool | None = None,
+          reasoning_effort: str | None = None,
           ) -> "Overseer | None":
   """The overseer for a world, or None when disabled.
 
@@ -5224,6 +5312,7 @@ def build(world: str, book=None, enabled: bool | None = None,
   backend = llm.resolve_backend(
     backend or os.environ.get(BACKEND_ENV, "").strip() or "auto", model)
   model = model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
+  effort = reasoning_effort or os.environ.get(EFFORT_ENV)
   from pluggybot.procedure.library import Library
   menu = Menu.for_world(world, book)
   # ⚠ EVERY POWER IS A MIND'S, NARROWED BY WHAT THE WORLD HAS (issue #427:
@@ -5262,6 +5351,7 @@ def build(world: str, book=None, enabled: bool | None = None,
                       table=table, client=client,
                       robot_name=robot_name,
                       model=model, backend=backend, base_url=base_url,
+                      reasoning_effort=effort,
                       escalate_to=(escalate_to
                                    or os.environ.get(ESCALATE_ENV, "").strip()
                                    or None),

@@ -266,6 +266,45 @@ def test_a_cut_off_answer_is_no_dead_endpoint_and_stops_an_errand(menu):
   assert client.calls[-1]["max_tokens"] == ov.MAX_TOKENS
 
 
+def test_the_interrupt_keeps_its_own_patience(menu):
+  """#604's follow-up: a decision may think for minutes (`CALL_TIMEOUT_S`),
+  and the interrupt -- asked as the pack runs low, the robot held still
+  mid-errand -- keeps its own `INTERRUPT_TIMEOUT_S`: released by it while
+  a decision asked at the same moment is still in flight, and its request
+  carries it to the stream's wall. The deadlines keep their order. Shown to
+  fail before: the interrupt waited out the decision's deadline."""
+  assert 0 < ov.INTERRUPT_TIMEOUT_S < ov.CALL_TIMEOUT_S < ov.ESCALATE_TIMEOUT_S
+  now = [0.0]
+  gate = threading.Event()
+
+  class Held:
+    def __init__(self):
+      self.calls, self.messages = [], self
+
+    def create(self, **kw):
+      self.calls.append(kw)
+      gate.wait(5.0)
+      return FakeResponse(full())
+  client = Held()
+  boss = Overseer(menu, client=client, clock=lambda: now[0])
+  assert boss.interrupt_timeout_s == ov.INTERRUPT_TIMEOUT_S
+  try:
+    boss.start({})
+    boss.start_interrupt({}, "the drawer", "battery_below")
+    now[0] = ov.INTERRUPT_TIMEOUT_S + ov.POLL_GRACE_S
+    assert not boss.interrupt_pending and boss.pending
+    assert boss.interrupt_result()["source"] == "fallback:timeout"
+    now[0] = ov.CALL_TIMEOUT_S + ov.POLL_GRACE_S
+    assert not boss.pending
+  finally:
+    gate.set()
+  deadline = time.monotonic() + 5.0
+  while len(client.calls) < 2 and time.monotonic() < deadline:
+    time.sleep(0.005)
+  asked = {("continue_errand" in json.dumps(kw["output_config"])): kw for kw in client.calls}
+  assert asked[True]["timeout"] == ov.INTERRUPT_TIMEOUT_S and "timeout" not in asked[False]
+
+
 def test_a_slow_call_is_abandoned_rather_than_waited_on(menu):
   """The physics-never-blocks guarantee, from the overseer's side: `pending`
   goes false by the deadline even though the worker thread is still alive, so

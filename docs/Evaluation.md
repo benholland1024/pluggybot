@@ -1899,7 +1899,8 @@ Four things only the observatory can show:
 ⚠ **OBSERVATORY DATA WITHOUT A BUILD IDENTIFIER IS NOT WEAKER DATA, IT IS
 UNUSABLE DATA** — two regimes wear one name and nothing can separate them
 afterwards. The header carries a `build` block (`commit`, `dataHashes`, `arm`,
-`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`, since #263
+`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`, since #604's
+follow-up `reasoningEffort` where one is named, since #263
 `constitutions` — which constitution each robot was told it is, by name and
 content hash, per robot root, because a pair may be given two — and since
 #387 `body`, the body's name and the sha256 of each policy it walks and gets
