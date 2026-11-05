@@ -50,7 +50,8 @@ by flying it.
   --into DIR       DIR/rows.jsonl, a row a stance; --read DIR the report
   --jobs N         processes (default 3): a pod's batch for the whole set
   --sample N       every Nth task (a smoke); --part I/N the Ith of N shares
-                   (a pod each: `--read A,B` reads their records together)
+                   (a pod each: `--read A,B` reads their records together);
+                   --models M,N these measures alone (a re-run of one)
   --check          the base lever against #620's window rows, cell by cell
 """
 
@@ -638,13 +639,31 @@ def posture_for(sm, side, hold, here_label, q_cmd, pos, rot, reach_m):
   return None
 
 
+def posture_onward(sm, side, hold, gone, q_cmd, pos, rot, reach_m):
+  """`Reach.posture_for(onward=True)` on the statue, as a pull takes
+  another posture where its arm misses on its way: the least bent of `hold`
+  but those in `gone` (the one it holds, and those it has left this move),
+  from which the grip reaches `pos` at `rot` within the reach's own
+  tolerance, from the arm as commanded alone; or None."""
+  for p in hold:
+    if not p.ok or p.label() in gone or np.linalg.norm(pos - p.shoulder[side]) > reach_m + 0.005:
+      continue
+    ws.pose(sm, p)
+    sm._set_arm(side, q_cmd)
+    _, ep, er = sm.solve(side, pos, rot, iters=80)
+    if _reaches(ep, er):
+      return p
+  return None
+
+
 def served(sm, side, hold, p_pick, q_pick, pick, taken, moves, plan_pts, fixed, reach_m, slab):
   """Our procedure's carry as the served reach makes it, on the statue,
   every posture one of the carry's own (`hold`), from the pick-up's
   posture and arm on:
   - each `pull` (the lift; the set-down, its way 9 cm down, held fast on
     the table) takes the posture `path_for` plans from the hand to its
-    way's end, the hand held still while the body comes;
+    way's end, the hand held still while the body comes, and where its arm
+    misses on its way another, onward (`posture_onward`);
   - `move_hand` takes the posture `posture_for` finds for its end and walks
     its line, a miss past `REPLAN_M` or `REPLAN_ROT` taking the least bent
     posture that reaches where it is (`posture_for`) with the hand held
@@ -675,15 +694,22 @@ def served(sm, side, hold, p_pick, q_pick, pick, taken, moves, plan_pts, fixed, 
     else:
       take(path_for(sm, side, hold, here.label(), q, [at] + plan_pts[k], reach_m))
     ws.pose(sm, here)
-    ep, planned = 0.0, -REPLAN_EVERY
+    ep, planned, left = 0.0, -REPLAN_EVERY, []
     for j, (x, r) in enumerate(mv):
       sm._set_arm(side, q)
       q2, ep, er = sm.solve(side, x, r, iters=80)
-      if (name == "carry" and not fixed and (ep > rc.REPLAN_M or er > rc.REPLAN_ROT)
+      if ((ep > rc.REPLAN_M or er > rc.REPLAN_ROT) and not (name == "carry" and fixed)
           and j - planned >= REPLAN_EVERY):
-        # ...at most once a second, as the served carry plans one
+        # ...at most once a second, as the served carry plans one: a
+        # straight carry the least bent that reaches where it is (it may go
+        # back to one it left), a pull another onward
         planned = j
-        p = posture_for(sm, side, hold, here.label(), q, x, r, reach_m)
+        if name == "carry":
+          p = posture_for(sm, side, hold, here.label(), q, x, r, reach_m)
+        else:
+          p = posture_onward(sm, side, hold, {here.label(), *left}, q, x, r, reach_m)
+          if p is not None:
+            left.append(here.label())
         if p is not None and p.label() != here.label():
           take(p)
           ws.pose(sm, here)
@@ -710,10 +736,9 @@ _HOLD: dict = {}
 
 
 #: Where #620's search over postures (`repose`) is run: today's body, where
-#: it is the measure that agrees with the flights at our procedure's plate
-#: step. On a waist the served carry measures posture changes (`served`):
-#: the search tries every posture at every point (36 s of a yaw stance's
-#: 57), and on the yaw #620 found it carried neither the plate nor the fork.
+#: it agrees with the flights at our procedure's plate step. On a waist the
+#: served carry measures posture changes (`served`): the search tries every
+#: posture at every point, 36 s of a yaw stance's 57.
 REPOSE_KINDS = ("none",)
 #: A straight carry takes another posture at most once in this many points
 #: of its line: `reach.REPLAN_S` at `HOLD_SPEED`, `CARRY_STEP_M` apart.
@@ -758,15 +783,18 @@ def evaluate(task: dict) -> dict:
     out["s"] = round(time.perf_counter() - t0, 3)
     return out
   a, moves, plans = carry_points(c_st, lev, taken)
+  models = task.get("models") or lev.models
   # `one` and `repose` from the lift's top on, as #620 measures a carry
   pts = [(a, taken)] + moves[1] + moves[2]
   order = [q for q in table if q.label() == p.label()] + [q for q in table if q.label() != p.label()]
-  got1 = follow_one(sm, c.side, order, pts, reach_m, slab)
-  out["one"] = bool(got1 is not None and got1[3] <= ws.INTO_M and got1[2] >= -ws.SELF_M)
-  if got1 is not None:
-    out["one_posture"], out["one_into"], out["one_self"] = got1[0].label(), round(got1[3], 4), round(got1[2], 4)
-  if "repose" in lev.models and kind in REPOSE_KINDS:
-    if out["one"]:
+  if "one" in models:
+    got1 = follow_one(sm, c.side, order, pts, reach_m, slab)
+    out["one"] = bool(got1 is not None and got1[3] <= ws.INTO_M and got1[2] >= -ws.SELF_M)
+    if got1 is not None:
+      out["one_posture"], out["one_into"], out["one_self"] = (got1[0].label(), round(got1[3], 4),
+                                                              round(got1[2], 4))
+  if "repose" in models and "repose" in lev.models and kind in REPOSE_KINDS:
+    if out.get("one"):
       out["repose"] = True
     else:
       r = repose(sm, c.side, [q for q in table if q.ok], p.label(), pts, reach_m, slab)
@@ -774,7 +802,7 @@ def evaluate(task: dict) -> dict:
       out["repose_furthest"] = r["furthest"]
       if r.get("postures"):
         out["repose_postures"] = r["postures"]
-  if "served" in lev.models:
+  if "served" in models and "served" in lev.models:
     # the lift, the carry and the set-down as the served reach makes them,
     # from the pick-up's posture -- the carry's own postures among them
     hold = _hold(kind)
@@ -805,7 +833,9 @@ def _evaluate(task: dict) -> dict:
 DY = tuple(round(-0.50 + 0.01 * i, 2) for i in range(101))
 
 
-def tasks_for(levers, kinds, pieces=None) -> list[dict]:
+def tasks_for(levers, kinds, pieces=None, models=None) -> list[dict]:
+  """Every stance of `levers` on `kinds` (their `pieces`, or those named),
+  measured by the levers' own measures, or by `models` alone."""
   out = []
   for k in kinds:
     for name in levers:
@@ -816,7 +846,8 @@ def tasks_for(levers, kinds, pieces=None) -> list[dict]:
         for leg in range(len(carries(lev, piece))):
           for dy in DY:
             out.append({"kind": k, "lever": name, "piece": piece, "leg": leg,
-                        "dx": lev.dx, "dy": dy, "turn": lev.turn})
+                        "dx": lev.dx, "dy": dy, "turn": lev.turn,
+                        **({"models": list(models)} if models else {})})
   return out
 
 
@@ -1046,6 +1077,7 @@ def main() -> None:
   ap.add_argument("--read", metavar="DIR")
   ap.add_argument("--sample", type=int, default=0)
   ap.add_argument("--part", default="", help="I/N: the Ith of N shares of the tasks")
+  ap.add_argument("--models", default="", help="one,repose,served: these measures alone")
   ap.add_argument("--list", action="store_true")
   ap.add_argument("--check", action="store_true")
   args = ap.parse_args()
@@ -1068,7 +1100,11 @@ def main() -> None:
     if k not in ws.CANDIDATES:
       sys.exit(f"no candidate {k!r}: {', '.join(ws.CANDIDATES)}")
   pieces = [p for p in args.pieces.split(",") if p]
-  tasks = tasks_for(levers, kinds, pieces)
+  models = [m for m in args.models.split(",") if m]
+  for m in models:
+    if m not in ("one", "repose", "served"):
+      sys.exit(f"no measure {m!r}: one, repose, served")
+  tasks = tasks_for(levers, kinds, pieces, models)
   if args.sample > 1:
     tasks = tasks[::args.sample]
   if args.part:

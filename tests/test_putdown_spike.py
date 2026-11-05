@@ -128,3 +128,23 @@ def test_the_flown_table_scenes_are_the_jobs_procedure_with_the_levers_lines_alo
     assert len(mine) == len(job)
     changed = [a.split("(")[0].split("=")[0].strip() for a, b in zip(job, mine) if a != b]
     assert changed == ["px", "py", "step", "reach", "move_hand"], (name, changed)
+
+
+def test_a_pull_takes_another_posture_onward_never_one_it_holds_or_has_left():
+  """The served measure's pulls (the lift, the set-down) take another
+  posture where the arm misses, as `Reach._pulled` does
+  (`posture_for(onward=True)`): from the arm as it is alone, and never the
+  posture held nor one left this move -- where a straight carry's may go
+  back to any (`posture_for`)."""
+  sm, _, reach_m = ws._models("none")
+  hold = ps._hold("none")
+  side, _, put, _ = ws.PIECES["plate"]
+  x = np.array(put) + (0.0, 0.28, ws.LIFT_M)
+  rot = ws.GRIPS["t45"] @ np.diag([-1.0, -1.0, 1.0])
+  q = rc.seed(side, rc.SEEDS[1])
+  first = ps.posture_for(sm, side, hold, "", q, x, rot, reach_m)
+  assert first is not None
+  gone = {first.label()}
+  nxt = ps.posture_onward(sm, side, hold, gone, q, x, rot, reach_m)
+  assert nxt is None or nxt.label() not in gone
+  assert ps.posture_onward(sm, side, hold, {p.label() for p in hold}, q, x, rot, reach_m) is None
