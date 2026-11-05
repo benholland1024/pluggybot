@@ -139,10 +139,12 @@ PEER_NAME = "Rowan"
 PROBE_TIMEOUT_S = max(120.0, 2 * CALL_TIMEOUT_S)
 
 #: The ladder the timeout share is reported at. It brackets the original
-#: 8 s, the local backend's 45 s, #117's 90 s and #604's 115 s, so the
-#: number is read off a curve rather than argued for one value at a time.
-#: The row for the deadline actually in force is marked, whatever it is.
-CANDIDATE_DEADLINES = (5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 115.0)
+#: 8 s, the local backend's 45 s, #117's 90 s, #604's 115 s and the
+#: streamed 300 s since, so the number is read off a curve rather than
+#: argued for one value at a time. The row for the deadline actually in
+#: force is marked, whatever it is.
+CANDIDATE_DEADLINES = (5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 115.0,
+                       180.0, 240.0, 300.0, 420.0, 600.0)
 
 
 def timeout_share(latencies: list[float], deadline: float) -> float:
@@ -351,13 +353,16 @@ def report_calls(boss: Overseer) -> None:
   print(f"\nwho answered, at a budget of {boss.max_tokens} tokens "
         f"(the deadline is {CALL_TIMEOUT_S:g} s)")
   print("  provider          calls  cut off   out median / max   s median / max")
+  def count(n, width=6):
+    # a stream whose count never came says so (`_call_record`: None)
+    return f"{'?':>{width}}" if n is None else f"{n:{width}.0f}"
   for name, calls in sorted(by.items()):
     out = dist([c["tokensOut"] for c in calls])
     wall = dist([c["wallS"] for c in calls])
     cut = sum(1 for c in calls if c["cut"])
-    print(f"  {name:<16} {len(calls):6d}  {cut:7d}   {out['median']:6.0f} / "
-          f"{out['max']:<6d}  {wall['median']:5.1f} / {wall['max']:.1f}")
-    print(f"    raw (out, s): {' '.join(f'{c['tokensOut']},{c['wallS']:.0f}' for c in calls)}")
+    print(f"  {name:<16} {len(calls):6d}  {cut:7d}   {count(out['median'])} / "
+          f"{count(out['max'], 0):<6}  {wall['median']:5.1f} / {wall['max']:.1f}")
+    print(f"    raw (out, s): {' '.join(f'{count(c['tokensOut'], 0)},{c['wallS']:.0f}' for c in calls)}")
 
 
 def main() -> None:
@@ -430,6 +435,13 @@ def main() -> None:
                            "`fallback:cutoff`; this is how the budget a "
                            "candidate needs is MEASURED rather than argued "
                            "(issue #604: by provider, beside the deadline)")
+  parser.add_argument("--reasoning-effort", default=None, metavar="E",
+                      help="how hard the model is asked to think, sent as "
+                           "`reasoning_effort` (`$PLUGGY_REASONING_EFFORT` "
+                           "with --deployed): the model's own words, `low` "
+                           "or `high`. Unset is the PROVIDER's default, and "
+                           "a candidate is three minds at one price without "
+                           "it (#604's follow-up)")
   parser.add_argument("--tokens-only", action="store_true",
                       help="count the prefix and stop -- no API calls")
   parser.add_argument("--prompt", action="store_true",
@@ -488,7 +500,8 @@ def main() -> None:
                     ledger=Account(ledger, ROBOT_ROOT),
                     appetite=args.metabolism, mortal=True, hearts=True,
                     origin="unseeded", others=(PEER_NAME,),
-                    timeout_s=args.timeout)
+                    timeout_s=args.timeout,
+                    reasoning_effort=args.reasoning_effort)
     menu = boss.menu
   else:
     boss = Overseer(menu, thoughts=memory, model=model, backend=backend,
@@ -499,7 +512,8 @@ def main() -> None:
                     # `start` answers the NEXT one `fallback:busy` in
                     # microseconds, which would land in this distribution as
                     # a very fast decision.
-                    timeout_s=args.timeout)
+                    timeout_s=args.timeout,
+                    reasoning_effort=args.reasoning_effort)
   if args.max_tokens:
     boss.max_tokens = boss.escalate_max_tokens = args.max_tokens
   prefix = boss.system[0]["text"]
@@ -516,7 +530,8 @@ def main() -> None:
   print(f"robot        : {boss.robot_name} (a {ROBOT_ROOT})")
   print(f"world        : {args.world}"
         + ("   (as deployed)" if args.deployed else "   (a bare mind)"))
-  print(f"model        : {model} on {backend}")
+  print(f"model        : {model} on {backend}"
+        + (f", effort {boss.reasoning_effort}" if boss.reasoning_effort else ""))
   print(f"call held to : {args.timeout:g} s   (the deadline under test is "
         f"{CALL_TIMEOUT_S:g} s; a censored distribution cannot justify one)")
   if args.escalate_to:

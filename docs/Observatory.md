@@ -10,6 +10,102 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The mind pinned to baseten, and the eye running (the box, 2026-11-05) — set during the pause, so it opens with the world's next run
+
+**What changed on the deploy box**, with no release (17a493e kept running):
+- **`$PLUGGY_MODEL` is `zai-org/GLM-5.3-Flash:baseten`** (`:cheapest`
+  since #225): Ben's pick in #604's follow-up, set in the box's `.env` at
+  11:36 UTC, the sim recreated into the pause on the same image (its header
+  says `build.model` `...:baseten`). The model is the same; `:cheapest`'s
+  novita share (calls that hung to the router's 504) and deepinfra's
+  briefer think are gone. ⚠ On 17a493e calls are still NOT streamed:
+  baseten's longest thinks still meet #604's 115 s and 16,384 tokens until
+  the period above is deployed.
+- **The eye runs** (`rooftop-prod-eye-1`, started by hand at 11:37 UTC;
+  `rooftop-deploy`'s eye block, #541, needs `sudo deploy/install.sh` on the
+  box, never run since): a `look` is offered again from the next run, and
+  answered for the first time on the served pair -- every look before it
+  came back `none` (09-23 to 10-03), and none was asked after. ⚠ It holds
+  its one core (`cpus: 1.0`) even while the world is paused: it redraws at
+  `EYE_FPS_LIMIT` (4 a second), and on the box's software GL a frame costs
+  more than a quarter-second.
+- Nothing in the prompt, the schema, the arm, the reward table, the body or
+  the house moved.
+
+**What the period is for.**
+- **The looks**: `look` events by `subject` (`seen` against `none`), how
+  often each robot looks, and what a picture costs a call (~510 tokens in).
+- **The pinned provider's failures on the old code**: `timeout` and
+  `cutoff` among the calls asked, against #604's fifth to a third; the
+  novita share's hangs should be gone, baseten's long thinks not.
+- **The sim's speed with the eye drawing**: the real-time pacing's drift
+  and stutter against #560's 1.23x median (the eye takes a core of the
+  box's eight; the sim's physics is one thread).
+
+### The robots' calls stream, with 300 s of patience and 32,768 tokens, and how hard the model thinks is the deployment's to name (#604's follow-up) — opens when this PR is deployed
+
+**What changed in the mind and on the wire.**
+- **The routine mind's calls stream** (`llm.deadline_fetch`), held to the
+  deadline in all: not streamed, none outlived the router's gateway (a 504
+  at 120 s of silence), and novita held its answers to the end.
+- **`CALL_TIMEOUT_S` is 300 s** (115 s since #604) and
+  **`MAX_TOKENS_AUTONOMOUS` 32,768** (16,384), the escalation's following
+  both (360 s); a stream silent for 115 s ends there, and no read waits
+  past the deadline.
+- **The interrupt keeps 115 s**, its own (`INTERRUPT_TIMEOUT_S`; it had the
+  decision's), and its 4,096 tokens.
+- **A stream still being written at the deadline is `fallback:timeout` and
+  names who was answering**: its `call` carries the `provider` and a
+  `wallS` about 300, its tokens null (a stream's count comes at its end),
+  and the robot is told "your answer was still being written when its 300 s
+  ran out" (an interrupt, "the answer was still being written when its time
+  ran out"); one the far side closed, or that failed, mid-answer is
+  `offline`, its call kept too. Each is BOOKED at an estimate of what it
+  streamed (`llm.CHARS_PER_TOKEN`), never free. A timeout where nothing came
+  back still names nobody.
+- **`$PLUGGY_REASONING_EFFORT`, new and unset**: sent as `reasoning_effort`
+  on every call where set, said as `build.reasoningEffort` and in History's
+  "thinking with" line; unset is the provider's own default, as before. The
+  site files it on the run (`pw_runs.reasoning_effort`, rooftop-media-2026
+  #491), and a run's regime names it (`scripts/qualities.py`), so a
+  setting moved in `.env` with no new commit is never pooled.
+- **The model id is the deployment's** (`$PLUGGY_MODEL`, the box's `.env`),
+  and it moved ahead of this release: `zai-org/GLM-5.3-Flash:baseten`,
+  pinned on 2026-11-05 during the pause (the entry above). If this release
+  goes out before the world next runs, the two are one period; `build.model`
+  says which.
+- Nothing in the prompt, the schema, the menu, the arm, the reward table,
+  the body or the house moved.
+
+**Why.** Ben's calls of 11-04 (pin a faster provider, be generous with the
+call's time and tokens, consider a stronger model). In the week before the
+11-03 pause, of about 3,370 calls to the mind 415 came back empty and 293
+timed out, about 1 in 5 (1 in 3 on the last afternoon); on 34cd4e3, 9530f51
+and 314a5f9, 20, 34 and 32 % of the calls asked failed. On the live robots'
+own turns, streamed (Overseer.md §6): GLM-5.3-Flash on baseten answered 28
+of 29 (median 41 s, the longest 98 s and 19,739 tokens), on novita in a
+median of 197 s with 2 of 12 past five minutes and both its interrupts cut
+off. Flown 21 minutes on baseten, writing and mending procedures, 12 of 13
+answered, the 13th cut off at 24,576 tokens (a median of 11.3k and 64 s),
+and the robots stood still thinking 40-53 % of the flight.
+
+**What the period is for.**
+- **The failure rate**: `timeout`, `cutoff`, `garbled`, `offline` and
+  `busy` among the calls asked, by `pw_decisions.provider`, against #604's
+  periods' fifth to a third; on the replays, 1 in 29 on baseten was refused
+  and 1 in 12 of the probe's lost to a stream the provider dropped.
+- **How long a think stands a robot still**: the decision rows' `wall_s`
+  (now every streamed call's, a timeout's too) against 300 s, the share of
+  each robot's hour it adds up to (flown: 40-53 %), and what it costs a held
+  job's minutes.
+- **The unminded clock**: `unminded` deaths, and how near the robots' asks
+  run to 1800 s, now that a call may take 300 of them.
+- **The purse**: a week's spend against $20 (about $5 on the recommended
+  pin; `:cheapest` is dearer, novita thinking 18k tokens a turn).
+- ⚠ **Not a period to pool with #604's for anything the mind's latency or
+  failures decide**, and if the model id moved with it, not for anything
+  the mind decides at all.
+
 ### The hands' small fixes: a step given 2 s to get going, a way out judged as the way home is, a pressed hand eased before it shuts (#560, stage (a)) — opens when this PR is deployed
 
 **What changed in the world.** The served pair's hands and feet, on every
@@ -1056,7 +1152,9 @@ offered.
 
 - **The eye runs.** The site's `rooftop-deploy` starts its renderer
   (compose's `eye`) in production for the first time, so a look returns the
-  world as the site draws it from the head camera. The eye builds its own
+  world as the site draws it from the head camera. ⚠ It did not: the copy
+  installed on the box predated this block, and the eye first ran on
+  2026-11-05, started by hand (the entry at the top). The eye builds its own
   world (`EYE_BUILDERS`): a plant is its stub, a post 0.08 m across and
   0.30 m tall, where a visitor sees a pot and leaves up to 0.58 m that the
   body walks through, and nothing stands on a table or a counter (props

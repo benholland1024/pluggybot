@@ -210,17 +210,23 @@ Before doing anything, read the doc that owns what you are about to touch:
   by the frozen commit's first seven hex digits (`seed_of`; a pod's
   `COMMIT` file, a dirty tree refused), and a reading says what it
   flatters (`FLATTERS`) and that it is weaker than a sealed pool.
-- **`CALL_TIMEOUT_S` is 115 s and is a patience budget** (issues #117,
-  #604; Overseer.md §6 "The deadline"): a decision lost to a clock is the
-  one failure that is purely ours. 90 s until #604, when 13 % of the
-  deployed calls outlived it. ⚠ NOT 120: the router's gateway answers a
-  non-streamed request silent for 120 s with a 504, so nothing comes later,
-  and 115 plus `POLL_GRACE_S` ends the call as our own `timeout` first.
-  `ESCALATE_TIMEOUT_S` (120) is an ordering above it; `llm.LOCAL_TIMEOUT_S`
-  is a FLOOR (a 27.3 s cold load). ⚠ The token budget is sized to it: one
-  moves with the other. ⚠ `scripts/overseer_probe.py --calls 50`
-  under-measures a mission by about half: choose the deadline from the
-  probe, confirm it with a flight.
+- **`CALL_TIMEOUT_S` is 300 s, STREAMED, and is a patience budget**
+  (issues #117, #604 and its follow-up; Overseer.md §6 "Streamed" and "The
+  deadline"): a decision lost to a clock is the one failure that is purely
+  ours. The robots' calls stream (`llm.deadline_fetch`, held to the
+  deadline in all): not streamed, none outlived the router's gateway (a 504
+  at 120 s of silence; #604's 115), and novita held its answers to the end.
+  ⚠ A LONG THINK IS SPENT STANDING STILL (~93 W, the world going on; 300 s
+  is 40 % of the reserve) and comes out of the 1800 s between asks
+  (`UNMINDED_AFTER_S`, stamped at the ask). ⚠ A stream silent for
+  `llm.STREAM_SILENCE_S` (115) ends there, and no read waits past the
+  deadline (a worker still reading makes the next decision `busy`).
+  `INTERRUPT_TIMEOUT_S` (115) is the interrupt's own, never the decision's;
+  `ESCALATE_TIMEOUT_S` (360) is an ordering above it; `llm.LOCAL_TIMEOUT_S`
+  is a FLOOR (a 27.3 s cold load).
+  ⚠ The token budget is sized to it: one moves with the other. ⚠
+  `scripts/overseer_probe.py --calls 50` under-measures a mission by about
+  half: choose from the live robots' own turns, confirm with a flight.
 - **A fallback's reason is FAILURE or POLICY, and the partition is ONE**
   (issues #117, #141): `overseer.POLICY_FALLBACKS` / `FAILURE_FALLBACKS` /
   `fallback_class` (`timeout`/`offline`/`garbled`/`cutoff`/`busy`/`no-client`
@@ -230,7 +236,12 @@ Before doing anything, read the doc that owns what you are about to touch:
   (two-repo contract). ⚠ `cutoff` is an answer whose tokens ran out before
   it was written (the response's `stop_reason`, and its text unparsed;
   #604), never `garbled`: read as "decision was not JSON: ''", both robots
-  believed their JSON was refused.
+  believed their JSON was refused. ⚠ A stream still being written at the
+  deadline is `timeout` (`StillWriting`: it names who, and the robot is
+  told its answer was still being written), and one that closed or failed
+  mid-answer `offline` (`StreamClosed`); either, its count never come, is
+  BOOKED AT AN ESTIMATE (`llm.CHARS_PER_TOKEN`), never free, and its row's
+  tokens are null. Only with a wall: practice's streams are as they were.
 - **Two arms: `scripted`, the loop with no mind, and `autonomous`, the one
   mind** (issues #115, #427; Evaluation.md §2). There is no control: what is
   measured is the observatory's rows. A mind takes THREE rails off —
@@ -1207,7 +1218,9 @@ save a filmstrip PNG named after the script.
   SDK, `local` to ollama, `openai-compatible` to somebody else's endpoint; the
   non-SDK backends are ONE adapter (`llm.ChatClient`) and `llm.build_client`
   is the only function that knows a vendor. The deployed pick is
-  **`zai-org/GLM-5.3-Flash:cheapest`** (#225). ⚠ **The provider is the model
+  **`zai-org/GLM-5.3-Flash:baseten`** (the box's `.env`, pinned 2026-11-05
+  in #604's follow-up; `:cheapest` from #225 until then, three providers
+  that were three minds). ⚠ **The provider is the model
   id's to say** (`org/name:<provider>`, `:cheapest`): a BARE id is billed at
   the router's preference (measured ten times the cheapest rate). ⚠ **A
   candidate is measured through the DEPLOYED prompt** (`overseer_probe.py
@@ -1215,18 +1228,22 @@ save a filmstrip PNG named after the script.
   `response_format`; refused once → prose, and `constrained` goes False and
   SAYS so); no bare `{"type": "object"}` in the schema; every request carries
   `llm.USER_AGENT`. ⚠ A reasoning model needs its budget
-  (`MAX_TOKENS_AUTONOMOUS` 16,384 since #604, the escalation's with it;
-  the interrupt's `MAX_TOKENS` 4,096, twice its longest think, so a robot
-  asked as its pack runs low is not held still for minutes; an answer its
-  tokens ran out on is `fallback:cutoff`, billed). ⚠ THE BUDGET IS SIZED TO
-  `CALL_TIMEOUT_S`: past the deadline a think that ran out is a timeout,
-  unmetered, counted toward the cooloff and naming nobody, where inside it
-  it is a cut-off metered and said (Overseer.md §6, "The budget"). ⚠
-  `:cheapest`'s providers are not one mind: measure a candidate BY PROVIDER
-  on the live robots' own turns, never the probe's synthetic one alone. A
-  decision a response came back for says who answered (`Decision.call`,
-  the `call` event, `pw_decisions.provider`). Money has THREE states: "no
-  API cost", "unknown" (`priced: false`), a number.
+  (`MAX_TOKENS_AUTONOMOUS` 32,768 since #604's follow-up, the escalation's
+  with it; the interrupt's `MAX_TOKENS` 4,096, twice its longest think, so a
+  robot asked as its pack runs low is not held still for minutes; an answer
+  its tokens ran out on is `fallback:cutoff`, billed). ⚠ THE BUDGET IS SIZED
+  TO `CALL_TIMEOUT_S`: past the deadline a think that ran out is a timeout,
+  booked at an estimate and counted toward the cooloff, where inside it it
+  is a cut-off metered and said (`test_the_budget_is_sized_to_the_deadline`).
+  ⚠ `:cheapest`'s providers are not one mind, and the difference is mostly
+  their default EFFORT: `$PLUGGY_REASONING_EFFORT` names it (the request's
+  `reasoning_effort`; unset, the provider's; `build.reasoningEffort`) --
+  one model thought 1.5k tokens a turn on deepinfra and 5.2k on baseten,
+  another none and up to 51k. Measure a candidate BY PROVIDER AND EFFORT on
+  the live robots' own turns, never the probe's synthetic one alone, and
+  confirm it flown. A decision a response came back for says who answered
+  (`Decision.call`, the `call` event, `pw_decisions.provider`). Money has
+  THREE states: "no API cost", "unknown" (`priced: false`), a number.
 - **What an errand costs** (`economy/energy.py` + `energy.json`,
   `$PLUGGY_ENERGY`; Overseer.md §5).
   `needs_charge` is checked BETWEEN errands, so every errand is priced
@@ -1385,7 +1402,8 @@ save a filmstrip PNG named after the script.
   (`PLUGGY_REWARDS`, `PLUGGY_CADENCE`, `PLUGGY_ENERGY`,
   `PLUGGY_METABOLISM` — naming the last turns hunger on), `PLUGGY_SPEND`,
   `PLUGGY_MODE_FILE`, `PLUGGY_WEEKLY_USD`, `PLUGGY_ESCALATE_TO`,
-  `PLUGGY_THOUGHTS`, `PLUGGY_MODEL`, `PLUGGY_OVERSEER_BACKEND`; the secret is
+  `PLUGGY_THOUGHTS`, `PLUGGY_MODEL`, `PLUGGY_REASONING_EFFORT`,
+  `PLUGGY_OVERSEER_BACKEND`; the secret is
   `$PLUGGYWORLD_TOKEN`. ⚠ A lazy import is the failure mode
   (`perception.tags.kept_detector` imports the detector inside a function):
   `tests/test_deploy.py` blocks the omitted packages and flies the robot; a

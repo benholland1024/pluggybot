@@ -39,6 +39,7 @@ class _Mind:
   library = object()
   decisions: list = []
   model, backend = "none", "stub"                 # what the day's first lines name
+  reasoning_effort = None                         # ...and how hard it thinks
 
 
 def _counter_world():
