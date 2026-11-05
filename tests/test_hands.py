@@ -409,7 +409,7 @@ def _bare_reach():
   r.posture = np.zeros(3)
   r.postures = []
   r.hold_posture = lambda height, pitch, waist=0.0: r.postures.append((height, pitch, waist))
-  r.waist_cmd = np.zeros(len(hm.WAIST))
+  r.waist_cmd, r.waist_speed = np.zeros(len(hm.WAIST)), np.zeros(len(hm.WAIST))
   # ...its waist's driver commanded as recorded, never a world's
   r.waist_sent = []
   r.waist = NS(command=lambda target, feed: r.waist_sent.append(np.array(target)))

@@ -252,10 +252,11 @@ class ScriptedArms(ActionTerm):
 
 #: The waist's goals, rad: either way to the posture grid's 60 deg
 #: (`pluggybot.humanoid.reach.WAIST_YAWS`); a share at zero, where it rests;
-#: and how fast it is turned, rad/s (`reach.WAIST_RATE`).
+#: and how fast it is turned, rad/s, and set going and stopped, rad/s^2
+#: (`reach.WAIST_RATE`, `WAIST_ACCEL`).
 WAIST_GOAL = 1.0472
 WAIST_REST_SHARE = 0.3
-WAIST_RATE = 0.6
+WAIST_RATE, WAIST_ACCEL = 0.6, 1.5
 
 
 @dataclass(kw_only=True)
@@ -271,9 +272,10 @@ class ScriptedWaist(ActionTerm):
   """The waist as the policy meets it, as the served reach turns it to a
   posture's angle: not its to move (no action), sent to a new angle every
   `ARM_MOVE_S` -- uniform within `WAIST_GOAL`, or home (`rest_share`) --
-  its target ramped at `WAIST_RATE`, the trunk above it held with its weight
-  fed forward (the bias force at its joint, as the served command carries
-  it off the robot's model of itself)."""
+  its target walked there no faster than `WAIST_RATE` and set going and
+  stopped at `WAIST_ACCEL` (`turn`, the served reach's own rule), the trunk
+  above it held with its weight fed forward (the bias force at its joint, as
+  the served command carries it off the robot's model of itself)."""
 
   def __init__(self, cfg: ScriptedWaistCfg, env):
     super().__init__(cfg, env)
@@ -282,6 +284,7 @@ class ScriptedWaist(ActionTerm):
     self.rest = self._entity.data.default_joint_pos[:, self.ids].clone()
     self.target = self.rest.clone()
     self.goal = self.rest.clone()
+    self.speed = torch.zeros_like(self.rest)
     self.timer = torch.zeros(self.num_envs, device=self.device)
     self._raw = torch.zeros(self.num_envs, 0, device=self.device)
 
@@ -306,8 +309,7 @@ class ScriptedWaist(ActionTerm):
     due = torch.nonzero(self.timer <= 0).flatten()
     if len(due):
       self._new_goals(due)
-    step = WAIST_RATE * dt
-    self.target += torch.clamp(self.goal - self.target, -step, step)
+    self.target, self.speed = turn(self.target, self.speed, self.goal, dt)
 
   def apply_actions(self) -> None:
     self._entity.set_joint_position_target(self.target, joint_ids=self.ids)
@@ -320,7 +322,23 @@ class ScriptedWaist(ActionTerm):
       ids = torch.arange(self.num_envs, device=self.device)[ids]
     self.target[ids] = self.rest[ids]
     self.goal[ids] = self.rest[ids]
+    self.speed[ids] = 0.0
     self.timer[ids] = torch.empty(len(ids), device=self.device).uniform_(0.0, ARM_MOVE_S[0])
+
+
+def turn(at: torch.Tensor, speed: torch.Tensor, goal: torch.Tensor, dt: float):
+  """A target walked toward `goal` one step of `dt`: no faster than
+  `WAIST_RATE`, its speed changed by no more than `WAIST_ACCEL` a second, and
+  slowing in time to stop there -- `pluggybot.humanoid.reach.turned`, the
+  served waist's own rule. (target, speed)."""
+  to_go = goal - at
+  brake = WAIST_ACCEL * dt * (torch.sqrt(0.25 + 2.0 * to_go.abs() / (WAIST_ACCEL * dt * dt)) - 0.5)
+  want = torch.sign(to_go) * torch.clamp(brake, max=WAIST_RATE)
+  speed = speed + torch.clamp(want - speed, -WAIST_ACCEL * dt, WAIST_ACCEL * dt)
+  step = speed * dt
+  there = (((torch.sign(step) == torch.sign(to_go)) & (step.abs() >= to_go.abs()))
+           | ((to_go.abs() < 1e-9) & (speed.abs() <= WAIST_ACCEL * dt)))
+  return torch.where(there, goal, at + step), torch.where(there, torch.zeros_like(speed), speed)
 
 
 # ---- feet that stay where they are -------------------------------------------------------
@@ -398,6 +416,50 @@ class feet_yaw_anchor:
     return (torch.clamp(turned.abs() - free_rad, min=0.0) * self.valid).sum(dim=1)
 
 
+class feet_swivel:
+  """How far each planted sole has turned where it stands, rad, charged
+  ONCE: from its heading when it was set down, each step charges what the
+  furthest it has turned since grew (so a phase on the floor pays its worst
+  turn, whatever it does after). What stage (a) measured of the stand that
+  knew no waist -- the right sole turned 5.2 deg under a crouch and a bow,
+  4.6-4.8 under an arm held out (#560) -- a reach's stance frame turning
+  under its target. ⚠ NOT ITS TURN FROM AN EPISODE'S ANCHOR
+  (`feet_yaw_anchor`): a sole a recovery step set down turned was charged
+  for the rest of its episode, and falling came cheaper (episodes 200-260
+  steps as the shoves reached full size, 810-940 without it). ⚠ NOR ITS
+  TURNING RATE: a planted sole's yaw rate is mostly its contact's
+  vibration, and charged so, from the first iteration the episodes lasted
+  13-20 steps."""
+
+  def __init__(self, cfg: RewardTermCfg, env):
+    self.entity = env.scene["robot"]
+    ids, _ = self.entity.find_sites(robot.FEET, preserve_order=True)
+    self.ids = torch.tensor(ids, device=env.device, dtype=torch.long)
+    n = (env.num_envs, len(ids))
+    self.anchor = torch.zeros(n, device=env.device)
+    self.worst = torch.zeros(n, device=env.device)
+    self.was_down = torch.zeros(n, dtype=torch.bool, device=env.device)
+    self.dt = env.step_dt
+
+  def reset(self, env_ids=None) -> None:
+    ids = slice(None) if env_ids is None else env_ids
+    self.was_down[ids] = False
+    self.worst[ids] = 0.0
+
+  def __call__(self, env, sensor_name: str) -> torch.Tensor:
+    yaw = _yaw(self.entity.data.site_quat_w[:, self.ids])
+    down = env.scene[sensor_name].data.found > 0
+    landed = down & ~self.was_down
+    self.anchor = torch.where(landed, yaw, self.anchor)
+    self.worst = torch.where(landed | ~down, torch.zeros_like(self.worst), self.worst)
+    turned = (torch.remainder(yaw - self.anchor + torch.pi, 2 * torch.pi) - torch.pi).abs()
+    grew = torch.clamp(turned - self.worst, min=0.0) * down
+    self.worst = torch.maximum(self.worst, turned * down)
+    self.was_down = down
+    # ...a reward is scaled by the step: what grew, a second's worth of it
+    return grew.sum(dim=1) / self.dt
+
+
 def feet_down(env, sensor_name: str) -> torch.Tensor:
   """1 while both soles touch the ground."""
   found = env.scene[sensor_name].data.found
@@ -412,10 +474,10 @@ def torque_over_rating(env, asset_cfg: SceneEntityCfg, rated: torch.Tensor) -> t
   return torch.sum(torch.clamp(tau.abs() / rated.to(tau.device) - 1.0, min=0.0), dim=1)
 
 
-#: The soles' turn's charge, a radian (`feet_yaw_anchor`): a sole turned 5
-#: deg is charged as one slid 2 cm (`feet_anchor`'s -10 a metre) -- its toe
-#: swings about that far.
-FEET_YAW_WEIGHT = -2.5
+#: A planted sole's turn's charge, once a radian (`feet_swivel`): 5 deg
+#: turned where it stands is charged as a sole held 1 cm off its stance for
+#: 17 s (`feet_anchor`'s -10 a metre).
+FEET_SWIVEL_WEIGHT = -20.0
 
 
 # ---- falls ----------------------------------------------------------------------------
@@ -450,12 +512,35 @@ HAND_PULL_S, HAND_REST_S = (0.5, 3.0), (1.0, 4.0)
 #: on: a policy shoved at full size from the first iteration learns to fall.
 DISTURBANCE_STAGES = ((0, 0.25), (400, 0.5), (800, 0.75), (1200, 1.0))
 STEPS_PER_ITERATION = 24
+#: ...and the full size's share the stand is trained to, the served stand's
+#: (stand4's, and the waist's, #560's stage (c3)): to full size its episodes
+#: fell from 950 steps to 338 (stand1), and so did the waist's first nine
+#: retrains, to 220-450, before this was the default.
+DISTURBANCE_SCALE = 0.6
 
 
-def disturbance_scale(env, env_ids, stages=DISTURBANCE_STAGES, scale: float = 1.0):
+#: The planted soles' turn's charge's share of its weight from each
+#: iteration on (`feet_swivel`): charged from the first iteration, a policy
+#: learned to fall with its soles still (episodes of 11-26 steps up to
+#: iteration 400, where one with no charge stood 950).
+SWIVEL_STAGES = ((0, 0.0), (200, 1.0))
+
+
+def swivel_weight(env, env_ids, stages=SWIVEL_STAGES, weight: float = FEET_SWIVEL_WEIGHT):
+  """Sets `feet_swivel`'s weight for the iteration training is at: the
+  stage's share of `weight` (a variant's flag,
+  `--env.curriculum.swivel.params.weight -50`; a weight of 0 is not
+  computed, so its soles' anchors are set afresh when it comes on)."""
+  it = env.common_step_counter // STEPS_PER_ITERATION
+  share = [s for at, s in stages if it >= at][-1]
+  env.reward_manager.get_term_cfg("feet_swivel").weight = weight * share
+  return torch.tensor(share)
+
+
+def disturbance_scale(env, env_ids, stages=DISTURBANCE_STAGES, scale: float = DISTURBANCE_SCALE):
   """Sets the shoves' and the pulls' size for the iteration training is at:
   the stage's share of their full size, times `scale` (a variant's flag,
-  `--env.curriculum.disturbances.params.scale 0.6`)."""
+  `--env.curriculum.disturbances.params.scale 1.0`)."""
   it = env.common_step_counter // STEPS_PER_ITERATION
   share = [s for at, s in stages if it >= at][-1] * scale
   push = env.event_manager.get_term_cfg("push_robot")
@@ -557,7 +642,9 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             "force_range": (-HAND_N, HAND_N), "torque_range": (0.0, 0.0),
             "duration_s": HAND_PULL_S, "cooldown_s": HAND_REST_S})
   cfg.curriculum = {"disturbances": CurriculumTermCfg(func=disturbance_scale,
-                                                      params={"scale": 1.0})}
+                                                      params={"scale": DISTURBANCE_SCALE}),
+                    "swivel": CurriculumTermCfg(func=swivel_weight,
+                                                params={"weight": FEET_SWIVEL_WEIGHT})}
 
   # Rewards.
   rewards = cfg.rewards
@@ -584,8 +671,10 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   rewards["feet_anchor"] = RewardTermCfg(
     func=feet_anchor, weight=-10.0, params={"sensor_name": "feet_ground_contact"})
   rewards["feet_yaw_anchor"] = RewardTermCfg(
-    func=feet_yaw_anchor, weight=FEET_YAW_WEIGHT,
+    func=feet_yaw_anchor, weight=0.0,
     params={"sensor_name": "feet_ground_contact", "free_rad": 0.0})
+  rewards["feet_swivel"] = RewardTermCfg(
+    func=feet_swivel, weight=FEET_SWIVEL_WEIGHT, params={"sensor_name": "feet_ground_contact"})
   rewards["feet_down"] = RewardTermCfg(
     func=feet_down, weight=0.5, params={"sensor_name": "feet_ground_contact"})
   legs = SceneEntityCfg("robot", actuator_names=robot.LEGS, preserve_order=True)

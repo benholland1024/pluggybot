@@ -103,9 +103,12 @@ TRIM_RATE, TRIM_MAX = 1.0, (0.05, 0.15)
 #: it; begun under 0.05, 62 N for an instant, and it held there (#520).
 POSTURE_TOL, TRUNK_STILL_RATE, POSTURE_WAIT_S = (0.025, 0.06, 0.02), 0.05, 4.0
 #: The waist turns to its posture's angle no faster than this, rad/s: the
-#: trunk's pitch's ramp (`policy.PITCH_RATE`), training's scripted waist's
-#: (`training/humanoid_train/stand.py`).
-WAIST_RATE = 0.6
+#: trunk's pitch's ramp (`policy.PITCH_RATE`) -- and is set going and stopped
+#: at this, rad/s^2 (`turned`), as training's scripted waist turns it
+#: (`training/humanoid_train/stand.py`): the stand is served the turns it
+#: trained on. (Set going at once, the stand that knew no waist turned its
+#: soles no more, 60 deg with both arms out: 1.85 deg to 1.81.)
+WAIST_RATE, WAIST_ACCEL = 0.6, 1.5
 #: A hand that is out moves no faster than this when carried,
 #: m/s: at the reach's own 0.2 a lid's pull outran the posture, which
 #: comes a second or two behind its command, and the arm's solve missed
@@ -280,6 +283,25 @@ CARRY_POSTURES = with_waist(HOLD_POSTURES)
 #: hips' deepest bow a yaw of 15-30 deg put the torso's corner 1-2.5 cm into
 #: a thigh (#620).
 TRUNK_INTO_M = 0.01
+
+
+def turned(at: np.ndarray, speed: np.ndarray, goal: np.ndarray, dt: float
+           ) -> tuple[np.ndarray, np.ndarray]:
+  """A command walked toward `goal` one step of `dt`: no faster than
+  `WAIST_RATE`, its speed changed by no more than `WAIST_ACCEL` a second,
+  slowing in time to stop there. (command, speed)."""
+  to_go = goal - at
+  # the fastest that can still stop there, a step's travel counted in
+  brake = WAIST_ACCEL * dt * (np.sqrt(0.25 + 2.0 * np.abs(to_go) / (WAIST_ACCEL * dt * dt)) - 0.5)
+  want = np.sign(to_go) * np.minimum(brake, WAIST_RATE)
+  speed = speed + np.clip(want - speed, -WAIST_ACCEL * dt, WAIST_ACCEL * dt)
+  step = speed * dt
+  # ...there once a step toward it reaches it, or it is there and all but stopped
+  # (never on a step away: a goal moved just behind a turning command would
+  # stop it dead)
+  there = (((np.sign(step) == np.sign(to_go)) & (np.abs(step) >= np.abs(to_go)))
+           | ((np.abs(to_go) < 1e-9) & (np.abs(speed) <= WAIST_ACCEL * dt)))
+  return np.where(there, goal, at + step), np.where(there, 0.0, speed)
 
 
 def seed(side: str, s) -> np.ndarray:
@@ -567,6 +589,7 @@ class Reach:
     #: command ramped there (`WAIST_RATE`).
     self.waist = Waist(model, data, prefix)
     self.waist_cmd = np.zeros(len(hm.WAIST))
+    self.waist_speed = np.zeros(len(hm.WAIST))
     stand_q = hm.stand_qpos()
     self.rest = {s: np.array([stand_q.get(f"{s}_{j}", 0.0) for j in hm.ARM])
                  for s in hm.SIDES}
@@ -598,7 +621,7 @@ class Reach:
     self.trim = np.zeros(2)
     self.tau = np.zeros(len(hm.JOINT_NAMES))
     self.qd = np.zeros(len(hm.JOINT_NAMES))
-    #: The arm joints' friction as calibrated and stored (`friction.FILE`),
+    #: The arm joints' and the waist's friction as calibrated and stored (`friction.FILE`),
     #: taken off the drivers' torques where a joint turns; and what every
     #: joint's may hold still (`friction.still`), which the whole body's
     #: reading weighs it by.
@@ -944,7 +967,7 @@ class Reach:
 
   def turn_waist(self, waist: float) -> None:
     """The posture's waist alone turned to `waist`, rad (its command walks
-    there, `WAIST_RATE`): the friction's calibration (`friction`)."""
+    there, `turned`): the friction's calibration (`friction`)."""
     self.posture[2] = float(waist)
 
   def waist_home(self) -> bool:
@@ -959,7 +982,7 @@ class Reach:
 
   def hold_waist(self) -> None:
     """Once a physics step while the get-up has every other joint: the
-    waist walked home to zero (`WAIST_RATE`) and held there stiff, nothing
+    waist walked home to zero (`turned`) and held there stiff, nothing
     read -- no model of itself is posed while it tumbles."""
     if self.steps % self.every == 0:
       self.posture[2:] = 0.0
@@ -967,9 +990,10 @@ class Reach:
     self.steps += 1
 
   def _turn_waist(self, dt: float, feed: np.ndarray) -> None:
-    """The waist's command one step toward the posture's angle, sent."""
-    rate = WAIST_RATE * dt
-    self.waist_cmd = self.waist_cmd + np.clip(self.posture[2:] - self.waist_cmd, -rate, rate)
+    """The waist's command one step toward the posture's angle (`turned`),
+    sent."""
+    self.waist_cmd, self.waist_speed = turned(self.waist_cmd, self.waist_speed,
+                                              self.posture[2:], dt)
     self.waist.command(self.waist_cmd, feed)
 
   def held_pitch(self) -> float:
@@ -1180,7 +1204,7 @@ class Reach:
   #: every hand's phase and commands, its filters and what it last read.
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "steps", "posture", "trim", "tau", "qd", "standing", "force",
-          "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd")
+          "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},

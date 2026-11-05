@@ -1722,7 +1722,8 @@ each command from standing, measured over 6 s after 3 s) it walks 0.51,
 0.99 and 1.27 m/s asked 0.5, 1.0 and 1.3; backward 0.46 asked 0.5 (0.20
 asked the Navigator's back-off, 0.3); sideways 0.31 asked 0.3; and turns
 on the spot 1.01 rad/s asked 1.0.
-- *A turn is the hips' yaw alone* -- there is no waist. With the hips'
+- *A turn is the hips' yaw alone* -- the waist (#560's stage (c3)) is held
+  home while it walks. With the hips'
   yaw held as tightly as the G1's (0.15 rad) and the turn's reward paying
   61 % for not turning at all, `walk1` asked 0.5 rad/s turned 0.08. Twice
   the yaw's tolerance and a sharper reward (`STD_WALKING`, `TURN_STD`):
@@ -5196,13 +5197,11 @@ fork, both by the left hand -- the plate 1.5 cm, the cup 1.5 and the fork
 
 ## A waist, measured before it is built (issue #560, stage (c))
 
-**What is true now.** The body has no waist: the pelvis, the torso and the
-head are one rigid body, the IMU on the pelvis. Parts.md says why the T2's
-waist was left out and that it is the first joint to add if a stage's
-measurement comes up short; #560's table is that measurement (above: each
-hand works only its own side of a place). Three candidates were measured on
-the robot's model of itself (`scripts/waist_spike.py`), and none is built.
-**A waist yaw, one RS03 at the pelvis's top (+1.73 kg), buys most of what
+**What is true now.** The yaw measured here is BUILT (stage (c3), "The
+waist built", below), #620's candidate exactly; this section is what was
+measured before it was. Three candidates were measured on the robot's model
+of itself (`scripts/waist_spike.py`, drawn from the body before the waist,
+`HumanoidSpec(waist_yaw=False)`). **A waist yaw, one RS03 at the pelvis's top (+1.73 kg), buys most of what
 was measured**: each hand reaches past the middle of the table, every
 pick-up our procedure makes is made standing tall, and the floor and the
 high shelf come into reach in front of the shoulder. A waist pitch keeps the
@@ -5578,6 +5577,64 @@ it)](figures/hands_table_putdown.png)
 **What it cannot say.** Whether the standing policy, retrained for the yaw,
 holds these postures; how far the stance turns as an arm goes out on a body
 whose trunk turns instead (#620's open half); and the yaw's windows flown.
+
+## The waist built (issue #560, stage (c3))
+
+**What is true now.** The body has a waist yaw: an RS03 stood in the
+pelvis's middle turns everything above the pelvis's top -- the torso, the
+pack, the head and its sensors, the port and the arms, 19.5 kg, its centre
+0.18 m up the axis -- +-60 deg (`HumanoidSpec.waist_yaw`). It is #620's
+`yaw` candidate exactly (`tests/test_waist_spike.py`: every body, geom and
+joint, place, mass and inertia, the same), and at its zero the body before
+it to 1e-15 m. 44.9 kg, 25 joints.
+
+**The senses, off the parts.** The IMU rides the pelvis, the head's sensors
+the waist, and nothing turns them by the simulator's angle:
+- *A sensor's mount is posed through each joint on its way at its driver's
+  reading* (`perception.mount`); a pose handed no reading is refused, never
+  laid at zero. The LIDAR's band and level ring and the depth camera's
+  frames take the waist's angle the odometry posed its model of itself with
+  (`HumanoidMission.waist_read`, every 10 ms); the band levels its points
+  through the IMU's tilt composed with that turn. The LIDAR rides the
+  waist's axis, so the waist turns it where it is.
+- *Every camera placed through the robot's model of itself follows*, since
+  the model sets the waist off its reading: the tags' colour imager, the
+  places' navigation camera, the station's port.
+- *The whole body's force reading* gains the waist's row (it carries a
+  hand's load to the legs), and the friction table its row: 0.30 N*m dry,
+  0.02 viscous, against the RS03 sheet's 0.30 (`humanoid_spike.py
+  --friction`).
+
+**The reach with a waist.** A posture is the legs' and the waist's
+(`REACH_POSTURES`, `CARRY_POSTURES`: #620's grid of 0, +-15 ... +-60 deg by
+the legs' postures, least bent first by #620's cost), the waist driven as
+an arm is and held in its posture through a carry (Ben's call). Three
+things it took:
+- *A statue a posture*, worked out once a drawing and kept
+  (`SelfModel.statues`): 36 ms each, and a plan that found nothing, 1.3 s
+  over today's 8 postures, would have been 11 s over 72 on the physics
+  thread.
+- *An exact bound prunes*: no arm takes its grip further from its shoulder
+  than hanging straight, so a goal past that is skipped unsolved.
+- *A turned trunk folded into a thigh stands nowhere* (`reach.stands`): at
+  the deepest bow a turn of 15-30 deg puts the torso 1.1 cm into one, as
+  #620 found; nothing in the drawing collides there.
+Planned so, a left hand at a table's height 0.45 m ahead stands nearly tall
+turned 30 deg where today's crouched and bowed, the floor 0.09 m up is
+reached 0.15-0.55 m ahead from a turned bow (today only at the toes), and
+the right hand reaches 0.4 m past the middle.
+
+**The waist driven** (`arms.Waist`). Its gains are sized to what it turns:
+0.46 kg*m^2 about its axis with the arms hanging, 1.14 with both out, where
+the arms' scale (4x, 2x the policy's) rang at 4.2 and 2.7 Hz at a damping
+ratio of 0.42 and 0.27; at 8x and 10x (kp 632, kd 50, inside the RS03's MIT
+range, its manual's 4.1.2) it is 0.94-1.48. Its turn goes at 0.6 rad/s at
+most and is set going and stopped at 1.5 rad/s^2 (`reach.turned`; 60 deg in
+2.1 s), as the stand's training turns it -- for that alone: set going at
+once, the soles turned no more (60 deg either way with both arms held
+level: 1.85 deg to 1.81 on the stand that knew no waist). Walking and
+getting up hold it home: neither policy knows it, the walker takes the legs
+only once it reads home, and the get-up walks it home.
 
 ## Debugging workflow that worked
 

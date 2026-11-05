@@ -45,10 +45,12 @@ sidestepping command seldom gets it there.
 `models/humanoid.{xml,json}`, each joint its own RobStride part):
 `Pluggy-Humanoid-Stand` balances on planted feet at a commanded posture
 (the pelvis's height and the trunk's pitch, a crouch and a bow) while its
-arms are SCRIPTED -- sent somewhere new every few seconds with their weight
-fed forward, as the served reach drives them -- and its hands carry and
-pull; shoves and pulls ramp up over the first 1200 iterations
-(`DISTURBANCE_STAGES`, `--env.curriculum.disturbances.params.scale`), and
+arms and its waist's yaw (#560's stage (c3)) are SCRIPTED -- sent somewhere
+new every few seconds with their weight fed forward, as the served reach
+drives them -- and its hands carry and pull; shoves and pulls ramp up over
+the first 1200 iterations to 0.6 of their full size (`DISTURBANCE_STAGES`,
+`DISTURBANCE_SCALE`: at full size it fell rather than stand, stand1's and
+the waist's first retrains), and
 each sole is charged for its distance from where the episode's stance put
 it (`feet_anchor`; SimNotes, "The humanoid stands, reaches and grasps").
 #544's retrains against the `pull` verb's 60 N (a one-hand draw, a capped
@@ -107,8 +109,8 @@ same walker on flights alone (risers 0.02-0.22 m) and a little flat floor,
 nine commands in ten walking straight out along a flight (stairs1, the
 stairs' walker until the fine-tuned seeing walker climbed better; git has
 it). `Pluggy-Humanoid-Getup`
-gets up off the floor and falls on purpose: all twenty-four joints the
-policy's, episodes starting on its back, its front, dropped any way up or
+gets up off the floor and falls on purpose: the legs' and the arms'
+twenty-four joints the policy's (the waist held home), episodes starting on its back, its front, dropped any way up or
 TIPPING from its stand at a shove's speed; a lift at the pelvis holds part
 of its weight early in training (`ASSIST_STAGES`, to nothing by iteration
 2400), the rise paid as it comes and the stand from 3 s, and a hit on

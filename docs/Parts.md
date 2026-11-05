@@ -56,7 +56,7 @@ the rest):
   contactor closes. The wireless half is a hobby RC link whose receiver's
   failsafe opens the relay, at a fifth of a commercial wireless e-stop.
 - **Four CAN buses on the Pi, through two stacked HATs**, six drivers a
-  bus; four USB adapters are the fallback.
+  bus and the waist's a seventh on one; four USB adapters are the fallback.
 - **The bench leg hops on the pack.** The lab supply is for current-limited
   first power-ups: it cannot take back what the motors return on landing.
 
@@ -240,33 +240,38 @@ number sits at its constant in `humanoid/parts.py` with its source, and
 the tables that size it are SimNotes, "The humanoid body". **Nothing is
 ordered**: #379's gate stands.
 
-**The joints, 24, and a gripper on each arm.** Each is there for a reason,
+**The joints, 25, and a gripper on each arm.** Each is there for a reason,
 because a joint costs money, training and serving speed (#507, rule 4):
 
 | joints | part | why that part |
 |---|---|---|
 | hip pitch, hip roll, knee, ankle pitch | RobStride **RS04** (120 N·m peak, 35 continuous turning, 28.5 held still; 1.51 kg) | where the body's weight passes: walking's push-off is ~70 N·m at the ankle, and up the house's flight, flown by the walker that sees the ground, the knee 118 (98 % of its peak; its RMS 110 % of its rating over the 5.9 s, a burst its overload table allows for at least 290 s) and coming down 116 |
-| hip yaw, ankle roll, shoulder pitch and roll | RobStride **RS03** (60 / 20 / 13 N·m; 0.93 kg) | the hip's turn (24-37 N·m on the flight, flown, where it was estimated at ~51), the ankle's roll (53 coming down a flight, 88 % of its peak), an arm held out with a load -- and pushing the body up off the floor at its whole 60 (the get-up) |
+| hip yaw, ankle roll, shoulder pitch and roll, the waist's yaw | RobStride **RS03** (60 / 20 / 13 N·m; 0.93 kg) | the hip's turn (24-37 N·m on the flight, flown, where it was estimated at ~51), the ankle's roll (53 coming down a flight, 88 % of its peak), an arm held out with a load -- and pushing the body up off the floor at its whole 60 (the get-up); the waist turns the trunk above it, 19.5 kg, holding at most 8.1 N·m over the table's reaches and 10.1 under a 20 N `pull` sideways at a hand, 78 % of its 13 stalled, where an RS02's 6 would not (#560) |
 | upper-arm twist, elbow | RobStride **RS02** (17 / 6 / 6 N·m; 0.42 kg) | down the arm, where mass costs the shoulder; ⚠ the get-up pushes both to their 17 N·m peak, every time |
 | wrist pitch | RobStride **RS00** (14 / 5 / 3.6 N·m; 0.31 kg) | the gripper and what it holds, ahead of it |
 | wrist roll | RobStride **RS05** (5.5 / 1.6 / 1.35 N·m; 0.24 kg) | turns only the gripper, to the handle |
 | grippers | Unitree **Dex1-1** (90 mm, 5–120 N, 550 g) | a parallel gripper on sale, built for a humanoid this size, that takes a stiffness in each command and reports its angle and a torque estimate |
 
-**Not here, and why:** the T2's waist (three joints: the hips bend the body
-to a low reach and the legs' yaws turn it), its head's two (the depth camera
-is fixed, pitched at the counter and the floor ahead; a shelf above the head
-is out of its view), and its seventh arm joint (redundancy, not reach). Each
-is the first joint to add if a stage's measurement comes up short, and #560's
-table did for the waist: each hand works only its own side of a place. A
-waist was measured on the robot's model of itself before anything is built
-(SimNotes, "A waist, measured before it is built"), and Ben chose its yaw
-alone, on an RS03 at the pelvis's top (+1.73 kg; 2026-11-05), to be built
-once the carries into the table's put-downs near the body's middle were
-measured with other grips, paths and hands. They were (SimNotes, "The
-table's put-downs, measured before the waist is built"): on today's body
-the plate's opens with another grip and the fork's does not, and with the
-yaw, its grip asked the other way round, both open and one stance lays the
-whole place. Nor a force
+**The waist's yaw** (#560's stage (c3); SimNotes, "The waist built"): an
+RS03 stood in the pelvis's middle between the hips' pitch motors, its axis
+up the pelvis's middle, turning everything above the pelvis's top -- the
+torso, the pack, the head and its sensors, the port and the arms -- ±60°,
+on a 5 mm turntable plate: +1.73 kg, €320.95 before the contingency (the
+part, its two bracket plates, the plate, a connector pair). Each hand works
+only its own side of a place without it (#560's table); measured on the
+robot's model of itself before it was built (SimNotes, "A waist, measured
+before it is built", and "The table's put-downs, measured before the waist
+is built"), the yaw reaches past the middle of a table, makes every
+pick-up standing tall and, its grip asked the other way round, lets one
+stance lay the whole place. It joins one of the four CAN buses: seven
+drivers on it, six on the others.
+
+**Not here, and why:** the T2's waist's pitch and roll (the hips bend the
+body to a low reach; Ben, 2026-11-05: a pitch only if the stance still turns
+as an arm goes out with the yaw built), its head's two (the depth camera is
+fixed, pitched at the counter and the floor ahead; a shelf above the head is
+out of its view), and its seventh arm joint (redundancy, not reach). Each is
+the first joint to add if a stage's measurement comes up short. Nor a force
 sensor at either wrist (#544): `pull` asks at most what the standing body holds, 20 N, and shown a
 hand's true force in training's physics the standing policy held 60 N, where
 the robot's own readings will not do -- the arm's currents read too rough,
@@ -305,7 +310,7 @@ RS00/02/03/05.
   against a 20.9 rad/s no-load speed, the RS03 ±20 against 20.4. A joint
   turning faster reads the field's last count (`humanoid.senses`).
 - **The drivers' standby draw** is published only for the RS03 (≤ 40 mA);
-  carried for all 24, an upper bound: 41 W of the body's 69 W always on.
+  carried for all 25, an upper bound: 43 W of the body's 77 W always on.
 
 **The gripper.** Unitree's Dex1-1 publishes its stroke, force, speed, mass,
 size and what it reports; not its flange, its rotor or its torque estimate's
@@ -329,7 +334,9 @@ walls that mark places, and is the eye a `look` sees through. Both sit in
 the face's dark visor. The Mid-360S is upside down in the head, under its
 cap, its rays leaving 1.41 m up: its map is laid from its points laid
 flat, which see the tables, the couch and the bed, and the depth camera
-sees them by its feet too (#581). The IMU rides the pelvis.
+sees them by its feet too (#581). The IMU rides the pelvis, under the
+waist; the head's sensors ride the waist, and each of their frames is laid
+through the waist's encoder as it reads (`perception.mount`).
 
 **The bill.** `humanoid/bill.py`, rendered here and written to
 `protocol/parts.json` by `uv run python -m pluggybot.humanoid.bill`: a part

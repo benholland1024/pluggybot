@@ -1,24 +1,24 @@
 """A waist for the humanoid, measured before it is built (#560, stage (c)).
 
-Today the pelvis, the torso and the head are one rigid body
-(`humanoid.model`: "there is no waist"). This instrument builds the
-candidates on the robot's MODEL OF ITSELF -- today's generated drawing with
-a waist put in at the pelvis's top -- and measures each the way the reach
+Before stage (c3) built the yaw, the pelvis, the torso and the head were
+one rigid body. This instrument builds the candidates on the robot's MODEL
+OF ITSELF -- the drawing as it was then (`TODAY`, the yaw left out) with a
+waist put in at the pelvis's top -- and measures each the way the reach
 plans today (`reach.plan`): a posture tried on a statue's legs balanced over
 the soles (`reach.static_legs`), the arm's six joints solved by its own
 inverse kinematics, least bent first. A posture here is the legs' (the
 pelvis's height and pitch, `reach.POSTURES`) and the waist's angles.
 
-  none       today's body
+  none       the body before the waist (`TODAY`)
   pitch      a waist pitch at `PITCH_Z` over the hip axes
   yaw        a waist yaw at the pelvis's top, `YAW_Z`
   pitch_yaw  both, the yaw below the pitch (the T2's and the G1's order: a
              bow is toward where the shoulders face)
   yaw90      the yaw at +-90 deg (#560's stage (c2), `scripts/putdown_spike.py`)
 
-Nothing here is served, trained or flown: no policy holds a waist yet, so
-every number is a statue's -- what the body could reach and hold still,
-an upper bound on what a policy will.
+Nothing here is served, trained or flown: every number is a statue's --
+what the body could reach and hold still, an upper bound on what a policy
+will (the yaw as built is flown by `hands_check.py`).
 
   --bands          the table's bands: each hand's reach at the table's
                    height, fingers down and tilted 45 deg, every candidate
@@ -122,13 +122,13 @@ def _housing(name: str, motor, at, axis: str) -> ET.Element:
 def waist_xml(kind: str, spec: hm.HumanoidSpec = TODAY, pack_below: bool = True,
               scenery: str = "") -> str:
   """The robot's drawing with the candidate's waist (`CANDIDATES[kind]`):
-  today's generated MJCF with the trunk cut at the waist -- the root keeps
+  the generated MJCF (`spec`'s, `TODAY` by default) with the trunk cut at the waist -- the root keeps
   the pelvis, its IMU and the legs; a yaw's link the pelvis's top; the
   torso, the head, its sensors, the port and the arms ride above. The
   torso's box is cut at the pitch's axis, the pack and the lower part
   below it (`pack_below`; else the pack rides the bow too). Every element
   above keeps its place through a `<frame>` that undoes its link's offset,
-  so the zero pose is today's body, plus the waist's motors and link."""
+  so the zero pose is that body, plus the waist's motors and link."""
   joints = CANDIDATES[kind]
   root = ET.fromstring(hm.body_xml(spec, scenery=scenery))
   for key in root.findall("keyframe"):

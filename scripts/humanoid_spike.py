@@ -823,7 +823,7 @@ def thermal_table(rows=None) -> None:
 
 
 def friction_table(write: bool = False) -> None:
-  """--friction: the arm joints' friction calibrated as the robot does it
+  """--friction: the arm joints' and the waist's friction calibrated as the robot does it
   (`humanoid.friction.calibrate_routine`), standing in the living room,
   each joint's fit beside the friction its motor's sheet gives the
   model (`parts.friction_nm`, the sim's truth: ours, never the robot's)."""
@@ -4240,7 +4240,7 @@ def main(argv=None) -> None:
                   help="the served walker and the one that sees the ground (or these policies) "
                        "over a doorstep, paving, a slope and blocks")
   ap.add_argument("--friction", action="store_true",
-                  help="its arm joints' friction calibrated in free air, beside the sheets' "
+                  help="its arm joints' and waist's friction calibrated in free air, beside the sheets' "
                        "(--write keeps it in models/humanoid_friction.json)")
   ap.add_argument("--write", action="store_true", help="--friction: keep the table")
   ap.add_argument("--mass", action="store_true", help="the mass budget beside the T2's")

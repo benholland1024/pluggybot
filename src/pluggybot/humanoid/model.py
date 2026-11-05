@@ -312,9 +312,13 @@ MODEL_XML = "models/humanoid.xml"
 #: command too (`humanoid.arms`), and training's scripted arms hold the same
 #: (`training/humanoid_train`).
 ARM_GAIN_SCALE = (4.0, 2.0)
-#: ...and the waist's commands theirs (`humanoid.reach.Waist`), as the arms'
-#: are scripted beside a standing policy.
-WAIST_GAIN_SCALE = (4.0, 2.0)
+#: ...and the waist's commands theirs (`humanoid.arms.Waist`), sized to what
+#: it turns: 0.46 kg*m^2 about its axis with the arms hanging, 1.14 with both
+#: out level, where the arms' scale left it ringing at 4.2 and 2.7 Hz at a
+#: damping ratio of 0.42 and 0.27 -- here 5.9 and 3.7 Hz at 1.48 and 0.94
+#: (kp 632 N*m/rad, kd 50 N*m*s/rad; the RS03's MIT range, its manual's
+#: 4.1.2: Kp 0-5000, Kd 0-100). Training's scripted waist holds the same.
+WAIST_GAIN_SCALE = (8.0, 10.0)
 #: The body's constants for `training/`, which cannot import this package.
 CONSTANTS_JSON = "models/humanoid.json"
 

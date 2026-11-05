@@ -632,3 +632,73 @@ def test_no_arm_takes_its_grip_further_from_its_shoulder_than_its_reach():
       far = np.linalg.norm(sm.d.site_xpos[sm.grip[side]] - sm.d.xpos[shoulder])
       assert far <= most + 1e-9, (side, far, most)
 
+
+
+def test_the_waist_is_held_damped_over_what_it_turns_inside_its_parts_range():
+  """#560's stage (c3): the waist's commands (`arms.Waist`) are sized to the
+  trunk above it -- at the arms' scale it rang at 2.7 Hz at a damping ratio
+  of 0.27 with both arms out -- and inside the RS03's MIT range (its
+  manual's 4.1.2: Kp 0-5000, Kd 0-100)."""
+  import math
+  from pluggybot.humanoid.arms import Waist
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  w = Waist(model, data)
+  kp, kd = float(w.kp[0]), float(w.kd[0])
+  assert 0.0 < kp <= 5000.0 and 0.0 < kd <= 100.0
+  dof = model.jnt_dofadr[model.joint("waist_yaw").id]
+  for out in (0.0, -1.4):                  # the arms hanging, both held out level
+    mujoco.mj_resetDataKeyframe(model, data, 0)
+    for s in hm.SIDES:
+      data.qpos[model.jnt_qposadr[model.joint(f"{s}_shoulder_pitch").id]] = out
+    mujoco.mj_forward(model, data)
+    full = np.zeros((model.nv, model.nv))
+    mujoco.mj_fullM(model, data, full)
+    inertia = full[dof, dof]
+    assert kd / (2.0 * math.sqrt(kp * inertia)) >= 0.9, (out, inertia)
+
+
+def test_the_waist_is_set_going_and_stopped_gently_and_arrives_exactly():
+  """#560's stage (c3): the waist's command (`reach.turned`) turns no faster
+  than `WAIST_RATE` and is set going and stopped at `WAIST_ACCEL`, as the
+  stand's training turns it, arriving exactly on its goal at rest -- and a
+  goal moved behind a turning command slows it, never stops it dead."""
+  from pluggybot.humanoid import reach as rc
+  dt = rc.EVERY_S
+  for goal in (1.0472, -0.26, 0.001):
+    at, speed, steps = np.zeros(1), np.zeros(1), 0
+    while not (at[0] == goal and speed[0] == 0.0):
+      before = speed.copy()
+      at, speed = rc.turned(at, speed, np.array([goal]), dt)
+      assert abs(speed[0]) <= rc.WAIST_RATE + 1e-12
+      assert abs(speed[0] - before[0]) <= 2.0 * rc.WAIST_ACCEL * dt, (goal, steps)
+      steps += 1
+      assert steps < 1000
+  at, speed = rc.turned(np.array([0.5]), np.array([0.6]), np.array([0.499]), dt)
+  assert speed[0] == pytest.approx(0.6 - rc.WAIST_ACCEL * dt) and at[0] > 0.5
+
+
+def test_training_turns_the_waist_as_the_served_reach_does():
+  """#560's stage (c3): the stand is served the waist's turns it trained on
+  -- its scripted waist's rate, its acceleration and how far either way it
+  goes are the served reach's (`training/` cannot import this package, so
+  its constants are read off its source)."""
+  import ast
+  from pathlib import Path
+  from pluggybot.humanoid import reach as rc
+  src = Path(__file__).resolve().parents[1] / "training" / "humanoid_train" / "stand.py"
+  consts = {}
+  for node in ast.parse(src.read_text()).body:
+    if not isinstance(node, ast.Assign):
+      continue
+    try:
+      value = ast.literal_eval(node.value)
+    except ValueError:
+      continue
+    for t in node.targets:
+      if isinstance(t, ast.Name):
+        consts[t.id] = value
+      elif isinstance(t, ast.Tuple):
+        consts.update({n.id: v for n, v in zip(t.elts, value)})
+  assert (consts["WAIST_RATE"], consts["WAIST_ACCEL"]) == (rc.WAIST_RATE, rc.WAIST_ACCEL)
+  assert consts["WAIST_GOAL"] == pytest.approx(float(np.max(rc.WAIST_YAWS)), abs=1e-4)
