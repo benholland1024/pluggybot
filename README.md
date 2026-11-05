@@ -212,6 +212,12 @@ uv run python scripts/solve.py --feature drawer --from store --view
                                       # the robot's own procedure (door,
                                       # cube, chest; --from station walks
                                       # across the street first; --strip)
+uv run python scripts/hands_check.py --view table_rim30_t60 0
+                                      # a place laid at #560's table: the
+                                      # plate gripped 30 deg round its wall,
+                                      # from where the robot stands, and the
+                                      # fork at 60 deg (#560 (c2); laid
+                                      # whole on osmesa, as the pod flew it)
 ```
 `humanoid_spike.py --help` lists its tables (`--mass`, `--torque`,
 `--thermal`, `--energy`, `--sensors`, `--shove`, `--envelope`, `--hold`,

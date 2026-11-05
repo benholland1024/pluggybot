@@ -431,7 +431,11 @@ there (§4's "A tag watched while the robot moves").
   one carry never crossing from one band to the next, and a walk carries
   nothing: a place and its dishware take a stance a piece, and a sidestep
   lands as far off as a stance's window is wide (SimNotes, "Setting a
-  table"; Challenges.md §12).
+  table"; Challenges.md §12). The plate's carry opens with where its wall
+  is gripped; the fork's with no grip, path, hand or stance by every
+  measure but a relay, which loses the fork in flight; a waist yaw opens
+  both, its grip asked the other way round (SimNotes, "The table's
+  put-downs, measured before the waist is built").
 - **A reading of how far what it holds has turned** (a lid's angle, which
   every arm of #493 said it lacked). Measured off the hinge's own sensor at
   chests 0-7, the robot's own readings carry it, each in one phase: its
