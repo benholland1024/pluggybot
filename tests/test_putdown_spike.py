@@ -109,3 +109,22 @@ def test_one_posture_is_620s_carry_and_a_turn_comes_first_on_a_line():
   for x, r in pts:
     done = np.allclose(r, r1)
     assert done == (x[0] - 0.3 >= turned - 1e-9), x
+
+
+def test_the_flown_table_scenes_are_the_jobs_procedure_with_the_levers_lines_alone():
+  """#560 stage (c2) flew our table procedure changed by its levers alone
+  (`hands_check.SCENES`, SimNotes "The table's put-downs, measured"): each
+  scene compiles, grades as the table, and differs from the job's procedure
+  in the plate's grip point, its put-down, the grip's turn and the step --
+  a line of the job moved under it is a scene that no longer flies the
+  lever, and fails here."""
+  from pluggybot.evaluation import hands_check as hc
+  job = hc.TABLE.splitlines()
+  for name in ("table_rim30", "table_rim30_t60"):
+    grader, source = hc.SCENES[name]
+    assert grader == "table"
+    hc.compiled(name)
+    mine = source.splitlines()
+    assert len(mine) == len(job)
+    changed = [a.split("(")[0].split("=")[0].strip() for a, b in zip(job, mine) if a != b]
+    assert changed == ["px", "py", "step", "reach", "move_hand"], (name, changed)

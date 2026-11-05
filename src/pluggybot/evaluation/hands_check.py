@@ -327,6 +327,34 @@ SCENES = {"until": ("lid", LID.replace(
     '    if read("pull.stopped") > 0.5:\n'
     '      wait(2)\n'
     '      pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27 - read("pull.moved"))\n'))}
+#: ...and the table's, flown in #560's stage (c2) (SimNotes, "The table's
+#: put-downs, measured before the waist is built"): `table_rim30`, the
+#: plate's wall gripped 30 deg round from straight ahead -- its far left, the
+#: fingers leaning ahead and to the right, the jaws along the wall's radius
+#: the way the planner took them -- and laid from where the robot stands, the
+#: fork as the job's from 9 cm to the right; `table_rim30_t60`, the same, the
+#: fork gripped 60 deg down, its jaws the other way round, from 6.5 cm.
+_TABLE_RIM30 = (('  px = read("spot.x") - k\n', '  px = read("spot.x") - k + 0.0701\n'),
+                ('  py = read("spot.y") - m + 0.081\n', '  py = read("spot.y") - m + 0.0405\n'),
+                ('k - 0.19, m + 0.081 + 0.079 * i,', 'k - 0.1199 - 0.0701 * i, m + 0.0405 + 0.1195 * i,'))
+_TABLE_GRIP = '0.767 - 0.005 * i, 0.707, 0, -0.707, 0, 1, 0)'
+_TABLE_STEP = '    step(0, 0.43 * i - 0.26)\n'
+
+
+def _table_scene(grip: str, step: str) -> str:
+  out = TABLE
+  for old, new in (*_TABLE_RIM30, (_TABLE_GRIP, grip), (_TABLE_STEP, step)):
+    out = out.replace(old, new)
+  return out
+
+
+SCENES.update({
+  "table_rim30": ("table", _table_scene(
+    "0.767 - 0.005 * i, 0.707 - 0.3536 * (1 - i), -0.6124 * (1 - i), -0.707, "
+    "-0.866 * (1 - i), 1 - 1.5 * (1 - i), 0)", "    step(0, -0.09 * i)\n")),
+  "table_rim30_t60": ("table", _table_scene(
+    "0.767 + 0.0014 * i, 0.3536 + 0.1464 * i, -0.6124 + 0.6124 * i, -0.7071 - 0.1589 * i, "
+    "-0.866 + 0.866 * i, -0.5 - 0.5 * i, 0)", "    step(0, -0.065 * i)\n"))})
 #: The set-outs each job is flown at, and the bar, written before the check
 #: flew: a job passes when its procedure passes at least `BAR` of them
 #: (#493's gate: 6 of 8).
