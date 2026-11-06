@@ -279,7 +279,8 @@ class Navigator:
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
-               viewer=None, realtime: bool = True, match: bool = True) -> None:
+               viewer=None, realtime: bool = True, match: bool = True,
+               lidar_seed: int | None = None) -> None:
     self.model, self.data = model, data
     #: WHICH ROBOT (issue #167): every element resolves through it.
     self.handle = handle
@@ -291,8 +292,9 @@ class Navigator:
     # battery hooks in here: energy must drain in lockstep with the physics,
     # not per phase, or a long terminal creep is free.
     self.step_hooks: list = []
+    # ...its noise its robot's own unless the body is keyed (`senses.Noise`)
     self.lidar = Lidar(model, site_name=handle.el("lidar"),
-                       robot_body=handle.root)
+                       robot_body=handle.root, seed=lidar_seed)
     self._next_scan = 0.0
     # Bounds are per-WORLD (issue #6), from the generator's meta: a grid
     # sized for one room silently truncates every scan beyond its edge.

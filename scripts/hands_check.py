@@ -14,6 +14,11 @@ hold, one verdict.
                        build's seed (`attempts.seed_of`; a dirty tree is
                        refused), or `--seed`: a reference over a practice's
                        held-out set-outs (#535)
+  --noise KEY          every flight draws KEY's noise, not its set-out's own
+                       (`attempts.noise_of`, #560): a draw flown again (a
+                       row's `run.noise`), `robot` the robot's own -- the one
+                       realization every set-out drew before; refused with
+                       --held-out, whose noise is sealed with its set-outs
   --jobs N             flights in parallel, each in a process of its own
   --into DIR           the record: rows.jsonl, one row a flight
   --read DIR           a kept record: each job's passes against the bar, and
@@ -64,9 +69,9 @@ from attempts import ViewerClosed, _pace, build, chests, run_pool  # noqa: E402
 
 def fly(job) -> dict:
   """One flight: the row, or a row saying what it raised (`error`)."""
-  name, k, info = job
+  name, k, info, noise = job
   try:
-    return hc.fly(name, k, info=info)
+    return hc.fly(name, k, info=info, noise=noise)
   except Exception as e:
     traceback.print_exc()
     return {"task": {"chest": k, "grader": name}, "run": info,
@@ -106,6 +111,7 @@ def report(rows: list[dict]) -> None:
           f"[{got['lo']:.2f}, {got['hi']:.2f}]"
           + (f", held out by seed {', '.join(seeds)}" if seeds else "")
           + (f"; its passes took {took[0]:.2f}-{took[-1]:.2f} sim s" if took else ""))
+  print(f"  {at.noise_said(rows)}")
   errors = [r for r in rows if "error" in r]
   if errors:
     print(f"  {len(errors)} flights raised: no verdict, no try")
@@ -153,9 +159,9 @@ def _skill(job: str, out: dict):
   return ep.procedure_skill(hc.compiled(job), hc.facts(), out)
 
 
-def view(job: str, k: int) -> None:
+def view(job: str, k: int, noise: str | None = None) -> None:
   from mujoco import viewer as mj_viewer
-  world = at.set_out(_task(job, k))
+  world = at.set_out(_task(job, k), noise=noise)
   x, y, _ = PROPS[_prop(job)](k)
   print(f"the {job} at set-out {k}, our procedure in the hands' vocabulary; the grader's "
         "verdict is printed. Close the window to quit.")
@@ -185,9 +191,9 @@ def view(job: str, k: int) -> None:
 EVERY_S, TILES = 5.0, 8
 
 
-def strip(job: str, k: int, out: str = "hands_check.png") -> None:
+def strip(job: str, k: int, out: str = "hands_check.png", noise: str | None = None) -> None:
   from PIL import Image, ImageDraw
-  world = at.set_out(_task(job, k))
+  world = at.set_out(_task(job, k), noise=noise)
   m, d = world.model, world.data
   r = mujoco.Renderer(m, 300, 400)
   tiles = []
@@ -258,6 +264,7 @@ def main(argv=None) -> None:
   ap.add_argument("--set-outs", default=f"{hc.SET_OUTS[0]}-{hc.SET_OUTS[-1]}")
   ap.add_argument("--held-out", type=int, default=None, metavar="N")
   ap.add_argument("--seed", type=int, default=None)
+  ap.add_argument("--noise", default=None, metavar="KEY")
   ap.add_argument("--jobs", type=int, default=1)
   ap.add_argument("--into", default=None)
   ap.add_argument("--read", default=None, metavar="DIR")
@@ -278,7 +285,8 @@ def main(argv=None) -> None:
       if got[0] not in (*hc.JOBS, *hc.SCENES) or len(got) > 2:
         ap.error(f"--{flag} JOB [K]: JOB one of {', '.join((*hc.JOBS, *hc.SCENES))}")
       k = int(got[1]) if len(got) > 1 else 0
-      view(got[0], k) if flag == "view" else strip(got[0], k, args.out)
+      (view(got[0], k, args.noise) if flag == "view"
+       else strip(got[0], k, args.out, args.noise))
       return
   names = [j for j in args.job.split(",") if j]
   bad = [j for j in names if j not in hc.JOBS]
@@ -289,10 +297,13 @@ def main(argv=None) -> None:
   if args.held_out is not None:
     if info["dirty"] and args.seed is None:
       ap.error("a held-out draw is a frozen build's: commit the tree first (or name --seed)")
+    if args.noise is not None:
+      ap.error("a held-out set-out's noise is sealed with it: --noise flies a draw again "
+               "at named --set-outs")
     info["seed"] = args.seed if args.seed is not None else at.seed_of(info["commit"])
     ks = at.held_out(info["seed"], args.held_out)
     print(f"held out: {args.held_out} set-outs by seed {info['seed']}: {ks}")
-  todo = [(j, k, info) for j in names for k in ks]
+  todo = [(j, k, info, args.noise) for j in names for k in ks]
   if args.into:
     Path(args.into).mkdir(parents=True, exist_ok=True)
   rows = run_pool(fly, todo, args.jobs)

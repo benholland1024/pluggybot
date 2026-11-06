@@ -33,7 +33,10 @@ THE PROTOCOL:
     verdict.
   ⚠ AN ATTEMPT IS ITS SET-OUT EXACTLY, sensor noise and all: code that
   learns nothing between attempts gets the same verdict at every one, so a
-  reference flies one.
+  reference flies one. ⚠ EACH SET-OUT DRAWS NOISE OF ITS OWN (`noise_of`,
+  #560): its job's and its number's, as it draws its own props -- a held-out
+  one's sealed with its number -- never the robot's own, whose one
+  realization every set-out replayed (Evaluation.md §5).
 
 THE RECORD, one row per attempt: the task, the attempt's number, the
 process that produced the skill and the skill itself, the experience it took
@@ -58,6 +61,7 @@ What it flatters is said with every reading (`FLATTERS`).
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import functools
 import hashlib
 import time
 
@@ -265,56 +269,93 @@ class World:
   start: tuple
   #: a check's own activity (#525: the drawer's), where the job has one
   activity: object = None
+  #: whose noise the body draws (`noise_of`; `senses.ROBOT` the robot's own)
+  noise: str | None = None
 
   def close(self) -> None:
     self.body.close()
 
 
-def set_out(task: Task, policy=None) -> World:
+def noise_of(task: Task) -> str:
+  """The key a task's set-out draws its noise off (`humanoid.senses.Noise`):
+  its job's and its number's, so every set-out draws its own as it draws
+  its own props, and a held-out one's is sealed as its props are, its
+  number drawn by the frozen build's seed (`held_out`)."""
+  return f"{task.grader}:{int(task.chest)}"
+
+
+def builder(noise: str | None = None):
+  """How a set-out is built (`attempt`'s `build`): each its own noise
+  (`set_out`), or every one `noise`'s, a draw flown again."""
+  return set_out if noise is None else functools.partial(set_out, noise=noise)
+
+
+def noise_said(rows) -> str:
+  """What noise a record's flights drew, said with a reading: each set-out
+  its own, one key's (a draw flown again), or -- a row without one, kept
+  before each set-out drew its own -- the robot's, one realization of its
+  noise every set-out shared (Evaluation.md §5)."""
+  rows = [r for r in rows if "task" in r]
+  keys = [(r.get("run") or {}).get("noise") for r in rows]
+  own = [k == noise_of(Task.from_dict(r["task"])) for k, r in zip(keys, rows)]
+  if all(own):
+    return "each set-out drew noise of its own"
+  if any(k is None for k in keys):
+    return ("⚠ flights kept before each set-out drew its own: the robot's noise, one "
+            "realization, every set-out's luck in common")
+  others = ", ".join(sorted({k for k, o in zip(keys, own) if not o}))
+  return (f"{sum(own)} flights drew their set-out's noise, the rest {others}'s" if any(own)
+          else f"every flight drew {others}'s noise")
+
+
+def set_out(task: Task, policy=None, noise: str | None = None) -> World:
   """The task's declared start, built afresh: the chest shut where its
-  set-out stands it and the body where it starts. `policy` is the
-  humanoid's standing policy, where a caller has one."""
+  set-out stands it and the body where it starts, drawing the set-out's
+  own noise (`noise_of`) -- or `noise`'s, a draw flown again (`senses.ROBOT`
+  the robot's own). `policy` is the humanoid's standing policy, where a
+  caller has one."""
+  noise = noise_of(task) if noise is None else noise
   if task.grader in CHECKS:
-    return _check_set_out(task, policy)
+    return _check_set_out(task, policy, noise)
   from pluggybot.evaluation import counter as ct
   so = ct.set_out(task.chest)
-  model, data, body = ct.world(so, policy)
+  model, data, body = ct.world(so, policy, noise=noise)
   chest = ch.Chest(model, data, so.lid)
   body.step_hooks.append(lambda: chest.sense(model, data))
   body.run(body.hold_routine(SETTLE_S))
   return World(task=task, model=model, data=data, body=body, chest=chest,
-               start=tuple(so.start))
+               start=tuple(so.start), noise=noise)
 
 
-def _check_set_out(task: Task, policy=None) -> World:
+def _check_set_out(task: Task, policy=None, noise: str | None = None) -> World:
   """A capability check's set-out (#525): its prop on the counter
-  (`evaluation.counter`), the humanoid at its start, its activity sensing
-  every step, standing still `SETTLE_S`."""
+  (`evaluation.counter`), the humanoid at its start drawing `noise`'s
+  noise, its activity sensing every step, standing still `SETTLE_S`."""
   from pluggybot.evaluation import counter as ct
   if task.grader == "drawer":
     from pluggybot.activity import drawer as dr
     so = ct.drawer_set_out(task.chest)
-    model, data, body = ct.world(so, policy)
+    model, data, body = ct.world(so, policy, noise=noise)
     act = dr.Drawer(model, data, so.runners)
   elif task.grader == "door":
     from pluggybot.activity import door as dd
     so = ct.door_set_out(task.chest)
-    model, data, body = ct.world(so, policy)
+    model, data, body = ct.world(so, policy, noise=noise)
     act = dd.Door(model, data, so.hinge)
   elif task.grader == "place":
     from pluggybot.activity import cube as cb
     so = ct.cube_set_out(task.chest)
-    model, data, body = ct.world(so, policy)
+    model, data, body = ct.world(so, policy, noise=noise)
     act = cb.Cube(model, data, so.load, ct.COUNTER_H + ct.BOARD_H)
   elif task.grader == "table":
     from pluggybot.activity import dishware as dw
     so = ct.table_set_out(task.chest)
-    model, data, body = ct.world(so, policy)
+    model, data, body = ct.world(so, policy, noise=noise)
     act = dw.Dishware(model, data, so.load, ct.TABLE_H)
   body.step_hooks.append(lambda: act.sense(model, data))
   body.run(body.hold_routine(SETTLE_S))
   return World(task=task, model=model, data=data, body=body, chest=None,
-               start=tuple(so.start), activity=act)
+               start=tuple(so.start), activity=act, noise=noise)
 
 
 def own_word(said) -> dict:
@@ -409,7 +450,7 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float | None = None
     "secret": {k: verdict.metrics.get(k) for k in verdict.secret},
     "wallS": round(time.time() - wall, 1),
     "run": {k: info[k] for k in ("commit", "dirty", "seed") if k in info} | {
-      "budgetS": budget_s, "holdS": hold_s},
+      "budgetS": budget_s, "holdS": hold_s, "noise": world.noise},
   }
 
 
