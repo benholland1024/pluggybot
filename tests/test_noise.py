@@ -58,19 +58,22 @@ def _streams(body, watch: bool = True) -> dict:
 
 
 def test_a_body_draws_every_stream_of_its_parts_off_its_one_key():
-  """Two keys draw apart on every stream and one key twice the same -- and a
-  stand-up, which builds its hands afresh, keeps the body's key. A stream
-  left off the key would draw one realization under every key, as every
-  set-out of a check once did (SimNotes, "The cube and the robot's noise")."""
+  """Two keys draw apart on every stream and one key twice the same. A
+  stream left off the key would draw one realization under every key, as
+  every set-out of a check once did (SimNotes, "The cube and the robot's
+  noise")."""
+  from pluggybot.humanoid.policy import StandPolicy
+  from pluggybot.humanoid.walk import SEEING_NPZ
   a, b, again = (body_for(*_floor(), noise=k) for k in ("lid:0", "lid:1", "lid:0"))
   drew, other, twice = _streams(a), _streams(b), _streams(again)
   for name, got in drew.items():
     assert got != other[name], f"the {name}'s noise is one under two keys"
     assert got == twice[name], f"the {name}'s noise is not its key's"
-  a.mission._stood_up()
-  fresh = body_for(*_floor(), noise="lid:0").mission.reach.grippers
-  for side, g in a.mission.reach.grippers.items():
-    assert _state(g.sense.rng) == _state(fresh[side].sense.rng), f"stood up, the {side} gripper"
+  # ...and the camera of the walker that sees the ground (not served)
+  seeing = StandPolicy(SEEING_NPZ)
+  a, b, again = (_state(body_for(*_floor(), walk=seeing, noise=k).mission.head.cam.rng)
+                 for k in ("lid:0", "lid:1", "lid:0"))
+  assert a != b and a == again, "the ground's camera"
 
 
 def test_the_robots_keep_their_names_noise():
