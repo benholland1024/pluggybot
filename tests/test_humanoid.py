@@ -221,6 +221,28 @@ def test_a_joint_reads_in_its_drivers_counts(standing):
   assert not np.allclose(a.read(data)[2], b.read(data)[2])
 
 
+def test_a_part_added_redeals_no_other_parts_noise():
+  """Each joint reads the same noise whether or not the body has the waist
+  (#560's stage (c3), `senses.SHARED`): dealt one stream over every joint in
+  order, the waist re-drew every other joint's noise -- the one realization
+  all of a check's set-outs replay -- and today's body placed the cube 9
+  times of 32 dealt so, 22 as served. The waist's own reading is noisy."""
+  read = {}
+  for spec in (hm.HumanoidSpec(waist_yaw=False), hm.CHOSEN):
+    model = mujoco.MjModel.from_xml_string(hm.body_xml(spec))
+    data = mujoco.MjData(model)
+    mujoco.mj_resetDataKeyframe(model, data, model.key("stand").id)
+    mujoco.mj_forward(model, data)
+    sense = JointSense(model, spec)
+    reads = [sense.read(data) for _ in range(4)]
+    read[spec.waist_yaw] = {j: [(r[0][i], r[2][i]) for r in reads]
+                            for i, j in enumerate(sense.names)}
+  assert set(read[True]) - set(read[False]) == set(hm.WAIST)
+  for joint, got in read[False].items():
+    assert read[True][joint] == got, joint
+  assert len(set(read[True][hm.WAIST[0]])) > 1
+
+
 # ---- the bill (Parts.md, "The humanoid body") ------------------------------------------
 
 def test_the_bill_in_parts_md_is_the_data_and_every_entry_is_honest():

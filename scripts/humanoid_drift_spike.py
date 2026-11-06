@@ -59,7 +59,6 @@ import json
 import math
 import sys
 import time
-import zlib
 from pathlib import Path
 
 import numpy as np
@@ -93,7 +92,7 @@ def draws(body, seed: str) -> dict:
   key = {"luca": "humanoid:", "rowan": "humanoid:r2_"}.get(seed, f"drift:{seed}")
   m = body.mission
   m.stand.trunk.imu = imu = Imu(f"{key}:pelvis")
-  m.stand.joints.rng = np.random.default_rng(zlib.crc32(f"joints:{key}".encode()))
+  m.stand.joints.reseed(key)
   return {"gyroOffsetDegS": [round(math.degrees(v), 4) for v in imu.gyro_bias],
           "gyroScalePct": [round(100 * (v - 1), 3) for v in imu.gyro_scale]}
 

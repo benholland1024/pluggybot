@@ -561,7 +561,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "odometry": o.kept_state(),
              "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
                        "rate": kept_value(trunk.rate)},
-             "jointsRng": self.stand.joints.rng.bit_generator.state,
+             "jointsRng": self.stand.joints.kept_state(),
              "drivers": drivers, "torqued": torqued,
              "reach": self.reach.kept_state(),
              "frame": frame,
@@ -605,7 +605,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     trunk.imu.restore_kept(state["trunk"]["imu"])
     trunk.attitude.q = tuple(float(v) for v in state["trunk"]["q"])
     trunk.rate = value_back(state["trunk"]["rate"])
-    self.stand.joints.rng.bit_generator.state = state["jointsRng"]
+    self.stand.joints.restore_kept(state["jointsRng"])
     for name, drv in (("stand", self.stand), ("walk", self.walker), ("getup", self.getup)):
       kept = state["drivers"].get(name)
       if drv is None or kept is None:
