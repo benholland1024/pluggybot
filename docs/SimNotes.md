@@ -1511,8 +1511,9 @@ it trained at and the served 2 ms -- walks: 0.5 and 1.0 m/s forward within
 8 %, backward, sideways and turning within 15 %, and never falls. A failure
 from here is our design's or our training's.
 
-**How it stands.** The policy drives the legs' twelve joints and sees all
-twenty-four encoders, so it knows where its arms' mass is. In training the
+**How it stands.** The policy drives the legs' twelve joints and sees every
+encoder -- the arms' and, since the waist (#560's stage (c3), "The waist
+built"), the waist's -- so it knows where its arms' mass is. In training the
 arms are SCRIPTED (`ScriptedArms`): sent somewhere new every 1-4 s, ramped
 at 1.5 rad/s, their weight fed forward off the bias force, as the reach's
 commands carry it. It is asked a POSTURE -- the pelvis's height off the
@@ -5635,6 +5636,83 @@ once, the soles turned no more (60 deg either way with both arms held
 level: 1.85 deg to 1.81 on the stand that knew no waist). Walking and
 getting up hold it home: neither policy knows it, the walker takes the legs
 only once it reads home, and the get-up walks it home.
+
+**The reach turns it only where no square posture reaches** (`reach.with_waist`):
+every posture with the waist square first, in the legs' order, then the
+turned ones by #620's cost. By #620's cost alone -- a turn of 20 deg as bent
+as the legs' next posture -- the planner turned the trunk before it bowed
+deeper, and the served jobs from the tour (32 draws each, one pod, the stand
+that knew no waist) passed the door 23 times and the chest 14, where square
+first they passed 28 and 25 (today's body: 31 and 20). A turn AWAY from the
+reaching hand -- the right hand's target ahead of it with the trunk turned
+left 30-45 deg -- solved the arm in a contorted branch (its shoulder rolled
+-1.6 rad and turned 2 rad), and its swing out turned the whole stance 7-17
+deg on every stand flown. Eight draws a job could not tell: the door's 5 of
+8 there was 23 of 32, and a single draw passed on one machine and failed on
+another.
+
+**The stand retrained** (`Pluggy-Humanoid-Stand`, the runs in
+`~/pluggybot-training`'s record): stand4's recipe on the new body, the waist
+scripted as the arms are -- a new angle within +-60 deg every 1-4 s or home,
+turned as the reach turns it, its weight fed forward -- and the policy shown
+its encoder. Measured in our physics: in training, its episodes' length at
+the end (stand4 702 steps); the soles' turn, beyond standing still, as the
+cup's reach at the table's set-outs 0-7 is taken (the robot 9 cm back,
+nothing touched: the arm walked out alone, and with the reach's posture);
+and the soles standing still a minute on a bare floor from the stand.
+
+| run | each sole charged for | episodes | the arm out | with its posture | still a minute |
+|---|---|---|---|---|---|
+| stand4 (no waist), as served | nothing of its heading | 702 | 4.6-4.8 deg | 8.2-8.4 | -5 to -7 deg, 2.9 cm, settled by 30 s |
+| waist1-11 | (each of the below) | 220-450 | | | |
+| waist12 | nothing of its heading | 613 | 0.3-1.8 | 1.5-1.8, but 12 at 3 of 8 | -6 to -7 deg, 1.7 cm |
+| waist13 | its heading off the episode's, 2.5 a rad | 330 | | | |
+| waist14 | its worst turn planted, once, 20 a rad | 748 | 0.5-0.6 | 1.2-1.6 | CREEPS: 7 cm, still going |
+| waist16, served | its heading off the episode's, 0.5 a rad | 620 | 0.9-1.5 | 3.6-3.9 | -4 deg, 1.4 cm, settled by 30 s |
+| waist17 | the same past 2 deg, 1.0 a rad | 594 | 1.4-2.3 | 0.9-2.5 | -2 to -3 deg, 1.5 cm |
+
+(The turns are the worse sole's beyond what standing still turned it over
+the same 6 s, as stage (a) measured stand4: `stance_turn.py` in the
+stage's scratch.)
+
+- ⚠ *At the shoves' full size every stand falls* (waist1-11, as stand1
+  did): stand4 was trained at 0.6 of it, a flag then, the default now
+  (`DISTURBANCE_SCALE`).
+- ⚠ *A heading charged at 2.5 a radian off the episode's made falling
+  cheaper than standing* (waist13, as stand5's -25/m anchor did): 0.5 is
+  about as dear a turn as `feet_anchor`'s -10/m is a shift, 5 deg of it as
+  0.4 cm.
+- ⚠ *A sole's turn charged a planted phase at a time lets a re-planted sole
+  off* (waist14, as stand3's anchor renewed at touchdown let a step go
+  free): it turned its stance least of all under a reach and shuffled 7 cm
+  in a minute standing still -- a creep its odometry cannot see (its belief
+  ran 2 cm off in 12 s at the counter).
+- *Forced through each of the waist's angles* on that reach, waist16's soles
+  turned 2-6 deg beyond standing still, 10-12 at +45 and 9.6 at -60, with no
+  fall; stand4's turned 7-15 (17 at +45).
+
+So for Ben's pitch call: the stand retrained for the yaw turns its stance
+a third to a fifth as much as an arm goes out -- 0.9-1.5 deg where stand4
+turned it 4.6-4.8, and 3.6-3.9 with the reach's posture where stand4's
+turned 8.2-8.4.
+
+Served (one pod, an EPYC 7Q83, against today's body there): the hand jobs
+from the tour over 32 draws, the door 30 and the chest 21 (31 and 20); the
+pull a hand holds (`humanoid_spike.py --pulls`) 590 N summed over its 14
+ways, as stand4's, 20 N at its weakest (forward), so `pull` still asks at
+most 20.
+
+⚠ **OPEN: the cube put on its mat falls on the waist's body** (`hands_check
+--job place`, set-outs 0-31, one pod): 22 of 32 on the body before it, 8 on
+the waist with stand4 and square postures first, 5 with stand4 and the
+waist never turned, 9 on waist16 -- so neither the stand nor the posture
+order. The lid at the same 32 set-outs, 21 and 19; the served door and
+chest over 32 draws, 31/20 and 30/21. Its tries end on the jaws: "closed on
+nothing" 8 (5 before), a reach "stopped short" 6 (1), a carry "held back" 6
+(1), a withdraw "held" 6 (0), and the cube left "N cm over" the mat 9 -- as
+if let go in or on the open jaws above it. The force a hand reads against
+20 N staged at its grip is the same on both bodies (`--feel`), and `spot`
+reads a tag within a centimetre at every waist angle. Not found.
 
 ## Debugging workflow that worked
 

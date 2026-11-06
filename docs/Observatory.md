@@ -10,6 +10,51 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The humanoids grow a waist: a yaw at the pelvis's top, and the standing policy retrained on it (#560, stage (c3)) — opens when both halves are deployed, this PR's and rooftop-media-2026's, on a weekend of its own after Ben's word
+
+**What changed in the world.** The body, and the policy it stands on.
+- **Each humanoid has a waist yaw**: a RobStride RS03 at the pelvis's top
+  turns everything above it -- the torso, the head and its sensors, the
+  charge port and the arms -- up to 60 deg either way (Parts.md, "The
+  waist's yaw"). 44.9 kg (43.2 before), 25 joints; the bill EUR 16,743.16.
+  The site draws its link, its motor and its plate.
+- **A reach turns it only where no posture with it square reaches**,
+  holds it in its posture through a carry, and brings it home before a walk
+  or a get-up; neither the walker nor the get-up policy changed. No
+  procedure can move it (it is no `move` axis), and nothing the robots read
+  changed: `prompt_sha` `60e70aa9…` on both sides (57,348 chars, 17
+  sections), the schema, the menu, the reward table and the jobs the same.
+- **The LIDAR and the depth camera ride it**, posed off its encoder every
+  frame.
+- **The standing policy is waist16**, retrained on the new body with the
+  waist scripted beside it and each sole's heading anchored: as an arm goes
+  out its stance turns 0.9-1.5 deg (stand4: 4.6-4.8), and with the reach's
+  posture 3.6-3.9 (8.2-8.4); standing still it settles in 30 s, as stand4
+  did.
+- **Every robot's body and map is dropped at the deploy** (the save's
+  fingerprint hashes the robots' bodies): History says "the world itself
+  changed since then", and the clock, both packs at their share, the deaths
+  and the jobs carry on -- flown from a copy of the live save, through
+  today's build and then this one.
+
+**Why.** #560's table: its put-downs lie at the edge of what a hand reaches
+at a 0.72 m table (#615), and #620 and #621 measured that a yaw widens the
+bands and lets one stance lay the whole place; Ben's calls of 11-05 (a yaw
+alone, +-60, held through a carry, no `move` axis).
+
+⚠ **Not to be deployed while the cube's check is open** (SimNotes, "The
+waist built": the cube placed on its mat, 22 of 32 set-outs before the
+waist, 5-9 on it, cause not found). The cube is no offered job, but the
+check is the hands' yardstick.
+
+**What the period is for.** That the body changed nothing the robots did
+well: charges plug in (no `stuck` death, no charge narrated "no charge
+contact"), the hand jobs' grades hold (flown before the deploy on one pod
+over 32 draws from the tour: the door 30, the chest 21, today's body 31 and
+20), and falls a day do not rise -- read off the charges' narration, the
+`death` rows and the jobs' verdicts. The deploy box's speed is the
+management conversation's to read (one joint more on each robot).
+
 ### The mind pinned to baseten, and the eye running (the box, 2026-11-05) — set during the pause, so it opens with the world's next run
 
 **What changed on the deploy box**, with no release (17a493e kept running):

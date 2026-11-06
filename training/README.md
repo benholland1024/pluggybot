@@ -156,6 +156,7 @@ run on a card records its steps a second:
 | RTX 5090 | Vast, the same host | 0.516 | 209,000 | 0.00069 | `Pluggy-Humanoid-Stand`, 4000 iterations in 31 min (#507) |
 | RTX 5090 | Vast, three hosts in South Korea | 0.490-0.516 | 198,000-205,000 | 0.0007 | `Pluggy-Humanoid-Stand` and `-Stand-Felt` (stand7-stand13), 4000 iterations in 32-33 min each (#544) |
 | RTX 5090 | Vast, another 7800X3D host | 0.490 | 215,000 | 0.00063 | `Pluggy-Humanoid-Walk`, 3000 iterations in 23 min (#507) |
+| RTX 5090 | Vast, two 7800X3D hosts in South Korea | 0.516 | 193,000 | 0.00074 | `Pluggy-Humanoid-Stand` on the waist (waist1-waist17), 4000 iterations in 34 min; two runs to a card took 68 min each, 16 % slower than one after the other (#560 (c3)) |
 | RTX 5090 | Vast, the same host | 0.490 | 122,000 | 0.0011 | `Pluggy-Humanoid-Walk-Rough` (rough4: 50 tiles of boxes), 2000 iterations in 27 min (#507) |
 | RTX 5090 | Vast, a Ryzen 9 9950X host | 0.641 | 114,000 | 0.0016 | `Pluggy-Humanoid-Walk-Seeing` from walk2 (50 tiles of boxes and flights, the 187-ray scan) alone (#507) |
 | RTX 5090 | Vast, an EPYC 7B12 host (DLPerf 86) | 0.540 | 11,000 | 0.014 | the same, and rough4's task: a slow card (above) |

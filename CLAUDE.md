@@ -360,8 +360,9 @@ save a filmstrip PNG named after the script.
   further back (a handle at the reach's edge then out of reach); one shown
   the hand's force held 60 N only on the true force -- its arm's currents
   are ~20 N off, and shown the whole body's reading (below) it fell at 20
-  N every way. The served policy is stand4; a wrist force sensor is the
-  part to add for more (Parts.md). ⚠ A HAND HELD TAKES NO POSTURE (#547; SimNotes,
+  N every way. The served policy is waist16, retrained on the waist (#560
+  (c3)): `--pulls` sums 590 N over its 14 ways as stand4's did, 20 at its
+  weakest; a wrist force sensor is the part to add for more (Parts.md). ⚠ A HAND HELD TAKES NO POSTURE (#547; SimNotes,
   "The force move against a held hand"; `humanoid_spike.py --bar`): out of
   the arm's reach, a pull's lead is not the arm's end where the arm reaches
   the hand itself -- its command stays where the arm last reached (backing
@@ -393,6 +394,35 @@ save a filmstrip PNG named after the script.
   force is going (backed off on it, a free-air pull stopped on the
   reading's 4-5 N phantom); `pull.force` and held fast stay on the 0.1 s
   mean (the cube's "it pressed" reads it).
+- **The humanoid has a waist: a yaw at the pelvis's top, +-60 deg** (#560
+  stage (c3); `HumanoidSpec.waist_yaw`, `arms.Waist`, `reach.with_waist`,
+  `perception/mount.py`; SimNotes, "The waist built"; Parts.md, "The
+  waist's yaw"): an RS03 turning the torso, the head and its sensors, the
+  port and the arms, #620's `yaw` candidate exactly (a test), at its zero
+  the body before it to 1e-15 m; `waist_yaw=False` draws that body byte for
+  byte, the one #620's and #621's instruments measure from. ⚠ A POSTURE IS
+  (height, pitch, waist), EVERY SQUARE ONE FIRST, then the turned ones by
+  #620's cost (`with_waist`: by that cost alone it turned before it bowed
+  deeper, and the served door and chest passed 23 and 14 of 32 draws where
+  square first 28 and 25); held in its posture through a carry, and no
+  `move` axis (Ben, 2026-11-05). ⚠ WHAT RIDES IT IS POSED OFF ITS ENCODER
+  every frame (`Mount.pose`, `HumanoidMission.waist_read`), the LIDAR's band
+  levelled through the IMU's tilt composed with its turn; a pose handed no
+  reading is refused, never laid at zero. ⚠ The walker and the get-up never
+  knew it: a walk takes the legs once it reads home (`Reach.waist_home`),
+  the get-up walks it home stiff (`Reach.hold_waist`). ⚠ Its gains are its
+  own (`WAIST_GAIN_SCALE`: at the arms' it rang at 2.7 Hz, a damping ratio
+  of 0.27), and it is set going and stopped at `WAIST_ACCEL` only because
+  the stand's training turns it so (a test reads training's source). ⚠ THE
+  STAND IS RETRAINED ON IT (waist16): at stand4's 0.6 of the shoves
+  (`DISTURBANCE_SCALE`; at full size every retrain fell), each sole's
+  heading charged off the episode's at 0.5 a radian (`feet_yaw_anchor`: at
+  2.5 falling came cheaper; charged a planted phase at a time, a re-plant
+  went free and it crept 7 cm a minute standing still); its stance turns
+  0.9-1.5 deg as an arm goes out where stand4's turned 4.6-4.8. ⚠ OPEN: the
+  cube placed on its mat passes 5-9 of 32 set-outs on this body, whatever
+  its stand or posture order, where the body before it passed 22 (SimNotes,
+  "The waist built"): not deployable until found.
 - **The humanoid is a `Body`, and walks through the Navigator** (#507
   stages 3 and 4; `humanoid/body.py`, `mission.py`, `walk.py`,
   `odometry.py`; SimNotes, "The humanoid behind Body" and "The humanoid
