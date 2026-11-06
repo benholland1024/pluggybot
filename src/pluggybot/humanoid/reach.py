@@ -258,20 +258,25 @@ HOLD_POSTURES = ((0.0, 0.0), (0.0, 0.15), (0.0, 0.3), (-0.08, 0.0), (-0.08, 0.15
 #: The waist's yaw a posture may take, rad, in the order tried at each of
 #: the legs' (#560's stage (c3), as #620 measured them, `waist_spike.py`):
 #: none, then either way in steps of 15 deg to its range's 60 -- and how bent
-#: each is: this much of a turn as bent as the legs' next posture (#620's
-#: `bent`). A posture is the legs' and the waist's, the least bent first.
+#: a turned one is: this much of a turn as bent as the legs' next posture
+#: (#620's `bent`).
 WAIST_YAWS = tuple(math.radians(a) for a in (0, 15, -15, 30, -30, 45, -45, 60, -60))
 WAIST_BENT_RAD = math.radians(20)
 
 
 def with_waist(legs, yaws=WAIST_YAWS) -> tuple[tuple[float, float, float], ...]:
   """Every posture of `legs` (height, pitch) at each of the waist's `yaws`,
-  (height, pitch, yaw), the least bent first: a legs' posture's place in
-  `legs` and its yaw over `WAIST_BENT_RAD` -- ties in `legs`' order, then
-  `yaws'`."""
-  rows = [(i + abs(w) / WAIST_BENT_RAD, i, k, (float(h), float(p), float(w)))
+  (height, pitch, yaw): every one with the waist square first, in `legs`'
+  order, then the turned ones the least bent first -- a legs' posture's
+  place in `legs` and its yaw over `WAIST_BENT_RAD`, ties in `legs`' order,
+  then `yaws'`. ⚠ #620'S COST ALONE TURNED THE WAIST BEFORE IT BOWED
+  DEEPER, and the served door and chest passed 23 and 14 of 32 draws from
+  the tour where square first they passed 28 and 25 (today's body 31 and
+  20; the stand that knew no waist, one pod): the waist reaches where no
+  square posture does."""
+  rows = [(w != 0, i + abs(w) / WAIST_BENT_RAD, i, k, (float(h), float(p), float(w)))
           for i, (h, p) in enumerate(legs) for k, w in enumerate(yaws)]
-  return tuple(r[3] for r in sorted(rows, key=lambda r: r[:3]))
+  return tuple(r[4] for r in sorted(rows, key=lambda r: r[:4]))
 
 
 #: ...a reach's postures, and a carried hand's (`posture_for`, `path_for`).

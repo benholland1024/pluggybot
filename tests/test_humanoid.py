@@ -584,10 +584,12 @@ def test_the_heads_cameras_are_placed_through_the_waist_on_the_model_of_itself()
       assert bool(np.abs(at - truly[name]).max() < 1e-9) is near, (waist, name)
 
 
-def test_a_posture_is_the_legs_and_the_waists_least_bent_first_as_620_ordered_them():
-  """#560's stage (c3), Ben's call: a posture is chosen with its waist angle,
-  as #620's were -- its postures by the waist's grid, the least bent first
-  by #620's own cost (`waist_spike.bent`)."""
+def test_a_posture_is_square_first_then_turned_the_least_bent_first():
+  """#560's stage (c3): a posture is chosen with its waist angle -- the legs'
+  postures by the waist's grid, as #620's were (Ben's call) -- every one with
+  the waist square first, then the turned ones the least bent first by
+  #620's own cost (`waist_spike.bent`): by that cost alone the served door
+  and chest passed 23 and 14 of 32 draws, square first 28 and 25."""
   import sys
   from pathlib import Path
   from pluggybot.humanoid import reach as rc
@@ -596,7 +598,8 @@ def test_a_posture_is_the_legs_and_the_waists_least_bent_first_as_620_ordered_th
   assert rc.WAIST_YAWS == ws.WAIST_YAWS
   for legs, table in ((rc.POSTURES, rc.REACH_POSTURES), (rc.HOLD_POSTURES, rc.CARRY_POSTURES)):
     pairs = [(i, k) for i in range(len(legs)) for k in range(len(ws.WAIST_YAWS))]
-    pairs.sort(key=lambda ik: ws.bent(ik[0], {"waist_yaw": ws.WAIST_YAWS[ik[1]]}))
+    pairs.sort(key=lambda ik: (ws.WAIST_YAWS[ik[1]] != 0,
+                               ws.bent(ik[0], {"waist_yaw": ws.WAIST_YAWS[ik[1]]})))
     assert table == tuple((*legs[i], ws.WAIST_YAWS[k]) for i, k in pairs)
 
 
@@ -702,3 +705,4 @@ def test_training_turns_the_waist_as_the_served_reach_does():
         consts.update({n.id: v for n, v in zip(t.elts, value)})
   assert (consts["WAIST_RATE"], consts["WAIST_ACCEL"]) == (rc.WAIST_RATE, rc.WAIST_ACCEL)
   assert consts["WAIST_GOAL"] == pytest.approx(float(np.max(rc.WAIST_YAWS)), abs=1e-4)
+
