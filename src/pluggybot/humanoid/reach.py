@@ -414,13 +414,16 @@ def trunk_clear(sm: SelfModel) -> float:
 def arm_reach(sm: SelfModel, side: str) -> float:
   """The furthest the grip gets from its shoulder's roll axis, m: every
   link of the arm hangs on the one line below it, so it is the arm hanging
-  straight -- a bound no solve can beat, kept (`SelfModel.statues`)."""
+  straight -- a bound no solve can beat, kept (`SelfModel.statues`), and
+  measured on a pose of its own: ⚠ measured on the model as posed, the first
+  in a process left it with straight legs, and the plan solved its first
+  posture on that."""
   key = ("reach", side)
   if key not in sm.statues:
-    q = np.zeros(len(hm.JOINT_NAMES))
-    sm.pose(q, np.array([0.0, 0.0, -1.0]))
-    shoulder = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id]
-    sm.statues[key] = float(np.linalg.norm(sm.d.site_xpos[sm.grip[side]] - shoulder))
+    d = mujoco.MjData(sm.m)
+    mujoco.mj_kinematics(sm.m, d)
+    shoulder = d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id]
+    sm.statues[key] = float(np.linalg.norm(d.site_xpos[sm.grip[side]] - shoulder))
   return sm.statues[key]
 
 

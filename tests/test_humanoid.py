@@ -659,6 +659,23 @@ def test_no_arm_takes_its_grip_further_from_its_shoulder_than_its_reach():
 
 
 
+def test_measuring_an_arms_reach_leaves_the_model_as_it_was_posed():
+  """The plan's bound on an arm's reach (`reach.arm_reach`) is measured
+  the first time a process asks for it, in the middle of judging a
+  posture (`out_of_reach`, after `stands` posed its statue): measured on
+  the model as posed, it left the statue with straight legs, and the first
+  posture of every process's first plan a hand made was solved on that."""
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import SelfModel
+  sm = SelfModel()
+  sm.statues.pop(("reach", "left"), None)
+  q0 =np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  assert rc.stands(sm, rc.REACH_POSTURES[0], q0)
+  posed = sm.d.qpos.copy(), sm.q.copy()
+  rc.out_of_reach(sm, "left", (0.3, 0.2, 0.8))
+  assert np.array_equal(sm.d.qpos, posed[0]) and np.array_equal(sm.q, posed[1])
+
+
 def test_the_waist_is_held_damped_over_what_it_turns_inside_its_parts_range():
   """#560's stage (c3): the waist's commands (`arms.Waist`) are sized to the
   trunk above it -- at the arms' scale it rang at 2.7 Hz at a damping ratio
