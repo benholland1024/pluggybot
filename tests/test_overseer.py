@@ -140,6 +140,7 @@ def test_the_schema_constrains_every_parameter_to_the_menu(menu):
   assert schema["additionalProperties"] is False
   assert schema["properties"]["action"]["enum"] == list(menu.available())
   assert set(schema["properties"]["zone"]["enum"]) == {*menu.zones, ""}
+  assert set(schema["properties"]["station"]["enum"]) == {"free", ""}
   # ...and nothing of the drawing errands' or the whiteboard questions':
   # their `board`, `program` and `answer` went from the form in #579
   assert not {"board", "program", "answer"} & set(schema["properties"])
@@ -149,6 +150,7 @@ def test_the_schema_constrains_every_parameter_to_the_menu(menu):
   ({"action": "hack_the_ledger"}, "unknown action"),
   ({"action": "draw"}, "unknown action"),
   ({"action": "explore", "zone": "the_moon"}, "unknown zone"),
+  ({"action": "charge", "station": "the_mall"}, "unknown station"),
   ({"action": ""}, "unknown action"),
 ])
 def test_an_answer_off_the_menu_is_refused(menu, raw, why):
@@ -165,6 +167,13 @@ def test_a_parameter_rides_its_own_action_alone(menu):
   assert d.zone == "" and d.summary() == "charge: low"
   d = menu.validate({"action": "explore", "reason": "unseen", "zone": "garden"})
   assert d.zone == "garden" and d.summary() == "explore (garden): unseen"
+  # ...a charge's `station` (#560, Ben's call: wait for a taken station or
+  # go on to a free one) on a charge alone, and on the wire as it chose
+  d = menu.validate({"action": "charge", "reason": "low", "station": "free"})
+  assert d.station == "free" and d.summary() == "charge (free): low"
+  assert d.as_dict()["station"] == "free"
+  d = menu.validate({"action": "explore", "reason": "unseen", "station": "free"})
+  assert d.station == "" and "station" not in d.as_dict()
 
 
 # ---- the failure paths, which are the ones that must never surprise ----------
@@ -255,6 +264,45 @@ def test_a_cut_off_answer_is_no_dead_endpoint_and_stops_an_errand(menu):
   assert answer["why"].startswith("the answer ran out of its tokens")
   assert (answer["call"]["provider"], answer["call"]["cut"]) == ("baseten", True)
   assert client.calls[-1]["max_tokens"] == ov.MAX_TOKENS
+
+
+def test_the_interrupt_keeps_its_own_patience(menu):
+  """#604's follow-up: a decision may think for minutes (`CALL_TIMEOUT_S`),
+  and the interrupt -- asked as the pack runs low, the robot held still
+  mid-errand -- keeps its own `INTERRUPT_TIMEOUT_S`: released by it while
+  a decision asked at the same moment is still in flight, and its request
+  carries it to the stream's wall. The deadlines keep their order. Shown to
+  fail before: the interrupt waited out the decision's deadline."""
+  assert 0 < ov.INTERRUPT_TIMEOUT_S < ov.CALL_TIMEOUT_S < ov.ESCALATE_TIMEOUT_S
+  now = [0.0]
+  gate = threading.Event()
+
+  class Held:
+    def __init__(self):
+      self.calls, self.messages = [], self
+
+    def create(self, **kw):
+      self.calls.append(kw)
+      gate.wait(5.0)
+      return FakeResponse(full())
+  client = Held()
+  boss = Overseer(menu, client=client, clock=lambda: now[0])
+  assert boss.interrupt_timeout_s == ov.INTERRUPT_TIMEOUT_S
+  try:
+    boss.start({})
+    boss.start_interrupt({}, "the drawer", "battery_below")
+    now[0] = ov.INTERRUPT_TIMEOUT_S + ov.POLL_GRACE_S
+    assert not boss.interrupt_pending and boss.pending
+    assert boss.interrupt_result()["source"] == "fallback:timeout"
+    now[0] = ov.CALL_TIMEOUT_S + ov.POLL_GRACE_S
+    assert not boss.pending
+  finally:
+    gate.set()
+  deadline = time.monotonic() + 5.0
+  while len(client.calls) < 2 and time.monotonic() < deadline:
+    time.sleep(0.005)
+  asked = {("continue_errand" in json.dumps(kw["output_config"])): kw for kw in client.calls}
+  assert asked[True]["timeout"] == ov.INTERRUPT_TIMEOUT_S and "timeout" not in asked[False]
 
 
 def test_a_slow_call_is_abandoned_rather_than_waited_on(menu):

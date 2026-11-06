@@ -160,7 +160,7 @@ sight. Worked through what reaches the robot:
 | the description ("Pull the drawer out of its cabinet, at least 15 cm, and let go of it…") | ✅ | a work order over a network |
 | the building's ADDRESS: its position a few metres off, and how far off it may be (`address`, `home/places.json`) | ✅ | what converting a street address gets, once the robot knows where its own charger is: the station is commissioned, so the address arrives in the robot's map (`home.places`) |
 | the task area's DIRECTIONS: which house and room, what stands there, which tag marks which part (`directions`) | ✅ | what a person who has never been there could write; every number in them is a tag (`test_places.py` reads them) |
-| where its CHARGING STATION is | ✅ | commissioned: the owner installed it (#559), and its tags fix the robot's belief as it charges (#476) |
+| where its CHARGING STATIONS are | ✅ | commissioned: the owner installed them (#559; one in each building since #560), and a station's tags fix the robot's belief as it charges (#476) |
 | where a task area is — the storeroom's counter, a plate, a whiteboard | ❌ | found by its tag, searched for round the address, remembered (`humanoid/places.py`); handed over in the world's frame, its drift is the target's: #414's 0.45 m put a foot on the shock plate |
 | where the robot found a place before (the `places` block) | ✅ | not a delivery: its own knowledge, in its own map, forgotten at a true death |
 | another robot's reported pose (`others`) | ✅ | what the other robot says on the network, never a sensor's |
@@ -358,6 +358,12 @@ done to a MECHANISM with hidden dynamics draws them afresh at every offer**
 them and put back after a restart), so the skill is over a kind of thing,
 never one of it.
 
+ⓘ *Found by building the table (#560):* **a drop is a FREE piece's fall.**
+A piece's speed read at every step reads the hand's own carry: the cube's
+line failed two cubes held fast while the carry swung them down at 0.6-1.0
+m/s. The table's grader and the cube's read a piece's fall only while
+nothing of the robot touches it (`table.Watch`, `place.Watch`).
+
 **Measure a grader's bar before you pick it.** A verdict that tempts you
 toward perception-grade checking gets the spike first, in the units the
 machine's error is measured in: a Hershey 6 and 8 at 50 mm caps sit 1.7 mm
@@ -377,8 +383,8 @@ every one below was hit, measured, and given a gate.
   fatal in either direction: the first table guessed 0.35 Wh for a drawing
   that measured 0.929, and a recording showed a robot claim the job at 88 %
   and die mid-stroke. Costs come from `scripts/energy_spike.py` into
-  `economy/energy.json` (the humanoids' hand jobs at 4.70–7.08 Wh from the
-  station, against the 18 Wh return-trip reserve,
+  `economy/energy.json` (the humanoids' hand jobs at 7.14–9.86 Wh from the
+  dearest station, the mall's, against the 19.5 Wh return-trip reserve,
   `humanoid.world.RESERVE_WH`); a cost key may name a TARGET
   (`action:target`) and wins over the bare action, because one target can
   measurably cost more than another and one number for both either kills
@@ -639,6 +645,12 @@ deployed world runs them.
    any pattern yet.
 5. **`visitor` and `overseer` task sources are vocabulary, not yet paths.**
    The caps and cleaning are already in place for the day they are (§2.2).
+6. **No job carries a thing across a walk** (found by building the table,
+   #560): `step` refuses while a gripper holds, so every piece a job moves
+   is picked and placed from one stance, and its set-out puts each within
+   a carry of where it goes. Where #560 had the dishware wait on the expo
+   counter or another table, it waits beside the place (SimNotes, "Setting
+   a table").
 
 ---
 

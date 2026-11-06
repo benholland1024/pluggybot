@@ -44,6 +44,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -77,6 +78,10 @@ def side(station) -> float:
   return math.degrees(station.yaw) + 90.0
 
 
+#: Which station a scene stands at (`--station`), for its children too.
+STATION_ENV = "STATION_SPIKE_AT"
+
+
 def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
   """The house, one humanoid at the station's standoff -- or seat -- off by
   `off` (m along and across, deg) in the station's frame, its activities
@@ -89,12 +94,16 @@ def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   body = body_for(model, data)
+  # ...at the house's station, or another's (`--station`, #560): the
+  # children of a batch read it from the environment
+  name = os.environ.get(STATION_ENV, "station")
+  body.mission.station = name
   s = body._station
   x0 = st.SEAT_X if at_seat else st.STANDOFF_X
   x, y = s.to_world(x0 - off[0], st.SEAT_Y + off[1])
   body.start_at(x, y, s.yaw + math.radians(off[2]))
   acts = cfg["activities"](model, data)
-  station = next(a for a in acts if a.name == "station")
+  station = next(a for a in acts if a.name == name)
   body.step_hooks.append(acts.step_hook(model, data))
   body.run(body.hold_routine(1.0))
   return model, data, body, station
@@ -109,7 +118,7 @@ def let_goes(body) -> list:
   from pluggybot.humanoid import charge
   m, d = body._m, body._d
   port = m.site(f"{body.handle.prefix}charge_port").id
-  face = m.site("station_plug_face").id
+  face = m.site(f"{body.mission.station}_plug_face").id
   pull, grip, out, pushed = body.pull_routine, body.grip_routine, [], [False]
 
   def push(side, way, force, *a, **kw):
@@ -1050,6 +1059,9 @@ def main(argv=None) -> int:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--approach", action="store_true")
+  from pluggybot.home import world as home
+  ap.add_argument("--station", default=None, choices=sorted(home.STATION_WALLS),
+                  help="--approach and --seats at this station (#560; the house's by default)")
   ap.add_argument("--n", type=int, default=12)
   ap.add_argument("--parallel", type=int, default=3)
   ap.add_argument("--hold", action="store_true")
@@ -1088,6 +1100,8 @@ def main(argv=None) -> int:
   ap.add_argument("--one-seat", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-lost", default=None, help=argparse.SUPPRESS)
   args = ap.parse_args(argv)
+  if args.station:
+    os.environ[STATION_ENV] = args.station
   if args.one:
     print(json.dumps(trial(tuple(json.loads(args.one)))))
     return 0

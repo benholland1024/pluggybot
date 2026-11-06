@@ -537,6 +537,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
     # Not a data file, so no hash catches it, and it caps how much of a day
     # the model decided at all (issue #117).
     deadline_s=boss.timeout_s if boss is not None else None,
+    effort=boss.reasoning_effort if boss is not None else None,
     # ...and which RUNG, where there is a ladder -- off the arm that was
     # BUILT, so a rung cannot outlive the arm it belongs to.
     rung=rung if arm == "autonomous" else None,
@@ -776,6 +777,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
     backend=boss.backend if boss is not None else None,
     pack_wh=first.battery.capacity_wh, reserve_wh=first.low_battery_wh,
     deadline_s=boss.timeout_s if boss is not None else None,
+    effort=boss.reasoning_effort if boss is not None else None,
     rung=rung if arm == "autonomous" else None,
     origin=origin if arm == "autonomous" else None,
     # Per robot, off what each one READ (issue #263): the pair may be

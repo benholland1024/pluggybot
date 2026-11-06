@@ -192,17 +192,18 @@ def test_the_served_house_transpiles_whole():
   assert len(referenced) == model.ntex        # every tag in use
   assert {t["name"] for t in scene["textures"]} == referenced
   robot, world = body_census(model)
-  # 50 = the humanoid's 32 links + 18 of the world's: the blocks and the
+  # 52 = the humanoid's 32 links + 20 of the world's: the blocks and the
   # masses the house still sets out, the storeroom counter's props (the
   # chest's lid, handle and knob, the drawer, the door and its lever, the
-  # cube), the lab's plates and its mouse, the garden's plate and the
-  # station's plug. A census, so it fails whenever the world gains or loses
-  # a dynamic body -- which is the point: every one of them costs a pose in
-  # every keyframe.
-  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 50
+  # cube), the lab's plates and its mouse, the garden's plate and the three
+  # stations' plugs (#560: one in each building). A census, so it fails
+  # whenever the world gains or loses a dynamic body -- which is the point:
+  # every one of them costs a pose in every keyframe. The grown world's
+  # furniture is scenery, none of it dynamic.
+  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 52
   assert len(robot) == 32
-  assert {"block_0", "lab_mouse", "station_plug", "drawer_drawer", "chest_lid_body",
-          "cube"} <= set(world)
+  assert {"block_0", "lab_mouse", "station_plug", "station_facility_plug",
+          "station_mall_plug", "drawer_drawer", "chest_lid_body", "cube"} <= set(world)
 
 
 # ---- recorder --------------------------------------------------------------

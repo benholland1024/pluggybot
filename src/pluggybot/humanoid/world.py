@@ -22,34 +22,26 @@ from pluggybot.telemetry.protocol import ROBOT_ROOT
 #: The house the humanoids move into.
 HOME_XML = "models/home_world.xml"
 #: The pack in this world, Wh, a test's (`--pack demo`), never a part: small
-#: enough that a day's test charges -- about 19 minutes on its feet at the
+#: enough that a day's test charges -- about 21 minutes on its feet at the
 #: 93 W it draws standing -- and big enough that charged (`CHARGED`) it funds
 #: the dearest job and the reserve both, so the job gate keeps the reserve
-#: as on the served pack (`parts.PACK`): 27 of 25.1 Wh, room for a
-#: re-pricing. At 20 it kept none, a branch the served pack never takes
-#: (#580).
-DEMO_WH = 30.0
+#: as on the served pack (`parts.PACK`): 29.7 of 29.4 Wh (#560: the cube
+#: from the mall's station, 9.86, and the reserve, 19.5; 30 Wh was 27 of
+#: 26.6 before them). At 20 it kept none, a branch the served pack never
+#: takes (#580).
+DEMO_WH = 33.0
 PACK_WH = hp.PACK.wh
-#: The return-trip reserve, Wh: the walk to its station from the house's
-#: worst place and its plug-in, with one failed, on the humanoid (`scripts/energy_spike.py --world
-#: home_humanoid --reserve`, 30 Oct 2026):
-#:
-#:     travel   13.722 Wh over 44.62 m to the garden doorway (307.6 mWh/m:
-#:              the quadruped's 60.5 five times over)
-#:     dock      1.85 Wh for its last 6 m at that rate, and a plug-in -- 17-36 s
-#:              walking in and reaching (`station_spike.py --approach`) at
-#:              the 86.9 W it draws standing -- twice: 1.74 Wh
-#:
-#: ⚠ The spike's own dock leg gave up 6 m short ("no route over the floor
-#: mapped so far": set down at the worst place off the truth, on the map
-#: its explore left), so the leg is the travel's rate and the plug-in's time.
-#: 17.3, carried as 17.5. A property of the floor plan, not of the pack.
-#: ...and the Mid-360S's head draws 6.2 W more always on (#581, stage 1):
-#: its travel measured 13.47 Wh over the same 44.63 m in 222 s (1 Nov; its
-#: dock leg out of time 10 m short), the dearer 13.72 carried with 6.2 W
-#: over those 222 s (14.10), the dock's leg 1.90 and the plug-in twice at
-#: the 93.1 W it now draws standing 1.86: 17.86, carried as 18.
-RESERVE_WH = 18.0
+#: The return-trip reserve, Wh: the walk to the NEAREST of its stations
+#: from the world's worst place, and its plug-in with one failed, on the
+#: humanoid (`scripts/energy_spike.py --world home_humanoid --reserve`, a
+#: pod, 3 Nov 2026; #560): from the park's west sidewalk through the park
+#: to the mall's front door, 14.20 Wh in 301 s -- an upper bound, its walk
+#: 54.8 m where the waypoints are 42.4 -- and from there `go_charge`, down
+#: the concourse to the mall's station and plugged in, 4.38 Wh: 18.57; and a
+#: plug-in tried again, 0.93 at the 93.1 W it draws standing: 19.5. A
+#: property of the floor plan, not of the pack (17.86 to the one station on
+#: #581's head).
+RESERVE_WH = 19.5
 #: THE PAIR COLLIDES (Ben, 2026-10-14, #455): each robot's colliding geoms
 #: (`contype 1, conaffinity 0` -- they meet only the pairs its model names,
 #: `model.LEG_GEOMS`/`ARM_GEOMS`) get a bit of their own and the other's as
@@ -122,14 +114,28 @@ def _attach_area_tags(spec: mujoco.MjSpec) -> None:
 
 
 def station_pose() -> tuple[float, float, float]:
-  """The charging station's frame in the world, (x, y, yaw rad): its face on
-  the living room's south wall where the quadrupeds' dock lay (x 3.5), +x
-  into the wall (`activity.station`'s frame). The COMMISSIONED pose, which
-  a robot at it fixes its belief to."""
+  """The house's charging station's frame in the world, (x, y, yaw rad): its
+  face on the living room's south wall where the quadrupeds' dock lay (x
+  3.5), +x into the wall (`activity.station`'s frame). The COMMISSIONED
+  pose, which a robot at it fixes its belief to."""
+  return stations()["station"][0]
+
+
+def stations() -> dict[str, tuple[tuple[float, float, float], tuple[int, int]]]:
+  """Every charging station by its body's name: its frame in the world (as
+  `station_pose`'s) and its tags. The house's, and #560's two -- the
+  research center's at its lobby's south end, the mall's at its
+  concourse's: each on a south wall, a robot facing it south, and each
+  COMMISSIONED, as the house's is. Which one a robot charges at is its body's
+  to choose (`Body.choose_station`)."""
   from pluggybot.activity import station as st
   from pluggybot.home import world as home
-  wall = home.HOUSE_Y[0] + home.WALL_HALF_T          # the wall's inner face
-  return 3.5, wall + st.BOX_DEPTH_M, -math.pi / 2
+  from pluggybot.perception.tags import STATION_2_TAG_IDS, STATION_3_TAG_IDS, STATION_TAG_IDS
+
+  tags = {"station": STATION_TAG_IDS, "station_facility": STATION_2_TAG_IDS,
+          "station_mall": STATION_3_TAG_IDS}
+  return {name: ((x, wall_y + home.WALL_HALF_T + st.BOX_DEPTH_M, -math.pi / 2), tags[name])
+          for name, (x, wall_y) in home.STATION_WALLS.items()}
 
 
 def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
@@ -149,8 +155,9 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   _attach_board_tags(spec)
   _attach_area_tags(spec)
   from pluggybot.activity.station import attach_station
-  attach_station(spec, station_pose(), roots=(ROBOT_ROOT,) + ((second_prefix + ROBOT_ROOT,)
-                                                               if pair else ()))
+  roots = (ROBOT_ROOT,) + ((second_prefix + ROBOT_ROOT,) if pair else ())
+  for name, (pose, tags) in stations().items():
+    attach_station(spec, pose, name=name, roots=roots, tags=tags)
   # ...and the storeroom's counter, its four jobs' props and its row of tags
   # (stage 3, `home.storeroom`)
   from pluggybot.home import storeroom

@@ -221,7 +221,7 @@ pair (`$PLUGGY_BODY`, #559's stage 4) on `--pack hosting` (the humanoid's
 real pack, `humanoid.world.PACK_WH`, 777.6 Wh) rather than the demo cell,
 which flattens fast; the low-battery reserve is deliberately *not* scaled
 with the pack — it is the absolute energy needed to reach the station, a
-property of the floor plan (`humanoid.world.RESERVE_WH`, 18 Wh). Which
+property of the floor plan (`humanoid.world.RESERVE_WH`, 19.5 Wh). Which
 arm the served world flies is `$PLUGGY_ARM` / `$PLUGGY_ORIGIN`:
 `autonomous`, both robots, `unseeded` (issue #206; the argument is
 Evaluation.md §2).
@@ -463,7 +463,10 @@ of one's own").
   text -- with what they list as data (`index`), which the site's guide for
   people is checked against (rooftop #441). A `run` is checked against the
   language first: refused, every reason at once, and nothing built; else
-  handed to a child. ONE RUN AT A
+  handed to a child. A person's source is the language's as the robot's
+  is (since #560: up to 3,000 characters, `sourceChars`, its defs calling
+  each other, the first the one that runs), and a session has no library:
+  a call names a def of the same source. ONE RUN AT A
   TIME: a second is `busy`; a `cancel` stops a run only when it names its
   session AND attempt (a late one for the run before stops nothing); a
   child past `CHILD_S` (600 wall s) is stopped, and a child that would not

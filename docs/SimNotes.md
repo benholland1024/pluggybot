@@ -2363,6 +2363,19 @@ read against the truth (`_true_stance`):
   a walk measured from before it counted as walked (ok, without a step),
   and the hand-over outlasted the 1 s a walk is given to get anywhere,
   which read as `blocked` on a bare floor.
+- *A walk's first window is 2 s* (`STEP_START_S`, #560), then 1 cm in each
+  second after. Handed the standing policy's stance after a reach -- 23 cm
+  between the soles' middles, the walker's own 18 -- the walker loads its
+  right foot first whichever way it is asked: a sidestep to the left lifts
+  within 0.25 s, one to the right slides 0.6-1.1 s first, where the legs'
+  reckoning cannot see (it read 0.6-3.9 cm of the 1.9-6.1 they went), and
+  in a 1 s window 2 of 7 at the table's set-outs read `blocked`. The retry
+  that went had begun from the walker's own stance, which the slide had
+  left; waiting, or the walker held still first, changed neither. ⚠ Not a
+  foot's lift, judged off the robot's model of itself: through the slide
+  it read the soles 4-5 mm apart when they were under 2, and 2 when one
+  had lifted 7. ⚠ The slide is in no report: such a step lands where it is
+  asked, but its `step.dx/dy` read 3-4 cm short of 21.
 - *The walker skews an oblique walk*: it raises a forward speed under
   `V_MIN` to it and leaves the sideways one, so a step at `STEP_V` more than
   48 deg off straight ahead walked 12 cm further ahead than asked. Such a
@@ -2498,16 +2511,24 @@ under the hand with its edge 8 cm behind it (30):
 - The capability check (#525) is unchanged: the lid at 7 set-outs of 8,
   the drawer 3, the door 6 (set-outs 3 and 4 trading a pass: its
   procedure withdraws mid-job, and the reaches after begin from the arm
-  home), the cube 3, no falls. Its cube's last `withdraw` now says "held"
-  at 3 set-outs: the procedure steps in until the counter is 2-6 cm ahead
-  of the soles' middle, where the arm's own rest runs into it, and the jaw
-  comes down on its edge. The old walk home ended on the counter there
-  too, or on the cube's mat, and said ok.
+  home), the cube 3, no falls. Its cube's last `withdraw` now said "held"
+  at 3 set-outs, a jaw on the counter's edge (where, below). The old walk
+  home ended on the counter there too, or on the cube's mat, and said ok.
 
 ⚠ The side way assumes the space at the robot's side is clear, as
 straight assumed the space under the hand was: its hand goes out to 0.74 m
 from the body's middle, 1.0-1.1 m up. Nothing checks either against the
 depth picture, which does not see beside the robot.
+
+⚠ *Lowered in the hanging arm's line, it met a counter the robot stood
+turned to* (#560). The cube check steps in until its counter's face is 3-4
+cm ahead of the toes, and the step turns the stance 3.5-4 deg on its own;
+the side way's roll came in 9 cm ahead, out at 0.55 m to the side, where
+the turned face was nearer, and its pads came down on the top's edge, the
+roll in dragging them over it for 10 s at 30-48 N and turning the robot
+20 deg. The roll now comes in with the shoulder pitched back
+(`HOME_BACK`), then the arm forward to its rest: on its model that clears
+a counter at the toes turned 10 deg to it.
 
 ⚠ *A hand still caught after the line out is lifted by the side way.* In
 3 of those 9 tries a jaw was left under a drop handle's knob, its grip
@@ -3670,12 +3691,13 @@ prop at draw k. **The bar, written before they flew: 6 of 8.**
 
 No falls in the 32. The slowest pass took 313 s from the station, and each
 job allows 16 minutes from the claim (three times it, rounded up). Priced
-from the station with the place remembered (`energy.json`): the drawer
-7.08 Wh, the door 5.72, the chest 5.98.
+from the station with the place remembered (`energy.json`; since #560 the
+dearest of three, the mall's): the drawer 7.14 Wh, the door 7.72, the
+chest 7.46.
 
 **What is not yet.** The cube: offered once a reference places it (its
 check passed 3-4 of 8 at its own set-outs, the fingers against a 26 mm cube
-on a board). From the station, every flight's belief ended 2.3-2.5 m off
+on a board). Why its reference misses: "Setting a table". From the station, every flight's belief ended 2.3-2.5 m off
 the truth, the street crossed on a fresh map, and passed: the counter's
 places are laid in the map its walks plan on. A lid let fall once in 8.
 
@@ -4234,16 +4256,13 @@ the walker's: a step that lands 4-5 cm inside the seat (its tolerance is
 asked 4 cm back, five steps moved it 1-5 mm each -- and the dock ends "not
 lined up", as the level ring's did once in stage 1.
 
-**The matcher's reach, read again** (`MATCH_RANGE_M`). It is 6.5 m because
-the C1 read a wall at its 8 m reach short (its long draws clipped to no
-return), and the street's far wall pulled the pose 32 mm a scan. The
-Mid-360S's band reads a wall square ahead within 2-3 mm of where it stands
-out to 7.9 m (60 frames a range, 5-7.95 m: a mean of -1.5 to -3.9 mm, 17 mm
-a bearing), so the bias no longer forces 6.5 m. It stays: in this house the
-band has a fence within 4 m everywhere outdoors, so nothing moved with it,
-and a return past 6.5 m is struck by one to three rings near the band's
-rising floor. A wider world's next limit is the LIDAR's 8 m (`MAX_RANGE`),
-which sets each scan's cost, and the part reaches 40.
+**The matcher's reach, read again** (`MATCH_RANGE_M`). It was 6.5 m because
+the C1 read a wall at its 8 m reach short. The Mid-360S's band reads a wall
+square ahead within 2-3 mm of where it stands out to 7.9 m (60 frames a
+range, 5-7.95 m: a mean of -1.5 to -3.9 mm, 17 mm a bearing), so the bias
+no longer forced 6.5 m; it stayed while this house had a fence within 4 m
+everywhere outdoors. **What is true now:** it is the map's 8 m, for the
+grown world's park ("The grown world", #560).
 
 **The depth camera's low layer, measured: kept.** Over a 150-240 s explore
 and a walk across the street, the layer blocked 606-812 cells the band's
@@ -4908,6 +4927,657 @@ standing still, carried as the feet carry it -- moved with the belief's
 stance and never turned with it -- with the port read at each move; and it
 lets go where its push stops: over the four batches' 233 starts it docked
 232 with 233 pushes, where staging docked 230 with 314.
+
+## The grown world (issue #560, stage 1)
+
+**What is true now.** The house is a 2x2 grid inside one fence
+(`home/world.py`): today's row north -- the house, the middle street, the
+research center -- and south of it the PARK beside the house and the MALL
+beside the research center, the middle street running on between the
+columns, a pedestrian ALLEY (3 m) between the research center and the mall,
+the house's south sidewalk widened to the same 3 m between the house and the
+park, and the loop round all four. The second row is 16 m tall: the map is
+51 x 42 m, 856,800 cells -- 1.83 times the one row's 469,200, 46 % of
+#558's cap. The house gained a room for each robot (`room_west` and
+`room_east`, off the living room's south wall, where the garden wrapped;
+`home.ROOM_OF` names whose by root body, never a name); the research center
+a study room (the south half of its front garden, off the lobby, a table and
+two chairs: for studies with the robots as subjects, #557). The park is a
+lawn behind a garden fence, a 1.5 m gate on its north and on its east
+(across from the mall's front door), two trees and a sign in its middle. The
+mall is a concourse down its west side, as the research center's lobby runs
+down its own, with the restaurant (its dining room, four tables of two; the
+expo line, a pass in the kitchen's wall with its counter in it and a staff
+door beside it; the kitchen, its worktop and its dish shelf) and the store
+(the shop, its checkout, a gondola and a wall shelf; behind a staff door the
+loading zone, its rack and a door out to the sidewalk) side by side off it.
+Every table, counter and shelf is scenery and stands empty: the dishware and
+the stock are each task's own (stage 2), and every geom is one the LIDAR's
+rays are cast against.
+
+**Three charging stations**, one in each building, each on a south wall
+facing north, as the house's: the research center's at its lobby's south
+end, the mall's at its concourse's (`home.STATION_WALLS`,
+`humanoid.world.stations`), each its own tag pair (64-65, 66-67) and its
+own activity. Which one a charge goes to is the body's, once a charge
+(`Body.choose_station`): the one its plug is in, else the nearest by a walk
+over its OWN map (`Navigator.nearest_by_walk`: the planner's lattice
+through the unknown at its price, one Dijkstra and three readings). From
+the park's west sidewalk the house's is nearer as the crow flies (22.8 m)
+and further by every way round the fenced park (49 m against the mall's
+47); with nothing mapped, the house's wins there -- the robot's map, never
+the world's. A lost robot fixes off WHICHEVER station it sees, its pair
+saying which, and charges there; the loop walks to that station's standoff
+after (`test_a_search_that_found_another_station_walks_to_that_one`). The
+choice rides a restart. A station takes one robot, and the #346 wait is
+per station.
+
+**The reserve's worst place** is now the middle of the park's west
+sidewalk, where every way round the fenced park is long: 47.3 m on the
+test's raster to the mall's station, through the park gate to gate, and
+49.4 to the house's (`HOME_WORST_RETURN_PATH`: 49.65 m of waypoints; the
+one station's worst, the loop's south-west corner, was 49.64). MEASURED
+(`energy_spike.py --reserve`, a pod): the walk 14.20 Wh in 301 s -- an upper
+bound, its 54.8 m wandering past the waypoints' 42.4 -- and from the mall's
+door the loop's own charge, down the concourse and plugged in at the mall's
+station, 4.38 Wh: 18.57, carried with a plug-in tried again as 19.5
+(`humanoid.world.RESERVE_WH`; 18 before).
+
+**Localization** (`lidar_spike.py --probe`, the band, the share of places
+0.5 m apart whose scan leaves the heading unpinned):
+
+| group | n | matcher to 6.5 m | to 8.0 m |
+|---|---|---|---|
+| middle street, sidewalks, the loop, the alley | 4,032 | 0 % | 0 % |
+| gardens | 312 | 0 % | 0 % |
+| rooms (the robots' and the study room with the old) | 1,320 | 2 % | 2 % |
+| the mall | 768 | 5 % | 5 % |
+| the park | 1,408 | 10 % | 2 % |
+| the park's middle (within 3 m of its centre) | 112 | 71 % | 26 % |
+
+The park's middle is 8 m from its north and south fences and 11 m from its
+east and west, past the matcher's 6.5 m (`MATCH_RANGE_M`, set on the C1's
+recorded lab trip against a far wall's pull): only its two trunks and its
+sign are in reach. Read at the map's own 8 m it pins 74 % of it; four more
+trees round the middle pinned 37 %, and both ranges raised to 12 m 79 %,
+for half as much again of each scan's cost. **So the matcher reads the
+map's whole 8 m** (`MATCH_RANGE_M`; the band reads a wall within 3 mm out to
+7.9 m, "The band served"). Flown on one pod -- the drift spike, eight
+flights an arm, two of them standing 180 s in the park's middle -- the
+belief's worst error had a median of 0.13 m at 8.0 against 0.15 at 6.5
+(the worst 0.30 and 0.43), its error at the end 0.05 and 0.06, every flight
+docked; in the park it stayed within 0.23 m (0.35 at 6.5). The same flight
+flown twice on the pod was bit-identical.
+
+**A wall at the reach, and the field's window.** The C1's far wall at its
+8 m reach was seen short -- its long draws clipped to "no return" -- and
+pulled the pose 32 mm a scan, which is why its cut was 6.5 m. The band's
+is not: matched from the true pose at the 1,328 places whose scan has ten
+returns or more 7.5-8 m out, the pull was 1.0 mm (p95 2.1) at 8.0 against
+0.8 (1.9) at 6.5 -- its sigma is 2.4 cm there, and it reads a surface by
+its returns' median. The field the fit reads (`WINDOW_M`) stayed 7.5 m
+either way, short of the reach and a refresh's 1 m of travel, so a point
+past it pulls on nothing. Grown to 9 m, the probe pinned the park's middle
+better (19 % unpinned against 26) on its map laid from the true poses;
+flown on the robot's own map -- the drift spike's same eight flights, on
+a pod where staging's arm replayed bit for bit -- the worst error's median
+went from 0.13 m to 0.21, five flights worse and one from 0.13 to 0.47 m
+in the living room. So the window stays where it flew best.
+
+**What it costs.** The served pair's walks (`humanoid_spike.py --speed`'s
+pair, the same walks in the house as every reading since #507). On the
+deploy box (3 Nov, the world paused by its schedule; #558's recipe, the
+serving image a container a tree pinned to one idle core, the trees
+interleaved), the grown world first read 0.94, 1.13 and 1.04x against
+today's staging's 1.24-1.35x -- under the 1.15x floor Ben set. Profiled on
+a pod it was 14 % slower, 59 % of that the LIDAR's cast. ⚠ EVERY GEOM IN THE
+MODEL COSTS EVERY RAY of an `mj_multiRay`, reachable or not: the band cost
+9.4 ms a frame on staging's 236 geoms and 12.6 on the grown world's 351,
+and its cutoff saved nothing, again; geom groups a cast leaves out do drop
+out. So a cast leaves out every static geom past its sensor's reach
+(`perception.cull`, the LIDAR's and the depth camera's, 177-241 of the 248
+at each place): the same readings bit for bit (`test_cull.py`), and the
+box's walks went to **1.09, 1.29, 1.25, 1.25, 1.10 and 1.21x, median
+1.23x**, staging's 1.24, 1.33, 1.29, 1.35, 1.30 and 1.31x (median 1.30x)
+the same rounds: 7 % slower, where it was 19 %. A further lever, not built:
+the visual-only floor and ground slabs and the tags (55 boxes, 1-3 mm over
+what is behind them) inside a sensor's reach -- left out, a return moves
+by their millimetres, so a flight is no longer the same flight.
+
+**Flown at the new stations** (`station_spike.py --approach --n 30
+--station`, the same 33 starts round each standoff, one pod): the house's
+docked 32, the research center's 30 and the mall's 33 of 33, every one
+unplugged and its plug parked, none fell. The house's one miss was a start
+that missed at the research center too ("not lined up", the seat's steps);
+the research center's other two, another not lined up and a grip that never
+got round the plug. In the loop a dock that saw its station and never got in
+goes again from the standoff, once a charge.
+
+**The hand jobs are priced from the mall's station.** A job is taken from
+any of the three, and the energy table carries the dearest: the mall's,
+43 m by route from the storeroom's counter, where the house's is 29 and
+the research center's 7. Flown from it (`energy_spike.py --station
+station_mall`, a process each on one pod): the drawer 7.138 Wh, the door
+7.720 and the chest 7.463, each passed (from the house's station 4.74,
+5.17 and 5.25 on 1 Nov, the table carrying the C1's dearer 7.08, 5.72 and
+5.98), and the cube 9.858, a placement that failed after four reaches.
+Left to choose, the spike measured every job after the first from the
+research center's, the nearest once the robot had been to the storeroom;
+`--station` pins one. The tests' pack (`DEMO_WH`) grew from 30 Wh to 33,
+so that charged it still funds the dearest job and the reserve both (29.7
+of 29.36), and the pair's fixture was flown again on it.
+
+**Three stations sensed every step** (`Station.sense`, on the physics
+seam) cost 32 us a step each, against a pair's 229 us `mj_step`; an armed
+port beside a parked plug is no longer read -- it has nothing to take and
+nothing to re-arm -- so a parked station costs 12 us, and the three what
+one did. The drift spike's flights replayed bit for bit across it.
+
+**Carried on from the deployed save** (the 11-02 backup, `serve.py` as
+deployed with a fake model): the world changed, so each robot stood up at
+its start with its pack (Luca 83 %, Rowan 56 %), its jobs still its own, its
+map dropped, History saying why. In that flight Rowan charged at the house's
+station from 56 %; Luca, choosing to charge at 82 %, found it taken, waited
+its 1,386 s bound and gave up, though both new stations stood free: a charge
+goes to the NEAREST station and waits for it there, #208's contention per
+station (a decided charge that never began costs time, never a heart). So
+the robot decides (Ben, 3 Nov): a decided `charge` with `station: "free"`
+passes a taken station for the nearest one nobody holds, at most
+`MAX_STATION_SWITCHES` a charge, and waiting stays the default -- an
+event-map row's charge and a standing order's.
+
+**Not done.** The tasks (stage 2). The second story (the mall's, #557's
+first idea) waits for maps by floor; the park's rough patch for the walker
+that sees the ground.
+
+## Setting a table (issue #560, its first task)
+
+**What is true now.** #560's first task, a place laid at the restaurant's
+table, is built and graded offline (Challenges.md §12): the dishware
+(`activity/dishware.py`: a plate pinched by its wall, a lidded cup taken
+across its body, a fork by its thick handle, and a place card), its grader,
+its set-out (`counter.table_set_out`) and our procedure (`hands_check.TABLE`,
+1,401 characters of the language's 3,000). **Our procedure does not meet the
+bar**, so the job is not offered: 0 of the check's 8 set-outs (the bar 6;
+1 on another pod) and 6 of 32 held out; laid by each piece's own criteria
+over the 32 held out, the cup 23, the plate 24, the fork 6 (it comes last,
+after a step) -- since the hands' small fixes (#560's stage (a), below;
+before them, on the same pod, 23, 6 and none, and no place). Every part of
+the place sits at an edge of what this body reaches at a 0.72 m table,
+below; the levers that move those edges, and what a waist yaw does to them,
+are stage (c2)'s ("The table's put-downs, measured before the waist is
+built").
+
+**Why the cube missed its mat** (#559's `place_cube`, 0 of 8; its check's
+procedure flown at set-outs 0-7, the truth beside the belief at every
+verb):
+
+- *The grip scrubs the stance round.* Aimed at the cube's middle, the
+  fingertips meet the board first and the reach holds pressing it (45, 42,
+  17 and 14 N at four contacts); the jaws then drag the pads across it as
+  they shut, and the feet swivel 4-6 deg in 0.2 s. The mat, read in the
+  stance frame before the grip, is 3.7-5.4 cm off by the carry (set-outs 0,
+  2 and 4, whose carries then ran out of reach). Eased to where it is
+  before its jaws shut (`Reach.ease`, stage (a)), its command walked there,
+  the shut turns the soles 0.5-1.7 deg.
+- *A held cube's carry reads as a drop.* The carry's posture swings the
+  hand +-5 cm at up to 1 m/s with the cube held fast, and the grader's 0.5
+  m/s line, read at every step, failed two cubes set down 0.7 and 1.3 cm
+  from the mat's middle (3 and 5). Both graders now read a drop off a free
+  piece alone (Ben's call): re-flown, the check lays 4 of 8 (1, 3, 5 and
+  6; the bar 6), the two carries 0.97 and 0.59 m/s held and 0.21 and 0.23
+  free.
+- *The way home caught the counter*: a jaw on its edge, 15 s, the robot
+  turned 20 deg (1 and 6, after the cube was down) -- the side way's roll
+  coming in at the robot's side, where the counter it stood turned to was
+  nearer; it now comes in pitched back ("The way home"), and turns the robot
+  0.2-1.8 deg. With both, the check lays 5 of 8 (2 and 4 gained, 6 lost;
+  4 of 8 before them, on the same machine).
+
+**What the table took, each measured** (a scratch world and the set-out,
+the humanoid at the table's south place; flights in
+`~/pluggybot-training/issue-560-table/`):
+
+- *A walk carries nothing*: `step` refuses while a gripper holds
+  (`"holding"`), so a piece is picked and placed from one stance, and the
+  dishware waits on the table beside the place -- never on the expo
+  counter or another table, as #560 first had it.
+- *A solid table meets the thighs.* Crouching to reach, the robot pressed
+  the dining table's box with both thighs at about 200 N from 13 cm out; the
+  set-out's table is a top on legs. The served room's tables are boxes.
+- *The way out swept a hanging hand into the table.* Standing 13 cm out,
+  the hanging grip is 7 mm behind the top's edge, its top at the
+  underside's height: straight in joint space, a reach's way out drove the
+  left forearm and gripper into the table at 353-359 N. It is judged as the
+  way home is now (`Reach.way_out`, stage (a)): from the hanging arm, round
+  by its side, and the table is met with 0 N. Opening a hanging hand alone
+  pushed 171 N (#615's scratch world).
+- *Each hand works its own side, in bands.* Flown from 13 cm out at the
+  legged table: fingers straight down at |y| 0.24-0.40 m (0.18-0.42 ahead),
+  tilted 45-60 deg at |y| 0.24-0.48 (0.30-0.48 ahead), and a near strip at
+  |y| 0.08-0.16 (0.18-0.30 ahead); neither hand the middle 0.08 m. One carry
+  does not cross from a band to the strip (out of reach), and a reach holds
+  only 2-3 cm above its grasp's height (fingers down at the cup: 0.82 m held,
+  0.84 out of reach). So a place and its dishware need a stance a piece --
+  the robot sidesteps, its hands empty -- and a stance's window is about 3
+  cm wide: at a 0.21 m sidestep the plate's wall, read right, was past the
+  band at 19 of 32 grips (the left gripper "closed on nothing"). A blocked
+  step's retry walked about 5 cm further (its slide unseen), and 6 of 7
+  such gripped the plate where 5 of 24 others did: at 0.26 m, the step now
+  landing where it is asked (stage (a)), the plate is laid 21-22 of the
+  public 32 and 24 of 32 held out (at 0.21, 4 and 4).
+- *Flat tags* read to 2-4 mm from 0.37-0.53 m ahead, nothing nearer, and
+  nothing 45 deg to the side after a 0.21 m step: the plate and the fork
+  are read from the start, as offsets from the card.
+- *The stance turns where it stands*: 2-3 deg in its first seconds after a
+  set-out (4.9 deg in 15 s), and as an arm goes out, the reaching side's
+  foot 7.5-8.6 deg a reach to the cup -- the same at half and a quarter of
+  the arm's speed, so the standing policy's stance under an arm held out,
+  not its swing. A place read before is stale; the card is read again
+  before each reach, and each arm is rolled out and folded (`move`) before
+  its piece is read: read first, the hand came down on the cup's rim 2-5
+  cm off, and it was laid 5 of 32 where 21.
+- *A sidestep after an arm's way home was "blocked"* (6 of 32 tries): the
+  walker slid its first second, unseen (Stepping toward the work); a
+  walk's first window is 2 s now (stage (a)), and none of 41 blocked.
+- *The reach's approach starts where the posture left the hand*, 3-5 cm
+  from its pre-grasp, and converges diagonally: tall things are clipped.
+  Sent through its pre-grasp instead (`Reach`, tried and not kept), the cup
+  was laid 5 of 8 either way.
+- *Shape is not the plate's trouble*: a 4 cm wall and a 3 cm handle laid 8
+  plates of 32 and no fork.
+
+![Our procedure at the table's set-out 4, the first place it laid: the cup
+carried by the right hand and set down by the card (5-10 s), that arm home
+the side way (15 s), then a step aside and the plate, a step back and the
+fork, both by the left hand -- the plate 1.5 cm, the cup 1.5 and the fork
+2.1 from where each goes (`scripts/hands_check.py --strip table 4`;
+`--view table K` watches one)](figures/hands_table.png)
+
+## A waist, measured before it is built (issue #560, stage (c))
+
+**What is true now.** The body has no waist: the pelvis, the torso and the
+head are one rigid body, the IMU on the pelvis. Parts.md says why the T2's
+waist was left out and that it is the first joint to add if a stage's
+measurement comes up short; #560's table is that measurement (above: each
+hand works only its own side of a place). Three candidates were measured on
+the robot's model of itself (`scripts/waist_spike.py`), and none is built.
+**A waist yaw, one RS03 at the pelvis's top (+1.73 kg), buys most of what
+was measured**: each hand reaches past the middle of the table, every
+pick-up our procedure makes is made standing tall, and the floor and the
+high shelf come into reach in front of the shoulder. A waist pitch keeps the
+legs at the stand, but it adds little reach and holds its RS04 near its
+limit. **Neither widens the plate's or the fork's stance window with our
+procedure's grip as it asks it**: its carry into a put-down near the body's
+middle stays out of reach with any waist -- but asked the other way round,
+the yaw opens both, and one stance lays the whole place (stage (c2), "The
+table's put-downs, measured before the waist is built", below). Ben's call
+(2026-11-05): the yaw alone, on an RS03, built once those put-downs were
+measured with other grips, paths and hands. No policy holds a waist yet, so
+every number here is a STATUE's: what the body could reach and hold still,
+planned as the served reach plans. That is an upper bound on what a policy
+will do, and it is compared with today's body planned the same way, never
+with a flight.
+
+**The candidates**, each today's generated drawing with a waist put in at
+the pelvis's top. Its zero pose is today's body to a micrometre, and the
+waist turns the head's sensors, the port and the arms and nothing below
+(`tests/test_waist_spike.py`):
+
+| candidate | its axis over the hip axes | range | part (stalled, N*m) | adds | rides on it |
+|---|---|---|---|---|---|
+| pitch | 0.18 m (the T2's 0.182), the pack below it | 32 deg back, 43 deg forward (the T2's) | RS04 (28.5) | 1.96 kg: the motor and its bracket | 14.4 kg, its centre 0.11 m over the axis |
+| yaw | 0.06 m, the pelvis's top: the motor stood in the pelvis's middle, where the hips' pitch motors leave 108 mm | +-60 deg, all of it used by the reaches (the T2 turns +-138) | RS03 (13) | 1.73 kg: the motor, its bracket and a 5 mm turntable plate | 19.5 kg, its centre 0.18 m up the axis |
+| both | the yaw below the pitch, the T2's and the G1's order: a bow goes where the shoulders face | | | 3.68 kg (43.18 -> 46.86) | |
+
+The whole body's centre of mass rises 0.3 cm with the yaw, 1.0 with the
+pitch and 1.3 with both. The yaw's motor fits the pelvis with room; the
+pitch's does not quite: at 0.18 m the RS04's 120 mm housing takes the top
+2.4 cm of the pack's 74 mm, so a pitch built would raise its axis or lay the
+pack flatter.
+
+**How a reach is measured**, as `reach.plan` plans one:
+- A posture is the legs' (`reach.POSTURES`) and the waist's angles (its
+  pitch in steps of 0.15 rad, its yaw in steps of 15 deg), tried least bent
+  first on a statue balanced over the soles (`reach.static_legs`).
+- The arm's six joints are solved for the goal and the pre-grasp 8 cm back,
+  with 1.5 cm of slack; the other grip half a turn round only where the one
+  asked plans nothing (`Reach._planned`).
+- The statue is then balanced again with the arm out, as the policy moves
+  its pelvis back for one. It must still reach, keep its centre of mass over
+  its soles, keep the arm and the trunk out of the table's top (13 cm out,
+  as the set-out stands) and the arm out of its own trunk and legs.
+- A posture whose trunk folds into a thigh stands nowhere: at the hips'
+  deepest bow a yaw of 15-30 deg put the torso's corner 1-2.5 cm into one.
+- A window adds our procedure's carry (lifted 5 cm, carried straight, set
+  down), followed from one posture, each point solved on from the last and
+  checked for clearance on its way.
+
+**The method, checked on today's body.** The planner reproduces
+`reach.plan` cell for cell over #615's grid. With the carry, today's
+windows land where #615's flights did: the plate's wall is picked up and
+carried from a 3 cm stretch of stances, 0.29-0.31 m to the right (our
+procedure steps 0.26, where a carry that changes posture once makes it,
+below; laid 21-24 times of 32 there); the fork's stretch is 12 cm from where our
+procedure stands for it (laid 6 times of 32); the cup's is 25 cm (laid 23
+of 32); and no single stance lays the whole place. Without the carry the
+statue found an 8-11 cm plate window and one stance for everything, which
+the flights refute: a carry, not a reach, is where a place fails. The
+statue's BANDS are wider than the flown ones: fingers down, |y| 0.24-0.56
+with slack where #615 flew 0.24-0.40. The plan's slack does not cover what the
+standing policy does to a posture (it stood 2 cm under the height asked,
+and the stance turns 5-8 deg as an arm goes out). So a band below is a
+statue's, beside today's statue.
+
+**At the table** (the left hand at 0.77 m, where the pieces are gripped;
+the right is its mirror). Reached clear over the grid 0.10-0.62 m ahead and
+-0.20 to +0.60 across, in 4 cm cells:
+
+| | fingers down | tilted 45 deg (our grip) | between the two hands' bands, \|y\| < 0.24 (down / tilted) | across the middle, y < 0 | the legs at the stand's (down / tilted) |
+|---|---|---|---|---|---|
+| today | 0.107 m^2 | 0.194 m^2 | 0 / 19 cells | none | 15 % / 46 % |
+| pitch | 0.114 | 0.205 | 2 / 33 | none | 80 % / 65 % |
+| yaw | 0.229 | 0.264 | 73 / 73 | 27 / 16 | 30 % / 45 % |
+| both | 0.234 | 0.251 | 94 / 73 | 40 / 23 | 79 % / 75 % |
+
+- *The yaw doubles the fingers-down band and fills the middle.* Fingers
+  down, the left hand reaches clear to 0.20 m past the middle (the grid's
+  edge) from 0.26 to 0.54 m ahead, 27 cells; tilted, past it more patchily
+  and further out (0.34-0.62 m, 16 cells), its forearm dipping into the
+  table's top nearer the edge. Today's reaches neither past the middle.
+  Across at a single distance (`--across`) the run has gaps where the first
+  plan fails once balanced again.
+- *Every pick-up our procedure makes is made standing tall with a yaw*
+  (`--alternatives`, every posture tried): the cup's, the plate's and the
+  fork's from the start, and the table's middle near and far, the worst
+  joint at 38-57 % of its part's stall rating. Today each needs a crouch or
+  a bow, the knee at 81-84 % of an RS04's.
+- *The put-downs nearest the body still crouch 8 cm*, whichever the waist:
+  the plate's wall set down 8 cm left of the middle and the fork 16 cm,
+  both 0.30 m ahead, are reached from one to four postures, the knee at
+  76-82 %.
+- *The pitch keeps the legs at the stand*: the waist bows where the hips
+  and the knees did, and over the table's reaches the knee's median load
+  falls from 22 N*m to 5. Its reach grows little: the far edge 4-8 cm, and
+  never across the middle.
+
+**The envelope** (the left hand in front of its shoulder, 0.2 m out; 77
+cells from 0.09 to 1.55 m up and 0.15 to 0.75 m ahead; `--envelope`):
+reached clear with slack, today 36, the pitch 49, the yaw 59 and both 56
+(a candidate with more postures can count fewer: the planner keeps its
+first plan, and more of them fail once balanced again). The floor (0.09 m)
+today only at the toes and at full stretch; the pitch and the yaw reach it
+0.15-0.45 m ahead, and both to 0.55. The high shelf (1.43 m), today
+0.35-0.45 m ahead; the yaw 0.15-0.55. The floor is reached from the hips'
+deepest bows, the hips and the knees at 87-101 % of their stall ratings
+with any waist.
+
+**Balance.** Every reach found stood balanced: the statue keeps its centre
+of mass over the soles' middle fore and aft, as the policy moves its pelvis,
+and across it stayed at least 10.4 cm inside the soles' outline.
+
+**The part**, sized by a pose held as a stalled motor (`Motor.stall_torque`),
+1 kg in the hand:
+- *The yaw: an RS03.* It holds at most 8.1 N*m over the table's reaches
+  (its median 0, its 90th percentile 2.4) and 2.4 over the envelope; 14
+  with the pitch bowed over it. A 20 N `pull` sideways at a hand (the
+  verb's most) puts up to 10.1 N*m on it: 78 % of the RS03's 13 N*m
+  stalled, where an RS02's 6 would not hold it. Its winding takes 1 W at
+  3 N*m and 10.5 at 10.
+- *The pitch: an RS04, at its limit.* It holds a median 14-15 N*m over the
+  table's reaches, 26-27 at the 90th percentile and 32-35 at the deepest
+  (the envelope's), past the RS04's 28.5 stalled in 2-5 % of reaches (the
+  worst held 130 s by its sheet); a vertical pull adds up to 10.2. Its
+  winding takes 10 W at 13 N*m, 22 at 20 and 44 at 28.5, where each knee it
+  relieves took 31 W at 24 N*m.
+- *Each driver's standby* is the bill's 1.7 W.
+
+**The stance window** (`--window`, `--reposture`): where the stance may
+stand, moved across in 1 cm steps at the procedure's 13 cm from the edge,
+and the hand pick a piece up with our procedure's grip (45 deg, the jaws
+across) and carry it where it goes as our procedure does:
+
+| | the cup | the plate | the fork | one stance for the whole place |
+|---|---|---|---|---|
+| today | 25 cm | 3 cm (0.29-0.31 m to the right) | 3 cm, 12 cm from where our procedure stands | none |
+| pitch | 13 + 31 cm | 2 cm | 4 + 2 cm | none |
+| yaw | 67 cm | 1-3 cm stretches | 3 + 3 cm | none |
+| both | 33 + 34 cm | 1 cm | 3 + 1 cm | a few single cells, the waist turning in the arm's chain |
+
+Picked up alone, or set down alone, the plate and the fork each open to
+27-53 cm of stances with the yaw. What stays shut is the CARRY between
+them, toward a put-down near the body's middle (the plate's wall set down
+0.30 m ahead and 8 cm left of the middle, the fork 16 cm): the arm's solve
+misses its points there by 1-4 cm. No way of carrying that a waist allows
+changes it:
+- the waist held in its posture, as a carry holds one today;
+- the waist turning in the arm's chain as the hand goes;
+- either at the reach's own tolerance or at the served carry's
+  (`reach.REPLAN_M`, `REPLAN_ROT`);
+- the posture changed on the way with the hand held still, as a served
+  carry may change it (`--reposture`). From the start, the yaw's plate
+  carry gets 10 of its 14 points (today's 3) and the fork's 6-8, and neither
+  arrives.
+
+Today's body, by the same search, carries the plate from our procedure's
+0.26 m step with one change of posture (a bow, then standing), where the
+flights laid it 21-24 times of 32; and the fork from its own stance not at
+all, where they laid it 6 times. So with this grip, asked as our procedure
+asks it, the place's limit is not the waist's to remove -- and the grip is
+the lever: today the reach takes it half a turn round wherever it carries,
+and the yaw lets it take it as asked, which never carries (stage (c2),
+below).
+
+**What building it would cost.**
+- *The model and its generated files*: `humanoid/model.py` (the trunk cut at
+  the waist, a joint list of 25 or 26, the keyframes, the actuators,
+  `training_constants`), `parts.DRIVES`, the bill (an RS03 at €215.95 and an
+  RS04 at €254.75, with their brackets and the turntable plate at #379's
+  €33.33 a machined part: €316 for the yaw, €321 for the pitch, €637 for
+  both before the contingency). Then `models/humanoid.{xml,json}`, Parts.md's
+  bill and `protocol/parts.json`, `models/humanoid_friction.json` (the
+  waist's rows), and the three humanoid scenes and both recordings, which the
+  site re-vendors first.
+- *What is perceived through the model of itself.* The tag cameras and the
+  station's port are placed through it already (`mj_camlight` on the
+  self-model, `charge`'s port site): they follow once `JointSense` reads the
+  waist and `SelfModel.pose` sets it. The LIDAR's place and turn on the trunk
+  (`HumanoidMission.LIDAR_ORIGIN`, `Lidar._site_in`) and the depth camera's
+  mount (`depth._fixed_mount`, which refuses a joint on its way) are fixed at
+  construction; each must be posed off the waist's encoders every frame,
+  and the band's and the depth frame's levelling (`Lidar.band`, `_levelled`)
+  must compose the waist's turn over the pelvis's tilt. The whole body's
+  force reading (`SelfModel.felt`) gains the waist's rows, since the waist
+  carries the arm's load to the legs. A tip or a topple is still read off
+  the pelvis's IMU.
+- *The policies.* The stand is retrained: the waist scripted as the arms
+  are, with stage (a)'s yaw anchor on each sole. The walk and the get-up are
+  flown on the new body first, the waist held stiff and unseen (a policy
+  picks the joints it sees by name, `StandPolicy.joint_names`, once its
+  check that they are all the body's joints is a subset's), and retrained
+  only if they fail; the seeing walker (not served) likewise. At
+  training/README.md's cost per million steps on a 5090, one try of the
+  served three is 1.7 GPU-hours and $1.02 (the stand 31 min and $0.27, the
+  walk 23 min and $0.19, the get-up 49 min and $0.56), and the seeing
+  walker's 3.3 h and $2.14. #507 trained them all, every try, for $12.15.
+- *Flown again*, each a CPU pod's batch (about $0.1-0.2, as stage (a)'s
+  were): every hands check, the served jobs (`solve.py --from tour`), the
+  station (`station_spike.py --approach`, `--seats`, `--lost`), the body's
+  tables (`humanoid_spike.py --torque`, `--shove`, `--envelope`, `--pulls`,
+  `--feel`, `--bar`, `--fall`), the LIDAR's (`lidar_spike.py --probe`,
+  `--hidden`), the drift spike, the continuation's parity
+  (`determinism_spike.py --resume-at`), and the pair's real-time multiple
+  on the deploy box: the waist costs the bare robot 2.4-4.8 us a step
+  (+7-11 % of its own step), about 0.5 % of the served pair's (an
+  estimate; the box reads 1.23x against Ben's 1.15x floor).
+- *The deployed pair's body changes*: a new Observatory period, and a
+  restart over the changed geometry keeps the clock, the packs, the deaths
+  and the jobs but drops the bodies and the maps (`continuation.fingerprint`).
+
+**What a statue cannot say.** Whether the standing policy holds these
+postures (today's statue bands are wider than the flown ones, above); whether
+the stance still turns as an arm goes out (stage (a) measured the crouch's
+share at 5.2 deg of 8.2, and a waist that keeps the legs at the stand may
+take it away, which only a retrained stand can show); and how a yaw turned
+for a reach lays the LIDAR's band (held at zero while walking, the band is
+today's).
+
+![Each candidate's statue at three of the table's reaches, as the planner
+takes them clear of the table and of its own body: today's body crouches 16
+cm for the cup and the plate's wall and reaches no posture for the table's
+middle; the pitch bows 9 deg for both and 43 deg over the table for the
+middle; the yaw stands tall, turned 15-30 deg (`scripts/waist_spike.py
+--strip`)](figures/waist_table.png)
+
+## The table's put-downs, measured before the waist is built (issue #560, stage (c2))
+
+**What is true now.** On today's body the PLATE's carry opens with its grip
+and the FORK's does not open: gripped 30 deg round its wall from straight
+ahead rather than at its side, the plate is picked up and carried from 13 cm
+of stances by every measure below -- from where the robot stands for the
+cup, no step -- and flown, it is laid 27 of 32 held-out set-outs (23
+before), 33 and 34 of the 34 times it was reached in two runs; no grip,
+path, hand or stance opens the fork by every measure but a relay, which
+loses the fork in flight (and the fork waiting nearer the table's edge,
+where the robot could not read its tag). The best fork flown, gripped 60 deg
+down, is laid 12 and 17 of 32 in two flights of it (6 before): 9 and 14
+places of 32 (4 before), and 2 and 1 of the check's 8 (the bar 6). **The
+waist yaw opens both, its grip asked the other way round**: the plate's and
+the fork's windows open from 3 cm to 21 (35 tilted 60 deg), and one stance
+lays the whole place -- 11-13 cm of stances, 21 tilted 60 deg, by both
+measures run on it. #620 found no waist widened them because it asked our
+procedure's grip, which as it is asked carries neither piece from anywhere:
+today the reach takes it the other way round at most stances, and every
+carry is from those, and the yaw puts it in reach as asked at most -- 38 of
+the plate's 55 pick-ups -- where it is taken as asked, and never carries.
+The yaw at +-90 widens several windows further, which the table does not
+need. Every number is a statue's but the flights'.
+
+**How it is measured** (`scripts/putdown_spike.py`, on the robot's model of
+itself as #620's instrument measures a reach). A lever's WINDOW is the
+stances, 1 cm apart across, from which the hand picks a piece up -- clear of
+the table and of its own parts, still reached once balanced again -- and
+carries it where it goes and sets it down, clear; the bar, written before
+anything was measured, a window of 6 cm (twice a sidestep's +-3 cm) for
+every piece. Three measures of the carry, because they disagree:
+- *one posture* follows it all, the reach's postures, at the reach's own
+  tolerance: #620's `--window`, reproduced cell by cell (`--check`: 48
+  cells);
+- *repose*, #620's `--reposture`: the posture changed on the way, the hand
+  held still, wherever any posture reaches -- reproduced at 12 cells; run
+  on today's body alone (on a waist it tries every posture at every point,
+  36 s of a stance's 57);
+- *served*, new: our procedure's verbs as the served reach makes them,
+  every posture one of the carry's own (`reach.HOLD_POSTURES`: three bows
+  at full height the reach's lack) -- each `pull` in the posture `path_for`
+  plans and another, onward, where its arm misses; a straight `move_hand`
+  in the one `posture_for` finds for its end and another where it misses,
+  at most once a second; a turn or a `via` path in the one `path_for` plans
+  for it all.
+
+On our procedure today they read the plate 3, 8 and 7 cm, the fork 3, 7 and
+5, and the cup 25, 30 and 26. Its plate step, 0.26 m, is at the served
+window's edge (laid 24 of 32 at #618), its fork stance, 0.09, outside all
+three (6 of 32).
+
+**The levers** (62, `--list`), each on today's body, the yaw and the yaw at
++-90, and the widest window, cm, by one posture / repose / served (the bar
+6; the relays a leg each):
+
+| lever | plate today | fork today | plate, yaw | fork, yaw |
+|---|---|---|---|---|
+| our procedure: 45 deg, the jaws as it asks, a 5 cm lift, straight | 3 / 8 / 7 | 3 / 7 / 5 | 3 / - / 3 | 3 / - / 3 |
+| the jaws as asked, never the other way round | 0 / 0 / 0 | 0 / 0 / 0 | 0 / - / 0 | 0 / - / 0 |
+| the jaws asked the other way round | 3 / 11 / 7 | 3 / 11 / 5 | 21 / - / 21 | 21 / - / 25 |
+| tilted 60 deg, the jaws the other way round | 1 / 8 / 9 | 1 / 7 / 8 | 35 / - / 37 | 35 / - / 38 |
+| tilted 30 deg, the jaws the other way round | 3 / 11 / 9 | 3 / 13 / 9 | 14 / - / 11 | 14 / - / 20 |
+| fingers straight down | 0 / 2 / 1 | 0 / 3 / 2 | 16-23 / - / 10 | 16-22 / - / 11 |
+| the plate's wall gripped 30 deg round from ahead | 13 / 13 / 13 | | 14 / - / 10 | |
+| the plate turned 45 or 60 deg about the upright on its way | 13-22 / - / 24-25 | | 36-44 / - / 22-37 | |
+| the fork's handle 3 cm nearer its end | | 3 / 7 / 7 | | 3 / - / 5 |
+| lifted 15 cm; through a point 5 cm out ahead | 3 / 5 / 6; 3 / - / 6 | 3 / 6 / 6; 3 / - / 8 | 1-3 / - / 1-3 | 1-3 / - / 1-3 |
+| the right hand (the plate's right wall) | 11-22 / 11-22 / 6-13 | 0 / 0 / 0-1 | 19-35 / - / 10-16 | 1-11 / - / 9-13 |
+| the stance 5 cm back, or nearer (knee room) | 2 / 7-8 / 6 | 1 / 7-10 / 6-8 | 5-7 / - / 2-5 | 5-7 / - / 2-3 |
+| the stance turned 10-30 deg | 0-5 / 0-6 / 0-7 | 0-3 / 0-6 / 0-5 | 0-7 / - / 0-6 | 1-4 / - / 1-5 |
+| the dishware waiting nearer the edge | 8 / 8 / 4 | 7 / 7 / 6 | 4 / - / 2 | 5 / - / 2 |
+| a relay: set down halfway, a step, taken up again | 8+9 / 10+9 / 8+9 | 7+9 / 10+12 / 7+8 | 10+16 / - / 12+17 | 12+10 / - / 8+11 |
+
+- *The jaws are the yaw's lever, and its cheapest.* A two-jaw grip is the
+  same grip half a turn round its fingers (`Reach._planned` takes the other
+  where the asked plans nothing; the jaws are mirrors about the grip).
+  Today every pick-up of the plate and the fork in a window is planned the
+  other way round; with the yaw, ours as asked is planned at most stances,
+  and carries nowhere. Asked the other way round -- one sign of our
+  procedure -- on the yaw the whole place, the cup by our procedure's grip,
+  is laid from one stance, 13 cm of stances by one posture and 11 served;
+  tilted 60 deg too, from 0.04-0.24 m to the left of where the robot starts
+  by both: one step of about 0.14 m, and none between the pieces.
+- *Where the plate is gripped is today's plate's lever*: its wall 30 deg
+  round from straight ahead puts the hand out in front of its shoulder at
+  both ends of the carry, where at its side the put-down is near the body's
+  middle. Turned about the upright on its way (`move_hand`'s turn: the
+  plate is round, and turns with the hand) it opens wider, 22-25 cm, and is
+  not yet flown; nor is the right hand on the plate's right wall, 0.29-0.50
+  m to the left (22 cm by one posture, 13 served).
+- ⚠ *A tilt turned on the way* (picked up at 45 deg, set down at 60 or 90)
+  reads wide on the statue and cannot be used: the turn is about the jaws'
+  own line, which runs through the plate's middle, so a plate held firmly
+  turns with the hand, and nothing pulls it level.
+- *The fork waiting nearer the table's edge* opens its window too, 7 / 7 /
+  6, but nowhere our procedure stands could find it: 0.19 m ahead and 0.38
+  to the left of the start, 63 deg to the side, where the head camera reads
+  a flat tag only 0.37-0.53 m ahead and within about 45 deg ("Setting a
+  table"). Not flown. Tilted 30 deg, the jaws the other way round, the
+  served carry reads the fork 9 cm, the one posture 3: not flown either.
+- *A relay* clears the bar on the statue, piece by piece, and flown it loses
+  the fork: after a step the robot knows where it set the fork down by its
+  legs' reckoning, which misses a sidestep's slide (its second grip closed
+  on nothing 5 times in 40), or by the fork's tag, read far to the side
+  (unseen 8 times; laid 3 cm off 16).
+- *The yaw at +-90* widens several windows past +-60's -- tilted 60, the
+  plate's to 51 cm served (37) and the fork's to 47 by both (35 and 38);
+  fingers down, the plate's to 45 by one posture (23) -- where +-60's
+  already clear the bar several times over.
+
+**Flown** on one machine (an EPYC 7J13, osmesa, as deployed: our procedure
+flown again there repeated all 40 flights exactly), our procedure changed
+by each lever alone, at the check's set-outs 0-7 and #618's 32 held-out
+ones. The two that bought something are kept as scenes
+(`hands_check.SCENES`; `scripts/hands_check.py --view table_rim30_t60 K`
+watches one), flown again as kept -- the same procedure but for half a
+second's stand before the plate, which moved 10 verdicts of 40: a flight's
+outcome is that chaotic, so the two runs are both given:
+
+| our procedure, changed | places at 0-7 (the bar 6) | places of 32 | cup / plate / fork of 32 |
+|---|---|---|---|
+| as it is | 0 | 4 | 23 / 23 / 6 |
+| standing at the served windows' middles (0.29 and 0.19 m) | 0 | 3 | 23 / 12 / 4 |
+| both pieces gripped 60 deg down, at their windows | 0 | 2 | 23 / 21 / 2 |
+| the plate gripped 30 deg round, from where it stands (`table_rim30`) | 1, 1 | 2, 1 | 23 / 27 / 3, 2 |
+| ...and the fork at 60 deg, from 6.5 cm to the right (`table_rim30_t60`) | 2, 1 | 9, 14 | 23 / 27 / 12, 17 |
+| ...and the fork relayed | 0 | 0 | 23 / 27 / 0 |
+| ...and relayed, its tag read again | 0 | 2 | 23 / 27 / 2 |
+
+- ⚠ *The statue's windows sit a few cm off the flown ones*: stood at the
+  served windows' middles, the plate's pick-up stopped short 16 times in 40,
+  and our procedure's own 0.26 m step -- the window's edge on the statue --
+  laid it 23 of 32. Compare statue to statue, and fly what is chosen.
+- *The cup is a place's limit too*: laid 23 of 32 whatever the lever (it
+  comes first, unchanged), its grip closing on nothing at 4 set-outs of 40,
+  and knocked off the table before the plate is reached at 5 others -- the
+  same set-outs whatever the lever.
+
+![Our procedure changed by the two levers that bought something, at the
+check's set-out 0, the one of the 8 it laid whole: the cup as ever (5-15
+s), then the plate gripped 30 deg round its wall from where the robot
+stands (25 s) and the fork at 60 deg after a step -- the plate 0.4 cm, the
+cup 0.6 and the fork 2.0 from where each goes (`MUJOCO_GL=osmesa
+scripts/hands_check.py --strip table_rim30_t60 0`; `--view` watches
+it)](figures/hands_table_putdown.png)
+
+**What it cannot say.** Whether the standing policy, retrained for the yaw,
+holds these postures; how far the stance turns as an arm goes out on a body
+whose trunk turns instead (#620's open half); and the yaw's windows flown.
 
 ## Debugging workflow that worked
 

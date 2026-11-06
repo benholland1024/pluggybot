@@ -87,7 +87,9 @@ def check_claim(text: str, boards=None,
     "whiteboard_b is drawn on"  -- `boards` (a BoardBook): strokes on it
     "the charging station is free" -- `charging`: is any robot charging
                                    now (or "the charge bay", the
-                                   quadrupeds' word, which memories carry)
+                                   quadrupeds' word, which memories carry);
+                                   None where that cannot say (#560: one
+                                   station of several taken)
   Anything else is a message, not a claim; None here is "unchecked", which
   the record keeps apart from false. The honesty rule pointed the other
   way: the wire may carry what a network could carry, and a robot saying

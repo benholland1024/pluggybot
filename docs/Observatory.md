@@ -10,6 +10,269 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The mind pinned to baseten, and the eye running (the box, 2026-11-05) — set during the pause, so it opens with the world's next run
+
+**What changed on the deploy box**, with no release (17a493e kept running):
+- **`$PLUGGY_MODEL` is `zai-org/GLM-5.3-Flash:baseten`** (`:cheapest`
+  since #225): Ben's pick in #604's follow-up, set in the box's `.env` at
+  11:36 UTC, the sim recreated into the pause on the same image (its header
+  says `build.model` `...:baseten`). The model is the same; `:cheapest`'s
+  novita share (calls that hung to the router's 504) and deepinfra's
+  briefer think are gone. ⚠ On 17a493e calls are still NOT streamed:
+  baseten's longest thinks still meet #604's 115 s and 16,384 tokens until
+  the period above is deployed.
+- **The eye runs** (`rooftop-prod-eye-1`, started by hand at 11:37 UTC;
+  `rooftop-deploy`'s eye block, #541, needs `sudo deploy/install.sh` on the
+  box, never run since): a `look` is offered again from the next run, and
+  answered for the first time on the served pair -- every look before it
+  came back `none` (09-23 to 10-03), and none was asked after. ⚠ It holds
+  its one core (`cpus: 1.0`) even while the world is paused: it redraws at
+  `EYE_FPS_LIMIT` (4 a second), and on the box's software GL a frame costs
+  more than a quarter-second.
+- Nothing in the prompt, the schema, the arm, the reward table, the body or
+  the house moved.
+
+**What the period is for.**
+- **The looks**: `look` events by `subject` (`seen` against `none`), how
+  often each robot looks, and what a picture costs a call (~510 tokens in).
+- **The pinned provider's failures on the old code**: `timeout` and
+  `cutoff` among the calls asked, against #604's fifth to a third; the
+  novita share's hangs should be gone, baseten's long thinks not.
+- **The sim's speed with the eye drawing**: the real-time pacing's drift
+  and stutter against #560's 1.23x median (the eye takes a core of the
+  box's eight; the sim's physics is one thread).
+
+### The robots' calls stream, with 300 s of patience and 32,768 tokens, and how hard the model thinks is the deployment's to name (#604's follow-up) — opens when this PR is deployed
+
+**What changed in the mind and on the wire.**
+- **The routine mind's calls stream** (`llm.deadline_fetch`), held to the
+  deadline in all: not streamed, none outlived the router's gateway (a 504
+  at 120 s of silence), and novita held its answers to the end.
+- **`CALL_TIMEOUT_S` is 300 s** (115 s since #604) and
+  **`MAX_TOKENS_AUTONOMOUS` 32,768** (16,384), the escalation's following
+  both (360 s); a stream silent for 115 s ends there, and no read waits
+  past the deadline.
+- **The interrupt keeps 115 s**, its own (`INTERRUPT_TIMEOUT_S`; it had the
+  decision's), and its 4,096 tokens.
+- **A stream still being written at the deadline is `fallback:timeout` and
+  names who was answering**: its `call` carries the `provider` and a
+  `wallS` about 300, its tokens null (a stream's count comes at its end),
+  and the robot is told "your answer was still being written when its 300 s
+  ran out" (an interrupt, "the answer was still being written when its time
+  ran out"); one the far side closed, or that failed, mid-answer is
+  `offline`, its call kept too. Each is BOOKED at an estimate of what it
+  streamed (`llm.CHARS_PER_TOKEN`), never free. A timeout where nothing came
+  back still names nobody.
+- **`$PLUGGY_REASONING_EFFORT`, new and unset**: sent as `reasoning_effort`
+  on every call where set, said as `build.reasoningEffort` and in History's
+  "thinking with" line; unset is the provider's own default, as before. The
+  site files it on the run (`pw_runs.reasoning_effort`, rooftop-media-2026
+  #491), and a run's regime names it (`scripts/qualities.py`), so a
+  setting moved in `.env` with no new commit is never pooled.
+- **The model id is the deployment's** (`$PLUGGY_MODEL`, the box's `.env`),
+  and it moved ahead of this release: `zai-org/GLM-5.3-Flash:baseten`,
+  pinned on 2026-11-05 during the pause (the entry above). If this release
+  goes out before the world next runs, the two are one period; `build.model`
+  says which.
+- Nothing in the prompt, the schema, the menu, the arm, the reward table,
+  the body or the house moved.
+
+**Why.** Ben's calls of 11-04 (pin a faster provider, be generous with the
+call's time and tokens, consider a stronger model). In the week before the
+11-03 pause, of about 3,370 calls to the mind 415 came back empty and 293
+timed out, about 1 in 5 (1 in 3 on the last afternoon); on 34cd4e3, 9530f51
+and 314a5f9, 20, 34 and 32 % of the calls asked failed. On the live robots'
+own turns, streamed (Overseer.md §6): GLM-5.3-Flash on baseten answered 28
+of 29 (median 41 s, the longest 98 s and 19,739 tokens), on novita in a
+median of 197 s with 2 of 12 past five minutes and both its interrupts cut
+off. Flown 21 minutes on baseten, writing and mending procedures, 12 of 13
+answered, the 13th cut off at 24,576 tokens (a median of 11.3k and 64 s),
+and the robots stood still thinking 40-53 % of the flight.
+
+**What the period is for.**
+- **The failure rate**: `timeout`, `cutoff`, `garbled`, `offline` and
+  `busy` among the calls asked, by `pw_decisions.provider`, against #604's
+  periods' fifth to a third; on the replays, 1 in 29 on baseten was refused
+  and 1 in 12 of the probe's lost to a stream the provider dropped.
+- **How long a think stands a robot still**: the decision rows' `wall_s`
+  (now every streamed call's, a timeout's too) against 300 s, the share of
+  each robot's hour it adds up to (flown: 40-53 %), and what it costs a held
+  job's minutes.
+- **The unminded clock**: `unminded` deaths, and how near the robots' asks
+  run to 1800 s, now that a call may take 300 of them.
+- **The purse**: a week's spend against $20 (about $5 on the recommended
+  pin; `:cheapest` is dearer, novita thinking 18k tokens a turn).
+- ⚠ **Not a period to pool with #604's for anything the mind's latency or
+  failures decide**, and if the model id moved with it, not for anything
+  the mind decides at all.
+
+### The hands' small fixes: a step given 2 s to get going, a way out judged as the way home is, a pressed hand eased before it shuts (#560, stage (a)) — opens when this PR is deployed
+
+**What changed in the world.** The served pair's hands and feet, on every
+hand job, procedure and plug-in:
+- **A `step` is given 2 s to get going** before it can read "blocked"
+  (1 s each window after).
+- **A reach from the hanging arm goes out round by its side** where
+  straight would sweep the arm low ahead of the robot (`Reach.way_out`): a
+  reach takes 1-2.5 s longer, a dock about 2 s.
+- **A hand pressed on what it met is eased to where it is before its jaws
+  shut** (`Reach.ease`).
+- **The side way home's roll comes in with the shoulder pitched back.**
+- Nothing in the prompt, the schema, the arm or the reward table moved, nor
+  the station, the body's parts or the house.
+
+**Why.** #560's table found four defects in the hands (SimNotes, "Setting a
+table"): a sidestep from the standing policy's stance shuffled unseen and
+read "blocked"; the straight way out drove a hanging hand into a table at
+353-359 N; a cube's grip dragged its jaws across the board and turned the
+feet 4-6 deg; and the side way home dragged a jaw over a counter the robot
+stood turned to, turning it 20 deg. Flown before and after on one pod (a
+Xeon Gold 6152): the served jobs from the tour, the drawer 7 and 7 of 8,
+the door 8 and 8, the chest 7 and 7 (5 and 5 on a Threadripper); the
+station 36 of 36 docks from round the standoff and 139 of 140 seats, both,
+the seats' falls 3 to 1.
+
+**What the period is for.** Charges still plug in (no `stuck` death and no
+charge narrated "no charge contact"), and the hand jobs' grades hold: read
+off the charges' narration and the `death` rows, and the jobs' verdicts.
+
+### Procedures that call procedures, and a source of 3,000 characters (#560, stage (b)) — opens when this PR is deployed
+
+**What changed in the world.** What a robot's procedures may say, and the
+words it is told.
+- **A procedure's source may hold several defs**, the first the one that
+  runs, and a def calls another by its name, with arguments -- numbers, or
+  names such as a hand's, joined with `+` -- as a statement or an `if`'s
+  test, on the run's one budget, at most 4 calls deep and never round to
+  itself (Overseer.md §2b). **One procedure in the library may call
+  another**: each entry is compiled against the others after every change,
+  a caller whose callee went is kept and marked, and one whose first def
+  takes an argument with no default is callable but no action.
+- **A source may be 3,000 characters** (1,500 before), and the language's
+  text says so; a served answer over it is still cut one past the cap and
+  hears the cap alone.
+  The library still holds 8, so the most its sources can add to a turn
+  doubles, 12,000 to 24,000 characters; on 11-03 the robots' sources sat at
+  a median of 846.
+- **A run stops at 100,000 statements** (`stopped: statements`), the text
+  says so, and History says it in words.
+- **History says what a define or an undefine did to the procedures that
+  call it** ("forgot the procedure turn -- both, which calls turn, cannot
+  run until a turn is written again").
+- **The prompt moved in two places**: the procedure rule's head (the
+  library's calls, and `define`'s `source` "its source" where it read "the
+  def") and the language (the cap, the statements, the calls and a call as
+  a test, one worked example) -- the practice's sections byte for byte, as
+  ever: `prompt_sha` `f138bc01…` → `60e70aa9…`, 55,538 → 57,348 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`). The schema, the
+  menu, the reward table, the jobs and the body did not move.
+- **The session host's `hello`** carries the same language, `sourceChars`
+  3,000 and `index.calls` (rooftop-media-2026's guide is held to it).
+
+**Why.** Ben's decision on #560 (2026-11-04): modular, reusable
+subroutines, and room. Of 4,838 sources minds wrote in practice, never told
+the cap, 421 were over 1,500 and 47 over 3,000; #615's table practice wrote
+5,458, 1,915 and 1,608, and none ran. Live, both libraries were full
+nearly always ("the library is full" the commonest refusal, 86 in 17 hours
+of 11-03), and they kept their walks beside their jobs (`go_storeroom`,
+`chest_go`), one walk-or-step block written three times in one source.
+
+**What the period is for.**
+- **Whether the robots write calls**: defines with several defs, and
+  entries that call entries (`procedure` events' sources), against the
+  refusals new to it (a call's arguments, a name it passes, a loop, the
+  depth) and the old ones -- nesting past 4 was 36 of 153 refusals on
+  11-03, and a def is a way out of it.
+- **The library's fill**: "the library is full" against the period before,
+  and how many entries are callable only.
+- **The cost**: the turns' tokens in, against the period before -- the
+  prefix grew 1,810 characters, and a library's sources may grow to 3,000
+  each.
+- ⚠ **Not a period to pool with the last for anything the procedures
+  decide**: the language and its words moved.
+
+### The world grows: the park and the mall, a room for each robot, and a station in each building (#560, stage 1) — opens when both halves are deployed, this PR's and rooftop-media-2026's
+
+**What changed in the world.** The world itself, and where a robot charges.
+
+- **The house is a 2x2 grid** (SimNotes, "The grown world"): today's row
+  north, and south of it the park beside the house and the mall beside the
+  research center, the middle street down both rows, a pedestrian alley
+  between the research center and the mall, the loop round all four. The
+  map is 51 x 42 m, 856,800 cells (469,200 before). Two rooms off the living
+  room's south wall, one for each robot (where the garden wrapped south); a
+  study room in the research center (where the south half of its front
+  garden was). The park is a fenced lawn with two gates, two trees and a
+  sign; the mall a concourse with the restaurant (dining room, expo line,
+  kitchen) and the store (shop, loading zone) off it, every table, counter
+  and shelf empty. 39 zones, which an `explore(zone)` may name.
+- **Three charging stations**: the house's, the research center's (at its
+  lobby's south end) and the mall's (at its concourse's). A charge goes to
+  the one its body chooses: the one its plug is in, else the nearest by a
+  walk over its own map; a lost robot fixes off whichever station it sees
+  and charges there. Each takes one robot, and a charge waits only for the
+  other robot at the same station -- unless its mind chose otherwise: a
+  decided `charge` with `station: "free"` goes on to the nearest station
+  nobody holds (Ben's call; waiting is the default, and an event-map row's
+  or a standing order's charge waits). `drift` rows say which station
+  (`station`).
+- **The prompt moved in four places**: the other-robot rule says the robots
+  share the charging stations (`OTHER_ROBOT_RULE_SHA` re-pinned: the
+  empathy measurement's input); `charge` walks to "the nearest charging
+  station" and takes an optional `station` ("free": on to the nearest
+  station nobody is at when the nearest is taken), a new field of the
+  form; and the zones an `explore(zone)` may name are the grown world's
+  (`sidewalk_2_south` is the `alley`, 15 are new): `prompt_sha`
+  `4e56091f…` → `f138bc01…`, 55,130 → 55,538 chars, 17 sections both
+  (`overseer_probe.py --deployed --prompt`). The constitutions are unchanged
+  ("your charging station" reads as the one it charges at).
+- **The places**: the restaurant, the shop, the park, each robot's room and
+  the study room have an address and directions (`home/places.json`) and
+  tags, for stage 2's jobs; no job is offered at them yet. The facility's
+  address is where it was (its offset widened to keep it so).
+- **The scan matcher reads every return the map does**, to 8 m (6.5 m
+  before): the park's middle is 8 m from its nearest fence.
+- **The return-trip reserve is 19.5 Wh** (`reserveWh`, 18 before): from the
+  world's worst place, the park's west sidewalk, to the mall's station,
+  measured.
+- **The hand jobs are priced from the mall's station**, the dearest of
+  three (`energy.json`): the drawer 7.14 Wh, the door 7.72, the chest 7.46
+  (7.08, 5.72 and 5.98 before) -- each offer's price, which the minds are
+  shown, moves.
+- **The speed**: the pair's walks at 1.09-1.29x real time on the deploy
+  box, median 1.23x over six runs, against the 1.15x floor (today's
+  staging the same rounds 1.24-1.35x, median 1.30x): a cast leaves out
+  every static geom past its sensor's reach (`perception.cull`), without
+  which the grown world read 1.04x.
+- **The first start carries on as a changed world** (`fingerprint`): the
+  clock, the packs, the deaths and the jobs, never the bodies' poses or the
+  maps -- both robots stand up at their commissioned starts and lay their
+  maps again, History saying why. A held hand job carries on. Flown from
+  the deployed save (the 11-02 backup, `serve.py` as deployed, a fake
+  model): each robot told "the world itself changed since then", Luca at
+  83 % and Rowan at 56 %, their jobs still theirs.
+- **The site draws it** (rooftop-media-2026's half): the mall painted its
+  own, chairs and shelves built, the mall's tops bare, the park's crowns
+  over a humanoid's head.
+
+**What the period is for.**
+
+- **Charging at three stations**: which station each charge goes to
+  (`drift` rows' `station`, the charges' narration), plug-ins and misses at
+  the new two, lost searches that end at another station than the one
+  sought, and `flat` deaths; how often a mind chose `station: "free"`
+  (the decision's `station`) and passed a taken station for a free one
+  (`GO_CHARGE on to the nearest free charging station`), against the waits.
+- **The belief across the grown world**: `drift` rows in the second row,
+  the park's middle above all; whether a robot that crosses the park comes
+  out lost.
+- **Where the robots go unasked**: visits to the park, the mall and their
+  rooms (an `explore(zone)` naming one, and their poses), with no job there.
+- **The speed** on the deploy box (`vitals`, the real-time multiple):
+  against the period before.
+- ⚠ **Not a period to pool across**: the world, the maps, the stations and
+  two phrases of the prompt all moved.
+
 ### A restart puts each counter prop back on its own job's draw, and the board forgets its oldest job first (#610) — opens when this PR is deployed
 
 **What changed in the world.**
@@ -889,7 +1152,9 @@ offered.
 
 - **The eye runs.** The site's `rooftop-deploy` starts its renderer
   (compose's `eye`) in production for the first time, so a look returns the
-  world as the site draws it from the head camera. The eye builds its own
+  world as the site draws it from the head camera. ⚠ It did not: the copy
+  installed on the box predated this block, and the eye first ran on
+  2026-11-05, started by hand (the entry at the top). The eye builds its own
   world (`EYE_BUILDERS`): a plant is its stub, a post 0.08 m across and
   0.30 m tall, where a visitor sees a pot and leaves up to 0.58 m that the
   body walks through, and nothing stands on a table or a counter (props

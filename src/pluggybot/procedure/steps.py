@@ -116,6 +116,11 @@ class WorldFacts:
   #: between verbs, and a lid fell past its handle's stop inside one), off
   #: for the served world as above
   guarded: bool = False
+  #: whether a source may hold several defs, a def take arguments and call
+  #: another (`lang`, #560: Ben, 2026-11-04, modular and reusable
+  #: subroutines -- three pieces of a table set as one def ran 5,458
+  #: characters)
+  calls: bool = False
 
 
 @dataclass(frozen=True)
@@ -1137,14 +1142,14 @@ def language(facts: "WorldFacts | None") -> dict[str, Verb]:
 
 
 def hand_facts(measure: bool = True, step: bool = True, guarded: bool = True,
-               watching: bool = True) -> "WorldFacts":
+               watching: bool = True, calls: bool = True) -> "WorldFacts":
   """What a procedure on the humanoid's hands is validated against (issues
   #493, #525): standing, a `step` at a time, and its arms' joints, the hands' vocabulary
   (`HAND_VERBS`) -- with the depth camera's `measure`, the feet's `step`,
-  a hand's move's stop condition and a tag watched while it moves (#554)
-  unless an arm is about the absence of one -- their sensors and the
-  clock; a verb may be an `if`'s test, and an expression may call the
-  maths (`lang.MATH`)."""
+  a hand's move's stop condition, a tag watched while it moves (#554) and
+  defs that call defs (#560) unless an arm is about the absence of one --
+  their sensors and the clock; a verb may be an `if`'s test, and an
+  expression may call the maths (`lang.MATH`)."""
   from pluggybot.procedure import axes
   hands = tuple(v for v in HAND_VERBS if step or v != "step")
   if watching:
@@ -1158,7 +1163,8 @@ def hand_facts(measure: bool = True, step: bool = True, guarded: bool = True,
                              + (axes.MEASURE_SENSORS if measure else ())
                              + (axes.STOPPED_SENSORS if guarded else ())),
                     verbs=("wait", "move") + hands + (MEASURE_VERBS if measure else ()),
-                    hands=axes.HANDS, verb_tests=True, math=True, guarded=guarded)
+                    hands=axes.HANDS, verb_tests=True, math=True, guarded=guarded,
+                    calls=calls)
 
 
 #: What a SERVED humanoid walks with beside its hands (#559, stage 3): a
@@ -1299,9 +1305,10 @@ def _tags(tags: tuple[int, ...]) -> str:
   """A world's tags, a run of three or more as `lo to hi`: a refused define
   is one History line, cut at 400 characters, and the twelve places listed
   in full twice cut #463's own refused rewrite short (401). Never `lo..hi`,
-  which reads as leaving `hi` out."""
+  which reads as leaving `hi` out. In order: the grown world's places
+  (#560) came after the counter's in the world's own order."""
   runs: list[list[int]] = []
-  for t in tags:
+  for t in sorted(tags):
     if runs and t == runs[-1][-1] + 1:
       runs[-1].append(t)
     else:
@@ -1315,7 +1322,6 @@ def _check_guard(args: dict, given: set, facts: WorldFacts) -> list[str]:
   that changes as the hand moves, and the number it stops past -- `above`
   or `below`, never both, never one without the other. `given` is every
   argument the call names, a computed one too."""
-  from pluggybot.procedure import axes
   named = set(given) & set(GUARD_ARGS)
   sides = named & {"above", "below"}
   if not named:
@@ -1331,13 +1337,22 @@ def _check_guard(args: dict, given: set, facts: WorldFacts) -> list[str]:
     bad.append("a move stops past its number on one side: above or below, not both")
   name = args.get("until")
   if isinstance(name, str):
-    live = ", ".join(s for s in facts.sensors if axes.SENSORS[s].every_s is not None)
-    if name not in facts.sensors:
-      bad.append(f"until={name!r} is no sensor you have (a move may stop on {live})")
-    elif axes.SENSORS[name].every_s is None:
-      bad.append(f"until={name!r} is what a verb last reported, which no move changes: a "
-                 f"move stops on a sensor that changes as your hand moves ({live})")
+    bad += guard_sensor(name, facts)
   return bad
+
+
+def guard_sensor(name: str, facts: WorldFacts) -> list[str]:
+  """Whether a move may stop on the sensor `until` names: one this body
+  has, that changes as the hand moves -- a literal's rule, and a name an
+  argument carries into a call (`lang._named`, #560)."""
+  from pluggybot.procedure import axes
+  live = ", ".join(s for s in facts.sensors if axes.SENSORS[s].every_s is not None)
+  if name not in facts.sensors:
+    return [f"until={name!r} is no sensor you have (a move may stop on {live})"]
+  if axes.SENSORS[name].every_s is None:
+    return [f"until={name!r} is what a verb last reported, which no move changes: a "
+            f"move stops on a sensor that changes as your hand moves ({live})"]
+  return []
 
 
 def check_step(verb: Verb, args: dict, facts: WorldFacts,

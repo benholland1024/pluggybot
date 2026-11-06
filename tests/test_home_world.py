@@ -225,7 +225,15 @@ def test_doorways_are_wide_enough_to_drive_through(home_model):
            # The second house (issue #215): its gate, its front door, and
            # the lab and the store off the lobby.
            "garden_2": home.DOOR_GARDEN_2_Y, "lobby": home.DOOR_LOBBY_Y,
-           "lab": home.DOOR_LAB_Y, "store": home.DOOR_STORE_Y}
+           "lab": home.DOOR_LAB_Y, "store": home.DOOR_STORE_Y,
+           # The grown world (#560): the robots' rooms, the study room, the
+           # park's gates and the mall's doors.
+           "room_west": home.DOOR_ROOM_WEST_X, "room_east": home.DOOR_ROOM_EAST_X,
+           "study": home.DOOR_STUDY_Y, "park_north": home.PARK_GATE_NORTH_X,
+           "park_east": home.PARK_GATE_EAST_Y, "mall": home.DOOR_MALL_Y,
+           "mall_alley": home.DOOR_MALL_ALLEY_X, "dining": home.DOOR_DINING_Y,
+           "shop": home.DOOR_SHOP_Y, "kitchen_2": home.DOOR_KITCHEN_2_Y,
+           "loading": home.DOOR_LOADING_Y, "delivery": home.DOOR_DELIVERY_Y}
   for name, (lo, hi) in doors.items():
     assert hi - lo > shut, f"{name} doorway: its {hi - lo:.2f} m is shut by the inflation"
 
@@ -271,16 +279,33 @@ def test_the_new_rooms_are_reachable_from_the_living_room():
            # property's ring of sidewalk meets the loop and the street.
            ("street", "street_north"), ("street", "street_south"),
            ("street", "sidewalk_north"), ("street", "sidewalk_2_north"),
-           ("street", "sidewalk_south"), ("street", "sidewalk_2_south"),
+           ("street", "sidewalk_south"), ("street", "alley"),
            ("sidewalk", "sidewalk_north"), ("sidewalk", "sidewalk_south"),
            ("sidewalk_north", "sidewalk_west"), ("sidewalk_south", "sidewalk_west"),
-           ("sidewalk_2", "sidewalk_2_north"), ("sidewalk_2", "sidewalk_2_south"),
-           ("sidewalk_2_north", "sidewalk_east"), ("sidewalk_2_south", "sidewalk_east"),
+           ("sidewalk_2", "sidewalk_2_north"), ("sidewalk_2", "alley"),
+           ("sidewalk_2_north", "sidewalk_east"), ("alley", "sidewalk_east"),
            ("sidewalk_north", "street_north"), ("sidewalk_2_north", "street_north"),
-           ("sidewalk_south", "street_south"), ("sidewalk_2_south", "street_south"),
+           ("sidewalk_south", "street_west"), ("alley", "street_east"),
            ("sidewalk_west", "street_west"), ("sidewalk_east", "street_east"),
            ("street_north", "street_west"), ("street_north", "street_east"),
-           ("street_south", "street_west"), ("street_south", "street_east")}
+           ("street_south", "street_west"), ("street_south", "street_east"),
+           # The grown world (#560): the robots' rooms off the living room,
+           # the study room off the lobby; the park by its two gates; the
+           # mall's concourse by its front door and the alley's, its rooms
+           # off it and its staff and delivery doors; the second row's rings.
+           ("living", "room_west"), ("living", "room_east"), ("lobby", "study_room"),
+           ("sidewalk_south", "park"), ("sidewalk_park", "park"),
+           ("sidewalk_mall", "concourse"), ("alley", "concourse"),
+           ("concourse", "dining_room"), ("concourse", "shop"),
+           ("dining_room", "restaurant_kitchen"), ("shop", "loading_zone"),
+           ("loading_zone", "sidewalk_mall_east"),
+           ("street", "sidewalk_park"), ("street", "sidewalk_mall"),
+           ("sidewalk_south", "sidewalk_park"), ("sidewalk_south", "sidewalk_park_west"),
+           ("sidewalk_park", "sidewalk_park_south"), ("sidewalk_park_west", "sidewalk_park_south"),
+           ("sidewalk_park_west", "street_west"), ("sidewalk_park_south", "street_south"),
+           ("alley", "sidewalk_mall"), ("alley", "sidewalk_mall_east"),
+           ("sidewalk_mall", "sidewalk_mall_south"), ("sidewalk_mall_east", "sidewalk_mall_south"),
+           ("sidewalk_mall_east", "street_east"), ("sidewalk_mall_south", "street_south")}
   # ...and every edge is a real border: the two zones touch along a line,
   # or the graph is a story about a plan rather than the plan.
   by_name = {z["name"]: z for z in home.ZONES}
@@ -374,10 +399,12 @@ def test_the_middle_street_runs_through_the_sidewalk_to_the_loop():
     across, along = _touch(street, z[leg])
     assert along == 0 and across == pytest.approx(width), \
         f"the middle street does not meet {leg} along its whole width"
-  for side in ("north", "south"):
-    west, east = z[f"sidewalk_{side}"], z[f"sidewalk_2_{side}"]
-    assert min(_touch(west, east)) < 0, \
-        f"sidewalk_{side} and sidewalk_2_{side} meet: the band still crosses the street"
+  # ...and the strips either side of it never meet across it: north, between
+  # the rows (#560: the house's south sidewalk and the alley) and south
+  for west, east in (("sidewalk_north", "sidewalk_2_north"), ("sidewalk_south", "alley"),
+                     ("sidewalk_park_south", "sidewalk_mall_south")):
+    assert min(_touch(z[west], z[east])) < 0, \
+        f"{west} and {east} meet: the band still crosses the street"
   for zone in home.ZONES:
     if zone["name"].startswith("sidewalk"):
       across, along = _touch(street, zone)
@@ -586,3 +613,58 @@ def test_the_staircase_is_steps_a_body_climbs(home_model):
     g = home_model.geom(name).id
     bottom = top(g) - 2 * home_model.geom_size[g][2]
     assert bottom == pytest.approx(0.9) and top(g) == pytest.approx(1.8)
+
+
+# ---- the grown world (issue #560) ---------------------------------------------
+
+def test_the_second_row_is_the_park_and_the_mall_south_of_today():
+  """#560's 2x2 grid: today's row north, the park beside the house and the
+  mall beside the research center south of it, the alley between the
+  research center and the mall -- pedestrian, no street -- and the middle
+  street between the columns down both rows."""
+  z = {zone["name"]: zone for zone in home.ZONES}
+  house = [zz for zz in home.ZONES if zz.get("building") == "house"]
+  facility = [zz for zz in home.ZONES if zz.get("building") == "facility"]
+  mall = [zz for zz in home.ZONES if zz.get("building") == "mall"]
+  assert mall, "the mall has no rooms"
+  assert max(zz["max"][1] for zz in mall) <= min(zz["min"][1] for zz in facility), \
+      "the mall is not south of the research center"
+  assert z["park"]["max"][1] <= min(zz["min"][1] for zz in house), \
+      "the park is not south of the house"
+  alley = z["alley"]
+  assert alley["kind"] == "outdoor" and alley["min"][1] == max(zz["max"][1] for zz in mall)
+  assert alley["max"][1] == min(zz["min"][1] for zz in facility)
+  street = z["street"]
+  assert street["min"][1] < z["park"]["min"][1] and street["max"][1] > z["kitchen"]["max"][1]
+  # the restaurant's and the store's rooms, side by side on one floor
+  assert {zz["name"] for zz in mall} == {"concourse", "dining_room", "restaurant_kitchen",
+                                          "shop", "loading_zone"}
+
+
+def test_each_building_has_a_charging_station_in_one_of_its_rooms():
+  """#560: a station in each building -- the house's, the research
+  center's (#572's stage 4, folded in) and the mall's -- each where a robot
+  plugging in stands inside one of that building's rooms."""
+  from pluggybot.activity import station as st
+  from pluggybot.humanoid.world import stations
+  rooms = [zz for zz in home.ZONES if zz["kind"] == "room"]
+
+  def building_at(x, y):
+    return next((zz["building"] for zz in rooms if zz["min"][0] <= x <= zz["max"][0]
+                 and zz["min"][1] <= y <= zz["max"][1]), None)
+  seen = []
+  for name, ((x, y, yaw), pair) in stations().items():
+    sx, sy = st.to_world((x, y, yaw), st.SEAT_X, st.SEAT_Y)
+    seen.append(building_at(sx, sy))
+    assert len(pair) == 2, f"{name} wears {pair}: a station is fitted by its pair"
+  assert sorted(seen) == sorted(("house", "facility", "mall")), seen
+
+
+def test_each_robot_has_a_room_of_its_own_in_the_house(meta):
+  """#557/#560: a room for each robot, by its root body -- never by name --
+  each a room of the house, the two apart."""
+  rooms = meta["rooms"]
+  z = {zone["name"]: zone for zone in home.ZONES}
+  assert set(rooms) == {"pluggybot", "r2_pluggybot"}
+  assert len(set(rooms.values())) == 2
+  assert all(z[r]["building"] == "house" for r in rooms.values())

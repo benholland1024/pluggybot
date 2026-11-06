@@ -80,7 +80,7 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 |---|---|---|
 | `take_task` | accept a job the world is OFFERING and do it (issue #21) | `task` |
 | `explore` | frontier-drive for `DECIDED_EXPLORE_S` (45 s); optionally head for a zone first. History says whether the zone was reached (the drive's cause when not) and how the explore ended, `EXPLORE_ENDS` (issue #424) | `zone` |
-| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424) | — |
+| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424). At the nearest station, waiting for it while another robot holds it, or with `station: "free"` on to the nearest station nobody holds (#560, Ben's call: the robot's to decide, waiting the default) | `station` |
 | `idle` | stand still for `AUTONOMOUS_IDLE_S` (60 s), so an idling agent cannot re-decide faster than `CALLS_PER_HOUR` | — |
 | `recall` | look something up in memory and stand still `RECALL_S` (10 s); the lines arrive on the next turn, at most `MAX_RECALL_RUN` (3) in a row (issue #221, §7) | `read` (a key), `find` (words) |
 | `procedure:<name>` | run a procedure the robot wrote, from its own library (issue #166, §2b) | — |
@@ -134,7 +134,7 @@ is the INDEX and the prose sections stay the manual.
   `guarded`'s prefix had to stay byte-identical, and the gate went with it
   (#427).
 - **Three kinds of field, one door each.** `think` / `action` / `reason` are
-  the answer; `ACTION_PARAMETERS` (`zone`, `read`, `find`, `task`) are
+  the answer; `ACTION_PARAMETERS` (`zone`, `station`, `read`, `find`, `task`) are
   named in their own action's line and a test reads each one back out of
   it; everything else is a power with an index entry. (The quadruped's
   drawing named a `board` and a `program`, and a whiteboard question took
@@ -189,10 +189,11 @@ vocabulary with every switch on (docs/Hands.md; `steps.served_hand_facts`)
 in range(N)` with a literal N, `while` with a hard iteration cap, `return`;
 and where the world's facts say so, as the served humanoid's do, a verb as
 an `if`'s test, the maths (`sin`, `cos`, `atan2`, `sqrt`) and a hand's move
-that stops on a reading (`until=`). Anything else
-— an import, an attribute, a string outside a verb's argument, another call
-— is refused with the line at fault, before a step runs, and every reason at
-once (`tests/test_language.py` has one case per construct). A refusal inside
+that stops on a reading (`until=`), and defs that call defs (below). Anything else
+— an import, an attribute, a string outside a name a verb, a read or a call
+takes, a call of anything but a verb or a def — is refused with the line at
+fault, before a step runs, and every reason at once (`tests/test_language.py`
+and `tests/test_calls.py` have one case per construct). A refusal inside
 a call names the call, once, as History names a step that failed: `line 3,
 wait: seconds=99.0 is above 60.0` (#463: the robot never sees a refused
 define's source again, so a line alone pointed at nothing it could read).
@@ -213,15 +214,79 @@ loop is bounded; the interpreter checks budgets and `interrupted()` at every
 verb, which is a safe point, and a walk inside a verb asks it every second
 on the way (issue #381: a verb it ended is `stopped: interrupted`, an abort
 and never a failed step); a runaway `while` stops at `MAX_ITER` as
-`loop-cap`; a failed step, an arithmetic fault (division by zero, a local
+`loop-cap`, and a run at `MAX_STATEMENTS` (100,000, about 0.1 s of the
+physics thread: four nested loops in one def could run 10^8) as
+`statements`; a failed step, an arithmetic fault (division by zero, a local
 read before it was set) or a computed argument outside a verb's range ends
-the procedure with the step and the reason in the record.
+the procedure with the step and the reason in the record. A source is at
+most `MAX_SOURCE_CHARS` (3,000 since #560: of 4,838 sources minds wrote in
+practice, never told the cap, 421 were over 1,500 and 47 over 3,000), and
+the text says so; one over it that parses is refused with every reason, the
+cap's first (#615's smoke: three repairs of a 5,458-character source heard
+only its length) -- where it arrives whole, in practice and a person's run:
+a served answer's source is cut one past the cap (`define`'s clip), and
+hears the cap alone.
+
+**Procedures that call procedures** (#560, Ben's decision of 2026-11-04:
+modular, reusable subroutines), wherever the world's facts give calls
+(`WorldFacts.calls`: every hands world, the practice's, a person's session
+and the served pair's):
+- **A source holds one def or more, and its FIRST runs.** A def calls
+  another by its name, as a statement or alone as an `if`'s test (where
+  `verb_tests`), passing arguments as a verb takes them, by position or
+  keyword, with literal defaults. A call names a def of its own source --
+  or, in a library, another of the library's procedures; its own source's
+  def where both have the name.
+- **An argument holds a number or a name, typed by its use**: used where a
+  verb or `read` takes a name, it holds one (a call passes it in quotes, or
+  passes on an argument of its own that holds one), and names join with
+  `+` (`read(hand + ".z")`, `until=hand + ".fz"`) -- the one thing a name
+  can do; anything else holds a number. Used both ways, set, or defaulted
+  the other kind, it is refused. A name a call passes is checked against
+  the world before anything moves, at the line that uses it and through the
+  calls it came by (`lang._named`: `line 6, open_hand: hand='middle' is not
+  one of left, right -- called at line 2, b > line 4, c`).
+- **One run, one budget**: the first def's `budget` is the run's, a
+  callee's own counts only when it runs as the procedure, every verb in
+  every call counts toward the steps, and calls go at most
+  `MAX_CALL_DEPTH` (4) deep, never round to themselves (refused, the loop
+  named). The first def takes no argument without a default (it runs with
+  nothing passing it one), but a library's may: it is then callable and no
+  action (`Library.runnable`, `as_context` says why).
+- **A call does what its def does**: true when it ran to its end or a
+  `return`; a verb failing in it ends the run as anywhere, the step saying
+  where it ran (`in`, and `entry` for another library procedure's source,
+  whose line it is) -- unless the call is an `if`'s test, which reads it
+  false (the failing step `tested`) and goes on, a fault in its arithmetic
+  likewise; the run's own limits end the run either way. An argument the
+  run cannot compute fails the call at its own line.
+- **A def's variables are its own**, and as each call ends its last ones
+  ride the readout after the caller's, as `callee.name` (#227's readout:
+  nothing else of a callee reaches the mind). No value is returned and
+  `return` takes none: a callee's numbers come back as a verb's do, through
+  `read` of what the body reported, or the readout.
+- **In the library, every entry is compiled against the others, callees
+  first, after every change** (`Library._relink`): a caller whose callee
+  was undefined, or no longer compiles, is kept and marked not runnable
+  with why, and runs again once a callee of that name does -- History
+  says which on the answer that moved it (`callers_moved`: "forgot the
+  procedure turn -- both, which calls turn, cannot run until a turn is
+  written again"). A define that would close a loop through the library is
+  refused (a caller left waiting is no procedure to call), and a restart
+  compiles each entry after those it calls, whatever the files' order.
+- ⚠ **Not built, and why**: a returned value (`x = f()`, `return x`) -- an
+  expression that ran verbs would make expressions routines, and a test
+  would read a number where it reads a verb's truth; `return False` -- a
+  call's truth is what the world says its verbs did, never its own word;
+  and string variables beyond an argument. Each is a later call.
 
 **The library** (`procedure/library.py`) is a directory of sources beside the
 thought files (`$PLUGGY_THOUGHTS/procedures/`), the robot's on
 `Goals.md`'s terms — a DOCUMENT row in `mind/text.py` (§7), capped at
 `MAX_PROCEDURES` (8, because every source rides the user turn so the robot
-can read what it wrote). Two verbs, both
+can read what it wrote: at most 24,000 characters at the cap since #560,
+where the live libraries' sources sat at a median of 846 on 2026-11-03,
+both robots' full nearly always). Two verbs, both
 decision *fields* so writing one costs no turn: `define: {name, source}` and
 `undefine: name`. A redefinition on its own is refused; a **replacement names
 the old one in `undefine` on the same answer**, and the undefine is applied
@@ -636,8 +701,11 @@ renderer must not hand the robot a picture of where it used to be.
 
 **A missing renderer is said, not waited out (issue #357).** Until it,
 nothing could tell a slow renderer from a missing one: the renderer went
-undeployed until #541, and every look on the served pair stood its ten
-seconds for nobody (51 in 30 days, all `none`). The website's hub now says
+undeployed, and every look on the served pair stood its ten seconds for
+nobody (51 in 30 days, all `none`). ⚠ It stayed undeployed until
+2026-11-05, started by hand: #541 put it in `rooftop-deploy`, but the copy
+installed on the box predated it (`sudo deploy/install.sh` never re-ran), so
+no look before then was ever answered. The website's hub now says
 whether a renderer is connected — the `renderer` inbound kind, `{connected}`, when
 it reads a header that names the kind, whenever one comes or goes, and
 again every heartbeat, so a word lost on the way heals in 30 s — and the
@@ -1375,8 +1443,8 @@ a fallback. `Decision.scripted` means "a fallback produced this".
 | `llm` | — | a real answer |
 | `llm:<model>` | — | …from the escalation model (issue #37) |
 | `event:<type>` | — | a row of the agent's own event map (issue #127) |
-| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (115 s, §6) |
-| `fallback:offline` | failure | nobody answered — transport, HTTP, auth, rate limit, 5xx |
+| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (300 s, §6): nothing came back, or a stream was still being written (it names who) |
+| `fallback:offline` | failure | nobody answered — transport, HTTP, auth, rate limit, 5xx, a stream closed mid-answer |
 | `fallback:garbled` | failure | somebody answered, and it was not a decision |
 | `fallback:cutoff` | failure | somebody answered, and its tokens ran out before the answer was written (issue #604; §6) |
 | `fallback:busy` | failure | the previous call is still out there; a second is not piled on |
@@ -1554,9 +1622,10 @@ oversized on purpose: a demo cell measures where the robot *died*, not what
 the job costs. Re-run it (`--write`) after anything that changes what an
 errand does. The shipped table for the humanoid (`energy.json`,
 `home_humanoid`): its hand jobs, each its reference's procedures flown
-from its station with the place remembered — `open_drawer` 7.082 Wh,
-`open_door` 5.715, `open_chest` 5.984, `place_cube` 4.704 — exploring at
-46.2 mWh/s, and 345.2 W net into a body plugged in at its station.
+from the dearest of its stations, the mall's (#560), with the place
+remembered — `open_drawer` 7.138 Wh, `open_door` 7.720, `open_chest`
+7.463, `place_cube` 9.858 (a placement that failed) — exploring at 48.2
+mWh/s, and 338.8 W net into a body plugged in at its station.
 
 - ⚠ **A key may name a target**, and `<errand>:<target>` wins over
   `<errand>` (the rover's `draw` cost 0.929 Wh at the near board and 1.065
@@ -1569,8 +1638,10 @@ from its station with the place remembered — `open_drawer` 7.082 Wh,
   An errand's cost depends on where the robot is standing *and on how much of
   the map it already has* — a first errand on a fresh map plans and searches
   through unexplored space, so a row is measured from the station with the
-  place remembered — and on the run (the drawer's two procedures measured
-  7.036 and 7.082 Wh, and 7.082 is carried). The failure directions are not
+  place remembered — on which station it charged at (the door measured
+  5.17 Wh from the house's, 7.72 from the mall's, and 7.72 is carried) and
+  on the run (the drawer's two procedures once measured 7.036 and 7.082
+  Wh, and the dearer was carried). The failure directions are not
   symmetric: an over-estimate is a charge nobody needed, an under-estimate
   is a robot dead in the garden.
 - **The invariant is not "never exceeded"; it is that an overrun smaller than
@@ -1596,7 +1667,7 @@ with them. Collapsing any pair is a real bug:
 capability a demo cell was built to run flat on. Nothing spins either way: an
 errand deferred `MAX_ERRAND_DEFERRALS` (2) times is dropped, because at that
 point charging is what is broken. The humanoid's demo cell overspends on
-nothing (its dearest job, 7.08 Wh, fits the 18 Wh it charges to), so the
+nothing (its dearest job, 9.86 Wh, fits the 29.7 Wh it charges to), so the
 fourth answer is guarded synthetically.
 
 ### ⚠ The margin is all-or-nothing, and that is the design
@@ -1614,17 +1685,19 @@ One number per world, so `Task.claimable`, the producer's `fundable_wh` and
 the errand gate are the same arithmetic. On the humanoid the served pack
 (`humanoid.world.PACK_WH`, 777.6 Wh) funds the dearest job plus the reserve
 many times over, so the full margin is kept and the mid-errand death is
-unreachable there. The tests' pack (`DEMO_WH`, 30 Wh, 27 charged) carries
-the drawer's 7.08 Wh and the 18 Wh reserve both, so it keeps the margin
-too. At 20 Wh it kept none, a branch the served pack never takes (#580).
+unreachable there. The tests' pack (`DEMO_WH`, 33 Wh, 29.7 charged) carries
+the cube's 9.86 Wh and the 19.5 Wh reserve both, so it keeps the margin
+too (#560 grew it from 30). At 20 Wh it kept none, a branch the served
+pack never takes (#580).
 
 ### The reserve, and the hosting pack
 
 The reserve is a property of the **floor plan**, not the battery.
-`humanoid.world.RESERVE_WH` (18 Wh) is measured (`energy_spike.py
---reserve`): the worst return BY ROUTE to its station, from the garden
-doorway, as travel (14.1 Wh over 44.6 m, the Mid-360S's 6.2 W included)
-plus the last leg and a plug-in, with one failed plug-in priced as another.
+`humanoid.world.RESERVE_WH` (19.5 Wh) is measured (`energy_spike.py
+--reserve`): the worst return BY ROUTE to the nearest station, from the
+park's west sidewalk to the mall's (#560), as travel (14.2 Wh, its walk
+54.8 m where the waypoints are 42.4, the Mid-360S's 6.2 W included) plus
+the last leg and a plug-in, with one failed plug-in priced as another.
 Re-measure it when the plan changes, not when the pack does.
 
 `--pack hosting` (`$PLUGGY_PACK`; `--battery-wh` still overrides) is the
@@ -1685,9 +1758,12 @@ before parsing.
 
 ### The pick, and the doctrine
 
-**`zai-org/GLM-5.3-Flash:cheapest`** on the router (issue #225, Ben's
-$40-a-month cap; the sweep is below, the period is Observatory.md). The
-suffix is part of the pick: `:cheapest` pins the router's provider policy,
+**`zai-org/GLM-5.3-Flash:baseten`** on the router since 2026-11-05 (the
+box's `.env`, Ben's pin in #604's follow-up, below, "Streamed": `:cheapest`
+from #225 until then, three providers that were three minds), chosen by
+#225's sweep under Ben's $40-a-month cap (below; the periods are
+Observatory.md). The suffix is part of the pick: it pins the provider or the
+router's provider policy (`:cheapest`),
 and a bare id is routed by the router's own preference and billed at that
 provider's rate — measured ten times apart on the same call
 (`llm.HFClient.pricing` prices a named provider as itself, `:cheapest` and a
@@ -1781,49 +1857,182 @@ robots were making), each request sent again through the deployed adapter.
 | `:deepinfra`, pinned | 20 | 342–1,996 | 27 s | never near a budget |
 | `:novita`, pinned | 2 | — | 120 s | 504 both times; STREAMED it wrote 3,418 tokens in 53 s, and 8,192 with no answer in 128 s |
 
-So the three providers `:cheapest` ties at one price are three minds as far
-as a deadline is concerned: baseten thinks long and fast (~170-190 tokens a
-second on a long answer), deepinfra briefly, and novita long at ~64 a
-second, which no non-streamed call outlasts. The empties are the long
-thinks a budget cuts off; the timeouts are calls that never come back in
-time, and no budget moves those.
+So the three providers `:cheapest` ties at one price were three minds as
+far as a deadline was concerned: baseten thought long and fast, deepinfra
+briefly, and novita long and slowly, which no non-streamed call outlasted.
+The empties were the long thinks a budget cut off; the timeouts were calls
+that never came back in time, which no budget moves. #604 raised the budget
+to 16,384 and the deadline to 115 s, the most a call not streamed could
+use, and made a cut-off `fallback:cutoff`: its follow-up, below, streams.
 
-- **`MAX_TOKENS_AUTONOMOUS` is 16,384**: on the worst turn measured, cut-offs
-  3 of 5 → 1 of 5, the 10,905 and 11,776 answered and the 16,986 cut off.
-- ⚠ **THE BUDGET IS SIZED TO THE DEADLINE**: baseten writes a long answer
-  at 176-191 tokens a second plus ~5 s of reading, so 16,384 comes back in
-  ~98 s, inside `CALL_TIMEOUT_S` (115 s, below) with ~15 s to spare, and a
-  think that runs out is a cut-off, metered and said. Past the deadline it
-  would be a timeout, which no response reaches `_meter` from, counted
-  toward the cooloff (`MAX_CONSECUTIVE_ERRORS`, where a cut-off is not),
-  and naming nobody: at the old 90 s this budget was 12,288 for that reason
-  (the review's catch). A bigger budget needs a bigger deadline, which a
-  non-streamed call cannot use past the gateway's 120 s.
-- **The interrupt's is 4,096** (`MAX_TOKENS`, 1,024 since #116): asked on
-  the live robots' turns it thought 489-1,846 tokens (12 of 12 answered at
-  32,768), and 7 of 20 ran out of the 1,024; a failed interrupt stops the
-  errand, so a `battery_below -> ask` row read as "stop" a third of the
-  time. ⚠ Not the decision's 16,384: it is asked as the pack runs low,
-  mid-errand, and twice its longest think comes back in ~28 s where the
-  decision's budget could hold the robot still for most of two minutes.
-  `ESCALATE_MAX_TOKENS` follows the decision's.
-- ⚠ **A cut-off of 16,384 bills about $0.012** at ~25k tokens in, against
-  $0.008 at 8,192: the ceiling is only paid where an answer needs it.
-- ⚠ **A timeout bills what nobody meters**: no response reaches `_meter`,
-  so the purse (`$PLUGGY_WEEKLY_USD`) never sees whatever the provider
-  billed for a call the deadline or the gateway gave up on -- and at 16,384
-  that can be twice what it could at 8,192. Whether the router bills it is
-  not known here: the router's own bill beside the spend record over a day
-  of timeouts says.
+- **The interrupt's budget is 4,096** (`MAX_TOKENS`, 1,024 since #116):
+  asked on the live robots' turns it thought 489-1,846 tokens (12 of 12
+  answered at 32,768), and 7 of 20 ran out of the 1,024; a failed interrupt
+  stops the errand, so a `battery_below -> ask` row read as "stop" a third
+  of the time. ⚠ Never the decision's: it is asked as the pack runs low,
+  mid-errand, and twice its longest think comes back in ~28 s.
+- ⚠ **A timeout where nothing came back bills what nobody meters**: no
+  usage reaches `_meter`, so the purse (`$PLUGGY_WEEKLY_USD`) never sees
+  whatever the provider billed for it -- a stream silent to the end, or a
+  call not streamed (a stream stopped mid-answer is booked at an estimate,
+  below). Whether the router bills it is not known here: the router's own
+  bill beside the spend record over a day of timeouts says.
 - **The robot is told the tokens the provider says it spent** (a provider
   capping below the ask spends fewer), and a cut-off interrupt says "the
   answer ran out of its tokens", not "nobody answered".
-- **Not done here**: the timeouts are a provider the policy picks, and the
-  model id is the deployment's (`$PLUGGY_MODEL`): pinned to one provider,
-  or answers STREAMED (`llm.stream_fetch`, practice's), they would not hang;
-  either is a decision of its own. The decision rows name who answered or
-  ran out (`pw_decisions.provider`); a timeout brings back no header and
-  names nobody, so which provider hangs is read by pinning one, as here.
+
+### Streamed, and how hard each mind thinks (#604's follow-up)
+
+Ben's calls of 11-04: pin a faster provider, be generous with the call's
+time and tokens, since a cut or timed-out answer is billed and thrown away,
+and consider a stronger model, paid for by running less (16 hours a week
+since #562). So the robots' calls STREAM (`llm.deadline_fetch`): the
+gateway's 120 s no longer ends one, and a provider that held a non-streamed
+answer to the end answers. Measured as #604 did, on the live robots' own
+turns: 24 from the 03:15 UTC backup of 11-04, on staging as it will deploy
+(the robots' own constitutions, their History, recall chains to two
+blocks, the heaviest a live turn carries), each sent again streamed through
+the deployed adapter at 65,536 tokens and held to 600 s, so no tail was cut,
+two at a time per model as the pair asks; each answer judged by the
+deployed `Menu.validate` on the captured menu. Rows and scripts:
+`~/pluggybot-training/issue-604-stream/`.
+
+| model, provider, effort | calls | valid | wall s, median / p90 / max | tokens out, median / max | $ a call | its interrupts |
+|---|---|---|---|---|---|---|
+| GLM-5.3-Flash, baseten | 29 | 28 | 40.6 / 80.7 / 98.2 | 5,179 / 19,739 | 0.0070 | 4 of 4, ≤ 20 s |
+| ... `high` | 16 | 16 | 36.1 / 83.2 / 114 | 5,104 / 13,702 | 0.0072 | 2 of 2 |
+| ... `low` | 16 | 16 | 10.0 / 14.0 / 14.1 | 1,437 / 2,091 | 0.0049 | 2 of 2, ≤ 6 s |
+| GLM-5.3-Flash, deepinfra | 32 | 31 | 12.5 / 22.1 / 54.9 | 1,498 / 5,923 | 0.0050 | 8 of 8, ≤ 8.4 s |
+| GLM-5.3-Flash, novita | 12 | 12 | 197 / 315 / 315 | 18,068 / 26,945 | 0.0132 | **0 of 2**: both ran out of 4,096 |
+| DeepSeek-V4.1-Flash, baseten | 7 | 7 | 86 / 212 / 212 | 20,762 / 50,789 | 0.0459 | 2 of 2 |
+| ... `low` | 20 | 20 | 31.9 / 61.6 / 115 | 7,530 / 26,637 | 0.0202 | 2 of 2, ≤ 11 s |
+| DeepSeek-V4.1-Flash, deepinfra (no reasoning) | 31 | 31 | 12.6 / 17.1 / 26.5 | 1,618 / 2,289 | 0.0066 | 8 of 8, ≤ 4.5 s |
+| ... `low` | 16 | 16 | 30.1 / 72.9 / 99.3 | 5,946 / 14,669 | 0.0096 | 2 of 2, ≤ 9 s |
+| ... `high` | 4 | 4 | 205 / 356 / 356 | 23,319 / 58,993 | 0.0264 | |
+| Qwen3.5-397B-A17B, deepinfra | 29 | 29 | 17.1 / 89.4 / 101 | 1,018 / 5,991 | 0.0184 | 4 of 4, ≤ 21 s |
+
+The misses: a map rule with an unknown kind (GLM on deepinfra; DeepSeek on
+deepinfra did it on the probe), a `recall` naming nothing; and on the probe
+one baseten stream failed mid-answer ("Stream ended before generation
+completed", `offline`). What the table says:
+
+- **The three minds were the providers' default EFFORT.** A reasoning
+  model's think is set by `reasoning_effort` (GLM-5.3-Flash: low, high,
+  max, the card's default max; DeepSeek-V4.1-Flash: low, high, and 1-100 by
+  its card, untried), and the router passes it: unset, each provider applies
+  its own. DeepSeek thought a median of 21k tokens a turn on baseten (51k
+  the most) and none on deepinfra; 7.5k at `low` on baseten, 5.9k at `low`
+  and 23k at `high` on deepinfra.
+  `$PLUGGY_REASONING_EFFORT` names it for the deployment (`overseer.
+  EFFORT_ENV`; sent on every call, said in the header as
+  `build.reasoningEffort`; the chat backends' alone: the Anthropic path's
+  `effort` is a 400 on Haiku 4.5). Unset is today's: the provider's.
+- **novita is the one to keep the robots off**: 197 s a decision, 2 of 12
+  past five minutes, and both its interrupts ran out of their 4,096 tokens
+  thinking (a cut-off interrupt aborts the errand). Under `:cheapest` it
+  takes a share of the calls; pinned elsewhere, none.
+- **Every candidate SEES**, through every provider: each read a red "38"
+  beside a green circle, with and without the decision's schema beside the
+  picture, and described the site's garden (`seetest.py`). GLM-5.3 and
+  DeepSeek-V4-Pro, the text-only ones, are not candidates. ⚠ The live
+  robots had never been shown a picture: no eye had run on the deploy box
+  (§2h; the installed `rooftop-deploy` predated #541's eye block), so `look`
+  had been off their menu since 10-03. Started by hand on 2026-11-05.
+- **The probe's energy gate no longer separates them** (`overseer_probe.py
+  --deployed --image`, 12 calls each): every configuration charged first,
+  none took the job it could not pay for -- so whether the stronger model
+  decides better is not measured here (below).
+
+**Flown, the replays under-measured the long thinks**, as the probe always
+has a mission: this branch, the pair from the same backup on the real mind
+(`zai-org/GLM-5.3-Flash:baseten`, its default effort), paced at real time
+for 21 minutes. Both robots held a hand job and spent the flight writing
+and mending its procedure, which the replayed turns (recalls and idles)
+never reached: 12 of 13 calls answered and the 13th cut off at 24,576
+tokens after 208 s (the budget is 32,768 since); a median of 11.3k tokens
+and 64 s, 3 of 13 past 20k, 208 s the longest. ⚠ Luca stood still thinking
+53 % of the flight and Rowan 40 % (`rows/flight1/calls.jsonl`).
+
+What a long think costs. The robot STANDS STILL while it thinks (`_decide`,
+`hold_routine`), at the ~93 W a humanoid draws standing, while its world
+goes on: the other robot works, offers come and go, a held job's minutes
+run. 300 s of it is 7.8 Wh, 40 % of the reserve (19.5 Wh); and the call's
+wall comes out of the 1800 s the robot's map has to ask again in
+(`lifecycle.UNMINDED_AFTER_S`, stamped at the ASK: #317 chose 1800 with a
+1.31x margin over the worst healthy gap, which a 300 s call can take). At
+the live pair's ~48 calls an hour (Luca ~31, Rowan ~17; 11-01 to 11-03), the
+MEDIAN replayed think stands each robot still ~5 minutes of its hour on
+deepinfra and ~16 on baseten, and flown on procedure work, at baseten's
+default, half of it -- today's regime, mostly baseten's under `:cheapest`.
+⚠ A decision that escalates stands it still for the escalation's 360 s on
+top (off on the deployed world).
+
+The numbers, and why:
+- **`CALL_TIMEOUT_S` is 300 s** (115 s since #604): every flowing think
+  measured fits but novita's slowest. A stream still writing at it is
+  `fallback:timeout` (`StillWriting`), naming who was answering, and the
+  robot is told "your answer was still being written when its 300 s ran
+  out", as a cut-off is told its tokens ran out (streamed and pinned, a
+  timeout is mostly its own think, not nobody's); one the far side closed
+  is `offline` (`StreamClosed`); a whole JSON before either is an answer. ⚠ No read waits past the deadline (`stream_fetch` holds the
+  socket to the wall's time left: a worker still reading would make the
+  next decision `busy`).
+- ⚠ **A stream whose count never came is BOOKED AT AN ESTIMATE**, never at
+  none (billed is billed, #225; the review's catch): its request's text and
+  what it streamed at `llm.CHARS_PER_TOKEN` (3.0: 2.9-3.8 a token measured,
+  the low end), a picture at `IMAGE_TOKENS`; its `call` row says no count
+  came (`tokensIn`/`tokensOut` null). Only such a stream: a provider's own
+  count stands. So too a stream that FAILED after its first delta -- an
+  error chunk ("Stream ended before generation completed", 1 in 12 of the
+  probe's on baseten), a read silent its whole `STREAM_SILENCE_S`, a reset
+  -- `offline` (`StreamClosed`), its call and its words kept. ⚠ Only with
+  a wall, the robots' calls: practice's streams are as they were.
+- **`llm.STREAM_SILENCE_S` is 115 s**: each read's, as long as a call not
+  streamed waited for its first byte, so a provider that never answers
+  costs that, not the deadline; the slowest first byte measured was 13 s
+  (novita), and one cold DeepSeek call took 244 s, its bytes flowing.
+- **`MAX_TOKENS_AUTONOMOUS` is 32,768** (16,384 since #604): flown, the
+  robots writing and mending procedures thought past what the replays
+  caught (below), one cut off at 24,576; 32,768 comes back inside 300 s at
+  112 tokens a second, its wall in -- the flight's thinks over 10k wrote at
+  114-246. Slower (2 of the replays' 17 long answers wrote at 100-106), a
+  think that runs out is a timeout, not a cut-off.
+- **`INTERRUPT_TIMEOUT_S` is 115 s**, its own: the interrupt holds a
+  low-pack robot still mid-errand, and its 4,096 tokens come back in ~70 s
+  at the slowest writer measured (Qwen on deepinfra, 60 a second).
+- **`ESCALATE_TIMEOUT_S` is 360 s**, an ordering above the decision's.
+
+Which mind, then -- the deployment's to set (`$PLUGGY_MODEL`,
+`$PLUGGY_REASONING_EFFORT`), recommended 11-05 at the pair's ~48 calls an
+hour, 16 hours a week (768 calls) against the $20 purse. Ben took the
+first, pinned in the box's `.env` on 2026-11-05 (no effort named):
+
+- **Now: `zai-org/GLM-5.3-Flash:baseten`, no effort named.** The mind the
+  robots mostly had (#604: 41 of 44 `:cheapest` calls landed there), made
+  reliable: 28 of 29 replayed turns valid and every think back inside 98 s;
+  flown, 12 of 13 answered, the one cut off at a budget since raised; its
+  interrupts 4 of 4; ~$5-8 a week (the flight's thinks were twice the
+  replays'). Pinned, no call lands on novita. ⚠ Its cost is TIME: a
+  median of 41 s a replayed decision and 64 s a flown one, and flown on
+  procedure work each robot stood still thinking half the time.
+- **A stronger model, as a period of its own: `deepseek-ai/DeepSeek-V4.1-
+  Flash:deepinfra` at `low`.** 16 of 16 replayed turns valid, a median of
+  30 s and 99 s the most, ~6k tokens a think, $0.0096 a call (~$7 a week),
+  and the router's catalogue lists structured output for deepinfra's (not
+  baseten's); not flown. Not measured to decide
+  better -- the energy gate passes every candidate -- but larger and newer
+  (552B, 8-16B active, 10 Sep 2026; GLM-5.3-Flash 320B, 18B active, 25 Aug),
+  its card's agentic numbers above GLM-5.3's, and it wrote #560's first
+  table procedure that fit and ran. ⚠ Its effort is the whole difference:
+  at deepinfra's default it does not reason at all, and at baseten's it
+  thought a median of 21k tokens a turn, 51k the most ($0.046 a call, up to
+  three and a half minutes).
+- **Faster: GLM-5.3-Flash on baseten at `low`**: 16 of 16 replayed turns
+  valid, a median of 10 s, ~1.4k tokens, ~$4 a week, not flown; each robot
+  stands still a quarter of what baseten's default stands it -- a
+  shallower think.
+- ⚠ **Not `:cheapest`**: it still lands on novita, whose decisions take
+  three minutes and whose interrupts run out of their tokens.
 
 ### The local backend
 
@@ -1845,7 +2054,8 @@ wants the machine a served world already assumes: the sim's own container.
 
 ### The deadline
 
-`CALL_TIMEOUT_S` = 115 s (90 s from #117 to #604). The probe (`scripts/overseer_probe.py --calls 50`,
+`CALL_TIMEOUT_S` = 300 s, streamed (90 s from #117 to #604, 115 s to its
+follow-up; above, "Streamed"). The probe (`scripts/overseer_probe.py --calls 50`,
 quiet, the deployed pick) reports the latency **distribution** and the timeout
 share each candidate deadline would cost: median 4.88 s, p95 6.59, max
 **7.38 against the old 8** — 0 % timeouts and no margin, which is why any
@@ -1860,21 +2070,18 @@ read 37 s median with calls at 120 s; the pick's tail (p95 25 s, max 43 s)
 was what the 90 s stood against.
 
 The deadline is a patience budget: a decision lost to a clock is the one
-failure that is purely ours. A cap is only *spent* when a call is slow — at
-the median the day's thinking is ~98 sim-s (2.7 %) whatever the cap is. 90
-was not read off the tail; ⚠ by #604 the tail had reached it: on 11-03 13 %
-of the deployed calls (146 in a day) outlived 90 s, and on the live robots'
-own turns the longest answers took 88.7 s (16,986 tokens) and 94.6 s. So
-**115**: the router's gateway answers a non-streamed request silent for 120
-s with a 504 (measured four times, at 120.2-120.3 s), so no answer comes
-later, and 115 plus `POLL_GRACE_S` (117) ends a call as our own `timeout`
-before it, never the gateway's `offline`. The token budget is sized to it
-(above, "The budget"). ⚠ The 25 s it adds is paid by every call that hangs
-— a provider that never answers in time stands the robot still 115 s, not
-90 — which is the pinned provider's argument, not this number's.
-`ESCALATE_TIMEOUT_S` (120) follows as an ordering, not a number, and the probe
-holds its calls to 2× the deadline (`PROBE_TIMEOUT_S`), never to the deadline
-under test.
+failure that is purely ours. A cap is only *spent* when a call is slow, but
+a slow call is spent standing still (above, "What a long think costs"). By
+#604 the tail had reached 90 s (13 % of the deployed calls on 11-03), and a
+call not streamed could use no more than 115: the router's gateway answers
+a request silent for 120 s with a 504 (measured four times, at 120.2-120.3
+s). Streamed, **300**: every flowing think measured on the live turns but
+novita's slowest. A stream silent for `llm.STREAM_SILENCE_S` (115 s) ends
+there, so a provider that never answers stands the robot still that long,
+not the deadline. The token budget is sized to it (above). The interrupt
+keeps its own `INTERRUPT_TIMEOUT_S` (115 s), `ESCALATE_TIMEOUT_S` (360)
+follows as an ordering, not a number, and the probe holds its calls to 2×
+the deadline (`PROBE_TIMEOUT_S`), never to the deadline under test.
 
 ### Money has three states
 
@@ -2282,7 +2489,7 @@ has no goals to spend free time on.
   its predecessor's goals included (issue #154: they were the dead robot's,
   and inheriting them would hand back the one thing dying costs), nor its
   map and the places it found (#419, `Body.forget_world`): it knows where
-  its charging station is and nothing else. ⚠ **It starts with points to
+  its charging stations are and nothing else. ⚠ **It starts with points to
   explore with** where the world gives some (`lifecycle.STARTING_POINTS`,
   200 -- a heart's price -- on a served world; `serve.py --start-points`,
   off in a test): booked `granted`, a term in the ledger's identity and
@@ -2365,7 +2572,7 @@ PLUGGY_ARM=autonomous PLUGGY_ORIGIN=unseeded PLUGGY_PAIR=1 HF_TOKEN=... \
 
 Environment (the deploy configures with `environment:` alone): `PLUGGY_ARM`,
 `PLUGGY_RUNG`, `PLUGGY_ORIGIN`, `PLUGGY_OVERSEER`, `PLUGGY_MODEL`,
-`PLUGGY_OVERSEER_BACKEND`, `PLUGGY_OVERSEER_URL`, `PLUGGY_ESCALATE_TO`,
+`PLUGGY_REASONING_EFFORT`, `PLUGGY_OVERSEER_BACKEND`, `PLUGGY_OVERSEER_URL`, `PLUGGY_ESCALATE_TO`,
 `PLUGGY_WEEKLY_USD`, `PLUGGY_SPEND`, `PLUGGY_MODE_FILE`,
 `PLUGGY_THOUGHTS`, `PLUGGY_PACK`, `PLUGGY_RESERVE_WH`,
 `PLUGGY_ENERGY`. `ANTHROPIC_API_KEY`, `HF_TOKEN` and `PLUGGY_OVERSEER_KEY` are

@@ -183,9 +183,13 @@ class HumanoidPlaces:
     self._place_look: tuple[float, tuple[float, float, float] | None] = (-math.inf, None)
     #: The last find's record.
     self.last_find: dict | None = None
-    #: The newest look of its head's camera that saw its station (#572,
+    #: The newest look of its head's camera that saw a station (#572,
     #: `see_station`), or None.
     self.station_sighting: dict | None = None
+    #: Its world's stations, {name: (frame, tags)}, and the one a charge goes
+    #: to: the body's to set (`HumanoidBody.choose_station`, #560).
+    self.stations: dict = {}
+    self.station: str | None = None
     self._nav_tags = None
 
   def _place_detector(self):
@@ -259,17 +263,28 @@ class HumanoidPlaces:
     return ids
 
   def see_station(self, dets: dict) -> None:
-    """Its charging station's tags in one decode of the head's camera
-    (#572), in the map frame (`_placed`): `station_sighting`, the newest such
-    look -- when, from where, and each tag seen, where it is and which way
-    its face points by its own rotation. The station is commissioned, never
-    a place: what it learns here is where its belief puts what it saw."""
-    ids = [i for i in STATION_TAG_IDS if i in dets]
-    if not ids:
+    """A charging station's tags in one decode of the head's camera (#572),
+    in the map frame (`_placed`): `station_sighting`, the newest such look
+    -- when, from where, which station (#560: its pair says which) and each
+    tag seen, where it is and which way its face points by its own
+    rotation; of two in one look, the one more of whose tags it saw, the
+    nearer. A station is commissioned, never a place: what it learns here
+    is where its belief puts what it saw."""
+    stations = self.stations or {"station": (None, STATION_TAG_IDS)}
+    best = None
+    for name, (_, tags) in stations.items():
+      ids = [i for i in tags if i in dets]
+      if ids:
+        near = min(float(np.linalg.norm(dets[i]["t"])) for i in ids)
+        if best is None or (len(ids), -near) > (len(best[1]), -best[3]):
+          best = (name, ids, tags, near)
+    if best is None:
       return
+    name, ids, tags, _ = best
     eye, placed = self._placed(dets, ids)
     self.station_sighting = {
       "t": float(self.data.time), "eye": (float(eye[0]), float(eye[1])),
+      "station": name, "ids": tuple(tags),
       "tags": {i: (tuple(float(v) for v in p), out) for i, (p, out) in placed.items()}}
 
   def look_for_places(self) -> list[int]:

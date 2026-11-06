@@ -54,6 +54,116 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: how hard the mind thinks (`build.reasoningEffort`), and a timeout that names who was answering (pluggybot #604's follow-up)
+
+The robots' calls stream now, to a deadline of 300 s (docs/Overseer.md §6).
+On the wire:
+
+- **`build.reasoningEffort`**: how hard the mind was asked to think
+  (`$PLUGGY_REASONING_EFFORT`, the model's own word, `low` or `high`).
+  ⚠ **ABSENT where none was named**, which is the provider's own default
+  -- as `rung` is absent where there is no ladder.
+- **A `fallback:timeout` or `offline` decision may carry its `call`**: a
+  stream still being written at the deadline, or one that failed after its
+  first delta, came from someone, so the `call` event names the `provider`
+  and `wallS`.
+- **`tokensIn` and `tokensOut` may be NULL**: on any call whose stream
+  sent no count -- one stopped at the deadline, one that failed or closed
+  mid-answer, one from a provider that sends none, an answer included. A
+  stream's count comes at its end; the sim books an estimate of its own,
+  and the row says no count came.
+- A timeout where nothing came back still names nobody, and so do a map
+  row and a policy fallback. `cut` stays the budget's.
+
+No bump: the field is new and optional, and a `call` on a timeout is the
+`call` event every consumer already files.
+
+### 0.21.0, additive: procedures that call procedures (pluggybot #560, stage (b))
+
+The language takes a source of one def or more, the first the one that
+runs, and a def calls another by its name with arguments (a name, or a
+number); in a robot's library, one procedure calls another. On the wire:
+
+- **A step that ran inside a call says where** (a run's `steps`, the
+  practice's rows and a session's `attempt`): `in`, the def it ran in, and
+  `entry`, the library procedure whose source holds its `line` where that
+  is not the run's own -- absent at the procedure's own def. A step whose
+  failure a call's `if` read carries `tested: true`, as a tested verb's
+  does, and a fault an `if` read has no `i` (no verb ran).
+- **An `aborted` run's `failedIn` and `failedEntry`**: the failed step's
+  `in` and `entry`, beside `failedLine` (whose source it is, where
+  `failedEntry` names another).
+- **A run's `locals` carry each callee's**, as it last ended, keyed
+  `callee.name` after the procedure's own (`{"k": 3, "turn.b": 0.5}`).
+- **A run may stop at `statements`** (`stopped`): it ran 100,000
+  statements, the most one run may.
+- **`hello.sourceChars` is 3,000** (1,500 before), and **`hello.index`
+  carries `calls`**: whether a source's defs may call each other, `true`
+  for the session's world, and `callDepth`, how deep calls may go (4; 0
+  where there are none); the language section says how.
+
+No bump: every field is new and optional, and a page that does not know
+them draws a run as before -- a nested step at its own line.
+
+### 0.21.0, additive: the grown world (pluggybot #560, stage 1)
+
+The house grows into a 2x2 grid: today's row north, and south of it the
+PARK beside the house and the MALL beside the research center, the
+middle street running on between the columns, a pedestrian ALLEY between
+the research center and the mall, and the loop round all four (49 x 40 m
+inside its fence, where it was 49 x 21). No shape moved; what a consumer
+sees:
+
+- **Both humanoid scenes are new** (235 bodies, 267 for the pair; 39
+  zones). New zones: the robots' two rooms off the living room
+  (`room_west`, `room_east`), the research center's `study_room` (the south
+  half of its front garden, so `garden_2` is its north half), the `park`
+  (kind `park`, no building), the mall's `concourse`, `dining_room`,
+  `restaurant_kitchen`, `shop` and `loading_zone`, the `alley` (it replaces
+  `sidewalk_2_south`), and the second row's sidewalks (`sidewalk_park`,
+  `sidewalk_park_west`, `sidewalk_park_south`, `sidewalk_mall`,
+  `sidewalk_mall_east`, `sidewalk_mall_south`). `sidewalk_south` is the
+  3 m strip between the rows now; `garden_south` starts at the robots'
+  rooms. Every room names its building; nothing outdoors does.
+- **A building, additive** (`BUILDINGS`): `mall`.
+- **Two hints, additive** (`VISUAL_HINTS`, `hints.json`): `chair` -- ONE
+  BOX, the seat's footprint to the top of its back, a sitter facing the
+  body's +x -- and `shelf` -- MANY boxes kept, a RESKIN: two ends, a back
+  (at its back edge against a wall, down its middle for a gondola stocked
+  both sides) and four boards, 0.15-1.35 m up, its front the body's +y.
+  The dining tables and the study table are `table`s, the expo line's,
+  the checkout's and the kitchen's worktops `counter`s, the park's two
+  trunks `tree`s -- the first in-world trees: solid, mapped, the canopy the
+  site's. The world itself sets nothing on a table or a shelf: the
+  dishware and the stock are each task's.
+- **Three stations**, one in each building: the house's (`station`, tags
+  58-59), the research center's (`station_facility`, 64-65, at its lobby's
+  south end) and the mall's (`station_mall`, 66-67, at its concourse's
+  south end), each with its plug as a dynamic body (`<name>_plug`) and its
+  rope as a `cables` entry (`<name>_rope`), and each an activity of its
+  own name. The header's `world` census carries the three plugs.
+- **Tag textures** `tagtex64.png`-`tagtex75.png`: the two new stations'
+  pairs, and the new places' tags -- the restaurant's pair beside its pass
+  (68-69), the shop's pair (70-71), the park's sign (72), one in each robot's
+  room (73-74) and the study room's (75). The park's sign is a body of its
+  own (`park_sign`), unhinted.
+- **`drift` rows carry `station`** on `lost`, `searched` and `fixed`:
+  which station the charge went to, or was fixed off.
+- **A decision may carry `station`**, `"free"`, on a `charge` alone (absent
+  otherwise): the mind chose to go on to the nearest station nobody
+  holds where its nearest is taken, rather than wait for it.
+- **The pair's recording is flown again** in the grown world (osmesa), on
+  the 33 Wh test pack (`humanoid.world.DEMO_WH`, 30 before: charged, it
+  funds the jobs priced from the mall's station and the reserve both): the
+  first robot, started low, plugs in at the house's station at 38 s and
+  charges while the second explores; the second goes to charge at 235 s
+  under the new 19.5 Wh reserve, waits for the house's station (the
+  nearest for both) until it is free at 310 s, and plugs in at 342 s. Both
+  done at 534 s. The counter's scene and recording too, since the counter
+  stands in the house (chest 0 passed in 23.6 s).
+- A world change is a new build identity (`dataHashes.world`), and every
+  day's trajectory is different (docs/Observatory.md).
+
 ### 0.21.0, nothing new on the wire: a task's `id` is the board's count, and orders it (pluggybot #610)
 
 No message's shape moves, and no bump. What a consumer may rely on is
@@ -2281,6 +2391,7 @@ run is exactly the granularity a consumer wants to group by. `accepts` and
 | `arm` | `scripted` / `autonomous` (docs/Evaluation.md §2; `guarded`, the control retired in #427, appears only in streams from before it). The deployed world is `autonomous` (#206), and it says so rather than being assumed. ⚠ It is what RAN, not what was asked for: an arm whose mind could not be built at all is a `scripted` day |
 | `rung` | which rung of the `autonomous` ladder — `A0` (the survival clock hidden) or `A1` (restored). ⚠ **ABSENT on an arm with no ladder**, rather than null: "which mind" is a question every arm answers and "which rung" is not one `scripted` has |
 | `model`, `backend` | which mind is deciding, and by which road — `Qwen/…` on the router and the same id served locally are different regimes |
+| `reasoningEffort` | how hard the mind was asked to think (`low`, `high`; pluggybot #604's follow-up). ⚠ **ABSENT where none was named**: the provider's own default, and one model at two providers' defaults thought 1.5k and 5.2k tokens a turn |
 | `packWh`, `reserveWh`, `deadlineS` | the three world parameters each already shown to move behaviour. The deadline is not a data file, so no hash catches it |
 | `constitutions` | which constitution each robot was told it is, per robot root -- `{root: {name, sha}}` (pluggybot #263, the entry above). ⚠ Absent on a header built without one |
 

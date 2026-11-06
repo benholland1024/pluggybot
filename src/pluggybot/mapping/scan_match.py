@@ -36,13 +36,18 @@ REACH_M = 0.30
 #: Unseen cells this close behind a wall are its inside, cells: a thin wall
 #: is one cell, and its returns land on both sides of that cell's centre.
 BEHIND_CELLS = 2.0
-#: Returns at or past this range are left out, m. MEASURED on a recorded
-#: lab trip: a wall at the LIDAR's 8 m reach is seen SHORT -- its long
-#: draws are clipped to "no return", and the map clears it with the same
-#: rays -- and the street's far wall pulled the pose 32 mm toward it every
-#: scan; with returns cut at 6 m the pull was 0.0 mm (sd 3.5). 6.5 m made
-#: the worst error of the trip smallest (0.18 m against 0.23 at 6 and 7).
-MATCH_RANGE_M = 6.5
+#: Returns at or past this range are left out, m: the map's own reach
+#: (`lidar.MAX_RANGE`) since #560, the park's middle 8 m from its nearest
+#: fence. ⚠ A WALL AT THE REACH IS SEEN SHORT where its long draws are
+#: clipped to "no return": the C1 2D LIDAR's far wall pulled the pose 32 mm
+#: a scan, so its cut was 6.5 m. The band's sigma there is 2.4 cm and it
+#: reads a surface by its returns' median: matched from the true pose where
+#: a scan has returns 7.5-8 m out, the pull was 1.0 mm (p95 2.1) at 8.0
+#: against 0.8 (1.9) at 6.5, and the park's middle went from its heading
+#: unpinned at 71 % of places to 26 % (`lidar_spike.py --probe`, the band);
+#: flown, the belief's worst error was a median 0.13 m against 0.15 (the
+#: drift spike, eight flights an arm on one pod; SimNotes, "The grown world").
+MATCH_RANGE_M = 8.0
 #: ...and returns nearer than this, m: what the hands work on -- the
 #: station's box, the plug in the hand, a drawer, a door -- each low surface
 #: struck by one ring or two at the part's noisiest (4 cm at 0.2 m), where a
@@ -51,12 +56,17 @@ MATCH_RANGE_M = 6.5
 #: belief stopped 3.6 cm inside the seat, and 2 of 3 wide starts never lined
 #: up; without them, 26-41 cm, and 3 of 3 docked.
 MATCH_MIN_M = 1.0
-#: The field's window, m either way: MATCH_RANGE_M and a refresh's travel.
-WINDOW_M = 7.5
 #: The field is recomputed after this much travel from where it was, m, or
 #: this many fused scans: 5 ms a refresh; a fresher field did no better.
 REFRESH_M = 1.0
 REFRESH_SCANS = 20
+#: The field's window, m either way: a point outside it pulls on nothing.
+#: ⚠ SHORT OF MATCH_RANGE_M AND A REFRESH'S TRAVEL ON PURPOSE (#560): grown
+#: to their 9 m, the static probe pinned the park's middle better (19 % of
+#: places unpinned against 26) on a map laid from the true poses, but flown
+#: on the robot's own map the drift spike's worst error was a median 0.21 m
+#: against 0.13 at 7.5 (the same eight flights, five worse, one 0.13 to 0.47).
+WINDOW_M = 7.5
 #: The robust weight's scale, m (Cauchy): a point this far off its wall
 #: counts half, one three times as far a tenth.
 ROBUST_M = 0.05

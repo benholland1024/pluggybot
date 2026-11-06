@@ -109,7 +109,7 @@ mind has to be free of all three or it measures nothing.
 
 | | where | what it does |
 |---|---|---|
-| **the floor** | `needs_charge` — `battery.energy_wh < low_battery_wh` | an absolute return-trip reserve, a property of the floor plan (18 Wh on the humanoids, `humanoid.world.RESERVE_WH`). Top of the loop, never inside an errand |
+| **the floor** | `needs_charge` — `battery.energy_wh < low_battery_wh` | an absolute return-trip reserve, a property of the floor plan (19.5 Wh on the humanoids, `humanoid.world.RESERVE_WH`). Top of the loop, never inside an errand |
 | **the gate** | `_afford_next` | does the head of the errand queue fit in the pack *right now*? If not: charge, then ask again |
 | **the offer filter** | `Task.claimable` | an offer the pack cannot fund is never *shown* — the model cannot overreach because it cannot see the option |
 
@@ -1834,6 +1834,37 @@ the reference: 19 of 32 [0.42, 0.74] at one try.
   and stage 1 found. Spend: $3.91 -- the arms $3.81, the smokes $0.10; the
   reference cost no tokens.
 
+**The table's place, its reference first** (#560's first task, easy mode;
+Challenges.md §12): our procedure in the hands' vocabulary
+(`hands_check.TABLE`) flown over its set-outs before any mind practices it,
+the bar the check's, 6 of set-outs 0-7, written before this job was. **0 of
+8 (1 on another pod), the bar not met, and 6 of 32 held-out set-outs**; by
+each piece's own criteria there the cup was laid 23 times, the plate 24 and
+the fork 6 (it comes last) -- since the hands' small fixes (#560's stage
+(a)); before them, on the same pod, 23, 6 and none, and no place (#615's
+own machine, on the public 32: 21, 7 and none). So by §7's ladder A the job is a defect, not an
+offer: what this body reaches at a 0.72 m table, a stance a piece, is
+narrower than the work (SimNotes, "Setting a table"). No practice
+arm has flown it. One try on the deployed model, a smoke of the harness,
+ran it end to end and wrote no procedure that ran: its first answer spent
+its 128,000 tokens thinking, and its sources then came to 5,458, 1,915 and
+1,608 characters, each over the language's 1,500 ($0.11) -- ours fits at
+1,401.
+
+**Defs that call defs, and 3,000 characters** (#560's stage (b), Ben's
+decision of 2026-11-04). Every hands world's language -- the practice's,
+a person's session and the served pair's -- takes a source of one def or
+more, the first the one that runs, a def calling another with arguments
+(Overseer.md §2b), and a source of 3,000 characters, stated in the text
+(1,500 before, and unstated: a mind learned it from a refusal, and the
+rounds above lost 11 to 43 sources an arm to it). A practice row's
+language is its commit's: ⚠ rows from before and after are NEVER POOLED.
+In practice a source's calls name its own defs alone -- the kept
+procedures are shown, never called -- so the KEPT protocol keeps each pass
+as the source it ran, its callees in it (`keep`, `program`: a pass's
+whole source is one program), and no later pass can change what an
+earlier one called.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.
@@ -1868,7 +1899,8 @@ Four things only the observatory can show:
 ⚠ **OBSERVATORY DATA WITHOUT A BUILD IDENTIFIER IS NOT WEAKER DATA, IT IS
 UNUSABLE DATA** — two regimes wear one name and nothing can separate them
 afterwards. The header carries a `build` block (`commit`, `dataHashes`, `arm`,
-`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`, since #263
+`model`, `backend`, `packWh`, `reserveWh`, `deadlineS`, since #604's
+follow-up `reasoningEffort` where one is named, since #263
 `constitutions` — which constitution each robot was told it is, by name and
 content hash, per robot root, because a pair may be given two — and since
 #387 `body`, the body's name and the sha256 of each policy it walks and gets

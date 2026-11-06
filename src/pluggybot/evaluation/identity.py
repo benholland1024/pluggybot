@@ -133,7 +133,8 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
                    commit: str | None = None,
                    constitutions: dict | None = None,
                    eyes: str | None = None,
-                   body: dict | None = None) -> dict:
+                   body: dict | None = None,
+                   effort: str | None = None) -> dict:
   """WHICH BUILD produced a stream (issue #132; docs/Evaluation.md §5).
 
   The deployed world is an observatory rather than an experiment -- one
@@ -152,6 +153,11 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
     # locally is a different regime (docs/Overseer.md §6).
     "model": model,
     "backend": backend,
+    # ...and HOW HARD it was asked to think (#604's follow-up,
+    # `overseer.EFFORT_ENV`): the same model at a provider's default and at
+    # `low` thought a median of 21k and 7.5k tokens a turn. ABSENT where none
+    # was named, on the rung's terms: unset is the provider's default.
+    **({"reasoningEffort": effort} if effort else {}),
     # The three world parameters that have each been shown to move
     # behaviour: the pack size (Evaluation.md §5, "an experimental
     # parameter, not a comfort setting"), the return-trip margin every

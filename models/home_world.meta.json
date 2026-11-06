@@ -3,7 +3,9 @@
  "visualHints": {
   "wall_west_0": "wall",
   "wall_west_1": "wall",
-  "wall_south": "wall",
+  "wall_south_0": "wall",
+  "wall_south_1": "wall",
+  "wall_south_2": "wall",
   "wall_north": "wall",
   "wall_east_0": "wall",
   "wall_east_1": "wall",
@@ -20,15 +22,21 @@
   "wall_hall_south": "wall",
   "wall_hall_east": "wall",
   "fence_south": "fence",
+  "wall_rooms_south": "wall",
+  "wall_rooms_east": "wall",
+  "wall_rooms_div": "wall",
   "fence_north": "fence",
   "fence_east_0": "fence",
   "fence_east_1": "fence",
   "fence_2_west_0": "fence",
   "fence_2_west_1": "fence",
   "fence_2_north": "fence",
-  "fence_2_south": "fence",
   "wall_2_west_0": "wall",
   "wall_2_west_1": "wall",
+  "wall_2_west_2": "wall",
+  "wall_study_west": "wall",
+  "wall_study_south": "wall",
+  "wall_study_north": "wall",
   "wall_2_north": "wall",
   "wall_2_south": "wall",
   "wall_2_east": "wall",
@@ -36,6 +44,28 @@
   "wall_lobby_east_1": "wall",
   "wall_lobby_east_2": "wall",
   "wall_lab_div": "wall",
+  "fence_park_north_0": "fence",
+  "fence_park_north_1": "fence",
+  "fence_park_south": "fence",
+  "fence_park_west": "fence",
+  "fence_park_east_0": "fence",
+  "fence_park_east_1": "fence",
+  "wall_mall_west_0": "wall",
+  "wall_mall_west_1": "wall",
+  "wall_mall_north_0": "wall",
+  "wall_mall_north_1": "wall",
+  "wall_mall_south": "wall",
+  "wall_mall_east_0": "wall",
+  "wall_mall_east_1": "wall",
+  "wall_concourse_east_0": "wall",
+  "wall_concourse_east_1": "wall",
+  "wall_concourse_east_2": "wall",
+  "wall_mall_div": "wall",
+  "wall_pass_0": "wall",
+  "wall_pass_1": "wall",
+  "wall_pass_2": "wall",
+  "wall_loading_0": "wall",
+  "wall_loading_1": "wall",
   "fence_loop_west": "fence",
   "fence_loop_east": "fence",
   "fence_loop_north": "fence",
@@ -48,6 +78,14 @@
   "lobby_floor": "floor",
   "lab_floor": "floor",
   "store_floor": "floor",
+  "room_west_floor": "floor",
+  "room_east_floor": "floor",
+  "study_floor": "floor",
+  "concourse_floor": "floor",
+  "dining_floor": "floor",
+  "restaurant_kitchen_floor": "floor",
+  "shop_floor": "floor",
+  "loading_floor": "floor",
   "garden_south_ground": "ground",
   "sidewalk_ground": "sidewalk",
   "street_ground": "street",
@@ -56,7 +94,14 @@
   "sidewalk_north_ground": "sidewalk",
   "sidewalk_2_north_ground": "sidewalk",
   "sidewalk_south_ground": "sidewalk",
-  "sidewalk_2_south_ground": "sidewalk",
+  "alley_ground": "sidewalk",
+  "park_ground": "ground",
+  "sidewalk_park_ground": "sidewalk",
+  "sidewalk_park_west_ground": "sidewalk",
+  "sidewalk_park_south_ground": "sidewalk",
+  "sidewalk_mall_ground": "sidewalk",
+  "sidewalk_mall_east_ground": "sidewalk",
+  "sidewalk_mall_south_ground": "sidewalk",
   "sidewalk_west_ground": "sidewalk",
   "sidewalk_east_ground": "sidewalk",
   "street_north_ground": "street",
@@ -80,6 +125,30 @@
   "furniture_bed": "bed",
   "furniture_counter": "counter",
   "furniture_table": "table",
+  "dining_table_0": "table",
+  "dining_table_0_chair_0": "chair",
+  "dining_table_0_chair_1": "chair",
+  "dining_table_1": "table",
+  "dining_table_1_chair_0": "chair",
+  "dining_table_1_chair_1": "chair",
+  "dining_table_2": "table",
+  "dining_table_2_chair_0": "chair",
+  "dining_table_2_chair_1": "chair",
+  "dining_table_3": "table",
+  "dining_table_3_chair_0": "chair",
+  "dining_table_3_chair_1": "chair",
+  "expo_counter": "counter",
+  "kitchen_worktop": "counter",
+  "shop_checkout": "counter",
+  "study_table": "table",
+  "study_table_chair_0": "chair",
+  "study_table_chair_1": "chair",
+  "kitchen_shelf": "shelf",
+  "shop_gondola": "shelf",
+  "shop_shelf": "shelf",
+  "loading_rack": "shelf",
+  "park_tree_0": "tree",
+  "park_tree_1": "tree",
   "stairs": "stairs"
  },
  "zones": [
@@ -164,7 +233,7 @@
    "name": "garden_south",
    "kind": "garden",
    "min": [
-    -2.0,
+    5.0,
     -6.0
    ],
    "max": [
@@ -189,7 +258,7 @@
    "kind": "outdoor",
    "min": [
     11.5,
-    -7.5
+    -26.5
    ],
    "max": [
     14.5,
@@ -213,7 +282,7 @@
    "kind": "garden",
    "min": [
     16.0,
-    -6.0
+    0.0
    ],
    "max": [
     19.0,
@@ -288,7 +357,7 @@
    "kind": "outdoor",
    "min": [
     -13.5,
-    -7.5
+    -9.0
    ],
    "max": [
     11.5,
@@ -296,11 +365,11 @@
    ]
   },
   {
-   "name": "sidewalk_2_south",
+   "name": "alley",
    "kind": "outdoor",
    "min": [
     14.5,
-    -7.5
+    -9.0
    ],
    "max": [
     29.5,
@@ -348,11 +417,11 @@
    "kind": "outdoor",
    "min": [
     -16.5,
-    -10.5
+    -29.5
    ],
    "max": [
     32.5,
-    -7.5
+    -26.5
    ]
   },
   {
@@ -360,7 +429,7 @@
    "kind": "outdoor",
    "min": [
     -16.5,
-    -7.5
+    -26.5
    ],
    "max": [
     -13.5,
@@ -372,11 +441,199 @@
    "kind": "outdoor",
    "min": [
     29.5,
-    -7.5
+    -26.5
    ],
    "max": [
     32.5,
     7.5
+   ]
+  },
+  {
+   "name": "room_west",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -2.0,
+    -6.0
+   ],
+   "max": [
+    1.5,
+    -2.0
+   ]
+  },
+  {
+   "name": "room_east",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    1.5,
+    -6.0
+   ],
+   "max": [
+    5.0,
+    -2.0
+   ]
+  },
+  {
+   "name": "study_room",
+   "kind": "room",
+   "building": "facility",
+   "min": [
+    16.0,
+    -6.0
+   ],
+   "max": [
+    19.0,
+    0.0
+   ]
+  },
+  {
+   "name": "park",
+   "kind": "park",
+   "min": [
+    -12.0,
+    -25.0
+   ],
+   "max": [
+    10.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "concourse",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    16.0,
+    -25.0
+   ],
+   "max": [
+    19.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "dining_room",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    19.0,
+    -17.0
+   ],
+   "max": [
+    25.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "restaurant_kitchen",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    25.0,
+    -17.0
+   ],
+   "max": [
+    28.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "shop",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    19.0,
+    -25.0
+   ],
+   "max": [
+    25.0,
+    -17.0
+   ]
+  },
+  {
+   "name": "loading_zone",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    25.0,
+    -25.0
+   ],
+   "max": [
+    28.0,
+    -17.0
+   ]
+  },
+  {
+   "name": "sidewalk_park",
+   "kind": "outdoor",
+   "min": [
+    10.0,
+    -25.0
+   ],
+   "max": [
+    11.5,
+    -9.0
+   ]
+  },
+  {
+   "name": "sidewalk_park_west",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -25.0
+   ],
+   "max": [
+    -12.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "sidewalk_park_south",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -26.5
+   ],
+   "max": [
+    11.5,
+    -25.0
+   ]
+  },
+  {
+   "name": "sidewalk_mall",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    -25.0
+   ],
+   "max": [
+    16.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "sidewalk_mall_east",
+   "kind": "outdoor",
+   "min": [
+    28.0,
+    -25.0
+   ],
+   "max": [
+    29.5,
+    -9.0
+   ]
+  },
+  {
+   "name": "sidewalk_mall_south",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    -26.5
+   ],
+   "max": [
+    29.5,
+    -25.0
    ]
   }
  ],
@@ -489,9 +746,13 @@
    "purpose": "toy"
   }
  },
+ "rooms": {
+  "pluggybot": "room_west",
+  "r2_pluggybot": "room_east"
+ },
  "gridBounds": [
   -17.5,
-  -11.5,
+  -30.5,
   33.5,
   11.5
  ]

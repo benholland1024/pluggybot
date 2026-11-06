@@ -271,16 +271,18 @@ judged unrounded and shown rounded, the time limit the task's. Proof in
   within 2.5 cm of the mat's, its bottom within 4 mm of the mat's top,
   flat on a face within 10 deg, any face (`place.resting_tilt`: read off
   one, a cube set down upside down "tipped 180 deg"); (2) it never came
-  down faster than 0.5 m/s, in the attempt or the hold -- set down, not
-  dropped; (3) nothing of the robot's touches it during the hold; (4) in
-  time. Slid there, it passes as well as carried.
+  down faster than 0.5 m/s while nothing of the robot touched it, in the
+  attempt or the hold -- let go over the mat, or knocked off: set down, not
+  dropped (#560: read held too, the line failed cubes held fast while the
+  carry swung them down); (3) nothing of the robot's touches it during the
+  hold; (4) in time. Slid there, it passes as well as carried.
 
 And each, the lid's (6): the body's own watch counted no fall from the
 attempt's start to the end of the hold (`lid.judged`, #544).
 
 Said beside and judging nothing: the most the drawer came out and the door
 opened, how far the lever was pressed, the fastest each moved, the cube's
-lift and the body's worst tilt.
+lift and the fastest it came down held, and the body's worst tilt.
 
 **The departure is the lid's: `shown: false`, paying 0** -- a check is our
 instrument, offered by no world, and a row a mind reads would change the
@@ -352,8 +354,9 @@ carries them; a mind is shown the rows its own world's jobs name
 humanoids see theirs.
 
 **Each has its hand-written solution** (`challenge/solutions.py`, Evaluation.md
-§7), two procedures in the robot's own vocabulary, because one would pass
-the language's 1,500 characters: the walk there, then the check's own
+§7), two procedures in the robot's own vocabulary, written when one would
+have passed the language's 1,500 characters (3,000 since #560, and its defs
+may call each other: the two are 1,491-2,013 together): the walk there, then the check's own
 procedure -- unchanged for the door and the chest; the drawer's pulls 4 cm
 further and lets go of the knob before its arm goes home. A job is offered
 once its reference passes 6 of 8 over a tour of the house, the bar written
@@ -361,4 +364,36 @@ before they flew (`solve.py --from tour`; SimNotes, "The humanoids' first
 jobs"): the drawer 8, the door 8, the chest 7. Each job's energy is its
 reference flown from the station (`energy.json`). The cube's reference set
 it down 2-7 cm off its mat's middle all 8 times, so `place_cube` is
-defined, graded and priced but not offered.
+defined, graded and priced but not offered (why: SimNotes, "Setting a
+table").
+
+## 12. Lay a place at a table (issue #560, its first task)
+
+The restaurant's first job, easy mode: a plate, a fork and a cup laid at a
+place card on one of the dining room's tables (`challenge/table.py`, the
+dishware `activity/dishware.py`, the set-out `counter.table_set_out`),
+practiced offline as the checks are (`practice.py --job table`).
+
+**The criteria**, written before any procedure flew them, in the PLACE's
+frame -- from the foot of the card's face, toward the diner and to the
+diner's left: (1) 5 s after the call each piece rests at its spot (the
+plate's middle on the place's line, the fork beside it on the left, the cup
+to the right and further in: `SPOTS`) within 2.5 cm, on the table and never
+on another piece, the plate and the fork flat and the cup upright within 10
+deg, and the fork along the line, its head toward the card, within 15 deg;
+(2) no piece nothing of the robot touched ever came down faster than 0.5
+m/s -- let go over the table, or knocked over; (3) nothing of the robot
+touches a piece during the hold; (4) in time; (5) no fall, the lid's (6).
+Said beside, gating nothing: whether each piece was lifted, how far each
+was off at the call, the fork's turn and the body's worst tilt.
+
+**A drop is a FREE piece's fall, never a held one's carry**, the cube's
+line too since (§10, Ben's call): read at every step, it failed two cubes
+held fast while the carry's posture swung the hand down at 0.6-1.0 m/s
+(SimNotes, "Setting a table").
+
+**The departure from the checks' rows: none** -- `shown: false`, paying 0;
+no world offers it until Ben's word.
+
+**What it cannot grade**, beyond §6: whether the place is pleasing -- a
+plate 2 cm off its spot passes -- and anything but its three pieces.

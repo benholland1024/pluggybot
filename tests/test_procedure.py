@@ -175,7 +175,7 @@ def test_a_tag_refusal_lists_a_run_of_tags_as_lo_to_hi():
   the twelve places in full -- reached 401 once the call led them. A run of
   three or more is `lo to hi`, never `lo..hi`, which reads as leaving `hi` out."""
   [why] = st.check_step(st.VERBS["find"], {"tag": 20, "x": 25.2, "y": -2.4}, HOME)
-  assert "(places: 35 to 46, 60 to 63)" in why, why
+  assert "(places: 35 to 46, 60 to 63, 68 to 75)" in why, why
   odd = replace(HOME, places=(5, 7, 8, 9, 12, 23, 24))
   [why] = st.check_step(st.VERBS["find"], {"tag": 99, "x": 25.2, "y": -2.4}, odd)
   assert why.endswith("(places: 5, 7 to 9, 12, 23, 24)"), why

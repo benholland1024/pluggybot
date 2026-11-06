@@ -318,7 +318,7 @@ def test_only_a_resting_body_free_to_makes_way(house, busy):
   body, m = _mission(house, resting=busy != "standing")
   try:
     if busy == "charging":
-      (port,) = m.port_eqs
+      port = m.port_eqs[0]                       # the house's station's, of three (#560)
       m.data.eq_active[port] = 1
     elif busy == "working":
       m.reach.phase["right"] = "hold"

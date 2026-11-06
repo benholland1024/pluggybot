@@ -41,7 +41,7 @@ SRC = Path(__file__).parent.parent / "src" / "pluggybot"
 
 def test_every_checks_procedure_is_the_language_a_mind_is_given():
   facts = st.hand_facts()
-  assert set(hc.JOBS) == {"lid", "drawer", "door", "place"}
+  assert set(hc.JOBS) == {"lid", "drawer", "door", "place", "table"}
   for job, source in hc.JOBS.items():
     proc = hc.compiled(job)
     assert len(source) <= lang.MAX_SOURCE_CHARS, job
@@ -111,7 +111,8 @@ def test_the_door_passes_open_50_deg_let_go_in_time_and_on_nothing_less():
 
 
 def _cube(**kw):
-  m = {"liftedM": 0.05, "fastestDownMS": 0.2, "robotTiltDeg": 2.0, "falls": 0,
+  m = {"liftedM": 0.05, "fastestDownMS": 0.2, "fastestFreeMS": 0.2, "robotTiltDeg": 2.0,
+       "falls": 0,
        "offAtCallM": 0.01, "offM": 0.01, "aboveM": 0.0005, "tiltDeg": 1.0,
        "holdS": place.HOLD_S, "elapsedS": 20.0, "limitS": 60.0, "touchedDuringHold": []}
   return {**m, **kw}
@@ -119,8 +120,12 @@ def _cube(**kw):
 
 def test_the_cube_passes_set_down_on_the_mat_upright_let_go_and_on_nothing_less():
   assert place.eval_place(_cube())[0]
-  ok, _, why = place.eval_place(_cube(fastestDownMS=place.DROP_M_S + 0.01))
-  assert not ok and "dropped, not set down" in why
+  ok, _, why = place.eval_place(_cube(fastestFreeMS=place.DROP_M_S + 0.01))
+  assert not ok and "with nothing holding it -- dropped, not set down" in why
+  # a cube held fast and carried down fast is set down, not dropped (#560:
+  # the carry's posture swung two held cubes down at 0.6-1.0 m/s)
+  assert place.eval_place(_cube(fastestDownMS=1.0))[0]
+  assert not place.eval_place(_cube(fastestFreeMS=None))[0]
   ok, _, why = place.eval_place(_cube(offM=place.PLACE_M + 0.001))
   assert not ok and "must rest on the mat" in why
   ok, _, why = place.eval_place(_cube(aboveM=0.03))
@@ -131,6 +136,39 @@ def test_the_cube_passes_set_down_on_the_mat_upright_let_go_and_on_nothing_less(
   assert not ok and "let go" in why
   ok, _, why = place.eval_place(_cube(elapsedS=61.0))
   assert not ok and "past the 60 s" in why
+
+
+def test_a_cube_held_is_carried_down_never_dropped(monkeypatch):
+  """Only a cube nothing of the robot touches can be dropped: coming down
+  at 1 m/s it reads nothing while a geom of the robot's touches it, and the
+  same speed with nothing touching it is a fall; the fastest at all is
+  said beside."""
+  from pluggybot.activity import cube as cb
+  from pluggybot.body import StubBody
+  from test_lid import BARE
+  spec = mujoco.MjSpec.from_string(BARE)
+  cb.attach_props(spec, cb.draw(0), (0.4, 0.0), (0.4, 0.2), tags=False)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  body = StubBody(model, data)
+  hand = model.geom("cube_mat").id                  # stands in for a pad of the robot's
+  body.geom_ids = np.array([hand], dtype=np.int32)
+  watch = place.Watch(model, data, body)
+  cube = model.geom("cube").id
+  held = [True]
+  monkeypatch.setattr(place, "contact_pairs", lambda d: (
+    np.array([[cube, hand]], dtype=np.int32) if held[0] else np.zeros((0, 2), dtype=np.int32)))
+  data.qvel[model.jnt_dofadr[model.joint("cube_free").id] + 2] = -1.0
+  watch()
+  assert watch.fastest_free == 0.0 and watch.fastest_down == pytest.approx(1.0)
+  held[0] = False
+  watch()
+  assert watch.fastest_free == pytest.approx(1.0)
+  # a watch kept before the free line restores its old reading, the dearer
+  again = place.Watch(model, data, body)
+  again.restore_kept({"fastestDown": 0.8, "falls": 0})
+  assert again.fastest_free == 0.8
 
 
 def test_a_check_is_held_its_whole_hold_and_failed_by_a_fall_never_by_a_tilt():
@@ -154,6 +192,7 @@ def _stub_set_out(task):
   """A check's set-out on the stub body (`attempts.set_out`'s shape): its
   prop on a bare floor, its activity sensing every step."""
   from pluggybot.activity import cube as cb
+  from pluggybot.activity import dishware as dish
   from pluggybot.body import StubBody
   from pluggybot.evaluation import attempts as at
   from test_lid import BARE
@@ -163,6 +202,10 @@ def _stub_set_out(task):
     dw.attach_cabinet(spec, dw.draw(k), (0.5, 0.0), tags=False)
   elif task.grader == "door":
     dr.attach_cupboard(spec, dr.draw(k), (0.5, 0.0), tags=False)
+  elif task.grader == "table":
+    dish.attach_card(spec, (0.6, 0.0), math.pi, 0.0, tags=False)
+    for i, p in enumerate(dish.PIECES):
+      dish.ATTACH[p](spec, (0.4, 0.3 * i - 0.3), 0.0, 0.0, 0.2, 0.7, tags=False)
   else:
     cb.attach_props(spec, cb.draw(k), (0.4, 0.0), (0.4, 0.2), tags=False)
   model = spec.compile()
@@ -171,13 +214,14 @@ def _stub_set_out(task):
   body = StubBody(model, data)
   act = {"drawer": lambda: dw.Drawer(model, data, dw.draw(k)),
          "door": lambda: dr.Door(model, data, dr.draw(k)),
-         "place": lambda: cb.Cube(model, data, cb.draw(k), 0.0)}[task.grader]()
+         "place": lambda: cb.Cube(model, data, cb.draw(k), 0.0),
+         "table": lambda: dish.Dishware(model, data, dish.draw(k), 0.0)}[task.grader]()
   body.step_hooks.append(lambda: act.sense(model, data))
   return at.World(task=task, model=model, data=data, body=body, chest=None,
                   start=(0.0, 0.0, 0.0), activity=act)
 
 
-@pytest.mark.parametrize("grader", ["lid", "drawer", "door", "place"])
+@pytest.mark.parametrize("grader", ["lid", "drawer", "door", "place", "table"])
 def test_a_stub_bodys_fall_fails_every_grader_through_its_attempt(grader):
   """Ben, 2026-10-25 (#544): every grader fails an attempt in which the
   body's own watch counted a fall (`Body.falls`, the stub's counter: what

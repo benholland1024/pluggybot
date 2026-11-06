@@ -170,7 +170,7 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   from pluggybot.economy.energy import load as load_energy
   b = board(energy=load_energy(lc.HUMANOID_HOME))
   task = offered(b)
-  assert task.estimate_wh == pytest.approx(7.082)
+  assert task.estimate_wh == pytest.approx(7.138)
   assert task.claimable(0.0, pack_wh=8.0)
   assert not task.claimable(0.0, pack_wh=7.0)
   assert b.claim(task.id, t=0.0, pack_wh=7.0) is None

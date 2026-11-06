@@ -96,6 +96,27 @@ STATION_TAG_SIZE = 0.060
 #: chest, the drawers, the cupboard and the cube -- the areas' 120 mm, read
 #: by the humanoid's navigation camera from across the room.
 COUNTER_TAG_IDS = (60, 61, 62, 63)
+#: The grown world's charging stations (issue #560; `humanoid.world.stations`):
+#: the research center's and the mall's, a pair each as the house's is --
+#: which pair a robot sees says which station it is looking at.
+STATION_2_TAG_IDS = (64, 65)
+STATION_3_TAG_IDS = (66, 67)
+#: ...and its places' tags (`home/areas.py`), the areas' 120 mm: a pair
+#: either side of the restaurant's pass, a pair on the shop's north wall,
+#: the park's sign, one in each robot's room and one in the study room.
+RESTAURANT_TAG_IDS = (68, 69)
+SHOP_TAG_IDS = (70, 71)
+PARK_TAG_IDS = (72,)
+ROOM_TAG_IDS = (73, 74)
+STUDY_TAG_IDS = (75,)
+#: A table set (#560, `activity.dishware`): the plate's, the cup's and the
+#: fork's, each printed on a face of its own -- the plate's floor, the cup's
+#: lid, the fork's handle -- and the place card's, which a place is laid at;
+#: each its black square, m. From 90: the ids after the places' are left for
+#: the store's stock.
+DISH_TAG_IDS = (90, 91, 92)
+PLACE_TAG_IDS = (93,)
+DISH_TAG_SIZES = {90: 0.048, 91: 0.040, 92: 0.019, 93: 0.080}
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -110,11 +131,15 @@ TAG_SIZES = {**{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in CHEST_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in (*DRAWER_TAG_IDS, *DOOR_TAG_IDS, *CUBE_TAG_IDS)},
              **{i: MAT_TAG_SIZE for i in MAT_TAG_IDS},
-             **{i: STATION_TAG_SIZE for i in STATION_TAG_IDS},
+             **{i: STATION_TAG_SIZE for i in (*STATION_TAG_IDS, *STATION_2_TAG_IDS,
+                                              *STATION_3_TAG_IDS)},
              **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS},
              **{i: BOARD_TAG_SIZE for ids in BOARD_TAG_IDS.values() for i in ids},
              **{i: AREA_TAG_SIZE for i in (*TOWER_TAG_IDS, *BENCH_TAG_IDS, *GARDEN_TAG_IDS,
-                                           *COUNTER_TAG_IDS)}}
+                                           *COUNTER_TAG_IDS, *RESTAURANT_TAG_IDS,
+                                           *SHOP_TAG_IDS, *PARK_TAG_IDS, *ROOM_TAG_IDS,
+                                           *STUDY_TAG_IDS)},
+             **DISH_TAG_SIZES}
 
 TAG_DIR = Path("models/tags")
 
@@ -207,13 +232,29 @@ def _shared_detector():
 
   Detection here is synchronous and single-threaded, so one detector serves
   every camera, and it is deliberately never destroyed: nothing frees it
-  twice if nothing frees it at all.
+  twice if nothing frees it at all -- not even at exit (`kept_detector`).
   """
   global _DETECTOR
   if _DETECTOR is None:
-    from pupil_apriltags import Detector
-    _DETECTOR = Detector(families=FAMILY, nthreads=2, quad_decimate=1.0)
+    _DETECTOR = kept_detector(families=FAMILY, nthreads=2, quad_decimate=1.0)
   return _DETECTOR
+
+
+def kept_detector(**params):
+  """A pupil-apriltags `Detector` never destroyed: the OS takes it back at
+  exit. ⚠ ITS OWN `__del__` IS A USE-AFTER-FREE: it frees the tag families,
+  then destroys the detector, which reads them (`quick_decode_uninit`) --
+  at every exit, as the module's globals go, and a segfault wherever another
+  thread had reused that memory first (#560: a drift flight in twenty, after
+  writing its results; the deployed quadrupeds' restarts, 1 in 39). With
+  freed memory overwritten it crashed every time (`test_tag_detector.py`)."""
+  from pupil_apriltags import Detector
+
+  class Kept(Detector):
+    def __del__(self):
+      pass
+
+  return Kept(**params)
 
 
 class TagDetector:

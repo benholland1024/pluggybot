@@ -337,6 +337,11 @@ RACK_LINGER_S = 90.0
 #: median 462 s; the humanoids' charges are not yet measured against it.
 CHARGE_OCCUPANCY_S = 462.0
 WAIT_OCCUPANCIES = 3.0
+#: ...or passed for the nearest free one, where a mind chose that (#560: a
+#: decided charge's `station`), at most this often a charge: one free when
+#: chosen can be taken by the time it is reached, and twice is every other
+#: station of three.
+MAX_STATION_SWITCHES = 2
 #: What a robot does AT the station: not lingering, whatever the clock says.
 #: A procedure is no business of the station's, refused or run.
 RACK_STATES = ("GO_CHARGE", "CHARGE")
@@ -445,6 +450,7 @@ PROCEDURE_STOPS = {
   "budget": "it ran out of the time its budget gave it",
   "steps": "it ran out of the steps its budget gave it",
   "interrupted": "it was interrupted",
+  "statements": "it ran the most statements one run may",
 }
 #: How a decided explore ended (`explore_routine`'s answer), in its History
 #: line's words (issue #424). A key missing here is the run's own end.
@@ -473,6 +479,30 @@ def explore_outcome(zone: str, ended: str, seconds: float,
           f"{EXPLORE_ENDS[ended]}")
 
 
+def callers_moved(library, before: set, changed: str) -> str:
+  """What a define or an undefine did to the procedures that call
+  `changed` (#560), as History says it: those that compiled and no longer
+  do -- one calling it, and one calling one of those -- and those that
+  compile again; "" where none moved. `before` is the names that compiled
+  before the change."""
+  after = {n for n, e in library.entries.items() if e.valid}
+  broken = sorted((before - after - {changed}) & set(library.entries))
+  said = []
+  for n in broken:
+    calls = library.calls_of(n)
+    via = sorted(c for c in calls if c in broken)
+    if changed not in library.entries and changed in calls:
+      said.append(f"{n}, which calls {changed}, cannot run until a {changed} is written again")
+    elif via:
+      said.append(f"{n}, which calls {', '.join(via)}, cannot run either")
+    else:
+      said.append(f"{n} cannot run now: {library.entries[n].reasons[0]}")
+  mended = sorted(after - before - {changed})
+  if mended:
+    said.append(f"{', '.join(mended)} can run again")
+  return "; ".join(said)
+
+
 def procedure_outcome(name: str, run: dict) -> list[str]:
   """The History a procedure the robot wrote leaves behind (issue #264):
   how far it got, and -- when it stopped short -- the line, the verb and
@@ -499,7 +529,12 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
     failed = next((s for s in steps if s.get("i") == at), None) if at is not None else None
     stopped = run.get("stopped")
     if failed is not None:
-      where = (f"line {failed['line']}, {failed.get('verb', 'a step')}"
+      # ...in a call, the def it ran in, and where that is another of the
+      # library's procedures, the line is of ITS source (#560)
+      where = (f"line {failed['line']}"
+               + (f" of {failed['entry']}" if failed.get("entry") else "")
+               + f", {failed.get('verb', 'a step')}"
+               + (f" (in {failed['in']})" if failed.get("in") and not failed.get("entry") else "")
                if failed.get("line") else "an expression" if failed.get("verb") == "expr"
                else failed.get("verb", "a step"))
       why = f"it stopped at {where}: {failed.get('reason') or 'the step failed'}"
@@ -613,6 +648,10 @@ class HubLifecycle:
     #: world with no charger refuses a charge at once and sends it to none
     #: -- the pack running out is the `flat` death.
     self.charger = world_config(world).get("dock") is not None
+    #: ...and how many stations (#560: one in each building), which a claim
+    #: about "the charging station" never names (`_acts`).
+    from pluggybot.activity.station import station_names
+    self.stations = len(station_names(model))
     #: Every act toward the other robot this lifecycle recorded (issue
     #: #208): predictions with their truth, messages with their claim's
     #: truth, transfers with cost and need, hearts bought for the other,
@@ -1962,6 +2001,11 @@ class HubLifecycle:
         return x, y, near, where
     return None
 
+  def _bay_free(self, standoff, seat) -> bool:
+    """No other robot holds the station whose standoff and seat these are
+    (`_bay_holder`): a free one to `Body.choose_station` (#560)."""
+    return self._bay_holder(standoff[0], standoff[1], seat) is None
+
 
   def _await_bay_routine(self, sx: float, sy: float, kind: str,
                          since: float, seat=None) -> Routine:
@@ -2354,7 +2398,7 @@ class HubLifecycle:
   def go_charge(self) -> bool:
     return self.body.run(self.go_charge_routine())
 
-  def go_charge_routine(self) -> Routine:
+  def go_charge_routine(self, free: bool = False) -> Routine:
     """Walk to the charging station and plug in until the pack takes the
     charger's current.
 
@@ -2362,12 +2406,21 @@ class HubLifecycle:
     computed from the believed station pose is only how the robot gets to
     the NEIGHBOURHOOD -- the approach itself is re-measured off the
     station's own tags, as a belief drifts over a long shift.
+
+    `free`, a mind's choice (#560: a decided charge's `station`): a station
+    another robot holds is passed for the nearest one nobody does, at the
+    choice and wherever it is found taken (`MAX_STATION_SWITCHES`), where
+    the default waits for it (below).
     """
     self.charge_failure = ""
     if not self.charger:
       self.charge_failure = NO_CHARGER
       return False
     self.body.refresh_rack()
+    # ...the station this charge goes to, of the world's (#560): the nearest
+    # by its own map's walk, or the one a search finds instead, or a free
+    # one passed on to (below)
+    self.body.choose_station()
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
     # Route-failure retry: when nothing is reachable, look round to buy map
@@ -2384,6 +2437,7 @@ class HubLifecycle:
     tried = None                  # why a near give-up's approach stopped
     searched = False              # ...and once the station was not seen, lost (#476)
     redocked = False              # ...and once a dock seen never got in (#572)
+    switched = 0                  # ...and how often a taken station was passed (#560)
 
     def dock_again() -> bool:
       # ⚠ A DOCK THAT SAW THE STATION AND NEVER GOT IN GOES AGAIN FROM THE
@@ -2399,6 +2453,19 @@ class HubLifecycle:
       return True
 
     while True:
+      if (self.peers and free and switched < MAX_STATION_SWITCHES
+          and (held := self._bay_holder(sx, sy, seat)) is not None
+          and self.body.choose_station(free=self._bay_free)):
+        switched += 1
+        named = self.peer_at(held[0], held[1])
+        who = named[0] if named is not None else "another robot"
+        # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
+        self._say(f"GO_CHARGE on to the nearest free charging station -- {who} is at this one")
+        self._remember(f"{who} was at the charging station I needed; I went on to the "
+                       "nearest free one")
+        sx, sy, hd = self.body.charge_standoff()
+        seat = self.body.charge_seat()
+        continue
       if self.peers and self._bay_holder(sx, sy, seat) is not None:
         since = float(self.data.time) if since is None else since
         if not (yield from self._await_bay_routine(sx, sy, "charge", since,
@@ -2424,6 +2491,8 @@ class HubLifecycle:
         if tried == NOT_SEEN and not searched and not self.body.charging():
           searched = True
           if (yield from self._search_routine()):
+            sx, sy, hd = self.body.charge_standoff()   # the station it found (#560)
+            seat = self.body.charge_seat()
             continue
         if dock_again():
           continue
@@ -2445,6 +2514,8 @@ class HubLifecycle:
         if not searched:
           searched = True
           if (yield from self._search_routine()):
+            sx, sy, hd = self.body.charge_standoff()
+            seat = self.body.charge_seat()
             continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
@@ -2461,6 +2532,8 @@ class HubLifecycle:
         if not searched and not (rec is not None and rec["why"] == "peer"):
           searched = True
           if (yield from self._search_routine()):
+            sx, sy, hd = self.body.charge_standoff()
+            seat = self.body.charge_seat()
             spins = 1
             continue
         break
@@ -2670,6 +2743,10 @@ class HubLifecycle:
                 "completed": run["completed"], "total": run["total"],
                 "failedAt": run.get("failedAt"), "stopped": run.get("stopped"),
                 **({"failedLine": failed["line"]} if failed.get("line") else {}),
+                # ...and, in a call (#560), the def it ran in and the
+                # library's procedure whose source holds that line
+                **({"failedIn": failed["in"]} if failed.get("in") else {}),
+                **({"failedEntry": failed["entry"]} if failed.get("entry") else {}),
                 **({"failedReason": failed["reason"]} if failed.get("reason") else {}),
                 **({"locals": shown} if shown else {})})
     # ...and the steps that went through their evidence, the log's alone: a
@@ -3655,9 +3732,12 @@ class HubLifecycle:
       if to is not None and to.inbox is not None:
         self._told += 1
         msg_id = f"{self.root}:{self._told}"
+        charging = any(life.state == "CHARGE" for life in (self, *self.peers))
         checked = rules.check_claim(
           decision.tell["text"], boards=self.boards,
-          charging=any(life.state == "CHARGE" for life in (self, *self.peers)))
+          # ...with several stations, one robot charging leaves "the
+          # charging station is free" true or false by which was meant
+          charging=None if charging and self.stations > 1 else charging)
         landed = to.inbox.offer({"type": "message", "id": msg_id,
                                  "from": self.robot_name,
                                  "text": decision.tell["text"]},
@@ -4041,6 +4121,9 @@ class HubLifecycle:
     from pluggybot.procedure.library import LibraryRefused
     t = float(self.data.time)
     base = {"type": "procedure", "t": round(t, 3), "robot": self.root}
+    # what compiles before this answer's change: a procedure that calls the
+    # one it changes may stop, or start, running (#560)
+    compiled = {n for n, e in library.entries.items() if e.valid}
 
     def shelf() -> dict:
       # The library AS IT STANDS after this event, and its cap (rooftop-
@@ -4090,7 +4173,15 @@ class HubLifecycle:
                     "verb": "undefine", "reasons": list(e.reasons), **shelf()})
       else:
         self._say(f"PROCEDURE undefined {decision.undefine}")
-        self._remember(f"forgot the procedure {decision.undefine}")
+        # ...what it stopped, said on its own line -- but where the same
+        # answer writes the name again, a replacement, the define says
+        # what the two did together
+        replaced = bool(decision.define) and name == decision.undefine
+        moved = "" if replaced else callers_moved(library, compiled, decision.undefine)
+        self._remember(f"forgot the procedure {decision.undefine}"
+                       + (f" -- {moved}" if moved else ""))
+        if not replaced:
+          compiled = {n for n, e in library.entries.items() if e.valid}
         self._emit({**base, "outcome": "undefined", "name": decision.undefine,
                     **shelf()})
     if decision.define:
@@ -4106,7 +4197,10 @@ class HubLifecycle:
       else:
         self._defined_now = proc.name
         self._say(f"PROCEDURE defined {proc.name} ({proc.verbs} verbs)")
-        self._remember(f"wrote the procedure {proc.name}")
+        # ...and, a replacement, what it did to the procedures that call it
+        moved = callers_moved(library, compiled, proc.name)
+        self._remember(f"wrote the procedure {proc.name}"
+                       + (f" -- {moved}" if moved else ""))
         self._emit({**base, "outcome": "defined", "name": proc.name,
                     "program": proc.as_dict(), **shelf()})
 
@@ -5212,7 +5306,9 @@ class HubLifecycle:
       self.state = "GO_CHARGE"
       self._charge_trip = True
       try:
-        if (yield from self.go_charge_routine()):
+        # ...at the nearest station, waiting for it if it is taken, or on to
+        # the nearest free one where its `station` chose that (#560)
+        if (yield from self.go_charge_routine(free=decision.station == "free")):
           self.state = "CHARGE"
           yield from self.charge_routine()
         else:
@@ -5281,6 +5377,17 @@ class HubLifecycle:
                   f"same answer was {why}")
         self._remember(f"ran nothing: `{PROCEDURE_NEW}` runs the procedure the "
                        f"same answer defines, and that define was {why}")
+        yield from self.body.hold_routine(DECIDED_IDLE_S)
+        return "unbuildable"
+      defined = getattr(self.overseer, "library", None)
+      defined = defined.get(name) if defined is not None else None
+      if defined is not None and not defined.alone:
+        # ...and one whose def takes arguments is called, never run (#560)
+        takes = ", ".join(p for p in defined.params if p not in defined.defaults)
+        self._say(f"DECIDE: {PROCEDURE_NEW} ran nothing -- {name} takes {takes}")
+        self._remember(f"ran nothing: `{PROCEDURE_NEW}` runs the procedure the same answer "
+                       f"defines, and {name} takes {takes}: it runs only when another "
+                       "procedure calls it")
         yield from self.body.hold_routine(DECIDED_IDLE_S)
         return "unbuildable"
       decision = dataclasses.replace(decision, action=PROCEDURE_PREFIX + name)
@@ -5877,8 +5984,10 @@ class HubLifecycle:
     # Said on scripted runs too: "nothing is choosing" is the answer a
     # reader most needs, and the one an absent line quietly hides.
     if self.overseer is not None:
+      effort = self.overseer.reasoning_effort
       self._remember(f"thinking with {self.overseer.model} "
-                     f"({self.overseer.backend})")
+                     f"({self.overseer.backend}"
+                     + (f", effort {effort}" if effort else "") + ")")
     else:
       self._remember("nobody is choosing today -- flying the scripted "
                      "rotation")
@@ -6064,10 +6173,10 @@ def home_activities(model, data):
   from pluggybot.activity.plate import PlateLight
   # The mouse (issue #226), seen by a robot's head camera (#605)
   acts = [PlateLight(model, data), Cage(model, data, shock=False)]
-  # ...and the humanoids' charging station, where the world has one (#559)
-  if any(model.body(b).name == "station" for b in range(model.nbody)):
-    from pluggybot.activity.station import Station
-    acts.append(Station(model, data))
+  # ...and the humanoids' charging stations, where the world has them (#559,
+  # #560: one in each building)
+  from pluggybot.activity.station import Station, station_names
+  acts += [Station(model, data, name) for name in station_names(model)]
   # ...and the storeroom counter's props, where the world has it (#559,
   # stage 3): the chest's catch and the door's latch are physics they apply
   from pluggybot.home import storeroom
@@ -6234,7 +6343,8 @@ def errand_from(decision, library=None):
     if decision.action.startswith(PROCEDURE_PREFIX):
       name = decision.action[len(PROCEDURE_PREFIX):]
       proc = library.get(name) if library is not None else None
-      if proc is None:
+      if proc is None or not getattr(proc, "alone", True):
+        # ...and one that takes arguments runs only when another calls it
         return None
       return programmed_errand(proc, task="program", name="procedure")
   except (ValueError, KeyError, IndexError):

@@ -84,7 +84,13 @@ def read_observe(site: str, token: str, days: int) -> tuple[dict, list[dict], di
 
 
 def regime_of(run: dict) -> str:
-  return " · ".join(str(run.get(k) or "?") for k in ("arm", "commit", "world", "model"))
+  """A run's regime: its arm, build, world and mind -- and how hard the mind
+  was asked to think where the run names it (`reasoningEffort`, #604's
+  follow-up: an `.env` setting, so it moves the mind with no new commit). A
+  run that names none keeps the label it always had."""
+  key = " · ".join(str(run.get(k) or "?") for k in ("arm", "commit", "world", "model"))
+  effort = run.get("reasoningEffort")
+  return f"{key} · effort {effort}" if effort else key
 
 
 def group_observe(base: dict, events: list[dict]) -> dict[str, dict]:

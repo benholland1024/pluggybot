@@ -152,6 +152,15 @@ class HumanoidWay:
     `Body.docked`, which a restart forgets with the robot still plugged in."""
     return any(self.data.eq_active[e] for e in self.port_eqs)
 
+  def plugged_at(self) -> str | None:
+    """Which station's port catch holds its plug (#560: a world of several)
+    -- the charger it is mated with -- or None."""
+    for e in self.port_eqs:
+      if self.data.eq_active[e]:
+        name = self.model.equality(e).name
+        return name[:name.index("_port_")]
+    return None
+
   def _hand_out(self) -> bool:
     return any(p != "rest" for p in self.reach.phase.values())
 

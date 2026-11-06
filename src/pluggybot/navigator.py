@@ -743,6 +743,31 @@ class Navigator:
     dist, _ = graph.search(src[1] * cols + src[0], limit=limit)
     return dist.reshape(lattice.shape)
 
+  def nearest_by_walk(self, goals: dict) -> str | None:
+    """Which of `goals` ({name: (x, y)}) is the shortest walk from where it
+    believes it is, over its own map, through the floor it has not seen at
+    the planner's price (`UNKNOWN_COST`) -- the walk it would take -- the
+    other robots' discs left in, for they move; where no walk reaches any,
+    the nearest as the crow flies. Each goal's walk is the shortest to a
+    lattice cell within one of its own: a map laid a little askew puts a
+    goal off the wall's face in the wall's inflation. None for no goals."""
+    if not goals:
+      return None
+    b = optimistic.BLOCK
+    lattice = optimistic.coarsen(
+      optimistic.map_costs(self._planning_grid(), self.INFLATION_CELLS, self.UNKNOWN_COST), b)
+    x, y, _ = self.pose
+    field = self.walk_field(lattice, (x, y))
+    rows, cols = field.shape
+
+    def walk(gx: float, gy: float) -> float:
+      cx, cy = self.grid.world_to_cell(gx, gy)
+      lx, ly = cx // b, cy // b
+      near = field[max(ly - 1, 0):ly + 2, max(lx - 1, 0):lx + 2]
+      return float(near.min()) if near.size else math.inf
+    return min(goals, key=lambda n: (walk(*goals[n]),
+                                     math.hypot(goals[n][0] - x, goals[n][1] - y)))
+
   def in_sight(self, wx: float, wy: float) -> bool:
     """Can one drive plan to (wx, wy): is it within the LIDAR's reach and
     on the map, its cell seen (free or not)? Beyond either, `_plan_to`

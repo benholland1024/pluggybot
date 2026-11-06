@@ -26,11 +26,11 @@
      "type": "plane",
      "size": [
       51.0,
-      23.0
+      42.0
      ],
      "pos": [
       8.0,
-      0.0,
+      -9.5,
       0.0
      ],
      "quat": [
@@ -144,13 +144,13 @@
    ]
   },
   {
-   "name": "wall_south",
+   "name": "wall_south_0",
    "parent": "world",
    "dynamic": false,
    "robot": null,
    "visual": "wall",
    "pos": [
-    1.5,
+    -1.375,
     -2.0,
     1.2
    ],
@@ -162,10 +162,104 @@
    ],
    "geoms": [
     {
-     "name": "wall_south_geom",
+     "name": "wall_south_0_geom",
      "type": "box",
      "size": [
-      7.0,
+      1.25,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_south_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    0.95,
+    -2.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_south_1_geom",
+     "type": "box",
+     "size": [
+      1.4,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_south_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    3.825,
+    -2.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_south_2_geom",
+     "type": "box",
+     "size": [
+      2.35,
       0.04,
       2.4
      ],
@@ -902,7 +996,7 @@
    "robot": null,
    "visual": "fence",
    "pos": [
-    4.0,
+    7.5,
     -6.0,
     0.45
    ],
@@ -917,7 +1011,7 @@
      "name": "fence_south_geom",
      "type": "box",
      "size": [
-      12.0,
+      5.0,
       0.04,
       0.9
      ],
@@ -936,6 +1030,147 @@
       0.55,
       0.45,
       0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_rooms_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    1.5,
+    -6.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_rooms_south_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_rooms_east",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    5.0,
+    -4.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_rooms_east_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      4.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_rooms_div",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    1.5,
+    -4.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_rooms_div_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      4.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
       1.0
      ],
      "texture": null
@@ -1091,7 +1326,7 @@
    "visual": "fence",
    "pos": [
     16.0,
-    -1.7,
+    1.3,
     0.45
    ],
    "quat": [
@@ -1106,7 +1341,7 @@
      "type": "box",
      "size": [
       0.04,
-      8.6,
+      2.6,
       0.9
      ],
      "pos": [
@@ -1225,53 +1460,6 @@
    ]
   },
   {
-   "name": "fence_2_south",
-   "parent": "world",
-   "dynamic": false,
-   "robot": null,
-   "visual": "fence",
-   "pos": [
-    17.5,
-    -6.0,
-    0.45
-   ],
-   "quat": [
-    1.0,
-    0.0,
-    0.0,
-    0.0
-   ],
-   "geoms": [
-    {
-     "name": "fence_2_south_geom",
-     "type": "box",
-     "size": [
-      3.0,
-      0.04,
-      0.9
-     ],
-     "pos": [
-      0.0,
-      0.0,
-      0.0
-     ],
-     "quat": [
-      1.0,
-      0.0,
-      0.0,
-      0.0
-     ],
-     "rgba": [
-      0.55,
-      0.45,
-      0.35,
-      1.0
-     ],
-     "texture": null
-    }
-   ]
-  },
-  {
    "name": "wall_2_west_0",
    "parent": "world",
    "dynamic": false,
@@ -1279,7 +1467,7 @@
    "visual": "wall",
    "pos": [
     19.0,
-    -1.7,
+    -4.75,
     1.2
    ],
    "quat": [
@@ -1294,7 +1482,7 @@
      "type": "box",
      "size": [
       0.04,
-      8.6,
+      2.5,
       2.4
      ],
      "pos": [
@@ -1326,7 +1514,7 @@
    "visual": "wall",
    "pos": [
     19.0,
-    4.8,
+    0.05,
     1.2
    ],
    "quat": [
@@ -1341,7 +1529,195 @@
      "type": "box",
      "size": [
       0.04,
+      5.1,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_west_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    19.0,
+    4.8,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_west_2_geom",
+     "type": "box",
+     "size": [
+      0.04,
       2.4,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_study_west",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    16.0,
+    -3.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_study_west_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      6.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_study_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    17.5,
+    -6.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_study_south_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_study_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    17.5,
+    0.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_study_north_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
       2.4
      ],
      "pos": [
@@ -1695,6 +2071,1040 @@
    ]
   },
   {
+   "name": "fence_park_north_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    -6.875,
+    -9.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_park_north_0_geom",
+     "type": "box",
+     "size": [
+      10.25,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_park_north_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    4.875,
+    -9.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_park_north_1_geom",
+     "type": "box",
+     "size": [
+      10.25,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_park_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    -1.0,
+    -25.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_park_south_geom",
+     "type": "box",
+     "size": [
+      22.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_park_west",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    -12.0,
+    -17.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_park_west_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      16.0,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_park_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    10.0,
+    -21.375,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_park_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      7.25,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_park_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    10.0,
+    -12.625,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_park_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      7.25,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_mall_west_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    16.0,
+    -21.25,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_mall_west_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      7.5,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_mall_west_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    16.0,
+    -12.75,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_mall_west_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      7.5,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_mall_north_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    16.5,
+    -9.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_mall_north_0_geom",
+     "type": "box",
+     "size": [
+      1.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_mall_north_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    23.0,
+    -9.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_mall_north_1_geom",
+     "type": "box",
+     "size": [
+      10.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_mall_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    22.0,
+    -25.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_mall_south_geom",
+     "type": "box",
+     "size": [
+      12.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_mall_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    28.0,
+    -23.875,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_mall_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.25,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_mall_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    28.0,
+    -15.125,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_mall_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      12.25,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_concourse_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    19.0,
+    -23.25,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_concourse_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      3.5,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_concourse_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    19.0,
+    -17.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_concourse_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      7.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_concourse_east_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    19.0,
+    -10.75,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_concourse_east_2_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      3.5,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_mall_div",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    23.5,
+    -17.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_mall_div_geom",
+     "type": "box",
+     "size": [
+      9.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_pass_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    25.0,
+    -16.8,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_pass_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      0.4,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_pass_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    25.0,
+    -15.05,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_pass_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      1.1,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_pass_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    25.0,
+    -10.25,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_pass_2_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.5,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_loading_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    25.0,
+    -22.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_loading_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      6.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_loading_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    25.0,
+    -17.5,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_loading_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      1.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
    "name": "fence_loop_west",
    "parent": "world",
    "dynamic": false,
@@ -1702,7 +3112,7 @@
    "visual": "fence",
    "pos": [
     -16.5,
-    0.0,
+    -9.5,
     0.45
    ],
    "quat": [
@@ -1717,7 +3127,7 @@
      "type": "box",
      "size": [
       0.04,
-      21.0,
+      40.0,
       0.9
      ],
      "pos": [
@@ -1749,7 +3159,7 @@
    "visual": "fence",
    "pos": [
     32.5,
-    0.0,
+    -9.5,
     0.45
    ],
    "quat": [
@@ -1764,7 +3174,7 @@
      "type": "box",
      "size": [
       0.04,
-      21.0,
+      40.0,
       0.9
      ],
      "pos": [
@@ -1843,7 +3253,7 @@
    "visual": "fence",
    "pos": [
     8.0,
-    -10.5,
+    -29.5,
     0.45
    ],
    "quat": [
@@ -2259,13 +3669,389 @@
    ]
   },
   {
+   "name": "room_west_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    -0.25,
+    -4.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "room_west_floor_geom",
+     "type": "box",
+     "size": [
+      3.5,
+      4.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "room_east_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    3.25,
+    -4.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "room_east_floor_geom",
+     "type": "box",
+     "size": [
+      3.5,
+      4.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "study_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    17.5,
+    -3.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "study_floor_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      6.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "concourse_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    17.5,
+    -17.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "concourse_floor_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      16.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    22.0,
+    -13.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "dining_floor_geom",
+     "type": "box",
+     "size": [
+      6.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "restaurant_kitchen_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    26.5,
+    -13.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "restaurant_kitchen_floor_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "shop_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    22.0,
+    -21.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "shop_floor_geom",
+     "type": "box",
+     "size": [
+      6.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "loading_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    26.5,
+    -21.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "loading_floor_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
    "name": "garden_south_ground",
    "parent": "world",
    "dynamic": false,
    "robot": null,
    "visual": "ground",
    "pos": [
-    4.0,
+    7.5,
     -4.0,
     0.001
    ],
@@ -2280,7 +4066,7 @@
      "name": "garden_south_ground_geom",
      "type": "box",
      "size": [
-      12.0,
+      5.0,
       4.0,
       0.002
      ],
@@ -2360,7 +4146,7 @@
    "visual": "street",
    "pos": [
     13.0,
-    0.0,
+    -9.5,
     0.001
    ],
    "quat": [
@@ -2375,7 +4161,7 @@
      "type": "box",
      "size": [
       3.0,
-      15.0,
+      34.0,
       0.002
      ],
      "pos": [
@@ -2454,7 +4240,7 @@
    "visual": "ground",
    "pos": [
     17.5,
-    0.0,
+    3.0,
     0.001
    ],
    "quat": [
@@ -2469,7 +4255,7 @@
      "type": "box",
      "size": [
       3.0,
-      12.0,
+      6.0,
       0.002
      ],
      "pos": [
@@ -2595,7 +4381,7 @@
    "visual": "sidewalk",
    "pos": [
     -1.0,
-    -6.75,
+    -7.5,
     0.001
    ],
    "quat": [
@@ -2607,6 +4393,241 @@
    "geoms": [
     {
      "name": "sidewalk_south_ground_geom",
+     "type": "box",
+     "size": [
+      25.0,
+      3.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "alley_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    22.0,
+    -7.5,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "alley_ground_geom",
+     "type": "box",
+     "size": [
+      15.0,
+      3.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "park_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "ground",
+   "pos": [
+    -1.0,
+    -17.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "park_ground_geom",
+     "type": "box",
+     "size": [
+      22.0,
+      16.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.52,
+      0.4,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_park_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    10.75,
+    -17.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_park_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      16.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_park_west_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    -12.75,
+    -17.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_park_west_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      16.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_park_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    -1.0,
+    -25.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_park_south_ground_geom",
      "type": "box",
      "size": [
       25.0,
@@ -2635,14 +4656,14 @@
    ]
   },
   {
-   "name": "sidewalk_2_south_ground",
+   "name": "sidewalk_mall_ground",
    "parent": "world",
    "dynamic": false,
    "robot": null,
    "visual": "sidewalk",
    "pos": [
-    22.0,
-    -6.75,
+    15.25,
+    -17.0,
     0.001
    ],
    "quat": [
@@ -2653,7 +4674,101 @@
    ],
    "geoms": [
     {
-     "name": "sidewalk_2_south_ground_geom",
+     "name": "sidewalk_mall_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      16.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_mall_east_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    28.75,
+    -17.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_mall_east_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      16.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_mall_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    22.0,
+    -25.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_mall_south_ground_geom",
      "type": "box",
      "size": [
       15.0,
@@ -2830,7 +4945,7 @@
    "visual": "street",
    "pos": [
     8.0,
-    -9.0,
+    -28.0,
     0.001
    ],
    "quat": [
@@ -2877,7 +4992,7 @@
    "visual": "street",
    "pos": [
     -15.0,
-    0.0,
+    -9.5,
     0.001
    ],
    "quat": [
@@ -2892,7 +5007,7 @@
      "type": "box",
      "size": [
       3.0,
-      15.0,
+      34.0,
       0.002
      ],
      "pos": [
@@ -2924,7 +5039,7 @@
    "visual": "street",
    "pos": [
     31.0,
-    0.0,
+    -9.5,
     0.001
    ],
    "quat": [
@@ -2939,7 +5054,7 @@
      "type": "box",
      "size": [
       3.0,
-      15.0,
+      34.0,
       0.002
      ],
      "pos": [
@@ -4163,6 +6278,1780 @@
       0.5,
       0.42,
       0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "table",
+   "pos": [
+    20.8,
+    -11.2,
+    0.36
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_0_geom",
+     "type": "box",
+     "size": [
+      0.8,
+      0.8,
+      0.72
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_0_chair_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    20.8,
+    -10.525,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_0_chair_0_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_0_chair_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    20.8,
+    -11.875,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_0_chair_1_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "table",
+   "pos": [
+    23.0,
+    -11.2,
+    0.36
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_1_geom",
+     "type": "box",
+     "size": [
+      0.8,
+      0.8,
+      0.72
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_1_chair_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    23.0,
+    -10.525,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_1_chair_0_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_1_chair_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    23.0,
+    -11.875,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_1_chair_1_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "table",
+   "pos": [
+    20.8,
+    -14.8,
+    0.36
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_2_geom",
+     "type": "box",
+     "size": [
+      0.8,
+      0.8,
+      0.72
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_2_chair_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    20.8,
+    -14.125,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_2_chair_0_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_2_chair_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    20.8,
+    -15.475,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_2_chair_1_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_3",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "table",
+   "pos": [
+    23.0,
+    -14.8,
+    0.36
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_3_geom",
+     "type": "box",
+     "size": [
+      0.8,
+      0.8,
+      0.72
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_3_chair_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    23.0,
+    -14.125,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_3_chair_0_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dining_table_3_chair_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    23.0,
+    -15.475,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dining_table_3_chair_1_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "expo_counter",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "counter",
+   "pos": [
+    25.0,
+    -13.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "expo_counter_geom",
+     "type": "box",
+     "size": [
+      0.6,
+      3.0,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.56,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "kitchen_worktop",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "counter",
+   "pos": [
+    26.64,
+    -9.32,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "kitchen_worktop_geom",
+     "type": "box",
+     "size": [
+      2.68,
+      0.6,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.56,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "shop_checkout",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "counter",
+   "pos": [
+    20.4,
+    -19.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "shop_checkout_geom",
+     "type": "box",
+     "size": [
+      0.6,
+      1.8,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.56,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "study_table",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "table",
+   "pos": [
+    17.5,
+    -3.0,
+    0.36
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "study_table_geom",
+     "type": "box",
+     "size": [
+      0.8,
+      1.2,
+      0.72
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "study_table_chair_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    17.5,
+    -2.125,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "study_table_chair_0_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "study_table_chair_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "chair",
+   "pos": [
+    17.5,
+    -3.875,
+    0.45
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "study_table_chair_1_geom",
+     "type": "box",
+     "size": [
+      0.45,
+      0.45,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "kitchen_shelf",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "shelf",
+   "pos": [
+    27.805,
+    -12.5,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "kitchen_shelf_end_0",
+     "type": "box",
+     "size": [
+      0.02,
+      0.35,
+      1.5
+     ],
+     "pos": [
+      -0.99,
+      0.0,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "kitchen_shelf_end_1",
+     "type": "box",
+     "size": [
+      0.02,
+      0.35,
+      1.5
+     ],
+     "pos": [
+      0.99,
+      0.0,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "kitchen_shelf_back",
+     "type": "box",
+     "size": [
+      1.96,
+      0.02,
+      1.5
+     ],
+     "pos": [
+      0.0,
+      -0.165,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "kitchen_shelf_board_0",
+     "type": "box",
+     "size": [
+      1.96,
+      0.35,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "kitchen_shelf_board_1",
+     "type": "box",
+     "size": [
+      1.96,
+      0.35,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.55
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "kitchen_shelf_board_2",
+     "type": "box",
+     "size": [
+      1.96,
+      0.35,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.95
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "kitchen_shelf_board_3",
+     "type": "box",
+     "size": [
+      1.96,
+      0.35,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      1.35
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "shop_gondola",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "shelf",
+   "pos": [
+    22.5,
+    -21.6,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "shop_gondola_end_0",
+     "type": "box",
+     "size": [
+      0.02,
+      0.8,
+      1.5
+     ],
+     "pos": [
+      -1.99,
+      0.0,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_gondola_end_1",
+     "type": "box",
+     "size": [
+      0.02,
+      0.8,
+      1.5
+     ],
+     "pos": [
+      1.99,
+      0.0,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_gondola_back",
+     "type": "box",
+     "size": [
+      3.96,
+      0.02,
+      1.5
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_gondola_board_0",
+     "type": "box",
+     "size": [
+      3.96,
+      0.8,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_gondola_board_1",
+     "type": "box",
+     "size": [
+      3.96,
+      0.8,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.55
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_gondola_board_2",
+     "type": "box",
+     "size": [
+      3.96,
+      0.8,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.95
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_gondola_board_3",
+     "type": "box",
+     "size": [
+      3.96,
+      0.8,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      1.35
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "shop_shelf",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "shelf",
+   "pos": [
+    24.78,
+    -22.2,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "shop_shelf_end_0",
+     "type": "box",
+     "size": [
+      0.02,
+      0.4,
+      1.5
+     ],
+     "pos": [
+      -2.59,
+      0.0,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_shelf_end_1",
+     "type": "box",
+     "size": [
+      0.02,
+      0.4,
+      1.5
+     ],
+     "pos": [
+      2.59,
+      0.0,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_shelf_back",
+     "type": "box",
+     "size": [
+      5.16,
+      0.02,
+      1.5
+     ],
+     "pos": [
+      0.0,
+      -0.19,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_shelf_board_0",
+     "type": "box",
+     "size": [
+      5.16,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_shelf_board_1",
+     "type": "box",
+     "size": [
+      5.16,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.55
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_shelf_board_2",
+     "type": "box",
+     "size": [
+      5.16,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.95
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "shop_shelf_board_3",
+     "type": "box",
+     "size": [
+      5.16,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      1.35
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "loading_rack",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "shelf",
+   "pos": [
+    26.5,
+    -24.78,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "loading_rack_end_0",
+     "type": "box",
+     "size": [
+      0.02,
+      0.4,
+      1.5
+     ],
+     "pos": [
+      -1.29,
+      0.0,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "loading_rack_end_1",
+     "type": "box",
+     "size": [
+      0.02,
+      0.4,
+      1.5
+     ],
+     "pos": [
+      1.29,
+      0.0,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "loading_rack_back",
+     "type": "box",
+     "size": [
+      2.56,
+      0.02,
+      1.5
+     ],
+     "pos": [
+      0.0,
+      -0.19,
+      0.75
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "loading_rack_board_0",
+     "type": "box",
+     "size": [
+      2.56,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "loading_rack_board_1",
+     "type": "box",
+     "size": [
+      2.56,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.55
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "loading_rack_board_2",
+     "type": "box",
+     "size": [
+      2.56,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.95
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "loading_rack_board_3",
+     "type": "box",
+     "size": [
+      2.56,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      1.35
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.6,
+      0.56,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "park_tree_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "tree",
+   "pos": [
+    -3.5,
+    -14.5,
+    1.75
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "park_tree_0_trunk",
+     "type": "cylinder",
+     "size": [
+      0.15,
+      3.5
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.4,
+      0.32,
+      0.24,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "park_tree_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "tree",
+   "pos": [
+    3.0,
+    -19.5,
+    1.75
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "park_tree_1_trunk",
+     "type": "cylinder",
+     "size": [
+      0.15,
+      3.5
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.4,
+      0.32,
+      0.24,
       1.0
      ],
      "texture": null
@@ -10151,6 +14040,80 @@
    ]
   },
   {
+   "name": "park_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -1.0,
+    -17.0,
+    0.0
+   ],
+   "quat": [
+    0.92388,
+    0.0,
+    0.0,
+    0.382683
+   ],
+   "geoms": [
+    {
+     "name": "park_sign_post",
+     "type": "box",
+     "size": [
+      0.06,
+      0.06,
+      1.235
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.6175
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "park_sign_board",
+     "type": "box",
+     "size": [
+      0.02,
+      0.17,
+      0.17
+     ],
+     "pos": [
+      0.04,
+      0.0,
+      1.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
    "name": "tower_tag42",
    "parent": "world",
    "dynamic": false,
@@ -10386,6 +14349,382 @@
    ]
   },
   {
+   "name": "restaurant_tag68",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.978,
+    -11.0,
+    1.15
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "restaurant_tag68",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex68"
+    }
+   ]
+  },
+  {
+   "name": "restaurant_tag69",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.978,
+    -15.0,
+    1.15
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "restaurant_tag69",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex69"
+    }
+   ]
+  },
+  {
+   "name": "shop_tag70",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    21.55,
+    -17.022,
+    1.15
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "shop_tag70",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex70"
+    }
+   ]
+  },
+  {
+   "name": "shop_tag71",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    22.45,
+    -17.022,
+    1.15
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "shop_tag71",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex71"
+    }
+   ]
+  },
+  {
+   "name": "park_tag72",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -0.9632,
+    -16.9632,
+    1.15
+   ],
+   "quat": [
+    0.92388,
+    0.0,
+    0.0,
+    0.382683
+   ],
+   "geoms": [
+    {
+     "name": "park_tag72",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex72"
+    }
+   ]
+  },
+  {
+   "name": "room_west_tag73",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -0.25,
+    -5.978,
+    1.15
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "room_west_tag73",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex73"
+    }
+   ]
+  },
+  {
+   "name": "room_east_tag74",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    3.25,
+    -5.978,
+    1.15
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "room_east_tag74",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex74"
+    }
+   ]
+  },
+  {
+   "name": "study_room_tag75",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    16.022,
+    -3.0,
+    1.15
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "study_room_tag75",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex75"
+    }
+   ]
+  },
+  {
    "name": "station",
    "parent": "world",
    "dynamic": false,
@@ -10558,6 +14897,404 @@
     },
     {
      "name": "station_gland",
+     "type": "cylinder",
+     "size": [
+      0.009,
+      0.027
+     ],
+     "pos": [
+      -0.0565,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.08,
+      0.08,
+      0.08,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "station_facility",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    20.5,
+    -5.88,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "station_facility_box",
+     "type": "box",
+     "size": [
+      0.1,
+      0.3,
+      0.4
+     ],
+     "pos": [
+      0.05,
+      0.0,
+      0.9
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.31,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "station_facility_boss",
+     "type": "cylinder",
+     "size": [
+      0.02,
+      0.03
+     ],
+     "pos": [
+      -0.015,
+      0.0,
+      0.9
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.55,
+      0.56,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "station_facility_tag64",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.001,
+      0.09,
+      0.9
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex64"
+    },
+    {
+     "name": "station_facility_tag65",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.001,
+      -0.09,
+      0.9
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex65"
+    }
+   ]
+  },
+  {
+   "name": "station_facility_plug",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    20.5,
+    -5.777,
+    0.9
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "station_facility_jack",
+     "type": "cylinder",
+     "size": [
+      0.01225,
+      0.043
+     ],
+     "pos": [
+      -0.0215,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.12,
+      0.12,
+      0.13,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "station_facility_gland",
+     "type": "cylinder",
+     "size": [
+      0.009,
+      0.027
+     ],
+     "pos": [
+      -0.0565,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.08,
+      0.08,
+      0.08,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "station_mall",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    17.5,
+    -24.88,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "station_mall_box",
+     "type": "box",
+     "size": [
+      0.1,
+      0.3,
+      0.4
+     ],
+     "pos": [
+      0.05,
+      0.0,
+      0.9
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.31,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "station_mall_boss",
+     "type": "cylinder",
+     "size": [
+      0.02,
+      0.03
+     ],
+     "pos": [
+      -0.015,
+      0.0,
+      0.9
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.55,
+      0.56,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "station_mall_tag66",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.001,
+      0.09,
+      0.9
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex66"
+    },
+    {
+     "name": "station_mall_tag67",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.001,
+      -0.09,
+      0.9
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex67"
+    }
+   ]
+  },
+  {
+   "name": "station_mall_plug",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    17.5,
+    -24.777,
+    0.9
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "station_mall_jack",
+     "type": "cylinder",
+     "size": [
+      0.01225,
+      0.043
+     ],
+     "pos": [
+      -0.0215,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.12,
+      0.12,
+      0.13,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "station_mall_gland",
      "type": "cylinder",
      "size": [
       0.009,
@@ -12000,6 +16737,54 @@
    "height": 240
   },
   {
+   "name": "tagtex68",
+   "file": "tagtex68.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex69",
+   "file": "tagtex69.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex70",
+   "file": "tagtex70.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex71",
+   "file": "tagtex71.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex72",
+   "file": "tagtex72.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex73",
+   "file": "tagtex73.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex74",
+   "file": "tagtex74.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex75",
+   "file": "tagtex75.png",
+   "width": 240,
+   "height": 240
+  },
+  {
    "name": "tagtex58",
    "file": "tagtex58.png",
    "width": 240,
@@ -12008,6 +16793,30 @@
   {
    "name": "tagtex59",
    "file": "tagtex59.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex64",
+   "file": "tagtex64.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex65",
+   "file": "tagtex65.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex66",
+   "file": "tagtex66.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex67",
+   "file": "tagtex67.png",
    "width": 240,
    "height": 240
   },
@@ -12148,7 +16957,7 @@
    "name": "garden_south",
    "kind": "garden",
    "min": [
-    -2.0,
+    5.0,
     -6.0
    ],
    "max": [
@@ -12173,7 +16982,7 @@
    "kind": "outdoor",
    "min": [
     11.5,
-    -7.5
+    -26.5
    ],
    "max": [
     14.5,
@@ -12197,7 +17006,7 @@
    "kind": "garden",
    "min": [
     16.0,
-    -6.0
+    0.0
    ],
    "max": [
     19.0,
@@ -12272,7 +17081,7 @@
    "kind": "outdoor",
    "min": [
     -13.5,
-    -7.5
+    -9.0
    ],
    "max": [
     11.5,
@@ -12280,11 +17089,11 @@
    ]
   },
   {
-   "name": "sidewalk_2_south",
+   "name": "alley",
    "kind": "outdoor",
    "min": [
     14.5,
-    -7.5
+    -9.0
    ],
    "max": [
     29.5,
@@ -12332,11 +17141,11 @@
    "kind": "outdoor",
    "min": [
     -16.5,
-    -10.5
+    -29.5
    ],
    "max": [
     32.5,
-    -7.5
+    -26.5
    ]
   },
   {
@@ -12344,7 +17153,7 @@
    "kind": "outdoor",
    "min": [
     -16.5,
-    -7.5
+    -26.5
    ],
    "max": [
     -13.5,
@@ -12356,11 +17165,199 @@
    "kind": "outdoor",
    "min": [
     29.5,
-    -7.5
+    -26.5
    ],
    "max": [
     32.5,
     7.5
+   ]
+  },
+  {
+   "name": "room_west",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -2.0,
+    -6.0
+   ],
+   "max": [
+    1.5,
+    -2.0
+   ]
+  },
+  {
+   "name": "room_east",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    1.5,
+    -6.0
+   ],
+   "max": [
+    5.0,
+    -2.0
+   ]
+  },
+  {
+   "name": "study_room",
+   "kind": "room",
+   "building": "facility",
+   "min": [
+    16.0,
+    -6.0
+   ],
+   "max": [
+    19.0,
+    0.0
+   ]
+  },
+  {
+   "name": "park",
+   "kind": "park",
+   "min": [
+    -12.0,
+    -25.0
+   ],
+   "max": [
+    10.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "concourse",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    16.0,
+    -25.0
+   ],
+   "max": [
+    19.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "dining_room",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    19.0,
+    -17.0
+   ],
+   "max": [
+    25.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "restaurant_kitchen",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    25.0,
+    -17.0
+   ],
+   "max": [
+    28.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "shop",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    19.0,
+    -25.0
+   ],
+   "max": [
+    25.0,
+    -17.0
+   ]
+  },
+  {
+   "name": "loading_zone",
+   "kind": "room",
+   "building": "mall",
+   "min": [
+    25.0,
+    -25.0
+   ],
+   "max": [
+    28.0,
+    -17.0
+   ]
+  },
+  {
+   "name": "sidewalk_park",
+   "kind": "outdoor",
+   "min": [
+    10.0,
+    -25.0
+   ],
+   "max": [
+    11.5,
+    -9.0
+   ]
+  },
+  {
+   "name": "sidewalk_park_west",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -25.0
+   ],
+   "max": [
+    -12.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "sidewalk_park_south",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -26.5
+   ],
+   "max": [
+    11.5,
+    -25.0
+   ]
+  },
+  {
+   "name": "sidewalk_mall",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    -25.0
+   ],
+   "max": [
+    16.0,
+    -9.0
+   ]
+  },
+  {
+   "name": "sidewalk_mall_east",
+   "kind": "outdoor",
+   "min": [
+    28.0,
+    -25.0
+   ],
+   "max": [
+    29.5,
+    -9.0
+   ]
+  },
+  {
+   "name": "sidewalk_mall_south",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    -26.5
+   ],
+   "max": [
+    29.5,
+    -25.0
    ]
   }
  ],
@@ -12458,6 +17455,60 @@
     },
     {
      "body": "station_plug",
+     "pos": [
+      -0.07,
+      0.0,
+      0.0
+     ]
+    }
+   ],
+   "width": 0.002,
+   "rgba": [
+    0.8,
+    0.8,
+    0.8,
+    1.0
+   ]
+  },
+  "station_facility_rope": {
+   "points": [
+    {
+     "body": "station_facility",
+     "pos": [
+      -0.033,
+      0.0,
+      0.9
+     ]
+    },
+    {
+     "body": "station_facility_plug",
+     "pos": [
+      -0.07,
+      0.0,
+      0.0
+     ]
+    }
+   ],
+   "width": 0.002,
+   "rgba": [
+    0.8,
+    0.8,
+    0.8,
+    1.0
+   ]
+  },
+  "station_mall_rope": {
+   "points": [
+    {
+     "body": "station_mall",
+     "pos": [
+      -0.033,
+      0.0,
+      0.9
+     ]
+    },
+    {
+     "body": "station_mall_plug",
      "pos": [
       -0.07,
       0.0,

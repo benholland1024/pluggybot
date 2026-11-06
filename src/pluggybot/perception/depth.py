@@ -64,6 +64,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.power import DEPTH_CAMERA_W
+from pluggybot.perception.cull import StaticCull
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
 
@@ -214,6 +215,8 @@ class DepthCamera:
     what it carries or which robots it excludes changes."""
     self.model = model
     self.cam_id = model.camera(self.camera_name).id
+    #: What a cast leaves out past what the gate can pass (`perception.cull`)
+    self._cull = StaticCull(model)
     self._self_geoms = robot_geoms(model, self.handle.root)
     if self._carried is not None:
       self._self_geoms |= robot_geoms(model, self._carried)
@@ -246,8 +249,13 @@ class DepthCamera:
     pos = np.array(data.cam_xpos[self.cam_id], dtype=np.float64)
     mat = np.array(data.cam_xmat[self.cam_id], dtype=np.float64).reshape(3, 3)
     world_dirs = np.ascontiguousarray((self._dirs_cam @ mat.T).reshape(-1))
-    mujoco.mj_multiRay(self.model, data, pos, world_dirs, None, 1, -1,
-                       self._geomid, self._dist, None, n, self.reach)
+    # ...every static geom left out that lies past what the range gate can
+    # pass at the image's widest angle (#560): its pixel would read beyond
+    # `max_z`, NaN as a pixel that met nothing is; a farther pixel shadows
+    # only farther ones (`_shadow`); and noise is drawn for every pixel --
+    # the same frame, bit for bit (`test_a_cast_leaves_out_nothing_it_could_reach`)
+    self._cull.multi_ray(data, pos, world_dirs, -1, self._geomid, self._dist, n, self.reach,
+                         self.max_z / float(self._axial.min()))
     hit = self._dist >= 0.0
     z = np.where(hit, self._dist * self._axial, np.nan)
     robot = hit & np.isin(self._geomid, self._filtered)

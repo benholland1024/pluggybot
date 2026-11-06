@@ -96,6 +96,14 @@ class Marker:
     return "\n".join(out)
 
 
+def _shelf_geoms() -> list[tuple[str, str, str]]:
+  """The house's own shelf (`home.world.shelf_geoms`): the kitchen's, 2 m
+  long and against its wall."""
+  from pluggybot.home import world as hw
+  return [("box", f"{h[0]:.4g} {h[1]:.4g} {h[2]:.4g}", f"{c[0]:.4g} {c[1]:.4g} {c[2]:.4g}")
+          for _, c, h in hw.shelf_geoms(2.0, 0.35)]
+
+
 def _stairs_geoms() -> list[tuple[str, str, str]]:
   """The house's own staircase (`home.world.stairs_geoms`), body-local about
   the floor under its block's middle, as the world places its body."""
@@ -282,6 +290,24 @@ MARKERS = [
               "visitor INSIDE the box, on its top face, and none for a "
               "purpose you have no glyph for. The glyph is the site's -- the "
               "robot's cameras never see it."),
+  # ---- v6 (issue #560): the restaurant, the store and the study room ---------
+  Marker("chair", [("box", "0.225 0.225 0.45", "0 0 0.45")], collides=True,
+         axes={"depth": "size0", "width": "size1", "height": "size2"},
+         build="replace",
+         note="EXACTLY ONE BOX: the seat's footprint up to the top of its "
+              "back. A sitter faces the body's +x, so the back is on its -x "
+              "side and the seat at about half the height; the body's quat "
+              "turns it to its table. The robot plans round the whole box."),
+  Marker("shelf", _shelf_geoms(), collides=True,
+         axes={}, build="reskin",
+         note="MANY boxes, kept, as the stairs are: two upright ENDS, a BACK "
+              "(along the back edge for a shelf against a wall, down the "
+              "middle for a gondola stocked from both sides) and four "
+              "BOARDS, 0.15, 0.55, 0.95 and 1.35 m up, 1.5 m tall in all. "
+              "Its front faces the body's +y. What a task sets out stands on "
+              "a board, so the boards are where they are: dress them, never "
+              "move them. Empty in the world itself: the dishware and the "
+              "stock are each task's own."),
 ]
 
 #: These markers are EXACTLY ONE BOX, pinned rather than merely intended.
@@ -297,7 +323,7 @@ MARKERS = [
 #:
 #: `stairs` WAS here (issue #68: one box, because the rover's LIDAR could not
 #: see a riser); since #507 the robots climb modelled steps, so it is MANY.
-ONE_BOX_HINTS = ("couch", "bed", "table", "counter")
+ONE_BOX_HINTS = ("couch", "bed", "table", "counter", "chair")
 
 _XML = """<mujoco model="hints">
   <worldbody>

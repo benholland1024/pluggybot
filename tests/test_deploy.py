@@ -103,7 +103,7 @@ def _forbidden_modules() -> dict[str, tuple[str, ...]]:
 
 # Run the REAL serve path with the omitted distributions made unimportable.
 # A module-level import scan is not enough and was measured not to be: the
-# detector is imported inside `perception.tags._shared_detector`, so the scan came
+# detector is imported inside `perception.tags.kept_detector`, so the scan came
 # back clean and the first container died building its robot. Blocking the
 # imports and then actually flying the robot catches a lazy import wherever
 # it hides.

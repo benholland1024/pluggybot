@@ -39,6 +39,7 @@ class _Mind:
   library = object()
   decisions: list = []
   model, backend = "none", "stub"                 # what the day's first lines name
+  reasoning_effort = None                         # ...and how hard it thinks
 
 
 def _counter_world():
@@ -263,7 +264,7 @@ def test_the_day_loops_pass_runs_out_a_job_held_past_its_minutes(tmp_path, monke
 def _trip(life, walk_s: float) -> None:
   """A charge trip's walk and charge on the stub, each taking time as a
   real one does (the stub's own take none)."""
-  def walk():
+  def walk(free=False):
     yield from life.body.hold_routine(walk_s)
     return True
 
