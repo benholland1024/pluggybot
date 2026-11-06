@@ -5601,8 +5601,8 @@ the waist, and nothing turns them by the simulator's angle:
   the model sets the waist off its reading: the tags' colour imager, the
   places' navigation camera, the station's port.
 - *The whole body's force reading* gains the waist's row (it carries a
-  hand's load to the legs), and the friction table its row: 0.30 N*m dry,
-  0.02 viscous, against the RS03 sheet's 0.30 (`humanoid_spike.py
+  hand's load to the legs), and the friction table its row: 0.29 N*m dry,
+  0.06 viscous, against the RS03 sheet's 0.30 (`humanoid_spike.py
   --friction`).
 
 **The reach with a waist.** A posture is the legs' and the waist's

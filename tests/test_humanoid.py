@@ -334,7 +334,7 @@ def test_the_standing_policy_drives_the_legs_off_what_the_robot_senses():
   assert p.observation_names == ("base_ang_vel", "projected_gravity", "joint_pos",
                                  "joint_vel", "actions", "posture")
   assert p.action_joints == tuple(j for j in hm.JOINT_NAMES if kind_is_leg(j))
-  assert p.mean.shape == (3 + 3 + 24 + 24 + 12 + 2,)
+  assert p.mean.shape == (3 + 3 + 2 * len(hm.JOINT_NAMES) + 12 + 2,)
   model, data, stand, _ = _standing()
   assert stand.observation().shape == p.mean.shape
 
@@ -706,3 +706,15 @@ def test_training_turns_the_waist_as_the_served_reach_does():
   assert (consts["WAIST_RATE"], consts["WAIST_ACCEL"]) == (rc.WAIST_RATE, rc.WAIST_ACCEL)
   assert consts["WAIST_GOAL"] == pytest.approx(float(np.max(rc.WAIST_YAWS)), abs=1e-4)
 
+
+
+def test_the_served_stand_was_trained_at_the_gains_the_body_commands():
+  """#560's stage (c3): the standing policy is served beside the arms and
+  the waist it was trained beside -- their commands' gains the ones its
+  export recorded (`quad_train.export`), and every joint it saw a joint of
+  the body."""
+  from pluggybot.humanoid.policy import StandPolicy
+  policy = StandPolicy()
+  assert tuple(policy.training["arm_gain_scale"]) == hm.ARM_GAIN_SCALE
+  assert tuple(policy.training["waist_gain_scale"]) == hm.WAIST_GAIN_SCALE
+  assert set(hm.WAIST) <= set(policy.joint_names)
