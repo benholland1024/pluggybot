@@ -5700,7 +5700,13 @@ Served (one pod, an EPYC 7Q83, against today's body there): the hand jobs
 from the tour over 32 draws, the door 30 and the chest 21 (31 and 20); the
 pull a hand holds (`humanoid_spike.py --pulls`) 590 N summed over its 14
 ways, as stand4's, 20 N at its weakest (forward), so `pull` still asks at
-most 20.
+most 20. The station as before (docked from round the standoff 36 of 36,
+plugged in from 139 of 140 seats, 16 of 16 lost near and walked in; lost
+far 111 of 123 to 116); standing, it takes a shove 5 N*s bigger from the
+front and the sides (15 and 20 where stand4 took 10 and 15); and in two of the house's falls (into a wall at 3.4
+m/s, onto the landing's edge at 2.2) the LIDAR itself struck, where it did
+in none before. A hand job draws 4-7 W more (164-175 W), inside the energy
+table's 10 % margin, so `energy.json` is not priced again.
 
 ⚠ **OPEN: the cube put on its mat falls on the waist's body** (`hands_check
 --job place`, set-outs 0-31, one pod): 22 of 32 on the body before it, 8 on
