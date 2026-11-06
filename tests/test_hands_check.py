@@ -506,7 +506,7 @@ def _pads_meet_lid_deg(m, d0, grip, rot):
   mujoco.mju_mat2Quat(quat, np.asarray(rot, dtype=float).ravel())
   pads = [m.geom(f"pad{k}").id for k in (1, -1)]
   hit = [m.geom("chest_lid").id, m.geom("chest_bracket").id]
-  for deg in np.arange(0.0, 75.0, 0.25):
+  for deg in np.arange(0.0, 75.0, 0.5):
     d.qpos[hinge], d.qpos[pin] = math.radians(deg), d0.qpos[pin] - math.radians(deg)
     mujoco.mj_kinematics(m, d)
     d.mocap_pos[0], d.mocap_quat[0] = d.geom_xpos[knob] + off, quat
@@ -516,10 +516,10 @@ def _pads_meet_lid_deg(m, d0, grip, rot):
   return None
 
 
-def _lid_grip(m, d0, far: float):
-  """Where the lid's procedure first reaches (the grip and its turn), its knob's tag -- the
-  top face, as `spot` reads it at the counter -- read `far` m further from the robot than it
-  is, the robot square to the chest."""
+def _lid_grips(m, d0, far: float) -> list:
+  """Each grip the lid's procedure reaches for (its place and turn, a tilt each, every reach
+  refused so it tries them all), its knob's tag -- the top face, as `spot` reads it at the
+  counter -- read `far` m further from the robot than it is, the robot square to the chest."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _fly
   knob = m.geom("chest_knob").id
@@ -529,7 +529,9 @@ def _lid_grip(m, d0, far: float):
           "normal": list(-up), "edge": list(r[:, 1]), "range": 0.5}
 
   class Seeing(StubBody):
-    reaches: list = []
+    def __init__(self, *a, **kw):
+      super().__init__(*a, **kw)
+      self.reaches = []
 
     def spot(self, tag, at_height=None):
       return dict(seen) if tag == 53 else None
@@ -542,25 +544,25 @@ def _lid_grip(m, d0, far: float):
       yield
   body = Seeing(*_bare())
   _fly(hc.JOBS["lid"], body)
-  return body.reaches[0]
+  return body.reaches
 
 
 def test_the_lids_grip_clears_its_lid_up_the_arc_and_holds_the_whole_knob():
-  """⚠ AIMED AT THE KNOB'S MIDDLE, ITS PADS MET THE LID ON THE WAY UP (#560's stage (c3);
-  SimNotes, "The chest's grip"): the pads reach 4 cm past the grip, and as the lid rises its
-  front edge swings up under them -- 11 deg sooner a cm deeper. The grips landed 0.9 cm past
-  their aim at the median, so the pads met the lid at 43 deg, and on the waist's body the lift
-  ran out of reach in 12 of 32 draws from the tour. Read 0.9 cm far, the procedure's grip
-  clears the lid past where its lift ends (61-63 deg); read true, the knob's far corner is
-  still short of the pads' tips."""
+  """⚠ AIMED AT THE KNOB'S MIDDLE, ITS PADS MET THE RISING LID (#560's stage (c3); SimNotes,
+  "The chest's grip"). At every tilt the procedure tries, read 0.9 cm far -- the grips landed
+  that much past their aim at the median -- its grip clears the lid past where its lift ends
+  (61-63 deg); read true, the knob's far corner is still short of the pads' tips."""
   from pluggybot.activity import chest as ch
   from pluggybot.humanoid import parts as hp
   m, d0 = _lid_scene()
-  grip, rot = _lid_grip(m, d0, far=0.009)
-  met = _pads_meet_lid_deg(m, d0, grip, rot)
-  assert met is None or met > 63.0, met
-  grip, rot = _lid_grip(m, d0, far=0.0)
   knob = m.geom("chest_knob").id
-  fingers, r = -rot[:, 2], d0.geom_xmat[knob].reshape(3, 3)
-  tip = (d0.geom_xpos[knob] - grip) @ fingers + ch.KNOB * np.abs(r.T @ fingers).sum()
-  assert tip <= hp.GRIPPER.pad_half[2], tip
+  r = d0.geom_xmat[knob].reshape(3, 3)
+  far, true = _lid_grips(m, d0, far=0.009), _lid_grips(m, d0, far=0.0)
+  assert len(far) == len(true) == 6
+  for grip, rot in far:
+    met = _pads_meet_lid_deg(m, d0, grip, rot)
+    assert met is None or met > 63.0, met
+  for grip, rot in true:
+    fingers = -rot[:, 2]
+    tip = (d0.geom_xpos[knob] - grip) @ fingers + ch.KNOB * np.abs(r.T @ fingers).sum()
+    assert tip <= hp.GRIPPER.pad_half[2], tip

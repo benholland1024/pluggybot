@@ -61,7 +61,9 @@ three paired seeds. The cube is no offered job.
 chest's grip"): its lid's grip is aimed 2 cm short of the knob's middle,
 where the pads had met the rising lid and the retrained stand, pushed by the
 lift, let the arc's top out of reach. Ours alone: the robots write their own
-procedures, and nothing they read changed.
+procedures, and nothing they read changed. ⚠ The chest's numbers below set
+the reworked reference on this body against the old one on today's: two
+changes, the grip never flown on today's body at the three seeds.
 
 **What the period is for.** That the body changed nothing else the robots
 did well: charges plug in (no `stuck` death, no charge narrated "no charge
@@ -70,9 +72,9 @@ over 32 draws from the tour: the door 29 where today's body passed 31; the
 chest 29, 31 and 29 at three paired seeds where today's passed 20, 28 and
 24; each draw its own noise, on another pod, the drawer 31, the door 28 and
 the chest 32: SimNotes, "The waist built"), and falls a day do not rise --
-read off the charges'
-narration, the `death` rows and the jobs' verdicts. The deploy box's speed
-is the management conversation's to read (one joint more on each robot).
+read off the charges' narration, the `death` rows and the jobs' verdicts.
+The deploy box's speed is the management conversation's to read (one joint
+more on each robot).
 
 ### The mind pinned to baseten, and the eye running (the box, 2026-11-05) — set during the pause, so it opens with the world's next run
 

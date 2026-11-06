@@ -5698,18 +5698,19 @@ turned 8.2-8.4.
 
 Served, flown again once the cube's causes were fixed (one pod, an EPYC
 7Q83, which flies today's tree to the earlier pod's numbers exactly; today's
-in brackets): the lid at 32 set-outs 21 (21); the drawer from the tour 7 of
-8 (7) and the door 29 of 32 (31). The station as before: docked from round
-the standoff 36 of 36, plugged in from 138 of 140 seats (139), 16 of 16 lost
-near and walked in, lost far 112 of 123 (116). Standing, it takes a shove 5
-N*s bigger from the front and the sides (15 and 20 where stand4 took 10 and
-15). The drift's worst belief error 0.15 and 0.13 m (0.11 and 0.28), both
-docked; the LIDAR's probe the same on every row; a restart's parity
-identical. A hand job draws 157-166 W from the mall's station (156-161),
-inside the energy table's 10 %, so `energy.json` is not priced again. The
-pull a hand holds (`--pulls`, flown before this round's fixes) 590 N summed
-over its 14 ways, as stand4's, 20 at its weakest, so `pull` still asks at
-most 20.
+in brackets): the lid at 32 set-outs 21 (21), gripped then at the knob's
+middle (22, 23 and 25 at three seeds 2 cm short: "The chest's grip"); the
+drawer from the tour 7 of 8 (7) and the door 29 of 32 (31). The station as
+before: docked from round the standoff 36 of 36, plugged in from 138 of 140
+seats (139), 16 of 16 lost near and walked in, lost far 112 of 123 (116).
+Standing, it takes a shove 5 N*s bigger from the front and the sides (15
+and 20 where stand4 took 10 and 15). The drift's worst belief error 0.15 and
+0.13 m (0.11 and 0.28), both docked; the LIDAR's probe the same on every
+row; a restart's parity identical. A hand job draws 157-166 W from the
+mall's station (156-161), inside the energy table's 10 %, so `energy.json`
+is not priced again. The pull a hand holds (`--pulls`, flown before this
+round's fixes) 590 N summed over its 14 ways, as stand4's, 20 at its
+weakest, so `pull` still asks at most 20.
 
 **Each set-out its own noise** (#560's seeds stage; Evaluation.md §5), on
 one pod, a Xeon Gold 6138, osmesa, which flew #622's rows for the lid and
@@ -5727,7 +5728,7 @@ shared before, on the same pod:
 | the opener (`attempts.py`) | 6 (6) | 19 (21) |
 | the served drawer from the tour | 8 | 31 |
 | the served door from the tour | **5** (7) | 28 (30), one fall |
-| the served chest from the tour | 8 (6) | 32 (25), no fall |
+| the served chest from the tour, its grip 2 cm short | 8 (6) | 32 (25), no fall |
 
 The door falls under the bar of 6 at its first 8 draws (Ben's call). The
 station, each trial its own noise: 36 of 36 round the standoff at a push
@@ -5848,7 +5849,7 @@ stage, "The waist built").
 
 **What is true now.** The lid's procedure (`hands_check.LID`, the second
 half of the served chest's reference) grips the knob 2 cm short of its
-middle along the chest's way in. The jaws' pads are 8 cm long, centred on
+middle, back level along its facing. The jaws' pads are 8 cm long, centred on
 the grip, so their tips reach 4 cm past it, and as the lid rises -- the
 handle kept at its turn in the world by the hand holding the knob -- the
 lid's front edge swings up and back under them. On the chest's and the
@@ -5869,12 +5870,12 @@ postures -- standing taller, then bowing, five in 4 s at worst -- took the
 lid to 50-57 deg or let it go, and four robots fell (today's body: no lift
 out of reach, five falls).
 
-**Back along the way in, never along the tag's normal.** The knob hangs 34
+**Back level, never along the tag's normal.** The knob hangs 34
 deg round its pin, so `spot` reads its top face, tilted toward the camera: a
 step back along that face's normal is 0.56 of it back and 0.83 of it up the
 knob. 2 cm along it moved the grips 1.1 cm back and 1.65 cm up, the pads
-met the lid at 51 deg, and the chest passed 27, 30 and 27. Back along the way
-in alone, at seed 0 (the waist's body):
+met the lid at 51 deg, and the chest passed 27, 30 and 27. Back level, at
+seed 0 (the waist's body):
 
 | aimed short of the middle | passed of 32 | fell | the grip past the middle, median (range) | pads met the lid |
 |---|---|---|---|---|
@@ -5889,8 +5890,9 @@ From 1.5 cm on every lift that began ended at its distance, at 61-63 deg,
 and the three draws left are the approach's. 2 cm keeps both edges: read 0.9
 cm far, the pads clear the lid to 66 deg, and read true, the knob's far
 corner is 4 mm inside the pads' tips (2.5 cm short, 0.7 mm past them). The
-test pins both. Gripped so, the lift pushes 9-10 N across the hand at its
-peak, and the stance turns 0.1-0.4 deg.
+test pins both at each of the six tilts the procedure tries, where the pads
+clear the lid to 63.5 deg at the least. Gripped so, the lift pushes 9-10 N
+across the hand at its peak, and the stance turns 0.1-0.4 deg.
 
 **Measured on one pod** (an EPYC 7Q83, which flies #622's served flights bit
 for bit), the committed tree's own instruments, seeds paired:
@@ -5915,10 +5917,9 @@ over `energy.json`'s 7.463: inside the table's 10 %, so not priced again.
 tag's facing read square-on from 0.75 m, and its walk turns the stance too,
 so on the waist's body the stance lands a median 3 deg short of the turn
 asked, within 7-8 deg of it either way in 8 approaches of 10 (219 flown);
-then the last step
-is blocked, or leaves the robot 0.30 m from the knob turned right of square
-with its tag out of the head camera's view. 7 draws of 96 on the waist's
-body, 13 on today's.
+then the last step is blocked, or leaves the robot 0.30 m from the knob
+turned right of square with its tag out of the head camera's view. 7 draws
+of 96 on the waist's body, 13 on today's.
 
 ## Debugging workflow that worked
 

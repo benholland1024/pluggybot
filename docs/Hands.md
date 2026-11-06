@@ -245,7 +245,7 @@ its 8 set-outs** (`evaluation/hands_check.py`, `BAR`, `SET_OUTS`).
 
 | job | grader | the set-out (`evaluation/counter.py`) | what its procedure knows |
 |---|---|---|---|
-| lid | `challenge/lid.py`: past 57 deg, set down, let go | #493's chests on the 0.72 m counter | the knob's cube from its tag, gripped 2 cm short of its middle (the pads reach 4 cm past the grip, and the rising lid's front edge swings up under them: SimNotes, "The chest's grip"); lift up and a little back, lower toward the body |
+| lid | `challenge/lid.py`: past 57 deg, set down, let go | #493's chests on the 0.72 m counter | the knob's cube from its tag, gripped 2 cm short of its middle, back level (SimNotes, "The chest's grip"); lift up and a little back, lower toward the body |
 | drawer | `challenge/drawer.py`: 15 cm out, let go | a cabinet on the counter, its knob where a chest's is | pull straight out |
 | door | `challenge/door.py`: 50 deg open, let go | a cupboard hinged on its left, its lever's tip 0.40-0.44 ahead | press the lever, let go, look: a door already open is done; else grip it lightly and pull toward the body, then on the hand's way |
 | place | `challenge/place.py`: on the mat within 2.5 cm, flat on a face, set down, let go | a cube 0.40-0.46 ahead on a 6 cm board -- in sight, out of reach where the robot stands -- the mat 6-8 cm further | a step in and aside until the cube is 0.32 ahead and 0.18 to its left, what it read turned into the frame it then stands in; grip it from above-front; lift, carry, set down holding the line |
