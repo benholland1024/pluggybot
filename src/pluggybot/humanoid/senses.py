@@ -38,10 +38,10 @@ class Noise:
   LIDAR's and each depth camera's (`SERVED_SEEDS`' streams), and a
   watcher's apart from the flight's. `key` None (or `ROBOT`) is the
   robot's own: its name's, every stream seeded as served, so the deployed
-  pair draws what it always drew. An instrument keys a flight by its job and set-out
-  (`attempts.noise_of`), so each set-out draws its own noise as it draws
-  its own props: with the robot's own key every set-out of a check
-  replayed one realization, and its count carried that one's luck
+  pair draws what it always drew. An instrument keys a flight by its job
+  and set-out (`attempts.noise_of`), so each set-out draws its own noise
+  as it draws its own props: with the robot's own key every set-out of a
+  check replayed one realization, and its count carried that one's luck
   (SimNotes, "The cube and the robot's noise"). ⚠ A second robot's key is
   its prefix's too (`name`): two bodies keyed alike would draw one noise."""
 

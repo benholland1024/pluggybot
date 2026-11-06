@@ -295,7 +295,7 @@ def noise_said(rows) -> str:
   its own, one key's (a draw flown again), or -- a row without one, kept
   before each set-out drew its own -- the robot's, one realization of its
   noise every set-out shared (Evaluation.md §5)."""
-  rows = [r for r in rows if "task" in r]
+  rows = [r for r in rows if "task" in r and "error" not in r]
   keys = [(r.get("run") or {}).get("noise") for r in rows]
   own = [k == noise_of(Task.from_dict(r["task"])) for k, r in zip(keys, rows)]
   if all(own):

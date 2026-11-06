@@ -134,7 +134,8 @@ def test_each_set_out_draws_noise_of_its_own_and_the_same_again(monkeypatch):
 
   def row(k, noise):
     return {"task": at.Task(chest=k).as_dict(), "run": {"noise": noise}}
-  assert at.noise_said([row(0, "lid:0"), row(1, "lid:1")]) == "each set-out drew noise of its own"
+  assert at.noise_said([row(0, "lid:0"), row(1, "lid:1"),
+                        {**row(2, None), "error": "it raised"}]) == "each set-out drew noise of its own"
   assert at.noise_said([row(0, "lid:0"), row(1, None)]).startswith("⚠")
   assert at.noise_said([row(0, "robot"), row(1, "robot")]) == "every flight drew robot's noise"
 
