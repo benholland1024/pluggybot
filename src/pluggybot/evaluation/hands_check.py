@@ -178,11 +178,19 @@ DOOR = '''def open_door():
 '''
 
 #: THE CUBE, out of reach where the robot stands: the mat's middle and the
-#: cube's off their tags, the cube's turn off its edges; a STEP in, until
-#: the cube is 0.32 m ahead -- nearer, the head camera no longer sees it, so
-#: what it read is turned into the frame it stands in after the step
-#: (`step.*`); gripped steeply from above-front, the jaws on two of its
-#: faces, at the first tilt that reaches and holds; lifted straight up and
+#: cube's off their tags, the cube's turn off its edges; a STEP in and aside,
+#: until the cube is 0.32 m ahead and 0.18 to the left -- nearer, the head
+#: camera no longer sees it, so what it read is turned into the frame it
+#: stands in after the step (`step.*`). ⚠ STEPPED IN ALONE, THE STAND'S
+#: CREEP PUT IT ASIDE (#560's stage (c3)): stand4 turned its stance 2.5 deg
+#: clockwise over the step and left the cube 0.177 to its left, the stand
+#: retrained on the waist holds its stance and left it 0.157 -- there the
+#: left hand's carry to the mat ran into its shoulder's inner stop, 10 of 32
+#: placed where 22 were. Stepped aside, the waist's body placed it 19 times
+#: of 32 over three seeds of its noise, today's stepped in alone 18 (SimNotes,
+#: "The cube and the robot's noise"). Gripped steeply from above-front, the
+#: jaws on two of its faces, at the first tilt that reaches and holds; lifted
+#: straight up and
 #: set down by force moves that hold their line (`give` 0: a cube set down
 #: giving slid along what it touched), carried over the mat by where the
 #: grip left it in the hand; and let go only once its set-down has pressed
@@ -197,7 +205,7 @@ PLACE = '''def place_cube():
   y = read("spot.y") + 0.013 * read("spot.ny")
   z = read("spot.z") + 0.013 * read("spot.nz")
   a = atan2(read("spot.ey"), read("spot.ex"))
-  step(x - 0.32)
+  step(x - 0.32, y - 0.18)
   c = cos(read("step.turn"))
   s = sin(read("step.turn"))
   u = x - read("step.dx")
