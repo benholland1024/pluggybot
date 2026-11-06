@@ -507,8 +507,9 @@ def static_poses() -> list[tuple[str, callable]]:
 
 # ---- the tables ---------------------------------------------------------------------
 
-#: The kinds of joint, in the order the tables print them.
-KINDS = hm.LEG + hm.ARM
+#: The kinds of joint, in the order the tables print them: the waist's
+#: beside the legs' it holds (#560's stage (c3)).
+KINDS = hm.LEG + hm.WAIST + hm.ARM
 
 
 def by_kind(per_joint: np.ndarray) -> dict:
@@ -673,7 +674,7 @@ def walking_table() -> None:
         "the estimates above are superseded for walking, the stairs' stand until stage 5):")
   print(f"{'joint':15s}" + "".join(f"{n:>37s}" for n, _ in rows))
   print(f"{'':15s}" + "".join(f"{'peak N*m (% peak)  RMS (% rated) C':>37s}" for _ in rows))
-  for kind in hm.LEG:
+  for kind in hm.LEG + hm.WAIST:
     m = hm.CHOSEN.drives[kind]
     cells = []
     for _, rec in rows:
@@ -748,7 +749,7 @@ def getup_rows(npz: str | None = None) -> list[tuple[str, dict]]:
   return rows
 
 
-def flown_table(title: str, rows: list[tuple[str, dict]], kinds=hm.LEG) -> None:
+def flown_table(title: str, rows: list[tuple[str, dict]], kinds=hm.LEG + hm.WAIST) -> None:
   """Rule 7's re-read of FLOWN rows: each joint kind's peak against its
   part's peak, its RMS against the part's continuous rating, and the winding
   that RMS holds steady at, 40 C ambient (`walking_table`'s columns) -- or,
@@ -823,7 +824,7 @@ def thermal_table(rows=None) -> None:
 
 
 def friction_table(write: bool = False) -> None:
-  """--friction: the arm joints' friction calibrated as the robot does it
+  """--friction: the arm joints' and the waist's friction calibrated as the robot does it
   (`humanoid.friction.calibrate_routine`), standing in the living room,
   each joint's fit beside the friction its motor's sheet gives the
   model (`parts.friction_nm`, the sim's truth: ours, never the robot's)."""
@@ -3696,6 +3697,7 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
       took = d.time - t0
       getup.begin()
     if took is not None and stood is None:
+      h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
       getup.step()
       mujoco.mj_step(m, d)
       if getup.stood:
@@ -3828,6 +3830,7 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
         up, rec["took_s"] = True, t
         getup.begin()
     if up:
+      h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
       getup.step()
       mujoco.mj_step(m, d)
       if getup.stood:
@@ -3959,6 +3962,11 @@ class Falling:
   def step(self) -> None:
     h = self.h
     if self.up:
+      # ...the waist held home as the mission holds it (`Reach.hold_waist`):
+      # left to a reach that never stepped, it held the drawing's default
+      # gains, an eighth of its own, and lying on its face the get-up never
+      # stood (2.4 s held as served)
+      h.reach.hold_waist()
       self.getup.step()
       mujoco.mj_step(h.m, h.d)
       if self.getup.stood:
@@ -4240,7 +4248,7 @@ def main(argv=None) -> None:
                   help="the served walker and the one that sees the ground (or these policies) "
                        "over a doorstep, paving, a slope and blocks")
   ap.add_argument("--friction", action="store_true",
-                  help="its arm joints' friction calibrated in free air, beside the sheets' "
+                  help="its arm joints' and waist's friction calibrated in free air, beside the sheets' "
                        "(--write keeps it in models/humanoid_friction.json)")
   ap.add_argument("--write", action="store_true", help="--friction: keep the table")
   ap.add_argument("--mass", action="store_true", help="the mass budget beside the T2's")
@@ -4335,7 +4343,7 @@ def main(argv=None) -> None:
     if GETUP_NPZ.exists() or _GETUP:
       print()
       flown_table("GETTING UP, FLOWN by the get-up policy from lying (rule 7's re-read):",
-                  getup_rows(_GETUP), kinds=hm.LEG + hm.ARM)
+                  getup_rows(_GETUP), kinds=KINDS)
   elif args.thermal:
     thermal_table()
   elif args.energy:

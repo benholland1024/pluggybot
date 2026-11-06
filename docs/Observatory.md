@@ -27,8 +27,8 @@ observatory is NOT a result: it reports into the issue it informs.
 - **`recall` reads it** (`changelog`, `changelog 2`, a page at a time), and
   the prompt's WHAT YOU REMEMBER says so: the recall bullet names the key,
   and a bullet beside it says what the changelog is and what the state's
-  block holds. The prompt's sha moves once: `prompt_sha` `60e70aa9…` →
-  `844b1020…`, 57,348 → 57,815 chars, 17 sections both
+  block holds. The prompt's sha moves once: `prompt_sha` `beb48e83…` (the
+  waist's, below) → `db2dedf0…`, 57,459 → 57,926 chars, 17 sections both
   (`overseer_probe.py --deployed --prompt`). A later entry moves no sha.
 - **On the wire**: a `changelog` message when a stream opens where a mind
   reads it. The site keeps it on the run and shows it on its Changelog page
@@ -55,6 +55,72 @@ then".
   characters) while a recall chain holds it.
 - ⚠ **Not a period to pool with the last for anything the robots know of
   their world**: from here they can read what changed.
+
+### The humanoids grow a waist: a yaw at the pelvis's top, and the standing policy retrained on it (#560, stage (c3)) — opens when both halves are deployed, this PR's and rooftop-media-2026's, on a weekend of its own after Ben's word
+
+**What changed in the world.** The body, and the policy it stands on.
+- **Each humanoid has a waist yaw**: a RobStride RS03 at the pelvis's top
+  turns everything above it -- the torso, the head and its sensors, the
+  charge port and the arms -- up to 60 deg either way (Parts.md, "The
+  waist's yaw"). 44.9 kg (43.2 before), 25 joints; the bill EUR 16,743.16.
+  The site draws its link, its motor and its plate.
+- **A reach turns it only where no posture with it square reaches**,
+  holds it in its posture through a carry, and brings it home before a walk
+  or a get-up; neither the walker nor the get-up policy changed. No
+  procedure can move it (it is no `move` axis).
+- **The robots are told of it in one sentence of their body** (the
+  practice's `YOUR_BODY`, which their procedure rule carries; Ben's call 5
+  on #622): "Your trunk turns on a waist over your hips, up to 60 degrees
+  either way, your shoulders and your head with it." `prompt_sha`
+  `60e70aa9…` (57,348 chars) becomes `beb48e83…` (57,459), 17 sections
+  both; the session host's `hello` moves with it, and the site's half
+  vendors it again (its guide is held to it). The schema, the menu, the
+  reward table and the jobs are the same.
+- **Each joint draws the noise it drew before** (`senses.SHARED`): the
+  legs' and the arms' drivers keep the robot's one stream, and the waist's
+  draws its own.
+- **The LIDAR and the depth camera ride it**, posed off its encoder every
+  frame.
+- **The standing policy is waist16**, retrained on the new body with the
+  waist scripted beside it and each sole's heading anchored: as an arm goes
+  out its stance turns 0.9-1.5 deg (stand4: 4.6-4.8), and with the reach's
+  posture 3.6-3.9 (8.2-8.4); standing still it settles in 30 s, as stand4
+  did.
+- **Every robot's body and map is dropped at the deploy** (the save's
+  fingerprint hashes the robots' bodies): History says "the world itself
+  changed since then", and the clock, both packs at their share, the deaths
+  and the jobs carry on -- flown from a copy of the live save, through
+  today's build and then this one.
+
+**Why.** #560's table: its put-downs lie at the edge of what a hand reaches
+at a 0.72 m table (#615), and #620 and #621 measured that a yaw widens the
+bands and lets one stance lay the whole place; Ben's calls of 11-05 (a yaw
+alone, +-60, held through a carry, no `move` axis).
+
+**The cube's check is closed** (SimNotes, "The cube and the robot's
+noise"): it fell 22 of 32 to 9 on the one realization of the robot's noise
+the waist re-drew, and on a step that had leaned on stand4's creep; its
+procedure steps aside now, and the two bodies place the cube as often over
+three paired seeds. The cube is no offered job.
+
+**The served chest's reference is reworked for this body** (SimNotes, "The
+chest's grip"): its lid's grip is aimed 2 cm short of the knob's middle,
+where the pads had met the rising lid and the retrained stand, pushed by the
+lift, let the arc's top out of reach. Ours alone: the robots write their own
+procedures, and nothing they read changed. ⚠ The chest's numbers below set
+the reworked reference on this body against the old one on today's: two
+changes, the grip never flown on today's body at the three seeds.
+
+**What the period is for.** That the body changed nothing else the robots
+did well: charges plug in (no `stuck` death, no charge narrated "no charge
+contact"), the hand jobs' grades hold (flown before the deploy on one pod
+over 32 draws from the tour: the door 29 where today's body passed 31; the
+chest 29, 31 and 29 at three paired seeds where today's passed 20, 28 and
+24; each draw its own noise, on another pod, the drawer 31, the door 28 and
+the chest 32: SimNotes, "The waist built"), and falls a day do not rise --
+read off the charges' narration, the `death` rows and the jobs' verdicts.
+The deploy box's speed is the management conversation's to read (one joint
+more on each robot).
 
 ### The mind pinned to baseten, and the eye running (the box, 2026-11-05) — set during the pause, so it opens with the world's next run
 

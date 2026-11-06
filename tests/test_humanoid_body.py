@@ -9,6 +9,7 @@ import inspect
 import math
 import sys
 from pathlib import Path
+from types import SimpleNamespace as NS
 
 import mujoco
 import numpy as np
@@ -228,6 +229,9 @@ class _Homing:
   def step(self) -> None:
     self.steps += 1
 
+  def hold_waist(self) -> None:
+    pass
+
   def held_pitch(self) -> float:
     return 0.0
 
@@ -284,8 +288,9 @@ def test_a_fall_while_the_posture_comes_back_is_a_fall():
 
 def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():
   """The humanoid's deepest reach, flown through `Body` with its get-up
-  loaded, as served: the floor by its toes, fingers down, from the deepest
-  bow its standing policy holds (1.1 rad). It holds there, the grip truly
+  loaded, as served: the floor by its toes, fingers down, from a deep bow
+  turned at the waist (#560's stage (c3): without the waist, the deepest
+  its standing policy holds, 1.1 rad). It holds there, the grip truly
   within 1.5 cm of the goal (our grading), and its own watch takes no fall.
   ⚠ Its watch read off upright took the bow for a fall and the get-up took
   the joints; its approach begun as the bow stopped turning was stopped
@@ -302,9 +307,9 @@ def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():
   got = body.run(body.reach_routine("left", body.to_world(goal), _rz(body.stance[2]) @ DOWN,
                                     patience=10.0))
   assert got is True and body.falls == 0
-  assert body.reach.posture[1] == pytest.approx(1.1)
+  assert body.reach.posture[1] >= 0.95 and body.reach.posture[2] != 0.0
   assert np.linalg.norm(data.site_xpos[model.site("left_grip").id] - truly) < 0.015
-  assert math.degrees(math.acos(data.xmat[body.root][8])) > 55.0     # bowed past the old 35
+  assert math.degrees(math.acos(data.xmat[body.root][8])) > 50.0     # bowed past the old 35
 
 
 # ---- stage 4: walking ----------------------------------------------------------------
@@ -402,3 +407,73 @@ def test_the_legs_meet_each_other():
   right = {model.geom(f"right_{p}").id for p in hm.LEG_GEOMS}
   pairs = {(int(c.geom1), int(c.geom2)) for c in data.contact[:data.ncon]}
   assert any((a in left and b in right) or (a in right and b in left) for a, b in pairs)
+
+
+# ---- the waist (#560, stage (c3)) ----------------------------------------------------
+
+
+def test_the_head_sensors_are_laid_through_the_waist_the_odometry_read():
+  """The LIDAR's band and the depth camera's frame are each laid through the
+  waist's angle as its driver read it -- the reading the odometry posed its
+  model of itself with (`HumanoidMission.waist_read`), never the
+  simulator's, never a zero."""
+  body = body_for(*_floor())
+  m = body.mission
+  try:
+    sm = m.odo.sm
+    sm.q[sm.waist] = 0.3
+    handed = []
+    real_band, real_frame = m.lidar.band, m.depth.frame
+    m.lidar.band = lambda data, level, height, **kw: handed.append(kw["joints"]) or real_band(
+      data, level, height, **kw)
+    m.depth.frame = lambda data, joints=None: handed.append(joints) or real_frame(data, joints)
+    m._scan()
+    m._frame_t = -1e9
+    m.latest_depth()
+    assert handed == [{"waist_yaw": 0.3}, {"waist_yaw": 0.3}]
+  finally:
+    body.close()
+
+
+def test_a_walk_takes_the_legs_only_once_the_waist_reads_home():
+  """The walking policy knows no waist: turned for a reach, the waist is
+  walked home first (`Reach.waist_home`: commanded there and read there),
+  and only then do the legs go to the walker -- as the arms come home first."""
+  body = body_for(*_floor())
+  m = body.mission
+  try:
+    m.reach.hold_posture(0.0, 0.0, 0.6)
+    body.run(body.hold_routine(1.5))
+    w = m.reach.self_model.waist
+    assert m.reach.sensed[w][0] > 0.55 and not m.reach.waist_home()
+    gen = m.to_walk_routine()
+    for _ in range(int(6.0 / m.model.opt.timestep)):
+      try:
+        command = next(gen)
+      except StopIteration:
+        break
+      m.stepper.step(command)
+    assert m.legs == "walk" and m.reach.waist_home()
+    assert abs(m.reach.sensed[w][0]) <= 0.05
+  finally:
+    body.close()
+
+
+def test_the_get_up_holds_the_waist_home_and_reads_nothing():
+  """The get-up policy drives the legs and the arms, never the waist: while
+  it has them the waist is walked home at `WAIST_RATE` and held there
+  (`Reach.hold_waist`), a command each `EVERY_S` -- nothing read, no model
+  posed, while it tumbles."""
+  from pluggybot.humanoid import reach as rc
+  from test_hands import _bare_reach
+  r = _bare_reach()
+  r.m = NS(opt=NS(timestep=0.002))
+  r.every, r.steps = 5, 0
+  r.posture[2], r.waist_cmd = 0.5, np.array([0.5])
+  r._pose = lambda *a, **k: (_ for _ in ()).throw(AssertionError("read while it tumbles"))
+  for _ in range(5 * 200):
+    r.hold_waist()
+  assert len(r.waist_sent) == 200
+  steps = np.array([float(v[0]) for v in r.waist_sent])
+  assert np.all(np.diff(steps) <= 1e-12) and np.all(np.diff(steps) >= -rc.WAIST_RATE * 0.01 - 1e-12)
+  assert steps[-1] == 0.0 and r.posture[2] == 0.0

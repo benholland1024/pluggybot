@@ -2,8 +2,10 @@
 numpy (`training/humanoid_train/getup.py`, exported `--joints all`), as the
 standing and walking ones are run (`humanoid.policy`), reading only the
 robot's senses -- the IMU part's rate and its filter's gravity, every joint
-off its driver -- and driving all twenty-four joints, arms too, each with
-the gains it trained on.
+off its driver -- and driving the legs' and the arms' twenty-four joints,
+each with the gains it trained on: the waist (#560's stage (c3)) is walked
+home and held there stiff (`Reach.hold_waist`), as its training never
+moved it.
 
 It takes a FALLING body over: the policy that had the legs (standing or
 walking) hands it the legs and the arms once the trunk has tipped
@@ -15,8 +17,8 @@ straight down into a squat, tilted 32 deg, and its hands struck the floor)
 hands and knees rather than its head -- and it hands them back once the
 robot stands (`stood`): upright, its pelvis at the stand's height over that
 sole, and still, for `STOOD_S`. ⚠ PAST THE POSTURE, NEVER PAST UPRIGHT
-(#520): the IMU is on the pelvis and the body has no waist, so a bow the
-standing policy is asked tilts the IMU by the whole bow -- read off upright,
+(#520): the IMU is on the pelvis, under a waist that only turns, so a bow
+the standing policy is asked tilts the IMU by the whole bow -- read off upright,
 a reach to a low shelf (0.8 rad) or the floor (1.1) was a fall, and the
 get-up took the joints. ⚠ THE LOWER SOLE, NEVER BOTH: standing across two
 treads, the soles' middle is half a riser under the stand, and the get-up

@@ -55,6 +55,10 @@ Honest where the part is, and the tests pin each:
   A legged body (`mount="body"`, #388) gets its points in the root body's
   own frame: its torso pitches 33° on a flight, so no level can be
   assumed, and the caller applies its attitude estimate (`humanoid/scan.py`).
+  ⚠ A JOINT ON THE MOUNT'S WAY IS TURNED AS ITS DRIVER READS IT (#560's
+  stage (c3): the humanoid's head rides its waist): the frame takes the
+  reading (`frame(joints=)`) and refuses to be laid without it
+  (`perception.mount`).
 """
 
 from dataclasses import dataclass, field
@@ -66,6 +70,7 @@ import numpy as np
 from pluggybot.power import DEPTH_CAMERA_W
 from pluggybot.perception.cull import StaticCull
 from pluggybot.perception.lidar import robot_geoms
+from pluggybot.perception.mount import camera_mount
 from pluggybot.robot import FIRST, RobotHandle
 
 CAMERA = "depth_eye"
@@ -101,28 +106,6 @@ DROPOUT = 0.01            # returns lost to dark or specular surfaces; the activ
 #: One empty cloud, shared: a frame with no peer in it allocates nothing.
 _NO_POINTS = np.zeros((0, 3))
 _NO_GEOMS = np.zeros(0, dtype=np.int32)
-
-
-def _quat_mat(quat) -> np.ndarray:
-  mat = np.zeros(9)
-  mujoco.mju_quat2Mat(mat, np.asarray(quat, dtype=np.float64))
-  return mat.reshape(3, 3)
-
-
-def _fixed_mount(model, cam_id: int, root: int) -> tuple[np.ndarray, np.ndarray]:
-  """A camera's pose in the root body's frame, composed through the bodies
-  between them, which must be fixed to it (no joint on the way)."""
-  pos = np.array(model.cam_pos[cam_id], dtype=np.float64)
-  mat = _quat_mat(model.cam_quat[cam_id])
-  body = int(model.cam_bodyid[cam_id])
-  while body != root:
-    if body == 0 or model.body_jntnum[body]:
-      raise ValueError(f"camera {cam_id} is not fixed to body {root}")
-    bmat = _quat_mat(model.body_quat[body])
-    pos = model.body_pos[body] + bmat @ pos
-    mat = bmat @ mat
-    body = int(model.body_parentid[body])
-  return pos, mat
 
 
 @dataclass
@@ -198,17 +181,17 @@ class DepthCamera:
     self._axial = 1.0 / np.linalg.norm(dirs, axis=1)   # cos(angle to axis)
     self._dirs_cam = dirs * self._axial[:, None]
     self._u = uu.reshape(n)
-    # The NOMINAL mount: the camera's rest pose on the robot's root body,
-    # re-expressed relative to the axle midpoint on the floor. Points are
-    # reconstructed through this, never through the live pose.
-    root = model.body(handle.root).id
-    if mount == "body":
-      # A legged body (#388): the root body's own frame, the torso's pitch
-      # left to the caller's attitude estimate -- on a flight it is 33°.
-      self.origin_robot, mat = _fixed_mount(model, self.cam_id, root)
-    else:
+    # The NOMINAL mount: the camera's pose on the robot's root body, each
+    # joint on its way as its driver reads it (`frame(joints=)`). Points
+    # are reconstructed through this, never through the live pose.
+    if mount != "body":
       raise ValueError(f"unknown mount {mount!r}")
-    self._dirs_robot = self._dirs_cam @ mat.T
+    # A legged body (#388): the root body's own frame, the torso's pitch
+    # left to the caller's attitude estimate -- on a flight it is 33°.
+    self.mount = camera_mount(model, self.cam_id, handle.root)
+    if not self.mount.joints:
+      self.origin_robot, mat = self.mount.pose()
+      self._dirs_robot = self._dirs_cam @ mat.T
 
   def rebind(self, model) -> None:
     """The camera and the geom sets, by name: built, and built again when
@@ -244,7 +227,18 @@ class DepthCamera:
     self._other_roots.append(root_name)
     self.rebind(self.model)
 
-  def frame(self, data) -> DepthFrame:
+  def _mounted(self, joints: dict | None) -> tuple[np.ndarray, np.ndarray]:
+    """The camera's place and each pixel's direction in the root body's
+    frame, its mount's joints at `joints` (`perception.mount.Mount.pose`)."""
+    if not self.mount.joints:
+      return self.origin_robot, self._dirs_robot
+    origin, mat = self.mount.pose(joints)
+    return origin, self._dirs_cam @ mat.T
+
+  def frame(self, data, joints: dict | None = None) -> DepthFrame:
+    """One frame, its points laid through the mount -- each joint on its
+    way at `joints[name]`, rad, as the robot's own driver reads it."""
+    origin, dirs = self._mounted(joints)
     n = self.width * self.height
     pos = np.array(data.cam_xpos[self.cam_id], dtype=np.float64)
     mat = np.array(data.cam_xmat[self.cam_id], dtype=np.float64).reshape(3, 3)
@@ -271,17 +265,18 @@ class DepthCamera:
     if self._theirs.size:
       theirs = hit & np.isin(self._geomid, self._theirs) & ~shadow
       if theirs.any():
-        pz, peers = self._cloud(np.where(theirs, z, np.nan), self.peer_rng)
+        pz, peers = self._cloud(np.where(theirs, z, np.nan), self.peer_rng, origin, dirs)
         # `peers`' rows, in order; a mask index copies the reused ray buffer
         peer_geoms = self._geomid[~np.isnan(pz)]
-    z, points = self._cloud(np.where(robot | shadow, np.nan, z), self.rng)
+    z, points = self._cloud(np.where(robot | shadow, np.nan, z), self.rng, origin, dirs)
     return DepthFrame(z=z.reshape(self.height, self.width), points=points,
                       self_fraction=float(robot.mean()), peers=peers,
                       peer_geoms=peer_geoms)
 
-  def _cloud(self, z: np.ndarray, rng) -> tuple[np.ndarray, np.ndarray]:
-    """Range gate, noise, dropout and the pinhole reconstruction: `(z,
-    points)`.
+  def _cloud(self, z: np.ndarray, rng, origin: np.ndarray, dirs: np.ndarray
+             ) -> tuple[np.ndarray, np.ndarray]:
+    """Range gate, noise, dropout and the pinhole reconstruction through
+    the mount (`origin`, `dirs`, `_mounted`): `(z, points)`.
 
     ⚠ ONE SENSOR MODEL, TWO CHANNELS. The room and the peers go through
     this same function on their own streams, because a peer return that
@@ -295,7 +290,7 @@ class DepthCamera:
     z = np.where(rng.random(z.size) < self.dropout, np.nan, z)
     valid = ~np.isnan(z)
     depth = z[valid] / self._axial[valid]
-    return z, self.origin_robot + self._dirs_robot[valid] * depth[:, None]
+    return z, origin + dirs[valid] * depth[:, None]
 
   def _shadow(self, z: np.ndarray) -> np.ndarray:
     """Pixels the RIGHT imager cannot see (the module docstring). A NaN

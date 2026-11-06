@@ -48,12 +48,14 @@ from pluggybot.humanoid.places import HumanoidPlaces
 from pluggybot.humanoid.policy import StandDriver, StandPolicy
 from pluggybot.humanoid.reach import Reach
 from pluggybot.humanoid.scan import HeadScan
+from pluggybot.humanoid.senses import Noise
 from pluggybot.humanoid.walk import WALK_NPZ, WalkDriver
 from pluggybot.humanoid.way import HumanoidWay
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator
 from pluggybot.perception.depth import UNCULLED, DepthCamera, DepthFrame
 from pluggybot.perception.lidar import Scan
+from pluggybot.perception.mount import site_mount
 from pluggybot.robot import FIRST, RobotHandle
 
 STILL = (0.0, 0.0, 0.0)
@@ -116,17 +118,6 @@ def command_for(vx: float, vy: float, w: float) -> tuple[float, float, float]:
     w = math.copysign(max(abs(w), W_MIN), w)
   return (min(max(vx, VX_RANGE[0]), VX_RANGE[1]), min(max(vy, -VY_MAX), VY_MAX),
           min(max(w, -W_MAX), W_MAX))
-
-
-def _site_in_root(model, site: int, root: int) -> np.ndarray:
-  pos = np.array(model.site_pos[site], dtype=float)
-  body = int(model.site_bodyid[site])
-  while body != root:
-    mat = np.zeros(9)
-    mujoco.mju_quat2Mat(mat, model.body_quat[body])
-    pos = model.body_pos[body] + mat.reshape(3, 3) @ pos
-    body = int(model.body_parentid[body])
-  return pos
 
 
 class HumanoidStepper:
@@ -207,16 +198,23 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                stand: StandPolicy | None = None, walk: StandPolicy | None = None,
                grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False,
-               getup: StandPolicy | None = None) -> None:
+               getup: StandPolicy | None = None, noise: str | None = None) -> None:
     self._getup_policy = getup if getup is not None else (
       StandPolicy(GETUP_NPZ) if GETUP_NPZ.exists() else None)
     self.stepper = HumanoidStepper(self)
+    #: Whose noise its parts draw (`senses.Noise`): the robot's own, None,
+    #: as served, or an instrument's key for a flight.
+    self.noise = Noise(handle, noise)
     root = model.body(handle.root).id
-    lidar = _site_in_root(model, model.site(handle.el("lidar")).id, root)
-    #: The LIDAR's place on the trunk: the scan's origin for the map.
-    self.LIDAR_ORIGIN = (float(lidar[0]), float(lidar[1]))
+    lidar = site_mount(model, model.site(handle.el("lidar")).id, handle.root)
+    #: The LIDAR's place on the trunk: the scan's origin for the map. It
+    #: rides the waist's axis, so the waist turns it where it is: each scan
+    #: is laid from where its mount puts it (`Scan.origin`, `_scan`).
+    at = lidar.pose({j: 0.0 for j in lidar.joints})[0]
+    self.LIDAR_ORIGIN = (float(at[0]), float(at[1]))
     super().__init__(model, data, handle=handle, grid_bounds=grid_bounds,
-                     viewer=viewer, realtime=realtime, match=True)
+                     viewer=viewer, realtime=realtime, match=True,
+                     lidar_seed=self.noise.seed("lidar"))
     self.root = root
     self._build_drivers(stand, walk)
     self._odo_every = max(1, round(self.ODO_S / model.opt.timestep))
@@ -233,7 +231,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     #: A tag watched while it moves (`perception.watch.TagWatch`, the
     #: body's `watch`), stepped after every physics step; None for none.
     self.sight = None
-    self.depth = DepthCamera(model, handle, mount="body", reach=UNCULLED)
+    self.depth = DepthCamera(model, handle, mount="body", reach=UNCULLED,
+                             seed=self.noise.seed("near"))
     self._frame: DepthFrame | None = None
     self._frame_t = -math.inf
     self._frame_used_t = -math.inf
@@ -301,7 +300,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       if any(command) and self.legs == "stand":
         if self.reach.posture.any():
           self.reach.hold_posture(0.0, 0.0)
-        if not self.stand.settled:
+        if not self.stand.settled or not self.reach.waist_home():
           command = STILL
         else:
           self.walker.last_action[:] = 0.0
@@ -310,7 +309,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       self.last_motion_t = float(self.data.time)
     if self.legs == "getup":
       # Getting up: every joint the get-up policy's, a walk asked meanwhile
-      # walks nowhere.
+      # walks nowhere -- but the waist's, which it knows nothing of: held
+      # home, stiff.
+      self.reach.hold_waist()
       self.getup.step()
       if self.getup.stood:
         self._stood_up()
@@ -350,7 +351,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     through the get-up, `_after_physics`), the ground's map laid anew. ⚠
     Kept through a fall down the flight, the height was 0.41 m off at the
     foot, past what a frame registers, for good."""
-    key = f"humanoid:{self.handle.prefix}"
+    key = self.noise.name
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
     self.stand.ask(0.0, 0.0)
@@ -397,7 +398,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def to_walk_routine(self):
     """The legs to the walking policy: the arms home and the posture back to
-    the stand first (a walk carries nothing yet), then handed over. ⚠ A
+    the stand first, the waist home (a walk carries nothing yet, and the
+    walking policy knows no waist), then handed over. ⚠ A
     fall as they came home went to the walker if its step was the one that
     settled them (#520): the get-up stands it first."""
     yield from self._getup_routine()
@@ -408,7 +410,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         self.reach.retreat(s)
     self.reach.hold_posture(0.0, 0.0)
     while (any(p != "rest" for p in self.reach.phase.values())
-           or not self.stand.settled):
+           or not self.stand.settled or not self.reach.waist_home()):
       yield STILL
       self._after_step()
     yield from self._getup_routine()
@@ -471,7 +473,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     stands now: the IMU's filter from the boot's orientation, the odometry
     at the pelvis, and -- for a walker that sees the ground -- the scan."""
     model, data, handle = self.model, self.data, self.handle
-    key = f"humanoid:{handle.prefix}"
+    key = self.noise.name
     self.stand = StandDriver(model, data, stand, prefix=handle.prefix, key=key)
     walk = walk or StandPolicy(WALK_NPZ)
     att = self.stand.trunk.attitude
@@ -479,7 +481,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     if "height_scan" in walk.observation_names:
       self.head = HeadScan(model, data, handle,
                            belief=lambda: (self.odo.x, self.odo.y, self.odo.z, self.odo.yaw),
-                           level=att.level, correct=self._height_drifted, period=DEPTH_PERIOD)
+                           level=att.level, correct=self._height_drifted, period=DEPTH_PERIOD,
+                           seed=self.noise.seed("ground"), joints=self.waist_read)
     self.walker = WalkDriver(model, data, walk, prefix=handle.prefix, key=key,
                              trunk=self.stand.trunk, joints=self.stand.joints,
                              scan=None if self.head is None else self.head.scan)
@@ -564,7 +567,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "odometry": o.kept_state(),
              "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
                        "rate": kept_value(trunk.rate)},
-             "jointsRng": self.stand.joints.rng.bit_generator.state,
+             "jointsRng": self.stand.joints.kept_state(),
              "drivers": drivers, "torqued": torqued,
              "reach": self.reach.kept_state(),
              "frame": frame,
@@ -608,7 +611,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     trunk.imu.restore_kept(state["trunk"]["imu"])
     trunk.attitude.q = tuple(float(v) for v in state["trunk"]["q"])
     trunk.rate = value_back(state["trunk"]["rate"])
-    self.stand.joints.rng.bit_generator.state = state["jointsRng"]
+    self.stand.joints.restore_kept(state["jointsRng"])
     for name, drv in (("stand", self.stand), ("walk", self.walker), ("getup", self.getup)):
       kept = state["drivers"].get(name)
       if drv is None or kept is None:
@@ -664,6 +667,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     if self.getup is not None:
       out["getup"] = self.getup.drivers
     out.update({f"arm:{s}": arm.drivers for s, arm in self.reach.arms.items()})
+    out["waist"] = self.reach.waist.drivers
     return out
 
   def fresh_drivers(self) -> None:
@@ -673,12 +677,21 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._build_drivers(self.stand.policy, self.walker.policy)
     self._moved_t = float(self.data.time)
 
+  def waist_read(self) -> dict:
+    """The waist's angle as its driver last read it, bare name -> rad: the
+    reading its odometry posed its model of itself with (`_after_physics`,
+    every `ODO_S`), off which the head's sensors are posed -- the LIDAR's
+    turn and the depth camera's mount ride the waist (#560's stage (c3))."""
+    sm = self.odo.sm
+    return {j: float(v) for j, v in zip(hm.WAIST, sm.q[sm.waist])}
+
   def _scan(self) -> Scan:
     """Its LIDAR's points laid flat (`Lidar.band`): through its IMU's tilt
-    and set over the floor at its pelvis's height off its legs' encoders
-    (its model of itself), as its depth frames are (`_levelled`)."""
+    and its waist's turn and set over the floor at its pelvis's height off
+    its legs' encoders (its model of itself), as its depth frames are
+    (`_levelled`)."""
     return self.lidar.band(self.data, self.stand.trunk.attitude.level(),
-                           float(self.odo.sm.d.qpos[2]))
+                           float(self.odo.sm.d.qpos[2]), joints=self.waist_read())
 
   def _front_blocked(self, angles, ranges) -> bool:
     ahead = np.cos(angles) * ranges
@@ -741,7 +754,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     if t - self._frame_t >= DEPTH_PERIOD - 1e-9:
       self._frame_t = t
       self._frame_level = self.legs != "getup" and self.level()
-      raw = self.depth.frame(self.data) if self.head is None else self.head.frame
+      raw = (self.depth.frame(self.data, self.waist_read()) if self.head is None
+             else self.head.frame)
       self._frame = None if raw is None else self._levelled(raw)
     return self._frame
 

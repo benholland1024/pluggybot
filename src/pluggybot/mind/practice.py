@@ -168,7 +168,8 @@ feet, and taking a posture to reach can move them a little: a place you
 read before a reach may lie elsewhere in the frame after it. Your shoulders are 1.15 m up,
 4 cm behind your feet's middle and 0.18 m either side of it; an arm held
 straight puts its grip 0.58 m from its shoulder, and it reaches less far
-with its hand turned some ways. Your hands are "left" and "right": each ends in a two-jaw gripper
+with its hand turned some ways. Your trunk turns on a waist over your hips,
+up to 60 degrees either way, your shoulders and your head with it. Your hands are "left" and "right": each ends in a two-jaw gripper
 whose jaws close across the point between them (its grip), its fingers 8 cm
 long. Both grippers start shut. A hand that is OUT is one you have reached
 with, until you withdraw it.

@@ -12,6 +12,10 @@ from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.perception import lidar as lidar_mod
 from pluggybot.perception.lidar import Lidar
 
+#: The waist's reading at its zero, where these tests' bodies stand (#560's stage (c3):
+#: the head's sensors ride the waist, and a frame is laid through its reading).
+W0 = {"waist_yaw": 0.0}
+
 #: A 4 x 3 m box room round the robot, which stands at the origin facing +x:
 #: walls' inner faces at x -0.98 and 2.98, y -1.48 and 1.48, and 2.4 m tall,
 #: a room's.
@@ -91,7 +95,7 @@ def test_the_level_ring_covers_the_full_circle(room):
   assert data.site_xpos[model.site("lidar").id][2] == pytest.approx(
     hm.stand_height() + SITE_Z, abs=0.02)
   lidar = _clean(model)
-  angles, ranges = lidar.scan(data)
+  angles, ranges = lidar.scan(data, W0)
   hidden = np.setdiff1d(np.round(lidar.ray_angles, 9), np.round(angles, 9))
   assert 1 <= len(hidden) <= FIN_BEARINGS and _behind(hidden).all(), np.degrees(hidden)
   edge = math.radians(180 - FIN_DEG - 1.5)
@@ -103,7 +107,7 @@ def test_the_level_ring_ranges_match_geometry(room):
   """Every bearing reads the room's walls where they stand, 2.98 m ahead
   and 0.98 behind."""
   model, data = room
-  angles, ranges = _clean(model).scan(data)
+  angles, ranges = _clean(model).scan(data, W0)
   assert np.allclose(ranges, _room_range(angles), atol=0.002)
   fwd = ranges[np.argmin(np.abs(angles))]
   back = ranges[np.argmin(np.abs(np.abs(angles) - math.pi))]
@@ -116,7 +120,7 @@ def test_grid_origin_must_match_the_sensor(room):
   pelvis, but a sensor 0.3 m off it laid with the default would slide the
   entire map by the difference."""
   model, data = room
-  angles, ranges = _clean(model).scan(data)
+  angles, ranges = _clean(model).scan(data, W0)
   root = model.body("pluggybot").id
   head = data.site_xpos[model.site("lidar").id] - data.xpos[root]
   assert np.allclose(head[:2], 0.0), "the premise: the humanoid's is over its pelvis"
@@ -136,11 +140,11 @@ def test_the_robot_occludes_itself_and_says_so(room):
   reporting it as max_range would carve a phantom corridor through the map
   in exactly the direction the robot cannot see."""
   model, data = room
-  angles, _ = _clean(model).scan(data)
+  angles, _ = _clean(model).scan(data, W0)
   assert len(angles) >= lidar_mod.BEARINGS - FIN_BEARINGS, "its own body is in the ring"
   model, data = _world(post=True)
   lidar = _clean(model)
-  angles, _ = lidar.scan(data)
+  angles, _ = lidar.scan(data, W0)
   angles = angles[~_behind(angles, 5.0)]
   missing = sorted(set(range(-170, 171)) - set(np.round(np.degrees(angles)).astype(int)))
   assert 2 < len(missing) < 40, missing
@@ -298,9 +302,9 @@ def test_its_rays_leave_through_its_window_never_its_housing(room):
   robot saw nothing (#386)."""
   model, data = room
   lidar = _clean(model)
-  assert len(lidar.scan(data)[0]) >= lidar_mod.BEARINGS - FIN_BEARINGS
+  assert len(lidar.scan(data, W0)[0]) >= lidar_mod.BEARINGS - FIN_BEARINGS
   lidar._housing = -1
-  assert not len(lidar.scan(data)[0]), "the premise: its housing is round its rays' origin"
+  assert not len(lidar.scan(data, W0)[0]), "the premise: its housing is round its rays' origin"
 
 
 def _frame_hits(model, data, cam: str, aspect: float = 16 / 9, n: tuple = (64, 36)) -> set:
@@ -345,7 +349,7 @@ def test_a_return_inside_its_blind_zone_is_no_reading():
   z = hm.stand_height() + SITE_Z
   near = f'<geom name="near" type="box" size="0.005 0.008 0.01" pos="0.06 0 {z}"/>'
   model, data = _world(ROOM + near)
-  angles, _ = _clean(model).scan(data)
+  angles, _ = _clean(model).scan(data, W0)
   ahead = np.abs(angles) < math.radians(5)
   assert not ahead.any(), "a bearing through the blind zone reported something"
   # ...and every bearing but the box's own 17 and the fin's behind did
@@ -357,8 +361,8 @@ def test_noise_is_present_and_bounded(room):
   each range against its own sigma, the sheet's line from 4 cm at 0.2 m to
   2 cm at 10 m -- and each bearing its own 0.15 deg."""
   model, data = room
-  a_c, r_c = _clean(model).scan(data)
-  a_n, r_n = Lidar(model, seed=1).scan(data)
+  a_c, r_c = _clean(model).scan(data, W0)
+  a_n, r_n = Lidar(model, seed=1).scan(data, W0)
   idx = np.abs(a_n[:, None] - a_c[None, :]).argmin(axis=1)
   t = r_c[idx]
   hits = t < lidar_mod.MAX_RANGE - 1e-9
@@ -431,11 +435,11 @@ def test_the_band_lays_a_low_fence_the_level_ring_passes_over():
   the fin's shadow behind is no reading, never free space."""
   model, data = _world(ROOM + FENCE)
   lidar = _clean(model)
-  angles, ranges = lidar.scan(data)
+  angles, ranges = lidar.scan(data, W0)
   assert ranges[np.argmin(np.abs(angles))] == pytest.approx(2.98, abs=0.01), \
     "the premise: the ring passes over the fence"
   level, height = _truth(model, data)
-  b_angles, b_ranges = lidar.band(data, level, height)[:2]
+  b_angles, b_ranges = lidar.band(data, level, height, joints=W0)[:2]
   assert np.allclose(b_ranges, _room_range(b_angles, fence=True), atol=0.02)
   assert lidar_mod.BEARINGS - FIN_BEARINGS <= len(b_angles) < lidar_mod.BEARINGS
 
@@ -448,11 +452,11 @@ def test_the_band_is_laid_through_the_tilt():
   model, data = _world(ROOM + FENCE, pitch=math.radians(10))
   lidar = _clean(model)
   level, height = _truth(model, data)
-  scan = lidar.band(data, level, height)
+  scan = lidar.band(data, level, height, joints=W0)
   ahead = np.abs(scan.angles) < math.radians(15)
   assert np.allclose(scan.ranges[ahead], (1.98 - scan.origin[0]) / np.cos(scan.angles[ahead]),
                      atol=0.03)
-  angles, ranges = lidar.band(data, np.eye(3), height)[:2]
+  angles, ranges = lidar.band(data, np.eye(3), height, joints=W0)[:2]
   ahead = np.abs(angles) < math.radians(15)
   assert ranges[ahead].min() < 1.5, "the premise: unlevelled, the floor reads as a wall"
 
@@ -475,7 +479,7 @@ def test_the_band_lays_no_free_ray_down_a_return():
   mujoco.mj_forward(model, data)
   lidar = _clean(model)
   level, height = _truth(model, data)
-  angles, ranges = lidar.band(data, level, height)[:2]
+  angles, ranges = lidar.band(data, level, height, joints=W0)[:2]
   hit = ranges < lidar.max_range - 1e-9
   assert hit.sum() >= 2, "the premise: the band strikes the box"
   gap = np.abs((angles[hit][:, None] - angles[~hit][None, :] + math.pi) % (2 * math.pi) - math.pi)
@@ -483,23 +487,53 @@ def test_the_band_lays_no_free_ray_down_a_return():
     f"a free ray {math.degrees(gap.min()):.2f} deg from a return"
 
 
-def test_the_sensors_turn_is_read_through_its_site_and_its_mount():
+def test_the_sensors_turn_is_read_through_its_site_its_mount_and_the_waist():
   """The band lays points through the sensor's place and turn on the root
-  (`Lidar.offset`, `Lidar.turn`), read off the model: a site turned on a
-  mount turned is both turns, as the compiled world has them."""
+  (`Lidar.mount`), read off the model: a site turned on a mount turned is
+  both turns -- and the waist under them turned as its reading is handed in
+  (#560's stage (c3)), as the compiled world has them at every angle; a
+  scan handed no reading is refused, never laid at zero."""
   spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN))
   spec.body("lidar_mount").quat = [math.cos(0.15), 0.0, 0.0, math.sin(0.15)]
+  spec.body("lidar_mount").pos = [0.03, 0.01, hm.CHOSEN.lidar_z]
   spec.site("lidar").quat = [math.cos(0.2), math.sin(0.2), 0.0, 0.0]
   model = spec.compile()
   data = mujoco.MjData(model)
-  mujoco.mj_resetDataKeyframe(model, data, 0)
-  mujoco.mj_forward(model, data)
   lidar = _clean(model)
   root = model.body("pluggybot").id
-  rot = data.xmat[root].reshape(3, 3)
   site = model.site("lidar").id
-  assert np.allclose(lidar.turn, rot.T @ data.site_xmat[site].reshape(3, 3), atol=1e-9)
-  assert np.allclose(lidar.offset, rot.T @ (data.site_xpos[site] - data.xpos[root]), atol=1e-9)
+  waist = model.jnt_qposadr[model.joint("waist_yaw").id]
+  for turn in (0.0, 0.4, -1.0):
+    mujoco.mj_resetDataKeyframe(model, data, 0)
+    data.qpos[waist] = turn
+    mujoco.mj_forward(model, data)
+    rot = data.xmat[root].reshape(3, 3)
+    offset, mat = lidar.mount.pose({"waist_yaw": turn})
+    assert np.allclose(mat, rot.T @ data.site_xmat[site].reshape(3, 3), atol=1e-9), turn
+    assert np.allclose(offset, rot.T @ (data.site_xpos[site] - data.xpos[root]), atol=1e-9), turn
+  with pytest.raises(ValueError, match="waist_yaw"):
+    lidar.band(data, np.eye(3), hm.stand_height())
+
+
+def test_the_band_is_laid_through_the_waists_turn_its_tilt_the_pelvis_imus():
+  """#560's stage (c3): the LIDAR rides the waist and the IMU the pelvis. The
+  waist turned 0.6 rad, a band laid through its reading -- and the level
+  ring -- reads the room from the pelvis's own heading, as the map and the
+  matcher take it; laid at the waist's zero -- the turn left out -- the same
+  rays read it 0.6 rad round, and the asymmetric room says so."""
+  model, data = _world()
+  w = model.jnt_qposadr[model.joint("waist_yaw").id]
+  data.qpos[w] = 0.6
+  mujoco.mj_forward(model, data)
+  level, height = _truth(model, data)
+  lidar = _clean(model)
+  for name, scan in (("band", lambda j: lidar.band(data, level, height, joints=j)[:2]),
+                     ("ring", lambda j: lidar.scan(data, j))):
+    angles, ranges = scan({"waist_yaw": 0.6})
+    assert len(angles) >= lidar_mod.BEARINGS - FIN_BEARINGS, name
+    assert np.allclose(ranges, _room_range(angles), atol=0.03), name
+    angles, ranges = scan(W0)
+    assert np.abs(ranges - _room_range(angles)).max() > 0.5, f"{name}: the premise"
 
 
 def test_the_band_reads_a_wall_where_it_stands():
@@ -511,7 +545,7 @@ def test_the_band_reads_a_wall_where_it_stands():
   level, height = _truth(model, data)
   err = []
   for seed in range(4):
-    angles, ranges = Lidar(model, seed=seed).band(data, level, height)[:2]
+    angles, ranges = Lidar(model, seed=seed).band(data, level, height, joints=W0)[:2]
     err.append(ranges - _room_range(angles))
   err = np.concatenate(err)
   assert len(err) > 4 * (lidar_mod.BEARINGS - 10)
@@ -541,10 +575,10 @@ def test_a_turned_mount_lays_its_rays_where_they_went():
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
   lidar = _clean(model)
-  assert lidar.offset[:2] == pytest.approx((0.05, 0.0), abs=1e-6), "the premise"
+  assert lidar.mount.pose(W0)[0][:2] == pytest.approx((0.05, 0.0), abs=1e-6), "the premise"
   level, height = _truth(model, data)
-  for name, (angles, ranges) in (("ring", lidar.scan(data)),
-                                 ("band", lidar.band(data, level, height)[:2])):
+  for name, (angles, ranges) in (("ring", lidar.scan(data, W0)),
+                                 ("band", lidar.band(data, level, height, joints=W0)[:2])):
     ahead = np.argmin(np.abs(angles))
     assert ranges[ahead] == pytest.approx(2.93 / math.cos(angles[ahead]), abs=0.005), name
     assert np.allclose(ranges, _room_range(angles, x0=0.05), atol=0.02), name
@@ -557,9 +591,9 @@ def test_its_noise_is_its_robots_own():
   """Two robots' LIDARs draw apart, one robot's the same twice: the seed
   is off its name (`imu.seed_for`), never `hash()` or a shared 0."""
   model, data = _world()
-  first = Lidar(model, robot_body="pluggybot").scan(data)
-  again = Lidar(model, robot_body="pluggybot").scan(data)
-  other = Lidar(model, robot_body="r2_pluggybot").scan(data)
+  first = Lidar(model, robot_body="pluggybot").scan(data, W0)
+  again = Lidar(model, robot_body="pluggybot").scan(data, W0)
+  other = Lidar(model, robot_body="r2_pluggybot").scan(data, W0)
   assert all(np.array_equal(a, b) for a, b in zip(first, again))
   assert not np.array_equal(first[1], other[1])
 
@@ -577,7 +611,7 @@ def test_a_bearing_clears_no_wall_nearer_than_its_steepest_ray_comes_down():
   model, data = _world(ROOM + box)
   lidar = _clean(model)
   level, height = _truth(model, data)
-  scan = lidar.band(data, level, height)
+  scan = lidar.band(data, level, height, joints=W0)
   ahead = np.argmin(np.abs(scan.angles))
   assert scan.ranges[ahead] == pytest.approx(2.98, abs=0.03), \
     "the premise: every ray passes over the box"
@@ -611,10 +645,10 @@ def test_the_bands_floor_rises_with_range():
   err = math.radians(1.8)
   tilted = np.array([[math.cos(err), 0.0, -math.sin(err)], [0.0, 1.0, 0.0],
                      [math.sin(err), 0.0, math.cos(err)]]) @ level
-  scan = lidar.band(data, tilted, height)
+  scan = lidar.band(data, tilted, height, joints=W0)
   assert np.all(scan.ranges >= lidar.max_range - 1e-9), \
     f"the floor read {scan.ranges.min():.2f} m off in the band"
-  scan = lidar.band(data, tilted, height, rise=0.0)
+  scan = lidar.band(data, tilted, height, rise=0.0, joints=W0)
   assert (scan.ranges < lidar.max_range - 1e-9).any(), \
     "the premise: with no rise, the far floor tilted 1.8 deg is in the band"
 
@@ -641,7 +675,7 @@ def test_a_closed_room_has_no_free_bearing_behind_the_fin():
     mujoco.mj_forward(model, data)
     level, height = _truth(model, data)
     for seed in range(20):
-      scan = Lidar(model, seed=seed).band(data, level, height)
+      scan = Lidar(model, seed=seed).band(data, level, height, joints=W0)
       free = scan.ranges >= lidar_mod.MAX_RANGE - 1e-9
       leaks += [(roll, pitch, seed, float(np.degrees(a))) for a in scan.angles[free]]
   assert not leaks, f"{len(leaks)} free bearings in a closed room: {leaks[:4]}"
@@ -659,10 +693,10 @@ def test_a_dropped_return_frees_nothing():
   for dropout in (0.5, 1.0):
     lidar.dropout = dropout
     for _ in range(10):
-      scan = lidar.band(data, level, height)
+      scan = lidar.band(data, level, height, joints=W0)
       assert not (scan.ranges >= lidar_mod.MAX_RANGE - 1e-9).any(), \
         f"{dropout:.0%} of the returns dropped laid a bearing free"
-  assert not len(lidar.scan_split(data)[0]), \
+  assert not len(lidar.scan_split(data, W0)[0]), \
     "the premise: every return dropped, the ring says nothing"
 
 
@@ -676,11 +710,11 @@ def test_a_ray_the_rising_floor_meets_short_of_max_range_frees_nothing():
     return np.abs(a) < math.radians(8)
   model, data = _world("", post=True, post_half_h=0.035)
   level, height = _truth(model, data)
-  scan = _clean(model).band(data, level, height)
+  scan = _clean(model).band(data, level, height, joints=W0)
   assert not ahead(scan.angles).any(), \
     f"{int(ahead(scan.angles).sum())} bearings behind the post laid free"
   model, data = _world("")
-  scan = _clean(model).band(data, level, height)
+  scan = _clean(model).band(data, level, height, joints=W0)
   assert ahead(scan.angles).sum() >= 10, "the premise: in the open, the level ring frees them"
 
 
@@ -703,7 +737,7 @@ def test_a_bowed_robots_scan_is_laid_from_where_its_sensor_is():
   model, data = _world(_square(half), pitch=math.radians(52))
   level, height = _truth(model, data)
   for lidar in (_clean(model), Lidar(model, seed=1), Lidar(model, seed=2)):
-    scan = lidar.band(data, level, height)
+    scan = lidar.band(data, level, height, joints=W0)
     assert scan.origin[0] == pytest.approx(SITE_Z * math.sin(math.radians(52)), abs=0.01), \
       "the premise: bowed, the sensor is half a metre ahead"
     ox, oy = scan.origin
@@ -729,7 +763,7 @@ def _cleared(scenery, cell, pitch: float = 0.0, peer: str = "", scans: int = 10)
   cx, cy = g.world_to_cell(*cell)
   g.grid[cy, cx] = 2.0
   for _ in range(scans):
-    scan = lidar.band(data, level, height)
+    scan = lidar.band(data, level, height, joints=W0)
     g.update((0.0, 0.0, 0.0), scan.angles, scan.ranges, lidar.max_range,
              origin=scan.origin, free_from=scan.free_from)
   return g.grid[cy, cx], scan
@@ -775,3 +809,21 @@ def test_nothing_low_behind_another_robot_is_cleared():
   assert scan.ranges[ahead] == pytest.approx(6.0, abs=0.1), \
     "the premise: the room ahead reads the wall over its head"
   assert kept == 2.0, f"the box behind the other robot was cleared ({kept:+.1f})"
+
+
+def test_the_instruments_scan_the_waists_body_at_its_reading(room):
+  """#560's stage (c3): a mount the waist turns is never posed without its
+  reading, and the instruments that cast the LIDAR from static poses hand it
+  in (the waist home): `lidar_spike.py --probe` crashed on the new body
+  before they did."""
+  import sys
+  from pathlib import Path
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+  import lidar_spike as ls
+  model, data = room
+  lidar = _clean(model)
+  with pytest.raises(ValueError, match="waist_yaw turns this mount"):
+    lidar.scan(data)
+  for variant in ("ring", "band"):
+    angles, ranges, _ = ls._scan(variant, model, data, lidar)
+    assert len(angles) and np.isfinite(ranges).any(), variant

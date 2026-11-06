@@ -14,6 +14,11 @@ watches every step, and 5 s after the call one verdict goes through
   --chests A-B|A,B,..  the chests (default 0-31: public)
   --held-out N         N chests nobody has flown instead, drawn by the
                        frozen build's seed (`attempts.seed_of`), or `--seed`
+  --noise KEY          every attempt draws KEY's noise, not its set-out's own
+                       (`attempts.noise_of`, #560): a draw flown again (a
+                       row's `run.noise`), `robot` the robot's own -- the one
+                       realization every set-out drew before; refused with
+                       --held-out, whose noise is sealed with its chests
   --attempts N         tries a chest (default 1: code that learns nothing
                        gets the same verdict at every one)
   --jobs J             chests in parallel, each in a process of its own
@@ -121,13 +126,13 @@ def fly(job) -> list[dict]:
   raises is a row saying what (`error`), its chest's earlier rows kept and
   its series ended there: `Pool.map` raises the first error a worker meets,
   and the batch's rows would go with it."""
-  k, n, info, who = job
+  k, n, info, who, noise = job
   skill, _, where = SKILLS[who]
   task = at.Task(chest=k, **where)
   rows = []
   for i in range(1, n + 1):
     try:
-      rows.append(at.attempt(task, skill, i, info=dict(info)))
+      rows.append(at.attempt(task, skill, i, info=dict(info), build=at.builder(noise)))
     except Exception as e:
       traceback.print_exc()
       rows.append({"task": task.as_dict(), "attempt": i, "heldOut": task.held_out,
@@ -168,6 +173,7 @@ def read(into: str) -> None:
       if w.get("n"):
         print(f"  passed within {n}: {w['k']} of {w['n']} = {w['share']:.2f} "
               f"[{w['lo']:.2f}, {w['hi']:.2f}]" + (f", {w['unflown']} unflown" if w["unflown"] else ""))
+    print(f"  {at.noise_said([r.data for r in mine])}")
     print(f"  experience: {rec['experience']}")
     print(f"  help: {rec['help']}")
     print(f"  its own test against the verdict: {rec['ownTest']}")
@@ -285,10 +291,10 @@ def _pace(viewer, data, model):
   return hook
 
 
-def view(k: int, who: str = "humanoid") -> None:
+def view(k: int, who: str = "humanoid", noise: str | None = None) -> None:
   from mujoco import viewer as mj_viewer
   skill, info, where = SKILLS[who]
-  world = at.set_out(at.Task(chest=k, **where))
+  world = at.set_out(at.Task(chest=k, **where), noise=noise)
   print(f"an attempt at chest {k} (at its counter: the reference opens the lid and sets it "
         "down); the grader's verdict is printed. Close the window to quit.")
   with mj_viewer.launch_passive(world.model, world.data) as viewer:
@@ -307,10 +313,11 @@ def view(k: int, who: str = "humanoid") -> None:
   world.close()
 
 
-def strip(k: int, out: str = "attempts.png", who: str = "humanoid") -> None:
+def strip(k: int, out: str = "attempts.png", who: str = "humanoid",
+          noise: str | None = None) -> None:
   from PIL import Image, ImageDraw
   skill_, info, where = SKILLS[who]
-  world = at.set_out(at.Task(chest=k, **where))
+  world = at.set_out(at.Task(chest=k, **where), noise=noise)
   m, d = world.model, world.data
   r = mujoco.Renderer(m, 300, 400)
   tiles = []
@@ -392,6 +399,7 @@ def main(argv=None) -> None:
   ap.add_argument("--chests", default="0-31")
   ap.add_argument("--held-out", type=int, default=None, metavar="N")
   ap.add_argument("--seed", type=int, default=None)
+  ap.add_argument("--noise", default=None, metavar="KEY")
   ap.add_argument("--attempts", type=int, default=1)
   ap.add_argument("--jobs", type=int, default=1)
   ap.add_argument("--into", default=None)
@@ -413,15 +421,18 @@ def main(argv=None) -> None:
     drops()
     return
   if args.view is not None:
-    view(args.view, args.body)
+    view(args.view, args.body, args.noise)
     return
   if args.strip is not None:
-    strip(args.strip, args.out, args.body)
+    strip(args.strip, args.out, args.body, args.noise)
     return
   info = SKILLS[args.body][1] | build()
   if args.held_out is not None:
     if info["dirty"] and args.seed is None:
       ap.error("a held-out draw is a frozen build's: commit the tree first (or name --seed)")
+    if args.noise is not None:
+      ap.error("a held-out chest's noise is sealed with it: --noise flies a draw again "
+               "at named --chests")
     seed = args.seed if args.seed is not None else at.seed_of(info["commit"])
     ks = at.held_out(seed, args.held_out)
     info["seed"] = seed
@@ -430,7 +441,8 @@ def main(argv=None) -> None:
     ks = chests(args.chests)
   if args.into:
     Path(args.into).mkdir(parents=True, exist_ok=True)
-  done = run_pool(fly, [(k, args.attempts, info, args.body) for k in ks], args.jobs)
+  done = run_pool(fly, [(k, args.attempts, info, args.body, args.noise) for k in ks],
+                  args.jobs)
   rows = [r for got in done for r in got]
   for r in rows:
     print(show(r))

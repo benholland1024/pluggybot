@@ -45,10 +45,12 @@ sidestepping command seldom gets it there.
 `models/humanoid.{xml,json}`, each joint its own RobStride part):
 `Pluggy-Humanoid-Stand` balances on planted feet at a commanded posture
 (the pelvis's height and the trunk's pitch, a crouch and a bow) while its
-arms are SCRIPTED -- sent somewhere new every few seconds with their weight
-fed forward, as the served reach drives them -- and its hands carry and
-pull; shoves and pulls ramp up over the first 1200 iterations
-(`DISTURBANCE_STAGES`, `--env.curriculum.disturbances.params.scale`), and
+arms and its waist's yaw (#560's stage (c3)) are SCRIPTED -- sent somewhere
+new every few seconds with their weight fed forward, as the served reach
+drives them -- and its hands carry and pull; shoves and pulls ramp up over
+the first 1200 iterations to 0.6 of their full size (`DISTURBANCE_STAGES`,
+`DISTURBANCE_SCALE`: at full size it fell rather than stand, stand1's and
+the waist's first retrains), and
 each sole is charged for its distance from where the episode's stance put
 it (`feet_anchor`; SimNotes, "The humanoid stands, reaches and grasps").
 #544's retrains against the `pull` verb's 60 N (a one-hand draw, a capped
@@ -107,8 +109,8 @@ same walker on flights alone (risers 0.02-0.22 m) and a little flat floor,
 nine commands in ten walking straight out along a flight (stairs1, the
 stairs' walker until the fine-tuned seeing walker climbed better; git has
 it). `Pluggy-Humanoid-Getup`
-gets up off the floor and falls on purpose: all twenty-four joints the
-policy's, episodes starting on its back, its front, dropped any way up or
+gets up off the floor and falls on purpose: the legs' and the arms'
+twenty-four joints the policy's (the waist held home), episodes starting on its back, its front, dropped any way up or
 TIPPING from its stand at a shove's speed; a lift at the pelvis holds part
 of its weight early in training (`ASSIST_STAGES`, to nothing by iteration
 2400), the rise paid as it comes and the stand from 3 s, and a hit on
@@ -154,6 +156,7 @@ run on a card records its steps a second:
 | RTX 5090 | Vast, the same host | 0.516 | 209,000 | 0.00069 | `Pluggy-Humanoid-Stand`, 4000 iterations in 31 min (#507) |
 | RTX 5090 | Vast, three hosts in South Korea | 0.490-0.516 | 198,000-205,000 | 0.0007 | `Pluggy-Humanoid-Stand` and `-Stand-Felt` (stand7-stand13), 4000 iterations in 32-33 min each (#544) |
 | RTX 5090 | Vast, another 7800X3D host | 0.490 | 215,000 | 0.00063 | `Pluggy-Humanoid-Walk`, 3000 iterations in 23 min (#507) |
+| RTX 5090 | Vast, two 7800X3D hosts in South Korea | 0.516 | 193,000 | 0.00074 | `Pluggy-Humanoid-Stand` on the waist (waist1-waist17), 4000 iterations in 34 min; two runs to a card took 68 min each, 16 % slower than one after the other (#560 (c3)) |
 | RTX 5090 | Vast, the same host | 0.490 | 122,000 | 0.0011 | `Pluggy-Humanoid-Walk-Rough` (rough4: 50 tiles of boxes), 2000 iterations in 27 min (#507) |
 | RTX 5090 | Vast, a Ryzen 9 9950X host | 0.641 | 114,000 | 0.0016 | `Pluggy-Humanoid-Walk-Seeing` from walk2 (50 tiles of boxes and flights, the 187-ray scan) alone (#507) |
 | RTX 5090 | Vast, an EPYC 7B12 host (DLPerf 86) | 0.540 | 11,000 | 0.014 | the same, and rough4's task: a slow card (above) |

@@ -245,10 +245,10 @@ its 8 set-outs** (`evaluation/hands_check.py`, `BAR`, `SET_OUTS`).
 
 | job | grader | the set-out (`evaluation/counter.py`) | what its procedure knows |
 |---|---|---|---|
-| lid | `challenge/lid.py`: past 57 deg, set down, let go | #493's chests on the 0.72 m counter | the knob's cube from its tag; lift up and a little back, lower toward the body |
+| lid | `challenge/lid.py`: past 57 deg, set down, let go | #493's chests on the 0.72 m counter | the knob's cube from its tag, gripped 2 cm short of its middle, back level (SimNotes, "The chest's grip"); lift up and a little back, lower toward the body |
 | drawer | `challenge/drawer.py`: 15 cm out, let go | a cabinet on the counter, its knob where a chest's is | pull straight out |
 | door | `challenge/door.py`: 50 deg open, let go | a cupboard hinged on its left, its lever's tip 0.40-0.44 ahead | press the lever, let go, look: a door already open is done; else grip it lightly and pull toward the body, then on the hand's way |
-| place | `challenge/place.py`: on the mat within 2.5 cm, flat on a face, set down, let go | a cube 0.40-0.46 ahead on a 6 cm board -- in sight, out of reach where the robot stands -- the mat 6-8 cm further | a step in until the cube is 0.32 ahead, what it read turned into the frame it then stands in; grip it from above-front; lift, carry, set down holding the line |
+| place | `challenge/place.py`: on the mat within 2.5 cm, flat on a face, set down, let go | a cube 0.40-0.46 ahead on a 6 cm board -- in sight, out of reach where the robot stands -- the mat 6-8 cm further | a step in and aside until the cube is 0.32 ahead and 0.18 to its left, what it read turned into the frame it then stands in; grip it from above-front; lift, carry, set down holding the line |
 | table (#560) | `challenge/table.py`: a plate, a fork and a cup each at its spot off a place card, set down, let go | the dishware beside a place on the restaurant's table, the robot at the place (`counter.table_set_out`) | the cup by the right hand where it stands, then a step aside a piece for the plate and the fork by the left; each arm rolled out and folded before the card and its piece are read; the card read again before each reach |
 
 The procedures and what each knows that a mind would have to find out are
@@ -288,6 +288,22 @@ the tour, the drawer 7 and 7, the door 8 and 8, the chest 7 and 7. A first
 pod (a Threadripper 3970X) read the same but the door 5 and 5, the table 0
 to 1 and the chest 5 and 5.
 
+**On the waist's body, each set-out its own noise** (#560's seeds stage;
+one pod, a Xeon Gold 6138, osmesa; in brackets the one realization every
+set-out shared before, on the same pod; SimNotes, "The waist built"): of the
+five jobs the lid alone meets the bar.
+
+| job | of 8 | of 32 | the set-outs 0-7 that failed, and why |
+|---|---|---|---|
+| lid | **8** (8) | 22 (22) | |
+| drawer | 5 (5) | 22 (20) | 2, 6, 7: out 8-10 cm, short of 15 |
+| door | 5 (5) | 25 (22) | 0, 3: opened 41-42 deg, a reach or a carry out of reach; 2: opened, a pad still on it after the call |
+| place | 4 (4) | 15 (15) | 0, 1, 6: set down 3 cm from the mat's middle; 7: closed on nothing |
+| table | 0 (0) | 0 (0), and 0 of 32 held out | each a piece 20-23 cm off its place: a reach stopped short or out of reach, or a grip closed on nothing |
+
+The served jobs from the tour, each draw its own noise: the drawer 8 of 8
+and 31 of 32, the door 5 (7) and 28 (30), the chest 8 (6) and 32 (25).
+
 **Our procedures were written against the set-outs they are checked on.**
 The review redrew the drawer's, the door's and the cube's set-outs (each
 now draws off a stream of its own: off one seed, the cube's hidden weight
@@ -318,7 +334,10 @@ are SimNotes' ("The force move", the checks' props).
 **What it cannot show.** The check proves the vocabulary EXPRESSES each
 job -- each passes some of its set-outs -- not that a mind finds the
 expression, nor yet that one procedure holds over draws it was not written
-against; it is one body, one hand at a time, on a counter at 0.72 m.
+against; it is one body, one hand at a time, on a counter at 0.72 m. Each
+set-out draws noise of its own (Evaluation.md §5): until #560's seeds
+stage every set-out replayed one realization of the robot's, and an
+unchanged cube's count ran 16-22 of 32 over four seeds of it.
 
 **The checks are the served humanoids' first jobs** (#559, stage 3;
 Challenges.md §11): each prop on a counter in the storeroom, square at the

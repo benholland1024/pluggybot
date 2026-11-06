@@ -16,11 +16,8 @@ the humanoid's arm joints (`BODY_AXES`) -- and its senses.
 """
 
 import math
-import zlib
 from dataclasses import dataclass
 from typing import Callable
-
-import numpy as np
 
 from pluggybot.perception.watch import WATCH_HZ
 from pluggybot.tick import Routine
@@ -88,19 +85,6 @@ def _held(actuator: str):
 #: Every axis a program may move, by name: the humanoid's arm joints
 #: (`_humanoid_axes`, below).
 AXES: dict[str, Axis] = {}
-
-
-def noise(life, key: str, sigma: float) -> float:
-  """One Gaussian sample, `sigma` wide, DETERMINISTIC on the physics step
-  and the sensor: the same step reads the same value twice (a sensor
-  sampled faster than it updates does), the next step reads a fresh one,
-  and one world replays byte-identical. Seeded off a checksum rather than
-  `hash()`, which Python salts per process."""
-  step = int(round(float(life.data.time) / float(life.model.opt.timestep)))
-  prefix = getattr(getattr(life, "body", None), "handle", None)
-  tag = f"{key}:{getattr(prefix, 'prefix', '')}:{step}"
-  seed = zlib.crc32(tag.encode())
-  return float(np.random.default_rng(seed).normal(0.0, sigma))
 
 
 SENSORS: dict[str, Sensor] = {

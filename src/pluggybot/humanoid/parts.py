@@ -262,12 +262,16 @@ def stall_torque(motor: Motor) -> float:
 #: ankle's roll and the shoulder's two (an arm held out level with a load),
 #: the RS02 down the arm, the RS00 at the wrist's pitch (the gripper and
 #: what it holds, ahead of it) and the RS05 for the roll after it, which
-#: turns only the gripper.
+#: turns only the gripper. The waist's yaw an RS03 (#560, stage (c3);
+#: SimNotes, "A waist, measured before it is built"): it holds at most 8.1
+#: N*m over the table's reaches and 10.1 under a 20 N `pull` sideways at a
+#: hand, 78 % of the RS03's 13 N*m stalled -- an RS02's 6 would not.
 DRIVES = {
   "hip_pitch": RS04, "hip_roll": RS04, "hip_yaw": RS03, "knee": RS04,
   "ankle_pitch": RS04, "ankle_roll": RS03,
   "shoulder_pitch": RS03, "shoulder_roll": RS03, "shoulder_yaw": RS02,
   "elbow": RS02, "wrist_pitch": RS00, "wrist_roll": RS05,
+  "waist_yaw": RS03,
 }
 
 
@@ -513,10 +517,11 @@ ELECTRONICS_W = {
   # through its own 12 V converter, 89 % typical (the DDR-30L-12's sheet).
   "lidar": 6.5 / 0.89,
   "depth camera": 2.0,
-  # Twenty-four drivers enabled: the RS03's sheet's "standby current <= 40
-  # mA" (the only RS part that publishes one) at the pack's 43.2 V -- an
-  # upper bound, carried as the figure.
-  "drivers": 24 * 0.040 * BUS_V_NOMINAL,
+  # Twenty-five drivers enabled (the waist's since #560's stage (c3)): the
+  # RS03's sheet's "standby current <= 40 mA" (the only RS part that
+  # publishes one) at the pack's 43.2 V -- an upper bound, carried as the
+  # figure.
+  "drivers": 25 * 0.040 * BUS_V_NOMINAL,
   # The two grippers' "static current 0.03 A" (Dex1-1's page).
   "grippers": 2 * 0.03 * BUS_V_NOMINAL,
   # The e-stop's contactor held closed: the SW80's coil, "7-13 W

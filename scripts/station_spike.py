@@ -32,11 +32,16 @@ the house, its station on the living room's wall.
     ... --strip [plug|lost]     # a scene's filmstrip
     ... --lost-from P --lost-off X,Y,DEG   # the lost scene from elsewhere
     ... --out rows.json         # the rows
+    ... --noise KEY             # every trial draws KEY's noise, not its own
+                                # (a row's `noise`; `robot` the robot's own)
 
 Every trial is its own process and flies the served body off its own senses
 (the station off its tags, its port off its model of itself); the truth
 (where the plug is, whether it fell) is ours, read to grade it -- every
 trial's row says where each try let the plug go against the port (`letGo`).
+Each trial draws noise of its own, keyed by its scene and its start
+(`trial_noise`, #560), so a trial flown again alone (`--one-seat OFF`) is the
+batch's flight; a scene that grades nothing draws the robot's own.
 """
 
 from __future__ import annotations
@@ -80,12 +85,23 @@ def side(station) -> float:
 
 #: Which station a scene stands at (`--station`), for its children too.
 STATION_ENV = "STATION_SPIKE_AT"
+#: ...and the noise every trial draws (`--noise`), for its children too.
+NOISE_ENV = "STATION_SPIKE_NOISE"
 
 
-def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
+def trial_noise(kind: str, spec) -> str:
+  """The noise a trial draws (`humanoid.senses.Noise`): its scene's, its
+  station's and its start's -- every trial its own, as it starts from a
+  place of its own (#560) -- or `--noise`'s."""
+  over = os.environ.get(NOISE_ENV)
+  return over or f"{kind}:{os.environ.get(STATION_ENV, 'station')}:{json.dumps(spec)}"
+
+
+def world(off=(0.0, 0.0, 0.0), at_seat: bool = False, noise: str | None = None):
   """The house, one humanoid at the station's standoff -- or seat -- off by
   `off` (m along and across, deg) in the station's frame, its activities
-  hooked; (model, data, body, station activity)."""
+  hooked, drawing `noise`'s noise (`--noise`'s, else the robot's own);
+  (model, data, body, station activity)."""
   from pluggybot.activity import station as st
   from pluggybot.body import body_for
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
@@ -93,7 +109,7 @@ def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
   cfg = world_config(HUMANOID_HOME)
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
-  body = body_for(model, data)
+  body = body_for(model, data, noise=noise or os.environ.get(NOISE_ENV))
   # ...at the house's station, or another's (`--station`, #560): the
   # children of a batch read it from the environment
   name = os.environ.get(STATION_ENV, "station")
@@ -155,11 +171,12 @@ def let_go_line(rows: list[dict]) -> str:
 def trial(off) -> dict:
   """From `off` round the standoff: docked, a few seconds charging,
   unplugged."""
-  model, data, body, station = world(off)
+  noise = trial_noise("approach", list(off))
+  model, data, body, station = world(off, noise=noise)
   let_go = let_goes(body)
   t0 = float(data.time)
   why = body.run(body.dock_routine())
-  out = {"off": list(off), "dock": why, "dockS": round(float(data.time) - t0, 1),
+  out = {"off": list(off), "noise": noise, "dock": why, "dockS": round(float(data.time) - t0, 1),
          "charging": body.charging(), "falls": body.falls, "letGo": let_go}
   trace = list(body._charge_trace)
   out["seatSteps"] = sum(1 for t in trace if "seat" in t) - 1
@@ -221,14 +238,15 @@ def seat_trial(off) -> dict:
   and, plugged in, the unplug and the plug home."""
   from pluggybot.activity import station as st
   from pluggybot.humanoid import charge
-  model, data, body, station = world()
+  noise = trial_noise("seat", list(off))
+  model, data, body, station = world(noise=noise)
   first = charge.look(body)
   s = body._station
   x, y = s.to_world(st.SEAT_X - off[0], st.SEAT_Y + off[1])
   body.start_at(x, y, s.yaw + math.radians(off[2]))
   body.run(body.hold_routine(1.0))
   seen = charge.look(body) or first
-  out = {"off": list(off), "lookedAtSeat": charge.look(body) is not None}
+  out = {"off": list(off), "noise": noise, "lookedAtSeat": charge.look(body) is not None}
   if seen is None:
     return {**out, "why": "no look"}
   trace = []
@@ -289,7 +307,8 @@ def walk_in(place: str, explore_s: float) -> dict:
   (m, deg) there and at the end, the times."""
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   cfg = world_config(HUMANOID_HOME)
-  life, body, station = _life()
+  noise = trial_noise("walk-in", [place, explore_s])
+  life, body, station = _life(noise)
   data = life.data
   life.blacklist, life.floor_explored = set(), False
 
@@ -298,7 +317,7 @@ def walk_in(place: str, explore_s: float) -> dict:
     turn = abs((bh - th + math.pi) % (2 * math.pi) - math.pi)
     return [round(math.hypot(bx - tx, by - ty), 3), round(math.degrees(turn), 1)]
 
-  out = {"place": place, "exploreS": explore_s}
+  out = {"place": place, "exploreS": explore_s, "noise": noise}
   try:
     body.start_at(*cfg["start"])
     body.start_discovery()
@@ -350,15 +369,19 @@ def walk_ins(explores: tuple, parallel: int) -> list[dict]:
   return rows
 
 
-def _life():
+def _life(noise: str | None = None):
   """The humanoid's house and a lifecycle on it, as the loop runs one: the
-  station's activity hooked, no deadline. (life, body, station)."""
+  station's activity hooked, no deadline, its body drawing `noise`'s noise
+  (`--noise`'s, else the robot's own). (life, body, station)."""
+  from pluggybot.body import body_for
   from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, points_ledger, world_config
   from pluggybot.robot import world_spec
   cfg = world_config(HUMANOID_HOME)
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
-  life = HubLifecycle(model, data, realtime=False, battery_wh=cfg["hosting_battery_wh"],
+  body = body_for(model, data, realtime=False, grid_bounds=cfg["grid_bounds"],
+                  noise=noise or os.environ.get(NOISE_ENV))
+  life = HubLifecycle(model, data, body=body, battery_wh=cfg["hosting_battery_wh"],
                       grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], ledger=points_ledger(None),
                       world=HUMANOID_HOME, errands=[], near_field=True)
@@ -442,14 +465,15 @@ def lost_trial(off, place: str = "station", explore_s: float = 0.0) -> dict:
   start, as the charge began, where the lost search began (and where the
   robot truly was) and at the end (m, deg), how the walk to the standoff
   last ended, and the belief's records (`lost`, `fixed`, `searched`)."""
-  life, body, station = _life()
+  noise = trial_noise("lost", {"off": list(off), "from": place, "explore": explore_s})
+  life, body, station = _life(noise)
 
   def err():
     return _off(body.pose, body.true_pose())
 
   try:
     lost_start(body, off, place)
-    out = {"off": list(off), "from": place, "offStart": err()}
+    out = {"off": list(off), "from": place, "noise": noise, "offStart": err()}
     if explore_s:
       life.blacklist, life.floor_explored = set(), False
       body.start_discovery()
@@ -1095,6 +1119,9 @@ def main(argv=None) -> int:
                   help="#596's scene, the first robot's plug-in taken apart: the look, the "
                        "plug in the hand, the feet and the belief since the look, the port")
   ap.add_argument("--out", default=None)
+  ap.add_argument("--noise", default=None, metavar="KEY",
+                  help="every trial and scene draws KEY's noise, not its own (#560: a row's "
+                       "`noise`, a draw flown again; `robot` the robot's own)")
   ap.add_argument("--one", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-walk-in", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-seat", default=None, help=argparse.SUPPRESS)
@@ -1102,6 +1129,8 @@ def main(argv=None) -> int:
   args = ap.parse_args(argv)
   if args.station:
     os.environ[STATION_ENV] = args.station
+  if args.noise:
+    os.environ[NOISE_ENV] = args.noise
   if args.one:
     print(json.dumps(trial(tuple(json.loads(args.one)))))
     return 0

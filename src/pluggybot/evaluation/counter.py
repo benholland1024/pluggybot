@@ -362,17 +362,18 @@ def table_set_out(k: int) -> TableSetOut:
   return TableSetOut(k=k, load=dw.draw(k), pieces=pieces, card=(cx, cy, -north), start=start)
 
 
-def world(so, policy=None):
+def world(so, policy=None, noise: str | None = None):
   """A set-out's world: the house with the humanoid standing at its start,
   the counter and the prop on it -- the chest (`SetOut`), or a check's
   (`DrawerSetOut`'s and the others', #525: its own `attach`). Returns the
   model, its data and the humanoid's body (`HumanoidBody`), its stance
-  commissioned where it stands."""
+  commissioned where it stands, drawing `noise`'s noise (`senses.Noise`:
+  None, the robot's own; an attempt's is its set-out's, `attempts.noise_of`)."""
   from pluggybot.body import body_for
   model = model_of(so)
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
-  humanoid = body_for(model, data, policy=policy)
+  humanoid = body_for(model, data, policy=policy, noise=noise)
   humanoid.start_at(*so.start)
   return model, data, humanoid
 

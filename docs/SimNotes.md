@@ -1511,8 +1511,9 @@ it trained at and the served 2 ms -- walks: 0.5 and 1.0 m/s forward within
 8 %, backward, sideways and turning within 15 %, and never falls. A failure
 from here is our design's or our training's.
 
-**How it stands.** The policy drives the legs' twelve joints and sees all
-twenty-four encoders, so it knows where its arms' mass is. In training the
+**How it stands.** The policy drives the legs' twelve joints and sees every
+encoder -- the arms' and, since the waist (#560's stage (c3), "The waist
+built"), the waist's -- so it knows where its arms' mass is. In training the
 arms are SCRIPTED (`ScriptedArms`): sent somewhere new every 1-4 s, ramped
 at 1.5 rad/s, their weight fed forward off the bias force, as the reach's
 commands carry it. It is asked a POSTURE -- the pelvis's height off the
@@ -1722,7 +1723,8 @@ each command from standing, measured over 6 s after 3 s) it walks 0.51,
 0.99 and 1.27 m/s asked 0.5, 1.0 and 1.3; backward 0.46 asked 0.5 (0.20
 asked the Navigator's back-off, 0.3); sideways 0.31 asked 0.3; and turns
 on the spot 1.01 rad/s asked 1.0.
-- *A turn is the hips' yaw alone* -- there is no waist. With the hips'
+- *A turn is the hips' yaw alone* -- the waist (#560's stage (c3)) is held
+  home while it walks. With the hips'
   yaw held as tightly as the G1's (0.15 rad) and the turn's reward paying
   61 % for not turning at all, `walk1` asked 0.5 rad/s turned 0.08. Twice
   the yaw's tolerance and a sharper reward (`STD_WALKING`, `TURN_STD`):
@@ -5196,13 +5198,11 @@ fork, both by the left hand -- the plate 1.5 cm, the cup 1.5 and the fork
 
 ## A waist, measured before it is built (issue #560, stage (c))
 
-**What is true now.** The body has no waist: the pelvis, the torso and the
-head are one rigid body, the IMU on the pelvis. Parts.md says why the T2's
-waist was left out and that it is the first joint to add if a stage's
-measurement comes up short; #560's table is that measurement (above: each
-hand works only its own side of a place). Three candidates were measured on
-the robot's model of itself (`scripts/waist_spike.py`), and none is built.
-**A waist yaw, one RS03 at the pelvis's top (+1.73 kg), buys most of what
+**What is true now.** The yaw measured here is BUILT (stage (c3), "The
+waist built", below), #620's candidate exactly; this section is what was
+measured before it was. Three candidates were measured on the robot's model
+of itself (`scripts/waist_spike.py`, drawn from the body before the waist,
+`HumanoidSpec(waist_yaw=False)`). **A waist yaw, one RS03 at the pelvis's top (+1.73 kg), buys most of what
 was measured**: each hand reaches past the middle of the table, every
 pick-up our procedure makes is made standing tall, and the floor and the
 high shelf come into reach in front of the shoulder. A waist pitch keeps the
@@ -5578,6 +5578,348 @@ it)](figures/hands_table_putdown.png)
 **What it cannot say.** Whether the standing policy, retrained for the yaw,
 holds these postures; how far the stance turns as an arm goes out on a body
 whose trunk turns instead (#620's open half); and the yaw's windows flown.
+
+## The waist built (issue #560, stage (c3))
+
+**What is true now.** The body has a waist yaw: an RS03 stood in the
+pelvis's middle turns everything above the pelvis's top -- the torso, the
+pack, the head and its sensors, the port and the arms, 19.5 kg, its centre
+0.18 m up the axis -- +-60 deg (`HumanoidSpec.waist_yaw`). It is #620's
+`yaw` candidate exactly (`tests/test_waist_spike.py`: every body, geom and
+joint, place, mass and inertia, the same), and at its zero the body before
+it to 1e-15 m. 44.9 kg, 25 joints.
+
+**The senses, off the parts.** The IMU rides the pelvis, the head's sensors
+the waist, and nothing turns them by the simulator's angle:
+- *A sensor's mount is posed through each joint on its way at its driver's
+  reading* (`perception.mount`); a pose handed no reading is refused, never
+  laid at zero. The LIDAR's band and level ring and the depth camera's
+  frames take the waist's angle the odometry posed its model of itself with
+  (`HumanoidMission.waist_read`, every 10 ms); the band levels its points
+  through the IMU's tilt composed with that turn. The LIDAR rides the
+  waist's axis, so the waist turns it where it is.
+- *Every camera placed through the robot's model of itself follows*, since
+  the model sets the waist off its reading: the tags' colour imager, the
+  places' navigation camera, the station's port.
+- *The whole body's force reading* gains the waist's row (it carries a
+  hand's load to the legs), and the friction table its row: 0.29 N*m dry,
+  0.06 viscous, against the RS03 sheet's 0.30 (`humanoid_spike.py
+  --friction`).
+
+**The reach with a waist.** A posture is the legs' and the waist's
+(`REACH_POSTURES`, `CARRY_POSTURES`: #620's grid of 0, +-15 ... +-60 deg by
+the legs' postures, least bent first by #620's cost), the waist driven as
+an arm is and held in its posture through a carry (Ben's call). Three
+things it took:
+- *A statue a posture*, worked out once a drawing and kept
+  (`SelfModel.statues`): 36 ms each, and a plan that found nothing, 1.3 s
+  over today's 8 postures, would have been 11 s over 72 on the physics
+  thread.
+- *An exact bound prunes*: no arm takes its grip further from its shoulder
+  than hanging straight, so a goal past that is skipped unsolved.
+- *A turned trunk folded into a thigh stands nowhere* (`reach.stands`): at
+  the deepest bow a turn of 15-30 deg puts the torso 1.1 cm into one, as
+  #620 found; nothing in the drawing collides there.
+Planned so, a left hand at a table's height 0.45 m ahead stands nearly tall
+turned 30 deg where today's crouched and bowed, the floor 0.09 m up is
+reached 0.15-0.55 m ahead from a turned bow (today only at the toes), and
+the right hand reaches 0.4 m past the middle.
+
+**The waist driven** (`arms.Waist`). Its gains are sized to what it turns:
+0.46 kg*m^2 about its axis with the arms hanging, 1.14 with both out, where
+the arms' scale (4x, 2x the policy's) rang at 4.2 and 2.7 Hz at a damping
+ratio of 0.42 and 0.27; at 8x and 10x (kp 632, kd 50, inside the RS03's MIT
+range, its manual's 4.1.2) it is 0.94-1.48. Its turn goes at 0.6 rad/s at
+most and is set going and stopped at 1.5 rad/s^2 (`reach.turned`; 60 deg in
+2.1 s), as the stand's training turns it -- for that alone: set going at
+once, the soles turned no more (60 deg either way with both arms held
+level: 1.85 deg to 1.81 on the stand that knew no waist). Walking and
+getting up hold it home: neither policy knows it, the walker takes the legs
+only once it reads home, and the get-up walks it home.
+
+**The reach turns it only where no square posture reaches** (`reach.with_waist`):
+every posture with the waist square first, in the legs' order, then the
+turned ones by #620's cost. By #620's cost alone -- a turn of 20 deg as bent
+as the legs' next posture -- the planner turned the trunk before it bowed
+deeper, and the served jobs from the tour (32 draws each, one pod, the stand
+that knew no waist) passed the door 23 times and the chest 14, where square
+first they passed 28 and 25 (today's body: 31 and 20). A turn AWAY from the
+reaching hand -- the right hand's target ahead of it with the trunk turned
+left 30-45 deg -- solved the arm in a contorted branch (its shoulder rolled
+-1.6 rad and turned 2 rad), and its swing out turned the whole stance 7-17
+deg on every stand flown. Eight draws a job could not tell: the door's 5 of
+8 there was 23 of 32, and a single draw passed on one machine and failed on
+another.
+
+**The stand retrained** (`Pluggy-Humanoid-Stand`, the runs in
+`~/pluggybot-training`'s record): stand4's recipe on the new body, the waist
+scripted as the arms are -- a new angle within +-60 deg every 1-4 s or home,
+turned as the reach turns it, its weight fed forward -- and the policy shown
+its encoder. Measured in our physics: in training, its episodes' length at
+the end (stand4 702 steps); the soles' turn, beyond standing still, as the
+cup's reach at the table's set-outs 0-7 is taken (the robot 9 cm back,
+nothing touched: the arm walked out alone, and with the reach's posture);
+and the soles standing still a minute on a bare floor from the stand.
+
+| run | each sole charged for | episodes | the arm out | with its posture | still a minute |
+|---|---|---|---|---|---|
+| stand4 (no waist), as served | nothing of its heading | 702 | 4.6-4.8 deg | 8.2-8.4 | -5 to -7 deg, 2.9 cm, settled by 30 s |
+| waist1-11 | (each of the below) | 220-450 | | | |
+| waist12 | nothing of its heading | 613 | 0.3-1.8 | 1.5-1.8, but 12 at 3 of 8 | -6 to -7 deg, 1.7 cm |
+| waist13 | its heading off the episode's, 2.5 a rad | 330 | | | |
+| waist14 | its worst turn planted, once, 20 a rad | 748 | 0.5-0.6 | 1.2-1.6 | CREEPS: 7 cm, still going |
+| waist16, served | its heading off the episode's, 0.5 a rad | 620 | 0.9-1.5 | 3.6-3.9 | -4 deg, 1.4 cm, settled by 30 s |
+| waist17 | the same past 2 deg, 1.0 a rad | 594 | 1.4-2.3 | 0.9-2.5 | -2 to -3 deg, 1.5 cm |
+
+(The turns are the worse sole's beyond what standing still turned it over
+the same 6 s, as stage (a) measured stand4: `stance_turn.py` in the
+stage's scratch.)
+
+- ⚠ *At the shoves' full size every stand falls* (waist1-11, as stand1
+  did): stand4 was trained at 0.6 of it, a flag then, the default now
+  (`DISTURBANCE_SCALE`).
+- ⚠ *A heading charged at 2.5 a radian off the episode's made falling
+  cheaper than standing* (waist13, as stand5's -25/m anchor did): 0.5 is
+  about as dear a turn as `feet_anchor`'s -10/m is a shift, 5 deg of it as
+  0.4 cm.
+- ⚠ *A sole's turn charged a planted phase at a time lets a re-planted sole
+  off* (waist14, as stand3's anchor renewed at touchdown let a step go
+  free): it turned its stance least of all under a reach and shuffled 7 cm
+  in a minute standing still -- a creep its odometry cannot see (its belief
+  ran 2 cm off in 12 s at the counter).
+- *Forced through each of the waist's angles* on that reach, waist16's soles
+  turned 2-6 deg beyond standing still, 10-12 at +45 and 9.6 at -60, with no
+  fall; stand4's turned 7-15 (17 at +45).
+
+So for Ben's pitch call: the stand retrained for the yaw turns its stance
+a third to a fifth as much as an arm goes out -- 0.9-1.5 deg where stand4
+turned it 4.6-4.8, and 3.6-3.9 with the reach's posture where stand4's
+turned 8.2-8.4.
+
+Served, flown again once the cube's causes were fixed (one pod, an EPYC
+7Q83, which flies today's tree to the earlier pod's numbers exactly; today's
+in brackets): the lid at 32 set-outs 21 (21), gripped then at the knob's
+middle (22, 23 and 25 at three seeds 2 cm short: "The chest's grip"); the
+drawer from the tour 7 of 8 (7) and the door 29 of 32 (31). The station as
+before: docked from round the standoff 36 of 36, plugged in from 138 of 140
+seats (139), 16 of 16 lost near and walked in, lost far 112 of 123 (116).
+Standing, it takes a shove 5 N*s bigger from the front and the sides (15
+and 20 where stand4 took 10 and 15). The drift's worst belief error 0.15 and
+0.13 m (0.11 and 0.28), both docked; the LIDAR's probe the same on every
+row; a restart's parity identical. A hand job draws 157-166 W from the
+mall's station (156-161), inside the energy table's 10 %, so `energy.json`
+is not priced again. The pull a hand holds (`--pulls`, flown before this
+round's fixes) 590 N summed over its 14 ways, as stand4's, 20 at its
+weakest, so `pull` still asks at most 20.
+
+**Each set-out its own noise** (#560's seeds stage; Evaluation.md §5), on
+one pod, a Xeon Gold 6138, osmesa, which flew #622's rows for the lid and
+the cube 61 times of 64; in brackets the one realization every set-out
+shared before, on the same pod:
+
+| | of 8 (0-7) | of 32 |
+|---|---|---|
+| the lid's check, its grip 2 cm short | 8 (8) | 22 (22) |
+| the drawer's check | 5 (5) | 22 (20) |
+| the door's check | 5 (5) | 25 (22) |
+| the cube's check | 4 (4) | 15 (15) |
+| the table's place | 0 (0) | 0 (0): the plate laid 19 times, the cup 20, the fork never |
+| ...at the 32 held out | | 0: the plate 9 (#622's realization 17), the cup 20, the fork never |
+| the opener (`attempts.py`) | 6 (6) | 19 (21) |
+| the served drawer from the tour | 8 | 31 |
+| the served door from the tour | **5** (7) | 28 (30), one fall |
+| the served chest from the tour, its grip 2 cm short | 8 (6) | 32 (25), no fall |
+
+The door falls under the bar of 6 at its first 8 draws (Ben's call). The
+station, each trial its own noise: 36 of 36 round the standoff at a push
+each, 139 of 140 seats, 16 of 16 lost near and walked in, lost far 114 of
+123 -- the house's 71 of 72, across the street 28 of 36 (#622's
+realization: 36, 138, 16, 16, 112). Swings of two or three in 32 are what
+the draws give.
+
+**The served chest** passed less often on this body until its lid's grip
+was aimed 2 cm short of the knob's middle: from the tour over 32 draws at
+three paired seeds it passes 29, 31 and 29 (15, 19 and 20 before, today's
+body 20, 28 and 24) and none of the 96 falls ("The chest's grip", below).
+
+**The LIDAR in falls.** Over the house's 20 falls at three seeds of the
+noise, the LIDAR itself touched a wall or an edge in 3, 2 and 2 on this body
+-- by a wall shoved right at every seed, at 1.9-2.6 m/s -- and in none on
+today's (nor today's with the waist's mass); welded, 3, 1 and 2; on stand4,
+2 and 0. So neither the waist's turn nor its give: it is how waist16 falls
+by a wall. From a trunk turned 45 or 60 deg either way on a bare floor
+(four ways, 30 and 45 N*s) the head struck no harder than square (at most
+5.8 m/s against 6.0) and the LIDAR no oftener (1 of 32 falls turned, 1 of 8
+square): a turned trunk does not lead a fall with the head, and nothing
+brings the waist home faster as one begins. In the falls from a bow the
+LIDAR touched the floor less often than on today's body (8 falls on the
+standing policy alone where today's touched in 16; once as served on each).
+
+**The waist in `--torque`** (an RS03: 60 N*m peak, 20 turning, 13 held
+still): it holds nothing in the statues (it only turns); walking, 3.4-9.6
+N*m at its peak (6-16 %; RMS 0.9-1.9, its winding 40-41 C), and on the
+house's flight 10.5 up and 17.7 down; getting up from lying, its whole 60
+in each, as the shoulders' do (RMS 13-19 over the 2-3 s it takes). ⚠ The
+get-up's rows held the waist on the drawing's default gains, an eighth of
+its own, until `Falling` held it as the mission does: then on its face the
+get-up never stood in 30 s, at three seeds; held as served it stands from
+its back, its front and its side in 2.9, 2.3 and 2.9 s, as today's body
+(2.9, 2.2, 2.9).
+
+**The cube put on its mat fell on the waist's body (22 of 32 to 9) for two
+reasons, neither the waist's** (next section): the one realization of the
+robot's noise a whole check flies, which the waist re-drew, and our step,
+which leaned on stand4's creep.
+
+## The cube and the robot's noise (issue #560, stage (c3))
+
+**What is true now.** Each set-out of a check draws noise of its own,
+keyed by its job and its number (`attempts.noise_of`; Evaluation.md §5,
+"Each set-out flies noise of its own"). Until then every set-out replayed
+ONE realization of the robot's noise -- each sensor seeded by the robot's
+name, so each flight drew the same values at the same instants -- and a
+count carried that realization's luck in common: our procedure placed the
+cube on today's body 22 times of 32 as served, and 17, 16 and 21 times
+with its joints' noise seeded three other ways. The joint senses dealt one
+stream over every joint in order, so the waist re-drew every other joint's
+noise: today's body, its noise dealt the waist's way, placed the cube 9
+times, the waist body's own count on #622's pod. The legs' and the arms'
+drivers draw one block of a key's stream in their order, as before the
+waist, and a part added since draws its own (`senses.SHARED`; a test reads
+each shared joint with and without the waist): a body change keeps every
+shared part's noise, and one set-out is the same draws on either body.
+
+**Found by elimination**, each arm switching off one difference between the
+bodies -- set-outs 2, 12 and 16 first, then all 32 (locally, osmesa, a
+process a flight):
+
+| arm | placed of 32 | its carry failed |
+|---|---|---|
+| today's body | 22 | 2 |
+| today's, the waist's 1.73 kg welded on, no joint | 18 | 4 |
+| today's code on the waist's robot, its waist welded | 18 | 5 |
+| the waist's code on that robot (stand4, every posture square) | 8 | 16 |
+| ...its waist free | 5 | 15 |
+
+(Welded, or its encoder exact, the waist's body placed it at none of the
+first three.) Today's code and the waist's, flying the one welded robot,
+part only by code: flown with the joints' noise drawn as today's and the
+waist uncommanded, they were the same bit for bit until 5.25 s, where the
+reach's solve on the two models of itself parted by 10^-11. Every joint is
+read and driven by name (each reads within its backlash of its own joint),
+commanding the waist moved nothing, and the noise's dealing alone moved the
+step's sideways error over the 32 -- the true move less the legs' reckoning
+-- from 8.2 mm to 4.5: the realization.
+
+**And our step leaned on stand4's creep.** Under today's realization the
+waist's body still placed the cube 10 times. Over the step stand4 turns the
+stance 2.5 deg clockwise -- 1.7 in the walk itself, taken over from its
+stance, the rest settling -- and waist16 0.4; the cube, 0.16 m to the
+robot's left before it, lay 0.177 to its left after it on today's body and
+0.157 on the waist's, where the left hand's carry to the mat ran into its
+shoulder's inner stop ("held back", "out of reach"). The cube's procedure
+steps in and aside now (`step(x - 0.32, y - 0.18)`, `hands_check.PLACE`).
+Over three seeds, paired (the same draws for every shared joint):
+
+| seed | today's, stepped in | today's, stepped aside | the waist's, stepped in | the waist's, stepped aside |
+|---|---|---|---|---|
+| 0 | 22 | 17 | 10 | 16 |
+| 1 | 17 | 11 | 11 | 18 |
+| 2 | 16 | 14 | 8 | 23 |
+
+Stepped aside, waist16 lands the cube 172.5 +- 2.5 mm to its left (+-10.5
+stepped in); stand4 goes on creeping after it (+-13 mm, and three of its
+flights fell). Each body places the cube best stepped its own way, and as
+often: 19.0 stepped aside on the waist's, 18.3 stepped in on today's. Each
+set-out its own noise, the waist's places it 15 times of 32 (#560's seeds
+stage, "The waist built").
+
+- *A turned plan's hand lands as near as a square one's*: of 37 flights
+  whose plans turned the waist 8 placed the cube, of 59 that never turned it
+  29, but the true grip lies 4.7-6.9 mm off the believed one at the median,
+  square or turned, the believed one 26-32 mm short of the cube's middle as
+  the fingertips meet the board: it is the hard tries that turn.
+- *The plan's bound on an arm's reach* (`reach.arm_reach`), measured the
+  first time a process asks for it, left the planner's model on straight
+  legs for the solve that followed: once a hand a process, a check flight's
+  first reach and a served robot's after each restart. Measured on a pose of
+  its own now (a test).
+
+## The chest's grip (issue #560, stage (c3))
+
+**What is true now.** The lid's procedure (`hands_check.LID`, the second
+half of the served chest's reference) grips the knob 2 cm short of its
+middle, back level along its facing. The jaws' pads are 8 cm long, centred on
+the grip, so their tips reach 4 cm past it, and as the lid rises -- the
+handle kept at its turn in the world by the hand holding the knob -- the
+lid's front edge swings up and back under them. On the chest's and the
+gripper's own geometry (`test_hands_check.py`'s scene: the two pads and the
+lid as boxes, by separating axes), a grip at the knob's middle meets the lid
+at 54 deg, 11 deg sooner each centimetre deeper and 3 deg sooner each
+centimetre higher; the fingers' tilt hardly matters (51-54 deg from 34 deg
+up to 5 deg down).
+
+**Aimed at the middle, the grips landed 0.9 cm deeper at the median**, on
+either body (0.91 cm on the waist's, 0.79 on today's; 0-2 cm over 32 draws
+from the tour), so the pads met the lid at 43 deg. The lift then pushed the
+lid's edge through them: across the hand at a median 35 N at its peak, it
+turned the stance 5 deg and carried the knob 5 cm off in the robot's frame
+on the waist's body (3 deg and 3 cm on today's), and the arc's top left the
+reach: 12 lifts of 32 at seed 0 out of reach, where the pull's onward
+postures -- standing taller, then bowing, five in 4 s at worst -- took the
+lid to 50-57 deg or let it go, and four robots fell (today's body: no lift
+out of reach, five falls).
+
+**Back level, never along the tag's normal.** The knob hangs 34
+deg round its pin, so `spot` reads its top face, tilted toward the camera: a
+step back along that face's normal is 0.56 of it back and 0.83 of it up the
+knob. 2 cm along it moved the grips 1.1 cm back and 1.65 cm up, the pads
+met the lid at 51 deg, and the chest passed 27, 30 and 27. Back level, at
+seed 0 (the waist's body):
+
+| aimed short of the middle | passed of 32 | fell | the grip past the middle, median (range) | pads met the lid |
+|---|---|---|---|---|
+| 0, as before | 15 | 4 | +0.91 cm (+0.1..+1.9) | in 28 |
+| 1 cm | 28 | 1 | -0.04 | in 28 |
+| 1.5 cm | 29 | 0 | -0.58 | in 21 |
+| 2 cm | 29 | 0 | -1.04 (-2.1..+0.1) | in 7 |
+| 2.5 cm | 29 | 0 | -1.54 | in 4 |
+| 3 cm | 29 | 0 | -2.06 (-2.9..-0.9) | in none |
+
+From 1.5 cm on every lift that began ended at its distance, at 61-63 deg,
+and the three draws left are the approach's. 2 cm keeps both edges: read 0.9
+cm far, the pads clear the lid to 66 deg, and read true, the knob's far
+corner is 4 mm inside the pads' tips (2.5 cm short, 0.7 mm past them). The
+test pins both at each of the six tilts the procedure tries, where the pads
+clear the lid to 63.5 deg at the least. Gripped so, the lift pushes 9-10 N
+across the hand at its peak, and the stance turns 0.1-0.4 deg.
+
+**Measured on one pod** (an EPYC 7Q83, which flies #622's served flights bit
+for bit), the committed tree's own instruments, seeds paired:
+
+| | seed 0 | seed 1 | seed 2 | mean |
+|---|---|---|---|---|
+| the served chest from the tour (`solve.py --from tour`, 32 draws), the waist's body | **29** | **31** | **29** | **29.7**, no fall |
+| ...gripped at the middle, as before | 15 | 19 | 20 | 18.0, 15 falls |
+| ...today's body, as before | 20 | 28 | 24 | 24.0, 9 falls |
+| the lid's check at 32 set-outs, the waist's body | 22 | 23 | 25 | 23.3 |
+| ...gripped at the middle, as before | 21 | 18 | 21 | 20.0 |
+| ...today's body, as before | 21 | 23 | 20 | 21.3 |
+
+Each draw its own noise (#560's seeds stage; a Xeon Gold 6138, where seed
+0's realization passed the chest 25 and the lid's check 22): the chest 32
+of 32 from the tour with no fall, the lid's check 22 of 32.
+
+From the mall's station the chest costs 8.11 Wh over 175 s (passed), 8.6 %
+over `energy.json`'s 7.463: inside the table's 10 %, so not priced again.
+
+**What it leaves is the approach's.** Its first turn comes off the knob's
+tag's facing read square-on from 0.75 m, and its walk turns the stance too,
+so on the waist's body the stance lands a median 3 deg short of the turn
+asked, within 7-8 deg of it either way in 8 approaches of 10 (219 flown);
+then the last step is blocked, or leaves the robot 0.30 m from the knob
+turned right of square with its tag out of the head camera's view. 7 draws
+of 96 on the waist's body, 13 on today's.
 
 ## Debugging workflow that worked
 

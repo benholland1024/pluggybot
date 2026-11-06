@@ -81,7 +81,8 @@ def body_facts(joints: str = "legs") -> dict:
           "action_joints": list(driven),
           "stiffness": [hr.JOINTS[j]["stiffness"] * scale[j][0] for j in driven],
           "damping": [hr.JOINTS[j]["damping"] * scale[j][1] for j in driven],
-          "arm_gain_scale": list(hr.ARM_GAIN_SCALE)}
+          "arm_gain_scale": list(hr.ARM_GAIN_SCALE),
+          "waist_gain_scale": list(getattr(hr, "WAIST_GAIN_SCALE", ()))}
 
 
 def main(argv=None) -> None:

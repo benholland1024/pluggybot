@@ -31,6 +31,10 @@ from pluggybot.telemetry.recorder import (GridSampler, HeightMapSampler,
                                           grid_samplers)
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
+#: The waist's reading at its zero, where these tests' bodies stand (#560's stage (c3):
+#: the head's sensors ride the waist, and a frame is laid through its reading).
+W0 = {"waist_yaw": 0.0}
+
 
 def _cube_ahead(x: float = 0.9, side: float = 0.05) -> np.ndarray:
   """Robot-frame points: the floor from 0.5 to 1.5 m ahead, and the top
@@ -168,7 +172,7 @@ def _pair_frame(gap: float, across: float = 0.0):
   _stand(model, data, SECOND, gap, -0.5 + across)
   cam = nf.DepthCamera(model, handle=FIRST, mount="body")
   cam.exclude_robot(SECOND.root)
-  return cam, data, cam.frame(data), float(data.xpos[model.body(FIRST.root).id][2])
+  return cam, data, cam.frame(data, W0), float(data.xpos[model.body(FIRST.root).id][2])
 
 
 def test_the_frame_answers_the_peer_apart_from_the_room():
@@ -191,7 +195,7 @@ def test_the_frame_answers_the_peer_apart_from_the_room():
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
-  alone = nf.DepthCamera(model, handle=FIRST, mount="body").frame(data)
+  alone = nf.DepthCamera(model, handle=FIRST, mount="body").frame(data, W0)
   assert len(alone.peers) == 0
 
 
@@ -216,7 +220,7 @@ def test_the_peer_channel_does_not_draw_on_the_maps_noise_stream():
 
   cam, data, _, _ = _pair_frame(1.0)
   cam.rng = counted = Counting(np.random.default_rng(3))
-  frame = cam.frame(data)
+  frame = cam.frame(data, W0)
   assert len(frame.peers) > 100, "no peer in the frame to draw for"
   assert counted.draws == 2, \
     f"the map's stream was drawn {counted.draws} times, not twice"
