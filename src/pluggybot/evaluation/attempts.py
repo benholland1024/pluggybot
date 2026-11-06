@@ -450,7 +450,8 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float | None = None
     "secret": {k: verdict.metrics.get(k) for k in verdict.secret},
     "wallS": round(time.time() - wall, 1),
     "run": {k: info[k] for k in ("commit", "dirty", "seed") if k in info} | {
-      "budgetS": budget_s, "holdS": hold_s, "noise": world.noise},
+      "budgetS": budget_s, "holdS": hold_s} | (
+      {} if world.noise is None else {"noise": world.noise}),
   }
 
 
