@@ -231,8 +231,10 @@ def synthetic_state(menu: Menu, i: int, world: str) -> dict:
     # and takes the job every time is the mind we have.
     "offeredTasks": [offer],
     "decisions": i,
-    # ...and when its world last changed, beside today (issue #617)
-    "changelog": changelog.current().context(changelog.today()),
+    # ...and when its world last changed, beside today (issue #617), absent
+    # with no entry as in the served context
+    **({"changelog": block} if (block := changelog.current().context(changelog.today()))
+       else {}),
   }
 
 

@@ -53,8 +53,14 @@ def test_the_committed_changelog_is_newest_first_each_date_once():
     assert entry.items, entry.date
     for item in entry.items:
       assert len(item) <= changelog.MAX_ITEM_CHARS, f"{entry.date}: {item[:60]!r}"
-  assert changelog.PATH.parent == Path(changelog.__file__).parent, \
-    "the file ships beside the module, as the constitutions do"
+
+
+def test_the_file_ships_in_the_image():
+  """The serving image copies `src/` and none of `docs/` (the Dockerfile),
+  so a changelog moved out of the package would leave the deployed robots
+  reading nothing while every test here passed off the checkout."""
+  assert REPO / "src" in changelog.PATH.parents
+  assert "COPY src/ src/" in (REPO / "Dockerfile").read_text()
 
 
 def test_the_file_is_one_shape_and_anything_else_is_refused_with_its_line():
@@ -71,13 +77,21 @@ def test_the_file_is_one_shape_and_anything_else_is_refused_with_its_line():
   same = Changelog.parse("## 2026-11-07\n- One fact, written over two lines.\n"
                          "- Another.\n## 2026-11-06\n- An older one.\n")
   assert same.sha == ok.sha and len(ok.sha) == 64
+  # ...and an item's spaces are one, so the robots read what the site draws
+  # (its observatory collapses them) and a stray space is no new version.
+  spaced = Changelog.parse("## 2026-11-07\n- One  fact,   written\n    over two lines.\n"
+                           "- Another.\n## 2026-11-06\n- An older one.\n")
+  assert spaced.entries[0].items[0] == "One fact, written over two lines."
+  assert spaced.sha == ok.sha
   for text, why in (("## 2026-11-06\n- a\n## 2026-11-07\n- b\n", "not older"),
                     ("## 2026-11-07\n- a\n## 2026-11-07\n- b\n", "not older"),
                     ("## 2026-02-30\n- a\n", "not a date"),
                     ("## 2026-11-07\n\n## 2026-11-06\n- a\n", "nothing in it"),
                     ("## 2026-11-07\nA fact with no dash.\n", "line 2"),
                     ("- an item before any date\n", "line 1"),
-                    ("## 2026-11-07\n- a\n# A title after an entry\n", "line 3")):
+                    ("## 2026-11-07\n- a\n# A title after an entry\n", "line 3"),
+                    # read as one line, a nested item would join its parent
+                    ("## 2026-11-07\n- a fact\n  - and one inside it\n", "line 3: an item inside")):
     with pytest.raises(Malformed, match=why):
       Changelog.parse(text)
 
@@ -102,22 +116,25 @@ HIDDEN = re.compile(
   r"\b(mouse|mice|beyond (this|the) simulation|connected to anything|held[- ]out|"
   r"secrets?|hidden|truth|true (position|pose|state|nature)|draws?|drawn|dynamics|"
   r"stiff\w*|damp\w*|friction|seeds?|seeded|random\w*)\b", re.I)
-#: ADVICE: it says what changed, never what to do about it.
+#: ADVICE: it says what changed, never what to do about it. ⚠ Not "instead
+#: of": "laid from its points instead of its ring" is a change, said plainly.
 ADVICE = re.compile(
   r"\b(you (should|must|might want|may want|could try|need to|ought|had better)|"
   r"it is (best|wise|better|a good idea)|it'?s (best|wise|better)|"
   r"we (suggest|recommend|advise)|try to|make sure|be sure|remember to|"
   r"don'?t forget|worth (trying|doing)|so that you|in order to|"
-  r"consider\w*|prefer\w*|avoid\w*|instead of)\b", re.I)
+  r"consider\w*|prefer\w*|avoid\w*)\b", re.I)
 #: ...and a sentence that opens on a verb is an instruction.
 IMPERATIVE = re.compile(
   r"(?:^|[.!?:;]\s+)(Try|Use|Go|Walk|Look|Charge|Plug|Explore|Recall|Read|Write|Define|"
   r"Keep|Avoid|Remember|Check|Plan|Wait|Ask|Take|Claim|Make|Set|Stay|Don'?t|Do|Never|"
   r"Always|Consider|Prefer|Be|Note|Pin|Choose|Pick|Head|Find|Stop|Start|Leave|Give|"
   r"Tell|Say|See)\b")
-#: ...and nothing that points at our side of the world.
+#: ...and nothing that points at our side of the world (a tree's branch is
+#: the world's, so not "branch"). A file of the robot's own is named in
+#: backticks, as the prompt names it, and read as a name.
 OURS = re.compile(r"#\d|\b\w+\.(py|md|json|ts|vue|npz|xml)\b|\b(PRs?|pull requests?|"
-                  r"commits?|branch(es)?|github|repo(sitory)?|staging)\b", re.I)
+                  r"commits?|github|repo(sitory)?|staging)\b", re.I)
 NAMES = ("Pluggy", "PluggyBot", "Luca", "Rowan")
 
 
@@ -220,15 +237,19 @@ def test_read_changelog_is_its_newest_page_and_says_how_many_there_are(monkeypat
   assert past["lines"] == [] and past["hits"] == 0 and past["pages"] == 2
 
 
-def test_a_note_topic_called_changelog_is_read_by_its_title_and_find_is_memorys():
+def test_a_note_topic_called_changelog_is_read_by_its_title_and_find_is_memorys(monkeypatch):
+  # a short changelog, so the page leaves the block room for what `find` found
+  log = Changelog.parse("## 2026-11-07\n- The park has a sign.\n")
+  monkeypatch.setattr(changelog, "current", lambda: log)
   files = ThoughtFiles()
   files.note({"topic": "changelog", "title": "mall", "text": "the mall is new"}, t=1.0)
   files.remember("walked to the park", t=2.0)
   assert files.recall(read="changelog/mall")["lines"] == [
     "#1 [changelog/mall] the mall is new"]
   both = files.recall(read="changelog", find="park")
-  assert both["page"] == 1 and both["lines"][:-1] == changelog.current().page(1, RECALLED_CHARS)[0]
-  assert both["lines"][-1].startswith("#2 [history]"), "find searches memory, not the changelog"
+  assert both["page"] == 1 and both["lines"][0] == "[2026-11-07] The park has a sign."
+  assert both["lines"][1:] == ["#2 [history] [t=2s] walked to the park"], \
+    "find searches memory, never the changelog"
 
 
 # ---- every turn carries its date, and the prefix never does ----------------------

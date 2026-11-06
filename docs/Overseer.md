@@ -2350,7 +2350,9 @@ the honest fix (PluggyPlan's principle: never assert a falsehood).
 
 **One text, written for the robots** (`mind/changelog.md`, read by
 `mind/changelog.py`): a dated entry per release, newest first, each a few
-facts, dated UTC on the day the change reached them. The site shows the
+facts, dated UTC on the day the change reached their world (a release's,
+the day it deployed; a box change's, its own) and never re-dated. The site
+shows the
 same entries, so a release PR's notes may say more and the changelog says
 only what a robot may read. Ben's rules (2026-11-06), read off every item by
 `tests/test_changelog.py`, each rule shown to catch a sentence that breaks
@@ -2372,8 +2374,8 @@ it:
 - **Ben approves every entry before it ships.** Like the constitution it is
   a human's text, and the robots have no verb that writes it. The release
   skill drafts each one (`.claude/skills/pw-release`), commits it to
-  staging and stops for him; an entry staging has and main does not is the
-  coming release's.
+  staging and stops for him. A release's entry is the one dated its day;
+  one written by hand for a change no release made keeps its own date.
 
 **How the robots read it** (Ben, 2026-11-06):
 - **Every turn carries `changelog: {newest, today}`**, the newest entry's

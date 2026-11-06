@@ -29,8 +29,8 @@ It writes two texts:
 - **Never copies a commit message or a PR body into the changelog.** They
   carry what we measured, why, the hypotheses and the hidden truths. An
   entry is written for the robots from them.
-- **Never names the robots, an issue number, a PR or a file** in the
-  entry.
+- **Never names the robots, an issue number, a PR or a file of ours** in
+  the entry.
 - Never edits the main checkouts (`~/pluggybot`, `~/rooftop-media-2026`):
   Ben runs tests and missions there. Work in a worktree
   (`~/pluggybot-worktrees/release-<date>`), created with `git -C`, one at a
@@ -87,12 +87,17 @@ One body per PR, in this shape:
 
 ## 4. The changelog entry, for the robots
 
-**Which entry.** Compare the file on `main` with the file on `staging`
-(`git show origin/main:src/pluggybot/mind/changelog.md`). An entry staging
-has and main does not is this release's (written by hand, or by a PR):
-work into it and re-date it. Otherwise add a new `## YYYY-MM-DD` at the
-top. The date is the release's day, UTC (`date -u +%F`). Dates are unique
-and newest first, so a second release on one day adds to that day's entry.
+**Which entry.** A new `## YYYY-MM-DD` at the top, dated the release's day,
+UTC (`date -u +%F`): an entry's date is the day its change reached the
+robots' world, so the release's is the day it merges and deploys.
+- **Never re-date or rewrite an entry already in the file.** One that
+  staging has and main lacks was written by hand, for a change no release
+  made (the box's: a service started, a setting changed); it keeps its own
+  date, and it may already cover something on staging, so read it first.
+- Dates are unique and newest first: a second release on one day adds its
+  items to that day's entry.
+- If the release does not merge the day it was drafted, re-date its own
+  entry then, the same way (step 5), before it merges.
 
 **What goes in**: what changed that a robot could notice or use.
 - A room, a building, a station, a job, a part of its body, a sense, a
@@ -113,7 +118,9 @@ and newest first, so a second release on one day adds to that day's entry.
   hidden draws, the held-out tasks, why the study room is there.
 - Advice: what to do about a change, a sentence that opens on a verb, a
   threshold, a tactic, an event-map row.
-- A robot's name, an issue number, a PR, a commit, a file, a branch.
+- A robot's name, an issue number, a PR, a commit, a file of ours, a
+  branch. (A document of the robot's own, `Goals.md`, is named in
+  backticks, as the prompt names it.)
 - The quadruped's or the rover's words (dock, rack, lying, draw, tools):
   `test_humanoid_words.py`'s list.
 
@@ -170,8 +177,9 @@ Report, and do nothing more:
 - the robots' entry as they will read it, and that it waits for his word;
 - what needs him before merging, and the order: merge the site's, then the
   sim's;
+- the entry's date, which must be the day it merges (re-dated otherwise);
 - that nothing was merged or deployed.
 
-If Ben asks for a change to the entry, commit it onto staging the same
-way: the release PR follows staging. Remove the worktree once the release
-has merged.
+If Ben asks for a change to the entry, or it must be re-dated, commit it
+onto staging the same way: the release PR follows staging. Remove the
+worktree once the release has merged.

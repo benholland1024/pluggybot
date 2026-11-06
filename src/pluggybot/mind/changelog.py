@@ -56,7 +56,8 @@ class Malformed(ValueError):
 
 @dataclass(frozen=True)
 class Entry:
-  #: An ISO date, UTC: the day the change reached the robots.
+  #: An ISO date, UTC: the day the change reached the robots' world (a
+  #: release's, the day it deployed), never re-dated after.
   date: str
   #: One fact each, in the file's order.
   items: tuple[str, ...]
@@ -75,7 +76,8 @@ class Changelog:
     """The file's one shape: a `# ` title, `<!-- -->` comments and blank
     lines, read past; a `## YYYY-MM-DD` heading per entry, newest first,
     each date once; and under it `- ` items, an item's further lines
-    indented. Anything else is `Malformed`."""
+    indented, its spaces as one. Anything else is `Malformed`, a nested
+    item too: read as one line, it would silently join its parent."""
     entries: list[tuple[str, list[str]]] = []
     comment = False
     for n, raw in enumerate(text.splitlines(), 1):
@@ -96,9 +98,12 @@ class Changelog:
                           " -- newest first, each date once")
         entries.append((date, []))
       elif (m := _ITEM.fullmatch(line)) is not None and entries:
-        entries[-1][1].append(m.group(1))
+        entries[-1][1].append(" ".join(m.group(1).split()))
+      elif (m := _MORE.fullmatch(line)) is not None and m.group(1).startswith("- "):
+        raise Malformed(f"line {n}: an item inside an item -- one fact an item, "
+                        "and nothing nested")
       elif (m := _MORE.fullmatch(line)) is not None and entries and entries[-1][1]:
-        entries[-1][1][-1] += " " + m.group(1)
+        entries[-1][1][-1] += " " + " ".join(m.group(1).split())
       elif _TITLE.fullmatch(line) is not None and not entries:
         continue
       else:

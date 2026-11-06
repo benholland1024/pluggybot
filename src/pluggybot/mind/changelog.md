@@ -15,8 +15,8 @@ docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
   mall, an alley runs between the research center and the mall, and a
   street goes round all four.
 - The park is a fenced lawn with a gate in its north fence and another in
-  its east fence, across from the mall's front door. Two trees and a sign
-  stand in its middle.
+  its east fence, across from the mall's front door. Two trees stand near
+  its middle, with a sign between them.
 - The mall has a long concourse down its west side. Off it are a
   restaurant, with a dining room and a kitchen behind it, and a store, with
   a shop and a loading area behind it that has a door out to the sidewalk.
@@ -49,5 +49,6 @@ docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 - A `say` is said again. From 2026-10-27, when the world's clock was set
   back to zero, every `say` had been refused, because your last one was
   dated on the clock from before.
-- A ticket of yours that the people who run your world close pays again.
-  From 2026-10-27 a closed ticket had paid nothing, for the same reason.
+- A ticket of yours pays again when the people who run your world close
+  it. From 2026-10-27 a closed ticket had paid nothing, for the same
+  reason.
