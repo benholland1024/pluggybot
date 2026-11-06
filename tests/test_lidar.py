@@ -809,3 +809,21 @@ def test_nothing_low_behind_another_robot_is_cleared():
   assert scan.ranges[ahead] == pytest.approx(6.0, abs=0.1), \
     "the premise: the room ahead reads the wall over its head"
   assert kept == 2.0, f"the box behind the other robot was cleared ({kept:+.1f})"
+
+
+def test_the_instruments_scan_the_waists_body_at_its_reading(room):
+  """#560's stage (c3): a mount the waist turns is never posed without its
+  reading, and the instruments that cast the LIDAR from static poses hand it
+  in (the waist home): `lidar_spike.py --probe` crashed on the new body
+  before they did."""
+  import sys
+  from pathlib import Path
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+  import lidar_spike as ls
+  model, data = room
+  lidar = _clean(model)
+  with pytest.raises(ValueError, match="waist_yaw turns this mount"):
+    lidar.scan(data)
+  for variant in ("ring", "band"):
+    angles, ranges, _ = ls._scan(variant, model, data, lidar)
+    assert len(angles) and np.isfinite(ranges).any(), variant
