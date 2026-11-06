@@ -140,6 +140,7 @@ In a worktree off `origin/staging`, one commit, the file alone:
 
 ```sh
 git -C ~/pluggybot worktree add ~/pluggybot-worktrees/release-<date> -b release-<date> origin/staging
+cd ~/pluggybot-worktrees/release-<date> && uv sync    # the check runs here
 # write the entry, run the check above
 git -C ~/pluggybot-worktrees/release-<date> add src/pluggybot/mind/changelog.md
 git -C ~/pluggybot-worktrees/release-<date> commit -m "The changelog's entry for the release of <date> (#617)"
