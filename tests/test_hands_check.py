@@ -14,7 +14,9 @@ stand on, each pinned without a flight (docs/Testing.md) -- the flights are
      straight on ahead of it;
   6. the tally reads a job's bar only where every set-out flew;
   7. the lid's grip, aimed short of the knob's middle, clears the lid up
-     its arc and still holds the whole knob.
+     its arc and still holds the whole knob;
+  8. the table's grips clear what they must: the cup's palm its lid, the
+     plate's open pad the fork, and the fork is squeezed under the stall.
 """
 
 import ast
@@ -569,3 +571,123 @@ def test_the_lids_grip_clears_its_lid_up_the_arc_and_holds_the_whole_knob():
     fingers = -rot[:, 2]
     tip = (d0.geom_xpos[knob] - grip) @ fingers + ch.KNOB * np.abs(r.T @ fingers).sum()
     assert tip <= hp.GRIPPER.pad_half[2], tip
+
+
+# ---- 8. the table's grips clear what they must (#560) ------------------------------------
+
+
+def _hand_boxes(grip, rot, open_m: float | None = None) -> dict:
+  """The hand's solid parts at a grip, as boxes (centre, axes, half sizes): its palm and its
+  two pads, the jaws `open_m` out each (half the stroke: open) -- `humanoid.model._arm`'s
+  drawing round the grip site, the grip's x the jaws' travel and its z back up the fingers."""
+  from pluggybot.humanoid import parts as hp
+  g = hp.GRIPPER
+  q = g.stroke / 2 if open_m is None else open_m
+  half, pad = np.asarray(g.housing_half), np.asarray(g.pad_half)
+  jaw_z = -2 * half[2] - g.finger_len / 2
+  rot = np.asarray(rot, dtype=float)
+  local = {"palm": ((0.0, 0.0, -half[2] - jaw_z), half),
+           "pad_a": ((pad[0] + q, 0.0, 0.0), pad), "pad_b": ((-pad[0] - q, 0.0, 0.0), pad)}
+  return {n: (np.asarray(grip, dtype=float) + rot @ np.asarray(c), rot, h)
+          for n, (c, h) in local.items()}
+
+
+def _points_in(box, n: int = 15) -> np.ndarray:
+  """A grid of points through a box (centre, axes, half sizes), 5 mm apart or nearer."""
+  c, r, h = box
+  s = np.linspace(-1.0, 1.0, n)
+  return c + (np.array([(a, b, e) for a in s for b in s for e in s]) * h) @ r.T
+
+
+def _boxes_apart(a, b, gap: float) -> bool:
+  """Whether two boxes (centre, axes, half sizes) are at least `gap` apart: `b` grown by
+  `gap` each way meets `a` on no separating axis."""
+  (ca, ra, ha), (cb, rb, hb) = a, b
+  t, hb = cb - ca, np.asarray(hb) + gap
+  for ax in (*ra.T, *rb.T, *(np.cross(x, y) for x in ra.T for y in rb.T)):
+    n = float(np.linalg.norm(ax))
+    if n > 1e-9 and abs(t @ ax) / n > (np.abs(ra.T @ ax) @ ha + np.abs(rb.T @ ax) @ hb) / n:
+      return True
+  return False
+
+
+def _table_tags() -> dict:
+  """Each tag where the table's set-out's middle puts it, the start's stance frame (the
+  soles `TABLE_GAP` out of the table's edge): the card's on its face, the plate's on its
+  floor, the cup's on its lid, the fork's on its handle (`counter.TABLE_SOURCES`)."""
+  from pluggybot.activity import dishware as dish
+  gap, h = ct.TABLE_GAP, ct.TABLE_H
+  at = {n: (x + gap, y) for n, ((x, y), _, _) in ct.TABLE_SOURCES.items()}
+  return {93: (ct.CARD_IN + gap - dish.CARD[1], 0.0, h + dish.CARD[2]),
+          90: (*at["plate"], h + dish.PLATE_FLOOR_T),
+          91: (*at["cup"], h + dish.CUP_H),
+          92: (*at["fork"], h + 2 * dish.HANDLE[2])}
+
+
+def _table_flown():
+  """Our table procedure on a stub that does every move at once, as asked, and sees each tag
+  where the set-out's middle puts it: each grip it shut -- the hand, where, turned how, at
+  what squeeze -- and the run."""
+  from pluggybot.body import StubBody
+  from test_hands import _bare, _fly
+  tags = _table_tags()
+
+  class Seeing(StubBody):
+    def __init__(self, *a, **kw):
+      super().__init__(*a, **kw)
+      self.turns, self.shuts = {}, []
+
+    def spot(self, tag, at_height=None):
+      if int(tag) not in tags:
+        return None
+      x, y, z = tags[int(tag)]
+      return {"x": x, "y": y, "z": z, "normal": [0.0, 0.0, -1.0], "edge": [1.0, 0.0, 0.0],
+              "range": 0.5}
+
+    def reach_routine(self, side, pos, rot=None, **kw):
+      self.turns[side] = np.asarray(rot, dtype=float)
+      return (yield from super().reach_routine(side, pos, rot, **kw))
+
+    def grip_routine(self, side, closed, force=None):
+      if closed:
+        self.shuts.append((side, np.asarray(self.hand_at(side), dtype=float), self.turns[side],
+                           force))
+      return (yield from super().grip_routine(side, closed, force))
+  body = Seeing(*_bare())
+  # ...each arm's roll-out (`move`) left out: it turns a live stance, and a stub has no joint
+  source = "".join(line for line in hc.JOBS["table"].splitlines(keepends=True)
+                   if not line.strip().startswith("move("))
+  return body, _fly(source, body)
+
+
+def test_the_tables_grips_clear_what_they_must():
+  """⚠ EACH GRIP ITS OWN CLEARANCE (#560; SimNotes, "The table's reference on the waist"), the
+  set-out at its middle: aimed 3 cm short of the cup's middle no part of the open hand is in
+  the cup -- at the middle its palm cuts into the lid's back, and the cup tipped; the plate's
+  wall gripped 1.5 cm in, the open outer pad stays 1.5 cm off the fork waiting beside it -- at
+  the wall it came within 5 mm and brushed the fork over; and the fork squeezed under 40 N,
+  where the gripper's drive, chattering against so light a handle, stalled short of it."""
+  from pluggybot.activity import dishware as dish
+  body, ran = _table_flown()
+  assert ran["ok"], ran
+  (side_c, cup, rot_c, _), (side_p, plate, rot_p, _), (side_f, _, _, squeeze) = body.shuts[:3]
+  assert (side_c, side_p, side_f) == ("right", "left", "left")
+  tags = _table_tags()
+  cx, cy, _ = tags[91]
+
+  def in_cup(grip):
+    pts = np.vstack([_points_in(b) for b in _hand_boxes(grip, rot_c).values()])
+    return int(((np.hypot(pts[:, 0] - cx, pts[:, 1] - cy) < dish.CUP_R) & (pts[:, 2] > ct.TABLE_H)
+                & (pts[:, 2] < ct.TABLE_H + dish.CUP_H)).sum())
+  assert in_cup(cup) == 0
+  assert in_cup(np.array([cx, cy, cup[2]])) > 0                # aimed at the middle
+  fork = (np.array([tags[92][0], tags[92][1], ct.TABLE_H + dish.HANDLE[2]]), np.eye(3),
+          np.array(dish.HANDLE))
+
+  def pads_off_fork(grip):
+    return all(_boxes_apart(b, fork, 0.015) for n, b in _hand_boxes(grip, rot_p).items()
+               if n != "palm")
+  assert pads_off_fork(plate)
+  wall = np.array([plate[0], tags[90][1] + 0.081, plate[2]])  # its wall's inner face, as before
+  assert not pads_off_fork(wall)
+  assert squeeze < 40.0
