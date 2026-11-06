@@ -61,7 +61,9 @@ three paired seeds. The cube is no offered job.
 chest's grip"): its lid's grip is aimed 2 cm short of the knob's middle,
 where the pads had met the rising lid and the retrained stand, pushed by the
 lift, let the arc's top out of reach. Ours alone: the robots write their own
-procedures, and nothing they read changed.
+procedures, and nothing they read changed. ⚠ The chest's numbers below set
+the reworked reference on this body against the old one on today's: two
+changes, the grip never flown on today's body at the three seeds.
 
 **What the period is for.** That the body changed nothing else the robots
 did well: charges plug in (no `stuck` death, no charge narrated "no charge
