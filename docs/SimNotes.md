@@ -5753,20 +5753,21 @@ which leaned on stand4's creep.
 
 ## The cube and the robot's noise (issue #560, stage (c3))
 
-**What is true now.** Every set-out of a check replays ONE realization of
-the robot's noise: each sensor is seeded by the robot's name
-(`imu.seed_for`), so each flight draws the same values at the same instants,
-and a check's set-outs vary its props, never its noise. Its count carries
-that realization's luck in common: our procedure placed the cube on today's
-body 22 times of 32 as served, and 17, 16 and 21 times with its joints'
-noise seeded three other ways. The joint senses dealt one stream over every
-joint in order, so the waist re-drew every other joint's noise: today's
-body, its noise dealt the waist's way, placed the cube 9 times, the waist
-body's own count on #622's pod. The legs' and the arms' drivers draw one
-block of the robot's stream in their order, as before the waist, and a part
-added since draws its own (`senses.SHARED`; a test reads each shared joint
-with and without the waist): a body change keeps every shared part's noise,
-and one seed is the same draws on either body.
+**What is true now.** Each set-out of a check draws noise of its own,
+keyed by its job and its number (`attempts.noise_of`; Evaluation.md §5,
+"Each set-out flies noise of its own"). Until then every set-out replayed
+ONE realization of the robot's noise -- each sensor seeded by the robot's
+name, so each flight drew the same values at the same instants -- and a
+count carried that realization's luck in common: our procedure placed the
+cube on today's body 22 times of 32 as served, and 17, 16 and 21 times
+with its joints' noise seeded three other ways. The joint senses dealt one
+stream over every joint in order, so the waist re-drew every other joint's
+noise: today's body, its noise dealt the waist's way, placed the cube 9
+times, the waist body's own count on #622's pod. The legs' and the arms'
+drivers draw one block of a key's stream in their order, as before the
+waist, and a part added since draws its own (`senses.SHARED`; a test reads
+each shared joint with and without the waist): a body change keeps every
+shared part's noise, and one set-out is the same draws on either body.
 
 **Found by elimination**, each arm switching off one difference between the
 bodies -- set-outs 2, 12 and 16 first, then all 32 (locally, osmesa, a

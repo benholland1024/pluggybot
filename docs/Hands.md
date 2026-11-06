@@ -318,10 +318,10 @@ are SimNotes' ("The force move", the checks' props).
 **What it cannot show.** The check proves the vocabulary EXPRESSES each
 job -- each passes some of its set-outs -- not that a mind finds the
 expression, nor yet that one procedure holds over draws it was not written
-against; it is one body, one hand at a time, on a counter at 0.72 m; and
-it is one realization of the robot's noise, which every set-out replays
-(Evaluation.md §5: unchanged, the cube's count ran 16-22 of 32 over four
-seeds).
+against; it is one body, one hand at a time, on a counter at 0.72 m. Each
+set-out draws noise of its own (Evaluation.md §5): until #560's seeds
+stage every set-out replayed one realization of the robot's, and an
+unchanged cube's count ran 16-22 of 32 over four seeds of it.
 
 **The checks are the served humanoids' first jobs** (#559, stage 3;
 Challenges.md §11): each prop on a counter in the storeroom, square at the

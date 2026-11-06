@@ -76,13 +76,11 @@ class Noise:
 #: The drivers whose noise is one block of the robot's stream, a read at a
 #: time, in this order: the legs' and the arms', the body before its waist
 #: (#560's stage (c3)). A joint added since draws from a stream of its own,
-#: keyed by its name, so adding a part re-deals no other part's noise. ⚠
+#: keyed by its name, so adding a part re-deals no other part's noise, and
+#: two bodies flown at one set-out draw alike for every part they share. ⚠
 #: DEALT OVER EVERY JOINT IN ORDER, THE WAIST RE-DREW EVERY OTHER JOINT'S
-#: NOISE -- and every set-out of a check replays the robot's noise at the
-#: same instants, so with it the one realization the whole check flies:
-#: today's body placed the cube 22 times of 32 as served and 9 dealt the
-#: waist's way, 16-21 at three other seeds (SimNotes, "The cube and the
-#: robot's noise").
+#: NOISE: today's body placed the cube 22 times of 32 as served and 9 dealt
+#: the waist's way (SimNotes, "The cube and the robot's noise").
 SHARED = (tuple(f"{s}_{j}" for s in hm.SIDES for j in hm.LEG)
           + tuple(f"{s}_{j}" for s in hm.SIDES for j in hm.ARM))
 
