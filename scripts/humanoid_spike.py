@@ -3697,6 +3697,7 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
       took = d.time - t0
       getup.begin()
     if took is not None and stood is None:
+      h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
       getup.step()
       mujoco.mj_step(m, d)
       if getup.stood:
@@ -3829,6 +3830,7 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
         up, rec["took_s"] = True, t
         getup.begin()
     if up:
+      h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
       getup.step()
       mujoco.mj_step(m, d)
       if getup.stood:
@@ -3960,6 +3962,11 @@ class Falling:
   def step(self) -> None:
     h = self.h
     if self.up:
+      # ...the waist held home as the mission holds it (`Reach.hold_waist`):
+      # left to a reach that never stepped, it held the drawing's default
+      # gains, an eighth of its own, and lying on its face the get-up never
+      # stood (2.4 s held as served)
+      h.reach.hold_waist()
       self.getup.step()
       mujoco.mj_step(h.m, h.d)
       if self.getup.stood:
