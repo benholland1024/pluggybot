@@ -18,6 +18,10 @@ from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.scan import HeadScan
 from pluggybot.perception.depth import DepthCamera
 
+#: The waist's reading at its zero, where these tests' bodies stand (#560's stage (c3):
+#: the head's sensors ride the waist, and a frame is laid through its reading).
+W0 = {"waist_yaw": 0.0}
+
 #: The get-up's allowance in the test, s: it stood from its back in 3.0 s
 #: (`humanoid_spike.py --view getup`).
 GETUP_S = 6.0
@@ -243,8 +247,8 @@ def test_the_camera_sees_the_floor_far_from_where_its_plane_is_anchored(head):
   mujoco.mj_resetDataKeyframe(model, data, 0)
   data.qpos[0] = 4.0
   mujoco.mj_forward(model, data)
-  assert len(DepthCamera(model, mount="body").frame(data).points) == 0
-  assert len(HeadScan(model, data).cam.frame(data).points) > 1000
+  assert len(DepthCamera(model, mount="body").frame(data, W0).points) == 0
+  assert len(HeadScan(model, data).cam.frame(data, W0).points) > 1000
 
 
 def test_a_body_folded_into_a_squat_is_falling_though_it_is_upright(head):

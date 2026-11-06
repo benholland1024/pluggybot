@@ -212,3 +212,22 @@ def test_the_mission_says_whether_the_standing_policy_has_the_legs(legs, standin
   m.reach = NS(step=lambda: None, standing=None)
   m._before_step((0.0, 0.0, 0.0))
   assert m.reach.standing is standing
+
+
+def test_turned_at_the_waist_a_push_reads_as_staged_and_the_waists_driver_is_a_row():
+  """#560's stage (c3): the waist turned 0.5 rad, the arm out, a push at the
+  grip is read as it was staged, every way of three -- and the waist's own
+  driver is one of the balance's rows, as each leg joint's is: what it reads
+  moves the reading (its row left out, nothing it read would)."""
+  sm, q = _posed()
+  q[hm.JOINT_NAMES.index("waist_yaw")] = 0.5
+  sm.pose(q, np.array([0.0, 0.0, -1.0]))
+  still = _still(sm)
+  for push in ((20.0, 0.0, 0.0), (0.0, 20.0, 0.0), (0.0, 0.0, -20.0)):
+    got = sm.felt(["left"], _staged(sm, {"left": push}), still)["left"]
+    assert np.allclose(got, push, atol=0.5), (push, got)
+  tau = _staged(sm, {"left": (0.0, 20.0, 0.0)})
+  base = sm.felt(["left"], tau, still)["left"]
+  tau[sm.waist[0]] += 2.0
+  assert np.linalg.norm(sm.felt(["left"], tau, still)["left"] - base) > 0.3
+

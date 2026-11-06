@@ -122,15 +122,18 @@ class HeadScan:
   """The D435's map, read at the policy's grid (module docstring).
   `step()` after every physics step (a frame every `period`); `scan()`
   whenever the policy asks. `belief()` is the pose the map is laid
-  through, (x, y, z, yaw) -- the odometry's -- and `level()` the trunk's
-  tilt with the heading taken out (level from body), its IMU's; None for
-  either is the truth, to tell the sensor's error from the reckoning's."""
+  through, (x, y, z, yaw) -- the odometry's -- `level()` the trunk's
+  tilt with the heading taken out (level from body), its IMU's, and
+  `joints()` the waist's angle as its driver reads it (bare name -> rad,
+  the camera's mount's, #560's stage (c3)); None for any is the truth, to
+  tell the sensor's error from the reckoning's."""
 
   def __init__(self, model, data, handle: RobotHandle = FIRST, belief=None, level=None,
                correct=None, period: float = PERIOD, seed: int = 0,
-               spec: hm.HumanoidSpec = hm.CHOSEN):
+               spec: hm.HumanoidSpec = hm.CHOSEN, joints=None):
     self.m, self.d = model, data
-    self.belief, self.level = belief, level
+    self.belief, self.level, self.joints = belief, level, joints
+    self.handle = handle
     #: Moves the believed height by how far a frame says it drifted, m:
     #: `correct(dz)`; None leaves the belief alone.
     self.correct = correct
@@ -154,6 +157,14 @@ class HeadScan:
                        np.linspace(-fw / 2, fw / 2, SOLE_POINTS[1]), indexing="xy")
     self.sole = np.stack([a.ravel(), b.ravel()], axis=1)
 
+  def _joints(self) -> dict:
+    """The camera's mount's joints, as read (`joints`) or, unread, true."""
+    if self.joints is not None:
+      return self.joints()
+    m = self.m
+    return {j: float(self.d.qpos[m.jnt_qposadr[m.joint(self.handle.el(j)).id]])
+            for j in self.cam.mount.joints}
+
   def pose(self) -> tuple[float, float, float, float, np.ndarray]:
     """(x, y, z, heading) as believed, and the trunk's tilt with the heading
     taken out."""
@@ -173,7 +184,7 @@ class HeadScan:
   def look(self) -> None:
     """One frame into the map; the frame kept (`frame`) for whoever else
     reads the camera (the planner's low layer, `humanoid.mission`)."""
-    frame = self.frame = self.cam.frame(self.d)
+    frame = self.frame = self.cam.frame(self.d, self._joints())
     x, y, z, yaw, level = self.pose()
     p = frame.points @ level.T
     p[:, 2] += z

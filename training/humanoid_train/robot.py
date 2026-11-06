@@ -16,10 +16,12 @@ XML = REPO / "models" / "humanoid.xml"
 BODY = json.loads((REPO / "models" / "humanoid.json").read_text())
 ROOT = BODY["root"]
 JOINTS = BODY["joints"]
-#: The legs' twelve and the arms' twelve, in the order qpos carries them.
-LEGS = tuple(j for j in BODY["order"] if "_shoulder" not in j and "_elbow" not in j
-             and "_wrist" not in j)
-ARMS = tuple(j for j in BODY["order"] if j not in LEGS)
+#: The legs' twelve, the waist's yaw (#560's stage (c3)) and the arms'
+#: twelve, in the order qpos carries them: the legs the policies', the waist
+#: and the arms scripted beside them as the served reach drives them.
+LEGS = tuple(BODY["groups"]["legs"])
+WAIST = tuple(BODY["groups"]["waist"])
+ARMS = tuple(BODY["groups"]["arms"])
 #: The soles' sites and geoms, and the hands (the bodies a payload or a pull
 #: is put on).
 FEET = tuple(BODY["feet"])
@@ -103,17 +105,23 @@ MOTORS = sorted({v["motor"] for v in JOINTS.values()})
 #: The arms' drivers in training: the scripted arms (`stand.ScriptedArms`)
 #: hold their targets at the gains the served arms' commands carry
 #: (`pluggybot.humanoid.model.ARM_GAIN_SCALE` times the policy's), with the
-#: arm's own weight fed forward, as the served arms do.
+#: arm's own weight fed forward, as the served arms do -- and the waist's
+#: likewise at its own (`WAIST_GAIN_SCALE`, `stand.ScriptedWaist`; a walk and
+#: a get-up hold it home, as the served body does).
 ARM_GAIN_SCALE = tuple(BODY["arm_gain_scale"])
+WAIST_GAIN_SCALE = tuple(BODY["waist_gain_scale"])
 
 
 def actuators() -> tuple[DcMotorActuatorCfg, ...]:
   out = []
   for motor in MOTORS:
     legs = tuple(j for j in _group(motor) if j in LEGS)
+    waist = tuple(j for j in _group(motor) if j in WAIST)
     arms = tuple(j for j in _group(motor) if j in ARMS)
     if legs:
       out.append(_actuator(motor, joints=legs))
+    if waist:
+      out.append(_actuator(motor, WAIST_GAIN_SCALE, joints=waist))
     if arms:
       out.append(_actuator(motor, ARM_GAIN_SCALE, joints=arms))
   return tuple(out)

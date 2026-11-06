@@ -1,8 +1,9 @@
-"""The humanoid's arm joints' friction, calibrated once and stored (issue
-#493, stage 2): what each arm joint's driver reads beyond holding the arm's
-weight while that joint turns slowly in free air, the rest held -- fitted
-per joint as a dry friction against the motion, N*m, and a viscous one, N*m
-a rad/s (`calibrate_routine`; `scripts/humanoid_spike.py --friction`).
+"""The humanoid's arm joints' friction and its waist's, calibrated once and
+stored (issue #493, stage 2; the waist's since #560's stage (c3)): what
+each joint's driver reads beyond holding what rides it while that joint
+turns slowly in free air, the rest held -- fitted per joint as a dry
+friction against the motion, N*m, and a viscous one, N*m a rad/s
+(`calibrate_routine`; `scripts/humanoid_spike.py --friction`).
 Kept in `FILE`, beside the robot's drawing, and taken off the drivers'
 torques where a joint turns (`taken`, `SelfModel.hand_force`): so the force
 a hand reads is net of its arm's weight AND its joints' friction, and no
@@ -71,9 +72,10 @@ def fit(samples: list[tuple[float, float, float]]) -> dict:
 def calibrate_routine(body):
   """Each arm joint swept about `pose` in free air, its driver's torque
   read beyond the arm's weight (the arm's own model, posed off its
-  encoders and IMU), and fitted (`fit`): a routine returning the table,
-  joint name -> {coulomb, viscous, samples}. The body stands where
-  nothing is within its arm's reach."""
+  encoders and IMU), and fitted (`fit`) -- then the waist's yaw, the arms
+  hanging, swept about the stand's (`_waist_routine`): a routine returning
+  the table, joint name -> {coulomb, viscous, samples}. The body stands
+  where nothing is within its arm's reach."""
   reach, data = body.reach, body.data
   table = {}
   for side in hm.SIDES:
@@ -109,7 +111,41 @@ def calibrate_routine(body):
     for j in reversed(hm.ARM):
       name = f"{side}_{j}"
       yield from body.ramp_routine(body.actuator(name), hang.get(name, 0.0), SWEEP_SPEEDS[0])
+  for k, name in enumerate(hm.WAIST):
+    samples = []
+    for speed in SWEEP_SPEEDS:
+      def record(k=k, samples=samples, speed=speed):
+        reach._pose()
+        _, qd, tau = reach.stand.joints.read(data)
+        w = reach.self_model.waist
+        samples.append((float(qd[w][k]),
+                        float(tau[w][k] - reach.self_model.waist_gravity()[k]), speed))
+      for to in (SWEEP_RAD, -SWEEP_RAD):
+        body.step_hooks.append(record)
+        try:
+          yield from _waist_routine(body, to, speed)
+        finally:
+          body.step_hooks.remove(record)
+        yield from body.hold_routine(SETTLE_S)
+    yield from _waist_routine(body, 0.0, SWEEP_SPEEDS[0])
+    table[name] = fit(samples)
   return table
+
+
+def _waist_routine(body, to: float, speed: float):
+  """The waist walked to `to`, rad, at `speed`, rad/s: the reach's posture's
+  waist moved a step at a time (`Reach.turn_waist`), its command following
+  it (`reach.WAIST_RATE`, faster than either sweep), until its drivers read
+  it there."""
+  reach = body.reach
+  dt = body.model.opt.timestep
+  at = float(reach.posture[2])
+  while abs(at - to) > 1e-9:
+    at += max(-speed * dt, min(speed * dt, to - at))
+    reach.turn_waist(at)
+    yield from body.settle_routine(dt)
+  while abs(float(reach.waist_cmd[0]) - to) > 1e-9:
+    yield from body.settle_routine(dt)
 
 
 def load(path: Path | str = FILE) -> dict:
@@ -123,16 +159,16 @@ def load(path: Path | str = FILE) -> dict:
 
 def save(table: dict, path: Path | str = FILE) -> None:
   Path(path).write_text(json.dumps(
-    {"about": "the humanoid's arm joints' friction, calibrated (humanoid/friction.py; "
-              "scripts/humanoid_spike.py --friction --write)",
+    {"about": "the humanoid's arm joints' and waist's friction, calibrated "
+              "(humanoid/friction.py; scripts/humanoid_spike.py --friction --write)",
      "joints": table}, indent=1) + "\n")
 
 
 def still(table: dict, drawn: np.ndarray) -> np.ndarray:
   """What each joint's friction may hold while it is still, N*m, in
-  `hm.JOINT_NAMES` order: an arm joint's dry friction as calibrated, where
-  the table has it -- else `drawn`, the robot's drawing's (the legs': none
-  is calibrated)."""
+  `hm.JOINT_NAMES` order: an arm joint's or the waist's dry friction as
+  calibrated, where the table has it -- else `drawn`, the robot's
+  drawing's (the legs': none is calibrated)."""
   out = np.array(drawn, dtype=float)
   for k, name in enumerate(hm.JOINT_NAMES):
     row = table.get(name)
@@ -145,9 +181,14 @@ def taken(table: dict, side: str, qd: np.ndarray) -> np.ndarray:
   """The friction torque, N*m, each of `side`'s arm joints turns against at
   speeds `qd` (`hm.ARM` order): nothing below `MOVING_RAD_S`, or where the
   table has no row."""
-  out = np.zeros(len(hm.ARM))
-  for k, j in enumerate(hm.ARM):
-    row = table.get(f"{side}_{j}")
+  return taken_by(table, [f"{side}_{j}" for j in hm.ARM], qd)
+
+
+def taken_by(table: dict, names, qd: np.ndarray) -> np.ndarray:
+  """...each of the joints `names` (`hm.WAIST`, the waist's) at speeds `qd`."""
+  out = np.zeros(len(names))
+  for k, name in enumerate(names):
+    row = table.get(name)
     if row is not None and abs(qd[k]) > MOVING_RAD_S:
       out[k] = row["coulomb"] * np.sign(qd[k]) + row["viscous"] * qd[k]
   return out

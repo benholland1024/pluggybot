@@ -57,6 +57,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pluggybot.humanoid import model as hm  # noqa: E402
 from pluggybot.perception import lidar as ld  # noqa: E402
 
+#: The waist's reading every pose here is laid at: home, as these static
+#: poses stand the robot (#560's stage (c3): a mount the waist turns is
+#: never posed without its reading).
+HOME = {j: 0.0 for j in hm.WAIST}
+
 HOME_META = "models/home_world.meta.json"
 #: The probe's groups of the house's zones, as #572's probe read them, and
 #: the grown world's (#560): its sidewalks and the alley beside the old, the
@@ -233,10 +238,10 @@ def cost_table(n: int = 120, repeat: int = 3) -> dict:
   poses = [(*places[k], float(rng.uniform(-math.pi, math.pi))) for k in pick]
   depth = DepthCamera(model, FIRST, mount="body", reach=UNCULLED)
   calls = {
-    "level ring (360 rays)": lambda: lidar.scan_split(data),
+    "level ring (360 rays)": lambda: lidar.scan_split(data, HOME),
     "cloud (10,800 rays)": lambda: lidar.cloud(data),
-    "band, laid flat": lambda: lidar.band(data, np.eye(3), hm.stand_height()),
-    "depth camera frame (8,400 rays)": lambda: depth.frame(data),
+    "band, laid flat": lambda: lidar.band(data, np.eye(3), hm.stand_height(), joints=HOME),
+    "depth camera frame (8,400 rays)": lambda: depth.frame(data, HOME),
   }
   out = {}
   gc.disable()
@@ -267,8 +272,8 @@ def _scan(variant: str, model, data, lidar):
   """(angles, ranges, where each ray's free run begins): the level ring's,
   or the band's, the map's since #581's stage 2."""
   if variant == "ring":
-    return (*lidar.scan(data), None)
-  s = lidar.band(data, np.eye(3), hm.stand_height())
+    return (*lidar.scan(data, HOME), None)
+  s = lidar.band(data, np.eye(3), hm.stand_height(), joints=HOME)
   return s.angles, s.ranges, s.free_from
 
 
@@ -387,7 +392,7 @@ def dots(model, data, lidar: ld.Lidar) -> list[tuple[np.ndarray, np.ndarray]]:
     np.minimum.at(best, b, r)
     keep = r == best[b]
     out += [(p, BAND_RGBA) for p in pts[keep]]
-  a, rr = lidar.scan(data)
+  a, rr = lidar.scan(data, HOME)
   hit = rr < lidar.max_range - 1e-9
   dirs = np.stack([np.cos(a[hit]), np.sin(a[hit]), np.zeros(hit.sum())], axis=1) @ mat.T
   out += [(p, RING_RGBA) for p in pos + dirs * rr[hit, None]]

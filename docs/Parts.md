@@ -56,7 +56,7 @@ the rest):
   contactor closes. The wireless half is a hobby RC link whose receiver's
   failsafe opens the relay, at a fifth of a commercial wireless e-stop.
 - **Four CAN buses on the Pi, through two stacked HATs**, six drivers a
-  bus; four USB adapters are the fallback.
+  bus and the waist's a seventh on one; four USB adapters are the fallback.
 - **The bench leg hops on the pack.** The lab supply is for current-limited
   first power-ups: it cannot take back what the motors return on landing.
 
@@ -240,33 +240,38 @@ number sits at its constant in `humanoid/parts.py` with its source, and
 the tables that size it are SimNotes, "The humanoid body". **Nothing is
 ordered**: #379's gate stands.
 
-**The joints, 24, and a gripper on each arm.** Each is there for a reason,
+**The joints, 25, and a gripper on each arm.** Each is there for a reason,
 because a joint costs money, training and serving speed (#507, rule 4):
 
 | joints | part | why that part |
 |---|---|---|
 | hip pitch, hip roll, knee, ankle pitch | RobStride **RS04** (120 N·m peak, 35 continuous turning, 28.5 held still; 1.51 kg) | where the body's weight passes: walking's push-off is ~70 N·m at the ankle, and up the house's flight, flown by the walker that sees the ground, the knee 118 (98 % of its peak; its RMS 110 % of its rating over the 5.9 s, a burst its overload table allows for at least 290 s) and coming down 116 |
-| hip yaw, ankle roll, shoulder pitch and roll | RobStride **RS03** (60 / 20 / 13 N·m; 0.93 kg) | the hip's turn (24-37 N·m on the flight, flown, where it was estimated at ~51), the ankle's roll (53 coming down a flight, 88 % of its peak), an arm held out with a load -- and pushing the body up off the floor at its whole 60 (the get-up) |
+| hip yaw, ankle roll, shoulder pitch and roll, the waist's yaw | RobStride **RS03** (60 / 20 / 13 N·m; 0.93 kg) | the hip's turn (24-37 N·m on the flight, flown, where it was estimated at ~51), the ankle's roll (53 coming down a flight, 88 % of its peak), an arm held out with a load -- and pushing the body up off the floor at its whole 60 (the get-up); the waist turns the trunk above it, 19.5 kg, holding at most 8.1 N·m over the table's reaches and 10.1 under a 20 N `pull` sideways at a hand, 78 % of its 13 stalled, where an RS02's 6 would not (#560); flown, at most 10 N·m walking and 18 down a flight, and its whole 60 getting up, as the shoulders' are (RMS 13-19 over the 2-3 s it takes) |
 | upper-arm twist, elbow | RobStride **RS02** (17 / 6 / 6 N·m; 0.42 kg) | down the arm, where mass costs the shoulder; ⚠ the get-up pushes both to their 17 N·m peak, every time |
 | wrist pitch | RobStride **RS00** (14 / 5 / 3.6 N·m; 0.31 kg) | the gripper and what it holds, ahead of it |
 | wrist roll | RobStride **RS05** (5.5 / 1.6 / 1.35 N·m; 0.24 kg) | turns only the gripper, to the handle |
 | grippers | Unitree **Dex1-1** (90 mm, 5–120 N, 550 g) | a parallel gripper on sale, built for a humanoid this size, that takes a stiffness in each command and reports its angle and a torque estimate |
 
-**Not here, and why:** the T2's waist (three joints: the hips bend the body
-to a low reach and the legs' yaws turn it), its head's two (the depth camera
-is fixed, pitched at the counter and the floor ahead; a shelf above the head
-is out of its view), and its seventh arm joint (redundancy, not reach). Each
-is the first joint to add if a stage's measurement comes up short, and #560's
-table did for the waist: each hand works only its own side of a place. A
-waist was measured on the robot's model of itself before anything is built
-(SimNotes, "A waist, measured before it is built"), and Ben chose its yaw
-alone, on an RS03 at the pelvis's top (+1.73 kg; 2026-11-05), to be built
-once the carries into the table's put-downs near the body's middle were
-measured with other grips, paths and hands. They were (SimNotes, "The
-table's put-downs, measured before the waist is built"): on today's body
-the plate's opens with another grip and the fork's does not, and with the
-yaw, its grip asked the other way round, both open and one stance lays the
-whole place. Nor a force
+**The waist's yaw** (#560's stage (c3); SimNotes, "The waist built"): an
+RS03 stood in the pelvis's middle between the hips' pitch motors, its axis
+up the pelvis's middle, turning everything above the pelvis's top -- the
+torso, the pack, the head and its sensors, the port and the arms -- ±60°,
+on a 5 mm turntable plate: +1.73 kg, €320.95 before the contingency (the
+part, its two bracket plates, the plate, a connector pair). Each hand works
+only its own side of a place without it (#560's table); measured on the
+robot's model of itself before it was built (SimNotes, "A waist, measured
+before it is built", and "The table's put-downs, measured before the waist
+is built"), the yaw reaches past the middle of a table, makes every
+pick-up standing tall and, its grip asked the other way round, lets one
+stance lay the whole place. It joins one of the four CAN buses: seven
+drivers on it, six on the others.
+
+**Not here, and why:** the T2's waist's pitch and roll (the hips bend the
+body to a low reach; Ben, 2026-11-05: a pitch only if the stance still turns
+as an arm goes out with the yaw built), its head's two (the depth camera is
+fixed, pitched at the counter and the floor ahead; a shelf above the head is
+out of its view), and its seventh arm joint (redundancy, not reach). Each is
+the first joint to add if a stage's measurement comes up short. Nor a force
 sensor at either wrist (#544): `pull` asks at most what the standing body holds, 20 N, and shown a
 hand's true force in training's physics the standing policy held 60 N, where
 the robot's own readings will not do -- the arm's currents read too rough,
@@ -305,7 +310,7 @@ RS00/02/03/05.
   against a 20.9 rad/s no-load speed, the RS03 ±20 against 20.4. A joint
   turning faster reads the field's last count (`humanoid.senses`).
 - **The drivers' standby draw** is published only for the RS03 (≤ 40 mA);
-  carried for all 24, an upper bound: 41 W of the body's 69 W always on.
+  carried for all 25, an upper bound: 43 W of the body's 77 W always on.
 
 **The gripper.** Unitree's Dex1-1 publishes its stroke, force, speed, mass,
 size and what it reports; not its flange, its rotor or its torque estimate's
@@ -329,7 +334,9 @@ walls that mark places, and is the eye a `look` sees through. Both sit in
 the face's dark visor. The Mid-360S is upside down in the head, under its
 cap, its rays leaving 1.41 m up: its map is laid from its points laid
 flat, which see the tables, the couch and the bed, and the depth camera
-sees them by its feet too (#581). The IMU rides the pelvis.
+sees them by its feet too (#581). The IMU rides the pelvis, under the
+waist; the head's sensors ride the waist, and each of their frames is laid
+through the waist's encoder as it reads (`perception.mount`).
 
 **The bill.** `humanoid/bill.py`, rendered here and written to
 `protocol/parts.json` by `uv run python -m pluggybot.humanoid.bill`: a part
@@ -344,13 +351,13 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 
 | part | qty | € each | € line | lead time | feeds |
 |---|---|---|---|---|---|
-| **actuation** | | | **5,086.40** | | |
+| **actuation** | | | **5,307.35** | | |
 | [RobStride RS04 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride04-qdd-120n-m-integrated-joint-motor-module) `RS04` | 8 | 254.75 | 2,038.00 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_pitch.forcerange`, `left_hip_pitch.armature`, `humanoid.parts.RS04.rated_torque`, +2 |
-| [RobStride RS03 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride03-qdd-60n-m-integrated-joint-motor-module) `RS03` | 8 | 215.95 | 1,727.60 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_yaw.forcerange`, `left_hip_yaw.armature`, `humanoid.parts.RS03.rated_torque`, +2 |
+| [RobStride RS03 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride03-qdd-60n-m-integrated-joint-motor-module) `RS03` | 9 | 215.95 | 1,943.55 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_yaw.forcerange`, `left_hip_yaw.armature`, `humanoid.parts.RS03.rated_torque`, +2 |
 | [RobStride RS02 joint actuator (7.75:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride02-qdd-17n-m-joint-motor-module-dual-encoders) `RS02` | 4 | 149.95 | 599.80 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_shoulder_yaw.forcerange`, `left_shoulder_yaw.armature`, `humanoid.parts.RS02.rated_torque`, +2 |
 | [RobStride RS00 joint actuator (10:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride00-qdd-14n-m-integrated-joint-motor-module) `RS00` | 2 | 129.95 | 259.90 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_wrist_pitch.forcerange`, `left_wrist_pitch.armature`, `humanoid.parts.RS00.rated_torque`, +2 |
 | [RobStride RS05 joint actuator (7.75:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride05-qdd-joint-motor-module) `RS05` | 2 | 106.95 | 213.90 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_wrist_roll.forcerange`, `left_wrist_roll.armature`, `humanoid.parts.RS05.rated_torque`, +2 |
-| [Amass XT30(2+2) connector pair: power and signal in one (male, female and pins)](https://www.3dptronics.com/electronics/xt3022-connectors-pair) `XT30(2+2)` | 30 | 5.00 /pair | 150.00 | dispatched within 2-3 days, UPS or DHL (3DPTronics, Italy) | — |
+| [Amass XT30(2+2) connector pair: power and signal in one (male, female and pins)](https://www.3dptronics.com/electronics/xt3022-connectors-pair) `XT30(2+2)` | 31 | 5.00 /pair | 155.00 | dispatched within 2-3 days, UPS or DHL (3DPTronics, Italy) | — |
 | [LAPP UNITRONIC BUS CAN 1 x 2 x 0.22 mm², shielded, by the metre](https://www.conrad.de/de/p/lapp-2170260-1-busleitung-unitronic-bus-1-x-2-x-0-22-mm-violett-meterware-603992.html) `2170260/1` | 15 | 1.98 | 29.70 | 176 m in stock, delivered on 2026-09-30 (Conrad) | — |
 | [Silicone wire, 14 AWG (2.08 mm²), 1 m](https://www.mylipo.de/Silikonkabel-14AWG-208mm-schwarz_1) `SK14S / SK14R` | 30 | 2.25 | 67.50 | available now, 1-3 working days (MyLipo) | — |
 | **grippers** | | | **1,436.90** | | |
@@ -381,14 +388,15 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 | [Raspberry Pi Camera Module 3](https://www.berrybase.de/raspberry-pi-camera-module-3-12mp) `Camera Module 3` | 1 | 28.90 | 28.90 | in stock, 1-3 days (BerryBase) | `nav_eye.fovy` |
 | [Raspberry Pi camera cable, standard to mini, 200 mm](https://www.berrybase.de/raspberry-pi-camera-cable-standard-mini-200mm) `SC1128` | 1 | 1.20 | 1.20 | in stock, 1-3 days (BerryBase) | — |
 | [TDK InvenSense ICM-42688-P evaluation board (IMU)](https://www.digikey.de/de/products/detail/tdk-invensense/EV-ICM-42688-P/18634550) `EV_ICM-42688-P` | 1 | 36.79 | 36.79 | 138 in stock, the maker's standard lead 16 weeks (DigiKey DE) | `perception.imu.GYRO_NOISE` |
-| **frame** | | | **2,545.40** | | |
-| The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners | 1 | allowance | 1,600.00 | unknown: nothing drawn to quote | `humanoid.model._bracket` |
+| **frame** | | | **2,645.40** | | |
+| The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners | 1 | allowance | 1,666.67 | unknown: nothing drawn to quote | `humanoid.model._bracket` |
 | The pelvis's and the torso's frame: 3 mm 6082 plates | 1 | allowance | 300.00 | unknown: nothing drawn to quote | `humanoid.model.structure[pelvis_side, pelvis_deck, torso_side, torso_back, torso_top]` |
 | The thighs' and shanks' side plates, 5 and 4 mm 6082 | 1 | allowance | 266.67 | unknown: nothing drawn to quote | `humanoid.model.structure[thigh_plate, shank_plate]` |
 | The soles: a 6 mm 6082 plate and its 5 mm rubber | 1 | allowance | 86.67 | unknown: nothing drawn to quote | `humanoid.model.structure[sole_plate, sole_rubber]` |
 | The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length | 1 | allowance | 40.00 | unknown: nothing drawn to quote | `humanoid.model.structure[upper_arm_tube, forearm_tube]` |
 | The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end | 1 | allowance | 20.00 | unknown: nothing drawn to quote | `humanoid.model.structure[ankle_rod]` |
 | The plates the grippers bolt to on the wrists' roll, 6 mm 6082 | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[gripper_adapter]` |
+| The waist's turntable plate over the pelvis, the torso's frame on it: 5 mm 6082 | 1 | allowance | 33.33 | unknown: nothing drawn to quote | `humanoid.model.structure[waist_plate]` |
 | The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[lidar_fin, lidar_plate]` |
 | [igus igubal KCRM-05 rod end, M5 female, right-hand](https://www.igus.de/product/igubal_KCRM_KCLM?artNr=KCRM-05) `KCRM-05` | 4 | 5.43 | 21.72 | ready to ship in 24 hours (igus) | — |
 | [PETG filament, 1.75 mm, 1 kg (DAS FILAMENT)](https://dasfilament.de/produkt/petg-filament-175-mm-schwarz-1-kg/) `F10765` | 2 | 21.00 | 42.00 | unknown: in stock; the page and its terms give no delivery time | — |
@@ -430,20 +438,21 @@ Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the catalo
 
 | | € | $ |
 |---|---|---|
-| priced lines | 11,555.64 | |
-| allowances (nothing designed yet) | 2,682.68 | |
-| contingency, 15% | 2,135.75 | |
-| **total** | **16,374.07** | **18,671.35** |
+| priced lines | 11,776.59 | |
+| allowances (nothing designed yet) | 2,782.68 | |
+| contingency, 15% | 2,183.89 | |
+| **total** | **16,743.16** | **19,092.23** |
 
 **The allowances**, each a sum set aside, never a price:
 - **A USB to RS-485 adapter that runs at the grippers' 6 Mbps** (grippers), €30.00: an FTDI-class USB to RS-485 adapter good for 6 Mbps; none chosen
-- **The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners** (frame), €1,600.00: forty-eight machined 6082 plates with their fasteners, at €33.33 a machined part (#379's rate for the quadruped's legs: €800 for twenty-four)
+- **The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners** (frame), €1,666.67: fifty machined 6082 plates with their fasteners, at €33.33 a machined part (#379's rate for the quadruped's legs: €800 for twenty-four)
 - **The pelvis's and the torso's frame: 3 mm 6082 plates** (frame), €300.00: eight 3 mm 6082 plates, as #379 priced the quadruped's frame (€300 for six to eight): AluFritze's configurator prices a plain 300 x 150 mm one at €20.02; a plate with holes is priced from its drawing
 - **The thighs' and shanks' side plates, 5 and 4 mm 6082** (frame), €266.67: eight machined side plates at €33.33 a machined part (#379's rate)
 - **The soles: a 6 mm 6082 plate and its 5 mm rubber** (frame), €86.67: two machined sole plates at €33.33 a machined part (#379's rate), and €20 of 5 mm rubber sheet
 - **The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length** (frame), €40.00: 0.8 m of 6082 round tube in two sizes, cut to length; not priced for this bill
 - **The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end** (frame), €20.00: two 0.34 m rods cut from 8 mm tube and threaded M5 at each end
 - **The plates the grippers bolt to on the wrists' roll, 6 mm 6082** (frame), €66.67: two machined plates at €33.33 a machined part (#379's rate), drawn when the gripper's flange is known (Unitree does not publish it)
+- **The waist's turntable plate over the pelvis, the torso's frame on it: 5 mm 6082** (frame), €33.33: one machined part at €33.33 a machined part (#379's rate)
 - **The LIDAR's frame in the head: a 6 mm 6082 fin up its back and the plate the unit's base bolts under** (frame), €66.67: two machined parts at €33.33 a machined part (#379's rate): the cap is printed, the fin that carries it 6082 (a printed fin as thin would sway with the unit on it)
 - **Rosenberger RoPD panel plug, C003-B1 (magnetic, 60 V DC, 25 A): the charge port on the torso's front** (charging), €40.00: the cable jack's listed $43.58
 - **The charge port's funnel, printed in PETG: 70 mm across its mouth, 15 mm deep** (charging), €1.00: 25 g of PETG

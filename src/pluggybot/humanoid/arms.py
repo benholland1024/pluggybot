@@ -24,6 +24,7 @@ ratio kept): a compliant pull is a low stiffness.
 """
 
 from dataclasses import dataclass
+import hashlib
 import math
 
 import mujoco
@@ -81,6 +82,10 @@ STOP_RAD = 0.02
 CLOSES = 50.0
 
 
+#: `SelfModel.statues`, by the drawing's own hash.
+_STATUES: dict[str, dict] = {}
+
+
 def frame(approach, closing) -> np.ndarray:
   """The grip's orientation (stance from hand) for fingers pointing along
   `approach` and jaws closing along `closing`: the hand's -z is where the
@@ -119,7 +124,8 @@ class SelfModel:
   drawing."""
 
   def __init__(self, spec: hm.HumanoidSpec = hm.CHOSEN):
-    self.m = mujoco.MjModel.from_xml_string(hm.body_xml(spec))
+    xml = hm.body_xml(spec)
+    self.m = mujoco.MjModel.from_xml_string(xml)
     self.d = mujoco.MjData(self.m)
     m = self.m
     self.qadr = np.array([m.jnt_qposadr[m.joint(n).id] for n in hm.JOINT_NAMES])
@@ -128,12 +134,21 @@ class SelfModel:
     self.grip = {s: m.site(f"{s}_grip").id for s in hm.SIDES}
     self.soles = [m.geom(f"{s}_sole").id for s in hm.SIDES]
     self.root = m.body(ROBOT_ROOT).id
-    #: Each arm's six joints' places in `hm.JOINT_NAMES`, and each leg's.
+    #: Each arm's six joints' places in `hm.JOINT_NAMES`, each leg's, and
+    #: the waist's.
     self.arm = {s: np.array([hm.JOINT_NAMES.index(f"{s}_{j}") for j in hm.ARM])
                 for s in hm.SIDES}
     self.leg = {s: np.array([hm.JOINT_NAMES.index(f"{s}_{j}") for j in hm.LEG])
                 for s in hm.SIDES}
+    self.waist = np.array([hm.JOINT_NAMES.index(j) for j in hm.WAIST])
     self.q = np.zeros(len(hm.JOINT_NAMES))
+    #: What a planner works out once off this drawing and keeps, shared by
+    #: every model of it -- a fresh reach after each stand-up included: each
+    #: posture's statue and whether it stands (`reach.static_legs`,
+    #: `reach.stands`), each arm's reach (`reach.arm_reach`). A function of
+    #: the drawing alone (36 ms a statue), so kept or worked out afresh it is
+    #: the same answer.
+    self.statues: dict = _STATUES.setdefault(hashlib.sha256(xml.encode()).hexdigest(), {})
 
   def pose(self, q: np.ndarray, gravity_b: np.ndarray) -> None:
     """The model as the senses say: joints `q` (`hm.JOINT_NAMES` order) and
@@ -226,12 +241,20 @@ class SelfModel:
     """The torque each of the arm's joints holds its weight with, still, as
     the model is posed: the generalized gravity force (`mj_rne`, no
     velocity, no acceleration)."""
+    return self._held()[self.vadr[self.arm[side]]]
+
+  def waist_gravity(self) -> np.ndarray:
+    """...and the waist's joints, the trunk above them with the arms as
+    posed: none upright, its axis plumb, but a bow tilts it."""
+    return self._held()[self.vadr[self.waist]]
+
+  def _held(self) -> np.ndarray:
     d = self.d
     d.qvel[:] = 0.0
     mujoco.mj_comVel(self.m, d)
     out = np.zeros(self.m.nv)
     mujoco.mj_rne(self.m, d, 0, out)
-    return out[self.vadr[self.arm[side]]]
+    return out
 
   def hand_force(self, side: str, tau: np.ndarray, *, still: np.ndarray | None = None
                  ) -> np.ndarray:
@@ -256,8 +279,9 @@ class SelfModel:
     its motors push with (`tau`, every joint, a turning arm's friction
     taken off), G = S^T tau + sum J^T w over each sole's wrench and each
     hand's -- its force, and its twist about its grip -- solved in least
-    squares: the trunk's six rows (`TRUNK_SD`), each leg's joints and each
-    of `hands`' arm's, a joint weighed by the friction it may hold still
+    squares: the trunk's six rows (`TRUNK_SD`), each leg's joints, the
+    waist's (it carries a hand's load to the legs) and each of `hands`'
+    arm's, a joint weighed by the friction it may hold still
     (`still`, `TORQUE_SD`) and left out on its stop (`STOP_RAD`), and each
     twist about none (`TWIST_SD`) -- or nothing, `{}`, where the balance
     does not close (`CLOSES`). The legs feel what a straight arm carries
@@ -279,7 +303,8 @@ class SelfModel:
       jp, jr = np.zeros((3, m.nv)), np.zeros((3, m.nv))
       mujoco.mj_jacSite(m, d, jp, jr, self.grip[s])
       jac += [jp, jr]
-    joints = np.concatenate([self.leg[s] for s in hm.SIDES] + [self.arm[s] for s in hands])
+    joints = np.concatenate([self.leg[s] for s in hm.SIDES] + [self.waist]
+                            + [self.arm[s] for s in hands])
     q, lo, hi = self.q[joints], self.ranges[joints, 0], self.ranges[joints, 1]
     joints = joints[(q - lo >= STOP_RAD) & (hi - q >= STOP_RAD)]
     # the free joint's six dofs are the trunk's: no motor pushes there
@@ -315,6 +340,24 @@ class Arm:
     kp = self.kp * stiffness
     self.drivers.pd(np.asarray(target) + np.asarray(feed) / kp, kp,
                     self.kd * math.sqrt(stiffness))
+
+
+class Waist:
+  """The waist's drivers (`hm.WAIST`), commanded as an arm's are (`Arm`): a
+  target, the policy's gains (`driver_gains`) times `model.WAIST_GAIN_SCALE`,
+  and the torque holding the trunk above it fed forward. No policy drives
+  it: the reach turns it to its posture's angle (`reach.Reach`)."""
+
+  def __init__(self, model, data, prefix: str = ""):
+    self.joints = hm.WAIST
+    self.drivers = Drivers(model, data, prefix, joints=self.joints)
+    gains = np.array([driver_gains(hm.CHOSEN.motor(j)) for j in self.joints])
+    self.kp = gains[:, 0] * hm.WAIST_GAIN_SCALE[0]
+    self.kd = gains[:, 1] * hm.WAIST_GAIN_SCALE[1]
+
+  def command(self, target: np.ndarray, feed: np.ndarray) -> None:
+    self.drivers.pd(np.asarray(target, dtype=float) + np.asarray(feed, dtype=float) / self.kp,
+                    self.kp, self.kd)
 
 
 #: A grip is HELD, by the gripper's own reading, when shut it stopped this

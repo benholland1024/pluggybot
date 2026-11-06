@@ -45,7 +45,87 @@
       <freejoint name="pluggybot_root"/>
       <site name="imu" pos="0 0 0" size="0.01"/>
       <geom name="pelvis" class="limb" type="box" size="0.07 0.115 0.06"
-            mass="0.91287"/>
+            mass="0.91287"/><geom name="left_hip_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 0.054 0 0 0.106 0" mass="1.95712"/><geom name="right_hip_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.106 0 0 -0.054 0" mass="1.95712"/>
+      <body name="left_hip_pitch_link" pos="0 0.08 0">
+        <joint name="left_hip_pitch" axis="0 1 0" range="-2.93215 2.23402" armature="0.04" frictionloss="0.6"/>
+        <geom name="left_hip_roll_motor" class="motor" type="cylinder" size="0.06" fromto="-0.026 0.02 -0.067 0.026 0.02 -0.067" mass="1.95712"/>
+        <body name="left_hip_roll_link" pos="0 0.02 -0.067">
+          <joint name="left_hip_roll" axis="1 0 0" range="-0.575959 1.53589" armature="0.04" frictionloss="0.6"/>
+          <geom name="left_hip_yaw_motor" class="motor" type="cylinder" size="0.049" fromto="0 0 -0.09605 0 0 -0.04195" mass="1.2262"/>
+          <body name="left_thigh" pos="0 0 -0.069">
+            <joint name="left_hip_yaw" axis="0 0 1" range="-2.75762 2.75762" armature="0.02" frictionloss="0.3"/>
+            <geom name="left_thigh" class="limb" fromto="0 0 -0.04 0 0 -0.17"
+                  size="0.05" mass="0.39123"/>
+            <geom name="left_knee_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.026 -0.21 0 0.026 -0.21" mass="1.95712"/>
+            <body name="left_shank" pos="0 0 -0.21">
+              <joint name="left_knee" axis="0 1 0" range="0 2.58309" armature="0.04" frictionloss="0.6"/>
+              <geom name="left_shank" class="limb" fromto="0 0 -0.05 0 0 -0.285"
+                    size="0.04" mass="0.41607"/>
+              <geom name="left_ankle_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.026 -0.1 0 0.026 -0.1" mass="1.95712"/>
+              <geom name="left_ankle_rod" class="visual" type="capsule" size="0.004"
+                    fromto="-0.035 0 -0.1 -0.035 0 -0.335"
+                    mass="0.0318611" rgba="0.6 0.6 0.62 1"/>
+              <body name="left_ankle_pitch_link" pos="0 0 -0.335">
+                <joint name="left_ankle_pitch" axis="0 1 0" range="-0.837758 0.575959" armature="0.04" frictionloss="0.6"/>
+                <geom name="left_ankle_roll_motor" class="motor" type="cylinder" size="0.049" fromto="-0.02705 0 -0.01 0.02705 0 -0.01" mass="1.2262"/>
+                <body name="left_foot" pos="0 0 -0.01">
+                  <joint name="left_ankle_roll" axis="1 0 0" range="-0.314159 0.314159" armature="0.02" frictionloss="0.3"/>
+                  <geom name="left_sole" class="sole" type="box"
+                        size="0.11 0.045 0.0055"
+                        pos="0.04 0 -0.0495"
+                        mass="0.505494"/>
+                  <site name="left_foot" type="box" group="4"
+                        size="0.11 0.045 0.006"
+                        pos="0.04 0 -0.052"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="right_hip_pitch_link" pos="0 -0.08 0">
+        <joint name="right_hip_pitch" axis="0 1 0" range="-2.93215 2.23402" armature="0.04" frictionloss="0.6"/>
+        <geom name="right_hip_roll_motor" class="motor" type="cylinder" size="0.06" fromto="-0.026 -0.02 -0.067 0.026 -0.02 -0.067" mass="1.95712"/>
+        <body name="right_hip_roll_link" pos="0 -0.02 -0.067">
+          <joint name="right_hip_roll" axis="1 0 0" range="-1.53589 0.575959" armature="0.04" frictionloss="0.6"/>
+          <geom name="right_hip_yaw_motor" class="motor" type="cylinder" size="0.049" fromto="0 0 -0.09605 0 0 -0.04195" mass="1.2262"/>
+          <body name="right_thigh" pos="0 0 -0.069">
+            <joint name="right_hip_yaw" axis="0 0 1" range="-2.75762 2.75762" armature="0.02" frictionloss="0.3"/>
+            <geom name="right_thigh" class="limb" fromto="0 0 -0.04 0 0 -0.17"
+                  size="0.05" mass="0.39123"/>
+            <geom name="right_knee_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.026 -0.21 0 0.026 -0.21" mass="1.95712"/>
+            <body name="right_shank" pos="0 0 -0.21">
+              <joint name="right_knee" axis="0 1 0" range="0 2.58309" armature="0.04" frictionloss="0.6"/>
+              <geom name="right_shank" class="limb" fromto="0 0 -0.05 0 0 -0.285"
+                    size="0.04" mass="0.41607"/>
+              <geom name="right_ankle_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.026 -0.1 0 0.026 -0.1" mass="1.95712"/>
+              <geom name="right_ankle_rod" class="visual" type="capsule" size="0.004"
+                    fromto="-0.035 0 -0.1 -0.035 0 -0.335"
+                    mass="0.0318611" rgba="0.6 0.6 0.62 1"/>
+              <body name="right_ankle_pitch_link" pos="0 0 -0.335">
+                <joint name="right_ankle_pitch" axis="0 1 0" range="-0.837758 0.575959" armature="0.04" frictionloss="0.6"/>
+                <geom name="right_ankle_roll_motor" class="motor" type="cylinder" size="0.049" fromto="-0.02705 0 -0.01 0.02705 0 -0.01" mass="1.2262"/>
+                <body name="right_foot" pos="0 0 -0.01">
+                  <joint name="right_ankle_roll" axis="1 0 0" range="-0.314159 0.314159" armature="0.02" frictionloss="0.3"/>
+                  <geom name="right_sole" class="sole" type="box"
+                        size="0.11 0.045 0.0055"
+                        pos="0.04 0 -0.0495"
+                        mass="0.505494"/>
+                  <site name="right_foot" type="box" group="4"
+                        size="0.11 0.045 0.006"
+                        pos="0.04 0 -0.052"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <geom name="waist_yaw_motor" class="motor" type="cylinder" size="0.049" fromto="0 0 0.0059 0 0 0.06" mass="1.2262"/>
+      <body name="waist_yaw_link" pos="0 0 0.06">
+        <joint name="waist_yaw" axis="0 0 1" range="-1.05 1.05" armature="0.02" frictionloss="0.3"/>
+        <geom name="waist_plate" class="visual" type="box" size="0.07 0.115 0.0025"
+              pos="0 0 0.0025" mass="0.499905" rgba="0.6 0.6 0.62 1"/>
+        <frame pos="0 0 -0.06">
       <geom name="torso" class="limb" type="box" size="0.085 0.115 0.18"
             pos="0 0 0.24" mass="2.51751"/>
       <geom name="pack" class="visual" type="box" size="0.065 0.086 0.037"
@@ -53,7 +133,7 @@
             mass="3.75912" rgba="0.15 0.15 0.2 1"/>
       <geom name="electronics" class="visual" type="box" size="0.04 0.08 0.05"
             pos="0.035 0 0.3" mass="1.1895"
-            rgba="0.1 0.5 0.2 1"/><geom name="left_hip_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 0.054 0 0 0.106 0" mass="1.95712"/><geom name="right_hip_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.106 0 0 -0.054 0" mass="1.95712"/><geom name="left_shoulder_pitch_motor" class="motor" type="cylinder" size="0.049" fromto="0 0.10295 0.421 0 0.15705 0.421" mass="1.2262"/><geom name="right_shoulder_pitch_motor" class="motor" type="cylinder" size="0.049" fromto="0 -0.15705 0.421 0 -0.10295 0.421" mass="1.2262"/>
+            rgba="0.1 0.5 0.2 1"/><geom name="left_shoulder_pitch_motor" class="motor" type="cylinder" size="0.049" fromto="0 0.10295 0.421 0 0.15705 0.421" mass="1.2262"/><geom name="right_shoulder_pitch_motor" class="motor" type="cylinder" size="0.049" fromto="0 -0.15705 0.421 0 -0.10295 0.421" mass="1.2262"/>
       <geom name="neck" class="visual" type="cylinder" size="0.025"
             fromto="0 0 0.42 0 0 0.475" mass="0" rgba="0.3 0.3 0.32 1"/>
       <geom name="head" class="limb" type="cylinder" size="0.068 0.057982"
@@ -128,80 +208,6 @@
               pos="0 0 0.017" mass="0.265"
               rgba="0.05 0.05 0.05 1"/>
         <site name="lidar" pos="0 0 0" size="0.005"/>
-      </body>
-      <body name="left_hip_pitch_link" pos="0 0.08 0">
-        <joint name="left_hip_pitch" axis="0 1 0" range="-2.93215 2.23402" armature="0.04" frictionloss="0.6"/>
-        <geom name="left_hip_roll_motor" class="motor" type="cylinder" size="0.06" fromto="-0.026 0.02 -0.067 0.026 0.02 -0.067" mass="1.95712"/>
-        <body name="left_hip_roll_link" pos="0 0.02 -0.067">
-          <joint name="left_hip_roll" axis="1 0 0" range="-0.575959 1.53589" armature="0.04" frictionloss="0.6"/>
-          <geom name="left_hip_yaw_motor" class="motor" type="cylinder" size="0.049" fromto="0 0 -0.09605 0 0 -0.04195" mass="1.2262"/>
-          <body name="left_thigh" pos="0 0 -0.069">
-            <joint name="left_hip_yaw" axis="0 0 1" range="-2.75762 2.75762" armature="0.02" frictionloss="0.3"/>
-            <geom name="left_thigh" class="limb" fromto="0 0 -0.04 0 0 -0.17"
-                  size="0.05" mass="0.39123"/>
-            <geom name="left_knee_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.026 -0.21 0 0.026 -0.21" mass="1.95712"/>
-            <body name="left_shank" pos="0 0 -0.21">
-              <joint name="left_knee" axis="0 1 0" range="0 2.58309" armature="0.04" frictionloss="0.6"/>
-              <geom name="left_shank" class="limb" fromto="0 0 -0.05 0 0 -0.285"
-                    size="0.04" mass="0.41607"/>
-              <geom name="left_ankle_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.026 -0.1 0 0.026 -0.1" mass="1.95712"/>
-              <geom name="left_ankle_rod" class="visual" type="capsule" size="0.004"
-                    fromto="-0.035 0 -0.1 -0.035 0 -0.335"
-                    mass="0.0318611" rgba="0.6 0.6 0.62 1"/>
-              <body name="left_ankle_pitch_link" pos="0 0 -0.335">
-                <joint name="left_ankle_pitch" axis="0 1 0" range="-0.837758 0.575959" armature="0.04" frictionloss="0.6"/>
-                <geom name="left_ankle_roll_motor" class="motor" type="cylinder" size="0.049" fromto="-0.02705 0 -0.01 0.02705 0 -0.01" mass="1.2262"/>
-                <body name="left_foot" pos="0 0 -0.01">
-                  <joint name="left_ankle_roll" axis="1 0 0" range="-0.314159 0.314159" armature="0.02" frictionloss="0.3"/>
-                  <geom name="left_sole" class="sole" type="box"
-                        size="0.11 0.045 0.0055"
-                        pos="0.04 0 -0.0495"
-                        mass="0.505494"/>
-                  <site name="left_foot" type="box" group="4"
-                        size="0.11 0.045 0.006"
-                        pos="0.04 0 -0.052"/>
-                </body>
-              </body>
-            </body>
-          </body>
-        </body>
-      </body>
-      <body name="right_hip_pitch_link" pos="0 -0.08 0">
-        <joint name="right_hip_pitch" axis="0 1 0" range="-2.93215 2.23402" armature="0.04" frictionloss="0.6"/>
-        <geom name="right_hip_roll_motor" class="motor" type="cylinder" size="0.06" fromto="-0.026 -0.02 -0.067 0.026 -0.02 -0.067" mass="1.95712"/>
-        <body name="right_hip_roll_link" pos="0 -0.02 -0.067">
-          <joint name="right_hip_roll" axis="1 0 0" range="-1.53589 0.575959" armature="0.04" frictionloss="0.6"/>
-          <geom name="right_hip_yaw_motor" class="motor" type="cylinder" size="0.049" fromto="0 0 -0.09605 0 0 -0.04195" mass="1.2262"/>
-          <body name="right_thigh" pos="0 0 -0.069">
-            <joint name="right_hip_yaw" axis="0 0 1" range="-2.75762 2.75762" armature="0.02" frictionloss="0.3"/>
-            <geom name="right_thigh" class="limb" fromto="0 0 -0.04 0 0 -0.17"
-                  size="0.05" mass="0.39123"/>
-            <geom name="right_knee_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.026 -0.21 0 0.026 -0.21" mass="1.95712"/>
-            <body name="right_shank" pos="0 0 -0.21">
-              <joint name="right_knee" axis="0 1 0" range="0 2.58309" armature="0.04" frictionloss="0.6"/>
-              <geom name="right_shank" class="limb" fromto="0 0 -0.05 0 0 -0.285"
-                    size="0.04" mass="0.41607"/>
-              <geom name="right_ankle_pitch_motor" class="motor" type="cylinder" size="0.06" fromto="0 -0.026 -0.1 0 0.026 -0.1" mass="1.95712"/>
-              <geom name="right_ankle_rod" class="visual" type="capsule" size="0.004"
-                    fromto="-0.035 0 -0.1 -0.035 0 -0.335"
-                    mass="0.0318611" rgba="0.6 0.6 0.62 1"/>
-              <body name="right_ankle_pitch_link" pos="0 0 -0.335">
-                <joint name="right_ankle_pitch" axis="0 1 0" range="-0.837758 0.575959" armature="0.04" frictionloss="0.6"/>
-                <geom name="right_ankle_roll_motor" class="motor" type="cylinder" size="0.049" fromto="-0.02705 0 -0.01 0.02705 0 -0.01" mass="1.2262"/>
-                <body name="right_foot" pos="0 0 -0.01">
-                  <joint name="right_ankle_roll" axis="1 0 0" range="-0.314159 0.314159" armature="0.02" frictionloss="0.3"/>
-                  <geom name="right_sole" class="sole" type="box"
-                        size="0.11 0.045 0.0055"
-                        pos="0.04 0 -0.0495"
-                        mass="0.505494"/>
-                  <site name="right_foot" type="box" group="4"
-                        size="0.11 0.045 0.006"
-                        pos="0.04 0 -0.052"/>
-                </body>
-              </body>
-            </body>
-          </body>
-        </body>
       </body>
       <body name="left_shoulder_pitch_link" pos="0 0.13 0.421">
         <joint name="left_shoulder_pitch" axis="0 1 0" range="-3.01942 1.71042" armature="0.02" frictionloss="0.3"/>
@@ -286,6 +292,8 @@
             </body>
           </body>
         </body>
+      </body>
+        </frame>
       </body>
     </body>
   </worldbody>
@@ -449,6 +457,7 @@
     <dcmotor name="right_knee" joint="right_knee" input="position" motorconst="2.291831180523293 0.0" resistance="0.4812845479098915" saturation="120.0 0.0 0.0" controller="33.16187078766024 0.0 -0.18068091731095182 0.0 0.0 43.2"/>
     <dcmotor name="right_ankle_pitch" joint="right_ankle_pitch" input="position" motorconst="2.291831180523293 0.0" resistance="0.4812845479098915" saturation="120.0 0.0 0.0" controller="33.16187078766024 0.0 -0.18068091731095182 0.0 0.0 43.2"/>
     <dcmotor name="right_ankle_roll" joint="right_ankle_roll" input="position" motorconst="2.3505960825879932 0.0" resistance="0.7232603331039978" saturation="60.0 0.0 0.0" controller="24.294410833450723 0.0 -0.8039658531284031 0.0 0.0 43.2"/>
+    <dcmotor name="waist_yaw" joint="waist_yaw" input="position" motorconst="2.3505960825879932 0.0" resistance="0.7232603331039978" saturation="60.0 0.0 0.0" controller="24.294410833450723 0.0 -0.8039658531284031 0.0 0.0 43.2"/>
     <dcmotor name="left_shoulder_pitch" joint="left_shoulder_pitch" input="position" motorconst="2.3505960825879932 0.0" resistance="0.7232603331039978" saturation="60.0 0.0 0.0" controller="24.294410833450723 0.0 -0.8039658531284031 0.0 0.0 43.2"/>
     <dcmotor name="left_shoulder_roll" joint="left_shoulder_roll" input="position" motorconst="2.3505960825879932 0.0" resistance="0.7232603331039978" saturation="60.0 0.0 0.0" controller="24.294410833450723 0.0 -0.8039658531284031 0.0 0.0 43.2"/>
     <dcmotor name="left_shoulder_yaw" joint="left_shoulder_yaw" input="position" motorconst="1.1179664295235574 0.0" resistance="1.470518827241316" saturation="17.0 0.0 0.0" controller="21.809758348728053 0.0 0.27048591001236355 0.0 0.0 43.2"/>
@@ -476,7 +485,7 @@
   </sensor>
 
   <keyframe>
-    <key name="stand" qpos="0 0 0.732425 1 0 0 0 -0.2 0 0 0.4 -0.2 0 -0.2 0 0 0.4 -0.2 0 0 0.1 0 0.3 0 0 0 0 0 -0.1 0 0.3 0 0 0 0"/>
-    <key name="zero" qpos="0 0 0.746 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
+    <key name="stand" qpos="0 0 0.732425 1 0 0 0 -0.2 0 0 0.4 -0.2 0 -0.2 0 0 0.4 -0.2 0 0 0 0.1 0 0.3 0 0 0 0 0 -0.1 0 0.3 0 0 0 0"/>
+    <key name="zero" qpos="0 0 0.746 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
   </keyframe>
 </mujoco>

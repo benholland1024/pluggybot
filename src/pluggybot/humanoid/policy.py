@@ -59,9 +59,11 @@ class StandPolicy:
       self.meta = json.loads(str(z["meta"]))
       self.training = json.loads(str(z["training"]))
     #: Every joint the policy sees, in its order, and where each stands
-    #: when its observation reads zero.
+    #: when its observation reads zero: the body's joints, or some of them --
+    #: a policy trained before the waist (#560, stage (c3)) sees none of it,
+    #: and the body holds it still (`reach.Waist`).
     self.joint_names = tuple(self.meta["joint_names"].split(","))
-    assert set(self.joint_names) == set(hm.JOINT_NAMES), self.joint_names
+    assert set(self.joint_names) <= set(hm.JOINT_NAMES), self.joint_names
     self.default_q = np.array([float(v) for v in self.meta["default_joint_pos"].split(",")])
     #: The joints it drives (the legs), and an action's scale on each.
     self.action_joints = tuple(self.training["action_joints"])

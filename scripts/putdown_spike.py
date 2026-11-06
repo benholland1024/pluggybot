@@ -73,7 +73,6 @@ import waist_spike as ws  # noqa: E402  (#620's instrument: the candidates, the 
 from pluggybot.challenge import table as tb  # noqa: E402
 from pluggybot.evaluation import counter as ct  # noqa: E402
 from pluggybot.humanoid import arms as ha  # noqa: E402
-from pluggybot.humanoid import model as hm  # noqa: E402
 from pluggybot.humanoid import parts as hp  # noqa: E402
 from pluggybot.humanoid import reach as rc  # noqa: E402
 
@@ -363,7 +362,7 @@ def costs(sm, side, p, q_goal, q_pre, pos, rot, slab) -> dict:
   legs, ok = ws.static_legs(sm, p.height, p.pitch, arms=arm_goal)
   q = p.q.copy()
   for n, v in {**arm_goal, **legs}.items():
-    q[hm.JOINT_NAMES.index(n)] = v
+    q[ws.JOINTS.index(n)] = v
   sm.pose(q, ws.gravity_of(p.pitch))
   out["balanced"] = bool(ok)
   out["into_goal"] = round(into_slab(sm, slab), 4)
@@ -571,7 +570,7 @@ def _balanced(sm, side, p, q) -> None:
   legs, _ = ws.static_legs(sm, p.height, p.pitch, arms=rc._arm(side, q))
   qq = p.q.copy()
   for n_, v in legs.items():
-    qq[hm.JOINT_NAMES.index(n_)] = v
+    qq[ws.JOINTS.index(n_)] = v
   sm.pose(qq, ws.gravity_of(p.pitch))
 
 
