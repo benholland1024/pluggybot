@@ -87,7 +87,7 @@ from pluggybot.economy import energy
 from pluggybot.economy.tasks import KINDS, TaskBoard
 from pluggybot.lifecycle import (HUMANOID_HOME, board_book, points_ledger, world_config,
                                  world_for, world_targets)
-from pluggybot.mind import llm, look
+from pluggybot.mind import changelog, llm, look
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import JPEG_MAGIC, MAX_IMAGE_BYTES
 from pluggybot.mind.thoughts import ThoughtFiles
@@ -231,6 +231,8 @@ def synthetic_state(menu: Menu, i: int, world: str) -> dict:
     # and takes the job every time is the mind we have.
     "offeredTasks": [offer],
     "decisions": i,
+    # ...and when its world last changed, beside today (issue #617)
+    "changelog": changelog.current().context(changelog.today()),
   }
 
 

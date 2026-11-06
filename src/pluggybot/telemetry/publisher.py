@@ -192,6 +192,8 @@ class WsPublisher:
         self.message(emap)
       for prompt in self._builder.prompt_messages(float(self.data.time)):
         self.message(prompt)
+      for log in self._builder.changelog_messages(float(self.data.time)):
+        self.message(log)
       for opened in self._builder.tickets_messages(float(self.data.time)):
         self.message(opened)
     if self._need_boards.is_set() and not self._queue.full():

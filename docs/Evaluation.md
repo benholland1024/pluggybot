@@ -1922,6 +1922,12 @@ Three things it deliberately is not:
 (rooftop-media-2026 #205). Identity with nothing recorded is a header nobody
 reads; records with no identity are a chart of an unknown mixture.
 
+⚠ **WHAT THE ROBOTS COULD READ OF HOW THEIR WORLD CHANGED IS ON THE RUN,
+NEVER IN THE PROMPT** (#617; Overseer.md §7b): a changelog entry moves no
+`prompt_sha`, so a reading that asks what the robots knew of a change reads
+the run's `changelog` (its entries and their sha, kept by the site) beside
+the build's commit.
+
 ### How the observatory is read (issue #159)
 
 **The decision** (Ben, 2026-09-12): hour-long sim runs do not block

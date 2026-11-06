@@ -1098,6 +1098,20 @@ save a filmstrip PNG named after the script.
   two-repo contracts, and the rows ride the wire as rows (a `record` event per
   write and per RETIRE, a `records` snapshot on open). The state diagram at
   the top of `README.md` is pinned by `tests/test_readme.py`.
+- **The robots can read a changelog of their world, and it is a human's
+  text** (issue #617; `mind/changelog.md`, `mind/changelog.py`; Overseer.md
+  §7b): dated entries, newest first, read through `recall` (`changelog`,
+  `changelog 2`, a page a block), the newest date beside today's (UTC) in
+  every turn (`changelog: {newest, today}`), and once a stream where a mind
+  reads it (`CHANGELOG_MESSAGE`), which the site keeps on the run and shows.
+  ⚠ FACTS ABOUT THEIR WORLD AND BODY ONLY: never what we measure or why, how
+  anything is graded, a hidden truth (the mouse's nature, a prop's draws,
+  the held-out tasks) or what we hope, and never advice (a test reads every
+  item, each rule shown to catch a sentence that breaks it). ⚠ BEN APPROVES
+  EVERY ENTRY: `/pw-release` (`.claude/skills/pw-release`) drafts it,
+  commits it to staging and opens both repos' "Release" PRs, the site's
+  first, and never merges or deploys. ⚠ PER TURN, NEVER THE PREFIX: a new
+  entry moves no `prompt_sha` (a test).
 - **A mind can read Wikipedia, and code does the fetch** (issue #216;
   Overseer.md §2e): the `lookup` field; `Wiki.read` fetches ONE summary on
   the decision's worker thread (`TIMEOUT_S` 10, never raises), shown ONCE as

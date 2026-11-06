@@ -10,6 +10,52 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The robots can read a changelog of their world, its newest date beside today's in every turn (#617) — opens when both halves are deployed, this PR's and rooftop-media-2026's
+
+**What changed in what the robots are told** (Overseer.md §7b):
+- **A changelog** (`mind/changelog.md`): what the people who run the world
+  have written for the robots about how it and their bodies changed, one
+  dated entry at a time, newest first. Its first entries say what changed
+  lately that nobody told them in words: the grown world and its three
+  stations and procedures that call procedures (11-06), a `look` answered
+  (11-05), the jobs held and their time left (11-03), and a `say` and a
+  ticket's close paying again (11-02). Ben approves every entry, these
+  first ones in this PR.
+- **Every turn's context carries `changelog: {newest, today}`**: the newest
+  entry's date and today's, UTC. It is the first wall date the robots are
+  shown.
+- **`recall` reads it** (`changelog`, `changelog 2`, a page at a time), and
+  the prompt's WHAT YOU REMEMBER says so: the recall bullet names the key,
+  and a bullet beside it says what the changelog is and what the state's
+  block holds. The prompt's sha moves once: `prompt_sha` `60e70aa9…` →
+  `844b1020…`, 57,348 → 57,815 chars, 17 sections both
+  (`overseer_probe.py --deployed --prompt`). A later entry moves no sha.
+- **On the wire**: a `changelog` message when a stream opens where a mind
+  reads it. The site keeps it on the run and shows it on its Changelog page
+  (rooftop-media-2026's half).
+- Nothing in the schema, the menu, the arm, the reward table, the body or
+  the house moved.
+
+**Why.** #617: the robots build memories and procedures around how their
+world works, and when it changed under them without a word they misread
+it. Their procedures carried coordinates and walks from a world that had
+since grown, and a restart told them only "the world itself changed since
+then".
+
+**What the period is for.**
+- **Whether they read it**: `recall` rows whose `read` is `changelog` or a
+  page of it, how soon after a wake and after a release's restart, and how
+  often again.
+- **What they make of it**: notes and pins that cite or restate an entry;
+  misbeliefs an entry answers fading from their notes (a `say` that never
+  goes out, a ticket's close that pays nothing, a look that never comes
+  back); and stale procedures, walks and coordinates from before the grown
+  world, rewritten or failing.
+- **The cost**: about 50 characters a turn, and a page (up to 4,000
+  characters) while a recall chain holds it.
+- ⚠ **Not a period to pool with the last for anything the robots know of
+  their world**: from here they can read what changed.
+
 ### The mind pinned to baseten, and the eye running (the box, 2026-11-05) — set during the pause, so it opens with the world's next run
 
 **What changed on the deploy box**, with no release (17a493e kept running):

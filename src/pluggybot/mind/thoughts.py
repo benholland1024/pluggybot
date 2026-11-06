@@ -63,6 +63,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from pluggybot.mind import changelog
 from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import text as registry
 from pluggybot.mind.constitution import Constitution
@@ -747,7 +748,10 @@ class ThoughtFiles:
     (as the History tail and a recalled line show it); `topic/title` one
     note; `topic` every note in it (`findings` reads every finding, a
     family by its first level); `history` the tail beyond what the prompt
-    carries; `chat` the newest of the robot's chat (issue #485). `find`
+    carries; `chat` the newest of the robot's chat (issue #485);
+    `changelog` the newest page of the world's changelog and `changelog 2`
+    the next (issue #617; `mind/changelog.py`), each line `[date] text`,
+    the block saying its `page` and how many `pages` there are. `find`
     is WORDS: full-text over everything this robot has written or been
     told this life, retired lines included. Both may be set. Returns the
     block the next turn shows: `{read, find, hits, lines}`, each line
@@ -758,7 +762,8 @@ class ThoughtFiles:
     seen: set[int] = set()
     key = " ".join(str(read or "").split())
     chat = key.lower() == CHAT
-    if key:
+    page = changelog.page_of(key) if key else None
+    if key and page is None:
       for r in self._read(key):
         if r.id not in seen and not _about_recall(r):
           keyed.append(r)
@@ -788,12 +793,22 @@ class ThoughtFiles:
         size += len(line) + 1
       return out
 
-    # ⚠ A WINDOW ONTO THE CHAT ENDS AT ITS LATEST LINE (issue #485): its
-    # lines are fitted newest first, so what the cap cuts is the oldest.
-    lines = fit(keyed[::-1], window=True)[::-1] if chat else fit(keyed)
+    if page is not None:
+      # THE CHANGELOG IS PAGED, never cut (issue #617): a page is the
+      # whole items that fit one block, newest first
+      lines, pages = changelog.current().page(page, cap)
+      size = sum(len(line) + 1 for line in lines)
+      hits = len(lines)
+    else:
+      # ⚠ A WINDOW ONTO THE CHAT ENDS AT ITS LATEST LINE (issue #485): its
+      # lines are fitted newest first, so what the cap cuts is the oldest.
+      lines = fit(keyed[::-1], window=True)[::-1] if chat else fit(keyed)
+      hits = len(keyed)
     lines += fit(found)
-    block = {"read": key, "find": words, "hits": len(keyed) + len(found),
+    block = {"read": key, "find": words, "hits": hits + len(found),
              "lines": lines}
+    if page is not None:
+      block |= {"page": page, "pages": pages}
     if cut:
       block["cut"] = cut
     return block
