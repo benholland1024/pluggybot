@@ -12,7 +12,9 @@ stand on, each pinned without a flight (docs/Testing.md) -- the flights are
      only shut with the lever up;
   5. the set-outs are seeded, inside their ranges, and the cube's mat lies
      straight on ahead of it;
-  6. the tally reads a job's bar only where every set-out flew.
+  6. the tally reads a job's bar only where every set-out flew;
+  7. the lid's grip, aimed short of the knob's middle, clears the lid up
+     its arc and still holds the whole knob.
 """
 
 import ast
@@ -457,3 +459,108 @@ def test_a_checks_watch_and_snapshot_are_its_graders(job):
   watching, snapshot = at.WATCHED[job]
   assert watching.__module__ == f"pluggybot.challenge.{job}"
   assert snapshot.__module__ == f"pluggybot.challenge.{job}"
+
+
+# ---- 7. the lid's grip clears its lid (#560's stage (c3)) -------------------------------
+
+
+def _lid_scene():
+  """The chest alone on a floor, its handle settled as it hangs, and a hand's two pads as its
+  jaws close them on the knob (`humanoid.model._jaw`): a mocap body, the grip its origin."""
+  from pluggybot.activity import chest as ch
+  from pluggybot.humanoid import parts as hp
+  spec = mujoco.MjSpec.from_string('<mujoco><option timestep="0.002"/><worldbody>'
+                                   '<geom type="plane" size="1 1 0.1"/></worldbody></mujoco>')
+  ch.attach_chest(spec, ch.draw(0), (0.0, 0.0), 0.0, tags=False)
+  hand, pad = spec.worldbody.add_body(name="hand", mocap=True), hp.GRIPPER.pad_half
+  for k in (1, -1):
+    hand.add_geom(name=f"pad{k}", type=mujoco.mjtGeom.mjGEOM_BOX, size=list(pad),
+                  pos=[k * (ch.KNOB + pad[0]), 0.0, 0.0], contype=0, conaffinity=0)
+  m = spec.compile()
+  d = mujoco.MjData(m)
+  for _ in range(3000):
+    mujoco.mj_step(m, d)
+  return m, d
+
+
+def _boxes_overlap(m, d, g1, g2) -> bool:
+  """Two box geoms overlapping, by separating axes (`mj_geomDistance` read two boxes 1.1 cm
+  apart as touching)."""
+  t = d.geom_xpos[g2] - d.geom_xpos[g1]
+  ra, rb = d.geom_xmat[g1].reshape(3, 3), d.geom_xmat[g2].reshape(3, 3)
+  axes = [*ra.T, *rb.T, *(np.cross(a, b) for a in ra.T for b in rb.T)]
+  return all(abs(t @ ax) <= (np.abs(ra.T @ ax) @ m.geom_size[g1] + np.abs(rb.T @ ax) @ m.geom_size[g2])
+             for ax in (a / np.linalg.norm(a) for a in axes if np.linalg.norm(a) > 1e-9))
+
+
+def _pads_meet_lid_deg(m, d0, grip, rot):
+  """The first lid angle, deg, at which a pad meets the lid or the pin's bracket, the hand at
+  `grip` and turned `rot` off the knob at rest -- the lid raised with the handle kept at its
+  turn in the world, as the hand holds it -- or None by 75."""
+  d = mujoco.MjData(m)
+  d.qpos[:] = d0.qpos
+  hinge, pin = (m.jnt_qposadr[m.joint(f"chest_{j}").id] for j in ("hinge", "pin"))
+  knob = m.geom("chest_knob").id
+  off = np.asarray(grip) - d0.geom_xpos[knob]
+  quat = np.zeros(4)
+  mujoco.mju_mat2Quat(quat, np.asarray(rot, dtype=float).ravel())
+  pads = [m.geom(f"pad{k}").id for k in (1, -1)]
+  hit = [m.geom("chest_lid").id, m.geom("chest_bracket").id]
+  for deg in np.arange(0.0, 75.0, 0.25):
+    d.qpos[hinge], d.qpos[pin] = math.radians(deg), d0.qpos[pin] - math.radians(deg)
+    mujoco.mj_kinematics(m, d)
+    d.mocap_pos[0], d.mocap_quat[0] = d.geom_xpos[knob] + off, quat
+    mujoco.mj_kinematics(m, d)
+    if any(_boxes_overlap(m, d, p, g) for p in pads for g in hit):
+      return float(deg)
+  return None
+
+
+def _lid_grip(m, d0, far: float):
+  """Where the lid's procedure first reaches (the grip and its turn), its knob's tag -- the
+  top face, as `spot` reads it at the counter -- read `far` m further from the robot than it
+  is, the robot square to the chest."""
+  from pluggybot.body import StubBody
+  from test_hands import _bare, _fly
+  knob = m.geom("chest_knob").id
+  c, r = d0.geom_xpos[knob], d0.geom_xmat[knob].reshape(3, 3)
+  up = r[:, 2] if r[2, 2] > 0.5 else -r[:, 2]
+  seen = {"x": c[0] + 0.013 * up[0] + far, "y": c[1] + 0.013 * up[1], "z": c[2] + 0.013 * up[2],
+          "normal": list(-up), "edge": list(r[:, 1]), "range": 0.5}
+
+  class Seeing(StubBody):
+    reaches: list = []
+
+    def spot(self, tag, at_height=None):
+      return dict(seen) if tag == 53 else None
+
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                      turns=None):
+      self.reaches.append((np.asarray(pos, dtype=float), np.asarray(rot, dtype=float)))
+      self._why[side] = "out of reach"
+      return False
+      yield
+  body = Seeing(*_bare())
+  _fly(hc.JOBS["lid"], body)
+  return body.reaches[0]
+
+
+def test_the_lids_grip_clears_its_lid_up_the_arc_and_holds_the_whole_knob():
+  """⚠ AIMED AT THE KNOB'S MIDDLE, ITS PADS MET THE LID ON THE WAY UP (#560's stage (c3);
+  SimNotes, "The chest's grip"): the pads reach 4 cm past the grip, and as the lid rises its
+  front edge swings up under them -- 11 deg sooner a cm deeper. The grips landed 0.9 cm past
+  their aim at the median, so the pads met the lid at 43 deg, and on the waist's body the lift
+  ran out of reach in 12 of 32 draws from the tour. Read 0.9 cm far, the procedure's grip
+  clears the lid past where its lift ends (61-63 deg); read true, the knob's far corner is
+  still short of the pads' tips."""
+  from pluggybot.activity import chest as ch
+  from pluggybot.humanoid import parts as hp
+  m, d0 = _lid_scene()
+  grip, rot = _lid_grip(m, d0, far=0.009)
+  met = _pads_meet_lid_deg(m, d0, grip, rot)
+  assert met is None or met > 63.0, met
+  grip, rot = _lid_grip(m, d0, far=0.0)
+  knob = m.geom("chest_knob").id
+  fingers, r = -rot[:, 2], d0.geom_xmat[knob].reshape(3, 3)
+  tip = (d0.geom_xpos[knob] - grip) @ fingers + ch.KNOB * np.abs(r.T @ fingers).sum()
+  assert tip <= hp.GRIPPER.pad_half[2], tip

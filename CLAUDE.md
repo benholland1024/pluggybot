@@ -425,13 +425,16 @@ save a filmstrip PNG named after the script.
   clockwise over one, which had carried the cube to where our procedure's
   left hand could carry it to its mat; waist16 turns it 0.4 and the cube's
   procedure steps aside too (`hands_check.PLACE`), 19.0 of 32 over three
-  paired seeds where today's body, stepped in alone, placed 18.3. ⚠ OPEN:
-  THE SERVED CHEST passes 18.0 of 32 draws from the tour over three paired
-  seeds on this body where today's passed 24.0 -- its lid's lift out of
-  reach up the arc in 27 draws of 96 (3 on today's) -- and it is the
-  stand's (stand4 on this body: 24 and 24; every posture square: no
-  better; its stance aimed nearer square: no clearer): Ben's call before the
-  waist deploys (SimNotes, "The waist built").
+  paired seeds where today's body, stepped in alone, placed 18.3. ⚠ THE
+  LID'S GRIP IS AIMED 2 CM SHORT OF THE KNOB'S MIDDLE, ALONG THE WAY IN
+  (`hands_check.LID`; SimNotes, "The chest's grip"; a test pins both
+  edges): the pads reach 4 cm past the grip and the rising lid's front edge
+  swings up under them; at the middle -- the grips landing 0.9 cm deeper --
+  they met it at 43 deg, the lift's push turned this body's stance 5 deg
+  and its lift ran out of reach, the served chest 18.0 of 32 draws from the
+  tour over three paired seeds where today's body passed 24.0; aimed short,
+  29.7 and no fall in 96. Back along the tag's normal it climbs the tilted
+  knob (half the gain); 2.5 cm short, a knob read true leaves the pads.
 - **The humanoid is a `Body`, and walks through the Navigator** (#507
   stages 3 and 4; `humanoid/body.py`, `mission.py`, `walk.py`,
   `odometry.py`; SimNotes, "The humanoid behind Body" and "The humanoid

@@ -27,13 +27,19 @@ from pluggybot.procedure import lang
 from pluggybot.procedure import steps as st
 
 #: THE LID: the knob's middle off its tag (half the 26 mm cube in from the
-#: face read), its facing off the tag's edges; gripped from the front, the
-#: fingers tilted up first (at the top of its arc, the hand that kept its
-#: turn reaches about level) and the jaws along the hinge's line, at the
-#: first tilt that holds; lifted up and a little back by a FORCE MOVE that
-#: lets the hinge steer the hand along the arc; lowered toward the body and
-#: down, again by force -- the lid set down by its hinge, not by a plan --
-#: and let go only once the hand is back down.
+#: face read), its facing off the tag's edges; gripped from the front 2 cm
+#: SHORT of the knob's middle along the way in -- ⚠ the pads reach 4 cm past
+#: the grip, and as the lid rises its front edge swings up under them, 11
+#: deg sooner a cm deeper: aimed at the middle, the grips landed 0.9 cm past
+#: it at the median and met the lid at 43 deg, and on the waist's body the
+#: lift ran out of reach in 12 of 32 draws from the tour (#560's stage (c3);
+#: SimNotes, "The chest's grip"); 2.5 cm short, a knob read true sticks out
+#: past the tips -- the fingers tilted up first (at the top of its arc, the
+#: hand that kept its turn reaches about level) and the jaws along the
+#: hinge's line, at the first tilt that holds; lifted up and a little back
+#: by a FORCE MOVE that lets the hinge steer the hand along the arc; lowered
+#: toward the body and down, again by force -- the lid set down by its
+#: hinge, not by a plan -- and let go only once the hand is back down.
 LID = '''def open_lid():
   budget(steps=40, seconds=66)
   spot(53)
@@ -47,6 +53,8 @@ LID = '''def open_lid():
     a = a + 1.571
   fx = cos(a)
   fy = sin(a)
+  x = x - 0.02 * fx
+  y = y - 0.02 * fy
   g = 0
   t = -0.26
   for i in range(6):

@@ -57,16 +57,18 @@ the waist re-drew, and on a step that had leaned on stand4's creep; its
 procedure steps aside now, and the two bodies place the cube as often over
 three paired seeds. The cube is no offered job.
 
-⚠ **The served chest passes less often on this body** (SimNotes, "The waist
-built": from the tour over 32 draws at three paired seeds of the noise, 15,
-19 and 20 where today's body passed 20, 28 and 24; it is the retrained
-stand's, as the cube's was), and is open for Ben at this writing.
+**The served chest's reference is reworked for this body** (SimNotes, "The
+chest's grip"): its lid's grip is aimed 2 cm short of the knob's middle,
+where the pads had met the rising lid and the retrained stand, pushed by the
+lift, let the arc's top out of reach. Ours alone: the robots write their own
+procedures, and nothing they read changed.
 
 **What the period is for.** That the body changed nothing else the robots
 did well: charges plug in (no `stuck` death, no charge narrated "no charge
 contact"), the hand jobs' grades hold (flown before the deploy on one pod
 over 32 draws from the tour: the door 29 where today's body passed 31; the
-chest above), and falls a day do not rise -- read off the charges'
+chest 29, 31 and 29 at three paired seeds where today's passed 20, 28 and
+24), and falls a day do not rise -- read off the charges'
 narration, the `death` rows and the jobs' verdicts. The deploy box's speed
 is the management conversation's to read (one joint more on each robot).
 
