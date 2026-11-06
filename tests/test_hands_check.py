@@ -12,7 +12,9 @@ stand on, each pinned without a flight (docs/Testing.md) -- the flights are
      only shut with the lever up;
   5. the set-outs are seeded, inside their ranges, and the cube's mat lies
      straight on ahead of it;
-  6. the tally reads a job's bar only where every set-out flew.
+  6. the tally reads a job's bar only where every set-out flew;
+  7. the lid's grip, aimed short of the knob's middle, clears the lid up
+     its arc and still holds the whole knob.
 """
 
 import ast

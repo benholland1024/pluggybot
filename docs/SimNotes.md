@@ -5711,16 +5711,10 @@ pull a hand holds (`--pulls`, flown before this round's fixes) 590 N summed
 over its 14 ways, as stand4's, 20 at its weakest, so `pull` still asks at
 most 20.
 
-⚠ **OPEN: the served chest passes less often on this body**, and it is the
-stand's: from the tour over 32 draws at three paired seeds, 15, 19 and 20
-where today's body passed 20, 28 and 24. Its lid's lift runs out of reach
-up the arc in 27 draws of 96 (3 on today's), and 26 lids
-stop short of 57 deg, most at 50-57 (7 on today's). With stand4 on this
-body it passes 24 and 24 at the first two seeds; with every posture square,
-16 and 19, so not the waist's turns. As the cube's step did, the chest's
-approach aims its stance with stand4's turn in it (`solutions.STANCE`, 0.12
-rad left of square): aimed at 0.08 it passed 21, 24 and 18, at 0.06 20 and
-22 -- no clearer than as served, so it stands as served.
+**The served chest** passed less often on this body until its lid's grip
+was aimed 2 cm short of the knob's middle: from the tour over 32 draws at
+three paired seeds it passes 29, 31 and 29 (15, 19 and 20 before, today's
+body 20, 28 and 24) and none of the 96 falls ("The chest's grip", below).
 
 **The LIDAR in falls.** Over the house's 20 falls at three seeds of the
 noise, the LIDAR itself touched a wall or an edge in 3, 2 and 2 on this body
@@ -5821,6 +5815,78 @@ often: 19.0 stepped aside on the waist's, 18.3 stepped in on today's.
   legs for the solve that followed: once a hand a process, a check flight's
   first reach and a served robot's after each restart. Measured on a pose of
   its own now (a test).
+
+## The chest's grip (issue #560, stage (c3))
+
+**What is true now.** The lid's procedure (`hands_check.LID`, the second
+half of the served chest's reference) grips the knob 2 cm short of its
+middle along the chest's way in. The jaws' pads are 8 cm long, centred on
+the grip, so their tips reach 4 cm past it, and as the lid rises -- the
+handle kept at its turn in the world by the hand holding the knob -- the
+lid's front edge swings up and back under them. On the chest's and the
+gripper's own geometry (`test_hands_check.py`'s scene: the two pads and the
+lid as boxes, by separating axes), a grip at the knob's middle meets the lid
+at 54 deg, 11 deg sooner each centimetre deeper and 3 deg sooner each
+centimetre higher; the fingers' tilt hardly matters (51-54 deg from 34 deg
+up to 5 deg down).
+
+**Aimed at the middle, the grips landed 0.9 cm deeper at the median**, on
+either body (0.91 cm on the waist's, 0.79 on today's; 0-2 cm over 32 draws
+from the tour), so the pads met the lid at 43 deg. The lift then pushed the
+lid's edge through them: across the hand at a median 35 N at its peak, it
+turned the stance 5 deg and carried the knob 5 cm off in the robot's frame
+on the waist's body (3 deg and 3 cm on today's), and the arc's top left the
+reach: 12 lifts of 32 at seed 0 out of reach, where the pull's onward
+postures -- standing taller, then bowing, five in 4 s at worst -- took the
+lid to 50-57 deg or let it go, and four robots fell (today's body: no lift
+out of reach, five falls).
+
+**Back along the way in, never along the tag's normal.** The knob hangs 34
+deg round its pin, so `spot` reads its top face, tilted toward the camera: a
+step back along that face's normal is 0.56 of it back and 0.83 of it up the
+knob. 2 cm along it moved the grips 1.1 cm back and 1.65 cm up, the pads
+met the lid at 51 deg, and the chest passed 27, 30 and 27. Back along the way
+in alone, at seed 0 (the waist's body):
+
+| aimed short of the middle | passed of 32 | fell | the grip past the middle, median (range) | pads met the lid |
+|---|---|---|---|---|
+| 0, as before | 15 | 4 | +0.91 cm (+0.1..+1.9) | in 28 |
+| 1 cm | 28 | 1 | -0.04 | in 28 |
+| 1.5 cm | 29 | 0 | -0.58 | in 21 |
+| 2 cm | 29 | 0 | -1.04 (-2.1..+0.1) | in 7 |
+| 2.5 cm | 29 | 0 | -1.54 | in 4 |
+| 3 cm | 29 | 0 | -2.06 (-2.9..-0.9) | in none |
+
+From 1.5 cm on every lift that began ended at its distance, at 61-63 deg,
+and the three draws left are the approach's. 2 cm keeps both edges: read 0.9
+cm far, the pads clear the lid to 66 deg, and read true, the knob's far
+corner is 4 mm inside the pads' tips (2.5 cm short, 0.7 mm past them). The
+test pins both. Gripped so, the lift pushes 9-10 N across the hand at its
+peak, and the stance turns 0.1-0.4 deg.
+
+**Measured on one pod** (an EPYC 7Q83, which flies #622's served flights bit
+for bit), the committed tree's own instruments, seeds paired:
+
+| | seed 0 | seed 1 | seed 2 | mean |
+|---|---|---|---|---|
+| the served chest from the tour (`solve.py --from tour`, 32 draws), the waist's body | **29** | **31** | **29** | **29.7**, no fall |
+| ...gripped at the middle, as before | 15 | 19 | 20 | 18.0, 15 falls |
+| ...today's body, as before | 20 | 28 | 24 | 24.0, 9 falls |
+| the lid's check at 32 set-outs, the waist's body | 22 | 23 | 25 | 23.3 |
+| ...gripped at the middle, as before | 21 | 18 | 21 | 20.0 |
+| ...today's body, as before | 21 | 23 | 20 | 21.3 |
+
+From the mall's station the chest costs 8.11 Wh over 175 s (passed), 8.6 %
+over `energy.json`'s 7.463: inside the table's 10 %, so not priced again.
+
+**What it leaves is the approach's.** Its first turn comes off the knob's
+tag's facing read square-on from 0.75 m, and its walk turns the stance too,
+so on the waist's body the stance lands a median 3 deg short of the turn
+asked, within 7-8 deg of it either way in 8 approaches of 10 (219 flown);
+then the last step
+is blocked, or leaves the robot 0.30 m from the knob turned right of square
+with its tag out of the head camera's view. 7 draws of 96 on the waist's
+body, 13 on today's.
 
 ## Debugging workflow that worked
 
