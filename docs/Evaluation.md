@@ -2137,6 +2137,24 @@ time is a thing we want the agent to care about, it goes on the wire and into
 the context. Measuring it and not showing it, then reporting that the robot
 does not prioritise it, is measuring our own omission.
 
+### A check's set-outs share one realization of the robot's noise (#560)
+
+Every sensor's noise is seeded by the robot's name, so each flight of a
+check (`hands_check`, `solve.py`, an attempt) draws the same values at the
+same instants: its set-outs vary the props and never the noise, and its
+count carries one realization's luck in common. Over 32 set-outs our cube
+procedure, unchanged on one body, placed the cube 22, 17, 16 and 21 times
+under four seeds of its joints' noise. The rules:
+
+- ⚠ **Two bodies or builds are compared under the same draws for their
+  shared parts.** A part added draws its own stream (`senses.SHARED`):
+  dealt one stream over every joint, the waist re-drew every other joint's
+  noise, and the cube's 22 read as 9 on an unchanged body (SimNotes, "The
+  cube and the robot's noise").
+- ⚠ **A decision that rests on a count is read over several seeds**, paired
+  across the arms: one seed's difference of 12 placements of 32 was none
+  over three.
+
 ### Graded in MuJoCo (#465, #487)
 
 Every result here is graded in a world that is MuJoCo, and that world helps

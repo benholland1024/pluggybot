@@ -21,9 +21,18 @@ observatory is NOT a result: it reports into the issue it informs.
 - **A reach turns it only where no posture with it square reaches**,
   holds it in its posture through a carry, and brings it home before a walk
   or a get-up; neither the walker nor the get-up policy changed. No
-  procedure can move it (it is no `move` axis), and nothing the robots read
-  changed: `prompt_sha` `60e70aa9…` on both sides (57,348 chars, 17
-  sections), the schema, the menu, the reward table and the jobs the same.
+  procedure can move it (it is no `move` axis).
+- **The robots are told of it in one sentence of their body** (the
+  practice's `YOUR_BODY`, which their procedure rule carries; Ben's call 5
+  on #622): "Your trunk turns on a waist over your hips, up to 60 degrees
+  either way, your shoulders and your head with it." `prompt_sha`
+  `60e70aa9…` (57,348 chars) becomes `beb48e83…` (57,459), 17 sections
+  both; the session host's `hello` moves with it, and the site's half
+  vendors it again (its guide is held to it). The schema, the menu, the
+  reward table and the jobs are the same.
+- **Each joint draws the noise it drew before** (`senses.SHARED`): the
+  legs' and the arms' drivers keep the robot's one stream, and the waist's
+  draws its own.
 - **The LIDAR and the depth camera ride it**, posed off its encoder every
   frame.
 - **The standing policy is waist16**, retrained on the new body with the
@@ -42,18 +51,24 @@ at a 0.72 m table (#615), and #620 and #621 measured that a yaw widens the
 bands and lets one stance lay the whole place; Ben's calls of 11-05 (a yaw
 alone, +-60, held through a carry, no `move` axis).
 
-⚠ **Not to be deployed while the cube's check is open** (SimNotes, "The
-waist built": the cube placed on its mat, 22 of 32 set-outs before the
-waist, 5-9 on it, cause not found). The cube is no offered job, but the
-check is the hands' yardstick.
+**The cube's check is closed** (SimNotes, "The cube and the robot's
+noise"): it fell 22 of 32 to 9 on the one realization of the robot's noise
+the waist re-drew, and on a step that had leaned on stand4's creep; its
+procedure steps aside now, and the two bodies place the cube as often over
+three paired seeds. The cube is no offered job.
 
-**What the period is for.** That the body changed nothing the robots did
-well: charges plug in (no `stuck` death, no charge narrated "no charge
+⚠ **The served chest passes less often on this body** (SimNotes, "The waist
+built": from the tour over 32 draws at three paired seeds of the noise, 15,
+19 and 20 where today's body passed 20, 28 and 24; it is the retrained
+stand's, as the cube's was), and is open for Ben at this writing.
+
+**What the period is for.** That the body changed nothing else the robots
+did well: charges plug in (no `stuck` death, no charge narrated "no charge
 contact"), the hand jobs' grades hold (flown before the deploy on one pod
-over 32 draws from the tour: the door 30, the chest 21, today's body 31 and
-20), and falls a day do not rise -- read off the charges' narration, the
-`death` rows and the jobs' verdicts. The deploy box's speed is the
-management conversation's to read (one joint more on each robot).
+over 32 draws from the tour: the door 29 where today's body passed 31; the
+chest above), and falls a day do not rise -- read off the charges'
+narration, the `death` rows and the jobs' verdicts. The deploy box's speed
+is the management conversation's to read (one joint more on each robot).
 
 ### The mind pinned to baseten, and the eye running (the box, 2026-11-05) — set during the pause, so it opens with the world's next run
 

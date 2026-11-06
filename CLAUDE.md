@@ -419,10 +419,19 @@ save a filmstrip PNG named after the script.
   heading charged off the episode's at 0.5 a radian (`feet_yaw_anchor`: at
   2.5 falling came cheaper; charged a planted phase at a time, a re-plant
   went free and it crept 7 cm a minute standing still); its stance turns
-  0.9-1.5 deg as an arm goes out where stand4's turned 4.6-4.8. ⚠ OPEN: the
-  cube placed on its mat passes 5-9 of 32 set-outs on this body, whatever
-  its stand or posture order, where the body before it passed 22 (SimNotes,
-  "The waist built"): not deployable until found.
+  0.9-1.5 deg as an arm goes out where stand4's turned 4.6-4.8. ⚠ IT HOLDS
+  ITS STANCE THROUGH A STEP, AND A PROCEDURE STEPS WHERE IT MEANS TO STAND
+  (SimNotes, "The cube and the robot's noise"): stand4 turned it 2.5 deg
+  clockwise over one, which had carried the cube to where our procedure's
+  left hand could carry it to its mat; waist16 turns it 0.4 and the cube's
+  procedure steps aside too (`hands_check.PLACE`), 19.0 of 32 over three
+  paired seeds where today's body, stepped in alone, placed 18.3. ⚠ OPEN:
+  THE SERVED CHEST passes 18.0 of 32 draws from the tour over three paired
+  seeds on this body where today's passed 24.0 -- its lid's lift out of
+  reach up the arc in 27 draws of 96 (3 on today's) -- and it is the
+  stand's (stand4 on this body: 24 and 24; every posture square: no
+  better; its stance aimed nearer square: no clearer): Ben's call before the
+  waist deploys (SimNotes, "The waist built").
 - **The humanoid is a `Body`, and walks through the Navigator** (#507
   stages 3 and 4; `humanoid/body.py`, `mission.py`, `walk.py`,
   `odometry.py`; SimNotes, "The humanoid behind Body" and "The humanoid
@@ -895,7 +904,11 @@ save a filmstrip PNG named after the script.
   `place.py`, `shown: false`, paying 0), 8 set-outs each
   (`evaluation/counter.py`), the bar 6 written first; ⚠ a set-out draws
   off a stream of its own, never its prop's hidden draw's (`_drawn`: off
-  one seed, the furthest cube was always the heaviest); ⚠ a procedure there
+  one seed, the furthest cube was always the heaviest); ⚠ EVERY SET-OUT
+  REPLAYS ONE REALIZATION OF THE ROBOT'S NOISE (each sensor seeded by its
+  name): a count a decision rests on is read over several seeds, paired
+  across the arms (#560: the cube's 22 of 32 ran 16-22 over four,
+  Evaluation.md §5); ⚠ a procedure there
   is a solution, and nothing under `mind/` may reach one (a test).
 
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
@@ -1932,7 +1945,11 @@ save a filmstrip PNG named after the script.
   (issue #386; `perception/imu.py`, `humanoid/senses.py`, Parts.md's
   table): an ICM-42688-P, every joint off its driver's reply (the
   RobStrides' CAN fields, `senses.JointSense`), the tilt off the IMU
-  (`imu.Attitude`); one noise stream per robot, kept across a restart. ⚠
+  (`imu.Attitude`); one noise stream per robot, kept across a restart --
+  ⚠ A PART'S OWN: the legs' and the arms' drivers draw one block of it in
+  their order, a part added since a stream of its own (`senses.SHARED`;
+  dealt over every joint, the waist re-drew every other joint's noise and
+  an unchanged body's cube read 9 of 32 for 22). ⚠
   SETTLED AT REST, THE HEADING IS HELD (`imu.HeadingHold`, #593; the
   odometry's, the filter untouched): resting `HOLD_AFTER_S` (30 s) after
   anything moved it -- a motion command, a hand out, a get-up, a warp

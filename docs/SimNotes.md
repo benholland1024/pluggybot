@@ -5696,29 +5696,131 @@ a third to a fifth as much as an arm goes out -- 0.9-1.5 deg where stand4
 turned it 4.6-4.8, and 3.6-3.9 with the reach's posture where stand4's
 turned 8.2-8.4.
 
-Served (one pod, an EPYC 7Q83, against today's body there): the hand jobs
-from the tour over 32 draws, the door 30 and the chest 21 (31 and 20); the
-pull a hand holds (`humanoid_spike.py --pulls`) 590 N summed over its 14
-ways, as stand4's, 20 N at its weakest (forward), so `pull` still asks at
-most 20. The station as before (docked from round the standoff 36 of 36,
-plugged in from 139 of 140 seats, 16 of 16 lost near and walked in; lost
-far 111 of 123 to 116); standing, it takes a shove 5 N*s bigger from the
-front and the sides (15 and 20 where stand4 took 10 and 15); and in two of the house's falls (into a wall at 3.4
-m/s, onto the landing's edge at 2.2) the LIDAR itself struck, where it did
-in none before. A hand job draws 4-7 W more (164-175 W), inside the energy
-table's 10 % margin, so `energy.json` is not priced again.
+Served, flown again once the cube's causes were fixed (one pod, an EPYC
+7Q83, which flies today's tree to the earlier pod's numbers exactly; today's
+in brackets): the lid at 32 set-outs 21 (21); the drawer from the tour 7 of
+8 (7) and the door 29 of 32 (31). The station as before: docked from round
+the standoff 36 of 36, plugged in from 138 of 140 seats (139), 16 of 16 lost
+near and walked in, lost far 112 of 123 (116). Standing, it takes a shove 5
+N*s bigger from the front and the sides (15 and 20 where stand4 took 10 and
+15). The drift's worst belief error 0.15 and 0.13 m (0.11 and 0.28), both
+docked; the LIDAR's probe the same on every row; a restart's parity
+identical. A hand job draws 157-166 W from the mall's station (156-161),
+inside the energy table's 10 %, so `energy.json` is not priced again. The
+pull a hand holds (`--pulls`, flown before this round's fixes) 590 N summed
+over its 14 ways, as stand4's, 20 at its weakest, so `pull` still asks at
+most 20.
 
-⚠ **OPEN: the cube put on its mat falls on the waist's body** (`hands_check
---job place`, set-outs 0-31, one pod): 22 of 32 on the body before it, 8 on
-the waist with stand4 and square postures first, 5 with stand4 and the
-waist never turned, 9 on waist16 -- so neither the stand nor the posture
-order. The lid at the same 32 set-outs, 21 and 19; the served door and
-chest over 32 draws, 31/20 and 30/21. Its tries end on the jaws: "closed on
-nothing" 8 (5 before), a reach "stopped short" 6 (1), a carry "held back" 6
-(1), a withdraw "held" 6 (0), and the cube left "N cm over" the mat 9 -- as
-if let go in or on the open jaws above it. The force a hand reads against
-20 N staged at its grip is the same on both bodies (`--feel`), and `spot`
-reads a tag within a centimetre at every waist angle. Not found.
+⚠ **OPEN: the served chest passes less often on this body**, and it is the
+stand's: from the tour over 32 draws at three paired seeds, 15, 19 and 20
+where today's body passed 20, 28 and 24. Its lid's lift runs out of reach
+up the arc in 27 draws of 96 (3 on today's), and 26 lids
+stop short of 57 deg, most at 50-57 (7 on today's). With stand4 on this
+body it passes 24 and 24 at the first two seeds; with every posture square,
+16 and 19, so not the waist's turns. As the cube's step did, the chest's
+approach aims its stance with stand4's turn in it (`solutions.STANCE`, 0.12
+rad left of square): aimed at 0.08 it passed 21, 24 and 18, at 0.06 20 and
+22 -- no clearer than as served, so it stands as served.
+
+**The LIDAR in falls.** Over the house's 20 falls at three seeds of the
+noise, the LIDAR itself touched a wall or an edge in 3, 2 and 2 on this body
+-- by a wall shoved right at every seed, at 1.9-2.6 m/s -- and in none on
+today's (nor today's with the waist's mass); welded, 3, 1 and 2; on stand4,
+2 and 0. So neither the waist's turn nor its give: it is how waist16 falls
+by a wall. From a trunk turned 45 or 60 deg either way on a bare floor
+(four ways, 30 and 45 N*s) the head struck no harder than square (at most
+5.8 m/s against 6.0) and the LIDAR no oftener (1 of 32 falls turned, 1 of 8
+square): a turned trunk does not lead a fall with the head, and nothing
+brings the waist home faster as one begins. In the falls from a bow the
+LIDAR touched the floor less often than on today's body (8 falls on the
+standing policy alone where today's touched in 16; once as served on each).
+
+**The waist in `--torque`** (an RS03: 60 N*m peak, 20 turning, 13 held
+still): it holds nothing in the statues (it only turns); walking, 3.4-9.6
+N*m at its peak (6-16 %; RMS 0.9-1.9, its winding 40-41 C), and on the
+house's flight 10.5 up and 17.7 down; getting up from lying, its whole 60
+in each, as the shoulders' do (RMS 13-19 over the 2-3 s it takes). ⚠ The
+get-up's rows held the waist on the drawing's default gains, an eighth of
+its own, until `Falling` held it as the mission does: then on its face the
+get-up never stood in 30 s, at three seeds; held as served it stands from
+its back, its front and its side in 2.9, 2.3 and 2.9 s, as today's body
+(2.9, 2.2, 2.9).
+
+**The cube put on its mat fell on the waist's body (22 of 32 to 9) for two
+reasons, neither the waist's** (next section): the one realization of the
+robot's noise a whole check flies, which the waist re-drew, and our step,
+which leaned on stand4's creep.
+
+## The cube and the robot's noise (issue #560, stage (c3))
+
+**What is true now.** Every set-out of a check replays ONE realization of
+the robot's noise: each sensor is seeded by the robot's name
+(`imu.seed_for`), so each flight draws the same values at the same instants,
+and a check's set-outs vary its props, never its noise. Its count carries
+that realization's luck in common: our procedure placed the cube on today's
+body 22 times of 32 as served, and 17, 16 and 21 times with its joints'
+noise seeded three other ways. The joint senses dealt one stream over every
+joint in order, so the waist re-drew every other joint's noise: today's
+body, its noise dealt the waist's way, placed the cube 9 times, the waist
+body's own count on #622's pod. The legs' and the arms' drivers draw one
+block of the robot's stream in their order, as before the waist, and a part
+added since draws its own (`senses.SHARED`; a test reads each shared joint
+with and without the waist): a body change keeps every shared part's noise,
+and one seed is the same draws on either body.
+
+**Found by elimination**, each arm switching off one difference between the
+bodies -- set-outs 2, 12 and 16 first, then all 32 (locally, osmesa, a
+process a flight):
+
+| arm | placed of 32 | its carry failed |
+|---|---|---|
+| today's body | 22 | 2 |
+| today's, the waist's 1.73 kg welded on, no joint | 18 | 4 |
+| today's code on the waist's robot, its waist welded | 18 | 5 |
+| the waist's code on that robot (stand4, every posture square) | 8 | 16 |
+| ...its waist free | 5 | 15 |
+
+(Welded, or its encoder exact, the waist's body placed it at none of the
+first three.) Today's code and the waist's, flying the one welded robot,
+part only by code: flown with the joints' noise drawn as today's and the
+waist uncommanded, they were the same bit for bit until 5.25 s, where the
+reach's solve on the two models of itself parted by 10^-11. Every joint is
+read and driven by name (each reads within its backlash of its own joint),
+commanding the waist moved nothing, and the noise's dealing alone moved the
+step's sideways error over the 32 -- the true move less the legs' reckoning
+-- from 8.2 mm to 4.5: the realization.
+
+**And our step leaned on stand4's creep.** Under today's realization the
+waist's body still placed the cube 10 times. Over the step stand4 turns the
+stance 2.5 deg clockwise -- 1.7 in the walk itself, taken over from its
+stance, the rest settling -- and waist16 0.4; the cube, 0.16 m to the
+robot's left before it, lay 0.177 to its left after it on today's body and
+0.157 on the waist's, where the left hand's carry to the mat ran into its
+shoulder's inner stop ("held back", "out of reach"). The cube's procedure
+steps in and aside now (`step(x - 0.32, y - 0.18)`, `hands_check.PLACE`).
+Over three seeds, paired (the same draws for every shared joint):
+
+| seed | today's, stepped in | today's, stepped aside | the waist's, stepped in | the waist's, stepped aside |
+|---|---|---|---|---|
+| 0 | 22 | 17 | 10 | 16 |
+| 1 | 17 | 11 | 11 | 18 |
+| 2 | 16 | 14 | 8 | 23 |
+
+Stepped aside, waist16 lands the cube 172.5 +- 2.5 mm to its left (+-10.5
+stepped in); stand4 goes on creeping after it (+-13 mm, and three of its
+flights fell). Each body places the cube best stepped its own way, and as
+often: 19.0 stepped aside on the waist's, 18.3 stepped in on today's.
+
+- *A turned plan's hand lands as near as a square one's*: of 37 flights
+  whose plans turned the waist 8 placed the cube, of 59 that never turned it
+  29, but the true grip lies 4.7-6.9 mm off the believed one at the median,
+  square or turned, the believed one 26-32 mm short of the cube's middle as
+  the fingertips meet the board: it is the hard tries that turn.
+- *The plan's bound on an arm's reach* (`reach.arm_reach`), measured the
+  first time a process asks for it, left the planner's model on straight
+  legs for the solve that followed: once a hand a process, a check flight's
+  first reach and a served robot's after each restart. Measured on a pose of
+  its own now (a test).
 
 ## Debugging workflow that worked
 
