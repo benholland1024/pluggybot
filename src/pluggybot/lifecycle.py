@@ -40,6 +40,7 @@ from pluggybot.body import (  # noqa: F401 -- the topple's old home
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
+from pluggybot.mind import changelog as changelog_mod
 from pluggybot.mind import events as ev
 from pluggybot.mind import look as eye_mod
 from pluggybot.mind import tickets as tickets_desk
@@ -6563,7 +6564,10 @@ def overseer_context(life) -> dict:
                          # which is the case that kills.
                          event_map=({"rows": life.event_map.as_list(),
                                      "lastAskedSAgo": life._asked_after_s}
-                                    if life.event_map is not None else None))
+                                    if life.event_map is not None else None),
+                         # WHEN ITS WORLD LAST CHANGED (issue #617), beside
+                         # today's date: what `recall` reads as `changelog`
+                         changelog=changelog_mod.current().context(changelog_mod.today()))
   state["decisions"] = len(life.overseer.decisions) if life.overseer else 0
   if life.peers:
     state["others"] = others_context(life)

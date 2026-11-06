@@ -46,6 +46,7 @@ from typing import Callable
 
 from PIL import Image
 
+from pluggybot.mind import changelog
 from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES,
                                           EYE_INBOUND_TYPES, HUNGER_STATES,
                                           MODES, PROTOCOL_VERSION, ROBOT_ROOT,
@@ -462,6 +463,16 @@ class FrameBuilder:
         out.append(fn(float(t), robot=r.root))
     return out
 
+  def changelog_messages(self, t: float) -> list[dict]:
+    """The world's changelog, on open (issue #617) -- the `prompt` slot,
+    for its reason: byte-stable for a run. ONE for the stream, and only
+    where a mind reads it: absent means "nothing reads one", never an empty
+    changelog."""
+    if not any(getattr(r, "overseer", None) is not None for r in self.robots):
+      return []
+    log = changelog.current()
+    return [log.message(t)] if log.entries else []
+
   def mode_message(self, t: float, held_s: float = 0.0) -> dict | None:  # noqa: D401
     """The operator's mode, as its own message (0.12.0, issue #37).
 
@@ -775,6 +786,9 @@ class TelemetryRecorder:
     # ...and what each mind is TOLD (issue #241): the prefix, sectioned.
     for prompt in self._builder.prompt_messages(float(data.time)):
       self._queue.put(prompt)
+    # ...and what the minds may read of how their world changed (#617)
+    for log in self._builder.changelog_messages(float(data.time)):
+      self._queue.put(log)
     # ...and each robot's open support tickets (issue #284), same slot.
     for opened in self._builder.tickets_messages(float(data.time)):
       self._queue.put(opened)

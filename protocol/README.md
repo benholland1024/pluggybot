@@ -54,6 +54,31 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: the world's changelog, once a stream (pluggybot #617)
+
+The robots can read a changelog of their world (docs/Overseer.md §7b), and
+the site shows the same entries. On the wire:
+
+- **A `changelog` message when a stream opens**, before the first frame,
+  where a mind reads it:
+
+  ```json
+  {"type": "changelog", "t": 0.0, "sha": "9d5c1945…", "newest": "2026-11-06",
+   "entries": [{"date": "2026-11-06", "items": ["The world is bigger. …"]}]}
+  ```
+
+  ONE for the stream, the world's: no `robot`. `entries` are newest first,
+  each `date` an ISO day (UTC) and its `items` the facts as the robots read
+  them, in the file's order, code spans in backticks. `newest` is the first
+  entry's date, `sha` the entries' sha256: the version. Byte-stable for a
+  run. The text is the robots', never translated.
+- **None where no mind is**: a scripted stream, and every committed
+  fixture, sends none. That is not an empty changelog.
+
+No bump: a new low-frequency type, which a consumer that does not know it
+ignores. The website keeps it on the run (`pw_runs.changelog`) and serves
+the newest run's to its Changelog page.
+
 ### 0.21.0, additive: how hard the mind thinks (`build.reasoningEffort`), and a timeout that names who was answering (pluggybot #604's follow-up)
 
 The robots' calls stream now, to a deadline of 300 s (docs/Overseer.md §6).

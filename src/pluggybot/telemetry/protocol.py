@@ -483,6 +483,15 @@ EVENT_MAP_MESSAGE = "event_map"
 #: shown as they come, never translated.
 PROMPT_MESSAGE = "prompt"
 
+#: WHAT THE MINDS MAY READ OF HOW THEIR WORLD CHANGED (issue #617),
+#: additive: ONE `changelog` message when a stream opens -- `{t, sha,
+#: newest, entries: [{date, items}]}`, newest first, the entries
+#: `mind/changelog.py` holds, as `recall` reads them -- the world's, so no
+#: `robot`. `sha` is their hash. Byte-stable for a run; a stream where no
+#: mind reads it sends none, which is not an empty changelog. The text is
+#: the robots', never translated.
+CHANGELOG_MESSAGE = "changelog"
+
 #: What a `procedure` event says about a composed errand (issue #58):
 #: `validated` before its first step, `refused` (with `reasons`) instead of
 #: running, then `ran` or `aborted` with `completed`/`total`/`failedAt`/

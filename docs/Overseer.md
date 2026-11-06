@@ -2225,7 +2225,8 @@ gate every document write passes (the files' `append`, the library's
 - **It recalls.** `recall` is an ACTION: `read` a key (a note's
   `topic/title`, a topic or a family like `tasks`, `findings`, `history` for
   forty more lines, `chat` for its chat in the chain's whole room (#485,
-  §10), a line's `#123`) and/or `find` words (FTS5 over
+  §10), `changelog` for the world's changelog a page at a time (#617, §7b),
+  a line's `#123`) and/or `find` words (FTS5 over
   everything this generation, retired rows included, OR-joined and bm25
   ranked; `FIND_LIMIT` 8). The robot stands still `RECALL_S` (10 s — thinking
   takes real seconds) and the block (`{read, find, hits, lines}`, each line
@@ -2338,6 +2339,69 @@ ask looked the same from inside.
   86 → 91. What the model sees of the notes tier is bounded by the caps (64
   titles) whatever it has written, and a note's body costs nothing until it
   is recalled.
+
+## 7b. The changelog: what changed in the world, told (issue #617)
+
+The robots build memories and procedures around how their world works, and
+when it changed under them without a word they misread it: their
+procedures carried a world that had since grown, and a History line said
+only "the world itself changed since then". Telling them what changed is
+the honest fix (PluggyPlan's principle: never assert a falsehood).
+
+**One text, written for the robots** (`mind/changelog.md`, read by
+`mind/changelog.py`): a dated entry per release, newest first, each a few
+facts, dated UTC on the day the change reached their world (a release's,
+the day it deployed; a box change's, its own) and never re-dated. The site
+shows the
+same entries, so a release PR's notes may say more and the changelog says
+only what a robot may read. Ben's rules (2026-11-06), read off every item by
+`tests/test_changelog.py`, each rule shown to catch a sentence that breaks
+it:
+
+- **Facts about their world and their body**: what changed that a robot
+  could notice or use (a room, a station, a job, a part of its body, a
+  verb, a rule of the world, a fault it could have met, once fixed), in its
+  terms: "you", the world's own names, keys and verbs in backticks.
+- **Never** what we measure or why, how anything is graded, a hidden truth
+  (the mouse's nature, of which `DISCLOSURE` is all that is ever said; a
+  prop's hidden draws; the held-out tasks; why the study room is there), our
+  hypotheses or what we hope they will do. Commit messages carry all of
+  these, so an entry is written from them and never copied.
+- **No advice**: what changed, never what to do about it, on the rule every
+  prompt's rule obeys (no tactic, act, threshold or row, and no sentence
+  opening on a verb). No robot's name, no issue, PR, file or commit, and no
+  other body's words (`test_humanoid_words.py`).
+- **Ben approves every entry before it ships.** Like the constitution it is
+  a human's text, and the robots have no verb that writes it. The release
+  skill drafts each one (`.claude/skills/pw-release`), commits it to
+  staging and stops for him. A release's entry is the one dated its day;
+  one written by hand for a change no release made keeps its own date.
+
+**How the robots read it** (Ben, 2026-11-06):
+- **Every turn carries `changelog: {newest, today}`**, the newest entry's
+  date beside today's (`changelog.today`, UTC): the context had no wall date
+  of its own, and one date alone means nothing. Per turn and never in the
+  cached prefix, so a release moves no `prompt_sha` (a test adds an entry
+  and reads the sha).
+- **`recall` reads it**: `read` set to `changelog` is its newest page and
+  `changelog 2` the next (`changelog page 2` too). A page is the whole
+  items that fit one block (`RECALLED_CHARS`), each line `[date] text`, and
+  the block says its `page` and how many `pages`. A key like `chat`, ahead
+  of the notes: a note topic called `changelog` is read by
+  `changelog/<title>`, and `find` searches memory, never the changelog.
+  The RULES' recall bullet names the key and a bullet beside it says what
+  the state's block holds: the one change to what the robots are told,
+  moving `prompt_sha` once (Observatory.md).
+- **Nothing makes a robot read it**: no rule says when, no event fires on a
+  new entry, and nothing it reads there is scored.
+
+**On the wire** (`telemetry.protocol.CHANGELOG_MESSAGE`): one `changelog`
+message when a stream opens where a mind reads it, the world's, with no
+`robot`: `{t, sha, newest, entries}`. None where no mind is, so the
+committed fixtures, all scripted, carry none, and a new entry re-records
+nothing. The site keeps it on the run (rooftop-media-2026's
+`pw_runs.changelog`) and its Changelog page reads the newest run's: it reads
+with the sim down and shows what the deployed robots can read, never a copy.
 
 ## 8. The allowance, the escalation and the switch (issue #37)
 
