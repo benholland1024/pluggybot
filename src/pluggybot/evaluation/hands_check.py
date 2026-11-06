@@ -258,26 +258,137 @@ PLACE = '''def place_cube():
   withdraw("left")
 '''
 
-#: THE TABLE'S PLACE (#560): the card's tag and each piece's off their tags
-#: and each piece worked from a stance of its own, its hands home and empty
-#: between (`step`): the cup first, by the right hand, from where the robot
-#: stands; then a step to the right and the plate, pinched by its left wall,
-#: and a step back and the fork, by its handle, both by the left hand. Each
-#: arm is rolled out and folded (`move`) BEFORE the card and its piece are
-#: read: the stance turns as an arm goes out (SimNotes, "Setting a table"),
-#: and read first, the cup was 2-5 cm off where the hand came down on it
-#: (laid 5 of 32 where folded first 21). The card is read again just before
-#: each reach, and the plate and the fork from the start, as offsets from
-#: the card: flat on the table, their tags are out of the head camera's view
-#: nearer than about 0.37 m, and to its side after a step. The step aside
-#: is 0.26 m: at 0.21 the plate was laid 4 of 32 held-out set-outs, at 0.26
-#: 24 (SimNotes). Each piece is gripped from above and behind at 45 deg,
-#: lifted, carried at that height, set down by a force move holding its line
-#: until it presses on the table, let go, and the open hand lifted clear
-#: before it goes home.
-#: ⚠ IT DOES NOT MEET THE BAR (SimNotes, "Setting a table"): the bands the
-#: hands reach at a 0.72 m table are too narrow for every piece's grip.
+#: THE TABLE'S PLACE (#560), from ONE STANCE 0.14 m to the left of the start,
+#: where the waist's yaw reaches every piece (#621): the card's, the plate's
+#: and the cup's tags read from the start -- from the stance the cup is out
+#: of the head camera's view -- then the cup by the right hand and the plate
+#: and the fork by the left, each arm rolled out and folded (`move`) before
+#: its reads. Each piece is set down by where the jaws left it in the hand:
+#: they close on their middle, so the cup and the fork sit centred across
+#: them and the plate's middle 8.4 cm in from the gripped wall (SimNotes, "The
+#: table's reference on the waist", for each number):
+#: - THE CUP FROM ABOVE: reached at 10 cm over its grip, aimed 1.5 cm short of
+#:   its middle, where the planner takes its 0.3 rad bow; in that bow's
+#:   pockets it bows deeper, no tag in view, and reaches again 1.5 cm higher.
+#:   Its place is the plate's tag read again with the hand out (the reach's
+#:   posture turns the stance about 1 deg: 8 mm at the cup, where the jaws
+#:   clear it 1 cm a side), its descent giving across its way, its grip 3 cm
+#:   short of its middle (at the middle the palm cut 9 mm into the lid).
+#: - THE PLATE AND THE FORK, THE JAWS THE OTHER WAY ROUND, TILTED 60 DEG (as
+#:   asked before, the yaw takes the grip that never carries, #621): each
+#:   reach aimed 3 cm further along the wall or the handle -- the live trunk
+#:   stands 2-3 cm behind the statue the planner reaches from, and a posture
+#:   at its stretch falls short -- then pulled to the grip. The plate gripped
+#:   1.5 cm inside its wall (at it, the open outer pad brushed the fork over);
+#:   the fork at 25 N (at 40 the gripper chattered against so light a handle
+#:   and stalled short of it).
+#: - EVERY PRECISE MOVE A PULL from where the hand senses itself (`go`): a
+#:   carry takes only a posture its statue reaches, a pull goes on to another;
+#:   under 1 cm, a `move_hand`.
+#: - The card read again once a piece is lifted (the stance turns 0.7-1.9 deg
+#:   between a read and its set-down), the plate set down 1 cm right of where
+#:   its jaws put it and the fork 0.5 cm in, what the carry's turn left over
+#:   48 set-outs; an open hand lifted straight up, its jaws opened first.
 TABLE = '''def lay_place():
+  budget(steps=190, seconds=290)
+  spot(93)
+  k = read("spot.x")
+  m = read("spot.y")
+  spot(90)
+  px = read("spot.x")
+  py = read("spot.y")
+  spot(91)
+  u = read("spot.x") - px - 0.03
+  v = read("spot.y") - py
+  cz = read("spot.z") - 0.03
+  s = k - 0.07 - px - 0.03
+  w = m - 0.243 - py
+  step(0, 0.14)
+  move("right_shoulder_roll", -0.9)
+  move("right_elbow", 1.4)
+  open_hand("right")
+  spot(90)
+  x = read("spot.x") + u
+  y = read("spot.y") + v
+  reach("right", x + 0.015, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
+  if spot(90):
+    x = read("spot.x") + u
+    y = read("spot.y") + v
+  else:
+    withdraw("right")
+    spot(90)
+    reach("right", read("spot.x") + u + 0.02, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
+    if spot(90):
+      x = read("spot.x") + u
+      y = read("spot.y") + v
+  go("right", x, y, cz + 0.10, 20, 0)
+  go("right", x, y, cz, 12, 1)
+  if not close_hand("right", 40):
+    open_hand("right")
+    close_hand("right", 30)
+  ox = x - read("right.x")
+  pull("right", 0, 0, 1, 20, 0.05, give=0)
+  if spot(90):
+    x = read("spot.x") + s
+    y = read("spot.y") + w
+  else:
+    x = x + s - u
+    y = y + w - v
+  go("right", x - ox, y, read("right.z"), 20, 0)
+  pull("right", 0, 0, -1, 6, 0.09, give=0)
+  open_hand("right")
+  wait(0.4)
+  pull("right", 0, 0, 1, 20, 0.08, give=0)
+  withdraw("right")
+  for i in range(2):
+    move("left_shoulder_roll", 0.9)
+    move("left_elbow", 1.4)
+    open_hand("left")
+    spot(93)
+    k = read("spot.x")
+    m = read("spot.y")
+    spot(90 + 2 * i)
+    px = read("spot.x")
+    py = read("spot.y")
+    gy = py + 0.066 * (1 - i)
+    gz = 0.7734 - 0.005 * i
+    reach("left", px + 0.03, gy, gz, 0.5, 0, -0.866, 0, -1, 0)
+    go("left", px, gy, gz, 20, 0)
+    if not close_hand("left", 40 - 15 * i):
+      open_hand("left")
+      close_hand("left", 30 - 15 * i)
+    ox = px - read("left.x")
+    oy = -0.084 * (1 - i)
+    pull("left", 0, 0, 1, 20, 0.05, give=0)
+    if spot(93):
+      k = read("spot.x")
+      m = read("spot.y")
+    go("left", k - 0.19 - 0.005 * i - ox, m + 0.16 * i - 0.01 * (1 - i) - oy, read("left.z"), 20, 0)
+    pull("left", 0, 0, -1, 6, 0.09, give=0)
+    open_hand("left")
+    wait(0.4)
+    pull("left", 0, 0, 1, 20, 0.06, give=0)
+    withdraw("left")
+
+
+def go(h, x, y, z, f, g):
+  dx = x - read(h + ".x")
+  dy = y - read(h + ".y")
+  dz = z - read(h + ".z")
+  d = sqrt(dx * dx + dy * dy + dz * dz)
+  if d > 0.01:
+    pull(h, dx, dy, dz, f, d, give=g)
+  elif d > 0.002:
+    if not move_hand(h, x, y, z):
+      pass
+'''
+
+#: ...the reference before the waist's (#615, #618): a stance a piece --
+#: the cup where the robot stands, a step right for the plate and back for
+#: the fork -- and every grip 45 deg as asked; on the waist's body it laid no
+#: place in 32 (SimNotes, "Setting a table"). Kept as the base of #621's
+#: flown levers, the scenes below.
+TABLE_STANCES = '''def lay_place():
   budget(steps=120, seconds=400)
   move("right_shoulder_roll", -0.9)
   move("right_elbow", 1.4)
@@ -358,7 +469,7 @@ _TABLE_STEP = '    step(0, 0.43 * i - 0.26)\n'
 
 
 def _table_scene(grip: str, step: str) -> str:
-  out = TABLE
+  out = TABLE_STANCES
   for old, new in (*_TABLE_RIM30, (_TABLE_GRIP, grip), (_TABLE_STEP, step)):
     out = out.replace(old, new)
   return out

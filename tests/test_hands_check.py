@@ -47,9 +47,12 @@ def test_every_checks_procedure_is_the_language_a_mind_is_given():
   for job, source in hc.JOBS.items():
     proc = hc.compiled(job)
     assert len(source) <= lang.MAX_SOURCE_CHARS, job
-    called = {n.func.id for n in ast.walk(ast.parse(source))
+    tree = ast.parse(source)
+    called = {n.func.id for n in ast.walk(tree)
               if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
-    assert called - {"budget", "read", "range", *lang.MATH} <= set(facts.verbs), job
+    # ...and its own defs, which the language calls as it does a verb (#560)
+    own = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+    assert called - {"budget", "read", "range", *lang.MATH} - own <= set(facts.verbs), job
     assert proc.verbs > 0
 
 

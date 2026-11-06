@@ -119,7 +119,7 @@ def test_the_flown_table_scenes_are_the_jobs_procedure_with_the_levers_lines_alo
   a line of the job moved under it is a scene that no longer flies the
   lever, and fails here."""
   from pluggybot.evaluation import hands_check as hc
-  job = hc.TABLE.splitlines()
+  job = hc.TABLE_STANCES.splitlines()
   for name in ("table_rim30", "table_rim30_t60"):
     grader, source = hc.SCENES[name]
     assert grader == "table"
