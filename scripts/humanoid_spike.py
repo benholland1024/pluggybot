@@ -507,8 +507,9 @@ def static_poses() -> list[tuple[str, callable]]:
 
 # ---- the tables ---------------------------------------------------------------------
 
-#: The kinds of joint, in the order the tables print them.
-KINDS = hm.LEG + hm.ARM
+#: The kinds of joint, in the order the tables print them: the waist's
+#: beside the legs' it holds (#560's stage (c3)).
+KINDS = hm.LEG + hm.WAIST + hm.ARM
 
 
 def by_kind(per_joint: np.ndarray) -> dict:
@@ -673,7 +674,7 @@ def walking_table() -> None:
         "the estimates above are superseded for walking, the stairs' stand until stage 5):")
   print(f"{'joint':15s}" + "".join(f"{n:>37s}" for n, _ in rows))
   print(f"{'':15s}" + "".join(f"{'peak N*m (% peak)  RMS (% rated) C':>37s}" for _ in rows))
-  for kind in hm.LEG:
+  for kind in hm.LEG + hm.WAIST:
     m = hm.CHOSEN.drives[kind]
     cells = []
     for _, rec in rows:
@@ -748,7 +749,7 @@ def getup_rows(npz: str | None = None) -> list[tuple[str, dict]]:
   return rows
 
 
-def flown_table(title: str, rows: list[tuple[str, dict]], kinds=hm.LEG) -> None:
+def flown_table(title: str, rows: list[tuple[str, dict]], kinds=hm.LEG + hm.WAIST) -> None:
   """Rule 7's re-read of FLOWN rows: each joint kind's peak against its
   part's peak, its RMS against the part's continuous rating, and the winding
   that RMS holds steady at, 40 C ambient (`walking_table`'s columns) -- or,
@@ -4335,7 +4336,7 @@ def main(argv=None) -> None:
     if GETUP_NPZ.exists() or _GETUP:
       print()
       flown_table("GETTING UP, FLOWN by the get-up policy from lying (rule 7's re-read):",
-                  getup_rows(_GETUP), kinds=hm.LEG + hm.ARM)
+                  getup_rows(_GETUP), kinds=KINDS)
   elif args.thermal:
     thermal_table()
   elif args.energy:
