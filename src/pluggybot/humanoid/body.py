@@ -81,12 +81,11 @@ STEP_STUCK_M, STEP_STUCK_S, STEP_PATIENCE_S, STEP_SETTLE_S = 0.01, 1.0, 15.0, 0.
 #: SimNotes, "Stepping toward the work"). ⚠ Not a foot's lift: the model of
 #: itself read a sole 4-5 mm off through the slide that was under 2.
 STEP_START_S = 2.0
-#: Its measured depth's own noise stream (`depth_cloud`) and how far its
-#: rays reach, m: the probe's seed, and a counter's chest within arm's reach.
-DEPTH_SEED, DEPTH_REACH_M = 466, 3.0
-#: A watcher's depth camera's own noise stream (`depth_watched`, #530): never
-#: the measured depth's, so watching draws nothing a flight reads.
-WATCH_SEED = 530
+#: How far its measured depth's rays reach (`depth_cloud`, and a watcher's,
+#: `depth_watched`), m: a counter's chest within arm's reach. Each draws its
+#: own noise stream (`senses.Noise`: `measure`, `watched`), so watching
+#: draws nothing a flight reads.
+DEPTH_REACH_M = 3.0
 #: A look at the station moves the belief only past this, m / rad: the
 #: matched belief in the house is good to a few centimetres (#476).
 FIX_TOL_M = 0.10
@@ -205,14 +204,17 @@ class HumanoidBody(Body):
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                policy: StandPolicy | None = None, walk: StandPolicy | None = None,
-               grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False):
+               grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False,
+               noise: str | None = None):
     self.handle = handle
     self._m, self._d = model, data
     self._policies = (policy, walk)
     self.root = model.body(handle.root).id
+    # `noise`: whose noise it draws, the robot's own unless an instrument
+    # keys a flight (`senses.Noise`)
     self.mission = HumanoidMission(model, data, handle, stand=policy, walk=walk,
                                    grid_bounds=grid_bounds, viewer=viewer,
-                                   realtime=realtime)
+                                   realtime=realtime, noise=noise)
     self._tags = None
     #: The tag its colour imager keeps reading while it moves (`watch`).
     self.mission.sight = TagWatch(model.opt.timestep, self._sighted)
@@ -642,7 +644,7 @@ class HumanoidBody(Body):
       from pluggybot.humanoid.arms import SelfModel
       from pluggybot.humanoid.senses import JointSense
       self._watch = (JointSense(self._m, prefix=self.handle.prefix,
-                                key=f"watch:{self.handle.prefix}"), SelfModel())
+                                key=self.mission.noise.watcher), SelfModel())
     q, _, _ = self._watch[0].read(self._d)
     return q
 
@@ -658,7 +660,8 @@ class HumanoidBody(Body):
     key = (int(width), int(height))
     if self._depth_watch is None or self._depth_watch[0] != key:
       self._depth_watch = (key, DepthCamera(self._m, self.handle, width=key[0], height=key[1],
-                                            mount="body", seed=WATCH_SEED, reach=DEPTH_REACH_M))
+                                            mount="body", seed=self.mission.noise.seed("watched"),
+                                            reach=DEPTH_REACH_M))
     # ...its mount through the waist as the watcher reads it
     q, sm = self._watched(), self._watch[1]
     return self._depth_watch[1].frame(self._d, dict(zip(hm.WAIST, q[sm.waist]))).z
@@ -705,7 +708,8 @@ class HumanoidBody(Body):
     key = (int(width), int(height), float(min_z))
     if getattr(self, "_depth", (None,))[0] != key:
       self._depth = (key, DepthCamera(self._m, self.handle, width=key[0], height=key[1],
-                                      min_z=key[2], mount="body", seed=DEPTH_SEED,
+                                      min_z=key[2], mount="body",
+                                      seed=self.mission.noise.seed("measure"),
                                       reach=DEPTH_REACH_M))
     cam = self._depth[1]
     out = []

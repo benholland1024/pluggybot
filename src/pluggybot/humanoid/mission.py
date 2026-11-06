@@ -48,6 +48,7 @@ from pluggybot.humanoid.places import HumanoidPlaces
 from pluggybot.humanoid.policy import StandDriver, StandPolicy
 from pluggybot.humanoid.reach import Reach
 from pluggybot.humanoid.scan import HeadScan
+from pluggybot.humanoid.senses import Noise
 from pluggybot.humanoid.walk import WALK_NPZ, WalkDriver
 from pluggybot.humanoid.way import HumanoidWay
 from pluggybot.mapping.frontier import OCC_THRESH
@@ -197,10 +198,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                stand: StandPolicy | None = None, walk: StandPolicy | None = None,
                grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False,
-               getup: StandPolicy | None = None) -> None:
+               getup: StandPolicy | None = None, noise: str | None = None) -> None:
     self._getup_policy = getup if getup is not None else (
       StandPolicy(GETUP_NPZ) if GETUP_NPZ.exists() else None)
     self.stepper = HumanoidStepper(self)
+    #: Whose noise its parts draw (`senses.Noise`): the robot's own, None,
+    #: as served, or an instrument's key for a flight.
+    self.noise = Noise(handle, noise)
     root = model.body(handle.root).id
     lidar = site_mount(model, model.site(handle.el("lidar")).id, handle.root)
     #: The LIDAR's place on the trunk: the scan's origin for the map. It
@@ -209,7 +213,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     at = lidar.pose({j: 0.0 for j in lidar.joints})[0]
     self.LIDAR_ORIGIN = (float(at[0]), float(at[1]))
     super().__init__(model, data, handle=handle, grid_bounds=grid_bounds,
-                     viewer=viewer, realtime=realtime, match=True)
+                     viewer=viewer, realtime=realtime, match=True,
+                     lidar_seed=self.noise.seed("lidar"))
     self.root = root
     self._build_drivers(stand, walk)
     self._odo_every = max(1, round(self.ODO_S / model.opt.timestep))
@@ -226,7 +231,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     #: A tag watched while it moves (`perception.watch.TagWatch`, the
     #: body's `watch`), stepped after every physics step; None for none.
     self.sight = None
-    self.depth = DepthCamera(model, handle, mount="body", reach=UNCULLED)
+    self.depth = DepthCamera(model, handle, mount="body", reach=UNCULLED,
+                             seed=self.noise.seed("near"))
     self._frame: DepthFrame | None = None
     self._frame_t = -math.inf
     self._frame_used_t = -math.inf
@@ -345,7 +351,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     through the get-up, `_after_physics`), the ground's map laid anew. ⚠
     Kept through a fall down the flight, the height was 0.41 m off at the
     foot, past what a frame registers, for good."""
-    key = f"humanoid:{self.handle.prefix}"
+    key = self.noise.name
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
     self.stand.ask(0.0, 0.0)
@@ -467,7 +473,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     stands now: the IMU's filter from the boot's orientation, the odometry
     at the pelvis, and -- for a walker that sees the ground -- the scan."""
     model, data, handle = self.model, self.data, self.handle
-    key = f"humanoid:{handle.prefix}"
+    key = self.noise.name
     self.stand = StandDriver(model, data, stand, prefix=handle.prefix, key=key)
     walk = walk or StandPolicy(WALK_NPZ)
     att = self.stand.trunk.attitude
@@ -476,7 +482,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       self.head = HeadScan(model, data, handle,
                            belief=lambda: (self.odo.x, self.odo.y, self.odo.z, self.odo.yaw),
                            level=att.level, correct=self._height_drifted, period=DEPTH_PERIOD,
-                           joints=self.waist_read)
+                           seed=self.noise.seed("ground"), joints=self.waist_read)
     self.walker = WalkDriver(model, data, walk, prefix=handle.prefix, key=key,
                              trunk=self.stand.trunk, joints=self.stand.joints,
                              scan=None if self.head is None else self.head.scan)

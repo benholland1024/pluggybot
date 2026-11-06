@@ -8,7 +8,8 @@ The IMU is `perception/imu.py`'s part and the depth camera and the LIDAR
 
 The noise is one stream a robot, as the IMU's is, keyed by a checksum of
 its name -- never `hash()`, which Python salts per process -- and a part
-added to the body since draws from one of its own (`SHARED`).
+added to the body since draws from one of its own (`SHARED`). Whose noise a
+body draws is ONE key (`Noise`).
 """
 
 import zlib
@@ -18,17 +19,68 @@ import numpy as np
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.perception.encoders import quantised
+from pluggybot.perception.imu import seed_for
+from pluggybot.robot import FIRST, RobotHandle
+
+#: The seeds the robots' cameras were served with, a stream's (`Noise.seed`):
+#: the near field's depth camera and the walker's that sees the ground drew
+#: 0, both robots alike, `measure`'s depth cloud 466 and a watcher's 530.
+#: (The LIDAR's was its root's, `lidar:<root>`.)
+SERVED_SEEDS = {"near": 0, "ground": 0, "measure": 466, "watched": 530}
+#: ...and the key that names the robot's own noise, as None does (`Noise`):
+#: what every flight of a check drew before each set-out drew its own.
+ROBOT = "robot"
+
+
+class Noise:
+  """WHOSE NOISE A BODY DRAWS (#560): one key every stream of its parts is
+  seeded off -- the joints' and the grippers' (below), the IMU's, the
+  LIDAR's and each depth camera's (`SERVED_SEEDS`' streams), and a
+  watcher's apart from the flight's. `key` None (or `ROBOT`) is the
+  robot's own: its name's, every stream seeded as served, so the deployed
+  pair draws what it always drew. An instrument keys a flight by its job
+  and set-out (`attempts.noise_of`), so each set-out draws its own noise
+  as it draws its own props: with the robot's own key every set-out of a
+  check replayed one realization, and its count carried that one's luck
+  (SimNotes, "The cube and the robot's noise"). ⚠ A second robot's key is
+  its prefix's too (`name`): two bodies keyed alike would draw one noise."""
+
+  def __init__(self, handle: RobotHandle = FIRST, key: str | None = None):
+    self.handle, self.key = handle, (None if key == ROBOT else key)
+
+  @property
+  def name(self) -> str:
+    """What the parts' streams are keyed off (`JointSense`, `GripperSense`,
+    `policy.TrunkSense`): the robot's name, `humanoid:<prefix>`, or the
+    key (a second robot's with its prefix)."""
+    p = self.handle.prefix
+    if self.key is None:
+      return f"humanoid:{p}"
+    return f"{self.key}:{p}" if p else self.key
+
+  @property
+  def watcher(self) -> str:
+    """...and a watcher's joint sense's (`Body.hand_watched`): never the
+    flight's, so watching draws nothing a flight reads."""
+    return f"watch:{self.handle.prefix if self.key is None else self.name}"
+
+  def seed(self, stream: str) -> int:
+    """`stream`'s seed -- `lidar` or one of `SERVED_SEEDS`'s: as served for
+    the robot's own key, else off the key."""
+    if self.key is not None:
+      return seed_for(f"{stream}:{self.name}")
+    if stream == "lidar":
+      return seed_for(f"lidar:{self.handle.root}")
+    return SERVED_SEEDS[stream]
 
 #: The drivers whose noise is one block of the robot's stream, a read at a
 #: time, in this order: the legs' and the arms', the body before its waist
 #: (#560's stage (c3)). A joint added since draws from a stream of its own,
-#: keyed by its name, so adding a part re-deals no other part's noise. ⚠
+#: keyed by its name, so adding a part re-deals no other part's noise, and
+#: two bodies flown at one set-out draw alike for every part they share. ⚠
 #: DEALT OVER EVERY JOINT IN ORDER, THE WAIST RE-DREW EVERY OTHER JOINT'S
-#: NOISE -- and every set-out of a check replays the robot's noise at the
-#: same instants, so with it the one realization the whole check flies:
-#: today's body placed the cube 22 times of 32 as served and 9 dealt the
-#: waist's way, 16-21 at three other seeds (SimNotes, "The cube and the
-#: robot's noise").
+#: NOISE: today's body placed the cube 22 times of 32 as served and 9 dealt
+#: the waist's way (SimNotes, "The cube and the robot's noise").
 SHARED = (tuple(f"{s}_{j}" for s in hm.SIDES for j in hm.LEG)
           + tuple(f"{s}_{j}" for s in hm.SIDES for j in hm.ARM))
 

@@ -17,7 +17,11 @@ be paid for, and a robot that never earns it is a finding about the robot.
                     station (`--from station`) or inside the storeroom's
                     door (`--from store`); `--n` draws from K, a process
                     each (`--jobs`), a row each (`--into DIR`); `--view`
-                    watches one, `--strip` its filmstrip, `solve.png`
+                    watches one, `--strip` its filmstrip, `solve.png`.
+                    Each flight draws noise of its own, keyed by its job,
+                    its draw and where it starts (`noise_of`, #560), or
+                    `--noise KEY`'s: a draw flown again (a row's `noise`),
+                    `robot` the robot's own, as every flight drew before
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/solve.py --feature drawer --n 8 --jobs 4 --into DIR
@@ -68,17 +72,28 @@ STORE_START = (22.8, -3.0, 0.0)
 TOUR = ("station", "store", "lobby", "lab", "start", "hall", "kitchen", "garden")
 
 
-def hand_life(state_dir: str, start: str, viewer=None):
+def noise_of(kind: str, start: str, draw: int | None) -> str:
+  """The noise a flight draws (`humanoid.senses.Noise`): its job's, its
+  draw's and its start's -- every flight its own, as it draws its own
+  prop (#560)."""
+  return f"{kind}:{0 if draw is None else int(draw)}:{start}"
+
+
+def hand_life(state_dir: str, start: str, viewer=None, noise: str | None = None):
   """One humanoid in its house, as a served robot is built -- the hosting
   pack, near-field on, the world's activities on its seam, a board and a
-  ledger, a mind with a library -- at `start`, a fresh map begun."""
+  ledger, a mind with a library -- at `start`, a fresh map begun, drawing
+  `noise`'s noise (None: the robot's own)."""
+  from pluggybot.body import body_for
   cfg = world_config(HUMANOID_HOME)
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   if viewer == "open":
     from mujoco import viewer as mj_viewer
     viewer = mj_viewer.launch_passive(model, data)
-  life = HubLifecycle(model, data, viewer=viewer, realtime=viewer is not None,
+  body = body_for(model, data, viewer=viewer, realtime=viewer is not None,
+                  grid_bounds=cfg["grid_bounds"], noise=noise)
+  life = HubLifecycle(model, data, body=body,
                       world=HUMANOID_HOME, grid_bounds=cfg["grid_bounds"],
                       battery_wh=cfg["hosting_battery_wh"],
                       low_battery_wh=cfg["low_battery_wh"],
@@ -98,16 +113,17 @@ def hand_life(state_dir: str, start: str, viewer=None):
 
 
 def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
-             strip: str | None = None) -> dict:
+             strip: str | None = None, noise: str | None = None) -> dict:
   """One hand job flown (the module docstring): its row -- the grade, the
-  sim and wall seconds, the find, the falls, the belief against the truth
-  and the procedures' verbs."""
+  sim and wall seconds, the find, the falls, the belief against the truth,
+  the noise it drew and the procedures' verbs."""
   from pluggybot.challenge import solutions
   from pluggybot.home import storeroom
   kind, prop = HAND_JOBS[feature]
+  noise = noise_of(kind, start, draw) if noise is None else noise
   wall = time.time()
   with tempfile.TemporaryDirectory() as state_dir:
-    life, viewer = hand_life(state_dir, start, "open" if view else None)
+    life, viewer = hand_life(state_dir, start, "open" if view else None, noise)
     data, body = life.data, life.body
     if draw is not None:
       life.tasks.seq = int(draw)
@@ -141,7 +157,7 @@ def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
     tx, ty, _ = body.true_pose()
     find = body.mission.last_find or {}
     row = {"feature": feature, "kind": kind, "from": start, "draw": run["secret"].get("draw"),
-           "grade": run["grade"], "simS": round(float(data.time), 1),
+           "noise": noise, "grade": run["grade"], "simS": round(float(data.time), 1),
            "wallS": round(time.time() - wall), "falls": falls,
            "find": {k: find.get(k) for k in ("found", "why", "seconds", "viewpoints",
                                              "arounds")},
@@ -242,9 +258,9 @@ class _HandStrip:
 
 
 def _hand_job_row(spec) -> dict:
-  feature, start, draw = spec
+  feature, start, draw, noise = spec
   try:
-    return hand_job(feature, start, draw)
+    return hand_job(feature, start, draw, noise=noise)
   except Exception as e:  # noqa: BLE001 -- a row says what raised
     return {"feature": feature, "from": start, "draw": draw, "error": repr(e)}
 
@@ -256,12 +272,12 @@ def hands_main(args) -> None:
   import multiprocessing as mp
   if args.view or args.strip:
     row = hand_job(args.feature, args.start, args.draw, view=args.view,
-                   strip=args.out_strip if args.strip else None)
+                   strip=args.out_strip if args.strip else None, noise=args.noise)
     print(json.dumps({k: v for k, v in row.items() if k != "steps"}))
     return
   first = 0 if args.draw is None else args.draw
-  specs = [(args.feature, TOUR[i % len(TOUR)] if args.start == "tour" else args.start, first + i)
-           for i in range(args.n)]
+  specs = [(args.feature, TOUR[i % len(TOUR)] if args.start == "tour" else args.start, first + i,
+            args.noise) for i in range(args.n)]
   rows = []
   with mp.get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:
     for row in pool.imap(_hand_job_row, specs):
@@ -294,6 +310,9 @@ def main() -> None:
   parser.add_argument("--draw", type=int, default=None,
                       help="the draw of its prop's hidden dynamics (default: the "
                            "board's own sequence, 0; with --n, the first)")
+  parser.add_argument("--noise", default=None, metavar="KEY",
+                      help="every flight draws KEY's noise, not its own (a row's `noise`; "
+                           "`robot` the robot's own)")
   parser.add_argument("--jobs", type=int, default=1, help="flights at once, a process each")
   parser.add_argument("--into", default=None, help="the rows, DIR/rows.jsonl")
   parser.add_argument("--strip", action="store_true", help="one flight's filmstrip")

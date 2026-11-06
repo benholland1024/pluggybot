@@ -5712,6 +5712,31 @@ is not priced again. The pull a hand holds (`--pulls`, flown before this
 round's fixes) 590 N summed over its 14 ways, as stand4's, 20 at its
 weakest, so `pull` still asks at most 20.
 
+**Each set-out its own noise** (#560's seeds stage; Evaluation.md §5), on
+one pod, a Xeon Gold 6138, osmesa, which flew #622's rows for the lid and
+the cube 61 times of 64; in brackets the one realization every set-out
+shared before, on the same pod:
+
+| | of 8 (0-7) | of 32 |
+|---|---|---|
+| the lid's check, its grip 2 cm short | 8 (8) | 22 (22) |
+| the drawer's check | 5 (5) | 22 (20) |
+| the door's check | 5 (5) | 25 (22) |
+| the cube's check | 4 (4) | 15 (15) |
+| the table's place | 0 (0) | 0 (0): the plate laid 19 times, the cup 20, the fork never |
+| ...at the 32 held out | | 0: the plate 9 (#622's realization 17), the cup 20, the fork never |
+| the opener (`attempts.py`) | 6 (6) | 19 (21) |
+| the served drawer from the tour | 8 | 31 |
+| the served door from the tour | **5** (7) | 28 (30), one fall |
+| the served chest from the tour, its grip 2 cm short | 8 (6) | 32 (25), no fall |
+
+The door falls under the bar of 6 at its first 8 draws (Ben's call). The
+station, each trial its own noise: 36 of 36 round the standoff at a push
+each, 139 of 140 seats, 16 of 16 lost near and walked in, lost far 114 of
+123 -- the house's 71 of 72, across the street 28 of 36 (#622's
+realization: 36, 138, 16, 16, 112). Swings of two or three in 32 are what
+the draws give.
+
 **The served chest** passed less often on this body until its lid's grip
 was aimed 2 cm short of the knob's middle: from the tour over 32 draws at
 three paired seeds it passes 29, 31 and 29 (15, 19 and 20 before, today's
@@ -5748,20 +5773,21 @@ which leaned on stand4's creep.
 
 ## The cube and the robot's noise (issue #560, stage (c3))
 
-**What is true now.** Every set-out of a check replays ONE realization of
-the robot's noise: each sensor is seeded by the robot's name
-(`imu.seed_for`), so each flight draws the same values at the same instants,
-and a check's set-outs vary its props, never its noise. Its count carries
-that realization's luck in common: our procedure placed the cube on today's
-body 22 times of 32 as served, and 17, 16 and 21 times with its joints'
-noise seeded three other ways. The joint senses dealt one stream over every
-joint in order, so the waist re-drew every other joint's noise: today's
-body, its noise dealt the waist's way, placed the cube 9 times, the waist
-body's own count on #622's pod. The legs' and the arms' drivers draw one
-block of the robot's stream in their order, as before the waist, and a part
-added since draws its own (`senses.SHARED`; a test reads each shared joint
-with and without the waist): a body change keeps every shared part's noise,
-and one seed is the same draws on either body.
+**What is true now.** Each set-out of a check draws noise of its own,
+keyed by its job and its number (`attempts.noise_of`; Evaluation.md §5,
+"Each set-out flies noise of its own"). Until then every set-out replayed
+ONE realization of the robot's noise -- each sensor seeded by the robot's
+name, so each flight drew the same values at the same instants -- and a
+count carried that realization's luck in common: our procedure placed the
+cube on today's body 22 times of 32 as served, and 17, 16 and 21 times
+with its joints' noise seeded three other ways. The joint senses dealt one
+stream over every joint in order, so the waist re-drew every other joint's
+noise: today's body, its noise dealt the waist's way, placed the cube 9
+times, the waist body's own count on #622's pod. The legs' and the arms'
+drivers draw one block of a key's stream in their order, as before the
+waist, and a part added since draws its own (`senses.SHARED`; a test reads
+each shared joint with and without the waist): a body change keeps every
+shared part's noise, and one set-out is the same draws on either body.
 
 **Found by elimination**, each arm switching off one difference between the
 bodies -- set-outs 2, 12 and 16 first, then all 32 (locally, osmesa, a
@@ -5804,7 +5830,9 @@ Over three seeds, paired (the same draws for every shared joint):
 Stepped aside, waist16 lands the cube 172.5 +- 2.5 mm to its left (+-10.5
 stepped in); stand4 goes on creeping after it (+-13 mm, and three of its
 flights fell). Each body places the cube best stepped its own way, and as
-often: 19.0 stepped aside on the waist's, 18.3 stepped in on today's.
+often: 19.0 stepped aside on the waist's, 18.3 stepped in on today's. Each
+set-out its own noise, the waist's places it 15 times of 32 (#560's seeds
+stage, "The waist built").
 
 - *A turned plan's hand lands as near as a square one's*: of 37 flights
   whose plans turned the waist 8 placed the cube, of 59 that never turned it
@@ -5877,6 +5905,10 @@ for bit), the committed tree's own instruments, seeds paired:
 | the lid's check at 32 set-outs, the waist's body | 22 | 23 | 25 | 23.3 |
 | ...gripped at the middle, as before | 21 | 18 | 21 | 20.0 |
 | ...today's body, as before | 21 | 23 | 20 | 21.3 |
+
+Each draw its own noise (#560's seeds stage; a Xeon Gold 6138, where seed
+0's realization passed the chest 25 and the lid's check 22): the chest 32
+of 32 from the tour with no fall, the lid's check 22 of 32.
 
 From the mall's station the chest costs 8.11 Wh over 175 s (passed), 8.6 %
 over `energy.json`'s 7.463: inside the table's 10 %, so not priced again.

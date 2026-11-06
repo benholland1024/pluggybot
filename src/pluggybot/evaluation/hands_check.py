@@ -194,9 +194,10 @@ DOOR = '''def open_door():
 #: retrained on the waist holds its stance and left it 0.157 -- there the
 #: left hand's carry to the mat ran into its shoulder's inner stop, 10 of 32
 #: placed where 22 were. Stepped aside, the waist's body placed it 19 times
-#: of 32 over three seeds of its noise, today's stepped in alone 18 (SimNotes,
-#: "The cube and the robot's noise"). Gripped steeply from above-front, the
-#: jaws on two of its faces, at the first tilt that reaches and holds; lifted
+#: of 32 over three seeds of its noise, today's stepped in alone 18 -- and
+#: 15, each set-out its own noise (SimNotes, "The cube and the robot's
+#: noise"). Gripped steeply from above-front, the jaws on two of its faces,
+#: at the first tilt that reaches and holds; lifted
 #: straight up and
 #: set down by force moves that hold their line (`give` 0: a cube set down
 #: giving slid along what it touched), carried over the mat by where the
@@ -388,15 +389,17 @@ def compiled(job: str) -> lang.Procedure:
   return lang.compile_procedure(SCENES[job][1] if job in SCENES else JOBS[job], facts())
 
 
-def fly(job: str, k: int, info: dict | None = None) -> dict:
+def fly(job: str, k: int, info: dict | None = None, noise: str | None = None) -> dict:
   """`job`'s procedure flown once at its set-out `k` and graded: the
   attempt's row (`attempts.attempt`), the run's verbs beside it (`ran`:
-  each verb, whether it was ok and why it stopped)."""
+  each verb, whether it was ok and why it stopped). The set-out draws its
+  own noise, or `noise`'s (`attempts.builder`)."""
   f = facts()
   out: dict = {}
   row = at.attempt(at.Task(chest=k, body="humanoid", mount="counter", grader=job),
                    ep.procedure_skill(compiled(job), f, out), 1,
-                   info={"process": "hand-written", "skill": job, **(info or {})})
+                   info={"process": "hand-written", "skill": job, **(info or {})},
+                   build=at.builder(noise))
   ran = out.get("ran") or {}
   row["ran"] = {"ok": ran.get("ok"), "stopped": ran.get("stopped"),
                 "steps": [{k_: s.get(k_) for k_ in ("verb", "ok", "why", "reason", "moved",

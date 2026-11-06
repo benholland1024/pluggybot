@@ -38,8 +38,9 @@ This is the piece of luck the project has and should not spend.
 **Nothing in the world is random.** `TaskProducer` offers the same jobs at the
 same sim-seconds on two consecutive runs; `plant` is seeded from a hash of
 the body name and never `Math.random()`; sensor noise is drawn per physics
-step and per robot off a fixed seed; the physics is deterministic given the
-same commands. So a
+step and per body off a fixed key (`senses.Noise`: a served robot's its
+name's, an instrument's flight its set-out's, §5); the physics is
+deterministic given the same commands. So a
 scripted day flown twice is the same world twice, and a spread across
 repeated runs of one configuration is a measurement of the *model* rather
 than of the simulator.
@@ -1041,7 +1042,8 @@ internals. Its rules:
   is no attempt** (`attempts.Unstable`): a row saying what, no verdict, its
   task kept in the record and unflown from there, never dropped from the
   denominator;
-- ⚠ **an attempt is its set-out EXACTLY**, sensor noise included: code that
+- ⚠ **an attempt is its set-out EXACTLY**, sensor noise included -- the
+  set-out's own (§5, "Each set-out flies noise of its own"): code that
   learns nothing between attempts earns the same verdict at every one, so a
   reference flies one attempt a task;
 - **held-out tasks** are chests nobody has flown, from 1,000,000 up, past
@@ -2137,23 +2139,51 @@ time is a thing we want the agent to care about, it goes on the wire and into
 the context. Measuring it and not showing it, then reporting that the robot
 does not prioritise it, is measuring our own omission.
 
-### A check's set-outs share one realization of the robot's noise (#560)
+### Each set-out flies noise of its own (#560)
 
-Every sensor's noise is seeded by the robot's name, so each flight of a
-check (`hands_check`, `solve.py`, an attempt) draws the same values at the
-same instants: its set-outs vary the props and never the noise, and its
-count carries one realization's luck in common. Over 32 set-outs our cube
-procedure, unchanged on one body, placed the cube 22, 17, 16 and 21 times
-under four seeds of its joints' noise. The rules:
+Whose noise a body draws is one key (`humanoid.senses.Noise`), and every
+stream of its parts is seeded off it: the joints', the grippers', the
+IMU's, the LIDAR's and each depth camera's. An instrument that grades a
+rate keys each flight by its job and set-out, so each set-out draws its own
+noise as it draws its own props:
+- the attempt kit and everything flown through it (`hands_check`,
+  `attempts.py`, practice, a person's session) by the job and the number
+  (`attempts.noise_of`: `lid:3`, `place:12`);
+- `solve.py` by the job, its draw and its start (`open_door:5:lobby`);
+- the station's trials by their scene and their start
+  (`station_spike.trial_noise`).
 
-- ⚠ **Two bodies or builds are compared under the same draws for their
-  shared parts.** A part added draws its own stream (`senses.SHARED`):
-  dealt one stream over every joint, the waist re-drew every other joint's
-  noise, and the cube's 22 read as 9 on an unchanged body (SimNotes, "The
-  cube and the robot's noise").
-- ⚠ **A decision that rests on a count is read over several seeds**, paired
-  across the arms: one seed's difference of 12 placements of 32 was none
-  over three.
+A count of 32 is 32 draws of the noise now. Before, every sensor was
+seeded by the robot's name, so every flight of a check drew the same
+values at the same instants, and its count carried one realization's luck
+in common: our cube procedure, unchanged on one body, placed the cube 22,
+17, 16 and 21 times of 32 under four seeds of its joints' noise. The served
+robots keep their names' noise, every stream as it was served
+(`tests/test_noise.py`; the pair's day flew identical before and after,
+`determinism_spike.py --compare`). The rules:
+
+- ⚠ **A reading says which noise it drew** (a row's `run.noise`,
+  `attempts.noise_said`). A record kept before this drew the robot's own,
+  one realization, and is never pooled with one after.
+- ⚠ **A held-out set-out's noise is sealed with it**: its key is its
+  number's, which the frozen build's seed drew (`held_out`), so nobody
+  chose it, and an instrument flying held-out set-outs refuses `--noise`.
+- **`--noise KEY` flies one draw again**, never a rate: a row's own key, to
+  reproduce a failure, or `robot`, the robot's own, the realization every
+  set-out drew before.
+- ⚠ **Two bodies or builds are compared at the same set-outs**, which pairs
+  their draws for every part they share. A part added draws its own stream
+  (`senses.SHARED`): dealt one stream over every joint, the waist re-drew
+  every other joint's noise, and the cube's 22 read as 9 on an unchanged
+  body (SimNotes, "The cube and the robot's noise").
+- ⚠ **A count's spread is the draws'**: a pass rate near 70 % over 32
+  set-outs varies by about 2.6 passes (one standard deviation), so a
+  difference of a few is no finding.
+- ⚠ **Not every instrument yet** (#560's survey): `humanoid_spike.py`'s
+  tables build their drivers on one key (`"humanoid"`), and
+  `make_way_spike.py`, `humanoid_drift_spike.py` (its own `--seed`),
+  `energy_spike.py` and `grid_spike.py --walks` fly the robots' own noise:
+  one realization a batch.
 
 ### Graded in MuJoCo (#465, #487)
 

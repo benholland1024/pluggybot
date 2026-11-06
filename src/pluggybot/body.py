@@ -732,12 +732,15 @@ def body_for(model, data, handle: RobotHandle = FIRST, **kw) -> Body:
   built without one makes (`HubLifecycle(body=None)`) -- the humanoid
   (`humanoid/body.py`, #507), found by this robot's names; a world with no
   robot of ours under them is refused. `kw` is its navigation: the map
-  bounds, its policies, the viewer and pacing."""
+  bounds, its policies, the viewer and pacing -- and `noise`, whose noise
+  it draws (`humanoid.senses.Noise`: the robot's own unless an instrument
+  keys a flight)."""
   if is_humanoid(model, handle):
     from pluggybot.humanoid.body import HumanoidBody
     return HumanoidBody(model, data, handle=handle,
                         **{k: v for k, v in kw.items()
-                           if k in ("grid_bounds", "policy", "walk", "viewer", "realtime")})
+                           if k in ("grid_bounds", "policy", "walk", "viewer", "realtime",
+                                    "noise")})
   raise ValueError(f"no body under {handle.root!r} in this world: the humanoid "
                    "is the body (the rover left in #376, the quadruped in #559; "
                    "`rover-final` and `quadruped-final` have them)")
