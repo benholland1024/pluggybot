@@ -5098,17 +5098,18 @@ that sees the ground.
 table, is built and graded offline (Challenges.md §12): the dishware
 (`activity/dishware.py`: a plate pinched by its wall, a lidded cup taken
 across its body, a fork by its thick handle, and a place card), its grader,
-its set-out (`counter.table_set_out`) and our procedure (`hands_check.TABLE`,
-1,401 characters of the language's 3,000). **Our procedure does not meet the
-bar**, so the job is not offered: 0 of the check's 8 set-outs (the bar 6;
-1 on another pod) and 6 of 32 held out; laid by each piece's own criteria
-over the 32 held out, the cup 23, the plate 24, the fork 6 (it comes last,
-after a step) -- since the hands' small fixes (#560's stage (a), below;
-before them, on the same pod, 23, 6 and none, and no place). Every part of
-the place sits at an edge of what this body reaches at a 0.72 m table,
-below; the levers that move those edges, and what a waist yaw does to them,
-are stage (c2)'s ("The table's put-downs, measured before the waist is
-built").
+its set-out (`counter.table_set_out`) and our procedure (`hands_check.TABLE`).
+**On the waist's body our procedure meets its bar** -- 32 of 32 places at
+set-outs 0-31, from one stance ("The table's reference on the waist",
+below) -- and the job is still not offered (Ben's call on #615: the
+restaurant's tables first). This section is the body before the waist,
+whose procedure (`hands_check.TABLE_STANCES`, a stance a piece) met no bar:
+0 of the check's 8 set-outs and 6 of 32 held out on today's body, the cup
+23, the plate 24 and the fork 6 of the 32 (after #560's stage (a), below),
+and none on the waist's body. Every part of the place sat at an edge of what
+that body reaches at a 0.72 m table, below; the levers that move those
+edges, and what a waist yaw does to them, are stage (c2)'s ("The table's
+put-downs, measured before the waist is built").
 
 **Why the cube missed its mat** (#559's `place_cube`, 0 of 8; its check's
 procedure flown at set-outs 0-7, the truth beside the belief at every
@@ -5189,12 +5190,13 @@ the humanoid at the table's south place; flights in
 - *Shape is not the plate's trouble*: a 4 cm wall and a 3 cm handle laid 8
   plates of 32 and no fork.
 
-![Our procedure at the table's set-out 4, the first place it laid: the cup
-carried by the right hand and set down by the card (5-10 s), that arm home
-the side way (15 s), then a step aside and the plate, a step back and the
-fork, both by the left hand -- the plate 1.5 cm, the cup 1.5 and the fork
-2.1 from where each goes (`scripts/hands_check.py --strip table 4`;
-`--view table K` watches one)](figures/hands_table.png)
+![The procedure before the waist's (`TABLE_STANCES`) at the table's set-out
+4, the first place it laid on the body before the waist: the cup carried by
+the right hand and set down by the card (5-10 s), that arm home the side way
+(15 s), then a step aside and the plate, a step back and the fork, both by
+the left hand -- the plate 1.5 cm, the cup 1.5 and the fork 2.1 from where
+each goes (`scripts/hands_check.py --strip table 4` at e4be1d4, before the
+waist)](figures/hands_table.png)
 
 ## A waist, measured before it is built (issue #560, stage (c))
 
@@ -5920,6 +5922,114 @@ asked, within 7-8 deg of it either way in 8 approaches of 10 (219 flown);
 then the last step is blocked, or leaves the robot 0.30 m from the knob
 turned right of square with its tag out of the head camera's view. 7 draws
 of 96 on the waist's body, 13 on today's.
+
+## The table's reference on the waist (issue #560)
+
+**What is true now.** Our table procedure (`hands_check.TABLE`, 2,522
+characters of the language's 3,000) lays the place from ONE STANCE, 0.14 m
+to the left of the start, where #621 measured the waist's yaw reaching every
+piece: the cup by the right hand, the plate and the fork by the left, their
+jaws asked the other way round and tilted 60 deg. On one pod (a Xeon E5-2697
+v4, osmesa) it lays **32 of 32 places at set-outs 0-31** and 32 of 32 at
+#618's held-out set-outs, and on two sets more that nobody tuned on 46 of 48
+(public 80-127) and 30 of 32 (the practice arms' held out): 140 of 144, no
+flight falling, every pass 64-81 s. The procedure before it (`TABLE_STANCES`,
+a stance a piece) laid none at 0-31 or at #618's there. It was tuned on
+public set-outs 32-79 (46 of 48, locally), never on those it was read at.
+Laid, a piece rests a median 0.4-0.7 cm from its spot, the cup 2.7 cm at
+worst (once over the line). Three of the four misses are the cup's reach
+bowing into a pocket where no tag is in view (below). What it took, each found by
+tracing a flight -- the truth beside what the reach holds, read off stored
+values only (a hand's place, read, draws on the joints' noise): 
+
+- *The live trunk stands 2-3 cm behind the statue the planner reaches from.*
+  Standing at the start the shoulders were 1.6-2.1 cm behind their statue's,
+  3.1 cm behind and 1.6 cm aside after the 0.14 m step, and 3.2 cm behind the
+  statue balanced with the arm out at the plate's reach: a posture the plan
+  takes with its 1.5 cm of slack (`reach.REACH_MARGIN_M`) leaves the live arm
+  at its stretch, its elbow straight on its stop and its solve 3-4 cm short.
+  So each of the plate's and the fork's reaches is aimed 3 cm further along
+  the wall or the handle -- still on the piece -- and the hand pulled back to
+  its grip; aimed at the grip itself, the reach stopped 3 cm over it.
+- *A carry takes only a posture its statue reaches, a pull goes on to
+  another.* A `move_hand` whose arm misses re-plans on the statue, which
+  takes the posture it holds again, and ends out of reach; a `pull` going
+  where its arm misses takes another (`posture_for(onward=)`). Every precise
+  move is a pull from where the hand senses itself (`go`, a def of its own),
+  a correction under a pull's least 1 cm a `move_hand` -- skipped, a 1 cm
+  error was the cup's whole margin.
+- *The cup is taken from above, 3 cm short of its middle.* Its approach began
+  3-5 cm from its pre-grasp, where the posture left the hand, and came in on
+  the diagonal: a pad landed on the lid and tipped the cup before the jaws
+  shut. Reached first at 10 cm over its grip, then lowered, it is not clipped
+  -- and at its middle the palm, 4 cm back up the fingers, cut 9 mm into the
+  lid's back (`test_the_tables_grips_clear_what_they_must`). Gripped near its
+  top the cup slid down the jaws on its carry.
+- *Where the cup is, after the reach's posture: the plate's tag.* The
+  stance turns about 1 deg as the reach takes its posture, 8 mm at the cup,
+  0.45 m to the side, where the jaws clear its 70 mm by 1 cm a side; the
+  cup's own tag is out of view from the stance and the card's out of view
+  with the arm out, so the plate's tag, straight ahead, is read again and the
+  cup put where it was from it. Turned by the change in the plate's tag's
+  edges as well, the cup came out worse (+1.35 cm along the place against
+  +0.68): the edges read the turn too coarsely for an offset 0.4 m long.
+- *The planner's bow above the cup has pockets.* At 10 cm over the cup and
+  0.40-0.45 m out the reach takes its 0.3 rad bow, but scattered points 5 mm
+  apart take 0.55 or 0.8 rad, where no tag is in the head camera's view; the
+  reach is aimed 1.5 cm short of the cup's middle, inside the 0.3 rad bow, and
+  where it still bows deeper it withdraws and reaches again 1.5 cm higher --
+  which rescued 2 of the 5 the pod met in 144 flights; the other 3 are its
+  misses.
+- *The plate is gripped 1.5 cm inside its wall.* The fork waits beside it, and
+  at the wall the open outer pad came within 5 mm of the fork's handle and
+  brushed it onto its side; 1.5 cm in, it stays 2 cm off, and the jaws, which
+  close on their middle, slide the plate over until its wall sits between
+  them (its middle then 8.4 cm from the grip, measured).
+- *The fork is squeezed at 25 N.* The gripper's drive chatters -- its force
+  flips between its two clips every 2 ms step, in free air too -- and against
+  a handle 8 mm off its middle the chatter stalled the jaws 2.1 cm apart, the
+  pad bouncing off so light a fork, from 40 N up; from 10 to 35 N they shut
+  on it (each squeeze replayed from one flight's saved state). It is the
+  gripper's model (`parts.DEX1_1.dcmotor`), whatever drives it; the cause is
+  not taken apart. A grip that closes on nothing tries once more, lighter.
+- *Each piece is set down by where its jaws left it, the card read again
+  once it is lifted.* The jaws centre what they hold, so the cup and the fork
+  sit on the grip's line (to 1 mm) and the plate's middle 8.4 cm from it,
+  whatever the hand's own error; the stance turns 0.7-1.9 deg between a read
+  and its set-down, and read before the lift, the plate came down 2.0 cm and
+  the fork 1.3 cm to the diner's left. What the carry's turn still leaves --
+  the plate 1 cm to the diner's left, the fork 0.5 cm toward the card,
+  measured over 24 set-outs -- is set down the other way, and flown over 48.
+  A card read again over the spot, the piece held, bought nothing: the cup
+  then fell over in 5 flights of 24.
+- *An open hand lifts straight up, its jaws opened first* (`wait(0.4)`):
+  carried back as well, its move re-postured and dragged the plate by its
+  wall; lifted while still opening, a pad rolled the fork onto its side.
+
+| on the pod (each set-out its own noise) | places | cup | plate | fork |
+|---|---|---|---|---|
+| our procedure, set-outs 0-31 (the bar: 24, no fall) | **32 of 32** | 32 | 32 | 32 |
+| ...#618's 32 held out | 32 of 32 | 32 | 32 | 32 |
+| ...public 80-127 | 46 of 48 | 46 | 47 | 47 |
+| ...the practice arms' 32 held out | 30 of 32 | 30 | 30 | 30 |
+| the procedure before it, set-outs 0-31 | 0 of 32 | 21 | 18 | 0 |
+| ...#618's 32 held out | 0 of 32 | 19 | 11 | 0 |
+
+The same pod flew our procedure again traced, and its 64 rows came out
+identical to the instrument's. ⚠ A flight is chaotic across machines: locally
+(another CPU) the deep-bow pockets took the cup's reach in a few of every 48.
+
+![Our procedure at the table's set-out 0, from across the table: the cup
+carried by the right hand from above (10-20 s), the plate by the left (30-40
+s) and the fork after it, the waist turned as the reach takes it, all from
+the one stance -- the plate 0.7 cm, the cup 0.8 and the fork 0.5 from where
+each goes (`MUJOCO_GL=osmesa uv run python scripts/hands_check.py --strip
+table 0`; `--view table K` watches one)](figures/hands_table_waist.png)
+
+**What it cannot say.** Every number is one pod's CPU; the place is the
+easy mode's, the dishware a few cm from where #615 set it out; and the
+reference knows the set-out's geometry -- the stance, the plate's wall, the
+cup's height -- as no mind is told.
 
 ## Debugging workflow that worked
 
