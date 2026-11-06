@@ -68,7 +68,9 @@ did well: charges plug in (no `stuck` death, no charge narrated "no charge
 contact"), the hand jobs' grades hold (flown before the deploy on one pod
 over 32 draws from the tour: the door 29 where today's body passed 31; the
 chest 29, 31 and 29 at three paired seeds where today's passed 20, 28 and
-24), and falls a day do not rise -- read off the charges'
+24; each draw its own noise, on another pod, the drawer 31, the door 28 and
+the chest 32: SimNotes, "The waist built"), and falls a day do not rise --
+read off the charges'
 narration, the `death` rows and the jobs' verdicts. The deploy box's speed
 is the management conversation's to read (one joint more on each robot).
 

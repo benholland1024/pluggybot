@@ -288,6 +288,22 @@ the tour, the drawer 7 and 7, the door 8 and 8, the chest 7 and 7. A first
 pod (a Threadripper 3970X) read the same but the door 5 and 5, the table 0
 to 1 and the chest 5 and 5.
 
+**On the waist's body, each set-out its own noise** (#560's seeds stage;
+one pod, a Xeon Gold 6138, osmesa; in brackets the one realization every
+set-out shared before, on the same pod; SimNotes, "The waist built"): of the
+five jobs the lid alone meets the bar.
+
+| job | of 8 | of 32 | the set-outs 0-7 that failed, and why |
+|---|---|---|---|
+| lid | **8** (8) | 22 (22) | |
+| drawer | 5 (5) | 22 (20) | 2, 6, 7: out 8-10 cm, short of 15 |
+| door | 5 (5) | 25 (22) | 0, 3: opened 41-42 deg, a reach or a carry out of reach; 2: opened, a pad still on it after the call |
+| place | 4 (4) | 15 (15) | 0, 1, 6: set down 3 cm from the mat's middle; 7: closed on nothing |
+| table | 0 (0) | 0 (0), and 0 of 32 held out | each a piece 20-23 cm off its place: a reach stopped short or out of reach, or a grip closed on nothing |
+
+The served jobs from the tour, each draw its own noise: the drawer 8 of 8
+and 31 of 32, the door 5 (7) and 28 (30), the chest 8 (6) and 32 (25).
+
 **Our procedures were written against the set-outs they are checked on.**
 The review redrew the drawer's, the door's and the cube's set-outs (each
 now draws off a stream of its own: off one seed, the cube's hidden weight

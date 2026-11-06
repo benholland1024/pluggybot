@@ -425,7 +425,8 @@ save a filmstrip PNG named after the script.
   clockwise over one, which had carried the cube to where our procedure's
   left hand could carry it to its mat; waist16 turns it 0.4 and the cube's
   procedure steps aside too (`hands_check.PLACE`), 19.0 of 32 over three
-  paired seeds where today's body, stepped in alone, placed 18.3. ⚠ THE
+  paired seeds where today's body, stepped in alone, placed 18.3 (each
+  set-out its own noise, 15). ⚠ THE
   LID'S GRIP IS AIMED 2 CM SHORT OF THE KNOB'S MIDDLE, ALONG THE WAY IN
   (`hands_check.LID`; SimNotes, "The chest's grip"; a test pins both
   edges): the pads reach 4 cm past the grip and the rising lid's front edge
@@ -433,8 +434,9 @@ save a filmstrip PNG named after the script.
   they met it at 43 deg, the lift's push turned this body's stance 5 deg
   and its lift ran out of reach, the served chest 18.0 of 32 draws from the
   tour over three paired seeds where today's body passed 24.0; aimed short,
-  29.7 and no fall in 96. Back along the tag's normal it climbs the tilted
-  knob (half the gain); 2.5 cm short, a knob read true leaves the pads.
+  29.7 and no fall in 96, and each draw its own noise 32 of 32 (#560's
+  seeds stage). Back along the tag's normal it climbs the tilted knob (half
+  the gain); 2.5 cm short, a knob read true leaves the pads.
 - **The humanoid is a `Body`, and walks through the Navigator** (#507
   stages 3 and 4; `humanoid/body.py`, `mission.py`, `walk.py`,
   `odometry.py`; SimNotes, "The humanoid behind Body" and "The humanoid
@@ -619,7 +621,11 @@ save a filmstrip PNG named after the script.
   SimNotes, "The station found from far off"); 52 of 52 with it 0.4-1 m
   wrong (#596; staging 51, the miss a plug the port never took); 339 W net;
   the reserve 19.5 Wh, to the nearest station from the park's west sidewalk
-  (18 to the one station before #560).
+  (18 to the one station before #560). On the waist's body, each trial its
+  own noise (#560's seeds stage, one pod; #622's one realization in
+  brackets): 36 of 36 round the standoff at a push each (36), 139 of 140
+  seats (138), 16 of 16 lost near and walked in (16, 16), lost far 114 of
+  123 (112), 8 of its 9 misses across the street.
 - **The humanoid's LIDAR is a Livox Mid-360S, upside down in its head,
   and its map is laid from its points laid flat** (#581; `perception/lidar.py`,
   `HumanoidSpec.lidar_z`, `model._head`, `HumanoidMission._scan`/`maps`,
@@ -738,11 +744,14 @@ save a filmstrip PNG named after the script.
   from the lobby left a robot 28 deg off, and its arm's way home toppled
   it), then turn once off the handle's tag to each prop's `STANCE`, a
   little left of square (squared, the way home pushed the drawer back in).
-  OFFERED: the drawer, the door and the chest, 8, 8 and 7 of 8 over
-  `solve.py --from tour` (the bar 6; on #560's stage (a) pods, before its
-  fixes and after, 7, 8 and 7 on a Xeon and 7, 8 and 5 on a Threadripper), 16 minutes each (3x the slowest
-  pass, 313 s); ⚠ NOT the cube (0 of 8, set down off its mat). Each pays
-  90, Ben's call.
+  OFFERED: the drawer, the door and the chest, 16 minutes each (3x the
+  slowest pass, 313 s), each paying 90 (Ben's call); ⚠ NOT the cube (0 of
+  8, set down off its mat). The bar is 6 of the 8 draws `solve.py --from
+  tour` flies first: on the waist's body, each draw its own noise (#560's
+  seeds stage, one pod), 8, 5 and 8 of them, and 31, 28 and 32 of 32 -- ⚠
+  THE DOOR UNDER ITS BAR AT ITS 8, Ben's call (the one realization every
+  draw shared before, on the same pod: the door 7 of 8 and 30 of 32, the
+  chest 6 and 25; today's body on #560's stage (a) pods: 8, 8 and 7 of 8).
 - **A table set is #560's first task, graded offline and NOT offered**
   (`activity/dishware.py`, `challenge/table.py`, `counter.table_set_out`,
   `hands_check.TABLE`, `practice.py --job table`; Challenges.md §12;
@@ -776,10 +785,11 @@ save a filmstrip PNG named after the script.
   statue `PATH_MARGIN_M` (3.5 cm) ahead, and for a hand that is out on the
   robot as it stands (its measured arm, `LIVE_MARGIN_M`); a carry keeps the
   turn it was ASKED. ⚠ ONE POSTURE A PATH: switching partway jerked lids to
-  81 deg and dropped them at 2.3 rad/s. It opens 23 of 32; its slowest
-  pass at 0f98e24 (22.5 s) set the humanoid task's limit at three times
-  it (`attempts.LIMIT_S`). The humanoid looks lower by bowing
-  (`Body.gaze_routine`).
+  81 deg and dropped them at 2.3 rad/s. It opened 23 of 32 at 0f98e24,
+  whose slowest pass (22.5 s) set the humanoid task's limit at three times
+  it (`attempts.LIMIT_S`); on the waist's body, each chest its own noise,
+  19 (the one realization every chest shared before, 21). The humanoid
+  looks lower by bowing (`Body.gaze_routine`).
 - **The drop-handle chest is demo 1's mechanism, and the humanoids' house's**
   (`activity/chest.py`; since #559 on the storeroom's counter, through
   `home.storeroom` alone): #469's box as an activity, its hidden parameters

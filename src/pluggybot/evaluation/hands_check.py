@@ -195,8 +195,8 @@ DOOR = '''def open_door():
 #: retrained on the waist holds its stance and left it 0.157 -- there the
 #: left hand's carry to the mat ran into its shoulder's inner stop, 10 of 32
 #: placed where 22 were. Stepped aside, the waist's body placed it 19 times
-#: of 32 over three seeds of its noise, today's stepped in alone 18 (SimNotes,
-#: "The cube and the robot's noise"). Gripped steeply from above-front, the
+#: of 32 over three seeds of its noise, today's stepped in alone 18 -- and 15,
+#: each set-out its own noise (SimNotes, "The cube and the robot's noise"). Gripped steeply from above-front, the
 #: jaws on two of its faces, at the first tilt that reaches and holds; lifted
 #: straight up and
 #: set down by force moves that hold their line (`give` 0: a cube set down
