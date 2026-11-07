@@ -10,6 +10,38 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The dining room's tables on legs, and the place's dishware put away in it (#560, the table set built to be served) — opens when this PR is deployed
+
+**What changed in the world** (SimNotes, "The table set served";
+Challenges.md §12):
+- **The restaurant's four dining tables are a top on legs** (each was one
+  box) and table 0's south chair is gone. The house's geometry moved, so the
+  deploy's restart keeps the clock, the packs, the deaths and the jobs and
+  drops both robots' maps and places (`continuation.fingerprint`), History
+  saying so -- as the waist's release did.
+- **The place's dishware is in the world, put away**: a plate, a cup, a fork
+  and a place card a metre under the dining room's floor, their contacts off
+  and their weight held, in a geom group no robot's sensor casts against and
+  no camera draws. Nothing sets it out while no job does. The same walks
+  alternated on one pod ran 0.913-0.916x real time with it, 0.902-0.905x
+  without; the deploy box was not read (its 1.23x median stands).
+- **Nothing the robots read moved**: `set_table` is built and off the
+  rotation (its reference laid 13 of 32, its bar 24), so no row, offer or
+  direction names it; `prompt_sha` stays `45d56c74…` (58,710 chars, 17
+  sections). The house's places now include the card's tag (93), which no
+  robot can see while it is put away.
+
+**Why.** #560's first task to be served: Ben's call on #615 (the
+restaurant's tables first) and his answers of 11-07 (all four tables on
+legs, table 0's south chair away). The job waits on its reference.
+
+**What the period is for.**
+- **The maps dropped**: how long the robots take to lay the house again, and
+  the drift readings after (as after the waist's release).
+- **The dining room re-mapped round tables on legs**: does either robot walk
+  into one, or find a doorway it cannot plan through? Its walks into the
+  restaurant, if any, against the period before.
+
 ### A hand's force reads its body's own motion, a stop on one reads it from 0.1 s into its move, and History says what a stop condition read (#631) — opens when this PR is deployed; released with the waist, it rides with that period and #627's and #630's as one
 
 **What changed in the body's code and in what the robots read** (SimNotes,

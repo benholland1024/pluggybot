@@ -3,9 +3,10 @@ offered job flown the way the robot's own attempt runs and graded by the
 job's own grader -- so a passing verdict here is the verdict a robot would
 be paid for, and a robot that never earns it is a finding about the robot.
 
-  --feature drawer | door | cube | chest
+  --feature drawer | door | cube | chest | table
                     a hand job: `open_drawer`, `open_door`, `place_cube` or
-                    `open_chest` offered on the storeroom's counter as the
+                    `open_chest` offered on the storeroom's counter, or
+                    `set_table` at the restaurant's table (#560), as the
                     cadence offers it -- the area's address and directions,
                     the prop's hidden dynamics drawn afresh (`--draw K`, the
                     board's own sequence where none is given) and the prop
@@ -59,9 +60,28 @@ class _Mind:
   menu = ov.Menu.for_world(HUMANOID_HOME)
 
 
-#: The hand jobs by the feature that flies each: the kind and its prop.
+#: The hand jobs by the feature that flies each: the kind and its target --
+#: a counter's prop, or the restaurant's table (#560).
 HAND_JOBS = {"drawer": ("open_drawer", "drawer"), "door": ("open_door", "door"),
-             "cube": ("place_cube", "cube"), "chest": ("open_chest", "chest")}
+             "cube": ("place_cube", "cube"), "chest": ("open_chest", "chest"),
+             "table": ("set_table", "dining_table_0")}
+
+
+def work_view(target: str) -> tuple[tuple[float, float], list[float], float, float]:
+  """Where a job's work is, (x, y), and a camera on it -- (lookat, distance,
+  azimuth deg): a counter's prop's handle from the robot's left, the side its
+  working hand and the prop are on; the restaurant's place from across its
+  table, where the robot does not stand between the camera and the place
+  (`scripts/hands_check.py`'s strip)."""
+  from pluggybot.evaluation import counter as ct
+  from pluggybot.home import storeroom
+  if target in storeroom.PROPS:
+    hx, hy = storeroom.handle(target)
+    return (hx, hy), [hx - 0.25, hy - 0.15, storeroom.COUNTER_H + 0.1], 2.0, -70.0
+  cx, cy, facing = ct.table_set_out(0).card
+  sx, sy = ct.place_to_world(-ct.TABLE_GAP, 0.0)
+  return ((cx, cy), [0.6 * cx + 0.4 * sx, 0.6 * cy + 0.4 * sy, ct.TABLE_H + 0.15], 1.8,
+          math.degrees(facing) + 20.0)
 #: Where a flight starts, (x, y, heading): in front of its station, the place
 #: a job is taken from, or inside the storeroom's door facing its counter --
 #: or, `tour`, each flight of `--n` at the next of eight places across the
@@ -118,7 +138,6 @@ def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
   sim and wall seconds, the find, the falls, the belief against the truth,
   the noise it drew and the procedures' verbs."""
   from pluggybot.challenge import solutions
-  from pluggybot.home import storeroom
   kind, prop = HAND_JOBS[feature]
   noise = noise_of(kind, start, draw) if noise is None else noise
   wall = time.time()
@@ -136,9 +155,9 @@ def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
         falls.append(round(float(data.time), 1))
     body.step_hooks.append(watch_falls)
     if viewer is not None:
-      hx, hy = storeroom.handle(prop)
-      viewer.cam.lookat[:] = [hx - 0.3, hy - 0.2, storeroom.COUNTER_H + 0.1]
-      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 2.2, -35.0, -22.0
+      _, lookat, distance, azimuth = work_view(prop)
+      viewer.cam.lookat[:] = lookat
+      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = distance + 0.2, azimuth, -22.0
     shots = _HandStrip(life, prop) if strip else None
 
     def fly():
@@ -181,25 +200,23 @@ class _HandStrip:
   TILES, WALK_EVERY_S, WORK_EVERY_S, NEAR_M = 12, 60.0, 4.0, 1.2
 
   def __init__(self, life, prop: str) -> None:
-    from pluggybot.home import storeroom
     self.life, self.model, self.data = life, life.model, life.data
     self.r = mujoco.Renderer(self.model, 300, 400)
     self.tiles: list = []
     self.prop = prop
-    self.hx, self.hy = storeroom.handle(prop)
+    (self.hx, self.hy), self.lookat, self.distance, self.azimuth = work_view(prop)
     self.due = 0.0
     self.near = None
     life.body.step_hooks.append(self.hook)
 
   def _shoot(self, label: str, near: bool) -> None:
     from PIL import Image, ImageDraw
-    from pluggybot.home import storeroom
     m, d = self.model, self.data
     cam = mujoco.MjvCamera()
     if near:
-      # from the robot's left, the side its working hand and the prop are on
-      cam.lookat[:] = [self.hx - 0.25, self.hy - 0.15, storeroom.COUNTER_H + 0.1]
-      cam.distance, cam.azimuth, cam.elevation = 2.0, -70.0, -22.0
+      # on the work (`work_view`)
+      cam.lookat[:] = self.lookat
+      cam.distance, cam.azimuth, cam.elevation = self.distance, self.azimuth, -22.0
     else:
       # from behind, or turned round it where a wall stands in between (a
       # walk just through a doorway was drawn as the wall behind it, from
@@ -298,7 +315,7 @@ def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument("--feature", choices=tuple(HAND_JOBS), default="drawer",
-                      help="the hand job: the drawer, the door, the cube or the chest")
+                      help="the hand job: the drawer, the door, the cube, the chest or the table")
   parser.add_argument("--view", action="store_true", help="watch one flight in the viewer")
   parser.add_argument("--n", type=int, default=1,
                       help="how many draws, from --draw, a process each")

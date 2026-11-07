@@ -103,6 +103,13 @@ Rules the states carry, each decided explicitly:
   own records. The holder is shown each job it holds with the time it has
   left (`heldTasks`, `leftS`) -- a network fact: the board knows when the
   job was taken, as it knows how long an offer stands.
+- **What no job holds is put away** (#560): a job whose things exist only
+  for it -- the restaurant's dishware -- has them set out by its offer and
+  put away (`HubLifecycle._put_away_step`) once no task naming its target is
+  open: lapsed, settled or failed, it is the next sweep's to park. Never
+  from under a robot's hand, which it waits for, as an offer does. The
+  counter's props stay out as the last job left them (`home.jobs`: each
+  area says which).
 - **The board is bounded** (40 held, 6 offered at once), and resolved tasks
   age out oldest-first. An OPEN task is never dropped to make room: dropping a
   job the robot might still do and that job lapsing are different events, and

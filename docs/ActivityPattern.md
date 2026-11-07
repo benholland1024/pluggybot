@@ -154,6 +154,21 @@ Note the state lives in different places, which matters for the shared world:
 geom toggles are **model-global** (every `MjData` sees them), a mocap pose is
 **per-`MjData`**. For two robots in one model, the mocap one is correct.
 
+> **A free body a job sets out is pre-allocated too** (#560, the
+> restaurant's dishware; `activity/dishware.py`, `home/restaurant.py`):
+> every free body costs the physics and every geom a ray, and a served
+> world is compiled once, so it is compiled PUT AWAY -- a metre under the
+> floor, its geoms' contacts off and in the parked group
+> (`perception.cull.PARKED_GROUP`, which every cast leaves out and no camera
+> draws), its weight held (`gravcomp`) -- and an offer sets it out by
+> writing its pose and switching the same fields back (`place`, `park`;
+> the card, which never moves under a hand, a mocap body). ⚠ A BODY'S
+> BROADPHASE MASKS ARE COMPILED FROM ITS GEOMS' (`body_contype`,
+> `body_conaffinity`) and must be switched with them: set out with its
+> geoms' masks alone, the pieces fell through the table and the floor, 4 m
+> in a second. ⚠ Its pose and its fields go together: a live piece left a
+> metre inside the floor's half-space is thrown out of it.
+
 ### 3.5 Poll on the step hook, cheaply
 
 `ActivitySet.step_hook(model, data)` gives one callback for a whole world's

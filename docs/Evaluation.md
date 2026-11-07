@@ -2490,7 +2490,8 @@ there before them: the humanoids' hand jobs, #559, flown by
 `scripts/solve.py --feature drawer|door|cube|chest`, each on a fresh map
 over a tour of the house -- flight k from the next of eight places, its
 prop at draw k -- the bar, 6 of 8 as the checks', written before they
-flew; Challenges.md §11). **Ladder B — a model-equipped robot finds one:**
+flew; Challenges.md §11; and the restaurant's table, #560, `--feature
+table`, its bar 24 of 32 draws, Challenges.md §12). **Ladder B — a model-equipped robot finds one:**
 a LOCAL flight on the `autonomous` arm with the deployed prompt and model,
 the feature's phrase put in the inbox at mission start as a visitor's message,
 and the run read into one word (used / errored / refused / garbled /
