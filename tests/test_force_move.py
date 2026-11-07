@@ -251,7 +251,7 @@ def test_the_reachs_own_loop_runs_a_pull_as_a_force_move(monkeypatch):
   monkeypatch.setattr(rc.friction, "taken", lambda *a: 0.0)
   monkeypatch.setattr(rc.friction, "taken_by", lambda *a: 0.0)
   r._pose, r._trim = (lambda arms=None: None), (lambda dt: None)
-  r.self_model.hand_force = lambda side, tau: np.zeros(3)
+  r.self_model.hand_force = lambda side, tau, motion=None: np.zeros(3)
   r.tau = r.qd = np.zeros(64)
   r.friction = None
   r.arms = {s: NS(command=lambda *a: None) for s in hm.SIDES}

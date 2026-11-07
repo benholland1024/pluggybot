@@ -1506,7 +1506,7 @@ class Reach:
   def step(self) -> None:
     for g in self.grippers.values():
       g.sample()
-    self.motion.sample(self.steps, self.stand.joints, self.d)
+    self.motion.sample(self.steps, self.stand, self.d)
     if self.steps % self.every == 0:
       self._update(self.every * self.m.opt.timestep)
     self.steps += 1
@@ -1800,7 +1800,7 @@ class Reach:
     it (`arms.Motion`, #631): every hand's arm alone, then the whole body's
     for those at work, standing (`FELT_PHASES`)."""
     sm = self.self_model
-    motion = self.motion.read(sm, self.qd, self.stand.trunk)
+    motion = self.motion.read(sm, self.qd, self.stand)
     tau = self.tau.copy()
     tau[sm.waist] -= friction.taken_by(self.friction, hm.WAIST, self.qd[sm.waist])
     for s in hm.SIDES:

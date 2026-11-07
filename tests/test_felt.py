@@ -43,16 +43,14 @@ def _posed(arm=STRAIGHT, sides=("left",)):
   return sm, q
 
 
-def _staged(sm, pushes, twists=None):
-  """Every joint's torque as its driver would read it, still, with each hand
-  of `pushes` pushing that (N) and twisting `twists`' (N*m) on what it holds
-  and the soles holding the rest: G = S^T tau + sum J^T w, the soles' share
-  the least that balances the trunk."""
+def _staged(sm, pushes, twists=None, motion=None):
+  """Every joint's torque as its driver would read it, still -- or moving as
+  `motion` says (#631) -- with each hand of `pushes` pushing that (N) and
+  twisting `twists`' (N*m) on what it holds and the soles holding the rest:
+  M a + C + G = S^T tau + sum J^T w, the soles' share the least that
+  balances the trunk."""
   m, d = sm.m, sm.d
-  d.qvel[:] = 0.0
-  mujoco.mj_comVel(m, d)
-  bias = np.zeros(m.nv)
-  mujoco.mj_rne(m, d, 0, bias)
+  bias = sm._held(motion)
   outside = np.zeros(m.nv)
   for side, push in pushes.items():
     jp, jr = np.zeros((3, m.nv)), np.zeros((3, m.nv))
@@ -135,19 +133,24 @@ def test_a_balance_that_does_not_close_reads_nothing():
   assert sm.felt(["left"], tau, _still(sm)) == {}
 
 
-def _feeling(phase, standing, felt=2.0, friction=None, qd=None):
+def _feeling(phase, standing, felt=2.0, friction=None, qd=None, motion=None):
   r = _bare_reach()
   n = len(hm.JOINT_NAMES)
   r.tau, r.qd, r.still = np.zeros(n), np.zeros(n) if qd is None else qd, np.zeros(n)
   r.friction = friction or {}
   r.force = {s: np.zeros(3) for s in hm.SIDES}
-  r.self_model.hand_force = lambda side, tau: np.array([1.0, 0.0, 0.0])
-  r.handed = []
+  r.handed, r.moved = [], []
+  r.motion = NS(read=lambda sm, qd, stand: motion)
 
-  def felt_(hands, tau, still):
+  def hand_force(side, tau, motion=None):
+    r.moved.append(("arm", motion))
+    return np.array([1.0, 0.0, 0.0])
+
+  def felt_(hands, tau, still, motion=None):
     r.handed.append(tau.copy())
+    r.moved.append(("body", motion))
     return {} if felt is None else {s: np.array([felt, 0.0, 0.0]) for s in hands}
-  r.self_model.felt = felt_
+  r.self_model.hand_force, r.self_model.felt = hand_force, felt_
   r.phase["left"], r.standing = phase, standing
   r._feel()
   return r
@@ -231,3 +234,105 @@ def test_turned_at_the_waist_a_push_reads_as_staged_and_the_waists_driver_is_a_r
   tau[sm.waist[0]] += 2.0
   assert np.linalg.norm(sm.felt(["left"], tau, still)["left"] - base) > 0.3
 
+
+
+# ---- 5. the body's own motion (#631) ------------------------------------------------
+
+
+def _moving(sm):
+  """A motion like a reach's swing out: the left arm's joints turning and
+  speeding up, the trunk swaying and accelerating as it answers."""
+  nv = sm.m.nv
+  qvel, qacc = np.zeros(nv), np.zeros(nv)
+  arm = sm.vadr[sm.arm["left"]]
+  qvel[arm] = (0.8, 0.2, -0.3, 0.5, 0.1, 0.0)
+  qacc[arm] = (12.0, -4.0, 6.0, 9.0, 3.0, 1.0)
+  qvel[3:6], qacc[3:6], qacc[0:3] = (0.05, 0.1, 0.0), (0.4, -0.6, 0.2), (0.3, -0.1, 0.2)
+  return qvel, qacc
+
+
+def test_a_body_moving_with_nothing_at_its_hand_reads_its_motion_not_a_push():
+  """#631: taken as still, the torques that swing an arm out and sway the
+  trunk read as a push at the hand -- 12-14 N on a reach that touched
+  nothing, and a stop at 3 N stopped it by the robot's side. Staged moving
+  with nothing at the hand, the whole body and the arm alone read nothing
+  given the motion, and read it as a push without it; a push staged on the
+  moving body reads as staged."""
+  sm, _ = _posed()
+  motion, still, arm = _moving(sm), _still(sm), sm.arm["left"]
+  tau = _staged(sm, {}, motion=motion)
+  assert np.linalg.norm(sm.felt(["left"], tau, still, motion)["left"]) < 0.1
+  assert np.linalg.norm(sm.hand_force("left", tau[arm], motion=motion)) < 0.1
+  assert np.linalg.norm(sm.felt(["left"], tau, still)["left"]) > 3.0
+  assert np.linalg.norm(sm.hand_force("left", tau[arm])) > 3.0
+  push = np.array([0.0, 10.0, -5.0])
+  tau = _staged(sm, {"left": push}, motion=motion)
+  assert np.allclose(sm.felt(["left"], tau, still, motion)["left"], push, atol=0.1)
+
+
+def test_the_reach_hands_its_senses_motion_to_both_readings():
+  """Read once a command (`arms.Motion.read`), the same motion goes to the
+  arm's own reading and the whole body's."""
+  motion = (np.ones(3), np.zeros(3))
+  r = _feeling("hold", standing=True, motion=motion)
+  assert {k for k, _ in r.moved} == {"arm", "body"}
+  assert all(m is motion for _, m in r.moved)
+
+
+def test_the_motion_is_read_off_the_drivers_speeds_and_the_imu():
+  """`arms.Motion` (#631): with nothing to difference, nothing -- the body
+  taken as still; then each arm's and the waist's acceleration their
+  drivers' speeds differenced over `MOTION_STEPS` physics steps, kept that
+  many before a read and at no other step, the legs' left still; the
+  trunk's turn rate off the gyro and its change since the last read; and
+  its acceleration off the accelerometer less gravity, in the stance frame.
+  A restart carries what it keeps, and a save from before keeps none."""
+  sm, _ = _posed()
+  every, h = 5, 0.002
+  mo = ha.Motion(every, h)
+  speeds = {"now": np.zeros(len(hm.JOINT_NAMES))}
+  trunk = NS(rate=np.zeros(3), accel=np.array([0.0, 0.0, 9.81]))
+  stand = NS(joints=NS(speeds=lambda data: speeds["now"].copy()), trunk=trunk)
+  assert mo.read(sm, speeds["now"], stand) is None
+  for step in range(every):
+    speeds["now"] = np.full(len(hm.JOINT_NAMES), 0.01 * step)
+    mo.sample(step, stand, None)
+  assert np.allclose(mo.speeds_was, 0.01 * (every - ha.MOTION_STEPS))
+  trunk.rate = np.array([0.0, 0.1, 0.0])
+  qd = mo.speeds_was + 0.02
+  qvel, qacc = mo.read(sm, qd, stand)
+  moved = sm.vadr[ha.Motion.MOVED]
+  assert np.allclose(qacc[moved], 0.02 / (ha.MOTION_STEPS * h)) and np.allclose(qvel[moved], qd[0])
+  legs = sm.vadr[np.concatenate([sm.leg[s] for s in hm.SIDES])]
+  assert not qvel[legs].any() and not qacc[legs].any()
+  assert np.allclose(qvel[3:6], trunk.rate) and np.allclose(qacc[3:6], (0.0, 0.1 / (every * h), 0.0))
+  assert np.allclose(qacc[0:3], 0.0, atol=1e-9)
+  back = ha.Motion(every, h)
+  back.restore_kept(mo.kept_state())
+  assert np.array_equal(back.speeds_was, mo.speeds_was) and np.array_equal(back.rate_was, mo.rate_was)
+  old = ha.Motion(every, h)
+  old.restore_kept({})
+  assert old.read(sm, qd, stand) is None
+
+
+def test_a_reach_keeps_its_motion_across_a_restart_and_reads_speeds_without_noise():
+  """The reach's motion rides its kept state (#345: a restart's flight is
+  the flight); and the drivers' speeds it samples between reads draw
+  nothing on their noise -- `read`'s own speed field, its streams unmoved."""
+  from pluggybot.humanoid.policy import StandDriver
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  stand = StandDriver(model, data)
+  r = rc.Reach(model, data, stand)
+  r.motion.speeds_was, r.motion.rate_was = np.arange(len(hm.JOINT_NAMES)) * 0.1, np.ones(3)
+  again = rc.Reach(model, data, StandDriver(model, data))
+  again.restore_kept(r.kept_state())
+  assert np.array_equal(again.motion.speeds_was, r.motion.speeds_was)
+  assert np.array_equal(again.motion.rate_was, r.motion.rate_was)
+  data.qvel[:] = np.linspace(-1.0, 1.0, model.nv)
+  streams = stand.joints.kept_state()
+  speeds = stand.joints.speeds(data)
+  assert stand.joints.kept_state() == streams
+  assert np.array_equal(stand.joints.read(data)[1], speeds)

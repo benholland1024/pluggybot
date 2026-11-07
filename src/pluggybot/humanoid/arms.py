@@ -336,16 +336,17 @@ class SelfModel:
 
 
 #: THE BODY'S OWN MOTION IS IN ITS HANDS' READING (`Motion`, #631): taken
-#: as still, a hand moving in free air read up to 16 N as a reach swung its
-#: arm out and 20 N as a carry began -- the motors' torques that move the
-#: arm and sway the trunk, read as a push -- and a stop condition on a force
-#: stopped a reach before its hand left the robot's side. The joints whose
-#: motion it takes are the arms' and the waist's (`MOVED`), each one's
-#: acceleration its driver's speeds differenced over this many physics steps
-#: (`MOTION_STEPS`): over one, a speed field's count read as a few rad/s^2,
-#: the reach's swing 8 N off; over a control period, the arm's start was 5 ms
-#: late, 12 N; with the trunk's, the reach read 5.5 N at most. The legs' are
-#: left still: their accelerations so read cost more than they took off.
+#: as still, a hand moving in free air read 12-14 N as a reach swung its arm
+#: out and 14-16 as a carry or a pull began -- the motors' torques that move
+#: the arm and sway the trunk, read as a push -- and a stop condition on a
+#: force stopped a reach before its hand left the robot's side. With the
+#: simulator's own accelerations the balance read 1-4 N, so the rest is the
+#: estimate's. The joints whose motion it takes are the arms' and the
+#: waist's (`Motion.MOVED`), each one's acceleration its driver's speeds
+#: differenced over this many physics steps: over one, a speed field's count
+#: (0.01-0.024 rad/s) is a few rad/s^2, and Luca's reach read 8 N; over a
+#: control period, 5 ms late, 12.5 N on its way in; over two, 5.5. The legs'
+#: are left still: taken in, they moved one move's worst of 18 by 2 N.
 MOTION_STEPS = 2
 
 
@@ -369,18 +370,19 @@ class Motion:
     self.speeds_was: np.ndarray | None = None
     self.rate_was: np.ndarray | None = None
 
-  def sample(self, steps: int, joints, data) -> None:
+  def sample(self, steps: int, stand, data) -> None:
     """Once a physics step, before a read on step `steps` of the reach's
     count (`every` steps a read): the joints' speeds where they will be
-    differenced from."""
+    differenced from, as `stand`'s drivers report them (`JointSense.speeds`)."""
     if (steps + MOTION_STEPS) % self.every == 0:
-      self.speeds_was = joints.speeds(data)
+      self.speeds_was = stand.joints.speeds(data)
 
-  def read(self, sm: SelfModel, qd: np.ndarray, trunk) -> tuple | None:
+  def read(self, sm: SelfModel, qd: np.ndarray, stand) -> tuple | None:
     """(speeds, accelerations) in `sm`'s dofs as it is posed (`pose`), off
-    the joints' speeds `qd` as just read and the IMU (`trunk`,
+    the joints' speeds `qd` as just read and `stand`'s IMU (its `trunk`,
     `policy.TrunkSense`) -- None where a reading is missing (the first read,
     a restart's from before #631): the body then taken as still."""
+    trunk = stand.trunk
     rate = np.asarray(trunk.rate, dtype=float)
     was, self.rate_was = self.rate_was, rate.copy()
     if self.speeds_was is None or was is None or trunk.accel is None:

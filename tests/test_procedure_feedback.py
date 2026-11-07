@@ -159,6 +159,44 @@ def test_tests_that_read_false_are_said_line_by_line_within_historys_cap():
   assert cut(310).endswith("y" * 310 + " (9 steps had run)")
 
 
+def test_what_a_stop_condition_read_is_said_beside_its_run():
+  """#631, Luca's drawer (11-03 on): `reach(..., until="right.fx",
+  above=3)` stopped 0.18 s in, its hand by its side, and History said only
+  that the run reached its end -- `reach.stopped` read 1, Luca read every
+  stop as its hand meeting the drawer's face, and shut its jaws on air
+  thirteen times. Each line's stop condition is said as practice's report
+  says it -- what it read, past which number, how far into the move -- and
+  one that never had a reading says so, after the tests that read false; a
+  move that ended otherwise says nothing of its condition."""
+  reach = {"verb": "reach", "line": 3, "ok": True, "why": "until"}
+  steps = [{"i": 0, **reach, "until": "right.fx read 3.626 (above 3) 0.18 s in"},
+           {"i": 1, "verb": "close_hand", "line": 4, "ok": True},
+           {"i": 2, "verb": "pull", "line": 6, "ok": True, "why": "distance",
+            "until": "watch.z above 1.05 never had a reading: tag 53 has not been seen "
+                     "since `watch` began"},
+           {"i": 3, "verb": "move_hand", "line": 7, "ok": True, "why": "arrived"},
+           {"i": 4, **reach, "until": "right.fx read 3.9 (above 3) 0.21 s in"},
+           {"verb": "measure", "line": 8, "ok": False, "tested": True,
+            "reason": "no flat top seen round (1, 0) from where you stand"}]
+  [line] = lc.procedure_outcome("drawer_run3", {"ok": True, "completed": 5, "total": 5,
+                                                "steps": steps})
+  assert line == ("ran the procedure drawer_run3 to its end (5 steps; 1 test read false -- "
+                  "line 8, measure: no flat top seen round (1, 0) from where you stand; 3 stop "
+                  "conditions said -- line 3, reach (2 times): right.fx read 3.626 (above 3) "
+                  "0.18 s in; line 6, pull: watch.z above 1.05 never had a reading: tag 53 has "
+                  "not been seen since `watch` began)")
+  # ...a run cut short says them too, and none where no move had a condition
+  [line] = lc.procedure_outcome("p", {"ok": False, "completed": 1, "total": 2, "failedAt": 1,
+                                      "steps": steps[:1] + [{"i": 1, "verb": "close_hand",
+                                                             "line": 4, "ok": False,
+                                                             "reason": "nothing held"}]})
+  assert line.endswith("(1 step had run; 1 stop condition said -- line 3, reach: right.fx "
+                       "read 3.626 (above 3) 0.18 s in)"), line
+  [line] = lc.procedure_outcome("p", {"ok": True, "completed": 1, "total": 1,
+                                      "steps": [steps[3]]})
+  assert line == "ran the procedure p to its end (1 step)"
+
+
 def test_a_procedure_out_of_budget_says_first_that_it_did_not_finish():
   """MEASURED (ladder B, 2026-09-24): the line said "(4/4 steps) -- it ran
   out of the time its budget gave it", the model read "all four steps

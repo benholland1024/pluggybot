@@ -420,9 +420,12 @@ def _bare_reach():
   r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
   # the whole body's reading off: the senses here are a test's stubs, not a
-  # body's (`_feel`'s own tests turn it on)
+  # body's (`_feel`'s own tests turn it on) -- and the body taken as still
+  # (#631: `arms.Motion`'s own tests are `test_felt`'s)
   r.standing = False
   r.arm_force = {s: np.zeros(3) for s in hm.SIDES}
+  r.motion = NS(read=lambda sm, qd, stand: None, sample=lambda *a: None)
+  r.stand, r.d = NS(), None
   return r
 
 

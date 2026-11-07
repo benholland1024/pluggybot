@@ -535,7 +535,9 @@ def stops_said(steps: list, room: int) -> str:
   `tests_read_false` says its tests. Told only `reach.stopped` 1, a robot
   read a reach its force stopped 0.18 s in, by its side, as its hand
   meeting a drawer's face, and shut its jaws on air thirteen times."""
-  said = [s for s in steps if s.get("until") and (s.get("why") == "until" or "never" in s["until"])]
+  # a move's verdict carries `until` only where it stopped on it, or where
+  # it never had a reading (`steps._said`)
+  said = [s for s in steps if s.get("until")]
   return _by_line(f"{len(said)} stop condition{'' if len(said) == 1 else 's'} said", said,
                   lambda s: s["until"], room)
 

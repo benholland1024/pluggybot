@@ -70,15 +70,17 @@ HAND_EVERY_S = 0.01
 #: A HAND'S FORCE AS A MOVE BEGINS READS THE MOVE (#631): a stop condition on
 #: one reads it from this far into the move, s. Its motion taken into the
 #: reading (`humanoid.arms.Motion`), a carry's or a pull's first commands
-#: still read 6-13 N for 20-30 ms in free air -- a carry starts from where
-#: the hand IS, a step off its hold -- where a reach's swing reads under 4.
+#: still read up to 11 N for 20-30 ms in free air (a carry at 0.2 m/s; 4-8
+#: the rest) -- a carry starts from where the hand IS, a step off its hold.
 FORCE_FROM_S = 0.1
 #: ...and after that a hand moving through free air reads up to this, N, on
-#: any one axis: flown on a bare floor, 12 reaches, carries and pulls, either
-#: hand, read 9.5 at most (a reach up to 1.2 m, on its way in) and 4-6 in
-#: most. Taken as still, the same moves read 12-15 as a reach swung out and
-#: 20 as a carry began, and a stop at 3 N stopped a reach by the robot's side.
-MOVING_N = 10.0
+#: any one axis: flown on a bare floor (`humanoid_spike.py --moving`), 18
+#: reaches, carries and pulls, either hand, read 10.4 at most -- a reach to
+#: the floor in a deep bow, and a carry that took another posture on its way
+#: -- and under 6.6 in the rest. Taken as still, the same moves read 12-14 N
+#: as a reach swung out and 14-16 as a carry or a pull began, and a stop at
+#: 3 N stopped a reach by the robot's side (Luca's, 11-03 on).
+MOVING_N = 12.0
 
 
 def _ramp(actuator: str, settle: float = 0.5):
