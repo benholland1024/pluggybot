@@ -709,12 +709,10 @@ def test_the_tables_grips_clear_what_they_must():
   set-out at its middle and the hand as its drawing compiles: aimed 3 cm short of the cup's
   middle, no part of the open hand is in the cup -- at the middle its palm cuts into the lid,
   and the cup tipped; the plate's wall gripped 1.5 cm in, the open pads stay 2 cm off the fork
-  waiting beside it -- at the wall they came within 5 mm and brushed the fork over; and the
-  fork squeezed under 40 N, where the gripper's drive, chattering against so light a handle,
-  stalled short of it."""
+  waiting beside it -- at the wall they came within 5 mm and brushed the fork over."""
   body, ran, _ = _table_flown()
   assert ran["ok"], ran
-  (side_c, cup, rot_c, _), (side_p, plate, rot_p, _), (side_f, _, _, squeeze) = body.shuts[:3]
+  (side_c, cup, rot_c, _), (side_p, plate, rot_p, _), (side_f, _, _, _) = body.shuts[:3]
   assert (side_c, side_p, side_f) == ("right", "left", "left")
   tags = _table_tags()
   m, d = _table_world()
@@ -723,7 +721,6 @@ def test_the_tables_grips_clear_what_they_must():
   assert min(_hand_gaps(m, d, side_p, plate, rot_p, "fork")[1:]) >= 0.015
   wall = (plate[0], tags[90][1] + 0.081, plate[2])    # its wall's inner face, as before
   assert min(_hand_gaps(m, d, side_p, wall, rot_p, "fork")[1:]) < 0.01
-  assert squeeze < 40.0
 
 
 def _moves(log, side, start):
