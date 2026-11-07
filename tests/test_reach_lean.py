@@ -44,10 +44,11 @@ def test_the_plans_statue_stands_where_the_robot_reads_itself_standing():
   arm's loop poses it (its joints as read, its arms as commanded, its IMU)
   reads its lean, and the statue posed so stands each shoulder within 4 mm
   of where it truly stood -- where the statue the plan stood on before
-  (balanced over its soles' middle, its arms hanging) stood them 1.6-6 cm
-  off, the live trunk behind it (#627)."""
+  (balanced over its soles' middle, its arms hanging) stood them 1.5-6 cm
+  off, the live trunk behind it (#627); asked the deepest bow, the policy
+  holds less of it, and posed as asked, a shoulder stood 1.1 cm off."""
   states = json.loads(FIXTURE.read_text())["states"]
-  assert set(states) == {"stand", "stepped", "plate"}
+  assert set(states) == {"stand", "bow", "stepped", "plate"}
   for name, st in states.items():
     live, planner = SelfModel(), SelfModel()
     live.pose(np.array(st["q"]), np.array(st["gravity"]))
@@ -63,6 +64,28 @@ def test_the_plans_statue_stands_where_the_robot_reads_itself_standing():
     rc.stands(planner, st["posture"], Q0)
     off = max(float(np.abs(p - true[s])[:2].max()) for s, p in _shoulders(planner).items())
     assert off > 0.015, (name, off)
+
+
+def test_a_reach_reads_its_lean_off_its_model_of_itself(monkeypatch):
+  """The lean a reach plans on is its model of itself as its arm's loop
+  last posed it (`Reach._lean`) -- never its joints read again -- here as it
+  stood after a step with its other arm out of the way, 1.7 cm of its weight
+  behind its soles' middle; and none before its first reading."""
+  st = json.loads(FIXTURE.read_text())["states"]["stepped"]
+  r = _standing_reach()
+  assert r._lean() is None
+  r.self_model.pose(np.array(st["q"]), np.array(st["gravity"]))
+  for k, s in enumerate(hm.SIDES):
+    r.q_cmd[s] = np.array(st["arms"][6 * k:6 * k + 6])
+    r.self_model._set_arm(s, r.q_cmd[s])
+  r.sensed, r.posture = np.array(st["q"]), np.array(st["posture"], dtype=float)
+  lean = r._lean()
+  assert lean is not None and -0.02 < lean.com < -0.014, lean
+  seen = []
+  monkeypatch.setattr(rc, "plan", lambda *a, **kw: seen.append(kw) or None)
+  r.plans("left", PLATE)
+  assert seen and seen[0]["lean"] == lean
+  assert all(seen[0]["arms"][f"right_{j}"] == v for j, v in zip(hm.ARM, r.q_cmd["right"]))
 
 
 def _floor():

@@ -849,7 +849,7 @@ def friction_table(write: bool = False) -> None:
 
 
 #: `--lean --write` keeps the robot's own reading of itself and the truth at
-#: three of its states here (#627), which `tests/test_reach_lean.py` reads.
+#: four of its states here (#627), which `tests/test_reach_lean.py` reads.
 LEAN_FIXTURE = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "lean_states.json"
 #: The table's other arm held out of the way, as its procedure's `move`s hold
 #: the right one (`hands_check.TABLE`), and the plate's grip as its first
@@ -913,7 +913,7 @@ def lean_table(write: bool = False) -> None:
   BEFORE the arm went out (the lean the first plan takes; the reach looks
   again once it is out, `Reach._look`); what the robot's own model says;
   and the centre of mass over the soles' middle, true and read. `--write`
-  keeps three states for `tests/test_reach_lean.py`."""
+  keeps four states for `tests/test_reach_lean.py`."""
   from pluggybot.body import body_for
   from pluggybot.humanoid import reach as reach_
   from pluggybot.humanoid.arms import HandGoal, SelfModel, frame
@@ -959,7 +959,7 @@ def lean_table(write: bool = False) -> None:
     for h, p in reach_.POSTURES[1:]:
       body.reach.hold_posture(h, p)
       settle()
-      sample(f"posture ({h}, {p})")
+      sample(f"posture ({h}, {p})", keep="bow" if (h, p) == reach_.POSTURES[-1] else None)
     body.reach.hold_posture(0.0, 0.0)
     settle()
     lean = body.reach._lean()
@@ -1005,7 +1005,7 @@ def lean_table(write: bool = False) -> None:
     LEAN_FIXTURE.write_text(json.dumps({
       "about": "the humanoid's own reading of itself (its joints as its drivers read them, "
                "the arms as commanded, its IMU's gravity) and its TRUE shoulders in the true "
-               "stance frame, at three states: scripts/humanoid_spike.py --lean --write (#627)",
+               "stance frame, at four states: scripts/humanoid_spike.py --lean --write (#627)",
       "states": kept}, indent=1) + "\n")
     print(f"kept in {LEAN_FIXTURE}")
 
@@ -4424,7 +4424,7 @@ def main(argv=None) -> None:
                        "(--write keeps it in models/humanoid_friction.json)")
   ap.add_argument("--lean", action="store_true",
                   help="the live trunk against the statue a reach plans on: the stand, each posture, "
-                       "an arm out, after a step, the table's plate (--write keeps three states for "
+                       "an arm out, after a step, the table's plate (--write keeps four states for "
                        "tests/test_reach_lean.py)")
   ap.add_argument("--write", action="store_true", help="--friction: keep the table; --lean: its states")
   ap.add_argument("--mass", action="store_true", help="the mass budget beside the T2's")
