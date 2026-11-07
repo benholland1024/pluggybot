@@ -764,7 +764,10 @@ save a filmstrip PNG named after the script.
   seeds stage, one pod), 8, 5 and 8 of them, and 31, 28 and 32 of 32 -- ⚠
   THE DOOR UNDER ITS BAR AT ITS 8, Ben's call (the one realization every
   draw shared before, on the same pod: the door 7 of 8 and 30 of 32, the
-  chest 6 and 25; today's body on #560's stage (a) pods: 8, 8 and 7 of 8).
+  chest 6 and 25; today's body on #560's stage (a) pods: 8, 8 and 7 of 8;
+  the reach planned where the robot stands, on #627's pod: 8, 8 and 8 and
+  30, 29 and 32 of 32, where the tree before it flew 8, 7 and 8 and 30, 28
+  and 32).
 - **A table set is #560's first task, graded offline and NOT offered**
   (`activity/dishware.py`, `challenge/table.py`, `counter.table_set_out`,
   `hands_check.TABLE`, `practice.py --job table`; Challenges.md §12;
@@ -802,7 +805,11 @@ save a filmstrip PNG named after the script.
   81 deg and dropped them at 2.3 rad/s. It opened 23 of 32 at 0f98e24,
   whose slowest pass (22.5 s) set the humanoid task's limit at three times
   it (`attempts.LIMIT_S`); on the waist's body, each chest its own noise,
-  19 (the one realization every chest shared before, 21). The humanoid
+  19 (the one realization every chest shared before, 21), and 20 since the
+  reach plans where the robot stands (#627's pod, where the tree before it
+  opened 19). ⚠ IT AIMS AT THE KNOB'S MIDDLE, WHICH THE REACH NOW GETS TO:
+  13 of its 40 grips did not hold (1 of 29 before, its hand arriving 2 cm
+  short, where the lid check aims on purpose; so aimed, 23). The humanoid
   looks lower by bowing (`Body.gaze_routine`).
 - **The drop-handle chest is demo 1's mechanism, and the humanoids' house's**
   (`activity/chest.py`; since #559 on the storeroom's counter, through
