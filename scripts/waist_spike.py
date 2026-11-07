@@ -709,8 +709,9 @@ CARRY_STEP_M, LIFT_M = 0.02, 0.05
 
 
 def carry_points(pick, put) -> list[np.ndarray]:
-  """Our procedure's carry (`hands_check.TABLE`): the piece lifted, carried
-  straight across at that height, and set down where it goes."""
+  """Our procedure's carry before the waist's (`hands_check.TABLE_STANCES`): the
+  piece lifted, carried straight across at that height, and set down where it
+  goes."""
   a = np.asarray(pick, dtype=float) + (0.0, 0.0, LIFT_M)
   b = np.asarray(put, dtype=float) + (0.0, 0.0, LIFT_M)
   n = max(1, math.ceil(float(np.linalg.norm(b - a)) / CARRY_STEP_M))
@@ -922,7 +923,8 @@ def band_tasks(kinds) -> list[dict]:
           for k in kinds for g in ("down", "t45", "t60") for x in BAND_X for y in BAND_Y]
 
 
-#: Our table procedure's reaches (`hands_check.TABLE`), stance frame at the
+#: Our table procedure's reaches before the waist's (`hands_check.TABLE_STANCES`;
+#: `TABLE` lays the place from one stance since), stance frame at the
 #: start (the soles' middle 13 cm out of the edge, on the place's line), the
 #: set-out's middle (`counter.TABLE_SOURCES`, undrawn): each piece's grip
 #: where it is picked up and where it is set down, its hand, and the step

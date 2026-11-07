@@ -207,8 +207,9 @@ def strip(job: str, k: int, out: str = "hands_check.png", noise: str | None = No
   sx, sy, _ = world.start
 
   def shoot(label):
-    # From the side, between the prop and the robot; the headlight brighter
-    # for this tile alone -- the robot's own cameras render in the house's light.
+    # From the side, between the prop and the robot (the table's from across it,
+    # `AZIMUTH`); the headlight brighter for this tile alone -- the robot's own
+    # cameras render in the house's light.
     cam = mujoco.MjvCamera()
     cam.lookat[:] = [0.6 * x + 0.4 * sx, 0.6 * y + 0.4 * sy, ct.COUNTER_H + 0.15]
     cam.distance = BACK[_prop(job)]

@@ -5938,9 +5938,9 @@ a stance a piece) laid none at 0-31 or at #618's there. It was tuned on
 public set-outs 32-79 (46 of 48, locally), never on those it was read at.
 Laid, a piece rests a median 0.4-0.7 cm from its spot, the cup 2.7 cm at
 worst (once over the line). Three of the four misses are the cup's reach
-bowing into a pocket where no tag is in view (below). What it took, each found by
-tracing a flight -- the truth beside what the reach holds, read off stored
-values only (a hand's place, read, draws on the joints' noise): 
+bowing into a pocket where no tag is in view (below). What it took, each
+found by tracing a flight -- the truth beside what the reach holds, read off
+stored values only (a hand's place, read, draws on the joints' noise):
 
 - *The live trunk stands 2-3 cm behind the statue the planner reaches from.*
   Standing at the start the shoulders were 1.6-2.1 cm behind their statue's,
@@ -5962,9 +5962,10 @@ values only (a hand's place, read, draws on the joints' noise):
   3-5 cm from its pre-grasp, where the posture left the hand, and came in on
   the diagonal: a pad landed on the lid and tipped the cup before the jaws
   shut. Reached first at 10 cm over its grip, then lowered, it is not clipped
-  -- and at its middle the palm, 4 cm back up the fingers, cut 9 mm into the
-  lid's back (`test_the_tables_grips_clear_what_they_must`). Gripped near its
-  top the cup slid down the jaws on its carry.
+  -- and at its middle the palm, 4 cm back up the fingers, cuts into the
+  lid's back, 6 mm with the set-out at its middle (the open hand as its
+  drawing compiles, `test_the_tables_grips_clear_what_they_must`). Gripped
+  near its top the cup slid down the jaws on its carry.
 - *Where the cup is, after the reach's posture: the plate's tag.* The
   stance turns about 1 deg as the reach takes its posture, 8 mm at the cup,
   0.45 m to the side, where the jaws clear its 70 mm by 1 cm a side; the
@@ -5977,9 +5978,11 @@ values only (a hand's place, read, draws on the joints' noise):
   0.40-0.45 m out the reach takes its 0.3 rad bow, but scattered points 5 mm
   apart take 0.55 or 0.8 rad, where no tag is in the head camera's view; the
   reach is aimed 1.5 cm short of the cup's middle, inside the 0.3 rad bow, and
-  where it still bows deeper it withdraws and reaches again 1.5 cm higher --
-  which rescued 2 of the 5 the pod met in 144 flights; the other 3 are its
-  misses.
+  where it still bows deeper it withdraws, reads the tag again and reaches
+  1.5 cm higher and 0.5 cm on -- which rescued 2 of the 5 the pod met in 144
+  flights. The other 3 are its misses: the second reach bowed too, neither
+  read after a reach saw the tag, and the hand, brought down where the read
+  before the first reach put the cup, shut on nothing.
 - *The plate is gripped 1.5 cm inside its wall.* The fork waits beside it, and
   at the wall the open outer pad came within 5 mm of the fork's handle and
   brushed it onto its side; 1.5 cm in, it stays 2 cm off, and the jaws, which
