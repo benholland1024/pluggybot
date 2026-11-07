@@ -25,10 +25,11 @@ SimNotes "Where `measure` looks"):
   saying why ("object.near has no reading: your last `measure` looked
   within 0.45 m of (0.9, 0), and the top it saw runs on past that toward
   you"), and the verdict names it (`runsOn`). A top the window holds whole
-  reads as it did.
+  reads as it did; an end it holds only in part may go with the rim's (8
+  of 42 at the probe's set-outs, 4 of which had read true).
 - **The floor is no top**: under 6 cm is the floor's (`box.FLOOR_M`, 1 cm
   before), and bare floor reads "no flat top seen", where it read a top
-  1.5-2.6 cm up.
+  1.2-2.6 cm up.
 - **An `object.*` read with no number says why**, and names the sensor:
   after a `measure` that saw no top, "object.top has no reading: your last
   `measure` saw no flat top round (x, y) from where you stood", where it

@@ -1486,10 +1486,10 @@ def _sees(cloud, pose=(0.0, 0.0, 0.0)) -> Sees:
   return body
 
 
-#: Where the head's D435 is in the stance frame, standing, m (`humanoid.
-#: model`: 0.0775 ahead of the hip axes and 0.535 over them), and how far it
-#: looks down, rad.
-D435_AT, D435_PITCH = np.array([0.08, 0.0, 1.24]), math.radians(40.0)
+#: Where the head's D435 is in the stance frame at the stand, m, and how far
+#: it looks down, rad: its `depth_eye` on the robot's model of itself
+#: (`arms.SelfModel` posed at `stand_qpos`, 2026-11-07).
+D435_AT, D435_PITCH = np.array([0.045, 0.0, 1.26]), math.radians(40.0)
 
 
 def _seen(points, rng) -> np.ndarray:
@@ -1533,7 +1533,7 @@ def test_measure_never_reads_its_windows_rim_as_where_a_top_ends():
 
 def test_measure_sees_no_top_in_the_floor_its_camera_lifts():
   """#630: the D435's noise lifts the floor's own points -- 6-9 mm at 1.3-
-  1.6 m -- and a window of bare floor read as a flat top 1.5-2.6 cm up
+  1.6 m -- and a window of bare floor read as a flat top 1.2-2.6 cm up
   (Rowan's chest_diag: 0.0168 m, "garbage"). Under `box.FLOOR_M` is the
   floor's, and a real top over it still reads."""
   from pluggybot.perception import box

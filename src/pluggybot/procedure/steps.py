@@ -559,9 +559,11 @@ MEASURE_NEAR_M = 0.45
 #: ...and an end read off points whose median stands within this of the
 #: window's rim, m, is the window's, never the top's: no reading (#630:
 #: from (0.9, 0) a counter's near end read the rim, 0.453-0.456 m, however
-#: the robot stepped). Tops that ran on past the window put them 0.9-2.6
-#: cm inside it at the drawer's set-outs 0 and 3, ends it held whole 3.7
-#: cm and more; an end it holds only in part goes with the window's.
+#: the robot stepped). At the drawer's set-outs 0 and 3, the 24 ends the
+#: window cut stood 0.9-2.0 cm inside it, the 28 it held whole 3.9 cm and
+#: more; one it holds only in part falls either side, and 8 of 42 went
+#: with the window's, 4 of them read true (SimNotes, "Where `measure`
+#: looks").
 MEASURE_RIM_M = 0.03
 #: Its ends: the stance frame's axis each lies along, whether it is that
 #: axis's far end, and which way the top runs on past it.

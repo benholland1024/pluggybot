@@ -6046,22 +6046,27 @@ from the reference's stance, on the live body:
 - **The window's rim.** A top that runs on past the window ends, in its
   points, at the rim: from (0.9, 0) Luca's counter read `object.near`
   0.453-0.456 however it stepped, and it crept on that into the counter;
-  at set-out 0 the cabinet on the counter read its near end 0.46 there
-  and its left 0.358 (truly 0.40). The points an end is read off
-  (`box.edge_read`) stood, at their median, 0.9-2.6 cm inside the rim
-  where the window cut the top -- 2.6 where it held the counter's far edge
-  over 7 cm of its length, read 0.814 of its 0.821 -- and 3.7 cm and more
-  where it held the end whole; on a synthetic top, an end 2 cm inside the
-  rim put them 2.5-3.1 cm in, and one 3 cm inside 3.1-4.1. So an end whose
-  points stand within `MEASURE_RIM_M` (3 cm) of the rim is no reading, and
-  its read says the top runs on past the window that way; a true end
-  within about 2 cm of the rim goes with it, and reads from nearer.
+  at set-out 0 the cabinet on the counter read its near end 0.46 there.
+  Of 96 ends read from 12 points at set-outs 0 and 3, each against the
+  true edge of the top it was (the cabinet stands turned 5-9 deg), the
+  points an end is read off (`box.edge_read`) stood, at their median,
+  0.9-2.0 cm inside the rim at the 24 ends the window cut short, and 3.9 cm
+  and more at the 28 whose edge it held whole. At the 42 whose edge it held
+  only in part they stood 1.5-34 cm in, and where the camera saw that part
+  the reading was its: the cabinet's turned left edge from (0.9, 0), a
+  fifth of it held, read 0.358 where it lies at 0.357-0.361. So an end whose points stand within
+  `MEASURE_RIM_M` (3 cm) of the rim, halfway between, is no reading, and
+  its read says the top runs on past the window that way. That costs 8 of
+  the 42 held in part, 4 of which read within 4 mm, and on a synthetic top
+  an end 2 cm inside the rim put its points 2.5-3.1 cm in and one 3 cm
+  inside 3.1-4.1: a true end within about 2 cm of the rim goes with the
+  window's, and reads from nearer.
 - **The floor.** The D435's noise moves a point along its ray by 0.0036 z²
   of its axial depth (`depth.NOISE_K`), which lifts the floor's own points:
-  windows of bare floor 1.2-2.8 m off held 12 000-61 000 points, spread
-  7-13 mm about a level 0-7 mm over the true floor, the highest 3.2-5.3 cm
-  up and at most 8 over 5 cm. Counted from 1 cm, their tail's highest bin
-  holding a quarter of its fullest stood 1.5-2.6 cm up, and every window
+  windows of bare floor 1.5-3.0 m off held 12 000-61 000 points, spread
+  7-13 mm about a level within 7 mm of the true floor, the highest 3.2-5.3
+  cm up and at most 8 over 5 cm. Counted from 1 cm, their tail's highest
+  bin holding a quarter of its fullest stood 1.2-2.6 cm up, and every window
   read as a flat top there (Rowan's chest_diag read 0.0168 m). From 6 cm
   (`box.FLOOR_M`) none does, and a box's top 0.10 m up still reads.
 

@@ -1189,7 +1189,7 @@ shut its jaws on nothing three tries running. So:
   never a shortcut past the strategy (Ben, 2026-10-19); an arm with it is
   still never pooled with the arms without it. ⚠ Since #630 an end the top
   runs on past its 0.45 m window is no reading, and the floor is no top
-  (6 cm up at least), where before they read the window's rim and 1.5-2.6
+  (6 cm up at least), where before they read the window's rim and 1.2-2.6
   cm: a top the window held whole reads as it did, a wider one not, so an
   arm whose robots measured a counter or a table is not pooled across it.
 

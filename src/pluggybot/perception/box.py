@@ -59,8 +59,8 @@ FRAMES, APART_S = 3, 0.1
 
 #: A point this near the floor is floor, m: the D435's noise lifts the
 #: floor's own points nearly this high at its 3 m reach (#630: windows of
-#: bare floor 1.2-2.8 m off held 12 000-61 000 points, none over 5.3 cm; at
-#: 0.01 every one read as a top 1.5-2.6 cm up).
+#: bare floor 1.5-3.0 m off held 12 000-61 000 points, none over 5.3 cm; at
+#: 0.01 every one read as a top 1.2-2.6 cm up).
 FLOOR_M = 0.06
 #: The top's heights are binned this fine, m; the top is the highest bin
 #: holding this share of the fullest; a point within `TOP_BAND_M` of its

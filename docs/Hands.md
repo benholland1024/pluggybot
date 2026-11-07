@@ -485,7 +485,7 @@ there (§4's "A tag watched while the robot moves").
 - **Tell where a top ends from where its look ended, but at its window.**
   `measure` refuses an end at its own window's rim (#630), but the
   picture's edge and a taller thing in front still read as ends: standing
-  where it works at the counter, the counter's front (0.22 m ahead) reads
-  0.26, where the picture's bottom edge meets the counter's height; and the
-  counter beside a cabinet ends where the cabinet hides it (SimNotes,
-  "Where `measure` looks").
+  where it works at the counter, the counter's front (0.22-0.24 m ahead)
+  reads 0.26, where the picture's bottom edge meets the counter's height;
+  and the counter beside a cabinet ends where the cabinet hides it
+  (SimNotes, "Where `measure` looks").
