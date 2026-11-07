@@ -6494,7 +6494,9 @@ its noise; the table, over eight draws a tree, 221 of 256 against 222,
 reach taking a deeper posture with the fork still in the air and driving
 it into the table, a posture any flight may reach). The served drawer,
 door and chest from the tour, 64 draws each, 60, 58 and 61 against 57, 56
-and 60. Not the chatter's: the squeeze's running mean
+and 60; the table from the tour (not offered), 44 of 128 against 52, 24
+draws won and 32 lost, most of them its walk landing out of the lay's
+window before any grip. Not the chatter's: the squeeze's running mean
 (`arms.SQUEEZE_S`) -- held, the drive's squeeze is steady under either
 inertia (sd 0.000 N) and what the gripper reports spreads 5.3 N, its
 current sense's stated 5.1 -- and the lever that could not turn at 120 N,
@@ -6502,13 +6504,13 @@ its pads' torsional friction (Hands.md).
 
 **The practice arms' grips on nothing (#560, PR #642).** The two DeepSeek
 arms' 70 tries flown again, each from its set-out, its noise and its
-source, on the tree before this fix (it moved the table's set-out under
-the served table since, #643; the tries came out alike, 98 grips and 54 on
-nothing, where the arms had 100 and 56), and each grip landed again from
-the state it began in under the drive as it was and as fixed: 13 were the
-stall -- the fixed drive held where the old closed on nothing, every one the
-plate's wall at 100-120 N -- 41 were misses, no piece between the jaws
-under either, and 43 held under both. One, at 120 N, held under the old
+source, on the tree before this fix -- whose table stands where the
+served one does since the arms flew (#643), and the tries came out alike,
+98 grips and 54 on nothing, where the arms had 100 and 56 -- and each grip
+landed again from the state it began in under the drive as it was and as
+fixed: 13 were the stall -- the fixed drive held where the old closed on
+nothing, every one the plate's wall at 100-120 N -- 41 were misses, no
+piece between the jaws under either, and 43 held under both. One, at 120 N, held under the old
 drive alone: its chattering jaws caught the fork by chance where the clean
 shut met nothing. So of their failed grips at 40 N and up, a quarter were
 the drive's and three quarters their own reaches'.
