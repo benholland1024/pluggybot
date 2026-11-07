@@ -60,7 +60,8 @@ UPRIGHT_RAD, FORK_RAD = math.radians(10.0), math.radians(15.0)
 DROP_M_S = 0.5
 #: The hold and the default time, the lid's.
 HOLD_S, TIME_LIMIT_S = lid.HOLD_S, lid.TIME_LIMIT_S
-#: The card's body (`dishware.attach_card`).
+#: The card's body (`dishware.attach_card`): the one place's, at whichever
+#: table a job names (the restaurant's table 0 today, `home.restaurant`).
 CARD = "place_card"
 
 
@@ -103,11 +104,12 @@ def _bottom(model, data, name: str) -> float:
   return lo
 
 
-def measure(model, data, card: str = CARD) -> dict:
+def measure(model, data, table: str | None = None) -> dict:
   """One snapshot of the pieces against the place, as the grader sees it:
   each piece's offset from its spot, m, its bottom over the table's top, m,
-  its tilt, deg, and the fork's turn off the place's line, deg."""
-  origin, toward, left, top = place_frame(model, data, card)
+  its tilt, deg, and the fork's turn off the place's line, deg. `table`, a
+  job's target, names where the place is laid; its card is `CARD`."""
+  origin, toward, left, top = place_frame(model, data, CARD)
   out: dict = {"t": float(data.time)}
   for p in PIECES:
     b = model.body(p).id
@@ -132,7 +134,7 @@ class Watch:
   `hold` -- what of the robot touched a piece. Off the true state. The robot
   never sees it."""
 
-  def __init__(self, model, data, body=None) -> None:
+  def __init__(self, model, data, body=None, table: str | None = None) -> None:
     self.model, self.data, self.body = model, data, body
     self.ids = {p: int(model.body(p).id) for p in PIECES}
     self.dofs = {p: int(model.jnt_dofadr[model.joint(f"{p}_free").id]) for p in PIECES}

@@ -334,10 +334,11 @@ address, and directions that name the storeroom, the counter, the row's
 four tags and the handle's own -- never a position. **Each offer draws its
 prop's hidden dynamics afresh** (`TaskKind.draws`: the board's own
 sequence number, `Task.secret["draw"]`), set into the compiled world as the
-offer lands with the prop set back out (`HubLifecycle._set_out_counter`,
-`storeroom.redraw`, `storeroom.set_out`), its activity begun again over
-the draw's truth (`renew`), and put back after a restart
-(`restore_counter`, the prop's newest offer on the board's own count, never
+offer lands with the prop set back out (`HubLifecycle._set_out_job`,
+`storeroom.set_out`; the counter is one of `home.jobs`' areas, §12's table
+the other), its activity begun again over the draw's truth (`renew`), and
+put back after a restart (`restore_jobs`, the prop's newest offer on the
+board's own count, never
 by its stamp: TaskPattern.md §1, "The lifecycle", #610; and set out again
 where the world came back from before its offer, `set_out_unseen`:
 Webserver.md): a skill over a kind of drawer, never one drawer. ⚠ No
@@ -392,8 +393,55 @@ line too since (§10, Ben's call): read at every step, it failed two cubes
 held fast while the carry's posture swung the hand down at 0.6-1.0 m/s
 (SimNotes, "Setting a table").
 
-**The departure from the checks' rows: none** -- `shown: false`, paying 0;
-no world offers it until Ben's word.
+**The practice's row: none departs** -- `table` is `shown: false`, paying
+0, as the checks' rows are.
+
+**Built to be served, and NOT offered: `set_table`** -- its reference laid
+13 of the 32 draws its bar asks 24 of (below). It is the counter's jobs'
+shape, through the same seams, generalised over the counter's props and the table
+(`home.jobs`: each area's members, `HubLifecycle._set_out_job`,
+`restore_jobs`, `_worked_props`): a procedure job, its target the dining
+room's table 0 (`dining_table_0`, the table's own body), graded by this
+check's evaluator under a row of its own, from the claim to the hold after
+`done`. Its departures are §11's -- the watch from the claim (a fall
+anywhere fails it, and so does a free piece's drop), the job's own minutes
+from the claim (`tasks.TABLE_MINUTES`: three times its reference's slowest
+pass over the tour, rounded up), failed when held past them -- and two of
+its own:
+
+- *Its place is the set-out's, and its things are put away between jobs.*
+  The dining room's four tables are a top on legs and table 0's south chair
+  is away (`home.world`), so the set-out's table is the served one. The
+  dishware is compiled into the house PUT AWAY (`home.restaurant`): a metre
+  under the floor, its contacts off, its weight held, in the group no
+  sensor casts against. An offer sets it out where the set-out of its draw
+  lays it -- the board's own count, `Task.secret["draw"]`, its weights and
+  friction `dishware.draw(k)`'s -- and once no task naming the table is
+  open (lapsed, settled, failed) the next sweep puts it away, never from
+  under a robot's hand (`_put_away_step`).
+- *It is paid for its time* (Ben's call, 2026-11-07): the counter's 90 for
+  their 16 minutes, times its minutes over 16, rounded, so a robot choosing
+  by the minute is not steered off it.
+
+The offer says where by the area's terms (#419): the mall's address and the
+restaurant's directions, naming the table, the card's tag (93) and the
+pieces' (90-92), and that the card faces south -- never a position. Its
+sentence states this check's criteria, within a description's 420
+characters; its row's detail carries all of them.
+
+**Its hand-written solution** (`challenge/solutions.py`, `TABLE`): the walk
+to the place, then this check's procedure from its one stance, its first
+step aside taken from where the card reads across the robot
+(`TABLE_LAY_STEP`) -- the check's procedure was tuned from its set-out's
+start and holds only near it, so the walk lands it there: an oblique look
+at the card, its one turn asked a little wide, its last step straight ahead
+(SimNotes, "The table set served", has what flying took). Offered once it
+passes the bar written before it flew -- 24 of 32 draws over the tour, no
+fall, each draw its own noise, on one pod -- and it laid 13: every walk
+arrived, and the check's procedure, tuned from its set-out's exact start,
+holds only within a degree or two and a centimetre or two of it (turned
+right, its fork's carry runs out of its posture; turned or stood left, the
+cup leaves its first look), which this body's `step` does not land.
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.

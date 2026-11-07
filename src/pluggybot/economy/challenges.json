@@ -17,7 +17,8 @@
     "`ticket` (issue #284) is not a challenge and not an offer: it is what a support ticket the robot opened pays once the people who run the world CLOSE it -- a bug, an idea, a question or feedback about the world, judged worth attention by a person and not by code. It sits here for the tower's reason (the desk is a mind's alone). Paid once per ticket, at the close; a deleted ticket pays nothing and leaves no row. The figure is a design decision to be re-tuned as data (Ben, 2026-09-21: 25, because a ticket a person judged worth closing is worth a good job; left out of #321's +10 because a close is a person's decision, not a job); the cap of three open per robot and a person's close are what keep it from being a living.",
     "`lid` (issue #493) is demo 1's verdict: #466's chest opened past 57 deg and its lid set down -- lowered, never let fall -- shut and let go, within 300 s, and with no fall, the hands checks' rows below too (Ben, 2026-10-25, #544: a fall was lost time from 2026-10-17, and learned skills leaned on it). It is graded here and PAID NOTHING (base 0): an attempt in the demo's harness is practice, graded by the world (Ben, 2026-10-10). It is `shown: false`, the one row a mind is never shown: the chest is in no served world, and a row in the table is the prompt changed. `catchN` is secret: the catch is one of the chest's hidden numbers.",
     "`table` (issue #560, its first task) is a place laid at a dining table: a plate, a fork and a cup each at its spot at a place card, set down, let go, within the set-out's time, with no fall. It is practiced offline, as the hands' checks are, and PAID NOTHING and `shown: false` for their reason: no world offers it until Ben's word.",
-    "`open_drawer`, `open_door`, `place_cube` and `open_chest` (issue #559, stage 3) are the humanoids' first jobs: the hands' four capability checks set into the house, on the storeroom's counter, each graded by its check's evaluator (the `drawer`, `door`, `place` and `lid` rows' -- which stay the practice's, unpaid) from the claim, a fall failing it, to a hold after `done`. Each pays 90, the tower's base, by decision (Ben's call, open: a written procedure doing a mechanism's job by hand). `shown: false` keeps them out of the quadruped's table, which is every row; a world that offers one shows its row (`RewardTable.as_context(kinds=)`). `catchN` is secret on the chest's, as on the lid's."
+    "`open_drawer`, `open_door`, `place_cube` and `open_chest` (issue #559, stage 3) are the humanoids' first jobs: the hands' four capability checks set into the house, on the storeroom's counter, each graded by its check's evaluator (the `drawer`, `door`, `place` and `lid` rows' -- which stay the practice's, unpaid) from the claim, a fall failing it, to a hold after `done`. Each pays 90, the tower's base, by decision (Ben's call, open: a written procedure doing a mechanism's job by hand). `shown: false` keeps them out of the quadruped's table, which is every row; a world that offers one shows its row (`RewardTable.as_context(kinds=)`). `catchN` is secret on the chest's, as on the lid's.",
+    "`set_table` (issue #560) is the restaurant's first job: the table check's place laid at the dining room's table 0, graded by the `table` row's evaluator (which stays the practice's, unpaid) from the claim to a hold after `done`. It is paid for its time (Ben's call, 2026-11-07): 90, the counter's jobs' pay for their 16 minutes, times its minutes over 16, rounded, so a robot choosing by the minute is not steered off it. `shown: false` as the counter's: a world that offers it shows its row, and none does yet -- its reference laid 13 of the 32 draws its bar asks 24 of (Challenges.md §12)."
   ],
   "tasks": {
     "program": {
@@ -106,6 +107,13 @@
       "secret": [
         "catchN"
       ]
+    },
+    "set_table": {
+      "tier": "auto",
+      "base": 68,
+      "bonus": 0,
+      "shown": false,
+      "detail": "Lay the place at the card on the restaurant's table, within the minutes the job gives from when you take it, without falling: from the foot of the card's face along the line toward you, the plate's middle on the line 19 cm out; the fork 19 cm out and 16 cm to the line's left, along it within 15 degrees, its head toward the card; the cup 7 cm out and 24 cm to the line's right. Each must rest on the table within 2.5 cm of where it goes, the plate and the fork flat and the cup upright within 10 degrees, each set down -- no piece nothing of yours holds may come down faster than 0.5 m/s -- and let go of. Graded on where the pieces rest when you say you are done and 5 s later, on what touches them in between and on whether you fell since you took the job; how you move them is up to you."
     }
   }
 }

@@ -816,9 +816,10 @@ class HubLifecycle:
     # nothing else to do, and closes each one with the SAME verdict that pays
     # for it -- there is no second judgement of a task anywhere.
     self.tasks = tasks
-    # THE COUNTER'S PROPS (#559): a hand job's offer is the moment its prop
-    # is set out, the hidden dynamics it drew put into the world as the
-    # offer lands, off the board's own event (`_set_out_counter`).
+    # A JOB'S THINGS (#559, #560): a hand job's offer is the moment its
+    # counter's prop or its table's dishware is set out, the hidden dynamics
+    # it drew put into the world as the offer lands, off the board's own
+    # event (`_set_out_job`).
     if tasks is not None:
       tasks.on_event.append(self._task_offered)
     # ...and the thing that PUTS jobs on it (issue #23). Optional again, and
@@ -4509,88 +4510,114 @@ class HubLifecycle:
       charged_wh=self.charged_wh, reserve_wh=self.low_battery_wh,
       cost_wh=errand.estimate_wh or None)
 
-  def _counter_activity(self, prop: str):
-    """The prop's activity in this world's set, or None (a pair's second
-    robot keeps none: the world's activities are the first's)."""
+  def _target_activity(self, target: str):
+    """A job target's activity in this world's set -- a counter's prop's, the
+    table's place's (`home.jobs`) -- or None (a pair's second robot keeps
+    none: the world's activities are the first's)."""
     for act in (self.activities or ()):
-      if act.name == prop:
+      if act.name == target:
         return act
     return None
 
   def _task_offered(self, msg: dict) -> None:
-    """The board's `task_offered` hook: a hand job's prop set out for the
+    """The board's `task_offered` hook: a job's things set out for the
     offer. Any other event is not ours."""
     if msg.get("type") != "task_offered" or self.tasks is None:
       return
-    self._set_out_counter(self.tasks.get(str((msg.get("task") or {}).get("id", ""))))
+    self._set_out_job(self.tasks.get(str((msg.get("task") or {}).get("id", ""))))
 
-  def _set_out_counter(self, task) -> None:
-    """A hand job's offer sets its prop out (#559): the prop back at rest,
-    its hidden dynamics drawn afresh -- the offer's secret draw
-    (`storeroom.redraw`) -- and its activity begun again over that draw's
-    truth (the door latched, the lid caught). No offer lands on a prop a
-    robot is touching (`_worked_props`): set out from under a hand, a door
-    was clamped shut round it, and a drawer left out was a job paid for
-    nothing. Silent for any other kind; idempotent, as a pair hooks one
-    board twice."""
+  def _set_out_job(self, task) -> None:
+    """A hand job's offer sets its things out (#559, #560; `home.jobs`): a
+    counter's prop back at rest, the table's dishware where the draw lays it
+    out, their hidden dynamics drawn afresh -- the offer's secret draw -- and
+    the activity begun again over that draw's truth (the door latched, the
+    lid caught). No offer lands on things a robot is touching
+    (`_worked_props`): set out from under a hand, a door was clamped shut
+    round it, and a drawer left out was a job paid for nothing. Silent for
+    any other kind; idempotent, as a pair hooks one board twice."""
     from pluggybot.economy.tasks import KINDS
+    from pluggybot.home import jobs
     if task is None or task.kind not in KINDS or not KINDS[task.kind].draws:
       return
-    from pluggybot.home import storeroom
-    prop, k = task.target, task.secret.get("draw")
-    if prop not in storeroom.PROPS or k is None or \
-        mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) < 0:
-      self._say(f"TASK {task.id}: this world has no {prop} to set out")
+    target, k = task.target, task.secret.get("draw")
+    area = jobs.area_of(target)
+    if area is None or k is None or not area.present(self.model):
+      self._say(f"TASK {task.id}: this world has no {target} to set out")
       return
-    storeroom.set_out(self.model, self.data, prop)
-    storeroom.redraw(self.model, self.data, prop, int(k))
-    act = self._counter_activity(prop)
+    area.set_out(self.model, self.data, target, int(k))
+    act = self._target_activity(target)
     if act is not None:
-      act.renew(self.model, storeroom.drawn(prop, int(k)))
-    self._say(f"TASK {task.id}: the {prop} is set out")
+      act.renew(self.model, area.drawn(target, int(k)))
+    self._say(f"TASK {task.id}: the {target} is set out")
 
   def _worked_props(self) -> set:
-    """The storeroom counter's props a robot is touching now (#559): no
-    target for an offer until it lets go. Asked only when an offer is due
-    (`TaskProducer.tick`'s `busy`)."""
-    from pluggybot.home import storeroom
-    if mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "store_counter") < 0:
-      return set()
+    """The job targets whose things a robot is touching now (#559, #560;
+    `home.jobs`): no target for an offer until it lets go, and nothing is
+    put away from under it. Asked only when an offer is due (`TaskProducer.
+    tick`'s `busy`) or something is to be put away."""
+    from pluggybot.home import jobs
     if self._robot_geoms is None:
       self._robot_geoms = set()
       for root in robot_roots(self.model):
         self._robot_geoms |= robot_geoms(self.model, root)
-    return {p for p in storeroom.PROPS
-            if storeroom.touched_by(self.model, self.data, p, self._robot_geoms)}
+    return {t for area in jobs.AREAS if area.present(self.model) for t in area.TARGETS
+            if area.touched_by(self.model, self.data, t, self._robot_geoms)}
 
-  def restore_counter(self) -> None:
-    """After a restart (#559): the world file carries each prop's compiled
-    draw, and the newest offer on it still means the one it drew -- its
-    dynamics put back and its activity begun again over its truth. ⚠ NEWEST
-    ON THE BOARD'S OWN COUNT (`Task.number`), never by `createdT`: after
-    11-01's start-over, t_0004's offer on the door was stamped on the clock
-    before it, and every restart put its draw back on the door for the rest
-    of the door's job then, t_0042 (#610). ⚠ HERE, IN `begin`, BEFORE A
-    CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
+  def _put_away_step(self) -> None:
+    """What no job holds put away (#560; `home.jobs`): the table's dishware
+    parked once its offer lapsed or its job was settled -- a free body costs
+    the physics and a geom every ray -- never from under a robot's hand,
+    which it waits for. The world's: a pair's robots share its activities,
+    and whichever looks first puts away (put away, it is left)."""
+    from pluggybot.home import jobs
+    held = {t.target for t in self.tasks.open_tasks()}
+    worked = None
+    for area in jobs.AREAS:
+      if not area.present(self.model):
+        continue
+      for target in area.TARGETS:
+        if target in held or area.away(self.model, self.data, target):
+          continue
+        worked = self._worked_props() if worked is None else worked
+        if target in worked:
+          continue
+        area.put_away(self.model, self.data, target)
+        self._say(f"the {target}'s things are put away: no job holds it")
+
+  def restore_jobs(self) -> None:
+    """After a restart (#559, #560): the world file carries each target's
+    compiled draw, and the newest offer on it still means the one it drew --
+    its dynamics put back and its activity begun again over its truth; and
+    where that offer is still open, its things set out (the table's dishware
+    is compiled put away), the continuation then putting them where the world
+    left them. ⚠ NEWEST ON THE BOARD'S OWN COUNT (`Task.number`), never by
+    `createdT`: after 11-01's start-over, t_0004's offer on the door was
+    stamped on the clock before it, and every restart put its draw back on
+    the door for the rest of the door's job then, t_0042 (#610). ⚠ HERE, IN
+    `begin`, BEFORE A CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
     (`continuation.restore`): the prop where the world left it, a door's
     latch as it was."""
-    from pluggybot.home import storeroom
-    for prop, t in self._newest_offers().items():
+    from pluggybot.home import jobs
+    for target, t in self._newest_offers().items():
       k = int(t.secret["draw"])
-      storeroom.redraw(self.model, self.data, prop, k)
-      act = self._counter_activity(prop)
+      area = jobs.area_of(target)
+      if t.open:
+        area.set_out(self.model, self.data, target, k)
+      else:
+        area.redraw(self.model, self.data, target, k)
+      act = self._target_activity(target)
       if act is not None:
-        act.renew(self.model, storeroom.drawn(prop, k))
+        act.renew(self.model, area.drawn(target, k))
 
   def set_out_unseen(self, seen: int | None) -> list[str]:
     """After a continuation, once its world is back (`continuation.restore`):
-    each counter prop whose newest offer the saved world never saw -- one
+    each job target whose newest offer the saved world never saw -- one
     numbered past `seen`, the board's count when it was saved, made between
     that save and a crash -- set out for it now, as the offer did
-    (`_set_out_counter`). Put back as saved, a drawer the last job left out
+    (`_set_out_job`). Put back as saved, a drawer the last job left out
     stood out under the standing offer, a job paid for nothing. Never one a
     robot is touching (the producer's `busy`); nothing for a save from
-    before it kept the count (`seen` None). Returns the props set out."""
+    before it kept the count (`seen` None). Returns the targets set out."""
     unseen = [(prop, t) for prop, t in self._newest_offers().items()
               if seen is not None and t.number > seen]
     if not unseen:
@@ -4600,23 +4627,23 @@ class HubLifecycle:
       if prop in worked:
         self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved")
         continue
-      self._set_out_counter(t)
+      self._set_out_job(t)
       out.append(prop)
     return out
 
   def _newest_offers(self) -> dict:
-    """Each counter prop in this world, with its newest offer that drew --
-    newest on the board's own count (`Task.number`, #610): the one the prop
-    was last set out for."""
+    """Each job target in this world (`home.jobs`), with its newest offer
+    that drew -- newest on the board's own count (`Task.number`, #610): the
+    one its things were last set out for."""
     from pluggybot.economy.tasks import KINDS
-    from pluggybot.home import storeroom
+    from pluggybot.home import jobs
     newest: dict = {}
     for t in (self.tasks.tasks.values() if self.tasks is not None else ()):
       if t.kind in KINDS and KINDS[t.kind].draws and t.secret.get("draw") is not None:
         if t.target not in newest or t.number >= newest[t.target].number:
           newest[t.target] = t
-    return {prop: t for prop, t in newest.items() if prop in storeroom.PROPS
-            and mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) >= 0}
+    return {target: t for target, t in newest.items()
+            if (area := jobs.area_of(target)) is not None and area.present(self.model)}
 
   def _task_step(self) -> None:
     """Put up whatever is due and lapse whatever nobody got to.
@@ -4655,6 +4682,10 @@ class HubLifecycle:
       for task in self.producer.tick(float(self.data.time), self.fundable_wh,
                                      busy=self._worked_props):
         self._say(f"TASK {task.id} offered: {task.description}")
+    # ...and what no job holds now put away (#560), where the world's
+    # activities are
+    if self.activities is not None:
+      self._put_away_step()
 
   def _metabolism_step(self) -> None:
     """Get hungrier, and say so when that means something new (issue #36).
@@ -5910,7 +5941,7 @@ class HubLifecycle:
     mujoco.mj_forward(self.model, self.data)
     # The world file knows nothing of the counter's draws (#559), which an
     # open offer on the board still names.
-    self.restore_counter()
+    self.restore_jobs()
     # ...and the jobs the last restart failed are said out loud, here,
     # because the board loaded them before any hook existed to hear it
     # (issue #345 keeps the rest).
@@ -6259,9 +6290,12 @@ def home_activities(model, data):
   from pluggybot.activity.station import Station, station_names
   acts += [Station(model, data, name) for name in station_names(model)]
   # ...and the storeroom counter's props, where the world has it (#559,
-  # stage 3): the chest's catch and the door's latch are physics they apply
-  from pluggybot.home import storeroom
+  # stage 3): the chest's catch and the door's latch are physics they apply;
+  # and the restaurant's place, its dishware put away until a job sets it
+  # out (#560)
+  from pluggybot.home import restaurant, storeroom
   acts += storeroom.activities(model, data)
+  acts += restaurant.activities(model, data)
   return ActivitySet(acts)
 
 
@@ -6330,9 +6364,10 @@ def task_board(state: str | None = None, table=None, cadence=None,
 
 def _hand_grader(check: str):
   """A hand job's check (`tasks.HAND_JOBS`'s value): its grader's module.
-  The prop it grades is the job's target."""
-  from pluggybot.challenge import door, drawer, lid, place
-  return {"drawer": drawer, "door": door, "place": place, "lid": lid}[check]
+  The thing it grades is the job's target: a counter's prop, or the table a
+  place is laid at."""
+  from pluggybot.challenge import door, drawer, lid, place, table
+  return {"drawer": drawer, "door": door, "place": place, "lid": lid, "table": table}[check]
 
 
 def world_targets(world: str, book=None, procedures: bool = False,
@@ -6358,12 +6393,13 @@ def world_targets(world: str, book=None, procedures: bool = False,
   targets: dict[str, list[str]] = {}
   if procedures and robots:
     targets["robot"] = [str(name) for name in robots if name]
-  # ...and the storeroom counter's props (#559, the humanoids' hand jobs):
-  # each its own kind of target -- a drawer, a door, a chest, a cube --
-  # named only where a procedure can be written
+  # ...and its hand jobs' targets (#559, #560; `home.jobs`): the storeroom
+  # counter's props, each its own kind -- a drawer, a door, a chest, a cube
+  # -- and the restaurant's table, named only where a procedure can be
+  # written
   if procedures:
-    for prop in cfg.get("counter") or ():
-      targets.setdefault(prop, []).append(prop)
+    for target, kind in (cfg.get("jobs") or {}).items():
+      targets.setdefault(kind, []).append(target)
   return targets
 
 
@@ -6778,10 +6814,11 @@ def world_config(world: str) -> dict:
     raise ValueError(f"unknown world {world!r} ({HUMANOID_HOME}; the quadruped's "
                      f"home_quad left with it in #559, the rover's in #376)")
   from pluggybot.home import world as home
-  from pluggybot.home import storeroom
+  from pluggybot.home import jobs
   from pluggybot.home.areas import area_ids
   from pluggybot.humanoid import world as humanoid_world
-  from pluggybot.perception.tags import BOARD_TAG_IDS, COUNTER_TAG_IDS, PLATE_TAG_IDS
+  from pluggybot.perception.tags import (BOARD_TAG_IDS, COUNTER_TAG_IDS, PLACE_TAG_IDS,
+                                         PLATE_TAG_IDS)
   return {
     "model": "models/home_world.xml", "model_name": HUMANOID_HOME,
     "body": "humanoid",
@@ -6806,14 +6843,16 @@ def world_config(world: str) -> dict:
     "lab_shown": {"name": "lab"},
     # ...the task areas' tags its robots find and remember (#419; the
     # humanoid's `find`, #559's stage 3): the house's -- the lab's plate
-    # signs, the whiteboards' and the areas' -- and the storeroom counter's
-    # row, over its four jobs (`home.storeroom`). No verb presses a plate,
-    # and its walks keep off none: one crossing a plate presses it.
+    # signs, the whiteboards' and the areas' -- the storeroom counter's row,
+    # over its four jobs (`home.storeroom`), and the restaurant's place card,
+    # out while its job is (#560, `home.restaurant`). No verb presses a
+    # plate, and its walks keep off none: one crossing a plate presses it.
     "places": PLATE_TAG_IDS + tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
-              + area_ids() + COUNTER_TAG_IDS,
-    # ...and the storeroom's counter (#559, stage 3; `home.storeroom`): its
-    # props, each the target of its hand job
-    "counter": storeroom.PROPS,
+              + area_ids() + COUNTER_TAG_IDS + PLACE_TAG_IDS,
+    # ...and its hand jobs' targets by their kinds (`home.jobs`): the
+    # storeroom counter's props (#559, stage 3), each the target of its job,
+    # and the restaurant's table a place is laid at (#560)
+    "jobs": jobs.targets(),
     # Every named region, for an overseer's `explore(zone)` (issue #15),
     # off the generator's own ZONES: the region the LLM can name is the
     # region the website draws.

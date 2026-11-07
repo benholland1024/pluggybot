@@ -571,7 +571,7 @@ def test_every_kind_names_a_real_evaluator_and_a_real_reward_row():
     assert spec.task in TABLE, name
     assert spec.target_kind in ("board", "zone", "module", "world",
                                 "challenge", "robot", "cage", "bench",
-                                "chest", "drawer", "door", "cube"), name
+                                "chest", "drawer", "door", "cube", "table"), name
     # a job whose claim is the act (issue #228) moves no body and is the
     # one kind honestly priced at nothing
     assert spec.estimate_wh > 0.0 or spec.discharge == "act", name

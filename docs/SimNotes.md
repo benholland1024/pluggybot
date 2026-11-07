@@ -6313,6 +6313,107 @@ the highest bin holding a quarter of the fullest, and `TOP_BAND_M`'s 5 mm
 is narrower than the noise past a metre: on the synthetic floor, a box's
 top 0.10 m up read 0.107 at 1.5 m and 0.116 at 2.6 m.
 
+## The table set served (issue #560)
+
+**What is true now.** The restaurant's dining tables are a top on legs and
+table 0's south chair is away (`home.world`), the place's dishware is
+compiled into the humanoids' house put away under the floor
+(`home.restaurant`, `dishware.park`), and `set_table` is built -- an offer
+would set the place out where its draw lays it, as the table check's
+set-out does, so the practice's place and the job's are one (Challenges.md
+§12) -- and NOT offered: its reference, a walk to the place and the table
+check's procedure from its one stance (`challenge/solutions.py`), laid 13
+of 32 places over the tour, where its bar is 24. Put away, the dishware
+costs the served pair nothing measurable: the same walks, alternated on one
+pod (an AMD EPYC 7B12, one core a process), ran at 0.913-0.916x real time
+with it and 0.902-0.905x on the tree before it. What flying took:
+
+**The lay holds only near its own start.** The check's procedure was tuned
+from the set-out's start exactly, and it reads its put-downs off the card
+in its stance frame, so a walk that lands near it is not enough. Flown at
+set-outs 0-7 from a start moved (the dev box; the probes are in
+`~/pluggybot-training/issue-560-table-served/tools/`):
+
+| the start | laid |
+|---|---|
+| exactly the set-out's | 8 of 8 |
+| 1.5 cm further from the table | 5 of 8 |
+| 3 cm nearer | 5 of 8 |
+| 4.5 cm nearer | 3 of 8 |
+| turned 1.5 deg left | 8 of 8 |
+| turned 2.5 deg left | 7 of 8 |
+| turned 3.5 deg left | 6 of 8 |
+| turned 1 deg right | 1 of 8 |
+| turned 2.5 deg right | 0 of 8 |
+
+Turned RIGHT, the fork's carry ran out of the posture its reach chose and
+went on to another (`posture_for(onward=)`): the waist swung to -45 to -48
+deg, where the carry from the exact start took it to -30, and the fork
+slipped in the jaws or the pull ended out of reach. Nearer than about 4 cm,
+the plate's arm caught the table's edge on its way home and toppled the
+robot; further, the cup's reach bowed out of the plate's tag's view and its
+grips closed on nothing.
+
+**One tag gives no facing.** The place is found by the card's tag (93) alone.
+A find stops at its tag's first sight, and from the house's station that was
+4.3 m off, so its facing was where it was seen from: 51 deg off the card's
+face, and stood 1.3 m out along it, `spot` could not decode the card at all.
+One tag's own rotation is believed only from a look 40 deg and more off its
+face (`mapping.places`: within 0.5 deg there), and the directions say the
+card faces south: so the walk looks at it from 45 deg south-west of its face,
+1.12 m out, reads its face's normal there, and turns once to square to it.
+⚠ `spot.n*` is INTO the tag's face, away from the eye: the turn to face
+along it is its own angle.
+
+**What `step` does, measured** (the same probes, in the dining room, stood
+still first):
+- *A small turn is lost.* Asked 1.7, 2.9 and 5.7 deg, the stance turned 0.0,
+  0.3 and 1.1: the step's turn stops on the pelvis's heading (`TURN_STOP_RAD`
+  of it), and the feet do not follow the pelvis's last 2-4 deg -- asked 34
+  deg, they turned 32.6 left and 30.2 right. So nothing corrects a heading
+  after the walk, and its one big turn is asked `WIDER` than read.
+- *A step aside to the right turns the robot 1-1.5 deg clockwise*, by its
+  own reckoning, which agrees with the truth (two flights at one noise,
+  apart at their last step, differed by exactly what it reckoned).
+- *A step with a step to the right in it lands long*: 28 cm ahead and 5-10
+  cm right landed 2.0-3.7 cm further ahead than asked, straight ahead
+  0.4-0.8 cm, with a step to the left in it 0.1 cm long to 1.3 cm short.
+- *A step forward under a stride is walked as a stride* (`_step_walks`: a
+  forward speed in the walker's dead band is walked on its own, and a walk
+  goes at least about 10 cm): stepping out a centimetre's error ahead walked
+  ten, and from the exact start a step `(k - 0.4866, m + 0.14)` laid 5 of 8.
+
+So the walk's last 30 cm is straight ahead off two looks averaged, less the
+0.6 cm it overshoots; its turn is asked 3.3 deg wider than read, to land the
+stance a degree or two LEFT of square; and what it leaves across the card's
+line, the lay's own first step -- a step aside anyway -- takes up
+(`TABLE_LAY_STEP`, the served lay's one change from the check's).
+
+**The bar, written before it flew: 24 of 32 draws over the tour, no fall**
+(`solve.py --feature table --from tour --n 32`, one pod, each draw its own
+noise): **13 of 32.** Every walk arrived. Of the 19 misses:
+
+| how | draws |
+|---|---|
+| the cup's tag out of the head camera's view at the lay's first looks (it stands about 36 deg right, the view's edge 34; a stance turned or stood a little left loses it) | 7 |
+| the fork's carry dropped it, or never moved it (the posture the reach chose ran out, as turned right) | 6 |
+| the plate's grip closed on nothing | 3 |
+| the cup laid 3 cm from its spot | 2 |
+| a fall | 1 |
+
+So the lay's start window is narrow on BOTH sides -- turned right, its
+fork's carry fails; turned or stood left, its cup leaves its first look --
+and a walk on this body lands a degree or two and a centimetre or two
+about where it aims, and cannot correct a small turn after. Its passes
+called 187-239 s after the claim (`TABLE_MINUTES`, 12, is three times the
+slowest, rounded up, and its row pays 68, Ben's 90 for 16 minutes pro rata);
+from the dearest station, the research center's, the job cost 8.802 Wh
+over 184 s (`energy.json`; from the house's 7.645, from the mall's 4.885).
+What would pass it, untried: a lay that finds its pieces from
+where it stands (looking for the cup where it is not in view, its fork's
+carry planned with its grip), or a `step` whose turn stops on the stance
+rather than the pelvis, so a walk can square itself to a degree.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

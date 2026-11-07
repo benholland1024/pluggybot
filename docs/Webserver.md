@@ -279,9 +279,11 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   end inside a death -- mid get-up until the stand-up, 300 s -- brought the
   robot back from before its fall, alive.
 - **Put back.** `continuation.load` finds the save before the task board is
-  built. Each lifecycle's `begin()` puts back the counter's props' hidden
-  draws (`restore_counter`), then `continuation.restore` puts the bodies
-  back, and last sets out a prop whose newest offer the save never saw
+  built. Each lifecycle's `begin()` puts back the hand jobs' hidden draws --
+  the counter's props', and the table's dishware, set out again where its
+  newest offer is still open (it is compiled put away; #560) --
+  (`restore_jobs`), then `continuation.restore` puts the bodies back, and
+  last sets out a job's things whose newest offer the save never saw
   (below). The day routine opens without
   moving: no start pose, no spin. History says "the world restarted; I
   carried on from (x, y) with the pack at N%".
@@ -304,8 +306,10 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   readings the save kept (`jobWatches`). A claim held by a robot not in the
   new world goes back on offer, as does a job this world cannot do.
 - **An offer sets its prop out.** A hand job's prop goes back to rest on
-  the counter, its hidden dynamics drawn afresh, when its job is offered
-  (`_set_out_counter`), except one a robot is touching. With the world
+  the counter, and the table's dishware out where its draw lays it, its
+  hidden dynamics drawn afresh, when its job is offered (`_set_out_job`),
+  except one a robot is touching; the dishware is put away again once no
+  job holds the table (`_put_away_step`). With the world
   carried on, a failed attempt would otherwise leave it wherever it was
   dropped, for good. ⚠ So is one offered between the world's last save and
   a crash, as the world comes back (`set_out_unseen`, #610): the board saves
