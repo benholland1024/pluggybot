@@ -1925,9 +1925,10 @@ near a fresh mind gets to a skill that is there. At `343e273`:
 - **What stopped them is what our procedure works round.** A try's first
   failed verb was mostly the arm's reach: a hand's move held back short or
   out of reach from every posture (12 of the 39 tries that ran), a reach out
-  of reach or turned as no posture holds (8). Our reaches are aimed 3 cm
-  past their grips, because the live trunk stands 2-3 cm behind the statue
-  the reach plans on, and no mind is told it. Grips closed on nothing 38
+  of reach or turned as no posture holds (8). Our reaches were aimed 3 cm
+  past their grips then, because the live trunk stood 2-3 cm behind the
+  statue the reach planned on, and no mind was told it (#627 has the reach
+  plan where the robot stands since). Grips closed on nothing 38
   times, and 231 of the 266 squeezes their sources ask are 40 N or more,
   where our fork stalled on the gripper's chatter (SimNotes, "The table's
   reference on the waist"); how many of the 38 were that and how many a
