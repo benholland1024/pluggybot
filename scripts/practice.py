@@ -51,6 +51,10 @@ Two protocols (Evaluation.md §4):
   --attempts N         tries a chest (default 5: the curve's S@1..S@5)
   --model ID           the mind (default the deployed routine model,
                        `$PLUGGY_MODEL`'s); its key is $HF_TOKEN
+  --effort E           how hard it thinks: low, high or max, sent as each
+                       request's `reasoning_effort` (unset, its provider's
+                       own); a row says which (`run.effort`), and a record
+                       read keeps each effort's rows apart (#560)
   --jobs J             chests at once, each in a process of its own: a
                        chest spends most of its wall time waiting on the
                        mind, so J may pass the cores, memory allowing
@@ -100,6 +104,11 @@ MODEL = "zai-org/GLM-5.3-Flash:cheapest"
 READ_S = 180.0
 #: The vocabulary a row flew (#525): #493's rows carry their arm's flags.
 VOCABULARY = "hands-525"
+#: How hard the mind may be asked to think, in GLM-5.3-Flash's words (its
+#: card's default is max; Overseer.md §6): at its provider's own, the
+#: table's answers ran a median of 95-115k tokens and 97 of 208 were cut
+#: off (#560's arms on #626).
+EFFORTS = ("low", "high", "max")
 
 
 def fly(job: dict) -> list[dict]:
@@ -111,12 +120,15 @@ def fly(job: dict) -> list[dict]:
   from pluggybot.procedure.library import Library
   from pluggybot.procedure.steps import hand_facts
   k, model, info, price = (job[n] for n in ("chest", "model", "info", "price"))
+  effort = job.get("effort")
   facts = hand_facts(measure=job["measure"], step=job["step"], guarded=job["guarded"],
                      watching=job["watching"])
   task = at.Task(chest=k, body="humanoid", mount="counter", grader=job["job"])
-  mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task),
-                  thing=ep.THINGS[job["job"]])
-  skill = (f"{model}, the hands' vocabulary"
+  mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch, reasoning_effort=effort), model,
+                  facts, ep.job_for(task), thing=ep.THINGS[job["job"]])
+  # the effort is part of the skill, so the per-task record's regimes keep
+  # each effort's rows apart (`qualities.from_attempts`)
+  skill = (f"{model}" + (f" at effort {effort}" if effort else "") + ", the hands' vocabulary"
            + (", notes" if job["notes"] else "") + ("" if job["measure"] else ", no measure")
            + ("" if job["step"] else ", no step") + ("" if job["guarded"] else ", unguarded")
            + ("" if job["watching"] else ", unwatched")
@@ -130,9 +142,11 @@ def fly(job: dict) -> list[dict]:
     traceback.print_exc()
     return [{"task": task.as_dict(), "attempt": len(mind.turns), "heldOut": task.held_out,
              "process": job["process"], "skill": skill, "error": f"{type(e).__name__}: {e}",
-             "run": {k_: info[k_] for k_ in ("commit", "dirty", "seed") if k_ in info}}]
+             "run": {k_: info[k_] for k_ in ("commit", "dirty", "seed") if k_ in info}
+             | {"model": model, "effort": effort}}]
   for r in rows:
-    r["run"] |= {"model": model, "vocabulary": VOCABULARY, "picture": job["picture"],
+    r["run"] |= {"model": model, "effort": effort, "vocabulary": VOCABULARY,
+                 "picture": job["picture"],
                  "notes": job["notes"], "measure": job["measure"], "step": job["step"],
                  "guarded": job["guarded"], "watching": job["watching"],
                  "attempts": job["attempts"]}
@@ -171,14 +185,17 @@ def read(into: str) -> None:
              + (", guarded" if r["run"].get("guarded") else "")
              + (", watching" if r["run"].get("watching") else "")
              + ("" if grader == "lid" else f", the {grader}"))
-    key = (r["run"].get("model"), words, r.get("process"))
+    # a row from before `--effort` was asked at its provider's own, as one
+    # flown without it is
+    key = (r["run"].get("model"), r["run"].get("effort"), words, r.get("process"))
     regimes.setdefault(key, []).append(r)
-  for (model, words, process), mine in regimes.items():
+  for (model, effort, words, process), mine in regimes.items():
     tin = sum(r["practice"]["tokensIn"] for r in mine)
     tout = sum(r["practice"]["tokensOut"] for r in mine)
     usd = [r.get("usd") for r in mine]
     calls = sum(r["practice"]["calls"] for r in mine)
-    print(f"THE MIND, {process}, {model}, {words}: "
+    print(f"THE MIND, {process}, {model}"
+          + (f" at effort {effort}" if effort else " at its provider's effort") + f", {words}: "
           f"{len(mine)} attempts, {calls} answers, {tin} tokens in and {tout} out"
           + (f", ${sum(usd):.2f}" if None not in usd else ", cost unknown")
           + f", {sum(r['practice']['llmWallS'] for r in mine) / 3600:.1f} h waiting on it")
@@ -242,6 +259,7 @@ def main(argv=None) -> None:
   ap.add_argument("--practice-attempts", type=int, default=None, metavar="N")
   ap.add_argument("--attempts", type=int, default=5)
   ap.add_argument("--model", default=os.environ.get("PLUGGY_MODEL", MODEL))
+  ap.add_argument("--effort", choices=EFFORTS, default=None)
   ap.add_argument("--jobs", type=int, default=1)
   ap.add_argument("--into", default=None)
   ap.add_argument("--no-picture", action="store_true")
@@ -267,8 +285,9 @@ def main(argv=None) -> None:
     ks = att.chests(args.chests)
   from pluggybot.mind.llm import HFClient
   price = HFClient(timeout=30.0).pricing(args.model)
-  print(f"the mind: {args.model}, ${price[0]}/Mtok in, ${price[1]}/Mtok out" if price
-        else f"the mind: {args.model}, its price unknown")
+  print(f"the mind: {args.model}, "
+        + (f"at effort {args.effort}, " if args.effort else "at its provider's effort, ")
+        + (f"${price[0]}/Mtok in, ${price[1]}/Mtok out" if price else "its price unknown"))
   out = None
   if args.into:
     Path(args.into).mkdir(parents=True, exist_ok=True)
@@ -283,7 +302,8 @@ def main(argv=None) -> None:
 
   def job(k, kept, process, carried=None, write_notes=False, attempts=None):
     return {"chest": k, "job": args.job, "attempts": attempts or args.attempts,
-            "model": args.model, "picture": not args.no_picture, "info": dict(info),
+            "model": args.model, "effort": args.effort, "picture": not args.no_picture,
+            "info": dict(info),
             "price": price, "kept": kept, "process": process, "carried": carried,
             "write_notes": write_notes, "notes": args.notes, "measure": not args.no_measure,
             "step": not args.no_step, "guarded": not args.unguarded,

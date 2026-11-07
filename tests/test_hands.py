@@ -1225,6 +1225,78 @@ def test_a_first_answer_lost_to_every_cut_leaves_the_job_ahead_of_the_next_ask()
   assert pr.carry(None)[1].answer is None and pr._unanswered == []
 
 
+def test_a_practice_asks_at_the_effort_it_is_given_and_never_pools_two(monkeypatch, tmp_path,
+                                                                       capsys):
+  """#560's table arms on #626: at its provider's own effort the deployed
+  mind thought a median of 95-115k tokens a call, and 97 of 208 answers
+  were cut off; the arms fly again asked to think less (Ben, 2026-11-07),
+  by its reasoning effort, never a smaller budget. `--effort` goes on every
+  request a practice makes, on every row (`run.effort`, the skill), and a
+  record read keeps each effort's rows apart; unset, nothing is sent, as
+  before. Through the script's `main`, the router faked: no network."""
+  import importlib.util
+  import urllib.request
+  from pathlib import Path
+  from pluggybot.mind import llm
+  path = Path(__file__).resolve().parents[1] / "scripts" / "practice.py"
+  spec = importlib.util.spec_from_file_location("practice_script", path)
+  script = importlib.util.module_from_spec(spec)
+  monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")     # what its import sets
+  spec.loader.exec_module(script)
+  bodies = []
+
+  def router(url, body, headers, timeout, **kw):
+    bodies.append(body)
+    text = json.dumps({"think": "a try", "source": "def a():\n    wait(1)\n"})
+    return 200, {"choices": [{"message": {"content": text}}],
+                 "usage": {"prompt_tokens": 100, "completion_tokens": 40}}
+
+  def no_network(*a, **kw):
+    raise AssertionError("a test reached the network")
+  monkeypatch.setattr(urllib.request, "urlopen", no_network)
+  monkeypatch.setattr(llm, "stream_fetch", router)
+  monkeypatch.setattr(llm, "_default_fetch", lambda *a, **kw: (503, {}))   # no price list
+  monkeypatch.setenv(llm.TOKEN_ENV, "hf_test")
+  practice_on = ep.practice_on
+  monkeypatch.setattr(ep, "practice_on", lambda k, mind, attempts, **kw: practice_on(
+    k, mind, attempts, **{**kw, "picture": False}, build=lambda t: stub_world(t)))
+
+  class Pool:
+    """The pool, here: each set-out flown in this process."""
+
+    def __init__(self, processes, **kw):
+      pass
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *exc):
+      return False
+
+    def imap_unordered(self, fn, jobs):
+      return (fn(j) for j in jobs)
+  monkeypatch.setattr(script, "get_context", lambda kind: NS(Pool=Pool))
+  low, unset = tmp_path / "low", tmp_path / "unset"
+  for into, effort in ((low, ["--effort", "low"]), (unset, [])):
+    script.main(["--chests", "0", "--attempts", "1", "--model", "org/m", "--into", str(into),
+                 *effort])
+  asked = [b.get("reasoning_effort") for b in bodies]
+  assert asked == ["low", None] and "reasoning_effort" not in bodies[1]
+  rows = {d: [json.loads(line) for line in open(d / "rows.jsonl")] for d in (low, unset)}
+  assert [r["run"]["effort"] for d in (low, unset) for r in rows[d]] == ["low", None]
+  assert not any("error" in r for d in rows for r in rows[d])
+  # read together, the two are two regimes: the per-task record's and the mind's cost
+  both = tmp_path / "both"
+  both.mkdir()
+  (both / "rows.jsonl").write_text("".join(
+    json.dumps(r) + "\n" for d in (low, unset) for r in rows[d]))
+  capsys.readouterr()
+  script.read(str(both))
+  said = capsys.readouterr().out
+  assert said.count("THE PER-TASK RECORD") == 2 and said.count("THE MIND,") == 2
+  assert "org/m at effort low" in said and "org/m at its provider's effort" in said
+
+
 def _pass(name, source, chest, attempt):
   return {"name": name, "source": source, "chest": chest, "attempt": attempt}
 
