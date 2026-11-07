@@ -6080,7 +6080,7 @@ column's.
   top -- the shoulder thrown back, rolled past 2.2 rad -- leant it 4.4 cm
   FORWARD where an arm in front, as heavy, leant it 0.8 back. So the plan
   reads the lean, and reads it again with the arm out.
-- *The first plan, read before the arm goes out, is 1.3-2.4 cm hopeful* for
+- *The first plan, read before the arm goes out, is 1.5-2.4 cm hopeful* for
   an arm in front (the policy's own lean for the arm, which nothing but the
   arm out shows), and too cautious for one over the top: the look takes the
   posture each needs. Reaches from the stand on a bare floor (the plate's
