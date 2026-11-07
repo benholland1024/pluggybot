@@ -397,16 +397,23 @@ save a filmstrip PNG named after the script.
   will not agree reads nothing (`CLOSES`: dragged onto a sole's edge it read
   60 N the wrong way), ⚠ the arm's alone for a hand not out and while
   walking (`Reach.standing` is off until the mission says so, every step).
-  It reads all the world pushes on but the soles as the hands'. ⚠ THE
-  BODY'S OWN MOTION IS IN IT, AS ITS SENSES HAVE IT (#631; `arms.Motion`;
-  SimNotes, "A moving hand's force, its motion taken in";
-  `humanoid_spike.py --moving`), the arm's own reading's too: the trunk's
+  It reads all the world pushes on but the soles as the hands'. ⚠ WHAT THE
+  ROBOT READS OF IT TAKES THE BODY'S OWN MOTION IN WHILE THE HAND GOES ITS
+  OWN WAY, AS ITS SENSES HAVE IT (#631; `Reach.sensed_force`, which
+  `Body.hand_force` returns; `arms.Motion`; SimNotes, "A moving hand's
+  force, its motion taken in"; `humanoid_spike.py --moving`): the trunk's
   off its IMU, the arms' and the waist's off their drivers' speeds
   differenced over two physics steps (`MOTION_STEPS`), the legs' left still
-  -- taken as still, a reach swinging out in free air read 11-14 N and a
-  carry beginning 13-16, and a stop at 3 N stopped Luca's reach by its
-  side; so, 10.3 at most after a move's first 0.1 s, 6 or under on most
-  (`axes.MOVING_N`, 12, which the robot is told). ⚠ Never fed to a standing policy: it is the
+  -- taken as still, a reach swinging out in free air read 11-14 N, and a
+  stop at 3 N stopped Luca's reach by its side; so, 9.9 at most after a
+  move's first 0.1 s (`axes.MOVING_N`, 12, which the robot is told); a hand
+  that holds or is held (`reach.HELD_PHASES`) is read as still. ⚠ THE
+  BODY'S OWN LOOPS NEVER READ IT (`Reach.force`: the stop on a push, the
+  ease, the force move's loop): taken into them, the hands checks lost 18
+  set-outs of 480 for 5 won (a pull's give followed the estimate's noise),
+  and kept out of the held phases still 7 for 1 and 3 drawers fell; read
+  as they were tuned on, every flight that reads no force sensor is
+  today's, bit for bit. ⚠ Never fed to a standing policy: it is the
   legs' torques, the policy's own commands (stand12 fell at 20 N). ⚠ THE
   LOOP SLOWS BEFORE ITS ASK (#547 stage 3; `reach.AHEAD_S`, `BACK_SPEED`;
   SimNotes, "The force loop"; `--bar --oracle`, the move closed on the
@@ -930,8 +937,8 @@ save a filmstrip PNG named after the script.
   `hand_facts`, `--unguarded` its arm without; `tests/test_guard.py`):
   `reach`, `move_hand` and `pull` take `until="<sensor>"` and `above` or
   `below`, the sensor read from the move's first command -- ⚠ a hand's
-  force from `axes.FORCE_FROM_S` (0.1 s) into it (#631: a carry's first
-  20-30 ms read up to 11 N with its motion in) -- and no oftener
+  force from `axes.FORCE_FROM_S` (0.1 s) into it (#631: a carry's or a
+  pull's first commands read 13-16 N in free air) -- and no oftener
   than its part reads it (`Sensor.every_s`, rounded UP to physics steps; a
   verb's report has none and is refused; a hand's place as its loop last
   read it, `Body.hand_sensed`, so a condition never met moves the flight not

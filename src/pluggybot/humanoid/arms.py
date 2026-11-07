@@ -335,13 +335,13 @@ class SelfModel:
     return {s: -x[12 + 6 * k:15 + 6 * k] for k, s in enumerate(hands)}
 
 
-#: THE BODY'S OWN MOTION IS IN ITS HANDS' READING (`Motion`, #631): taken
-#: as still, a hand moving in free air read 11-14 N as a reach swung its arm
-#: out and 13-16 as a carry or a pull began -- the motors' torques that move
-#: the arm and sway the trunk, read as a push -- and a stop condition on a
-#: force stopped a reach before its hand left the robot's side. With the
-#: simulator's own accelerations the balance read 1-4 N, so the rest is the
-#: estimate's. The joints whose motion it takes are the arms' and the
+#: THE BODY'S OWN MOTION IS IN WHAT THE ROBOT READS OF A HAND'S FORCE
+#: (`Motion`, #631; `reach.Reach.sensed_force`), a hand going its own way's
+#: (`reach.HELD_PHASES`): taken as still, a hand moving in free air read
+#: 11-14 N as a reach swung its arm out -- the motors' torques that move the
+#: arm and sway the trunk, read as a push -- and a stop condition on a force
+#: stopped a reach before its hand left the robot's side. With the simulator's own accelerations the balance read 1-4 N, so
+#: the rest is the estimate's. The joints whose motion it takes are the arms' and the
 #: waist's (`Motion.MOVED`), each one's acceleration its driver's speeds
 #: differenced over this many physics steps: over one, a speed field's count
 #: (0.01-0.024 rad/s) is a few rad/s^2, and Luca's reach read 8 N; over a

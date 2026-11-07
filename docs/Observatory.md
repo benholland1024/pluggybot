@@ -14,14 +14,18 @@ observatory is NOT a result: it reports into the issue it informs.
 
 **What changed in the body's code and in what the robots read** (SimNotes,
 "A moving hand's force, its motion taken in"):
-- **A hand's force is read with the body's own motion in it, as its senses
-  have it** (`arms.Motion`): the trunk's off its IMU, the arms' and the
-  waist's off their drivers' speeds. In free air, nothing touched, taken as
-  still a reach swinging out read 11-14 N and a carry beginning 13-16; now
-  10.3 at most after a move's first 0.1 s, 6 or under on most
-  (`humanoid_spike.py --moving`). Everything that reads a hand's force
-  reads it so: the reach's stop on a push, the force move's loop, the ease
-  before a shut, the station's push and unplug.
+- **What the robots read of a hand going its own way takes the body's own
+  motion in, as its senses have it** (`Reach.sensed_force`, `arms.Motion`):
+  the trunk's off its IMU, the arms' and the waist's off their drivers'
+  speeds. In free air, nothing touched, taken as still a reach swinging out
+  read 11-14 N; now 9.9 at most after a move's first 0.1 s, 6 or under on
+  most reaches (`humanoid_spike.py --moving`). A hand that holds or is held
+  -- pulling, carried, held at its goal or stopped -- reads as before
+  (`reach.HELD_PHASES`).
+- **The body moves as it did.** Its own loops -- the reach's stop on a
+  push, the ease before a shut, the force move's loop, so the station's
+  push and unplug -- read the force as still, as before (`Reach.force`):
+  every flight that reads no force sensor is today's, bit for bit.
 - **A stop on a hand's force reads it from 0.1 s into its move**
   (`axes.FORCE_FROM_S`).
 - **The robots are told**: each hand's force sensor ends "it reads truest
@@ -54,8 +58,9 @@ still, and the prompt's own example number, 10 N, stopped the same reach
   box).
 - **What numbers do the robots choose?** The `above`/`below` beside a
   force in the procedures' sources, against 12.
-- **The hand jobs and the charges**, which the force reading steers through
-  the pull's loop and the station's push: PODSUMMARY
+- **Nothing else**: the hand jobs and the charges fly as before, until a
+  robot's own procedure reads a force; a change in their grades is the
+  waist's, #627's or #630's, or a robot's procedures.
 - ⚠ **Not to be pooled with the period before for anything a hand's force
   decides**; in one period with the waist's, #627's and #630's, a hand
   job's grade is the four together.

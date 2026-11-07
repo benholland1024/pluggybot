@@ -3078,8 +3078,8 @@ reading taken as still and as served):
 | | taken as still | as served |
 |---|---|---|
 | a reach, after its first 0.1 s | 11-14 N (at 0.25 s, and where its way out bends, 1.46 s) | 6 or under; 9.9 to the floor in a deep bow |
-| a carry or a pull, its first 0.1 s | 13-16 N | 4-7; 11 a carry at 0.2 m/s |
-| a carry or a pull, after | 3-9 N | 3-8; 10.3 a carry that took another posture on its way |
+| a carry or a pull, its first 0.1 s | 13-16 N | as still (below) |
+| a carry or a pull, after | 3-9 N | as still |
 
 **The physics first.** Given the simulator's own speeds and accelerations
 (a probe's, never the robot's), the same balance read 1-4 N on Luca's
@@ -3098,17 +3098,49 @@ two physics steps (`MOTION_STEPS`), sampled where the reach steps
 G = S^T tau + sum J^T w`, the arm's own reading too. The speeds' field
 bounds it: a count is 0.01-0.024 rad/s, a few rad/s^2 differenced over one
 step, and Luca's reach read 8 N over one step, 9.4 over a control period
-(5 ms late), 5.5 over two.
+(5 ms late), 5.5 over two. Smoothing the arm's set-points instead (a
+bounded acceleration) took the reach's swing to 4 N and left its way in
+and its hold at 6-7 while slowing the reach by half (4.0 s to 6.2); an IK
+solved to 0.5 mm in place of 2 moved nothing.
 
-**A move's first instant.** A carry starts from where the hand IS, its
-command a step off its hold, and the arm's answer to that step comes and
-goes within a few physics steps, faster than a difference of speeds can
-follow: a fast carry's first 20-30 ms read 11 N. So a stop on a force reads
+**Only what the robot reads takes it in; the body's own loops never do.**
+A hand's force is read twice (`Reach._feel`): as still, as before, for the
+body's own loops (`Reach.force`: the reach's stop on a push, the ease
+before a shut, the force move's loop), and with the motion in for what the
+robot reads (`Reach.sensed_force`: `Body.hand_force`, a procedure's `read`,
+its stop conditions, a verb's report) -- and for that only while the hand
+goes its own way, swung out or home, on its line in or out, never while it
+holds or is held (`reach.HELD_PHASES`: held at its goal, pulling,
+stopped, carried). The two were measured on one pod (Vast, EPYC 7B13,
+osmesa) against today's tree at the same seeds, every hands check at
+set-outs 0-95:
+- **Into everything**, the motion cost the checks 18 set-outs of 480 for 5
+  won (a sign test's p 0.01): the cube placed 46 of 96 where 53, set down
+  3-6 cm off its mat's middle, and the door opened 65 where 69. Flown with
+  the true force at the hand beside it (doors 14 and 17, drawer 12), the
+  reading with the motion was the truer overall, but in a pull its error
+  across the pull's way rose from 0.8 to 1.1 N rms, and a pull's give
+  follows that reading across its way: pressing slowly on what it holds,
+  the hand's motion is smaller than its estimate's noise. A quieter
+  estimate (the IMU over the control period, a speed's flicker of one count
+  read as none) read further from the truth: its lag cost more than its
+  noise saved.
+- **Kept out of the held phases**, still 7 for 1 (p 0.07), and 3 drawers
+  fell: the approaches stopped on a push (`BLOCKED_N`) at other moments, and
+  what came after parted.
+- **Read by nothing of the body's** (this): every flight that reads no
+  force sensor is today's, bit for bit -- the checks' 24 set-outs that had
+  parted, flown both ways on the dev box, identical in their grades, their
+  verbs' ends and their times; and on the pod, every hands check at
+  set-outs 0-95, all 480 identical to today's.
+The reach's stop on a push is 30 N against a phantom of 9 at most, and
+needs no motion taken out.
+
+**A move's first instant.** A carry or a pull starts from where the hand
+IS, its command a step off its hold, and read still it reads 13-16 N for
+its first instants and 9 or under from 0.1 s on. So a stop on a force reads
 it from `axes.FORCE_FROM_S` (0.1 s) into its move; a hand pressing already
-as its move begins stops that much late. Smoothing the arm's set-points
-instead (a bounded acceleration) took the reach's swing to 4 N and left its
-way in and its hold at 6-7 while slowing the reach by half (4.0 s to 6.2);
-an IK solved to 0.5 mm in place of 2 moved nothing.
+as its move begins stops that much late.
 
 **What the robot is told.** Its hands' force sensors and the stop
 condition's rule say that a hand moving through the air reads up to
@@ -3119,21 +3151,16 @@ a hand; at 10, its number before, a stop on Luca's reach's force stopped
 it 0.23 s in. History says what each stop condition read
 (`lifecycle.stops_said`), as practice's report does.
 
-**What it touched.** Everything that reads a hand's force reads it so: the
-reach's stop on a push (`BLOCKED_N`), the force move's loop (`Reach._pulled`),
-the ease before a shut (`EASE_N`), the station's push and unplug, whose
-routine was shaped round a swing that "read 35-49 N of force it was not
-feeling" (`humanoid/charge.py`). Every hands check, the served jobs from
-the tour, the station and the opener were flown again on one pod against
-the tree before: PODRESULTS.
-
-**What is true now:** a hand's force is read with the body's own motion as
-its senses have it; a stop on one reads it from 0.1 s into its move; moving
-through free air with nothing touched it reads up to 12 N, 6 or under on
-most moves (`tests/test_guard.py` flies Luca's reach to its goal stopped on
-its force at 12). ⚠ What is left is the estimate's: the drivers' replies at
-the physics rate, or a momentum observer, would take it nearer the 1-4 N
-the simulator's own motion reads.
+**What is true now:** what the robot reads of a hand's force takes the
+body's own motion in as its senses have it while the hand goes its own
+way, and reads it as still while the hand holds or is held; the body's own
+loops read it as still, as before; a stop on one reads it from 0.1 s into
+its move; moving through free air with nothing touched it reads up to 12
+N, 6 or under on most reaches (`tests/test_guard.py` flies Luca's reach to its goal stopped
+on its force at 12). ⚠ What is left is the estimate's: the drivers'
+replies at the physics rate, or a momentum observer, would take it nearer
+the 1-4 N the simulator's own motion reads, and might let a held hand and
+the body's loops take it.
 
 ## A tag watched while moving (issue #554, stage 2)
 

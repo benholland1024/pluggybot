@@ -132,13 +132,17 @@ says what it read (`until`), and `<verb>.stopped` reads 1. A condition
 already met stops a move before it moves; one never met ends the move as it
 would have ended. Waiting out a get-up, no hand is stopped. What a verb
 last reported (`spot.*`, `pull.*`) no move changes, so it is refused as a
-stop condition. ⚠ A hand's force is read with the body's own motion in it
-(`arms.Motion`, #631), and moving through free air, nothing touched, still
-reads up to `axes.MOVING_N` (12 N; 6 or under on most moves), which the
-robot is told: taken as still, a reach swinging out read 11-14 N and a
-carry beginning 13-16, and a stop at 3 N stopped a reach by the robot's
-side (SimNotes, "A moving hand's force, its motion taken in";
-`scripts/humanoid_spike.py --moving`). The scene is `scripts/hands_check.py
+stop condition. ⚠ What a procedure reads of a hand's force
+(`Reach.sensed_force`) takes the body's own motion in while the hand goes
+its own way (`arms.Motion`, #631), and reads a hand that holds or is held
+as still (`reach.HELD_PHASES`: there the estimate's noise was more than its
+motion); the body's own loops read it as still always (`Reach.force`).
+Moving through free air, nothing touched, a hand still reads up to
+`axes.MOVING_N` (12 N; 6 or under on most reaches) from 0.1 s into its
+move, which the robot is told: taken as still, a reach swinging out read
+11-14 N, and a stop at 3 N stopped one by the robot's side; a carry's or a
+pull's first commands read 13-16 (SimNotes, "A moving hand's force, its
+motion taken in"; `scripts/humanoid_spike.py --moving`). The scene is `scripts/hands_check.py
 --view until`. No condition knows a job: the robot turns what it wants -- a lid's
 angle, say -- into a reading and a number itself.
 
