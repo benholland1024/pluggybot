@@ -71,7 +71,7 @@ def test_a_hand_job_is_a_real_kind_discharged_by_a_procedure():
 def test_the_offer_exists_where_there_is_a_mind_and_not_without_one(monkeypatch):
   """The gate is the target seam, not a new field: a challenge's target is
   named only where a procedure can be written. Asked of the house with its
-  counter's props set out -- and without them, nothing names one."""
+  jobs' targets (`home.jobs`) -- and without them, nothing names one."""
   book = lc.board_book(HUMANOID_HOME)
   mindless = world_targets(HUMANOID_HOME, book)
   minded = world_targets(HUMANOID_HOME, book, procedures=True)
@@ -79,7 +79,7 @@ def test_the_offer_exists_where_there_is_a_mind_and_not_without_one(monkeypatch)
   assert minded["drawer"] == ["drawer"]
   real = lc.world_config
   monkeypatch.setattr(lc, "world_config", lambda world: {
-    k: v for k, v in real(world).items() if k != "counter"})
+    k: v for k, v in real(world).items() if k != "jobs"})
   assert "drawer" not in world_targets(HUMANOID_HOME, book, procedures=True)
   monkeypatch.setattr(lc, "world_config", real)
   props = {KINDS[k].target_kind for k in HAND_JOBS}

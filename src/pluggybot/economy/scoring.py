@@ -506,6 +506,9 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   "open_door": door.eval_door,
   "place_cube": place.eval_place,
   "open_chest": lid.eval_lid,
+  # ...and the restaurant's (#560): the place laid at its table, the table
+  # check's predicate under a row of its own
+  "set_table": table.eval_table,
 }
 
 
@@ -631,6 +634,7 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "open_door": door.sample_door,
   "place_cube": place.sample_place,
   "open_chest": lid.sample_lid,
+  "set_table": table.sample_table,
 }
 
 

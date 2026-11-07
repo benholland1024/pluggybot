@@ -1,8 +1,12 @@
 """Dishware the hands can take (issue #560, a table set): a plate, a cup and
 a fork, and the place card a place is laid at -- as an ACTIVITY
 (docs/ActivityPattern.md): their geometry, their hidden parameters and
-what is sensed of them. Free bodies only while a task sets them out: every
-free body costs the physics, so no world carries them otherwise (#560).
+what is sensed of them. Live only while a task sets them out: every free
+body costs the physics and every geom a ray, so the served world compiles
+them PARKED (`park_spec`) and an offer sets them out (`place`), as
+pre-allocated toggles do -- out of sight under the floor, their contacts
+off, their weight held, in a geom group no sensor casts against and no
+camera draws (`perception.cull.PARKED_GROUP`).
 
 Each is shaped for the Dex1-1's two jaws, which open 90 mm (`humanoid.parts`):
 
@@ -175,13 +179,20 @@ def attach_fork(spec, at, yaw: float, z: float, kg: float, friction: float,
 ATTACH = {"plate": attach_plate, "cup": attach_cup, "fork": attach_fork}
 
 
-def attach_card(spec, at, yaw: float, z: float, tags: bool = True, name: str = "place_card"):
+def card_quat(yaw: float) -> list[float]:
+  """The card's frame facing `yaw` (the diner): its x across its face, its y
+  out of it toward the diner."""
+  return [math.cos((yaw - math.pi / 2) / 2), 0.0, 0.0, math.sin((yaw - math.pi / 2) / 2)]
+
+
+def attach_card(spec, at, yaw: float, z: float, tags: bool = True, name: str = "place_card",
+                mocap: bool = False):
   """The place card standing at `at` (x, y) on the surface `z` up, its face
-  -- and its tag -- toward `yaw` (the diner): fixed scenery."""
+  -- and its tag -- toward `yaw` (the diner): fixed scenery, or, `mocap`, a
+  body a job sets out and puts away (`place`, `park`)."""
   import mujoco
-  # the card's frame: its x across its face, its y out of it toward the diner
-  q = [math.cos((yaw - math.pi / 2) / 2), 0.0, 0.0, math.sin((yaw - math.pi / 2) / 2)]
-  body = spec.worldbody.add_body(name=name, pos=[float(at[0]), float(at[1]), float(z)], quat=q)
+  body = spec.worldbody.add_body(name=name, pos=[float(at[0]), float(at[1]), float(z)],
+                                 quat=card_quat(yaw), mocap=mocap)
   body.add_geom(name=name, type=mujoco.mjtGeom.mjGEOM_BOX, size=list(CARD),
                 pos=[0, 0, CARD[2]], rgba=[0.96, 0.95, 0.90, 1])
   if tags:
@@ -190,6 +201,122 @@ def attach_card(spec, at, yaw: float, z: float, tags: bool = True, name: str = "
                   size=[half, FILM / 2, half], pos=[0, CARD[1] + FILM / 2, CARD[2]],
                   contype=0, conaffinity=0, mass=0.0, material=_material(spec, CARD_TAG_ID))
   return body
+
+
+# ---- put away and set out (#560, the table set served) ------------------------
+
+#: Where a piece waits while it is put away, m: this far under the floor
+#: (under the table it is set out on), where a ray from over the floor never
+#: comes and a visitor's page never looks -- belt and braces with its geom
+#: group, which every cast leaves out.
+PARK_Z = -1.0
+
+
+def _is_film(model, g: int) -> bool:
+  """A tag printed on a piece or the card (`_film`'s): it never collides."""
+  return model.geom(g).name.endswith("_tag")
+
+
+def _geoms(model, body: int) -> range:
+  return range(int(model.body_geomadr[body]), int(model.body_geomadr[body] + model.body_geomnum[body]))
+
+
+def park_spec(spec, names, at: dict) -> None:
+  """The bodies `names` (the pieces and the card, attached) compiled PUT
+  AWAY: each `at[name]` (x, y) at `PARK_Z`, its geoms' contacts off and in
+  the parked group, a piece's weight held (`gravcomp`). Its live masks are
+  its kind's (`_film`), so nothing of them need be kept."""
+  from pluggybot.perception.cull import PARKED_GROUP
+  for name in names:
+    body = spec.body(name)
+    body.pos = [float(at[name][0]), float(at[name][1]), PARK_Z]
+    if not body.mocap:
+      body.gravcomp = 1.0
+    for geom in body.geoms:
+      geom.contype, geom.conaffinity, geom.group = 0, 0, PARKED_GROUP
+
+
+def _switch(model, body: int, live: bool) -> None:
+  """A body's geoms and its broadphase masks live (a solid geom meets the
+  world, a film nothing; group 0) or put away (nothing; the parked group),
+  and a free piece's weight its own or held."""
+  from pluggybot.perception.cull import PARKED_GROUP
+  for g in _geoms(model, body):
+    solid = live and not _is_film(model, g)
+    model.geom_contype[g] = model.geom_conaffinity[g] = 1 if solid else 0
+    model.geom_group[g] = 0 if live else PARKED_GROUP
+  model.body_contype[body] = model.body_conaffinity[body] = 1 if live else 0
+  if model.body_mocapid[body] < 0:
+    model.body_gravcomp[body] = 0.0 if live else 1.0
+
+
+def _pose(model, data, body: int, xyz, quat=None) -> None:
+  """A free piece or the card at `xyz`, turned `quat` (as it was, None), and
+  still."""
+  mocap = int(model.body_mocapid[body])
+  if mocap >= 0:
+    data.mocap_pos[mocap] = xyz
+    if quat is not None:
+      data.mocap_quat[mocap] = quat
+    return
+  j = int(model.body_jntadr[body])
+  q, v = int(model.jnt_qposadr[j]), int(model.jnt_dofadr[j])
+  data.qpos[q:q + 3] = xyz
+  if quat is not None:
+    data.qpos[q + 3:q + 7] = quat
+  data.qvel[v:v + 6] = 0.0
+  data.qacc_warmstart[v:v + 6] = 0.0
+  data.qfrc_applied[v:v + 6] = 0.0
+
+
+def _yaw_quat(yaw: float) -> list[float]:
+  return [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
+
+
+def place(model, data, pieces: dict, card: tuple, z: float, card_name: str = "place_card") -> None:
+  """The dishware SET OUT on a surface `z` up: each piece of `pieces`
+  ({name: (x, y, yaw)}) resting where it is set out, as `attach_<piece>` puts
+  it, and the card standing at `card` (x, y, facing) -- all live and still."""
+  for name, (x, y, yaw) in pieces.items():
+    b = model.body(name).id
+    _switch(model, b, True)
+    _pose(model, data, b, (x, y, z), _yaw_quat(yaw))
+  b = model.body(card_name).id
+  _switch(model, b, True)
+  _pose(model, data, b, (card[0], card[1], z), card_quat(card[2]))
+
+
+def park(model, data, at: dict) -> None:
+  """The dishware PUT AWAY (`park_spec`'s, at run time): each body of `at`
+  ({name: (x, y)}) under the floor there, its contacts off, its weight held,
+  in the parked group and still."""
+  for name, (x, y) in at.items():
+    b = model.body(name).id
+    _switch(model, b, False)
+    _pose(model, data, b, (x, y, PARK_Z))
+
+
+def parked(model, data, at: dict) -> bool:
+  """Whether every body of `at` is put away where `park` puts it: its geoms
+  in the parked group and its place within a millimetre of its own."""
+  from pluggybot.perception.cull import PARKED_GROUP
+  for name, (x, y) in at.items():
+    b = model.body(name).id
+    if model.geom_group[int(model.body_geomadr[b])] != PARKED_GROUP:
+      return False
+    if np.linalg.norm(_placed_at(model, data, b) - np.array([x, y, PARK_Z])) > 1e-3:
+      return False
+  return True
+
+
+def _placed_at(model, data, body: int) -> np.ndarray:
+  """Where a body is placed in `data` -- its free joint's or its mocap's --
+  which a forward pass has yet to carry into `xpos`."""
+  mocap = int(model.body_mocapid[body])
+  if mocap >= 0:
+    return np.array(data.mocap_pos[mocap])
+  q = int(model.jnt_qposadr[int(model.body_jntadr[body])])
+  return np.array(data.qpos[q:q + 3])
 
 
 # ---- the activity ---------------------------------------------------------------
@@ -204,14 +331,20 @@ class Dishware(Activity):
   """The pieces' state machine, off their poses (a camera over the table,
   never the robot's senses):
 
+    setOut  LIVE: the dishware out where a job set it, never put away (its
+            plate's geoms out of the parked group, `place` / `park`): what
+            a page that draws the world hides the pieces by
     lifted  LIVE, each piece: its bottom more than `LIFT_ON` over the
-            surface it was set out on
+            surface it was set out on, while it is out
 
   ⚠ `load` is the truth (`draw`): nothing of it is a flag."""
 
   def __init__(self, model, data, load: Load, surface_z: float, name: str = "dishware") -> None:
     super().__init__(name)
+    from pluggybot.perception.cull import PARKED_GROUP
     self.bodies = {p: int(model.body(p).id) for p in PIECES}
+    self._plate_geom = int(model.body_geomadr[self.bodies["plate"]])
+    self._parked = PARKED_GROUP
     self.surface_z = float(surface_z)
     self.renew(model, load)
 
@@ -220,7 +353,8 @@ class Dishware(Activity):
     thresholds clear."""
     self.load = load
     self.lifted = {p: Threshold(on=LIFT_ON, off=LIFT_ON / 2) for p in PIECES}
-    self.set(**{f"{p}Lifted": False for p in PIECES})
+    self.set(setOut=bool(model.geom_group[self._plate_geom] != self._parked),
+             **{f"{p}Lifted": False for p in PIECES})
 
   def kept_state(self) -> dict:
     return {**super().kept_state(), "lifted": {p: t.value for p, t in self.lifted.items()}}
@@ -232,5 +366,10 @@ class Dishware(Activity):
         self.lifted[p].value = bool(v)
 
   def sense(self, model, data) -> None:
-    self.set(**{f"{p}Lifted": self.lifted[p].update(float(data.xpos[b][2]) - self.surface_z)
+    if model.geom_group[self._plate_geom] == self._parked:
+      if self.flags.get("setOut") is not False:
+        self.set(setOut=False, **{f"{p}Lifted": False for p in PIECES})
+      return
+    self.set(setOut=True,
+             **{f"{p}Lifted": self.lifted[p].update(float(data.xpos[b][2]) - self.surface_z)
                 for p, b in self.bodies.items()})

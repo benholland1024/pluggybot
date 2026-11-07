@@ -123,14 +123,93 @@ DOOR = _hands_job("door", "door")
 CUBE = _hands_job("place", "cube")
 CHEST = _hands_job("lid", "chest")
 
+
+#: THE RESTAURANT'S TABLE (#560): the walk to the place, then the table
+#: check's procedure from its one stance (`evaluation.hands_check.TABLE`,
+#: served as `TABLE_LAY_STEP` says),
+#: which reads its put-downs off the card in its stance frame -- so the walk
+#: must leave it SQUARE to the card's face: a degree off moves a piece 0.4
+#: cm. What flying took (SimNotes, "The table set served"):
+#:  - one tag gives no facing: the find's first sight of the card was 4.3 m
+#:    off, so its facing was where it was seen from, 51 deg off its face;
+#:  - so the card's own rotation is read OBLIQUELY (`mapping.places`: 40 deg
+#:    and more off a tag, within 0.5 deg): from 45 deg south-west of its face
+#:    -- the card faces south, the directions say -- `BACK` m out on each
+#:    axis, which is the stance's line 0.3 m short once stepped across;
+#:  - `spot.n*` is INTO the card's face, so the turn to face along it is its
+#:    own angle, asked `WIDER` (2 deg) wider: a turn's feet fall short of its
+#:    pelvis by 2-4 deg, a step aside to the right turns the robot 1-1.5 deg
+#:    clockwise, and a smaller turn after is lost whole (a 1.7 deg turn
+#:    turned the stance 0.03);
+#:  - the step across is halved (a step goes 0.5 m at most), and the last 30
+#:    cm is stepped STRAIGHT ahead off two fresh looks, less the 0.6 cm a
+#:    step that long overshoots: with a step to its right in it, it landed
+#:    2-4 cm long, and from 4.4 cm nearer the table the plate's arm caught
+#:    the table's edge on its way home and toppled the robot;
+#:  - what the walk leaves across the card's line, the lay's first step takes
+#:    up (`TABLE_LAY`): a step forward under a stride (10 cm) is walked as a
+#:    stride, but the lay's first step is a step aside anyway.
+TABLE_APPROACH = '''def to_table():
+  budget(steps=16, seconds=900)
+  find(93, %(ax)g, %(ay)g, 600)
+  cx = read("find.x")
+  cy = read("find.y")
+  drive_to(cx - %(back)g, cy - %(back)g, 180)
+  face(0.785)
+  spot(93)
+  a = atan2(read("spot.ny"), read("spot.nx"))
+  y = read("spot.y") * cos(a) - read("spot.x") * sin(a)
+  step(0, y / 2, a + %(wider)g)
+  step(0, y / 2)
+  spot(93)
+  x = read("spot.x")
+  spot(93)
+  step((x + read("spot.x")) / 2 - %(ahead)g - %(over)g, 0)
+'''
+#: How much wider than read the walk's turn is asked, rad -- to land the
+#: stance turned 1-2 deg LEFT of square: the table check's procedure laid 8
+#: of 8 turned 1.5 deg left, 1 of 8 turned 1 deg right (its fork's carry ran
+#: out of its posture and swung the waist to -45 deg) -- and how far a 0.3 m
+#: step straight ahead overshoots, m.
+WIDER, OVER = 0.058, 0.006
+
+#: THE LAY, SERVED: the table check's procedure (`hands_check.TABLE`) with its
+#: first step aside taken from where the card reads across the robot (`m`),
+#: so it stands where the check's set-out would have put it, whatever the walk
+#: left across the card's line.
+TABLE_LAY_STEP = ("  step(0, 0.14)\n", "  step(0, m + 0.14)\n")
+
+
+def _table_job() -> tuple[str, str]:
+  """The table job's reference: the walk to its place (`TABLE_APPROACH`),
+  searching round the address its offer gives, then the table check's own
+  procedure (`hands_check.TABLE`)."""
+  from pluggybot.activity import dishware as dw
+  from pluggybot.evaluation import counter as ct
+  from pluggybot.evaluation import hands_check
+  from pluggybot.home import places as addresses
+  from pluggybot.home import restaurant
+  address = addresses.area(restaurant.TABLE)["address"]
+  # the soles' middle from the card's tag where the set-out starts the robot,
+  # and the look from 0.3 m further out
+  ahead = ct.CARD_IN + ct.TABLE_GAP - dw.CARD[1] - dw.FILM
+  assert hands_check.TABLE.count(TABLE_LAY_STEP[0]) == 1
+  return (TABLE_APPROACH % {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
+                            "back": round(ahead + 0.3, 4), "wider": WIDER, "over": OVER},
+          hands_check.TABLE.replace(*TABLE_LAY_STEP))
+
+
+TABLE = _table_job()
+
 #: The procedures that discharge each job, by kind.
 PROCEDURES = {"open_drawer": DRAWER, "open_door": DOOR, "place_cube": CUBE,
-              "open_chest": CHEST}
+              "open_chest": CHEST, "set_table": TABLE}
 
 
-#: The jobs by their place: the counter's props (`world_config`'s `counter`).
+#: The jobs by their place: the counter's props and the restaurant's table
+#: (`world_config`'s `jobs`).
 TARGETS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
-           "open_chest": "chest"}
+           "open_chest": "chest", "set_table": "dining_table_0"}
 
 
 def job_routine(life, kind: str, world: str):
