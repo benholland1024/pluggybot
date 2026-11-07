@@ -136,12 +136,36 @@ def test_where_the_world_gives_no_calls_a_procedure_is_one_def_with_no_arguments
   ("def x():\n  a = 1 +\n", "invalid syntax"),
   ("def x():\n  if 1:\n    if 1:\n      if 1:\n        if 1:\n          wait(1)\n",
    "nested deeper than"),
-  ("def x():\n  read = 3\n  wait(1)\n", "reserved"),
-  ("def x():\n  wait = 3\n  wait(1)\n", "reserved"),
+  ("def x():\n  read = 3\n  wait(1)\n",
+   "'read' is not a name this language allows (it is one of the language's own words)"),
+  ("def x():\n  wait = 3\n  wait(1)\n", "'wait' is not a name this language allows (it is a verb's name)"),
 ])
 def test_each_construct_outside_the_grammar_is_refused(src, needle):
   reasons = refusals(src)
   assert any(needle in r for r in reasons), reasons
+
+
+def test_a_name_is_refused_with_why_and_the_why_said_once():
+  """#640: the text never said a variable's name is lowercase, and a
+  capitalised one was refused "(it is reserved)", every use of it again --
+  dozens of lines for one slip. Each kind of name says its own reason, the
+  first time it is refused."""
+  rule = lang.name_rule()
+  assert refusals("def x():\n  cX = 1\n  wait(cX)\n  cX = cX + 1\n") == [
+    f"line 2: 'cX' is not a name this language allows ({rule})",
+    "line 3, wait: 'cX' is not a name this language allows",
+    "line 4: 'cX' is not a name this language allows"]
+  assert refusals("def X():\n  wait(1)\n") == [
+    f"line 1: 'X' is not a name this language allows ({rule})"]
+  long = "n" * (lang.MAX_NAME_CHARS + 1)
+  assert refusals(f"def x():\n  {long} = 1\n  wait(1)\n") == [
+    f"line 2: '{long}' is not a name this language allows ({rule})"]
+  assert compile_ok(f"def x():\n  {long[1:]} = 1\n  wait(1)\n")
+  assert refusals("def a():\n  b = 1\n  b()\n\ndef b():\n  wait(1)\n") == [
+    "line 2: 'b' is not a name this language allows (it is a def's name)"]
+  assert refusals("def a():\n  b(1)\n\ndef b(sin):\n  wait(sin)\n") == [
+    "line 4: 'sin' is not a name this language allows (it is a maths function's name)"]
+  assert "reserved" not in " ".join(refusals("def x():\n  cX = 1\n  wait(1)\n"))
 
 
 def test_the_source_cap_is_a_refusal():

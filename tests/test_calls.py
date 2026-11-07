@@ -350,6 +350,10 @@ def test_the_language_says_its_caps_off_the_constants(monkeypatch):
             f"{lang.DEFAULT_BUDGET_S:g} seconds without one.") in flat
     assert (f"(N at most {lang.MAX_ITER}), `while` (stopped at {lang.MAX_ITER} rounds)"
             in flat)
+    # ...and what a name is (#640: unsaid, a capitalised local was refused)
+    assert f"\nEvery name you choose is {lang.name_rule()}.\n" in t
+  assert lang.NAME_RE.match("n" * lang.MAX_NAME_CHARS)
+  assert not lang.NAME_RE.match("n" * (lang.MAX_NAME_CHARS + 1))
   cap = f"def a():\n  budget(steps={lang.MAX_STEPS}, seconds={lang.MAX_BUDGET_S:g})\n  wait(1)\n"
   assert compile_ok(cap).steps_budget == lang.MAX_STEPS
   assert refusals(cap.replace(f"={lang.MAX_STEPS}", f"={lang.MAX_STEPS + 1}")) == [
@@ -365,12 +369,14 @@ def test_the_language_says_its_caps_off_the_constants(monkeypatch):
     ("wait", "b"), ("wait", "b")]
   # ...read off the constants, never typed: moved, the text moves with them
   for name, value in (("MAX_STEPS", 123), ("MAX_BUDGET_S", 1234.5), ("MAX_ITER", 45),
-                      ("DEFAULT_STEPS", 67), ("DEFAULT_BUDGET_S", 890.5)):
+                      ("DEFAULT_STEPS", 67), ("DEFAULT_BUDGET_S", 890.5),
+                      ("MAX_NAME_CHARS", 41)):
     monkeypatch.setattr(lang, name, value)
   moved = " ".join(mp.language_text(HOME).split())
   assert "steps at most 123, seconds at most 1234.5" in moved
   assert "(N at most 45), `while` (stopped at 45 rounds)" in moved
   assert "67 verbs and 890.5 seconds without one." in moved
+  assert "a letter first, at most 41 characters." in moved
 
 
 def test_the_def_that_runs_says_no_arguments_where_the_writer_copies_from():

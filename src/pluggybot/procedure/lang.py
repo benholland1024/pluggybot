@@ -91,11 +91,39 @@ STOPS = {"statements": f"it ran {MAX_STATEMENTS:,} statements, the most one run 
 #: recursion, and ~980 unary minuses (a source of 1,000 characters) raised
 #: RecursionError out of the define and ended the served process (#500).
 MAX_EXPR_DEPTH = 50
-NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+#: A name a procedure gives -- a variable's, a def's, an argument's -- is at
+#: most this long, and the text says its rule (`name_rule`; #640: unsaid, 5
+#: of 25 first table answers named a variable in capitals).
+MAX_NAME_CHARS = 32
+NAME_RE = re.compile(rf"^[a-z][a-z0-9_]{{0,{MAX_NAME_CHARS - 1}}}$")
 #: Names a local may not shadow: the language's own words and every verb.
 RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
                       "if", "elif", "else", "for", "while", "in", "return",
                       "pass", "True", "False", "None"})
+
+def name_rule() -> str:
+  """What a name is, as the text says it and a refusal gives it."""
+  return ("lowercase letters, digits and underscores, a letter first, at most "
+          f"{MAX_NAME_CHARS} characters")
+
+
+def name_fault(name: str, verbs=(), own=(), math: bool = False) -> str:
+  """Why `name` is no name a procedure may give, or "": ⚠ AS TRUE AS THE
+  CHECK IT ANSWERS (#640: a capitalised local was refused as "reserved"),
+  each site asking what it refuses -- a local may not be a verb's or a
+  def's, an argument not a maths function's either."""
+  if not NAME_RE.match(name):
+    return name_rule()
+  if name in RESERVED:
+    return "it is one of the language's own words"
+  if name in verbs:
+    return "it is a verb's name"
+  if name in own:
+    return "it is a def's name"
+  if math and name in MATH:
+    return "it is a maths function's name"
+  return ""
+
 
 _BIN = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/"}
 #: The functions an expression may call where the world's facts allow it
@@ -251,6 +279,16 @@ class _Parser:
     #: whether a call named nothing it may call: its procedure's verbs are
     #: then not all counted
     self.unknown = False
+    #: the names refused so far, each one's reason said at its first refusal
+    self.named_bad: set[str] = set()
+
+  def bad_name(self, node, name: str, why: str) -> None:
+    """A name refused: why, the first time (every later use of an uppercase
+    local repeating the rule ran a refusal list to dozens of lines)."""
+    said = name in self.named_bad
+    self.named_bad.add(name)
+    self.refuse(node, f"{name!r} is not a name this language allows"
+                      + ("" if said else f" ({why})"))
 
   def callable(self, name: str) -> bool:
     """A name a call may name: a def of this source, or the library's."""
@@ -311,9 +349,9 @@ class _Parser:
       self.refuse(node, f"a {type(node.value).__name__} is not a number")
       return _REFUSED
     if isinstance(node, ast.Name):
-      if (not NAME_RE.match(node.id) or node.id in RESERVED or node.id in self.verbs
-          or (self.calls and node.id in self.own)):
-        self.refuse(node, f"{node.id!r} is not a name this language allows")
+      why = name_fault(node.id, self.verbs, self.own if self.calls else ())
+      if why:
+        self.bad_name(node, node.id, why)
       elif node.id in self.params:
         self.use(node.id, "number", node)
       return ("var", node.id)
@@ -471,10 +509,9 @@ class _Parser:
         self.refuse(node, "assign to one plain name")
         return ("pass",)
       name = node.targets[0].id
-      if (not NAME_RE.match(name) or name in RESERVED or name in self.verbs
-          or (self.calls and name in self.own)):
-        self.refuse(node, f"{name!r} is not a name this language allows "
-                          "(it is reserved)")
+      why = name_fault(name, self.verbs, self.own if self.calls else ())
+      if why:
+        self.bad_name(node, name, why)
       self._sets(name, node)
       return ("set", name, self.expr(node.value))
     if isinstance(node, ast.AugAssign):
@@ -768,8 +805,7 @@ def _header(p: _Parser, fn, first: bool) -> tuple:
   """A def's name and arguments: (its arguments, their defaults, its line).
   Where defs call none, a procedure takes none."""
   if not NAME_RE.match(fn.name):
-    p.refuse(fn, f"{fn.name!r} is not a name this language allows "
-                 "(lowercase, digits, underscores, 32 characters)")
+    p.bad_name(fn, fn.name, name_rule())
   elif (p.calls and not first
         and (fn.name in RESERVED or fn.name in p.verbs or fn.name in MATH)):
     # a call by it would be the verb's: `wait(1)` in a source with a `def
@@ -789,8 +825,9 @@ def _header(p: _Parser, fn, first: bool) -> tuple:
                  "or annotations, and no decorators")
   params = tuple(x.arg for x in a.args)
   for x in params:
-    if not NAME_RE.match(x) or x in RESERVED or x in p.verbs or x in MATH:
-      p.refuse(fn, f"{x!r} is not a name this language allows")
+    why = name_fault(x, p.verbs, math=True)
+    if why:
+      p.bad_name(fn, x, why)
   defaults = {}
   for x, d in zip(params[len(params) - len(a.defaults):], a.defaults):
     lit = _literal(d)

@@ -80,6 +80,7 @@ Statements: a verb call, `name = expr`, `name += expr`, `if/elif/else`,
 `pass`, `return` (alone), and first in the def that runs, `budget(...)`:
 the most verbs the run calls (`steps`) and the most seconds it runs
 (`seconds`), %(default_steps)d verbs and %(default_s)s seconds without one.
+Every name you choose is %(names)s.
 Expressions: numbers, your variables,
 `read("sensor")`, + - * /, comparisons, `and`/`or`/`not`. Nothing else: no
 other calls, no strings but a verb's or a read's argument, no imports, no
@@ -241,7 +242,7 @@ def language_text(facts: WorldFacts) -> str:
   text = LANGUAGE % {"cap": cap, "statements": f"{lang.MAX_STATEMENTS:,}",
                      "steps": lang.MAX_STEPS, "seconds": f"{lang.MAX_BUDGET_S:g}",
                      "rounds": lang.MAX_ITER, "default_steps": lang.DEFAULT_STEPS,
-                     "default_s": f"{lang.DEFAULT_BUDGET_S:g}"}
+                     "default_s": f"{lang.DEFAULT_BUDGET_S:g}", "names": lang.name_rule()}
   if facts.math:
     text = text.replace(NO_TRIG, MATH_TEXT)
   if facts.calls:
