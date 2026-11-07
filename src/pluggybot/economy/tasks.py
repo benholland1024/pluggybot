@@ -277,7 +277,8 @@ KINDS: dict[str, TaskKind] = {
   # card found by its tag and the pieces by theirs (tier 1), the restaurant's
   # directions with the offer, never a position. Its dishware put away until
   # an offer sets it out where the draw lays it (`draws`); graded as the hand
-  # jobs are, from the claim.
+  # jobs are, from the claim. MEASURED off its reference from the dearest
+  # station, the research center's (`energy.json`); the fallback a touch above.
   "set_table": TaskKind(
     "set_table", task="set_table", target_kind="table",
     template="Lay the place at the card on the restaurant's table: from the foot of its face "
@@ -285,7 +286,7 @@ KINDS: dict[str, TaskKind] = {
              "line, head to the card; the cup 7 cm out, 24 cm right. Each within 2.5 cm, set down "
              "and let go of, within {minutes} minutes of taking this job, without falling; graded "
              "when you say you are done and 5 s later. No errand does this: write the procedure.",
-    estimate_wh=12.0, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
+    estimate_wh=8.81, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
 }
 
 #: The hand jobs' graders (#559, #560): each served job's row is its own --

@@ -6405,7 +6405,10 @@ fork's carry fails; turned or stood left, its cup leaves its first look --
 and a walk on this body lands a degree or two and a centimetre or two
 about where it aims, and cannot correct a small turn after. Its passes
 called 187-239 s after the claim (`TABLE_MINUTES`, 12, is three times the
-slowest, rounded up, and its row pays 68, Ben's 90 for 16 minutes pro rata). What would pass it, untried: a lay that finds its pieces from
+slowest, rounded up, and its row pays 68, Ben's 90 for 16 minutes pro rata);
+from the dearest station, the research center's, the job cost 8.802 Wh
+over 184 s (`energy.json`; from the house's 7.645, from the mall's 4.885).
+What would pass it, untried: a lay that finds its pieces from
 where it stands (looking for the cup where it is not in view, its fork's
 carry planned with its grip), or a `step` whose turn stops on the stance
 rather than the pelvis, so a walk can square itself to a degree.
