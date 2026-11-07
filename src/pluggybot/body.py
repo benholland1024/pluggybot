@@ -553,7 +553,8 @@ class Body(abc.ABC):
   def hand_force(self, side: str) -> tuple[float, float, float]:
     """The force a hand pushes with, N, in the believed world frame, read
     off its motor currents: the humanoid's, standing, off its whole body's
-    for a hand at work (#547), else its arm's."""
+    for a hand at work (#547), else its arm's -- what the robot reads, with
+    the body's own motion in it while the hand goes its own way (#631)."""
 
   @abc.abstractmethod
   def hand_follows(self, side: str, poses, rot=None) -> bool:

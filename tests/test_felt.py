@@ -276,21 +276,27 @@ HELD = ("hold", "pull", "blocked", "carry")
 
 
 @pytest.mark.parametrize("phase", AT_WORK + ("move", "home"))
-def test_a_hand_going_its_own_way_reads_its_motion_and_one_held_reads_none(phase):
-  """Read once a command (`arms.Motion.read`), the same motion goes to the
-  readings of a hand going its own way -- its arm's, and the whole body's
-  -- and none to a hand that holds or is held, read still as before: there
-  its motion is smaller than its estimate's noise, which a pull's give
-  follows across its way (#631: taken in there, the cube placed 46 of 96
-  where 53). The other hand, at rest, reads its motion either way."""
+def test_what_the_robot_reads_takes_its_motion_in_and_the_loops_never(phase):
+  """#631: the body's own loops' reading (`force`: the reach's stop on a
+  push, the ease, the force move's loop) is read as still, as before, in
+  every phase -- with the motion in it, the hands checks lost 18 set-outs
+  of 480 for 5 won -- and what the robot reads (`sensed_force`) takes the
+  motion in for a hand going its own way, read once a command
+  (`arms.Motion.read`): its arm's, or the whole body's where every hand at
+  work goes its own way; for a hand that holds or is held it is the loops'
+  own. The other hand, at rest, is read as the loops read it."""
   assert rc.HELD_PHASES == HELD
   motion = (np.ones(3), np.zeros(3))
   r = _feeling(phase, standing=True, motion=motion)
-  arm, other = r.moved[0], r.moved[1]
-  assert arm == ("arm", None if phase in HELD else motion)
-  assert other == ("arm", motion)
-  bodies = [m for k, m in r.moved if k == "body"]
-  assert bodies == ([] if phase not in AT_WORK else [None if phase in HELD else motion])
+  loops = 3 if phase in AT_WORK else 2
+  assert len(r.moved) >= loops and all(m is None for _, m in r.moved[:loops])
+  sensed = r.moved[loops:]
+  if phase in HELD:
+    assert sensed == []
+    for s in hm.SIDES:
+      assert np.array_equal(r.sensed_force[s], r.force[s])
+  else:
+    assert sensed == [("body", motion)] if phase in AT_WORK else [("arm", motion)]
 
 
 def test_the_motion_is_read_off_the_drivers_speeds_and_the_imu():

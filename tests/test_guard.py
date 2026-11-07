@@ -190,9 +190,9 @@ def test_a_stop_condition_already_met_stops_the_move_once_one_is_under_way(monke
 
 
 def test_a_hands_force_is_read_once_its_move_is_under_way(monkeypatch):
-  """#631: a move's first commands read the move -- a carry's first 20-30 ms
-  up to 11 N in free air, its body's motion taken in -- so a stop on a
-  force reads it from `FORCE_FROM_S` into the move, then at its rate: one
+  """#631: a move's first commands read the move -- a carry's or a pull's
+  13-16 N in free air, read as still (`reach.HELD_PHASES`) -- so a stop on
+  a force reads it from `FORCE_FROM_S` into the move, then at its rate: one
   past its number from the start stops the move there, and none before."""
   g = _Guarded(monkeypatch, from_s=axes.FORCE_FROM_S)
   _, stopped = g.fly(_steps(80), values={0: 2.0})
@@ -676,8 +676,9 @@ def test_a_reach_stopped_on_its_force_past_what_moving_reads_gets_where_it_was_s
   then, it stopped 0.23 s in. Its body's motion in the reading and a force
   read from `FORCE_FROM_S` into the move, the same reach stopped on its
   force past what a moving hand is said to read (`MOVING_N`) gets where it
-  was sent, touching nothing, every way of its reading under that number
-  all the way (the pin of `arms.Motion`'s wiring is `test_felt`'s)."""
+  was sent, touching nothing, every way of what it reads under that number
+  all the way -- while the body's own loops read it as still, as before
+  (the pin of `arms.Motion`'s wiring is `test_felt`'s)."""
   import mujoco
   from pluggybot.body import body_for
   from pluggybot.evaluation.practice import ProcedureLife
@@ -686,8 +687,9 @@ def test_a_reach_stopped_on_its_force_past_what_moving_reads_gets_where_it_was_s
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
   body = body_for(model, data)
-  seen = []
-  body.step_hooks.append(lambda: seen.append((data.time, body.reach.force["right"].copy())))
+  seen, loops = [], []
+  body.step_hooks.append(lambda: (seen.append((data.time, body.reach.sensed_force["right"].copy())),
+                                  loops.append((data.time, body.reach.force["right"].copy()))))
   facts = st.hand_facts()
   ran = body.run(lang.run_procedure_routine(ProcedureLife(body), lang.compile_procedure(
     'def a():\n    t0 = read("time")\n'
@@ -699,6 +701,10 @@ def test_a_reach_stopped_on_its_force_past_what_moving_reads_gets_where_it_was_s
   assert abs(got["x"] - 0.29) < 0.02 and abs(got["z"] - 0.85) < 0.02, got
   read = np.array([f for t, f in seen if got["t0"] + axes.FORCE_FROM_S <= t <= got["t1"]])
   assert len(read) > 1000 and np.abs(read).max() < axes.MOVING_N, np.abs(read).max(axis=0)
+  # ...and the body's own loops still read it as still, as they were tuned on
+  # (`reach.HELD_PHASES`): its swing out over the number, as it was
+  still = np.array([f for t, f in loops if got["t0"] + axes.FORCE_FROM_S <= t <= got["t1"]])
+  assert np.abs(still).max() > axes.MOVING_N
 
 
 # ---- what #554's review found ----------------------------------------------------------
