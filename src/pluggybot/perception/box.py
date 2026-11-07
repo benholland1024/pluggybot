@@ -57,8 +57,11 @@ DEPTH_MIN_Z = 0.17
 #: ...this many frames of it, this far apart (s), standing still.
 FRAMES, APART_S = 3, 0.1
 
-#: A point this near the floor is floor, m.
-FLOOR_M = 0.01
+#: A point this near the floor is floor, m: the D435's noise lifts the
+#: floor's own points nearly this high at its 3 m reach (#630: windows of
+#: bare floor 1.5-3.0 m off held 12 000-61 000 points, none over 5.3 cm; at
+#: 0.01 every one read as a top 1.2-2.6 cm up).
+FLOOR_M = 0.06
 #: The top's heights are binned this fine, m; the top is the highest bin
 #: holding this share of the fullest; a point within `TOP_BAND_M` of its
 #: height is on it -- the D435's noise is 1.4 mm at 0.6 m (`depth.NOISE_K`).
@@ -114,15 +117,24 @@ def edge(along: np.ndarray, far: bool = True, window: float = EDGE_WINDOW_M) -> 
   """Where a face ends along a direction, m (the module docstring): `along`
   is its points' distances along it, and `far` asks for the end the
   direction points to, else the other. None with too few points."""
+  got = edge_read(along, far, window)
+  return None if got is None else got[0]
+
+
+def edge_read(along: np.ndarray, far: bool = True,
+              window: float = EDGE_WINDOW_M) -> tuple[float, np.ndarray] | None:
+  """`edge`, and which of the points it was read off (a mask): for a caller
+  that asks whether they end where the face does or where the look at it
+  did (`procedure.steps._measure`, #630)."""
   x = np.asarray(along, dtype=float) * (1.0 if far else -1.0)
   if len(x) < MIN_POINTS:
     return None
   cut = float(np.percentile(x, EDGE_ROUGH_PCT)) - window
-  sel = x[x >= cut]
-  if len(sel) < MIN_POINTS // 3:
+  sel = x >= cut
+  if int(sel.sum()) < MIN_POINTS // 3:
     return None
-  b = 2.0 * float(sel.mean()) - cut
-  return b if far else -b
+  b = 2.0 * float(x[sel].mean()) - cut
+  return (b if far else -b), sel
 
 
 def faced_edge(along: np.ndarray, far: bool = True) -> float | None:

@@ -857,7 +857,15 @@ save a filmstrip PNG named after the script.
   (`Body.hand_reaches`, its own plan, nothing moved). ⚠ `measure` (the
   depth camera's flat top; `--no-measure` an arm without it) is feedback as a person's eyes
   give it, never a shortcut past the strategy (Ben, 2026-10-19: demo 1 is
-  TRY AND REACT): its own arm, never pooled, named in `FLATTERS`. ⚠ An answer may take `MAX_TOKENS` 128,000, told
+  TRY AND REACT): its own arm, never pooled, named in `FLATTERS`. ⚠
+  `measure` NEVER READS ITS WINDOW'S RIM AS WHERE A TOP ENDS (#630;
+  SimNotes, "Where `measure` looks"): it looks within `MEASURE_NEAR_M`
+  (0.45 m) of its point, and its text says so; an end whose points stand
+  within `MEASURE_RIM_M` of that window's rim is no reading, and its read
+  says why (from (0.9, 0) a counter's near end read the rim, 0.454, and a
+  robot crept on it); under `box.FLOOR_M` (6 cm) is the floor's (at 1 cm
+  the D435's noise read bare floor as a top 1.2-2.6 cm up). The picture's
+  edge and a taller thing in front still read as ends (Hands.md §7). ⚠ An answer may take `MAX_TOKENS` 128,000, told
   `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
   (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
   again saying so. ⚠ A REPLY LOST TO EVERY RETRY LOSES ONLY ITSELF: what it

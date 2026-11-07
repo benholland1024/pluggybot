@@ -1468,6 +1468,110 @@ def test_measure_reads_the_flat_top_at_a_point_and_its_edges_in_the_stance_frame
   assert "object.top" not in st.hand_facts(measure=False).sensors
 
 
+class Sees(StubBody):
+  """A stub whose depth camera sees `cloud` (k, 3), laid in the stance
+  frame it stands in."""
+  cloud = np.zeros((0, 3))
+
+  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
+    yield from self._wait(frames * apart)
+    x, y, yaw = self.pose
+    c, s = math.cos(yaw), math.sin(yaw)
+    p = self.cloud
+    return np.column_stack([x + c * p[:, 0] - s * p[:, 1], y + s * p[:, 0] + c * p[:, 1], p[:, 2]])
+
+
+def _sees(cloud, pose=(0.0, 0.0, 0.0)) -> Sees:
+  body = Sees(*_bare())
+  body.cloud = np.asarray(cloud, dtype=float)
+  body.start_at(*pose)
+  return body
+
+
+#: Where the head's D435 is in the stance frame at the stand, m, and how far
+#: it looks down, rad: its `depth_eye` on the robot's model of itself
+#: (`arms.SelfModel` posed at `stand_qpos`, 2026-11-07).
+D435_AT, D435_PITCH = np.array([0.045, 0.0, 1.26]), math.radians(40.0)
+
+
+def _seen(points, rng) -> np.ndarray:
+  """`points` as the D435 returns them: each moved along its ray by the
+  part's noise at its axial depth (`depth.NOISE_K`, as `DepthCamera`)."""
+  from pluggybot.perception import depth
+  p = np.asarray(points, dtype=float)
+  rel = p - D435_AT
+  axial = rel @ np.array([math.cos(D435_PITCH), 0.0, -math.sin(D435_PITCH)])
+  noise = rng.normal(0.0, 1.0, len(p)) * depth.NOISE_K * axial ** 2
+  return D435_AT + rel * (1.0 + noise / axial)[:, None]
+
+
+def test_measure_never_reads_its_windows_rim_as_where_a_top_ends():
+  """#630: `measure` looks within `MEASURE_NEAR_M` of its point, and a top
+  that runs on past that ends, in its points, at the window's rim -- from
+  (0.9, 0) Luca's counter read `object.near` 0.453-0.456 however it
+  stepped, and it crept on that toward the counter. An end that is the
+  window's is no reading, and reading it says why; an end inside the
+  window still reads, wherever the robot stands."""
+  rng = np.random.default_rng(630)
+  n = 40_000
+  top = _seen(np.column_stack([rng.uniform(0.2, 1.2, n), rng.uniform(-0.6, 0.6, n),
+                               np.full(n, 0.72)]), rng)
+  for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
+    ran = _fly('def a():\n    measure(0.9, 0)\n    t = read("object.top")\n'
+               '    f = read("object.far")\n    n = read("object.near")\n', _sees(top, pose))
+    got = ran["locals"]
+    assert "n" not in got, f"the rim, read as where the top begins: {got.get('n')}"
+    assert ran["steps"][-1]["reason"] == (
+      "object.near has no reading: your last `measure` looked within 0.45 m of (0.9, 0), "
+      "and the top it saw runs on past that toward you")
+    assert (got["t"], got["f"]) == pytest.approx((0.72, 1.2), abs=0.01)
+    assert ran["steps"][0]["ok"] and ran["steps"][0]["runsOn"] == ["near", "left", "right"]
+  # ...measured nearer, its near end is in the window, and its far end is not
+  ran = _fly('def a():\n    measure(0.5, 0)\n    n = read("object.near")\n'
+             '    f = read("object.far")\n', _sees(top))
+  assert ran["locals"]["n"] == pytest.approx(0.2, abs=0.01)
+  assert ran["steps"][-1]["reason"].endswith("runs on past that away from you")
+
+
+def test_measure_sees_no_top_in_the_floor_its_camera_lifts():
+  """#630: the D435's noise lifts the floor's own points -- 6-9 mm at 1.3-
+  1.6 m -- and a window of bare floor read as a flat top 1.2-2.6 cm up
+  (Rowan's chest_diag: 0.0168 m, "garbage"). Under `box.FLOOR_M` is the
+  floor's, and a real top over it still reads."""
+  from pluggybot.perception import box
+  rng = np.random.default_rng(630)
+  for x, y in ((1.2, -0.9), (2.0, -1.5), (2.6, 0.0)):
+    n = 50_000
+    floor = np.column_stack([rng.uniform(x - 0.5, x + 0.5, n), rng.uniform(y - 0.5, y + 0.5, n),
+                             np.zeros(n)])
+    source = (f'def a():\n    k = 0\n    if measure({x:g}, {y:g}):\n        k = 1\n'
+              '    t = read("object.top")\n')
+    ran = _fly(source, _sees(_seen(floor, rng)))
+    assert not ran["steps"][0]["ok"], f"the floor read as a top at ({x}, {y})"
+    assert ran["steps"][-1]["reason"] == (
+      f"object.top has no reading: your last `measure` saw no flat top round ({x:g}, {y:g}) "
+      "from where you stood")
+    # ...and a box's top 0.10 m up still reads, a quarter as many points as the floor
+    lid = np.column_stack([rng.uniform(x - 0.15, x + 0.15, n // 4),
+                           rng.uniform(y - 0.15, y + 0.15, n // 4), np.full(n // 4, 0.10)])
+    ran = _fly(source, _sees(_seen(np.vstack([floor, lid]), rng)))
+    assert ran["steps"][0]["ok"] and ran["locals"]["t"] > box.FLOOR_M
+    assert ran["locals"]["t"] == pytest.approx(0.10, abs=0.02)
+
+
+def test_measures_text_says_where_it_looks_and_what_is_the_floor():
+  """#630: the window was in no text, so the rim read as a top's end and a
+  robot could not tell. Its words are read off the constants."""
+  from pluggybot.perception import box
+  doc = st.HANDS_VERBS["measure"].doc
+  assert f"within {st.MEASURE_NEAR_M:g} m of (x, y)" in doc
+  assert f"past those {st.MEASURE_NEAR_M:g} m, its end that way has no reading" in doc
+  assert f"{box.FLOOR_M:g} m or more over the floor" in doc
+  # ...and an `object.*` read before any `measure` names the sensor read
+  ran = _fly('def a():\n    wait(0)\n    t = read("object.top")\n')
+  assert ran["steps"][-1]["reason"] == "object.top has no reading: `measure` has not run"
+
+
 def test_an_arm_without_step_has_no_step_to_call_read_or_be_told_of():
   """#493's stage B flies the hands' vocabulary without `step` (Ben,
   2026-10-21): told neither hand reached, 5 robots in 7 that had it walked

@@ -10,7 +10,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A reach plans where the robot reads itself standing, and looks again once its arm is out (#627) — opens when this PR is deployed; merged before the waist's release, it rides with the waist's period as one
+### A reach plans where the robot reads itself standing, and looks again once its arm is out (#627) — opens at the waist's deploy, and rides with the waist's period and #630's as one
 
 **What changed in the body's code** (SimNotes, "The reach planned where
 the live trunk stands"): every reach a hands job or a procedure makes --
@@ -45,7 +45,62 @@ each: SimNotes, "The reach planned where the live trunk stands"): read off
 the jobs' verdicts and the procedures' `reach`es that failed ("... hand
 stopped short on its way", "no posture you hold puts your ... hand there")
 against the period before, the charges' narration, and the `death` rows.
-⚠ **Not to be pooled with the period before for anything the hands do.**
+⚠ **Not to be pooled with the period before for anything the hands do**;
+and in one period with the waist's and #630's, a hand job's grade is the
+three changes together, none of them read apart.
+
+### `measure` says how far round its point it looks, reads no end at that window's rim, and sees no top in the floor (#630) — opens at the waist's deploy, and rides with the waist's period and #627's as one
+
+**What changed is one verb's answers, and its words** (Hands.md §3,
+SimNotes "Where `measure` looks"):
+- **Its text says its window and the floor**: "look with your depth
+  camera at what stands within 0.45 m of (x, y): … ok when a flat top is
+  seen, 0.06 m or more over the floor. Where the top runs on past those
+  0.45 m, its end that way has no reading". The prompt moved there alone:
+  `prompt_sha` `db2dedf0…` → `d3fa364c…`, 57,926 → 58,045 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`); the practice's
+  language and the session host's `hello` with it.
+- **An end at the window's rim is no reading**: reading it stops the run,
+  saying why ("object.near has no reading: your last `measure` looked
+  within 0.45 m of (0.9, 0), and the top it saw runs on past that toward
+  you"), and the verdict names it (`runsOn`). A top the window holds whole
+  reads as it did; an end it holds only in part may go with the rim's (8
+  of 42 at the probe's set-outs, 4 of which had read true).
+- **The floor is no top**: under 6 cm is the floor's (`box.FLOOR_M`, 1 cm
+  before), and bare floor reads "no flat top seen", where it read a top
+  1.2-2.6 cm up.
+- **An `object.*` read with no number says why**, and names the sensor:
+  after a `measure` that saw no top, "object.top has no reading: your last
+  `measure` saw no flat top round (x, y) from where you stood", where it
+  said "measure.top has no reading: `measure` has not run".
+- Nothing in the schema, the menu, the reward table, the jobs, the body or
+  the house moved.
+
+**Why.** #630, from the 11-07 triage of tickets filed 11-03 on `9530f51`
+and `314a5f9`. From (0.9, 0) Luca's counter read `object.near` 0.453-0.456,
+the window's rim, however it stepped (tk_0054: "forwards pin at 0.454
+regardless of step.dx"), and it crept on that toward the counter until
+three steps were refused there. Rowan's `measure(0.95, 0.9)` was ok with
+`object.top` 0.0168 m, the floor's own noise, and it called the camera
+"garbage" and "flaky" (tk_0050).
+
+**What the period is for.**
+- **Does the misreading stop?** Tickets, notes and pins that call
+  `measure` pinned, garbage or flaky, against tk_0050 and tk_0054.
+- **Do the robots act on the refusal?** A procedure defined after a run
+  that stopped on an `object.*` read with no reading, which measures nearer
+  the end it read (the `procedure` rows' sources, the run before beside
+  it).
+- **How often it refuses**: runs stopped on "your last `measure` looked
+  within", against every run that read `object.*`.
+- ⚠ **The picture's edge still reads as an end** (Hands.md §7): standing
+  where it works at a counter, the counter's near end reads 0.26 m, where
+  the picture's bottom edge meets the counter's height, wherever the
+  counter is nearer. A run that steps in until it reads under 0.26 steps
+  on until a step is refused.
+- ⚠ **A count of `measure`'s answers splits at this deploy**: an ok
+  `measure` with a top under 6 cm, or an end at its window's rim, exists
+  only before it.
 
 ### A run's tests that read false are said, a run that reached its end is no error, and a `done` and its grade name the job (#629) — opens when this PR is deployed
 

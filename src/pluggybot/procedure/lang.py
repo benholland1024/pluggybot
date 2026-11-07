@@ -1120,8 +1120,8 @@ def _eval(expr, env: dict, life, facts: WorldFacts) -> float:
     try:
       return float(sensor.read(life))
     except axes.NoReading as no:
-      # a verb's report read before the verb ran (issue #493): said, never
-      # a number made up
+      # a verb's report read before the verb ran (issue #493), or a number
+      # it could not give (#630): said, never a number made up
       raise _Stop(str(no)) from None
   if kind == "bin":
     a, b = _eval(expr[2], env, life, facts), _eval(expr[3], env, life, facts)

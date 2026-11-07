@@ -62,6 +62,20 @@ def test_an_edge_seen_from_in_front_is_read_off_the_mean_of_a_window(spacing, no
   assert box.edge(np.arange(10) * 0.01) is None, "too few points"
 
 
+def test_an_edge_says_which_points_it_was_read_off():
+  # #630: `measure` asks whether those points stand at its window's rim, so
+  # they are the window inside the rough edge -- at either end -- and the
+  # edge is `edge`'s own
+  rng = np.random.default_rng(630)
+  along = rng.uniform(0.0, 1.0, 5000)
+  for far in (True, False):
+    end, strip = box.edge_read(along, far=far)
+    assert end == box.edge(along, far=far)
+    lo, hi = along[strip].min(), along[strip].max()
+    assert (hi > 0.99 and lo > 0.965) if far else (lo < 0.01 and hi < 0.035)
+    assert strip.sum() == pytest.approx(0.03 * len(along), rel=0.25)
+
+
 def test_a_face_at_the_edge_pulls_a_windows_mean_and_not_a_low_percentile():
   # A bracket's tip from the measuring stance: its top's points even along
   # it, and its front face's points stood AT the tip -- a quarter of the
