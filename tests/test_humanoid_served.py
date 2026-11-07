@@ -242,7 +242,7 @@ def test_the_pair_drops_each_other_from_their_scans_and_shares_their_frames():
     life.body.start_at(*world_config(HUMANOID_HOME)["start"])
     renders = []
     real = life.body.mission.depth.frame
-    life.body.mission.depth.frame = lambda d: renders.append(1) or real(d)
+    life.body.mission.depth.frame = lambda d, j=None: renders.append(1) or real(d, j)
     life.body.run(life.body.hold_routine(1.0))
     assert len(renders) == pytest.approx(1.0 / hmi.DEPTH_PERIOD, abs=1)
     assert life.near_field_frames >= 4
@@ -261,7 +261,7 @@ def test_a_bowed_humanoid_renders_nothing_for_its_layer_and_lays_no_frame_taken_
   try:
     renders = []
     real = m.depth.frame
-    m.depth.frame = lambda d: renders.append(1) or real(d)
+    m.depth.frame = lambda d, j=None: renders.append(1) or real(d, j)
     m.level = lambda: False
     life.body.run(life.body.hold_routine(1.0))
     assert renders == [], "rendered while bowed, with nothing asking"

@@ -39,7 +39,7 @@ def test_the_arms_friction_is_kept_as_calibrated_and_matches_their_motors_sheets
   against what its motors' sheets give the model (ours, never the
   robot's): a stale table -- a motor changed, the file left -- fails."""
   table = friction.load()
-  assert set(table) == {f"{s}_{j}" for s in hm.SIDES for j in hm.ARM}
+  assert set(table) == {f"{s}_{j}" for s in hm.SIDES for j in hm.ARM} | set(hm.WAIST)
   for name, row in table.items():
     sheet = hp.friction_nm(hm.CHOSEN.motor(name))
     assert row["coulomb"] == pytest.approx(sheet, rel=0.1), name
@@ -406,17 +406,26 @@ def _bare_reach():
   r.speed = {s: rc.HAND_SPEED for s in hm.SIDES}
   r.pulls = {s: None for s in hm.SIDES}
   r.report = {s: None for s in hm.SIDES}
-  r.posture = np.zeros(2)
+  r.posture = np.zeros(3)
   r.postures = []
-  r.hold_posture = lambda height, pitch: r.postures.append((height, pitch))
+  r.hold_posture = lambda height, pitch, waist=0.0: r.postures.append((height, pitch, waist))
+  r.waist_cmd, r.waist_speed = np.zeros(len(hm.WAIST)), np.zeros(len(hm.WAIST))
+  # ...its waist's driver commanded as recorded, never a world's
+  r.waist_sent = []
+  r.waist = NS(command=lambda target, feed: r.waist_sent.append(np.array(target)))
   r.grippers = {s: _Grip() for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.outs = {s: [] for s in hm.SIDES}
+  r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
+  r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
   # the whole body's reading off: the senses here are a test's stubs, not a
-  # body's (`_feel`'s own tests turn it on)
+  # body's (`_feel`'s own tests turn it on) -- and the body taken as still
+  # (#631: `arms.Motion`'s own tests are `test_felt`'s)
   r.standing = False
   r.arm_force = {s: np.zeros(3) for s in hm.SIDES}
+  r.motion = NS(read=lambda sm, qd, stand: None, sample=lambda *a: None)
+  r.stand, r.d = NS(), None
   return r
 
 
@@ -463,7 +472,7 @@ def test_an_arm_with_no_line_out_withdraws_home_in_joint_space(phase):
   r.retreat("left")
   assert r.phase["left"] == "home" and r.goal["left"] is None
   assert np.allclose(([r.q_to["left"]] + r.homes["left"])[-1], r.rest["left"])
-  assert r.postures == [(0.0, 0.0)]
+  assert r.postures == [(0.0, 0.0, 0.0)]
 
 
 #: Where the arm's walk home began in #539's flights, raised before its
@@ -743,7 +752,7 @@ def _over_table(side):
 
 def _pre_grasp(r, side):
   from pluggybot.humanoid import reach as rc
-  return r._planned(side, _over_table(side), rc.APPROACH_M, rc.POSTURES, True)[0][1]
+  return r._planned(side, _over_table(side), rc.APPROACH_M, rc.REACH_POSTURES, True)[0][1]
 
 
 def test_an_arm_reaching_over_a_table_at_its_front_goes_out_at_its_side():
@@ -835,8 +844,8 @@ def test_a_carry_keeps_the_turn_it_was_asked_and_a_path_of_turns_keeps_its_postu
   r.phase["left"] = "hold"
   r.grip_now = lambda side: (h.copy(), sagged)
   planned = []
-  r.posture_for = lambda side, pos, rot=None: planned.append(rot) or (0.0, 0.0)
-  r.path_for = lambda side, poses, rot=None: planned.append(rot) or (0.0, 0.0)
+  r.posture_for = lambda side, pos, rot=None: planned.append(rot) or (0.0, 0.0, 0.0)
+  r.path_for = lambda side, poses, rot=None: planned.append(rot) or (0.0, 0.0, 0.0)
   assert r.carry("left", h + [0.0, 0.0, 0.05])
   assert np.allclose(planned[-1], asked) and np.allclose(r.cmd["left"].rot, asked)
   assert not r.pulls["left"]["fixed"]
@@ -851,8 +860,9 @@ def test_a_two_jaw_grip_is_planned_half_a_turn_round_where_asked_and_never_when_
   from pluggybot.humanoid.arms import HandGoal
   asked = _turned(10.0)
 
-  def plan(side, goal, model=None, postures=rc.POSTURES, approach=rc.APPROACH_M):
-    return None if np.allclose(goal.rot, asked) else ((0.0, 0.0), np.zeros(6), np.zeros(6), True)
+  def plan(side, goal, model=None, postures=rc.REACH_POSTURES, approach=rc.APPROACH_M, **kw):
+    return None if np.allclose(goal.rot, asked) else ((0.0, 0.0, 0.0), np.zeros(6), np.zeros(6),
+                                                      True)
   monkeypatch.setattr(rc, "plan", plan)
   r = _bare_reach()
   r.slack = {s: True for s in hm.SIDES}
@@ -1189,6 +1199,32 @@ def test_an_answer_whose_stream_closed_is_asked_again_saying_so():
   assert "98,703 tokens" in asked
 
 
+def test_a_first_answer_lost_to_every_cut_leaves_the_job_ahead_of_the_next_ask():
+  """⚠ #560's table arms: the deployed mind's first answer ran out of its
+  128,000 tokens and both retries' streams closed at 20 minutes, and the job
+  went with them -- a lost reply took what it answered out of the
+  conversation -- so every later try was written for a job the mind was
+  never shown (tags 1 and 2, a plate slid to "the place"). A lost reply
+  loses only itself: what it answered goes ahead of the next ask, said once."""
+  mind = CutMind('def a():\n    wait(1)\n', 'def b():\n    wait(2)\n', cut=3)
+  job = ep.JOB.format(limit=30)
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), job, retry_wait_s=0.0)
+  assert pr.first().answer is None
+  assert [t.kind for t in pr.turns] == ["first", "retry", "retry"]
+  assert pr.after("TRY 1\n\nYou had no procedure that compiled.").procedure is not None
+  sent = mind.asked[-1]["messages"]
+  assert [m["role"] for m in sent] == ["user"]
+  text = sent[0]["content"]
+  assert text.index(job) < text.index(mp.LOST_NOTE) < text.index("TRY 1")
+  pr.after("TRY 2\n\nYour procedure ran.")
+  sent = mind.asked[-1]["messages"]
+  assert [m["role"] for m in sent] == ["user", "assistant", "user"]
+  assert json.dumps(sent).count("THE JOB") == 1 and sent[-1]["content"].startswith("TRY 2")
+  # ...and a chest's notes, its last ask, are never held: nothing follows them
+  mind.cut = 3
+  assert pr.carry(None)[1].answer is None and pr._unanswered == []
+
+
 def _pass(name, source, chest, attempt):
   return {"name": name, "source": source, "chest": chest, "attempt": attempt}
 
@@ -1320,13 +1356,15 @@ def test_a_chest_is_shown_what_the_robot_kept():
 def test_a_hand_reaches_its_own_side_as_the_body_plans_it_nothing_moved():
   """What a reach out of reach says of the other hand is the reach's own
   plan, in the believed world frame (`Body.hand_reaches`, `Reach.plans`):
-  the humanoid at its counter, each hand asked a point 0.2 m to its own
-  side and to the other's -- and nothing moved by asking."""
+  the humanoid at its counter, the left hand asked a point 0.5 m to its
+  side, which the right reaches no longer -- turned at the waist, it plans
+  to 0.4 m past the middle (#560's stage (c3)) -- and nothing moved by
+  asking."""
   from pluggybot.evaluation import attempts as at
   world = at.set_out(at.Task(chest=0, body="humanoid", mount="counter"))
   try:
     body = world.body
-    left = body.to_world(np.array([0.35, 0.20, 0.85]))
+    left = body.to_world(np.array([0.35, 0.50, 0.85]))
     before = body.reach.phase["left"], tuple(body.reach.posture)
     assert body.hand_reaches("left", left)
     assert not body.hand_reaches("right", left)
@@ -1431,6 +1469,110 @@ def test_measure_reads_the_flat_top_at_a_point_and_its_edges_in_the_stance_frame
   assert ran["steps"][-1]["reason"] == "no flat top seen round (2.5, 1.5) from where you stand"
   assert "measure" not in st.hand_facts(measure=False).verbs
   assert "object.top" not in st.hand_facts(measure=False).sensors
+
+
+class Sees(StubBody):
+  """A stub whose depth camera sees `cloud` (k, 3), laid in the stance
+  frame it stands in."""
+  cloud = np.zeros((0, 3))
+
+  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
+    yield from self._wait(frames * apart)
+    x, y, yaw = self.pose
+    c, s = math.cos(yaw), math.sin(yaw)
+    p = self.cloud
+    return np.column_stack([x + c * p[:, 0] - s * p[:, 1], y + s * p[:, 0] + c * p[:, 1], p[:, 2]])
+
+
+def _sees(cloud, pose=(0.0, 0.0, 0.0)) -> Sees:
+  body = Sees(*_bare())
+  body.cloud = np.asarray(cloud, dtype=float)
+  body.start_at(*pose)
+  return body
+
+
+#: Where the head's D435 is in the stance frame at the stand, m, and how far
+#: it looks down, rad: its `depth_eye` on the robot's model of itself
+#: (`arms.SelfModel` posed at `stand_qpos`, 2026-11-07).
+D435_AT, D435_PITCH = np.array([0.045, 0.0, 1.26]), math.radians(40.0)
+
+
+def _seen(points, rng) -> np.ndarray:
+  """`points` as the D435 returns them: each moved along its ray by the
+  part's noise at its axial depth (`depth.NOISE_K`, as `DepthCamera`)."""
+  from pluggybot.perception import depth
+  p = np.asarray(points, dtype=float)
+  rel = p - D435_AT
+  axial = rel @ np.array([math.cos(D435_PITCH), 0.0, -math.sin(D435_PITCH)])
+  noise = rng.normal(0.0, 1.0, len(p)) * depth.NOISE_K * axial ** 2
+  return D435_AT + rel * (1.0 + noise / axial)[:, None]
+
+
+def test_measure_never_reads_its_windows_rim_as_where_a_top_ends():
+  """#630: `measure` looks within `MEASURE_NEAR_M` of its point, and a top
+  that runs on past that ends, in its points, at the window's rim -- from
+  (0.9, 0) Luca's counter read `object.near` 0.453-0.456 however it
+  stepped, and it crept on that toward the counter. An end that is the
+  window's is no reading, and reading it says why; an end inside the
+  window still reads, wherever the robot stands."""
+  rng = np.random.default_rng(630)
+  n = 40_000
+  top = _seen(np.column_stack([rng.uniform(0.2, 1.2, n), rng.uniform(-0.6, 0.6, n),
+                               np.full(n, 0.72)]), rng)
+  for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
+    ran = _fly('def a():\n    measure(0.9, 0)\n    t = read("object.top")\n'
+               '    f = read("object.far")\n    n = read("object.near")\n', _sees(top, pose))
+    got = ran["locals"]
+    assert "n" not in got, f"the rim, read as where the top begins: {got.get('n')}"
+    assert ran["steps"][-1]["reason"] == (
+      "object.near has no reading: your last `measure` looked within 0.45 m of (0.9, 0), "
+      "and the top it saw runs on past that toward you")
+    assert (got["t"], got["f"]) == pytest.approx((0.72, 1.2), abs=0.01)
+    assert ran["steps"][0]["ok"] and ran["steps"][0]["runsOn"] == ["near", "left", "right"]
+  # ...measured nearer, its near end is in the window, and its far end is not
+  ran = _fly('def a():\n    measure(0.5, 0)\n    n = read("object.near")\n'
+             '    f = read("object.far")\n', _sees(top))
+  assert ran["locals"]["n"] == pytest.approx(0.2, abs=0.01)
+  assert ran["steps"][-1]["reason"].endswith("runs on past that away from you")
+
+
+def test_measure_sees_no_top_in_the_floor_its_camera_lifts():
+  """#630: the D435's noise lifts the floor's own points -- 6-9 mm at 1.3-
+  1.6 m -- and a window of bare floor read as a flat top 1.2-2.6 cm up
+  (Rowan's chest_diag: 0.0168 m, "garbage"). Under `box.FLOOR_M` is the
+  floor's, and a real top over it still reads."""
+  from pluggybot.perception import box
+  rng = np.random.default_rng(630)
+  for x, y in ((1.2, -0.9), (2.0, -1.5), (2.6, 0.0)):
+    n = 50_000
+    floor = np.column_stack([rng.uniform(x - 0.5, x + 0.5, n), rng.uniform(y - 0.5, y + 0.5, n),
+                             np.zeros(n)])
+    source = (f'def a():\n    k = 0\n    if measure({x:g}, {y:g}):\n        k = 1\n'
+              '    t = read("object.top")\n')
+    ran = _fly(source, _sees(_seen(floor, rng)))
+    assert not ran["steps"][0]["ok"], f"the floor read as a top at ({x}, {y})"
+    assert ran["steps"][-1]["reason"] == (
+      f"object.top has no reading: your last `measure` saw no flat top round ({x:g}, {y:g}) "
+      "from where you stood")
+    # ...and a box's top 0.10 m up still reads, a quarter as many points as the floor
+    lid = np.column_stack([rng.uniform(x - 0.15, x + 0.15, n // 4),
+                           rng.uniform(y - 0.15, y + 0.15, n // 4), np.full(n // 4, 0.10)])
+    ran = _fly(source, _sees(_seen(np.vstack([floor, lid]), rng)))
+    assert ran["steps"][0]["ok"] and ran["locals"]["t"] > box.FLOOR_M
+    assert ran["locals"]["t"] == pytest.approx(0.10, abs=0.02)
+
+
+def test_measures_text_says_where_it_looks_and_what_is_the_floor():
+  """#630: the window was in no text, so the rim read as a top's end and a
+  robot could not tell. Its words are read off the constants."""
+  from pluggybot.perception import box
+  doc = st.HANDS_VERBS["measure"].doc
+  assert f"within {st.MEASURE_NEAR_M:g} m of (x, y)" in doc
+  assert f"past those {st.MEASURE_NEAR_M:g} m, its end that way has no reading" in doc
+  assert f"{box.FLOOR_M:g} m or more over the floor" in doc
+  # ...and an `object.*` read before any `measure` names the sensor read
+  ran = _fly('def a():\n    wait(0)\n    t = read("object.top")\n')
+  assert ran["steps"][-1]["reason"] == "object.top has no reading: `measure` has not run"
 
 
 def test_an_arm_without_step_has_no_step_to_call_read_or_be_told_of():
@@ -1670,6 +1812,29 @@ def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():
   # ...and the mind is told of it wherever it may write one: everywhere the
   # hands' vocabulary is (#525)
   assert "A verb may also stand alone as the test" in mp.system_prompt(facts)
+
+
+def test_a_run_whose_last_call_is_a_test_that_read_false_reached_its_end_and_says_why():
+  """#629: `completed` was the number of the last call that did what it
+  said, so a run whose last call was a test that read false said "(1
+  step)" in History, nothing of why, and its verdict "1/2 steps, stopped
+  (error)" -- the served robots' runs of 82 calls read "2 steps" so, and
+  they built theories on it. Its reason is said, and it reached its end."""
+  from pluggybot import lifecycle as lc
+  from pluggybot.economy import scoring
+  body = _stub()
+  body.out_of_reach = {"right"}
+  facts = st.hand_facts()
+  src = 'def a():\n    wait(1)\n    if reach("right", 0.3, -0.2, 0.9):\n        wait(1)\n'
+  ran = body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(src, facts),
+                                            facts))
+  assert ran["ok"] and ran["completed"] == ran["total"] == 2 and ran["testsFalse"] == 1
+  why = ran["steps"][-1]["reason"]
+  assert "right" in why
+  assert lc.procedure_outcome("a", ran) == [
+    f"ran the procedure a to its end (2 steps; 1 test read false -- line 3, reach: {why})"]
+  ok, _, said = scoring.eval_program(scoring.sample_program(None, None, {"procedure": ran}, {}))
+  assert ok and said == "a: ran to its end, 2 steps; 1 test read false"
 
 
 def test_a_carried_hand_may_turn_as_it_goes_written_as_a_reach_turns_it():

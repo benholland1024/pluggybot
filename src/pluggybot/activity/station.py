@@ -204,7 +204,8 @@ def attach_station(spec, pose, name: str = "station", roots=("pluggybot",),
                    tags=STATION_TAG_IDS) -> None:
   """A station into a world's `spec` at `pose` (x, y, yaw rad: its frame,
   above), named `name` and wearing `tags`, with a catch for each robot's
-  port (`roots`, the robots' root bodies, attached first), and its tags'
+  port (`roots`, the robots' root bodies, attached first) -- a weld to the
+  body the port rides (its waist's, #560's stage (c3)) -- and its tags'
   textures once a world."""
   import mujoco
   for tag_id in tags:
@@ -220,8 +221,9 @@ def attach_station(spec, pose, name: str = "station", roots=("pluggybot",),
   frame.quat = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
   spec.attach(mujoco.MjSpec.from_string(station_xml(name, tags)), prefix="", frame=frame)
   for root in roots:
+    port = spec.site(f"{root[:-len('pluggybot')]}charge_port").parent.name
     spec.add_equality(name=f"{name}_port_{root}", type=mujoco.mjtEq.mjEQ_WELD,
-                      objtype=mujoco.mjtObj.mjOBJ_BODY, name1=root, name2=f"{name}_plug",
+                      objtype=mujoco.mjtObj.mjOBJ_BODY, name1=port, name2=f"{name}_plug",
                       active=False, solref=[0.004, 1.0])
 
 
@@ -291,7 +293,8 @@ class Station(Activity):
                                  if int(model.geom_bodyid[g]) == self.plug])
     self._pads = np.array([g for g in range(model.ngeom)
                            if model.geom(g).name.endswith("_pad")])
-    #: Each robot's catch: its eq id -> (its root body, its port site).
+    #: Each robot's catch: its eq id -> (its root body, its port site); the
+    #: catch welds the plug to the body the port rides (`body1`).
     self.ports = {}
     prefix = f"{n}_port_"
     for e in range(model.neq):
@@ -299,13 +302,13 @@ class Station(Activity):
       if name.startswith(prefix):
         root = name[len(prefix):]
         port = model.site(f"{root[:-len('pluggybot')]}charge_port").id
-        self.ports[e] = (int(model.eq_obj1id[e]), port)
+        self.ports[e] = (model.body(root).id, port)
     self.catches = (self.cup, *self.ports)
     # The seats, each the plug's pose in the catch's body1's frame. The
     # port's: the plug's face on the port, its +x into the robot (the
     # port's z out of it); the cup's: its back on the seat, nose out.
     station = int(model.eq_obj1id[self.cup])
-    self.body1 = {self.cup: station, **{e: b for e, (b, _) in self.ports.items()}}
+    self.body1 = {self.cup: station, **{e: int(model.eq_obj1id[e]) for e in self.ports}}
     self._seat = {}
     for e, (root, port) in self.ports.items():
       r = np.zeros(9)

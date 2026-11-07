@@ -20,6 +20,10 @@ from pluggybot.perception.depth import DepthCamera
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.robot import FIRST, SECOND
 
+#: The waist's reading at its zero, where these tests' bodies stand (#560's stage (c3):
+#: the head's sensors ride the waist, and a frame is laid through its reading).
+W0 = {"waist_yaw": 0.0}
+
 
 def _world(props=()):
   """The humanoid standing at the origin facing +x on a bare floor,
@@ -60,7 +64,7 @@ def test_a_bowing_bodys_camera_leaves_the_attitude_to_the_caller():
   pitch = math.radians(20)
   data.qpos[3:7] = [math.cos(pitch / 2), 0.0, math.sin(pitch / 2), 0.0]
   mujoco.mj_forward(model, data)
-  points = _clean(model).frame(data).points
+  points = _clean(model).frame(data, W0).points
   assert len(points) > 1000
   assert np.abs(_in_world(model, data, points)[:, 2]).max() < 1e-6
   body = data.xpos[model.body("pluggybot").id]
@@ -71,7 +75,7 @@ def test_a_thing_on_the_floor_measures_its_height_and_place():
   """A 5 cm cube 0.9 m ahead: one clean frame into the height map finds
   ONE thing there, 50 mm tall to 3 mm, 30 mm in place."""
   model, data = _world(props=(((0.9 + 0.025, 0.0, (0.05, 0.05, 0.05)),)))
-  frame = _clean(model).frame(data)
+  frame = _clean(model).frame(data, W0)
   hm = HeightMap()
   hm.update((0.0, 0.0, 0.0), _in_world(model, data, frame.points))
   things = [t for t in hm.things() if abs(t["y"]) < 0.5]
@@ -88,8 +92,8 @@ def test_noise_grows_with_the_square_of_depth(room):
   the head sees is 1.2 m off along its axis: the two depths are 1.35 m and
   2.7 m."""
   model, data = room
-  truth = _clean(model).frame(data).z.reshape(-1)
-  noisy = DepthCamera(model, mount="body", dropout=0.0).frame(data).z.reshape(-1)
+  truth = _clean(model).frame(data, W0).z.reshape(-1)
+  noisy = DepthCamera(model, mount="body", dropout=0.0).frame(data, W0).z.reshape(-1)
   ok = np.isfinite(truth) & np.isfinite(noisy)
   res = (noisy - truth)[ok]
   z = truth[ok]
@@ -107,7 +111,7 @@ def test_a_near_edge_shadows_the_background_on_its_image_left():
   valid."""
   model, data = _world(props=(((1.0, 0.0, (0.1, 0.1, 0.6)),)))
   cam = _clean(model)
-  z = cam.frame(data).z
+  z = cam.frame(data, W0).z
   h, w = z.shape
   # the row through the post's TOP, where the background is the floor far
   # behind it (a post against floor at nearly its own depth casts a
@@ -138,14 +142,14 @@ def test_out_of_range_is_unknown_not_free_and_the_limit_is_axial(room):
   sees is past it."""
   model, data = room
   cam = _clean(model, max_z=2.0)
-  frame = cam.frame(data)
-  full = _clean(model).frame(data)
+  frame = cam.frame(data, W0)
+  full = _clean(model).frame(data, W0)
   z = frame.z[np.isfinite(frame.z)]
   assert z.max() <= 2.0
   assert not np.any(np.isclose(z, 2.0, atol=1e-6)), "a pixel clipped to max"
   assert np.array_equal(np.isnan(frame.z), np.isnan(full.z) | (full.z > 2.0)), \
       "far pixels became points, or near ones were lost"
-  ranges = np.linalg.norm(frame.points - cam.origin_robot, axis=1)
+  ranges = np.linalg.norm(frame.points - cam.mount.pose(W0)[0], axis=1)
   assert ranges.max() > 2.4, f"the cut is on range ({ranges.max():.2f} m)"
   assert depthmod.MIN_Z < np.nanmin(full.z)
 
@@ -174,7 +178,35 @@ def test_a_second_robot_rides_the_handle_and_is_filtered_like_the_first():
     p = frame.points
     w = _in_world(model, data, p, SECOND.root)
     return p[(w[:, 2] > 0.05) & (np.abs(w[:, 0] - 1.0) < 0.5) & (np.abs(w[:, 1] + 0.5) < 0.5)]
-  assert len(tall(cam.frame(data))) > 20, "the first robot should stand in the second's frame"
+  assert len(tall(cam.frame(data, W0))) > 20, "the first robot should stand in the second's frame"
   cam.exclude_robot(FIRST.root)
-  left = tall(cam.frame(data))
+  left = tall(cam.frame(data, W0))
   assert len(left) == 0, f"{len(left)} points of the other robot remain"
+
+
+def test_a_frame_is_laid_through_the_waists_turn(room):
+  """#560's stage (c3): the depth camera rides the waist. Turned 0.5 rad, a
+  frame laid through the waist's reading puts every point where the camera
+  truly saw it, in the pelvis's own axes; laid at the waist's zero, it puts
+  them where they would be had the waist not turned -- and a frame handed
+  no reading is refused, never laid at zero."""
+  model, _ = room
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  data.qpos[model.jnt_qposadr[model.joint("waist_yaw").id]] = 0.5
+  mujoco.mj_forward(model, data)
+  cam = _clean(model)
+  frame = cam.frame(data, {"waist_yaw": 0.5})
+  root = model.body("pluggybot").id
+  rot, at = data.xmat[root].reshape(3, 3), data.xpos[root]
+  cid = cam.cam_id
+  pos, mat = data.cam_xpos[cid], data.cam_xmat[cid].reshape(3, 3)
+  valid = ~np.isnan(frame.z.reshape(-1))
+  depth = frame.z.reshape(-1)[valid] / cam._axial[valid]
+  truly = (pos + (cam._dirs_cam[valid] @ mat.T) * depth[:, None] - at) @ rot
+  assert len(truly) > 1000 and np.abs(frame.points - truly).max() < 1e-9
+  wrong = cam.frame(data, W0).points
+  assert np.abs(wrong - truly).max() > 0.1, "the premise: the turn matters"
+  with pytest.raises(ValueError, match="waist_yaw"):
+    cam.frame(data)
+

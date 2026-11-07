@@ -92,6 +92,111 @@ def test_a_procedure_that_finished_says_so():
   assert re.search(r"ran the procedure tidy to its end \(2 steps\)$", history, re.M)
 
 
+def test_tests_that_read_false_are_said_and_their_run_is_no_error():
+  """#629, Rowan's `chest_band2` (t=140003, 11-03): a walk, a turn, then
+  80 `if measure(...)` that each read false and said why -- to the log
+  alone. History said "to its end (2 steps)", and the run's verdict
+  "2/82 steps, stopped (error)": Rowan concluded a measure costs almost
+  no steps and that sensing there was flaky. The robot reads the calls
+  made, how many tests read false, and why; the run reached its end; and
+  the wire counts them too."""
+  life = stub_life()
+  events = []
+  life.on_event.append(events.append)
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("band", "def band():\n  drive_to(1.55, 2.35)\n  face(0.5)\n"
+                   "  for i in range(2):\n    for j in range(5):\n"
+                   "      if measure(0.95 + 0.1 * j, 1.35):\n        s = 1\n")
+  life.run_errand(errand_from(Decision(action="procedure:band"), library=L))
+  history = life.thoughts.read("History.md")
+  assert ("ran the procedure band to its end (12 steps; 10 tests read false -- line 6, "
+          "measure: no flat top seen round (0.95, 1.35) from where you stand) -- it ended "
+          "with i = 1, j = 4") in history
+  assert "program: band: ran to its end, 12 steps; 10 tests read false" in history
+  assert "stopped (error)" not in history
+  ran = next(e for e in events if e.get("type") == "procedure" and e.get("outcome") == "ran")
+  assert ran["completed"] == ran["total"] == 12 and ran["testsFalse"] == 10
+
+
+def test_tests_that_read_false_are_said_line_by_line_within_historys_cap():
+  """Each line that read false once, with its first reason and, where
+  several lines did, how many times -- a fault in a tested call's
+  arithmetic among them -- in the order they first read false; and as
+  many as fit inside History's cap, its own stamp included, the rest
+  counted (#629). A failed step's reason keeps its place: the tests say
+  only what fits beside it."""
+  from pluggybot.mind.thoughts import MAX_LINE_CHARS
+  room = MAX_LINE_CHARS - lc.HISTORY_STAMP_ROOM
+  def read(line, verb, reason, **at):
+    return {"verb": verb, "line": line, "ok": False, "tested": True, "reason": reason, **at}
+  steps = [read(4, "measure", "no flat top seen round (1, 0) from where you stand"),
+           read(4, "measure", "no flat top seen round (2, 0) from where you stand"),
+           {"i": 2, "verb": "wait", "line": 5, "ok": True},
+           read(8, "expr", "division by zero", **{"in": "grip"}),
+           read(4, "measure", "no flat top seen round (3, 0) from where you stand")]
+  [line] = lc.procedure_outcome("p", {"ok": True, "completed": 4, "total": 4, "steps": steps})
+  assert line == ("ran the procedure p to its end (4 steps; 4 tests read false -- line 4, "
+                  "measure (3 times): no flat top seen round (1, 0) from where you stand; "
+                  "line 8, an expression (in grip): division by zero)")
+  # ...past the room, the lines left over counted, and the whole within it
+  long = [read(10 + k, "reach", "your right hand stopped short on its way: " + "x" * 60)
+          for k in range(9)]
+  [line] = lc.procedure_outcome("p", {"ok": True, "completed": 9, "total": 9, "steps": long})
+  assert len(line) <= room and line.endswith(" more))"), line
+  assert line.startswith("ran the procedure p to its end (9 steps; 9 tests read false -- line 10, ")
+  life = stub_life()
+  life.data.time = 123456.0
+  life._remember(line)
+  assert life.thoughts.read("History.md").splitlines()[-1].endswith(line)
+  # ...and beside a failure whose reason leaves little room, the count
+  # alone; none at all, the reason whole
+  def cut(k):
+    failed = {"i": 9, "verb": "pull", "line": 30, "ok": False, "reason": "y" * k}
+    return lc.procedure_outcome("p", {"ok": False, "completed": 9, "total": 10,
+                                      "failedAt": 9, "steps": long + [failed]})[0]
+  assert cut(280).endswith("y" * 280 + " (9 steps had run; 9 tests read false)")
+  assert len(cut(280)) <= room
+  assert cut(310).endswith("y" * 310 + " (9 steps had run)")
+
+
+def test_what_a_stop_condition_read_is_said_beside_its_run():
+  """#631, Luca's drawer (11-03 on): `reach(..., until="right.fx",
+  above=3)` stopped 0.18 s in, its hand by its side, and History said only
+  that the run reached its end -- `reach.stopped` read 1, Luca read every
+  stop as its hand meeting the drawer's face, and shut its jaws on air
+  thirteen times. Each line's stop condition is said as practice's report
+  says it -- what it read, past which number, how far into the move -- and
+  one that never had a reading says so, after the tests that read false; a
+  move that ended otherwise says nothing of its condition."""
+  reach = {"verb": "reach", "line": 3, "ok": True, "why": "until"}
+  steps = [{"i": 0, **reach, "until": "right.fx read 3.626 (above 3) 0.18 s in"},
+           {"i": 1, "verb": "close_hand", "line": 4, "ok": True},
+           {"i": 2, "verb": "pull", "line": 6, "ok": True, "why": "distance",
+            "until": "watch.z above 1.05 never had a reading: tag 53 has not been seen "
+                     "since `watch` began"},
+           {"i": 3, "verb": "move_hand", "line": 7, "ok": True, "why": "arrived"},
+           {"i": 4, **reach, "until": "right.fx read 3.9 (above 3) 0.21 s in"},
+           {"verb": "measure", "line": 8, "ok": False, "tested": True,
+            "reason": "no flat top seen round (1, 0) from where you stand"}]
+  [line] = lc.procedure_outcome("drawer_run3", {"ok": True, "completed": 5, "total": 5,
+                                                "steps": steps})
+  assert line == ("ran the procedure drawer_run3 to its end (5 steps; 1 test read false -- "
+                  "line 8, measure: no flat top seen round (1, 0) from where you stand; 3 stop "
+                  "conditions said -- line 3, reach (2 times): right.fx read 3.626 (above 3) "
+                  "0.18 s in; line 6, pull: watch.z above 1.05 never had a reading: tag 53 has "
+                  "not been seen since `watch` began)")
+  # ...a run cut short says them too, and none where no move had a condition
+  [line] = lc.procedure_outcome("p", {"ok": False, "completed": 1, "total": 2, "failedAt": 1,
+                                      "steps": steps[:1] + [{"i": 1, "verb": "close_hand",
+                                                             "line": 4, "ok": False,
+                                                             "reason": "nothing held"}]})
+  assert line.endswith("(1 step had run; 1 stop condition said -- line 3, reach: right.fx "
+                       "read 3.626 (above 3) 0.18 s in)"), line
+  [line] = lc.procedure_outcome("p", {"ok": True, "completed": 1, "total": 1,
+                                      "steps": [steps[3]]})
+  assert line == "ran the procedure p to its end (1 step)"
+
+
 def test_a_procedure_out_of_budget_says_first_that_it_did_not_finish():
   """MEASURED (ladder B, 2026-09-24): the line said "(4/4 steps) -- it ran
   out of the time its budget gave it", the model read "all four steps

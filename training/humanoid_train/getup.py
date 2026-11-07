@@ -5,7 +5,9 @@ its legs AND arms to once it is falling, and back once it stands.
 
 The quadruped's get-up (#389, at `quadruped-final`) is the template, with
 what a biped needs:
-  - all twenty-four joints are the policy's: a body on the floor pushes off
+  - the legs' and the arms' twenty-four joints are the policy's (the
+    waist's yaw, #560's stage (c3), held home, as the served body holds
+    it while it gets up): a body on the floor pushes off
     with its hands, and its arms meet its trunk and legs
     (`models/humanoid.xml`'s pairs), so a push is one a real arm could make;
   - a LIFT at the pelvis, a share of the body's weight that falls to

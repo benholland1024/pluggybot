@@ -10,6 +10,319 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A hand's force reads its body's own motion, a stop on one reads it from 0.1 s into its move, and History says what a stop condition read (#631) — opens when this PR is deployed; released with the waist, it rides with that period and #627's and #630's as one
+
+**What changed in the body's code and in what the robots read** (SimNotes,
+"A moving hand's force, its motion taken in"):
+- **What the robots read of a hand going its own way takes the body's own
+  motion in, as its senses have it** (`Reach.sensed_force`, `arms.Motion`):
+  the trunk's off its IMU, the arms' and the waist's off their drivers'
+  speeds. In free air, nothing touched, taken as still a reach swinging out
+  read 11-14 N; now 9.9 at most after a move's first 0.1 s, 6 or under on
+  most reaches (`humanoid_spike.py --moving`). A hand that holds or is held
+  -- pulling, carried, held at its goal or stopped -- reads as before
+  (`reach.HELD_PHASES`).
+- **The body moves as it did.** Its own loops -- the reach's stop on a
+  push, the ease before a shut, the force move's loop, so the station's
+  push and unplug -- read the force as still, as before (`Reach.force`):
+  every flight that reads no force sensor is today's, bit for bit.
+- **A stop on a hand's force reads it from 0.1 s into its move**
+  (`axes.FORCE_FROM_S`).
+- **The robots are told**: each hand's force sensor ends "it reads truest
+  held still, and moving through the air up to 12 N with nothing touched";
+  the stop condition's rule adds "A hand's force it reads from 0.1 s into
+  the move: a move's start reads the move itself, and a hand moving through
+  the air reads up to 12 N with nothing touched", and its example stops at
+  15 N where it stopped at 10. `prompt_sha` `d3fa364c…` → `45d56c74…`,
+  58,045 → 58,710 chars, 17 sections both (`overseer_probe.py --deployed
+  --prompt`); the practice's language and body and the session host's
+  `hello` with it.
+- **History says what each stop condition read**, after the tests that read
+  false: "ran the procedure drawer_run3 to its end (5 steps; 3 stop
+  conditions said -- line 3, reach (2 times): right.fx read 3.626 (above 3)
+  0.18 s in; …)".
+- Nothing in the schema, the menu, the reward table, the jobs or the house
+  moved.
+
+**Why.** #631, from the 11-07 triage: from 11-03 Luca opened the
+storeroom's drawer with reaches stopped on `right.fx` above 3, and every
+stop came 0.18 s in, its hand by its side, read as the drawer's face;
+"Thirteen grips have all closed on air." The balance took the body as
+still, and the prompt's own example number, 10 N, stopped the same reach
+0.23 s in.
+
+**What the period is for.**
+- **Do guarded reaches stop near what they reach for?** The hand's place
+  after a reach a stop condition stopped (the `ran` rows' locals) against
+  the period before, and the `until` text History now carries (#631's last
+  box).
+- **What numbers do the robots choose?** The `above`/`below` beside a
+  force in the procedures' sources, against 12.
+- **Nothing else**: the hand jobs and the charges fly as before, until a
+  robot's own procedure reads a force; a change in their grades is the
+  waist's, #627's or #630's, or a robot's procedures.
+- ⚠ **Not to be pooled with the period before for anything a hand's force
+  decides**; in one period with the waist's, #627's and #630's, a hand
+  job's grade is the four together.
+
+### A reach plans where the robot reads itself standing, and looks again once its arm is out (#627) — opens at the waist's deploy, and rides with the waist's period and #630's as one
+
+**What changed in the body's code** (SimNotes, "The reach planned where
+the live trunk stands"): every reach a hands job or a procedure makes --
+and the station's plug-in, which reaches, carries and pushes too.
+- **A reach is planned on the robot's model of itself as it reads itself
+  standing** (`reach.Lean`): each posture's statue balanced where the
+  robot's own model, off its encoders and its IMU, puts its weight over its
+  soles (1.2-2.9 cm behind their middle as measured, where the statue it
+  planned on before held it over the middle), its arms where they will be.
+  The carry's and the pull's postures stand on the same statue.
+- **Once its arm is out at its pre-grasp it reads itself again** and takes
+  the least bent posture that puts its goal in reach before its hand goes
+  in -- deeper or less bent -- at most twice, its hand waiting meanwhile
+  (`Reach._look`). The checks' passes took no longer for it: paired by
+  set-out, the median pass's time moved 0 to -1.2 s a job.
+- **The arm's solve keeps the arm nearest how it is**, and solves a goal
+  and the point its slack asks for each from the other's arm: no arm thrown
+  over the top where one in front reaches, and no pockets of deep bows.
+- **Nothing the robots read changed**: no prompt, verb, schema or reward;
+  `prompt_sha` the same. A procedure's `reach` now arrives where it was
+  aimed where it fell 2-6 cm short; nothing tells the robots so but what
+  their reaches do.
+
+**Why.** #627, from #626's calls 1 and 3: the live trunk stood 1.6-6 cm
+behind the statue the reach planned on, so a hand aimed at a grip arrived
+short; the table's reference aimed past its grips, which no robot could know
+to do, and no live hand job had passed by 2026-11-03.
+
+**What the period is for.** That the hand jobs' grades rise or hold and the
+charges plug in as before (flown before the deploy on one pod over 32 draws
+each: SimNotes, "The reach planned where the live trunk stands"): read off
+the jobs' verdicts and the procedures' `reach`es that failed ("... hand
+stopped short on its way", "no posture you hold puts your ... hand there")
+against the period before, the charges' narration, and the `death` rows.
+⚠ **Not to be pooled with the period before for anything the hands do**;
+and in one period with the waist's and #630's, a hand job's grade is the
+three changes together, none of them read apart.
+
+### `measure` says how far round its point it looks, reads no end at that window's rim, and sees no top in the floor (#630) — opens at the waist's deploy, and rides with the waist's period and #627's as one
+
+**What changed is one verb's answers, and its words** (Hands.md §3,
+SimNotes "Where `measure` looks"):
+- **Its text says its window and the floor**: "look with your depth
+  camera at what stands within 0.45 m of (x, y): … ok when a flat top is
+  seen, 0.06 m or more over the floor. Where the top runs on past those
+  0.45 m, its end that way has no reading". The prompt moved there alone:
+  `prompt_sha` `db2dedf0…` → `d3fa364c…`, 57,926 → 58,045 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`); the practice's
+  language and the session host's `hello` with it.
+- **An end at the window's rim is no reading**: reading it stops the run,
+  saying why ("object.near has no reading: your last `measure` looked
+  within 0.45 m of (0.9, 0), and the top it saw runs on past that toward
+  you"), and the verdict names it (`runsOn`). A top the window holds whole
+  reads as it did; an end it holds only in part may go with the rim's (8
+  of 42 at the probe's set-outs, 4 of which had read true).
+- **The floor is no top**: under 6 cm is the floor's (`box.FLOOR_M`, 1 cm
+  before), and bare floor reads "no flat top seen", where it read a top
+  1.2-2.6 cm up.
+- **An `object.*` read with no number says why**, and names the sensor:
+  after a `measure` that saw no top, "object.top has no reading: your last
+  `measure` saw no flat top round (x, y) from where you stood", where it
+  said "measure.top has no reading: `measure` has not run".
+- Nothing in the schema, the menu, the reward table, the jobs, the body or
+  the house moved.
+
+**Why.** #630, from the 11-07 triage of tickets filed 11-03 on `9530f51`
+and `314a5f9`. From (0.9, 0) Luca's counter read `object.near` 0.453-0.456,
+the window's rim, however it stepped (tk_0054: "forwards pin at 0.454
+regardless of step.dx"), and it crept on that toward the counter until
+three steps were refused there. Rowan's `measure(0.95, 0.9)` was ok with
+`object.top` 0.0168 m, the floor's own noise, and it called the camera
+"garbage" and "flaky" (tk_0050).
+
+**What the period is for.**
+- **Does the misreading stop?** Tickets, notes and pins that call
+  `measure` pinned, garbage or flaky, against tk_0050 and tk_0054.
+- **Do the robots act on the refusal?** A procedure defined after a run
+  that stopped on an `object.*` read with no reading, which measures nearer
+  the end it read (the `procedure` rows' sources, the run before beside
+  it).
+- **How often it refuses**: runs stopped on "your last `measure` looked
+  within", against every run that read `object.*`.
+- ⚠ **The picture's edge still reads as an end** (Hands.md §7): standing
+  where it works at a counter, the counter's near end reads 0.26 m, where
+  the picture's bottom edge meets the counter's height, wherever the
+  counter is nearer. A run that steps in until it reads under 0.26 steps
+  on until a step is refused.
+- ⚠ **A count of `measure`'s answers splits at this deploy**: an ok
+  `measure` with a top under 6 cm, or an end at its window's rim, exists
+  only before it.
+
+### A run's tests that read false are said, a run that reached its end is no error, and a `done` and its grade name the job (#629) — opens when this PR is deployed
+
+**What changed is what the robots are TOLD** (Overseer.md §2b, "A
+challenge is finished by saying so"):
+- **A procedure run's History line says how many of its tests read false,
+  and why**: each line's first reason, in the order the lines first read
+  false, as many as fit inside History's cap, the rest counted. Its count
+  is every call the run made (`ran the procedure chest_band2 to its end (82
+  steps; 80 tests read false -- line 17, measure: no flat top seen round
+  (0.95, 1.35) from where you stand)`, where it read `to its end (2
+  steps)`).
+- **The run's `program` verdict is its own end**: a run that reached its
+  end passes, `chest_band2: ran to its end, 82 steps; 80 tests read false`,
+  where it failed `2/82 steps, stopped (error)`. It pays 0, as before.
+- **A `done` leaves a History line** (`said done on t_0027 (open_door):
+  graded once everything queued has run`), and **a grade's line names its
+  job** (`failed the job t_0027 (open_door): …`), as a run-out's did.
+- **#400's line says `… took no time, so I stood still 4 s before doing
+  anything else`**, where it said `… ended the moment it began, …`.
+- **On the wire**: a `procedure` event's `completed` counts every call the
+  run went on past, a test that read false among them, and `testsFalse`
+  rides beside it where a test read false (protocol/README.md). The
+  site's Procedures section reads a failed call as `total > completed`, so
+  it is exact again with no change of its own.
+- The prompt did not move. Nothing in the schema, the menu, the reward
+  table, the arm, the body or the house moved.
+
+**Why.** #629, from the 11-07 triage, of the robots' runs on `9530f51`
+before the pause and on `0342b56` after it. Both robots use a verb as an
+`if`'s test in nearly every procedure, and a test's reason went to the log
+alone. Rowan's `chest_band2` (11-03, `9530f51`) made 82 calls: a walk, a turn, and
+80 measures that read false, their points 45-68 deg left of where its depth
+camera looks. History said "(2 steps)" and "stopped (error)", and Rowan
+concluded that measures cost almost no steps and that sensing near the
+storeroom was flaky (tk_0049, tk_0050). Luca blamed its close for a reach
+that read false, never seeing its reason (tk_0055). Rowan took a door's
+grade, come at a `done` 37 s after its take, for another job's, and read
+#400's line of `take_task` as a take that failed (tk_0051).
+
+**What the period is for.**
+- **Does the misreading stop?** Tickets, notes, pins and `tell`s that
+  blame step budgets, sensing, a close or a take for what a test that read
+  false said. Before it there were four, filed 11-03 on `9530f51` and
+  `314a5f9`: tk_0049, tk_0050, tk_0051 and tk_0055.
+- **Do the robots act on a reason?** A procedure defined after a run whose
+  tests read false that changes what read false (a `measure` turned into
+  the camera's view, a `reach` from nearer), read off the `procedure`
+  rows' `defined` sources beside the run before.
+- ⚠ **A count by the words or the verdicts splits at this deploy.** A
+  `program` verdict for a run that reached its end with tests that read
+  false fails before it and passes after; a `procedure` row's `completed`
+  is the last good call's number before it and the calls the run went on
+  past after. Read `program` verdicts and `completed` apart across it.
+
+### The robots can read a changelog of their world, its newest date beside today's in every turn (#617) — opens when both halves are deployed, this PR's and rooftop-media-2026's
+
+**What changed in what the robots are told** (Overseer.md §7b):
+- **A changelog** (`mind/changelog.md`): what the people who run the world
+  have written for the robots about how it and their bodies changed, one
+  dated entry at a time, newest first. Its first entries say what changed
+  lately that nobody told them in words: the grown world and its three
+  stations and procedures that call procedures (11-06), a `look` answered
+  (11-05), the jobs held and their time left (11-03), and a `say` and a
+  ticket's close paying again (11-02). Ben approves every entry, these
+  first ones in this PR.
+- **Every turn's context carries `changelog: {newest, today}`**: the newest
+  entry's date and today's, UTC. It is the first wall date the robots are
+  shown.
+- **`recall` reads it** (`changelog`, `changelog 2`, a page at a time), and
+  the prompt's WHAT YOU REMEMBER says so: the recall bullet names the key,
+  and a bullet beside it says what the changelog is and what the state's
+  block holds. The prompt's sha moves once: `prompt_sha` `beb48e83…` (the
+  waist's, below) → `db2dedf0…`, 57,459 → 57,926 chars, 17 sections both
+  (`overseer_probe.py --deployed --prompt`). A later entry moves no sha.
+- **On the wire**: a `changelog` message when a stream opens where a mind
+  reads it. The site keeps it on the run and shows it on its Changelog page
+  (rooftop-media-2026's half).
+- Nothing in the schema, the menu, the arm, the reward table, the body or
+  the house moved.
+
+**Why.** #617: the robots build memories and procedures around how their
+world works, and when it changed under them without a word they misread
+it. Their procedures carried coordinates and walks from a world that had
+since grown, and a restart told them only "the world itself changed since
+then".
+
+**What the period is for.**
+- **Whether they read it**: `recall` rows whose `read` is `changelog` or a
+  page of it, how soon after a wake and after a release's restart, and how
+  often again.
+- **What they make of it**: notes and pins that cite or restate an entry;
+  misbeliefs an entry answers fading from their notes (a `say` that never
+  goes out, a ticket's close that pays nothing, a look that never comes
+  back); and stale procedures, walks and coordinates from before the grown
+  world, rewritten or failing.
+- **The cost**: about 50 characters a turn, and a page (up to 4,000
+  characters) while a recall chain holds it.
+- ⚠ **Not a period to pool with the last for anything the robots know of
+  their world**: from here they can read what changed.
+
+### The humanoids grow a waist: a yaw at the pelvis's top, and the standing policy retrained on it (#560, stage (c3)) — opens when both halves are deployed, this PR's and rooftop-media-2026's, on a weekend of its own after Ben's word
+
+**What changed in the world.** The body, and the policy it stands on.
+- **Each humanoid has a waist yaw**: a RobStride RS03 at the pelvis's top
+  turns everything above it -- the torso, the head and its sensors, the
+  charge port and the arms -- up to 60 deg either way (Parts.md, "The
+  waist's yaw"). 44.9 kg (43.2 before), 25 joints; the bill EUR 16,743.16.
+  The site draws its link, its motor and its plate.
+- **A reach turns it only where no posture with it square reaches**,
+  holds it in its posture through a carry, and brings it home before a walk
+  or a get-up; neither the walker nor the get-up policy changed. No
+  procedure can move it (it is no `move` axis).
+- **The robots are told of it in one sentence of their body** (the
+  practice's `YOUR_BODY`, which their procedure rule carries; Ben's call 5
+  on #622): "Your trunk turns on a waist over your hips, up to 60 degrees
+  either way, your shoulders and your head with it." `prompt_sha`
+  `60e70aa9…` (57,348 chars) becomes `beb48e83…` (57,459), 17 sections
+  both; the session host's `hello` moves with it, and the site's half
+  vendors it again (its guide is held to it). The schema, the menu, the
+  reward table and the jobs are the same.
+- **Each joint draws the noise it drew before** (`senses.SHARED`): the
+  legs' and the arms' drivers keep the robot's one stream, and the waist's
+  draws its own.
+- **The LIDAR and the depth camera ride it**, posed off its encoder every
+  frame.
+- **The standing policy is waist16**, retrained on the new body with the
+  waist scripted beside it and each sole's heading anchored: as an arm goes
+  out its stance turns 0.9-1.5 deg (stand4: 4.6-4.8), and with the reach's
+  posture 3.6-3.9 (8.2-8.4); standing still it settles in 30 s, as stand4
+  did.
+- **Every robot's body and map is dropped at the deploy** (the save's
+  fingerprint hashes the robots' bodies): History says "the world itself
+  changed since then", and the clock, both packs at their share, the deaths
+  and the jobs carry on -- flown from a copy of the live save, through
+  today's build and then this one.
+
+**Why.** #560's table: its put-downs lie at the edge of what a hand reaches
+at a 0.72 m table (#615), and #620 and #621 measured that a yaw widens the
+bands and lets one stance lay the whole place; Ben's calls of 11-05 (a yaw
+alone, +-60, held through a carry, no `move` axis).
+
+**The cube's check is closed** (SimNotes, "The cube and the robot's
+noise"): it fell 22 of 32 to 9 on the one realization of the robot's noise
+the waist re-drew, and on a step that had leaned on stand4's creep; its
+procedure steps aside now, and the two bodies place the cube as often over
+three paired seeds. The cube is no offered job.
+
+**The served chest's reference is reworked for this body** (SimNotes, "The
+chest's grip"): its lid's grip is aimed 2 cm short of the knob's middle,
+where the pads had met the rising lid and the retrained stand, pushed by the
+lift, let the arc's top out of reach. Ours alone: the robots write their own
+procedures, and nothing they read changed. ⚠ The chest's numbers below set
+the reworked reference on this body against the old one on today's: two
+changes, the grip never flown on today's body at the three seeds.
+
+**What the period is for.** That the body changed nothing else the robots
+did well: charges plug in (no `stuck` death, no charge narrated "no charge
+contact"), the hand jobs' grades hold (flown before the deploy on one pod
+over 32 draws from the tour: the door 29 where today's body passed 31; the
+chest 29, 31 and 29 at three paired seeds where today's passed 20, 28 and
+24; each draw its own noise, on another pod, the drawer 31, the door 28 and
+the chest 32: SimNotes, "The waist built"), and falls a day do not rise --
+read off the charges' narration, the `death` rows and the jobs' verdicts.
+The deploy box's speed is the management conversation's to read (one joint
+more on each robot).
+
 ### The mind pinned to baseten, and the eye running (the box, 2026-11-05) — set during the pause, so it opens with the world's next run
 
 **What changed on the deploy box**, with no release (17a493e kept running):

@@ -27,13 +27,18 @@ from pluggybot.procedure import lang
 from pluggybot.procedure import steps as st
 
 #: THE LID: the knob's middle off its tag (half the 26 mm cube in from the
-#: face read), its facing off the tag's edges; gripped from the front, the
-#: fingers tilted up first (at the top of its arc, the hand that kept its
-#: turn reaches about level) and the jaws along the hinge's line, at the
-#: first tilt that holds; lifted up and a little back by a FORCE MOVE that
-#: lets the hinge steer the hand along the arc; lowered toward the body and
-#: down, again by force -- the lid set down by its hinge, not by a plan --
-#: and let go only once the hand is back down.
+#: face read), its facing off the tag's edges; gripped from the front 2 cm
+#: SHORT of that middle, back level along its facing -- ⚠ the pads reach 4
+#: cm past the grip and the rising lid's front edge swings up under them: at
+#: the middle, where the grips landed 0.9 cm deeper, they met it at 43 deg
+#: and the lift ran out of reach; 2.5 cm short, a knob read true sticks out
+#: past the tips (SimNotes, "The chest's grip") -- the fingers tilted up
+#: first (at the top of its arc, the hand that kept its turn reaches about
+#: level) and the jaws along the hinge's line, at the first tilt that holds;
+#: lifted up and a little back by a FORCE MOVE that lets the hinge steer the
+#: hand along the arc; lowered toward the body and down, again by force --
+#: the lid set down by its hinge, not by a plan -- and let go only once the
+#: hand is back down.
 LID = '''def open_lid():
   budget(steps=40, seconds=66)
   spot(53)
@@ -47,6 +52,8 @@ LID = '''def open_lid():
     a = a + 1.571
   fx = cos(a)
   fy = sin(a)
+  x = x - 0.02 * fx
+  y = y - 0.02 * fy
   g = 0
   t = -0.26
   for i in range(6):
@@ -178,11 +185,20 @@ DOOR = '''def open_door():
 '''
 
 #: THE CUBE, out of reach where the robot stands: the mat's middle and the
-#: cube's off their tags, the cube's turn off its edges; a STEP in, until
-#: the cube is 0.32 m ahead -- nearer, the head camera no longer sees it, so
-#: what it read is turned into the frame it stands in after the step
-#: (`step.*`); gripped steeply from above-front, the jaws on two of its
-#: faces, at the first tilt that reaches and holds; lifted straight up and
+#: cube's off their tags, the cube's turn off its edges; a STEP in and aside,
+#: until the cube is 0.32 m ahead and 0.18 to the left -- nearer, the head
+#: camera no longer sees it, so what it read is turned into the frame it
+#: stands in after the step (`step.*`). ⚠ STEPPED IN ALONE, THE STAND'S
+#: CREEP PUT IT ASIDE (#560's stage (c3)): stand4 turned its stance 2.5 deg
+#: clockwise over the step and left the cube 0.177 to its left, the stand
+#: retrained on the waist holds its stance and left it 0.157 -- there the
+#: left hand's carry to the mat ran into its shoulder's inner stop, 10 of 32
+#: placed where 22 were. Stepped aside, the waist's body placed it 19 times
+#: of 32 over three seeds of its noise, today's stepped in alone 18 -- and
+#: 15, each set-out its own noise (SimNotes, "The cube and the robot's
+#: noise"). Gripped steeply from above-front, the jaws on two of its faces,
+#: at the first tilt that reaches and holds; lifted
+#: straight up and
 #: set down by force moves that hold their line (`give` 0: a cube set down
 #: giving slid along what it touched), carried over the mat by where the
 #: grip left it in the hand; and let go only once its set-down has pressed
@@ -197,7 +213,7 @@ PLACE = '''def place_cube():
   y = read("spot.y") + 0.013 * read("spot.ny")
   z = read("spot.z") + 0.013 * read("spot.nz")
   a = atan2(read("spot.ey"), read("spot.ex"))
-  step(x - 0.32)
+  step(x - 0.32, y - 0.18)
   c = cos(read("step.turn"))
   s = sin(read("step.turn"))
   u = x - read("step.dx")
@@ -242,26 +258,121 @@ PLACE = '''def place_cube():
   withdraw("left")
 '''
 
-#: THE TABLE'S PLACE (#560): the card's tag and each piece's off their tags
-#: and each piece worked from a stance of its own, its hands home and empty
-#: between (`step`): the cup first, by the right hand, from where the robot
-#: stands; then a step to the right and the plate, pinched by its left wall,
-#: and a step back and the fork, by its handle, both by the left hand. Each
-#: arm is rolled out and folded (`move`) BEFORE the card and its piece are
-#: read: the stance turns as an arm goes out (SimNotes, "Setting a table"),
-#: and read first, the cup was 2-5 cm off where the hand came down on it
-#: (laid 5 of 32 where folded first 21). The card is read again just before
-#: each reach, and the plate and the fork from the start, as offsets from
-#: the card: flat on the table, their tags are out of the head camera's view
-#: nearer than about 0.37 m, and to its side after a step. The step aside
-#: is 0.26 m: at 0.21 the plate was laid 4 of 32 held-out set-outs, at 0.26
-#: 24 (SimNotes). Each piece is gripped from above and behind at 45 deg,
-#: lifted, carried at that height, set down by a force move holding its line
-#: until it presses on the table, let go, and the open hand lifted clear
-#: before it goes home.
-#: ⚠ IT DOES NOT MEET THE BAR (SimNotes, "Setting a table"): the bands the
-#: hands reach at a 0.72 m table are too narrow for every piece's grip.
+#: THE TABLE'S PLACE (#560) from ONE STANCE 0.14 m left of the start, where
+#: the waist's yaw reaches every piece (#621). Each choice is deliberate and
+#: measured (SimNotes, "The table's reference on the waist"): the cup from
+#: above, gripped 3 cm short of its middle (at the middle the palm cuts the
+#: lid) and placed off the plate's tag read with the hand out, a reach that
+#: bows out of the tag's view tried again 1.5 cm higher; the plate's and the
+#: fork's jaws the other way round at 60 deg (as asked before, the yaw takes
+#: the grip that never carries), each reach aimed at its grip (#627: the reach
+#: plans where the robot stands), the plate gripped 1.5 cm inside its wall (at
+#: it, a pad brushed the fork
+#: over), the fork at 25 N (from 40 the gripper's chatter stalls short of
+#: it); every precise move a pull (`go`: a carry takes only a posture its
+#: statue reaches); each piece set down by where its jaws left it, the card
+#: read again once it is up, the plate 1 cm to the right and the fork 0.5 cm
+#: nearer the robot against what the carry's turn leaves; an open hand lifted
+#: straight up, its jaws opened first.
 TABLE = '''def lay_place():
+  budget(steps=190, seconds=290)
+  spot(93)
+  k = read("spot.x")
+  m = read("spot.y")
+  spot(90)
+  px = read("spot.x")
+  py = read("spot.y")
+  spot(91)
+  u = read("spot.x") - px - 0.03
+  v = read("spot.y") - py
+  cz = read("spot.z") - 0.03
+  s = k - 0.07 - px - 0.03
+  w = m - 0.243 - py
+  step(0, 0.14)
+  move("right_shoulder_roll", -0.9)
+  move("right_elbow", 1.4)
+  open_hand("right")
+  spot(90)
+  x = read("spot.x") + u
+  y = read("spot.y") + v
+  reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
+  if spot(90):
+    x = read("spot.x") + u
+    y = read("spot.y") + v
+  else:
+    withdraw("right")
+    spot(90)
+    reach("right", read("spot.x") + u + 0.005, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
+    if spot(90):
+      x = read("spot.x") + u
+      y = read("spot.y") + v
+  go("right", x, y, cz + 0.10, 20, 0)
+  go("right", x, y, cz, 12, 1)
+  if not close_hand("right", 40):
+    open_hand("right")
+    close_hand("right", 30)
+  ox = x - read("right.x")
+  pull("right", 0, 0, 1, 20, 0.05, give=0)
+  if spot(90):
+    x = read("spot.x") + s
+    y = read("spot.y") + w
+  else:
+    x = x + s - u
+    y = y + w - v
+  go("right", x - ox, y, read("right.z"), 20, 0)
+  pull("right", 0, 0, -1, 6, 0.09, give=0)
+  open_hand("right")
+  wait(0.4)
+  pull("right", 0, 0, 1, 20, 0.08, give=0)
+  withdraw("right")
+  for i in range(2):
+    move("left_shoulder_roll", 0.9)
+    move("left_elbow", 1.4)
+    open_hand("left")
+    spot(93)
+    k = read("spot.x")
+    m = read("spot.y")
+    spot(90 + 2 * i)
+    px = read("spot.x")
+    py = read("spot.y")
+    gy = py + 0.066 * (1 - i)
+    gz = 0.7734 - 0.005 * i
+    reach("left", px, gy, gz, 0.5, 0, -0.866, 0, -1, 0)
+    if not close_hand("left", 40 - 15 * i):
+      open_hand("left")
+      close_hand("left", 30 - 15 * i)
+    ox = px - read("left.x")
+    oy = -0.084 * (1 - i)
+    pull("left", 0, 0, 1, 20, 0.05, give=0)
+    if spot(93):
+      k = read("spot.x")
+      m = read("spot.y")
+    go("left", k - 0.19 - 0.005 * i - ox, m + 0.16 * i - 0.01 * (1 - i) - oy, read("left.z"), 20, 0)
+    pull("left", 0, 0, -1, 6, 0.09, give=0)
+    open_hand("left")
+    wait(0.4)
+    pull("left", 0, 0, 1, 20, 0.06, give=0)
+    withdraw("left")
+
+
+def go(h, x, y, z, f, g):
+  dx = x - read(h + ".x")
+  dy = y - read(h + ".y")
+  dz = z - read(h + ".z")
+  d = sqrt(dx * dx + dy * dy + dz * dz)
+  if d > 0.01:
+    pull(h, dx, dy, dz, f, d, give=g)
+  elif d > 0.002:
+    if not move_hand(h, x, y, z):
+      pass
+'''
+
+#: ...the reference before the waist's (#615, #618): a stance a piece --
+#: the cup where the robot stands, a step right for the plate and back for
+#: the fork -- and every grip 45 deg as asked; on the waist's body it laid no
+#: place in 32 (SimNotes, "Setting a table"). Kept as the base of #621's
+#: flown levers, the scenes below.
+TABLE_STANCES = '''def lay_place():
   budget(steps=120, seconds=400)
   move("right_shoulder_roll", -0.9)
   move("right_elbow", 1.4)
@@ -342,7 +453,7 @@ _TABLE_STEP = '    step(0, 0.43 * i - 0.26)\n'
 
 
 def _table_scene(grip: str, step: str) -> str:
-  out = TABLE
+  out = TABLE_STANCES
   for old, new in (*_TABLE_RIM30, (_TABLE_GRIP, grip), (_TABLE_STEP, step)):
     out = out.replace(old, new)
   return out
@@ -373,15 +484,17 @@ def compiled(job: str) -> lang.Procedure:
   return lang.compile_procedure(SCENES[job][1] if job in SCENES else JOBS[job], facts())
 
 
-def fly(job: str, k: int, info: dict | None = None) -> dict:
+def fly(job: str, k: int, info: dict | None = None, noise: str | None = None) -> dict:
   """`job`'s procedure flown once at its set-out `k` and graded: the
   attempt's row (`attempts.attempt`), the run's verbs beside it (`ran`:
-  each verb, whether it was ok and why it stopped)."""
+  each verb, whether it was ok and why it stopped). The set-out draws its
+  own noise, or `noise`'s (`attempts.builder`)."""
   f = facts()
   out: dict = {}
   row = at.attempt(at.Task(chest=k, body="humanoid", mount="counter", grader=job),
                    ep.procedure_skill(compiled(job), f, out), 1,
-                   info={"process": "hand-written", "skill": job, **(info or {})})
+                   info={"process": "hand-written", "skill": job, **(info or {})},
+                   build=at.builder(noise))
   ran = out.get("ran") or {}
   row["ran"] = {"ok": ran.get("ok"), "stopped": ran.get("stopped"),
                 "steps": [{k_: s.get(k_) for k_ in ("verb", "ok", "why", "reason", "moved",

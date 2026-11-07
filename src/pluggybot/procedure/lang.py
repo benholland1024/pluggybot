@@ -1120,8 +1120,8 @@ def _eval(expr, env: dict, life, facts: WorldFacts) -> float:
     try:
       return float(sensor.read(life))
     except axes.NoReading as no:
-      # a verb's report read before the verb ran (issue #493): said, never
-      # a number made up
+      # a verb's report read before the verb ran (issue #493), or a number
+      # it could not give (#630): said, never a number made up
       raise _Stop(str(no)) from None
   if kind == "bin":
     a, b = _eval(expr[2], env, life, facts), _eval(expr[3], env, life, facts)
@@ -1174,7 +1174,11 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
   `entry` for the library's procedure whose source holds its line); a
   verb failing in it ends the whole run as one failing anywhere does --
   unless the call is an `if`'s test, which then reads it false, as it reads
-  a fault in its arithmetic, and the run goes on."""
+  a fault in its arithmetic, and the run goes on.
+
+  `total` is the calls MADE, `completed` the calls the run went on past --
+  every call made but one that ended it, a test that read false among them
+  -- and `testsFalse` how many tests read false (#629)."""
   reasons = validate(proc, facts)
   if not proc.alone:
     reasons = reasons + [f"{proc.name} takes {', '.join(p for p in proc.params if p not in proc.defaults)}: "
@@ -1183,7 +1187,8 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     raise Refused(reasons)
   result: dict[str, Any] = into if into is not None else {}
   result.update({"program": proc.name, "role": st.DEFAULT_ROLE, "total": 0,
-                 "completed": 0, "steps": [], "ok": False, "source": proc.source})
+                 "completed": 0, "testsFalse": 0, "steps": [], "ok": False,
+                 "source": proc.source})
   env: dict = {p: d[1] for p, d in proc.defaults.items()}
   t0 = float(life.data.time)
   count = 0
@@ -1261,6 +1266,11 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
       # `run_verb`): an abort, as between two verbs, never a failed step
       raise _Stop("interrupted")
     if not verdict.get("ok") and (tested or read):
+      # ...a call the run goes on past: set on a success alone, `completed`
+      # was the NUMBER of the last call that did what it said, and a run
+      # whose last calls were tests that read false was graded cut short
+      result["completed"] = count
+      result["testsFalse"] += 1
       life._say(f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}, {verb}) did "
                 "not do what it said, as its test read"
                 + (f" -- {verdict['reason']}" if verdict.get("reason") else ""))
@@ -1282,6 +1292,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     run goes on (no count: no verb ran)."""
     result["steps"].append({"verb": verb, "line": line, **at.said(), "ok": False,
                             "reason": why, "tested": True})
+    result["testsFalse"] += 1
     life._say(f"PROCEDURE {proc.name} line {line}{at.text()}, {verb} did not do what it "
               f"said, as its test read -- {why}")
 

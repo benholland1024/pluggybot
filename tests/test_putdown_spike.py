@@ -70,17 +70,6 @@ def test_the_slab_is_620s_table_where_the_stance_stands_square():
   assert len(seen) == 2
 
 
-def test_the_first_seed_that_reaches_is_the_one_the_seeded_solve_keeps():
-  sm, table, _ = ws._models("none")
-  ws.pose(sm, table[0])
-  for pos, grip in (((0.42, -0.31, 0.78), "t45"), ((0.30, 0.30, 0.80), "down"),
-                    ((0.90, 0.20, 0.80), "t45")):
-    for side in ("left", "right"):
-      a = ps.solve_first(sm, side, np.array(pos), ws.GRIPS[grip])
-      b = rc.solve_seeded(sm, side, np.array(pos), ws.GRIPS[grip])
-      assert np.array_equal(a[0], b[0]) and a[1] == b[1] and a[2] == b[2], (pos, side)
-
-
 def test_one_posture_is_620s_carry_and_a_turn_comes_first_on_a_line():
   # the plate from our procedure's step, where #620's carry finds the deep bow
   # that dips into the table, and from 0.30, where it carries clear; the cup
@@ -119,7 +108,7 @@ def test_the_flown_table_scenes_are_the_jobs_procedure_with_the_levers_lines_alo
   a line of the job moved under it is a scene that no longer flies the
   lever, and fails here."""
   from pluggybot.evaluation import hands_check as hc
-  job = hc.TABLE.splitlines()
+  job = hc.TABLE_STANCES.splitlines()
   for name in ("table_rim30", "table_rim30_t60"):
     grader, source = hc.SCENES[name]
     assert grader == "table"

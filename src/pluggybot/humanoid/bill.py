@@ -59,7 +59,7 @@ def driven_by(motor) -> list[str]:
 
 
 def _bodies(motor) -> tuple[str, ...]:
-  return tuple(f"{j.split('_', 1)[0]}_{hm.BODY_OF[hm.kind(j)]}" for j in driven_by(motor))
+  return tuple(hm.body_of(j) for j in driven_by(motor))
 
 
 def _actuator(pid: str, motor, page: str, size: dict, inertia: float, note: str) -> Part:
@@ -142,9 +142,9 @@ PARTS: tuple[Part, ...] = (
             "the other."),
   _actuator("rs03", hp.RS03, "robstride03-qdd-60n-m-integrated-joint-motor-module",
             {"diameter": 98, "length": 54.1}, 0.02,
-            "The hips' yaw, the ankles' roll and the shoulders' pitch and roll. "
-            "K-Bot uses it at hip roll and yaw. 880 g in its manual, 928 on the "
-            "sheet's page."),
+            "The hips' yaw, the ankles' roll, the shoulders' pitch and roll and the "
+            "waist's yaw. K-Bot uses it at hip roll and yaw. 880 g in its manual, 928 "
+            "on the sheet's page."),
   _actuator("rs02", hp.RS02, "robstride02-qdd-17n-m-joint-motor-module-dual-encoders",
             {"diameter": 78.5, "length": 41.5}, 4.2e-3,
             "The upper arms' twist and the elbows. K-Bot uses it at shoulder yaw "
@@ -156,7 +156,7 @@ PARTS: tuple[Part, ...] = (
             {"diameter": 46, "length": 44}, 7e-4,
             "The wrists' roll, after the pitch: it turns only the gripper. 191 g in "
             "its manual, 243 on the sheet's page."),
-  _bought("amass_xt30_22_pair", usedBy=(hm.ROBOT_ROOT,), quantity=26),
+  _bought("amass_xt30_22_pair", usedBy=(hm.ROBOT_ROOT,), quantity=27),
   _bought("lapp_unitronic_can", usedBy=(hm.ROBOT_ROOT,), quantity=15),
   _bought("silicone_wire_14awg", usedBy=(hm.ROBOT_ROOT,), quantity=30),
   # ---- grippers ----------------------------------------------------------------
@@ -311,14 +311,14 @@ PARTS: tuple[Part, ...] = (
   # ---- frame -------------------------------------------------------------------
   Part("humanoid_brackets", "The motors' brackets: two 5 mm 6082 plates a joint, each "
        "its motor's diameter square, machined, with their fasteners", "structure",
-       "chosen", SHELVES, (hm.ROBOT_ROOT,), massG=_brackets_g(None), quantity=48,
+       "chosen", SHELVES, (hm.ROBOT_ROOT,), massG=_brackets_g(None), quantity=50,
        robot=ROBOT,
        why={"partNumber": "made to a drawing not yet drawn",
             "source": "made to a drawing not yet drawn",
             "dimensionsMm": "each its motor's diameter square (`humanoid.model._bracket`)",
             "priceEur": "nothing drawn to quote: an allowance in the bill"},
        feeds=(Feed("humanoid.model._bracket", _brackets_g, "g",
-                   "all forty-eight, riding each motor's housing in the model "
+                   "all fifty, riding each motor's housing in the model "
                    "(`model._housing`)", where="code"),)),
   _fabricated("humanoid_trunk_plates", "The pelvis's and the torso's frame: 3 mm 6082 "
               "plates", ("pelvis_side", "pelvis_deck", "torso_side", "torso_back",
@@ -337,6 +337,8 @@ PARTS: tuple[Part, ...] = (
   _fabricated("humanoid_gripper_adapters", "The plates the grippers bolt to on the "
               "wrists' roll, 6 mm 6082", ("gripper_adapter",),
               usedBy=tuple(f"{s}_hand" for s in hm.SIDES)),
+  _fabricated("humanoid_waist_plate", "The waist's turntable plate over the pelvis, the "
+              "torso's frame on it: 5 mm 6082", ("waist_plate",), usedBy=("waist_yaw_link",)),
   _fabricated("humanoid_lidar_frame", "The LIDAR's frame in the head: a 6 mm 6082 fin up "
               "its back and the plate the unit's base bolts under",
               ("lidar_fin", "lidar_plate"), usedBy=(hm.ROBOT_ROOT,)),
@@ -378,12 +380,12 @@ LINES: tuple[Line, ...] = (
   # ---- actuation ---------------------------------------------------------------
   Line("rs04", 8, "actuation", OE_LEAD, note="the hips' pitch and roll, the knees, "
        "the ankles' pitch"),
-  Line("rs03", 8, "actuation", OE_LEAD, note="the hips' yaw, the ankles' roll, the "
-       "shoulders' pitch and roll"),
+  Line("rs03", 9, "actuation", OE_LEAD, note="the hips' yaw, the ankles' roll, the "
+       "shoulders' pitch and roll, the waist's yaw"),
   Line("rs02", 4, "actuation", OE_LEAD, note="the upper arms' twist and the elbows"),
   Line("rs00", 2, "actuation", OE_LEAD, note="the wrists' pitch"),
   Line("rs05", 2, "actuation", OE_LEAD, note="the wrists' roll"),
-  Line("amass_xt30_22_pair", 30, "actuation",
+  Line("amass_xt30_22_pair", 31, "actuation",
        "dispatched within 2-3 days, UPS or DHL (3DPTronics, Italy)",
        note="one a driver, four spare"),
   Line("lapp_unitronic_can", 15, "actuation", "176 m in stock, delivered on 2026-09-30 (Conrad)"),
@@ -443,8 +445,8 @@ LINES: tuple[Line, ...] = (
        "weeks (DigiKey DE)"),
   # ---- frame -------------------------------------------------------------------
   Line("humanoid_brackets", 1, "frame", None, why=UNDRAWN,
-       allowanceEur=round(48 * MACHINED_EUR, 2),
-       basis="forty-eight machined 6082 plates with their fasteners, at €33.33 a "
+       allowanceEur=round(50 * MACHINED_EUR, 2),
+       basis="fifty machined 6082 plates with their fasteners, at €33.33 a "
              "machined part (#379's rate for the quadruped's legs: €800 for "
              "twenty-four)"),
   Line("humanoid_trunk_plates", 1, "frame", None, why=UNDRAWN, allowanceEur=300.0,
@@ -467,6 +469,9 @@ LINES: tuple[Line, ...] = (
        allowanceEur=round(2 * MACHINED_EUR, 2),
        basis="two machined plates at €33.33 a machined part (#379's rate), drawn "
              "when the gripper's flange is known (Unitree does not publish it)"),
+  Line("humanoid_waist_plate", 1, "frame", None, why=UNDRAWN,
+       allowanceEur=round(MACHINED_EUR, 2),
+       basis="one machined part at €33.33 a machined part (#379's rate)"),
   Line("humanoid_lidar_frame", 1, "frame", None, why=UNDRAWN,
        allowanceEur=round(2 * MACHINED_EUR, 2),
        basis="two machined parts at €33.33 a machined part (#379's rate): the cap is "

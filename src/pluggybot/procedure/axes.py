@@ -16,11 +16,8 @@ the humanoid's arm joints (`BODY_AXES`) -- and its senses.
 """
 
 import math
-import zlib
 from dataclasses import dataclass
 from typing import Callable
-
-import numpy as np
 
 from pluggybot.perception.watch import WATCH_HZ
 from pluggybot.tick import Routine
@@ -59,6 +56,9 @@ class Sensor:
   #: the body's own loop last read it (`Body.hand_sensed`), so a condition
   #: that never comes true moves the flight not at all (#554)
   live: Callable[..., float] | None = None
+  #: how far into a move a stop condition first reads it, s: a hand's force
+  #: as a move begins reads the move (`FORCE_FROM_S`, #631)
+  from_s: float = 0.0
 
 
 #: How often a hand's readings are fresh while it moves, s: once a command
@@ -67,6 +67,19 @@ class Sensor:
 #: the whole body's balance (#547), its gripper's word -- and the clock
 #: they are read by.
 HAND_EVERY_S = 0.01
+#: A HAND'S FORCE AS A MOVE BEGINS READS THE MOVE (#631): a stop condition on
+#: one reads it from this far into the move, s. A carry or a pull is read as
+#: still (`humanoid.reach.HELD_PHASES`), and its first commands read 13-16 N
+#: in free air -- it starts from where the hand IS, a step off its hold --
+#: and 9 or under from 0.1 s on.
+FORCE_FROM_S = 0.1
+#: ...and after that a hand moving through free air reads up to this, N, on
+#: any one axis: flown on a bare floor (`humanoid_spike.py --moving`), 18
+#: reaches, carries and pulls, either hand, read 9.9 at most (a reach to the
+#: floor in a deep bow; a carry 8.9) and 6 or under on every other reach.
+#: Taken as still, the same reaches read 11-14 N as they swung out, and a
+#: stop at 3 N stopped one by the robot's side (Luca's, from 11-03 on).
+MOVING_N = 12.0
 
 
 def _ramp(actuator: str, settle: float = 0.5):
@@ -88,19 +101,6 @@ def _held(actuator: str):
 #: Every axis a program may move, by name: the humanoid's arm joints
 #: (`_humanoid_axes`, below).
 AXES: dict[str, Axis] = {}
-
-
-def noise(life, key: str, sigma: float) -> float:
-  """One Gaussian sample, `sigma` wide, DETERMINISTIC on the physics step
-  and the sensor: the same step reads the same value twice (a sensor
-  sampled faster than it updates does), the next step reads a fresh one,
-  and one world replays byte-identical. Seeded off a checksum rather than
-  `hash()`, which Python salts per process."""
-  step = int(round(float(life.data.time) / float(life.model.opt.timestep)))
-  prefix = getattr(getattr(life, "body", None), "handle", None)
-  tag = f"{key}:{getattr(prefix, 'prefix', '')}:{step}"
-  seed = zlib.crc32(tag.encode())
-  return float(np.random.default_rng(seed).normal(0.0, sigma))
 
 
 SENSORS: dict[str, Sensor] = {
@@ -150,7 +150,8 @@ def from_stance(life, p, point: bool = True) -> tuple[float, float, float]:
 
 class NoReading(LookupError):
   """A sensor read before anything gave it a value: a verb's report read
-  before the verb ran. The language stops the run, saying which."""
+  before the verb ran, or a number it could not give (#630). The language
+  stops the run, saying which."""
 
 
 def reported(verb: str, key: str, life) -> float:
@@ -159,6 +160,19 @@ def reported(verb: str, key: str, life) -> float:
   if rep is None or key not in rep:
     raise NoReading(f"{verb}.{key} has no reading: `{verb}` has not run")
   return float(rep[key])
+
+
+def measured(key: str):
+  """An `object.*` sensor's read: the last `measure`'s number, or why it
+  gave none (#630, its report's `unread`) -- it saw no top, or the top
+  ran on past where it looked that way."""
+  def read(life) -> float:
+    rep = (getattr(life, "reports", None) or {}).get("measure")
+    if rep is not None and key in rep:
+      return float(rep[key])
+    why = (rep or {}).get("unread", {}).get(key) or "`measure` has not run"
+    raise NoReading(f"object.{key} has no reading: {why}")
+  return read
 
 
 def _hand_at(side: str, k: int):
@@ -182,9 +196,10 @@ for _s in HANDS:
     SENSORS[f"{_s}.f{_a}"] = Sensor(
       f"{_s}.f{_a}", _hand_force(_s, _k),
       f"the force your {_s} hand pushes with, N, your stance frame ({_a}), off your "
-      "motor currents less your own weight and your joints' friction -- your whole "
-      "body's while that hand is out and you stand, else its arm's alone; it reads "
-      "truest held still", every_s=HAND_EVERY_S)
+      "motor currents less your own weight, your joints' friction and your body's own "
+      "motion -- your whole body's while that hand is out and you stand, else its arm's "
+      f"alone; it reads truest held still, and moving through the air up to {MOVING_N:g} "
+      "N with nothing touched", every_s=HAND_EVERY_S, from_s=FORCE_FROM_S)
   SENSORS[f"{_s}.held"] = Sensor(
     f"{_s}.held", (lambda side: lambda life: 1.0 if life.body.gripped(side) else 0.0)(_s),
     f"1 while your {_s} gripper says it holds something: its jaws stopped short of "
@@ -347,8 +362,7 @@ for _k, _doc in (("top", "the height of the flat top `measure` last saw, m"),
                  ("far", "how far ahead that top ends, m"),
                  ("left", "how far to your left that top reaches, m"),
                  ("right", "how far to your left its right edge is (negative: to your right), m")):
-  SENSORS[f"object.{_k}"] = Sensor(
-    f"object.{_k}", (lambda key: lambda life: reported("measure", key, life))(_k), _doc)
+  SENSORS[f"object.{_k}"] = Sensor(f"object.{_k}", measured(_k), _doc)
 for _k, _a in enumerate("xyz"):
   SENSORS[f"pull.d{_a}"] = Sensor(
     f"pull.d{_a}", (lambda key: lambda life: reported("pull", key, life))(f"d{_a}"),

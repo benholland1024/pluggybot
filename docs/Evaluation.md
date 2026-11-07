@@ -38,8 +38,9 @@ This is the piece of luck the project has and should not spend.
 **Nothing in the world is random.** `TaskProducer` offers the same jobs at the
 same sim-seconds on two consecutive runs; `plant` is seeded from a hash of
 the body name and never `Math.random()`; sensor noise is drawn per physics
-step and per robot off a fixed seed; the physics is deterministic given the
-same commands. So a
+step and per body off a fixed key (`senses.Noise`: a served robot's its
+name's, an instrument's flight its set-out's, §5); the physics is
+deterministic given the same commands. So a
 scripted day flown twice is the same world twice, and a spread across
 repeated runs of one configuration is a measurement of the *model* rather
 than of the simulator.
@@ -1041,7 +1042,8 @@ internals. Its rules:
   is no attempt** (`attempts.Unstable`): a row saying what, no verdict, its
   task kept in the record and unflown from there, never dropped from the
   denominator;
-- ⚠ **an attempt is its set-out EXACTLY**, sensor noise included: code that
+- ⚠ **an attempt is its set-out EXACTLY**, sensor noise included -- the
+  set-out's own (§5, "Each set-out flies noise of its own"): code that
   learns nothing between attempts earns the same verdict at every one, so a
   reference flies one attempt a task;
 - **held-out tasks** are chests nobody has flown, from 1,000,000 up, past
@@ -1185,7 +1187,11 @@ shut its jaws on nothing three tries running. So:
   edges (`steps._measure`, `perception.box`) -- our code's perception, one
   of the subsidies `FLATTERS` names. Depth is feedback a person uses too,
   never a shortcut past the strategy (Ben, 2026-10-19); an arm with it is
-  still never pooled with the arms without it.
+  still never pooled with the arms without it. ⚠ Since #630 an end the top
+  runs on past its 0.45 m window is no reading, and the floor is no top
+  (6 cm up at least), where before they read the window's rim and 1.2-2.6
+  cm: a top the window held whole reads as it did, a wider one not, so an
+  arm whose robots measured a counter or a table is not pooled across it.
 
 **What the practice-first arms did** (2026-10-18, the public chests 0-7 in
 turn, 5 tries a chest, the picture shown; `dee4739` without notes or feel,
@@ -1769,8 +1775,9 @@ it is no row below.
   still touching it.
 - **A force read from a move's start reads the start**: lidA's first ten
   contact stops, `until="left.fx"` past 4-10 N on a carry, all came 0.00 to
-  0.45 s in -- the whole body's reading runs 11-17 N ahead for a moved hand's
-  first half second -- before it moved its stops onto the hand's height.
+  0.45 s in -- the whole body's reading ran 11-17 N ahead for a moved hand's
+  first half second, the body taken as still (#631 took its motion in) --
+  before it moved its stops onto the hand's height.
 - **What they said they lacked** (`lacks.py`): the angle still -- lidA in 37
   sentences ("I can't measure the lid angle directly"), lidB in 24, the
   door arm in 10; room, the 1,500-character cap refusing 2, 23 and 5
@@ -1835,9 +1842,10 @@ the reference: 19 of 32 [0.42, 0.74] at one try.
   reference cost no tokens.
 
 **The table's place, its reference first** (#560's first task, easy mode;
-Challenges.md §12): our procedure in the hands' vocabulary
-(`hands_check.TABLE`) flown over its set-outs before any mind practices it,
-the bar the check's, 6 of set-outs 0-7, written before this job was. **0 of
+Challenges.md §12), on the body before the waist -- on the waist's, below:
+our procedure in the hands' vocabulary (`hands_check.TABLE_STANCES` since)
+flown over its set-outs before any mind practices it, the bar the check's,
+6 of set-outs 0-7, written before this job was. **0 of
 8 (1 on another pod), the bar not met, and 6 of 32 held-out set-outs**; by
 each piece's own criteria there the cup was laid 23 times, the plate 24 and
 the fork 6 (it comes last) -- since the hands' small fixes (#560's stage
@@ -1864,6 +1872,80 @@ procedures are shown, never called -- so the KEPT protocol keeps each pass
 as the source it ran, its callees in it (`keep`, `program`: a pass's
 whole source is one program), and no later pass can change what an
 earlier one called.
+
+**The table's place on the waist's body** (#560; SimNotes, "The table's
+reference on the waist"). Our procedure (`hands_check.TABLE`) lays the
+whole place from one stance 0.14 m to the left of the start, in 2,522 of
+the language's 3,000 characters with a def of its own. Its bar, written
+before it flew: 24 of 32 places over set-outs 0-31, and no fall. Flown on
+one pod (a Xeon E5-2697 v4, osmesa), each set-out its own noise: **32 of 32
+at set-outs 0-31, no fall**; 32 of 32 over #618's held-out set-outs (seed
+559905171); 46 of 48 over public set-outs 80-127, which nobody tuned on; 30
+of 32 over the practice arms' held-out set-outs (seed 402613269) -- 140 of
+144. `TABLE_STANCES` on the same pod laid none (cup 21, plate 18, fork 0 at
+0-31; 19, 11, 0 held out). So by §7's ladder A the job is no longer a
+defect; it stays unoffered, Ben's call on #615 (the restaurant's tables
+first).
+
+**Two fresh practice arms on the table** (#560). The FRESH protocol
+(`practice.py --job table --held-out 32 --early-stop`): a fresh robot a
+held-out set-out, up to 5 tries, the deployed mind
+(`zai-org/GLM-5.3-Flash:baseten` at its provider's own effort, as the box
+sets none), every hands switch on and the head camera's picture first, over
+the 32 set-outs of seed 402613269 our procedure laid 30 of. The bar, written
+before they flew: 80 % within 3 (26 of 32) and no try that fell -- the
+lid's, the door's and demo 1's, so the reading compares with theirs; our
+procedure passes here, so the bar sits below it, and the reading is how
+near a fresh mind gets to a skill that is there. At `343e273`:
+
+| arm | set-outs flown | held out within 3 | within 5 | pieces laid in its 35 tries | tries that fell | tries with no procedure | cost |
+|---|---|---|---|---|---|---|---|
+| tableA | 7 of 32; stopped early | **0 of 7** [0.00, 0.35] | 0 | 1, a cup | 6 | 15, every first try | $4.45 recorded, ~$7.7 |
+| tableB | 7 of 32; stopped early | **0 of 7** [0.00, 0.35] | 0 | none | 3 | 16, 5 first tries of 7 | $4.05 recorded, ~$7.4 |
+| our procedure, the same 8 set-outs | 8 | 8 laid | | 24 | 0 | | none |
+
+- **A first run wrote for a job it was never shown.** A reply lost to every
+  retry was popped from the conversation with what it answered, so where a
+  first answer was lost (128,000 tokens, then two streams the router closed
+  at 20 minutes) the job went with it, and four tries were written for tags
+  1 and 2 and a plate slid to "the place". Fixed before the run above
+  (`mind.practice.LOST_NOTE`); that run's rows are kept apart, never pooled.
+- **The answers ran into their limits.** Of each arm's 104 calls, 52 and 45
+  were cut off -- 45 and 38 at 128,000 tokens, 7 each by the router closing
+  the stream at up to 20 minutes -- and 7 each timed out reading; a call's
+  median was 114,756 and 94,624 tokens, 12 and 8 minutes. So 12 of the 14
+  first tries had no procedure, and 31 of the 70 tries: 26 lost to
+  cut-offs, 5 to refusals -- sources over the 3,000 characters (a median of
+  2,956 and 2,975, the longest 3,997 and 4,368), a tag named in quotes, a
+  budget of 250 steps, nesting past 4.
+- **They wrote whole plans, in defs of their own.** 34 of tableA's 45
+  sources and 40 of tableB's 52 defined procedures and called them (#616's
+  defs): a frame off the card's tag, each place from the job's distances,
+  the cup gripped from above and carried high, the plate gripped by its rim
+  and slid, the fork's axis and head found by `measure` (tableB's nearest
+  try; `measure` is in 47 of its 52 sources, 19 of tableA's 45). That try
+  left the plate 4.7 cm and the cup 3.5 cm from their places; tableA laid
+  one cup 1.5 cm off, and a fork 1.6 cm off but turned head away from the
+  card.
+- **What stopped them is what our procedure works round.** A try's first
+  failed verb was mostly the arm's reach: a hand's move held back short or
+  out of reach from every posture (12 of the 39 tries that ran), a reach out
+  of reach or turned as no posture holds (8). Our reaches were aimed 3 cm
+  past their grips then, because the live trunk stood 2-3 cm behind the
+  statue the reach planned on, and no mind was told it (#627 has the reach
+  plan where the robot stands since). Grips closed on nothing 38
+  times, and 231 of the 266 squeezes their sources ask are 40 N or more,
+  where our fork stalled on the gripper's chatter (SimNotes, "The table's
+  reference on the waist"); how many of the 38 were that and how many a
+  miss is not taken apart.
+- **What it cannot say**: two fresh arms of one model at one effort, on one
+  provider over one night; a fresh robot learns within a set-out, and its
+  lost first tries left it 4 at most -- the KEPT protocol, practice first, is
+  the other reading. ⚠ The dollars recorded are a floor: the early stop
+  kills the set-outs in flight, up to 8 an arm here, and their spend never
+  reaches a row (estimated by the hours they ran, at each arm's own rate).
+  Spend: about $17 -- the arms $8.50 recorded and ~$6.60 killed in flight,
+  the first run ~$1.80 ($0.23 recorded); our procedure cost no tokens.
 
 ## 5. What silently invalidates a number
 
@@ -1921,6 +2003,12 @@ Three things it deliberately is not:
 ⚠ **STORING IT IS THE OTHER HALF, AND IT LIVES IN THE WEBSITE REPO**
 (rooftop-media-2026 #205). Identity with nothing recorded is a header nobody
 reads; records with no identity are a chart of an unknown mixture.
+
+⚠ **WHAT THE ROBOTS COULD READ OF HOW THEIR WORLD CHANGED IS ON THE RUN,
+NEVER IN THE PROMPT** (#617; Overseer.md §7b): a changelog entry moves no
+`prompt_sha`, so a reading that asks what the robots knew of a change reads
+the run's `changelog` (its entries and their sha, kept by the site) beside
+the build's commit.
 
 ### How the observatory is read (issue #159)
 
@@ -2136,6 +2224,52 @@ few jobs or none. Tune and measure on `--pack hosting`, the served pack;
 time is a thing we want the agent to care about, it goes on the wire and into
 the context. Measuring it and not showing it, then reporting that the robot
 does not prioritise it, is measuring our own omission.
+
+### Each set-out flies noise of its own (#560)
+
+Whose noise a body draws is one key (`humanoid.senses.Noise`), and every
+stream of its parts is seeded off it: the joints', the grippers', the
+IMU's, the LIDAR's and each depth camera's. An instrument that grades a
+rate keys each flight by its job and set-out, so each set-out draws its own
+noise as it draws its own props:
+- the attempt kit and everything flown through it (`hands_check`,
+  `attempts.py`, practice, a person's session) by the job and the number
+  (`attempts.noise_of`: `lid:3`, `place:12`);
+- `solve.py` by the job, its draw and its start (`open_door:5:lobby`);
+- the station's trials by their scene and their start
+  (`station_spike.trial_noise`).
+
+A count of 32 is 32 draws of the noise now. Before, every sensor was
+seeded by the robot's name, so every flight of a check drew the same
+values at the same instants, and its count carried one realization's luck
+in common: our cube procedure, unchanged on one body, placed the cube 22,
+17, 16 and 21 times of 32 under four seeds of its joints' noise. The served
+robots keep their names' noise, every stream as it was served
+(`tests/test_noise.py`; the pair's day flew identical before and after,
+`determinism_spike.py --compare`). The rules:
+
+- ⚠ **A reading says which noise it drew** (a row's `run.noise`,
+  `attempts.noise_said`). A record kept before this drew the robot's own,
+  one realization, and is never pooled with one after.
+- ⚠ **A held-out set-out's noise is sealed with it**: its key is its
+  number's, which the frozen build's seed drew (`held_out`), so nobody
+  chose it, and an instrument flying held-out set-outs refuses `--noise`.
+- **`--noise KEY` flies one draw again**, never a rate: a row's own key, to
+  reproduce a failure, or `robot`, the robot's own, the realization every
+  set-out drew before.
+- ⚠ **Two bodies or builds are compared at the same set-outs**, which pairs
+  their draws for every part they share. A part added draws its own stream
+  (`senses.SHARED`): dealt one stream over every joint, the waist re-drew
+  every other joint's noise, and the cube's 22 read as 9 on an unchanged
+  body (SimNotes, "The cube and the robot's noise").
+- ⚠ **A count's spread is the draws'**: a pass rate near 70 % over 32
+  set-outs varies by about 2.6 passes (one standard deviation), so a
+  difference of a few is no finding.
+- ⚠ **Not every instrument yet** (#560's survey): `humanoid_spike.py`'s
+  tables build their drivers on one key (`"humanoid"`), and
+  `make_way_spike.py`, `humanoid_drift_spike.py` (its own `--seed`),
+  `energy_spike.py` and `grid_spike.py --walks` fly the robots' own noise:
+  one realization a batch.
 
 ### Graded in MuJoCo (#465, #487)
 

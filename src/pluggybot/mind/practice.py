@@ -147,15 +147,18 @@ there -- at once, if it already does -- and the verb is ok; after it,
 `reach.stopped`, `move_hand.stopped` or `pull.stopped` reads 1, and 0
 after a move that ended otherwise. A move reads its sensor as often as
 your body reads it, and no oftener: a hand's place, force and grip, and
-the time, %(rate)d times a second%(watched)s. What a verb last reported (`spot.*`,
-`pull.*` and the like) no move changes, so no move stops on it. A hand
-carried to your left that stops where it pushes on something with %(n)g N:
+the time, %(rate)d times a second%(watched)s. A hand's force it reads from
+%(from)g s into the move: a move's start reads the move itself, and a hand
+moving through the air reads up to %(moving)g N with nothing touched. What a
+verb last reported (`spot.*`, `pull.*` and the like) no move changes, so no
+move stops on it. A hand carried to your left that stops where it pushes on
+something with %(n)g N:
     move_hand("right", 0.30, -0.05, 1.20, until="right.fy", above=%(n)g)"""
-#: ...the force its example stops on, N: over what the hand carried there in
-#: free air reads that way off the whole body, 4.4 N at its hardest (#554,
-#: flown from (0.30, -0.35, 1.20); its first half second read 11-17 N
-#: AHEAD, the balance taking the body as still).
-GUARD_EXAMPLE_N = 10.0
+#: ...the force its example stops on, N: over what a hand moving through
+#: free air reads (`axes.MOVING_N`, #631) -- the hand carried there read 4.4
+#: N that way at its hardest (#554, flown from (0.30, -0.35, 1.20)) -- and
+#: under what the standing body holds at a hand (`steps.PULL_MOST_N`).
+GUARD_EXAMPLE_N = 15.0
 #: ...and, where it has `watch` (#554's stage 2), that a watch's readings
 #: are fresh at its camera's rate.
 WATCHED = "; what `watch` reads, %(hz)g times a second"
@@ -168,7 +171,8 @@ feet, and taking a posture to reach can move them a little: a place you
 read before a reach may lie elsewhere in the frame after it. Your shoulders are 1.15 m up,
 4 cm behind your feet's middle and 0.18 m either side of it; an arm held
 straight puts its grip 0.58 m from its shoulder, and it reaches less far
-with its hand turned some ways. Your hands are "left" and "right": each ends in a two-jaw gripper
+with its hand turned some ways. Your trunk turns on a waist over your hips,
+up to 60 degrees either way, your shoulders and your head with it. Your hands are "left" and "right": each ends in a two-jaw gripper
 whose jaws close across the point between them (its grip), its fingers 8 cm
 long. Both grippers start shut. A hand that is OUT is one you have reached
 with, until you withdraw it.
@@ -199,6 +203,12 @@ CUT_NOTE = ("(Your last reply ran out of its {tokens:,} tokens, your thinking "
 CLOSED_NOTE = ("(Your last reply was cut off after {minutes:.0f} minutes and {tokens:,} "
                "tokens, your thinking included, before you wrote your answer, and it "
                "was lost. Think less this time, and answer.)")
+#: ...and what was asked and never answered, however often it was asked
+#: again, goes ahead of the next ask with this after it (#560's table arms:
+#: lost, a first answer took the job out of the conversation, and every later
+#: try was written for a job the mind was never shown).
+LOST_NOTE = ("(Your reply to the above was lost each time it was asked: none came back "
+             "as an answer.)")
 
 
 def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
@@ -236,6 +246,7 @@ def language_text(facts: WorldFacts) -> str:
     text += VERB_TESTS + (CALL_TESTS if facts.calls else "")
   if facts.guarded:
     text += GUARD % {"rate": round(1.0 / axes.HAND_EVERY_S), "n": GUARD_EXAMPLE_N,
+                     "from": axes.FORCE_FROM_S, "moving": axes.MOVING_N,
                      "watched": (WATCHED % {"hz": WATCH_HZ}
                                  if "watch" in (facts.verbs or ()) else "")}
   return text
@@ -365,6 +376,18 @@ def library_text(kept, thing: str = "box") -> str:
   return "\n".join(lines)
 
 
+def _joined(unanswered: list, content):
+  """`content` after what was asked before it and never answered, each with
+  `LOST_NOTE` after it: one user turn, its text or its parts."""
+  if not unanswered:
+    return content
+  pieces = [x for asked in unanswered for x in (asked, LOST_NOTE)] + [content]
+  if all(isinstance(x, str) for x in pieces):
+    return "\n\n".join(pieces)
+  return [part for x in pieces
+          for part in ([{"type": "text", "text": x}] if isinstance(x, str) else x)]
+
+
 def _noted(content, note: str):
   """`content` -- a user turn's text, or its parts -- with `note` first."""
   if not note:
@@ -416,13 +439,16 @@ class Practice:
     self.messages: list[dict] = []
     self.turns: list[Turn] = []
     self._last, self._notes = None, False
+    #: what was asked and never answered (`_settled`), sent ahead of the next ask
+    self._unanswered: list = []
 
   def _ask(self, kind: str, content, note: str = "", notes: bool = False) -> Turn:
     """One answer to `content`, sent with `note` first where there is one
     (the content is what a retry asks again): a procedure, or with `notes`
     what the robot carries to its next chest (`notes_schema`)."""
     self._last, self._notes = content, notes
-    self.messages.append({"role": "user", "content": _noted(content, note)})
+    self.messages.append({"role": "user",
+                          "content": _noted(_joined(self._unanswered, content), note)})
     turn = Turn(kind=kind)
     t0 = time.monotonic()
     try:
@@ -449,6 +475,7 @@ class Practice:
       self.messages.pop()
       self.turns.append(turn)
       return turn
+    self._unanswered = []
     self.messages.append({"role": "assistant", "content": json.dumps(turn.answer)})
     if not notes:
       try:
@@ -482,6 +509,11 @@ class Practice:
         time.sleep(self.retry_wait_s)
         turn = self._ask("retry", self._last, notes=self._notes)
       else:
+        if turn.answer is None and self._last is not None and not self._notes:
+          # ⚠ a lost reply loses only itself: popped with it, a first ask took
+          # the job out of the conversation (`LOST_NOTE`); a chest's notes are
+          # its last ask, and nothing follows them
+          self._unanswered.append(self._last)
         return turn
 
   def first(self, picture: bytes | None = None, kept=(), carried: dict | None = None) -> Turn:

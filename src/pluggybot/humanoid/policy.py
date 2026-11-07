@@ -59,9 +59,11 @@ class StandPolicy:
       self.meta = json.loads(str(z["meta"]))
       self.training = json.loads(str(z["training"]))
     #: Every joint the policy sees, in its order, and where each stands
-    #: when its observation reads zero.
+    #: when its observation reads zero: the body's joints, or some of them --
+    #: a policy trained before the waist (#560, stage (c3)) sees none of it,
+    #: and the body holds it still (`reach.Waist`).
     self.joint_names = tuple(self.meta["joint_names"].split(","))
-    assert set(self.joint_names) == set(hm.JOINT_NAMES), self.joint_names
+    assert set(self.joint_names) <= set(hm.JOINT_NAMES), self.joint_names
     self.default_q = np.array([float(v) for v in self.meta["default_joint_pos"].split(",")])
     #: The joints it drives (the legs), and an action's scale on each.
     self.action_joints = tuple(self.training["action_joints"])
@@ -99,13 +101,17 @@ class TrunkSense:
     mujoco.mju_mat2Quat(quat, data.xmat[root])
     self.attitude = Attitude(quat)
     self.rate = np.zeros(3)
+    #: What the accelerometer last read, m/s^2, the IMU's frame: the specific
+    #: force, gravity's pull read as an acceleration up (`arms.Motion`); None
+    #: before the first step.
+    self.accel: np.ndarray | None = None
 
   def step(self) -> None:
     dt = self.m.opt.timestep
     d = self.d
     self.rate = self.imu.gyro(d.sensordata[self.gyro_adr:self.gyro_adr + 3], dt)
-    accel = self.imu.accel(d.sensordata[self.accel_adr:self.accel_adr + 3], dt)
-    self.attitude.step(self.rate, accel, dt)
+    self.accel = self.imu.accel(d.sensordata[self.accel_adr:self.accel_adr + 3], dt)
+    self.attitude.step(self.rate, self.accel, dt)
 
   def gravity(self) -> np.ndarray:
     """Gravity's direction in the trunk's frame, as the filter has it."""

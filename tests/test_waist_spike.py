@@ -39,7 +39,7 @@ def _apart(a, b) -> tuple[float, float]:
 
 
 def test_each_candidate_is_todays_body_with_a_waist_and_its_waist_turns_only_what_is_above():
-  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in ws.JOINTS])
   up = np.array([0.0, 0.0, -1.0])
   today = ws.WaistModel("none")
   today.pose(q0, up)
@@ -66,25 +66,75 @@ def test_each_candidate_is_todays_body_with_a_waist_and_its_waist_turns_only_wha
 def test_the_instruments_copies_of_the_served_pose_and_statue_are_the_served_ones():
   """The instrument's `WaistModel.pose` and `static_legs` copy
   `arms.SelfModel.pose` and `reach.static_legs`, the waist's joints added:
-  on today's body they agree with the served ones, or a change to the served
+  on the served body -- its `yaw` candidate, built (#560's stage (c3)) --
+  they agree with the served ones at any waist, or a change to the served
   code has not reached the copies, and the candidates are no longer measured
   as the served reach plans."""
   from pluggybot.humanoid import reach as rc
   from pluggybot.humanoid.arms import SelfModel
   rng = np.random.default_rng(560)
-  today, served = ws.WaistModel("none"), SelfModel()
-  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
-  for _ in range(4):
+  yaw, served = ws.WaistModel("yaw"), SelfModel()
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in ws.JOINTS])
+  waist = hm.JOINT_NAMES.index("waist_yaw")
+  for turn in (0.0, 0.4, -0.7):
     q = q0 + rng.normal(0.0, 0.1, len(q0))
     g = np.array([0.0, 0.0, -1.0]) + rng.normal(0.0, 0.15, 3)
-    today.pose(q, g)
-    served.pose(q, g)
+    yaw.set_waist({"waist_yaw": turn})
+    yaw.pose(q, g)
+    served.pose(np.insert(q, waist, turn), g)
     for name in ("left_grip", "right_grip", "lidar", "charge_port"):
-      a = today.d.site_xpos[today.m.site(name).id]
+      a = yaw.d.site_xpos[yaw.m.site(name).id]
       b = served.d.site_xpos[served.m.site(name).id]
-      assert np.abs(a - b).max() < 1e-9, name
-  for height, pitch in rc.POSTURES[:4]:
-    mine, ok = ws.static_legs(today, height, pitch)
-    assert ok
-    for name, v in rc.static_legs(height, pitch, served).items():
-      assert abs(mine[name] - v) < 1e-6, (height, pitch, name)
+      assert np.abs(a - b).max() < 1e-9, (turn, name)
+    for height, pitch in rc.POSTURES[:4]:
+      mine, ok = ws.static_legs(yaw, height, pitch)
+      assert ok
+      for name, v in rc.static_legs(height, pitch, served, waist=turn).items():
+        assert abs(mine[name] - v) < 1e-6, (turn, height, pitch, name)
+
+
+def _named(m, obj, n) -> dict:
+  return {mujoco.mj_id2name(m, obj, i): i for i in range(n) if mujoco.mj_id2name(m, obj, i)}
+
+
+def test_the_built_waist_is_the_yaw_candidate_and_at_its_zero_todays_body():
+  """#560's stage (c3) built the `yaw` candidate into the served body
+  (`model.HumanoidSpec.waist_yaw`): every body, geom and joint as the
+  candidate has it -- place, mass, inertia, size, range, armature, friction
+  -- and at the waist's zero every part today's body has where it had it, to
+  1e-9 m. What #620 measured is what flies."""
+  built = mujoco.MjModel.from_xml_string(hm.body_xml())
+  ref = mujoco.MjModel.from_xml_string(ws.waist_xml("yaw"))
+  today = mujoco.MjModel.from_xml_string(hm.body_xml(ws.TODAY))
+  obj_ = mujoco.mjtObj
+  for obj, n, fields in ((obj_.mjOBJ_BODY, "nbody", ("body_pos", "body_quat", "body_mass",
+                                                  "body_inertia", "body_ipos", "body_iquat")),
+                         (obj_.mjOBJ_GEOM, "ngeom", ("geom_pos", "geom_quat", "geom_size",
+                                                  "geom_type", "geom_contype")),
+                         (obj_.mjOBJ_JOINT, "njnt", ("jnt_pos", "jnt_axis", "jnt_range"))):
+    mine, theirs = _named(built, obj, getattr(built, n)), _named(ref, obj, getattr(ref, n))
+    assert set(mine) == set(theirs)
+    for name, i in theirs.items():
+      for f in fields:
+        assert np.array_equal(getattr(built, f)[mine[name]], getattr(ref, f)[i]), (name, f)
+  joint = built.joint("waist_yaw")
+  assert tuple(joint.range) == hm.joint_range("waist_yaw")
+  dof = int(built.jnt_dofadr[joint.id])
+  assert built.dof_armature[dof] == ref.dof_armature[int(ref.jnt_dofadr[ref.joint("waist_yaw").id])]
+  # ...and at zero, today's
+  placed = {}
+  for m in (built, today):
+    d = mujoco.MjData(m)
+    mujoco.mj_kinematics(m, d)
+    mujoco.mj_camlight(m, d)
+    placed[m] = {(k, name): (pos[i].copy(), mat[i].copy())
+                 for k, obj, n, pos, mat in (("b", obj_.mjOBJ_BODY, m.nbody, d.xpos, d.xmat),
+                                             ("g", obj_.mjOBJ_GEOM, m.ngeom, d.geom_xpos, d.geom_xmat),
+                                             ("s", obj_.mjOBJ_SITE, m.nsite, d.site_xpos, d.site_xmat),
+                                             ("c", obj_.mjOBJ_CAMERA, m.ncam, d.cam_xpos, d.cam_xmat))
+                 for name, i in _named(m, obj, n).items()}
+  new = set(placed[built]) - set(placed[today])
+  assert new == {("b", "waist_yaw_link"), ("g", "waist_plate"), ("g", "waist_yaw_motor")}
+  for key, (pos, mat) in placed[today].items():
+    assert np.abs(placed[built][key][0] - pos).max() < 1e-9, key
+    assert np.abs(placed[built][key][1] - mat).max() < 1e-9, key

@@ -65,6 +65,13 @@ sys.path.insert(0, str(HERE.parent / "src"))
 
 #: The map's cell, m.
 RES = 0.05
+
+
+def _home(sensor) -> dict:
+  """A sensor's mount's joints at home, as the static poses here stand the
+  robot (#560's stage (c3): a mount the waist turns is never posed without
+  its reading)."""
+  return {j: 0.0 for j in sensor.mount.joints}
 #: The bounds grow by whole steps of this many cells a side: half a metre,
 #: a whole number of the lattice's 10 cm cells and a length a float holds
 #: exactly, so no cell of today's map moves.
@@ -169,11 +176,11 @@ def lay_house(path: Path) -> dict:
     data.qpos[adr + 3:adr + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
     mujoco.mj_forward(model, data)
     pose = m.true_pose()
-    angles, ranges, _, _ = m.lidar.scan_split(data)
+    angles, ranges, _, _ = m.lidar.scan_split(data, _home(m.lidar))
     g.update(pose, angles, ranges, m.lidar.max_range, origin=m.LIDAR_ORIGIN)
     m._set_pose(*pose)
     m._walls_t = None
-    m._fold_low(m._levelled(m.depth.frame(data)).points)
+    m._fold_low(m._levelled(m.depth.frame(data, _home(m.depth))).points)
   np.savez(path, grid=g.grid, low=m.low)
   known = (g.grid < -0.5) | (g.grid > 0.5)
   body.close()
@@ -286,9 +293,9 @@ def table_one(scale: float, repeat: int, house_path: str) -> dict:
   row["shape"] = [int(shape[0]), int(shape[1])]
   syn = synthetic(shape)
   m.grid.grid[:] = syn
-  angles, ranges, _, _ = m.lidar.scan_split(data)
+  angles, ranges, _, _ = m.lidar.scan_split(data, _home(m.lidar))
   pose = m.pose
-  frame = m._frame if m._frame is not None else m._levelled(m.depth.frame(data))
+  frame = m._frame if m._frame is not None else m._levelled(m.depth.frame(data, _home(m.depth)))
   points = frame.points
 
   def walls():

@@ -73,7 +73,6 @@ import waist_spike as ws  # noqa: E402  (#620's instrument: the candidates, the 
 from pluggybot.challenge import table as tb  # noqa: E402
 from pluggybot.evaluation import counter as ct  # noqa: E402
 from pluggybot.humanoid import arms as ha  # noqa: E402
-from pluggybot.humanoid import model as hm  # noqa: E402
 from pluggybot.humanoid import parts as hp  # noqa: E402
 from pluggybot.humanoid import reach as rc  # noqa: E402
 
@@ -97,10 +96,10 @@ def _spot(name: str) -> tuple[float, float]:
 
 SOURCES = {n: _start(ct.TABLE_SOURCES[n][0]) for n in ct.TABLE_SOURCES}
 SPOT = {n: _spot(n) for n in tb.SPOTS}
-#: Where our procedure (`hands_check.TABLE`) grips each, m: the plate this far
-#: from its middle, at its wall; and the grip's height over the floor (the
-#: plate's wall and the fork's handle at 0.767 and 0.762, the cup at its
-#: lid's tag less 3 cm).
+#: Where our procedure before the waist's (`hands_check.TABLE_STANCES`) grips
+#: each, m: the plate this far from its middle, at its wall; and the grip's
+#: height over the floor (the plate's wall and the fork's handle at 0.767 and
+#: 0.762, the cup at its lid's tag less 3 cm).
 PLATE_GRIP_M = 0.081
 GRIP_Z = {n: ws.PIECES[n][1][2] for n in ws.PIECES}
 #: The hand our procedure takes each with.
@@ -363,7 +362,7 @@ def costs(sm, side, p, q_goal, q_pre, pos, rot, slab) -> dict:
   legs, ok = ws.static_legs(sm, p.height, p.pitch, arms=arm_goal)
   q = p.q.copy()
   for n, v in {**arm_goal, **legs}.items():
-    q[hm.JOINT_NAMES.index(n)] = v
+    q[ws.JOINTS.index(n)] = v
   sm.pose(q, ws.gravity_of(p.pitch))
   out["balanced"] = bool(ok)
   out["into_goal"] = round(into_slab(sm, slab), 4)
@@ -405,7 +404,8 @@ def line(a, b, ra, rb, step: float = ws.CARRY_STEP_M) -> list[tuple[np.ndarray, 
 
 #: Our procedure's set-down: a `pull` down this far from 5 cm over the
 #: put-down, m -- its way's end 4 cm into the table, whatever the lift --
-#: held fast once the piece meets the table (`hands_check.TABLE`).
+#: held fast once the piece meets the table (`hands_check.TABLE_STANCES`, and
+#: `TABLE` since).
 SET_DOWN_M = 0.09
 
 
@@ -450,22 +450,6 @@ def _reaches(ep: float, er: float, tol=ws.STRICT) -> bool:
   return ep < tol[0] and er < tol[1]
 
 
-def solve_first(sm, side, pos, rot):
-  """`reach.solve_seeded` from its seeds alone (no `start`), stopped at the
-  first seed that reaches: with no start every seed within tolerance ranks
-  alike, so the first is the one it keeps -- the same answer, sooner."""
-  best, best_key = None, None
-  for s_ in rc.SEEDS:
-    sm.q[sm.arm[side]] = rc.seed(side, s_)
-    q, ep, er = sm.solve(side, pos, rot, iters=80)
-    if _reaches(ep, er):
-      return q, ep, er
-    key = ep + 0.1 * er
-    if best_key is None or key < best_key:
-      best, best_key = (q, ep, er), key
-  return best
-
-
 def follow_one(sm, side, order, pts, reach_m, slab):
   """`ws.carry_plan` (the waist held), each point its own grip: the least
   bent posture (the pick-up's first, in `order`) from which the grip
@@ -477,7 +461,7 @@ def follow_one(sm, side, order, pts, reach_m, slab):
     if not p.ok or any(np.linalg.norm(x - p.shoulder[side]) > reach_m + 0.005 for x, _ in pts):
       continue
     ws.pose(sm, p)
-    q, ep, er = solve_first(sm, side, pts[0][0], pts[0][1])
+    q, ep, er = rc.solve_seeded(sm, side, pts[0][0], pts[0][1])
     ok = _reaches(ep, er)
     worst_self, worst_into = 1.0, 0.0
     for x, r in (pts[1:] if ok else ()):
@@ -515,7 +499,7 @@ def repose(sm, side, table, start_label, pts, reach_m, slab) -> dict:
       x, r = pts[k]
       if np.linalg.norm(x - table[i].shoulder[side]) <= reach_m + 0.005:
         ws.pose(sm, table[i])
-        q, ep, er = solve_first(sm, side, x, r)
+        q, ep, er = rc.solve_seeded(sm, side, x, r)
         tol = ws.STRICT if k == n - 1 else ws.LOOSE
         sm._set_arm(side, q)
         if ep < tol[0] and er < tol[1] and clear():
@@ -571,7 +555,7 @@ def _balanced(sm, side, p, q) -> None:
   legs, _ = ws.static_legs(sm, p.height, p.pitch, arms=rc._arm(side, q))
   qq = p.q.copy()
   for n_, v in legs.items():
-    qq[hm.JOINT_NAMES.index(n_)] = v
+    qq[ws.JOINTS.index(n_)] = v
   sm.pose(qq, ws.gravity_of(p.pitch))
 
 
@@ -580,12 +564,13 @@ def path_for(sm, side, hold, here_label, q_here, pts, reach_m):
   planner is: the posture the hand is in first (its arm as it is, the
   statue balanced with it out: the live branch), then the least bent of
   `hold`, from which the grip follows `pts` [(point, grip)] from the hand's
-  place, each next on from the last -- in the posture it holds, a point
-  further from its shoulder than the first reached `LIVE_MARGIN_M` further
-  ahead; in another, every point after the first reached `PATH_MARGIN_M`
-  further ahead on a statue balanced with the arm out at the point before
-  -- within `PATH_POS_TOL` and `HOLD_ROT_TOL`. The posture, or None."""
-  ahead = np.array([rc.PATH_MARGIN_M, 0.0, 0.0])
+  place, each next on from the last -- a point further from its shoulder
+  than the first reached `LIVE_MARGIN_M` further ahead, in another posture
+  on a statue balanced with the arm out at the point before -- within
+  `PATH_POS_TOL` and `HOLD_ROT_TOL`. The posture, or None. ⚠ Its statues
+  stand balanced over the soles' middle: the served planner's stand where
+  the robot reads itself standing (`reach.Lean`, #627), which no statue
+  alone knows."""
   live_ahead = np.array([rc.LIVE_MARGIN_M, 0.0, 0.0])
 
   def within(ep, er):
@@ -605,13 +590,14 @@ def path_for(sm, side, hold, here_label, q_here, pts, reach_m):
       q, ep, er = rc.solve_seeded(sm, side, pts[0][0], pts[0][1], q_here)
       if not within(ep, er):
         continue
+      shoulder = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id].copy()
+      reach0 = float(np.linalg.norm(pts[0][0] - shoulder))
     ok = True
     for x, r in pts[1:]:
-      if live:
-        target = x + live_ahead if float(np.linalg.norm(x - shoulder)) > reach0 else x
-      else:
+      if not live:
         _balanced(sm, side, p, q)
-        target = x + ahead
+        shoulder = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id].copy()
+      target = x + live_ahead if float(np.linalg.norm(x - shoulder)) > reach0 else x
       sm._set_arm(side, q)
       q, ep, er = sm.solve(side, target, r, iters=80)
       if not within(ep, er):

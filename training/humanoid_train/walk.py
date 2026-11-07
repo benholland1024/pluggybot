@@ -68,8 +68,8 @@ LIN_X, LIN_Y, ANG_Z = (-0.8, 1.4), (-0.4, 0.4), (-1.0, 1.0)
 START_X, START_Z = (-0.5, 0.8), (-0.6, 0.6)
 #: The joint-pose reward's tolerances while walking, rad (the G1's, our
 #: joints): the knees and hip pitch loosest, the ankles' roll tightest --
-#: and the hip's yaw twice the G1's. ⚠ With no waist, a turn is the hips'
-#: yaw alone: at the G1's 0.15 a policy asked 0.5 rad/s turned 0.08, the
+#: and the hip's yaw twice the G1's. ⚠ A turn is the hips' yaw alone (the
+#: waist, #560's stage (c3), is held home while it walks): at the G1's 0.15 a policy asked 0.5 rad/s turned 0.08, the
 #: turn's reward still paying 60 % for not turning at all.
 STD_WALKING = {r".*_hip_pitch": 0.3, r".*_hip_roll": 0.15, r".*_hip_yaw": 0.3,
                r".*_knee": 0.35, r".*_ankle_pitch": 0.25, r".*_ankle_roll": 0.1}

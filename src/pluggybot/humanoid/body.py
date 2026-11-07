@@ -81,12 +81,11 @@ STEP_STUCK_M, STEP_STUCK_S, STEP_PATIENCE_S, STEP_SETTLE_S = 0.01, 1.0, 15.0, 0.
 #: SimNotes, "Stepping toward the work"). ⚠ Not a foot's lift: the model of
 #: itself read a sole 4-5 mm off through the slide that was under 2.
 STEP_START_S = 2.0
-#: Its measured depth's own noise stream (`depth_cloud`) and how far its
-#: rays reach, m: the probe's seed, and a counter's chest within arm's reach.
-DEPTH_SEED, DEPTH_REACH_M = 466, 3.0
-#: A watcher's depth camera's own noise stream (`depth_watched`, #530): never
-#: the measured depth's, so watching draws nothing a flight reads.
-WATCH_SEED = 530
+#: How far its measured depth's rays reach (`depth_cloud`, and a watcher's,
+#: `depth_watched`), m: a counter's chest within arm's reach. Each draws its
+#: own noise stream (`senses.Noise`: `measure`, `watched`), so watching
+#: draws nothing a flight reads.
+DEPTH_REACH_M = 3.0
 #: A look at the station moves the belief only past this, m / rad: the
 #: matched belief in the house is good to a few centimetres (#476).
 FIX_TOL_M = 0.10
@@ -205,14 +204,17 @@ class HumanoidBody(Body):
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                policy: StandPolicy | None = None, walk: StandPolicy | None = None,
-               grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False):
+               grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False,
+               noise: str | None = None):
     self.handle = handle
     self._m, self._d = model, data
     self._policies = (policy, walk)
     self.root = model.body(handle.root).id
+    # `noise`: whose noise it draws, the robot's own unless an instrument
+    # keys a flight (`senses.Noise`)
     self.mission = HumanoidMission(model, data, handle, stand=policy, walk=walk,
                                    grid_bounds=grid_bounds, viewer=viewer,
-                                   realtime=realtime)
+                                   realtime=realtime, noise=noise)
     self._tags = None
     #: The tag its colour imager keeps reading while it moves (`watch`).
     self.mission.sight = TagWatch(model.opt.timestep, self._sighted)
@@ -475,9 +477,11 @@ class HumanoidBody(Body):
   def actuator(self, name: str) -> int:
     """An arm joint's driver or a gripper's, by its bare name
     (`left_elbow`, `right_gripper`): its id. The legs are the standing
-    policy's, never a caller's."""
+    policy's and the waist the reach's posture's, never a caller's."""
     if name in hm.JOINT_NAMES and hm.kind(name) in hm.LEG:
       raise KeyError(f"{name} is the standing policy's")
+    if name in hm.WAIST:
+      raise KeyError(f"{name} is the reach's posture's")
     return int(self._m.actuator(self.handle.el(name)).id)
 
   def ramp_routine(self, act: int, target: float, speed: float, settle: float = 0.0):
@@ -536,7 +540,7 @@ class HumanoidBody(Body):
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     self._why[side] = "out of reach"
     self._halted.discard(side)
-    postures = reach_.POSTURES
+    postures = reach_.REACH_POSTURES
     if path is not None:
       # the posture the hand then follows its path in, and that one alone
       ways = [self.to_stance(q) for q in path]
@@ -633,14 +637,20 @@ class HumanoidBody(Body):
     p = self.to_world(self.reach.grip_now(side)[0] if got is None else got)
     return float(p[0]), float(p[1]), float(p[2])
 
-  def hand_watched(self, side):
+  def _watched(self) -> np.ndarray:
+    """Every joint as the watcher's own reading has it (#530: a page's
+    streams draw on their own noise, never the flight's)."""
     if self._watch is None:
       from pluggybot.humanoid.arms import SelfModel
       from pluggybot.humanoid.senses import JointSense
       self._watch = (JointSense(self._m, prefix=self.handle.prefix,
-                                key=f"watch:{self.handle.prefix}"), SelfModel())
-    sense, sm = self._watch
-    q, _, _ = sense.read(self._d)
+                                key=self.mission.noise.watcher), SelfModel())
+    q, _, _ = self._watch[0].read(self._d)
+    return q
+
+  def hand_watched(self, side):
+    q = self._watched()
+    sm = self._watch[1]
     sm.pose(q, self.mission.stand.trunk.gravity())
     p = self.to_world(sm.grip_pose(side)[0])
     return float(p[0]), float(p[1]), float(p[2])
@@ -650,8 +660,11 @@ class HumanoidBody(Body):
     key = (int(width), int(height))
     if self._depth_watch is None or self._depth_watch[0] != key:
       self._depth_watch = (key, DepthCamera(self._m, self.handle, width=key[0], height=key[1],
-                                            mount="body", seed=WATCH_SEED, reach=DEPTH_REACH_M))
-    return self._depth_watch[1].frame(self._d).z
+                                            mount="body", seed=self.mission.noise.seed("watched"),
+                                            reach=DEPTH_REACH_M))
+    # ...its mount through the waist as the watcher reads it
+    q, sm = self._watched(), self._watch[1]
+    return self._depth_watch[1].frame(self._d, dict(zip(hm.WAIST, q[sm.waist]))).z
 
   def hand_follows(self, side, poses, rot=None) -> bool:
     return self.reach.path_for(side, [self.to_stance(p) for p in poses],
@@ -690,20 +703,21 @@ class HumanoidBody(Body):
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
     """Its D435's points, each frame placed through its pelvis in its model
     of itself (posed off its encoders and IMU) and its stance: the camera
-    sits on its trunk, which no waist turns."""
+    rides the waist, its frame posed off the waist's reading."""
     from pluggybot.perception.depth import DepthCamera
     key = (int(width), int(height), float(min_z))
     if getattr(self, "_depth", (None,))[0] != key:
       self._depth = (key, DepthCamera(self._m, self.handle, width=key[0], height=key[1],
-                                      min_z=key[2], mount="body", seed=DEPTH_SEED,
+                                      min_z=key[2], mount="body",
+                                      seed=self.mission.noise.seed("measure"),
                                       reach=DEPTH_REACH_M))
     cam = self._depth[1]
     out = []
     for _ in range(int(frames)):
       yield from self.hold_routine(apart)
-      pts = cam.frame(self._d).points
       self.reach._pose()
       sm = self.reach.self_model
+      pts = cam.frame(self._d, dict(zip(hm.WAIST, sm.q[sm.waist]))).points
       rot = np.zeros(9)
       mujoco.mju_quat2Mat(rot, sm.d.qpos[3:7])
       inside = pts @ rot.reshape(3, 3).T + sm.d.qpos[0:3]
@@ -795,7 +809,7 @@ class HumanoidBody(Body):
                          "force": round(float(rep.get("force") or 0.0), 2)})
 
   def hand_force(self, side):
-    f = _rz(self.stance[2]) @ self.reach.force[side]
+    f = _rz(self.stance[2]) @ self.reach.sensed_force[side]
     return float(f[0]), float(f[1]), float(f[2])
 
   def step_routine(self, ahead, left=0.0, turn=0.0, patience=STEP_PATIENCE_S):

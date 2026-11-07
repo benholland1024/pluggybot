@@ -408,6 +408,27 @@ def test_a_run_its_own_budget_stopped_fails_whole_and_says_so_without_a_fraction
   assert not ok and reason == "p: did not finish -- stopped (budget) after 2 steps"
 
 
+def test_a_run_is_graded_on_its_own_end_and_names_the_tests_that_read_false():
+  """#629: graded on its count, a run whose last calls were tests that read
+  false was "stopped (error)" though it reached its end. The runner's own
+  end decides (`ok`), both ways: a pass beside tests that read false is
+  never "N/N steps", which a model reads as every step landing, and a run
+  its runner says never reached its end fails whatever its count."""
+  m = {"program": "p", "total": 82, "completed": 2, "failedAt": None, "stopped": None}
+  ok, _, reason = scoring.eval_program(m)
+  assert not ok and reason == "p: 2/82 steps, stopped (error)", "the count alone, as before"
+  ok, metrics, reason = scoring.eval_program({**m, "ok": True, "testsFalse": 80})
+  assert ok and reason == "p: ran to its end, 82 steps; 80 tests read false"
+  assert metrics["testsFalse"] == 80
+  ok, _, reason = scoring.eval_program({**m, "completed": 82, "ok": True})
+  assert ok and reason == "p: 82/82 steps"
+  ok, _, reason = scoring.eval_program({"program": "p", "total": 3, "completed": 3, "ok": False})
+  assert not ok and reason == "p: 3/3 steps, stopped (error)"
+  ok, _, reason = scoring.eval_program({"program": "p", "total": 3, "completed": 2,
+                                        "failedAt": 2, "ok": False, "testsFalse": 1})
+  assert not ok and reason == "p: 2/3 steps, step 3 failed; 1 test read false"
+
+
 # ---- serialisation: task state, the wire, a recording --------------------------
 
 

@@ -249,8 +249,9 @@ def test_the_reachs_own_loop_runs_a_pull_as_a_force_move(monkeypatch):
   from types import SimpleNamespace as NS
   r = _pulling(np.array([0.0, 0.0, 1.0]))
   monkeypatch.setattr(rc.friction, "taken", lambda *a: 0.0)
+  monkeypatch.setattr(rc.friction, "taken_by", lambda *a: 0.0)
   r._pose, r._trim = (lambda arms=None: None), (lambda dt: None)
-  r.self_model.hand_force = lambda side, tau: np.zeros(3)
+  r.self_model.hand_force = lambda side, tau, motion=None: np.zeros(3)
   r.tau = r.qd = np.zeros(64)
   r.friction = None
   r.arms = {s: NS(command=lambda *a: None) for s in hm.SIDES}
@@ -272,12 +273,12 @@ def test_a_pull_takes_its_posture_first_and_stands_still_meanwhile():
   r.phase["left"] = "hold"
   r.force = {s: np.zeros(3) for s in hm.SIDES}
   r.grip_now = lambda side: (H.copy(), np.eye(3))
-  r.path_for = lambda side, poses, rot=None: (0.0, 0.15)
+  r.path_for = lambda side, poses, rot=None: (0.0, 0.15, 0.0)
   r.posture_for = lambda side, pos, rot=None, onward=False, past=(): None
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.0, 0.0)
   r._posture_held = lambda: False
   assert r.pull("left", np.array([0.0, 0.0, 1.0]), 10.0, 0.2)
-  assert r.postures == [(0.0, 0.15)]
+  assert r.postures == [(0.0, 0.15, 0.0)]
   r.force["left"] = np.array([0.0, 0.0, 9.0])
   for _ in range(int(rc.FAST_S / DT) + 2):
     r._pulled("left", DT, H, np.eye(3))
@@ -304,7 +305,7 @@ def test_a_held_hand_whose_arm_reaches_it_takes_no_posture_and_ends_held_fast():
   for force, why in ((9.0, "held fast"), (0.0, "out of reach")):
     r = _pulling(way)
     hand = [H.copy()]
-    r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3)
+    r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3, 0.0)
     r._pulled("left", DT, H, np.eye(3))
     reached = r.cmd["left"].pos.copy()
     r.self_model.solve = _reaching_only(hand)
@@ -323,7 +324,7 @@ def test_a_held_hand_whose_arm_reaches_it_takes_no_posture_and_ends_held_fast():
   # ...but a hand going takes one, as one its arm cannot hold where it is
   for going, reaches in ((True, True), (False, False)):
     r = _pulling(way, distance=1.0)
-    r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3)
+    r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3, 0.0)
     r._posture_held = lambda: True
     for k in range(1, int(rc.REPLAN_S / DT) + 2):
       at = H + (1.1 * rc.GO_ON_M * k * way if going else 0.0)
@@ -332,7 +333,7 @@ def test_a_held_hand_whose_arm_reaches_it_takes_no_posture_and_ends_held_fast():
       r._pulled("left", DT, at, np.eye(3))
       if r.postures:
         break
-    assert r.postures == [(0.0, 0.3)], (going, reaches)
+    assert r.postures == [(0.0, 0.3, 0.0)], (going, reaches)
 
 
 def test_a_held_hand_backs_off_past_its_force_toward_where_it_is():
@@ -424,22 +425,25 @@ def test_a_held_hand_going_on_takes_another_posture_from_its_arm_as_it_is(monkey
   for 9 s, while a fresh seed "reached" in the posture it held (#525)."""
   r = _bare_reach()
   posed, starts = [], []
-  monkeypatch.setattr(rc, "_posed", lambda sm, h, p, q0, arms=None: posed.append((h, p)))
+  # each posture (the legs' and the waist's) posed as its statue, in reach
+  monkeypatch.setattr(rc, "stands", lambda sm, posture, q0: posed.append(tuple(posture)) or True)
+  monkeypatch.setattr(rc, "out_of_reach", lambda sm, side, pos, further=0.0: False)
+  monkeypatch.setattr(rc, "statue", lambda *a, **kw: None)
 
   class Planner:
     def _set_arm(self, side, q):
       starts.append(np.asarray(q, dtype=float).copy())
 
     def solve(self, side, pos, rot, iters=80):
-      return None, (0.0 if posed[-1] == (0.0, 0.15) else 1.0), 0.0
+      return None, (0.0 if posed[-1] == (0.0, 0.15, 0.0) else 1.0), 0.0
   r._planner = Planner()
   r.q_cmd["left"] = np.full(len(hm.ARM), 0.3)
-  assert r.posture_for("left", H, onward=True) == (0.0, 0.15)
-  assert (0.0, 0.0) not in posed
+  assert r.posture_for("left", H, onward=True) == (0.0, 0.15, 0.0)
+  assert (0.0, 0.0, 0.0) not in posed
   posed.clear()
   starts.clear()
-  assert r.posture_for("left", H) == (0.0, 0.15)
-  assert posed[0] == (0.0, 0.0) and len(starts) > len(posed)
+  assert r.posture_for("left", H) == (0.0, 0.15, 0.0)
+  assert posed[0] == (0.0, 0.0, 0.0) and len(starts) > len(posed)
   # ...from the arm as it is alone, never a seed: where a seed alone
   # reaches, going on finds nothing
   Planner.solve = lambda self, side, pos, rot, iters=80: (
@@ -454,21 +458,22 @@ def test_a_pull_whose_arm_misses_goes_on_and_never_back_to_a_posture_it_left():
   r = _pulling(np.array([0.0, 0.0, 1.0]))
   held, asked = [tuple(float(v) for v in r.posture)], []
 
-  def hold(height, pitch):
-    r.posture = np.array([height, pitch])
-    held.append((height, pitch))
+  def hold(height, pitch, waist=0.0):
+    r.posture = np.array([height, pitch, waist])
+    held.append((height, pitch, waist))
 
   def posture_for(side, pos, rot=None, onward=False, past=()):
     asked.append(onward)
     here = tuple(float(v) for v in r.posture)
-    return next((p for p in ((0.0, 0.15), (0.0, 0.0)) if p != here and p not in past), None)
+    return next((p for p in ((0.0, 0.15, 0.0), (0.0, 0.0, 0.0)) if p != here and p not in past),
+                None)
   r.hold_posture, r.posture_for, r._posture_held = hold, posture_for, lambda: True
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.02, 0.0)
   for _ in range(int(3 * rc.REPLAN_S / DT) + 2):
     if r.pulls["left"] is None:
       break
     r._pulled("left", DT, H, np.eye(3))
-  assert asked and all(asked) and held == [(0.0, 0.0), (0.0, 0.15)]
+  assert asked and all(asked) and held == [(0.0, 0.0, 0.0), (0.0, 0.15, 0.0)]
 
 
 def test_a_paths_point_with_no_turn_keeps_the_one_before():
@@ -613,4 +618,4 @@ def test_the_humanoid_keeps_its_posture_to_look_with_a_hand_out():
   r.phase["left"] = "rest"
   for _ in body.gaze_routine(st.SPOT_GAZES[2]):
     pass
-  assert r.postures == [(0.0, st.SPOT_GAZES[2])]
+  assert r.postures == [(0.0, st.SPOT_GAZES[2], 0.0)]
