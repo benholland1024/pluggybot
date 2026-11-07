@@ -838,12 +838,13 @@ save a filmstrip PNG named after the script.
   81 deg and dropped them at 2.3 rad/s. It opened 23 of 32 at 0f98e24,
   whose slowest pass (22.5 s) set the humanoid task's limit at three times
   it (`attempts.LIMIT_S`); on the waist's body, each chest its own noise,
-  19 (the one realization every chest shared before, 21), and 20 since the
-  reach plans where the robot stands (#627's pod, where the tree before it
-  opened 19). ⚠ IT AIMS AT THE KNOB'S MIDDLE, WHICH THE REACH NOW GETS TO:
-  13 of its 40 grips did not hold (1 of 29 before, its hand arriving 2 cm
-  short, where the lid check aims on purpose; so aimed, 23). The humanoid
-  looks lower by bowing (`Body.gaze_routine`).
+  19 (the one realization every chest shared before, 21), 20 once the
+  reach planned where the robot stands (#627's pod, where the tree before
+  it opened 19), and 22 gripping short. ⚠ IT GRIPS `SHORT_M` (2 CM) SHORT
+  OF THE KNOB'S MIDDLE, back level along the box's facing, as the lid check
+  does: at the middle, where the reach gets to since #627, 13 of its 40
+  grips did not hold (1 of 29 before, its hand arriving 2 cm short). The
+  humanoid looks lower by bowing (`Body.gaze_routine`).
 - **The drop-handle chest is demo 1's mechanism, and the humanoids' house's**
   (`activity/chest.py`; since #559 on the storeroom's counter, through
   `home.storeroom` alone): #469's box as an activity, its hidden parameters
