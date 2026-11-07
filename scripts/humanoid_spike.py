@@ -378,7 +378,8 @@ def shut_again(world, side: str, state, force: float, inertia: float, piece: str
   """One saved shut landed again from its state, physics alone -- every
   other control held where it was -- the side's jaws at `inertia` kg,
   squeezing `force` N, for the grip's wait (`body.GRIP_S`): held, as the
-  gripper reads a grip (`arms.HELD_*`, its squeeze the drive's own over its
+  gripper reads a grip (`arms.holds`: its gap off the jaw its drive moves,
+  as `senses.GripperSense` reads it, its squeeze the drive's own over its
   last 0.1 s), with its pads on `piece`; and how often its force flipped
   between its clips."""
   from pluggybot.humanoid import arms
@@ -402,13 +403,13 @@ def shut_again(world, side: str, state, force: float, inertia: float, piece: str
     for i in range(n):
       mujoco.mj_step(m, d)
       f[i] = d.actuator_force[act]
-    gap = float(d.qpos[qpos].sum())
+    gap = 2 * float(d.qpos[qpos[0]])
     on = any({int(c.geom1), int(c.geom2)} & pads and {int(c.geom1), int(c.geom2)} & ours
              for c in d.contact[:d.ncon])
     squeeze = float(-f[-int(round(0.1 / m.opt.timestep)):].mean() / 2)
     big = np.abs(f) > 0.5 * force
-    return {"held": bool(on and gap > arms.HELD_GAP_M and squeeze > arms.HELD_SHARE * force),
-            "gap": gap, "flips": int(np.sum((f[1:] * f[:-1] < 0) & big[1:] & big[:-1]))}
+    return {"held": bool(on and arms.holds(gap, squeeze, force)), "gap": gap,
+            "squeeze": squeeze, "flips": int(np.sum((f[1:] * f[:-1] < 0) & big[1:] & big[:-1]))}
   finally:
     m.dof_armature[dofs], m.actuator_forcerange[act] = before
 

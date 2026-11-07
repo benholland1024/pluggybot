@@ -448,9 +448,12 @@ class Waist:
 
 
 #: A grip is HELD, by the gripper's own reading, when shut it stopped this
-#: far short of closed, m, with the squeeze up to this share of the force it
-#: was shut with: a hand shut on nothing closes; one shut on something
-#: stalls against it, pressing.
+#: far short of closed, m, with the squeeze up to this share of what its
+#: drive pushes there (`pushes`): a hand shut on nothing closes; one shut on
+#: something stalls against it, pressing. ⚠ Not of the force asked: under 2
+#: cm a hard squeeze's spring stalls short of it, and judged against it the
+#: plate's 8 mm wall, its jaws stopped 1 cm apart pushing 56-59 N a pad,
+#: read nothing held at 120 N (#646).
 HELD_GAP_M, HELD_SHARE = 0.005, 0.5
 #: The least a grip may be shut with, N a pad: the sheet's adjustable
 #: range is 5-120 (`parts.GRIPPER`).
@@ -460,6 +463,19 @@ GRIP_MIN_N = 5.0
 #: the current sense's 5.1 N, read a 15 N grip as nothing held 7 % of the
 #: time and a 5 N one 31 % (#525).
 SQUEEZE_S = 0.1
+
+
+def pushes(gap: float, force: float) -> float:
+  """What the gripper's drive squeezes with, N a pad, shut with `force` and
+  its jaws stopped `gap` m apart, off its own command: `force`, its torque
+  limit, or short of it its spring's (`parts.GRIP_KP`) pull toward shut --
+  the actuated jaw `gap / 2` from it, and each pad half the motor's push."""
+  return min(force, hp.GRIP_KP * (gap / 2) / 2)
+
+
+def holds(gap: float, squeeze: float, force: float) -> bool:
+  """A shut gripper's word off its own reading (`HELD_GAP_M`, `HELD_SHARE`)."""
+  return gap > HELD_GAP_M and squeeze > HELD_SHARE * pushes(gap, force)
 
 
 class Gripper:
@@ -509,8 +525,7 @@ class Gripper:
     return self.gap, self.squeeze
 
   def held(self) -> bool:
-    gap, squeeze = self.read()
-    return self.shut_asked and gap > HELD_GAP_M and squeeze > HELD_SHARE * self.force
+    return self.shut_asked and holds(*self.read(), self.force)
 
 
 @dataclass

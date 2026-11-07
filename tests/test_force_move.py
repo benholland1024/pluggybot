@@ -540,6 +540,33 @@ def test_a_grip_is_shut_with_the_force_asked_inside_its_sheet_and_judged_against
   assert st.HANDS_VERBS["close_hand"].args["force"].hi == sheet
 
 
+def test_a_grip_on_something_thin_is_judged_against_what_its_drive_pushes_there():
+  """Shut hard on something under 2 cm, the gripper's drive stalls short of
+  the force asked, pushing its spring's (`parts.GRIP_KP`): 60 N a pad at
+  120 N and 1 cm. `held` judges the squeeze against that, off its own
+  command and encoder (#646: against half the force asked, the plate's 8
+  mm wall read nothing held where the jaws held it)."""
+  from types import SimpleNamespace as NS
+
+  from pluggybot.humanoid import arms as ha
+  g = object.__new__(ha.Gripper)
+  g.m, g.d, g.act = NS(actuator_forcerange=np.zeros((1, 2))), NS(ctrl=np.zeros(1)), 0
+  reading = [(0.0, 0.0)]
+  g.read = lambda: reading[0]
+  g.shut(120.0)
+  assert ha.pushes(0.010, 120.0) == pytest.approx(60.0)
+  reading[0] = (0.010, 30.1)
+  assert g.held()
+  reading[0] = (0.010, 29.9)
+  assert not g.held()
+  # ...the force asked where the spring reaches it, and never closed
+  assert ha.pushes(0.030, 120.0) == 120.0
+  reading[0] = (0.030, 59.9)
+  assert not g.held()
+  reading[0] = (ha.HELD_GAP_M, 120.0)
+  assert not g.held()
+
+
 def test_spot_bows_until_it_sees_stands_up_again_and_says_which_way_the_edges_run():
   class Bowing(StubBody):
     def __init__(self, *a):
