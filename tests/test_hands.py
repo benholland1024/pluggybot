@@ -416,6 +416,8 @@ def _bare_reach():
   r.grippers = {s: _Grip() for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.outs = {s: [] for s in hm.SIDES}
+  r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
+  r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
   # the whole body's reading off: the senses here are a test's stubs, not a
   # body's (`_feel`'s own tests turn it on)
@@ -855,7 +857,7 @@ def test_a_two_jaw_grip_is_planned_half_a_turn_round_where_asked_and_never_when_
   from pluggybot.humanoid.arms import HandGoal
   asked = _turned(10.0)
 
-  def plan(side, goal, model=None, postures=rc.REACH_POSTURES, approach=rc.APPROACH_M):
+  def plan(side, goal, model=None, postures=rc.REACH_POSTURES, approach=rc.APPROACH_M, **kw):
     return None if np.allclose(goal.rot, asked) else ((0.0, 0.0, 0.0), np.zeros(6), np.zeros(6),
                                                       True)
   monkeypatch.setattr(rc, "plan", plan)

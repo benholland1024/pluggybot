@@ -428,6 +428,7 @@ def test_a_held_hand_going_on_takes_another_posture_from_its_arm_as_it_is(monkey
   # each posture (the legs' and the waist's) posed as its statue, in reach
   monkeypatch.setattr(rc, "stands", lambda sm, posture, q0: posed.append(tuple(posture)) or True)
   monkeypatch.setattr(rc, "out_of_reach", lambda sm, side, pos, further=0.0: False)
+  monkeypatch.setattr(rc, "statue", lambda *a, **kw: None)
 
   class Planner:
     def _set_arm(self, side, q):

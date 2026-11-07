@@ -2211,12 +2211,13 @@ where it stands; a 0.80 m counter, 17.
   (`opener.FREE_RAD`): 8-12 of 32 became 19.
 - *The robot leans back as it lifts.* The live pelvis stood 1.5-2 cm
   behind the statue the planner posed, and 2 cm more at the arc's top,
-  where a path planned with no slack stopped at 57 deg. A path's points are
-  reached 3.5 cm further ahead on a statue (`reach.PATH_MARGIN_M`), and
-  planned for a hand that is out on the robot AS IT STANDS -- its model
-  posed off its senses, its arm as its encoders read it -- with 2 cm on
-  the points further from the shoulder (`LIVE_MARGIN_M`): from the statue,
-  the path back down from the top solved 6 cm short of where the hand WAS.
+  where a path planned with no slack stopped at 57 deg. A path is planned
+  for a hand that is out on the robot AS IT STANDS -- its model posed off its
+  senses, its arm as its encoders read it -- and in another posture on a
+  statue standing as it reads itself (#627; 3.5 cm ahead on a statue over
+  the soles' middle before), with 2 cm on the points further from the
+  shoulder (`LIVE_MARGIN_M`): from the statue, the path back down from the
+  top solved 6 cm short of where the hand WAS.
 - *One posture a path.* Changing posture partway (a crouch for the grip, a
   bow for the top) jerked the lid down at 1.7-2.3 rad/s and up to 81 deg:
   16 of 32 against 19. A reach given the path to come grips in the posture
@@ -5925,39 +5926,38 @@ of 96 on the waist's body, 13 on today's.
 
 ## The table's reference on the waist (issue #560)
 
-**What is true now.** Our table procedure (`hands_check.TABLE`, 2,522
+**What is true now.** Our table procedure (`hands_check.TABLE`, 2,481
 characters of the language's 3,000) lays the place from ONE STANCE, 0.14 m
 to the left of the start, where #621 measured the waist's yaw reaching every
 piece: the cup by the right hand, the plate and the fork by the left, their
-jaws asked the other way round and tilted 60 deg. On one pod (a Xeon E5-2697
-v4, osmesa) it lays **32 of 32 places at set-outs 0-31** and 32 of 32 at
+jaws asked the other way round and tilted 60 deg. Since #627 every reach is
+aimed at its grip, and it lays **29 of 32 places at set-outs 0-31** on one
+pod (an AMD EPYC 7B12, osmesa; "The reach planned where the live trunk
+stands", below). As this section found it, its reaches aimed past their
+grips, on one pod (a Xeon E5-2697 v4, osmesa) it laid 32 of 32 there and 32 of 32 at
 #618's held-out set-outs, and on two sets more that nobody tuned on 46 of 48
 (public 80-127) and 30 of 32 (the practice arms' held out): 140 of 144, no
 flight falling, every pass 64-81 s. The procedure before it (`TABLE_STANCES`,
 a stance a piece) laid none at 0-31 or at #618's there. It was tuned on
 public set-outs 32-79 (46 of 48, locally), never on those it was read at.
 Laid, a piece rests a median 0.4-0.7 cm from its spot, the cup 2.7 cm at
-worst (once over the line). Three of the four misses are the cup's reach
+worst (once over the line). Three of the four misses were the cup's reach
 bowing into a pocket where no tag is in view (below). What it took, each
 found by tracing a flight -- the truth beside what the reach holds, read off
 stored values only (a hand's place, read, draws on the joints' noise):
 
-- *The live trunk stands 2-3 cm behind the statue the planner reaches from.*
-  Standing at the start the shoulders were 1.6-2.1 cm behind their statue's,
-  3.1 cm behind and 1.6 cm aside after the 0.14 m step, and 3.2 cm behind the
-  statue balanced with the arm out at the plate's reach: a posture the plan
-  takes with its 1.5 cm of slack (`reach.REACH_MARGIN_M`) leaves the live arm
-  at its stretch, its elbow straight on its stop and its solve 3-4 cm short.
-  So each of the plate's and the fork's reaches is aimed 3 cm further along
-  the wall or the handle -- still on the piece -- and the hand pulled back to
-  its grip; aimed at the grip itself, the reach stopped 3 cm over it.
-- *A carry takes only a posture its statue reaches, a pull goes on to
-  another.* A `move_hand` whose arm misses re-plans on the statue, which
-  takes the posture it holds again, and ends out of reach; a `pull` going
-  where its arm misses takes another (`posture_for(onward=)`). Every precise
-  move is a pull from where the hand senses itself (`go`, a def of its own),
-  a correction under a pull's least 1 cm a `move_hand` -- skipped, a 1 cm
-  error was the cup's whole margin.
+- *The live trunk stood 2-3 cm behind the statue the planner reached from*
+  (1.6-2.1 cm standing, 3.1-3.2 after the step or with an arm out), so each
+  of the plate's and the fork's reaches was aimed 3 cm on along the wall or
+  the handle and the hand pulled back to its grip. Since #627 the reach plans
+  where the robot reads itself standing and each is aimed at its grip ("The
+  reach planned where the live trunk stands", below).
+- *A pull goes on to another posture where its arm misses*
+  (`posture_for(onward=)`), as a carry did not while it re-planned on a
+  statue ahead of the trunk (#627 re-plans both where the robot stands).
+  Every precise move is a pull from where the hand senses itself (`go`, a def
+  of its own), a correction under a pull's least 1 cm a `move_hand` --
+  skipped, a 1 cm error was the cup's whole margin.
 - *The cup is taken from above, 3 cm short of its middle.* Its approach began
   3-5 cm from its pre-grasp, where the posture left the hand, and came in on
   the diagonal: a pad landed on the lid and tipped the cup before the jaws
@@ -5974,15 +5974,13 @@ stored values only (a hand's place, read, draws on the joints' noise):
   cup put where it was from it. Turned by the change in the plate's tag's
   edges as well, the cup came out worse (+1.35 cm along the place against
   +0.68): the edges read the turn too coarsely for an offset 0.4 m long.
-- *The planner's bow above the cup has pockets.* At 10 cm over the cup and
-  0.40-0.45 m out the reach takes its 0.3 rad bow, but scattered points 5 mm
-  apart take 0.55 or 0.8 rad, where no tag is in the head camera's view; the
-  reach is aimed 1.5 cm short of the cup's middle, inside the 0.3 rad bow, and
-  where it still bows deeper it withdraws, reads the tag again and reaches
-  1.5 cm higher and 0.5 cm on -- which rescued 2 of the 5 the pod met in 144
-  flights. The other 3 are its misses: the second reach bowed too, neither
-  read after a reach saw the tag, and the hand, brought down where the read
-  before the first reach put the cup, shut on nothing.
+- *The planner's bow above the cup had pockets* (#627 found them in the
+  arm's solve): scattered points 5 mm apart took 0.55 or 0.8 rad, where no
+  tag is in the head camera's view, so the reach was aimed 1.5 cm on from the
+  cup's grip, and where it still bows deeper it withdraws, reads the tag
+  again and reaches 1.5 cm higher -- which rescued 2 of the 5 the pod met in
+  144 flights; the other 3 were its misses. Since #627 the reach is aimed at
+  the cup's grip; the second try stays.
 - *The plate is gripped 1.5 cm inside its wall.* The fork waits beside it, and
   at the wall the open outer pad came within 5 mm of the fork's handle and
   brushed it onto its side; 1.5 cm in, it stays 2 cm off, and the jaws, which
@@ -6033,6 +6031,132 @@ table 0`; `--view table K` watches one)](figures/hands_table_waist.png)
 easy mode's, the dishware a few cm from where #615 set it out; and the
 reference knows the set-out's geometry -- the stance, the plate's wall, the
 cup's height -- as no mind is told.
+
+## The reach planned where the live trunk stands (issue #627)
+
+**What is true now.** A reach plans on the robot's model of itself as it
+reads itself standing (`reach.Lean`, `Reach._lean`): the statue of each
+posture it weighs is balanced with its centre of mass where its own model,
+posed off its encoders and its IMU, puts it over its soles, shifted, turned
+and rolled as its pelvis stands off that statue, the posture it holds posed
+as it holds it, the other arm where it is commanded and the reaching arm
+where its solve puts it (`reach.statue`, `plan`'s `_reached`). Once the
+posture is held and the arm is out at its pre-grasp, it reads itself again
+and takes the least bent posture that puts its goal in reach -- deeper or
+less bent -- before the hand goes in (`Reach._look`, at most `LOOKS`, never
+a posture it has left; the hand waits at its pre-grasp meanwhile). The
+carry's and the pull's postures (`posture_for`, `path_for`) stand on the same
+statue; `PATH_MARGIN_M` is gone, and a path's points further from the
+shoulder are reached `LIVE_MARGIN_M` (2 cm) ahead on a statue as on the live
+robot. The arm's solve keeps the converged arm nearest the arm as it is, or
+hanging, and each of the goal and its slack point is solved from the other's
+arm too.
+
+**Measured** (`humanoid_spike.py --lean`: the living room, as `--friction`
+stands; each true shoulder against each statue, cm ahead, stored values
+only):
+
+| | the statue before (over the soles' middle, arms hanging) | the statue as the robot reads itself | the robot's own model |
+|---|---|---|---|
+| the stand | -1.6; -2.0 | 0.0; 0.0 | 0.0; 0.0 |
+| each bow, -0.08 to 1.1 rad | -1.5 to +0.9 | -0.1 to +0.1 | 0.0 to +0.1 |
+| after step(0, 0.14) | -2.2; -2.5 | 0.0; 0.0 | 0.0; 0.0 |
+| ...the other arm out of the way | -3.2; -3.1 | 0.0; 0.0 | 0.0; 0.0 |
+| ...the hand at the table's plate | -5.9; -5.1 | 0.0; 0.0 | 0.0; 0.0 |
+
+(left; right; sideways the read statue is within 0.1 cm too.) #626's 1.6-2.1
+cm standing and 3.1-3.2 cm after a step or with an arm out are the first
+column's.
+
+- *The robot reads its own lean to 0.05-0.2 cm.* At every posture, step, arm
+  and noise draw measured, its model of itself posed off its encoders and
+  its IMU put its shoulders and its centre of mass where they truly were.
+- *What the lean is.* The standing policy holds its centre of mass 1.2-1.3
+  cm behind its soles' middle at the stand and almost none in a deep bow;
+  the statue holds it over the middle. An arm held out moves the statue's
+  pelvis back 0.7-2.2 cm for its weight, and the policy goes on: at the stand
+  0.6-0.8 cm more of its weight back for each cm the arm's weight moves it
+  forward, in bows a tenth to a third of that, by side.
+- ⚠ *No table predicts it.* Over 24 random arms at each of two postures the
+  policy's weight moved -2 to +5 cm, and the best fit to the arm's angles
+  missed by 0.7-1.7 cm rms (to its weight alone, 1.4-1.7). An arm over the
+  top -- the shoulder thrown back, rolled past 2.2 rad -- leant it 4.4 cm
+  FORWARD where an arm in front, as heavy, leant it 0.8 back. So the plan
+  reads the lean, and reads it again with the arm out.
+- *The first plan, read before the arm goes out, is 1.5-2.4 cm hopeful* for
+  an arm in front (the policy's own lean for the arm, which nothing but the
+  arm out shows), and too cautious for one over the top: the look takes the
+  posture each needs. Reaches from the stand on a bare floor (the plate's
+  grip, the other arm hanging and held out of the way): before, blocked 3.2 and
+  5.1 cm short; now held within 0.1 cm, after one look.
+
+**The bow's pockets were the arm's solve.** At 10 cm over the table's cup,
+points 5 mm apart took the 0.3 rad bow or the 0.55 and 0.8: none of seven
+seeds converged there for the goal or the point its slack asks for -- each
+missed by 0.4-0.5 rad of turn, its wrist on a stop -- where each solved from
+the other's arm did (15 of the 18). And with no arm to be near, the solve
+kept the FIRST seed that converged: the hanging arm's own, over the top,
+where five others reached in front. Now the grid over the cup takes the 0.3
+rad bow everywhere but one corner, where the 0.55 truly reaches and the 0.3
+does not with its slack (`posture_map.py` of #626).
+
+- ⚠ *The cup's asked grip is reached only over the top* (its arm in front
+  misses by 0.44 rad, its wrist's roll at its stop). The first plan's
+  caution bows it 0.55 in about half the set-outs, and the look, reading the
+  arm's forward lean, brings it back to 0.3. Asked half a turn round, an arm
+  in front reaches it standing, the waist turned -- but the pull down onto
+  the cup then took another posture, and the turning trunk swung the giving
+  hand 11 cm. Our reference keeps the grip as asked.
+- *The table's reference aims at every grip.* The 3 cm past and the pull
+  back went with the statue they worked round, and so did the cup's 1.5 cm
+  on: it now took the cup's reach to the 0.55 bow's edge.
+
+**The planner's cost**, on the physics thread: a statue balanced at a lean
+read is the kept statue's legs moved by their own change with the weight's
+place (`_slope`) and two Newton steps (`_posed_fast`): the least squares'
+answer to 0.01 mm at 0.3 ms where it takes 12. A plan over the cup 0.18 s
+(0.21 before), one past the arm's reach 0.06 s (0.02), a carry's re-plan
+0.03-0.05 s (0.01).
+
+**Flown on one pod** (Vast, an AMD EPYC 7B12, osmesa: the tree before,
+07a1d2f, and this one at the same seeds, each set-out its own noise; of 32,
+the first 8 in brackets):
+
+| | before | planned where the robot stands |
+|---|---|---|
+| the lid | 22 (8) | 26 (8) |
+| the drawer | 22 (5) | 21 (5) |
+| the door | 25 (5) | 24 (7) |
+| the cube placed | 15 (4) | 17 (3) |
+| the table laid | 32 (8), its reaches aimed past their grips | 29 (8), aimed at them |
+| the served drawer, from the tour | 30 (8) | 30 (8) |
+| the served door, from the tour | 28 (7), a fall | 29 (8), a fall |
+| the served chest, from the tour | 32 (8) | 32 (8) |
+| the station, round the standoff; at its seats | 36 of 36; 139 of 140 | 36 of 36; 140 of 140 |
+| the opener at its counter (`attempts.py`; before, 8ba89ce) | 19 (6) | 20 (7) |
+
+Draw by draw the drawer lost 2 and won 1, the door lost 5 and won 4, the
+cube lost 7 and won 9, the lid won 4, the opener lost 2 and won 3: a change
+to any reach reshuffles which draws pass, and a sign test over the pairs
+tells none of them apart. The served door's fall is draw 8's on both trees.
+- ⚠ *The opener aims at the knob's middle, and the reach now gets there.*
+  Its reaches held their goal 40 times in 73 where they held it 29, but 13
+  of its 40 grips did not hold the knob where 1 of 29 did: arrived short,
+  its hand had gripped where the lid check aims on purpose, 2 cm short of
+  the middle (the pads reach 4 cm past the grip, "The chest's grip"). Its
+  grip aimed so and nothing else changed, it opens 23 of 32 (8 of 0-7),
+  losing none the tree before opened (a probe on the dev box, where both
+  trees flew chest for chest as on the pod). The opener is unchanged.
+- *The look costs no time it does not use.* A posture the look would
+  choose that is the one held lets the hand straight in, and paired by
+  set-out the checks' passes took no longer: the median pass's time moved 0
+  to -1.2 s a job, the slowest lid's 41 s to 30.
+- *The table's three it lost.* Two forks let go as the carry turned the
+  waist to -60 deg, the fork turning 55-64 deg in the jaws; a reach's
+  posture is chosen for its grip alone, and the carry after it may need
+  another. One cup (set-out 28) was knocked over as its pull down went on
+  to a 0.95 rad bow: its arm over the top, whose lean (above) no plan
+  foresees. With the cup's 1.5 cm on that #626's reference aimed, 19.
 
 ## Where `measure` looks (issue #630)
 

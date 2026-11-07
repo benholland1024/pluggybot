@@ -265,9 +265,9 @@ PLACE = '''def place_cube():
 #: lid) and placed off the plate's tag read with the hand out, a reach that
 #: bows out of the tag's view tried again 1.5 cm higher; the plate's and the
 #: fork's jaws the other way round at 60 deg (as asked before, the yaw takes
-#: the grip that never carries), each reach aimed 3 cm past its grip and the
-#: hand pulled back (the live trunk stands 2-3 cm behind the reach's statue),
-#: the plate gripped 1.5 cm inside its wall (at it, a pad brushed the fork
+#: the grip that never carries), each reach aimed at its grip (#627: the reach
+#: plans where the robot stands), the plate gripped 1.5 cm inside its wall (at
+#: it, a pad brushed the fork
 #: over), the fork at 25 N (from 40 the gripper's chatter stalls short of
 #: it); every precise move a pull (`go`: a carry takes only a posture its
 #: statue reaches); each piece set down by where its jaws left it, the card
@@ -295,14 +295,14 @@ TABLE = '''def lay_place():
   spot(90)
   x = read("spot.x") + u
   y = read("spot.y") + v
-  reach("right", x + 0.015, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
+  reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
   if spot(90):
     x = read("spot.x") + u
     y = read("spot.y") + v
   else:
     withdraw("right")
     spot(90)
-    reach("right", read("spot.x") + u + 0.02, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
+    reach("right", read("spot.x") + u + 0.005, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
     if spot(90):
       x = read("spot.x") + u
       y = read("spot.y") + v
@@ -337,8 +337,7 @@ TABLE = '''def lay_place():
     py = read("spot.y")
     gy = py + 0.066 * (1 - i)
     gz = 0.7734 - 0.005 * i
-    reach("left", px + 0.03, gy, gz, 0.5, 0, -0.866, 0, -1, 0)
-    go("left", px, gy, gz, 20, 0)
+    reach("left", px, gy, gz, 0.5, 0, -0.866, 0, -1, 0)
     if not close_hand("left", 40 - 15 * i):
       open_hand("left")
       close_hand("left", 30 - 15 * i)

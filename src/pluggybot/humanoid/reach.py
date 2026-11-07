@@ -28,6 +28,7 @@ first push and buckled (SimNotes, "The humanoid opens the chest").
 before `mj_step`; the arms take new commands every `EVERY_S`.
 """
 
+from dataclasses import dataclass
 import itertools
 import math
 
@@ -58,8 +59,18 @@ JOINT_RATE = 1.0
 APPROACH_M = 0.08
 #: A plan's slack: the arm must also reach this much further out, m, away
 #: from its shoulder -- a goal planned at full stretch was 2.8 cm out of
-#: reach of the posture the policy held, 2 cm under the one asked.
+#: reach of the posture the policy held, 2 cm under the one asked. It is
+#: slack over the robot as it stands (`Lean`), never the lean itself: kept
+#: over a statue balanced at the soles' middle, the live trunk stood 1.6-6.6
+#: cm behind it and the hand arrived short (#627).
 REACH_MARGIN_M = 0.015
+#: A hand whose reach's posture, read as the robot stands with its arm out
+#: at its pre-grasp, does not put the goal in reach takes another this many
+#: times at most before it goes in (`Reach._look`, #627): the lean an arm
+#: brings is the standing policy's own and no table predicts it -- over
+#: random arms the CoM moved -2 to +5 cm, a fit to the arm's angles still
+#: off 0.7-1.7 cm rms -- but the robot reads it, out, to 0.1-0.2 cm.
+LOOKS = 2
 #: A hand's force (`force`) is the WHOLE BODY's reading while the hand is at
 #: work in one of these phases and the standing policy has the legs
 #: (`standing`; `arms.SelfModel.felt`, #547), else its arm's alone
@@ -114,14 +125,13 @@ WAIST_RATE, WAIST_ACCEL = 0.6, 1.5
 #: comes a second or two behind its command, and the arm's solve missed
 #: its command by 2-5 cm all the way up (#493).
 HOLD_SPEED = 0.06
-#: A path's slack (`path_for`): each of its points must also be reached
-#: this much further AHEAD, m. Lifting, the live robot stands further back
-#: than its statue: 1.5-2 cm all the way up a lid's arc, 2 cm more at its
-#: top, where a path planned with none stopped at 57 deg (#493).
-PATH_MARGIN_M = 0.035
-#: ...planned on the robot as it stands, the lean it already has is in its
-#: pose, and only its last 2 cm is to come: with the statue's whole margin
-#: on top, a path planned on a statue was refused once the knob was held.
+#: A path's slack (`path_for`): each of its points further from the
+#: shoulder than its first is also reached this much further AHEAD, m: the
+#: lean its load still brings. Lifting, the live trunk stood 1.5-2 cm behind
+#: a statue balanced at the soles' middle all the way up a lid's arc and 2 cm
+#: more at its top, where a path planned with no slack stopped at 57 deg
+#: (#493); the statue stands as the robot reads itself standing now
+#: (`Lean`, #627), and only this last 2 cm is to come.
 LIVE_MARGIN_M = 0.02
 #: ...and each is followed within this, m: a solve trades position for the
 #: turn it holds (`arms.IK_ROT_WEIGHT`), and down a lid's arc, the wrist near
@@ -282,6 +292,12 @@ def with_waist(legs, yaws=WAIST_YAWS) -> tuple[tuple[float, float, float], ...]:
 #: ...a reach's postures, and a carried hand's (`posture_for`, `path_for`).
 REACH_POSTURES = with_waist(POSTURES)
 CARRY_POSTURES = with_waist(HOLD_POSTURES)
+#: However the robot reads itself standing, its shoulder stands within this
+#: of the statue balanced over the soles' middle with its arms hanging, m: a
+#: goal further out than that of its reach is skipped on that statue, kept,
+#: before one is balanced as it stands (`Lean`; it stood them up to 6.6 cm
+#: back and, an arm over the top, 4.4 cm of weight forward, #627).
+LEAN_MOST_M = 0.10
 #: A posture whose trunk above the waist comes this far into a thigh or a
 #: shank stands nowhere, m: the robot's own drawing meets its own parts only
 #: in the pairs it names, and none is the trunk's against a leg -- at the
@@ -316,22 +332,12 @@ def seed(side: str, s) -> np.ndarray:
   return q
 
 
-def static_legs(height: float, pitch: float, model: SelfModel | None = None,
-                arms: dict | None = None, waist: float = 0.0) -> dict:
-  """The legs' sagittal joints holding the pelvis `height` off the stand's
-  and the trunk pitched `pitch`, both soles flat and the centre of mass
-  over their middle: a statue's answer, which the policy's own stance is
-  near -- with the arms where `arms` puts them (joint name -> angle), else
-  hanging, and the waist turned `waist`. ⚠ An arm held out moves the centre
-  of mass, and the policy moves its pelvis back for it: balanced with its
-  arms hanging, the statue stood 3 cm in front of the robot reaching a lid's
-  knob and 7 cm in front of it at the lid's top, where the plan's reach was
-  out of the robot's (#493). Joint name -> angle; with its arms hanging, the
-  model's own answer kept (`SelfModel.statues`)."""
-  sm = model or SelfModel()
-  key = (float(height), float(pitch), float(waist))
-  if arms is None and key in sm.statues:
-    return dict(sm.statues[key][0])
+def _balance(sm: SelfModel, height: float, pitch: float, arms: dict | None, waist: float,
+             com: float):
+  """What a statue's legs zero (`static_legs`): of (the pelvis's place
+  ahead, the hip's, the knee's and the ankle's pitch), the sole's bottom on
+  the floor, the sole flat, and the centre of mass `com` ahead of it -- the
+  pelvis `height` off the stand's, pitched `pitch`, its arms and waist so."""
   m, d = sm.m, sm.d
   root, sole = sm.root, sm.soles[0]
   adr = {n: sm.qadr[k] for k, n in enumerate(hm.JOINT_NAMES)}
@@ -340,7 +346,7 @@ def static_legs(height: float, pitch: float, model: SelfModel | None = None,
   mujoco.mju_euler2Quat(quat, np.array([0.0, pitch, 0.0]), "XYZ")
   stand = {**hm.stand_qpos(), **{j: float(waist) for j in hm.WAIST}, **(arms or {})}
 
-  def put(v):
+  def resid(v):
     x, hip, knee, ankle = v
     d.qpos[:] = 0.0
     d.qpos[0], d.qpos[2] = x, h
@@ -353,35 +359,201 @@ def static_legs(height: float, pitch: float, model: SelfModel | None = None,
       d.qpos[adr[f"{s}_ankle_pitch"]] = ankle
     mujoco.mj_kinematics(m, d)
     mujoco.mj_comPos(m, d)
-
-  def resid(v):
-    put(v)
     r = d.geom_xmat[sole].reshape(3, 3)
     bottom = d.geom_xpos[sole][2] - m.geom_size[sole][2]
-    return [10 * bottom, 3 * r[0, 2], 10 * (d.subtree_com[root][0] - d.geom_xpos[sole][0])]
+    return [10 * bottom, 3 * r[0, 2], 10 * (d.subtree_com[root][0] - d.geom_xpos[sole][0] - com)]
+  return resid
 
+
+def static_legs(height: float, pitch: float, model: SelfModel | None = None,
+                arms: dict | None = None, waist: float = 0.0, com: float = 0.0) -> dict:
+  """The legs' sagittal joints holding the pelvis `height` off the stand's
+  and the trunk pitched `pitch`, both soles flat and the centre of mass
+  `com` ahead of their middle, m (over it, by default): a statue's answer
+  -- with the arms where `arms` puts them (joint name -> angle), else
+  hanging, and the waist turned `waist`. ⚠ An arm held out moves the centre
+  of mass, and the policy moves its pelvis back for it: balanced with its
+  arms hanging, the statue stood 3 cm in front of the robot reaching a lid's
+  knob and 7 cm in front of it at the lid's top, where the plan's reach was
+  out of the robot's (#493). ⚠ AND THE POLICY HOLDS ITS WEIGHT WHERE IT
+  HOLDS IT: 1.2 cm behind the soles' middle at the stand, 2.9 with an arm
+  out after a step (#627; `Lean`). Joint name -> angle; with its arms
+  hanging, the model's own answer kept (`SelfModel.statues`)."""
+  sm = model or SelfModel()
+  # ...the one over the soles' middle kept: one at a lean read is that read's
+  kept = arms is None and not com
+  key = (float(height), float(pitch), float(waist))
+  if kept and key in sm.statues:
+    return dict(sm.statues[key][0])
+  resid = _balance(sm, height, pitch, arms, waist, com)
   best = None
-  for guess in ([0.0, -0.2 - pitch, 0.4, -0.2], [0.0, -0.8 - pitch, 1.6, -0.8]):
+  guesses = ([0.0, -0.2 - pitch, 0.4, -0.2], [0.0, -0.8 - pitch, 1.6, -0.8])
+  if not kept and key in sm.statues:
+    # ...one weighed otherwise starts from the statue's own legs: a fit, not two
+    legs = sm.statues[key][0]
+    guesses = ([0.0, legs["left_hip_pitch"], legs["left_knee"], legs["left_ankle_pitch"]],)
+  for guess in guesses:
     fit = least_squares(resid, guess, bounds=([-1.0, -3.0, 0.0, -0.9], [1.0, 2.2, 2.6, 0.6]))
     if best is None or fit.cost < best.cost:
       best = fit
   _, hip, knee, ankle = best.x
   legs = {f"{s}_{k}": v for s in hm.SIDES
           for k, v in (("hip_pitch", hip), ("knee", knee), ("ankle_pitch", ankle))}
-  if arms is None:
+  if kept:
     sm.statues[key] = (dict(legs), None)
   return legs
 
 
 def _posed(sm: SelfModel, height: float, pitch: float, q0: np.ndarray,
-           arms: dict | None = None, waist: float = 0.0) -> None:
+           arms: dict | None = None, waist: float = 0.0, com: float = 0.0,
+           roll: float = 0.0) -> None:
   q = q0.copy()
   q[sm.waist] = waist
   for n, v in (arms or {}).items():
     q[hm.JOINT_NAMES.index(n)] = v
-  for n, v in static_legs(height, pitch, sm, arms, waist).items():
+  for n, v in static_legs(height, pitch, sm, arms, waist, com).items():
     q[hm.JOINT_NAMES.index(n)] = v
-  sm.pose(q, np.array([math.sin(pitch), 0.0, -math.cos(pitch)]))
+  # gravity in the trunk's frame for a roll, then a pitch (`SelfModel.pose`)
+  sm.pose(q, np.array([math.sin(pitch), -math.cos(pitch) * math.sin(roll),
+                       -math.cos(pitch) * math.cos(roll)]))
+
+
+@dataclass(frozen=True)
+class Lean:
+  """Where the robot reads itself standing (#627), off its model of itself
+  posed off its senses (`Lean.read`): its centre of mass `com` ahead of its
+  soles' middle, m, and its pelvis shifted `dx`, `dy`, m, and turned `turn`,
+  rad, off the statue balanced there -- the stance frame's -- and its trunk
+  rolled `roll`, rad, as its IMU reads it. A statue posed so (`statue`)
+  stands where the live trunk stands. ⚠ THE STANDING POLICY
+  HOLDS ITS WEIGHT WHERE IT HOLDS IT, AND NO TABLE PREDICTS IT: 1.2 cm behind
+  the soles' middle at the stand and none in a deep bow, and an arm out
+  moves it -2 to +5 cm by how the arm is bent, not by its weight alone (a
+  natural arm and an arm over the top, the same weight, -0.8 and +4.4) --
+  so a plan reads it, and reads it again with the arm out (`Reach._look`).
+  The robot's own model read it to 0.05-0.2 cm of the truth at every
+  posture, step and arm measured. The posture it was read in (`at`, as
+  asked) is posed as the robot holds it (`held`): asked the deepest bow,
+  the standing policy held 0.05-0.07 rad less of it, and the statue as
+  asked stood a shoulder 1.1 cm ahead of the truth."""
+  com: float = 0.0
+  dx: float = 0.0
+  dy: float = 0.0
+  turn: float = 0.0
+  roll: float = 0.0
+  at: tuple | None = None
+  held: tuple | None = None
+
+  @staticmethod
+  def read(live: SelfModel, posture, planner: SelfModel) -> "Lean":
+    """The lean of `live`, posed off the robot's senses, asked `posture`
+    (height, pitch, yaw): its centre of mass, the posture it holds as it
+    measures it (its pelvis's height and pitch, its waist), and its pelvis
+    off the statue of that posture balanced there with its arms as `live`
+    has them (posed on `planner`)."""
+    com = float(live.d.subtree_com[live.root][0])
+    arms = {n: float(live.q[hm.JOINT_NAMES.index(n)])
+            for s in hm.SIDES for n in (f"{s}_{j}" for j in hm.ARM)}
+    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    r = live.d.xmat[live.root].reshape(3, 3)
+    held = (float(live.d.qpos[2]) - hm.stand_height(),
+            math.asin(max(-1.0, min(1.0, -float(r[2, 0])))), float(live.q[live.waist][0]))
+    roll = math.atan2(float(r[2, 1]), float(r[2, 2]))
+    _posed(planner, *held[:2], q0, arms, held[2], com, roll)
+    (x0, y0), t0 = _pelvis(planner)
+    (x1, y1), t1 = _pelvis(live)
+    turn = math.remainder(t1 - t0, 2 * math.pi)
+    c, s = math.cos(turn), math.sin(turn)
+    return Lean(com, x1 - (c * x0 - s * y0), y1 - (s * x0 + c * y0), turn, roll,
+                tuple(float(v) for v in posture), held)
+
+
+def _pelvis(sm: SelfModel) -> tuple[tuple[float, float], float]:
+  """The pelvis's place on the floor, stance frame, and its heading."""
+  r = sm.d.xmat[sm.root].reshape(3, 3)
+  return ((float(sm.d.xpos[sm.root][0]), float(sm.d.xpos[sm.root][1])),
+          math.atan2(r[1, 0], r[0, 0]))
+
+
+#: A statue balanced at a lean sooner (`statue(fast=True)`): its legs the
+#: kept statue's moved by their own change as its weight's place moves,
+#: worked out across this much of it, m, either way, and kept -- then this
+#: many Newton steps on its balance from there.
+SLOPE_M, FAST_STEPS = 0.02, 2
+
+
+def _slope(sm: SelfModel, height: float, pitch: float, waist: float) -> np.ndarray:
+  """How the statue's legs (hip, knee, ankle pitch) move as its centre of
+  mass is balanced further ahead of the soles' middle, rad a metre; kept."""
+  key = ("slope", height, pitch, waist)
+  if key not in sm.statues:
+    ends = [static_legs(height, pitch, sm, None, waist, c) for c in (SLOPE_M, -SLOPE_M)]
+    sm.statues[key] = np.array([(ends[0][f"left_{j}"] - ends[1][f"left_{j}"]) / (2 * SLOPE_M)
+                                for j in ("hip_pitch", "knee", "ankle_pitch")])
+  return sm.statues[key]
+
+
+def _posed_fast(sm: SelfModel, height: float, pitch: float, q0: np.ndarray,
+                arms: dict | None, waist: float, com: float, roll: float) -> None:
+  """`_posed`, its balance solved by Newton's method (`FAST_STEPS`) from the
+  kept statue's legs moved by the lean, less what the arms' weight moves it
+  ahead (`_slope`): the same balance, without a least squares' cost a
+  posture -- a plan weighs dozens."""
+  legs = static_legs(height, pitch, sm, None, waist)
+  resid = _balance(sm, height, pitch, arms, waist, com)
+  v = np.array([0.0, *(legs[f"left_{j}"] for j in ("hip_pitch", "knee", "ankle_pitch"))])
+  # ...as far as the weight stands off `com` there, the arms set (the
+  # residual's third row is ten times it)
+  v[1:] -= resid(v)[2] / 10 * _slope(sm, height, pitch, waist)
+  for _ in range(FAST_STEPS):
+    r0 = np.array(resid(v))
+    jac = np.empty((3, 3))
+    for k in range(3):
+      e = np.zeros(4)
+      e[k + 1] = 1e-6
+      jac[:, k] = (np.array(resid(v + e)) - r0) / 1e-6
+    v[1:] -= np.linalg.solve(jac, r0)
+  q = q0.copy()
+  q[sm.waist] = waist
+  for n, val in (arms or {}).items():
+    q[hm.JOINT_NAMES.index(n)] = val
+  for s in hm.SIDES:
+    for k, j in enumerate(("hip_pitch", "knee", "ankle_pitch")):
+      q[hm.JOINT_NAMES.index(f"{s}_{j}")] = v[k + 1]
+  sm.pose(q, np.array([math.sin(pitch), -math.cos(pitch) * math.sin(roll),
+                       -math.cos(pitch) * math.cos(roll)]))
+
+
+def statue(sm: SelfModel, posture, q0: np.ndarray, arms: dict | None = None,
+           lean: Lean | None = None, fast: bool = False) -> None:
+  """`sm` posed as the robot would stand in `posture` (height, pitch, yaw):
+  a statue's legs (`static_legs`), its arms where `arms` puts them (joint
+  name -> angle; else hanging), balanced with its centre of mass where
+  `lean` reads it and its pelvis shifted and turned as `lean` says (#627),
+  the posture it was read in as it held it; with no lean, over the soles'
+  middle. `fast`: its balance solved from the kept statue's (`_posed_fast`):
+  within 0.01 mm of the least squares over random arms and leans of -3.5 to
+  +5 cm at every carry posture, at 0.3 ms where it takes 12."""
+  lean = lean or Lean()
+  if lean.at is not None and np.allclose(posture, lean.at, atol=1e-9):
+    # ...as it holds it, balanced afresh: a held posture's statue is a read's own
+    posture, fast = lean.held, False
+  height, pitch, waist = (float(v) for v in posture)
+  if fast:
+    _posed_fast(sm, height, pitch, q0, arms, waist, lean.com, lean.roll)
+  else:
+    _posed(sm, height, pitch, q0, arms or None, waist, lean.com, lean.roll)
+  if lean.dx or lean.dy or lean.turn:
+    d = sm.d
+    c, s = math.cos(lean.turn), math.sin(lean.turn)
+    x, y = float(d.qpos[0]), float(d.qpos[1])
+    d.qpos[0], d.qpos[1] = c * x - s * y + lean.dx, s * x + c * y + lean.dy
+    turn, out = np.zeros(4), np.zeros(4)
+    mujoco.mju_axisAngle2Quat(turn, np.array([0.0, 0.0, 1.0]), lean.turn)
+    mujoco.mju_mulQuat(out, turn, d.qpos[3:7].copy())
+    d.qpos[3:7] = out
+    mujoco.mj_kinematics(sm.m, d)
+    mujoco.mj_comPos(sm.m, d)
 
 
 def stands(sm: SelfModel, posture, q0: np.ndarray) -> bool:
@@ -444,56 +616,106 @@ def _arm(side: str, q_arm) -> dict:
 def solve_seeded(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
                  ) -> tuple[np.ndarray, float, float]:
   """`SelfModel.solve` from each of `SEEDS` (and `start`), the best kept:
-  within tolerance and nearest `start`, else the least off."""
+  within tolerance and nearest `start` -- or, with none, nearest the arm
+  hanging -- else the least off. ⚠ NEAREST, NEVER THE FIRST TO REACH: kept
+  in its seeds' order, the hanging arm's own solve took the shoulder thrown
+  back and the arm over the top where five other seeds reached the same
+  point with the arm in front -- and an arm so bent leant the standing
+  policy 4.4 cm forward where the other leant it 0.8 back (#627)."""
   tries = [seed(side, s) for s in SEEDS]
   if start is not None:
     tries.insert(0, np.asarray(start, dtype=float))
+  near = tries[0]
   best, best_key = None, None
   for q0 in tries:
     sm.q[sm.arm[side]] = q0
     q, ep, er = sm.solve(side, pos, rot, iters=80)
     ok = ep < REACH_POS_TOL and er < REACH_ROT_TOL
-    far = 0.0 if start is None else float(np.abs(q - start).max())
-    key = (not ok, far if ok else ep + 0.1 * er)
+    key = (not ok, float(np.abs(q - near).max()) if ok else ep + 0.1 * er)
     if best_key is None or key < best_key:
       best, best_key = (q, ep, er), key
   return best
 
 
+def _reaching(sm: SelfModel, side: str, pos, rot, start=None, seeded: bool = True):
+  """The arm that puts the grip at `pos` (turned to `rot`) as `sm` is
+  posed, within the reach's tolerance, nearest `start` (`solve_seeded`) --
+  from `start` alone first where `seeded` is False -- or None."""
+  if not seeded and start is not None:
+    sm.q[sm.arm[side]] = np.asarray(start, dtype=float)
+    q, ep, er = sm.solve(side, pos, rot, iters=80)
+    if ep < REACH_POS_TOL and er < REACH_ROT_TOL:
+      return q
+  q, ep, er = solve_seeded(sm, side, pos, rot, start)
+  return q if ep < REACH_POS_TOL and er < REACH_ROT_TOL else None
+
+
+def _goal_arm(sm: SelfModel, side: str, goal: HandGoal, slack: bool, start=None,
+              seeded: bool = True):
+  """The arm that puts the grip at `goal` as `sm` is posed -- and, with
+  `slack`, at `REACH_MARGIN_M` further from its shoulder too -- nearest
+  `start`; or None. ⚠ EACH POINT IS ALSO SOLVED FROM THE OTHER'S ARM: from
+  the seeds alone, the two missed by 0.4-0.5 rad of turn at points 5 mm
+  from points that reached, none of seven seeds converging, and the plan
+  took a deeper bow there -- with no tag in view (#627, the table's cup)."""
+  q_goal = _reaching(sm, side, goal.pos, goal.rot, start, seeded)
+  if not slack:
+    return q_goal
+  shoulder = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id]
+  out = np.asarray(goal.pos, dtype=float) - shoulder
+  far = np.asarray(goal.pos, dtype=float) + REACH_MARGIN_M * out / np.linalg.norm(out)
+  q_far = _reaching(sm, side, far, goal.rot, start if q_goal is None else q_goal,
+                    seeded and q_goal is None)
+  if q_far is not None and q_goal is None:
+    q_goal = _reaching(sm, side, goal.pos, goal.rot, q_far, seeded=False)
+  return q_goal if q_far is not None else None
+
+
+def _reached(sm: SelfModel, side: str, posture, q0: np.ndarray, goal: HandGoal,
+             pre: HandGoal, slack: bool, lean: "Lean | None", arms: dict | None, start):
+  """(the arm at the pre-grasp, the arm at the goal) where `posture` puts
+  `goal` in `side`'s reach -- with its slack -- on the robot as it would
+  stand there (`statue`): with this arm where `arms` puts it (else hanging),
+  then balanced with it where that solve put it and solved again from
+  there, as an arm held out moves the trunk; or None."""
+  others = dict(arms or {})
+  statue(sm, posture, q0, others, lean, fast=True)
+  if out_of_reach(sm, side, goal.pos, REACH_MARGIN_M if slack else 0.0):
+    return None
+  q = _goal_arm(sm, side, goal, slack, start)
+  if q is None:
+    return None
+  statue(sm, posture, q0, {**others, **_arm(side, q)}, lean, fast=True)
+  q = _goal_arm(sm, side, goal, slack, q, seeded=False)
+  if q is None:
+    return None
+  q_pre = _reaching(sm, side, pre.pos, pre.rot, q, seeded=False)
+  return None if q_pre is None else (q_pre, q)
+
+
 def plan(side: str, goal: HandGoal, model: SelfModel | None = None,
-         postures=REACH_POSTURES, approach: float = APPROACH_M):
+         postures=REACH_POSTURES, approach: float = APPROACH_M, lean: "Lean | None" = None,
+         arms: dict | None = None, start=None):
   """The least-bent posture from which `side`'s hand reaches `goal` -- and
   its pre-grasp, `approach` short of it -- WITH `REACH_MARGIN_M` to spare,
   else the least bent that reaches it at full stretch; and the arm's
-  joints at both. Tried on the robot's model of itself, a statue's legs and
-  its waist at each posture (`stands`). Returns ((height, pitch, yaw), arm
-  at the pre-grasp, arm at the goal, whether it has slack), or None if no
-  posture reaches it."""
+  joints at both, nearest `start` (the arm as it is; else hanging). Tried
+  on the robot's model of itself as it would stand in each posture
+  (`statue`): a statue's legs and waist (`stands`), balanced where `lean`
+  reads it (#627; with none, over the soles' middle), the other arm where
+  `arms` puts it and this one where its solve does (`_reached`). Returns
+  ((height, pitch, yaw), arm at the pre-grasp, arm at the goal, whether it
+  has slack), or None if no posture reaches it."""
   sm = model or SelfModel()
   q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
   pre = pregrasp(goal, approach)
-  shoulder = sm.m.body(f"{side}_shoulder_roll_link").id
-
-  def reaches(pos, rot, start=None):
-    q, ep, er = solve_seeded(sm, side, pos, rot, start)
-    return q if ep < REACH_POS_TOL and er < REACH_ROT_TOL else None
-
   for slack in (True, False):
     for posture in postures:
-      if not stands(sm, posture, q0) or out_of_reach(
-          sm, side, goal.pos, REACH_MARGIN_M if slack else 0.0):
+      if not stands(sm, posture, q0) or out_of_reach(sm, side, goal.pos, -LEAN_MOST_M):
         continue
-      if slack:
-        out = np.asarray(goal.pos) - sm.d.xpos[shoulder]
-        if reaches(np.asarray(goal.pos) + REACH_MARGIN_M * out / np.linalg.norm(out),
-                   goal.rot) is None:
-          continue
-      q_goal = reaches(goal.pos, goal.rot)
-      if q_goal is None:
-        continue
-      q_pre = reaches(pre.pos, pre.rot, start=q_goal)
-      if q_pre is not None:
-        return tuple(posture), q_pre, q_goal, slack
+      got = _reached(sm, side, posture, q0, goal, pre, slack, lean, arms, start)
+      if got is not None:
+        return tuple(posture), got[0], got[1], slack
   return None
 
 
@@ -657,6 +879,13 @@ class Reach:
     self.speed = {s: HAND_SPEED for s in hm.SIDES}
     self.pulls: dict[str, dict | None] = {s: None for s in hm.SIDES}
     self.report: dict[str, dict | None] = {s: None for s in hm.SIDES}
+    #: Each reach's looks (`_look`, #627): the postures it may take, those it
+    #: has left, how often it has looked, and whether its hand waits at its
+    #: pre-grasp while its body takes the posture a look chose.
+    self.allowed: dict[str, list] = {s: [] for s in hm.SIDES}
+    self.left: dict[str, list] = {s: [] for s in hm.SIDES}
+    self.looks = {s: 0 for s in hm.SIDES}
+    self.looking = {s: False for s in hm.SIDES}
     self._planner: SelfModel | None = None
 
   # ---- what a caller asks ----
@@ -681,6 +910,8 @@ class Reach:
     self.speed[side] = HAND_SPEED
     self.goal[side] = goal
     self.q_to[side] = self.outs[side].pop(0)
+    self.allowed[side] = [tuple(float(v) for v in p_) for p_ in postures]
+    self.left[side], self.looks[side], self.looking[side] = [], 0, False
     self.phase[side] = "move"
     return True
 
@@ -690,13 +921,29 @@ class Reach:
     return self._planned(side, goal, approach, postures, flip)[0] is not None
 
   def _planned(self, side, goal, approach, postures, flip):
+    # ...on the robot as it reads itself standing, the other arm where it is
+    # and this one's answer nearest it as it is (#627)
     sm = self._planner_model()
-    plan_ = plan(side, goal, sm, approach=approach, postures=postures)
+    kw = {"lean": self._lean(), "arms": self._arms(but=side), "start": self.q_cmd[side]}
+    plan_ = plan(side, goal, sm, approach=approach, postures=postures, **kw)
     if plan_ is None and goal.rot is not None and flip:
       flipped = np.asarray(goal.rot, dtype=float) @ np.diag([-1.0, -1.0, 1.0])
       goal = HandGoal(np.asarray(goal.pos, dtype=float), flipped, goal.stiffness)
-      plan_ = plan(side, goal, sm, approach=approach, postures=postures)
+      plan_ = plan(side, goal, sm, approach=approach, postures=postures, **kw)
     return plan_, goal
+
+  def _lean(self) -> Lean | None:
+    """How the robot reads itself standing now (`Lean.read`): its model of
+    itself as its arms' loop last posed it -- never its joints read again,
+    which would draw on their noise -- in the posture it was asked; None
+    before its first reading."""
+    if np.isnan(self.sensed).any():
+      return None
+    return Lean.read(self.self_model, self.posture, self._planner_model())
+
+  def _arms(self, but: str | None = None) -> dict:
+    """The arms where they are commanded, by joint name -- all but `but`'s."""
+    return {k: v for s in hm.SIDES if s != but for k, v in _arm(s, self.q_cmd[s]).items()}
 
   def stop(self, side: str, why: str) -> None:
     """A carry ended from outside (its caller's patience), held where the
@@ -723,7 +970,7 @@ class Reach:
       self.stop(side, why)
       return True
     if phase in ("approach", "pull"):
-      self.phase[side] = "blocked"
+      self.phase[side], self.looking[side] = "blocked", False
       return True
     if phase != "move":
       return False
@@ -774,13 +1021,17 @@ class Reach:
                   past=()) -> tuple | None:
     """The least-bent posture (`CARRY_POSTURES`: the legs' and the waist's)
     from which `side`'s grip reaches `pos` -- turned to `rot`, or at any
-    turn -- on the robot's model of itself, a statue's legs and waist at
-    each, the arm starting where it is and from `SEEDS`; or None if none
-    reaches it. `onward`: a held hand going on, whose arm missed `pos` in
-    the posture it holds -- another posture, from the arm as it is alone,
-    and none of `past`."""
+    turn -- on the robot's model of itself as it would stand in each, its
+    arms where they are (`statue`, as it reads itself standing: `Lean`), the
+    arm starting where it is and from `SEEDS`; or None if none reaches it.
+    `onward`: a held hand going on, whose arm missed `pos` in the posture it
+    holds -- another posture, from the arm as it is alone, and none of
+    `past`. ⚠ AS IT STANDS, NEVER A STATUE BALANCED AT ITS SOLES' MIDDLE: a
+    carry re-planned on one took the posture it held again, and ended out of
+    reach (#626, #627)."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    lean, arms = self._lean(), self._arms()
     starts = [self.q_cmd[side]] + ([] if onward else [seed(side, s_) for s_ in SEEDS])
     # the posture it holds first, where it still reaches: a change of
     # posture mid-move is a change of the arm's whole branch -- ⚠ and going
@@ -792,7 +1043,10 @@ class Reach:
     order = ([p_ for p_ in CARRY_POSTURES if tuple(p_) not in gone] if onward
              else [here] + [p_ for p_ in CARRY_POSTURES if tuple(p_) != here])
     for posture in order:
-      if not stands(sm, posture, q0) or out_of_reach(sm, side, pos):
+      if not stands(sm, posture, q0) or out_of_reach(sm, side, pos, -LEAN_MOST_M):
+        continue
+      statue(sm, posture, q0, arms, lean, fast=True)
+      if out_of_reach(sm, side, pos):
         continue
       for start in starts:
         sm._set_arm(side, start)
@@ -806,10 +1060,12 @@ class Reach:
     FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- or at each
     pose its own, where `rot` is a list -- the first
     solved from the seeds, each next ON from the last, as a moving arm must
-    -- or None. Each point after the first is reached further ahead too: on
-    a statue, all of them by `PATH_MARGIN_M`; on the robot as it stands
-    (below), those further from its shoulder than the first, by
-    `LIVE_MARGIN_M`. ⚠ A point
+    -- or None: on the robot as it stands in the posture it holds (below),
+    else as it would stand in another (`statue`, as it reads itself
+    standing: `Lean`), its arms where they are and this one, point by point,
+    where the last point put it. Each point further from its shoulder than
+    the first is reached `LIVE_MARGIN_M` further ahead too: the lean its
+    load still brings. ⚠ A point
     reached from a fresh seed is not a path: the arm went up a lid's arc in
     one branch, and where only another reached on, it swung between them
     and jerked the lid shut at 3.3 rad/s (#493)."""
@@ -817,7 +1073,8 @@ class Reach:
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     poses = [np.asarray(p, dtype=float) for p in poses]
     rots = list(rot) if isinstance(rot, (list, tuple)) else [rot] * len(poses)
-    ahead = np.array([PATH_MARGIN_M, 0.0, 0.0])
+    ahead = np.array([LIVE_MARGIN_M, 0.0, 0.0])
+    shoulder_id = sm.m.body(f"{side}_shoulder_roll_link").id
     # a hand that is out goes on from the arm as it IS, its posture first:
     # the branch its grip left it in is the branch its path must follow --
     # where the path starts at the hand (a reach planned while a hand is
@@ -827,8 +1084,8 @@ class Reach:
     here = tuple(float(v) for v in self.posture)
     order = ([here] + [p_ for p_ in CARRY_POSTURES if tuple(p_) != here]) if out \
       else CARRY_POSTURES
+    lean, arms = self._lean(), self._arms()
     for posture in order:
-      height, pitch, waist = posture
       # ⚠ ...AND THE ROBOT AS IT STANDS, its model posed off its senses, in
       # the posture it holds: up a lid's arc it stood 4 cm behind the
       # statue of that posture, which could not reach where its hand WAS
@@ -840,27 +1097,27 @@ class Reach:
         sm.q = self.self_model.q.copy()
         sm.d.qpos[:] = self.self_model.d.qpos
         mujoco.mj_kinematics(sm.m, sm.d)
-        shoulder = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id].copy()
-        reach0 = float(np.linalg.norm(poses[0] - shoulder))
         q, ep, er = sm.q[sm.arm[side]].copy(), 0.0, 0.0
       else:
         # another posture than the one it holds: where it is held there,
         # from the arm as it is or any other way (the live solve carries the
         # arm there as the body moves)
-        if not stands(sm, posture, q0) or out_of_reach(sm, side, poses[0]):
+        if not stands(sm, posture, q0) or out_of_reach(sm, side, poses[0], -LEAN_MOST_M):
+          continue
+        statue(sm, posture, q0, arms, lean, fast=True)
+        if out_of_reach(sm, side, poses[0]):
           continue
         q, ep, er = solve_seeded(sm, side, poses[0], rots[0],
                                  self.q_cmd[side] if out else None)
       if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
         continue
+      reach0 = float(np.linalg.norm(poses[0] - sm.d.xpos[shoulder_id]))
       for p, r_ in zip(poses[1:], rots[1:]):
-        if live:
-          further = float(np.linalg.norm(p - shoulder)) > reach0
-          target = p + (LIVE_MARGIN_M, 0.0, 0.0) if further else p
-        else:
-          # the statue balanced with its arm out where it is going (`static_legs`)
-          _posed(sm, height, pitch, q0, _arm(side, q), waist)
-          target = p + ahead
+        if not live:
+          # ...balanced with its arm out where it is going (`static_legs`)
+          statue(sm, posture, q0, {**arms, **_arm(side, q)}, lean, fast=True)
+        further = float(np.linalg.norm(p - sm.d.xpos[shoulder_id])) > reach0
+        target = p + ahead if further else p
         sm._set_arm(side, q)
         q, ep, er = sm.solve(side, target, r_, iters=80)
         if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
@@ -964,6 +1221,45 @@ class Reach:
     self.phase[side] = "carry"
     return True
 
+  def _look(self, side: str) -> bool:
+    """Whether a hand at its pre-grasp goes in from the posture it holds
+    (#627): as the robot reads itself standing now, its arm out (`Lean`),
+    the least bent of the postures its reach may take that puts its goal in
+    reach -- with its slack, else at full stretch, as `plan` chooses -- is
+    the one it holds, or none is, or it has looked `LOOKS` times. Else that
+    posture is taken, never one it has left this reach, and it looks again
+    once there; its hand waits at its pre-grasp meanwhile (`looking`). ⚠
+    EITHER WAY: the table's cup is reached by an arm over the top, which leant
+    the policy 1.5 cm forward where a natural arm leans it 1.1 back, so its
+    plan bows deeper than it need -- out of its tags' view."""
+    if self.looks[side] >= LOOKS:
+      return True
+    self.looks[side] += 1
+    sm = self._planner_model()
+    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    goal = self.goal[side]
+    pre = pregrasp(goal)
+    lean, arms = self._lean(), self._arms()
+    here = tuple(float(v) for v in self.posture)
+    gone = {tuple(float(v) for v in p_) for p_ in self.left[side]}
+    chosen = None
+    for slack in (True, False):
+      for posture in (tuple(float(v) for v in p_) for p_ in self.allowed[side]):
+        if (posture in gone or not stands(sm, posture, q0)
+            or out_of_reach(sm, side, goal.pos, -LEAN_MOST_M)):
+          continue
+        if _reached(sm, side, posture, q0, goal, pre, slack, lean, arms,
+                    self.q_cmd[side]) is not None:
+          chosen = posture
+          break
+      if chosen is not None:
+        break
+    if chosen is None or chosen == here:
+      return True
+    self.left[side].append(here)
+    self.hold_posture(*chosen)
+    return False
+
   def _reaching(self, side: str, pos: np.ndarray, rot) -> np.ndarray | None:
     """The arm's joints that put the grip at `pos` and `rot` in the posture
     held -- on the robot's model of itself -- or None where none does."""
@@ -1028,6 +1324,7 @@ class Reach:
     self.goal[side] = self.cmd[side] = None
     self.outs[side] = []
     self.q_to[side] = np.asarray(q, dtype=float).copy()
+    self.looking[side] = False
     self.phase[side] = "joints"
 
   def stiffen(self, side: str, stiffness: float) -> None:
@@ -1058,6 +1355,7 @@ class Reach:
       return
     self.goal[side] = pregrasp(self.goal[side], approach)
     self.speed[side] = HAND_SPEED
+    self.looking[side] = False
     self.phase[side] = "retreat"
 
   def way_home(self, side: str) -> list[np.ndarray]:
@@ -1119,6 +1417,7 @@ class Reach:
     back to the stand once no hand is out."""
     self.goal[side] = self.cmd[side] = None
     self.outs[side] = []
+    self.looking[side] = False
     self.homes[side] = self.way_home(side)
     self.q_to[side] = self.homes[side].pop(0)
     self.phase[side] = "home"
@@ -1216,7 +1515,8 @@ class Reach:
   #: every hand's phase and commands, its filters and what it last read.
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "steps", "posture", "trim", "tau", "qd", "standing", "force",
-          "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed")
+          "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
+          "allowed", "left", "looks", "looking")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
@@ -1539,6 +1839,9 @@ class Reach:
           pos, rot = sm.grip_pose(s)
           self.cmd[s] = HandGoal(pos, rot, self.goal[s].stiffness)
           self.phase[s] = "approach"
+          # ...once it has looked where it stands (#627): else its hand waits
+          # at its pre-grasp while its body takes the posture the look chose
+          self.looking[s] = not self._look(s)
         elif phase == "home" and there:
           if self.homes[s]:
             self.q_to[s] = self.homes[s].pop(0)
@@ -1550,12 +1853,22 @@ class Reach:
       else:
         # approach, pull, hold or retreat: a line (`_line`), solved again.
         held = HandGoal(self.cmd[s].pos.copy(), self.cmd[s].rot, self.cmd[s].stiffness)
-        there = self._line(s, dt)
+        waiting = phase == "approach" and self.looking[s]
+        if waiting:
+          # ...but a hand waiting at its pre-grasp holds there while its body
+          # takes the posture its look chose (`_look`), and looks again there
+          there = False
+          if self.stand.settled and self._posture_there(dt):
+            self.looking[s] = not self._look(s)
+        else:
+          there = self._line(s, dt)
         c = self.cmd[s]
         q, ep, _ = sm.solve(s, c.pos, c.rot)
         # Out of reach on its way or while it holds; pushing only on its
-        # way in (a hold may carry a weight, and a pull pushes on purpose).
-        off = phase != "retreat" and (
+        # way in (a hold may carry a weight, and a pull pushes on purpose) --
+        # never while its body takes a posture with the hand waiting: the
+        # force off the drivers assumes the body still (`BLOCKED_S`).
+        off = phase != "retreat" and not waiting and (
           ep > BLOCKED_M or (phase == "approach" and np.linalg.norm(self.force[s]) > BLOCKED_N))
         self._off[s] = self._off[s] + dt if off else 0.0
         if self._off[s] >= BLOCKED_S:
