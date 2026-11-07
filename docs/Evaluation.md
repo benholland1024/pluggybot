@@ -1970,6 +1970,8 @@ call, no repair, the calls at once:
 | ... its provider's own: #626's 14 first calls | 14 | none | 4 | 10, at 20 min |
 | GLM-5.3-Flash on deepinfra, `low` | 3 | 2: 48k and 54k, 8-9 min | 1, at 16 min | |
 | DeepSeek-V4.1-Flash on deepinfra, `low` | 4 | 4: 30-54k (median 37k), 2.9-5.1 min | | |
+| Kimi-K3 on deepinfra, its default (`max`) | 2 | 2: 72k and 96k, 10.8 and 12.9 min | | |
+| ... `low` | 2 | 2: 5k and 9k, 2.1 and 2.3 min | | |
 
 - **No effort keeps the deployed mind's first answer inside the limits, so
   the arms did not fly.** Even at `low`, 2 of 8 thought to the cap and wrote
@@ -1985,13 +1987,19 @@ call, no repair, the calls at once:
   effort.
 - **DeepSeek-V4.1-Flash at `low` answered all 4**, the most 54k tokens in 5
   minutes (Overseer.md §6's stronger candidate): 4 answers, one afternoon.
-- **No answer compiled as written** (11 of 11, every mind). Each named a tag
-  in quotes, `spot("93")` -- the language says `spot(tag)` and never that a
-  tag is a number -- 9 asked a budget past its 200 steps (220-50,000; its
-  example says only "both capped"), 5 a first def taking arguments, 3 a
-  source past the 3,000 characters. In an arm each goes back with its
-  reasons, two repairs a try: on #626's night 52 of 53 repairs were
-  answered, a median of 4.7k tokens.
+- **Kimi-K3 answered all 4 too** (probed after, on Ben's answer on #639): at
+  `low` 5-9k tokens in about 2 minutes, at its default 72-96k in 11-13,
+  inside the limits but not well inside; at $2.85/$14.25 a Mtok, about
+  $0.12 and $1.21 a call. Its card says it reasons on turns handed back
+  whole, its reasoning included, which a practice never does.
+- **No answer compiled as written** (15 of 15). All 11 of GLM's and
+  DeepSeek's named a tag in quotes, `spot("93")` -- the language says
+  `spot(tag)` and never that a tag is a number -- and none of Kimi-K3's 4;
+  11 of the 15 asked a budget past its 200 steps (220-50,000; its example
+  says only "both capped"), 5 a first def taking arguments, 4 a source past
+  the 3,000 characters (#640 has the three the text leaves out). In an arm
+  each goes back with its reasons, two repairs a try: on #626's night 52 of
+  53 repairs were answered, a median of 4.7k tokens.
 - **Our procedure over the same 32 set-outs at this commit: 29 of 32**, no
   fall (30 on #626's pod, before #635 aimed it at its grips): a fork lost
   from the jaws in its carry's last pull and thrown off the table, a fork
@@ -2000,8 +2008,50 @@ call, no repair, the calls at once:
   of view.
 - **What it cannot say**: first turns only, on one set-out, one afternoon,
   and a try's later turns may be no shorter (at its provider's effort, 36
-  of #626's 56 were cut, beside all 14 first ones). Spend: $0.88, the probe
-  alone; no arm flew.
+  of #626's 56 were cut, beside all 14 first ones). Spend: $0.88 for the
+  probe and $2.66 for Kimi-K3's; no arm flew on the deployed mind.
+
+**Two fresh arms on DeepSeek-V4.1-Flash at `low`** (#560; Ben's answers on
+#639, 2026-11-07): the mind that answered the probe's first turn every time,
+the bar and set-outs #626's, unchanged and written first (26 of 32 within 3,
+no try that fell; seed 402613269), on staging `f7c7a94` (the release
+`fccc6cd` with the flag), the language as served (#640 fixes its gaps):
+
+| arm | set-outs flown | held out within 3 | within 5 | pieces laid in its 35 tries | tries that fell | tries with no procedure | cost |
+|---|---|---|---|---|---|---|---|
+| deepseekA | 7 of 32; stopped early | **0 of 7** [0.00, 0.35] | 0 | 4: 3 cups, a fork | 3 | none | $0.98 recorded, ~$1.94 |
+| deepseekB | 7 of 32; stopped early | **0 of 7** [0.00, 0.35] | 0 | 5: 3 cups, 2 forks | 4 | none | $0.90 recorded, ~$1.53 |
+| #626's tableA and tableB, the deployed mind | 7 and 7 | 0 and 0 | 0 and 0 | 1, a cup | 6 and 3 | 15 and 16 | $8.50 recorded, ~$15 |
+| our procedure, the 9 set-outs they flew | 9 | 8 laid | | | 0 | | none |
+
+- **The mind's side held.** Every one of the 98 calls was answered, none
+  cut at the cap or closed: a median of 25-27k tokens and 2.6 minutes a
+  call, the most 107k and 12 minutes. No try went without a procedure,
+  where #626's arms lost 31 of 70 tries. Every first answer was refused for
+  #640's gaps (13 of 14 a tag in quotes, 13 a budget past its caps), and
+  each was answered from its reasons: 28 of the 98 calls were repairs, and
+  none was lost.
+- **The body's side failed every try.** By the first thing that went wrong
+  in each of the 70: a reach or a carry out of reach (18), a grip that
+  closed on nothing (18), a carry that lost its piece from the jaws (12),
+  a fall (7), a reach given only one of its two directions (4), a step
+  that got nowhere (3), and 8 others. In 70 tries no plate was laid; 6 cups
+  and 3 forks were. The plate is the piece the grades found let fall or
+  knocked over, 15 of 19 times.
+- **The grips**: 56 closed on nothing, in 34 of the 70 tries, an `if`'s
+  test or not. Of those whose squeeze the source names, 33 of 53 at 40 N or
+  more closed on nothing and 2 of 8 under it: #628's stall from 40 N, or
+  misses -- not taken apart. The arms asked 50-120 N; our procedure
+  squeezes the fork at 25 N.
+- **#631's early force stops are nearly gone**: one stop in a move's first
+  0.5 s in 70 tries, where #626's arms had 9 in 3 tries.
+- **#636's misread stands**: DeepSeek measured only 9 times in 70 tries,
+  and all 9 read the table's near end where the picture ended, 13 cm past
+  it.
+- **What it cannot say**: two fresh arms of one mind at one effort, on one
+  provider, one evening, each stopped at 7 set-outs: 14 flights of the 32.
+  Spend: $1.88 recorded and ~$1.59 killed in flight (the early stop's 8
+  set-outs an arm, by the hours they ran at each arm's own rate).
 
 ## 5. What silently invalidates a number
 
