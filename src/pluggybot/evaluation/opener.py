@@ -14,9 +14,10 @@ find for itself:
     does about the hinge (`pin_path`). The top, its back edge and the
     bracket's tip are MEASURED off the D435's depth at the part's 848 x 480
     (`guess`: the hinge is the top's back edge, the pin the bracket's tip);
-  - it is gripped from the front, the fingers tilted and the jaws closing
-    along the hinge's line -- at the first tilt (`TILTS_DEG`) from which
-    the robot's model of itself FOLLOWS the whole arc (`Body.hand_follows`);
+  - it is gripped from the front, `SHORT_M` short of its middle along the
+    box's facing, the fingers tilted and the jaws closing along the hinge's
+    line -- at the first tilt (`TILTS_DEG`) from which the robot's model of
+    itself FOLLOWS the whole arc (`Body.hand_follows`);
   - held at its turn, the hand keeps the handle as it hung while the lid
     turns under it, until the handle's arm meets the lid's front edge: so
     past `FREE_RAD` the hand turns as the lid does;
@@ -30,8 +31,9 @@ THE STEPS (`opener`), from the robot's senses alone:
           times at most
   plan    the arc's waypoints, `STEP` apart, and the tilt that reaches them
   grip    the gripper opened, the hand on the side the knob is to reached
-          to it at that tilt, shut, and the grip judged by the gripper's own
-          word -- a grip that did not hold opened, withdrawn and tried again
+          to `SHORT_M` short of it at that tilt, shut, and the grip judged by
+          the gripper's own word -- a grip that did not hold opened,
+          withdrawn and tried again
   lift    the hand carried along the arc to `TOP` (`Body.move_hand_routine`)
   lower   ...and back down it to `BOTTOM`, from as far as it went
   let go  the gripper opened and the hand withdrawn along its way in
@@ -74,6 +76,11 @@ TILTS_DEG = (0.0, -10.0, 10.0, -20.0, 20.0, 30.0)
 FREE_RAD = math.radians(50.0)
 #: Grips tried before it gives up.
 GRIPS = 2
+#: The grip aimed this far short of the knob's middle, back level along the
+#: box's facing, m, as the lid check aims (`hands_check.LID`): the pads
+#: reach 4 cm past the grip, and at the middle, where the reach gets to
+#: since #627, 13 of 40 grips did not hold where 1 of 29 had.
+SHORT_M = 0.02
 #: The arc: up to this, rad of lid (the probe's 1.2 a little short of the
 #: arm's stretch), back down to this, rad -- under the grader's 5 deg -- in
 #: steps of this, rad, at this speed, m/s, on an arm this soft.
@@ -353,10 +360,11 @@ def opener(body) -> Routine:
   if not options:
     return {"ok": False, "why": "no tilt puts the lid's arc in reach", **log}
   ups = None
+  back = SHORT_M * np.array([math.cos(g.yaw), math.sin(g.yaw), 0.0])
   for tilt, top in options[:GRIPS + 1]:
     rot = grip_turn(g, tilt)
-    if not (yield from grip_routine(body, knob, side, rot, log,
-                                    arc(g, knob, rot, top=top)[0])):
+    if not (yield from grip_routine(body, knob - back, side, rot, log,
+                                    [(p - back, r) for p, r in arc(g, knob, rot, top=top)[0]])):
       continue
     start = np.asarray(body.hand_at(side), dtype=float)
     ups, downs = arc(g, start, grip_turn(g, tilt), top=top)

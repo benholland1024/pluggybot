@@ -114,3 +114,40 @@ def test_a_held_knob_moves_as_its_pin_does_never_as_a_point_on_the_lid():
     assert np.allclose(path(s) - turned_pin, knob - pin), "the knob does not turn"
   fixed = hinge + op.rot_about(axis, op.TOP) @ (knob - hinge)
   assert np.linalg.norm(fixed - path(op.TOP)) > 0.06
+
+
+def test_the_knob_is_gripped_short_of_its_middle_along_the_boxs_facing(monkeypatch):
+  """#627: the reach gets to where it is aimed now, and at the knob's middle
+  -- which it had stopped about 2 cm short of -- 13 of 40 grips did not hold
+  where 1 of 29 had. The grip goes in `SHORT_M` short of the middle, back
+  level along the box's facing, as the lid check aims: the goal and the path
+  the reach plans its posture for, both."""
+  from pluggybot import tick
+  face, inward = np.array([1.0, 0.4, 0.86]), np.array([math.cos(0.5), math.sin(0.5), 0.0])
+  middle = face + op.KNOB_M / 2 * inward
+  facing = op.Guess(knob=tuple(middle), yaw=0.3, top=0.8, hinge=(1.2, 0.4, 0.8),
+                    pin=(1.1, 0.4, 0.85))
+  up = np.array([0.0, 0.0, 0.1])
+  monkeypatch.setattr(op, "measure", lambda body, knob: tick.result(facing))
+  monkeypatch.setattr(op, "plans", lambda body, side, g, start: [(0.0, op.TOP)])
+  monkeypatch.setattr(op, "grip_turn", lambda g, tilt: np.eye(3))
+  monkeypatch.setattr(op, "arc", lambda g, start, rot, top=op.TOP:
+                      ([(np.asarray(start) + up, rot)], []))
+  asked = []
+
+  def grip(body, knob, side, rot, log, ups):
+    asked.append((np.asarray(knob), [np.asarray(p) for p, _ in ups]))
+    return tick.result(False)
+
+  monkeypatch.setattr(op, "grip_routine", grip)
+  body = SimpleNamespace(hold_routine=lambda s: tick.result(None),
+                         gaze_routine=lambda a: tick.result(None), stance=(0.0, 0.0, 0.0),
+                         spot=lambda tag: {"x": face[0], "y": face[1], "z": face[2],
+                                           "normal": list(inward)})
+  went = op.opener(body)
+  with pytest.raises(StopIteration):
+    next(went)
+  back = op.SHORT_M * np.array([math.cos(0.3), math.sin(0.3), 0.0])
+  assert len(asked) == 1 and op.SHORT_M == 0.02
+  assert np.allclose(asked[0][0], middle - back, atol=1e-9)
+  assert np.allclose(asked[0][1][0], middle + up - back, atol=1e-9)
