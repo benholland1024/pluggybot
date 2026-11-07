@@ -41,7 +41,11 @@ refusal says:
   above the defs it calls", and a source of several defs whose first takes
   arguments is refused "...: the first def runs, so put the one you mean to
   run first, or give each a default" (a lone def's, "give each a default",
-  as before).
+  as before). In the served library such a source, defined under the name
+  of the def meant to run, is refused "the def is named 'grip', the entry
+  'place': the first def is the one that runs and names the entry, so put
+  place first" (it said only that the names differ), and one kept callable
+  says which of its defs runs, as `procedure:new` of it does.
 - `prompt_sha` `45d56c74…` → `ce973a53…`, 58,710 → 59,280 chars, 17
   sections both (`overseer_probe.py --deployed --prompt`); the practice's
   language and body and the session host's `hello` with it (the site
@@ -68,9 +72,8 @@ characters, nesting past 4.
   refusals History carries (`tag takes a number, not a name in quotes`,
   `budget: steps=… is outside 1..200`, `… is the def that runs, and
   nothing passes it …`, `… is not a name this language allows (…)`)
-  against the period before. In the served library a first def that takes
-  arguments is no refusal: it is kept callable and marked not runnable,
-  which `procedures` says.
+  against the period before -- in the served library, also `the def is
+  named …, the entry …` and the entries `procedures` marks not runnable.
 - **Do the budgets the robots write change?** The `budget(...)` lines of
   the procedures' defined sources (the `procedure` rows), against the
   period before: told 60 and 600 without one, a robot may write one, or a

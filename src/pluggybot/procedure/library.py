@@ -106,8 +106,12 @@ class Library:
     except Refused as e:
       return Entry(name, source, None, list(e.reasons))
     if proc.name != name:
+      # ...a later def named for the entry: a helper written first, as a
+      # Python script puts it (#640), which a name alone never mended
       return Entry(name, source, None,
-                   [f"the def is named {proc.name!r}, the entry {name!r}"])
+                   [f"the def is named {proc.name!r}, the entry {name!r}"
+                    + (f": the first def is the one that runs and names the entry, so put "
+                       f"{name} first" if name in proc.defs else "")])
     return Entry(name, source, proc, [])
 
   def _relink(self) -> None:
@@ -215,9 +219,7 @@ class Library:
       if e.reasons:
         row["reasons"] = e.reasons
       elif called:
-        takes = [p for p in e.procedure.params if p not in e.procedure.defaults]
-        row["reasons"] = [f"it takes {', '.join(takes)}: it runs only when another "
-                          "procedure calls it"]
+        row["reasons"] = [f"it {lang.called_only(e.procedure)}"]
       out.append(row)
     return out
 

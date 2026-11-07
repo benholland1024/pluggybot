@@ -5,6 +5,7 @@ and in the robot's library one procedure calls another. Every rule pinned
 on the parser, the stub life or the library: nothing here flies.
 """
 
+import re
 import textwrap
 from dataclasses import replace
 from types import SimpleNamespace
@@ -422,6 +423,41 @@ def test_the_served_rule_says_the_librarys_calls_and_the_index_says_calls():
   assert mp.vocabulary_index(HOME)["calls"] is True
   assert mp.vocabulary_index(HOME)["callDepth"] == lang.MAX_CALL_DEPTH
   assert mp.vocabulary_index(NO_CALLS)["calls"] is False
+
+
+def test_a_helper_written_first_is_told_the_first_def_runs():
+  """#640: a source of several defs whose first takes arguments is most
+  often a helper written first, as a Python script puts it. Defined under
+  the name of the def meant to run, the library refuses it saying the first
+  def runs and names the entry, where it said only that the names differ;
+  under the helper's name it is kept callable, and it, a run of it and a
+  `procedure:new` of it say which of its defs runs. A lone def that takes
+  arguments is told only that it runs when called, as before."""
+  helper_first = 'def grip(hand):\n  open_hand(hand)\n\ndef place():\n  grip("left")\n'
+  order = ("the def is named 'grip', the entry 'place': the first def is the one that runs "
+           "and names the entry, so put place first")
+  hint = ("it runs only when another procedure calls it; of its defs the first, grip, is "
+          "the one that runs, so put the one you mean to run first")
+  L = lib.Library(HOME)
+  with pytest.raises(lib.LibraryRefused, match=re.escape(order)):
+    L.define("place", helper_first)
+  L.define("grip", helper_first)
+  L.define("turn", "def turn(axis, a=0.5):\n  move(axis, a)\n")
+  ctx = {r["name"]: r for r in L.as_context()}
+  assert ctx["grip"]["runnable"] is False and ctx["grip"]["reasons"] == [f"it takes hand: {hint}"]
+  assert ctx["turn"]["reasons"] == ["it takes axis: it runs only when another procedure calls it"]
+  with pytest.raises(Refused) as e:
+    run_entry(L, "grip")
+  assert e.value.reasons == [f"grip takes hand: {hint}"]
+  with pytest.raises(lib.LibraryRefused, match="the def is named 'grip', the entry 'other'$"):
+    L.define("other", helper_first)                # no def of that name: as it was
+  from pluggybot.mind.overseer import PROCEDURE_NEW
+  for name, said in (("place", order), ("grip", f"and grip takes hand: {hint}")):
+    life = stub_life(WORLD)
+    life.overseer = SimpleNamespace(library=lib.Library(HOME), event_map=None)
+    life.body.run(life._after_decision_routine(Decision(
+      action=PROCEDURE_NEW, reason="r", define={"name": name, "source": helper_first})))
+    assert said in life.thoughts.read("History.md"), name
 
 
 def test_procedure_new_on_a_define_that_takes_arguments_says_why_it_ran_nothing():

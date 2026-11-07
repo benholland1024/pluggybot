@@ -102,6 +102,17 @@ RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
                       "pass", "True", "False", "None"})
 
 
+def called_only(proc) -> str:
+  """What a procedure whose first def needs arguments is told, after its
+  name: it runs only when another calls it -- and, its source holding
+  several defs, that the first is the one that runs (#640: such sources
+  most often put a helper first, as a Python script does)."""
+  takes = ", ".join(p for p in proc.params if p not in proc.defaults)
+  return (f"takes {takes}: it runs only when another procedure calls it"
+          + (f"; of its defs the first, {proc.name}, is the one that runs, so put the one "
+             "you mean to run first" if proc.defs else ""))
+
+
 def name_rule() -> str:
   """What a name is, as the text says it and a refusal gives it."""
   return ("lowercase letters, digits and underscores, a letter first, at most "
@@ -1223,8 +1234,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
   -- and `testsFalse` how many tests read false (#629)."""
   reasons = validate(proc, facts)
   if not proc.alone:
-    reasons = reasons + [f"{proc.name} takes {', '.join(p for p in proc.params if p not in proc.defaults)}: "
-                         "it runs only when another procedure calls it"]
+    reasons = reasons + [f"{proc.name} {called_only(proc)}"]
   if reasons:
     raise Refused(reasons)
   result: dict[str, Any] = into if into is not None else {}

@@ -257,7 +257,9 @@ and the served pair's):
   `MAX_CALL_DEPTH` (4) deep, never round to themselves (refused, the loop
   named). The first def takes no argument without a default (it runs with
   nothing passing it one), but a library's may: it is then callable and no
-  action (`Library.runnable`, `as_context` says why).
+  action (`Library.runnable`, `as_context` says why -- and, of a source of
+  several defs, that its first is the one that runs: such a one is most
+  often a helper written first, as a Python script puts it, #640).
 - **A call does what its def does**: true when it ran to its end or a
   `return`; a verb failing in it ends the run as anywhere, the step saying
   where it ran (`in`, and `entry` for another library procedure's source,
