@@ -65,7 +65,7 @@ refused, with the line at fault, if it uses anything else. Its source may
 be at most %(cap)s characters.
 
   def wave():                         # one def, no arguments, a lowercase name
-      budget(steps=40, seconds=60)    # optional, first; both capped
+      budget(steps=40, seconds=60)    # optional, first; steps at most %(steps)d, seconds at most %(seconds)s
       n = 0
       reach("right", 0.25, -0.30, 1.30)
       for i in range(3):              # a literal count
@@ -76,8 +76,12 @@ be at most %(cap)s characters.
           withdraw("right")
 
 Statements: a verb call, `name = expr`, `name += expr`, `if/elif/else`,
-`for name in range(N)` (N at most 100), `while` (stopped at 100 rounds),
-`pass`, `return` (alone). Expressions: numbers, your variables,
+`for name in range(N)` (N at most %(rounds)d), `while` (stopped at %(rounds)d rounds),
+`pass`, `return` (alone), and first in the def that runs, `budget(...)`:
+the most verbs the run calls (`steps`) and the most seconds it runs
+(`seconds`), %(default_steps)d verbs and %(default_s)s seconds without one.
+Every name you choose is %(names)s.
+Expressions: numbers, your variables,
 `read("sensor")`, + - * /, comparisons, `and`/`or`/`not`. Nothing else: no
 other calls, no strings but a verb's or a read's argument, no imports, no
 trigonometry. A procedure runs until it ends, a verb fails, its budget
@@ -92,10 +96,13 @@ MATH_TEXT = """no imports -- but
 `sin(a)`, `cos(a)` (a in radians), `atan2(y, x)` and `sqrt(v)` may be used
 in an expression."""
 #: ...where a source may hold defs that call each other (`WorldFacts.calls`,
-#: #560), what replaces the one def's words, and the calls: generic, its
-#: example nothing a job does.
+#: #560), what replaces the one def's words, keeping its "no arguments"
+#: and saying it comes first (#640: 5 of 11 first table answers gave the
+#: def that runs arguments, and with "no arguments" alone back, 5 of 11 that
+#: wrote several defs still put their helpers first, as a Python script
+#: does), and the calls: generic, its example nothing a job does.
 ONE_DEF = "# one def, no arguments, a lowercase name"
-FIRST_DEF = "# the def that runs, a lowercase name"
+FIRST_DEF = "# first in the source, the def that runs: no arguments, a lowercase name"
 NO_CALLS = """no
 other calls, no strings but a verb's or a read's argument,"""
 SOME_CALLS = """no
@@ -103,10 +110,10 @@ other calls but your defs' (below), no strings but a name a verb, a read or
 a def is given,"""
 CALLS = """
 A source may hold several defs, all within its %(cap)s characters. The
-first is the procedure, and runs; each def after it is one it may call by
-its name -- a statement of its own -- and they may call each other, with
-arguments as a verb takes them, in order or by keyword, each a number or a
-name in quotes:
+first is the procedure, and runs, so it goes above the defs it calls; each
+def after it is one it may call by its name -- a statement of its own --
+and they may call each other, with arguments as a verb takes them, in
+order or by keyword, each a number or a name in quotes:
 
   def greet():
       sway("left", 0.30, 0.25)
@@ -234,7 +241,10 @@ def language_text(facts: WorldFacts) -> str:
   `if`'s test, and a hand's move that stops on a reading."""
   from pluggybot.procedure import axes
   cap = f"{lang.MAX_SOURCE_CHARS:,}"
-  text = LANGUAGE % {"cap": cap, "statements": f"{lang.MAX_STATEMENTS:,}"}
+  text = LANGUAGE % {"cap": cap, "statements": f"{lang.MAX_STATEMENTS:,}",
+                     "steps": lang.MAX_STEPS, "seconds": f"{lang.MAX_BUDGET_S:g}",
+                     "rounds": lang.MAX_ITER, "default_steps": lang.DEFAULT_STEPS,
+                     "default_s": f"{lang.DEFAULT_BUDGET_S:g}", "names": lang.name_rule()}
   if facts.math:
     text = text.replace(NO_TRIG, MATH_TEXT)
   if facts.calls:

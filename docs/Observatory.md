@@ -10,6 +10,78 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The procedure language says a tag is named by its number, what a budget is capped at and counts, what a name is, and that the def that runs comes first with no arguments (#640) — opens when this PR is deployed; released into a pause, it rides with the rest of its release as one period
+
+**What changed is what the robots are TOLD**, in the procedure rule's
+language and body, the practice's byte for byte (#559), and in what a
+refusal says:
+- **Each verb that takes a tag says it is named by its number**: `spot`
+  and `watch` end "A tag is named by its number, not in quotes:
+  `spot(12)` looks for tag 12" (`watch(12)` keeps reading it), by a tag
+  the world neither renders nor places (`steps.TAG_EXAMPLE`); the served
+  rule's `find` the same sentence with no example, as its tag must be a
+  task area's.
+- **A budget's caps, what it counts, whose counts and what a run has
+  without one**: the example's `budget(steps=40, seconds=60)` says "steps
+  at most 200, seconds at most 1800" where it said "both capped", and the
+  statements add "and first in the def that runs, `budget(...)`: the most
+  verbs the run calls (`steps`) and the most seconds it runs (`seconds`),
+  60 verbs and 600 seconds without one", each number off its constant.
+- **What a name is** (Ben's call): "Every name you choose is lowercase
+  letters, digits and underscores, a letter first, at most 32 characters"
+  (`lang.name_rule`, off `MAX_NAME_CHARS`); and a refused name says its own
+  reason, the first time -- the rule, the language's own word, a verb's, a
+  def's or a maths function's name -- where a local's said "(it is
+  reserved)" where it was set, whatever its fault, and nothing at each use
+  after.
+- **The def that runs comes first, with no arguments**: where defs call
+  defs (every hands world, the served pair's too) the example's comment is
+  "# first in the source, the def that runs: no arguments, a lowercase
+  name", the calls say "The first is the procedure, and runs, so it goes
+  above the defs it calls", and a source of several defs whose first takes
+  arguments is refused "...: the first def runs, so put the one you mean to
+  run first, or give each a default" (a lone def's, "give each a default",
+  as before). In the served library such a source, defined under the name
+  of the def meant to run, is refused "the def is named 'grip', the entry
+  'place': the first def is the one that runs and names the entry, so put
+  place first" (it said only that the names differ), and one kept callable
+  says which of its defs runs, as `procedure:new` of it does.
+- `prompt_sha` `45d56c74…` → `ce973a53…`, 58,710 → 59,280 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`); the practice's
+  language and body and the session host's `hello` with it (the site
+  re-vendors it, and its guide gives people the budget's numbers and what a
+  name is). What the parser accepts and refuses did not move, nor the
+  schema, the menu, the reward table, the body or the house.
+
+**Why.** #640, from #560's table probe (PR #639): all 11 first answers
+that came back from GLM-5.3-Flash and DeepSeek-V4.1-Flash were refused
+before any try -- all 11 wrote `spot("93")`, 9 asked a budget past its 200
+steps, 5 gave the def that runs arguments -- and in the arms that followed
+(PR #642) every first answer was. Probed on each wording in turn
+(Evaluation.md §4, "The language's gaps, re-probed"): no tag in quotes and
+no budget past its caps in any of 55 answers; the def that runs given
+arguments came back, a helper written first as a Python script puts it,
+in 5 of the 11 answers that wrote several defs until the text said the
+def that runs comes first, and none of the served text's 3; a name in
+capitals in 5 of 25, then none of the served text's 18. What still refuses
+is what the text states: a sensor written as Python, a source past 3,000
+characters, nesting past 4.
+
+**What the period is for.**
+- **Are the served robots' defines refused for these any more?** The
+  refusals History carries (`tag takes a number, not a name in quotes`,
+  `budget: steps=… is outside 1..200`, `… is the def that runs, and
+  nothing passes it …`, `… is not a name this language allows (…)`)
+  against the period before -- in the served library, also `the def is
+  named …, the entry …` and the entries `procedures` marks not runnable.
+- **Do the budgets the robots write change?** The `budget(...)` lines of
+  the procedures' defined sources (the `procedure` rows), against the
+  period before: told 60 and 600 without one, a robot may write one, or a
+  larger one, where it wrote none.
+- ⚠ **Not to be pooled with the period before for anything a procedure's
+  text decides**: a define's refusals, a run's `steps` stop, and a hand
+  job's grade, in one period with the rest of its release.
+
 ### The gripper's jaws carry inertia enough for their drive's line (#628) — opens when this PR is deployed; released with the dining room's tables on legs (#643), it rides with that period as one
 
 **What changed in the body** (SimNotes, "The gripper's drive on its

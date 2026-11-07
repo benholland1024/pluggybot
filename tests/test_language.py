@@ -136,12 +136,36 @@ def test_where_the_world_gives_no_calls_a_procedure_is_one_def_with_no_arguments
   ("def x():\n  a = 1 +\n", "invalid syntax"),
   ("def x():\n  if 1:\n    if 1:\n      if 1:\n        if 1:\n          wait(1)\n",
    "nested deeper than"),
-  ("def x():\n  read = 3\n  wait(1)\n", "reserved"),
-  ("def x():\n  wait = 3\n  wait(1)\n", "reserved"),
+  ("def x():\n  read = 3\n  wait(1)\n",
+   "'read' is not a name this language allows (it is one of the language's own words)"),
+  ("def x():\n  wait = 3\n  wait(1)\n", "'wait' is not a name this language allows (it is a verb's name)"),
 ])
 def test_each_construct_outside_the_grammar_is_refused(src, needle):
   reasons = refusals(src)
   assert any(needle in r for r in reasons), reasons
+
+
+def test_a_name_is_refused_with_why_and_the_why_said_once():
+  """#640: the text never said a variable's name is lowercase, and a
+  capitalised one was refused "(it is reserved)", every use of it again --
+  dozens of lines for one slip. Each kind of name says its own reason, the
+  first time it is refused."""
+  rule = lang.name_rule()
+  assert refusals("def x():\n  cX = 1\n  wait(cX)\n  cX = cX + 1\n") == [
+    f"line 2: 'cX' is not a name this language allows ({rule})",
+    "line 3, wait: 'cX' is not a name this language allows",
+    "line 4: 'cX' is not a name this language allows"]
+  assert refusals("def X():\n  wait(1)\n") == [
+    f"line 1: 'X' is not a name this language allows ({rule})"]
+  long = "n" * (lang.MAX_NAME_CHARS + 1)
+  assert refusals(f"def x():\n  {long} = 1\n  wait(1)\n") == [
+    f"line 2: '{long}' is not a name this language allows ({rule})"]
+  assert compile_ok(f"def x():\n  {long[1:]} = 1\n  wait(1)\n")
+  assert refusals("def a():\n  b = 1\n  b()\n\ndef b():\n  wait(1)\n") == [
+    "line 2: 'b' is not a name this language allows (it is a def's name)"]
+  assert refusals("def a():\n  b(1)\n\ndef b(sin):\n  wait(sin)\n") == [
+    "line 4: 'sin' is not a name this language allows (it is a maths function's name)"]
+  assert "reserved" not in " ".join(refusals("def x():\n  cX = 1\n  wait(1)\n"))
 
 
 def test_the_source_cap_is_a_refusal():
@@ -660,6 +684,46 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   for v in ("fetch", "stow", "drive", "press", "draw", "pick", "place", "survey"):
     assert f"  {v}(" not in text, v
   assert "  find(" not in ov.hands_procedure_rule(()), "no places, no find"
+
+
+def test_a_tag_is_named_by_its_number_in_each_verb_that_takes_one():
+  """#640: all 11 first answers of #560's table probe wrote `spot("93")`
+  -- a name may be in quotes, and nothing said a tag is none. Every verb
+  that takes a tag says so in its own text, and the robot reads it there:
+  the practice's `spot` and `watch`, the served rule's `find` too. An
+  example is a call that compiles, by a tag the world neither renders nor
+  places, so it names no job's; `find`, whose tag must be a task area's,
+  shows none, and calls its tag no "place's": in the robot's text a place
+  is a point."""
+  from pluggybot.mind import practice as mp
+  from pluggybot.perception import tags
+  assert st.BY_NUMBER == "named by its number, not in quotes"
+  table = {**st.VERBS, **st.HANDS_VERBS}
+  takers = sorted(n for n, v in table.items() if "tag" in v.args)
+  assert takers == ["find", "spot", "watch"]
+  for n in takers:
+    assert table[n].args["tag"].kind == "float", n
+    assert st.BY_NUMBER in table[n].doc, n
+  shown = {"spot": f"A tag is {st.BY_NUMBER}: `spot({st.TAG_EXAMPLE})` looks for tag",
+           "watch": f"A tag is {st.BY_NUMBER}: `watch({st.TAG_EXAMPLE})` keeps reading tag",
+           "find": f"A tag is {st.BY_NUMBER}"}
+  for n, said in shown.items():
+    assert said in table[n].doc, n
+    if n != "find":
+      compile_ok(f"def a():\n    {n}({st.TAG_EXAMPLE})\n")
+  assert "find(" not in table["find"].doc and "place's" not in table["find"].doc
+  rendered = {int(p.stem[3:]) for p in (SRC.parents[1] / "models" / "tags").glob("tag*.png")}
+  assert len(rendered) > 30 and st.TAG_EXAMPLE not in set(tags.TAG_SIZES) | rendered
+  assert st.TAG_EXAMPLE not in HOME.places
+  body = dict(mp.system_sections(st.hand_facts()))["your body"]
+  rule = ov.hands_procedure_rule(HOME.places)
+  for verb, text in (("spot", body), ("watch", body), ("spot", rule), ("watch", rule),
+                     ("find", rule)):
+    line = next(line for line in text.splitlines() if line.startswith(f"  {verb}("))
+    assert shown[verb] in line, verb
+  # ...and it is the language's own rule: the number compiles, in quotes it does not
+  assert refusals(f'def a():\n    spot("{st.TAG_EXAMPLE}")\n') == [
+    "line 2, spot: tag takes a number, not a name in quotes"]
 
 
 # ---- the lifecycle: define, run by name ------------------------------------------

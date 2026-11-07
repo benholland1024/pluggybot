@@ -2058,6 +2058,63 @@ no try that fell; seed 402613269), on staging `f7c7a94` (the release
   Spend: $1.88 recorded and ~$1.59 killed in flight (the early stop's 8
   set-outs an arm, by the hours they ran at each arm's own rate).
 
+**The language's gaps, re-probed** (#640, 2026-11-07): the probe's first
+turn again -- set-out 266354185 of seed 402613269, one answer a call, no
+repair, both minds at `low` -- on four texts in turn. `eaa7419` says a tag
+is named by its number, what a budget is capped at and counts, and that
+the def that runs takes no arguments; `8378d1c` words the budget's
+sentence again (whose budget counts, in verbs and seconds); `6c184d3` adds
+what a name is, which the first two showed unsaid (Ben's call); `8b46c86`,
+the one served, says the def that runs comes first -- in the example's
+comment, in the calls, and in a refusal of several defs -- which the third
+showed wanting. Each slip is counted off every reason a refusal gives and
+again off the source itself, which agree on every answer, the probe's
+above included; the last column is the answers that wrote several defs,
+and how many of those put a helper with arguments first:
+
+| mind, at `low` | text | asked | answered | compiled as written | a tag in quotes | a budget past its caps | the def that runs given arguments | a name in capitals | several defs: a helper first |
+|---|---|---|---|---|---|---|---|---|---|
+| GLM-5.3-Flash (baseten 8, deepinfra 3) | before | 11 | 7 | 0 | 7 | 5 | 4 | 3 | 5: 4 |
+| DeepSeek-V4.1-Flash (deepinfra) | before | 4 | 4 | 0 | 4 | 4 | 1 | 0 | 3: 1 |
+| GLM-5.3-Flash (baseten) | `eaa7419` | 8 | 6 | 0 | 0 | 0 | 0 | 2 | 1: 0 |
+| DeepSeek-V4.1-Flash (deepinfra) | `eaa7419` | 6 | 6 | 5 | 0 | 0 | 0 | 0 | 0: 0 |
+| GLM-5.3-Flash (baseten) | `8378d1c` | 14 | 7 | 0 | 0 | 0 | 0 | 1 | 3: 0 |
+| DeepSeek-V4.1-Flash (deepinfra) | `8378d1c` | 6 | 6 | 2 | 0 | 0 | 0 | 2 | 1: 0 |
+| GLM-5.3-Flash (baseten) | `6c184d3` | 8 | 6 | 0 | 0 | 0 | 3 | 0 | 4: 3 |
+| DeepSeek-V4.1-Flash (deepinfra) | `6c184d3` | 6 | 6 | 3 | 0 | 0 | 2 | 2 | 2: 2 |
+| GLM-5.3-Flash (baseten) | `8b46c86` | 8 | 8 | 1 | 0 | 0 | 0 | 0 | 3: 0 |
+| DeepSeek-V4.1-Flash (deepinfra) | `8b46c86` | 10 | 10 | 9 | 0 | 0 | 0 | 0 | 0: 0 |
+
+- **No tag in quotes and no budget past its caps in any of the 55 answers
+  since the first wording**, where all 11 before had the one and 9 the
+  other.
+- **The def that runs given arguments is always a helper written first,
+  Python's way**: with "no arguments" back in the example, 5 of the 11
+  answers that wrote several defs put a helper first (the def meant to run
+  last, often named `wave` after the example) and were told to give its
+  arguments defaults; told the def that runs comes first, all 3 of the
+  served text's answers of several defs did, and a refusal of one that does
+  not now says to move it up.
+- **A name in capitals** (`cX`, `T`, `L`): 5 of the 25 answers on the
+  first two texts, 2 of 12 once the text said what a name is, none of 18
+  on the served text; a refused name now says its own reason, once.
+- **What still refuses is what the text states**: a sensor written as
+  Python (`spot.x`, 20 answers, 19 of them GLM's), a source past the 3,000
+  characters (13), nesting past 4 (10), a squeeze past 120 N (2), a verb
+  inside an expression (1) and a syntax error (1). In #642's arms every try
+  had a procedure within its two repairs.
+- **The deployed mind answered 27 of 38**: 6 thought to the 128,000-token
+  cap, 2 ran into the router's 20 minutes, and 3 lost their stream to the
+  provider's HTTP 500 (19:36-19:38 UTC). DeepSeek answered all 28. A run
+  on `6c184d3` lost 13 of its 14 calls to read timeouts on both providers
+  at once (21:31-21:37 UTC) and was flown again.
+- **What it cannot say**: first turns only, on one set-out, one evening,
+  samples of 6 to 14 a mind and text, so the compile rates move with the
+  noise (DeepSeek's 5, 2 and 3 of 6, then 9 of 10); the served text's 0 of
+  18 for the def order and the capitals is one evening's. Spend: $1.83
+  recorded over 80 calls (16 lost before any count, their tokens
+  unrecorded). Rows and the readers: `~/pluggybot-training/issue-640-language/`.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

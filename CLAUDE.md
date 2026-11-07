@@ -1311,9 +1311,15 @@ save a filmstrip PNG named after the script.
   (`served_hand_facts`), and their rule says so. ⚠ THE MOTOR LEVEL
   IS `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
   `axes.SENSORS`): a new tool or body adds its entries there and the language
-  does not change. Budgets (`budget(steps=, seconds=)`) are capped by code
-  (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and checked at every verb; a computed
-  argument by the same `check_arg`. ⚠ A SOURCE IS `MAX_SOURCE_CHARS` (3,000,
+  does not change. Budgets (`budget(steps=, seconds=)`, steps the verbs a
+  run calls) are capped by code (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and
+  checked at every verb; a computed argument by the same `check_arg`. ⚠ THE
+  TEXT SAYS ITS NUMBERS OFF THEIR CONSTANTS -- the caps, 60 verbs and 600 s
+  without a budget, a name's rule (`lang.name_rule`, `MAX_NAME_CHARS`) --
+  and a tag is named by its number in each verb that takes one (#640:
+  unsaid, 11 of 11 first answers were refused; a test moves the constants);
+  a refused name says its own reason, once, never "reserved" for one that
+  is not. ⚠ A SOURCE IS `MAX_SOURCE_CHARS` (3,000,
   #560; 1,500 before), SAID IN THE TEXT, and one over it that parses is
   refused with every reason (the cap's alone hid #615's six other faults;
   a served answer is cut one past the cap, and hears the cap alone).

@@ -5495,11 +5495,11 @@ class HubLifecycle:
       defined = defined.get(name) if defined is not None else None
       if defined is not None and not defined.alone:
         # ...and one whose def takes arguments is called, never run (#560)
+        from pluggybot.procedure.lang import called_only
         takes = ", ".join(p for p in defined.params if p not in defined.defaults)
         self._say(f"DECIDE: {PROCEDURE_NEW} ran nothing -- {name} takes {takes}")
         self._remember(f"ran nothing: `{PROCEDURE_NEW}` runs the procedure the same answer "
-                       f"defines, and {name} takes {takes}: it runs only when another "
-                       "procedure calls it")
+                       f"defines, and {name} {called_only(defined)}")
         yield from self.body.hold_routine(DECIDED_IDLE_S)
         return "unbuildable"
       decision = dataclasses.replace(decision, action=PROCEDURE_PREFIX + name)
