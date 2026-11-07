@@ -239,9 +239,9 @@ def test_the_plan_balances_each_statue_with_the_arm_where_its_solve_put_it(monke
   posed = []
   real = rc.statue
 
-  def spy(sm, posture, q0, arms=None, lean=None):
+  def spy(sm, posture, q0, arms=None, lean=None, fast=False):
     posed.append((tuple(posture), dict(arms or {}), lean))
-    real(sm, posture, q0, arms, lean)
+    real(sm, posture, q0, arms, lean, fast)
   monkeypatch.setattr(rc, "statue", spy)
   lean, other = rc.Lean(com=-0.015), rc._arm("right", np.array([0.0, -0.9, 0.0, 1.4, 0.0, 0.0]))
   got = rc.plan("left", PLATE, SelfModel(), lean=lean, arms=other)
@@ -253,6 +253,24 @@ def test_the_plan_balances_each_statue_with_the_arm_where_its_solve_put_it(monke
   out = np.array([last[1][1][f"left_{j}"] for j in hm.ARM])
   hanging = Q0[[hm.JOINT_NAMES.index(f"left_{j}") for j in hm.ARM]]
   assert np.abs(out - hanging).max() > 0.3 and np.abs(out - got[2]).max() < 0.15, (out, got[2])
+
+
+def test_the_fast_balance_is_the_least_squares_answer():
+  """A plan weighs dozens of statues, each balanced at the lean it read:
+  balanced from the kept statue by Newton's method (`statue(fast=True)`),
+  each stands within 0.1 mm of the least squares' -- linear in the lean
+  alone, it was 8 mm off in a deep bow with an arm held level."""
+  sm = SelfModel()
+  rng = np.random.default_rng(627)
+  for posture in ((0.0, 0.0, 0.0), (-0.16, 0.3, math.radians(-30)), (-0.25, 0.95, 0.0)):
+    lean = rc.Lean(com=float(rng.uniform(-0.035, 0.03)), roll=0.01, turn=0.02)
+    arms = {**rc._arm("left", np.array([-1.4, 0.1, 0.0, 0.3, 0.0, 0.0])),
+            **rc._arm("right", np.array([0.0, -0.9, 0.0, 1.4, 0.0, 0.0]))}
+    rc.statue(sm, posture, Q0, arms, lean)
+    exact = _shoulders(sm)
+    rc.statue(sm, posture, Q0, arms, lean, fast=True)
+    for s, p in _shoulders(sm).items():
+      assert np.abs(p - exact[s]).max() < 1e-4, (posture, s, p - exact[s])
 
 
 def test_the_seeded_solve_keeps_the_arm_nearest_where_it_hangs():

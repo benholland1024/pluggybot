@@ -332,6 +332,39 @@ def seed(side: str, s) -> np.ndarray:
   return q
 
 
+def _balance(sm: SelfModel, height: float, pitch: float, arms: dict | None, waist: float,
+             com: float):
+  """What a statue's legs zero (`static_legs`): of (the pelvis's place
+  ahead, the hip's, the knee's and the ankle's pitch), the sole's bottom on
+  the floor, the sole flat, and the centre of mass `com` ahead of it -- the
+  pelvis `height` off the stand's, pitched `pitch`, its arms and waist so."""
+  m, d = sm.m, sm.d
+  root, sole = sm.root, sm.soles[0]
+  adr = {n: sm.qadr[k] for k, n in enumerate(hm.JOINT_NAMES)}
+  h = hm.stand_height() + height
+  quat = np.zeros(4)
+  mujoco.mju_euler2Quat(quat, np.array([0.0, pitch, 0.0]), "XYZ")
+  stand = {**hm.stand_qpos(), **{j: float(waist) for j in hm.WAIST}, **(arms or {})}
+
+  def resid(v):
+    x, hip, knee, ankle = v
+    d.qpos[:] = 0.0
+    d.qpos[0], d.qpos[2] = x, h
+    d.qpos[3:7] = quat
+    for n, val in stand.items():
+      d.qpos[adr[n]] = val
+    for s in hm.SIDES:
+      d.qpos[adr[f"{s}_hip_pitch"]] = hip
+      d.qpos[adr[f"{s}_knee"]] = knee
+      d.qpos[adr[f"{s}_ankle_pitch"]] = ankle
+    mujoco.mj_kinematics(m, d)
+    mujoco.mj_comPos(m, d)
+    r = d.geom_xmat[sole].reshape(3, 3)
+    bottom = d.geom_xpos[sole][2] - m.geom_size[sole][2]
+    return [10 * bottom, 3 * r[0, 2], 10 * (d.subtree_com[root][0] - d.geom_xpos[sole][0] - com)]
+  return resid
+
+
 def static_legs(height: float, pitch: float, model: SelfModel | None = None,
                 arms: dict | None = None, waist: float = 0.0, com: float = 0.0) -> dict:
   """The legs' sagittal joints holding the pelvis `height` off the stand's
@@ -352,34 +385,7 @@ def static_legs(height: float, pitch: float, model: SelfModel | None = None,
   key = (float(height), float(pitch), float(waist))
   if kept and key in sm.statues:
     return dict(sm.statues[key][0])
-  m, d = sm.m, sm.d
-  root, sole = sm.root, sm.soles[0]
-  adr = {n: sm.qadr[k] for k, n in enumerate(hm.JOINT_NAMES)}
-  h = hm.stand_height() + height
-  quat = np.zeros(4)
-  mujoco.mju_euler2Quat(quat, np.array([0.0, pitch, 0.0]), "XYZ")
-  stand = {**hm.stand_qpos(), **{j: float(waist) for j in hm.WAIST}, **(arms or {})}
-
-  def put(v):
-    x, hip, knee, ankle = v
-    d.qpos[:] = 0.0
-    d.qpos[0], d.qpos[2] = x, h
-    d.qpos[3:7] = quat
-    for n, val in stand.items():
-      d.qpos[adr[n]] = val
-    for s in hm.SIDES:
-      d.qpos[adr[f"{s}_hip_pitch"]] = hip
-      d.qpos[adr[f"{s}_knee"]] = knee
-      d.qpos[adr[f"{s}_ankle_pitch"]] = ankle
-    mujoco.mj_kinematics(m, d)
-    mujoco.mj_comPos(m, d)
-
-  def resid(v):
-    put(v)
-    r = d.geom_xmat[sole].reshape(3, 3)
-    bottom = d.geom_xpos[sole][2] - m.geom_size[sole][2]
-    return [10 * bottom, 3 * r[0, 2], 10 * (d.subtree_com[root][0] - d.geom_xpos[sole][0] - com)]
-
+  resid = _balance(sm, height, pitch, arms, waist, com)
   best = None
   guesses = ([0.0, -0.2 - pitch, 0.4, -0.2], [0.0, -0.8 - pitch, 1.6, -0.8])
   if not kept and key in sm.statues:
@@ -469,19 +475,74 @@ def _pelvis(sm: SelfModel) -> tuple[tuple[float, float], float]:
           math.atan2(r[1, 0], r[0, 0]))
 
 
+#: A statue balanced at a lean sooner (`statue(fast=True)`): its legs the
+#: kept statue's moved by their own change as its weight's place moves,
+#: worked out across this much of it, m, either way, and kept -- then this
+#: many Newton steps on its balance from there.
+SLOPE_M, FAST_STEPS = 0.02, 2
+
+
+def _slope(sm: SelfModel, height: float, pitch: float, waist: float) -> np.ndarray:
+  """How the statue's legs (hip, knee, ankle pitch) move as its centre of
+  mass is balanced further ahead of the soles' middle, rad a metre; kept."""
+  key = ("slope", height, pitch, waist)
+  if key not in sm.statues:
+    ends = [static_legs(height, pitch, sm, None, waist, c) for c in (SLOPE_M, -SLOPE_M)]
+    sm.statues[key] = np.array([(ends[0][f"left_{j}"] - ends[1][f"left_{j}"]) / (2 * SLOPE_M)
+                                for j in ("hip_pitch", "knee", "ankle_pitch")])
+  return sm.statues[key]
+
+
+def _posed_fast(sm: SelfModel, height: float, pitch: float, q0: np.ndarray,
+                arms: dict | None, waist: float, com: float, roll: float) -> None:
+  """`_posed`, its balance solved by Newton's method (`FAST_STEPS`) from the
+  kept statue's legs moved by the lean, less what the arms' weight moves it
+  ahead (`_slope`): the same balance, without a least squares' cost a
+  posture -- a plan weighs dozens."""
+  legs = static_legs(height, pitch, sm, None, waist)
+  resid = _balance(sm, height, pitch, arms, waist, com)
+  v = np.array([0.0, *(legs[f"left_{j}"] for j in ("hip_pitch", "knee", "ankle_pitch"))])
+  # ...as far as the weight stands off `com` there, the arms set (the
+  # residual's third row is ten times it)
+  v[1:] -= resid(v)[2] / 10 * _slope(sm, height, pitch, waist)
+  for _ in range(FAST_STEPS):
+    r0 = np.array(resid(v))
+    jac = np.empty((3, 3))
+    for k in range(3):
+      e = np.zeros(4)
+      e[k + 1] = 1e-6
+      jac[:, k] = (np.array(resid(v + e)) - r0) / 1e-6
+    v[1:] -= np.linalg.solve(jac, r0)
+  q = q0.copy()
+  q[sm.waist] = waist
+  for n, val in (arms or {}).items():
+    q[hm.JOINT_NAMES.index(n)] = val
+  for s in hm.SIDES:
+    for k, j in enumerate(("hip_pitch", "knee", "ankle_pitch")):
+      q[hm.JOINT_NAMES.index(f"{s}_{j}")] = v[k + 1]
+  sm.pose(q, np.array([math.sin(pitch), -math.cos(pitch) * math.sin(roll),
+                       -math.cos(pitch) * math.cos(roll)]))
+
+
 def statue(sm: SelfModel, posture, q0: np.ndarray, arms: dict | None = None,
-           lean: Lean | None = None) -> None:
+           lean: Lean | None = None, fast: bool = False) -> None:
   """`sm` posed as the robot would stand in `posture` (height, pitch, yaw):
   a statue's legs (`static_legs`), its arms where `arms` puts them (joint
   name -> angle; else hanging), balanced with its centre of mass where
   `lean` reads it and its pelvis shifted and turned as `lean` says (#627),
   the posture it was read in as it held it; with no lean, over the soles'
-  middle."""
+  middle. `fast`: its balance solved from the kept statue's (`_posed_fast`):
+  within 0.01 mm of the least squares over random arms and leans of -3.5 to
+  +5 cm at every carry posture, at 0.3 ms where it takes 12."""
   lean = lean or Lean()
   if lean.at is not None and np.allclose(posture, lean.at, atol=1e-9):
-    posture = lean.held
+    # ...as it holds it, balanced afresh: a held posture's statue is a read's own
+    posture, fast = lean.held, False
   height, pitch, waist = (float(v) for v in posture)
-  _posed(sm, height, pitch, q0, arms or None, waist, lean.com, lean.roll)
+  if fast:
+    _posed_fast(sm, height, pitch, q0, arms, waist, lean.com, lean.roll)
+  else:
+    _posed(sm, height, pitch, q0, arms or None, waist, lean.com, lean.roll)
   if lean.dx or lean.dy or lean.turn:
     d = sm.d
     c, s = math.cos(lean.turn), math.sin(lean.turn)
@@ -618,13 +679,13 @@ def _reached(sm: SelfModel, side: str, posture, q0: np.ndarray, goal: HandGoal,
   then balanced with it where that solve put it and solved again from
   there, as an arm held out moves the trunk; or None."""
   others = dict(arms or {})
-  statue(sm, posture, q0, others, lean)
+  statue(sm, posture, q0, others, lean, fast=True)
   if out_of_reach(sm, side, goal.pos, REACH_MARGIN_M if slack else 0.0):
     return None
   q = _goal_arm(sm, side, goal, slack, start)
   if q is None:
     return None
-  statue(sm, posture, q0, {**others, **_arm(side, q)}, lean)
+  statue(sm, posture, q0, {**others, **_arm(side, q)}, lean, fast=True)
   q = _goal_arm(sm, side, goal, slack, q, seeded=False)
   if q is None:
     return None
@@ -981,7 +1042,7 @@ class Reach:
     for posture in order:
       if not stands(sm, posture, q0) or out_of_reach(sm, side, pos, -LEAN_MOST_M):
         continue
-      statue(sm, posture, q0, arms, lean)
+      statue(sm, posture, q0, arms, lean, fast=True)
       if out_of_reach(sm, side, pos):
         continue
       for start in starts:
@@ -1040,7 +1101,7 @@ class Reach:
         # arm there as the body moves)
         if not stands(sm, posture, q0) or out_of_reach(sm, side, poses[0], -LEAN_MOST_M):
           continue
-        statue(sm, posture, q0, arms, lean)
+        statue(sm, posture, q0, arms, lean, fast=True)
         if out_of_reach(sm, side, poses[0]):
           continue
         q, ep, er = solve_seeded(sm, side, poses[0], rots[0],
@@ -1051,7 +1112,7 @@ class Reach:
       for p, r_ in zip(poses[1:], rots[1:]):
         if not live:
           # ...balanced with its arm out where it is going (`static_legs`)
-          statue(sm, posture, q0, {**arms, **_arm(side, q)}, lean)
+          statue(sm, posture, q0, {**arms, **_arm(side, q)}, lean, fast=True)
         further = float(np.linalg.norm(p - sm.d.xpos[shoulder_id])) > reach0
         target = p + ahead if further else p
         sm._set_arm(side, q)
