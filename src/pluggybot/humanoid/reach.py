@@ -80,6 +80,14 @@ LOOKS = 2
 #: which the balance has planted: a swinging leg's own torques read up to
 #: 400 N (`humanoid.odometry`).
 FELT_PHASES = ("approach", "hold", "pull", "blocked", "carry", "retreat")
+#: ...and it takes the body's own motion in (`arms.Motion`, #631) while every
+#: hand it reads goes its own way -- swung out or home, on its line in or out
+#: -- never one in these phases, which holds or is held, read as still as
+#: before: pressing slowly on what it holds, its motion is smaller than its
+#: estimate's noise, which a pull's give follows across its way. Taken in
+#: there, the hands checks lost 18 set-outs of 480 and won 5 on one pod
+#: (the cube placed 46 of 96 where 53, the door opened 65 where 69).
+HELD_PHASES = ("hold", "pull", "blocked", "carry")
 #: A hand on its way in STOPS where it is (`blocked`) once its own solve
 #: misses its command by this, m -- the goal out of reach from the posture
 #: the policy truly holds -- or once the force it reads at the hand
@@ -1796,9 +1804,10 @@ class Reach:
   def _feel(self) -> None:
     """Each hand's force off the drivers' torques as just read, the model
     posed off the senses (`_pose`), a turning joint's friction taken off
-    (the arms' and the waist's) and the body's own motion as its senses have
-    it (`arms.Motion`, #631): every hand's arm alone, then the whole body's
-    for those at work, standing (`FELT_PHASES`)."""
+    (the arms' and the waist's) and, for a hand going its own way, the
+    body's own motion as its senses have it (`arms.Motion`, `HELD_PHASES`,
+    #631): every hand's arm alone, then the whole body's for those at work,
+    standing (`FELT_PHASES`)."""
     sm = self.self_model
     motion = self.motion.read(sm, self.qd, self.stand)
     tau = self.tau.copy()
@@ -1806,11 +1815,13 @@ class Reach:
     for s in hm.SIDES:
       arm = sm.arm[s]
       tau[arm] -= friction.taken(self.friction, s, self.qd[arm])
-      self.arm_force[s] = sm.hand_force(s, tau[arm], motion=motion)
+      self.arm_force[s] = sm.hand_force(
+        s, tau[arm], motion=None if self.phase[s] in HELD_PHASES else motion)
     self.force = dict(self.arm_force)
     working = [s for s in hm.SIDES if self.phase[s] in FELT_PHASES]
     if self.standing and working:
-      self.force.update(sm.felt(working, tau, self.still, motion))
+      held = any(self.phase[s] in HELD_PHASES for s in working)
+      self.force.update(sm.felt(working, tau, self.still, None if held else motion))
 
   def _update(self, dt: float) -> None:
     sm = self.self_model

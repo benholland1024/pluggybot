@@ -270,13 +270,27 @@ def test_a_body_moving_with_nothing_at_its_hand_reads_its_motion_not_a_push():
   assert np.allclose(sm.felt(["left"], tau, still, motion)["left"], push, atol=0.1)
 
 
-def test_the_reach_hands_its_senses_motion_to_both_readings():
+#: A hand that HOLDS OR IS HELD -- held at its goal, pulling, stopped,
+#: carried: every phase named, so that dropping one from `HELD_PHASES` fails.
+HELD = ("hold", "pull", "blocked", "carry")
+
+
+@pytest.mark.parametrize("phase", AT_WORK + ("move", "home"))
+def test_a_hand_going_its_own_way_reads_its_motion_and_one_held_reads_none(phase):
   """Read once a command (`arms.Motion.read`), the same motion goes to the
-  arm's own reading and the whole body's."""
+  readings of a hand going its own way -- its arm's, and the whole body's
+  -- and none to a hand that holds or is held, read still as before: there
+  its motion is smaller than its estimate's noise, which a pull's give
+  follows across its way (#631: taken in there, the cube placed 46 of 96
+  where 53). The other hand, at rest, reads its motion either way."""
+  assert rc.HELD_PHASES == HELD
   motion = (np.ones(3), np.zeros(3))
-  r = _feeling("hold", standing=True, motion=motion)
-  assert {k for k, _ in r.moved} == {"arm", "body"}
-  assert all(m is motion for _, m in r.moved)
+  r = _feeling(phase, standing=True, motion=motion)
+  arm, other = r.moved[0], r.moved[1]
+  assert arm == ("arm", None if phase in HELD else motion)
+  assert other == ("arm", motion)
+  bodies = [m for k, m in r.moved if k == "body"]
+  assert bodies == ([] if phase not in AT_WORK else [None if phase in HELD else motion])
 
 
 def test_the_motion_is_read_off_the_drivers_speeds_and_the_imu():
