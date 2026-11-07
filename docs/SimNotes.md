@@ -6424,9 +6424,27 @@ and a little more. The drive keeps to its line. In free air every squeeze
 from 5 to 120 N shuts in 0.33-0.38 s, the line's own speed at the 43.2 V
 bus, never faster, and its force never flips between its clips; a light
 handle lying 8 mm off the jaws' middle is shut on at 40-120 N as under 40
-(`tests/test_humanoid.py`). From the state each of our table reference's
-grips began in, at set-outs 0-31, every squeeze from 10 to 120 N closes on
-its piece -- the cup, the plate's wall, the fork's handle (TABLE_GRIPS).
+(`tests/test_humanoid.py`). And from the state each of our table
+reference's grips began in, every squeeze from 10 to 120 N closes on its
+piece as under 40 N, where the old drive let the plate's wall go from 50 N
+and the fork's handle from 50 (held of set-outs 0-31 on one pod;
+`MUJOCO_GL=osmesa uv run python scripts/humanoid_spike.py --grips 0-31
+--jobs N`):
+
+| piece | jaws | 10-35 N | 40 | 50 | 60 | 80 | 100 | 120 | shuts whose force flipped |
+|---|---|---|---|---|---|---|---|---|---|
+| cup | before | 31-32 of 32 | 31 | 30 | 29 | 28 | 29 | 30 | 349 of 384 |
+| cup | built | 32 of 32 | 31 | 31 | 31 | 31 | 31 | 31 | 0 |
+| plate's wall | before | 31 of 31 | 31 | 22 | 5 | 1 | 2 | 3 | 372 of 372 |
+| plate's wall | built | 31 of 31 | 31 | 31 | 31 | 31 | 31 | 30 | 0 |
+| fork's handle | before | 30-31 of 31 | 31 | 26 | 25 | 23 | 17 | 6 | 372 of 372 |
+| fork's handle | built | 31 of 31 | 31 | 31 | 31 | 31 | 31 | 31 | 0 |
+
+The built drive's misses are not its own: one cup is gripped at its edge
+(our reference tries again there) and squeezes out from 40 N, and the
+plate's 8 mm wall at 120 N can read not held -- shut on it the jaws stall
+10 mm apart, where `GRIP_KP`'s spring pushes 56-59 N a pad, under `held`'s
+half of 120 (things narrower than 2 cm never reach the clip, `GRIP_KP`).
 `humanoid_spike.py --view jaws` shows the fork at set-out 0 shut on again
 and again from one moment, at 40, 80 and 120 N, its jaws as they were and
 as built.
@@ -6444,13 +6462,13 @@ and -clip, in free air too, and the jaws' speed swung between two values
 whose mean nothing set (a cycle exists for a whole band of speeds). They
 ran at up to 8.2x the line's top speed, shutting in 0.13 s at 120 N where
 the motor needs 0.33, and wandered. Against the fork at the table, from the
-one state its shut began in, the jaws stood 4-8 cm apart 1.5 s later at 40
-to 80 N, the handle batted 3-13 times and never squeezed; the cup and the
-plate's wall failed so too, from 50-60 N. Lower squeezes swung less and
-mostly shut. ⚠ In the first steps the jaws' coupling (`JAWS_SOLREF`, 4 ms)
-lets the motor drive the first jaw alone, so it is ONE jaw's inertia that
-must hold the line: at 1.0-2.0 kg a jaw the 120 N shut still ran past the
-line's speed (1.2-2.3x), from 2.5 none did.
+one state its shut began in (set-out 0), the jaws stood 4-8 cm apart 1.5 s
+later at 40 to 80 N, a pad on the handle for 3-13 steps of 750 and never
+squeezing it (the table above has it at every set-out). ⚠ In the first
+steps the jaws' coupling (`JAWS_SOLREF`, 4 ms) lets the motor drive the
+first jaw alone, so it is ONE jaw's inertia that must hold the line: at
+1.0-2.0 kg a jaw the 120 N shut still ran past the line's speed
+(1.2-2.3x), from 2.5 none did.
 
 **Why the inertia, and not a ramped shut.** A target ramped at a jaw speed
 keeps the drive off its clips while it travels, and the chatter off that
@@ -6467,8 +6485,16 @@ jaw's energy -- and the station's unplug squeezes a seated plug its catch
 lets go of past 20 N. Flown on one pod beside the tree before it, each
 flight its own noise: the station's approach docked, unplugged and parked
 its plug 39 of 39 in both, and its seats 140 of 140 in both, every plug-in
-at its first push, no fall (STATION). The hands checks at set-outs 0-31
-(HANDS_CHECKS). Not the chatter's: the squeeze's running mean
+at its first push, no fall (`station_spike.py --approach --n 36`,
+`--seats`). The hands checks at set-outs 0-31 moved inside their own
+noise: the lid 26, the drawer 21, the door 24 to 25 and the cube 17,
+against 25-26, 21, 24 and 16-17 for the tree before on a second draw of
+its noise; the table, over eight draws a tree, 221 of 256 against 222,
+13 set-outs lost and 12 won (its falls, 12 against 6, each the carry's
+reach taking a deeper posture with the fork still in the air and driving
+it into the table, a posture any flight may reach). The served drawer,
+door and chest from the tour, 64 draws each, 60, 58 and 61 against 57, 56
+and 60. Not the chatter's: the squeeze's running mean
 (`arms.SQUEEZE_S`) -- held, the drive's squeeze is steady under either
 inertia (sd 0.000 N) and what the gripper reports spreads 5.3 N, its
 current sense's stated 5.1 -- and the lever that could not turn at 120 N,

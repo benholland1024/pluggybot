@@ -22,8 +22,10 @@ line"; Parts.md, "The gripper"):
   thing off the jaws' middle is shut on where it was batted and the jaws
   stood open.
 - **Every grip moved, through one part**: the served jobs' (the drawer, the
-  door, the chest) and the station's plug, flown beside the tree before on
-  one pod (SERVED).
+  door, the chest) and the station's plug. Flown beside the tree before on
+  one pod, each flight its own noise: from the tour, 64 draws each, the
+  drawer 60, the door 58 and the chest 61 against 57, 56 and 60; the
+  station's approach 39 of 39 and its seats 140 of 140 in both.
 - **Nothing the robots read moved**: the language, the jobs, the rewards
   and the cadence; `prompt_sha` stays as released. The house's geometry is
   the same (`continuation.fingerprint` hashes geometry, not inertia), so
