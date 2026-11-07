@@ -302,8 +302,13 @@ that does not compile, a name that does not match its `def`: each refuses out
 loud, narrated and counted (`library.refusals`), and a `procedure` event
 carries `defined` / `undefined` / `refused` with the source. **Every run
 leaves one History line** (`procedure_outcome`): how far it got, the line,
-verb and reason where it stopped short, and its locals — the robot's only way
-to see what its code did. Sources survive a restart and are
+verb and reason where it stopped short, how many of its tests read false
+with each line's first reason, and its locals — the robot's only way to see
+what its code did. A test that reads false lets the run go on, and this line
+is where its reason reaches the robot (#629): said to the log alone, Rowan's
+run of 82 calls, 80 of them measures out of its camera's view, read "(2
+steps)" and "stopped (error)", and two tickets went on theories built from
+it. Sources survive a restart and are
 recompiled against *today's* world when the library loads; one that no
 longer validates is kept and shown marked not runnable, with the reasons.
 
@@ -314,7 +319,8 @@ naming a procedure the robot wrote. The name is an enum per call
 (`Menu.schema(procedures=)`, `task_ids`' shape) so the decoder cannot name a
 procedure that is not there; a row written before an `undefine` fails at
 fire time as `unbuildable`. It runs as a composed errand (`programmed_errand`)
-graded by `eval_program` — every step ok.
+graded by `eval_program` on the run's own end — a test that read false is
+its control flow, never a failed step (#629) — and paid nothing (#321).
 
 **Every mind's.** `Menu.procedures` is set by `build()`, and everything keys
 off it: the family on the menu, the two fields and the tokens in the schema,
@@ -337,7 +343,10 @@ queued has run, so "run my procedure, then grade me" is one answer; the
 grade is the job's own (its check's evaluator, watching from the claim --
 a fall anywhere fails it -- to a hold after `done` the robot is told to
 stand clear of), and the loop with no mind never sees the field or the
-offer. A job held past the time its description gives is failed by the
+offer. History says the `done` and names the job (`said done on t_0027
+(open_door): …`), and so does its grade's line (`failed the job t_0027
+(open_door): …`, #629: by its kind alone, Rowan took one job's grade for
+another's). A job held past the time its description gives is failed by the
 loop, its prop offered again, and while the robot holds one its context
 lists it with that time's remainder (`heldTasks`, `leftS`; #602). `CHALLENGE_RULE` says all of this to
 the mind and, like every rule on this arm, demonstrates nothing about
@@ -346,8 +355,8 @@ charging.
 **A procedure's variables are its readout** (issue #227). Nothing a
 procedure `read` reached the mind before: the run's verdicts said which
 steps passed. Now the locals as a run ended ride the `procedure` event
-(`locals`) and one History line -- `ran the procedure weigh (5/5 steps) --
-it ended with f = 7.38, ...` (`LOCALS_SHOWN` of them) -- and the procedure
+(`locals`) and one History line -- `ran the procedure weigh to its end (5
+steps) -- it ended with f = 7.38, ...` (`LOCALS_SHOWN` of them) -- and the procedure
 rule says so.
 
 **There is no route: a walk goes into the unknown** (issue #381). No

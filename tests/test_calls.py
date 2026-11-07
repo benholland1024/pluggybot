@@ -201,11 +201,19 @@ def test_a_call_an_if_tests_reads_a_failure_in_it_and_the_run_goes_on():
   assert r["ok"] and [c[1][0] for c in life.calls] == [1.0, 2.0, 3.0]
   read = [s for s in r["steps"] if not s["ok"]]
   assert len(read) == 1 and read[0]["tested"] and read[0]["in"] == "b" and "failedAt" not in r
+  # ...every call the run went on past `completed`, the failed one too, and
+  # one test read false (#629)
+  assert r["completed"] == r["total"] == 4 and r["testsFalse"] == 1
   r, life = run("def a():\n  if b(0):\n    wait(9)\n  wait(3)\ndef b(s):\n  wait(1)\n"
                 "  x = 1 / s\n")
   assert r["ok"] and [c[1][0] for c in life.calls] == [1.0, 3.0]
   assert {"verb": "expr", "ok": False, "reason": "division by zero"}.items() <= next(
     s for s in r["steps"] if not s["ok"]).items()
+  # ...a fault in the arithmetic of the call at line 2 a test of its own
+  assert r["completed"] == r["total"] == 2 and r["testsFalse"] == 1
+  assert procedure_outcome("a", r)[0] == (
+    "ran the procedure a to its end (2 steps; 1 test read false -- line 2, an expression "
+    "(in b): division by zero)")
   r, _ = run("def a():\n  budget(steps=2)\n  if b():\n    pass\n  wait(3)\n"
              "def b():\n  for i in range(5):\n    wait(1)\n")
   assert r["stopped"] == "steps" and not r["ok"]

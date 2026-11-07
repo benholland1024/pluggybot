@@ -361,19 +361,31 @@ def eval_charge(m: dict) -> tuple[bool, dict, str]:
 
 def eval_program(m: dict) -> tuple[bool, dict, str]:
   """A composed errand's one verdict off its per-step verdicts (issue #58):
-  every step ok. A program cut short -- a failed step, its budget, an
-  interrupt -- fails whole, on the table's no-partial-credit rule; how far
-  it got is in the metrics and the reason."""
+  every step ok, or -- a procedure's -- its run reached its end (`ok`), a
+  test that read false being its own control flow, never a failed step
+  (#629). A program cut short -- a failed step, its budget, an interrupt --
+  fails whole, on the table's no-partial-credit rule; how far it got is in
+  the metrics and the reason."""
   total = m.get("total")
   completed = int(m.get("completed") or 0)
+  read = int(m.get("testsFalse") or 0)
   metrics = {"program": m.get("program"), "total": total,
              "completed": completed, "failedAt": m.get("failedAt"),
-             "stopped": m.get("stopped"), "seconds": m.get("seconds")}
+             "stopped": m.get("stopped"), "seconds": m.get("seconds"),
+             **({"testsFalse": read} if read else {})}
+  tests = f"; {read} test{'' if read == 1 else 's'} read false" if read else ""
   if total is None:
     return False, metrics, "the procedure was never measured"
   total = int(total)
   if m.get("refused"):
     return False, metrics, f"{metrics['program']} was refused before it ran"
+  if m.get("ok"):
+    # THE RUN'S OWN END (#629): read off the count, a run whose last calls
+    # were tests that read false was "stopped (error)"; and never "N/N
+    # steps" beside one, which a model reads as every step landing
+    return True, metrics, (f"{metrics['program']}: ran to its end, {total} step"
+                           f"{'' if total == 1 else 's'}{tests}" if read
+                           else f"{metrics['program']}: {total}/{total} steps")
   # A procedure's `total` is the calls it MADE (issue #264): a run its own
   # budget stopped after every call succeeded has completed == total, and
   # graded on the count alone it read "2/2 steps" -- beside the History
@@ -381,13 +393,15 @@ def eval_program(m: dict) -> tuple[bool, dict, str]:
   if metrics["stopped"] and metrics["failedAt"] is None:
     return False, metrics, (f"{metrics['program']}: did not finish -- stopped "
                             f"({metrics['stopped']}) after {completed} step"
-                            f"{'' if completed == 1 else 's'}")
-  if completed < total:
+                            f"{'' if completed == 1 else 's'}{tests}")
+  # ...and a run its runner says did not reach its end never passes on its
+  # count (a fault in a procedure of no verb at all read "0/0 steps")
+  if completed < total or m.get("ok") is False:
     where = (f"step {metrics['failedAt'] + 1} failed"
              if metrics["failedAt"] is not None
              else f"stopped ({metrics['stopped'] or 'error'})")
     return False, metrics, (f"{metrics['program']}: {completed}/{total} steps, "
-                            f"{where}")
+                            f"{where}{tests}")
   return True, metrics, f"{metrics['program']}: {total}/{total} steps"
 
 
@@ -544,11 +558,11 @@ def _world_config(life) -> dict:
 
 def sample_program(life, errand, result: dict, before: dict) -> dict:
   """Measure a composed errand: the runner's per-step verdicts (code's, off
-  the world, one per step)."""
+  the world, one per step), and whether the run reached its end."""
   run = result.get("procedure") or {}
   return {k: run.get(k) for k in ("program", "total", "completed",
                                   "failedAt", "stopped", "seconds",
-                                  "refused")}
+                                  "refused", "ok", "testsFalse")}
 
 
 def wallet_before(other) -> dict:
