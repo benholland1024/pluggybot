@@ -24,7 +24,8 @@ and the station's plug-in, which reaches, carries and pushes too.
 - **Once its arm is out at its pre-grasp it reads itself again** and takes
   the least bent posture that puts its goal in reach before its hand goes
   in -- deeper or less bent -- at most twice, its hand waiting meanwhile
-  (`Reach._look`): a reach may take a second or two more.
+  (`Reach._look`). The checks' passes took no longer for it: paired by
+  set-out, the median pass's time moved 0 to -1.2 s a job.
 - **The arm's solve keeps the arm nearest how it is**, and solves a goal
   and the point its slack asks for each from the other's arm: no arm thrown
   over the top where one in front reaches, and no pockets of deep bows.
@@ -33,16 +34,17 @@ and the station's plug-in, which reaches, carries and pushes too.
   aimed where it fell 2-6 cm short; nothing tells the robots so but what
   their reaches do.
 
-**Why.** #627, from #626's calls 1 and 3: the live trunk stood 1.6-6.6 cm
+**Why.** #627, from #626's calls 1 and 3: the live trunk stood 1.6-6 cm
 behind the statue the reach planned on, so a hand aimed at a grip arrived
-short; our references aimed past their grips, the robots could not know to,
-and no live hand job had passed by 2026-11-03.
+short; the table's reference aimed past its grips, which no robot could know
+to do, and no live hand job had passed by 2026-11-03.
 
 **What the period is for.** That the hand jobs' grades rise or hold and the
 charges plug in as before (flown before the deploy on one pod over 32 draws
-each: Evaluation.md's and SimNotes' numbers): read off the jobs' verdicts
--- a `reach` that stopped short (`stopped short`, `out of reach`) against
-the period before -- the charges' narration, and the `death` rows.
+each: SimNotes, "The reach planned where the live trunk stands"): read off
+the jobs' verdicts and the procedures' `reach`es that failed ("... hand
+stopped short on its way", "no posture you hold puts your ... hand there")
+against the period before, the charges' narration, and the `death` rows.
 ⚠ **Not to be pooled with the period before for anything the hands do.**
 
 ### A run's tests that read false are said, a run that reached its end is no error, and a `done` and its grade name the job (#629) — opens when this PR is deployed

@@ -6056,7 +6056,7 @@ arm too.
 stands; each true shoulder against each statue, cm ahead, stored values
 only):
 
-| | today's statue (over the soles' middle, arms hanging) | the statue as the robot reads itself | the robot's own model |
+| | the statue before (over the soles' middle, arms hanging) | the statue as the robot reads itself | the robot's own model |
 |---|---|---|---|
 | the stand | -1.6; -2.0 | 0.0; 0.0 | 0.0; 0.0 |
 | each bow, -0.08 to 1.1 rad | -1.5 to +0.9 | -0.1 to +0.1 | 0.0 to +0.1 |
@@ -6087,7 +6087,7 @@ column's.
   an arm in front (the policy's own lean for the arm, which nothing but the
   arm out shows), and too cautious for one over the top: the look takes the
   posture each needs. Reaches from the stand on a bare floor (the plate's
-  grip, the other arm hanging and held out of the way): today blocked 3.2 and
+  grip, the other arm hanging and held out of the way): before, blocked 3.2 and
   5.1 cm short; now held within 0.1 cm, after one look.
 
 **The bow's pockets were the arm's solve.** At 10 cm over the table's cup,
@@ -6115,8 +6115,39 @@ does not with its slack (`posture_map.py` of #626).
 read is the kept statue's legs moved by their own change with the weight's
 place (`_slope`) and two Newton steps (`_posed_fast`): the least squares'
 answer to 0.01 mm at 0.3 ms where it takes 12. A plan over the cup 0.18 s
-(0.21 today), one past the arm's reach 0.06 s (0.02), a carry's re-plan
+(0.21 before), one past the arm's reach 0.06 s (0.02), a carry's re-plan
 0.03-0.05 s (0.01).
+
+**Flown on one pod** (Vast, an AMD EPYC 7B12, osmesa: the tree before,
+07a1d2f, and this one at the same seeds, each set-out its own noise; of 32,
+the first 8 in brackets):
+
+| | before | planned where the robot stands |
+|---|---|---|
+| the lid | 22 (8) | 26 (8) |
+| the drawer | 22 (5) | 21 (5) |
+| the door | 25 (5) | 24 (7) |
+| the cube placed | 15 (4) | 17 (3) |
+| the table laid | 32 (8), its reaches aimed past their grips | 29 (8), aimed at them |
+| the served drawer, from the tour | 30 (8) | 30 (8) |
+| the served door, from the tour | 28 (7), a fall | 29 (8), a fall |
+| the served chest, from the tour | 32 (8) | 32 (8) |
+| the station, round the standoff; at its seats | 36 of 36; 139 of 140 | 36 of 36; 140 of 140 |
+
+Draw by draw the drawer lost 2 and won 1, the door lost 5 and won 4, the
+cube lost 7 and won 9, the lid won 4: a change to any reach reshuffles
+which draws pass, and a sign test over the pairs tells none of them apart.
+The served door's fall is draw 8's on both trees.
+- *The look costs no time it does not use.* A posture the look would
+  choose that is the one held lets the hand straight in, and paired by
+  set-out the checks' passes took no longer: the median pass's time moved 0
+  to -1.2 s a job, the slowest lid's 41 s to 30.
+- *The table's three it lost.* Two forks let go as the carry turned the
+  waist to -60 deg, the fork turning 55-64 deg in the jaws; a reach's
+  posture is chosen for its grip alone, and the carry after it may need
+  another. One cup (set-out 28) was knocked over as its pull down went on
+  to a 0.95 rad bow: its arm over the top, whose lean (above) no plan
+  foresees. With the cup's 1.5 cm on that #626's reference aimed, 19.
 
 ## Debugging workflow that worked
 
