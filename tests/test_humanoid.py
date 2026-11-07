@@ -521,9 +521,11 @@ def test_a_jaw_takes_at_least_a_step_to_reach_its_drives_line():
   MuJoCo integrates a drive explicitly while it is clipped, a shut's whole
   travel: at 0.13 ms (0.2 kg a jaw) its force flipped between its clips
   every 2 ms step."""
+  from pluggybot.humanoid import drivers as dv
   model = mujoco.MjModel.from_xml_string(hm.body_xml())
   for s in hm.SIDES:
-    r, k = model.actuator_gainprm[model.actuator(f"{s}_gripper").id][:2]
+    g = model.actuator_gainprm[model.actuator(f"{s}_gripper").id]
+    r, k = g[dv.R], g[dv.K]
     for jaw in hm.JAWS:
       j = model.joint(f"{s}_{jaw}")
       inertia = model.dof_armature[j.dofadr[0]] + model.body_mass[j.bodyid[0]]
@@ -536,7 +538,7 @@ def _shut_from_open(model, data, force: float, seconds: float):
   from pluggybot.humanoid.arms import Gripper
   mujoco.mj_resetData(model, data)
   jaws = [model.jnt_qposadr[model.joint(f"left_{j}").id] for j in hm.JAWS]
-  speed = model.jnt_dofadr[model.joint(f"left_{hm.JAWS[0]}").id]
+  dof = model.jnt_dofadr[model.joint(f"left_{hm.JAWS[0]}").id]
   data.qpos[jaws] = hp.GRIPPER.stroke / 2
   mujoco.mj_forward(model, data)
   g = Gripper(model, data, "left")
@@ -549,7 +551,7 @@ def _shut_from_open(model, data, force: float, seconds: float):
   for _ in range(int(round(seconds / model.opt.timestep))):
     mujoco.mj_step(model, data)
     g.sample()
-    rows.append((data.actuator_force[g.act], data.qvel[speed], data.qpos[jaws].sum()))
+    rows.append((data.actuator_force[g.act], data.qvel[dof], data.qpos[jaws].sum()))
   return g, np.array(rows)
 
 
@@ -561,11 +563,12 @@ def test_the_grippers_drive_keeps_to_its_line_in_free_air():
   light for the line (above) the force flipped between its clips every
   step, the jaws ran at up to 8x the line's speed, and at 120 N shut in
   0.13 s where the motor needs 0.33."""
+  from pluggybot.humanoid import drivers as dv
   from pluggybot.humanoid.body import GRIP_S
   spec, _, _ = _hanging_hand()
   model, data = _compiled(spec)
-  act = model.actuator("left_gripper").id
-  top = model.actuator_gainprm[act][7] / model.actuator_gainprm[act][1]   # bus / K
+  g = model.actuator_gainprm[model.actuator("left_gripper").id]
+  top = g[dv.VMAX] / g[dv.K]                      # the line's no-load speed: bus / K
   for force in (hp.GRIPPER.grip_force_n, 40.0, 5.0):
     _, rows = _shut_from_open(model, data, force, GRIP_S)
     f, v, gap = rows.T
@@ -581,7 +584,7 @@ def test_a_shut_closes_on_a_light_handle_off_the_jaws_middle_at_every_squeeze():
   a ledge under the fingertips, 8 mm off the jaws' middle: shut at 40 N and
   up, the jaws close on it and squeeze it as asked, as they do under 40
   (#628: in the table's set-out the drive's chatter batted the fork's handle
-  from 40 N and the jaws stood 3-8 cm apart, nothing held)."""
+  from 40 N and the jaws stood 4-8 cm apart, nothing held)."""
   half = (0.012, 0.03, 0.011)        # across the jaws, along the pads, up
   spec, pos, mat = _hanging_hand()
   tip = hp.GRIPPER.finger_len / 2    # the pads reach this far under the grip
@@ -595,9 +598,10 @@ def test_a_shut_closes_on_a_light_handle_off_the_jaws_middle_at_every_squeeze():
   handle.add_freejoint()
   handle.add_geom(name="handle", type=mujoco.mjtGeom.mjGEOM_BOX, size=list(half), mass=0.06,
                   friction=[0.7, 0.005, 0.0001])
+  from pluggybot.humanoid.body import GRIP_S
   model, data = _compiled(spec)
   for force in (40.0, 60.0, 80.0, hp.GRIPPER.grip_force_n):
-    g, _ = _shut_from_open(model, data, force, 0.6)
+    g, _ = _shut_from_open(model, data, force, GRIP_S)
     gap, squeeze = g.read()
     assert g.held(), (force, gap, squeeze)
     assert gap == pytest.approx(2 * half[0], abs=0.001), force

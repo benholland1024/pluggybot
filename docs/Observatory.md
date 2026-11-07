@@ -10,7 +10,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### The gripper's jaws carry inertia enough for their drive's line (#628) — opens when this PR is deployed; released with #627's opener (#641), it rides with that period as one
+### The gripper's jaws carry inertia enough for their drive's line (#628) — opens when this PR is deployed; released with the dining room's tables on legs (#643), it rides with that period as one
 
 **What changed in the body** (SimNotes, "The gripper's drive on its
 line"; Parts.md, "The gripper"):

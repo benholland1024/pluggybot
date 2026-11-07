@@ -6441,14 +6441,15 @@ and the fork's handle from 50 (held of set-outs 0-31 on one pod;
 | fork's handle | before | 30-31 of 31 | 31 | 26 | 25 | 23 | 17 | 6 | 372 of 372 |
 | fork's handle | built | 31 of 31 | 31 | 31 | 31 | 31 | 31 | 31 | 0 |
 
-The built drive's misses are not its own: one cup is gripped at its edge
-(our reference tries again there) and squeezes out from 40 N, and the
-plate's 8 mm wall at 120 N can read not held -- shut on it the jaws stall
-10 mm apart, where `GRIP_KP`'s spring pushes 56-59 N a pad, under `held`'s
-half of 120 (things narrower than 2 cm never reach the clip, `GRIP_KP`).
-`humanoid_spike.py --view jaws` shows the fork at set-out 0 shut on again
-and again from one moment, at 40, 80 and 120 N, its jaws as they were and
-as built.
+The built drive's misses are not its own: one cup, at set-out 28 -- where
+our reference's own grip misses and tries again, its flight never reaching
+the plate or the fork -- is gripped at its edge and squeezes out from 40 N;
+and the plate's 8 mm wall at 120 N can read not held -- shut on it the jaws
+stall 10 mm apart, where `GRIP_KP`'s spring pushes 56-59 N a pad, under
+`held`'s half of 120 (things narrower than 2 cm never reach the clip,
+`GRIP_KP`; #646). `humanoid_spike.py --view jaws` shows the fork at set-out
+0 shut on again and again from one moment, at 40, 80 and 120 N, its jaws as
+they were and as built.
 
 **What it was.** At 0.2 kg a jaw -- stated "so the 2 ms step stays stable
 at the stiffness a squeeze commands", against the PD and never the line --
@@ -6463,12 +6464,12 @@ and -clip, in free air too, and the jaws' speed swung between two values
 whose mean nothing set (a cycle exists for a whole band of speeds). They
 ran at up to 8.2x the line's top speed, shutting in 0.13 s at 120 N where
 the motor needs 0.33, and wandered. Against the fork at the table, from the
-one state its shut began in (set-out 0), the jaws stood 4-8 cm apart 1.5 s
-later at 40 to 80 N, a pad on the handle for 3-13 steps of 750 and never
-squeezing it (the table above has it at every set-out). ⚠ In the first
-steps the jaws' coupling (`JAWS_SOLREF`, 4 ms) lets the motor drive the
-first jaw alone, so it is ONE jaw's inertia that must hold the line: at
-1.0-2.0 kg a jaw the 120 N shut still ran past the line's speed
+one state its shut began in (set-out 0, on the dev box), the jaws stood 4-8
+cm apart 1.5 s later at 40 to 80 N, a pad on the handle for 3-13 steps of
+750 and never squeezing it (the table above has it at every set-out). ⚠ In
+the first steps the jaws' coupling (`JAWS_SOLREF`, 4 ms) lets the motor
+drive the first jaw alone, so it is ONE jaw's inertia that must hold the
+line: at 1.0-2.0 kg a jaw the 120 N shut still ran past the line's speed
 (1.2-2.3x), from 2.5 none did.
 
 **Why the inertia, and not a ramped shut.** A target ramped at a jaw speed
@@ -6487,17 +6488,18 @@ lets go of past 20 N. Flown on one pod beside the tree before it, each
 flight its own noise: the station's approach docked, unplugged and parked
 its plug 39 of 39 in both, and its seats 140 of 140 in both, every plug-in
 at its first push, no fall (`station_spike.py --approach --n 36`,
-`--seats`). The hands checks at set-outs 0-31 moved inside their own
-noise: the lid 26, the drawer 21, the door 24 to 25 and the cube 17,
-against 25-26, 21, 24 and 16-17 for the tree before on a second draw of
-its noise; the table, over eight draws a tree, 221 of 256 against 222,
-13 set-outs lost and 12 won (its falls, 12 against 6, each the carry's
-reach taking a deeper posture with the fork still in the air and driving
-it into the table, a posture any flight may reach). The served drawer,
-door and chest from the tour, 64 draws each, 60, 58 and 61 against 57, 56
-and 60; the table from the tour (not offered), 44 of 128 against 52, 24
-draws won and 32 lost, most of them its walk landing out of the lay's
-window before any grip. Not the chatter's: the squeeze's running mean
+`--seats`). The hands checks at set-outs 0-31 moved inside their own noise:
+the lid 26, the drawer 21, the door 24 to 25 and the cube 17, against
+25-26, 21, 24 and 16-17 for the tree before on a second draw of its noise;
+the table, over eight draws a tree, 221 of 256 against 222, 13 set-outs
+lost and 12 won (its falls, 12 against 6, Fisher's p 0.23; the two traced
+each the carry's reach taking a deeper posture with the fork still in the
+air and driving it into the table, a posture any flight may reach). The
+served drawer, door and chest from the tour, 64 draws each, 60, 58 and 61
+against 57, 56 and 60; the table from the tour (not offered), 44 of 128
+against 52, 24 draws won and 32 lost -- half its losses (16) its walk
+landing out of the lay's window before any grip, as 10 of its wins were the
+other tree's. Not the chatter's: the squeeze's running mean
 (`arms.SQUEEZE_S`) -- held, the drive's squeeze is steady under either
 inertia (sd 0.000 N) and what the gripper reports spreads 5.3 N, its
 current sense's stated 5.1 -- and the lever that could not turn at 120 N,
@@ -6505,16 +6507,16 @@ its pads' torsional friction (Hands.md).
 
 **The practice arms' grips on nothing (#560, PR #642).** The two DeepSeek
 arms' 70 tries flown again, each from its set-out, its noise and its
-source, on the tree before this fix -- whose table stands where the
-served one does since the arms flew (#643), and the tries came out alike,
-98 grips and 54 on nothing, where the arms had 100 and 56 -- and each grip
-landed again from the state it began in under the drive as it was and as
-fixed: 13 were the stall -- the fixed drive held where the old closed on
-nothing, every one the plate's wall at 100-120 N -- 41 were misses, no
-piece between the jaws under either, and 43 held under both. One, at 120 N, held under the old
-drive alone: its chattering jaws caught the fork by chance where the clean
-shut met nothing. So of their failed grips at 40 N and up, a quarter were
-the drive's and three quarters their own reaches'.
+source, on the tree before this fix -- whose table stands where the served
+one does since the arms flew (#643), and the tries came out alike, 98 grips
+and 54 on nothing, where the arms had 100 and 56 -- and each grip landed
+again from the state it began in under the drive as it was and as fixed: 13
+were the stall -- the fixed drive held where the old closed on nothing,
+every one the plate's wall at 100-120 N -- 41 were misses, no piece between
+the jaws under either, and 43 held under both. One, at 120 N, held under
+the old drive alone: its chattering jaws caught the fork by chance where
+the clean shut met nothing. So of their failed grips at 40 N and up, a
+quarter were the drive's and three quarters their own reaches'.
 
 **What it cannot say.** The inertia is stated, not measured: the real
 gripper's may be several times it, and its jaws then slower to start and

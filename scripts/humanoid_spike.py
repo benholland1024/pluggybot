@@ -312,8 +312,9 @@ def view_body() -> None:
 #: turn, N, and each jaw's inertia, kg: theirs before #628, then as built.
 JAW_SET_OUT, JAW_SQUEEZES = 0, (40.0, 80.0, 120.0)
 JAW_INERTIAS = ((0.2, "before #628"), (hp.GRIPPER.jaw_armature, "as built"))
-#: Each shut is shown this long, s; and the camera: on the fork from across
-#: the table, the jaws closing across its view (azimuth, elevation, distance).
+#: Each shut is shown this long, s; and the camera: on the fork from over the
+#: hand, on the robot's side, the jaws closing across its view (azimuth,
+#: elevation, distance).
 JAW_SHUT_S, JAW_CAM = 1.5, (90.0, -25.0, 0.45)
 
 
@@ -413,7 +414,13 @@ def shut_again(world, side: str, state, force: float, inertia: float, piece: str
 
 
 def _grips_at(k: int) -> list[dict]:
-  world, saved = table_grips_world(k)
+  """Set-out `k`'s grips taken apart; none where its flight raised (said),
+  as a check's flight that raises is a row of its own, never the batch's end."""
+  try:
+    world, saved = table_grips_world(k)
+  except Exception as e:
+    print(f"set-out {k}: its flight raised {type(e).__name__}: {e}", flush=True)
+    return []
   rows = [{"k": k, "piece": piece, "force": force, "inertia": inertia,
            **shut_again(world, side, state, force, inertia, piece)}
           for piece, (side, state) in saved.items()

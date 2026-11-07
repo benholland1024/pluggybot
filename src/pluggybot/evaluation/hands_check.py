@@ -267,13 +267,13 @@ PLACE = '''def place_cube():
 #: fork's jaws the other way round at 60 deg (as asked before, the yaw takes
 #: the grip that never carries), each reach aimed at its grip (#627: the reach
 #: plans where the robot stands), the plate gripped 1.5 cm inside its wall (at
-#: it, a pad brushed the fork
-#: over), the fork at 25 N (chosen before #628, when the drive's chatter
-#: batted it from 40); every precise move a pull (`go`: a carry takes only a posture its
-#: statue reaches); each piece set down by where its jaws left it, the card
-#: read again once it is up, the plate 1 cm to the right and the fork 0.5 cm
-#: nearer the robot against what the carry's turn leaves; an open hand lifted
-#: straight up, its jaws opened first.
+#: it, a pad brushed the fork over), the fork at 25 N (chosen before #628,
+#: when the drive's chatter batted it from 40); every precise move a pull
+#: (`go`: a carry takes only a posture its statue reaches); each piece set
+#: down by where its jaws left it, the card read again once it is up, the
+#: plate 1 cm to the right and the fork 0.5 cm nearer the robot against what
+#: the carry's turn leaves; an open hand lifted straight up, its jaws opened
+#: first.
 TABLE = '''def lay_place():
   budget(steps=190, seconds=290)
   spot(93)
