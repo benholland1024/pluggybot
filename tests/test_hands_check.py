@@ -14,7 +14,12 @@ stand on, each pinned without a flight (docs/Testing.md) -- the flights are
      straight on ahead of it;
   6. the tally reads a job's bar only where every set-out flew;
   7. the lid's grip, aimed short of the knob's middle, clears the lid up
-     its arc and still holds the whole knob.
+     its arc and still holds the whole knob;
+  8. our table's grips clear what they must (the cup's palm its lid, the
+     plate's open pads the fork, the fork squeezed under the stall); its
+     hand reaches past each grip and takes and leaves each piece by a pull
+     straight up, reading where it goes once it is up; and a cup reach that
+     loses the plate's tag goes home and tries again higher.
 """
 
 import ast
@@ -47,9 +52,12 @@ def test_every_checks_procedure_is_the_language_a_mind_is_given():
   for job, source in hc.JOBS.items():
     proc = hc.compiled(job)
     assert len(source) <= lang.MAX_SOURCE_CHARS, job
-    called = {n.func.id for n in ast.walk(ast.parse(source))
+    tree = ast.parse(source)
+    called = {n.func.id for n in ast.walk(tree)
               if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
-    assert called - {"budget", "read", "range", *lang.MATH} <= set(facts.verbs), job
+    # ...and its own defs, which the language calls as it does a verb (#560)
+    own = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+    assert called - {"budget", "read", "range", *lang.MATH} - own <= set(facts.verbs), job
     assert proc.verbs > 0
 
 
@@ -566,3 +574,218 @@ def test_the_lids_grip_clears_its_lid_up_the_arc_and_holds_the_whole_knob():
     fingers = -rot[:, 2]
     tip = (d0.geom_xpos[knob] - grip) @ fingers + ch.KNOB * np.abs(r.T @ fingers).sum()
     assert tip <= hp.GRIPPER.pad_half[2], tip
+
+
+# ---- 8. the table's reference: its grips and its moves (#560) ----------------------------
+
+
+def _open_hands() -> dict:
+  """Each hand's solid parts round its grip, its jaws open, as the robot's drawing compiles them
+  (`models/humanoid.xml`): its palm and its two pads, each a box -- its middle and its axes in
+  the grip's frame, its half sizes."""
+  from pluggybot.humanoid import model as hm
+  from pluggybot.humanoid import parts as hp
+  m = mujoco.MjModel.from_xml_path(hm.MODEL_XML)
+  d = mujoco.MjData(m)
+  for side in hm.SIDES:
+    for jaw in hm.JAWS:
+      d.qpos[m.jnt_qposadr[m.joint(f"{side}_{jaw}").id]] = hp.GRIPPER.stroke / 2
+  mujoco.mj_kinematics(m, d)
+  hands = {}
+  for side in hm.SIDES:
+    grip = m.site(f"{side}_grip").id
+    at, axes = d.site_xpos[grip], d.site_xmat[grip].reshape(3, 3)
+    hands[side] = [(axes.T @ (d.geom_xpos[g] - at), axes.T @ d.geom_xmat[g].reshape(3, 3),
+                    m.geom_size[g].copy())
+                   for g in (m.geom(n).id for n in (f"{side}_gripper",
+                                                    *(f"{side}_{jaw}_pad" for jaw in hm.JAWS)))]
+  return hands
+
+
+def _table_world():
+  """The cup and the fork as the dishware draws them, where the set-out's middle puts them
+  (the start's stance frame), and each open hand a mocap body, its origin its grip."""
+  from pluggybot.activity import dishware as dish
+  tags = _table_tags()
+  spec = mujoco.MjSpec.from_string("<mujoco/>")
+  dish.attach_cup(spec, tags[91][:2], 0.0, ct.TABLE_H, 0.25, 1.0, tags=False)
+  dish.attach_fork(spec, tags[92][:2], 0.0, ct.TABLE_H, 0.08, 1.0, tags=False)
+  for side, parts in _open_hands().items():
+    hand = spec.worldbody.add_body(name=f"{side}_hand", mocap=True)
+    for i, (at, axes, half) in enumerate(parts):
+      quat = np.zeros(4)
+      mujoco.mju_mat2Quat(quat, axes.ravel())
+      hand.add_geom(name=f"{side}_part{i}", type=mujoco.mjtGeom.mjGEOM_BOX, size=list(half),
+                    pos=list(at), quat=list(quat), contype=0, conaffinity=0)
+  m = spec.compile()
+  return m, mujoco.MjData(m)
+
+
+def _box_gap(m, d, g1, g2) -> float:
+  """How far apart two box geoms are, m, 0 where they meet: their nearest two points, a least
+  squares bounded to each box (MuJoCo's own distance read boxes 1.1 cm apart as touching, and
+  some 8 cm off)."""
+  from scipy.optimize import lsq_linear
+  edges = np.hstack([d.geom_xmat[g1].reshape(3, 3) * m.geom_size[g1],
+                     -d.geom_xmat[g2].reshape(3, 3) * m.geom_size[g2]])
+  t = d.geom_xpos[g2] - d.geom_xpos[g1]
+  x = lsq_linear(edges, t, bounds=(-1.0, 1.0), method="bvls").x
+  return float(np.linalg.norm(edges @ x - t))
+
+
+def _hand_gaps(m, d, side, grip, rot, piece: str) -> list:
+  """How far each part of the open hand at `grip`, turned `rot`, is from a piece, m -- its palm,
+  then its pads: the cup's cylinder by MuJoCo's own distance, exact against a box and less than
+  0 where the part cuts in; the fork's boxes by `_box_gap`."""
+  mocap = m.body_mocapid[m.body(f"{side}_hand").id]
+  d.mocap_pos[mocap] = grip
+  mujoco.mju_mat2Quat(d.mocap_quat[mocap], np.asarray(rot, dtype=float).ravel())
+  mujoco.mj_kinematics(m, d)
+  parts = [m.geom(f"{side}_part{i}").id for i in range(3)]
+  if piece == "cup":
+    return [mujoco.mj_geomDistance(m, d, g, m.geom("cup").id, 0.5, np.zeros(6)) for g in parts]
+  return [min(_box_gap(m, d, g, m.geom(f"fork_{p}").id) for p in ("handle", "head"))
+          for g in parts]
+
+
+def _table_tags() -> dict:
+  """Each tag where the table's set-out's middle puts it, the start's stance frame (the
+  soles `TABLE_GAP` out of the table's edge): the card's on its face, the plate's on its
+  floor, the cup's on its lid, the fork's on its handle (`counter.TABLE_SOURCES`)."""
+  from pluggybot.activity import dishware as dish
+  gap, h = ct.TABLE_GAP, ct.TABLE_H
+  at = {n: (x + gap, y) for n, ((x, y), _, _) in ct.TABLE_SOURCES.items()}
+  return {93: (ct.CARD_IN + gap - dish.CARD[1], 0.0, h + dish.CARD[2]),
+          90: (*at["plate"], h + dish.PLATE_FLOOR_T),
+          91: (*at["cup"], h + dish.CUP_H),
+          92: (*at["fork"], h + 2 * dish.HANDLE[2])}
+
+
+def _table_flown(hide=None):
+  """Our table procedure on a stub that does every move at once, as asked, and sees each tag
+  where the set-out's middle puts it -- but where `hide(tag, body)` says: each grip it shut
+  (the hand, where, turned how, at what squeeze), each verb as it began (its arguments and
+  where each hand was), and the run."""
+  from pluggybot.body import StubBody
+  from test_hands import _bare, _Life
+  tags = _table_tags()
+
+  class Seeing(StubBody):
+    def __init__(self, *a, **kw):
+      super().__init__(*a, **kw)
+      self.turns, self.shuts, self.reached = {}, [], {}
+
+    def spot(self, tag, at_height=None):
+      if int(tag) not in tags or (hide is not None and hide(int(tag), self)):
+        return None
+      x, y, z = tags[int(tag)]
+      return {"x": x, "y": y, "z": z, "normal": [0.0, 0.0, -1.0], "edge": [1.0, 0.0, 0.0],
+              "range": 0.5}
+
+    def reach_routine(self, side, pos, rot=None, **kw):
+      self.turns[side] = np.asarray(rot, dtype=float)
+      self.reached[side] = self.reached.get(side, 0) + 1
+      return (yield from super().reach_routine(side, pos, rot, **kw))
+
+    def grip_routine(self, side, closed, force=None):
+      if closed:
+        self.shuts.append((side, np.asarray(self.hand_at(side), dtype=float), self.turns[side],
+                           force))
+      return (yield from super().grip_routine(side, closed, force))
+  body = Seeing(*_bare())
+  life, log = _Life(body), []
+  life.verb_began = lambda count, line, verb, values: log.append(
+    (verb, dict(values), {s: np.asarray(body.hand_at(s), dtype=float) for s in ("left", "right")}))
+  # ...each arm's roll-out (`move`) left out: it turns a live stance, and a stub has no joint
+  source = "".join(line for line in hc.JOBS["table"].splitlines(keepends=True)
+                   if not line.strip().startswith("move("))
+  facts = st.hand_facts()
+  ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(source, facts), facts))
+  return body, ran, log
+
+
+def test_the_tables_grips_clear_what_they_must():
+  """⚠ EACH GRIP ITS OWN CLEARANCE (#560; SimNotes, "The table's reference on the waist"), the
+  set-out at its middle and the hand as its drawing compiles: aimed 3 cm short of the cup's
+  middle, no part of the open hand is in the cup -- at the middle its palm cuts into the lid,
+  and the cup tipped; the plate's wall gripped 1.5 cm in, the open pads stay 2 cm off the fork
+  waiting beside it -- at the wall they came within 5 mm and brushed the fork over; and the
+  fork squeezed under 40 N, where the gripper's drive, chattering against so light a handle,
+  stalled short of it."""
+  body, ran, _ = _table_flown()
+  assert ran["ok"], ran
+  (side_c, cup, rot_c, _), (side_p, plate, rot_p, _), (side_f, _, _, squeeze) = body.shuts[:3]
+  assert (side_c, side_p, side_f) == ("right", "left", "left")
+  tags = _table_tags()
+  m, d = _table_world()
+  assert min(_hand_gaps(m, d, side_c, cup, rot_c, "cup")) > 0.0
+  assert _hand_gaps(m, d, side_c, (*tags[91][:2], cup[2]), rot_c, "cup")[0] < 0.0  # its middle
+  assert min(_hand_gaps(m, d, side_p, plate, rot_p, "fork")[1:]) >= 0.015
+  wall = (plate[0], tags[90][1] + 0.081, plate[2])    # its wall's inner face, as before
+  assert min(_hand_gaps(m, d, side_p, wall, rot_p, "fork")[1:]) < 0.01
+  assert squeeze < 40.0
+
+
+def _moves(log, side, start):
+  """The hand's moves from `start` in the log: (index, verb, arguments)."""
+  return [(i, v, a) for i, (v, a, _) in enumerate(log)
+          if i >= start and a.get("hand") == side and v in ("reach", "move_hand", "pull",
+                                                            "withdraw")]
+
+
+def _straight(a, sign) -> bool:
+  """A pull straight up (`sign` 1) or down (-1)."""
+  return math.hypot(a["dx"], a["dy"]) < 1e-6 and a["dz"] * sign > 0
+
+
+def test_the_tables_hand_reaches_past_its_grip_and_takes_and_leaves_each_piece_by_a_pull():
+  """⚠ HOW OUR TABLE'S HAND MOVES (#560; SimNotes, "The table's reference on the waist"), each
+  a fix flown: the plate's and the fork's reaches are aimed 3 cm on along the wall or the
+  handle and the hand pulled back to the grip -- the live trunk stands 2-3 cm behind the statue
+  the reach plans on, and a reach to the grip itself left the arm at its stretch, short --
+  and the cup's 10 cm over it, its hand brought down straight onto it by pulls (the reach's
+  own way in tipped it); each piece is lifted straight up by a pull (a carry takes only a
+  posture its statue reaches), where it goes is read again once it is up (the stance turns
+  0.7-1.9 deg between a read and its set-down), and the hand leaves it straight up by a pull,
+  its jaws opened first (carried back as well, it took another posture and dragged the plate
+  by its wall; lifted as the jaws still opened, a pad rolled the fork over)."""
+  body, ran, log = _table_flown()
+  assert ran["ok"], ran
+  shuts = [i for i, (v, _, _) in enumerate(log) if v == "close_hand"]
+  assert [log[i][1]["hand"] for i in shuts] == ["right", "left", "left"]
+  for i, landmark in zip(shuts, (90, 93, 93)):
+    side = log[i][1]["hand"]
+    grip = log[i][2][side]
+    reach = max(j for j, v, _ in _moves(log, side, 0) if j < i and v == "reach")
+    aimed = log[reach + 1][2][side] - grip            # where the reach left the hand
+    way_in = [(v, a) for j, v, a in _moves(log, side, reach + 1) if j < i]
+    assert way_in and all(v == "pull" for v, _ in way_in), way_in
+    if side == "right":
+      assert aimed[2] >= 0.09 and abs(aimed[1]) < 1e-6, aimed
+      assert _straight(way_in[-1][1], -1), way_in[-1]
+    else:
+      assert aimed[0] >= 0.025 and abs(aimed[1]) < 1e-6 and abs(aimed[2]) < 1e-6, aimed
+    after = _moves(log, side, i + 1)
+    lift, v, a = after[0]
+    assert v == "pull" and _straight(a, 1), (v, a)
+    down = next(j for j, v_, a_ in after if v_ == "pull" and _straight(a_, -1))
+    assert any(v_ == "spot" and a_["tag"] == landmark for v_, a_, _ in log[lift + 1:down])
+    left = [(v_, a_) for v_, a_, _ in log[down + 1:down + 4]]
+    assert [v_ for v_, _ in left] == ["open_hand", "wait", "pull"], left
+    assert left[0][1]["hand"] == left[2][1]["hand"] == side and _straight(left[2][1], 1)
+
+
+def test_a_cup_reach_that_bows_out_of_the_plates_tags_view_goes_home_and_reaches_again_higher():
+  """⚠ THE CUP'S SECOND TRY (#560; SimNotes, "The table's reference on the waist"): where the
+  planner's pockets bowed the reach 0.55-0.8 rad, no tag was in view; with the plate's tag
+  unseen while the first reach is out, the hand goes home, the tag is read again, and the
+  hand reaches 1.5 cm higher -- and grips where the reads put it, as the first try would."""
+  body, ran, log = _table_flown(hide=lambda tag, b: tag == 90 and b.reached.get("right") == 1
+                                and "right" in b.hands)
+  assert ran["ok"], ran
+  first, again = [(i, a) for i, v, a in _moves(log, "right", 0) if v == "reach"][:2]
+  between = [(v, a.get("hand", a.get("tag"))) for v, a, _ in log[first[0] + 1:again[0]]]
+  assert between == [("spot", 90), ("withdraw", "right"), ("spot", 90)], between
+  assert again[1]["z"] - first[1]["z"] >= 0.01
+  seen, _, _ = _table_flown()
+  assert np.allclose(body.shuts[0][1], seen.shuts[0][1], atol=1e-9)

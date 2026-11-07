@@ -249,7 +249,7 @@ its 8 set-outs** (`evaluation/hands_check.py`, `BAR`, `SET_OUTS`).
 | drawer | `challenge/drawer.py`: 15 cm out, let go | a cabinet on the counter, its knob where a chest's is | pull straight out |
 | door | `challenge/door.py`: 50 deg open, let go | a cupboard hinged on its left, its lever's tip 0.40-0.44 ahead | press the lever, let go, look: a door already open is done; else grip it lightly and pull toward the body, then on the hand's way |
 | place | `challenge/place.py`: on the mat within 2.5 cm, flat on a face, set down, let go | a cube 0.40-0.46 ahead on a 6 cm board -- in sight, out of reach where the robot stands -- the mat 6-8 cm further | a step in and aside until the cube is 0.32 ahead and 0.18 to its left, what it read turned into the frame it then stands in; grip it from above-front; lift, carry, set down holding the line |
-| table (#560) | `challenge/table.py`: a plate, a fork and a cup each at its spot off a place card, set down, let go | the dishware beside a place on the restaurant's table, the robot at the place (`counter.table_set_out`) | the cup by the right hand where it stands, then a step aside a piece for the plate and the fork by the left; each arm rolled out and folded before the card and its piece are read; the card read again before each reach |
+| table (#560) | `challenge/table.py`: a plate, a fork and a cup each at its spot off a place card, set down, let go | the dishware beside a place on the restaurant's table, the robot at the place (`counter.table_set_out`) | one stance 0.14 m to the left for the whole place: the cup by the right hand from 10 cm over it, 3 cm short of its middle, where the plate's tag puts it; the plate (1.5 cm inside its wall) and the fork (at 25 N) by the left, the jaws the other way round at 60 deg, each reach aimed 3 cm on along it and the hand pulled to its grip; each piece set down by where its jaws left it, the card read again once it is lifted (SimNotes, "The table's reference on the waist") |
 
 The procedures and what each knows that a mind would have to find out are
 in `hands_check.py`; `scripts/hands_check.py --source JOB` prints one.
@@ -299,10 +299,18 @@ five jobs the lid alone meets the bar.
 | drawer | 5 (5) | 22 (20) | 2, 6, 7: out 8-10 cm, short of 15 |
 | door | 5 (5) | 25 (22) | 0, 3: opened 41-42 deg, a reach or a carry out of reach; 2: opened, a pad still on it after the call |
 | place | 4 (4) | 15 (15) | 0, 1, 6: set down 3 cm from the mat's middle; 7: closed on nothing |
-| table | 0 (0) | 0 (0), and 0 of 32 held out | each a piece 20-23 cm off its place: a reach stopped short or out of reach, or a grip closed on nothing |
+| table | 0 (0) | 0 (0), and 0 of 32 held out | each a piece 20-23 cm off its place: a reach stopped short or out of reach, or a grip closed on nothing -- the procedure before the waist's (`TABLE_STANCES`); its own, on the next pod, below |
 
 The served jobs from the tour, each draw its own noise: the drawer 8 of 8
 and 31 of 32, the door 5 (7) and 28 (30), the chest 8 (6) and 32 (25).
+
+**The table's reference on the waist** (#560; SimNotes, "The table's
+reference on the waist"): one stance for the whole place, flown on one pod (a
+Xeon E5-2697 v4, osmesa), each set-out its own noise -- **32 of 32 places at
+set-outs 0-31**, 8 of 8 at the check's 0-7, and 32 of 32 at #618's held out;
+on sets nobody tuned on, 46 of 48 at public 80-127 and 30 of 32 at the
+practice arms' held out; no flight falling. The procedure before it laid
+none of 0-31 there. The table is still not offered (Ben's call on #615).
 
 **Our procedures were written against the set-outs they are checked on.**
 The review redrew the drawer's, the door's and the cube's set-outs (each
@@ -445,16 +453,20 @@ there (§4's "A tag watched while the robot moves").
 - **A small thing low down, or a knob on a short stem.** The fingers are 8
   cm and the grip point their middle, so their tips meet the surface before
   a steep grip reaches a small object's middle (§5).
-- **Lay a place at a dining table.** At a 0.72 m table each hand reaches
-  its own side in bands a few centimetres deep and a few above the grasp,
-  one carry never crossing from one band to the next, and a walk carries
-  nothing: a place and its dishware take a stance a piece, and a sidestep
-  lands as far off as a stance's window is wide (SimNotes, "Setting a
-  table"; Challenges.md §12). The plate's carry opens with where its wall
-  is gripped; the fork's with no grip, path, hand or stance by every
-  measure but a relay, which loses the fork in flight; a waist yaw opens
-  both, its grip asked the other way round (SimNotes, "The table's
-  put-downs, measured before the waist is built").
+- **Lay a place without the waist.** At a 0.72 m table without the waist's
+  yaw each hand reaches its own side in bands a few centimetres deep, one
+  carry never crossing from one band to the next: a place takes a stance a
+  piece, and a sidestep lands as far off as a stance's window is wide
+  (SimNotes, "Setting a table"). On the waist's body, its grips asked the
+  other way round, our procedure lays it from one stance (SimNotes, "The
+  table's reference on the waist").
+- **Reach from the trunk it stands in.** A reach is planned on a statue
+  whose weight sits over the soles' middle; the live trunk stands 2-3 cm
+  further back (3 cm after a sidestep, with an arm out), so a posture the
+  plan takes at its 1.5 cm of slack leaves the live arm at its stretch, and a
+  carry re-plans only to postures the statue reaches, where a pull goes on to
+  another. The table's reference aims each reach on past its grip and pulls
+  the hand back (SimNotes, "The table's reference on the waist").
 - **A reading of how far what it holds has turned** (a lid's angle, which
   every arm of #493 said it lacked). Measured off the hinge's own sensor at
   chests 0-7, the robot's own readings carry it, each in one phase: its

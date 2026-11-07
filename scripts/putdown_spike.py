@@ -96,10 +96,10 @@ def _spot(name: str) -> tuple[float, float]:
 
 SOURCES = {n: _start(ct.TABLE_SOURCES[n][0]) for n in ct.TABLE_SOURCES}
 SPOT = {n: _spot(n) for n in tb.SPOTS}
-#: Where our procedure (`hands_check.TABLE`) grips each, m: the plate this far
-#: from its middle, at its wall; and the grip's height over the floor (the
-#: plate's wall and the fork's handle at 0.767 and 0.762, the cup at its
-#: lid's tag less 3 cm).
+#: Where our procedure before the waist's (`hands_check.TABLE_STANCES`) grips
+#: each, m: the plate this far from its middle, at its wall; and the grip's
+#: height over the floor (the plate's wall and the fork's handle at 0.767 and
+#: 0.762, the cup at its lid's tag less 3 cm).
 PLATE_GRIP_M = 0.081
 GRIP_Z = {n: ws.PIECES[n][1][2] for n in ws.PIECES}
 #: The hand our procedure takes each with.
@@ -404,7 +404,8 @@ def line(a, b, ra, rb, step: float = ws.CARRY_STEP_M) -> list[tuple[np.ndarray, 
 
 #: Our procedure's set-down: a `pull` down this far from 5 cm over the
 #: put-down, m -- its way's end 4 cm into the table, whatever the lift --
-#: held fast once the piece meets the table (`hands_check.TABLE`).
+#: held fast once the piece meets the table (`hands_check.TABLE_STANCES`, and
+#: `TABLE` since).
 SET_DOWN_M = 0.09
 
 

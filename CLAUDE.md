@@ -759,16 +759,18 @@ save a filmstrip PNG named after the script.
   served room's tables are boxes, and crouching to reach the robot's
   thighs met one at about 200 N. ⚠ A DROP IS A FREE PIECE'S FALL
   (`table.Watch`, and the cube's `place.Watch`, Ben's call): read at every
-  step, the cube's line failed cubes held fast in a swinging carry. ⚠ Our procedure lays 0 places of 8 (the bar
-  6): each piece at an edge of the hands' reach at 0.72 m -- so no offer,
-  and no row in `rewards.json`. ⚠ ITS LEFT GRIP CARRIES ONLY TAKEN HALF A
-  TURN ROUND (#560 (c2)): asked as written and never flipped it carries
-  neither piece from anywhere; today the reach flips it wherever it carries,
-  and a waist yaw takes it as asked -- ask it the other way round (then the
-  yaw lays the place from one stance). The plate gripped 30 deg
-  round its wall is laid 27 of 32 (`hands_check.SCENES`); the fork stays
-  short on today's body (SimNotes, "The table's put-downs, measured before
-  the waist is built"). Tags 90-93; 76-89 are left for the store's.
+  step, the cube's line failed cubes held fast in a swinging carry. ⚠ Our
+  procedure lays the place from ONE STANCE 0.14 m left on the waist's body
+  (SimNotes, "The table's reference on the waist"): 32 of 32 at set-outs
+  0-31 (the bar 24, no fall), 140 of 144 over four sets on one pod -- and
+  still no offer (the restaurant's tables first, Ben's call on #615), and no
+  row in `rewards.json`. ⚠ ITS LEFT GRIP CARRIES ONLY TAKEN HALF A TURN ROUND
+  (#560 (c2)): asked as the procedure before it asked, the yaw takes it as
+  asked and it carries nothing; the reference asks it the other way round,
+  tilted 60 deg. ⚠ THE LIVE TRUNK STANDS 2-3 CM BEHIND THE STATUE THE REACH
+  PLANS ON: each reach is aimed past its grip and the hand pulled to it, a
+  carry by `pull`, which goes on to another posture where a `move_hand`
+  would end out of reach. Tags 90-93; 76-89 are left for the store's.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -836,7 +838,10 @@ save a filmstrip PNG named after the script.
   TRY AND REACT): its own arm, never pooled, named in `FLATTERS`. ⚠ An answer may take `MAX_TOKENS` 128,000, told
   `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
   (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
-  again saying so. Practice chests may take more tries than held-out ones
+  again saying so. ⚠ A REPLY LOST TO EVERY RETRY LOSES ONLY ITSELF: what it
+  answered goes ahead of the next ask (`LOST_NOTE`; popped with it, a first
+  answer took the job, and #560's first table arms wrote for a job never
+  shown). Practice chests may take more tries than held-out ones
   (`--practice-attempts`; Ben, 2026-10-19: within a chest the whole
   conversation is the lesson). ⚠ A CARRIED HAND MAY TURN: `move_hand`
   takes `fx..jz` as `reach` does (the reference's first lesson, the hand
