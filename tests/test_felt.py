@@ -253,7 +253,7 @@ def _moving(sm):
 
 def test_a_body_moving_with_nothing_at_its_hand_reads_its_motion_not_a_push():
   """#631: taken as still, the torques that swing an arm out and sway the
-  trunk read as a push at the hand -- 12-14 N on a reach that touched
+  trunk read as a push at the hand -- 11-14 N on a reach that touched
   nothing, and a stop at 3 N stopped it by the robot's side. Staged moving
   with nothing at the hand, the whole body and the arm alone read nothing
   given the motion, and read it as a push without it; a push staged on the

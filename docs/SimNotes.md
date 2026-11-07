@@ -3041,14 +3041,8 @@ stop past 1.2 read 1.201, truly 1.1998, and 1.2006 a second on. A
 reading's lag is one command (10 ms, 0.6 mm at 6 cm/s) and the stop's
 another.
 
-**What a moving hand's force reads.** Carried 30 cm across in free air,
-the right hand's whole-body force read 11-17 N AHEAD in its first half
-second -- the balance takes the body as still, and the start of a move is
-not -- then under 6 N ahead, 4.4 N across and 2.7 N up for the rest; a
-carry up read 17 N ahead at its start, and a reach's approach in free air
-10.2 N up as it began. A stop condition on a force from a move's start
-reads that start: the prompt's example stops at 10 N across, over the 4.4
-its own carry read that way.
+**What a moving hand's force reads** is #631's, below: taken as still, as
+it was here, a carry's start read 11-17 N ahead.
 
 **The scene** (`scripts/hands_check.py --view until K`): our lid procedure
 with its lift stopped on the hand's height 10 cm up, held two seconds,
@@ -3065,8 +3059,81 @@ docs/figures/hands_until.png`; `--view until 1` in the viewer.)
 
 **What is true now:** a hand's move stops within a command of its reading
 crossing, and holds there; a reading a move changes is read at its part's
-rate and no oftener, from the move's first command; a hand's force read
-from a move's start reads that start.
+rate and no oftener, from the move's first command -- a hand's force from
+0.1 s into it (#631, below).
+
+## A moving hand's force, its motion taken in (issue #631)
+
+From 11-03 Luca opened the storeroom's drawer with `reach("right", 0.290,
+y, 0.85, ..., until="right.fx", above=3.0)`, reading each stop as its hand
+meeting the drawer's face. Every stop came 0.18 s in, its hand by its
+side, and it shut its jaws on air thirteen times. The whole body's balance
+(#547, "A hand's force off the whole body") took the body as still, so the
+torques that swing an arm out and sway the trunk read as a push.
+
+**Measured** (`scripts/humanoid_spike.py --moving`: 18 reaches, carries and
+pulls in free air, either hand, the humanoid alone on a bare floor, the
+reading taken as still and as served):
+
+| | taken as still | as served |
+|---|---|---|
+| a reach, after its first 0.1 s | 11-14 N (at 0.25 s, and where its way out bends, 1.46 s) | 6 or under; 9.9 to the floor in a deep bow |
+| a carry or a pull, its first 0.1 s | 13-16 N | 4-7; 11 a carry at 0.2 m/s |
+| a carry or a pull, after | 3-9 N | 3-8; 10.3 a carry that took another posture on its way |
+
+**The physics first.** Given the simulator's own speeds and accelerations
+(a probe's, never the robot's), the same balance read 1-4 N on Luca's
+reach where it read 16: the reading is the body's motion and nothing else.
+The arm's motion and the trunk's must be taken together; either alone read
+worse than neither, since the trunk answers the arm. The legs' motion
+moved one move's worst of 18 by 2 N, and is left out.
+
+**What the robot can know of it** (`arms.Motion`, `SelfModel._held(motion)`):
+the trunk's turn rate off its gyro and that rate's change over a control
+period; its acceleration off its accelerometer, the specific force turned
+by the tilt the model is posed with, gravity taken off; and each arm
+joint's and the waist's acceleration, its driver's speeds differenced over
+two physics steps (`MOTION_STEPS`), sampled where the reach steps
+(`JointSense.speeds`, which draws no noise). The balance becomes `M a + C +
+G = S^T tau + sum J^T w`, the arm's own reading too. The speeds' field
+bounds it: a count is 0.01-0.024 rad/s, a few rad/s^2 differenced over one
+step, and Luca's reach read 8 N over one step, 9.4 over a control period
+(5 ms late), 5.5 over two.
+
+**A move's first instant.** A carry starts from where the hand IS, its
+command a step off its hold, and the arm's answer to that step comes and
+goes within a few physics steps, faster than a difference of speeds can
+follow: a fast carry's first 20-30 ms read 11 N. So a stop on a force reads
+it from `axes.FORCE_FROM_S` (0.1 s) into its move; a hand pressing already
+as its move begins stops that much late. Smoothing the arm's set-points
+instead (a bounded acceleration) took the reach's swing to 4 N and left its
+way in and its hold at 6-7 while slowing the reach by half (4.0 s to 6.2);
+an IK solved to 0.5 mm in place of 2 moved nothing.
+
+**What the robot is told.** Its hands' force sensors and the stop
+condition's rule say that a hand moving through the air reads up to
+`axes.MOVING_N` (12 N) with nothing touched, and that a stop on a force
+reads it from 0.1 s into the move. The prompt's example stops at 15 N
+(`GUARD_EXAMPLE_N`), over that and under the 20 the standing body holds at
+a hand; at 10, its number before, a stop on Luca's reach's force stopped
+it 0.23 s in. History says what each stop condition read
+(`lifecycle.stops_said`), as practice's report does.
+
+**What it touched.** Everything that reads a hand's force reads it so: the
+reach's stop on a push (`BLOCKED_N`), the force move's loop (`Reach._pulled`),
+the ease before a shut (`EASE_N`), the station's push and unplug, whose
+routine was shaped round a swing that "read 35-49 N of force it was not
+feeling" (`humanoid/charge.py`). Every hands check, the served jobs from
+the tour, the station and the opener were flown again on one pod against
+the tree before: PODRESULTS.
+
+**What is true now:** a hand's force is read with the body's own motion as
+its senses have it; a stop on one reads it from 0.1 s into its move; moving
+through free air with nothing touched it reads up to 12 N, 6 or under on
+most moves (`tests/test_guard.py` flies Luca's reach to its goal stopped on
+its force at 12). ⚠ What is left is the estimate's: the drivers' replies at
+the physics rate, or a momentum observer, would take it nearer the 1-4 N
+the simulator's own motion reads.
 
 ## A tag watched while moving (issue #554, stage 2)
 

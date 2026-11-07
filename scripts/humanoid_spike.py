@@ -57,6 +57,11 @@ the parts and the bill.
   --feel        what the hand's readings -- its arm's own and the whole
                 body's -- make of 20 N staged at the grip, each way, standing
                 still and swaying (#547)
+  --moving      what a hand's force reads moving through free air, nothing
+                touched: 18 reaches, carries and pulls, either hand, flown on
+                a bare floor, the reading taken as still and as served (its
+                body's own motion in it), over each move's first
+                `axes.FORCE_FROM_S` and after (#631)
   --handover [N]  the walk's hand-over at a standstill, through the body's own
                 `step`, at N counter set-outs (8)
   --demo-table [N]  the demo's first N set-outs (12), each flown through Body
@@ -4378,6 +4383,135 @@ SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
           "fall": view_fall, "getup": view_getup}
 
 
+#: The `--moving` table's moves (#631): reaches either hand, high, low, far,
+#: turned at the waist and to the floor, and carries and pulls each way in
+#: free air -- a procedure's source each, flown on a bare floor.
+FREE_MOVES = {
+  "reach R 0.85 (Luca's)": 'reach("right", 0.29, -0.22, 0.85)',
+  "reach R 1.05": 'reach("right", 0.29, -0.22, 1.05)',
+  "reach R low 0.55": 'reach("right", 0.35, -0.22, 0.55)',
+  "reach L 1.00": 'reach("left", 0.30, 0.25, 1.00)',
+  "reach R far 0.40": 'reach("right", 0.40, -0.10, 0.95)',
+  "reach R fingers fwd": 'reach("right", 0.30, -0.20, 0.90, 1, 0, 0, 0, 0, 1)',
+  "reach R side (waist)": 'reach("right", 0.05, -0.55, 1.00)',
+  "reach R floor (bow)": 'reach("right", 0.35, -0.20, 0.15)',
+  "reach L low 0.55": 'reach("left", 0.35, 0.22, 0.55)',
+  "carry R across": 'reach("right", 0.30, -0.35, 1.20)\n    move_hand("right", 0.30, -0.05, 1.20)',
+  "carry R up": 'reach("right", 0.30, -0.25, 1.00)\n    move_hand("right", 0.30, -0.25, 1.30)',
+  "carry R ahead": 'reach("right", 0.25, -0.25, 1.00)\n    move_hand("right", 0.40, -0.25, 1.00)',
+  "carry R back, fast": 'reach("right", 0.40, -0.25, 1.00)\n    move_hand("right", 0.25, -0.25, 1.00, 0.2)',
+  "carry R down": 'reach("right", 0.30, -0.25, 1.20)\n    move_hand("right", 0.30, -0.25, 0.85)',
+  "carry L across": 'reach("left", 0.30, 0.35, 1.10)\n    move_hand("left", 0.30, 0.05, 1.10)',
+  "pull R up": 'reach("right", 0.30, -0.25, 1.00)\n    pull("right", 0, 0, 1, 10, 0.2)',
+  "pull R back": 'reach("right", 0.38, -0.25, 1.00)\n    pull("right", -1, 0, 0, 10, 0.15)',
+  "pull L sideways": 'reach("left", 0.30, 0.20, 1.00)\n    pull("left", 0, 1, 0, 10, 0.15)',
+}
+
+
+def moving_trial(name: str, still: bool) -> dict:
+  """One of `FREE_MOVES` flown on the humanoid alone on a bare floor: what its
+  hand's force read (`Body.hand_force`, stance frame) at every command of
+  each `reach`, `move_hand` and `pull`, from the verb's first -- taken as
+  still (`still`: `arms.Motion` reads nothing) or as served."""
+  from pluggybot.humanoid import arms as ha
+  read = ha.Motion.read
+  if still:
+    ha.Motion.read = lambda self, *a, **k: None
+  try:
+    return _moving_flown(name)
+  finally:
+    ha.Motion.read = read
+
+
+def _moving_flown(name: str) -> dict:
+  from pluggybot.body import body_for
+  from pluggybot.evaluation.practice import ProcedureLife
+  from pluggybot.procedure import axes, lang
+  from pluggybot.procedure import steps as st
+  source = FREE_MOVES[name]
+  side = "right" if '"right"' in source else "left"
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  now = {"verb": None}
+  run_verb = st.run_verb
+
+  def watched(life, spec, values, ctx, until=None):
+    now.update(verb=spec.name, n=ctx.get("n"), t0=float(data.time))
+    try:
+      return (yield from run_verb(life, spec, values, ctx, until=until))
+    finally:
+      now["verb"] = None
+  st.run_verb = watched
+  life = ProcedureLife(body)
+  rows = []
+
+  def hook():
+    r = body.reach
+    if (r.steps - 1) % r.every or now["verb"] not in ("reach", "move_hand", "pull"):
+      return
+    f = axes.in_stance(life, body.hand_force(side), point=False)
+    rows.append((now["n"], now["verb"], float(data.time) - now["t0"], *f))
+  body.step_hooks.append(hook)
+  facts = st.hand_facts()
+  ran = body.run(lang.run_procedure_routine(
+    life, lang.compile_procedure(f"def a():\n    {source}\n    wait(0.5)\n", facts), facts))
+  st.run_verb = run_verb
+  moves = []
+  for n in sorted({r[0] for r in rows}):
+    got = np.array([r[2:] for r in rows if r[0] == n])
+    first = got[:, 0] < axes.FORCE_FROM_S
+    moves.append({"verb": next(r[1] for r in rows if r[0] == n), "seconds": float(got[-1, 0]),
+                  "first": float(np.abs(got[first, 1:]).max()) if first.any() else None,
+                  "after": float(np.abs(got[~first, 1:]).max()) if (~first).any() else None,
+                  "atS": float(got[~first, 0][np.abs(got[~first, 1:]).max(axis=1).argmax()])
+                  if (~first).any() else None})
+  return {"name": name, "moves": moves,
+          "ended": [(s["verb"], s.get("why") or ("ok" if s["ok"] else "failed"))
+                    for s in ran["steps"]]}
+
+
+def _moving_trial(a):
+  return {**moving_trial(*a), "still": a[1]}
+
+
+def _n(v) -> str:
+  return "     -" if v is None else f"{v:6.1f}"
+
+
+def moving_table(jobs: int = 4) -> list[dict]:
+  """--moving: every move of `FREE_MOVES`, taken as still and as served, a
+  process a flight."""
+  import multiprocessing as mp
+  from pluggybot.procedure import axes
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    # a chunk is one task to its process: one flight a process, or a still
+    # flight's switch would ride into the served one beside it
+    rows = pool.map(_moving_trial, [(n, s) for n in FREE_MOVES for s in (True, False)], chunksize=1)
+  print(f"WHAT A HAND'S FORCE READS MOVING THROUGH FREE AIR, nothing touched, on a bare floor: "
+        f"the most on any axis, N, over each move's first {axes.FORCE_FROM_S:g} s (a stop on a "
+        f"force reads from there, `axes.FORCE_FROM_S`) and after, and when; taken as still "
+        f"(#631: as served before) and as served, its body's own motion in it "
+        f"(`axes.MOVING_N` {axes.MOVING_N:g})")
+  print(f"  {'move':24s} {'verb':9s} {'s':>5s} | {'still: first':>12s} {'after':>6s} {'at':>5s} "
+        f"| {'served: first':>13s} {'after':>6s} {'at':>5s}")
+  worst = 0.0
+  for name in FREE_MOVES:
+    still, served = (next(r for r in rows if r["name"] == name and r["still"] is s)
+                     for s in (True, False))
+    for a, b in zip(still["moves"], served["moves"]):
+      print(f"  {name:24s} {b['verb']:9s} {b['seconds']:5.2f} | {_n(a['first']):>12s} "
+            f"{_n(a['after'])} {a['atS'] or 0:5.2f} | {_n(b['first']):>13s} {_n(b['after'])} "
+            f"{b['atS'] or 0:5.2f}", flush=True)
+      worst = max(worst, b["after"] or 0.0)
+    if still["ended"] != served["ended"]:
+      print(f"  {'':24s} ended {still['ended']} still, {served['ended']} served")
+  print(f"  served, after {axes.FORCE_FROM_S:g} s: {worst:.1f} N at most")
+  return rows
+
+
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
   ap.add_argument("--view", choices=sorted(SCENES), default=None, metavar="SCENE",
@@ -4407,6 +4541,9 @@ def main(argv=None) -> None:
   ap.add_argument("--feel", action="store_true",
                   help="what the hand's readings, its arm's and the whole body's, make of 20 N "
                        "staged at the grip, each way, still and swaying (#547)")
+  ap.add_argument("--moving", action="store_true",
+                  help="what a hand's force reads moving through free air, nothing touched: 18 "
+                       "reaches, carries and pulls, taken as still and as served (#631)")
   ap.add_argument("--handover", nargs="?", type=int, const=8, default=None, metavar="N",
                   help="the walk's hand-over at a standstill, through `step`, at N set-outs (8)")
   ap.add_argument("--demo-table", nargs="?", type=int, const=12, default=None, metavar="N",
@@ -4483,6 +4620,8 @@ def main(argv=None) -> None:
     bar_table(args.policy, jobs=args.jobs, oracle=args.oracle)
   elif args.feel:
     feel_table(args.policy, jobs=args.jobs)
+  elif args.moving:
+    moving_table(jobs=args.jobs)
   elif args.handover is not None:
     handover_table(args.policy, args.handover, jobs=args.jobs)
   elif args.demo_table is not None:

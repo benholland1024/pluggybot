@@ -672,7 +672,7 @@ def test_a_reach_stopped_on_its_force_past_what_moving_reads_gets_where_it_was_s
   """#631, flown: Luca's reach (`reach("right", 0.290, y, 0.85, ...,
   until="right.fx", above=3.0)`, 11-03 on) stopped 0.18 s in, its hand by
   its side, every time: the balance took the body as still, and the arm
-  swinging out read 12-14 N at the hand -- at 10 N, the example's number
+  swinging out read 11-14 N at the hand -- at 10 N, the example's number
   then, it stopped 0.23 s in. Its body's motion in the reading and a force
   read from `FORCE_FROM_S` into the move, the same reach stopped on its
   force past what a moving hand is said to read (`MOVING_N`) gets where it
