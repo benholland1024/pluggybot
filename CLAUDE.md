@@ -838,7 +838,10 @@ save a filmstrip PNG named after the script.
   TRY AND REACT): its own arm, never pooled, named in `FLATTERS`. ⚠ An answer may take `MAX_TOKENS` 128,000, told
   `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
   (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
-  again saying so. Practice chests may take more tries than held-out ones
+  again saying so. ⚠ A REPLY LOST TO EVERY RETRY LOSES ONLY ITSELF: what it
+  answered goes ahead of the next ask (`LOST_NOTE`; popped with it, a first
+  answer took the job, and #560's first table arms wrote for a job never
+  shown). Practice chests may take more tries than held-out ones
   (`--practice-attempts`; Ben, 2026-10-19: within a chest the whole
   conversation is the lesson). ⚠ A CARRIED HAND MAY TURN: `move_hand`
   takes `fx..jz` as `reach` does (the reference's first lesson, the hand

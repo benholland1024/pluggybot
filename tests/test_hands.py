@@ -1194,6 +1194,29 @@ def test_an_answer_whose_stream_closed_is_asked_again_saying_so():
   assert "98,703 tokens" in asked
 
 
+def test_a_first_answer_lost_to_every_cut_leaves_the_job_ahead_of_the_next_ask():
+  """⚠ #560's table arms: the deployed mind's first answer ran out of its
+  128,000 tokens and both retries' streams closed at 20 minutes, and the job
+  went with them -- a lost reply took what it answered out of the
+  conversation -- so every later try was written for a job the mind was
+  never shown (tags 1 and 2, a plate slid to "the place"). A lost reply
+  loses only itself: what it answered goes ahead of the next ask, said once."""
+  mind = CutMind('def a():\n    wait(1)\n', 'def b():\n    wait(2)\n', cut=3)
+  job = ep.JOB.format(limit=30)
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), job, retry_wait_s=0.0)
+  assert pr.first().answer is None
+  assert [t.kind for t in pr.turns] == ["first", "retry", "retry"]
+  assert pr.after("TRY 1\n\nYou had no procedure that compiled.").procedure is not None
+  sent = mind.asked[-1]["messages"]
+  assert [m["role"] for m in sent] == ["user"]
+  text = sent[0]["content"]
+  assert text.index(job) < text.index(mp.LOST_NOTE) < text.index("TRY 1")
+  pr.after("TRY 2\n\nYour procedure ran.")
+  sent = mind.asked[-1]["messages"]
+  assert [m["role"] for m in sent] == ["user", "assistant", "user"]
+  assert json.dumps(sent).count("THE JOB") == 1 and sent[-1]["content"].startswith("TRY 2")
+
+
 def _pass(name, source, chest, attempt):
   return {"name": name, "source": source, "chest": chest, "attempt": attempt}
 

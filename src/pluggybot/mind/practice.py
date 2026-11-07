@@ -200,6 +200,12 @@ CUT_NOTE = ("(Your last reply ran out of its {tokens:,} tokens, your thinking "
 CLOSED_NOTE = ("(Your last reply was cut off after {minutes:.0f} minutes and {tokens:,} "
                "tokens, your thinking included, before you wrote your answer, and it "
                "was lost. Think less this time, and answer.)")
+#: ...and what was asked and never answered, however often it was asked
+#: again, goes ahead of the next ask with this after it (#560's table arms:
+#: lost, a first answer took the job out of the conversation, and every later
+#: try was written for a job the mind was never shown).
+LOST_NOTE = ("(Your reply to the above was lost each time it was asked, before you "
+             "wrote your answer.)")
 
 
 def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
@@ -366,6 +372,18 @@ def library_text(kept, thing: str = "box") -> str:
   return "\n".join(lines)
 
 
+def _joined(unanswered: list, content):
+  """`content` after what was asked before it and never answered, each with
+  `LOST_NOTE` after it: one user turn, its text or its parts."""
+  if not unanswered:
+    return content
+  pieces = [x for asked in unanswered for x in (asked, LOST_NOTE)] + [content]
+  if all(isinstance(x, str) for x in pieces):
+    return "\n\n".join(pieces)
+  return [part for x in pieces
+          for part in ([{"type": "text", "text": x}] if isinstance(x, str) else x)]
+
+
 def _noted(content, note: str):
   """`content` -- a user turn's text, or its parts -- with `note` first."""
   if not note:
@@ -417,13 +435,16 @@ class Practice:
     self.messages: list[dict] = []
     self.turns: list[Turn] = []
     self._last, self._notes = None, False
+    #: what was asked and never answered (`_settled`), sent ahead of the next ask
+    self._unanswered: list = []
 
   def _ask(self, kind: str, content, note: str = "", notes: bool = False) -> Turn:
     """One answer to `content`, sent with `note` first where there is one
     (the content is what a retry asks again): a procedure, or with `notes`
     what the robot carries to its next chest (`notes_schema`)."""
     self._last, self._notes = content, notes
-    self.messages.append({"role": "user", "content": _noted(content, note)})
+    self.messages.append({"role": "user",
+                          "content": _noted(_joined(self._unanswered, content), note)})
     turn = Turn(kind=kind)
     t0 = time.monotonic()
     try:
@@ -450,6 +471,7 @@ class Practice:
       self.messages.pop()
       self.turns.append(turn)
       return turn
+    self._unanswered = []
     self.messages.append({"role": "assistant", "content": json.dumps(turn.answer)})
     if not notes:
       try:
@@ -483,6 +505,10 @@ class Practice:
         time.sleep(self.retry_wait_s)
         turn = self._ask("retry", self._last, notes=self._notes)
       else:
+        if turn.answer is None and self._last is not None:
+          # ⚠ a lost reply loses only itself: popped with it, a first ask took
+          # the job out of the conversation (`LOST_NOTE`)
+          self._unanswered.append(self._last)
         return turn
 
   def first(self, picture: bytes | None = None, kept=(), carried: dict | None = None) -> Turn:
