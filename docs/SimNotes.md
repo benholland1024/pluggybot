@@ -37,7 +37,11 @@ driving. What was missing is honest inertia: `armature`, the rotor's inertia
 reflected through the gearbox, which grows with the gear ratio squared. On a
 rig, a constant-force `<motor>` with joint `damping = F/v` does the same. A
 humanoid joint carries its part's armature, the sheet's output-side inertia
-(Parts.md).
+(Parts.md). ⚠ A drive's line is a damper too: its back-EMF, K²/R. The
+gripper's jaws were heavy enough for their PD's stiffness and not for their
+line, and MuJoCo integrates a clipped drive's line explicitly, so a shut's
+force flipped between its clips every step ("The gripper's drive on its
+line").
 
 ### THE caster lesson: MuJoCo combines pair friction as the elementwise MAX
 At equal `priority` a contact's friction is the element-wise **maximum** of
@@ -6080,13 +6084,10 @@ stored values only (a hand's place, read, draws on the joints' noise):
   brushed it onto its side; 1.5 cm in, it stays 2 cm off, and the jaws, which
   close on their middle, slide the plate over until its wall sits between
   them (its middle then 8.4 cm from the grip, measured).
-- *The fork is squeezed at 25 N.* The gripper's drive chatters -- its force
-  flips between its two clips every 2 ms step, in free air too -- and against
-  a handle 8 mm off its middle the chatter stalled the jaws 2.1 cm apart, the
-  pad bouncing off so light a fork, from 40 N up; from 10 to 35 N they shut
-  on it (each squeeze replayed from one flight's saved state). It is the
-  gripper's model (`parts.DEX1_1.dcmotor`), whatever drives it; the cause is
-  not taken apart. A grip that closes on nothing tries once more, lighter.
+- *The fork is squeezed at 25 N*, chosen while the gripper's drive
+  chattered and batted so light a handle from 40 N up; since #628 every
+  squeeze from 10 to 120 N shuts on it ("The gripper's drive on its line").
+  A grip that closes on nothing tries once more, lighter.
 - *Each piece is set down by where its jaws left it, the card read again
   once it is lifted.* The jaws centre what they hold, so the cup and the fork
   sit on the grip's line (to 1 mm) and the plate's middle 8.4 cm from it,
@@ -6412,6 +6413,92 @@ What would pass it, untried: a lay that finds its pieces from
 where it stands (looking for the cup where it is not in view, its fork's
 carry planned with its grip), or a `step` whose turn stops on the stance
 rather than the pelvis, so a walk can square itself to a degree.
+
+## The gripper's drive on its line (issue #628)
+
+**What is true now.** Each of the Dex1-1's jaws carries 3.6 kg of reflected
+inertia (`parts.Gripper.jaw_armature`), the least that holds its drive's
+line on the 2 ms step: a jaw's mechanical time constant on the line -- its
+inertia over the line's back-EMF, K²/R = 1778 N·s/m -- is 2.05 ms, a step
+and a little more. The drive keeps to its line. In free air every squeeze
+from 5 to 120 N shuts in 0.33-0.38 s, the line's own speed at the 43.2 V
+bus, never faster, and its force never flips between its clips; a light
+handle lying 8 mm off the jaws' middle is shut on at 40-120 N as under 40
+(`tests/test_humanoid.py`). From the state each of our table reference's
+grips began in, at set-outs 0-31, every squeeze from 10 to 120 N closes on
+its piece -- the cup, the plate's wall, the fork's handle (TABLE_GRIPS).
+`humanoid_spike.py --view jaws` shows the fork at set-out 0 shut on again
+and again from one moment, at 40, 80 and 120 N, its jaws as they were and
+as built.
+
+**What it was.** At 0.2 kg a jaw -- stated "so the 2 ms step stays stable
+at the stiffness a squeeze commands", against the PD and never the line --
+the time constant was 0.13 ms. MuJoCo 3.10's `implicitfast` takes a
+`dcmotor`'s velocity term into its implicit step only while the drive is
+unclipped (`mjd_actuator_vel`): at its force clip the term is skipped, and
+at its voltage clip it keeps the controller's own term, netting -300 N·s/m
+where the line's is -1778. A shut -- the target stepped from open to shut
+-- travels at both clips the whole way, so the line was integrated
+explicitly and overshot within every step: the force flipped between +clip
+and -clip, in free air too, and the jaws' speed swung between two values
+whose mean nothing set (a cycle exists for a whole band of speeds). They
+ran at up to 8.2x the line's top speed, shutting in 0.13 s at 120 N where
+the motor needs 0.33, and wandered. Against the fork at the table, from the
+one state its shut began in, the jaws stood 4-8 cm apart 1.5 s later at 40
+to 80 N, the handle batted 3-13 times and never squeezed; the cup and the
+plate's wall failed so too, from 50-60 N. Lower squeezes swung less and
+mostly shut. ⚠ In the first steps the jaws' coupling (`JAWS_SOLREF`, 4 ms)
+lets the motor drive the first jaw alone, so it is ONE jaw's inertia that
+must hold the line: at 1.0-2.0 kg a jaw the 120 N shut still ran past the
+line's speed (1.2-2.3x), from 2.5 none did.
+
+**Why the inertia, and not a ramped shut.** A target ramped at a jaw speed
+keeps the drive off its clips while it travels, and the chatter off that
+path -- and leaves the line explicit, and unstable, wherever the drive is
+clipped with the jaws free to move (a grip lost under its squeeze, a jaw
+pushed open). The line is the part's, and so is its inertia: no motor
+spins its rotor up in 0.13 ms. The rotor behind the Dex1-1's 1:25
+reduction is unpublished, and any rotor its size reflects more through
+1:25 and a 7 mm pinion; 3.6 kg is the least that holds.
+
+**What it costs, and what it does not.** A heavier jaw arrives at the same
+speed with more momentum -- at a light squeeze, fifteen times the light
+jaw's energy -- and the station's unplug squeezes a seated plug its catch
+lets go of past 20 N. Flown on one pod beside the tree before it, each
+flight its own noise: the station's approach docked, unplugged and parked
+its plug 39 of 39 in both, and its seats 140 of 140 in both, every plug-in
+at its first push, no fall (STATION). The hands checks at set-outs 0-31
+(HANDS_CHECKS). Not the chatter's: the squeeze's running mean
+(`arms.SQUEEZE_S`) -- held, the drive's squeeze is steady under either
+inertia (sd 0.000 N) and what the gripper reports spreads 5.3 N, its
+current sense's stated 5.1 -- and the lever that could not turn at 120 N,
+its pads' torsional friction (Hands.md).
+
+**The practice arms' grips on nothing (#560, PR #642).** The two DeepSeek
+arms' 70 tries flown again, each from its set-out, its noise and its
+source, on the tree before this fix (it moved the table's set-out under
+the served table since, #643; the tries came out alike, 98 grips and 54 on
+nothing, where the arms had 100 and 56), and each grip landed again from
+the state it began in under the drive as it was and as fixed: 13 were the
+stall -- the fixed drive held where the old closed on nothing, every one the
+plate's wall at 100-120 N -- 41 were misses, no piece between the jaws
+under either, and 43 held under both. One, at 120 N, held under the old
+drive alone: its chattering jaws caught the fork by chance where the clean
+shut met nothing. So of their failed grips at 40 N and up, a quarter were
+the drive's and three quarters their own reaches'.
+
+**What it cannot say.** The inertia is stated, not measured: the real
+gripper's may be several times it, and its jaws then slower to start and
+harder to stop -- the procedures' grips were never flown so. Every count
+is one pod's CPU (an AMD EPYC 7702, osmesa).
+
+![The fork at the table's set-out 0, from the moment our reference's left
+hand shuts on it, shut on again at 40, 80 and 120 N (rows), the jaws as they
+were before #628 (left) and as built (right): before, the force flipped
+between its clips 108-749 times in 1.5 s and at 80 N batted the fork askew
+and stood 39 mm apart; built, it flipped none and shut on the fork every
+time (`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip jaws`;
+`--view jaws` watches it)](figures/humanoid_jaws.png)
 
 ## Debugging workflow that worked
 
