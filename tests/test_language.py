@@ -662,6 +662,37 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   assert "  find(" not in ov.hands_procedure_rule(()), "no places, no find"
 
 
+def test_a_tag_is_named_by_its_number_in_each_verb_that_takes_one():
+  """#640: all 11 first answers of #560's table probe wrote `spot("93")`
+  -- a name may be in quotes, and nothing said a tag is none. Every verb
+  that takes a tag says so in its own text, by a tag no world carries, and
+  the robot reads it there: the practice's `spot` and `watch`, the served
+  rule's `find` too."""
+  from pluggybot.mind import practice as mp
+  from pluggybot.perception import tags
+  table = {**st.VERBS, **st.HANDS_VERBS}
+  takers = sorted(n for n, v in table.items() if "tag" in v.args)
+  assert takers == ["find", "spot", "watch"]
+  for n in takers:
+    assert table[n].args["tag"].kind == "float", n
+    assert f"A tag is named by its number, not in quotes: `{n}({st.TAG_EXAMPLE}" in table[n].doc, n
+  carried = set()
+  for name, ids in vars(tags).items():
+    if name.endswith("TAG_IDS"):
+      carried |= {i for pair in ids.values() for i in pair} if isinstance(ids, dict) else set(ids)
+  assert len(carried) > 30 and st.TAG_EXAMPLE not in carried
+  body = dict(mp.system_sections(st.hand_facts()))["your body"]
+  rule = ov.hands_procedure_rule(HOME.places)
+  for verb, text in (("spot", body), ("watch", body), ("spot", rule), ("watch", rule),
+                     ("find", rule)):
+    line = next(line for line in text.splitlines() if line.startswith(f"  {verb}("))
+    assert f"`{verb}({st.TAG_EXAMPLE}" in line, verb
+  # ...and it is the language's own rule: the number compiles, in quotes it does not
+  compile_ok(f"def a():\n    spot({st.TAG_EXAMPLE})\n")
+  assert refusals(f'def a():\n    spot("{st.TAG_EXAMPLE}")\n') == [
+    "line 2, spot: tag takes a number, not a name in quotes"]
+
+
 # ---- the lifecycle: define, run by name ------------------------------------------
 
 

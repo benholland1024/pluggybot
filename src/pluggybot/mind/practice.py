@@ -65,7 +65,7 @@ refused, with the line at fault, if it uses anything else. Its source may
 be at most %(cap)s characters.
 
   def wave():                         # one def, no arguments, a lowercase name
-      budget(steps=40, seconds=60)    # optional, first; both capped
+      budget(steps=40, seconds=60)    # optional, first; steps at most %(steps)d, seconds at most %(seconds)s
       n = 0
       reach("right", 0.25, -0.30, 1.30)
       for i in range(3):              # a literal count
@@ -76,8 +76,10 @@ be at most %(cap)s characters.
           withdraw("right")
 
 Statements: a verb call, `name = expr`, `name += expr`, `if/elif/else`,
-`for name in range(N)` (N at most 100), `while` (stopped at 100 rounds),
-`pass`, `return` (alone). Expressions: numbers, your variables,
+`for name in range(N)` (N at most %(rounds)d), `while` (stopped at %(rounds)d rounds),
+`pass`, `return` (alone), and `budget(...)` as a def's first: the most verbs
+the run calls (`steps`) and the most seconds it runs (`seconds`),
+%(default_steps)d and %(default_s)s without one. Expressions: numbers, your variables,
 `read("sensor")`, + - * /, comparisons, `and`/`or`/`not`. Nothing else: no
 other calls, no strings but a verb's or a read's argument, no imports, no
 trigonometry. A procedure runs until it ends, a verb fails, its budget
@@ -92,10 +94,12 @@ MATH_TEXT = """no imports -- but
 `sin(a)`, `cos(a)` (a in radians), `atan2(y, x)` and `sqrt(v)` may be used
 in an expression."""
 #: ...where a source may hold defs that call each other (`WorldFacts.calls`,
-#: #560), what replaces the one def's words, and the calls: generic, its
-#: example nothing a job does.
+#: #560), what replaces the one def's words -- keeping "no arguments": the
+#: one place a writer copies from, and without it 5 of #560's 11 first
+#: table answers gave the first def some (#640) -- and the calls: generic,
+#: its example nothing a job does.
 ONE_DEF = "# one def, no arguments, a lowercase name"
-FIRST_DEF = "# the def that runs, a lowercase name"
+FIRST_DEF = "# the def that runs: no arguments, a lowercase name"
 NO_CALLS = """no
 other calls, no strings but a verb's or a read's argument,"""
 SOME_CALLS = """no
@@ -234,7 +238,10 @@ def language_text(facts: WorldFacts) -> str:
   `if`'s test, and a hand's move that stops on a reading."""
   from pluggybot.procedure import axes
   cap = f"{lang.MAX_SOURCE_CHARS:,}"
-  text = LANGUAGE % {"cap": cap, "statements": f"{lang.MAX_STATEMENTS:,}"}
+  text = LANGUAGE % {"cap": cap, "statements": f"{lang.MAX_STATEMENTS:,}",
+                     "steps": lang.MAX_STEPS, "seconds": f"{lang.MAX_BUDGET_S:.0f}",
+                     "rounds": lang.MAX_ITER, "default_steps": lang.DEFAULT_STEPS,
+                     "default_s": f"{lang.DEFAULT_BUDGET_S:.0f}"}
   if facts.math:
     text = text.replace(NO_TRIG, MATH_TEXT)
   if facts.calls:
