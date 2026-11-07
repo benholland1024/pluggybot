@@ -18,7 +18,7 @@ challenge is finished by saying so"):
   and why**: each line's first reason, in the order the lines first read
   false, as many as fit inside History's cap, the rest counted. Its count
   is every call the run made (`ran the procedure chest_band2 to its end (82
-  steps; 80 tests read false -- line 6, measure: no flat top seen round
+  steps; 80 tests read false -- line 17, measure: no flat top seen round
   (0.95, 1.35) from where you stand)`, where it read `to its end (2
   steps)`).
 - **The run's `program` verdict is its own end**: a run that reached its
@@ -37,9 +37,10 @@ challenge is finished by saying so"):
 - The prompt did not move. Nothing in the schema, the menu, the reward
   table, the arm, the body or the house moved.
 
-**Why.** #629, read on `0342b56` at the 11-07 triage. Both robots use a
-verb as an `if`'s test in nearly every procedure, and a test's reason went
-to the log alone. Rowan's `chest_band2` made 82 calls: a walk, a turn, and
+**Why.** #629, from the 11-07 triage, of the robots' runs on `9530f51`
+before the pause and on `0342b56` after it. Both robots use a verb as an
+`if`'s test in nearly every procedure, and a test's reason went to the log
+alone. Rowan's `chest_band2` (11-03, `9530f51`) made 82 calls: a walk, a turn, and
 80 measures that read false, their points 45-68 deg left of where its depth
 camera looks. History said "(2 steps)" and "stopped (error)", and Rowan
 concluded that measures cost almost no steps and that sensing near the
@@ -51,8 +52,8 @@ grade, come at a `done` 37 s after its take, for another job's, and read
 **What the period is for.**
 - **Does the misreading stop?** Tickets, notes, pins and `tell`s that
   blame step budgets, sensing, a close or a take for what a test that read
-  false said. On `0342b56` there were four: tk_0049, tk_0050, tk_0051 and
-  tk_0055.
+  false said. Before it there were four, filed 11-03 on `9530f51` and
+  `314a5f9`: tk_0049, tk_0050, tk_0051 and tk_0055.
 - **Do the robots act on a reason?** A procedure defined after a run whose
   tests read false that changes what read false (a `measure` turned into
   the camera's view, a `reach` from nearer), read off the `procedure`

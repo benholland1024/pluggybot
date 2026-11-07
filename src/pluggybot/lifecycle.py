@@ -4009,8 +4009,8 @@ class HubLifecycle:
     self._grade_pending = task.id
     self._say(f"DONE {task.id}: graded once the queue is empty -- "
               f"{task.description}")
-    # ...and History says it (#629): said to the log alone, a grade that
-    # came at once read as another job's
+    # ...and History says it (#629): said to the log alone, a grade that came
+    # 37 s after its job's take read as another job's
     self._remember(f"said done on {task.id} ({task.kind}): graded once everything "
                    "queued has run")
 

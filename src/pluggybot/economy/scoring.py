@@ -394,8 +394,8 @@ def eval_program(m: dict) -> tuple[bool, dict, str]:
     return False, metrics, (f"{metrics['program']}: did not finish -- stopped "
                             f"({metrics['stopped']}) after {completed} step"
                             f"{'' if completed == 1 else 's'}{tests}")
-  # ...and a run its runner says did not reach its end never passes on its
-  # count (a fault in a procedure of no verb at all read "0/0 steps")
+  # ...and the run's end decides both ways: one its runner says never
+  # reached it fails, whatever its count
   if completed < total or m.get("ok") is False:
     where = (f"step {metrics['failedAt'] + 1} failed"
              if metrics["failedAt"] is not None
