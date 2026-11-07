@@ -194,7 +194,7 @@ EVERY_JOB_S = {"table": 10.0}
 #: Where a strip's camera stands round the prop, deg off its facing: beside
 #: it, between the prop and the robot -- the table's from across it, where
 #: the robot does not stand between the camera and the place.
-AZIMUTH = {"table": 20.0}
+AZIMUTH = {"lid": 115.0, "drawer": 115.0, "door": 115.0, "place": 115.0, "table": 20.0}
 
 
 def strip(job: str, k: int, out: str = "hands_check.png", noise: str | None = None) -> None:
@@ -213,7 +213,7 @@ def strip(job: str, k: int, out: str = "hands_check.png", noise: str | None = No
     cam = mujoco.MjvCamera()
     cam.lookat[:] = [0.6 * x + 0.4 * sx, 0.6 * y + 0.4 * sy, ct.COUNTER_H + 0.15]
     cam.distance = BACK[_prop(job)]
-    cam.azimuth, cam.elevation = math.degrees(yaw) + AZIMUTH.get(_prop(job), 115.0), -25.0
+    cam.azimuth, cam.elevation = math.degrees(yaw) + AZIMUTH[_prop(job)], -25.0
     light = (m.vis.headlight.ambient.copy(), m.vis.headlight.diffuse.copy())
     m.vis.headlight.ambient[:], m.vis.headlight.diffuse[:] = 0.35, 0.55
     r.update_scene(d, cam)

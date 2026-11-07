@@ -204,8 +204,8 @@ CLOSED_NOTE = ("(Your last reply was cut off after {minutes:.0f} minutes and {to
 #: again, goes ahead of the next ask with this after it (#560's table arms:
 #: lost, a first answer took the job out of the conversation, and every later
 #: try was written for a job the mind was never shown).
-LOST_NOTE = ("(Your reply to the above was lost each time it was asked, before you "
-             "wrote your answer.)")
+LOST_NOTE = ("(Your reply to the above was lost each time it was asked: none came back "
+             "as an answer.)")
 
 
 def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
@@ -505,9 +505,10 @@ class Practice:
         time.sleep(self.retry_wait_s)
         turn = self._ask("retry", self._last, notes=self._notes)
       else:
-        if turn.answer is None and self._last is not None:
+        if turn.answer is None and self._last is not None and not self._notes:
           # ⚠ a lost reply loses only itself: popped with it, a first ask took
-          # the job out of the conversation (`LOST_NOTE`)
+          # the job out of the conversation (`LOST_NOTE`); a chest's notes are
+          # its last ask, and nothing follows them
           self._unanswered.append(self._last)
         return turn
 

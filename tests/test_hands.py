@@ -1215,6 +1215,9 @@ def test_a_first_answer_lost_to_every_cut_leaves_the_job_ahead_of_the_next_ask()
   sent = mind.asked[-1]["messages"]
   assert [m["role"] for m in sent] == ["user", "assistant", "user"]
   assert json.dumps(sent).count("THE JOB") == 1 and sent[-1]["content"].startswith("TRY 2")
+  # ...and a chest's notes, its last ask, are never held: nothing follows them
+  mind.cut = 3
+  assert pr.carry(None)[1].answer is None and pr._unanswered == []
 
 
 def _pass(name, source, chest, attempt):
