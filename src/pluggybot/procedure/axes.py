@@ -68,19 +68,17 @@ class Sensor:
 #: they are read by.
 HAND_EVERY_S = 0.01
 #: A HAND'S FORCE AS A MOVE BEGINS READS THE MOVE (#631): a stop condition on
-#: one reads it from this far into the move, s. Its motion taken into the
-#: reading (`humanoid.arms.Motion`), a carry's or a pull's first commands
-#: still read up to 11 N for 20-30 ms in free air (a carry at 0.2 m/s; 4-7
-#: the rest) -- a carry starts from where the hand IS, a step off its hold.
+#: one reads it from this far into the move, s. A carry or a pull is read as
+#: still (`humanoid.reach.HELD_PHASES`), and its first commands read 13-16 N
+#: in free air -- it starts from where the hand IS, a step off its hold --
+#: and 9 or under from 0.1 s on.
 FORCE_FROM_S = 0.1
 #: ...and after that a hand moving through free air reads up to this, N, on
 #: any one axis: flown on a bare floor (`humanoid_spike.py --moving`), 18
-#: reaches, carries and pulls, either hand, read 10.3 at most (a carry that
-#: took another posture on its way; 9.9 a reach to the floor in a deep bow,
-#: 8.1 a carry down) and 6 or under in the rest. Taken as still, the same
-#: moves read 11-14 N as a reach swung out and 13-16 as a carry or a pull
-#: began, and a stop at 3 N stopped a reach by the robot's side (Luca's, from
-#: 11-03 on).
+#: reaches, carries and pulls, either hand, read 9.9 at most (a reach to the
+#: floor in a deep bow; a carry 8.9) and 6 or under on every other reach.
+#: Taken as still, the same reaches read 11-14 N as they swung out, and a
+#: stop at 3 N stopped one by the robot's side (Luca's, from 11-03 on).
 MOVING_N = 12.0
 
 
