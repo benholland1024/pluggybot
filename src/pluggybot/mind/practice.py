@@ -147,15 +147,18 @@ there -- at once, if it already does -- and the verb is ok; after it,
 `reach.stopped`, `move_hand.stopped` or `pull.stopped` reads 1, and 0
 after a move that ended otherwise. A move reads its sensor as often as
 your body reads it, and no oftener: a hand's place, force and grip, and
-the time, %(rate)d times a second%(watched)s. What a verb last reported (`spot.*`,
-`pull.*` and the like) no move changes, so no move stops on it. A hand
-carried to your left that stops where it pushes on something with %(n)g N:
+the time, %(rate)d times a second%(watched)s. A hand's force it reads from
+%(from)g s into the move: a move's start reads the move itself, and a hand
+moving through the air reads up to %(moving)g N with nothing touched. What a
+verb last reported (`spot.*`, `pull.*` and the like) no move changes, so no
+move stops on it. A hand carried to your left that stops where it pushes on
+something with %(n)g N:
     move_hand("right", 0.30, -0.05, 1.20, until="right.fy", above=%(n)g)"""
-#: ...the force its example stops on, N: over what the hand carried there in
-#: free air reads that way off the whole body, 4.4 N at its hardest (#554,
-#: flown from (0.30, -0.35, 1.20); its first half second read 11-17 N
-#: AHEAD, the balance taking the body as still).
-GUARD_EXAMPLE_N = 10.0
+#: ...the force its example stops on, N: over what a hand moving through
+#: free air reads (`axes.MOVING_N`, #631) -- the hand carried there read 4.4
+#: N that way at its hardest (#554, flown from (0.30, -0.35, 1.20)) -- and
+#: under what the standing body holds at a hand (`steps.PULL_MOST_N`).
+GUARD_EXAMPLE_N = 15.0
 #: ...and, where it has `watch` (#554's stage 2), that a watch's readings
 #: are fresh at its camera's rate.
 WATCHED = "; what `watch` reads, %(hz)g times a second"
@@ -243,6 +246,7 @@ def language_text(facts: WorldFacts) -> str:
     text += VERB_TESTS + (CALL_TESTS if facts.calls else "")
   if facts.guarded:
     text += GUARD % {"rate": round(1.0 / axes.HAND_EVERY_S), "n": GUARD_EXAMPLE_N,
+                     "from": axes.FORCE_FROM_S, "moving": axes.MOVING_N,
                      "watched": (WATCHED % {"hz": WATCH_HZ}
                                  if "watch" in (facts.verbs or ()) else "")}
   return text

@@ -524,17 +524,36 @@ def tests_read_false(steps: list, room: int) -> str:
   first). Said to the log alone, a robot read 80 measures that each said
   why as a run of "2 steps" that ended "stopped (error)"."""
   read = [s for s in steps if s.get("tested") and not s.get("ok")]
-  head = f"{len(read)} test{'' if len(read) == 1 else 's'} read false"
-  if not read or len(head) > room:
+  return _by_line(f"{len(read)} test{'' if len(read) == 1 else 's'} read false", read,
+                  lambda s: s.get("reason") or "it did not do what it said", room)
+
+
+def stops_said(steps: list, room: int) -> str:
+  """What a run's stop conditions read, as its History line says them
+  (#631): each line's first, where it stopped its move -- the reading, its
+  number and how far into the move -- or that it never had a reading, as
+  `tests_read_false` says its tests. Told only `reach.stopped` 1, a robot
+  read a reach its force stopped 0.18 s in, by its side, as its hand
+  meeting a drawer's face, and shut its jaws on air thirteen times."""
+  said = [s for s in steps if s.get("until") and (s.get("why") == "until" or "never" in s["until"])]
+  return _by_line(f"{len(said)} stop condition{'' if len(said) == 1 else 's'} said", said,
+                  lambda s: s["until"], room)
+
+
+def _by_line(head: str, steps: list, what, room: int) -> str:
+  """`head`, then what each line of `steps` first said (`what`), in the
+  order its line first said it, as many as fit in `room` characters; ""
+  where there are none, or where not even `head` fits."""
+  if not steps or len(head) > room:
     return ""
   lines: dict[tuple, list] = {}
-  for s in read:
+  for s in steps:
     lines.setdefault((s.get("line"), s.get("entry"), s.get("in"), s.get("verb")), []).append(s)
   said: list[str] = []
   for k, group in enumerate(lines.values()):
     item = (step_where(group[0])
             + (f" ({len(group)} times)" if len(group) > 1 and len(lines) > 1 else "")
-            + f": {group[0].get('reason') or 'it did not do what it said'}")
+            + f": {what(group[0])}")
     left = len(lines) - k - 1
     if len(f"{head} -- {'; '.join(said + [item])}" + (f" (+{left} more)" if left else "")) > room:
       break
@@ -596,9 +615,12 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
     else:
       close = ""
   if close:
-    # ...beside the count, the tests that read false and why (#629)
+    # ...beside the count, the tests that read false and why (#629), and
+    # what its stop conditions read (#631)
     tests = tests_read_false(steps, room - len(line) - len("; ") - len(close))
-    line += (f"; {tests}" if tests else "") + close
+    line += f"; {tests}" if tests else ""
+    stops = stops_said(steps, room - len(line) - len("; ") - len(close))
+    line += (f"; {stops}" if stops else "") + close
   if not run.get("locals"):
     return [line]
   # every digit, as the refusal on the same line quotes a tag: `:g` said

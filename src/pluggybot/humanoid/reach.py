@@ -37,7 +37,7 @@ from scipy.optimize import least_squares
 
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
-from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
+from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper, Motion,
                                      HandGoal, SelfModel, Waist, _rot_error, kept_value,
                                      value_back)
 from pluggybot.humanoid.policy import HEIGHT_RANGE, PITCH_RANGE, StandDriver
@@ -629,6 +629,9 @@ class Reach:
     self.trim = np.zeros(2)
     self.tau = np.zeros(len(hm.JOINT_NAMES))
     self.qd = np.zeros(len(hm.JOINT_NAMES))
+    #: The body's own motion as its senses have it, taken into its hands'
+    #: force (`arms.Motion`, #631).
+    self.motion = Motion(self.every, model.opt.timestep)
     #: The arm joints' and the waist's friction as calibrated and stored (`friction.FILE`),
     #: taken off the drivers' torques where a joint turns; and what every
     #: joint's may hold still (`friction.still`), which the whole body's
@@ -1204,6 +1207,7 @@ class Reach:
   def step(self) -> None:
     for g in self.grippers.values():
       g.sample()
+    self.motion.sample(self.steps, self.stand.joints, self.d)
     if self.steps % self.every == 0:
       self._update(self.every * self.m.opt.timestep)
     self.steps += 1
@@ -1218,11 +1222,13 @@ class Reach:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
             "grippers": {s: {"shut": g.shut_asked, "force": g.force, "gap": g.gap,
                              "squeeze": g.squeeze, "rng": g.sense.rng.bit_generator.state}
-                         for s, g in self.grippers.items()}}
+                         for s, g in self.grippers.items()},
+            "motion": self.motion.kept_state()}
 
   def restore_kept(self, state: dict) -> None:
     for k, v in state["reach"].items():
       setattr(self, k, value_back(v))
+    self.motion.restore_kept(state.get("motion", {}))
     for s, kept in state["grippers"].items():
       g = self.grippers[s]
       g.shut_asked, g.force = bool(kept["shut"]), float(kept["force"])
@@ -1490,19 +1496,21 @@ class Reach:
   def _feel(self) -> None:
     """Each hand's force off the drivers' torques as just read, the model
     posed off the senses (`_pose`), a turning joint's friction taken off
-    (the arms' and the waist's): every hand's arm alone, then the whole
-    body's for those at work, standing (`FELT_PHASES`)."""
+    (the arms' and the waist's) and the body's own motion as its senses have
+    it (`arms.Motion`, #631): every hand's arm alone, then the whole body's
+    for those at work, standing (`FELT_PHASES`)."""
     sm = self.self_model
+    motion = self.motion.read(sm, self.qd, self.stand.trunk)
     tau = self.tau.copy()
     tau[sm.waist] -= friction.taken_by(self.friction, hm.WAIST, self.qd[sm.waist])
     for s in hm.SIDES:
       arm = sm.arm[s]
       tau[arm] -= friction.taken(self.friction, s, self.qd[arm])
-      self.arm_force[s] = sm.hand_force(s, tau[arm])
+      self.arm_force[s] = sm.hand_force(s, tau[arm], motion=motion)
     self.force = dict(self.arm_force)
     working = [s for s in hm.SIDES if self.phase[s] in FELT_PHASES]
     if self.standing and working:
-      self.force.update(sm.felt(working, tau, self.still))
+      self.force.update(sm.felt(working, tau, self.still, motion))
 
   def _update(self, dt: float) -> None:
     sm = self.self_model
