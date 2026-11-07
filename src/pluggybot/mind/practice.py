@@ -97,10 +97,12 @@ MATH_TEXT = """no imports -- but
 in an expression."""
 #: ...where a source may hold defs that call each other (`WorldFacts.calls`,
 #: #560), what replaces the one def's words, keeping its "no arguments"
-#: (#640: dropped, 5 of 11 first table answers gave the def that runs some),
-#: and the calls: generic, its example nothing a job does.
+#: and saying it comes first (#640: 5 of 11 first table answers gave the
+#: def that runs arguments, and with "no arguments" alone back, 5 of 11 that
+#: wrote several defs still put their helpers first, as a Python script
+#: does), and the calls: generic, its example nothing a job does.
 ONE_DEF = "# one def, no arguments, a lowercase name"
-FIRST_DEF = "# the def that runs: no arguments, a lowercase name"
+FIRST_DEF = "# first in the source, the def that runs: no arguments, a lowercase name"
 NO_CALLS = """no
 other calls, no strings but a verb's or a read's argument,"""
 SOME_CALLS = """no
@@ -108,10 +110,10 @@ other calls but your defs' (below), no strings but a name a verb, a read or
 a def is given,"""
 CALLS = """
 A source may hold several defs, all within its %(cap)s characters. The
-first is the procedure, and runs; each def after it is one it may call by
-its name -- a statement of its own -- and they may call each other, with
-arguments as a verb takes them, in order or by keyword, each a number or a
-name in quotes:
+first is the procedure, and runs, so it goes above the defs it calls; each
+def after it is one it may call by its name -- a statement of its own --
+and they may call each other, with arguments as a verb takes them, in
+order or by keyword, each a number or a name in quotes:
 
   def greet():
       sway("left", 0.30, 0.25)

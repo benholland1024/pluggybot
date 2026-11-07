@@ -379,19 +379,28 @@ def test_the_language_says_its_caps_off_the_constants(monkeypatch):
   assert "a letter first, at most 41 characters." in moved
 
 
-def test_the_def_that_runs_says_no_arguments_where_the_writer_copies_from():
+def test_the_def_that_runs_says_no_arguments_and_first_where_the_writer_copies_from():
   """#640: where defs call defs, the example's first def lost the one
   def's "no arguments", and 5 of #560's 11 first table answers gave the
-  def that runs some. It is in the example the hands' worlds show, the
-  practice's and the served rule's, and the example's def takes none."""
-  assert "no arguments" in mp.FIRST_DEF
+  def that runs some; with it back, 5 of 11 answers that wrote several defs
+  still put a helper first, Python's way, and were told to give its
+  arguments defaults. The example the hands' worlds show, the practice's and
+  the served rule's, says the def that runs comes first with no arguments,
+  the calls say it goes above the defs it calls, and a refusal of several
+  defs says to put the one that is meant to run first."""
+  assert "no arguments" in mp.FIRST_DEF and "first in the source" in mp.FIRST_DEF
   for text in (mp.language_text(st.hand_facts()), ov.hands_procedure_rule(HOME.places)):
     head = next(line for line in text.splitlines() if line.startswith("  def wave():"))
     assert head.endswith(mp.FIRST_DEF), head
     example = text[text.index("  def wave"):text.index("Statements:")]
     assert compile_ok(textwrap.dedent(example).strip("\n") + "\n").params == ()
+    assert "The first is the procedure, and runs, so it goes above the defs it calls;" in (
+      " ".join(text.split()))
   assert refusals("def a(hand):\n  wait(1)\n") == [
     "line 1: a is the def that runs, and nothing passes it hand: give each a default"]
+  assert refusals("def b(hand):\n  open_hand(hand)\n\ndef a():\n  b(\"left\")\n") == [
+    "line 1: b is the def that runs, and nothing passes it hand: the first def runs, so put "
+    "the one you mean to run first, or give each a default"]
 
 
 def test_the_calls_example_compiles_and_hands_over_no_survival_policy():

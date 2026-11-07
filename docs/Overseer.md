@@ -211,8 +211,7 @@ the language does not change. Nothing in `procedure/` writes `data.ctrl` (the fe
 **Total by construction:** a procedure declares `budget(steps=N,
 seconds=S)`, N the verbs it runs, and code caps both (`MAX_STEPS` 200,
 `MAX_BUDGET_S` 1800; 60 and 600 s without one), and the text says all four
-(#640); every
-loop is bounded; the interpreter checks budgets and `interrupted()` at every
+(#640); every loop is bounded; the interpreter checks budgets and `interrupted()` at every
 verb, which is a safe point, and a walk inside a verb asks it every second
 on the way (issue #381: a verb it ended is `stopped: interrupted`, an abort
 and never a failed step); a runaway `while` stops at `MAX_ITER` as
@@ -227,7 +226,11 @@ the text says so; one over it that parses is refused with every reason, the
 cap's first (#615's smoke: three repairs of a 5,458-character source heard
 only its length) -- where it arrives whole, in practice and a person's run:
 a served answer's source is cut one past the cap (`define`'s clip), and
-hears the cap alone.
+hears the cap alone. A name it gives is lowercase letters, digits and
+underscores, a letter first, at most `MAX_NAME_CHARS` (32), and the text
+says so (`lang.name_rule`); a name refused says its own reason the first
+time -- the rule, the language's own word, a verb's, a def's or a maths
+function's name -- never "reserved" for one that is not (#640).
 
 **Procedures that call procedures** (#560, Ben's decision of 2026-11-04:
 modular, reusable subroutines), wherever the world's facts give calls

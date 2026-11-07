@@ -101,6 +101,7 @@ RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
                       "if", "elif", "else", "for", "while", "in", "return",
                       "pass", "True", "False", "None"})
 
+
 def name_rule() -> str:
   """What a name is, as the text says it and a refusal gives it."""
   return ("lowercase letters, digits and underscores, a letter first, at most "
@@ -766,8 +767,12 @@ def _parse(source: str, verbs: dict | None = None, verb_tests: bool = False,
   if alone:
     missing = [x for x in p.own[first][0] if x not in p.own[first][1]]
     if missing:
+      # ...among several, most likely a helper written first, as a Python
+      # script does (#640: 5 of 11 such first answers), which no default mends
       p.refuse(fns[0], f"{first} is the def that runs, and nothing passes it "
-                       f"{', '.join(missing)}: give each a default")
+                       f"{', '.join(missing)}: "
+                       + ("the first def runs, so put the one you mean to run first, or "
+                          if len(fns) > 1 else "") + "give each a default")
   budgets, written = {}, {}
   for fn in fns:
     if fn.name in budgets:
