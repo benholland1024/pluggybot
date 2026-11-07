@@ -169,7 +169,7 @@ class TaskKind:
   #: hidden (`activity/`), and each offer draws them anew off the board's
   #: own sequence number (`Task.secret["draw"]`), set into the world as the
   #: offer lands, the prop set back out with them (`HubLifecycle.
-  #: _set_out_counter`) -- a skill over a kind of drawer, never one drawer.
+  #: _set_out_job`) -- a skill over a kind of drawer, never one drawer.
   draws: bool = False
   #: THE TIME THE JOB GIVES FROM ITS CLAIM, minutes, or None for none: what
   #: its sentence says (`{minutes}`) and the limit its grade holds it to
@@ -202,6 +202,10 @@ class _Blank(dict):
 #: three times the slowest of the offered jobs' references, 313 s from the
 #: station on a fresh map (`scripts/solve.py --from tour`), rounded up.
 HAND_MINUTES = 16
+#: ...and the table's (#560): three times its reference's slowest pass over
+#: the tour, 239 s from the claim to the call (`scripts/solve.py --feature
+#: table --from tour`, one pod), rounded up.
+TABLE_MINUTES = 12
 
 
 KINDS: dict[str, TaskKind] = {
@@ -267,13 +271,29 @@ KINDS: dict[str, TaskKind] = {
              "yours touching it. No errand does this: write the procedure, run it, "
              "and say you are done.",
     estimate_wh=7.47, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+  # THE RESTAURANT'S FIRST JOB (#560): a place laid at the dining room's table
+  # 0 (`home.restaurant`), the table check's criteria (`challenge/table.py`,
+  # its row's detail all of them) as the practice's job states them -- the
+  # card found by its tag and the pieces by theirs (tier 1), the restaurant's
+  # directions with the offer, never a position. Its dishware put away until
+  # an offer sets it out where the draw lays it (`draws`); graded as the hand
+  # jobs are, from the claim.
+  "set_table": TaskKind(
+    "set_table", task="set_table", target_kind="table",
+    template="Lay the place at the card on the restaurant's table: from the foot of its face "
+             "toward you, the plate's middle 19 cm out; the fork 19 cm out, 16 cm left, along the "
+             "line, head to the card; the cup 7 cm out, 24 cm right. Each within 2.5 cm, set down "
+             "and let go of, within {minutes} minutes of taking this job, without falling; graded "
+             "when you say you are done and 5 s later. No errand does this: write the procedure.",
+    estimate_wh=12.0, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
 }
 
-#: The hand jobs' graders (#559): each served job's row is its own -- paid,
-#: and shown only where a world offers it (`TaskReward.shown`) -- graded by
-#: its capability check's evaluator, whose row stays the practice's, unpaid.
+#: The hand jobs' graders (#559, #560): each served job's row is its own --
+#: paid, and shown only where a world offers it (`TaskReward.shown`) --
+#: graded by its capability check's evaluator, whose row stays the
+#: practice's, unpaid.
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "place",
-             "open_chest": "lid"}
+             "open_chest": "lid", "set_table": "table"}
 
 
 def kind_names() -> list[str]:

@@ -47,7 +47,7 @@ from typing import NamedTuple
 import mujoco
 import numpy as np
 
-from pluggybot.perception.cull import StaticCull
+from pluggybot.perception.cull import UNCULLED_GROUPS, StaticCull
 from pluggybot.perception.imu import seed_for
 from pluggybot.perception.mount import site_mount
 
@@ -282,8 +282,8 @@ class Lidar:
       self._cull.multi_ray(data, pos, world, self._housing, hit, dist, n, mujoco.mjMAXVAL,
                            self.max_range)
     else:
-      mujoco.mj_multiRay(self.model, data, pos, world, None, 1, self._housing, hit, dist, None,
-                         n, mujoco.mjMAXVAL)
+      mujoco.mj_multiRay(self.model, data, pos, world, UNCULLED_GROUPS, 1, self._housing, hit,
+                         dist, None, n, mujoco.mjMAXVAL)
     return dist, hit
 
   def _sort(self, dist: np.ndarray, hit: np.ndarray):

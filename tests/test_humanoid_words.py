@@ -34,9 +34,11 @@ from pluggybot.economy.scoring import default_table
 #: What no humanoid is told of: the quadruped's body, its dock and its rack,
 #: the tools on it and what it carried, the drawing and question jobs
 #: written on a board (#579: the last of them were in its form, its turns
-#: and its context).
+#: and its context). Its fork is the arm's that held a tool (empty, holding,
+#: carrying): the restaurant's fork (#560) is the humanoids' own.
 QUADRUPED_WORDS = re.compile(
-  r"\b(four-legged|small dog|dock|lie down|lying|lie on|rack|bay [A-E]|bays|fork|bumper|"
+  r"\b(four-legged|small dog|dock|lie down|lying|lie on|rack|bay [A-E]|bays|bumper|"
+  r"empty fork|fork (?:holds|is empty|was empty|into its)|on the fork|"
   r"tools?|a_tool|modules?|module_\w+|stow\w*|bracket|what it is carrying|pen|claw|LCD|draw|"
   r"figures|"
   r"needsAnswer|whole number of at most)\b",

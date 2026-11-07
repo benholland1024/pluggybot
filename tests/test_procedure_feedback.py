@@ -58,7 +58,7 @@ def test_a_call_refused_at_run_time_is_named_once():
   L.define("big", "def big():\n  t = 99\n  find(t, 1, 1)\n")
   life.run_errand(errand_from(Decision(action="procedure:big"), library=L))
   assert ("it stopped at line 3, find: tag 99 names no place this world has "
-          "(places: 35 to 46, 60 to 63, 68 to 75) (0 steps had run)") in life.thoughts.read("History.md")
+          "(places: 35 to 46, 60 to 63, 68 to 75, 93) (0 steps had run)") in life.thoughts.read("History.md")
 
 
 def test_an_argument_the_run_cannot_compute_is_named_by_its_call():

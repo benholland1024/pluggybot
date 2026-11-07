@@ -426,7 +426,8 @@ def test_find_is_a_verb_where_the_world_has_places_and_nothing_presses(monkeypat
   from pluggybot.perception.tags import COUNTER_TAG_IDS
   facts = world_facts(HUMANOID_HOME)
   boards = tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
-  assert facts.places == PLATE_TAG_IDS + boards + area_ids() + COUNTER_TAG_IDS
+  from pluggybot.perception.tags import PLACE_TAG_IDS
+  assert facts.places == PLATE_TAG_IDS + boards + area_ids() + COUNTER_TAG_IDS + PLACE_TAG_IDS
   assert "find" in facts.verbs and "press" not in st.VERBS, "no verb presses a plate"
   assert st.check_step(st.VERBS["find"], {"tag": FEED, "x": 25.2, "y": -2.4}, facts) == []
   assert "no place" in st.check_step(st.VERBS["find"], {"tag": 99, "x": 0, "y": 0}, facts)[0]
@@ -505,15 +506,17 @@ def test_the_directions_pass_the_dispatcher_test():
     numbers = {int(n) for n in re.findall(r"\d+(?:\.\d+)?", spec["directions"])}
     tags = {int(t) for t in spec["tags"]}
     assert numbers == tags, (name, numbers - tags)
-  # ...the areas' own tags, and the cubes their directions name (#407), and
-  # the storeroom counter's row and the handles under it (#559)
+  # ...the areas' own tags, and the cubes their directions name (#407), the
+  # storeroom counter's row and the handles under it (#559), and the
+  # restaurant's place card and its dishware (#560)
   from pluggybot.perception import tags
   assert set(addresses.tag_names()) == {*PLATE_TAG_IDS, *area_ids(), *BLOCK_TAG_IDS,
                                         *MASS_TAG_IDS,
                                         *(t for ids in BOARD_TAG_IDS.values() for t in ids),
                                         *tags.COUNTER_TAG_IDS, *tags.CHEST_TAG_IDS,
                                         *tags.DRAWER_TAG_IDS, *tags.DOOR_TAG_IDS,
-                                        *tags.CUBE_TAG_IDS, *tags.MAT_TAG_IDS}
+                                        *tags.CUBE_TAG_IDS, *tags.MAT_TAG_IDS,
+                                        *tags.PLACE_TAG_IDS, *tags.DISH_TAG_IDS}
 
 
 def test_a_job_at_a_task_area_carries_its_address_and_directions_and_no_other_does():
