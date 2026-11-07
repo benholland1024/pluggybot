@@ -101,13 +101,17 @@ class TrunkSense:
     mujoco.mju_mat2Quat(quat, data.xmat[root])
     self.attitude = Attitude(quat)
     self.rate = np.zeros(3)
+    #: What the accelerometer last read, m/s^2, the IMU's frame: the specific
+    #: force, gravity's pull read as an acceleration up (`arms.Motion`); None
+    #: before the first step.
+    self.accel: np.ndarray | None = None
 
   def step(self) -> None:
     dt = self.m.opt.timestep
     d = self.d
     self.rate = self.imu.gyro(d.sensordata[self.gyro_adr:self.gyro_adr + 3], dt)
-    accel = self.imu.accel(d.sensordata[self.accel_adr:self.accel_adr + 3], dt)
-    self.attitude.step(self.rate, accel, dt)
+    self.accel = self.imu.accel(d.sensordata[self.accel_adr:self.accel_adr + 3], dt)
+    self.attitude.step(self.rate, self.accel, dt)
 
   def gravity(self) -> np.ndarray:
     """Gravity's direction in the trunk's frame, as the filter has it."""

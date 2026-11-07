@@ -809,7 +809,7 @@ class HumanoidBody(Body):
                          "force": round(float(rep.get("force") or 0.0), 2)})
 
   def hand_force(self, side):
-    f = _rz(self.stance[2]) @ self.reach.force[side]
+    f = _rz(self.stance[2]) @ self.reach.sensed_force[side]
     return float(f[0]), float(f[1]), float(f[2])
 
   def step_routine(self, ahead, left=0.0, turn=0.0, patience=STEP_PATIENCE_S):

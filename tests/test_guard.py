@@ -127,7 +127,7 @@ class _Guarded:
   """What a guard reads and stops: a clock, a sensor a test sets, and a body
   whose `stop_hand` says whether a move was under way."""
 
-  def __init__(self, monkeypatch, under_way=(True,), every_s=0.01):
+  def __init__(self, monkeypatch, under_way=(True,), every_s=0.01, from_s=0.0):
     self.value, self.reads, self.stops = 0.0, [], []
     self.model, self.data = NS(opt=NS(timestep=0.002)), NS(time=0.0)
     under = iter(under_way)
@@ -135,7 +135,7 @@ class _Guarded:
                    or next(under, True))
     monkeypatch.setitem(axes.SENSORS, "test.reading", axes.Sensor(
       "test.reading", lambda life: self.reads.append(round(life.data.time, 6)) or self.value,
-      "a test's", every_s=every_s))
+      "a test's", every_s=every_s, from_s=from_s))
 
   def fly(self, routine, side="above", number=1.0, values=None):
     """`routine` under a guard, a physics step a yield, the reading
@@ -187,6 +187,20 @@ def test_a_stop_condition_already_met_stops_the_move_once_one_is_under_way(monke
   _, stopped = g.fly(_steps(40), values={0: 2.0})
   assert [t for t, _ in g.stops] == pytest.approx([0.0, 0.01, 0.02])
   assert stopped["s"] == pytest.approx(0.02)
+
+
+def test_a_hands_force_is_read_once_its_move_is_under_way(monkeypatch):
+  """#631: a move's first commands read the move -- a carry's or a pull's
+  13-16 N in free air, read as still (`reach.HELD_PHASES`) -- so a stop on
+  a force reads it from `FORCE_FROM_S` into the move, then at its rate: one
+  past its number from the start stops the move there, and none before."""
+  g = _Guarded(monkeypatch, from_s=axes.FORCE_FROM_S)
+  _, stopped = g.fly(_steps(80), values={0: 2.0})
+  assert g.reads == pytest.approx([axes.FORCE_FROM_S], abs=1e-9)
+  assert stopped == {"read": 2.0, "s": pytest.approx(axes.FORCE_FROM_S)}
+  g = _Guarded(monkeypatch, from_s=axes.FORCE_FROM_S)
+  g.fly(_steps(70), values={0: 0.0})
+  assert g.reads == pytest.approx([0.1, 0.11, 0.12, 0.13], abs=1e-9)
 
 
 def test_a_slower_part_is_read_at_its_own_rate(monkeypatch):
@@ -501,17 +515,19 @@ def test_the_robot_is_told_the_stop_condition_behind_its_flag_and_nothing_of_a_j
   bare = mp.system_prompt(st.hand_facts(guarded=False))
   assert "until=" not in bare and "`until`" not in bare and ".stopped" not in bare
   assert "[," not in bare
-  rule = " ".join((mp.GUARD % {"rate": 100, "n": mp.GUARD_EXAMPLE_N,
-                               "watched": mp.WATCHED % {"hz": 15}}).split())
+  numbers = {"rate": 100, "n": mp.GUARD_EXAMPLE_N, "from": axes.FORCE_FROM_S,
+             "moving": axes.MOVING_N}
+  rule = " ".join((mp.GUARD % {**numbers, "watched": mp.WATCHED % {"hz": 15}}).split())
   assert rule in " ".join(told.split())
   # ...and with no watch (#554's stage 2), the rule stage 1 flew, word for word
-  assert mp.GUARD % {"rate": 100, "n": mp.GUARD_EXAMPLE_N, "watched": ""} in mp.system_prompt(
+  assert mp.GUARD % {**numbers, "watched": ""} in mp.system_prompt(
     st.hand_facts(watching=False))
   assert f"{round(1 / axes.HAND_EVERY_S)} times a second" in rule
   for word in ("lid", "chest", "knob", "hinge", "arc", "handle", "box", "drawer", "door",
                "lever", "angle"):
     assert not re.search(rf"\b{word}\b", rule.lower()), word
-  example = told.split("pushes on something with 10 N:\n", 1)[1].split("\n", 1)[0].strip()
+  example = told.split(f"something with {mp.GUARD_EXAMPLE_N:g} N:\n", 1)[1].split("\n", 1)[0]
+  example = example.strip()
   lang.compile_procedure(f"def a():\n    reach(\"right\", 0.3, -0.2, 1.2)\n    {example}\n",
                          st.hand_facts())
   for v in ("reach", "move_hand", "pull"):
@@ -525,8 +541,33 @@ def test_the_robot_is_told_the_stop_condition_behind_its_flag_and_nothing_of_a_j
 def test_the_example_stops_over_what_a_hand_moving_in_free_air_reads():
   """Its number is the robot's to learn, but an example that stopped a hand
   in free air would teach the wrong one: over the 4.4 N its own carry read
-  that way in free air at its hardest (#554, flown)."""
+  that way in free air at its hardest (#554, flown), and over what any hand
+  moving through free air reads once its move is under way (`axes.MOVING_N`,
+  #631: at 10 N, the example's number then, a stop on a reach's force
+  stopped it 0.23 s in, by the robot's side) -- and under what the standing
+  body holds at a hand (`steps.PULL_MOST_N`), which a stop on a force is
+  there to keep a push under."""
   assert mp.GUARD_EXAMPLE_N >= 2 * 4.4
+  assert axes.MOVING_N < mp.GUARD_EXAMPLE_N < st.PULL_MOST_N
+
+
+def test_a_hands_force_is_said_to_read_its_motion_off_its_constants():
+  """#631: the robot was told only that a hand's force "reads truest held
+  still", and set stops at 3 N that its own reach's start read past. Its
+  sensors and its stop condition's rule state what a hand moving through
+  free air reads and when a stop on one begins to read it, each off its
+  measured constant; no other sensor's stop waits."""
+  told = " ".join(mp.system_prompt(st.hand_facts()).split())
+  for h in hm.SIDES:
+    for a in "xyz":
+      sensor = axes.SENSORS[f"{h}.f{a}"]
+      assert f"up to {axes.MOVING_N:g} N with nothing touched" in sensor.doc
+      assert sensor.from_s == axes.FORCE_FROM_S
+  assert (f"A hand's force it reads from {axes.FORCE_FROM_S:g} s into the move: a move's "
+          "start reads the move itself, and a hand moving through the air reads up to "
+          f"{axes.MOVING_N:g} N with nothing touched.") in told
+  waits = {n for n, s in axes.SENSORS.items() if s.from_s}
+  assert waits == {f"{h}.f{a}" for h in hm.SIDES for a in "xyz"}
 
 
 def test_the_index_says_which_arguments_a_verb_does_without():
@@ -625,6 +666,45 @@ def test_a_stop_condition_reads_the_robots_senses_never_the_simulators_truth(mon
   assert [s.get("why") for s in ran["steps"][1:]] == ["until", "distance", "arrived", "until"]
   assert spy.read, "nothing was read through the spy"
   assert not spy.read & TRUTH, spy.read & TRUTH
+
+
+def test_a_reach_stopped_on_its_force_past_what_moving_reads_gets_where_it_was_sent():
+  """#631, flown: Luca's reach (`reach("right", 0.290, y, 0.85, ...,
+  until="right.fx", above=3.0)`, 11-03 on) stopped 0.18 s in, its hand by
+  its side, every time: the balance took the body as still, and the arm
+  swinging out read 11-14 N at the hand -- at 10 N, the example's number
+  then, it stopped 0.23 s in. Its body's motion in the reading and a force
+  read from `FORCE_FROM_S` into the move, the same reach stopped on its
+  force past what a moving hand is said to read (`MOVING_N`) gets where it
+  was sent, touching nothing, every way of what it reads under that number
+  all the way -- while the body's own loops read it as still, as before
+  (the pin of `arms.Motion`'s wiring is `test_felt`'s)."""
+  import mujoco
+  from pluggybot.body import body_for
+  from pluggybot.evaluation.practice import ProcedureLife
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  seen, loops = [], []
+  body.step_hooks.append(lambda: (seen.append((data.time, body.reach.sensed_force["right"].copy())),
+                                  loops.append((data.time, body.reach.force["right"].copy()))))
+  facts = st.hand_facts()
+  ran = body.run(lang.run_procedure_routine(ProcedureLife(body), lang.compile_procedure(
+    'def a():\n    t0 = read("time")\n'
+    f'    reach("right", 0.29, -0.22, 0.85, until="right.fx", above={axes.MOVING_N:g})\n'
+    '    t1 = read("time")\n    x = read("right.x")\n    z = read("right.z")\n',
+    facts), facts))
+  got, [reach] = ran["locals"], ran["steps"]
+  assert reach["ok"] and reach.get("why") != "until", reach
+  assert abs(got["x"] - 0.29) < 0.02 and abs(got["z"] - 0.85) < 0.02, got
+  read = np.array([f for t, f in seen if got["t0"] + axes.FORCE_FROM_S <= t <= got["t1"]])
+  assert len(read) > 1000 and np.abs(read).max() < axes.MOVING_N, np.abs(read).max(axis=0)
+  # ...and the body's own loops still read it as still, as they were tuned on
+  # (`reach.HELD_PHASES`): its swing out over the number, as it was
+  still = np.array([f for t, f in loops if got["t0"] + axes.FORCE_FROM_S <= t <= got["t1"]])
+  assert np.abs(still).max() > axes.MOVING_N
 
 
 # ---- what #554's review found ----------------------------------------------------------

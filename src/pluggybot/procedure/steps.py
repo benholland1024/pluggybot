@@ -647,14 +647,15 @@ def _guard(args: dict) -> tuple[str, str, float] | None:
 
 def _guarded_routine(life, hand: str, guard, routine: Routine) -> Routine:
   """`routine` driven as `yield from` would, its STOP CONDITION read as the
-  hand moves (#554): `guard`'s sensor read once the routine has begun and
-  then once each `Sensor.every_s` of its -- never oftener, as its part reads
-  it -- and the first reading past its number stops `hand`'s move where it
-  is (`Body.stop_hand`), once a move is under way to stop. A reading the
-  sensor does not have yet (a watched tag not yet seen) is no reading past
-  it. Returns (what it returned, and the reading that stopped it and how
-  long into the verb, s -- or, where the sensor never had a reading, why
-  -- or None)."""
+  hand moves (#554): `guard`'s sensor read once the routine has begun --
+  a hand's force from `Sensor.from_s` into it, as a move's start reads the
+  move (#631) -- and then once each `Sensor.every_s` of its -- never
+  oftener, as its part reads it -- and the first reading past its number
+  stops `hand`'s move where it is (`Body.stop_hand`), once a move is under
+  way to stop. A reading the sensor does not have yet (a watched tag not
+  yet seen) is no reading past it. Returns (what it returned, and the
+  reading that stopped it and how long into the verb, s -- or, where the
+  sensor never had a reading, why -- or None)."""
   if guard is None:
     return (yield from routine), None
   from pluggybot.procedure import axes
@@ -662,7 +663,9 @@ def _guarded_routine(life, hand: str, guard, routine: Routine) -> Routine:
   sensor = axes.SENSORS[name]
   reading = sensor.live or sensor.read
   # physics steps a reading, rounded UP: never oftener than its part reads
-  every = max(1, math.ceil(sensor.every_s / float(life.model.opt.timestep) - 1e-6))
+  step = float(life.model.opt.timestep)
+  every = max(1, math.ceil(sensor.every_s / step - 1e-6))
+  first = math.ceil(sensor.from_s / step - 1e-6)
   t0, n, stopped, unread = float(life.data.time), 0, None, ""
   heard = False
   sent, exc = None, None
@@ -673,7 +676,7 @@ def _guarded_routine(life, hand: str, guard, routine: Routine) -> Routine:
       return stop.value, (stopped if stopped is not None or heard or not unread
                           else {"unread": unread})
     exc = None
-    if stopped is None and n % every == 0:
+    if stopped is None and n >= first and (n - first) % every == 0:
       try:
         read = float(reading(life))
       except axes.NoReading as no:

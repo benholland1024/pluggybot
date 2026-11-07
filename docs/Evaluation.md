@@ -1775,8 +1775,9 @@ it is no row below.
   still touching it.
 - **A force read from a move's start reads the start**: lidA's first ten
   contact stops, `until="left.fx"` past 4-10 N on a carry, all came 0.00 to
-  0.45 s in -- the whole body's reading runs 11-17 N ahead for a moved hand's
-  first half second -- before it moved its stops onto the hand's height.
+  0.45 s in -- the whole body's reading ran 11-17 N ahead for a moved hand's
+  first half second, the body taken as still (#631 took its motion in) --
+  before it moved its stops onto the hand's height.
 - **What they said they lacked** (`lacks.py`): the angle still -- lidA in 37
   sentences ("I can't measure the lid angle directly"), lidB in 24, the
   door arm in 10; room, the 1,500-character cap refusing 2, 23 and 5

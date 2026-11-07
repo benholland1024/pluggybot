@@ -131,7 +131,13 @@ class JointSense:
     q = data.qpos[self.qadr] + slack * self.backlash
     tau = data.actuator_force[self.act] + current * self.tau_noise
     tau = np.clip(quantised(tau, self.tau_lsb), -self.tau_top, self.tau_top)
-    return (quantised(q, self.pos_lsb), quantised(data.qvel[self.vadr], self.vel_lsb), tau)
+    return (quantised(q, self.pos_lsb), self.speeds(data), tau)
+
+  def speeds(self, data) -> np.ndarray:
+    """Every joint's speed, rad/s, as its driver reports it: `read`'s speed
+    field, which draws no noise, so read between two `read`s it moves no
+    stream."""
+    return quantised(data.qvel[self.vadr], self.vel_lsb)
 
   def kept_state(self) -> list:
     """Every stream's state, the shared block's first: a restart's (#345)."""

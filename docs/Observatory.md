@@ -10,6 +10,61 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A hand's force reads its body's own motion, a stop on one reads it from 0.1 s into its move, and History says what a stop condition read (#631) — opens when this PR is deployed; released with the waist, it rides with that period and #627's and #630's as one
+
+**What changed in the body's code and in what the robots read** (SimNotes,
+"A moving hand's force, its motion taken in"):
+- **What the robots read of a hand going its own way takes the body's own
+  motion in, as its senses have it** (`Reach.sensed_force`, `arms.Motion`):
+  the trunk's off its IMU, the arms' and the waist's off their drivers'
+  speeds. In free air, nothing touched, taken as still a reach swinging out
+  read 11-14 N; now 9.9 at most after a move's first 0.1 s, 6 or under on
+  most reaches (`humanoid_spike.py --moving`). A hand that holds or is held
+  -- pulling, carried, held at its goal or stopped -- reads as before
+  (`reach.HELD_PHASES`).
+- **The body moves as it did.** Its own loops -- the reach's stop on a
+  push, the ease before a shut, the force move's loop, so the station's
+  push and unplug -- read the force as still, as before (`Reach.force`):
+  every flight that reads no force sensor is today's, bit for bit.
+- **A stop on a hand's force reads it from 0.1 s into its move**
+  (`axes.FORCE_FROM_S`).
+- **The robots are told**: each hand's force sensor ends "it reads truest
+  held still, and moving through the air up to 12 N with nothing touched";
+  the stop condition's rule adds "A hand's force it reads from 0.1 s into
+  the move: a move's start reads the move itself, and a hand moving through
+  the air reads up to 12 N with nothing touched", and its example stops at
+  15 N where it stopped at 10. `prompt_sha` `d3fa364c…` → `45d56c74…`,
+  58,045 → 58,710 chars, 17 sections both (`overseer_probe.py --deployed
+  --prompt`); the practice's language and body and the session host's
+  `hello` with it.
+- **History says what each stop condition read**, after the tests that read
+  false: "ran the procedure drawer_run3 to its end (5 steps; 3 stop
+  conditions said -- line 3, reach (2 times): right.fx read 3.626 (above 3)
+  0.18 s in; …)".
+- Nothing in the schema, the menu, the reward table, the jobs or the house
+  moved.
+
+**Why.** #631, from the 11-07 triage: from 11-03 Luca opened the
+storeroom's drawer with reaches stopped on `right.fx` above 3, and every
+stop came 0.18 s in, its hand by its side, read as the drawer's face;
+"Thirteen grips have all closed on air." The balance took the body as
+still, and the prompt's own example number, 10 N, stopped the same reach
+0.23 s in.
+
+**What the period is for.**
+- **Do guarded reaches stop near what they reach for?** The hand's place
+  after a reach a stop condition stopped (the `ran` rows' locals) against
+  the period before, and the `until` text History now carries (#631's last
+  box).
+- **What numbers do the robots choose?** The `above`/`below` beside a
+  force in the procedures' sources, against 12.
+- **Nothing else**: the hand jobs and the charges fly as before, until a
+  robot's own procedure reads a force; a change in their grades is the
+  waist's, #627's or #630's, or a robot's procedures.
+- ⚠ **Not to be pooled with the period before for anything a hand's force
+  decides**; in one period with the waist's, #627's and #630's, a hand
+  job's grade is the four together.
+
 ### A reach plans where the robot reads itself standing, and looks again once its arm is out (#627) — opens at the waist's deploy, and rides with the waist's period and #630's as one
 
 **What changed in the body's code** (SimNotes, "The reach planned where

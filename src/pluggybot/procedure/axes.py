@@ -56,6 +56,9 @@ class Sensor:
   #: the body's own loop last read it (`Body.hand_sensed`), so a condition
   #: that never comes true moves the flight not at all (#554)
   live: Callable[..., float] | None = None
+  #: how far into a move a stop condition first reads it, s: a hand's force
+  #: as a move begins reads the move (`FORCE_FROM_S`, #631)
+  from_s: float = 0.0
 
 
 #: How often a hand's readings are fresh while it moves, s: once a command
@@ -64,6 +67,19 @@ class Sensor:
 #: the whole body's balance (#547), its gripper's word -- and the clock
 #: they are read by.
 HAND_EVERY_S = 0.01
+#: A HAND'S FORCE AS A MOVE BEGINS READS THE MOVE (#631): a stop condition on
+#: one reads it from this far into the move, s. A carry or a pull is read as
+#: still (`humanoid.reach.HELD_PHASES`), and its first commands read 13-16 N
+#: in free air -- it starts from where the hand IS, a step off its hold --
+#: and 9 or under from 0.1 s on.
+FORCE_FROM_S = 0.1
+#: ...and after that a hand moving through free air reads up to this, N, on
+#: any one axis: flown on a bare floor (`humanoid_spike.py --moving`), 18
+#: reaches, carries and pulls, either hand, read 9.9 at most (a reach to the
+#: floor in a deep bow; a carry 8.9) and 6 or under on every other reach.
+#: Taken as still, the same reaches read 11-14 N as they swung out, and a
+#: stop at 3 N stopped one by the robot's side (Luca's, from 11-03 on).
+MOVING_N = 12.0
 
 
 def _ramp(actuator: str, settle: float = 0.5):
@@ -180,9 +196,10 @@ for _s in HANDS:
     SENSORS[f"{_s}.f{_a}"] = Sensor(
       f"{_s}.f{_a}", _hand_force(_s, _k),
       f"the force your {_s} hand pushes with, N, your stance frame ({_a}), off your "
-      "motor currents less your own weight and your joints' friction -- your whole "
-      "body's while that hand is out and you stand, else its arm's alone; it reads "
-      "truest held still", every_s=HAND_EVERY_S)
+      "motor currents less your own weight, your joints' friction and your body's own "
+      "motion -- your whole body's while that hand is out and you stand, else its arm's "
+      f"alone; it reads truest held still, and moving through the air up to {MOVING_N:g} "
+      "N with nothing touched", every_s=HAND_EVERY_S, from_s=FORCE_FROM_S)
   SENSORS[f"{_s}.held"] = Sensor(
     f"{_s}.held", (lambda side: lambda life: 1.0 if life.body.gripped(side) else 0.0)(_s),
     f"1 while your {_s} gripper says it holds something: its jaws stopped short of "

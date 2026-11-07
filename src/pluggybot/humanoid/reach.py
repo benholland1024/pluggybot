@@ -38,7 +38,7 @@ from scipy.optimize import least_squares
 
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
-from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
+from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper, Motion,
                                      HandGoal, SelfModel, Waist, _rot_error, kept_value,
                                      value_back)
 from pluggybot.humanoid.policy import HEIGHT_RANGE, PITCH_RANGE, StandDriver
@@ -80,6 +80,19 @@ LOOKS = 2
 #: which the balance has planted: a swinging leg's own torques read up to
 #: 400 N (`humanoid.odometry`).
 FELT_PHASES = ("approach", "hold", "pull", "blocked", "carry", "retreat")
+#: WHAT THE ROBOT READS of a hand's force (`sensed_force`: `Body.hand_force`,
+#: a procedure's `read`, its stop conditions, a verb's report) takes the
+#: body's own motion in (`arms.Motion`, #631) while the hand goes its own way
+#: -- swung out or home, on its line in or out -- never in these phases,
+#: where it holds or is held and is read as still: pressing slowly on what it
+#: holds, its motion is smaller than its estimate's noise. ⚠ THE BODY'S OWN
+#: LOOPS NEVER READ IT (`force`: the reach's stop on a push, the ease, the
+#: force move's loop): taken into `force` everywhere, the hands checks lost
+#: 18 set-outs of 480 for 5 won on one pod (the cube 46 of 96 where 53, a
+#: pull's give following the estimate's noise); kept out of these phases,
+#: still 7 for 1, its approaches stopped on a push at other moments, and 3
+#: drawers fell.
+HELD_PHASES = ("hold", "pull", "blocked", "carry")
 #: A hand on its way in STOPS where it is (`blocked`) once its own solve
 #: misses its command by this, m -- the goal out of reach from the posture
 #: the policy truly holds -- or once the force it reads at the hand
@@ -851,6 +864,9 @@ class Reach:
     self.trim = np.zeros(2)
     self.tau = np.zeros(len(hm.JOINT_NAMES))
     self.qd = np.zeros(len(hm.JOINT_NAMES))
+    #: The body's own motion as its senses have it, taken into its hands'
+    #: force (`arms.Motion`, #631).
+    self.motion = Motion(self.every, model.opt.timestep)
     #: The arm joints' and the waist's friction as calibrated and stored (`friction.FILE`),
     #: taken off the drivers' torques where a joint turns; and what every
     #: joint's may hold still (`friction.still`), which the whole body's
@@ -867,6 +883,8 @@ class Reach:
     #: -- and its arm's alone, whichever is read.
     self.force = {s: np.zeros(3) for s in hm.SIDES}
     self.arm_force = {s: np.zeros(3) for s in hm.SIDES}
+    #: ...and what the robot reads of it (`HELD_PHASES`, #631).
+    self.sensed_force = {s: np.zeros(3) for s in hm.SIDES}
     #: Where each grip was by its senses at the last command, stance frame
     #: (`_update`): what a stop condition reads (#554), so that reading it
     #: draws nothing more on the drivers' noise; None before the first.
@@ -1503,6 +1521,7 @@ class Reach:
   def step(self) -> None:
     for g in self.grippers.values():
       g.sample()
+    self.motion.sample(self.steps, self.stand, self.d)
     if self.steps % self.every == 0:
       self._update(self.every * self.m.opt.timestep)
     self.steps += 1
@@ -1518,11 +1537,14 @@ class Reach:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
             "grippers": {s: {"shut": g.shut_asked, "force": g.force, "gap": g.gap,
                              "squeeze": g.squeeze, "rng": g.sense.rng.bit_generator.state}
-                         for s, g in self.grippers.items()}}
+                         for s, g in self.grippers.items()},
+            "motion": self.motion.kept_state()}
 
   def restore_kept(self, state: dict) -> None:
     for k, v in state["reach"].items():
       setattr(self, k, value_back(v))
+    self.motion.restore_kept(state.get("motion", {}))
+    self.sensed_force = {s: np.array(f, dtype=float) for s, f in self.force.items()}
     for s, kept in state["grippers"].items():
       g = self.grippers[s]
       g.shut_asked, g.force = bool(kept["shut"]), float(kept["force"])
@@ -1791,8 +1813,12 @@ class Reach:
     """Each hand's force off the drivers' torques as just read, the model
     posed off the senses (`_pose`), a turning joint's friction taken off
     (the arms' and the waist's): every hand's arm alone, then the whole
-    body's for those at work, standing (`FELT_PHASES`)."""
+    body's for those at work, standing (`FELT_PHASES`) -- and what the robot
+    reads of it (`sensed_force`), the same with the body's own motion in it
+    as its senses have it for a hand going its own way (`arms.Motion`,
+    `HELD_PHASES`, #631)."""
     sm = self.self_model
+    motion = self.motion.read(sm, self.qd, self.stand)
     tau = self.tau.copy()
     tau[sm.waist] -= friction.taken_by(self.friction, hm.WAIST, self.qd[sm.waist])
     for s in hm.SIDES:
@@ -1801,8 +1827,18 @@ class Reach:
       self.arm_force[s] = sm.hand_force(s, tau[arm])
     self.force = dict(self.arm_force)
     working = [s for s in hm.SIDES if self.phase[s] in FELT_PHASES]
-    if self.standing and working:
+    whole = self.standing and bool(working)
+    if whole:
       self.force.update(sm.felt(working, tau, self.still))
+    self.sensed_force = dict(self.force)
+    going = [s for s in hm.SIDES if self.phase[s] not in HELD_PHASES + ("rest",)]
+    if motion is None or not going:
+      return
+    for s in going:
+      if not (whole and s in working):
+        self.sensed_force[s] = sm.hand_force(s, tau[sm.arm[s]], motion=motion)
+    if whole and all(s in going for s in working):
+      self.sensed_force.update(sm.felt(working, tau, self.still, motion))
 
   def _update(self, dt: float) -> None:
     sm = self.self_model
