@@ -80,9 +80,11 @@ import os
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 import argparse  # noqa: E402
+import json  # noqa: E402
 import math  # noqa: E402
 import sys  # noqa: E402
 import time  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
@@ -844,6 +846,176 @@ def friction_table(write: bool = False) -> None:
   if write:
     friction.save({n: {"coulomb": r["coulomb"], "viscous": r["viscous"]} for n, r in table.items()})
     print(f"kept in {friction.FILE}")
+
+
+#: `--lean --write` keeps the robot's own reading of itself and the truth at
+#: three of its states here (#627), which `tests/test_reach_lean.py` reads.
+LEAN_FIXTURE = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "lean_states.json"
+#: The table's other arm held out of the way, as its procedure's `move`s hold
+#: the right one (`hands_check.TABLE`), and the plate's grip as its first
+#: reach asks it, from the stance 0.14 m left of the start: fingers 60 deg
+#: down, the jaws the other way round (#626).
+LEAN_ASIDE = {"shoulder_roll": -0.9, "elbow": 1.4}
+LEAN_PLATE = ((0.43, 0.09, 0.7734), (0.5, 0.0, -0.866), (0.0, -1.0, 0.0))
+
+
+def _lean_sample(body, sm_live, sm_plan, before=None) -> dict:
+  """The trunk now, stored values only (a hand's place read afresh draws on
+  the joints' noise): the TRUE shoulders and centre of mass in the TRUE
+  stance frame; the robot's model of itself as its arm's loop last posed it;
+  the statue today's plan stood on (balanced over the soles' middle, its
+  arms hanging); that statue as the robot reads itself standing now
+  (`reach.Lean`) and as it read itself `before` (the lean a plan took)."""
+  from pluggybot.humanoid import reach as reach_
+  m, d, r = body.model, body.data, body.reach
+  rot, origin = true_stance(m, d)
+  root = m.body(ROBOT_ROOT).id
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  post = tuple(float(v) for v in r.posture)
+
+  def shoulders(model, data, frame=None):
+    out = {}
+    for s in hm.SIDES:
+      p = np.array(data.xpos[model.body(f"{s}_shoulder_roll_link").id], dtype=float)
+      out[s] = p if frame is None else frame[0].T @ (p - frame[1])
+    return out
+  row = {"posture": post, "now": [float(v) for v in r.posture_now()],
+         "true": shoulders(m, d, (rot, origin)),
+         "com": float((rot.T @ (d.subtree_com[root] - origin))[0])}
+  sm_live.pose(r.sensed.copy(), r.stand.trunk.gravity())
+  arms = {}
+  for s in hm.SIDES:
+    sm_live._set_arm(s, r.q_cmd[s])
+    arms.update(reach_._arm(s, r.q_cmd[s]))
+  row["live"], row["live_com"] = shoulders(sm_live.m, sm_live.d), float(
+    sm_live.d.subtree_com[sm_live.root][0])
+  reach_.stands(sm_plan, post, q0)
+  row["today"] = shoulders(sm_plan.m, sm_plan.d)
+  lean = reach_.Lean.read(sm_live, post, sm_plan)
+  reach_.statue(sm_plan, post, q0, arms, lean)
+  row["read"], row["lean"] = shoulders(sm_plan.m, sm_plan.d), lean
+  if before is not None:
+    reach_.statue(sm_plan, post, q0, arms, before)
+    row["planned"] = shoulders(sm_plan.m, sm_plan.d)
+  row["state"] = {"q": [float(v) for v in r.sensed], "arms": [float(v) for s in hm.SIDES
+                                                             for v in r.q_cmd[s]],
+                  "gravity": [float(v) for v in r.stand.trunk.gravity()]}
+  return row
+
+
+def lean_table(write: bool = False) -> None:
+  """--lean (#627): the live trunk against the statue a reach plans on --
+  at the stand, at each of the reach's postures, the other arm held out of
+  the way, after a step, and at the table's plate's grip -- standing in the
+  living room as `--friction` does: how far each true shoulder stands from
+  today's statue (balanced over the soles' middle, its arms hanging), from
+  that statue as the robot reads itself standing now, and as it read itself
+  BEFORE the arm went out (the lean the first plan takes; the reach looks
+  again once it is out, `Reach._look`); what the robot's own model says;
+  and the centre of mass over the soles' middle, true and read. `--write`
+  keeps three states for `tests/test_reach_lean.py`."""
+  from pluggybot.body import body_for
+  from pluggybot.humanoid import reach as reach_
+  from pluggybot.humanoid.arms import HandGoal, SelfModel, frame
+  model, data = standing_world()
+  body = body_for(model, data, policy=_POLICY)
+  sm_live, sm_plan = SelfModel(), SelfModel()
+  rows, kept = [], {}
+
+  def settle(seconds=1.5):
+    t0 = float(data.time)
+    while float(data.time) - t0 < 8.0 and not (
+        body.stand.settled and body.reach._posture_held()
+        and all(body.reach.done(s) for s in hm.SIDES)):
+      body.run(body.hold_routine(0.05))
+    body.run(body.hold_routine(seconds))
+
+  def sample(name, before=None, keep=None):
+    acc = []
+    for _ in range(10):
+      body.run(body.hold_routine(0.1))
+      acc.append(_lean_sample(body, sm_live, sm_plan, before))
+    row = acc[-1]
+    for k in ("true", "live", "today", "read", "planned"):
+      if k in row:
+        row[k] = {s: np.mean([a[k][s] for a in acc], axis=0) for s in hm.SIDES}
+    row["com"] = float(np.mean([a["com"] for a in acc]))
+    row["live_com"] = float(np.mean([a["live_com"] for a in acc]))
+    row["name"], row["falls"] = name, body.mission.falls
+    rows.append(row)
+    if keep:
+      kept[keep] = {**row["state"], "posture": list(row["posture"]),
+                    "shoulders": {s: [float(v) for v in row["true"][s]] for s in hm.SIDES}}
+    return row
+
+  def aside(arm):
+    q = np.array([arm.get(j, 0.0) for j in hm.ARM])
+    body.reach.set_joints("right", q)
+
+  try:
+    body.run(body.hold_routine(2.0))
+    settle()
+    sample("the stand", keep="stand")
+    for h, p in reach_.POSTURES[1:]:
+      body.reach.hold_posture(h, p)
+      settle()
+      sample(f"posture ({h}, {p})")
+    body.reach.hold_posture(0.0, 0.0)
+    settle()
+    lean = body.reach._lean()
+    goal = HandGoal(np.array([0.42, 0.18, 0.80]), frame((0.5, 0.0, -0.866), (0.0, -1.0, 0.0)))
+    body.run(body.reach_routine("left", body.to_world(goal.pos), _turned_world(body, goal.rot)))
+    sample(f"the left hand held at (0.42, 0.18, 0.80), {body.reach.phase['left']}", before=lean)
+    body.run(body.release_routine("left"))
+    settle()
+    aside(LEAN_ASIDE)
+    settle()
+    sample("the right arm out of the way")
+    body.reach.set_joints("right", body.reach.rest["right"])
+    settle()
+    rep = body.run(body.step_routine(0.0, 0.14))
+    settle()
+    sample(f"after step(0, 0.14): {rep['why']}")
+    aside(LEAN_ASIDE)
+    settle()
+    sample("...the right arm out of the way", keep="stepped")
+    lean = body.reach._lean()
+    (gx, gy, gz), fingers, jaws = LEAN_PLATE
+    goal = HandGoal(np.array([gx, gy, gz]), frame(fingers, jaws))
+    body.run(body.reach_routine("left", body.to_world(goal.pos), _turned_world(body, goal.rot)))
+    sample(f"...the left hand at the plate's grip, {body.reach.phase['left']} "
+           f"(looked {body.reach.looks['left']}x)", before=lean, keep="plate")
+  finally:
+    body.close()
+
+  def off(a, b, s):
+    return f"{100 * (a[s][0] - b[s][0]):+5.1f},{100 * (a[s][1] - b[s][1]):+5.1f}"
+  print("Each true shoulder (left; right) from each statue, cm ahead, cm left, in the stance frame:")
+  print(f"{'':48s} {'today':>23s} {'as it reads itself':>23s} {'as the plan read it':>23s} "
+        f"{'its own model':>23s}  CoM true/read cm")
+  for r in rows:
+    planned = (f"{off(r['true'], r['planned'], 'left')}; {off(r['true'], r['planned'], 'right')}"
+               if "planned" in r else "")
+    print(f"{r['name'][:48]:48s} {off(r['true'], r['today'], 'left')}; {off(r['true'], r['today'], 'right')}"
+          f"  {off(r['true'], r['read'], 'left')}; {off(r['true'], r['read'], 'right')}"
+          f"  {planned:>23s}  {off(r['true'], r['live'], 'left')}; {off(r['true'], r['live'], 'right')}"
+          f"  {100 * r['com']:+5.2f}/{100 * r['live_com']:+5.2f}  posture {tuple(round(v, 3) for v in r['posture'])}"
+          + (f" FELL {r['falls']}" if r["falls"] else ""))
+  if write:
+    LEAN_FIXTURE.write_text(json.dumps({
+      "about": "the humanoid's own reading of itself (its joints as its drivers read them, "
+               "the arms as commanded, its IMU's gravity) and its TRUE shoulders in the true "
+               "stance frame, at three states: scripts/humanoid_spike.py --lean --write (#627)",
+      "states": kept}, indent=1) + "\n")
+    print(f"kept in {LEAN_FIXTURE}")
+
+
+def _turned_world(body, rot):
+  """A grip's turn in the stance frame, in the believed world frame (what
+  `Body.reach_routine` takes)."""
+  yaw = body.stance[2]
+  c, s = math.cos(yaw), math.sin(yaw)
+  return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]]) @ np.asarray(rot, dtype=float)
 
 
 def energy_table(rows=None) -> None:
@@ -4250,7 +4422,11 @@ def main(argv=None) -> None:
   ap.add_argument("--friction", action="store_true",
                   help="its arm joints' and waist's friction calibrated in free air, beside the sheets' "
                        "(--write keeps it in models/humanoid_friction.json)")
-  ap.add_argument("--write", action="store_true", help="--friction: keep the table")
+  ap.add_argument("--lean", action="store_true",
+                  help="the live trunk against the statue a reach plans on: the stand, each posture, "
+                       "an arm out, after a step, the table's plate (--write keeps three states for "
+                       "tests/test_reach_lean.py)")
+  ap.add_argument("--write", action="store_true", help="--friction: keep the table; --lean: its states")
   ap.add_argument("--mass", action="store_true", help="the mass budget beside the T2's")
   ap.add_argument("--torque", action="store_true",
                   help="each joint's load: held in our physics, then the estimates")
@@ -4328,6 +4504,8 @@ def main(argv=None) -> None:
     bow_fall_table(args.fall or None, jobs=args.jobs)
   elif args.friction:
     friction_table(write=args.write)
+  elif args.lean:
+    lean_table(write=args.write)
   elif args.mass:
     mass_table()
   elif args.torque:

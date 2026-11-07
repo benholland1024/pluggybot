@@ -8,6 +8,7 @@ its sheet's force, and what the drivers report against their fields.
 SimNotes and Parts.md, "The humanoid body", carry the design."""
 
 import json
+import math
 from pathlib import Path
 
 import mujoco
@@ -556,8 +557,10 @@ def test_a_hand_that_meets_something_on_its_way_stops_short():
                      postures=with_waist(POSTURES, yaws=(0.0,)))
   _fly(model, data, stand, reach, 8.0)
   assert reach.phase["left"] == "blocked"
-  # Standing in the posture its plan asked (a crouch), upright: not fallen.
-  assert data.xpos[root][2] > 0.45 and data.xmat[root][8] > 0.9
+  # Standing in the posture its plan asked, its trunk at that posture's
+  # pitch: not fallen.
+  tilt = math.acos(min(1.0, float(data.xmat[root][8])))
+  assert data.xpos[root][2] > 0.45 and abs(tilt - reach.posture[1]) < 0.15, (tilt, reach.posture)
 
 
 def test_a_hand_goes_in_only_once_the_trunk_is_still():
