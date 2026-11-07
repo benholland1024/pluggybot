@@ -6234,14 +6234,15 @@ Draw by draw the drawer lost 2 and won 1, the door lost 5 and won 4, the
 cube lost 7 and won 9, the lid won 4, the opener lost 2 and won 3: a change
 to any reach reshuffles which draws pass, and a sign test over the pairs
 tells none of them apart. The served door's fall is draw 8's on both trees.
-- ⚠ *The opener aims at the knob's middle, and the reach now gets there.*
+- ⚠ *The opener aimed at the knob's middle, and the reach now gets there.*
   Its reaches held their goal 40 times in 73 where they held it 29, but 13
   of its 40 grips did not hold the knob where 1 of 29 did: arrived short,
   its hand had gripped where the lid check aims on purpose, 2 cm short of
-  the middle (the pads reach 4 cm past the grip, "The chest's grip"). Its
-  grip aimed so and nothing else changed, it opens 23 of 32 (8 of 0-7),
-  losing none the tree before opened (a probe on the dev box, where both
-  trees flew chest for chest as on the pod). The opener is unchanged.
+  the middle (the pads reach 4 cm past the grip, "The chest's grip"). It
+  grips so now, back level along the box's facing (`opener.SHORT_M`, off
+  the depth's fit: a square-on tag's normal swings +-7 deg): 22 of 32 (7
+  of 0-7), losing none the tree before opened -- on the dev box, where both
+  trees flew chest for chest as on the pod; back along the tag's normal, 23.
 - *The look costs no time it does not use.* A posture the look would
   choose that is the one held lets the hand straight in, and paired by
   set-out the checks' passes took no longer: the median pass's time moved 0
