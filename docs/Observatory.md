@@ -10,6 +10,42 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A grip reads held against what its drive pushes at the gap it reads (#646) — opens when this PR is deployed; released with the gripper's jaws (#628), it rides with that period as one
+
+**What changed is what a grip READS** (SimNotes, "A hard squeeze on
+something thin"):
+- **`held` judges the squeeze against what the gripper's drive pushes at
+  the gap it reads** (`arms.pushes`): the force asked, or short of it the
+  drive's spring's. Under 2 cm at a squeeze over 30 N the spring is the
+  less, and judged against half the force asked a grip there read "closed
+  on nothing it holds" while the jaws held it: the plate's 8 mm wall at 120
+  N, jaws stalled about 1 cm apart squeezing 58-60 N. Now it reads held.
+- **Where a mind sees it**: `close_hand`'s word, the `left.held` and
+  `right.held` sensors, the felt readings under each hand verb, and what
+  reads a grip -- a `pull` whose grip is lost ends "let go", a `step` is
+  refused while a gripper holds -- on a thin thing squeezed hard.
+  Elsewhere nothing moved: flown on one pod beside the tree before, the
+  hands checks were the same flight for flight but one (the lid at set-out
+  24, which failed alike on both), and the served drawer, door and chest
+  from the tour, 96 flights, all the same.
+- **Nothing the robots are told moved, nor the squeeze**: the language,
+  the jobs, the rewards and the cadence; `prompt_sha` stays as released.
+  A hard squeeze on a thin thing still squeezes what the drive's spring
+  pushes there.
+
+**Why.** #646, from #628's call: the plate's wall read nothing held at 120
+N at 4 of our reference's 32 grips, and the table's practice arms (#642),
+which asked 50-120 N, closed on it "on nothing" where their jaws held it --
+3 of their 70 tries turn on it, flown again.
+
+**What the period is for.**
+- **The live grips at 40 N and up that close on nothing**: History's
+  `close_hand` lines saying so, by the squeeze asked, against the period
+  before -- with #628's, which rides in it.
+- ⚠ **Not to be pooled with the period before for anything a grip's word
+  decides**: a `close_hand`'s verdict, a procedure's path past it, a hand
+  job's grade.
+
 ### The procedure language says a tag is named by its number, what a budget is capped at and counts, what a name is, and that the def that runs comes first with no arguments (#640) — opens when this PR is deployed; released into a pause, it rides with the rest of its release as one period
 
 **What changed is what the robots are TOLD**, in the procedure rule's

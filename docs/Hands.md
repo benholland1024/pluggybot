@@ -240,8 +240,11 @@ them needs the mechanism's geometry, and none was handed it.
 
 **The grip's force** is the other half of compliance: `close_hand(hand,
 force)` shuts with 5-120 N a pad (the Dex1-1's range), and `held` reads the
-squeeze against half the force asked -- ⚠ its running mean
-(`arms.SQUEEZE_S`): one reading's noise misread a light grip. ⚠ At 120 N a
+squeeze against half of what the drive pushes at the gap it reads -- the
+force asked, or under 2 cm at a hard squeeze the spring's, short of it
+(`arms.pushes`; #646: against the force, the plate's 8 mm wall read
+nothing held at 120 N) -- ⚠ its running mean (`arms.SQUEEZE_S`): one
+reading's noise misread a light grip. ⚠ At 120 N a
 door's lever could not turn in the jaws; at 15 N its tip turns between them
 as the door swings.
 

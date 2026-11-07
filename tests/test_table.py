@@ -262,9 +262,8 @@ def test_a_piece_reads_lifted_with_hysteresis_and_no_flag_carries_its_load():
 
 
 def test_the_dishware_is_shaped_for_the_gripper_it_meets():
-  """Each piece fits the Dex1-1's 90 mm and reads held in it: pinched at 90
-  N, a 6 mm wall read as the jaws shut on nothing (its gap under
-  `HELD_GAP_M`)."""
+  """Each piece fits the Dex1-1's 90 mm and reads held in it: at least 1.5
+  `HELD_GAP_M` across, so the jaws stopped on it read clear of closed."""
   from pluggybot.humanoid import arms, parts
   assert dw.PLATE_WALL_T >= 1.5 * arms.HELD_GAP_M
   assert 2 * dw.HANDLE[1] >= 1.5 * arms.HELD_GAP_M

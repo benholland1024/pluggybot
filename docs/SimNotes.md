@@ -6444,10 +6444,10 @@ and the fork's handle from 50 (held of set-outs 0-31 on one pod;
 The built drive's misses are not its own: one cup, at set-out 28 -- where
 our reference's own grip misses and tries again, its flight never reaching
 the plate or the fork -- is gripped at its edge and squeezes out from 40 N;
-and the plate's 8 mm wall at 120 N can read not held -- shut on it the jaws
-stall 10 mm apart, where `GRIP_KP`'s spring pushes 56-59 N a pad, under
-`held`'s half of 120 (things narrower than 2 cm never reach the clip,
-`GRIP_KP`; #646). `humanoid_spike.py --view jaws` shows the fork at set-out
+and the plate's 8 mm wall at 120 N read not held at one -- shut on it the
+jaws stall 10 mm apart, where `GRIP_KP`'s spring pushes 56-59 N a pad,
+under the half of 120 `held` then asked, which #646 ended (below).
+`humanoid_spike.py --view jaws` shows the fork at set-out
 0 shut on again and again from one moment, at 40, 80 and 120 N, its jaws as
 they were and as built.
 
@@ -6530,6 +6530,76 @@ between its clips 108-749 times in 1.5 s and at 80 N batted the fork askew
 and stood 39 mm apart; built, it flipped none and shut on the fork every
 time (`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip jaws`;
 `--view jaws` watches it)](figures/humanoid_jaws.png)
+
+## A hard squeeze on something thin (issue #646)
+
+**What is true now.** A grip's word judges the squeeze against what the
+gripper's drive pushes at the gap it reads (`arms.pushes`, `arms.holds`):
+the force asked -- its torque limit -- or, short of it, its spring's,
+`GRIP_KP` on the jaw its motor drives, `gap / 2` from shut, half of it a
+pad. Its own command and its own encoder: `senses.GripperSense` reads the
+driven jaw. Under 2 cm a hard squeeze's spring is the less -- at 120 N it
+pushes 60 N a pad at 1 cm, 30 N at 5 mm -- and judged against half the
+force asked, as before, jaws stalled on a 1 cm block at 120 N read "closed
+on nothing it holds" (59.1 N, under 60), on a 6 mm block from 80 N. Shut
+on blocks 6-15 mm across at 40-120 N, the squeeze reads within 1 N of what
+`pushes` says and every grip reads held; `HELD_GAP_M` still reads 5 mm or
+less as closed (`tests/test_humanoid.py`). A shut on nothing does not read
+held as its jaws pass a thin gap: from open in free air, at every squeeze
+from 5 to 120 N, the squeeze's running mean (`SQUEEZE_S`) reaches at most a
+ninth of what the rule asks while the jaws are under 2 cm apart (a test,
+every step through `GRIP_S` and `GRIP_SETTLE_S`; without `HELD_GAP_M` the
+closed jaws read held on the current sense's noise), and shut from 1-3 cm
+apart at most a third where the spring is the less.
+
+**Measured** on one pod (an AMD EPYC 9654P, osmesa), each flight its own
+noise, the tree before and #646's flown side by side, and beside every
+`held` reading a watch asking the other rule of the same reading:
+- **Our table reference's grips**, each shut again from the state it began
+  in (`humanoid_spike.py --grips 0-31`): the plate's 8 mm wall at 120 N
+  reads held at 32 set-outs of 32, where the rule before read 28 -- at the
+  other four its jaws stalled 9.7-10.0 mm apart, squeezing 58.2-59.9 N,
+  its pads on the wall. Below 120 N, and the cup and the fork at every
+  squeeze, the two rules read alike (the cup's edge grip at set-out 28
+  squeezes out from 50 N under either). Drawn 6 mm thick, the wall's jaws
+  stall 7.2-10.1 mm apart and read held at all 32 at every squeeze, where
+  the rule before read 30, 26, 19 and 8 of 32 at 90, 100, 110 and 120 N.
+- **The hands checks** at set-outs 0-31: 159 flights of 160 the same on
+  both trees, verdict, reason and sim time; the lid 26, the drawer 21, the
+  door 25, the cube 18 and the table 29 on both. The one apart, the lid at
+  set-out 24, failed alike on both, its lid let fall at 7.8 rad/s: its knob
+  out of the jaws at 120 N, the grip lost read held three readings longer
+  (below).
+- **The served drawer, door and chest from the tour**, 32 draws each: 96
+  flights of 96 the same, 27, 29 and 30 passed on both; the watch saw the
+  rules disagree in none.
+- **The table's practice arms' 70 tries** (#642) flown again from each
+  set-out, noise and source: 3 flights changed, each where a grip on the
+  plate's wall at 120 N, its jaws stalled 9.2-9.7 mm apart, read closed on
+  nothing before and held now, the procedure going on to carry the plate --
+  out of reach once, out of time twice, one of those ending in a fall. None
+  passed on either tree (43 grips of 86 held, against 42 of 88). Six more
+  read the rules apart only in readings nothing acted on, 0.25 s apart
+  through a carry -- the felt readings a practice shows its mind, "held"
+  false before while the jaws held the plate -- their flights the same.
+
+**What it costs.** A grip LOST on something 2-3 cm across, at a hard
+squeeze, reads held a little longer: the squeeze's mean lags its drive by
+its 0.1 s, so jaws running shut from a 26 mm knob at 120 N reached 9.2 mm
+before it fell under half of 120, and where the spring is the less the
+rule now asks less -- about 10 ms longer, until the jaws read 5 mm (the lid
+above). A thinner thing's grip read held at all only since, so its loss is
+read where it was never read before. Judging the squeeze against a
+running mean of what the drive pushes, over the same 0.1 s, would end the
+lag; not done, as nothing flown turned on it.
+
+**What it cannot say.** The reading moved, never the squeeze: asked 120 N
+on the plate's wall, the jaws squeeze what their spring pushes there, 58-74
+N a pad across the set-outs (`GRIP_KP`, #407's stiffness). And a shut on
+nothing at the least squeeze still reads held for a moment, 0.07-0.10 s in
+as its jaws speed up -- its drive pushes its whole 5 N there and the mean
+reaches half of it -- as it did before #646, at the force's own half, and
+long before its verb reads its word (`body.GRIP_S`, 0.6 s).
 
 ## Debugging workflow that worked
 

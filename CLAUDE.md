@@ -932,7 +932,10 @@ save a filmstrip PNG named after the script.
   chests of 8); a grip it began with lost ending it where the hand is;
   going on where the arm misses, ANOTHER posture from the arm as it is,
   never one it has left (`posture_for(onward=, past=)`). `close_hand(force)`
-  takes the Dex1-1's 5-120 N, `held` against half of it ⚠ ON THE
+  takes the Dex1-1's 5-120 N, `held` against half of what its drive pushes
+  at the gap it reads (`arms.pushes`, #646: under 2 cm a hard squeeze's
+  spring stalls short of the force, and against half the force the plate's
+  8 mm wall read nothing held at 120 N) ⚠ ON THE
   SQUEEZE'S RUNNING MEAN (`arms.SQUEEZE_S`, sampled every physics step:
   one reading's 5.1 N of noise misread a 15 N grip 7 % of the time): ⚠ at
   120 N a lever could not turn in the jaws; ⚠ a hand pressed on what it met
