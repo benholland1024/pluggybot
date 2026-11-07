@@ -999,17 +999,12 @@ def _via(life, args: dict) -> Routine:
   yield
 
 
-#: A TAG IS NAMED BY ITS NUMBER, and every verb that takes one says so in its
-#: own text (#640: all 11 first answers of #560's table probe wrote
-#: `spot("93")`, and #493's flight `spot("53")`: a name may be in quotes,
-#: and nothing said a tag is none) -- by a tag no world carries (0-19 were
-#: the rover's, never reused), so its example names no job's.
+#: A TAG IS NAMED BY ITS NUMBER, and every verb that takes one says so (#640:
+#: unsaid, 11 of 11 first table answers wrote `spot("93")`), its example a
+#: call that compiles, by a tag no world carries (0-19 were the rover's), so
+#: it names no job's -- `find`'s none: its tag must be a place's.
+BY_NUMBER = "named by its number, not in quotes"
 TAG_EXAMPLE = 12
-
-
-def _by_number(call: str, does: str) -> str:
-  """What a verb that takes a tag says of it, `call` its example."""
-  return f". A tag is named by its number, not in quotes: `{call}` {does} tag {TAG_EXAMPLE}"
 
 
 _HAND = Arg("str", choices="hands")
@@ -1044,8 +1039,8 @@ VERBS: dict[str, Verb] = {
                _find, "find the task area carrying this tag: where you last saw "
                "it, else by searching round (x, y) -- a job's address -- until "
                "the tag is in view; ok when seen, and you remember where it is. "
-               f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f})"
-               + _by_number(f"find({TAG_EXAMPLE}, x, y)", "finds the area carrying")),
+               f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f}). "
+               f"The tag is a place's, {BY_NUMBER}"),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
   # The motor level (issue #166): what every verb above is built from.
@@ -1074,15 +1069,16 @@ HANDS_VERBS: dict[str, Verb] = {
                "stand still and look for this tag in your head camera -- as you stand, then "
                "bowing lower until you see it -- and stand up again; ok when you see it. Where "
                "its face is, which way the face looks and which way its edges run ride "
-               "`spot.*`" + _by_number(f"spot({TAG_EXAMPLE})", "looks for")),
+               f"`spot.*`. A tag is {BY_NUMBER}: `spot({TAG_EXAMPLE})` looks for tag "
+               f"{TAG_EXAMPLE}"),
   "watch": Verb("watch", {"tag": Arg("float", lo=0.0, hi=586.0)}, _watch,
                 "keep your head camera reading this tag while your procedure goes on -- your "
                 f"hands moving, your feet stepping, waiting -- {WATCH_HZ:g} times a second, each "
                 f"reading yours {WATCH_LATENCY_S:g} s after its picture was taken; it neither "
                 "bows nor turns to look, and it ends with your procedure or your next `watch`. "
                 "It waits for its first reading; ok when that shows the tag (as an `if`'s test "
-                "that is not, it watches on). What it reads rides `watch.*`"
-                + _by_number(f"watch({TAG_EXAMPLE})", "keeps reading")),
+                f"that is not, it watches on). What it reads rides `watch.*`. A tag is "
+                f"{BY_NUMBER}: `watch({TAG_EXAMPLE})` keeps reading tag {TAG_EXAMPLE}"),
   "reach": Verb("reach", {"hand": _HAND, **_HAND_AT, **_TURN, "stiffness": _STIFF},
                 _reach, "send a hand's grip -- the point between its jaws -- to (x, y, z), its "
                 "fingers pointing along (fx, fy, fz) and its jaws closing along (jx, jy, jz) -- "

@@ -77,9 +77,10 @@ be at most %(cap)s characters.
 
 Statements: a verb call, `name = expr`, `name += expr`, `if/elif/else`,
 `for name in range(N)` (N at most %(rounds)d), `while` (stopped at %(rounds)d rounds),
-`pass`, `return` (alone), and `budget(...)` as a def's first: the most verbs
-the run calls (`steps`) and the most seconds it runs (`seconds`),
-%(default_steps)d and %(default_s)s without one. Expressions: numbers, your variables,
+`pass`, `return` (alone), and first in the def that runs, `budget(...)`:
+the most verbs the run calls (`steps`) and the most seconds it runs
+(`seconds`), %(default_steps)d verbs and %(default_s)s seconds without one.
+Expressions: numbers, your variables,
 `read("sensor")`, + - * /, comparisons, `and`/`or`/`not`. Nothing else: no
 other calls, no strings but a verb's or a read's argument, no imports, no
 trigonometry. A procedure runs until it ends, a verb fails, its budget
@@ -94,10 +95,9 @@ MATH_TEXT = """no imports -- but
 `sin(a)`, `cos(a)` (a in radians), `atan2(y, x)` and `sqrt(v)` may be used
 in an expression."""
 #: ...where a source may hold defs that call each other (`WorldFacts.calls`,
-#: #560), what replaces the one def's words -- keeping "no arguments": the
-#: one place a writer copies from, and without it 5 of #560's 11 first
-#: table answers gave the first def some (#640) -- and the calls: generic,
-#: its example nothing a job does.
+#: #560), what replaces the one def's words, keeping its "no arguments"
+#: (#640: dropped, 5 of 11 first table answers gave the def that runs some),
+#: and the calls: generic, its example nothing a job does.
 ONE_DEF = "# one def, no arguments, a lowercase name"
 FIRST_DEF = "# the def that runs: no arguments, a lowercase name"
 NO_CALLS = """no
@@ -239,9 +239,9 @@ def language_text(facts: WorldFacts) -> str:
   from pluggybot.procedure import axes
   cap = f"{lang.MAX_SOURCE_CHARS:,}"
   text = LANGUAGE % {"cap": cap, "statements": f"{lang.MAX_STATEMENTS:,}",
-                     "steps": lang.MAX_STEPS, "seconds": f"{lang.MAX_BUDGET_S:.0f}",
+                     "steps": lang.MAX_STEPS, "seconds": f"{lang.MAX_BUDGET_S:g}",
                      "rounds": lang.MAX_ITER, "default_steps": lang.DEFAULT_STEPS,
-                     "default_s": f"{lang.DEFAULT_BUDGET_S:.0f}"}
+                     "default_s": f"{lang.DEFAULT_BUDGET_S:g}"}
   if facts.math:
     text = text.replace(NO_TRIG, MATH_TEXT)
   if facts.calls:

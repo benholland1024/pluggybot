@@ -332,7 +332,8 @@ def test_a_define_or_undefine_says_which_callers_it_stopped_or_mended():
 def test_the_language_says_its_caps_off_the_constants(monkeypatch):
   """...and a budget's (#640: 9 of #560's 11 first table answers asked for
   more steps than 200, where the text said only "both capped"), what a
-  budget counts and what a run has without one, each the parser's."""
+  budget counts, whose counts and what a run has without one, each the
+  parser's."""
   text = mp.language_text(HOME)
   assert f"at most {lang.MAX_SOURCE_CHARS:,} characters" in text
   assert f"calls go at most {lang.MAX_CALL_DEPTH} deep" in text
@@ -342,31 +343,32 @@ def test_the_language_says_its_caps_off_the_constants(monkeypatch):
   assert "several defs" not in bare and mp.ONE_DEF in bare and "So may a call" not in bare
   for t in (text, bare):
     assert (f"budget(steps=40, seconds=60)    # optional, first; steps at most {lang.MAX_STEPS}, "
-            f"seconds at most {lang.MAX_BUDGET_S:.0f}\n") in t
+            f"seconds at most {lang.MAX_BUDGET_S:g}\n") in t
     flat = " ".join(t.split())
-    assert (f"`budget(...)` as a def's first: the most verbs the run calls (`steps`) and the "
-            f"most seconds it runs (`seconds`), {lang.DEFAULT_STEPS} and "
-            f"{lang.DEFAULT_BUDGET_S:.0f} without one.") in flat
+    assert ("and first in the def that runs, `budget(...)`: the most verbs the run calls "
+            f"(`steps`) and the most seconds it runs (`seconds`), {lang.DEFAULT_STEPS} verbs and "
+            f"{lang.DEFAULT_BUDGET_S:g} seconds without one.") in flat
     assert (f"(N at most {lang.MAX_ITER}), `while` (stopped at {lang.MAX_ITER} rounds)"
             in flat)
-  cap = f"def a():\n  budget(steps={lang.MAX_STEPS}, seconds={lang.MAX_BUDGET_S:.0f})\n  wait(1)\n"
+  cap = f"def a():\n  budget(steps={lang.MAX_STEPS}, seconds={lang.MAX_BUDGET_S:g})\n  wait(1)\n"
   assert compile_ok(cap).steps_budget == lang.MAX_STEPS
   assert refusals(cap.replace(f"={lang.MAX_STEPS}", f"={lang.MAX_STEPS + 1}")) == [
     f"line 2, budget: steps={lang.MAX_STEPS + 1} is outside 1..{lang.MAX_STEPS}"]
   bare_run = compile_ok("def a():\n  wait(1)\n")
   assert (bare_run.steps_budget, bare_run.budget_s) == (lang.DEFAULT_STEPS, lang.DEFAULT_BUDGET_S)
-  # ...a step is a verb run: a read, a call and the arithmetic are none
+  # ...a step is a verb run: a read, a call and the arithmetic are none; and
+  # the budget is the def that runs', a callee's its own only when it runs
   r, _ = run("def a():\n  budget(steps=2)\n  b()\n  k = read(\"time\") + 1\n  wait(1)\n"
-             "  wait(1)\n  wait(1)\n\ndef b():\n  k = 1\n  wait(1)\n")
+             "  wait(1)\n  wait(1)\n\ndef b():\n  budget(steps=50)\n  k = 1\n  wait(1)\n")
   assert r["stopped"] == "steps" and r["total"] == 2
   # ...read off the constants, never typed: moved, the text moves with them
-  for name, value in (("MAX_STEPS", 123), ("MAX_BUDGET_S", 1234.0), ("MAX_ITER", 45),
-                      ("DEFAULT_STEPS", 67), ("DEFAULT_BUDGET_S", 890.0)):
+  for name, value in (("MAX_STEPS", 123), ("MAX_BUDGET_S", 1234.5), ("MAX_ITER", 45),
+                      ("DEFAULT_STEPS", 67), ("DEFAULT_BUDGET_S", 890.5)):
     monkeypatch.setattr(lang, name, value)
   moved = " ".join(mp.language_text(HOME).split())
-  assert "steps at most 123, seconds at most 1234" in moved
+  assert "steps at most 123, seconds at most 1234.5" in moved
   assert "(N at most 45), `while` (stopped at 45 rounds)" in moved
-  assert "67 and 890 without one." in moved
+  assert "67 verbs and 890.5 seconds without one." in moved
 
 
 def test_the_def_that_runs_says_no_arguments_where_the_writer_copies_from():
