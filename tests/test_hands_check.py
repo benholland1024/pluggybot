@@ -738,12 +738,12 @@ def _straight(a, sign) -> bool:
   return math.hypot(a["dx"], a["dy"]) < 1e-6 and a["dz"] * sign > 0
 
 
-def test_the_tables_hand_reaches_past_its_grip_and_takes_and_leaves_each_piece_by_a_pull():
+def test_the_tables_hand_reaches_its_grip_and_takes_and_leaves_each_piece_by_a_pull():
   """⚠ HOW OUR TABLE'S HAND MOVES (#560; SimNotes, "The table's reference on the waist"), each
-  a fix flown: the plate's and the fork's reaches are aimed 3 cm on along the wall or the
-  handle and the hand pulled back to the grip -- the live trunk stands 2-3 cm behind the statue
-  the reach plans on, and a reach to the grip itself left the arm at its stretch, short --
-  and the cup's 10 cm over it, its hand brought down straight onto it by pulls (the reach's
+  a fix flown: the plate's and the fork's reaches are aimed at their grips, the hand shut
+  where the reach left it (#627: the reach plans where the robot stands; planned on a statue
+  ahead of it, they were aimed 3 cm on and pulled back) -- and the cup's 10 cm over it, its
+  hand brought down straight onto it by pulls (the reach's
   own way in tipped it); each piece is lifted straight up by a pull (a carry takes only a
   posture its statue reaches), where it goes is read again once it is up (the stance turns
   0.7-1.9 deg between a read and its set-down), and the hand leaves it straight up by a pull,
@@ -759,12 +759,12 @@ def test_the_tables_hand_reaches_past_its_grip_and_takes_and_leaves_each_piece_b
     reach = max(j for j, v, _ in _moves(log, side, 0) if j < i and v == "reach")
     aimed = log[reach + 1][2][side] - grip            # where the reach left the hand
     way_in = [(v, a) for j, v, a in _moves(log, side, reach + 1) if j < i]
-    assert way_in and all(v == "pull" for v, _ in way_in), way_in
     if side == "right":
+      assert way_in and all(v == "pull" for v, _ in way_in), way_in
       assert aimed[2] >= 0.09 and abs(aimed[1]) < 1e-6, aimed
       assert _straight(way_in[-1][1], -1), way_in[-1]
     else:
-      assert aimed[0] >= 0.025 and abs(aimed[1]) < 1e-6 and abs(aimed[2]) < 1e-6, aimed
+      assert not way_in and np.abs(aimed).max() < 1e-6, (way_in, aimed)
     after = _moves(log, side, i + 1)
     lift, v, a = after[0]
     assert v == "pull" and _straight(a, 1), (v, a)

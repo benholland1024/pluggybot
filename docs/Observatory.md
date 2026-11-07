@@ -10,7 +10,46 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### `measure` says how far round its point it looks, reads no end at that window's rim, and sees no top in the floor (#630) — opens when this PR is deployed
+### A reach plans where the robot reads itself standing, and looks again once its arm is out (#627) — opens at the waist's deploy, and rides with the waist's period and #630's as one
+
+**What changed in the body's code** (SimNotes, "The reach planned where
+the live trunk stands"): every reach a hands job or a procedure makes --
+and the station's plug-in, which reaches, carries and pushes too.
+- **A reach is planned on the robot's model of itself as it reads itself
+  standing** (`reach.Lean`): each posture's statue balanced where the
+  robot's own model, off its encoders and its IMU, puts its weight over its
+  soles (1.2-2.9 cm behind their middle as measured, where the statue it
+  planned on before held it over the middle), its arms where they will be.
+  The carry's and the pull's postures stand on the same statue.
+- **Once its arm is out at its pre-grasp it reads itself again** and takes
+  the least bent posture that puts its goal in reach before its hand goes
+  in -- deeper or less bent -- at most twice, its hand waiting meanwhile
+  (`Reach._look`). The checks' passes took no longer for it: paired by
+  set-out, the median pass's time moved 0 to -1.2 s a job.
+- **The arm's solve keeps the arm nearest how it is**, and solves a goal
+  and the point its slack asks for each from the other's arm: no arm thrown
+  over the top where one in front reaches, and no pockets of deep bows.
+- **Nothing the robots read changed**: no prompt, verb, schema or reward;
+  `prompt_sha` the same. A procedure's `reach` now arrives where it was
+  aimed where it fell 2-6 cm short; nothing tells the robots so but what
+  their reaches do.
+
+**Why.** #627, from #626's calls 1 and 3: the live trunk stood 1.6-6 cm
+behind the statue the reach planned on, so a hand aimed at a grip arrived
+short; the table's reference aimed past its grips, which no robot could know
+to do, and no live hand job had passed by 2026-11-03.
+
+**What the period is for.** That the hand jobs' grades rise or hold and the
+charges plug in as before (flown before the deploy on one pod over 32 draws
+each: SimNotes, "The reach planned where the live trunk stands"): read off
+the jobs' verdicts and the procedures' `reach`es that failed ("... hand
+stopped short on its way", "no posture you hold puts your ... hand there")
+against the period before, the charges' narration, and the `death` rows.
+⚠ **Not to be pooled with the period before for anything the hands do**;
+and in one period with the waist's and #630's, a hand job's grade is the
+three changes together, none of them read apart.
+
+### `measure` says how far round its point it looks, reads no end at that window's rim, and sees no top in the floor (#630) — opens at the waist's deploy, and rides with the waist's period and #627's as one
 
 **What changed is one verb's answers, and its words** (Hands.md §3,
 SimNotes "Where `measure` looks"):
