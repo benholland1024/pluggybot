@@ -209,7 +209,9 @@ the language does not change. Nothing in `procedure/` writes `data.ctrl` (the fe
 `tests/test_procedure.py`).
 
 **Total by construction:** a procedure declares `budget(steps=N,
-seconds=S)` and code caps both (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800); every
+seconds=S)`, N the verbs it runs, and code caps both (`MAX_STEPS` 200,
+`MAX_BUDGET_S` 1800; 60 and 600 s without one), and the text says all four
+(#640); every
 loop is bounded; the interpreter checks budgets and `interrupted()` at every
 verb, which is a safe point, and a walk inside a verb asks it every second
 on the way (issue #381: a verb it ended is `stopped: interrupted`, an abort

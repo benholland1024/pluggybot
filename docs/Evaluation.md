@@ -2053,6 +2053,43 @@ no try that fell; seed 402613269), on staging `f7c7a94` (the release
   Spend: $1.88 recorded and ~$1.59 killed in flight (the early stop's 8
   set-outs an arm, by the hours they ran at each arm's own rate).
 
+**The language's three gaps, re-probed** (#640, 2026-11-07): the probe's
+first turn again -- set-out 266354185 of seed 402613269, one answer a call,
+no repair, both minds at `low` -- on the text that says a tag is named by
+its number, what a budget is capped at and counts, and that the def that
+runs takes no arguments. `eaa7419` was its first wording, `8378d1c` the
+one served (the two differ in the practice's text by the budget's sentence
+alone). A slip is counted off every reason a refusal gives and again off
+the source itself, which agree on every answer, the probe's above included:
+
+| mind, at `low` | text | asked | answered | compiled as written | a tag in quotes | a budget past its caps | the def that runs given arguments |
+|---|---|---|---|---|---|---|---|
+| GLM-5.3-Flash (baseten 8, deepinfra 3) | before | 11 | 7 | 0 | 7 | 5 | 4 |
+| DeepSeek-V4.1-Flash (deepinfra) | before | 4 | 4 | 0 | 4 | 4 | 1 |
+| GLM-5.3-Flash (baseten) | `eaa7419` | 8 | 6 | 0 | 0 | 0 | 0 |
+| DeepSeek-V4.1-Flash (deepinfra) | `eaa7419` | 6 | 6 | 5 | 0 | 0 | 0 |
+| GLM-5.3-Flash (baseten) | `8378d1c` | 14 | 7 | 0 | 0 | 0 | 0 |
+| DeepSeek-V4.1-Flash (deepinfra) | `8378d1c` | 6 | 6 | 2 | 0 | 0 | 0 |
+
+- **None of the 25 answers carried any of the three**, where all 11
+  before did. The tags are numbers, and every budget written is inside its
+  caps.
+- **What still refuses is what the text states**: a sensor written as
+  Python (`spot.x`, 10 answers), a source past the 3,000 characters (7),
+  nesting past 4 (6), an uppercase local (5: GLM's 3, DeepSeek's 2) and
+  one syntax error. A local's lowercase is said only of a def's name, and
+  the refusal calls such a name "reserved". In an arm each goes back with
+  its reasons, and #642's 28 repairs were answered in one call each.
+- **The deployed mind answered 13 of 22.** Of the 9 that never came back,
+  4 thought to the 128,000-token cap, 2 ran into the router's 20 minutes,
+  and 3 lost their stream to the provider's HTTP 500 (19:35-19:47 UTC).
+  DeepSeek answered all 12.
+- **What it cannot say**: first turns only, on one set-out, one evening;
+  DeepSeek's compiled 5 of 6 and then 2 of 6, on texts that differ by the
+  budget's sentence alone, and every refusal of theirs is a stated rule:
+  samples of 6. Spend: $0.99 recorded (the three dropped streams' tokens
+  unrecorded). Rows and the readers: `~/pluggybot-training/issue-640-language/`.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

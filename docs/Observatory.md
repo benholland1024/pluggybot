@@ -10,6 +10,55 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The procedure language says a tag is named by its number, what a budget is capped at and counts, and that the def that runs takes no arguments (#640) — opens when this PR is deployed; released into a pause, it rides with the rest of its release as one period
+
+**What changed is what the robots are TOLD**, in the procedure rule's
+language and body, the practice's byte for byte (#559):
+- **Each verb that takes a tag says it is named by its number**: `spot`
+  and `watch` end "A tag is named by its number, not in quotes:
+  `spot(12)` looks for tag 12" (`watch(12)` keeps reading it), by a tag
+  the world neither renders nor places (`steps.TAG_EXAMPLE`); the served
+  rule's `find`, "The tag is a place's, named by its number, not in
+  quotes", with no example, as any other tag there would be refused.
+- **A budget's caps, what it counts, whose counts and what a run has
+  without one**: the example's `budget(steps=40, seconds=60)` says "steps
+  at most 200, seconds at most 1800" where it said "both capped", and the
+  statements add "and first in the def that runs, `budget(...)`: the most
+  verbs the run calls (`steps`) and the most seconds it runs (`seconds`),
+  60 verbs and 600 seconds without one", each number off its constant.
+- **The def that runs takes no arguments, in the example**: where defs call
+  defs (every hands world, the served pair's too) its comment is "# the def
+  that runs: no arguments, a lowercase name", as the one def's said.
+- `prompt_sha` `45d56c74…` → `2670f930…`, 58,710 → 59,129 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`); the practice's
+  language and body and the session host's `hello` with it (the site
+  re-vendors it). What the parser accepts and refuses did not move, nor
+  the schema, the menu, the reward table, the body or the house.
+
+**Why.** #640, from #560's table probe (PR #639): all 11 first answers
+that came back from GLM-5.3-Flash and DeepSeek-V4.1-Flash were refused
+before any try -- all 11 wrote `spot("93")`, 9 asked a budget past its 200
+steps, 5 gave the def that runs arguments -- and in the arms that followed
+(PR #642) every first answer was. Probed again on this text, none of 25
+answers from the same two minds carried any of the three (Evaluation.md
+§4, "The language's three gaps, re-probed"); what still refuses is what
+the text states -- a sensor written as Python, a source past 3,000
+characters, nesting past 4 -- and an uppercase local, which the text
+states only of a def.
+
+**What the period is for.**
+- **Are the served robots' defines refused for these three any more?** The
+  refusals History carries (`tag takes a number, not a name in quotes`,
+  `budget: steps=… is outside 1..200`, `… is the def that runs, and
+  nothing passes it …`) against the period before.
+- **Do the budgets the robots write change?** The `budget(...)` lines of
+  the procedures' defined sources (the `procedure` rows), against the
+  period before: told 60 and 600 without one, a robot may write one, or a
+  larger one, where it wrote none.
+- ⚠ **Not to be pooled with the period before for anything a procedure's
+  text decides**: a define's refusals, a run's `steps` stop, and a hand
+  job's grade, in one period with the rest of its release.
+
 ### A hand's force reads its body's own motion, a stop on one reads it from 0.1 s into its move, and History says what a stop condition read (#631) — opens when this PR is deployed; released with the waist, it rides with that period and #627's and #630's as one
 
 **What changed in the body's code and in what the robots read** (SimNotes,
