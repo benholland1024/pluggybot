@@ -143,42 +143,50 @@ def test_the_soles_and_the_pads_grip_with_their_own_friction():
       assert model.geom_priority[model.geom(f"{s}_{jaw}_pad").id] == 1
 
 
-def _gripper_rig(block: float):
+def _hanging_hand():
   """The left hand fixed where its arm hangs at zero -- the arm's joints
-  taken out, the pelvis welded to a hook -- and a block between its jaws
-  fixed to the world, `block` m across."""
+  taken out, the pelvis welded to a hook: its spec, and its grip site's
+  place and frame (x the jaws' travel, the fingers down its -z)."""
   arm = {f"left_{j}" for j in hm.ARM}
-
-  def rig(with_block=None):
-    spec = mujoco.MjSpec.from_string(hm.body_xml())
-    for act in list(spec.actuators):
-      if act.name in arm:
-        spec.delete(act)
-    for body in spec.worldbody.find_all(mujoco.mjtObj.mjOBJ_BODY):
-      for joint in list(body.joints):
-        if joint.name in arm:
-          spec.delete(joint)
-    for key in list(spec.keys):
-      spec.delete(key)
-    spec.worldbody.add_body(name="hook", pos=[0.0, 0.0, hm.stand_height()])
-    spec.add_equality(type=mujoco.mjtEq.mjEQ_WELD, name1=hm.ROBOT_ROOT, name2="hook",
-                      objtype=mujoco.mjtObj.mjOBJ_BODY,
-                      data=[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1])
-    if with_block is not None:
-      pos, quat = with_block
-      held = spec.worldbody.add_body(name="held", pos=list(pos), quat=list(quat))
-      held.add_geom(name="held", type=mujoco.mjtGeom.mjGEOM_BOX,
-                    size=[block / 2, 0.01, 0.01])
-    model = spec.compile()
-    data = mujoco.MjData(model)
-    mujoco.mj_forward(model, data)
-    return model, data
-
-  model, data = rig()
+  spec = mujoco.MjSpec.from_string(hm.body_xml())
+  for act in list(spec.actuators):
+    if act.name in arm:
+      spec.delete(act)
+  for body in spec.worldbody.find_all(mujoco.mjtObj.mjOBJ_BODY):
+    for joint in list(body.joints):
+      if joint.name in arm:
+        spec.delete(joint)
+  for key in list(spec.keys):
+    spec.delete(key)
+  spec.worldbody.add_body(name="hook", pos=[0.0, 0.0, hm.stand_height()])
+  spec.add_equality(type=mujoco.mjtEq.mjEQ_WELD, name1=hm.ROBOT_ROOT, name2="hook",
+                    objtype=mujoco.mjtObj.mjOBJ_BODY,
+                    data=[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1])
+  model, data = _compiled(spec)
   site = model.site("left_grip").id
+  return spec, data.site_xpos[site].copy(), data.site_xmat[site].reshape(3, 3).copy()
+
+
+def _compiled(spec):
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  return model, data
+
+
+def _quat(mat) -> list:
   quat = np.zeros(4)
-  mujoco.mju_mat2Quat(quat, data.site_xmat[site])
-  return rig((data.site_xpos[site].copy(), quat))
+  mujoco.mju_mat2Quat(quat, np.asarray(mat).flatten())
+  return list(quat)
+
+
+def _gripper_rig(block: float):
+  """The hanging hand (`_hanging_hand`) and a block between its jaws fixed
+  to the world, `block` m across."""
+  spec, pos, mat = _hanging_hand()
+  held = spec.worldbody.add_body(name="held", pos=list(pos), quat=_quat(mat))
+  held.add_geom(name="held", type=mujoco.mjtGeom.mjGEOM_BOX, size=[block / 2, 0.01, 0.01])
+  return _compiled(spec)
 
 
 def test_the_gripper_squeezes_with_its_datasheets_force_and_says_so():
@@ -504,6 +512,96 @@ def test_a_grip_is_judged_by_the_grippers_own_reading():
     mujoco.mj_step(model, data)
     g.sample()
   assert not g.held()
+
+
+def test_a_jaw_takes_at_least_a_step_to_reach_its_drives_line():
+  """The rule under the gripper's drive (#628): a jaw's mechanical time
+  constant on its drive's line -- its inertia (its rotor's share and its
+  finger) over the line's back-EMF, K^2/R -- is at least a physics step.
+  MuJoCo integrates a drive explicitly while it is clipped, a shut's whole
+  travel: at 0.13 ms (0.2 kg a jaw) its force flipped between its clips
+  every 2 ms step."""
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  for s in hm.SIDES:
+    r, k = model.actuator_gainprm[model.actuator(f"{s}_gripper").id][:2]
+    for jaw in hm.JAWS:
+      j = model.joint(f"{s}_{jaw}")
+      inertia = model.dof_armature[j.dofadr[0]] + model.body_mass[j.bodyid[0]]
+      assert inertia * r / k ** 2 >= model.opt.timestep, (s, jaw)
+
+
+def _shut_from_open(model, data, force: float, seconds: float):
+  """The left gripper set out open and held so, then shut at `force` for
+  `seconds`: its gripper, and each step's drive force, jaw speed and gap."""
+  from pluggybot.humanoid.arms import Gripper
+  mujoco.mj_resetData(model, data)
+  jaws = [model.jnt_qposadr[model.joint(f"left_{j}").id] for j in hm.JAWS]
+  speed = model.jnt_dofadr[model.joint(f"left_{hm.JAWS[0]}").id]
+  data.qpos[jaws] = hp.GRIPPER.stroke / 2
+  mujoco.mj_forward(model, data)
+  g = Gripper(model, data, "left")
+  g.open()
+  for _ in range(int(0.2 / model.opt.timestep)):
+    mujoco.mj_step(model, data)
+    g.sample()
+  g.shut(force)
+  rows = []
+  for _ in range(int(round(seconds / model.opt.timestep))):
+    mujoco.mj_step(model, data)
+    g.sample()
+    rows.append((data.actuator_force[g.act], data.qvel[speed], data.qpos[jaws].sum()))
+  return g, np.array(rows)
+
+
+def test_the_grippers_drive_keeps_to_its_line_in_free_air():
+  """Shut on nothing at the least squeeze, a middling one and the most, its
+  drive's force never flips from past one clip's quarter to past the
+  other's between two steps, its jaws never outrun the line's top speed,
+  and they shut within the grip's wait (`body.GRIP_S`). #628: with jaws too
+  light for the line (above) the force flipped between its clips every
+  step, the jaws ran at up to 8x the line's speed, and at 120 N shut in
+  0.13 s where the motor needs 0.33."""
+  from pluggybot.humanoid.body import GRIP_S
+  spec, _, _ = _hanging_hand()
+  model, data = _compiled(spec)
+  act = model.actuator("left_gripper").id
+  top = model.actuator_gainprm[act][7] / model.actuator_gainprm[act][1]   # bus / K
+  for force in (hp.GRIPPER.grip_force_n, 40.0, 5.0):
+    _, rows = _shut_from_open(model, data, force, GRIP_S)
+    f, v, gap = rows.T
+    big = np.abs(f) > 0.5 * force                 # past a quarter of the clip, 2 * force
+    flips = (np.sign(f[1:]) != np.sign(f[:-1])) & big[1:] & big[:-1]
+    assert not flips.any(), (force, int(flips.sum()))
+    assert np.abs(v).max() <= 1.05 * top, (force, np.abs(v).max() / top)
+    assert gap[-1] < 0.001, (force, gap[-1])
+
+
+def test_a_shut_closes_on_a_light_handle_off_the_jaws_middle_at_every_squeeze():
+  """A light handle -- the table fork's, 24 mm across, 60 g -- lying free on
+  a ledge under the fingertips, 8 mm off the jaws' middle: shut at 40 N and
+  up, the jaws close on it and squeeze it as asked, as they do under 40
+  (#628: in the table's set-out the drive's chatter batted the fork's handle
+  from 40 N and the jaws stood 3-8 cm apart, nothing held)."""
+  half = (0.012, 0.03, 0.011)        # across the jaws, along the pads, up
+  spec, pos, mat = _hanging_hand()
+  tip = hp.GRIPPER.finger_len / 2    # the pads reach this far under the grip
+  ledge = spec.worldbody.add_body(name="ledge", quat=_quat(mat),
+                                  pos=list(pos - mat[:, 2] * (tip + 0.007)))
+  ledge.add_geom(name="ledge", type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.07, 0.04, 0.005],
+                 friction=[0.7, 0.005, 0.0001])
+  handle = spec.worldbody.add_body(
+    name="handle", quat=_quat(mat),
+    pos=list(pos + 0.008 * mat[:, 0] - mat[:, 2] * (tip + 0.002 - half[2])))
+  handle.add_freejoint()
+  handle.add_geom(name="handle", type=mujoco.mjtGeom.mjGEOM_BOX, size=list(half), mass=0.06,
+                  friction=[0.7, 0.005, 0.0001])
+  model, data = _compiled(spec)
+  for force in (40.0, 60.0, 80.0, hp.GRIPPER.grip_force_n):
+    g, _ = _shut_from_open(model, data, force, 0.6)
+    gap, squeeze = g.read()
+    assert g.held(), (force, gap, squeeze)
+    assert gap == pytest.approx(2 * half[0], abs=0.001), force
+    assert squeeze == pytest.approx(force, rel=0.1), force
 
 
 def test_the_force_at_the_hand_is_read_off_the_arms_motor_currents():
