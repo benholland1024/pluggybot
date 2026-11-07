@@ -54,6 +54,35 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a run's tests that read false (`testsFalse`), and `completed` counted as the site reads it (pluggybot #629)
+
+A verb or a call may be an `if`'s test, and one that reads false is read
+and the run goes on (#493, #560). On the `procedure` event of a `ran` or
+`aborted` run:
+
+- **`completed` is the calls the run went on past**: every call made but
+  one that ended it, a test that read false among them. It was set on a
+  success alone, so it was the NUMBER of the last call that did what it
+  said: a run of 82 calls whose last 80 were tests that read false sent
+  `completed: 2, total: 82` with `outcome: "ran"`. A consumer that reads a
+  failed call as `total > completed` (the site's Procedures section) is
+  exact again.
+- **`testsFalse`**: how many of the run's tests read false, absent where
+  none did. It counts a call an `if` tested that read false on a fault in
+  its arithmetic, which made no verb call (no `i` in the run's `steps`).
+- **A session's `attempt`** carries the run's record as the language keeps
+  it (`run`), so its `completed` is counted so too, and it carries
+  `testsFalse` always, 0 where none read false.
+
+```jsonc
+{"type": "procedure", "t": 140003.0, "robot": "r2_pluggybot", "name": "chest_band2",
+ "outcome": "ran", "completed": 82, "total": 82, "testsFalse": 80,
+ "failedAt": null, "stopped": null, "program": {...}}
+```
+
+No bump: one field new and optional, and `completed` agrees with every
+run in which no test read false, as it always did.
+
 ### 0.21.0, additive: the world's changelog, once a stream (pluggybot #617)
 
 The robots can read a changelog of their world (docs/Overseer.md §7b), and

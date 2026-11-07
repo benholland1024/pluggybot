@@ -324,6 +324,28 @@ def test_a_job_closed_since_its_grade_began_is_banked_nowhere(tmp_path):
   assert life.verdicts == [] and life.ledger.robots.get(life.root, {}).get("balance", 0) == 0
 
 
+@pytest.mark.parametrize("opened", [False, True])
+def test_a_done_and_its_grade_are_said_in_history_by_the_jobs_id(tmp_path, opened):
+  """#629: a `done` was said to the log alone, and its grade's line named
+  the job's kind, never its id -- Rowan took a door's grade, come at a
+  `done` 37 s after its take, for another job's. History says the `done`,
+  and the grade names its job as a run-out's line does, passed or not."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  if opened:
+    life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+    mujoco.mj_forward(life.model, life.data)
+  verdict = _grade(life, task.id)
+  assert verdict["ok"] is opened, verdict["reason"]
+  lines = life.thoughts.texts[HISTORY].splitlines()
+  said = [i for i, ln in enumerate(lines) if ln.endswith(
+    f"said done on {task.id} (open_drawer): graded once everything queued has run")]
+  graded = [i for i, ln in enumerate(lines) if ln.endswith(
+    f"{'passed' if opened else 'failed'} the job {task.id} (open_drawer): {verdict['reason']}")]
+  assert len(said) == len(graded) == 1 and said[0] < graded[0], lines
+
+
 def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
   """#602: a robot was shown an offer and nothing of the job once it took
   it, and spent its recalls finding out when it had ("I'm holding the

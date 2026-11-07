@@ -504,11 +504,53 @@ def callers_moved(library, before: set, changed: str) -> str:
   return "; ".join(said)
 
 
+def step_where(step: dict) -> str:
+  """Where a step of a run ran, as History names it: its line -- of the
+  library's procedure whose source holds it, where that is another (#560)
+  -- its verb, and the def it ran in."""
+  verb = "an expression" if step.get("verb") == "expr" else step.get("verb", "a step")
+  if not step.get("line"):
+    return verb
+  return (f"line {step['line']}" + (f" of {step['entry']}" if step.get("entry") else "")
+          + f", {verb}"
+          + (f" (in {step['in']})" if step.get("in") and not step.get("entry") else ""))
+
+
+def tests_read_false(steps: list, room: int) -> str:
+  """A run's tests that read false as its History line says them (#629):
+  how many, then each line's first reason, in the order its line first
+  read false, as many as fit in `room` characters; "" where none read
+  false, or where not even the count fits (a failed step's reason comes
+  first). Said to the log alone, a robot read 80 measures that each said
+  why as a run of "2 steps" that ended "stopped (error)"."""
+  read = [s for s in steps if s.get("tested") and not s.get("ok")]
+  head = f"{len(read)} test{'' if len(read) == 1 else 's'} read false"
+  if not read or len(head) > room:
+    return ""
+  lines: dict[tuple, list] = {}
+  for s in read:
+    lines.setdefault((s.get("line"), s.get("entry"), s.get("in"), s.get("verb")), []).append(s)
+  said: list[str] = []
+  for k, group in enumerate(lines.values()):
+    item = (step_where(group[0])
+            + (f" ({len(group)} times)" if len(group) > 1 and len(lines) > 1 else "")
+            + f": {group[0].get('reason') or 'it did not do what it said'}")
+    left = len(lines) - k - 1
+    if len(f"{head} -- {'; '.join(said + [item])}" + (f" (+{left} more)" if left else "")) > room:
+      break
+    said.append(item)
+  if not said:
+    return head
+  left = len(lines) - len(said)
+  return f"{head} -- {'; '.join(said)}" + (f" (+{left} more)" if left else "")
+
+
 def procedure_outcome(name: str, run: dict) -> list[str]:
   """The History a procedure the robot wrote leaves behind (issue #264):
   how far it got, and -- when it stopped short -- the line, the verb and
   the reason, because a robot told nothing re-ran the same failing `fetch`
-  five times over and could not fix what it could not see. Its locals ride
+  five times over and could not fix what it could not see; and how many of
+  its tests read false, with each line's first reason (#629). Its locals ride
   at the end, as they have since #227: they are its readout -- on a line of
   their own when the reason would push them past History's 400 characters,
   where the cut would take them.
@@ -520,25 +562,24 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
   THE RUN is named, never quoted: the exception is the log's (issue #76),
   and that path keeps no count to give."""
   from pluggybot.mind.thoughts import MAX_LINE_CHARS
+  # History prefixes the sim clock ("[t=12345s] ") INSIDE its 400, so the
+  # room is less than the cap -- measured on the second review: a 397-char
+  # line kept "mass = 0" of "mass = 0.207812", a wrong number, not a lost one.
+  room = MAX_LINE_CHARS - HISTORY_STAMP_ROOM
   done = int(run.get("completed", 0) or 0)
   steps_said = f"{done} step{'' if done == 1 else 's'}"
+  steps = run.get("steps") or []
   if run.get("ok"):
-    line = f"ran the procedure {name} to its end ({steps_said})"
+    line = f"ran the procedure {name} to its end ({steps_said}"
+    close = ")"
   else:
-    steps = run.get("steps") or []
     at = run.get("failedAt")
     failed = next((s for s in steps if s.get("i") == at), None) if at is not None else None
     stopped = run.get("stopped")
     if failed is not None:
       # ...in a call, the def it ran in, and where that is another of the
       # library's procedures, the line is of ITS source (#560)
-      where = (f"line {failed['line']}"
-               + (f" of {failed['entry']}" if failed.get("entry") else "")
-               + f", {failed.get('verb', 'a step')}"
-               + (f" (in {failed['in']})" if failed.get("in") and not failed.get("entry") else "")
-               if failed.get("line") else "an expression" if failed.get("verb") == "expr"
-               else failed.get("verb", "a step"))
-      why = f"it stopped at {where}: {failed.get('reason') or 'the step failed'}"
+      why = f"it stopped at {step_where(failed)}: {failed.get('reason') or 'the step failed'}"
     elif stopped in PROCEDURE_STOPS:
       last = steps[-1] if steps else {}
       took = run.get("seconds")
@@ -549,18 +590,21 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
       why = "it stopped on a fault inside the run"
     else:
       why = f"it stopped: {stopped or 'early'}"
-    line = (f"the procedure {name} did not finish -- {why}"
-            + ("" if run.get("error") else f" ({steps_said} had run)"))
+    line = f"the procedure {name} did not finish -- {why}"
+    if not run.get("error"):
+      line, close = f"{line} ({steps_said} had run", ")"
+    else:
+      close = ""
+  if close:
+    # ...beside the count, the tests that read false and why (#629)
+    tests = tests_read_false(steps, room - len(line) - len("; ") - len(close))
+    line += (f"; {tests}" if tests else "") + close
   if not run.get("locals"):
     return [line]
   # every digit, as the refusal on the same line quotes a tag: `:g` said
   # `t = 23` after `tag 23.0000001`, and `1.23457e+06` for 1234567 (#463)
   items = [f"{k} = {number_text(v)}"
            for k, v in list(run["locals"].items())[:LOCALS_SHOWN]]
-  # History prefixes the sim clock ("[t=12345s] ") INSIDE its 400, so the
-  # room is less than the cap -- measured on the second review: a 397-char
-  # line kept "mass = 0" of "mass = 0.207812", a wrong number, not a lost one.
-  room = MAX_LINE_CHARS - HISTORY_STAMP_ROOM
   tail = f" -- it ended with {', '.join(items)}"
   if len(line) + len(tail) <= room:
     return [line + tail]
@@ -2739,9 +2783,12 @@ class HubLifecycle:
     # word for it, and the site's parser dropped the whole event (#463).
     # History still says it (`procedure_outcome`).
     shown = {k: v for k, v in (run.get("locals") or {}).items() if math.isfinite(v)}
+    read = int(run.get("testsFalse") or 0)
     self._emit({**base, "t": round(float(self.data.time), 3),
                 "outcome": "ran" if run.get("ok") else "aborted",
                 "completed": run["completed"], "total": run["total"],
+                # ...and how many of its tests read false (#629), where any did
+                **({"testsFalse": read} if read else {}),
                 "failedAt": run.get("failedAt"), "stopped": run.get("stopped"),
                 **({"failedLine": failed["line"]} if failed.get("line") else {}),
                 # ...and, in a call (#560), the def it ran in and the
@@ -2755,7 +2802,8 @@ class HubLifecycle:
     # by the day whether it pressed or not (issue #439)
     self._say(f"PROCEDURE {program.name} "
               f"{'complete' if run.get('ok') else 'cut short'}: "
-              f"{run['completed']}/{run['total']} steps",
+              f"{run['completed']}/{run['total']} steps"
+              + (f", {read} test{'' if read == 1 else 's'} read false" if read else ""),
               detail="; ".join(s["trace"] for s in run["steps"]
                                if s.get("ok") and s.get("trace")))
     # A PROCEDURE THE ROBOT WROTE REPORTS BACK, whatever happened (issues
@@ -3961,6 +4009,10 @@ class HubLifecycle:
     self._grade_pending = task.id
     self._say(f"DONE {task.id}: graded once the queue is empty -- "
               f"{task.description}")
+    # ...and History says it (#629): said to the log alone, a grade that came
+    # 37 s after its job's take read as another job's
+    self._remember(f"said done on {task.id} ({task.kind}): graded once everything "
+                   "queued has run")
 
   def _grade_routine(self) -> Routine:
     """Grade the job the robot said it finished (issues #207, #559): its own
@@ -4044,8 +4096,10 @@ class HubLifecycle:
                            "catchN": (storeroom.drawn(prop, int(draw)).catch_n
                                       if check == "lid" and draw is not None else None)})
     verdict = scoring.evaluate(kind.task, measured, failed=failed)
+    # ...named by its id, as a run-out's is (#629: by its kind alone, a
+    # robot took one job's grade for another's)
     self._settle_job(task, verdict, t0, f"{'passed' if verdict.ok else 'failed'} the job "
-                                        f"{task.kind}: {verdict.reason}")
+                                        f"{task.id} ({task.kind}): {verdict.reason}")
 
   def _settle_job(self, task, verdict, t0: float, said: str) -> None:
     """A hand job closed on its verdict (`_grade_hands_routine`,
@@ -4865,7 +4919,9 @@ class HubLifecycle:
               f"{DECIDED_IDLE_S:.0f} s before the next")
     if not self._stood_still:
       self._stood_still = True
-      self._remember(f"{what} ended the moment it began, so I stood still "
+      # "took no time", never "ended the moment it began": a robot read
+      # that of `take_task` as a take that failed (#629)
+      self._remember(f"{what} took no time, so I stood still "
                      f"{DECIDED_IDLE_S:.0f} s before doing anything else")
     yield from self.body.hold_routine(DECIDED_IDLE_S)
     return (self.dead is None and not self._end_run

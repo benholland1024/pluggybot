@@ -495,7 +495,9 @@ CHANGELOG_MESSAGE = "changelog"
 #: What a `procedure` event says about a composed errand (issue #58):
 #: `validated` before its first step, `refused` (with `reasons`) instead of
 #: running, then `ran` or `aborted` with `completed`/`total`/`failedAt`/
-#: `stopped` (and `failedLine`/`failedReason` where a step failed). The
+#: `stopped` (and `failedLine`/`failedReason` where a step failed, and
+#: `testsFalse` where a test read false: `completed` is every call made but
+#: one that ended the run, #629). The
 #: program itself rides every one whole, like a thought document. Additive
 #: on the wire; a consumer ignores an unknown type. `defined` / `undefined`
 #: (issue #166) are the library's: what the robot wrote, with its `source`,

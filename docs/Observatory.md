@@ -10,6 +10,60 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A run's tests that read false are said, a run that reached its end is no error, and a `done` and its grade name the job (#629) — opens when this PR is deployed
+
+**What changed is what the robots are TOLD** (Overseer.md §2b, "A
+challenge is finished by saying so"):
+- **A procedure run's History line says how many of its tests read false,
+  and why**: each line's first reason, in the order the lines first read
+  false, as many as fit inside History's cap, the rest counted. Its count
+  is every call the run made (`ran the procedure chest_band2 to its end (82
+  steps; 80 tests read false -- line 17, measure: no flat top seen round
+  (0.95, 1.35) from where you stand)`, where it read `to its end (2
+  steps)`).
+- **The run's `program` verdict is its own end**: a run that reached its
+  end passes, `chest_band2: ran to its end, 82 steps; 80 tests read false`,
+  where it failed `2/82 steps, stopped (error)`. It pays 0, as before.
+- **A `done` leaves a History line** (`said done on t_0027 (open_door):
+  graded once everything queued has run`), and **a grade's line names its
+  job** (`failed the job t_0027 (open_door): …`), as a run-out's did.
+- **#400's line says `… took no time, so I stood still 4 s before doing
+  anything else`**, where it said `… ended the moment it began, …`.
+- **On the wire**: a `procedure` event's `completed` counts every call the
+  run went on past, a test that read false among them, and `testsFalse`
+  rides beside it where a test read false (protocol/README.md). The
+  site's Procedures section reads a failed call as `total > completed`, so
+  it is exact again with no change of its own.
+- The prompt did not move. Nothing in the schema, the menu, the reward
+  table, the arm, the body or the house moved.
+
+**Why.** #629, from the 11-07 triage, of the robots' runs on `9530f51`
+before the pause and on `0342b56` after it. Both robots use a verb as an
+`if`'s test in nearly every procedure, and a test's reason went to the log
+alone. Rowan's `chest_band2` (11-03, `9530f51`) made 82 calls: a walk, a turn, and
+80 measures that read false, their points 45-68 deg left of where its depth
+camera looks. History said "(2 steps)" and "stopped (error)", and Rowan
+concluded that measures cost almost no steps and that sensing near the
+storeroom was flaky (tk_0049, tk_0050). Luca blamed its close for a reach
+that read false, never seeing its reason (tk_0055). Rowan took a door's
+grade, come at a `done` 37 s after its take, for another job's, and read
+#400's line of `take_task` as a take that failed (tk_0051).
+
+**What the period is for.**
+- **Does the misreading stop?** Tickets, notes, pins and `tell`s that
+  blame step budgets, sensing, a close or a take for what a test that read
+  false said. Before it there were four, filed 11-03 on `9530f51` and
+  `314a5f9`: tk_0049, tk_0050, tk_0051 and tk_0055.
+- **Do the robots act on a reason?** A procedure defined after a run whose
+  tests read false that changes what read false (a `measure` turned into
+  the camera's view, a `reach` from nearer), read off the `procedure`
+  rows' `defined` sources beside the run before.
+- ⚠ **A count by the words or the verdicts splits at this deploy.** A
+  `program` verdict for a run that reached its end with tests that read
+  false fails before it and passes after; a `procedure` row's `completed`
+  is the last good call's number before it and the calls the run went on
+  past after. Read `program` verdicts and `completed` apart across it.
+
 ### The robots can read a changelog of their world, its newest date beside today's in every turn (#617) — opens when both halves are deployed, this PR's and rooftop-media-2026's
 
 **What changed in what the robots are told** (Overseer.md §7b):

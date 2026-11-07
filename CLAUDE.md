@@ -1267,7 +1267,11 @@ save a filmstrip PNG named after the script.
   map row; `order_runnable` reads `state["procedures"]`); `procedure:new`
   (`PROCEDURE_NEW`) runs what the SAME answer defines (the enum is built
   before the answer) and never as an order or a row. ⚠ EVERY RUN LEAVES ONE
-  HISTORY LINE (`lifecycle.procedure_outcome`). ⚠ `drive_to(x, y,
+  HISTORY LINE (`lifecycle.procedure_outcome`), ITS TESTS THAT READ FALSE
+  COUNTED AND EACH LINE'S FIRST REASON SAID inside History's cap
+  (`tests_read_false`, #629: said to the log alone, 80 measures that read
+  false came out "(2 steps)", and the robot built theories on it), and its
+  `program` verdict is the run's own end (`ok`), never its count. ⚠ `drive_to(x, y,
   patience=)` (#381): 60 s unsaid, `MAX_PATIENCE_S` 600, never past the
   run's own budget (`run_verb(until=)`); an argument with a `default` may be
   left out. ⚠ A PROCEDURE'S LOCALS ARE ITS READOUT (#227:
@@ -1275,7 +1279,10 @@ save a filmstrip PNG named after the script.
   them, one History line of `LOCALS_SHOWN`). ⚠ The procedure rule's example
   (`hands_procedure_rule`) may not show charge, a battery threshold or the
   rack. ⚠ The site's Procedures section is built off the `procedure`
-  event (`library`, `failedLine`; `failedAt` counts verb calls, not lines).
+  event (`library`, `failedLine`; `failedAt` counts verb calls, not lines;
+  `completed` every call made but one that ended the run, a test that read
+  false among them, and `testsFalse` beside it, #629: it reads a failed
+  call as `total > completed`).
 - **The allowance** (`mind/spend.py`, `mind/mode.py`, issue #37; Overseer.md
   §8): the model is SHOWN what its thinking cost and has one boolean
   (`escalate`); every gate is code — `$PLUGGY_WEEKLY_USD`, a ten-minute
