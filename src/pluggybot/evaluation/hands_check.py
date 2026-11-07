@@ -295,14 +295,14 @@ TABLE = '''def lay_place():
   spot(90)
   x = read("spot.x") + u
   y = read("spot.y") + v
-  reach("right", x + 0.015, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
+  reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
   if spot(90):
     x = read("spot.x") + u
     y = read("spot.y") + v
   else:
     withdraw("right")
     spot(90)
-    reach("right", read("spot.x") + u + 0.02, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
+    reach("right", read("spot.x") + u + 0.005, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
     if spot(90):
       x = read("spot.x") + u
       y = read("spot.y") + v
