@@ -1947,6 +1947,62 @@ near a fresh mind gets to a skill that is there. At `343e273`:
   Spend: about $17 -- the arms $8.50 recorded and ~$6.60 killed in flight,
   the first run ~$1.80 ($0.23 recorded); our procedure cost no tokens.
 
+**The table's arms again, the mind asked to think less: stopped at the
+probe** (#560, after #627). Ben's answer 4 on #560 (2026-11-07): the arms
+fly again with the mind asked to think less by its reasoning EFFORT, a
+setting of the model -- never a smaller token budget or source cap -- and
+KEPT or a stronger model only if that fails. `practice.py --effort
+low|high|max` asks it (each request's `reasoning_effort`; a row's
+`run.effort`; read, each effort's rows apart). The plan, written first: the
+effort probed on the table's first turn, two FRESH arms at the highest
+whose answers all finish well inside the 128,000 tokens and the router's 20
+minutes, #626's bar and set-outs, on the release's commit (`fccc6cd`) --
+and a stop if the best effort still cuts answers off. The probe: the first
+turn as the practice asks it (its prompt, the job and the head camera's
+picture, at held-out set-out 266354185 of seed 402613269), one answer a
+call, no repair, the calls at once:
+
+| the mind, effort | asked | answered: tokens out, wall | cut at 128,000 tokens | closed mid-answer |
+|---|---|---|---|---|
+| GLM-5.3-Flash on baseten (the deployed mind), `low` | 8 | 5: 18-72k (median 49k), 2.7-10.4 min | 2, at 17 and 19 min | 1, at 7.7 min |
+| ... `high` | 6 | none | 1, at 19 min | 5, at 7.7-20 min (42-111k) |
+| ... `max` (its card's default) | 3 | none | | 3, at 7.6-20 min (65-126k) |
+| ... its provider's own: #626's 14 first calls | 14 | none | 4 | 10, at 20 min |
+| GLM-5.3-Flash on deepinfra, `low` | 3 | 2: 48k and 54k, 8-9 min | 1, at 16 min | |
+| DeepSeek-V4.1-Flash on deepinfra, `low` | 4 | 4: 30-54k (median 37k), 2.9-5.1 min | | |
+
+- **No effort keeps the deployed mind's first answer inside the limits, so
+  the arms did not fly.** Even at `low`, 2 of 8 thought to the cap and wrote
+  nothing, and 1 of 3 on deepinfra: `low` thinks less -- a median of 49k
+  where nothing at `high` had finished by 42-88k -- but here the first
+  answer is a whole place's plan (on #604's live decisions, `low` was 1.4k).
+  The streams ran at 91-141 tokens a second, so the router's 20 minutes ends
+  a think at 110-170k: a cap past 128,000 would buy the fastest streams
+  40k at most.
+- **The provider closed 7 of the deployed mind's 17 streams mid-answer
+  before the router's 20 minutes** (at 7.6-11.7 min, three in one second),
+  where 3 of #626's 208 calls closed early. A close loses the reply at any
+  effort.
+- **DeepSeek-V4.1-Flash at `low` answered all 4**, the most 54k tokens in 5
+  minutes (Overseer.md §6's stronger candidate): 4 answers, one afternoon.
+- **No answer compiled as written** (11 of 11, every mind). Each named a tag
+  in quotes, `spot("93")` -- the language says `spot(tag)` and never that a
+  tag is a number -- 9 asked a budget past its 200 steps (220-50,000; its
+  example says only "both capped"), 5 a first def taking arguments, 3 a
+  source past the 3,000 characters. In an arm each goes back with its
+  reasons, two repairs a try: on #626's night 52 of 53 repairs were
+  answered, a median of 4.7k tokens.
+- **Our procedure over the same 32 set-outs at this commit: 29 of 32**, no
+  fall (30 on #626's pod, before #635 aimed it at its grips): a fork lost
+  from the jaws in its carry's last pull and thrown off the table, a fork
+  never carried (the left arm held at the plate's withdraw), and a cup lost
+  in its carry after its lift stopped out of reach with the plate's tag out
+  of view.
+- **What it cannot say**: first turns only, on one set-out, one afternoon,
+  and a try's later turns may be no shorter (at its provider's effort, 36
+  of #626's 56 were cut, beside all 14 first ones). Spend: $0.88, the probe
+  alone; no arm flew.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.
