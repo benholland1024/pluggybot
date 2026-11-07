@@ -313,10 +313,14 @@ RS00/02/03/05.
   carried for all 25, an upper bound: 43 W of the body's 77 W always on.
 
 **The gripper.** Unitree's Dex1-1 publishes its stroke, force, speed, mass,
-size and what it reports; not its flange, its rotor or its torque estimate's
-resolution. Its grip is judged by what it reports (the jaws stalled short of
-closed, the squeeze off its torque estimate), never by what the jaws touch
-(`humanoid.senses.GripperSense`). Passed over: the ROBOTIS RH-P12-RN(A),
+size, what it reports and its motor's 1:25 reduction; not its flange, its
+rotor or its torque estimate's resolution. Its jaws carry 3.6 kg of reflected
+inertia each, the least that holds its drive's line on the sim's 2 ms step
+(`parts.Gripper.jaw_armature`, #628; SimNotes, "The gripper's drive on its
+line"): any rotor its size reflects more through 1:25. Its grip is judged by
+what it reports (the jaws stalled short of closed, the squeeze off its torque
+estimate), never by what the jaws touch (`humanoid.senses.GripperSense`).
+Passed over: the ROBOTIS RH-P12-RN(A),
 every register published but €3,912.36 a gripper, and Inspire's EG2-5C, the
 T2's own, 0–20 N with its registers unpublished.
 

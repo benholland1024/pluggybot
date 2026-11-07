@@ -235,13 +235,13 @@
                   <site name="left_grip" pos="0 0 -0.103" size="0.01" group="4"/>
                   <body name="left_jaw_a" pos="0.006 0 -0.103">
                     <joint name="left_jaw_a" type="slide" axis="1 0 0"
-                           range="0 0.045" armature="0.2"/>
+                           range="0 0.045" armature="3.6"/>
                     <geom name="left_jaw_a_pad" class="pad" type="box" size="0.006 0.015 0.04"
                           mass="0.03888"/>
                   </body>
                   <body name="left_jaw_b" pos="-0.006 0 -0.103">
                     <joint name="left_jaw_b" type="slide" axis="-1 0 0"
-                           range="0 0.045" armature="0.2"/>
+                           range="0 0.045" armature="3.6"/>
                     <geom name="left_jaw_b_pad" class="pad" type="box" size="0.006 0.015 0.04"
                           mass="0.03888"/>
                   </body>
@@ -277,13 +277,13 @@
                   <site name="right_grip" pos="0 0 -0.103" size="0.01" group="4"/>
                   <body name="right_jaw_a" pos="0.006 0 -0.103">
                     <joint name="right_jaw_a" type="slide" axis="1 0 0"
-                           range="0 0.045" armature="0.2"/>
+                           range="0 0.045" armature="3.6"/>
                     <geom name="right_jaw_a_pad" class="pad" type="box" size="0.006 0.015 0.04"
                           mass="0.03888"/>
                   </body>
                   <body name="right_jaw_b" pos="-0.006 0 -0.103">
                     <joint name="right_jaw_b" type="slide" axis="-1 0 0"
-                           range="0 0.045" armature="0.2"/>
+                           range="0 0.045" armature="3.6"/>
                     <geom name="right_jaw_b_pad" class="pad" type="box" size="0.006 0.015 0.04"
                           mass="0.03888"/>
                   </body>

@@ -189,6 +189,10 @@ uv run python scripts/humanoid_spike.py --view fall   # shoved over three
                                       # fall and standing it again
 uv run python scripts/humanoid_spike.py --view getup  # up from lying on
                                       # its back, its front and its side
+uv run python scripts/humanoid_spike.py --view jaws   # the fork at the
+                                      # table shut on again and again from
+                                      # one moment, at 40, 80 and 120 N, its
+                                      # jaws as before #628 and as built
 uv run python scripts/station_spike.py --view     # it plugs itself in at its
                                       # station and unplugs (--view fall:
                                       # shoved over plugged in)

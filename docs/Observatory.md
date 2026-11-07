@@ -10,6 +10,40 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The gripper's jaws carry inertia enough for their drive's line (#628) — opens when this PR is deployed; released with the dining room's tables on legs (#643), it rides with that period as one
+
+**What changed in the body** (SimNotes, "The gripper's drive on its
+line"; Parts.md, "The gripper"):
+- **Each of the Dex1-1's jaws carries 3.6 kg of reflected inertia, where it
+  carried 0.2** (`parts.Gripper.jaw_armature`). The drive no longer flips
+  its force between its clips every step while its jaws travel: every
+  squeeze from 5 to 120 N shuts in the motor's own time, 0.33-0.38 s, where
+  the jaws had run at up to 8x the motor's speed, and from 40 N a light
+  thing off the jaws' middle is shut on where it was batted and the jaws
+  stood open.
+- **Every grip moved, through one part**: the served jobs' (the drawer, the
+  door, the chest) and the station's plug. Flown beside the tree before on
+  one pod, each flight its own noise: from the tour, 64 draws each, the
+  drawer 60, the door 58 and the chest 61 against 57, 56 and 60; the
+  station's approach 39 of 39 and its seats 140 of 140 in both.
+- **Nothing the robots read moved**: the language, the jobs, the rewards
+  and the cadence; `prompt_sha` stays as released. The house's geometry is
+  the same (`continuation.fingerprint` hashes geometry, not inertia), so
+  the deploy's restart carries the bodies and the maps on.
+
+**Why.** #628 (Ben, 2026-11-07: next week's first fix, before the table is
+offered live): the table's practice arms closed on nothing 33 times in 53
+grips of 40 N and more (#642).
+
+**What the period is for.**
+- **The live grips that close on nothing**: History's `close_hand` lines
+  saying so, by the squeeze asked, against the period before -- from 40 N
+  most of all.
+- **The served jobs' passes** -- the drawer, the door, the chest -- against
+  the period before.
+- **The charges**: every plug-in and unplug, as before on the pod; the live
+  box is the check.
+
 ### The dining room's tables on legs, and the place's dishware put away in it (#560, the table set built to be served) — opens when this PR is deployed
 
 **What changed in the world** (SimNotes, "The table set served";

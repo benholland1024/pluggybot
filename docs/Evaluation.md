@@ -2040,9 +2040,14 @@ no try that fell; seed 402613269), on staging `f7c7a94` (the release
   knocked over, 15 of 19 times.
 - **The grips**: 56 closed on nothing, in 34 of the 70 tries, an `if`'s
   test or not. Of those whose squeeze the source names, 33 of 53 at 40 N or
-  more closed on nothing and 2 of 8 under it: #628's stall from 40 N, or
-  misses -- not taken apart. The arms asked 50-120 N; our procedure
-  squeezes the fork at 25 N.
+  more closed on nothing and 2 of 8 under it. The arms asked 50-120 N; our
+  procedure squeezes the fork at 25 N. ⚠ Taken apart since (#628; SimNotes,
+  "The gripper's drive on its line"): every try flown again from its
+  set-out, noise and source on the tree before the fix, each grip landed
+  again from the state it began
+  in under the drive as it was and as fixed, of the 52 at 40 N and more
+  that closed on nothing 13 were the drive's stall -- every one the plate's
+  wall at 100-120 N -- and 39 were misses, no piece between the jaws.
 - **#631's early force stops are nearly gone**: one stop in a move's first
   0.5 s in 70 tries, where #626's arms had 9 in 3 tries.
 - **#636's misread stands**: DeepSeek measured only 9 times in 70 tries,
