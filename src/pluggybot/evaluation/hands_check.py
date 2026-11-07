@@ -258,37 +258,22 @@ PLACE = '''def place_cube():
   withdraw("left")
 '''
 
-#: THE TABLE'S PLACE (#560), from ONE STANCE 0.14 m to the left of the start,
-#: where the waist's yaw reaches every piece (#621): the card's, the plate's
-#: and the cup's tags read from the start -- from the stance the cup is out
-#: of the head camera's view -- then the cup by the right hand and the plate
-#: and the fork by the left, each arm rolled out and folded (`move`) before
-#: its reads. Each piece is set down by where the jaws left it in the hand:
-#: they close on their middle, so the cup and the fork sit centred across
-#: them and the plate's middle 8.4 cm in from the gripped wall (SimNotes, "The
-#: table's reference on the waist", for each number):
-#: - THE CUP FROM ABOVE: reached at 10 cm over its grip, aimed 1.5 cm short of
-#:   its middle, where the planner takes its 0.3 rad bow; in that bow's
-#:   pockets it bows deeper, no tag in view, and reaches again 1.5 cm higher.
-#:   Its place is the plate's tag read again with the hand out (the reach's
-#:   posture turns the stance about 1 deg: 8 mm at the cup, where the jaws
-#:   clear it 1 cm a side), its descent giving across its way, its grip 3 cm
-#:   short of its middle (at the middle the palm cut 9 mm into the lid).
-#: - THE PLATE AND THE FORK, THE JAWS THE OTHER WAY ROUND, TILTED 60 DEG (as
-#:   asked before, the yaw takes the grip that never carries, #621): each
-#:   reach aimed 3 cm further along the wall or the handle -- the live trunk
-#:   stands 2-3 cm behind the statue the planner reaches from, and a posture
-#:   at its stretch falls short -- then pulled to the grip. The plate gripped
-#:   1.5 cm inside its wall (at it, the open outer pad brushed the fork over);
-#:   the fork at 25 N (at 40 the gripper chattered against so light a handle
-#:   and stalled short of it).
-#: - EVERY PRECISE MOVE A PULL from where the hand senses itself (`go`): a
-#:   carry takes only a posture its statue reaches, a pull goes on to another;
-#:   under 1 cm, a `move_hand`.
-#: - The card read again once a piece is lifted (the stance turns 0.7-1.9 deg
-#:   between a read and its set-down), the plate set down 1 cm right of where
-#:   its jaws put it and the fork 0.5 cm in, what the carry's turn left over
-#:   48 set-outs; an open hand lifted straight up, its jaws opened first.
+#: THE TABLE'S PLACE (#560) from ONE STANCE 0.14 m left of the start, where
+#: the waist's yaw reaches every piece (#621). Each choice is deliberate and
+#: measured (SimNotes, "The table's reference on the waist"): the cup from
+#: above, gripped 3 cm short of its middle (at the middle the palm cuts the
+#: lid) and placed off the plate's tag read with the hand out, a reach that
+#: bows out of the tag's view tried again 1.5 cm higher; the plate's and the
+#: fork's jaws the other way round at 60 deg (as asked before, the yaw takes
+#: the grip that never carries), each reach aimed 3 cm past its grip and the
+#: hand pulled back (the live trunk stands 2-3 cm behind the reach's statue),
+#: the plate gripped 1.5 cm inside its wall (at it, a pad brushed the fork
+#: over), the fork at 25 N (from 40 the gripper's chatter stalls short of
+#: it); every precise move a pull (`go`: a carry takes only a posture its
+#: statue reaches); each piece set down by where its jaws left it, the card
+#: read again once it is up, the plate 1 cm to the right and the fork 0.5 cm
+#: nearer the robot against what the carry's turn leaves; an open hand lifted
+#: straight up, its jaws opened first.
 TABLE = '''def lay_place():
   budget(steps=190, seconds=290)
   spot(93)

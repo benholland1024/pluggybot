@@ -1837,9 +1837,10 @@ the reference: 19 of 32 [0.42, 0.74] at one try.
   reference cost no tokens.
 
 **The table's place, its reference first** (#560's first task, easy mode;
-Challenges.md §12): our procedure in the hands' vocabulary
-(`hands_check.TABLE`) flown over its set-outs before any mind practices it,
-the bar the check's, 6 of set-outs 0-7, written before this job was. **0 of
+Challenges.md §12), on the body before the waist -- on the waist's, below:
+our procedure in the hands' vocabulary (`hands_check.TABLE_STANCES` since)
+flown over its set-outs before any mind practices it, the bar the check's,
+6 of set-outs 0-7, written before this job was. **0 of
 8 (1 on another pod), the bar not met, and 6 of 32 held-out set-outs**; by
 each piece's own criteria there the cup was laid 23 times, the plate 24 and
 the fork 6 (it comes last) -- since the hands' small fixes (#560's stage
@@ -1866,6 +1867,20 @@ procedures are shown, never called -- so the KEPT protocol keeps each pass
 as the source it ran, its callees in it (`keep`, `program`: a pass's
 whole source is one program), and no later pass can change what an
 earlier one called.
+
+**The table's place on the waist's body** (#560; SimNotes, "The table's
+reference on the waist"). Our procedure (`hands_check.TABLE`) lays the
+whole place from one stance 0.14 m to the left of the start, in 2,522 of
+the language's 3,000 characters with a def of its own. Its bar, written
+before it flew: 24 of 32 places over set-outs 0-31, and no fall. Flown on
+one pod (a Xeon E5-2697 v4, osmesa), each set-out its own noise: **32 of 32
+at set-outs 0-31, no fall**; 32 of 32 over #618's held-out set-outs (seed
+559905171); 46 of 48 over public set-outs 80-127, which nobody tuned on; 30
+of 32 over the practice arms' held-out set-outs (seed 402613269) -- 140 of
+144. `TABLE_STANCES` on the same pod laid none (cup 21, plate 18, fork 0 at
+0-31; 19, 11, 0 held out). So by §7's ladder A the job is no longer a
+defect; it stays unoffered, Ben's call on #615 (the restaurant's tables
+first).
 
 ## 5. What silently invalidates a number
 
