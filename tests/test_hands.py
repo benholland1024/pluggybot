@@ -1707,6 +1707,29 @@ def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():
   assert "A verb may also stand alone as the test" in mp.system_prompt(facts)
 
 
+def test_a_run_whose_last_call_is_a_test_that_read_false_reached_its_end_and_says_why():
+  """#629: `completed` was the number of the last call that did what it
+  said, so a run whose last call was a test that read false said "(1
+  step)" in History, nothing of why, and its verdict "1/2 steps, stopped
+  (error)" -- the served robots' runs of 82 calls read "2 steps" so, and
+  they built theories on it. Its reason is said, and it reached its end."""
+  from pluggybot import lifecycle as lc
+  from pluggybot.economy import scoring
+  body = _stub()
+  body.out_of_reach = {"right"}
+  facts = st.hand_facts()
+  src = 'def a():\n    wait(1)\n    if reach("right", 0.3, -0.2, 0.9):\n        wait(1)\n'
+  ran = body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(src, facts),
+                                            facts))
+  assert ran["ok"] and ran["completed"] == ran["total"] == 2 and ran["testsFalse"] == 1
+  why = ran["steps"][-1]["reason"]
+  assert "right" in why
+  assert lc.procedure_outcome("a", ran) == [
+    f"ran the procedure a to its end (2 steps; 1 test read false -- line 3, reach: {why})"]
+  ok, _, said = scoring.eval_program(scoring.sample_program(None, None, {"procedure": ran}, {}))
+  assert ok and said == "a: ran to its end, 2 steps; 1 test read false"
+
+
 def test_a_carried_hand_may_turn_as_it_goes_written_as_a_reach_turns_it():
   """The reference's first lesson -- past 50 deg the hand turns as the lid
   does -- had no verb: `move_hand` kept the turn it began with. Given

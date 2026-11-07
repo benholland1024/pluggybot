@@ -2585,7 +2585,7 @@ def test_a_row_whose_action_takes_no_time_does_not_fire_twice_at_one_instant(
   assert all(b - a == pytest.approx(DECIDED_IDLE_S) for a, b in zip(acted, acted[1:]))
   assert life.data.time >= 10.0, "the day ended on its clock"
   assert life.thoughts.read("History.md").count(
-    "procedure:walk ended the moment it began, so I stood still 4 s") == 1
+    "procedure:walk took no time, so I stood still 4 s") == 1
 
 
 def test_the_moment_comes_after_the_map_is_read_so_no_rows_choice_moves(menu):
@@ -2607,7 +2607,7 @@ def test_a_run_of_instant_decisions_is_said_in_history_once(menu):
   from pluggybot.lifecycle import DECIDED_IDLE_S
   from test_body import stub_life
   life = stub_life(overseer=make(menu, origin="unseeded"))
-  said = lambda: life.thoughts.read("History.md").count("ended the moment it began")  # noqa: E731
+  said = lambda: life.thoughts.read("History.md").count("took no time, so I stood still")  # noqa: E731
   t0 = float(life.data.time)
   life._decided_at = (t0, "procedure:walk")
   assert life.body.run(life._new_moment_routine()) is True
