@@ -58,6 +58,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from pluggybot.perception.box import FLOOR_M as MEASURE_FLOOR_M
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
 from pluggybot.tick import Routine
 
@@ -551,10 +552,21 @@ def _watch(life, args: dict) -> Routine:
 
 
 #: `measure` (issue #493, an arm of its own -- sight beside feel): how far
-#: round the point named its flat top is looked for, m. Under 0.35 m the
-#: far edge of a 0.26 m deep top was clipped; at 0.35 and 0.45 the four
-#: set-outs read their tops whole.
+#: round the point named its flat top is looked for, m, and its text says
+#: so (#630). Under 0.35 m the far edge of a 0.26 m deep top was clipped;
+#: at 0.35 and 0.45 the four set-outs read their tops whole.
 MEASURE_NEAR_M = 0.45
+#: ...and an end read off points whose median stands within this of the
+#: window's rim, m, is the window's, never the top's: no reading (#630:
+#: from (0.9, 0) a counter's near end read the rim, 0.453-0.456 m, however
+#: the robot stepped). Tops that ran on past the window put them 0.9-2.6
+#: cm inside it at the drawer's set-outs 0 and 3, ends it held whole 3.7
+#: cm and more; an end it holds only in part goes with the window's.
+MEASURE_RIM_M = 0.03
+#: Its ends: the stance frame's axis each lies along, whether it is that
+#: axis's far end, and which way the top runs on past it.
+MEASURE_ENDS = (("near", 0, False, "toward you"), ("far", 0, True, "away from you"),
+                ("left", 1, True, "to your left"), ("right", 1, False, "to your right"))
 
 
 def _measure(life, args: dict) -> Routine:
@@ -563,7 +575,10 @@ def _measure(life, args: dict) -> Routine:
   ends -- nearest and farthest ahead, leftmost and rightmost -- in the
   stance frame, in `object.*`. ok when a flat top is seen. ⚠ OUR CODE'S
   PERCEPTION, a stated prior (`perception.box`): the highest flat face
-  among the points round (x, y), and its edges."""
+  among the points round (x, y), and its edges. ⚠ WHERE THE TOP RUNS ON
+  PAST THE WINDOW, ITS END THAT WAY IS NO READING (#630), and reading it
+  says why (`axes.measured`); so is every end after a look that saw no
+  top."""
   import numpy as np
   from pluggybot.perception import box
   x, y = float(args["x"]), float(args["y"])
@@ -577,15 +592,23 @@ def _measure(life, args: dict) -> Routine:
   near = st[np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M]
   top = box.top_height(near) if len(near) else None
   on = near[box.on_top(near, top)] if top is not None else near[:0]
-  ends = ([box.edge(on[:, 0], far=False), box.edge(on[:, 0], far=True),
-           box.edge(on[:, 1], far=True), box.edge(on[:, 1], far=False)]
-          if len(on) else [None] * 4)
-  if top is None or None in ends:
-    _reports(life).pop("measure", None)
+  read = {key: box.edge_read(on[:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
+  if top is None or None in read.values():
+    said = f"your last `measure` saw no flat top round ({x:g}, {y:g}) from where you stood"
+    _reports(life)["measure"] = {"unread": dict.fromkeys(("top", *read), said)}
     return {"ok": False, "reason": f"no flat top seen round ({x:g}, {y:g}) from where you stand"}
-  got = dict(zip(("near", "far", "left", "right"), ends), top=top)
-  _reports(life)["measure"] = got
-  return {"ok": True, **{k: round(v, 3) for k, v in got.items()}}
+  got, past = {"top": top}, {}
+  for key, _, _, way in MEASURE_ENDS:
+    end, strip = read[key]
+    rim = MEASURE_NEAR_M - float(np.median(np.hypot(on[strip, 0] - x, on[strip, 1] - y)))
+    if rim < MEASURE_RIM_M:
+      past[key] = (f"your last `measure` looked within {MEASURE_NEAR_M:g} m of ({x:g}, {y:g}), "
+                   f"and the top it saw runs on past that {way}")
+    else:
+      got[key] = end
+  _reports(life)["measure"] = {**got, "unread": past}
+  return {"ok": True, **{k: round(v, 3) for k, v in got.items()},
+          **({"runsOn": list(past)} if past else {})}
 
 
 #: What a hand's verb FELT (issue #493, opening by feel): the robot's own
@@ -1022,9 +1045,12 @@ VERBS: dict[str, Verb] = {
 #: (`pull`). The feet's own move is `step`, its hands home and empty.
 HANDS_VERBS: dict[str, Verb] = {
   "measure": Verb("measure", {"x": Arg("float", lo=0.0, hi=3.0), "y": Arg("float", lo=-2.0, hi=2.0)},
-                  _measure, "look with your depth camera at what stands at (x, y): the height of "
-                  "its flat top and where that top ends -- nearest and farthest ahead, leftmost "
-                  "and rightmost -- ride `object.*`; ok when a flat top is seen"),
+                  _measure, "look with your depth camera at what stands within "
+                  f"{MEASURE_NEAR_M:g} m of (x, y): the height of its flat top and where that "
+                  "top ends -- nearest and farthest ahead, leftmost and rightmost -- ride "
+                  f"`object.*`; ok when a flat top is seen, {MEASURE_FLOOR_M:g} m or more over "
+                  f"the floor. Where the top runs on past those {MEASURE_NEAR_M:g} m, its end "
+                  "that way has no reading"),
   "spot": Verb("spot", {"tag": Arg("float", lo=0.0, hi=586.0)}, _spot,
                "stand still and look for this tag in your head camera -- as you stand, then "
                "bowing lower until you see it -- and stand up again; ok when you see it. Where "

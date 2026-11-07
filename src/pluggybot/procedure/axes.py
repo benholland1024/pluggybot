@@ -134,7 +134,8 @@ def from_stance(life, p, point: bool = True) -> tuple[float, float, float]:
 
 class NoReading(LookupError):
   """A sensor read before anything gave it a value: a verb's report read
-  before the verb ran. The language stops the run, saying which."""
+  before the verb ran, or a number it could not give (#630). The language
+  stops the run, saying which."""
 
 
 def reported(verb: str, key: str, life) -> float:
@@ -143,6 +144,19 @@ def reported(verb: str, key: str, life) -> float:
   if rep is None or key not in rep:
     raise NoReading(f"{verb}.{key} has no reading: `{verb}` has not run")
   return float(rep[key])
+
+
+def measured(key: str):
+  """An `object.*` sensor's read: the last `measure`'s number, or why it
+  gave none (#630, its report's `unread`) -- it saw no top, or the top
+  ran on past where it looked that way."""
+  def read(life) -> float:
+    rep = (getattr(life, "reports", None) or {}).get("measure")
+    if rep is not None and key in rep:
+      return float(rep[key])
+    why = (rep or {}).get("unread", {}).get(key) or "`measure` has not run"
+    raise NoReading(f"object.{key} has no reading: {why}")
+  return read
 
 
 def _hand_at(side: str, k: int):
@@ -331,8 +345,7 @@ for _k, _doc in (("top", "the height of the flat top `measure` last saw, m"),
                  ("far", "how far ahead that top ends, m"),
                  ("left", "how far to your left that top reaches, m"),
                  ("right", "how far to your left its right edge is (negative: to your right), m")):
-  SENSORS[f"object.{_k}"] = Sensor(
-    f"object.{_k}", (lambda key: lambda life: reported("measure", key, life))(_k), _doc)
+  SENSORS[f"object.{_k}"] = Sensor(f"object.{_k}", measured(_k), _doc)
 for _k, _a in enumerate("xyz"):
   SENSORS[f"pull.d{_a}"] = Sensor(
     f"pull.d{_a}", (lambda key: lambda life: reported("pull", key, life))(f"d{_a}"),

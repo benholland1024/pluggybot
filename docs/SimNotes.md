@@ -6034,6 +6034,61 @@ easy mode's, the dishware a few cm from where #615 set it out; and the
 reference knows the set-out's geometry -- the stance, the plate's wall, the
 cup's height -- as no mind is told.
 
+## Where `measure` looks (issue #630)
+
+`measure(x, y)` reads the highest flat top among the D435's points within
+`MEASURE_NEAR_M` (0.45 m) of (x, y), and its ends where those points end
+(`perception.box`). It came with #493 at chests whose top the window held
+whole; the served robots aim it at anything, and two of its answers were
+where the look ended, not the top. Probed at the drawer's set-outs 0 and 3
+from the reference's stance, on the live body:
+
+- **The window's rim.** A top that runs on past the window ends, in its
+  points, at the rim: from (0.9, 0) Luca's counter read `object.near`
+  0.453-0.456 however it stepped, and it crept on that into the counter;
+  at set-out 0 the cabinet on the counter read its near end 0.46 there
+  and its left 0.358 (truly 0.40). The points an end is read off
+  (`box.edge_read`) stood, at their median, 0.9-2.6 cm inside the rim
+  where the window cut the top -- 2.6 where it held the counter's far edge
+  over 7 cm of its length, read 0.814 of its 0.821 -- and 3.7 cm and more
+  where it held the end whole; on a synthetic top, an end 2 cm inside the
+  rim put them 2.5-3.1 cm in, and one 3 cm inside 3.1-4.1. So an end whose
+  points stand within `MEASURE_RIM_M` (3 cm) of the rim is no reading, and
+  its read says the top runs on past the window that way; a true end
+  within about 2 cm of the rim goes with it, and reads from nearer.
+- **The floor.** The D435's noise moves a point along its ray by 0.0036 z²
+  of its axial depth (`depth.NOISE_K`), which lifts the floor's own points:
+  windows of bare floor 1.2-2.8 m off held 12 000-61 000 points, spread
+  7-13 mm about a level 0-7 mm over the true floor, the highest 3.2-5.3 cm
+  up and at most 8 over 5 cm. Counted from 1 cm, their tail's highest bin
+  holding a quarter of its fullest stood 1.5-2.6 cm up, and every window
+  read as a flat top there (Rowan's chest_diag read 0.0168 m). From 6 cm
+  (`box.FLOOR_M`) none does, and a box's top 0.10 m up still reads.
+
+What is true now: the verb's text says the window and the floor, an end
+the window cut is left out of the verdict (`runsOn` names it) and of
+`object.*`, and every `object.*` read with no number says why -- the
+window, a look that saw no top, or no look yet.
+
+**Where the look still ends inside the window.** Two answers are still
+where the camera stopped seeing, not where the top ended:
+- the picture's edge: from where the references work at the counter, its
+  front edge (0.22-0.24 m ahead) is under the picture's bottom edge at the
+  counter's height, and its near end reads 0.26 wherever `measure` looks;
+- a taller thing in front: the cabinet hides the counter's top behind it
+  from the camera, and from (0.95, 0.9) the counter's right end read
+  0.56-0.59 where the cabinet's shadow begins.
+
+The points of a near end the picture cut stood 9-14 px from its border,
+those of the counter's true left end at the picture's corner 14-16: no
+count of pixels tells them apart. What tells them apart is whether the
+camera saw past the end -- lower points beyond it in the picture.
+
+⚠ **A top reads high at range.** `box.top_height` takes the band round
+the highest bin holding a quarter of the fullest, and `TOP_BAND_M`'s 5 mm
+is narrower than the noise past a metre: on the synthetic floor, a box's
+top 0.10 m up read 0.107 at 1.5 m and 0.116 at 2.6 m.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
