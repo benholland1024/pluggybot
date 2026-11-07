@@ -668,8 +668,9 @@ def test_a_tag_is_named_by_its_number_in_each_verb_that_takes_one():
   that takes a tag says so in its own text, and the robot reads it there:
   the practice's `spot` and `watch`, the served rule's `find` too. An
   example is a call that compiles, by a tag the world neither renders nor
-  places, so it names no job's; `find`, whose tag must be a place's,
-  shows none."""
+  places, so it names no job's; `find`, whose tag must be a task area's,
+  shows none, and calls its tag no "place's": in the robot's text a place
+  is a point."""
   from pluggybot.mind import practice as mp
   from pluggybot.perception import tags
   assert st.BY_NUMBER == "named by its number, not in quotes"
@@ -681,11 +682,12 @@ def test_a_tag_is_named_by_its_number_in_each_verb_that_takes_one():
     assert st.BY_NUMBER in table[n].doc, n
   shown = {"spot": f"A tag is {st.BY_NUMBER}: `spot({st.TAG_EXAMPLE})` looks for tag",
            "watch": f"A tag is {st.BY_NUMBER}: `watch({st.TAG_EXAMPLE})` keeps reading tag",
-           "find": f"The tag is a place's, {st.BY_NUMBER}"}
+           "find": f"A tag is {st.BY_NUMBER}"}
   for n, said in shown.items():
     assert said in table[n].doc, n
     if n != "find":
       compile_ok(f"def a():\n    {n}({st.TAG_EXAMPLE})\n")
+  assert "find(" not in table["find"].doc and "place's" not in table["find"].doc
   rendered = {int(p.stem[3:]) for p in (SRC.parents[1] / "models" / "tags").glob("tag*.png")}
   assert len(rendered) > 30 and st.TAG_EXAMPLE not in set(tags.TAG_SIZES) | rendered
   assert st.TAG_EXAMPLE not in HOME.places

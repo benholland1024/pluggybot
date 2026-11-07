@@ -1002,7 +1002,7 @@ def _via(life, args: dict) -> Routine:
 #: A TAG IS NAMED BY ITS NUMBER, and every verb that takes one says so (#640:
 #: unsaid, 11 of 11 first table answers wrote `spot("93")`), its example a
 #: call that compiles, by a tag no world carries (0-19 were the rover's), so
-#: it names no job's -- `find`'s none: its tag must be a place's.
+#: it names no job's -- and `find` shows none: its tag must be a task area's.
 BY_NUMBER = "named by its number, not in quotes"
 TAG_EXAMPLE = 12
 
@@ -1040,7 +1040,7 @@ VERBS: dict[str, Verb] = {
                "it, else by searching round (x, y) -- a job's address -- until "
                "the tag is in view; ok when seen, and you remember where it is. "
                f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f}). "
-               f"The tag is a place's, {BY_NUMBER}"),
+               f"A tag is {BY_NUMBER}"),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
   # The motor level (issue #166): what every verb above is built from.

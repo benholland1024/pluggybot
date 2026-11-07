@@ -357,10 +357,12 @@ def test_the_language_says_its_caps_off_the_constants(monkeypatch):
   bare_run = compile_ok("def a():\n  wait(1)\n")
   assert (bare_run.steps_budget, bare_run.budget_s) == (lang.DEFAULT_STEPS, lang.DEFAULT_BUDGET_S)
   # ...a step is a verb run: a read, a call and the arithmetic are none; and
-  # the budget is the def that runs', a callee's its own only when it runs
-  r, _ = run("def a():\n  budget(steps=2)\n  b()\n  k = read(\"time\") + 1\n  wait(1)\n"
-             "  wait(1)\n  wait(1)\n\ndef b():\n  budget(steps=50)\n  k = 1\n  wait(1)\n")
-  assert r["stopped"] == "steps" and r["total"] == 2
+  # the budget is the def that runs', a callee's its own only when it runs --
+  # so the run stops inside `b`, its own 50 notwithstanding
+  r, _ = run("def a():\n  budget(steps=2)\n  b()\n  wait(1)\n\ndef b():\n  budget(steps=50)\n"
+             "  k = read(\"time\") + 1\n  wait(1)\n  wait(1)\n  wait(1)\n")
+  assert r["stopped"] == "steps" and [(s["verb"], s.get("in")) for s in r["steps"]] == [
+    ("wait", "b"), ("wait", "b")]
   # ...read off the constants, never typed: moved, the text moves with them
   for name, value in (("MAX_STEPS", 123), ("MAX_BUDGET_S", 1234.5), ("MAX_ITER", 45),
                       ("DEFAULT_STEPS", 67), ("DEFAULT_BUDGET_S", 890.5)):
