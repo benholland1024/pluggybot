@@ -5926,12 +5926,15 @@ of 96 on the waist's body, 13 on today's.
 
 ## The table's reference on the waist (issue #560)
 
-**What is true now.** Our table procedure (`hands_check.TABLE`, 2,522
+**What is true now.** Our table procedure (`hands_check.TABLE`, 2,481
 characters of the language's 3,000) lays the place from ONE STANCE, 0.14 m
 to the left of the start, where #621 measured the waist's yaw reaching every
 piece: the cup by the right hand, the plate and the fork by the left, their
-jaws asked the other way round and tilted 60 deg. On one pod (a Xeon E5-2697
-v4, osmesa) it lays **32 of 32 places at set-outs 0-31** and 32 of 32 at
+jaws asked the other way round and tilted 60 deg. Since #627 every reach is
+aimed at its grip, and it lays **29 of 32 places at set-outs 0-31** on one
+pod (an AMD EPYC 7B12, osmesa; "The reach planned where the live trunk
+stands", below). As this section found it, its reaches aimed past their
+grips, on one pod (a Xeon E5-2697 v4, osmesa) it laid 32 of 32 there and 32 of 32 at
 #618's held-out set-outs, and on two sets more that nobody tuned on 46 of 48
 (public 80-127) and 30 of 32 (the practice arms' held out): 140 of 144, no
 flight falling, every pass 64-81 s. The procedure before it (`TABLE_STANCES`,

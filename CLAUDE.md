@@ -777,8 +777,9 @@ save a filmstrip PNG named after the script.
   (`table.Watch`, and the cube's `place.Watch`, Ben's call): read at every
   step, the cube's line failed cubes held fast in a swinging carry. ⚠ Our
   procedure lays the place from ONE STANCE 0.14 m left on the waist's body
-  (SimNotes, "The table's reference on the waist"): 32 of 32 at set-outs
-  0-31 (the bar 24, no fall), 140 of 144 over four sets on one pod -- and
+  (SimNotes, "The table's reference on the waist"): 29 of 32 at set-outs
+  0-31 (the bar 24) since #627 aims each reach at its grip, one pod (aimed
+  past them, 32 of 32 and 140 of 144 over four sets) -- and
   still no offer (the restaurant's tables first, Ben's call on #615), and no
   row in `rewards.json`. ⚠ ITS LEFT GRIP CARRIES ONLY TAKEN HALF A TURN ROUND
   (#560 (c2)): asked as the procedure before it asked, the yaw takes it as
