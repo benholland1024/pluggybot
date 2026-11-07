@@ -24,6 +24,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.activity import chest as ch
+from pluggybot.home import world as _home
 
 HOME_XML = "models/home_world.xml"
 #: ...its generator's sidecar (`home.world`): the house's visual hints, its
@@ -263,14 +264,11 @@ def cube_set_out(k: int) -> CubeSetOut:
 
 
 #: A TABLE SET (#560's first task, easy mode): the restaurant's dining table
-#: 0 (`home.world.DINING_TABLES`), its south place laid. Its table here is a
-#: top on legs: the served room's is one box, and a robot standing at it met
-#: the box with its thighs as it crouched to reach (SimNotes, "Setting a
-#: table"). Its south chair is taken away: the robot stands at the place.
-#: The table's top, m, and its top's thickness and its legs' half side and
-#: inset, m.
-TABLE_H, TABLE_TOP_T, TABLE_LEG, TABLE_LEG_IN = 0.72, 0.03, 0.025, 0.05
-TABLE_I = 0
+#: 0 (`home.world.DINING_TABLES`, `SET_TABLE`), its south place laid -- the
+#: SERVED table, a top on legs with that chair taken away (`home.world`), so
+#: the set-out and the served job stand at one geometry. Its top's height, m.
+TABLE_H = 2 * _home.DINING_TABLE_HALF[2]
+TABLE_I = _home.SET_TABLE
 #: The place's own frame, T: from the middle of the table's south edge, x
 #: into the table and y to the diner's left (the robot's, standing at the
 #: place). The card stands this far in, m, its face toward the diner.
@@ -303,21 +301,8 @@ class TableSetOut:
   counter: None = None
 
   def attach(self, spec) -> None:
+    """The card and the pieces, set out on the house's own table 0."""
     from pluggybot.activity import dishware as dw
-    tx, ty = _dining_table()
-    half = _table_half()
-    for name in (f"dining_table_{TABLE_I}", f"dining_table_{TABLE_I}_chair_1"):
-      spec.delete(spec.body(name))
-    top = spec.worldbody.add_body(name=f"dining_table_{TABLE_I}", pos=[tx, ty, 0.0])
-    top.add_geom(name=f"dining_table_{TABLE_I}_geom", type=mujoco.mjtGeom.mjGEOM_BOX,
-                 size=[half, half, TABLE_TOP_T / 2], pos=[0, 0, TABLE_H - TABLE_TOP_T / 2],
-                 rgba=[0.50, 0.42, 0.34, 1])
-    leg_h = (TABLE_H - TABLE_TOP_T) / 2
-    for i, (sx, sy) in enumerate(((1, 1), (1, -1), (-1, 1), (-1, -1))):
-      top.add_geom(name=f"dining_table_{TABLE_I}_leg{i}", type=mujoco.mjtGeom.mjGEOM_BOX,
-                   size=[TABLE_LEG, TABLE_LEG, leg_h],
-                   pos=[sx * (half - TABLE_LEG_IN), sy * (half - TABLE_LEG_IN), leg_h],
-                   rgba=[0.45, 0.37, 0.30, 1])
     dw.attach_card(spec, self.card[:2], self.card[2], TABLE_H)
     for name, (x, y, yaw) in self.pieces.items():
       dw.ATTACH[name](spec, (x, y), yaw, TABLE_H, getattr(self.load, f"{name}_kg"),
@@ -325,13 +310,11 @@ class TableSetOut:
 
 
 def _dining_table() -> tuple[float, float]:
-  from pluggybot.home import world as hw
-  return hw.DINING_TABLES[TABLE_I]
+  return _home.DINING_TABLES[TABLE_I]
 
 
 def _table_half() -> float:
-  from pluggybot.home import world as hw
-  return hw.DINING_TABLE_HALF[0]
+  return _home.DINING_TABLE_HALF[0]
 
 
 def place_to_world(px: float, py: float) -> tuple[float, float]:

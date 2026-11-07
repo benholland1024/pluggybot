@@ -283,12 +283,12 @@ save a filmstrip PNG named after the script.
 | `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming the protocol over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots; the world is `home` with the humanoid pair in it (`home_humanoid`, deployed since #559's stage 4; `--body`/`$PLUGGY_BODY` names the one body there is); `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served humanoid pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--deployed --image JPEG` attaches a look's picture to every call (does the model, on its provider, take an image beside the schema? #541); `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
-| `scripts/energy_spike.py` | what each errand COSTS, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts: on the humanoid in `home_humanoid` (#559), its explore, its station's charge and its hand jobs (`open_drawer`, `open_door`, `place_cube`, `open_chest`, each from the station, the area remembered, its reference flown). Re-run after anything that changes what an errand does |
+| `scripts/energy_spike.py` | what each errand COSTS, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts: on the humanoid in `home_humanoid` (#559), its explore, its station's charge and its hand jobs (`open_drawer`, `open_door`, `place_cube`, `open_chest`, `set_table`, each from the station, the area remembered -- the table's dishware set out to be found first -- its reference flown). Re-run after anything that changes what an errand does |
 | `scripts/grid_spike.py` | #558: what a robot's map costs as the world grows, at 1-4x today's cells (the bounds grown round the house), each scale its own process, through the humanoid's own code: each scan's, frame's and plan's work, the explore's mask and A*, the matcher's field, the wire's PNG, `world.npz`, memory, on #215's synthetic grid and the house laid by the robot's own senses; `--walks [SIM_S]` the humanoid pair walking #507's routes at each scale; `--scales`, `--repeat`, `--no-table`, `--out` |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair` (`--fall-at`, `--drain-at`); `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345); `--no-economy`, `--sequential`, `--nthreads` |
 | `scripts/make_way_spike.py` | #415 on two legs (#559): the humanoid pair in the house on true-floor maps, one robot resting standing in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B`, `--drift`/`--drift-walker` a map laid off the world, `--standing S`, `--near-field` |
 | `scripts/station_spike.py` | the humanoid's charging station (#559 stage 2; SimNotes "The humanoid's charging station"): `--approach [--n N] [--parallel P]` docked and unplugged or why not from seeded starts round the standoff, one process a trial; `--seats` started at 140 seats over what the seat check accepts: plugged in and unplugged or why not; `--lost [--n N]` a fresh robot 2 m out, its belief set 0.4-1 m wrong: the loop's charge path, its lost search and the fix; `--lost --far [--from near,house,street] [--n N] [--explore S]` its belief set 1-5 m and 5-20 deg wrong (#572), 2 m out, in the house's rooms and across the street, explored first or not, and how each charge ended (`--lost-table ROWS` its table again); `--reach` how far its head's camera and its colour imager read the station's tags, out of its face and off its axis, and the head's fit of the pair (#572 stage 3); `--hold [--seconds S]` plugged in: the charger's watts against what it draws; `--fall` shoved over plugged in: the breakaway, the plug home, the robot up; `--anatomy` #596's scene, the first robot's plug-in taken apart: each look's fit, the plug in the jaws, how the feet and the belief moved since the look, the hand and the plug at the port (every batch's rows say where each try let the plug go, `letGo`); `--walk-in [--explore 120,240]` explored, walked out to 8 places across the house on its own map, then the loop's own `go_charge`; `--view [plug\|fall\|lost]` in the viewer, looped (MUJOCO_GL unset), `--lost-from P --lost-off X,Y,DEG` the lost scene from elsewhere, the camera over the robot; `--strip [plug\|fall\|lost]` its filmstrip, `station_spike.png` (`_fall`, `_lost`); each trial its own noise by its scene and start (`trial_noise`), `--noise KEY` a draw again |
-| `scripts/solve.py --feature drawer` | ladder A of #264 on the humanoid's hands (#559): a hand job (`--feature drawer\|door\|cube\|chest`: `open_drawer`, `open_door`, `place_cube`, `open_chest`) offered on the storeroom's counter, its prop drawn (`--draw K`) and set out, claimed, the reference's two procedures (`challenge/solutions.py`) run as the robot's, `done`, graded on the seam; a fresh humanoid on a fresh map from the station (`--from station\|store`, or `tour`: flight k from the next of eight places across the house), `--n` draws a process each (`--jobs`, `--into DIR`), each its own noise by its job, draw and start (`--noise KEY` a draw again), `--view`, `--strip` (`--strip-out PATH`); filmstrip `solve.png` |
+| `scripts/solve.py --feature drawer` | ladder A of #264 on the humanoid's hands (#559): a hand job (`--feature drawer\|door\|cube\|chest`: `open_drawer`, `open_door`, `place_cube`, `open_chest`) offered on the storeroom's counter, or `--feature table` (`set_table`) at the restaurant's table (#560), its prop drawn (`--draw K`) and set out, claimed, the reference's two procedures (`challenge/solutions.py`) run as the robot's, `done`, graded on the seam; a fresh humanoid on a fresh map from the station (`--from station\|store`, or `tour`: flight k from the next of eight places across the house), `--n` draws a process each (`--jobs`, `--into DIR`), each its own noise by its job, draw and start (`--noise KEY` a draw again), `--view`, `--strip` (`--strip-out PATH`); filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the quadruped's pen drew is symmetric |
 | `scripts/humanoid_spike.py` | the humanoid (#507; SimNotes "The humanoid body", "The humanoid stands, reaches and grasps", "The humanoid behind Body", "The humanoid walks", "The humanoid climbs, falls and gets up" and "One walker that sees the ground", Parts.md "The humanoid body"): `--view body` the body held up on a gantry in the house, each joint through its range, then the grippers; `--view stand` its standing policy shoved, crouching and bowing, `--view reach` a hand to a counter, a high shelf, a low shelf and the floor through `Body`, its get-up loaded, `--view grasp` a drawer's handle gripped and pulled, `--view pull` a locked handle pulled at `pull`'s most, 20 N, each way (#544), `--view bar` the `pull` verb on it at its most, back, up, forward and down (#547), `--view feel` 20 N staged at a held-out hand, what its arm and its whole body read (#547), `--view demo` the chest's knob on a counter found by its tag, reached and gripped through `Body`, `--view walk` living room to kitchen and back on its own map, `--view rough` the walker that sees the ground (not served) across doorsteps, paving, a slope and blocks, `--view stairs` it up the house's flight on its own map, round on the landing and down, `--view fall` shoved over three ways, its get-up taking each fall, `--view getup` up off its back, its front and its side (`--strip SCENE` the filmstrip, `--policy NPZ` another standing policy, `--getup-policy NPZ`); `--mass` beside the T2's published model, `--torque` held in our physics and the walking, the stairs and the get-up FLOWN, `--thermal`, `--energy`, `--sensors`; `--friction [--write]` its arm joints' and its waist's friction calibrated in free air beside the sheets', kept in `models/humanoid_friction.json`; `--lean [--write]` the live trunk against the statue a reach plans on -- the stand, each bow, an arm out, after a step, the table's plate (#627) -- its four states kept for `tests/test_reach_lean.py`; `--shove` the shoves it stands through, `--envelope` the reach flown floor to over the head, `--hold` a locked handle pulled harder, `--pulls` a hand pulling each of 14 ways at a counter's height until it falls, `--bar` the force move on the locked handle each way at 10 and 20 N (`--oracle` closed on its true force: the loop's floor), `--feel` what its arm and its whole body read of 20 N staged at the grip, still and swaying (#547), `--handover [N]` the walk's hand-over at a standstill through `step` (#544), `--demo-table [N]` the demo's set-outs flown through `Body`, `--track` / `--rough [NPZ,...]` the served and any walker asked each command on a bare floor / over a doorstep, paving, a slope and blocks (one that sees the ground on its own map), `--odometry` the leg odometry against the truth, `--climb [NPZ]` flights of five at each riser up and down on the ideal scan and its own map, `--fall [NPZ]` shoved over six ways standing, limp or getting up (how far it reaches lying: the fallen disc's, #580; which of the head's parts struck and how fast, and whether the LIDAR itself did, #581), in five places in the house, and from each bow a reach takes (#520), `--speed [SIM_S]` the real-time multiple of one humanoid and a pair, the same walks in the house (`--profile`); filmstrip `humanoid_spike.png` |
 | `scripts/attempts.py` | #493's harness: a skill tried at chests through the attempt protocol (`evaluation.attempts`) and graded by the lid's grader (`challenge/lid.py`), the humanoid's reference at its counter (`evaluation.opener`; `--body humanoid`, the one there is): `--chests A-B` (0-31), `--held-out N [--seed S]`, `--noise KEY` (a draw again, `robot` the robot's own), `--attempts N`, `--jobs`, `--into DIR` (`rows.jsonl`, a row an attempt), `--read DIR` the per-task record, `--drops` the drawn lids let fall (what the grader's lines were read off), `--view [K]` an attempt in the viewer, `--strip [K]` its filmstrip `attempts.png`, `--record PATH [--chest K]` the humanoid's attempt as the site replays it, a session's stream (#530: the fixture, its scene beside it) |
@@ -712,7 +712,9 @@ save a filmstrip PNG named after the script.
   (`perception.cull`, #560; the LIDAR's and the depth camera's): every geom
   costs every ray, reachable or not, and the readings are the same bit for
   bit (`test_cull.py`) -- judged afresh each cast, as activities move and
-  resize geoms.
+  resize geoms. ⚠ WHAT IS PUT AWAY IS IN NO CAST (`cull.PARKED_GROUP`, 3;
+  the restaurant's dishware between its jobs): every cast leaves the group
+  out, the cull off or on, and MuJoCo's cameras draw groups 0-2 alone.
 - **A humanoid is told its own body and world** (#559 stages 3 and 5;
   `Menu.kinds`, `hands_procedure_rule`, `steps.served_hand_facts`;
   `tests/test_humanoid_words.py`; Overseer.md §8b): ⚠ ITS WORDS ARE THE ONLY
@@ -732,7 +734,7 @@ save a filmstrip PNG named after the script.
 - **The humanoids' first jobs are the hands' four on the storeroom's
   counter** (#559 stage 3; `home/storeroom.py`, `humanoid/places.py`,
   `tasks.HAND_JOBS`, `HubLifecycle._watch_job`/`_grade_hands_routine`/
-  `_set_out_counter`, `challenge/solutions.py`; `tests/test_hand_jobs.py`,
+  `_set_out_job`, `challenge/solutions.py`; `tests/test_hand_jobs.py`,
   `tests/test_humanoid_places.py`; Challenges.md §11, SimNotes, "The
   humanoids' first jobs"): a counter against the research center's
   storeroom's east wall, put in at load (`storeroom.attach`), the chest,
@@ -759,8 +761,9 @@ save a filmstrip PNG named after the script.
   the robots spent their recalls finding out when they took it. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
   prop out, its activity renewed in place (`renew`), put back after a
-  restart (`restore_counter`, in `begin`, before the activities' kept
-  state), and an offer made between the world's last save and a crash has
+  restart (`restore_jobs`, in `begin`, before the activities' kept
+  state; the counter and the restaurant's table are `home.jobs`' two areas,
+  one interface), and an offer made between the world's last save and a crash has
   its prop set out again once the world is back (`set_out_unseen`, off the
   board's count the save keeps, `boardSeq`, never a stamp; #610); ⚠ NO
   OFFER LANDS ON A PROP A ROBOT IS TOUCHING (the producer's
@@ -784,27 +787,41 @@ save a filmstrip PNG named after the script.
   the reach planned where the robot stands, on #627's pod: 8, 8 and 8 and
   30, 29 and 32 of 32, where the tree before it flew 8, 7 and 8 and 30, 28
   and 32).
-- **A table set is #560's first task, graded offline and NOT offered**
-  (`activity/dishware.py`, `challenge/table.py`, `counter.table_set_out`,
-  `hands_check.TABLE`, `practice.py --job table`; Challenges.md §12;
-  SimNotes, "Setting a table"): a plate, a fork and a cup laid at a place
-  card on the restaurant's dining table 0, the dishware beside the place
-  (⚠ a walk carries nothing: `step` refuses while a gripper holds). ⚠ The
-  set-out's table is a TOP ON LEGS and its south chair is taken away: the
-  served room's tables are boxes, and crouching to reach the robot's
-  thighs met one at about 200 N. ⚠ A DROP IS A FREE PIECE'S FALL
-  (`table.Watch`, and the cube's `place.Watch`, Ben's call): read at every
-  step, the cube's line failed cubes held fast in a swinging carry. ⚠ Our
-  procedure lays the place from ONE STANCE 0.14 m left on the waist's body
-  (SimNotes, "The table's reference on the waist"): 29 of 32 at set-outs
-  0-31 (the bar 24) since #627 aims each reach at its grip, one pod (aimed
-  past them, 32 of 32 and 140 of 144 over four sets) -- and
-  still no offer (the restaurant's tables first, Ben's call on #615), and no
-  row in `rewards.json`. ⚠ ITS LEFT GRIP CARRIES ONLY TAKEN HALF A TURN ROUND
-  (#560 (c2)): asked as the procedure before it asked, the yaw takes it as
-  asked and it carries nothing; the reference asks it the other way round,
-  tilted 60 deg. Each reach is aimed at its grip (#627), a carry by `pull`.
-  Tags 90-93; 76-89 are left for the store's.
+- **A table set is #560's first task, built into the served world and NOT
+  offered** (`activity/dishware.py`, `challenge/table.py`, `home/restaurant.py`,
+  `counter.table_set_out`, `hands_check.TABLE`, `practice.py --job table`;
+  `tests/test_table_job.py`; Challenges.md §12; SimNotes, "Setting a
+  table" and "The table set served"): a plate, a fork and a cup laid at a
+  place card on the restaurant's dining table 0, the dishware beside the
+  place (⚠ a walk carries nothing: `step` refuses while a gripper holds).
+  ⚠ The set-out stands at the SERVED table, a top on legs, table 0's south
+  chair away (crouching to reach, a robot met a one-box table with its
+  thighs at about 200 N). ⚠ A DROP IS A FREE PIECE'S FALL (`table.Watch`,
+  and the cube's `place.Watch`, Ben's call): read at every step, the cube's
+  line failed cubes held fast in a swinging carry. ⚠ Our procedure lays the
+  place from ONE STANCE 0.14 m left on the waist's body (SimNotes, "The
+  table's reference on the waist"): 29 of 32 at set-outs 0-31 (the bar 24)
+  since #627 aims each reach at its grip, one pod. ⚠ ITS LEFT GRIP CARRIES
+  ONLY TAKEN HALF A TURN ROUND (#560 (c2)): the reference asks it the other
+  way round, tilted 60 deg; each reach is aimed at its grip (#627), a carry
+  by `pull`. Tags 90-93; 76-89 are left for the store's. ⚠ SERVED, ITS
+  DISHWARE IS PUT AWAY BETWEEN JOBS (`restaurant.attach`, `dishware.park`/
+  `place`): a metre under the floor, contacts off -- ⚠ the BODY's
+  broadphase masks with its geoms' (switched alone, the pieces fell 4 m in a
+  second) -- weight held, in `cull.PARKED_GROUP`; an offer sets it out where
+  set-out k lays it (`_set_out_job`) and a sweep puts it away once no job
+  holds the table, never from under a hand (`_put_away_step`); the pair's
+  speed with it 0.915x, without 0.903x (one pod). ⚠ `set_table` IS DEFINED,
+  GRADED AND PRICED, AND OFF THE ROTATION: its reference (`solutions.TABLE`:
+  an oblique look at the card, its one turn asked `WIDER`, the last step
+  straight ahead, the lay's first step taking up what is left across) laid
+  13 of 32 over the tour, its bar 24 (#560's call 10): the lay holds only
+  within a degree or two and a centimetre or two of its start (turned right,
+  the fork's carry runs out of posture; turned or stood left, the cup leaves
+  its first look), and ⚠ `step` CANNOT TURN A FEW DEGREES (its turn stops on
+  the pelvis; asked 1.7, the stance turned 0.03) nor step under a stride
+  (a forward part in the walker's dead band is walked as 10 cm). 12 minutes,
+  68 points (90 for 16 minutes pro rata, Ben's call) when it is offered.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -1658,7 +1675,13 @@ save a filmstrip PNG named after the script.
   four; a room names its `building` (`house`, `facility`, `mall`) and the
   site paints walls by it. ⚠ NOTHING A TASK WILL SET OUT STANDS THERE
   BEFORE IT: the restaurant's dishware and the store's stock are each
-  task's own (#560: every free body costs the physics, every geom a ray).
+  task's own (#560: every free body costs the physics, every geom a ray) --
+  the dishware compiled in at load PUT AWAY until its job sets it out
+  (below, "The table set is offered"). ⚠ THE DINING ROOM'S TABLES ARE A TOP
+  ON LEGS (#560; `table_geoms`, the `dining_table` hint, a RESKIN of five
+  boxes): crouching to reach, a robot met a one-box table with its thighs
+  at about 200 N; table 0's south chair is away, the place a job lays. The
+  house's, the study room's and the lab's bench stay one-box `table`s.
   ⚠ The park's trees are REAL obstacles, mapped and routed round
   (`test_dressing.py`'s tollbooth): never decor. ⚠ THE WALLS ARE A ROOM'S
   2.4 m AND THE STAIRS ARE STEPS (#507 stage 5; `stairs_geoms`): five 0.18
@@ -2214,7 +2237,7 @@ save a filmstrip PNG named after the script.
   feature whose solution cannot be written is a DEFECT, fixed before pay or
   prompt. `challenge/solutions.py` holds the hand jobs' references (each
   two procedures: the walk there, then the hands' check's own), flown by
-  `scripts/solve.py --feature drawer|door|cube|chest`, and nothing under
+  `scripts/solve.py --feature drawer|door|cube|chest|table`, and nothing under
   `mind/` may import them (`tests/test_solutions.py`). ⚠ The offers
   say where by the AREA's terms -- its building's address and its
   directions -- never the props' positions (#419's rule; the rover's said

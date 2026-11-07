@@ -16,7 +16,15 @@ import numpy as np
 #: A geom group no world puts anything in: a cast leaves out what is moved
 #: there for the call, and casts every other group.
 CULL_GROUP = 5
-CAST_GROUPS = np.array([group != CULL_GROUP for group in range(6)], dtype=np.uint8)
+#: ...and where what is PUT AWAY waits (#560: the restaurant's dishware
+#: between its jobs, `activity.dishware.park`): no cast reads it, as no
+#: camera draws it (MuJoCo draws groups 0-2). Before it, only the chest's
+#: hidden lump was here, which a ray never meets (its alpha is 0).
+PARKED_GROUP = 3
+CAST_GROUPS = np.array([group not in (CULL_GROUP, PARKED_GROUP) for group in range(6)],
+                       dtype=np.uint8)
+#: A cast with the cull off: everything but what is put away.
+UNCULLED_GROUPS = np.array([group != PARKED_GROUP for group in range(6)], dtype=np.uint8)
 
 
 class StaticCull:
@@ -65,7 +73,8 @@ class StaticCull:
     groups = self.model.geom_group[far]
     self.model.geom_group[far] = CULL_GROUP
     try:
-      mujoco.mj_multiRay(self.model, data, pos, dirs, CAST_GROUPS if self.on else None, 1,
+      mujoco.mj_multiRay(self.model, data, pos, dirs,
+                         CAST_GROUPS if self.on else UNCULLED_GROUPS, 1,
                          bodyexclude, geomid, dist, None, n, cutoff)
     finally:
       self.model.geom_group[far] = groups

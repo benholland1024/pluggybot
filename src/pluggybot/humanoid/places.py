@@ -163,12 +163,16 @@ def world_places(model) -> tuple[list[int], tuple]:
 
 def place_tags(model) -> tuple[list[int], tuple]:
   """The place tags this world puts up, and their fixtures: the house's
-  (`world_places`) and the storeroom's counter's row (#559)."""
-  from pluggybot.home import storeroom
+  (`world_places`), the storeroom's counter's row (#559) and the restaurant's
+  place card, one tag and no fixture, out while its job is (#560)."""
+  from pluggybot.home import restaurant, storeroom
+  from pluggybot.perception.tags import PLACE_TAG_IDS
   ids, fixtures = world_places(model)
   if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY,
                        f"store_tag{storeroom.TAGS[storeroom.PROPS[0]]}") >= 0:
     ids, fixtures = [*ids, *storeroom.TAGS.values()], (*fixtures, storeroom.fixture())
+  if restaurant.present(model):
+    ids = [*ids, *PLACE_TAG_IDS]
   return ids, fixtures
 
 

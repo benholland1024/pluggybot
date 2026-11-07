@@ -103,7 +103,7 @@ def test_an_offer_draws_its_props_dynamics_and_sets_it_back_out(tmp_path):
   assert life.data.qpos[slide] == 0.0, "pushed back shut"
   assert life.model.dof_damping[dof] == pytest.approx(want.damping)
   assert life.model.dof_frictionloss[dof] == pytest.approx(want.friction)
-  assert life._counter_activity("drawer").runners == want
+  assert life._target_activity("drawer").runners == want
   # ...and the next offer of it draws another
   life.tasks.expire_due(1e9)
   again = _offer(life, "open_drawer")
@@ -472,8 +472,9 @@ def test_a_bare_offer_gives_its_kinds_minutes_and_is_graded_on_them(tmp_path):
   none, saved before its kind did, is graded on the kind's."""
   for kind in HAND_JOBS:
     task = TaskBoard().offer(kind, KINDS[kind].target_kind)
-    assert f"within {HAND_MINUTES} minutes" in task.description, kind
-    assert task.params["minutes"] == HAND_MINUTES
+    assert f"within {KINDS[kind].minutes} minutes" in task.description, kind
+    assert task.params["minutes"] == KINDS[kind].minutes
+  assert {KINDS[k].minutes for k in HAND_JOBS if k != "set_table"} == {HAND_MINUTES}
   life = _life(tmp_path)
   task = life.tasks.offer("open_drawer", "drawer", ttl=3000.0, t=float(life.data.time))
   life.tasks.tasks[task.id] = replace(task, params={})
@@ -487,7 +488,7 @@ def test_a_bare_offer_gives_its_kinds_minutes_and_is_graded_on_them(tmp_path):
 def test_a_restart_puts_back_each_props_newest_draw(tmp_path):
   """The world file carries each prop's compiled draw; an offer that came
   back off the board still means the one it drew -- put back as the day
-  begins (`begin` -> `restore_counter`), before anything reads the prop."""
+  begins (`begin` -> `restore_jobs`), before anything reads the prop."""
   life = _life(tmp_path)
   task = _offer(life, "open_door")
   k = task.secret["draw"]
@@ -496,7 +497,7 @@ def test_a_restart_puts_back_each_props_newest_draw(tmp_path):
   assert fresh.model.dof_damping[dof] == pytest.approx(dd.draw(0).damping)
   fresh.begin((0.0, 0.0, 0.0))
   assert fresh.model.dof_damping[dof] == pytest.approx(dd.draw(k).damping)
-  assert fresh._counter_activity("door").hinge == dd.draw(k)
+  assert fresh._target_activity("door").hinge == dd.draw(k)
 
 
 def test_the_draw_put_back_is_the_newest_offers_on_the_boards_count(tmp_path):
@@ -515,7 +516,7 @@ def test_the_draw_put_back_is_the_newest_offers_on_the_boards_count(tmp_path):
   assert fresh.tasks.get(old.id).created_t > fresh.tasks.get(new.id).created_t
   assert fresh.tasks.get(new.id).state == "offered"
   fresh.begin((0.0, 0.0, 0.0))
-  assert fresh._counter_activity("door").hinge == dd.draw(new.secret["draw"])
+  assert fresh._target_activity("door").hinge == dd.draw(new.secret["draw"])
 
 
 def test_an_offer_the_saved_world_never_saw_has_its_prop_set_out_again(tmp_path):
@@ -592,12 +593,13 @@ def test_an_offer_says_where_by_the_areas_terms_and_how_long_it_gives():
   maker = task_producer(board, HUMANOID_HOME, procedures=True)
   offered = list(maker.cadence.kinds)
   # ...each once its reference passed there (cadence.json's note): the cube's
-  # set it down off the mat, 0 of 8
-  assert set(offered) == set(HAND_JOBS) - {"place_cube"}
+  # set it down off the mat, 0 of 8, and the table's laid 13 of 32 (#560)
+  assert set(offered) == set(HAND_JOBS) - {"place_cube", "set_table"}
+  here = world_targets(HUMANOID_HOME, procedures=True)
   for kind in offered:
-    task = maker._offer(kind, KINDS[kind].target_kind, 0.0)
-    assert task.params["address"]["house"] == "facility"
-    assert f"within {HAND_MINUTES} minutes" in task.description
+    task = maker._offer(kind, here[KINDS[kind].target_kind][0], 0.0)
+    assert task.params["address"]["house"] == ("mall" if kind == "set_table" else "facility")
+    assert f"within {KINDS[kind].minutes} minutes" in task.description
     assert set(task.secret) == {"draw"}
     for n in re.findall(r"\d+(?:\.\d+)?", task.params["directions"]):
       assert int(float(n)) in TAG_SIZES, f"{kind}: {n} is no tag"
@@ -625,7 +627,7 @@ def test_the_chests_grade_reads_the_catch_its_offer_drew(tmp_path):
   verdict = _grade(life, task.id)
   assert not verdict["ok"] and "never opened" in verdict["reason"]
   assert "catchN" not in verdict["metrics"]
-  assert life._counter_activity("chest").lid == ch.draw(task.secret["draw"])
+  assert life._target_activity("chest").lid == ch.draw(task.secret["draw"])
 
 
 def test_a_jobs_watch_ends_with_its_job_however_it_ends(tmp_path):
@@ -708,13 +710,13 @@ def test_an_offer_shuts_and_bolts_a_door_left_open(tmp_path):
   open with its latch tripped is set out shut, its latch bolted round it --
   the hinge's range in the model -- and its activity says so."""
   life = _life(tmp_path)
-  act = life._counter_activity("door")
+  act = life._target_activity("door")
   hinge = life.model.joint("door_hinge").id
   q = int(life.model.jnt_qposadr[hinge])
   act.bolted = False
   act._limit(life.model)
   life.data.qpos[q] = 1.0
   _offer(life, "open_door")
-  assert life._counter_activity("door") is act, "renewed in place, never swapped"
+  assert life._target_activity("door") is act, "renewed in place, never swapped"
   assert act.bolted and life.data.qpos[q] == 0.0
   assert life.model.jnt_range[hinge][1] == pytest.approx(dd.SHUT_RAD)
