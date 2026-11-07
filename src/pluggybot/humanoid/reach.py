@@ -1241,7 +1241,7 @@ class Reach:
     gone = {tuple(float(v) for v in p_) for p_ in self.left[side]}
     chosen = None
     for slack in (True, False):
-      for posture in self.allowed[side]:
+      for posture in (tuple(float(v) for v in p_) for p_ in self.allowed[side]):
         if (posture in gone or not stands(sm, posture, q0)
             or out_of_reach(sm, side, goal.pos, -LEAN_MOST_M)):
           continue

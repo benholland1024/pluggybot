@@ -10,6 +10,41 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A reach plans where the robot reads itself standing, and looks again once its arm is out (#627) — opens when this PR is deployed; merged before the waist's release, it rides with the waist's period as one
+
+**What changed in the body's code** (SimNotes, "The reach planned where
+the live trunk stands"): every reach a hands job or a procedure makes --
+and the station's plug-in, which reaches, carries and pushes too.
+- **A reach is planned on the robot's model of itself as it reads itself
+  standing** (`reach.Lean`): each posture's statue balanced where the
+  robot's own model, off its encoders and its IMU, puts its weight over its
+  soles (1.2-2.9 cm behind their middle as measured, where the statue it
+  planned on before held it over the middle), its arms where they will be.
+  The carry's and the pull's postures stand on the same statue.
+- **Once its arm is out at its pre-grasp it reads itself again** and takes
+  the least bent posture that puts its goal in reach before its hand goes
+  in -- deeper or less bent -- at most twice, its hand waiting meanwhile
+  (`Reach._look`): a reach may take a second or two more.
+- **The arm's solve keeps the arm nearest how it is**, and solves a goal
+  and the point its slack asks for each from the other's arm: no arm thrown
+  over the top where one in front reaches, and no pockets of deep bows.
+- **Nothing the robots read changed**: no prompt, verb, schema or reward;
+  `prompt_sha` the same. A procedure's `reach` now arrives where it was
+  aimed where it fell 2-6 cm short; nothing tells the robots so but what
+  their reaches do.
+
+**Why.** #627, from #626's calls 1 and 3: the live trunk stood 1.6-6.6 cm
+behind the statue the reach planned on, so a hand aimed at a grip arrived
+short; our references aimed past their grips, the robots could not know to,
+and no live hand job had passed by 2026-11-03.
+
+**What the period is for.** That the hand jobs' grades rise or hold and the
+charges plug in as before (flown before the deploy on one pod over 32 draws
+each: Evaluation.md's and SimNotes' numbers): read off the jobs' verdicts
+-- a `reach` that stopped short (`stopped short`, `out of reach`) against
+the period before -- the charges' narration, and the `death` rows.
+⚠ **Not to be pooled with the period before for anything the hands do.**
+
 ### The robots can read a changelog of their world, its newest date beside today's in every turn (#617) — opens when both halves are deployed, this PR's and rooftop-media-2026's
 
 **What changed in what the robots are told** (Overseer.md §7b):
