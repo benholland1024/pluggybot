@@ -25,6 +25,21 @@ stood there read a bracket's tip 4 mm past it. They stand at it and never
 past it, so a low percentile of the points reads it -- where the noise is
 small against what is read: 0.4 mm on a bracket 0.32 m off.
 
+AN END SEEN PAST (`past_end`, #636). A top's points also end wherever the
+camera stopped seeing: the picture's border, something taller in front, the
+range. Nothing in the points tells these apart, so an end is judged in the
+PICTURE: each of the end's points is walked outward, pixel by pixel, along
+where the end's direction falls there, and told by the first pixel past the
+top. A pixel lower than the top says the top stopped there, even a face
+going down; a higher one, that something taller stands there and hides
+what lies beyond (the end of the top's free surface). A pixel with no
+reading is walked past: it may be the D435's shadow, a band of nothing
+beside a near thing's image-left, and a walk that crosses one reads what
+stands behind it. A flat top leaves no such hole where it runs on, so a
+walk that leaves the picture across only unread pixels, more than a dropout
+could be, saw it stop (a far edge's floor beyond the camera's range);
+one that leaves right from the top's own points was cut by the picture.
+
 A FACE TOWARD THE ROBOT (`face`): a vertical face's points all stand at
 one distance along the direction it faces, so its place is their median
 there, its turn the slope of a line through them across it, and its middle
@@ -40,6 +55,7 @@ off; the far edge is a long straight line.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import math
 
 import numpy as np
@@ -91,6 +107,27 @@ FACING_TRIM_PCT = 2.0
 EDGE_SLICE_M = 0.03
 EDGE_ACROSS_PCT = (5.0, 95.0)
 SQUARE_PASSES = 2
+#: AN END SEEN PAST (`past_end`, #636): at most this many of the end's
+#: points are walked outward in the picture, this many pixels each: past
+#: the end's own 2 cm strip (30 px at 0.3 m) and the D435's shadow at its
+#: widest (f B / z, 74 px at 0.3 m).
+PAST_WALKS, PAST_STEPS = 400, 140
+#: ...the walk's direction taken off where the point this far along `way`
+#: falls in the picture, m.
+PAST_AHEAD_M = 0.05
+#: ...a pixel is on the top within `TOP_BAND_M` or this many of the part's
+#: sigmas at its depth: past a metre the band is narrower than the noise.
+PAST_SIGMAS = 3.0
+#: ...a walk that leaves the picture fewer than this many pixels past the
+#: last point on the top went off it with the top: only a pixel that read
+#: nothing stood between (a dropout, 1 % a pixel, three running 1e-6).
+PAST_CUT_PX = 3
+#: ...an end whose points' median depth stands within this of the camera's
+#: reach is the reach's, m: 3 of its 3 m sigmas (`depth.NOISE_K`).
+PAST_REACH_M = 0.1
+#: ...and a walk whose own top runs this far past where the end reads, m, was
+#: stopped short of it: the top goes on there.
+PAST_OVER_M = 0.03
 
 
 def top_height(points: np.ndarray) -> float | None:
@@ -135,6 +172,120 @@ def edge_read(along: np.ndarray, far: bool = True,
     return None
   b = 2.0 * float(x[sel].mean()) - cut
   return (b if far else -b), sel
+
+
+@dataclass
+class Look:
+  """Frames of the depth camera (`Body.depth_pictures`) as one cloud, each
+  point's picture and pixel kept: `points` (k, 3), `frame` (k) which of
+  `pictures` it came from, `rows` and `cols` (k) its pixel there."""
+  pictures: list
+  points: np.ndarray
+  frame: np.ndarray
+  rows: np.ndarray
+  cols: np.ndarray
+
+  @classmethod
+  def of(cls, pictures: list) -> "Look":
+    if not pictures:
+      none = np.zeros(0, dtype=int)
+      return cls([], np.zeros((0, 3)), none, none, none)
+    at = [p.pixels() for p in pictures]
+    return cls(list(pictures), np.concatenate([p.points for p in pictures]),
+               np.concatenate([np.full(len(p.points), i) for i, p in enumerate(pictures)]),
+               np.concatenate([a[0] for a in at]), np.concatenate([a[1] for a in at]))
+
+
+def past_end(look: Look, picks: np.ndarray, way: np.ndarray, top: float, end: float) -> dict:
+  """What the camera saw just past an end of a flat top (the module
+  docstring, "AN END SEEN PAST"): `look`'s points `picks` are the end's
+  (`edge_read`'s strip), `way` the end's outward direction in the believed
+  world frame, `top` the top's height and `end` where the end reads, along
+  `way`. Each picked point is walked outward across the picture and told
+  by the first pixel past the top: `lower` (the top stopped there),
+  `taller` (something higher stands there), `cut` (the picture ended
+  first), `hidden` (a robot's body stood there) -- or `runs`, the top's own
+  pixels going on past where the end reads: the look stopped short of it,
+  nothing the camera saw. What the shares of those are, and `reach`,
+  whether the end's points stand at the camera's reach."""
+  way = np.asarray(way, dtype=float)
+  walks = np.asarray(picks)
+  if len(walks) > PAST_WALKS:
+    walks = walks[np.linspace(0, len(walks) - 1, PAST_WALKS).astype(int)]
+  counts = {"lower": 0, "taller": 0, "cut": 0, "hidden": 0, "runs": 0}
+  depths = []
+  for i, picture in enumerate(look.pictures):
+    these = walks[look.frame[walks] == i]
+    if not len(these):
+      continue
+    start = np.column_stack([look.rows[these], look.cols[these]]).astype(float)
+    depths.append(picture.z[look.rows[these], look.cols[these]])
+    got, _ = _walked(picture, look.points[these], start, way, top, end)
+    for key, n in got.items():
+      counts[key] += n
+  total = max(sum(counts.values()), 1)
+  deep = np.concatenate(depths) if depths else np.zeros(0)
+  reach = bool(len(deep)) and float(np.median(deep)) > look.pictures[0].reach - PAST_REACH_M
+  return {**{key: n / total for key, n in counts.items()}, "reach": reach}
+
+
+def _agreed(mask: np.ndarray) -> np.ndarray:
+  """Where a walk's pixel (the axis 1 along it) is true and one of the next
+  two along the walk is: a lone pixel past `PAST_SIGMAS` is the sensor's
+  noise, a walk crossing a hundred of them meets some (at 3 sigma, a
+  quarter of such walks read `lower`), and a surface is several pixels
+  wide."""
+  next_one, next_two = np.zeros_like(mask), np.zeros_like(mask)
+  next_one[:, :-1], next_two[:, :-2] = mask[:, 1:], mask[:, 2:]
+  return mask & (next_one | next_two)
+
+
+def _walked(picture, points: np.ndarray, start: np.ndarray, way: np.ndarray,
+            top: float, end: float) -> tuple[dict[str, int], np.ndarray]:
+  """`past_end`'s walks in one picture, told by kind: from each pixel
+  `start` (its point `points`) outward along where `way` falls in the
+  picture, a pixel at a time. Returns the counts, and how far past `end`
+  each walk's own top ran, m (-inf where none did)."""
+  ahead = picture.project(points + PAST_AHEAD_M * way) - start
+  ahead /= np.maximum(np.linalg.norm(ahead, axis=1, keepdims=True), 1e-9)
+  steps = np.arange(1, PAST_STEPS + 1)
+  rows = np.rint(start[:, 0, None] + ahead[:, 0, None] * steps).astype(int)
+  cols = np.rint(start[:, 1, None] + ahead[:, 1, None] * steps).astype(int)
+  height, width = picture.z.shape
+  inside = (rows >= 0) & (rows < height) & (cols >= 0) & (cols < width)
+  rows, cols = np.clip(rows, 0, height - 1), np.clip(cols, 0, width - 1)
+  at = picture.world[rows, cols]
+  heights, depth = at[..., 2], picture.z[rows, cols]
+  # NaN compares false either way: a pixel with no reading is neither
+  slack = np.maximum(TOP_BAND_M, PAST_SIGMAS * picture.noise_k * np.nan_to_num(depth) ** 2)
+  lower = _agreed(inside & (heights < top - slack))
+  taller = _agreed(inside & (heights > top + slack))
+  hidden = inside & picture.bodies[rows, cols]
+  on = inside & (np.abs(heights - top) <= slack)
+
+  def first(mask: np.ndarray) -> np.ndarray:
+    return np.where(mask.any(axis=1), mask.argmax(axis=1), PAST_STEPS)
+
+  border = first(~inside)
+  hit = first(lower | taller | hidden)
+  # how far past the reading the walk's own top ran, along the way out
+  over = np.where(on, np.nan_to_num(at @ way) - end, -np.inf)
+  ran = np.array([over[k, :min(hit[k], border[k])].max(initial=-np.inf)
+                  for k in range(len(start))])
+  got = {"lower": 0, "taller": 0, "cut": 0, "hidden": 0, "runs": 0}
+  for k in range(len(start)):
+    if ran[k] > PAST_OVER_M:
+      got["runs"] += 1
+    elif hit[k] < border[k]:
+      j = hit[k]
+      got["lower" if lower[k, j] else "taller" if taller[k, j] else "hidden"] += 1
+    elif border[k] >= PAST_STEPS:
+      got["lower"] += 1        # the whole walk read nothing: looked past
+    else:
+      tops = np.flatnonzero(on[k, :border[k]])
+      last = int(tops[-1]) if len(tops) else -1
+      got["cut" if border[k] - last - 1 < PAST_CUT_PX else "lower"] += 1
+  return got, ran
 
 
 def faced_edge(along: np.ndarray, far: bool = True) -> float | None:

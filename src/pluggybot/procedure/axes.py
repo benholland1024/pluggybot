@@ -175,6 +175,20 @@ def measured(key: str):
   return read
 
 
+def measured_taller(key: str):
+  """Whether something taller stood past that end of the last `measure`'s
+  top (#636): 1 where it did, so the end is the free surface's, 0 where the
+  camera saw the top stop -- and no reading, saying why, where the end has
+  none."""
+  def read(life) -> float:
+    rep = (getattr(life, "reports", None) or {}).get("measure")
+    if rep is not None and key in rep:
+      return 1.0 if key in rep.get("taller", ()) else 0.0
+    why = (rep or {}).get("unread", {}).get(key) or "`measure` has not run"
+    raise NoReading(f"object.{key}_taller has no reading: {why}")
+  return read
+
+
 def _hand_at(side: str, k: int):
   return lambda life: in_stance(life, life.body.hand_at(side))[k]
 
@@ -361,13 +375,20 @@ SENSORS["find.facing"] = Sensor(
   "from")
 #: ...and what `measure` saw (#493, the arm with sight): a flat top's height
 #: and where it ends, the stance frame.
-MEASURE_SENSORS = tuple(f"object.{k}" for k in ("top", "near", "far", "left", "right"))
+MEASURE_ENDS = ("near", "far", "left", "right")
+MEASURE_SENSORS = (("object.top",) + tuple(f"object.{k}" for k in MEASURE_ENDS)
+                   + tuple(f"object.{k}_taller" for k in MEASURE_ENDS))
 for _k, _doc in (("top", "the height of the flat top `measure` last saw, m"),
                  ("near", "how far ahead that top begins, m"),
                  ("far", "how far ahead that top ends, m"),
                  ("left", "how far to your left that top reaches, m"),
                  ("right", "how far to your left its right edge is (negative: to your right), m")):
   SENSORS[f"object.{_k}"] = Sensor(f"object.{_k}", measured(_k), _doc)
+for _k in MEASURE_ENDS:
+  SENSORS[f"object.{_k}_taller"] = Sensor(
+    f"object.{_k}_taller", measured_taller(_k),
+    f"1 if something taller stands just past that top's {_k} end, where its free surface "
+    "stops (the top may go on behind it); 0 if your camera saw the top stop there")
 for _k, _a in enumerate("xyz"):
   SENSORS[f"pull.d{_a}"] = Sensor(
     f"pull.d{_a}", (lambda key: lambda life: reported("pull", key, life))(f"d{_a}"),

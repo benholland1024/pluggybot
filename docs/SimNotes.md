@@ -6372,19 +6372,72 @@ the window cut is left out of the verdict (`runsOn` names it) and of
 `object.*`, and every `object.*` read with no number says why -- the
 window, a look that saw no top, or no look yet.
 
-**Where the look still ends inside the window.** Two answers are still
-where the camera stopped seeing, not where the top ended:
-- the picture's edge: from where the references work at the counter, its
-  front edge (0.22-0.24 m ahead) is under the picture's bottom edge at the
-  counter's height, and its near end reads 0.26 wherever `measure` looks;
-- a taller thing in front: the cabinet hides the counter's top behind it
-  from the camera, and from (0.95, 0.9) the counter's right end read
-  0.56-0.59 where the cabinet's shadow begins.
+**Where the look ended inside the window (#636).** Two answers were where
+the camera stopped seeing, not where the top ended: the picture's edge --
+from where the references work at the counter, its front (0.22-0.24 m ahead)
+is under the picture's bottom edge at the counter's height, and its near end
+read 0.26 wherever `measure` looked -- and a taller thing in front -- from
+(0.95, 0.9) the counter's right end read 0.56-0.57 where the cabinet on it
+hides its top. No count of pixels tells them from a true end: a near end the
+picture cut stood 9-14 px from its border, the counter's true left end at
+the picture's corner 14-16. What tells them apart is whether the camera saw
+past the end, so `measure` now asks the picture beside the points
+(`Body.depth_pictures`, `box.past_end`). Each of an end's points (at most
+400) is walked outward, pixel by pixel, along where the end's direction
+falls in the picture through the camera's own pinhole, and told by the first
+thing past the top it walks over; the walks' most common word says what the
+end is (`steps.MEASURE_WORDS`, a tie the one that claims less):
+- **lower**: the top stopped there (its own face going down, the floor).
+  It reads as before.
+- **taller**: something stands there and hides what lies beyond. It reads as
+  the end of the top's free surface (Ben, 2026-11-08), and
+  `object.<end>_taller` says so.
+- **unseen**: the walk left the picture with the top still on its last
+  pixels (`PAST_CUT_PX`, 3, unread pixels at most between them: a dropout's
+  length), or met a robot's body (`DepthFrame.bodies`: a NaN like any other,
+  to the cloud). No reading, and it says which.
+- **runs**: the walk's own top went on past where the end reads by more
+  than `PAST_OVER_M` (3 cm), the end's points having stopped short of the
+  top: 9 of 2,399 ends past the rim's check at set-outs of five checks, the
+  counter going on beside the chest, read a few cm short, and at all 9 the
+  world had the top going on there. No reading, and it says so.
 
-The points of a near end the picture cut stood 9-14 px from its border,
-those of the counter's true left end at the picture's corner 14-16: no
-count of pixels tells them apart. What tells them apart is whether the
-camera saw past the end -- lower points beyond it in the picture.
+A pixel that reads nothing is walked past: the D435's shadow (the band of
+nothing beside a near thing's image-left) or a dropout, what stands behind it
+saying which. Unread right to the picture's edge, past 3 px, the top stopped:
+a flat top running on would have read on, and what is past it is out of the
+part's reach or in its shadow (the counter's left end at the picture's
+corner; a table's far edge across a room). An end whose points stand at the
+part's reach (`PAST_REACH_M` of its 3 m) is the reach's: no reading. And a
+lone pixel past the noise slack is the noise, never a surface (`_agreed`: a
+surface is several pixels wide, and a walk of a hundred pixels of the top
+meets a 3-sigma one in a quarter of walks: read as `lower`, it stopped walks
+partway across a table).
+
+Measured with `scripts/measure_spike.py` and a sweep of the same code
+(`--poses all`): the drawer's set-outs 0 and 3 from the reference's stance,
+96 ends: every near end the picture cut (0.261-0.264) is no reading now; the
+28 the window holds whole read exactly as they did; the counter's left end
+at the picture's corner reads 0.838 and 0.834 (the truth 0.836 and 0.830,
+its walks 29-34 % cut); the cabinet end reads 0.561 and 0.572 and says so.
+Over the five checks' set-outs 0 and 3 from eight viewpoints and 42 windows
+(9,060 ends), a ray straight down 2 cm past each end read against the world:
+of 4,360 reads, 4,215 stand where the top truly stops and 103 at a taller
+thing; 29 stand where the top truly goes on: 18 of them one dining table's
+right edge, the ray-cast hole below, and 11 edges seen from a stance turned
+25 deg, a diagonal edge whose reading lies between its ends. 428 ends went
+unread at the picture's edge and 4,272 at the window.
+
+⚠ **The dining tables have holes in the depth camera** (not fixed here).
+Every dining table's body has a turned inertial frame (its top on its legs),
+and `mj_multiRay` culls a body by a sphere misplaced for such a frame (the
+#605 bug): a ray at a table's far side passes straight through its top to
+the floor, in the D435's cast (the LIDAR casts `mj_multiRay` too) -- `mj_ray`
+on the same ray hits the top. In the sweep above it read the table's right
+end up to 7 cm short with the floor plainly seen past it. `measure` cannot
+tell: to the picture, the table has ended there. A table whose top is in
+the robot's way should get its inertial frame by hand before the sim is
+trusted at it.
 
 ⚠ **A top reads high at range.** `box.top_height` takes the band round
 the highest bin holding a quarter of the fullest, and `TOP_BAND_M`'s 5 mm

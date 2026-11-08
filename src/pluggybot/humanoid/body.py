@@ -752,10 +752,15 @@ class HumanoidBody(Body):
       waited += GRIP_READ_S
 
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
-    """Its D435's points, each frame placed through its pelvis in its model
-    of itself (posed off its encoders and IMU) and its stance: the camera
+    """`depth_pictures`' points, one cloud."""
+    pictures = yield from self.depth_pictures(width, height, min_z, frames, apart)
+    return np.concatenate([p.points for p in pictures]) if pictures else np.zeros((0, 3))
+
+  def depth_pictures(self, width, height, min_z, frames=1, apart=0.1):
+    """Its D435's frames, each placed through its pelvis in its model of
+    itself (posed off its encoders and IMU) and its stance: the camera
     rides the waist, its frame posed off the waist's reading."""
-    from pluggybot.perception.depth import DepthCamera
+    from pluggybot.perception.depth import DepthCamera, DepthPicture
     key = (int(width), int(height), float(min_z))
     if getattr(self, "_depth", (None,))[0] != key:
       self._depth = (key, DepthCamera(self._m, self.handle, width=key[0], height=key[1],
@@ -768,13 +773,20 @@ class HumanoidBody(Body):
       yield from self.hold_routine(apart)
       self.reach._pose()
       sm = self.reach.self_model
-      pts = cam.frame(self._d, dict(zip(hm.WAIST, sm.q[sm.waist]))).points
+      joints = dict(zip(hm.WAIST, sm.q[sm.waist]))
+      got = cam.frame(self._d, joints)
       rot = np.zeros(9)
       mujoco.mju_quat2Mat(rot, sm.d.qpos[3:7])
-      inside = pts @ rot.reshape(3, 3).T + sm.d.qpos[0:3]
+      rot = rot.reshape(3, 3)
+      inside = got.points @ rot.T + sm.d.qpos[0:3]
       x, y, yaw = self.stance
-      out.append(inside @ _rz(yaw).T + [x, y, 0.0])
-    return np.concatenate(out) if out else np.zeros((0, 3))
+      turned = _rz(yaw)
+      origin, mat = cam.mount.pose(joints)
+      out.append(DepthPicture(z=got.z, points=inside @ turned.T + [x, y, 0.0], bodies=got.bodies,
+                              eye=(rot @ origin + sm.d.qpos[0:3]) @ turned.T + [x, y, 0.0],
+                              turn=turned @ rot @ mat, focal=cam.focal_px, reach=cam.max_z,
+                              noise_k=cam.noise_k))
+    return out
 
   def _report(self, rep: dict) -> dict:
     """A carry's or a pull's report (`Reach.report`), its stance frame's

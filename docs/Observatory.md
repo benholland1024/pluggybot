@@ -10,6 +10,46 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `measure` reads an end only where its camera saw past it, and says when something taller stands there (#636) — opens when this PR is deployed
+
+**What changed is what `measure` reads and what the robots are told**
+(SimNotes, "Where `measure` looks"; `scripts/measure_spike.py`):
+- **An end reads only where the camera saw past it.** Each of an end's
+  points is walked outward across the depth picture (`Body.depth_pictures`,
+  `box.past_end`), and an end with no reading says why: the top ran off the
+  picture (the counter's near end, 0.26 wherever a robot stood), past the
+  camera's 3 m reach, behind a robot's body, or the top's own pixels go on
+  past where it reads (the counter going on beside the chest, a few cm
+  short). What the window holds whole reads exactly as it did, and a true
+  end at the picture's corner still reads.
+- **Something taller standing just past an end** is where the top's free
+  surface stops (Ben's call): it reads there, and four new readings,
+  `object.near_taller` (`far`, `left`, `right`), read 1.
+- `measure`'s text says so, and the four readings are in the language and
+  the body sections: `prompt_sha` `8583b660…` → `8dd3cebe…`, 60,394 → 61,429
+  chars, 17 sections both (`overseer_probe.py --deployed --prompt`); the
+  practice's language and body and the session host's `hello` with it (the
+  site re-vendors it, and its guide for people needs a row for each of the
+  four readings). The counter recording's `readouts` carry the four, the
+  flight the same (611 of its 671 lines byte for byte; the other 60 differ
+  by those keys alone). Nothing else moved: the schema, the menu, the reward
+  table, the body, the house.
+
+**Why.** #636, filed from #634's review: from where the references work, a
+procedure that stepped in until `object.near` read under 0.26 stepped until
+a step was refused, the number being the picture's bottom edge meeting the
+counter's height; and the robots had read an end at the cabinet's shadow as
+where a counter ended.
+
+**What the period is for.**
+- **What robots do with the words**: how often a run's `object.*` read comes
+  back "ran off your depth camera's picture", and what it does next: a step
+  back, a look elsewhere, or another `measure` at the same point.
+- **Whether `object.*_taller` is read**, and against what: a robot reasoning
+  about where it can set something down.
+- ⚠ **Not to be pooled with the period before for anything an `object.*`
+  decides**: a near end that used to read 0.26 now has no reading, and a
+  procedure stops there unless its author tests the read.
 ### A `step` that did not walk says so, and a small turn turns (#649) — opens when this PR is deployed
 
 **What changed is what the feet's verb does and says** (SimNotes, "Stepping

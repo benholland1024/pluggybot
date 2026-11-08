@@ -93,7 +93,7 @@ and its feet, which the walking policy moves.
 |---|---|---|---|---|
 | `spot(tag)` | stands still and looks for a tag, named by its number as its text says (#640) -- as it stands, then bowing lower (`SPOT_GAZES`) until it sees it -- and stands up again | `spot.x/y/z` (the face's middle: of a small block with its tag on every face, the face seen most square-on, as its text says, #650), `spot.nx..nz` (into the thing it is on: which face), `spot.ex..ez` (along an edge), `spot.range` | not in view from where it stands | the head camera's tag detector (`perception.tags`), `Body.gaze_routine` |
 | `watch(tag)` | keeps the head camera reading a tag, by its number as `spot`'s, while the procedure goes on, 15 pictures a second, each read 0.1 s after it was taken; ends with the procedure or the next `watch` | as `spot`'s, where the newest picture that showed it put it (`watch.*`; of a small block, the face that picture shows most square-on, so which face can change as it moves, #650), and `watch.seen` (whether the newest picture shows it), `watch.age` | not in view as it begins: it watches on | `spot`'s decode, placed through the robot's model of itself as its arm's loop last posed it (`perception.watch`) |
-| `measure(x, y)` | the depth camera's look at what stands within 0.45 m of (x, y) (`MEASURE_NEAR_M`, its text says so) | `object.top/near/far/left/right`; an end the top runs on past that has none, and its read says so (#630) | no flat top seen, 6 cm over the floor or more (`box.FLOOR_M`: lower, the floor's own noise) | the D435's cloud (`perception/box.py`) |
+| `measure(x, y)` | the depth camera's look at what stands within 0.45 m of (x, y) (`MEASURE_NEAR_M`, its text says so) | `object.top/near/far/left/right`; an end reads only where the camera saw past it (#630, #636): the top running on past the window, off the picture or past the camera's 3 m reach, or a robot's body before it, leaves that end no reading, and its read says which. `object.near_taller` (`far`, `left`, `right`) reads 1 where something taller stands just past an end, which then reads where the free top stops | no flat top seen, 6 cm over the floor or more (`box.FLOOR_M`: lower, the floor's own noise) | the D435's pictures (`Body.depth_pictures`) and `perception/box.py` |
 | `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it -- straight in joint space, or round by its side where straight would sweep the arm low ahead of the robot (`Reach.way_out`, the way home's judgment) -- then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
 | `via(hand, x, y, z, turn)` | adds a point to the hand's next move; nothing moves | -- | a path holds 40 points | -- |
 | `move_hand(hand, x, y, z, speed, stiffness, turn)` | a hand that is out carried along a line, or through its `via` points, as ONE motion from one posture | as `reach` | out of reach (planned or partway), held back | `Reach.carry`, `path_for` |
@@ -493,10 +493,7 @@ there (§4's "A tag watched while the robot moves").
   watched while the body moves (#554's stage 2, §3), but the head camera
   is fixed on the trunk: a tilting head is Parts.md's first joint to add
   if a measurement needs one.
-- **Tell where a top ends from where its look ended, but at its window.**
-  `measure` refuses an end at its own window's rim (#630), but the
-  picture's edge and a taller thing in front still read as ends: standing
-  where it works at the counter, the counter's front (0.22-0.24 m ahead)
-  reads 0.26, where the picture's bottom edge meets the counter's height;
-  and the counter beside a cabinet ends where the cabinet hides it
-  (SimNotes, "Where `measure` looks").
+- **See how far a top runs on behind what hides it.** `measure` reads the
+  end of the free surface where something taller stands on a top, and says
+  so (`object.*_taller`, #636); how far the top goes on behind that is the
+  robot's to go and look at (SimNotes, "Where `measure` looks").

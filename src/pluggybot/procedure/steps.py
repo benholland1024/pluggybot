@@ -61,6 +61,7 @@ from typing import Any, Callable
 from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_LEAST_M,
                                      STEP_SHORT_M)
 from pluggybot.perception.box import FLOOR_M as MEASURE_FLOOR_M
+from pluggybot.perception.depth import MAX_Z as MEASURE_REACH_M
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
 from pluggybot.tick import Routine
 
@@ -571,48 +572,89 @@ MEASURE_RIM_M = 0.03
 #: axis's far end, and which way the top runs on past it.
 MEASURE_ENDS = (("near", 0, False, "toward you"), ("far", 0, True, "away from you"),
                 ("left", 1, True, "to your left"), ("right", 1, False, "to your right"))
+#: ...and an end counts only where the camera saw past it (#636,
+#: `box.past_end`): told by the walks' most common word, the cautious one
+#: first in a tie -- `unseen` (the picture ended first or a robot's body
+#: stood there: the drawer's set-outs' near ends cut by the picture's bottom
+#: edge read 99-100 % of it, the counter's left end at the picture's
+#: corner, a true one, 29-34 %), `runs` (its own top's pixels go on past
+#: where it reads: 9 of 2,399 ends past the rim's check, the top going on
+#: at all 9, mostly behind the chest), `taller` (the end of the top's free
+#: surface, reading so, Ben, 2026-11-08; the counter behind the cabinet
+#: 100 %), `lower` (the top stopped there).
+MEASURE_WORDS = ("unseen", "runs", "taller", "lower")
 
 
 def _measure(life, args: dict) -> Routine:
   """The flat top of what stands at (x, y), off the head's depth camera at
-  the part's own 848 x 480 (`Body.depth_cloud`): its height and where it
-  ends -- nearest and farthest ahead, leftmost and rightmost -- in the
+  the part's own 848 x 480 (`Body.depth_pictures`): its height and where
+  it ends -- nearest and farthest ahead, leftmost and rightmost -- in the
   stance frame, in `object.*`. ok when a flat top is seen. ⚠ OUR CODE'S
   PERCEPTION, a stated prior (`perception.box`): the highest flat face
-  among the points round (x, y), and its edges. ⚠ WHERE THE TOP RUNS ON
-  PAST THE WINDOW, ITS END THAT WAY IS NO READING (#630), and reading it
-  says why (`axes.measured`); so is every end after a look that saw no
-  top."""
+  among the points round (x, y), and its edges. ⚠ AN END COUNTS ONLY WHERE
+  THE CAMERA SAW PAST IT (#636): where the top runs on past the window
+  (#630) or past where it read, off the picture, past the camera's reach,
+  or a robot's body hides it, that end is no reading, and reading it says why
+  (`axes.measured`); so is every end after a look that saw no top. Where
+  something taller stands at an end, it reads as where the top's free
+  surface ends, and `object.<end>_taller` says so."""
   import numpy as np
   from pluggybot.perception import box
   x, y = float(args["x"]), float(args["y"])
-  cloud = yield from life.body.depth_cloud(box.DEPTH_W, box.DEPTH_H, box.DEPTH_MIN_Z,
-                                           frames=box.FRAMES, apart=box.APART_S)
+  pictures = yield from life.body.depth_pictures(box.DEPTH_W, box.DEPTH_H, box.DEPTH_MIN_Z,
+                                                 frames=box.FRAMES, apart=box.APART_S)
+  look = box.Look.of(pictures)
   bx, by, yaw = life.body.stance
   c, s_ = math.cos(yaw), math.sin(yaw)
-  pts = np.asarray(cloud, dtype=float).reshape(-1, 3)
+  pts = look.points
   dx, dy = pts[:, 0] - bx, pts[:, 1] - by
   st = np.column_stack([c * dx + s_ * dy, -s_ * dx + c * dy, pts[:, 2]])
-  near = st[np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M]
+  which = np.flatnonzero(np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M)
+  near = st[which]
   top = box.top_height(near) if len(near) else None
-  on = near[box.on_top(near, top)] if top is not None else near[:0]
+  flat = box.on_top(near, top) if top is not None else np.zeros(len(near), dtype=bool)
+  on, on_which = near[flat], which[flat]
   read = {key: box.edge_read(on[:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
   if top is None or None in read.values():
     said = f"your last `measure` saw no flat top round ({x:g}, {y:g}) from where you stood"
     _reports(life)["measure"] = {"unread": dict.fromkeys(("top", *read), said)}
     return {"ok": False, "reason": f"no flat top seen round ({x:g}, {y:g}) from where you stand"}
-  got, past = {"top": top}, {}
-  for key, _, _, way in MEASURE_ENDS:
+  got, past, unseen, taller = {"top": top}, {}, {}, []
+  for key, axis, far, way in MEASURE_ENDS:
     end, strip = read[key]
     rim = MEASURE_NEAR_M - float(np.median(np.hypot(on[strip, 0] - x, on[strip, 1] - y)))
     if rim < MEASURE_RIM_M:
       past[key] = (f"your last `measure` looked within {MEASURE_NEAR_M:g} m of ({x:g}, {y:g}), "
                    f"and the top it saw runs on past that {way}")
+      continue
+    # the end's outward way and where it reads along it, the believed
+    # world frame, as its points are
+    along = np.array([c, s_, 0.0] if axis == 0 else [-s_, c, 0.0])
+    way_out = along if far else -along
+    at = np.array([bx, by, 0.0]) @ way_out + (end if far else -end)
+    saw = box.past_end(look, on_which[strip], way_out, top, at)
+    votes = {"unseen": saw["cut"] + saw["hidden"], "runs": saw["runs"], "taller": saw["taller"],
+             "lower": saw["lower"]}
+    word = max(MEASURE_WORDS, key=votes.__getitem__)
+    if saw["reach"]:
+      unseen[key] = (f"your last `measure` saw the top run on past your depth camera's "
+                     f"{pictures[0].reach:g} m reach {way}")
+    elif word == "unseen":
+      unseen[key] = (f"your last `measure` saw the top run off your depth camera's picture {way}"
+                     if saw["cut"] >= saw["hidden"] else
+                     f"your last `measure` saw a robot's body stand between your depth camera "
+                     f"and that top's end {way}")
+    elif word == "runs":
+      past[key] = f"your last `measure` saw the top run on past where it read its end {way}"
     else:
       got[key] = end
-  _reports(life)["measure"] = {**got, "unread": past}
+      if word == "taller":
+        taller.append(key)
+  _reports(life)["measure"] = {**got, "unread": {**past, **unseen}, "taller": taller}
   return {"ok": True, **{k: round(v, 3) for k, v in got.items()},
-          **({"runsOn": list(past)} if past else {})}
+          **({"runsOn": list(past)} if past else {}),
+          **({"unseen": list(unseen)} if unseen else {}),
+          **({"taller": taller} if taller else {})}
 
 
 #: What a hand's verb FELT (issue #493, opening by feel): the robot's own
@@ -1082,8 +1124,12 @@ HANDS_VERBS: dict[str, Verb] = {
                   f"{MEASURE_NEAR_M:g} m of (x, y): the height of its flat top and where that "
                   "top ends -- nearest and farthest ahead, leftmost and rightmost -- ride "
                   f"`object.*`; ok when a flat top is seen, {MEASURE_FLOOR_M:g} m or more over "
-                  f"the floor. Where the top runs on past those {MEASURE_NEAR_M:g} m, its end "
-                  "that way has no reading"),
+                  "the floor. An end reads only where your camera saw past it: where the top "
+                  f"runs on past those {MEASURE_NEAR_M:g} m, off your camera's picture or past "
+                  f"its {MEASURE_REACH_M:g} m reach, or a robot's body hides it, its end that "
+                  "way has no reading, and reading it says why. Where something taller stands "
+                  "just past an end, that end reads where the free top stops, and "
+                  "`object.near_taller` (`far`, `left`, `right`) reads 1"),
   "spot": Verb("spot", {"tag": Arg("float", lo=0.0, hi=586.0)}, _spot,
                "stand still and look for this tag in your head camera -- as you stand, then "
                "bowing lower until you see it -- and stand up again; ok when you see it. Where "
