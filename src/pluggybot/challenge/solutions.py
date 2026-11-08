@@ -200,9 +200,10 @@ FACING = 0.026
 
 #: THE LAY, SERVED: the table check's procedure (`hands_check.TABLE`) with its
 #: first step aside taken from where the card reads across the robot (`m`):
-#: 16 cm left of the card's line, whatever the walk left across it, where
-#: the check, starting on the line, asks 14 ("The lay from the tour": a step
-#: walks in strides, and from a standstill asked 14 it lands 14.4).
+#: 15.5 cm left of the card's line, whatever the walk left across it, where
+#: the check, starting on the line, asks 15 (SimNotes, "The lay from the
+#: tour": a step walks in whole strides, so where it lands depends more on
+#: where it starts than on what it is asked).
 TABLE_LAY_STEP = ("  a = 0.15\n", "  a = m + 0.155\n")
 
 
