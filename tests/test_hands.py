@@ -9,6 +9,7 @@ Every test here is a direct call or the stub body: the flights that measure
 the reference and the practice are `scripts/attempts.py`'s.
 """
 
+import functools
 import json
 import math
 import re
@@ -1631,22 +1632,82 @@ def test_what_is_felt_drives_its_routine_as_yield_from_would():
   assert ended == [True, True]
 
 
-class Seeing(StubBody):
-  """A stub whose depth camera sees a counter's top and, on it, a box's
-  flat top 0.25 m deep and 0.30 m wide (the believed world frame)."""
+#: Where the head's D435 is in the stance frame at the stand, m, and how far
+#: it looks down, rad: its `depth_eye` on the robot's model of itself
+#: (`arms.SelfModel` posed at `stand_qpos`, 2026-11-07), and its height's
+#: vertical field, rad.
+D435_AT, D435_PITCH = np.array([0.045, 0.0, 1.26]), math.radians(40.0)
+D435_FOVY = math.radians(58.0)
 
-  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
+
+@functools.lru_cache(maxsize=16)
+def _stage(boxes: tuple) -> dict:
+  """`boxes` and the floor as the D435 sees them, standing, before its
+  noise: each `(x0, x1, y0, y1, z0, z1)` in the stance frame. Each pixel's
+  ray cast at them (the nearest, as the part sees), the same range gate and
+  the same shadow as `DepthCamera`'s."""
+  from pluggybot.perception import box, depth
+  w, h = box.DEPTH_W, box.DEPTH_H
+  focal = (h / 2) / math.tan(D435_FOVY / 2)
+  c, s = math.cos(D435_PITCH), math.sin(D435_PITCH)
+  # camera to stance frame: its x (right), y (up) and z (back, out of its lens)
+  turn = np.column_stack([[0.0, -1.0, 0.0], [s, 0.0, c], [-c, 0.0, s]])
+  u, v = np.meshgrid(np.arange(w) - w / 2 + 0.5, np.arange(h) - h / 2 + 0.5)
+  rays = np.stack([u / focal, -v / focal, -np.ones_like(u)], axis=-1) @ turn.T
+  eye = D435_AT
+  with np.errstate(divide="ignore", invalid="ignore"):
+    z = np.where(rays[..., 2] < 0, -eye[2] / rays[..., 2], np.inf)
+    for (x0, x1, y0, y1, z0, z1) in boxes:
+      lo, hi = (np.array([x0, y0, z0]) - eye) / rays, (np.array([x1, y1, z1]) - eye) / rays
+      t0, t1 = np.minimum(lo, hi).max(axis=-1), np.maximum(lo, hi).min(axis=-1)
+      z = np.where((t1 >= t0) & (t0 > 0.0) & (t0 < z), t0, z)
+  z = np.where(np.isinf(z) | (z > depth.MAX_Z), np.nan, z)
+  flat = z.reshape(-1)
+  shadow = depth.DepthCamera._shadow(
+    NS(focal_px=focal, baseline=depth.BASELINE, _u=u.reshape(-1), height=h, width=w),
+    flat).reshape(z.shape)
+  return {"z": z, "shadow": shadow, "rays": rays, "eye": eye, "turn": turn, "focal": focal}
+
+
+def _frame(stage: dict, pose, rng):
+  """One frame of the stage through the part's noise and dropout, laid in
+  the believed world frame the stub stands at (`DepthPicture`)."""
+  from pluggybot.perception import box, depth
+  z = np.where(stage["shadow"] | (stage["z"] < box.DEPTH_MIN_Z), np.nan, stage["z"])
+  z = z + rng.normal(0.0, 1.0, z.shape) * depth.NOISE_K * np.nan_to_num(z) ** 2
+  z = np.where(rng.random(z.shape) < depth.DROPOUT, np.nan, z)
+  valid = ~np.isnan(z)
+  points = stage["eye"] + stage["rays"][valid] * z[valid][:, None]
+  x, y, yaw = pose
+  yaw_turn = np.array([[math.cos(yaw), -math.sin(yaw), 0.0], [math.sin(yaw), math.cos(yaw), 0.0],
+                       [0.0, 0.0, 1.0]])
+  return depth.DepthPicture(z=z, points=points @ yaw_turn.T + [x, y, 0.0],
+                            eye=yaw_turn @ stage["eye"] + [x, y, 0.0],
+                            turn=yaw_turn @ stage["turn"], focal=stage["focal"],
+                            near=box.DEPTH_MIN_Z, reach=depth.MAX_Z, noise_k=depth.NOISE_K)
+
+
+class Sees(StubBody):
+  """A stub whose D435 sees `boxes` and the floor (`_stage`), laid in the
+  stance frame it stands in."""
+  boxes = ()
+
+  def depth_pictures(self, width, height, min_z, frames=1, apart=0.1):
     yield from self._wait(frames * apart)
-    rng = np.random.default_rng(0)
-    counter = np.column_stack([rng.uniform(0.2, 1.2, 4000), rng.uniform(-0.6, 0.6, 4000),
-                               np.full(4000, 0.72)])
-    top = np.column_stack([rng.uniform(0.40, 0.65, 3000), rng.uniform(0.02, 0.32, 3000),
-                           np.full(3000, 0.87)])
-    cloud = np.vstack([counter, top])
-    x, y, yaw = self.pose
-    c, s = math.cos(yaw), math.sin(yaw)
-    return np.column_stack([x + c * cloud[:, 0] - s * cloud[:, 1],
-                            y + s * cloud[:, 0] + c * cloud[:, 1], cloud[:, 2]])
+    rng = np.random.default_rng(636)
+    return [_frame(_stage(tuple(self.boxes)), self.pose, rng) for _ in range(int(frames))]
+
+
+def _sees(boxes=(), pose=(0.0, 0.0, 0.0)) -> Sees:
+  body = Sees(*_bare())
+  body.boxes = boxes
+  body.start_at(*pose)
+  return body
+
+
+#: A counter's top and, on it, a box's flat top 0.25 m deep and 0.30 m wide.
+COUNTER = (0.3, 1.2, -0.6, 0.6, 0.0, 0.72)
+BOX_ON_IT = (0.40, 0.65, 0.02, 0.32, 0.72, 0.87)
 
 
 def test_measure_reads_the_flat_top_at_a_point_and_its_edges_in_the_stance_frame():
@@ -1654,56 +1715,22 @@ def test_measure_reads_the_flat_top_at_a_point_and_its_edges_in_the_stance_frame
   point named -- never the wider counter under it -- and its four edges,
   wherever the body stands and faces."""
   for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
-    body = Seeing(*_bare())
-    body.start_at(*pose)
     ran = _fly('def a():\n    measure(0.36, 0.2)\n    t = read("object.top")\n'
                '    n = read("object.near")\n    f = read("object.far")\n'
-               '    l = read("object.left")\n    r = read("object.right")\n', body, measure=True)
+               '    l = read("object.left")\n    r = read("object.right")\n',
+               _sees([COUNTER, BOX_ON_IT], pose), measure=True)
     got = ran["locals"]
     assert got["t"] == pytest.approx(0.87, abs=0.005)
     assert (got["n"], got["f"]) == pytest.approx((0.40, 0.65), abs=0.01)
     assert (got["l"], got["r"]) == pytest.approx((0.32, 0.02), abs=0.01)
-  ran = _fly('def a():\n    measure(2.5, 1.5)\n', Seeing(*_bare()), measure=True)
+  ran = _fly('def a():\n    measure(2.5, 1.5)\n', _sees([COUNTER, BOX_ON_IT]), measure=True)
   assert ran["steps"][-1]["reason"] == "no flat top seen round (2.5, 1.5) from where you stand"
+  # ...and a body with no camera looks at nothing, no picture to read past
+  ran = _fly('def a():\n    measure(0.5, 0)\n', _stub(), measure=True)
+  assert ran["steps"][-1]["reason"] == "no flat top seen round (0.5, 0) from where you stand"
   assert "measure" not in st.hand_facts(measure=False).verbs
   assert "object.top" not in st.hand_facts(measure=False).sensors
-
-
-class Sees(StubBody):
-  """A stub whose depth camera sees `cloud` (k, 3), laid in the stance
-  frame it stands in."""
-  cloud = np.zeros((0, 3))
-
-  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
-    yield from self._wait(frames * apart)
-    x, y, yaw = self.pose
-    c, s = math.cos(yaw), math.sin(yaw)
-    p = self.cloud
-    return np.column_stack([x + c * p[:, 0] - s * p[:, 1], y + s * p[:, 0] + c * p[:, 1], p[:, 2]])
-
-
-def _sees(cloud, pose=(0.0, 0.0, 0.0)) -> Sees:
-  body = Sees(*_bare())
-  body.cloud = np.asarray(cloud, dtype=float)
-  body.start_at(*pose)
-  return body
-
-
-#: Where the head's D435 is in the stance frame at the stand, m, and how far
-#: it looks down, rad: its `depth_eye` on the robot's model of itself
-#: (`arms.SelfModel` posed at `stand_qpos`, 2026-11-07).
-D435_AT, D435_PITCH = np.array([0.045, 0.0, 1.26]), math.radians(40.0)
-
-
-def _seen(points, rng) -> np.ndarray:
-  """`points` as the D435 returns them: each moved along its ray by the
-  part's noise at its axial depth (`depth.NOISE_K`, as `DepthCamera`)."""
-  from pluggybot.perception import depth
-  p = np.asarray(points, dtype=float)
-  rel = p - D435_AT
-  axial = rel @ np.array([math.cos(D435_PITCH), 0.0, -math.sin(D435_PITCH)])
-  noise = rng.normal(0.0, 1.0, len(p)) * depth.NOISE_K * axial ** 2
-  return D435_AT + rel * (1.0 + noise / axial)[:, None]
+  assert "object.near_taller" not in st.hand_facts(measure=False).sensors
 
 
 def test_measure_never_reads_its_windows_rim_as_where_a_top_ends():
@@ -1713,13 +1740,10 @@ def test_measure_never_reads_its_windows_rim_as_where_a_top_ends():
   stepped, and it crept on that toward the counter. An end that is the
   window's is no reading, and reading it says why; an end inside the
   window still reads, wherever the robot stands."""
-  rng = np.random.default_rng(630)
-  n = 40_000
-  top = _seen(np.column_stack([rng.uniform(0.2, 1.2, n), rng.uniform(-0.6, 0.6, n),
-                               np.full(n, 0.72)]), rng)
   for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
     ran = _fly('def a():\n    measure(0.9, 0)\n    t = read("object.top")\n'
-               '    f = read("object.far")\n    n = read("object.near")\n', _sees(top, pose))
+               '    f = read("object.far")\n    n = read("object.near")\n',
+               _sees([COUNTER], pose))
     got = ran["locals"]
     assert "n" not in got, f"the rim, read as where the top begins: {got.get('n')}"
     assert ran["steps"][-1]["reason"] == (
@@ -1729,9 +1753,162 @@ def test_measure_never_reads_its_windows_rim_as_where_a_top_ends():
     assert ran["steps"][0]["ok"] and ran["steps"][0]["runsOn"] == ["near", "left", "right"]
   # ...measured nearer, its near end is in the window, and its far end is not
   ran = _fly('def a():\n    measure(0.5, 0)\n    n = read("object.near")\n'
-             '    f = read("object.far")\n', _sees(top))
-  assert ran["locals"]["n"] == pytest.approx(0.2, abs=0.01)
+             '    f = read("object.far")\n', _sees([COUNTER]))
+  assert ran["locals"]["n"] == pytest.approx(0.3, abs=0.01)
   assert ran["steps"][-1]["reason"].endswith("runs on past that away from you")
+
+
+def test_an_end_whose_tops_own_pixels_go_on_past_it_is_no_end(monkeypatch):
+  """#636: walking out from an end's points, the picture shows more of the
+  top past where the end reads (at the chest, the counter going on beside
+  it, read a few cm short at 9 of 2,399 ends past the rim's check): the
+  camera never saw it stop, so it is no end, and reading it says so.
+  `box.past_end` tells it apart (`test_box.py`); here, the verb's branch."""
+  from pluggybot.perception import box
+  monkeypatch.setattr(box, "past_end", lambda *a, **k: {
+    "lower": 0.0, "taller": 0.0, "cut": 0.0, "runs": 1.0, "reach": False, "near": False})
+  ran = _fly('def a():\n    measure(0.55, 0)\n    n = read("object.near")\n', _sees([COUNTER]))
+  assert "n" not in ran["locals"]
+  assert ran["steps"][-1]["reason"] == ("object.near has no reading: your last `measure` saw the "
+                                        "top run on past where it read its end toward you")
+  assert "near" in ran["steps"][0]["runsOn"]
+
+
+def test_measure_reads_no_end_its_picture_cut_and_one_it_saw_past():
+  """#636: standing where it works at a counter whose front is 0.22-0.24 m
+  ahead, the D435's picture meets the counter's height 0.26 m ahead, so the
+  counter's points end at the picture's bottom edge: `object.near` read
+  0.26 wherever it looked and however near it stood. The end the picture
+  cut is no reading, and reading it says why; a top whose near face the
+  camera sees reads it."""
+  cut_off = (0.22, 1.2, -0.6, 0.6, 0.0, 0.72)
+  source = ('def a():\n    measure(0.55, 0)\n    t = read("object.top")\n'
+            '    x = read("object.near_taller")\n')
+  for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
+    ran = _fly(source.replace("near_taller", "near"), _sees([cut_off], pose))
+    assert ran["locals"]["t"] == pytest.approx(0.72, abs=0.005) and "x" not in ran["locals"]
+    assert ran["steps"][-1]["reason"] == (
+      "object.near has no reading: your last `measure` saw the top run off your depth "
+      "camera's picture toward you")
+    assert ran["steps"][0]["ok"] and ran["steps"][0]["unseen"] == ["near"]
+    # ...its `_taller` reading says the same, for a read with no number has no other word
+    ran = _fly(source, _sees([cut_off], pose))
+    assert ran["steps"][-1]["reason"].startswith("object.near_taller has no reading: "
+                                                 "your last `measure` saw the top run off")
+  # ...and a top whose near face it sees reads it, nothing taller standing past it
+  ran = _fly('def a():\n    measure(0.55, 0)\n    n = read("object.near")\n'
+             '    x = read("object.near_taller")\n', _sees([COUNTER]))
+  assert ran["locals"]["n"] == pytest.approx(0.3, abs=0.01) and ran["locals"]["x"] == 0
+  assert "unseen" not in ran["steps"][0] and "taller" not in ran["steps"][0]
+
+
+@pytest.mark.parametrize("saw, reads, taller", [
+  ({"lower": 0.66, "cut": 0.34}, True, False),   # the counter's left end at the picture's corner
+  ({"lower": 0.09, "taller": 0.465, "runs": 0.445}, True, True),   # beside the chest
+  ({"cut": 0.6, "lower": 0.4}, False, False),
+  ({"runs": 0.4, "lower": 0.35, "taller": 0.25}, False, False),
+  ({"lower": 0.5, "cut": 0.5}, False, False),    # a tie is the cautious word's
+  ({"lower": 0.5, "runs": 0.5}, False, False),
+  ({"lower": 0.5, "taller": 0.5}, True, True),
+])
+def test_an_end_takes_the_walks_most_common_word(monkeypatch, saw, reads, taller):
+  """#636: a top's end can be seen past along part of it and cut along the
+  rest: what it reads is what most of its walks said, and a tie is the word
+  that claims less (`steps.MEASURE_WORDS`) -- a fixed share let a right end
+  read as one with nine in a hundred walks saying the top stopped there."""
+  from pluggybot.perception import box
+  monkeypatch.setattr(box, "past_end", lambda *a, **k: {
+    "lower": 0.0, "taller": 0.0, "cut": 0.0, "runs": 0.0, "reach": False, "near": False, **saw})
+  ran = _fly('def a():\n    measure(0.55, 0)\n    n = read("object.near")\n'
+             '    x = read("object.near_taller")\n', _sees([COUNTER]))
+  assert ("n" in ran["locals"]) is reads
+  assert (ran["locals"].get("x", 0.0) == 1.0) is taller
+
+
+def test_a_taller_thing_on_a_top_is_where_its_free_surface_ends_and_the_read_says_so():
+  """#636, Ben's call: a taller thing standing on a top is the end of the
+  top's free surface: it reads as that end -- its near edge where the top
+  runs on behind it -- and the read says that is what it is, `object.*_taller`
+  and the step's verdict both."""
+  counter = (0.3, 1.0, -0.6, 0.6, 0.0, 0.72)
+  against = (0.3, 1.0, -0.6, -0.1, 0.72, 1.05)
+  source = ('def a():\n    measure(0.65, 0.3)\n    t = read("object.top")\n'
+            '    r = read("object.right")\n    x = read("object.right_taller")\n'
+            '    l = read("object.left_taller")\n')
+  ran = _fly(source, _sees([counter, against]))
+  assert ran["locals"]["t"] == pytest.approx(0.72, abs=0.005)
+  assert ran["locals"]["r"] == pytest.approx(-0.1, abs=0.01)
+  assert (ran["locals"]["x"], ran["locals"]["l"]) == (1.0, 0.0)
+  assert ran["steps"][0]["taller"] == ["right"]
+  # ...a taller thing that hides the top behind it: the end is where the camera lost it
+  behind = (0.42, 0.72, -0.25, 0.1, 0.72, 1.05)
+  ran = _fly('def a():\n    measure(0.75, 0.5)\n    r = read("object.right")\n'
+             '    x = read("object.right_taller")\n', _sees([counter, behind]))
+  assert ran["locals"]["x"] == 1.0 and 0.09 <= ran["locals"]["r"] <= 0.16
+  assert ran["steps"][0]["taller"] == ["right"]
+  # ...and no taller thing, no taller reading: the same top, its end seen past
+  ran = _fly(source, _sees([(0.3, 1.0, -0.1, 0.6, 0.0, 0.72)]))
+  assert ran["locals"]["r"] == pytest.approx(-0.1, abs=0.01)
+  assert (ran["locals"]["x"], ran["locals"]["l"]) == (0.0, 0.0)
+  assert "taller" not in ran["steps"][0]
+
+
+def test_measure_looks_past_its_cameras_shadow_and_past_the_floor_it_cannot_reach():
+  """#636: the D435's shadow is a band of nothing beside a near thing's
+  image-left, tens of pixels wide: walked past, what stands behind it says
+  the top ended there -- and a table's far edge across a room, the floor
+  beyond it past the part's 3 m, reads where it does. Neither is unseen."""
+  # a top standing left of the robot's middle: its left end's shadow, on the
+  # floor beside it, is in the picture and the floor beyond it reads lower
+  ran = _fly('def a():\n    measure(0.75, 0.25)\n    l = read("object.left")\n',
+             _sees([(0.3, 1.2, -0.6, 0.55, 0.0, 0.72)]))
+  assert ran["locals"]["l"] == pytest.approx(0.55, abs=0.015)
+  assert "unseen" not in ran["steps"][0]
+  # ...a table across the room: its far edge at 2.3 m, the floor beyond 3 m
+  far_table = (1.6, 2.3, -0.5, 0.5, 0.0, 0.72)
+  ran = _fly('def a():\n    measure(2.0, 0)\n    f = read("object.far")\n',
+             _sees([far_table]))
+  assert ran["locals"]["f"] == pytest.approx(2.3, abs=0.03)
+  assert "unseen" not in ran["steps"][0]
+
+
+def test_a_top_past_the_cameras_reach_has_no_end_that_way():
+  """#636: a top's points also end at the part's reach, 3 m, and walked past
+  there is nothing to see: an end whose points stand there is the camera's,
+  and reading it says so."""
+  long_low = (1.2, 6.0, -0.5, 0.5, 0.0, 0.3)
+  ran = _fly('def a():\n    measure(2.8, 0)\n    f = read("object.far")\n', _sees([long_low]))
+  assert "f" not in ran["locals"]
+  assert ran["steps"][-1]["reason"] == (
+    "object.far has no reading: your last `measure` saw the top run on past your depth "
+    "camera's 3 m reach away from you")
+  assert ran["steps"][0]["unseen"] == ["far"]
+
+
+def test_a_top_nearer_than_the_camera_reads_has_no_end_that_way():
+  """#636's review: a high top close under the camera ends, in its points,
+  where the part's nearest reading does -- nearer, every pixel reads
+  nothing, and a walk across them would say the top stopped there."""
+  shelf = (0.0, 0.7, -0.5, 0.5, 0.0, 1.16)
+  ran = _fly('def a():\n    measure(0.4, 0)\n    t = read("object.top")\n'
+             '    n = read("object.near")\n', _sees([shelf]))
+  assert ran["locals"]["t"] == pytest.approx(1.16, abs=0.005) and "n" not in ran["locals"]
+  assert ran["steps"][-1]["reason"] == (
+    "object.near has no reading: your last `measure` saw the top run on nearer than your depth "
+    "camera reads, 0.17 m, toward you")
+  assert "near" in ran["steps"][0]["unseen"]
+
+
+def test_a_lower_surface_just_past_a_far_end_is_not_the_top_running_on():
+  """#636's review: seen from far off, a surface 1.7 cm under a table's top
+  and just past its far end lies inside the noise of a ray, 3 cm at 1.8 m,
+  and passed for the top going on. But the ray's noise is along the ray: in
+  height it is 3 mm, and the end stands."""
+  ran = _fly('def a():\n    measure(1.6, 0)\n    f = read("object.far")\n'
+             '    x = read("object.far_taller")\n',
+             _sees([(1.3, 1.85, -0.5, 0.5, 0.0, 0.72), (1.9, 2.4, -0.6, 0.6, 0.0, 0.703)]))
+  assert ran["locals"]["f"] == pytest.approx(1.85, abs=0.03), ran["steps"][-1]
+  assert ran["locals"]["x"] == 0.0 and "far" not in ran["steps"][0].get("runsOn", ())
 
 
 def test_measure_sees_no_top_in_the_floor_its_camera_lifts():
@@ -1740,22 +1917,17 @@ def test_measure_sees_no_top_in_the_floor_its_camera_lifts():
   (Rowan's chest_diag: 0.0168 m, "garbage"). Under `box.FLOOR_M` is the
   floor's, and a real top over it still reads."""
   from pluggybot.perception import box
-  rng = np.random.default_rng(630)
   for x, y in ((1.2, -0.9), (2.0, -1.5), (2.6, 0.0)):
-    n = 50_000
-    floor = np.column_stack([rng.uniform(x - 0.5, x + 0.5, n), rng.uniform(y - 0.5, y + 0.5, n),
-                             np.zeros(n)])
     source = (f'def a():\n    k = 0\n    if measure({x:g}, {y:g}):\n        k = 1\n'
               '    t = read("object.top")\n')
-    ran = _fly(source, _sees(_seen(floor, rng)))
+    ran = _fly(source, _sees())
     assert not ran["steps"][0]["ok"], f"the floor read as a top at ({x}, {y})"
     assert ran["steps"][-1]["reason"] == (
       f"object.top has no reading: your last `measure` saw no flat top round ({x:g}, {y:g}) "
       "from where you stood")
-    # ...and a box's top 0.10 m up still reads, a quarter as many points as the floor
-    lid = np.column_stack([rng.uniform(x - 0.15, x + 0.15, n // 4),
-                           rng.uniform(y - 0.15, y + 0.15, n // 4), np.full(n // 4, 0.10)])
-    ran = _fly(source, _sees(_seen(np.vstack([floor, lid]), rng)))
+    # ...and a box's top 0.10 m up still reads
+    lid = (x - 0.15, x + 0.15, y - 0.15, y + 0.15, 0.0, 0.10)
+    ran = _fly(source, _sees([lid]))
     assert ran["steps"][0]["ok"] and ran["locals"]["t"] > box.FLOOR_M
     assert ran["locals"]["t"] == pytest.approx(0.10, abs=0.02)
 
@@ -1766,7 +1938,10 @@ def test_measures_text_says_where_it_looks_and_what_is_the_floor():
   from pluggybot.perception import box
   doc = st.HANDS_VERBS["measure"].doc
   assert f"within {st.MEASURE_NEAR_M:g} m of (x, y)" in doc
-  assert f"past those {st.MEASURE_NEAR_M:g} m, its end that way has no reading" in doc
+  assert f"past those {st.MEASURE_NEAR_M:g} m, off your camera's picture" in doc
+  assert f"its range ({box.DEPTH_MIN_Z:g} to {st.MEASURE_REACH_M:g} m)" in doc
+  assert "its end that way has no reading, and reading it says why" in doc
+  assert "reads where the free top stops" in doc and "`object.near_taller`" in doc
   assert f"{box.FLOOR_M:g} m or more over the floor" in doc
   # ...and an `object.*` read before any `measure` names the sensor read
   ran = _fly('def a():\n    wait(0)\n    t = read("object.top")\n')

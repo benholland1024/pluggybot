@@ -755,6 +755,9 @@ class HubLifecycle:
     #: `state` for it: a trip leaves `CHARGE` behind, and a grade after it
     #: was run out on the seam mid-hold and banked twice.
     self._charge_trip = False
+    #: This robot's day has ended and the other's has not (#654): its loop
+    #: has no pass left, and only the seam is still running.
+    self._day_over = False
     #: The hand jobs' watches, by task id (#559, `_watch_job`): this robot's,
     #: kept from each claim to its grade's hold -- and the readings a
     #: restart brought back for them, until each is taken up again.
@@ -1898,7 +1901,8 @@ class HubLifecycle:
       "interrupted": f"; I waited {w['s']:.0f} s, until my own rule "
                      "interrupted the wait",
       "pack": f"; I waited {w['s']:.0f} s, until the pack reached the "
-              "reserve"}[w["why"]]
+              "reserve",
+      "hour": f"; I waited {w['s']:.0f} s, until this run's time was up"}[w["why"]]
 
   def peer_at(self, wx: float, wy: float) -> tuple[str, float] | None:
     """The same question asked of a POINT, for the approach that keeps no
@@ -1939,7 +1943,7 @@ class HubLifecycle:
   def _clear_rack_routine(self) -> Routine:
     """Stand by away from the racks: within `RACK_CLEAR_M` of either, drive
     back to the start pose; anywhere else, stay put. True if the robot ends
-    clear of the rack.
+    clear of the rack, or has no business being clear of it (plugged in).
 
     ⚠ DONE AT THE RACK MEANS GONE (issue #346), so the drive's answer is
     READ. It used to be thrown away: Rowan narrated "clearing the rack"
@@ -1949,7 +1953,17 @@ class HubLifecycle:
     (`CLEAR_SPOTS`) and says in History where it ended if none worked.
     What counts is being OUT OF REACH, not reaching a point: a drive that
     stagnated 0.3 m short but outside the radius has done the job.
+
+    ⚠ NEVER WITH ITS PLUG IN AND ITS PACK NOT FULL (#654): a robot a restart
+    left plugged in has not finished here, and walked home it pulled the
+    plug out before the mind was asked whether to go on charging. Full, it
+    has (`CHARGED`, where a charge unplugs), and the plug comes out by hand
+    first: nothing else would end a hold of the station at 100 %.
     """
+    if self.body.charging():
+      if self.battery.fraction < CHARGED:
+        return True
+      yield from self.unplug_routine("the pack is full")
     px, py, _ = self.body.pose
     if self.home_pose is None or self.rack_distance(px, py) >= RACK_CLEAR_M:
       return True
@@ -2024,6 +2038,7 @@ class HubLifecycle:
     self._next_linger_check = t + 1.0
     px, py, _ = self.body.pose
     if (self.state in RACK_STATES or self.dead is not None
+        or (self.charging_now and self.battery.fraction < CHARGED)
         or self.rack_distance(px, py) >= RACK_CLEAR_M):
       self._linger_since = None
       return
@@ -2152,6 +2167,11 @@ class HubLifecycle:
       bound, of = self.wait_bound(kind, sx, sy)
       if now - since >= bound:
         ended = "bound"
+      elif self._hour_up:
+        # ...nor past the run's end (#654): the robot on the station has its
+        # plug in and its day over, and left to the bound this held the
+        # run open for up to 1386 s, waiting on nothing
+        ended = "hour"
       if ended:
         break
       if now >= next_ask and held[3] != "dock":
@@ -2166,8 +2186,9 @@ class HubLifecycle:
                                "bound": bound, "of": of,
                                "end": float(self.data.time)})
     if ended:
-      self._say(f"WAIT: gave up on {what} after {waited:.0f} s -- {who} "
-                f"was still there (the bound is {bound:.0f} s)")
+      self._say(f"WAIT: gave up on {what} after {waited:.0f} s -- {who} was still there "
+                + ("and this run's time is up" if ended == "hour"
+                   else f"(the bound is {bound:.0f} s)"))
       return False
     self._say(f"WAIT: {what} is free after {waited:.0f} s")
     return True
@@ -2411,6 +2432,14 @@ class HubLifecycle:
             * CHARGE_TIMEOUT_SLACK)
     return max(CHARGE_TIMEOUT_MIN, need)
 
+  @property
+  def _hour_up(self) -> bool:
+    """This run's budget is spent and the next run carries the world on
+    (`continuing`, #654): what would hold the run open past it stops where
+    it stands. ⚠ NEVER WHERE NO NEXT RUN COMES: a demo's or a test's charge
+    finishes, and nothing is left plugged in for nobody."""
+    return self.continuing and self.data.time >= getattr(self, "max_sim_time", math.inf)
+
   # ---- phases --------------------------------------------------------------
 
   # ---- the branches, as routines (issue #58) --------------------------------
@@ -2504,6 +2533,12 @@ class HubLifecycle:
     # by its own map's walk, or the one a search finds instead, or a free
     # one passed on to (below)
     self.body.choose_station()
+    if self.body.charging():
+      # ⚠ PLUGGED IN ALREADY, IT GOES STRAIGHT ON (#654): a run's end leaves
+      # it so, and a walk to the standoff pulled the plug out to dock again.
+      # ⚠ NOT `GO_CHARGE -> CHARGE`: the site counts a row per approach.
+      self._say(f"CHARGE: still plugged in at {self.battery.fraction:.0%} -- carrying on")
+      return True
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
     # Route-failure retry: when nothing is reachable, look round to buy map
@@ -2536,6 +2571,12 @@ class HubLifecycle:
       return True
 
     while True:
+      if self._hour_up:
+        # ...nor a leg of the trip begun past the run's end (#654): a retry,
+        # a search, a spin. The next run's mind asks again
+        self.charge_failure = "this run's time was up"
+        self._say(f"GO_CHARGE stopped: {self.charge_failure}")
+        return False
       if (self.peers and free and switched < MAX_STATION_SWITCHES
           and (held := self._bay_holder(sx, sy, seat)) is not None
           and self.body.choose_station(free=self._bay_free)):
@@ -2633,7 +2674,8 @@ class HubLifecycle:
         "" if driven is None else f": {self.drive_why(*driven)}") + (
         "" if tried is None else "; the station was not in sight from there") + (
         "" if blocked is None else f" -- {self.held_for(blocked, holder[3], 'it')}")
-      self._say(f"GO_CHARGE: {self.charge_failure}")
+      # ⚠ NOT `GO_CHARGE: ` for the run's end: the site counts that a failed attempt
+      self._say(f"GO_CHARGE{' stopped' if self._hour_up else ''}: {self.charge_failure}")
       return False
     if not self.body.charging():
       # the approach's trace is EVIDENCE (issue #346), the log's alone
@@ -2646,8 +2688,9 @@ class HubLifecycle:
 
   def _search_routine(self) -> Routine:
     """Lost, the station searched for (`Body.lost_routine`, #572): for its
-    own patience, and never on an empty pack."""
-    return self.body.lost_routine("station", stop=lambda: self.battery.energy_wh <= 0.0)
+    own patience, and never on an empty pack or past the run's end (#654)."""
+    return self.body.lost_routine(
+      "station", stop=lambda: self.battery.energy_wh <= 0.0 or self._hour_up)
 
   def _near_standoff(self, sx: float, sy: float) -> bool:
     """Did the walk to the charge standoff give up near enough that the
@@ -2662,7 +2705,9 @@ class HubLifecycle:
     return self.body.run(self.charge_routine())
 
   def charge_routine(self) -> Routine:
-    """Stay plugged in until full, then unplug."""
+    """Stay plugged in until full, then unplug -- or until the run's end
+    (`_hour_up`, #654), its plug left in and what it got banked: the next
+    run's mind decides whether to go on."""
     t0 = self.data.time
     # What the evaluator measures this cycle against (issue #14). Read BEFORE
     # the charge, because "charged" is a gain in a real quantity -- a cycle
@@ -2683,6 +2728,12 @@ class HubLifecycle:
       timeout = self.charge_timeout
       while (self.battery.fraction < CHARGED
              and self.data.time - t0 < timeout):
+        if self._hour_up:
+          self._say(f"CHARGE: the run's time is up at {self.battery.fraction:.0%} -- "
+                    "my plug stays in")
+          if self.data.time > t0:
+            self._bank(scoring.score_charge(self, before))
+          return
         yield from self.body.dock_hold_routine(0.25)
         if not self.charging_now:
           # contact dropped: plug in again once, then give up on this attempt
@@ -2697,8 +2748,24 @@ class HubLifecycle:
     self.charge_cycles += 1
     self._occur("task_complete", "charge")
     self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off")
-    self._bank(scoring.score_charge(self, before))
+    # ...⚠ AND NO ROW FOR ONE THAT HELD NO MOMENT (#654, above too): plugged in
+    # already and full, 0 Wh in 0 s reads as a charge that failed
+    if self.data.time > t0:
+      self._bank(scoring.score_charge(self, before))
     yield from self.body.undock_routine()
+
+  def unplug_routine(self, why: str = "what I chose next is not here") -> Routine:
+    """The plug out by hand before the body goes anywhere (#654): a run's end
+    leaves it in, and a mind may choose not to go on charging. ⚠ WALKED OFF
+    PLUGGED IN, the walk breaks it off the port's catch at the port's 20 N
+    (#559's stage 4), where a hand takes it out as a charge's end does. A
+    hand that could not leaves that to the walk, and says so."""
+    if not self.body.charging():
+      return
+    self._say(f"CHARGE: unplugging at {self.battery.fraction:.0%} -- {why}")
+    yield from self.body.undock_routine()
+    if self.body.charging():
+      self._say("CHARGE: my hand could not get the plug out -- going on anyway")
 
   def run_errand(self, errand) -> dict:
     return self.body.run(self.run_errand_routine(errand))
@@ -3819,7 +3886,8 @@ class HubLifecycle:
       if to is not None and to.inbox is not None:
         self._told += 1
         msg_id = f"{self.root}:{self._told}"
-        charging = any(life.state == "CHARGE" for life in (self, *self.peers))
+        charging = any(life.charging_now or life.state == "CHARGE"
+                       for life in (self, *self.peers))
         checked = rules.check_claim(
           decision.tell["text"], boards=self.boards,
           # ...with several stations, one robot charging leaves "the
@@ -4181,7 +4249,8 @@ class HubLifecycle:
   def _run_out_held(self) -> None:
     """Every job this robot holds past the time it gives, failed (#602).
     ⚠ FROM THE DAY LOOP'S PASS, BETWEEN WHAT THE ROBOT DOES, AND ON THE SEAM
-    ONLY ON A CHARGE TRIP (`_task_step`): freed on the seam mid-procedure, a
+    ONLY ON A CHARGE TRIP OR ONCE ITS DAY IS OVER (`_task_step`, #654: no pass
+    is left then): freed on the seam mid-procedure, a
     prop was set out from under the procedure still working it -- and a
     grade's hold cut short."""
     for task in (self.tasks.held_by(self.root) if self.tasks is not None else ()):
@@ -4684,8 +4753,8 @@ class HubLifecycle:
     500 Hz is Python spent to learn nothing.
 
     It is deliberately incapable of doing anything the robot does: it offers
-    and it expires -- and, on a charge trip, fails a job its robot holds
-    past the time it gives (#602). Nothing here touches `state`, `errands` or the battery,
+    and it expires -- and, on a charge trip or once its day is over, fails a
+    job its robot holds past the time it gives (#602, #654). Nothing here touches `state`, `errands` or the battery,
     which is what makes "a task never delays a charge" a property of the
     seam rather than of the numbers in economy/cadence.json.
     """
@@ -4697,7 +4766,8 @@ class HubLifecycle:
     # ...and on a charge trip, away from the counter with its hands home, a
     # job it holds past the time it gives (#602): left to the loop's pass, a
     # 74-minute charge held t_0024 and its drawer 69 minutes past its limit
-    if self._charge_trip and self.dead is None:
+    # ...and once its day is over, with no pass of the loop left to do it (#654)
+    if (self._charge_trip or self._day_over) and self.dead is None:
       self._run_out_held()
     # ...and a hand job's watch whose job ended some other way than its
     # grade (#559: a true death, an admin): it reads nothing more
@@ -5492,6 +5562,7 @@ class HubLifecycle:
         self._charge_trip = False
       return ""
     if decision.action == "explore":
+      yield from self.unplug_routine()
       self.state = "EXPLORE"
       walk_why = None
       if decision.zone:
@@ -5731,8 +5802,11 @@ class HubLifecycle:
       left = self.reset_in_s
       line += (f" -- still down ({self.dead['cause']})"
                + (f", {left:.0f} s from standing up" if left is not None else ""))
+    plugged = self.body.charging() and self.dead is None
     if r["wasState"] in ("GO_CHARGE", "CHARGE") and self.dead is None:
-      line += "; it cut my charge short"
+      line += "; it cut my charge short" + (", and my plug is still in" if plugged else "")
+    elif plugged:
+      line += "; my plug is still in"
     if r["queued"]:
       line += f"; what I had queued ({', '.join(r['queued'])}) is gone"
     return line
@@ -5899,7 +5973,9 @@ class HubLifecycle:
       if reached is STOOD_UP:
         return
       if not reached:
-        self._strand()
+        # ...never a death for the run's end (#654): the next run tries again
+        if not self._hour_up:
+          self._strand()
         return
       self.state = "CHARGE"
       yield from self._until_stood_up_routine(self.charge_routine())
@@ -5984,6 +6060,7 @@ class HubLifecycle:
             explore_budget: float = 90.0) -> Routine:
     """The day's setup, returning the routine that IS the day."""
     self.max_sim_time = max_sim_time
+    self._day_over = False
     self.resumed = None                   # `continuation.restore` sets it
     # ...home from here (#455): a restore puts a robot clear (`unclip`)
     # before the day routine has run
@@ -6126,6 +6203,9 @@ class HubLifecycle:
       self.explore_deadline = (resumed["exploreDeadline"]
                                if resumed["exploreDeadline"] is not None
                                else self.data.time + explore_budget)
+      # ...and only a step reads the plug: nothing steps before its first
+      # decision, which was told `charging: false` with its plug in (#654)
+      self.charging_now = self.body.charging()
     else:
       self.body.start_at(*start)
       self.body.start_discovery()
@@ -6223,7 +6303,9 @@ class HubLifecycle:
       # ⚠ EVERYTHING HERE THAT MOVES THE BODY FOR LONG runs under
       # `_until_stood_up_routine` (issue #348): a stand-up ends it, and the loop
       # comes back round to here. The rest are short drives and stands.
-      if self.needs_charge:
+      if self.needs_charge or (self.overseer is None and self.body.charging()):
+        # ...the second: a charge the last run's end cut short (#654), which
+        # the loop with no mind finishes, having nobody to ask
         self._cleared_rack = False
         yield from self._charge_trip_routine()
       elif self.errands and not self._afford_next():
@@ -6298,7 +6380,10 @@ class HubLifecycle:
       # DONE in the other robot's way in, 0.37 m off it on the pair
       # recording's day until asked aside, and 0.88 m off it from then on
       yield from self._leave_rack_routine()
-    self.state = "DONE"
+    # ...`CHARGE` still where a charge's plug is in (#654): it is one, and
+    # the next run's first line goes by it (`_resumed_line`)
+    self.state = "CHARGE" if self.dead is None and self.body.charging() else "DONE"
+    self._day_over = True
     if self.continuing:
       # NOTHING ENDED (issue #345): the world is saved and the next run
       # carries on from this moment, so History says nothing here -- the
