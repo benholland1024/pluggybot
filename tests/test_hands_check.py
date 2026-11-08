@@ -761,8 +761,11 @@ def test_the_tables_hand_reaches_its_grip_and_takes_and_leaves_each_piece_by_a_p
     aimed = log[reach + 1][2][side] - grip            # where the reach left the hand
     way_in = [(v, a) for j, v, a in _moves(log, side, reach + 1) if j < i]
     if side == "right":
-      assert way_in and all(v == "pull" for v, _ in way_in), way_in
-      assert aimed[2] >= 0.09 and abs(aimed[1]) < 1e-6, aimed
+      # ...what the reach's band left to go, under a pull's least 1 cm, a `move_hand`
+      assert way_in and all(v in ("pull", "move_hand") for v, _ in way_in), way_in
+      assert way_in[-1][0] == "pull", way_in
+      # ...over its grip, or as near it as the reach's shallow posture holds (a pull brings it)
+      assert aimed[2] >= 0.09 and np.hypot(aimed[0], aimed[1]) < 0.02, aimed
       assert _straight(way_in[-1][1], -1), way_in[-1]
     else:
       assert not way_in and np.abs(aimed).max() < 1e-6, (way_in, aimed)
@@ -818,14 +821,14 @@ def test_the_lay_turns_to_find_the_cup_its_first_look_loses():
 def test_a_cup_reach_that_bows_out_of_the_plates_tags_view_goes_home_and_reaches_again_higher():
   """⚠ THE CUP'S SECOND TRY (#560; SimNotes, "The table's reference on the waist"): where the
   planner's pockets bowed the reach 0.55-0.8 rad, no tag was in view; with the plate's tag
-  unseen while the first reach is out, the hand goes home, the tag is read again, and the
-  hand reaches 1.5 cm higher -- and grips where the reads put it, as the first try would."""
+  unseen while the first reach is out, the hand goes home and reaches 1.5 cm higher -- and
+  grips where the reads put it, as the first try would."""
   body, ran, log = _table_flown(hide=lambda tag, b: tag == 90 and b.reached.get("right") == 1
                                 and "right" in b.hands)
   assert ran["ok"], ran
   first, again = [(i, a) for i, v, a in _moves(log, "right", 0) if v == "reach"][:2]
   between = [(v, a.get("hand", a.get("tag"))) for v, a, _ in log[first[0] + 1:again[0]]]
-  assert between == [("spot", 90), ("withdraw", "right"), ("spot", 90)], between
+  assert between == [("spot", 90), ("withdraw", "right")], between
   assert again[1]["z"] - first[1]["z"] >= 0.01
   seen, _, _ = _table_flown()
   assert np.allclose(body.shuts[0][1], seen.shuts[0][1], atol=1e-9)

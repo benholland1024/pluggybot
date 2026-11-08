@@ -137,12 +137,16 @@ CHEST = _hands_job("lid", "chest")
 #:    stepped across, and the turn to face along it asked `WIDER` wider;
 #:  - `spot.n*` is INTO the card's face, so that turn is its own angle;
 #:  - the step across is halved (a step goes 0.5 m at most), and what it
-#:    leaves across the card's line, 14 cm at worst, is stepped out of the
-#:    two looks the last step needs, over 5 cm: stood 10 cm left of the line
-#:    the lay's first look loses the cup;
+#:    leaves across the card's line, 14 cm at worst, is stepped out off the
+#:    two looks the last step needs, past 3 cm: stood 10 cm left of the line
+#:    the lay's first look loses the cup, and the lay's step, a walk of whole
+#:    strides, lands the same 14 cm from anywhere it can be asked;
 #:  - the last 30 cm is STRAIGHT ahead off those two looks (with a step to
 #:    its right in it, it landed 2-4 cm long), `NEARER` nearer the table
-#:    than the check's start.
+#:    than the check's start;
+#:  - a walk's turns are counted as they went (`step.turn`, to 0.2 deg) and
+#:    one more squares it to `FACING` past the card's normal where it is 1.5
+#:    deg off.
 TABLE_APPROACH = '''def to_table():
   budget(steps=16, seconds=900)
   find(93, %(ax)g, %(ay)g, 600)
