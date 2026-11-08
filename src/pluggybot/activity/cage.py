@@ -534,10 +534,10 @@ class Cage(Activity):
     hit = np.zeros(1, dtype=np.int32)
     for v in rel[framed] / np.linalg.norm(rel[framed], axis=1)[:, None]:
       # ⚠ ONE RAY AT A TIME, never `mj_multiRay`: MuJoCo 3.10 culls a body
-      # there by a sphere it centres off the body's centre of mass without
-      # turning the offset into the world, and the cage's inertial frame is
-      # turned -- its sphere sat 6 cm east and 6 cm low, and rays at the far
-      # walls' tops passed through them to the floor (#605's review).
+      # there by a sphere misplaced where its inertial frame is turned (#605's
+      # review, #657). What stands still no longer has such a frame
+      # (`cull.static_inertials`); what moves -- a robot's arm before the
+      # cage -- keeps it.
       mujoco.mj_ray(model, data, pos, v, DRAWN_GROUPS, 1, -1, hit)
       if int(hit[0]) in self._seen_geoms:
         return True

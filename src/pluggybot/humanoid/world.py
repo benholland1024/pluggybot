@@ -15,6 +15,7 @@ import mujoco
 
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
+from pluggybot.perception.cull import fix_static_inertials
 from pluggybot.perception.tags import BOARD_TAG_IDS, PLATE_TAG_IDS
 from pluggybot.robot import CHASSIS_RGBA, SECOND_CHASSIS_RGBA, paint
 from pluggybot.telemetry.protocol import ROBOT_ROOT
@@ -164,5 +165,6 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   from pluggybot.home import restaurant, storeroom
   storeroom.attach(spec)
   restaurant.attach(spec)
+  fix_static_inertials(spec)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec

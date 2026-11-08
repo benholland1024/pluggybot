@@ -4,7 +4,8 @@ geom past a sensor's reach is left out of its cast -- and the reading is the
 same reading, bit for bit, noise and all. Pinned on the served world, both
 sensors that cast, cull off against on; and on a small open world, the
 shapes, a long wall whose middle is far, and a far geom an activity moves or
-grows into reach."""
+grows into reach. And it leaves out nothing it can reach (#657): MuJoCo's own
+cull of a whole body, in every world the robots fly."""
 
 import dataclasses
 import math
@@ -13,6 +14,8 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot.evaluation import counter as ct
+from pluggybot.home import storeroom
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.world import home_spec
 from pluggybot.perception.cull import CULL_GROUP
@@ -112,3 +115,87 @@ def test_what_is_left_out_is_judged_where_and_how_big_it_is_now():
   out = {model.geom(g).name for g in lidars[1]._cull.far(data, site, lidars[1].max_range)}
   assert not {"far_box", "far_ball"} & out, out
   assert same_band()
+
+
+# ---- nothing a ray meets is left out (#657) ----------------------------------
+
+def _misplaced(model) -> dict:
+  """How far `mj_multiRay` stands each body welded to the world's cull sphere
+  off the body, m, where it does at all: `|ximat @ c - c|`, `c` the offset of
+  the body's box from its centre of mass, which MuJoCo 3.10 adds unturned
+  (`mju_singleRay`)."""
+  data = mujoco.MjData(model)
+  mujoco.mj_kinematics(model, data)
+  out = {}
+  for b in range(1, model.nbody):
+    if model.body_bvhadr[b] < 0 or model.body_weldid[b] or model.body_mocapid[b] >= 0:
+      continue
+    c = model.bvh_aabb[model.body_bvhadr[b], :3]
+    off = float(np.linalg.norm(data.ximat[b].reshape(3, 3) @ c - c))
+    if off > 1e-5:
+      out[model.body(b).name] = round(off, 3)
+  return out
+
+
+def test_no_body_welded_to_the_world_has_its_cull_sphere_misplaced():
+  worlds = {"the house's file": mujoco.MjModel.from_xml_path("models/home_world.xml"),
+            "the pair's": home_spec(second_at=(2.5, 0.5)).compile()}
+  for so in (ct.set_out(0), ct.drawer_set_out(0), ct.door_set_out(0), ct.cube_set_out(0),
+             ct.table_set_out(0)):
+    worlds[type(so).__name__] = ct.model_of(so)
+  assert {name: off for name, off in ((n, _misplaced(m)) for n, m in worlds.items()) if off} == {}
+
+
+def _both_casts(model, data, eye, dirs):
+  """`dirs` from `eye` as one `mj_multiRay` and as one `mj_ray` a ray: each
+  one's (geoms, distances)."""
+  n = len(dirs)
+  multi, multi_at = np.zeros(n, dtype=np.int32), np.zeros(n)
+  mujoco.mj_multiRay(model, data, eye, dirs.ravel(), None, 1, -1, multi, multi_at, None, n,
+                     mujoco.mjMAXVAL)
+  one, hit, at = np.zeros(1, dtype=np.int32), np.zeros(n, dtype=np.int32), np.zeros(n)
+  for i, v in enumerate(dirs):
+    at[i] = mujoco.mj_ray(model, data, eye, v, None, 1, -1, one)
+    hit[i] = one[0]
+  return (multi, multi_at), (hit, at)
+
+
+def test_a_cast_meets_every_dining_table_where_one_ray_does():
+  model = mujoco.MjModel.from_xml_path("models/home_world.xml")
+  data = mujoco.MjData(model)
+  mujoco.mj_kinematics(model, data)
+  # the ray that went through table 0's top to the floor (#657)
+  eye = np.array([20.80, -11.927, 1.2566])
+  ray = np.array([21.656, -10.876, 0.0]) - eye
+  (multi, multi_at), (one, one_at) = _both_casts(model, data, eye, ray[None] / np.linalg.norm(ray))
+  assert model.geom(multi[0]).name == model.geom(one[0]).name == "dining_table_0_geom"
+  assert multi_at[0] == pytest.approx(one_at[0])
+  # ...and a fan from a head's height at each table's top, from all round
+  on_a_top = 0
+  for i in range(4):
+    top = model.geom(f"dining_table_{i}_geom").id
+    hx, hy, hz = model.geom_size[top]
+    middle = data.geom_xpos[top]
+    tx, ty = np.meshgrid(np.linspace(-1.2 * hx, 1.2 * hx, 31), np.linspace(-1.2 * hy, 1.2 * hy, 21))
+    aims = np.column_stack((middle[0] + tx.ravel(), middle[1] + ty.ravel(),
+                            np.full(tx.size, middle[2] + hz)))
+    for a in np.arange(8) * math.pi / 4:
+      eye = middle + np.array([1.5 * math.cos(a), 1.5 * math.sin(a), 0.5])
+      dirs = aims - eye
+      dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
+      (multi, multi_at), (one, one_at) = _both_casts(model, data, eye, dirs)
+      assert np.array_equal(multi, one), f"table {i} from {a:.2f} rad"
+      assert np.allclose(multi_at, one_at), f"table {i} from {a:.2f} rad"
+      on_a_top += int(np.count_nonzero(one == top))
+  assert on_a_top > 8000, "the fan missed the tables"
+
+
+def test_a_redraw_leaves_a_frame_welded_to_the_world_where_it_is():
+  model = home_spec().compile()
+  data = mujoco.MjData(model)
+  still = model.body_weldid == 0
+  ipos, iquat = model.body_ipos[still].copy(), model.body_iquat[still].copy()
+  for prop in storeroom.PROPS:
+    storeroom.redraw(model, data, prop, 7)
+  assert np.array_equal(model.body_ipos[still], ipos)
+  assert np.array_equal(model.body_iquat[still], iquat)
