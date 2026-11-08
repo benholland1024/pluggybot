@@ -18,7 +18,7 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.body import StubBody
+from pluggybot.body import StubBody, body_for
 from pluggybot.evaluation import practice as ep
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
@@ -1132,6 +1132,132 @@ def test_a_pull_hands_the_body_its_force_and_give_and_one_that_never_ran_reads_n
              '    withdraw("left")\n    if not pull("left", 0, 0, 1, 10, 0.05):\n'
              '        m = read("pull.moved")\n', _stub())
   assert "failedAt" in ran and "pull" in ran["steps"][-1]["reason"]
+
+
+class _PullEnds(StubBody):
+  """A stub whose pull ends the way it is told to, as `Body.pull_routine`
+  reports it."""
+
+  ends = "distance"
+
+  def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
+                   give=True):
+    why = self.ends.pop(0) if isinstance(self.ends, list) else self.ends
+    return {"why": why, "seconds": 0.5, "moved": 0.02, "along": 0.02, "dx": 0.0,
+            "dy": 0.0, "dz": 0.02, "direction": [0.0, 0.0, 1.0], "force": float(limit_n)}
+    yield
+
+
+@pytest.mark.parametrize("ends, reads", [
+  ("distance", True), ("held fast", True), ("let go", True), ("out of reach", True),
+  ("feet moved", True), ("out of time", True), ("until", True),
+  ("not out", False), ("fell", False)])
+def test_a_pull_reads_false_only_where_its_text_says(ends, reads):
+  """#650: read "ok when it pulled", one robot built its loops on a pull
+  held fast reading false and the other was right that it reads ok. Only a
+  hand that was not out, or a fall, reads false, however else it stopped (a
+  way all 0 is the test above's, an argument refused the next one's); and
+  `pull.held` says which of its stops was held fast."""
+  body = _PullEnds(*_bare())
+  body.ends = ends
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    p = 0\n'
+             '    if pull("left", 0, 0, 1, 10, 0.1):\n        p = 1\n'
+             '        h = read("pull.held")\n', body)
+  assert ran["locals"]["p"] == (1 if reads else 0), ran
+  if reads:
+    assert ran["locals"]["h"] == (1.0 if ends == "held fast" else 0.0), ran
+
+
+@pytest.mark.parametrize("ends", ["not out", "fell"])
+def test_a_pull_that_reads_false_leaves_no_reading_of_its_own(ends):
+  """As its text says: after a pull that went ok, one that read false leaves
+  none of its readings, `pull.held` ending the run as `pull.moved` always
+  has (#525) -- the first pull's would read as this one's."""
+  body = _PullEnds(*_bare())
+  body.ends = ["held fast", ends]
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    pull("left", 0, 0, 1, 10, 0.1)\n'
+             '    was = read("pull.held")\n    p = 1\n'
+             '    if not pull("left", 0, 0, 1, 10, 0.1):\n        p = 0\n'
+             '    h = read("pull.held")\n', body)
+  assert ran["locals"]["was"] == 1.0 and ran["locals"]["p"] == 0, ran
+  assert ran["steps"][-1]["reason"] == "pull.held has no reading: `pull` has not run", ran
+
+
+def test_a_call_refused_before_it_ran_leaves_its_verb_no_reading():
+  """#650's review: a computed argument out of its bounds reads false in an
+  `if`'s test and the verb never runs (`lang`). What it last reported must
+  not read as this call's -- a retry computes just such a distance, what is
+  left of `pull.moved` -- and its stop condition's reading is a move's that
+  ended otherwise, so reading it is not reading the last pull's."""
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+             '    pull("left", 0, 0, 1, 10, 0.1, until="time", above=1e9)\n'
+             '    d = 0.1 - read("pull.moved")\n    p = 1\n'
+             '    if not pull("left", 0, 0, 1, 10, d):\n        p = 0\n'
+             '    s = read("pull.stopped")\n    m = read("pull.moved")\n')
+  assert ran["locals"]["p"] == 0 and ran["locals"]["s"] == 0.0, ran
+  assert ran["steps"][-1]["reason"] == "pull.moved has no reading: `pull` has not run", ran
+  # ...every verb's, not the pull's alone: a step's would be taken off a
+  # place a second time
+  ran = _fly('def a():\n    step(0.2)\n    d = 9 * read("step.dx")\n    p = 1\n'
+             '    if not step(d):\n        p = 0\n    x = read("step.dx")\n')
+  assert ran["locals"]["p"] == 0, ran
+  assert ran["steps"][-1]["reason"] == "step.dx has no reading: `step` has not run", ran
+  # ...and a stop condition's reading is a move's that ended otherwise, off
+  # a move that did stop on one; a verb that never read one gets none
+  life = _Life(_stub())
+  life.reports = {"pull": {"moved": 0.1}, "stopped": {"pull": 1.0, "reach": 1.0}}
+  st.forget_readings(life, "pull")
+  st.forget_readings(life, "spot")
+  assert "pull" not in life.reports
+  assert life.reports["stopped"] == {"pull": 0.0, "reach": 1.0}
+
+
+def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads():
+  """#650: the words both robots asked about. `pull`'s text says when it
+  reads false -- no "ok when it pulled", held fast being ok too -- and how
+  it is told how far it went; `spot`'s and `watch`'s say which face of a
+  small block they read. What is true of them is pinned beside: the test
+  above, and the next one."""
+  pull = " ".join(st.HANDS_VERBS["pull"].doc.split())
+  assert "ok when it pulled" not in pull
+  assert ("whether it ended held fast and the way it was going at its end ride `pull.*`, "
+          "unless it reads false") in pull
+  assert ("ok unless an argument was refused, your hand was not out, (dx, dy, dz) are all 0 "
+          "or you fell") in pull
+  assert "whatever else stopped it, held fast against something too, it is still ok" in pull
+  assert "`pull.moved` says how far it went" in pull
+  spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
+  assert ("A small block carries its tag on every face: the one read is the one you see "
+          "most square-on, `spot.nx`..`nz` say which") in spot
+  assert "another face, its middle up to the block's width from this one's" in spot
+  watch = " ".join(st.HANDS_VERBS["watch"].doc.split())
+  assert "the face that picture shows most square-on" in watch
+  told = " ".join(mp.system_prompt(st.hand_facts()).split())
+  for doc in (pull, spot, watch):
+    assert doc in told
+  assert "1 if the last `pull` ended held fast, as your hand felt it" in told
+
+
+def test_a_tag_on_every_face_is_read_by_the_face_seen_most_square_on():
+  """What `spot`'s and `watch`'s text states (#650): of the faces one
+  picture decodes, the one seen most square-on (#407: keyed by id, the last
+  decoded won, a knob's top seen edge-on) -- whichever order they decode in."""
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+
+  def face(t, normal):
+    return {"id": 54, "t": t, "center": (0.0, 0.0), "yaw": 0.0, "normal": normal,
+            "edge": (1.0, 0.0, 0.0)}
+  square = face((0.0, 0.0, 0.8), (0.0, 0.0, 1.0))
+  glancing = face((0.0, 0.013, 0.813), (0.0, 0.96, 0.28))
+  for picture in ([square, glancing], [glancing, square]):
+    body._detector = lambda: NS(detect_all=lambda _: list(picture))
+    assert body._decoded(54)["range"] == pytest.approx(0.8)
+  body._detector = lambda: NS(detect_all=lambda _: [])
+  assert body._decoded(54) is None
 
 
 class CutMind(Mind):

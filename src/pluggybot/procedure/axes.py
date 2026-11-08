@@ -319,14 +319,19 @@ HUMANOID_JOINTS = _humanoid_axes()
 #: Each body's own axes, present whatever it holds.
 BODY_AXES = {"humanoid": HUMANOID_JOINTS}
 #: ...and the reports of a pull (#493, the force move #525): how far it
-#: went, the hardest it pushed and the way the hand was going at its end.
-PULL_SENSORS = ("pull.moved", "pull.force", "pull.dx", "pull.dy", "pull.dz")
+#: went, the hardest it pushed, whether it ended held fast (#650: until it,
+#: nothing a served robot reads told that from out of reach) and the way the
+#: hand was going at its end.
+PULL_SENSORS = ("pull.moved", "pull.force", "pull.held", "pull.dx", "pull.dy", "pull.dz")
 SENSORS["pull.moved"] = Sensor(
   "pull.moved", lambda life: reported("pull", "moved", life),
   "how far the last `pull` took the hand from where it began, m")
 SENSORS["pull.force"] = Sensor(
   "pull.force", lambda life: reported("pull", "force", life),
   "the hardest the last `pull` pushed along its way, N, as your hand felt it")
+SENSORS["pull.held"] = Sensor(
+  "pull.held", lambda life: reported("pull", "held", life),
+  "1 if the last `pull` ended held fast, as your hand felt it, 0 if something else stopped it")
 #: ...and where the last step took the stance (#525), in the stance frame
 #: it stood in before: what a place read before it is turned into.
 STEP_SENSORS = ("step.dx", "step.dy", "step.turn")
