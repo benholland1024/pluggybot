@@ -155,19 +155,26 @@ TABLE_APPROACH = '''def to_table():
   y = read("spot.y") * cos(a) - read("spot.x") * sin(a)
   if not step(0, y / 2, a + %(wider)g):
     pass
+  h = read("step.turn")
   if not step(0, y / 2):
     pass
+  h = h + read("step.turn")
   spot(93)
   x = read("spot.x")
   y = read("spot.y")
   spot(93)
   x = (x + read("spot.x")) / 2
   y = (y + read("spot.y")) / 2
-  if y * y > 0.0025:
+  if y * y > 0.0009:
     if not step(0, y):
       pass
+    h = h + read("step.turn")
   if not step(x - %(ahead)g + %(nearer)g, 0):
     pass
+  h = a + %(facing)g - h - read("step.turn")
+  if h * h > 0.0027:
+    if not step(0, 0, h):
+      pass
 '''
 #: How much wider than read the walk's turn is asked, rad: turned 1 deg
 #: right of the card the check's procedure laid 1 of 8, its fork's carry
@@ -181,13 +188,18 @@ WIDER = 0.058
 #: (SimNotes, "The lay from the tour"; further back the cup's reach bows out
 #: of view of the plate's tag, nearer the arm's way home strikes the table).
 NEARER = 0.025
+#: Where the walk's last turn wants it to face, rad left of square, by its own
+#: reckoning of the turns its steps made: turned too far by more than 3 deg
+#: from there (a 41 deg turn lands up to 3 deg over, and a step aside adds up
+#: to 2 more) the lay's put-downs go wide, so one more turn puts it back.
+FACING = 0.026
 
 #: THE LAY, SERVED: the table check's procedure (`hands_check.TABLE`) with its
 #: first step aside taken from where the card reads across the robot (`m`):
 #: 16 cm left of the card's line, whatever the walk left across it, where
 #: the check, starting on the line, asks 14 ("The lay from the tour": a step
 #: walks in strides, and from a standstill asked 14 it lands 14.4).
-TABLE_LAY_STEP = ("  a = 0.14\n", "  a = m + 0.16\n")
+TABLE_LAY_STEP = ("  a = 0.15\n", "  a = m + 0.155\n")
 
 
 def _table_job() -> tuple[str, str]:
@@ -205,7 +217,8 @@ def _table_job() -> tuple[str, str]:
   ahead = ct.CARD_IN + ct.TABLE_GAP - dw.CARD[1] - dw.FILM
   assert hands_check.TABLE.count(TABLE_LAY_STEP[0]) == 1
   return (TABLE_APPROACH % {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
-                            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER},
+                            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER,
+                            "facing": FACING},
           hands_check.TABLE.replace(*TABLE_LAY_STEP))
 
 

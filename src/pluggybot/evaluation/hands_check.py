@@ -285,29 +285,24 @@ TABLE = '''def lay_place():
   spot(93)
   k = read("spot.x")
   m = read("spot.y")
-  a = 0.14
+  a = 0.15
   spot(90)
   px = read("spot.x")
   py = read("spot.y")
+  s = k - 0.065 - px
+  w = m - 0.243 - py
   t = 0
   if not spot(91):
     if not step(0, 0, -0.17):
       pass
     t = read("step.turn")
-    spot(93)
-    k = read("spot.x")
-    m = read("spot.y")
     spot(90)
     px = read("spot.x")
     py = read("spot.y")
     spot(91)
-  u = read("spot.x") - px - 0.03
+  u = read("spot.x") - px
   v = read("spot.y") - py
   cz = read("spot.z") - 0.03
-  s = k - 0.07 - px - 0.03
-  w = m - 0.243 - py
-  if a < 0.09:
-    a = 0.09
   if not step(0, a, -t):
     pass
   r = read("step.turn")
@@ -315,24 +310,31 @@ TABLE = '''def lay_place():
   e = sin(r)
   q = c * u + e * v
   v = c * v - e * u
-  u = q
+  u = q - 0.03
+  c = cos(r + t)
+  e = sin(r + t)
   q = c * s + e * w
   w = c * w - e * s
-  s = q
+  s = q - 0.03
   move("right_shoulder_roll", -0.9)
   move("right_elbow", 1.4)
   open_hand("right")
   spot(90)
   x = read("spot.x") + u
   y = read("spot.y") + v
-  reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
-  if spot(90):
-    x = read("spot.x") + u
-    y = read("spot.y") + v
-  else:
+  q = x
+  if q < 0.355:
+    q = 0.355
+  g = 0
+  if reach("right", q, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
+    if spot(90):
+      x = read("spot.x") + u
+      y = read("spot.y") + v
+      g = 1
+  if g == 0:
     withdraw("right")
     spot(90)
-    reach("right", read("spot.x") + u + 0.005, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
+    reach("right", q + 0.005, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
     if spot(90):
       x = read("spot.x") + u
       y = read("spot.y") + v
@@ -367,7 +369,12 @@ TABLE = '''def lay_place():
     py = read("spot.y")
     gy = py + 0.066 * (1 - i)
     gz = 0.7734 - 0.005 * i
-    reach("left", px, gy, gz, 0.5, 0, -0.866, 0, -1, 0)
+    q = gy
+    if q > 0.185:
+      q = 0.185
+    reach("left", px, q, gz, 0.5, 0, -0.866, 0, -1, 0)
+    if q < gy:
+      go("left", px, gy, gz, 20, 0)
     if not close_hand("left", 40 - 15 * i):
       open_hand("left")
       close_hand("left", 30 - 15 * i)

@@ -661,11 +661,12 @@ def _table_tags() -> dict:
           92: (*at["fork"], h + 2 * dish.HANDLE[2])}
 
 
-def _table_flown(hide=None):
+def _table_flown(hide=None, drift=0.0):
   """Our table procedure on a stub that does every move at once, as asked, and sees each tag
-  where the set-out's middle puts it -- but where `hide(tag, body)` says: each grip it shut
-  (the hand, where, turned how, at what squeeze), each verb as it began (its arguments and
-  where each hand was), and the run."""
+  where the set-out's middle puts it -- but where `hide(tag, body)` says -- each step turning
+  `drift` rad more than it asked, as a live one does: each grip it shut (the hand, where,
+  turned how, at what squeeze), each verb as it began (its arguments and where each hand was),
+  and the run."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _Life
   tags = _table_tags()
@@ -681,6 +682,9 @@ def _table_flown(hide=None):
       x, y, z = tags[int(tag)]
       return {"x": x, "y": y, "z": z, "normal": [0.0, 0.0, -1.0], "edge": [1.0, 0.0, 0.0],
               "range": 0.5}
+
+    def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
+      return (yield from super().step_routine(ahead, left, turn + drift, patience))
 
     def reach_routine(self, side, pos, rot=None, **kw):
       self.turns[side] = np.asarray(rot, dtype=float)
@@ -770,6 +774,45 @@ def test_the_tables_hand_reaches_its_grip_and_takes_and_leaves_each_piece_by_a_p
     left = [(v_, a_) for v_, a_, _ in log[down + 1:down + 4]]
     assert [v_ for v_, _ in left] == ["open_hand", "wait", "pull"], left
     assert left[0][1]["hand"] == left[2][1]["hand"] == side and _straight(left[2][1], 1)
+
+
+def _cup_laid_at(log) -> np.ndarray:
+  """Where the right hand put the cup down: the hand as its jaws opened after they shut."""
+  shut = next(i for i, (v, a, _) in enumerate(log) if v == "close_hand" and a["hand"] == "right")
+  opened = next(i for i, (v, a, _) in enumerate(log)
+                if i > shut and v == "open_hand" and a["hand"] == "right")
+  return log[opened][2]["right"]
+
+
+def test_the_lay_carries_what_it_read_through_the_turn_its_step_took():
+  """⚠ WHAT THE LAY READ BEFORE ITS STEP IT CARRIES THROUGH THE STEP'S OWN TURN (#560; SimNotes,
+  "The lay from the tour"): the cup is out of view from the stance, so where it is is read
+  before the step -- its place from the plate's tag, as far from it as the cup's reach is long
+  -- and a step aside turns the stance 0.5-2.5 deg, 0.8 cm at the cup a degree: a turn the
+  step's own report gives to 0.2 deg. The cup's grip and where it is put down, turned 3.4 deg by
+  the step here, land where a step that turned nothing puts them, to the 3 cm its grip stands
+  short of the cup's middle (2 mm turned)."""
+  straight, ran, log = _table_flown()
+  assert ran["ok"], ran
+  turned, ran2, log2 = _table_flown(drift=0.06)
+  assert ran2["ok"], ran2
+  assert np.linalg.norm(turned.shuts[0][1][:2] - straight.shuts[0][1][:2]) < 0.003
+  assert np.linalg.norm(_cup_laid_at(log2)[:2] - _cup_laid_at(log)[:2]) < 0.004
+
+
+def test_the_lay_turns_to_find_the_cup_its_first_look_loses():
+  """⚠ THE CUP OUT OF VIEW AT THE FIRST LOOK (#560; SimNotes, "The lay from the tour"; it ended
+  9 flights in 32 before anything moved): the lay turns a little to its right, reads the three
+  tags from there, and carries what it read through the turn back -- the cup's grip where it
+  is, the last millimetres the 3 cm its grip stands short of the cup's middle, turned."""
+  body, ran, log = _table_flown(hide=lambda tag, b: tag == 91 and b.theta > -0.1)
+  assert ran["ok"], ran
+  assert body.stepped[0] == (0.0, 0.0, -0.17)
+  turn_back = body.stepped[1]
+  assert turn_back[2] == pytest.approx(0.17)
+  straight, _, log0 = _table_flown()
+  assert np.linalg.norm(body.shuts[0][1][:2] - straight.shuts[0][1][:2]) < 0.006
+  assert np.linalg.norm(_cup_laid_at(log)[:2] - _cup_laid_at(log0)[:2]) < 0.006
 
 
 def test_a_cup_reach_that_bows_out_of_the_plates_tags_view_goes_home_and_reaches_again_higher():
