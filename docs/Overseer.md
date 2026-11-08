@@ -78,7 +78,7 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 
 | action | what happens | parameters |
 |---|---|---|
-| `take_task` | accept a job the world is OFFERING and do it (issue #21) | `task` |
+| `take_task` | accept a job the world is OFFERING and do it (issue #21). The job can go while the answer is thought about, and a take that does not happen says why in History (`could not take t_0122 (open_drawer): Rowan took it at t=185073`, issue #648) | `task` |
 | `explore` | frontier-drive for `DECIDED_EXPLORE_S` (45 s); optionally head for a zone first. History says whether the zone was reached (the drive's cause when not) and how the explore ended, `EXPLORE_ENDS` (issue #424) | `zone` |
 | `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424). At the nearest station, waiting for it while another robot holds it, or with `station: "free"` on to the nearest station nobody holds (#560, Ben's call: the robot's to decide, waiting the default) | `station` |
 | `idle` | stand still for `AUTONOMOUS_IDLE_S` (60 s), so an idling agent cannot re-decide faster than `CALLS_PER_HOUR` | — |
@@ -353,7 +353,9 @@ stand clear of), and the loop with no mind never sees the field or the
 offer. History says the `done` and names the job (`said done on t_0027
 (open_door): …`), and so does its grade's line (`failed the job t_0027
 (open_door): …`, #629: by its kind alone, Rowan took one job's grade for
-another's). A job held past the time its description gives is failed by the
+another's). A `done` on a job the robot does not hold is dropped and says
+why (`said done on t_0137 (open_chest): not graded, because nobody has
+taken it`; #648). A job held past the time its description gives is failed by the
 loop, its prop offered again, and while the robot holds one its context
 lists it with that time's remainder (`heldTasks`, `leftS`; #602). `CHALLENGE_RULE` says all of this to
 the mind and, like every rule on this arm, demonstrates nothing about

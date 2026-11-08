@@ -141,6 +141,19 @@ Rules the states carry, each decided explicitly:
   figure. A world that starts again at 0 moves a held claim with the
   clock, as it moves an offer's deadline, and writes both down as the day
   begins (#602).
+- **A take can lose, and its robot hears it** (issue #648). Two robots
+  share the board and an answer takes 10-90 s to think, so an offer can be
+  gone by the time the answer that took it lands: 4 of 59 takes from 11-07
+  to 11-08, each to the other robot. `_claim_task` says every refusal in
+  History (`could not take t_0122 (open_drawer): Rowan took it at
+  t=185073`), and `_done` says a `done` on a job this robot does not hold
+  (`said done on t_0137 (open_chest): not graded, because nobody has taken
+  it`), both off the shared board's facts (`_not_mine`): no such job, it
+  lapsed, nobody took it, who took it and when, how it ended. ⚠ A `done` is
+  free text and may name the offer hidden from this robot (#228): of that
+  it says only that it does not hold it, never "no such job", which would
+  assert a falsehood. Said to the log alone, a loser's last word on the job was its own `chose take_task`:
+  it read that as holding the job and went on to work it.
 
 ---
 
