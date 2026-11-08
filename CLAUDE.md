@@ -716,7 +716,18 @@ save a filmstrip PNG named after the script.
   bit (`test_cull.py`) -- judged afresh each cast, as activities move and
   resize geoms. ⚠ WHAT IS PUT AWAY IS IN NO CAST (`cull.PARKED_GROUP`, 3;
   the restaurant's dishware between its jobs): every cast leaves the group
-  out, the cull off or on, and MuJoCo's cameras draw groups 0-2 alone.
+  out, the cull off or on, and MuJoCo's cameras draw groups 0-2 alone. ⚠ AND
+  A CAST LOSES NO BODY IT MEETS (#657; `cull.static_inertials`; SimNotes, "A
+  ray through a body MuJoCo's cull left out"): MuJoCo 3.10's `mj_multiRay`
+  skips a body by a sphere misplaced where its inertial frame is turned, and
+  rays went through 6 % of a dining table's top (a 7 cm short `measure`), so
+  EVERY BODY WELDED TO THE WORLD stands on an `<inertial>` unturned on the
+  middle of its box, its mass and inertia as compiled -- the house's written
+  into its file by its generator, what a world puts in at load set by
+  `cull.fix_static_inertials` (`home_spec`, `counter.model_of`), and a
+  `storeroom.redraw` copies only what moves; a test reads every such body in
+  every world. A body that moves keeps the bug (at worst 1.2 % of a fork's
+  rays): its inertia is physics.
 - **A humanoid is told its own body and world** (#559 stages 3 and 5;
   `Menu.kinds`, `hands_procedure_rule`, `steps.served_hand_facts`;
   `tests/test_humanoid_words.py`; Overseer.md §8b): ⚠ ITS WORDS ARE THE ONLY
@@ -1965,8 +1976,9 @@ save a filmstrip PNG named after the script.
   STANDS IN: a room's edge is a line in the world, and Rowan bracketed the
   lab's by asking, its true position. ⚠ ONE `mj_ray` A RAY, NEVER
   `mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere misplaced
-  where the body's inertial frame is turned, as the cage's is, and rays at
-  its far walls passed through them.
+  where the body's inertial frame is turned, as the cage's was (rays at its
+  far walls passed through them): what stands still no longer has such a
+  frame (#657), and what moves, a robot's arm before the cage, keeps it.
   ⚠ A lab SHOWN (`world_config`'s `lab_shown`,
   `Menu.lab`; Ben, 2026-10-31, until a job of theirs uses the plates) has
   the `lab` block and `LAB_SHOWN` (`lab_shown_rule`), and no act and no

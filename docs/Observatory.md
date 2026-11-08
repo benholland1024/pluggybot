@@ -39,6 +39,24 @@ the tour, the live robots learning it being the point.
 - ⚠ **Not to be pooled with the period before for anything the reward table
   or the offers decide**: there is one more kind on the board.
 
+### Rays no longer pass through what stands still (#657) — opens when this PR is deployed
+
+**What changed is only what the LIDAR and the depth camera read** (SimNotes,
+"A ray through a body MuJoCo's cull left out"): every body welded to the
+world now stands on an inertial frame unturned on the middle of its box, so
+`mj_multiRay` no longer loses rays that meet it. Live today that is about
+2.5 % of the rays that land on the lab's cage and under 1 % of those on the
+shelves, the loading rack, the chest, the drawers' cabinet and the stations;
+the dining tables' 6 % comes with their legs (#643), which ship with it.
+Nothing the robots are told moved (`prompt_sha` the same), nor the physics (a
+limp body dropped onto a seated table, shelf and cage flies the same
+trajectory, bit for bit), and a restart keeps the world, its bodies and its
+maps (`continuation.fingerprint` hashes no inertia; `build.dataHashes.world`
+moves).
+
+**What the period is for.** Nothing to read: it is recorded so that a reading
+of what those sensors saw at such a body knows which side of it it is on.
+
 ### `measure` reads an end only where its camera saw past it, and says when something taller stands there (#636) — opens when this PR is deployed
 
 **What changed is what `measure` reads and what the robots are told**

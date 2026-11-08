@@ -107,6 +107,9 @@ is exactly as hard as the walls make it and not an inch harder.
 
 import json
 import math
+import re
+
+import mujoco
 
 from pluggybot.activity.plate import (
   plate_light_xml,
@@ -114,6 +117,7 @@ from pluggybot.activity.plate import (
 from pluggybot.activity import station as _station
 from pluggybot.activity.cage import PLATE_NAMES, cage_xml
 from pluggybot.home.props import BLOCKS, bench_xml, block_xml
+from pluggybot.perception.cull import static_inertials
 from pluggybot.perception.tags import BLOCK_TAG_IDS, asset_xml, write_tag_pngs
 
 # ---- layout constants (the one source) --------------------------------------
@@ -770,6 +774,22 @@ def _board_xml(name: str, spec: dict) -> str:
                    geom_name=spec["geom"])
 
 
+def _with_static_inertials(xml: str) -> str:
+  """The house's text with an `<inertial>` in each of its bodies a ray cast
+  would misplace (`perception.cull.static_inertials`, #657), read off the
+  text compiled -- run from the repository's root, as the tags' are written."""
+  spec = mujoco.MjSpec.from_string(xml)
+  spec.modelfiledir = "models/"
+  for name, (pos, mass, inertia) in static_inertials(spec.compile()).items():
+    x, y, z = pos.round(5) + 0.0                 # no "-0.00000"
+    tag = (f'<inertial pos="{x:.5f} {y:.5f} {z:.5f}" mass="{mass:.6g}" '
+           f'diaginertia="{inertia[0]:.6g} {inertia[1]:.6g} {inertia[2]:.6g}"/>')
+    xml, n = re.subn(rf'(<body name="{name}"[^>]*>\n)', rf'\g<1>      {tag}\n', xml)
+    if n != 1:
+      raise ValueError(f"the house has {n} bodies named {name}")
+  return xml
+
+
 def build_home_world() -> tuple[str, dict]:
   """(MJCF text, meta dict); write_home_world writes them. The one write
   here is a stale tag texture's (`tags.write_tag_pngs`), and a current one
@@ -1240,7 +1260,7 @@ def build_home_world() -> tuple[str, dict]:
     "rooms": dict(ROOM_OF),
     "gridBounds": list(GRID_BOUNDS),
   }
-  return xml, meta
+  return _with_static_inertials(xml), meta
 
 
 def write_home_world(xml_path: str = "models/home_world.xml",

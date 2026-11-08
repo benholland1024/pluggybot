@@ -25,6 +25,7 @@ import numpy as np
 
 from pluggybot.activity import chest as ch
 from pluggybot.home import world as _home
+from pluggybot.perception.cull import fix_static_inertials
 
 HOME_XML = "models/home_world.xml"
 #: ...its generator's sidecar (`home.world`): the house's visual hints, its
@@ -381,6 +382,7 @@ def model_of(so):
     ch.attach_chest(spec, so.lid, so.chest[:2], so.chest[2], z=COUNTER_H)
   else:
     so.attach(spec)
+  fix_static_inertials(spec)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec.compile()
 
