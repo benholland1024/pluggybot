@@ -319,9 +319,9 @@ HUMANOID_JOINTS = _humanoid_axes()
 #: Each body's own axes, present whatever it holds.
 BODY_AXES = {"humanoid": HUMANOID_JOINTS}
 #: ...and the reports of a pull (#493, the force move #525): how far it
-#: went, the hardest it pushed, whether it ended held fast (#650: of why it
-#: stopped, the one thing nothing else reads) and the way the hand was going
-#: at its end.
+#: went, the hardest it pushed, whether it ended held fast (#650: until it,
+#: nothing a served robot reads told that from out of reach) and the way the
+#: hand was going at its end.
 PULL_SENSORS = ("pull.moved", "pull.force", "pull.held", "pull.dx", "pull.dy", "pull.dz")
 SENSORS["pull.moved"] = Sensor(
   "pull.moved", lambda life: reported("pull", "moved", life),

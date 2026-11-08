@@ -21,8 +21,8 @@ language and body (the practice's byte for byte, #559), and one reading:
   ended held fast". What it reads did not change.
 - **`pull.held` is a new reading**: 1 if the last `pull` ended held fast
   (pushing with its whole force and not moving), 0 if it ended otherwise,
-  its report's `why`, the one part of why a pull stopped no other reading
-  tells. A served robot is shown no step's `why`.
+  off its report's `why`. A served robot is shown no step's `why`, and until
+  this nothing it reads told held fast from out of reach.
 - **`spot`'s text says which face of a block it reads**: "A small block
   carries its tag on every face: the one read is the one you see most
   square-on, `spot.nx`..`nz` say which, and a face's middle is half the
