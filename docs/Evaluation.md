@@ -2121,35 +2121,44 @@ and how many of those put a helper with arguments first:
   unrecorded). Rows and the readers: `~/pluggybot-training/issue-640-language/`.
 
 **What `pull` and `spot` say, read** (#650, 2026-11-08): the deployed prompt
-before the words changed (`ce973a53`) and after (`2dc01a3d`), interleaved, one
-answer a call, every question answerable "unknown": the deployed mind
-(GLM-5.3-Flash on baseten) 12 times a text, DeepSeek-V4.1-Flash (deepinfra) 6.
-The rules were written before the answers were read:
+before the words changed (`ce973a53`) and on the text served (`0a30526b`),
+interleaved, one answer a call, every question answerable "unknown". The
+deployed mind (GLM-5.3-Flash on baseten) and DeepSeek-V4.1-Flash (deepinfra);
+the rules were written before the answers were read, and the old text was
+asked in each round, so its sample is the larger:
 
 | question (the true answer) | GLM before | GLM after | DeepSeek before | DeepSeek after |
 |---|---|---|---|---|
-| a hand pushes its whole force at what cannot move: does `if pull(...)` read true? (true) | 2/12 | 12/12 | 5/6 | 6/6 |
-| which sensor says how far it went? (`pull.moved`) | 12/12 | 12/12 | 6/6 | 6/6 |
-| it reaches no further after 20 cm: does the `if` read true? (true) | 12/12 | 12/12 | 6/6 | 6/6 |
-| a 26 mm block, its tag on all six faces: which face does `spot.x` give? (the one seen most square-on) | 0/12 | 12/12 | 0/6 | 6/6 |
-| ...and which says which? (`spot.nx..nz`) | 11/12 | 12/12 | 5/6 | 6/6 |
-| its readings from two places differ by 2 cm: why? (another face) | 8/12 | 12/12 | 3/6 | 6/6 |
+| a hand pushes its whole force at what cannot move: does `if pull(...)` read true? (true) | 8/24 | 12/12 | 23/32 | 25/26 |
+| which sensor says how far it went? (`pull.moved`) | 24/24 | 12/12 | 32/32 | 26/26 |
+| it reaches no further after 20 cm: does the `if` read true? (true) | 24/24 | 12/12 | 30/32 | 23/26 |
+| a 26 mm block, its tag on all six faces: which face does `spot.x` give? (the one seen most square-on) | 0/24 | 12/12 | 1/32 | 26/26 |
+| ...and which says which? (`spot.nx..nz`) | 23/24 | 12/12 | 28/32 | 26/26 |
+| its readings from two places differ by 2 cm: why? (another face) | 16/24 | 12/12 | 11/32 | 26/26 |
 
 - **The first row is the live confusion, reproduced**: told "ok when it
-  pulled", the deployed mind read a pull held fast as reading false 9 times
-  in 12, as Rowan did (#650), and was unsure once; told what it reads, none
-  of 12.
-- **Over-correction checked** (GLM, 10 a text): "ok unless" could read as
-  "always true", so a hand not out, a fall and a way all 0, each truly
-  false, were asked: 10, 5 and 1 of 10 before, all 10 after. Asked what
-  would tell a pull held fast from one out of reach, all 10 named
-  `pull.held` after (it did not exist before).
+  pulled", the deployed mind read a pull held fast as reading false 15 times
+  in 24, as Rowan did (#650), true 8 and unsure once; told what it reads,
+  none of 12. The old text's rate moved between rounds, 2 of 12 true and
+  then 6 of 12, which is why the "before" is both.
+- **Over-correction checked** (GLM): "ok unless" could read as "always
+  true", so a hand not out, a fall and a way all 0, each truly false, were
+  asked: 20, 8 and 2 of 20 before, all 10 of 10 each after. Asked what would
+  tell a pull held fast from one out of reach, all 10 named `pull.held`
+  after (it did not exist before).
+- **A wording measured and changed.** The first wording said a face's middle
+  is half the block's width from the block's own, and named `pull.held` in
+  the verb; review took out the first, as telling the robot how to find a
+  block's middle, more than #650 asked, and the second as saying it twice.
+  This table is the text served. DeepSeek's third row is 23 of 26 against 30
+  of 32 before, and its two rounds read 4 of 6 and 19 of 20: noise, on calls
+  of about 500 tokens.
 - **What it cannot say**: the fourth row's rule is near the new text's own
   word -- read by hand, most answers before said "the face turned toward
   the camera", which was the right idea without saying which of two faces
   in view -- and the last row's answer is one the new sentence states. It
-  reads what a mind takes the words to mean, one evening, not what a robot
-  then writes; that is the period's (Observatory.md). Spend: $0.18 over 58
+  reads what a mind takes the words to mean, one afternoon, not what a robot
+  then writes; that is the period's (Observatory.md). Spend: $0.49 over 154
   calls. Rows and scripts: `~/pluggybot-training/issue-650-words/`.
 
 ## 5. What silently invalidates a number

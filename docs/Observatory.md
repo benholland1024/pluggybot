@@ -13,24 +13,32 @@ observatory is NOT a result: it reports into the issue it informs.
 ### `pull` says when it reads false and reads whether it ended held fast, and `spot` and `watch` say which face of a block they read (#650) — opens when this PR is deployed; released with #640's words, it rides with that period as one
 
 **What changed is what the robots are TOLD**, in the procedure rule's
-language and body (the practice's byte for byte, #559), and one reading:
+language and body (the practice's byte for byte, #559), and what one kind of
+refused call leaves behind:
 - **`pull`'s text said "ok when it pulled", and it now says when it reads
-  false**: "ok unless your hand was not out, (dx, dy, dz) are all 0 or you
-  fell: whatever else stopped it, held fast against something too, it is
-  still ok, `pull.moved` says how far it went and `pull.held` is 1 if it
-  ended held fast". What it reads did not change.
-- **`pull.held` is a new reading**: 1 if the last `pull` ended held fast
-  (pushing with its whole force and not moving), 0 if it ended otherwise,
-  off its report's `why`. A served robot is shown no step's `why`, and until
-  this nothing it reads told held fast from out of reach.
+  false**: "How far it went, the hardest it pushed, whether it ended held
+  fast and the way it was going at its end ride `pull.*`, unless it reads
+  false; ok unless an argument was refused, your hand was not out, (dx, dy,
+  dz) are all 0 or you fell: whatever else stopped it, held fast against
+  something too, it is still ok, and `pull.moved` says how far it went".
+  What it reads did not change.
+- **`pull.held` is a new reading**: 1 if the last `pull` ended held fast, as
+  the hand felt it, 0 if something else stopped it, off its report's `why`.
+  A served robot is shown no step's `why`, and until this nothing it reads
+  told held fast from out of reach.
 - **`spot`'s text says which face of a block it reads**: "A small block
   carries its tag on every face: the one read is the one you see most
-  square-on, `spot.nx`..`nz` say which, and a face's middle is half the
-  block's width from the block's own, so from elsewhere the same tag can
-  read another face and another place". `watch` says the same of each
-  picture, "so which face can change as you move". What they read did not
-  change.
-- `prompt_sha` `ce973a53…` → `2dc01a3d…`, 59,280 → 59,984 chars, 17
+  square-on, `spot.nx`..`nz` say which, so from elsewhere the same tag can
+  read another face, its middle up to the block's width from this one's".
+  `watch` says the same of each picture, "so which face can change as you
+  move". What they read did not change.
+- **A call a computed argument refuses leaves its verb no reading**
+  (`steps.forget_readings`): it read false in an `if` and never ran, and
+  what the verb last reported went on reading as this call's -- a retry
+  computes just such a distance off `pull.moved`. A `read` of it now ends
+  the run saying it has no reading, as one after a failed pull always has;
+  every verb's, and `<verb>.stopped` reads 0.
+- `prompt_sha` `ce973a53…` → `0a30526b…`, 59,280 → 59,967 chars, 17
   sections both (`overseer_probe.py --deployed --prompt`); the practice's
   language and body and the session host's `hello` with it (the site
   re-vendors it and corrects its guide for people). What the parser
@@ -45,12 +53,13 @@ which face `spot` reads of a cube and why its reading moved. Flown on this
 tree at the drawer's set-outs 0 and 1 (osmesa): a grip on the knob pushed
 against the shut drawer read ok, moved 1.1-1.6 cm, `pull.held` 1; drawn
 free 12-13 cm, ok, `pull.held` 0; drawn on to its end stop, ok, 12.6-12.9
-cm, `pull.held` 1; the other hand, not out, read false. `spot` read the
-top face up close, 12.7-14.8 mm from the cube's middle, and the front face
-from 0.74-0.93 m on. Read through the deployed prompt, before and after
-(Evaluation.md §4, "What `pull` and `spot` say, read"), the deployed mind
-took a pull held fast to read false 9 times in 12 before and 0 in 12
-after.
+cm, `pull.held` 1; the other hand, not out, read false. Eighteen pulls of a
+free hand through the air, 1 to 20 N in three directions, none read held
+fast. `spot` read the top face up close, 12.7-14.8 mm from the cube's
+middle, and the front face from 0.74-0.93 m on. Read through the deployed
+prompt, before and after (Evaluation.md §4, "What `pull` and `spot` say,
+read"), the deployed mind took a pull held fast to read false 15 times in
+24 before and in none of 12 after.
 
 **What the period is for.**
 - **Do the procedures stop building on a pull reading false held fast?**

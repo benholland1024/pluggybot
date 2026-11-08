@@ -961,10 +961,12 @@ save a filmstrip PNG named after the script.
   hand 43 cm up). A verb test and the maths are in every hands
   world (`hand_facts`), the served humanoids' included (`served_hand_facts`,
   #559). ⚠ `pull` READS FALSE ONLY WHERE ITS TEXT SAYS (#650;
-  `tests/test_hands.py`): a hand not out, a way all 0, a fall -- held fast
-  it is ok, and `pull.held` says so, a served robot being shown no step's
-  `why` -- and `spot` and `watch` say they read a block's face seen most
-  square-on. ⚠ A HAND'S MOVE MAY STOP ON A
+  `tests/test_hands.py`): an argument refused, a hand not out, a way all 0,
+  a fall -- held fast it is ok, and `pull.held` says so, a served robot
+  being shown no step's `why` -- and `spot` and `watch` say they read a
+  block's face seen most square-on. ⚠ A CALL REFUSED BEFORE IT RAN LEAVES
+  ITS VERB NO READING (`steps.forget_readings`): what it last reported would
+  read as this call's. ⚠ A HAND'S MOVE MAY STOP ON A
   READING (#554; `steps.GUARDED_VERBS`, behind `WorldFacts.guarded`, on in
   `hand_facts`, `--unguarded` its arm without; `tests/test_guard.py`):
   `reach`, `move_hand` and `pull` take `until="<sensor>"` and `above` or
