@@ -442,8 +442,8 @@ SPOT_GAZES = (0.0, 0.25, 0.45)
 #: the robot faces it reaches at its top and at its bottom, the picture being
 #: tilted (a bearing is wider low down: the side angle in the camera's own
 #: frame, 34.3, is only the top edge's). Off the model, never typed (a test
-#: reads them against `color_eye`); flown standing 18.7, 60.7 and 34.3, the
-#: stand holding the head 0.3 deg back.
+#: reads them against `color_eye`); flown standing 18.7 and 60.7, the stand
+#: holding the head 0.3 deg back, and 34.3 in the camera's own frame.
 SPOT_TOP_DEG = CHOSEN.depth_pitch_deg - COLOR_FOVY_DEG / 2
 SPOT_BOTTOM_DEG = CHOSEN.depth_pitch_deg + COLOR_FOVY_DEG / 2
 _tall = math.tan(math.radians(COLOR_FOVY_DEG / 2))
