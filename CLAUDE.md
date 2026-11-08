@@ -1018,8 +1018,8 @@ save a filmstrip PNG named after the script.
   block's face seen most square-on. ⚠ `spot` AND `watch` SAY WHICH CAMERA
   THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_*`, off the model, a
   test reads them against `color_eye`, and `SPOT_BLOCK_READS_M`, flown):
-  the colour camera, its picture 19 to 61 deg below level -- `look`,
-  `find`, a practice's first picture and the lab's view are the navigation
+  the colour camera, looking down -- `look`, `find`, a practice's first
+  picture and the lab's view are the navigation
   camera (`Body.head_camera`) -- and nothing a robot reads says "head
   camera" (their two names, named apart). ⚠ A CALL REFUSED BEFORE IT RAN LEAVES
   ITS VERB NO READING (`steps.forget_readings`): what it last reported would

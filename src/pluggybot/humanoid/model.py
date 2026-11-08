@@ -391,8 +391,8 @@ FIELD_CLEAR = 0.002
 #: `spot`'s and `watch`'s texts count their picture off (`steps.SPOT_TOP_DEG`
 #: and the rest; a test reads them against the model, #660).
 COLOR_FOVY_DEG = 42
-#: The colour imager's place on the depth camera's body, m: ahead of its
-#: middle, along the camera's own axis, and across.
+#: The D435's two imagers on its body, m: ahead of its middle along the
+#: camera's own axis, and the colour imager's across it.
 CAM_AHEAD_M, COLOR_ACROSS_M = 0.013, -0.015
 #: Where the cameras ride, m ahead of the hip axes: the depth camera's
 #: middle and the navigation camera's, as on stage 1's face.
