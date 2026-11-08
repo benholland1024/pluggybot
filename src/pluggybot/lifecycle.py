@@ -566,9 +566,11 @@ def _by_line(head: str, steps: list, what, room: int) -> str:
   return f"{head} -- {'; '.join(said)}" + (f" (+{left} more)" if left else "")
 
 
-def _at(t: float | None) -> str:
-  """` at t=185073`, or nothing for a time the board never wrote down."""
-  return "" if t is None else f" at t={float(t):.0f}"
+def _at(t: float | None, now: float) -> str:
+  """` at t=185073`, or nothing for a time the board never wrote down or one
+  ahead of `now`: a start-over moves only what is open, so a job over before
+  it keeps the old clock (its stamps are rounded to the ms, as `now` is here)."""
+  return "" if t is None or float(t) > round(float(now), 3) else f" at t={float(t):.0f}"
 
 
 def _job_named(task_id: str, task) -> str:
@@ -4040,17 +4042,27 @@ class HubLifecycle:
     if (task is None or task.state != "active"
         or task.claimed_by != self.root
         or KINDS[task.kind].discharge != "procedure"):
-      why = self._not_mine(task, float(self.data.time))
+      named = _job_named(decision.done, task)
+      if task is not None and task.hidden_from(self.robot_name):
+        # ⚠ `done` is free text and may name the offer hidden from this robot
+        # (#228): nothing of it, and "no such job" would assert a falsehood
+        named, why = decision.done, "I do not hold it, and the board says no more of it"
+      elif (task is not None and task.state == "offered"
+            and decision.action == "take_task" and decision.task == decision.done):
+        # ...before the action runs: "nobody has taken it", after its own
+        # `chose take_task`, would read as the take having failed
+        why = "this answer is the one taking it"
+      else:
+        why = self._not_mine(task, float(self.data.time))
       self._say(f"DONE {decision.done}: not a challenge you hold -- {why}")
-      self._remember(f"said done on {_job_named(decision.done, task)}: not graded, "
-                     f"because {why}")
+      self._remember(f"said done on {named}: not graded, because {why}")
       return
     self._grade_pending = task.id
     self._say(f"DONE {task.id}: graded once the queue is empty -- "
               f"{task.description}")
     # ...and History says it (#629): said to the log alone, a grade that came
     # 37 s after its job's take read as another job's
-    self._remember(f"said done on {task.id} ({task.kind}): graded once everything "
+    self._remember(f"said done on {_job_named(task.id, task)}: graded once everything "
                    "queued has run")
 
   def _grade_routine(self) -> Routine:
@@ -5168,8 +5180,8 @@ class HubLifecycle:
     "I", the other robot's name, or "another robot" for one not here."""
     if root == self.root:
       return "I"
-    return next((p.robot_name or p.root for p in self.peers if p.root == root),
-                "another robot")
+    other = self._peer(root)
+    return "another robot" if other is None else other.robot_name
 
   def _not_mine(self, task, now: float, budget_wh: float | None = None) -> str:
     """Why a job could not be taken or said `done` on (#648): who took it
@@ -5179,17 +5191,17 @@ class HubLifecycle:
     if task is None:
       return "the board has no such job"
     if task.state == "expired" or (task.state == "offered" and task.overdue(now)):
-      return f"it lapsed{_at(task.deadline)}"
+      return f"it lapsed{_at(task.deadline, now)}"
     if task.state == "offered":
       return ("it costs more than the pack has left"
               if budget_wh is not None and budget_wh < task.estimate_wh
               else "nobody has taken it")
-    took = (f"{self._whose(task.claimed_by)} took it{_at(task.claimed_t)}"
+    took = (f"{self._whose(task.claimed_by)} took it{_at(task.claimed_t, now)}"
             if task.claimed_by else "nobody took it")
     if task.open:
       return took
-    return (f"{took}, and it {'passed' if task.state == 'done' else 'failed'}"
-            f"{_at(task.resolved_t)}")
+    return (f"it is over -- {took}, and it "
+            f"{'passed' if task.state == 'done' else 'failed'}{_at(task.resolved_t, now)}")
 
   def _no_take(self, task_id: str, task, why: str) -> bool:
     """A take that did not happen, said (#648): its answer's `chose
@@ -5257,7 +5269,7 @@ class HubLifecycle:
     # the tower on a demo cell (issue #207).
     if self.tasks.claim(task.id, robot=self.root, t=now,
                         pack_wh=self.claim_budget_wh) is None:
-      return False
+      return self._no_take(task.id, task, "the board refused it")
     self.claimed.append(task.id)
     self._say(f"TASK {task.id} claimed: {task.description}")
     # ACTIVE from the claim: a job's work starts the moment the robot takes

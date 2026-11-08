@@ -52,6 +52,7 @@ def _done(life, task_id: str) -> None:
 
 def _ended(life, task, state: str, t: float):
   """The job as it stands once it is over: how it got there is the grade's."""
+  life.data.time = t
   life.tasks.tasks[task.id] = ended = replace(life.tasks.get(task.id), state=state, resolved_t=t)
   return ended
 
@@ -137,9 +138,9 @@ def test_a_job_that_is_over_says_who_took_it_and_how_it_ended(state, how):
   assert _take(rowan, task, 185073.0) == ""
   _ended(luca, task, state, 185200.0)
   _done(luca, task.id)
-  assert _said(luca, f"because Rowan took it at t=185073, and it {how} at t=185200")
+  assert _said(luca, f"because it is over -- Rowan took it at t=185073, and it {how} at t=185200")
   _done(rowan, task.id)
-  assert _said(rowan, f"because I took it at t=185073, and it {how} at t=185200")
+  assert _said(rowan, f"because it is over -- I took it at t=185073, and it {how} at t=185200")
 
 
 def test_a_job_nobody_took_that_ended_does_not_blame_anybody():
@@ -147,7 +148,7 @@ def test_a_job_nobody_took_that_ended_does_not_blame_anybody():
   task = _offer(luca)
   _ended(luca, task, "failed", 185200.0)
   _done(luca, task.id)
-  assert _said(luca, "because nobody took it, and it failed at t=185200")
+  assert _said(luca, "because it is over -- nobody took it, and it failed at t=185200")
 
 
 def test_a_holder_not_in_this_world_is_no_name_at_all():
@@ -155,9 +156,82 @@ def test_a_holder_not_in_this_world_is_no_name_at_all():
   luca, _ = _pair()
   task = _offer(luca)
   luca.tasks.claim(task.id, robot="r9_pluggybot", t=185073.0)
+  luca.data.time = 185100.0
   _done(luca, task.id)
   assert _said(luca, "because another robot took it at t=185073")
   assert _said(luca, "r9_pluggybot") == []
+
+
+def test_a_time_from_before_a_start_over_is_left_out():
+  """A start-over puts the clock back and moves only what is still open: a
+  job over before it keeps the old clock, ahead of every History stamp."""
+  luca, rowan = _pair()
+  task = _offer(luca)
+  assert _take(rowan, task, 185073.0) == ""
+  _ended(luca, task, "done", 185200.0)
+  luca.data.time = 300.0
+  _done(luca, task.id)
+  assert _said(luca, "because it is over -- Rowan took it, and it passed")
+  assert _said(luca, "t=1852") == [] and _said(luca, "t=18507") == []
+
+
+def test_a_take_lost_in_the_same_step_still_says_when():
+  """A claim's stamp is rounded to the ms, so it can read a hair ahead of
+  the clock it was taken on, and that is no time from another clock."""
+  luca, rowan = _pair()
+  task = _offer(luca)
+  assert _take(rowan, task, 185073.0416) == ""             # stamped 185073.042
+  assert _take(luca, task, 185073.0416) == "unclaimable"
+  assert _said(luca, "Rowan took it at t=185073")
+
+
+def test_a_done_beside_the_take_of_it_does_not_read_as_the_take_failing():
+  """`_done` runs before the action: "nobody has taken it", right after its
+  own `chose take_task`, reads as the take having failed, and it did not."""
+  luca, _ = _pair()
+  task = _offer(luca)
+  luca.data.time = 185073.0
+  assert luca._after_decision(ov.Decision(action="take_task", task=task.id, reason="mine",
+                                          done=task.id)) == ""
+  assert [t.id for t in luca.tasks.held_by(luca.root)] == [task.id]
+  assert _said(luca, "nobody has taken it") == []
+  assert _said(luca, f"said done on {task.id} (open_drawer): not graded, because "
+                     "this answer is the one taking it")
+
+
+def test_a_done_beside_the_take_of_another_job_is_not_that_take():
+  luca, _ = _pair()
+  taken, other = _offer(luca), _offer(luca)
+  luca.data.time = 185073.0
+  assert luca._after_decision(ov.Decision(action="take_task", task=taken.id, reason="mine",
+                                          done=other.id)) == ""
+  assert _said(luca, f"said done on {other.id} (open_drawer): not graded, because "
+                     "nobody has taken it")
+
+
+def test_a_done_beside_a_take_that_lost_says_who_took_it():
+  """Only while it is on offer is this answer the one taking it: raced, the
+  `done` hears what the take does."""
+  luca, rowan = _pair()
+  task = _offer(luca)
+  assert _take(rowan, task, 185073.0) == ""
+  luca.data.time = 185135.0
+  assert luca._after_decision(ov.Decision(action="take_task", task=task.id, reason="mine",
+                                          done=task.id)) == "unclaimable"
+  assert _said(luca, "because Rowan took it at t=185073")
+  assert _said(luca, "this answer") == []
+
+
+def test_a_done_on_the_offer_hidden_from_it_tells_it_nothing_and_no_lie():
+  """#228: an offer naming a robot is hidden from that robot, and a `done`
+  is free text that could name its id. The project never asserts a
+  falsehood to the robot; it may decline to disclose, and says so."""
+  luca, _ = _pair()
+  mine = luca.tasks.offer("take_points", "Luca", params={"amount": 5}, ttl=100.0, t=0.0)
+  _done(luca, mine.id)
+  assert _said(luca, f"said done on {mine.id}: not graded, because I do not hold it, "
+                     "and the board says no more of it")
+  assert _said(luca, "take_points") == [] and _said(luca, "no such job") == []
 
 
 def test_what_the_pack_cannot_fund_is_said_as_that():
@@ -188,6 +262,16 @@ def test_a_job_done_to_a_robot_says_why_it_cannot_be_taken_here():
   assert luca._claim_task(rowans.id) is False
   assert _said(luca, f"could not take {rowans.id} (take_points): nothing here may act on Rowan")
   assert not luca.tasks.held_by(luca.root)
+
+
+def test_a_claim_the_board_refuses_after_its_check_is_said_too():
+  """The board's own last word: every way a claim can come back empty is
+  heard, so a gate added there later cannot be silent."""
+  luca, _ = _pair()
+  task = _offer(luca)
+  luca.tasks.claim = lambda *a, **kw: None
+  assert luca._claim_task(task.id) is False
+  assert _said(luca, f"could not take {task.id} (open_drawer): the board refused it")
 
 
 def test_a_mind_that_cannot_write_a_procedure_hears_that_too():

@@ -2180,11 +2180,13 @@ save a filmstrip PNG named after the script.
   `resolvedT` the tasks from before it ranked newest, outlasting the trim
   and putting their draws back at every restart; the site lists by the
   same count. Held jobs go by their claims (`held_by`), which a start-over
-  moves with the clock. ⚠ A TAKE THAT DOES NOT HAPPEN AND A `done` ON A JOB
-  NOT HELD SAY WHY IN HISTORY (#648; `_no_take`, `_not_mine`; TaskPattern.md):
-  two robots share one board and an answer thinks for 10-90 s, so 4 of 59
-  takes lost the race, and a loser's last word on the job was its own `chose
-  take_task`. Off by default (`--tasks`, `$PLUGGY_TASKS`).
+  moves with the clock. Off by default (`--tasks`, `$PLUGGY_TASKS`). ⚠ A TAKE
+  THAT DOES NOT HAPPEN AND A `done` ON A JOB NOT HELD SAY WHY IN HISTORY
+  (#648; `_no_take`, `_not_mine`; TaskPattern.md): two robots share one board
+  and an answer thinks for 10-90 s, so 4 of 59 takes lost the race, and a
+  loser's last word on the job was its own `chose take_task`; of the offer
+  hidden from a robot (#228) it says only that it does not hold it, never
+  "no such job", a falsehood.
 - **When work appears is `economy/cadence.py` + `cadence.json`, and it is
   DATA** (issue #23; TaskPattern.md §5): `tasks.py` says what a job IS,
   `rewards.json` what it PAYS, `cadence.json` when it TURNS UP,

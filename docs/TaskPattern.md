@@ -149,8 +149,10 @@ Rules the states carry, each decided explicitly:
   t=185073`), and `_done` says a `done` on a job this robot does not hold
   (`said done on t_0137 (open_chest): not graded, because nobody has taken
   it`), both off the shared board's facts (`_not_mine`): no such job, it
-  lapsed, nobody took it, who took it and when, how it ended. Said to the
-  log alone, a loser's last word on the job was its own `chose take_task`:
+  lapsed, nobody took it, who took it and when, how it ended. ⚠ A `done` is
+  free text and may name the offer hidden from this robot (#228): of that
+  it says only that it does not hold it, never "no such job", which would
+  assert a falsehood. Said to the log alone, a loser's last word on the job was its own `chose take_task`:
   it read that as holding the job and went on to work it.
 
 ---
