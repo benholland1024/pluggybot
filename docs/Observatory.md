@@ -10,6 +10,35 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The restaurant's table is offered (#560) — opens when this PR is deployed
+
+**What changed in the world.**
+- **`set_table` is one more kind in `home_humanoid`'s rotation**: a place laid
+  at the restaurant's dining table 0, set out where its draw lays it. It gives
+  14 minutes (`tasks.TABLE_MINUTES`, three times its reference's slowest pass
+  over the tour, 279 s), pays 79 (Ben's 90 for 16 minutes, pro rata) and
+  costs 9.82 Wh from the dearest station (`energy.json`). The robots read a
+  new row in their reward table: `prompt_sha` `b8453bf3…` → `c71dde29…`,
+  61,413 → 62,312 chars, 17 sections both (`overseer_probe.py --deployed
+  --prompt`). Nothing about the verbs, the body or the house moved.
+- **Our reference passed from the tour** (SimNotes, "The lay from the tour"):
+  24 of 32 draws, its bar 24, 12 on the tree before it on the same pod. It is
+  a reference, never shown to a mind.
+
+**Why.** #560's first served job: Ben's answers of 2026-11-07, that it is
+offered whatever the practice reading says once the reference passes from
+the tour, the live robots learning it being the point.
+
+**What the period is for.**
+- **Whether a robot takes the job, and what it writes**: claims of `set_table`
+  against the counter's three, and how a first procedure ends. The practice's
+  fresh arms on this job laid none within 3 tries (Evaluation.md), so a live
+  pass is not expected soon.
+- **What it costs them**: the walk to the mall and the 14 minutes a held job
+  gives, for a job that pays only when the place is laid.
+- ⚠ **Not to be pooled with the period before for anything the reward table
+  or the offers decide**: there is one more kind on the board.
+
 ### `measure` reads an end only where its camera saw past it, and says when something taller stands there (#636) — opens when this PR is deployed
 
 **What changed is what `measure` reads and what the robots are told**

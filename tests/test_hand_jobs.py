@@ -593,8 +593,8 @@ def test_an_offer_says_where_by_the_areas_terms_and_how_long_it_gives():
   maker = task_producer(board, HUMANOID_HOME, procedures=True)
   offered = list(maker.cadence.kinds)
   # ...each once its reference passed there (cadence.json's note): the cube's
-  # set it down off the mat, 0 of 8, and the table's laid 13 of 32 (#560)
-  assert set(offered) == set(HAND_JOBS) - {"place_cube", "set_table"}
+  # set it down off the mat, 0 of 8, and the table's passed 24 of 32 (#560)
+  assert set(offered) == set(HAND_JOBS) - {"place_cube"}
   here = world_targets(HUMANOID_HOME, procedures=True)
   for kind in offered:
     task = maker._offer(kind, here[KINDS[kind].target_kind][0], 0.0)

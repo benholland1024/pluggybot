@@ -40,7 +40,7 @@
     "             prop simply offers fewer jobs",
     "",
     "`take_points` (issue #228) is the real-stake task: `params.amount` is what one offer asks for, and it is in the default rotation because its target (`robot`, the other robot by name) exists only on the `autonomous` arm with a peer -- everywhere else the kind is skipped like a board-shaped job in a world with no boards. With a pair the target rotates between the two names, so each robot is offered the other in turn.",
-    "`home_humanoid` (issue #559) is the house with the humanoids in it. Every job the quadrupeds did was built on their dock, rack and tools, and each comes back as a task the humanoids learn with their hands (#560). Its first jobs (stage 3) are the hands' checks on the storeroom's counter, each offered once its hand-written reference (`challenge/solutions.py`) passed 6 of 8 flights over a tour of the house (`scripts/solve.py --from tour`): `open_drawer`, `open_door` and `open_chest`, each its own prop, so all three may stand at once. `place_cube` is not offered: its reference set the cube down 2-7 cm off the mat's middle, 0 of 8 (Challenges.md §11). The time each gives from its claim is its kind's (`tasks.HAND_MINUTES`); `params.minutes` here would override it. #560 adds the restaurant's first job, `set_table`, a place laid at the dining room's table 0, to join the rotation as one more kind (Ben's call, 2026-11-07) once its reference passes 24 of 32 draws over the tour: it is defined, graded and priced and NOT offered, its reference laying 13 of 32 (Challenges.md §12). It gives its own minutes (`tasks.TABLE_MINUTES`)."
+    "`home_humanoid` (issue #559) is the house with the humanoids in it. Every job the quadrupeds did was built on their dock, rack and tools, and each comes back as a task the humanoids learn with their hands (#560). Its first jobs (stage 3) are the hands' checks on the storeroom's counter, each offered once its hand-written reference (`challenge/solutions.py`) passed 6 of 8 flights over a tour of the house (`scripts/solve.py --from tour`): `open_drawer`, `open_door` and `open_chest`, each its own prop, so all three may stand at once. `place_cube` is not offered: its reference set the cube down 2-7 cm off the mat's middle, 0 of 8 (Challenges.md §11). The time each gives from its claim is its kind's (`tasks.HAND_MINUTES`); `params.minutes` here would override it. #560 adds the restaurant's first job, `set_table`, a place laid at the dining room's table 0, one more kind in the rotation (Ben's call, 2026-11-07) since its reference passed 24 of 32 draws over the tour (Challenges.md §12). It gives its own minutes (`tasks.TABLE_MINUTES`)."
   ],
   "default": {
     "firstAtS": 300.0,
@@ -69,7 +69,8 @@
       "kinds": {
         "open_drawer": {},
         "open_door": {},
-        "open_chest": {}
+        "open_chest": {},
+      "set_table": {}
       }
     }
   }

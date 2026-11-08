@@ -5305,8 +5305,8 @@ across its body, a fork by its thick handle, and a place card), its grader,
 its set-out (`counter.table_set_out`) and our procedure (`hands_check.TABLE`).
 **On the waist's body our procedure meets its bar** -- 32 of 32 places at
 set-outs 0-31, from one stance ("The table's reference on the waist",
-below) -- and the job is still not offered (Ben's call on #615: the
-restaurant's tables first). This section is the body before the waist,
+below); its job is offered ("The lay from the tour"). This section is the
+body before the waist,
 whose procedure (`hands_check.TABLE_STANCES`, a stance a piece) met no bar:
 0 of the check's 8 set-outs and 6 of 32 held out on today's body, the cup
 23, the plate 24 and the fork 6 of the 32 (after #560's stage (a), below),
@@ -6483,40 +6483,14 @@ top 0.10 m up read 0.107 at 1.5 m and 0.116 at 2.6 m.
 table 0's south chair is away (`home.world`), the place's dishware is
 compiled into the humanoids' house put away under the floor
 (`home.restaurant`, `dishware.park`), and `set_table` is built -- an offer
-would set the place out where its draw lays it, as the table check's
-set-out does, so the practice's place and the job's are one (Challenges.md
-§12) -- and NOT offered: its reference, a walk to the place and the table
-check's procedure from its one stance (`challenge/solutions.py`), laid 13
-of 32 places over the tour, where its bar is 24. Put away, the dishware
-costs the served pair nothing measurable: the same walks, alternated on one
-pod (an AMD EPYC 7B12, one core a process), ran at 0.913-0.916x real time
-with it and 0.902-0.905x on the tree before it. What flying took:
-
-**The lay holds only near its own start.** The check's procedure was tuned
-from the set-out's start exactly, and it reads its put-downs off the card
-in its stance frame, so a walk that lands near it is not enough. Flown at
-set-outs 0-7 from a start moved (the dev box; the probes are in
-`~/pluggybot-training/issue-560-table-served/tools/`):
-
-| the start | laid |
-|---|---|
-| exactly the set-out's | 8 of 8 |
-| 1.5 cm further from the table | 5 of 8 |
-| 3 cm nearer | 5 of 8 |
-| 4.5 cm nearer | 3 of 8 |
-| turned 1.5 deg left | 8 of 8 |
-| turned 2.5 deg left | 7 of 8 |
-| turned 3.5 deg left | 6 of 8 |
-| turned 1 deg right | 1 of 8 |
-| turned 2.5 deg right | 0 of 8 |
-
-Turned RIGHT, the fork's carry ran out of the posture its reach chose and
-went on to another (`posture_for(onward=)`): the waist swung to -45 to -48
-deg, where the carry from the exact start took it to -30, and the fork
-slipped in the jaws or the pull ended out of reach. Nearer than about 4 cm,
-the plate's arm caught the table's edge on its way home and toppled the
-robot; further, the cup's reach bowed out of the plate's tag's view and its
-grips closed on nothing.
+sets the place out where its draw lays it, as the table check's set-out
+does, so the practice's place and the job's are one (Challenges.md §12) --
+and offered since its reference, a walk to the place and the table check's
+procedure from its one stance (`challenge/solutions.py`), passed its bar
+over the tour ("The lay from the tour", next). Put away, the dishware costs
+the served pair nothing measurable: the same walks, alternated on one pod
+(an AMD EPYC 7B12, one core a process), ran at 0.913-0.916x real time with
+it and 0.902-0.905x on the tree before it. What flying the walk took:
 
 **One tag gives no facing.** The place is found by the card's tag (93) alone.
 A find stops at its tag's first sight, and from the house's station that was
@@ -6548,41 +6522,117 @@ still first):
   error ahead walked ten, and from the exact start a step `(k - 0.4866, m +
   0.14)` laid 5 of 8.
 
-So the walk's last 30 cm is straight ahead off two looks averaged, less the
-0.6 cm it overshoots; its turn is asked 3.3 deg wider than read (flown at
-3.3, 2 and 1.1 deg wide the reference read 12 of 32 draws each, the stance
-landing 3.9, 2.6 and 1.75 deg left of square by its reading of the card,
-and 3.6 at 3.3 on the tree before #649's turn, so it is no compensation
-for a short turn); and what it leaves across the card's line, the lay's
-own first step -- a step aside anyway -- takes up (`TABLE_LAY_STEP`, the
-served lay's one change from the check's).
+So the walk's last 30 cm is straight ahead off two looks averaged; its turn
+is asked 3.3 deg wider than read (flown at 3.3, 2 and 1.1 deg wide the
+reference read 12 of 32 draws each, the stance landing 3.9, 2.6 and 1.75 deg
+left of square by its reading of the card, and 3.6 at 3.3 on the tree before
+#649's turn, so it is no compensation for a short turn). What it leaves
+across the card's line and how it ends up turned, "The lay from the tour"
+has.
 
-**The bar, written before it flew: 24 of 32 draws over the tour, no fall**
-(`solve.py --feature table --from tour --n 32`, one pod, each draw its own
-noise): **13 of 32.** Every walk arrived. Of the 19 misses:
+## The lay from the tour (issue #560)
 
-| how | draws |
-|---|---|
-| the cup's tag out of the head camera's view at the lay's first looks (it stands about 36 deg right, the view's edge 34; a stance turned or stood a little left loses it) | 7 |
-| the fork's carry dropped it, or never moved it (the posture the reach chose ran out, as turned right) | 6 |
-| the plate's grip closed on nothing | 3 |
-| the cup laid 3 cm from its spot | 2 |
-| a fall | 1 |
+**What is true now.** Our table reference lays the place from anywhere in
+the house: **24 of 32 draws over the tour** (`solve.py --feature table --from
+tour --n 32`, one pod, an AMD EPYC 7282, osmesa, each draw its own noise; the
+bar, written before it first flew), where the tree before it read 12 on the
+same pod, and the table check at set-outs 0-31 reads 24 where it read 27 (its
+bar 24). It is at the bar's edge: two sets of draws nothing was tuned on,
+400-431 and 500-531, read 21 and 25, 46 of 64. A try in which the robot fell
+is no pass: of the 32, 4 fell, two on the walk (22 and 55 s in, draws that
+fell on the tree before as well) and two on the left arm's way home. Its
+passes called 194-279 s after the claim, so the job gives 14 minutes, three
+times the slowest rounded up, and pays 79 (Ben's 90 for 16 minutes, pro rata);
+from the dearest station, the research center's, it cost 9.820 Wh over 199.2 s
+(`energy.json`; from the house's 7.618, from the mall's 4.762).
 
-So the lay's start window is narrow on BOTH sides -- turned right, its
-fork's carry fails; turned or stood left, its cup leaves its first look --
-and a walk on this body lands a degree or two and a centimetre or two
-about where it aims, and cannot correct a small turn after. Its passes
-called 187-239 s after the claim (`TABLE_MINUTES`, 12, is three times the
-slowest, rounded up, and its row pays 68, Ben's 90 for 16 minutes pro rata);
-from the dearest station, the research center's, the job cost 8.802 Wh
-over 184 s (`energy.json`; from the house's 7.645, from the mall's 4.885).
-What would pass it, untried: a lay that finds its pieces from
-where it stands (looking for the cup where it is not in view, its fork's
-carry planned with its grip). (#649 turned `step` on the stance's heading
-so a walk can square itself to a degree or two: on one pod, 32 draws, the
-same reference passed 12 of 32 against 9 on the tree before it, and its
-misses are the lay's, as above.)
+| the 32 draws of the bar, how each ended | the tree before | now |
+|---|---|---|
+| **laid** | 12 | **24** |
+| the cup's tag out of view at the lay's first look | 5 | 0 |
+| an arm that did not get home | 3 | 0 |
+| a grip closed on nothing | 2 | 0 |
+| a step too short to walk | 1 | 0 |
+| the cup 3-4 cm off its place, or 16 | 4 | 3 |
+| the fork off its place, dropped or knocked over | 2 | 1 |
+| fell at the table | 1 | 2 |
+| fell on the walk | 2 | 2 |
+
+What flying took, each measured from the flights' own records (the rows and
+probes are in `~/pluggybot-training/issue-560-table-lay/`):
+
+**Where the lay can stand is a patch, and its old stance stood at the patch's
+corner.** Flown from a stance set directly -- its first looks replaced by
+what they would have read, so that only what comes after flies -- at set-outs
+40-47, not turned:
+
+| nearer the table than the check's start | 14 cm left of the card's line | 16 cm | 18 cm |
+|---|---|---|---|
+| 2 cm further back | 5 of 8 | 3 | 1 |
+| at it | 2 | 8 | 2 |
+| 1 cm nearer | -- | 8 | 8 |
+| 2 cm nearer | 3 | 8 | 8 |
+| 3 cm nearer | -- | 5 | 6 |
+
+Further left or further back, the cup's reach bows the head past where the
+plate's tag can be read; less far left, the fork's reach, past 19 cm from
+the stance, takes a square crouch in place of a waist turned 30 deg and its
+carry drops it. So the walk ends about 1 to 2 cm nearer than the check's
+start (`NEARER`, less what the lay's step gives back) and the lay stands 15.5
+cm left of the card's line (`TABLE_LAY_STEP`; the check, starting on the
+line, asks 15). Turned 2 deg right to 4 left barely mattered there (7 or 8
+of 8 at each degree, 2 cm nearer and 17 cm left), where at the old stance
+turned 1 deg right it laid 3 of 8.
+
+**A step aside walks in whole strides.** Asked from a robot that has just
+walked, 9.5 to 16 cm went 13 to 16 cm, and 18 to 20 usually 21 to 23: what
+it lands on barely depends on what was asked, so a stance is set by where
+the step starts from. The walk's two steps across left the stance a mean 2 cm
+left of the card's line, standard deviation 4, up to 14: so at its last two
+looks it reads the card's across and steps out anything over 3 cm before it
+goes in (from 10 cm left of the line the lay's first look could not see the
+cup). Where the first look loses the cup all the same, the lay turns 10 deg
+to its right, reads the cup and the plate there, and carries the pair
+through its turn back.
+
+**What the lay reads before its step, it carries through the step's own
+turn.** The cup is out of view from the stance, so the cup's place from the
+plate's tag and its spot from the card are read before the step; a step aside
+turned the stance 0.5 to 2.5 deg, 0.8 cm at the cup a degree, and `step.turn`
+says that turn to 0.2 deg against the truth (0.07 to 0.2 over 32 flights).
+
+**The walk squares its heading by its own reckoning.** Its turn landed up to
+3 deg over, and its steps aside added up to 2 more, so about one flight in
+fifteen stood 5 to 8 deg left, where its pieces went wide. It counts each
+step's turn against the one the oblique look asked (`a`), and past 1.5 deg
+off facing (`FACING`, 1.5 deg left of square) turns the difference.
+
+**The cup's reach is aimed inside the band its posture holds.** A reach takes
+the least bent posture that reaches, and only one of them, height -0.16 and
+pitch 0.3, carries through the cup's way in: its pre-grasp between `0.7 y -
+0.72 x` = -0.597 and -0.577 (m, the stance frame). Nearer, the planner stands
+it up and the way down then bows it; further, it bows 0.55 rad and the plate's
+tag leaves the view. Aimed inside that band, a pull carrying the hand on over
+the grip, a grip closed on nothing fell from 10 flights in 64 to 1 in 64.
+
+**The left arm lifts 9 cm before it goes home.** The side way home sweeps
+the hand past the table's edge, and from 2 to 4 cm nearer than the check's
+start a jaw struck the top and the robot fell: over the same eight stances,
+26 of 64 flights laid the place lifted 6 cm and 59 of 64 lifted 9. At 12 the
+lift itself ran out of reach (18 of 53 lifts) or moved the feet (6), and 3
+fell.
+
+**The cup is set down 7 mm nearer the robot than the place's numbers say.**
+Its own carry left it a mean 1.2 cm too far toward the card over the
+development flights, which the 2.5 cm allowed cannot spare; centred, 2 of 59
+cups measured on two development sets were out by more than that, where 9 of
+60 were.
+
+⚠ What the flights still lose: over the bar's 8 misses, the cup off its place
+3 (4, 4 and 16 cm), a fall on the left arm's way home 2 and on the walk 2, the
+fork off its place 1. Where the plate's tag is not seen after the cup's lift,
+the set-down falls back on the grip's own arithmetic, and on the development
+flights 6 of the 10 that did missed. The walk's two falls are the walker's.
 
 ## The gripper's drive on its line (issue #628)
 

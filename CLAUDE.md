@@ -790,8 +790,8 @@ save a filmstrip PNG named after the script.
   the reach planned where the robot stands, on #627's pod: 8, 8 and 8 and
   30, 29 and 32 of 32, where the tree before it flew 8, 7 and 8 and 30, 28
   and 32).
-- **A table set is #560's first task, built into the served world and NOT
-  offered** (`activity/dishware.py`, `challenge/table.py`, `home/restaurant.py`,
+- **A table set is #560's first task, built into the served world and
+  offered in the rotation** (`activity/dishware.py`, `challenge/table.py`, `home/restaurant.py`,
   `counter.table_set_out`, `hands_check.TABLE`, `practice.py --job table`;
   `tests/test_table_job.py`; Challenges.md §12; SimNotes, "Setting a
   table" and "The table set served"): a plate, a fork and a cup laid at a
@@ -802,9 +802,9 @@ save a filmstrip PNG named after the script.
   thighs at about 200 N). ⚠ A DROP IS A FREE PIECE'S FALL (`table.Watch`,
   and the cube's `place.Watch`, Ben's call): read at every step, the cube's
   line failed cubes held fast in a swinging carry. ⚠ Our procedure lays the
-  place from ONE STANCE 0.14 m left on the waist's body (SimNotes, "The
-  table's reference on the waist"): 29 of 32 at set-outs 0-31 (the bar 24)
-  since #627 aims each reach at its grip, one pod. ⚠ ITS LEFT GRIP CARRIES
+  place from ONE STANCE left of the start on the waist's body (SimNotes, "The
+  table's reference on the waist" and "The lay from the tour"): 24 of 32 at
+  set-outs 0-31 (the bar 24), one pod, the procedure the served lay is. ⚠ ITS LEFT GRIP CARRIES
   ONLY TAKEN HALF A TURN ROUND (#560 (c2)): the reference asks it the other
   way round, tilted 60 deg; each reach is aimed at its grip (#627), a carry
   by `pull`. Tags 90-93; 76-89 are left for the store's. ⚠ SERVED, ITS
@@ -814,17 +814,22 @@ save a filmstrip PNG named after the script.
   second) -- weight held, in `cull.PARKED_GROUP`; an offer sets it out where
   set-out k lays it (`_set_out_job`) and a sweep puts it away once no job
   holds the table, never from under a hand (`_put_away_step`); the pair's
-  speed with it 0.915x, without 0.903x (one pod). ⚠ `set_table` IS DEFINED,
-  GRADED AND PRICED, AND OFF THE ROTATION: its reference (`solutions.TABLE`:
-  an oblique look at the card, its one turn asked `WIDER`, the last step
-  straight ahead, the lay's first step taking up what is left across) laid
-  13 of 32 over the tour, its bar 24 (#560's call 10): the lay holds only
-  within a degree or two and a centimetre or two of its start (turned right,
-  the fork's carry runs out of posture; turned or stood left, the cup leaves
-  its first look), and ⚠ a step can turn a few degrees only since #649, and
-  still takes no step under a stride (a forward part in the walker's dead
-  band is walked as a stride or not at all). 12 minutes,
-  68 points (90 for 16 minutes pro rata, Ben's call) when it is offered.
+  speed with it 0.915x, without 0.903x (one pod). ⚠ `set_table` IS ONE MORE KIND IN THE
+  ROTATION (`cadence.json`'s `home_humanoid`) since its reference
+  (`solutions.TABLE`) laid 24 of 32 over the tour, its bar written first
+  (a fall fails its try; 12 on the tree before it; SimNotes, "The lay from
+  the tour"): ⚠ the lay holds in a patch of stances a couple of cm wide
+  (nearer than 1 cm of the check's start the cup's reach stands up, further
+  than 2 cm it bows the plate's tag out of view; under 14 cm left of the
+  card's line the fork's posture flips), and a step walks in whole
+  strides, so the walk steps out what it leaves across the card's line off
+  two looks, squares itself by its own reckoning past 1.5 deg, and the lay
+  carries what it read through its step's own turn; ⚠ the cup's reach is
+  aimed inside the band its shallow posture holds, a pull carrying it the
+  last of the way; ⚠ the left arm lifts 9 cm before its way home (at 6 a
+  hand nearer the table struck its edge going home). On draws nothing was
+  tuned on, 46 of 64. 14 minutes, 79 points (90 for 16 minutes pro rata,
+  Ben's call), 9.82 Wh from the dearest station (`energy.json`).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
