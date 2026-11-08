@@ -139,8 +139,8 @@ CHEST = _hands_job("lid", "chest")
 #:  - the step across is halved (a step goes 0.5 m at most), and what it
 #:    leaves across the card's line, 14 cm at worst, is stepped out off the
 #:    two looks the last step needs, past 3 cm: stood 10 cm left of the line
-#:    the lay's first look loses the cup, and the lay's step, a walk of whole
-#:    strides, lands the same 14 cm from anywhere it can be asked;
+#:    the lay's first look loses the cup, and the lay's step aside, whole
+#:    strides, walks 13-16 cm for anything asked of 9.5-16;
 #:  - the last 30 cm is STRAIGHT ahead off those two looks (with a step to
 #:    its right in it, it landed 2-4 cm long), `NEARER` nearer the table
 #:    than the check's start;
@@ -193,9 +193,9 @@ WIDER = 0.058
 #: of view of the plate's tag, nearer the arm's way home strikes the table).
 NEARER = 0.025
 #: Where the walk's last turn wants it to face, rad left of square, by its own
-#: reckoning of the turns its steps made: turned too far by more than 3 deg
-#: from there (a 41 deg turn lands up to 3 deg over, and a step aside adds up
-#: to 2 more) the lay's put-downs go wide, so one more turn puts it back.
+#: reckoning of the turns its steps made: more than 1.5 deg off it (a 41 deg
+#: turn lands up to 3 deg over, and a step aside adds up to 2 more; 5 deg left,
+#: the lay's put-downs go wide) one more turn puts it back.
 FACING = 0.026
 
 #: THE LAY, SERVED: the table check's procedure (`hands_check.TABLE`) with its
