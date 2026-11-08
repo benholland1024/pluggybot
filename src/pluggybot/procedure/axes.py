@@ -331,8 +331,7 @@ SENSORS["pull.force"] = Sensor(
   "the hardest the last `pull` pushed along its way, N, as your hand felt it")
 SENSORS["pull.held"] = Sensor(
   "pull.held", lambda life: reported("pull", "held", life),
-  "1 if the last `pull` ended held fast -- pushing with its whole force and not moving -- "
-  "0 if it ended otherwise")
+  "1 if the last `pull` ended held fast, as your hand felt it, 0 if something else stopped it")
 #: ...and where the last step took the stance (#525), in the stance frame
 #: it stood in before: what a place read before it is turned into.
 STEP_SENSORS = ("step.dx", "step.dy", "step.turn")

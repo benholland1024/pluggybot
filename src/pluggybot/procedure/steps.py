@@ -728,6 +728,18 @@ def _stopped_reading(life, verb: str, stopped: bool) -> None:
   _reports(life).setdefault("stopped", {})[verb] = 1.0 if stopped else 0.0
 
 
+def forget_readings(life, verb: str) -> None:
+  """A call refused before it ran (`lang`, a computed argument): what its
+  verb last reported would read as this call's, so it goes, as a failed
+  `spot`'s or `pull`'s does -- a retry computes just such an argument, as
+  a distance left of what `pull.moved` read -- and its stop condition's
+  reading is a move's that ended otherwise (#650's review)."""
+  reports = _reports(life)
+  reports.pop(verb, None)
+  if verb in reports.get("stopped", {}):
+    _stopped_reading(life, verb, False)
+
+
 def _thinned(felt: list, n: int = FELT_MAX) -> list:
   """At most `n` of `felt`, evenly, its first and last kept."""
   if len(felt) <= n:
@@ -887,8 +899,9 @@ def _pull(life, args: dict) -> Routine:
   no further -- or its stop condition stops it (#554) -- then it holds
   there. How far it went, the hardest it pushed, the way it was going at its
   end and whether it ended held fast ride `pull.*`. ok unless the hand was
-  not out, the way is all 0 or it fell (#650: its text says so, a served
-  robot being shown no step's `why`, only what it reads)."""
+  not out, the way is all 0 or it fell -- or `lang` refused an argument
+  first -- and its text says so (#650: a served robot is shown no step's
+  `why`, only what it reads)."""
   from pluggybot.procedure import axes
   hand = args["hand"]
   _stopped_reading(life, "pull", False)
@@ -1072,10 +1085,9 @@ HANDS_VERBS: dict[str, Verb] = {
                "bowing lower until you see it -- and stand up again; ok when you see it. Where "
                "its face is, which way the face looks and which way its edges run ride "
                "`spot.*`. A small block carries its tag on every face: the one read is the one "
-               "you see most square-on, `spot.nx`..`nz` say which, and a face's middle is half "
-               "the block's width from the block's own, so from elsewhere the same tag can "
-               f"read another face and another place. A tag is {BY_NUMBER}: "
-               f"`spot({TAG_EXAMPLE})` looks for tag {TAG_EXAMPLE}"),
+               "you see most square-on, `spot.nx`..`nz` say which, so from elsewhere the same "
+               "tag can read another face, its middle up to the block's width from this one's. "
+               f"A tag is {BY_NUMBER}: `spot({TAG_EXAMPLE})` looks for tag {TAG_EXAMPLE}"),
   "watch": Verb("watch", {"tag": Arg("float", lo=0.0, hi=586.0)}, _watch,
                 "keep your head camera reading this tag while your procedure goes on -- your "
                 f"hands moving, your feet stepping, waiting -- {WATCH_HZ:g} times a second, each "
@@ -1124,11 +1136,11 @@ HANDS_VERBS: dict[str, Verb] = {
                "(pushing with its whole force and not moving), its grip lets go, or it can "
                "reach no further; then it holds there. Standing, your body holds a pull of "
                f"{PULL_MOST_N:.0f} N at a hand, and pushing away from you around two thirds of "
-               "that. How far it went, the hardest it "
-               "pushed and the way it was going at its end ride `pull.*`; ok unless your hand "
-               "was not out, (dx, dy, dz) are all 0 or you fell: whatever else stopped it, held "
-               "fast against something too, it is still ok, `pull.moved` says how far it went "
-               "and `pull.held` is 1 if it ended held fast"),
+               "that. How far it went, the hardest it pushed, whether it ended held fast and "
+               "the way it was going at its end ride `pull.*`, unless it reads false; ok unless "
+               "an argument was refused, your hand was not out, (dx, dy, dz) are all 0 or you "
+               "fell: whatever else stopped it, held fast against something too, it is still "
+               "ok, and `pull.moved` says how far it went"),
   "step": Verb("step", {"ahead": Arg("float", lo=-0.5, hi=0.5),
                         "left": Arg("float", lo=-0.5, hi=0.5, default=0.0),
                         "turn": Arg("float", lo=-3.2, hi=3.2, default=0.0)}, _step,

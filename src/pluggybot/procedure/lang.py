@@ -1302,6 +1302,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     life._say(f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}): "
               f"{st.Step(verb, values).describe()}")
     if bad:
+      st.forget_readings(life, verb)
       verdict = {"ok": False, "reason": "; ".join(bad)}
     else:
       verdict = yield from st.run_verb(life, spec, values,
