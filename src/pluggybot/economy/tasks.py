@@ -75,8 +75,10 @@ STATE_VERSION = 1
 #: is -- and was capped at that message's 280 until issue #264 found the
 #: house's own offers cut short (the bench's lost "write the procedure",
 #: the tower's "say you are done" once it said where the blocks stand).
-#: Wide enough for a work order that names two places; still a cap.
-MAX_DESCRIPTION = 420
+#: A visitor's 500 since #659: at 420 the door's, the chest's and the table's
+#: sentences lost their ends once each said when its things were put back.
+#: ⚠ THE CUT IS SILENT, so a template past it is a test's to catch (`test_tasks.py`).
+MAX_DESCRIPTION = 500
 #: Tasks the board holds at all. Resolved ones age out oldest-first; an OPEN
 #: task is never dropped to make room, because dropping a job the robot might
 #: still do is a different event from that job lapsing, and only one of the
@@ -169,7 +171,10 @@ class TaskKind:
   #: hidden (`activity/`), and each offer draws them anew off the board's
   #: own sequence number (`Task.secret["draw"]`), set into the world as the
   #: offer lands, the prop set back out with them (`HubLifecycle.
-  #: _set_out_job`) -- a skill over a kind of drawer, never one drawer.
+  #: _set_out_job`) -- a skill over a kind of drawer, never one drawer. ⚠ ITS
+  #: SENTENCE SAYS WHEN, `{offered}` (#659; a test reads it as offered): told
+  #: nothing, a robot found its drawer shut and timed a spring. Dated, not "each
+  #: time": against the robot's own `t=`s, the date is the part it weighed.
   draws: bool = False
   #: THE TIME THE JOB GIVES FROM ITS CLAIM, minutes, or None for none: what
   #: its sentence says (`{minutes}`) and the limit its grade holds it to
@@ -183,14 +188,17 @@ class TaskKind:
       raise ValueError(f"{self.name}: discharge {self.discharge!r} is none of "
                        f"{', '.join(DISCHARGES)}")
 
-  def describe(self, target: str, params: dict) -> str:
+  def describe(self, target: str, params: dict, offered_t: float = 0.0) -> str:
+    # `{offered}`: the sim second of the offer, for a sentence saying when the
+    # job's things were put back (#659)
+    fields = {"offered": f"{float(offered_t):.0f}", **params}
     try:
-      return self.template.format(target=target, **params)
+      return self.template.format(target=target, **fields)
     except KeyError:
       # A kind whose template names a parameter this task does not carry.
       # Degraded rather than raised on: a description is what a person reads,
       # and a task with an awkward sentence is better than no task.
-      return self.template.format_map(_Blank(target=target, **params))
+      return self.template.format_map(_Blank(target=target, **fields))
 
 
 class _Blank(dict):
@@ -240,7 +248,8 @@ KINDS: dict[str, TaskKind] = {
   "open_drawer": TaskKind(
     "open_drawer", task="open_drawer", target_kind="drawer",
     template="Pull the drawer out of its cabinet, at least 15 cm, and let go of it, "
-             "within {minutes} minutes of taking this job and without falling. It is "
+             "within {minutes} minutes of taking this job and without falling. The "
+             "drawer was put back shut at t={offered}, when this job was offered. It is "
              "graded when you say you are done and again 5 s later: out that far both "
              "times, nothing of yours touching it in between. No errand does this: "
              "write the procedure, run it, and say you are done.",
@@ -249,7 +258,8 @@ KINDS: dict[str, TaskKind] = {
     "open_door", task="open_door", target_kind="door",
     template="Open the cupboard's door, at least 50 degrees, and let go of it, within "
              "{minutes} minutes of taking this job and without falling; its latch holds "
-             "it shut until its lever is pressed down. It is graded when you say you "
+             "it shut until its lever is pressed down. The door was put back shut at "
+             "t={offered}, when this job was offered. It is graded when you say you "
              "are done and again 5 s later: open that far both times, nothing of yours "
              "touching it in between. No errand does this: write the procedure, run "
              "it, and say you are done.",
@@ -258,7 +268,8 @@ KINDS: dict[str, TaskKind] = {
     "place_cube", task="place_cube", target_kind="cube",
     template="Put the cube on its mat -- resting on it, flat, its middle within 2.5 cm "
              "of the mat's -- set down, never dropped, and let go of it, within "
-             "{minutes} minutes of taking this job and without falling. It is graded "
+             "{minutes} minutes of taking this job and without falling. The cube was put "
+             "back beside its mat at t={offered}, when this job was offered. It is graded "
              "5 s after you say you are done, nothing of yours touching it. No errand "
              "does this: write the procedure, run it, and say you are done.",
     estimate_wh=9.86, discharge="procedure", draws=True, minutes=HAND_MINUTES),
@@ -266,7 +277,8 @@ KINDS: dict[str, TaskKind] = {
     "open_chest", task="open_chest", target_kind="chest",
     template="Open the chest's lid past 57 degrees, set it back down shut and let go "
              "of it, within {minutes} minutes of taking this job and without falling; "
-             "while it is open it must never come down faster than 1 rad/s. It is "
+             "while it is open it must never come down faster than 1 rad/s. The lid was "
+             "put back shut at t={offered}, when this job was offered. It is "
              "graded when you say you are done and again 5 s later: shut, nothing of "
              "yours touching it. No errand does this: write the procedure, run it, "
              "and say you are done.",
@@ -285,7 +297,8 @@ KINDS: dict[str, TaskKind] = {
              "toward you, the plate's middle 19 cm out; the fork 19 cm out, 16 cm left, along the "
              "line, head to the card; the cup 7 cm out, 24 cm right. Each within 2.5 cm, set down "
              "and let go of, within {minutes} minutes of taking this job, without falling; graded "
-             "when you say you are done and 5 s later. No errand does this: write the procedure.",
+             "when you say you are done and 5 s later. The plate, the fork and the cup were set out "
+             "at t={offered}, when this job was offered. No errand does this: write the procedure.",
     estimate_wh=9.83, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
 }
 
@@ -388,7 +401,7 @@ class Task:
     # ...the time the job gives its kind's, where the offer gives none
     params = ({} if spec.minutes is None else {"minutes": spec.minutes}) | {
       str(k): v for k, v in (params or {}).items()}
-    text = clean(description, MAX_DESCRIPTION) or spec.describe(target, params)
+    text = clean(description, MAX_DESCRIPTION) or spec.describe(target, params, offered_t=t)
     return cls(id=task_id, kind=kind, target=target,
                description=clean(text, MAX_DESCRIPTION), task=spec.task,
                params=params, deadline=deadline,

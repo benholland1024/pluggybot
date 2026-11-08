@@ -592,9 +592,19 @@ def test_a_description_from_a_stranger_is_cleaned_and_capped():
   on exactly the terms a visitor's message is -- and cleaned by the same
   function, so the two can never disagree."""
   task = Task.create("open_drawer", "drawer", "t_1",
-                     description="pull\nthe\rdrawer\x00 " + "x" * 400)
+                     description="pull\nthe\rdrawer\x00 " + "x" * 1000)
   assert "\n" not in task.description and "\x00" not in task.description
-  assert len(task.description) <= MAX_DESCRIPTION
+  assert len(task.description) == MAX_DESCRIPTION
+
+
+def test_no_jobs_sentence_is_cut_at_its_offer():
+  """`Task.create` cuts a description at `MAX_DESCRIPTION` without a word
+  (`clean`): #264 lost the house's offers' "say you are done" that way, and
+  #659's clause would have cost the door, the chest and the table theirs.
+  Read at the widest a world's cadence and its clock could make its numbers."""
+  for name, kind in KINDS.items():
+    text = kind.describe("Rowan", {"minutes": 9999, "amount": 9999}, offered_t=9_999_999.0)
+    assert len(text) <= MAX_DESCRIPTION, name
 
 
 # ---- the events ---------------------------------------------------------------

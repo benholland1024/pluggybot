@@ -20,7 +20,7 @@ from pluggybot.body import STUB_WORLD, StubBody
 from pluggybot.challenge import door, drawer, lid, place
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.scoring import default_table
-from pluggybot.economy.tasks import HAND_JOBS, HAND_MINUTES, KINDS, TaskBoard
+from pluggybot.economy.tasks import HAND_JOBS, HAND_MINUTES, KINDS, Task, TaskBoard
 from pluggybot.home import storeroom
 from pluggybot.lifecycle import (HUMANOID_HOME, HubLifecycle, task_producer, world_config,
                                  world_targets)
@@ -616,6 +616,37 @@ def test_each_jobs_sentence_says_its_graders_own_numbers():
   for kind, words in says.items():
     for w in words:
       assert w in KINDS[kind].template, (kind, w)
+
+
+def test_a_job_whose_offer_sets_its_things_out_says_when_as_offered():
+  """Each offer of a `draws` kind puts its things back (#659). Told nothing,
+  Rowan timed a spring that is not there and Luca said done on a drawer it
+  believed still out. Read as the robot reads it, through `Task.create`'s
+  cut, on the offer's own clock: a clause the template has and the offer has
+  lost says nothing, and a date that is not this offer's says something false."""
+  drawing = [name for name, kind in KINDS.items() if kind.draws]
+  assert set(HAND_JOBS) <= set(drawing)
+  for name in drawing:
+    for t in (205338.0, 7.0):
+      offered = Task.create(name, KINDS[name].target_kind, "t_1", params={"minutes": 999}, t=t)
+      assert f"at t={t:.0f}, when this job was offered." in offered.description, name
+
+
+def test_what_a_jobs_sentence_says_of_its_prop_is_what_its_offer_does(tmp_path):
+  """The clause is only as true as the world (#659; the table's dishware,
+  `test_table_job.py`): each prop of the counter's, left off its rest by an
+  earlier job, is back at it once its job is offered."""
+  life = _life(tmp_path)
+  said = {"open_drawer": ("The drawer was put back shut", "drawer_slide"),
+          "open_door": ("The door was put back shut", "door_hinge"),
+          "open_chest": ("The lid was put back shut", "chest_hinge"),
+          "place_cube": ("The cube was put back beside its mat", "cube_free")}
+  for kind, (words, joint) in said.items():
+    q = _joint_q(life, joint)
+    life.data.qpos[q] = life.model.qpos0[q] + 0.1
+    task = _offer(life, kind)
+    assert words in task.description, kind
+    assert life.data.qpos[q] == life.model.qpos0[q], kind
 
 
 def test_the_chests_grade_reads_the_catch_its_offer_drew(tmp_path):

@@ -774,7 +774,10 @@ save a filmstrip PNG named after the script.
   IS SHOWN IT, and the time it has left (`heldTasks`, `leftS`): without it
   the robots spent their recalls finding out when they took it. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
-  prop out, its activity renewed in place (`renew`), put back after a
+  prop out, ⚠ ITS SENTENCE SAYING WHEN (`{offered}`, #659; a test reads it as
+  offered, past `MAX_DESCRIPTION`'s silent cut; TaskPattern.md §2: told
+  nothing, a robot timed a spring in a drawer found shut), its activity
+  renewed in place (`renew`), put back after a
   restart (`restore_jobs`, in `begin`, before the activities' kept
   state; the counter and the restaurant's table are `home.jobs`' two areas,
   one interface), and an offer made between the world's last save and a crash has

@@ -128,6 +128,7 @@ def test_an_offer_sets_the_place_out_and_a_settled_job_puts_it_away(tmp_path):
   life = _life(tmp_path)
   assert not _out(life), "compiled put away"
   task = _offer(life)
+  assert "The plate, the fork and the cup were set out at t=" in task.description, "says when (#659)"
   k = task.secret["draw"]
   so, load = ct.table_set_out(k), dw.draw(k)
   for p, (x, y, _) in so.pieces.items():
@@ -427,4 +428,4 @@ def test_the_sentence_says_the_graders_own_numbers_within_the_cap():
     if b:
       assert f"{100 * abs(b):g} cm {'left' if b > 0 else 'right'}" in words, p
   assert f"{100 * table.PLACE_M:g} cm" in words and f"{table.HOLD_S:g} s later" in words
-  assert len(words.format(minutes=999)) <= MAX_DESCRIPTION
+  assert len(words.format(minutes=999, offered=9_999_999)) <= MAX_DESCRIPTION

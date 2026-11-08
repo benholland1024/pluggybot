@@ -10,6 +10,53 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A job's sentence says when its things were put back (#659) — opens when this PR is deployed
+
+**What changed is what the robots are TOLD** (TaskPattern.md §2):
+- **Every job that sets its things out says so, with the time**:
+  `The drawer was put back shut at t=205338, when this job was offered.`
+  (the door's and the lid's the same, the cube's "beside its mat", the
+  table's "The plate, the fork and the cup were set out"), in the sentence
+  of every offer and every held job, and on the site's job list, which draws
+  the same text.
+- **`tasks.MAX_DESCRIPTION` is 500** (420, a visitor's message's 500 now):
+  at 420 the clause cost the door, the chest and the table the ends of their
+  sentences, without a word.
+- The prompt did not move (`prompt_sha` `c71dde29…`, 62,312 chars, before and
+  after: `overseer_probe.py --deployed --prompt`), nor the state's keys, the
+  schema, the menu, the reward table, the arm, the body or the house.
+
+**Why.** #659, from the 11-08 triage on `fe07629`. Every hand job's offer
+puts its prop back at rest (66 since the release) and nothing the robots read
+said so. Rowan left a drawer 19 cm out, found it shut, and spent three
+procedures, four library lookups and a ticket on timing a spring it does not
+have (tk_0057). Luca said done on t_0177's drawer taking it for the last
+job's 23 cm: it had come out 8.
+
+**What the period is for.**
+- **Does a robot still write of a spring**, or of a prop going back by itself?
+- **Does a robot say done on a prop as an earlier job left it?** Read a `done`
+  against the job's grade and its thinking.
+- ⚠ **What to expect, offline and on two robots' real turns of 11-08**
+  (their History, pins, notes, library and board, through the deployed mind,
+  `zai-org/GLM-5.3-Flash:baseten`, the prompt as this branch builds it):
+  - **Where the question is open it lands.** Rowan at t=205876, asking itself
+    whether the drawer still stood out from t_0167 or "was reset shut between
+    t_0167 and this job": told nothing, 0 of 12 answers said it had been put
+    back and 8 of 12 reasoned it might still be out; with the dated sentence
+    22 of 36 said so and 3 of 36. The wordings differed in how often: the
+    sentence with no date (the issue's) 16 of 36 and 12 of 36, moved first 18
+    and 6, moved last 9 of 24 and 11 of 24.
+  - **A belief already written down does not move.** Luca at t=208376, its
+    pin saying the drawer stood 23 cm out, said done in 12 of 12 told nothing
+    and 11 of 12 with the dated sentence, none of the six wordings much
+    different; and at t=208230, as it weighed why its pulls moved 2 mm, no
+    wording did better than none (1 of 12 told nothing, 1 of 12 at best).
+  - Two robots' turns, 36 answers an arm at most. A live reading is what
+    counts, and since the note outlives the sentence, what to look for is a
+    robot NOT forming the belief.
+- Nothing pooled away: only the sentences of five kinds moved.
+
 ### The restaurant's table is offered (#560) — opens when this PR is deployed
 
 **What changed in the world.**
