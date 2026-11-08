@@ -6453,29 +6453,70 @@ Measured with `scripts/measure_spike.py` and a sweep of the same code
 at the picture's corner reads 0.838 and 0.834 (the truth 0.836 and 0.830,
 its walks 29-34 % cut); the cabinet end reads 0.561 and 0.572 and says so.
 Over the five checks' set-outs 0 and 3 from eight viewpoints and 42 windows
-(9,060 ends), a ray straight down 2 cm past each end read against the world:
-of 4,360 reads, 4,213 stand where the top truly stops; 101 stand at a taller
-thing and say so, and 17 beside one and do not (a chair 5 cm behind a table's
-far edge: the camera sees down the gap first); 29 stand where the top truly
-goes on: 18 of them one dining table's right edge, the ray-cast hole below,
-and 11 edges seen from a stance turned 25 deg, a diagonal edge whose reading
-lies between its ends. 428 ends went unread at the picture's edge, 4,258 at
-the window and 14 past where they read.
-
-⚠ **The dining tables have holes in the depth camera and the LIDAR** (#657,
-not fixed here; the legs that cause it, #643, are not released yet). Every
-dining table's body has a turned inertial frame (its top on its legs), and
-`mj_multiRay` culls a body by a sphere misplaced for such a frame (the #605
-bug): of the rays that should land on a table, 6 % of the D435's pattern and
-4.5 % of the LIDAR's pass straight through its top -- `mj_ray` on the same
-rays hits it. In the sweep above that read the table's right end up to 7 cm
-short with the floor plainly seen past it. `measure` cannot tell: to the
-picture, the table has ended there.
+(9,076 ends), a ray straight down 2 cm past each end read against the world:
+of 4,365 reads, 4,241 stand where the top truly stops; 100 stand at a taller
+thing and say so, and 22 beside one and do not (a chair 5 cm behind a table's
+far edge: the camera sees down the gap first); 2 stand where the top truly
+goes on, edges seen from a stance turned 25 deg, a diagonal edge whose
+reading lies between its ends (and before #657 24 more, one dining table's
+right edge and far edge, read through its top: below). 438 ends went unread
+at the picture's edge, 4,257 at the window and 16 past where they read.
 
 ⚠ **A top reads high at range.** `box.top_height` takes the band round
 the highest bin holding a quarter of the fullest, and `TOP_BAND_M`'s 5 mm
 is narrower than the noise past a metre: on the synthetic floor, a box's
 top 0.10 m up read 0.107 at 1.5 m and 0.116 at 2.6 m.
+
+## A ray through a body MuJoCo's cull left out (issue #657)
+
+**What is true now.** `mj_multiRay` returns what `mj_ray` returns on every
+body welded to the world: each stands on an inertial frame unturned on the
+middle of its box, its mass and inertia as compiled
+(`perception.cull.static_inertials`) -- the house's nine written into
+`models/home_world.xml` by its generator (`home.world`), what a world puts in
+at load (the chest, the drawers' cabinet, the cupboard, the stations, the
+signs) set on its spec (`fix_static_inertials`, in `home_spec` and
+`counter.model_of`), and a prop's redraw copies only what moves
+(`storeroom.redraw` copied the carcass's frame back too, at every offer).
+`tests/test_cull.py` reads every such body in the house's file and each world
+built at load, and casts the ray this was filed on and a fan at each dining
+table both ways. A body that moves keeps its true inertia and this bug: from
+rings of viewpoints, at worst 8 of a fork's 689 rays (1.2 %), a robot's
+pelvis 6 of 3,696, the chest's lid 1 of 3,908 -- which is why the cage's own
+sighting stays one `mj_ray` a ray.
+
+**What it was.** `mj_multiRay` tests a ray against a body's bounding sphere
+before it looks at the body's geoms, and MuJoCo 3.10 centres that sphere at
+`xipos` plus the box's offset unturned (`mju_singleRay`:
+`mju_add3(center, pos, d->xipos+3*b)`), though the box is kept in the
+inertial frame. The compiler turns that frame to the body's principal axes,
+so wherever a body's box is off its centre of mass and its frame is turned,
+the sphere stands `|ximat c - c|` off the body: 0.353 m on a dining table on
+legs (a 120 deg turn), 0.524 m on the stairs. `mj_ray` tests the box itself.
+From rings of viewpoints round each body, the depth camera's pattern and the
+LIDAR's, the rays landing on a body that `mj_multiRay` sent on through it:
+
+| body | sphere off by | D435 rays through, of those on it | LIDAR |
+|---|---|---|---|
+| `dining_table_0` | 0.353 m | 3,098 of 38,260 (8.1 %) | 187 of 2,906 (6.4 %) |
+| `lab_cage` | 0.088 m | 433 of 17,399 (2.5 %) | 33 of 1,164 (2.8 %) |
+| the drawers' cabinet | 0.031 m | 54 of 9,726 (0.6 %) | 4 of 727 |
+| the chest | 0.028 m | 21 of 4,268 (0.5 %) | 2 of 280 |
+| `loading_rack` | 0.113 m | 25 of 36,510 | 5 of 2,818 |
+| `kitchen_shelf`, `shop_shelf`, a station | 0.021-0.171 m | 4-18 of 13,500-72,000 | 0 |
+
+The stairs' sphere, 2.7 m across, lost none. Every one of these is 0 now, and
+`measure` over the same sweep (above) reads the dining table's right end
+where it is: the floor seen past a table's edge is the table's edge again.
+To a depth picture a table with a hole in it has ended there, and `measure`
+could not tell: it read that edge up to 7 cm short.
+
+**Why the frame and not the cast.** Welded to the world a body's inertia moves
+nothing: a limp humanoid dropped onto a seated table, a seated shelf and the
+cage flew the same 2,500 steps, bit for bit, with and without it. Unturned
+alone would not do: a body yawed in the world turns a horizontal offset (the
+shelves' centres of mass lie off their boxes' middles), so the frame stands
+on the box's middle, where there is no offset to turn.
 
 ## The table set served (issue #560)
 

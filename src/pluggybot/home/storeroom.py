@@ -264,6 +264,8 @@ def redraw(model, data, prop: str, k: int) -> None:
   else:
     alone = _drawn_model(prop, k)
     for b in range(1, alone.nbody):
+      if not alone.body_weldid[b]:      # no draw moves it, and rays need its frame (`cull.static_inertials`)
+        continue
       bid = model.body(alone.body(b).name).id
       model.body_mass[bid] = alone.body_mass[b]
       model.body_ipos[bid] = alone.body_ipos[b]

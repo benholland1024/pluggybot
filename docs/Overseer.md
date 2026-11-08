@@ -489,9 +489,11 @@ raised into the picture or at the other robot's edge. ⚠ NEVER THE ROOM THE
 ROBOT STANDS IN: a room's edge is a line in
 the world, and Rowan bracketed the lab's (22.0-22.6 m) by asking — its
 true position, read off the flag. ⚠ ONE `mj_ray` A RAY, NEVER
-`mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere off its centre
-of mass, its offset unturned, and the cage's inertial frame is turned, so
-rays at its far walls' tops passed through them. ⚠ The head camera is
+`mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere misplaced where
+its inertial frame is turned (SimNotes, "A ray through a body MuJoCo's cull
+left out"), as the cage's was: its far walls' tops let rays through. What
+stands still no longer has such a frame (#657); what moves, a robot's arm
+before the cage, keeps it. ⚠ The head camera is
 pitched 20° down for the walls' tags: standing and facing the cage, it
 loses it within 0.88-1.04 m of its middle by the side (1.04 straight in
 front, 0.94 from either end, 0.88 on the diagonals), so a robot giving
