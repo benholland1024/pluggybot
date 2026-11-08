@@ -2166,6 +2166,48 @@ asked in each round, so its sample is the larger:
   then writes; that is the period's (Observatory.md). Spend: $0.49 over 154
   calls. Rows and scripts: `~/pluggybot-training/issue-650-words/`.
 
+**What `spot` says of its camera, read** (#660, 2026-11-08): the deployed
+prompt before the words changed (`c71dde29`) and on the text served
+(`0bda73c9`), interleaved over four rounds, the old text asked in each and pooled (the rows
+below are that pool beside the last round's, on the text served: the wording
+moved between rounds, and the numbers are the text that ships). GLM-5.3-Flash
+on baseten (the deployed mind), DeepSeek-V4.1-Flash on deepinfra, every
+question answerable "unknown"; each rule was written before its round's
+answers were read:
+
+| question (the true answer) | GLM before | GLM after | DeepSeek before | DeepSeek after |
+|---|---|---|---|---|
+| the wall tag above a counter 0.6 m deep, from its front edge: does `spot` see it? (false) | 0/43 | 12/12 | 2/48 | 11/12 |
+| does bowing lower bring a high tag into `spot`'s picture? (false) | 34/43 | 12/12 | 33/48 | 12/12 |
+| `spot`'s camera and `look`'s: the same camera? (different) | 0/43 | 12/12 | 0/48 | 12/12 |
+| how far along the line to it does a 26 mm block's tag read? (about 1.5 m) | 0/43 | 10/12 | 0/48 | 12/12 |
+| a block 0.8 m up, 1.0 m back along the floor: does `spot` see it? (true) | 34/43 | 12/12 | 23/48 | 9/12 |
+| a tag at shoulder height on a bare wall: where can you stand and read it? (within about 0.3 m) | 3/43 | 12/12 | 4/48 | 10/12 |
+| `find` saw a wall tag and `spot` of it failed: why? (two cameras; the colour camera's picture is lower) | 2/43 | 12/12 | 0/48 | 12/12 |
+
+- **The first and third rows are the live confusion, reproduced**: told the
+  old words, no reader (0 of 43, 2 of 48) said a wall tag was out of `spot`'s
+  sight from the counter's edge, and none (0 of 91) that `spot` and `look` are
+  two cameras; told these, the deployed mind 12 of 12 on both. GLM's two
+  blanks on the fourth row are a field the model left empty or wrote a
+  letter in, no wrong number.
+- **Why the sentence gives the rule, not only the exception.** The first
+  wording said a tag at shoulder height was "above its picture unless your
+  face is almost against it" and gave no formula. On where to stand for one,
+  three of GLM's 12 answers took that for about half a metre or said to
+  stand further back; DeepSeek's went from "nowhere" and "further back" to
+  "within a metre", 8 of 12 off it; and the block on a counter read 10 of 12
+  and 5 of 12. Told the rule, its top (1.26 - 0.34 d) m over the floor d m
+  back (these numbers off the model, `steps.SPOT_*`), and that the lower a
+  tag is the further back it reads, that row is 12 of 12 and 9 of 12. DeepSeek
+  thinks in a few hundred tokens: read its last row as noise.
+- **What it cannot say**: the shoulder row's rule is on the sentence's own
+  number and is no independent evidence, and the sixth question's rule moved
+  with the wording, written before that round's answers. It reads what a
+  mind takes the words to mean, not what a robot then writes; that is the
+  period's (Observatory.md). Spend: $0.73 over 192 calls. Rows, the quiz and
+  the rules: `~/pluggybot-training/issue-660/`.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

@@ -530,7 +530,7 @@ class Practice:
     """The first procedure: the job, the head camera's picture, the
     procedures the robot KEPT (`library_text`), and the notes and draft it
     CARRIED from its last chest (`carried_text`), where it has any."""
-    text = (f"THE JOB\n\n{self.job}\n\nThe picture is your head camera's, as you stand "
+    text = (f"THE JOB\n\n{self.job}\n\nThe picture is your navigation camera's, as you stand "
             "now. Write the procedure for your first try.") if picture is not None else \
       f"THE JOB\n\n{self.job}\n\nWrite the procedure for your first try."
     if carried and (carried.get("notes") or carried.get("draft")):

@@ -387,6 +387,13 @@ def structure(spec: HumanoidSpec = CHOSEN) -> dict[str, tuple]:
 #: sheet's -7 to +52 turned over), and how far the head keeps out of it, m.
 FIELD_DEG = (-52.0, 7.0)
 FIELD_CLEAR = 0.002
+#: The colour imager's vertical field, deg (the D435's, at 720p): what
+#: `spot`'s and `watch`'s texts count their picture off (`steps.SPOT_TOP_DEG`
+#: and the rest; a test reads them against the model, #660).
+COLOR_FOVY_DEG = 42
+#: The colour imager's place on the depth camera's body, m: ahead of its
+#: middle, along the camera's own axis, and across.
+CAM_AHEAD_M, COLOR_ACROSS_M = 0.013, -0.015
 #: Where the cameras ride, m ahead of the hip axes: the depth camera's
 #: middle and the navigation camera's, as on stage 1's face.
 DEPTH_CAM_X, NAV_CAM_X = 0.0775, 0.069
@@ -550,6 +557,14 @@ def stand_height(spec: HumanoidSpec = CHOSEN, bend: float = 0.2) -> float:
   below the ankle the foot level."""
   upper = spec.hip_roll_drop + spec.hip_yaw_drop + spec.thigh
   return (upper + spec.shank) * math.cos(bend) + spec.ankle_roll_drop + spec.sole_drop
+
+
+def color_camera_z(spec: HumanoidSpec = CHOSEN) -> float:
+  """The colour imager's height over the floor in `stand_qpos`: its body's
+  height, `CAM_AHEAD_M` of its look pitched down. What `spot`'s text counts
+  the top of its picture off (`steps.SPOT_CAMERA_Z_M`)."""
+  return (stand_height(spec) + spec.depth_cam_z
+          - CAM_AHEAD_M * math.sin(math.radians(spec.depth_pitch_deg)))
 
 
 # ---- the MJCF ------------------------------------------------------------------
@@ -783,8 +798,8 @@ def _trunk(spec: HumanoidSpec) -> dict[str, str]:
       <body name="depth_cam_body" pos="{_v(DEPTH_CAM_X, 0, spec.depth_cam_z)}" euler="{_v(0, dp, 0)}">
         <geom name="depth_cam" class="visual" type="box" size="0.0125 0.045 0.0125"
               mass="{_f(hp.D435_KG)}" rgba="0.2 0.2 0.2 1"/>
-        <camera name="depth_eye" pos="0.013 0 0" xyaxes="0 -1 0 0 0 1" fovy="58"/>
-        <camera name="color_eye" pos="0.013 -0.015 0" xyaxes="0 -1 0 0 0 1" fovy="42"/>
+        <camera name="depth_eye" pos="{CAM_AHEAD_M} 0 0" xyaxes="0 -1 0 0 0 1" fovy="58"/>
+        <camera name="color_eye" pos="{CAM_AHEAD_M} {COLOR_ACROSS_M} 0" xyaxes="0 -1 0 0 0 1" fovy="{COLOR_FOVY_DEG}"/>
       </body>
       <body name="nav_cam_body" pos="{_v(NAV_CAM_X, 0, spec.nav_cam_z)}" euler="{_v(0, npch, 0)}">
         <geom name="nav_cam" class="visual" type="box" size="{_v(*NAV_CAM_HALF)}"

@@ -213,7 +213,7 @@ def test_watch_out_of_view_fails_and_watches_on_and_waits_no_longer_than_it_may(
   body = _Watching({"tag": 53, "seen": False, "at": 0.0, "last": None})
   ran = _fly('def a():\n    if not watch(53):\n        s = read("watch.seen")\n', body)
   assert ran["ok"] and ran["locals"] == {"s": 0.0}
-  assert ran["steps"][0]["reason"] == "tag 53 is not in view of your head camera now"
+  assert ran["steps"][0]["reason"] == "tag 53 is not in view of your colour camera now"
   body = _Watching({"tag": 53, "seen": False, "at": 0.0, "last": None})
   ran = _fly('def a():\n    watch(53)\n    s = read("watch.seen")\n', body)
   assert not ran["ok"] and ran["failedAt"] == 0 and body.watched == [53, None]

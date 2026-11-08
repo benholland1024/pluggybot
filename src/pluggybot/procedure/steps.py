@@ -60,8 +60,10 @@ from typing import Any, Callable
 
 from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_LEAST_M,
                                      STEP_SHORT_M)
+from pluggybot.humanoid.model import CHOSEN, COLOR_FOVY_DEG, color_camera_z, stand_height
 from pluggybot.perception.box import DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M
 from pluggybot.perception.depth import MAX_Z as MEASURE_REACH_M
+from pluggybot.perception.tags import PICTURE_H, PICTURE_W
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
 from pluggybot.tick import Routine
 
@@ -434,6 +436,29 @@ SPOT_STILL_S = 0.3
 #: standing, a cube on its counter is under its colour camera's view; bowed
 #: 0.25 and 0.45 saw the cube and the mat beside it in every set-out).
 SPOT_GAZES = (0.0, 0.25, 0.45)
+#: What `spot`'s and `watch`'s camera takes in, deg, as their texts say (#660):
+#: the colour imager's picture standing, pitched down with the depth camera,
+#: its top and its bottom below level and its sides either way. Off the
+#: model, never typed (a test reads them against `color_eye`); flown
+#: standing 18.7, 60.7 and 34.3, the stand holding the head 0.3 deg back.
+SPOT_TOP_DEG = CHOSEN.depth_pitch_deg - COLOR_FOVY_DEG / 2
+SPOT_BOTTOM_DEG = CHOSEN.depth_pitch_deg + COLOR_FOVY_DEG / 2
+SPOT_SIDE_DEG = math.degrees(math.atan(
+  math.tan(math.radians(COLOR_FOVY_DEG / 2)) * PICTURE_W / PICTURE_H))
+#: ...how high it stands, m, how far the picture's top falls for each metre
+#: back along the floor, and how near a tag level with the shoulders first
+#: comes into the picture, m (a tag's whole square must be in it, so a large
+#: one at that height nearer still: flown, 120 mm at 1.15 m read only from
+#: 11-13 cm off a bare wall and not from 16).
+SPOT_CAMERA_Z_M = color_camera_z()
+SPOT_TOP_DROP = math.tan(math.radians(SPOT_TOP_DEG))
+SPOT_SHOULDER_IN_M = (SPOT_CAMERA_Z_M - stand_height() - CHOSEN.shoulder_z) / SPOT_TOP_DROP
+#: How far a small block's tag reads, m of range, what is in the picture
+#: (#660; flown on `home_humanoid`, osmesa, two noise draws): the tower's
+#: 26 mm blocks on the floor, the picture's middle, read out to 1.5-1.6 m
+#: of range and from 1.75 m not. A prop's knob on a counter leaves the
+#: picture's top first: 1.1-1.4 m of range, 1.15-1.4 m off the handle.
+SPOT_BLOCK_READS_M = 1.5
 #: How long a `reach` waits for its hand to get there, s, and the most a
 #: `move_hand` or a `pull` may.
 REACH_PATIENCE_S, HAND_PATIENCE_S = 20.0, 30.0
@@ -515,7 +540,7 @@ def _spot(life, args: dict) -> Routine:
   if seen is None:
     _reports(life).pop("spot", None)
     return {"ok": False, "tag": int(tag),
-            "reason": f"tag {int(tag)} is not in view of the head camera from where you stand"}
+            "reason": f"tag {int(tag)} is not in view of your colour camera from where you stand"}
   (x, y, z), (nx, ny, nz), (ex, ey, ez) = seen
   _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
                             "ex": ex, "ey": ey, "ez": ez, "range": float(got["range"])}
@@ -548,7 +573,7 @@ def _watch(life, args: dict) -> Routine:
   got = life.body.sighting()
   if got is None or not got["seen"]:
     return {"ok": False, "tag": int(tag),
-            "reason": f"tag {int(tag)} is not in view of your head camera now"}
+            "reason": f"tag {int(tag)} is not in view of your colour camera now"}
   last = got["last"]
   at = axes.in_stance(life, (last["x"], last["y"], last["z"]))
   return {"ok": True, "tag": int(tag), "at": [round(v, 4) for v in at]}
@@ -1095,7 +1120,8 @@ VERBS: dict[str, Verb] = {
                                         default=FIND_PATIENCE_S)},
                _find, "find the task area carrying this tag: where you last saw "
                "it, else by searching round (x, y) -- a job's address -- until "
-               "the tag is in view; ok when seen, and you remember where it is. "
+               "the tag is in view of your navigation camera; ok when seen, and you "
+               "remember where it is. "
                f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f}). "
                f"A tag is {BY_NUMBER}"),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
@@ -1127,18 +1153,31 @@ HANDS_VERBS: dict[str, Verb] = {
                   "just past an end, that end reads where the free top stops, and "
                   "`object.near_taller` (`far`, `left`, `right`) reads 1"),
   "spot": Verb("spot", {"tag": Arg("float", lo=0.0, hi=586.0)}, _spot,
-               "stand still and look for this tag in your head camera -- as you stand, then "
-               "bowing lower until you see it -- and stand up again; ok when you see it. Where "
+               "stand still and look for this tag in your colour camera -- as you stand, then "
+               "bowing lower until you see it -- and stand up again; ok when you see it. "
+               "That camera looks down, lower than your navigation camera: its picture "
+               f"runs from {SPOT_TOP_DEG:.0f} to {SPOT_BOTTOM_DEG:.0f} degrees below level "
+               f"and {SPOT_SIDE_DEG:.0f} degrees to either side of where you face, and "
+               "bowing only takes it lower. Standing d m back along the floor from "
+               f"something, the picture's top is ({SPOT_CAMERA_Z_M:.2f} - "
+               f"{SPOT_TOP_DROP:.2f} d) m over the floor, and a tag reads only with the "
+               "whole of it inside the picture: the lower a tag is, the further back it "
+               "reads, one level with your shoulders only from "
+               f"within about {SPOT_SHOULDER_IN_M:.1f} m of it, and nothing as high as your "
+               f"camera ever. Inside the picture, a small block's tag reads from up to about "
+               f"{SPOT_BLOCK_READS_M:g} m away. Where "
                "its face is, which way the face looks and which way its edges run ride "
                "`spot.*`. A small block carries its tag on every face: the one read is the one "
                "you see most square-on, `spot.nx`..`nz` say which, so from elsewhere the same "
                "tag can read another face, its middle up to the block's width from this one's. "
                f"A tag is {BY_NUMBER}: `spot({TAG_EXAMPLE})` looks for tag {TAG_EXAMPLE}"),
   "watch": Verb("watch", {"tag": Arg("float", lo=0.0, hi=586.0)}, _watch,
-                "keep your head camera reading this tag while your procedure goes on -- your "
+                "keep your colour camera reading this tag while your procedure goes on -- your "
                 f"hands moving, your feet stepping, waiting -- {WATCH_HZ:g} times a second, each "
                 f"reading yours {WATCH_LATENCY_S:g} s after its picture was taken; it neither "
                 "bows nor turns to look, and it ends with your procedure or your next `watch`. "
+                f"It reads through `spot`'s camera, the top of whose picture is "
+                f"{SPOT_TOP_DEG:.0f} degrees below level: what is above that it cannot see. "
                 "It waits for its first reading; ok when that shows the tag (as an `if`'s test "
                 "that is not, it watches on). What it reads rides `watch.*`: of a small block, "
                 "as for `spot`, the face that picture shows most square-on, so which face can "

@@ -63,7 +63,7 @@ from pluggybot.telemetry.protocol import LOOK_OUTCOMES, LOOK_WHYS
 
 #: Who the picture arrives from, in the block the model is shown. Which
 #: camera that is, is the body's (`Body.head_camera`, issue #408).
-SENDER = "your head camera"
+SENDER = "your navigation camera"
 #: How long the robot stands still for its picture, in sim seconds, and
 #: the deadline: a request the website has not answered by then is `none`.
 #: The site's renderer is a headless browser already following the stream,

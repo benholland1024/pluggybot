@@ -10,6 +10,34 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `spot` says what its camera can see, and the two cameras are named apart (#660) — opens when this PR is deployed
+
+**What changed is only what the robots read** (`prompt_sha` `c71dde29…` →
+`0bda73c9…`, 62,312 → 63,067 chars, 17 sections both): `spot`'s and `watch`'s
+text now say they read the colour camera and what its picture takes in, in
+numbers off the model -- from 19 to 61 degrees below level and 34 to either
+side, its top (1.26 - 0.34 d) m over the floor d m back, the whole of a tag
+inside it, bowing only lowering it, and a small block's tag read to about
+1.5 m -- and `look`'s, `find`'s, a practice's first picture's and the lab's
+view's say the navigation camera, so nothing a robot reads calls either the
+head camera. A `spot` that sees nothing says the colour camera. No verb, no
+schema, no reward and no geometry moved; the session's hello and the site's
+guide moved with the text.
+
+**Why.** Both robots read `spot`'s reach off where they had stood: eight runs
+since the 11-07 release spotted a wall tag (60-63) and none saw one, because
+those tags are above the colour camera's picture wherever the feet can go,
+and `find` and `look`, which do see them, are a different camera the robots
+were told was the same one (Rowan's tk_0055). Read through the deployed
+prompt: told the old words, no reader said a wall tag was out of `spot`'s sight
+from the counter's edge (0 of 43 for the deployed mind) or that the two
+cameras differ (0 of 43); told these, 12 of 12 on both (Evaluation.md §4).
+
+**What the period is for.** How often a robot still spots a wall tag, and
+whether a robot reads a small block from further than it has stood. ⚠ Not to
+be pooled with the period before for anything that reads a robot's words about
+its cameras.
+
 ### The restaurant's table is offered (#560) — opens when this PR is deployed
 
 **What changed in the world.**

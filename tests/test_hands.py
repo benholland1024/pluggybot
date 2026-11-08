@@ -21,10 +21,12 @@ import pytest
 
 from pluggybot.body import StubBody, body_for
 from pluggybot.evaluation import practice as ep
+from pluggybot.home import storeroom as sr
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.mind import practice as mp
+from pluggybot.perception import tags
 from pluggybot.procedure import axes, lang
 from pluggybot.procedure import steps as st
 from pluggybot.procedure.library import Library, LibraryRefused
@@ -1237,6 +1239,100 @@ def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads()
   for doc in (pull, spot, watch):
     assert doc in told
   assert "1 if the last `pull` ended held fast, as your hand felt it" in told
+
+
+def _standing():
+  """The robot's body standing at its keyframe, one `mj_forward`: its cameras
+  placed as its model draws them."""
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  return model, data
+
+
+def _picture(model, data, camera):
+  """`camera`'s picture as the robot stands: how far below level its top and
+  its bottom are and how far either side it goes, degrees, its place and
+  turn."""
+  i = model.camera(camera).id
+  rot = data.cam_xmat[i].reshape(3, 3)
+  down = math.degrees(math.asin(rot[2, 2]))  # a camera looks along its -z
+  half = float(model.cam_fovy[i]) / 2
+  side = math.degrees(math.atan(math.tan(math.radians(half)) * tags.PICTURE_W / tags.PICTURE_H))
+  return {"top": down - half, "bottom": down + half, "side": side, "half": half,
+          "at": data.cam_xpos[i].copy(), "rot": rot}
+
+
+def _in_picture(pic, point):
+  """Whether `point`, in the world, is inside `pic` (a camera looks along
+  its -z, its y up)."""
+  x, y, z = pic["rot"].T @ (np.asarray(point, float) - pic["at"])
+  tall, wide = math.tan(math.radians(pic["half"])), math.tan(math.radians(pic["side"]))
+  return bool(z < 0 and abs(y / -z) <= tall and abs(x / -z) <= wide)
+
+
+def test_spot_and_watch_say_which_camera_they_read_and_what_its_picture_takes_in():
+  """#660: both robots took `spot` for short-sighted and went on pointing it
+  at tags above its picture. `spot`'s and `watch`'s text name the colour
+  camera and say what its picture takes in, in the model's numbers, and
+  `look`'s and `find`'s name the other camera; nothing calls either of them
+  the head camera any more."""
+  model, data = _standing()
+  colour = _picture(model, data, "color_eye")
+  spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
+  assert "your colour camera" in spot and "head camera" not in spot
+  assert f"runs from {colour['top']:.0f} to {colour['bottom']:.0f} degrees below level" in spot
+  assert f"and {colour['side']:.0f} degrees to either side of where you face" in spot
+  assert "bowing only takes it lower" in spot
+  top = float(colour["at"][2])
+  drop = math.tan(math.radians(colour["top"]))
+  assert f"the picture's top is ({top:.2f} - {drop:.2f} d) m over the floor" in spot
+  shoulder = float(data.xanchor[model.joint("left_shoulder_pitch").id][2])
+  assert ("the lower a tag is, the further back it reads, one level with your shoulders only "
+          f"from within about {(top - shoulder) / drop:.1f} m of it, and nothing as high as "
+          "your camera ever") in spot
+  assert f"a small block's tag reads from up to about {st.SPOT_BLOCK_READS_M:g} m away" in spot
+  watch = " ".join(st.HANDS_VERBS["watch"].doc.split())
+  assert "your colour camera" in watch and "head camera" not in watch
+  assert f"the top of whose picture is {colour['top']:.0f} degrees below level" in watch
+  assert "navigation camera" in " ".join(st.VERBS["find"].doc.split())
+  told = " ".join(mp.system_prompt(st.hand_facts()).split())
+  for doc in (spot, watch):
+    assert doc in told
+  assert "head camera" not in told
+
+
+def test_a_wall_tag_is_above_spots_picture_from_the_counter_and_in_the_navigation_cameras():
+  """#660's premise, one `mj_forward` and no flight. With the camera right
+  over the counter's front edge -- no stance gets it nearer the wall -- a
+  tag on the wall above the counter is above the colour camera's picture
+  (`spot`'s, its text says) and inside the navigation camera's (`find`'s and
+  `look`'s). And the wall's own tags, 120 mm at the shoulders' height, come
+  whole into the colour camera's picture only with it within 0.2 m of them:
+  flown, 11-13 cm off a bare wall read them and 16 cm did not (the text's
+  "unless your face is almost against it")."""
+  model, data = _standing()
+  colour = _picture(model, data, "color_eye")
+  navigation = _picture(model, data, "nav_eye")
+  for pic in (colour, navigation):
+    camera_x, camera_y = float(pic["at"][0]), float(pic["at"][1])
+    tag = (camera_x + sr.COUNTER_D, camera_y, sr.TAG_Z)
+    assert _in_picture(pic, tag) is (pic is navigation), pic["top"]
+  # the whole of a wall tag, whose black square is 120 mm: its top edge is
+  # the last to come in (and the picture's own top only falls off with range)
+  drop = float(colour["at"][2]) - (sr.TAG_Z + tags.TAG_SIZES[tags.COUNTER_TAG_IDS[1]] / 2)
+  in_from = drop / math.tan(math.radians(colour["top"]))
+  assert 0.0 < in_from < 0.2, in_from
+
+
+def test_a_practices_first_picture_is_said_to_be_the_navigation_cameras():
+  """#660: the picture a practice opens with (`evaluation.practice.head_picture`,
+  `Body.head_camera`) is the navigation camera's, by that name."""
+  mind = Mind('def a():\n    wait(1)\n')
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), ep.JOB.format(limit=30), retry_wait_s=0.0)
+  pr.first(picture=b"\xff\xd8")
+  assert "The picture is your navigation camera's" in json.dumps(mind.asked[0]["messages"])
 
 
 def test_a_tag_on_every_face_is_read_by_the_face_seen_most_square_on():

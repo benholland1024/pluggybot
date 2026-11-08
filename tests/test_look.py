@@ -323,7 +323,7 @@ def test_a_picture_arrives_next_turn_as_an_image_part_and_never_as_text():
     assert content[0]["source"]["data"] == block["jpeg"]
     assert content[0]["source"]["media_type"] == "image/jpeg"
     text = content[1]["text"]
-    assert '"image": "attached"' in text and '"from": "your head camera"' in text
+    assert '"image": "attached"' in text and '"from": "your navigation camera"' in text
     assert block["jpeg"][:64] not in text, "the picture is never text"
     assert '"looksLeft": 1' in text
     assert block["jpeg"][:64] not in json.dumps(call["system"])
@@ -702,7 +702,7 @@ def test_the_rule_says_what_the_action_does_and_prescribes_no_looking():
   rule = ov.LOOK_RULE
   assert "`look`" in rule and "`seen`" in rule and "`looksLeft`" in rule
   assert "`camera`" in rule, "the key that says nothing can take a picture"
-  assert "head camera" in rule and "as the people watching you see it" in rule
+  assert "navigation camera" in rule and "as the people watching you see it" in rule
   for word in ("charge", "battery", "rack", "renderer", "website", "tresjs"):
     assert word not in rule.lower(), word
   for word in ("for example", "e.g.", "such as", "you should", "describe"):
