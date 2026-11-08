@@ -203,9 +203,9 @@ class _Blank(dict):
 #: station on a fresh map (`scripts/solve.py --from tour`), rounded up.
 HAND_MINUTES = 16
 #: ...and the table's (#560): three times its reference's slowest pass over
-#: the tour, 239 s from the claim to the call (`scripts/solve.py --feature
+#: the tour, 279 s from the claim to the call (`scripts/solve.py --feature
 #: table --from tour`, one pod), rounded up.
-TABLE_MINUTES = 12
+TABLE_MINUTES = 14
 
 
 KINDS: dict[str, TaskKind] = {
@@ -286,7 +286,7 @@ KINDS: dict[str, TaskKind] = {
              "line, head to the card; the cup 7 cm out, 24 cm right. Each within 2.5 cm, set down "
              "and let go of, within {minutes} minutes of taking this job, without falling; graded "
              "when you say you are done and 5 s later. No errand does this: write the procedure.",
-    estimate_wh=8.81, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
+    estimate_wh=9.83, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
 }
 
 #: The hand jobs' graders (#559, #560): each served job's row is its own --

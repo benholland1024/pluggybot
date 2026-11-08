@@ -396,9 +396,9 @@ held fast while the carry's posture swung the hand down at 0.6-1.0 m/s
 **The practice's row: none departs** -- `table` is `shown: false`, paying
 0, as the checks' rows are.
 
-**Built to be served, and NOT offered: `set_table`** -- its reference laid
-13 of the 32 draws its bar asks 24 of (below). It is the counter's jobs'
-shape, through the same seams, generalised over the counter's props and the table
+**Served: `set_table`** -- one more kind in the humanoids' rotation since
+its reference laid 24 of the 32 draws its bar asks 24 of (below). It is the
+counter's jobs' shape, through the same seams, generalised over the counter's props and the table
 (`home.jobs`: each area's members, `HubLifecycle._set_out_job`,
 `restore_jobs`, `_worked_props`): a procedure job, its target the dining
 room's table 0 (`dining_table_0`, the table's own body), graded by this
@@ -432,16 +432,16 @@ characters; its row's detail carries all of them.
 **Its hand-written solution** (`challenge/solutions.py`, `TABLE`): the walk
 to the place, then this check's procedure from its one stance, its first
 step aside taken from where the card reads across the robot
-(`TABLE_LAY_STEP`) -- the check's procedure was tuned from its set-out's
-start and holds only near it, so the walk lands it there: an oblique look
-at the card, its one turn asked a little wide, its last step straight ahead
-(SimNotes, "The table set served", has what flying took). Offered once it
-passes the bar written before it flew -- 24 of 32 draws over the tour, no
-fall, each draw its own noise, on one pod -- and it laid 13: every walk
-arrived, and the check's procedure, tuned from its set-out's exact start,
-holds only within a degree or two and a centimetre or two of it (turned
-right, its fork's carry runs out of its posture; turned or stood left, the
-cup leaves its first look), which this body's `step` does not land.
+(`TABLE_LAY_STEP`) -- the check's procedure reads the pieces and the card
+from its stance, and holds only in a patch of stances a couple of
+centimetres wide, so the walk lands it there: an oblique look at the card,
+its one turn asked a little wide and squared by its own reckoning, what it
+leaves across the card's line stepped out, its last step straight ahead
+(SimNotes, "The table set served" and "The lay from the tour", which have
+what flying took). Offered once it passes the bar written before it flew --
+24 of 32 draws over the tour, a fall failing its try, each draw its own
+noise, on one pod -- and it laid 24 (12 on the tree before it). On two sets
+of draws nothing was tuned on, 46 of 64: it is at the bar's edge.
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.

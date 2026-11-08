@@ -128,29 +128,25 @@ CHEST = _hands_job("lid", "chest")
 
 #: THE RESTAURANT'S TABLE (#560): the walk to the place, then the table
 #: check's procedure from its one stance (`evaluation.hands_check.TABLE`,
-#: served as `TABLE_LAY_STEP` says),
-#: which reads its put-downs off the card in its stance frame -- so the walk
-#: must leave it SQUARE to the card's face: a degree off moves a piece 0.4
-#: cm. What flying took (SimNotes, "The table set served"):
-#:  - one tag gives no facing: the find's first sight of the card was 4.3 m
-#:    off, so its facing was where it was seen from, 51 deg off its face;
-#:  - so the card's own rotation is read OBLIQUELY (`mapping.places`: 40 deg
-#:    and more off a tag, within 0.5 deg): from 45 deg south-west of its face
-#:    -- the card faces south, the directions say -- `BACK` m out on each
-#:    axis, which is the stance's line 0.3 m short once stepped across;
-#:  - `spot.n*` is INTO the card's face, so the turn to face along it is its
-#:    own angle, asked `WIDER` (2 deg) wider: a turn's feet fall short of its
-#:    pelvis by 2-4 deg, a step aside to the right turns the robot 1-1.5 deg
-#:    clockwise, and a smaller turn after is lost whole (a 1.7 deg turn
-#:    turned the stance 0.03);
-#:  - the step across is halved (a step goes 0.5 m at most), and the last 30
-#:    cm is stepped STRAIGHT ahead off two fresh looks, less the 0.6 cm a
-#:    step that long overshoots: with a step to its right in it, it landed
-#:    2-4 cm long, and from 4.4 cm nearer the table the plate's arm caught
-#:    the table's edge on its way home and toppled the robot;
-#:  - what the walk leaves across the card's line, the lay's first step takes
-#:    up (`TABLE_LAY`): a step forward shorter than a stride is walked as
-#:    one or not at all, but the lay's first step is a step aside anyway.
+#: served as `TABLE_LAY_STEP` says). What flying took is SimNotes', "The
+#: table set served" and "The lay from the tour":
+#:  - one tag gives no facing, so the card's own rotation is read OBLIQUELY
+#:    (`mapping.places`: 40 deg and more off a tag, within 0.5 deg): from 45
+#:    deg south-west of its face -- the card faces south, the directions say
+#:    -- `back` m out on each axis, the stance's line 0.3 m short once
+#:    stepped across, and the turn to face along it asked `WIDER` wider;
+#:  - `spot.n*` is INTO the card's face, so that turn is its own angle;
+#:  - the step across is halved (a step goes 0.5 m at most), and what it
+#:    leaves across the card's line, 14 cm at worst, is stepped out off the
+#:    two looks the last step needs, past 3 cm: stood 10 cm left of the line
+#:    the lay's first look loses the cup, and the lay's step aside, whole
+#:    strides, walks 13-16 cm for anything asked of 9.5-16;
+#:  - the last 30 cm is STRAIGHT ahead off those two looks (with a step to
+#:    its right in it, it landed 2-4 cm long), `NEARER` nearer the table
+#:    than the check's start;
+#:  - a walk's turns are counted as they went (`step.turn`, to 0.2 deg) and
+#:    one more squares it to `FACING` past the card's normal where it is 1.5
+#:    deg off.
 TABLE_APPROACH = '''def to_table():
   budget(steps=16, seconds=900)
   find(93, %(ax)g, %(ay)g, 600)
@@ -163,29 +159,52 @@ TABLE_APPROACH = '''def to_table():
   y = read("spot.y") * cos(a) - read("spot.x") * sin(a)
   if not step(0, y / 2, a + %(wider)g):
     pass
+  h = read("step.turn")
   if not step(0, y / 2):
     pass
+  h = h + read("step.turn")
   spot(93)
   x = read("spot.x")
+  y = read("spot.y")
   spot(93)
-  if not step((x + read("spot.x")) / 2 - %(ahead)g - %(over)g, 0):
+  x = (x + read("spot.x")) / 2
+  y = (y + read("spot.y")) / 2
+  if y * y > 0.0009:
+    if not step(0, y):
+      pass
+    h = h + read("step.turn")
+  if not step(x - %(ahead)g + %(nearer)g, 0):
     pass
+  h = a + %(facing)g - h - read("step.turn")
+  if h * h > 0.0007:
+    if not step(0, 0, h):
+      pass
 '''
-#: How much wider than read the walk's turn is asked, rad: the table check's
-#: procedure laid 8 of 8 turned 1.5 deg left, 1 of 8 turned 1 deg right (its
-#: fork's carry ran out of its posture and swung the waist to -45 deg). The
-#: reference from the tour read 12 of 32 draws at 3.3, 2 and 1.1 deg asked wide
-#: (#649, one pod), the stance landing 3.9, 2.6 and 1.75 deg left of square by
-#: its own reading of the card (3.6 at 3.3 on the tree before #649, so this
-#: is no compensation for a short turn); it stays -- and how far a 0.3 m step
-#: straight ahead overshoots, m.
-WIDER, OVER = 0.058, 0.006
+#: How much wider than read the walk's turn is asked, rad: turned 1 deg
+#: right of the card the check's procedure laid 1 of 8, its fork's carry
+#: running out of its posture and swinging the waist to -45 deg, turned 3.5
+#: left 6 of 8. It reads no better at 1.1 or 2 deg (SimNotes, "The table set
+#: served").
+WIDER = 0.058
+#: How much nearer the table than the check's start the walk's last step goes,
+#: m -- a little of it (the lay's first step aside gives back ~1.4 cm) keeps
+#: the stance in the lay's window: 0-3 cm nearer than the check's start
+#: (SimNotes, "The lay from the tour"; further back the cup's reach bows out
+#: of view of the plate's tag, nearer the arm's way home strikes the table).
+NEARER = 0.025
+#: Where the walk's last turn wants it to face, rad left of square, by its own
+#: reckoning of the turns its steps made: more than 1.5 deg off it (a 41 deg
+#: turn lands up to 3 deg over, and a step aside adds up to 2 more; 5 deg left,
+#: the lay's put-downs go wide) one more turn puts it back.
+FACING = 0.026
 
 #: THE LAY, SERVED: the table check's procedure (`hands_check.TABLE`) with its
-#: first step aside taken from where the card reads across the robot (`m`),
-#: so it stands where the check's set-out would have put it, whatever the walk
-#: left across the card's line.
-TABLE_LAY_STEP = ("  step(0, 0.14)\n", "  step(0, m + 0.14)\n")
+#: first step aside taken from where the card reads across the robot (`m`):
+#: 15.5 cm left of the card's line, whatever the walk left across it, where
+#: the check, starting on the line, asks 15 (SimNotes, "The lay from the
+#: tour": a step walks in whole strides, so where it lands depends more on
+#: where it starts than on what it is asked).
+TABLE_LAY_STEP = ("  a = 0.15\n", "  a = m + 0.155\n")
 
 
 def _table_job() -> tuple[str, str]:
@@ -203,7 +222,8 @@ def _table_job() -> tuple[str, str]:
   ahead = ct.CARD_IN + ct.TABLE_GAP - dw.CARD[1] - dw.FILM
   assert hands_check.TABLE.count(TABLE_LAY_STEP[0]) == 1
   return (TABLE_APPROACH % {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
-                            "back": round(ahead + 0.3, 4), "wider": WIDER, "over": OVER},
+                            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER,
+                            "facing": FACING},
           hands_check.TABLE.replace(*TABLE_LAY_STEP))
 
 

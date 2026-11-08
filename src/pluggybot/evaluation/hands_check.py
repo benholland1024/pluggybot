@@ -259,51 +259,88 @@ PLACE = '''def place_cube():
   withdraw("left")
 '''
 
-#: THE TABLE'S PLACE (#560) from ONE STANCE 0.14 m left of the start, where
-#: the waist's yaw reaches every piece (#621). Each choice is deliberate and
-#: measured (SimNotes, "The table's reference on the waist"): the cup from
-#: above, gripped 3 cm short of its middle (at the middle the palm cuts the
-#: lid) and placed off the plate's tag read with the hand out, a reach that
-#: bows out of the tag's view tried again 1.5 cm higher; the plate's and the
-#: fork's jaws the other way round at 60 deg (as asked before, the yaw takes
-#: the grip that never carries), each reach aimed at its grip (#627: the reach
-#: plans where the robot stands), the plate gripped 1.5 cm inside its wall (at
-#: it, a pad brushed the fork over), the fork at 25 N (chosen before #628,
-#: when the drive's chatter batted it from 40); every precise move a pull
-#: (`go`: a carry takes only a posture its statue reaches); each piece set
-#: down by where its jaws left it, the card read again once it is up, the
-#: plate 1 cm to the right and the fork 0.5 cm nearer the robot against what
-#: the carry's turn leaves; an open hand lifted straight up, its jaws opened
-#: first.
+#: THE TABLE'S PLACE (#560) from ONE STANCE left of the start, where the
+#: waist's yaw reaches every piece (#621; 0.15 m from the check's start,
+#: `solutions.TABLE_LAY_STEP` off the walk). Each choice is deliberate and
+#: measured (SimNotes, "The table's reference on the waist" and "The lay from
+#: the tour"): the cup's tag read before the step (out of view from the
+#: stance; turned to if the first look loses it), what was read carried
+#: through the step's own turn, the plate's tag read again from the stance;
+#: the cup from above, gripped 3 cm short of its middle (at the middle the
+#: palm cuts the lid) and placed off the plate's tag read with the hand out;
+#: its reach aimed inside the 2 cm band its shallow posture holds (`e`,
+#: across the arm's way out: nearer, the planner stands it up and the descent
+#: bows it; further, it bows the plate's tag out of view), a pull carrying the
+#: hand on over the grip, a reach still cut short tried again 1.5 cm higher;
+#: the plate's and the fork's jaws the other way round at 60 deg (as asked
+#: before, the yaw takes the grip that never carries), each reach aimed at
+#: its grip (#627: the reach plans where the robot stands), the plate
+#: gripped 1.5 cm inside its wall (at it, a pad brushed the fork over), the
+#: fork at 25 N (chosen before #628, when the drive's chatter batted it from
+#: 40); every precise move a pull (`go`: a carry takes only a posture its
+#: statue reaches); each piece set down by where its jaws left it, the card
+#: read again once it is up, the plate 1 cm to the right and the fork 0.5 cm
+#: nearer the robot against what the carry's turn leaves; an open hand
+#: lifted straight up, its jaws opened first, 9 cm before the left arm's way
+#: home (at 6, a hand nearer the table struck its edge going home, and at 12
+#: the lift itself ran out of reach and moved the feet).
 TABLE = '''def lay_place():
   budget(steps=190, seconds=290)
   spot(93)
   k = read("spot.x")
   m = read("spot.y")
+  a = 0.15
   spot(90)
   px = read("spot.x")
   py = read("spot.y")
-  spot(91)
-  u = read("spot.x") - px - 0.03
+  s = k - 0.077 - px
+  w = m - 0.243 - py
+  t = 0
+  if not spot(91):
+    if not step(0, 0, -0.17):
+      pass
+    t = read("step.turn")
+    spot(90)
+    px = read("spot.x")
+    py = read("spot.y")
+    spot(91)
+  u = read("spot.x") - px
   v = read("spot.y") - py
   cz = read("spot.z") - 0.03
-  s = k - 0.07 - px - 0.03
-  w = m - 0.243 - py
-  step(0, 0.14)
+  if not step(0, a, -t):
+    pass
+  r = read("step.turn")
+  c = cos(r)
+  e = sin(r)
+  q = c * u + e * v
+  v = c * v - e * u
+  u = q - 0.03
+  c = cos(r + t)
+  e = sin(r + t)
+  q = c * s + e * w
+  w = c * w - e * s
+  s = q - 0.03
   move("right_shoulder_roll", -0.9)
   move("right_elbow", 1.4)
   open_hand("right")
   spot(90)
   x = read("spot.x") + u
   y = read("spot.y") + v
-  reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
-  if spot(90):
-    x = read("spot.x") + u
-    y = read("spot.y") + v
-  else:
+  e = 0.7 * y - 0.72 * x
+  f = 0
+  if e > -0.577:
+    f = e + 0.577
+  if e < -0.597:
+    f = e + 0.597
+  g = 0
+  if reach("right", x + 0.72 * f, y - 0.7 * f, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
+    if spot(90):
+      x = read("spot.x") + u
+      y = read("spot.y") + v
+      g = 1
+  if g == 0:
     withdraw("right")
-    spot(90)
-    reach("right", read("spot.x") + u + 0.005, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
+    reach("right", x + 0.72 * f + 0.005, y - 0.7 * f, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
     if spot(90):
       x = read("spot.x") + u
       y = read("spot.y") + v
@@ -352,7 +389,7 @@ TABLE = '''def lay_place():
     pull("left", 0, 0, -1, 6, 0.09, give=0)
     open_hand("left")
     wait(0.4)
-    pull("left", 0, 0, 1, 20, 0.06, give=0)
+    pull("left", 0, 0, 1, 20, 0.09, give=0)
     withdraw("left")
 
 

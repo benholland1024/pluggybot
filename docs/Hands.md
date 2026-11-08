@@ -325,7 +325,8 @@ Xeon E5-2697 v4, osmesa), each set-out its own noise -- **32 of 32 places at
 set-outs 0-31**, 8 of 8 at the check's 0-7, and 32 of 32 at #618's held out;
 on sets nobody tuned on, 46 of 48 at public 80-127 and 30 of 32 at the
 practice arms' held out; no flight falling. The procedure before it laid
-none of 0-31 there. The table is still not offered (Ben's call on #615).
+none of 0-31 there. Offered since its reference passed from the tour
+(Challenges.md §12).
 Since #627 its reaches are aimed at their grips, the reach planning where the
 robot reads itself standing: 29 of 32 at set-outs 0-31 on another pod (an AMD
 EPYC 7B12), where the procedure aimed past them laid 32 on today's planner.

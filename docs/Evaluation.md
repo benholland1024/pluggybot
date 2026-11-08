@@ -1889,8 +1889,8 @@ at set-outs 0-31, no fall**; 32 of 32 over #618's held-out set-outs (seed
 of 32 over the practice arms' held-out set-outs (seed 402613269) -- 140 of
 144. `TABLE_STANCES` on the same pod laid none (cup 21, plate 18, fork 0 at
 0-31; 19, 11, 0 held out). So by §7's ladder A the job is no longer a
-defect; it stays unoffered, Ben's call on #615 (the restaurant's tables
-first).
+defect. It was offered in the restaurant once the reference passed from the
+tour (Challenges.md §12; SimNotes, "The lay from the tour").
 
 **Two fresh practice arms on the table** (#560). The FRESH protocol
 (`practice.py --job table --held-out 32 --early-stop`): a fresh robot a
