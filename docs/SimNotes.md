@@ -3775,6 +3775,29 @@ breaks away at the port and swings on its rope, and its balancer draws it
 home into the cup about 2 s later as the robot gets up, a tile every 0.5 s
 (`station_spike.py --strip fall`)](figures/humanoid_station_fall.png)
 
+### A plug through a restart (#654)
+
+A charge used to hold its run open until the pack was full, so only a deploy
+ever restarted a robot with its plug in, and that never worked: a catch is a
+weld switched on where the plug is, its anchor put at the plug (`_take`), and
+`Station.restore_kept` gave a new process's model the catch's pose but not
+its anchor. Compiled, the port's anchor is 1 m off. So on the first step after
+a restart the weld read 1 m out and 3,100 N, the catch let go, and the plug
+was thrown 0.9 m in 20 ms. Kept, the same restart replays bit for bit
+(`replay` true) and the catch reads a steady 2 N.
+`test_a_plug_in_its_port_rides_a_restart` pins it.
+
+Flown on the served pair (osmesa, `$PLUGGY_CHARGE_SCALE` 30 so a pack fills
+in minutes), one robot's charge cut by the run's end, and each row a new
+process from that save:
+
+| | |
+|---|---|
+| the run's end | plugged in at 53 s; at 170 s `the run's time is up at 45%`, the plug in; the process ended at 182 s, as the other robot's walk did |
+| restarted, `charge` | no walk; 50 to 90 % in 111 s, `CHARGE complete`, one unplug, the plug home in its cup, no falls |
+| restarted, `explore` | the plug out by hand in 8 s, then the walk; the plug home, no falls |
+| restarted, walked off with the plug in, as the loop did | the plug pulled out past the port's 20 N, 3 s into the walk; the plug home, no falls (one flight) |
+
 ## The humanoids' first jobs (issue #559, stage 3)
 
 **What is true now.** The served humanoids' first jobs are the hands' four

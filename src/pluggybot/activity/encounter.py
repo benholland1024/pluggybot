@@ -164,7 +164,9 @@ class Encounters(Activity):
     now = float(data.time)
     for life in self.lives:
       root = life.root
-      at = life.state in AT_THE_BAY
+      # ...its plug in, it has not left, whatever it is doing (#654: a run's
+      # end leaves it so, and it thinks there as the next run begins)
+      at = life.state in AT_THE_BAY or life.charging_now
       was = self._at_bay[root]
       self._at_bay[root] = at
       if not (was and not at):

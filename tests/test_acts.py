@@ -335,7 +335,7 @@ def test_a_rating_of_a_board_that_carries_ink_reads_the_records_counters(pair):
 def _bay_pair():
   def life(root, frac, wh, reserve, state):
     return SimpleNamespace(
-      state=state, low_battery_wh=reserve,
+      state=state, low_battery_wh=reserve, charging_now=False,
       battery=SimpleNamespace(fraction=frac, energy_wh=wh), root=root)
   return (life("pluggybot", 0.5, 4.0, 0.95, "CHARGE"),
           life("r2_pluggybot", 0.1, 0.4, 0.95, "EXPLORE"))
