@@ -231,6 +231,10 @@ def test_a_claim_about_the_station_with_several_is_checked_only_while_none_is_ta
   assert told() is True
   b.state = "CHARGE"
   assert told() is None
+  # ...and it is the plug that says so: thinking with it in is charging (#654)
+  b.state, b.charging_now = "DECIDE", True
+  assert told() is None
+  b.state, b.charging_now = "CHARGE", False
   # ...where there is one, the robot charging is on it
   a.stations = 1
   assert told() is False
@@ -335,7 +339,7 @@ def test_a_rating_of_a_board_that_carries_ink_reads_the_records_counters(pair):
 def _bay_pair():
   def life(root, frac, wh, reserve, state):
     return SimpleNamespace(
-      state=state, low_battery_wh=reserve,
+      state=state, low_battery_wh=reserve, charging_now=False,
       battery=SimpleNamespace(fraction=frac, energy_wh=wh), root=root)
   return (life("pluggybot", 0.5, 4.0, 0.95, "CHARGE"),
           life("r2_pluggybot", 0.1, 0.4, 0.95, "EXPLORE"))

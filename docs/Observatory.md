@@ -10,6 +10,61 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A run ends on its hour, even mid-charge (#654) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A charge stops at the run's end with its plug in** (`HubLifecycle._hour_up`,
+  where a next run carries on, as the deployed world's do). What it got is
+  banked as a `charge` row (below 85 %, `ok: false`, its gain in `gainedWh`),
+  the day ends there and its state stays `CHARGE`. Before, it ran to full (up
+  to 85 minutes from 38 %) with the run held open behind it, and the other
+  robot stood `DONE`: 13 % of the `drift` samples on 11-07 and 23 % on 11-08,
+  every one of them beside the other in `CHARGE`.
+- **A plug now survives a restart.** It never did: a catch came back with its
+  weld's anchor 1 m off and threw the plug on the first step (SimNotes, "A
+  plug through a restart"). So a deploy during a charge cut it too, and said
+  nothing of the plug.
+- **The next run's robot is told and asked.** History says `it cut my charge
+  short, and my plug is still in`, the first decision reads `charging` true
+  (it read false: nothing steps before that decision), and the pack fills
+  while it thinks (a restart that lands while it thinks says `my plug is still
+  in` too). A `charge` goes straight on with no walk (`CHARGE: still plugged
+  in at N% -- carrying on`, no `GO_CHARGE ->` line and so no `charge` row); an
+  `explore`, or a procedure at its first verb that moves the body, takes the
+  plug out by hand first (`CHARGE: unplugging`, about 8 s); what stands still
+  (`idle`, `recall`, `look`, a claim, a procedure of `wait`, `spot`, `measure`
+  or `watch`) leaves it in, the pack filling, until the pack is full
+  (`CHARGED`, 90 %), where clearing the station takes it out as a charge's end
+  does. Scripted, it finishes the charge.
+- **Nothing else in a charge trip outlives the run**: a wait for a taken
+  station, its holder having no reason to leave before the process ends
+  (`WAIT: gave up on ... this run's time is up`), a search, and the trip's
+  next leg all stop with it (`GO_CHARGE stopped: ...`, no failed `charge`
+  row), and **a job runs out on the seam once its holder's day is over**
+  (t_0076, t_0094 and t_0118 were held 1,481-3,871 s against 960).
+- ⚠ "At the station" is read off the plug: a robot thinking there with its
+  plug in has not yielded it to the other robot and is not lingering (full,
+  it is), and a `tell` about the station is checked against the plug.
+
+**What the period is for.**
+- **The acceptance**: a robot in `DONE` under 5 % of the `drift` samples, and
+  no job held past its limit by a robot whose day is over. A robot plugged in
+  at its day's end reads `CHARGE`, as it is: read its `pack` against the
+  run's end. The rest that holds a run open is a walk or a procedure in
+  flight at the hour.
+- **What the minds do with a cut charge**: how often the next decision is
+  `charge`, and what they do instead. Asked of the deployed model through this
+  PR's prompt, on one robot's documents and one situation (a real day is the
+  reading): told `charging` true and the plug still in, `charge` 6 of 6; told
+  `charging` true alone, 5 of 6; told `charging` false, as the first decision
+  read before this PR, 2 of 6 (the others walked off or looked something up).
+
+⚠ **Not to be pooled with the period before for**: a charge's length or
+count (one charge is now up to two `charge` ledger rows, one of them `ok:
+false`, and `pw_events`' `charge` rows are approaches: carried on with the
+plug in is no row), a run's length, decisions per hour (one more per hour of
+charging), or anything per run (a run is now an hour).
+
 ### A `step` that did not walk says so, and a small turn turns (#649) — opens when this PR is deployed
 
 **What changed is what the feet's verb does and says** (SimNotes, "Stepping

@@ -311,8 +311,9 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
   and before either day moves. A robot whose day ends first waits through
   its body's own hold, as one waiting for work does: its scans matched and
   laid. ⚠ Held `STILL` by the loop instead (#593), its gyro's offset turned
-  Rowan's heading 105-161 deg in the 20-55 minutes the other's charge
-  outlasted its day, and the next run carried on from that belief, lost."""
+  Rowan's heading 105-161 deg in the 20-55 minutes the other's charge then
+  outlasted its day (a charge now stops on the hour: #654), and the next run
+  carried on from that belief, lost."""
   cfg = world_config(lives[0].world)
   starts = starts or (cfg["start"], cfg["start2"])
   budget = explore_budget if explore_budget is not None else cfg["explore_budget"]
