@@ -99,6 +99,11 @@ STEP_SHORT_M = 0.06
 #: cm, to the right 0.6-2.4 (ahead and back, under a centimetre). Told to the
 #: robot, never fed back: the reckoning is the legs'.
 STEP_DY_SHORT_M = (0.01, 0.03)
+#: ...and a step going left after a step ahead (`_step_walks`' two walks, the
+#: second off the first's carry) much more: asked 3-10 cm ahead and 10-20 left,
+#: its left read 1.3-19 cm short, 3-8 on average, its true left past the ask by
+#: 2-6; to the right, 0.2-2.4 (#649, four stances and three draws an ask).
+STEP_DY_LEFT_AFTER_M = 0.10
 #: A STEP'S TURN IS THE STANCE'S (#649; SimNotes, "Stepping toward the work"):
 #: the walker yaws its pelvis over planted feet for 0.2 s before a foot lifts,
 #: so stopped on the pelvis's heading a few degrees' turn left the stance
@@ -114,6 +119,11 @@ STEP_DY_SHORT_M = (0.01, 0.03)
 #: own turn, a 0.14 s pulse moved the stance 7.8 deg where from rest it moves 2-3.
 TURN_BIG_RAD, TURN_TOL_RAD = math.radians(6.0), math.radians(0.75)
 TURN_PULSES, TURN_SETTLE_S, TURN_SETTLE_BIG_S = 8, 0.5, 0.7
+#: ...one still this far off, rad, once its pulses are spent, its feet held,
+#: reads "turned short" (a turn's flights ended within `TURN_TOL_RAD`, 144 of
+#: 144); and the most its closing can take, s, over a step's patience.
+TURN_MISS_RAD = math.radians(2.0)
+TURN_CLOSE_S = TURN_SETTLE_BIG_S + TURN_PULSES * (0.14 + TURN_SETTLE_S)
 #: How far its measured depth's rays reach (`depth_cloud`, and a watcher's,
 #: `depth_watched`), m: a counter's chest within arm's reach. Each draws its
 #: own noise stream (`senses.Noise`: `measure`, `watched`), so watching
@@ -863,8 +873,10 @@ class HumanoidBody(Body):
     stance's, is the least it goes (asked under `STEP_SHORT_M` a walk may
     take none). Its legs are the walking policy's meanwhile. Returns how it
     ended (`why`: "stepped", "too short" -- the walk its legs reckon went
-    under `STEP_LEAST_M`, asked at least that -- "holding" -- a hand holds
-    something, and it does not move -- "blocked", "fell", "out of time"), in
+    under `STEP_LEAST_M`, asked at least that -- "turned short" -- its feet
+    held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
+    "holding" -- a hand holds something, and it does not move -- "blocked",
+    "fell", "out of time"), in
     how long, and where its stance went, by its own reckoning, in the stance
     frame it stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
     ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
@@ -877,6 +889,8 @@ class HumanoidBody(Body):
     t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
     if any(self.gripped(s) for s in hm.SIDES):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
+    if abs(turn) > TURN_STOP_RAD:
+      patience += TURN_CLOSE_S
 
     def over() -> str | None:
       if mi.falls != falls:
@@ -933,8 +947,9 @@ class HumanoidBody(Body):
     the step began (`TURN_BIG_RAD`'s note): over `TURN_BIG_RAD` the
     walker's own turn first, as before, on its pelvis's heading; then
     short pulses closed on the stance's own heading, read after a settle, until
-    it is within `TURN_TOL_RAD`, at most `TURN_PULSES`. Returns "stepped", or
-    what `over` says."""
+    it is within `TURN_TOL_RAD`, at most `TURN_PULSES`. Returns "stepped",
+    "turned short" (its pulses spent, still `TURN_MISS_RAD` off), or what
+    `over` says."""
     mi, dt, why = self.mission, self._m.opt.timestep, "stepped"
     # the stance's heading counted unwrapped, from where it stood: wrapped,
     # one past pi never ended
@@ -966,8 +981,10 @@ class HumanoidBody(Body):
         if why != "stepped":
           return why
       togo = turn - done
-      if abs(togo) <= TURN_TOL_RAD or pulses == TURN_PULSES:
+      if abs(togo) <= TURN_TOL_RAD:
         break
+      if pulses == TURN_PULSES:
+        return "turned short" if abs(togo) > TURN_MISS_RAD else why
       for _ in range(int(round(_turn_pulse(togo) / dt))):
         yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, togo))
         seen()

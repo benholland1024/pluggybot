@@ -98,8 +98,8 @@ def fly(job: tuple) -> dict:
 
 def flights(asks, noises: int, jobs: int) -> list[dict]:
   todo = [(*ask, s, f"step-{k}") for ask in asks for s in STARTS for k in range(noises)]
-  with mp.get_context("spawn").Pool(max(1, jobs), maxtasksperchild=12) as pool:
-    return pool.map(fly, todo, chunksize=2)
+  with mp.get_context("spawn").Pool(max(1, jobs), maxtasksperchild=1) as pool:
+    return pool.map(fly, todo, chunksize=1)
 
 
 def _along(r, xk, yk) -> float:

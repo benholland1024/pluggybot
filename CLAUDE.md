@@ -962,7 +962,8 @@ save a filmstrip PNG named after the script.
   where the stance stood when the step began, the walker's own turn first
   over 6 deg, then pulses too short to lift a foot (⚠ under 0.2 s: past
   it a foot lands and the stance jumps 7-14 deg), read after a settle (read
-  0.3 s after the walker's own turn, a pulse moved it 7.8 deg, 2-3 from rest);
+  0.3 s after the walker's own turn, a pulse moved it 7.8 deg, 2-3 from rest),
+  and one still `TURN_MISS_RAD` off when its pulses run out reads `turned short`;
   -- ⚠ measured only
   once the walker has the legs (out of a bow the pelvis came 16 cm forward
   on its own), ⚠ its first window `STEP_START_S` (2 s: from the stand's

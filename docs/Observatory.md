@@ -18,16 +18,19 @@ toward the work"; `scripts/step_spike.py`):
   `TURN_*`). It stopped on the pelvis's heading, and the feet did not
   follow the pelvis's last degrees: asked 3 deg the stance turned 0.3, and
   15 to the right 9. Now 3 deg lands 2-3.3 deg (1.6-3.8 straight after a
-  big turn), a turn of any size within a degree or two.
+  big turn), a turn of any size within a degree or two; one whose feet will
+  not follow reads false (`turned short`).
 - **A walk asked at least 1 cm that its own legs reckon went under it reads
   false** (`too short`, "your step was too short to walk",
   `steps.STEP_WHY`), never `stepped`; where it stopped still rides `step.*`.
   A walk's physics is unchanged, its stop rule included.
 - **What the robots are told** (`HANDS_VERBS["step"]`): the feet walk in
   strides of about 5 cm, a walk asked under 6 cm may take none and may stop a
-  few cm off, the reading false, a turn lands within a degree or two, and
-  `step.dy` counts a sidestep 1-3 cm short. "at least a stride, about 10 cm"
-  is gone. `prompt_sha` `0a30526b…` → `cd6cdc24…`, 59,967 → 60,249 chars;
+  few cm off, the reading false (a walk asked at least 1 cm), a turn lands
+  within a degree or two or reads false, and `step.dy` counts a sidestep 1-3
+  cm short and one going left after a step ahead up to 10 cm or more. "at
+  least a stride, about 10 cm" is gone. `prompt_sha` `0a30526b…` →
+  `8583b660…`, 59,967 → 60,394 chars;
   the language in the site's guide (`protocol/hello.home_humanoid_counter.json`)
   moves with it (re-vendored at the release).
 

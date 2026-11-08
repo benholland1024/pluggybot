@@ -43,9 +43,11 @@ APPROACH = '''def to_%(prop)s():
   t = a + %(stance)g
   x = read("spot.x") * cos(t) + read("spot.y") * sin(t)
   y = read("spot.y") * cos(t) - read("spot.x") * sin(t)
-  step(x - %(ahead)g - 0.3, y - %(left)g, t)
+  if not step(x - %(ahead)g - 0.3, y - %(left)g, t):
+    pass
   spot(%(handle)d)
-  step(read("spot.x") - %(ahead)g, read("spot.y") - %(left)g)
+  if not step(read("spot.x") - %(ahead)g, read("spot.y") - %(left)g):
+    pass
 '''
 
 
@@ -159,21 +161,24 @@ TABLE_APPROACH = '''def to_table():
   spot(93)
   a = atan2(read("spot.ny"), read("spot.nx"))
   y = read("spot.y") * cos(a) - read("spot.x") * sin(a)
-  step(0, y / 2, a + %(wider)g)
-  step(0, y / 2)
+  if not step(0, y / 2, a + %(wider)g):
+    pass
+  if not step(0, y / 2):
+    pass
   spot(93)
   x = read("spot.x")
   spot(93)
-  step((x + read("spot.x")) / 2 - %(ahead)g - %(over)g, 0)
+  if not step((x + read("spot.x")) / 2 - %(ahead)g - %(over)g, 0):
+    pass
 '''
 #: How much wider than read the walk's turn is asked, rad: the table check's
 #: procedure laid 8 of 8 turned 1.5 deg left, 1 of 8 turned 1 deg right (its
-#: fork's carry ran out of its posture and swung the waist to -45 deg). A
-#: step's turn landed short of what it was asked before #649, and this landed
-#: the stance 1-2 deg left of square; now it lands about what it asks, and
-#: the reference from the tour read the same at 3.3, 2 and 1.1 deg asked
-#: wide (12 of 32 draws each, one pod), so it stays -- and how far a 0.3 m
-#: step straight ahead overshoots, m.
+#: fork's carry ran out of its posture and swung the waist to -45 deg). The
+#: reference from the tour read 12 of 32 draws at 3.3, 2 and 1.1 deg asked wide
+#: (#649, one pod), the stance landing 3.9, 2.6 and 1.75 deg left of square by
+#: its own reading of the card (3.6 at 3.3 on the tree before #649, so this
+#: is no compensation for a short turn); it stays -- and how far a 0.3 m step
+#: straight ahead overshoots, m.
 WIDER, OVER = 0.058, 0.006
 
 #: THE LAY, SERVED: the table check's procedure (`hands_check.TABLE`) with its

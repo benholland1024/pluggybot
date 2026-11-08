@@ -578,8 +578,9 @@ class Body(abc.ABC):
     it then stands in (negative backs up, or goes right), and stands still
     -- as the body walks: the humanoid's least step is a stride, and a walk asked less may
     take none. Returns how it ended (`why`:
-    "stepped", "too short" -- a walk its legs reckon went nowhere -- "holding" -- a hand
-    holds something, and nothing moves --
+    "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
+    turn that could not get there -- "holding" -- a hand holds something, and nothing
+    moves --
     "blocked", "fell", "out of time"), in how long, and where its stance
     went by its own reckoning, in the stance frame it stood in before
     (`dx`, `dy`, m; `turn`, rad): what a place read before the step is

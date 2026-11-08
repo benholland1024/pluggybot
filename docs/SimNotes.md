@@ -2360,8 +2360,8 @@ read against the truth (`_true_stance`):
   at `STEP_V` 0.3 and backs up at `BACK_V` 0.4.
 - *The stride carries on after the last command*, 0.2-0.27 s of its pace,
   so a walk stops once what it believes it has walked, plus its speed times
-  `STEP_STOP_S` (0.22 s), reaches the step; the least a walk goes is a
-  stride, about 10 cm.
+  `STEP_STOP_S` (0.22 s), reaches the step (below: a stride moves the stance
+  about 5 cm, and a short ask may take none).
 - *A turn at 0.6 rad/s sprang back 6-8 deg* as the legs changed hands; at
   `TURN_W` 1.0 it lands within 2 deg of the turn asked, and its heading is
   read within 0.3.
@@ -2430,15 +2430,21 @@ walk's first 0.3 s being all lean. The same flights' verdicts now:
   WORD IS THE LEGS': 7 of the 73 truly went 3 cm or more, five left sidesteps
   of 4-5 cm straight after a turn (they went 3-8 cm and the legs read them
   back 0.4-1.4) and two backward asks of 7-8 cm (they went 7-8 cm and read
-  under 1). Asked over 8 cm, none of 264 read false. A walk's physics did not
-  change: its stop rule is as it was, and only what the verb says of it is
-  new. Under `STEP_SHORT_M` (6 cm) the text says a walk may take no stride
+  under 1), and a foot's lift does not tell them: their feet slid, lifting
+  under a millimetre, as in the runs that truly went nowhere. Asked over 8
+  cm, none of 264 read false. A walk's physics did not change: its stop rule
+  is as it was, and only what the verb says of it is new. Under `STEP_SHORT_M` (6 cm) the text says a walk may take no stride
   at all, and it may stop a few centimetres off; "at least a stride, about 10 cm"
   was never true (one landing moves the stance about 5 cm).
 - *A sidestep's `step.dy` counts short*, under what the legs can see (the
   walker's slide before its first lift): to the left 1.2-3.7 cm short over
   asks of 3-30 cm, to the right 0.6-2.4, ahead and back within a centimetre
-  (`STEP_DY_SHORT_M`). Stated, not corrected: it varied with the start.
+  (`STEP_DY_SHORT_M`). ⚠ AND MUCH MORE LEFT AFTER A STEP AHEAD
+  (`STEP_DY_LEFT_AFTER_M`): a step that goes ahead and then left (`_step_walks`'
+  two walks, the second off the first's carry) read its left 1.3-19 cm
+  short, 3-8 on average over asks of 3-10 cm ahead and 10-20 left, its
+  true left going past the ask by 2-6; to the right 0.2-2.4. Stated, not
+  corrected: it varied with the start and the ask.
 - *A step's turn was stopped on the pelvis's heading, and the feet do not
   follow the pelvis's last degrees*: asked 3 deg, the stance turned 0.3;
   asked 7, 1.3 left and 2.2 right; asked 10, 5; asked 12 and 15 to the right,
@@ -2454,7 +2460,10 @@ walk's first 0.3 s being all lean. The same flights' verdicts now:
   until it is within `TURN_TOL_RAD` (0.75 deg), at most `TURN_PULSES` (8).
   It lands within a degree for 3 deg (2.0-3.3 from most stances, 1.6-3.8
   right after a big turn, the feet still recovering), within 1-2.6 elsewhere
-  (12 flights an ask), and takes 2.5-4 s where a small turn took 1.4.
+  (12 flights an ask), and takes 2.5-4 s where a small turn took 1.4. A
+  turn whose feet will not follow runs out its pulses and reads `turned
+  short` (`TURN_MISS_RAD`); none of 144 flown did, every one ending within its
+  0.75 deg. Its closing is over the step's patience (`TURN_CLOSE_S`).
 - *What a turn pulse does to the feet*: at 1 rad/s, 0.08 s turns the
   stance 0.7-1.3 deg, 0.10 s 1-1.5 and 0.14 s 2-4 (more once the gait
   stirs), with no foot lifted; past 0.2 s a foot lifts and lands and the
@@ -6454,12 +6463,13 @@ still first):
   0.14)` laid 5 of 8.
 
 So the walk's last 30 cm is straight ahead off two looks averaged, less the
-0.6 cm it overshoots; its turn is asked 3.3 deg wider than read (it landed
-the stance a degree or two LEFT of square before #649; since then the turn
-lands on what it asks, and flown at 3.3, 2 and 1.1 deg wide the reference
-read 12 of 32 draws each, so 3.3 stayed); and what it leaves across
-the card's line, the lay's own first step -- a step aside anyway -- takes up
-(`TABLE_LAY_STEP`, the served lay's one change from the check's).
+0.6 cm it overshoots; its turn is asked 3.3 deg wider than read (flown at
+3.3, 2 and 1.1 deg wide the reference read 12 of 32 draws each, the stance
+landing 3.9, 2.6 and 1.75 deg left of square by its reading of the card,
+and 3.6 at 3.3 on the tree before #649's turn, so it is no compensation
+for a short turn); and what it leaves across the card's line, the lay's
+own first step -- a step aside anyway -- takes up (`TABLE_LAY_STEP`, the
+served lay's one change from the check's).
 
 **The bar, written before it flew: 24 of 32 draws over the tour, no fall**
 (`solve.py --feature table --from tour --n 32`, one pod, each draw its own

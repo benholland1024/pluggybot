@@ -19,7 +19,9 @@ are SimNotes' "Stepping toward the work".
      off its constants.
 """
 
+import ast
 import math
+import re
 from types import SimpleNamespace as NS
 
 import numpy as np
@@ -27,6 +29,8 @@ import pytest
 
 from pluggybot import tick
 from pluggybot.body import StubBody
+from pluggybot.challenge import solutions as sol
+from pluggybot.evaluation import hands_check as hc
 from pluggybot.humanoid import body as hb
 from pluggybot.humanoid import odometry as od
 from pluggybot.procedure import steps as st
@@ -407,11 +411,40 @@ def test_a_small_turn_is_closed_on_the_stance_not_the_pelvis():
   walk = Walk(feet=0.8)
   rep = _step(_walker(walk), 0.0, 0.0, -0.5)
   assert walk.stance_yaw == pytest.approx(-0.5, abs=hb.TURN_TOL_RAD + 2 * TURN_STEP)
-  # ...and feet that never follow end it within its pulses, never forever
+  # ...and feet that never follow end it within its pulses, never forever, and say so
   walk = Walk(feet=0.0)
   rep = _step(_walker(walk), 0.0, 0.0, asked)
-  assert rep["why"] == "stepped" and walk.stance_yaw == 0.0
+  assert rep["why"] == "turned short" and walk.stance_yaw == 0.0
   assert walk.t <= hb.TURN_PULSES * (max(hb._turn_pulse(1.0), 0.14) + hb.TURN_SETTLE_S) + 3.0
+  # ...and a turn its pulses left nearly there is no failure
+  assert _step(_walker(Walk(feet=0.0)), 0.0, 0.0, 0.9 * hb.TURN_MISS_RAD)["why"] == "stepped"
+
+
+def test_a_turns_closing_has_its_own_time_over_the_steps_patience():
+  """#649's review: the closing's settles and pulses spent the step's one
+  patience, so a big turn from an arm out with a long walk could read out
+  of time for the walk it never began."""
+  walk = Walk(feet=0.25)
+  rep = _step(_walker(walk), 0.0, 0.0, math.radians(3.0), 1.0)
+  assert rep["why"] == "stepped" and walk.t > 1.0, "the closing ran out the step's patience"
+  # ...and a step with no turn keeps its patience as it was
+  assert _step(_walker(Walk()), 0.3, 0.0, 0.0, 0.1)["why"] == "out of time"
+
+
+def test_a_reference_takes_a_correction_too_short_to_walk_in_its_stride():
+  """#649's review: a step computed from a reading can come out a few cm,
+  and a walk that did not go now reads false: unguarded, a reference ended
+  there where it used to pass through. Each of our references' computed
+  corrections is an `if`'s test of its own."""
+  pat = re.compile(r"%\(\w+\)[gds]")
+  for name, src in (("APPROACH", sol.APPROACH), ("TABLE_APPROACH", sol.TABLE_APPROACH),
+                    ("PLACE", hc.PLACE)):
+    tree = ast.parse(pat.sub("0", src))
+    tested = {id(n.test.operand) for n in ast.walk(tree)
+              if isinstance(n, ast.If) and isinstance(n.test, ast.UnaryOp)
+              and isinstance(n.test.op, ast.Not) and [type(b) for b in n.body] == [ast.Pass]}
+    steps = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "step"]
+    assert steps and all(id(c) in tested for c in steps), f"a computed step in {name} stands alone"
 
 
 def test_a_turns_pulses_are_shorter_than_a_stride_and_never_read_a_settling_walker():
@@ -432,10 +465,14 @@ def test_the_steps_text_says_what_a_short_ask_does_off_its_constants():
   the work")."""
   doc = st.HANDS_VERBS["step"].doc
   assert f"under {100 * hb.STEP_SHORT_M:.0f} cm may take none" in doc
-  assert f"under {100 * hb.STEP_LEAST_M:.0f} cm reads false" in doc
-  assert st.STEP_WHY["too short"].replace("your ", "") in doc.replace("your step", "step")
+  assert f"asked at least {100 * hb.STEP_LEAST_M:.0f} cm" in doc
+  assert "reads false and says your step was too short to walk" in doc
   assert f"{100 * hb.STEP_DY_SHORT_M[0]:.0f}-{100 * hb.STEP_DY_SHORT_M[1]:.0f} cm short" in doc
+  assert f"up to {100 * hb.STEP_DY_LEFT_AFTER_M:.0f} cm or more short" in doc
   assert "at least a stride" not in doc
+  # ...and the two ends a step reads false by, with their reasons
+  assert st.STEP_WHY["too short"] == "your step was too short to walk"
+  assert st.STEP_WHY["turned short"] == "your turn stopped short of where you asked"
 
 
 def _flown_stance_step(*ask):
