@@ -935,9 +935,11 @@ save a filmstrip PNG named after the script.
   takes the Dex1-1's 5-120 N, `held` against half of what its drive pushes
   at the gap it reads (`arms.pushes`, #646: under 2 cm a hard squeeze's
   spring stalls short of the force, and against half the force the plate's
-  8 mm wall read nothing held at 120 N) ⚠ ON THE
-  SQUEEZE'S RUNNING MEAN (`arms.SQUEEZE_S`, sampled every physics step:
-  one reading's 5.1 N of noise misread a 15 N grip 7 % of the time): ⚠ at
+  8 mm wall read nothing held at 120 N wherever its jaws stopped 1 cm apart
+  or less) ⚠ THE SQUEEZE AND THE GAP EACH ON ITS RUNNING MEAN
+  (`arms.SQUEEZE_S`, sampled every physics step: one reading's 5.1 N of
+  noise misread a 15 N grip 7 % of the time, and at the gap as it read that
+  step a grip lost on 26-35 mm read held up to 40 ms longer): ⚠ at
   120 N a lever could not turn in the jaws; ⚠ a hand pressed on what it met
   is eased to where it is before it shuts (`Reach.ease`, `EASE_N`: pressed,
   a cube's jaws dragged across its board and the feet swivelled 4-6 deg,

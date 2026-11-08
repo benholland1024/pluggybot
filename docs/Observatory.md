@@ -15,19 +15,19 @@ observatory is NOT a result: it reports into the issue it informs.
 **What changed is what a grip READS** (SimNotes, "A hard squeeze on
 something thin"):
 - **`held` judges the squeeze against what the gripper's drive pushes at
-  the gap it reads** (`arms.pushes`): the force asked, or short of it the
-  drive's spring's. Under 2 cm at a squeeze over 30 N the spring is the
-  less, and judged against half the force asked a grip there read "closed
-  on nothing it holds" while the jaws held it: the plate's 8 mm wall at 120
-  N, jaws stalled about 1 cm apart squeezing 58-60 N. Now it reads held.
+  the gap it reads** (`arms.pushes`, each on its running mean): the force
+  asked, or short of it the drive's spring's. Under 2 cm at a squeeze over
+  30 N the spring is the less, and judged against half the force asked a
+  grip there could read "closed on nothing it holds" while the jaws held it:
+  the plate's 8 mm wall at 120 N, wherever its jaws stopped 1 cm apart or
+  less, squeezing under 60 N. Now it reads held.
 - **Where a mind sees it**: `close_hand`'s word, the `left.held` and
   `right.held` sensors, the felt readings under each hand verb, and what
   reads a grip -- a `pull` whose grip is lost ends "let go", a `step` is
-  refused while a gripper holds -- on a thin thing squeezed hard.
-  Elsewhere nothing moved: flown on one pod beside the tree before, the
-  hands checks were the same flight for flight but one (the lid at set-out
-  24, which failed alike on both), and the served drawer, door and chest
-  from the tour, 96 flights, all the same.
+  refused while a gripper holds -- on a thin thing squeezed hard. Elsewhere
+  nothing moved: flown on one pod beside the tree before, the hands checks
+  (160 flights), the served drawer, door and chest from the tour (96) and
+  the station (179) were the same flight for flight.
 - **Nothing the robots are told moved, nor the squeeze**: the language,
   the jobs, the rewards and the cadence; `prompt_sha` stays as released.
   A hard squeeze on a thin thing still squeezes what the drive's spring
