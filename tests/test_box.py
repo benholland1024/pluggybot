@@ -37,7 +37,7 @@ def _point(row: int, col: int, height: float) -> list[float]:
   return [(col - W / 2 + 0.5) / F * depth, -(row - H / 2 + 0.5) / F * depth, height]
 
 
-def picture(heights: np.ndarray, bodies: np.ndarray | None = None, reach: float = 3.0):
+def picture(heights: np.ndarray, near: float = 0.17, reach: float = 3.0):
   """A camera straight down over `heights` (H x W, NaN where it reads
   nothing), its rays as `DepthCamera` lays them: each row of `z` its pixel's
   depth, its points in reading order."""
@@ -45,8 +45,8 @@ def picture(heights: np.ndarray, bodies: np.ndarray | None = None, reach: float 
   z = EYE[2] - heights
   pts = np.array([_point(r, c, heights[r, c]) for r in range(H) for c in range(W)
                   if not np.isnan(heights[r, c])]).reshape(-1, 3)
-  return DepthPicture(z=z, points=pts, bodies=np.zeros((H, W), bool) if bodies is None else bodies,
-                      eye=EYE.copy(), turn=np.eye(3), focal=F, reach=reach, noise_k=0.0)
+  return DepthPicture(z=z, points=pts, eye=EYE.copy(), turn=np.eye(3), focal=F, near=near,
+                      reach=reach, noise_k=0.0)
 
 
 def _end(heights: np.ndarray, end_col: int, way=(1.0, 0.0, 0.0), top: float = 0.5,
@@ -168,22 +168,32 @@ def test_something_taller_past_the_end_is_its_free_surfaces_end():
   assert saw["taller"] == 1.0 and saw["cut"] == 0.0
 
 
-def test_a_robots_body_past_the_end_hides_it():
-  # a pixel a robot's body fills reads nothing, and it does not say the
-  # top stopped
-  h = np.full((H, W), 0.5)
-  h[:, 21:] = np.nan
-  bodies = np.zeros((H, W), bool)
-  bodies[:, 21:30] = True
-  saw = _end(h, 20, bodies=bodies)
-  assert saw["hidden"] == 1.0 and saw["lower"] == 0.0
-
-
-def test_an_end_at_the_cameras_reach_is_the_reachs():
+def test_an_end_at_the_cameras_nearest_or_farthest_reading_is_the_ranges():
+  # past either, a pixel reads nothing whatever stands there, so a walk over
+  # them would say the top stopped
   h = np.full((H, W), 0.5)
   h[:, 21:] = np.nan
   assert _end(h, 20, reach=0.55)["reach"]
   assert not _end(h, 20, reach=0.7)["reach"]
+  assert _end(h, 20, near=0.49)["near"]
+  assert not _end(h, 20, near=0.4)["near"]
+
+
+def test_a_diagonal_walk_reads_no_pixel_twice():
+  # a step of the walk's unit length revisits a pixel across a diagonal, and
+  # then one noisy pixel is two agreeing: a low one stood before a taller
+  # thing, and the walk read `lower`
+  h = np.full((H, W), 0.5)
+  for r in range(H):
+    for c in range(W):
+      if (r - 10) + (c - 10) >= 2 * 9:
+        h[r, c] = 0.9
+  h[14, 14] = 0.2          # on the walk's way, 4 pixels along it
+  look = box.Look.of([picture(h)])
+  picks = np.flatnonzero((look.rows == 10) & (look.cols == 10))
+  way = np.array([1.0, -1.0, 0.0]) / math.sqrt(2.0)
+  saw = box.past_end(look, picks, way, 0.5, 9.0)
+  assert saw["taller"] == 1.0 and saw["lower"] == 0.0
 
 
 def test_a_walk_goes_where_the_end_points_in_the_picture():
@@ -230,6 +240,9 @@ def test_a_bodys_pictures_are_its_cloud_each_point_projecting_back_to_its_pixel(
     rows, cols = pic.pixels()
     assert len(rows) and pic.project(pic.points) == pytest.approx(
       np.column_stack([rows, cols]), abs=1e-6)
+    # ...and each pixel's rise is what a metre of its depth does to its height
+    assert pic.rises(rows, cols) == pytest.approx(
+      (pic.points[:, 2] - pic.eye[2]) / pic.z[rows, cols], abs=1e-6)
 
 
 # ---- the top ---------------------------------------------------------------------

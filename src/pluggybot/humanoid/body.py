@@ -782,10 +782,10 @@ class HumanoidBody(Body):
       x, y, yaw = self.stance
       turned = _rz(yaw)
       origin, mat = cam.mount.pose(joints)
-      out.append(DepthPicture(z=got.z, points=inside @ turned.T + [x, y, 0.0], bodies=got.bodies,
+      out.append(DepthPicture(z=got.z, points=inside @ turned.T + [x, y, 0.0],
                               eye=(rot @ origin + sm.d.qpos[0:3]) @ turned.T + [x, y, 0.0],
-                              turn=turned @ rot @ mat, focal=cam.focal_px, reach=cam.max_z,
-                              noise_k=cam.noise_k))
+                              turn=turned @ rot @ mat, focal=cam.focal_px, near=cam.min_z,
+                              reach=cam.max_z, noise_k=cam.noise_k))
     return out
 
   def _report(self, rep: dict) -> dict:

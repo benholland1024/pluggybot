@@ -8,7 +8,7 @@ Each end it reads is checked against the world by a ray straight down 2 cm
 past it (OURS, never the robot's), at five places along the end's own
 points: is the top truly gone there (`lower`), still there (`on`), or does
 something taller stand there. An end it does not read says why it did not
-(`window`, `picture`, `reach`, `body`, `runs`).
+(`window`, `picture`, `reach`, `near`, `runs`).
 
   python scripts/measure_spike.py --job drawer --set-outs 0,3    # the windows of #636's probe
   python scripts/measure_spike.py --job door --set-outs 0-3 --poses all    # viewpoints as well
@@ -42,7 +42,7 @@ VIEWS = ((0.0, 0.0, 0.0), (0.25, 0.0, 0.0), (0.5, 0.2, 0.0), (0.5, -0.2, 0.0), (
          (0.0, -0.3, -25.0), (1.0, 0.0, 0.0), (1.6, 0.0, 0.0))
 #: Why an end is unread, off its words (`steps._measure`).
 WHY = (("looked within", "window"), ("off your depth camera", "picture"), ("reach", "reach"),
-       ("robot's body", "body"), ("where it read its end", "runs"))
+       ("nearer than", "near"), ("where it read its end", "runs"))
 
 
 class Pictures:

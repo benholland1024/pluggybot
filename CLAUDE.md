@@ -908,17 +908,20 @@ save a filmstrip PNG named after the script.
   the depth picture and told by the first pixel past the top: lower, the
   top stopped there (a pixel with no reading is walked past: the D435's
   shadow; unread to the picture's edge more than a dropout could be, the
-  top stopped, a far edge's floor beyond the 3 m reach); a robot's body, or
-  the picture's edge with the top still on it (`PAST_CUT_PX`), or points at
-  the camera's reach, or its own top going on past where it reads
-  (`PAST_OVER_M`, 3 cm: 9 of 2,399 ends past the rim's check, the top going
-  on at all 9): no reading, and its read says which;
-  something taller (`object.<end>_taller`, Ben, 2026-11-08): the end of
-  the top's free surface, and it reads so. ⚠ A LONE PIXEL IS NOT A SURFACE
-  (`box._agreed`): the part's noise passes 3 sigma once a walk of a hundred
-  pixels in four, and read `lower` through a table. ⚠ An end takes the
-  walks' most common word, a tie the one that claims less
-  (`steps.MEASURE_WORDS`). ⚠ An answer may take `MAX_TOKENS` 128,000, told
+  top stopped, a far edge's floor beyond the 3 m reach); the picture's edge
+  with the top still on it (`PAST_CUT_PX`), points at the part's nearest or
+  farthest reading, or its own top going on past where it reads
+  (`PAST_OVER_M`, 3 cm): no reading, and its read says which; something
+  taller (`object.<end>_taller`, Ben, 2026-11-08): the end of the top's
+  free surface, and it reads so. ⚠ NOTHING HERE READS WHOSE GEOM A PIXEL
+  WAS: the robot's own body reads nothing and is walked past as any other,
+  and another robot is a taller thing, as the part sees it. ⚠ THE NOISE IN
+  A PIXEL'S HEIGHT IS ITS RAY'S SHARE OF IT (`DepthPicture.rises`): the
+  band as the ray's whole noise passed a face 5 cm behind an end for the
+  top. ⚠ A LONE PIXEL IS NOT A SURFACE (`box._agreed`, no pixel walked
+  twice): the noise passes 3 sigma once in a quarter of hundred-pixel
+  walks. ⚠ An end takes the walks' most common word, a tie the one that
+  claims less (`steps.MEASURE_WORDS`). ⚠ An answer may take `MAX_TOKENS` 128,000, told
   `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
   (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
   again saying so. ⚠ A REPLY LOST TO EVERY RETRY LOSES ONLY ITSELF: what it

@@ -6392,27 +6392,31 @@ end is (`steps.MEASURE_WORDS`, a tie the one that claims less):
 - **taller**: something stands there and hides what lies beyond. It reads as
   the end of the top's free surface (Ben, 2026-11-08), and
   `object.<end>_taller` says so.
-- **unseen**: the walk left the picture with the top still on its last
-  pixels (`PAST_CUT_PX`, 3, unread pixels at most between them: a dropout's
-  length), or met a robot's body (`DepthFrame.bodies`: a NaN like any other,
-  to the cloud). No reading, and it says which.
+- **cut**: the walk left the picture with the top still on its last pixels
+  (`PAST_CUT_PX`, 3, unread pixels at most between them: a dropout's
+  length). No reading, and it says so.
 - **runs**: the walk's own top went on past where the end reads by more
   than `PAST_OVER_M` (3 cm), the end's points having stopped short of the
   top: 9 of 2,399 ends past the rim's check at set-outs of five checks, the
-  counter going on beside the chest, read a few cm short, and at all 9 the
-  world had the top going on there. No reading, and it says so.
+  counter going on beside the chest, read a few cm short, the world having
+  the top going on along most of each. No reading, and it says so.
 
 A pixel that reads nothing is walked past: the D435's shadow (the band of
-nothing beside a near thing's image-left) or a dropout, what stands behind it
-saying which. Unread right to the picture's edge, past 3 px, the top stopped:
-a flat top running on would have read on, and what is past it is out of the
-part's reach or in its shadow (the counter's left end at the picture's
-corner; a table's far edge across a room). An end whose points stand at the
-part's reach (`PAST_REACH_M` of its 3 m) is the reach's: no reading. And a
-lone pixel past the noise slack is the noise, never a surface (`_agreed`: a
-surface is several pixels wide, and a walk of a hundred pixels of the top
-meets a 3-sigma one in a quarter of walks: read as `lower`, it stopped walks
-partway across a table).
+nothing beside a near thing's image-left), a dropout, or the robot's own
+body (a cloud is told nothing of whose body a pixel was, and another robot
+reads as anything taller would), what stands behind it saying which. Unread
+right to the picture's edge, past 3 px, the top stopped: a flat top running
+on would have read on, and what is past it is out of the part's range or in
+its shadow (the counter's left end at the picture's corner; a table's far
+edge across a room). An end whose points stand at the part's farthest or
+nearest reading (`PAST_REACH_M` of its 3 m, `PAST_NEAR_M` of its 0.17) is
+the range's: no reading. A pixel's slack is the noise IN ITS HEIGHT, the
+noise along its ray times the ray's rise (`DepthPicture.rises`): the ray's
+whole noise, 2.4 cm at 1.5 m, passed a face 5 cm behind a far end for the
+top running on. And a lone pixel past that slack is the noise, never a
+surface (`_agreed`, the walk stepping a pixel of its longer axis at a time
+so none is read twice: a surface is several pixels wide, and a walk of a
+hundred pixels of the top meets a 3-sigma one in a quarter of walks).
 
 Measured with `scripts/measure_spike.py` and a sweep of the same code
 (`--poses all`): the drawer's set-outs 0 and 3 from the reference's stance,
@@ -6422,22 +6426,23 @@ at the picture's corner reads 0.838 and 0.834 (the truth 0.836 and 0.830,
 its walks 29-34 % cut); the cabinet end reads 0.561 and 0.572 and says so.
 Over the five checks' set-outs 0 and 3 from eight viewpoints and 42 windows
 (9,060 ends), a ray straight down 2 cm past each end read against the world:
-of 4,360 reads, 4,215 stand where the top truly stops and 103 at a taller
-thing; 29 stand where the top truly goes on: 18 of them one dining table's
-right edge, the ray-cast hole below, and 11 edges seen from a stance turned
-25 deg, a diagonal edge whose reading lies between its ends. 428 ends went
-unread at the picture's edge and 4,272 at the window.
+of 4,360 reads, 4,213 stand where the top truly stops; 101 stand at a taller
+thing and say so, and 17 beside one and do not (a chair 5 cm behind a table's
+far edge: the camera sees down the gap first); 29 stand where the top truly
+goes on: 18 of them one dining table's right edge, the ray-cast hole below,
+and 11 edges seen from a stance turned 25 deg, a diagonal edge whose reading
+lies between its ends. 428 ends went unread at the picture's edge, 4,258 at
+the window and 14 past where they read.
 
-⚠ **The dining tables have holes in the depth camera** (not fixed here).
-Every dining table's body has a turned inertial frame (its top on its legs),
-and `mj_multiRay` culls a body by a sphere misplaced for such a frame (the
-#605 bug): a ray at a table's far side passes straight through its top to
-the floor, in the D435's cast (the LIDAR casts `mj_multiRay` too) -- `mj_ray`
-on the same ray hits the top. In the sweep above it read the table's right
-end up to 7 cm short with the floor plainly seen past it. `measure` cannot
-tell: to the picture, the table has ended there. A table whose top is in
-the robot's way should get its inertial frame by hand before the sim is
-trusted at it.
+⚠ **The dining tables have holes in the depth camera and the LIDAR** (#657,
+not fixed here; the legs that cause it, #643, are not released yet). Every
+dining table's body has a turned inertial frame (its top on its legs), and
+`mj_multiRay` culls a body by a sphere misplaced for such a frame (the #605
+bug): of the rays that should land on a table, 6 % of the D435's pattern and
+4.5 % of the LIDAR's pass straight through its top -- `mj_ray` on the same
+rays hits it. In the sweep above that read the table's right end up to 7 cm
+short with the floor plainly seen past it. `measure` cannot tell: to the
+picture, the table has ended there.
 
 ⚠ **A top reads high at range.** `box.top_height` takes the band round
 the highest bin holding a quarter of the fullest, and `TOP_BAND_M`'s 5 mm

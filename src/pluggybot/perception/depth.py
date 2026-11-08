@@ -126,17 +126,13 @@ class DepthFrame:
   must. Nothing is inferred here -- these are the same casts, sorted by
   what they hit. `peer_geoms` is the geom each of those rows hit, so a
   consumer can say WHICH robot it saw (issue #365: one lying on the floor
-  is not held for, `HubLifecycle._near_field_step`). `bodies` is HEIGHT x
-  WIDTH, True where a robot's body -- this one or another -- filled the
-  pixel: of `z`'s NaNs, the ones that hide what stands behind them
-  (#636)."""
+  is not held for, `HubLifecycle._near_field_step`)."""
   z: np.ndarray
   points: np.ndarray
   self_fraction: float
   peers: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
   peer_geoms: np.ndarray = field(
     default_factory=lambda: np.zeros(0, dtype=np.int32))
-  bodies: np.ndarray = field(default_factory=lambda: np.zeros((0, 0), dtype=bool))
 
 
 @dataclass
@@ -145,18 +141,18 @@ class DepthPicture:
   picture beside its points (`Body.depth_pictures`, issue #636): a cloud
   says where points are, and nothing of where the look at them stopped.
 
-  `z` and `bodies` are its `DepthFrame`'s; `points` the (k, 3) cloud in the
-  believed world frame, one row per valid pixel of `z` in reading order
-  (`pixels`); `eye` where the camera is and `turn` its frame (camera to
-  world, its columns the camera's axes); `focal` its focal length, px;
-  `reach` how far it reads, m (`MAX_Z`, the range gate), and `noise_k` its
-  noise, sigma_z = noise_k * z^2."""
+  `z` is its `DepthFrame`'s; `points` the (k, 3) cloud in the believed world
+  frame, one row per valid pixel of `z` in reading order (`pixels`); `eye`
+  where the camera is and `turn` its frame (camera to world, its columns the
+  camera's axes); `focal` its focal length, px; `near` and `reach` the
+  nearest and farthest it reads, m (its range gate), and `noise_k` its
+  noise, sigma_z = noise_k * z^2, along each ray."""
   z: np.ndarray
   points: np.ndarray
-  bodies: np.ndarray
   eye: np.ndarray
   turn: np.ndarray
   focal: float
+  near: float
   reach: float
   noise_k: float
 
@@ -171,6 +167,14 @@ class DepthPicture:
     out = np.full((*self.z.shape, 3), np.nan)
     out[~np.isnan(self.z)] = self.points
     return out
+
+  def rises(self, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
+    """What a metre of axial depth does to the height along each of these
+    pixels' rays, m: the part's noise is along the ray, so this is its share
+    of a pixel's height."""
+    height, width = self.z.shape
+    u, v = (cols - width / 2 + 0.5) / self.focal, (rows - height / 2 + 0.5) / self.focal
+    return self.turn[2, 0] * u - self.turn[2, 1] * v - self.turn[2, 2]
 
   def project(self, points: np.ndarray) -> np.ndarray:
     """Where `points` (k, 3, the believed world frame) fall in the picture:
@@ -320,8 +324,7 @@ class DepthCamera:
     z, points = self._cloud(np.where(robot | shadow, np.nan, z), self.rng, origin, dirs)
     return DepthFrame(z=z.reshape(self.height, self.width), points=points,
                       self_fraction=float(robot.mean()), peers=peers,
-                      peer_geoms=peer_geoms,
-                      bodies=robot.reshape(self.height, self.width))
+                      peer_geoms=peer_geoms)
 
   def _cloud(self, z: np.ndarray, rng, origin: np.ndarray, dirs: np.ndarray
              ) -> tuple[np.ndarray, np.ndarray]:

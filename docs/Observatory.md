@@ -17,16 +17,16 @@ observatory is NOT a result: it reports into the issue it informs.
 - **An end reads only where the camera saw past it.** Each of an end's
   points is walked outward across the depth picture (`Body.depth_pictures`,
   `box.past_end`), and an end with no reading says why: the top ran off the
-  picture (the counter's near end, 0.26 wherever a robot stood), past the
-  camera's 3 m reach, behind a robot's body, or the top's own pixels go on
-  past where it reads (the counter going on beside the chest, a few cm
-  short). What the window holds whole reads exactly as it did, and a true
-  end at the picture's corner still reads.
+  picture (the counter's near end, 0.26 wherever a robot stood), out of the
+  part's 0.17-3 m range, or the top's own pixels go on past where it reads
+  (the counter going on beside the chest, a few cm short). What the window
+  holds whole reads exactly as it did, and a true end at the picture's
+  corner still reads.
 - **Something taller standing just past an end** is where the top's free
   surface stops (Ben's call): it reads there, and four new readings,
   `object.near_taller` (`far`, `left`, `right`), read 1.
 - `measure`'s text says so, and the four readings are in the language and
-  the body sections: `prompt_sha` `8583b660…` → `8dd3cebe…`, 60,394 → 61,429
+  the body sections: `prompt_sha` `8583b660…` → `b8453bf3…`, 60,394 → 61,413
   chars, 17 sections both (`overseer_probe.py --deployed --prompt`); the
   practice's language and body and the session host's `hello` with it (the
   site re-vendors it, and its guide for people needs a row for each of the
