@@ -259,37 +259,66 @@ PLACE = '''def place_cube():
   withdraw("left")
 '''
 
-#: THE TABLE'S PLACE (#560) from ONE STANCE 0.14 m left of the start, where
-#: the waist's yaw reaches every piece (#621). Each choice is deliberate and
-#: measured (SimNotes, "The table's reference on the waist"): the cup from
-#: above, gripped 3 cm short of its middle (at the middle the palm cuts the
-#: lid) and placed off the plate's tag read with the hand out, a reach that
-#: bows out of the tag's view tried again 1.5 cm higher; the plate's and the
-#: fork's jaws the other way round at 60 deg (as asked before, the yaw takes
-#: the grip that never carries), each reach aimed at its grip (#627: the reach
-#: plans where the robot stands), the plate gripped 1.5 cm inside its wall (at
-#: it, a pad brushed the fork over), the fork at 25 N (chosen before #628,
-#: when the drive's chatter batted it from 40); every precise move a pull
-#: (`go`: a carry takes only a posture its statue reaches); each piece set
-#: down by where its jaws left it, the card read again once it is up, the
-#: plate 1 cm to the right and the fork 0.5 cm nearer the robot against what
-#: the carry's turn leaves; an open hand lifted straight up, its jaws opened
-#: first.
+#: THE TABLE'S PLACE (#560) from ONE STANCE left of the start, where
+#: the waist's yaw reaches every piece (#621; 0.14 m where the check's start
+#: stands it, 0.16 served off the walk, `solutions.TABLE_LAY_STEP`). Each choice is
+#: deliberate and measured (SimNotes, "The table's reference on the waist" and
+#: "The lay from the tour"): the cup's tag read before the step (out of view
+#: from the stance; turned to if the first look loses it), carried through
+#: the step's own turn with the plate's tag read again from the stance; the
+#: cup from above, gripped 3 cm short of its middle (at the middle the palm
+#: cuts the lid) and placed off the plate's tag read with the hand out, a
+#: reach that bows out of the tag's view tried again 1.5 cm higher; the
+#: plate's and the fork's jaws the other way round at 60 deg (as asked before,
+#: the yaw takes the grip that never carries), each reach aimed at its grip
+#: (#627: the reach plans where the robot stands), the plate gripped 1.5 cm
+#: inside its wall (at it, a pad brushed the fork over), the fork at 25 N
+#: (chosen before #628, when the drive's chatter batted it from 40); every
+#: precise move a pull (`go`: a carry takes only a posture its statue
+#: reaches); each piece set down by where its jaws left it, the card read
+#: again once it is up, the plate 1 cm to the right and the fork 0.5 cm
+#: nearer the robot against what the carry's turn leaves; an open hand lifted
+#: straight up, its jaws opened first, 9 cm before the left arm's way home (6
+#: and a hand a few cm nearer the table struck its edge going home).
 TABLE = '''def lay_place():
   budget(steps=190, seconds=290)
   spot(93)
   k = read("spot.x")
   m = read("spot.y")
+  a = 0.14
   spot(90)
   px = read("spot.x")
   py = read("spot.y")
-  spot(91)
+  t = 0
+  if not spot(91):
+    if not step(0, 0, -0.17):
+      pass
+    t = read("step.turn")
+    spot(93)
+    k = read("spot.x")
+    m = read("spot.y")
+    spot(90)
+    px = read("spot.x")
+    py = read("spot.y")
+    spot(91)
   u = read("spot.x") - px - 0.03
   v = read("spot.y") - py
   cz = read("spot.z") - 0.03
   s = k - 0.07 - px - 0.03
   w = m - 0.243 - py
-  step(0, 0.14)
+  if a < 0.09:
+    a = 0.09
+  if not step(0, a, -t):
+    pass
+  r = read("step.turn")
+  c = cos(r)
+  e = sin(r)
+  q = c * u + e * v
+  v = c * v - e * u
+  u = q
+  q = c * s + e * w
+  w = c * w - e * s
+  s = q
   move("right_shoulder_roll", -0.9)
   move("right_elbow", 1.4)
   open_hand("right")
@@ -352,7 +381,7 @@ TABLE = '''def lay_place():
     pull("left", 0, 0, -1, 6, 0.09, give=0)
     open_hand("left")
     wait(0.4)
-    pull("left", 0, 0, 1, 20, 0.06, give=0)
+    pull("left", 0, 0, 1, 20, 0.09, give=0)
     withdraw("left")
 
 
