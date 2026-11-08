@@ -2360,8 +2360,8 @@ read against the truth (`_true_stance`):
   at `STEP_V` 0.3 and backs up at `BACK_V` 0.4.
 - *The stride carries on after the last command*, 0.2-0.27 s of its pace,
   so a walk stops once what it believes it has walked, plus its speed times
-  `STEP_STOP_S` (0.22 s), reaches the step; the least a walk goes is a
-  stride, about 10 cm.
+  `STEP_STOP_S` (0.22 s), reaches the step (below: a stride moves the stance
+  about 5 cm, and a short ask may take none).
 - *A turn at 0.6 rad/s sprang back 6-8 deg* as the legs changed hands; at
   `TURN_W` 1.0 it lands within 2 deg of the turn asked, and its heading is
   read within 0.3.
@@ -2403,6 +2403,83 @@ read against the truth (`_true_stance`):
   good to 0.4-0.8 cm. So a robot that steps in to a cube turns what it read
   before the step into the frame after it (`step.*`), as the check's
   procedure does, rather than look again.
+
+**Short asks and small turns (issue #649).** A walk's stop rule watches
+the pelvis (above), and the pelvis moves before the feet do: for the
+first 0.3 s of a walk it leans over planted feet, a foot lifts after
+that, and each landing moves the stance about 5 cm. Flown on the bare floor
+from four stances (stood from the boot, after a 12 cm step, after a reach
+withdrawn, after a 29 deg turn), each at three noise draws:
+
+| asked | ahead | back | left | right |
+|---|---|---|---|---|
+| 3 cm | 0.0-3.9 cm | 0.0-0.1 | 0.7-2.5 | 0.0-5.8 |
+| 4 cm | 2.1-6.3 | 0.0-0.1 | 0.7-3.2 | 0.4-7.8 |
+| 5 cm | 6.1-7.2 | 0.1-5.1 | 0.9-7.8 | 1.7-9.2 |
+| 6 cm | 6.4-10.2 | 2.7-8.9 | 2.8-11.8 | 4.5-11.8 |
+| 8 cm | 9.8-13.5 | 5.3-10.9 | 3.5-15.8 | 6.2-14.8 |
+| 10 cm | 12.1-14.6 | 6.6-11.0 | 9.7-16.3 | 6.3-15.4 |
+
+Every one of those read `stepped`, though 3 and 4 cm back never moved, a
+walk's first 0.3 s being all lean. The same flights' verdicts now:
+
+- *A walk asked at least `STEP_LEAST_M` (1 cm) that its own legs reckon
+  went under it reads false* (`too short`, "your step was too short to
+  walk"). Of 312 flights asked 8 cm and under, none reads `stepped` having
+  truly moved under 1 cm, and 73 read false, 3 and 4 cm back 12 of 12. ⚠ THE
+  WORD IS THE LEGS': 7 of the 73 truly went 3 cm or more, five left sidesteps
+  of 4-5 cm straight after a turn (they went 3-8 cm and the legs read them
+  back 0.4-1.4) and two backward asks of 7-8 cm (they went 7-8 cm and read
+  under 1), and a foot's lift does not tell them: their feet slid, lifting
+  under a millimetre, as in the runs that truly went nowhere. Asked over 8
+  cm, none of 264 read false. A walk's physics did not change: its stop rule
+  is as it was, and only what the verb says of it is new. Under `STEP_SHORT_M` (6 cm) the text says a walk may take no stride
+  at all, and it may stop a few centimetres off; "at least a stride, about 10 cm"
+  was never true (one landing moves the stance about 5 cm).
+- *A sidestep's `step.dy` counts short*, under what the legs can see (the
+  walker's slide before its first lift): to the left 1.2-3.7 cm short over
+  asks of 3-30 cm, to the right 0.6-2.4, ahead and back within a centimetre
+  (`STEP_DY_SHORT_M`). ⚠ AND MUCH MORE LEFT AFTER A STEP AHEAD
+  (`STEP_DY_LEFT_AFTER_M`): a step that goes ahead and then left (`_step_walks`'
+  two walks, the second off the first's carry) read its left 1.3-19 cm
+  short, 3-8 on average over asks of 3-10 cm ahead and 10-20 left, its
+  true left going past the ask by 2-6; to the right 0.2-2.4. Stated, not
+  corrected: it varied with the start and the ask.
+- *A step's turn was stopped on the pelvis's heading, and the feet do not
+  follow the pelvis's last degrees*: asked 3 deg, the stance turned 0.3;
+  asked 7, 1.3 left and 2.2 right; asked 10, 5; asked 12 and 15 to the right,
+  5.8 and 9.1 (6-13 over the starts), up to 7 short, and within 2 past 20
+  (5 past 45 to the right).
+  The turn is now closed on the STANCE's own heading (`_turn_routine`,
+  `TURN_*`): measured from where the stance stood when the step began,
+  (⚠ NOT after the hand-over: the stance moves up to a degree in it, and
+  measured from there it landed a degree short), the walker's own turn first
+  past `TURN_BIG_RAD` (6 deg) then short pulses of `TURN_W`, each read after
+  a settle (0.5 s; 0.7 after the walker's own, whose last foot is landing:
+  read at 0.3 a pulse moved the stance 7.8 deg where from rest it moves 2-3),
+  until it is within `TURN_TOL_RAD` (0.75 deg), at most `TURN_PULSES` (8).
+  It lands within a degree for 3 deg (2.0-3.3 from most stances, 1.6-3.8
+  right after a big turn, the feet still recovering), within 1-2.6 elsewhere
+  (12 flights an ask), and takes 2.5-4 s where a small turn took 1.4. A
+  turn whose feet will not follow runs out its pulses and reads `turned
+  short` (`TURN_MISS_RAD`); none of 144 flown did, every one ending within its
+  0.75 deg. Its closing is over the step's patience (`TURN_CLOSE_S`).
+- *What a turn pulse does to the feet*: at 1 rad/s, 0.08 s turns the
+  stance 0.7-1.3 deg, 0.10 s 1-1.5 and 0.14 s 2-4 (more once the gait
+  stirs), with no foot lifted; past 0.2 s a foot lifts and lands and the
+  stance jumps 7-14 deg, so a pulse is never longer than 0.14 s
+  (`_turn_pulse`). Its reckoned stance heading is the truth's to 0.2 deg.
+- *The references and the station, flown beside the tree before*, one pod
+  (EPYC 7B13, osmesa), each flight its own noise: the hands checks at
+  set-outs 0-31, lid / drawer / door / cube / table 26 / 21 / 25 / 17 / 27 on
+  both trees, the same flights in every number (their steps ask no turn); the
+  served drawer, door and chest from the tour 29, 28 and 31 of 32 on both; the
+  table from the tour 12 of 32 against 9; and the station 39 of 39 from
+  round the standoff and 140 of 140 seats on both. Across their flights, the
+  real turns' error (asked against the stance's truth): 0.8 deg at the median
+  under 6 deg asked where the tree before read 1.5, 1.1 against 1.4 from 6 to
+  20, 0.7 against 1.3 past 20. A `too short` walk happened once, in a table
+  draw that failed on both trees.
 
 **The cube in the hand.** The Dex1-1's fingers are 8 cm long and its grip
 point is their middle (`humanoid/model.py`, `jaw_z`), so at the 60 deg tilt
@@ -6368,27 +6445,31 @@ along it is its own angle.
 
 **What `step` does, measured** (the same probes, in the dining room, stood
 still first):
-- *A small turn is lost.* Asked 1.7, 2.9 and 5.7 deg, the stance turned 0.0,
-  0.3 and 1.1: the step's turn stops on the pelvis's heading (`TURN_STOP_RAD`
-  of it), and the feet do not follow the pelvis's last 2-4 deg -- asked 34
-  deg, they turned 32.6 left and 30.2 right. So nothing corrects a heading
-  after the walk, and its one big turn is asked `WIDER` than read.
+- *A small turn was lost.* Asked 1.7, 2.9 and 5.7 deg, the stance turned
+  0.0, 0.3 and 1.1, its turn stopped on the pelvis's heading with the feet
+  not following its last 2-4 deg -- asked 34 deg, they turned 32.6 left and
+  30.2 right. (Closed on the stance's heading since #649, "Stepping toward
+  the work"; so the walk's one big turn was asked `WIDER` than read.)
 - *A step aside to the right turns the robot 1-1.5 deg clockwise*, by its
   own reckoning, which agrees with the truth (two flights at one noise,
   apart at their last step, differed by exactly what it reckoned).
 - *A step with a step to the right in it lands long*: 28 cm ahead and 5-10
   cm right landed 2.0-3.7 cm further ahead than asked, straight ahead
   0.4-0.8 cm, with a step to the left in it 0.1 cm long to 1.3 cm short.
-- *A step forward under a stride is walked as a stride* (`_step_walks`: a
-  forward speed in the walker's dead band is walked on its own, and a walk
-  goes at least about 10 cm): stepping out a centimetre's error ahead walked
-  ten, and from the exact start a step `(k - 0.4866, m + 0.14)` laid 5 of 8.
+- *A step forward under a stride is walked as one or not at all*
+  (`_step_walks`: a forward speed in the walker's dead band is walked on its
+  own, a landing moving the stance about 5 cm): stepping out a centimetre's
+  error ahead walked ten, and from the exact start a step `(k - 0.4866, m +
+  0.14)` laid 5 of 8.
 
 So the walk's last 30 cm is straight ahead off two looks averaged, less the
-0.6 cm it overshoots; its turn is asked 3.3 deg wider than read, to land the
-stance a degree or two LEFT of square; and what it leaves across the card's
-line, the lay's own first step -- a step aside anyway -- takes up
-(`TABLE_LAY_STEP`, the served lay's one change from the check's).
+0.6 cm it overshoots; its turn is asked 3.3 deg wider than read (flown at
+3.3, 2 and 1.1 deg wide the reference read 12 of 32 draws each, the stance
+landing 3.9, 2.6 and 1.75 deg left of square by its reading of the card,
+and 3.6 at 3.3 on the tree before #649's turn, so it is no compensation
+for a short turn); and what it leaves across the card's line, the lay's
+own first step -- a step aside anyway -- takes up (`TABLE_LAY_STEP`, the
+served lay's one change from the check's).
 
 **The bar, written before it flew: 24 of 32 draws over the tour, no fall**
 (`solve.py --feature table --from tour --n 32`, one pod, each draw its own
@@ -6412,8 +6493,10 @@ from the dearest station, the research center's, the job cost 8.802 Wh
 over 184 s (`energy.json`; from the house's 7.645, from the mall's 4.885).
 What would pass it, untried: a lay that finds its pieces from
 where it stands (looking for the cup where it is not in view, its fork's
-carry planned with its grip), or a `step` whose turn stops on the stance
-rather than the pelvis, so a walk can square itself to a degree.
+carry planned with its grip). (#649 turned `step` on the stance's heading
+so a walk can square itself to a degree or two: on one pod, 32 draws, the
+same reference passed 12 of 32 against 9 on the tree before it, and its
+misses are the lay's, as above.)
 
 ## The gripper's drive on its line (issue #628)
 

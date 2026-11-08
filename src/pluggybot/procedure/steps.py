@@ -58,6 +58,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_LEAST_M,
+                                     STEP_SHORT_M)
 from pluggybot.perception.box import FLOOR_M as MEASURE_FLOOR_M
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
 from pluggybot.tick import Routine
@@ -932,7 +934,9 @@ def _pull(life, args: dict) -> Routine:
 
 
 #: Why a step stopped short, as its record says it (`Body.step_routine`).
-STEP_WHY = {"holding": "a step carries nothing: open your hands first",
+STEP_WHY = {"too short": "your step was too short to walk",
+            "turned short": "your turn stopped short of where you asked",
+            "holding": "a step carries nothing: open your hands first",
             "blocked": "your step got nowhere: something stands in your way",
             "fell": "you fell, and got up again",
             "out of time": "your step ran out of time"}
@@ -1146,9 +1150,17 @@ HANDS_VERBS: dict[str, Verb] = {
                         "turn": Arg("float", lo=-3.2, hi=3.2, default=0.0)}, _step,
                "turn `turn` rad on the spot (left, +), then walk `ahead` m and `left` m in "
                "the frame you then stand in (negative: back, right), and stand still -- your "
-               "hands home first; a step carries nothing. A walk goes at least a stride, "
-               "about 10 cm, and may stop a few cm off what you asked; a turn shuffles your "
-               "feet a few cm that `step.*` does not count. Your stance frame "
+               "hands home first; a step carries nothing. Your feet walk in strides, each "
+               "carrying your stance about 5 cm: a walk asked under "
+               f"{100 * STEP_SHORT_M:.0f} cm may take none, and a walk may stop a few cm off "
+               f"what you asked. A walk asked at least {100 * STEP_LEAST_M:.0f} cm that your own "
+               "legs count as under it reads false and says your step was too short to walk. "
+               "A turn lands within a degree or two of what you asked -- one that does not "
+               "get there reads false and says so -- and shuffles your feet a few cm that "
+               f"`step.*` does not count. `step.dy` counts a sidestep "
+               f"{100 * STEP_DY_SHORT_M[0]:.0f}-{100 * STEP_DY_SHORT_M[1]:.0f} cm short of "
+               "how far your feet went, and one going left after a step ahead up to "
+               f"{100 * STEP_DY_LEFT_AFTER_M:.0f} cm or more short. Your stance frame "
                "goes with your feet: where they went in the frame you stood in before rides "
                "`step.*` (`step.dx` ahead, `step.dy` left, m, and `step.turn`, rad), so a "
                "place (x, y) you read before is now (c (x - dx) + s (y - dy), c (y - dy) - "

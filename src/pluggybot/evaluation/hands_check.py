@@ -213,7 +213,8 @@ PLACE = '''def place_cube():
   y = read("spot.y") + 0.013 * read("spot.ny")
   z = read("spot.z") + 0.013 * read("spot.nz")
   a = atan2(read("spot.ey"), read("spot.ex"))
-  step(x - 0.32, y - 0.18)
+  if not step(x - 0.32, y - 0.18):
+    pass
   c = cos(read("step.turn"))
   s = sin(read("step.turn"))
   u = x - read("step.dx")
