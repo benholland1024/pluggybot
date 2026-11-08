@@ -41,8 +41,8 @@ Rowan held, and it worked t_0071 for 394 s before it found out.
   thoughts asking it (tk_0052 is one), which only #648's second half would
   end.
 - ⚠ **What to expect, offline and on one turn.** The deployed mind
-  (`zai-org/GLM-5.3-Flash:baseten`), on the served prompt and Luca's own
-  turn after it lost t_0122 (its pin `t_0122 (drawer) taken … run
+  (`zai-org/GLM-5.3-Flash:baseten`), on the served prompt as staging
+  builds it and Luca's own turn after it lost t_0122 (its pin `t_0122 (drawer) taken … run
   drawer_final next turn`, its last thought, its History and its
   `drawer_final`), nine answers each way. Without the line all 9 ran
   `drawer_final` on Rowan's job and 2 said `done` on it. With it none did,

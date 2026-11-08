@@ -122,7 +122,7 @@ def test_a_job_the_board_does_not_have_is_named_alone():
 
 
 def test_a_done_on_an_offer_nobody_took_says_so():
-  """Luca's t_0137, 11-07: `done` on the offer the same answer declined."""
+  """Luca's t_0137, 11-08: `done` on the offer the same answer declined."""
   luca, _ = _pair()
   task = _offer(luca)
   _done(luca, task.id)
