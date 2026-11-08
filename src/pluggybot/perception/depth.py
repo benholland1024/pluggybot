@@ -62,6 +62,7 @@ Honest where the part is, and the tests pin each:
 """
 
 from dataclasses import dataclass, field
+import functools
 import math
 
 import mujoco
@@ -132,6 +133,58 @@ class DepthFrame:
   peers: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
   peer_geoms: np.ndarray = field(
     default_factory=lambda: np.zeros(0, dtype=np.int32))
+
+
+@dataclass
+class DepthPicture:
+  """One frame of the depth camera laid in the believed world frame, the
+  picture beside its points (`Body.depth_pictures`, issue #636): a cloud
+  says where points are, and nothing of where the look at them stopped.
+
+  `z` is its `DepthFrame`'s; `points` the (k, 3) cloud in the believed world
+  frame, one row per valid pixel of `z` in reading order (`pixels`); `eye`
+  where the camera is and `turn` its frame (camera to world, its columns the
+  camera's axes); `focal` its focal length, px; `near` and `reach` the
+  nearest and farthest it reads, m (its range gate), and `noise_k` its
+  noise, sigma_z = noise_k * z^2, along each ray."""
+  z: np.ndarray
+  points: np.ndarray
+  eye: np.ndarray
+  turn: np.ndarray
+  focal: float
+  near: float
+  reach: float
+  noise_k: float
+
+  def pixels(self) -> tuple[np.ndarray, np.ndarray]:
+    """`points`' pixels: their rows and their columns."""
+    return np.nonzero(~np.isnan(self.z))
+
+  @functools.cached_property
+  def world(self) -> np.ndarray:
+    """Each pixel's point, H x W x 3, the believed world frame: NaN where it
+    read nothing (built once a picture: `measure` walks twelve times)."""
+    out = np.full((*self.z.shape, 3), np.nan)
+    out[~np.isnan(self.z)] = self.points
+    return out
+
+  def rises(self, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
+    """What a metre of axial depth does to the height along each of these
+    pixels' rays, m: the part's noise is along the ray, so this is its share
+    of a pixel's height."""
+    height, width = self.z.shape
+    u, v = (cols - width / 2 + 0.5) / self.focal, (rows - height / 2 + 0.5) / self.focal
+    return self.turn[2, 0] * u - self.turn[2, 1] * v - self.turn[2, 2]
+
+  def project(self, points: np.ndarray) -> np.ndarray:
+    """Where `points` (k, 3, the believed world frame) fall in the picture:
+    (k, 2), row and column, in pixels (a pixel's centre on the integer),
+    as the camera's pinhole lays them (`DepthCamera.__init__`)."""
+    cam = (np.asarray(points, dtype=float) - self.eye) @ self.turn
+    depth = -cam[:, 2]
+    height, width = self.z.shape
+    return np.column_stack([-self.focal * cam[:, 1] / depth + height / 2 - 0.5,
+                            self.focal * cam[:, 0] / depth + width / 2 - 0.5])
 
 
 class DepthCamera:

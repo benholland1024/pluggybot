@@ -603,6 +603,15 @@ class Body(abc.ABC):
     D435). Its own body never in them."""
 
   @abc.abstractmethod
+  def depth_pictures(self, width: int, height: int, min_z: float, frames: int = 1,
+                     apart: float = 0.1) -> Routine:
+    """`depth_cloud`, each frame's picture beside its points: a list of
+    `perception.depth.DepthPicture`, the frames in the order they were
+    taken, for a caller that asks where the camera stopped seeing (#636:
+    a cloud alone cannot say). It looks exactly as `depth_cloud` looks:
+    its points, in its order, drawing the same noise."""
+
+  @abc.abstractmethod
   def hand_at(self, side: str) -> tuple[float, float, float]:
     """Where a hand's grip is, m, in the believed world frame: its arm's
     encoders and its IMU through its model of itself (#493)."""
@@ -1197,6 +1206,11 @@ class StubBody(Body):
     """No camera: nothing seen, after the time looking takes."""
     yield from self._wait(frames * apart)
     return np.zeros((0, 3))
+
+  def depth_pictures(self, width, height, min_z, frames=1, apart=0.1):
+    """No camera: no pictures, after the time looking takes."""
+    yield from self._wait(frames * apart)
+    return []
 
   def hand_at(self, side):
     """Where it sent the hand; hanging at its side, where it sent none."""
