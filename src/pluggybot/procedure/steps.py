@@ -467,8 +467,9 @@ SPOT_SHOULDER_IN_M = (SPOT_CAMERA_Z_M - stand_height() - CHOSEN.shoulder_z) / SP
 SPOT_WALL_TAG_IN_M = SPOT_SHOULDER_IN_M - AREA_TAG_SIZE / 2 / SPOT_TOP_DROP
 #: How far a small block's tag reads, m of range, what is in the picture
 #: (#660; flown on `home_humanoid`, osmesa, two noise draws): the tower's
-#: 26 mm blocks on the floor, the picture's middle, read out to 1.5-1.6 m
-#: of range and from 1.75 m not. A prop's knob on a counter leaves the
+#: 26 mm blocks on the floor, the picture's middle, read reliably out to
+#: 1.5-1.6 m of range, thinning past that (one read at 1.74 m, none beyond).
+#: A prop's knob on a counter leaves the
 #: picture's top first: 1.1-1.4 m of range, 1.15-1.4 m off the handle.
 SPOT_BLOCK_READS_M = 1.5
 #: How long a `reach` waits for its hand to get there, s, and the most a
