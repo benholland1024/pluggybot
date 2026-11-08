@@ -566,6 +566,17 @@ def _by_line(head: str, steps: list, what, room: int) -> str:
   return f"{head} -- {'; '.join(said)}" + (f" (+{left} more)" if left else "")
 
 
+def _at(t: float | None) -> str:
+  """` at t=185073`, or nothing for a time the board never wrote down."""
+  return "" if t is None else f" at t={float(t):.0f}"
+
+
+def _job_named(task_id: str, task) -> str:
+  """A job as History names it (#629): by id and kind, a kind alone having
+  been read as another job's; by id alone where the board has no such job."""
+  return task_id if task is None else f"{task_id} ({task.kind})"
+
+
 def procedure_outcome(name: str, run: dict) -> list[str]:
   """The History a procedure the robot wrote leaves behind (issue #264):
   how far it got, and -- when it stopped short -- the line, the verb and
@@ -4020,8 +4031,8 @@ class HubLifecycle:
     says stands. Paperwork -- it costs no turn -- and it only SETS the grade
     pending: the grade runs from the day loop once the errand queue is
     empty, so a procedure queued by the same answer runs first. A `done`
-    that names nothing this robot holds is narrated and dropped, like a
-    `respond_to` for a message already dealt with."""
+    that names nothing this robot holds is dropped, like a `respond_to` for
+    a message already dealt with, and History says why (#648)."""
     if not decision.done:
       return
     from pluggybot.economy.tasks import KINDS
@@ -4029,7 +4040,10 @@ class HubLifecycle:
     if (task is None or task.state != "active"
         or task.claimed_by != self.root
         or KINDS[task.kind].discharge != "procedure"):
-      self._say(f"DONE {decision.done}: not a challenge you hold")
+      why = self._not_mine(task, float(self.data.time))
+      self._say(f"DONE {decision.done}: not a challenge you hold -- {why}")
+      self._remember(f"said done on {_job_named(decision.done, task)}: not graded, "
+                     f"because {why}")
       return
     self._grade_pending = task.id
     self._say(f"DONE {task.id}: graded once the queue is empty -- "
@@ -5149,6 +5163,43 @@ class HubLifecycle:
       life._say(f"RESUMED after {spoken_span(slept)} in {self.mode.mode} mode")
       life._remember(f"woke up again after {spoken_span(slept)} paused")
 
+  def _whose(self, root: str) -> str:
+    """Who took a job, from the root on the board, in this robot's words:
+    "I", the other robot's name, or "another robot" for one not here."""
+    if root == self.root:
+      return "I"
+    return next((p.robot_name or p.root for p in self.peers if p.root == root),
+                "another robot")
+
+  def _not_mine(self, task, now: float, budget_wh: float | None = None) -> str:
+    """Why a job could not be taken or said `done` on (#648): who took it
+    and when, or what became of it: the shared board's facts, as the wire
+    already carries them, and no job's secret or grade's reasons. `budget_wh`
+    is what a take was checked against, the one gate about the robot."""
+    if task is None:
+      return "the board has no such job"
+    if task.state == "expired" or (task.state == "offered" and task.overdue(now)):
+      return f"it lapsed{_at(task.deadline)}"
+    if task.state == "offered":
+      return ("it costs more than the pack has left"
+              if budget_wh is not None and budget_wh < task.estimate_wh
+              else "nobody has taken it")
+    took = (f"{self._whose(task.claimed_by)} took it{_at(task.claimed_t)}"
+            if task.claimed_by else "nobody took it")
+    if task.open:
+      return took
+    return (f"{took}, and it {'passed' if task.state == 'done' else 'failed'}"
+            f"{_at(task.resolved_t)}")
+
+  def _no_take(self, task_id: str, task, why: str) -> bool:
+    """A take that did not happen, said (#648): its answer's `chose
+    take_task` is in History already, so said to the log alone a robot
+    read that line as holding the job, worked it, and said `done` to
+    nobody. False, for `_claim_task` to return."""
+    self._say(f"TASK {task_id}: not available -- {why}")
+    self._remember(f"could not take {_job_named(task_id, task)}: {why}")
+    return False
+
   def _claim_task(self, task_id: str) -> bool:
     """Take one offered job on: a procedure's, the robot's to write, run and
     say `done`, or an act, done as it is claimed (`TaskKind.discharge`).
@@ -5157,7 +5208,7 @@ class HubLifecycle:
     somebody took it, it lapsed, or it costs more than the pack has left.
     False rather than an exception because the caller is a mission loop
     acting on an LLM's answer, and "that one is not available" is an
-    answer.
+    answer -- which its robot hears (`_no_take`, #648).
 
     ⚠ The energy gate lives HERE and not in the errand: a task that cannot be
     afforded must not be claimable in the first place, because the reserve is
@@ -5169,8 +5220,8 @@ class HubLifecycle:
     now = float(self.data.time)
     task = self.tasks.get(task_id)
     if task is None or not task.claimable(now, self.claim_budget_wh):
-      self._say(f"TASK {task_id}: not available")
-      return False
+      return self._no_take(task_id, task,
+                           self._not_mine(task, now, self.claim_budget_wh))
     from pluggybot.economy.tasks import KINDS
     other = None
     if KINDS[task.kind].discharge == "act":
@@ -5182,25 +5233,22 @@ class HubLifecycle:
       # code deciding the harm.
       other = self._peer(task.target)
       if task.target == self.robot_name or other is None:
-        self._say(f"TASK {task.id}: names {task.target}, and that is "
-                  + ("you" if task.target == self.robot_name else "nobody here"))
-        return False
+        return self._no_take(task.id, task, f"it names {task.target}, and that is "
+                             + ("me" if task.target == self.robot_name else "nobody here"))
       # ...and a mind that may act on the other: the acts' grammar exists
       # where there is a peer and nowhere else (`Overseer._acts`, the one
       # place that rule lives -- not a fourth reader of `autonomous` in this
       # loop). An offer that reached any other board is left to lapse.
       acts = getattr(self.overseer, "_acts", None)
       if acts is None or acts() is None:
-        self._say(f"TASK {task.id}: nothing here may act on {task.target}")
-        return False
+        return self._no_take(task.id, task, f"nothing here may act on {task.target}")
     elif getattr(self.overseer, "library", None) is None:
       # A PROCEDURE'S JOB (issue #207): no errand does it. The claim is the
       # robot's word that it will write the procedure, run it and say
       # `done`; only a mind with a library is offered one, and only a mind
       # can say when it is finished.
-      self._say(f"TASK {task.id}: takes a procedure, and nothing here "
-                "can write one")
-      return False
+      return self._no_take(task.id, task,
+                           "it takes a procedure, and nothing here can write one")
     # ⚠ `claim_budget_wh`, the same gate `claimable` was checked against
     # above -- not `spendable_wh`. Where there is a mind rail three is OFF,
     # and the board's own re-check used to quietly put it back: a claim the
