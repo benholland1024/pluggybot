@@ -147,8 +147,8 @@ CHEST = _hands_job("lid", "chest")
 #:    2-4 cm long, and from 4.4 cm nearer the table the plate's arm caught
 #:    the table's edge on its way home and toppled the robot;
 #:  - what the walk leaves across the card's line, the lay's first step takes
-#:    up (`TABLE_LAY`): a step forward under a stride (10 cm) is walked as a
-#:    stride, but the lay's first step is a step aside anyway.
+#:    up (`TABLE_LAY`): a step forward shorter than a stride is walked as
+#:    one or not at all, but the lay's first step is a step aside anyway.
 TABLE_APPROACH = '''def to_table():
   budget(steps=16, seconds=900)
   find(93, %(ax)g, %(ay)g, 600)
@@ -166,10 +166,13 @@ TABLE_APPROACH = '''def to_table():
   spot(93)
   step((x + read("spot.x")) / 2 - %(ahead)g - %(over)g, 0)
 '''
-#: How much wider than read the walk's turn is asked, rad -- to land the
-#: stance turned 1-2 deg LEFT of square: the table check's procedure laid 8
-#: of 8 turned 1.5 deg left, 1 of 8 turned 1 deg right (its fork's carry ran
-#: out of its posture and swung the waist to -45 deg) -- and how far a 0.3 m
+#: How much wider than read the walk's turn is asked, rad: the table check's
+#: procedure laid 8 of 8 turned 1.5 deg left, 1 of 8 turned 1 deg right (its
+#: fork's carry ran out of its posture and swung the waist to -45 deg). A
+#: step's turn landed short of what it was asked before #649, and this landed
+#: the stance 1-2 deg left of square; now it lands about what it asks, and
+#: the reference from the tour read the same at 3.3, 2 and 1.1 deg asked
+#: wide (12 of 32 draws each, one pod), so it stays -- and how far a 0.3 m
 #: step straight ahead overshoots, m.
 WIDER, OVER = 0.058, 0.006
 

@@ -81,6 +81,39 @@ STEP_STUCK_M, STEP_STUCK_S, STEP_PATIENCE_S, STEP_SETTLE_S = 0.01, 1.0, 15.0, 0.
 #: SimNotes, "Stepping toward the work"). ⚠ Not a foot's lift: the model of
 #: itself read a sole 4-5 mm off through the slide that was under 2.
 STEP_START_S = 2.0
+#: A step's walk that went this little, m, by its own reckoning along the way
+#: it was asked, did not walk (#649): "too short", never "stepped". ⚠ MEASURED,
+#: on the walk as it is (`step_spike`'s floor sweep, SimNotes, "Stepping toward
+#: the work"): the walker's stride starts 0.3-0.4 s in, and the pelvis alone
+#: leans over planted feet before it, so an ask under about `STEP_SHORT_M`
+#: often stops on the lean, its feet not having moved; the reckoning of a
+#: stance that stayed reads up to 0.9 cm. Judged only where it asks this much.
+STEP_LEAST_M = 0.01
+#: ...and asked less than this, m, a walk may take no stride at all (its table
+#: there, four stances and three draws an ask: 3 and 4 cm back never moved,
+#: left went 0.7-3 cm, and from here up every ask went at least 2.7 cm).
+STEP_SHORT_M = 0.06
+#: A sidestep's `step.dy` reads this much less than its feet went, m, each
+#: way (#649; the same sweep): the walker slides before its first stride, under
+#: what the legs' reckoning can see -- to the left 1.2-3.7 cm over asks of 3-30
+#: cm, to the right 0.6-2.4 (ahead and back, under a centimetre). Told to the
+#: robot, never fed back: the reckoning is the legs'.
+STEP_DY_SHORT_M = (0.01, 0.03)
+#: A STEP'S TURN IS THE STANCE'S (#649; SimNotes, "Stepping toward the work"):
+#: the walker yaws its pelvis over planted feet for 0.2 s before a foot lifts,
+#: so stopped on the pelvis's heading a few degrees' turn left the stance
+#: where it was (asked 3, turned 0.3) and one of 15 to the right turned it 9.
+#: A turn over `TURN_BIG_RAD` goes at the walker's pace to the pelvis's
+#: heading, as ever; then short pulses of `TURN_W`, each read `TURN_SETTLE_S`
+#: after (`TURN_SETTLE_BIG_S` after the walker's own, whose last foot is
+#: landing), closed on the stance's own heading -- its reckoned turn is the
+#: truth's to 0.2 deg -- until it is within `TURN_TOL_RAD`, at most
+#: `TURN_PULSES` of them. ⚠ PULSES SHORTER THAN A STRIDE: under 0.2 s no
+#: foot lifts and the stance twists 1-3 deg a pulse; at 0.25 s a foot lands
+#: and it jumps 7-14. ⚠ NOT IN A WALKER STILL MOVING: read 0.3 s after its
+#: own turn, a 0.14 s pulse moved the stance 7.8 deg where from rest it moves 2-3.
+TURN_BIG_RAD, TURN_TOL_RAD = math.radians(6.0), math.radians(0.75)
+TURN_PULSES, TURN_SETTLE_S, TURN_SETTLE_BIG_S = 8, 0.5, 0.7
 #: How far its measured depth's rays reach (`depth_cloud`, and a watcher's,
 #: `depth_watched`), m: a counter's chest within arm's reach. Each draws its
 #: own noise stream (`senses.Noise`: `measure`, `watched`), so watching
@@ -101,6 +134,14 @@ ASKEW_RAD = SEARCH_RAD
 
 def _yaw(rot: np.ndarray) -> float:
   return math.atan2(rot[1, 0], rot[0, 0])
+
+
+def _turn_pulse(togo: float) -> float:
+  """A step's turn's pulse of `TURN_W`, s, by the turn it has to go, rad:
+  under a stride's first lift (`TURN_BIG_RAD`'s note). MEASURED from rest:
+  0.08 s turns the stance 0.7-1.3 deg, 0.10 s 1-1.5 and 0.14 s 2-4."""
+  d = math.degrees(abs(togo))
+  return 0.08 if d < 1.0 else 0.10 if d < 2.0 else 0.14
 
 
 def _step_walks(ahead: float, left: float) -> list[tuple[float, float]]:
@@ -818,12 +859,14 @@ class HumanoidBody(Body):
     motion at `STEP_V` (`BACK_V` backing up), or the one and then the other
     where the walker would not walk that way (`_step_walks`) -- and stands:
     a walk stops once what its legs reckon it has walked, and its speed times
-    `STEP_STOP_S`, reach its length, so a stride, about 10 cm, is the least
-    it goes. Its legs are the walking policy's meanwhile. Returns how it
-    ended (`why`: "stepped", "holding" -- a hand holds something, and it
-    does not move -- "blocked", "fell", "out of time"), in how long, and
-    where its stance went, by its own reckoning, in the stance frame it
-    stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
+    `STEP_STOP_S`, reach its length, so a stride, about 5 cm of the
+    stance's, is the least it goes (asked under `STEP_SHORT_M` a walk may
+    take none). Its legs are the walking policy's meanwhile. Returns how it
+    ended (`why`: "stepped", "too short" -- the walk its legs reckon went
+    under `STEP_LEAST_M`, asked at least that -- "holding" -- a hand holds
+    something, and it does not move -- "blocked", "fell", "out of time"), in
+    how long, and where its stance went, by its own reckoning, in the stance
+    frame it stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
     ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
     correction is no step, and the band's matcher at its station, its
     corrections walked as steps, stopped a step to the seat 3.6 cm inside it
@@ -846,15 +889,8 @@ class HumanoidBody(Body):
       # hand-over outlasted `STEP_STUCK_S` (#525)
       yield from mi.to_walk_routine()
       why = over() or why
-    # the turn, its heading counted unwrapped: wrapped, one past pi never ended
-    heading, turned = by_legs(mi.pose)[2], 0.0
-    while (why == "stepped" and abs(turn) > TURN_STOP_RAD
-           and turned * math.copysign(1.0, turn) < abs(turn) - TURN_STOP_RAD):
-      yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, turn))
-      now = by_legs(mi.pose)[2]
-      turned += math.remainder(now - heading, 2 * math.pi)
-      heading = now
-      why = over() or why
+    if why == "stepped" and abs(turn) > TURN_STOP_RAD:
+      why = yield from self._turn_routine(turn, over, by_legs, s0[2])
     # ⚠ A TURN IS TAKEN AS ON THE SPOT: its feet shuffle round, the stance
     # truly moves 2-6 cm and the odometry is 3-7 cm off over it (turns of
     # 17-86 deg) -- so the step's move is the walks' alone, measured from
@@ -872,6 +908,11 @@ class HumanoidBody(Body):
     if not length:
       x1, y1 = s_mid[0], s_mid[1]
     d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
+    # ...and a walk its own legs reckon went nowhere did not walk (#649)
+    if why == "stepped" and length >= STEP_LEAST_M:
+      way = _rz(s_mid[2]) @ np.array([ahead / length, left / length, 0.0])
+      if float((x1 - s_mid[0]) * way[0] + (y1 - s_mid[1]) * way[1]) < STEP_LEAST_M:
+        why = "too short"
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi)}
 
@@ -886,6 +927,55 @@ class HumanoidBody(Body):
       d = odo.corrected - at
       return pose[0] - float(d[0]), pose[1] - float(d[1]), pose[2] - float(d[2])
     return by_legs
+
+  def _turn_routine(self, turn, over, by_legs, s0):
+    """A step's turn, `turn` rad from the heading `s0` its stance had as
+    the step began (`TURN_BIG_RAD`'s note): over `TURN_BIG_RAD` the
+    walker's own turn first, as before, on its pelvis's heading; then
+    short pulses closed on the stance's own heading, read after a settle, until
+    it is within `TURN_TOL_RAD`, at most `TURN_PULSES`. Returns "stepped", or
+    what `over` says."""
+    mi, dt, why = self.mission, self._m.opt.timestep, "stepped"
+    # the stance's heading counted unwrapped, from where it stood: wrapped,
+    # one past pi never ended
+    last = by_legs(self.stance)[2]
+    done = math.remainder(last - s0, 2 * math.pi)
+
+    def seen() -> None:
+      nonlocal last, done
+      now = by_legs(self.stance)[2]
+      done += math.remainder(now - last, 2 * math.pi)
+      last = now
+    settle = TURN_SETTLE_S
+    if abs(turn) > TURN_BIG_RAD:
+      heading, turned = by_legs(mi.pose)[2], 0.0
+      while why == "stepped" and turned * math.copysign(1.0, turn) < abs(turn) - TURN_STOP_RAD:
+        yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, turn))
+        seen()
+        now = by_legs(mi.pose)[2]
+        turned += math.remainder(now - heading, 2 * math.pi)
+        heading = now
+        why = over() or why
+      settle = TURN_SETTLE_BIG_S
+    pulses = 0
+    while why == "stepped":
+      for _ in range(int(round(settle / dt))):
+        yield from mi._twist_routine(0.0, 0.0, 0.0)
+        seen()
+        why = over() or why
+        if why != "stepped":
+          return why
+      togo = turn - done
+      if abs(togo) <= TURN_TOL_RAD or pulses == TURN_PULSES:
+        break
+      for _ in range(int(round(_turn_pulse(togo) / dt))):
+        yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, togo))
+        seen()
+        why = over() or why
+        if why != "stepped":
+          return why
+      pulses, settle = pulses + 1, TURN_SETTLE_S
+    return why
 
   def _walk_routine(self, ahead, left, over, by_legs):
     """One straight walk of a step, its legs the walker's: "stepped" once

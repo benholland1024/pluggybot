@@ -111,8 +111,8 @@ UNPLUG_N = 30.0
 #: the plug.
 CUP_SHORT_M = 0.025
 #: The seat's tolerance, m and rad: off it further, the robot steps again.
-#: Its walker's least step is a stride, about 10 cm (`step_routine`), and
-#: the carry takes a plug a few cm across. ⚠ NEARER THE STATION ONLY
+#: Its walker's least step is a stride (`step_routine`), and the carry takes
+#: a plug a few cm across. ⚠ NEARER THE STATION ONLY
 #: `SEAT_IN_M`: 4.9 cm in from its seat, a robot's hand swung into the
 #: station's box on its way to the plug.
 SEAT_TOL_M, SEAT_IN_M, SEAT_TOL_RAD = 0.06, 0.03, math.radians(6.0)
