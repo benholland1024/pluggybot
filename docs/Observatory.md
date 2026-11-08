@@ -27,17 +27,24 @@ observatory is NOT a result: it reports into the issue it informs.
 - **The next run's robot is told and asked.** History says `it cut my charge
   short, and my plug is still in`, the first decision reads `charging` true
   (it read false: nothing steps before that decision), and the pack fills
-  while it thinks. A `charge` goes straight on with no walk (`CHARGE: still
-  plugged in at N% -- carrying on`); anything else that walks takes the plug
-  out by hand first (`CHARGE: unplugging`, about 8 s); what stands still
-  (`idle`, `recall`, `look`, a claim) leaves it in. Scripted, it finishes the
-  charge.
-- **A wait for a taken station ends with the run**, its holder having no
-  reason to leave before the process ends (`WAIT: gave up on ... this run's
-  time is up`), and **a job runs out on the seam once its holder's day is
-  over** (t_0076, t_0094 and t_0118 were held 1,481-3,871 s against 960).
+  while it thinks (a restart that lands while it thinks says `my plug is still
+  in` too). A `charge` goes straight on with no walk (`CHARGE: still plugged
+  in at N% -- carrying on`, no `GO_CHARGE ->` line and so no `charge` row); an
+  `explore`, or a procedure at its first verb that moves the body, takes the
+  plug out by hand first (`CHARGE: unplugging`, about 8 s); what stands still
+  (`idle`, `recall`, `look`, a claim, a procedure of `wait`, `spot`, `measure`
+  or `watch`) leaves it in, the pack filling, until the pack is full
+  (`CHARGED`, 90 %), where clearing the station takes it out as a charge's end
+  does. Scripted, it finishes the charge.
+- **Nothing else in a charge trip outlives the run**: a wait for a taken
+  station, its holder having no reason to leave before the process ends
+  (`WAIT: gave up on ... this run's time is up`), a search, and the trip's
+  next leg all stop with it (`GO_CHARGE stopped: ...`, no failed `charge`
+  row), and **a job runs out on the seam once its holder's day is over**
+  (t_0076, t_0094 and t_0118 were held 1,481-3,871 s against 960).
 - ⚠ "At the station" is read off the plug: a robot thinking there with its
-  plug in has not yielded it to the other robot and is not lingering.
+  plug in has not yielded it to the other robot and is not lingering (full,
+  it is), and a `tell` about the station is checked against the plug.
 
 **What the period is for.**
 - **The acceptance**: a robot in `DONE` under 5 % of the `drift` samples, and

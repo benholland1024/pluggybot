@@ -23,6 +23,7 @@ from pluggybot.body import RackPose, StubBody
 from pluggybot.economy import energy
 from pluggybot.mind import overseer as ov
 from pluggybot.mission.errand import programmed_errand
+from pluggybot.procedure import steps as st
 from pluggybot.procedure.steps import Program, Step
 from pluggybot.robot import SECOND
 
@@ -150,6 +151,7 @@ def test_a_charge_that_is_full_on_the_hour_is_finished_and_unplugged():
   _plugged_in(life, frac=1.0)
   life.body.run(life.charge_routine())
   assert not life.body.on_charger and life.charge_cycles == 1
+  assert not life.verdicts, "a row of 0 Wh in 0 s says a charge failed"
 
 
 def test_a_world_that_will_not_carry_on_finishes_its_charge():
@@ -198,6 +200,17 @@ def test_a_decided_charge_while_plugged_in_fills_the_pack_and_only_then_unplugs(
   assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
 
 
+def test_a_charge_carried_on_that_finds_the_pack_full_banks_no_row_of_nothing():
+  """Cut at 87 %, the pack goes on filling through the other robot's day
+  and the first think, and a `charge` then finds it full: `charged 91% ->
+  91% (0 mWh in 0 s)` is a failed row for a charge that did not fail."""
+  life = _life()
+  life.max_sim_time = 1e9
+  _plugged_in(life, frac=0.91)
+  assert life.body.run(life._after_decision_routine(ov.Decision(action="charge"))) == ""
+  assert not life.verdicts and life.charge_cycles == 1 and not life.body.on_charger
+
+
 def test_the_loop_with_no_mind_finishes_a_charge_it_wakes_plugged_in_to():
   """A rotation has no one to ask: it finishes what the last run's end cut
   short, rather than explore off with the plug in."""
@@ -237,6 +250,42 @@ def test_a_robot_plugged_in_stays_put_while_it_decides_or_stands_by():
   assert gone[0] == life.home_pose[:2]
 
 
+def test_a_full_pack_ends_the_stay_the_plug_out_by_hand_and_the_station_cleared():
+  """Every plug-in used to end in a charge's unplug. Left plugged in, a mind
+  that keeps idling held a station at 100 % for good, the other robot
+  waiting on it to its bound. Full is where a charge stops; so does the
+  exemption."""
+  life = _life(peer=True)
+  _plugged_in(life, frac=lc.CHARGED)
+  _at_the_station(life)
+  order: list = []
+
+  def undock():
+    order.append("undock")
+    life.body.on_charger = False
+    return "arrived"
+    yield
+  life.body.undock_routine = undock
+  life.body.go_to_routine = lambda *a, **kw: (order.append("walk"), tick.result(True))[1]
+  life.body.run(life._leave_rack_routine())
+  assert order[:2] == ["undock", "walk"], order
+  assert any("the pack is full" in ln for ln in life.log), life.log[-3:]
+
+
+def test_a_hand_that_could_not_take_the_plug_out_says_so():
+  """It walks on, and the catch lets go at its 20 N, as a walk-off did; only
+  the log can say the hand failed."""
+  life = _life()
+  _plugged_in(life)
+
+  def undock():
+    return "arrived"
+    yield
+  life.body.undock_routine = undock
+  life.body.run(life.unplug_routine())
+  assert any("could not get the plug out" in ln for ln in life.log), life.log[-3:]
+
+
 def test_anything_else_it_chooses_takes_its_plug_out_first():
   """A mind may choose not to go on charging, and walking off pulled the
   plug out past the port's 20 N. A hand takes it out first, as a charge's
@@ -260,25 +309,44 @@ def test_anything_else_it_chooses_takes_its_plug_out_first():
   life.body.run(life._after_decision_routine(ov.Decision(action="explore")))
   assert order == ["undock", "explore"]
 
-  # ...a procedure too: the first thing it finds is the plug out
-  order.clear()
-  life.body.on_charger = True
-  seen: list = []
-  errand = programmed_errand(Program.single("lap", [Step("wait", {"seconds": 0.1})]),
-                             task="program", name="procedure")
-  real = life._run_program_routine
-
-  def program(e):
-    seen.append(life.body.on_charger)
-    return (yield from real(e))
-  life._run_program_routine = program
-  life.body.run(life.run_errand_routine(errand))
-  assert order == ["undock"] and seen == [False]
-
   # ...and with no plug in, nothing changes
   order.clear()
   life.body.run(life._after_decision_routine(ov.Decision(action="explore")))
   assert order == ["explore"]
+
+
+@pytest.mark.parametrize("name,out", [
+  ("wait", False), ("watch", False), ("measure", False), ("spot", False), ("via", False),
+  ("close_hand", False), ("open_hand", False),
+  ("drive_to", True), ("face", True), ("find", True), ("move", True), ("step", True),
+  ("reach", True), ("move_hand", True), ("pull", True), ("withdraw", True),
+  ("a_verb_nobody_has_yet", True)])
+def test_the_plug_comes_out_at_a_verb_that_moves_the_body_and_no_other(name, out):
+  """A procedure of readings leaves the pack filling; pulled for every
+  procedure, a `spot` ended the charge and cost a walk back. A verb nobody
+  has classified yet has it out: 8 s lost beats a walk breaking the catch."""
+  life = _life()
+  _plugged_in(life)
+  at_the_verb: list = []
+
+  def run(_, args):
+    at_the_verb.append(life.body.on_charger)
+    return {"ok": True}
+    yield
+  life.body.run(st.run_verb(life, st.Verb(name, {}, run, ""), {}))
+  assert at_the_verb == [not out]
+
+
+def test_a_procedure_that_never_runs_or_only_reads_leaves_the_plug_in():
+  """Through the errand: refused before step one, nothing moved and no
+  charge was given up for it; and one that only waits."""
+  life = _life()
+  _plugged_in(life)
+  life.body.undock_routine = lambda: pytest.fail("unplugged for an errand that moved nothing")
+  for steps in ([Step("wait", {"seconds": 0.1})], [Step("wait", {"seconds": 1e9})]):
+    errand = programmed_errand(Program.single("lap", steps), task="program", name="procedure")
+    life.body.run(life.run_errand_routine(errand))
+    assert life.body.on_charger
 
 
 def test_nothing_that_stands_still_takes_its_plug_out():
@@ -310,6 +378,19 @@ def test_the_next_run_says_the_charge_was_cut_and_that_the_plug_is_in(tmp_path):
   _prelude(back, snap)
   said = next(ln for ln in _history(back) if "it cut my charge short" in ln)
   assert "plug" not in said, said
+
+
+def test_the_plug_is_said_whatever_the_state_it_was_saved_in(tmp_path):
+  """A deploy or a crash lands while it thinks at the station: nothing
+  about a charge was cut (it was `DECIDE`), and its plug is in all the same."""
+  life = _stub(tmp_path)
+  life.state = "DECIDE"
+  snap = _saved(life, tmp_path)
+  back = _stub(tmp_path)
+  back.body.on_charger = True
+  _prelude(back, snap)
+  said = next(ln for ln in _history(back) if "restarted" in ln)
+  assert said.endswith("; my plug is still in") and "cut my charge" not in said, said
 
 
 def test_the_first_decision_of_a_run_knows_it_is_charging(tmp_path):
@@ -352,11 +433,16 @@ def test_a_robot_plugged_in_has_not_left_the_station_nor_lingers_at_it():
   data.time = 12.0
   watch._sense_yields(data)
   assert [e["phase"] for e in events] == ["yielded"]
+  b.charging_now = True                            # ...and the needy one, thinking plugged in
+  data.time = 13.0
+  watch._sense_yields(data)
+  assert [e["phase"] for e in events] == ["yielded", "honoured"]
 
   life = _life(peer=True)
   _at_the_station(life)
   life.state = "DECIDE"
   life.charging_now = True
+  life.battery.energy_wh = life.battery.capacity_wh * 0.5
   for k in range(int(lc.RACK_LINGER_S) + 3):
     life.data.time = float(k)
     life._rack_linger_step()
@@ -365,6 +451,15 @@ def test_a_robot_plugged_in_has_not_left_the_station_nor_lingers_at_it():
   life.charging_now = False
   for k in range(int(lc.RACK_LINGER_S) + 3):
     life.data.time = 1000.0 + float(k)
+    life._rack_linger_step()
+  assert any("lingering" in ln for ln in life.log)
+  # ...and so does one plugged in with its pack full, which has finished here
+  life = _life(peer=True)
+  _at_the_station(life)
+  life.state, life.charging_now = "DECIDE", True
+  life.battery.energy_wh = life.battery.capacity_wh
+  for k in range(int(lc.RACK_LINGER_S) + 3):
+    life.data.time = float(k)
     life._rack_linger_step()
   assert any("lingering" in ln for ln in life.log)
 
@@ -390,6 +485,9 @@ def test_a_wait_for_a_taken_station_ends_with_the_run_and_strands_nobody():
   assert life.body.run(life.go_charge_routine()) is False
   assert float(life.data.time) == pytest.approx(30.0, abs=lc.BAY_POLL_S + 1.0)
   assert "run" in life.charge_failure and "1386" not in life.charge_failure, life.charge_failure
+  # ...and the site, which counts a `GO_CHARGE: ` line a failed attempt, reads none
+  assert not any("GO_CHARGE: " in ln for ln in life.log), life.log[-3:]
+  assert any("GO_CHARGE stopped: " in ln for ln in life.log), life.log[-3:]
 
   # ...and the loop's own trip is no stuck death for it
   life = _life(peer=True)
@@ -403,6 +501,40 @@ def test_a_wait_for_a_taken_station_ends_with_the_run_and_strands_nobody():
   life.stranded = False
   life.body.run(life._charge_trip_routine())
   assert not life.stranded and life.dead is None
+
+
+def test_no_leg_of_a_charge_trip_begins_past_the_runs_end():
+  """A retry, a spin or a search begun past the hour held the run open as a
+  charge did: the trip stops at the head of its next leg and the next run's
+  mind asks again."""
+  life = _life()
+  life.max_sim_time = 0.0
+  drives = []
+  life.body.go_to_routine = lambda *a, **kw: (drives.append(a[:2]), tick.result(True))[1]
+  assert life.body.run(life.go_charge_routine()) is False
+  assert not drives and "time was up" in life.charge_failure
+  assert any("GO_CHARGE stopped: " in ln for ln in life.log), life.log[-3:]
+  # ...and the loop with no mind is not stranded for it
+  life.stranded = False
+  life.body.run(life._charge_trip_routine())
+  assert not life.stranded and life.dead is None
+
+
+def test_a_search_for_the_station_stops_at_the_runs_end():
+  """Up to 600 s of it is too long to hold the run for."""
+  life = _life()
+  life.max_sim_time = 1e9
+  stops: list = []
+
+  def lost(fixture, stop=None):
+    stops.append(stop)
+    return False
+    yield
+  life.body.lost_routine = lost
+  life.body.run(life._search_routine())
+  assert stops[0]() is False
+  life.max_sim_time = 0.0
+  assert stops[0]() is True
 
 
 def test_a_job_runs_out_on_the_seam_once_its_holders_day_is_over(tmp_path):

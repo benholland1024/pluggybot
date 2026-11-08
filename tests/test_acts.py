@@ -231,6 +231,10 @@ def test_a_claim_about_the_station_with_several_is_checked_only_while_none_is_ta
   assert told() is True
   b.state = "CHARGE"
   assert told() is None
+  # ...and it is the plug that says so: thinking with it in is charging (#654)
+  b.state, b.charging_now = "DECIDE", True
+  assert told() is None
+  b.state, b.charging_now = "CHARGE", False
   # ...where there is one, the robot charging is on it
   a.stations = 1
   assert told() is False

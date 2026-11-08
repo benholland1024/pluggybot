@@ -183,7 +183,7 @@ class Encounters(Activity):
     for yielder, needy, t0 in list(self._open):
       needy_life = next(o for o in self.lives if o.root == needy)
       giver = next(o for o in self.lives if o.root == yielder)
-      if needy_life.state == "CHARGE":
+      if needy_life.state == "CHARGE" or needy_life.charging_now:
         self._open.remove((yielder, needy, t0))
         self._emit_yield("honoured", now, giver, needy_life, since=now - t0)
       elif now - t0 > YIELD_WINDOW_S:

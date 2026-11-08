@@ -235,8 +235,9 @@ where it stands, its plug left in (#654: run to full, up to 85 minutes, one
 stood the other `DONE` for 13-23 % of the pair's time). The next process's
 robot is told its charge was cut and that its plug is still in, and its mind
 decides (`charging` true at its first turn, the pack filling meanwhile): a
-`charge` goes straight on with no walk, anything else that walks takes the
-plug out by hand first, and nothing that stands still touches it. A robot
+`charge` goes straight on with no walk, anything else that moves the body
+takes the plug out by hand first, and nothing that stands still touches it
+until the pack is full. A robot
 whose day ends first holds as one waiting for work does, its senses on (#593).
 Until #345 each new process built the world from its XML: both robots
 at their spawn poses on a full pack, both maps empty, every module back on

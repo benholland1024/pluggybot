@@ -1497,11 +1497,14 @@ save a filmstrip PNG named after the script.
   alive). ⚠ A CHARGE STOPS ON THE RUN'S HOUR WITH ITS PLUG IN where a next
   run carries on (#654; `HubLifecycle._hour_up`, `continuing`, off in a demo
   or a test; Observatory.md): its row banked, its state left `CHARGE`, a wait
-  for a taken station ended with it; the next run's mind is asked, a
-  `charge` goes straight on (`go_charge_routine`), anything that walks takes
-  the plug out by hand first (`_unplug_routine`), and what stands still
-  leaves it in. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state`
-  ALONE (`_clear_rack_routine`, the linger log, `Encounters._sense_yields`);
+  for a taken station, a search and the trip's next leg ended with it; the
+  next run's mind is asked, a `charge` goes straight on
+  (`go_charge_routine`), the plug comes out by hand at what moves the body
+  (`unplug_routine`: an `explore`, a procedure's first verb not in
+  `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
+  nothing else ends a hold of the station), and what stands still leaves it
+  in. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN
   THE SAME HOUSE CARRIES ON (#559,

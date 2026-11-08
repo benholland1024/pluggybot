@@ -3797,6 +3797,11 @@ process from that save:
 | restarted, `charge` | no walk; 50 to 90 % in 111 s, `CHARGE complete`, one unplug, the plug home in its cup, no falls |
 | restarted, `explore` | the plug out by hand in 8 s, then the walk; the plug home, no falls |
 | restarted, walked off with the plug in, as the loop did | the plug pulled out past the port's 20 N, 3 s into the walk; the plug home, no falls (one flight) |
+| restarted at 95 %, the station cleared before a decision | the plug out by hand in 8 s, then the walk home; the plug home, no falls |
+| restarted, a `spot` then a `face` | the plug in through the `spot`, out by hand in 8 s for the `face`; the plug home, no falls |
+
+A bow while plugged in, down to its deepest (1.1 rad, 63 deg), leaves the plug in, no
+catch broken and no fall: what a `spot` looking lower does.
 
 ## The humanoids' first jobs (issue #559, stage 3)
 
