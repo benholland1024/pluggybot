@@ -6,6 +6,7 @@ milliseconds. (The sentence a failed pick was said in, and the fork checked
 before a fetch, went with the quadruped's tools: #559.)
 """
 
+import itertools
 import math
 import re
 from types import SimpleNamespace
@@ -240,6 +241,69 @@ def test_a_long_reason_never_costs_a_run_its_readout():
   [line] = lc.procedure_outcome("weigh", {"ok": False, "completed": 0,
                                           "error": "KeyError: 'axis'"})
   assert line == "the procedure weigh did not finish -- it stopped on a fault inside the run"
+
+
+def test_every_name_a_run_assigned_is_said_or_counted():
+  """#658, on the live `fe07629`: History showed the first twelve names a
+  run assigned and `(+N more)` counted only what the line's width left out
+  of those twelve, so a 24-name run read as complete -- 97 of 167 runs, and
+  what went was the last names assigned, what each run was written to find.
+  The line's width is the only limit: sixteen short names are all said, as
+  they were assigned, and whatever the run's own line left beside them,
+  every name is said whole or counted, and a count means the line was full."""
+  from pluggybot.mind.thoughts import MAX_LINE_CHARS
+  room = MAX_LINE_CHARS - lc.HISTORY_STAMP_ROOM
+  sixteen = {f"v{i}": i + 0.5 for i in range(16)}
+  assert lc.procedure_outcome("p", {"ok": True, "completed": 2, "locals": sixteen}) == [
+    "ran the procedure p to its end (2 steps) -- it ended with "
+    + ", ".join(f"v{i} = {i + 0.5}" for i in range(16))]
+  # ...at every width of name, or a full line's slack hides a count with no room
+  for case in itertools.product((1, 12, 13, 16, 24, 32, 60, 200), (0, 150, 340), range(12)):
+    count, why, pad = case
+    names = {f"name{'_' * pad}{i:03d}": 1.234567 + i for i in range(count)}
+    run = {"ok": not why, "completed": 2, "locals": names}
+    if why:
+      run |= {"failedAt": 1, "steps": [{"i": 1, "verb": "pull", "line": 3, "ok": False,
+                                        "reason": "x" * why}]}
+    lines = lc.procedure_outcome("p", run)
+    assert len(lines[-1]) <= room, case
+    tail = lines[-1].split(" ended with ", 1)[1]
+    more = re.search(r" \(\+(\d+) more\)$", tail)
+    items = (tail[:more.start()] if more else tail).split(", ")
+    assert len(items) + (int(more[1]) if more else 0) == count, case
+    assert [i.split(" = ")[0] for i in items] == list(names)[:len(items)], case
+    assert all(float(i.split(" = ")[1]) == names[i.split(" = ")[0]] for i in items), case
+    if more:
+      said = len(items)
+      name = list(names)[said]
+      after = len(f" (+{count - said - 1} more)") if said + 1 < count else 0
+      kept = len(lines[-1]) - len(more[0])
+      assert kept + len(f", {name} = {st.number_text(names[name])}") + after > room, case
+
+
+def test_a_run_of_two_dozen_names_reaches_history_whole():
+  """Rowan's `door_fast` (t=212582, 11-08): 24 names in the order its source
+  assigns them. History kept the first twelve and said nothing, the run's
+  own final angle (`ang`), `xl`, `xl2` and `prot` were gone, and a `recall`
+  gives back only what the line said. Off the robot's language to the record
+  it reads, with a clock as long as the deployed one's and no line cut."""
+  from pluggybot.mind.thoughts import cut_mark, MAX_LINE_CHARS
+  values = {"got": 1.0, "n": 3.0, "lx": 0.429388, "ly": -0.042355, "lz": 0.864542,
+            "d": 0.434169, "ox": 0.0, "oy": 0.05, "oz": -0.02, "g": 1.0, "r": 1.0,
+            "moved": 0.7281, "rounds": 2.0, "pf": 0.51, "xw": -1.0, "xl": 0.755119,
+            "nx": 0.999549, "ny": -0.030046, "ang": 1.721775, "stick": -1.755119,
+            "prot": 0.061257, "mx": 1.054539, "my": -0.046634, "xl2": 0.757498}
+  life = stub_life()
+  life.data.time = 212582.108
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("door_fast", "def door_fast():\n"
+           + "".join(f"  {k} = {v}\n" for k, v in values.items()) + "  wait(0.1)\n")
+  life.run_errand(errand_from(Decision(action="procedure:door_fast"), library=L))
+  history = life.thoughts.read("History.md")
+  for k, v in values.items():
+    assert f"{k} = {st.number_text(v)}" in history, k
+  assert "more)" not in history and cut_mark(MAX_LINE_CHARS) not in history
+
 
 # ---- 2. a replacement is one answer, as the prompt says --------------------
 

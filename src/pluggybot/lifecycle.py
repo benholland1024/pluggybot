@@ -440,9 +440,6 @@ def _conversation(msg) -> dict:
 #: the robot takes at most one per turn, and a wall of offers is input tokens
 #: spent on jobs it will not reach.
 TASKS_SHOWN = 5
-#: How many of a procedure's locals its History line carries (issue #227).
-#: A procedure's variables are its only readout; a dozen fits a line.
-LOCALS_SHOWN = 12
 #: What History's own "[t=NNNNs] " stamp takes of a line's `MAX_LINE_CHARS`.
 HISTORY_STAMP_ROOM = 16
 #: How a procedure the robot wrote stopped short without a failed step
@@ -586,8 +583,13 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
   five times over and could not fix what it could not see; and how many of
   its tests read false, with each line's first reason (#629). Its locals ride
   at the end, as they have since #227: they are its readout -- on a line of
-  their own when the reason would push them past History's 400 characters,
-  where the cut would take them.
+  their own where the run's line has no room left for them, or History's cut
+  at 400 characters would take them.
+
+  ⚠ EVERY NAME IS SAID OR COUNTED, THE LINE'S WIDTH THE ONLY LIMIT (#658):
+  shown the first twelve and told nothing of the rest, 97 of 167 runs lost
+  the last names they assigned, what each was written to find, and a
+  `recall` gives back only what the line said.
 
   ⚠ A RUN THAT STOPPED SHORT SAYS SO FIRST, and never as a fraction: the
   count is of calls MADE, so a budget stop reads "4/4" -- MEASURED (ladder
@@ -640,8 +642,7 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
     return [line]
   # every digit, as the refusal on the same line quotes a tag: `:g` said
   # `t = 23` after `tag 23.0000001`, and `1.23457e+06` for 1234567 (#463)
-  items = [f"{k} = {number_text(v)}"
-           for k, v in list(run["locals"].items())[:LOCALS_SHOWN]]
+  items = [f"{k} = {number_text(v)}" for k, v in run["locals"].items()]
   tail = f" -- it ended with {', '.join(items)}"
   if len(line) + len(tail) <= room:
     return [line + tail]

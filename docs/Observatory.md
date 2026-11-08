@@ -10,6 +10,47 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A run says every variable its line holds and counts the rest (#658) — opens when this PR is deployed
+
+**What changed is what the robots read of a run's variables.** History said
+the first twelve names a run assigned and nothing of the others, and
+`(+N more)` counted only what the line's width left out of those twelve. The
+line's width is now the only limit, on the run's own line or the next, and
+`(+N more)` counts every name left out. The prompt did not move (`prompt_sha`
+`c71dde29…` both sides: "on that line or the next" was already true), nor the
+state, the schema, the menu, the wire or the site: the `procedure` event
+always carried every name.
+
+**Why.** #658, from the 11-08 triage, on `fe07629`. 97 of its 167 runs
+assigned more than twelve names (89 of the 155 that ran to their end, the
+issue's count, and 8 of the 12 cut short), and every one lost the rest
+silently: at least 542 names, the last assigned and so usually what the run
+was written to find. Luca took to copying results into early names; Rowan
+recalled a run's line five times, and it came back as cut as it went in.
+
+**What to expect.** Replayed through this code off the wire's rows, in the
+order each source assigns them, 94 of the 97 read whole on the names the rows
+kept, and the other 3 end in a count. ⚠ A row's `locals` keep at most 24 names
+(the site's `MAX_LOCALS`) and 8 rows stop there: priced off each run's source
+for the names past it, an upper bound since a branch may not have run, it is
+92 and 5, `(+2 more)` to `(+10 more)`, all Rowan's (`drawer_spring` and
+`drawer_spring2`, 32 names each, and three `drawer_final`s). On the outcome
+lines rebuilt off the wire (a test's reasons are not on it), 11 of the 167
+runs take a second line where none did, one of the twelve History lines the
+model is shown.
+
+**What the period is for.**
+- **The acceptance**: a run with twenty-odd names reads whole, and neither
+  robot copies a result into an early name at the end of a run (the defined
+  sources: Luca's `kx = 0.0023` in `drawer_omega14`'s line was a pull's
+  distance).
+- **Whether a run's line is still recalled to find what it left out**: the
+  `recall` rows naming a procedure's line, and thoughts about a readout being
+  cut, against the period before.
+- ⚠ **Not to be pooled with the period before for anything a run's numbers
+  decide**: what a robot wrote next, and whether it said `done`, on numbers
+  it could not see before.
+
 ### The restaurant's table is offered (#560) — opens when this PR is deployed
 
 **What changed in the world.**
