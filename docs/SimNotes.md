@@ -6558,6 +6558,12 @@ from the dearest station, the research center's, it cost 9.820 Wh over 199.2 s
 | fell at the table | 1 | 2 |
 | fell on the walk | 2 | 2 |
 
+![Our reference at draw 0 from the house's station: the walk there (0-120 s),
+the oblique look and its steps in (146-156 s), the cup reached for (160-168
+s), and the place laid (232 s) (`MUJOCO_GL=osmesa uv run python
+scripts/solve.py --feature table --from station --draw 0
+--strip`)](figures/solve_table_tour.png)
+
 What flying took, each measured from the flights' own records (the rows and
 probes are in `~/pluggybot-training/issue-560-table-lay/`):
 
