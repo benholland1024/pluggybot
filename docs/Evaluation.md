@@ -2120,6 +2120,38 @@ and how many of those put a helper with arguments first:
   recorded over 80 calls (16 lost before any count, their tokens
   unrecorded). Rows and the readers: `~/pluggybot-training/issue-640-language/`.
 
+**What `pull` and `spot` say, read** (#650, 2026-11-08): the deployed prompt
+before the words changed (`ce973a53`) and after (`2dc01a3d`), interleaved, one
+answer a call, every question answerable "unknown": the deployed mind
+(GLM-5.3-Flash on baseten) 12 times a text, DeepSeek-V4.1-Flash (deepinfra) 6.
+The rules were written before the answers were read:
+
+| question (the true answer) | GLM before | GLM after | DeepSeek before | DeepSeek after |
+|---|---|---|---|---|
+| a hand pushes its whole force at what cannot move: does `if pull(...)` read true? (true) | 2/12 | 12/12 | 5/6 | 6/6 |
+| which sensor says how far it went? (`pull.moved`) | 12/12 | 12/12 | 6/6 | 6/6 |
+| it reaches no further after 20 cm: does the `if` read true? (true) | 12/12 | 12/12 | 6/6 | 6/6 |
+| a 26 mm block, its tag on all six faces: which face does `spot.x` give? (the one seen most square-on) | 0/12 | 12/12 | 0/6 | 6/6 |
+| ...and which says which? (`spot.nx..nz`) | 11/12 | 12/12 | 5/6 | 6/6 |
+| its readings from two places differ by 2 cm: why? (another face) | 8/12 | 12/12 | 3/6 | 6/6 |
+
+- **The first row is the live confusion, reproduced**: told "ok when it
+  pulled", the deployed mind read a pull held fast as reading false 9 times
+  in 12, as Rowan did (#650), and was unsure once; told what it reads, none
+  of 12.
+- **Over-correction checked** (GLM, 10 a text): "ok unless" could read as
+  "always true", so a hand not out, a fall and a way all 0, each truly
+  false, were asked: 10, 5 and 1 of 10 before, all 10 after. Asked what
+  would tell a pull held fast from one out of reach, all 10 named
+  `pull.held` after (it did not exist before).
+- **What it cannot say**: the fourth row's rule is near the new text's own
+  word -- read by hand, most answers before said "the face turned toward
+  the camera", which was the right idea without saying which of two faces
+  in view -- and the last row's answer is one the new sentence states. It
+  reads what a mind takes the words to mean, one evening, not what a robot
+  then writes; that is the period's (Observatory.md). Spend: $0.18 over 58
+  calls. Rows and scripts: `~/pluggybot-training/issue-650-words/`.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

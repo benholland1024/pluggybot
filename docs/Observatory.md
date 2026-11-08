@@ -10,6 +10,59 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `pull` says when it reads false and reads whether it ended held fast, and `spot` and `watch` say which face of a block they read (#650) — opens when this PR is deployed; released with #640's words, it rides with that period as one
+
+**What changed is what the robots are TOLD**, in the procedure rule's
+language and body (the practice's byte for byte, #559), and one reading:
+- **`pull`'s text said "ok when it pulled", and it now says when it reads
+  false**: "ok unless your hand was not out, (dx, dy, dz) are all 0 or you
+  fell: whatever else stopped it, held fast against something too, it is
+  still ok, `pull.moved` says how far it went and `pull.held` is 1 if it
+  ended held fast". What it reads did not change.
+- **`pull.held` is a new reading**: 1 if the last `pull` ended held fast
+  (pushing with its whole force and not moving), 0 if it ended otherwise,
+  its report's `why`, the one part of why a pull stopped no other reading
+  tells. A served robot is shown no step's `why`.
+- **`spot`'s text says which face of a block it reads**: "A small block
+  carries its tag on every face: the one read is the one you see most
+  square-on, `spot.nx`..`nz` say which, and a face's middle is half the
+  block's width from the block's own, so from elsewhere the same tag can
+  read another face and another place". `watch` says the same of each
+  picture, "so which face can change as you move". What they read did not
+  change.
+- `prompt_sha` `ce973a53…` → `2dc01a3d…`, 59,280 → 59,984 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`); the practice's
+  language and body and the session host's `hello` with it (the site
+  re-vendors it and corrects its guide for people). What the parser
+  accepts and refuses did not move, nor the schema, the menu, the reward
+  table, the body or the house.
+
+**Why.** #650, from the tickets of 11-08: both robots asked whether a pull
+held fast reads false and got opposite answers from their own runs, Luca
+rightly that it reads ok ("retry branches should key on pull.moved"),
+Rowan's lift loops built on its reading false; and Luca asked four ways
+which face `spot` reads of a cube and why its reading moved. Flown on this
+tree at the drawer's set-outs 0 and 1 (osmesa): a grip on the knob pushed
+against the shut drawer read ok, moved 1.1-1.6 cm, `pull.held` 1; drawn
+free 12-13 cm, ok, `pull.held` 0; drawn on to its end stop, ok, 12.6-12.9
+cm, `pull.held` 1; the other hand, not out, read false. `spot` read the
+top face up close, 12.7-14.8 mm from the cube's middle, and the front face
+from 0.74-0.93 m on. Read through the deployed prompt, before and after
+(Evaluation.md §4, "What `pull` and `spot` say, read"), the deployed mind
+took a pull held fast to read false 9 times in 12 before and 0 in 12
+after.
+
+**What the period is for.**
+- **Do the procedures stop building on a pull reading false held fast?**
+  The defined sources (the `procedure` rows): `if pull(...)` branches that
+  treat its failing as held fast, and reads of `pull.held` and
+  `pull.moved`, against the period before.
+- **Do the tickets asking this stop?** "does `pull` read ok held fast",
+  "which face does `spot` read", "why does spot's reading drift on the same
+  tag", against the period before.
+- ⚠ **Not to be pooled with the period before for anything a procedure's
+  text decides**: a define, a run's path past a pull, a hand job's grade.
+
 ### A grip reads held against what its drive pushes at the gap it reads (#646) — opens when this PR is deployed; released with the gripper's jaws (#628), it rides with that period as one
 
 **What changed is what a grip READS** (SimNotes, "A hard squeeze on
