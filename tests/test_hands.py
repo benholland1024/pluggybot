@@ -1134,6 +1134,86 @@ def test_a_pull_hands_the_body_its_force_and_give_and_one_that_never_ran_reads_n
   assert "failedAt" in ran and "pull" in ran["steps"][-1]["reason"]
 
 
+class _PullEnds(StubBody):
+  """A stub whose pull ends the way it is told to, as `Body.pull_routine`
+  reports it."""
+
+  ends = "distance"
+
+  def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
+                   give=True):
+    return {"why": self.ends, "seconds": 0.5, "moved": 0.02, "along": 0.02, "dx": 0.0,
+            "dy": 0.0, "dz": 0.02, "direction": [0.0, 0.0, 1.0], "force": float(limit_n)}
+    yield
+
+
+@pytest.mark.parametrize("ends, reads", [
+  ("distance", True), ("held fast", True), ("let go", True), ("out of reach", True),
+  ("feet moved", True), ("out of time", True), ("until", True),
+  ("not out", False), ("fell", False)])
+def test_a_pull_reads_false_only_where_its_text_says(ends, reads):
+  """#650: read "ok when it pulled", one robot built its loops on a pull
+  held fast reading false and the other was right that it reads ok. Only a
+  hand that was not out, or a fall, reads false (a way all 0 is the test
+  above's), however else it stopped; and of why it stopped `pull.held` is
+  the one reading nothing else gives."""
+  body = _PullEnds(*_bare())
+  body.ends = ends
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    p = 0\n'
+             '    if pull("left", 0, 0, 1, 10, 0.1):\n        p = 1\n'
+             '        h = read("pull.held")\n', body)
+  assert ran["locals"]["p"] == (1 if reads else 0), ran
+  if reads:
+    assert ran["locals"]["h"] == (1.0 if ends == "held fast" else 0.0), ran
+
+
+def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads():
+  """#650: the words both robots asked about. `pull`'s text says when it
+  reads false -- no "ok when it pulled", held fast being ok too -- and how
+  it is told how far it went; `spot`'s and `watch`'s say which face of a
+  small block they read. What is true of them is pinned beside: the test
+  above, and the next one."""
+  pull = " ".join(st.HANDS_VERBS["pull"].doc.split())
+  assert "ok when it pulled" not in pull
+  assert "ok unless your hand was not out, (dx, dy, dz) are all 0 or you fell" in pull
+  assert "whatever else stopped it, held fast against something too, it is still ok" in pull
+  assert "`pull.moved` says how far it went" in pull
+  assert "`pull.held` is 1 if it ended held fast" in pull
+  spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
+  assert ("A small block carries its tag on every face: the one read is the one you see "
+          "most square-on, `spot.nx`..`nz` say which") in spot
+  assert "half the block's width from the block's own" in spot
+  watch = " ".join(st.HANDS_VERBS["watch"].doc.split())
+  assert "the face that picture shows most square-on" in watch
+  told = " ".join(mp.system_prompt(st.hand_facts()).split())
+  for doc in (pull, spot, watch):
+    assert doc in told
+  assert "1 if the last `pull` ended held fast" in told
+
+
+def test_a_tag_on_every_face_is_read_by_the_face_seen_most_square_on():
+  """What `spot`'s and `watch`'s text states (#650): of the faces one
+  picture decodes, the one seen most square-on (#407: keyed by id, the last
+  decoded won, a knob's top seen edge-on) -- whichever order they decode in."""
+  from pluggybot.body import body_for
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+
+  def face(t, normal):
+    return {"id": 54, "t": t, "center": (0.0, 0.0), "yaw": 0.0, "normal": normal,
+            "edge": (1.0, 0.0, 0.0)}
+  square = face((0.0, 0.0, 0.8), (0.0, 0.0, 1.0))
+  glancing = face((0.0, 0.013, 0.813), (0.0, 0.96, 0.28))
+  for picture in ([square, glancing], [glancing, square]):
+    body._detector = lambda: NS(detect_all=lambda _: list(picture))
+    assert body._decoded(54)["range"] == pytest.approx(0.8)
+  body._detector = lambda: NS(detect_all=lambda _: [])
+  assert body._decoded(54) is None
+
+
 class CutMind(Mind):
   """A mind whose first answer runs out of its tokens still thinking."""
 

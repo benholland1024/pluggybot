@@ -885,9 +885,10 @@ def _pull(life, args: dict) -> Routine:
   `distance` m along its way, it is held fast (pushing
   with its whole force and not moving), its grip lets go, or it can reach
   no further -- or its stop condition stops it (#554) -- then it holds
-  there. How far it went, the hardest it pushed and the way it was going at
-  its end ride `pull.*`. ok when it pulled: why it stopped is in the
-  record."""
+  there. How far it went, the hardest it pushed, the way it was going at its
+  end and whether it ended held fast ride `pull.*`. ok unless the hand was
+  not out, the way is all 0 or it fell (#650: its text says so, a served
+  robot being shown no step's `why`, only what it reads)."""
   from pluggybot.procedure import axes
   hand = args["hand"]
   _stopped_reading(life, "pull", False)
@@ -912,6 +913,7 @@ def _pull(life, args: dict) -> Routine:
   way = axes.in_stance(life, rep.get("direction") or (0.0, 0.0, 0.0), point=False)
   _reports(life)["pull"] = {"moved": float(rep.get("moved", 0.0)),
                             "force": float(rep.get("force") or 0.0),
+                            "held": 1.0 if rep.get("why") == "held fast" else 0.0,
                             "dx": way[0], "dy": way[1], "dz": way[2]}
   return {"ok": True, **out}
 
@@ -1069,16 +1071,21 @@ HANDS_VERBS: dict[str, Verb] = {
                "stand still and look for this tag in your head camera -- as you stand, then "
                "bowing lower until you see it -- and stand up again; ok when you see it. Where "
                "its face is, which way the face looks and which way its edges run ride "
-               f"`spot.*`. A tag is {BY_NUMBER}: `spot({TAG_EXAMPLE})` looks for tag "
-               f"{TAG_EXAMPLE}"),
+               "`spot.*`. A small block carries its tag on every face: the one read is the one "
+               "you see most square-on, `spot.nx`..`nz` say which, and a face's middle is half "
+               "the block's width from the block's own, so from elsewhere the same tag can "
+               f"read another face and another place. A tag is {BY_NUMBER}: "
+               f"`spot({TAG_EXAMPLE})` looks for tag {TAG_EXAMPLE}"),
   "watch": Verb("watch", {"tag": Arg("float", lo=0.0, hi=586.0)}, _watch,
                 "keep your head camera reading this tag while your procedure goes on -- your "
                 f"hands moving, your feet stepping, waiting -- {WATCH_HZ:g} times a second, each "
                 f"reading yours {WATCH_LATENCY_S:g} s after its picture was taken; it neither "
                 "bows nor turns to look, and it ends with your procedure or your next `watch`. "
                 "It waits for its first reading; ok when that shows the tag (as an `if`'s test "
-                f"that is not, it watches on). What it reads rides `watch.*`. A tag is "
-                f"{BY_NUMBER}: `watch({TAG_EXAMPLE})` keeps reading tag {TAG_EXAMPLE}"),
+                "that is not, it watches on). What it reads rides `watch.*`: of a small block, "
+                "as for `spot`, the face that picture shows most square-on, so which face can "
+                f"change as you move. A tag is {BY_NUMBER}: `watch({TAG_EXAMPLE})` keeps reading "
+                f"tag {TAG_EXAMPLE}"),
   "reach": Verb("reach", {"hand": _HAND, **_HAND_AT, **_TURN, "stiffness": _STIFF},
                 _reach, "send a hand's grip -- the point between its jaws -- to (x, y, z), its "
                 "fingers pointing along (fx, fy, fz) and its jaws closing along (jx, jy, jz) -- "
@@ -1118,7 +1125,10 @@ HANDS_VERBS: dict[str, Verb] = {
                "reach no further; then it holds there. Standing, your body holds a pull of "
                f"{PULL_MOST_N:.0f} N at a hand, and pushing away from you around two thirds of "
                "that. How far it went, the hardest it "
-               "pushed and the way it was going at its end ride `pull.*`; ok when it pulled"),
+               "pushed and the way it was going at its end ride `pull.*`; ok unless your hand "
+               "was not out, (dx, dy, dz) are all 0 or you fell: whatever else stopped it, held "
+               "fast against something too, it is still ok, `pull.moved` says how far it went "
+               "and `pull.held` is 1 if it ended held fast"),
   "step": Verb("step", {"ahead": Arg("float", lo=-0.5, hi=0.5),
                         "left": Arg("float", lo=-0.5, hi=0.5, default=0.0),
                         "turn": Arg("float", lo=-3.2, hi=3.2, default=0.0)}, _step,
