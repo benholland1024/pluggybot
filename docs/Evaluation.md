@@ -2047,7 +2047,12 @@ no try that fell; seed 402613269), on staging `f7c7a94` (the release
   again from the state it began
   in under the drive as it was and as fixed, of the 52 at 40 N and more
   that closed on nothing 13 were the drive's stall -- every one the plate's
-  wall at 100-120 N -- and 39 were misses, no piece between the jaws.
+  wall at 100-120 N -- and 39 were misses, no piece between the jaws. Read
+  by #646's rule since (SimNotes, "A hard squeeze on something thin"), the
+  tries flown again on the fixed drive beside the rule before: 3 grips more
+  read held -- each the plate's wall at 120 N, its jaws stalled 9.2-9.7 mm
+  apart -- and their procedures went on to carry the plate; no try passed
+  under either.
 - **#631's early force stops are nearly gone**: one stop in a move's first
   0.5 s in 70 tries, where #626's arms had 9 in 3 tries.
 - **#636's misread stands**: DeepSeek measured only 9 times in 70 tries,

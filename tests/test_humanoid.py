@@ -532,17 +532,20 @@ def test_a_jaw_takes_at_least_a_step_to_reach_its_drives_line():
       assert inertia * r / k ** 2 >= model.opt.timestep, (s, jaw)
 
 
-def _shut_from_open(model, data, force: float, seconds: float):
-  """The left gripper set out open and held so, then shut at `force` for
-  `seconds`: its gripper, and each step's drive force, jaw speed and gap."""
+def _shut_from_open(model, data, force: float, seconds: float,
+                    width: float = hp.GRIPPER.stroke):
+  """The left gripper set out `width` open and held so, then shut at `force`
+  for `seconds`: its gripper, and each step's drive force, jaw speed, gap
+  and word (`held`)."""
   from pluggybot.humanoid.arms import Gripper
   mujoco.mj_resetData(model, data)
   jaws = [model.jnt_qposadr[model.joint(f"left_{j}").id] for j in hm.JAWS]
   dof = model.jnt_dofadr[model.joint(f"left_{hm.JAWS[0]}").id]
-  data.qpos[jaws] = hp.GRIPPER.stroke / 2
+  data.qpos[jaws] = width / 2
+  data.ctrl[model.actuator("left_gripper").id] = width / 2
   mujoco.mj_forward(model, data)
   g = Gripper(model, data, "left")
-  g.open()
+  g.open(width)
   for _ in range(int(0.2 / model.opt.timestep)):
     mujoco.mj_step(model, data)
     g.sample()
@@ -551,7 +554,7 @@ def _shut_from_open(model, data, force: float, seconds: float):
   for _ in range(int(round(seconds / model.opt.timestep))):
     mujoco.mj_step(model, data)
     g.sample()
-    rows.append((data.actuator_force[g.act], data.qvel[dof], data.qpos[jaws].sum()))
+    rows.append((data.actuator_force[g.act], data.qvel[dof], data.qpos[jaws].sum(), g.held()))
   return g, np.array(rows)
 
 
@@ -571,7 +574,7 @@ def test_the_grippers_drive_keeps_to_its_line_in_free_air():
   top = g[dv.VMAX] / g[dv.K]                      # the line's no-load speed: bus / K
   for force in (hp.GRIPPER.grip_force_n, 40.0, 5.0):
     _, rows = _shut_from_open(model, data, force, GRIP_S)
-    f, v, gap = rows.T
+    f, v, gap = rows.T[:3]
     big = np.abs(f) > 0.5 * force                 # past a quarter of the clip, 2 * force
     flips = (np.sign(f[1:]) != np.sign(f[:-1])) & big[1:] & big[:-1]
     assert not flips.any(), (force, int(flips.sum()))
@@ -606,6 +609,98 @@ def test_a_shut_closes_on_a_light_handle_off_the_jaws_middle_at_every_squeeze():
     assert g.held(), (force, gap, squeeze)
     assert gap == pytest.approx(2 * half[0], abs=0.001), force
     assert squeeze == pytest.approx(force, rel=0.1), force
+
+
+def test_a_hard_squeeze_on_something_thin_reads_held():
+  """Shut at 40-120 N on a block 6-15 mm across -- the plate's 8 mm wall,
+  the door's 10 mm lever arm -- the jaws stall on it squeezing what the
+  gripper's own command says its drive pushes there (`arms.pushes`: under 2
+  cm at 120 N its spring's, short of the force asked), and the grip reads
+  held by the time its verb first reads it (`body.GRIP_S`). #646: judged
+  against half the force asked, a 1 cm block read nothing held at 120 N, a
+  6 mm one from 80."""
+  from pluggybot.humanoid.arms import pushes
+  from pluggybot.humanoid.body import GRIP_S
+  for block in (0.006, 0.008, 0.010, 0.015):
+    model, data = _gripper_rig(block)
+    first_read = int(round(GRIP_S / model.opt.timestep)) - 1
+    for force in (40.0, 80.0, hp.GRIPPER.grip_force_n):
+      g, rows = _shut_from_open(model, data, force, 1.0)
+      gap, squeeze = g.read()
+      assert gap == pytest.approx(block, abs=0.0005), (block, force)
+      assert squeeze == pytest.approx(pushes(gap, force), abs=2.0), (block, force)
+      assert rows[first_read, 3], (block, force, "not held when its verb first read it")
+      assert g.held(), (block, force, gap, squeeze)
+
+
+def test_a_shut_on_nothing_never_reads_held_as_its_jaws_pass_a_thin_gap():
+  """Shut on nothing, sampled every physics step through the longest a
+  grip's word is waited for (`body.GRIP_S` and `GRIP_SETTLE_S`), the gripper
+  reads nothing held at any step its jaws are under 2 cm apart, closed too:
+  where a hard squeeze's spring falls short of the force asked, `held` asks
+  less of the squeeze (#646). From open, at every squeeze; and from 1-3 cm
+  apart, the drive still speeding the jaws up as they cross those gaps, at
+  the squeezes where it asks less."""
+  from pluggybot.humanoid.body import GRIP_S, GRIP_SETTLE_S
+  spec, _, _ = _hanging_hand()
+  model, data = _compiled(spec)
+  hardest = hp.GRIPPER.grip_force_n
+  cases = [(hp.GRIPPER.stroke, f) for f in (5.0, 10.0, 20.0, 40.0, 60.0, 80.0, 100.0, hardest)]
+  cases += [(w, f) for w in (0.012, 0.020, 0.030) for f in (40.0, 80.0, hardest)]
+  for width, force in cases:
+    _, rows = _shut_from_open(model, data, force, GRIP_S + GRIP_SETTLE_S, width)
+    gap, held = rows.T[2:]
+    thin = gap < 0.02
+    assert thin.sum() > 0.5 * len(gap) and not held[thin].any(), (width, force)
+
+
+def test_a_grip_lost_under_a_hard_squeeze_reads_lost_when_its_squeeze_falls():
+  """The block taken from between the jaws under 80 and 120 N, 26-35 mm
+  across: the jaws run shut, and the word goes false within two physics
+  steps of the squeeze's mean falling under half the force, as it did
+  judged against the force. #646: judged at the gap as it read that step,
+  the bar fell with the jaws and the word waited for them to read closed,
+  up to 40 ms longer."""
+  from pluggybot.humanoid.arms import HELD_GAP_M, HELD_SHARE
+  for block in (0.026, 0.030, 0.035):
+    for force in (80.0, hp.GRIPPER.grip_force_n):
+      model, data = _gripper_rig(block)
+      g, _ = _shut_from_open(model, data, force, 1.0)
+      assert g.held(), (block, force)
+      taken = model.geom("held").id
+      model.geom_contype[taken] = model.geom_conaffinity[taken] = 0
+      fell, gone = None, None
+      for i in range(int(0.3 / model.opt.timestep)):
+        mujoco.mj_step(model, data)
+        g.sample()
+        gap, squeeze = g.read()
+        if fell is None and (squeeze <= HELD_SHARE * force or gap <= HELD_GAP_M):
+          fell = i
+        if gone is None and not g.held():
+          gone = i
+      assert fell is not None and gone is not None and gone - fell <= 2, (block, force, fell, gone)
+
+
+def test_a_restart_keeps_the_gap_a_grip_is_judged_at():
+  """The gap's running mean decides a grip's word (#646), so it rides a
+  restart with the rest of the gripper's reading (#345); a save from before
+  it carries on from the gap it read."""
+  from pluggybot.humanoid.policy import StandDriver
+  from pluggybot.humanoid.reach import Reach
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  r = Reach(model, data, StandDriver(model, data))
+  r.grippers["left"].gap_mean = 0.0123
+  state = r.kept_state()
+  again = Reach(model, data, StandDriver(model, data))
+  again.restore_kept(state)
+  assert again.grippers["left"].gap_mean == 0.0123
+  del state["grippers"]["left"]["gapMean"]
+  state["grippers"]["left"]["gap"] = 0.0456
+  again.restore_kept(state)
+  assert again.grippers["left"].gap_mean == 0.0456
 
 
 def test_the_force_at_the_hand_is_read_off_the_arms_motor_currents():

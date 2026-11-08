@@ -41,8 +41,9 @@ CARD_TAG_ID = PLACE_TAG_IDS[0]
 
 #: THE PLATE: its outer radius, its wall's thickness and height, and its
 #: floor's thickness, m. The wall is `PLATE_WALLS` boxes round it: a pad 30
-#: mm wide meets a flat face. ⚠ 8 mm: pinched at 90 N, a 6 mm wall read as
-#: jaws shut on nothing (`HumanoidBody.grip_routine`'s gap).
+#: mm wide meets a flat face. ⚠ 8 mm: a margin over `HELD_GAP_M` (a test),
+#: jaws stopped on it reading clear of closed, and every measure of the
+#: table flew it.
 PLATE_R, PLATE_WALL_T, PLATE_H, PLATE_FLOOR_T = 0.090, 0.008, 0.028, 0.005
 PLATE_WALLS = 16
 #: THE CUP: its radius and height, m: taken across its body, 70 mm of the

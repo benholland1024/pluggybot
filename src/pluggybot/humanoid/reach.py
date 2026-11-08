@@ -1536,7 +1536,8 @@ class Reach:
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
             "grippers": {s: {"shut": g.shut_asked, "force": g.force, "gap": g.gap,
-                             "squeeze": g.squeeze, "rng": g.sense.rng.bit_generator.state}
+                             "gapMean": g.gap_mean, "squeeze": g.squeeze,
+                             "rng": g.sense.rng.bit_generator.state}
                          for s, g in self.grippers.items()},
             "motion": self.motion.kept_state()}
 
@@ -1549,6 +1550,7 @@ class Reach:
       g = self.grippers[s]
       g.shut_asked, g.force = bool(kept["shut"]), float(kept["force"])
       g.gap, g.squeeze = float(kept["gap"]), float(kept["squeeze"])
+      g.gap_mean = float(kept.get("gapMean", kept["gap"]))     # a save from before it
       g.sense.rng.bit_generator.state = kept["rng"]
 
   def posture_now(self) -> np.ndarray:

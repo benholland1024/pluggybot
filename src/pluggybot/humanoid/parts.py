@@ -353,7 +353,9 @@ class Gripper:
 #: and damping (it takes both in each command); stiff enough that shut on
 #: anything wider than 1 cm short of closed it pushes at its clip -- a
 #: servo held at its stall, the claw's lesson (#407: below it, a held cube
-#: crept out of the jaws).
+#: crept out of the jaws). Nearer closed it pushes its spring's, short of a
+#: hard squeeze, and a grip's word judges the squeeze against that
+#: (`arms.pushes`, #646).
 GRIP_KP, GRIP_KD = 24000.0, 300.0
 
 #: Unitree Dex1-1 (Standard), the parallel gripper of Unitree's G1, H2 and

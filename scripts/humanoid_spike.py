@@ -377,15 +377,13 @@ GRIP_SQUEEZES = (10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 50.0, 60.0, 80.0, 100
 def shut_again(world, side: str, state, force: float, inertia: float, piece: str) -> dict:
   """One saved shut landed again from its state, physics alone -- every
   other control held where it was -- the side's jaws at `inertia` kg,
-  squeezing `force` N, for the grip's wait (`body.GRIP_S`): held, as the
-  gripper reads a grip (`arms.HELD_*`, its squeeze the drive's own over its
-  last 0.1 s), with its pads on `piece`; and how often its force flipped
-  between its clips."""
+  squeezing `force` N, for the grip's wait (`body.GRIP_S`): held, the
+  gripper's own word (`arms.Gripper`, sampled every step), with its pads on
+  `piece`; and how often its force flipped between its clips."""
   from pluggybot.humanoid import arms
   from pluggybot.humanoid.body import GRIP_S
   m, d = world.model, world.data
   dofs = [m.jnt_dofadr[m.joint(f"{side}_{j}").id] for j in hm.JAWS]
-  qpos = [m.jnt_qposadr[m.joint(f"{side}_{j}").id] for j in hm.JAWS]
   act = m.actuator(f"{side}_gripper").id
   pads = {m.geom(f"{side}_{j}_pad").id for j in hm.JAWS}
   ours = {g for g in range(m.ngeom) if m.geom(g).name.startswith(piece)
@@ -395,20 +393,19 @@ def shut_again(world, side: str, state, force: float, inertia: float, piece: str
     m.dof_armature[dofs] = inertia
     mujoco.mj_setState(m, d, state, mujoco.mjtState.mjSTATE_INTEGRATION)
     mujoco.mj_forward(m, d)
-    m.actuator_forcerange[act] = (-2 * force, 2 * force)
-    d.ctrl[act] = 0.0
+    g = arms.Gripper(m, d, side)
+    g.shut(force)
     n = int(round(GRIP_S / m.opt.timestep))
     f = np.zeros(n)
     for i in range(n):
       mujoco.mj_step(m, d)
+      g.sample()
       f[i] = d.actuator_force[act]
-    gap = float(d.qpos[qpos].sum())
     on = any({int(c.geom1), int(c.geom2)} & pads and {int(c.geom1), int(c.geom2)} & ours
              for c in d.contact[:d.ncon])
-    squeeze = float(-f[-int(round(0.1 / m.opt.timestep)):].mean() / 2)
     big = np.abs(f) > 0.5 * force
-    return {"held": bool(on and gap > arms.HELD_GAP_M and squeeze > arms.HELD_SHARE * force),
-            "gap": gap, "flips": int(np.sum((f[1:] * f[:-1] < 0) & big[1:] & big[:-1]))}
+    return {"held": bool(on and g.held()), "gap": g.read()[0],
+            "flips": int(np.sum((f[1:] * f[:-1] < 0) & big[1:] & big[:-1]))}
   finally:
     m.dof_armature[dofs], m.actuator_forcerange[act] = before
 
