@@ -102,6 +102,35 @@ def test_the_port_takes_a_free_plug_anywhere_in_its_funnel_and_seats_it(house):
     body.close()
 
 
+def test_a_plug_in_its_port_rides_a_restart():
+  """A restart's fresh model has the port's weld as compiled, its anchor
+  1 m off where a catch puts it (`_take`): read so, the weld pulled 3,100 N,
+  let the plug go on the first step and threw it across the room (#654).
+  Everything a restart brings back -- the plug, the catch's seat and its
+  anchor -- and the plug stays in."""
+  from pluggybot import continuation
+  model, data, body, station = _house()
+  try:
+    _at_port(model, data, station, gap=0.005)
+    _hold(body, 0.3)
+    assert station.flags["mated"] == "pluggybot" and body.charging()
+    kept, physics = station.kept_state(), continuation.physics(model, data)
+  finally:
+    body.close()
+  model, data, body, station = _house()
+  try:
+    eq = next(e for e in station.ports)
+    assert model.eq_data[eq, 1] == 1.0, "the premise: a fresh model's anchor is 1 m off"
+    continuation.put_physics(model, data, *physics, forward=False)
+    station.restore_kept(kept)
+    mujoco.mj_forward(model, data)
+    assert list(model.eq_data[eq, 0:3]) == [0.0, 0.0, 0.0]
+    _hold(body, 0.05)
+    assert body.charging() and station.breaks == 0, "the first step after a restart threw it"
+  finally:
+    body.close()
+
+
 def test_the_port_never_takes_a_plug_a_hand_holds(house, monkeypatch):
   """A magnet and a funnel do not draw a plug in against the hand holding
   it: held so, the catch fought the hand past 20 N and let go, again and

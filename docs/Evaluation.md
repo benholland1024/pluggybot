@@ -607,6 +607,11 @@ A `charge` row per attempt, with the pack fraction at it, by cause —
 - `voluntary` — the mind chose `charge`. Nothing can refuse one since
   `TOP_UP_BELOW` went (#135), so chosen is honoured.
 
+An attempt is an approach: a charge the run's end cut short and the next
+run's mind carried on, its plug still in, walks nowhere and is no row
+(#654), though the ledger books a `charge` row at each end of it (below 85 %,
+`ok: false`, its gain in `gainedWh`).
+
 The fractions at the voluntary charges are a distribution, never a mean: a
 model that tops up at 0.74 every time and one that spreads from 0.30 to 0.74
 are different animals.

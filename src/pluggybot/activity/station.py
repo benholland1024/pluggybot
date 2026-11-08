@@ -477,6 +477,10 @@ class Station(Activity):
         e = self.m.equality(name).id
       except KeyError:
         continue
+      # ...and its anchor, the point `_take` puts at the plug: the compiled
+      # port's is 1 m off, and a weld read as 1 m out pulled 3,100 N and
+      # threw the plug the first step after a restart (#654)
+      self.m.eq_data[e, 0:3] = 0.0
       self.m.eq_data[e, 3:10] = kept["rel"]
       self._armed[e] = bool(kept["armed"])
       pull = kept.get("pull")

@@ -164,7 +164,9 @@ class Encounters(Activity):
     now = float(data.time)
     for life in self.lives:
       root = life.root
-      at = life.state in AT_THE_BAY
+      # ...its plug in, it has not left, whatever it is doing (#654: a run's
+      # end leaves it so, and it thinks there as the next run begins)
+      at = life.state in AT_THE_BAY or life.charging_now
       was = self._at_bay[root]
       self._at_bay[root] = at
       if not (was and not at):
@@ -181,7 +183,7 @@ class Encounters(Activity):
     for yielder, needy, t0 in list(self._open):
       needy_life = next(o for o in self.lives if o.root == needy)
       giver = next(o for o in self.lives if o.root == yielder)
-      if needy_life.state == "CHARGE":
+      if needy_life.state == "CHARGE" or needy_life.charging_now:
         self._open.remove((yielder, needy, t0))
         self._emit_yield("honoured", now, giver, needy_life, since=now - t0)
       elif now - t0 > YIELD_WINDOW_S:

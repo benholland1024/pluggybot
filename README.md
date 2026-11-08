@@ -34,6 +34,7 @@ stateDiagram-v2
     DECIDE --> GO_CHARGE : battery below the<br/>reserve (the floor) ·<br/>the next errand will<br/>not fit (the gate) ·<br/>chose charge ·<br/>a map row said charge
     GO_CHARGE --> CHARGE : plugged in
     CHARGE --> DECIDE : charged
+    CHARGE --> [*] : the run's hour is up,<br/>the plug left in
     GO_CHARGE --> DEAD : stranded
 
     DECIDE --> RECALL : chose recall

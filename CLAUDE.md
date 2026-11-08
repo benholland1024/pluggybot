@@ -752,7 +752,8 @@ save a filmstrip PNG named after the script.
   `done` that could only fail it, three held jobs booked all three of the
   counter's props, and nothing was offered from 02:22 UTC on 11-03; a
   `done` pending is the grade's. ⚠ AT ITS HOLDER'S PASS OF THE DAY LOOP,
-  AND ON THE SEAM ONLY ON A CHARGE TRIP (`_charge_trip`, ⚠ never `state`,
+  AND ON THE SEAM ONLY ON A CHARGE TRIP OR ONCE ITS DAY IS OVER (`_day_over`,
+  #654: no pass is left) (`_charge_trip`, ⚠ never `state`,
   which a trip leaves at `CHARGE`: a grade after one was cut mid-hold and
   banked twice): freed on the seam mid-procedure, its prop was set out
   under the procedure still working it; left to the pass, a 74-minute
@@ -1514,7 +1515,19 @@ save a filmstrip PNG named after the script.
   unsaved, and three restarts while paused started the world over. ⚠ Every
   other run's end saves as it always did, whatever a body is doing (skipped
   for `busy`, an end inside a death's 300 s came back from before the fall,
-  alive). ⚠ ANOTHER BODY IN
+  alive). ⚠ A CHARGE STOPS ON THE RUN'S HOUR WITH ITS PLUG IN where a next
+  run carries on (#654; `HubLifecycle._hour_up`, `continuing`, off in a demo
+  or a test; Observatory.md): its row banked, its state left `CHARGE`, a wait
+  for a taken station, a search and the trip's next leg ended with it; the
+  next run's mind is asked, a `charge` goes straight on
+  (`go_charge_routine`), the plug comes out by hand at what moves the body
+  (`unplug_routine`: an `explore`, a procedure's first verb not in
+  `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
+  nothing else ends a hold of the station), and what stands still leaves it
+  in. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
+  ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
+  is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN
   THE SAME HOUSE CARRIES ON (#559,
   `lifecycle.HOUSES`, `continuation.same_house`): a `home_quad` save in
   `home_humanoid` keeps the clock, the deaths and the jobs as a changed

@@ -1328,6 +1328,9 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
   life.step_now = {**(where or {}), "verb": verb.name, "args": dict(args)}
   life.step_until = until
   try:
+    unplug = getattr(life, "unplug_routine", None)
+    if unplug is not None and verb.name not in STILL_VERBS:
+      yield from unplug()
     verdict = yield from verb.run(life, args)
     if (not verdict.get("ok") and not aborting
         and getattr(life, "aborting", False)):
@@ -1341,6 +1344,11 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
 #: What a body whose world has task areas it finds by their tags runs
 #: (issue #419).
 PLACE_VERBS = ("find",)
+#: The verbs that leave a plug in its port (#654): the pack goes on filling
+#: under a look or a reading. Any other verb has it out by hand first, a
+#: new one too: 8 s lost beats a walk breaking the catch. A bow to look
+#: lower is one of these: to its deepest, 63 deg, the plug stays in.
+STILL_VERBS = ("wait", "watch", "measure", "spot", "via", "close_hand", "open_hand")
 
 
 def describe_vocabulary(verbs: tuple | None = None, guarded: bool = False) -> list[dict]:

@@ -230,9 +230,16 @@ Evaluation.md §2).
 
 The served process ends for four reasons: a deploy, a crash, an out-of-memory
 kill, and the `PLUGGY_MAX_SIM_TIME` ceiling (3600 sim s in compose, so every
-hour). The ceiling ends each robot's day between its errands, so a charge can
-carry one on most of an hour past the other, which holds as one waiting for
-work does, its senses on (#593). Until #345 each new process built the world from its XML: both robots
+hour). The ceiling ends each robot's day between its errands, and a charge
+where it stands, its plug left in (#654: run to full, up to 85 minutes, one
+stood the other `DONE` for 13-23 % of the pair's time). The next process's
+robot is told its charge was cut and that its plug is still in, and its mind
+decides (`charging` true at its first turn, the pack filling meanwhile): a
+`charge` goes straight on with no walk, anything else that moves the body
+takes the plug out by hand first, and nothing that stands still touches it
+until the pack is full. A robot
+whose day ends first holds as one waiting for work does, its senses on (#593).
+Until #345 each new process built the world from its XML: both robots
 at their spawn poses on a full pack, both maps empty, every module back on
 its bay, and the job in hand failed. The volume kept what the robots had
 WRITTEN and nothing they had done, so the sixth quality's buffer was refilled
