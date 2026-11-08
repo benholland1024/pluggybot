@@ -196,6 +196,9 @@ uv run python scripts/humanoid_spike.py --view jaws   # the fork at the
 uv run python scripts/station_spike.py --view     # it plugs itself in at its
                                       # station and unplugs (--view fall:
                                       # shoved over plugged in)
+uv run python scripts/step_spike.py --view walk   # short steps and turns on a
+                                      # bare floor, the verb's word beside
+                                      # what its feet truly did (--view turn)
 uv run python scripts/lidar_spike.py --view       # its LIDAR's returns as it
                                       # walks across the street: red, its
                                       # points laid flat, the fences among

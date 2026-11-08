@@ -10,6 +10,46 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A `step` that did not walk says so, and a small turn turns (#649) — opens when this PR is deployed
+
+**What changed is what the feet's verb does and says** (SimNotes, "Stepping
+toward the work"; `scripts/step_spike.py`):
+- **A step's turn is closed on the stance's own heading** (`_turn_routine`,
+  `TURN_*`). It stopped on the pelvis's heading, and the feet did not
+  follow the pelvis's last degrees: asked 3 deg the stance turned 0.3, and
+  15 to the right 9. Now 3 deg lands 2-3.3 deg (1.6-3.8 straight after a
+  big turn), a turn of any size within a degree or two.
+- **A walk asked at least 1 cm that its own legs reckon went under it reads
+  false** (`too short`, "your step was too short to walk",
+  `steps.STEP_WHY`), never `stepped`; where it stopped still rides `step.*`.
+  A walk's physics is unchanged, its stop rule included.
+- **What the robots are told** (`HANDS_VERBS["step"]`): the feet walk in
+  strides of about 5 cm, a walk asked under 6 cm may take none and may stop a
+  few cm off, the reading false, a turn lands within a degree or two, and
+  `step.dy` counts a sidestep 1-3 cm short. "at least a stride, about 10 cm"
+  is gone. `prompt_sha` `0a30526b…` → `cd6cdc24…`, 59,967 → 60,249 chars;
+  the language in the site's guide (`protocol/hello.home_humanoid_counter.json`)
+  moves with it (re-vendored at the release).
+
+**Why.** #649, off the 11-08 reading of tk_0054 and both robots' creep loops:
+every short step of 3-8 cm read `stepped` whether or not a foot moved
+(Rowan's six `step(0, 0.03, 0)` ended where they began), and a robot built a
+theory of a biased `spot` on it; #643's small turn the same.
+
+**What the period is for.**
+- **The share of a robot's `step`s that read `too short`, and what it does
+  next**: whether its creep loops, after hearing the reason, ask a step
+  that walks, and what the asks' sizes become, against the period before.
+- **Whether small turns are asked and land**: `step.turn` against what was
+  asked, by size.
+- ⚠ **Not to be pooled with the period before for anything a step's word
+  or a small turn decides**: a procedure's path past a short step (it now
+  ends there unless its author tests the verb), where a stance lands after
+  a turn, and a hand job's grade through either. On one pod beside the tree
+  before, the hands checks' 160 flights were the same flight for flight (their
+  steps ask no turn), and the served drawer, door and chest from the tour
+  passed 29, 28 and 31 of 32 on both trees, the station 39 of 39 approaches and
+  140 of 140 seats on both; the table, not offered, 12 of 32 against 9.
 ### `pull` says when it reads false and reads whether it ended held fast, and `spot` and `watch` say which face of a block they read (#650) — opens when this PR is deployed; released with #640's words, it rides with that period as one
 
 **What changed is what the robots are TOLD**, in the procedure rule's
