@@ -1288,6 +1288,7 @@ def test_spot_and_watch_say_which_camera_they_read_and_what_its_picture_takes_in
   top = float(colour["at"][2])
   drop = math.tan(math.radians(colour["top"]))
   assert f"the picture's top is ({top:.2f} - {drop:.2f} d) m over the floor" in spot
+  assert "a tag reads only with the whole of it inside the picture" in spot
   shoulder = float(data.xanchor[model.joint("left_shoulder_pitch").id][2])
   assert ("the lower a tag is, the further back it reads, one level with your shoulders only "
           f"from within about {(top - shoulder) / drop:.1f} m of it, and nothing as high as "

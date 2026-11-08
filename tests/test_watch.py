@@ -206,6 +206,15 @@ def test_watch_waits_for_its_first_reading_and_ends_with_the_procedure():
   assert body.watched == [53, None], "stopped at the procedure's end"
 
 
+def test_a_spot_that_sees_nothing_says_which_camera_did_not():
+  """#660: `spot`'s refusal, as `watch`'s, names the colour camera it read,
+  never the head camera: "from where you stand" alone sent a robot off to
+  stand elsewhere for a tag above that camera's picture."""
+  ran = _fly('def a():\n    if not spot(53):\n        pass\n', _Watching(_sighting()))
+  assert ran["ok"] and ran["steps"][0]["reason"] == (
+    "tag 53 is not in view of your colour camera from where you stand")
+
+
 def test_watch_out_of_view_fails_and_watches_on_and_waits_no_longer_than_it_may():
   """Not in view as it begins, it fails -- an `if`'s test watching on, a
   failed step ending the procedure and its watch with it -- and waits no
