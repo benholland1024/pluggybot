@@ -10,6 +10,45 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A take that did not happen says so, and a `done` on a job not held says why (#648) — opens when this PR is deployed
+
+**What changed is what the robots are TOLD** (TaskPattern.md, "The
+lifecycle"; Overseer.md §2b):
+- **A `take_task` that does not happen leaves a History line of why**,
+  after the answer's own `chose take_task`: `could not take t_0122
+  (open_drawer): Rowan took it at t=185073`, or that it lapsed, or that the
+  board has no such job.
+- **So does a `done` on a job the robot does not hold**: `said done on
+  t_0137 (open_chest): not graded, because nobody has taken it`, or who
+  took it and when, and how it ended if it has.
+- The prompt did not move, nor the state, the schema, the menu, the reward
+  table, the arm, the body or the house. A robot that did not try to take a
+  job is still not told who holds it (#648's second half, Ben's call).
+
+**Why.** #648, from the 11-08 triage, on `fe07629` and `0342b56`. The two
+robots share one board and an answer takes 10-90 s to think. Of 59
+`take_task` answers from 11-07 09:00 UTC to 11-08 10:40 UTC, 4 lost to the
+other robot, by 16-62 s, and the loser's History read `chose take_task
+(t_0122): ...` and nothing after it. Luca pinned "t_0122 (drawer) taken",
+wrote "The drawer job t_0122 is mine" and ran its procedure on the job
+Rowan held, and it worked t_0071 for 394 s before it found out.
+
+**What the period is for.**
+- **Does a lost take read as lost?** After a `could not take` line, a
+  `done`, a run on that job's prop, or a pin or thought calling it its own,
+  against the period before: t_0071 and t_0122 went on being worked.
+- **Do the two still spend turns on who has what?** `tell`s, tickets and
+  thoughts asking it (tk_0052 is one), which only #648's second half would
+  end.
+- ⚠ **What to expect, offline and on one turn.** The deployed mind
+  (`zai-org/GLM-5.3-Flash:baseten`), on the served prompt as staging
+  builds it and Luca's own turn after it lost t_0122 (its pin `t_0122 (drawer) taken … run
+  drawer_final next turn`, its last thought, its History and its
+  `drawer_final`), nine answers each way. Without the line all 9 ran
+  `drawer_final` on Rowan's job and 2 said `done` on it. With it none did,
+  and all 9 said the job had gone to Rowan. One situation, and a live
+  reading is what counts.
+
 ### A grip reads held against what its drive pushes at the gap it reads (#646) — opens when this PR is deployed; released with the gripper's jaws (#628), it rides with that period as one
 
 **What changed is what a grip READS** (SimNotes, "A hard squeeze on

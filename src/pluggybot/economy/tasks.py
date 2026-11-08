@@ -452,12 +452,18 @@ class Task:
       return None
     return max(0.0, limit - (float(now) - self.claimed_t))
 
+  def hidden_from(self, reader: str) -> bool:
+    """Is this the offer that names `reader`, a robot's display name (#228)?
+    It is shown to the other, and never to the robot it would be done to."""
+    return bool(reader) and self.target_kind == "robot" and self.target == reader
+
   def claimable(self, now: float, pack_wh: float | None = None) -> bool:
     """May a robot take this on, right now?
 
     Two gates. It has to be on offer and not already lapsed -- and it has to
     FIT: a task whose estimated cost exceeds THE REMAINING PACK is not
-    claimable, it is a way to die holding a tool (issue #21).
+    claimable, it is a way to die holding a tool (issue #21). A new gate is
+    a new reason in `HubLifecycle._not_mine` too: a refused robot is told why.
 
     ⚠ `pack_wh` is the WHOLE remaining charge, not the part above the
     reserve, and that distinction is the difference between a working gate
@@ -721,7 +727,7 @@ class TaskBoard:
     """
     shown = [t for t in self.claimable(now, pack_wh)
              if t.id not in hidden
-             and not (reader and t.target_kind == "robot" and t.target == reader)]
+             and not t.hidden_from(reader)]
     return [t.as_context(now, pack_wh, self.table) for t in shown[:limit]]
 
   def held_context(self, robot: str, now: float) -> list[dict]:
