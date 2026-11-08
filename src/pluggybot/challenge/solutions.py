@@ -172,7 +172,7 @@ TABLE_APPROACH = '''def to_table():
   if not step(x - %(ahead)g + %(nearer)g, 0):
     pass
   h = a + %(facing)g - h - read("step.turn")
-  if h * h > 0.0027:
+  if h * h > 0.0007:
     if not step(0, 0, h):
       pass
 '''

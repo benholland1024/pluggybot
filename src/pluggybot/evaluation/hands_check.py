@@ -322,19 +322,21 @@ TABLE = '''def lay_place():
   spot(90)
   x = read("spot.x") + u
   y = read("spot.y") + v
-  q = x
-  if q < 0.355:
-    q = 0.355
+  e = 0.7 * y - 0.72 * x
+  f = 0
+  if e > -0.577:
+    f = e + 0.577
+  if e < -0.597:
+    f = e + 0.597
   g = 0
-  if reach("right", q, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
+  if reach("right", x + 0.72 * f, y - 0.7 * f, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
     if spot(90):
       x = read("spot.x") + u
       y = read("spot.y") + v
       g = 1
   if g == 0:
     withdraw("right")
-    spot(90)
-    reach("right", q + 0.005, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
+    reach("right", x + 0.72 * f + 0.005, y - 0.7 * f, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
     if spot(90):
       x = read("spot.x") + u
       y = read("spot.y") + v
@@ -369,12 +371,7 @@ TABLE = '''def lay_place():
     py = read("spot.y")
     gy = py + 0.066 * (1 - i)
     gz = 0.7734 - 0.005 * i
-    q = gy
-    if q > 0.185:
-      q = 0.185
-    reach("left", px, q, gz, 0.5, 0, -0.866, 0, -1, 0)
-    if q < gy:
-      go("left", px, gy, gz, 20, 0)
+    reach("left", px, gy, gz, 0.5, 0, -0.866, 0, -1, 0)
     if not close_hand("left", 40 - 15 * i):
       open_hand("left")
       close_hand("left", 30 - 15 * i)
