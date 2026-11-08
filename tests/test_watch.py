@@ -212,7 +212,9 @@ def test_a_spot_that_sees_nothing_says_which_camera_did_not():
   stand elsewhere for a tag above that camera's picture."""
   ran = _fly('def a():\n    if not spot(53):\n        pass\n', _Watching(_sighting()))
   assert ran["ok"] and ran["steps"][0]["reason"] == (
-    "tag 53 is not in view of your colour camera from where you stand")
+    "tag 53 is not in your colour camera's picture from where you stand, or too far to read: "
+    f"it takes in only {st.SPOT_TOP_DEG:.0f} to {st.SPOT_BOTTOM_DEG:.0f} degrees below level, "
+    f"a small block's tag within about {st.SPOT_BLOCK_READS_M:g} m")
 
 
 def test_watch_out_of_view_fails_and_watches_on_and_waits_no_longer_than_it_may():

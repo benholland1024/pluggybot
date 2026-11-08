@@ -1264,6 +1264,16 @@ def _picture(model, data, camera):
           "at": data.cam_xpos[i].copy(), "rot": rot}
 
 
+def _bearing(pic, up):
+  """How far to the side of straight ahead `pic`'s right edge reaches at its
+  top (`up` 1) or its bottom (-1), degrees: its corner turned into the world
+  by the camera's own turn, the picture being tilted, never the camera-frame
+  half-angle."""
+  x, y, _ = pic["rot"] @ np.array([math.tan(math.radians(pic["side"])),
+                                   up * math.tan(math.radians(pic["half"])), -1.0])
+  return math.degrees(math.atan2(abs(y), x))
+
+
 def _in_picture(pic, point):
   """Whether `point`, in the world, is inside `pic` (a camera looks along
   its -z, its y up)."""
@@ -1283,16 +1293,20 @@ def test_spot_and_watch_say_which_camera_they_read_and_what_its_picture_takes_in
   spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
   assert "your colour camera" in spot and "head camera" not in spot
   assert f"runs from {colour['top']:.0f} to {colour['bottom']:.0f} degrees below level" in spot
-  assert f"and {colour['side']:.0f} degrees to either side of where you face" in spot
+  assert (f"out to {_bearing(colour, 1):.0f} degrees either side of where you face at its top "
+          f"and more than {int(_bearing(colour, -1) // 10 * 10)} at its bottom") in spot
+  assert _bearing(colour, 1) < _bearing(colour, -1), "the picture is tilted: wider at its bottom"
   assert "bowing only takes it lower" in spot
   top = float(colour["at"][2])
   drop = math.tan(math.radians(colour["top"]))
-  assert f"the picture's top is ({top:.2f} - {drop:.2f} d) m over the floor" in spot
+  assert f"in the picture only if it stands lower than ({top:.2f} - {drop:.2f} d) m over the floor" in spot
   assert "a tag reads only with the whole of it inside the picture" in spot
   shoulder = float(data.xanchor[model.joint("left_shoulder_pitch").id][2])
+  wall_top = shoulder + tags.AREA_TAG_SIZE / 2
   assert ("the lower a tag is, the further back it reads, one level with your shoulders only "
-          f"from within about {(top - shoulder) / drop:.1f} m of it, and nothing as high as "
-          "your camera ever") in spot
+          f"from within about {(top - shoulder) / drop:.1f} m of it (a "
+          f"{tags.AREA_TAG_SIZE * 100:.0f} cm tag from within about {(top - wall_top) / drop:.2f} m), "
+          "and nothing as high as your camera ever") in spot
   assert f"a small block's tag reads from up to about {st.SPOT_BLOCK_READS_M:g} m away" in spot
   watch = " ".join(st.HANDS_VERBS["watch"].doc.split())
   assert "your colour camera" in watch and "head camera" not in watch
@@ -1311,8 +1325,7 @@ def test_a_wall_tag_is_above_spots_picture_from_the_counter_and_in_the_navigatio
   (`spot`'s, its text says) and inside the navigation camera's (`find`'s and
   `look`'s). And the wall's own tags, 120 mm at the shoulders' height, come
   whole into the colour camera's picture only with it within 0.2 m of them:
-  flown, 11-13 cm off a bare wall read them and 16 cm did not (the text's
-  "unless your face is almost against it")."""
+  flown, 11-13 cm off a bare wall read them and 16 cm did not."""
   model, data = _standing()
   colour = _picture(model, data, "color_eye")
   navigation = _picture(model, data, "nav_eye")
