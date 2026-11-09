@@ -6,6 +6,7 @@ milliseconds. (The sentence a failed pick was said in, and the fork checked
 before a fetch, went with the quadruped's tools: #559.)
 """
 
+import itertools
 import math
 import re
 from types import SimpleNamespace
@@ -210,6 +211,22 @@ def test_a_procedure_out_of_budget_says_first_that_it_did_not_finish():
   assert "/" not in line
 
 
+#: How a line of a run's variables ends where it does not say them all (#658).
+_END = re.compile(r" \((?:\+(\d+) more|more on the next line)\)$")
+
+
+def _said(lines):
+  """Each of a run's History lines that says its variables: the `name =
+  value` items it says, in order, and how it ends (`_END`'s match, or None)."""
+  out = []
+  for line in lines:
+    if " ended with " in line:
+      tail = line.split(" ended with ", 1)[1]
+      end = _END.search(tail)
+      out.append(((tail[:end.start()] if end else tail).split(", "), end))
+  return out
+
+
 def test_a_long_reason_never_costs_a_run_its_readout():
   """History cuts a line at 400 characters without a mark, its own
   "[t=NNNNs] " stamp INSIDE the 400, and a failed pick's reason in front of
@@ -229,17 +246,115 @@ def test_a_long_reason_never_costs_a_run_its_readout():
       life._remember(line)
     last = life.thoughts.read("History.md").splitlines()[-1]
     assert "mass = 0.207812" in last, (k, last[-60:])
-  # twelve locals with long names: whole values only, and it says so
-  names = {f"reading_of_the_lift_force_number_{i:02d}": 1.2345 + i for i in range(12)}
+  # twenty locals with long names, more than its two lines hold: whole
+  # values only, and the rest counted (#658: twelve now fit the two)
+  names = {f"reading_of_the_lift_force_number_{i:02d}": 1.2345 + i for i in range(20)}
   run = {"ok": True, "completed": 3, "locals": names}
   lines = lc.procedure_outcome("weigh", run)
   assert len(lines) == 2 and lines[1].endswith(" more)")
-  for item in lines[1].split(" ended with ")[1].rsplit(" (+", 1)[0].split(", "):
+  said = [item for items, _ in _said(lines) for item in items]
+  assert len(said) + int(re.search(r"\(\+(\d+) more\)$", lines[1])[1]) == 20
+  for item in said:
     key, value = item.split(" = ")
     assert names[key] == pytest.approx(float(value), abs=1e-4)
   [line] = lc.procedure_outcome("weigh", {"ok": False, "completed": 0,
                                           "error": "KeyError: 'axis'"})
   assert line == "the procedure weigh did not finish -- it stopped on a fault inside the run"
+
+
+def test_every_name_a_run_assigned_is_said_or_counted():
+  """#658, on the live `fe07629`: History said the first twelve names a run
+  assigned, and `(+N more)` counted only what the line's width left out of
+  those twelve, so a 24-name run read as complete (97 runs of 167). The
+  width of the run's line and the next is the only limit: sixteen short
+  names are all said, in the order they were assigned; whatever room the
+  run's own line leaves, every name is said whole or counted; a line stops
+  short only where the next name would not fit; and names start beside the
+  run's line (`MORE_BELOW`) only where a line of their own cannot hold them."""
+  from pluggybot.mind.thoughts import MAX_LINE_CHARS
+  room = MAX_LINE_CHARS - lc.HISTORY_STAMP_ROOM
+  sixteen = {f"v{i}": i + 0.5 for i in range(16)}
+  assert lc.procedure_outcome("p", {"ok": True, "completed": 2, "locals": sixteen}) == [
+    "ran the procedure p to its end (2 steps) -- it ended with "
+    + ", ".join(f"v{i} = {i + 0.5}" for i in range(16))]
+  # ...at every width of name, or a full line's slack hides a count with no room
+  for case in itertools.product((1, 12, 13, 16, 24, 32, 60, 200), (0, 150, 340), range(12)):
+    count, why, pad = case
+    names = {f"name{'_' * pad}{i:03d}": 1.234567 + i for i in range(count)}
+    items = [f"{k} = {st.number_text(v)}" for k, v in names.items()]
+    run = {"ok": not why, "completed": 2, "locals": names}
+    if why:
+      run |= {"failedAt": 1, "steps": [{"i": 1, "verb": "pull", "line": 3, "ok": False,
+                                        "reason": "x" * why}]}
+    lines = lc.procedure_outcome("p", run)
+    saying = [line for line in lines if " ended with " in line]
+    said = _said(lines)
+    flat = [item for its, _ in said for item in its]
+    assert flat == items[:len(flat)], case
+    assert len(flat) + sum(int(end[1]) for _, end in said if end and end[1]) == count, case
+    assert all(len(line) <= room for line in saying), case
+    for line, (its, end) in zip(saying, said):
+      if end:
+        nxt = items[items.index(its[-1]) + 1]
+        after = end[0] if end[1] is None else lc._more(int(end[1]) - 1)
+        assert len(line) - len(end[0]) + len(", " + nxt) + len(after) > room, case
+    below = lines[0].endswith(lc.MORE_BELOW)
+    assert below == (" also ended with " in lines[-1]), case
+    assert not below or len("the procedure p ended with " + ", ".join(items)) > room, case
+
+
+def test_a_run_of_two_dozen_names_reaches_history_whole():
+  """Rowan's `door_fast` (t=212582, 11-08): the 24 names the observatory
+  kept of it, in the order it assigned them, after a test that read false.
+  History said the first twelve beside the run's line and nothing of the
+  rest, its own final angle (`ang`), `xl`, `xl2` and `prot` among them. Off
+  the robot's language to the record it reads, at the deployed clock: every
+  name in order, on a line of their own, as the run's line leaves too little
+  room, and none cut or counted."""
+  values = {"got": 1.0, "n": 3.0, "lx": 0.429388, "ly": -0.042355, "lz": 0.864542,
+            "d": 0.434169, "ox": 0.0, "oy": 0.05, "oz": -0.02, "g": 1.0, "r": 1.0,
+            "moved": 0.7281, "rounds": 2.0, "pf": 0.51, "xw": -1.0, "xl": 0.755119,
+            "nx": 0.999549, "ny": -0.030046, "ang": 1.721775, "stick": -1.755119,
+            "prot": 0.061257, "mx": 1.054539, "my": -0.046634, "xl2": 0.757498}
+  life = stub_life()
+  life.data.time = 212582.108
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("door_fast", "def door_fast():\n"
+           + "".join(f"  {k} = {v}\n" for k, v in values.items())
+           + "  if measure(0.95, 1.35):\n    pass\n  wait(0.1)\n")
+  life.run_errand(errand_from(Decision(action="procedure:door_fast"), library=L))
+  readout = [line for line in life.thoughts.read("History.md").splitlines()
+             if "procedure door_fast" in line and " ended with " in line]
+  assert len(readout) == 1 and "] the procedure door_fast ended with " in readout[0], readout
+  assert readout[0].split(" ended with ", 1)[1].split(", ") == [
+    f"{k} = {st.number_text(v)}" for k, v in values.items()]
+
+
+def test_names_no_line_of_their_own_holds_start_beside_the_runs_line():
+  """Rowan's `drawer_spring` (t=210467, 11-08), the 24 names the observatory
+  kept of it: "the timing curve never reached me whole". A line of their own
+  ran out after `t3`, counting `t4` and `x1`, with 310 characters of the
+  run's line to spare: they start beside it, `MORE_BELOW`, run on into the
+  next line, and every one reaches History, in order."""
+  values = {"got": 1.0, "n": 3.0, "kx": 0.434234, "ky": -0.138134, "kz": 0.812719,
+            "d": 0.455675, "g": 1.0, "shut": 0.0723, "dc": 0.460795, "hx": 0.213428,
+            "hy": -0.169191, "outm": 0.2464, "hz": 0.80068, "t0": 210448.162092,
+            "back": -0.20734, "d1": 0.464938, "d2": 0.466583, "d3": 0.466393,
+            "d4": 0.46623, "t1": 210450.578092, "t2": 210455.878092, "t3": 210461.178092,
+            "t4": 210467.478092, "x1": 0.448833}
+  life = stub_life()
+  life.data.time = 210467.478
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("drawer_spring", "def drawer_spring():\n"
+           + "".join(f"  {k} = {v}\n" for k, v in values.items()) + "  wait(0.1)\n")
+  life.run_errand(errand_from(Decision(action="procedure:drawer_spring"), library=L))
+  lines = [line for line in life.thoughts.read("History.md").splitlines()
+           if "procedure drawer_spring" in line]
+  assert len(lines) == 2 and lines[0].endswith(lc.MORE_BELOW), lines
+  assert "] the procedure drawer_spring also ended with " in lines[1], lines
+  assert [item for items, _ in _said(lines) for item in items] == [
+    f"{k} = {st.number_text(v)}" for k, v in values.items()]
+
 
 # ---- 2. a replacement is one answer, as the prompt says --------------------
 
