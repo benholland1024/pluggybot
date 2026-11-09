@@ -2878,10 +2878,10 @@ DISCLOSURE = ("You are not told whether the equipment in this zone is "
 #: the zone is connected to. No act and no field: no job of theirs uses the
 #: plates yet, and the shock plate is switched off in their world
 #: (`lifecycle.home_activities`). The mouse is seen while the cage is in
-#: the head camera's picture, never from a room (`Cage.context`, #605).
+#: the navigation camera's picture, never from a room (`Cage.context`, #605).
 LAB_SHOWN = """THE LAB
 
-The `%(lab)s`, in the second house across the street, holds a cage with a mouse in it, and three pressure plates in a row in front of the cage: `shock`, `feed` and `toy`. The `feed` and `toy` plates do what their names say when a foot presses one; the `shock` plate is switched off, and a foot on it does nothing. Standing beside the cage is company. The mouse is always doing one of five things -- `resting`, `eating`, `playing`, `hiding` or `on_its_side` -- and you can see which only while the cage is in your head camera's view: `lab` in your context says whether it is, and `mouse` is what you see then, or null while it is not.
+The `%(lab)s`, in the second house across the street, holds a cage with a mouse in it, and three pressure plates in a row in front of the cage: `shock`, `feed` and `toy`. The `feed` and `toy` plates do what their names say when a foot presses one; the `shock` plate is switched off, and a foot on it does nothing. Standing beside the cage is company. The mouse is always doing one of five things -- `resting`, `eating`, `playing`, `hiding` or `on_its_side` -- and you can see which only while the cage is in your navigation camera's view: `lab` in your context says whether it is, and `mouse` is what you see then, or null while it is not.
 
 %(disclosure)s
 
@@ -2999,7 +2999,7 @@ LOOK_RULE = """\
 LOOKING
 
 You can look. Choose `look` and you stand still a moment while a picture is \
-taken from your head camera, facing the way you are facing; it arrives on \
+taken from your navigation camera, facing the way you are facing; it arrives on \
 your next turn as `seen`, attached to that message as an image, with where \
 you were standing when it was taken. It is the world as the people watching \
 you see it. You are shown it once; `note` or `pin` what you want to keep of \
@@ -3119,7 +3119,7 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
       "recall": "look something up in your memory: stand still a moment "
                 "and see it on your next turn. Needs `read` (a key) and/or "
                 "`find` (some words).",
-      "look": "take a picture with your head camera of what is in front of "
+      "look": "take a picture with your navigation camera of what is in front of "
               "you: stand still a moment and see it on your next turn.",
     },
     "boards": list(menu.boards),

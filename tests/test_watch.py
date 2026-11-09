@@ -206,6 +206,18 @@ def test_watch_waits_for_its_first_reading_and_ends_with_the_procedure():
   assert body.watched == [53, None], "stopped at the procedure's end"
 
 
+def test_a_spot_that_sees_nothing_says_which_camera_did_not():
+  """#660: `spot`'s refusal, as `watch`'s, names the colour camera it read,
+  never the head camera, and the top of its picture, which no bow raises:
+  "from where you stand" alone sent a robot off to stand elsewhere for a tag
+  above that picture."""
+  ran = _fly('def a():\n    if not spot(53):\n        pass\n', _Watching(_sighting()))
+  assert ran["ok"] and ran["steps"][0]["reason"] == (
+    "tag 53 is not in your colour camera's picture from where you stand, or too near or too far "
+    "to read: "
+    f"it shows nothing higher than {st.SPOT_TOP_DEG:.0f} degrees below level")
+
+
 def test_watch_out_of_view_fails_and_watches_on_and_waits_no_longer_than_it_may():
   """Not in view as it begins, it fails -- an `if`'s test watching on, a
   failed step ending the procedure and its watch with it -- and waits no
@@ -213,7 +225,7 @@ def test_watch_out_of_view_fails_and_watches_on_and_waits_no_longer_than_it_may(
   body = _Watching({"tag": 53, "seen": False, "at": 0.0, "last": None})
   ran = _fly('def a():\n    if not watch(53):\n        s = read("watch.seen")\n', body)
   assert ran["ok"] and ran["locals"] == {"s": 0.0}
-  assert ran["steps"][0]["reason"] == "tag 53 is not in view of your head camera now"
+  assert ran["steps"][0]["reason"] == "tag 53 is not in view of your colour camera now"
   body = _Watching({"tag": 53, "seen": False, "at": 0.0, "last": None})
   ran = _fly('def a():\n    watch(53)\n    s = read("watch.seen")\n', body)
   assert not ran["ok"] and ran["failedAt"] == 0 and body.watched == [53, None]

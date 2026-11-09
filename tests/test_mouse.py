@@ -387,11 +387,13 @@ def test_the_humanoids_are_shown_the_lab_and_act_in_nothing_there():
     assert word not in low, word
 
 
-def test_the_rule_says_the_mouse_is_seen_through_the_head_camera_never_from_a_room():
+def test_the_rule_says_the_mouse_is_seen_through_the_navigation_camera_never_from_a_room():
   """#605: the rule says what `lab` in the context is -- the cage in the
-  head camera's view -- and no longer that it is the room the robot is in."""
+  navigation camera's view (the camera `look` takes its pictures with, by
+  that name since #660) -- and no longer that it is the room the robot is
+  in."""
   rule = ov.lab_shown_rule("lab")
-  assert "only while the cage is in your head camera's view" in rule
+  assert "only while the cage is in your navigation camera's view" in rule
   assert "in that room" not in rule and "from anywhere else" not in rule
 
 

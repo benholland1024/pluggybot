@@ -118,6 +118,11 @@ DISH_TAG_IDS = (90, 91, 92)
 PLACE_TAG_IDS = (93,)
 DISH_TAG_SIZES = {90: 0.048, 91: 0.040, 92: 0.019, 93: 0.080}
 
+#: The picture a tag detector decodes, pixels (the colour imager's and the
+#: navigation camera's alike): what `spot`'s and `watch`'s texts count their
+#: picture's sides off (`steps.SPOT_SIDE_TOP_DEG`).
+PICTURE_W, PICTURE_H = 1280, 720
+
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
 # larger by the quiet zone.
@@ -264,8 +269,8 @@ class TagDetector:
   CAMERA frame (x right, y down, z forward) from PnP, plus its centre pixel.
   """
 
-  def __init__(self, model, camera_name: str, width: int = 1280,
-               height: int = 720, tag_size: float = SMALL_TAG_SIZE) -> None:
+  def __init__(self, model, camera_name: str, width: int = PICTURE_W,
+               height: int = PICTURE_H, tag_size: float = SMALL_TAG_SIZE) -> None:
     import mujoco
     self.renderer = mujoco.Renderer(model, height, width)
     # ⚠ NO SHADOWS, NO REFLECTIONS (rooftop-media-2026 #296). MEASURED on

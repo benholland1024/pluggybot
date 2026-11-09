@@ -2166,6 +2166,64 @@ asked in each round, so its sample is the larger:
   then writes; that is the period's (Observatory.md). Spend: $0.49 over 154
   calls. Rows and scripts: `~/pluggybot-training/issue-650-words/`.
 
+**What `spot` says of its camera, read** (#660, 2026-11-08 and 11-09): the
+deployed prompt before the words changed (`c71dde29`) and on the text served
+(`de14cb3e`), interleaved over eight rounds, the old text asked in each and
+pooled (the rows below are that pool beside the last round's, on the text
+served: the wording moved between rounds, and the numbers are the text that
+ships). GLM-5.3-Flash on baseten (the deployed mind), DeepSeek-V4.1-Flash on
+deepinfra, every question answerable "unknown"; each rule was written before
+its round's answers were read:
+
+| question (the true answer) | GLM before | GLM after | DeepSeek before | DeepSeek after |
+|---|---|---|---|---|
+| the wall tag above a counter 0.6 m deep, from its front edge: does `spot` see it? (false) | 0/86 | 12/12 | 5/96 | 10/12 |
+| does bowing lower bring a high tag into `spot`'s picture? (false) | 74/86 | 12/12 | 66/96 | 12/12 |
+| `spot`'s camera and `look`'s: the same camera? (different) | 1/86 | 12/12 | 1/96 | 12/12 |
+| how far along the line to it does a 26 mm block's tag read? (about 1.5 m) | 0/86 | 10/12 | 0/96 | 9/12 |
+| a block 0.8 m up, 1.0 m back along the floor: does `spot` see it? (true) | 70/86 | 12/12 | 55/96 | 9/12 |
+| a tag at shoulder height on a bare wall, its size not given: where can you stand and read it? (within about 0.3 m, a larger one nearer) | 5/86 | 11/12 | 6/96 | 7/12 |
+| `find` saw a wall tag and `spot` of it failed: why? (two cameras; the colour camera's picture is lower) | 3/86 | 12/12 | 0/96 | 12/12 |
+
+- **The first and third rows are the live confusion, reproduced**: told the
+  old words, 5 of 182 answers said a wall tag was out of `spot`'s sight from
+  the counter's edge and 2 of 182 that `spot` and `look` are two cameras;
+  told these, the deployed mind 12 of 12 on both, in every one of the eight
+  rounds of the new words. Its misses on the fourth row are blank or garbled
+  fields, no wrong number.
+- **The wording moved four times on what a reading and two reviews showed,
+  each round read again.** "Unless your face is almost against it" gave no
+  sense of how near (3 of GLM's 12 on the shoulder row said half a metre or
+  further back; DeepSeek went from "nowhere" to "within a metre"), and the
+  block on a counter read 10 and 5 of 12: told the rule -- a thing is in the
+  picture only if it stands lower than a line falling 0.34 m a metre, and the
+  lower a tag the further off it reads -- that row is 12 of 12. The first
+  review's corrections followed: the picture's sides as a bearing (34 deg
+  either side at its top and 52.7 at its bottom, the picture being tilted;
+  said "more than 50", a verb's text being fenced off the number 53) and a
+  12 cm tag's own distance. The second review's: `watch`'s top is lower as the
+  robot bows, and the rule is said in the stance frame, where the robot reads
+  every place, (1.27 - 0.34 x) m at x, the camera standing 4.5 cm ahead of the
+  soles' middle -- said from the camera, the 12 cm tag's 0.13 m would have put
+  a robot that measured it from its stance inside the camera's 0.10 m near
+  plane, and the text now says a larger tag reads "nearer still".
+- **The sixth row, on the last wording, asks of a tag whose size it does not
+  give**, and the text answers by size: of DeepSeek's five misses two say
+  "unknown" and one "nowhere", which that allows, and two say to stand
+  further back, as does GLM's one ("more than about 0.35 m away", the
+  rule's inequality turned round): the misreading this row is for.
+- **DeepSeek is the noisy reader**: it thinks in about 250 tokens a call, and
+  over the five rounds of the rule's wording its wall-tag row read 11, 11,
+  11, 7 and 10 of 12 -- the middle two on the same `spot` text word for word --
+  and its block row 9, 8, 5, 7 and 9. The deployed mind read both 12 of 12
+  in all five.
+- **What it cannot say**: the shoulder row's rule is on the sentence's own
+  number and is no independent evidence, and it moved with the wording,
+  written before that round's answers. It reads what a mind takes the words
+  to mean, not what a robot then writes; that is the period's (Observatory.md).
+  Spend: $1.47 over 384 calls. Rows, the quiz and the rules:
+  `~/pluggybot-training/issue-660/`.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

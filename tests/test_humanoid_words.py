@@ -147,6 +147,8 @@ def test_the_probe_measures_the_served_prompt_in_the_humanoids_words(monkeypatch
 def test_no_humanoid_prompt_names_another_bodys_world(flags):
   text = "\n\n".join(t for _, t in _sections(**flags))
   assert not _foreign(text), _foreign(text)
+  # #660: two cameras, named apart; neither is "the head camera"
+  assert "head camera" not in text
 
 
 def test_what_a_humanoid_is_shown_each_turn_names_no_other_bodys_world():

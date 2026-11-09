@@ -6883,6 +6883,37 @@ least squeeze still reads held for a moment, 0.07-0.10 s in as its jaws
 speed up -- its drive pushes its whole 5 N there and the mean reaches half
 of it -- as it did before #646, and long before its verb reads its word.
 
+## What the colour camera can see (issue #660)
+
+`spot` and `watch` read the D435's colour imager, pitched 40 deg down with the
+depth camera (`HumanoidSpec.depth_pitch_deg`), its `fovy` 42 and its picture
+1280 x 720: standing, 19 to 61 deg below level, and to either side of the
+way it faces 34 deg at its top and 53 at its bottom, the picture being tilted
+(flown on `waist16`: 18.7, 60.7, the stand holding the head 0.3 deg back). `look`,
+`find`, a practice's first picture and the lab's cage view are the navigation
+camera (`Body.head_camera`, `nav_eye`, 20 deg down, +1 to -40). Flown on
+55858d3 in `home_humanoid`, osmesa, two noise draws, `spot`'s camera read:
+
+| what | read | not |
+|---|---|---|
+| a 120 mm tag at 1.15 m on a bare wall (a room's; tags 73-75) | camera 10.6-12.6 cm off the wall, the toes 5 cm off | 8.6 cm (its top edge nearer than the cameras' 0.10 m near plane) and 15.6 cm on (its top edge above the picture) |
+| the storeroom's wall row (60-63: the same size and height, over a 0.6 m deep counter) | never, anywhere the feet can go: its centre is above the picture past 0.31 m of camera, and the counter's front edge is 0.6 m out | |
+| a 26 mm block's tag on the floor, the picture's middle | reliably out to 1.5-1.6 m of range, 0.9-1.1 m off along the floor | thinning past that: one read at 1.74 m, none beyond |
+| a block on a prop: drawer knob 0.80 m, chest knob 0.81 m, door lever 0.87 m | 1.40, 1.35 and 1.15 m off the handle (range 1.38, 1.35, 1.12) | past those, where the tag's top edge leaves the top of the picture |
+
+So the limit a 26 mm tag meets depends on where it stands: on the floor the
+tag detector's own (about 1.5 m of range), at a counter's height the picture's top
+first. A tag has to be whole inside the picture, and what stands d m ahead
+of the camera is in it only under (1.26 - 0.34 d) m: standing, the camera is
+4.5 cm ahead of the soles' middle, so at x in the stance frame, where the
+robot reads every place, under (1.27 - 0.34 x) m. That is what `spot`'s text
+says, its numbers off the model (`steps.SPOT_TOP_AT_FEET_M` and the rest) but
+the small block's reach, flown (`SPOT_BLOCK_READS_M`); of a tag level with the
+shoulders it says a small one's 0.3 m and that a larger one reads nearer
+still: the 120 mm tags' window, 10-14 cm off the camera, is narrower than a
+step lands. The instruments and their rows are
+`~/pluggybot-training/issue-660/`.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
