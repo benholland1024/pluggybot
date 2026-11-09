@@ -6896,7 +6896,7 @@ camera (`Body.head_camera`, `nav_eye`, 20 deg down, +1 to -40). Flown on
 
 | what | read | not |
 |---|---|---|
-| a 120 mm tag at 1.15 m on a bare wall (a room's; tags 73-75) | camera 10.6-12.6 cm off the wall, the toes 5 cm off | 8.6 cm (under the near plane) and 15.6 cm on: the tag's top edge out of the picture |
+| a 120 mm tag at 1.15 m on a bare wall (a room's; tags 73-75) | camera 10.6-12.6 cm off the wall, the toes 5 cm off | 8.6 cm (its top edge nearer than the cameras' 0.10 m near plane) and 15.6 cm on (its top edge above the picture) |
 | the storeroom's wall row (60-63: the same size and height, over a 0.6 m deep counter) | never, anywhere the feet can go: its centre is above the picture past 0.31 m of camera, and the counter's front edge is 0.6 m out | |
 | a 26 mm block's tag on the floor, the picture's middle | reliably out to 1.5-1.6 m of range, 0.9-1.1 m off along the floor | thinning past that: one read at 1.74 m, none beyond |
 | a block on a prop: drawer knob 0.80 m, chest knob 0.81 m, door lever 0.87 m | 1.40, 1.35 and 1.15 m off the handle (range 1.38, 1.35, 1.12) | past those, where the tag's top edge leaves the top of the picture |

@@ -1266,9 +1266,9 @@ def _picture(model, data, camera):
 
 def _bearing(pic, up):
   """How far to the side of straight ahead `pic`'s right edge reaches at its
-  top (`up` 1) or its bottom (-1), degrees: its corner turned into the world
-  by the camera's own turn, the picture being tilted, never the camera-frame
-  half-angle."""
+  top (`up` 1) or its bottom (-1), degrees, the robot facing along x as at
+  its keyframe: its corner turned into the world by the camera's own turn,
+  the picture being tilted, never the camera-frame half-angle."""
   x, y, _ = pic["rot"] @ np.array([math.tan(math.radians(pic["side"])),
                                    up * math.tan(math.radians(pic["half"])), -1.0])
   return math.degrees(math.atan2(abs(y), x))
@@ -1310,7 +1310,8 @@ def test_spot_and_watch_say_which_camera_they_read_and_what_its_picture_takes_in
   assert f"a small block's tag reads from up to about {st.SPOT_BLOCK_READS_M:g} m away" in spot
   watch = " ".join(st.HANDS_VERBS["watch"].doc.split())
   assert "your colour camera" in watch and "head camera" not in watch
-  assert f"the top of whose picture is {colour['top']:.0f} degrees below level" in watch
+  assert (f"the top of whose picture is {colour['top']:.0f} degrees below level as you stand "
+          "and lower as you bow") in watch
   assert "navigation camera" in " ".join(st.VERBS["find"].doc.split())
   told = " ".join(mp.system_prompt(st.hand_facts()).split())
   for doc in (spot, watch):
@@ -1353,10 +1354,7 @@ def test_a_tag_on_every_face_is_read_by_the_face_seen_most_square_on():
   """What `spot`'s and `watch`'s text states (#650): of the faces one
   picture decodes, the one seen most square-on (#407: keyed by id, the last
   decoded won, a knob's top seen edge-on) -- whichever order they decode in."""
-  model = mujoco.MjModel.from_xml_string(hm.body_xml())
-  data = mujoco.MjData(model)
-  mujoco.mj_resetDataKeyframe(model, data, 0)
-  mujoco.mj_forward(model, data)
+  model, data = _standing()
   body = body_for(model, data)
 
   def face(t, normal):

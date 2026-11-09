@@ -446,12 +446,19 @@ SPOT_GAZES = (0.0, 0.25, 0.45)
 #: holding the head 0.3 deg back, and 34.3 in the camera's own frame.
 SPOT_TOP_DEG = CHOSEN.depth_pitch_deg - COLOR_FOVY_DEG / 2
 SPOT_BOTTOM_DEG = CHOSEN.depth_pitch_deg + COLOR_FOVY_DEG / 2
-_tall = math.tan(math.radians(COLOR_FOVY_DEG / 2))
-_pitch = math.radians(CHOSEN.depth_pitch_deg)
-SPOT_SIDE_TOP_DEG = math.degrees(math.atan(
-  _tall * PICTURE_W / PICTURE_H / (math.cos(_pitch) + _tall * math.sin(_pitch))))
-SPOT_SIDE_BOTTOM_DEG = math.degrees(math.atan(
-  _tall * PICTURE_W / PICTURE_H / (math.cos(_pitch) - _tall * math.sin(_pitch))))
+
+
+def _spot_side_deg(up: int) -> float:
+  """How far to either side of where the robot faces `spot`'s picture
+  reaches, deg, at its top (`up` 1) or its bottom (-1): a corner of the
+  picture turned down by the camera's pitch."""
+  tall = math.tan(math.radians(COLOR_FOVY_DEG / 2))
+  pitch = math.radians(CHOSEN.depth_pitch_deg)
+  return math.degrees(math.atan(tall * PICTURE_W / PICTURE_H
+                                / (math.cos(pitch) + up * tall * math.sin(pitch))))
+
+
+SPOT_SIDE_TOP_DEG, SPOT_SIDE_BOTTOM_DEG = _spot_side_deg(1), _spot_side_deg(-1)
 #: ...the bottom's, in the text, said in tens: ⚠ a verb's text may not carry
 #: the number a block's tag is known by, and 52.7 would read 53
 #: (`test_no_hand_verb_knows_the_chest`).
@@ -552,11 +559,12 @@ def _spot(life, args: dict) -> Routine:
     yield from life.body.gaze_routine(0.0)
   if seen is None:
     _reports(life).pop("spot", None)
+    # what the bows could not change, the picture's top (#660), and short:
+    # History's line says each false test's reason inside its 400 characters
     return {"ok": False, "tag": int(tag),
             "reason": (f"tag {int(tag)} is not in your colour camera's picture from where you "
-                       f"stand, or too far to read: it takes in only {SPOT_TOP_DEG:.0f} to "
-                       f"{SPOT_BOTTOM_DEG:.0f} degrees below level, a small block's tag within "
-                       f"about {SPOT_BLOCK_READS_M:g} m")}
+                       "stand, or too far to read: it shows nothing higher than "
+                       f"{SPOT_TOP_DEG:.0f} degrees below level")}
   (x, y, z), (nx, ny, nz), (ex, ey, ez) = seen
   _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
                             "ex": ex, "ey": ey, "ez": ez, "range": float(got["range"])}
@@ -1194,7 +1202,8 @@ HANDS_VERBS: dict[str, Verb] = {
                 f"reading yours {WATCH_LATENCY_S:g} s after its picture was taken; it neither "
                 "bows nor turns to look, and it ends with your procedure or your next `watch`. "
                 "It reads through `spot`'s camera, the top of whose picture is "
-                f"{SPOT_TOP_DEG:.0f} degrees below level: what is above that it cannot see. "
+                f"{SPOT_TOP_DEG:.0f} degrees below level as you stand and lower as you bow: what "
+                "is above that, it cannot see. "
                 "It waits for its first reading; ok when that shows the tag (as an `if`'s test "
                 "that is not, it watches on). What it reads rides `watch.*`: of a small block, "
                 "as for `spot`, the face that picture shows most square-on, so which face can "

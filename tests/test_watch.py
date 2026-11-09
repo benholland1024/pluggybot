@@ -208,13 +208,13 @@ def test_watch_waits_for_its_first_reading_and_ends_with_the_procedure():
 
 def test_a_spot_that_sees_nothing_says_which_camera_did_not():
   """#660: `spot`'s refusal, as `watch`'s, names the colour camera it read,
-  never the head camera: "from where you stand" alone sent a robot off to
-  stand elsewhere for a tag above that camera's picture."""
+  never the head camera, and the top of its picture, which no bow raises:
+  "from where you stand" alone sent a robot off to stand elsewhere for a tag
+  above that picture."""
   ran = _fly('def a():\n    if not spot(53):\n        pass\n', _Watching(_sighting()))
   assert ran["ok"] and ran["steps"][0]["reason"] == (
     "tag 53 is not in your colour camera's picture from where you stand, or too far to read: "
-    f"it takes in only {st.SPOT_TOP_DEG:.0f} to {st.SPOT_BOTTOM_DEG:.0f} degrees below level, "
-    f"a small block's tag within about {st.SPOT_BLOCK_READS_M:g} m")
+    f"it shows nothing higher than {st.SPOT_TOP_DEG:.0f} degrees below level")
 
 
 def test_watch_out_of_view_fails_and_watches_on_and_waits_no_longer_than_it_may():

@@ -118,8 +118,9 @@ DISH_TAG_IDS = (90, 91, 92)
 PLACE_TAG_IDS = (93,)
 DISH_TAG_SIZES = {90: 0.048, 91: 0.040, 92: 0.019, 93: 0.080}
 
-#: The picture the detector decodes, pixels: the colour imager at 720p, and
-#: what `spot`'s and `watch`'s texts say its sides are (`steps.SPOT_SIDE_DEG`).
+#: The picture a tag detector decodes, pixels (the colour imager's and the
+#: navigation camera's alike): what `spot`'s and `watch`'s texts count their
+#: picture's sides off (`steps.SPOT_SIDE_TOP_DEG`).
 PICTURE_W, PICTURE_H = 1280, 720
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is

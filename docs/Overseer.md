@@ -712,7 +712,7 @@ the humanoid's `nav_eye`, the Camera Module 3 on its head, issue #408),
 the website renders the TresJS scene from that pose and answers on the
 ingest socket with an `image` inbound kind — `{robot, ref, jpeg}` — and
 the picture arrives on the robot's NEXT turn as `seen`: the visitor
-channel's block (`{id, from, text}`, sender "your navigation camera", the words the robot is told it by since #660) with where
+channel's block (`{id, from, text}`, sender "your navigation camera", #660) with where
 it stood and `image: attached`, and the JPEG itself as an **image part of
 the same user turn**, in the backend's own shape (`llm.image_part`: the
 Anthropic SDK's `image` block, the OpenAI-style data URL everywhere
