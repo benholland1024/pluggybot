@@ -47,7 +47,9 @@ Two protocols (Evaluation.md §4):
   --practice-attempts N  KEPT: tries a PRACTICE chest (default --attempts);
                        the held-out chests keep --attempts
   --early-stop         the chests stop once the bar is out of reach
-                       (`evaluation.practice.out_of_reach`; Ben, 2026-10-18)
+                       (`evaluation.practice.out_of_reach`; Ben, 2026-10-18),
+                       the spend of those it kills in flight written to
+                       --into's killed.jsonl off their journals of calls
   --attempts N         tries a chest (default 5: the curve's S@1..S@5)
   --model ID           the mind (default the deployed routine model,
                        `$PLUGGY_MODEL`'s); its key is $HF_TOKEN
@@ -60,7 +62,10 @@ Two protocols (Evaluation.md §4):
                        mind, so J may pass the cores, memory allowing
   --into DIR           the record: rows.jsonl, a row an attempt, written
                        as each chest ends; KEPT's kept.json, and
-                       stopped.json where the chests stopped early
+                       stopped.json where the chests stopped early, with
+                       killed.jsonl, a record a chest killed in flight: what
+                       its calls spent (no attempt); inflight/, each chest's
+                       calls journaled while it flies
   --no-picture         the first turn without the head camera's picture
   --read DIR           a kept record, read as the per-task record (its
                        curve, each regime apart) with what it cost
@@ -90,6 +95,7 @@ import json  # noqa: E402
 from multiprocessing import get_context  # noqa: E402
 from pathlib import Path  # noqa: E402
 import sys  # noqa: E402
+import time  # noqa: E402
 import traceback  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -109,10 +115,120 @@ VOCABULARY = "hands-525"
 #: table's answers ran a median of 95-115k tokens and 97 of 208 were cut
 #: off (#560's arms on #626).
 EFFORTS = ("low", "high", "max")
+#: Under --into: each set-out's journal of its calls while it flies
+#: (`journal`), and the spend of the set-outs the early stop killed in
+#: flight (`killed`), apart from the record's rows -- a row is an attempt.
+INFLIGHT, KILLED = "inflight", "killed.jsonl"
+
+
+def task_of(job: dict) -> at.Task:
+  return at.Task(chest=job["chest"], body="humanoid", mount="counter", grader=job["job"])
+
+
+def skill_of(job: dict) -> str:
+  """What a set-out's rows call its skill: the mind and the arm. The effort
+  is part of it, so the per-task record's regimes keep each effort's rows
+  apart (`qualities.from_attempts`)."""
+  effort = job.get("effort")
+  return (f"{job['model']}" + (f" at effort {effort}" if effort else "")
+          + ", the hands' vocabulary"
+          + (", notes" if job["notes"] else "") + ("" if job["measure"] else ", no measure")
+          + ("" if job["step"] else ", no step") + ("" if job["guarded"] else ", unguarded")
+          + ("" if job["watching"] else ", unwatched")
+          + ("" if job["job"] == "lid" else f", the {job['job']}"))
+
+
+def run_of(job: dict) -> dict:
+  """What a set-out's rows add to their `run`: the mind and the arm it flew."""
+  return {"model": job["model"], "effort": job.get("effort"), "vocabulary": VOCABULARY,
+          "picture": job["picture"], "notes": job["notes"], "measure": job["measure"],
+          "step": job["step"], "guarded": job["guarded"], "watching": job["watching"],
+          "attempts": job["attempts"]}
+
+
+def usd_of(spent: dict, price) -> float | None:
+  """What `spent`'s tokens cost at `price` ($ a million in, out), or None."""
+  return (None if price is None
+          else round((spent["tokensIn"] * price[0] + spent["tokensOut"] * price[1]) / 1e6, 5))
+
+
+def journal_path(into, process: str, chest: int) -> Path:
+  return Path(into) / INFLIGHT / f"{process}-{chest}.jsonl"
+
+
+def journal(path: Path):
+  """`Practice.on_call` keeping `path`: a line as each call is asked -- its
+  kind, the try it writes for, when -- and one as its turn is recorded,
+  answered or failed -- its tokens, wall time and who answered -- each on
+  disk before the call goes on, so a set-out killed in flight leaves them."""
+  path.parent.mkdir(parents=True, exist_ok=True)
+  at_ = {"call": 0, "try": 0}
+
+  def on_call(turn, answered: bool) -> None:
+    if not answered and turn.kind in ("first", "after"):
+      at_["try"] += 1
+    line = {"call": at_["call"], "answered": answered, "kind": turn.kind, "try": at_["try"]}
+    if answered:
+      line |= {"tokensIn": turn.tokens[0], "tokensOut": turn.tokens[1],
+               "wallS": round(turn.wall_s, 3), "provider": turn.provider, "cut": turn.cut}
+      at_["call"] += 1
+    else:
+      line["at"] = time.time()
+    with open(path, "a") as f:
+      f.write(json.dumps(line) + "\n")
+  return on_call
+
+
+def ended(into, rows: list[dict]) -> None:
+  """The journals of the set-outs `rows` came from, gone: their calls are
+  on their rows (`practice.turns`)."""
+  for r in rows:
+    journal_path(into, r.get("process"), r["task"]["chest"]).unlink(missing_ok=True)
+
+
+def killed(into, jobs: list[dict], why: str, now: float | None = None) -> list[dict]:
+  """The spend of each of `jobs` killed in flight -- a journal left, its
+  rows never come (`ended`) -- one record each, off its journal, appended
+  to `into`'s killed.jsonl: its answered calls summed and priced as `fly`
+  prices a row, and the call it had open, whose tokens no answer said:
+  counted and how long it had run, never priced. A record has no verdict
+  and is no attempt. Its journal goes."""
+  now = time.time() if now is None else now
+  out = []
+  for job in jobs:
+    path = journal_path(into, job["process"], job["chest"])
+    if not path.exists():
+      continue
+    lines = []
+    for text in path.read_text().splitlines():
+      try:
+        lines.append(json.loads(text))
+      except json.JSONDecodeError:
+        pass                             # torn by the kill: its call stays open
+    answered = [ln for ln in lines if ln["answered"]]
+    done = {ln["call"] for ln in answered}
+    p = {"tokensIn": sum(ln["tokensIn"] for ln in answered),
+         "tokensOut": sum(ln["tokensOut"] for ln in answered), "calls": len(answered),
+         "llmWallS": round(sum(ln["wallS"] for ln in answered), 1)}
+    task = task_of(job)
+    out.append({"task": task.as_dict(), "heldOut": task.held_out, "process": job["process"],
+                "skill": skill_of(job),
+                "run": {k: job["info"][k] for k in ("commit", "dirty", "seed")
+                        if k in job["info"]} | run_of(job),
+                "killed": why, "onTry": max((ln["try"] for ln in lines), default=0),
+                "practice": p, "usd": usd_of(p, job["price"]),
+                "open": [{"kind": ln["kind"], "try": ln["try"], "wallS": round(now - ln["at"], 1)}
+                         for ln in lines if not ln["answered"] and ln["call"] not in done]})
+    path.unlink()
+  if out:
+    with open(Path(into) / KILLED, "a") as f:
+      f.writelines(json.dumps(r, default=str) + "\n" for r in out)
+  return out
 
 
 def fly(job: dict) -> list[dict]:
-  """One chest's practice: its rows, each with what it cost. The robot
+  """One chest's practice: its rows, each with what it cost, its calls
+  journaled as they go where the job has an `into` (`journal`). The robot
   carries `job["kept"]` (none in FRESH). A chest whose practice raised is a
   row saying so (`error`)."""
   from pluggybot.mind.llm import HFClient, stream_fetch
@@ -123,16 +239,12 @@ def fly(job: dict) -> list[dict]:
   effort = job.get("effort")
   facts = hand_facts(measure=job["measure"], step=job["step"], guarded=job["guarded"],
                      watching=job["watching"])
-  task = at.Task(chest=k, body="humanoid", mount="counter", grader=job["job"])
+  task = task_of(job)
   mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch, reasoning_effort=effort), model,
-                  facts, ep.job_for(task), thing=ep.THINGS[job["job"]])
-  # the effort is part of the skill, so the per-task record's regimes keep
-  # each effort's rows apart (`qualities.from_attempts`)
-  skill = (f"{model}" + (f" at effort {effort}" if effort else "") + ", the hands' vocabulary"
-           + (", notes" if job["notes"] else "") + ("" if job["measure"] else ", no measure")
-           + ("" if job["step"] else ", no step") + ("" if job["guarded"] else ", unguarded")
-           + ("" if job["watching"] else ", unwatched")
-           + ("" if job["job"] == "lid" else f", the {job['job']}"))
+                  facts, ep.job_for(task), thing=ep.THINGS[job["job"]],
+                  on_call=journal(journal_path(job["into"], job["process"], k))
+                  if job.get("into") else None)
+  skill = skill_of(job)
   info = {**info, "skill": skill, "process": job["process"]}
   try:
     rows = ep.practice_on(k, mind, job["attempts"], library=Library(facts), kept=job["kept"],
@@ -145,60 +257,78 @@ def fly(job: dict) -> list[dict]:
              "run": {k_: info[k_] for k_ in ("commit", "dirty", "seed") if k_ in info}
              | {"model": model, "effort": effort}}]
   for r in rows:
-    r["run"] |= {"model": model, "effort": effort, "vocabulary": VOCABULARY,
-                 "picture": job["picture"],
-                 "notes": job["notes"], "measure": job["measure"], "step": job["step"],
-                 "guarded": job["guarded"], "watching": job["watching"],
-                 "attempts": job["attempts"]}
-    p = r["practice"]
-    r["usd"] = (None if price is None
-                else round((p["tokensIn"] * price[0] + p["tokensOut"] * price[1]) / 1e6, 5))
+    r["run"] |= run_of(job)
+    r["usd"] = usd_of(r["practice"], price)
   return rows
 
 
 def show(row: dict) -> str:
   if "error" in row:
     return f"  chest {row['task']['chest']}: ERROR {row['error']}"
+  if "killed" in row:
+    p = row["practice"]
+    return (f"  chest {row['task']['chest']}: KILLED, {row['killed']}, on its try {row['onTry']}: "
+            f"{p['calls']} answers, {p['tokensIn']}+{p['tokensOut']} tokens"
+            + (f", ${row['usd']:.4f}" if row.get("usd") is not None else ", cost unknown")
+            + (f", {len(row['open'])} call cut off uncounted" if row["open"] else ""))
   p = row["practice"]
   return (att.show(row) + f" [{row.get('steps')} verbs, {p['tokensIn']}+{p['tokensOut']} tokens"
           + (f", ${row['usd']:.4f}" if row.get("usd") is not None else "") + "]"
           + (f" ADMITTED {row['admitted']}" if row.get("admitted") else ""))
 
 
+def regime_of(r: dict) -> tuple:
+  """A row's regime, as what the mind cost is read: (model, effort, the
+  arm's words, process)."""
+  # #493's rows name their arm by its flags, #525's by their vocabulary
+  grader = r["task"].get("grader", "lid")
+  words = ((r["run"].get("vocabulary") or ("the pull" if r["run"].get("pull") else "position"))
+           + ("" if r["run"].get("measure", True) else ", no measure")
+           + ("" if r["run"].get("step", True) else ", no step")
+           # rows from before #554 had no stop condition to take away, nor
+           # rows before its stage 2 a watch
+           + (", guarded" if r["run"].get("guarded") else "")
+           + (", watching" if r["run"].get("watching") else "")
+           + ("" if grader == "lid" else f", the {grader}"))
+  # a row from before `--effort` was asked at its provider's own, as one
+  # flown without it is
+  return (r["run"].get("model"), r["run"].get("effort"), words, r.get("process"))
+
+
+def cost_said(mine: list[dict]) -> str:
+  """Answers, tokens, dollars and wall time of `mine`'s `practice` blocks."""
+  usd = [r.get("usd") for r in mine]
+  return (f"{sum(r['practice']['calls'] for r in mine)} answers, "
+          f"{sum(r['practice']['tokensIn'] for r in mine)} tokens in and "
+          f"{sum(r['practice']['tokensOut'] for r in mine)} out"
+          + (f", ${sum(usd):.2f}" if None not in usd else ", cost unknown")
+          + f", {sum(r['practice']['llmWallS'] for r in mine) / 3600:.1f} h waiting on it")
+
+
 def read(into: str) -> None:
   """The record as the per-task record (`attempts.py --read`), what KEPT's
   practice kept and where the chests stopped, and what the mind cost:
-  tokens, dollars and wall time, each regime apart."""
+  tokens, dollars and wall time, each regime apart, and apart again what
+  the set-outs killed in flight spent (`killed`)."""
   att.read(into)
   rows = [json.loads(line) for line in open(Path(into) / "rows.jsonl")]
+  dead = Path(into) / KILLED
+  dead = [json.loads(line) for line in open(dead)] if dead.exists() else []
   regimes: dict = {}
   for r in rows:
-    if "practice" not in r:
-      continue
-    # #493's rows name their arm by its flags, #525's by their vocabulary
-    grader = r["task"].get("grader", "lid")
-    words = ((r["run"].get("vocabulary") or ("the pull" if r["run"].get("pull") else "position"))
-             + ("" if r["run"].get("measure", True) else ", no measure")
-             + ("" if r["run"].get("step", True) else ", no step")
-             # rows from before #554 had no stop condition to take away, nor
-             # rows before its stage 2 a watch
-             + (", guarded" if r["run"].get("guarded") else "")
-             + (", watching" if r["run"].get("watching") else "")
-             + ("" if grader == "lid" else f", the {grader}"))
-    # a row from before `--effort` was asked at its provider's own, as one
-    # flown without it is
-    key = (r["run"].get("model"), r["run"].get("effort"), words, r.get("process"))
-    regimes.setdefault(key, []).append(r)
-  for (model, effort, words, process), mine in regimes.items():
-    tin = sum(r["practice"]["tokensIn"] for r in mine)
-    tout = sum(r["practice"]["tokensOut"] for r in mine)
-    usd = [r.get("usd") for r in mine]
-    calls = sum(r["practice"]["calls"] for r in mine)
+    if "practice" in r:
+      regimes.setdefault(regime_of(r), ([], []))[0].append(r)
+  for r in dead:
+    regimes.setdefault(regime_of(r), ([], []))[1].append(r)
+  for (model, effort, words, process), (mine, gone) in regimes.items():
     print(f"THE MIND, {process}, {model}"
           + (f" at effort {effort}" if effort else " at its provider's effort") + f", {words}: "
-          f"{len(mine)} attempts, {calls} answers, {tin} tokens in and {tout} out"
-          + (f", ${sum(usd):.2f}" if None not in usd else ", cost unknown")
-          + f", {sum(r['practice']['llmWallS'] for r in mine) / 3600:.1f} h waiting on it")
+          f"{len(mine)} attempts, {cost_said(mine)}")
+    if gone:
+      cut = sum(len(r["open"]) for r in gone)
+      print(f"  and killed in flight, {len(gone)} set-outs ("
+            + ", ".join(sorted({r["killed"] for r in gone})) + f"): {cost_said(gone)}"
+            + (f"; {cut} calls cut off uncounted" if cut else ""))
   kept_file = Path(into) / "kept.json"
   if kept_file.exists():
     k = json.loads(kept_file.read_text())
@@ -299,6 +429,8 @@ def main(argv=None) -> None:
       if out is not None:
         with open(out, "a") as f:
           f.write(json.dumps(r, default=str) + "\n")
+    if out is not None:
+      ended(args.into, rows)
 
   def job(k, kept, process, carried=None, write_notes=False, attempts=None):
     return {"chest": k, "job": args.job, "attempts": attempts or args.attempts,
@@ -307,7 +439,7 @@ def main(argv=None) -> None:
             "price": price, "kept": kept, "process": process, "carried": carried,
             "write_notes": write_notes, "notes": args.notes, "measure": not args.no_measure,
             "step": not args.no_step, "guarded": not args.unguarded,
-            "watching": not args.unwatched}
+            "watching": not args.unwatched, "into": args.into}
 
   kept, process, carried = [], "practice", None
   with get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:
@@ -336,13 +468,18 @@ def main(argv=None) -> None:
           if args.into:
             read(args.into)
           return
-    stopped = ep.flown(pool.imap_unordered(fly, [job(k, kept, process, carried) for k in ks]),
-                       len(ks), args.early_stop, write)
+    jobs = [job(k, kept, process, carried) for k in ks]
+    if args.into:
+      for j in jobs:                     # one a run killed outright left is none of these
+        journal_path(args.into, j["process"], j["chest"]).unlink(missing_ok=True)
+    stopped = ep.flown(pool.imap_unordered(fly, jobs), len(ks), args.early_stop, write)
     if stopped is not None:
       print(f"STOPPED EARLY: {stopped}", flush=True)
       pool.terminate()
       if args.into:
         (Path(args.into) / "stopped.json").write_text(json.dumps(stopped, indent=1))
+        for r in killed(args.into, jobs, "stopped early"):
+          print(show(r), flush=True)
   if args.into:
     read(args.into)
 
