@@ -623,12 +623,14 @@ def test_a_job_whose_offer_sets_its_things_out_says_when_as_offered():
   Rowan timed a spring that is not there and Luca said done on a drawer it
   believed still out. Read as the robot reads it, through `Task.create`'s
   cut, on the offer's own clock: a clause the template has and the offer has
-  lost says nothing, and a date that is not this offer's says something false."""
+  lost says nothing, and a date that is not this offer's says something false
+  -- a parameter of that name included."""
   drawing = [name for name, kind in KINDS.items() if kind.draws]
   assert set(HAND_JOBS) <= set(drawing)
   for name in drawing:
     for t in (205338.0, 7.0):
-      offered = Task.create(name, KINDS[name].target_kind, "t_1", params={"minutes": 999}, t=t)
+      offered = Task.create(name, KINDS[name].target_kind, "t_1",
+                            params={"minutes": 999, "offered": 1}, t=t)
       assert f"at t={t:.0f}, when this job was offered." in offered.description, name
 
 

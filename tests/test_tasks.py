@@ -430,6 +430,33 @@ def test_a_claim_is_never_later_than_the_last_change_saved(tmp_path):
   assert board(path=path)[held.id].claimed_t == 0.0     # ...and from a start-over's 0
 
 
+def test_a_start_over_dates_a_jobs_things_at_its_own_0(tmp_path):
+  """A job's sentence says when its things were put back (#659), and a world
+  that starts from its XML starts them at rest, an open job's set out as it
+  begins (`HubLifecycle.restore_jobs`): the date is the new clock's 0, where
+  the old one's stood 205,000 s ahead of the robot's. A world that carries
+  on keeps it; a job that is over, and words a job was given, are never
+  rewritten."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  standing = offered(b, ttl=3600.0, t=205338.0)
+  held = offered(b, kind="open_door", target="door", ttl=3600.0, t=205400.0)
+  b.claim(held.id, t=205500.0)
+  b.start(held.id, t=205500.0)
+  given = offered(b, kind="open_chest", target="chest", ttl=3600.0, t=205550.0,
+                  description="Open the chest, as I say.")
+  over = offered(b, kind="place_cube", target="cube", ttl=10.0, t=205600.0)
+  assert [t.id for t in b.expire_due(205700.0)] == [over.id]
+  back = board(path=path)
+  for task in (standing, held):
+    assert f"at t={task.created_t:.0f}, when" in task.description, task.kind
+    assert back[task.id].description == task.description.replace(
+      f"at t={task.created_t:.0f}, when", "at t=0, when"), task.kind
+  assert back[given.id].description == "Open the chest, as I say."
+  assert back[over.id].description == over.description
+  assert board(path=path, rebase=False)[standing.id].description == standing.description
+
+
 def test_a_board_that_carries_on_keeps_its_last_change(tmp_path):
   """...and so every file this build writes keeps that: on a clock that
   carries on, the last change saved stays the last, though the world came
@@ -601,9 +628,11 @@ def test_no_jobs_sentence_is_cut_at_its_offer():
   """`Task.create` cuts a description at `MAX_DESCRIPTION` without a word
   (`clean`): #264 lost the house's offers' "say you are done" that way, and
   #659's clause would have cost the door, the chest and the table theirs.
-  Read at the widest a world's cadence and its clock could make its numbers."""
+  Read with each number wider than it will be for years: four digits of
+  minutes, and eight of the clock, three years of the world's around the
+  clock at real time (it read 216,306 on 11-08)."""
   for name, kind in KINDS.items():
-    text = kind.describe("Rowan", {"minutes": 9999, "amount": 9999}, offered_t=9_999_999.0)
+    text = kind.describe("Rowan", {"minutes": 9999, "amount": 9999}, offered_t=99_999_999.0)
     assert len(text) <= MAX_DESCRIPTION, name
 
 

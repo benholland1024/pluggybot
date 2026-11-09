@@ -428,8 +428,9 @@ its own:
 The offer says where by the area's terms (#419): the mall's address and the
 restaurant's directions, naming the table, the card's tag (93) and the
 pieces' (90-92), and that the card faces south -- never a position. Its
-sentence states this check's criteria, within a description's 420
-characters; its row's detail carries all of them.
+sentence states this check's criteria and when the place was set out
+(#659), within a description's 500 characters (`tasks.MAX_DESCRIPTION`);
+its row's detail carries all of them.
 
 **Its hand-written solution** (`challenge/solutions.py`, `TABLE`): the walk
 to the place, then this check's procedure from its one stance, its first

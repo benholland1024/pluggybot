@@ -187,7 +187,7 @@ sight. Worked through what reaches the robot:
 | another robot's reported pose (`others`) | ✅ | what the other robot says on the network, never a sensor's |
 | the pose of a movable object | ❌ | finding it *is* the task — see the perception ladder, §3 |
 | a prop's hidden dynamics — the drawer's runners, the chest's catch | ❌ | hidden ground truth, drawn per offer and kept in `Task.secret`, and redacted where a metric carries it (`catchN`, `Verdict.secret`) |
-| when a job's things were put back ("The drawer was put back shut at t=205338, when this job was offered.") | ✅ | the job's own history, which whoever posted it knows, and a `draws` kind's sentence must say it (#659). How the prop stands *now* stays the robot's to see: an offer stands for minutes, and anything may have touched it since. Told nothing, the robots made do: Rowan timed a spring that isn't there, and Luca said done on a drawer it took to be the last job's 23 cm. ⓘ Offline, the date is the part that lands: on a real turn of Rowan's asking itself whether a drawer was still out, the sentence without a date was used by 44 % of answers and with one by 61 %, against 0 % told nothing (Observatory.md, #659) |
+| when a job's things were put back ("The drawer was put back shut at t=205338, when this job was offered.") | ✅ | the job's own history, which whoever posted it knows. A `draws` kind's sentence says it, dated on the robot's own clock, a start-over's 0 once the world starts from its XML (#659; why dated: its period in Observatory.md). Told nothing, a robot timed a spring the drawer does not have. How the prop stands *now* stays the robot's to see: anything may have touched it since |
 
 The test for a new delivery is the middle column of the first row against the
 last: *could a dispatcher who cannot see the room have written this?* A
@@ -549,8 +549,8 @@ and the `template` is the sentence a person reads — **with no price in it**
 (§2.2), **saying when a `draws` kind's things were put back** (`{offered}`,
 the offer's own second; §2), and **inside `MAX_DESCRIPTION`**, past which it
 is cut without a word: `test_no_jobs_sentence_is_cut_at_its_offer` reads
-every kind at the widest its numbers could make it. `estimate_wh` is the
-world-agnostic FALLBACK and must never sit below the measured cost of the job (`tests/test_energy.py` is the drift
+every kind with its numbers wider than they will be for years.
+`estimate_wh` is the world-agnostic FALLBACK and must never sit below the measured cost of the job (`tests/test_energy.py` is the drift
 guard); the number that actually gets used comes from `economy/energy.json`,
 so **run `scripts/energy_spike.py` for the new job in every world that
 offers the kind** -- a procedure job's is its hand-written solution, flown --

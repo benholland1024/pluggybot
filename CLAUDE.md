@@ -774,10 +774,9 @@ save a filmstrip PNG named after the script.
   IS SHOWN IT, and the time it has left (`heldTasks`, `leftS`): without it
   the robots spent their recalls finding out when they took it. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
-  prop out, ⚠ ITS SENTENCE SAYING WHEN (`{offered}`, #659; a test reads it as
-  offered, past `MAX_DESCRIPTION`'s silent cut; TaskPattern.md §2: told
-  nothing, a robot timed a spring in a drawer found shut), its activity
-  renewed in place (`renew`), put back after a
+  prop out, ⚠ ITS SENTENCE SAYING WHEN (`{offered}`, #659, TaskPattern.md
+  §2; a test reads it as offered, past `MAX_DESCRIPTION`'s silent cut), its
+  activity renewed in place (`renew`), put back after a
   restart (`restore_jobs`, in `begin`, before the activities' kept
   state; the counter and the restaurant's table are `home.jobs`' two areas,
   one interface), and an offer made between the world's last save and a crash has
@@ -2273,8 +2272,9 @@ save a filmstrip PNG named after the script.
   A kind passed over for want of a target KEEPS the head of the queue; one
   the charged pack can never fund does not (#407: it starved the second of
   two kinds sharing a slot behind it); one offer per tick; nothing random. ⚠ **The rotation SURVIVES A RESTART** (the cursor lives in
-  `TaskBoard.producer`), an open offer's deadline and a held job's claim are
-  REBASED on load (except where the world carries on, `rebase=False`; ⚠ a
+  `TaskBoard.producer`), an open offer's deadline, a held job's claim and a
+  `draws` job's date (#659) are REBASED on load (except where the world
+  carries on, `rebase=False`; ⚠ a
   claim is never later than the last change saved, #602: one a start-over
   left on the old clock could never run out; ⚠ moved in memory, written in
   `begin()`), an offer is re-priced by the world's energy table on load,

@@ -172,9 +172,8 @@ class TaskKind:
   #: own sequence number (`Task.secret["draw"]`), set into the world as the
   #: offer lands, the prop set back out with them (`HubLifecycle.
   #: _set_out_job`) -- a skill over a kind of drawer, never one drawer. ⚠ ITS
-  #: SENTENCE SAYS WHEN, `{offered}` (#659; a test reads it as offered): told
-  #: nothing, a robot found its drawer shut and timed a spring. Dated, not "each
-  #: time": against the robot's own `t=`s, the date is the part it weighed.
+  #: SENTENCE SAYS WHEN, `{offered}` (#659; dated: TaskPattern.md §2), and a
+  #: test reads it as offered.
   draws: bool = False
   #: THE TIME THE JOB GIVES FROM ITS CLAIM, minutes, or None for none: what
   #: its sentence says (`{minutes}`) and the limit its grade holds it to
@@ -188,10 +187,10 @@ class TaskKind:
       raise ValueError(f"{self.name}: discharge {self.discharge!r} is none of "
                        f"{', '.join(DISCHARGES)}")
 
-  def describe(self, target: str, params: dict, offered_t: float = 0.0) -> str:
-    # `{offered}`: the sim second of the offer, for a sentence saying when the
-    # job's things were put back (#659)
-    fields = {"offered": f"{float(offered_t):.0f}", **params}
+  def describe(self, target: str, params: dict, *, offered_t: float) -> str:
+    # `{offered}`: when the job's things were put back (#659), the offer's own
+    # second, never a parameter's: a date the robot reads as fact
+    fields = {**params, "offered": f"{float(offered_t):.0f}"}
     try:
       return self.template.format(target=target, **fields)
     except KeyError:
@@ -401,14 +400,16 @@ class Task:
     # ...the time the job gives its kind's, where the offer gives none
     params = ({} if spec.minutes is None else {"minutes": spec.minutes}) | {
       str(k): v for k, v in (params or {}).items()}
-    text = clean(description, MAX_DESCRIPTION) or spec.describe(target, params, offered_t=t)
+    # ...dated off the stamp it keeps, which a start-over's re-dating reads (`load`)
+    created = round(float(t), 3)
+    text = clean(description, MAX_DESCRIPTION) or spec.describe(target, params, offered_t=created)
     return cls(id=task_id, kind=kind, target=target,
                description=clean(text, MAX_DESCRIPTION), task=spec.task,
                params=params, deadline=deadline,
                estimate_wh=(spec.estimate_wh if estimate_wh is None
                             else float(estimate_wh)),
                source=source, state="offered",
-               created_t=round(float(t), 3), secret=dict(secret or {}))
+               created_t=created, secret=dict(secret or {}))
 
   # ---- what it is worth (looked up, never stored) --------------------------
 
@@ -1051,6 +1052,18 @@ class TaskBoard:
         # read as taken 227,000 s ahead of the clock, and could not run out.
         claimed = min(task.claimed_t, float(saved_t)) - (shift or 0.0)
         task = replace(task, claimed_t=round(claimed, 3))
+      if task.open and shift is not None and KINDS[task.kind].draws:
+        # ...and when its things were put back (#659): at the new clock's 0,
+        # where a world from its XML has every prop at rest and sets an open
+        # job's out as it begins (`HubLifecycle.restore_jobs`). Left on the
+        # old clock, the date stood far ahead of the robot's. Only the words
+        # its kind wrote: a description someone gave is theirs.
+        spec = KINDS[task.kind]
+        if task.description == clean(spec.describe(task.target, task.params,
+                                                    offered_t=task.created_t),
+                                     MAX_DESCRIPTION):
+          task = replace(task, description=clean(
+            spec.describe(task.target, task.params, offered_t=0.0), MAX_DESCRIPTION))
       self.tasks[task.id] = task
     # ⚠ Never a number below one the board holds, as the desk's counter
     # (`tickets.Desk`): the board is ordered by it (#610), and a file with a

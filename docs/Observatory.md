@@ -18,10 +18,11 @@ observatory is NOT a result: it reports into the issue it informs.
   (the door's and the lid's the same, the cube's "beside its mat", the
   table's "The plate, the fork and the cup were set out"), in the sentence
   of every offer and every held job, and on the site's job list, which draws
-  the same text.
-- **`tasks.MAX_DESCRIPTION` is 500** (420, a visitor's message's 500 now):
-  at 420 the clause cost the door, the chest and the table the ends of their
-  sentences, without a word.
+  the same text. A start-over dates a standing job at the new clock's 0,
+  where its world begins with every prop at rest.
+- **`tasks.MAX_DESCRIPTION` is 500**, a visitor's message's, where it was
+  420: there the clause cost the door, the chest and the table the ends of
+  their sentences, without a word.
 - The prompt did not move (`prompt_sha` `c71dde29…`, 62,312 chars, before and
   after: `overseer_probe.py --deployed --prompt`), nor the state's keys, the
   schema, the menu, the reward table, the arm, the body or the house.
@@ -37,6 +38,10 @@ job's 23 cm: it had come out 8.
 - **Does a robot still write of a spring**, or of a prop going back by itself?
 - **Does a robot say done on a prop as an earlier job left it?** Read a `done`
   against the job's grade and its thinking.
+- ⚠ **A job standing at the deploy keeps the words it was offered with** until
+  it resolves (a description is written at the offer): read from the first
+  offer after it, all of them gone within half an hour (an offer stands 15
+  minutes, a held job 16).
 - ⚠ **What to expect, offline and on two robots' real turns of 11-08**
   (their History, pins, notes, library and board, through the deployed mind,
   `zai-org/GLM-5.3-Flash:baseten`, the prompt as this branch builds it):
@@ -55,7 +60,8 @@ job's 23 cm: it had come out 8.
   - Two robots' turns, 36 answers an arm at most. A live reading is what
     counts, and since the note outlives the sentence, what to look for is a
     robot NOT forming the belief.
-- Nothing pooled away: only the sentences of five kinds moved.
+- ⚠ **Not to be pooled with the period before for what a robot does with a
+  job**: the job's own words moved.
 
 ### A run says every variable its two lines hold and counts the rest (#658) — opens when this PR is deployed
 

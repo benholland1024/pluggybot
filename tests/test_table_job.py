@@ -428,4 +428,4 @@ def test_the_sentence_says_the_graders_own_numbers_within_the_cap():
     if b:
       assert f"{100 * abs(b):g} cm {'left' if b > 0 else 'right'}" in words, p
   assert f"{100 * table.PLACE_M:g} cm" in words and f"{table.HOLD_S:g} s later" in words
-  assert len(words.format(minutes=999, offered=9_999_999)) <= MAX_DESCRIPTION
+  assert len(words.format(minutes=999, offered=99_999_999)) <= MAX_DESCRIPTION
