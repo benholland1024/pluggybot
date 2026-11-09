@@ -441,7 +441,7 @@ class Practice:
   def __init__(self, client, model: str, facts: WorldFacts, job: str,
                backend: str = "huggingface", max_tokens: int = MAX_TOKENS,
                retry_wait_s: float = RETRY_WAIT_S, rate_wait_s: float = RATE_WAIT_S,
-               thing: str = "box") -> None:
+               thing: str = "box", on_call=None) -> None:
     self.client, self.model_id, self.facts, self.job = client, model, facts, job
     self.thing = thing
     self.backend, self.max_tokens = backend, max_tokens
@@ -451,6 +451,12 @@ class Practice:
     self._last, self._notes = None, False
     #: what was asked and never answered (`_settled`), sent ahead of the next ask
     self._unanswered: list = []
+    #: told of every call as it is asked, `on_call(turn, False)`, and as its
+    #: turn is recorded, answered or failed, `on_call(turn, True)`: a caller's
+    #: journal of what the calls cost, kept where a killed practice leaves it
+    #: (`scripts/practice.py`, #560: the early stop's spend was lost with its
+    #: set-outs)
+    self.on_call = on_call
 
   def _ask(self, kind: str, content, note: str = "", notes: bool = False) -> Turn:
     """One answer to `content`, sent with `note` first where there is one
@@ -460,6 +466,8 @@ class Practice:
     self.messages.append({"role": "user",
                           "content": _noted(_joined(self._unanswered, content), note)})
     turn = Turn(kind=kind)
+    if self.on_call is not None:
+      self.on_call(turn, False)
     t0 = time.monotonic()
     try:
       response = self.client.messages.create(
@@ -483,8 +491,7 @@ class Practice:
                     "was written" if turn.cut else f"{type(e).__name__}: {e}")
       turn.wall_s = time.monotonic() - t0
       self.messages.pop()
-      self.turns.append(turn)
-      return turn
+      return self._recorded(turn)
     self._unanswered = []
     self.messages.append({"role": "assistant", "content": json.dumps(turn.answer)})
     if not notes:
@@ -492,7 +499,12 @@ class Practice:
         turn.procedure = lang.compile_procedure(turn.answer["source"], self.facts)
       except Refused as e:
         turn.refused = list(e.reasons)
+    return self._recorded(turn)
+
+  def _recorded(self, turn: Turn) -> Turn:
     self.turns.append(turn)
+    if self.on_call is not None:
+      self.on_call(turn, True)
     return turn
 
   def _settled(self, turn: Turn) -> Turn:
