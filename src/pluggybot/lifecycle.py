@@ -576,19 +576,64 @@ def _job_named(task_id: str, task) -> str:
   return task_id if task is None else f"{task_id} ({task.kind})"
 
 
+#: How a run's line says its variables go on into the next line (#658).
+MORE_BELOW = " (more on the next line)"
+
+
+def _more(left: int) -> str:
+  """How a line of a run's variables ends where `left` of them were not said."""
+  return f" (+{left} more)" if left else ""
+
+
+def _fit(head: str, items: list[str], room: int, mark) -> int:
+  """How many of `items`, in order, fit after `head` in `room` characters,
+  joined by ", ", with `mark(left)` after them for the `left` that do not."""
+  used = len(head)
+  for n, item in enumerate(items):
+    used += len(item) + (2 if n else 0)
+    if used + len(mark(len(items) - n - 1)) > room:
+      return n
+  return len(items)
+
+
+def _readout(line: str, name: str, values: dict, room: int) -> list[str]:
+  """`line`, then a run's variables as History says them (#227), in the
+  order the run assigned them, with every digit, as the refusal on the
+  same line quotes a tag (`:g` said `t = 23` after `tag 23.0000001`, and
+  `1.23457e+06` for 1234567, #463): beside `line` where they all fit, else
+  on a line of their own, and where not even that holds them, beside
+  `line` as far as it has room (`MORE_BELOW`) and on into the next line,
+  whatever is left past it counted. ⚠ Moved whole, `drawer_spring`'s last
+  two names were counted beside a run's line with 310 characters to spare
+  (#658)."""
+  items = [f"{k} = {number_text(v)}" for k, v in values.items()]
+  said = ", ".join(items)
+  beside = f"{line} -- it ended with "
+  if len(beside) + len(said) <= room:
+    return [beside + said]
+  own = f"the procedure {name} ended with "
+  if len(own) + len(said) <= room:
+    return [line, own + said]
+  k = _fit(beside, items, room, lambda left: MORE_BELOW)
+  if k:
+    line, own = beside + ", ".join(items[:k]) + MORE_BELOW, f"the procedure {name} also ended with "
+  rest = items[k:]
+  j = _fit(own, rest, room, _more)
+  return [line, own + ", ".join(rest[:j]) + _more(len(rest) - j)]
+
+
 def procedure_outcome(name: str, run: dict) -> list[str]:
   """The History a procedure the robot wrote leaves behind (issue #264):
   how far it got, and -- when it stopped short -- the line, the verb and
   the reason, because a robot told nothing re-ran the same failing `fetch`
   five times over and could not fix what it could not see; and how many of
   its tests read false, with each line's first reason (#629). Its locals ride
-  at the end, as they have since #227: they are its readout -- on a line of
-  their own unless they all fit beside the run's line inside History's 400
-  characters, where the cut would take them.
+  at the end, as they have since #227: they are its readout (`_readout`),
+  never past History's 400 characters, where the cut would take them.
 
-  ⚠ EVERY NAME IS SAID OR COUNTED (`+N more`), THE LINE'S WIDTH THE ONLY
-  LIMIT (#658; Overseer.md): a silent cap at twelve hid the last names 97
-  runs of 167 assigned.
+  ⚠ EVERY NAME IS SAID OR COUNTED (`+N more`), THE WIDTH OF THE RUN'S LINE
+  AND THE NEXT THE ONLY LIMIT (#658; Overseer.md): a silent cap at twelve
+  hid the last names 97 runs of 167 assigned.
 
   ⚠ A RUN THAT STOPPED SHORT SAYS SO FIRST, and never as a fraction: the
   count is of calls MADE, so a budget stop reads "4/4" -- MEASURED (ladder
@@ -639,20 +684,7 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
     line += (f"; {stops}" if stops else "") + close
   if not run.get("locals"):
     return [line]
-  # every digit, as the refusal on the same line quotes a tag: `:g` said
-  # `t = 23` after `tag 23.0000001`, and `1.23457e+06` for 1234567 (#463)
-  items = [f"{k} = {number_text(v)}" for k, v in run["locals"].items()]
-  tail = f" -- it ended with {', '.join(items)}"
-  if len(line) + len(tail) <= room:
-    return [line + tail]
-  head, shown = f"the procedure {name} ended with ", []
-  for item in items:
-    left = len(items) - len(shown) - 1
-    if len(head + ", ".join(shown + [item])) + (len(f" (+{left} more)") if left else 0) > room:
-      break
-    shown.append(item)
-  left = len(items) - len(shown)
-  return [line, head + ", ".join(shown) + (f" (+{left} more)" if left else "")]
+  return _readout(line, name, run["locals"], room)
 #: ⚠ How long an offer stands, how often one appears, how many may stand at
 #: once and how long a target rests are NO LONGER HERE. They are configuration
 #: -- economy/cadence.json, per world, `$PLUGGY_CADENCE` to override -- because

@@ -365,12 +365,15 @@ charging.
 procedure `read` reached the mind before: the run's verdicts said which
 steps passed. Now the locals as a run ended ride the `procedure` event
 (`locals`) and History -- `ran the procedure weigh to its end (5 steps) -- it
-ended with f = 7.38, ...`, on a line of their own where that one has no room
--- and the procedure rule says so. The line's width is the only limit, and
-`(+N more)` counts every name past it (#658: shown the first twelve and told
-nothing of the rest, 97 of 167 runs on `fe07629` lost the last names they
-assigned, and a History record holds only what it said, so a `recall` brought
-none of them back).
+ended with f = 7.38, ...`, on a line of their own (`the procedure weigh ended
+with ...`) where that one has no room for them all, and where not even a line
+of their own holds them, beside the run's line as far as it goes (`(more on
+the next line)`) and on into the next (`the procedure weigh also ended with
+...`) -- and the procedure rule says so. The width of those two lines is the
+only limit, and `(+N more)` counts every name past it (#658: shown the first
+twelve and told nothing of the rest, 97 of 167 runs on `fe07629` lost the
+last names they assigned, and a History record holds only what it said, so a
+`recall` brought none of them back).
 
 **There is no route: a walk goes into the unknown** (issue #381). No
 world writes one (the rover's surveyed routes went with it, #376), so

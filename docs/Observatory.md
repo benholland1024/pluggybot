@@ -10,16 +10,19 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A run says every variable its line holds and counts the rest (#658) — opens when this PR is deployed
+### A run says every variable its two lines hold and counts the rest (#658) — opens when this PR is deployed
 
 **What changed is what the robots read of a run's variables.** History said
 the first twelve names a run assigned and nothing of the others, and
-`(+N more)` counted only what the line's width left out of those twelve. The
-line's width is now the only limit, on the run's own line or the next, and
-`(+N more)` counts every name left out. The prompt did not move (`prompt_sha`
-`c71dde29…` both sides: "on that line or the next" was already true), nor the
-state, the schema, the menu, the wire or the site: the `procedure` event
-always carried every name.
+`(+N more)` counted only what the line's width left out of those twelve. Now
+the width of the run's own line and the next is the only limit: the names go
+beside the run's line where they all fit, else on a line of their own, and
+where not even that holds them, beside the run's line as far as it goes,
+`(more on the next line)`, and on into the next, which says `the procedure …
+also ended with`. `(+N more)` counts every name left past them. The prompt
+did not move (`prompt_sha` `c71dde29…` both sides: "on that line or the next"
+was already true), nor the state, the schema, the menu or the wire: the
+`procedure` event always carried every name.
 
 **Why.** #658, from the 11-08 triage, on `fe07629`. 97 of its 167 runs
 assigned more than twelve names (89 of the 155 that ran to their end, the
@@ -30,16 +33,17 @@ recalled a run's line five times, and it came back as cut as it went in.
 
 **What to expect.** Each run replayed through this code from its own line in
 the robot's History and the wire's names, in the order its source assigns
-them: 94 of the 97 read whole on the names the rows kept, and the other 3 end
-in a count. ⚠ A row's `locals` keep at most 24 names (the site's
-`MAX_LOCALS`) and 8 rows stop there: priced off each run's source for the
-names past it, an upper bound since a branch may not have run, it is 92 and
-5, `(+2 more)` to `(+10 more)`, all Rowan's (`drawer_spring` and
-`drawer_spring2`, up to 32 names, and three `drawer_final`s). A run whose
-names do not all fit beside its line says them on a line of their own, and
-that is 88 of the 167 where it was 68 (the run's line carries its tests'
-reasons and its stop conditions): the 20 more each take one of the twelve
-History lines the model is shown.
+them: 96 of the 97 read whole. The one left counting is Rowan's
+`drawer_final` at t=197807, `(+6 more)`, its run's line 377 characters long.
+⚠ A row's `locals` kept at most 24 names (the site's `MAX_LOCALS`, 64 from
+rooftop-media-2026 #504) and 8 rows stop there: priced off each run's
+source for the names past it, an upper bound since a branch may not have
+run, it is still 96. A run whose names do not all fit beside its line says
+them on the next line too, and that is 88 of the 167 where it was 68 (the
+run's line carries its tests' reasons and its stop conditions): the 20 more
+each take one of the twelve History lines the model is shown. Two of them
+start their names beside the run's line and carry them on, `drawer_spring`
+and `drawer_spring2` (four with the names past the site's 24).
 
 **What the period is for.**
 - **The acceptance**: a run with twenty-odd names reads whole, and neither
