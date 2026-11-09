@@ -1463,31 +1463,38 @@ def test_a_first_answer_lost_to_every_cut_leaves_the_job_ahead_of_the_next_ask()
   assert pr.carry(None)[1].answer is None and pr._unanswered == []
 
 
-def test_a_practice_asks_at_the_effort_it_is_given_and_never_pools_two(monkeypatch, tmp_path,
-                                                                       capsys):
-  """#560's table arms on #626: at its provider's own effort the deployed
-  mind thought a median of 95-115k tokens a call, and 97 of 208 answers
-  were cut off; the arms fly again asked to think less (Ben, 2026-11-07),
-  by its reasoning effort, never a smaller budget. `--effort` goes on every
-  request a practice makes, on every row (`run.effort`, the skill), and a
-  record read keeps each effort's rows apart; unset, nothing is sent, as
-  before. Through the script's `main`, the router faked: no network."""
+class _Killed(BaseException):
+  """A pool worker killed mid-call (`pool.terminate()`): nothing it was
+  doing returns, nor is caught as an error."""
+
+
+def _answered(source='def a():\n    wait(1)\n'):
+  """The router's answer: `source`, 100 tokens in and 40 out."""
+  text = json.dumps({"think": "a try", "source": source})
+  return 200, {"choices": [{"message": {"content": text}}],
+               "usage": {"prompt_tokens": 100, "completion_tokens": 40}}
+
+
+def _script(monkeypatch):
+  """`scripts/practice.py`, loaded."""
   import importlib.util
-  import urllib.request
   from pathlib import Path
-  from pluggybot.mind import llm
   path = Path(__file__).resolve().parents[1] / "scripts" / "practice.py"
   spec = importlib.util.spec_from_file_location("practice_script", path)
   script = importlib.util.module_from_spec(spec)
   monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")     # what its import sets
   spec.loader.exec_module(script)
-  bodies = []
+  return script
 
-  def router(url, body, headers, timeout, **kw):
-    bodies.append(body)
-    text = json.dumps({"think": "a try", "source": "def a():\n    wait(1)\n"})
-    return 200, {"choices": [{"message": {"content": text}}],
-                 "usage": {"prompt_tokens": 100, "completion_tokens": 40}}
+
+def _practice_script(monkeypatch, router, first=()):
+  """`scripts/practice.py`, its mind's router `router` (no network, no price
+  list) and each set-out flown on the stub world without a picture, in this
+  process: the chests in `first` first, and one whose worker was killed
+  (`_Killed`) returning nothing."""
+  import urllib.request
+  from pluggybot.mind import llm
+  script = _script(monkeypatch)
 
   def no_network(*a, **kw):
     raise AssertionError("a test reached the network")
@@ -1500,8 +1507,6 @@ def test_a_practice_asks_at_the_effort_it_is_given_and_never_pools_two(monkeypat
     k, mind, attempts, **{**kw, "picture": False}, build=lambda t: stub_world(t)))
 
   class Pool:
-    """The pool, here: each set-out flown in this process."""
-
     def __init__(self, processes, **kw):
       pass
 
@@ -1511,9 +1516,34 @@ def test_a_practice_asks_at_the_effort_it_is_given_and_never_pools_two(monkeypat
     def __exit__(self, *exc):
       return False
 
+    def terminate(self):
+      pass
+
     def imap_unordered(self, fn, jobs):
-      return (fn(j) for j in jobs)
+      for j in sorted(jobs, key=lambda j: j["chest"] not in first):
+        try:
+          yield fn(j)
+        except _Killed:
+          pass
   monkeypatch.setattr(script, "get_context", lambda kind: NS(Pool=Pool))
+  return script
+
+
+def test_a_practice_asks_at_the_effort_it_is_given_and_never_pools_two(monkeypatch, tmp_path,
+                                                                       capsys):
+  """#560's table arms on #626: at its provider's own effort the deployed
+  mind thought a median of 95-115k tokens a call, and 97 of 208 answers
+  were cut off; the arms fly again asked to think less (Ben, 2026-11-07),
+  by its reasoning effort, never a smaller budget. `--effort` goes on every
+  request a practice makes, on every row (`run.effort`, the skill), and a
+  record read keeps each effort's rows apart; unset, nothing is sent, as
+  before. Through the script's `main`, the router faked: no network."""
+  bodies = []
+
+  def router(url, body, headers, timeout, **kw):
+    bodies.append(body)
+    return _answered()
+  script = _practice_script(monkeypatch, router)
   low, unset = tmp_path / "low", tmp_path / "unset"
   for into, effort in ((low, ["--effort", "low"]), (unset, [])):
     script.main(["--chests", "0", "--attempts", "1", "--model", "org/m", "--into", str(into),
@@ -1533,6 +1563,92 @@ def test_a_practice_asks_at_the_effort_it_is_given_and_never_pools_two(monkeypat
   said = capsys.readouterr().out
   assert said.count("THE PER-TASK RECORD") == 2 and said.count("THE MIND,") == 2
   assert "org/m at effort low" in said and "org/m at its provider's effort" in said
+
+
+def test_every_practice_call_is_journaled_as_asked_and_as_answered_the_failed_too(monkeypatch,
+                                                                                 tmp_path):
+  """#560 (#626's call 6): a set-out's calls are journaled as they go, on
+  disk before each goes on -- its ask, then its turn as recorded, a call
+  that failed too -- and the journal spends what its rows say it spent."""
+  class FailsFirst(Mind):
+    def create(self, **kw):
+      if not self.asked:
+        self.asked.append(kw)
+        raise RuntimeError("503 from the router")
+      return super().create(**kw)
+  script = _script(monkeypatch)
+  path = tmp_path / "inflight" / "practice-0.jsonl"
+  on_disk = []
+  journal = script.journal(path)
+
+  def on_call(turn, answered):
+    journal(turn, answered)
+    on_disk.append(len(path.read_text().splitlines()))
+  pr = mp.Practice(FailsFirst('def a():\n    wait(1)\n', 'def b():\n    wait(2)\n'), "a-mind",
+                   st.hand_facts(), ep.JOB.format(limit=30), retry_wait_s=0.0, on_call=on_call)
+  rows = ep.practice_on(0, pr, 2, picture=False, budget_s=30.0, build=lambda t: stub_world(t))
+  lines = [json.loads(line) for line in path.read_text().splitlines()]
+  assert on_disk == [1, 2, 3, 4, 5, 6]
+  assert [(ln["kind"], ln["answered"], ln["try"]) for ln in lines] == [
+    ("first", False, 1), ("first", True, 1), ("retry", False, 1), ("retry", True, 1),
+    ("after", False, 2), ("after", True, 2)]
+  assert [ln["tokensIn"] for ln in lines if ln["answered"]] == [0, 100, 100]
+  answered = [ln for ln in lines if ln["answered"]]
+  assert (sum(ln["tokensIn"] for ln in answered), sum(ln["tokensOut"] for ln in answered),
+          len(answered)) == tuple(sum(r["practice"][k] for r in rows)
+                                  for k in ("tokensIn", "tokensOut", "calls"))
+
+
+def test_an_early_stop_writes_what_the_set_outs_it_killed_spent(monkeypatch, tmp_path, capsys):
+  """#560 (#626's call 6, Ben, 2026-11-07): the early stop kills the
+  set-outs in flight, and their spend reached no row -- #626's table arms
+  recorded $8.50 and ~$6.60 more was killed. A killed set-out's spend is
+  one record off its journal, apart from the record's rows (a row is an
+  attempt): its answered calls summed and priced as a row is, the call it
+  had open counted and never priced. A set-out whose rows came has none,
+  the per-task record never reads it, and `--read` says it apart. Through
+  the script's `main`: chest 1 is in flight, its second call open, when
+  chest 0 ends and the bar of 2 is out of reach."""
+  from pluggybot.mind import llm
+  calls = []
+
+  def router(url, body, headers, timeout, **kw):
+    calls.append(body)
+    if len(calls) == 2:                  # chest 1's second, still open at the kill
+      raise _Killed()
+    return _answered()
+  script = _practice_script(monkeypatch, router, first=(1,))
+  monkeypatch.setattr(llm.HFClient, "pricing", lambda self, model: (0.5, 2.0))
+  into = tmp_path / "rec"
+  script.main(["--chests", "0-1", "--attempts", "2", "--model", "org/m", "--into", str(into),
+               "--early-stop"])
+  rows = [json.loads(line) for line in open(into / "rows.jsonl")]
+  assert {r["task"]["chest"] for r in rows} == {0} and len(rows) == 2
+  assert json.loads((into / "stopped.json").read_text())["after"] == 1
+  dead = [json.loads(line) for line in open(into / "killed.jsonl")]
+  assert len(dead) == 1
+  (gone,) = dead
+  assert gone["task"]["chest"] == 1 and gone["killed"] == "stopped early"
+  assert gone["process"] == "practice" and gone["skill"] == rows[0]["skill"]
+  assert script.regime_of(gone) == script.regime_of(rows[0])
+  assert {k: gone["practice"][k] for k in ("tokensIn", "tokensOut", "calls")} == {
+    "tokensIn": 100, "tokensOut": 40, "calls": 1}
+  assert gone["usd"] == round((100 * 0.5 + 40 * 2.0) / 1e6, 5) == rows[0]["usd"]
+  assert [(c["kind"], c["try"]) for c in gone["open"]] == [("after", 2)] and gone["onTry"] == 2
+  assert "verdict" not in gone and "attempt" not in gone
+  assert not list((into / "inflight").iterdir())
+  # read: the killed spend said apart, the per-task record as without it
+  capsys.readouterr()
+  script.read(str(into))
+  said = capsys.readouterr().out
+  assert said.count("THE MIND,") == 1
+  assert ("  and killed in flight, 1 set-outs (stopped early): 1 answers, 100 tokens in and 40 "
+          "out, $0.00, 0.0 h waiting on it; 1 calls cut off uncounted") in said
+  script.att.read(str(into))
+  record = capsys.readouterr().out
+  (into / "killed.jsonl").unlink()
+  script.att.read(str(into))
+  assert capsys.readouterr().out == record and "THE PER-TASK RECORD" in record
 
 
 def _pass(name, source, chest, attempt):

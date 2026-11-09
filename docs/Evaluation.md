@@ -1160,7 +1160,11 @@ again 32 times and never used its library. The KEPT protocol
 - **the flight**: each held-out chest a copy of that robot, frozen, up to 5
   tries; the bar is read there, 80 % within 3 of the chest's own tries.
   ⚠ It STOPS EARLY once the bar is out of reach (`out_of_reach`: a seventh
-  of 32 chests failed within 3), the curve read off the chests flown.
+  of 32 chests failed within 3), the curve read off the chests flown. The
+  chests still in flight are killed, and what each one's calls spent is
+  written apart from the rows, off the journal it kept of them
+  (`practice.py`'s `killed.jsonl`, #560): its answered calls summed and
+  priced, the call it had open counted and never priced.
 Alongside it, feedback a procedure is debugged by, none of it the chest's:
 a sensor written as Python is refused naming its `read`, an operator the
 language lacks naming the four it has; a reach out of reach says whether
@@ -1947,8 +1951,9 @@ near a fresh mind gets to a skill that is there. At `343e273`:
   provider over one night; a fresh robot learns within a set-out, and its
   lost first tries left it 4 at most -- the KEPT protocol, practice first, is
   the other reading. ⚠ The dollars recorded are a floor: the early stop
-  kills the set-outs in flight, up to 8 an arm here, and their spend never
-  reaches a row (estimated by the hours they ran, at each arm's own rate).
+  killed up to 8 set-outs an arm in flight before a set-out's calls were
+  journaled (§4), so theirs is estimated by the hours they ran, at each
+  arm's own rate.
   Spend: about $17 -- the arms $8.50 recorded and ~$6.60 killed in flight,
   the first run ~$1.80 ($0.23 recorded); our procedure cost no tokens.
 
