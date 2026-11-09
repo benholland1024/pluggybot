@@ -1417,7 +1417,10 @@ save a filmstrip PNG named after the script.
   run's own budget (`run_verb(until=)`); an argument with a `default` may be
   left out. ⚠ A PROCEDURE'S LOCALS ARE ITS READOUT (#227:
   `lang.run_procedure_routine` returns them, the `procedure` event carries
-  them, one History line of `LOCALS_SHOWN`). ⚠ The procedure rule's example
+  them, and History says them beside the run's line, on the next, or on
+  both (`_readout`); ⚠ EVERY NAME SAID OR COUNTED, `(+N more)`, the two
+  lines' width the only limit: a silent cap at twelve hid names from 97 runs
+  of 167, #658). ⚠ The procedure rule's example
   (`hands_procedure_rule`) may not show charge, a battery threshold or the
   rack. ⚠ The site's Procedures section is built off the `procedure`
   event (`library`, `failedLine`; `failedAt` counts verb calls, not lines;
