@@ -551,6 +551,25 @@ def test_a_death_ends_the_run_at_once_and_a_dead_robot_begins_no_verb():
   assert len(life.calls) == 1, "a verb began on a dead robot"
 
 
+def test_a_verb_never_runs_again_on_a_dead_robot():
+  """#671's review: a death is read the step it lands, before the verb runs
+  again -- resumed first, a verb's code took one more turn on a dead robot.
+  Here the death is the step's own, as the loop's death seam's is (a
+  stepper's), and the wait's line after its third yield never runs. Shown
+  to fail with the death read after the verb resumes (it held 3)."""
+  life = _stub_life()
+  held = _down_in_wait(life)
+  stepped = [0]
+
+  def step(*a):
+    stepped[0] += 1
+    if stepped[0] == 3:
+      life.dead = {"cause": "flat"}
+  proc = lang.compile_procedure("def x():\n    wait(5)\n", HOME)
+  r = tick.run(SimpleNamespace(step=step), lang.run_procedure_routine(life, proc, HOME))
+  assert r["stopped"] == "died" and held == [2], (r, held)
+
+
 def test_the_language_says_a_fall_stops_the_procedure_in_a_test_or_not():
   """#671: the rule is the language's, so its text says it -- among what
   ends a run, and where a verb may be a test -- in the practice's words,

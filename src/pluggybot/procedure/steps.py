@@ -1397,12 +1397,11 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
   not succeed says `stopped: interrupted` -- both runners stop the program
   there as an abort, never at a failed step.
 
-  ⚠ A FALL OR A DEATH ENDS IT AT ONCE (#671; `_until_down_routine`): a
-  verb its body fell in fails and says so (`fell`, in its own words where
-  it ended on the fall, else `FELL`), and one its robot died in is
-  `stopped: died`; both runners end the run there, an `if`'s test or not.
-  Read false as a test, Luca's reach that fell let its run go on through
-  the get-up, the topple and the death, three verbs on a dead robot."""
+  ⚠ A FALL OR A DEATH ENDS IT AT ONCE (#671; `_until_down_routine`;
+  Overseer.md §2b): a verb its body fell in fails and says so (`fell`, in
+  its own words where it ended on the fall, else `FELL`), and one its robot
+  died in is `stopped: died`; both runners end the run there, an `if`'s
+  test or not."""
   before = getattr(life, "step_now", None)
   before_until = getattr(life, "step_until", None)
   aborting = bool(getattr(life, "aborting", False))
@@ -1416,9 +1415,10 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
       forget_readings(life, verb.name)
     if ended == "died":
       return {"ok": False, "stopped": "died"}
-    if ended == "fell" or (verdict or {}).get("why") == "fell":
-      own = (verdict or {}).get("reason") if (verdict or {}).get("why") == "fell" else None
-      return {**(verdict or {}), "ok": False, "fell": True, "reason": own or FELL}
+    said = verdict or {}
+    if ended == "fell" or said.get("why") == "fell":
+      own = said.get("reason") if said.get("why") == "fell" else None
+      return {**said, "ok": False, "fell": True, "reason": own or FELL}
     if (not verdict.get("ok") and not aborting
         and getattr(life, "aborting", False)):
       verdict = {**verdict, "stopped": "interrupted"}
@@ -1437,13 +1437,17 @@ def _verb_routine(life, verb: Verb, args: dict) -> Routine:
 
 
 def _until_down_routine(life, routine: Routine) -> Routine:
-  """`routine` driven as `yield from` would, and CLOSED the step its body
-  falls (`Body.falls`, its own fall watch's count) or its robot dies (a
+  """`routine` driven as `yield from` would, and CLOSED where its body falls
+  (`Body.falls`, its own fall watch's count) or its robot dies (a
   lifecycle's `dead`; a life with none never does). Returns (what it
-  returned, None where it was closed; and "died", "fell" or ""): "fell" too
-  where it returned on its own the step a fall came, as the hands' moves
-  do -- and a death in its last step is the next verb's to see
-  (`lang.run_procedure_routine` looks before each)."""
+  returned, None where it was closed; and "died", "fell" or "").
+
+  ⚠ A DEATH IS READ THE STEP IT LANDS, BEFORE THE ROUTINE RUNS AGAIN (as
+  `HubLifecycle._until_stood_up_routine` reads a stand-up): no line of the
+  verb runs on a dead robot. ⚠ A FALL IS READ ONCE THE ROUTINE HAS RUN ON
+  FROM IT: a hand's move ends on the fall itself and says so in its own
+  words ("fell" too where it returned so), and anything that does not is
+  closed at its next command."""
   body = life.body
   falls = body.falls
   alive = getattr(life, "dead", None) is None
@@ -1454,11 +1458,9 @@ def _until_down_routine(life, routine: Routine) -> Routine:
     except StopIteration as stop:
       return stop.value, ("fell" if body.falls != falls else "")
     exc = None
-    ended = ("died" if alive and getattr(life, "dead", None) is not None
-             else "fell" if body.falls != falls else "")
-    if ended:
+    if body.falls != falls:
       routine.close()
-      return None, ended
+      return None, "fell"
     try:
       sent = yield cmd
     except GeneratorExit:
@@ -1466,6 +1468,10 @@ def _until_down_routine(life, routine: Routine) -> Routine:
       raise
     except BaseException as e:  # noqa: BLE001 -- thrown into the routine, as `yield from` would
       exc, sent = e, None
+      continue
+    if alive and getattr(life, "dead", None) is not None:
+      routine.close()
+      return None, "died"
 
 
 #: What a body whose world has task areas it finds by their tags runs

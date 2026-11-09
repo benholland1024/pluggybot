@@ -1315,7 +1315,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
                                        {"procedure": proc.name, "n": count,
                                         "line": line, **at.said()},
                                        until=t0 + proc.budget_s)
-    read = not verdict.get("ok") and at.tested and not verdict.get("fell")
+    read = not verdict.get("ok") and at.tested
     tests = (tested or read) and not verdict.get("fell")
     entry = {"i": count - 1, "verb": verb, "line": line, **at.said(), **verdict,
              **({"tested": True} if tests else {})}

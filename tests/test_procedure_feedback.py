@@ -228,10 +228,18 @@ def test_a_run_a_death_ended_says_so_after_the_death_at_the_line_it_died_in():
   assert died < ended, history
   cut = next(e for e in events if e.get("type") == "procedure" and e.get("outcome") == "aborted")
   assert cut["stopped"] == "died" and (cut["completed"], cut["total"]) == (0, 1), cut
-  # ...and dead between two verbs, it is said after the last line that ran
-  [line] = lc.procedure_outcome("lap", {"ok": False, "completed": 1, "total": 1, "stopped": "died",
-                                        "steps": [{"i": 0, "verb": "wait", "line": 2, "ok": True}]})
-  assert line == "the procedure lap did not finish -- my death ended it after line 2 (1 step had run)"
+  # ...and dead between two verbs, it is said after the last line that ran;
+  # and an interrupt is said where it came so too, at the line of the walk
+  # it ended (#381) or after the last line that ran (#671's review)
+  def said(stopped, ended):
+    [line] = lc.procedure_outcome("lap", {
+      "ok": False, "completed": 1, "total": 1, "stopped": stopped,
+      "steps": [{"i": 0, "verb": "find", "line": 2, "ok": False,
+                 **({"stopped": stopped} if ended else {"ok": True})}]})
+    return line.split(" -- ", 1)[1]
+  assert said("died", False) == "my death ended it after line 2 (1 step had run)"
+  assert said("interrupted", True) == "it was interrupted at line 2 (1 step had run)"
+  assert said("interrupted", False) == "it was interrupted after line 2 (1 step had run)"
 
 
 def test_a_procedure_out_of_budget_says_first_that_it_did_not_finish():

@@ -323,9 +323,13 @@ and let go". Read false, Luca's tested reach that fell let its run go on
 through the get-up, the topple and its death, a `withdraw` waiting the
 get-up out for two minutes and three verbs running on a dead robot (11-08).
 **A death ends the run at once too**, never at the stand-up 300 s on: its
-verb is ended the step the robot dies, the line follows the death's own,
-"my death ended it at line 9", and the `procedure` event says `stopped:
-died`. Sources survive a restart and are
+verb is ended the step the robot dies, before it runs again; the line
+follows the death's own, "my death ended it at line 9" ("after line 9"
+where it came between two verbs, as an interrupt's line says it), and the
+`procedure` event says `stopped: died`. Its errand is one a death ended, as
+a stand-up's close of one was: failed for the map, never scored, and after
+a true death the new robot hears nothing of it (`_after_true_death`).
+Sources survive a restart and are
 recompiled against *today's* world when the library loads; one that no
 longer validates is kept and shown marked not runnable, with the reasons.
 

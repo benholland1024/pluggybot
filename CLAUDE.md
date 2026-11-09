@@ -2256,7 +2256,10 @@ save a filmstrip PNG named after the script.
   hears nothing of the old errand (its one inheritance is `_true_death`'s
   line). ⚠ A PROCEDURE'S RUN NEVER WAITS FOR THE STAND-UP: a death ends it
   at once (#671; above, "A mind can write procedures"), so a stand-up lands
-  in a charge trip, an explore or a decision's walk, never in a run.
+  in a charge trip, an explore or a decision's walk, never in a run; its
+  errand is one a death ended as a stand-up's close of one was
+  (`DEATH_ENDED`: failed for the map, never scored), and after a TRUE death
+  the new robot hears nothing of it either (`_after_true_death`).
 - **A task is a job OFFER, and it is not an errand** (`economy/tasks.py`,
   issue #21; TaskPattern.md): a task never carries its own payout
   (`Task.create` refuses a kind with no evaluator). The wire may carry

@@ -444,6 +444,74 @@ def test_after_a_true_death_the_errand_is_not_the_new_robots_to_remember(menu):
     life.body.close()
 
 
+# ---- a death ends the run it lands in, at once (#671) ---------------------------
+
+
+def _flat_lap(life):
+  """`lap`, the robot's own procedure, as `procedure:lap` builds its errand
+  (`errand_from`), its pack emptied 1 s into the first of its two 30 s
+  waits: the loop's own death seam takes the robot there."""
+  from pluggybot.lifecycle import errand_from, world_facts
+  from pluggybot.procedure import library as lib
+  L = lib.Library(world_facts(HUMANOID_HOME))
+  L.define("lap", "def lap():\n    wait(30)\n    wait(30)\n")
+  flat_at = float(life.data.time) + 1.0
+
+  def flat():
+    if float(life.data.time) >= flat_at:
+      life.battery.energy_wh = 0.0
+  life.body.step_hooks.append(flat)
+  return errand_from(ov.Decision(action="procedure:lap"), library=L)
+
+
+def test_a_death_ends_the_run_it_lands_in_failed_for_the_map_and_never_scored(menu):
+  """#671: the run ends at the death, not at the stand-up, and its errand is
+  one a death ended as a stand-up's close of it was (`_void_errand`): marked
+  so (`DEATH_ENDED`), failed for the map, never scored -- and History says
+  where, "my death ended it at line 2". Shown to fail without the death's
+  mark in `_run_program_routine`: the map heard `task_complete`, and the
+  run was graded."""
+  life = _life(overseer=_mapped(menu, ev.Row("task_failed", ev.ASK)), restart_after_s=None)
+  try:
+    errand = _flat_lap(life)
+    t0 = float(life.data.time)
+    result = life.run_errand(errand)
+    assert life.dead is not None and life.dead["cause"] == "flat"
+    assert float(life.data.time) - t0 < 1.0 + 3 * lc.DEATH_CHECK_S, "the run held past the death"
+    assert result["procedure"]["stopped"] == "died" and result["error"] == DEATH_ENDED, result
+    assert "verdict" not in result and life.errand_results[-1] is result
+    assert ("task_failed", errand.name) in life._occurred, life._occurred
+    assert ("task_complete", errand.name) not in life._occurred
+    assert any("the procedure lap did not finish -- my death ended it at line 2 (0 steps had run)"
+               in ln for ln in _history(life)), _history(life)
+  finally:
+    life.body.close()
+
+
+def test_after_a_true_death_the_run_it_ended_is_not_the_new_robots_to_remember(menu, tmp_path):
+  """...and where that death took the last heart, the run was the robot
+  before's: the new robot's History and fresh map hear nothing of it, as of
+  an errand a stand-up closes (the test above). Shown to fail without
+  `_after_true_death` in `_run_program_routine` and `run_errand_routine`:
+  the new robot's History read the old robot's run, and its map heard it."""
+  from pluggybot.economy.ledger import Ledger
+  from pluggybot.mind.thoughts import ThoughtFiles
+  ledger = Ledger(path=tmp_path / "ledger.json")
+  life = _life(overseer=_mapped(menu, ev.Row("task_failed", ev.ASK)), restart_after_s=None,
+               ledger=ledger, thoughts=ThoughtFiles.open(str(tmp_path / "t")))
+  try:
+    ledger.robots[life.root]["hearts"] = 1
+    errand = _flat_lap(life)
+    result = life.run_errand(errand)
+    assert life.true_deaths, "the fixture did not reach a true death"
+    assert result["procedure"]["stopped"] == "died" and result["error"] == DEATH_ENDED, result
+    assert "verdict" not in result
+    assert not any("the procedure lap" in ln for ln in _history(life)), _history(life)
+    assert not [e for e in life._occurred if e[1] == errand.name], life._occurred
+  finally:
+    life.body.close()
+
+
 # ---- the vocabulary ----------------------------------------------------------
 
 
