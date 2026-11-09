@@ -76,7 +76,7 @@ LOOK_S = 10.0
 #: (`looksLeft` in the state). Two: the world may have moved between them,
 #: a third from the same spot is the robot staring.
 MAX_LOOK_RUN = 2
-#: The picture asked for, in pixels. The head camera's fovy is 41 degrees
+#: The picture asked for, in pixels. The navigation camera's fovy is 41 degrees
 #: (vertical); 4:3 at 640 x 480 is what the real part would deliver and
 #: costs ~400 input tokens as a JPEG, so a look is cheaper than a page.
 WIDTH = 640

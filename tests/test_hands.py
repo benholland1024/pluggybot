@@ -1293,20 +1293,23 @@ def test_spot_and_watch_say_which_camera_they_read_and_what_its_picture_takes_in
   spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
   assert "your colour camera" in spot and "head camera" not in spot
   assert f"runs from {colour['top']:.0f} to {colour['bottom']:.0f} degrees below level" in spot
-  assert (f"out to {_bearing(colour, 1):.0f} degrees either side of where you face at its top "
-          f"and more than {int(_bearing(colour, -1) // 10 * 10)} at its bottom") in spot
+  assert (f"out to {_bearing(colour, 1):.0f} degrees either side of where your head faces at "
+          f"its top and more than {int(_bearing(colour, -1) // 10 * 10)} at its bottom") in spot
   assert _bearing(colour, 1) < _bearing(colour, -1), "the picture is tilted: wider at its bottom"
   assert "bowing only takes it lower" in spot
-  top = float(colour["at"][2])
+  # the picture's top in the stance frame, whose origin is the soles' middle
+  soles = np.mean([data.geom_xpos[model.geom(f"{s}_sole").id] for s in hm.SIDES], axis=0)
   drop = math.tan(math.radians(colour["top"]))
-  assert f"in the picture only if it stands lower than ({top:.2f} - {drop:.2f} d) m over the floor" in spot
+  at_feet = float(colour["at"][2]) + drop * float(colour["at"][0] - soles[0])
+  assert st.SPOT_TOP_AT_FEET_M == pytest.approx(at_feet, abs=1e-5)
+  assert ("With your trunk square to your feet, a thing at x in your stance frame is in the "
+          f"picture only if it stands lower than ({at_feet:.2f} - {drop:.2f} x) m over the floor") in spot
   assert "a tag reads only with the whole of it inside the picture" in spot
   shoulder = float(data.xanchor[model.joint("left_shoulder_pitch").id][2])
-  wall_top = shoulder + tags.AREA_TAG_SIZE / 2
-  assert ("the lower a tag is, the further back it reads, one level with your shoulders only "
-          f"from within about {(top - shoulder) / drop:.1f} m of it (a "
-          f"{tags.AREA_TAG_SIZE * 100:.0f} cm tag from within about {(top - wall_top) / drop:.2f} m), "
-          "and nothing as high as your camera ever") in spot
+  small = (at_feet - shoulder - tags.BLOCK_TAG_SIZE / 2) / drop
+  assert ("the lower a tag is, the further off it reads, a small one level with your shoulders "
+          f"only within about {small:.1f} m ahead of you, a larger one nearer still, and nothing "
+          "as high as your camera ever") in spot
   assert f"a small block's tag reads from up to about {st.SPOT_BLOCK_READS_M:g} m away" in spot
   watch = " ".join(st.HANDS_VERBS["watch"].doc.split())
   assert "your colour camera" in watch and "head camera" not in watch

@@ -1018,8 +1018,9 @@ save a filmstrip PNG named after the script.
   a fall -- held fast it is ok, and `pull.held` says so, a served robot
   being shown no step's `why` -- and `spot` and `watch` say they read a
   block's face seen most square-on. ⚠ `spot` AND `watch` SAY WHICH CAMERA
-  THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_*`, off the model -- a
-  test reads them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown):
+  THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_TOP_DEG` and the rest of
+  its picture's numbers, off the model and IN THE STANCE FRAME -- a test reads
+  them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown):
   the colour camera, looking down; `look`, `find`, a practice's first
   picture and the lab's view are the navigation camera (`Body.head_camera`),
   and nothing a robot reads calls either "the head camera" (a test reads
@@ -1052,7 +1053,8 @@ save a filmstrip PNG named after the script.
   and moved the flight), nothing while the get-up has the body or before a
   stand-up's fresh reach has posed it; it ends with the procedure; a stop
   condition reading it whose sensor never had a reading says why. ⚠ The
-  head camera is fixed: the knob's tag leaves its view past 50 deg of lid.
+  colour camera is fixed on the head: the knob's tag leaves its view past 50
+  deg of lid.
   ⚠ THE CAPABILITY CHECK
   (`evaluation/hands_check.py`, `scripts/hands_check.py`,
   `tests/test_hands_check.py`): our procedure for the lid, a drawer, a

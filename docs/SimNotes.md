@@ -6904,9 +6904,14 @@ camera (`Body.head_camera`, `nav_eye`, 20 deg down, +1 to -40). Flown on
 So the limit a 26 mm tag meets depends on where it stands: on the floor the
 tag detector's own (about 1.5 m of range), at a counter's height the picture's top
 first. A tag has to be whole inside the picture, and what stands d m ahead
-of the camera is in it only under (1.26 - 0.34 d) m; what `spot`'s text says, its
-numbers off the model (`steps.SPOT_*`) but the small block's reach, flown
-(`SPOT_BLOCK_READS_M`). The instruments and their rows are
+of the camera is in it only under (1.26 - 0.34 d) m: standing, the camera is
+4.5 cm ahead of the soles' middle, so at x in the stance frame, where the
+robot reads every place, under (1.27 - 0.34 x) m. That is what `spot`'s text
+says, its numbers off the model (`steps.SPOT_TOP_AT_FEET_M` and the rest) but
+the small block's reach, flown (`SPOT_BLOCK_READS_M`); of a tag level with the
+shoulders it says a small one's 0.3 m and that a larger one reads nearer
+still: the 120 mm tags' window, 10-14 cm off the camera, is narrower than a
+step lands. The instruments and their rows are
 `~/pluggybot-training/issue-660/`.
 
 ## Debugging workflow that worked

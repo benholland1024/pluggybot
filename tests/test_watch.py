@@ -213,7 +213,8 @@ def test_a_spot_that_sees_nothing_says_which_camera_did_not():
   above that picture."""
   ran = _fly('def a():\n    if not spot(53):\n        pass\n', _Watching(_sighting()))
   assert ran["ok"] and ran["steps"][0]["reason"] == (
-    "tag 53 is not in your colour camera's picture from where you stand, or too far to read: "
+    "tag 53 is not in your colour camera's picture from where you stand, or too near or too far "
+    "to read: "
     f"it shows nothing higher than {st.SPOT_TOP_DEG:.0f} degrees below level")
 
 

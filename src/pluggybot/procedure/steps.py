@@ -60,10 +60,11 @@ from typing import Any, Callable
 
 from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_LEAST_M,
                                      STEP_SHORT_M)
-from pluggybot.humanoid.model import CHOSEN, COLOR_FOVY_DEG, color_camera_z, stand_height
+from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
+                                      stand_height)
 from pluggybot.perception.box import DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M
 from pluggybot.perception.depth import MAX_Z as MEASURE_REACH_M
-from pluggybot.perception.tags import AREA_TAG_SIZE, PICTURE_H, PICTURE_W
+from pluggybot.perception.tags import BLOCK_TAG_SIZE, PICTURE_H, PICTURE_W
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
 from pluggybot.tick import Routine
 
@@ -439,7 +440,7 @@ SPOT_GAZES = (0.0, 0.25, 0.45)
 #: What `spot`'s and `watch`'s camera takes in, deg, as their texts say (#660):
 #: the colour imager's picture standing, pitched down with the depth camera,
 #: its top and its bottom below level; and how far to either side of where
-#: the robot faces it reaches at its top and at its bottom, the picture being
+#: the head faces it reaches at its top and at its bottom, the picture being
 #: tilted (a bearing is wider low down: the side angle in the camera's own
 #: frame, 34.3, is only the top edge's). Off the model, never typed (a test
 #: reads them against `color_eye`); flown standing 18.7 and 60.7, the stand
@@ -449,7 +450,7 @@ SPOT_BOTTOM_DEG = CHOSEN.depth_pitch_deg + COLOR_FOVY_DEG / 2
 
 
 def _spot_side_deg(up: int) -> float:
-  """How far to either side of where the robot faces `spot`'s picture
+  """How far to either side of where the head faces `spot`'s picture
   reaches, deg, at its top (`up` 1) or its bottom (-1): a corner of the
   picture turned down by the camera's pitch."""
   tall = math.tan(math.radians(COLOR_FOVY_DEG / 2))
@@ -463,15 +464,18 @@ SPOT_SIDE_TOP_DEG, SPOT_SIDE_BOTTOM_DEG = _spot_side_deg(1), _spot_side_deg(-1)
 #: the number a block's tag is known by, and 52.7 would read 53
 #: (`test_no_hand_verb_knows_the_chest`).
 SPOT_SIDE_BOTTOM_TENS = 10 * math.floor(SPOT_SIDE_BOTTOM_DEG / 10)
-#: ...how high it stands, m, how far the picture's top falls for each metre
-#: along the floor ahead of it, how near a tag level with the shoulders must
-#: be for its centre to be in the picture, m, and a wall tag's 12 cm for its
-#: whole square to be (flown, 120 mm at 1.15 m read at 11-13 cm off a bare
-#: wall and not at 16).
-SPOT_CAMERA_Z_M = color_camera_z()
+#: ...the picture's top over the floor IN THE STANCE FRAME, m, where the
+#: robot reads every place: at x = 0 (the camera's height carried back to the
+#: soles' middle, 4.5 cm behind it), falling this much a metre of x; and how
+#: far ahead a small tag level with the shoulders may stand, the whole of it
+#: in the picture, m. ⚠ Told from the camera, the 120 mm wall tags' 0.13 m put
+#: a robot that measured it from its stance's origin inside the camera's 0.10
+#: m near plane (#660's review: flown, those tags read with the camera 11-13 cm
+#: off a bare wall, at 8.6 not, at 16 not): the text says "nearer still".
 SPOT_TOP_DROP = math.tan(math.radians(SPOT_TOP_DEG))
-SPOT_SHOULDER_IN_M = (SPOT_CAMERA_Z_M - stand_height() - CHOSEN.shoulder_z) / SPOT_TOP_DROP
-SPOT_WALL_TAG_IN_M = SPOT_SHOULDER_IN_M - AREA_TAG_SIZE / 2 / SPOT_TOP_DROP
+SPOT_TOP_AT_FEET_M = color_camera_z() + SPOT_TOP_DROP * color_camera_ahead()
+SPOT_SHOULDER_IN_M = (SPOT_TOP_AT_FEET_M - stand_height() - CHOSEN.shoulder_z
+                      - BLOCK_TAG_SIZE / 2) / SPOT_TOP_DROP
 #: How far a small block's tag reads, m of range, what is in the picture
 #: (#660; flown on `home_humanoid`, osmesa, two noise draws): the tower's
 #: 26 mm blocks on the floor, the picture's middle, read reliably out to
@@ -563,7 +567,7 @@ def _spot(life, args: dict) -> Routine:
     # History's line says each false test's reason inside its 400 characters
     return {"ok": False, "tag": int(tag),
             "reason": (f"tag {int(tag)} is not in your colour camera's picture from where you "
-                       "stand, or too far to read: it shows nothing higher than "
+                       "stand, or too near or too far to read: it shows nothing higher than "
                        f"{SPOT_TOP_DEG:.0f} degrees below level")}
   (x, y, z), (nx, ny, nz), (ex, ey, ez) = seen
   _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
@@ -1181,16 +1185,16 @@ HANDS_VERBS: dict[str, Verb] = {
                "bowing lower until you see it -- and stand up again; ok when you see it. "
                "That camera looks down, lower than your navigation camera: its picture "
                f"runs from {SPOT_TOP_DEG:.0f} to {SPOT_BOTTOM_DEG:.0f} degrees below level, "
-               f"out to {SPOT_SIDE_TOP_DEG:.0f} degrees either side of where you face at its "
-               f"top and more than {SPOT_SIDE_BOTTOM_TENS} at its bottom, and bowing only takes it "
-               "lower. A thing d m ahead of your camera along the floor is in the picture "
-               f"only if it stands lower than ({SPOT_CAMERA_Z_M:.2f} - {SPOT_TOP_DROP:.2f} d) "
-               "m over the floor, and a tag reads only with the whole of it inside the "
-               "picture: the lower a tag is, the further back it reads, one level with your "
-               f"shoulders only from within about {SPOT_SHOULDER_IN_M:.1f} m of it (a "
-               f"{AREA_TAG_SIZE * 100:.0f} cm tag from within about {SPOT_WALL_TAG_IN_M:.2f} m), "
-               "and nothing as high as your camera ever. Inside the picture, a small block's "
-               f"tag reads from up to about {SPOT_BLOCK_READS_M:g} m away. Where "
+               f"out to {SPOT_SIDE_TOP_DEG:.0f} degrees either side of where your head faces "
+               f"at its top and more than {SPOT_SIDE_BOTTOM_TENS} at its bottom, and bowing only "
+               "takes it lower. With your trunk square to your feet, a thing at x in your "
+               "stance frame is in the picture only if it stands lower than "
+               f"({SPOT_TOP_AT_FEET_M:.2f} - {SPOT_TOP_DROP:.2f} x) m over the floor, and a tag "
+               "reads only with the whole of it inside the picture: the lower a tag is, the "
+               "further off it reads, a small one level with your shoulders only within "
+               f"about {SPOT_SHOULDER_IN_M:.1f} m ahead of you, a larger one nearer still, and "
+               "nothing as high as your camera ever. Inside the picture, a small block's tag "
+               f"reads from up to about {SPOT_BLOCK_READS_M:g} m away. Where "
                "its face is, which way the face looks and which way its edges run ride "
                "`spot.*`. A small block carries its tag on every face: the one read is the one "
                "you see most square-on, `spot.nx`..`nz` say which, so from elsewhere the same "

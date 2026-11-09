@@ -527,7 +527,7 @@ class Practice:
         return turn
 
   def first(self, picture: bytes | None = None, kept=(), carried: dict | None = None) -> Turn:
-    """The first procedure: the job, the head camera's picture, the
+    """The first procedure: the job, the navigation camera's picture, the
     procedures the robot KEPT (`library_text`), and the notes and draft it
     CARRIED from its last chest (`carried_text`), where it has any."""
     text = (f"THE JOB\n\n{self.job}\n\nThe picture is your navigation camera's, as you stand "
