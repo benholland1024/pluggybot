@@ -3587,16 +3587,20 @@ on every walk of any length, to the edge of the band `settled` reads -- so
 the release's wait on the two meeting never ended. A release now takes the
 legs back for the standing policy once its arm is home or held (ending a
 step aside still under way) and waits on its posture `STAND_BACK_S` at
-most. Flown at the chest as Luca worked it, the ask landing while the
-counter held its arm, the live build's withdraw had not returned 365 s on;
-this one returns CHEST_S after the ask, and on a bare floor 0.8 s after its
-arm reads home. The trim is left running under the walker. Trimmed only
-while the standing policy steps, every walk's hand-back stood truer (over
-the 3 s after, the trunk read 0.10-0.24 deg RMS off its plan, where the
-drifted goal left 0.40-0.55; five walks on a bare floor), but our table's
-reference, tuned on the drifted goal, laid 20 of 32 from the tour where it
-lays 27, all seven draws that parted going the one way; the counter's
-three jobs read as before (31, 26 and 31 of 32, both on one pod).
+most. On a bare floor, its arm read home 6 s late and asked aside
+meanwhile, it returns 0.8 s after the arm, where before it never returned;
+at the chest as Luca worked it, the ask landing while the counter held its
+arm, the live build's withdraw had not returned 365 s on, and with the
+hand-back (the trim gated too, below) it returned 1.7 s after the ask.
+Where nobody asks, nothing changes: the four offered jobs from the tour,
+32 draws each, replay staging's flights exactly. The trim is left running
+under the walker. Trimmed only while the standing policy steps, every
+walk's hand-back stood truer (over the 3 s after, the trunk read 0.10-0.24
+deg RMS off its plan, where the drifted goal left 0.40-0.55; five walks on
+a bare floor), but our table's reference, tuned on the drifted goal, laid
+20 of 32 from the tour where it lays 27, all seven draws that parted going
+the one way; the counter's three jobs read as before (31, 26 and 31 of 32,
+on one pod).
 
 **Never off its charger** (stage 4). The pair's recording found it: the
 first robot plugged in at the station, the other came to charge and walked
