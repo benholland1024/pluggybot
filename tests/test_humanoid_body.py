@@ -311,9 +311,10 @@ def test_a_release_asked_aside_as_its_arm_comes_home_takes_the_legs_back():
   the other robot's walk asked it aside: the walker took its legs, nothing
   gave them back, and the release waited on a standing posture that moves
   only while the standing policy steps. Once the arm is home it takes them
-  back, and its posture is waited on `STAND_BACK_S` at most. ⚠ Without
-  both, this robot's release never returned: its step aside ended at its
-  spot, and the walk's trim had moved the standing goal off its posture."""
+  back, and its posture is waited on `STAND_BACK_S` at most. ⚠ Unchanged,
+  this robot's release never returned: its step aside ended at its spot,
+  and the walk's trim (`Reach._trim`) had moved the standing goal off the
+  posture the walker left standing still."""
   from pluggybot.humanoid import body as hb
   from pluggybot.humanoid.mission import SETTLE_S
   from pluggybot.humanoid.way import REST_S
@@ -382,35 +383,6 @@ def test_a_fall_as_a_release_takes_its_legs_back_ends_it_at_once():
   assert _capped(body, body.release_routine("left"), 2.0, walker) == (True, "fell")
   assert home.count(True) == 2, "the premise: it fell as the legs were handed back"
   assert float(body.data.time) - t0 < 0.1, "a fall ends it at once"
-
-
-def test_a_walk_never_moves_the_standing_policys_goal():
-  """#668: the posture's own loop (`Reach._trim`) trims what the standing
-  policy is asked off the posture its model of itself reads. Trimmed on
-  while the walker held the legs, it read the walker's posture and moved
-  the standing goal off the standing posture, which moves only as its
-  policy steps: `settled` read False for good. It trims only while the
-  standing policy steps."""
-  from pluggybot.humanoid.policy import StandDriver
-  from pluggybot.humanoid.reach import Reach
-  from pluggybot.humanoid.walk import WalkDriver
-  model, data = _floor()
-  stand = StandDriver(model, data)
-  reach = Reach(model, data, stand)
-  walk = WalkDriver(model, data, trunk=stand.trunk, joints=stand.joints)
-  dt = model.opt.timestep
-  for _ in range(int(1.0 / dt)):
-    stand.step()
-    reach.step()
-    mujoco.mj_step(model, data)
-  assert stand.settled, "the premise: standing, its posture arrived"
-  goal = stand.goal.copy()
-  walk.ask(0.3, 0.0, 0.0)                    # ...then walked, as a step aside walks it
-  for _ in range(int(2.0 / dt)):
-    walk.step(trunk_stepped=False)
-    reach.step()
-    mujoco.mj_step(model, data)
-  assert np.array_equal(stand.goal, goal) and stand.settled, (stand.goal, goal)
 
 
 def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():

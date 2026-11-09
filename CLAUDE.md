@@ -369,8 +369,9 @@ save a filmstrip PNG named after the script.
   home"). ⚠ THEN ITS LEGS GO BACK TO THE STANDING POLICY, AND ITS POSTURE
   IS WAITED ON `STAND_BACK_S` AT MOST (#668; SimNotes, "Making way,
   standing"): asked aside as its arm came home, the walker took them and a
-  `withdraw` waited 2,191 s; the posture's trim runs only while the
-  standing policy steps (`Reach._trim`).
+  `withdraw` waited 2,191 s. ⚠ The posture's trim runs on under the walker
+  (`Reach._trim`), and the hand jobs are measured on it: trimmed only while
+  the standing policy steps, the table's tour laid 20 of 32, not 27.
   Training's arms and waist are SCRIPTED,
   their gains the served ones' (`model.ARM_GAIN_SCALE`, `WAIST_GAIN_SCALE`,
   through `humanoid.json`). `training/humanoid_train/g1_check.py` is rule 6's

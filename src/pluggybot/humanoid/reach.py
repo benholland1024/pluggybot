@@ -862,9 +862,6 @@ class Reach:
     #: standing policy is asked (`TRIM_RATE`), its height and pitch.
     self.posture = np.zeros(2 + len(hm.WAIST))
     self.trim = np.zeros(2)
-    #: ...trimmed only while the standing policy steps: its steps as this
-    #: reach's last step found them (`_trim`).
-    self.stand_steps = self.stand.steps
     self.tau = np.zeros(len(hm.JOINT_NAMES))
     self.qd = np.zeros(len(hm.JOINT_NAMES))
     #: The body's own motion as its senses have it, taken into its hands'
@@ -1527,13 +1524,12 @@ class Reach:
     self.motion.sample(self.steps, self.stand, self.d)
     if self.steps % self.every == 0:
       self._update(self.every * self.m.opt.timestep)
-    self.stand_steps = self.stand.steps
     self.steps += 1
 
   #: What a restart carries of a reach (#559, `HumanoidMission.kept_state`):
   #: every hand's phase and commands, its filters and what it last read.
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
-          "_off", "steps", "posture", "trim", "stand_steps", "tau", "qd", "standing", "force",
+          "_off", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
           "allowed", "left", "looks", "looking")
 
@@ -1569,12 +1565,15 @@ class Reach:
   def _trim(self, dt: float) -> None:
     """The posture as the robot's model has it against the plan's; the
     policy asked that much more, once the posture it was shown has arrived
-    (a ramp's lag is not a miss), never past what it trained on. ⚠ ONLY
-    WHILE THE STANDING POLICY STEPS (`StandDriver.steps`): the posture it
-    is shown moves only then, and trimmed under the walker the goal left it
-    for good (#668)."""
-    if self.stand.steps != self.stand_steps and self.stand.settled:
-      have = self.posture_now()[:2]
+    (a ramp's lag is not a miss), never past what it trained on. ⚠ IT TRIMS
+    ON WHILE THE WALKER HOLDS THE LEGS, off the walker's posture: every
+    walk leaves the standing goal 0.020 rad up, the edge of the band
+    `settled` reads, taken up again a second or two after the hand-back.
+    Trimmed only while the standing policy steps, our table's reference
+    laid 20 of 32 from the tour where it lays 27 (#668): every hand job is
+    measured on it as it is."""
+    have = self.posture_now()[:2]
+    if self.stand.settled:
       trim = np.clip(self.trim + TRIM_RATE * (self.posture[:2] - have) * dt,
                      -np.array(TRIM_MAX), TRIM_MAX)
       asked = self.posture[:2] + trim
