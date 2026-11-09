@@ -359,6 +359,31 @@ def test_a_release_waits_on_its_posture_a_bounded_time(monkeypatch):
   assert float(body.data.time) - t0 == pytest.approx(0.2 + 10 * m.model.opt.timestep, abs=0.005)
 
 
+def test_a_fall_as_a_release_takes_its_legs_back_ends_it_at_once():
+  """#668's review: the walker holding the legs as the arm comes home, a
+  fall while the release hands them back to the standing policy ends it
+  "fell" at once, as any fall in it does: the get-up is the next routine's
+  to wait out (`to_stand_routine(getup=False)`)."""
+  body = body_for(*_floor())
+  m = body.mission
+  m.reach, m.getup = _Homing(10), _Rising(10 ** 6)
+  home = []
+
+  def falling(data, pitch=0.0):
+    # ...the watch's second look with the arm home: the release is past its
+    # wait for the arm, handing the legs back
+    home.append(m.reach.home("left"))
+    return home.count(True) == 2
+
+  def walker(cmd):
+    m.legs = "walk" if m.legs == "stand" and not m.reach.home("left") else m.legs
+  m.fall.falling = falling
+  t0 = float(body.data.time)
+  assert _capped(body, body.release_routine("left"), 2.0, walker) == (True, "fell")
+  assert home.count(True) == 2, "the premise: it fell as the legs were handed back"
+  assert float(body.data.time) - t0 < 0.1, "a fall ends it at once"
+
+
 def test_a_walk_never_moves_the_standing_policys_goal():
   """#668: the posture's own loop (`Reach._trim`) trims what the standing
   policy is asked off the posture its model of itself reads. Trimmed on

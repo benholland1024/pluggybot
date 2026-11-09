@@ -58,8 +58,8 @@ GAZE_WAIT_S, RELEASE_S = 4.0, 15.0
 #: ...and its posture back at the stand after, its legs the standing
 #: policy's again, this long at most, s: twice the longest the standing
 #: policy's posture takes across its whole range at its rates (2.0 s). ⚠
-#: Unbounded, a withdraw waited 2,191 s on a posture the walker held still
-#: (#668).
+#: Unbounded, a withdraw waited 2,191 s (#668; SimNotes, "Making way,
+#: standing").
 STAND_BACK_S = 2.0 * max((HEIGHT_RANGE[1] - HEIGHT_RANGE[0]) / HEIGHT_RATE,
                          (PITCH_RANGE[1] - PITCH_RANGE[0]) / PITCH_RATE)
 #: A hand's carry or pull stops once the body's own odometry puts its
@@ -647,10 +647,9 @@ class HumanoidBody(Body):
     reach's does -- or "held", not home in `RELEASE_S`: a hand that cannot
     come home ends the routine there, never the attempt it is in. ⚠ ITS
     LEGS GO BACK TO THE STANDING POLICY BEFORE ITS POSTURE IS WAITED ON,
-    `STAND_BACK_S` AT MOST (#668): an arm whose command is at rest is no
-    hand out, so a step aside may be asked while it comes home -- held a
-    moment, or lagging -- and the walker took the legs, which nothing gave
-    back; the standing posture moves only while its own policy steps."""
+    `STAND_BACK_S` AT MOST, the arm's word the answer (#668): an arm at
+    rest is no hand out, and a step aside asked as it came home took them
+    for the walker, under which the standing posture never moves."""
     yield from self.mission.to_stand_routine()
     self.reach.retreat(side)
     falls = self.mission.falls
@@ -659,7 +658,7 @@ class HumanoidBody(Body):
         break
       yield STILL
     if self.mission.falls == falls:
-      yield from self.mission.to_stand_routine()
+      yield from self.mission.to_stand_routine(getup=False)
     for _ in range(int(round(STAND_BACK_S / self._m.opt.timestep))):
       if self.mission.falls != falls or self.stand.settled:
         break

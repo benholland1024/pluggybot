@@ -1571,11 +1571,10 @@ class Reach:
     policy asked that much more, once the posture it was shown has arrived
     (a ramp's lag is not a miss), never past what it trained on. ⚠ ONLY
     WHILE THE STANDING POLICY STEPS (`StandDriver.steps`): the posture it
-    is shown moves only then, and trimmed while the walker held the legs
-    (a step aside), the goal left that posture for good and a release
-    waited on their meeting for 2,191 s (#668)."""
-    have = self.posture_now()[:2]
+    is shown moves only then, and trimmed under the walker the goal left it
+    for good (#668)."""
     if self.stand.steps != self.stand_steps and self.stand.settled:
+      have = self.posture_now()[:2]
       trim = np.clip(self.trim + TRIM_RATE * (self.posture[:2] - have) * dt,
                      -np.array(TRIM_MAX), TRIM_MAX)
       asked = self.posture[:2] + trim

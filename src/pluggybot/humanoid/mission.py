@@ -417,13 +417,15 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.walker.last_action[:] = 0.0
     self.legs = "walk"
 
-  def to_stand_routine(self):
+  def to_stand_routine(self, getup: bool = True):
     """The legs to the standing policy: the walking one held still
     `SETTLE_S` first, its stride settled, then handed over. ⚠ A fall while
     it settles is the get-up's until it stands (#520): at the settle's end
-    the legs went to the standing policy whatever had happened in it. ⚠ It
-    ends a step aside under way (#559): the aside walked the settle's STILL
-    steps, and the legs went to the standing policy mid-stride."""
+    the legs went to the standing policy whatever had happened in it --
+    or, `getup` False, it ends there, for a caller a fall ends at once
+    (`Body.release_routine`). ⚠ It ends a step aside under way (#559): the
+    aside walked the settle's STILL steps, and the legs went to the
+    standing policy mid-stride."""
     yield from self._getup_routine()
     if self._aside is not None:
       self._end_aside("its own move", STILL)
@@ -435,7 +437,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       yield STILL
       self._after_step()
     if self.legs != "walk":
-      yield from self._getup_routine()
+      if getup:
+        yield from self._getup_routine()
       return
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
