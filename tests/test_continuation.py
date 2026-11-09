@@ -630,25 +630,61 @@ def _no_pass():
 
 
 @pytest.mark.parametrize("why", ["crashing", "another house"])
-def test_a_save_refused_but_read_starts_the_world_over_at_its_clock_once(tmp_path, why):
+def test_a_save_refused_but_read_starts_the_world_over_at_its_clock(tmp_path, why):
   """#594, Ben's decision (2026-11-08): a START-OVER keeps the clock -- the
   world begun again from its XML at the refused save's own `t`, and nothing
   else of it (no snapshot). Begun at 0, every store the volume keeps stood
-  in the clock's future: the desks' closes, the last line said. ⚠ ONCE: the
-  start-over counts itself into the file, and one that died before its
-  first save is begun at 0, said why, or a crash that is the clock's would
-  start the world over into it for ever. A save replaces the file, and a
-  later refusal keeps its clock again."""
+  in the clock's future: the desks' closes, the last line said. ⚠ COUNTED
+  AS A RESTORE IS: each start-over counts itself into the file, and after
+  `MAX_START_OVERS` that died before their first save the next is begun at
+  0, said why, or a crash that is the clock's would start the world over
+  into it for ever. At one, a single kill as a start-over booted lost the
+  clock (#667's review). A save replaces the file, and a later refusal keeps
+  its clock again."""
+  assert continuation.MAX_START_OVERS == continuation.MAX_RESUMES
   path = _refused_save(tmp_path, why)
-  over = continuation.load(path, HUMANOID_HOME)
-  assert over.snapshot is None and over.why
-  assert over.start_over_t == over.t == START_OVER_T
-  again = continuation.load(path, HUMANOID_HOME)  # it died before its first save
-  assert again.snapshot is None and again.t is None
+  for n in range(1, continuation.MAX_START_OVERS + 1):    # each died unsaved
+    over = continuation.load(path, HUMANOID_HOME)
+    assert over.snapshot is None and over.why
+    assert over.start_over_t == over.t == START_OVER_T and over.start_overs == n
+  again = continuation.load(path, HUMANOID_HOME)
+  assert again.snapshot is None and again.t is None and again.start_overs is None
   assert again.why.startswith(over.why)
-  assert "started over at its clock it never got as far as being saved" in again.why
+  assert (f"was started over at its clock {continuation.MAX_START_OVERS} times "
+          "without once being saved") in again.why
   path = _refused_save(tmp_path, why, t=START_OVER_T + 600.0)      # saved since
   assert continuation.load(path, HUMANOID_HOME).t == START_OVER_T + 600.0
+
+
+def test_another_worlds_start_overs_never_stop_this_ones(tmp_path):
+  """The count is the world's that started over (#667's review): a process
+  of another world on the same volume -- misconfigured, its start-overs
+  dying -- leaves its count in the file, and this world's start-over still
+  keeps the clock."""
+  path = _refused_save(tmp_path, "crashing")
+  for _ in range(continuation.MAX_START_OVERS):
+    assert continuation.load(path, "room_hub").start_over_t == START_OVER_T
+  assert continuation.load(path, "room_hub").t is None
+  assert continuation.load(path, HUMANOID_HOME).start_over_t == START_OVER_T
+
+
+def test_a_body_built_on_a_start_overs_clock_is_not_resting_at_once():
+  """A fresh body at a kept clock (#594, #667's review): its rest clock
+  starts at the clock it is built on. From 0, `t - 0 >= REST_S` read it
+  resting from its first step, a robot the other could ask aside and walk
+  round as still before it had stood a second."""
+  from pluggybot.body import body_for
+  from pluggybot.humanoid.way import REST_S
+  from test_humanoid_body import _floor
+  model, data = _floor()
+  data.time = START_OVER_T
+  body = body_for(model, data)
+  try:
+    assert not body.mission.resting
+    data.time = START_OVER_T + REST_S
+    assert body.mission.resting, "...and rests once it has stood its while"
+  finally:
+    body.close()
 
 
 def test_a_refused_save_whose_clock_cannot_be_read_starts_over_at_0(tmp_path):
@@ -697,6 +733,30 @@ def test_a_start_over_begins_on_the_refused_saves_clock_and_takes_nothing_else(t
   assert all(t0 <= float(ln[3:ln.index("s]")]) < t0 + 60.0 for ln in lines), lines
   clock = "carried on" if kept else "went back to 0"
   assert any(f"; it started over, and its clock {clock}" in ln for ln in lines), lines
+
+
+def test_run_demo_builds_a_start_over_on_its_clock(tmp_path):
+  """`run_demo`'s wiring (the spikes' and demos' world, #594): a refused
+  save's clock is the world's from its build, and an empty board is seeded
+  on it -- built at 0, its offers' set-outs were said at 0 (#667's review).
+  Stopped where the hooks are attached and the day not yet begun."""
+  from pluggybot.lifecycle import run_demo
+  path = _refused_save(tmp_path, "crashing")
+  seen: dict = {}
+
+  def ready(life):
+    seen["t"] = float(life.data.time)
+    seen["offered"] = [t.created_t for t in life.tasks.offered()]
+    life.body.close()
+    raise _Stop
+
+  with pytest.raises(_Stop):
+    run_demo(view=False, realtime=False, world=HUMANOID_HOME, overseer=True, tasks=True,
+             tasks_state=str(tmp_path / "tasks.json"), thoughts_root=str(tmp_path / "t"),
+             ledger_state=str(tmp_path / "l.json"), board_state=str(tmp_path / "b.json"),
+             spend_state=str(tmp_path / "s.json"), world_state=str(path), on_ready=ready)
+  assert seen["t"] == START_OVER_T
+  assert seen["offered"] and set(seen["offered"]) == {START_OVER_T}
 
 
 def test_a_pair_starts_over_on_the_refused_saves_clock(tmp_path):
@@ -846,6 +906,26 @@ def test_a_stop_while_paused_and_mid_move_saves_nothing_and_gives_its_count_back
   life.body.posture = "standing"        # ...whatever the way out then says
   assert not keeper.finish() and keeper.saves == 0
   assert _resumes(path) == 1, "a clean stop counted as a crash"
+
+
+def test_a_start_over_stopped_while_paused_and_mid_move_gives_its_count_back(tmp_path):
+  """...and so does a start-over's (#594; #667's review): stopped cleanly,
+  paused with a body mid-move before its first save, it saves nothing and
+  its count goes back, so the next start keeps the clock again. Held, the
+  count reached `MAX_START_OVERS` and that start began at 0."""
+  path = _refused_save(tmp_path, "crashing")
+  for _ in range(continuation.MAX_START_OVERS):
+    over = continuation.load(path, HUMANOID_HOME)       # the last one, this
+  life = _stub(tmp_path)
+  keeper = continuation.Keeper([life], path, every_s=1e9, start_overs=over.start_overs)
+  _stopped_while_paused(life, keeper, tmp_path)
+  life.body.posture = "getting_up"
+  with pytest.raises(MissionAborted, match="SIGTERM"):
+    _hold(life, 1.0)
+  life.body.posture = "standing"
+  assert not keeper.finish() and keeper.saves == 0
+  assert continuation.load(path, HUMANOID_HOME).start_over_t == START_OVER_T, \
+    "a clean stop counted as a crash"
 
 
 def test_a_runs_end_saves_whatever_a_body_is_doing_a_robot_lying_dead_too(tmp_path):

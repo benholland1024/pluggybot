@@ -75,8 +75,10 @@ class HumanoidWay:
     #: Walks of its own under way (`drive_to_routine`): a body waiting in
     #: one is never asked aside -- its own walk decides where it goes.
     self.driving = 0
-    #: When it was last commanded to move, sim s: what `resting` reads.
-    self.last_motion_t = 0.0
+    #: When it was last commanded to move, sim s: what `resting` reads --
+    #: from the clock it is built on, which a start-over's is (#594): from
+    #: 0 there, it read resting from its first step.
+    self.last_motion_t = float(self.data.time)
     #: The station's catches its port is held by (`activity.station`).
     root = self.model.body(self.handle.root).name
     self.port_eqs = [e for e in range(self.model.neq)

@@ -1065,6 +1065,11 @@ class TaskBoard:
         # of them: left on the old clock by a start-over before #602, t_0004
         # read as taken 227,000 s ahead of the clock, and could not run out.
         claimed = min(task.claimed_t, float(saved_t)) - (shift or 0.0)
+        if begun is not None:
+          # ...and never later than a world from its XML begins: a claim
+          # made past a refused save, in a run that then died, is held from
+          # where the world began again (#594)
+          claimed = min(claimed, begun)
         task = replace(task, claimed_t=round(claimed, 3))
       if task.open and begun is not None and KINDS[task.kind].draws:
         # ...and when its things were put back (#659): as the world began,

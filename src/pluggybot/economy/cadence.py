@@ -234,8 +234,8 @@ class TaskProducer:
   def start_at(self, t: float) -> None:
     """A fresh schedule on a clock that begins at `t`, not 0 (a start-over
     keeps a refused save's, #594): its first offer as long after `t` as it
-    would come after 0 -- where `seed` put it already."""
-    self.next_at = max(self.next_at, float(t) + self.cadence.first_at_s)
+    would come after 0, where a seed at `t` put it already."""
+    self.next_at = float(t) + self.cadence.first_at_s
 
   # ---- the two ways a job gets made ----------------------------------------
 

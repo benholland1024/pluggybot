@@ -118,6 +118,10 @@ def build_pair(world: str = HUMANOID_HOME, pack: str = "demo",
   starts = (cfg["start"], cfg["start2"])
   model = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix).compile()
   data = mujoco.MjData(model)
+  if resume is None and start_over_t is not None:
+    # ...on a start-over's clock from the first (#594): everything built
+    # on it, and the seed's offers set out, are said on it
+    data.time = float(start_over_t)
   viewer = None
   if view:
     from mujoco import viewer as mj_viewer

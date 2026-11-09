@@ -756,9 +756,11 @@ class _FakeLife:
     # ...and the ticket desk (issue #284), which the real lifecycle always
     # has and the stream opens with.
     self.tickets = None
-    # ...and what a kept world reads (issue #345): the world's hash and
-    # the flags the keeper sets and reads.
+    # ...and what a kept world reads (issue #345): the world's hash, its
+    # name (a start-over's count is the world's, #594), and the flags the
+    # keeper sets and reads.
     self.world_fingerprint = "fake"
+    self.world = kw.get("world")
     self.continuing = False
     self.stopping = ""
     self.dead = None
@@ -1684,6 +1686,51 @@ def test_a_paused_stop_mid_move_gives_back_the_count_it_was_restored_on(monkeypa
     assert json.loads(str(npz["meta"]))["resumes"] == 1
 
 
+def test_a_paused_stop_mid_move_gives_back_a_start_overs_count(monkeypatch, tmp_path):
+  """...and a start-over's (#594; #667's review): serve.py hands the keeper
+  the count `load` wrote for the start-over it began, and a paused stop with
+  a hand out gives it back, so the next start keeps the clock again. Handed
+  nothing, the count stood."""
+  import signal
+
+  import numpy as np
+
+  from pluggybot import continuation
+  from pluggybot.lifecycle import HUMANOID_HOME
+  from pluggybot.tick import MissionAborted
+  path = tmp_path / "w.npz"
+  continuation.write(continuation.Snapshot(
+    {"format": continuation.FORMAT, "world": HUMANOID_HOME,
+     "resumes": continuation.MAX_RESUMES, "physics": {"t": 5.0}}), path)
+  switch = tmp_path / "mode.json"
+  switch.write_text(json.dumps({"mode": "paused"}))
+
+  class _PausedMidMove(_FakeLife):
+    def run(self, *a, **kw):
+      self.body.working = True                          # a hand out...
+      signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+      with pytest.raises(MissionAborted):               # ...the keeper's step
+        self.body.step_hooks[-1]()
+      return super().run(*a, **kw)
+
+  serve = _load_serve()
+  built: dict = {}
+  monkeypatch.setattr(serve, "HubLifecycle", lambda model, data, **kw: built.setdefault(
+    "life", _PausedMidMove(model, data, **kw)))
+  monkeypatch.setattr(serve, "WsPublisher", _FakePublisher)
+  monkeypatch.setattr(sys, "argv", ["serve.py", "--free-run", "--world", "home",
+                                    "--world-state", str(path), "--mode-file", str(switch)])
+  before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
+  try:
+    serve.main()
+  finally:
+    for sig, h in before.items():
+      signal.signal(sig, h)
+  assert built["life"].run_kwargs["start_over_t"] == 5.0, "started over, counted"
+  with np.load(path) as npz:
+    assert json.loads(str(npz["meta"]))["startOvers"] == {HUMANOID_HOME: 0}
+
+
 @pytest.mark.parametrize("pair", [True, False], ids=["pair", "single"])
 def test_a_refused_save_starts_the_served_world_over_on_its_clock(monkeypatch, tmp_path,
                                                                   capsys, pair):
@@ -1692,9 +1739,10 @@ def test_a_refused_save_starts_the_served_world_over_on_its_clock(monkeypatch, t
   world to put back, loads the board on it -- an offer standing keeps the
   deadline it was written with, where rebased to a 0 the world no longer
   begins at it lapsed at once, and its things dated where the start-over
-  set them out -- seeds an empty board on it, and reports
-  the run's share of the clock from it. The console says the clock carried
-  on."""
+  set them out -- builds the world on it, so an empty board is seeded on
+  it and its things' set-outs are said on it (built at 0 and run on the
+  clock, they were said at 0: #667's review), and reports the run's share
+  of the clock from it. The console says the clock carried on."""
   import signal
 
   from pluggybot import continuation
@@ -1703,19 +1751,26 @@ def test_a_refused_save_starts_the_served_world_over_on_its_clock(monkeypatch, t
   from pluggybot.lifecycle import HUMANOID_HOME
   t0 = 2_375_322.0
   serve = _load_serve()
-  monkeypatch.setattr(serve, "WsPublisher", _FakePublisher)
+  pubs: list = []
+  monkeypatch.setattr(serve, "WsPublisher", lambda *a, **kw: pubs.append(
+    _FakePublisher(*a, **kw)) or pubs[-1])
   ended = {"state": "DONE", "charge_cycles": 0, "sim_time": t0 + 100.0, "errands": [],
            "boards": {}, "verdicts": [], "points": 0, "earned": 0}
   flown: dict = {}
 
   def fake_run_pair(lives, **kw):
     flown["board"], flown["kw"] = lives[0].tasks, kw
+    flown["built_t"] = float(lives[0].data.time)      # nothing here has run it
     for life in lives:
       life.body.close()
     return [dict(ended) for _ in lives]
 
   class _StartedOver(_FakeLife):
     fundable_wh = 1e6
+
+    def __init__(self, model, data, **kw):
+      super().__init__(model, data, **kw)
+      flown["built_t"] = float(data.time)
 
     def run(self, *a, **kw):
       super().run(*a, **kw)
@@ -1740,6 +1795,7 @@ def test_a_refused_save_starts_the_served_world_over_on_its_clock(monkeypatch, t
       "--ledger", str(state / "l.json")])
     serve.main()
     assert flown["kw"]["resume"] is None and flown["kw"]["start_over_t"] == t0
+    assert flown["built_t"] == t0, "the world built on the clock it begins at"
     return flown["board"], task
 
   before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
@@ -1753,6 +1809,9 @@ def test_a_refused_save_starts_the_served_world_over_on_its_clock(monkeypatch, t
       signal.signal(sig, h)
   seeded = board.offered()
   assert seeded and all(t.created_t == t0 and t.deadline == t0 + 900.0 for t in seeded)
+  if pair:                       # the single path's lifecycle is a stand-in
+    said = [t for t, line, _ in getattr(pubs[-1], "events", []) if "is set out" in line]
+    assert said and all(t == t0 for t in said), said
   out = capsys.readouterr().out
   assert "world state: starting from the start at t=2375322.0 s, the clock carried on" in out
   assert "sim / wall             : 100.0 s / " in out

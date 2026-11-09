@@ -7135,6 +7135,8 @@ def run_demo(start=None, view: bool = False,
   from pluggybot.robot import world_spec
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
+  if loaded.start_over_t is not None:
+    data.time = loaded.start_over_t          # a start-over's, from the first (#594)
   viewer = None
   if view:
     from mujoco import viewer as mj_viewer
@@ -7316,7 +7318,8 @@ def run_demo(start=None, view: bool = False,
   # pause becoming a sprint, and that is true of a viewer run too.
   attach_mode_stream(life, [recorder.emit] if recorder is not None else [])
   life.restart_note = loaded.why
-  keeper = (continuation.Keeper([life], world_state, carried_on=loaded.snapshot)
+  keeper = (continuation.Keeper([life], world_state, carried_on=loaded.snapshot,
+                                start_overs=loaded.start_overs)
             if world_state else None)
   # ⚠ SEEDED LAST, after every hook is attached. `TaskBoard.offer` emits a
   # `task_offered` the moment it is called, so seeding at construction time
