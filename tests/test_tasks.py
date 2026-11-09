@@ -457,6 +457,35 @@ def test_a_start_over_dates_a_jobs_things_at_its_own_0(tmp_path):
   assert board(path=path, rebase=False)[standing.id].description == standing.description
 
 
+def test_a_start_over_on_its_saves_clock_keeps_the_boards_and_dates_its_things_there(tmp_path):
+  """A start-over keeps the clock (#594): the world begun again at the
+  refused save's `t`, the clock the board was written on, so its deadlines
+  and claims stand as written -- rebased to a 0 the world no longer begins
+  at, every offer lapsed at once and every held job ran out -- and its open
+  jobs' things were set out as it began, at that second (#659). A start-over
+  after it dates them again, whatever second they were dated at: matched
+  only at the offer's, one at 0 next left them 2.4 million seconds ahead."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  standing = offered(b, ttl=3600.0, t=2375000.0)
+  held = offered(b, kind="open_door", target="door", ttl=3600.0, t=2375100.0)
+  b.claim(held.id, t=2375200.0)
+  b.start(held.id, t=2375200.0)
+
+  back = board(path=path, rebase=False, start_over_t=2375322.0)
+  assert back[standing.id].deadline == standing.deadline == 2378600.0
+  assert back[held.id].claimed_t == 2375200.0
+  assert not back[held.id].out_of_time(2375322.0)
+  for task in (standing, held):
+    assert back[task.id].description == task.description.replace(
+      f"at t={task.created_t:.0f}, when", "at t=2375322, when"), task.kind
+  back.save()
+  again = board(path=path)                         # ...and over again, at 0
+  for task in (standing, held):
+    assert again[task.id].description == task.description.replace(
+      f"at t={task.created_t:.0f}, when", "at t=0, when"), task.kind
+
+
 def test_a_board_that_carries_on_keeps_its_last_change(tmp_path):
   """...and so every file this build writes keeps that: on a clock that
   carries on, the last change saved stays the last, though the world came

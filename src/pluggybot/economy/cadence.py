@@ -231,6 +231,12 @@ class TaskProducer:
     self.last_offered = {str(k): float(v)
                          for k, v in (state.get("lastOffered") or {}).items()}
 
+  def start_at(self, t: float) -> None:
+    """A fresh schedule on a clock that begins at `t`, not 0 (a start-over
+    keeps a refused save's, #594): its first offer as long after `t` as it
+    would come after 0 -- where `seed` put it already."""
+    self.next_at = max(self.next_at, float(t) + self.cadence.first_at_s)
+
   # ---- the two ways a job gets made ----------------------------------------
 
   def seed(self, t: float = 0.0, pack_wh: float | None = None) -> list:

@@ -350,10 +350,27 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   (4, #581's stage 2: laid from one plane over the fences, they held every
   fence as floor), and the places found in them go with them. And a save
   restored `MAX_RESUMES` (3) times with no new save in between is not
-  trusted again: the next start is fresh, and History says why. A file that
-  cannot be read at all (empty, torn) is a fresh start too, never a crash. A
-  grid that does not fit the build's is left empty and the robot explores
-  again, where it stands.
+  trusted again: the next start is a start-over (next bullet), and History
+  says why. A file that cannot be read at all (empty, torn) is a fresh
+  start too, at 0, never a crash. A grid that does not fit the build's is
+  left empty and the robot explores again, where it stands.
+- **A start-over keeps the clock** (#594, Ben's call). A save read and
+  refused (put back `MAX_RESUMES` times, or another house's) begins the
+  world again from its XML at the save's own `t`, and takes nothing else
+  from it: the bodies, the maps, the activities, the producer's schedule and
+  the robots' clocks start fresh (`continuation.start_over`). Begun at 0, as
+  on 10-27 (t=2,375,322) and 11-01 (t=401,163), every stamp the volume keeps
+  stood in the clock's future: the desks' closes and the last line said
+  (#594's items 1-2, fixed on their own). The board loads on that clock, its
+  deadlines and claims as written, and its open jobs' things dated at it,
+  where they were set out at rest (#659). The run's budget counts from it,
+  the producer's first offer comes `firstAtS` after it, and History says
+  "...; it started over, and its clock carried on". ⚠ ONCE
+  (`MAX_START_OVERS`): a start-over counts itself into the file, as a
+  restore does, and one that died before its first save begins at 0: what
+  killed it may be the clock itself, and only a save replaces the file. A
+  save whose clock cannot be read begins at 0 too, and History says "its
+  clock went back to 0".
 - **Parity.** `scripts/determinism_spike.py --resume-at T` flies a scripted
   day straight through, then the same day saved at the first idle pass of
   the loop past T and carried on in a new process. After the restore the two

@@ -21,7 +21,10 @@ absolute stamp -- the survival clock, the unminded clock, a dead robot's
 stand-up timer, an offer's deadline -- means what it meant. Rebasing each
 stamp to a fresh zero instead is how one missed stamp becomes a robot that
 lies dead for an hour. `max_sim_time` is a RUN's budget from where it
-starts (`HubLifecycle._day_routine`).
+starts (`HubLifecycle._day_routine`). ⚠ A START-OVER KEEPS IT TOO (#594,
+`start_over`): a save refused but read begins the world from its XML at
+the save's own `t`. Begun at 0, every store kept on the volume -- the
+desks' closes, the last line said -- stood in the clock's future.
 
 ⚠ BODIES ARE MATCHED BY NAME, never by state-vector layout: a new build's
 world reorders `qpos`, and a name the world lacks (a quadruped's tool, in
@@ -68,6 +71,11 @@ SAVE_EVERY_S = 60.0
 #: state crashes the process would otherwise be restored into the same
 #: crash for ever; at this many the next start is a fresh one, and says so.
 MAX_RESUMES = 3
+#: Start-overs at a refused save's clock (#594) that died before their first
+#: save: at this many the next start is at 0. A start-over carries one thing
+#: of the save it refused, its clock, and what killed the process may be the
+#: clock itself; a start-over's first save replaces the file, count and all.
+MAX_START_OVERS = 1
 #: THE MAPS' EPOCH: bumped by a change that finds the kept maps laid wrong.
 #: A save from another epoch comes back as a changed world does -- the
 #: clock, the packs, the deaths and the jobs, never the bodies, the beliefs
@@ -392,10 +400,21 @@ def read(path: str | os.PathLike) -> Snapshot:
 
 @dataclass
 class Loaded:
-  """What `load` found: the snapshot to carry on from, or None and why."""
+  """What `load` found: the snapshot to carry on from, or None and why --
+  and where a save was read and refused, the clock a START-OVER begins the
+  world at (`start_over_t`, #594): the save's own `t`, and nothing else of
+  it."""
 
   snapshot: Snapshot | None
   why: str = ""
+  start_over_t: float | None = None
+
+  @property
+  def t(self) -> float | None:
+    """The clock the world begins at: a save's own, carried on from or
+    begun again at; None where there was no save or none could be read,
+    and the world begins at 0."""
+    return self.snapshot.t if self.snapshot is not None else self.start_over_t
 
 
 def load(path: str | os.PathLike | None, world: str) -> Loaded:
@@ -404,7 +423,8 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
   ⚠ COUNTS ITSELF BEFORE IT IS TRUSTED. `resumes` is written back up by one
   here and down to 0 by the next save, so a process that dies before
   saving again is seen by the next one: at `MAX_RESUMES` the world starts
-  fresh rather than be put back into whatever killed it.
+  fresh rather than be put back into whatever killed it -- at the save's
+  own clock, once (`_refused`).
   """
   if path is None or not Path(path).exists():
     return Loaded(None)
@@ -418,18 +438,42 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
     return Loaded(None, f"the saved world could not be read "
                         f"({type(e).__name__}: {e})")
   if snap.meta.get("world") != world and not same_house(snap.meta.get("world"), world):
-    return Loaded(None, f"the saved world is {snap.meta.get('world')!r}, "
-                        f"not {world!r}")
+    return _refused(snap, path, f"the saved world is {snap.meta.get('world')!r}, "
+                                f"not {world!r}")
   resumes = int(snap.meta.get("resumes", 0))
   if resumes >= MAX_RESUMES:
-    return Loaded(None, f"the world was put back {resumes} times from the "
-                        "same saved moment and never got past it")
+    return _refused(snap, path, f"the world was put back {resumes} times from "
+                                "the same saved moment and never got past it")
   snap.meta["resumes"] = resumes + 1
   try:
     write(snap, path)
   except OSError as e:
     print(f"world state: could not count this restart ({e})")
   return Loaded(snap)
+
+
+def _refused(snap: Snapshot, path, why: str) -> Loaded:
+  """A save read and refused: a START-OVER at its own clock (#594), counted
+  into the file before it is trusted, as a restore is -- ⚠ ONCE: one that
+  died before its first save is begun at 0, or a crash that is the clock's
+  would start the world over into it for ever (the file is replaced only by
+  a save). A save whose clock cannot be read is begun at 0 too."""
+  try:
+    t = float(snap.t)
+  except (KeyError, TypeError, ValueError):
+    t = math.nan
+  if not (math.isfinite(t) and t >= 0.0):
+    return Loaded(None, f"{why}, and its clock could not be read")
+  started = int(snap.meta.get("startOvers", 0))
+  if started >= MAX_START_OVERS:
+    return Loaded(None, f"{why}, and started over at its clock it never got "
+                        "as far as being saved")
+  snap.meta["startOvers"] = started + 1
+  try:
+    write(snap, path)
+  except OSError as e:
+    print(f"world state: could not count this start-over ({e})")
+  return Loaded(None, why, start_over_t=t)
 
 
 def uncount(path: str | os.PathLike, counted: int) -> bool:
@@ -523,6 +567,22 @@ def restore(lives, snap: Snapshot) -> dict:
   set_out = first.set_out_unseen(state.get("boardSeq"))
   return {"inPlace": same, "t": snap.t, "robots": restored, **matched,
           **({"setOut": set_out} if set_out else {})}
+
+
+def start_over(lives, t: float) -> None:
+  """A START-OVER (#594): the world begun again from its XML at a refused
+  save's own clock, `t` (`Loaded.start_over_t`), and nothing else of it --
+  the bodies, the maps, the activities, the producer's schedule and every
+  robot's clocks fresh. Where `restore` would be: after every `begin()`,
+  which `HubLifecycle.run` began on that clock, and before any day routine
+  is driven. The run's budget counts from here, as a restore's does, the
+  producer's first offer comes as long after it as after 0, and History
+  says the clock carried on (`started_over_line`)."""
+  for life in lives:
+    life.max_sim_time += t
+    life.start_over_t = float(t)
+  if lives[0].producer is not None:
+    lives[0].producer.start_at(t)
 
 
 # ---- the keeper ----------------------------------------------------------------
@@ -665,3 +725,12 @@ def resumed_line(where: tuple[float, float] | None, frac: float,
   x, y = where if where is not None else (math.nan, math.nan)
   return (f"the world restarted; I carried on from ({x:.1f}, {y:.1f}) with "
           f"the pack at {frac:.0%}")
+
+
+def started_over_line(why: str, t: float | None) -> str:
+  """The History line a start-over writes (#594): why the world could not
+  carry on, and what its clock did -- carried on from the save it refused
+  (`start_over`), or back to 0 where none could be read."""
+  return (f"the world could not carry on from where it stopped: {why}; it "
+          + ("started over, and its clock carried on" if t is not None
+             else "started over, and its clock went back to 0"))

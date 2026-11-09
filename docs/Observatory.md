@@ -10,6 +10,36 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A start-over keeps the clock (#594) — opens when this PR is deployed
+
+**What changed is only a start-over** (Webserver.md, "A start-over keeps the
+clock"): a save `continuation.load` reads and refuses (put back
+`MAX_RESUMES` times, or another house's) begins the world again from its XML
+at the save's own `t`, where it began at 0. Nothing else of the save is
+taken: the bodies, the maps and places, the activities, the producer's
+schedule and the robots' clocks start fresh, as before. The board loads on
+that clock (deadlines and claims as written, its open jobs' things dated at
+it), the run's budget counts from it, the producer's first offer comes 240 s
+after it, and History says "...; it started over, and its clock carried
+on". Once: a start-over that dies before its first save leaves the next
+start at 0, as a save that cannot be read does ("its clock went back to
+0"). A restart that carries on (every restart but two so far) is untouched,
+and no prompt moved.
+
+**Why.** The two start-overs, 10-27 (t=2,375,322) and 11-01 (t=401,163),
+set the clock back to 0, and every stamp the volume keeps stood in its
+future: the desks' closes were trimmed before they were paid, and `say` was
+shut for 27 days (#594's items 1-2, fixed on their own in #598). Ben's call
+(2026-11-08, on #594): keep the clock, so the next store written for a
+continuous clock cannot trip the same way.
+
+**What the period is for.** Nothing to read until a start-over; then its
+History line, the wire's `t` going on past the refused save's, no offer
+lapsing and no held job running out at its start, and the next restart
+carrying on from the start-over's first save. It pools with the period
+before for everything else. ⚠ Sim time still repeats across 10-27 and 11-01:
+a query by `simTime` over those still needs `created_at`.
+
 ### `spot` says what its camera can see, and the two cameras are named apart (#660) — opens when this PR is deployed
 
 **What changed is only what the robots read** (`prompt_sha` `c71dde29…` →

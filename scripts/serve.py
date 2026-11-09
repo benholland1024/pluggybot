@@ -406,7 +406,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # re-tunes how busy a deployed world is without a rebuild.
   beat = default_cadence(args.world) if (args.tasks or args.task_state) else None
   tasks = (task_board(args.task_state, cadence=beat, world=args.world,
-                      rebase=snap is None)
+                      rebase=opened.t is None, start_over_t=opened.start_over_t)
            if (args.tasks or args.task_state) else None)
   # The overseer decides what to do next once the preset queue is empty
   # (issue #15). Off unless asked for; its memory (below) is on every world.
@@ -685,13 +685,15 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # floor -- see the note in `lifecycle.run_demo`. Only when nothing is
   # outstanding, so a restart resumes the jobs the last mission left -- and
   # never into a world carried on from, whose producer keeps its own time.
+  # On the clock the world begins at: a start-over's keeps its save's (#594).
   if maker is not None and snap is None and not tasks.open_tasks():
-    maker.seed(pack_wh=life.fundable_wh)
+    maker.seed(t=opened.t or 0.0, pack_wh=life.fundable_wh)
 
   wall0 = time.monotonic()
   try:
     r = life.run(cfg["start"], max_sim_time=args.max_sim_time,
-                 explore_budget=cfg["explore_budget"], resume=snap)
+                 explore_budget=cfg["explore_budget"], resume=snap,
+                 start_over_t=opened.start_over_t)
     # ...and at the end, which a crash never reaches: the last minute's save
     # is what a crash carries on from, never the state that crashed.
     if keeper is not None:
@@ -705,7 +707,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
       recorder.close()
   wall = time.monotonic() - wall0
 
-  report(r, wall, life, publisher, pacer, t0=snap.t if snap is not None else 0.0)
+  report(r, wall, life, publisher, pacer, t0=opened.t or 0.0)
   return keeper.stop_requested if keeper is not None else None
 
 
@@ -763,7 +765,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
                                       if args.restart_after > 0 else None),
                      start_points=args.start_points if args.start_points > 0 else None,
                      constitutions_named=(args.constitution, args.constitution_2),
-                     resume=snap)
+                     resume=snap, start_over_t=opened.start_over_t)
   first, second = lives
   for life in lives:
     life.restart_note = opened.why
@@ -875,12 +877,13 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   keeper = keep_world(lives, args.world_state, snap)
   maker = first.producer
   if maker is not None and snap is None and not tasks.open_tasks():
-    maker.seed(pack_wh=first.fundable_wh)
+    maker.seed(t=opened.t or 0.0, pack_wh=first.fundable_wh)
 
   wall0 = time.monotonic()
   try:
     results = run_pair(lives, max_sim_time=args.max_sim_time,
-                       explore_budget=cfg["explore_budget"], resume=snap)
+                       explore_budget=cfg["explore_budget"], resume=snap,
+                       start_over_t=opened.start_over_t)
     if keeper is not None:
       keeper.finish()
   except Exception as e:
@@ -893,18 +896,20 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
       recorder.close()
   wall = time.monotonic() - wall0
   for life, r, name in zip(lives, results, names):
-    report(r, wall, life, publisher, pacer, label=name,
-           t0=snap.t if snap is not None else 0.0)
+    report(r, wall, life, publisher, pacer, label=name, t0=opened.t or 0.0)
   return keeper.stop_requested if keeper is not None else None
 
 
 def open_world(path, world: str) -> "continuation.Loaded":
-  """The saved world to carry on from (issue #345), said on the console."""
+  """The saved world to carry on from (issue #345), said on the console --
+  or where it was refused, the clock the world starts over at (#594)."""
   opened = continuation.load(path, world)
   if opened.snapshot is not None:
     print(f"world state: carrying on from t={opened.snapshot.t:.1f} s ({path})")
   elif opened.why:
-    print(f"world state: starting from the start -- {opened.why}")
+    clock = (f"at t={opened.start_over_t:.1f} s, the clock carried on"
+             if opened.start_over_t is not None else "at t=0")
+    print(f"world state: starting from the start {clock} -- {opened.why}")
   return opened
 
 

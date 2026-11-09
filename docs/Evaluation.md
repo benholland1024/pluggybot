@@ -2479,16 +2479,19 @@ it -- or, from #572, the stand-up that ended it, which drops the map: an
 `intervention` row with subject `reset_robot`). ⚠ Before #476 only the
 death rows carry the belief.
 
-### A start-over sets the sim clock back (#610)
+### A start-over set the sim clock back (#610)
 
-Sim time orders nothing across a start-over. Within one build identity, a
-start-over (the saved world not taken up, and the world begun again from
-its XML) sets the clock back to 0, so the rows written before it carry the
-larger `simTime`. After 11-01's, the jobs offered before it carried
-t=356,486-357,689, with the clock at 153,197 two days later. A shape that
-orders rows by `simTime` reads those as the newest. `first_solve` orders a
-kind's attempts by the board's count, the row's task `id` (#610). ⚠ A new
-shape that orders rows reads a count of its own, never `simTime` alone.
+Sim time orders nothing across a start-over at 0. Within one build
+identity, a start-over (the saved world not taken up, and the world begun
+again from its XML) set the clock back to 0 until #594, so the rows written
+before it carry the larger `simTime`: on 10-27 and on 11-01. After 11-01's,
+the jobs offered before it carried t=356,486-357,689, with the clock at
+153,197 two days later. A shape that orders rows by `simTime` reads those as
+the newest. `first_solve` orders a kind's attempts by the board's count, the
+row's task `id` (#610). Since #594 a start-over keeps its save's clock, but
+one whose save cannot give it one still begins at 0 (Webserver.md, "A
+start-over keeps the clock"). ⚠ A new shape that orders rows reads a count
+of its own, never `simTime` alone.
 
 ### The demo cell is not the deployed pack
 

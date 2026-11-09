@@ -1682,3 +1682,77 @@ def test_a_paused_stop_mid_move_gives_back_the_count_it_was_restored_on(monkeypa
   assert built["life"].run_kwargs["resume"].meta["resumes"] == 2, "carried on, counted"
   with np.load(path) as npz:
     assert json.loads(str(npz["meta"]))["resumes"] == 1
+
+
+@pytest.mark.parametrize("pair", [True, False], ids=["pair", "single"])
+def test_a_refused_save_starts_the_served_world_over_on_its_clock(monkeypatch, tmp_path,
+                                                                  capsys, pair):
+  """#594's wiring, on both of serve.py's paths (the pair is the one served).
+  A save refused but read hands the run its clock (`start_over_t`) and no
+  world to put back, loads the board on it -- an offer standing keeps the
+  deadline it was written with, where rebased to a 0 the world no longer
+  begins at it lapsed at once, and its things dated where the start-over
+  set them out -- seeds an empty board on it, and reports
+  the run's share of the clock from it. The console says the clock carried
+  on."""
+  import signal
+
+  from pluggybot import continuation
+  from pluggybot import pair as pair_mod
+  from pluggybot.economy.tasks import TaskBoard
+  from pluggybot.lifecycle import HUMANOID_HOME
+  t0 = 2_375_322.0
+  serve = _load_serve()
+  monkeypatch.setattr(serve, "WsPublisher", _FakePublisher)
+  ended = {"state": "DONE", "charge_cycles": 0, "sim_time": t0 + 100.0, "errands": [],
+           "boards": {}, "verdicts": [], "points": 0, "earned": 0}
+  flown: dict = {}
+
+  def fake_run_pair(lives, **kw):
+    flown["board"], flown["kw"] = lives[0].tasks, kw
+    for life in lives:
+      life.body.close()
+    return [dict(ended) for _ in lives]
+
+  class _StartedOver(_FakeLife):
+    fundable_wh = 1e6
+
+    def run(self, *a, **kw):
+      super().run(*a, **kw)
+      flown["board"], flown["kw"] = self.init_kwargs["tasks"], kw
+      return dict(ended)
+
+  monkeypatch.setattr(pair_mod, "run_pair", fake_run_pair)
+  monkeypatch.setattr(serve, "HubLifecycle", lambda model, data, **kw: _StartedOver(model, data, **kw))
+
+  def served(state, standing: bool):
+    state.mkdir()
+    continuation.write(continuation.Snapshot(
+      {"format": continuation.FORMAT, "world": HUMANOID_HOME,
+       "resumes": continuation.MAX_RESUMES, "physics": {"t": t0}}), state / "w.npz")
+    task = (TaskBoard(state / "tasks.json").offer("open_drawer", "drawer", ttl=900.0,
+                                                  t=t0 - 100.0)
+            if standing else None)
+    monkeypatch.setattr(sys, "argv", [
+      "serve.py", *(["--pair"] if pair else []), "--world", "home", "--free-run",
+      "--overseer", "--tasks", "--task-state", str(state / "tasks.json"),
+      "--world-state", str(state / "w.npz"), "--thoughts", str(state / "t"),
+      "--ledger", str(state / "l.json")])
+    serve.main()
+    assert flown["kw"]["resume"] is None and flown["kw"]["start_over_t"] == t0
+    return flown["board"], task
+
+  before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
+  try:
+    board, task = served(tmp_path / "standing", standing=True)
+    assert board[task.id].deadline == t0 + 800.0, "as it was written"
+    assert f"at t={t0:.0f}, when" in board[task.id].description, "...set out at it"
+    board, _ = served(tmp_path / "empty", standing=False)
+  finally:
+    for sig, h in before.items():
+      signal.signal(sig, h)
+  seeded = board.offered()
+  assert seeded and all(t.created_t == t0 and t.deadline == t0 + 900.0 for t in seeded)
+  out = capsys.readouterr().out
+  assert "world state: starting from the start at t=2375322.0 s, the clock carried on" in out
+  assert "sim / wall             : 100.0 s / " in out
