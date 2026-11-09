@@ -365,7 +365,7 @@ def _stub_life():
     actuator=_no_actuator, setpoint=lambda act: 0.0,
     go_to_routine=routine("drive_to", True), face_routine=routine("face", True),
     in_sight=lambda x, y: True, hold_routine=routine("wait"),
-    pose=(0.0, 0.0, 0.0), watch=lambda tag: None,
+    pose=(0.0, 0.0, 0.0), watch=lambda tag: None, falls=0,
     )
   return SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          interrupted=lambda: False,
@@ -472,6 +472,95 @@ def test_an_interrupt_stops_between_verbs():
 def test_move_goes_through_the_bodys_ramp():
   r, life = run('def x():\n  move("left_elbow", 1.0)\n')
   assert r["ok"] and [c[0] for c in life.calls] == ["ramp"]
+
+
+# ---- a fall and a death end the run, whatever tests them (#671) --------------------
+
+
+def _down_in_wait(life, fall_at=None, die_at=None, steps=500):
+  """`life`'s `wait` as a hold of `steps` physics steps, its body's fall
+  watch counting a fall at step `fall_at` (`Body.falls`, as the humanoid's
+  does the step its get-up takes it) and its robot dying at `die_at`: how
+  many steps each wait held."""
+  held: list[int] = []
+
+  def hold(seconds, *a, **kw):
+    life.calls.append(("wait", (seconds,)))
+    held.append(0)
+    for n in range(steps):
+      if n == fall_at:
+        life.body.falls += 1
+      if n == die_at:
+        life.dead = {"cause": "flat"}
+      yield ()
+      held[-1] += 1
+  life.body.hold_routine = hold
+  return held
+
+
+@pytest.mark.parametrize("src, line", [
+  # a verb an `if` tests...
+  ("def x():\n    a = 0\n    if not wait(5):\n        a = 1\n    a = 2\n    wait(1)\n", 3),
+  # ...and one in a call an `if` tests, whose fall ends the run, not the call
+  ("def x():\n    a = 0\n    if not hold():\n        a = 1\n    a = 2\n    wait(1)\n\n"
+   "def hold():\n    wait(5)\n", 9),
+])
+def test_a_fall_ends_the_run_inside_any_verb_whatever_tests_it(src, line):
+  """#671 (Luca, 11-08 15:29): a reach inside an `if` fell, read false, and
+  the run went on through the get-up, the topple and the death. A verb is
+  ended the step its body falls -- a wait here, which never notices -- and
+  the run stops there, at its line, a fall said and no test read false.
+  Shown to fail without `run_verb`'s watch (the wait held its 500 steps and
+  the run went on to its end) and without `lang`'s fall rule (the call read
+  false, and `a = 1` ran)."""
+  life = _stub_life()
+  held = _down_in_wait(life, fall_at=3)
+  r, _ = run(src, life)
+  assert not r["ok"] and r["failedAt"] == 0 and (r["total"], r["completed"]) == (1, 0), r
+  step = r["steps"][-1]
+  assert step["line"] == line and step["fell"] and step["reason"] == st.FELL, step
+  assert "tested" not in step and r["testsFalse"] == 0 and "stopped" not in r, r
+  assert r["locals"] == {"a": 0.0}, "a line past the fall ran"
+  assert held == [3], "the wait held on past the fall"
+
+
+def test_a_death_ends_the_run_at_once_and_a_dead_robot_begins_no_verb():
+  """#671 (Ben, 2026-11-09): a death ends the run AT ONCE -- it went on
+  until the stand-up closed it 300 s later, and three of Luca's verbs ran on
+  a dead robot. The verb it died in is ended the step it died (`stopped:
+  died`, no failed step), and dead as a verb ends, the run begins no other.
+  Shown to fail without `run_verb`'s watch and `lang`'s look before each
+  verb: both waits held to their ends."""
+  life = _stub_life()
+  held = _down_in_wait(life, die_at=3)
+  r, _ = run("def x():\n    if wait(5):\n        wait(5)\n", life)
+  assert r["stopped"] == "died" and not r["ok"] and "failedAt" not in r, r
+  assert (r["total"], r["completed"], held) == (1, 0, [3]), (r, held)
+  assert r["steps"][-1]["stopped"] == "died" and r["steps"][-1]["line"] == 2
+  # ...and dead the moment a wait ends: the next is never begun
+  life = _stub_life()
+
+  def dies_as_it_ends(seconds, *a, **kw):
+    life.calls.append(("wait", (seconds,)))
+    life.dead = {"cause": "flat"}
+    return None
+    yield
+  life.body.hold_routine = dies_as_it_ends
+  r, _ = run("def x():\n    wait(5)\n    wait(5)\n", life)
+  assert r["stopped"] == "died" and (r["total"], r["completed"]) == (1, 1), r
+  assert len(life.calls) == 1, "a verb began on a dead robot"
+
+
+def test_the_language_says_a_fall_stops_the_procedure_in_a_test_or_not():
+  """#671: the rule is the language's, so its text says it -- among what
+  ends a run, and where a verb may be a test -- in the practice's words,
+  which the served pair's rule and a session's hello carry byte for byte.
+  A death needs no word: a dead robot reads nothing."""
+  from pluggybot.mind import practice
+  for facts in (st.hand_facts(), HOME):
+    text = " ".join(practice.language_text(facts).split())
+    assert "A procedure runs until it ends, a verb fails, you fall, its budget" in text
+    assert "But if you fall, the procedure stops there, in a test or not." in text
 
 
 # ---- the fence, extended to loops ------------------------------------------------

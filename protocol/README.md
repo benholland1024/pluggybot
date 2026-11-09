@@ -54,6 +54,35 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a fall ends a procedure's run, and a death ends it at once (pluggybot #671)
+
+A verb a robot falls in is ended the step its body's fall watch counts the
+fall, and the run stops there, an `if`'s test or not; a verb its robot dies
+in is ended the step it dies, and the run with it. What a consumer sees:
+
+- **A run a death ended** closes with `outcome: "aborted"` and `stopped:
+  "died"` (a new `stopped` token), WITH its count (`completed`, `total`)
+  and no `failedAt`. A death used to leave the run going until the
+  stand-up closed it 300 s later (`stopped: "stood_up"`, no count), so a
+  run no longer ends `stood_up`; old records keep it.
+- **A run a fall ended** is a failed step, as an untested verb that fell
+  always was: `failedAt`, `failedLine` and `failedReason` (the verb's own
+  words, "you fell on the way there, and let go", or "you fell" where it
+  has none). Nothing new on the event; a session's `attempt` carries the
+  run's record, whose step carries `fell: true`, and no test counted read
+  false for it.
+- **The session host's `hello`**: the language's text says a fall stops
+  the procedure, in a test or not.
+
+```jsonc
+{"type": "procedure", "t": 211837.4, "robot": "pluggybot", "name": "lap",
+ "outcome": "aborted", "completed": 2, "total": 3,
+ "failedAt": null, "stopped": "died", "program": {...}}
+```
+
+No bump: one `stopped` token new, which a consumer shows as the token it
+is until it has words for it.
+
 ### 0.21.0, additive: the table set built to be served (pluggybot #560)
 
 The restaurant's first job, a place laid at the dining room's table 0, is

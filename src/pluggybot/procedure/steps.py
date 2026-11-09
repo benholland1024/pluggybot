@@ -1029,7 +1029,7 @@ STEP_WHY = {"too short": "your step was too short to walk",
             "turned short": "your turn stopped short of where you asked",
             "holding": "a step carries nothing: open your hands first",
             "blocked": "your step got nowhere: something stands in your way",
-            "fell": "you fell, and got up again",
+            "fell": "you fell",
             "out of time": "your step ran out of time"}
 
 
@@ -1378,6 +1378,11 @@ def served_hand_facts(bounds=(-1e3, -1e3, 1e3, 1e3), places: tuple = ()) -> "Wor
                  places=places)
 
 
+#: What a verb a fall ended says where it has no words of its own for one
+#: (#671): the hands' moves have theirs (`REACH_WHY`'s and the rest).
+FELL = "you fell"
+
+
 def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
              until: float | None = None) -> Routine:
   """One verb, as both runners call it (this module's and the language's).
@@ -1390,17 +1395,30 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
   #381): a walk inside it asks the interrupt as it goes (`_interrupt`),
   and when the answer latched an abort during this verb, a verb that did
   not succeed says `stopped: interrupted` -- both runners stop the program
-  there as an abort, never at a failed step."""
+  there as an abort, never at a failed step.
+
+  ⚠ A FALL OR A DEATH ENDS IT AT ONCE (#671; `_until_down_routine`): a
+  verb its body fell in fails and says so (`fell`, in its own words where
+  it ended on the fall, else `FELL`), and one its robot died in is
+  `stopped: died`; both runners end the run there, an `if`'s test or not.
+  Read false as a test, Luca's reach that fell let its run go on through
+  the get-up, the topple and the death, three verbs on a dead robot."""
   before = getattr(life, "step_now", None)
   before_until = getattr(life, "step_until", None)
   aborting = bool(getattr(life, "aborting", False))
   life.step_now = {**(where or {}), "verb": verb.name, "args": dict(args)}
   life.step_until = until
   try:
-    unplug = getattr(life, "unplug_routine", None)
-    if unplug is not None and verb.name not in STILL_VERBS:
-      yield from unplug()
-    verdict = yield from verb.run(life, args)
+    verdict, ended = yield from _until_down_routine(life, _verb_routine(life, verb, args))
+    if verdict is None:
+      # ...closed before it said anything: what it last reported would read
+      # as this call's
+      forget_readings(life, verb.name)
+    if ended == "died":
+      return {"ok": False, "stopped": "died"}
+    if ended == "fell" or (verdict or {}).get("why") == "fell":
+      own = (verdict or {}).get("reason") if (verdict or {}).get("why") == "fell" else None
+      return {**(verdict or {}), "ok": False, "fell": True, "reason": own or FELL}
     if (not verdict.get("ok") and not aborting
         and getattr(life, "aborting", False)):
       verdict = {**verdict, "stopped": "interrupted"}
@@ -1408,6 +1426,46 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
   finally:
     life.step_now = before
     life.step_until = before_until
+
+
+def _verb_routine(life, verb: Verb, args: dict) -> Routine:
+  """`verb` run, its plug out by hand first where it moves the body (#654)."""
+  unplug = getattr(life, "unplug_routine", None)
+  if unplug is not None and verb.name not in STILL_VERBS:
+    yield from unplug()
+  return (yield from verb.run(life, args))
+
+
+def _until_down_routine(life, routine: Routine) -> Routine:
+  """`routine` driven as `yield from` would, and CLOSED the step its body
+  falls (`Body.falls`, its own fall watch's count) or its robot dies (a
+  lifecycle's `dead`; a life with none never does). Returns (what it
+  returned, None where it was closed; and "died", "fell" or ""): "fell" too
+  where it returned on its own the step a fall came, as the hands' moves
+  do -- and a death in its last step is the next verb's to see
+  (`lang.run_procedure_routine` looks before each)."""
+  body = life.body
+  falls = body.falls
+  alive = getattr(life, "dead", None) is None
+  sent, exc = None, None
+  while True:
+    try:
+      cmd = routine.throw(exc) if exc is not None else routine.send(sent)
+    except StopIteration as stop:
+      return stop.value, ("fell" if body.falls != falls else "")
+    exc = None
+    ended = ("died" if alive and getattr(life, "dead", None) is not None
+             else "fell" if body.falls != falls else "")
+    if ended:
+      routine.close()
+      return None, ended
+    try:
+      sent = yield cmd
+    except GeneratorExit:
+      routine.close()
+      raise
+    except BaseException as e:  # noqa: BLE001 -- thrown into the routine, as `yield from` would
+      exc, sent = e, None
 
 
 #: What a body whose world has task areas it finds by their tags runs
@@ -1660,7 +1718,10 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
   for i, step in enumerate(steps):
     # Safe points: between steps, and inside a walk (issue #381, `run_verb`).
     # A hazard row (issue #116) or the budget stops the program there,
-    # never inside anything else.
+    # never inside anything else; a death, inside anything (#671).
+    if getattr(life, "dead", None) is not None:
+      result["stopped"] = "died"
+      break
     if i and life.interrupted():
       result["stopped"] = "interrupted"
       break
@@ -1674,8 +1735,8 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
                                  until=t0 + program.budget_s)
     entry = {"i": i, "verb": step.verb, **verdict}
     result["steps"].append(entry)
-    if verdict.get("stopped") == "interrupted":
-      result["stopped"] = "interrupted"
+    if verdict.get("stopped") in ("interrupted", "died"):
+      result["stopped"] = verdict["stopped"]
       break
     if not verdict.get("ok"):
       result["failedAt"] = i

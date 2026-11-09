@@ -449,6 +449,8 @@ PROCEDURE_STOPS = {
   "steps": "it ran out of the steps its budget gave it",
   "interrupted": "it was interrupted",
   "statements": "it ran the most statements one run may",
+  # ...and the robot's death (#671), said AT the line whose verb it ended
+  "died": "my death ended it",
 }
 #: How a decided explore ended (`explore_routine`'s answer), in its History
 #: line's words (issue #424). A key missing here is the run's own end.
@@ -663,9 +665,12 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
     elif stopped in PROCEDURE_STOPS:
       last = steps[-1] if steps else {}
       took = run.get("seconds")
+      # ...a death inside a verb ended it at that verb's line; before the
+      # next, after the last (#671)
+      on = "at" if last.get("stopped") == "died" else "after"
       why = (PROCEDURE_STOPS[stopped]
              + (f" ({took:.0f} s)" if stopped == "budget" and took is not None else "")
-             + (f" after line {last['line']}" if last.get("line") else ""))
+             + (f" {on} line {last['line']}" if last.get("line") else ""))
     elif run.get("error"):
       why = "it stopped on a fault inside the run"
     else:
@@ -1319,8 +1324,9 @@ class HubLifecycle:
     run ending on it -- the motors do not stop at 0 Wh and every mission
     guard is checked between errands, so the first committed result set had
     a day that hit zero inside an errand, docked on nothing and ended "day
-    over". The moment is recorded here; what the body does next is the
-    errand's business until it returns. A `stuck` death by toppling is the
+    over". The moment is recorded here; a procedure's run ends at it
+    (#671, `steps.run_verb`), and any other routine the loop drives runs on
+    until it returns or the stand-up closes it. A `stuck` death by toppling is the
     torso past TOPPLE_TILT_RAD for the body's `stuck_after_s`: the rover's
     TOPPLE_HOLD_S, or a get-up's budget for a body that rights itself.
     """
@@ -1400,7 +1406,7 @@ class HubLifecycle:
 
     ⚠ A ROBOT ON THE FLOOR IS AVOIDED WHERE IT LIES, NOT WHERE IT SAYS IT IS
     (issue #365; SimNotes, "A robot lying down was avoided where it said it
-    was"). The errand it fell in runs on until it returns, and a wheel
+    was"). A walk it fell in runs on until it returns, and a wheel
     turning in the air is travel to the reckoner: MEASURED up to 2.2 m of
     reported pose off the body in 10 s, by how it lies and which way the
     wheels were told to turn. A fallen robot is not a network fact that
@@ -1802,9 +1808,10 @@ class HubLifecycle:
     """The dead robot's own clock (issue #143).
 
     On the PHYSICS seam beside `_death_step`, not in `_wait_dead`: a flat
-    death is caught the moment it happens, INSIDE an errand or not, and the
-    errand goes on driving until it returns. The clock has to start where
-    the death did rather than where the loop next looks.
+    death is caught the moment it happens, INSIDE a routine or not, and a
+    routine but a procedure's run (#671) goes on driving until it returns.
+    The clock has to start where the death did rather than where the loop
+    next looks.
 
     ⚠ IT FIRES WHEREVER IT LANDS, A SEATED MODULE INCLUDED (issue #348).
     It used to wait for the errand to put a seated tool down (#143), which

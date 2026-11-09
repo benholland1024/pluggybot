@@ -315,7 +315,17 @@ what its code did. A test that reads false lets the run go on, and this line
 is where its reason reaches the robot (#629): said to the log alone, Rowan's
 run of 82 calls, 80 of them measures out of its camera's view, read "(2
 steps)" and "stopped (error)", and two tickets went on theories built from
-it. Sources survive a restart and are
+it. **A fall is never a test's to read** (#671): it ends the run where it
+comes, inside whatever verb it came in (`steps.run_verb` ends that verb the
+step the body's fall watch counts it), and the line says it as the step the
+run stopped at: "it stopped at line 14, reach: you fell on the way there,
+and let go". Read false, Luca's tested reach that fell let its run go on
+through the get-up, the topple and its death, a `withdraw` waiting the
+get-up out for two minutes and three verbs running on a dead robot (11-08).
+**A death ends the run at once too**, never at the stand-up 300 s on: its
+verb is ended the step the robot dies, the line follows the death's own,
+"my death ended it at line 9", and the `procedure` event says `stopped:
+died`. Sources survive a restart and are
 recompiled against *today's* world when the library loads; one that no
 longer validates is kept and shown marked not runnable, with the reasons.
 
