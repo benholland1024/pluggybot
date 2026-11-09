@@ -428,7 +428,8 @@ def _bare_reach():
   r.standing = False
   r.arm_force = {s: np.zeros(3) for s in hm.SIDES}
   r.motion = NS(read=lambda sm, qd, stand: None, sample=lambda *a: None)
-  r.stand, r.d = NS(), None
+  r.stand, r.d = NS(steps=0), None
+  r.stand_steps = 0
   return r
 
 

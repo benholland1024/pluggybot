@@ -286,6 +286,108 @@ def test_a_fall_while_the_posture_comes_back_is_a_fall():
   assert float(body.data.time) - t0 < 0.1, "a fall ends it at once"
 
 
+def _capped(body, routine, seconds, each=None):
+  """A routine driven as `Body.run` drives it, `seconds` of sim at most:
+  (whether it returned, what it returned). `each` is called before every
+  step with the command."""
+  from pluggybot import tick
+  step = tick.Step(routine, "capped")
+  cmd = step.tick()
+  for _ in range(int(round(seconds / body.mission.model.opt.timestep))):
+    if cmd is None:
+      break
+    if each is not None:
+      each(cmd)
+    body.mission.stepper.step(cmd)
+    cmd = step.tick()
+  if cmd is not None:
+    step.routine.close()
+  return step.done, step.result
+
+
+def test_a_release_asked_aside_as_its_arm_comes_home_takes_the_legs_back():
+  """#668: Luca's `withdraw` waited 2,191 s. Its arm read home a while after
+  its command came to rest (the counter held it), so it was resting, and
+  the other robot's walk asked it aside: the walker took its legs, nothing
+  gave them back, and the release waited on a standing posture that moves
+  only while the standing policy steps. Once the arm is home it takes them
+  back, and its posture is waited on `STAND_BACK_S` at most. ⚠ Without
+  both, this robot's release never returned: its step aside ended at its
+  spot, and the walk's trim had moved the standing goal off its posture."""
+  from pluggybot.humanoid import body as hb
+  from pluggybot.humanoid.mission import SETTLE_S
+  from pluggybot.humanoid.way import REST_S
+  from test_humanoid_served import _open_floor
+  body = body_for(*_floor())
+  m = body.mission
+  try:
+    x, y, _ = body.pose
+    _open_floor(m, x, y)
+    m.last_motion_t = float(body.data.time) - REST_S
+    # ...its arm read home 6 s after its command rests: a stand-in for an
+    # arm the counter held until the step aside walked it free
+    free_t, home = float(body.data.time) + 6.0, m.reach.home
+    m.reach.home = lambda side: float(body.data.time) >= free_t and home(side)
+    seen = {"asked": False, "walked": False}
+
+    def each(cmd):
+      if not seen["asked"]:
+        seen["asked"] = body.make_way([(x - 1.5, y), (x + 1.5, y)], "r2_pluggybot")
+      seen["walked"] = seen["walked"] or m.legs == "walk"
+    done, said = _capped(body, body.release_routine("right"), 30.0, each)
+    assert seen["asked"] and seen["walked"], "the premise: a step aside took its legs"
+    assert done, "the release never returned"
+    assert said == "home" and m.legs == "stand" and m._aside is None, (said, m.legs)
+    assert float(body.data.time) <= free_t + SETTLE_S + hb.STAND_BACK_S
+  finally:
+    body.close()
+
+
+def test_a_release_waits_on_its_posture_a_bounded_time(monkeypatch):
+  """#668: a release waited on its standing posture with no bound, a loop
+  with no budget and no answer. A posture that never comes back is waited
+  on `STAND_BACK_S`, and the arm's own word is the answer."""
+  from pluggybot.humanoid import body as hb
+  from pluggybot.humanoid.policy import StandDriver
+  monkeypatch.setattr(hb, "STAND_BACK_S", 0.2)
+  monkeypatch.setattr(StandDriver, "settled", property(lambda self: False))
+  body = body_for(*_floor())
+  m = body.mission
+  m.reach = _Homing(10)
+  t0 = float(body.data.time)
+  assert _capped(body, body.release_routine("left"), 2.0) == (True, "home")
+  assert float(body.data.time) - t0 == pytest.approx(0.2 + 10 * m.model.opt.timestep, abs=0.005)
+
+
+def test_a_walk_never_moves_the_standing_policys_goal():
+  """#668: the posture's own loop (`Reach._trim`) trims what the standing
+  policy is asked off the posture its model of itself reads. Trimmed on
+  while the walker held the legs, it read the walker's posture and moved
+  the standing goal off the standing posture, which moves only as its
+  policy steps: `settled` read False for good. It trims only while the
+  standing policy steps."""
+  from pluggybot.humanoid.policy import StandDriver
+  from pluggybot.humanoid.reach import Reach
+  from pluggybot.humanoid.walk import WalkDriver
+  model, data = _floor()
+  stand = StandDriver(model, data)
+  reach = Reach(model, data, stand)
+  walk = WalkDriver(model, data, trunk=stand.trunk, joints=stand.joints)
+  dt = model.opt.timestep
+  for _ in range(int(1.0 / dt)):
+    stand.step()
+    reach.step()
+    mujoco.mj_step(model, data)
+  assert stand.settled, "the premise: standing, its posture arrived"
+  goal = stand.goal.copy()
+  walk.ask(0.3, 0.0, 0.0)                    # ...then walked, as a step aside walks it
+  for _ in range(int(2.0 / dt)):
+    walk.step(trunk_stepped=False)
+    reach.step()
+    mujoco.mj_step(model, data)
+  assert np.array_equal(stand.goal, goal) and stand.settled, (stand.goal, goal)
+
+
 def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():
   """The humanoid's deepest reach, flown through `Body` with its get-up
   loaded, as served: the floor by its toes, fingers down, from a deep bow

@@ -3576,6 +3576,25 @@ A minded day with it (949 sim s, the deployed arm and model, from nothing):
 no walk gave up with the other robot in the way, where the day before it
 8 had; the pair did not meet in a doorway, so nobody was asked.
 
+**Asked aside as an arm comes home** (#668). An arm whose command is at
+rest is no hand out, so a humanoid whose arm the counter held on its way
+home could be asked aside, and on 11-08 Luca's `withdraw` waited 2,191 s,
+asked aside 17 times, its mind never asked, until a fall ended it. The
+walker took its legs and nothing gave them back; and the posture's own loop
+(`Reach._trim`), reading the walker's posture, carried the standing goal off
+a standing posture that moves only while its own policy steps -- 0.020 rad
+on every walk of any length, to the edge of the band `settled` reads -- so
+the release's wait on the two meeting never ended. A release now takes the
+legs back for the standing policy once its arm is home or held (ending a
+step aside still under way) and waits on its posture `STAND_BACK_S` at
+most, and the trim runs only while the standing policy steps. Flown at the
+chest as Luca worked it, the ask landing while the counter held its arm,
+the live build's withdraw had not returned 365 s on; this one returns 1.7 s
+after the ask, and on a bare floor 0.8 s after its arm reads home. Every
+walk's hand-back stands truer for it: over the 3 s after, the trunk reads
+0.10-0.24 deg RMS off its plan, where the drifted goal left 0.40-0.55 (five
+walks on a bare floor).
+
 **Never off its charger** (stage 4). The pair's recording found it: the
 first robot plugged in at the station, the other came to charge and walked
 to wait, its way cut the charging robot's disc and asked it aside, and it
