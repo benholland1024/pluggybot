@@ -28,16 +28,18 @@ silently: at least 542 names, the last assigned and so usually what the run
 was written to find. Luca took to copying results into early names; Rowan
 recalled a run's line five times, and it came back as cut as it went in.
 
-**What to expect.** Replayed through this code off the wire's rows, in the
-order each source assigns them, 94 of the 97 read whole on the names the rows
-kept, and the other 3 end in a count. ⚠ A row's `locals` keep at most 24 names
-(the site's `MAX_LOCALS`) and 8 rows stop there: priced off each run's source
-for the names past it, an upper bound since a branch may not have run, it is
-92 and 5, `(+2 more)` to `(+10 more)`, all Rowan's (`drawer_spring` and
-`drawer_spring2`, 32 names each, and three `drawer_final`s). On the outcome
-lines rebuilt off the wire (a test's reasons are not on it), 11 of the 167
-runs take a second line where none did, one of the twelve History lines the
-model is shown.
+**What to expect.** Each run replayed through this code from its own line in
+the robot's History and the wire's names, in the order its source assigns
+them: 94 of the 97 read whole on the names the rows kept, and the other 3 end
+in a count. ⚠ A row's `locals` keep at most 24 names (the site's
+`MAX_LOCALS`) and 8 rows stop there: priced off each run's source for the
+names past it, an upper bound since a branch may not have run, it is 92 and
+5, `(+2 more)` to `(+10 more)`, all Rowan's (`drawer_spring` and
+`drawer_spring2`, up to 32 names, and three `drawer_final`s). A run whose
+names do not all fit beside its line says them on a line of their own, and
+that is 88 of the 167 where it was 68 (the run's line carries its tests'
+reasons and its stop conditions): the 20 more each take one of the twelve
+History lines the model is shown.
 
 **What the period is for.**
 - **The acceptance**: a run with twenty-odd names reads whole, and neither

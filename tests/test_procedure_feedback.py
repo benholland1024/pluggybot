@@ -244,12 +244,11 @@ def test_a_long_reason_never_costs_a_run_its_readout():
 
 
 def test_every_name_a_run_assigned_is_said_or_counted():
-  """#658, on the live `fe07629`: History showed the first twelve names a
-  run assigned and `(+N more)` counted only what the line's width left out
-  of those twelve, so a 24-name run read as complete -- 97 of 167 runs, and
-  what went was the last names assigned, what each run was written to find.
-  The line's width is the only limit: sixteen short names are all said, as
-  they were assigned, and whatever the run's own line left beside them,
+  """#658, on the live `fe07629`: History said the first twelve names a run
+  assigned, and `(+N more)` counted only what the line's width left out of
+  those twelve, so a 24-name run read as complete (97 runs of 167). The
+  line's width is the only limit: sixteen short names are all said, in the
+  order they were assigned, and whatever room the run's own line leaves,
   every name is said whole or counted, and a count means the line was full."""
   from pluggybot.mind.thoughts import MAX_LINE_CHARS
   room = MAX_LINE_CHARS - lc.HISTORY_STAMP_ROOM
@@ -282,12 +281,13 @@ def test_every_name_a_run_assigned_is_said_or_counted():
 
 
 def test_a_run_of_two_dozen_names_reaches_history_whole():
-  """Rowan's `door_fast` (t=212582, 11-08): 24 names in the order its source
-  assigns them. History kept the first twelve and said nothing, the run's
-  own final angle (`ang`), `xl`, `xl2` and `prot` were gone, and a `recall`
-  gives back only what the line said. Off the robot's language to the record
-  it reads, with a clock as long as the deployed one's and no line cut."""
-  from pluggybot.mind.thoughts import cut_mark, MAX_LINE_CHARS
+  """Rowan's `door_fast` (t=212582, 11-08): the 24 names the observatory
+  kept of it, in the order it assigned them, after a test that read false.
+  History said the first twelve beside the run's line and nothing of the
+  rest, its own final angle (`ang`), `xl`, `xl2` and `prot` among them. Off
+  the robot's language to the record it reads, at the deployed clock: every
+  name in order, on a line of their own, as the run's line leaves too little
+  room, and none cut or counted."""
   values = {"got": 1.0, "n": 3.0, "lx": 0.429388, "ly": -0.042355, "lz": 0.864542,
             "d": 0.434169, "ox": 0.0, "oy": 0.05, "oz": -0.02, "g": 1.0, "r": 1.0,
             "moved": 0.7281, "rounds": 2.0, "pf": 0.51, "xw": -1.0, "xl": 0.755119,
@@ -297,12 +297,14 @@ def test_a_run_of_two_dozen_names_reaches_history_whole():
   life.data.time = 212582.108
   L = lib.Library(lc.world_facts(WORLD))
   L.define("door_fast", "def door_fast():\n"
-           + "".join(f"  {k} = {v}\n" for k, v in values.items()) + "  wait(0.1)\n")
+           + "".join(f"  {k} = {v}\n" for k, v in values.items())
+           + "  if measure(0.95, 1.35):\n    pass\n  wait(0.1)\n")
   life.run_errand(errand_from(Decision(action="procedure:door_fast"), library=L))
-  history = life.thoughts.read("History.md")
-  for k, v in values.items():
-    assert f"{k} = {st.number_text(v)}" in history, k
-  assert "more)" not in history and cut_mark(MAX_LINE_CHARS) not in history
+  readout = [line for line in life.thoughts.read("History.md").splitlines()
+             if "procedure door_fast" in line and " ended with " in line]
+  assert len(readout) == 1 and "] the procedure door_fast ended with " in readout[0], readout
+  assert readout[0].split(" ended with ", 1)[1].split(", ") == [
+    f"{k} = {st.number_text(v)}" for k, v in values.items()]
 
 
 # ---- 2. a replacement is one answer, as the prompt says --------------------

@@ -583,13 +583,12 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
   five times over and could not fix what it could not see; and how many of
   its tests read false, with each line's first reason (#629). Its locals ride
   at the end, as they have since #227: they are its readout -- on a line of
-  their own where the run's line has no room left for them, or History's cut
-  at 400 characters would take them.
+  their own unless they all fit beside the run's line inside History's 400
+  characters, where the cut would take them.
 
-  ⚠ EVERY NAME IS SAID OR COUNTED, THE LINE'S WIDTH THE ONLY LIMIT (#658):
-  shown the first twelve and told nothing of the rest, 97 of 167 runs lost
-  the last names they assigned, what each was written to find, and a
-  `recall` gives back only what the line said.
+  ⚠ EVERY NAME IS SAID OR COUNTED (`+N more`), THE LINE'S WIDTH THE ONLY
+  LIMIT (#658; Overseer.md): a silent cap at twelve hid the last names 97
+  runs of 167 assigned.
 
   ⚠ A RUN THAT STOPPED SHORT SAYS SO FIRST, and never as a fraction: the
   count is of calls MADE, so a budget stop reads "4/4" -- MEASURED (ladder
