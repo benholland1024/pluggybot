@@ -1572,12 +1572,13 @@ save a filmstrip PNG named after the script.
   reason); a save restored `MAX_RESUMES` (3)
   times without a new one is not trusted. ⚠ A SAVE READ AND REFUSED IS A
   START-OVER AT ITS OWN CLOCK (#594, Ben's call; `Loaded.start_over_t`,
-  `continuation.start_over`): the world from its XML at the save's `t` and
-  nothing else of it, its board on that clock (`TaskBoard(start_over_t=)`),
-  its budget and the producer's first offer counted from it; begun at 0,
-  every stamp the volume keeps stood in its future. ONCE
-  (`MAX_START_OVERS`): one that died before its first save, and a save with
-  no clock to read, begin at 0. ⚠ The errand in flight ends; its
+  `continuation.start_over`): the world from its XML BUILT at the save's
+  `t` and nothing else of it, its board on that clock
+  (`TaskBoard(start_over_t=)`), its budget and the producer's first offer
+  counted from it; begun at 0, every stamp the volume keeps stood in its
+  future. COUNTED AS A RESTORE IS (`MAX_START_OVERS`, under its own world,
+  given back by a clean stop): after three that died before their first
+  save, and with no clock to read, the start is at 0. ⚠ The errand in flight ends; its
   job does not (`_resume_jobs`): a procedure job stays claimed, its watch
   carried on (`jobWatches`), and one this world cannot do goes back on
   offer. The hourly ceiling is still
@@ -2291,8 +2292,8 @@ save a filmstrip PNG named after the script.
   `TaskBoard.producer`), an open offer's deadline, a held job's claim and a
   `draws` job's date (#659) are REBASED on load to a clock begun at 0
   (except where the clock carries on, `rebase=False`: a continuation, or a
-  start-over at its save's `t`, which dates the jobs' things there,
-  `start_over_t`, #594; ⚠ a
+  start-over at its save's `t`, which dates the jobs' things there and
+  holds no claim past it, `start_over_t`, #594; ⚠ a
   claim is never later than the last change saved, #602: one a start-over
   left on the old clock could never run out; ⚠ moved in memory, written in
   `begin()`), an offer is re-priced by the world's energy table on load,

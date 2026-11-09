@@ -17,14 +17,15 @@ clock"): a save `continuation.load` reads and refuses (put back
 `MAX_RESUMES` times, or another house's) begins the world again from its XML
 at the save's own `t`, where it began at 0. Nothing else of the save is
 taken: the bodies, the maps and places, the activities, the producer's
-schedule and the robots' clocks start fresh, as before. The board loads on
-that clock (deadlines and claims as written, its open jobs' things dated at
-it), the run's budget counts from it, the producer's first offer comes 240 s
-after it, and History says "...; it started over, and its clock carried
-on". Once: a start-over that dies before its first save leaves the next
-start at 0, as a save that cannot be read does ("its clock went back to
-0"). A restart that carries on (every restart but two so far) is untouched,
-and no prompt moved.
+schedule and the robots' clocks start fresh, as before, built on that clock.
+The board loads on it (deadlines and claims as written, a claim never past
+it, its open jobs' things dated at it), the run's budget counts from it, the
+producer's first offer comes 240 s after it, and History says "...; it
+started over, and its clock carried on". After three start-overs that die
+before their first save (`MAX_START_OVERS`, as restores are counted), the
+next start is at 0, as a save that cannot be read is ("its clock went back
+to 0"). A restart that carries on (every restart but two so far) is
+untouched, and no prompt moved.
 
 **Why.** The two start-overs, 10-27 (t=2,375,322) and 11-01 (t=401,163),
 set the clock back to 0, and every stamp the volume keeps stood in its
