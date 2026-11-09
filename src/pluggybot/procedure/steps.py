@@ -58,7 +58,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_LEAST_M,
+from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_FRONT_HALF_M,
+                                     STEP_FRONT_M, STEP_KEEP_DOWN_M, STEP_KEEP_M, STEP_LEAST_M,
                                      STEP_SHORT_M)
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
@@ -1031,6 +1032,14 @@ STEP_WHY = {"too short": "your step was too short to walk",
             "blocked": "your step got nowhere: something stands in your way",
             "fell": "you fell, and got up again",
             "out of time": "your step ran out of time"}
+#: ...and one blocked where it kept off another robot (issue #670;
+#: `HumanoidBody._kept_off`), by how: its middle kept off that robot's, or
+#: that robot's body in its way.
+STEP_KEPT_OFF = {
+  "keep": "your step stopped short of another robot: a step keeps your middle {keepM:.2f} m "
+          "from its middle, and within that goes only further from it ({m:.2f} m now)",
+  "body": "your step stopped short of another robot: its body was {m:.2f} m from your "
+          "middle in the way you were stepping"}
 
 
 def _step(life, args: dict) -> Routine:
@@ -1045,7 +1054,10 @@ def _step(life, args: dict) -> Routine:
   out = {"why": rep["why"], "seconds": rep.get("seconds"),
          **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")}}
   if rep["why"] != "stepped":
-    return {"ok": False, **out, "reason": STEP_WHY.get(rep["why"], "your step stopped short")}
+    kept = rep.get("keptOff")
+    reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
+              else STEP_WHY.get(rep["why"], "your step stopped short"))
+    return {"ok": False, **out, "reason": reason}
   return {"ok": True, **out}
 
 
@@ -1266,6 +1278,13 @@ HANDS_VERBS: dict[str, Verb] = {
                f"{100 * STEP_SHORT_M:.0f} cm may take none, and a walk may stop a few cm off "
                f"what you asked. A walk asked at least {100 * STEP_LEAST_M:.0f} cm that your own "
                "legs count as under it reads false and says your step was too short to walk. "
+               "A walk keeps off another robot as your walks over the map do. It stops "
+               f"before it would take your middle within {STEP_KEEP_M:.2f} m of that robot's "
+               f"middle ({STEP_KEEP_DOWN_M:.1f} m of one that has fallen) -- standing within that "
+               "already, a step whose walk would take you nearer neither turns nor walks -- "
+               f"and once that robot's body is within {STEP_FRONT_M:.2f} m of your middle in "
+               f"the way you step and {STEP_FRONT_HALF_M:.2f} m either side of it. Either "
+               "reads false and says so. "
                "A turn lands within a degree or two of what you asked -- one that does not "
                "get there reads false and says so -- and shuffles your feet a few cm that "
                f"`step.*` does not count. `step.dy` counts a sidestep "

@@ -28,6 +28,7 @@ from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, Humanoid
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
+from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
 from pluggybot.perception.watch import TagWatch
 from pluggybot.power import Pack
@@ -124,6 +125,13 @@ TURN_PULSES, TURN_SETTLE_S, TURN_SETTLE_BIG_S = 8, 0.5, 0.7
 #: 144); and the most its closing can take, s, over a step's patience.
 TURN_MISS_RAD = math.radians(2.0)
 TURN_CLOSE_S = TURN_SETTLE_BIG_S + TURN_PULSES * (0.14 + TURN_SETTLE_S)
+#: A STEP KEEPS OFF ANOTHER ROBOT AS A WALK DOES (#670, `_kept_off`): the disc
+#: a walk's plan keeps round that robot's middle, m, standing and lying, and
+#: the walks' front stop turned to the step's way, m along it and either side
+#: -- what its text says.
+STEP_KEEP_M = HumanoidMission.OTHER_ROBOT_CELLS * GRID_M
+STEP_KEEP_DOWN_M = HumanoidMission.DOWN_ROBOT_CELLS * GRID_M
+STEP_FRONT_M, STEP_FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M
 #: How far its measured depth's rays reach (`depth_cloud`, and a watcher's,
 #: `depth_watched`), m: a counter's chest within arm's reach. Each draws its
 #: own noise stream (`senses.Noise`: `measure`, `watched`), so watching
@@ -887,8 +895,9 @@ class HumanoidBody(Body):
     ended (`why`: "stepped", "too short" -- the walk its legs reckon went
     under `STEP_LEAST_M`, asked at least that -- "turned short" -- its feet
     held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
-    "holding" -- a hand holds something, and it does not move -- "blocked",
-    "fell", "out of time"), in
+    "holding" -- a hand holds something, and it does not move -- "blocked"
+    -- its walk got nowhere, or kept off another robot as a walk does
+    (`_kept_off`, #670: then `keptOff` says how) -- "fell", "out of time"), in
     how long, and where its stance went, by its own reckoning, in the stance
     frame it stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
     ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
@@ -901,6 +910,17 @@ class HumanoidBody(Body):
     t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
     if any(self.gripped(s) for s in hm.SIDES):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
+    walks = _step_walks(ahead, left)
+    if walks:
+      # ...nor, its first walk heading nearer another robot it stands too
+      # near (`_kept_off`), turns or hands its legs over: refused at its
+      # walk, each such step took 1.3 s and moved its feet (#670)
+      a_, l_ = walks[0]
+      n, c, s = math.hypot(a_, l_), math.cos(turn), math.sin(turn)
+      kept = self._kept_off((c * a_ - s * l_) / n, (s * a_ + c * l_) / n, 0.0, math.inf)
+      if kept is not None:
+        return {"why": "blocked", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0,
+                "keptOff": kept}
     if abs(turn) > TURN_STOP_RAD:
       patience += TURN_CLOSE_S
 
@@ -922,14 +942,20 @@ class HumanoidBody(Body):
     # 17-86 deg) -- so the step's move is the walks' alone, measured from
     # where the turn left the belief
     s_mid = by_legs(self.stance)
-    for a_, l_ in _step_walks(ahead, left):
+    kept = None
+    for a_, l_ in walks:
       if why == "stepped":
-        why = yield from self._walk_routine(a_, l_, over, by_legs)
+        why, kept = yield from self._walk_routine(a_, l_, over, by_legs)
     yield from mi.to_stand_routine()
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
       yield STILL
     if mi.falls != falls:
       why = "fell"
+    if why == "blocked" and kept and kept["by"] == "keep":
+      # ...how far off it stands now, its stride's carry and settle walked
+      px, py, _ = mi.pose
+      kept["m"] = round(min((math.hypot(b.x - px, b.y - py) for b in mi._bodies()),
+                            default=kept["m"]), 3)
     x1, y1, yaw1 = by_legs(self.stance)
     if not length:
       x1, y1 = s_mid[0], s_mid[1]
@@ -940,7 +966,8 @@ class HumanoidBody(Body):
       if float((x1 - s_mid[0]) * way[0] + (y1 - s_mid[1]) * way[1]) < STEP_LEAST_M:
         why = "too short"
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
-            "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi)}
+            "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
+            **({"keptOff": kept} if why == "blocked" and kept else {})}
 
   def _by_legs(self):
     """A pose of the belief's, (x, y, heading), as the legs' reckoning alone
@@ -1010,7 +1037,9 @@ class HumanoidBody(Body):
     """One straight walk of a step, its legs the walker's: "stepped" once
     what its legs reckon it has walked (`by_legs`), and its speed times
     `STEP_STOP_S`, reach its length; "blocked" where it gets nowhere in a
-    window, its first `STEP_START_S`; else what `over` says."""
+    window, its first `STEP_START_S`, or where it keeps off another robot
+    (`_kept_off`, judged where its stride's carry would take it); else what
+    `over` says. Returns (why, how it kept off, or None)."""
     mi, dt = self.mission, self._m.opt.timestep
     length = math.hypot(ahead, left)
     x0, y0, yaw = by_legs(mi.pose)
@@ -1018,22 +1047,63 @@ class HumanoidBody(Body):
     ux, uy = ahead / length, left / length
     wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
     pace = BACK_V if ahead < -abs(left) else STEP_V
-    speed, went, mark, window = 0.0, 0.0, (float(self._d.time), 0.0), STEP_START_S
+    since = float(self._d.time)
+    speed, went, mark, window = 0.0, 0.0, (since, 0.0), STEP_START_S
     while True:
       x, y, _ = by_legs(mi.pose)
       now = wx * (x - x0) + wy * (y - y0)
       speed += min(1.0, dt / 0.2) * ((now - went) / dt - speed)
       went = now
       if went + max(speed, 0.0) * STEP_STOP_S >= length:
-        return "stepped"
+        return "stepped", None
+      kept = self._kept_off(ux, uy, max(speed, 0.0) * STEP_STOP_S, since)
+      if kept is not None:
+        return "blocked", kept
       if float(self._d.time) - mark[0] >= window:
         if went - mark[1] < STEP_STUCK_M:
-          return "blocked"
+          return "blocked", None
         mark, window = (float(self._d.time), went), STEP_STUCK_S
       why = over()
       if why is not None:
-        return why
+        return why, None
       yield from mi._twist_routine(pace * ux, pace * uy, 0.0)
+
+  def _kept_off(self, ux, uy, carry, since):
+    """A STEP KEEPS OFF ANOTHER ROBOT AS A WALK DOES (#670; SimNotes,
+    "Two robots at the counter"): its walk going (`ux`, `uy`) in the trunk's
+    frame, `carry` m more were it stopped now, None while it is clear --
+    else how it keeps off, `by`:
+
+    - "keep": where its carry would take its middle is inside the disc a
+      walk's plan keeps round that robot's middle (`Navigator._cells`, as
+      `Body.others` answers it: its reported pose standing or walking, its
+      body lying, resting or dead) and the walk heads nearer that middle --
+      begun inside, a step only goes away (a walk out of a disc goes out);
+      `m` between the middles now, `keepM` the disc;
+    - "body": the newest scan since `since` has that robot's body inside
+      the walks' front stop (`FRONT_STOP_RANGE` by `FRONT_HALF_M`) turned to
+      the way, `m` along it. ⚠ ITS RETURNS ALONE (`Lidar.exclude_robot`'s
+      split, #316): the work is nearer than the walks' stop -- stood at the
+      chest's and the drawer's work spots, their own faces read 0.35-0.38 m
+      ahead, inside its 0.40, and the door's and the cube's 0.42-0.46."""
+    mi = self.mission
+    px, py, th = mi.pose
+    vx, vy = math.cos(th) * ux - math.sin(th) * uy, math.sin(th) * ux + math.cos(th) * uy
+    qx, qy = px + vx * carry, py + vy * carry
+    for b in mi._bodies():
+      keep = mi._cells(b) * mi.grid.resolution
+      dx, dy = b.x - qx, b.y - qy
+      if math.hypot(dx, dy) < keep and vx * dx + vy * dy > 0.0:
+        return {"by": "keep", "m": round(math.hypot(b.x - px, b.y - py), 3),
+                "keepM": round(keep, 2)}
+    seen = mi.peer_returns
+    if seen is not None and seen[0] >= since and len(seen[2]):
+      off = seen[1] - math.atan2(uy, ux)
+      along, across = seen[2] * np.cos(off), seen[2] * np.sin(off)
+      near = (along > 0.0) & (along < mi.FRONT_STOP_RANGE) & (np.abs(across) <= mi.FRONT_HALF_M)
+      if near.any():
+        return {"by": "body", "m": round(float(along[near].min()), 3)}
+    return None
 
   # ---- senses --------------------------------------------------------------
 

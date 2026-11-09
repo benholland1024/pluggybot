@@ -6914,6 +6914,102 @@ still: the 120 mm tags' window, 10-14 cm off the camera, is narrower than a
 step lands. The instruments and their rows are
 `~/pluggybot-training/issue-660/`.
 
+## Two robots at the counter (issue #670)
+
+**What happened.** At 11:48 on 11-08 Rowan's walk to the cupboard stopped at
+the disc it keeps round Luca, who stood hung in its own withdraw (#668), and
+its procedure then stepped onto its work spot anyway: `step` drove the walker
+with no disc and no front stop. 2.8 s into its withdraw from the lever its
+forearm hooked Luca's arm, both fell, and Rowan died (the investigation:
+`~/pluggybot-training/counter-falls-1108/findings.md`).
+
+**What a step keeps now** (`HumanoidBody._kept_off`): what a walk keeps.
+- *The disc round the other robot's middle*, where `Body.others` puts it --
+  its reported pose standing or walking, its body (placed through this
+  robot's own pose error, `as_seen`) lying, resting or dead -- 0.65 m, 1.2 m
+  round one that has fallen. Judged where the stride's carry would take the
+  robot were it stopped now (the step's own stop rule, `STEP_STOP_S` times its
+  speed): the stride carries on 0.2-0.27 s of its pace, 6-8 cm. Standing
+  inside the disc already, a step goes only away: one whose first walk would
+  head nearer neither turns nor hands its legs to the walker -- refused at
+  the walk instead, each such step took 1.3 s, a hand-over and a settle, and
+  moved the feet.
+- *The walks' front stop turned to the step's way*: a return off the other
+  robot within 0.40 m along it and 0.27 m either side, from a scan taken
+  since the walk began (none a restart could drop). ⚠ ITS RETURNS ALONE
+  (`Lidar.exclude_robot`'s split, #316): stood still at each prop's work spot
+  (`storeroom.work_spot`, one scan each, square and turned the reference's
+  `STANCE`), the props' own faces read 0.35-0.38 m ahead of the chest's and
+  the drawer's, inside the stop, and 0.42-0.46 m ahead of the door's and the
+  cube's. The counter itself, its edge 0.22-0.33 m ahead, is under the band's
+  steepest ring there (-52 deg from 1.41 m meets the counter's top 0.54 m
+  out). On every return, a step in to two props of four would stop short of
+  where the work is done.
+
+Either reads false, `blocked`, saying how (`steps.STEP_KEPT_OFF`). A robot
+alone reads neither -- no other robot, no returns split off -- and steps as it
+did, bit for bit: the cube check's set-outs 0 and 1, its steps among them,
+flew row for row on both trees.
+
+**As hardware-honest as the walks.** A robot standing or walking is kept off
+at its reported pose, a network fact; the front stop reads the LIDAR, which
+sees the other robot. Its two stand-ins are the walks': a robot lying,
+resting, dead or stepping aside is placed where its body truly lies, seen
+through the observer's own pose error (#365, #455), for spotting a
+robot-shaped lump; and the LIDAR tells the other robot's returns by their
+geoms (#316), for segmenting them. ⚠ AT THE COUNTER THE REPORTED POSE IS OFTEN
+HALF A METRE OFF: on 11-07 and 11-08, with the pair within 2 m of each other,
+one robot's reported pose lay 0.49 m from its body in the other's map at the
+median (0.75 at the 75th percentile, 1.13 at the 90th; 62 paired drift
+samples). So the disc round a robot working with a hand out -- not resting,
+so kept off at its reported pose -- may stand where it is not, and what a step
+walking toward its body meets is the front stop.
+
+**Flown: 11:48 from where the walk stopped** (`~/pluggybot-training/
+issue-670-step-clear/fly1148.py`, osmesa; the investigation's `door.py --case
+1148` began after the steps). Rowan starts where the log's steps say its walk
+stopped -- its spot's stance less three steps of 0.10 ahead and two of 0.03
+left -- and runs its own door_go4 from its `face(0)`, its spots, faces, steps
+and reaches its own. Luca stands behind its right shoulder on the walker,
+held still: where its 11:45 drift sample put it, and 6 and 12 cm east of
+that, 0.54-0.57 m from Rowan's start (soles to soles); three noise draws
+each, nine flights a tree:
+
+| | touched | Rowan fell | Luca fell | Rowan's steps |
+|---|---|---|---|---|
+| staging (232a55d) | 9 of 9 | 4 | 4 | 3-4 taken, onto its work spot |
+| this build | 0 | 0 | 0 | 6 toward Luca refused in each, none taken |
+
+Staging's 11:48 is the live one: two steps in and one left, the lever's grip
+out of reach, the press closing on nothing, and the arm's way home hooking
+Luca's (its forearm on Luca's upper arm); at Luca's middle place, both fell,
+3 of 3, as live -- the investigation's flights never felled Luca. On this
+build the procedure, its steps refused, ended at its sidestep (`too short`),
+which it called as a statement; it reached for nothing.
+
+**Its reaches from there, with no step** (the tail alone, door.py's, from the
+same start): the reach for the lever 0.69 m ahead, taken, swung out to the
+side and its jaws met Luca's right thigh 0.7 s in, then the bow brought its
+head into Luca's torso: touched in 6 of 9, Rowan fell in 6 (Luca once), and
+in the other 3 the reach was out of reach. So keeping a step off another
+robot keeps a robot from walking in, and nothing else: a procedure that reads
+its refused step and reaches anyway reaches into it.
+
+**At the disc's edge** (Luca 16-18 cm further south, 0.70 and 0.73 m from
+Rowan's start, where a walk would have left them; three draws each): the steps
+are taken, as they should be, and from the work spot the press's way home met
+Luca's arm with its jaw or gripper in 6 of 6 -- at 0.70 m a brush, no fall; at
+0.73 m it hooked Luca's upper arm and both fell, 3 of 3, 11:48 whole. Its
+reaches alone from there touched 2 of 6, no fall. The arms met at 0.68 m on
+11-08, just outside the disc: whether keeping a step off would have saved
+11:48 comes down to where Luca stood within a few centimetres, and the way
+home is what felled them either way.
+
+**What it leaves open** (#670's own list): an arm on its way out or home
+reaching into the other robot -- nothing a reach does knows of it (Hands.md
+§7); a fall at one prop reaching the next, 1.2 m apart (a fall carries the
+pelvis 0.8-0.9 m sideways); and the get-up against the counter (#669).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

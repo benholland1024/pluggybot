@@ -580,9 +580,10 @@ class Body(abc.ABC):
     take none. Returns how it ended (`why`:
     "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
     turn that could not get there -- "holding" -- a hand holds something, and nothing
-    moves --
-    "blocked", "fell", "out of time"), in how long, and where its stance
-    went by its own reckoning, in the stance frame it stood in before
+    moves -- "blocked" -- its walk got nowhere, or kept off another robot as a
+    walk does (#670), and then `keptOff` says how -- "fell", "out of time"), in
+    how long, and where its stance went by its own reckoning, in the stance
+    frame it stood in before
     (`dx`, `dy`, m; `turn`, rad): what a place read before the step is
     turned into."""
 

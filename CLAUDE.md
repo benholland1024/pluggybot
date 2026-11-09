@@ -1004,6 +1004,16 @@ save a filmstrip PNG named after the script.
   it a foot lands and the stance jumps 7-14 deg), read after a settle (read
   0.3 s after the walker's own turn, a pulse moved it 7.8 deg, 2-3 from rest),
   and one still `TURN_MISS_RAD` off when its pulses run out reads `turned short`;
+  ⚠ A STEP KEEPS OFF ANOTHER ROBOT AS A WALK DOES (#670; `_kept_off`;
+  SimNotes, "Two robots at the counter": at 11:48 on 11-08 a walk stopped
+  at the disc and the steps walked in): the walks' disc round its middle
+  (`Body.others`, 0.65 m, 1.2 lying), judged where the stride's carry would
+  take it, begun inside it no nearer -- one that would head nearer neither
+  turns nor moves -- and the walks' front stop turned to its way, ⚠ on the
+  LIDAR's returns off that robot ALONE (stood at the chest's and the
+  drawer's work spots the props read 0.35-0.38 m ahead, inside its 0.40):
+  `blocked`, `keptOff` saying how; a reach and its ways out and home still
+  know nothing of it;
   -- ⚠ measured only
   once the walker has the legs (out of a bow the pelvis came 16 cm forward
   on its own), ⚠ its first window `STEP_START_S` (2 s: from the stand's

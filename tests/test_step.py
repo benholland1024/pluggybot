@@ -16,7 +16,12 @@ are SimNotes' "Stepping toward the work".
   4. its odometry takes a shuffle's swing foot off the floor;
   5. a walk its own legs reckon went nowhere reads false with its reason, and
      a turn closes on the STANCE's heading (issue #649), its text saying so
-     off its constants.
+     off its constants;
+  6. a step keeps off another robot as a walk does (issue #670): the walks'
+     disc round its middle, judged where the stride's carry would take it,
+     and begun inside it no nearer; the walks' front stop turned to the way
+     it walks, on the LIDAR's returns off that robot alone; each read false
+     saying how, its text off the walks' own sizes.
 """
 
 import ast
@@ -28,11 +33,14 @@ import numpy as np
 import pytest
 
 from pluggybot import tick
-from pluggybot.body import StubBody
+from pluggybot.body import KeepClear, StubBody
 from pluggybot.challenge import solutions as sol
 from pluggybot.evaluation import hands_check as hc
 from pluggybot.humanoid import body as hb
 from pluggybot.humanoid import odometry as od
+from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.navigator import GRID_M, Navigator
+from pluggybot.perception.lidar import LIDAR_PERIOD
 from pluggybot.procedure import steps as st
 
 from test_guard import _floor_body
@@ -96,10 +104,21 @@ class Walk:
   nowhere; the legs handed to it in `handover_s`, the pelvis coming
   `handover_m` forward over the feet meanwhile (out of a bow); a fall
   at its command `fall_at`; and its first `shuffle_s` of walking a
-  shuffle, the believed pose still (the feet slide)."""
+  shuffle, the believed pose still (the feet slide). Another robot is where
+  `others` says (#670: the Navigator's own `_bodies` and `_cells`, on the
+  humanoid's sizes), and `seen`, (bearings, ranges) off its body in the
+  trunk's frame, is the LIDAR's every scan's (`LIDAR_PERIOD`)."""
+
+  OTHER_ROBOT_CELLS = HumanoidMission.OTHER_ROBOT_CELLS
+  DOWN_ROBOT_CELLS = HumanoidMission.DOWN_ROBOT_CELLS
+  FRONT_STOP_RANGE, FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M
+  grid = NS(resolution=GRID_M)
+  _bodies, _cells = Navigator._bodies, Navigator._cells
 
   def __init__(self, coast_s=0.22, wall=None, turn_drift=0.0, handover_s=0.0, handover_m=0.0,
-               fall_at=None, settle_m=0.0, shuffle_s=0.0, planted_s=0.0, feet=1.0):
+               fall_at=None, settle_m=0.0, shuffle_s=0.0, planted_s=0.0, feet=1.0, others=(),
+               seen=None):
+    self.others, self.seen, self.peer_returns = list(others), seen, None
     self.pose, self.falls, self.legs, self.t = (0.0, 0.0, 0.0), 0, "stand", 0.0
     self.coast_s, self.wall, self.v, self.asked = coast_s, wall, (0.0, 0.0), []
     #: how far a turn's shuffle walks the BELIEF a command, m
@@ -178,6 +197,8 @@ class Walk:
     self.v = ((nx - x) / DT, (ny - y) / DT)
     self.pose = (nx, ny, yaw + w * DT)
     self.t += DT
+    if self.seen is not None and round(self.t / DT) % round(LIDAR_PERIOD / DT) == 0:
+      self.peer_returns = (self.t, *(np.array(v, dtype=float) for v in self.seen))
     yield hb.STILL
 
   def to_stand_routine(self):
@@ -395,6 +416,128 @@ def test_a_step_too_short_reads_false_with_its_reason_and_says_where_it_got():
   assert ran["locals"]["d"] == pytest.approx(0.002)
 
 
+# ---- a step keeps off another robot as a walk does (#670) ---------------------------
+
+
+def _apart(walk, b):
+  return math.hypot(b[0] - walk.pose[0], b[1] - walk.pose[1])
+
+
+def test_a_step_stops_before_its_carry_takes_it_into_the_other_robots_disc():
+  """11:48 on 11-08 (#670): Rowan's walk to the cupboard stopped at the disc
+  it keeps round Luca, and its procedure stepped onto its work spot anyway --
+  `step` kept no disc. A step's walk keeps the walks' disc round the other
+  robot's middle (`Body.others`: 0.65 m standing), judged where its stride's
+  carry would take it, and stops there `blocked`, saying how."""
+  walk = Walk(coast_s=hb.STEP_STOP_S, others=[lambda: (1.0, 0.0)])
+  rep = _step(_walker(walk), 0.5)
+  assert rep["why"] == "blocked", "the step walked into the other robot's disc"
+  assert rep["keptOff"] == {"by": "keep", "m": pytest.approx(1.0 - rep["dx"], abs=0.01),
+                            "keepM": pytest.approx(hb.STEP_KEEP_M)}
+  assert _apart(walk, (1.0, 0.0)) >= hb.STEP_KEEP_M - 0.01, "its stride carried it into the disc"
+  assert rep["dx"] == pytest.approx(1.0 - hb.STEP_KEEP_M, abs=0.01)
+  # ...round one lying down, its own wider disc (`DOWN_ROBOT_CELLS`)
+  walk = Walk(coast_s=hb.STEP_STOP_S, others=[lambda: KeepClear(1.5, 0.0, down=True)])
+  rep = _step(_walker(walk), 0.5)
+  assert rep["why"] == "blocked" and rep["keptOff"]["keepM"] == pytest.approx(hb.STEP_KEEP_DOWN_M)
+  assert _apart(walk, (1.5, 0.0)) >= hb.STEP_KEEP_DOWN_M - 0.01
+  # ...and a walk that passes the disc by goes its whole way
+  walk = Walk(coast_s=hb.STEP_STOP_S, others=[lambda: (0.5, 0.7)])
+  rep = _step(_walker(walk), 0.5)
+  assert rep["why"] == "stepped" and "keptOff" not in rep
+
+
+def test_a_step_begun_inside_the_other_robots_disc_goes_only_further_from_it():
+  """A walk inside the other robot's disc walks out of it (#455), never
+  through it: a step begun 0.5 m from its middle whose walk heads nearer goes
+  nowhere -- nor turns, nor hands its legs to the walker: flown, each such
+  step took 1.3 s and moved its feet -- and goes away from it, or past it,
+  as asked, a turn first included."""
+  where = [lambda: (0.3, 0.4)]                    # 0.5 m off, ahead and to the left
+  for ask in ((0.3,), (0.0, 0.2), (0.3, 0.0, math.pi / 2), (-0.3, 0.0, math.pi)):
+    walk = Walk(coast_s=hb.STEP_STOP_S, others=where)
+    rep = _step(_walker(walk), *ask)
+    assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "keep", ask
+    assert rep["keptOff"]["m"] == pytest.approx(0.5, abs=1e-3)
+    assert walk.asked == [] and walk.legs == "stand", f"{ask} moved"
+    assert (rep["seconds"], rep["dx"], rep["dy"], rep["turn"]) == (0.0, 0.0, 0.0, 0.0)
+  for ask in ((-0.3,), (0.0, -0.2), (0.3, 0.0, math.pi)):
+    walk = Walk(coast_s=hb.STEP_STOP_S, others=where)
+    assert _step(_walker(walk), *ask)["why"] == "stepped", ask
+    assert _apart(walk, (0.3, 0.4)) > 0.5
+
+
+def test_a_step_stops_once_the_lidar_puts_the_other_robots_body_in_its_way():
+  """The walks' front stop reads the LIDAR, which sees the other robot
+  (#316): a step's reads it too, turned to the way it walks, from a scan
+  taken since that walk began, on the other robot's returns alone (its body
+  0.35 m ahead stops a step ahead, and one to its left a sidestep left; one
+  behind or to its right, none)."""
+  ahead, to_left = ((0.0,), (0.35,)), ((math.pi / 2,), (0.3,))
+  behind, to_right = ((math.pi,), (0.3,)), ((-math.pi / 2,), (0.3,))
+  for seen, ask in ((ahead, (0.3,)), (to_left, (0.0, 0.3))):
+    walk = Walk(coast_s=hb.STEP_STOP_S, seen=seen)
+    rep = _step(_walker(walk), *ask)
+    assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "body", ask
+    assert rep["keptOff"]["m"] == pytest.approx(seen[1][0], abs=1e-6)
+    assert walk.t < 2 * LIDAR_PERIOD + 0.6, "it walked on past the scan that saw it"
+  for seen, ask in ((behind, (0.3,)), (to_right, (0.0, 0.3))):
+    walk = Walk(coast_s=hb.STEP_STOP_S, seen=seen)
+    assert _step(_walker(walk), *ask)["why"] == "stepped", ask
+  # ...nor beyond the front stop's reach, nor its half-width either side
+  for seen in (((0.0,), (hb.STEP_FRONT_M + 0.01,)),
+               ((math.atan2(hb.STEP_FRONT_HALF_M + 0.02, 0.2),),
+                (math.hypot(hb.STEP_FRONT_HALF_M + 0.02, 0.2),))):
+    walk = Walk(coast_s=hb.STEP_STOP_S, seen=seen)
+    assert _step(_walker(walk), 0.3)["why"] == "stepped", seen
+  # ...and a scan from before the walk began is not read: the body put
+  # there, its scans stopped as the step began
+  walk = Walk(coast_s=hb.STEP_STOP_S)
+  walk.peer_returns = (0.0, np.array([0.0]), np.array([0.3]))
+  walk.t = 0.001
+  body = _walker(walk)
+  body._d.time = walk.t
+  assert _step(body, 0.3)["why"] == "stepped"
+
+
+def test_the_scan_keeps_its_returns_off_another_robot_for_a_step():
+  """The one wire from the LIDAR to a step's front stop: each scan keeps the
+  returns it split off as another robot's, stamped, beside the map's and the
+  walks' front stop's (`Navigator._scan_step`)."""
+  from pluggybot.perception.lidar import Scan
+  nav = object.__new__(Navigator)
+  peers = (np.array([0.1]), np.array([0.6]))
+  nav.data, nav._next_scan, nav.backoff_until = NS(time=3.0), 0.0, 99.0
+  nav.LIDAR_ORIGIN, nav.peer_returns = (0.0, 0.0), None
+  nav._scan = lambda: Scan(np.array([0.0]), np.array([2.0]), *peers)
+  nav.maps = lambda: False
+  nav.matcher = None
+  Navigator._scan_step(nav)
+  assert nav.peer_returns[0] == 3.0
+  assert [list(a) for a in nav.peer_returns[1:]] == [list(a) for a in peers]
+
+
+def test_a_step_kept_off_another_robot_reads_false_saying_how():
+  """The words (#670): a step blocked by another robot says so, with the
+  distance and the disc it keeps -- never "something stands in your way"."""
+  for kept, said in (({"by": "keep", "m": 0.6, "keepM": 0.65},
+                      "your step stopped short of another robot: a step keeps your middle "
+                      "0.65 m from its middle, and within that goes only further from it "
+                      "(0.60 m now)"),
+                     ({"by": "body", "m": 0.34},
+                      "your step stopped short of another robot: its body was 0.34 m from "
+                      "your middle in the way you were stepping")):
+    body = StubBody(*_bare())
+    body.step_routine = lambda *a, kept=kept, **kw: tick.result(
+      {"why": "blocked", "seconds": 1.0, "dx": 0.04, "dy": 0.0, "turn": 0.0, "keptOff": kept})
+    ran = _fly('def a():\n    if not step(0.3):\n        d = read("step.dx")\n', body)
+    step = ran["steps"][0]
+    assert not step["ok"] and step["why"] == "blocked" and step["reason"] == said
+    assert ran["locals"]["d"] == pytest.approx(0.04)
+  # ...and a walk that got nowhere says what it always did
+  assert st.STEP_WHY["blocked"] == "your step got nowhere: something stands in your way"
+
+
 def test_a_small_turn_is_closed_on_the_stance_not_the_pelvis():
   """#649, #643's option (b): the walker yaws its pelvis over planted feet
   first, so a turn stopped on the pelvis's heading left the feet where they
@@ -473,6 +616,24 @@ def test_the_steps_text_says_what_a_short_ask_does_off_its_constants():
   # ...and the two ends a step reads false by, with their reasons
   assert st.STEP_WHY["too short"] == "your step was too short to walk"
   assert st.STEP_WHY["turned short"] == "your turn stopped short of where you asked"
+
+
+def test_the_steps_text_says_how_it_keeps_off_another_robot_off_the_walks_sizes():
+  """#670: what keeps a step off another robot is the walks' own disc and
+  front stop, and its text says them off the same numbers the check reads
+  (`Navigator._cells` times the map's cell, the body's front stop)."""
+  doc = st.HANDS_VERBS["step"].doc
+  assert (f"within {hb.STEP_KEEP_M:.2f} m of that robot's middle "
+          f"({hb.STEP_KEEP_DOWN_M:.1f} m of one that has fallen)") in doc
+  assert (f"within {hb.STEP_FRONT_M:.2f} m of your middle in the way you step and "
+          f"{hb.STEP_FRONT_HALF_M:.2f} m either side of it") in doc
+  assert "standing within that already" in doc
+  assert "a step whose walk would take you nearer neither turns nor walks" in doc
+  walk = Walk()
+  assert walk._cells(KeepClear(0.0, 0.0)) * walk.grid.resolution == hb.STEP_KEEP_M
+  assert walk._cells(KeepClear(0.0, 0.0, down=True)) * walk.grid.resolution == hb.STEP_KEEP_DOWN_M
+  assert (hb.STEP_FRONT_M, hb.STEP_FRONT_HALF_M) == (
+    HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M)
 
 
 def _flown_stance_step(*ask):
