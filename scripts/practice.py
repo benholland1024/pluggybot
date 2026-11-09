@@ -312,8 +312,8 @@ def read(into: str) -> None:
   the set-outs killed in flight spent (`killed`)."""
   att.read(into)
   rows = [json.loads(line) for line in open(Path(into) / "rows.jsonl")]
-  dead = Path(into) / KILLED
-  dead = [json.loads(line) for line in open(dead)] if dead.exists() else []
+  killed_file = Path(into) / KILLED
+  dead = ([json.loads(line) for line in open(killed_file)] if killed_file.exists() else [])
   regimes: dict = {}
   for r in rows:
     if "practice" in r:
