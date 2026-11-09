@@ -774,7 +774,9 @@ save a filmstrip PNG named after the script.
   IS SHOWN IT, and the time it has left (`heldTasks`, `leftS`): without it
   the robots spent their recalls finding out when they took it. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
-  prop out, its activity renewed in place (`renew`), put back after a
+  prop out, ⚠ ITS SENTENCE SAYING WHEN (`{offered}`, #659, TaskPattern.md
+  §2; a test reads it as offered, past `MAX_DESCRIPTION`'s silent cut), its
+  activity renewed in place (`renew`), put back after a
   restart (`restore_jobs`, in `begin`, before the activities' kept
   state; the counter and the restaurant's table are `home.jobs`' two areas,
   one interface), and an offer made between the world's last save and a crash has
@@ -1423,7 +1425,10 @@ save a filmstrip PNG named after the script.
   run's own budget (`run_verb(until=)`); an argument with a `default` may be
   left out. ⚠ A PROCEDURE'S LOCALS ARE ITS READOUT (#227:
   `lang.run_procedure_routine` returns them, the `procedure` event carries
-  them, one History line of `LOCALS_SHOWN`). ⚠ The procedure rule's example
+  them, and History says them beside the run's line, on the next, or on
+  both (`_readout`); ⚠ EVERY NAME SAID OR COUNTED, `(+N more)`, the two
+  lines' width the only limit: a silent cap at twelve hid names from 97 runs
+  of 167, #658). ⚠ The procedure rule's example
   (`hands_procedure_rule`) may not show charge, a battery threshold or the
   rack. ⚠ The site's Procedures section is built off the `procedure`
   event (`library`, `failedLine`; `failedAt` counts verb calls, not lines;
@@ -2273,8 +2278,9 @@ save a filmstrip PNG named after the script.
   A kind passed over for want of a target KEEPS the head of the queue; one
   the charged pack can never fund does not (#407: it starved the second of
   two kinds sharing a slot behind it); one offer per tick; nothing random. ⚠ **The rotation SURVIVES A RESTART** (the cursor lives in
-  `TaskBoard.producer`), an open offer's deadline and a held job's claim are
-  REBASED on load (except where the world carries on, `rebase=False`; ⚠ a
+  `TaskBoard.producer`), an open offer's deadline, a held job's claim and a
+  `draws` job's date (#659) are REBASED on load (except where the world
+  carries on, `rebase=False`; ⚠ a
   claim is never later than the last change saved, #602: one a start-over
   left on the old clock could never run out; ⚠ moved in memory, written in
   `begin()`), an offer is re-priced by the world's energy table on load,

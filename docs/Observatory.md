@@ -38,6 +38,106 @@ whether a robot reads a small block from further than it has stood. ⚠ Not to
 be pooled with the period before for anything that reads a robot's words about
 its cameras.
 
+### A job's sentence says when its things were put back (#659) — opens when this PR is deployed
+
+**What changed is what the robots are TOLD** (TaskPattern.md §2):
+- **Every job that sets its things out says so, with the time**:
+  `The drawer was put back shut at t=205338, when this job was offered.`
+  (the door's and the lid's the same, the cube's "beside its mat", the
+  table's "The plate, the fork and the cup were set out"), in the sentence
+  of every offer and every held job, and on the site's job list, which draws
+  the same text. A start-over dates a standing job at the new clock's 0,
+  where its world begins with every prop at rest.
+- **`tasks.MAX_DESCRIPTION` is 500**, a visitor's message's, where it was
+  420: there the clause cost the door, the chest and the table the ends of
+  their sentences, without a word.
+- The prompt did not move (`prompt_sha` `c71dde29…`, 62,312 chars, before and
+  after: `overseer_probe.py --deployed --prompt`), nor the state's keys, the
+  schema, the menu, the reward table, the arm, the body or the house.
+
+**Why.** #659, from the 11-08 triage on `fe07629`. Every hand job's offer
+puts its prop back at rest (66 since the release) and nothing the robots read
+said so. Rowan left a drawer 19 cm out, found it shut, and spent three
+procedures, four library lookups and a ticket on timing a spring it does not
+have (tk_0057). Luca said done on t_0177's drawer taking it for the last
+job's 23 cm: it had come out 8.
+
+**What the period is for.**
+- **Does a robot still write of a spring**, or of a prop going back by itself?
+- **Does a robot say done on a prop as an earlier job left it?** Read a `done`
+  against the job's grade and its thinking.
+- ⚠ **A job standing at the deploy keeps the words it was offered with** until
+  it resolves (a description is written at the offer): read from the first
+  offer after it, all of them gone within half an hour (an offer stands 15
+  minutes, a held job 16).
+- ⚠ **What to expect, offline and on two robots' real turns of 11-08**
+  (their History, pins, notes, library and board, through the deployed mind,
+  `zai-org/GLM-5.3-Flash:baseten`, the prompt as this branch builds it):
+  - **Where the question is open it lands.** Rowan at t=205876, asking itself
+    whether the drawer still stood out from t_0167 or "was reset shut between
+    t_0167 and this job": told nothing, 0 of 12 answers said it had been put
+    back and 8 of 12 reasoned it might still be out; with the dated sentence
+    22 of 36 said so and 3 of 36. The wordings differed in how often: the
+    sentence with no date (the issue's) 16 of 36 and 12 of 36, moved first 18
+    and 6, moved last 9 of 24 and 11 of 24.
+  - **A belief already written down does not move.** Luca at t=208376, its
+    pin saying the drawer stood 23 cm out, said done in 12 of 12 told nothing
+    and 11 of 12 with the dated sentence, none of the six wordings much
+    different; and at t=208230, as it weighed why its pulls moved 2 mm, no
+    wording did better than none (1 of 12 told nothing, 1 of 12 at best).
+  - Two robots' turns, 36 answers an arm at most. A live reading is what
+    counts, and since the note outlives the sentence, what to look for is a
+    robot NOT forming the belief.
+- ⚠ **Not to be pooled with the period before for what a robot does with a
+  job**: the job's own words moved.
+
+### A run says every variable its two lines hold and counts the rest (#658) — opens when this PR is deployed
+
+**What changed is what the robots read of a run's variables.** History said
+the first twelve names a run assigned and nothing of the others, and
+`(+N more)` counted only what the line's width left out of those twelve. Now
+the width of the run's own line and the next is the only limit: the names go
+beside the run's line where they all fit, else on a line of their own, and
+where not even that holds them, beside the run's line as far as it goes,
+`(more on the next line)`, and on into the next, which says `the procedure …
+also ended with`. `(+N more)` counts every name left past them. The prompt
+did not move (`prompt_sha` `c71dde29…` both sides: "on that line or the next"
+was already true), nor the state, the schema, the menu or the wire: the
+`procedure` event always carried every name.
+
+**Why.** #658, from the 11-08 triage, on `fe07629`. 97 of its 167 runs
+assigned more than twelve names (89 of the 155 that ran to their end, the
+issue's count, and 8 of the 12 cut short), and every one lost the rest
+silently: at least 542 names, the last assigned and so usually what the run
+was written to find. Luca took to copying results into early names; Rowan
+recalled a run's line five times, and it came back as cut as it went in.
+
+**What to expect.** Each run replayed through this code from its own line in
+the robot's History and the wire's names, in the order its source assigns
+them: 96 of the 97 read whole. The one left counting is Rowan's
+`drawer_final` at t=197807, `(+6 more)`, its run's line 377 characters long.
+⚠ A row's `locals` kept at most 24 names (the site's `MAX_LOCALS`, 64 from
+rooftop-media-2026 #504) and 8 rows stop there: priced off each run's
+source for the names past it, an upper bound since a branch may not have
+run, it is still 96. A run whose names do not all fit beside its line says
+them on the next line too, and that is 88 of the 167 where it was 68 (the
+run's line carries its tests' reasons and its stop conditions): the 20 more
+each take one of the twelve History lines the model is shown. Two of them
+start their names beside the run's line and carry them on, `drawer_spring`
+and `drawer_spring2` (four with the names past the site's 24).
+
+**What the period is for.**
+- **The acceptance**: a run with twenty-odd names reads whole, and neither
+  robot copies a result into an early name at the end of a run (the defined
+  sources: Luca's `kx = 0.0023` in `drawer_omega14`'s line was a pull's
+  distance).
+- **Whether a run's line is still recalled to find what it left out**: the
+  `recall` rows naming a procedure's line, and thoughts about a readout being
+  cut, against the period before.
+- ⚠ **Not to be pooled with the period before for anything a run's numbers
+  decide**: what a robot wrote next, and whether it said `done`, on numbers
+  it could not see before.
+
 ### The restaurant's table is offered (#560) — opens when this PR is deployed
 
 **What changed in the world.**

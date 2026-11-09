@@ -109,7 +109,8 @@ Rules the states carry, each decided explicitly:
   open: lapsed, settled or failed, it is the next sweep's to park. Never
   from under a robot's hand, which it waits for, as an offer does. The
   counter's props stay out as the last job left them (`home.jobs`: each
-  area says which).
+  area says which), until the next offer of their job puts them back, which
+  its sentence says, and when (§2).
 - **The board is bounded** (40 held, 6 offered at once), and resolved tasks
   age out oldest-first. An OPEN task is never dropped to make room: dropping a
   job the robot might still do and that job lapsing are different events, and
@@ -186,6 +187,7 @@ sight. Worked through what reaches the robot:
 | another robot's reported pose (`others`) | ✅ | what the other robot says on the network, never a sensor's |
 | the pose of a movable object | ❌ | finding it *is* the task — see the perception ladder, §3 |
 | a prop's hidden dynamics — the drawer's runners, the chest's catch | ❌ | hidden ground truth, drawn per offer and kept in `Task.secret`, and redacted where a metric carries it (`catchN`, `Verdict.secret`) |
+| when a job's things were put back ("The drawer was put back shut at t=205338, when this job was offered.") | ✅ | the job's own history, which whoever posted it knows. A `draws` kind's sentence says it, dated on the robot's own clock, a start-over's 0 once the world starts from its XML (#659; why dated: its period in Observatory.md). Told nothing, a robot timed a spring the drawer does not have. How the prop stands *now* stays the robot's to see: anything may have touched it since |
 
 The test for a new delivery is the middle column of the first row against the
 last: *could a dispatcher who cannot see the room have written this?* A
@@ -266,7 +268,7 @@ names none.
 
 Related, because a stranger will eventually be on this path
 (`TASK_SOURCES = system | visitor | overseer`): a description is untrusted
-text on the inbox's terms — capped (`tasks.MAX_DESCRIPTION`, 420) and
+text on the inbox's terms — capped (`tasks.MAX_DESCRIPTION`, 500) and
 cleaned by its normaliser on the way in. And as `mind/inbox.py` records,
 **sanitising is not the security boundary**; the boundary is that nothing
 a task says can reach the robot's body except through an errand or a
@@ -544,8 +546,11 @@ One `TaskKind` entry: `task` names the evaluator/reward row (an evaluator
 may judge several rows — `open_drawer` and the practice's `drawer` are both
 judged by `drawer.eval_drawer`), `target_kind` says what the target names,
 and the `template` is the sentence a person reads — **with no price in it**
-(§2.2). `estimate_wh` is the world-agnostic FALLBACK and must never sit
-below the measured cost of the job (`tests/test_energy.py` is the drift
+(§2.2), **saying when a `draws` kind's things were put back** (`{offered}`,
+the offer's own second; §2), and **inside `MAX_DESCRIPTION`**, past which it
+is cut without a word: `test_no_jobs_sentence_is_cut_at_its_offer` reads
+every kind with its numbers wider than they will be for years.
+`estimate_wh` is the world-agnostic FALLBACK and must never sit below the measured cost of the job (`tests/test_energy.py` is the drift
 guard); the number that actually gets used comes from `economy/energy.json`,
 so **run `scripts/energy_spike.py` for the new job in every world that
 offers the kind** -- a procedure job's is its hand-written solution, flown --

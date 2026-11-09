@@ -341,7 +341,9 @@ put back after a restart (`restore_jobs`, the prop's newest offer on the
 board's own count, never
 by its stamp: TaskPattern.md §1, "The lifecycle", #610; and set out again
 where the world came back from before its offer, `set_out_unseen`:
-Webserver.md): a skill over a kind of drawer, never one drawer. ⚠ No
+Webserver.md): a skill over a kind of drawer, never one drawer. The job's
+sentence says when its prop was put back (#659; TaskPattern.md §2), and
+nothing of its draw. ⚠ No
 offer lands on a prop a robot is touching (`_worked_props`, the
 producer's `busy`): set out from under a hand, a door was clamped shut
 round it, and a drawer left out was a job paid for nothing.
@@ -426,8 +428,9 @@ its own:
 The offer says where by the area's terms (#419): the mall's address and the
 restaurant's directions, naming the table, the card's tag (93) and the
 pieces' (90-92), and that the card faces south -- never a position. Its
-sentence states this check's criteria, within a description's 420
-characters; its row's detail carries all of them.
+sentence states this check's criteria and when the place was set out
+(#659), within a description's 500 characters (`tasks.MAX_DESCRIPTION`);
+its row's detail carries all of them.
 
 **Its hand-written solution** (`challenge/solutions.py`, `TABLE`): the walk
 to the place, then this check's procedure from its one stance, its first
