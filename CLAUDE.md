@@ -996,10 +996,10 @@ save a filmstrip PNG named after the script.
   drive explicitly, and at 0.2 kg a shut's force flipped between its clips
   every step and from 40 N batted a light handle it never shut on; ⚠ A
   `withdraw` OPENS ITS GRIPPER, `GRIP_S` BEFORE ITS HAND MOVES, whatever it
-  says it holds (#669; `HumanoidBody.release_routine`, `Gripper.opened`; one
-  already open is left alone): shut on a door's lever that read nothing
-  held, the way home levered the trunk into the counter, 9 of 9 flown -- a
-  walk's hand-over still brings a hand home as its gripper is. The
+  says it holds, and so does a walk's hand-over for a hand that is out (#669;
+  `HumanoidMission.let_go_routine`; one already open, `Gripper.opened`, is
+  left alone): shut on a door's lever that read nothing held, the way home
+  levered the trunk into the counter, 9 of 9 flown. The
   FEET's move is `step`
   (`HumanoidBody.step_routine`, `tests/test_step.py`): hands home and
   empty, a turn on the spot and a walk on the walking policy, its report

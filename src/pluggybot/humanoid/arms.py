@@ -447,6 +447,9 @@ class Waist:
                     self.kp, self.kd)
 
 
+#: How long a gripper is given to close or open, s: the Dex1-1 shuts its
+#: stroke in 0.24 s at its fastest, and a squeeze settles after.
+GRIP_S = 0.6
 #: A grip is HELD, by the gripper's own reading, when shut it stopped this
 #: far short of closed, m, with the squeeze up to this share of what its
 #: drive pushes there (`pushes`): a hand shut on nothing closes; one shut on

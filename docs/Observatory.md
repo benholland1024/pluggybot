@@ -12,7 +12,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A `withdraw` opens its gripper before the hand comes out (#669) — opens when this PR is deployed
 
-**What changed** (`prompt_sha` `0deeb7c4…` → `d9622296…`, 63,719 → 63,782
+**What changed** (`prompt_sha` `0deeb7c4…` → `e700aa06…`, 63,719 → 63,915
 chars, 17 sections both):
 - **`withdraw` opens its hand's gripper first**, whatever the gripper says
   it holds, and gives the jaws `GRIP_S` (0.6 s) before the hand moves; one
@@ -23,6 +23,13 @@ chars, 17 sections both):
 - **Its text says so**: "open a hand's gripper, letting go of whatever it
   holds, then bring the hand back out along the way it went in, and its arm
   home -- ..." (the served rule's verbs and the session's hello).
+- **A walk lets go too**: a `step`, a `drive_to`, a `face`, a `find` or a
+  walk of the loop's own (a charge trip) begun with a hand out opens that
+  hand's gripper as a withdraw does before the arm comes home
+  (`to_walk_routine`), and the body text says so: "Before a `step` or any
+  other walk, a hand that is out comes home, its gripper opened as
+  `withdraw` opens it: a walk carries nothing." It used to bring the arm
+  home with its gripper as it was, carrying what it held.
 - No verb, argument, sensor, schema, reward, body or geometry moved, and a
   flight whose every withdraw began with its gripper open is the same
   flight (SimNotes, "Letting go before the way home": our references and the

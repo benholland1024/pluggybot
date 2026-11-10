@@ -7174,9 +7174,18 @@ references withdraw with their jaws shut after a grip that read false.
 **What a withdraw does now** (`HumanoidBody.release_routine`): its gripper is
 opened first, whatever it says it holds, the jaws given `GRIP_S` (0.6 s, as
 `open_hand` gives them) while the robot stands still, before the hand starts
-out; a fall in that time ends it at once, the hand never sent. A gripper
-already open (`Gripper.opened`: last told to open its whole stroke) is left
-as it is, so a withdraw after an `open_hand` is the flight it was. Its text
+out; a fall in that time ends it the step it comes, the hand never sent. A
+gripper already open (`Gripper.opened`: last told to open its whole stroke)
+is left as it is, so a withdraw after an `open_hand` is the flight it was.
+**So does a walk's hand-over** (`to_walk_routine`), for an arm that is out:
+`step` refuses only a grip that reads held, and a procedure that ends with a
+hand out walks after it, so the same jaws on the same lever came home
+through every walk (#669's review). One routine lets go for both
+(`HumanoidMission.let_go_routine`), and the body text says so: "Before a
+`step` or any other walk, a hand that is out comes home, its gripper opened
+as `withdraw` opens it: a walk carries nothing." With nothing to open it
+steps nothing, and no reference begins a walk with a hand out -- nor does any
+of the 459 practice tries below, by their recorded verbs. Its text
 says so with no condition the robot must work out. Worded "open a hand's
 gripper if you have shut it", the deployed mind (GLM-5.3-Flash on baseten, 24
 answers a text, each free to say "unknown") read a held cube as let go 24
@@ -7232,9 +7241,8 @@ branched from, b4074eb; `~/pluggybot-training/issue-669/`):
 an OPEN hand -- the counter's top under a jaw, a lid come down over the hand
 (Luca's 15:17) -- still holds its arm, and the way home still knows nothing of
 the world (Hands.md §7); a reach of one hand while the other is held takes a
-posture planned for a free body; the get-up against the counter (13 of 14
-flown falls there never stood in 60 s); and a walk's hand-over
-(`to_walk_routine`) still brings an arm home with its gripper as it is.
+posture planned for a free body; and the get-up against the counter (13 of 14
+flown falls there never stood in 60 s).
 
 ## Debugging workflow that worked
 
