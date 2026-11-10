@@ -153,7 +153,8 @@ def test_the_body_is_placed_where_the_drivers_own_sensors_would_put_it():
   assert math.atan2(y - by, x - bx) - bth == pytest.approx(
     math.atan2(body[1] - ty, body[0] - tx) - tth, abs=1e-9)
   assert math.dist((x, y), body) > 0.2, "the premise: the driver has drifted"
-  # ...and a standing robot is where it SAYS it is, for everyone
+  # ...and a standing robot out of the driver's LIDAR's sight (it has taken
+  # no scan) is where it SAYS it is (#675)
   peer.stand_up("a test", auto=False)
   assert me.body.others[0]()[:3] == (*peer.body.pose_xy(), False)
 
