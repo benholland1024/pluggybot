@@ -832,3 +832,100 @@ def test_a_cup_reach_that_bows_out_of_the_plates_tags_view_goes_home_and_reaches
   assert again[1]["z"] - first[1]["z"] >= 0.01
   seen, _, _ = _table_flown()
   assert np.allclose(body.shuts[0][1], seen.shuts[0][1], atol=1e-9)
+
+
+# ---- the cube's procedure: its tries ------------------------------------------------------
+
+
+#: The served cube's set-out where our walk leaves it, the start's stance frame: the cube's
+#: top face's middle and the mat's (`storeroom.HANDLE_FROM_SPOT`, the mat 7 cm on).
+CUBE_AT, MAT_AT = (0.43, 0.15, 0.806), (0.50, 0.15, 0.784)
+
+
+def _cube_flown(fail_shut=0, lose_lift=0, moved=(0.0, 0.0)):
+  """Our cube procedure on a stub that does every move at once, as asked, and sees the cube's
+  tag and the mat's where the world has them (the start's frame: `spot` reads its own) -- its first
+  `fail_shut` shuts holding nothing and its first `lose_lift` lifts losing what they held, the
+  cube `moved` (m, the start's frame) once a try has failed: each verb as it began, and the
+  run."""
+  from pluggybot.body import StubBody
+  from test_hands import _bare, _Life
+
+  class Seeing(StubBody):
+    def __init__(self, *a, **kw):
+      super().__init__(*a, **kw)
+      self.shuts = self.lifts = self.failed = 0
+
+    def spot(self, tag, at_height=None):
+      if int(tag) not in (56, 57):
+        return None
+      x, y, z = CUBE_AT if int(tag) == 56 else MAT_AT
+      if int(tag) == 56 and self.failed:
+        x, y = x + moved[0], y + moved[1]
+      return {"x": x, "y": y, "z": z, "normal": [0.0, 0.0, -1.0], "edge": [1.0, 0.0, 0.0],
+              "range": 0.5}
+
+    def grip_routine(self, side, closed, force=None):
+      held = yield from super().grip_routine(side, closed, force)
+      if closed:
+        self.shuts += 1
+        if self.shuts <= fail_shut:
+          self.grips[side], self.failed = False, 1
+          return False
+      return held
+
+    def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
+                     give=True):
+      out = yield from super().pull_routine(side, direction, limit_n, distance_m, speed,
+                                            patience, give)
+      if direction[2] > 0.5:
+        self.lifts += 1
+        if self.lifts <= lose_lift:
+          self.grips[side], self.failed = False, 1
+      return out
+  body = Seeing(*_bare())
+  life, log = _Life(body), []
+  life.verb_began = lambda count, line, verb, values: log.append((verb, dict(values)))
+  facts = st.hand_facts()
+  ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(hc.PLACE, facts), facts))
+  return body, ran, log
+
+
+def _reaches(log):
+  return [a for v, a in log if v == "reach"]
+
+
+def test_a_cube_try_that_failed_reads_the_mat_and_the_cube_again_and_aims_where_it_now_is():
+  """⚠ A FAILED TRY READS THE MAT AND THE CUBE AGAIN (#560; SimNotes, "The cube from the
+  tour"): a reach that stops short or a shut on nothing moved the feet 3-7 cm, or the
+  cube, and every try after it aimed at the first read -- 11 tries in 12 shut on nothing.
+  Read again, the next aims where the cube now is, 1 cm on along the fingers as the first
+  try's long read aimed it, and the carry goes from the mat read in the same frame."""
+  body, ran, log = _cube_flown(fail_shut=1, moved=(0.0, 0.03))
+  assert ran["ok"], ran
+  first, again = _reaches(log)[:2]
+  between = [(v, a.get("tag", a.get("hand"))) for v, a in
+             log[log.index(("reach", first)) + 1:log.index(("reach", again))]]
+  assert ("spot", 57) in between and ("spot", 56) in between, between
+  (ahead, left, _), = body.stepped                  # where the cube now is, from where it stands
+  x, y = CUBE_AT[0] - ahead, CUBE_AT[1] + 0.03 - left
+  assert (again["x"], again["y"]) == pytest.approx((x + 0.01, y), abs=1e-3)
+  assert again["fz"] == pytest.approx(first["fz"])  # at 60 deg again (at 75, 12 s and the feet moved)
+  assert body.shuts == 2
+  # ...and carried from the mat read in that frame, 0.6 cm on and 0.5 cm right of the grip's
+  # offset (the jaws push the cube along them as they shut)
+  (carry,) = [a for v, a in log if v == "move_hand"]
+  mx, my = MAT_AT[0] - ahead, MAT_AT[1] - left
+  assert (carry["x"], carry["y"]) == pytest.approx((mx + 0.01 + 0.006, my - 0.005), abs=1e-3)
+
+
+def test_a_lift_that_lost_the_cube_is_a_try_that_failed():
+  """⚠ A LIFT THAT LEFT THE CUBE BEHIND TRIES AGAIN (#560; SimNotes, "The cube from the tour"):
+  a shut on the cube's edge read held, its lift let go, and the procedure carried and set down
+  nothing -- 6 draws of 96. Its hand reading nothing held after the lift, it lets go, goes home,
+  reads again and reaches again."""
+  body, ran, log = _cube_flown(lose_lift=1)
+  assert ran["ok"], ran
+  assert len(_reaches(log)) == 2 and body.shuts == 2, [v for v, _ in log]
+  carried = [a for v, a in log if v == "move_hand"]
+  assert len(carried) == 1                          # one carry: the cube the second try lifted

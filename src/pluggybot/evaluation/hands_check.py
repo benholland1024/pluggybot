@@ -187,24 +187,31 @@ DOOR = '''def open_door():
 #: THE CUBE, out of reach where the robot stands: the mat's middle and the
 #: cube's off their tags, the cube's turn off its edges; a STEP in and aside,
 #: until the cube is 0.32 m ahead and 0.18 to the left -- nearer, the head
-#: camera no longer sees it, so what it read is turned into the frame it
-#: stands in after the step (`step.*`). ⚠ STEPPED IN ALONE, THE STAND'S
-#: CREEP PUT IT ASIDE (#560's stage (c3)): stand4 turned its stance 2.5 deg
-#: clockwise over the step and left the cube 0.177 to its left, the stand
-#: retrained on the waist holds its stance and left it 0.157 -- there the
-#: left hand's carry to the mat ran into its shoulder's inner stop, 10 of 32
-#: placed where 22 were. Stepped aside, the waist's body placed it 19 times
-#: of 32 over three seeds of its noise, today's stepped in alone 18 -- and
-#: 15, each set-out its own noise (SimNotes, "The cube and the robot's
-#: noise"). Gripped steeply from above-front, the jaws on two of its faces,
-#: at the first tilt that reaches and holds; lifted
-#: straight up and
-#: set down by force moves that hold their line (`give` 0: a cube set down
-#: giving slid along what it touched), carried over the mat by where the
-#: grip left it in the hand; and let go only once its set-down has pressed
-#: on the mat.
+#: camera no longer sees it standing, so what it read is turned into the
+#: frame it stands in after the step (`step.*`; stepped in alone, the waist's
+#: stand left the cube where the carry ran into the shoulder's inner stop:
+#: SimNotes, "The cube and the robot's noise"). Gripped steeply from
+#: above-front, the jaws on two of its faces; lifted straight up and set down
+#: by force moves that hold their line (`give` 0: a cube set down giving slid
+#: along what it touched), carried over the mat by where the grip left it in
+#: the hand; and let go only once its set-down has pressed on the mat. What
+#: the tour took (#560; SimNotes, "The cube from the tour"):
+#:  - ⚠ A TRY THAT FAILED READS THE MAT AND THE CUBE AGAIN, and the next aims
+#:    where the cube now is, 1 cm on along the fingers: a reach stopped short
+#:    or a shut on nothing moved the feet 3-7 cm, and every try after it
+#:    aimed at the first read. The first try aims at the read the step
+#:    carried, as before (read again first, more first reaches stopped short,
+#:    found no posture or turned the stance 14 deg);
+#:  - ⚠ A LIFT THAT LEFT THE CUBE BEHIND IS A TRY THAT FAILED (`left.held`):
+#:    a shut on its edge read held and let go as it rose;
+#:  - the tries' tilts are 60, 60, 46 and 75 deg: at 75 a reach took 12 s and
+#:    moved the feet most;
+#:  - the carry aims 0.6 cm on and 0.5 cm to the right of where the grip's
+#:    offset puts it: the jaws push the cube along them as they shut, and it
+#:    was set down a mean 0.55 cm short and 0.5 to the left over 62 flights;
+#:  - 150 s of budget lets a fourth try end (the check grades its own 68 s).
 PLACE = '''def place_cube():
-  budget(steps=60, seconds=66)
+  budget(steps=60, seconds=150)
   spot(57)
   mx = read("spot.x")
   my = read("spot.y")
@@ -226,31 +233,52 @@ PLACE = '''def place_cube():
   mx = c * u + s * v
   my = c * v - s * u
   a = a - read("step.turn")
-  while a > 0.79:
-    a = a - 1.571
-  while a < -0.79:
-    a = a + 1.571
+  b = 0
   g = 0
   t = 1.05
   for i in range(4):
+    k = (g == 0) * (i > 0)
+    if k > 0:
+      if not spot(57):
+        k = 0
+    if k > 0:
+      u = read("spot.x")
+      v = read("spot.y")
+      if spot(56):
+        mx = u
+        my = v
+        x = read("spot.x") + 0.013 * read("spot.nx")
+        y = read("spot.y") + 0.013 * read("spot.ny")
+        z = read("spot.z") + 0.013 * read("spot.nz")
+        a = atan2(read("spot.ey"), read("spot.ex"))
+        b = 0.01
     if g == 0:
+      while a > 0.79:
+        a = a - 1.571
+      while a < -0.79:
+        a = a + 1.571
       open_hand("left")
-      if reach("left", x, y, z + 0.003, cos(a) * cos(t), sin(a) * cos(t), -sin(t), -sin(a), cos(a), 0):
+      if reach("left", x + b * cos(a), y + b * sin(a), z + 0.003, cos(a) * cos(t), sin(a) * cos(t), -sin(t), -sin(a), cos(a), 0):
         g = 2
-      else:
-        withdraw("left")
+      elif not withdraw("left"):
+        pass
+    w = 0
     if g == 2:
       g = 0
+      w = 1
       if close_hand("left"):
-        g = 1
-      else:
-        withdraw("left")
-    t = t + 0.26 - 0.77 * (i == 1)
+        ox = x - read("left.x")
+        oy = y - read("left.y")
+        pull("left", 0, 0, 1, 20, 0.03, give=0)
+        g = read("left.held") > 0.5
+        w = 1 - g
+    if w > 0:
+      open_hand("left")
+      if not withdraw("left"):
+        pass
+    t = 1.05 - 0.25 * (i > 0) + 0.51 * (i > 1)
   if g == 1:
-    ox = x - read("left.x")
-    oy = y - read("left.y")
-    pull("left", 0, 0, 1, 20, 0.03, give=0)
-    move_hand("left", mx - ox, my - oy, read("left.z"))
+    move_hand("left", mx - ox + 0.006, my - oy - 0.005, read("left.z"))
     for j in range(2):
       if g == 1:
         pull("left", 0, 0, -1, 4, 0.1, give=0)
