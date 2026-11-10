@@ -220,9 +220,9 @@ HAND_MINUTES = 16
 #: table --from tour`, one pod), rounded up.
 TABLE_MINUTES = 14
 #: ...and the cube's (#560): three times its reference's slowest pass over the
-#: tour, 171 s from the claim to the call (`scripts/solve.py --feature cube
+#: tour, 159 s from the claim to the call (`scripts/solve.py --feature cube
 #: --from tour`, one pod), rounded up.
-CUBE_MINUTES = 9
+CUBE_MINUTES = 8
 
 
 KINDS: dict[str, TaskKind] = {

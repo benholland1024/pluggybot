@@ -326,7 +326,7 @@ departures, both about where an attempt starts:
   another), counted from the claim: 16, three times the slowest pass of the
   references over a tour of the house (313 s, from the station), rounded
   up (TaskPattern.md §4 has why it is the kind's, #580) -- and the cube's
-  9, three times its own (171 s; `tasks.CUBE_MINUTES`), offered later on
+  8, three times its own (159 s; `tasks.CUBE_MINUTES`), offered later on
   the table's terms. Held past them
   with no `done` waiting on its grade, the job is failed at its holder's
   next pass of the day loop, between what the robot does, or at once on a
@@ -377,8 +377,8 @@ it down 2-7 cm off its mat's middle all 8 times (why: SimNotes, "Setting a
 table"), so `place_cube` was not offered until its procedure read the mat
 and the cube again after a try that failed: then it placed 28 of 32 draws
 over the tour, its bar 24 written before it flew, a fall failing its try,
-and joined the rotation on the table's terms (Ben, 2026-11-10): 9 minutes,
-paying 51 (SimNotes, "The cube from the tour").
+and joined the rotation on the table's terms (Ben, 2026-11-10): 8 minutes,
+paying 45 (SimNotes, "The cube from the tour").
 
 ## 12. Lay a place at a table (issue #560, its first task)
 

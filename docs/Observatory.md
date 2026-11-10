@@ -15,17 +15,17 @@ observatory is NOT a result: it reports into the issue it informs.
 **What changed in the world.**
 - **`place_cube` is one more kind in `home_humanoid`'s rotation**: the cube
   put on its mat on the storeroom's counter, its fifth job beside the
-  drawer, the door, the chest and the table. It gives 9 minutes
+  drawer, the door, the chest and the table. It gives 8 minutes
   (`tasks.CUBE_MINUTES`, three times its reference's slowest pass over the
-  tour, 171 s), pays 51 (Ben's 90 for 16 minutes, pro rata, as the table's)
+  tour, 159 s), pays 45 (Ben's 90 for 16 minutes, pro rata, as the table's)
   and costs 9.858 Wh (`energy.json`, unchanged: its reference now costs
-  8.061 from the dearest station). The robots read a new row in their
-  reward table: `prompt_sha` `e700aa06…` → `6b14ba1a…`, 63,915 → 64,384
+  8.124 from the dearest station). The robots read a new row in their
+  reward table: `prompt_sha` `e700aa06…` → `2e3838c9…`, 63,915 → 64,384
   chars, 17 sections both, over #669's (`overseer_probe.py --deployed
   --prompt`). Nothing about the verbs, the body or the house moved.
 - **Our reference passed from the tour** (SimNotes, "The cube from the
   tour"): 28 of 32 draws, its bar 24, 23 on the tree before it on the same
-  pod; 25 of 32 on draws nothing was tuned on. A try that failed reads the
+  pod; 23 of 32 on draws nothing was tuned on. A try that failed reads the
   mat and the cube again. It is a reference, never shown to a mind.
 - ⚠ The rotation's `maxOffered` stays 4 with five kinds: at most four of
   them stand on the board at once.

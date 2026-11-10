@@ -7252,25 +7252,33 @@ the house: **28 of 32 draws over the tour** (`solve.py --feature cube --from
 tour --n 32`, one pod, an AMD EPYC 7B12, osmesa, each draw its own noise; the
 bar, 24, written before it first flew), where the tree before it placed 23
 on the same pod, and the place check at set-outs 0-31 reads 20 where it read
-17. On draws nothing was tuned on, 400-431, 25 of 32. So `place_cube` is
-offered ("The humanoids' first jobs"): 9 minutes from the claim, three
-times its slowest pass over the tour (171 s), paying 51 (Ben's 90 for 16
+17. On draws nothing was tuned on, 400-431, 23 of 32. So `place_cube` is
+offered ("The humanoids' first jobs"): 8 minutes from the claim, three
+times its slowest pass over the tour (159 s), paying 45 (Ben's 90 for 16
 minutes, pro rata), and priced at 9.858 Wh (`energy.json`: flown on this
-reference from the mall's station it cost 8.061 Wh over 177 s, from the
-house's 6.588, from the research center's 5.994, and 3 Nov's dearer reading
-is kept).
+reference from the mall's station it cost 8.124 Wh over 180 s, from the
+house's 5.955, from the research center's 6.208, and 3 Nov's dearer reading
+is kept). #669's `withdraw`, which opens its gripper first, changes none of
+its flights: every `withdraw` it makes follows an `open_hand` (the first
+round's 32 flown on both trees, the same row for row).
 
 | the bar's 32 draws, how each ended | the tree before | now |
 |---|---|---|
 | **placed** | 23 | **28** |
-| shut on nothing or let go as it rose, and never held again | 5 | 2 |
+| shut on nothing or let go as it rose, and never held again | 5 | 1 |
 | fell at the first reach | 2 | 2 (the same draws) |
-| set down 2.5-3 cm off the mat's middle | 2 | 0 |
+| set down 2.5-3 cm off the mat's middle | 2 | 1 |
+
+![Our reference at draw 0 from the house's station: the walk there (0-91
+s), the steps to the counter and in (95-107 s), the cube gripped and lifted
+(111 s), set down on its mat (115 s), the arm home (119-123 s), and the
+grade (`MUJOCO_GL=osmesa uv run python scripts/solve.py --feature cube
+--from station --draw 0 --strip`)](figures/solve_cube_tour.png)
 
 The change is the place's half (`hands_check.PLACE`): the walk there is
 the counter's (`solutions.APPROACH`) unchanged. What flying took, read off
 64 development draws (200-231 and 300-331; the tree before placed 42 of
-them, the reference now 59), every flight's verbs, the cube's and the mat's
+them, the reference now 58), every flight's verbs, the cube's and the mat's
 true places at each and the true stance where each began (the rows are in
 `~/pluggybot-training/night-shift-1110/t2-cube/`):
 
@@ -7281,7 +7289,11 @@ to 12 at a second try at 75 deg, which took 12 s; the tries after it went
 to where the cube had been in the frame before. Each try after one that
 failed now reads the mat and the cube again and aims where the cube is, 1
 cm on along the fingers (as the first try's read is, below), its carry
-from the mat read in that frame. Of the development draws' misses, 14 never
+from the mat read in that frame; where only one of the two reads, the other
+is moved as that one seems to have moved, the feet's move moving both alike
+in the frame (read again only where both read, a fresh draw whose mat was
+out of view aimed its next try where the cube had been and set it down 6 cm
+off). Of the development draws' misses, 14 never
 held the cube on the tree before and 2 do now; of the flights that tried
 twice or more, none placed it at its second try there (15) and 10 of 17 do
 now.
@@ -7298,7 +7310,9 @@ two falls (the bar's draws 3 and 9, and one development draw) are its own.
 **A lift that left the cube behind is a try that failed.** A shut on the
 cube's edge read held, and the cube stayed as the hand rose: the carry took
 nothing to the mat. The hand now reads whether it holds after the lift
-(`left.held`) and, holding nothing, lets go, goes home and tries again.
+(`left.held`, once its running mean has had 0.1 s: a grip lost read held up
+to 40 ms on, #646) and, holding nothing, lets go, goes home and tries
+again.
 
 **The tries go 60, 60, 46 and 75 deg.** Second at 75 deg, a try took 12 s
 and moved the feet most; second at 60, again aimed, more placed (51 of 64
@@ -7328,8 +7342,9 @@ the reference without it 47); asked 0.345, 41.
 | ...after a try that failed, aimed 1 cm on (60, 75, 46, 61 deg) | 47 |
 | ...aimed true | 50 |
 | ...aimed 1 cm on, at 60, 60, 46 and 75 deg | 51 |
-| ...and the carry aimed off by its bias (**the reference**) | **59** |
+| ...and the carry aimed off by its bias (round 1) | 59 |
 | ...and the step asked to 0.335 | 48 of 62 |
+| round 1's, one tag read again carrying the other, `held` read 0.1 s on (**the reference**, after the review) | **58** |
 
 ⚠ What it still loses: the first reach falls on a few draws (2 of the bar's
 32, 1 of 64 dev), the same draws on the tree before; and some cubes are

@@ -800,7 +800,7 @@ save a filmstrip PNG named after the script.
   little left of square (squared, the way home pushed the drawer back in).
   OFFERED: the drawer, the door and the chest, 16 minutes each (3x the
   slowest pass, 313 s), each paying 90 (Ben's call); and the cube on the
-  table's terms since #560 (9 minutes, `CUBE_MINUTES`, 3x 171 s; paying 51),
+  table's terms since #560 (8 minutes, `CUBE_MINUTES`, 3x 159 s; paying 45),
   its reference placing 28 of 32 draws over the tour, its bar 24 -- ⚠ ITS
   TRIES READ AGAIN (`hands_check.PLACE`; SimNotes, "The cube from the
   tour"): a try that failed moved the feet 3-7 cm and the next aimed at the
