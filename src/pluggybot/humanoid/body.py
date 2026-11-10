@@ -911,16 +911,20 @@ class HumanoidBody(Body):
     if any(self.gripped(s) for s in hm.SIDES):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
     walks = _step_walks(ahead, left)
-    if walks:
-      # ...nor, its first walk heading nearer another robot it stands too
-      # near (`_kept_off`), turns or hands its legs over: refused at its
-      # walk, each such step took 1.3 s and moved its feet (#670)
-      a_, l_ = walks[0]
-      n, c, s = math.hypot(a_, l_), math.cos(turn), math.sin(turn)
-      kept = self._kept_off((c * a_ - s * l_) / n, (s * a_ + c * l_) / n, 0.0, math.inf)
+    # ...nor, any of its walks heading nearer another robot it would stand
+    # too near as that walk begins (`_kept_off`), turns or hands its legs
+    # over: refused at its walk, each such step took 1.3 s and moved its
+    # feet (#670). Its walks' ways and starts as asked, after its turn.
+    c, s = math.cos(turn), math.sin(turn)
+    at = (0.0, 0.0)
+    for a_, l_ in walks:
+      wa, wl = c * a_ - s * l_, s * a_ + c * l_
+      n = math.hypot(wa, wl)
+      kept = self._kept_off(wa / n, wl / n, 0.0, math.inf, at)
       if kept is not None:
         return {"why": "blocked", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0,
-                "keptOff": kept}
+                "keptOff": self._kept_said(kept)}
+      at = (at[0] + wa, at[1] + wl)
     if abs(turn) > TURN_STOP_RAD:
       patience += TURN_CLOSE_S
 
@@ -945,17 +949,22 @@ class HumanoidBody(Body):
     kept = None
     for a_, l_ in walks:
       if why == "stepped":
-        why, kept = yield from self._walk_routine(a_, l_, over, by_legs)
+        # ...each walk reading every scan the step has taken, its hand-over's
+        # and its turn's included: standing still, the LIDAR takes none
+        why, kept = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
     yield from mi.to_stand_routine()
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
       yield STILL
     if mi.falls != falls:
       why = "fell"
     if why == "blocked" and kept and kept["by"] == "keep":
-      # ...how far off it stands now, its stride's carry and settle walked
+      # ...how far off the robot it kept off stands now, its stride's carry
+      # and settle walked
       px, py, _ = mi.pose
-      kept["m"] = round(min((math.hypot(b.x - px, b.y - py) for b in mi._bodies()),
-                            default=kept["m"]), 3)
+      bodies = mi._bodies()
+      if kept["of"] < len(bodies):
+        b = bodies[kept["of"]]
+        kept["m"] = round(math.hypot(b.x - px, b.y - py), 3)
     x1, y1, yaw1 = by_legs(self.stance)
     if not length:
       x1, y1 = s_mid[0], s_mid[1]
@@ -967,7 +976,7 @@ class HumanoidBody(Body):
         why = "too short"
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
-            **({"keptOff": kept} if why == "blocked" and kept else {})}
+            **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {})}
 
   def _by_legs(self):
     """A pose of the belief's, (x, y, heading), as the legs' reckoning alone
@@ -1033,13 +1042,14 @@ class HumanoidBody(Body):
       pulses, settle = pulses + 1, TURN_SETTLE_S
     return why
 
-  def _walk_routine(self, ahead, left, over, by_legs):
+  def _walk_routine(self, ahead, left, over, by_legs, since):
     """One straight walk of a step, its legs the walker's: "stepped" once
     what its legs reckon it has walked (`by_legs`), and its speed times
     `STEP_STOP_S`, reach its length; "blocked" where it gets nowhere in a
     window, its first `STEP_START_S`, or where it keeps off another robot
-    (`_kept_off`, judged where its stride's carry would take it); else what
-    `over` says. Returns (why, how it kept off, or None)."""
+    (`_kept_off`, judged where its stride's carry would take it, off the
+    scans taken since `since`, the step's start); else what `over` says.
+    Returns (why, how it kept off, or None)."""
     mi, dt = self.mission, self._m.opt.timestep
     length = math.hypot(ahead, left)
     x0, y0, yaw = by_legs(mi.pose)
@@ -1047,8 +1057,7 @@ class HumanoidBody(Body):
     ux, uy = ahead / length, left / length
     wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
     pace = BACK_V if ahead < -abs(left) else STEP_V
-    since = float(self._d.time)
-    speed, went, mark, window = 0.0, 0.0, (since, 0.0), STEP_START_S
+    speed, went, mark, window = 0.0, 0.0, (float(self._d.time), 0.0), STEP_START_S
     while True:
       x, y, _ = by_legs(mi.pose)
       now = wx * (x - x0) + wy * (y - y0)
@@ -1068,42 +1077,51 @@ class HumanoidBody(Body):
         return why, None
       yield from mi._twist_routine(pace * ux, pace * uy, 0.0)
 
-  def _kept_off(self, ux, uy, carry, since):
+  def _kept_off(self, ux, uy, carry, since, at=(0.0, 0.0)):
     """A STEP KEEPS OFF ANOTHER ROBOT AS A WALK DOES (#670; SimNotes,
     "Two robots at the counter"): its walk going (`ux`, `uy`) in the trunk's
-    frame, `carry` m more were it stopped now, None while it is clear --
-    else how it keeps off, `by`:
+    frame from `at` (m, in that frame; where it stands, or where an earlier
+    walk of the step will leave it), `carry` m more were it stopped now, None
+    while it is clear -- else how it keeps off, `by`:
 
     - "keep": where its carry would take its middle is inside the disc a
       walk's plan keeps round that robot's middle (`Navigator._cells`, as
       `Body.others` answers it: its reported pose standing or walking, its
       body lying, resting or dead) and the walk heads nearer that middle --
       begun inside, a step only goes away (a walk out of a disc goes out);
-      `m` between the middles now, `keepM` the disc;
+      `m` between the middles now, `keepM` the disc, `of` which robot;
     - "body": the newest scan since `since` has that robot's body inside
-      the walks' front stop (`FRONT_STOP_RANGE` by `FRONT_HALF_M`) turned to
-      the way, `m` along it. ⚠ ITS RETURNS ALONE (`Lidar.exclude_robot`'s
-      split, #316): the work is nearer than the walks' stop -- stood at the
-      chest's and the drawer's work spots, their own faces read 0.35-0.38 m
-      ahead, inside its 0.40, and the door's and the cube's 0.42-0.46."""
+      the walks' front stop turned to the way (`HumanoidMission.in_front`),
+      its carry farther on, `m` along it. ⚠ ITS RETURNS ALONE
+      (`Lidar.exclude_robot`'s split, #316, as the walks' depth camera holds
+      for its peer channel's alone, #328): the work is nearer than the
+      walks' stop -- stood at the chest's and the drawer's work spots, their
+      own faces read 0.35-0.38 m ahead, inside its 0.40, and the door's and
+      the cube's 0.42-0.46."""
     mi = self.mission
     px, py, th = mi.pose
-    vx, vy = math.cos(th) * ux - math.sin(th) * uy, math.sin(th) * ux + math.cos(th) * uy
-    qx, qy = px + vx * carry, py + vy * carry
-    for b in mi._bodies():
+    c, s = math.cos(th), math.sin(th)
+    vx, vy = c * ux - s * uy, s * ux + c * uy
+    qx = px + c * at[0] - s * at[1] + vx * carry
+    qy = py + s * at[0] + c * at[1] + vy * carry
+    for i, b in enumerate(mi._bodies()):
       keep = mi._cells(b) * mi.grid.resolution
       dx, dy = b.x - qx, b.y - qy
       if math.hypot(dx, dy) < keep and vx * dx + vy * dy > 0.0:
         return {"by": "keep", "m": round(math.hypot(b.x - px, b.y - py), 3),
-                "keepM": round(keep, 2)}
+                "keepM": round(keep, 2), "of": i}
     seen = mi.peer_returns
     if seen is not None and seen[0] >= since and len(seen[2]):
-      off = seen[1] - math.atan2(uy, ux)
-      along, across = seen[2] * np.cos(off), seen[2] * np.sin(off)
-      near = (along > 0.0) & (along < mi.FRONT_STOP_RANGE) & (np.abs(across) <= mi.FRONT_HALF_M)
-      if near.any():
-        return {"by": "body", "m": round(float(along[near].min()), 3)}
+      near = mi.in_front(seen[1] - math.atan2(uy, ux), seen[2], mi.FRONT_STOP_RANGE + carry)
+      if len(near):
+        return {"by": "body", "m": round(float(near.min()), 3)}
     return None
+
+  @staticmethod
+  def _kept_said(kept: dict) -> dict:
+    """How a step kept off another robot, as its record says it: which robot
+    it was is the step's own business."""
+    return {k: v for k, v in kept.items() if k != "of"}
 
   # ---- senses --------------------------------------------------------------
 

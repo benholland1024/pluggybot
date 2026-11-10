@@ -6930,14 +6930,20 @@ forearm hooked Luca's arm, both fell, and Rowan died (the investigation:
   round one that has fallen. Judged where the stride's carry would take the
   robot were it stopped now (the step's own stop rule, `STEP_STOP_S` times its
   speed): the stride carries on 0.2-0.27 s of its pace, 6-8 cm. Standing
-  inside the disc already, a step goes only away: one whose first walk would
-  head nearer neither turns nor hands its legs to the walker -- refused at
-  the walk instead, each such step took 1.3 s, a hand-over and a settle, and
-  moved the feet.
+  inside the disc already, a step goes only away: one any of whose walks
+  would head nearer, judged from where the walk before it leaves it, neither
+  turns nor hands its legs to the walker -- refused at the walk instead, each
+  such step took 1.3 s, a hand-over and a settle, and moved the feet.
 - *The walks' front stop turned to the step's way*: a return off the other
-  robot within 0.40 m along it and 0.27 m either side, from a scan taken
-  since the walk began (none a restart could drop). ⚠ ITS RETURNS ALONE
-  (`Lidar.exclude_robot`'s split, #316): stood still at each prop's work spot
+  robot within 0.40 m along it and 0.27 m either side, judged at the carry
+  as the disc is (stopped at 0.40 m, the carry's 6-8 cm would take a
+  sidestep to 0.32-0.34 m of the body, its hands hanging 0.27 m out), from
+  the scans the step has taken, its hand-over's included (none a restart
+  could drop). Standing still the LIDAR takes no scan, so a body in the way
+  stops the walk after its first command, its legs handed over and no
+  stride taken. ⚠ ITS RETURNS ALONE (`Lidar.exclude_robot`'s split, #316, as
+  the walks' depth camera holds for its peer channel's alone, #328): stood
+  still at each prop's work spot
   (`storeroom.work_spot`, one scan each, square and turned the reference's
   `STANCE`), the props' own faces read 0.35-0.38 m ahead of the chest's and
   the drawer's, inside the stop, and 0.42-0.46 m ahead of the door's and the

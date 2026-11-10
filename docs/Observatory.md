@@ -18,16 +18,17 @@ the robots are told of it** (SimNotes, "Two robots at the counter"):
   (`HumanoidBody._kept_off`): 0.65 m, 1.2 m round one that has fallen,
   where `Body.others` puts it -- its reported pose standing or walking, its
   body lying, resting or dead -- judged where the stride's carry would take
-  it. Standing within it already, a step whose walk would head nearer
-  neither turns nor walks.
+  it. Standing within it already, a step any of whose walks would head
+  nearer neither turns nor walks.
 - **...and the walks' front stop, turned to the step's way** (0.40 m along
-  it, 0.27 m either side), on the LIDAR's returns off the other robot alone.
+  it, 0.27 m either side), judged at the carry too, on the LIDAR's returns
+  off the other robot alone.
 - Either reads false, `blocked`, and says how ("your step stopped short of
   another robot: ...", `steps.STEP_KEPT_OFF`). A robot alone steps as it
   did, bit for bit (the cube check's set-outs 0-1, row for row).
 - **What the robots are told** (`HANDS_VERBS["step"]`): the rule, its
-  numbers off the walks' own sizes. `prompt_sha` `de14cb3e…` → `6840ce0f…`,
-  63,235 → 63,648 chars, 17 sections both; the session's hello and the
+  numbers off the walks' own sizes. `prompt_sha` `de14cb3e…` → `5dc60982…`,
+  63,235 → 63,647 chars, 17 sections both; the session's hello and the
   site's guide move with it.
 
 **Why.** #670, off 11-08's 11:48 death: Rowan's walk to the cupboard stopped
