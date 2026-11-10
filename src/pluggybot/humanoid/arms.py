@@ -447,6 +447,9 @@ class Waist:
                     self.kp, self.kd)
 
 
+#: How long a gripper is given to close or open, s: the Dex1-1 shuts its
+#: stroke in 0.24 s at its fastest, and a squeeze settles after.
+GRIP_S = 0.6
 #: A grip is HELD, by the gripper's own reading, when shut it stopped this
 #: far short of closed, m, with the squeeze up to this share of what its
 #: drive pushes there (`pushes`): a hand shut on nothing closes; one shut on
@@ -502,6 +505,12 @@ class Gripper:
     self._limit(hp.GRIPPER.grip_force_n)
     self.d.ctrl[self.act] = min(max(width, 0.0), hp.GRIPPER.stroke) / 2
     self.shut_asked = False
+
+  def opened(self) -> bool:
+    """Whether it was last told to open its whole stroke, by its own
+    command: never as it boots (its jaws commanded together), nor once
+    told to shut."""
+    return not self.shut_asked and self.d.ctrl[self.act] >= hp.GRIPPER.stroke / 2
 
   def shut(self, force: float | None = None) -> None:
     """Shut, squeezing with `force`, N a pad -- the sheet's grip force where

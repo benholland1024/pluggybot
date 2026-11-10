@@ -174,6 +174,11 @@ GUARD_EXAMPLE_N = 15.0
 #: are fresh at its camera's rate.
 WATCHED = "; what `watch` reads, %(hz)g times a second"
 
+#: What a walk does with a hand that is out (#669: `HumanoidMission.let_go_routine`),
+#: said in YOUR BODY where the facts give a `step`.
+WALK_LETS_GO = (" Before a `step` or any other walk, a hand that\nis out comes home, its "
+                "gripper opened as `withdraw` opens it: a walk carries\nnothing.")
+
 YOUR_BODY = """YOUR BODY
 
 Every place is in your STANCE frame, in metres: from the floor between your
@@ -186,7 +191,7 @@ with its hand turned some ways. Your trunk turns on a waist over your hips,
 up to 60 degrees either way, your shoulders and your head with it. Your hands are "left" and "right": each ends in a two-jaw gripper
 whose jaws close across the point between them (its grip), its fingers 8 cm
 long. Both grippers start shut. A hand that is OUT is one you have reached
-with, until you withdraw it.
+with, until you withdraw it.%(walks)s
 
 VERBS (a statement each; arguments in this order, or by keyword)
 %(verbs)s
@@ -235,7 +240,8 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
   return [("what you do", WHAT_YOU_DO),
           ("the language", language_text(facts)),
           ("your body", YOUR_BODY % {"verbs": verbs, "sensors": sensors, "axes": ax,
-                                     "slew": axes.HUMANOID_SLEW}),
+                                     "slew": axes.HUMANOID_SLEW,
+                                     "walks": WALK_LETS_GO if "step" in facts.verbs else ""}),
           ("your answer", ANSWER % {"cap": f"{MAX_TOKENS:,}", "aim": f"{AIM_TOKENS:,}"})]
 
 

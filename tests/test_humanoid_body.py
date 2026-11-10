@@ -210,30 +210,62 @@ def test_a_get_up_walks_no_belief():
     "stood, it counted the get-up's move off the foot it stood on before"
 
 
+def _opened(grippers: dict) -> dict:
+  """The body's grippers, each opened -- a release first opens one that is
+  not (#669) -- for a test of what comes after."""
+  for g in grippers.values():
+    g.open()
+  return grippers
+
+
 class _Homing:
   """A reach whose arm its drivers read home `n` steps after it is sent,
   its phase saying it hangs from the first: as the walk home's did as it
-  began (#539)."""
+  began (#539) -- its grippers the body's own, and each hand sent home said
+  in `log` beside the sim time `at` gives."""
 
-  def __init__(self, n: int):
+  def __init__(self, n: int, grippers: dict, log=None, at=None, on_step=None):
     self.n, self.steps, self.sent = n, 0, False
     self.phase = {s: "rest" for s in hm.SIDES}
-    self.grippers = {}
+    self.grippers, self.log, self.at, self.on_step = grippers, log, at, on_step
 
   def retreat(self, side, approach=None) -> None:
     self.sent, self.steps = True, 0
+    if self.log is not None:
+      self.log.append(("retreat", side, self.at()))
 
   def home(self, side) -> bool:
     return self.sent and self.steps >= self.n
 
   def step(self) -> None:
     self.steps += 1
+    if self.on_step is not None:
+      self.on_step(self.steps)
 
   def hold_waist(self) -> None:
     pass
 
   def held_pitch(self) -> float:
     return 0.0
+
+
+class _Out(_Homing):
+  """...one whose `out` hands are out (holding), each sent home at once:
+  for a walk's hand-over (`to_walk_routine`)."""
+
+  def __init__(self, grippers: dict, out, log, at):
+    super().__init__(0, grippers, log, at)
+    self.phase = {s: "hold" if s in out else "rest" for s in hm.SIDES}
+
+  def retreat(self, side, approach=None) -> None:
+    super().retreat(side, approach)
+    self.phase[side] = "rest"
+
+  def hold_posture(self, height, pitch) -> None:
+    pass
+
+  def waist_home(self) -> bool:
+    return True
 
 
 def test_a_release_waits_until_its_drivers_read_the_arm_home(monkeypatch):
@@ -244,12 +276,12 @@ def test_a_release_waits_until_its_drivers_read_the_arm_home(monkeypatch):
   from pluggybot.humanoid import body as hb
   body = body_for(*_floor())
   m = body.mission
-  m.reach = _Homing(300)
+  m.reach = _Homing(300, _opened(m.reach.grippers))
   assert body.run(body.release_routine("left")) == "home" and m.reach.steps >= 300
   monkeypatch.setattr(hb, "RELEASE_S", 0.1)
-  m.reach = _Homing(10 ** 6)
+  m.reach = _Homing(10 ** 6, _opened(m.reach.grippers))
   assert body.run(body.release_routine("left")) == "held"
-  m.reach, m.getup = _Homing(10 ** 6), _Rising(10 ** 6)
+  m.reach, m.getup = _Homing(10 ** 6, _opened(m.reach.grippers)), _Rising(10 ** 6)
   falls = iter([True])
   m.fall.falling = lambda data, pitch=0.0: next(falls, False)
   t0 = float(body.data.time)
@@ -265,7 +297,7 @@ def test_a_release_begun_in_a_get_up_waits_it_out_then_comes_home(monkeypatch):
   monkeypatch.setattr(hb, "RELEASE_S", 0.1)
   body = body_for(*_floor())
   m = body.mission
-  m.reach, m.getup = _Homing(10 ** 6), _Rising(200)
+  m.reach, m.getup = _Homing(10 ** 6, _opened(m.reach.grippers)), _Rising(200)
   m._fell()
   assert body.run(body.release_routine("left")) == "home"
   assert m.legs == "stand"
@@ -277,13 +309,106 @@ def test_a_fall_while_the_posture_comes_back_is_a_fall():
   and it ends there, never waiting on a posture the get-up has taken."""
   body = body_for(*_floor())
   m = body.mission
-  m.reach, m.getup = _Homing(0), _Rising(200)
+  m.reach, m.getup = _Homing(0, _opened(m.reach.grippers)), _Rising(200)
   m.stand.ask(-0.15, 0.0)
   falls = iter([True])
   m.fall.falling = lambda data, pitch=0.0: next(falls, False)
   t0 = float(body.data.time)
   assert body.run(body.release_routine("left")) == "fell"
   assert float(body.data.time) - t0 < 0.1, "a fall ends it at once"
+
+
+def test_a_release_opens_its_gripper_before_its_hand_comes_out(monkeypatch):
+  """#669: at 14:25 on 11-08 Rowan's jaws were shut on a door's lever and
+  read nothing held, so its procedure never opened them, and the way home
+  levered its trunk into the counter (9 of 9 flown). Its gripper is opened
+  first, `GRIP_S` before the hand is sent home, whatever it says it holds --
+  told to shut, or together as it boots; one already open is left as it is,
+  its hand sent home at once as before; and a fall as the jaws open ends it
+  there, the hand never sent. The verb's text says so."""
+  from pluggybot.humanoid import body as hb
+  from pluggybot.humanoid.arms import Gripper
+  from pluggybot.procedure.steps import HANDS_VERBS
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  at = lambda: float(body.data.time)  # noqa: E731
+  opened = Gripper.open
+
+  def spied(g, *args, **kwargs):
+    log.append(("open", next(s for s, h in m.reach.grippers.items() if h is g), at()))
+    opened(g, *args, **kwargs)
+  monkeypatch.setattr(Gripper, "open", spied)
+  grippers = m.reach.grippers
+  dt = m.model.opt.timestep
+  m.reach = _Homing(10, grippers, log, at)
+  grippers["left"].shut()
+  assert not grippers["left"].held(), "the premise: it says it holds nothing"
+  assert body.run(body.release_routine("left")) == "home"
+  assert [e[:2] for e in log] == [("open", "left"), ("retreat", "left")], log
+  assert log[1][2] - log[0][2] == pytest.approx(hb.GRIP_S, abs=1.5 * dt)
+  assert grippers["left"].opened()
+  # ...together as it boots, never told either way: opened too
+  log.clear()
+  m.reach = _Homing(10, grippers, log, at)
+  assert not grippers["right"].shut_asked and not grippers["right"].opened()
+  assert body.run(body.release_routine("right")) == "home"
+  assert [e[:2] for e in log] == [("open", "right"), ("retreat", "right")], log
+  # ...and one already open is left as it is
+  log.clear()
+  m.reach = _Homing(10, grippers, log, at)
+  t0 = at()
+  assert body.run(body.release_routine("right")) == "home"
+  assert log == [("retreat", "right", t0)], "an open gripper is left as it is"
+  # ...and a fall as the jaws open ends it the step it comes, its last too
+  # (#669's review: checked before each step, the last one's fall sent the
+  # hand home on a body the get-up had)
+  n = int(round(hb.GRIP_S / dt))
+  for at_step in (1, n):
+    log.clear()
+    m.getup = _Rising(10 ** 6)
+    m.reach = _Homing(10, grippers, log, at,
+                      on_step=lambda k, at_step=at_step: k == at_step and m._fell())
+    grippers["left"].shut()
+    t0 = at()
+    assert body.run(body.release_routine("left")) == "fell"
+    assert [e[0] for e in log] == ["open"], (at_step, log)
+    assert at() - t0 == pytest.approx(at_step * dt, abs=1.5 * dt), at_step
+    m.legs = "stand"
+  doc = HANDS_VERBS["withdraw"].doc
+  assert doc.startswith("open a hand's gripper, letting go of whatever it holds, then"), doc
+
+
+def test_a_walk_lets_go_of_a_hand_that_is_out_before_it_comes_home(monkeypatch):
+  """#669's review: a walk's hand-over brought an arm that was out home with
+  its gripper as it was -- `step` refuses only a grip that reads held, and a
+  procedure that ended with a hand out walks after -- so jaws shut on a
+  lever that read nothing held levered the trunk over as a withdraw's had.
+  An arm that is out lets go first, as a withdraw's does; one at rest is
+  left as it is, its gripper too, and its walk begins as before."""
+  from pluggybot.humanoid import body as hb
+  from pluggybot.humanoid.arms import Gripper
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  at = lambda: float(body.data.time)  # noqa: E731
+  opened = Gripper.open
+
+  def spied(g, *args, **kwargs):
+    log.append(("open", next(s for s, h in m.reach.grippers.items() if h is g), at()))
+    opened(g, *args, **kwargs)
+  monkeypatch.setattr(Gripper, "open", spied)
+  grippers = m.reach.grippers
+  dt = m.model.opt.timestep
+  m.reach = _Out(grippers, ("left",), log, at)
+  grippers["left"].shut()
+  assert not grippers["right"].opened(), "the premise: the arm at rest boots shut"
+  t0 = at()
+  body.run(m.to_walk_routine())
+  assert m.legs == "walk"
+  assert [e[:2] for e in log] == [("open", "left"), ("retreat", "left")], log
+  assert log[0][2] == t0 and log[1][2] - t0 == pytest.approx(hb.GRIP_S, abs=1.5 * dt)
+  assert grippers["left"].opened() and not grippers["right"].opened()
 
 
 def _capped(body, routine, seconds, each=None):
@@ -354,7 +479,7 @@ def test_a_release_waits_on_its_posture_a_bounded_time(monkeypatch):
   monkeypatch.setattr(StandDriver, "settled", property(lambda self: False))
   body = body_for(*_floor())
   m = body.mission
-  m.reach = _Homing(10)
+  m.reach = _Homing(10, _opened(m.reach.grippers))
   t0 = float(body.data.time)
   assert _capped(body, body.release_routine("left"), 2.0) == (True, "home")
   assert float(body.data.time) - t0 == pytest.approx(0.2 + 10 * m.model.opt.timestep, abs=0.005)
@@ -367,7 +492,7 @@ def test_a_fall_as_a_release_takes_its_legs_back_ends_it_at_once():
   to wait out (`to_stand_routine(getup=False)`)."""
   body = body_for(*_floor())
   m = body.mission
-  m.reach, m.getup = _Homing(10), _Rising(10 ** 6)
+  m.reach, m.getup = _Homing(10, _opened(m.reach.grippers)), _Rising(10 ** 6)
   home = []
 
   def falling(data, pitch=0.0):

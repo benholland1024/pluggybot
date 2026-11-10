@@ -545,10 +545,10 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def release_routine(self, side: str) -> Routine:
-    """A hand back out along its way in, and its arm home: returns "home"
-    once its drivers read it there (#539), else why not -- "fell" (a fall
-    let go of it) or "held" (not home in the body's time: something holds
-    it)."""
+    """A hand back out along its way in, and its arm home -- its gripper
+    opened first, whatever it says it holds (#669): returns "home" once its
+    drivers read it there (#539), else why not -- "fell" (a fall let go of
+    it) or "held" (not home in the body's time: something holds it)."""
 
   @abc.abstractmethod
   def grip_routine(self, side: str, closed: bool, force: float | None = None) -> Routine:
@@ -1174,6 +1174,7 @@ class StubBody(Body):
   def release_routine(self, side):
     self.hands.pop(side, None)
     self.grips.pop(side, None)
+    self.shut[side] = False
     return "home"
     yield
 
