@@ -5299,7 +5299,8 @@ after the first from the research center's, the nearest once the robot
 had been to the storeroom; `--station` pins one. Flown from each on the
 waist's body (10 Nov, a process each on one pod; `energy.json`'s
 `measuredOn` has every reading), the mall's was the dearest of every job:
-the drawer 7.503 Wh (a pull that failed), the door 9.041 and the chest
+the drawer 7.503 Wh (a try that stopped at its reach: a pass costs
+more), the door 9.041 and the chest
 8.543 (each passed), all three carried, and the cube 8.058 (placed),
 under 3 Nov's 9.858 from the same station, a placement that failed after
 four reaches, which is kept; from the house's 5.44, 6.53, 5.80 and 7.39,

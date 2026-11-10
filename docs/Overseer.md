@@ -1676,7 +1676,7 @@ dearer and says where each row came from. The shipped table for the
 humanoid (`energy.json`, `home_humanoid`): its hand jobs, each its
 reference's procedures flown from the dearest of its stations with the
 place remembered — the counter's from the mall's (#560), `open_drawer`
-7.503 Wh (a pull that failed), `open_door` 9.041, `open_chest` 8.543,
+7.503 Wh (a try that stopped at its reach), `open_door` 9.041, `open_chest` 8.543,
 `place_cube` 9.858 (a placement that failed), and `set_table` 9.82 from
 the research center's — exploring at 48.2 mWh/s, and 338.8 W net into a
 body plugged in at its station.

@@ -17,8 +17,8 @@ observatory is NOT a result: it reports into the issue it informs.
 before), `open_door` 9.04 (7.72), `open_chest` 8.54 (7.46); `place_cube`
 (9.86) and `set_table` (9.82) are as they were. Each is its reference flown
 from the dearest of the three stations, the mall's, on the waist's body
-(SimNotes, "The grown world"); the drawer's was a pull that failed, what
-the errand cost all the same. No text the robots read moved: `prompt_sha`
+(SimNotes, "The grown world"); the drawer's was a try that stopped at its
+reach, lost at the storeroom, so a pass costs more. No text the robots read moved: `prompt_sha`
 `e700aa06…` both sides (no job is a menu action, so the prompt's
 `energyCostWh` is `{}`); each offer's `estimateWh` in the turn did.
 
