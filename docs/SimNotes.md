@@ -3930,8 +3930,8 @@ prop at draw k. **The bar, written before they flew: 6 of 8.**
 No falls in the 32. The slowest pass took 313 s from the station, and each
 job allows 16 minutes from the claim (three times it, rounded up). Priced
 from the station with the place remembered (`energy.json`; since #560 the
-dearest of three, the mall's): the drawer 7.14 Wh, the door 7.72, the
-chest 7.46.
+dearest of three, the mall's, and on the waist's body since 10 Nov): the
+drawer 7.50 Wh, the door 9.04, the chest 8.54.
 
 **What is not yet.** The cube: offered once a reference places it (its
 check passed 3-4 of 8 at its own set-outs, the fingers against a 26 mm cube
@@ -5294,16 +5294,25 @@ goes again from the standoff, once a charge.
 **The hand jobs are priced from the mall's station.** A job is taken from
 any of the three, and the energy table carries the dearest: the mall's,
 43 m by route from the storeroom's counter, where the house's is 29 and
-the research center's 7. Flown from it (`energy_spike.py --station
-station_mall`, a process each on one pod): the drawer 7.138 Wh, the door
-7.720 and the chest 7.463, each passed (from the house's station 4.74,
-5.17 and 5.25 on 1 Nov, the table carrying the C1's dearer 7.08, 5.72 and
-5.98), and the cube 9.858, a placement that failed after four reaches.
-Left to choose, the spike measured every job after the first from the
-research center's, the nearest once the robot had been to the storeroom;
-`--station` pins one. The tests' pack (`DEMO_WH`) grew from 30 Wh to 33,
-so that charged it still funds the dearest job and the reserve both (29.7
-of 29.36), and the pair's fixture was flown again on it.
+the research center's 7. Left to choose, the spike measured every job
+after the first from the research center's, the nearest once the robot
+had been to the storeroom; `--station` pins one. Flown from each on the
+waist's body (10 Nov, a process each on one pod; `energy.json`'s
+`measuredOn` has every reading), the mall's was the dearest of every job:
+the drawer 7.503 Wh (a try that stopped at its reach: a pass costs
+more), the door 9.041 and the chest
+8.543 (each passed), all three carried, and the cube 8.058 (placed),
+under 3 Nov's 9.858 from the same station, a placement that failed after
+four reaches, which is kept; from the house's 5.44, 6.53, 5.80 and 7.39,
+from the research center's 2.17, 3.66, 2.78 and 5.98. Each of the four
+mall flights came to the storeroom with its belief 0.41-0.67 m off (the
+house's and the research center's about 5 cm): its find's first walk ran
+out of its 90 s 8-11 m short, it looked round and found the row from the
+building's address, and the drawer's reference then asked `step` for
+0.79 m aside, past the 0.5 m it takes, and could not reach the handle.
+The tests' pack (`DEMO_WH`) grew from 30 Wh to 33 on 3 Nov, so that
+charged it still funds the dearest job and the reserve both (29.7 of
+29.36), and the pair's fixture was flown again on it.
 
 **Three stations sensed every step** (`Station.sense`, on the physics
 seam) cost 32 us a step each, against a pair's 229 us `mj_step`; an armed
@@ -6148,8 +6157,8 @@ Each draw its own noise (#560's seeds stage; a Xeon Gold 6138, where seed
 0's realization passed the chest 25 and the lid's check 22): the chest 32
 of 32 from the tour with no fall, the lid's check 22 of 32.
 
-From the mall's station the chest costs 8.11 Wh over 175 s (passed), 8.6 %
-over `energy.json`'s 7.463: inside the table's 10 %, so not priced again.
+From the mall's station the chest cost 8.11 Wh over 175 s (passed), and
+8.543 over 183 s on 10 Nov's tree, which `energy.json` carries.
 
 **What it leaves is the approach's.** Its first turn comes off the knob's
 tag's facing read square-on from 0.75 m, and its walk turns the stance too,

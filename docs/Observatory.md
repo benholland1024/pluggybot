@@ -10,6 +10,29 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The counter's jobs priced again, on the waist's body (#560) — opens when this PR is deployed
+
+**What changed is what three of the counter's offers say they cost**
+(`energy.json`; `dataHashes.energy` moves): `open_drawer` 7.50 Wh (7.14
+before), `open_door` 9.04 (7.72), `open_chest` 8.54 (7.46); `place_cube`
+(9.86) and `set_table` (9.82) are as they were. Each is its reference flown
+from the dearest of the three stations, the mall's, on the waist's body
+(SimNotes, "The grown world"); the drawer's was a try that stopped at its
+reach, lost at the storeroom, so a pass costs more. No text the robots read moved: `prompt_sha`
+`e700aa06…` both sides (no job is a menu action, so the prompt's
+`energyCostWh` is `{}`); each offer's `estimateWh` in the turn did.
+
+**Why.** The rows were measured on 3 Nov, before the waist (#560's stage
+(c3)), the reach planned where the robot stands (#627), the gripper's jaws
+and its thin grip (#628, #646) and `step`'s turn (#649): the robots do
+these jobs on today's body.
+
+**What the period is for.** Nothing of its own. A claim of the door now
+asks 1.3 Wh more of the pack, the chest 1.1, the drawer 0.4 (0.2 % or less
+of the served 777.6 Wh), so ⚠ it is not to be pooled with the period
+before for anything the energy gate decides: a claim refused for its
+energy, a charge before a job.
+
 ### A `withdraw` opens its gripper before the hand comes out (#669) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` `0deeb7c4…` → `e700aa06…`, 63,719 → 63,915

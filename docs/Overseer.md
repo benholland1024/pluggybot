@@ -1669,13 +1669,17 @@ and when it **turns up** (`cadence.json`): what it **costs**, per world,
 `scripts/energy_spike.py` flies each errand on an oversized pack
 (`BIG_PACK_WH`) and reports the span the loop cannot interrupt. The pack is
 oversized on purpose: a demo cell measures where the robot *died*, not what
-the job costs. Re-run it (`--write`) after anything that changes what an
-errand does. The shipped table for the humanoid (`energy.json`,
-`home_humanoid`): its hand jobs, each its reference's procedures flown
-from the dearest of its stations, the mall's (#560), with the place
-remembered — `open_drawer` 7.138 Wh, `open_door` 7.720, `open_chest`
-7.463, `place_cube` 9.858 (a placement that failed) — exploring at 48.2
-mWh/s, and 338.8 W net into a body plugged in at its station.
+the job costs. Re-run it after anything that changes what an errand does,
+and fold its rows in by hand: `--write` sets each row to the new reading
+and the provenance (`measuredOn`) to one line, where the table carries the
+dearer and says where each row came from. The shipped table for the
+humanoid (`energy.json`, `home_humanoid`): its hand jobs, each its
+reference's procedures flown from the dearest of its stations with the
+place remembered — the counter's from the mall's (#560), `open_drawer`
+7.503 Wh (a try that stopped at its reach), `open_door` 9.041, `open_chest` 8.543,
+`place_cube` 9.858 (a placement that failed), and `set_table` 9.82 from
+the research center's — exploring at 48.2 mWh/s, and 338.8 W net into a
+body plugged in at its station.
 
 - ⚠ **A key may name a target**, and `<errand>:<target>` wins over
   `<errand>` (the rover's `draw` cost 0.929 Wh at the near board and 1.065
@@ -1689,11 +1693,11 @@ mWh/s, and 338.8 W net into a body plugged in at its station.
   the map it already has* — a first errand on a fresh map plans and searches
   through unexplored space, so a row is measured from the station with the
   place remembered — on which station it charged at (the door measured
-  5.17 Wh from the house's, 7.72 from the mall's, and 7.72 is carried) and
-  on the run (the drawer's two procedures once measured 7.036 and 7.082
-  Wh, and the dearer was carried). The failure directions are not
-  symmetric: an over-estimate is a charge nobody needed, an under-estimate
-  is a robot dead in the garden.
+  3.66 Wh from the research center's, 6.53 from the house's and 9.04 from
+  the mall's, and 9.04 is carried) and on the run (the drawer's two
+  procedures once measured 7.036 and 7.082 Wh, and the dearer was
+  carried). The failure directions are not symmetric: an over-estimate is
+  a charge nobody needed, an under-estimate is a robot dead in the garden.
 - **The invariant is not "never exceeded"; it is that an overrun smaller than
   the margin cannot strand the robot.** A bigger one is a stale table, and the
   loop says so (`ENERGY <errand> cost X against an estimate of Y —

@@ -351,9 +351,9 @@ def test_an_offer_keeps_this_worlds_price_across_a_restart(tmp_path):
   b = task_board(str(path), world=HUMANOID_HOME)
   task = b.offer("open_drawer", "drawer", t=0.0)
   back = task_board(str(path), world=HUMANOID_HOME)
-  assert back[task.id].estimate_wh == task.estimate_wh == 7.138
-  assert KINDS["open_drawer"].estimate_wh > 7.138, "the premise: two prices"
-  assert back[task.id].claimable(10.0, pack_wh=7.139)
+  assert back[task.id].estimate_wh == task.estimate_wh == 7.503
+  assert KINDS["open_drawer"].estimate_wh > 7.503, "the premise: two prices"
+  assert back[task.id].claimable(10.0, pack_wh=7.504)
 
 
 def test_a_world_that_carries_on_keeps_its_deadlines_on_its_own_clock(tmp_path):
