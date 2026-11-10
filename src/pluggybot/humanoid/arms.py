@@ -503,6 +503,12 @@ class Gripper:
     self.d.ctrl[self.act] = min(max(width, 0.0), hp.GRIPPER.stroke) / 2
     self.shut_asked = False
 
+  def opened(self) -> bool:
+    """Whether it was last told to open its whole stroke, by its own
+    command: never as it boots (its jaws commanded together), nor once
+    told to shut."""
+    return not self.shut_asked and self.d.ctrl[self.act] >= hp.GRIPPER.stroke / 2
+
   def shut(self, force: float | None = None) -> None:
     """Shut, squeezing with `force`, N a pad -- the sheet's grip force where
     none is given (#525: pinched at 120 N, a door's lever could not turn in

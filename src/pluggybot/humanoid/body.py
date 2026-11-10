@@ -653,11 +653,11 @@ class HumanoidBody(Body):
     (`Reach.home`, #539), the posture back at the stand: "home"; "fell" -- a
     fall ends it at once, the next routine waiting out the get-up, as a
     reach's does -- or "held", not home in `RELEASE_S`: a hand that cannot
-    come home ends the routine there, never the attempt it is in. ⚠ A
-    GRIPPER TOLD TO SHUT IS OPENED FIRST, `GRIP_S` before the hand moves,
-    whatever it says it holds (#669): jaws on a door's lever that read
-    nothing held, the arm stayed and its way home levered the trunk into the
-    counter. One never told to shut is left as it is. ⚠ ITS
+    come home ends the routine there, never the attempt it is in. ⚠ ITS
+    GRIPPER IS OPENED FIRST, `GRIP_S` before the hand moves, whatever it
+    says it holds (#669): jaws on a door's lever that read nothing held, the
+    arm stayed and its way home levered the trunk into the counter. One
+    already open is left as it is. ⚠ ITS
     LEGS GO BACK TO THE STANDING POLICY BEFORE ITS POSTURE IS WAITED ON,
     `STAND_BACK_S` AT MOST, the arm's word the answer (#668): an arm at
     rest is no hand out, and a step aside asked as it came home took them
@@ -665,7 +665,7 @@ class HumanoidBody(Body):
     yield from self.mission.to_stand_routine()
     falls = self.mission.falls
     gripper = self.reach.grippers[side]
-    if gripper.shut_asked:
+    if not gripper.opened():
       # ...as `grip_routine` opens one, held still standing, but a fall ends
       # it at once
       gripper.open()

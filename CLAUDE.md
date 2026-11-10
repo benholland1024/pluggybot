@@ -994,7 +994,12 @@ save a filmstrip PNG named after the script.
   (`parts.Gripper.jaw_armature`, #628; a test): a jaw's mechanical time
   constant on it at least a physics step -- MuJoCo integrates a clipped
   drive explicitly, and at 0.2 kg a shut's force flipped between its clips
-  every step and from 40 N batted a light handle it never shut on. The
+  every step and from 40 N batted a light handle it never shut on; ⚠ A
+  `withdraw` OPENS ITS GRIPPER, `GRIP_S` BEFORE ITS HAND MOVES, whatever it
+  says it holds (#669; `HumanoidBody.release_routine`, `Gripper.opened`; one
+  already open is left alone): shut on a door's lever that read nothing
+  held, the way home levered the trunk into the counter, 9 of 9 flown -- a
+  walk's hand-over still brings a hand home as its gripper is. The
   FEET's move is `step`
   (`HumanoidBody.step_routine`, `tests/test_step.py`): hands home and
   empty, a turn on the spot and a walk on the walking policy, its report
