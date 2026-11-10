@@ -41,7 +41,7 @@ import numpy as np
 
 from pluggybot import tick
 from pluggybot.humanoid import model as hm
-from pluggybot.humanoid.arms import SelfModel, kept_value, value_back
+from pluggybot.humanoid.arms import GRIP_S, SelfModel, kept_value, value_back
 from pluggybot.humanoid.getup import GETUP_NPZ, FallWatch, GetupDriver, tipped
 from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.places import HumanoidPlaces
@@ -401,15 +401,37 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       yield STILL
       self._after_step()
 
+  def let_go_routine(self, sides):
+    """Each of `sides`' grippers its own command has not open
+    (`Gripper.opened`) opened, and `GRIP_S` given to the jaws standing
+    still, before an arm is sent home: True, or False the step a fall comes
+    (#669). ⚠ WHATEVER IT SAYS IT HOLDS: shut on a door's lever that read
+    nothing held, an arm sent home levered the trunk into the counter."""
+    shut = [self.reach.grippers[s] for s in sides if not self.reach.grippers[s].opened()]
+    if not shut:
+      return True
+    falls = self.falls
+    for g in shut:
+      g.open()
+    for _ in range(int(round(GRIP_S / self.model.opt.timestep))):
+      yield from self._nav_routine(0.0, 0.0)
+      if self.falls != falls:
+        return False
+    return True
+
   def to_walk_routine(self):
     """The legs to the walking policy: the arms home and the posture back to
     the stand first, the waist home (a walk carries nothing yet, and the
-    walking policy knows no waist), then handed over. ⚠ A
+    walking policy knows no waist), then handed over -- ⚠ an arm that is
+    out letting go first, as a withdraw's does (`let_go_routine`, #669). ⚠ A
     fall as they came home went to the walker if its step was the one that
     settled them (#520): the get-up stands it first."""
     yield from self._getup_routine()
     if self.legs == "walk":
       return
+    if not (yield from self.let_go_routine([s for s in hm.SIDES
+                                             if self.reach.phase[s] != "rest"])):
+      yield from self._getup_routine()
     for s in hm.SIDES:
       if self.reach.phase[s] not in ("rest",):
         self.reach.retreat(s)

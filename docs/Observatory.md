@@ -20,9 +20,9 @@ observatory is NOT a result: it reports into the issue it informs.
   tour, 171 s), pays 51 (Ben's 90 for 16 minutes, pro rata, as the table's)
   and costs 9.858 Wh (`energy.json`, unchanged: its reference now costs
   8.061 from the dearest station). The robots read a new row in their
-  reward table: `prompt_sha` `0deeb7c4…` → `8b6afc08…`, 63,719 → 64,188
-  chars, 17 sections both (`overseer_probe.py --deployed --prompt`). Nothing
-  about the verbs, the body or the house moved.
+  reward table: `prompt_sha` `e700aa06…` → `6b14ba1a…`, 63,915 → 64,384
+  chars, 17 sections both, over #669's (`overseer_probe.py --deployed
+  --prompt`). Nothing about the verbs, the body or the house moved.
 - **Our reference passed from the tour** (SimNotes, "The cube from the
   tour"): 28 of 32 draws, its bar 24, 23 on the tree before it on the same
   pod; 25 of 32 on draws nothing was tuned on. A try that failed reads the
@@ -40,6 +40,50 @@ table's terms once its reference passes from the tour.
   job there, and the arms still know nothing of the other robot (#678).
 - ⚠ **Not to be pooled with the period before for anything the reward table
   or the offers decide**: there is one more kind on the board.
+
+### A `withdraw` opens its gripper before the hand comes out (#669) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `0deeb7c4…` → `e700aa06…`, 63,719 → 63,915
+chars, 17 sections both):
+- **`withdraw` opens its hand's gripper first**, whatever the gripper says
+  it holds, and gives the jaws `GRIP_S` (0.6 s) before the hand moves; one
+  already open is left as it is (`HumanoidBody.release_routine`,
+  `Gripper.opened`). A withdraw used to bring the hand home with its jaws as
+  they were: shut on a door's lever, the arm stayed on the lever and its way
+  home levered the trunk over.
+- **Its text says so**: "open a hand's gripper, letting go of whatever it
+  holds, then bring the hand back out along the way it went in, and its arm
+  home -- ..." (the served rule's verbs and the session's hello).
+- **A walk lets go too**: a `step`, a `drive_to`, a `face`, a `find` or a
+  walk of the loop's own (a charge trip) begun with a hand out opens that
+  hand's gripper as a withdraw does before the arm comes home
+  (`to_walk_routine`), and the body text says so: "Before a `step` or any
+  other walk, a hand that is out comes home, its gripper opened as
+  `withdraw` opens it: a walk carries nothing." It used to bring the arm
+  home with its gripper as it was, carrying what it held.
+- No verb, argument, sensor, schema, reward, body or geometry moved, and a
+  flight whose every withdraw began with its gripper open is the same
+  flight (SimNotes, "Letting go before the way home": our references and the
+  hands check, flown on both trees).
+
+**Why.** #669, from the reading of 11-08's three deaths at the counter
+(14:25, Rowan): its jaws shut on the door's lever and read "closed on
+nothing it holds" (#646's thin grip, since fixed by #647), so its
+procedure's `if read("right.held") > 0: open_hand(...)` never opened them,
+and the `withdraw` after levered the trunk into the counter (9 of 9 flown).
+A pull that lets go can still leave the jaws shut, and our references
+withdraw with the jaws shut after a grip that read false.
+
+**What the period is for.**
+- **Falls on the way home** (`withdraw` steps reading "you fell on the way
+  home", and the `stuck` deaths at the counter after them), against the
+  periods before.
+- **A procedure that withdraws a hand holding something it meant to keep**
+  drops it now: does a robot carry a piece by a withdraw and lose it, and
+  change what it writes?
+- ⚠ A withdraw whose gripper was not open takes 0.6 s longer: not to be
+  pooled with an earlier period for a verb's or a run's time.
+
 
 ### A robot standing or walking that the other's LIDAR sees is kept off where its body stands (#675) — opens when this PR is deployed
 
