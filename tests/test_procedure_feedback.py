@@ -198,6 +198,50 @@ def test_what_a_stop_condition_read_is_said_beside_its_run():
   assert line == "ran the procedure p to its end (1 step)"
 
 
+def test_a_run_a_death_ended_says_so_after_the_death_at_the_line_it_died_in():
+  """#671: a death ends the run at once, where it went on until the stand-up
+  300 s later, and History's line for it follows the death's own: "my death
+  ended it at line N", the line whose verb it ended; the `procedure` event
+  says `stopped: died` with its count. The pack runs flat 1 s into a 30 s
+  wait, through the loop's own death seam. Shown to fail without
+  `run_verb`'s watch: both waits held on a dead robot, and the line said it
+  ran to its end."""
+  life = stub_life(mortal=True)
+  events = []
+  life.on_event.append(events.append)
+  flat_at = float(life.data.time) + 1.0
+
+  def flat():
+    if float(life.data.time) >= flat_at:
+      life.battery.energy_wh = 0.0
+  life.body.step_hooks.append(flat)
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("lap", "def lap():\n  wait(30)\n  wait(30)\n")
+  t0 = float(life.data.time)
+  life.run_errand(errand_from(Decision(action="procedure:lap"), library=L))
+  assert life.dead is not None and life.dead["cause"] == "flat"
+  assert float(life.data.time) - t0 < 1.0 + 3 * lc.DEATH_CHECK_S, "the run held on past the death"
+  history = life.thoughts.read("History.md")
+  died = history.index("died -- the pack reached zero")
+  ended = history.index("the procedure lap did not finish -- my death ended it at line 2 "
+                        "(0 steps had run)")
+  assert died < ended, history
+  cut = next(e for e in events if e.get("type") == "procedure" and e.get("outcome") == "aborted")
+  assert cut["stopped"] == "died" and (cut["completed"], cut["total"]) == (0, 1), cut
+  # ...and dead between two verbs, it is said after the last line that ran;
+  # and an interrupt is said where it came so too, at the line of the walk
+  # it ended (#381) or after the last line that ran (#671's review)
+  def said(stopped, ended):
+    [line] = lc.procedure_outcome("lap", {
+      "ok": False, "completed": 1, "total": 1, "stopped": stopped,
+      "steps": [{"i": 0, "verb": "find", "line": 2, "ok": False,
+                 **({"stopped": stopped} if ended else {"ok": True})}]})
+    return line.split(" -- ", 1)[1]
+  assert said("died", False) == "my death ended it after line 2 (1 step had run)"
+  assert said("interrupted", True) == "it was interrupted at line 2 (1 step had run)"
+  assert said("interrupted", False) == "it was interrupted after line 2 (1 step had run)"
+
+
 def test_a_procedure_out_of_budget_says_first_that_it_did_not_finish():
   """MEASURED (ladder B, 2026-09-24): the line said "(4/4 steps) -- it ran
   out of the time its budget gave it", the model read "all four steps

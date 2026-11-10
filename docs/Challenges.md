@@ -207,7 +207,10 @@ to the end of the hold, whether the fall was used or an accident (Ben,
 and judged by nothing, and learned skills leaned on it: a hard pull swung a
 door open and the body over with it, every held-out try of one door arm
 (#535). A failed verdict says the fall first, then what the world shows
-(`lid.fell`), and the job tells the robot the rule. Said beside, and
+(`lid.fell`), and the job tells the robot the rule. A fall also ends the
+procedure's run where it comes, an `if`'s test or not (#671; Overseer.md
+§2b): what ran after it, in a tested verb's case, was a try already
+failed, on a body still getting up. Said beside, and
 judged by nothing: its worst tilt (`Body.orientation`). What a fall is,
 is the body's to say, so the grader names none: the humanoid's watch is its
 trunk 35 deg past the posture its legs hold, by its IMU, or its pelvis sunk

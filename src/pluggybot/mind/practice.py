@@ -84,8 +84,8 @@ Every name you choose is %(names)s.
 Expressions: numbers, your variables,
 `read("sensor")`, + - * /, comparisons, `and`/`or`/`not`. Nothing else: no
 other calls, no strings but a verb's or a read's argument, no imports, no
-trigonometry. A procedure runs until it ends, a verb fails, its budget
-runs out or it has run %(statements)s statements; a verb fails when the
+trigonometry. A procedure runs until it ends, a verb fails, you fall, its
+budget runs out or it has run %(statements)s statements; a verb fails when the
 world says it did not do what it said -- and then the procedure stops there. A verb's numbers come back only
 through `read`, and your variables are your readout."""
 #: ...where the world gives the maths (`WorldFacts.math`), what replaces
@@ -142,6 +142,10 @@ and its failing does not stop the procedure."""
 #: ...a call too, where it may be one.
 CALL_TESTS = """ So may a call: true when its def
 ran to its end or a `return`, false where it stopped short."""
+#: ...and a fall, which no test reads (#671; `steps.run_verb`): it stops the
+#: run as it fails a job's try.
+FALL_TESTS = """ But if
+you fall, the procedure stops there, in a test or not."""
 #: ...and where a hand's move may stop on a reading (`WorldFacts.guarded`,
 #: #554): generic, its example nothing a job does.
 GUARD = """
@@ -238,7 +242,8 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
 def language_text(facts: WorldFacts) -> str:
   """"The language" as `facts` give it: its cap, and where they say so the
   maths, defs that call each other (#560), a verb -- and a call -- as an
-  `if`'s test, and a hand's move that stops on a reading."""
+  `if`'s test, a fall stopping it all the same (#671), and a hand's move
+  that stops on a reading."""
   from pluggybot.procedure import axes
   cap = f"{lang.MAX_SOURCE_CHARS:,}"
   text = LANGUAGE % {"cap": cap, "statements": f"{lang.MAX_STATEMENTS:,}",
@@ -253,7 +258,7 @@ def language_text(facts: WorldFacts) -> str:
     text = (text.replace(ONE_DEF, FIRST_DEF).replace(NO_CALLS, SOME_CALLS)
             + CALLS % {"cap": cap, "depth": lang.MAX_CALL_DEPTH})
   if facts.verb_tests:
-    text += VERB_TESTS + (CALL_TESTS if facts.calls else "")
+    text += VERB_TESTS + (CALL_TESTS if facts.calls else "") + FALL_TESTS
   if facts.guarded:
     text += GUARD % {"rate": round(1.0 / axes.HAND_EVERY_S), "n": GUARD_EXAMPLE_N,
                      "from": axes.FORCE_FROM_S, "moving": axes.MOVING_N,
@@ -627,7 +632,7 @@ def run_report(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool)
               else "FAILED")
       said = {k: v for k, v in step.items()
               if k not in ("i", "verb", "line", "ok", "reason", "trace", "felt", "tested",
-                           "in", "entry")}
+                           "in", "entry", "fell")}
       lines.append(f"  line {step.get('line', '?')} {step.get('verb')}{_in(step)}: {word}"
                    + (f" -- {step['reason']}" if step.get("reason") else "")
                    + (f" {json.dumps(said, default=str)}" if said else ""))

@@ -10,6 +10,60 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A fall ends a procedure's run, an `if`'s test or not, and a death ends it at once (#671) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `5dc60982…` → `0deeb7c4…`, 63,647 → 63,719
+chars, 17 sections both):
+- **A fall ends the run where it comes.** The verb it came in is ended the
+  step the body's fall watch counts it (`steps.run_verb`), and the run
+  stops there, an `if`'s test or not, as the step it stopped at, in the
+  verb's own words ("it stopped at line 14, reach: you fell on the way
+  there, and let go"; "you fell" where a verb has none); no test is counted
+  read false for it. A tested verb that fell used to read false and let the
+  run go on; an untested one already ended it. The language's text says so
+  where it lists what ends a run and where a verb is a test (the served
+  rule's and the session's hello's).
+- **A death ends the run at once.** The verb it came in is ended the step
+  the robot dies, its hand halted where it is; the `procedure` row is
+  `aborted` with `stopped: died` and its count, and History's line follows
+  the death's own: "my death ended it at line N". A run used to go on until
+  the stand-up closed it 300 s later (`stopped: stood_up`, no count), or to
+  its end on a dead robot. The map still hears `task_failed` at the
+  stand-up, beside `stood_up`, as it did.
+- **An interrupt that ended a walk inside a verb is said at that line**
+  ("it was interrupted at line 5"), where History said "after" it.
+- No verb, schema, reward, body or geometry moved, and a flight with no
+  fall in it is the same flight: the investigation's chest flight (draw 187,
+  `chest_run16`'s tail then `chest_free4`, osmesa; on staging its arm was not
+  held and nothing fell) read the same on staging and this tree at every
+  sample, bit for bit. Shoved over (45 N*s) inside a tested verb on the bare
+  floor, both trees fell at the same instant; staging's run went on -- a
+  tested `wait(12)` held through the fall and the get-up and read TRUE, and a
+  tested `reach` read false and its `if`'s `withdraw` waited the get-up out
+  -- and this tree's ended the step the fall was counted, at the verb's line.
+
+**Why.** #671, from the reading of 11-08's three deaths at the counter
+(15:29, Luca): `chest_free4`'s reach on line 14, inside an `if`, fell and
+read false, and the run went on. Its `withdraw` waited out the get-up, the
+topple and the death (119 s), three more verbs ran on a dead robot, and
+History said, after the death, that it "ran the procedure chest_free4 to its
+end (9 steps; 2 tests read false ...)". A fall already fails a job's try;
+Ben's calls (2026-11-09): a fall ends the run, said as "stopped at line N:
+you fell", and a death ends it at once.
+
+**What the period is for.**
+- **Runs a fall ended**: `procedure` rows `aborted` whose `failedReason`
+  begins "you fell". Compare a period before only by the runs a fall ended
+  there too: a tested verb's fall then let the run go on, its later verbs
+  and tests counted.
+- **No run ends `stood_up` now**; a `stopped: died` row stands beside each
+  death that came inside one.
+- **What a robot does after a run a fall ended**: does it change what it
+  fell doing (a cross-body reach with the other arm held, a way home past
+  the counter), or run it again as it was?
+- ⚠ Not to be pooled with an earlier period for a run's step count or its
+  tests read false after a fall.
+
 ### A step keeps off another robot as a walk does (#670) — opens when this PR is deployed
 
 **What changed is what the feet's verb does beside another robot, and what

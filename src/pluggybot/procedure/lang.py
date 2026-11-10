@@ -1133,8 +1133,9 @@ class _Failed(Exception):
 
 
 #: What ends a whole run, a call an `if` tests too: a failed step where no
-#: test reads it, and the run's own limits.
-LIMITS = ("failed", "interrupted", "budget", "steps", "statements")
+#: test reads it -- and a fall, which every test reads as one (#671) -- the
+#: run's own limits, and its robot's death (#671).
+LIMITS = ("failed", "interrupted", "budget", "steps", "statements", "died")
 
 
 def _truth(v: float) -> bool:
@@ -1227,7 +1228,8 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
   `entry` for the library's procedure whose source holds its line); a
   verb failing in it ends the whole run as one failing anywhere does --
   unless the call is an `if`'s test, which then reads it false, as it reads
-  a fault in its arithmetic, and the run goes on.
+  a fault in its arithmetic, and the run goes on. A fall ends the run
+  wherever it comes, and a death too (`stopped: died`, #671).
 
   `total` is the calls MADE, `completed` the calls the run went on past --
   every call made but one that ended it, a test that read false among them
@@ -1269,10 +1271,16 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
                 tested: bool = False) -> Routine:
     """One verb run: True when it did what it said. A failure ends the
     procedure -- unless the verb is an `if`'s test (`tested`), when it is
-    recorded and read, or a call held by one (`at.tested`) ends there."""
+    recorded and read, or a call held by one (`at.tested`) ends there.
+    ⚠ A FALL ENDS IT WHATEVER TESTS IT (#671; `st.run_verb`), as a fall
+    fails a job's try, and a dead robot begins no verb: dead as the last one
+    ended, or while its interrupt was asked, which steps the world -- and a
+    dead robot is never asked one."""
     nonlocal count
-    if count and life.interrupted():
+    if count and not st.dead(life) and life.interrupted() and not st.dead(life):
       raise _Stop("interrupted")
+    if st.dead(life):
+      raise _Stop("died")
     if float(life.data.time) - t0 > proc.budget_s:
       raise _Stop("budget")
     if count >= proc.steps_budget:
@@ -1310,15 +1318,17 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
                                         "line": line, **at.said()},
                                        until=t0 + proc.budget_s)
     read = not verdict.get("ok") and at.tested
+    tests = (tested or read) and not verdict.get("fell")
     entry = {"i": count - 1, "verb": verb, "line": line, **at.said(), **verdict,
-             **({"tested": True} if tested or read else {})}
+             **({"tested": True} if tests else {})}
     result["steps"].append(entry)
     del result["inFlight"]
-    if verdict.get("stopped") == "interrupted":
+    if verdict.get("stopped") in ("interrupted", "died"):
       # the robot's own interrupt ended a walk inside it (issue #381,
-      # `run_verb`): an abort, as between two verbs, never a failed step
-      raise _Stop("interrupted")
-    if not verdict.get("ok") and (tested or read):
+      # `run_verb`): an abort, as between two verbs, never a failed step --
+      # and so is the robot's death inside it (#671)
+      raise _Stop(verdict["stopped"])
+    if not verdict.get("ok") and tests:
       # ...a call the run goes on past: set on a success alone, `completed`
       # was the NUMBER of the last call that did what it said, and a run
       # whose last calls were tests that read false was graded cut short

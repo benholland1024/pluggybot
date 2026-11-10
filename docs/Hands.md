@@ -170,7 +170,8 @@ says so. The procedure's end, or the next `watch`, ends it. Its scene is
 
 **The language** is the served robots' (`procedure/lang.py`), with three
 switches on wherever there are hands (`steps.hand_facts`): a verb may be an
-`if`'s test (`WorldFacts.verb_tests`), an expression may call `sin`,
+`if`'s test (`WorldFacts.verb_tests`; a fall ends the run all the same,
+the verb it came in ended that step, #671), an expression may call `sin`,
 `cos`, `atan2` and `sqrt` (`WorldFacts.math`), and a source's defs may call
 each other with arguments, a hand's name among them (`WorldFacts.calls`,
 #560; Overseer.md §2b). Its caps: 3,000 characters a source (#560; 1,500

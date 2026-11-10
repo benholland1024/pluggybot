@@ -243,7 +243,7 @@ def _stub_life(clock=None):
     setpoint=lambda act: 0.0,
     go_to_routine=routine("drive_to", True), in_sight=lambda x, y: True,
     face_routine=routine("face", True), hold_routine=routine("wait"),
-    pose=(0.0, 0.0, 0.0))
+    pose=(0.0, 0.0, 0.0), falls=0)
   life = SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          interrupted=lambda: False,
                          _say=lambda *a, **k: None, calls=calls,
@@ -328,6 +328,51 @@ def test_an_interrupt_stops_a_program_between_steps():
   p = Program.single("p", [Step("wait", {"seconds": 1.0})] * 2)
   r = _run(life, p)
   assert r["stopped"] == "interrupted" and r["completed"] == 1
+
+
+def test_a_fall_fails_a_programs_step_and_a_death_stops_it_inside_one():
+  """#671, the program runner's half (it shares `run_verb` with the
+  language): a step its body fell in is ended there and fails, saying so;
+  one its robot died in is ended there too, `stopped: died`. Shown to fail
+  without `run_verb`'s watch: each wait held its 50 steps, and both ran."""
+  def run(**down):
+    life = _stub_life()
+    held: list[int] = []
+
+    def hold(seconds, *a, **kw):
+      life.calls.append(("wait", (seconds,)))
+      held.append(0)
+      for n in range(50):
+        if n == down.get("fall"):
+          life.body.falls += 1
+        if n == down.get("die"):
+          life.dead = {"cause": "flat"}
+        yield ()
+        held[-1] += 1
+    life.body.hold_routine = hold
+    return _run(life, Program.single("p", [Step("wait", {"seconds": 1.0})] * 2)), held
+  r, held = run(fall=3)
+  assert not r["ok"] and r["failedAt"] == 0 and held == [3], (r, held)
+  assert r["steps"][0]["fell"] and r["steps"][0]["reason"] == st.FELL
+  r, held = run(die=3)
+  assert r["stopped"] == "died" and "failedAt" not in r and held == [3], (r, held)
+
+
+@pytest.mark.parametrize("stop", [True, False])
+def test_a_death_while_a_programs_interrupt_is_asked_stops_it_before_its_next_step(stop):
+  """...and dead in the interrupt's ask between two steps (#671's second
+  review; the language's own test beside its runner), answered stop or go
+  on: `died`, the next step never begun. Shown to fail with the death read
+  only before the ask."""
+  life = _stub_life()
+
+  def interrupted():
+    life.dead = {"cause": "flat"}
+    return stop
+  life.interrupted = interrupted
+  r = _run(life, Program.single("p", [Step("wait", {"seconds": 1.0})] * 3))
+  assert r["stopped"] == "died" and r["completed"] == 1, r
+  assert [c[0] for c in life.calls] == ["wait"], "a step began on a dead robot"
 
 
 # ---- two places, one verdict (on the stub) -------------------------------------

@@ -449,6 +449,8 @@ PROCEDURE_STOPS = {
   "steps": "it ran out of the steps its budget gave it",
   "interrupted": "it was interrupted",
   "statements": "it ran the most statements one run may",
+  # ...and the robot's death (#671)
+  "died": "my death ended it",
 }
 #: How a decided explore ended (`explore_routine`'s answer), in its History
 #: line's words (issue #424). A key missing here is the run's own end.
@@ -663,9 +665,12 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
     elif stopped in PROCEDURE_STOPS:
       last = steps[-1] if steps else {}
       took = run.get("seconds")
+      # ...AT the line whose verb the stop ended (a death, a walk's
+      # interrupt), AFTER the last that ran where it came between two (#671)
+      on = "at" if last.get("stopped") == stopped else "after"
       why = (PROCEDURE_STOPS[stopped]
              + (f" ({took:.0f} s)" if stopped == "budget" and took is not None else "")
-             + (f" after line {last['line']}" if last.get("line") else ""))
+             + (f" {on} line {last['line']}" if last.get("line") else ""))
     elif run.get("error"):
       why = "it stopped on a fault inside the run"
     else:
@@ -749,6 +754,9 @@ class HubLifecycle:
     self.start_over_t: float | None = None
     #: The errand being run right now, for a restart to name.
     self._errand_now = None
+    #: ...and the one a death ended (#671), whose `task_failed` the map
+    #: hears at the stand-up, beside `stood_up` (`run_errand_routine`).
+    self._failed_by_death = ""
     #: The procedure step running right now (`steps.run_verb` sets it), for
     #: a death to name (issue #362) -- and when its program's budget ends,
     #: sim s, past which no walk inside it waits (issue #381).
@@ -1322,8 +1330,9 @@ class HubLifecycle:
     run ending on it -- the motors do not stop at 0 Wh and every mission
     guard is checked between errands, so the first committed result set had
     a day that hit zero inside an errand, docked on nothing and ended "day
-    over". The moment is recorded here; what the body does next is the
-    errand's business until it returns. A `stuck` death by toppling is the
+    over". The moment is recorded here; a procedure's run ends at it
+    (#671, `steps.run_verb`), and any other routine the loop drives runs on
+    until it returns or the stand-up closes it. A `stuck` death by toppling is the
     torso past TOPPLE_TILT_RAD for the body's `stuck_after_s`: the rover's
     TOPPLE_HOLD_S, or a get-up's budget for a body that rights itself.
     """
@@ -1403,7 +1412,7 @@ class HubLifecycle:
 
     ⚠ A ROBOT ON THE FLOOR IS AVOIDED WHERE IT LIES, NOT WHERE IT SAYS IT IS
     (issue #365; SimNotes, "A robot lying down was avoided where it said it
-    was"). The errand it fell in runs on until it returns, and a wheel
+    was"). A walk it fell in runs on until it returns, and a wheel
     turning in the air is travel to the reckoner: MEASURED up to 2.2 m of
     reported pose off the body in 10 s, by how it lies and which way the
     wheels were told to turn. A fallen robot is not a network fact that
@@ -1805,9 +1814,10 @@ class HubLifecycle:
     """The dead robot's own clock (issue #143).
 
     On the PHYSICS seam beside `_death_step`, not in `_wait_dead`: a flat
-    death is caught the moment it happens, INSIDE an errand or not, and the
-    errand goes on driving until it returns. The clock has to start where
-    the death did rather than where the loop next looks.
+    death is caught the moment it happens, INSIDE a routine or not, and a
+    routine but a procedure's run (#671) goes on driving until it returns.
+    The clock has to start where the death did rather than where the loop
+    next looks.
 
     ⚠ IT FIRES WHEREVER IT LANDS, A SEATED MODULE INCLUDED (issue #348).
     It used to wait for the errand to put a seated tool down (#143), which
@@ -2845,7 +2855,14 @@ class HubLifecycle:
                 **used}
       self._in_errand = False
       self._deferrals.pop(errand.name, None)
-      verdict = scoring.score_errand(self, errand, result, {})
+      # ...one its robot's death ended (#671) never scored, as a stand-up's
+      # close of one never was (`_void_errand`): a job it ran for stays the
+      # robot's; its map hears it failed AT THE STAND-UP, as it did (heard at
+      # the death, its row held the one slot through the death, or a row
+      # already there turned it away `busy`); and after a TRUE death the new
+      # robot's map hears nothing
+      died = used.get("error") == DEATH_ENDED
+      verdict = None if died else scoring.score_errand(self, errand, result, {})
       entry = self._bank(verdict)
       if verdict is not None:
         result["verdict"] = verdict.as_dict()
@@ -2857,8 +2874,11 @@ class HubLifecycle:
             result["task_id"] = closed.id
             self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
       self.errand_results.append(result)
-      self._occur("task_complete" if "error" not in used
-                  else "task_failed", errand.name)
+      if died:
+        self._failed_by_death = "" if self._after_true_death() else errand.name
+      else:
+        self._occur("task_complete" if "error" not in used
+                    else "task_failed", errand.name)
       self._errand_name = ""
       self._errand_now = None
       return result
@@ -2949,12 +2969,22 @@ class HubLifecycle:
     # A PROCEDURE THE ROBOT WROTE REPORTS BACK, whatever happened (issues
     # #227, #264): its locals are its readout, and where it stopped and why
     # is the only way it can fix one. A house program's outcome is its
-    # task's verdict and needs no second line.
-    if is_proc or run.get("locals"):
-      for line in procedure_outcome(program.name, run):
-        self._remember(line)
+    # task's verdict and needs no second line -- but one a death ended says
+    # so, as it did when the stand-up closed it (`_void_errand`). ⚠ Not the
+    # robot before's run (#671): a death that took the last heart ended it,
+    # and the new robot hears nothing of it (`_true_death`).
+    died = run.get("stopped") == "died"
+    if not (died and self._after_true_death()):
+      if is_proc or run.get("locals"):
+        for line in procedure_outcome(program.name, run):
+          self._remember(line)
+      elif died:
+        self._remember(f"dying cut short {errand.name}")
     return {"procedure": run,
-            **({"error": run["error"]} if "error" in run else {})}
+            **({"error": run["error"]} if "error" in run else {}),
+            # ...and a run its robot's death ended is the errand a death ended,
+            # as a stand-up's close of one was (`_void_errand`, #671)
+            **({"error": DEATH_ENDED} if died else {})}
 
   def _afford_next(self) -> bool:
     """True if the head of the queue can be started RIGHT NOW.
@@ -3296,8 +3326,12 @@ class HubLifecycle:
                                          if was else " while still awake")
                      + f": {MAP_GONE}")
     self._emit(event)
-    # ...and the map hears it (issue #348), with WHO as its kind.
+    # ...and the map hears it (issue #348), with WHO as its kind -- and the
+    # run its death ended, failed, as when the stand-up closed one (#671)
     self._occur("stood_up", "timer" if auto else "admin")
+    if self._failed_by_death:
+      self._occur("task_failed", self._failed_by_death)
+      self._failed_by_death = ""
     if was is None:
       # ⚠ A RESCUE IS NOT AN INTERVENTION. Standing a DEAD robot up ends one
       # survival span and starts another, which is the feature working
@@ -5988,13 +6022,18 @@ class HubLifecycle:
                   "program": program.as_dict(), "t": round(t, 3),
                   "outcome": "aborted", "stopped": "stood_up"})
     self._say(f"STOOD UP mid-errand: {errand.name} ended there")
-    # ⚠ NOT AFTER A TRUE DEATH: the errand was the robot before's, and the
-    # next one's only inheritance is being told it is not the first
-    # (`_true_death`) -- its History and its fresh map hear none of this.
-    if self.deaths and self.deaths[-1].get("hearts") == 0:
+    if self._after_true_death():
       return
     self._occur("task_failed", errand.name)
     self._remember(f"dying cut short {errand.name}")
+
+  def _after_true_death(self) -> bool:
+    """⚠ The last death took the last heart: the errand it ended was the
+    robot before's, and the next one's only inheritance is being told it is
+    not the first (`_true_death`) -- its History and its fresh map hear none
+    of it, its close at a stand-up (`_void_errand`) or its run's own end at
+    the death (#671)."""
+    return bool(self.deaths) and self.deaths[-1].get("hearts") == 0
 
   def _charge_trip_routine(self) -> Routine:
     """GO_CHARGE then CHARGE, the loop's way to the station: a plug-in that

@@ -366,7 +366,7 @@ def _life(stops_at=None):
     return
     yield
   life.interrupted = interrupted
-  life.body = SimpleNamespace(pose=(0.0, 0.0, 0.0), last_drive=None,
+  life.body = SimpleNamespace(pose=(0.0, 0.0, 0.0), last_drive=None, falls=0,
                               pose_xy=lambda: life.body.pose[:2],
                               in_sight=lambda x, y: True,
                               peer_on_the_goal=lambda x, y: None,
@@ -387,7 +387,8 @@ def test_a_verb_the_interrupt_ended_is_stopped_whatever_the_verb():
     yield
   verb = st.Verb("walks", {}, run, "a verb that walks and fails")
   for stops in (True, False):
-    life = SimpleNamespace(data=SimpleNamespace(time=0.0), aborting=False, stops=stops)
+    life = SimpleNamespace(data=SimpleNamespace(time=0.0), aborting=False, stops=stops,
+                           body=SimpleNamespace(falls=0))
     verdict = tick.run(STEPPER, st.run_verb(life, verb, {}))
     assert (verdict.get("stopped") == "interrupted") is stops, verdict
 

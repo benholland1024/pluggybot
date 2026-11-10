@@ -19,6 +19,7 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot import lifecycle as lc
 from pluggybot.body import StubBody, body_for
 from pluggybot.evaluation import practice as ep
 from pluggybot.home import storeroom as sr
@@ -1171,19 +1172,95 @@ def test_a_pull_reads_false_only_where_its_text_says(ends, reads):
     assert ran["locals"]["h"] == (1.0 if ends == "held fast" else 0.0), ran
 
 
-@pytest.mark.parametrize("ends", ["not out", "fell"])
-def test_a_pull_that_reads_false_leaves_no_reading_of_its_own(ends):
+def test_a_pull_that_reads_false_leaves_no_reading_of_its_own():
   """As its text says: after a pull that went ok, one that read false leaves
   none of its readings, `pull.held` ending the run as `pull.moved` always
-  has (#525) -- the first pull's would read as this one's."""
+  has (#525) -- the first pull's would read as this one's. (A pull that
+  fell ends the run there, read by a test or not: the test below.)"""
   body = _PullEnds(*_bare())
-  body.ends = ["held fast", ends]
+  body.ends = ["held fast", "not out"]
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    pull("left", 0, 0, 1, 10, 0.1)\n'
              '    was = read("pull.held")\n    p = 1\n'
              '    if not pull("left", 0, 0, 1, 10, 0.1):\n        p = 0\n'
              '    h = read("pull.held")\n', body)
   assert ran["locals"]["was"] == 1.0 and ran["locals"]["p"] == 0, ran
   assert ran["steps"][-1]["reason"] == "pull.held has no reading: `pull` has not run", ran
+
+
+@pytest.mark.parametrize("verb", ["reach", "pull"])
+def test_a_hand_verb_that_fell_ends_the_run_though_an_if_tests_it(verb):
+  """#671 (Luca, 11-08 15:29): `chest_free4`'s reach inside an `if` fell,
+  read false, and the run went on -- its `withdraw` waited out the get-up,
+  the topple and the death, and three more verbs ran on a dead robot. A
+  fall ends the run as it fails a job's try, a test or not: the run stops
+  at the verb that fell, in that verb's own words, no test counted read
+  false for it, and History says "it stopped at line N: you fell...".
+  Shown to fail without the fall's exception in `lang`: the `if` read
+  false, and both withdraws ran."""
+  class Falls(_PullEnds):
+    ends = "fell"
+
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                      turns=None):
+      if verb == "reach":
+        self.falls += 1          # the fall watch's count, as the get-up takes the body
+        return False
+      return True
+      yield
+
+    def hand_why(self, side):
+      return "fell" if verb == "reach" else ""
+
+    def pull_routine(self, *a, **kw):
+      self.falls += 1
+      return (yield from super().pull_routine(*a, **kw))
+  call = ('reach("left", 0.3, 0.2, 0.9)' if verb == "reach"
+          else 'pull("left", 0, 0, 1, 10, 0.1)')
+  source = ("def a():\n    n = 0\n"
+            + ('    reach("left", 0.3, 0.2, 0.9)\n' if verb == "pull" else "")
+            + f"    if not {call}:\n        withdraw(\"left\")\n        n = 1\n"
+            "    withdraw(\"left\")\n    n = 2\n")
+  ran = _fly(source, Falls(*_bare()))
+  line = 3 if verb == "reach" else 4
+  said = (st.REACH_WHY if verb == "reach" else st.MOVE_WHY)["fell"].format(hand="left")
+  step = ran["steps"][-1]
+  assert not ran["ok"] and ran["failedAt"] == len(ran["steps"]) - 1, ran
+  assert (step["verb"], step["line"], step["reason"]) == (verb, line, said), step
+  assert step["fell"] and "tested" not in step and ran["testsFalse"] == 0, step
+  assert ran["locals"] == {"n": 0.0}, "a line past the fall ran"
+  [history] = lc.procedure_outcome("a", ran)
+  assert history.startswith(f"the procedure a did not finish -- it stopped at line {line}, "
+                            f"{verb}: {said} ("), history
+
+
+def test_a_hand_whose_move_a_death_ended_is_halted_where_it_is():
+  """#671's second review: a death closes a hand verb's routine, but the
+  reach's own move goes on, on the physics seam -- a pull went on pulling
+  for a dead robot. The verb's hand is halted where it is (`Body.stop_hand`,
+  as a stop condition halts one), and the run ends `died`. Shown to fail
+  without the halt."""
+  class Pulling(StubBody):
+    def stop_hand(self, side):
+      self.halted.append(side)
+      return True
+
+    def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
+                     give=True):
+      for n in range(200):
+        if n == 50:
+          self.life.dead = {"cause": "flat"}  # the death seam's, as the pull goes on
+        yield self.STILL
+      return {"why": "distance", "seconds": 0.4, "moved": 0.1, "along": 0.1, "dx": 0.0,
+              "dy": 0.0, "dz": 0.1, "direction": [0.0, 0.0, 1.0], "force": 5.0}
+  body = Pulling(*_bare())
+  body.halted = []
+  body.life = life = _Life(body)
+  facts = st.hand_facts()
+  proc = lang.compile_procedure('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+                                '    pull("left", 0, 0, 1, 10, 0.1)\n    wait(1)\n', facts)
+  ran = body.run(lang.run_procedure_routine(life, proc, facts))
+  assert ran["stopped"] == "died" and ran["steps"][-1]["verb"] == "pull", ran
+  assert body.halted == ["left"], body.halted
 
 
 def test_a_call_refused_before_it_ran_leaves_its_verb_no_reading():
