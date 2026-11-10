@@ -477,8 +477,9 @@ def first_solve(rows: Iterable[Row],
   which are the observatory's own words and are not summed.
 
   ⚠ ATTEMPTS IN THE BOARD'S ORDER, its count (the row's task `id`, #610),
-  sim time only within one task: a start-over sets the clock back inside
-  one build, and by `simTime` the jobs from before it read as the newest.
+  sim time only within one task: a start-over set the clock back inside
+  one build (one with no clock to keep still does, #594), and by `simTime`
+  the jobs from before it read as the newest.
   """
   from pluggybot.economy.tasks import task_number   # evaluation reads economy, never the reverse
   if challenge_kinds is None:

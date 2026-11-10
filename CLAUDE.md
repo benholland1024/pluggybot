@@ -366,7 +366,13 @@ save a filmstrip PNG named after the script.
   driven into its top. ⚠ No force guard on
   it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
-  home"). Training's arms and waist are SCRIPTED,
+  home"). ⚠ THEN ITS LEGS GO BACK TO THE STANDING POLICY, AND ITS POSTURE
+  IS WAITED ON `STAND_BACK_S` AT MOST (#668; SimNotes, "Making way,
+  standing"): asked aside as its arm came home, the walker took them and a
+  `withdraw` waited 2,191 s. ⚠ The posture's trim runs on under the walker
+  (`Reach._trim`), and the hand jobs are measured on it: trimmed only while
+  the standing policy steps, the table's tour laid 20 of 32, not 27.
+  Training's arms and waist are SCRIPTED,
   their gains the served ones' (`model.ARM_GAIN_SCALE`, `WAIST_GAIN_SCALE`,
   through `humanoid.json`). `training/humanoid_train/g1_check.py` is rule 6's
   check: mjlab's stock G1 flown outside mjlab. ⚠ `pull` ASKS AT MOST 20 N,
@@ -1009,7 +1015,19 @@ save a filmstrip PNG named after the script.
   on its own), ⚠ its first window `STEP_START_S` (2 s: from the stand's
   stance after a reach a sidestep to the right slid up to 1.1 s, unseen by
   its odometry, and read `blocked` in 1 s, #560), an oblique step the walker would skew walked as two, a
-  turn's 2-6 cm of shuffle uncounted (the odometry is worse over it); ⚠ a
+  turn's 2-6 cm of shuffle uncounted (the odometry is worse over it); ⚠ A
+  STEP KEEPS OFF ANOTHER ROBOT AS A WALK DOES (#670; `_kept_off`; SimNotes,
+  "Two robots at the counter": at 11:48 on 11-08 a walk stopped at the
+  disc and the steps walked in): the walks' disc round its middle
+  (`Body.others`, 0.65 m, 1.2 round one fallen) and the walks' front stop
+  turned to its way, each judged where the stride's carry would take it; a
+  step any of whose walks would head nearer from inside the disc neither
+  turns nor moves; ⚠ the front stop reads the LIDAR's returns off that
+  robot ALONE (at the chest's and the drawer's work spots the props read
+  0.35-0.38 m ahead, inside its 0.40), from the scans the step takes
+  (standing still, it takes none): `blocked`, `keptOff` saying how; a reach
+  and its ways out and home still know nothing of it (flown, an arm's way
+  home still felled both robots at the disc's edge); ⚠ a
   humanoid with a hand out keeps its posture to look (a bow carried the
   hand 43 cm up). A verb test and the maths are in every hands
   world (`hand_facts`), the served humanoids' included (`served_hand_facts`,
@@ -1578,7 +1596,15 @@ save a filmstrip PNG named after the script.
   kept maps are found laid wrong, #425 and #476, or are laid by a rule no
   longer the map's, #581's band; `MAPS_DROPPED` says the newest bump's
   reason); a save restored `MAX_RESUMES` (3)
-  times without a new one is not trusted. ⚠ The errand in flight ends; its
+  times without a new one is not trusted. ⚠ A SAVE READ AND REFUSED IS A
+  START-OVER AT ITS OWN CLOCK (#594, Ben's call; `Loaded.start_over_t`,
+  `continuation.start_over`): the world from its XML BUILT at the save's
+  `t` and nothing else of it, its board on that clock
+  (`TaskBoard(start_over_t=)`), its budget and the producer's first offer
+  counted from it; begun at 0, every stamp the volume keeps stood in its
+  future. COUNTED AS A RESTORE IS (`MAX_START_OVERS`, under its own world,
+  given back by a clean stop): after three that died before their first
+  save, and with no clock to read, the start is at 0. ⚠ The errand in flight ends; its
   job does not (`_resume_jobs`): a procedure job stays claimed, its watch
   carried on (`jobWatches`), and one this world cannot do goes back on
   offer. The hourly ceiling is still
@@ -2272,11 +2298,12 @@ save a filmstrip PNG named after the script.
   OWN COUNT (`Task.number`), NEVER A STAMP (#610; TaskPattern.md): what it
   forgets first, whose draw a restart puts back on a prop, and the offers
   listed, as are a reading's attempts (`first_solve`; Evaluation.md §5). A
-  start-over sets the clock back, and by `createdT` and
+  start-over set the clock back (two did; one with no clock to keep still
+  does, #594), and by `createdT` and
   `resolvedT` the tasks from before it ranked newest, outlasting the trim
   and putting their draws back at every restart; the site lists by the
   same count. Held jobs go by their claims (`held_by`), which a start-over
-  moves with the clock. Off by default (`--tasks`, `$PLUGGY_TASKS`). ⚠ A TAKE
+  at 0 moves with the clock. Off by default (`--tasks`, `$PLUGGY_TASKS`). ⚠ A TAKE
   THAT DOES NOT HAPPEN AND A `done` ON A JOB NOT HELD SAY WHY IN HISTORY
   (#648; `_no_take`, `_not_mine`; TaskPattern.md): two robots share one board
   and an answer thinks for 10-90 s, so 4 of 59 takes lost the race, and a
@@ -2294,8 +2321,10 @@ save a filmstrip PNG named after the script.
   the charged pack can never fund does not (#407: it starved the second of
   two kinds sharing a slot behind it); one offer per tick; nothing random. ⚠ **The rotation SURVIVES A RESTART** (the cursor lives in
   `TaskBoard.producer`), an open offer's deadline, a held job's claim and a
-  `draws` job's date (#659) are REBASED on load (except where the world
-  carries on, `rebase=False`; ⚠ a
+  `draws` job's date (#659) are REBASED on load to a clock begun at 0
+  (except where the clock carries on, `rebase=False`: a continuation, or a
+  start-over at its save's `t`, which dates the jobs' things there and
+  holds no claim past it, `start_over_t`, #594; ⚠ a
   claim is never later than the last change saved, #602: one a start-over
   left on the old clock could never run out; ⚠ moved in memory, written in
   `begin()`), an offer is re-priced by the world's energy table on load,

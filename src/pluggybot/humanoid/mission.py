@@ -417,14 +417,18 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.walker.last_action[:] = 0.0
     self.legs = "walk"
 
-  def to_stand_routine(self):
+  def to_stand_routine(self, getup: bool = True):
     """The legs to the standing policy: the walking one held still
     `SETTLE_S` first, its stride settled, then handed over. ⚠ A fall while
     it settles is the get-up's until it stands (#520): at the settle's end
-    the legs went to the standing policy whatever had happened in it. ⚠ It
-    ends a step aside under way (#559): the aside walked the settle's STILL
-    steps, and the legs went to the standing policy mid-stride."""
-    yield from self._getup_routine()
+    the legs went to the standing policy whatever had happened in it --
+    or, `getup` False, a get-up under way or begun as it settles ends it
+    there, for a caller a fall ends at once (`Body.release_routine`). ⚠ It
+    ends a step aside under way (#559), and one asked as it settles (#668):
+    the aside walked the settle's STILL steps, and the legs went to the
+    standing policy mid-stride."""
+    if getup:
+      yield from self._getup_routine()
     if self._aside is not None:
       self._end_aside("its own move", STILL)
     if self.legs == "stand":
@@ -432,10 +436,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     for _ in range(int(round(SETTLE_S / self.model.opt.timestep))):
       if self.legs != "walk":
         break
+      if self._aside is not None:
+        self._end_aside("its own move", STILL)
       yield STILL
       self._after_step()
     if self.legs != "walk":
-      yield from self._getup_routine()
+      if getup:
+        yield from self._getup_routine()
       return
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
@@ -694,10 +701,17 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
                            float(self.odo.sm.d.qpos[2]), joints=self.waist_read())
 
   def _front_blocked(self, angles, ranges) -> bool:
+    return bool(len(self.in_front(angles, ranges)))
+
+  def in_front(self, angles, ranges, reach: float | None = None) -> np.ndarray:
+    """The front stop's box over a scan's bearings (rad, its way ahead at 0)
+    and ranges: how far ahead each return in it lies, m -- ahead within
+    `reach` (`FRONT_STOP_RANGE`) and `FRONT_HALF_M` either side. The walks'
+    stop and a step's, turned to its way (`HumanoidBody._kept_off`, #670)."""
     ahead = np.cos(angles) * ranges
     side = np.sin(angles) * ranges
-    return bool(((ahead > 0.0) & (ahead < self.FRONT_STOP_RANGE)
-                 & (np.abs(side) <= self.FRONT_HALF_M)).any())
+    reach = self.FRONT_STOP_RANGE if reach is None else reach
+    return ahead[(ahead > 0.0) & (ahead < reach) & (np.abs(side) <= self.FRONT_HALF_M)]
 
   def _backoff_routine(self):
     yield from self._twist_routine(-self.BACKOFF_V, 0.0, 0.0)

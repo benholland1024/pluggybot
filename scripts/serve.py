@@ -381,6 +381,10 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   snap = opened.snapshot
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
+  if opened.start_over_t is not None:
+    # ...on a start-over's clock from the first (#594): everything built on
+    # it, and the seed's offers set out, are said on it
+    data.time = opened.start_over_t
   # Board state is the world's, not the run's: loaded before the mission and
   # written back on every stroke, so a restart walks into the house it left.
   book = board_book(args.world, state=args.boards)
@@ -406,7 +410,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # re-tunes how busy a deployed world is without a rebuild.
   beat = default_cadence(args.world) if (args.tasks or args.task_state) else None
   tasks = (task_board(args.task_state, cadence=beat, world=args.world,
-                      rebase=snap is None)
+                      rebase=opened.t is None, start_over_t=opened.start_over_t)
            if (args.tasks or args.task_state) else None)
   # The overseer decides what to do next once the preset queue is empty
   # (issue #15). Off unless asked for; its memory (below) is on every world.
@@ -679,19 +683,21 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                      pacer=pacer)
 
   # The world kept, on the seam after every other hook (issue #345).
-  keeper = keep_world([life], args.world_state, snap)
+  keeper = keep_world([life], args.world_state, snap, opened.start_overs)
   # ⚠ SEEDED LAST, after every hook above is attached: `offer` emits its
   # `task_offered` immediately, so seeding earlier drops those lines on the
   # floor -- see the note in `lifecycle.run_demo`. Only when nothing is
   # outstanding, so a restart resumes the jobs the last mission left -- and
   # never into a world carried on from, whose producer keeps its own time.
+  # On the clock the world begins at: a start-over's keeps its save's (#594).
   if maker is not None and snap is None and not tasks.open_tasks():
-    maker.seed(pack_wh=life.fundable_wh)
+    maker.seed(t=opened.t or 0.0, pack_wh=life.fundable_wh)
 
   wall0 = time.monotonic()
   try:
     r = life.run(cfg["start"], max_sim_time=args.max_sim_time,
-                 explore_budget=cfg["explore_budget"], resume=snap)
+                 explore_budget=cfg["explore_budget"], resume=snap,
+                 start_over_t=opened.start_over_t)
     # ...and at the end, which a crash never reaches: the last minute's save
     # is what a crash carries on from, never the state that crashed.
     if keeper is not None:
@@ -705,7 +711,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
       recorder.close()
   wall = time.monotonic() - wall0
 
-  report(r, wall, life, publisher, pacer, t0=snap.t if snap is not None else 0.0)
+  report(r, wall, life, publisher, pacer, t0=opened.t or 0.0)
   return keeper.stop_requested if keeper is not None else None
 
 
@@ -763,7 +769,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
                                       if args.restart_after > 0 else None),
                      start_points=args.start_points if args.start_points > 0 else None,
                      constitutions_named=(args.constitution, args.constitution_2),
-                     resume=snap)
+                     resume=snap, start_over_t=opened.start_over_t)
   first, second = lives
   for life in lives:
     life.restart_note = opened.why
@@ -872,15 +878,16 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
     pacer = RealTimePacer(data, rate=args.rate)
     first.body.step_hooks.append(pacer.step_hook)
   attach_mode_stream(first, sinks, pacer=pacer)
-  keeper = keep_world(lives, args.world_state, snap)
+  keeper = keep_world(lives, args.world_state, snap, opened.start_overs)
   maker = first.producer
   if maker is not None and snap is None and not tasks.open_tasks():
-    maker.seed(pack_wh=first.fundable_wh)
+    maker.seed(t=opened.t or 0.0, pack_wh=first.fundable_wh)
 
   wall0 = time.monotonic()
   try:
     results = run_pair(lives, max_sim_time=args.max_sim_time,
-                       explore_budget=cfg["explore_budget"], resume=snap)
+                       explore_budget=cfg["explore_budget"], resume=snap,
+                       start_over_t=opened.start_over_t)
     if keeper is not None:
       keeper.finish()
   except Exception as e:
@@ -893,22 +900,24 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
       recorder.close()
   wall = time.monotonic() - wall0
   for life, r, name in zip(lives, results, names):
-    report(r, wall, life, publisher, pacer, label=name,
-           t0=snap.t if snap is not None else 0.0)
+    report(r, wall, life, publisher, pacer, label=name, t0=opened.t or 0.0)
   return keeper.stop_requested if keeper is not None else None
 
 
 def open_world(path, world: str) -> "continuation.Loaded":
-  """The saved world to carry on from (issue #345), said on the console."""
+  """The saved world to carry on from (issue #345), said on the console --
+  or where it was refused, the clock the world starts over at (#594)."""
   opened = continuation.load(path, world)
   if opened.snapshot is not None:
     print(f"world state: carrying on from t={opened.snapshot.t:.1f} s ({path})")
   elif opened.why:
-    print(f"world state: starting from the start -- {opened.why}")
+    clock = (f"at t={opened.start_over_t:.1f} s, the clock carried on"
+             if opened.start_over_t is not None else "at t=0")
+    print(f"world state: starting from the start {clock} -- {opened.why}")
   return opened
 
 
-def keep_world(lives, path, snap=None):
+def keep_world(lives, path, snap=None, start_overs=None):
   """The world saved on the seam and at the end (issue #345), or None.
 
   SIGTERM (a deploy, `docker stop`) and SIGINT only ASK: the next step
@@ -916,11 +925,12 @@ def keep_world(lives, path, snap=None):
   land between any two bytecodes, a ledger write or a death half done. A
   second signal stops at once, unsaved; the minute-old save stands. `snap`
   is the save this process carried on from, whose count an end that can
-  save nothing gives back (`Keeper.finish`, #594).
+  save nothing gives back (`Keeper.finish`, #594) -- and `start_overs` the
+  start-over's count, where it began one instead (`Loaded.start_overs`).
   """
   if path is None:
     return None
-  keeper = continuation.Keeper(lives, path, carried_on=snap)
+  keeper = continuation.Keeper(lives, path, carried_on=snap, start_overs=start_overs)
 
   def stop(signum, frame) -> None:
     if keeper.stop_requested:

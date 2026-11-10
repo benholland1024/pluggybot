@@ -90,6 +90,8 @@ def footprint_middle(model, data, gids) -> tuple[float, float]:
   return float(lo[0] + hi[0]) / 2.0, float(lo[1] + hi[1]) / 2.0
 
 
+#: A map cell's side, m: what a body's sizes in cells are counted in.
+GRID_M = 0.05
 #: How far round another robot's believed centre A* keeps this robot's
 #: centre (issue #167): the map's own inflation (traversable_mask, 7 cells =
 #: 0.35 m, the armed robot's swing) plus the other robot's half-diagonal
@@ -300,7 +302,7 @@ class Navigator:
     # sized for one room silently truncates every scan beyond its edge.
     gx0, gy0, gx1, gy1 = grid_bounds
     self.grid = OccupancyGrid(x_min=gx0, y_min=gy0, x_max=gx1, y_max=gy1,
-                              resolution=0.05)
+                              resolution=GRID_M)
     #: Each scan aligned against the map before it is fused (issue #386);
     #: None flies on odometry alone, as every day did before it.
     self.matcher = (ScanMatcher(self.grid, origin=self.LIDAR_ORIGIN,
@@ -331,6 +333,11 @@ class Navigator:
     self.peer_seen_m: float | None = None
     self.peer_seen_t = 0.0
     self.peer_holds = 0
+    #: The newest scan's returns off another robot (issue #670): (when,
+    #: bearings, ranges) -- what a step's own front stop reads, its way's
+    #: own corridor; only a scan taken since its walk began, so nothing a
+    #: restart drops is ever read.
+    self.peer_returns: tuple[float, np.ndarray, np.ndarray] | None = None
     self.step_count = 0
     self.collision_steps = 0
     #: This robot's geoms, root and subtree: what another robot's sensors
@@ -490,6 +497,7 @@ class Navigator:
       # stop that holds this robot off a wall, a doorpost and a bed was
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
       angles, ranges, peer_angles, peer_ranges, free_from, origin = self._scan()
+      self.peer_returns = (float(self.data.time), peer_angles, peer_ranges)
       origin = self.LIDAR_ORIGIN if origin is None else origin
       if self.maps():
         m = self._match(angles, ranges, origin)

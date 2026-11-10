@@ -67,7 +67,7 @@ def build_pair(world: str = HUMANOID_HOME, pack: str = "demo",
                overseer_kw: dict | None = None, battery_wh: float | None = None,
                reserve_wh: float | None = None,
                constitutions_named: tuple | None = None,
-               resume=None, **life_kw) -> list:
+               resume=None, start_over_t: float | None = None, **life_kw) -> list:
   """One world, two lifecycles -- and, with `overseer`, TWO MINDS.
 
   Two of everything a robot owns, one of everything the world does:
@@ -101,7 +101,9 @@ def build_pair(world: str = HUMANOID_HOME, pack: str = "demo",
   every mind's `overseer.build` (backend, model, spend book...);
   `battery_wh` / `reserve_wh` override the pack's figures. `resume` is the
   saved world the pair will carry on from (issue #345; `run_pair` puts it
-  back), which keeps the board's deadlines on the clock it goes on with.
+  back), which keeps the board's deadlines on the clock it goes on with;
+  `start_over_t`, where there is none, a refused save's clock the world is
+  begun again at (#594), which keeps them on it too.
 
   ⚠ THE DOCUMENTS AND THE STORE ARE PER ROBOT. The first robot's live at
   the thoughts root, as a single robot's did; the second's under ITS root
@@ -116,6 +118,10 @@ def build_pair(world: str = HUMANOID_HOME, pack: str = "demo",
   starts = (cfg["start"], cfg["start2"])
   model = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix).compile()
   data = mujoco.MjData(model)
+  if resume is None and start_over_t is not None:
+    # ...on a start-over's clock from the first (#594): everything built
+    # on it, and the seed's offers set out, are said on it
+    data.time = float(start_over_t)
   viewer = None
   if view:
     from mujoco import viewer as mj_viewer
@@ -129,7 +135,9 @@ def build_pair(world: str = HUMANOID_HOME, pack: str = "demo",
   # -- built below, with the minds.
   tasks = tasks or task_state is not None
   beat = default_cadence(world) if tasks else None
-  board = (task_board(task_state, cadence=beat, world=world, rebase=resume is None)
+  board = (task_board(task_state, cadence=beat, world=world,
+                      rebase=resume is None and start_over_t is None,
+                      start_over_t=None if resume is not None else start_over_t)
            if tasks else None)
   maker = None
   appetite = Appetite.load(world) if metabolism else None
@@ -305,10 +313,13 @@ def record_pair(lives: list, path: str):
 def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
              explore_budget: float | None = None,
              stop_when: Callable | None = None,
-             record: str | None = None, resume=None) -> list[dict]:
+             record: str | None = None, resume=None,
+             start_over_t: float | None = None) -> list[dict]:
   """Both days from one loop; each robot's summary in order. `resume` is a
   saved world (issue #345), put back once both robots' `begin` has run
-  and before either day moves. A robot whose day ends first waits through
+  and before either day moves -- or where there is none, `start_over_t` a
+  refused save's clock the world is begun again at (#594,
+  `continuation.start_over`). A robot whose day ends first waits through
   its body's own hold, as one waiting for work does: its scans matched and
   laid. ⚠ Held `STILL` by the loop instead (#593), its gyro's offset turned
   Rowan's heading 105-161 deg in the 20-55 minutes the other's charge then
@@ -320,13 +331,16 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
   if stop_when is not None:
     lives[0].stop_when(lambda: stop_when(lives))
   recorder = record_pair(lives, record) if record is not None else None
-  if resume is not None:
-    lives[0].data.time = resume.t        # what `begin` says, on the clock
+  clock = resume.t if resume is not None else start_over_t
+  if clock is not None:
+    lives[0].data.time = clock           # what `begin` says, on the clock
   days = [life.begin(start, max_sim_time=max_sim_time, explore_budget=budget)
           for life, start in zip(lives, starts)]
+  from pluggybot import continuation
   if resume is not None:
-    from pluggybot import continuation
     continuation.restore(lives, resume)
+  elif start_over_t is not None:
+    continuation.start_over(lives, start_over_t)
   aborted = False
   try:
     tick.run_many([(life.body.stepper, day) for life, day in zip(lives, days)],

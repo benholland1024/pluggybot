@@ -749,6 +749,9 @@ class HubLifecycle:
     #: Why a saved world was NOT carried on from, for History ("" = there
     #: was none, or it was).
     self.restart_note = ""
+    #: ...and the clock the world was begun again at, the refused save's own
+    #: (`continuation.start_over`, #594); None where it began at 0.
+    self.start_over_t: float | None = None
     #: The errand being run right now, for a restart to name.
     self._errand_now = None
     #: The procedure step running right now (`steps.run_verb` sets it), for
@@ -6087,16 +6090,22 @@ class HubLifecycle:
   def run(self, start: tuple[float, float, float],
           max_sim_time: float = 600.0,
           explore_budget: float = 90.0,
-          resume: "continuation.Snapshot | None" = None) -> dict:
+          resume: "continuation.Snapshot | None" = None,
+          start_over_t: float | None = None) -> dict:
     """One robot's day, driven from its own loop. `begin` and `end` are the
     two halves a PAIR of robots shares one loop between (`pluggybot/pair.py`,
     issue #167): the setup, then the routine, then the summary. `resume` is
-    a saved world to carry on from (issue #345), put back between the two."""
-    if resume is not None:
-      self.data.time = resume.t           # what `begin` says, on the clock
+    a saved world to carry on from (issue #345), put back between the two;
+    where there is none, `start_over_t` is a refused save's clock, which
+    the world is begun again at (#594, `continuation.start_over`)."""
+    clock = resume.t if resume is not None else start_over_t
+    if clock is not None:
+      self.data.time = clock              # what `begin` says, on the clock
     day = self.begin(start, max_sim_time, explore_budget)
     if resume is not None:
       continuation.restore([self], resume)
+    elif start_over_t is not None:
+      continuation.start_over([self], start_over_t)
     aborted = False
     try:
       # THE DAY IS A ROUTINE (issue #58): every branch of `_day_routine` yields its drive
@@ -6117,6 +6126,7 @@ class HubLifecycle:
     self.max_sim_time = max_sim_time
     self._day_over = False
     self.resumed = None                   # `continuation.restore` sets it
+    self.start_over_t = None              # ...and `continuation.start_over`
     # ...home from here (#455): a restore puts a robot clear (`unclip`)
     # before the day routine has run
     self.home_pose = tuple(float(v) for v in start)
@@ -6277,8 +6287,8 @@ class HubLifecycle:
       self._remember(f"woke up in {self.world} with the pack at "
                      f"{self.battery.fraction:.0%}")
       if self.restart_note:
-        self._remember(f"the world could not carry on from where it stopped: "
-                       f"{self.restart_note}")
+        self._remember(continuation.started_over_line(self.restart_note,
+                                                      self.start_over_t))
     else:
       # ...and a restart says it was one, never a new day (issue #345).
       self._say(f"mission resumed at t={self.data.time:.0f} s")
@@ -6536,7 +6546,8 @@ def points_ledger(state: str | None = None, table=None,
 
 
 def task_board(state: str | None = None, table=None, cadence=None,
-               world: str = "", rebase: bool = True):
+               world: str = "", rebase: bool = True,
+               start_over_t: float | None = None):
   """The world's job offers as persistent state (issue #21).
 
   `state` is a JSON file the tasks live in ACROSS runs -- the same treatment
@@ -6548,18 +6559,20 @@ def task_board(state: str | None = None, table=None, cadence=None,
   defaults, so how much work may stand at once is configuration like the rest
   of the timing policy. Without one the board keeps its own conservative
   defaults, which is what a unit test wants. `rebase=False` keeps the
-  deadlines on the clock they were written on, for a world that carries on
-  from a saved one (issue #345; `TaskBoard.load`).
+  deadlines on the clock they were written on, for a world whose clock
+  carries on: from a saved one (issue #345), or begun again at a refused
+  save's, `start_over_t` (#594; `TaskBoard.load`).
   """
   from pluggybot.economy.tasks import TaskBoard
   # ...and what a job COSTS here (issue #15), for the same reason: a board
   # that priced every world's `carry` the same either under-prices the big
   # floor plan or refuses the small one work it does perfectly well.
   costs = energy_model.load(world) if world else None
+  kw = dict(table=table, energy=costs, rebase=rebase, start_over_t=start_over_t)
   if cadence is None:
-    return TaskBoard(path=state, table=table, energy=costs, rebase=rebase)
-  return TaskBoard(path=state, table=table, max_tasks=cadence.max_tasks,
-                   max_offered=cadence.max_offered, energy=costs, rebase=rebase)
+    return TaskBoard(path=state, **kw)
+  return TaskBoard(path=state, max_tasks=cadence.max_tasks,
+                   max_offered=cadence.max_offered, **kw)
 
 
 def _hand_grader(check: str):
@@ -7145,6 +7158,8 @@ def run_demo(start=None, view: bool = False,
   from pluggybot.robot import world_spec
   model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
+  if loaded.start_over_t is not None:
+    data.time = loaded.start_over_t          # a start-over's, from the first (#594)
   viewer = None
   if view:
     from mujoco import viewer as mj_viewer
@@ -7177,7 +7192,7 @@ def run_demo(start=None, view: bool = False,
   from pluggybot.economy.cadence import default_cadence
   beat = default_cadence(world) if (tasks or tasks_state) else None
   board = (task_board(tasks_state, cadence=beat, world=world,
-                      rebase=loaded.snapshot is None)
+                      rebase=loaded.t is None, start_over_t=loaded.start_over_t)
            if (tasks or tasks_state) else None)
   # The overseer chooses what to do once the queue below is empty (issue #15);
   # `None` reads $PLUGGY_OVERSEER, and off is the default everywhere.
@@ -7326,7 +7341,8 @@ def run_demo(start=None, view: bool = False,
   # pause becoming a sprint, and that is true of a viewer run too.
   attach_mode_stream(life, [recorder.emit] if recorder is not None else [])
   life.restart_note = loaded.why
-  keeper = (continuation.Keeper([life], world_state, carried_on=loaded.snapshot)
+  keeper = (continuation.Keeper([life], world_state, carried_on=loaded.snapshot,
+                                start_overs=loaded.start_overs)
             if world_state else None)
   # ⚠ SEEDED LAST, after every hook is attached. `TaskBoard.offer` emits a
   # `task_offered` the moment it is called, so seeding at construction time
@@ -7334,15 +7350,16 @@ def run_demo(start=None, view: bool = False,
   # whose tasks block was populated and whose offer events were missing. The
   # `board_snapshot` lesson, arriving through a different door. Seeded only
   # when nothing is already outstanding, so a restart against a persisted
-  # board resumes the jobs it left rather than re-offering them all.
+  # board resumes the jobs it left rather than re-offering them all. On the
+  # clock the world begins at: a start-over's keeps a refused save's (#594).
   if maker is not None and loaded.snapshot is None and not board.open_tasks():
-    maker.seed(pack_wh=life.fundable_wh)
+    maker.seed(t=loaded.t or 0.0, pack_wh=life.fundable_wh)
   if on_ready is not None:
     on_ready(life)
   try:
     r = life.run(start or cfg["start"], max_sim_time=max_sim_time,
                  explore_budget=explore_budget or cfg["explore_budget"],
-                 resume=loaded.snapshot)
+                 resume=loaded.snapshot, start_over_t=loaded.start_over_t)
     if keeper is not None:
       keeper.finish()
     return r

@@ -12,7 +12,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A fall ends a procedure's run, an `if`'s test or not, and a death ends it at once (#671) — opens when this PR is deployed
 
-**What changed** (`prompt_sha` `de14cb3e…` → `930e8a23…`, 63,235 → 63,307
+**What changed** (`prompt_sha` `5dc60982…` → `0deeb7c4…`, 63,647 → 63,719
 chars, 17 sections both):
 - **A fall ends the run where it comes.** The verb it came in is ended the
   step the body's fall watch counts it (`steps.run_verb`), and the run
@@ -62,6 +62,106 @@ you fell", and a death ends it at once.
   the counter), or run it again as it was?
 - ⚠ Not to be pooled with an earlier period for a run's step count or its
   tests read false after a fall.
+
+### A step keeps off another robot as a walk does (#670) — opens when this PR is deployed
+
+**What changed is what the feet's verb does beside another robot, and what
+the robots are told of it** (SimNotes, "Two robots at the counter"):
+- **A step's walk keeps the walks' disc round the other robot's middle**
+  (`HumanoidBody._kept_off`): 0.65 m, 1.2 m round one that has fallen,
+  where `Body.others` puts it -- its reported pose standing or walking, its
+  body lying, resting or dead -- judged where the stride's carry would take
+  it. Standing within it already, a step any of whose walks would head
+  nearer neither turns nor walks.
+- **...and the walks' front stop, turned to the step's way** (0.40 m along
+  it, 0.27 m either side), judged at the carry too, on the LIDAR's returns
+  off the other robot alone.
+- Either reads false, `blocked`, and says how ("your step stopped short of
+  another robot: ...", `steps.STEP_KEPT_OFF`). A robot alone steps as it
+  did, bit for bit (the cube check's set-outs 0-1, row for row).
+- **What the robots are told** (`HANDS_VERBS["step"]`): the rule, its
+  numbers off the walks' own sizes. `prompt_sha` `de14cb3e…` → `5dc60982…`,
+  63,235 → 63,647 chars, 17 sections both; the session's hello and the
+  site's guide move with it.
+
+**Why.** #670, off 11-08's 11:48 death: Rowan's walk to the cupboard stopped
+at the disc round Luca, hung in its own withdraw (#668); its procedure stepped
+onto its work spot anyway, and its arm's way home hooked Luca's. Both fell, and
+Rowan died. Flown from where that walk stopped, Luca where the rows put it,
+staging's arms touched in 9 of 9 and both robots fell in 4; on this build every
+step toward Luca was refused, and nothing touched. From the same place a reach
+alone still met Luca in 6 of 9, and Rowan fell in 6; and at the disc's edge,
+where the steps are taken, the arm's way home met Luca in 6 of 6, and both fell
+in 3 (SimNotes). The arms are #670's open half.
+
+**What the period is for.**
+- How often a step reads false for another robot, and what the robot does
+  next: whether its procedure goes on to reach from where it stopped.
+- Whether the robots still touch, or fall, working near each other. A reach
+  and its ways out and home still know nothing of the other robot (SimNotes),
+  and a fall at one prop reaches the next.
+- ⚠ Not to be pooled with the period before for anything about two robots
+  at the counter.
+
+### A withdraw asked aside as its arm comes home ends (#668) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A release takes its legs back before it waits on its posture.** Once the
+  arm reads home, or not by `RELEASE_S` (15 s), the legs go back to the
+  standing policy (`to_stand_routine`: a step aside under way, or one asked
+  as they come back, ends), and the posture is waited on 4 s at most. That is
+  every `withdraw`, the charge's unplug and the references'. Before, a step
+  aside asked while the arm was still coming home took the legs for the
+  walker, and the release waited forever: Luca's withdraw on 11-08 ran 2,191
+  s, asked aside 17 times, its mind never asked, its job failed only after
+  the fall that ended it, and the run held open past its hour.
+- **A fall as the legs come back says "fell" at once**, as one anywhere else
+  in a release does.
+- **Nothing the robots read moved**: `prompt_sha` `de14cb3e…` before and
+  after, no verb's words, no wire. Where nobody asks a robot aside in a
+  withdraw, nothing changes at all: the four offered jobs from the tour, 32
+  draws each, replayed staging's flights exactly.
+
+**What the period is for.** #668's acceptance: no `withdraw` outlives its
+arm's way home. Off the container's log, a `withdraw` step's line to the
+next step's is under 21 s (`RELEASE_S`, the walker's two settles and the
+4 s) unless it fell, and a `MAKE WAY` inside one is followed by the
+procedure's next step.
+
+⚠ **Not to be pooled with the period before for** how long a withdraw lasts
+once the other robot asks it aside, or a run that held one open (11-08's ran
+2,191 s).
+
+### A start-over keeps the clock (#594) — opens when this PR is deployed
+
+**What changed is only a start-over** (Webserver.md, "A start-over keeps the
+clock"): a save `continuation.load` reads and refuses (put back
+`MAX_RESUMES` times, or another house's) begins the world again from its XML
+at the save's own `t`, where it began at 0. Nothing else of the save is
+taken: the bodies, the maps and places, the activities, the producer's
+schedule and the robots' clocks start fresh, as before, built on that clock.
+The board loads on it (deadlines and claims as written, a claim never past
+it, its open jobs' things dated at it), the run's budget counts from it, the
+producer's first offer comes 240 s after it, and History says "...; it
+started over, and its clock carried on". After three start-overs that die
+before their first save (`MAX_START_OVERS`, as restores are counted), the
+next start is at 0, as a save that cannot be read is ("its clock went back
+to 0"). A restart that carries on (every restart but two so far) is
+untouched, and no prompt moved.
+
+**Why.** The two start-overs, 10-27 (t=2,375,322) and 11-01 (t=401,163),
+set the clock back to 0, and every stamp the volume keeps stood in its
+future: the desks' closes were trimmed before they were paid, and `say` was
+shut for 27 days (#594's items 1-2, fixed on their own in #598). Ben's call
+(2026-11-08, on #594): keep the clock, so the next store written for a
+continuous clock cannot trip the same way.
+
+**What the period is for.** Nothing to read until a start-over; then its
+History line, the wire's `t` going on past the refused save's, no offer
+lapsing and no held job running out at its start, and the next restart
+carrying on from the start-over's first save. It pools with the period
+before for everything else. ⚠ Sim time still repeats across 10-27 and 11-01:
+a query by `simTime` over those still needs `created_at`.
 
 ### `spot` says what its camera can see, and the two cameras are named apart (#660) — opens when this PR is deployed
 
