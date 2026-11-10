@@ -211,8 +211,8 @@ def test_a_get_up_walks_no_belief():
 
 
 def _opened(grippers: dict) -> dict:
-  """The body's grippers, each opened (a release opens one that is not
-  first, #669): for a test of what comes after."""
+  """The body's grippers, each opened -- a release first opens one that is
+  not (#669) -- for a test of what comes after."""
   for g in grippers.values():
     g.open()
   return grippers

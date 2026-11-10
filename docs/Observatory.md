@@ -10,6 +10,42 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A `withdraw` opens its gripper before the hand comes out (#669) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `0deeb7c4…` → `d9622296…`, 63,719 → 63,782
+chars, 17 sections both):
+- **`withdraw` opens its hand's gripper first**, whatever the gripper says
+  it holds, and gives the jaws `GRIP_S` (0.6 s) before the hand moves; one
+  already open is left as it is (`HumanoidBody.release_routine`,
+  `Gripper.opened`). A withdraw used to bring the hand home with its jaws as
+  they were: shut on a door's lever, the arm stayed on the lever and its way
+  home levered the trunk over.
+- **Its text says so**: "open a hand's gripper, letting go of whatever it
+  holds, then bring the hand back out along the way it went in, and its arm
+  home -- ..." (the served rule's verbs and the session's hello).
+- No verb, argument, sensor, schema, reward, body or geometry moved, and a
+  flight whose every withdraw began with its gripper open is the same
+  flight (SimNotes, "Letting go before the way home": our references and the
+  hands check, flown on both trees).
+
+**Why.** #669, from the reading of 11-08's three deaths at the counter
+(14:25, Rowan): its jaws shut on the door's lever and read "closed on
+nothing it holds" (#646's thin grip, since fixed by #647), so its
+procedure's `if read("right.held") > 0: open_hand(...)` never opened them,
+and the `withdraw` after levered the trunk into the counter (9 of 9 flown).
+A pull that lets go can still leave the jaws shut, and our references
+withdraw with the jaws shut after a grip that read false.
+
+**What the period is for.**
+- **Falls on the way home** (`withdraw` steps reading "you fell on the way
+  home", and the `stuck` deaths at the counter after them), against the
+  periods before.
+- **A procedure that withdraws a hand holding something it meant to keep**
+  drops it now: does a robot carry a piece by a withdraw and lose it, and
+  change what it writes?
+- ⚠ A withdraw whose gripper was not open takes 0.6 s longer: not to be
+  pooled with an earlier period for a verb's or a run's time.
+
 ### A fall ends a procedure's run, an `if`'s test or not, and a death ends it at once (#671) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` `5dc60982…` → `0deeb7c4…`, 63,647 → 63,719
