@@ -199,11 +199,14 @@ DOOR = '''def open_door():
 #:  - ⚠ A TRY THAT FAILED READS THE MAT AND THE CUBE AGAIN, and the next aims
 #:    where the cube now is, 1 cm on along the fingers: a reach stopped short
 #:    or a shut on nothing moved the feet 3-7 cm, and every try after it
-#:    aimed at the first read. The first try aims at the read the step
-#:    carried, as before (read again first, more first reaches stopped short,
-#:    found no posture or turned the stance 14 deg);
-#:  - ⚠ A LIFT THAT LEFT THE CUBE BEHIND IS A TRY THAT FAILED (`left.held`):
-#:    a shut on its edge read held and let go as it rose;
+#:    aimed at the first read. Where only one tag reads, the other is moved
+#:    as it seems to have moved: the feet's move moves both alike. The first
+#:    try aims at the read the step carried, as before (read again first,
+#:    more first reaches stopped short, found no posture or turned the stance
+#:    14 deg);
+#:  - ⚠ A LIFT THAT LEFT THE CUBE BEHIND IS A TRY THAT FAILED (`left.held`,
+#:    read once its running mean has had 0.1 s: a grip lost read held up to
+#:    40 ms on, #646): a shut on its edge read held and let go as it rose;
 #:  - the tries' tilts are 60, 60, 46 and 75 deg: at 75 a reach took 12 s and
 #:    moved the feet most;
 #:  - the carry aims 0.6 cm on and 0.5 cm to the right of where the grip's
@@ -234,24 +237,34 @@ PLACE = '''def place_cube():
   my = c * v - s * u
   a = a - read("step.turn")
   b = 0
+  p = 0
+  q = 0
   g = 0
   t = 1.05
   for i in range(4):
     k = (g == 0) * (i > 0)
+    m = 0
+    n = 0
     if k > 0:
-      if not spot(57):
-        k = 0
+      if spot(57):
+        m = 1
+        u = read("spot.x")
+        v = read("spot.y")
     if k > 0:
-      u = read("spot.x")
-      v = read("spot.y")
       if spot(56):
-        mx = u
-        my = v
-        x = read("spot.x") + 0.013 * read("spot.nx")
-        y = read("spot.y") + 0.013 * read("spot.ny")
+        n = 1
+        p = read("spot.x") + 0.013 * read("spot.nx")
+        q = read("spot.y") + 0.013 * read("spot.ny")
         z = read("spot.z") + 0.013 * read("spot.nz")
         a = atan2(read("spot.ey"), read("spot.ex"))
-        b = 0.01
+    if m + n > 0:
+      e = x
+      h = y
+      x = n * p + (1 - n) * (x + u - mx)
+      y = n * q + (1 - n) * (y + v - my)
+      mx = m * u + (1 - m) * (mx + p - e)
+      my = m * v + (1 - m) * (my + q - h)
+      b = 0.01
     if g == 0:
       while a > 0.79:
         a = a - 1.571
@@ -270,6 +283,7 @@ PLACE = '''def place_cube():
         ox = x - read("left.x")
         oy = y - read("left.y")
         pull("left", 0, 0, 1, 20, 0.03, give=0)
+        wait(0.1)
         g = read("left.held") > 0.5
         w = 1 - g
     if w > 0:

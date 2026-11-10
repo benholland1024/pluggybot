@@ -365,8 +365,9 @@ humanoids see theirs.
 **Each has its hand-written solution** (`challenge/solutions.py`, Evaluation.md
 §7), two procedures in the robot's own vocabulary, written when one would
 have passed the language's 1,500 characters (3,000 since #560, and its defs
-may call each other: the two are 1,491-2,013 together): the walk there, then the check's own
-procedure -- unchanged for the door and the chest; the drawer's pulls 4 cm
+may call each other: the two are 1,524-2,943 together, the cube's place
+alone 2,275): the walk there, then the check's own procedure -- unchanged
+for the door and the chest; the drawer's pulls 4 cm
 further and lets go of the knob before its arm goes home. A job is offered
 once its reference passes 6 of 8 over a tour of the house, the bar written
 before they flew (`solve.py --from tour`; SimNotes, "The humanoids' first
