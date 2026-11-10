@@ -258,7 +258,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: out that far both "
              "times, nothing of yours touching it in between. No errand does this: "
              "write the procedure, run it, and say you are done.",
-    estimate_wh=7.14, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=7.51, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "open_door": TaskKind(
     "open_door", task="open_door", target_kind="door",
     template="Open the cupboard's door, at least 50 degrees, and let go of it, within "
@@ -268,7 +268,7 @@ KINDS: dict[str, TaskKind] = {
              "are done and again 5 s later: open that far both times, nothing of yours "
              "touching it in between. No errand does this: write the procedure, run "
              "it, and say you are done.",
-    estimate_wh=7.72, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=9.05, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "place_cube": TaskKind(
     "place_cube", task="place_cube", target_kind="cube",
     template="Put the cube on its mat -- resting on it, flat, its middle within 2.5 cm "
@@ -287,7 +287,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: shut, nothing of "
              "yours touching it. No errand does this: write the procedure, run it, "
              "and say you are done.",
-    estimate_wh=7.47, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=8.55, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   # THE RESTAURANT'S FIRST JOB (#560): a place laid at the dining room's table
   # 0 (`home.restaurant`), the table check's criteria (`challenge/table.py`,
   # its row's detail all of them) as the practice's job states them -- the

@@ -401,7 +401,7 @@ def test_only_measured_costs_are_shown_to_the_model():
   that `idle` costs 7 Wh -- false, and exactly the confident wrong number
   the rest of this design keeps out of the prompt."""
   t = en.load(HUMANOID_HOME)
-  assert t.as_context(("idle", "explore", "open_drawer")) == {"open_drawer": 7.138}
+  assert t.as_context(("idle", "explore", "open_drawer")) == {"open_drawer": 7.503}
   assert t.cost("idle") == t.dearest_wh(), "the gate still prices it"
   menu = ov.Menu.for_world(HUMANOID_HOME, lc.board_book(HUMANOID_HOME))
   assert set(menu.costs_wh) <= set(t.errand_wh)
