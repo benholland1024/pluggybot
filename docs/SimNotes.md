@@ -7158,6 +7158,92 @@ And the drift itself: both robots 0.5-0.7 m off in the storeroom for half an
 hour hurts the jobs too, and is worth a reading of its own (#572's
 instruments) of why the storeroom loses them.
 
+## Letting go before the way home (issue #669)
+
+**What happened.** At 14:25 on 11-08 Rowan's third grip shut its jaws on the
+cupboard door's lever -- a 1 cm bar, at 120 N -- and read "closed on nothing
+it holds" (#646's thin grip). Its procedure opened the hand only `if
+read("right.held") > 0`, so it withdrew with the bar clamped: the hand came
+out 1.3 cm, the side way home moved the trunk instead (0.27 m toward the
+counter, 31 deg of tilt), and the robot went over into the counter and never
+stood -- 9 of 9 noise draws on the live build (the investigation:
+`~/pluggybot-training/counter-falls-1108/findings.md`). #647 fixed the
+misread; a pull that lets go can still leave the jaws shut, and our own
+references withdraw with their jaws shut after a grip that read false.
+
+**What a withdraw does now** (`HumanoidBody.release_routine`): its gripper is
+opened first, whatever it says it holds, the jaws given `GRIP_S` (0.6 s, as
+`open_hand` gives them) while the robot stands still, before the hand starts
+out; a fall in that time ends it the step it comes, the hand never sent. A
+gripper already open (`Gripper.opened`: last told to open its whole stroke)
+is left as it is, so a withdraw after an `open_hand` is the flight it was.
+**So does a walk's hand-over** (`to_walk_routine`), for an arm that is out:
+`step` refuses only a grip that reads held, and a procedure that ends with a
+hand out walks after it, so the same jaws on the same lever came home
+through every walk (#669's review). One routine lets go for both
+(`HumanoidMission.let_go_routine`), and the body text says so: "Before a
+`step` or any other walk, a hand that is out comes home, its gripper opened
+as `withdraw` opens it: a walk carries nothing." With nothing to open it
+steps nothing, and no reference begins a walk with a hand out -- nor does any
+of the 459 practice tries below, by their recorded verbs. Its text
+says so with no condition the robot must work out. Worded "open a hand's
+gripper if you have shut it", the deployed mind (GLM-5.3-Flash on baseten, 24
+answers a text, each free to say "unknown") read a held cube as let go 24
+times of 24, but jaws a `close_hand` that read false had shut as opened only
+17 times: the other 7 were not sure that gripper counted as shut. So it
+opens one that boots with its jaws together too, and "open a hand's gripper,
+letting go of whatever it holds, then ..." read as meant 24 times of 24 on
+both questions -- the old text 0 of 24 on both, and the verb's way home, two
+questions more, 24 of 24 on every text.
+
+**Flown** (one Vast pod, an AMD EPYC 7B12, osmesa; this build and the tree it
+branched from, b4074eb; `~/pluggybot-training/issue-669/`):
+- *14:25's door tail* (draw 177, the investigation's `door.py`), its last
+  `open_hand` taken out so the withdraw begins with the jaws on the lever's
+  bar: staging fell 9 of 9 noise draws, every one on that withdraw; this
+  build 0 of 9, each withdraw home. As Rowan wrote it -- #647's grip reads
+  held, and the procedure opens before it withdraws -- the same flight on
+  both trees at those 9 draws and 12 stance jitters, none falling.
+- *Our references from the tour* (the served drawer, door, chest and table,
+  32 draws each, each its own noise): the same flight on both trees, row for
+  row -- the drawer 31, the door 26, the chest 31 and the table 27 of 32: none
+  withdraws with its jaws shut.
+- *The hands check* (the lid, drawer, door and cube at set-outs 0-127, the
+  table at 0-31, each its own noise): a flight whose every withdraw began
+  with its gripper open is the same flight on both trees, and 60 of 544 were
+  not -- each a withdraw after a grip that read false (the references'
+  `else: withdraw`), whose jaws now open at the prop, the robot standing 0.6
+  s longer, the flight going its own way from there. The lid passed 102 then
+  103, the drawer 87 then 88, the door 95 and 95, the cube 73 then 70 (4 lost,
+  1 gained, of its 26 that parted), the table 24 and 24. Falls: the drawer 3
+  then 4, the door 2 and 2, the table 3 and 3, none at the lid or the cube --
+  the new one the drawer's set-out 2 on its LAST withdraw, which began with
+  its jaws open, as every withdraw before this did: a flight gone its own way.
+  At the cube's four lost set-outs the jaws read shut on nothing as the
+  withdraw began (a gap of 0.1 mm at most); as they opened, the cube moved
+  0.4 mm at most at three, and 6 mm at the fourth (set-out 29, where it ended
+  4 cm from the mat's middle, not 1.3) -- opening beside a free thing after a
+  missed grip can nudge it. Staging's passes at the four were 1.3-2.3 cm from
+  the middle, inside 2.5. A gripper shut on nothing holds nothing to let go
+  and could be left shut; this build does not, as its text would then need a
+  condition again.
+- *Procedures the mind wrote* (#554's lid and door arms and #544's door B: 459
+  recorded practice tries, each flown again from its set-out on each tree):
+  448 the same flight, 11 parted, passes 60 and 60, falls 76 then 75, on the
+  way home 8 then 7 -- the one no longer falling a door try whose withdraw
+  brought home a hand it never opened.
+- *The rule as shipped* (a gripper opened unless it is open, c35477c) flew
+  the check's 160 flights at set-outs 0-31 as the first version did, which
+  opened only a gripper told to shut, every row the same: no reference
+  withdraws a hand it never opened.
+
+**What it leaves open** (#669's follow-ups, each its own decision): what holds
+an OPEN hand -- the counter's top under a jaw, a lid come down over the hand
+(Luca's 15:17) -- still holds its arm, and the way home still knows nothing of
+the world (Hands.md §7); a reach of one hand while the other is held takes a
+posture planned for a free body; and the get-up against the counter (13 of 14
+flown falls there never stood in 60 s).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

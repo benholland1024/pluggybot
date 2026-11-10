@@ -22,7 +22,7 @@ from pluggybot import tick
 from pluggybot.body import NOT_SEEN, TOPPLE_HOLD_S, Body, RackPose
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
-from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
+from pluggybot.humanoid.arms import GRIP_S, HELD_GAP_M, HandGoal
 from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
                                        StandPolicy)
 from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, HumanoidMission
@@ -44,11 +44,9 @@ LEVEL_TILT_RAD = math.radians(5.0)
 #: counter and the floor ahead (`model._trunk`), and its eye (#275): the
 #: Camera Module 3 on the head, looking ahead.
 TAG_CAMERA, HEAD_CAMERA = "color_eye", "nav_eye"
-#: How long a gripper is given to close or open, s: the Dex1-1 shuts its
-#: stroke in 0.24 s at its fastest, and a squeeze settles after.
-GRIP_S = 0.6
-#: ...and how much longer, s, while its jaws stand open on something and
-#: squeeze it too little to hold, read every `GRIP_READ_S`: a chest's knob
+#: How much longer than `arms.GRIP_S` a shut gripper's word is waited
+#: for, s, while its jaws stand open on something and squeeze it too
+#: little to hold, read every `GRIP_READ_S`: a chest's knob
 #: on its drop handle swung off a pad and back between the jaws, and read
 #: at `GRIP_S` alone the grip said NOT HELD in 7 of 24 set-outs where the
 #: pads held the knob 2 s later (#493).
@@ -661,13 +659,17 @@ class HumanoidBody(Body):
     fall ends it at once, the next routine waiting out the get-up, as a
     reach's does -- or "held", not home in `RELEASE_S`: a hand that cannot
     come home ends the routine there, never the attempt it is in. ⚠ ITS
+    GRIPPER IS OPENED FIRST, whatever it says it holds, as every way home
+    lets go (`HumanoidMission.let_go_routine`, #669). ⚠ ITS
     LEGS GO BACK TO THE STANDING POLICY BEFORE ITS POSTURE IS WAITED ON,
     `STAND_BACK_S` AT MOST, the arm's word the answer (#668): an arm at
     rest is no hand out, and a step aside asked as it came home took them
     for the walker, under which the standing posture never moves."""
     yield from self.mission.to_stand_routine()
-    self.reach.retreat(side)
     falls = self.mission.falls
+    if not (yield from self.mission.let_go_routine((side,))):
+      return "fell"
+    self.reach.retreat(side)
     for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
       if self.mission.falls != falls or self.reach.home(side):
         break

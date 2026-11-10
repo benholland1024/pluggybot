@@ -100,7 +100,7 @@ and its feet, which the walking policy moves.
 | `pull(hand, dx, dy, dz, force, distance, speed, give)` | THE FORCE MOVE (§4), at most 20 N: what the standing body holds, pushing away around two thirds of it (#544) | `pull.moved`, `pull.force` (the hardest along its way, as felt), `pull.held` (1 if it ended held fast, #650: until it, nothing a served robot reads told that from out of reach), `pull.dx..dz` (the way the hand was going at its end) | reads false only for an argument refused, a hand not out, a way all 0 or a fall, as its text says (#650), and none of its readings is left then; stopped short any other way (held fast, let go, out of reach, feet moved, out of time) it is ok. The rest of why it stopped is the record's, which a practice's mind is shown and a served robot is not | `Reach.pull` |
 | `close_hand(hand, force)` | shuts the gripper with at most `force` a pad, 5-120 N, a hand pressed on what it met eased to where it is first (`Reach.ease`) | `hand.held`, `hand.gap` | closed on nothing it holds | the Dex1-1's torque limit, its encoder and current |
 | `open_hand(hand)` | opens the gripper | -- | -- | -- |
-| `withdraw(hand)` | the hand back along its way in, then the arm home: straight, or out to its side first and lowered there, its shoulder pitched back, where that keeps the arm higher in front of the robot than straight would (SimNotes, "The way home"); ok once its drivers read it home | -- | not home by `RELEASE_S` (something holds it); a fall | `Reach.way_home` on the robot's model of itself, `Reach.home` |
+| `withdraw(hand)` | its gripper opened first, whatever it says it holds -- one already open its whole stroke left as it is -- and `GRIP_S` given to it before the hand moves (#669: jaws left shut on a lever held the hand, and the way home levered the trunk over; SimNotes, "Letting go before the way home"); then the hand back along its way in, then the arm home: straight, or out to its side first and lowered there, its shoulder pitched back, where that keeps the arm higher in front of the robot than straight would (SimNotes, "The way home"); ok once its drivers read it home | -- | not home by `RELEASE_S` (something holds it); a fall | the gripper's own command (`Gripper.opened`, `HumanoidMission.let_go_routine`), `Reach.way_home` on the robot's model of itself, `Reach.home` |
 | `step(ahead, left, turn)` | the feet to the work, its hands home first: a turn on the spot, closed on the stance's own heading (#649; within a degree or two of what is asked), then a walk in the frame it then stands in -- one motion, or ahead then left where the walker would skew it -- and a stand; the feet walk in strides, about 5 cm of the stance's, and a walk asked under 6 cm may take none | `step.dx/dy` (where the stance went, in the frame it stood in before), `step.turn`; the verb's text turns a place read before into the frame after | too short (a walk asked at least 1 cm that its own legs reckon went under it, #649), turned short (a turn whose pulses ran out still 2 deg off, its feet held), holding something (nothing moves), blocked (nowhere in its first 2 s, or 1 cm in a second after; or kept off another robot as a walk is, #670: its middle 0.65 m from that robot's, 1.2 m from one fallen, and begun nearer it goes only away -- one any of whose walks would head nearer neither turns nor moves; or that robot's body inside the walks' front stop turned to its way, 0.40 m along it and 0.27 m either side, off its returns alone in the scans the step takes -- each judged where its stride's carry would take it, and saying how), fell, out of time. ⚠ A turn's shuffle moves the feet 2-6 cm the report does not count, a sidestep's first slide from the stance a reach leaves 1-4 cm, and `step.dy` counts a sidestep 1-3 cm short, one going left after a step ahead up to 10 cm or more | the walking policy, the legs' odometry |
 
 Beside them stay `wait` and `move(axis, target)` -- the motor level, one arm
@@ -457,7 +457,9 @@ there (§4's "A tag watched while the robot moves").
 - **Contact without a grip** other than pushing with a pull (a negative
   way): no slide or pivot verb, nor yet a job needing one.
 - **A walk with something in hand.** A step carries nothing: the walking
-  policy walks with its arms home.
+  policy walks with its arms home, and its hand-over lets go of a hand
+  that is out first, as a `withdraw` does (`HumanoidMission.let_go_routine`,
+  #669) -- the body text says so, for `step` and every other walk.
 - **A way out or home that looks, or feels.** Both are judged on the
   robot's model of itself alone (#539, #560): what the hand works over is
   taken to lie under it ahead of the robot's front, and the space at its
@@ -468,8 +470,11 @@ there (§4's "A tag watched while the robot moves").
   picture: an arm with none of it ahead, as over its head, comes home
   straight through whatever stands there, and a hand still caught on
   something after the line out takes it along (a jaw left under a knob
-  lifted a shut lid). A guard on the hand's force could not yet tell that
-  from a blocked reach's press (SimNotes, "The way home").
+  lifted a shut lid). Its jaws open first (#669), so what it gripped is let
+  go; what holds an open hand -- the counter's top under a jaw, a lid come
+  down over the hand, as on 11-08 -- still holds it. A guard on the hand's
+  force could not yet tell that from a blocked reach's press (SimNotes,
+  "The way home").
 - **Keep its arms off another robot.** A step keeps the robot's middle off
   another robot's as a walk does (#670), and nothing else does: a reach, its
   way out and its way home know nothing of it. On 11-08 an arm on its way
