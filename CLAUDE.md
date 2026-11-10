@@ -1933,8 +1933,13 @@ save a filmstrip PNG named after the script.
   network fact) -- but a robot STILL, fallen, resting or dead, is kept
   clear of where its BODY lies, placed as the other's own sensors would, and
   the depth camera's hold skips it (`keep_clear`, `_near_field_step`; #365,
-  #455: two maps 3 m apart, and no walk a resting body held ever asked it)
-  -- and every sensor keeps the other robot OUT OF THE MAP AND IN THE
+  #455: two maps 3 m apart, and no walk a resting body held ever asked it);
+  ⚠ SO IS ONE STANDING OR WALKING THAT THE OTHER'S LIDAR SEES (#675;
+  `Body.seen_at`, its scans' split by root, held `SEEN_HOLD_S` of its own
+  scans and past that only while the robot has not moved since,
+  `Body.moved_at`): at the counter its word lay 0.49 m from its body in the
+  other's map at the median, and a step was refused for a disc where it was
+  not -- and every sensor keeps the other robot OUT OF THE MAP AND IN THE
   DRIVE: painted into the grid, a peer walls in the robot it passed;
   dropped from the scan, the front stop is blind to the one obstacle that
   moves. ⚠ A station takes one robot (three stations since #560, one in

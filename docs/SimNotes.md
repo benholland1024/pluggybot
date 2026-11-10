@@ -420,7 +420,9 @@ moves (382 encounters, nine `stuck` deaths).
 
 **What is true now:** another robot is never in the map, always in the
 SENSORS, and in the planner's mask as its reported pose -- or, lying on the
-floor, as its body ("A robot lying down was avoided where it said it was").
+floor, resting, or in this robot's LIDAR's sight, as its body ("A robot
+lying down was avoided where it said it was", "A robot at work kept off
+where its body stands").
 `Lidar.scan_split` (#316) and `DepthFrame.peers` (#328) sort the same casts
 by what they hit, and neither hands the map a body that will have moved off
 by the time anything reads it. ⚠ **Which half does what**: the BROADCAST is
@@ -1327,7 +1329,9 @@ aside, with no touch and no fall.
 - a robot down, dead, resting or stepping aside is kept clear of where its
   body is, placed as the other's own sensors would put it
   (`HubLifecycle.keep_clear`), and the depth camera's hold skips it
-  (`_near_field_step`); walking, it is where it says it is, and held for;
+  (`_near_field_step`); standing or walking, it is where it says it is
+  unless the other's LIDAR sees it (#675, "A robot at work kept off where
+  its body stands"), and held for;
 - a walk whose goal a resting robot lies on (`peer_on_the_goal`) asks it at
   the plan that finds it there, within `PAST_M` of it, and waits while it
   steps off;
@@ -6953,9 +6957,9 @@ forearm hooked Luca's arm, both fell, and Rowan died (the investigation:
 
 **What a step keeps now** (`HumanoidBody._kept_off`): what a walk keeps.
 - *The disc round the other robot's middle*, where `Body.others` puts it --
-  its reported pose standing or walking, its body (placed through this
-  robot's own pose error, `as_seen`) lying, resting or dead -- 0.65 m, 1.2 m
-  round one that has fallen. Judged where the stride's carry would take the
+  its body (placed through this robot's own pose error, `as_seen`) lying,
+  resting or dead, or standing or walking in this robot's LIDAR's sight
+  (#675), else its reported pose -- 0.65 m, 1.2 m round one that has fallen. Judged where the stride's carry would take the
   robot were it stopped now (the step's own stop rule, `STEP_STOP_S` times its
   speed): the stride carries on 0.2-0.27 s of its pace, 6-8 cm. Standing
   inside the disc already, a step goes only away: one any of whose walks
@@ -6986,18 +6990,14 @@ did, bit for bit: the cube check's set-outs 0 and 1, its steps among them,
 flew row for row on both trees.
 
 **As hardware-honest as the walks.** A robot standing or walking is kept off
-at its reported pose, a network fact; the front stop reads the LIDAR, which
-sees the other robot. Its two stand-ins are the walks': a robot lying,
-resting, dead or stepping aside is placed where its body truly lies, seen
+at its body where this robot's LIDAR sees it, and at its reported pose, a
+network fact, where it does not (#675: at the counter the two were often half
+a metre apart, "A robot at work kept off where its body stands"); the front
+stop reads the LIDAR, which sees the other robot. Its two stand-ins are the
+walks': a robot placed at its body is placed where its body truly lies, seen
 through the observer's own pose error (#365, #455), for spotting a
 robot-shaped lump; and the LIDAR tells the other robot's returns by their
-geoms (#316), for segmenting them. ⚠ AT THE COUNTER THE REPORTED POSE IS OFTEN
-HALF A METRE OFF: on 11-07 and 11-08, with the pair within 2 m of each other,
-one robot's reported pose lay 0.49 m from its body in the other's map at the
-median (0.75 at the 75th percentile, 1.13 at the 90th; 62 paired drift
-samples). So the disc round a robot working with a hand out -- not resting,
-so kept off at its reported pose -- may stand where it is not, and what a step
-walking toward its body meets is the front stop.
+geoms (#316), for segmenting them.
 
 **Flown: 11:48 from where the walk stopped** (`~/pluggybot-training/
 issue-670-step-clear/fly1148.py`, osmesa; the investigation's `door.py --case
@@ -7043,6 +7043,120 @@ home is what felled them either way.
 reaching into the other robot -- nothing a reach does knows of it (Hands.md
 §7); a fall at one prop reaching the next, 1.2 m apart (a fall carries the
 pelvis 0.8-0.9 m sideways); and the get-up against the counter (#669).
+
+## A robot at work kept off where its body stands (issue #675)
+
+**What happened.** Every walk and every step keeps off the other robot where
+`HubLifecycle.keep_clear` puts it, and a robot standing or walking -- one
+working with a hand out among them, which is not resting -- was kept off at
+its REPORTED pose: its belief, in its own map. On 11-07 and 11-08, with the
+pair within 2 m of each other, one robot's reported pose lay 0.49 m from its
+body in the other's map at the median (0.75 m at the 75th percentile, 1.13 m
+at the 90th; 62 paired drift samples), and on 11-08 both beliefs were
+0.49-0.71 m off at every sample from 11:22 to 11:45. The disc keeps 10 cm
+beyond the two bodies (0.27 + 0.27 + 0.10 = 0.65 m): half a metre off, it
+kept a step off where the robot was not -- refused for nothing, its words
+giving a distance that was not true -- and not where it was, where only the
+front stops stood between them.
+
+**What is true now** (`keep_clear`, `Body.seen_at`, `Body.moved_at`):
+- A robot standing or walking that this robot's LIDAR sees is kept off at
+  its body, placed through this robot's own pose error (`as_seen`), as one
+  resting already was; out of sight, at its reported pose. Fallen, resting,
+  dead, getting up or stepping aside: unchanged.
+- *Seen* is the band's returns off that robot, named by its root
+  (`Scan.peer_roots`: `Lidar.exclude_robot`'s split, #316, kept robot by
+  robot), each scan stamping whom it named (`Navigator.seen_t`).
+- A sighting holds `SEEN_HOLD_S` (1 s) of this robot's own scans, so a
+  frame or a few that miss it -- its own fin, an arm, the part's dropouts --
+  move no disc half a metre. MEASURED over the flights below: in the
+  storeroom's open floor, 10,364 scans of 10,364 with the other robot
+  within 2 m named it (36 flights); through the house (make_way's scenes),
+  every scan that missed it within 4 m had a wall or a door's frame between
+  the LIDAR and its chest (a ray, the truth's), but one, a single scan 3.1 m
+  off. Longer, a robot gone behind a wall is still placed at its body for a
+  second of its walk, 0.4 m at most.
+- Its LIDAR idle, its newest scans' word stands: standing still with a hand
+  at work the humanoid takes no scan (only its walks, turns, holds and the
+  legs' hand-overs do), so a step after a reach is judged on the scans
+  before it -- but only while the other robot has gone nowhere since it was
+  seen (`Body.moved_at`: a walk command, a get-up or a warp, never a hand at
+  work). Past the hold, an old sighting of one that walked off meanwhile
+  would place it where it went, unseen.
+- A plan hears of a robot coming into sight or leaving it within
+  `DOWN_CHECK_S`, as of a fall (`KeepClear.seen`): its disc moves by the two
+  beliefs' disagreement.
+- A warp (a start, a stand-up) forgets whom the LIDAR saw; a restart keeps
+  it, and when the other last went.
+
+**As hardware-honest as the walks.** The stand-in is the walks' own (#365,
+#455): a robot-shaped lump where its body is, placed through the observer's
+own pose error -- now gated on the sensor that would see it, and a robot
+standing is the easiest lump to see, upright in the band #670's front stop
+already reads. The split is #316's stand-in for segmenting the other robot's
+returns; retiring both with detection off the LIDAR's points, no geom labels,
+is a later issue. `moved_at` is the other robot's own word, as its reported
+pose is.
+
+**Flown** (`~/pluggybot-training/issue-675-seen-at-body/`: `fly675.py`,
+`batch.sh`, `read.py`; osmesa, three noise draws a scene, staging b4074eb
+and this build). Each robot's map and belief are laid off the world
+together (`make_way_spike.drift`), its matcher told the map it matched
+against is gone (`ScanMatcher.forget`: against the map as it last computed
+it, a search put a belief laid 0.55 m off straight back). Luca at work: its
+right hand out ahead of it at 0.95 m and held.
+
+*Steps* -- Rowan from where its walk to the cupboard stopped at 11:48 (#670's
+`fly1148.py`), running its own door_go4 from its `face(0)`; "2" is the same
+scene with both beliefs off, Rowan's 0.5 m and Luca's laid to the same
+disagreement:
+
+| scene | Luca from Rowan, body / word | staging | this build |
+|---|---|---|---|
+| A, A2: its body in the disc, its word out of it | 0.56 / 0.99 m | 2-4 steps taken in each flight; touched in 5 of 6, both fell in 3 | every step toward it refused, saying 0.56 m; no touch |
+| B, B2: its body out of it, its word in it | 1.15 / 0.56 m | every step refused, saying 0.56-0.57 m | 4 steps taken in each; no touch |
+
+*Walks* -- Rowan from the storeroom's west side (23.0, -3.0) to a goal at
+the counter or across the room, the depth camera on, as served
+(`batch2.sh`); no walk touched, and none fell:
+
+| scene | staging | this build |
+|---|---|---|
+| C: its body 0.5 m from the goal, its word 1.0 m | gave up 3 of 3, held by the depth camera 0.70-0.90 m off its body, each saying it was 1.2-1.4 m off (its word) | gave up 3 of 3, 0.71-0.81 m off, each saying "the other robot standing 0.5 m from where it was going" |
+| D: its body 1.1 m from the goal, its word 0.5 m | arrived 2 of 3, and gave up once for nothing, saying it stood 0.5 m from the goal | arrived 3 of 3 |
+| E: its body on the way, its word 0.6 m off it | planned through its body, held by the camera 0.84 m off it, and gave up after 90 s 2.5 m short, 3 of 3 | planned round it and arrived in 10 s, 3 of 3, passing 0.79 m off |
+| F: its body 0.9 m off the way, its word on it | walked round its word, arrived in 9.7-10.0 s, passing its body 1.5 m off | arrived in 8.2-8.3 s, passing 0.80 m off |
+
+Without the camera (the counter set's own C and D, each also with both
+beliefs off), staging's walk went on to stand 0.55-0.58 m from Luca's body
+in 3 of 6, its disc on a word 1 m off, and this build's once, 0.55 m: a
+walk whose goal lies just inside a disc ends its plan at a stand-in short
+of it, and once that is reached steers at the goal itself a step at a time,
+on both trees.
+
+*The pair's other flights* -- make_way's scenes (`scripts/make_way_spike.py`,
+the depth camera on, as served; this build's through `sightings.py`, which
+also logs whom each LIDAR saw), sixteen a tree: #415's seven doorways, #455's
+three with the robot in the doorway standing 8 s and then walking off, those
+three with its map and word 2.9 m off the world, and three with the walker's
+1.0 m off. Fifteen ended as on staging -- arrived, asked aside or not as
+before, a step aside of 0.82-0.88 m, no bump, no fall -- seven identical in
+every field, the rest seconds apart. The sixteenth, the kitchen's doorway
+with the standing robot's map 2.9 m off, gave up "peer" 8.2 m short on both
+trees: staging's words said the robot in its way was 2.5 m off, its word;
+this build's, 0.7 m, its body. There the standing robot's own walk off kept
+off the walker where its LIDAR saw it, and ended 15.7 m from where it had
+stood (in the east garden), where staging's, keeping off a word 2.9 m off in
+its own map, ended 3.7 m away. The pair's fixture day sharing the house's
+station (`two_robots.py` as the fixture's recording is made) ended alike on
+both trees: one charge each, the same meeting, no death. A robot alone is
+unchanged: the cube check's set-outs 0 and 1 flew row for row.
+
+**What it does not fix.** The arms (#670's open half): the disc is about
+where bodies stand, and an arm's way out or home reaches 0.74 m to the side.
+And the drift itself: both robots 0.5-0.7 m off in the storeroom for half an
+hour hurts the jobs too, and is worth a reading of its own (#572's
+instruments) of why the storeroom loses them.
 
 ## Debugging workflow that worked
 
