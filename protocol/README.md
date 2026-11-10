@@ -63,8 +63,10 @@ in is ended the step it dies, and the run with it. What a consumer sees:
 - **A run a death ended** closes with `outcome: "aborted"` and `stopped:
   "died"` (a new `stopped` token), WITH its count (`completed`, `total`)
   and no `failedAt`. A death used to leave the run going until the
-  stand-up closed it 300 s later (`stopped: "stood_up"`, no count), so a
-  run no longer ends `stood_up`; old records keep it.
+  stand-up closed it 300 s later (`stopped: "stood_up"`, no count). A run
+  a death ends no longer waits for that close, so `stood_up` is now the
+  token of an errand a stand-up lands in only where no death came first;
+  old records keep it.
 - **A run a fall ended** is a failed step, as an untested verb that fell
   always was: `failedAt`, `failedLine` and `failedReason` (the verb's own
   words, "you fell on the way there, and let go", or "you fell" where it

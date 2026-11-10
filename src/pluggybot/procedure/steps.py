@@ -1402,6 +1402,12 @@ def served_hand_facts(bounds=(-1e3, -1e3, 1e3, 1e3), places: tuple = ()) -> "Wor
 FELL = "you fell"
 
 
+def dead(life) -> bool:
+  """Is `life`'s robot dead (a lifecycle's `dead`, #107)? A life with none --
+  a practice's, a session's -- never is."""
+  return getattr(life, "dead", None) is not None
+
+
 def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
              until: float | None = None) -> Routine:
   """One verb, as both runners call it (this module's and the language's).
@@ -1420,7 +1426,11 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
   Overseer.md §2b): a verb its body fell in fails and says so (`fell`, in
   its own words where it ended on the fall, else `FELL`), and one its robot
   died in is `stopped: died`; both runners end the run there, an `if`'s
-  test or not."""
+  test or not. ⚠ A hand a death stopped is halted where it is
+  (`Body.stop_hand`: a reach, a carry or a pull, never an arm on its way
+  home): closed, a pull went on pulling for a dead robot. Out, it holds a
+  save off until the stand-up, as a robot dead from a fall does
+  (`continuation.Keeper.busy`)."""
   before = getattr(life, "step_now", None)
   before_until = getattr(life, "step_until", None)
   aborting = bool(getattr(life, "aborting", False))
@@ -1433,6 +1443,8 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
       # as this call's
       forget_readings(life, verb.name)
     if ended == "died":
+      if args.get("hand") in ("left", "right"):
+        life.body.stop_hand(args["hand"])
       return {"ok": False, "stopped": "died"}
     said = verdict or {}
     if ended == "fell" or said.get("why") == "fell":
@@ -1462,14 +1474,17 @@ def _until_down_routine(life, routine: Routine) -> Routine:
   returned, None where it was closed; and "died", "fell" or "").
 
   ⚠ A DEATH IS READ THE STEP IT LANDS, BEFORE THE ROUTINE RUNS AGAIN (as
-  `HubLifecycle._until_stood_up_routine` reads a stand-up): no line of the
-  verb runs on a dead robot. ⚠ A FALL IS READ ONCE THE ROUTINE HAS RUN ON
-  FROM IT: a hand's move ends on the fall itself and says so in its own
-  words ("fell" too where it returned so), and anything that does not is
-  closed at its next command."""
+  `HubLifecycle._until_stood_up_routine` reads a stand-up), and a robot
+  dead as the verb is called begins none of it: no line of the verb runs
+  on a dead robot. ⚠ A FALL IS READ ONCE THE ROUTINE HAS RUN ON FROM IT: a
+  hand's move ends on the fall itself and says so in its own words ("fell"
+  too where it returned so), and anything that does not is closed at its
+  next command."""
+  if dead(life):
+    routine.close()
+    return None, "died"
   body = life.body
   falls = body.falls
-  alive = getattr(life, "dead", None) is None
   sent, exc = None, None
   while True:
     try:
@@ -1488,7 +1503,7 @@ def _until_down_routine(life, routine: Routine) -> Routine:
     except BaseException as e:  # noqa: BLE001 -- thrown into the routine, as `yield from` would
       exc, sent = e, None
       continue
-    if alive and getattr(life, "dead", None) is not None:
+    if dead(life):
       routine.close()
       return None, "died"
 
@@ -1743,12 +1758,14 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
   for i, step in enumerate(steps):
     # Safe points: between steps, and inside a walk (issue #381, `run_verb`).
     # A hazard row (issue #116) or the budget stops the program there,
-    # never inside anything else; a death, inside anything (#671).
-    if getattr(life, "dead", None) is not None:
-      result["stopped"] = "died"
-      break
-    if i and life.interrupted():
+    # never inside anything else; a death, inside anything (#671) -- the
+    # interrupt's ask too, which steps the world, and a dead robot is never
+    # asked one
+    if i and not dead(life) and life.interrupted() and not dead(life):
       result["stopped"] = "interrupted"
+      break
+    if dead(life):
+      result["stopped"] = "died"
       break
     if float(life.data.time) - t0 > program.budget_s:
       result["stopped"] = "budget"

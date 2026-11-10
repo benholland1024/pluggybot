@@ -570,6 +570,40 @@ def test_a_verb_never_runs_again_on_a_dead_robot():
   assert r["stopped"] == "died" and held == [2], (r, held)
 
 
+@pytest.mark.parametrize("stop", [True, False])
+def test_a_death_while_an_interrupt_is_asked_ends_the_run_before_the_next_verb(stop):
+  """#671's second review: between two verbs the interrupt's ask steps the
+  world (`HubLifecycle._ask_interrupt` blocks while its call flies), and the
+  robot may die in it. Answered stop or go on, the run ends `died` after the
+  last line that ran, the next verb never begun -- and the dead robot is
+  never asked again. Shown to fail with the death read only before the ask:
+  told to stop, the run ended `interrupted`; to go on, the next wait ran on
+  a dead robot."""
+  life = _stub_life()
+  asked: list = []
+
+  def interrupted():
+    asked.append(float(life.data.time))
+    life.dead = {"cause": "flat"}             # ...dead as its call flew
+    return stop
+  life.interrupted = interrupted
+  r, _ = run("def x():\n    wait(1)\n    wait(1)\n    wait(1)\n", life)
+  assert r["stopped"] == "died" and (r["total"], r["completed"]) == (1, 1), r
+  assert [c[0] for c in life.calls] == ["wait"], "a verb began on a dead robot"
+  assert len(asked) == 1, "a dead robot was asked"
+
+
+def test_a_verb_called_on_a_dead_robot_never_begins():
+  """...and `run_verb` itself begins nothing on a dead robot, whoever calls
+  it (#671's second review: the watch read only a death that came after
+  the verb began). Shown to fail with that reading alone: the wait ran."""
+  life = _stub_life()
+  life.dead = {"cause": "flat"}
+  verdict = tick.run(SimpleNamespace(step=lambda *a: None),
+                     st.run_verb(life, st.language(HOME)["wait"], {"seconds": 1.0}))
+  assert verdict == {"ok": False, "stopped": "died"} and life.calls == []
+
+
 def test_the_language_says_a_fall_stops_the_procedure_in_a_test_or_not():
   """#671: the rule is the language's, so its text says it -- among what
   ends a run, and where a verb may be a test -- in the practice's words,

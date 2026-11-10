@@ -754,6 +754,9 @@ class HubLifecycle:
     self.start_over_t: float | None = None
     #: The errand being run right now, for a restart to name.
     self._errand_now = None
+    #: ...and the one a death ended (#671), whose `task_failed` the map
+    #: hears at the stand-up, beside `stood_up` (`run_errand_routine`).
+    self._failed_by_death = ""
     #: The procedure step running right now (`steps.run_verb` sets it), for
     #: a death to name (issue #362) -- and when its program's budget ends,
     #: sim s, past which no walk inside it waits (issue #381).
@@ -2854,7 +2857,10 @@ class HubLifecycle:
       self._deferrals.pop(errand.name, None)
       # ...one its robot's death ended (#671) never scored, as a stand-up's
       # close of one never was (`_void_errand`): a job it ran for stays the
-      # robot's, and after a TRUE death the new robot's map hears nothing
+      # robot's; its map hears it failed AT THE STAND-UP, as it did (heard at
+      # the death, its row held the one slot through the death, or a row
+      # already there turned it away `busy`); and after a TRUE death the new
+      # robot's map hears nothing
       died = used.get("error") == DEATH_ENDED
       verdict = None if died else scoring.score_errand(self, errand, result, {})
       entry = self._bank(verdict)
@@ -2868,7 +2874,9 @@ class HubLifecycle:
             result["task_id"] = closed.id
             self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
       self.errand_results.append(result)
-      if not (died and self._after_true_death()):
+      if died:
+        self._failed_by_death = "" if self._after_true_death() else errand.name
+      else:
         self._occur("task_complete" if "error" not in used
                     else "task_failed", errand.name)
       self._errand_name = ""
@@ -2961,13 +2969,17 @@ class HubLifecycle:
     # A PROCEDURE THE ROBOT WROTE REPORTS BACK, whatever happened (issues
     # #227, #264): its locals are its readout, and where it stopped and why
     # is the only way it can fix one. A house program's outcome is its
-    # task's verdict and needs no second line. ⚠ Not the robot before's run
-    # (#671): a death that took the last heart ended it, and the new robot
-    # hears nothing of it (`_true_death`).
+    # task's verdict and needs no second line -- but one a death ended says
+    # so, as it did when the stand-up closed it (`_void_errand`). ⚠ Not the
+    # robot before's run (#671): a death that took the last heart ended it,
+    # and the new robot hears nothing of it (`_true_death`).
     died = run.get("stopped") == "died"
-    if (is_proc or run.get("locals")) and not (died and self._after_true_death()):
-      for line in procedure_outcome(program.name, run):
-        self._remember(line)
+    if not (died and self._after_true_death()):
+      if is_proc or run.get("locals"):
+        for line in procedure_outcome(program.name, run):
+          self._remember(line)
+      elif died:
+        self._remember(f"dying cut short {errand.name}")
     return {"procedure": run,
             **({"error": run["error"]} if "error" in run else {}),
             # ...and a run its robot's death ended is the errand a death ended,
@@ -3314,8 +3326,12 @@ class HubLifecycle:
                                          if was else " while still awake")
                      + f": {MAP_GONE}")
     self._emit(event)
-    # ...and the map hears it (issue #348), with WHO as its kind.
+    # ...and the map hears it (issue #348), with WHO as its kind -- and the
+    # run its death ended, failed, as when the stand-up closed one (#671)
     self._occur("stood_up", "timer" if auto else "admin")
+    if self._failed_by_death:
+      self._occur("task_failed", self._failed_by_death)
+      self._failed_by_death = ""
     if was is None:
       # ⚠ A RESCUE IS NOT AN INTERVENTION. Standing a DEAD robot up ends one
       # survival span and starts another, which is the feature working

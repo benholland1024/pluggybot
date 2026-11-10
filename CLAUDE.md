@@ -1399,14 +1399,15 @@ save a filmstrip PNG named after the script.
   still ends it), and `sin`/`cos`/`atan2`/`sqrt` likewise
   (`WorldFacts.math`): the served humanoids' facts turn both on
   (`served_hand_facts`), and their rule says so. ⚠ A FALL ENDS THE RUN, A
-  TEST OR NOT, AND A DEATH ENDS IT AT ONCE (#671; `steps.run_verb`, its
-  `_until_down_routine` closing the verb the step `Body.falls` counts or
-  `dead` is set; `lang.LIMITS`): read false, a tested reach that fell let
-  Luca's run go on through the get-up and its death, three verbs on a dead
-  robot; a fall is the step the run stopped at, in the verb's own words
-  (`FELL` where it has none), no test read false for it, and the language's
-  text says so; a death is `stopped: died`, "my death ended it at line N".
-  ⚠ THE MOTOR LEVEL
+  TEST OR NOT, AND A DEATH ENDS IT AT ONCE (#671; Overseer.md §2b;
+  `steps.run_verb`, its `_until_down_routine` closing the verb the step
+  `Body.falls` counts or `dead` is set, a dead robot beginning none;
+  `lang.LIMITS`): a fall is the step the run stopped at, in the verb's own
+  words (`FELL` where it has none), no test read false for it, and the
+  language's text says so; a death is `stopped: died`, "my death ended it at
+  line N", the verb's hand halted (`Body.stop_hand`), and a death in the
+  interrupt's ask between two verbs (it steps the world) is read before the
+  next. ⚠ THE MOTOR LEVEL
   IS `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
   `axes.SENSORS`): a new tool or body adds its entries there and the language
   does not change. Budgets (`budget(steps=, seconds=)`, steps the verbs a
@@ -2284,8 +2285,10 @@ save a filmstrip PNG named after the script.
   at once (#671; above, "A mind can write procedures"), so a stand-up lands
   in a charge trip, an explore or a decision's walk, never in a run; its
   errand is one a death ended as a stand-up's close of one was
-  (`DEATH_ENDED`: failed for the map, never scored), and after a TRUE death
-  the new robot hears nothing of it either (`_after_true_death`).
+  (`DEATH_ENDED`: never scored, failed for the map AT THE STAND-UP beside
+  `stood_up`, `_failed_by_death`: heard at the death, its row held the one
+  slot through it), and after a TRUE death the new robot hears nothing of it
+  either (`_after_true_death`).
 - **A task is a job OFFER, and it is not an errand** (`economy/tasks.py`,
   issue #21; TaskPattern.md): a task never carries its own payout
   (`Task.create` refuses a kind with no evaluator). The wire may carry

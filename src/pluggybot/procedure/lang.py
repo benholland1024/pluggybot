@@ -1273,12 +1273,14 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     procedure -- unless the verb is an `if`'s test (`tested`), when it is
     recorded and read, or a call held by one (`at.tested`) ends there.
     ⚠ A FALL ENDS IT WHATEVER TESTS IT (#671; `st.run_verb`), as a fall
-    fails a job's try, and a dead robot runs no verb."""
+    fails a job's try, and a dead robot begins no verb: dead as the last one
+    ended, or while its interrupt was asked, which steps the world -- and a
+    dead robot is never asked one."""
     nonlocal count
-    if getattr(life, "dead", None) is not None:
-      raise _Stop("died")
-    if count and life.interrupted():
+    if count and not st.dead(life) and life.interrupted() and not st.dead(life):
       raise _Stop("interrupted")
+    if st.dead(life):
+      raise _Stop("died")
     if float(life.data.time) - t0 > proc.budget_s:
       raise _Stop("budget")
     if count >= proc.steps_budget:

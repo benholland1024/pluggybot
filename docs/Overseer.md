@@ -323,13 +323,20 @@ and let go". Read false, Luca's tested reach that fell let its run go on
 through the get-up, the topple and its death, a `withdraw` waiting the
 get-up out for two minutes and three verbs running on a dead robot (11-08).
 **A death ends the run at once too**, never at the stand-up 300 s on: its
-verb is ended the step the robot dies, before it runs again; the line
+verb is ended the step the robot dies, before it runs again, its hand
+halted where it is (`Body.stop_hand`: a closed pull went on pulling for a
+dead robot), and a robot dead between two verbs -- in the interrupt's ask,
+which steps the world -- begins no other and is never asked; the line
 follows the death's own, "my death ended it at line 9" ("after line 9"
 where it came between two verbs, as an interrupt's line says it), and the
 `procedure` event says `stopped: died`. Its errand is one a death ended, as
-a stand-up's close of one was: failed for the map, never scored, and after
-a true death the new robot hears nothing of it (`_after_true_death`).
-Sources survive a restart and are
+a stand-up's close of one was: never scored, failed for the map at the
+stand-up beside `stood_up` (heard at the death, its row held the map's one
+slot through it), and after a true death the new robot hears nothing of it
+(`_after_true_death`). A #58 program, which leaves no line of its own, says
+"dying cut short" as it did. ⚠ An arm a death halted out holds a save off
+until the stand-up (`Keeper.busy`), as a robot dead from a fall, getting
+up, does. Sources survive a restart and are
 recompiled against *today's* world when the library loads; one that no
 longer validates is kept and shown marked not runnable, with the reasons.
 
@@ -1119,7 +1126,9 @@ otherwise).
   start with a full pack and no map of the house (#572); its kind says who — `timer` (the world, after a
   death) or `admin` (`reset_robot`) — and whatever it landed in has already
   ended (the errand's job failed "interrupted by a death", with a
-  `task_failed` beside it), so it is news, never an interrupt. The stand-up
+  `task_failed` beside it; a procedure's run ends at the death itself, and
+  its `task_failed` waits for the stand-up to come beside it too, #671), so
+  it is news, never an interrupt. The stand-up
   drops a queued `battery_below` row, which fired on the pack it has just
   refilled; any other queued row is still news and waits its turn. After a
   true death the new robot hears nothing of its predecessor's errand. ⚠ `message_received` takes **no configuration**: a row

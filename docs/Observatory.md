@@ -24,11 +24,12 @@ chars, 17 sections both):
   where it lists what ends a run and where a verb is a test (the served
   rule's and the session's hello's).
 - **A death ends the run at once.** The verb it came in is ended the step
-  the robot dies; the `procedure` row is `aborted` with `stopped: died` and
-  its count, and History's line follows the death's own: "my death ended it
-  at line N". A run used to go on until the stand-up closed it 300 s later
-  (`stopped: stood_up`, no count), or to its end on a dead robot. The map
-  hears `task_failed` at the death, as it heard it at that stand-up.
+  the robot dies, its hand halted where it is; the `procedure` row is
+  `aborted` with `stopped: died` and its count, and History's line follows
+  the death's own: "my death ended it at line N". A run used to go on until
+  the stand-up closed it 300 s later (`stopped: stood_up`, no count), or to
+  its end on a dead robot. The map still hears `task_failed` at the
+  stand-up, beside `stood_up`, as it did.
 - **An interrupt that ended a walk inside a verb is said at that line**
   ("it was interrupted at line 5"), where History said "after" it.
 - No verb, schema, reward, body or geometry moved, and a flight with no

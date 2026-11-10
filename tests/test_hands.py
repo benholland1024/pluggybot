@@ -1233,6 +1233,36 @@ def test_a_hand_verb_that_fell_ends_the_run_though_an_if_tests_it(verb):
                             f"{verb}: {said} ("), history
 
 
+def test_a_hand_whose_move_a_death_ended_is_halted_where_it_is():
+  """#671's second review: a death closes a hand verb's routine, but the
+  reach's own move goes on, on the physics seam -- a pull went on pulling
+  for a dead robot. The verb's hand is halted where it is (`Body.stop_hand`,
+  as a stop condition halts one), and the run ends `died`. Shown to fail
+  without the halt."""
+  class Pulling(StubBody):
+    def stop_hand(self, side):
+      self.halted.append(side)
+      return True
+
+    def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
+                     give=True):
+      for n in range(200):
+        if n == 50:
+          self.life.dead = {"cause": "flat"}  # the death seam's, as the pull goes on
+        yield self.STILL
+      return {"why": "distance", "seconds": 0.4, "moved": 0.1, "along": 0.1, "dx": 0.0,
+              "dy": 0.0, "dz": 0.1, "direction": [0.0, 0.0, 1.0], "force": 5.0}
+  body = Pulling(*_bare())
+  body.halted = []
+  body.life = life = _Life(body)
+  facts = st.hand_facts()
+  proc = lang.compile_procedure('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+                                '    pull("left", 0, 0, 1, 10, 0.1)\n    wait(1)\n', facts)
+  ran = body.run(lang.run_procedure_routine(life, proc, facts))
+  assert ran["stopped"] == "died" and ran["steps"][-1]["verb"] == "pull", ran
+  assert body.halted == ["left"], body.halted
+
+
 def test_a_call_refused_before_it_ran_leaves_its_verb_no_reading():
   """#650's review: a computed argument out of its bounds reads false in an
   `if`'s test and the verb never runs (`lang`). What it last reported must
