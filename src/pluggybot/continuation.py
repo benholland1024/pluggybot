@@ -21,7 +21,10 @@ absolute stamp -- the survival clock, the unminded clock, a dead robot's
 stand-up timer, an offer's deadline -- means what it meant. Rebasing each
 stamp to a fresh zero instead is how one missed stamp becomes a robot that
 lies dead for an hour. `max_sim_time` is a RUN's budget from where it
-starts (`HubLifecycle._day_routine`).
+starts (`HubLifecycle._day_routine`). ⚠ A START-OVER KEEPS IT TOO (#594,
+`start_over`): a save refused but read begins the world from its XML at
+the save's own `t`. Begun at 0, every store kept on the volume -- the
+desks' closes, the last line said -- stood in the clock's future.
 
 ⚠ BODIES ARE MATCHED BY NAME, never by state-vector layout: a new build's
 world reorders `qpos`, and a name the world lacks (a quadruped's tool, in
@@ -68,6 +71,13 @@ SAVE_EVERY_S = 60.0
 #: state crashes the process would otherwise be restored into the same
 #: crash for ever; at this many the next start is a fresh one, and says so.
 MAX_RESUMES = 3
+#: Start-overs at a refused save's clock (#594) that died before their first
+#: save, counted as restores are: at this many the next start is at 0. A
+#: start-over carries one thing of the save it refused, its clock, and what
+#: killed the process may be the clock itself; at one, a deploy's kill as a
+#: start-over booted lost the clock for good (#667's review). A start-over's
+#: first save replaces the file, count and all.
+MAX_START_OVERS = MAX_RESUMES
 #: THE MAPS' EPOCH: bumped by a change that finds the kept maps laid wrong.
 #: A save from another epoch comes back as a changed world does -- the
 #: clock, the packs, the deaths and the jobs, never the bodies, the beliefs
@@ -392,10 +402,24 @@ def read(path: str | os.PathLike) -> Snapshot:
 
 @dataclass
 class Loaded:
-  """What `load` found: the snapshot to carry on from, or None and why."""
+  """What `load` found: the snapshot to carry on from, or None and why --
+  and where a save was read and refused, the clock a START-OVER begins the
+  world at (`start_over_t`, #594): the save's own `t`, and nothing else of
+  it."""
 
   snapshot: Snapshot | None
   why: str = ""
+  start_over_t: float | None = None
+  #: ...and the start-overs at that clock `load` counted for this world:
+  #: what a stop that could save nothing gives back (`Keeper.finish`)
+  start_overs: int | None = None
+
+  @property
+  def t(self) -> float | None:
+    """The clock the world begins at: a save's own, carried on from or
+    begun again at; None where there was no save or none could be read,
+    and the world begins at 0."""
+    return self.snapshot.t if self.snapshot is not None else self.start_over_t
 
 
 def load(path: str | os.PathLike | None, world: str) -> Loaded:
@@ -404,7 +428,8 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
   ⚠ COUNTS ITSELF BEFORE IT IS TRUSTED. `resumes` is written back up by one
   here and down to 0 by the next save, so a process that dies before
   saving again is seen by the next one: at `MAX_RESUMES` the world starts
-  fresh rather than be put back into whatever killed it.
+  fresh rather than be put back into whatever killed it -- at the save's
+  own clock, as many times again (`_refused`).
   """
   if path is None or not Path(path).exists():
     return Loaded(None)
@@ -418,12 +443,13 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
     return Loaded(None, f"the saved world could not be read "
                         f"({type(e).__name__}: {e})")
   if snap.meta.get("world") != world and not same_house(snap.meta.get("world"), world):
-    return Loaded(None, f"the saved world is {snap.meta.get('world')!r}, "
-                        f"not {world!r}")
+    return _refused(snap, path, world, f"the saved world is "
+                                       f"{snap.meta.get('world')!r}, not {world!r}")
   resumes = int(snap.meta.get("resumes", 0))
   if resumes >= MAX_RESUMES:
-    return Loaded(None, f"the world was put back {resumes} times from the "
-                        "same saved moment and never got past it")
+    return _refused(snap, path, world, f"the world was put back {resumes} times "
+                                       "from the same saved moment and never got "
+                                       "past it")
   snap.meta["resumes"] = resumes + 1
   try:
     write(snap, path)
@@ -432,16 +458,59 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
   return Loaded(snap)
 
 
-def uncount(path: str | os.PathLike, counted: int) -> bool:
-  """Give back the restore `load` counted (`counted`, the count it wrote),
-  where the file still holds it: a process that stopped cleanly and could
-  save nothing (`Keeper.finish`) did not die of what it restored. True if
-  given back; reported and survived otherwise, as a failed save is."""
+def _start_overs(snap: Snapshot) -> dict:
+  """A save's start-overs at its clock, by the world that started over."""
+  counts = snap.meta.get("startOvers")
+  return dict(counts) if isinstance(counts, dict) else {}
+
+
+def _refused(snap: Snapshot, path, world: str, why: str) -> Loaded:
+  """A save read and refused: a START-OVER at its own clock (#594), counted
+  into the file before it is trusted, as a restore is -- ⚠ `MAX_START_OVERS`
+  that died before their first save and the next is begun at 0, or a crash
+  that is the clock's would start the world over into it for ever (the file
+  is replaced only by a save). ⚠ COUNTED UNDER THE WORLD THAT STARTED OVER:
+  another world's count, a misconfigured process's on the served volume,
+  never stops this one's. A save whose clock cannot be read is begun at 0."""
+  try:
+    t = float(snap.t)
+  except (KeyError, TypeError, ValueError):
+    t = math.nan
+  if not (math.isfinite(t) and t >= 0.0):
+    return Loaded(None, f"{why}, and its clock could not be read")
+  counts = _start_overs(snap)
+  started = int(counts.get(world, 0))
+  if started >= MAX_START_OVERS:
+    return Loaded(None, f"{why}, and was started over at its clock {started} "
+                        "times without once being saved")
+  counts[world] = started + 1
+  snap.meta["startOvers"] = counts
+  try:
+    write(snap, path)
+  except OSError as e:
+    print(f"world state: could not count this start-over ({e})")
+  return Loaded(None, why, start_over_t=t, start_overs=started + 1)
+
+
+def uncount(path: str | os.PathLike, counted: int, start_over: str | None = None) -> bool:
+  """Give back the restore `load` counted (`counted`, the count it wrote) --
+  or, `start_over` naming the world, the start-over at the save's clock it
+  counted (#594) -- where the file still holds it: a process that stopped
+  cleanly and could save nothing (`Keeper.finish`) did not die of what it
+  carried on from or began. True if given back; reported and survived
+  otherwise, as a failed save is."""
   try:
     snap = read(path)
-    if int(snap.meta.get("resumes", 0)) != counted:
-      return False
-    snap.meta["resumes"] = max(0, counted - 1)
+    if start_over is None:
+      if int(snap.meta.get("resumes", 0)) != counted:
+        return False
+      snap.meta["resumes"] = max(0, counted - 1)
+    else:
+      counts = _start_overs(snap)
+      if int(counts.get(start_over, 0)) != counted:
+        return False
+      counts[start_over] = max(0, counted - 1)
+      snap.meta["startOvers"] = counts
     write(snap, path)
   except Exception as e:                    # noqa: BLE001 -- a stop, never a crash
     print(f"world state: could not give back this restart's count "
@@ -525,6 +594,22 @@ def restore(lives, snap: Snapshot) -> dict:
           **({"setOut": set_out} if set_out else {})}
 
 
+def start_over(lives, t: float) -> None:
+  """A START-OVER (#594): the world begun again from its XML at a refused
+  save's own clock, `t` (`Loaded.start_over_t`), and nothing else of it --
+  the bodies, the maps, the activities, the producer's schedule and every
+  robot's clocks fresh. Where `restore` would be: after every `begin()`,
+  which `HubLifecycle.run` began on that clock, and before any day routine
+  is driven. The run's budget counts from here, as a restore's does, the
+  producer's first offer comes as long after it as after 0, and History
+  says the clock carried on (`started_over_line`)."""
+  for life in lives:
+    life.max_sim_time += t
+    life.start_over_t = float(t)
+  if lives[0].producer is not None:
+    lives[0].producer.start_at(t)
+
+
 # ---- the keeper ----------------------------------------------------------------
 
 
@@ -560,7 +645,8 @@ class Keeper:
 
   def __init__(self, lives, path: str | os.PathLike,
                every_s: float = SAVE_EVERY_S,
-               carried_on: Snapshot | None = None) -> None:
+               carried_on: Snapshot | None = None,
+               start_overs: int | None = None) -> None:
     self.lives = list(lives)
     self.path = Path(path)
     self.every_s = float(every_s)
@@ -573,6 +659,9 @@ class Keeper:
     #: or None: what `finish` gives back where it can save nothing.
     self.counted = (int(carried_on.meta.get("resumes", 0))
                     if carried_on is not None else None)
+    #: ...and the start-overs at a refused save's clock it counted for this
+    #: world (`Loaded.start_overs`, #594), or None: given back alike
+    self.start_overs = start_overs
     #: Was a body mid-move when a paused world stopped (`step_hook`)?
     self.stopped_mid_move = False
     self._next: float | None = None
@@ -626,8 +715,9 @@ class Keeper:
   def finish(self) -> bool:
     """The save a run ends with, after its day; True if it was written.
     ⚠ NONE WHERE A PAUSED WORLD STOPPED WITH A LIVING BODY MID-MOVE
-    (`step_hook`), and then the restore this process counted is given back,
-    where no save came after it (`uncount`): a clean stop is no crash.
+    (`step_hook`), and then the restore or the start-over this process
+    counted is given back, where no save came after it (`uncount`): a clean
+    stop is no crash.
     ⚠ ANY OTHER END SAVES, whatever a body is doing: skipped for `busy`, a
     run ending by its budget while a robot lay dead -- mid get-up until its
     stand-up, 300 s -- came back from before its fall, alive (#594's
@@ -638,6 +728,8 @@ class Keeper:
           "paused with a body mid-move")
     if self.saves == 0 and self.counted is not None:
       uncount(self.path, self.counted)
+    if self.saves == 0 and self.start_overs is not None:
+      uncount(self.path, self.start_overs, start_over=self.lives[0].world)
     return False
 
   def save(self) -> bool:
@@ -665,3 +757,12 @@ def resumed_line(where: tuple[float, float] | None, frac: float,
   x, y = where if where is not None else (math.nan, math.nan)
   return (f"the world restarted; I carried on from ({x:.1f}, {y:.1f}) with "
           f"the pack at {frac:.0%}")
+
+
+def started_over_line(why: str, t: float | None) -> str:
+  """The History line a start-over writes (#594): why the world could not
+  carry on, and what its clock did -- carried on from the save it refused
+  (`start_over`), or back to 0 where none could be read."""
+  return (f"the world could not carry on from where it stopped: {why}; it "
+          + ("started over, and its clock carried on" if t is not None
+             else "started over, and its clock went back to 0"))
