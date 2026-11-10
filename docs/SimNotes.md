@@ -3576,6 +3576,34 @@ A minded day with it (949 sim s, the deployed arm and model, from nothing):
 no walk gave up with the other robot in the way, where the day before it
 8 had; the pair did not meet in a doorway, so nobody was asked.
 
+**Asked aside as an arm comes home** (#668). An arm whose command is at
+rest is no hand out, so a humanoid whose arm the counter held on its way
+home could be asked aside, and on 11-08 Luca's `withdraw` waited 2,191 s,
+asked aside 17 times, its mind never asked, until a fall ended it. The
+walker took its legs and nothing gave them back; and the posture's own loop
+(`Reach._trim`), reading the walker's posture, carried the standing goal off
+a standing posture that moves only while its own policy steps -- 0.020 rad
+forward over a walk of a second or more, the edge of the band `settled`
+reads, and 0.008-0.017 over a short step -- so the release's wait on the
+two meeting never ended. A release now takes the legs back for the
+standing policy once its arm is home or held (ending a step aside still
+under way, or one asked as the legs come back) and waits on its posture
+`STAND_BACK_S` at most. On a bare floor, its arm read home 6 s late and
+asked aside meanwhile, it returns 0.8 s after the arm, where before it
+never returned;
+at the chest as Luca worked it, the ask landing while the counter held its
+arm, the live build's withdraw had not returned 365 s on, and with the
+hand-back (the trim gated too, below) it returned 1.7 s after the ask.
+Where nobody asks, nothing changes: the four offered jobs from the tour,
+32 draws each, replay staging's flights exactly. The trim is left running
+under the walker. Trimmed only while the standing policy steps, every
+walk's hand-back stood truer (over the 3 s after, the trunk read 0.10-0.24
+deg RMS off its plan, where the drifted goal left 0.40-0.55; five walks on
+a bare floor), but our table's reference, tuned on the drifted goal, laid
+20 of 32 from the tour where it lays 27, all seven draws that parted going
+the one way; the counter's three jobs read as before (31, 26 and 31 of 32,
+on one pod).
+
 **Never off its charger** (stage 4). The pair's recording found it: the
 first robot plugged in at the station, the other came to charge and walked
 to wait, its way cut the charging robot's disc and asked it aside, and it

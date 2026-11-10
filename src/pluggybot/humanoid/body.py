@@ -23,7 +23,8 @@ from pluggybot.body import NOT_SEEN, TOPPLE_HOLD_S, Body, RackPose
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
-from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
+from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
+                                       StandPolicy)
 from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, HumanoidMission
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
@@ -54,6 +55,13 @@ GRIP_SETTLE_S, GRIP_READ_S = 1.5, 0.1
 #: A gaze's bow is waited for this long at most, s (`gaze_routine`), and a
 #: hand's way out and home this long (`release_routine`).
 GAZE_WAIT_S, RELEASE_S = 4.0, 15.0
+#: ...and its posture back at the stand after, its legs the standing
+#: policy's again, this long at most, s: 4.0, twice the 2.0 s the standing
+#: policy's posture takes to cross its whole range at its rates. ⚠
+#: Unbounded, a withdraw waited 2,191 s (#668; SimNotes, "Making way,
+#: standing").
+STAND_BACK_S = 2.0 * max((HEIGHT_RANGE[1] - HEIGHT_RANGE[0]) / HEIGHT_RATE,
+                         (PITCH_RANGE[1] - PITCH_RANGE[0]) / PITCH_RATE)
 #: A hand's carry or pull stops once the body's own odometry puts its
 #: stance this far from where it began, m: a pull toward the robot dragged
 #: it 0.3 m to the counter, its standing policy stepping under the arm
@@ -637,7 +645,11 @@ class HumanoidBody(Body):
     (`Reach.home`, #539), the posture back at the stand: "home"; "fell" -- a
     fall ends it at once, the next routine waiting out the get-up, as a
     reach's does -- or "held", not home in `RELEASE_S`: a hand that cannot
-    come home ends the routine there, never the attempt it is in."""
+    come home ends the routine there, never the attempt it is in. ⚠ ITS
+    LEGS GO BACK TO THE STANDING POLICY BEFORE ITS POSTURE IS WAITED ON,
+    `STAND_BACK_S` AT MOST, the arm's word the answer (#668): an arm at
+    rest is no hand out, and a step aside asked as it came home took them
+    for the walker, under which the standing posture never moves."""
     yield from self.mission.to_stand_routine()
     self.reach.retreat(side)
     falls = self.mission.falls
@@ -645,7 +657,11 @@ class HumanoidBody(Body):
       if self.mission.falls != falls or self.reach.home(side):
         break
       yield STILL
-    while self.mission.falls == falls and not self.stand.settled:
+    if self.mission.falls == falls:
+      yield from self.mission.to_stand_routine(getup=False)
+    for _ in range(int(round(STAND_BACK_S / self._m.opt.timestep))):
+      if self.mission.falls != falls or self.stand.settled:
+        break
       yield STILL
     if self.mission.falls != falls:
       return "fell"

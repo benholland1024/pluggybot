@@ -1565,7 +1565,14 @@ class Reach:
   def _trim(self, dt: float) -> None:
     """The posture as the robot's model has it against the plan's; the
     policy asked that much more, once the posture it was shown has arrived
-    (a ramp's lag is not a miss), never past what it trained on."""
+    (a ramp's lag is not a miss), never past what it trained on. ⚠ IT TRIMS
+    ON WHILE THE WALKER HOLDS THE LEGS, off the walker's posture: a walk
+    leaves the standing goal pitched forward, 0.008-0.017 rad after a short
+    step and 0.020 after a walk of a second or more (the edge of the band
+    `settled` reads), taken up again a second or two after the hand-back.
+    Trimmed only while the standing policy steps, our table's reference
+    laid 20 of 32 from the tour where it lays 27 (#668): every hand job is
+    measured on it as it is."""
     have = self.posture_now()[:2]
     if self.stand.settled:
       trim = np.clip(self.trim + TRIM_RATE * (self.posture[:2] - have) * dt,
