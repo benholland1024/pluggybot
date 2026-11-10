@@ -1081,7 +1081,8 @@ WITHDRAW_WHY = {"fell": "you fell on the way home",
 
 
 def _withdraw(life, args: dict) -> Routine:
-  """ok once the arm is home, by its drivers (`Body.release_routine`)."""
+  """ok once the arm is home, by its drivers (`Body.release_routine`), its
+  gripper opened first where it was shut (#669)."""
   hand = args["hand"]
   why, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand))
   if why == "home":
@@ -1301,10 +1302,11 @@ HANDS_VERBS: dict[str, Verb] = {
                      "ok when it says it holds something"),
   "open_hand": Verb("open_hand", {"hand": _HAND}, _open_hand, "open a hand's gripper"),
   "withdraw": Verb("withdraw", {"hand": _HAND}, _withdraw,
-                   "bring a hand back out along the way it went in, and its arm home -- "
-                   "straight there, or out to your side first and down at your side where "
-                   "that keeps the arm higher in front of you than straight would; ok once "
-                   "your arm is home"),
+                   "open a hand's gripper if you have shut it, letting go of whatever it "
+                   "holds, then bring the hand back out along the way it went in, and its arm "
+                   "home -- straight there, or out to your side first and down at your side "
+                   "where that keeps the arm higher in front of you than straight would; ok "
+                   "once your arm is home"),
 }
 #: The hands' vocabulary (#525; docs/Hands.md): what the humanoid's
 #: procedures call, the checks' and the practice's alike...
