@@ -1015,7 +1015,19 @@ save a filmstrip PNG named after the script.
   on its own), ⚠ its first window `STEP_START_S` (2 s: from the stand's
   stance after a reach a sidestep to the right slid up to 1.1 s, unseen by
   its odometry, and read `blocked` in 1 s, #560), an oblique step the walker would skew walked as two, a
-  turn's 2-6 cm of shuffle uncounted (the odometry is worse over it); ⚠ a
+  turn's 2-6 cm of shuffle uncounted (the odometry is worse over it); ⚠ A
+  STEP KEEPS OFF ANOTHER ROBOT AS A WALK DOES (#670; `_kept_off`; SimNotes,
+  "Two robots at the counter": at 11:48 on 11-08 a walk stopped at the
+  disc and the steps walked in): the walks' disc round its middle
+  (`Body.others`, 0.65 m, 1.2 round one fallen) and the walks' front stop
+  turned to its way, each judged where the stride's carry would take it; a
+  step any of whose walks would head nearer from inside the disc neither
+  turns nor moves; ⚠ the front stop reads the LIDAR's returns off that
+  robot ALONE (at the chest's and the drawer's work spots the props read
+  0.35-0.38 m ahead, inside its 0.40), from the scans the step takes
+  (standing still, it takes none): `blocked`, `keptOff` saying how; a reach
+  and its ways out and home still know nothing of it (flown, an arm's way
+  home still felled both robots at the disc's edge); ⚠ a
   humanoid with a hand out keeps its posture to look (a bow carried the
   hand 43 cm up). A verb test and the maths are in every hands
   world (`hand_facts`), the served humanoids' included (`served_hand_facts`,

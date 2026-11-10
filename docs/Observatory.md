@@ -10,6 +10,46 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A step keeps off another robot as a walk does (#670) — opens when this PR is deployed
+
+**What changed is what the feet's verb does beside another robot, and what
+the robots are told of it** (SimNotes, "Two robots at the counter"):
+- **A step's walk keeps the walks' disc round the other robot's middle**
+  (`HumanoidBody._kept_off`): 0.65 m, 1.2 m round one that has fallen,
+  where `Body.others` puts it -- its reported pose standing or walking, its
+  body lying, resting or dead -- judged where the stride's carry would take
+  it. Standing within it already, a step any of whose walks would head
+  nearer neither turns nor walks.
+- **...and the walks' front stop, turned to the step's way** (0.40 m along
+  it, 0.27 m either side), judged at the carry too, on the LIDAR's returns
+  off the other robot alone.
+- Either reads false, `blocked`, and says how ("your step stopped short of
+  another robot: ...", `steps.STEP_KEPT_OFF`). A robot alone steps as it
+  did, bit for bit (the cube check's set-outs 0-1, row for row).
+- **What the robots are told** (`HANDS_VERBS["step"]`): the rule, its
+  numbers off the walks' own sizes. `prompt_sha` `de14cb3e…` → `5dc60982…`,
+  63,235 → 63,647 chars, 17 sections both; the session's hello and the
+  site's guide move with it.
+
+**Why.** #670, off 11-08's 11:48 death: Rowan's walk to the cupboard stopped
+at the disc round Luca, hung in its own withdraw (#668); its procedure stepped
+onto its work spot anyway, and its arm's way home hooked Luca's. Both fell, and
+Rowan died. Flown from where that walk stopped, Luca where the rows put it,
+staging's arms touched in 9 of 9 and both robots fell in 4; on this build every
+step toward Luca was refused, and nothing touched. From the same place a reach
+alone still met Luca in 6 of 9, and Rowan fell in 6; and at the disc's edge,
+where the steps are taken, the arm's way home met Luca in 6 of 6, and both fell
+in 3 (SimNotes). The arms are #670's open half.
+
+**What the period is for.**
+- How often a step reads false for another robot, and what the robot does
+  next: whether its procedure goes on to reach from where it stopped.
+- Whether the robots still touch, or fall, working near each other. A reach
+  and its ways out and home still know nothing of the other robot (SimNotes),
+  and a fall at one prop reaches the next.
+- ⚠ Not to be pooled with the period before for anything about two robots
+  at the counter.
+
 ### A withdraw asked aside as its arm comes home ends (#668) — opens when this PR is deployed
 
 **What changed in the world.**
