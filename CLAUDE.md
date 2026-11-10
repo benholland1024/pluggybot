@@ -799,10 +799,15 @@ save a filmstrip PNG named after the script.
   it), then turn once off the handle's tag to each prop's `STANCE`, a
   little left of square (squared, the way home pushed the drawer back in).
   OFFERED: the drawer, the door and the chest, 16 minutes each (3x the
-  slowest pass, 313 s), each paying 90 (Ben's call); ⚠ NOT the cube (0 of
-  8, set down off its mat). The bar is 6 of the 8 draws `solve.py --from
-  tour` flies first: on the waist's body, each draw its own noise (#560's
-  seeds stage, one pod), 8, 5 and 8 of them, and 31, 28 and 32 of 32 -- ⚠
+  slowest pass, 313 s), each paying 90 (Ben's call); and the cube on the
+  table's terms since #560 (9 minutes, `CUBE_MINUTES`, 3x 171 s; paying 51),
+  its reference placing 28 of 32 draws over the tour, its bar 24 -- ⚠ ITS
+  TRIES READ AGAIN (`hands_check.PLACE`; SimNotes, "The cube from the
+  tour"): a try that failed moved the feet 3-7 cm and the next aimed at the
+  first read, and a lift that lost the cube is a try that failed. The
+  others' bar is 6 of the 8 draws `solve.py --from tour` flies first: on
+  the waist's body, each draw its own noise (#560's seeds stage, one pod),
+  8, 5 and 8 of them, and 31, 28 and 32 of 32 -- ⚠
   THE DOOR UNDER ITS BAR AT ITS 8, Ben's call (the one realization every
   draw shared before, on the same pod: the door 7 of 8 and 30 of 32, the
   chest 6 and 25; today's body on #560's stage (a) pods: 8, 8 and 7 of 8;

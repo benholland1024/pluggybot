@@ -10,6 +10,37 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The cube is offered (#560) — opens when this PR is deployed
+
+**What changed in the world.**
+- **`place_cube` is one more kind in `home_humanoid`'s rotation**: the cube
+  put on its mat on the storeroom's counter, its fifth job beside the
+  drawer, the door, the chest and the table. It gives 9 minutes
+  (`tasks.CUBE_MINUTES`, three times its reference's slowest pass over the
+  tour, 171 s), pays 51 (Ben's 90 for 16 minutes, pro rata, as the table's)
+  and costs 9.858 Wh (`energy.json`, unchanged: its reference now costs
+  8.061 from the dearest station). The robots read a new row in their
+  reward table: `prompt_sha` `0deeb7c4…` → `8b6afc08…`, 63,719 → 64,188
+  chars, 17 sections both (`overseer_probe.py --deployed --prompt`). Nothing
+  about the verbs, the body or the house moved.
+- **Our reference passed from the tour** (SimNotes, "The cube from the
+  tour"): 28 of 32 draws, its bar 24, 23 on the tree before it on the same
+  pod; 25 of 32 on draws nothing was tuned on. A try that failed reads the
+  mat and the cube again. It is a reference, never shown to a mind.
+- ⚠ The rotation's `maxOffered` stays 4 with five kinds: at most four of
+  them stand on the board at once.
+
+**Why.** #560: Ben's word of 2026-11-10, that the cube is offered on the
+table's terms once its reference passes from the tour.
+
+**What the period is for.**
+- **Whether a robot takes the cube, and what it writes**: the counter's
+  fifth job, the one with the shortest time and the least pay.
+- **The counter's crowding**: two robots at it is likelier with one more
+  job there, and the arms still know nothing of the other robot (#678).
+- ⚠ **Not to be pooled with the period before for anything the reward table
+  or the offers decide**: there is one more kind on the board.
+
 ### A robot standing or walking that the other's LIDAR sees is kept off where its body stands (#675) — opens when this PR is deployed
 
 **What changed is where the walks and the steps keep off the other robot**

@@ -3925,7 +3925,7 @@ prop at draw k. **The bar, written before they flew: 6 of 8.**
 | `open_drawer` | **8 of 8** (3 before its procedure's change) | 20-21 cm out, the call 39-281 s after the claim |
 | `open_door` | **8 of 8** | 62-74 deg open, the call 57-301 s after the claim |
 | `open_chest` | **7 of 8** | opened to 59-65 deg, the call 61-301 s after the claim; the garden's (draw 7) let fall at 1.7 rad/s as it was lowered |
-| `place_cube` | 0 of 8, **not offered** | set down 2-7 cm from the mat's middle (2.5 allowed) |
+| `place_cube` | 0 of 8, not offered then | set down 2-7 cm from the mat's middle (2.5 allowed); **offered since #560**, its tries reading again, 28 of 32 ("The cube from the tour") |
 
 No falls in the 32. The slowest pass took 313 s from the station, and each
 job allows 16 minutes from the claim (three times it, rounded up). Priced
@@ -3933,11 +3933,12 @@ from the station with the place remembered (`energy.json`; since #560 the
 dearest of three, the mall's): the drawer 7.14 Wh, the door 7.72, the
 chest 7.46.
 
-**What is not yet.** The cube: offered once a reference places it (its
-check passed 3-4 of 8 at its own set-outs, the fingers against a 26 mm cube
-on a board). Why its reference misses: "Setting a table". From the station, every flight's belief ended 2.3-2.5 m off
-the truth, the street crossed on a fresh map, and passed: the counter's
-places are laid in the map its walks plan on. A lid let fall once in 8.
+**What came later.** The cube is offered since its reference placed it 28
+times in 32 over the tour, with a minutes and a pay of its own ("The cube
+from the tour"); why it missed before: "Setting a table". From the station,
+every flight's belief ended 2.3-2.5 m off the truth, the street crossed on
+a fresh map, and passed: the counter's places are laid in the map its walks
+plan on. A lid let fall once in 8.
 
 ## Where the humanoids get lost (issue #572, stage 2)
 
@@ -7157,6 +7158,97 @@ where bodies stand, and an arm's way out or home reaches 0.74 m to the side.
 And the drift itself: both robots 0.5-0.7 m off in the storeroom for half an
 hour hurts the jobs too, and is worth a reading of its own (#572's
 instruments) of why the storeroom loses them.
+
+## The cube from the tour (issue #560)
+
+**What is true now.** Our cube reference places the cube from anywhere in
+the house: **28 of 32 draws over the tour** (`solve.py --feature cube --from
+tour --n 32`, one pod, an AMD EPYC 7B12, osmesa, each draw its own noise; the
+bar, 24, written before it first flew), where the tree before it placed 23
+on the same pod, and the place check at set-outs 0-31 reads 20 where it read
+17. On draws nothing was tuned on, 400-431, 25 of 32. So `place_cube` is
+offered ("The humanoids' first jobs"): 9 minutes from the claim, three
+times its slowest pass over the tour (171 s), paying 51 (Ben's 90 for 16
+minutes, pro rata), and priced at 9.858 Wh (`energy.json`: flown on this
+reference from the mall's station it cost 8.061 Wh over 177 s, from the
+house's 6.588, from the research center's 5.994, and 3 Nov's dearer reading
+is kept).
+
+| the bar's 32 draws, how each ended | the tree before | now |
+|---|---|---|
+| **placed** | 23 | **28** |
+| shut on nothing or let go as it rose, and never held again | 5 | 2 |
+| fell at the first reach | 2 | 2 (the same draws) |
+| set down 2.5-3 cm off the mat's middle | 2 | 0 |
+
+The change is the place's half (`hands_check.PLACE`): the walk there is
+the counter's (`solutions.APPROACH`) unchanged. What flying took, read off
+64 development draws (200-231 and 300-331; the tree before placed 42 of
+them, the reference now 59), every flight's verbs, the cube's and the mat's
+true places at each and the true stance where each began (the rows are in
+`~/pluggybot-training/night-shift-1110/t2-cube/`):
+
+**A try that failed moved the feet, and every try after it aimed at the
+first read.** A reach stopped short (its tips on the board, or out of reach
+from how the robot stood) or a shut on nothing moved the stance 3-7 cm, up
+to 12 at a second try at 75 deg, which took 12 s; the tries after it went
+to where the cube had been in the frame before. Each try after one that
+failed now reads the mat and the cube again and aims where the cube is, 1
+cm on along the fingers (as the first try's read is, below), its carry
+from the mat read in that frame. Of the development draws' misses, 14 never
+held the cube on the tree before and 2 do now; of the flights that tried
+twice or more, none placed it at its second try there (15) and 10 of 17 do
+now.
+
+**The first try keeps the read the step carried.** The cube's first read,
+from 0.4-0.45 m, is true to 0.2 cm; the step to the work overshoots, 2.6 +-
+1.1 cm (asked 0.11 m, walked 0.137), and the legs' reckoning of it is 0.4
+cm short, so the first reach is aimed 0.2-1.6 cm on from the cube's middle.
+Read again just before it, the aim true to 0.5 cm, the reach found no
+posture at 0.27 m, stopped short more, and twice turned the stance 14 deg:
+13 placed of 22 where 17 had been. The first try also stays as it was; its
+two falls (the bar's draws 3 and 9, and one development draw) are its own.
+
+**A lift that left the cube behind is a try that failed.** A shut on the
+cube's edge read held, and the cube stayed as the hand rose: the carry took
+nothing to the mat. The hand now reads whether it holds after the lift
+(`left.held`) and, holding nothing, lets go, goes home and tries again.
+
+**The tries go 60, 60, 46 and 75 deg.** Second at 75 deg, a try took 12 s
+and moved the feet most; second at 60, again aimed, more placed (51 of 64
+where 47).
+
+**The carry aims 0.6 cm on and 0.5 cm to the right of the grip's offset.**
+The cube's reads share the step's and the reach's error with the mat's, and
+the offset carries it through, so the set-down's error is the cube's own
+move as the jaws shut on it (along them, 0.3 cm to the left at the mean, up
+to 2.5 either way) and the carry's: a mean 0.55 cm short and 0.5 cm to the
+left, which took 9 placings of 62 past the 2.5 cm allowed. Aimed off by its
+mean, the set-down's error is +0.2 +- 0.9 cm ahead and -0.05 +- 1.1 across.
+Centring the offset between the jaws instead (the cube is centred there
+after a shut, to 0.4 cm) was worse: the jaws' axis carried the step's
+sideways reckoning, which the mat's read shares.
+
+**Not taken: the step asked further.** The cube lands 0.290 +- 0.011 m
+ahead where the step asks 0.32, and a first try at a cube nearer than 0.285
+held 9 times in 20, further 37 in 44; asked 0.335, the first tries held
+more, but more cubes were never held and three robots fell (49 placed of 64,
+the reference without it 47); asked 0.345, 41.
+
+| development draws (200-231, 300-331) | placed of 64 |
+|---|---|
+| the tree before | 42 |
+| read again before every try, the first too | 13 of 22 (17) |
+| ...after a try that failed, aimed 1 cm on (60, 75, 46, 61 deg) | 47 |
+| ...aimed true | 50 |
+| ...aimed 1 cm on, at 60, 60, 46 and 75 deg | 51 |
+| ...and the carry aimed off by its bias (**the reference**) | **59** |
+| ...and the step asked to 0.335 | 48 of 62 |
+
+⚠ What it still loses: the first reach falls on a few draws (2 of the bar's
+32, 1 of 64 dev), the same draws on the tree before; and some cubes are
+never held in four tries (2 of 32), each try stopped short, out of reach or
+shut on nothing.
 
 ## Debugging workflow that worked
 
