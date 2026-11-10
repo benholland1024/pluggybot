@@ -1570,7 +1570,15 @@ save a filmstrip PNG named after the script.
   kept maps are found laid wrong, #425 and #476, or are laid by a rule no
   longer the map's, #581's band; `MAPS_DROPPED` says the newest bump's
   reason); a save restored `MAX_RESUMES` (3)
-  times without a new one is not trusted. ⚠ The errand in flight ends; its
+  times without a new one is not trusted. ⚠ A SAVE READ AND REFUSED IS A
+  START-OVER AT ITS OWN CLOCK (#594, Ben's call; `Loaded.start_over_t`,
+  `continuation.start_over`): the world from its XML BUILT at the save's
+  `t` and nothing else of it, its board on that clock
+  (`TaskBoard(start_over_t=)`), its budget and the producer's first offer
+  counted from it; begun at 0, every stamp the volume keeps stood in its
+  future. COUNTED AS A RESTORE IS (`MAX_START_OVERS`, under its own world,
+  given back by a clean stop): after three that died before their first
+  save, and with no clock to read, the start is at 0. ⚠ The errand in flight ends; its
   job does not (`_resume_jobs`): a procedure job stays claimed, its watch
   carried on (`jobWatches`), and one this world cannot do goes back on
   offer. The hourly ceiling is still
@@ -2259,11 +2267,12 @@ save a filmstrip PNG named after the script.
   OWN COUNT (`Task.number`), NEVER A STAMP (#610; TaskPattern.md): what it
   forgets first, whose draw a restart puts back on a prop, and the offers
   listed, as are a reading's attempts (`first_solve`; Evaluation.md §5). A
-  start-over sets the clock back, and by `createdT` and
+  start-over set the clock back (two did; one with no clock to keep still
+  does, #594), and by `createdT` and
   `resolvedT` the tasks from before it ranked newest, outlasting the trim
   and putting their draws back at every restart; the site lists by the
   same count. Held jobs go by their claims (`held_by`), which a start-over
-  moves with the clock. Off by default (`--tasks`, `$PLUGGY_TASKS`). ⚠ A TAKE
+  at 0 moves with the clock. Off by default (`--tasks`, `$PLUGGY_TASKS`). ⚠ A TAKE
   THAT DOES NOT HAPPEN AND A `done` ON A JOB NOT HELD SAY WHY IN HISTORY
   (#648; `_no_take`, `_not_mine`; TaskPattern.md): two robots share one board
   and an answer thinks for 10-90 s, so 4 of 59 takes lost the race, and a
@@ -2281,8 +2290,10 @@ save a filmstrip PNG named after the script.
   the charged pack can never fund does not (#407: it starved the second of
   two kinds sharing a slot behind it); one offer per tick; nothing random. ⚠ **The rotation SURVIVES A RESTART** (the cursor lives in
   `TaskBoard.producer`), an open offer's deadline, a held job's claim and a
-  `draws` job's date (#659) are REBASED on load (except where the world
-  carries on, `rebase=False`; ⚠ a
+  `draws` job's date (#659) are REBASED on load to a clock begun at 0
+  (except where the clock carries on, `rebase=False`: a continuation, or a
+  start-over at its save's `t`, which dates the jobs' things there and
+  holds no claim past it, `start_over_t`, #594; ⚠ a
   claim is never later than the last change saved, #602: one a start-over
   left on the old clock could never run out; ⚠ moved in memory, written in
   `begin()`), an offer is re-priced by the world's energy table on load,

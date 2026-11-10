@@ -118,13 +118,14 @@ Rules the states carry, each decided explicitly:
 - **The board's orders are its own count** (`Task.number`, the id's number;
   #610): what ages out first, which offer's draw a restart puts back on its
   prop, and the order offers are listed in. ⚠ Never a stamp (`createdT`,
-  `resolvedT`): a start-over sets the clock back to 0, and after 11-01's the
+  `resolvedT`): a start-over set the clock back to 0 (two did; one with no
+  clock to keep still does, #594), and after 11-01's the
   tasks stamped on the clock before it ranked newest. t_0002 would have
   outlasted every task resolved before the new clock passed it, more than
   204,000 s, and every restart put an old offer's draw back on its prop
   over the job held there. The site lists the board on the same count. A
   robot's held jobs are in the order it claimed them (`held_by`): a claim
-  is moved with the clock at a start-over (#602), and ties go by the
+  is moved with the clock at a start-over at 0 (#602), and ties go by the
   count.
 - **A restart keeps a claim with the robot that made it** (issue #345). The
   robot is still that robot. A job `claimed` or `active` comes back claimed
@@ -187,7 +188,7 @@ sight. Worked through what reaches the robot:
 | another robot's reported pose (`others`) | ✅ | what the other robot says on the network, never a sensor's |
 | the pose of a movable object | ❌ | finding it *is* the task — see the perception ladder, §3 |
 | a prop's hidden dynamics — the drawer's runners, the chest's catch | ❌ | hidden ground truth, drawn per offer and kept in `Task.secret`, and redacted where a metric carries it (`catchN`, `Verdict.secret`) |
-| when a job's things were put back ("The drawer was put back shut at t=205338, when this job was offered.") | ✅ | the job's own history, which whoever posted it knows. A `draws` kind's sentence says it, dated on the robot's own clock, a start-over's 0 once the world starts from its XML (#659; why dated: its period in Observatory.md). Told nothing, a robot timed a spring the drawer does not have. How the prop stands *now* stays the robot's to see: anything may have touched it since |
+| when a job's things were put back ("The drawer was put back shut at t=205338, when this job was offered.") | ✅ | the job's own history, which whoever posted it knows. A `draws` kind's sentence says it, dated on the robot's own clock, and at a start-over the second the world began again from its XML with every prop at rest (#659, #594; why dated: its period in Observatory.md). Told nothing, a robot timed a spring the drawer does not have. How the prop stands *now* stays the robot's to see: anything may have touched it since |
 
 The test for a new delivery is the middle column of the first row against the
 last: *could a dispatcher who cannot see the room have written this?* A
