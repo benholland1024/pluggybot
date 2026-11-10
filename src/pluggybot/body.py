@@ -98,13 +98,16 @@ class KeepClear(NamedTuple):
   the pair says so, also WHO it is and whether it is RESTING (issue #415):
   a robot resting can be asked to make way (`Body.ask_way`). And whether it
   is DEAD (issue #455): it lies where it died until the world stands it
-  up, so it is neither waited for nor asked."""
+  up, so it is neither waited for nor asked. And whether, standing or
+  walking, it is where the asker's LIDAR SAW it (#675): at its body, never
+  where it says it is."""
   x: float
   y: float
   down: bool = False
   root: str = ""
   resting: bool = False
   dead: bool = False
+  seen: bool = False
 
 
 class Body(abc.ABC):
@@ -270,7 +273,8 @@ class Body(abc.ABC):
   def footprint_centre(self) -> tuple[float, float]:
     """The middle of the floor its body covers, off the true geometry --
     read to act only for a robot lying still, fallen, resting or dead, or
-    stepping aside for the one that reads it (issues #365, #455)."""
+    stepping aside for the one that reads it (issues #365, #455), or one
+    its LIDAR sees (#675, `seen_at`)."""
 
   @abc.abstractmethod
   def as_seen(self, x: float, y: float) -> tuple[float, float]:
@@ -282,6 +286,20 @@ class Body(abc.ABC):
     """`as_seen` undone: a point in its own map back to the true world
     point (issue #455). How a way it plans reaches another robot, told
     relative to that robot's body as this one sees it."""
+
+  @abc.abstractmethod
+  def seen_at(self, root: str) -> float | None:
+    """When its LIDAR last returned points off the robot `root` -- its
+    scans' split, `Lidar.exclude_robot`'s (#316) -- sim s; None where it
+    never has, or its scans since have missed it for longer than
+    `navigator.SEEN_HOLD_S` (#675): what keeps that robot, standing or
+    walking, at its body (`HubLifecycle.keep_clear`). Standing still, a
+    hand at work, it takes no scan, and its newest scans' word stands."""
+
+  #: When its body last went anywhere -- commanded to move, getting up, or
+  #: warped (a start, a stand-up) -- sim s; a hand at work is no move. How
+  #: another robot knows one it saw has not moved since (#675).
+  moved_at: float
 
   @abc.abstractmethod
   def level(self) -> bool:
@@ -906,6 +924,10 @@ class StubBody(Body):
     self.last_drive = None
     self.working = False
     self.docked = self.resting = False
+    #: ...when it last moved, and when its LIDAR last saw each other robot,
+    #: by root (a test sets them; `seen_at` answers them as they are)
+    self.moved_at = 0.0
+    self.sightings: dict[str, float] = {}
     self.others = []
     self.ask_way = None
     #: whether it makes way when asked (a test sets it), and every ask:
@@ -1024,6 +1046,9 @@ class StubBody(Body):
 
   def from_seen(self, x, y):
     return x, y
+
+  def seen_at(self, root):
+    return self.sightings.get(root)
 
   def level(self) -> bool:
     w, x, y, z = self.attitude

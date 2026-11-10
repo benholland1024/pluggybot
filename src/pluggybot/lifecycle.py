@@ -61,7 +61,7 @@ from pluggybot.mind.thoughts import (
 )
 from pluggybot.economy import scoring
 from pluggybot.economy.tasks import HAND_JOBS
-from pluggybot.navigator import MAKE_WAY_WAIT_S, OTHER_WAIT_S, wire_pose
+from pluggybot.navigator import MAKE_WAY_WAIT_S, OTHER_WAIT_S, SEEN_HOLD_S, wire_pose
 from pluggybot.perception import depth as nf
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.perception.lidar import robot_geoms
@@ -1429,7 +1429,14 @@ class HubLifecycle:
     and the walks Rowan's body held were never asked past it. Lying there,
     it is a lump on the floor where the other robot's own sensors see it,
     and the planner, a stagnated drive's ask and the words then agree with
-    what holds the walk. Standing and walking, it is where it SAYS it is.
+    what holds the walk.
+
+    ⚠ STANDING OR WALKING, IT IS WHERE `seen_by`'S LIDAR SEES IT (#675;
+    SimNotes, "A robot at work kept off where its body stands"), and out
+    of sight where it SAYS it is: beside the other at the counter, where it
+    said it was lay 0.49 m from its body in the other's map at the median,
+    1.13 m at the 90th percentile, and the disc stood where it was not
+    (`_seen_by`).
 
     Either way it says WHO it is, whether it lies down to rest (issue #415)
     -- its posture rides the wire, and a robot resting across the other's
@@ -1438,13 +1445,27 @@ class HubLifecycle:
     resting = bool(self.body.resting)
     if not (down or dead or resting or self.body.posture != "standing"
             or self.body.making_way is not None):
-      x, y = self.body.pose_xy()
-      return KeepClear(x, y, root=self.root)
+      if not self._seen_by(seen_by):
+        x, y = self.body.pose_xy()
+        return KeepClear(x, y, root=self.root)
+      x, y = seen_by.as_seen(*self.body.footprint_centre())
+      return KeepClear(x, y, root=self.root, seen=True)
     x, y = self.body.footprint_centre()
     if seen_by is not None:
       x, y = seen_by.as_seen(x, y)
     return KeepClear(x, y, down=down, root=self.root,
                      resting=resting and not (down or dead), dead=dead)
+
+  def _seen_by(self, other: Body | None) -> bool:
+    """Whether `other`'s LIDAR sees this robot (#675): its scans returned
+    points off it within `SEEN_HOLD_S` of now (`Body.seen_at`) -- or,
+    `other` taking no scan since, a hand at work, this robot has not moved
+    since it did (`Body.moved_at`). ⚠ NEVER ON AN OLD SIGHTING ALONE: one
+    that walked off meanwhile would be placed where it went, unseen."""
+    t = None if other is None else other.seen_at(self.root)
+    if t is None:
+      return False
+    return float(self.data.time) - t <= SEEN_HOLD_S or self.body.moved_at <= t
 
   def make_way(self, route, by: str) -> bool:
     """The other robot (`by`, its root) asks this one off `route`, its way,

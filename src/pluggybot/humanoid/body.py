@@ -464,9 +464,9 @@ class HumanoidBody(Body):
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Upright at (x, y) facing `yaw`, standing, its arms hanging, and told
-    so: its odometry there and its drivers fresh. Steps nothing
-    (`Body.start_at`) and touches no map: a stand-up's goes in the
-    lifecycle (#572)."""
+    so: its odometry there, its drivers fresh and no robot seen (#675).
+    Steps nothing (`Body.start_at`) and touches no map: a stand-up's goes
+    in the lifecycle (#572)."""
     m, d = self._m, self._d
     adr = m.jnt_qposadr[m.joint(self.handle.el(f"{hm.ROBOT_ROOT}_root")).id]
     d.qpos[adr:adr + 3] = [x, y, hm.stand_height()]
@@ -481,6 +481,8 @@ class HumanoidBody(Body):
     mujoco.mj_forward(m, d)
     self.mission.fresh_drivers()
     self.mission.drop_aside()
+    # ...and nobody its LIDAR saw from where it stood before (#675)
+    self.mission.seen_t.clear()
     if self.mission.matcher is not None:
       self.mission.matcher.anchored(on=False)
 
@@ -520,6 +522,11 @@ class HumanoidBody(Body):
 
   def from_seen(self, x, y):
     return self.mission.from_seen(x, y)
+
+  def seen_at(self, root):
+    return self.mission.seen_at(root)
+
+  moved_at = property(lambda self: self.mission.went_t)
 
   def level(self) -> bool:
     return self.mission.level()

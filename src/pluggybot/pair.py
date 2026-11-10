@@ -13,8 +13,9 @@ one waiting for work does, its senses on, until the other's ends (#593).
 Mutual awareness, the honest half: each mission is handed the other's
 REPORTED pose (`Body.others`) -- what a robot may know of another over
 the network -- so A* keeps clear of where it is now and a blocked drive waits
-for it to move (or, while it lies on the floor, of where its BODY is: issue
-#365, `HubLifecycle.keep_clear`); and each lidar DROPS the other's body from
+for it to move (or of where its BODY is while it lies on the floor or rests,
+or this robot's LIDAR sees it: issues #365, #455, #675,
+`HubLifecycle.keep_clear`); and each lidar DROPS the other's body from
 its scans (`Lidar.exclude_robot`), the way a fleet subtracts a broadcast
 footprint, because a robot that drives past otherwise paints a wake of
 inflated obstacle into the map and walls in the robot it passed (measured,

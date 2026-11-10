@@ -140,15 +140,17 @@ class Scan(NamedTuple):
   """One scan as the map and the front stop take it: the room's bearings
   and ranges, another robot's apart (issue #316), how far out each of the
   room's bearings may first clear a cell the map holds a wall in, m from
-  the scan's origin (`free_from`; None, from the sensor itself), and that
+  the scan's origin (`free_from`; None, from the sensor itself), that
   origin, (forward, left) of the pose (`origin`; None, the body's
-  `LIDAR_ORIGIN`)."""
+  `LIDAR_ORIGIN`), and which other robots, by root, its returns in the band
+  came off (`peer_roots`, #675: the band's; the level ring names none)."""
   angles: np.ndarray
   ranges: np.ndarray
   peer_angles: np.ndarray
   peer_ranges: np.ndarray
   free_from: np.ndarray | None = None
   origin: tuple[float, float] | None = None
+  peer_roots: tuple[str, ...] = ()
 
 
 class Cloud(NamedTuple):
@@ -156,9 +158,9 @@ class Cloud(NamedTuple):
   the room's `points` and another robot's `peers`; `looked` is each ray (in
   `Lidar._dirs`' order) that went somewhere other than the robot itself,
   `seen` the bearings (`Lidar.ray_angles`) any of those was cast on, the
-  ray each of the room's points and the peers' came back along, and `far`
+  ray each of the room's points and the peers' came back along, `far`
   each ray that met nothing within reach (a return the part dropped is
-  neither a point nor far: no reading)."""
+  neither a point nor far: no reading), and the geom each peer struck."""
   points: np.ndarray
   peers: np.ndarray
   seen: np.ndarray
@@ -166,6 +168,7 @@ class Cloud(NamedTuple):
   rays: np.ndarray | None = None
   peer_rays: np.ndarray | None = None
   far: np.ndarray | None = None
+  peer_geoms: np.ndarray | None = None
 
 
 class Lidar:
@@ -226,6 +229,9 @@ class Lidar:
     #: are real measurements and `scan_split` answers them separately, for
     #: the consumers that must see a robot -- the front stop above all.
     self._other_geoms: set = set()
+    #: ...and each one's geoms by its root (#675): which robot a band's
+    #: returns came off (`Scan.peer_roots`).
+    self._other_roots: dict[str, np.ndarray] = {}
     self._index_geoms()
 
   def _ring_in(self, turn: np.ndarray) -> np.ndarray:
@@ -252,7 +258,9 @@ class Lidar:
 
   def exclude_robot(self, root_name: str) -> None:
     """Another robot's body out of the map's returns (see `_other_geoms`)."""
-    self._other_geoms |= self._robot_geoms(self.model, root_name)
+    geoms = self._robot_geoms(self.model, root_name)
+    self._other_geoms |= geoms
+    self._other_roots[root_name] = np.fromiter(sorted(geoms), dtype=np.int32)
     self._index_geoms()
 
   @staticmethod
@@ -360,7 +368,7 @@ class Lidar:
     points, peers = out
     seen = np.zeros(BEARINGS, dtype=bool)
     seen[self._bearing[~mine]] = True
-    return Cloud(points, peers, seen, ~mine, rays[0], rays[1], far)
+    return Cloud(points, peers, seen, ~mine, rays[0], rays[1], far, hit[rays[1]])
 
   def band(self, data, level: np.ndarray, height: float,
            band_m: tuple[float, float] = BAND_M, rise: float = BAND_RISE,
@@ -432,6 +440,11 @@ class Lidar:
 
     have, angles, ranges, banded = flat(c.points)
     p_have, peer_angles, peer_ranges, p_banded = flat(c.peers)
+    # ...and which robots those in the band came off, by the split's labels
+    # (#675: what keeps one standing at its body, `HubLifecycle.keep_clear`)
+    struck = c.peer_geoms[p_banded]
+    roots = tuple(root for root, ids in self._other_roots.items()
+                  if struck.size and np.isin(struck, ids).any())
     # ...the rays that brought nothing back in the band: none within reach,
     # or a point outside it -- never a return the part dropped
     quiet = c.far.copy()
@@ -470,7 +483,7 @@ class Lidar:
     order = np.argsort(idx, kind="stable")
     r = np.concatenate((ranges, np.full(len(fa), self.max_range)))
     return Scan(a[order], r[order], peer_angles, peer_ranges, free_from[idx][order],
-                (float(base[0]), float(base[1])))
+                (float(base[0]), float(base[1])), roots)
 
   def hidden(self, data) -> np.ndarray:
     """Which of a frame's rays the robot's own body hides, rings by

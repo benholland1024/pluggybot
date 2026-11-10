@@ -228,6 +228,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     #: falls it had counted then: the heading's hold waits from it too
     #: (`_settled`).
     self._moved_t, self._falls_seen = float(data.time), 0
+    #: When its BODY last went anywhere, sim s -- a motion command, a
+    #: get-up, a warp; never a hand at work (`Body.moved_at`, #675).
+    self.went_t = float(data.time)
     #: A tag watched while it moves (`perception.watch.TagWatch`, the
     #: body's `watch`), stepped after every physics step; None for none.
     self.sight = None
@@ -307,6 +310,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
           self.legs = "walk"
     if any(command):
       self.last_motion_t = float(self.data.time)
+    if any(command) or self.legs == "getup":
+      self.went_t = float(self.data.time)
     if self.legs == "getup":
       # Getting up: every joint the get-up policy's, a walk asked meanwhile
       # walks nowhere -- but the waist's, which it knows nothing of: held
@@ -537,8 +542,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     the quadruped's rule): its reckoning, the three policies' drivers and
     the gains they set in the model, its senses' noise, its reach (`Reach.
     kept_state`), the depth frame it last took, the plan it last made, its
-    clocks; the grid, the camera's layer and the walls it is kept off as
-    arrays. Never saved with a hand out or getting up (`HumanoidBody.
+    clocks, who its LIDAR saw (#675); the grid, the camera's layer and the
+    walls it is kept off as arrays. Never saved with a hand out or getting up (`HumanoidBody.
     working`, `posture`): a hand's move is a routine's. ⚠ The walker that
     sees the ground (not served) keeps no scan: it starts its ground anew,
     as after a fall. ⚠ Nor is the hands' depth cloud's noise kept
@@ -571,6 +576,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     return ({"legs": self.legs, "falls": self.falls, "steps": self._steps,
              "lastMotion": self.last_motion_t,
              "moved": [self._moved_t, self._falls_seen],
+             "went": self.went_t,
              "odometry": o.kept_state(),
              "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
                        "rate": kept_value(trunk.rate)},
@@ -585,6 +591,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "clocks": {"scan": self._next_scan, "backoff": self.backoff_until,
                         "walls": self._walls_t},
              "peerSeen": [self.peer_seen_m, self.peer_seen_t],
+             # ...and who its LIDAR saw, and when (#675)
+             "lidarSeen": [self.scanned_t, dict(self.seen_t)],
              "lidarRng": [self.lidar.rng.bit_generator.state,
                           self.lidar.peer_rng.bit_generator.state],
              "depthRng": [self.depth.rng.bit_generator.state,
@@ -613,6 +621,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     # ...a save from before the hold (#593): its clock starts at the restore
     moved = state.get("moved", [float(self.data.time), self.falls])
     self._moved_t, self._falls_seen = float(moved[0]), int(moved[1])
+    # ...a save from before #675: it went at the restore, as far as anyone knows
+    self.went_t = float(state.get("went", self.data.time))
     self.odo.restore_kept(state["odometry"])
     trunk = self.stand.trunk
     trunk.imu.restore_kept(state["trunk"]["imu"])
@@ -646,6 +656,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._next_scan = float(clocks["scan"])
     self.backoff_until = float(clocks["backoff"])
     self.peer_seen_m, self.peer_seen_t = state["peerSeen"]
+    # ...a save from before #675 saw nobody: its next scan sees afresh
+    scanned, seen = state.get("lidarSeen", [None, {}])
+    self.scanned_t = None if scanned is None else float(scanned)
+    self.seen_t = {str(k): float(v) for k, v in seen.items()}
     self.lidar.rng.bit_generator.state = state["lidarRng"][0]
     self.lidar.peer_rng.bit_generator.state = state["lidarRng"][1]
     self.depth.rng.bit_generator.state = state["depthRng"][0]
@@ -680,9 +694,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   def fresh_drivers(self) -> None:
     """Its drivers and senses built again where the body stands now (a
     start, a stand-up): a body moved, which the heading's hold waits out
-    (`_settled`). The map is not touched here."""
+    (`_settled`) and another robot's old sighting of it (`went_t`). The map
+    is not touched here."""
     self._build_drivers(self.stand.policy, self.walker.policy)
-    self._moved_t = float(self.data.time)
+    self._moved_t = self.went_t = float(self.data.time)
 
   def waist_read(self) -> dict:
     """The waist's angle as its driver last read it, bare name -> rad: the

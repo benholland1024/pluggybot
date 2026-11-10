@@ -46,6 +46,46 @@ withdraw with the jaws shut after a grip that read false.
 - ⚠ A withdraw whose gripper was not open takes 0.6 s longer: not to be
   pooled with an earlier period for a verb's or a run's time.
 
+### A robot standing or walking that the other's LIDAR sees is kept off where its body stands (#675) — opens when this PR is deployed
+
+**What changed is where the walks and the steps keep off the other robot**
+(SimNotes, "A robot at work kept off where its body stands"):
+- **Standing or walking, seen, it is kept off at its body** -- a robot at
+  work with a hand out, deciding, or walking -- placed as this robot's own
+  sensors put it (`HubLifecycle.keep_clear`), as one resting already was;
+  out of the LIDAR's sight, at its reported pose, as before. "Seen": this
+  robot's scans returned points off it (`Body.seen_at`), within `SEEN_HOLD_S`
+  (1 s) of now, or, its LIDAR idle since (a hand at work takes no scan), the
+  other has not gone anywhere since (`Body.moved_at`).
+- Every walk and step reads it (`Body.others`), the disc's 0.65 m unchanged;
+  a plan hears of a robot coming into sight or leaving it at once.
+- No text the robots read moved: `prompt_sha` `0deeb7c4…` both sides, 63,719
+  chars, 17 sections; the hello and the site's guide unchanged. A robot alone
+  is unchanged: the cube check's set-outs 0 and 1 flew row for row on both
+  trees, every field but the wall clock.
+
+**Why.** #675, from #672's flights and the 11-07 and 11-08 drift rows: with
+the pair within 2 m, one robot's reported pose lay 0.49 m from its body in
+the other's map at the median (1.13 m at the 90th percentile), so the disc
+round a robot at work stood where it was not. Flown at 11:48's placements,
+Luca at work and its word 0.5 m off: staging's steps walked into it (touched
+in 5 of 6 flights, both robots fell in 3), where this build refused each,
+saying the true 0.56 m; with Luca's body 1.15 m off and its word in the way,
+staging refused every step for nothing, and this build took them. A walk
+with Luca's body on its way and its word 0.6 m off it: staging's planned
+through the body, was held by the depth camera and gave up after 90 s, 3 of
+3, where this build's planned round it and arrived in 10 s (SimNotes).
+
+**What the period is for.**
+- Steps refused for another robot (`blocked`, "your step stopped short of
+  another robot"), and the distances they say: now the other's body where
+  this robot saw it.
+- Walks that gave up "peer" (`DRIVE_GAVE_UP`), and touches and falls with
+  the pair at the counter. The arms still know nothing of the other robot
+  (#670's open half).
+- ⚠ Not to be pooled with the period before for anything about two robots
+  near each other.
+
 ### A fall ends a procedure's run, an `if`'s test or not, and a death ends it at once (#671) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` `5dc60982…` → `0deeb7c4…`, 63,647 → 63,719

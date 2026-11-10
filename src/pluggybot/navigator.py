@@ -139,6 +139,16 @@ PAST_M = 3.0
 #: a replan was met by the LIDAR's 0.25 m stop, the driver's axle 0.18 m
 #: from its body; with it the replan comes 0.04-0.1 s after the fall.
 DOWN_CHECK_S = 0.1
+#: How long a robot the LIDAR saw stays seen, s, of this robot's own scans
+#: (`Navigator.seen_at`, `HubLifecycle.keep_clear`, #675): a standing or
+#: walking robot seen is kept clear of at its body, out of sight at its
+#: reported pose, often half a metre apart at the counter -- so a frame or
+#: a few that miss it must not move its disc that far. MEASURED over the
+#: issue's flights: within 4 m the band missed the other robot only behind
+#: a wall or a door's frame, but for one single scan; in the storeroom's
+#: open floor, never within 2 m (10,364 scans). Longer, a robot gone behind
+#: a wall is still placed at its body: at most a second of its walk, 0.4 m.
+SEEN_HOLD_S = 1.0
 #: How close to the goal a stagnated drive counts as having arrived after
 #: all -- the tolerance the bay approach then measures its way out of.
 CLOSE_ENOUGH_M = 0.15
@@ -338,6 +348,11 @@ class Navigator:
     #: own corridor; only a scan taken since its walk began, so nothing a
     #: restart drops is ever read.
     self.peer_returns: tuple[float, np.ndarray, np.ndarray] | None = None
+    #: WHO THE LIDAR SAW (#675): when its newest scan was taken, sim s, and
+    #: by each other robot's root the newest that returned points off it
+    #: (`Scan.peer_roots`) -- what `seen_at` answers.
+    self.scanned_t: float | None = None
+    self.seen_t: dict[str, float] = {}
     self.step_count = 0
     self.collision_steps = 0
     #: This robot's geoms, root and subtree: what another robot's sensors
@@ -350,8 +365,9 @@ class Navigator:
     #: network is its reported pose -- odometry is a work order's kind of
     #: fact, not a sensor's (TaskPattern.md §2) -- and that is what is read.
     #: A callable may answer a `KeepClear` instead: a robot lying still --
-    #: fallen, resting or dead -- avoided round its body (issues #365, #455,
-    #: `HubLifecycle.keep_clear`). `_bodies` reads both.
+    #: fallen, resting or dead -- or one this robot's LIDAR sees, avoided
+    #: round its body (issues #365, #455, #675, `HubLifecycle.keep_clear`).
+    #: `_bodies` reads both.
     self.others: list = []
     #: ...and how one RESTING across this robot's way is asked to make way
     #: (issue #415, `Body.ask_way`): `(root, route) -> bool`, or None.
@@ -496,8 +512,13 @@ class Navigator:
       # that moves. Excluding it from the scan silenced both, and the 0.25 m
       # stop that holds this robot off a wall, a doorpost and a bed was
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
-      angles, ranges, peer_angles, peer_ranges, free_from, origin = self._scan()
-      self.peer_returns = (float(self.data.time), peer_angles, peer_ranges)
+      scan = self._scan()
+      angles, ranges, peer_angles, peer_ranges, free_from, origin = scan[:6]
+      t = float(self.data.time)
+      self.peer_returns = (t, peer_angles, peer_ranges)
+      self.scanned_t = t
+      for root in scan.peer_roots:
+        self.seen_t[root] = t
       origin = self.LIDAR_ORIGIN if origin is None else origin
       if self.maps():
         m = self._match(angles, ranges, origin)
@@ -927,9 +948,10 @@ class Navigator:
         continue
       if self.others and self.data.time >= next_downs:
         next_downs = self.data.time + DOWN_CHECK_S
-        now_down = tuple((b.down, b.resting, b.dead) for b in self._bodies())
-        if now_down != downs:          # one fell, lay down, got up or died --
-          # its disc moved: plan round it now, never the plan held
+        now_down = tuple((b.down, b.resting, b.dead, b.seen) for b in self._bodies())
+        if now_down != downs:          # one fell, lay down, got up or died,
+          # or came into sight or left it (#675) -- its disc moved: plan
+          # round it now, never the plan held
           downs, waypoints, self._plan_memo = now_down, [], None
       if self.data.time >= next_replan or not waypoints:
         next_replan = self.data.time + 2.0
@@ -1087,6 +1109,16 @@ class Navigator:
     """Every other robot as a `KeepClear`: what `others` answers, a robot
     standing where the callable says no more than `(x, y)`."""
     return [KeepClear(*where()) for where in self.others]
+
+  def seen_at(self, root: str) -> float | None:
+    """`Body.seen_at`: when this robot's LIDAR last returned points off the
+    robot `root` (its scans' split, `Scan.peer_roots`), sim s -- or None
+    where none has, or its scans since have missed it for longer than
+    `SEEN_HOLD_S`."""
+    t = self.seen_t.get(root)
+    if t is None or self.scanned_t is None or self.scanned_t - t > SEEN_HOLD_S:
+      return None
+    return t
 
   def _other_in_the_way(self, wx: float, wy: float) -> bool:
     """Is another robot within reach of this one, or of its goal, that
