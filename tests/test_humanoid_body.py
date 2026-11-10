@@ -383,6 +383,45 @@ def test_a_fall_as_a_release_takes_its_legs_back_ends_it_at_once():
   assert _capped(body, body.release_routine("left"), 2.0, walker) == (True, "fell")
   assert home.count(True) == 2, "the premise: it fell as the legs were handed back"
   assert float(body.data.time) - t0 < 0.1, "a fall ends it at once"
+  # ...and begun with the get-up under way, the hand-back ends at once too
+  assert m.legs == "getup" and _capped(body, m.to_stand_routine(getup=False), 0.1) == (True, None)
+
+
+def test_an_aside_asked_as_the_legs_come_back_is_ended_and_the_settle_stays_still():
+  """#668's review: `to_stand_routine` ended a step aside under way as it
+  began, but not one asked during its settle, the walker held still
+  `SETTLE_S` before the standing policy takes the legs: the aside walked
+  0.6 s of the settle, the legs went over as it walked, and the aside took
+  them back. A release hands them back after its robot may have rested on
+  the walker's legs: the robot the other's walk asks aside."""
+  from pluggybot.humanoid.mission import STILL
+  from pluggybot.humanoid.way import REST_S
+  from test_humanoid_served import _open_floor
+  body = body_for(*_floor())
+  m = body.mission
+  try:
+    x, y, _ = body.pose
+    _open_floor(m, x, y)
+    body.run(m.to_walk_routine())
+    body.run(body.hold_routine(1.0))
+    m.last_motion_t = float(body.data.time) - REST_S
+    seen = {"steps": 0, "asked": False, "walked": 0}
+
+    def each(cmd):
+      seen["steps"] += 1
+      if seen["steps"] == 100:                 # 0.2 s into the settle
+        seen["asked"] = body.make_way([(x - 1.5, y), (x + 1.5, y)], "r2_pluggybot")
+
+    def walked():
+      seen["walked"] += m.legs == "walk" and tuple(m.walker.twist) != STILL
+    body.step_hooks.append(walked)
+    assert _capped(body, m.to_stand_routine(), 2.0, each) == (True, None)
+    assert seen["asked"], "the premise: asked aside as it settled"
+    assert seen["walked"] <= 1, f"the walker walked {seen['walked']} steps of the settle"
+    assert m.legs == "stand" and m._aside is None
+    assert body.last_aside["why"] == "its own move"
+  finally:
+    body.close()
 
 
 def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():

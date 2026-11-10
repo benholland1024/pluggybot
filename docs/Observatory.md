@@ -10,6 +10,35 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A withdraw asked aside as its arm comes home ends (#668) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A release takes its legs back before it waits on its posture.** Once the
+  arm reads home, or not by `RELEASE_S` (15 s), the legs go back to the
+  standing policy (`to_stand_routine`: a step aside under way, or one asked
+  as they come back, ends), and the posture is waited on 4 s at most. That is
+  every `withdraw`, the charge's unplug and the references'. Before, a step
+  aside asked while the arm was still coming home took the legs for the
+  walker, and the release waited forever: Luca's withdraw on 11-08 ran 2,191
+  s, asked aside 17 times, its mind never asked, its job failed only after
+  the fall that ended it, and the run held open past its hour.
+- **A fall as the legs come back says "fell" at once**, as one anywhere else
+  in a release does.
+- **Nothing the robots read moved**: `prompt_sha` `de14cb3e…` before and
+  after, no verb's words, no wire. Where nobody asks a robot aside in a
+  withdraw, nothing changes at all: the four offered jobs from the tour, 32
+  draws each, replayed staging's flights exactly.
+
+**What the period is for.** #668's acceptance: no `withdraw` outlives its
+arm's way home. Off the container's log, a `withdraw` step's line to the
+next step's is under 21 s (`RELEASE_S`, the walker's two settles and the
+4 s) unless it fell, and a `MAKE WAY` inside one is followed by the
+procedure's next step.
+
+⚠ **Not to be pooled with the period before for** how long a withdraw lasts
+once the other robot asks it aside, or a run that held one open (11-08's ran
+2,191 s).
+
 ### `spot` says what its camera can see, and the two cameras are named apart (#660) — opens when this PR is deployed
 
 **What changed is only what the robots read** (`prompt_sha` `c71dde29…` →

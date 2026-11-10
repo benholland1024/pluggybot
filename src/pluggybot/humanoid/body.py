@@ -56,8 +56,8 @@ GRIP_SETTLE_S, GRIP_READ_S = 1.5, 0.1
 #: hand's way out and home this long (`release_routine`).
 GAZE_WAIT_S, RELEASE_S = 4.0, 15.0
 #: ...and its posture back at the stand after, its legs the standing
-#: policy's again, this long at most, s: twice the longest the standing
-#: policy's posture takes across its whole range at its rates (2.0 s). ⚠
+#: policy's again, this long at most, s: 4.0, twice the 2.0 s the standing
+#: policy's posture takes to cross its whole range at its rates. ⚠
 #: Unbounded, a withdraw waited 2,191 s (#668; SimNotes, "Making way,
 #: standing").
 STAND_BACK_S = 2.0 * max((HEIGHT_RANGE[1] - HEIGHT_RANGE[0]) / HEIGHT_RATE,
