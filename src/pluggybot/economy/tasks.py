@@ -59,6 +59,7 @@ what may happen to it, and how it survives a restart.
 
 import json
 import os
+import re
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -79,6 +80,11 @@ STATE_VERSION = 1
 #: sentences lost their ends once each said when its things were put back.
 #: ⚠ THE CUT IS SILENT, so a template past it is a test's to catch (`test_tasks.py`).
 MAX_DESCRIPTION = 500
+#: The second a job's sentence dates its things at (`{offered}`, #659): a
+#: start-over dates them again (`TaskBoard.load`), at whatever second the
+#: last one did -- matched only at the offer's, a kept clock's start-over
+#: and then one at 0 left them dated ahead of the clock (#594).
+_DATED = re.compile(r"t=-?\d+")
 #: Tasks the board holds at all. Resolved ones age out oldest-first; an OPEN
 #: task is never dropped to make room, because dropping a job the robot might
 #: still do is a different event from that job lapsing, and only one of the
@@ -322,7 +328,8 @@ def kind_names() -> list[str]:
 def task_number(task_id: object) -> int:
   """A task id's number on its board's own count (`t_0042` is 42), or 0 for
   an id no board numbered. Whatever orders tasks reads it, never a stamp: a
-  start-over sets the clock back, never the count (#610)."""
+  start-over could set the clock back (#610; one with no clock to keep still
+  does, #594), never the count."""
   try:
     return int(str(task_id).split("_")[-1])
   except ValueError:
@@ -628,7 +635,7 @@ class TaskBoard:
                table: RewardTable | None = None,
                max_tasks: int = MAX_TASKS, max_offered: int = MAX_OFFERED,
                clock: Callable[[], str] = _now, energy=None,
-               rebase: bool = True) -> None:
+               rebase: bool = True, start_over_t: float | None = None) -> None:
     self.table = table if table is not None else default_table()
     # What a job COSTS in THIS world (issue #15). Optional, and the fallback
     # is `TaskKind.estimate_wh` -- a world nobody has measured still offers
@@ -663,7 +670,7 @@ class TaskBoard:
     #: them on the wire.
     self.interrupted: list[Task] = []
     if self.path is not None and self.path.exists():
-      self.load(rebase=rebase)
+      self.load(rebase=rebase, start_over_t=start_over_t)
 
   # ---- reading -------------------------------------------------------------
 
@@ -913,7 +920,8 @@ class TaskBoard:
     """Age out resolved tasks, oldest first. Open ones are never dropped.
 
     ⚠ OLDEST ON THE BOARD'S OWN COUNT (`Task.number`), never by `resolvedT`:
-    a start-over sets the clock back to 0, and t_0002, resolved at t=357,627
+    a start-over set the clock back to 0 (one with no clock to keep still
+    does, #594), and t_0002, resolved at t=357,627
     on the clock before 11-01's, was kept over every task resolved before
     the new clock passed it: more than 204,000 s on from 11-03 (#610).
 
@@ -957,7 +965,7 @@ class TaskBoard:
     return target
 
   def load(self, path: str | os.PathLike | None = None,
-           rebase: bool = True) -> "TaskBoard":
+           rebase: bool = True, start_over_t: float | None = None) -> "TaskBoard":
     """Restore the board. Older state versions load, newer ones refuse --
     the same asymmetry as the boards and the ledger, and for the same
     reason: /var/lib/pluggybot outlives the image.
@@ -989,7 +997,10 @@ class TaskBoard:
     starts from its XML starts at 0, where an offer made at 3606 s of a
     mission could otherwise never lapse (measured, 2026-09-22), nor a job
     taken then run out. A file with no `simTime` (an older build's) is
-    loaded as it was.
+    loaded as it was. ⚠ `start_over_t`, with `rebase` False: a world begun
+    again from its XML ON THE CLOCK THE BOARD WAS WRITTEN ON (a start-over
+    keeps a refused save's, #594) keeps its deadlines and claims as written,
+    and its open jobs' things were set out as it began, at that second.
     """
     target = Path(path) if path is not None else self.path
     if target is None or not target.exists():
@@ -1007,6 +1018,9 @@ class TaskBoard:
     shift = float(saved_t) if (saved_t is not None and rebase) else None
     # ...the last change saved still the last, on a clock that carries on
     self.sim_t = float(saved_t) if (saved_t is not None and not rebase) else 0.0
+    # ...and when a world from its XML set its open jobs' things out: as it
+    # began, at 0 where its clock went back with it
+    begun = 0.0 if shift is not None else start_over_t
     self.tasks = {}
     self.interrupted = []
     for spec in doc.get("tasks", ()):
@@ -1051,19 +1065,24 @@ class TaskBoard:
         # of them: left on the old clock by a start-over before #602, t_0004
         # read as taken 227,000 s ahead of the clock, and could not run out.
         claimed = min(task.claimed_t, float(saved_t)) - (shift or 0.0)
+        if begun is not None:
+          # ...and never later than a world from its XML begins: a claim
+          # made past a refused save, in a run that then died, is held from
+          # where the world began again (#594)
+          claimed = min(claimed, begun)
         task = replace(task, claimed_t=round(claimed, 3))
-      if task.open and shift is not None and KINDS[task.kind].draws:
-        # ...and when its things were put back (#659): at the new clock's 0,
+      if task.open and begun is not None and KINDS[task.kind].draws:
+        # ...and when its things were put back (#659): as the world began,
         # where a world from its XML has every prop at rest and sets an open
-        # job's out as it begins (`HubLifecycle.restore_jobs`). Left on the
-        # old clock, the date stood far ahead of the robot's. Only the words
-        # its kind wrote: a description someone gave is theirs.
+        # job's out (`HubLifecycle.restore_jobs`). Left on the old clock,
+        # the date stood far ahead of the robot's. Only the words its kind
+        # wrote: a description someone gave is theirs.
         spec = KINDS[task.kind]
-        if task.description == clean(spec.describe(task.target, task.params,
-                                                    offered_t=task.created_t),
-                                     MAX_DESCRIPTION):
+        own = clean(spec.describe(task.target, task.params, offered_t=task.created_t),
+                    MAX_DESCRIPTION)
+        if _DATED.sub("t=", task.description) == _DATED.sub("t=", own):
           task = replace(task, description=clean(
-            spec.describe(task.target, task.params, offered_t=0.0), MAX_DESCRIPTION))
+            spec.describe(task.target, task.params, offered_t=begun), MAX_DESCRIPTION))
       self.tasks[task.id] = task
     # ⚠ Never a number below one the board holds, as the desk's counter
     # (`tickets.Desk`): the board is ordered by it (#610), and a file with a

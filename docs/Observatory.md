@@ -50,6 +50,66 @@ in 3 (SimNotes). The arms are #670's open half.
 - ⚠ Not to be pooled with the period before for anything about two robots
   at the counter.
 
+### A withdraw asked aside as its arm comes home ends (#668) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A release takes its legs back before it waits on its posture.** Once the
+  arm reads home, or not by `RELEASE_S` (15 s), the legs go back to the
+  standing policy (`to_stand_routine`: a step aside under way, or one asked
+  as they come back, ends), and the posture is waited on 4 s at most. That is
+  every `withdraw`, the charge's unplug and the references'. Before, a step
+  aside asked while the arm was still coming home took the legs for the
+  walker, and the release waited forever: Luca's withdraw on 11-08 ran 2,191
+  s, asked aside 17 times, its mind never asked, its job failed only after
+  the fall that ended it, and the run held open past its hour.
+- **A fall as the legs come back says "fell" at once**, as one anywhere else
+  in a release does.
+- **Nothing the robots read moved**: `prompt_sha` `de14cb3e…` before and
+  after, no verb's words, no wire. Where nobody asks a robot aside in a
+  withdraw, nothing changes at all: the four offered jobs from the tour, 32
+  draws each, replayed staging's flights exactly.
+
+**What the period is for.** #668's acceptance: no `withdraw` outlives its
+arm's way home. Off the container's log, a `withdraw` step's line to the
+next step's is under 21 s (`RELEASE_S`, the walker's two settles and the
+4 s) unless it fell, and a `MAKE WAY` inside one is followed by the
+procedure's next step.
+
+⚠ **Not to be pooled with the period before for** how long a withdraw lasts
+once the other robot asks it aside, or a run that held one open (11-08's ran
+2,191 s).
+
+### A start-over keeps the clock (#594) — opens when this PR is deployed
+
+**What changed is only a start-over** (Webserver.md, "A start-over keeps the
+clock"): a save `continuation.load` reads and refuses (put back
+`MAX_RESUMES` times, or another house's) begins the world again from its XML
+at the save's own `t`, where it began at 0. Nothing else of the save is
+taken: the bodies, the maps and places, the activities, the producer's
+schedule and the robots' clocks start fresh, as before, built on that clock.
+The board loads on it (deadlines and claims as written, a claim never past
+it, its open jobs' things dated at it), the run's budget counts from it, the
+producer's first offer comes 240 s after it, and History says "...; it
+started over, and its clock carried on". After three start-overs that die
+before their first save (`MAX_START_OVERS`, as restores are counted), the
+next start is at 0, as a save that cannot be read is ("its clock went back
+to 0"). A restart that carries on (every restart but two so far) is
+untouched, and no prompt moved.
+
+**Why.** The two start-overs, 10-27 (t=2,375,322) and 11-01 (t=401,163),
+set the clock back to 0, and every stamp the volume keeps stood in its
+future: the desks' closes were trimmed before they were paid, and `say` was
+shut for 27 days (#594's items 1-2, fixed on their own in #598). Ben's call
+(2026-11-08, on #594): keep the clock, so the next store written for a
+continuous clock cannot trip the same way.
+
+**What the period is for.** Nothing to read until a start-over; then its
+History line, the wire's `t` going on past the refused save's, no offer
+lapsing and no held job running out at its start, and the next restart
+carrying on from the start-over's first save. It pools with the period
+before for everything else. ⚠ Sim time still repeats across 10-27 and 11-01:
+a query by `simTime` over those still needs `created_at`.
+
 ### `spot` says what its camera can see, and the two cameras are named apart (#660) — opens when this PR is deployed
 
 **What changed is only what the robots read** (`prompt_sha` `c71dde29…` →
