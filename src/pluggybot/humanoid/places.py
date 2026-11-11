@@ -291,6 +291,20 @@ class HumanoidPlaces:
       "station": name, "ids": tuple(tags),
       "tags": {i: (tuple(float(v) for v in p), out) for i, (p, out) in placed.items()}}
 
+  def _place_look_kept(self) -> list:
+    """The walking look's last look, when and from where, for a restart
+    (#345): forgotten, a restored robot looked at its first step."""
+    t, at = self._place_look
+    return [t if math.isfinite(t) else None,
+            None if at is None else [float(v) for v in at]]
+
+  def _place_look_back(self, kept) -> None:
+    """`_place_look_kept` put back; a save from before it looks anew."""
+    if kept is not None:
+      t, at = kept
+      self._place_look = (-math.inf if t is None else float(t),
+                          None if at is None else tuple(float(v) for v in at))
+
   def look_for_places(self) -> list[int]:
     """One look now: the place tags it decoded -- and its station's, if in
     view (`see_station`)."""

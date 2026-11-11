@@ -13,6 +13,7 @@ sensors stepping on -- on the served humanoid. The flown parity check is
 """
 
 import json
+import math
 from types import SimpleNamespace
 
 import mujoco
@@ -20,7 +21,9 @@ import numpy as np
 import pytest
 
 from pluggybot import continuation, tick
+from pluggybot.body import body_for
 from pluggybot.economy.tasks import TaskBoard
+from pluggybot.humanoid import model as hm
 from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, task_board, world_config
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.mind.thoughts import HISTORY
@@ -28,6 +31,7 @@ from pluggybot.procedure.steps import Program, Step
 from pluggybot.robot import world_spec
 from pluggybot.tick import MissionAborted
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+from test_humanoid_body import _floor
 
 
 class _Stop(Exception):
@@ -257,6 +261,50 @@ def test_a_restored_humanoid_steps_on_exactly_as_if_nothing_had_stopped(tmp_path
   assert back.body.pose == life.body.pose
   assert np.array_equal(back.body.grid.grid, life.body.grid.grid)
   assert np.array_equal(back.near_field.height, life.near_field.height, equal_nan=True)
+
+
+def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was():
+  """The parity rule where the robot's model of itself is posed: its
+  LIDAR's band is laid at the height and the waist's turn its odometry's
+  model last read (`_scan`), a look is placed through that model and a spot
+  through the reach's, each posed again only at its loop's next tick; and
+  its last look, the frames a watch is taken on and the IMU's last reading
+  each decide what comes next. Fresh after a restore, the first band was laid
+  off the drawing's zero pose and the robot looked at its first step, and
+  `determinism_spike.py --resume-at 1` parted 18 ms after the restore. A
+  save from before them restores."""
+  a, b = body_for(*_floor()), body_for(*_floor())
+  try:
+    ma, mb = a.mission, b.mission
+    q = np.linspace(-0.3, 0.3, len(hm.JOINT_NAMES))
+    q[ma.odo.sm.waist] = 0.25
+    ma.odo.sm.pose(q, np.array([0.2, 0.0, -0.98]))
+    ma.reach.self_model.pose(-q, np.array([0.0, 0.1, -0.99]))
+    ma._place_look = (5.0, (1.0, 2.0, 0.5))
+    for _ in range(7):
+      ma.sight.step(0.0)
+    ma.stand.trunk.accel = np.array([0.1, 0.2, 9.7])
+    state, arrays = ma.kept_state()
+    mb.restore_kept(json.loads(json.dumps(state)), arrays)
+    for sa, sb in ((ma.odo.sm, mb.odo.sm), (ma.reach.self_model, mb.reach.self_model)):
+      assert np.array_equal(sb.q, sa.q) and np.array_equal(sb.d.qpos, sa.d.qpos)
+      assert np.array_equal(sb.d.site_xpos, sa.d.site_xpos)
+    assert mb.waist_read() == ma.waist_read() != {j: 0.0 for j in hm.WAIST}
+    assert mb._stance_frame() == ma._stance_frame()
+    assert mb._place_look == ma._place_look
+    assert mb.sight.kept_state() == ma.sight.kept_state() == {"n": 7}
+    assert np.array_equal(mb.stand.trunk.accel, ma.stand.trunk.accel)
+    ma._place_look = (-math.inf, None)                  # it never looked
+    state, arrays = ma.kept_state()
+    mb.restore_kept(json.loads(json.dumps(state)), arrays)
+    assert mb._place_look == (-math.inf, None)
+    old = {k: v for k, v in state.items() if k not in ("selfModel", "placeLook", "sight")}
+    old["trunk"] = {k: v for k, v in state["trunk"].items() if k != "accel"}
+    old["reach"] = {k: v for k, v in state["reach"].items() if k != "selfModel"}
+    mb.restore_kept(json.loads(json.dumps(old)), arrays)
+  finally:
+    a.close()
+    b.close()
 
 
 def test_a_dead_robot_is_still_dead_after_a_restart_and_pays_no_second_heart(tmp_path):

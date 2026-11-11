@@ -555,7 +555,9 @@ save a filmstrip PNG named after the script.
   sends it to none. ⚠ Its restart keeps parity (`HumanoidMission.kept_state`:
   its drivers' steps and targets, the gains they set in the MODEL, its
   senses' noise, its reach, its reckoning's planted foot, the walls its
-  layer is kept off), never with a hand out (`Body.working`); a test saving
+  layer is kept off, ⚠ its MODELS OF ITSELF as last posed, which the band
+  and a look are placed through until the next tick, `SelfModel.kept_state`),
+  never with a hand out (`Body.working`); a test saving
   on a step every controller's period divides read a fresh reach as kept.
   ⚠ #558's two levers: a plan held `REPLAN_HOLD_S` (the Navigator's; it
   replanned every step its waypoints ran out short of the goal) and the

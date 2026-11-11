@@ -388,7 +388,15 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   samples to t = 260 s; what it keeps is its drivers' steps and targets, the
   gains they set in the model, its senses' noise, its reach, its reckoning's
   planted foot and the walls its layer is kept off (`HumanoidMission.
-  kept_state`), and never with a hand out (`Body.working`).
+  kept_state`), and never with a hand out (`Body.working`). ⚠ Its models
+  of itself are state too (`SelfModel.kept_state`): the LIDAR's band (#581)
+  is laid at the height and the waist's turn its odometry's model last
+  read, and a look is placed through that model and a spot through the
+  reach's, each posed again only at its loop's next tick. Built fresh, the
+  same save parted 18 ms after the restore (found 2026-11-11): the first
+  band came before the odometry's tick, laid off the drawing's zero pose,
+  and the robot looked at its first step, its last look not kept. So are
+  its last look, the watch's camera clock and the IMU's last reading.
 - **Cost.** About 50 ms of the physics thread per save on the rover's pair
   with both maps built, 1.3 MB on disk (zlib level 1; the default level 6
   cost 175 ms).
