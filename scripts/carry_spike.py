@@ -12,8 +12,9 @@ On a bare floor, an arm holds a piece:
 
   CASES  none            the arms home, nothing held: walk2 as served
          <held>_<pose>   held: empty (the left arm posed, nothing in it),
-                         plate (left hand), cup (right hand) or both (the
-                         plate left and the cup right); pose:
+                         plate (left hand), cup (right hand) -- or both,
+                         the plate left and the cup right (`both_out`,
+                         `both_low`); pose:
            low, tray, out, close   the arm in joint space (`POSES`), its
                                    wrist solved to hold the piece level,
                                    the piece put into the open jaws where
@@ -31,13 +32,17 @@ On a bare floor, an arm holds a piece:
           a back-off, the expo counter's dining side -> table 0 (`PASS`,
           4.9 m) and the kitchen shelf -> table 0 through the staff door
           (`ROUTE`, ~13 m); closed loop (`GOALS`): a goal 4 m ahead and one
-          behind, walked to by the Navigator as served
-  --unseen  the held pieces hidden from every sensor once posed: what a
-          self-filter dropping what the hands hold would see
+          behind, walked to by the Navigator as served (`goto_route`, the
+          route's corners in turn, stalls at them arms home on a bare floor)
+  --unseen      the held pieces hidden from every sensor, from the start:
+                what a self-filter dropping what the hands hold would see
+  --blind-arms  the walker shown its arms at its policy's default, still
+  --kg X        every held piece weighs X kg; --squeeze N  the jaws shut at N
 
   scripts/carry_spike.py --fly [--cases A,B] [--courses A,B] [--draws N]
                          [--first K] [--jobs J] [--out rows.jsonl] [--trace DIR]
-                         [--unseen]
+                         [--unseen] [--blind-arms] [--kg X] [--squeeze N]
+                         (rows APPENDED to --out: a batch's loops share one file)
   scripts/carry_spike.py --read rows.jsonl[,more]       the tables
   scripts/carry_spike.py --poses                        each pose: its joints against
                                                         walk2's training range, the hand,
@@ -68,18 +73,20 @@ import numpy as np
 
 from pluggybot.activity import dishware as dw
 from pluggybot.body import body_for
+from pluggybot.contacts import contact_pairs
+from pluggybot.evaluation import counter
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.mission import STILL
 
-#: The dining table's top, m (`home.world.DINING_TABLE_HALF`): the pedestal's.
-TABLE_H = 0.72
-#: The pedestal (`ref`): its near edge this far ahead of the soles' middle, m
-#: (the table check's `counter.TABLE_GAP`), and its half-extents.
-GAP_M, PED_HALF = 0.13, (0.25, 0.35)
+#: The dining table's top, m, and the pedestal's (`ref`) near edge this far
+#: ahead of the soles' middle: the table check's own (`counter`); and the
+#: pedestal's half-extents.
+TABLE_H, GAP_M = counter.TABLE_H, counter.TABLE_GAP
+PED_HALF = (0.25, 0.35)
 #: Each piece as our reference takes it (`hands_check.TABLE`), for `ref`:
 #:   side, where it is set out (stance frame at boot, m), the grip off its
 #:   middle (x, y, z over the table), the fingers' way and the jaws'
-#:   (stance frame), squeeze N.
+#:   (stance frame), and the reference's squeeze, N (`SQUEEZE_N` shuts it).
 #: The plate's wall 1.5 cm inside, the jaws the other way round at 60 deg:
 #: with the hand 0.35 m ahead and 0.30 m left the reach plans a square
 #: posture; nearer the middle only a waist turned 15-30 deg. The cup from
@@ -312,11 +319,12 @@ def build(case: str, k: int, course: str = ""):
   held, pose = _split(case)
   pieces = [(p, s) for p, s in HELD[held] if p]
   load = dw.draw(k)
-  # (off a model of its own: a spec compiled once finds no body added after)
-  m0 = mujoco.MjModel.from_xml_string(hm.body_xml())
-  d0 = mujoco.MjData(m0)
-  mujoco.mj_resetDataKeyframe(m0, d0, 0)
-  mujoco.mj_forward(m0, d0)
+  # where the soles' middle stands at the keyframe, by the truth: the
+  # instrument's set-out, never anything the robot reads (off the bare
+  # robot: a spec compiled once finds no body added after)
+  m0, d0, q0 = _bare()
+  d0.qpos[:] = q0
+  mujoco.mj_kinematics(m0, d0)
   soles = [d0.geom_xpos[m0.geom(f"{s}_sole").id][:2] for s in hm.SIDES]
   sx, sy = (soles[0] + soles[1]) / 2
   info = {"case": case, "held": held, "pose": pose, "arms": HELD[held], "pieces": pieces,
@@ -372,11 +380,15 @@ class Reading:
       if b == self.root:
         self.robot.add(g)
     self.grip, self.pb, self.pads, self.mine = {}, {}, {}, {}
+    self.mine_ids, self.pad_ids, self.other_ids = {}, {}, {}
     for piece, side in self.pieces:
       self.grip[piece] = model.site(f"{side}_grip").id
       self.pb[piece] = model.body(piece).id
       self.pads[piece] = {model.geom(f"{side}_{j}_pad").id for j in hm.JAWS}
       self.mine[piece] = {g for g in range(model.ngeom) if model.geom_bodyid[g] == self.pb[piece]}
+      self.mine_ids[piece] = np.array(sorted(self.mine[piece]))
+      self.pad_ids[piece] = np.array(sorted(self.pads[piece]))
+      self.other_ids[piece] = np.array(sorted(self.robot - self.pads[piece]))
 
   def pelvis(self):
     d = self.d
@@ -394,17 +406,12 @@ class Reading:
     rg = d.site_xmat[gs].reshape(3, 3)
     p = rg.T @ (d.xpos[pb] - d.site_xpos[gs])
     r = rg.T @ d.xmat[pb].reshape(3, 3)
-    pads, other = set(), False
-    mine, own = self.mine[piece], self.pads[piece]
-    for c in d.contact[:d.ncon]:
-      g1, g2 = int(c.geom1), int(c.geom2)
-      for a, b in ((g1, g2), (g2, g1)):
-        if a in mine:
-          if b in own:
-            pads.add(b)
-          elif b in self.robot:
-            other = True
-    return p, r, len(pads), other
+    pairs = contact_pairs(d)
+    hit = np.isin(pairs, self.mine_ids[piece])
+    met = np.concatenate((pairs[hit[:, 0], 1], pairs[hit[:, 1], 0]))
+    pads = int(np.isin(self.pad_ids[piece], met).sum())
+    other = bool(np.isin(met, self.other_ids[piece]).any())
+    return p, r, pads, other
 
   def piece_tilt(self, piece: str) -> float:
     r = self.d.xmat[self.pb[piece]].reshape(3, 3)
@@ -485,7 +492,8 @@ def setup_ref(body, model, data, info) -> dict:
   onto a branch with the shoulder thrown back)."""
   mi = body.mission
   (piece, _), = info["pieces"]
-  side, _, off, f, j, squeeze = PIECE[piece]
+  side, _, off, f, j, _ = PIECE[piece]
+  squeeze = SQUEEZE_N
   px, py = info["at"][piece]
   _, _, byaw = body.stance
   rot = _rz(byaw) @ stance_rot(f, j)
@@ -515,6 +523,10 @@ def setup_ref(body, model, data, info) -> dict:
   _pedestal_away(model, data)
   body.run(_joints_routine(mi, side, mi.reach.q_cmd[side].copy(), settle_s=0.2))
   out["stood"] = body.run(_stand_routine(mi))
+  if not out["stood"]:
+    # ...handed to the walker bowed or turned, a flight would book the
+    # hand-over's own stumble to the carry
+    return {**out, "why": "never stood back at the stand"}
   out["ok"] = True
   return out
 
@@ -560,8 +572,12 @@ def setup_posed(body, model, data, info) -> dict:
 
 def setup(body, model, data, info, reading: Reading | None) -> dict:
   """Stood a second, then the arms and the pieces as the case says, and a
-  second still: what happened, or why it did not."""
+  second still: what happened, or why it did not. `UNSEEN`, the pieces are
+  hidden from every cast from the start (`hide`): shown during the setup,
+  frames of them stood in the map and the camera's layer before the walk."""
   mi = body.mission
+  if UNSEEN and reading is not None:
+    hide(model, info, reading)
   body.run(body.hold_routine(1.0))
   if info["held"] == "none":
     return {"ok": True}
@@ -607,16 +623,22 @@ GOAL_PATIENCE_S = 60.0
 CORNER_M = 0.75
 
 
+def hide(model, info, reading: Reading) -> None:
+  """The held pieces put in the geom group no sensor casts against
+  (`perception.cull.PARKED_GROUP`)."""
+  from pluggybot.perception.cull import PARKED_GROUP
+  for piece, _ in info["pieces"]:
+    for g in reading.mine[piece]:
+      model.geom_group[g] = PARKED_GROUP
+
+
 def before_walk(model, body, info, reading: Reading) -> dict:
   """The switches a flight walks under, once posed: the held pieces hidden
-  from every sensor (`UNSEEN`), the walker shown its arms at rest (`BLIND`).
-  What was switched, for the row."""
+  from every sensor (`UNSEEN`; `setup` hid them already), the walker shown
+  its arms at rest (`BLIND`). What was switched, for the row."""
   out = {}
   if UNSEEN:
-    from pluggybot.perception.cull import PARKED_GROUP
-    for piece, _ in info["pieces"]:
-      for g in reading.mine[piece]:
-        model.geom_group[g] = PARKED_GROUP
+    hide(model, info, reading)
     out["unseen"] = True
   if BLIND:
     body.mission.walker.joints = ArmsAtRest(body.mission.walker)
@@ -660,16 +682,15 @@ def course_routine(body, course: str, reading: Reading | None, falls0: int):
       except StopIteration as done:
         arrived = bool(done.value)
       if not arrived:
-        # ...a corner given up within `CORNER_M` by its belief goes on to the
+        # ...a CORNER given up within `CORNER_M` by its belief goes on to the
         # next: the arms-home walk stalled 0.54 m short of the route's first
-        # (the Navigator's own last half metre, its turns on the spot slow)
-        if (mi.last_drive or {}).get("shortM", math.inf) > CORNER_M:
+        # (the Navigator's own last half metre, its turns on the spot slow);
+        # the walk's last goal given up is given up
+        last = (gx, gy) == GOALS[course][-1]
+        if last or (mi.last_drive or {}).get("shortM", math.inf) > CORNER_M:
           break
         stalls[0] += 1
         arrived = True
-    if mi.legs != "walk" and mi.falls == falls0:
-      # ...a drive that stood still all through never took the legs
-      mi.walker.last_action[:] = 0.0
   else:
     arrived = True
     for vx, vy, wz, secs in COURSES[course]:
@@ -768,7 +789,8 @@ def fly(job) -> dict:
         "slip_max_cm": 100 * max(slip), "slip_end_cm": 100 * slip[-1],
         "turn_max_deg": max(turn), "turn_end_deg": turn[-1],
         "pads_lost_s": sum(r["pads"] < 2 for r in seen) * EVERY * model.opt.timestep,
-        "dropped": bool(seen[-1]["pads"] == 0 and not seen[-1]["other"]),
+        # out of the jaws, whatever else of the robot it may rest on
+        "dropped": bool(seen[-1]["pads"] == 0),
         "piece_z_end": seen[-1]["pz"], "held_end": seen[-1]["held"],
         "touched_body": any(r["other"] for r in seen),
         "ptilt_start": start["ptilt"], "ptilt_max": max(r["ptilt"] for r in seen)}
@@ -920,8 +942,9 @@ def poses_table() -> None:
   """--poses: each pose's joints for each piece, against the range walk2's
   scripted arms were sent within; where the hand is (stance frame at the
   keyframe); and how level the wrist holds the piece."""
-  m, d, _ = _bare()
-  root = m.body(hm.ROBOT_ROOT).id
+  m, d, q0 = _bare()
+  d.qpos[:] = q0
+  mujoco.mj_kinematics(m, d)
   soles = [d.geom_xpos[m.geom(f"{s}_sole").id] for s in hm.SIDES]
   mid = (soles[0] + soles[1]) / 2
   for held in ("plate", "cup"):
@@ -937,7 +960,6 @@ def poses_table() -> None:
             + (f"  OUTSIDE walk2's arms: {', '.join(outside)}" if outside else "  inside walk2's arms"))
   print("walk2's arms (left): " + ", ".join(
     f"{n} [{trained('left', n)[0]:+.2f}, {trained('left', n)[1]:+.2f}]" for n in hm.ARM))
-  del root
 
 
 # ---- watching one ------------------------------------------------------------------
@@ -958,6 +980,8 @@ def strip(spec: str, out: str, every_s: float = 1.5) -> None:
   print(f"setup: {s}")
   rend = mujoco.Renderer(model, 360, 480)
   cam = mujoco.MjvCamera()
+  shown = mujoco.MjvOption()
+  shown.geomgroup[:] = 1    # an `--unseen` piece too: hidden from the robot, not from us
   root = model.body(hm.ROBOT_ROOT).id
   tiles = []
 
@@ -972,7 +996,7 @@ def strip(spec: str, out: str, every_s: float = 1.5) -> None:
     cam.lookat[:] = data.xpos[root] - [0.0, 0.0, 0.1]
     cam.distance, cam.elevation = 2.4, -18.0
     cam.azimuth = math.degrees(math.atan2(r[1, 0], r[0, 0])) + 180.0 + 35.0
-    rend.update_scene(data, cam)
+    rend.update_scene(data, cam, shown)
     img = Image.fromarray(rend.render())
     ImageDraw.Draw(img).text((8, 8), label[:70], fill=(255, 255, 255))
     tiles.append(img)
