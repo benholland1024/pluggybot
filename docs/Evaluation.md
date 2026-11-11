@@ -2042,13 +2042,13 @@ no try that fell; seed 402613269), on staging `f7c7a94` (the release
   each was answered from its reasons: 28 of the 98 calls were repairs, and
   none was lost.
 - **The body's side failed every try.** By #560's reader, which ranks a
-  fall ahead of what went wrong before it (in the run's own order a fall
-  is 2 of the 70: the KEPT practice below), each of the 70: a reach or a
-  carry out of reach (18), a grip that closed on nothing (18), a carry that
-  lost its piece from the jaws (12), a fall (7), a reach given only one of
-  its two directions (4), a step that got nowhere (3), and 8 others. In 70
-  tries no plate was laid; 6 cups and 3 forks were. The plate is the piece
-  the grades found let fall or knocked over, 15 of 19 times.
+  fall ahead of what went wrong before it (in the run's own order, given
+  with the KEPT practice below, a fall is 2 of the 70), each of the 70: a
+  reach or a carry out of reach (18), a grip that closed on nothing (18), a
+  carry that lost its piece from the jaws (12), a fall (7), a reach given
+  only one of its two directions (4), a step that got nowhere (3), and 8
+  others. In 70 tries no plate was laid; 6 cups and 3 forks were. The plate
+  is the piece the grades found let fall or knocked over, 15 of 19 times.
 - **The grips**: 56 closed on nothing, in 34 of the 70 tries, an `if`'s
   test or not. Of those whose squeeze the source names, 33 of 53 at 40 N or
   more closed on nothing and 2 of 8 under it. The arms asked 50-120 N; our
@@ -2147,19 +2147,21 @@ the same robot carried on. ⚠ `practice.py` has no resume: a wrapper handed
 the harness's own `acquire` all a KEPT robot carries, as the robot had it
 at set-out 3's end -- nothing kept, its notes (1,270 characters) and its
 draft (2,321) -- and counted the night's four toward the give-up and the
-16. Between the two trees only YOUR BODY's text moved, rendered and
-compared: a sentence added, that a `step` asked while a gripper holds
-something moves nothing and reads false, and the one before it reworded
-(#669's second review); the physics, the language, the grader and the
-set-outs are the same, and the per-task record keeps the two commits
-apart. Since the fresh arms' `f7c7a94` the TABLE moved: its set-out stands
-at the served table, a top on legs, its south chair away (#643), and rays
-no longer pass through tables (#657). And the language's gaps (#640), the
-jaws' drive (#628) and a thin grip (#646), `measure` seen past (#636),
-`step`'s small turns (#649), the words of `pull` and `spot` (#650, #660), a
-readout of every name (#658) and a fall that ends a run (#671): so its
-tries compare with the fresh arms' as two worlds, never as one changed by a
-mind's notes alone. The practice is serial, 20-45 minutes a set-out:
+16. Of what a practice flies, only YOUR BODY's text moved between the two
+trees, its prompt and job rendered on each and compared: a sentence added,
+that a `step` asked while a gripper holds something moves nothing and reads
+false, and the one before it reworded (#669's second review); the rest of
+the diff is what a restart keeps and the cube's offer, and the physics, the
+language, the grader and the set-outs are the same. The per-task record
+keeps the two commits apart. Since the fresh arms' `f7c7a94` the TABLE
+moved: its set-out stands at the served table, a top on legs, its south
+chair away (#643), and rays no longer pass through tables (#657). And the
+language's gaps (#640), the jaws' drive (#628) and a thin grip (#646),
+`measure` seen past (#636), `step`'s small turns (#649), the words of
+`pull` and `spot` (#650, #660), a readout of every name (#658) and a fall
+that ends a run (#671): so its tries compare with the fresh arms' as two
+worlds, never as one changed by a mind's notes alone. The practice is
+serial, 20-45 minutes a set-out:
 
 | arm | practice: set-outs practiced, the try each passed at | kept | held out within 3 | pieces laid in its 30 tries | tries that fell | cost |
 |---|---|---|---|---|---|---|
@@ -2169,34 +2171,36 @@ mind's notes alone. The practice is serial, 20-45 minutes a set-out:
   calls answered, none cut or closed (a median of 31k tokens and 3.4
   minutes a call, the most 102k and 10.1); one first answer of 6 refused
   (nesting past 4), where all 14 of the fresh arms' were (#640), and 9
-  repairs, each answered: 5 for a source past the 3,000 characters, 2 for
-  a verb inside an expression and a `return` given a value, 1 for a name
-  with a dot and 1 for the nesting.
+  repairs, one for each source refused, each answered: 5 for a source past
+  the 3,000 characters, 2 for a verb inside an expression and a `return`
+  given a value, 1 for a name with a dot and 1 for the nesting.
 - **Its notes carried what the body taught.** After set-out 0, 1,453
   characters: where each tag read, "Open hand before every reach (shut jaws
   grip nothing: try1 fail)", and that a plate pinched at its rim and carried
   sideways low pushed until its feet moved or it fell -- so lift high and
   move slowly; by set-out 3's end, never to carry the plate across its body
-  and to slide it by short pulls instead: the feet's stop, which fired in 7
-  of the first 20 tries, fired in none of the last 10. Two reaches toppled
-  it in set-out 4 ("bare reach that plunges topples me"), and from that
-  set-out's fourth try 12 reaches ran with a stop on the hand's downward
-  force (`until`, 35-45 N): each stopped on it and none fell, where all 5
-  reaches it fell in over the 30 tries had none; its last notes say "Never
-  reach unguarded". Two of set-out 5's runs stopped at a `spot.*` read after a
-  `spot` that failed, and the notes say to read one only under a `spot` that
-  passed. Grips that closed on nothing: 7, in 6 of the 30 tries, where the
-  fresh arms had 56 in 34 of 70. `measure` was written in 5 sources and ran
-  once, and its near end, the top running off the picture toward the robot,
-  read none (#636).
+  and to slide it by short pulls instead. Its last 10 tries moved the plate
+  by pulls, and once by a `move_hand`, and the feet's stop, which fired in
+  7 of the first 20, fired in none of them: what one arm did, never shown
+  to follow from its notes. Two reaches toppled it in set-out 4 ("bare reach
+  that plunges topples me"), and from that set-out's fourth try 12 reaches
+  ran with a stop on the hand's downward force (`until`, 35-45 N): each
+  stopped on it and none fell, where all 5 reaches it fell in over the 30
+  tries had none; its last notes say "Never reach unguarded". Two of
+  set-out 5's runs stopped at a `spot.*` read after a `spot` that failed,
+  told "line ?" and "`spot` has not run", and the notes say to read one only
+  under a `spot` that passed. Grips that closed on nothing: 7, in 6 of the
+  30 tries, where the fresh arms had 56 in 34 of 70. `measure` was written
+  in 5 sources and ran once, and its near end, the top running off the
+  picture toward the robot, read none (#636).
 - ⚠ **What the grade never said, its notes got wrong.** At set-out 4's end
   they call the cup "Placed <2cm; grade silent", and at set-out 5's "CUP
-  WORKS (placed twice)": in those set-outs' 10 tries it ended 3.1-7.9 cm
-  from its place, 4.0 in each of set-out 4's last three, and was never
-  laid. The grade names only the first piece at fault (`challenge/table.py`),
-  and each of those tries failed on a fall, the plate or a dropped fork
-  first, so the cup's distance was never said, and the robot read the
-  silence as laid.
+  WORKS (placed twice)": in the 9 of those set-outs' 10 tries that lifted
+  it, it ended 3.1-6.3 cm from its place, 4.0 in each of set-out 4's last
+  three, and was never laid. The grade names only the first piece at fault
+  (`challenge/table.py`), and each of those tries failed on a fall, the
+  plate or a dropped fork first, so the cup's distance was never said, and
+  the robot read the silence as laid.
 - **What failed instead: carries its feet ended, then reaches it fell in.**
   #560's reader (`read_arms.py`) ranks a fall before anything else: a fall
   11, a carry its feet ended 5, a tag not in view 5, a grip on nothing 3,
