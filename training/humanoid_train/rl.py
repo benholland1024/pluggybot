@@ -17,7 +17,8 @@ class PpoWithSymmetryCfg(RslRlPpoAlgorithmCfg):
   symmetry_cfg: dict | None = None
 
 
-def ppo_runner_cfg(mirror: str | None = None) -> RslRlOnPolicyRunnerCfg:
+def ppo_runner_cfg(mirror: str | None = None, entropy_coef: float = 0.01,
+                   desired_kl: float = 0.01) -> RslRlOnPolicyRunnerCfg:
   """`mirror`: a task's mirror image (`module:function`): rsl_rl's symmetry
   extension trains on each sample and its mirror (data augmentation)."""
   return RslRlOnPolicyRunnerCfg(
@@ -32,9 +33,9 @@ def ppo_runner_cfg(mirror: str | None = None) -> RslRlOnPolicyRunnerCfg:
       hidden_dims=(512, 256, 128), activation="elu", obs_normalization=True),
     algorithm=PpoWithSymmetryCfg(
       value_loss_coef=1.0, use_clipped_value_loss=True, clip_param=0.2,
-      entropy_coef=0.01, num_learning_epochs=5, num_mini_batches=4,
+      entropy_coef=entropy_coef, num_learning_epochs=5, num_mini_batches=4,
       learning_rate=1.0e-3, schedule="adaptive", gamma=0.99, lam=0.95,
-      desired_kl=0.01, max_grad_norm=1.0,
+      desired_kl=desired_kl, max_grad_norm=1.0,
       symmetry_cfg=None if mirror is None else {
         "data_augmentation_func": mirror, "use_data_augmentation": True,
         "use_mirror_loss": False, "mirror_loss_coeff": 0.0}),

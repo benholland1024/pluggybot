@@ -130,9 +130,9 @@ HEAD_STARTS = {"back": 0.15, "front": 0.15, "side": 0.15, "dropped": 0.15, "tipp
 #: back -- the one way of lying the served get-up never stood from -- and
 #: `left` the share of a body on its back or front with the box at its left;
 #: `share` is the lying starts', `tipping_share` the tipping starts'.
-OBSTACLE = {"share": 0.5, "tipping_share": 0.5, "counter": 0.6, "counter_top_m": (0.6, 0.95),
+OBSTACLE = {"share": 0.5, "tipping_share": 0.25, "counter": 0.6, "counter_top_m": (0.6, 0.95),
             "wall_top_m": 2.4, "lying": {"beside": 0.7, "head": 0.15, "feet": 0.15},
-            "front": 0.5, "left": 0.5, "tipping": {"into": 0.5, "along": 0.5},
+            "front": 0.9, "left": 0.5, "tipping": {"into": 0.5, "along": 0.5},
             "gap_m": {"beside": (0.0, 0.25), "head": (0.0, 0.35), "feet": (0.0, 0.35),
                       "into": (0.05, 0.5), "along": (0.0, 0.3)}}
 #: Its stand is the served get-up's: within 10 deg of upright
@@ -143,6 +143,17 @@ STOOD_UP = math.cos(math.radians(10.0))
 #: Still down -- the pelvis under `DOWN_M` -- past `BUDGET_S` is charged
 #: `DOWN_WEIGHT` a second (`down`).
 DOWN_M, DOWN_WEIGHT = 0.4, -1.0
+#: `-Getup-Wall`'s starts: `-Getup-Head`'s with twice the sides (a body on
+#: its side, front to the box, is the one getup3 never stood from).
+WALL_STARTS = {**HEAD_STARTS, "side": 0.3}
+#: Its episodes, s: a slower stand beside a face still earns.
+WALL_EPISODE_S = 20.0
+#: Its PPO: the entropy bonus kept (at 0 the action's noise fell from 0.23
+#: to 0.06, and a get-up stood shaking in the served physics), and small
+#: steps from getup3 (at `desired_kl` 0.01 the get-up off its back beside
+#: a box fell from getup3's 0.99 to 0.51 in 450 iterations, in the training
+#: physics; at 0.004, 0.96).
+WALL_PPO = {"entropy_coef": 0.005, "desired_kl": 0.004}
 #: The box, half-sizes, m: as deep as the counter, 4 m of face, and as tall
 #: as a wall -- sunk into the floor to a counter's top (a mocap body is
 #: welded to the world, and meets no floor), and its top under the floor
@@ -747,7 +758,7 @@ def getup_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.rewards["feet_down"].params["free"] = "against_obstacle"
   # ⚠ Lying still beside the box cost nothing but the stand it forwent, and
   # fine-tuned (wall5, 750 iterations) the mean action lay still on its back
-  # beside it in 136 of 256 starts that getup3 stood from in 253.
+  # beside it in 136 of 256 starts that getup3 stood from in 252.
   cfg.rewards["down"] = RewardTermCfg(func=down, weight=DOWN_WEIGHT,
                                       params={"budget_s": BUDGET_S, "below_m": DOWN_M})
   cfg.rewards["impact_obstacle"] = RewardTermCfg(
@@ -757,4 +768,7 @@ def getup_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     func=impact, weight=HEAD_WEIGHT,
     params={"sensor_name": "head_struck_obstacle", "free": HEAD_FREE})
   cfg.events["reset_base"].params["obstacle"] = OBSTACLE
+  cfg.events["reset_base"].params["starts"] = dict(WALL_STARTS)
+  if not play:
+    cfg.episode_length_s = WALL_EPISODE_S
   return cfg

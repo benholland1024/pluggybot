@@ -126,13 +126,39 @@ it lost getting up off one side (`models/humanoid_getup.npz` is getup1's
 4450 iterations, 2000 without the side, then 1000 with it).
 `-Getup-Wall` (#679) carries getup3 on (`--agent.resume True --agent.load-run
 '.*_getup3$' --agent.load-checkpoint model_7448.pt`) with a box beside the
-fallen body in half its episodes (`OBSTACLE`): a counter's top (0.60-0.95 m)
-or a wall's (2.4 m), a mocap body sunk into the floor to it; beside the
-trunk, beyond the head or the feet of a body lying, and into or along the
+fallen body in a share of its episodes (`OBSTACLE`): a counter's top
+(0.60-0.95 m) or a wall's (2.4 m), a mocap body sunk into the floor to it;
+beside the trunk (at a body's front or back, its left or right, by a
+share), beyond the head or the feet of a body lying, and into or along the
 way a body tips, its face a gap past the body's own reach (so no start
 begins inside it); its hits charged as the floor's. Trained on open floor
 alone, the get-up never stood a body lying on its side with its front to a
-face, which is how the counter's falls lay. ⚠ A get-up SEES THE JOINTS IT
+face, which is how the counter's falls lay. Its stand is paid as the served
+get-up hands back, within 10 deg of upright and touching nothing of the box
+(paid from 25 deg, it stood leaning on the counter, and the served get-up
+never handed back), and staying down is charged (`down`).
+`-Getup-Wall-Mirror` trains on each sample and its mirror image as well
+(rsl_rl's symmetry extension, `getup.mirror`): fine-tuned without it, the
+get-up came to rise off its back by rolling to one side, and with a box on
+that side lay still beside it. Both carry the recipe as their defaults, each
+part measured: 20 s episodes (`WALL_EPISODE_S`: a slower stand beside a
+face still earns), twice the side starts (`WALL_STARTS`), the entropy bonus
+kept and small steps from getup3 (`WALL_PPO`: at no entropy the action's
+noise fell to 0.06 and the get-up shook standing in the served physics; at
+`desired_kl` 0.01 the get-up off its back beside a box fell from 0.99 to
+0.51 in 450 iterations). `models/humanoid_getup_wall.npz` (NOT served) is
+getupwall10's iteration 8450: `-Getup-Wall-Mirror` from getup3, 1002
+iterations in 38 min on a 5090 shared with a second run, chosen by the
+training physics' scan below before the bar was read on it (SimNotes,
+"Getting up beside a wall or the counter", has its readings). Later checkpoints stood more often from a side
+facing the box and lost the back beside a box on its left: read a run's
+checkpoints there with `python -m humanoid_train.scan RUN` (ten starts
+against a box or on open floor), and make any checkpoint the served npz with
+`python -m quad_train.from_checkpoint` (mjlab writes the ONNX of the last
+save alone; checked identical to `quad_train.export`'s of the same
+checkpoint). ⚠ A dict's tuple is no flag (`--env.events.reset-base.params.
+obstacle.gap-m.along 0 0.15` is refused): change those in code.
+⚠ A get-up SEES THE JOINTS IT
 DRIVES: over every joint the waist made 80 inputs, where getup3's 78 carry
 on; and mjlab's metadata lists every joint of the body, so it is exported
 `--sees driven`, or the served runtime builds 80 inputs for a 78-input net.
@@ -179,6 +205,7 @@ run on a card records its steps a second:
 | RTX 5090 | Vast, a Ryzen 9 9950X host | 0.647 | 96,000 | 0.0019 | `Pluggy-Humanoid-Getup` (getup1) beside a seeing walker's run on the same card (#507) |
 | RTX 5090 | Vast, an EPYC 9B14 host | 0.633 | 95,000-98,000 | 0.0018 | `Pluggy-Humanoid-Walk-Seeing-Fine` (fine2, fine3, fine4a, fine5a, fine6a), 1500 iterations in 25 min alone (#507) |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 108,000 | 0.0013 | the same (fine4b, fine5b, fine6b), 1500 iterations in 23 min alone (#507) |
+| RTX 5090 | Vast, a Ryzen 7 7800X3D host in South Korea | 0.516 | 155,000 | 0.00092 | `Pluggy-Humanoid-Getup-Wall` (getupwall1), 1500 iterations in 16 min alone; two runs to the card ~65,000 each (getupwall10: 1002 iterations in 38 min) (#679) |
 
 Two runs on one card share it rather than add to it: two humanoid runs on
 one 5090 each took 1.0 s an iteration against 0.46 s alone.

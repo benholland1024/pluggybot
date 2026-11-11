@@ -2014,8 +2014,35 @@ beside it taught, each flown in the served physics but the last:
 - ⚠ *A lazy mean*: on today's body getup3 pays 4-7 times the torque charges
   it paid on its own, and the fine-tune cut them by not trying: in the
   training physics its mean action lay still on its back beside the box in
-  136 of 256 starts that getup3 stood from in 253. Staying down is charged
+  136 of 256 starts that getup3 stood from in 252. Staying down is charged
   (`down`).
+- ⚠ *A one-sided get-up*: fine-tuned, it rose off its back by rolling to its
+  left, and lay still beside a box there (in the training physics 10 % stood
+  with the box at its left, 100 % at its right; getup3 96 and 100). Each
+  sample and its mirror image trained together (`-Getup-Wall-Mirror`) kept
+  it even: 100 and 100.
+
+`models/humanoid_getup_wall.npz` (getupwall10's iteration 8450, from getup3;
+NOT served) is the one the bar was read on last, chosen on the training
+physics alone (`python -m humanoid_train.scan`, ten starts). It stood from
+the counter's 14 falls within 20 s of its takeover in 14, in 2.5-6.4 s (today
+none), catching the falling body against the counter rather than lying down
+along it -- though in one, the two robots at adjacent props fell into each
+other again 1.4 s after standing, and both ended upright and never handed
+back. Laid along a face it stood within 20 s in 51 of 63 to today's 39: on
+its side facing the face 6 of 18 (5.2 and 9.2 s,
+0.25 m off; touching or 0.1 m off, still never), on its front with the face
+on its left 9 of 9 in 2.5-2.6 s (today 3, the rest 21-23 s). Shoved at the
+counter 17 of 20 to 15, from a bow and on a bare floor every fall today's
+stood from. Four that today's stood from it did not -- shoved sideways in the
+hall, where it lies or crouches against the wall, and left or front-left at
+the chest, where it SITS on the floor: never past 60 deg, so neither stood
+nor a stuck death, the get-up holding the legs. Its head touches more often
+and strikes softer at worst (4.9 m/s from a bow, today's 6.0). Later
+checkpoints stood more often from a side facing the face and lost the back
+beside a box on its left again. Over the garden lamp's pole (#679's note: a
+walker tripped on the plate's pad and fell with the pole between its legs)
+it never stood either.
 
 **A bow is no fall** (#520). The IMU is on the pelvis and the body has no
 waist, so a bow the standing policy is asked tilts it by the whole bow, and
