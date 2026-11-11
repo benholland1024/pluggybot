@@ -7404,10 +7404,10 @@ die `stuck`, bounded only by its pack or `unminded` (none seen).
 (`STOOD_AGAIN_S`) within `GETUP_WAIT_S` (40 s) of a fall ends `stuck`, the
 rows until then kept, and so does a `--falls` flight (`stuck_guard`;
 `tests/test_drift_spike.py` pins the rule and its wiring on a body that
-steps only a clock). The station spike's trials, `solve.py`'s and the non-mortal days of
-`hub_lifecycle.py` and `two_robots.py` have no such guard: a fall they
-cannot get up from runs to their parent's subprocess timeout (1800-3600 s)
-or for good.
+steps only a clock). The station spike's trials, `solve.py`'s and the
+non-mortal days of `hub_lifecycle.py` and `two_robots.py` have no such
+guard: a fall they cannot get up from runs to their parent's subprocess
+timeout (1800-3600 s) or for good.
 
 
 ## Debugging workflow that worked
