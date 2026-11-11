@@ -123,15 +123,59 @@ def test_a_corridor_is_fixed_across_and_held_along(corridor, monkeypatch):
   assert abs(math.degrees(got.pose[2] - true[2])) < 0.2
 
 
-def test_a_fit_that_would_slide_past_the_gate_is_refused(room):
+def test_a_fit_that_would_slide_past_the_gate_is_refused_unless_the_search_finds_it(
+    room, monkeypatch):
   # 17 cm off is a pose the fit can pull back, but not in one scan: a
-  # correction past MAX_STEP is another wall to sit on, and is refused.
-  m = sm.ScanMatcher(room)
+  # correction past MAX_STEP may be another wall to sit on, so the fit's is
+  # never taken -- the bounded search's is, where the walls agree with it
+  # (DOUBT_FOUND_SHARE), and otherwise the scan is refused.
   ranges = cast(ROOM, TRUE, np.random.default_rng(5))
   guess = (TRUE[0] + 0.14, TRUE[1] - 0.10, TRUE[2] + 0.08)
-  got = m.match(guess, ANGLES, ranges)
-  assert not got.accepted
+  got = sm.ScanMatcher(room).match(guess, ANGLES, ranges)
+  assert got.why == "found"
+  assert math.hypot(got.pose[0] - TRUE[0], got.pose[1] - TRUE[1]) < 0.02
+  monkeypatch.setattr(sm, "DOUBT_FOUND_SHARE", 1.01)
+  got = sm.ScanMatcher(room).match(guess, ANGLES, ranges)
+  assert not got.accepted and got.why == "slid" and not got.fuse
   assert got.pose == guess
+
+
+#: A storeroom as the counter has it (#559, T5's night of 11-10): 6 x 6 m, and
+#: the robot 0.6 m from its east wall facing it, so that the returns ahead
+#: fall under MATCH_MIN_M and the long north and south walls make most of the
+#: scan, as the counter's own returns are left out at a work spot.
+STORE = box(0.013, 0.021, 6.013, 6.021)
+AT_COUNTER = (5.4, 3.02, 0.0)
+
+
+@pytest.fixture(scope="module")
+def store():
+  rng = np.random.default_rng(4)
+  poses = [(rng.uniform(0.6, 5.4), rng.uniform(0.6, 5.4), rng.uniform(-3, 3)) for _ in range(40)]
+  return mapped(STORE, (-1, -1, 7, 7), poses)
+
+
+@pytest.mark.parametrize("off", [0.3, -0.3])
+def test_a_fit_its_side_walls_hold_while_its_end_walls_disagree_is_searched(store, off):
+  # MEASURED at the counter (T5): the side walls stay on their walls whatever
+  # the offset along them, so a fit 0.3-0.4 m off was judged `ok` and its
+  # scan laid in, and the copy it laid kept the error for hours. Doubted, the
+  # search takes the pose the end walls agree with, and the scan is not laid
+  # at the pose it disagreed with.
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
+  guess = (AT_COUNTER[0] + off, AT_COUNTER[1], AT_COUNTER[2])
+  got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+  assert got.accepted
+  assert abs(got.pose[0] - AT_COUNTER[0]) < 0.05, got
+
+
+def test_a_straight_corridor_held_along_is_not_doubted(corridor):
+  # ...where nothing disagrees: a corridor's fit held along it is laid in,
+  # 0.3 m off along it as anywhere (no end in reach says otherwise).
+  true = (4.0, 0.7, 0.0)
+  ranges = cast(CORRIDOR, true, np.random.default_rng(3))
+  got = sm.ScanMatcher(corridor).match((true[0] + 0.3, true[1], true[2]), ANGLES, ranges)
+  assert got.why == "ok" and got.held == 1 and got.fuse
 
 
 def test_a_scan_with_no_map_under_it_is_no_match():

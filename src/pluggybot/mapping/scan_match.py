@@ -119,6 +119,20 @@ SEARCH_M = 0.6
 SEARCH_RAD = math.radians(6.0)
 SEARCH_STEP_RAD = math.radians(1.0)
 FOUND_SHARE = 0.75
+#: ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS DOUBTED (PROTOTYPE, night
+#: shift 11-10, T5): one that held a direction with under DOUBT_HELD_SHARE
+#: of its points on walls, or any under DOUBT_SHARE, is searched as an
+#: inconsistent one is, a pose found taken only at DOUBT_FOUND_SHARE; found
+#: nothing, its correction stands and its scan is NOT fused ("doubted").
+#: MEASURED: at the storeroom's counter the side walls kept a fit `ok` 0.3-0.4
+#: m off along the counter at 40 of 40 poses, its scan laid in, and the copy
+#: kept the error for hours (Luca, 11-08, 0.58 m); doubted, 40 of 40 taken
+#: back. From the truth over the house, held fits under 0.95 were 15 of
+#: 2,306 and any fit under 0.8 32 of 7,761; found at FOUND_SHARE the stairs'
+#: map moved the truth at 11 places, at 0.9 at 3 (2 as before).
+DOUBT_HELD_SHARE = 0.95
+DOUBT_SHARE = 0.8
+DOUBT_FOUND_SHARE = 0.9
 #: ⚠ A ROBOT ITS MAP KEEPS REFUSING IS LOST PAST THE SEARCH'S REACH (issue
 #: #422): after LOST_RUN scans running "inconsistent" -- any other verdict
 #: breaks the run -- and every LOST_RUN more, the search looks WIDE_M and
@@ -169,7 +183,7 @@ NO_STEP = (0.0, 0.0, 0.0)
 #: little map under it to say -- never a scan whose fit slid or whose map
 #: disagreed, nor the one the wide search relocated by (the next, matched
 #: from there, is).
-ACCEPTED = frozenset({"ok", "found", "relocated"})
+ACCEPTED = frozenset({"ok", "found", "relocated", "doubted"})
 FUSED = frozenset({"ok", "found", "anchored", "no map", "sparse", "unconstrained"})
 
 
@@ -178,13 +192,14 @@ class Match(NamedTuple):
   if `accepted`, else the one asked about."""
   pose: tuple[float, float, float]
   accepted: bool
-  #: "ok", "found" (by the search, the fit having been inconsistent),
-  #: "relocated" (by the wide search, the robot lost past the search's
-  #: reach), "anchored" (not matched: laid at an anchor's belief,
+  #: "ok", "found" (by the search, the fit having been inconsistent, slid or
+  #: doubted), "doubted" (the fit's correction taken, its scan not fused:
+  #: DOUBT_*), "relocated" (by the wide search, the robot lost past the
+  #: search's reach), "anchored" (not matched: laid at an anchor's belief,
   #: ANCHORED_SCANS), or why not: "no map" (nothing mapped near), "sparse"
   #: (fewer than MIN_INLIERS), "unconstrained" (no direction fixed), "slid"
-  #: (past MAX_STEP), "inconsistent" (the map disagreed, and the search
-  #: found nothing it agreed with).
+  #: (past MAX_STEP, and the search found nothing), "inconsistent" (the map
+  #: disagreed, and the search found nothing it agreed with).
   why: str
   inliers: int
   #: The inliers' RMS distance to the map at the matched pose, m.
@@ -415,7 +430,7 @@ class ScanMatcher:
     if self.field is None or len(pts) < MIN_INLIERS:
       return self._done(pose, "no map" if self.field is None else "sparse")
     at, why, kw = self._judge((x0, y0, th0), pts, self._fit((x0, y0, th0), pts))
-    if why != "inconsistent":
+    if why not in ("inconsistent", "doubted", "slid"):
       return self._done(at, why, **kw)
     # Most of the scan on mapped cells and too little of it on walls: the
     # pose is off by more than the fit reaches -- a wheel pump while the
@@ -425,10 +440,14 @@ class ScanMatcher:
     # the walls agree; else the scan is refused and NOT fused.
     start = self._search((x0, y0, th0), pts)
     if start is not None:
-      found_at, found, found_kw = self._judge((x0, y0, th0), pts, self._fit(start, pts),
-                                              found=True)
+      found_at, found, found_kw = self._judge(
+        (x0, y0, th0), pts, self._fit(start, pts), found=True,
+        share=FOUND_SHARE if why == "inconsistent" else DOUBT_FOUND_SHARE)
       if found == "found":
         return self._done(found_at, found, **found_kw)
+    if why != "inconsistent":
+      # ...doubted or slid, and nothing better near: as it was, unfused
+      return self._done(at, why, **kw)
     # ...and refused for long enough, the robot is lost past the search's
     # reach: search wider (LOST_RUN), and take what it finds the second time
     self.lost_run += 1
@@ -458,7 +477,7 @@ class ScanMatcher:
       hess, grad, d, live = self._normal((x, y, th), pts)
     return (x, y, th), d, live
 
-  def _judge(self, asked, pts, fit, found: bool = False):
+  def _judge(self, asked, pts, fit, found: bool = False, share: float = FOUND_SHARE):
     """The verdict on a fit: (the pose to lay the scan at, why, the rest of
     `Match`). Which directions the walls fix is read where the fit ENDED
     (offset, a room's points sit off its walls and it looks like a
@@ -479,7 +498,7 @@ class ScanMatcher:
               held=int(3 - keep.sum()))
     fit_pose = (x0 + dx, y0 + dy, th0 + dth)
     if found:
-      if n >= MIN_INLIERS and n >= FOUND_SHARE * n_live and keep.all():
+      if n >= MIN_INLIERS and n >= share * n_live and keep.all():
         return fit_pose, "found", dict(step=(dx, dy, dth), **kw)
       return asked, "inconsistent", kw
     if n_live >= MIN_INLIERS and n < LOST_SHARE * n_live:
@@ -490,6 +509,8 @@ class ScanMatcher:
       return asked, "sparse", kw
     if math.hypot(dx, dy) > MAX_STEP_M or abs(dth) > MAX_STEP_RAD:
       return asked, "slid", kw
+    if n < (DOUBT_SHARE if keep.all() else DOUBT_HELD_SHARE) * n_live:
+      return fit_pose, "doubted", dict(step=(dx, dy, dth), **kw)
     return fit_pose, "ok", dict(step=(dx, dy, dth), **kw)
 
   def _search(self, pose, pts: np.ndarray, reach_m: float = SEARCH_M,
