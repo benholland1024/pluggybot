@@ -264,7 +264,7 @@ its 8 set-outs** (`evaluation/hands_check.py`, `BAR`, `SET_OUTS`).
 | lid | `challenge/lid.py`: past 57 deg, set down, let go | #493's chests on the 0.72 m counter | the knob's cube from its tag, gripped 2 cm short of its middle, back level (SimNotes, "The chest's grip"); lift up and a little back, lower toward the body |
 | drawer | `challenge/drawer.py`: 15 cm out, let go | a cabinet on the counter, its knob where a chest's is | pull straight out |
 | door | `challenge/door.py`: 50 deg open, let go | a cupboard hinged on its left, its lever's tip 0.40-0.44 ahead | press the lever, let go, look: a door already open is done; else grip it lightly and pull toward the body, then on the hand's way |
-| place | `challenge/place.py`: on the mat within 2.5 cm, flat on a face, set down, let go | a cube 0.40-0.46 ahead on a 6 cm board -- in sight, out of reach where the robot stands -- the mat 6-8 cm further | a step in and aside until the cube is 0.32 ahead and 0.18 to its left, what it read turned into the frame it then stands in; grip it from above-front; lift, carry, set down holding the line |
+| place | `challenge/place.py`: on the mat within 2.5 cm, flat on a face, set down, let go | a cube 0.40-0.46 ahead on a 6 cm board -- in sight, out of reach where the robot stands -- the mat 6-8 cm further | a step in and aside until the cube is 0.32 ahead and 0.18 to its left, what it read turned into the frame it then stands in; grip it from above-front; lift, carry, set down holding the line; a try that failed, the mat and the cube read again and tried again (#560) |
 | table (#560) | `challenge/table.py`: a plate, a fork and a cup each at its spot off a place card, set down, let go | the dishware beside a place on the restaurant's table, the robot at the place (`counter.table_set_out`) | one stance 0.14 m to the left for the whole place: the cup by the right hand from 10 cm over it, 3 cm short of its middle, where the plate's tag puts it; the plate (1.5 cm inside its wall) and the fork (at 25 N) by the left, the jaws the other way round at 60 deg, each reach aimed at its grip (#627); each piece set down by where its jaws left it, the card read again once it is lifted (SimNotes, "The table's reference on the waist") |
 
 The procedures and what each knows that a mind would have to find out are
@@ -319,6 +319,10 @@ five jobs the lid alone meets the bar.
 
 The served jobs from the tour, each draw its own noise: the drawer 8 of 8
 and 31 of 32, the door 5 (7) and 28 (30), the chest 8 (6) and 32 (25).
+Since its tries read the mat and the cube again after one that failed
+(#560; SimNotes, "The cube from the tour"), the cube's check places 20 of 32
+at set-outs 0-31 where it placed 17, on one pod (an EPYC 7B12), and the
+served cube 28 of 32 from the tour.
 
 **The table's reference on the waist** (#560; SimNotes, "The table's
 reference on the waist"): one stance for the whole place, flown on one pod (a

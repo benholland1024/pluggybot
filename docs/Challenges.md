@@ -308,7 +308,8 @@ they may all stand at once, and each is discharged by a procedure the robot
 writes (`TaskKind.discharge = "procedure"`, #207): claiming queues nothing;
 the robot writes the procedure, runs it and sets `done` to the job's id,
 and only a mind with a library is offered one (`lifecycle.world_targets`).
-Three are offered (cadence.json); the cube's is not, below.
+All four are offered (cadence.json), the cube's since its reference passed
+from the tour (below).
 
 **The criteria are the checks'**, through the same evaluators, with two
 departures, both about where an attempt starts:
@@ -324,7 +325,9 @@ departures, both about where an attempt starts:
   (`TaskKind.minutes`, `tasks.HAND_MINUTES`; a world's cadence may give
   another), counted from the claim: 16, three times the slowest pass of the
   references over a tour of the house (313 s, from the station), rounded
-  up (TaskPattern.md §4 has why it is the kind's, #580). Held past them
+  up (TaskPattern.md §4 has why it is the kind's, #580) -- and the cube's
+  8, three times its own (159 s; `tasks.CUBE_MINUTES`), offered later on
+  the table's terms. Held past them
   with no `done` waiting on its grade, the job is failed at its holder's
   next pass of the day loop, between what the robot does, or at once on a
   charge trip ("not graded within the 960 s the job allows -- the drawer
@@ -362,16 +365,20 @@ humanoids see theirs.
 **Each has its hand-written solution** (`challenge/solutions.py`, Evaluation.md
 §7), two procedures in the robot's own vocabulary, written when one would
 have passed the language's 1,500 characters (3,000 since #560, and its defs
-may call each other: the two are 1,491-2,013 together): the walk there, then the check's own
-procedure -- unchanged for the door and the chest; the drawer's pulls 4 cm
+may call each other: the two are 1,524-2,943 together, the cube's place
+alone 2,275): the walk there, then the check's own procedure -- unchanged
+for the door and the chest; the drawer's pulls 4 cm
 further and lets go of the knob before its arm goes home. A job is offered
 once its reference passes 6 of 8 over a tour of the house, the bar written
 before they flew (`solve.py --from tour`; SimNotes, "The humanoids' first
 jobs"): the drawer 8, the door 8, the chest 7. Each job's energy is its
 reference flown from the station (`energy.json`). The cube's reference set
-it down 2-7 cm off its mat's middle all 8 times, so `place_cube` is
-defined, graded and priced but not offered (why: SimNotes, "Setting a
-table").
+it down 2-7 cm off its mat's middle all 8 times (why: SimNotes, "Setting a
+table"), so `place_cube` was not offered until its procedure read the mat
+and the cube again after a try that failed: then it placed 28 of 32 draws
+over the tour, its bar 24 written before it flew, a fall failing its try,
+and joined the rotation on the table's terms (Ben, 2026-11-10): 8 minutes,
+paying 45 (SimNotes, "The cube from the tour").
 
 ## 12. Lay a place at a table (issue #560, its first task)
 
