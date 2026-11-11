@@ -7277,15 +7277,17 @@ on the same pod, and the place check at set-outs 0-31 reads 20 where it read
 showed the one-tag case the review fixed, so they are not untouched, but
 not flattered either: 431 still failed). So `place_cube` is
 offered ("The humanoids' first jobs"): 9 minutes from the claim, three
-times its slowest pass from the dearest station, the mall's (177 s and 180
-s, the re-pricing's flight and this one), paying 51 (Ben's 90 for 16
-minutes, pro rata), and priced at 9.858 Wh (`energy.json`: flown on this
-reference from the mall's station it cost 8.124 Wh over 180 s, from the
-house's 5.955, from the research center's 6.208, and 3 Nov's dearer reading
-is kept). Three times its slowest pass over the tour (159 s) gave 8, and
+times its slowest pass from the dearest station, the mall's, its area
+remembered (177 s and 180 s, the re-pricing's flight and this one), paying
+51 (Ben's 90 for 16 minutes, pro rata), and priced at 9.858 Wh
+(`energy.json`: flown on this reference from the mall's station it cost
+8.124 Wh over 180 s, from the house's 5.955, from the research center's
+6.208, and 3 Nov's dearer reading is kept). Three times its slowest pass
+over the tour (159 s, on a fresh map; the tour has no mall) gave 8, and
 left a claim at the mall about 300 s to write the procedure in, where one
-answer may take 300 (Ben's call for 9, 2026-11-11). #669's `withdraw`, which opens its gripper first, changes none of
-its flights: every `withdraw` it makes follows an `open_hand` (the first
+answer may take 300 (Ben's call for 9, 2026-11-11); a claim at the mall on
+a fresh map, its find before the walk, was not flown. #669's `withdraw`,
+which opens its gripper first, changes none of its flights: every `withdraw` it makes follows an `open_hand` (the first
 round's 32 flown on both trees, the same row for row).
 
 | the bar's 32 draws, how each ended | the tree before | now |

@@ -326,11 +326,11 @@ departures, both about where an attempt starts:
   another), counted from the claim: 16, three times the slowest pass of the
   references over a tour of the house (313 s, from the station), rounded
   up (TaskPattern.md §4 has why it is the kind's, #580) -- and the cube's
-  9, three times its own from the dearest station, the mall's (180 s;
-  `tasks.CUBE_MINUTES`), offered later on the table's terms: three times
-  its slowest over the tour, 159 s, gave 8, and left a claim at the mall
-  about 300 s to write the procedure in, where one answer may take 300
-  (Ben's call, 2026-11-11). Held past them
+  9, three times its own from the dearest station, the mall's, its area
+  remembered (180 s; `tasks.CUBE_MINUTES`), offered later on the table's
+  terms: three times its slowest over the tour, 159 s on a fresh map, gave
+  8, and left a claim at the mall about 300 s to write the procedure in,
+  where one answer may take 300 (Ben's call, 2026-11-11). Held past them
   with no `done` waiting on its grade, the job is failed at its holder's
   next pass of the day loop, between what the robot does, or at once on a
   charge trip ("not graded within the 960 s the job allows -- the drawer

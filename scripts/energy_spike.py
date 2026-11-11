@@ -36,7 +36,10 @@ the house's is 29 and the research center's 7:
     w         mean load over the errand, as a sanity check
 
 `--reserve` measures the return trip from the worst place in the house
-instead (`humanoid.world.RESERVE_WH`).
+instead (`humanoid.world.RESERVE_WH`). ⚠ `--write` OVERWRITES `energy.json`'s
+rows it measured -- the jobs', the explore's rate and the charge's watts --
+and its `measuredOn` note: a re-price is folded in by hand, the dearer of
+two honest readings carried, each job's from its dearest station.
 """
 
 import argparse
@@ -351,7 +354,8 @@ def main() -> None:
                        "has to cover on the current floor plan")
   ap.add_argument("--json", default=None, help="write the raw measurement here")
   ap.add_argument("--write", action="store_true",
-                  help="overwrite src/pluggybot/economy/energy.json's rows it measured and its "
+                  help="overwrite src/pluggybot/economy/energy.json's rows it measured -- its "
+                       "jobs', the explore's rate and the charge's watts -- and its "
                        "measuredOn note (a re-price is folded by hand, the dearer kept)")
   args = ap.parse_args()
   args.world = world_for(args.world)

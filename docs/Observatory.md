@@ -17,9 +17,10 @@ observatory is NOT a result: it reports into the issue it informs.
   put on its mat on the storeroom's counter, its fifth job beside the
   drawer, the door, the chest and the table. It gives 9 minutes
   (`tasks.CUBE_MINUTES`, three times its reference's slowest pass from the
-  dearest station, the mall's, 180 s; Ben's call over 8, three times the
-  tour's 159 s, which left a claim at the mall about 300 s to write the
-  procedure in), pays 51 (Ben's 90 for 16 minutes, pro rata, as the
+  dearest station, the mall's, its area remembered, 180 s; Ben's call over
+  8, three times the tour's 159 s, which left a claim at the mall about 300
+  s to write the procedure in; a claim there on a fresh map was not
+  flown), pays 51 (Ben's 90 for 16 minutes, pro rata, as the
   table's) and costs 9.858 Wh (`energy.json`, unchanged: its reference now
   costs 8.124 from the dearest station). The robots read a new row in their
   reward table: `prompt_sha` `2384a72b…` → `8e3c4c51…`, 64,023 → 64,492
