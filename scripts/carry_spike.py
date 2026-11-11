@@ -189,6 +189,9 @@ TRACE = os.environ.get("CARRY_TRACE")
 #: (`perception.cull.PARKED_GROUP`) once posed -- what a self-filter that
 #: drops what the hands hold would see. Off: every sensor sees them.
 UNSEEN = os.environ.get("CARRY_UNSEEN") == "1"
+#: `--kg X`: every held piece weighs X kg, not its draw's -- a heavier load
+#: than the table's dishware (a stack, a full bowl) for the walker's margin.
+KG = float(os.environ["CARRY_KG"]) if os.environ.get("CARRY_KG") else None
 #: Held still after a course, s, before its end is read (the walker's settle
 #: and the stand's hand-back, then this).
 END_HOLD_S = 1.0
@@ -324,14 +327,15 @@ def build(case: str, k: int, course: str = ""):
       xy, z = (sx + at[0], sy + at[1]), TABLE_H
     else:
       xy, z = (sx - 3.0, sy + 3.0 + n), 0.0
-    dw.ATTACH[piece](spec, xy, 0.0, z, getattr(load, f"{piece}_kg"), load.friction, tags=False)
+    kg = KG if KG is not None else getattr(load, f"{piece}_kg")
+    dw.ATTACH[piece](spec, xy, 0.0, z, kg, load.friction, tags=False)
     if pose != "ref":
       # ⚠ weightless until held (`setup_posed`): a body's gravity compensation
       # switched on only at run time does nothing where the model compiled
       # with none (MuJoCo's `ngravcomp`), and the plate fell 19 cm in 0.2 s
       spec.body(piece).gravcomp = 1.0
     info["at"][piece] = [float(xy[0]), float(xy[1])]
-    info["kg"][piece] = getattr(load, f"{piece}_kg")
+    info["kg"][piece] = kg
   model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
@@ -637,7 +641,7 @@ def asked_end(course) -> tuple[float, float, float]:
       x += (vx * math.cos(h) - vy * math.sin(h)) * dt
       y += (vx * math.sin(h) + vy * math.cos(h)) * dt
       h += wz * dt
-  return x, y, math.degrees(h)
+  return x, y, math.degrees(math.remainder(h, 2 * math.pi))
 
 
 def fly(job) -> dict:
@@ -647,6 +651,8 @@ def fly(job) -> dict:
   model, data, body, info = build(case, k, course)
   reading = Reading(model, data, body, info)
   row = {"case": case, "course": course, "k": k, "load": info["load"], "kg": info.get("kg")}
+  if KG is not None:
+    row["kg_override"] = KG
   try:
     s = setup(body, model, data, info, reading)
     row["setup"] = s
@@ -773,53 +779,69 @@ def _line(r: dict) -> str:
 
 # ---- reading the rows ---------------------------------------------------------
 
+def _wrap(deg: float) -> float:
+  return math.degrees(math.remainder(math.radians(deg), 2 * math.pi))
+
+
 def read(paths: list[str]) -> None:
+  """The tables: for each course, each case's falls, its end against the
+  asked end and against the arms-home walk, the trunk's tilt and the piece's
+  slip in the jaws."""
   rows = [json.loads(line) for p in paths for line in open(p) if line.strip()]
   for r in rows:
     if r.get("unseen"):
       r["case"] += "*"
-  cases = [c for c0 in CASES for c in (c0, c0 + "*") if any(r["case"] == c for r in rows)]
+    if r.get("kg_override"):
+      r["case"] += f"@{r['kg_override']:g}kg"
+  cases = list(dict.fromkeys(c for c0 in CASES for r in rows for c in (r["case"],)
+                             if c.split("*")[0].split("@")[0] == c0))
   courses = [c for c in (*COURSES, *GOALS) if any(r["course"] == c for r in rows)]
+
+  def errs(r, course):
+    a = asked_end(course)
+    e = r["end"]
+    return (e[0] - a[0], e[1] - a[1], _wrap(e[2] - a[2]))
+
   base = {}
   for course in courses:
-    rs = [r for r in rows if r["case"] == "none" and r["course"] == course and "end" in r
-          and not r["fell"]]
+    rs = [errs(r, course) for r in rows if r["case"] == "none" and r["course"] == course
+          and "end" in r and not r["fell"]]
     if rs:
-      base[course] = np.mean([r["end"] for r in rs], axis=0)
-  print("CARRYING WHILE WALKING: each case a course from standing, open loop; the end is the "
-        "pelvis's in the frame it began in (ahead m, left m, turned deg), the mean; 'off' is how "
-        "far that lands from the arms-home mean, mean [worst]")
+      base[course] = np.mean(rs, axis=0)
+  print("CARRYING WHILE WALKING: each case a course from standing; per flight the pelvis's end "
+        "off the asked end (along the start's heading m, left m, turned deg, wrapped), the "
+        "mean; 'home' is how far it lands from where the arms-home walk lands, mean [worst]; "
+        "drop/slip/turn: the piece in the jaws")
   for course in courses:
     ex, ey, eh = asked_end(course)
-    print(f"\n{course}: asked {ex:+.2f} {ey:+.2f} {eh:+.1f}"
-          + (f"; arms home walked {base[course][0]:+.2f} {base[course][1]:+.2f} "
-             f"{base[course][2]:+.1f}" if course in base else ""))
-    print(f"  {'case':12s} {'n':>2s} {'fell':>4s} {'nosetup':>7s} {'end ahead left turn':>22s} "
-          f"{'off m [worst]':>13s} {'off deg':>11s} {'tilt max/p95 [worst]':>20s} {'drop':>5s} "
-          f"{'slip cm/deg [worst]':>21s} {'piece tilt':>10s}")
+    print(f"\n{course}: asked {ex:+.2f} {ey:+.2f} m {eh:+.1f} deg"
+          + (f"; arms home off it by {base[course][0]:+.2f} {base[course][1]:+.2f} m "
+             f"{base[course][2]:+.1f} deg" if course in base else ""))
+    print(f"  {'case':18s} {'n':>2s} {'fell':>4s} {'nosetup':>7s} {'off asked m, m, deg':>21s} "
+          f"{'home m [worst]':>14s} {'home deg [worst]':>16s} {'tilt max [worst]':>16s} "
+          f"{'drop':>5s} {'slip cm [worst]':>15s} {'turn deg [worst]':>16s}")
     for case in cases:
       rs = [r for r in rows if r["case"] == case and r["course"] == course]
       if not rs:
         continue
       ok = [r for r in rs if "end" in r]
       fell = sum(r["fell"] for r in ok)
-      line = f"  {case:12s} {len(rs):2d} {fell:4d} {len(rs) - len(ok):7d}"
+      line = f"  {case:18s} {len(rs):2d} {fell:4d} {len(rs) - len(ok):7d}"
       if ok:
-        e = np.array([r["end"] for r in ok])
+        e = np.array([errs(r, course) for r in ok])
         line += f" {e[:, 0].mean():+6.2f} {e[:, 1].mean():+6.2f} {e[:, 2].mean():+7.1f}"
         if course in base:
           off = np.hypot(e[:, 0] - base[course][0], e[:, 1] - base[course][1])
-          offh = np.abs(e[:, 2] - base[course][2])
-          line += f"  {off.mean():5.2f} [{off.max():4.2f}] {offh.mean():4.1f} [{offh.max():4.1f}]"
+          offh = np.array([_wrap(v - base[course][2]) for v in e[:, 2]])
+          line += (f"  {off.mean():5.2f} [{off.max():5.2f}]  {offh.mean():+6.1f} "
+                   f"[{offh[np.argmax(np.abs(offh))]:+6.1f}]")
         else:
-          line += " " * 26
-        line += (f" {np.mean([r['tilt_max'] for r in ok]):5.1f}/{np.mean([r['tilt_p95'] for r in ok]):4.1f}"
-                 f" [{max(r['tilt_max'] for r in ok):5.1f}]")
+          line += " " * 33
+        line += (f"  {np.mean([r['tilt_max'] for r in ok]):5.1f} [{max(r['tilt_max'] for r in ok):5.1f}]")
         if "slip_max_cm" in ok[0]:
           line += (f"  {sum(r['dropped'] for r in ok):2d}/{len(ok):<2d}"
-                   f" {np.mean([r['slip_max_cm'] for r in ok]):5.1f}/{np.mean([r['turn_max_deg'] for r in ok]):4.1f}"
-                   f" [{max(r['slip_max_cm'] for r in ok):5.1f}/{max(r['turn_max_deg'] for r in ok):5.1f}]"
-                   f" {np.mean([r['ptilt_start'] for r in ok]):4.1f}->{max(r['ptilt_max'] for r in ok):4.1f}")
+                   f" {np.mean([r['slip_max_cm'] for r in ok]):5.1f} [{max(r['slip_max_cm'] for r in ok):5.1f}]"
+                   f" {np.mean([r['turn_max_deg'] for r in ok]):6.1f} [{max(r['turn_max_deg'] for r in ok):5.1f}]")
       print(line)
   fails = [r for r in rows if "end" not in r]
   if fails:
@@ -876,9 +898,17 @@ def strip(spec: str, out: str, every_s: float = 1.5) -> None:
   root = model.body(hm.ROBOT_ROOT).id
   tiles = []
 
+  # the plate is white on a pale floor: drawn in a colour of the strip's own
+  for piece, _ in info["pieces"]:
+    for g in reading.mine[piece]:
+      model.geom_rgba[g] = [0.95, 0.55, 0.15, 1.0]
+
   def tile(label):
+    # from the robot's front left, as it turns
+    r = data.xmat[root].reshape(3, 3)
     cam.lookat[:] = data.xpos[root] - [0.0, 0.0, 0.1]
-    cam.distance, cam.azimuth, cam.elevation = 2.6, 150.0, -15.0
+    cam.distance, cam.elevation = 2.4, -18.0
+    cam.azimuth = math.degrees(math.atan2(r[1, 0], r[0, 0])) + 180.0 + 35.0
     rend.update_scene(data, cam)
     img = Image.fromarray(rend.render())
     ImageDraw.Draw(img).text((8, 8), label[:70], fill=(255, 255, 255))
@@ -938,7 +968,7 @@ def view(spec: str) -> None:
 
 
 def main(argv=None) -> None:
-  global TRACE, UNSEEN
+  global TRACE, UNSEEN, KG
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--fly", action="store_true")
   ap.add_argument("--cases", default=",".join(CASES))
@@ -948,6 +978,7 @@ def main(argv=None) -> None:
   ap.add_argument("--jobs", type=int, default=1)
   ap.add_argument("--out", default="carry_rows.jsonl")
   ap.add_argument("--trace", default=None, help="a directory: each flight's samples, a file each")
+  ap.add_argument("--kg", type=float, default=None, help="every held piece's mass, kg")
   ap.add_argument("--unseen", action="store_true",
                   help="the held pieces hidden from every sensor once posed (a self-filter)")
   ap.add_argument("--read", default=None)
@@ -961,6 +992,9 @@ def main(argv=None) -> None:
   if args.unseen:
     os.environ["CARRY_UNSEEN"] = "1"
     UNSEEN = True
+  if args.kg is not None:
+    os.environ["CARRY_KG"] = str(args.kg)
+    KG = args.kg
   if args.fly:
     cases, courses = args.cases.split(","), args.courses.split(",")
     for c in cases:
