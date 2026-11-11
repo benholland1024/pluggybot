@@ -198,6 +198,12 @@ TRACE = os.environ.get("CARRY_TRACE")
 #: (`perception.cull.PARKED_GROUP`) once posed -- what a self-filter that
 #: drops what the hands hold would see. Off: every sensor sees them.
 UNSEEN = os.environ.get("CARRY_UNSEEN") == "1"
+#: `--house`: the served house (`models/home_world.xml`), the robot standing a
+#: step back from the restaurant kitchen's shelf facing it (`HOUSE_START`,
+#: x, y, heading), the held pieces parked over it until put into its jaws;
+#: courses `house_route` (below). Off: a bare floor.
+HOUSE = os.environ.get("CARRY_HOUSE") == "1"
+HOUSE_START = (26.95, -12.5, 0.0)
 #: `--blind-arms`: the walker shown every arm joint where its policy's
 #: default puts it, still (`ArmsAtRest`), whatever the arm does -- does the
 #: veer come from the arm's weight, or from inputs walk2 never trained on?
@@ -315,6 +321,8 @@ def build(case: str, k: int, course: str = ""):
   reach takes it with a square posture; otherwise parked off to the side,
   to be put into the jaws. The model, the data, the body (its noise keyed by
   case, course and draw) and what the instrument knows of its set-out."""
+  if HOUSE:
+    return _build_house(case, k, course)
   spec = mujoco.MjSpec.from_string(hm.body_xml())
   held, pose = _split(case)
   pieces = [(p, s) for p, s in HELD[held] if p]
@@ -359,6 +367,43 @@ def build(case: str, k: int, course: str = ""):
     data.qpos[a:a + 7] = model.qpos0[a:a + 7]
   mujoco.mj_forward(model, data)
   body = body_for(model, data, noise=f"carry-{case}-{course}-{k}")
+  return model, data, body, info
+
+
+def _build_house(case: str, k: int, course: str):
+  """`build` in the served house: the robot at `HOUSE_START`, standing as it
+  boots, its map's bounds the house's, the pieces parked 3 m over it
+  (weightless: out of every sensor's band) until put into its jaws."""
+  import json
+  from pluggybot.perception.cull import fix_static_inertials
+  held, pose = _split(case)
+  if pose == "ref":
+    raise ValueError("--house puts pieces into the jaws: no `ref` (its pedestal is a bare floor's)")
+  pieces = [(p, s) for p, s in HELD[held] if p]
+  load = dw.draw(k)
+  spec = mujoco.MjSpec.from_file(counter.HOME_XML)
+  x0, y0, yaw = HOUSE_START
+  frame = spec.worldbody.add_frame()
+  frame.pos = [x0, y0, 0.0]
+  frame.quat = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
+  spec.attach(hm.attachable(), prefix="", frame=frame)
+  info = {"case": case, "held": held, "pose": pose, "arms": HELD[held], "pieces": pieces,
+          "k": k, "at": {}, "kg": {}, "house": True,
+          "load": {"plate_kg": load.plate_kg, "cup_kg": load.cup_kg, "friction": load.friction}}
+  for n, (piece, _) in enumerate(pieces):
+    kg = KG if KG is not None else getattr(load, f"{piece}_kg")
+    dw.ATTACH[piece](spec, (x0 - 0.3 * n, y0), 0.0, 3.0, kg, load.friction, tags=False)
+    spec.body(piece).gravcomp = 1.0
+    info["kg"][piece] = kg
+  fix_static_inertials(spec)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  for name, v in hm.stand_qpos().items():
+    data.qpos[model.jnt_qposadr[model.joint(name).id]] = v
+  mujoco.mj_forward(model, data)
+  b = json.load(open(counter.HOME_META))["gridBounds"]
+  bounds = (b[0], b[1], b[2], b[3]) if isinstance(b, list) else (b["xMin"], b["yMin"], b["xMax"], b["yMax"])
+  body = body_for(model, data, grid_bounds=bounds, noise=f"carry-house-{case}-{course}-{k}")
   return model, data, body, info
 
 
@@ -614,6 +659,12 @@ def setup(body, model, data, info, reading: Reading | None) -> dict:
 #: (ahead m, left m), walked to by the Navigator as served (`go_to_routine`:
 #: its plan, its drive, its front stop), its odometry its belief.
 GOALS = {"goto": ((4.0, 0.0),), "goto_round": ((-2.5, 1.5),),
+         # `--house` alone: the shelf -> table 0 route's corners in the house,
+         # from `HOUSE_START` -- before the staff door (25.6, -16.1), the
+         # aisle's foot (21.9, -16.1) and head (21.9, -12.5), and table 0's
+         # place's standoff (20.8, -12.3), half a metre short of its edge (a
+         # job's `step` walks the last of it)
+         "house_route": ((-1.35, -3.6), (-5.05, -3.6), (-5.05, 0.0), (-6.15, 0.2)),
          # the shelf -> table 0 route's corners (`ROUTE`), in the frame of the
          # robot facing the shelf: each walked to in turn
          "goto_route": ((-1.85, -3.6), (-5.55, -3.6), (-5.55, 0.0), (-6.65, 0.0), (-6.65, 0.7))}
@@ -735,6 +786,8 @@ def fly(job) -> dict:
   row = {"case": case, "course": course, "k": k, "load": info["load"], "kg": info.get("kg")}
   if KG is not None:
     row["kg_override"] = KG
+  if HOUSE:
+    row["house"] = True
   if SQUEEZE_N != 40.0:
     row["squeeze"] = SQUEEZE_N
   try:
@@ -878,8 +931,10 @@ def read(paths: list[str]) -> None:
       r["case"] += "~blind"
     if r.get("squeeze"):
       r["case"] += f"^{r['squeeze']:g}N"
+    if r.get("house"):
+      r["case"] += "#house"
   cases = list(dict.fromkeys(c for c0 in CASES for r in rows for c in (r["case"],)
-                             if c.split("^")[0].split("~")[0].split("*")[0].split("@")[0] == c0))
+                             if c.split("#")[0].split("^")[0].split("~")[0].split("*")[0].split("@")[0] == c0))
   courses = [c for c in (*COURSES, *GOALS) if any(r["course"] == c for r in rows)]
 
   def errs(r, course):
@@ -1057,7 +1112,7 @@ def view(spec: str) -> None:
 
 
 def main(argv=None) -> None:
-  global TRACE, UNSEEN, KG, BLIND, SQUEEZE_N
+  global TRACE, UNSEEN, KG, BLIND, SQUEEZE_N, HOUSE
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--fly", action="store_true")
   ap.add_argument("--cases", default=",".join(CASES))
@@ -1069,6 +1124,8 @@ def main(argv=None) -> None:
   ap.add_argument("--trace", default=None, help="a directory: each flight's samples, a file each")
   ap.add_argument("--kg", type=float, default=None, help="every held piece's mass, kg")
   ap.add_argument("--squeeze", type=float, default=None, help="the posed pieces' squeeze, N")
+  ap.add_argument("--house", action="store_true",
+                  help="the served house, the robot a step back from the kitchen's shelf")
   ap.add_argument("--blind-arms", action="store_true",
                   help="the walker shown its arms at its policy's default, still")
   ap.add_argument("--unseen", action="store_true",
@@ -1090,6 +1147,9 @@ def main(argv=None) -> None:
   if args.blind_arms:
     os.environ["CARRY_BLIND"] = "1"
     BLIND = True
+  if args.house:
+    os.environ["CARRY_HOUSE"] = "1"
+    HOUSE = True
   if args.squeeze is not None:
     os.environ["CARRY_SQUEEZE"] = str(args.squeeze)
     SQUEEZE_N = args.squeeze
