@@ -1971,12 +1971,10 @@ strips a gearbox. What it took:
   back.
 
 In the house, shoved the same four ways at five places, it stood 17 times
-in 20 within 15 s, the slowest 11.9 s, on the flight four in four. Down at
-15 s: shoved sideways in the 3 m hall, against the wall it fell into; and
-twice at the landing's edge, once to the foot of the flight, where it stood
-at 30 s. So a fall into a wall or off the landing is a `stuck` death still,
-and getting up among walls and flights is the training that would close it
-(the get-up trained on open floor alone). The stuck budget is 20 s, as
+in 20 within 20 s of its takeover (#679, today's body, watched 25 s): down
+on the flight (shoved left) and twice at the landing's edge. A fall off the
+landing is a `stuck` death still, and so is one that leaves it on its side
+facing a wall or the counter (below). The stuck budget is 20 s, as
 the quadruped's was (`HumanoidBody.GETUP_BUDGET_S`). The mission waits out a
 get-up before handing the legs to a walk (⚠ a fall mid-walk with the arms
 home found them at rest and took the legs off the floor; one on the step
@@ -1985,6 +1983,39 @@ fall while the walker settled went to the standing policy at the settle's
 end, #520), and on standing again forgets its map of the ground and starts
 its height again over the ground it stands on, as at boot (⚠ kept through
 a fall down the flight, the height was 0.41 m off at the foot for good).
+
+**Getting up beside a wall or the counter** (#679; `--fall`'s counter and
+lying tables, `Pluggy-Humanoid-Getup-Wall`). The get-up trained on open
+floor alone never stands a body lying on its SIDE with its FRONT to a
+face. Laid along the storeroom's counter and its south wall with the
+truth -- the joints at the stand's, its nearest part 0, 0.1 or 0.25 m off
+the face -- it stood from every other way of lying (its side with its back
+to the face in 2.8-3.5 s, its back in 4.0-10.2, its front in 2.4-4.8) and
+from that one never in 25 s, at the 0.72 m counter and the 2.4 m wall alike
+(0 of 18): it rolls onto its front to push up, the face stops the roll, and
+it pushes again for as long as it lies there. That is how the counter's
+falls of 11-08 lay: flown again on the build that fell (#646's thin grip
+pulled the robot over, which #647 stopped; the get-up's code and file are
+unchanged since), it stood within 20 s in 0 of the 14, one at 30.4 s. Shoved
+45 N*s from each prop's work spot, it went down in 20 of 24 and stood within
+20 s in 15; the five that did not stayed against the counter, three of
+them shoved to their right. Fine-tuning getup3 on today's body with a box
+beside it taught, each flown in the served physics but the last:
+- ⚠ *A lean is no stand*: paid from 25 deg off upright, as on open floor,
+  it stood leaning on the counter 17-20 deg off upright, and the served
+  get-up, which hands back at 10, never did -- neither up nor past 60 deg,
+  the get-up holding the legs for good. The stand is paid within 10 deg and
+  touching nothing of the box.
+- ⚠ *Keep the noise*: with no entropy bonus the action's noise fell from
+  0.23 to 0.06, and a get-up that stood at the stand's height 3 deg off
+  upright shook at 0.9 rad/s and was never handed back. The training physics
+  cannot say so: there a standing robot turns on its soles at ~1 rad/s,
+  getup3 too.
+- ⚠ *A lazy mean*: on today's body getup3 pays 4-7 times the torque charges
+  it paid on its own, and the fine-tune cut them by not trying: in the
+  training physics its mean action lay still on its back beside the box in
+  136 of 256 starts that getup3 stood from in 253. Staying down is charged
+  (`down`).
 
 **A bow is no fall** (#520). The IMU is on the pelvis and the body has no
 waist, so a bow the standing policy is asked tilts it by the whole bow, and

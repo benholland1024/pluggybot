@@ -28,11 +28,17 @@ The charges set the pace, as the quadruped's do: torque past each part's
 continuous rating and harder past 60 % of its peak, the joints' speed and
 acceleration, the pelvis rising faster than `RISE_FREE_MPS`, the action's
 rate -- ramped up over training (`GENTLE_STAGES`).
+
+`-Getup-Wall` (#679) carries `-Getup-Head` on with a wall or the counter
+beside the fallen body in a share of its episodes (`OBSTACLE`): the get-up
+trained on open floor alone never stood a robot lying against one.
 """
 
 import math
 
+import mujoco
 import torch
+from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp import dr
@@ -41,6 +47,7 @@ from mjlab.envs.mdp.terminations import nan_detection
 from mjlab.managers import TerminationTermCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.metrics_manager import MetricsTermCfg
 from mjlab.managers.observation_manager import ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
@@ -110,6 +117,39 @@ HEAD_FREE, HEAD_WEIGHT = 0.5, -20.0
 #: getting up off one side, which the get-up before it had (getup2).
 HEAD_STARTS = {"back": 0.15, "front": 0.15, "side": 0.15, "dropped": 0.15, "tipping": 0.4}
 
+#: `-Getup-Wall` (#679): a box beside the fallen body in `share` of the
+#: episodes, its top a counter's (`counter` of them: the storeroom's is
+#: 0.72 m, a table's 0.75) or a room's wall's; the rest open floor, as
+#: `-Getup-Head`'s. Where its face stands is drawn as a GAP past the body's
+#: own reach toward it (`_reach`, off the body as it starts), so a start
+#: never begins inside it: beside the trunk, beyond the head or the feet of
+#: a body lying, and in the way a body tips -- into it, or along its face --
+#: as the counter's falls went (a robot at its work spot, falling forward
+#: and to one side, lay along the counter's front, 0.23 m off it). `front`:
+#: the share of a body on its side whose box is beside its FRONT, not its
+#: back -- the one way of lying the served get-up never stood from -- and
+#: `left` the share of a body on its back or front with the box at its left;
+#: `share` is the lying starts', `tipping_share` the tipping starts'.
+OBSTACLE = {"share": 0.5, "tipping_share": 0.5, "counter": 0.6, "counter_top_m": (0.6, 0.95),
+            "wall_top_m": 2.4, "lying": {"beside": 0.7, "head": 0.15, "feet": 0.15},
+            "front": 0.5, "left": 0.5, "tipping": {"into": 0.5, "along": 0.5},
+            "gap_m": {"beside": (0.0, 0.25), "head": (0.0, 0.35), "feet": (0.0, 0.35),
+                      "into": (0.05, 0.5), "along": (0.0, 0.3)}}
+#: Its stand is the served get-up's: within 10 deg of upright
+#: (`getup.STOOD_TILT_RAD`), and touching nothing of the box. ⚠ Paid at the
+#: open floor's 0.9 (25 deg), it stood leaning on the counter 18 deg off
+#: upright, and the served get-up, which hands back at 10, never did.
+STOOD_UP = math.cos(math.radians(10.0))
+#: Still down -- the pelvis under `DOWN_M` -- past `BUDGET_S` is charged
+#: `DOWN_WEIGHT` a second (`down`).
+DOWN_M, DOWN_WEIGHT = 0.4, -1.0
+#: The box, half-sizes, m: as deep as the counter, 4 m of face, and as tall
+#: as a wall -- sunk into the floor to a counter's top (a mocap body is
+#: welded to the world, and meets no floor), and its top under the floor
+#: where an episode has none.
+OBSTACLE_HALF = (0.3, 2.0, 1.2)
+PARKED_TOP_M = -1.0
+
 #: An action of 1 moves a joint's target this far, rad: the joints a
 #: get-up swings through their ranges (the hips' pitch, the knees, the
 #: shoulders, the elbows) the furthest.
@@ -119,8 +159,12 @@ ACTION_SCALE = {
       else 0.15 if "ankle_roll" in j else 0.3)
   for j in JOINTS
 }
+#: The head's parts, built round the LIDAR (#581's stage 3): a hit on any
+#: of them is the head's (the head was one cylinder when getup3 trained).
+HEAD = ("head", "head_visor", "head_dome", "head_rim", "head_cap", "head_fin", r"head_back\d+",
+        "lidar")
 #: The trunk's and the limbs' geoms, whose hits on the floor are charged.
-STRUCK = (("pelvis", "torso", "head")
+STRUCK = (("pelvis", "torso") + HEAD
           + tuple(f"{s}_{g}" for s in ("left", "right")
                   for g in ("thigh", "shank", "upper_arm", "forearm", "gripper")))
 
@@ -154,8 +198,9 @@ def _quat_from_rpy(roll, pitch, yaw):
 
 
 def reset_fallen(env, env_ids, starts: dict | None = None,
-                 asset_cfg: SceneEntityCfg = _ROBOT) -> None:
-  """Each episode's start, drawn by `starts` (`STARTS`'s kinds)."""
+                 asset_cfg: SceneEntityCfg = _ROBOT, obstacle: dict | None = None) -> None:
+  """Each episode's start, drawn by `starts` (`STARTS`'s kinds), and with
+  `obstacle` (`OBSTACLE`'s draws) the box placed against it."""
   env_ids = envs_mdp.events.resolve_env_ids(env, env_ids)
   asset = env.scene[asset_cfg.name]
   shares = [(starts or STARTS).get(k, 0.0) for k in KINDS]
@@ -197,6 +242,122 @@ def reset_fallen(env, env_ids, starts: dict | None = None,
   limits = asset.data.soft_joint_pos_limits[env_ids]
   q = torch.max(torch.min(q, limits[..., 1]), limits[..., 0])
   asset.write_joint_state_to_sim(q, torch.zeros_like(q), env_ids=env_ids)
+  if obstacle is not None:
+    quat = _quat_from_rpy(roll, pitch, yaw)
+    _place_obstacle(env, env_ids, obstacle, pos, quat, tipping, way, asset_cfg)
+
+
+def _uniform(n, lo_hi, device) -> torch.Tensor:
+  return torch.empty(n, device=device).uniform_(*lo_hi)
+
+
+def _trunk_axis(quat: torch.Tensor) -> torch.Tensor:
+  """The trunk's own up (pelvis to head) in the world, from (w, x, y, z)."""
+  w, x, y, z = quat.unbind(-1)
+  return torch.stack([2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y)], -1)
+
+
+def _trunk_front(quat: torch.Tensor) -> torch.Tensor:
+  """The trunk's own ahead in the world, from (w, x, y, z)."""
+  w, x, y, z = quat.unbind(-1)
+  return torch.stack([1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y)], -1)
+
+
+def _trunk_left(quat: torch.Tensor) -> torch.Tensor:
+  """The trunk's own left in the world, from (w, x, y, z)."""
+  w, x, y, z = quat.unbind(-1)
+  return torch.stack([2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x)], -1)
+
+
+def _robot_extent(env, env_ids, asset_cfg: SceneEntityCfg):
+  """The robot's colliding geoms (their ids, each one's own box in its
+  frame: centre, half-size), read once off the compiled model."""
+  cache = getattr(env, "_getup_extent", None)
+  if cache is None:
+    mj = env.sim.mj_model
+    ids = env.scene[asset_cfg.name].indexing.geom_ids.cpu().numpy()
+    ids = ids[(mj.geom_contype[ids] > 0) | (mj.geom_conaffinity[ids] > 0)]
+    box = torch.as_tensor(mj.geom_aabb[ids], dtype=torch.float32, device=env.device)
+    cache = (torch.as_tensor(ids, device=env.device, dtype=torch.long), box[:, :3], box[:, 3:])
+    env._getup_extent = cache
+  return cache
+
+
+def _reach(env, env_ids, toward: torch.Tensor, root: torch.Tensor,
+           asset_cfg: SceneEntityCfg) -> torch.Tensor:
+  """How far the robot's body reaches from its root along `toward` (unit,
+  world), m, each geom its own box as it stands now (after a forward)."""
+  ids, centre, half = _robot_extent(env, env_ids, asset_cfg)
+  xpos = env.sim.data.geom_xpos[env_ids][:, ids]                  # [B, G, 3]
+  xmat = env.sim.data.geom_xmat[env_ids][:, ids]                  # [B, G, 3, 3]
+  mid = xpos + torch.einsum("bgij,gj->bgi", xmat, centre)
+  along = torch.einsum("bgi,bi->bg", mid - root[:, None, :], toward)
+  local = torch.einsum("bgji,bj->bgi", xmat, toward)              # R^T toward
+  return (along + (local.abs() * half[None]).sum(-1)).amax(dim=1)
+
+
+def _place_obstacle(env, env_ids, draws: dict, pos, quat, tipping, way,
+                    asset_cfg: SceneEntityCfg) -> None:
+  """The box against each start (`OBSTACLE`): drawn present, a counter's
+  top or a wall's, its face square to a way from the root -- beside the
+  trunk, beyond the head or the feet of a body lying; into or along the
+  way a body tips -- a gap past the body's reach that way; else parked."""
+  n, dev = len(env_ids), env.device
+  env.sim.forward()            # the starts just written: where each geom now is
+  share = torch.where(tipping, draws["tipping_share"], draws["share"])
+  present = torch.rand(n, device=dev) < share
+  counter = torch.rand(n, device=dev) < draws["counter"]
+  top = torch.where(counter, _uniform(n, draws["counter_top_m"], dev),
+                    torch.full((n,), draws["wall_top_m"], device=dev))
+  top = torch.where(present, top, torch.full_like(top, PARKED_TOP_M))
+  # The lying body's long way, its head's side (dropped near upright: any).
+  head = _trunk_axis(quat)[:, :2]
+  long = torch.atan2(head[:, 1], head[:, 0])
+  long = torch.where(head.norm(dim=-1) > 0.3, long, _uniform(n, (-math.pi, math.pi), dev))
+  side = torch.where(torch.rand(n, device=dev) < 0.5, 1.0, -1.0)
+  lying_p = torch.tensor([draws["lying"][k] for k in ("beside", "head", "feet")], device=dev)
+  tip_p = torch.tensor([draws["tipping"][k] for k in ("into", "along")], device=dev)
+  lie = torch.multinomial(lying_p, n, replacement=True)
+  tip = torch.multinomial(tip_p, n, replacement=True)
+  # Beside a body on its side: at its front (`front` of them) or its back;
+  # on its back or its front: at its left (`left` of them) or its right.
+  ahead, lefts = _trunk_front(quat)[:, :2], _trunk_left(quat)[:, :2]
+  facing = torch.atan2(ahead[:, 1], ahead[:, 0]) + torch.where(
+    torch.rand(n, device=dev) < draws["front"], 0.0, math.pi)
+  leftward = torch.atan2(lefts[:, 1], lefts[:, 0]) + torch.where(
+    torch.rand(n, device=dev) < draws["left"], 0.0, math.pi)
+  across = torch.where(ahead.norm(dim=-1) > 0.7, facing,
+                       torch.where(lefts.norm(dim=-1) > 0.7, leftward, long + side * math.pi / 2))
+  ang = torch.where(lie == 0, across, torch.where(lie == 1, long, long + math.pi))
+  ang = ang + _uniform(n, (-0.25, 0.25), dev)
+  ang = torch.where(tipping, torch.where(tip == 0, way + _uniform(n, (-0.6, 0.6), dev),
+                                         way + side * math.pi / 2 + _uniform(n, (-0.3, 0.3), dev)),
+                    ang)
+  gaps = {k: _uniform(n, draws["gap_m"][k], dev) for k in draws["gap_m"]}
+  gap = torch.where(lie == 0, gaps["beside"], torch.where(lie == 1, gaps["head"], gaps["feet"]))
+  gap = torch.where(tipping, torch.where(tip == 0, gaps["into"], gaps["along"]), gap)
+  toward = torch.stack([torch.cos(ang), torch.sin(ang), torch.zeros_like(ang)], -1)
+  face = _reach(env, env_ids, toward, pos, asset_cfg) + gap
+  centre = pos.clone()
+  centre[:, :2] = pos[:, :2] + toward[:, :2] * (face + OBSTACLE_HALF[0])[:, None]
+  centre[:, 2] = top - OBSTACLE_HALF[2]
+  turn = torch.stack([torch.cos(ang / 2), torch.zeros_like(ang), torch.zeros_like(ang),
+                      torch.sin(ang / 2)], -1)
+  env.scene["obstacle"].write_mocap_pose_to_sim(torch.cat([centre, turn], -1), env_ids)
+  if not hasattr(env, "_getup_obstacle"):
+    env._getup_obstacle = torch.zeros(env.num_envs, dtype=torch.bool, device=dev)
+  env._getup_obstacle[env_ids] = present
+
+
+def obstacle_spec() -> mujoco.MjSpec:
+  """The box (`OBSTACLE_HALF`) on a mocap body, parked: it meets the
+  robot's geoms (contype 1) and nothing of the world."""
+  spec = mujoco.MjSpec()
+  body = spec.worldbody.add_body(name="obstacle", mocap=True,
+                                 pos=[0.0, 0.0, PARKED_TOP_M - OBSTACLE_HALF[2]])
+  body.add_geom(name="obstacle", type=mujoco.mjtGeom.mjGEOM_BOX, size=list(OBSTACLE_HALF),
+                contype=0, conaffinity=1, rgba=[0.86, 0.85, 0.82, 1.0])
+  return spec
 
 
 def assist(env, env_ids, share: float, asset_cfg: SceneEntityCfg) -> None:
@@ -233,24 +394,38 @@ def rise(env) -> torch.Tensor:
   return torch.clamp((_z(env) - LYING_M) / (robot.BODY["stand_height"] - LYING_M), 0.0, 1.0)
 
 
-def stand_height(env, std: float, budget_s: float) -> torch.Tensor:
-  gate = (_up(env) > 0.9).float()
+def _free(env, free: str | None) -> torch.Tensor:
+  """1 where the contact sensor `free` (none: no check) finds nothing."""
+  if free is None:
+    return torch.ones(env.num_envs, device=env.device)
+  return (env.scene[free].data.found == 0).all(dim=1).float()
+
+
+def stand_height(env, std: float, budget_s: float, upright: float = 0.9,
+                 free: str | None = None) -> torch.Tensor:
+  gate = (_up(env) > upright).float() * _free(env, free)
   return _paid(env, budget_s) * gate * torch.exp(
     -torch.square(_z(env) - robot.BODY["stand_height"]) / std ** 2)
 
 
-def stand_pose(env, std: float, budget_s: float, asset_cfg: SceneEntityCfg = _ROBOT):
+def stand_pose(env, std: float, budget_s: float, asset_cfg: SceneEntityCfg = _ROBOT,
+               upright: float = 0.9, free: str | None = None):
   asset = env.scene[asset_cfg.name]
   err = torch.sum(torch.square(asset.data.joint_pos - asset.data.default_joint_pos), dim=1)
-  gate = (_up(env) > 0.9).float()
+  gate = (_up(env) > upright).float() * _free(env, free)
   return _paid(env, budget_s) * gate * torch.exp(-err / std ** 2)
 
 
-def feet_down(env, sensor_name: str, budget_s: float) -> torch.Tensor:
+def feet_down(env, sensor_name: str, budget_s: float, free: str | None = None) -> torch.Tensor:
   """Both soles on the floor, standing tall."""
   found = env.scene[sensor_name].data.found
   tall = (_z(env) > robot.BODY["stand_height"] - 0.1).float()
-  return _paid(env, budget_s) * tall * (found > 0).all(dim=1).float()
+  return _paid(env, budget_s) * tall * (found > 0).all(dim=1).float() * _free(env, free)
+
+
+def down(env, budget_s: float, below_m: float) -> torch.Tensor:
+  """Still down -- the pelvis under `below_m` -- from `budget_s`: 1 a second."""
+  return _paid(env, budget_s) * (_z(env) < below_m).float()
 
 
 def _ratio(env, asset_cfg: SceneEntityCfg, of: torch.Tensor) -> torch.Tensor:
@@ -306,6 +481,95 @@ def joint_torque(env, asset_cfg: SceneEntityCfg, peak: torch.Tensor) -> torch.Te
   return tau / peak.to(tau.device)
 
 
+# ---- the mirror image (#679's symmetry, rsl_rl's data augmentation) ----------------
+
+#: The joints whose angle a mirror image flips (about the trunk's x-z plane):
+#: the rolls and the yaws -- a left and a right joint's axes are each
+#: other's reflection, so a pitch keeps its sign (`models/humanoid.xml`).
+FLIPS = ("hip_roll", "hip_yaw", "ankle_roll", "shoulder_roll", "shoulder_yaw", "wrist_roll")
+#: Each observation term's mirror: a joint term swaps left and right, a
+#: polar vector flips y, an axial one x and z, a scalar stays.
+_JOINT_TERMS = ("joint_pos", "joint_vel", "actions", "joint_torque")
+_POLAR = (1.0, -1.0, 1.0)
+_AXIAL = (-1.0, 1.0, -1.0)
+MIRROR_TERMS = {"base_lin_vel": _POLAR, "projected_gravity": _POLAR, "base_ang_vel": _AXIAL,
+                "root_height": (1.0,), "since_release": (1.0,)}
+
+
+def _joint_mirror(device):
+  index, sign = [], []
+  for name in JOINTS:
+    side, part = name.split("_", 1)
+    index.append(JOINTS.index(("right" if side == "left" else "left") + "_" + part))
+    sign.append(-1.0 if part in FLIPS else 1.0)
+  return torch.tensor(index, device=device), torch.tensor(sign, device=device)
+
+
+def _mirror_group(x: torch.Tensor, terms, dims) -> torch.Tensor:
+  index, sign = _joint_mirror(x.device)
+  out, at = [], 0
+  for name, dim in zip(terms, dims):
+    part = x[:, at:at + dim]
+    if name in _JOINT_TERMS:
+      out.append(part[:, index] * sign)
+    else:
+      out.append(part * torch.tensor(MIRROR_TERMS[name], device=x.device))
+    at += dim
+  assert at == x.shape[1], (at, x.shape)
+  return torch.cat(out, dim=1)
+
+
+def mirror(env, obs=None, actions=None):
+  """rsl_rl's symmetry augmentation: each sample and its mirror image, the
+  batch doubled (originals first). A blind get-up that rolls one way off its
+  back was stopped by a box on that side (wall8: 10 % stood with the box at
+  its left, 100 % at its right, in the training physics); a mirrored batch
+  trains both ways at once."""
+  out_obs = out_act = None
+  if obs is not None:
+    om = getattr(env, "unwrapped", env).observation_manager
+    mirrored = {}
+    for group in obs.keys():
+      terms = om.active_terms[group]
+      dims = [int(torch.tensor(d).prod()) for d in om.group_obs_term_dim[group]]
+      mirrored[group] = torch.cat([obs[group], _mirror_group(obs[group], terms, dims)], dim=0)
+    out_obs = obs.__class__(mirrored, batch_size=[2 * obs.batch_size[0]])
+  if actions is not None:
+    index, sign = _joint_mirror(actions.device)
+    out_act = torch.cat([actions, actions[:, index] * sign], dim=0)
+  return out_obs, out_act
+
+
+# ---- what an episode ended as (`-Getup-Wall`'s metrics, each the share of
+# the episodes ending: standing with the box beside it, standing on open
+# floor, and with the box; the first over the last is the rate) ------------------
+
+def _beside(env) -> torch.Tensor:
+  got = getattr(env, "_getup_obstacle", None)
+  return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device) if got is None else got
+
+
+def _standing(env, sensor_name: str = "feet_ground_contact") -> torch.Tensor:
+  """Standing as the served get-up hands back (`STOOD_UP`, its height to
+  5 cm) on both soles, and leaning on no box."""
+  found = env.scene[sensor_name].data.found
+  tall = (_z(env) - robot.BODY["stand_height"]).abs() < 0.05
+  free = _free(env, "against_obstacle" if "against_obstacle" in env.scene.sensors else None)
+  return (_up(env) > STOOD_UP) & tall & (found > 0).all(dim=1) & (free > 0)
+
+
+def stood_beside(env) -> torch.Tensor:
+  return (_standing(env) & _beside(env)).float()
+
+
+def stood_open(env) -> torch.Tensor:
+  return (_standing(env) & ~_beside(env)).float()
+
+
+def beside(env) -> torch.Tensor:
+  return _beside(env).float()
+
+
 def getup_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg = make_velocity_env_cfg()
   cfg.scene.entities = {"robot": robot.get_robot_cfg()}
@@ -352,6 +616,13 @@ def getup_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   for name in ("command", "height_scan", "foot_height", "foot_air_time", "foot_contact",
                "foot_contact_forces"):
     critic.pop(name, None)
+  # ⚠ The joints it SEES are the ones it drives, as the served get-up reads
+  # them (`policy.joint_names`): over all the body's, the waist (#560's
+  # stage (c3)) made 80 inputs, and getup3's 78 no longer carried on.
+  seen = SceneEntityCfg("robot", joint_names=JOINTS, preserve_order=True)
+  for terms in (actor, critic):
+    for name in ("joint_pos", "joint_vel"):
+      terms[name].params = {**terms[name].params, "asset_cfg": seen}
   driven = SceneEntityCfg("robot", actuator_names=JOINTS, preserve_order=True)
   peak = torch.tensor([robot.JOINTS[j]["peak_torque"] for j in JOINTS])
   rated = torch.tensor([robot.JOINTS[j]["rated_torque"] for j in JOINTS])
@@ -435,7 +706,7 @@ def getup_head_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg = getup_env_cfg(play)
   cfg.scene.sensors = cfg.scene.sensors + (
     ContactSensorCfg(
-      name="head_struck", primary=ContactMatch(mode="geom", pattern=("head",), entity="robot"),
+      name="head_struck", primary=ContactMatch(mode="geom", pattern=HEAD, entity="robot"),
       secondary=ContactMatch(mode="body", pattern="terrain"), fields=("found", "force"),
       reduce="netforce", num_slots=1, history_length=robot.DECIMATION),
   )
@@ -446,4 +717,44 @@ def getup_head_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.curriculum = {}
   cfg.events["assist"].params["share"] = 0.0
   cfg.events["reset_base"].params["starts"] = dict(HEAD_STARTS)
+  cfg.metrics = {**cfg.metrics, **{
+    name: MetricsTermCfg(func=func, reduce="last")
+    for name, func in (("stood_beside", stood_beside), ("stood_open", stood_open),
+                       ("beside", beside))}}
+  return cfg
+
+
+def getup_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """`-Getup-Wall` (#679): `-Getup-Head` with the box beside the fallen
+  body in a share of its episodes (`OBSTACLE`), its hits charged as the
+  floor's -- carried on from getup3 (`--agent.resume True --agent.load-run
+  '.*_getup3$'`): its inputs are the same 78."""
+  cfg = getup_head_env_cfg(play)
+  cfg.scene.entities["obstacle"] = EntityCfg(
+    spec_fn=obstacle_spec,
+    init_state=EntityCfg.InitialStateCfg(pos=(0.0, 0.0, PARKED_TOP_M - OBSTACLE_HALF[2])))
+  box = ContactMatch(mode="body", pattern="obstacle", entity="obstacle")
+  cfg.scene.sensors = cfg.scene.sensors + tuple(
+    ContactSensorCfg(name=name, primary=ContactMatch(mode="geom", pattern=parts, entity="robot"),
+                     secondary=box, fields=("found", "force"), reduce="netforce", num_slots=1,
+                     history_length=robot.DECIMATION)
+    for name, parts in (("struck_obstacle", STRUCK), ("head_struck_obstacle", HEAD))) + (
+    ContactSensorCfg(name="against_obstacle",
+                     primary=ContactMatch(mode="subtree", pattern=robot.ROOT, entity="robot"),
+                     secondary=box, fields=("found",), reduce="netforce", num_slots=1),)
+  for name in ("stand_height", "stand_pose"):
+    cfg.rewards[name].params.update(upright=STOOD_UP, free="against_obstacle")
+  cfg.rewards["feet_down"].params["free"] = "against_obstacle"
+  # ⚠ Lying still beside the box cost nothing but the stand it forwent, and
+  # fine-tuned (wall5, 750 iterations) the mean action lay still on its back
+  # beside it in 136 of 256 starts that getup3 stood from in 253.
+  cfg.rewards["down"] = RewardTermCfg(func=down, weight=DOWN_WEIGHT,
+                                      params={"budget_s": BUDGET_S, "below_m": DOWN_M})
+  cfg.rewards["impact_obstacle"] = RewardTermCfg(
+    func=impact, weight=GENTLE["impact"],
+    params={"sensor_name": "struck_obstacle", "free": IMPACT_FREE})
+  cfg.rewards["head_struck_obstacle"] = RewardTermCfg(
+    func=impact, weight=HEAD_WEIGHT,
+    params={"sensor_name": "head_struck_obstacle", "free": HEAD_FREE})
+  cfg.events["reset_base"].params["obstacle"] = OBSTACLE
   return cfg

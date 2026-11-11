@@ -85,6 +85,24 @@ def body_facts(joints: str = "legs") -> dict:
           "waist_gain_scale": list(getattr(hr, "WAIST_GAIN_SCALE", ()))}
 
 
+def sees_driven(arrays: dict, driven: list) -> None:
+  """The metadata's joints narrowed to the ones the policy drives, each
+  one's default pose with it: mjlab writes every joint of the body there,
+  and the served runtime builds an observation off what it lists
+  (`pluggybot.humanoid.policy`). ⚠ Refused unless the input is exactly the
+  get-up's terms over those joints."""
+  meta = json.loads(str(arrays["meta"]))
+  names = meta["joint_names"].split(",")
+  default = dict(zip(names, meta["default_joint_pos"].split(",")))
+  terms = meta["observation_names"].split(",")
+  assert terms == ["base_ang_vel", "projected_gravity", "joint_pos", "joint_vel", "actions"], terms
+  n = arrays["obs_mean"].shape[0]
+  assert n == 6 + 3 * len(driven), f"{n} inputs are not the get-up's over {len(driven)} joints"
+  meta["joint_names"] = ",".join(driven)
+  meta["default_joint_pos"] = ",".join(default[j] for j in driven)
+  arrays["meta"] = np.array(json.dumps(meta))
+
+
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser()
   ap.add_argument("onnx")
@@ -101,8 +119,13 @@ def main(argv=None) -> None:
                        "quadruped went (#559); kept so a documented command runs")
   ap.add_argument("--joints", choices=("legs", "all"), default="legs",
                   help="the humanoid's joints the policy drives")
+  ap.add_argument("--sees", choices=("body", "driven"), default="body",
+                  help="the joints it observes: all the body's, as mjlab's metadata lists "
+                       "them, or only the ones it drives (the get-up's, #679)")
   args = ap.parse_args(argv)
   arrays = load(args.onnx)
+  if args.sees == "driven":
+    sees_driven(arrays, body_facts(args.joints)["action_joints"])
   err = check(args.onnx, arrays)
   assert err < 1e-4, f"numpy and ONNX disagree by {err}"
   print(f"numpy matches the ONNX file to {err:.1e}")

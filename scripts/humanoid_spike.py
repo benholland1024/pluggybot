@@ -3958,7 +3958,8 @@ def floor_reach(m, d, gids, at) -> float:
   return float(np.hypot(*(xy.reshape(-1, 2) - np.asarray(at)).T).max())
 
 
-def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS) -> dict:
+def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS,
+               watch_s: float | None = None) -> dict:
   """The robot shoved `way` at `ns` N*s, falling as `mode` has it ("stand",
   "limp" or "getup"): what hit first, the parts' peak forces (N), each
   joint's peak torque (N*m, its motor's and its hard stop's) and speed
@@ -3992,7 +3993,7 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS)
   took_over, stood_at, gen = None, None, shove(h, FALL_WAYS[way], ns)
   force = np.zeros(6)
   t0 = d.time
-  while d.time - t0 < FALL_S:
+  while d.time - t0 < (watch_s or FALL_S if mode == "getup" else FALL_S):
     if gen is not None:
       if next(gen, "done") == "done":
         gen = None
@@ -4049,11 +4050,12 @@ def _fall_trial(job):
   return fall_trial(*job)
 
 
-def fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
-  """--fall: each way shoved over, falling each of three ways."""
+def fall_table(npz: str | None = None, jobs: int = 4, watch_s: float | None = None) -> list[dict]:
+  """--fall: each way shoved over, falling each of three ways (`watch_s`: the
+  get-up's falls watched this long from the shove, s)."""
   import multiprocessing as mp
   modes = ("stand", "limp", "getup")
-  work = [(w, md, npz) for w in FALL_WAYS for md in modes]
+  work = [(w, md, npz, FALL_NS, watch_s) for w in FALL_WAYS for md in modes]
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
     rows = pool.map(_fall_trial, work)
   peak_tau = np.array([hm.CHOSEN.motor(j).peak_torque for j in hm.JOINT_NAMES])
@@ -4103,7 +4105,8 @@ HOUSE_WAYS = ("front", "back", "left", "right")
 HOUSE_FALL_S = 15.0
 
 
-def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = FALL_NS) -> dict:
+def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = FALL_NS,
+                     watch_s: float | None = None) -> dict:
   """The robot standing at `place` in the house, shoved `way`, its get-up
   policy taking the fall as the mission hands it: what it struck first, the
   part of its head that went into anything first and how fast, whether
@@ -4123,7 +4126,7 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
   head_part, unit, unit_v = None, m.geom("lidar").id, None
   vel = np.zeros(6)
   t0 = d.time
-  while d.time - t0 < HOUSE_FALL_S:
+  while d.time - t0 < (watch_s or HOUSE_FALL_S):
     if gen is not None:
       if next(gen, "done") == "done":
         gen = None
@@ -4180,16 +4183,17 @@ def _house_fall_trial(job):
   return house_fall_trial(*job)
 
 
-def house_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+def house_fall_table(npz: str | None = None, jobs: int = 4,
+                     watch_s: float | None = None) -> list[dict]:
   """--fall, in the house: each place shoved each way, the get-up taking it."""
   import multiprocessing as mp
-  work = [(p, w, npz) for p in HOUSE_FALLS for w in HOUSE_WAYS]
+  work = [(p, w, npz, FALL_NS, watch_s) for p in HOUSE_FALLS for w in HOUSE_WAYS]
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
     rows = pool.map(_house_fall_trial, work)
   print(f"FALLS IN THE HOUSE, shoved {FALL_NS:g} N*s each way, the get-up policy taking each "
         f"fall: what struck first (a sole aside), the part of the head that went into anything "
         f"first and its speed, m/s, and when it stood from the shove -- or where its pelvis lay "
-        f"over the ground it had stood on after {HOUSE_FALL_S:g} s")
+        f"over the ground it had stood on after {watch_s or HOUSE_FALL_S:g} s")
   print(f"{'place':20s}" + "".join(f"{w:>34s}" for w in HOUSE_WAYS))
   for place in HOUSE_FALLS:
     cells = []
@@ -4208,6 +4212,251 @@ def house_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   return rows
 
 
+# Falls at the storeroom's counter (#679): every live job but the table's is
+# worked there, and all three `stuck` deaths of 11-08 lay against it. The
+# robot at each prop's work spot, facing the counter as a job stands it,
+# shoved each way -- into the counter, along it, away -- its get-up taking
+# the fall as the mission hands it, and watched past the stuck budget.
+
+#: The shoves' ways, the robot's frame (x ahead, into the counter).
+COUNTER_WAYS = {"front": (1, 0), "front-left": (1, 1), "front-right": (1, -1),
+                "left": (0, 1), "right": (0, -1), "back": (-1, 0)}
+#: A counter fall is watched this long past the get-up's takeover, s: the
+#: stuck budget (`HumanoidBody.GETUP_BUDGET_S`, 20) and a margin.
+COUNTER_FALL_S = 25.0
+
+
+def counter_fall_trial(prop: str, way: str, npz: str | None = None, ns: float = FALL_NS) -> dict:
+  """The robot at `prop`'s work spot on the storeroom's counter (its props
+  set out as the world compiles them), shoved `way` at `ns` N*s, its get-up
+  policy taking the fall as the mission hands it: when that took over and
+  when it stood (s from the shove), the longest the trunk stayed past the
+  death seam's `TOPPLE_TILT_RAD` (a mortal robot is `stuck` at 20 s),
+  whether it lay against the counter or its props, and where its pelvis
+  ended -- graded by us off the truth."""
+  from pluggybot.home import storeroom
+  x, y, yaw = storeroom.work_spot(prop)
+  m, d = standing_world(scenery=storeroom.attach, at=(x, y), yaw=yaw)
+  h = Humanoid(m, d)
+  getup = GetupDriver(m, d, policy=StandPolicy(npz or str(GETUP_NPZ)), trunk=h.stand.trunk,
+                      joints=h.stand.joints)
+  watch = FallWatch(h.stand.trunk, h.stand.joints)
+  ours = {g for g in range(m.ngeom) if _in_robot(m, int(m.geom_bodyid[g]), h.root)}
+  fixed = {g for g in range(m.ngeom) if g not in ours
+           and (m.geom(g).name or "").split("_")[0] in ("store", "chest", "drawer", "door", "cube")}
+  heads = _head_geoms(m)
+  for _ in range(int(1.0 / m.opt.timestep)):
+    h.step()
+  gen, took, stood, head_v, head_part = shove(h, COUNTER_WAYS[way], ns), None, None, None, None
+  over, longest, touched = None, 0.0, 0.0
+  every = max(1, round(h.stand.policy.period / m.opt.timestep))
+  vel = np.zeros(6)
+  t0, n, limit = d.time, 0, HOUSE_FALL_S        # a shove it stands through: the house's watch
+  while d.time - t0 < limit:
+    if gen is not None:
+      if next(gen, "done") == "done":
+        gen = None
+      continue
+    if took is None and watch.falling(d, h.reach.held_pitch()):
+      took = d.time - t0
+      limit = took + COUNTER_FALL_S
+      getup.begin()
+    if took is not None and stood is None:
+      h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
+      getup.step()
+      mujoco.mj_step(m, d)
+      if getup.stood:
+        stood = d.time - t0
+        limit = d.time - t0 + 0.5
+        h = Humanoid(m, d)
+    else:
+      h.step()
+    n += 1
+    if n % every == 0:
+      past = d.xmat[h.root][8] <= math.cos(TOPPLE_TILT_RAD)
+      over = (over if over is not None else d.time) if past else None
+      longest = max(longest, 0.0 if over is None else d.time - over)
+    against = False
+    for i in range(d.ncon):
+      c = d.contact[i]
+      if (c.geom1 in ours) == (c.geom2 in ours):
+        continue
+      mine, other = (c.geom1, c.geom2) if c.geom1 in ours else (c.geom2, c.geom1)
+      against = against or other in fixed
+      if mine in heads and head_v is None:
+        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, mine, vel, 0)
+        head_v, head_part = float(np.linalg.norm(vel[3:])), heads[mine]
+    if against and took is not None and stood is None and n % every == 0:
+      touched += h.stand.policy.period
+  return {"prop": prop, "way": way, "took_s": took, "stood_s": stood,
+          "up_after_s": None if stood is None or took is None else stood - took,
+          "past_topple_s": longest, "against_s": touched, "head_v": head_v,
+          "head_part": head_part, "end_z": float(d.xpos[h.root][2]),
+          "end_xy": [float(v) for v in d.xpos[h.root][:2]]}
+
+
+def _counter_fall_trial(job):
+  return counter_fall_trial(*job)
+
+
+def counter_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+  """--fall, at the counter: each prop's work spot shoved each way, the
+  get-up taking it."""
+  import multiprocessing as mp
+  from pluggybot.home import storeroom
+  from pluggybot.humanoid.body import HumanoidBody
+  work = [(p, w, npz) for p in storeroom.PROPS for w in COUNTER_WAYS]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_counter_fall_trial, work)
+  budget = HumanoidBody.GETUP_BUDGET_S
+  print(f"FALLS AT THE STOREROOM'S COUNTER, shoved {FALL_NS:g} N*s each way from each prop's work "
+        f"spot (the robot's frame: front is into the counter), the get-up policy taking each "
+        f"fall: s from its takeover to standing (-: down {COUNTER_FALL_S:g} s past it), the "
+        f"longest the trunk lay past {math.degrees(TOPPLE_TILT_RAD):.0f} deg (stuck at "
+        f"{budget:g}), and how long it lay against the counter or a prop while down")
+  print(f"{'prop':8s}" + "".join(f"{w:>24s}" for w in COUNTER_WAYS))
+  for prop in storeroom.PROPS:
+    cells = []
+    for w in COUNTER_WAYS:
+      r = next(x for x in rows if x["prop"] == prop and x["way"] == w)
+      if r["took_s"] is None:
+        cells.append("held")
+        continue
+      up = "-" if r["up_after_s"] is None else f"{r['up_after_s']:.1f}"
+      cells.append(f"{up:>5s} {r['past_topple_s']:4.1f} {r['against_s']:4.1f}s")
+    print(f"{prop:8s}" + "".join(f"{c:>24s}" for c in cells))
+  took = [r for r in rows if r["took_s"] is not None]
+  within = [r for r in took if r["up_after_s"] is not None and r["up_after_s"] <= budget]
+  stuck = [r for r in took if r["past_topple_s"] >= budget]
+  print(f"  stood within {budget:g} s of the takeover: {len(within)} of {len(took)} falls; "
+        f"stuck (past the topple {budget:g} s running): {len(stuck)}")
+  return rows
+
+
+# Lying along a face (#679): the state the counter's falls ended in, staged
+# with the truth as the `getup` scene's starts are -- the joints at the
+# stand's, the body laid at a face, the get-up handed it at once.
+
+def _lying_faces():
+  """The faces: a point on each, the way into the room off it, and the way
+  along it -- the counter's front at the door's and the drawer's spots, and
+  the storeroom's south wall (2.4 m), clear of the counter."""
+  from pluggybot.home import storeroom
+  wall_y = hw.STORE_Y[0] + hw.WALL_HALF_T
+  return {"counter, door": ((storeroom.EDGE_X, storeroom.HANDLE_Y["door"]), (-1.0, 0.0),
+                            (0.0, 1.0)),
+          "counter, drawer": ((storeroom.EDGE_X, storeroom.HANDLE_Y["drawer"]), (-1.0, 0.0),
+                              (0.0, 1.0)),
+          "the south wall": ((24.5, wall_y), (0.0, 1.0), (1.0, 0.0))}
+
+
+#: How it lies, by its own axes in the face's terms (n into the room, a
+#: along the face): its front's way and its head's -- on its back or front,
+#: the head either way puts the face at its left or its right. On its side
+#: front to the face is how the counter's falls lay.
+LYING_POSES = {"side, front to it": ("-n", "+a"), "side, front to it, head back": ("-n", "-a"),
+               "side, back to it": ("+n", "+a"), "on its back": ("+z", "+a"),
+               "on its back, head back": ("+z", "-a"), "on its front": ("-z", "+a"),
+               "on its front, head back": ("-z", "-a")}
+#: Its nearest part this far off the face, m.
+LYING_GAPS = (0.0, 0.1, 0.25)
+
+
+def _along(m, d, gids, way, origin) -> float:
+  """How far the geoms `gids` reach from `origin` along `way` (unit), m:
+  each one's own box as it lies (`geom_aabb`)."""
+  way, best = np.asarray(way, dtype=float), -np.inf
+  for g in gids:
+    rot = d.geom_xmat[g].reshape(3, 3)
+    mid = d.geom_xpos[g] + rot @ m.geom_aabb[g][:3]
+    best = max(best, float((mid - origin) @ way + np.abs(rot.T @ way) @ m.geom_aabb[g][3:]))
+  return best
+
+
+def lying_trial(face: str, pose: str, gap: float, npz: str | None = None) -> dict:
+  """The robot laid along `face` as `pose` has it, its nearest part `gap`
+  m off the face and 1 cm over the floor, the get-up handed it at once and
+  watched `COUNTER_FALL_S`: when it stood (s), the longest the trunk lay
+  past the topple, and its head's first strike."""
+  from pluggybot.home import storeroom
+  (fx, fy), n, a = _lying_faces()[face]
+  start = (fx + 1.0 * n[0], fy + 1.0 * n[1])
+  m, d = standing_world(scenery=storeroom.attach, at=start, yaw=0.0)
+  root = m.body(ROBOT_ROOT).id
+  gids = [g for g in robot_geoms(m, ROBOT_ROOT) if m.geom_contype[g] or m.geom_conaffinity[g]]
+  axes = {"+n": (n[0], n[1], 0.0), "-n": (-n[0], -n[1], 0.0), "+a": (a[0], a[1], 0.0),
+          "-a": (-a[0], -a[1], 0.0), "+z": (0.0, 0.0, 1.0), "-z": (0.0, 0.0, -1.0)}
+  front, head = (np.array(axes[k]) for k in LYING_POSES[pose])
+  rot = np.column_stack([front, np.cross(head, front), head])
+  quat = np.zeros(4)
+  mujoco.mju_mat2Quat(quat, rot.flatten())
+  adr = m.jnt_qposadr[m.body_jntadr[root]]
+  d.qpos[adr:adr + 3] = [start[0], start[1], 0.4]
+  d.qpos[adr + 3:adr + 7] = quat
+  mujoco.mj_forward(m, d)
+  low = -_along(m, d, gids, (0.0, 0.0, -1.0), np.zeros(3))
+  toward = np.array([-n[0], -n[1], 0.0])
+  past = _along(m, d, gids, toward, np.array([fx, fy, 0.0]))   # its reach past the face (< 0)
+  d.qpos[adr:adr + 3] += np.array([0.0, 0.0, 0.01 - low]) - toward * (past + gap)
+  mujoco.mj_forward(m, d)
+  h = Humanoid(m, d)
+  getup = GetupDriver(m, d, policy=StandPolicy(npz or str(GETUP_NPZ)), trunk=h.stand.trunk,
+                      joints=h.stand.joints)
+  getup.begin()
+  heads, ours = _head_geoms(m), set(robot_geoms(m, ROBOT_ROOT))
+  every = max(1, round(h.stand.policy.period / m.opt.timestep))
+  stood, over, longest, head_v, head_part, k = None, None, 0.0, None, None, 0
+  vel = np.zeros(6)
+  t0 = d.time
+  while d.time - t0 < COUNTER_FALL_S:
+    h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
+    getup.step()
+    mujoco.mj_step(m, d)
+    k += 1
+    if getup.stood:
+      stood = d.time - t0
+      break
+    if k % every == 0:
+      down = d.xmat[root][8] <= math.cos(TOPPLE_TILT_RAD)
+      over = (over if over is not None else d.time) if down else None
+      longest = max(longest, 0.0 if over is None else d.time - over)
+    for i in range(d.ncon):
+      c = d.contact[i]
+      mine = c.geom1 if c.geom1 in heads else c.geom2 if c.geom2 in heads else None
+      if mine is not None and head_v is None and (c.geom1 in ours) != (c.geom2 in ours):
+        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, mine, vel, 0)
+        head_v, head_part = float(np.linalg.norm(vel[3:])), heads[mine]
+  return {"face": face, "pose": pose, "gap": gap, "stood_s": stood, "past_topple_s": longest,
+          "head_v": head_v, "head_part": head_part,
+          "end_xy": [float(v) for v in d.xpos[root][:2]]}
+
+
+def _lying_trial(job):
+  return lying_trial(*job)
+
+
+def lying_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+  """--fall, lying along a face: each face, each way of lying, each gap."""
+  import multiprocessing as mp
+  work = [(f, p, g, npz) for f in _lying_faces() for p in LYING_POSES for g in LYING_GAPS]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_lying_trial, work)
+  print(f"LYING ALONG A FACE, laid with the truth (the joints at the stand's, its nearest part "
+        f"{', '.join(f'{g:g}' for g in LYING_GAPS)} m off the face), the get-up handed it at "
+        f"once: s to standing (-: down after {COUNTER_FALL_S:g} s)")
+  print(f"{'face':17s}{'lying':30s}" + "".join(f"{g:>8g} m" for g in LYING_GAPS))
+  for f in _lying_faces():
+    for p in LYING_POSES:
+      cells = []
+      for g in LYING_GAPS:
+        r = next(x for x in rows if x["face"] == f and x["pose"] == p and x["gap"] == g)
+        cells.append("-" if r["stood_s"] is None else f"{r['stood_s']:.1f}")
+      print(f"{f:17s}{p:30s}" + "".join(f"{c:>10s}" for c in cells))
+  stood = [r for r in rows if r["stood_s"] is not None]
+  print(f"  stood: {len(stood)} of {len(rows)}")
+  return rows
+
+
 # Falls from a bow (#520): the watch reads a tip off the posture the legs
 # hold, so a bow a reach asks is no fall, and a shove from one still is.
 # Each posture a reach takes, shoved each way at four strengths: once on the
@@ -4222,7 +4471,8 @@ BOW_POSTURES = ((0.0, 0.0), (-0.2, 0.55), (-0.22, 0.8), (-0.25, 0.95), (-0.25, 1
 BOW_WAYS, BOW_NS, BOW_WATCH_S = ("front", "back", "left", "right"), (10.0, 20.0, 30.0, 45.0), 6.0
 
 
-def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = None) -> dict:
+def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = None,
+                   watch_s: float | None = None) -> dict:
   """The robot on a bare floor settled in posture `held` (its reach holding
   it, as a plan's posture is), shoved `way` at `ns` N*s and watched
   `BOW_WATCH_S`: when each check fires -- the tilt past the posture (the
@@ -4251,7 +4501,7 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
   _drain(shove(h, FALL_WAYS[way], ns))
   vel = np.zeros(6)
   n, up = 0, False
-  while d.time - t0 < BOW_WATCH_S:
+  while d.time - t0 < (watch_s or BOW_WATCH_S if served else BOW_WATCH_S):
     if not up and n % every == 0:
       t, g = d.time - t0, h.stand.trunk.gravity()
       tip = tipped(g, h.reach.held_pitch())
@@ -4299,11 +4549,12 @@ def _span(values, fmt: str = "{:.1f}") -> str:
   return "-" if not values else fmt.format(min(values)) + "-" + fmt.format(max(values))
 
 
-def bow_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+def bow_fall_table(npz: str | None = None, jobs: int = 4,
+                   watch_s: float | None = None) -> list[dict]:
   """--fall, from a bow: each posture a reach takes, shoved each way at each
   strength, on the standing policy alone and as served."""
   import multiprocessing as mp
-  work = [(p, w, ns, s, npz) for s in (False, True) for p in BOW_POSTURES for w in BOW_WAYS
+  work = [(p, w, ns, s, npz, watch_s) for s in (False, True) for p in BOW_POSTURES for w in BOW_WAYS
           for ns in BOW_NS]
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
     rows = pool.map(_bow_fall_trial, work)
@@ -4838,8 +5089,13 @@ def main(argv=None) -> None:
   ap.add_argument("--fall", nargs="?", const="", default=None, metavar="NPZ",
                   help="shoved over each way: what hits first, how hard, each joint's torque "
                        "and speed, how far it reaches lying, falling on the standing policy, "
-                       "limp, or the get-up's; in the house; and from each bow a reach takes, "
-                       "what the watch says")
+                       "limp, or the get-up's; in the house; at the storeroom's counter; and "
+                       "from each bow a reach takes, what the watch says")
+  ap.add_argument("--fall-watch", type=float, default=None, metavar="S",
+                  help="with --fall: the get-up's falls watched S s from the shove (by "
+                       "default the tables' own: 8 bare, 15 in the house, 6 from a bow)")
+  ap.add_argument("--fall-out", default=None, metavar="JSON",
+                  help="with --fall: every table's rows written there")
   ap.add_argument("--speed", nargs="?", type=float, const=60.0, default=None, metavar="SIM_S",
                   help="the loop's cost: one humanoid and a pair, the same walks in the "
                        "house, timed (--profile: where it goes)")
@@ -4905,9 +5161,15 @@ def main(argv=None) -> None:
   elif args.speed is not None:
     speed_table(args.speed, args.profile)
   elif args.fall is not None:
-    fall_table(args.fall or None, jobs=args.jobs)
-    house_fall_table(args.fall or None, jobs=args.jobs)
-    bow_fall_table(args.fall or None, jobs=args.jobs)
+    npz, watch = args.fall or None, args.fall_watch
+    rows = {"bare": fall_table(npz, jobs=args.jobs, watch_s=watch),
+            "house": house_fall_table(npz, jobs=args.jobs, watch_s=watch),
+            "counter": counter_fall_table(npz, jobs=args.jobs),
+            "lying": lying_table(npz, jobs=args.jobs),
+            "bow": bow_fall_table(npz, jobs=args.jobs, watch_s=watch)}
+    if args.fall_out:
+      Path(args.fall_out).write_text(json.dumps({"npz": npz, "watch": watch, **rows},
+                                                default=float))
   elif args.friction:
     friction_table(write=args.write)
   elif args.lean:

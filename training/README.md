@@ -123,7 +123,21 @@ four episodes in ten a fall, no lift, every charge at full weight, and a
 side among the starts: at the shared charge alone the get-up let the head
 strike at 5.5-6.9 m/s falling forward or sideways, and with no side start
 it lost getting up off one side (`models/humanoid_getup.npz` is getup1's
-4450 iterations, 2000 without the side, then 1000 with it). Export any of
+4450 iterations, 2000 without the side, then 1000 with it).
+`-Getup-Wall` (#679) carries getup3 on (`--agent.resume True --agent.load-run
+'.*_getup3$' --agent.load-checkpoint model_7448.pt`) with a box beside the
+fallen body in half its episodes (`OBSTACLE`): a counter's top (0.60-0.95 m)
+or a wall's (2.4 m), a mocap body sunk into the floor to it; beside the
+trunk, beyond the head or the feet of a body lying, and into or along the
+way a body tips, its face a gap past the body's own reach (so no start
+begins inside it); its hits charged as the floor's. Trained on open floor
+alone, the get-up never stood a body lying on its side with its front to a
+face, which is how the counter's falls lay. ⚠ A get-up SEES THE JOINTS IT
+DRIVES: over every joint the waist made 80 inputs, where getup3's 78 carry
+on; and mjlab's metadata lists every joint of the body, so it is exported
+`--sees driven`, or the served runtime builds 80 inputs for a 78-input net.
+⚠ The head is its fourteen parts (#581's stage 3), each charged as the
+head. Export any of
 them naming its task (`--task`), which records the joints it drives and
 each one's gains (`--joints all` for the get-up, its arms at their served
 scale). `humanoid_train/g1_check.py` flies mjlab's stock G1

@@ -522,3 +522,29 @@ def test_the_getup_policy_stands_it_up_off_its_back(head):
   root = model.body(hm.ROBOT_ROOT).id
   assert g.stood, f"still down after {GETUP_S:g} s"
   assert d.xmat[root][8] > 0.95 and d.xpos[root][2] > 0.65
+
+
+def _getups():
+  from pluggybot.humanoid.getup import GETUP_NPZ
+  return sorted(p.name for p in GETUP_NPZ.parent.glob("humanoid_getup*.npz"))
+
+
+@pytest.mark.parametrize("npz", _getups())
+def test_a_getup_sees_the_joints_it_drives(head, npz):
+  # #679: a get-up's inputs are the joints it drives (getup3's 78, carried on
+  # since the waist), and the served runtime builds them off the joints its
+  # file lists -- but mjlab lists every joint of the body (25 since the
+  # waist), so `quad_train.export --sees driven` writes the ones it sees.
+  # Exported without it, the get-up built 80 inputs for a 78-input net.
+  from pluggybot.humanoid.getup import GETUP_NPZ, GetupDriver
+  from pluggybot.humanoid.policy import StandPolicy
+  model, _ = head
+  policy = StandPolicy(GETUP_NPZ.parent / npz)
+  assert policy.joint_names == policy.action_joints
+  d = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, d, 0)
+  mujoco.mj_forward(model, d)
+  g = GetupDriver(model, d, policy=policy)
+  g.begin()
+  assert g.observation().shape == policy.mean.shape
+  g.step()
