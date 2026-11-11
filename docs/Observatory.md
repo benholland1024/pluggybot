@@ -10,6 +10,49 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A scan match the walls only partly agree with is searched (#681) — opens when this PR is deployed
+
+**What changed is how the robots' scan matcher treats a fit the walls only
+partly agree with** (`mapping/scan_match.py`; SimNotes, "The storeroom keeps
+an error"):
+- **Doubted**: a fit that held a direction with under 95 % of its points on
+  walls, or any under 80 %, is searched (±0.6 m, ±6°) as an `inconsistent`
+  one always was, and so is one that slid; a pose found there is taken at 90
+  % on walls with every direction fixed, and only where no place half a
+  metre or more off explains the scan as well (`DOUBT_RIVAL_SHARE`). Found
+  nothing, the fit is what it was: laid in as an `ok` one is (a slid one
+  refused). A robot's day parts from the base's only where the search takes
+  a pose.
+- The drift rows' `matched` counts gain a verdict, `doubted` (additive; the
+  protocol names none of them).
+- `MAP_EPOCH` is NOT bumped: a copy of the storeroom already laid askew in
+  a live map stays until that robot's next station fix past `ASKEW`.
+- No text the robots read moved: `prompt_sha` `8e3c4c51…` both sides, 64,492
+  chars, 17 sections.
+
+**Why.** #681: at the storeroom's counter the side walls kept a fit 0.3-0.4
+m off `ok`, its scan laid in, and the copy kept the error for hours (live,
+11-07/08: the store's error a median 0.16 m, 90th percentile 0.66, worst
+1.04; the lobby next door 0.05 and 0.14). Flown on one pod beside the base:
+the counter's 9 belief moves taken back (0.005-0.009 m; the base kept
+0.23-0.41), the counter's 9 jobs from the three stations passed (as the
+base's), 48 of 55 drift flights row for row and the other 7 no worse at
+their worst, 16 walk-ins of 16 docked (the base 15), the station's lost and
+approach trials the base's row for row. The prototype also left a doubted
+scan out of the map: that way two of the jobs from the mall's station
+failed, no walk out of there finding a route (SimNotes).
+
+**What the period is for.**
+- **The storeroom's drift rows** against the periods before (#681 read
+  11-07/08's): the median and the 90th percentile, and whether an error made
+  there is still there a sample later.
+- **The counter's jobs** that fail with a step asked far aside or a reach
+  out of reach (the error's signature), and the `doubted` counts: where the
+  doubt fires (the sidewalks and the alley, measured), and whether a robot
+  there is any worse off than before.
+- ⚠ Not to be pooled with the period before for anything about where the
+  robots believe they are.
+
 ### The cube is offered (#560) — opens when this PR is deployed
 
 **What changed in the world.**

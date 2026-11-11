@@ -877,10 +877,11 @@ t = 419 s and carried on in a new process it was IDENTICAL after the restore
 `level()` is neither matched nor fused, so drift while it is not level runs
 free until it is and the search finds it; a robot lost beyond the search's
 window searches wider after a run of refusals (#422, "Lost after a long
-explore, and found again"); and the first trip through new territory carries
-its own drift into the map it lays (0.2-0.3 m by the lab, ~1 m round the
-street loop), which later visits match to but do not correct (#381's loop
-closure).
+explore, and found again"); a match the walls only partly agree with is
+searched too (#681, "The storeroom keeps an error"); and the first trip
+through new territory carries its own drift into the map it lays (0.2-0.3 m
+by the lab, ~1 m round the street loop), which later visits match to but do
+not correct (#381's loop closure).
 
 ## The first quadruped deploy (issue #387)
 
@@ -7423,6 +7424,105 @@ steps only a clock). The station spike's trials, `solve.py`'s and the
 non-mortal days of `hub_lifecycle.py` and `two_robots.py` have no such
 guard: a fall they cannot get up from runs to their parent's subprocess
 timeout (1800-3600 s) or for good.
+
+## The storeroom keeps an error, and a match the walls only partly agree with is searched (issue #681)
+
+**What happened.** At the storeroom's counter the matcher could not take
+back an east-west error over about 0.15 m. The room's north and south walls
+stay on their walls whatever the offset along them and make half or more of
+a scan's points, so the fit is never `inconsistent` and the bounded search
+never runs; the points that would fix east-west -- the west wall 5 m behind,
+the counter's front -- lie past the field's 0.3 m reach and pull on nothing,
+so the fit holds east-west to odometry; and the scan is laid in from the
+wrong pose, a copy of the room that every later scan matches in full. Live
+(11-07/08) the store's error had a median of 0.16 m, a 90th percentile of
+0.66 and a worst of 1.04 (the lobby next door 0.05 and 0.14), in jumps kept
+for hours: Luca's +0.57 m at 09:09 on 11-08 stood 2.6 hours. Its first
+errors came from a hand's work dragging the body while no scan is taken,
+from a map laid askew on the way from the mall, and from the bounded search
+itself (the counter's front and the wall behind it are two parallel lines
+0.60 m apart, the search's own reach). A static probe at 40 poses round the
+counter, on a map laid from the true poses, kept a belief +0.3 or +0.4 m off
+at all 40 (the night shift of 11-10, T5).
+
+**A match the walls only partly agree with is doubted**
+(`scan_match.DOUBT_*`). One that held a direction with under 95 % of its
+points on walls, or any with under 80 %, is searched as an inconsistent one
+is -- and a slid one too -- and a pose found there is taken at 90 % on
+walls with every direction fixed. The night's prototype also left a doubted
+scan out of the map when the search found nothing. At the probe's 40 poses
+a belief +-0.3 or +-0.4 m off is taken back at all 40; from the truth across
+the house (7,840 places, a map laid true) the pose moved over 0.1 m at 3,
+all by the hall's stairs (2 before).
+
+**...and its search takes only a place no other explains as well**
+(`DOUBT_RIVAL_SHARE`). Flown as first written, on one pod beside its base,
+the rule took back all 9 belief moves at the counter and turned the mall's
+failed drawer into a pass -- and on drift flight 19h (seed 19 from the hall)
+walked the belief 0.8 to 5.95 m off in 45 s. Along `sidewalk_east` and
+`sidewalk_2_north` -- the facility's wall and the loop's fence, parallel,
+nothing across -- fits held along the walk with 89-95 % of their points on
+walls were doubted, and the search took its best 25 times, each a few points
+ahead of the pose asked about (2-11 of ~150) and up to 0.6 m behind the
+robot: the map's far end lags the scan's reach as the robot walks into it,
+so a pose behind puts a few more far points on mapped wall. Every place
+along such a sidewalk scores 0.95-1.00 of the best; at the counter the best
+place half a metre or more from the truth scores 0.65-0.75 of it (0.75 the
+alias 0.6 m east), and the take-back beats the pose asked about by 43-52 %.
+So the doubted search refuses a best that a place `UNIQUE_M` (0.5 m) or
+more off matches at 0.9 of its points on walls, each place at its best
+turn. Replayed over 19h's matches (each rebuilt on the field it was matched
+on), its 25 takes along the sidewalks are refused and the counter's two
+kept; the probe's 320 pose-offsets read the same with the test and without
+it; from the truth across the house the pose moves over 0.1 m at 2 places,
+the base's own; and 19h flown again was 0.233 m off at its worst, and
+docked (its base 0.265 on the night's pod).
+
+**...and a doubted scan the search found nothing better for is laid in, as
+it was.** Both ways were flown on one pod beside the base (an EPYC 9654
+engineering sample): on each, 60 drift flights, 16 walk-ins, 9 counter and 9
+mall flights and the station's 85 lost and approach trials. Five of the
+base's drift flights crawled on the host's slow processes and were stopped
+unfinished.
+
+| | doubt + rival, a doubted scan laid in (served) | doubt + rival, not laid in | base |
+|---|---|---|---|
+| the counter: a belief moved +0.25/+0.4/-0.3 m after each of three jobs | 9 of 9 taken back, 0.005-0.009 m | the same | 0 of 9, 0.23-0.41 m kept |
+| the counter's jobs from each station (9) | 9 passed | 7: from the mall's station the drawer and the door failed | 9 passed |
+| drift flights against the base (55 pairs) | 48 row for row, 7 differ, each no worse at its worst | 44 row for row, 11 differ: 9 no worse, one 2 mm worse, and one fell in the garden on a walk the doubt had changed (#684's plate and pole: 0.9 m for one row, taken back by the search in 4 s) | |
+| walk-ins after an explore (16) | 16 docked | 16 | 15: from the kitchen after 240 s the walk stopped 0.3 m short with the station out of sight, 1.08 m off |
+| lost (52) and approach (33) trials | every row the base's | 52 and 33 docked, 2 rows apart by millimetres | all docked |
+
+Every flight the doubt never fired in is the base's, row for row, either
+way. Not laid in, the scans doubted along the mall's sidewalk (229 of
+~720) never went into the map: the robot walked to the mall's station 0.43
+m off, the station's fix moved it 0.48 m and kept the map it had laid
+(under `ASKEW`), and no walk out of there found a route. The dev box told
+the other side of the same leg (it flies 19h as the night's pod did, row for
+row): the drawer from the mall's station passed both ways, 0.05 m off in the
+storeroom not laid in and 0.55 m laid in, where the night's pod had the base
+0.41 m off, and failed. So the mall's leg turns on what a fix under
+`ASKEW` keeps, whichever way the doubt goes, and the served matcher lays a
+doubted scan in: a flight then parts from the base's only where the search
+takes a pose.
+
+**What is true now.** A match the walls only partly agree with is searched
+before its scan is laid in, a pose found is taken only where no other place
+in the window explains the scan as well, and found nothing, the fit is laid
+in as before. `tests/test_scan_match.py` pins it on synthetic scans: a
+storeroom whose side walls hold while its end walls disagree by 0.3 m is
+taken back and laid in; a corridor fenced in panels a metre apart, where the
+search as first written took the place a metre behind the truth, is left
+doubted, its scan laid in as an `ok` one is; a straight corridor held along
+is laid in.
+
+**Not done.** A drag past the search's 0.6 m (the live 1.1 m of 13:56): the
+wide search or the station. The slow creep (0.2 m and 2 deg an hour with
+every scan matched, Rowan charging and in `DONE`): not explained. A fix
+under `ASKEW` keeps an askew map (the mall's leg, above). Copies already
+laid in the live maps go at each robot's next station fix past `ASKEW`, or
+at a `MAP_EPOCH` bump. The base's own search, from an `inconsistent` fit,
+still takes the best of two places that explain a scan alike.
 
 
 ## Debugging workflow that worked
