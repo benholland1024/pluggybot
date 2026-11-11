@@ -395,8 +395,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     at rest and the posture settled, and took the legs off the floor. ⚠ No
     budget of its own, as the quadruped's get-up has none: a body that
     cannot stand is the lifecycle's `stuck` death after `stuck_after_s`,
-    whose stand-up closes the routine; a script with no lifecycle bounds
-    its own run."""
+    whose stand-up closes the routine; a script whose lifecycle is not
+    mortal, or that has none, bounds its own run
+    (`humanoid_drift_spike.stuck_guard`)."""
     while self.legs == "getup":
       yield STILL
       self._after_step()

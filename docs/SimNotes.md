@@ -7365,6 +7365,51 @@ never held in four tries (2 of 32), each try stopped short, out of reach or
 shut on nothing.
 
 
+## A flight that never got up (the drift batch of 11-10)
+
+One flight of the doubt rule's drift batch, seed 13 from the hall, never
+finished on either tree: 57 and 72 minutes at full CPU on a pod (an EPYC
+7773X), nothing on its stdout or stderr, where the rest flew whole in 20-42
+minutes. It read as a C call that never returned, and was not one: a
+flight's stdout redirected to a file is block-buffered (a whole flight's
+report is 4 KB, under the 8 KB buffer, so every flight's stdout is empty
+until it ends), and a SIGINT that reaches Python prints its traceback
+within seconds, so the one sent must have reached a shell. Flown again on
+another CPU and Python (an i5-9600KF on 3.14, the pod's 3.12) it hung the
+same way, every flight of it at the same step: 117.7 s in, the explore's
+walk north along the house's east wall crossed the garden's pressure plate
+(a sprung pad 21 mm proud of the floor), went down on it, and fell forward
+0.65 m over the garden lamp's pole (4 cm, which its maps held within 10 cm
+of it), the pole between its legs. The get-up thrashed round the pole and
+lay still against the house's wall, 120 deg from upright, for good. Two
+flights tell the causes apart: with the pad's contacts off (under the
+LIDAR's band and the depth camera's low layer, so nothing the robot senses
+changes) the same walk passed the pole 0.42 m off and never fell; with the
+pole's off from the step it fell, the get-up stood 2.6 s later. The plate
+tripped the served walker, and the pole kept it down.
+
+`HumanoidMission._getup_routine` holds the walk until the get-up stands,
+with no budget of its own: served, a fall it cannot get up from is the
+lifecycle's `stuck` death, whose stand-up closes the routine. The spike's
+lifecycle is not mortal, and the explore's budget and the walk's timeout
+are read only between drive steps. Flown under the served rules (mortal,
+its 300 s restart, the explore inside `_until_stood_up_routine`), the same
+fall is a `stuck` death 20.6 s on, and the stand-up 300 s later closes the
+explore; the physics thread never stalls, and no save is taken while it
+lies (`Keeper.busy`, 320 s). The death's clock runs only while the trunk is
+60 deg or more off its posture: a get-up stuck short of that would never
+die `stuck`, bounded only by its pack or `unminded` (none seen).
+
+**What is true now:** a drift flight whose get-up has not stood
+`GETUP_WAIT_S` (40 s) after a fall ends `stuck`, the rows until then kept,
+and so does a `--falls` flight (`stuck_guard`; `tests/test_drift_spike.py`
+pins the rule and its wiring on a body that steps only a clock). The
+station spike's trials, `solve.py`'s and the non-mortal days of
+`hub_lifecycle.py` and `two_robots.py` have no such guard: a fall they
+cannot get up from runs to their parent's subprocess timeout (1800-3600 s)
+or for good.
+
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
@@ -7389,3 +7434,9 @@ shut on nothing.
    in one comparison, and doing the thing twice found the third.
 7. A loop that never ends is named by walking the day routine's generator
    chain (`gi_yieldfrom`) in a reproduction.
+8. A flight that seems hung is read from inside it: run it `-u` (redirected,
+   its stdout says nothing until it ends), signal the Python process and
+   never its shell, and give it `faulthandler.register(SIGUSR1,
+   all_threads=True)`, which dumps every thread's stack with no ptrace; one
+   that calls `prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)` lets `py-spy dump`
+   attach where Yama allows only a parent (scope 1).

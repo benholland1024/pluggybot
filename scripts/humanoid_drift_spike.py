@@ -38,7 +38,9 @@ and the legs alone, through the true heading.
 `--seed` draws the IMU's offset and scale and the joints' noise: `luca` and
 `rowan` are the served pair's own (the first robot's and the second's),
 anything else a draw keyed by it. The truth is ours, read to take the
-error apart; nothing here steers off it.
+error apart; nothing here steers off it. A fall its get-up has not stood
+from in `GETUP_WAIT_S` (40 s) ends the flight, and `--falls`' too, `stuck`,
+the rows until then kept (`stuck_guard`).
 
 #593's two scenes (SimNotes, "A robot left standing when its run ends, and a
 heading held at a standstill"): `--still` stands one humanoid still
@@ -67,8 +69,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from station_spike import _life, zone_of  # noqa: E402  (the house as the station's trials fly it)
 
+from pluggybot.tick import MissionAborted  # noqa: E402
+
 #: A row of the belief against the truth this often, sim s.
 EVERY_S = 5.0
+#: A get-up is waited for this long at most, s (`HumanoidBody.GETUP_BUDGET_S`'s
+#: margin: the slowest in the house stood at 30): `--falls`' wait after its
+#: shove, and in every flight here the get-up after which it ends `stuck`
+#: (`stuck_guard`).
+GETUP_WAIT_S = 40.0
 #: The walk across the street goes to the storeroom's middle, in front of
 #: its counter (`home.storeroom`), and back to the station's standoff, each
 #: walk given this long, s.
@@ -302,6 +311,41 @@ def _patch(tr: Tracker) -> None:
   HumanoidMission._match, HumanoidBody._fix_at = matched, fixed
 
 
+class Stuck(MissionAborted):
+  """A get-up that never stood (`stuck_guard`); its one argument says when
+  it fell and where it lies."""
+
+
+def stuck_guard(body, wait_s: float = GETUP_WAIT_S):
+  """A step hook that ends a flight once the get-up has had the legs `wait_s`
+  without standing: `Stuck`. ⚠ The loop's get-up has no budget of its own:
+  served, the `stuck` death's stand-up closes it, and this lifecycle is not
+  mortal (SimNotes, "A flight that never got up")."""
+  since: list[float | None] = [None]
+
+  def hook() -> None:
+    if body.posture != "getting_up":
+      since[0] = None
+      return
+    t = float(body.data.time)
+    if since[0] is None:
+      since[0] = t
+    elif t - since[0] >= wait_s:
+      x, y, _ = body.true_pose()
+      raise Stuck({"fellT": round(since[0], 1), "t": round(t, 1), "zone": zone_of(x, y),
+                   "at": [round(x, 2), round(y, 2)]})
+  return hook
+
+
+def _flight():
+  """The house and a lifecycle on it, as the station's trials fly it
+  (`station_spike._life`), a get-up that never stands ending the flight
+  (`stuck_guard`). (life, body, station)."""
+  life, body, station = _life()
+  body.step_hooks.append(stuck_guard(body))
+  return life, body, station
+
+
 def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trips: int = 2,
         rest_s: float = 0.0, charge: bool = True, idle_at=None, idle_s: float = 0.0,
         offset_learned: bool = False) -> dict:
@@ -312,11 +356,12 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
   storeroom and back to the station's standoff -- standing still `rest_s`
   at the storeroom, as a job would -- and, if `charge`, the loop's charge
   path and the station's fix as it charges. The rows, each walk's end, the
-  shares over the flight and over each zone."""
+  shares over the flight and over each zone -- and `stuck`, where a fall
+  it never got up from ended it (`stuck_guard`), the rows until then."""
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   cfg = world_config(HUMANOID_HOME)
   starts = {"start": cfg["start"], "hall": cfg["start2"]}
-  life, body, _ = _life()
+  life, body, _ = _flight()
   data, wall = life.data, time.time()
   out = {"seed": seed, "start": start, "exploreS": explore_s, "trips": trips, "restS": rest_s,
          "idleAt": idle_at, "idleS": idle_s, "learned": offset_learned}
@@ -327,50 +372,52 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
     if offset_learned:
       learned(body)
     tr = Tracker(body)
-    body.start_discovery()
-    tr.phase = "look"
-    body.run(body.look_around_routine())
-    tr.phase = "explore"
-    out["explored"] = life.explore(budget=explore_s, mark_done=False) if explore_s else None
-    out["afterExplore"] = tr.off()
-    sx, sy, _ = body.charge_standoff()
-    walks = []
-    if idle_at is not None:
-      tr.phase = "to idle"
-      t0 = float(data.time)
-      there = bool(body.run(body.go_to_routine(*idle_at, timeout=WALK_TIMEOUT_S)))
-      walks.append({"walk": tr.phase, "there": there, "s": round(float(data.time) - t0, 1),
-                    "why": "" if there else life.drive_why(*idle_at), "off": tr.off(),
-                    "zone": zone_of(*body.true_pose()[:2])})
-      tr.phase = "idle"
-      body.run(body.hold_routine(idle_s))
-      walks.append({"walk": tr.phase, "off": tr.off()})
-    for k in range(1, trips + 1):
-      for leg, goal in (("out", STORE_XY), ("back", (sx, sy))):
-        tr.phase = f"{leg}{k}"
+    out["walks"] = walks = []
+    try:
+      body.start_discovery()
+      tr.phase = "look"
+      body.run(body.look_around_routine())
+      tr.phase = "explore"
+      out["explored"] = life.explore(budget=explore_s, mark_done=False) if explore_s else None
+      out["afterExplore"] = tr.off()
+      sx, sy, _ = body.charge_standoff()
+      if idle_at is not None:
+        tr.phase = "to idle"
         t0 = float(data.time)
-        there = bool(body.run(body.go_to_routine(*goal, timeout=WALK_TIMEOUT_S)))
+        there = bool(body.run(body.go_to_routine(*idle_at, timeout=WALK_TIMEOUT_S)))
         walks.append({"walk": tr.phase, "there": there, "s": round(float(data.time) - t0, 1),
-                      "why": "" if there else life.drive_why(*goal), "off": tr.off(),
+                      "why": "" if there else life.drive_why(*idle_at), "off": tr.off(),
                       "zone": zone_of(*body.true_pose()[:2])})
-        if leg == "out" and rest_s:
-          tr.phase = f"rest{k}"
-          body.run(body.hold_routine(rest_s))
-          walks.append({"walk": tr.phase, "off": tr.off()})
-    out["walks"] = walks
-    if charge:
-      tr.phase = "charge"
-      t0 = float(data.time)
-      out["docked"] = bool(life.go_charge())
-      out.update(why=life.charge_failure, chargeS=round(float(data.time) - t0, 1),
-                 atDock=tr.off())
-      if out["docked"]:
-        body.anchor_at_dock()           # as the loop does once it charges
-        out["anchored"] = tr.off()
-    # ...the last row at a tick of the reckoning, as every row is: between
-    # two, the filter has moved on and the shares have not
-    tr.due = 0.0
-    body.run(body.hold_routine(0.05))
+        tr.phase = "idle"
+        body.run(body.hold_routine(idle_s))
+        walks.append({"walk": tr.phase, "off": tr.off()})
+      for k in range(1, trips + 1):
+        for leg, goal in (("out", STORE_XY), ("back", (sx, sy))):
+          tr.phase = f"{leg}{k}"
+          t0 = float(data.time)
+          there = bool(body.run(body.go_to_routine(*goal, timeout=WALK_TIMEOUT_S)))
+          walks.append({"walk": tr.phase, "there": there, "s": round(float(data.time) - t0, 1),
+                        "why": "" if there else life.drive_why(*goal), "off": tr.off(),
+                        "zone": zone_of(*body.true_pose()[:2])})
+          if leg == "out" and rest_s:
+            tr.phase = f"rest{k}"
+            body.run(body.hold_routine(rest_s))
+            walks.append({"walk": tr.phase, "off": tr.off()})
+      if charge:
+        tr.phase = "charge"
+        t0 = float(data.time)
+        out["docked"] = bool(life.go_charge())
+        out.update(why=life.charge_failure, chargeS=round(float(data.time) - t0, 1),
+                   atDock=tr.off())
+        if out["docked"]:
+          body.anchor_at_dock()           # as the loop does once it charges
+          out["anchored"] = tr.off()
+      # ...the last row at a tick of the reckoning, as every row is: between
+      # two, the filter has moved on and the shares have not
+      tr.due = 0.0
+      body.run(body.hold_routine(0.05))
+    except Stuck as stuck:
+      out["stuck"] = {**stuck.args[0], "phase": tr.phase}
     out.update(rows=tr.rows, zones=tr.zone_table(), residual=tr.residual,
                counts=body.match_counts, falls=body.falls,
                events=[{k: e[k] for k in ("t", "why", "before", "after", "truth") if k in e}
@@ -390,9 +437,6 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
 SHOVE_N, SHOVE_S = 300.0, 0.3
 SHOVES_DEG = (0.0, 60.0, 120.0, 180.0, 240.0, 300.0)
 STOOD_S = 5.0
-#: ...waiting for its get-up this long at most, s (`HumanoidBody.GETUP_BUDGET_S`'s
-#: margin: the slowest in the house stood at 30).
-GETUP_WAIT_S = 40.0
 
 
 def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
@@ -404,11 +448,12 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
   error (m, deg) at each, `STOOD_S` after and after a look round; and the
   matcher's verdicts and the belief's records since the shove. A fall's
   get-up holds its odometry (#572): stood, the belief is off by what the
-  get-up moved it, and the matcher's searches take that back."""
+  get-up moved it, and the matcher's searches take that back. `stuck`, a
+  fall it never got up from (`stuck_guard`), ends it there."""
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   cfg = world_config(HUMANOID_HOME)
   starts = {"start": cfg["start"], "hall": cfg["start2"]}
-  life, body, _ = _life()
+  life, body, _ = _flight()
   data, model, wall = life.data, life.model, time.time()
   m = body.mission
 
@@ -421,50 +466,53 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
     life.blacklist, life.floor_explored = set(), False
     body.start_at(*starts[start])
     out.update(draws(body, seed))
-    body.start_discovery()
-    body.run(body.look_around_routine())
-    life.explore(budget=explore_s, mark_done=False)
-    out.update(before=off(), zone=zone_of(*body.true_pose()[:2]))
-    x0, y0, yaw = body.true_pose()
-    # ...the steps the get-up takes the legs and hands them back, read on
-    # the physics seam, before any scan is matched after it
-    seam = {}
+    try:
+      body.start_discovery()
+      body.run(body.look_around_routine())
+      life.explore(budget=explore_s, mark_done=False)
+      out.update(before=off(), zone=zone_of(*body.true_pose()[:2]))
+      x0, y0, yaw = body.true_pose()
+      # ...the steps the get-up takes the legs and hands them back, read on
+      # the physics seam, before any scan is matched after it
+      seam = {}
 
-    def at_seam():
-      legs = m.legs
-      if legs == "getup" and "fell" not in seam:
-        seam["fell"] = (body.true_pose(), off(), body.pose)
-      elif legs != "getup" and "fell" in seam and "stood" not in seam:
-        seam["stood"] = (body.true_pose(), off(), body.pose)
-    body.step_hooks.append(at_seam)
-    counts0 = dict(body.match_counts)
-    seq0 = max((e["seq"] for e in body.belief_events), default=0)
-    push = np.array([math.cos(yaw + math.radians(shove_deg)),
-                     math.sin(yaw + math.radians(shove_deg)), 0.0]) * SHOVE_N
-    for _ in range(int(round(SHOVE_S / model.opt.timestep))):
-      data.xfrc_applied[body.root, :3] = push
-      body.run(body.hold_routine(model.opt.timestep))
-    data.xfrc_applied[body.root] = 0.0
-    t0 = float(data.time)
-    while float(data.time) - t0 < GETUP_WAIT_S and not (m.falls and m.legs == "stand"):
-      body.run(body.hold_routine(0.05))
-    x1, y1, _ = body.true_pose()
-    out.update(falls=m.falls, stood=m.falls > 0 and m.legs == "stand",
-               getupS=round(float(data.time) - t0, 1),
-               moved=round(math.hypot(x1 - x0, y1 - y0), 3))
-    if "stood" in seam:
-      (fx, fy, _), at_fall, (bx0, by0, _) = seam["fell"]
-      (sx, sy, _), at_stood, (bx1, by1, _) = seam["stood"]
-      out.update(getupMoved=round(math.hypot(sx - fx, sy - fy), 3),
-                 beliefMoved=round(math.hypot(bx1 - bx0, by1 - by0), 3), atFall=at_fall,
-                 atStood=at_stood)
-    body.run(body.hold_routine(STOOD_S))
-    out["afterStood"] = off()
-    body.run(body.look_around_routine())
-    out["afterLook"] = off()
-    out["verdicts"] = {k: v - counts0.get(k, 0) for k, v in body.match_counts.items()
-                       if v != counts0.get(k, 0)}
-    out["events"] = [e["why"] for e in body.belief_events if e["seq"] > seq0]
+      def at_seam():
+        legs = m.legs
+        if legs == "getup" and "fell" not in seam:
+          seam["fell"] = (body.true_pose(), off(), body.pose)
+        elif legs != "getup" and "fell" in seam and "stood" not in seam:
+          seam["stood"] = (body.true_pose(), off(), body.pose)
+      body.step_hooks.append(at_seam)
+      counts0 = dict(body.match_counts)
+      seq0 = max((e["seq"] for e in body.belief_events), default=0)
+      push = np.array([math.cos(yaw + math.radians(shove_deg)),
+                       math.sin(yaw + math.radians(shove_deg)), 0.0]) * SHOVE_N
+      for _ in range(int(round(SHOVE_S / model.opt.timestep))):
+        data.xfrc_applied[body.root, :3] = push
+        body.run(body.hold_routine(model.opt.timestep))
+      data.xfrc_applied[body.root] = 0.0
+      t0 = float(data.time)
+      while float(data.time) - t0 < GETUP_WAIT_S and not (m.falls and m.legs == "stand"):
+        body.run(body.hold_routine(0.05))
+      x1, y1, _ = body.true_pose()
+      out.update(falls=m.falls, stood=m.falls > 0 and m.legs == "stand",
+                 getupS=round(float(data.time) - t0, 1),
+                 moved=round(math.hypot(x1 - x0, y1 - y0), 3))
+      if "stood" in seam:
+        (fx, fy, _), at_fall, (bx0, by0, _) = seam["fell"]
+        (sx, sy, _), at_stood, (bx1, by1, _) = seam["stood"]
+        out.update(getupMoved=round(math.hypot(sx - fx, sy - fy), 3),
+                   beliefMoved=round(math.hypot(bx1 - bx0, by1 - by0), 3), atFall=at_fall,
+                   atStood=at_stood)
+      body.run(body.hold_routine(STOOD_S))
+      out["afterStood"] = off()
+      body.run(body.look_around_routine())
+      out["afterLook"] = off()
+      out["verdicts"] = {k: v - counts0.get(k, 0) for k, v in body.match_counts.items()
+                         if v != counts0.get(k, 0)}
+      out["events"] = [e["why"] for e in body.belief_events if e["seq"] > seq0]
+    except Stuck as stuck:
+      out.update(stuck=stuck.args[0], falls=m.falls, stood=False)
     out["wallS"] = round(time.time() - wall, 1)
   finally:
     body.close()
@@ -493,6 +541,11 @@ def falls(seed: str, start: str, explore_s: float, parallel: int) -> list[dict]:
   for r in rows:
     if "crashed" in r:
       print(f"{r['shoveDeg']:5.0f} crashed: {r['crashed'][-200:]}")
+      continue
+    if "stuck" in r:
+      s = r["stuck"]
+      print(f"{r['shoveDeg']:5.0f} {s['zone']:12s} {r['falls']:4d} stuck: fell at "
+            f"t={s['fellT']:.0f} and not stood {s['t'] - s['fellT']:.0f} s on")
       continue
     print(f"{r['shoveDeg']:5.0f} {r['zone']:12s} {r['falls']:4d} {r['getupS']:5.1f} "
           f"{r['moved']:6.2f} {r.get('getupMoved', float('nan')):6.2f} "
@@ -673,6 +726,12 @@ def report(run: dict) -> None:
         f"{run['gyroScalePct'][2]:+.3f} %; {run['simS']:.0f} sim s in "
         f"{run['wallS']:.0f} s; residual {run['residual'][0]:.1e} m, "
         f"{math.degrees(run['residual'][1]):.1e} deg; falls {run['falls']}")
+  stuck = run.get("stuck")
+  if stuck:
+    print(f"  STUCK: fell at t={stuck['fellT']:.0f} in the {stuck['zone']} ({stuck['phase']}) "
+          f"and not stood {stuck['t'] - stuck['fellT']:.0f} s on: the flight ended there")
+  if not run["rows"]:
+    return
   last = run["rows"][-1]
   offset = 0.0 if taken else run["gyroOffsetDegS"][2] * last["t"]
   scale = run["gyroScalePct"][2] / 100 * last["turnedDeg"]
@@ -680,7 +739,8 @@ def report(run: dict) -> None:
         f"alone {offset:+.1f}, its scale over the {last['turnedDeg']:+.0f} deg truly turned "
         f"{scale:+.1f}, the rest {last['turn']['gyro'] - offset - scale:+.1f}; the hold's "
         f"{last['turn'].get('hold', 0.0):+.1f}")
-  print(f"  explore {run['exploreS']:.0f} s: {run['explored']}, ended {run['afterExplore']} off")
+  if "explored" in run:
+    print(f"  explore {run['exploreS']:.0f} s: {run['explored']}, ended {run['afterExplore']} off")
   for w in run["walks"]:
     print(f"  {w['walk']:7s} " + (f"{'there' if w['there'] else 'NOT THERE'} in {w['s']:.0f} s, "
                                   f"in the {w['zone']}" if "there" in w else "stood")
@@ -765,10 +825,11 @@ def table(runs: list[dict]) -> None:
     worst = max(run["rows"], key=lambda r: r["errM"])
     walks = " ".join(f"{w['off'][0]:.1f}/{w['off'][1]:+.0f}" for w in run["walks"]
                      if "there" in w)
-    docked = run.get("docked")
+    docked = "stuck" if run.get("stuck") else run.get("docked")
+    explored = (f"{run['afterExplore'][0]:6.2f}/{run['afterExplore'][1]:+6.1f}"
+                if "afterExplore" in run else f"{'-':>13s}")
     seed = run["seed"] + (" L" if run.get("learned") else "")
-    print(f"{seed:>6s} {run['start']:>5s} {60 * run['gyroOffsetDegS'][2]:+7.2f} "
-          f"{run['afterExplore'][0]:6.2f}/{run['afterExplore'][1]:+6.1f} "
+    print(f"{seed:>6s} {run['start']:>5s} {60 * run['gyroOffsetDegS'][2]:+7.2f} {explored} "
           f"{worst['errM']:6.2f}/{worst['errDeg']:+6.1f} {worst['zone']:14s} {walks:44s} "
           f"{'-' if docked is None else docked}")
   if any(run.get("learned") for run in runs):
