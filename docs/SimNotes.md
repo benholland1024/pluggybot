@@ -7244,6 +7244,48 @@ the world (Hands.md §7); a reach of one hand while the other is held takes a
 posture planned for a free body; and the get-up against the counter (13 of 14
 flown falls there never stood in 60 s).
 
+## Carrying while walking, measured (#560's next task)
+
+The next task carries the table's dishware from the restaurant kitchen's
+shelf, and today a walk carries nothing: `step` refuses a held grip and the
+walk's hand-over lets go (#669). `scripts/carry_spike.py` hands walk2 the legs
+with an arm posed holding the plate or the cup anyway, on a bare floor -- the
+piece put into the open jaws where our table reference's shut leaves it, the
+wrist solved to hold it level -- and walks open-loop courses and goals through
+the Navigator (2,192 flights, each its own noise and draw; the rows and the
+plan are the night shift's, 2026-11-11, T7).
+
+- **walk2 never trained with its arms at rest**: its scripted arms went
+  anywhere within half their range, with 0-1 kg in a hand, and it sees every
+  arm joint. But a wrist holding a piece level turns 0.6-1.5 rad (trained to
+  0.7-0.8), and an elbow folded close 1.6-2.0 (to 1.15).
+- **At a designed carry pose it never fell** (392 open-loop walks, 128 closed
+  loop, 64 with 1-2 kg on one arm). It veers toward the carrying arm, 4-22 deg
+  more than arms-home over 4 m, and walks 8-15 % less far; closed loop the
+  Navigator steers it out (its reckoning holds), arriving within 0.24 m of
+  where arms-home does.
+- **The arm the reach leaves for the table's grips is over the top** (roll
+  2.5-2.9 rad); walked so it fell in 16 of 37 -- and in none shown that arm at
+  rest (`--blind-arms`): an arm input far outside its training topples walk2.
+  Shown its arms at rest, a piece held close walks true, but a load held out
+  goes unbalanced (both arms out fell 20 of 28): it balances off those inputs.
+- **The robot's own sensors see what it holds**: its front stop backs it off
+  its own plate, or its map leaves no route -- 7 of 10 holding poses never
+  arrived; hidden from every cast (`--unseen`), all did.
+- **The plate's wall pinch creeps with its weight**: at 40 N a 0.5 kg plate
+  dropped in 8 of 20 routes of 13 m, at 80 N in none (the turn 7-8 deg, the
+  same at 120 N) -- friction at the pinch, not the solver's drift, which
+  ignores the force ("The grip that leaked"). The cup, held across its body,
+  slips under 1.1 cm.
+
+**What is true now:** nothing served carries. Carrying needs a hand-over that
+keeps a held grip and walks the arm to a carry pose first, a self-filter for
+what a hand holds, and the plate squeezed at 80 N. walk2 as it is carries
+closed loop at a cost in time and a veer; a walker trained with carry poses
+held and loads at the grip is the honest fix. `carry_spike.py --view
+plate_close:route:1` watches a 0.47 kg plate held close tilt in the jaws from
+35 s and fall at 47 s; `--strip` draws it.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
