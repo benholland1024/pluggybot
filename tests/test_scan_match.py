@@ -196,6 +196,20 @@ def test_a_doubted_fits_search_takes_no_place_another_explains_as_well(panelled)
   assert abs(got.pose[0] - guess[0]) < 0.05, got
 
 
+def test_a_slid_fits_search_takes_no_place_another_explains_as_well(panelled):
+  # ...and so for a fit that slid past MAX_STEP, which is searched too: in
+  # the panelled corridor, 0.3 m behind the truth and 8 cm across it, the
+  # search's best is the truth, but a place 0.7-0.9 m off keeps nine tenths
+  # of the points on panels, so nothing is taken and the scan stays refused
+  # -- uniqueness over a lucky guess (without the test, the truth was taken).
+  true = (4.0, 0.75, 0.0)
+  ranges = cast(PANELS, true, np.random.default_rng(3))
+  guess = (true[0] - 0.3, true[1] + 0.08, true[2])
+  got = sm.ScanMatcher(panelled).match(guess, ANGLES, ranges)
+  assert got.why == "slid" and not got.accepted and not got.fuse, got
+  assert got.pose == guess
+
+
 def test_a_straight_corridor_held_along_is_not_doubted(corridor):
   # ...where nothing disagrees: a corridor's fit held along it is laid in,
   # 0.3 m off along it as anywhere (no end in reach says otherwise).

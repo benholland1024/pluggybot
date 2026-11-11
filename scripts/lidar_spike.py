@@ -55,6 +55,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from pluggybot.humanoid import model as hm  # noqa: E402
+from pluggybot.mapping.scan_match import FIT_TAKEN  # noqa: E402
 from pluggybot.perception import lidar as ld  # noqa: E402
 
 #: The waist's reading every pose here is laid at: home, as these static
@@ -324,7 +325,7 @@ def probe_summary(rows: list[dict]) -> None:
 
   def line(label: str, rs: list[dict], tail: str = "") -> None:
     n = len(rs)
-    acc = [r for r in rs if r["why"] == "ok"]
+    acc = [r for r in rs if r["why"] in FIT_TAKEN]     # a doubted fit is ok's (#681)
     full = sum(1 for r in acc if r["held"] == 0)
     heading = sum(1 for r in acc if r["held"] == 1 and abs(r["weak"][2]) < 0.5)
     pc = lambda k: f"{100 * k / n:5.0f}%"  # noqa: E731

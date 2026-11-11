@@ -70,6 +70,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from station_spike import _life, zone_of  # noqa: E402  (the house as the station's trials fly it)
 
+from pluggybot.mapping.scan_match import FIT_TAKEN  # noqa: E402
 from pluggybot.tick import MissionAborted  # noqa: E402
 
 #: A row of the belief against the truth this often, sim s.
@@ -689,12 +690,18 @@ def done(seconds: float = 300.0, wait: bool = True, hold: bool = True) -> dict:
   due[0] = 0.0
   sample()
   waiting = [r for r in rows if r["state"] == "DONE"]
-  ok = [r["matched"].get("ok", 0) for r in waiting] or [0]
+  ok = [scans_taken(r["matched"]) for r in waiting] or [0]
   return {"seconds": seconds, "wait": wait, "hold": hold,
           "doneFromS": waiting[0]["t"] if waiting else None, "endS": ends[0]["sim_time"],
           "headingWorstDeg": max((abs(r["headingDeg"]) for r in waiting), default=None),
           "errWorstM": max((r["errM"] for r in waiting), default=None),
           "matchedWaiting": ok[-1] - ok[0], "rows": rows, "wallS": round(time.time() - wall, 1)}
+
+
+def scans_taken(matched: dict) -> int:
+  """How many of a matcher's verdicts (`match_counts`) were a fit taken as
+  it came (`scan_match.FIT_TAKEN`: a doubted one is ok's, #681)."""
+  return sum(matched.get(k, 0) for k in FIT_TAKEN)
 
 
 def still_report(run: dict) -> None:

@@ -155,3 +155,12 @@ def test_a_flight_whose_robot_never_gets_up_ends_stuck_with_what_it_flew(monkeyp
   assert "explored" not in out and "docked" not in out and out["walks"] == []
   assert out["falls"] == 1 and out["simS"] == pytest.approx(stuck["t"], abs=0.1)
   assert body.closed
+
+
+def test_a_doubted_fit_is_a_scan_its_robot_matched():
+  # #681: a fit the walls only partly agree with is "doubted" and taken as it
+  # came, as "ok" was (`scan_match.FIT_TAKEN`): `--done` counts it among the
+  # scans a waiting robot matched, or one on a sidewalk reads as matching
+  # none, #593's sign of a robot lost while it waits.
+  hds = _spike()
+  assert hds.scans_taken({"ok": 3, "doubted": 2, "found": 1, "slid": 4}) == 5

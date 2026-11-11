@@ -2134,23 +2134,24 @@ save a filmstrip PNG named after the script.
   true under drift"). Gauss–Newton on the map's signed distance, and every
   piece's measured failure is at its constant: odometry is a ROBUST prior
   (held plainly, a wheel pump ran the pose 3.4 m); a direction the walls do
-  not fix keeps odometry's estimate; a fit the map disagrees with is
-  searched round (±0.6 m, ±6°) and refused if nothing agrees; a refused or
-  slid scan is NOT FUSED, and a scan is fused only once the robot has moved
-  or 5 s have passed (docked, fusing every scan walked the map 0.15 m).
+  not fix keeps odometry's estimate; a fit the map disagrees with, or one
+  that slid past `MAX_STEP_M`, is searched round (±0.6 m, ±6°) and refused,
+  NOT FUSED, if nothing agrees; and a scan is fused only once the robot has
+  moved or 5 s have passed (docked, fusing every scan walked the map 0.15 m).
   ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS SEARCHED (#681; SimNotes,
   "The storeroom keeps an error"): one held along a direction with under
   `DOUBT_HELD_SHARE` (95 %) of its points on walls, or any under
-  `DOUBT_SHARE` (80 %), is searched, a slid one too, and a pose found is
-  taken at `DOUBT_FOUND_SHARE` (90 %) with every direction fixed -- at the
-  storeroom's counter the side walls kept a fit 0.3-0.4 m off `ok`, and the
-  copy it laid kept the error for hours -- ⚠ ONLY WHERE NO OTHER PLACE
-  EXPLAINS THE SCAN AS WELL (`DOUBT_RIVAL_SHARE`: a place `UNIQUE_M` off at
-  90 % of the best's points on walls refuses it): along a sidewalk every
-  place scores alike, and taking the best walked a belief 5.95 m off. ⚠
-  FOUND NOTHING, IT IS WHAT IT WAS (`doubted`, laid in as `ok`): left out
-  of the map, doubted scans starved new ground, and from the mall's
-  station no walk found a route.
+  `DOUBT_SHARE` (80 %), is searched too, and there and for a slid one a
+  pose found is taken at `DOUBT_FOUND_SHARE` (90 %) with every direction
+  fixed -- at the storeroom's counter the side walls kept a fit 0.3-0.4 m
+  off `ok`, and the copy it laid kept the error for hours -- ⚠ ONLY WHERE
+  NO OTHER PLACE EXPLAINS THE SCAN AS WELL (`DOUBT_RIVAL_SHARE`: a place
+  `UNIQUE_M` off at 90 % of the best's points on walls refuses it): along a
+  sidewalk every place scores alike, and taking the best walked a belief
+  5.95 m off. ⚠ FOUND NOTHING, IT IS WHAT IT WAS (`doubted`, laid in as
+  `ok`; `FIT_TAKEN` for an instrument counting matches): left out of the
+  map, doubted scans starved new ground, and from the mall's station no
+  walk found a route.
   ⚠ A ROBOT ITS MAP KEEPS REFUSING SEARCHES WIDER (#422): `LOST_RUN` (10)
   refusals running -- any other verdict breaks the run -- search 2 m and
   15° round the belief (`_relocate`), over PLACES (candidates `UNIQUE_M`

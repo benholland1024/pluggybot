@@ -79,7 +79,8 @@ MIN_INLIERS = 40
 MAX_ITER = 8
 CONVERGED_M = 5e-4
 #: The most one scan may move the pose: past it the fit has found another
-#: wall to sit on, and the scan is refused and not fused.
+#: wall to sit on, and its correction is never taken -- the bounded search's
+#: pose may be (DOUBT_*), else the scan is refused and not fused ("slid").
 MAX_STEP_M = 0.15
 MAX_STEP_RAD = math.radians(5.0)
 #: ODOMETRY'S PRIOR, in points' worth (a unit-gradient point adds 1): how
@@ -198,6 +199,10 @@ NO_STEP = (0.0, 0.0, 0.0)
 #: search relocated by (the next, matched from there, is).
 ACCEPTED = frozenset({"ok", "found", "relocated", "doubted"})
 FUSED = frozenset({"ok", "found", "doubted", "anchored", "no map", "sparse", "unconstrained"})
+#: ...and a fit taken as it came, no search having moved it: what was "ok"
+#: before #681 doubted a share of it. An instrument counting matched scans
+#: counts these (`lidar_spike.py --probe`, the drift spike's `--done`).
+FIT_TAKEN = frozenset({"ok", "doubted"})
 
 
 class Match(NamedTuple):
@@ -460,7 +465,10 @@ class ScanMatcher:
     # robot was tilted and unmatched left it 0.45 m out, the fit could not
     # pull it back, and every scan fused painted a second copy of the house.
     # Search round the prediction, fit from the best, and take it only if
-    # the walls agree; else the scan is refused and NOT fused.
+    # the walls agree; else the scan is refused and NOT fused. A fit that
+    # slid or that the walls only partly agree with is searched too, its
+    # best taken only where no other place explains the scan as well, and
+    # else it is what it was: slid refused, doubted laid in as ok.
     start = self._search((x0, y0, th0), pts, unique=why != "inconsistent")
     if start is not None:
       found_at, found, found_kw = self._judge(
