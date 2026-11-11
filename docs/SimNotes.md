@@ -7369,7 +7369,7 @@ shut on nothing.
 
 One flight of the doubt rule's drift batch, seed 13 from the hall, never
 finished on either tree: 57 and 72 minutes at full CPU on a pod (an EPYC
-7773X), nothing on its stdout or stderr, where the rest flew whole in 20-42
+7773X), nothing on its stdout or stderr, where the rest flew whole in 22-42
 minutes. It read as a C call that never returned, and was not one: a
 flight's stdout redirected to a file is block-buffered (a whole flight's
 report is 4 KB, under the 8 KB buffer, so every flight's stdout is empty
