@@ -219,10 +219,15 @@ HAND_MINUTES = 16
 #: the tour, 279 s from the claim to the call (`scripts/solve.py --feature
 #: table --from tour`, one pod), rounded up.
 TABLE_MINUTES = 14
-#: ...and the cube's (#560): three times its reference's slowest pass over the
-#: tour, 159 s from the claim to the call (`scripts/solve.py --feature cube
-#: --from tour`, one pod), rounded up.
-CUBE_MINUTES = 8
+#: ...and the cube's (#560): three times its reference's slowest pass from
+#: the dearest station, the mall's, its area remembered, 177-180 s to its
+#: call (`scripts/energy_spike.py --station station_mall --actions
+#: place_cube`), rounded up -- Ben's call, 2026-11-11, over 8, three times
+#: the tour's slowest on a fresh map (159 s; the tour has no mall): a claim
+#: at the mall then left about 300 s to write the procedure, where one
+#: answer may take 300 (`CALL_TIMEOUT_S`). A claim there on a fresh map, its
+#: find before the walk, was not flown.
+CUBE_MINUTES = 9
 
 
 KINDS: dict[str, TaskKind] = {

@@ -175,9 +175,13 @@ GUARD_EXAMPLE_N = 15.0
 WATCHED = "; what `watch` reads, %(hz)g times a second"
 
 #: What a walk does with a hand that is out (#669: `HumanoidMission.let_go_routine`),
-#: said in YOUR BODY where the facts give a `step`.
-WALK_LETS_GO = (" Before a `step` or any other walk, a hand that\nis out comes home, its "
-                "gripper opened as `withdraw` opens it: a walk carries\nnothing.")
+#: and a `step` while a gripper says it holds something: refuses, before the
+#: hand-over that lets go (`HumanoidBody.step_routine`'s "holding"). Said in
+#: YOUR BODY where the verbs it lists give a `step`.
+WALK_LETS_GO = (" Before a `step` or any other walk moves\nyour feet, a hand that is out comes "
+                "home, its gripper opened as `withdraw`\nopens it: a walk carries nothing. A "
+                "`step` asked while either gripper says\nit holds something moves nothing, and "
+                "reads false.")
 
 YOUR_BODY = """YOUR BODY
 
@@ -231,17 +235,19 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
   """The practice's system prompt, a section at a time: the body's verbs,
   sensors and axes off the registries and what `facts` lets it call."""
   from pluggybot.procedure import axes
-  verbs = "\n".join(f"  {signature(v)}  -- {v['doc']}"
-                    for v in describe_vocabulary(facts.verbs, facts.guarded))
+  # ...the verbs as told: facts that name none are told `VERBS`, no `step`
+  told = describe_vocabulary(facts.verbs, facts.guarded)
+  verbs = "\n".join(f"  {signature(v)}  -- {v['doc']}" for v in told)
   docs = {s["name"]: s["doc"] for s in axes.describe()["sensors"]}
   sensors = "\n".join(f"  {n} -- {docs[n]}" for n in facts.sensors)
   ax = "\n".join(f"  {a.name}: {a.lo:g}..{a.hi:g} {a.unit} -- {a.doc}"
                  for a in (axes.AXES[n] for n in facts.axes))
+  steps = any(v["verb"] == "step" for v in told)
   return [("what you do", WHAT_YOU_DO),
           ("the language", language_text(facts)),
           ("your body", YOUR_BODY % {"verbs": verbs, "sensors": sensors, "axes": ax,
                                      "slew": axes.HUMANOID_SLEW,
-                                     "walks": WALK_LETS_GO if "step" in facts.verbs else ""}),
+                                     "walks": WALK_LETS_GO if steps else ""}),
           ("your answer", ANSWER % {"cap": f"{MAX_TOKENS:,}", "aim": f"{AIM_TOKENS:,}"})]
 
 

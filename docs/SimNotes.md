@@ -7193,9 +7193,19 @@ is left as it is, so a withdraw after an `open_hand` is the flight it was.
 `step` refuses only a grip that reads held, and a procedure that ends with a
 hand out walks after it, so the same jaws on the same lever came home
 through every walk (#669's review). One routine lets go for both
-(`HumanoidMission.let_go_routine`), and the body text says so: "Before a
-`step` or any other walk, a hand that is out comes home, its gripper opened
-as `withdraw` opens it: a walk carries nothing." With nothing to open it
+(`HumanoidMission.let_go_routine`). A `step` asked while a gripper says it
+holds something still refuses before that hand-over (`holding`), opening
+nothing, and the body text says both: "Before a `step` or any other walk
+moves your feet, a hand that is out comes home, its gripper opened as
+`withdraw` opens it: a walk carries nothing. A `step` asked while either
+gripper says it holds something moves nothing, and reads false." The
+refusal went unsaid at first (#669's second review): asked through the
+deployed prompt, GLM-5.3-Flash on baseten read a `step` with its jaws on a
+knob that read held as letting go and walking 12 times of 12 on that text,
+and as refused, the gripper still shut, 12 of 12 on this one; a `step`
+after jaws that read nothing held, and a `drive_to` with a cube in hand,
+read as letting go 12 of 12 on both (`~/pluggybot-training/day-shift-1111/
+d1-release/quiz/`, $0.07). With nothing to open it
 steps nothing, and no reference begins a walk with a hand out -- nor does any
 of the 459 practice tries below, by their recorded verbs. Its text
 says so with no condition the robot must work out. Worded "open a hand's
@@ -7266,13 +7276,18 @@ on the same pod, and the place check at set-outs 0-31 reads 20 where it read
 17. On fresh draws, 400-431, 23 of 32 (25 for round 1; draw 431's trace
 showed the one-tag case the review fixed, so they are not untouched, but
 not flattered either: 431 still failed). So `place_cube` is
-offered ("The humanoids' first jobs"): 8 minutes from the claim, three
-times its slowest pass over the tour (159 s), paying 45 (Ben's 90 for 16
-minutes, pro rata), and priced at 9.858 Wh (`energy.json`: flown on this
-reference from the mall's station it cost 8.124 Wh over 180 s, from the
-house's 5.955, from the research center's 6.208, and 3 Nov's dearer reading
-is kept). #669's `withdraw`, which opens its gripper first, changes none of
-its flights: every `withdraw` it makes follows an `open_hand` (the first
+offered ("The humanoids' first jobs"): 9 minutes from the claim, three
+times its slowest pass from the dearest station, the mall's, its area
+remembered (177 s and 180 s, the re-pricing's flight and this one), paying
+51 (Ben's 90 for 16 minutes, pro rata), and priced at 9.858 Wh
+(`energy.json`: flown on this reference from the mall's station it cost
+8.124 Wh over 180 s, from the house's 5.955, from the research center's
+6.208, and 3 Nov's dearer reading is kept). Three times its slowest pass
+over the tour (159 s, on a fresh map; the tour has no mall) gave 8, and
+left a claim at the mall about 300 s to write the procedure in, where one
+answer may take 300 (Ben's call for 9, 2026-11-11); a claim at the mall on
+a fresh map, its find before the walk, was not flown. #669's `withdraw`,
+which opens its gripper first, changes none of its flights: every `withdraw` it makes follows an `open_hand` (the first
 round's 32 flown on both trees, the same row for row).
 
 | the bar's 32 draws, how each ended | the tree before | now |
