@@ -529,6 +529,25 @@ def _getups():
   return sorted(p.name for p in GETUP_NPZ.parent.glob("humanoid_getup*.npz"))
 
 
+def test_the_getup_charges_the_head_as_built(head):
+  # #679: a get-up's training charges a hit on the head's parts (`HEAD`, in
+  # `training/`, which cannot import this package: read off its source) --
+  # matched whole, as mjlab's sensors match a pattern -- and they are the
+  # head's parts as the body builds them (`model.HEAD_GEOMS`): getup3 trained
+  # when the head was one cylinder, and charged that one alone.
+  import ast
+  import re
+  from pathlib import Path
+  model, _ = head
+  src = Path(__file__).resolve().parents[1] / "training" / "humanoid_train" / "getup.py"
+  patterns = next(ast.literal_eval(node.value) for node in ast.parse(src.read_text()).body
+                  if isinstance(node, ast.Assign)
+                  and any(isinstance(t, ast.Name) and t.id == "HEAD" for t in node.targets))
+  names = {model.geom(g).name for g in range(model.ngeom)}
+  struck = {n for n in names if any(re.fullmatch(p, n) for p in patterns)}
+  assert struck == set(hm.HEAD_GEOMS)
+
+
 @pytest.mark.parametrize("npz", _getups())
 def test_a_getup_sees_the_joints_it_drives(head, npz):
   # #679: a get-up's inputs are the joints it drives (getup3's 78, carried on
@@ -541,6 +560,9 @@ def test_a_getup_sees_the_joints_it_drives(head, npz):
   model, _ = head
   policy = StandPolicy(GETUP_NPZ.parent / npz)
   assert policy.joint_names == policy.action_joints
+  # ...and every list the file keeps a joint at a time lines up with them
+  for key in ("default_joint_pos", "joint_stiffness", "joint_damping"):
+    assert len(policy.meta[key].split(",")) == len(policy.joint_names), key
   d = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, d, 0)
   mujoco.mj_forward(model, d)

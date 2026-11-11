@@ -1,6 +1,8 @@
 """Checkpoints of a get-up run in the TRAINING physics, each from chosen starts
 against the box, its mean action: the share standing free at 14 s, one row a
-checkpoint. Each case's env is built once.
+checkpoint (a world that blew up or went NaN on the way, and was started
+again, counts as down, and the table says how many did). Each case's env is
+built once.
   python -m humanoid_train.scan RUN_DIR [EVERY] [N]   (from training/)"""
 import re
 import sys
@@ -15,10 +17,12 @@ from mjlab.tasks.registry import load_env_cfg
 run = Path(sys.argv[1])
 every = int(sys.argv[2]) if len(sys.argv) > 2 else 200
 n = int(sys.argv[3]) if len(sys.argv) > 3 else 256
-ckpts = sorted(run.glob("model_*.pt"), key=lambda p: int(re.findall(r"\d+", p.name)[0]))
-first = int(re.findall(r"\d+", ckpts[0].name)[0])
-ckpts = [p for p in ckpts if (int(re.findall(r"\d+", p.name)[0]) - first) % every == 0] + [ckpts[-1]]
-ckpts = list(dict.fromkeys(ckpts))
+saved = {int(m.group(1)): p for p in run.glob("model_*.pt")
+         if (m := re.fullmatch(r"model_(\d+)\.pt", p.name))}
+if not saved:
+  sys.exit(f"no model_N.pt in {run}")
+first, last = min(saved), max(saved)
+ckpts = [saved[i] for i in sorted(saved) if (i - first) % every == 0 or i == last]
 LYING = {"beside": 1.0, "head": 0.0, "feet": 0.0}
 CASES = {
   "side front": ({"side": 1.0}, {"share": 1.0, "front": 1.0, "lying": LYING, "gap_m": {"beside": (0.0, 0.05)}}),
@@ -46,6 +50,7 @@ def actor_of(path):
 
 
 rows = {p.name: {} for p in ckpts}
+lost = {p.name: 0 for p in ckpts}
 for name, (starts, box) in CASES.items():
   cfg = load_env_cfg("Pluggy-Humanoid-Getup-Wall", play=True)
   cfg.scene.num_envs = n
@@ -59,12 +64,16 @@ for name, (starts, box) in CASES.items():
   for p in ckpts:
     actor = actor_of(p)
     obs, _ = env.reset()
+    broke = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
     with torch.no_grad():
       for k in range(700):
-        obs, *_ = env.step(actor(obs["actor"]))
-    rows[p.name][name] = float(getup._standing(env).float().mean())
+        obs, _, terminated, _, _ = env.step(actor(obs["actor"]))
+        broke |= terminated
+    rows[p.name][name] = float((getup._standing(env) & ~broke).float().mean())
+    lost[p.name] += int(broke.sum())
   env.close()
   print("done", name, flush=True)
-print(f"{'checkpoint':16s}" + "".join(f"{c:>13s}" for c in CASES))
+print(f"{'checkpoint':16s}" + "".join(f"{c:>13s}" for c in CASES) + f"{'blew up':>9s}")
 for p in ckpts:
-  print(f"{p.name:16s}" + "".join(f"{rows[p.name][c]:13.2f}" for c in CASES))
+  print(f"{p.name:16s}" + "".join(f"{rows[p.name][c]:13.2f}" for c in CASES)
+        + f"{lost[p.name]:9d}")

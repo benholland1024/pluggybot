@@ -85,21 +85,30 @@ def body_facts(joints: str = "legs") -> dict:
           "waist_gain_scale": list(getattr(hr, "WAIST_GAIN_SCALE", ()))}
 
 
+#: The metadata's lists with an entry a joint of the body, in `joint_names`'
+#: order (mjlab's every joint; the gains, every actuated one -- the body's
+#: every joint since the jaws are frozen in training).
+PER_JOINT = ("joint_names", "default_joint_pos", "joint_stiffness", "joint_damping")
+
+
 def sees_driven(arrays: dict, driven: list) -> None:
   """The metadata's joints narrowed to the ones the policy drives, each
-  one's default pose with it: mjlab writes every joint of the body there,
-  and the served runtime builds an observation off what it lists
-  (`pluggybot.humanoid.policy`). ⚠ Refused unless the input is exactly the
-  get-up's terms over those joints."""
+  one's default pose and gains with it: mjlab writes every joint of the
+  body there, and the served runtime builds an observation off what it
+  lists (`pluggybot.humanoid.policy`). ⚠ Refused unless the input is
+  exactly the get-up's terms over those joints, and every list has an
+  entry a joint."""
   meta = json.loads(str(arrays["meta"]))
   names = meta["joint_names"].split(",")
-  default = dict(zip(names, meta["default_joint_pos"].split(",")))
+  lists = {key: dict(zip(names, meta[key].split(","))) for key in PER_JOINT}
+  assert all(len(meta[key].split(",")) == len(names) for key in PER_JOINT), \
+    {key: len(meta[key].split(",")) for key in PER_JOINT}
   terms = meta["observation_names"].split(",")
   assert terms == ["base_ang_vel", "projected_gravity", "joint_pos", "joint_vel", "actions"], terms
   n = arrays["obs_mean"].shape[0]
   assert n == 6 + 3 * len(driven), f"{n} inputs are not the get-up's over {len(driven)} joints"
-  meta["joint_names"] = ",".join(driven)
-  meta["default_joint_pos"] = ",".join(default[j] for j in driven)
+  for key in PER_JOINT:
+    meta[key] = ",".join(lists[key][j] for j in driven)
   arrays["meta"] = np.array(json.dumps(meta))
 
 

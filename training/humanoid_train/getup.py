@@ -34,10 +34,14 @@ beside the fallen body in a share of its episodes (`OBSTACLE`): the get-up
 trained on open floor alone never stood a robot lying against one.
 """
 
+import copy
+import functools
 import math
 
 import mujoco
+import mujoco_warp as mjwarp
 import torch
+import warp as wp
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
@@ -314,7 +318,8 @@ def _place_obstacle(env, env_ids, draws: dict, pos, quat, tipping, way,
   trunk, beyond the head or the feet of a body lying; into or along the
   way a body tips -- a gap past the body's reach that way; else parked."""
   n, dev = len(env_ids), env.device
-  env.sim.forward()            # the starts just written: where each geom now is
+  with wp.ScopedDevice(env.sim.wp_device):   # the starts just written: where each geom is
+    mjwarp.kinematics(env.sim.wp_model, env.sim.wp_data)
   share = torch.where(tipping, draws["tipping_share"], draws["share"])
   present = torch.rand(n, device=dev) < share
   counter = torch.rand(n, device=dev) < draws["counter"]
@@ -507,6 +512,7 @@ MIRROR_TERMS = {"base_lin_vel": _POLAR, "projected_gravity": _POLAR, "base_ang_v
                 "root_height": (1.0,), "since_release": (1.0,)}
 
 
+@functools.cache
 def _joint_mirror(device):
   index, sign = [], []
   for name in JOINTS:
@@ -767,7 +773,7 @@ def getup_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.rewards["head_struck_obstacle"] = RewardTermCfg(
     func=impact, weight=HEAD_WEIGHT,
     params={"sensor_name": "head_struck_obstacle", "free": HEAD_FREE})
-  cfg.events["reset_base"].params["obstacle"] = OBSTACLE
+  cfg.events["reset_base"].params["obstacle"] = copy.deepcopy(OBSTACLE)
   cfg.events["reset_base"].params["starts"] = dict(WALL_STARTS)
   if not play:
     cfg.episode_length_s = WALL_EPISODE_S
