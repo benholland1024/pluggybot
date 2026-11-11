@@ -162,7 +162,7 @@ def timeout_share(latencies: list[float], deadline: float) -> float:
 #: The synthetic robot, per world: its paid job (the drawer, #559), what
 #: its record says of a pass and what it keeps in mind -- and its pack, Wh,
 #: run DOWN below what the offer costs plus the reserve (the drawer's
-#: `estimateWh` from the station, 7.08, with the world's reserve kept back)
+#: `estimateWh` from the dearest station, 7.503, with the world's reserve kept back)
 #: and falling a little every call, so the standing orders are read against
 #: a battery that moves.
 SYNTHETIC = {

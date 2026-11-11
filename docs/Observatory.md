@@ -10,6 +10,41 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The cube is offered (#560) — opens when this PR is deployed
+
+**What changed in the world.**
+- **`place_cube` is one more kind in `home_humanoid`'s rotation**: the cube
+  put on its mat on the storeroom's counter, its fifth job beside the
+  drawer, the door, the chest and the table. It gives 9 minutes
+  (`tasks.CUBE_MINUTES`, three times its reference's slowest pass from the
+  dearest station, the mall's, its area remembered, 180 s; Ben's call over
+  8, three times the tour's 159 s, which left a claim at the mall about 300
+  s to write the procedure in; a claim there on a fresh map was not
+  flown), pays 51 (Ben's 90 for 16 minutes, pro rata, as the
+  table's) and costs 9.858 Wh (`energy.json`, unchanged: its reference now
+  costs 8.124 from the dearest station). The robots read a new row in their
+  reward table: `prompt_sha` `2384a72b…` → `8e3c4c51…`, 64,023 → 64,492
+  chars, 17 sections both, over #669's (`overseer_probe.py --deployed
+  --prompt`). Nothing about the verbs, the body or the house moved.
+- **Our reference passed from the tour** (SimNotes, "The cube from the
+  tour"): 28 of 32 draws, its bar 24, 23 on the tree before it on the same
+  pod; 23 of 32 on fresh draws 400-431, one of which (431) showed the
+  one-tag case the review then fixed. A try that failed reads the
+  mat and the cube again. It is a reference, never shown to a mind.
+- ⚠ The rotation's `maxOffered` stays 4 with five kinds: at most four of
+  them stand on the board at once.
+
+**Why.** #560: Ben's word of 2026-11-10, that the cube is offered on the
+table's terms once its reference passes from the tour.
+
+**What the period is for.**
+- **Whether a robot takes the cube, and what it writes**: the counter's
+  fifth job, the one with the shortest time and the least pay.
+- **The counter's crowding**: two robots at it is likelier with one more
+  job there, and the arms still know nothing of the other robot (#678).
+- ⚠ **Not to be pooled with the period before for anything the reward table
+  or the offers decide**: there is one more kind on the board.
+
 ### The counter's jobs priced again, on the waist's body (#560) — opens when this PR is deployed
 
 **What changed is what three of the counter's offers say they cost**
@@ -19,7 +54,7 @@ before), `open_door` 9.04 (7.72), `open_chest` 8.54 (7.46); `place_cube`
 from the dearest of the three stations, the mall's, on the waist's body
 (SimNotes, "The grown world"); the drawer's was a try that stopped at its
 reach, lost at the storeroom, so a pass costs more. No text the robots read moved: `prompt_sha`
-`e700aa06…` both sides (no job is a menu action, so the prompt's
+`2384a72b…` both sides (no job is a menu action, so the prompt's
 `energyCostWh` is `{}`); each offer's `estimateWh` in the turn did.
 
 **Why.** The rows were measured on 3 Nov, before the waist (#560's stage
@@ -35,7 +70,7 @@ energy, a charge before a job.
 
 ### A `withdraw` opens its gripper before the hand comes out (#669) — opens when this PR is deployed
 
-**What changed** (`prompt_sha` `0deeb7c4…` → `e700aa06…`, 63,719 → 63,915
+**What changed** (`prompt_sha` `0deeb7c4…` → `2384a72b…`, 63,719 → 64,023
 chars, 17 sections both):
 - **`withdraw` opens its hand's gripper first**, whatever the gripper says
   it holds, and gives the jaws `GRIP_S` (0.6 s) before the hand moves; one
@@ -49,10 +84,14 @@ chars, 17 sections both):
 - **A walk lets go too**: a `step`, a `drive_to`, a `face`, a `find` or a
   walk of the loop's own (a charge trip) begun with a hand out opens that
   hand's gripper as a withdraw does before the arm comes home
-  (`to_walk_routine`), and the body text says so: "Before a `step` or any
-  other walk, a hand that is out comes home, its gripper opened as
-  `withdraw` opens it: a walk carries nothing." It used to bring the arm
-  home with its gripper as it was, carrying what it held.
+  (`to_walk_routine`). It used to bring the arm home with its gripper as it
+  was, carrying what it held. A `step` asked while a gripper says it holds
+  something refuses before that, as it always has (`holding`): nothing
+  opens and nothing moves. The body text says both: "Before a `step` or
+  any other walk moves your feet, a hand that is out comes home, its
+  gripper opened as `withdraw` opens it: a walk carries nothing. A `step`
+  asked while either gripper says it holds something moves nothing, and
+  reads false."
 - No verb, argument, sensor, schema, reward, body or geometry moved, and a
   flight whose every withdraw began with its gripper open is the same
   flight (SimNotes, "Letting go before the way home": our references and the
@@ -75,6 +114,7 @@ withdraw with the jaws shut after a grip that read false.
   change what it writes?
 - ⚠ A withdraw whose gripper was not open takes 0.6 s longer: not to be
   pooled with an earlier period for a verb's or a run's time.
+
 
 ### A robot standing or walking that the other's LIDAR sees is kept off where its body stands (#675) — opens when this PR is deployed
 

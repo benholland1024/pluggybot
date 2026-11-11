@@ -274,11 +274,17 @@ def first_perception_difference(a: list[dict], b: list[dict]) -> dict | None:
     ea = [r for r in a if r["k"] == kind]
     eb = [r for r in b if r["k"] == kind]
     for x, y in zip(ea, eb):
-      key = ("img", "det") if kind == "tag" else ("h",)
+      # ...and when: a look one day took and the other did not shifts the rest
+      key = ("t", "img", "det") if kind == "tag" else ("t", "h")
       if any(x[k] != y[k] for k in key):
         return {"kind": kind, "t": x["t"], **({"imageSame": x["img"] == y["img"],
                                                 "decodeSame": x["det"] == y["det"],
                                                 "cam": x["cam"]} if kind == "tag" else {})}
+    if len(ea) != len(eb) and a and b:
+      longer = ea if len(ea) > len(eb) else eb
+      x = longer[min(len(ea), len(eb))]
+      if x["t"] <= min(a[-1]["t"], b[-1]["t"]):
+        return {"kind": kind, "t": x["t"], "onlyIn": "A" if longer is ea else "B"}
   return None
 
 
@@ -330,9 +336,17 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict) -> int:
   b = [r for r in load(out / "resumed.trace.jsonl") if r["t"] > saved]
   rep = first_divergence(a, b)
   print(f"saved at the day loop's pass at t={saved}; traces in {out}")
-  if not rep["diverged"]:
-    print(f"IDENTICAL after the restore over {rep['stepsCompared']} state samples")
+  # ...and what it sensed: a look the straight day never took moves no
+  # joint, and every restore took one until the last look was kept
+  sensed = first_perception_difference(a, b)
+  if not rep["diverged"] and sensed is None:
+    print(f"IDENTICAL after the restore over {rep['stepsCompared']} state samples "
+          f"and every look and scan")
     return 0
+  if not rep["diverged"]:
+    print(f"SENSED OTHERWISE: the state IDENTICAL over {rep['stepsCompared']} samples, "
+          f"but the first look or scan that differs is {sensed}")
+    return 1
   print(f"DIVERGED: same until t={rep['lastSameT']}, differs at {rep['firstDiffT']} "
         f"(states {rep['stateA']} / {rep['stateB']})")
   return 1

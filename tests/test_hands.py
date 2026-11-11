@@ -2269,6 +2269,19 @@ def test_an_arm_without_step_has_no_step_to_call_read_or_be_told_of():
   assert "step" in st.hand_facts().verbs and "step.dx" in st.hand_facts().sensors
 
 
+def test_a_world_that_names_no_verbs_is_told_its_vocabulary_and_no_step():
+  """#669's review: the body asked `"step" in facts.verbs`, and facts that
+  name no verbs -- None, every one of `VERBS` as `language` and
+  `describe_vocabulary` read it, the walks and no hand's -- raised
+  TypeError. Its vocabulary has no `step`, so it is told none: the walk
+  sentence goes where the verbs it is told include `step`."""
+  from dataclasses import replace
+  facts = replace(st.hand_facts(step=False), verbs=None)
+  text = mp.system_prompt(facts)
+  assert "step" not in st.language(facts) and "drive_to(" in text and "move(" in text
+  assert "step(" not in text and "`step`" not in text
+
+
 class NotesMind(Mind):
   """A mind that answers what it is asked for: a procedure, or what it
   carries on (`notes_schema`)."""
