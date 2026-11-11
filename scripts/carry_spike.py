@@ -607,6 +607,23 @@ GOAL_PATIENCE_S = 60.0
 CORNER_M = 0.75
 
 
+def before_walk(model, body, info, reading: Reading) -> dict:
+  """The switches a flight walks under, once posed: the held pieces hidden
+  from every sensor (`UNSEEN`), the walker shown its arms at rest (`BLIND`).
+  What was switched, for the row."""
+  out = {}
+  if UNSEEN:
+    from pluggybot.perception.cull import PARKED_GROUP
+    for piece, _ in info["pieces"]:
+      for g in reading.mine[piece]:
+        model.geom_group[g] = PARKED_GROUP
+    out["unseen"] = True
+  if BLIND:
+    body.mission.walker.joints = ArmsAtRest(body.mission.walker)
+    out["blind"] = True
+  return out
+
+
 def course_routine(body, course: str, reading: Reading | None, falls0: int):
   """The legs handed to the walker WITH the arms held where they are (never
   the served hand-over, which lets go and brings an arm home), then the
@@ -706,15 +723,7 @@ def fly(job) -> dict:
       row["result"] = "setup failed"
       return row
     mi = body.mission
-    if UNSEEN:
-      from pluggybot.perception.cull import PARKED_GROUP
-      for piece, _ in info["pieces"]:
-        for g in reading.mine[piece]:
-          model.geom_group[g] = PARKED_GROUP
-      row["unseen"] = True
-    if BLIND:
-      mi.walker.joints = ArmsAtRest(mi.walker)
-      row["blind"] = True
+    row.update(before_walk(model, body, info, reading))
     falls0 = mi.falls
     x0, y0, h0, _, _ = reading.pelvis()
     bx0, by0, bh0 = mi.pose
@@ -968,7 +977,8 @@ def strip(spec: str, out: str, every_s: float = 1.5) -> None:
     ImageDraw.Draw(img).text((8, 8), label[:70], fill=(255, 255, 255))
     tiles.append(img)
 
-  tile(f"{case} {course} k{k}: posed")
+  said = before_walk(model, body, info, reading)
+  tile(f"{case} {course} k{k}: posed {' '.join(said)}")
   falls0 = body.mission.falls
   routine = course_routine(body, course, reading, falls0)
   last = data.time
@@ -1004,7 +1014,8 @@ def view(spec: str) -> None:
     v.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
     v.cam.trackbodyid = model.body(hm.ROBOT_ROOT).id
     v.cam.distance, v.cam.azimuth, v.cam.elevation = 2.6, 150.0, -15.0
-    print(setup(body, model, data, info, None))
+    reading = Reading(model, data, body, info)
+    print(setup(body, model, data, info, reading), before_walk(model, body, info, reading))
     routine = course_routine(body, course, None, body.mission.falls)
     wall = time.time() - data.time
     try:
