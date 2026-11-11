@@ -93,7 +93,9 @@ PIECE = {
 #: What each case holds, (piece, side): the empty hand's arm is the plate's.
 HELD = {"none": (), "empty": ((None, "left"),), "plate": (("plate", "left"),),
         "cup": (("cup", "right"),), "both": (("plate", "left"), ("cup", "right"))}
-SQUEEZE_N = 40.0
+#: The squeeze a posed piece is shut on, N a pad (the reference's 40);
+#: `--squeeze N` another (the Dex1-1's 5-120).
+SQUEEZE_N = float(os.environ.get("CARRY_SQUEEZE", "40"))
 #: THE PINCH: where the reference's shut and lift left each piece in its
 #: jaws, the piece's frame in the grip site's (m, rotation): flown off the
 #: pedestal (`ref`'s grip; the plate's mean of draws 0, 1 and 3, 4-11 deg
@@ -695,6 +697,8 @@ def fly(job) -> dict:
   row = {"case": case, "course": course, "k": k, "load": info["load"], "kg": info.get("kg")}
   if KG is not None:
     row["kg_override"] = KG
+  if SQUEEZE_N != 40.0:
+    row["squeeze"] = SQUEEZE_N
   try:
     s = setup(body, model, data, info, reading)
     row["setup"] = s
@@ -841,8 +845,10 @@ def read(paths: list[str]) -> None:
       r["case"] += f"@{r['kg_override']:g}kg"
     if r.get("blind"):
       r["case"] += "~blind"
+    if r.get("squeeze"):
+      r["case"] += f"^{r['squeeze']:g}N"
   cases = list(dict.fromkeys(c for c0 in CASES for r in rows for c in (r["case"],)
-                             if c.split("~")[0].split("*")[0].split("@")[0] == c0))
+                             if c.split("^")[0].split("~")[0].split("*")[0].split("@")[0] == c0))
   courses = [c for c in (*COURSES, *GOALS) if any(r["course"] == c for r in rows)]
 
   def errs(r, course):
@@ -1016,7 +1022,7 @@ def view(spec: str) -> None:
 
 
 def main(argv=None) -> None:
-  global TRACE, UNSEEN, KG, BLIND
+  global TRACE, UNSEEN, KG, BLIND, SQUEEZE_N
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--fly", action="store_true")
   ap.add_argument("--cases", default=",".join(CASES))
@@ -1027,6 +1033,7 @@ def main(argv=None) -> None:
   ap.add_argument("--out", default="carry_rows.jsonl")
   ap.add_argument("--trace", default=None, help="a directory: each flight's samples, a file each")
   ap.add_argument("--kg", type=float, default=None, help="every held piece's mass, kg")
+  ap.add_argument("--squeeze", type=float, default=None, help="the posed pieces' squeeze, N")
   ap.add_argument("--blind-arms", action="store_true",
                   help="the walker shown its arms at its policy's default, still")
   ap.add_argument("--unseen", action="store_true",
@@ -1048,6 +1055,9 @@ def main(argv=None) -> None:
   if args.blind_arms:
     os.environ["CARRY_BLIND"] = "1"
     BLIND = True
+  if args.squeeze is not None:
+    os.environ["CARRY_SQUEEZE"] = str(args.squeeze)
+    SQUEEZE_N = args.squeeze
   if args.fly:
     cases, courses = args.cases.split(","), args.courses.split(",")
     for c in cases:
