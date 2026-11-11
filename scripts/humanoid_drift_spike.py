@@ -38,9 +38,10 @@ and the legs alone, through the true heading.
 `--seed` draws the IMU's offset and scale and the joints' noise: `luca` and
 `rowan` are the served pair's own (the first robot's and the second's),
 anything else a draw keyed by it. The truth is ours, read to take the
-error apart; nothing here steers off it. A fall its get-up has not stood
-from in `GETUP_WAIT_S` (40 s) ends the flight, and `--falls`' too, `stuck`,
-the rows until then kept (`stuck_guard`).
+error apart; nothing here steers off it. A fall it has not stood up from,
+`STOOD_AGAIN_S` (5 s) at a time, within `GETUP_WAIT_S` (40 s) ends the
+flight, and `--falls`' too, `stuck`, the rows until then kept
+(`stuck_guard`).
 
 #593's two scenes (SimNotes, "A robot left standing when its run ends, and a
 heading held at a standstill"): `--still` stands one humanoid still
