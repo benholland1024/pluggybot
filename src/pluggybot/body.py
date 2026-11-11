@@ -683,6 +683,14 @@ class Body(abc.ABC):
     body truly stood), "until" (`stop_hand` stopped it), "fell", "out of
     time" -- or "" where it held (#493)."""
 
+  def hand_kept(self, side: str) -> dict | None:
+    """How a hand's last `reach_routine` or `release_routine` was refused
+    for another robot's body in its arm's way (#678, a prototype): `m`
+    between the middles, `x`, `y` where that robot stands in the stance
+    frame, `home` (its way home or out), `other` (whether the other hand's
+    way there keeps off it; None where it reaches not) -- else None."""
+    return None
+
   @abc.abstractmethod
   def stop_hand(self, side: str) -> bool:
     """A hand's move stopped now and held where it is, as its own stops

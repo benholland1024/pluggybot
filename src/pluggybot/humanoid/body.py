@@ -305,6 +305,9 @@ class HumanoidBody(Body):
     #: the hands whose reach `stop_hand` stopped (#554).
     self._why: dict[str, str] = {}
     self._halted: set[str] = set()
+    #: How each hand's last reach or withdraw was refused for another
+    #: robot's body in its arm's way (#678, a prototype), else absent.
+    self._kept: dict[str, dict] = {}
     self.docked = False
     self.head_camera = handle.el(HEAD_CAMERA)
     self.collision_steps = 0
@@ -612,6 +615,8 @@ class HumanoidBody(Body):
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     self._why[side] = "out of reach"
     self._halted.discard(side)
+    self._kept.pop(side, None)
+    self.reach.keep_out = self._keep_out()
     postures = reach_.REACH_POSTURES
     if path is not None:
       # the posture the hand then follows its path in, and that one alone
@@ -628,7 +633,15 @@ class HumanoidBody(Body):
       # ...or where its approach is out of reach in that posture, in any: the
       # hand takes the path's posture once out (`Reach.carry`)
       # -- the grip asked, never half a turn round: the path's turns are its
+      kept = self.reach.kept[side]
       if path is None or not self.reach.reach(side, HandGoal(p, r, stiffness), flip=False):
+        kept = self.reach.kept[side] or kept
+        if kept is not None:
+          # every way out crosses another robot's body (#678)
+          other = "left" if side == "right" else "right"
+          self._why[side] = "kept off"
+          self._kept[side] = dict(kept, other=self.reach.clear_way(
+            other, HandGoal(p, r, stiffness)))
         return False
     falls = self.mission.falls
     for _ in range(int(round(patience / self._m.opt.timestep))):
@@ -643,6 +656,23 @@ class HumanoidBody(Body):
 
   def hand_why(self, side) -> str:
     return self._why.get(side, "")
+
+  def hand_kept(self, side) -> dict | None:
+    return self._kept.get(side)
+
+  def _keep_out(self) -> list:
+    """Every other robot standing, its soles' middle where `Body.others`
+    places it, in this one's stance frame: what a hand's way keeps off
+    (#678, a prototype; `reach.ARMS_KEEP_OFF`)."""
+    if not reach_.ARMS_KEEP_OFF:
+      return []
+    out = []
+    for b in self.mission._bodies():
+      if b.down or b.dead:
+        continue
+      q = self.to_stance((b.x, b.y, 0.0))
+      out.append((float(q[0]), float(q[1])))
+    return out
 
   def stop_hand(self, side) -> bool:
     # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a
@@ -667,6 +697,13 @@ class HumanoidBody(Body):
     for the walker, under which the standing posture never moves."""
     yield from self.mission.to_stand_routine()
     falls = self.mission.falls
+    # ...an arm whose every way home crosses another robot's body stays out,
+    # its gripper as it was (#678, a prototype)
+    self._kept.pop(side, None)
+    self.reach.keep_out = self._keep_out()
+    if self.reach.phase[side] != "rest" and not self.reach.home_clear(side):
+      self._kept[side] = dict(self.reach.kept[side])
+      return "kept off"
     if not (yield from self.mission.let_go_routine((side,))):
       return "fell"
     self.reach.retreat(side)
@@ -935,6 +972,14 @@ class HumanoidBody(Body):
     t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
     if any(self.gripped(s) for s in hm.SIDES):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
+    # ...nor with an arm out whose every way home crosses another robot's
+    # body: its walk would bring it home first (#678, a prototype)
+    self.reach.keep_out = self._keep_out()
+    for s_ in hm.SIDES:
+      if self.reach.phase[s_] != "rest" and not self.reach.home_clear(s_):
+        k = self.reach.kept[s_]
+        return {"why": "blocked", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0,
+                "keptOff": {"by": "arm", "hand": s_, "m": k["m"], "x": k["x"], "y": k["y"]}}
     walks = _step_walks(ahead, left)
     # ...nor, any of its walks heading nearer another robot it would stand
     # too near as that walk begins (`_kept_off`), turns or hands its legs

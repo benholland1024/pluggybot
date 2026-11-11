@@ -877,6 +877,27 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "out of time": "your {hand} hand did not get there in time"}
 
 
+#: ...and one whose every way crosses another robot's body (#678, a
+#: prototype; `Body.hand_kept`), by where the arm was going.
+ARM_KEPT_OFF = {
+  "reach": "your {hand} arm's way there would meet another robot's body, {m:.2f} m {where}: "
+           "no way your arm takes there keeps clear of it, so it did not go",
+  "back": "your {hand} arm could get there, but its way home from there would meet another "
+          "robot's body, {m:.2f} m {where}: no way home keeps clear of it, so it did not go",
+  "withdraw": "your {hand} arm's way home would meet another robot's body, {m:.2f} m {where}: "
+              "no way your arm takes home keeps clear of it, so it stays out where it is, "
+              "its gripper as it was",
+  "step": "your {hand} arm is out, and its way home would meet another robot's body, {m:.2f} m "
+          "{where}: a step brings your arms home first, so you did not step"}
+
+
+def _where(kept: dict) -> str:
+  """Where another robot stands, as the robot says it of its own body."""
+  a = math.degrees(math.atan2(kept["y"], kept["x"]))
+  return ("ahead of you" if abs(a) <= 45 else "on your left" if 45 < a <= 135
+          else "on your right" if -135 <= a < -45 else "behind you")
+
+
 def _reach(life, args: dict) -> Routine:
   """A hand's grip point to (x, y, z), its fingers along (fx, fy, fz) and
   its jaws closing along (jx, jy, jz) -- or at whatever turn the arm finds,
@@ -902,6 +923,13 @@ def _reach(life, args: dict) -> Routine:
     return {"ok": True, "hand": hand, "why": why, **said, "felt": felt}
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
   other = {"left": "right", "right": "left"}.get(hand)
+  kept = life.body.hand_kept(hand) if why == "kept off" else None
+  if kept is not None:
+    reason = ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
+      hand=hand, where=_where(kept), **kept)
+    reason += ({True: f"; your {other} hand's way there keeps clear of it",
+                False: f"; nor does your {other} hand's",
+                None: f"; your {other} hand does not reach it"}[kept.get("other")])
   if why == "out of reach" and rot is not None and life.body.hand_reaches(hand, place):
     # ...turned as asked; and whether the TURN is what is out of reach,
     # off the same plan (#493: a mind asked both hands for a turn neither
@@ -1055,7 +1083,9 @@ def _step(life, args: dict) -> Routine:
          **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")}}
   if rep["why"] != "stepped":
     kept = rep.get("keptOff")
-    reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
+    reason = (ARM_KEPT_OFF["step"].format(where=_where(kept), **kept)
+              if kept and kept["by"] == "arm"
+              else STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
               else STEP_WHY.get(rep["why"], "your step stopped short"))
     return {"ok": False, **out, "reason": reason}
   return {"ok": True, **out}
@@ -1087,8 +1117,10 @@ def _withdraw(life, args: dict) -> Routine:
   why, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand))
   if why == "home":
     return {"ok": True, "hand": hand, "felt": felt}
-  return {"ok": False, "hand": hand, "why": why, "felt": felt,
-          "reason": WITHDRAW_WHY.get(why, "your {hand} arm did not get home").format(hand=hand)}
+  kept = life.body.hand_kept(hand) if why == "kept off" else None
+  reason = (ARM_KEPT_OFF["withdraw"].format(hand=hand, where=_where(kept), **kept) if kept
+            else WITHDRAW_WHY.get(why, "your {hand} arm did not get home").format(hand=hand))
+  return {"ok": False, "hand": hand, "why": why, "felt": felt, "reason": reason}
 
 
 #: A hand's path, the most points (`via`): a 64-degree arc in 4-degree
