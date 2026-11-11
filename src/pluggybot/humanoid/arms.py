@@ -185,6 +185,17 @@ class SelfModel:
     mujoco.mj_kinematics(self.m, d)
     mujoco.mj_comPos(self.m, d)
 
+  def kept_state(self) -> dict:
+    """Its pose for a restart (#345): what a loop last posed it to, which
+    what is placed through it reads until that loop poses it again."""
+    return {"qpos": self.d.qpos.tolist()}
+
+  def restore_kept(self, state: dict) -> None:
+    self.d.qpos[:] = state["qpos"]
+    self.q = self.d.qpos[self.qadr].copy()
+    mujoco.mj_kinematics(self.m, self.d)
+    mujoco.mj_comPos(self.m, self.d)
+
   def _set_arm(self, side: str, q_arm: np.ndarray) -> None:
     self.q[self.arm[side]] = q_arm
     self.d.qpos[self.qadr[self.arm[side]]] = q_arm

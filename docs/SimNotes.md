@@ -3484,9 +3484,11 @@ targets and last actions, and the gains they set in the MODEL, which a
 restart compiles fresh -- its IMU's filter and its joints' and grippers'
 noise, its reach, its reckoning with its planted foot, its map, the
 camera's layer and the walls it is kept off, the scan matcher and its
-clocks. Saved at the day loop's first pass and carried on in a new process,
+clocks, and its models of itself as their loops last posed them (the
+LIDAR's band is laid through the odometry's: Webserver.md, "Parity").
+Saved at the day loop's first pass and carried on in a new process,
 its day was IDENTICAL through its whole explore (`determinism_spike.py
---world home_humanoid --resume-at 5`: 508 state samples to t = 260 s). ⚠ A
+--resume-at 1`: 509 state samples to t = 260 s, 2026-11-11). ⚠ A
 test saving on a step every controller's period divides read a fresh reach
 as a kept one: 685 steps are the reach's 5 and the policies' 10 alike, so
 the parity tests save on 687. Never saved with a hand out (`Body.working`):

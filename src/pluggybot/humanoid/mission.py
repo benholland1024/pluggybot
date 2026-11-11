@@ -600,9 +600,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "moved": [self._moved_t, self._falls_seen],
              "went": self.went_t,
              "odometry": o.kept_state(),
+             # ...and its model of itself as the odometry last posed it,
+             # which the LIDAR's band and a look are placed through
+             "selfModel": o.sm.kept_state(),
              "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
-                       "rate": kept_value(trunk.rate)},
+                       "rate": kept_value(trunk.rate), "accel": kept_value(trunk.accel)},
              "jointsRng": self.stand.joints.kept_state(),
+             "sight": None if self.sight is None else self.sight.kept_state(),
              "drivers": drivers, "torqued": torqued,
              "reach": self.reach.kept_state(),
              "frame": frame,
@@ -622,6 +626,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "match": match,
              # ...and the places it has found, with the map they are laid in
              "places": self.places.kept_state(),
+             # ...and when and where it last looked for them
+             "placeLook": self._place_look_kept(),
              # ...and the station its charge went to (#560): restarted plugged
              # in at the mall, an unplug would reach for the house's plug
              "station": self.station},
@@ -646,11 +652,18 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     # ...a save from before #675: it went at the restore, as far as anyone knows
     self.went_t = float(state.get("went", self.data.time))
     self.odo.restore_kept(state["odometry"])
+    # ...a save from before it: posed at the odometry's next tick
+    if "selfModel" in state:
+      self.odo.sm.restore_kept(state["selfModel"])
     trunk = self.stand.trunk
     trunk.imu.restore_kept(state["trunk"]["imu"])
     trunk.attitude.q = tuple(float(v) for v in state["trunk"]["q"])
     trunk.rate = value_back(state["trunk"]["rate"])
+    if "accel" in state["trunk"]:             # a save from before it: read at the next step
+      trunk.accel = value_back(state["trunk"]["accel"])
     self.stand.joints.restore_kept(state["jointsRng"])
+    if self.sight is not None and state.get("sight") is not None:
+      self.sight.restore_kept(state["sight"])
     for name, drv in (("stand", self.stand), ("walk", self.walker), ("getup", self.getup)):
       kept = state["drivers"].get(name)
       if drv is None or kept is None:
@@ -701,6 +714,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         self.matcher.restore_kept(state["match"], arrays)
     # ...the places only with the map they were laid in (#419)
     self.places.restore_kept(state.get("places") if mapped else None)
+    self._place_look_back(state.get("placeLook") if mapped else None)
     return mapped
 
   def _all_drivers(self) -> dict:
