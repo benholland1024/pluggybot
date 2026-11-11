@@ -640,7 +640,7 @@ class HumanoidBody(Body):
           # every way out crosses another robot's body (#678)
           other = "left" if side == "right" else "right"
           self._why[side] = "kept off"
-          self._kept[side] = dict(kept, other=self.reach.clear_way(
+          self._kept[side] = dict(self._kept_seen(kept), other=self.reach.clear_way(
             other, HandGoal(p, r, stiffness)))
         return False
     falls = self.mission.falls
@@ -666,13 +666,20 @@ class HumanoidBody(Body):
     (#678, a prototype; `reach.ARMS_KEEP_OFF`)."""
     if not reach_.ARMS_KEEP_OFF or not hasattr(self.mission, "_bodies"):
       return []
-    out = []
+    out, self._keep_seen = [], []
     for b in self.mission._bodies():
       if b.down or b.dead:
         continue
       q = self.to_stance((b.x, b.y, 0.0))
       out.append((float(q[0]), float(q[1])))
+      self._keep_seen.append(bool(b.seen))
     return out
+
+  def _kept_seen(self, kept: dict) -> dict:
+    """`kept` and whether the robot it names was where its LIDAR saw it."""
+    seen = getattr(self, "_keep_seen", [])
+    k = kept.get("k", 0)
+    return dict(kept, seen=bool(seen[k]) if k < len(seen) else None)
 
   def stop_hand(self, side) -> bool:
     # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a
@@ -703,7 +710,7 @@ class HumanoidBody(Body):
     self.reach.keep_out = self._keep_out()
     if (len(self.reach.keep_out) and self.reach.phase[side] != "rest"
             and not self.reach.home_clear(side)):
-      self._kept[side] = dict(self.reach.kept[side])
+      self._kept[side] = self._kept_seen(self.reach.kept[side])
       return "kept off"
     if not (yield from self.mission.let_go_routine((side,))):
       return "fell"
@@ -983,7 +990,8 @@ class HumanoidBody(Body):
               and not arms.home_clear(s_)):
         k = self.reach.kept[s_]
         return {"why": "blocked", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0,
-                "keptOff": {"by": "arm", "hand": s_, "m": k["m"], "x": k["x"], "y": k["y"]}}
+                "keptOff": {"by": "arm", "hand": s_, "m": k["m"], "x": k["x"], "y": k["y"],
+                            "seen": self._kept_seen(k)["seen"]}}
     walks = _step_walks(ahead, left)
     # ...nor, any of its walks heading nearer another robot it would stand
     # too near as that walk begins (`_kept_off`), turns or hands its legs

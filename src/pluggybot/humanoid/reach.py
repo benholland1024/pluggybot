@@ -1591,12 +1591,16 @@ class Reach:
       best = max(best, worst)
       if worst >= 0.0:
         self.kept[side] = None
+        self.__dict__.setdefault("ways_log", []).append(
+          (round(float(self.d.time), 2), side, "out" if out else "home", i, len(ways)))
         return w
     if not refuse:
       return pick
     c = np.asarray(self.keep_out, dtype=float).reshape(-1, 2)
     k = int(np.argmin(np.hypot(c[:, 0], c[:, 1])))
-    self.kept[side] = {"home": not out, "m": round(float(np.hypot(*c[k])), 2),
+    self.__dict__.setdefault("ways_log", []).append(
+      (round(float(self.d.time), 2), side, "out" if out else "home", -1, len(ways)))
+    self.kept[side] = {"home": not out, "k": k, "m": round(float(np.hypot(*c[k])), 2),
                        "x": round(float(c[k, 0]), 2), "y": round(float(c[k, 1]), 2),
                        "short": round(-best, 3), "ways": len(ways)}
     return None
