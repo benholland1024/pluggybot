@@ -188,11 +188,11 @@ class SelfModel:
   def kept_state(self) -> dict:
     """Its pose for a restart (#345): what a loop last posed it to, which
     what is placed through it reads until that loop poses it again."""
-    return {"q": self.q.tolist(), "qpos": self.d.qpos.tolist()}
+    return {"qpos": self.d.qpos.tolist()}
 
   def restore_kept(self, state: dict) -> None:
-    self.q = np.array(state["q"], dtype=float)
     self.d.qpos[:] = state["qpos"]
+    self.q = self.d.qpos[self.qadr].copy()
     mujoco.mj_kinematics(self.m, self.d)
     mujoco.mj_comPos(self.m, self.d)
 

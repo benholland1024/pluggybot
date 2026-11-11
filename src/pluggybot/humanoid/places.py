@@ -299,11 +299,11 @@ class HumanoidPlaces:
             None if at is None else [float(v) for v in at]]
 
   def _place_look_back(self, kept) -> None:
-    """`_place_look_kept` put back; a save from before it looks anew."""
-    if kept is not None:
-      t, at = kept
-      self._place_look = (-math.inf if t is None else float(t),
-                          None if at is None else tuple(float(v) for v in at))
+    """`_place_look_kept` put back; None (a save from before it, or places
+    that did not come back) looks anew."""
+    t, at = kept if kept is not None else (None, None)
+    self._place_look = (-math.inf if t is None else float(t),
+                        None if at is None else tuple(float(v) for v in at))
 
   def look_for_places(self) -> list[int]:
     """One look now: the place tags it decoded -- and its station's, if in

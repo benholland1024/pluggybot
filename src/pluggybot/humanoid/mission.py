@@ -714,7 +714,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         self.matcher.restore_kept(state["match"], arrays)
     # ...the places only with the map they were laid in (#419)
     self.places.restore_kept(state.get("places") if mapped else None)
-    self._place_look_back(state.get("placeLook"))
+    self._place_look_back(state.get("placeLook") if mapped else None)
     return mapped
 
   def _all_drivers(self) -> dict:

@@ -272,10 +272,11 @@ def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was
   each decide what comes next. Fresh after a restore, the first band was laid
   off the drawing's zero pose and the robot looked at its first step, and
   `determinism_spike.py --resume-at 1` parted 18 ms after the restore. A
-  save from before them restores."""
-  a, b = body_for(*_floor()), body_for(*_floor())
+  save from before them, or one whose places did not come back, leaves
+  them fresh, to be posed at the next tick and looked from anew."""
+  a, b, c = body_for(*_floor()), body_for(*_floor()), body_for(*_floor())
   try:
-    ma, mb = a.mission, b.mission
+    ma, mb, mc = a.mission, b.mission, c.mission
     q = np.linspace(-0.3, 0.3, len(hm.JOINT_NAMES))
     q[ma.odo.sm.waist] = 0.25
     ma.odo.sm.pose(q, np.array([0.2, 0.0, -0.98]))
@@ -289,22 +290,30 @@ def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was
     for sa, sb in ((ma.odo.sm, mb.odo.sm), (ma.reach.self_model, mb.reach.self_model)):
       assert np.array_equal(sb.q, sa.q) and np.array_equal(sb.d.qpos, sa.d.qpos)
       assert np.array_equal(sb.d.site_xpos, sa.d.site_xpos)
-    assert mb.waist_read() == ma.waist_read() != {j: 0.0 for j in hm.WAIST}
+    laid = []
+    for m in (ma, mb):
+      m.lidar.band = lambda data, level, z, joints=None: laid.append(
+        (np.asarray(level).tolist(), z, joints))
+      m._scan()
+    assert laid[0] == laid[1] and laid[1][2] != {j: 0.0 for j in hm.WAIST}, \
+      "the band laid at the height and the waist's turn the save had"
     assert mb._stance_frame() == ma._stance_frame()
     assert mb._place_look == ma._place_look
     assert mb.sight.kept_state() == ma.sight.kept_state() == {"n": 7}
     assert np.array_equal(mb.stand.trunk.accel, ma.stand.trunk.accel)
-    ma._place_look = (-math.inf, None)                  # it never looked
-    state, arrays = ma.kept_state()
-    mb.restore_kept(json.loads(json.dumps(state)), arrays)
-    assert mb._place_look == (-math.inf, None)
+    mb.restore_kept(json.loads(json.dumps(state)), {k: v for k, v in arrays.items() if k != "grid"})
+    assert mb._place_look == (-math.inf, None), "no map back, no places: it looks anew"
     old = {k: v for k, v in state.items() if k not in ("selfModel", "placeLook", "sight")}
     old["trunk"] = {k: v for k, v in state["trunk"].items() if k != "accel"}
     old["reach"] = {k: v for k, v in state["reach"].items() if k != "selfModel"}
-    mb.restore_kept(json.loads(json.dumps(old)), arrays)
+    mc.restore_kept(json.loads(json.dumps(old)), arrays)
+    for sm in (mc.odo.sm, mc.reach.self_model):
+      assert not sm.q.any(), "posed at its loop's next tick"
+    assert mc._place_look == (-math.inf, None)
+    assert mc.sight.kept_state() == {"n": 0} and mc.stand.trunk.accel is None
   finally:
-    a.close()
-    b.close()
+    for body in (a, b, c):
+      body.close()
 
 
 def test_a_dead_robot_is_still_dead_after_a_restart_and_pays_no_second_heart(tmp_path):
