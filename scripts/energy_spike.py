@@ -351,7 +351,8 @@ def main() -> None:
                        "has to cover on the current floor plan")
   ap.add_argument("--json", default=None, help="write the raw measurement here")
   ap.add_argument("--write", action="store_true",
-                  help="fold the result into src/pluggybot/economy/energy.json")
+                  help="overwrite src/pluggybot/economy/energy.json's rows it measured and its "
+                       "measuredOn note (a re-price is folded by hand, the dearer kept)")
   args = ap.parse_args()
   args.world = world_for(args.world)
 

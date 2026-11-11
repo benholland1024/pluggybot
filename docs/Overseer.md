@@ -2670,9 +2670,11 @@ HF_TOKEN=... PLUGGY_MODEL=zai-org/GLM-5.3-Flash:cheapest MUJOCO_GL=egl \
 HF_TOKEN=... MUJOCO_GL=egl uv run python scripts/two_robots.py \
     --pack hosting --tasks --overseer --fast --max-sim-time 14400
 
-# re-measure what each errand costs, after anything that changes one
-MUJOCO_GL=egl uv run python scripts/energy_spike.py \
-    --actions open_drawer,open_door,place_cube,open_chest --write
+# re-measure what each errand costs, after anything that changes one, from the
+# dearest station; fold the rows into energy.json by hand, the dearer kept
+# (`--write` overwrites them and their note)
+MUJOCO_GL=egl uv run python scripts/energy_spike.py --station station_mall \
+    --actions open_drawer,open_door,place_cube,open_chest
 
 # the latency curve and the cost of a candidate deadline; a router candidate; the local box
 HF_TOKEN=... uv run python scripts/overseer_probe.py --calls 50

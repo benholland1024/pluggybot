@@ -35,6 +35,7 @@ the odometry keeps its height and finds its planted foot on the map
 """
 
 import math
+from typing import Iterable
 
 import mujoco
 import numpy as np
@@ -401,7 +402,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       yield STILL
       self._after_step()
 
-  def let_go_routine(self, sides):
+  def let_go_routine(self, sides: Iterable[str]) -> tick.Routine:
     """Each of `sides`' grippers its own command has not open
     (`Gripper.opened`) opened, and `GRIP_S` given to the jaws standing
     still, before an arm is sent home: True, or False the step a fall comes
