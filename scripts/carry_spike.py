@@ -189,6 +189,10 @@ TRACE = os.environ.get("CARRY_TRACE")
 #: (`perception.cull.PARKED_GROUP`) once posed -- what a self-filter that
 #: drops what the hands hold would see. Off: every sensor sees them.
 UNSEEN = os.environ.get("CARRY_UNSEEN") == "1"
+#: `--blind-arms`: the walker shown every arm joint where its policy's
+#: default puts it, still (`ArmsAtRest`), whatever the arm does -- does the
+#: veer come from the arm's weight, or from inputs walk2 never trained on?
+BLIND = os.environ.get("CARRY_BLIND") == "1"
 #: `--kg X`: every held piece weighs X kg, not its draw's -- a heavier load
 #: than the table's dishware (a stack, a full bowl) for the walker's margin.
 KG = float(os.environ["CARRY_KG"]) if os.environ.get("CARRY_KG") else None
@@ -356,6 +360,8 @@ class Reading:
     self.root = model.body(hm.ROBOT_ROOT).id
     self.pieces = list(info["pieces"])
     self.rows: list = []
+    #: corners of a route the drive gave up on near enough to go on from
+    self.stalls = [0]
     self.robot = set()
     for g in range(model.ngeom):
       b = int(model.geom_bodyid[g])
@@ -412,6 +418,26 @@ class Reading:
                     "pz": float(self.d.xpos[self.pb[piece]][2]), "ptilt": self.piece_tilt(piece),
                     "held": bool(self.body.gripped(side))}
     self.rows.append(row)
+
+
+class ArmsAtRest:
+  """A walker's joint senses with its arms read where its policy's default
+  puts them and still (`--blind-arms`): the legs' and the waist's as read,
+  the same draws of the same noise."""
+
+  def __init__(self, walker):
+    self.inner = walker.joints
+    order = {n: k for k, n in enumerate(hm.JOINT_NAMES)}
+    arm = [(order[n], walker.policy.default_q[k]) for k, n in enumerate(walker.policy.joint_names)
+           if n.split("_", 1)[1] in hm.ARM]
+    self.idx = np.array([a for a, _ in arm])
+    self.rest = np.array([r for _, r in arm])
+
+  def read(self, data):
+    q, qd, tau = self.inner.read(data)
+    q, qd = q.copy(), qd.copy()
+    q[self.idx], qd[self.idx] = self.rest, 0.0
+    return q, qd, tau
 
 
 def _angle(r: np.ndarray) -> float:
@@ -569,8 +595,14 @@ def setup(body, model, data, info, reading: Reading | None) -> dict:
 #: Closed-loop courses: a goal in the frame the robot stands in at the start
 #: (ahead m, left m), walked to by the Navigator as served (`go_to_routine`:
 #: its plan, its drive, its front stop), its odometry its belief.
-GOALS = {"goto": (4.0, 0.0), "goto_round": (-2.5, 1.5)}
+GOALS = {"goto": ((4.0, 0.0),), "goto_round": ((-2.5, 1.5),),
+         # the shelf -> table 0 route's corners (`ROUTE`), in the frame of the
+         # robot facing the shelf: each walked to in turn
+         "goto_route": ((-1.85, -3.6), (-5.55, -3.6), (-5.55, 0.0), (-6.65, 0.0), (-6.65, 0.7))}
 GOAL_PATIENCE_S = 60.0
+#: A route's corner the drive gave up on within this, by its belief, m, is
+#: passed on from (`course_routine`).
+CORNER_M = 0.75
 
 
 def course_routine(body, course: str, reading: Reading | None, falls0: int):
@@ -589,23 +621,33 @@ def course_routine(body, course: str, reading: Reading | None, falls0: int):
     if reading is not None and n[0] % EVERY == 0:
       reading.sample(phase)
 
+  stalls = reading.stalls if reading is not None else [0]
   if course in GOALS:
-    gx, gy = GOALS[course]
     bx, by, bh = mi.pose
     c, s = math.cos(bh), math.sin(bh)
-    drive = body.go_to_routine(bx + c * gx - s * gy, by + s * gx + c * gy,
-                               timeout=GOAL_PATIENCE_S)
-    try:
-      command = next(drive)
-      while True:
-        command = yield command
-        tick("walk")
-        if mi.falls != falls0:
-          drive.close()
-          return "fell"
-        command = drive.send(command)
-    except StopIteration as done:
-      arrived = bool(done.value)
+    arrived = True
+    for gx, gy in GOALS[course]:
+      drive = body.go_to_routine(bx + c * gx - s * gy, by + s * gx + c * gy,
+                                 timeout=GOAL_PATIENCE_S)
+      try:
+        command = next(drive)
+        while True:
+          command = yield command
+          tick("walk")
+          if mi.falls != falls0:
+            drive.close()
+            return "fell"
+          command = drive.send(command)
+      except StopIteration as done:
+        arrived = bool(done.value)
+      if not arrived:
+        # ...a corner given up within `CORNER_M` by its belief goes on to the
+        # next: the arms-home walk stalled 0.54 m short of the route's first
+        # (the Navigator's own last half metre, its turns on the spot slow)
+        if (mi.last_drive or {}).get("shortM", math.inf) > CORNER_M:
+          break
+        stalls[0] += 1
+        arrived = True
     if mi.legs != "walk" and mi.falls == falls0:
       # ...a drive that stood still all through never took the legs
       mi.walker.last_action[:] = 0.0
@@ -632,7 +674,7 @@ def asked_end(course) -> tuple[float, float, float]:
   """Where the course ends as asked, in the frame it began in: (x m, y m,
   turn deg) -- its twists integrated, or its goal (its turn unasked: 0)."""
   if course in GOALS:
-    return (*GOALS[course], 0.0)
+    return (*GOALS[course][-1], 0.0)
   segments = COURSES[course]
   x = y = h = 0.0
   dt = 0.01
@@ -666,6 +708,9 @@ def fly(job) -> dict:
         for g in reading.mine[piece]:
           model.geom_group[g] = PARKED_GROUP
       row["unseen"] = True
+    if BLIND:
+      mi.walker.joints = ArmsAtRest(mi.walker)
+      row["blind"] = True
     falls0 = mi.falls
     x0, y0, h0, _, _ = reading.pelvis()
     bx0, by0, bh0 = mi.pose
@@ -698,6 +743,7 @@ def fly(job) -> dict:
     })
     if course in GOALS:
       row["drive"] = mi.last_drive
+      row["corners_stalled"] = reading.stalls[0]
     per = {}
     for piece, _ in info["pieces"]:
       start = reading.rows[i0 - 1][piece]
@@ -793,8 +839,10 @@ def read(paths: list[str]) -> None:
       r["case"] += "*"
     if r.get("kg_override"):
       r["case"] += f"@{r['kg_override']:g}kg"
+    if r.get("blind"):
+      r["case"] += "~blind"
   cases = list(dict.fromkeys(c for c0 in CASES for r in rows for c in (r["case"],)
-                             if c.split("*")[0].split("@")[0] == c0))
+                             if c.split("~")[0].split("*")[0].split("@")[0] == c0))
   courses = [c for c in (*COURSES, *GOALS) if any(r["course"] == c for r in rows)]
 
   def errs(r, course):
@@ -968,7 +1016,7 @@ def view(spec: str) -> None:
 
 
 def main(argv=None) -> None:
-  global TRACE, UNSEEN, KG
+  global TRACE, UNSEEN, KG, BLIND
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--fly", action="store_true")
   ap.add_argument("--cases", default=",".join(CASES))
@@ -979,6 +1027,8 @@ def main(argv=None) -> None:
   ap.add_argument("--out", default="carry_rows.jsonl")
   ap.add_argument("--trace", default=None, help="a directory: each flight's samples, a file each")
   ap.add_argument("--kg", type=float, default=None, help="every held piece's mass, kg")
+  ap.add_argument("--blind-arms", action="store_true",
+                  help="the walker shown its arms at its policy's default, still")
   ap.add_argument("--unseen", action="store_true",
                   help="the held pieces hidden from every sensor once posed (a self-filter)")
   ap.add_argument("--read", default=None)
@@ -995,6 +1045,9 @@ def main(argv=None) -> None:
   if args.kg is not None:
     os.environ["CARRY_KG"] = str(args.kg)
     KG = args.kg
+  if args.blind_arms:
+    os.environ["CARRY_BLIND"] = "1"
+    BLIND = True
   if args.fly:
     cases, courses = args.cases.split(","), args.courses.split(",")
     for c in cases:
