@@ -886,6 +886,9 @@ def _tucked_way(side: str, q0, q1) -> list[np.ndarray]:
 
 
 class Reach:
+  #: (#678's prototype) none kept off where a test builds one round `__init__`
+  keep_out: tuple = ()
+
   """The arms and grippers of one body beside its standing policy (module
   docstring). A hand's PHASE: `rest` (hanging), `move` (joint space to the
   pre-grasp, the posture walking to its plan), `approach` (a straight line
@@ -994,7 +997,7 @@ class Reach:
     end of its range. `postures` are the ones it may take, `flip` whether
     it may take the other grip."""
     plan_, goal = self._planned(side, goal, approach, postures, flip)
-    self.kept[side] = None
+    self.__dict__.setdefault("kept", {s: None for s in hm.SIDES})[side] = None
     if plan_ is None:
       return False
     posture, q_pre, _, slack = plan_

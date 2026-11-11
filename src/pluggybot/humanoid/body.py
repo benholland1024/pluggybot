@@ -664,7 +664,7 @@ class HumanoidBody(Body):
     """Every other robot standing, its soles' middle where `Body.others`
     places it, in this one's stance frame: what a hand's way keeps off
     (#678, a prototype; `reach.ARMS_KEEP_OFF`)."""
-    if not reach_.ARMS_KEEP_OFF:
+    if not reach_.ARMS_KEEP_OFF or not hasattr(self.mission, "_bodies"):
       return []
     out = []
     for b in self.mission._bodies():
@@ -701,7 +701,8 @@ class HumanoidBody(Body):
     # its gripper as it was (#678, a prototype)
     self._kept.pop(side, None)
     self.reach.keep_out = self._keep_out()
-    if self.reach.phase[side] != "rest" and not self.reach.home_clear(side):
+    if (len(self.reach.keep_out) and self.reach.phase[side] != "rest"
+            and not self.reach.home_clear(side)):
       self._kept[side] = dict(self.reach.kept[side])
       return "kept off"
     if not (yield from self.mission.let_go_routine((side,))):
@@ -974,9 +975,12 @@ class HumanoidBody(Body):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
     # ...nor with an arm out whose every way home crosses another robot's
     # body: its walk would bring it home first (#678, a prototype)
-    self.reach.keep_out = self._keep_out()
+    arms = getattr(self.mission, "reach", None)
+    if arms is not None and hasattr(arms, "kept"):
+      arms.keep_out = self._keep_out()
     for s_ in hm.SIDES:
-      if self.reach.phase[s_] != "rest" and not self.reach.home_clear(s_):
+      if (arms is not None and len(arms.keep_out) and arms.phase[s_] != "rest"
+              and not arms.home_clear(s_)):
         k = self.reach.kept[s_]
         return {"why": "blocked", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0,
                 "keptOff": {"by": "arm", "hand": s_, "m": k["m"], "x": k["x"], "y": k["y"]}}
