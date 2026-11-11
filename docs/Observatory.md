@@ -25,7 +25,8 @@ observatory is NOT a result: it reports into the issue it informs.
   --prompt`). Nothing about the verbs, the body or the house moved.
 - **Our reference passed from the tour** (SimNotes, "The cube from the
   tour"): 28 of 32 draws, its bar 24, 23 on the tree before it on the same
-  pod; 23 of 32 on draws nothing was tuned on. A try that failed reads the
+  pod; 23 of 32 on fresh draws 400-431, one of which (431) showed the
+  one-tag case the review then fixed. A try that failed reads the
   mat and the cube again. It is a reference, never shown to a mind.
 - ⚠ The rotation's `maxOffered` stays 4 with five kinds: at most four of
   them stand on the board at once.

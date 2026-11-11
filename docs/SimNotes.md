@@ -7261,7 +7261,9 @@ the house: **28 of 32 draws over the tour** (`solve.py --feature cube --from
 tour --n 32`, one pod, an AMD EPYC 7B12, osmesa, each draw its own noise; the
 bar, 24, written before it first flew), where the tree before it placed 23
 on the same pod, and the place check at set-outs 0-31 reads 20 where it read
-17. On draws nothing was tuned on, 400-431, 23 of 32. So `place_cube` is
+17. On fresh draws, 400-431, 23 of 32 (25 for round 1; draw 431's trace
+showed the one-tag case the review fixed, so they are not untouched, but
+not flattered either: 431 still failed). So `place_cube` is
 offered ("The humanoids' first jobs"): 8 minutes from the claim, three
 times its slowest pass over the tour (159 s), paying 45 (Ben's 90 for 16
 minutes, pro rata), and priced at 9.858 Wh (`energy.json`: flown on this
