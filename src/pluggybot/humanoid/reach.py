@@ -822,6 +822,10 @@ OTHER_BODY_M, OTHER_TOP_M = 0.28, 1.55
 #: The prototype's switch, for its measurement alone (`$PLUGGY_ARMS_KEEP_OFF`
 #: 0: no body is kept off).
 ARMS_KEEP_OFF = os.environ.get("PLUGGY_ARMS_KEEP_OFF", "1") != "0"
+#: ...and, at 2, a reach whose ways cross it tries the next posture that
+#: reaches, this many times (`ARMS_POSTURES`).
+ARMS_POSTURES = os.environ.get("PLUGGY_ARMS_KEEP_OFF", "1") == "2"
+POSTURE_TRIES = 12
 #: ...with this much room between it and every part of the arm, m.
 OTHER_CLEAR_M = 0.05
 #: The way drawn in: the arm's elbow bent this far, rad, before its shoulder
@@ -869,6 +873,10 @@ def room(sm: SelfModel, side: str, q0, ways, keep_out) -> float:
         worst = min(worst, float((gap - r[under, None]).min()) - OTHER_BODY_M)
     prev = w
   return worst
+
+
+def _posture(p) -> tuple:
+  return tuple(round(float(v), 6) for v in p)
 
 
 def _same_way(a, b) -> bool:
@@ -996,19 +1004,29 @@ class Reach:
     places it did with them closing to its left, its wrist's roll at the
     end of its range. `postures` are the ones it may take, `flip` whether
     it may take the other grip."""
-    plan_, goal = self._planned(side, goal, approach, postures, flip)
+    asked = goal
     self.__dict__.setdefault("kept", {s: None for s in hm.SIDES})[side] = None
-    if plan_ is None:
-      return False
-    posture, q_pre, _, slack = plan_
-    outs = self.way_out(side, q_pre, posture)
-    if outs is None:
-      # every way out crosses another robot's body (#678): nothing moves
-      return False
-    if not self._returns(side, q_pre, posture):
-      # ...nor goes where every way home from would (#678): stranded there,
-      # an arm's withdraw is refused and so is every walk's hand-over
-      self.kept[side]["back"] = True
+    tried, refused = [], None
+    for _ in range(1 + (POSTURE_TRIES if ARMS_POSTURES and len(self.keep_out) else 0)):
+      plan_, goal = self._planned(side, asked, approach,
+                                  [p for p in postures if _posture(p) not in tried], flip)
+      if plan_ is None:
+        break
+      posture, q_pre, _, slack = plan_
+      outs = self.way_out(side, q_pre, posture)
+      # every way out crosses another robot's body (#678): nothing moves --
+      # nor goes where every way home from would: stranded there, its
+      # withdraw is refused and so is every walk's hand-over
+      if outs is not None and not self._returns(side, q_pre, posture):
+        outs = None
+        self.kept[side]["back"] = True
+      if outs is not None:
+        break
+      refused = dict(self.kept[side])
+      tried.append(_posture(posture))
+    if plan_ is None or outs is None:
+      # ...another posture tried, where `ARMS_POSTURES` says so
+      self.kept[side] = refused
       return False
     self.slack[side], self.outs[side] = slack, outs
     self.hold_posture(*posture)
