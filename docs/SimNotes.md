@@ -2037,8 +2037,10 @@ counter 17 of 20 to 15, from a bow and on a bare floor every fall today's
 stood from. Four that today's stood from it did not -- shoved sideways in the
 hall, where it lies or crouches against the wall, and left or front-left at
 the chest, where it SITS on the floor: never past 60 deg, so neither stood
-nor a stuck death, the get-up holding the legs. Its head touches more often
-and strikes softer at worst (4.9 m/s from a bow, today's 6.0). Later
+nor a stuck death, the get-up holding the legs. Its head strikes in more of
+the rows (100 to today's 68), softer at worst in every table (5.4 m/s at the
+counter to today's 6.1 on a bare floor) but 1 m/s or more harder in 16 (4.9
+m/s from a bow where today's never struck). Later
 checkpoints stood more often from a side facing the face and lost the back
 beside a box on its left again. Over the garden lamp's pole (#679's note: a
 walker tripped on the plate's pad and fell with the pole between its legs)
