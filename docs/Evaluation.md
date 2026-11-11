@@ -2131,21 +2131,26 @@ and how many of those put a helper with arguments first:
   unrecorded). Rows and the readers: `~/pluggybot-training/issue-640-language/`.
 
 **The table's practice KEPT, with notes, on DeepSeek-V4.1-Flash at `low`:
-four practice set-outs, none laid, and the night's clock ended it there**
+four practice set-outs, none passed, and the night's clock ended it there**
 (#560, the night of 11-10; a partial reading). #560's open box after the
 gripper's fix (#628): the KEPT protocol with the robot's own notes
 (`practice.py --job table --acquire 0-31 --notes --held-out 32 --seed
 402613269 --early-stop`), the mind and effort of the fresh arms above, and
 their bar, written first and unchanged (26 of the 32 held-out set-outs
-within 3, no try counted that fell; each pairs with tableA, tableB,
-deepseekA and deepseekB), on `1d4bd21` (staging `b4074eb` with #676,
-#669's withdraw that opens its gripper first, the counter's jobs priced
-again and the cube offered). Since the fresh arms'
-`f7c7a94`: the language's gaps (#640), the jaws' drive (#628) and a thin
-grip (#646), `measure` seen past (#636), `step`'s small turns (#649) and a
-fall that ends a run (#671). The practice is serial, 20-30 minutes a
-set-out, and it was stopped at set-out 3's end, two short of its give-up
-(nothing kept after 6), to be read before the night's end:
+within 3, no try counted that fell; the set-outs pair by number with
+tableA's, tableB's, deepseekA's and deepseekB's), on `1d4bd21` (staging
+`b4074eb` with #676, #669's withdraw that opens its gripper first, the
+counter's jobs priced again and the cube offered). Since the fresh arms'
+`f7c7a94` the TABLE moved: its set-out stands at the served table, a top on
+legs, its south chair away (#643), and rays no longer pass through tables
+(#657). And the language's gaps (#640), the jaws' drive (#628) and a thin
+grip (#646), `measure` seen past (#636), `step`'s small turns (#649), the
+words of `pull` and `spot` (#650, #660), a readout of every name (#658) and
+a fall that ends a run (#671): so its tries compare with the fresh arms' as
+two worlds, never as one changed by a mind's notes alone. The practice is
+serial, 20-30 minutes a set-out, and it was stopped at set-out 3's end, two
+short of its give-up (nothing kept after 6), to be read before the night's
+end:
 
 | arm | practice: set-outs practiced, the try each passed at | kept | held out within 3 | pieces laid in its 20 tries | tries that fell | cost |
 |---|---|---|---|---|---|---|
@@ -2158,29 +2163,36 @@ set-out, and it was stopped at set-out 3's end, two short of its give-up
   source past the 3,000 characters, 1 for a name with a dot.
 - **Its notes carried what the body taught.** After set-out 0, 1,453
   characters: where each tag read, "Open hand before every reach (shut jaws
-  grip nothing: try1 fail)", and that a plate pinched at its rim and carried sideways
-  low pushed until its feet moved or it fell -- so lift high and move
-  slowly; by set-out 3's end, never to carry the plate across its body
+  grip nothing: try1 fail)", and that a plate pinched at its rim and carried
+  sideways low pushed until its feet moved or it fell -- so lift high and
+  move slowly; by set-out 3's end, never to carry the plate across its body
   and to slide it by short pulls instead. Grips that closed on nothing: 2,
-  in 2 of the 20 tries, where the fresh arms had 56 in 34 of 70.
-- **What failed instead: carries its feet ended, and falls.** By the first
-  thing that went wrong in each try: a fall 7, a carry its feet ended 5, a
-  tag not in view 3, a grip on nothing 2, out of reach 2 and a hand held
-  back short 1 -- falls in 7 of 20 tries (in a `move_hand` 3, a `reach` 2, a
-  `pull` and a `withdraw`), where the fresh arms fell in 7 of 70. The feet's
-  stop (the stance 5 cm from where the move began, `FEET_MOVED_M`, said "your
-  feet moved under the force") ended 1 of the fresh arms' 70 tries; here the
-  plate was gripped and carried, and the hand read 60-150 N before the stance
-  slid: a position move pressing the plate into what it met. One source of 20 stopped a move
-  on a reading (`until`); `measure` was reached once, and its near end, the
-  top running off the picture toward the robot, read none (#636). No plate
-  was laid, as in the fresh arms' 70 tries.
+  in 2 of the 20 tries, where the fresh arms had 56 in 34 of 70. From
+  set-out 3's second try every source wrote `measure` (4); one ran it, and its near end, the top
+  running off the picture toward the robot, read none (#636). One source
+  wrote a stop on a reading (`until`); it never ran.
+- **What failed instead: carries its feet ended, and falls.** #560's reader
+  (`read_arms.py`) ranks a fall before anything else: a fall 7, a carry its
+  feet ended 5, a tag not in view 3, a grip on nothing 2, out of reach 2 and
+  a hand held back short 1. In the run's own order, a fall only where nothing
+  went wrong before it: a carry its feet ended 6, out of reach 4, a tag not
+  in view 4, a fall 3, a grip on nothing 2, held back 1 -- where the fresh
+  arms' 70, in that order, were out of reach 19, a grip on nothing 19, a
+  carry that lost its piece 13, a fall 2, the feet's stop 2 and 15 others.
+  The feet's
+  stop (the stance 5 cm from where the move began, `FEET_MOVED_M`, said
+  "your feet moved under the force") fired in 7 of the 20 tries, and in 12
+  of the fresh arms' 70: in 5 of the 7 the hand read 63-148 N first, a
+  carried plate pressed on what it met, and in 2 only 8-9 N. The robot fell
+  in 7 of 20 tries (in a `move_hand` 3, a `reach` 2, a `pull` and a
+  `withdraw`), where the fresh arms fell in 7 of 70. No plate was laid, as
+  in the fresh arms' 70 tries.
 - **What it cannot say**: one KEPT arm, four practice set-outs of its 16, one
   night. Nothing was kept, so no held-out set-out flew and the bar is unread:
   this reads acquiring alone, never pooled with the fresh arms' held-out
   rows. Spend: $0.65 recorded over the 30 calls; the stop came before set-out
   4 asked its first, so nothing was in flight. Rows, the bar and the
-  reader: `~/pluggybot-training/night-shift-1110/t3-table-practice/`.
+  readers: `~/pluggybot-training/night-shift-1110/t3-table-practice/`.
 
 **What `pull` and `spot` say, read** (#650, 2026-11-08): the deployed prompt
 before the words changed (`ce973a53`) and on the text served (`0a30526b`),
