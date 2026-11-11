@@ -396,8 +396,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     budget of its own, as the quadruped's get-up has none: a body that
     cannot stand is the lifecycle's `stuck` death after `stuck_after_s`,
     whose stand-up closes the routine; a script whose lifecycle is not
-    mortal, or that has none, bounds its own run
-    (`humanoid_drift_spike.stuck_guard`)."""
+    mortal, or that has none, bounds its own run (as the drift spike's
+    `stuck_guard` does its flights)."""
     while self.legs == "getup":
       yield STILL
       self._after_step()

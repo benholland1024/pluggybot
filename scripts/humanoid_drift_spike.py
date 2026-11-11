@@ -78,6 +78,9 @@ EVERY_S = 5.0
 #: shove, and in every flight here the get-up after which it ends `stuck`
 #: (`stuck_guard`).
 GETUP_WAIT_S = 40.0
+#: ...counted from the first fall of a spell that only a stand this long
+#: ends, s: one stood shorter and down again is the same struggle.
+STOOD_AGAIN_S = 5.0
 #: The walk across the street goes to the storeroom's middle, in front of
 #: its counter (`home.storeroom`), and back to the station's standoff, each
 #: walk given this long, s.
@@ -316,18 +319,24 @@ class Stuck(MissionAborted):
   it fell and where it lies."""
 
 
-def stuck_guard(body, wait_s: float = GETUP_WAIT_S):
-  """A step hook that ends a flight once the get-up has had the legs `wait_s`
-  without standing: `Stuck`. ⚠ The loop's get-up has no budget of its own:
-  served, the `stuck` death's stand-up closes it, and this lifecycle is not
-  mortal (SimNotes, "A flight that never got up")."""
-  since: list[float | None] = [None]
+def stuck_guard(body, wait_s: float = GETUP_WAIT_S, again_s: float = STOOD_AGAIN_S):
+  """A step hook that ends a flight `wait_s` after a fall it has not got up
+  from: `Stuck`, the clock running from the spell's first fall until it has
+  stood `again_s`. ⚠ The loop's get-up has no budget of its own: served,
+  the `stuck` death's stand-up closes it, and this lifecycle is not mortal
+  (SimNotes, "A flight that never got up")."""
+  since: list[float | None] = [None]       # the spell's first fall
+  stood: list[float | None] = [None]       # ...and since when it stands
 
   def hook() -> None:
-    if body.posture != "getting_up":
-      since[0] = None
-      return
     t = float(body.data.time)
+    if body.posture != "getting_up":
+      if since[0] is not None:
+        stood[0] = t if stood[0] is None else stood[0]
+        if t - stood[0] >= again_s:
+          since[0] = stood[0] = None
+      return
+    stood[0] = None
     if since[0] is None:
       since[0] = t
     elif t - since[0] >= wait_s:
@@ -545,7 +554,8 @@ def falls(seed: str, start: str, explore_s: float, parallel: int) -> list[dict]:
     if "stuck" in r:
       s = r["stuck"]
       print(f"{r['shoveDeg']:5.0f} {s['zone']:12s} {r['falls']:4d} stuck: fell at "
-            f"t={s['fellT']:.0f} and not stood {s['t'] - s['fellT']:.0f} s on")
+            f"t={s['fellT']:.0f}, and {s['t'] - s['fellT']:.0f} s on it had not stood "
+            f"{STOOD_AGAIN_S:.0f} s")
       continue
     print(f"{r['shoveDeg']:5.0f} {r['zone']:12s} {r['falls']:4d} {r['getupS']:5.1f} "
           f"{r['moved']:6.2f} {r.get('getupMoved', float('nan')):6.2f} "
@@ -728,8 +738,9 @@ def report(run: dict) -> None:
         f"{math.degrees(run['residual'][1]):.1e} deg; falls {run['falls']}")
   stuck = run.get("stuck")
   if stuck:
-    print(f"  STUCK: fell at t={stuck['fellT']:.0f} in the {stuck['zone']} ({stuck['phase']}) "
-          f"and not stood {stuck['t'] - stuck['fellT']:.0f} s on: the flight ended there")
+    print(f"  STUCK: fell at t={stuck['fellT']:.0f} in the {stuck['zone']} ({stuck['phase']}), "
+          f"and {stuck['t'] - stuck['fellT']:.0f} s on it had not stood {STOOD_AGAIN_S:.0f} s: "
+          "the flight ended there")
   if not run["rows"]:
     return
   last = run["rows"][-1]
@@ -822,6 +833,9 @@ def table(runs: list[dict]) -> None:
   print(f"{'seed':>6s} {'from':>5s} {'deg/min':>7s} {'explore':>13s} {'worst':>13s} "
         f"{'where worst':14s} {'out / back, m and deg':44s} docked")
   for run in runs:
+    if not run["rows"]:                     # ...down before its first row
+      print(f"{run['seed']:>6s} {run['start']:>5s} no rows: stuck at t={run['stuck']['t']:.0f}")
+      continue
     worst = max(run["rows"], key=lambda r: r["errM"])
     walks = " ".join(f"{w['off'][0]:.1f}/{w['off'][1]:+.0f}" for w in run["walks"]
                      if "there" in w)

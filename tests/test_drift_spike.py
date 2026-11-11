@@ -1,12 +1,7 @@
 """A drift flight whose robot never gets up ends `stuck`, never runs on for
-good (`scripts/humanoid_drift_spike.py`, `stuck_guard`).
-
-The loop's get-up has no budget of its own (`HumanoidMission._getup_routine`):
-served, a fall it cannot get up from is the lifecycle's `stuck` death, whose
-stand-up closes the routine; the spike's lifecycle is not mortal, and a
-robot that fell round the garden lamp's pole got up for good -- 57 and 72
-minutes at full CPU on a pod, with nothing on its stdout (SimNotes, "A
-flight that never got up").
+good (`scripts/humanoid_drift_spike.py`, `stuck_guard`): the loop's get-up
+has no budget of its own, and the spike's lifecycle no `stuck` death
+(SimNotes, "A flight that never got up").
 
 Pinned without a flight (docs/Testing.md): the guard's rule by direct calls,
 and its wiring through `fly` on a body that steps nothing but a clock -- its
@@ -104,7 +99,7 @@ class Tracker:
 def test_a_get_up_not_stood_in_its_wait_ends_the_flight_and_one_stood_in_time_does_not():
   hds = _spike()
   body = Body()
-  hook = hds.stuck_guard(body, wait_s=40.0)
+  hook = hds.stuck_guard(body, wait_s=40.0, again_s=5.0)
 
   def at(t: float, posture: str) -> None:
     body.data.time, body.posture = t, posture
@@ -113,14 +108,36 @@ def test_a_get_up_not_stood_in_its_wait_ends_the_flight_and_one_stood_in_time_do
   at(10.0, "standing")
   at(11.0, "getting_up")                    # fell
   at(50.9, "getting_up")                    # 39.9 s: still waited for
-  at(51.0, "standing")                      # stood in time: forgotten
-  at(52.0, "getting_up")                    # fell again
-  at(91.9, "getting_up")
+  at(51.0, "standing")                      # stood in time...
+  at(56.0, "standing")                      # ...and stays up: forgotten
+  at(57.0, "getting_up")                    # a new fall
+  at(96.9, "getting_up")
   with pytest.raises(hds.Stuck) as stuck:
-    at(92.0, "getting_up")
-  assert stuck.value.args[0] == {"fellT": 52.0, "t": 92.0, "zone": "garden", "at": [5.4, 2.06]}
+    at(97.0, "getting_up")
+  assert stuck.value.args[0] == {"fellT": 57.0, "t": 97.0, "zone": "garden", "at": [5.4, 2.06]}
   # ...raised on the seam, so `tick.run` throws it into the routine in flight
   assert issubclass(hds.Stuck, tick.MissionAborted)
+
+
+def test_a_robot_up_and_down_again_is_one_struggle_on_one_clock():
+  """Stood shorter than `again_s` and down again, the clock runs on from
+  the first fall: a get-up that hands back for a step at a time is no
+  bound's reset."""
+  hds = _spike()
+  body = Body()
+  hook = hds.stuck_guard(body, wait_s=40.0, again_s=5.0)
+
+  def at(t: float, posture: str) -> None:
+    body.data.time, body.posture = t, posture
+    hook()
+
+  at(11.0, "getting_up")                    # fell
+  for k in range(1, 8):                     # up 1 s at a time, down again
+    at(11.0 + 5 * k, "standing")
+    at(12.0 + 5 * k, "getting_up")
+  with pytest.raises(hds.Stuck) as stuck:
+    at(51.0, "getting_up")
+  assert stuck.value.args[0]["fellT"] == 11.0
 
 
 def test_a_flight_whose_robot_never_gets_up_ends_stuck_with_what_it_flew(monkeypatch):
