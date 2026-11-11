@@ -119,17 +119,21 @@ SEARCH_M = 0.6
 SEARCH_RAD = math.radians(6.0)
 SEARCH_STEP_RAD = math.radians(1.0)
 FOUND_SHARE = 0.75
-#: ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS DOUBTED (PROTOTYPE, night
-#: shift 11-10, T5): one that held a direction with under DOUBT_HELD_SHARE
-#: of its points on walls, or any under DOUBT_SHARE, is searched as an
-#: inconsistent one is, a pose found taken only at DOUBT_FOUND_SHARE; found
-#: nothing, its correction stands and its scan is NOT fused ("doubted").
-#: MEASURED: at the storeroom's counter the side walls kept a fit `ok` 0.3-0.4
-#: m off along the counter at 40 of 40 poses, its scan laid in, and the copy
-#: kept the error for hours (Luca, 11-08, 0.58 m); doubted, 40 of 40 taken
-#: back. From the truth over the house, held fits under 0.95 were 15 of
-#: 2,306 and any fit under 0.8 32 of 7,761; found at FOUND_SHARE the stairs'
-#: map moved the truth at 11 places, at 0.9 at 3 (2 as before).
+#: ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS DOUBTED (issue #681): one
+#: that held a direction with under DOUBT_HELD_SHARE of its points on walls,
+#: or any under DOUBT_SHARE, is searched as an inconsistent one is -- and a
+#: slid one too -- a pose found taken only at DOUBT_FOUND_SHARE; found
+#: nothing, it is what it was ("doubted": the fit's correction stands and
+#: its scan is laid in, as `ok`; a slid one stays refused). MEASURED: at the
+#: storeroom's counter the side walls kept a fit `ok` 0.3-0.4 m off along
+#: the counter at 40 of 40 poses, its scan laid in, and the copy kept the
+#: error for hours (Luca, 11-08, 0.58 m); doubted, 40 of 40 taken back.
+#: From the truth over the house, held fits under 0.95 were 15 of 2,306 and
+#: any fit under 0.8 32 of 7,761; a pose found taken at FOUND_SHARE moved
+#: the truth over 0.1 m at 11 places of 7,840 (the stairs), at 0.9 at 3, the
+#: base 2. ⚠ NOT LAID IN, doubted scans starved the map of new ground: a
+#: robot walked to the mall's station 0.43 m off, the station's fix kept
+#: the map it had laid, and no walk out of there found a route.
 DOUBT_HELD_SHARE = 0.95
 DOUBT_SHARE = 0.8
 DOUBT_FOUND_SHARE = 0.9
@@ -188,12 +192,12 @@ FUSE_S = 5.0
 
 NO_STEP = (0.0, 0.0, 0.0)
 #: The verdicts that move the pose, and those whose scan may be fused
-#: (`Match.fuse`): matched, found by the search, laid at an anchor, or too
-#: little map under it to say -- never a scan whose fit slid or whose map
-#: disagreed, nor the one the wide search relocated by (the next, matched
-#: from there, is).
+#: (`Match.fuse`): matched, found by the search, doubted and found nothing
+#: better (as `ok`), laid at an anchor, or too little map under it to say --
+#: never a scan whose fit slid or whose map disagreed, nor the one the wide
+#: search relocated by (the next, matched from there, is).
 ACCEPTED = frozenset({"ok", "found", "relocated", "doubted"})
-FUSED = frozenset({"ok", "found", "anchored", "no map", "sparse", "unconstrained"})
+FUSED = frozenset({"ok", "found", "doubted", "anchored", "no map", "sparse", "unconstrained"})
 
 
 class Match(NamedTuple):
@@ -202,13 +206,14 @@ class Match(NamedTuple):
   pose: tuple[float, float, float]
   accepted: bool
   #: "ok", "found" (by the search, the fit having been inconsistent, slid or
-  #: doubted), "doubted" (the fit's correction taken, its scan not fused:
-  #: DOUBT_*), "relocated" (by the wide search, the robot lost past the
-  #: search's reach), "anchored" (not matched: laid at an anchor's belief,
-  #: ANCHORED_SCANS), or why not: "no map" (nothing mapped near), "sparse"
-  #: (fewer than MIN_INLIERS), "unconstrained" (no direction fixed), "slid"
-  #: (past MAX_STEP, and the search found nothing), "inconsistent" (the map
-  #: disagreed, and the search found nothing it agreed with).
+  #: doubted), "doubted" (the walls only partly agreed, DOUBT_*, and the
+  #: search found nothing better: as "ok"), "relocated" (by the wide
+  #: search, the robot lost past the search's reach), "anchored" (not
+  #: matched: laid at an anchor's belief, ANCHORED_SCANS), or why not: "no
+  #: map" (nothing mapped near), "sparse" (fewer than MIN_INLIERS),
+  #: "unconstrained" (no direction fixed), "slid" (past MAX_STEP, and the
+  #: search found nothing), "inconsistent" (the map disagreed, and the
+  #: search found nothing it agreed with).
   why: str
   inliers: int
   #: The inliers' RMS distance to the map at the matched pose, m.
@@ -464,7 +469,7 @@ class ScanMatcher:
       if found == "found":
         return self._done(found_at, found, **found_kw)
     if why != "inconsistent":
-      # ...doubted or slid, and nothing better near: as it was, unfused
+      # ...doubted or slid, and nothing better near: as it was
       return self._done(at, why, **kw)
     # ...and refused for long enough, the robot is lost past the search's
     # reach: search wider (LOST_RUN), and take what it finds the second time

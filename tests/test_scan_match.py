@@ -185,12 +185,14 @@ def test_a_doubted_fits_search_takes_no_place_another_explains_as_well(panelled)
   # place scored 0.95-1.00 of the search's best, and taking the best, a few
   # points ahead each time, walked the belief 5.95 m off. Here the best is
   # the place a metre behind the truth, and the truth, 0.4 m ahead of the
-  # belief, explains the scan as well: neither is taken, nor laid in.
+  # belief, explains the scan as well: neither is taken, and the fit is as
+  # it would have been -- its scan laid in, as an `ok` one is (not laid in,
+  # doubted scans starved the map of new ground on the way to the mall).
   true = (4.0, 0.75, 0.0)
   ranges = cast(PANELS, true, np.random.default_rng(3))
   guess = (true[0] - 0.4, true[1], true[2])
   got = sm.ScanMatcher(panelled).match(guess, ANGLES, ranges)
-  assert got.why == "doubted" and not got.fuse, got
+  assert got.why == "doubted" and got.accepted and got.fuse, got
   assert abs(got.pose[0] - guess[0]) < 0.05, got
 
 
