@@ -377,7 +377,10 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 - **Parity.** `scripts/determinism_spike.py --resume-at T` flies a scripted
   day straight through, then the same day saved at the first idle pass of
   the loop past T and carried on in a new process. After the restore the two
-  are IDENTICAL. The first check caught two defects. The sensors' noise
+  are IDENTICAL, in the state and in every look and scan: a look one day
+  took and the other did not moves no joint, and at `--resume-at 300` the
+  state was IDENTICAL while the restored robot looked at its first step
+  (2026-11-11, below). The first check caught two defects. The sensors' noise
   generators were re-seeded, so the first scan painted a different map and
   the route parted 3 s later. And `Task.from_json` re-priced an open offer
   at its kind's generic figure, too dear for a pack at 88 % after every
