@@ -2130,6 +2130,58 @@ and how many of those put a helper with arguments first:
   recorded over 80 calls (16 lost before any count, their tokens
   unrecorded). Rows and the readers: `~/pluggybot-training/issue-640-language/`.
 
+**The table's practice KEPT, with notes, on DeepSeek-V4.1-Flash at `low`:
+four practice set-outs, none laid, and the night's clock ended it there**
+(#560, the night of 11-10; a partial reading). #560's open box after the
+gripper's fix (#628): the KEPT protocol with the robot's own notes
+(`practice.py --job table --acquire 0-31 --notes --held-out 32 --seed
+402613269 --early-stop`), the mind and effort of the fresh arms above, and
+their bar, written first and unchanged (26 of the 32 held-out set-outs
+within 3, no try counted that fell; each pairs with tableA, tableB,
+deepseekA and deepseekB), on `1d4bd21` (staging `b4074eb` with #676,
+#669's withdraw that opens its gripper first, the counter's jobs priced
+again and the cube offered). Since the fresh arms'
+`f7c7a94`: the language's gaps (#640), the jaws' drive (#628) and a thin
+grip (#646), `measure` seen past (#636), `step`'s small turns (#649) and a
+fall that ends a run (#671). The practice is serial, 20-30 minutes a
+set-out, and it was stopped at set-out 3's end, two short of its give-up
+(nothing kept after 6), to be read before the night's end:
+
+| arm | practice: set-outs practiced, the try each passed at | kept | held out within 3 | pieces laid in its 20 tries | tries that fell | cost |
+|---|---|---|---|---|---|---|
+| keptA | 4 (0-3): none | nothing | unread | 1, a cup | 7 | $0.65 recorded |
+
+- **The mind's side held, and the language's gaps are gone**: all 30
+  calls answered, none cut or closed (a median of 30k tokens and 3.4
+  minutes a call, the most 73k and 7.6); no first answer refused, where all
+  14 of the fresh arms' were (#640), and 6 repairs, each answered: 5 for a
+  source past the 3,000 characters, 1 for a name with a dot.
+- **Its notes carried what the body taught.** After set-out 0, 1,453
+  characters: where each tag read, "Open hand before every reach (shut jaws
+  grip nothing: try1 fail)", and that a plate pinched at its rim and carried sideways
+  low pushed until its feet moved or it fell -- so lift high and move
+  slowly; by set-out 3's end, never to carry the plate across its body
+  and to slide it by short pulls instead. Grips that closed on nothing: 2,
+  in 2 of the 20 tries, where the fresh arms had 56 in 34 of 70.
+- **What failed instead: carries its feet ended, and falls.** By the first
+  thing that went wrong in each try: a fall 7, a carry its feet ended 5, a
+  tag not in view 3, a grip on nothing 2, out of reach 2 and a hand held
+  back short 1 -- falls in 7 of 20 tries (in a `move_hand` 3, a `reach` 2, a
+  `pull` and a `withdraw`), where the fresh arms fell in 7 of 70. The feet's
+  stop (the stance 5 cm from where the move began, `FEET_MOVED_M`, said "your
+  feet moved under the force") ended 1 of the fresh arms' 70 tries; here the
+  plate was gripped and carried, and the hand read 60-150 N before the stance
+  slid: a position move pressing the plate into what it met. One source of 20 stopped a move
+  on a reading (`until`); `measure` was reached once, and its near end, the
+  top running off the picture toward the robot, read none (#636). No plate
+  was laid, as in the fresh arms' 70 tries.
+- **What it cannot say**: one KEPT arm, four practice set-outs of its 16, one
+  night. Nothing was kept, so no held-out set-out flew and the bar is unread:
+  this reads acquiring alone, never pooled with the fresh arms' held-out
+  rows. Spend: $0.65 recorded over the 30 calls; the stop came before set-out
+  4 asked its first, so nothing was in flight. Rows, the bar and the
+  reader: `~/pluggybot-training/night-shift-1110/t3-table-practice/`.
+
 **What `pull` and `spot` say, read** (#650, 2026-11-08): the deployed prompt
 before the words changed (`ce973a53`) and on the text served (`0a30526b`),
 interleaved, one answer a call, every question answerable "unknown". The
