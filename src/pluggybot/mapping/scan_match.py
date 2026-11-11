@@ -133,6 +133,15 @@ FOUND_SHARE = 0.75
 DOUBT_HELD_SHARE = 0.95
 DOUBT_SHARE = 0.8
 DOUBT_FOUND_SHARE = 0.9
+#: ⚠ ...AND ITS SEARCH TAKES ONLY THE ONE PLACE IN ITS WINDOW THAT EXPLAINS
+#: THE SCAN: none UNIQUE_M or more from the best puts DOUBT_RIVAL_SHARE of
+#: the best's points on walls (each place at its best turn). MEASURED on a
+#: drift flight (seed 19 from the hall): along a sidewalk -- a wall and a
+#: fence, parallel, nothing across -- every place along it scored 0.95-1.00
+#: of the best, and the search took the best 25 times, each a few points
+#: ahead and up to 0.6 m behind the robot, until it was 5.95 m off; at the
+#: counter the rival is the alias 0.6 m east, 0.75 of the truth.
+DOUBT_RIVAL_SHARE = 0.9
 #: ⚠ A ROBOT ITS MAP KEEPS REFUSING IS LOST PAST THE SEARCH'S REACH (issue
 #: #422): after LOST_RUN scans running "inconsistent" -- any other verdict
 #: breaks the run -- and every LOST_RUN more, the search looks WIDE_M and
@@ -238,6 +247,15 @@ def _same(a, b) -> bool:
   one: within UNIQUE_M and UNIQUE_RAD of each other."""
   turned = abs(math.atan2(math.sin(a[2] - b[2]), math.cos(a[2] - b[2])))
   return math.hypot(a[0] - b[0], a[1] - b[1]) < UNIQUE_M and turned < UNIQUE_RAD
+
+
+def _rival(places: np.ndarray, shifts: np.ndarray, best_at) -> int:
+  """The most points on walls at any place, of a search's `places` (each
+  place's most at any turn, [dy, dx] over `shifts`, m), UNIQUE_M or more
+  from the best's shift `best_at` (dx, dy, dtheta); 0 if there is none."""
+  apart = np.hypot(shifts[:, None] - best_at[1], shifts[None, :] - best_at[0])
+  far = apart >= UNIQUE_M - 1e-9                # whole cells: 0.5 m reads 0.49999...
+  return int(places[far].max()) if far.any() else 0
 
 
 def _normals(field: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -438,7 +456,7 @@ class ScanMatcher:
     # pull it back, and every scan fused painted a second copy of the house.
     # Search round the prediction, fit from the best, and take it only if
     # the walls agree; else the scan is refused and NOT fused.
-    start = self._search((x0, y0, th0), pts)
+    start = self._search((x0, y0, th0), pts, unique=why != "inconsistent")
     if start is not None:
       found_at, found, found_kw = self._judge(
         (x0, y0, th0), pts, self._fit(start, pts), found=True,
@@ -514,11 +532,12 @@ class ScanMatcher:
     return fit_pose, "ok", dict(step=(dx, dy, dth), **kw)
 
   def _search(self, pose, pts: np.ndarray, reach_m: float = SEARCH_M,
-              reach_rad: float = SEARCH_RAD):
+              reach_rad: float = SEARCH_RAD, unique: bool = False):
     """The pose within `reach_m` and `reach_rad` of `pose` at which the most
     of the scan lands on a mapped wall (|d| < INLIER_M, the nearest cell):
     brute force over whole-cell shifts and SEARCH_STEP_RAD turns. None if
-    no candidate beats `pose` itself."""
+    no candidate beats `pose` itself -- or, `unique`, if a place UNIQUE_M
+    from it puts DOUBT_RIVAL_SHARE as many on walls (`_rival`)."""
     g, f = self.grid, self.field
     res = g.resolution
     on_wall = np.abs(np.nan_to_num(f, nan=np.inf)) < INLIER_M
@@ -527,6 +546,8 @@ class ScanMatcher:
     shifts = np.arange(-n, n + 1)
     x0, y0, th0 = pose
     best, best_at = -1, None
+    # each place's most at any turn, [dy, dx]: one spot turned is one place
+    places = np.zeros((len(shifts), len(shifts)), dtype=np.int64) if unique else None
     for dth in np.arange(-reach_rad, reach_rad + 1e-12, SEARCH_STEP_RAD):
       wx, wy = self._world((x0, y0, th0 + dth), pts)
       i = np.floor((wx - g.x_min) / res).astype(np.int64) - self.corner[0]
@@ -536,12 +557,16 @@ class ScanMatcher:
       inside = (ii >= 0) & (ii < w) & (jj >= 0) & (jj < h)
       hits = on_wall[np.where(inside, jj, 0), np.where(inside, ii, 0)] & inside
       score = hits.sum(axis=2)
+      if unique:
+        np.maximum(places, score, out=places)
       k = int(np.argmax(score))
       if score.flat[k] > best:
         best, best_at = int(score.flat[k]), (float(shifts[k % len(shifts)]) * res,
                                              float(shifts[k // len(shifts)]) * res, float(dth))
     here = self._on_wall_count(pose, pts, on_wall)
     if best_at is None or best <= here:
+      return None
+    if unique and _rival(places, shifts * res, best_at) >= DOUBT_RIVAL_SHARE * best:
       return None
     return (x0 + best_at[0], y0 + best_at[1], th0 + best_at[2])
 

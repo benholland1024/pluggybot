@@ -165,8 +165,33 @@ def test_a_fit_its_side_walls_hold_while_its_end_walls_disagree_is_searched(stor
   ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
   guess = (AT_COUNTER[0] + off, AT_COUNTER[1], AT_COUNTER[2])
   got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
-  assert got.accepted
+  assert got.why == "found" and got.fuse, got
   assert abs(got.pose[0] - AT_COUNTER[0]) < 0.05, got
+
+
+#: A corridor fenced in panels, both sides (#681's sidewalks; D4, the day
+#: shift of 11-11): 0.7 m of fence and a 0.3 m gap every metre, so a place a
+#: metre along explains a scan as well as the truth does.
+PANELS = [(x, y, x + 0.7, y) for x in np.arange(-30.0, 40.0) + 0.013 for y in (0.0, 1.5)]
+
+
+@pytest.fixture(scope="module")
+def panelled():
+  return mapped(PANELS, (-25, -1, 35, 3), [(x, 0.75, 0.0) for x in np.arange(-12, 20, 0.5)])
+
+
+def test_a_doubted_fits_search_takes_no_place_another_explains_as_well(panelled):
+  # MEASURED (the drift flight seed 19 from the hall): along a sidewalk every
+  # place scored 0.95-1.00 of the search's best, and taking the best, a few
+  # points ahead each time, walked the belief 5.95 m off. Here the best is
+  # the place a metre behind the truth, and the truth, 0.4 m ahead of the
+  # belief, explains the scan as well: neither is taken, nor laid in.
+  true = (4.0, 0.75, 0.0)
+  ranges = cast(PANELS, true, np.random.default_rng(3))
+  guess = (true[0] - 0.4, true[1], true[2])
+  got = sm.ScanMatcher(panelled).match(guess, ANGLES, ranges)
+  assert got.why == "doubted" and not got.fuse, got
+  assert abs(got.pose[0] - guess[0]) < 0.05, got
 
 
 def test_a_straight_corridor_held_along_is_not_doubted(corridor):
