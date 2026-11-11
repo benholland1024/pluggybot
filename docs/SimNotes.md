@@ -7276,11 +7276,18 @@ plan are the night shift's, 2026-11-11, T7).
   dropped in 8 of 20 routes of 13 m, at 80 N in none (the turn 7-8 deg, the
   same at 120 N) -- friction at the pinch, not the solver's drift, which
   ignores the force ("The grip that leaked"). The cup, held across its body,
-  slips under 1.1 cm.
+  slips under 1.1 cm on a bare floor.
+- **In the house** (`--house`: the shelf through the staff door to table 0's
+  standoff, closed loop), every carry arrives with the held piece hidden from
+  the casts (28 of 28, within 0.13 m), and 6 of 24 as served. But the cup
+  held out slid down its jaws through the longer walk and fell at a pivot in
+  2 of 8, touching nothing, sooner at 120 N than at 40: a creep that is not
+  the squeeze's, not yet diagnosed.
 
 **What is true now:** nothing served carries. Carrying needs a hand-over that
 keeps a held grip and walks the arm to a carry pose first, a self-filter for
-what a hand holds, and the plate squeezed at 80 N. walk2 as it is carries
+what a hand holds, the plate squeezed at 80 N, and the cup's creep found.
+walk2 as it is carries
 closed loop at a cost in time and a veer; a walker trained with carry poses
 held and loads at the grip is the honest fix. `carry_spike.py --view
 plate_close:route:1` watches a 0.47 kg plate held close tilt in the jaws from
