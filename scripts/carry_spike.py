@@ -42,6 +42,7 @@ On a bare floor, an arm holds a piece:
                 a grip that reads held at the carry pose; `ref` left as its
                 lift leaves it
   --walker NPZ  another walking policy (#682's stage B), walk2 unset
+  --held-drop M the self-filter's radius round a held grip (0.12 unset)
 
   scripts/carry_spike.py --fly [--cases A,B] [--courses A,B] [--draws N]
                          [--first K] [--jobs J] [--out rows.jsonl] [--trace DIR]
@@ -220,6 +221,12 @@ WALKER = os.environ.get("CARRY_WALKER")
 if WALKER:
   from pluggybot.humanoid import mission as _mission
   _mission.WALK_NPZ = Path(WALKER)
+#: `--held-drop M`: the self-filter's radius round a held grip, m
+#: (`mission.HELD_DROP_M`, Ben's "about 0.12" unset).
+HELD_DROP = os.environ.get("CARRY_HELD_DROP")
+if HELD_DROP:
+  from pluggybot.humanoid import mission as _mission2
+  _mission2.HELD_DROP_M = float(HELD_DROP)
 #: `--blind-arms`: the walker shown every arm joint where its policy's
 #: default puts it, still (`ArmsAtRest`), whatever the arm does -- does the
 #: veer come from the arm's weight, or from inputs walk2 never trained on?
@@ -860,6 +867,8 @@ def fly(job) -> dict:
       row["q_carried"] = {s_: [float(v) for v in mi.reach.q_cmd[s_]] for _, s_ in info["arms"]}
     if WALKER:
       row["walker"] = os.path.basename(WALKER)
+    if HELD_DROP:
+      row["held_drop"] = float(HELD_DROP)
     per = {}
     for piece, _ in info["pieces"]:
       start = reading.rows[i0 - 1][piece]
@@ -1164,6 +1173,8 @@ def main(argv=None) -> None:
   ap.add_argument("--served", action="store_true",
                   help="the served walk's own hand-over (#682), which carries a held grip")
   ap.add_argument("--walker", default=None, help="another walking policy's .npz")
+  ap.add_argument("--held-drop", type=float, default=None,
+                  help="the self-filter's radius round a held grip, m")
   ap.add_argument("--read", default=None)
   ap.add_argument("--poses", action="store_true")
   ap.add_argument("--strip", default=None)
@@ -1190,6 +1201,10 @@ def main(argv=None) -> None:
   if args.served:
     os.environ["CARRY_SERVED"] = "1"
     SERVED = True
+  if args.held_drop is not None:
+    os.environ["CARRY_HELD_DROP"] = str(args.held_drop)
+    from pluggybot.humanoid import mission as _m2
+    _m2.HELD_DROP_M = args.held_drop
   if args.walker:
     os.environ["CARRY_WALKER"] = str(Path(args.walker).expanduser().resolve())
     from pluggybot.humanoid import mission as _m
