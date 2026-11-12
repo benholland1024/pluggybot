@@ -282,7 +282,8 @@ KINDS: dict[str, TaskKind] = {
   "place_cube": TaskKind(
     "place_cube", task="place_cube", target_kind="cube",
     template="Put the cube on its mat -- resting on it, flat, its middle within 2.5 cm "
-             "of the mat's -- set down, never dropped, and let go of it, within "
+             "of the mat's -- set down, never coming down faster than 0.5 m/s while "
+             "nothing of yours holds it, and let go of it, within "
              "{minutes} minutes of taking this job and without falling. The cube was put "
              "back beside its mat at t={offered}, when this job was offered. It is graded "
              "5 s after you say you are done, nothing of yours touching it. No errand "

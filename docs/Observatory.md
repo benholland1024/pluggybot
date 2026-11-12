@@ -71,9 +71,12 @@ failed, no walk out of there finding a route (SimNotes).
   flown), pays 51 (Ben's 90 for 16 minutes, pro rata, as the
   table's) and costs 9.858 Wh (`energy.json`, unchanged: its reference now
   costs 8.124 from the dearest station). The robots read a new row in their
-  reward table: `prompt_sha` `2384a72b…` → `8e3c4c51…`, 64,023 → 64,492
+  reward table: `prompt_sha` `2384a72b…` → `4904a4cb…`, 64,023 → 64,556
   chars, 17 sections both, over #669's (`overseer_probe.py --deployed
-  --prompt`). Nothing about the verbs, the body or the house moved.
+  --prompt`). Its row and its job's sentence state its grader's drop rule
+  as the table's row does: while nothing of the robot's holds the cube, it
+  may not come down faster than 0.5 m/s. Nothing about the verbs, the body
+  or the house moved.
 - **Our reference passed from the tour** (SimNotes, "The cube from the
   tour"): 28 of 32 draws, its bar 24, 23 on the tree before it on the same
   pod; 23 of 32 on fresh draws 400-431, one of which (431) showed the
