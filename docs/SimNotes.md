@@ -7630,143 +7630,145 @@ stay on their walls whatever the offset along them and make half or more of
 a scan's points, so the fit is never `inconsistent` and the bounded search
 never runs; the points that would fix east-west -- the west wall 5 m behind,
 the counter's front -- lie past the field's 0.3 m reach and pull on nothing,
-so the fit holds east-west to odometry; and the scan is laid in from the
-wrong pose, a copy of the room that every later scan matches in full. Live
-(11-07/08) the store's error had a median of 0.16 m, a 90th percentile of
-0.66 and a worst of 1.04 (the lobby next door 0.05 and 0.14), in jumps kept
-for hours: Luca's +0.57 m at 09:09 on 11-08 stood 2.6 hours. Its first
-errors came from a hand's work dragging the body while no scan is taken,
-from a map laid askew on the way from the mall, and from the bounded search
-itself (the counter's front and the wall behind it are two parallel lines
-0.60 m apart, the search's own reach). A static probe at 40 poses round the
-counter, on a map laid from the true poses, kept a belief +0.3 or +0.4 m off
-at all 40 (the night shift of 11-10, T5).
+or "fix" it on points that alias (the counter's front, its props and the
+wall behind it are parallel lines, the front and the wall 0.60 m apart); and
+the scan is laid in from the wrong pose, a copy of the room that every later
+scan matches in full. Live (11-07/08) the store's error had a median of 0.16
+m, a 90th percentile of 0.66 and a worst of 1.04 (the lobby next door 0.05
+and 0.14), in jumps kept for hours: Luca's +0.57 m at 09:09 on 11-08 stood
+2.6 hours. Its errors came from a hand's work dragging the body while no
+scan is taken, from a map laid askew on the way from the mall, and from the
+bounded search itself. A static probe at 40 poses round the counter, on a
+map laid from the true poses, kept a belief +0.3 or +0.4 m off at all 40
+(the night shift of 11-10, T5).
 
 **A match the walls only partly agree with is doubted**
-(`scan_match.DOUBT_*`). One that held a direction with under 95 % of its
-points on walls, or any with under 80 %, is searched as an inconsistent one
-is -- and a slid one too -- and a pose found there is taken at 90 % on
-walls with every direction fixed. The night's prototype also left a doubted
-scan out of the map when the search found nothing. At the probe's 40 poses
-a belief +-0.3 or +-0.4 m off is taken back at all 40; from the truth across
-the house (7,840 places, a map laid true) the pose moved over 0.1 m at 3,
-all by the hall's stairs (2 before).
+(`scan_match.DOUBT_*`): one that held a direction, or whose weakest
+direction rests on under a tenth of its points (`DOUBT_WEAK_SHARE`), with
+under 95 % of its points on walls, is searched as an inconsistent one is --
+and a slid one too -- and a pose found there is taken at 90 % on walls with
+every direction fixed. Found nothing, the fit is what it was: a doubted
+scan is laid in as an `ok` one is, correction and all, and a slid one stays
+refused (left out of the map, doubted scans starved new ground: on the way
+to the mall's station 229 of ~720 never went in, the station's fix kept the
+map laid askew under `ASKEW`, and no walk out of there found a route).
+
+**Never on a fit's share alone.** The first two rounds also doubted any fit
+with under 80 % of its points on walls, and the review of 11-12 found that
+half capturing a RIGHT belief: where a copy of the room is already in the
+map, the copy's scans cleared some of the true walls' cells, a fit at the
+truth reads 0.54-0.83 on walls, and the search takes the copy, which
+explains more and is under `UNIQUE_M` from the truth (so no rival of it).
+What tells the two apart is what fixes the fit. Toward the counter, an
+error's fit is often "fixed" in every direction by the few points that
+alias, its weakest direction resting on 0.05-0.19 of its points (median
+0.075, the counter's 40 poses at 0.2-0.4 m off, a map laid true; 0.05-0.26
+on the live maps); a right belief by a copy rests its weakest on the room's
+own walls, 0.12-0.30 (Luca's live map of 11-09) and 0.17-0.30 (the tests'
+copies). Nothing else read separated them: how much more the copy's place
+explains (the truth 0.71-0.88 of the copy's count, an error 0.60-0.79 of the
+truth's), how many of the found pose's points on walls facing the
+correction sit on a wall at the kept pose too (0.44-0.66 against 0.14-0.64
+toward the counter, where its parallel lines double every wall), or rays
+passing a mapped wall. The same review's copies, read the same way (T5's
+counter probe; a right belief at 40 true poses round the counter, and
+beliefs 0.1-0.4 m off along x, one scan each):
+
+| map | right belief moved over 0.15 m: base / share doubted / now | a belief off ending within 0.15 m (of 320): base / share doubted / now |
+|---|---|---|
+| laid from true poses | 0 / 0 / 0 of 40 | 97 / 319 / 313 |
+| Luca's of 11-08 | 0 / 0 / 0 | 91 / 300 / 263 |
+| Luca's of 11-09 (copies 0.25 m apart along the counter) | 0 / 35 / 0 | 101 / 10 / 100 |
+| Rowan's of 11-09 | 0 / 0 / 0 | 82 / 319 / 301 |
+| Rowan's of 11-08 (the storeroom laid 0.57 m off whole) | 40 / 40 / 40 | 1 / 0 / 1 |
+
+On the tests' storeroom with a copy the base laid 0.3, -0.3 and 0.57 m off
+along the counter (20 minutes from 24 work poses, the band's `free_from`),
+a right belief standing 30 s at 12 work poses was moved onto the copy at
+5, 0 and 0 of 12, the base's own (the share doubted 12, 11 and 12), and
+a belief 0.3 or 0.4 m off on the room without a copy came back at
+12 of 12 each (the base none). From the truth across the house
+(7,840 places, a map laid true) 17 fits are doubted and the pose moves over
+0.1 m at 2, the hall's stairs, the base's own.
+
+**A slid fit's search is taken only within 8 cm of where the fit slid**
+(`DOUBT_SLID_M`). On Luca's map of 11-09 a belief 0.1 m off slid 0.17 m
+toward one copy of the counter and the search found the other, 0.25 m from
+it (13 poses of 40; the base refuses a slid fit, and kept the belief within
+0.15 m). Where the counter's errors slid back on a map laid true, the
+search's pose was within 0.053 m of the slide's.
 
 **...and its search takes only a place no other explains as well**
-(`DOUBT_RIVAL_SHARE`). Flown as first written, on one pod beside its base,
-the rule took back all 9 belief moves at the counter and turned the mall's
-failed drawer into a pass -- and on drift flight 19h (seed 19 from the hall)
-walked the belief 0.8 to 5.95 m off in 45 s. Along `sidewalk_east` and
-`sidewalk_2_north` -- the facility's wall and the loop's fence, parallel,
-nothing across -- fits held along the walk with 89-95 % of their points on
-walls were doubted, and the search took its best 25 times, each a few points
-ahead of the pose asked about (2-11 of ~150) and up to 0.6 m behind the
-robot: the map's far end lags the scan's reach as the robot walks into it,
-so a pose behind puts a few more far points on mapped wall. Every place
-along such a sidewalk scores 0.95-1.00 of the best; at the counter the best
-place half a metre or more from the truth scores 0.65-0.75 of it (0.75 the
-alias 0.6 m east), and the take-back beats the pose asked about by 43-52 %.
-So the doubted search refuses a best that a place `UNIQUE_M` (0.5 m) or
-more off matches at 0.9 of its points on walls, each place at its best
-turn. Replayed over 19h's matches (each rebuilt on the field it was matched
-on), its 25 takes along the sidewalks are refused and the counter's two
-kept; the probe's 320 pose-offsets read the same with the test and without
-it; from the truth across the house the pose moves over 0.1 m at 2 places,
-the base's own; and 19h flown again was 0.233 m off at its worst, and
-docked (its base 0.265 on the night's pod).
+(`DOUBT_RIVAL_SHARE`). As first written the doubt walked drift flight 19h
+(seed 19 from the hall) 0.8 to 5.95 m off in 45 s: along `sidewalk_east`
+and `sidewalk_2_north` -- the facility's wall and the loop's fence,
+parallel, nothing across -- fits held along the walk with 89-95 % of their
+points on walls were doubted, and the search took its best 25 times, each a
+few points ahead (2-11 of ~150) and up to 0.6 m behind the robot (the map's
+far end lags the scan's reach, so a pose behind puts a few more far points
+on mapped wall). Every place along such a sidewalk scores 0.95-1.00 of the
+best; at the counter the best place half a metre or more from the truth
+scores 0.65-0.75 of it. So the doubted search refuses a best that a place
+`UNIQUE_M` (0.5 m) or more off matches at 0.9 of its points on walls, each
+place at its best turn. It holds only within the window: in a corridor
+fenced in panels a metre apart, a belief 0.75 m off (the truth outside the
+±0.6 m window) was taken onto the alias a metre from the truth at 20 noise
+draws of 20, the base keeping 0.75; the served sidewalks repeat nothing.
 
-**...and a doubted scan the search found nothing better for is laid in, as
-it was.** Both ways were flown on one pod beside the base (an EPYC 9654
-engineering sample): on each, 60 drift flights, 16 walk-ins, 9 counter and 9
-mall flights and the station's 85 lost and approach trials. Five of the
-base's drift flights crawled on the host's slow processes and were stopped
-unfinished.
+**...at most once a second** (`DOUBT_EVERY`, 10 scans). A search costs
+~25 ms at 360 points where a match costs 0.5-1, and standing among
+something its map lacked, the review's robot was doubted at 600 scans of
+600 in a minute; between searches a doubted fit is laid in as it was and a
+slid one refused, as before #681.
 
-| | doubt + rival, a doubted scan laid in (served) | doubt + rival, not laid in | base |
-|---|---|---|---|
-| the counter: a belief moved +0.25/+0.4/-0.3 m after each of three jobs | 9 of 9 taken back, 0.005-0.009 m | the same | 0 of 9, 0.23-0.41 m kept |
-| the counter's jobs from each station (9) | 9 passed | 7: from the mall's station the drawer and the door failed | 9 passed |
-| drift flights against the base (55 pairs) | 48 row for row, 7 differ, each no worse at its worst | 44 row for row, 11 differ: 9 no worse, one 2 mm worse, and one fell in the garden on a walk the doubt had changed (#684's plate and pole: 0.9 m for one row, taken back by the search in 4 s) | |
-| walk-ins after an explore (16) | 16 docked | 16 | 15: from the kitchen after 240 s the walk stopped 0.3 m short with the station out of sight, 1.08 m off |
-| lost (52) and approach (33) trials | every row the base's | 52 and 33 docked, 2 rows apart by millimetres | all docked |
+**Flown** on one pod beside the base (loop-staging 2057c1a; two EPYC 9554s,
+the night of 11-12), D4's batch again, every flight a process:
 
-Every flight the doubt never fired in is the base's, row for row, either
-way. Not laid in, the scans doubted along the mall's sidewalk (229 of
-~720) never went into the map: the robot walked to the mall's station 0.43
-m off, the station's fix moved it 0.48 m and kept the map it had laid
-(under `ASKEW`), and no walk out of there found a route. The dev box told
-the other side of the same leg (it flies 19h as the night's pod did, row for
-row): the drawer from the mall's station passed both ways, 0.05 m off in the
-storeroom not laid in and 0.55 m laid in, where the night's pod had the base
-0.41 m off, and failed. So the mall's leg turns on what a fix under
-`ASKEW` keeps, whichever way the doubt goes, and the served matcher lays a
-doubted scan in: a flight then parts from the base's only where the search
-takes a pose.
+| | this round | base |
+|---|---|---|
+| the counter: a belief moved +0.25/+0.4/-0.3 m after each of three jobs | 9 of 9 taken back at the first scan, 0.005-0.009 m | 0 of 9, 0.23-0.41 m kept |
+| the counter's jobs from each station (9) | 8 passed; from the mall's station the chest failed, the robot 0.88-1.0 m off in the storeroom | the same, row for row but the mall's door (0.33 m off in the storeroom, this round 0.35-0.38; both passed) |
+| drift flights (60 pairs) | 46 row for row; of the 14 that part, 8 the same at their worst, 3 better (4-24 mm), 3 worse (4, 6 and 48 mm) | |
+| walk-ins (16), lost (52) and approach (33) trials | every row the base's | all docked |
 
-**What the review found (code-review at max, 11-12).** Three things the batch
-could not show, each read on synthetic scans:
-- **A copy already in the map captures a right belief.** The tests' storeroom
-  with a copy the base laid while its belief was 0.3-0.57 m off along the
-  counter (20 minutes from 24 work poses, the band's `free_from`): the copy's
-  scans cleared some of the true walls' cells, so a fit at the truth has
-  0.77-0.80 of its points on walls and is doubted, and the search takes the
-  copy -- under `UNIQUE_M` from the truth, so the truth is no rival of it. A
-  right belief at 12 work poses was moved onto the copy at 12, 11 and 12 of
-  12 (copies at +0.3, -0.3 and +0.57 m), the base at 5, 0 and 0. On the
-  live robots' own maps (T5's counter probe, 40 true poses round the counter,
-  the maps of the 11-08 and 11-09 saves) it is one map of four: Luca's of
-  11-09 moved a right belief 0.2 m along the counter at 35 poses of 40 (the
-  base at none), and a belief 0.1-0.4 m off ended within 0.15 m of the truth
-  at 10 of 320 (the base 101); Luca's of 11-08 and Rowan's of 11-09 kept the
-  right belief as the base did and took 300 and 319 of 320 back (the base 91
-  and 82); Rowan's of 11-08 holds the storeroom 0.57 m off whole, and both
-  go there from the truth. A station's
-  fix drops a map only past `ASKEW` (0.6 m), so a copy laid nearer than that
-  stays in a kept map until the map goes (a true death, a stand-up or a
-  `MAP_EPOCH` bump); the batch flew fresh maps. It is the full-fit doubt's
-  (`DOUBT_SHARE`): doubting held fits alone, the same 36 read as the base's
-  (5, 0 and 0), where T5's probe of the real counter took back +0.3 and
-  +0.4 m only at 26 and 15 of 40 poses (#681's call 1).
-- **The rival test holds within the window.** In the panelled corridor a
-  belief 0.75 m off along it (the truth outside the ±0.6 m window) was taken
-  onto the alias a metre from the truth at 20 of 20 noise draws, the base
-  keeping 0.75. The served sidewalks have nothing that repeats (above).
-- **A run of doubts has no bound.** A doubted or slid scan is searched, 11 ms
-  at its median in D4's flights and ~25 ms at 360 points in the review's,
-  where a match costs 0.5-1; standing among something its map lacks, the
-  review's robot was doubted at 600 scans of 600 in a minute, until its
-  field refreshed.
-- **Not doubted:** an error toward a wall whose far side was never seen. Its
-  points land on unseen cells, which are no information, so the share on
-  walls reads 0.93-1.00 and the fit is `ok` (the review's dead end mapped from
-  one side: 0.3 m toward its end kept in 44 cases of 45, away from it 18).
+The 48 mm is Luca's seed: its only doubt of the flight, walking out of the
+second garden into the research center's lobby, was searched and taken 5 cm
+from the truth, and the error the first trip laid into the storeroom's map
+read 0.24 m at rest where the base's read 0.18. The mall's leg went 0.9-1.0
+m off in the storeroom on both trees alike on this CPU (D4's pod passed it
+on both): #681's call 3, a fix under `ASKEW` keeping a map laid askew.
 
-**What is true now.** A match the walls only partly agree with is searched
-before its scan is laid in, a pose found is taken only where no other place
-in the window explains the scan as well, and found nothing, the fit is laid
-in as before, correction and all. `tests/test_scan_match.py` pins it on
-synthetic scans: a storeroom whose side walls hold while its end walls
-disagree by 0.3 m is taken back and laid in, at `DOUBT_FOUND_SHARE`'s bar; a
-corridor fenced in panels a metre apart, where the search as first written
-took the place a metre behind the truth, is left doubted, its scan laid in
-as an `ok` one is, its turn taken; a corridor with a post the map lacks, a
-tenth of the scan, is doubted (`DOUBT_HELD_SHARE`); a straight corridor held
-along is laid in; and a slid or doubted fit gets the doubt's search, an
-inconsistent one the base's. The drift rows' `matched.ok` counts no doubted
-fit: across the periods, `ok` before is `ok` + `doubted` after.
+**What is true now.** `tests/test_scan_match.py` pins it on synthetic scans:
+a storeroom whose side walls hold while its end walls disagree by 0.3 m is
+taken back and laid in, at `DOUBT_FOUND_SHARE`'s bar; the same storeroom
+with a copy laid 0.3 m along the counter, where a right belief's fit has
+under 0.8 of its points on walls and the search finds the copy, keeps the
+belief; a full fit is doubted where its weakest direction rests on under
+`DOUBT_WEAK_SHARE` of its points and not over; a slid fit's search is taken
+only within `DOUBT_SLID_M` of where it slid; a run of doubted scans is
+searched once in `DOUBT_EVERY`, the count kept across a restart; in a
+corridor fenced in panels a metre apart the search takes no place another
+explains as well, and a fit it finds nothing for keeps its own correction;
+a corridor with a post the map lacks, a tenth of the scan, is doubted
+(`DOUBT_HELD_SHARE`); a straight corridor held along is laid in; and a slid
+or doubted fit gets the doubt's search, an inconsistent one the base's. The
+drift rows' `matched.ok` counts no doubted fit: across the periods, `ok`
+before is `ok` + `doubted` after.
 
 **Not done.** A drag past the search's 0.6 m (the live 1.1 m of 13:56): the
 wide search or the station. The slow creep (0.2 m and 2 deg an hour with
 every scan matched, Rowan charging and in `DONE`): not explained. A fix
-under `ASKEW` keeps an askew map (the mall's leg, above). Copies already
-laid in the live maps go only with the map (a `MAP_EPOCH` bump, a true death
-or a stand-up: a station's fix drops a map only past `ASKEW`), and until
-then the doubt pulls a right belief onto them (above). A run of doubts
-searched scan by scan (a refused doubt remembered until the robot moves or
-the field refreshes would bound it). The base's own search, from an
+under `ASKEW` keeps an askew map (the mall's leg). An error toward a wall
+whose far side was never seen is not doubted: its points land on unseen
+cells, no information, so the fit reads 0.93-1.00 on walls (the review's
+dead end mapped from one side: 0.3 m toward its end kept in 44 cases of
+45). A copy already in a kept map goes only with the map (a true death, a
+stand-up, a `MAP_EPOCH` bump or a world whose geometry changed); it no
+longer moves a right belief the base's fit kept, and from a belief 0.2 m
+off on Luca's map of 11-09 one pose of 40 was searched onto the copy where
+the base's fit ended 0.1 m off. The base's own search, from an
 `inconsistent` fit, still takes the best of two places that explain a scan
 alike, and the doubt's beyond its window.
-
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

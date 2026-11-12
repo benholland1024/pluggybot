@@ -235,13 +235,14 @@ class Match(NamedTuple):
   accepted: bool
   #: "ok", "found" (by the search, the fit having been inconsistent, slid or
   #: doubted), "doubted" (the walls only partly agreed, DOUBT_*, and the
-  #: search found nothing better: as "ok"), "relocated" (by the wide
-  #: search, the robot lost past the search's reach), "anchored" (not
-  #: matched: laid at an anchor's belief, ANCHORED_SCANS), or why not: "no
-  #: map" (nothing mapped near), "sparse" (fewer than MIN_INLIERS),
-  #: "unconstrained" (no direction fixed), "slid" (past MAX_STEP, and the
-  #: search found nothing), "inconsistent" (the map disagreed, and the
-  #: search found nothing it agreed with).
+  #: search found nothing better or waits its DOUBT_EVERY: as "ok"),
+  #: "relocated" (by the wide search, the robot lost past the search's
+  #: reach), "anchored" (not matched: laid at an anchor's belief,
+  #: ANCHORED_SCANS), or why not: "no map" (nothing mapped near), "sparse"
+  #: (fewer than MIN_INLIERS), "unconstrained" (no direction fixed), "slid"
+  #: (past MAX_STEP, and the search found nothing where the fit slid, or
+  #: waits), "inconsistent" (the map disagreed, and the search found
+  #: nothing it agreed with).
   why: str
   inliers: int
   #: The inliers' RMS distance to the map at the matched pose, m.
@@ -495,9 +496,10 @@ class ScanMatcher:
     # pull it back, and every scan fused painted a second copy of the house.
     # Search round the prediction, fit from the best, and take it only if
     # the walls agree; else the scan is refused and NOT fused. A fit that
-    # slid or that the walls only partly agree with is searched too, its
-    # best taken only where no other place explains the scan as well, and
-    # else it is what it was: slid refused, doubted laid in as ok.
+    # slid or that the walls only partly agree with is searched too, once in
+    # DOUBT_EVERY scans, its best taken only where no other place explains
+    # the scan as well (and a slid one's only where the fit slid), and else
+    # it is what it was: slid refused, doubted laid in as ok.
     start = self._search((x0, y0, th0), pts, unique=why != "inconsistent")
     if start is not None:
       found_at, found, found_kw = self._judge(

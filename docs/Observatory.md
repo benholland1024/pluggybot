@@ -15,38 +15,45 @@ observatory is NOT a result: it reports into the issue it informs.
 **What changed is how the robots' scan matcher treats a fit the walls only
 partly agree with** (`mapping/scan_match.py`; SimNotes, "The storeroom keeps
 an error"):
-- **Doubted**: a fit that held a direction with under 95 % of its points on
-  walls, or any under 80 %, is searched (±0.6 m, ±6°) as an `inconsistent`
-  one always was, and so is one that slid; a pose found there is taken at 90
-  % on walls with every direction fixed, and only where no place half a
-  metre or more off explains the scan as well (`DOUBT_RIVAL_SHARE`). Found
-  nothing, the fit is what it was: laid in as an `ok` one is (a slid one
-  refused). A robot's day parts from the base's only where the search takes
-  a pose.
+- **Doubted**: a fit that held a direction, or whose weakest direction
+  rests on under a tenth of its points, with under 95 % of its points on
+  walls, is searched (±0.6 m, ±6°) as an `inconsistent` one always was, and
+  so is one that slid; a pose found there is taken at 90 % on walls with
+  every direction fixed, only where no place half a metre or more off
+  explains the scan as well (`DOUBT_RIVAL_SHARE`), and for a slid fit only
+  within 8 cm of where it slid. Found nothing, the fit is what it was: laid
+  in as an `ok` one is (a slid one refused). A doubt is searched at most
+  once every 10 scans. A robot's day parts from the base's only where the
+  search takes a pose.
+- **Never on a fit's share alone**: the first two rounds (never deployed)
+  also doubted any fit under 80 % on walls, and that half pulled a right
+  belief onto a copy of the storeroom already in a live map (Luca's of
+  11-09: 35 of 40 poses round the counter moved 0.2 m, the base none);
+  this round moves none there, as the base.
 - The drift rows' `matched` counts gain a verdict, `doubted`, taken out of
   `ok`: across this period's start, `ok` before is `ok` + `doubted` after
   (the protocol names none of them).
-- `MAP_EPOCH` is NOT bumped: a copy of the storeroom already laid askew in
-  a live map stays until the map goes (a true death or a stand-up: a
-  station's fix drops a map only past `ASKEW`, 0.6 m), and the doubt pulls
-  a right belief onto such a copy (SimNotes: on a synthetic counter 11-12
-  work poses of 12, the base 0-5; on Luca's live map of 11-09, 35 of 40
-  poses round the counter moved 0.2 m, the base none). Whether to bump it
-  at this deploy is #681's call 2.
-- No text the robots read moved: `prompt_sha` `4904a4cb…` both sides, 64,556
-  chars, 17 sections.
+- `MAP_EPOCH` is NOT bumped here. A deploy that carries #684's flush plate
+  changes the world's geometry fingerprint and drops both robots' maps (a
+  restart keeps no map across a changed geometry), so no copy the base laid
+  survives it; otherwise a copy goes with its map (a true death or a
+  stand-up: a station's fix drops a map only past `ASKEW`, 0.6 m), and no
+  longer moves a right belief (above).
+- No text the robots read moved: `prompt_sha` `303b3f0c…` both sides, 65,136
+  chars, 17 sections (over #678's).
 
 **Why.** #681: at the storeroom's counter the side walls kept a fit 0.3-0.4
 m off `ok`, its scan laid in, and the copy kept the error for hours (live,
 11-07/08: the store's error a median 0.16 m, 90th percentile 0.66, worst
-1.04; the lobby next door 0.05 and 0.14). Flown on one pod beside the base:
-the counter's 9 belief moves taken back (0.005-0.009 m; the base kept
-0.23-0.41), the counter's 9 jobs from the three stations passed (as the
-base's), 48 of 55 drift flights row for row and the other 7 no worse at
-their worst, 16 walk-ins of 16 docked (the base 15), the station's lost and
-approach trials the base's row for row. The prototype also left a doubted
-scan out of the map: that way two of the jobs from the mall's station
-failed, no walk out of there finding a route (SimNotes).
+1.04; the lobby next door 0.05 and 0.14). Flown on one pod beside the base
+(loop-staging): the counter's 9 belief moves taken back (0.005-0.009 m; the
+base kept 0.23-0.41), the counter's jobs from the three stations as the
+base's (8 of 9 passed on both: from the mall's station the chest failed,
+the robot 0.9-1.0 m off in the storeroom on both, #681's call 3), 46 of 60
+drift flights row for row and of the other 14, 11 the same or better at
+their worst and 3 worse by 4-48 mm, and every walk-in, lost and approach
+trial the base's row for row. On the live maps of 11-08 and 11-09 a right
+belief round the counter moves where the base's does and nowhere else.
 
 **What the period is for.**
 - **The storeroom's drift rows** against the periods before (#681 read
