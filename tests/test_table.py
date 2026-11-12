@@ -82,29 +82,37 @@ def test_the_reason_names_every_piece_at_fault_each_as_it_reads_alone():
   """#687 (D5's table practice): the reason named the first piece at fault
   alone -- the plate's, or a fall's -- and the cup's 3-6 cm went unsaid in
   every try that moved it, until the robot's notes read "CUP WORKS (placed
-  twice)". It names every piece at fault, in the criteria's order, each in
-  the words it gets alone, a rule said once over the pieces it names --
-  within History's line, a robot's settled job beside it -- and the verdict
-  is the one it was. Shown to fail on the tree before it."""
+  twice)". It names every piece at fault, once, by its first fault in the
+  criteria's order, in the words it gets alone, a rule said once over the
+  pieces it names -- within History's line, a robot's settled job beside
+  it -- and the verdict is the one it was. Shown to fail on the tree before
+  it."""
   rest = "rest on the table within 2.5 cm of where it goes"
   ok, _, why = table.eval_table(_laid(cup={"offM": 0.04}))
   assert not ok and why == f"the cup ended 4 cm from its place: it must {rest}", why
   ok, _, why = table.eval_table(_laid(plate={"offM": 0.22}, cup={"offM": 0.04}))
   assert not ok and why == ("the plate ended 22 cm from its place and the cup ended 4 cm from "
                             f"its place: each must {rest}"), why
+  # ...a dropped piece by its drop alone, the time first, a fall before all,
+  # and the touch at the hold said of a place otherwise laid, as it was
   ok, _, why = table.eval_table(_laid(
     falls=1, elapsedS=301.0, touchedDuringHold=["left_jaw_a_pad"],
     plate={"fastestFreeMS": 4.6, "offM": 1.36, "aboveM": -0.72},
     cup={"fastestFreeMS": 0.9, "tiltDeg": 40.0}, fork={"turnDeg": 30.0}))
-  # ...the touch at the hold said of a place laid alone, as it was
   assert not ok and why == (
     "you fell, and a fall fails the try -- called 301 s after the start, past the 300 s the "
     "job allows; the plate came down at 4.6 m/s and the cup came down at 0.9 m/s, each with "
     "nothing holding it -- dropped or knocked over, not set down (no faster than 0.5); the "
-    f"plate ended 136 cm from its place: it must {rest}; the cup rests at its place tipped 40 "
-    "deg: it must stand upright; the fork lies 30 deg off the place's line: it must lie along "
+    "fork lies 30 deg off the place's line: it must lie along it, its head toward the card, "
+    "within 15 deg"), why
+  # ...where a piece ended before how the others lie
+  ok, _, why = table.eval_table(_laid(plate={"tiltDeg": 30.0}, cup={"offM": 0.07},
+                                      fork={"turnDeg": 30.0}))
+  assert not ok and why == (
+    f"the cup ended 7 cm from its place: it must {rest}; the plate rests at its place tipped "
+    "30 deg: it must stand flat; the fork lies 30 deg off the place's line: it must lie along "
     "it, its head toward the card, within 15 deg"), why
-  # ...a piece at its place first by where it ended, and only then by how it lies
+  # ...and a piece away from its place not judged by how it lies
   ok, _, why = table.eval_table(_laid(plate={"offM": 0.22, "aboveM": 0.07}, cup={"offM": 0.07},
                                       fork={"offM": 0.21, "tiltDeg": 90.0, "turnDeg": 120.0}))
   assert why == ("the plate ended 22 cm from its place, 7 cm over the table, the cup ended 7 cm "

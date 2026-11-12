@@ -13,6 +13,7 @@ import mujoco
 import pytest
 
 from pluggybot.home import storeroom
+from pluggybot.procedure import axes
 from pluggybot.procedure import steps as st
 
 
@@ -60,7 +61,8 @@ def test_its_places_are_the_tags_its_world_puts_up(counter):
 def test_find_says_where_it_found_its_place_in_the_map(counter):
   """`find` of a place in view: ok at once, and `find.x`, `find.y` and
   `find.facing` read where the robot remembers it -- what a procedure walks
-  up to it by; a find that failed leaves no reading."""
+  up to it by; a find that failed leaves no reading, and reading it says
+  that find failed (#686)."""
   model, data, body = counter
 
   class Life:
@@ -75,7 +77,9 @@ def test_find_says_where_it_found_its_place_in_the_map(counter):
   assert (rep["x"], rep["y"]) == (p.x, p.y)
   assert rep["facing"] == body.places.facing(storeroom.TAGS["door"])[0]
   out = body.run(st._find(life, {"tag": 999, "x": 25.2, "y": -2.4, "patience": 1.0}))
-  assert not out["ok"] and "find" not in life.reports
+  assert not out["ok"], out
+  with pytest.raises(axes.NoReading, match="find.x has no reading: your last `find` failed"):
+    axes.SENSORS["find.x"].read(life)
 
 
 def test_places_ride_a_restart_with_the_map_and_go_at_a_true_death(counter):

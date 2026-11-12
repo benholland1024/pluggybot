@@ -33,15 +33,18 @@ Challenges.md §12):
   the call's line beside the def's name, and in another of the library's
   procedures, a line of the caller's source as that procedure's).
 - **The table's grade names every piece at fault**: `set_table`'s reason,
-  in History and on the board, and the practice's. Each piece reads as it
-  would alone, and a rule is said once over the pieces it names: "the plate
-  ended 22 cm from its place, the cup ended 8 cm from its place and the
-  fork ended 24 cm from its place: each must rest on the table within 2.5 cm
-  of where it goes", where it named the plate's alone. One piece at fault
-  reads as it did, and what still touched the place is still said only of a
-  place otherwise laid. Pass or fail is as it was: D5's 30 tries' metrics
-  replayed through it, 30 of 30, the longest History line a settled job of
-  them would leave 379 characters of 400.
+  in History and on the board, and the practice's. Each piece once, by its
+  first fault in the criteria's order -- its drop, else where it ended, how
+  it lies or the fork's turn -- in the words it would get alone, and a rule
+  said once over the pieces it names. D5's set-out 1, second try: "the
+  plate came down at 2.3 m/s with nothing holding it -- dropped or knocked
+  over, not set down (no faster than 0.5); the cup ended 8 cm from its place
+  and the fork ended 24 cm from its place: each must rest on the table
+  within 2.5 cm of where it goes", where it said the plate's drop alone. One
+  piece at fault reads as it did, and what still touched the place is still
+  said only of a place otherwise laid. Pass or fail is as it was: D5's 30
+  tries' metrics replayed through it, 30 of 30, the longest History line a
+  settled job of them would leave 340 characters of 400.
 - The prompt did not move (`prompt_sha` `4904a4cb…` both sides, 64,556
   chars, 17 sections), nor the session host's `hello` (byte for byte), the
   state, the schema, the menu, the reward table, the body or the house.

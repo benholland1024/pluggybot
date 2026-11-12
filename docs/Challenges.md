@@ -403,13 +403,13 @@ touches a piece during the hold; (4) in time; (5) no fall, the lid's (6).
 Said beside, gating nothing: whether each piece was lifted, how far each
 was off at the call, the fork's turn and the body's worst tilt.
 
-**Its reason names every piece at fault** (#687), in the criteria's order,
-each as it reads alone, a rule said once over the pieces it names: "the
-plate ended 22 cm from its place and the cup ended 4 cm from its place:
-each must rest on the table within 2.5 cm of where it goes". Named the
-first alone, it left a practicing robot's cup 3-6 cm off unsaid behind the
-plate, and the robot noted it laid. A piece away from its place is not
-judged by how it lies, nor the fork by its turn.
+**Its reason names every piece at fault** (#687), once, by its first fault
+in the criteria's order -- its drop, else where it ended, how it lies or
+the fork's turn -- in the words it gets alone, a rule said once over the
+pieces it names: "the plate ended 22 cm from its place and the cup ended 4
+cm from its place: each must rest on the table within 2.5 cm of where it
+goes". Named the first piece alone, it left a practicing robot's cup 3-6
+cm off unsaid behind the plate, and the robot noted it laid.
 
 **A drop is a FREE piece's fall, never a held one's carry**, the cube's
 line too since (§10, Ben's call): read at every step, it failed two cubes
