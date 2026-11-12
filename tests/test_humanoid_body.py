@@ -228,6 +228,17 @@ class _Homing:
     self.n, self.steps, self.sent = n, 0, False
     self.phase = {s: "rest" for s in hm.SIDES}
     self.grippers, self.log, self.at, self.on_step = grippers, log, at, on_step
+    #: ...and what a walk carries (#682): none, until `carry_q` says
+    self.carry_q = {s: None for s in hm.SIDES}
+
+  def carried(self, side) -> bool:
+    return self.phase[side] == "carried" and self.carry_q[side] is not None
+
+  def drop_carry(self, side) -> None:
+    self.carry_q[side] = None
+
+  def carry_pose(self, side):
+    return np.array([0.15, 0.25, 0.0, 2.0, -1.0, -1.0])
 
   def retreat(self, side, approach=None) -> None:
     self.sent, self.steps = True, 0
@@ -259,7 +270,7 @@ class _Out(_Homing):
 
   def retreat(self, side, approach=None) -> None:
     super().retreat(side, approach)
-    self.phase[side] = "rest"
+    self.phase[side] = "rest" if self.carry_q[side] is None else "carried"
 
   def hold_posture(self, height, pitch) -> None:
     pass

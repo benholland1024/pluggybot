@@ -174,18 +174,23 @@ GUARD_EXAMPLE_N = 15.0
 #: are fresh at its camera's rate.
 WATCHED = "; what `watch` reads, %(hz)g times a second"
 
-#: What a walk does with a hand that is out (#669: `HumanoidMission.let_go_routine`),
-#: and a `step` while a gripper says it holds something: refuses, before the
-#: hand-over that lets go (`HumanoidBody.step_routine`'s "holding") -- as a
-#: walk verb does with a hand out that could not come home (#678:
-#: `steps.ARM_KEPT_OFF`). Said in YOUR BODY where the verbs it lists give a
-#: `step`.
-WALK_LETS_GO = (" Before a `step` or any other walk moves\nyour feet, a hand that is out comes "
-                "home, its gripper opened as `withdraw`\nopens it: a walk carries nothing. A "
-                "`step` asked while either gripper says\nit holds something moves nothing, and "
-                "reads false. Nor does a `step`\nor any other walk move while a hand is out "
-                "whose every way home would\nmeet the body of another robot standing near you: "
-                "it reads false\nand says where that robot stands.")
+#: What a walk does with a hand that is out (#669: `HumanoidMission.let_go_routine`)
+#: -- and with one whose gripper says it holds something, which it CARRIES
+#: (#682: `HumanoidMission.to_walk_routine`, `Reach.CARRY_POSE`) -- and a
+#: walk refused with a hand out that could not come home, nor to its side
+#: (#678: `steps.ARM_KEPT_OFF`). Said in YOUR BODY where the verbs it lists
+#: give a `step`.
+WALK_LETS_GO = (" Before a `step` or any other walk moves your\nfeet, a hand that is out "
+                "comes home, its gripper opened as `withdraw`\nopens it -- but a hand that "
+                "is out whose gripper says it holds something\nis CARRIED: it comes back "
+                "out along the way it went in, then its arm folds\nto your side, the forearm "
+                "up and the hand at your hips, turned as it was\nagainst the floor, its "
+                "gripper still shut. The walk carries it there, says\nso in its report (`carried`; "
+                "`dropped`, any whose gripper says it holds\nnothing by the walk's end), "
+                "and it stays there after, until you reach with\nthat hand again or withdraw "
+                "it. Nor does a `step` or any other walk move\nwhile a hand is out whose "
+                "every way home -- or to your side, carried --\nwould meet the body of another "
+                "robot standing near you: it reads false and\nsays where that robot stands.")
 
 YOUR_BODY = """YOUR BODY
 

@@ -704,19 +704,28 @@ class HumanoidBody(Body):
     return self._kept.get(side)
 
   def arm_kept(self) -> dict | None:
-    # ...one look, and only with an arm out: a hand home sweeps nothing
+    # ...one look, and only with an arm out that a walk would move: a hand
+    # home, or carried at its side already (#682), sweeps nothing
     arms = self.reach
-    out = [s for s in hm.SIDES if arms.phase[s] != "rest"]
+    out = [s for s in hm.SIDES if arms.phase[s] != "rest" and not arms.carried(s)]
     if not out:
       return None
     arms.keep_out = self.mission.keep_out(self.mission.look_round())
+    if not arms.keep_out:
+      arms.keep_out = []
+      return None
     try:
+      # ...each judged to where the walk takes it: carried, its carry pose
+      carry = self.mission.carries()
       for s in out:
-        if arms.keep_out and not arms.home_clear(s):
-          return dict(arms.kept[s], hand=s)
+        if not arms.home_clear(s, carry.get(s)):
+          return dict(arms.kept[s], hand=s, **({"carried": True} if s in carry else {}))
       return None
     finally:
       arms.keep_out = []
+
+  def carrying(self, side) -> bool:
+    return self.reach.carried(side)
 
   def stop_hand(self, side) -> bool:
     # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a
@@ -747,6 +756,9 @@ class HumanoidBody(Body):
     yield from self.mission.to_stand_routine()
     falls = self.mission.falls
     self._kept.pop(side, None)
+    # ...a hand carried at its side comes home too: its way home is its rest
+    # (#682)
+    self.reach.drop_carry(side)
     try:
       # ...its way home judged against another robot its LIDAR sees, ONE look
       # as it begins (#678), before the let-go
@@ -1004,7 +1016,9 @@ class HumanoidBody(Body):
     return float(f[0]), float(f[1]), float(f[2])
 
   def step_routine(self, ahead, left=0.0, turn=0.0, patience=STEP_PATIENCE_S):
-    """THE STEP (#525): its hands home and empty, it turns `turn` on the
+    """THE STEP (#525): its hands home -- or a hand whose gripper says it
+    holds something carried at its side, the walk's hand-over's (#682,
+    `HumanoidMission.to_walk_routine`) -- it turns `turn` on the
     spot, walks `ahead` and `left` in the frame it then stands in -- one
     motion at `STEP_V` (`BACK_V` backing up), or the one and then the other
     where the walker would not walk that way (`_step_walks`) -- and stands:
@@ -1015,7 +1029,7 @@ class HumanoidBody(Body):
     ended (`why`: "stepped", "too short" -- the walk its legs reckon went
     under `STEP_LEAST_M`, asked at least that -- "turned short" -- its feet
     held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
-    "holding" -- a hand holds something, and it does not move -- "blocked"
+    "blocked"
     -- its walk got nowhere, or kept off another robot as a walk does
     (`_kept_off`, #670: then `keptOff` says how) -- "fell", "out of time"), in
     how long, and where its stance went, by its own reckoning, in the stance
@@ -1028,8 +1042,6 @@ class HumanoidBody(Body):
     yield from mi._getup_routine()
     by_legs = self._by_legs()
     t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
-    if any(self.gripped(s) for s in hm.SIDES):
-      return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
     walks = _step_walks(ahead, left)
     # ...nor, any of its walks heading nearer another robot it would stand
     # too near as that walk begins (`_kept_off`), turns or hands its legs

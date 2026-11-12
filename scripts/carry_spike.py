@@ -38,6 +38,10 @@ On a bare floor, an arm holds a piece:
                 what a self-filter dropping what the hands hold would see
   --blind-arms  the walker shown its arms at its policy's default, still
   --kg X        every held piece weighs X kg; --squeeze N  the jaws shut at N
+  --served      the served walk's own hand-over (#682's stage A), which carries
+                a grip that reads held at the carry pose; `ref` left as its
+                lift leaves it
+  --walker NPZ  another walking policy (#682's stage B), walk2 unset
 
   scripts/carry_spike.py --fly [--cases A,B] [--courses A,B] [--draws N]
                          [--first K] [--jobs J] [--out rows.jsonl] [--trace DIR]
@@ -204,6 +208,18 @@ UNSEEN = os.environ.get("CARRY_UNSEEN") == "1"
 #: courses `house_route` (below). Off: a bare floor.
 HOUSE = os.environ.get("CARRY_HOUSE") == "1"
 HOUSE_START = (26.95, -12.5, 0.0)
+#: `--served`: the legs handed over by the SERVED hand-over (#682's stage A,
+#: `HumanoidMission.to_walk_routine`), which carries a grip that reads held
+#: at the carry pose (`Reach.CARRY_POSE`) -- never this instrument's own --
+#: and, `ref`, the arm left as the reference's lift leaves it, its posture
+#: as it is: the served walk does the rest. Off: the instrument's hand-over.
+SERVED = os.environ.get("CARRY_SERVED") == "1"
+#: `--walker NPZ`: the walking policy flown (the served one, walk2, unset):
+#: #682's stage B's carrying walker beside it.
+WALKER = os.environ.get("CARRY_WALKER")
+if WALKER:
+  from pluggybot.humanoid import mission as _mission
+  _mission.WALK_NPZ = Path(WALKER)
 #: `--blind-arms`: the walker shown every arm joint where its policy's
 #: default puts it, still (`ArmsAtRest`), whatever the arm does -- does the
 #: veer come from the arm's weight, or from inputs walk2 never trained on?
@@ -566,6 +582,10 @@ def setup_ref(body, model, data, info) -> dict:
   if not body.gripped(side):
     return {**out, "why": f"lift: {out['lift']}"}
   _pedestal_away(model, data)
+  if SERVED:
+    # ...the arm as the lift left it: the served walk's hand-over carries it
+    out["ok"] = True
+    return out
   body.run(_joints_routine(mi, side, mi.reach.q_cmd[side].copy(), settle_s=0.2))
   out["stood"] = body.run(_stand_routine(mi))
   if not out["stood"]:
@@ -631,8 +651,10 @@ def setup(body, model, data, info, reading: Reading | None) -> dict:
   if not out.get("ok"):
     return out
   # ...each arm held in joint space where it is commanded: the trunk carries it
-  for _, side in info["arms"]:
-    mi.reach.set_joints(side, mi.reach.q_cmd[side].copy())
+  # (the served hand-over takes it from where it is, `SERVED`)
+  if not SERVED:
+    for _, side in info["arms"]:
+      mi.reach.set_joints(side, mi.reach.q_cmd[side].copy())
   body.run(body.hold_routine(1.0))
   out["q_arm"] = {side: [float(v) for v in mi.reach.q_cmd[side]] for _, side in info["arms"]}
   out["falls"] = int(mi.falls)
@@ -704,8 +726,9 @@ def course_routine(body, course: str, reading: Reading | None, falls0: int):
   Navigator walks to -- then still and the legs back to the stand. Returns
   how it ended."""
   mi = body.mission
-  mi.walker.last_action[:] = 0.0
-  mi.legs = "walk"
+  if not SERVED:
+    mi.walker.last_action[:] = 0.0
+    mi.legs = "walk"
   n = [0]
 
   def tick(phase: str):
@@ -831,6 +854,12 @@ def fly(job) -> dict:
     if course in GOALS:
       row["drive"] = mi.last_drive
       row["corners_stalled"] = reading.stalls[0]
+    if SERVED:
+      row["served"] = True
+      row["carried"] = {s_: bool(mi.reach.carried(s_)) for _, s_ in info["arms"]}
+      row["q_carried"] = {s_: [float(v) for v in mi.reach.q_cmd[s_]] for _, s_ in info["arms"]}
+    if WALKER:
+      row["walker"] = os.path.basename(WALKER)
     per = {}
     for piece, _ in info["pieces"]:
       start = reading.rows[i0 - 1][piece]
@@ -1112,7 +1141,7 @@ def view(spec: str) -> None:
 
 
 def main(argv=None) -> None:
-  global TRACE, UNSEEN, KG, BLIND, SQUEEZE_N, HOUSE
+  global TRACE, UNSEEN, KG, BLIND, SQUEEZE_N, HOUSE, SERVED
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--fly", action="store_true")
   ap.add_argument("--cases", default=",".join(CASES))
@@ -1130,6 +1159,9 @@ def main(argv=None) -> None:
                   help="the walker shown its arms at its policy's default, still")
   ap.add_argument("--unseen", action="store_true",
                   help="the held pieces hidden from every sensor once posed (a self-filter)")
+  ap.add_argument("--served", action="store_true",
+                  help="the served walk's own hand-over (#682), which carries a held grip")
+  ap.add_argument("--walker", default=None, help="another walking policy's .npz")
   ap.add_argument("--read", default=None)
   ap.add_argument("--poses", action="store_true")
   ap.add_argument("--strip", default=None)
@@ -1153,6 +1185,13 @@ def main(argv=None) -> None:
   if args.squeeze is not None:
     os.environ["CARRY_SQUEEZE"] = str(args.squeeze)
     SQUEEZE_N = args.squeeze
+  if args.served:
+    os.environ["CARRY_SERVED"] = "1"
+    SERVED = True
+  if args.walker:
+    os.environ["CARRY_WALKER"] = str(Path(args.walker).expanduser().resolve())
+    from pluggybot.humanoid import mission as _m
+    _m.WALK_NPZ = Path(os.environ["CARRY_WALKER"])
   if args.fly:
     cases, courses = args.cases.split(","), args.courses.split(",")
     for c in cases:

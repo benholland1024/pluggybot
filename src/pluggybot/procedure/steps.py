@@ -257,6 +257,19 @@ def _patience(life, args: dict) -> float:
   return s
 
 
+def _carried(life) -> dict:
+  """What a walk's report says of a hand it carried (#682; Ben, 2026-11-12:
+  the walk takes the carry pose itself and says so): `carried`, each hand
+  held at the side a walk carries it at -- its gripper said it held
+  something as the walk began -- and, of those, `dropped`, each whose
+  gripper says it holds nothing now. None carried, nothing said."""
+  hands = [s for s in ("left", "right") if life.body.carrying(s)]
+  if not hands:
+    return {}
+  dropped = [s for s in hands if not life.body.gripped(s)]
+  return {"carried": hands, **({"dropped": dropped} if dropped else {})}
+
+
 def _walk_stopped(life, x: float, y: float) -> dict:
   """A walk the robot's own interrupt ended (issue #381): an abort, never
   a failure -- the runners stop the program as `interrupted`."""
@@ -279,14 +292,14 @@ def _drive_to(life, args: dict) -> Routine:
   px, py, _ = life.body.pose
   short = round(math.hypot(x - px, y - py), 3)
   if arrived:
-    return {"ok": True, "shortM": short}
+    return {"ok": True, "shortM": short, **_carried(life)}
   if _stopped(life):
-    return _walk_stopped(life, x, y)
+    return {**_walk_stopped(life, x, y), **_carried(life)}
   # WHY it gave up, not only how far short (issue #350): "stopped 9.1 m
   # short of (22, 3)" was a route the planner could not make, and Rowan
   # read it as the pack -- then told Luca, and both declined the lab.
   why = life.drive_why(x, y)
-  return {"ok": False, "shortM": short, "why": why,
+  return {"ok": False, "shortM": short, "why": why, **_carried(life),
           "reason": f"did not arrive at ({x:g}, {y:g}): {why}, at ({px:.1f}, {py:.1f})"}
 
 
@@ -295,7 +308,7 @@ def _face(life, args: dict) -> Routine:
   if refused is not None:
     return refused
   squared = yield from life.body.face_routine(float(args["heading"]))
-  return {"ok": bool(squared),
+  return {"ok": bool(squared), **_carried(life),
           **({} if squared else {"reason": (
             f"did not square up to heading {float(args['heading']):.2f} rad "
             "within its time")})}
@@ -362,7 +375,7 @@ def _find(life, args: dict) -> Routine:
       else f"did not find tag {tag}: {why or 'no reason given'}")
   if rec.get("trail"):
     out["trace"] = f"find tag {tag}: {find_trace(rec)}"
-  return out
+  return {**out, **_carried(life)}
 
 
 def _walk_trace(w: dict) -> str:
@@ -945,7 +958,14 @@ ARM_KEPT_OFF = {
           "step",
   "walk": "your {hand} arm is out, and its way home would meet another robot, its middle "
           "{m:.2f} m from yours {where}: a walk brings your arms home first, so you did not "
-          "walk"}
+          "walk",
+  # ...and one a walk would carry (#682): its way to your side
+  "step carried": "your {hand} hand holds something, and its way to your side, where a step "
+                  "carries it, would meet another robot, its middle {m:.2f} m from yours "
+                  "{where}: so you did not step",
+  "walk carried": "your {hand} hand holds something, and its way to your side, where a walk "
+                  "carries it, would meet another robot, its middle {m:.2f} m from yours "
+                  "{where}: so you did not walk"}
 #: ...and, after a reach's, what the other hand's way there would do.
 OTHER_HAND_KEPT = {True: "; your {other} hand's way there keeps clear of it",
                    False: "; nor does your {other} hand's",
@@ -967,8 +987,9 @@ def _arm_out(life, walk: str) -> dict | None:
   kept = life.body.arm_kept()
   if kept is None:
     return None
+  said = ARM_KEPT_OFF[f"{walk} carried" if kept.get("carried") else walk]
   return {"ok": False, "why": "arm out", "hand": kept["hand"],
-          "reason": ARM_KEPT_OFF[walk].format(where=_where(kept), **kept)}
+          "reason": said.format(where=_where(kept), **kept)}
 
 
 def _reach(life, args: dict) -> Routine:
@@ -1127,7 +1148,6 @@ def _pull(life, args: dict) -> Routine:
 #: Why a step stopped short, as its record says it (`Body.step_routine`).
 STEP_WHY = {"too short": "your step was too short to walk",
             "turned short": "your turn stopped short of where you asked",
-            "holding": "a step carries nothing: open your hands first",
             "blocked": "your step got nowhere: something stands in your way",
             "fell": "you fell",
             "out of time": "your step ran out of time"}
@@ -1142,7 +1162,8 @@ STEP_KEPT_OFF = {
 
 
 def _step(life, args: dict) -> Routine:
-  """THE STEP (issue #525; docs/Hands.md): its hands home and empty, the
+  """THE STEP (issue #525; docs/Hands.md): its hands home -- a hand that
+  holds something carried at its side (#682) -- the
   body turns `turn` rad on the spot and walks `ahead` m and `left` m in the
   frame it then stands in, and stands -- its feet where the hands' work is. Where its stance
   went, in the stance frame it stood in before, rides `step.*` whatever
@@ -1156,7 +1177,8 @@ def _step(life, args: dict) -> Routine:
                                           float(args.get("turn", 0.0)))
   _reports(life)["step"] = {k: float(rep.get(k, 0.0)) for k in ("dx", "dy", "turn")}
   out = {"why": rep["why"], "seconds": rep.get("seconds"),
-         **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")}}
+         **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")},
+         **_carried(life)}
   if rep["why"] != "stepped":
     kept = rep.get("keptOff")
     reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
@@ -1383,7 +1405,8 @@ HANDS_VERBS: dict[str, Verb] = {
                         "turn": Arg("float", lo=-3.2, hi=3.2, default=0.0)}, _step,
                "turn `turn` rad on the spot (left, +), then walk `ahead` m and `left` m in "
                "the frame you then stand in (negative: back, right), and stand still -- your "
-               "hands home first; a step carries nothing. Your feet walk in strides, each "
+               "hands home first, but a hand that holds something carried at your side, as "
+               "every walk carries it (`carried` in its report). Your feet walk in strides, each "
                "carrying your stance about 5 cm: a walk asked under "
                f"{100 * STEP_SHORT_M:.0f} cm may take none, and a walk may stop a few cm off "
                f"what you asked. A walk asked at least {100 * STEP_LEAST_M:.0f} cm that your own "

@@ -38,9 +38,9 @@ from scipy.optimize import least_squares
 
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
-from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper, Motion,
-                                     HandGoal, SelfModel, Waist, _rot_error, kept_value,
-                                     value_back)
+from pluggybot.humanoid.arms import (RANGE_MARGIN, REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
+                                     Motion, HandGoal, SelfModel, Waist, _rot_error,
+                                     kept_value, value_back)
 from pluggybot.humanoid.policy import HEIGHT_RANGE, PITCH_RANGE, StandDriver
 
 
@@ -254,6 +254,22 @@ HOME_SAMPLE_RAD = 0.05
 HOME_RAD = 0.05
 #: The way OUT is judged so from its other end (`way_out`, #560): straight, a
 #: hanging hand at a table 13 cm out was driven into its top at 353-359 N.
+
+#: THE CARRY POSE (#682; Ben, 2026-11-12: `close`, one piece in one hand):
+#: what a walk's hand-over walks an arm to whose gripper says it holds
+#: something, in joint space, its way judged as the way home is
+#: (`way_home`), and holds it at through the walk -- the LEFT arm's shoulder
+#: pitch, roll and yaw and its elbow, rad (the right mirrors roll and yaw):
+#: the forearm folded up, the hand at the hips 0.19-0.23 m ahead. Its wrist
+#: keeps the hand turned as it was against the floor (`carry_pose`). ⚠ NEVER
+#: WHERE THE REACH LEFT IT: over the table's top, the shoulder rolled
+#: 2.5-2.9 rad, walk2 fell in 16 of 37 walks; at this pose, holding the
+#: plate or the cup, in none of 56, and its own sensors kept off the plate
+#: (SimNotes, "Carrying while walking, measured").
+CARRY_POSE = (0.15, 0.25, 0.0, 2.00)
+#: ...its wrist found on a grid this many ways in pitch and in roll, then
+#: once more this fine round the best.
+CARRY_GRID, CARRY_FINE = (33, 41), 0.1
 
 #: The postures a reach may take, in the order they are tried -- the least
 #: bent first: the pelvis's height off the stand's, m, and the trunk's
@@ -914,7 +930,9 @@ class Reach:
   in), `hold`, `pull` (the goal moved while holding), `blocked` (stopped on
   its way, `BLOCKED_M`), `carry` (a hand that is out carried on, `carry`),
   `joints` (an arm walked joint by joint, `set_joints`), `retreat` (a
-  straight line out), `home` (joint space home, its own way: `way_home`)."""
+  straight line out), `home` (joint space home, its own way: `way_home`) --
+  or, a hand a walk carries (`carry_q`), to its carry pose -- and `carried`
+  (held there, #682)."""
 
   def __init__(self, model, data, stand: StandDriver, prefix: str = "",
                key: str = "humanoid"):
@@ -1006,6 +1024,11 @@ class Reach:
     #: ...and, by side, the way home the last judgment found clear and the
     #: arm it began from (`home_clear`): the way `_go_home` then takes.
     self.judged_home: dict[str, tuple | None] = {s: None for s in hm.SIDES}
+    #: By side, the carry pose a walk's hand-over takes that arm to and
+    #: holds it at (#682, `carry_pose`) -- where its way home ends -- else
+    #: None: home is its rest. A new reach, a joint moved by hand and a
+    #: let-go end it (`drop_carry`).
+    self.carry_q: dict[str, np.ndarray | None] = {s: None for s in hm.SIDES}
 
   # ---- what a caller asks ----
 
@@ -1026,6 +1049,9 @@ class Reach:
     self.kept[side] = self.judged_home[side] = None
     if plan_ is None:
       return False
+    # ...a hand reached out again carries no longer (#682): its way home is
+    # its rest once more
+    self.carry_q[side] = None
     posture, q_pre, _, slack = plan_
     outs = self.way_out(side, q_pre, posture, refuse=refuse)
     if outs is None:
@@ -1474,9 +1500,10 @@ class Reach:
   def set_joints(self, side: str, q) -> None:
     """The arm to joint angles `q` (its six, `hm.ARM` order) in joint space
     and held there: the motor level's (`Body.ramp_routine`), its hand's
-    goal let go."""
+    goal let go, and a carry it held (#682)."""
     self.goal[side] = self.cmd[side] = None
     self.outs[side] = []
+    self.carry_q[side] = None
     self.q_to[side] = np.asarray(q, dtype=float).copy()
     self.looking[side] = False
     self.phase[side] = "joints"
@@ -1523,22 +1550,88 @@ class Reach:
     stands by (`keep_out`, #678), the way judged against its body as it
     stands and stood up (`_kept_off`): None where every way crosses it and
     `refuse`, else the one that comes least near it."""
-    return self._judged(side, self.q_cmd[side].copy(), self.rest[side].copy(), out=False,
+    return self._judged(side, self.q_cmd[side].copy(), self.home_to(side), out=False,
                         poses=(None, (0.0, 0.0, 0.0)), refuse=refuse)
 
-  def home_clear(self, side: str) -> bool:
-    """Whether some way home keeps off every other robot's body (#678),
-    judged from where it will begin (`_home_from`): False sets `kept`,
-    nothing moved; True with none by."""
+  def home_to(self, side: str, carry=None) -> np.ndarray:
+    """Where an arm's way home ends: the carry pose a walk carries it at
+    (`carry_q`, or `carry` given), else its rest."""
+    q = self.carry_q[side] if carry is None else carry
+    return (self.rest[side] if q is None else np.asarray(q, dtype=float)).copy()
+
+  def home_clear(self, side: str, carry=None) -> bool:
+    """Whether some way home -- to its carry pose, carried (`home_to`) --
+    keeps off every other robot's body (#678), judged from where it will
+    begin (`_home_from`): False sets `kept`, nothing moved; True with none
+    by."""
     self.judged_home[side] = None
     if not len(self.keep_out):
       return True
     q0 = self._home_from(side)
-    way = self._judged(side, q0, self.rest[side].copy(), out=False,
+    way = self._judged(side, q0, self.home_to(side, carry), out=False,
                        poses=(None, (0.0, 0.0, 0.0)), refuse=True)
     if way is not None:
       self.judged_home[side] = (q0, [np.asarray(w, dtype=float).copy() for w in way])
     return way is not None
+
+  def carry_pose(self, side: str) -> np.ndarray:
+    """The arm's six joints a walk carries a hand at (#682): `CARRY_POSE`'s
+    shoulder and elbow (mirrored for the right), its wrist's pitch and roll
+    the ones that keep the hand turned as it is now against the floor --
+    the floor's up in the hand's own frame as it is now, off its senses
+    (`grip_now`) -- so what it holds is kept as it is: level, lifted level.
+    ⚠ SOLVED ON THE STATUE OF THE STAND (`statue`, posture 0), where a walk
+    carries it, never the posture it holds now: solved bowed, a plate lifted
+    from a reach's 0.3 rad bow was carried 15-17 deg tipped once the trunk
+    stood up. Each joint `arms.RANGE_MARGIN` inside its range; never what
+    the hand holds, which it cannot know."""
+    _, r_now = self.grip_now(side)
+    up = r_now.T @ np.array([0.0, 0.0, 1.0])
+    sm = self._planner_model()
+    idx = sm.arm[side]
+    lo = sm.ranges[idx, 0] + RANGE_MARGIN
+    hi = sm.ranges[idx, 1] - RANGE_MARGIN
+    q = seed(side, (*CARRY_POSE, 0.0, 0.0))
+    q[:4] = np.clip(q[:4], lo[:4], hi[:4])
+    arms = self._arms()
+    arms.update({f"{side}_{j}": float(v) for j, v in zip(hm.ARM, q)})
+    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    statue(sm, (0.0, 0.0, 0.0), q0, arms=arms, fast=True)
+    wp, wr = hm.ARM.index("wrist_pitch"), hm.ARM.index("wrist_roll")
+    adr = sm.qadr[idx]
+    grip = sm.grip[side]
+
+    def off(p_: float, r_: float) -> float:
+      q[wp], q[wr] = p_, r_
+      sm.d.qpos[adr] = q
+      mujoco.mj_kinematics(sm.m, sm.d)
+      have = sm.d.site_xmat[grip].reshape(3, 3).T @ np.array([0.0, 0.0, 1.0])
+      return float(np.arccos(np.clip(have @ up, -1.0, 1.0)))
+
+    best = (math.inf, 0.0, 0.0)
+    for p_ in np.linspace(lo[wp], hi[wp], CARRY_GRID[0]):
+      for r_ in np.linspace(lo[wr], hi[wr], CARRY_GRID[1]):
+        e = off(p_, r_)
+        if e < best[0]:
+          best = (e, p_, r_)
+    _, p0, r0 = best
+    for p_ in np.linspace(max(lo[wp], p0 - CARRY_FINE), min(hi[wp], p0 + CARRY_FINE), 21):
+      for r_ in np.linspace(max(lo[wr], r0 - CARRY_FINE), min(hi[wr], r0 + CARRY_FINE), 21):
+        e = off(p_, r_)
+        if e < best[0]:
+          best = (e, p_, r_)
+    q[wp], q[wr] = best[1], best[2]
+    sm._set_arm(side, q)
+    return q.copy()
+
+  def drop_carry(self, side: str) -> None:
+    """An arm carried no longer (#682): its way home is its rest again --
+    a let-go's, a withdraw's."""
+    self.carry_q[side] = None
+
+  def carried(self, side: str) -> bool:
+    """Whether an arm is held at the carry pose a walk took it to (#682)."""
+    return self.phase[side] == "carried" and self.carry_q[side] is not None
 
   def _home_from(self, side: str) -> np.ndarray:
     """Where an arm's way home will begin (`retreat`): a hand on its line in
@@ -1783,7 +1876,7 @@ class Reach:
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
-          "allowed", "left", "looks", "looking")
+          "allowed", "left", "looks", "looking", "carry_q")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
@@ -2123,7 +2216,7 @@ class Reach:
         pulled = self.pulls[s] is not None and self.pulls[s].get("pull") is not None
         stiffness = (self._pulled if pulled else self._held)(s, dt, *have[s])
         sm._set_arm(s, self.q_cmd[s])
-      elif phase in ("rest", "move", "joints", "home"):
+      elif phase in ("rest", "move", "joints", "home", "carried"):
         there = self._joints(s, dt)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s] = 0.0
@@ -2140,7 +2233,7 @@ class Reach:
           if self.homes[s]:
             self.q_to[s] = self.homes[s].pop(0)
           else:
-            self.phase[s] = "rest"
+            self.phase[s] = "rest" if self.carry_q[s] is None else "carried"
       elif phase == "blocked":
         sm._set_arm(s, self.q_cmd[s])
         stiffness = self.cmd[s].stiffness
