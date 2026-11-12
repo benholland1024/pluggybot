@@ -1142,6 +1142,8 @@ def view(spec: str) -> None:
 
 def main(argv=None) -> None:
   global TRACE, UNSEEN, KG, BLIND, SQUEEZE_N, HOUSE, SERVED
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--fly", action="store_true")
   ap.add_argument("--cases", default=",".join(CASES))

@@ -940,14 +940,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       return None
     sm = self.odo.sm
     d = sm.d
-    rot = np.zeros(9)
-    mujoco.mju_quat2Mat(rot, d.qpos[3:7])
+    rot, root = d.xmat[sm.root], d.xpos[sm.root]
     yaw = math.atan2(rot[3], rot[0])
     c, s_ = math.cos(yaw), math.sin(yaw)
     out = []
     for side in held:
       p = d.site_xpos[sm.grip[side]]
-      v = p - d.qpos[0:3]
+      v = p - root
       out.append((c * v[0] + s_ * v[1], -s_ * v[0] + c * v[1], float(p[2])))
     return np.array(out), HELD_DROP_M
 

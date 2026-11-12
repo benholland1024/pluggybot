@@ -548,7 +548,7 @@ def test_a_drive_that_did_not_arrive_says_where_it_stopped_and_why():
   life = SimpleNamespace(
     body=SimpleNamespace(go_to_routine=lambda x, y, timeout: tick.result(False),
                          in_sight=lambda x, y: True, pose=(1.0, 2.0, 0.0),
-                         arm_kept=lambda: None),
+                         arm_kept=lambda: None, carrying=lambda side: False),
     drive_why=lambda x, y: (asked.append((x, y)), "the drive gave up (why)")[1])
   verdict = tick.run(SimpleNamespace(step=lambda *a: None),
                      st._drive_to(life, {"x": 4.0, "y": 6.0}))
