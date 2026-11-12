@@ -447,6 +447,9 @@ class Reading:
         b = int(model.body_parentid[b])
       if b == self.root:
         self.robot.add(g)
+    self.robot_ids = np.array(sorted(self.robot))
+    #: by piece, every geom of the world it touched while sampled
+    self.touched: dict[str, set] = {}
     self.grip, self.pb, self.pads, self.mine = {}, {}, {}, {}
     self.mine_ids, self.pad_ids, self.other_ids = {}, {}, {}
     for piece, side in self.pieces:
@@ -479,6 +482,10 @@ class Reading:
     met = np.concatenate((pairs[hit[:, 0], 1], pairs[hit[:, 1], 0]))
     pads = int(np.isin(self.pad_ids[piece], met).sum())
     other = bool(np.isin(met, self.other_ids[piece]).any())
+    # ...and what it meets of the world: neither the robot nor itself
+    world = met[~np.isin(met, self.robot_ids) & ~np.isin(met, self.mine_ids[piece])]
+    self.touched.setdefault(piece, set()).update(
+      self.m.geom(int(g)).name or f"geom{int(g)}" for g in world)
     return p, r, pads, other
 
   def piece_tilt(self, piece: str) -> float:
@@ -603,6 +610,23 @@ def setup_ref(body, model, data, info) -> dict:
   return out
 
 
+def _hold_out(mi, side: str) -> None:
+  """The hand held out at the grip its commanded arm puts it at, as a reach
+  holding there leaves it (phase `hold`, its goal and its command that
+  pose): an instrument's set-out for the served hand-over, which carries only
+  a hand out at a pose of its own."""
+  from pluggybot.humanoid.arms import HandGoal
+  r = mi.reach
+  sm = r._planner_model()
+  sm.q = r.self_model.q.copy()
+  sm.d.qpos[:] = r.self_model.d.qpos
+  sm._set_arm(side, r.q_cmd[side])
+  pos, rot = sm.grip_pose(side)
+  r.goal[side] = HandGoal(pos.copy(), rot.copy(), 1.0)
+  r.cmd[side] = HandGoal(pos.copy(), rot.copy(), 1.0)
+  r.phase[side] = "hold"
+
+
 def setup_posed(body, model, data, info) -> dict:
   """A pose of `POSES` for each arm the case holds with: the jaws opened,
   the arm walked in joint space to the pose (its wrist levelling its piece),
@@ -636,8 +660,12 @@ def setup_posed(body, model, data, info) -> dict:
     model.body_gravcomp[pb] = 0.0
     if not held:
       return {**out, "why": f"{piece} not held"}
-    # ...the arm held where it is commanded while the other is posed
+    # ...the arm held where it is commanded while the other is posed -- or,
+    # `SERVED`, the hand held OUT at the pose it is at, as a reach leaves one
+    # holding there: the served hand-over lifts and carries only such a hand
     mi.reach.set_joints(side, mi.reach.q_cmd[side].copy())
+    if SERVED:
+      _hold_out(mi, side)
   out["ok"] = True
   return out
 
@@ -884,6 +912,7 @@ def fly(job) -> dict:
         "dropped": bool(seen[-1]["pads"] == 0),
         "piece_z_end": seen[-1]["pz"], "held_end": seen[-1]["held"],
         "touched_body": any(r["other"] for r in seen),
+        "touched_world": sorted(reading.touched.get(piece, ())),
         "ptilt_start": start["ptilt"], "ptilt_max": max(r["ptilt"] for r in seen)}
     if per:
       # the case's reading: the worse piece's
