@@ -32,7 +32,7 @@ an error"):
   a right belief onto such a copy (SimNotes: on a synthetic counter 11-12
   work poses of 12, the base 0-5). Whether to bump it at this deploy is
   #681's call 2.
-- No text the robots read moved: `prompt_sha` `8e3c4c51…` both sides, 64,492
+- No text the robots read moved: `prompt_sha` `4904a4cb…` both sides, 64,556
   chars, 17 sections.
 
 **Why.** #681: at the storeroom's counter the side walls kept a fit 0.3-0.4
