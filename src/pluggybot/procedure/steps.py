@@ -320,7 +320,7 @@ def _find(life, args: dict) -> Routine:
   x, y = float(args["x"]), float(args["y"])
   refused = _arm_out(life, "walk")
   if refused is not None:
-    _reports(life).pop("find", None)
+    forget_readings(life, "find")
     return {**refused, "tag": tag}
   patience = _patience(life, {"patience": args.get("patience", FIND_PATIENCE_S)})
   rec = yield from life.body.find_tag_routine(tag, near=(x, y), patience=patience,
@@ -986,7 +986,7 @@ def _reach(life, args: dict) -> Routine:
   (ok, stopped), felt = yield from _felt_routine(life, hand, _guarded_routine(
     life, hand, guard, life.body.reach_routine(
       hand, place, rot, stiffness=float(args.get("stiffness", _STIFF.default)),
-      patience=REACH_PATIENCE_S)))
+      patience=REACH_PATIENCE_S, refuse=True)))
   why = "" if ok else life.body.hand_why(hand)
   _stopped_reading(life, "reach", why == UNTIL)
   said = _said(guard, stopped, why)
@@ -1188,7 +1188,7 @@ def _withdraw(life, args: dict) -> Routine:
   """ok once the arm is home, by its drivers (`Body.release_routine`), its
   gripper opened first (#669)."""
   hand = args["hand"]
-  why, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand))
+  why, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand, refuse=True))
   if why == "home":
     return {"ok": True, "hand": hand, "felt": felt}
   kept = life.body.hand_kept(hand) if why == "kept off" else None

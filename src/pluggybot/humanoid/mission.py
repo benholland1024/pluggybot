@@ -34,6 +34,7 @@ the odometry keeps its height and finds its planted foot on the map
 (`humanoid.odometry`).
 """
 
+from collections import deque
 import math
 from typing import Iterable
 
@@ -121,6 +122,8 @@ ARMS_NEAR_M = 1.5
 #: and one standing still is asked by its mind every 10-90 s.
 ARM_WAIT_S = 60.0
 ARM_LOOK_S = 1.0
+#: ...and the latest this many waits kept for the instruments (`arm_waits`).
+ARM_WAITS_KEPT = 100
 
 
 def command_for(vx: float, vy: float, w: float) -> tuple[float, float, float]:
@@ -250,9 +253,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     #: When its BODY last went anywhere, sim s -- a motion command, a
     #: get-up, a warp; never a hand at work (`Body.moved_at`, #675).
     self.went_t = float(data.time)
-    #: Each time a walk's hand-over waited for an arm's way home to clear of
-    #: another robot (`_arms_wait_routine`, #678), for the instruments.
-    self.arm_waits: list[dict] = []
+    #: The latest times an arm waited for its way to clear of another robot
+    #: (`_arms_wait_routine`, `HumanoidBody.reach_routine`, #678), for the
+    #: instruments: when, how long, which hands, why it ended.
+    self.arm_waits: deque[dict] = deque(maxlen=ARM_WAITS_KEPT)
+    #: The latest look's sim time and whom it saw (`look_round`): one scan
+    #: an instant, however many moves ask.
+    self._looked: tuple[float, frozenset] | None = None
     #: A tag watched while it moves (`perception.watch.TagWatch`, the
     #: body's `watch`), stepped after every physics step; None for none.
     self.sight = None
@@ -474,8 +481,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.walker.last_action[:] = 0.0
     self.legs = "walk"
 
-  def _arms_wait_routine(self):
-    """A walk's hand-over with an arm out (#678): a look round
+  def _arms_wait_routine(self, sides=hm.SIDES):
+    """The loop's own move home for `sides`' arms that are out -- a walk's
+    hand-over, a release no verb asked for (#678): a look round
     (`look_round`) and, while some arm out could come home by no way that
     keeps off a robot it sees (`Reach.home_clear`), held still, looking
     again every `ARM_LOOK_S`, until every one could, `ARM_WAIT_S` has gone
@@ -484,7 +492,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     first that keeps clear or, waited out, the one that comes least near
     (`Reach._kept_off`). Each wait is kept in `arm_waits`: when, how long,
     why it ended."""
-    out = [s for s in hm.SIDES if self.reach.phase[s] != "rest"]
+    out = [s for s in sides if self.reach.phase[s] != "rest"]
     self.reach.keep_out = []
     if not out or not self.others:
       return
@@ -522,13 +530,14 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     (`others`): alone, a flight is what it was, bit for bit."""
     if not self.others:
       return frozenset()
-    scan = self._scan()
     t = float(self.data.time)
-    self.peer_returns = (t, scan.peer_angles, scan.peer_ranges)
-    self.scanned_t = t
-    for root in scan.peer_roots:
-      self.seen_t[root] = t
-    return frozenset(scan.peer_roots)
+    if self._looked is not None and self._looked[0] == t:
+      # ...once an instant: a walk verb's look and its hand-over's are one
+      return self._looked[1]
+    scan = self._scan()
+    self._sighted(scan, t)
+    self._looked = (t, frozenset(scan.peer_roots))
+    return self._looked[1]
 
   def keep_out(self, seen) -> list[tuple[float, float]]:
     """What a hand's way keeps off (#678): each other robot its LIDAR saw

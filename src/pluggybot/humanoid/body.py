@@ -26,6 +26,7 @@ from pluggybot.humanoid.arms import GRIP_S, HELD_GAP_M, HandGoal
 from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
                                        StandPolicy)
 from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, HumanoidMission
+from pluggybot.humanoid import mission as mission_
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
@@ -487,8 +488,9 @@ class HumanoidBody(Body):
     mujoco.mj_forward(m, d)
     self.mission.fresh_drivers()
     self.mission.drop_aside()
-    # ...and nobody its LIDAR saw from where it stood before (#675)
+    # ...and nobody its LIDAR saw from where it stood before (#675, #678)
     self.mission.seen_t.clear()
+    self.mission._looked = None
     if self.mission.matcher is not None:
       self.mission.matcher.anchored(on=False)
 
@@ -609,51 +611,61 @@ class HumanoidBody(Body):
   # ---- hands ---------------------------------------------------------------
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
-                    turns=None):
+                    turns=None, refuse=False):
     """⚠ True only once the hand HOLDS at the goal, never on `Reach.done`
     (#520): that is also a hand stopped short (`blocked`) and a hand
     hanging, as every hand is once a fall has let go of the reach and the
     stand-up has built a fresh one. A fall ends it at once; the next
     routine waits out the get-up. ⚠ ITS WAY OUT, AND ITS WAY HOME FROM
     THERE, KEEP OFF ANOTHER ROBOT ITS LIDAR SEES as it begins (#678;
-    `HumanoidMission.look_round`, `Reach._kept_off`): where none does it
-    does not go, "kept off" (`hand_kept` says how, and whether the other
-    hand's way would)."""
+    `HumanoidMission.look_round`, `Reach._kept_off`): where none does,
+    `refuse` -- a verb's -- does not go, "kept off" (`hand_kept` says how,
+    and whether the other hand's way would); the loop's own reach -- a
+    charge's -- waits for one, looking again every `ARM_LOOK_S`,
+    `ARM_WAIT_S` at most, then goes the way out that comes least near it:
+    refused, a charge would fail, and a failed charge is a death."""
     yield from self.mission.to_stand_routine()
     p = self.to_stance(pos)
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     self._why[side] = "out of reach"
     self._halted.discard(side)
     self._kept.pop(side, None)
-    self.reach.keep_out = self.mission.keep_out(self.mission.look_round())
-    try:
-      postures = reach_.REACH_POSTURES
-      if path is not None:
-        # the posture the hand then follows its path in, and that one alone
-        ways = [self.to_stance(q) for q in path]
-        if turns is not None and len(turns) != len(ways):
-          raise ValueError(f"a turn for each of the path's {len(ways)} points, not {len(turns)}")
-        follow = self.reach.path_for(side, [p] + ways,
-                                     rot=[r] + self._turns(list(turns)) if turns is not None else r)
-        if follow is None:
-          return False
-        postures = (follow,)
-      if not self.reach.reach(side, HandGoal(p, r, stiffness), postures=postures,
-                              flip=path is None):
-        # ...or where its approach is out of reach in that posture, in any: the
-        # hand takes the path's posture once out (`Reach.carry`)
-        # -- the grip asked, never half a turn round: the path's turns are its
-        kept = self.reach.kept[side]
-        if path is None or not self.reach.reach(side, HandGoal(p, r, stiffness), flip=False):
-          kept = self.reach.kept[side] or kept
-          if kept is not None:
-            # every way out, or home from there, meets another robot's body
-            self._why[side] = "kept off"
-            self._kept[side] = dict(kept, other=self.reach.clear_way(
-              _OTHER[side], HandGoal(p, r, stiffness)))
-          return False
-    finally:
-      self.reach.keep_out = []
+    goal, postures = HandGoal(p, r, stiffness), reach_.REACH_POSTURES
+    if path is not None:
+      # the posture the hand then follows its path in, and that one alone
+      ways = [self.to_stance(q) for q in path]
+      if turns is not None and len(turns) != len(ways):
+        raise ValueError(f"a turn for each of the path's {len(ways)} points, not {len(turns)}")
+      follow = self.reach.path_for(side, [p] + ways,
+                                   rot=[r] + self._turns(list(turns)) if turns is not None else r)
+      if follow is None:
+        return False
+      postures = (follow,)
+    falls, t0, ended = self.mission.falls, float(self._d.time), "clear"
+    while True:
+      went = self._reached(side, goal, postures, path is not None, words=refuse)
+      if went or refuse or self._why[side] != "kept off":
+        break
+      if float(self._d.time) - t0 >= mission_.ARM_WAIT_S:
+        # ...waited out: the way out that comes least near it
+        went, ended = self._reached(side, goal, postures, path is not None, words=False,
+                                    refuse=False), "waited"
+        break
+      for _ in range(int(round(mission_.ARM_LOOK_S / self._m.opt.timestep))):
+        if self.mission.falls != falls:
+          break
+        yield STILL
+      if self.mission.falls != falls:
+        ended = "fell"
+        break
+    if float(self._d.time) > t0:
+      self.mission.arm_waits.append({"t": round(t0, 3), "s": round(float(self._d.time) - t0, 3),
+                                     "sides": [side], "move": "reach", "why": ended})
+    if ended == "fell":
+      self._why[side] = "fell"
+      return False
+    if not went:
+      return False
     falls = self.mission.falls
     for _ in range(int(round(patience / self._m.opt.timestep))):
       if self.mission.falls != falls or self.reach.done(side):
@@ -664,6 +676,32 @@ class HumanoidBody(Body):
                        else "until" if side in self._halted
                        else "stopped short" if self.reach.done(side) else "out of time")
     return held
+
+  def _reached(self, side, goal, postures, follows, words, refuse=True) -> bool:
+    """A reach planned and begun off one look round (`look_round`, #678):
+    True; else False, `hand_why` and `hand_kept` saying why -- and, `words`,
+    whether the other hand's way there would keep off that robot."""
+    self._why[side] = "out of reach"
+    self._kept.pop(side, None)
+    self.reach.keep_out = self.mission.keep_out(self.mission.look_round())
+    try:
+      if self.reach.reach(side, goal, postures=postures, flip=not follows, refuse=refuse):
+        return True
+      # ...or where its approach is out of reach in that posture, in any: the
+      # hand takes the path's posture once out (`Reach.carry`)
+      # -- the grip asked, never half a turn round: the path's turns are its
+      kept = self.reach.kept[side]
+      if follows and self.reach.reach(side, goal, flip=False, refuse=refuse):
+        return True
+      kept = self.reach.kept[side] or kept
+      if kept is not None:
+        # every way out, or home from there, meets another robot's body
+        self._why[side] = "kept off"
+        self._kept[side] = dict(kept, **({"other": self.reach.clear_way(_OTHER[side], goal)}
+                                         if words else {}))
+      return False
+    finally:
+      self.reach.keep_out = []
 
   def hand_why(self, side) -> str:
     return self._why.get(side, "")
@@ -695,7 +733,7 @@ class HumanoidBody(Body):
     self._halted.add(side)
     return True
 
-  def release_routine(self, side):
+  def release_routine(self, side, refuse=False):
     """Out and home, waited for until its drivers read the arm there
     (`Reach.home`, #539), the posture back at the stand: "home"; "fell" -- a
     fall ends it at once, the next routine waiting out the get-up, as a
@@ -708,20 +746,26 @@ class HumanoidBody(Body):
     rest is no hand out, and a step aside asked as it came home took them
     for the walker, under which the standing posture never moves. ⚠ ITS
     WAY HOME KEEPS OFF ANOTHER ROBOT ITS LIDAR SEES as it begins (#678;
-    `Reach._kept_off`): where none does it is "kept off", nothing moved and
-    its gripper as it was -- judged before the let-go (`hand_kept`)."""
+    `Reach._kept_off`): where none does, `refuse` -- a verb's -- is "kept
+    off", nothing moved and its gripper as it was, judged before the let-go
+    (`hand_kept`); the loop's own -- a charge's -- waits for one as a walk's
+    hand-over does (`HumanoidMission._arms_wait_routine`)."""
     yield from self.mission.to_stand_routine()
     falls = self.mission.falls
     self._kept.pop(side, None)
-    # ...its way home judged against another robot its LIDAR sees, ONE look
-    # as it begins (#678): where every way would meet that robot's body it
-    # does not go, its gripper as it was -- judged before the let-go
-    self.reach.keep_out = (self.mission.keep_out(self.mission.look_round())
-                           if self.reach.phase[side] != "rest" else [])
     try:
-      if self.reach.keep_out and not self.reach.home_clear(side):
-        self._kept[side] = dict(self.reach.kept[side])
-        return "kept off"
+      # ...its way home judged against another robot its LIDAR sees, ONE look
+      # as it begins (#678), before the let-go
+      if refuse:
+        self.reach.keep_out = (self.mission.keep_out(self.mission.look_round())
+                               if self.reach.phase[side] != "rest" else [])
+        if self.reach.keep_out and not self.reach.home_clear(side):
+          self._kept[side] = dict(self.reach.kept[side])
+          return "kept off"
+      else:
+        yield from self.mission._arms_wait_routine((side,))
+        if self.mission.falls != falls:
+          return "fell"
       if not (yield from self.mission.let_go_routine((side,))):
         return "fell"
       self.reach.retreat(side)

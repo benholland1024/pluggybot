@@ -279,7 +279,7 @@ class Moving(StubBody):
     return False
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
-                    turns=None):
+                    turns=None, refuse=False):
     self.hands[side] = self.hand_at(side)
     there = yield from self._go(side, pos)
     self._why[side] = "" if there else "until"
@@ -356,7 +356,7 @@ def test_a_move_whose_reading_never_comes_fails_as_it_would_have():
   body = Moving(*_bare())
   body.out_of_reach = {"left"}
 
-  def reach_routine(side, pos, rot=None, stiffness=1.0, patience=20.0, path=None, turns=None):
+  def reach_routine(side, pos, rot=None, stiffness=1.0, patience=20.0, path=None, turns=None, refuse=False):
     self = body
     self._why[side] = "out of reach"
     return False

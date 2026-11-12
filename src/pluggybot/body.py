@@ -528,7 +528,8 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def reach_routine(self, side: str, pos, rot=None, stiffness: float = 1.0,
-                    patience: float = 20.0, path=None, turns=None) -> Routine:
+                    patience: float = 20.0, path=None, turns=None,
+                    refuse: bool = False) -> Routine:
     """A hand (`side`, "left" or "right") to a grip pose in the believed
     world frame -- `pos`, m, and `rot`, world from grip (its fingers along
     its -z, its jaws closing along its x), or None for any -- its arm's
@@ -543,17 +544,21 @@ class Body(abc.ABC):
     crouch whose lid's arc only a bow followed). The humanoid's (#507); a
     body with no such hand refuses it (`NotImplementedError`). ⚠ Its way
     out, and its way home from there, keep off another robot the body sees
-    as it begins (#678): where none does, nothing moves (`hand_why` "kept
-    off", `hand_kept`)."""
+    as it begins (#678): where none does, `refuse` (the verbs') moves
+    nothing (`hand_why` "kept off", `hand_kept`), and the loop's own reach
+    waits for a way a bounded while, then takes the one that comes least
+    near it."""
 
   @abc.abstractmethod
-  def release_routine(self, side: str) -> Routine:
+  def release_routine(self, side: str, refuse: bool = False) -> Routine:
     """A hand back out along its way in, and its arm home -- its gripper
     opened first, whatever it says it holds (#669): returns "home" once its
     drivers read it there (#539), else why not -- "fell" (a fall let go of
-    it), "held" (not home in the body's time: something holds it) or "kept
-    off" (#678: every way home would meet the body of another robot it sees
-    as it begins, so nothing moved, its gripper as it was; `hand_kept`)."""
+    it), "held" (not home in the body's time: something holds it) or, where
+    `refuse` (the verbs'), "kept off" (#678: every way home would meet the
+    body of another robot it sees as it begins, so nothing moved, its
+    gripper as it was; `hand_kept`). The loop's own waits for a way a
+    bounded while, as a walk's hand-over does."""
 
   @abc.abstractmethod
   def grip_routine(self, side: str, closed: bool, force: float | None = None) -> Routine:
@@ -1189,7 +1194,7 @@ class StubBody(Body):
     raise KeyError(f"a stub body has no actuator {act!r}")
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
-                    turns=None):
+                    turns=None, refuse=False):
     if side in self.out_of_reach or (rot is not None and side in self.unturned):
       self._why[side] = "out of reach"
       return False
@@ -1198,7 +1203,7 @@ class StubBody(Body):
     return True
     yield
 
-  def release_routine(self, side):
+  def release_routine(self, side, refuse=False):
     self.hands.pop(side, None)
     self.grips.pop(side, None)
     self.shut[side] = False

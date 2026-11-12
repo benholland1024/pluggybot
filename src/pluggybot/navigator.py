@@ -521,11 +521,7 @@ class Navigator:
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
       scan = self._scan()
       angles, ranges, peer_angles, peer_ranges, free_from, origin = scan[:6]
-      t = float(self.data.time)
-      self.peer_returns = (t, peer_angles, peer_ranges)
-      self.scanned_t = t
-      for root in scan.peer_roots:
-        self.seen_t[root] = t
+      self._sighted(scan, float(self.data.time))
       origin = self.LIDAR_ORIGIN if origin is None else origin
       if self.maps():
         m = self._match(angles, ranges, origin)
@@ -541,6 +537,16 @@ class Navigator:
         all_ranges = np.concatenate((ranges, peer_ranges))
         if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
+
+  def _sighted(self, scan: Scan, t: float) -> None:
+    """What a scan saw of the other robots, kept: its returns off them, for
+    the front stop's and a step's (`peer_returns`, #316, #670), and whom
+    they came off, by root (`seen_t`, #675) -- every scan's, and a look's
+    (`HumanoidMission.look_round`, #678)."""
+    self.peer_returns = (t, scan.peer_angles, scan.peer_ranges)
+    self.scanned_t = t
+    for root in scan.peer_roots:
+      self.seen_t[root] = t
 
   def _scan(self) -> Scan:
     """One scan, the map's and the other robots' apart (`Lidar.scan_split`):

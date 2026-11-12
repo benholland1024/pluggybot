@@ -6,7 +6,8 @@ section's.
 
   1. a reach's way out, and its way home from there, are judged against a
      cylinder round the other robot's middle: where none keeps clear the
-     reach is refused and nothing moves; an arm out's way home likewise;
+     reach is refused and nothing moves; an arm out's way home likewise,
+     from where it truly begins (its line out first);
   2. another way is taken where one keeps clear and dips no deeper over the
      work (#539's and #560's rule kept): at a counter, none;
   3. the robot kept off is one the LIDAR saw in ONE look as the move began,
@@ -19,7 +20,8 @@ section's.
   6. the walk verbs refuse to walk with a hand out that could not come home;
      the loop's own walks wait for it, `ARM_WAIT_S` at most, looking every
      `ARM_LOOK_S`, then bring it home today's way -- the wait counted against
-     neither a walk's patience nor its stagnation clock, nor a step's;
+     neither a walk's patience nor its stagnation clock, nor a step's -- and
+     the loop's own hand moves (a charge's) wait so too, never refused;
   7. nothing of it reads the simulator's truth.
 """
 
@@ -154,6 +156,40 @@ def test_a_hand_already_out_takes_no_way_on_that_dips_deeper_than_straight():
   assert r.way_out("right", OUT_TO) is None, "it took a way deeper over the work"
 
 
+def test_a_hand_holding_is_judged_home_from_where_its_line_out_ends():
+  """A hand at its goal comes home along its line first, to its pre-grasp
+  `APPROACH_M` (8 cm) back along its fingers (`retreat`), and its way home
+  begins there (`_go_home`): judged from the grip, a way clear from there
+  could meet the other robot from where it truly begins, and was taken
+  unrefused. `home_clear` judges from the pre-grasp, solved on the robot's
+  model of itself."""
+  from pluggybot.humanoid.arms import HandGoal
+  r = _standing_reach()
+  sm = r.self_model
+  # ...a hand out in front of the robot, holding at its goal
+  q_at = np.array([-1.2, -0.2, 0.0, 1.2, 0.0, 0.0])
+  sm._set_arm("right", q_at)
+  at, rot = sm.grip_pose("right")
+  sm._set_arm("right", r.rest["right"])
+  pre_at = rc.pregrasp(HandGoal(at, rot, 1.0)).pos
+  assert np.linalg.norm(pre_at - at) == pytest.approx(rc.APPROACH_M)
+  r.q_cmd["right"], r.phase["right"] = q_at.copy(), "hold"
+  r.goal["right"] = r.cmd["right"] = HandGoal(at, rot, 1.0)
+  judged = []
+  real = rc.Reach._judged
+
+  def spied(self, side, q0, *a, **kw):
+    judged.append(np.asarray(q0, dtype=float).copy())
+    return real(self, side, q0, *a, **kw)
+  r._judged = spied.__get__(r)
+  r.keep_out = [_at(1.4, -90)]
+  assert r.home_clear("right")
+  m = r._planner_model()
+  m._set_arm("right", judged[-1])
+  assert np.linalg.norm(m.grip_pose("right")[0] - pre_at) < rc.REPLAN_M, \
+    "judged home from the grip, not from where its line out ends"
+
+
 # ---- 3: whom it keeps off, and where -------------------------------------------------------
 
 
@@ -161,7 +197,7 @@ def _scanning(m, roots):
   """`m`'s LIDAR returning a scan that saw the robots `roots` (one return
   each, 0.6 m to its right), its own cadence off -- standing, it takes none
   -- every scan counted in `m.scans` and every look in `m.looks`."""
-  m.scans, m.looks, m._next_scan = 0, 0, math.inf
+  m.scans, m.looks, m._next_scan, m._looked = 0, 0, math.inf, None
   look = type(m).look_round
 
   def scan():
@@ -192,8 +228,11 @@ def test_a_look_scans_once_and_records_whom_it_saw_and_alone_takes_none():
   assert m.look_round() == {"r2_"} and m.scans == 1
   assert m.seen_t["r2_"] == t and m.scanned_t == t and m.peer_returns[0] == t
   assert np.array_equal(m.grid.grid, grid), "the look went into the map"
+  # ...one scan an instant, however many moves look
+  assert m.look_round() == {"r2_"} and m.scans == 1
   _scanning(m, ())
-  assert m.look_round() == frozenset()
+  body.data.time += m.model.opt.timestep
+  assert m.look_round() == frozenset() and m.scans == 1
 
 
 def test_it_keeps_off_only_a_robot_its_look_saw_where_it_was_seen_and_near():
@@ -220,10 +259,10 @@ def test_it_keeps_off_only_a_robot_its_look_saw_where_it_was_seen_and_near():
 
 
 def test_a_reach_keeps_off_the_robot_its_own_look_sees_as_it_begins(monkeypatch):
-  """Through `Body`: a reach looks as it begins, and its plan keeps off the
-  robot that look saw -- its reach handed it where that robot stands -- and
-  off none it did not, the robot's word notwithstanding; and once judged,
-  none is kept for a way judged after."""
+  """Through `Body`: a verb's reach (`refuse`) looks as it begins, and its
+  plan keeps off the robot that look saw -- its reach handed it where that
+  robot stands -- and off none it did not, the robot's word
+  notwithstanding; and once judged, none is kept for a way judged after."""
   body = body_for(*_floor())
   m = body.mission
   sx, sy, syaw = m._stance_frame()
@@ -240,7 +279,7 @@ def test_a_reach_keeps_off_the_robot_its_own_look_sees_as_it_begins(monkeypatch)
     _scanning(m, roots)
     handed.clear()
     world = body.to_world(np.array(LEVER))
-    got = body.run(body.reach_routine("right", tuple(world), patience=0.01))
+    got = body.run(body.reach_routine("right", tuple(world), patience=0.01, refuse=True))
     assert m.scans == 1
     assert handed and all(bool(h) is kept for h in handed), (roots, handed)
     if kept:
@@ -262,13 +301,13 @@ class _Kept(StubBody):
   reach_kept = withdraw_kept = arm_out = None
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
-                    turns=None):
+                    turns=None, refuse=False):
     if self.reach_kept is None:
       return (yield from super().reach_routine(side, pos, rot, stiffness, patience, path, turns))
     self._why[side] = "kept off"
     return False
 
-  def release_routine(self, side):
+  def release_routine(self, side, refuse=False):
     if self.withdraw_kept is None:
       return (yield from super().release_routine(side))
     return "kept off"
@@ -435,7 +474,7 @@ def test_a_withdraw_refused_moves_nothing_and_keeps_its_gripper_as_it_was(monkey
   _beside(body)
   m.reach = _Arms(grippers, ("right",), lambda: False, log, at)
   grippers["right"].shut()
-  assert body.run(body.release_routine("right")) == "kept off"
+  assert body.run(body.release_routine("right", refuse=True)) == "kept off"
   assert log == [] and not grippers["right"].opened(), log
   assert m.reach.phase["right"] == "hold" and body.hand_kept("right")["m"] == 0.62
   assert m.reach.keep_out == []
@@ -444,7 +483,7 @@ def test_a_withdraw_refused_moves_nothing_and_keeps_its_gripper_as_it_was(monkey
     _beside(body, roots)
     m.reach = _Arms(grippers, ("right",), clear, log, at)
     grippers["right"].shut()
-    assert body.run(body.release_routine("right")) == "home"
+    assert body.run(body.release_routine("right", refuse=True)) == "home"
     assert [e[:2] for e in log] == [("open", "right"), ("retreat", "right")], log
     assert body.hand_kept("right") is None
 
@@ -512,7 +551,45 @@ def test_a_walks_hand_over_waits_its_bound_at_most_then_brings_the_arm_home_toda
     m.reach = _Arms(m.reach.grippers, out, lambda: False, [], at)
     t0 = at()
     body.run(m.to_walk_routine())
-    assert m.legs == "walk" and m.looks == 0 and m.arm_waits == [], (out, others)
+    assert m.legs == "walk" and m.looks == 0 and not m.arm_waits, (out, others)
+
+
+def test_the_loops_own_hand_moves_wait_for_a_way_then_go(monkeypatch):
+  """A charge's plug-in and unplug are the loop's own hand moves, never a
+  verb's: refused, the plug went unfetched, the charge failed, and a failed
+  charge is a death (`HubLifecycle._strand`). So the loop's reach and
+  release wait for a way that keeps clear as a walk's hand-over does,
+  looking every `ARM_LOOK_S`, `ARM_WAIT_S` at most -- a release with its
+  gripper as it was meanwhile -- then go: a reach the way out that comes
+  least near that robot, a release the way home."""
+  monkeypatch.setattr(hmi, "ARM_LOOK_S", 0.1)
+  monkeypatch.setattr(hmi, "ARM_WAIT_S", 0.25)
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  _spied(monkeypatch, body, log)
+  at = lambda: float(body.data.time)  # noqa: E731
+  _beside(body)
+  t0 = at()
+  m.reach = _Arms(m.reach.grippers, ("right",), lambda: at() - t0 >= 0.15, log, at)
+  m.reach.grippers["right"].shut()
+  assert body.run(body.release_routine("right")) == "home"
+  assert [e[:2] for e in log] == [("open", "right"), ("retreat", "right")], log
+  assert log[0][2] - t0 == pytest.approx(0.2, abs=0.01), "it did not wait for the way"
+  assert m.arm_waits[-1]["why"] == "clear"
+  # ...and a reach the loop asks, the robot 0.6 m to its right
+  body = body_for(*_floor())
+  m = body.mission
+  sx, sy, syaw = m._stance_frame()
+  where = (sx + 0.6 * math.sin(syaw), sy - 0.6 * math.cos(syaw))
+  body.others = [lambda: KeepClear(*where, root="r2_", seen=True)]
+  _scanning(m, ("r2_",))
+  t0 = float(body.data.time)
+  world = tuple(body.to_world(np.array(LEVER)))
+  body.run(body.reach_routine("right", world, patience=0.01))
+  assert m.reach.phase["right"] != "rest", "the loop's reach never went"
+  assert float(body.data.time) - t0 >= 0.25 and m.looks >= 3
+  assert m.arm_waits[-1]["move"] == "reach" and m.arm_waits[-1]["why"] == "waited"
 
 
 def test_a_walk_counts_no_wait_for_an_arms_way_home_against_its_patience():

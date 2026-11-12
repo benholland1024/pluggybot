@@ -30,7 +30,9 @@ the site's branch `loop-arms`):
 - **`step`, `drive_to`, `face` and `find` refuse to walk** with a hand out
   that could not come home, saying so; **the loop's own walks** (a charge,
   an explore) wait for it at their hand-over, 60 s at most, looking every
-  second, then bring it home.
+  second, then bring it home -- **and so do the loop's own hand moves**, a
+  charge's plug-in and unplug, which are never refused (a failed charge is
+  a death).
 - **The texts say it**: `reach`'s, `withdraw`'s, and YOUR BODY's sentence on
   what a walk does with a hand out.
 - A robot alone is as it was, bit for bit. In the pair, a reach, a
