@@ -150,15 +150,32 @@ def from_stance(life, p, point: bool = True) -> tuple[float, float, float]:
 
 class NoReading(LookupError):
   """A sensor read before anything gave it a value: a verb's report read
-  before the verb ran, or a number it could not give (#630). The language
-  stops the run, saying which."""
+  before the verb ran or after its last call failed, or a number it could
+  not give (#630). The language stops the run, saying which."""
+
+
+#: Why a verb's report holds no reading (#630, #686): one word for the
+#: whole of it -- its last call failed (`steps.forget_readings`) -- or, a
+#: `measure`'s, each end's own.
+UNREAD = "unread"
+
+
+def unread(verb: str, key: str, life) -> str:
+  """Why `verb`'s last report holds no `key`: what that report says
+  (`UNREAD`), or, where no call of it left one, that it has not run --
+  never that, after a call that failed (#686: told so after a `spot` that
+  ran, a robot was told an untruth)."""
+  why = ((getattr(life, "reports", None) or {}).get(verb) or {}).get(UNREAD)
+  if isinstance(why, dict):
+    why = why.get(key)
+  return why or f"`{verb}` has not run"
 
 
 def reported(verb: str, key: str, life) -> float:
-  """One number of a verb's last report (`life.reports`)."""
+  """One number of a verb's last report (`life.reports`), or why it has none."""
   rep = (getattr(life, "reports", None) or {}).get(verb)
   if rep is None or key not in rep:
-    raise NoReading(f"{verb}.{key} has no reading: `{verb}` has not run")
+    raise NoReading(f"{verb}.{key} has no reading: {unread(verb, key, life)}")
   return float(rep[key])
 
 
@@ -174,8 +191,7 @@ def measured(key: str, taller: bool = False):
     rep = (getattr(life, "reports", None) or {}).get("measure")
     if rep is not None and key in rep:
       return float(key in rep.get("taller", ())) if taller else float(rep[key])
-    why = (rep or {}).get("unread", {}).get(key) or "`measure` has not run"
-    raise NoReading(f"{name} has no reading: {why}")
+    raise NoReading(f"{name} has no reading: {unread('measure', key, life)}")
   return read
 
 
@@ -245,7 +261,7 @@ WATCH_EVERY_S = 1.0 / WATCH_HZ
 def _sighting(name: str, life) -> dict:
   got = life.body.sighting()
   if got is None:
-    raise NoReading(f"{name} has no reading: `watch` has not run")
+    raise NoReading(f"{name} has no reading: {unread('watch', name, life)}")
   return got
 
 

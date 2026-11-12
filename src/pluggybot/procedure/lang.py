@@ -525,7 +525,8 @@ class _Parser:
       if why:
         self.bad_name(node, name, why)
       self._sets(name, node)
-      return ("set", name, self.expr(node.value))
+      # ...its line, which names a fault in its arithmetic (#686)
+      return ("set", name, self.expr(node.value), getattr(node, "lineno", 0))
     if isinstance(node, ast.AugAssign):
       if not isinstance(node.target, ast.Name) or type(node.op) not in _BIN:
         self.refuse(node, "augmented assignment is name op= expr with + - * /")
@@ -535,15 +536,18 @@ class _Parser:
         self.use(node.target.id, "number", node)
       return ("set", node.target.id,
               ("bin", _BIN[type(node.op)], ("var", node.target.id),
-               self.expr(node.value)))
+               self.expr(node.value)), getattr(node, "lineno", 0))
     if isinstance(node, ast.If):
+      # ...and each arm's test's line, an `elif`'s its own
       arms = [(self.cond(node.test), self.block(node.body, depth + 1))]
+      lines = [getattr(node, "lineno", 0)]
       orelse = node.orelse
       while len(orelse) == 1 and isinstance(orelse[0], ast.If):
         arms.append((self.cond(orelse[0].test),
                      self.block(orelse[0].body, depth + 1)))
+        lines.append(getattr(orelse[0], "lineno", 0))
         orelse = orelse[0].orelse
-      return ("if", tuple(arms), self.block(orelse, depth + 1))
+      return ("if", tuple(arms), self.block(orelse, depth + 1), tuple(lines))
     if isinstance(node, ast.For):
       it = node.iter
       ok = (isinstance(node.target, ast.Name) and isinstance(it, ast.Call)
@@ -1118,8 +1122,10 @@ class _Stop(Exception):
   def __init__(self, why: str, at: tuple | None = None) -> None:
     super().__init__(why)
     self.why = why
-    #: where it was, for a call's argument it could not compute (#560): the
-    #: call's line, its callee and where the call ran (`At`)
+    #: where it was, for a fault the run names as a step: a call's argument
+    #: it could not compute -- the call's line, its callee and where the
+    #: call ran (`At`, #560) -- or a statement's own arithmetic, `expr`
+    #: (#686: it read "line ?")
     self.at = at
 
 
@@ -1399,7 +1405,9 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
         raise
       # a fault in the arithmetic of a call a test reads (an argument's is
       # read where it is, `fault`): the call is false, and the run goes on
-      fault(stop.why, line, "expr", inside)
+      # -- named by the line it came at, in the def that ran it (#686: by
+      # the call's, beside the def's name)
+      fault(stop.why, *(stop.at or (line, "expr", inside)))
       return False
     finally:
       # a def's own variables, and an argument it set; keyed by the def --
@@ -1411,6 +1419,15 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
         if isinstance(v, float) and (k not in target.params or v != bound[k]):
           inner[f"{key}.{k}"] = round(v, 6)
     return True
+
+  def value(expr, line: int, env: dict, at: At) -> float:
+    """What a statement's own expression computes: a fault in it named by
+    the statement's line, in the def that ran it (#686: "line ?", where
+    only a call's arguments carried theirs)."""
+    try:
+      return _eval(expr, env, life, facts)
+    except _Stop as no:
+      raise _Stop(no.why, (line, "expr", at)) from None
 
   def block(stmts, env: dict, at: At) -> Routine:
     nonlocal ran
@@ -1424,16 +1441,16 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
       elif kind == "call":
         yield from call(s, env, at)
       elif kind == "set":
-        env[s[1]] = _eval(s[2], env, life, facts)
+        env[s[1]] = value(s[2], s[3], env, at)
       elif kind == "if":
-        for cond, body in s[1]:
+        for (cond, body), line in zip(s[1], s[3]):
           if cond[0] == "try" and cond[2][0] == "call":
             held = (yield from call(cond[2], env, at, tested=True)) != cond[1]
           elif cond[0] == "try":
             _, neg, (_, verb, args, line) = cond
             held = (yield from verb_step(verb, args, line, env, at, tested=True)) != neg
           else:
-            held = _truth(_eval(cond, env, life, facts))
+            held = _truth(value(cond, line, env, at))
           if held:
             yield from block(body, env, at)
             break
@@ -1445,10 +1462,10 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
           yield from block(s[3], env, at)
       elif kind == "while":
         n = 0
-        while _truth(_eval(s[1], env, life, facts)):
+        while _truth(value(s[1], s[3], env, at)):
           n += 1
           if n > MAX_ITER:
-            raise _Stop("loop-cap")
+            raise _Stop("loop-cap", (s[3], "expr", at))
           yield from block(s[2], env, at)
       elif kind == "return":
         raise _Return()
@@ -1466,7 +1483,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
         if stop.why not in LIMITS:
           # an evaluation fault is a failed step of its own, so the record
           # says where the arithmetic went wrong -- in a call's arguments,
-          # at the call's line (#560)
+          # at the call's line (#560), in a statement's own, at its (#686)
           result["total"] = count + 1
           result["failedAt"] = count
           line, verb, at = stop.at if stop.at else (None, "expr", None)
@@ -1486,5 +1503,5 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
                            and (k not in proc.params or v != proc.defaults[k][1])}, **inner}
     # ...and a watch it began ends with it (#554): no picture for nobody
     if "watch" in (facts.verbs or ()):
-      life.body.watch(None)
+      st.end_watch(life)
   return result

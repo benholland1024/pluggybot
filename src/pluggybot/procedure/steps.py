@@ -325,7 +325,7 @@ def _find(life, args: dict) -> Routine:
     _reports(life)["find"] = {"x": float(place.x), "y": float(place.y),
                               "facing": float(life.body.places.facing(tag)[0])}
   else:
-    _reports(life).pop("find", None)
+    forget_readings(life, "find")
   if not out["ok"]:
     searched = (f"did not find tag {tag}"
                 + (" where it was last seen, nor" if rec.get("remembered") else "")
@@ -545,7 +545,7 @@ def _spot(life, args: dict) -> Routine:
   from pluggybot.procedure import axes
   tag = args["tag"]
   if float(tag) != int(tag):
-    _reports(life).pop("spot", None)
+    forget_readings(life, "spot")
     return {"ok": False, "reason": f"a tag is a whole number, not {tag}"}
   got, bowed, seen = None, False, None
   for down in SPOT_GAZES:
@@ -563,7 +563,7 @@ def _spot(life, args: dict) -> Routine:
   if bowed:
     yield from life.body.gaze_routine(0.0)
   if seen is None:
-    _reports(life).pop("spot", None)
+    forget_readings(life, "spot")
     # what the bows could not change, the picture's top (#660), and short:
     # History's line says each false test's reason inside its 400 characters
     return {"ok": False, "tag": int(tag),
@@ -589,10 +589,12 @@ def _watch(life, args: dict) -> Routine:
   what it reads riding `watch.*`. It waits for its first reading and is ok
   when that picture shows the tag; where it does not, it watches on all the
   same -- which a procedure sees only where the verb is an `if`'s test, a
-  failed verb ending it otherwise, and its watch with it."""
+  failed verb ending it otherwise, and its watch with it. One that fails
+  before it begins ends the watch before it (`forget_readings`)."""
   from pluggybot.procedure import axes
   tag = args["tag"]
   if float(tag) != int(tag):
+    forget_readings(life, "watch")
     return {"ok": False, "reason": f"a tag is a whole number, not {tag}"}
   life.body.watch(int(tag))
   waited = 0.0
@@ -652,6 +654,7 @@ def _measure(life, args: dict) -> Routine:
   surface ends, and `object.<end>_taller` says so."""
   import numpy as np
   from pluggybot.perception import box
+  from pluggybot.procedure.axes import UNREAD
   x, y = float(args["x"]), float(args["y"])
   pictures = yield from life.body.depth_pictures(box.DEPTH_W, box.DEPTH_H, box.DEPTH_MIN_Z,
                                                  frames=box.FRAMES, apart=box.APART_S)
@@ -669,7 +672,7 @@ def _measure(life, args: dict) -> Routine:
   read = {key: box.edge_read(on[:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
   if top is None or None in read.values():
     said = f"your last `measure` saw no flat top round ({x:g}, {y:g}) from where you stood"
-    _reports(life)["measure"] = {"unread": dict.fromkeys(("top", *read), said)}
+    _reports(life)["measure"] = {UNREAD: dict.fromkeys(("top", *read), said)}
     return {"ok": False, "reason": f"no flat top seen round ({x:g}, {y:g}) from where you stand"}
   got, past, unseen, taller = {"top": top}, {}, {}, []
   for key, axis, far, way in MEASURE_ENDS:
@@ -700,7 +703,7 @@ def _measure(life, args: dict) -> Routine:
       got[key] = end
       if word == "taller":
         taller.append(key)
-  _reports(life)["measure"] = {**got, "unread": {**past, **unseen}, "taller": taller}
+  _reports(life)["measure"] = {**got, UNREAD: {**past, **unseen}, "taller": taller}
   return {"ok": True, **{k: round(v, 3) for k, v in got.items()},
           **({"runsOn": list(past)} if past else {}),
           **({"unseen": list(unseen)} if unseen else {}),
@@ -823,15 +826,30 @@ def _stopped_reading(life, verb: str, stopped: bool) -> None:
 
 
 def forget_readings(life, verb: str) -> None:
-  """A call refused before it ran (`lang`, a computed argument): what its
-  verb last reported would read as this call's, so it goes, as a failed
-  `spot`'s or `pull`'s does -- a retry computes just such an argument, as
-  a distance left of what `pull.moved` read -- and its stop condition's
+  """A call that failed before it could report -- refused before it ran
+  (`lang`, a computed argument), closed by a fall or a death (`run_verb`),
+  or a `spot`, a `find` or a `pull` that read false: what its verb last
+  reported would read as this call's, so it goes -- a retry computes just
+  such an argument, as a distance left of what `pull.moved` read -- and
+  reading it says this call failed (#686: worded as a verb never run, it
+  told a robot `spot` had not run after one that had). A `watch`'s
+  readings are its watch's, which ends with it. Its stop condition's
   reading is a move's that ended otherwise (#650's review)."""
+  from pluggybot.procedure import axes
   reports = _reports(life)
-  reports.pop(verb, None)
+  reports[verb] = {axes.UNREAD: f"your last `{verb}` failed"}
+  if verb == "watch":
+    life.body.watch(None)
   if verb in reports.get("stopped", {}):
     _stopped_reading(life, verb, False)
+
+
+def end_watch(life) -> None:
+  """A procedure's end (`lang.run_procedure_routine`): its watch ends with
+  it (#554), and so does its last `watch` call's word -- the next
+  procedure's read says `watch` has not run in it (#686)."""
+  life.body.watch(None)
+  _reports(life).pop("watch", None)
 
 
 def _thinned(felt: list, n: int = FELT_MAX) -> list:
@@ -1001,7 +1019,7 @@ def _pull(life, args: dict) -> Routine:
   _stopped_reading(life, "pull", False)
   d = (float(args["dx"]), float(args["dy"]), float(args["dz"]))
   if math.sqrt(sum(v * v for v in d)) == 0.0:
-    _reports(life).pop("pull", None)
+    forget_readings(life, "pull")
     return {"ok": False, "reason": "give the pull a way: (dx, dy, dz) are all 0"}
   guard = _guard(args)
   (rep, stopped), felt = yield from _felt_routine(life, hand, _guarded_routine(
@@ -1014,7 +1032,7 @@ def _pull(life, args: dict) -> Routine:
          "felt": felt, **_said(guard, stopped, rep.get("why"))}
   if rep.get("why") in ("not out", "fell"):
     # ...and no reading: the last pull's would read as this one's
-    _reports(life).pop("pull", None)
+    forget_readings(life, "pull")
     return {"ok": False, **out,
             "reason": MOVE_WHY.get(rep["why"], "the pull did not begin").format(hand=hand)}
   way = axes.in_stance(life, rep.get("direction") or (0.0, 0.0, 0.0), point=False)
