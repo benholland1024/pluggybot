@@ -78,9 +78,10 @@ MIN_INLIERS = 40
 #: Gauss-Newton iterations, at most, and the step under which it stops.
 MAX_ITER = 8
 CONVERGED_M = 5e-4
-#: The most one scan may move the pose: past it the fit has found another
-#: wall to sit on, and its correction is never taken -- the bounded search's
-#: pose may be (DOUBT_*), else the scan is refused and not fused ("slid").
+#: The most one scan may move the pose: past it the fit may have found
+#: another wall to sit on, so its correction is never taken -- the bounded
+#: search's pose may be (DOUBT_*), else the scan is refused and not fused
+#: ("slid").
 MAX_STEP_M = 0.15
 MAX_STEP_RAD = math.radians(5.0)
 #: ODOMETRY'S PRIOR, in points' worth (a unit-gradient point adds 1): how
@@ -131,10 +132,16 @@ FOUND_SHARE = 0.75
 #: error for hours (Luca, 11-08, 0.58 m); doubted, 40 of 40 taken back.
 #: From the truth over the house, held fits under 0.95 were 15 of 2,306 and
 #: any fit under 0.8 32 of 7,761; a pose found taken at FOUND_SHARE moved
-#: the truth over 0.1 m at 11 places of 7,840 (the stairs), at 0.9 at 3, the
-#: base 2. ⚠ NOT LAID IN, doubted scans starved the map of new ground: a
-#: robot walked to the mall's station 0.43 m off, the station's fix kept
-#: the map it had laid, and no walk out of there found a route.
+#: the truth over 0.1 m at 11 places of 7,840 (the stairs), at 0.9 and the
+#: rival test (below) at 2, the base's own. ⚠ NOT LAID IN, doubted scans
+#: starved the map of new ground: a robot walked to the mall's station 0.43
+#: m off, the station's fix kept the map it had laid, and no walk out of
+#: there found a route. ⚠ A COPY OF THE ROOM ALREADY IN THE MAP CAPTURES A
+#: RIGHT BELIEF: where the copy's scans cleared the true walls' cells, the
+#: fit at the truth is doubted and the search takes the copy, which is
+#: under UNIQUE_M from the truth and so no rival of it (a synthetic counter,
+#: a copy the base laid 0.3-0.57 m off: 11-12 of 12 work poses moved onto
+#: it, the base 0-5); the copies kept maps hold go only with the map.
 DOUBT_HELD_SHARE = 0.95
 DOUBT_SHARE = 0.8
 DOUBT_FOUND_SHARE = 0.9
@@ -145,7 +152,10 @@ DOUBT_FOUND_SHARE = 0.9
 #: fence, parallel, nothing across -- every place along it scored 0.95-1.00
 #: of the best, and the search took the best 25 times, each a few points
 #: ahead and up to 0.6 m behind the robot, until it was 5.95 m off; at the
-#: counter the rival is the alias 0.6 m east, 0.75 of the truth.
+#: counter the rival is the alias 0.6 m east, 0.75 of the truth. ⚠ IN ITS
+#: WINDOW ONLY: a belief further off than SEARCH_M along a fence of panels a
+#: metre apart was taken onto the alias a metre from the truth (the base
+#: kept its 0.75 m).
 DOUBT_RIVAL_SHARE = 0.9
 #: ⚠ A ROBOT ITS MAP KEEPS REFUSING IS LOST PAST THE SEARCH'S REACH (issue
 #: #422): after LOST_RUN scans running "inconsistent" -- any other verdict
@@ -508,7 +518,7 @@ class ScanMatcher:
       hess, grad, d, live = self._normal((x, y, th), pts)
     return (x, y, th), d, live
 
-  def _judge(self, asked, pts, fit, found: bool = False, share: float = FOUND_SHARE):
+  def _judge(self, asked, pts, fit, found: bool = False, share: float | None = None):
     """The verdict on a fit: (the pose to lay the scan at, why, the rest of
     `Match`). Which directions the walls fix is read where the fit ENDED
     (offset, a room's points sit off its walls and it looks like a
@@ -529,6 +539,7 @@ class ScanMatcher:
               held=int(3 - keep.sum()))
     fit_pose = (x0 + dx, y0 + dy, th0 + dth)
     if found:
+      share = FOUND_SHARE if share is None else share     # ...as it reads now
       if n >= MIN_INLIERS and n >= share * n_live and keep.all():
         return fit_pose, "found", dict(step=(dx, dy, dth), **kw)
       return asked, "inconsistent", kw

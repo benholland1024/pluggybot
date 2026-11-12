@@ -830,7 +830,7 @@ def zone_report(runs: list[dict]) -> None:
           f"{t['holdDeg'] / max(mins, 1e-9):5.2f} "
           f"{t['matcherDeg'] / max(mins, 1e-9):5.2f}         | "
           f"{100 * t['legsM'] / metres:5.1f} {100 * t['headingM'] / metres:5.1f} "
-          f"{100 * t['matcherM'] / metres:5.1f}      | {100 * v.get('ok', 0) / n:4.0f} "
+          f"{100 * t['matcherM'] / metres:5.1f}      | {100 * scans_taken(v) / n:4.0f} "
           f"{100 * v.get('held', 0) / n:4.0f} {100 * none / n:4.0f} {100 * refused / n:7.0f}"
           f"            | {t['returns'] / n:5.0f}")
 

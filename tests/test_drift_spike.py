@@ -164,3 +164,47 @@ def test_a_doubted_fit_is_a_scan_its_robot_matched():
   # none, #593's sign of a robot lost while it waits.
   hds = _spike()
   assert hds.scans_taken({"ok": 3, "doubted": 2, "found": 1, "slid": 4}) == 5
+
+
+def test_the_zone_table_counts_a_doubted_fit_as_the_fit_it_was(capsys):
+  # ...and so does the table by zone every flight prints: counted by the
+  # name "ok", a sidewalk whose held fits were half doubted read "ok 52 held
+  # 100", the doubted half in no column (#681's review).
+  hds = _spike()
+  zone = {"zone": "sidewalk_east", "s": 60.0, "walkedM": 30.0, "scans": 100,
+          "returnsPerScan": 300.0, "legsM": [0.0, 0.0], "headingM": [0.0, 0.0],
+          "matcherM": [0.0, 0.0], "verdicts": {"ok": 52, "doubted": 48, "held": 100}}
+  hds.zone_report([{"zones": [zone]}])
+  line = next(ln for ln in capsys.readouterr().out.splitlines() if "sidewalk_east" in ln)
+  assert line.split("|")[3].split()[:2] == ["100", "100"], line
+
+
+def test_done_counts_the_doubted_fits_of_a_robot_waiting(monkeypatch):
+  # `--done`'s matchedWaiting through `done()` itself, its pair a stub whose
+  # waiting robot's every fit is doubted: read by the name "ok" it matched
+  # none, #593's sign of a robot lost while it waits (#681's review: the
+  # helper alone was pinned, never its one line of wiring).
+  from pluggybot import pair
+  hds = _spike()
+
+  class Life:
+    def __init__(self):
+      self.data, self.state, self.expects_work = NS(time=0.0), "DONE", False
+      self.body = NS(step_hooks=[], match_counts={}, pose=(0.0, 0.0, 0.0),
+                     true_pose=lambda: (0.0, 0.0, 0.0))
+
+  lives = [Life(), Life()]
+
+  def run_pair(ls, max_sim_time, explore_budget):
+    second = ls[1]
+    for k in range(1, 61):
+      second.data.time = float(k)
+      second.body.match_counts = {"doubted": 10 * k}
+      for hook in list(second.body.step_hooks):
+        hook()
+    return [{"sim_time": 60.0}, {"sim_time": 60.0}]
+
+  monkeypatch.setattr(pair, "build_pair", lambda *a, **kw: lives)
+  monkeypatch.setattr(pair, "run_pair", run_pair)
+  out = hds.done(seconds=60.0)
+  assert out["matchedWaiting"] == 600 - 10, out["matchedWaiting"]
