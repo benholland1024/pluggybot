@@ -3988,10 +3988,12 @@ class Served:
   """A get-up's fall flown on past its first stand as the mission flies it
   (`humanoid.mission`: the legs back to the standing policy, the fall watch
   on, a fall taken again), and its `stuck` clock read (`StuckClock`): every
-  get-up (s from the trial's start: taken, stood or None) and the verdict."""
+  get-up (s from the trial's start: taken, stood or None), the verdict, and
+  where a body that died lay as it died (`_pose_now`, the nearest face: a
+  start `--fall-ends` would record)."""
 
-  def __init__(self, t0: float, npz: str | None):
-    self.t0, self.npz, self.f = t0, npz, None
+  def __init__(self, t0: float, npz: str | None, model):
+    self.t0, self.npz, self.f, self.m, self.end = t0, npz, None, model, None
     self.clock, self.getups = StuckClock(), []
 
   def took(self, t: float) -> None:
@@ -4022,6 +4024,10 @@ class Served:
   def check(self, d, root: int, pitch: float) -> None:
     if d.time - self.t0 >= self.clock.next_t:
       self.clock.check(d.time - self.t0, self.getting_up or _down_now(d, root, pitch))
+      if self.clock.died is not None and self.end is None:
+        ours = set(robot_geoms(self.m, ROBOT_ROOT))
+        self.end = {**_pose_now(self.m, d, root, moving=False),
+                    "face": _nearest_face(self.m, d, root, ours)}
 
   def going(self, t: float, watch: float) -> bool:
     """Whether the trial flies on, `t` s from its start: to its own watch
@@ -4031,7 +4037,8 @@ class Served:
     return not self.clock.settled and t < CLOCK_CAP_S
 
   def row(self) -> dict:
-    return {"getups": self.getups, "clock": self.clock.verdict()}
+    return {"getups": self.getups, "clock": self.clock.verdict(),
+            **({"end": self.end} if self.end is not None else {})}
 
 #: The shoves, the robot's frame (x ahead), and how hard, N*s: past what it
 #: stands through every way (`--shove`: 10-20 N*s), it goes over.
@@ -4100,7 +4107,7 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS,
   took_over, stood_at, gen = None, None, shove(h, FALL_WAYS[way], ns)
   force = np.zeros(6)
   t0 = d.time
-  served = Served(t0, npz) if mode == "getup" else None
+  served = Served(t0, npz, m) if mode == "getup" else None
   while (d.time - t0 < FALL_S if served is None
          else served.going(d.time - t0, watch_s or FALL_S)):
     if gen is not None:
@@ -4242,7 +4249,7 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
   head_part, unit, unit_v = None, m.geom("lidar").id, None
   vel = np.zeros(6)
   t0 = d.time
-  served = Served(t0, npz)
+  served = Served(t0, npz, m)
   while served.going(d.time - t0, watch_s or HOUSE_FALL_S):
     if gen is not None:
       if next(gen, "done") == "done":
@@ -4374,7 +4381,7 @@ def counter_fall_trial(prop: str, way: str, npz: str | None = None, ns: float = 
   every = max(1, round(h.stand.policy.period / m.opt.timestep))
   vel = np.zeros(6)
   t0, n = d.time, 0
-  served = Served(t0, npz)
+  served = Served(t0, npz, m)
   while served.going(d.time - t0, HOUSE_FALL_S):   # a shove it stands through: the house's watch
     if gen is not None:
       if next(gen, "done") == "done":
@@ -4685,7 +4692,7 @@ def lying_trial(face: str, pose: str, gap: float, npz: str | None = None) -> dic
   stood, over, longest, head_v, head_part, k = None, None, 0.0, None, None, 0
   vel = np.zeros(6)
   t0 = d.time
-  served = Served(t0, npz)
+  served = Served(t0, npz, m)
   served.took(t0)
   while served.going(d.time - t0, COUNTER_FALL_S):
     if served.f is not None:
@@ -4787,7 +4794,7 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
   _drain(shove(h, FALL_WAYS[way], ns))
   vel = np.zeros(6)
   n, up = 0, False
-  srv = Served(t0, npz) if served else None
+  srv = Served(t0, npz, m) if served else None
   while (d.time - t0 < BOW_WATCH_S if srv is None
          else srv.going(d.time - t0, watch_s or BOW_WATCH_S)):
     if srv is not None and srv.f is not None:
