@@ -78,6 +78,50 @@ def test_the_place_passes_laid_let_go_in_time_and_on_nothing_less():
   assert not ok and why.startswith("measured 1.0 s after the call")
 
 
+def test_the_reason_names_every_piece_at_fault_each_as_it_reads_alone():
+  """#687 (D5's table practice): the reason named the first piece at fault
+  alone -- the plate's, or a fall's -- and the cup's 3-6 cm went unsaid in
+  every try that moved it, until the robot's notes read "CUP WORKS (placed
+  twice)". It names every piece at fault, in the criteria's order, each in
+  the words it gets alone, a rule said once over the pieces it names --
+  within History's line, a robot's settled job beside it -- and the verdict
+  is the one it was. Shown to fail on the tree before it."""
+  rest = "rest on the table within 2.5 cm of where it goes"
+  ok, _, why = table.eval_table(_laid(cup={"offM": 0.04}))
+  assert not ok and why == f"the cup ended 4 cm from its place: it must {rest}", why
+  ok, _, why = table.eval_table(_laid(plate={"offM": 0.22}, cup={"offM": 0.04}))
+  assert not ok and why == ("the plate ended 22 cm from its place and the cup ended 4 cm from "
+                            f"its place: each must {rest}"), why
+  ok, _, why = table.eval_table(_laid(
+    falls=1, elapsedS=301.0, touchedDuringHold=["left_jaw_a_pad"],
+    plate={"fastestFreeMS": 4.6, "offM": 1.36, "aboveM": -0.72},
+    cup={"fastestFreeMS": 0.9, "tiltDeg": 40.0}, fork={"turnDeg": 30.0}))
+  # ...the touch at the hold said of a place laid alone, as it was
+  assert not ok and why == (
+    "you fell, and a fall fails the try -- called 301 s after the start, past the 300 s the "
+    "job allows; the plate came down at 4.6 m/s and the cup came down at 0.9 m/s, each with "
+    "nothing holding it -- dropped or knocked over, not set down (no faster than 0.5); the "
+    f"plate ended 136 cm from its place: it must {rest}; the cup rests at its place tipped 40 "
+    "deg: it must stand upright; the fork lies 30 deg off the place's line: it must lie along "
+    "it, its head toward the card, within 15 deg"), why
+  # ...a piece at its place first by where it ended, and only then by how it lies
+  ok, _, why = table.eval_table(_laid(plate={"offM": 0.22, "aboveM": 0.07}, cup={"offM": 0.07},
+                                      fork={"offM": 0.21, "tiltDeg": 90.0, "turnDeg": 120.0}))
+  assert why == ("the plate ended 22 cm from its place, 7 cm over the table, the cup ended 7 cm "
+                 "from its place and the fork ended 21 cm from its place: each must "
+                 f"{rest}"), why
+  # ...D5's longest, set-out 0's third try (a fall, the plate dropped, all
+  # three off and three geoms on the place), in a settled job's History
+  # line inside its cap
+  from pluggybot.lifecycle import HISTORY_STAMP_ROOM
+  from pluggybot.mind.thoughts import MAX_LINE_CHARS
+  _, _, why = table.eval_table(_laid(
+    falls=1, touchedDuringHold=["right_jaw_a_pad", "right_jaw_b_pad", "right_sole"],
+    plate={"fastestFreeMS": 4.637, "offM": 1.359, "aboveM": -0.72},
+    cup={"offM": 0.072}, fork={"offM": 0.209}))
+  assert len(f"failed the job t_0042 (set_table): {why}") <= MAX_LINE_CHARS - HISTORY_STAMP_ROOM
+
+
 def test_the_place_is_judged_as_measured_shown_rounded_and_a_fall_first():
   m = _laid(plate={"offM": 0.0254})
   ok, metrics, _ = table.eval_table(m)
