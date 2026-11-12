@@ -166,19 +166,15 @@ OBSTACLE2 = {**OBSTACLE, "tipping_share": 0.5, "tipping": {"into": 0.3, "along":
 POSES = Path(__file__).with_name("getup_poses.json")
 POSE_SPREAD_RAD, POSE_TILT_RAD, POSE_DROP_M = 0.2, 0.1, 0.02
 #: `-Getup-Wall3` (#679's third round): the get-up HANDS BACK as served --
-#: once standing as the served get-up hands back (within `STOOD_UP`, the
-#: pelvis `HAND_BACK_M` of the stand's height) for `HAND_BACK_S`
-#: (`humanoid.getup`'s `STOOD_*`, which a test reads these against), the
-#: standing policy (`STAND_NPZ`, served) has the legs, the arms held at its
-#: pose; and a fall past `RETAKE_DEG` or the pelvis under `RETAKE_M` is the
-#: get-up's again, as the served watch takes it (`FALL_TILT_RAD`,
-#: `COLLAPSED_M`). ⚠ The served test also waits for the gyro under 0.3 rad/s,
-#: and the training's does not: the action's noise in training never let it
-#: settle (with it, getupwall14 handed back in no episode of 150 iterations),
-#: and the training physics turns a standing robot ~1 rad/s on its soles.
-#: ⚠ Never handed back, the wall policies stood with their soles 0.52-0.65 m
-#: apart (getup3's 0.32), and the served standing policy, given that stance,
-#: fell within 2 s (#679's second round).
+#: upright within `STOOD_UP` and the pelvis `HAND_BACK_M` of the stand's
+#: height for `HAND_BACK_S` (`humanoid.getup`'s `STOOD_*`, which a test reads
+#: these against), the standing policy (`STAND_NPZ`, served) has the legs and
+#: the arms held at its pose, until a fall past `RETAKE_DEG` or the pelvis
+#: under `RETAKE_M` (the served watch's). ⚠ Never handed back in training, a
+#: get-up stood where the standing policy could not keep it (its soles
+#: 0.53-0.65 m apart: it fell within 2 s). ⚠ No gyro test, which the served
+#: one has: under the action's noise the trunk never settled, and nothing was
+#: handed back. (SimNotes, "The wall get-up's second and third rounds".)
 STAND_NPZ = robot.REPO / "models" / "humanoid_stand.npz"
 HAND_BACK_M, HAND_BACK_S = 0.05, 0.5
 #: Handed back is paid this a second (`upright`'s weight).
@@ -290,13 +286,8 @@ def _poses(env, asset, names: tuple[str, ...] | None):
       raise ValueError(f"no pose of {names} in {POSES}")
     joints = list(asset.joint_names)
     default = asset.data.default_joint_pos[0]
-    index, sign = [], []
-    for name in joints:
-      side, _, part = name.partition("_")
-      twin = (("right" if side == "left" else "left") + "_" + part
-              if side in ("left", "right") else name)
-      index.append(joints.index(twin))
-      sign.append(-1.0 if part in FLIPS or name.endswith("_yaw") and twin == name else 1.0)
+    twins = [_mirrored(name) for name in joints]
+    index, sign = [joints.index(t) for t, _ in twins], [s for _, s in twins]
     q, qd, quat, vel, lean, ang, dist = [], [], [], [], [], [], []
     for k in chosen:
       pose = table[k]
@@ -386,7 +377,8 @@ def reset_fallen(env, env_ids, starts: dict | None = None,
                           _uniform(n, (-POSE_TILT_RAD, POSE_TILT_RAD), dev), yaw)
     quat = torch.where(posed[:, None], _quat_mul(tilt, level), quat)
     q = torch.where(posed[:, None], pose_q + POSE_SPREAD_RAD * (2 * torch.rand_like(q0) - 1), q)
-    qd = torch.where(mirrored[:, None], table["qd_mirror"][pick], table["qd"][pick])
+    qd = torch.where(posed[:, None], torch.where(mirrored[:, None], table["qd_mirror"][pick],
+                                                 table["qd"][pick]), qd)
     moving = torch.where(mirrored[:, None], table["vel_mirror"][pick], table["vel"][pick])
     turned = torch.cat([_quat_apply(tilt, moving[:, :3]), _quat_apply(tilt, moving[:, 3:])], -1)
     vel = torch.where(posed[:, None], turned, vel)
@@ -681,14 +673,21 @@ MIRROR_TERMS = {"base_lin_vel": _POLAR, "projected_gravity": _POLAR, "base_ang_v
                 "root_height": (1.0,), "since_release": (1.0,)}
 
 
+def _mirrored(name: str) -> tuple[str, float]:
+  """A joint's twin in the mirror image and the sign its angle takes: a
+  left's is the right's and back, a joint on the middle (the waist's yaw)
+  its own; a roll or a yaw turns over."""
+  side, _, part = name.partition("_")
+  if side not in ("left", "right"):
+    return name, -1.0 if part.endswith("yaw") else 1.0
+  return ("right" if side == "left" else "left") + "_" + part, -1.0 if part in FLIPS else 1.0
+
+
 @functools.cache
 def _joint_mirror(device):
-  index, sign = [], []
-  for name in JOINTS:
-    side, part = name.split("_", 1)
-    index.append(JOINTS.index(("right" if side == "left" else "left") + "_" + part))
-    sign.append(-1.0 if part in FLIPS else 1.0)
-  return torch.tensor(index, device=device), torch.tensor(sign, device=device)
+  twins = [_mirrored(name) for name in JOINTS]
+  return (torch.tensor([JOINTS.index(t) for t, _ in twins], device=device),
+          torch.tensor([s for _, s in twins], device=device))
 
 
 def _mirror_group(x: torch.Tensor, terms, dims) -> torch.Tensor:
@@ -818,8 +817,7 @@ class HandBackAction(JointPositionAction):
   def process_actions(self, actions: torch.Tensor) -> None:
     super().process_actions(actions)
     data = self._entity.data
-    up = -data.projected_gravity_b[:, 2]
-    z = data.root_link_pos_w[:, 2] - self._env.scene.env_origins[:, 2]
+    up, z = _up(self._env), _z(self._env)
     stood = (up > STOOD_UP) & ((z - robot.BODY["stand_height"]).abs() < HAND_BACK_M)
     fell = (up < math.cos(math.radians(RETAKE_DEG))) | (z < RETAKE_M)
     self.handed &= ~fell
@@ -1063,28 +1061,18 @@ def getup_wall3_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   old = cfg.actions["joint_pos"]
   cfg.actions["joint_pos"] = HandBackActionCfg(
     **{f.name: getattr(old, f.name) for f in dataclasses.fields(old) if f.init})
-  # ...and paid while the standing policy has it: a stance it cannot hold
-  # loses the pay until the get-up stands it again. (Not shown to the critic:
-  # a 108th input would not load getupwall12's.) ⚠ The stand is paid only so:
-  # paid as well while the get-up held it, both runs learned within 450
-  # iterations to stand just outside the hand-back (its pay 0.65-0.79 a
-  # second at the start, 0.004-0.03 at the end) -- served, a get-up that never
-  # hands back is the `stuck` death at 20 s.
-  # ⚠ And waiting is charged: paid the stand only once handed back, they
-  # learned within 170 iterations to stand just outside the hand-back anyway
-  # (`upright` and `rise` paid there, and nothing risked).
+  # Handed back is paid and waiting charged, the stand paid only handed back,
+  # and the get-up's own charges charged only while it holds the legs (handed
+  # back, they read the standing policy's stepping): ⚠ any of the three
+  # missing, it learned to stand just outside the hand-back, which served is
+  # the `stuck` death at 20 s (SimNotes, "The wall get-up's second and third
+  # rounds"). The critic is not told: a 108th input would not load getupwall12's.
   cfg.rewards["handed_back"] = RewardTermCfg(func=lambda env: handed_back(env)[:, 0],
                                              weight=HANDED_WEIGHT)
   cfg.rewards["not_handed"] = RewardTermCfg(
     func=lambda env: _paid(env, BUDGET_S) * (1.0 - handed_back(env)[:, 0]), weight=-HANDED_WEIGHT)
   for name in ("stand_height", "stand_pose", "feet_down"):
     cfg.rewards[name].func = _handed_only(cfg.rewards[name].func)
-  # ⚠ ...and the get-up's own charges are not charged while the standing
-  # policy has the legs: charged its joints' speed and torque (in the
-  # training physics the standing policy keeps stepping against a ~1 rad/s
-  # turn on its soles), a second handed back cost ~300 times one not (the
-  # episode's charges -18 against -0.5), and the runs learned to avoid the
-  # hand-back whatever the wait cost.
   for name in GENTLE:
     if name != "impact":
       cfg.rewards[name].func = _handed_only(cfg.rewards[name].func, handed=False)

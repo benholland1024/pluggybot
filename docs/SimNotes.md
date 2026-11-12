@@ -2088,7 +2088,8 @@ pick carried on handing back, chosen in `-Getup-Wall3`'s physics before the
 bar was read; NOT served) loses none of the 151 falls today's get-up lives
 through on the clock and gains 24 (lying along a face 57 of 63 to today's 39,
 the counter's shoves 20 of 20 to 15) -- all six of getupwall10's back, the
-hall shoved back standing in 2.9 s with its soles 0.26 m apart -- and stands
+hall shoved back standing in 2.9 s, its soles 0.35 m apart and 0.26 m
+0.4 s later -- and stands
 from all 14 of the counter's falls inside the 20 s (2.8-14.8 s after the
 take). Its slowest of the 151: shoved left at the chest, it sits, and rises
 18.2 s after the take. On 130 falls

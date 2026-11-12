@@ -175,17 +175,11 @@ HANDS BACK as served (`HandBackAction`): upright and within 5 cm of the
 stand's height for 0.5 s, the served standing policy
 (`models/humanoid_stand.npz`) has the legs, the arms held at its pose, until
 a fall the served watch would take; handed back is paid and waiting
-charged, the stand paid only handed back and the get-up's own joint and
-torque charges charged only while it holds the legs -- ⚠ each of those
-missing, the runs learned within 140-450 iterations to stand just outside
-the hand-back (handed back, its charges read the standing policy's stepping
-against the training physics' ~1 rad/s turn on the soles). ⚠ Never handed
-back in training, a get-up stands as it pleases: the second round's pick
-stood with its soles 0.53-0.65 m apart (getup3's 0.32), and given that
-stance the standing policy tipped within 2 s in nine of the served falls.
-⚠ The served hand-back also waits for the gyro under 0.3 rad/s; under the
-action's noise in training the trunk never settled, and handed back in no
-episode, so the training's waits for upright and tall alone.
+charged, the stand paid only handed back, the get-up's own joint and torque
+charges charged only while it holds the legs, and no gyro test -- ⚠ each,
+and what went wrong without it, in SimNotes ("The wall get-up's second and
+third rounds"): never handed back, a get-up stands where the standing policy
+cannot keep it.
 `models/humanoid_getup_wall3.npz` (NOT served) is getupwall14's iteration
 9850: `-Getup-Wall3-Mirror` from getupwall12's 9050 (`-Getup-Wall2-Mirror`
 from getupwall10's 8450), 800 iterations in ~25 min on a 5090 shared with a
@@ -193,7 +187,10 @@ second run, chosen by the scan in `-Getup-Wall3`'s physics before the bar was
 read on it (SimNotes, "The wall get-up's second and third rounds"). Its
 second run, the same from getupwall10, never learned to rise from a sit (as
 the second round's other run did not): the sit was learned once, by
-getupwall12, and carried on.
+getupwall12, and carried on. ⚠ It trained with a bug since fixed (getup.py's
+review): a reset that drew a posed start gave every start drawn with it that
+pose's joint speeds (up to 7.7 rad/s), so some of its lying and tipping
+starts began with their joints swinging.
 ⚠ A get-up SEES THE JOINTS IT
 DRIVES: over every joint the waist made 80 inputs, where getup3's 78 carry
 on; and mjlab's metadata lists every joint of the body, so it is exported

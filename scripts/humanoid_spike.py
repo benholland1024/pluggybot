@@ -4040,6 +4040,12 @@ class Served:
     return {"getups": self.getups, "clock": self.clock.verdict(),
             **({"end": self.end} if self.end is not None else {})}
 
+
+def _died(r: dict) -> bool:
+  """A table's row whose fall #684's clock reads as the `stuck` death (or that
+  had not settled by `CLOCK_CAP_S`): no stand that held inside its 20 s."""
+  return r.get("clock", {}).get("verdict") in ("died", "open")
+
 #: The shoves, the robot's frame (x ahead), and how hard, N*s: past what it
 #: stands through every way (`--shove`: 10-20 N*s), it goes over.
 FALL_WAYS = {"front": (1, 0), "back": (-1, 0), "left": (0, 1), "right": (0, -1),
@@ -4134,6 +4140,11 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS,
       mujoco.mj_step(m, d)
     else:
       h.step()
+    if served is not None and served.f is not None:
+      # ...the fall's and the get-up's, to its first stand: the standing
+      # policy's after it, and a second fall, are no part of the get-up's
+      served.check(d, h.root, h.reach.held_pitch())
+      continue
     for i in range(d.ncon):
       c = d.contact[i]
       other = c.geom2 if c.geom1 == floor else c.geom1 if c.geom2 == floor else None
@@ -4202,7 +4213,8 @@ def fall_table(npz: str | None = None, jobs: int = 4, watch_s: float | None = No
     over = np.flatnonzero(share > 1.0)
     worst = hm.JOINT_NAMES[int(np.argmax(share))]
     fast = int((np.array(r["speed"]) > noload).sum())
-    stood = f"{r['stood_s']:.1f}s" if r["stood_s"] else ("up" if r["up_at_end"] else "-")
+    stood = ("died" if _died(r) else f"{r['stood_s']:.1f}s" if r["stood_s"]
+             else "up" if r["up_at_end"] else "-")
     gears = f"{len(over)} ({share.max():.1f}x, {worst})" if len(over) else "0"
     reach = "-" if r["lying_reach_m"] is None else f"{r['lying_reach_m']:.2f}"
     print(f"{r['way']:11s}{r['mode']:>11s}{str(r['first']):>10s}"
@@ -4321,20 +4333,19 @@ def house_fall_table(npz: str | None = None, jobs: int = 4,
     rows = pool.map(_house_fall_trial, work)
   print(f"FALLS IN THE HOUSE, shoved {FALL_NS:g} N*s each way, the get-up policy taking each "
         f"fall: what struck first (a sole aside), the part of the head that went into anything "
-        f"first and its speed, m/s, and when it stood from the shove -- or where its pelvis lay "
-        f"over the ground it had stood on after {watch_s or HOUSE_FALL_S:g} s")
+        f"first and its speed, m/s, and when it stood from the shove -- or, dead on #684's clock "
+        f"(no stand that held inside 20 s), where its pelvis lay over the ground it had stood on")
   print(f"{'place':20s}" + "".join(f"{w:>34s}" for w in HOUSE_WAYS))
   for place in HOUSE_FALLS:
     cells = []
     for w in HOUSE_WAYS:
       r = next(x for x in rows if x["place"] == place and x["way"] == w)
       head = "-" if r["head_v"] is None else f"{r['head_part'][:6]} {r['head_v']:.1f}"
-      end = f"stood {r['stood_s']:.1f}s" if r["stood_s"] else (
-        "held" if r["took_s"] is None else f"down {r['end_z']:+.2f}")
+      end = ("held" if r["took_s"] is None else f"died {r['end_z']:+.2f}" if _died(r)
+             else f"stood {r['stood_s']:.1f}s")
       cells.append(f"{(r['first'] or '-')[:6]} {head:>11s} {end:>12s}")
     print(f"{place:20s}" + "".join(f"{c:>34s}" for c in cells))
-  print("  (down: still on the ground after the watch, its pelvis that high over the ground it "
-        "had stood on, m)")
+  print("  (died: its pelvis that high over the ground it had stood on as it died, m)")
   touched = [f"{r['place']} {r['way']} at {r['unit_v']:.1f} m/s" for r in rows
              if r["unit_v"] is not None]
   print(f"  the LIDAR itself touched anything: {', '.join(touched) or 'in no fall'}")
@@ -4350,9 +4361,6 @@ def house_fall_table(npz: str | None = None, jobs: int = 4,
 #: The shoves' ways, the robot's frame (x ahead, into the counter).
 COUNTER_WAYS = {"front": (1, 0), "front-left": (1, 1), "front-right": (1, -1),
                 "left": (0, 1), "right": (0, -1), "back": (-1, 0)}
-#: A counter fall is watched this long past the get-up's takeover, s: the
-#: stuck budget (`HumanoidBody.GETUP_BUDGET_S`, 20) and a margin.
-COUNTER_FALL_S = 25.0
 
 
 def counter_fall_trial(prop: str, way: str, npz: str | None = None, ns: float = FALL_NS) -> dict:
@@ -4444,9 +4452,9 @@ def counter_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   budget = HumanoidBody.GETUP_BUDGET_S
   print(f"FALLS AT THE STOREROOM'S COUNTER, shoved {FALL_NS:g} N*s each way from each prop's work "
         f"spot (the robot's frame: front is into the counter), the get-up policy taking each "
-        f"fall: s from its takeover to standing (-: down {COUNTER_FALL_S:g} s past it), the "
-        f"longest the trunk lay past {math.degrees(TOPPLE_TILT_RAD):.0f} deg (stuck at "
-        f"{budget:g}), and how long it lay against the counter or a prop while down")
+        f"fall: s from its takeover to standing (died: no stand that held inside #684's "
+        f"{budget:g} s), the longest the trunk lay past {math.degrees(TOPPLE_TILT_RAD):.0f} deg, "
+        f"and how long it lay against the counter or a prop while down")
   print(f"{'prop':8s}" + "".join(f"{w:>24s}" for w in COUNTER_WAYS))
   for prop in storeroom.PROPS:
     cells = []
@@ -4455,14 +4463,12 @@ def counter_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
       if r["took_s"] is None:
         cells.append("held")
         continue
-      up = "-" if r["up_after_s"] is None else f"{r['up_after_s']:.1f}"
+      up = "died" if _died(r) else f"{r['up_after_s']:.1f}"
       cells.append(f"{up:>5s} {r['past_topple_s']:4.1f} {r['against_s']:4.1f}s")
     print(f"{prop:8s}" + "".join(f"{c:>24s}" for c in cells))
   took = [r for r in rows if r["took_s"] is not None]
-  within = [r for r in took if r["up_after_s"] is not None and r["up_after_s"] <= budget]
-  stuck = [r for r in took if r["past_topple_s"] >= budget]
-  print(f"  stood within {budget:g} s of the takeover: {len(within)} of {len(took)} falls; "
-        f"stuck (past the topple {budget:g} s running): {len(stuck)}")
+  died = [r for r in took if _died(r)]
+  print(f"  lived on #684's clock: {len(took) - len(died)} of {len(took)} falls; died: {len(died)}")
   return rows
 
 
@@ -4660,8 +4666,8 @@ def _along(m, d, gids, way, origin) -> float:
 def lying_trial(face: str, pose: str, gap: float, npz: str | None = None) -> dict:
   """The robot laid along `face` as `pose` has it, its nearest part `gap`
   m off the face and 1 cm over the floor, the get-up handed it at once and
-  watched `COUNTER_FALL_S`: when it stood (s), the longest the trunk lay
-  past the topple, and its head's first strike."""
+  flown till #684's clock settles: when it stood (s), the longest the trunk
+  lay past the topple, and its head's first strike."""
   from pluggybot.home import storeroom
   (fx, fy), n, a = _lying_faces()[face]
   start = (fx + 1.0 * n[0], fy + 1.0 * n[1])
@@ -4694,7 +4700,7 @@ def lying_trial(face: str, pose: str, gap: float, npz: str | None = None) -> dic
   t0 = d.time
   served = Served(t0, npz, m)
   served.took(t0)
-  while served.going(d.time - t0, COUNTER_FALL_S):
+  while served.going(d.time - t0, CLOCK_CAP_S):
     if served.f is not None:
       served.step()
       served.check(d, root, h.reach.held_pitch())
@@ -4736,17 +4742,16 @@ def lying_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
     rows = pool.map(_lying_trial, work)
   print(f"LYING ALONG A FACE, laid with the truth (the joints at the stand's, its nearest part "
         f"{', '.join(f'{g:g}' for g in LYING_GAPS)} m off the face), the get-up handed it at "
-        f"once: s to standing (-: down after {COUNTER_FALL_S:g} s)")
+        f"once: s to standing (died: no stand that held inside #684's 20 s)")
   print(f"{'face':17s}{'lying':30s}" + "".join(f"{g:>8g} m" for g in LYING_GAPS))
   for f in _lying_faces():
     for p in LYING_POSES:
       cells = []
       for g in LYING_GAPS:
         r = next(x for x in rows if x["face"] == f and x["pose"] == p and x["gap"] == g)
-        cells.append("-" if r["stood_s"] is None else f"{r['stood_s']:.1f}")
+        cells.append("died" if _died(r) else f"{r['stood_s']:.1f}")
       print(f"{f:17s}{p:30s}" + "".join(f"{c:>10s}" for c in cells))
-  stood = [r for r in rows if r["stood_s"] is not None]
-  print(f"  stood: {len(stood)} of {len(rows)}")
+  print(f"  lived on #684's clock: {sum(not _died(r) for r in rows)} of {len(rows)}")
   return rows
 
 
@@ -4885,7 +4890,7 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4,
     false_now = sum(r["tilt_s"] is not None or r["collapse_s"] is not None for r in stood_through)
     false_was = sum(r["upright_s"] is not None or r["collapse_s"] is not None for r in stood_through)
     up = [r for r in served if r["posture"] == p and r["took_s"] is not None]
-    stood = [r["stood_s"] for r in up if r["stood_s"] is not None]
+    stood = [r["stood_s"] for r in up if r["stood_s"] is not None and not _died(r)]
     heads = [r["head_v"] for r in fell if r["head_v"]]
     heads_s = [r["head_v"] for r in up if r["head_v"]]
     print(f"{p[0]:+6.2f} m {p[1]:4.2f}{len(fell):>4d}/{len(fell) + len(stood_through)}"
@@ -5398,8 +5403,9 @@ def main(argv=None) -> None:
                        "limp, or the get-up's; in the house; at the storeroom's counter; and "
                        "from each bow a reach takes, what the watch says")
   ap.add_argument("--fall-watch", type=float, default=None, metavar="S",
-                  help="with --fall: the get-up's falls watched S s from the shove (by "
-                       "default the tables' own: 8 bare, 15 in the house, 6 from a bow)")
+                  help="with --fall: a fall watched S s from the shove while the get-up has not "
+                       "taken it (by default the tables' own: 8 bare, 15 in the house, 6 from a "
+                       "bow); one it takes is flown till #684's clock settles, 60 s at most")
   ap.add_argument("--fall-out", default=None, metavar="JSON",
                   help="with --fall: every table's rows written there")
   ap.add_argument("--fall-ends", nargs="?", const="", default=None, metavar="NPZ",
