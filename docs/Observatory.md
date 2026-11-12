@@ -10,6 +10,61 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A read after a verb that failed says so, a fault in a statement names its line, and the table's grade names every piece at fault (#686, #687) — opens when this PR is deployed
+
+**What changed is what the robots read** (Overseer.md §2b, Hands.md §3,
+Challenges.md §12):
+- **A `read` of a verb whose last call failed says so.** A `spot`, a
+  `find` or a `pull` that read false, a call refused before it ran, or one a
+  fall or a death closed forgets what its verb last reported, as before;
+  reading it now says "spot.z has no reading: your last `spot` failed",
+  where it said "`spot` has not run" after a `spot` that had. A verb never
+  called still says it has not run. A `watch` that fails before it begins
+  (no whole tag, or its call refused) ends the watch before it, whose
+  readings read as its own, and the procedure's end forgets that word with
+  its watch.
+- **A fault in a statement's own arithmetic names its line** -- an
+  assignment's, an `if`'s or an `elif`'s test, a `while`'s and its cap.
+  History: "it stopped at line 5, an expression: …", where it said "it
+  stopped at an expression: …"; the practice's report "stopped at line 5,
+  expr: …" where it said "line ?"; and the `procedure` event carries
+  `failedLine` for it, as for a verb. A fault in a def's arithmetic is named
+  at its own line in that def, a test that read false on it too (it named
+  the call's line beside the def's name, and in another of the library's
+  procedures, a line of the caller's source as that procedure's).
+- **The table's grade names every piece at fault**: `set_table`'s reason,
+  in History and on the board, and the practice's. Each piece reads as it
+  would alone, and a rule is said once over the pieces it names: "the plate
+  ended 22 cm from its place, the cup ended 8 cm from its place and the
+  fork ended 24 cm from its place: each must rest on the table within 2.5 cm
+  of where it goes", where it named the plate's alone. One piece at fault
+  reads as it did, and what still touched the place is still said only of a
+  place otherwise laid. Pass or fail is as it was: D5's 30 tries' metrics
+  replayed through it, 30 of 30, the longest History line a settled job of
+  them would leave 379 characters of 400.
+- The prompt did not move (`prompt_sha` `4904a4cb…` both sides, 64,556
+  chars, 17 sections), nor the session host's `hello` (byte for byte), the
+  state, the schema, the menu, the reward table, the body or the house.
+
+**Why.** #686 and #687, from D5's table practice of 11-11 (Evaluation.md
+§4): two of set-out 5's five tries stopped at a `spot.*` read after a
+`spot` that ran and failed, told "line ?" and "`spot` has not run"; and its
+notes called the cup laid ("CUP WORKS (placed twice)") where it ended
+3.1-6.3 cm off in each of the 9 tries that lifted it, every one graded on a
+fall, the plate or a dropped fork first.
+
+**What the period is for.**
+- **Whether a failed verb's reading still reads as a verb never called**:
+  a `read` of `spot.*`, `pull.*`, `find.*` or `step.*` after a call of it
+  that failed, and what the next source does about it, against the period
+  before.
+- **Whether `set_table`'s tries work on the pieces the grade now names**: a
+  try's next source moving the cup or the fork after one graded on the
+  plate.
+- **Pooled with the period before** for anything the reward table, the
+  offers, the body or the house decide; ⚠ not for what a robot wrote after
+  a failed `read` or a table's grade.
+
 ### The cube is offered (#560) — opens when this PR is deployed
 
 **What changed in the world.**
