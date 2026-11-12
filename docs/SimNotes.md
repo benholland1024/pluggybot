@@ -7423,8 +7423,39 @@ actor seeing walk2's 24 joints in walk2's order (the exporter records them,
   waist, as walk2's body was (`get_carry_spec`); served, the waist is held
   home while the robot walks. ⚠ Any walker retrained on today's model with
   the waist's joint free meets this.
-- carry2 (rigid waist), 2500 iterations from walk2 on a 5090: its turn's
-  yaw error 0.44-0.45 through training, walk2's own 0.46.
+- **carry2** (rigid waist): 2500 iterations from walk2 on a 5090 (1:08, an
+  EPYC 7K62 host at 1.6 s an iteration), its turn's yaw error 0.43-0.45
+  through training (walk2's own 0.46); `models/humanoid_walk_carry.npz`,
+  beside walk2, served by nothing. Its checks, beside walk2 on one pod (a
+  Ryzen 9 5950X, osmesa; each flight its own noise and draw; rows
+  `batches/b3`, `b4`, `b5`):
+  - **Ben's flat-floor rule passes** (`--track`, arms home): forward 0.51,
+    0.99, 1.31; back -0.21, -0.47; sideways 0.28; turns 0.47, -0.42, 1.04 --
+    every asked part's error inside the rule's bar (0.11, 0.11, 0.12; 0.21,
+    0.14; 0.11; 0.39, 0.30, 0.11), what was not asked within 0.07. It turns
+    asked 0.5 rad/s at 0.47 where walk2 turned 0.24.
+  - **The house's route, carried by the served hand-over: 32 of 32 arrived,
+    no fall, no drop** -- plate close, low and out in 42-56 s, the cup out and
+    tray in 53-78 s (at 40 N and at 80), arms home in 37-43 -- where walk2,
+    the same flights, arrived 26 of 32 in 43-108 s and let the plate fall
+    free 3 times.
+  - **The carry matrix** (T7's poses, the instrument's own hand-over): no
+    fall at a designed pose (0 of 120); the plate's carries walk true -- over
+    4 m, 0.1-0.3 deg off its own arms-home walk and 3-4 % shorter (walk2:
+    +8-21 deg, 6-8 %) -- and the route's open-loop end 0.8-2.0 m from its
+    arms-home end's (walk2: 5.4-12.7); but a carry in the RIGHT hand veers
+    still, -14 to -20 deg over 4 m (cup close, cup out; walk2 -8 to -15), and
+    its arms-home walk itself veers +9.6 deg over 4 m (walk2 +4.6). Closed
+    loop, 39 of 40 goals arrived (walk2 35); the plate turned no more in its
+    jaws (8-9 deg).
+  - The reach's own arm, never walked by the served hand-over: the plate's
+    walked with no fall (0 of 15), the cup's over the top fell every time (7
+    of 7), as walk2's did -- outside the carry box, so untrained.
+  - Rough ground as walk2 (`--rough`: the same falls on doorsteps and blocks,
+    none on flat, paving and the slope).
+  - Not flown: `--odometry`, `--torque`, `--handover`, the step's and the
+    station's instruments, the drift and make-way spikes, the tour's
+    references, the pair's determinism and the real-time multiple.
 
 ## The arms keep off the other robot (issue #678)
 
