@@ -111,6 +111,32 @@ def test_an_arm_takes_another_way_home_where_one_keeps_clear():
   assert rc._same_way(got, aside)
 
 
+def test_the_way_home_taken_is_the_way_judged_clear():
+  """A way home judged clear (`home_clear`) is the way the arm takes
+  (`_go_home`), begun where it was judged from: judged again from a start a
+  few mm off -- the line out's end beside the solved pre-grasp -- a way clear
+  by a hair could cross the other robot, taken unrefused as the one that
+  comes least near."""
+  r = _standing_reach()
+  r.q_cmd["right"], r.phase["right"] = RAISED_OUT.copy(), "joints"
+  r.keep_out = [_at(0.7, -30)]
+  assert r.home_clear("right")
+  judged = r.judged_home["right"][1]
+  asked = []
+  real = rc.Reach.way_home
+  r.way_home = lambda side, refuse=False: (asked.append(side), real(r, side, refuse))[1]
+  r.q_cmd["right"] = RAISED_OUT + 1e-3
+  r.retreat("right")
+  got = [r.q_to["right"]] + r.homes["right"]
+  assert asked == [] and rc._same_way(got, judged), "judged afresh where it went"
+  assert r.judged_home["right"] is None
+  # ...and never from a start it was not judged from
+  assert r.home_clear("right")
+  r.q_cmd["right"], r.phase["right"] = RAISED_OUT + 0.2, "joints"
+  r.retreat("right")
+  assert asked == ["right"]
+
+
 def test_at_a_counter_no_way_that_dips_deeper_is_taken():
   """#539, #560: straight out to a counter swings the arm low in front, into
   its face; today's way there is the side way. With another robot 0.75 m to
@@ -590,6 +616,28 @@ def test_the_loops_own_hand_moves_wait_for_a_way_then_go(monkeypatch):
   assert m.reach.phase["right"] != "rest", "the loop's reach never went"
   assert float(body.data.time) - t0 >= 0.25 and m.looks >= 3
   assert m.arm_waits[-1]["move"] == "reach" and m.arm_waits[-1]["why"] == "waited"
+
+
+def test_a_robot_whose_arm_waits_for_its_way_is_never_asked_aside(monkeypatch):
+  """Standing still with no hand out, a robot whose reach waits for its way
+  would read as resting after `REST_S`, and a robot resting is asked aside
+  and walked off (#415): its reach then planned off the stance it had left.
+  While an arm waits (`arm_wait_routine`) it is not resting."""
+  from pluggybot.humanoid.way import REST_S
+  monkeypatch.setattr(hmi, "ARM_LOOK_S", 0.1)
+  monkeypatch.setattr(hmi, "ARM_WAIT_S", 0.25)
+  body = body_for(*_floor())
+  m = body.mission
+  m.last_motion_t = float(body.data.time) - REST_S - 1.0
+  assert m.resting, "the premise: standing still, no hand out, it rests"
+  seen = []
+
+  def clear():
+    seen.append(m.resting)
+    return False
+  assert body.run(m.arm_wait_routine(clear, ("right",), "reach")) == "waited"
+  assert seen and not any(seen), "it rested while its arm waited"
+  assert m.resting and not m.arm_waiting
 
 
 def test_a_walk_counts_no_wait_for_an_arms_way_home_against_its_patience():

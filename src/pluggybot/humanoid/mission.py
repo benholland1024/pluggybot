@@ -260,6 +260,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     #: The latest look's sim time and whom it saw (`look_round`): one scan
     #: an instant, however many moves ask.
     self._looked: tuple[float, frozenset] | None = None
+    #: Whether an arm waits for its way now (`arm_wait_routine`): busy,
+    #: never asked aside (`HumanoidWay._busy`).
+    self.arm_waiting = False
     #: A tag watched while it moves (`perception.watch.TagWatch`, the
     #: body's `watch`), stepped after every physics step; None for none.
     self.sight = None
@@ -481,43 +484,60 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.walker.last_action[:] = 0.0
     self.legs = "walk"
 
-  def _arms_wait_routine(self, sides=hm.SIDES):
+  def _arms_wait_routine(self, sides=hm.SIDES, nav: bool = True):
     """The loop's own move home for `sides`' arms that are out -- a walk's
-    hand-over, a release no verb asked for (#678): a look round
-    (`look_round`) and, while some arm out could come home by no way that
-    keeps off a robot it sees (`Reach.home_clear`), held still, looking
-    again every `ARM_LOOK_S`, until every one could, `ARM_WAIT_S` has gone
-    by, or it falls. Leaves the reach keeping off the robots its last look
-    placed (`Reach.keep_out`): the way home is judged against them -- the
-    first that keeps clear or, waited out, the one that comes least near
-    (`Reach._kept_off`). Each wait is kept in `arm_waits`: when, how long,
-    why it ended."""
+    hand-over, a release no verb asked for (#678): while some arm out could
+    come home by no way that keeps off a robot its look sees
+    (`Reach.home_clear`), waited for (`arm_wait_routine`; `nav`, the walk's
+    bookkeeping each step, as a hand-over's own). Leaves the reach keeping
+    off the robots its last look placed (`Reach.keep_out`): the way home is
+    judged against them -- the first that keeps clear or, waited out, the
+    one that comes least near (`Reach._kept_off`)."""
     out = [s for s in sides if self.reach.phase[s] != "rest"]
     self.reach.keep_out = []
     if not out or not self.others:
       return
-    t0, why = float(self.data.time), "clear"
-    while True:
+
+    def clear() -> bool:
       self.reach.keep_out = self.keep_out(self.look_round())
-      if all(self.reach.home_clear(s) for s in out):
-        break
-      if float(self.data.time) - t0 >= ARM_WAIT_S:
-        why = "waited"
-        break
-      for _ in range(int(round(ARM_LOOK_S / self.model.opt.timestep))):
-        yield STILL
-        self._after_step()
-        if self.legs == "getup":
+      return all(self.reach.home_clear(s) for s in out)
+    t0 = float(self.data.time)
+    yield from self.arm_wait_routine(clear, out, "home", nav)
+    # ...stood still for no walk: a walk counts none of it (`held_s`)
+    self.held_s += float(self.data.time) - t0
+
+  def arm_wait_routine(self, clear, sides, move: str, nav: bool = False):
+    """THE LOOP'S OWN ARM WAITS FOR ITS WAY (#678; Ben, 2026-11-12: the
+    verbs refuse, the loop's waits): `clear()` asked now and every
+    `ARM_LOOK_S`, the body held still meanwhile -- never asked aside
+    (`arm_waiting`: standing still with no hand out, a reach's wait would
+    rest, and a robot resting is walked off) -- until it says yes, a fall,
+    or `ARM_WAIT_S` has gone by. Returns "clear", "fell" or "waited", the
+    wait kept in `arm_waits` where it took any time."""
+    t0, falls, why = float(self.data.time), self.falls, "waited"
+    self.arm_waiting = True
+    try:
+      while True:
+        if clear():
+          why = "clear"
+          break
+        if float(self.data.time) - t0 >= ARM_WAIT_S:
+          break
+        for _ in range(int(round(ARM_LOOK_S / self.model.opt.timestep))):
+          yield STILL
+          if nav:
+            self._after_step()
+          if self.falls != falls:
+            break
+        if self.falls != falls:
           why = "fell"
           break
-      if why == "fell":
-        break
-    waited = float(self.data.time) - t0
-    if waited > 0.0 or why != "clear":
-      # ...stood still for no walk: the walk counts none of it (`held_s`)
-      self.held_s += waited
-      self.arm_waits.append({"t": round(t0, 3), "s": round(waited, 3), "sides": out,
-                             "why": why})
+    finally:
+      self.arm_waiting = False
+    if float(self.data.time) > t0 or why != "clear":
+      self.arm_waits.append({"t": round(t0, 3), "s": round(float(self.data.time) - t0, 3),
+                             "sides": list(sides), "move": move, "why": why})
+    return why
 
   def look_round(self) -> frozenset[str]:
     """ONE SCAN AT A HAND'S MOVE'S START (#678; Ben, 2026-11-12): its

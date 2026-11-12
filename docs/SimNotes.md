@@ -7317,8 +7317,11 @@ cylinder first; and only a robot the LIDAR sees, one scan at the move's start.
   stood up -- an arm never goes where it could not come back from; a
   withdraw's way home, as it stands and stood up, from where it truly begins
   (`Reach._home_from`): a hand at its goal comes out along its line first,
-  `APPROACH_M` (8 cm), and its way home begins at that pre-grasp (judged
-  from the grip, the check and the way taken were two ways). The first of today's way,
+  `APPROACH_M` (8 cm), and its way home begins at that pre-grasp -- and the
+  way judged clear is the way taken (`Reach.judged_home`, where the arm
+  begins it within `HOME_RAD` of where it was judged from): judged from the
+  grip, or judged afresh a few mm off, a way clear by a hair could cross the
+  other robot unrefused. The first of today's way,
   straight, the side way and the way drawn in (`_tucked_way`: its elbow bent
   to 1.9 rad where it stands, its shoulder moved, its elbow out) that keeps
   clear and dips no deeper over the work than today's (#539's and #560's
@@ -7346,9 +7349,11 @@ cylinder first; and only a robot the LIDAR sees, one scan at the move's start.
   (`refuse` True) never do: refused, the plug went unfetched, the charge
   failed, and a failed charge is a death (`HubLifecycle._strand`) -- a reach
   waits, then goes the way out that comes least near that robot; a release
-  waits as the hand-over does. Each wait is kept on the mission
-  (`arm_waits`, the latest 100). One look an instant: a walk verb's and its
-  hand-over's are one scan. ⚠ THE WAIT IS NO WALK'S: a drive counts it against
+  waits as the hand-over does. A robot whose arm waits is never asked aside
+  (`arm_waiting`: standing still with no hand out, a reach's wait would read
+  as resting, and walked off it planned off the stance it had left). Each
+  wait is kept on the mission (`arm_waits`, the latest 100). One look an
+  instant: a walk verb's and its hand-over's are one scan. ⚠ THE WAIT IS NO WALK'S: a drive counts it against
   neither its patience nor its stagnation clock (`Navigator.held_s`), nor a
   step against its own -- counted, a minute's wait in a walk's first
   command left a 40 s walk out of time before its first stride, and a

@@ -26,7 +26,6 @@ from pluggybot.humanoid.arms import GRIP_S, HELD_GAP_M, HandGoal
 from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
                                        StandPolicy)
 from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, HumanoidMission
-from pluggybot.humanoid import mission as mission_
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
@@ -630,7 +629,7 @@ class HumanoidBody(Body):
     self._why[side] = "out of reach"
     self._halted.discard(side)
     self._kept.pop(side, None)
-    goal, postures = HandGoal(p, r, stiffness), reach_.REACH_POSTURES
+    postures = reach_.REACH_POSTURES
     if path is not None:
       # the posture the hand then follows its path in, and that one alone
       ways = [self.to_stance(q) for q in path]
@@ -641,29 +640,24 @@ class HumanoidBody(Body):
       if follow is None:
         return False
       postures = (follow,)
-    falls, t0, ended = self.mission.falls, float(self._d.time), "clear"
-    while True:
-      went = self._reached(side, goal, postures, path is not None, words=refuse)
-      if went or refuse or self._why[side] != "kept off":
-        break
-      if float(self._d.time) - t0 >= mission_.ARM_WAIT_S:
-        # ...waited out: the way out that comes least near it
-        went, ended = self._reached(side, goal, postures, path is not None, words=False,
-                                    refuse=False), "waited"
-        break
-      for _ in range(int(round(mission_.ARM_LOOK_S / self._m.opt.timestep))):
-        if self.mission.falls != falls:
-          break
-        yield STILL
-      if self.mission.falls != falls:
-        ended = "fell"
-        break
-    if float(self._d.time) > t0:
-      self.mission.arm_waits.append({"t": round(t0, 3), "s": round(float(self._d.time) - t0, 3),
-                                     "sides": [side], "move": "reach", "why": ended})
-    if ended == "fell":
+    went = False
+
+    def goal() -> HandGoal:
+      # ...planned afresh off each look, from the stance it stands in then
+      return HandGoal(self.to_stance(pos), None if rot is None
+                      else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float), stiffness)
+
+    def clear() -> bool:
+      nonlocal went
+      went = self._reached(side, goal(), postures, path is not None, words=refuse)
+      return went or refuse or self._why[side] != "kept off"
+    why = yield from self.mission.arm_wait_routine(clear, (side,), "reach")
+    if why == "fell":
       self._why[side] = "fell"
       return False
+    if why == "waited":
+      # ...waited out: the way out that comes least near it
+      went = self._reached(side, goal(), postures, path is not None, words=False, refuse=False)
     if not went:
       return False
     falls = self.mission.falls
@@ -698,7 +692,7 @@ class HumanoidBody(Body):
         # every way out, or home from there, meets another robot's body
         self._why[side] = "kept off"
         self._kept[side] = dict(kept, **({"other": self.reach.clear_way(_OTHER[side], goal)}
-                                         if words else {}))
+                                         if words and not follows else {}))
       return False
     finally:
       self.reach.keep_out = []
@@ -763,7 +757,7 @@ class HumanoidBody(Body):
           self._kept[side] = dict(self.reach.kept[side])
           return "kept off"
       else:
-        yield from self.mission._arms_wait_routine((side,))
+        yield from self.mission._arms_wait_routine((side,), nav=False)
         if self.mission.falls != falls:
           return "fell"
       if not (yield from self.mission.let_go_routine((side,))):

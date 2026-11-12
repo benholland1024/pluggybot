@@ -1003,6 +1003,9 @@ class Reach:
     #: way judged against them was refused (`_kept_off`), else None.
     self.keep_out: list = []
     self.kept: dict[str, dict | None] = {s: None for s in hm.SIDES}
+    #: ...and, by side, the way home the last judgment found clear and the
+    #: arm it began from (`home_clear`): the way `_go_home` then takes.
+    self.judged_home: dict[str, tuple | None] = {s: None for s in hm.SIDES}
 
   # ---- what a caller asks ----
 
@@ -1020,7 +1023,7 @@ class Reach:
     does, and nothing moves (`kept` says how) -- or, not `refuse`, the way
     out that comes least near it is taken (`_kept_off`)."""
     plan_, goal = self._planned(side, goal, approach, postures, flip)
-    self.kept[side] = None
+    self.kept[side] = self.judged_home[side] = None
     if plan_ is None:
       return False
     posture, q_pre, _, slack = plan_
@@ -1527,10 +1530,15 @@ class Reach:
     """Whether some way home keeps off every other robot's body (#678),
     judged from where it will begin (`_home_from`): False sets `kept`,
     nothing moved; True with none by."""
+    self.judged_home[side] = None
     if not len(self.keep_out):
       return True
-    return self._judged(side, self._home_from(side), self.rest[side].copy(), out=False,
-                        poses=(None, (0.0, 0.0, 0.0)), refuse=True) is not None
+    q0 = self._home_from(side)
+    way = self._judged(side, q0, self.rest[side].copy(), out=False,
+                       poses=(None, (0.0, 0.0, 0.0)), refuse=True)
+    if way is not None:
+      self.judged_home[side] = (q0, [np.asarray(w, dtype=float).copy() for w in way])
+    return way is not None
 
   def _home_from(self, side: str) -> np.ndarray:
     """Where an arm's way home will begin (`retreat`): a hand on its line in
@@ -1670,7 +1678,14 @@ class Reach:
     self.goal[side] = self.cmd[side] = None
     self.outs[side] = []
     self.looking[side] = False
-    self.homes[side] = self.way_home(side)
+    # ...the way home a judgment found clear, where the arm begins it as it
+    # was judged (#678: judged afresh from a start a few mm off, a way clear
+    # by a hair could cross the other robot unrefused)
+    judged, self.judged_home[side] = self.judged_home[side], None
+    if judged is not None and np.abs(self.q_cmd[side] - judged[0]).max() <= HOME_RAD:
+      self.homes[side] = [w.copy() for w in judged[1]]
+    else:
+      self.homes[side] = self.way_home(side)
     self.q_to[side] = self.homes[side].pop(0)
     self.phase[side] = "home"
     if all(p in ("rest", "home") for p in self.phase.values()):

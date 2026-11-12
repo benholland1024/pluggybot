@@ -421,7 +421,7 @@ def _bare_reach():
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.outs = {s: [] for s in hm.SIDES}
   # ...and no other robot's body for its ways to keep off (#678)
-  r.keep_out, r.kept = [], {s: None for s in hm.SIDES}
+  r.keep_out, r.kept, r.judged_home = [], {s: None for s in hm.SIDES}, {s: None for s in hm.SIDES}
   r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
   r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
