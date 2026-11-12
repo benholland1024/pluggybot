@@ -230,9 +230,16 @@ Evaluation.md §2).
 
 The served process ends for four reasons: a deploy, a crash, an out-of-memory
 kill, and the `PLUGGY_MAX_SIM_TIME` ceiling (3600 sim s in compose, so every
-hour). The ceiling ends each robot's day between its errands, so a charge can
-carry one on most of an hour past the other, which holds as one waiting for
-work does, its senses on (#593). Until #345 each new process built the world from its XML: both robots
+hour). The ceiling ends each robot's day between its errands, and a charge
+where it stands, its plug left in (#654: run to full, up to 85 minutes, one
+stood the other `DONE` for 13-23 % of the pair's time). The next process's
+robot is told its charge was cut and that its plug is still in, and its mind
+decides (`charging` true at its first turn, the pack filling meanwhile): a
+`charge` goes straight on with no walk, anything else that moves the body
+takes the plug out by hand first, and nothing that stands still touches it
+until the pack is full. A robot
+whose day ends first holds as one waiting for work does, its senses on (#593).
+Until #345 each new process built the world from its XML: both robots
 at their spawn poses on a full pack, both maps empty, every module back on
 its bay, and the job in hand failed. The volume kept what the robots had
 WRITTEN and nothing they had done, so the sixth quality's buffer was refilled
@@ -279,9 +286,11 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   end inside a death -- mid get-up until the stand-up, 300 s -- brought the
   robot back from before its fall, alive.
 - **Put back.** `continuation.load` finds the save before the task board is
-  built. Each lifecycle's `begin()` puts back the counter's props' hidden
-  draws (`restore_counter`), then `continuation.restore` puts the bodies
-  back, and last sets out a prop whose newest offer the save never saw
+  built. Each lifecycle's `begin()` puts back the hand jobs' hidden draws --
+  the counter's props', and the table's dishware, set out again where its
+  newest offer is still open (it is compiled put away; #560) --
+  (`restore_jobs`), then `continuation.restore` puts the bodies back, and
+  last sets out a job's things whose newest offer the save never saw
   (below). The day routine opens without
   moving: no start pose, no spin. History says "the world restarted; I
   carried on from (x, y) with the pack at N%".
@@ -304,8 +313,10 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   readings the save kept (`jobWatches`). A claim held by a robot not in the
   new world goes back on offer, as does a job this world cannot do.
 - **An offer sets its prop out.** A hand job's prop goes back to rest on
-  the counter, its hidden dynamics drawn afresh, when its job is offered
-  (`_set_out_counter`), except one a robot is touching. With the world
+  the counter, and the table's dishware out where its draw lays it, its
+  hidden dynamics drawn afresh, when its job is offered (`_set_out_job`),
+  except one a robot is touching; the dishware is put away again once no
+  job holds the table (`_put_away_step`). With the world
   carried on, a failed attempt would otherwise leave it wherever it was
   dropped, for good. ⚠ So is one offered between the world's last save and
   a crash, as the world comes back (`set_out_unseen`, #610): the board saves
@@ -339,25 +350,57 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   (4, #581's stage 2: laid from one plane over the fences, they held every
   fence as floor), and the places found in them go with them. And a save
   restored `MAX_RESUMES` (3) times with no new save in between is not
-  trusted again: the next start is fresh, and History says why. A file that
-  cannot be read at all (empty, torn) is a fresh start too, never a crash. A
-  grid that does not fit the build's is left empty and the robot explores
-  again, where it stands.
+  trusted again: the next start is a start-over (next bullet), and History
+  says why. A file that cannot be read at all (empty, torn) is a fresh
+  start too, at 0, never a crash. A grid that does not fit the build's is
+  left empty and the robot explores again, where it stands.
+- **A start-over keeps the clock** (#594; Ben's call, 2026-11-08). A save
+  read and refused (put back `MAX_RESUMES` times, or another house's) begins
+  the world again from its XML at the save's own `t`, and takes nothing else
+  from it: the bodies, the maps, the activities, the producer's schedule and
+  the robots' clocks start fresh (`continuation.start_over`), the world
+  built on that clock (a fresh body rests only from it). Begun at 0, as
+  on 10-27 (t=2,375,322) and 11-01 (t=401,163), every stamp the volume keeps
+  stood in the clock's future: the desks' closes and the last line said
+  (#594's items 1-2, fixed on their own). The board loads on that clock, its
+  deadlines and claims as written but a claim never past it (one made in a
+  run that died after the save), and its open jobs' things dated at it,
+  where they were set out at rest (#659). The run's budget counts from it,
+  the producer's first offer comes `firstAtS` after it, and History says
+  "...; it started over, and its clock carried on". ⚠ COUNTED AS A RESTORE
+  IS (`MAX_START_OVERS`, 3): a start-over counts itself into the file under
+  its own world, and after three that died before their first save the next
+  begins at 0: what killed them may be the clock itself, and only a save
+  replaces the file. A clean stop that saves nothing gives its count back,
+  as a restore's (`Keeper.finish`). A save whose clock cannot be read
+  begins at 0 too, and History says "its clock went back to 0".
 - **Parity.** `scripts/determinism_spike.py --resume-at T` flies a scripted
   day straight through, then the same day saved at the first idle pass of
   the loop past T and carried on in a new process. After the restore the two
-  are IDENTICAL. The first check caught two defects. The sensors' noise
+  are IDENTICAL, in the state and in every look and scan: a look one day
+  took and the other did not moves no joint, and at `--resume-at 300` the
+  state was IDENTICAL while the restored robot looked at its first step
+  (2026-11-11, below). The first check caught two defects. The sensors' noise
   generators were re-seeded, so the first scan painted a different map and
   the route parted 3 s later. And `Task.from_json` re-priced an open offer
   at its kind's generic figure, too dear for a pack at 88 % after every
   restart. On legs it caught two more (#420): the fresh forward pass above,
   and a robot saved between two failed returns of one tool made two returns
   the straight day never made. On the humanoid (#559), saved at the loop's
-  first pass and carried on through its whole explore, IDENTICAL over 508
-  samples to t = 260 s; what it keeps is its drivers' steps and targets, the
-  gains they set in the model, its senses' noise, its reach, its reckoning's
-  planted foot and the walls its layer is kept off (`HumanoidMission.
-  kept_state`), and never with a hand out (`Body.working`).
+  first pass (t = 6.284 s, `--resume-at 1`) and carried on through its
+  whole explore, IDENTICAL over 509 samples to t = 260 s; what it keeps is
+  its drivers' steps and targets, the gains they set in the model, its
+  senses' noise, its reach, its reckoning's planted foot and the walls its
+  layer is kept off (`HumanoidMission.kept_state`), and never with a hand
+  out (`Body.working`). ⚠ Its models of itself are state too
+  (`SelfModel.kept_state`): the LIDAR's band (#581) is laid at the height
+  and the waist's turn its odometry's model last read, and a look is placed
+  through that model and a spot through the reach's, each posed again only
+  at its loop's next tick. Built fresh, that save parted 18 ms after the
+  restore from #581's band until 2026-11-11: the first band came before the
+  odometry's tick, laid off the drawing's zero pose. So are its last look
+  (unkept, a restored robot looked at its first step), the watch's camera
+  clock and the IMU's last reading.
 - **Cost.** About 50 ms of the physics thread per save on the rover's pair
   with both maps built, 1.3 MB on disk (zlib level 1; the default level 6
   cost 175 ms).

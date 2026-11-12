@@ -58,7 +58,14 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from pluggybot.perception.box import FLOOR_M as MEASURE_FLOOR_M
+from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_FRONT_HALF_M,
+                                     STEP_FRONT_M, STEP_KEEP_DOWN_M, STEP_KEEP_M, STEP_LEAST_M,
+                                     STEP_SHORT_M)
+from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
+                                      stand_height)
+from pluggybot.perception.box import DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M
+from pluggybot.perception.depth import MAX_Z as MEASURE_REACH_M
+from pluggybot.perception.tags import BLOCK_TAG_SIZE, PICTURE_H, PICTURE_W
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
 from pluggybot.tick import Routine
 
@@ -431,6 +438,52 @@ SPOT_STILL_S = 0.3
 #: standing, a cube on its counter is under its colour camera's view; bowed
 #: 0.25 and 0.45 saw the cube and the mat beside it in every set-out).
 SPOT_GAZES = (0.0, 0.25, 0.45)
+#: What `spot`'s and `watch`'s camera takes in, deg, as their texts say (#660):
+#: the colour imager's picture standing, pitched down with the depth camera,
+#: its top and its bottom below level; and how far to either side of where
+#: the head faces it reaches at its top and at its bottom, the picture being
+#: tilted (a bearing is wider low down: the side angle in the camera's own
+#: frame, 34.3, is only the top edge's). Off the model, never typed (a test
+#: reads them against `color_eye`); flown standing 18.7 and 60.7, the stand
+#: holding the head 0.3 deg back, and 34.3 in the camera's own frame.
+SPOT_TOP_DEG = CHOSEN.depth_pitch_deg - COLOR_FOVY_DEG / 2
+SPOT_BOTTOM_DEG = CHOSEN.depth_pitch_deg + COLOR_FOVY_DEG / 2
+
+
+def _spot_side_deg(up: int) -> float:
+  """How far to either side of where the head faces `spot`'s picture
+  reaches, deg, at its top (`up` 1) or its bottom (-1): a corner of the
+  picture turned down by the camera's pitch."""
+  tall = math.tan(math.radians(COLOR_FOVY_DEG / 2))
+  pitch = math.radians(CHOSEN.depth_pitch_deg)
+  return math.degrees(math.atan(tall * PICTURE_W / PICTURE_H
+                                / (math.cos(pitch) + up * tall * math.sin(pitch))))
+
+
+SPOT_SIDE_TOP_DEG, SPOT_SIDE_BOTTOM_DEG = _spot_side_deg(1), _spot_side_deg(-1)
+#: ...the bottom's, in the text, said in tens: ⚠ a verb's text may not carry
+#: the number a block's tag is known by, and 52.7 would read 53
+#: (`test_no_hand_verb_knows_the_chest`).
+SPOT_SIDE_BOTTOM_TENS = 10 * math.floor(SPOT_SIDE_BOTTOM_DEG / 10)
+#: ...the picture's top over the floor IN THE STANCE FRAME, m, where the
+#: robot reads every place: at x = 0 (the camera's height carried back to the
+#: soles' middle, 4.5 cm behind it), falling this much a metre of x; and how
+#: far ahead a small tag level with the shoulders may stand, the whole of it
+#: in the picture, m. ⚠ Told from the camera, the 120 mm wall tags' 0.13 m put
+#: a robot that measured it from its stance's origin inside the camera's 0.10
+#: m near plane (#660's review: flown, those tags read with the camera 11-13 cm
+#: off a bare wall, at 8.6 not, at 16 not): the text says "nearer still".
+SPOT_TOP_DROP = math.tan(math.radians(SPOT_TOP_DEG))
+SPOT_TOP_AT_FEET_M = color_camera_z() + SPOT_TOP_DROP * color_camera_ahead()
+SPOT_SHOULDER_IN_M = (SPOT_TOP_AT_FEET_M - stand_height() - CHOSEN.shoulder_z
+                      - BLOCK_TAG_SIZE / 2) / SPOT_TOP_DROP
+#: How far a small block's tag reads, m of range, what is in the picture
+#: (#660; flown on `home_humanoid`, osmesa, two noise draws): the tower's
+#: 26 mm blocks on the floor, the picture's middle, read reliably out to
+#: 1.5-1.6 m of range, thinning past that (one read at 1.74 m, none beyond).
+#: A prop's knob on a counter leaves the
+#: picture's top first: 1.1-1.4 m of range, 1.15-1.4 m off the handle.
+SPOT_BLOCK_READS_M = 1.5
 #: How long a `reach` waits for its hand to get there, s, and the most a
 #: `move_hand` or a `pull` may.
 REACH_PATIENCE_S, HAND_PATIENCE_S = 20.0, 30.0
@@ -511,8 +564,12 @@ def _spot(life, args: dict) -> Routine:
     yield from life.body.gaze_routine(0.0)
   if seen is None:
     _reports(life).pop("spot", None)
+    # what the bows could not change, the picture's top (#660), and short:
+    # History's line says each false test's reason inside its 400 characters
     return {"ok": False, "tag": int(tag),
-            "reason": f"tag {int(tag)} is not in view of the head camera from where you stand"}
+            "reason": (f"tag {int(tag)} is not in your colour camera's picture from where you "
+                       "stand, or too near or too far to read: it shows nothing higher than "
+                       f"{SPOT_TOP_DEG:.0f} degrees below level")}
   (x, y, z), (nx, ny, nz), (ex, ey, ez) = seen
   _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
                             "ex": ex, "ey": ey, "ez": ez, "range": float(got["range"])}
@@ -545,7 +602,7 @@ def _watch(life, args: dict) -> Routine:
   got = life.body.sighting()
   if got is None or not got["seen"]:
     return {"ok": False, "tag": int(tag),
-            "reason": f"tag {int(tag)} is not in view of your head camera now"}
+            "reason": f"tag {int(tag)} is not in view of your colour camera now"}
   last = got["last"]
   at = axes.in_stance(life, (last["x"], last["y"], last["z"]))
   return {"ok": True, "tag": int(tag), "at": [round(v, 4) for v in at]}
@@ -569,48 +626,85 @@ MEASURE_RIM_M = 0.03
 #: axis's far end, and which way the top runs on past it.
 MEASURE_ENDS = (("near", 0, False, "toward you"), ("far", 0, True, "away from you"),
                 ("left", 1, True, "to your left"), ("right", 1, False, "to your right"))
+#: ...and an end counts only where the camera saw past it (#636,
+#: `box.past_end`): told by the walks' most common word, the cautious one
+#: first in a tie -- `cut` (the picture ended first: the drawer's set-outs'
+#: near ends cut by its bottom edge read 99-100 % of it, the counter's left
+#: end at the picture's corner, a true one, 29-34 %), `runs` (its own top's
+#: pixels go on past where it reads, the look stopping short of it),
+#: `taller` (the end of the top's free surface, reading so, Ben, 2026-11-08;
+#: the counter behind the cabinet 100 %), `lower` (the top stopped there).
+MEASURE_WORDS = ("cut", "runs", "taller", "lower")
 
 
 def _measure(life, args: dict) -> Routine:
   """The flat top of what stands at (x, y), off the head's depth camera at
-  the part's own 848 x 480 (`Body.depth_cloud`): its height and where it
-  ends -- nearest and farthest ahead, leftmost and rightmost -- in the
+  the part's own 848 x 480 (`Body.depth_pictures`): its height and where
+  it ends -- nearest and farthest ahead, leftmost and rightmost -- in the
   stance frame, in `object.*`. ok when a flat top is seen. ⚠ OUR CODE'S
   PERCEPTION, a stated prior (`perception.box`): the highest flat face
-  among the points round (x, y), and its edges. ⚠ WHERE THE TOP RUNS ON
-  PAST THE WINDOW, ITS END THAT WAY IS NO READING (#630), and reading it
-  says why (`axes.measured`); so is every end after a look that saw no
-  top."""
+  among the points round (x, y), and its edges. ⚠ AN END COUNTS ONLY WHERE
+  THE CAMERA SAW PAST IT (#636): where the top runs on past the window
+  (#630) or past where it read, off the picture, or out of the camera's
+  range, that end is no reading, and reading it says why
+  (`axes.measured`); so is every end after a look that saw no top. Where
+  something taller stands at an end, it reads as where the top's free
+  surface ends, and `object.<end>_taller` says so."""
   import numpy as np
   from pluggybot.perception import box
   x, y = float(args["x"]), float(args["y"])
-  cloud = yield from life.body.depth_cloud(box.DEPTH_W, box.DEPTH_H, box.DEPTH_MIN_Z,
-                                           frames=box.FRAMES, apart=box.APART_S)
+  pictures = yield from life.body.depth_pictures(box.DEPTH_W, box.DEPTH_H, box.DEPTH_MIN_Z,
+                                                 frames=box.FRAMES, apart=box.APART_S)
+  look = box.Look.of(pictures)
   bx, by, yaw = life.body.stance
   c, s_ = math.cos(yaw), math.sin(yaw)
-  pts = np.asarray(cloud, dtype=float).reshape(-1, 3)
+  pts = look.points
   dx, dy = pts[:, 0] - bx, pts[:, 1] - by
   st = np.column_stack([c * dx + s_ * dy, -s_ * dx + c * dy, pts[:, 2]])
-  near = st[np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M]
+  which = np.flatnonzero(np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M)
+  near = st[which]
   top = box.top_height(near) if len(near) else None
-  on = near[box.on_top(near, top)] if top is not None else near[:0]
+  flat = box.on_top(near, top) if top is not None else np.zeros(len(near), dtype=bool)
+  on, on_which = near[flat], which[flat]
   read = {key: box.edge_read(on[:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
   if top is None or None in read.values():
     said = f"your last `measure` saw no flat top round ({x:g}, {y:g}) from where you stood"
     _reports(life)["measure"] = {"unread": dict.fromkeys(("top", *read), said)}
     return {"ok": False, "reason": f"no flat top seen round ({x:g}, {y:g}) from where you stand"}
-  got, past = {"top": top}, {}
-  for key, _, _, way in MEASURE_ENDS:
+  got, past, unseen, taller = {"top": top}, {}, {}, []
+  for key, axis, far, way in MEASURE_ENDS:
     end, strip = read[key]
     rim = MEASURE_NEAR_M - float(np.median(np.hypot(on[strip, 0] - x, on[strip, 1] - y)))
     if rim < MEASURE_RIM_M:
       past[key] = (f"your last `measure` looked within {MEASURE_NEAR_M:g} m of ({x:g}, {y:g}), "
                    f"and the top it saw runs on past that {way}")
+      continue
+    # the end's outward way and where it reads along it, the believed
+    # world frame, as its points are
+    along = np.array([c, s_, 0.0] if axis == 0 else [-s_, c, 0.0])
+    way_out = along if far else -along
+    at = np.array([bx, by, 0.0]) @ way_out + (end if far else -end)
+    saw = box.past_end(look, on_which[strip], way_out, top, at)
+    word = max(MEASURE_WORDS, key=saw.__getitem__)
+    if saw["reach"]:
+      unseen[key] = (f"your last `measure` saw the top run on past your depth camera's "
+                     f"{pictures[0].reach:g} m reach {way}")
+    elif saw["near"]:
+      unseen[key] = (f"your last `measure` saw the top run on nearer than your depth camera "
+                     f"reads, {pictures[0].near:g} m, {way}")
+    elif word == "cut":
+      unseen[key] = f"your last `measure` saw the top run off your depth camera's picture {way}"
+    elif word == "runs":
+      past[key] = f"your last `measure` saw the top run on past where it read its end {way}"
     else:
       got[key] = end
-  _reports(life)["measure"] = {**got, "unread": past}
+      if word == "taller":
+        taller.append(key)
+  _reports(life)["measure"] = {**got, "unread": {**past, **unseen}, "taller": taller}
   return {"ok": True, **{k: round(v, 3) for k, v in got.items()},
-          **({"runsOn": list(past)} if past else {})}
+          **({"runsOn": list(past)} if past else {}),
+          **({"unseen": list(unseen)} if unseen else {}),
+          **({"taller": taller} if taller else {})}
 
 
 #: What a hand's verb FELT (issue #493, opening by feel): the robot's own
@@ -726,6 +820,18 @@ def _stopped_reading(life, verb: str, stopped: bool) -> None:
   """`<verb>.stopped` (#554): 1 after a move its stop condition stopped, 0
   after one that ended otherwise."""
   _reports(life).setdefault("stopped", {})[verb] = 1.0 if stopped else 0.0
+
+
+def forget_readings(life, verb: str) -> None:
+  """A call refused before it ran (`lang`, a computed argument): what its
+  verb last reported would read as this call's, so it goes, as a failed
+  `spot`'s or `pull`'s does -- a retry computes just such an argument, as
+  a distance left of what `pull.moved` read -- and its stop condition's
+  reading is a move's that ended otherwise (#650's review)."""
+  reports = _reports(life)
+  reports.pop(verb, None)
+  if verb in reports.get("stopped", {}):
+    _stopped_reading(life, verb, False)
 
 
 def _thinned(felt: list, n: int = FELT_MAX) -> list:
@@ -885,9 +991,11 @@ def _pull(life, args: dict) -> Routine:
   `distance` m along its way, it is held fast (pushing
   with its whole force and not moving), its grip lets go, or it can reach
   no further -- or its stop condition stops it (#554) -- then it holds
-  there. How far it went, the hardest it pushed and the way it was going at
-  its end ride `pull.*`. ok when it pulled: why it stopped is in the
-  record."""
+  there. How far it went, the hardest it pushed, the way it was going at its
+  end and whether it ended held fast ride `pull.*`. ok unless the hand was
+  not out, the way is all 0 or it fell -- or `lang` refused an argument
+  first -- and its text says so (#650: a served robot is shown no step's
+  `why`, only what it reads)."""
   from pluggybot.procedure import axes
   hand = args["hand"]
   _stopped_reading(life, "pull", False)
@@ -912,15 +1020,26 @@ def _pull(life, args: dict) -> Routine:
   way = axes.in_stance(life, rep.get("direction") or (0.0, 0.0, 0.0), point=False)
   _reports(life)["pull"] = {"moved": float(rep.get("moved", 0.0)),
                             "force": float(rep.get("force") or 0.0),
+                            "held": 1.0 if rep.get("why") == "held fast" else 0.0,
                             "dx": way[0], "dy": way[1], "dz": way[2]}
   return {"ok": True, **out}
 
 
 #: Why a step stopped short, as its record says it (`Body.step_routine`).
-STEP_WHY = {"holding": "a step carries nothing: open your hands first",
+STEP_WHY = {"too short": "your step was too short to walk",
+            "turned short": "your turn stopped short of where you asked",
+            "holding": "a step carries nothing: open your hands first",
             "blocked": "your step got nowhere: something stands in your way",
-            "fell": "you fell, and got up again",
+            "fell": "you fell",
             "out of time": "your step ran out of time"}
+#: ...and one blocked where it kept off another robot (issue #670;
+#: `HumanoidBody._kept_off`), by how: its middle kept off that robot's, or
+#: that robot's body in its way.
+STEP_KEPT_OFF = {
+  "keep": "your step stopped short of another robot: a step keeps your middle {keepM:.2f} m "
+          "from its middle, and within that goes only further from it ({m:.2f} m now)",
+  "body": "your step stopped short of another robot: its body was {m:.2f} m from your "
+          "middle in the way you were stepping"}
 
 
 def _step(life, args: dict) -> Routine:
@@ -935,7 +1054,10 @@ def _step(life, args: dict) -> Routine:
   out = {"why": rep["why"], "seconds": rep.get("seconds"),
          **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")}}
   if rep["why"] != "stepped":
-    return {"ok": False, **out, "reason": STEP_WHY.get(rep["why"], "your step stopped short")}
+    kept = rep.get("keptOff")
+    reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
+              else STEP_WHY.get(rep["why"], "your step stopped short"))
+    return {"ok": False, **out, "reason": reason}
   return {"ok": True, **out}
 
 
@@ -959,7 +1081,8 @@ WITHDRAW_WHY = {"fell": "you fell on the way home",
 
 
 def _withdraw(life, args: dict) -> Routine:
-  """ok once the arm is home, by its drivers (`Body.release_routine`)."""
+  """ok once the arm is home, by its drivers (`Body.release_routine`), its
+  gripper opened first (#669)."""
   hand = args["hand"]
   why, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand))
   if why == "home":
@@ -999,6 +1122,14 @@ def _via(life, args: dict) -> Routine:
   yield
 
 
+#: A TAG IS NAMED BY ITS NUMBER, and every verb that takes one says so (#640:
+#: unsaid, 11 of 11 first table answers wrote `spot("93")`), its example a
+#: call that compiles, by a tag no world carries (0-19 were the rover's), so
+#: it names no job's -- and `find` shows none: its tag must be a task area's.
+BY_NUMBER = "named by its number, not in quotes"
+TAG_EXAMPLE = 12
+
+
 _HAND = Arg("str", choices="hands")
 _HAND_AT = {"x": Arg("float", *HAND_BOX[0]), "y": Arg("float", *HAND_BOX[1]),
             "z": Arg("float", *HAND_BOX[2])}
@@ -1030,8 +1161,10 @@ VERBS: dict[str, Verb] = {
                                         default=FIND_PATIENCE_S)},
                _find, "find the task area carrying this tag: where you last saw "
                "it, else by searching round (x, y) -- a job's address -- until "
-               "the tag is in view; ok when seen, and you remember where it is. "
-               f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f})"),
+               "the tag is in view of your navigation camera; ok when seen, and you "
+               "remember where it is. "
+               f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f}). "
+               f"A tag is {BY_NUMBER}"),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
   # The motor level (issue #166): what every verb above is built from.
@@ -1054,20 +1187,45 @@ HANDS_VERBS: dict[str, Verb] = {
                   f"{MEASURE_NEAR_M:g} m of (x, y): the height of its flat top and where that "
                   "top ends -- nearest and farthest ahead, leftmost and rightmost -- ride "
                   f"`object.*`; ok when a flat top is seen, {MEASURE_FLOOR_M:g} m or more over "
-                  f"the floor. Where the top runs on past those {MEASURE_NEAR_M:g} m, its end "
-                  "that way has no reading"),
+                  "the floor. An end reads only where your camera saw past it: where the top "
+                  f"runs on past those {MEASURE_NEAR_M:g} m, off your camera's picture or out "
+                  f"of its range ({MEASURE_NEAREST_M:g} to {MEASURE_REACH_M:g} m), its end that way has "
+                  "no reading, and reading it says why. Where something taller stands "
+                  "just past an end, that end reads where the free top stops, and "
+                  "`object.near_taller` (`far`, `left`, `right`) reads 1"),
   "spot": Verb("spot", {"tag": Arg("float", lo=0.0, hi=586.0)}, _spot,
-               "stand still and look for this tag in your head camera -- as you stand, then "
-               "bowing lower until you see it -- and stand up again; ok when you see it. Where "
+               "stand still and look for this tag in your colour camera -- as you stand, then "
+               "bowing lower until you see it -- and stand up again; ok when you see it. "
+               "That camera looks down, lower than your navigation camera: its picture "
+               f"runs from {SPOT_TOP_DEG:.0f} to {SPOT_BOTTOM_DEG:.0f} degrees below level, "
+               f"out to {SPOT_SIDE_TOP_DEG:.0f} degrees either side of where your head faces "
+               f"at its top and more than {SPOT_SIDE_BOTTOM_TENS} at its bottom, and bowing only "
+               "takes it lower. With your trunk square to your feet, a thing at x in your "
+               "stance frame is in the picture only if it stands lower than "
+               f"({SPOT_TOP_AT_FEET_M:.2f} - {SPOT_TOP_DROP:.2f} x) m over the floor, and a tag "
+               "reads only with the whole of it inside the picture: the lower a tag is, the "
+               "further off it reads, a small one level with your shoulders only within "
+               f"about {SPOT_SHOULDER_IN_M:.1f} m ahead of you, a larger one nearer still, and "
+               "nothing as high as your camera ever. Inside the picture, a small block's tag "
+               f"reads from up to about {SPOT_BLOCK_READS_M:g} m away. Where "
                "its face is, which way the face looks and which way its edges run ride "
-               "`spot.*`"),
+               "`spot.*`. A small block carries its tag on every face: the one read is the one "
+               "you see most square-on, `spot.nx`..`nz` say which, so from elsewhere the same "
+               "tag can read another face, its middle up to the block's width from this one's. "
+               f"A tag is {BY_NUMBER}: `spot({TAG_EXAMPLE})` looks for tag {TAG_EXAMPLE}"),
   "watch": Verb("watch", {"tag": Arg("float", lo=0.0, hi=586.0)}, _watch,
-                "keep your head camera reading this tag while your procedure goes on -- your "
+                "keep your colour camera reading this tag while your procedure goes on -- your "
                 f"hands moving, your feet stepping, waiting -- {WATCH_HZ:g} times a second, each "
                 f"reading yours {WATCH_LATENCY_S:g} s after its picture was taken; it neither "
                 "bows nor turns to look, and it ends with your procedure or your next `watch`. "
+                "It reads through `spot`'s camera, the top of whose picture is "
+                f"{SPOT_TOP_DEG:.0f} degrees below level as you stand and lower as you bow: what "
+                "is above that, it cannot see. "
                 "It waits for its first reading; ok when that shows the tag (as an `if`'s test "
-                "that is not, it watches on). What it reads rides `watch.*`"),
+                "that is not, it watches on). What it reads rides `watch.*`: of a small block, "
+                "as for `spot`, the face that picture shows most square-on, so which face can "
+                f"change as you move. A tag is {BY_NUMBER}: `watch({TAG_EXAMPLE})` keeps reading "
+                f"tag {TAG_EXAMPLE}"),
   "reach": Verb("reach", {"hand": _HAND, **_HAND_AT, **_TURN, "stiffness": _STIFF},
                 _reach, "send a hand's grip -- the point between its jaws -- to (x, y, z), its "
                 "fingers pointing along (fx, fy, fz) and its jaws closing along (jx, jy, jz) -- "
@@ -1106,16 +1264,34 @@ HANDS_VERBS: dict[str, Verb] = {
                "(pushing with its whole force and not moving), its grip lets go, or it can "
                "reach no further; then it holds there. Standing, your body holds a pull of "
                f"{PULL_MOST_N:.0f} N at a hand, and pushing away from you around two thirds of "
-               "that. How far it went, the hardest it "
-               "pushed and the way it was going at its end ride `pull.*`; ok when it pulled"),
+               "that. How far it went, the hardest it pushed, whether it ended held fast and "
+               "the way it was going at its end ride `pull.*`, unless it reads false; ok unless "
+               "an argument was refused, your hand was not out, (dx, dy, dz) are all 0 or you "
+               "fell: whatever else stopped it, held fast against something too, it is still "
+               "ok, and `pull.moved` says how far it went"),
   "step": Verb("step", {"ahead": Arg("float", lo=-0.5, hi=0.5),
                         "left": Arg("float", lo=-0.5, hi=0.5, default=0.0),
                         "turn": Arg("float", lo=-3.2, hi=3.2, default=0.0)}, _step,
                "turn `turn` rad on the spot (left, +), then walk `ahead` m and `left` m in "
                "the frame you then stand in (negative: back, right), and stand still -- your "
-               "hands home first; a step carries nothing. A walk goes at least a stride, "
-               "about 10 cm, and may stop a few cm off what you asked; a turn shuffles your "
-               "feet a few cm that `step.*` does not count. Your stance frame "
+               "hands home first; a step carries nothing. Your feet walk in strides, each "
+               "carrying your stance about 5 cm: a walk asked under "
+               f"{100 * STEP_SHORT_M:.0f} cm may take none, and a walk may stop a few cm off "
+               f"what you asked. A walk asked at least {100 * STEP_LEAST_M:.0f} cm that your own "
+               "legs count as under it reads false and says your step was too short to walk. "
+               "A walk keeps off another robot as your walks over the map do. It stops "
+               f"before it would take your middle within {STEP_KEEP_M:g} m of that robot's "
+               f"middle ({STEP_KEEP_DOWN_M:g} m of one that has fallen) -- standing within that "
+               "already, a step whose walk would take you nearer neither turns nor walks -- "
+               f"and once that robot's body is within {STEP_FRONT_M:g} m of your middle in "
+               f"the way you step and {STEP_FRONT_HALF_M:g} m either side of it. Either "
+               "reads false and says so. "
+               "A turn lands within a degree or two of what you asked -- one that does not "
+               "get there reads false and says so -- and shuffles your feet a few cm that "
+               f"`step.*` does not count. `step.dy` counts a sidestep "
+               f"{100 * STEP_DY_SHORT_M[0]:.0f}-{100 * STEP_DY_SHORT_M[1]:.0f} cm short of "
+               "how far your feet went, and one going left after a step ahead up to "
+               f"{100 * STEP_DY_LEFT_AFTER_M:.0f} cm or more short. Your stance frame "
                "goes with your feet: where they went in the frame you stood in before rides "
                "`step.*` (`step.dx` ahead, `step.dy` left, m, and `step.turn`, rad), so a "
                "place (x, y) you read before is now (c (x - dx) + s (y - dy), c (y - dy) - "
@@ -1126,10 +1302,11 @@ HANDS_VERBS: dict[str, Verb] = {
                      "ok when it says it holds something"),
   "open_hand": Verb("open_hand", {"hand": _HAND}, _open_hand, "open a hand's gripper"),
   "withdraw": Verb("withdraw", {"hand": _HAND}, _withdraw,
-                   "bring a hand back out along the way it went in, and its arm home -- "
-                   "straight there, or out to your side first and down at your side where "
-                   "that keeps the arm higher in front of you than straight would; ok once "
-                   "your arm is home"),
+                   "open a hand's gripper, letting go of whatever it holds, then bring the "
+                   "hand back out along the way it went in, and its arm home -- straight "
+                   "there, or out to your side first and down at your side where that keeps "
+                   "the arm higher in front of you than straight would; ok once your arm is "
+                   "home"),
 }
 #: The hands' vocabulary (#525; docs/Hands.md): what the humanoid's
 #: procedures call, the checks' and the practice's alike...
@@ -1222,6 +1399,17 @@ def served_hand_facts(bounds=(-1e3, -1e3, 1e3, 1e3), places: tuple = ()) -> "Wor
                  places=places)
 
 
+#: What a verb a fall ended says where it has no words of its own for one
+#: (#671): the hands' moves have theirs (`REACH_WHY`'s and the rest).
+FELL = "you fell"
+
+
+def dead(life) -> bool:
+  """Is `life`'s robot dead (a lifecycle's `dead`, #107)? A life with none --
+  a practice's, a session's -- never is."""
+  return getattr(life, "dead", None) is not None
+
+
 def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
              until: float | None = None) -> Routine:
   """One verb, as both runners call it (this module's and the language's).
@@ -1234,14 +1422,36 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
   #381): a walk inside it asks the interrupt as it goes (`_interrupt`),
   and when the answer latched an abort during this verb, a verb that did
   not succeed says `stopped: interrupted` -- both runners stop the program
-  there as an abort, never at a failed step."""
+  there as an abort, never at a failed step.
+
+  ⚠ A FALL OR A DEATH ENDS IT AT ONCE (#671; `_until_down_routine`;
+  Overseer.md §2b): a verb its body fell in fails and says so (`fell`, in
+  its own words where it ended on the fall, else `FELL`), and one its robot
+  died in is `stopped: died`; both runners end the run there, an `if`'s
+  test or not. ⚠ A hand a death stopped is halted where it is
+  (`Body.stop_hand`: a reach, a carry or a pull, never an arm on its way
+  home): closed, a pull went on pulling for a dead robot. Out, it holds a
+  save off until the stand-up, as a robot dead from a fall does
+  (`continuation.Keeper.busy`)."""
   before = getattr(life, "step_now", None)
   before_until = getattr(life, "step_until", None)
   aborting = bool(getattr(life, "aborting", False))
   life.step_now = {**(where or {}), "verb": verb.name, "args": dict(args)}
   life.step_until = until
   try:
-    verdict = yield from verb.run(life, args)
+    verdict, ended = yield from _until_down_routine(life, _verb_routine(life, verb, args))
+    if verdict is None:
+      # ...closed before it said anything: what it last reported would read
+      # as this call's
+      forget_readings(life, verb.name)
+    if ended == "died":
+      if args.get("hand") in ("left", "right"):
+        life.body.stop_hand(args["hand"])
+      return {"ok": False, "stopped": "died"}
+    said = verdict or {}
+    if ended == "fell" or said.get("why") == "fell":
+      own = said.get("reason") if said.get("why") == "fell" else None
+      return {**said, "ok": False, "fell": True, "reason": own or FELL}
     if (not verdict.get("ok") and not aborting
         and getattr(life, "aborting", False)):
       verdict = {**verdict, "stopped": "interrupted"}
@@ -1251,9 +1461,63 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
     life.step_until = before_until
 
 
+def _verb_routine(life, verb: Verb, args: dict) -> Routine:
+  """`verb` run, its plug out by hand first where it moves the body (#654)."""
+  unplug = getattr(life, "unplug_routine", None)
+  if unplug is not None and verb.name not in STILL_VERBS:
+    yield from unplug()
+  return (yield from verb.run(life, args))
+
+
+def _until_down_routine(life, routine: Routine) -> Routine:
+  """`routine` driven as `yield from` would, and CLOSED where its body falls
+  (`Body.falls`, its own fall watch's count) or its robot dies (a
+  lifecycle's `dead`; a life with none never does). Returns (what it
+  returned, None where it was closed; and "died", "fell" or "").
+
+  ⚠ A DEATH IS READ THE STEP IT LANDS, BEFORE THE ROUTINE RUNS AGAIN (as
+  `HubLifecycle._until_stood_up_routine` reads a stand-up), and a robot
+  dead as the verb is called begins none of it: no line of the verb runs
+  on a dead robot. ⚠ A FALL IS READ ONCE THE ROUTINE HAS RUN ON FROM IT: a
+  hand's move ends on the fall itself and says so in its own words ("fell"
+  too where it returned so), and anything that does not is closed at its
+  next command."""
+  if dead(life):
+    routine.close()
+    return None, "died"
+  body = life.body
+  falls = body.falls
+  sent, exc = None, None
+  while True:
+    try:
+      cmd = routine.throw(exc) if exc is not None else routine.send(sent)
+    except StopIteration as stop:
+      return stop.value, ("fell" if body.falls != falls else "")
+    exc = None
+    if body.falls != falls:
+      routine.close()
+      return None, "fell"
+    try:
+      sent = yield cmd
+    except GeneratorExit:
+      routine.close()
+      raise
+    except BaseException as e:  # noqa: BLE001 -- thrown into the routine, as `yield from` would
+      exc, sent = e, None
+      continue
+    if dead(life):
+      routine.close()
+      return None, "died"
+
+
 #: What a body whose world has task areas it finds by their tags runs
 #: (issue #419).
 PLACE_VERBS = ("find",)
+#: The verbs that leave a plug in its port (#654): the pack goes on filling
+#: under a look or a reading. Any other verb has it out by hand first, a
+#: new one too: 8 s lost beats a walk breaking the catch. A bow to look
+#: lower is one of these: to its deepest, 63 deg, the plug stays in.
+STILL_VERBS = ("wait", "watch", "measure", "spot", "via", "close_hand", "open_hand")
 
 
 def describe_vocabulary(verbs: tuple | None = None, guarded: bool = False) -> list[dict]:
@@ -1496,9 +1760,14 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
   for i, step in enumerate(steps):
     # Safe points: between steps, and inside a walk (issue #381, `run_verb`).
     # A hazard row (issue #116) or the budget stops the program there,
-    # never inside anything else.
-    if i and life.interrupted():
+    # never inside anything else; a death, inside anything (#671) -- the
+    # interrupt's ask too, which steps the world, and a dead robot is never
+    # asked one
+    if i and not dead(life) and life.interrupted() and not dead(life):
       result["stopped"] = "interrupted"
+      break
+    if dead(life):
+      result["stopped"] = "died"
       break
     if float(life.data.time) - t0 > program.budget_s:
       result["stopped"] = "budget"
@@ -1510,8 +1779,8 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
                                  until=t0 + program.budget_s)
     entry = {"i": i, "verb": step.verb, **verdict}
     result["steps"].append(entry)
-    if verdict.get("stopped") == "interrupted":
-      result["stopped"] = "interrupted"
+    if verdict.get("stopped") in ("interrupted", "died"):
+      result["stopped"] = verdict["stopped"]
       break
     if not verdict.get("ok"):
       result["failedAt"] = i

@@ -13,6 +13,7 @@ sensors stepping on -- on the served humanoid. The flown parity check is
 """
 
 import json
+import math
 from types import SimpleNamespace
 
 import mujoco
@@ -20,7 +21,9 @@ import numpy as np
 import pytest
 
 from pluggybot import continuation, tick
+from pluggybot.body import body_for
 from pluggybot.economy.tasks import TaskBoard
+from pluggybot.humanoid import model as hm
 from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, task_board, world_config
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.mind.thoughts import HISTORY
@@ -28,6 +31,7 @@ from pluggybot.procedure.steps import Program, Step
 from pluggybot.robot import world_spec
 from pluggybot.tick import MissionAborted
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+from test_humanoid_body import _floor
 
 
 class _Stop(Exception):
@@ -259,6 +263,59 @@ def test_a_restored_humanoid_steps_on_exactly_as_if_nothing_had_stopped(tmp_path
   assert np.array_equal(back.near_field.height, life.near_field.height, equal_nan=True)
 
 
+def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was():
+  """The parity rule where the robot's model of itself is posed: its
+  LIDAR's band is laid at the height and the waist's turn its odometry's
+  model last read (`_scan`), a look is placed through that model and a spot
+  through the reach's, each posed again only at its loop's next tick; and
+  its last look, the frames a watch is taken on and the IMU's last reading
+  each decide what comes next. Fresh after a restore, the first band was laid
+  off the drawing's zero pose and the robot looked at its first step, and
+  `determinism_spike.py --resume-at 1` parted 18 ms after the restore. A
+  save from before them, or one whose places did not come back, leaves
+  them fresh, to be posed at the next tick and looked from anew."""
+  a, b, c = body_for(*_floor()), body_for(*_floor()), body_for(*_floor())
+  try:
+    ma, mb, mc = a.mission, b.mission, c.mission
+    q = np.linspace(-0.3, 0.3, len(hm.JOINT_NAMES))
+    q[ma.odo.sm.waist] = 0.25
+    ma.odo.sm.pose(q, np.array([0.2, 0.0, -0.98]))
+    ma.reach.self_model.pose(-q, np.array([0.0, 0.1, -0.99]))
+    ma._place_look = (5.0, (1.0, 2.0, 0.5))
+    for _ in range(7):
+      ma.sight.step(0.0)
+    ma.stand.trunk.accel = np.array([0.1, 0.2, 9.7])
+    state, arrays = ma.kept_state()
+    mb.restore_kept(json.loads(json.dumps(state)), arrays)
+    for sa, sb in ((ma.odo.sm, mb.odo.sm), (ma.reach.self_model, mb.reach.self_model)):
+      assert np.array_equal(sb.q, sa.q) and np.array_equal(sb.d.qpos, sa.d.qpos)
+      assert np.array_equal(sb.d.site_xpos, sa.d.site_xpos)
+    laid = []
+    for m in (ma, mb):
+      m.lidar.band = lambda data, level, z, joints=None: laid.append(
+        (np.asarray(level).tolist(), z, joints))
+      m._scan()
+    assert laid[0] == laid[1] and laid[1][2] != {j: 0.0 for j in hm.WAIST}, \
+      "the band laid at the height and the waist's turn the save had"
+    assert mb._stance_frame() == ma._stance_frame()
+    assert mb._place_look == ma._place_look
+    assert mb.sight.kept_state() == ma.sight.kept_state() == {"n": 7}
+    assert np.array_equal(mb.stand.trunk.accel, ma.stand.trunk.accel)
+    mb.restore_kept(json.loads(json.dumps(state)), {k: v for k, v in arrays.items() if k != "grid"})
+    assert mb._place_look == (-math.inf, None), "no map back, no places: it looks anew"
+    old = {k: v for k, v in state.items() if k not in ("selfModel", "placeLook", "sight")}
+    old["trunk"] = {k: v for k, v in state["trunk"].items() if k != "accel"}
+    old["reach"] = {k: v for k, v in state["reach"].items() if k != "selfModel"}
+    mc.restore_kept(json.loads(json.dumps(old)), arrays)
+    for sm in (mc.odo.sm, mc.reach.self_model):
+      assert not sm.q.any(), "posed at its loop's next tick"
+    assert mc._place_look == (-math.inf, None)
+    assert mc.sight.kept_state() == {"n": 0} and mc.stand.trunk.accel is None
+  finally:
+    for body in (a, b, c):
+      body.close()
+
+
 def test_a_dead_robot_is_still_dead_after_a_restart_and_pays_no_second_heart(tmp_path):
   """A robot saved dead at 0 % that came back alive would die again on its
   first step -- a second heart for one death -- or stand up free at 100 %.
@@ -351,9 +408,9 @@ def test_an_offer_keeps_this_worlds_price_across_a_restart(tmp_path):
   b = task_board(str(path), world=HUMANOID_HOME)
   task = b.offer("open_drawer", "drawer", t=0.0)
   back = task_board(str(path), world=HUMANOID_HOME)
-  assert back[task.id].estimate_wh == task.estimate_wh == 7.138
-  assert KINDS["open_drawer"].estimate_wh > 7.138, "the premise: two prices"
-  assert back[task.id].claimable(10.0, pack_wh=7.139)
+  assert back[task.id].estimate_wh == task.estimate_wh == 7.503
+  assert KINDS["open_drawer"].estimate_wh > 7.503, "the premise: two prices"
+  assert back[task.id].claimable(10.0, pack_wh=7.504)
 
 
 def test_a_world_that_carries_on_keeps_its_deadlines_on_its_own_clock(tmp_path):
@@ -598,6 +655,187 @@ def test_a_saved_world_that_keeps_crashing_is_left_after_three_tries(tmp_path):
   assert continuation.load(path, "another_world").snapshot is None
 
 
+# ---- a start-over keeps the clock (#594) ----------------------------------------
+
+
+#: The clock the world was saved at on 10-27, put back three times, never
+#: got past it, and begun again at 0 (#594).
+START_OVER_T = 2_375_322.0
+
+
+def _refused_save(tmp_path, why: str, t: float = START_OVER_T):
+  """A save `load` reads and refuses, at clock `t`, its robot's pack at 42 %:
+  put back `MAX_RESUMES` times (`crashing`), or another house's."""
+  life = _stub(tmp_path / "saved")
+  life.data.time = t
+  life.battery.energy_wh = 0.42 * life.battery.capacity_wh
+  snap = continuation.capture([life], life.world_fingerprint)
+  if why == "crashing":
+    snap.meta["resumes"] = continuation.MAX_RESUMES
+  else:
+    snap.meta["world"] = "room_hub"
+  path = tmp_path / "world.npz"
+  continuation.write(snap, path)
+  return path
+
+
+def _no_pass():
+  """A day given no budget past its clock runs no pass of its loop: a run
+  begun off the clock its budget counts from runs on for the 2.4 million
+  seconds between them, and fails here instead."""
+  raise AssertionError("the day loop ran: its clock and its budget disagree")
+
+
+@pytest.mark.parametrize("why", ["crashing", "another house"])
+def test_a_save_refused_but_read_starts_the_world_over_at_its_clock(tmp_path, why):
+  """#594, Ben's decision (2026-11-08): a START-OVER keeps the clock -- the
+  world begun again from its XML at the refused save's own `t`, and nothing
+  else of it (no snapshot). Begun at 0, every store the volume keeps stood
+  in the clock's future: the desks' closes, the last line said. ⚠ COUNTED
+  AS A RESTORE IS: each start-over counts itself into the file, and after
+  `MAX_START_OVERS` that died before their first save the next is begun at
+  0, said why, or a crash that is the clock's would start the world over
+  into it for ever. At one, a single kill as a start-over booted lost the
+  clock (#667's review). A save replaces the file, and a later refusal keeps
+  its clock again."""
+  assert continuation.MAX_START_OVERS == continuation.MAX_RESUMES
+  path = _refused_save(tmp_path, why)
+  for n in range(1, continuation.MAX_START_OVERS + 1):    # each died unsaved
+    over = continuation.load(path, HUMANOID_HOME)
+    assert over.snapshot is None and over.why
+    assert over.start_over_t == over.t == START_OVER_T and over.start_overs == n
+  again = continuation.load(path, HUMANOID_HOME)
+  assert again.snapshot is None and again.t is None and again.start_overs is None
+  assert again.why.startswith(over.why)
+  assert (f"was started over at its clock {continuation.MAX_START_OVERS} times "
+          "without once being saved") in again.why
+  path = _refused_save(tmp_path, why, t=START_OVER_T + 600.0)      # saved since
+  assert continuation.load(path, HUMANOID_HOME).t == START_OVER_T + 600.0
+
+
+def test_another_worlds_start_overs_never_stop_this_ones(tmp_path):
+  """The count is the world's that started over (#667's review): a process
+  of another world on the same volume -- misconfigured, its start-overs
+  dying -- leaves its count in the file, and this world's start-over still
+  keeps the clock."""
+  path = _refused_save(tmp_path, "crashing")
+  for _ in range(continuation.MAX_START_OVERS):
+    assert continuation.load(path, "room_hub").start_over_t == START_OVER_T
+  assert continuation.load(path, "room_hub").t is None
+  assert continuation.load(path, HUMANOID_HOME).start_over_t == START_OVER_T
+
+
+def test_a_body_built_on_a_start_overs_clock_is_not_resting_at_once():
+  """A fresh body at a kept clock (#594, #667's review): its rest clock
+  starts at the clock it is built on. From 0, `t - 0 >= REST_S` read it
+  resting from its first step, a robot the other could ask aside and walk
+  round as still before it had stood a second."""
+  from pluggybot.body import body_for
+  from pluggybot.humanoid.way import REST_S
+  from test_humanoid_body import _floor
+  model, data = _floor()
+  data.time = START_OVER_T
+  body = body_for(model, data)
+  try:
+    assert not body.mission.resting
+    data.time = START_OVER_T + REST_S
+    assert body.mission.resting, "...and rests once it has stood its while"
+  finally:
+    body.close()
+
+
+def test_a_refused_save_whose_clock_cannot_be_read_starts_over_at_0(tmp_path):
+  """...and one with no clock to carry begins at 0, said why: its clock is
+  the one thing a start-over takes from it, and `load` never raises."""
+  path = _refused_save(tmp_path, "crashing")
+  snap = continuation.read(path)
+  del snap.meta["physics"]["t"]
+  continuation.write(snap, path)
+  got = continuation.load(path, HUMANOID_HOME)
+  assert got.snapshot is None and got.t is None
+  assert "its clock could not be read" in got.why
+
+
+@pytest.mark.parametrize("kept", [True, False], ids=["refused", "unreadable"])
+def test_a_start_over_begins_on_the_refused_saves_clock_and_takes_nothing_else(tmp_path, kept):
+  """A start-over's run (#594): on the refused save's clock -- what `begin`
+  says, the run's budget, the survival clock, every History line -- with a
+  fresh robot, its pack full where the save's was at 42 %, and the
+  producer's first offer as long after the start as after 0 (from 0 it was
+  due at the first tick). History says the world started over and the
+  clock carried on. A save that could not be read starts at 0, as before,
+  and says that."""
+  from pluggybot.economy.cadence import default_cadence
+  from pluggybot.lifecycle import task_producer
+  path = _refused_save(tmp_path, "crashing")
+  if not kept:
+    path.write_bytes(b"")
+  opened = continuation.load(path, HUMANOID_HOME)
+  back = _stub(tmp_path, tasks=True)
+  back.producer = task_producer(back.tasks, HUMANOID_HOME, procedures=True)
+  back.restart_note = opened.why
+  back.at_loop_top.append(_no_pass)
+  heard = []
+  back.say_hooks.append(lambda t, line: heard.append((t, line)))
+  back.run(world_config(HUMANOID_HOME)["start"], max_sim_time=0.0,
+           resume=opened.snapshot, start_over_t=opened.start_over_t)
+
+  t0 = START_OVER_T if kept else 0.0
+  assert back.resumed is None and back.battery.fraction == 1.0
+  assert back.max_sim_time == t0 and t0 <= back.survival_since < t0 + 60.0
+  [said] = [t for t, line in heard if line == "mission start"]
+  assert t0 <= said < t0 + 60.0
+  assert back.producer.next_at == t0 + default_cadence(HUMANOID_HOME).first_at_s
+  lines = _history(back)
+  assert all(t0 <= float(ln[3:ln.index("s]")]) < t0 + 60.0 for ln in lines), lines
+  clock = "carried on" if kept else "went back to 0"
+  assert any(f"; it started over, and its clock {clock}" in ln for ln in lines), lines
+
+
+def test_run_demo_builds_a_start_over_on_its_clock(tmp_path):
+  """`run_demo`'s wiring (the spikes' and demos' world, #594): a refused
+  save's clock is the world's from its build, and an empty board is seeded
+  on it -- built at 0, its offers' set-outs were said at 0 (#667's review).
+  Stopped where the hooks are attached and the day not yet begun."""
+  from pluggybot.lifecycle import run_demo
+  path = _refused_save(tmp_path, "crashing")
+  seen: dict = {}
+
+  def ready(life):
+    seen["t"] = float(life.data.time)
+    seen["offered"] = [t.created_t for t in life.tasks.offered()]
+    life.body.close()
+    raise _Stop
+
+  with pytest.raises(_Stop):
+    run_demo(view=False, realtime=False, world=HUMANOID_HOME, overseer=True, tasks=True,
+             tasks_state=str(tmp_path / "tasks.json"), thoughts_root=str(tmp_path / "t"),
+             ledger_state=str(tmp_path / "l.json"), board_state=str(tmp_path / "b.json"),
+             spend_state=str(tmp_path / "s.json"), world_state=str(path), on_ready=ready)
+  assert seen["t"] == START_OVER_T
+  assert seen["offered"] and set(seen["offered"]) == {START_OVER_T}
+
+
+def test_a_pair_starts_over_on_the_refused_saves_clock(tmp_path):
+  """...and the served pair's (`run_pair`), on the stub: both robots begin
+  on the clock, each run's budget counted from it, and say so."""
+  from pluggybot.body import StubBody
+  from pluggybot.pair import run_pair
+  from pluggybot.robot import SECOND
+  model, data = StubBody.world()
+  lives = [stub_life(body=StubBody(model, data), robot_name="Luca"),
+           stub_life(body=StubBody(model, data, handle=SECOND), robot_name="Rowan")]
+  for life in lives:
+    life.restart_note = "the saved world is 'room_hub', not 'home_humanoid'"
+    life.at_loop_top.append(_no_pass)
+  run_pair(lives, max_sim_time=0.0, explore_budget=0.0, start_over_t=START_OVER_T)
+  for life in lives:
+    assert life.resumed is None and life.max_sim_time == START_OVER_T
+    assert START_OVER_T <= life.survival_since < START_OVER_T + 60.0
+    assert any("; it started over, and its clock carried on" in ln
+               for ln in _history(life)), _history(life)
+
+
 # ---- the keeper -------------------------------------------------------------
 
 
@@ -725,6 +963,26 @@ def test_a_stop_while_paused_and_mid_move_saves_nothing_and_gives_its_count_back
   life.body.posture = "standing"        # ...whatever the way out then says
   assert not keeper.finish() and keeper.saves == 0
   assert _resumes(path) == 1, "a clean stop counted as a crash"
+
+
+def test_a_start_over_stopped_while_paused_and_mid_move_gives_its_count_back(tmp_path):
+  """...and so does a start-over's (#594; #667's review): stopped cleanly,
+  paused with a body mid-move before its first save, it saves nothing and
+  its count goes back, so the next start keeps the clock again. Held, the
+  count reached `MAX_START_OVERS` and that start began at 0."""
+  path = _refused_save(tmp_path, "crashing")
+  for _ in range(continuation.MAX_START_OVERS):
+    over = continuation.load(path, HUMANOID_HOME)       # the last one, this
+  life = _stub(tmp_path)
+  keeper = continuation.Keeper([life], path, every_s=1e9, start_overs=over.start_overs)
+  _stopped_while_paused(life, keeper, tmp_path)
+  life.body.posture = "getting_up"
+  with pytest.raises(MissionAborted, match="SIGTERM"):
+    _hold(life, 1.0)
+  life.body.posture = "standing"
+  assert not keeper.finish() and keeper.saves == 0
+  assert continuation.load(path, HUMANOID_HOME).start_over_t == START_OVER_T, \
+    "a clean stop counted as a crash"
 
 
 def test_a_runs_end_saves_whatever_a_body_is_doing_a_robot_lying_dead_too(tmp_path):
@@ -910,6 +1168,7 @@ def test_a_save_that_cannot_be_read_is_a_fresh_start_never_a_crash(tmp_path, con
   path.write_bytes(content if content is not None else data[: len(data) // 2])
   got = continuation.load(path, HUMANOID_HOME)
   assert got.snapshot is None and "could not be read" in got.why
+  assert got.t is None, "no clock to carry: it starts at 0 (#594)"
 
 
 def test_a_map_that_does_not_fit_this_build_is_explored_again(tmp_path):

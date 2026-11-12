@@ -207,7 +207,10 @@ to the end of the hold, whether the fall was used or an accident (Ben,
 and judged by nothing, and learned skills leaned on it: a hard pull swung a
 door open and the body over with it, every held-out try of one door arm
 (#535). A failed verdict says the fall first, then what the world shows
-(`lid.fell`), and the job tells the robot the rule. Said beside, and
+(`lid.fell`), and the job tells the robot the rule. A fall also ends the
+procedure's run where it comes, an `if`'s test or not (#671; Overseer.md
+§2b): what ran after it, in a tested verb's case, was a try already
+failed, on a body still getting up. Said beside, and
 judged by nothing: its worst tilt (`Body.orientation`). What a fall is,
 is the body's to say, so the grader names none: the humanoid's watch is its
 trunk 35 deg past the posture its legs hold, by its IMU, or its pelvis sunk
@@ -305,7 +308,8 @@ they may all stand at once, and each is discharged by a procedure the robot
 writes (`TaskKind.discharge = "procedure"`, #207): claiming queues nothing;
 the robot writes the procedure, runs it and sets `done` to the job's id,
 and only a mind with a library is offered one (`lifecycle.world_targets`).
-Three are offered (cadence.json); the cube's is not, below.
+All four are offered (cadence.json), the cube's since its reference passed
+from the tour (below).
 
 **The criteria are the checks'**, through the same evaluators, with two
 departures, both about where an attempt starts:
@@ -321,7 +325,12 @@ departures, both about where an attempt starts:
   (`TaskKind.minutes`, `tasks.HAND_MINUTES`; a world's cadence may give
   another), counted from the claim: 16, three times the slowest pass of the
   references over a tour of the house (313 s, from the station), rounded
-  up (TaskPattern.md §4 has why it is the kind's, #580). Held past them
+  up (TaskPattern.md §4 has why it is the kind's, #580) -- and the cube's
+  9, three times its own from the dearest station, the mall's, its area
+  remembered (180 s; `tasks.CUBE_MINUTES`), offered later on the table's
+  terms: three times its slowest over the tour, 159 s on a fresh map, gave
+  8, and left a claim at the mall about 300 s to write the procedure in,
+  where one answer may take 300 (Ben's call, 2026-11-11). Held past them
   with no `done` waiting on its grade, the job is failed at its holder's
   next pass of the day loop, between what the robot does, or at once on a
   charge trip ("not graded within the 960 s the job allows -- the drawer
@@ -334,13 +343,16 @@ address, and directions that name the storeroom, the counter, the row's
 four tags and the handle's own -- never a position. **Each offer draws its
 prop's hidden dynamics afresh** (`TaskKind.draws`: the board's own
 sequence number, `Task.secret["draw"]`), set into the compiled world as the
-offer lands with the prop set back out (`HubLifecycle._set_out_counter`,
-`storeroom.redraw`, `storeroom.set_out`), its activity begun again over
-the draw's truth (`renew`), and put back after a restart
-(`restore_counter`, the prop's newest offer on the board's own count, never
+offer lands with the prop set back out (`HubLifecycle._set_out_job`,
+`storeroom.set_out`; the counter is one of `home.jobs`' areas, §12's table
+the other), its activity begun again over the draw's truth (`renew`), and
+put back after a restart (`restore_jobs`, the prop's newest offer on the
+board's own count, never
 by its stamp: TaskPattern.md §1, "The lifecycle", #610; and set out again
 where the world came back from before its offer, `set_out_unseen`:
-Webserver.md): a skill over a kind of drawer, never one drawer. ⚠ No
+Webserver.md): a skill over a kind of drawer, never one drawer. The job's
+sentence says when its prop was put back (#659; TaskPattern.md §2), and
+nothing of its draw. ⚠ No
 offer lands on a prop a robot is touching (`_worked_props`, the
 producer's `busy`): set out from under a hand, a door was clamped shut
 round it, and a drawer left out was a job paid for nothing.
@@ -356,16 +368,20 @@ humanoids see theirs.
 **Each has its hand-written solution** (`challenge/solutions.py`, Evaluation.md
 §7), two procedures in the robot's own vocabulary, written when one would
 have passed the language's 1,500 characters (3,000 since #560, and its defs
-may call each other: the two are 1,491-2,013 together): the walk there, then the check's own
-procedure -- unchanged for the door and the chest; the drawer's pulls 4 cm
+may call each other: the two are 1,524-2,943 together, the cube's place
+alone 2,275): the walk there, then the check's own procedure -- unchanged
+for the door and the chest; the drawer's pulls 4 cm
 further and lets go of the knob before its arm goes home. A job is offered
 once its reference passes 6 of 8 over a tour of the house, the bar written
 before they flew (`solve.py --from tour`; SimNotes, "The humanoids' first
 jobs"): the drawer 8, the door 8, the chest 7. Each job's energy is its
 reference flown from the station (`energy.json`). The cube's reference set
-it down 2-7 cm off its mat's middle all 8 times, so `place_cube` is
-defined, graded and priced but not offered (why: SimNotes, "Setting a
-table").
+it down 2-7 cm off its mat's middle all 8 times (why: SimNotes, "Setting a
+table"), so `place_cube` was not offered until its procedure read the mat
+and the cube again after a try that failed: then it placed 28 of 32 draws
+over the tour, its bar 24 written before it flew, a fall failing its try,
+and joined the rotation on the table's terms (Ben, 2026-11-10): 9 minutes,
+paying 51 (SimNotes, "The cube from the tour").
 
 ## 12. Lay a place at a table (issue #560, its first task)
 
@@ -392,8 +408,56 @@ line too since (§10, Ben's call): read at every step, it failed two cubes
 held fast while the carry's posture swung the hand down at 0.6-1.0 m/s
 (SimNotes, "Setting a table").
 
-**The departure from the checks' rows: none** -- `shown: false`, paying 0;
-no world offers it until Ben's word.
+**The practice's row: none departs** -- `table` is `shown: false`, paying
+0, as the checks' rows are.
+
+**Served: `set_table`** -- one more kind in the humanoids' rotation since
+its reference laid 24 of the 32 draws its bar asks 24 of (below). It is the
+counter's jobs' shape, through the same seams, generalised over the counter's props and the table
+(`home.jobs`: each area's members, `HubLifecycle._set_out_job`,
+`restore_jobs`, `_worked_props`): a procedure job, its target the dining
+room's table 0 (`dining_table_0`, the table's own body), graded by this
+check's evaluator under a row of its own, from the claim to the hold after
+`done`. Its departures are §11's -- the watch from the claim (a fall
+anywhere fails it, and so does a free piece's drop), the job's own minutes
+from the claim (`tasks.TABLE_MINUTES`: three times its reference's slowest
+pass over the tour, rounded up), failed when held past them -- and two of
+its own:
+
+- *Its place is the set-out's, and its things are put away between jobs.*
+  The dining room's four tables are a top on legs and table 0's south chair
+  is away (`home.world`), so the set-out's table is the served one. The
+  dishware is compiled into the house PUT AWAY (`home.restaurant`): a metre
+  under the floor, its contacts off, its weight held, in the group no
+  sensor casts against. An offer sets it out where the set-out of its draw
+  lays it -- the board's own count, `Task.secret["draw"]`, its weights and
+  friction `dishware.draw(k)`'s -- and once no task naming the table is
+  open (lapsed, settled, failed) the next sweep puts it away, never from
+  under a robot's hand (`_put_away_step`).
+- *It is paid for its time* (Ben's call, 2026-11-07): the counter's 90 for
+  their 16 minutes, times its minutes over 16, rounded, so a robot choosing
+  by the minute is not steered off it.
+
+The offer says where by the area's terms (#419): the mall's address and the
+restaurant's directions, naming the table, the card's tag (93) and the
+pieces' (90-92), and that the card faces south -- never a position. Its
+sentence states this check's criteria and when the place was set out
+(#659), within a description's 500 characters (`tasks.MAX_DESCRIPTION`);
+its row's detail carries all of them.
+
+**Its hand-written solution** (`challenge/solutions.py`, `TABLE`): the walk
+to the place, then this check's procedure from its one stance, its first
+step aside taken from where the card reads across the robot
+(`TABLE_LAY_STEP`) -- the check's procedure reads the pieces and the card
+from its stance, and holds only in a patch of stances a couple of
+centimetres wide, so the walk lands it there: an oblique look at the card,
+its one turn asked a little wide and squared by its own reckoning, what it
+leaves across the card's line stepped out, its last step straight ahead
+(SimNotes, "The table set served" and "The lay from the tour", which have
+what flying took). Offered once it passes the bar written before it flew --
+24 of 32 draws over the tour, a fall failing its try, each draw its own
+noise, on one pod -- and it laid 24 (12 on the tree before it). On two sets
+of draws nothing was tuned on, 46 of 64: it is at the bar's edge.
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.

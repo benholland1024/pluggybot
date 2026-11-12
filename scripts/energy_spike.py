@@ -36,7 +36,10 @@ the house's is 29 and the research center's 7:
     w         mean load over the errand, as a sanity check
 
 `--reserve` measures the return trip from the worst place in the house
-instead (`humanoid.world.RESERVE_WH`).
+instead (`humanoid.world.RESERVE_WH`). ⚠ `--write` OVERWRITES `energy.json`'s
+rows it measured -- the jobs', the explore's rate and the charge's watts --
+and its `measuredOn` note: a re-price is folded in by hand, the dearer of
+two honest readings carried, each job's from its dearest station.
 """
 
 import argparse
@@ -54,11 +57,12 @@ from pluggybot.lifecycle import (
   HUMANOID_HOME, HubLifecycle, board_book, points_ledger, world_config, world_for,
 )
 
-#: The humanoids' hand jobs (#559, stage 3), priced on request, by kind: each
-#: its prop on the storeroom's counter, its reference's two procedures
-#: (`challenge.solutions`) flown from the station with its place remembered.
+#: The humanoids' hand jobs (#559, stage 3; #560), priced on request, by
+#: kind: each its target -- a prop on the storeroom's counter, the
+#: restaurant's table -- its reference's two procedures (`challenge.
+#: solutions`) flown from the station with its place remembered.
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
-             "open_chest": "chest"}
+             "open_chest": "chest", "set_table": "dining_table_0"}
 
 
 class _Writer:
@@ -80,14 +84,35 @@ class _Writer:
 BIG_PACK_WH = 40.0
 
 
+def _place_tag(target: str) -> int:
+  """The tag a target's place is found by: the counter's row's over its
+  prop, the restaurant's place card."""
+  from pluggybot.home import storeroom
+  from pluggybot.perception.tags import PLACE_TAG_IDS
+  return storeroom.TAGS[target] if target in storeroom.TAGS else PLACE_TAG_IDS[0]
+
+
 def _from_the_station(life, prop: str, tag: int) -> None:
   """To the station, the prop's area (its tag `tag`) found first if it is
-  not remembered: where a job is taken from (the energy table's rule)."""
+  not remembered: where a job is taken from (the energy table's rule) --
+  what is put away between jobs set out for it first (the table's card)."""
+  from pluggybot.home import jobs
   from pluggybot.home.places import area
   if life.body.places.get(tag) is None:
+    job_area = jobs.area_of(prop)
+    sweep = life._put_away_step
+    if job_area is jobs.restaurant:
+      # ...put away between its jobs: set out to be found, and held out
+      # while it is (no job holds the table, so the loop's sweep would put
+      # it away a second later)
+      job_area.set_out(life.model, life.data, prop, 0)
+      life._put_away_step = lambda: None
     at = area(prop)["address"]
-    rec = life.body.run(life.body.find_tag_routine(tag, near=(at["x"], at["y"]),
-                                                   patience=600.0))
+    try:
+      rec = life.body.run(life.body.find_tag_routine(tag, near=(at["x"], at["y"]),
+                                                     patience=600.0))
+    finally:
+      life._put_away_step = sweep
     print(f"  (found {prop} first: {rec.get('why')} in {rec.get('seconds')} s, unpriced)")
   if life.go_charge():
     life.charge()
@@ -146,11 +171,10 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
 
     # ---- one hand job at a time --------------------------------------------
     from pluggybot.challenge import solutions
-    from pluggybot.home import storeroom
     for action in actions:
       # ...from the station, its area's tag found first if the explore missed it
       prop = HAND_JOBS[action]
-      _from_the_station(life, prop, storeroom.TAGS[prop])
+      _from_the_station(life, prop, _place_tag(prop))
       t0 = float(data.time)
       # Topped up first, so every job is measured from the same place in the
       # pack and none of them against a battery that ran out halfway.
@@ -330,7 +354,9 @@ def main() -> None:
                        "has to cover on the current floor plan")
   ap.add_argument("--json", default=None, help="write the raw measurement here")
   ap.add_argument("--write", action="store_true",
-                  help="fold the result into src/pluggybot/economy/energy.json")
+                  help="overwrite src/pluggybot/economy/energy.json's rows it measured -- its "
+                       "jobs', the explore's rate and the charge's watts -- and its "
+                       "measuredOn note (a re-price is folded by hand, the dearer kept)")
   args = ap.parse_args()
   args.world = world_for(args.world)
 

@@ -59,6 +59,7 @@ what may happen to it, and how it survives a restart.
 
 import json
 import os
+import re
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,8 +76,15 @@ STATE_VERSION = 1
 #: is -- and was capped at that message's 280 until issue #264 found the
 #: house's own offers cut short (the bench's lost "write the procedure",
 #: the tower's "say you are done" once it said where the blocks stand).
-#: Wide enough for a work order that names two places; still a cap.
-MAX_DESCRIPTION = 420
+#: A visitor's 500 since #659: at 420 the door's, the chest's and the table's
+#: sentences lost their ends once each said when its things were put back.
+#: ⚠ THE CUT IS SILENT, so a template past it is a test's to catch (`test_tasks.py`).
+MAX_DESCRIPTION = 500
+#: The second a job's sentence dates its things at (`{offered}`, #659): a
+#: start-over dates them again (`TaskBoard.load`), at whatever second the
+#: last one did -- matched only at the offer's, a kept clock's start-over
+#: and then one at 0 left them dated ahead of the clock (#594).
+_DATED = re.compile(r"t=-?\d+")
 #: Tasks the board holds at all. Resolved ones age out oldest-first; an OPEN
 #: task is never dropped to make room, because dropping a job the robot might
 #: still do is a different event from that job lapsing, and only one of the
@@ -169,7 +177,9 @@ class TaskKind:
   #: hidden (`activity/`), and each offer draws them anew off the board's
   #: own sequence number (`Task.secret["draw"]`), set into the world as the
   #: offer lands, the prop set back out with them (`HubLifecycle.
-  #: _set_out_counter`) -- a skill over a kind of drawer, never one drawer.
+  #: _set_out_job`) -- a skill over a kind of drawer, never one drawer. ⚠ ITS
+  #: SENTENCE SAYS WHEN, `{offered}` (#659; dated: TaskPattern.md §2), and a
+  #: test reads it as offered.
   draws: bool = False
   #: THE TIME THE JOB GIVES FROM ITS CLAIM, minutes, or None for none: what
   #: its sentence says (`{minutes}`) and the limit its grade holds it to
@@ -183,14 +193,17 @@ class TaskKind:
       raise ValueError(f"{self.name}: discharge {self.discharge!r} is none of "
                        f"{', '.join(DISCHARGES)}")
 
-  def describe(self, target: str, params: dict) -> str:
+  def describe(self, target: str, params: dict, *, offered_t: float) -> str:
+    # `{offered}`: when the job's things were put back (#659), the offer's own
+    # second, never a parameter's: a date the robot reads as fact
+    fields = {**params, "offered": f"{float(offered_t):.0f}"}
     try:
-      return self.template.format(target=target, **params)
+      return self.template.format(target=target, **fields)
     except KeyError:
       # A kind whose template names a parameter this task does not carry.
       # Degraded rather than raised on: a description is what a person reads,
       # and a task with an awkward sentence is better than no task.
-      return self.template.format_map(_Blank(target=target, **params))
+      return self.template.format_map(_Blank(target=target, **fields))
 
 
 class _Blank(dict):
@@ -202,6 +215,19 @@ class _Blank(dict):
 #: three times the slowest of the offered jobs' references, 313 s from the
 #: station on a fresh map (`scripts/solve.py --from tour`), rounded up.
 HAND_MINUTES = 16
+#: ...and the table's (#560): three times its reference's slowest pass over
+#: the tour, 279 s from the claim to the call (`scripts/solve.py --feature
+#: table --from tour`, one pod), rounded up.
+TABLE_MINUTES = 14
+#: ...and the cube's (#560): three times its reference's slowest pass from
+#: the dearest station, the mall's, its area remembered, 177-180 s to its
+#: call (`scripts/energy_spike.py --station station_mall --actions
+#: place_cube`), rounded up -- Ben's call, 2026-11-11, over 8, three times
+#: the tour's slowest on a fresh map (159 s; the tour has no mall): a claim
+#: at the mall then left about 300 s to write the procedure, where one
+#: answer may take 300 (`CALL_TIMEOUT_S`). A claim there on a fresh map, its
+#: find before the walk, was not flown.
+CUBE_MINUTES = 9
 
 
 KINDS: dict[str, TaskKind] = {
@@ -228,52 +254,76 @@ KINDS: dict[str, TaskKind] = {
   # in the counter's row, its handle by its own (tier 1, TaskPattern.md
   # §3), the area's directions with the offer, never a position. Graded as
   # the checks are, from the claim -- a fall fails it -- to a hold after
-  # `done`, within the minutes the job gives (`HAND_MINUTES`, `HubLifecycle.
-  # _grade_hands_routine`); each offer draws the prop's hidden dynamics
-  # afresh. No errand: a procedure the robot writes (`discharge`). MEASURED
-  # off the hand-written references from the dearest station, the mall's
-  # (`challenge/solutions.py`, `energy.json`); the fallback a touch above.
+  # `done`, within the minutes the job gives (`HAND_MINUTES`, the cube's
+  # `CUBE_MINUTES`; `HubLifecycle._grade_hands_routine`); each offer draws the
+  # prop's hidden dynamics afresh. No errand: a procedure the robot writes
+  # (`discharge`). MEASURED off the hand-written references from the dearest
+  # station, the mall's (`challenge/solutions.py`, `energy.json`); the
+  # fallback a touch above.
   "open_drawer": TaskKind(
     "open_drawer", task="open_drawer", target_kind="drawer",
     template="Pull the drawer out of its cabinet, at least 15 cm, and let go of it, "
-             "within {minutes} minutes of taking this job and without falling. It is "
+             "within {minutes} minutes of taking this job and without falling. The "
+             "drawer was put back shut at t={offered}, when this job was offered. It is "
              "graded when you say you are done and again 5 s later: out that far both "
              "times, nothing of yours touching it in between. No errand does this: "
              "write the procedure, run it, and say you are done.",
-    estimate_wh=7.14, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=7.51, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "open_door": TaskKind(
     "open_door", task="open_door", target_kind="door",
     template="Open the cupboard's door, at least 50 degrees, and let go of it, within "
              "{minutes} minutes of taking this job and without falling; its latch holds "
-             "it shut until its lever is pressed down. It is graded when you say you "
+             "it shut until its lever is pressed down. The door was put back shut at "
+             "t={offered}, when this job was offered. It is graded when you say you "
              "are done and again 5 s later: open that far both times, nothing of yours "
              "touching it in between. No errand does this: write the procedure, run "
              "it, and say you are done.",
-    estimate_wh=7.72, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=9.05, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "place_cube": TaskKind(
     "place_cube", task="place_cube", target_kind="cube",
     template="Put the cube on its mat -- resting on it, flat, its middle within 2.5 cm "
-             "of the mat's -- set down, never dropped, and let go of it, within "
-             "{minutes} minutes of taking this job and without falling. It is graded "
+             "of the mat's -- set down, never coming down faster than 0.5 m/s while "
+             "nothing of yours holds it, and let go of it, within "
+             "{minutes} minutes of taking this job and without falling. The cube was put "
+             "back beside its mat at t={offered}, when this job was offered. It is graded "
              "5 s after you say you are done, nothing of yours touching it. No errand "
              "does this: write the procedure, run it, and say you are done.",
-    estimate_wh=9.86, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=9.86, discharge="procedure", draws=True, minutes=CUBE_MINUTES),
   "open_chest": TaskKind(
     "open_chest", task="open_chest", target_kind="chest",
     template="Open the chest's lid past 57 degrees, set it back down shut and let go "
              "of it, within {minutes} minutes of taking this job and without falling; "
-             "while it is open it must never come down faster than 1 rad/s. It is "
+             "while it is open it must never come down faster than 1 rad/s. The lid was "
+             "put back shut at t={offered}, when this job was offered. It is "
              "graded when you say you are done and again 5 s later: shut, nothing of "
              "yours touching it. No errand does this: write the procedure, run it, "
              "and say you are done.",
-    estimate_wh=7.47, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=8.55, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+  # THE RESTAURANT'S FIRST JOB (#560): a place laid at the dining room's table
+  # 0 (`home.restaurant`), the table check's criteria (`challenge/table.py`,
+  # its row's detail all of them) as the practice's job states them -- the
+  # card found by its tag and the pieces by theirs (tier 1), the restaurant's
+  # directions with the offer, never a position. Its dishware put away until
+  # an offer sets it out where the draw lays it (`draws`); graded as the hand
+  # jobs are, from the claim. MEASURED off its reference from the dearest
+  # station, the research center's (`energy.json`); the fallback a touch above.
+  "set_table": TaskKind(
+    "set_table", task="set_table", target_kind="table",
+    template="Lay the place at the card on the restaurant's table: from the foot of its face "
+             "toward you, the plate's middle 19 cm out; the fork 19 cm out, 16 cm left, along the "
+             "line, head to the card; the cup 7 cm out, 24 cm right. Each within 2.5 cm, set down "
+             "and let go of, within {minutes} minutes of taking this job, without falling; graded "
+             "when you say you are done and 5 s later. The plate, the fork and the cup were set out "
+             "at t={offered}, when this job was offered. No errand does this: write the procedure.",
+    estimate_wh=9.83, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
 }
 
-#: The hand jobs' graders (#559): each served job's row is its own -- paid,
-#: and shown only where a world offers it (`TaskReward.shown`) -- graded by
-#: its capability check's evaluator, whose row stays the practice's, unpaid.
+#: The hand jobs' graders (#559, #560): each served job's row is its own --
+#: paid, and shown only where a world offers it (`TaskReward.shown`) --
+#: graded by its capability check's evaluator, whose row stays the
+#: practice's, unpaid.
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "place",
-             "open_chest": "lid"}
+             "open_chest": "lid", "set_table": "table"}
 
 
 def kind_names() -> list[str]:
@@ -289,7 +339,8 @@ def kind_names() -> list[str]:
 def task_number(task_id: object) -> int:
   """A task id's number on its board's own count (`t_0042` is 42), or 0 for
   an id no board numbered. Whatever orders tasks reads it, never a stamp: a
-  start-over sets the clock back, never the count (#610)."""
+  start-over could set the clock back (#610; one with no clock to keep still
+  does, #594), never the count."""
   try:
     return int(str(task_id).split("_")[-1])
   except ValueError:
@@ -367,14 +418,16 @@ class Task:
     # ...the time the job gives its kind's, where the offer gives none
     params = ({} if spec.minutes is None else {"minutes": spec.minutes}) | {
       str(k): v for k, v in (params or {}).items()}
-    text = clean(description, MAX_DESCRIPTION) or spec.describe(target, params)
+    # ...dated off the stamp it keeps, which a start-over's re-dating reads (`load`)
+    created = round(float(t), 3)
+    text = clean(description, MAX_DESCRIPTION) or spec.describe(target, params, offered_t=created)
     return cls(id=task_id, kind=kind, target=target,
                description=clean(text, MAX_DESCRIPTION), task=spec.task,
                params=params, deadline=deadline,
                estimate_wh=(spec.estimate_wh if estimate_wh is None
                             else float(estimate_wh)),
                source=source, state="offered",
-               created_t=round(float(t), 3), secret=dict(secret or {}))
+               created_t=created, secret=dict(secret or {}))
 
   # ---- what it is worth (looked up, never stored) --------------------------
 
@@ -431,12 +484,18 @@ class Task:
       return None
     return max(0.0, limit - (float(now) - self.claimed_t))
 
+  def hidden_from(self, reader: str) -> bool:
+    """Is this the offer that names `reader`, a robot's display name (#228)?
+    It is shown to the other, and never to the robot it would be done to."""
+    return bool(reader) and self.target_kind == "robot" and self.target == reader
+
   def claimable(self, now: float, pack_wh: float | None = None) -> bool:
     """May a robot take this on, right now?
 
     Two gates. It has to be on offer and not already lapsed -- and it has to
     FIT: a task whose estimated cost exceeds THE REMAINING PACK is not
-    claimable, it is a way to die holding a tool (issue #21).
+    claimable, it is a way to die holding a tool (issue #21). A new gate is
+    a new reason in `HubLifecycle._not_mine` too: a refused robot is told why.
 
     ⚠ `pack_wh` is the WHOLE remaining charge, not the part above the
     reserve, and that distinction is the difference between a working gate
@@ -587,7 +646,7 @@ class TaskBoard:
                table: RewardTable | None = None,
                max_tasks: int = MAX_TASKS, max_offered: int = MAX_OFFERED,
                clock: Callable[[], str] = _now, energy=None,
-               rebase: bool = True) -> None:
+               rebase: bool = True, start_over_t: float | None = None) -> None:
     self.table = table if table is not None else default_table()
     # What a job COSTS in THIS world (issue #15). Optional, and the fallback
     # is `TaskKind.estimate_wh` -- a world nobody has measured still offers
@@ -622,7 +681,7 @@ class TaskBoard:
     #: them on the wire.
     self.interrupted: list[Task] = []
     if self.path is not None and self.path.exists():
-      self.load(rebase=rebase)
+      self.load(rebase=rebase, start_over_t=start_over_t)
 
   # ---- reading -------------------------------------------------------------
 
@@ -700,7 +759,7 @@ class TaskBoard:
     """
     shown = [t for t in self.claimable(now, pack_wh)
              if t.id not in hidden
-             and not (reader and t.target_kind == "robot" and t.target == reader)]
+             and not t.hidden_from(reader)]
     return [t.as_context(now, pack_wh, self.table) for t in shown[:limit]]
 
   def held_context(self, robot: str, now: float) -> list[dict]:
@@ -872,7 +931,8 @@ class TaskBoard:
     """Age out resolved tasks, oldest first. Open ones are never dropped.
 
     ⚠ OLDEST ON THE BOARD'S OWN COUNT (`Task.number`), never by `resolvedT`:
-    a start-over sets the clock back to 0, and t_0002, resolved at t=357,627
+    a start-over set the clock back to 0 (one with no clock to keep still
+    does, #594), and t_0002, resolved at t=357,627
     on the clock before 11-01's, was kept over every task resolved before
     the new clock passed it: more than 204,000 s on from 11-03 (#610).
 
@@ -916,7 +976,7 @@ class TaskBoard:
     return target
 
   def load(self, path: str | os.PathLike | None = None,
-           rebase: bool = True) -> "TaskBoard":
+           rebase: bool = True, start_over_t: float | None = None) -> "TaskBoard":
     """Restore the board. Older state versions load, newer ones refuse --
     the same asymmetry as the boards and the ledger, and for the same
     reason: /var/lib/pluggybot outlives the image.
@@ -948,7 +1008,10 @@ class TaskBoard:
     starts from its XML starts at 0, where an offer made at 3606 s of a
     mission could otherwise never lapse (measured, 2026-09-22), nor a job
     taken then run out. A file with no `simTime` (an older build's) is
-    loaded as it was.
+    loaded as it was. ⚠ `start_over_t`, with `rebase` False: a world begun
+    again from its XML ON THE CLOCK THE BOARD WAS WRITTEN ON (a start-over
+    keeps a refused save's, #594) keeps its deadlines and claims as written,
+    and its open jobs' things were set out as it began, at that second.
     """
     target = Path(path) if path is not None else self.path
     if target is None or not target.exists():
@@ -966,6 +1029,9 @@ class TaskBoard:
     shift = float(saved_t) if (saved_t is not None and rebase) else None
     # ...the last change saved still the last, on a clock that carries on
     self.sim_t = float(saved_t) if (saved_t is not None and not rebase) else 0.0
+    # ...and when a world from its XML set its open jobs' things out: as it
+    # began, at 0 where its clock went back with it
+    begun = 0.0 if shift is not None else start_over_t
     self.tasks = {}
     self.interrupted = []
     for spec in doc.get("tasks", ()):
@@ -1010,7 +1076,24 @@ class TaskBoard:
         # of them: left on the old clock by a start-over before #602, t_0004
         # read as taken 227,000 s ahead of the clock, and could not run out.
         claimed = min(task.claimed_t, float(saved_t)) - (shift or 0.0)
+        if begun is not None:
+          # ...and never later than a world from its XML begins: a claim
+          # made past a refused save, in a run that then died, is held from
+          # where the world began again (#594)
+          claimed = min(claimed, begun)
         task = replace(task, claimed_t=round(claimed, 3))
+      if task.open and begun is not None and KINDS[task.kind].draws:
+        # ...and when its things were put back (#659): as the world began,
+        # where a world from its XML has every prop at rest and sets an open
+        # job's out (`HubLifecycle.restore_jobs`). Left on the old clock,
+        # the date stood far ahead of the robot's. Only the words its kind
+        # wrote: a description someone gave is theirs.
+        spec = KINDS[task.kind]
+        own = clean(spec.describe(task.target, task.params, offered_t=task.created_t),
+                    MAX_DESCRIPTION)
+        if _DATED.sub("t=", task.description) == _DATED.sub("t=", own):
+          task = replace(task, description=clean(
+            spec.describe(task.target, task.params, offered_t=begun), MAX_DESCRIPTION))
       self.tasks[task.id] = task
     # ⚠ Never a number below one the board holds, as the desk's counter
     # (`tickets.Desk`): the board is ordered by it (#610), and a file with a

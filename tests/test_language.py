@@ -136,12 +136,36 @@ def test_where_the_world_gives_no_calls_a_procedure_is_one_def_with_no_arguments
   ("def x():\n  a = 1 +\n", "invalid syntax"),
   ("def x():\n  if 1:\n    if 1:\n      if 1:\n        if 1:\n          wait(1)\n",
    "nested deeper than"),
-  ("def x():\n  read = 3\n  wait(1)\n", "reserved"),
-  ("def x():\n  wait = 3\n  wait(1)\n", "reserved"),
+  ("def x():\n  read = 3\n  wait(1)\n",
+   "'read' is not a name this language allows (it is one of the language's own words)"),
+  ("def x():\n  wait = 3\n  wait(1)\n", "'wait' is not a name this language allows (it is a verb's name)"),
 ])
 def test_each_construct_outside_the_grammar_is_refused(src, needle):
   reasons = refusals(src)
   assert any(needle in r for r in reasons), reasons
+
+
+def test_a_name_is_refused_with_why_and_the_why_said_once():
+  """#640: the text never said a variable's name is lowercase, and a
+  capitalised one was refused "(it is reserved)", every use of it again --
+  dozens of lines for one slip. Each kind of name says its own reason, the
+  first time it is refused."""
+  rule = lang.name_rule()
+  assert refusals("def x():\n  cX = 1\n  wait(cX)\n  cX = cX + 1\n") == [
+    f"line 2: 'cX' is not a name this language allows ({rule})",
+    "line 3, wait: 'cX' is not a name this language allows",
+    "line 4: 'cX' is not a name this language allows"]
+  assert refusals("def X():\n  wait(1)\n") == [
+    f"line 1: 'X' is not a name this language allows ({rule})"]
+  long = "n" * (lang.MAX_NAME_CHARS + 1)
+  assert refusals(f"def x():\n  {long} = 1\n  wait(1)\n") == [
+    f"line 2: '{long}' is not a name this language allows ({rule})"]
+  assert compile_ok(f"def x():\n  {long[1:]} = 1\n  wait(1)\n")
+  assert refusals("def a():\n  b = 1\n  b()\n\ndef b():\n  wait(1)\n") == [
+    "line 2: 'b' is not a name this language allows (it is a def's name)"]
+  assert refusals("def a():\n  b(1)\n\ndef b(sin):\n  wait(sin)\n") == [
+    "line 4: 'sin' is not a name this language allows (it is a maths function's name)"]
+  assert "reserved" not in " ".join(refusals("def x():\n  cX = 1\n  wait(1)\n"))
 
 
 def test_the_source_cap_is_a_refusal():
@@ -341,7 +365,7 @@ def _stub_life():
     actuator=_no_actuator, setpoint=lambda act: 0.0,
     go_to_routine=routine("drive_to", True), face_routine=routine("face", True),
     in_sight=lambda x, y: True, hold_routine=routine("wait"),
-    pose=(0.0, 0.0, 0.0), watch=lambda tag: None,
+    pose=(0.0, 0.0, 0.0), watch=lambda tag: None, falls=0,
     )
   return SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          interrupted=lambda: False,
@@ -448,6 +472,148 @@ def test_an_interrupt_stops_between_verbs():
 def test_move_goes_through_the_bodys_ramp():
   r, life = run('def x():\n  move("left_elbow", 1.0)\n')
   assert r["ok"] and [c[0] for c in life.calls] == ["ramp"]
+
+
+# ---- a fall and a death end the run, whatever tests them (#671) --------------------
+
+
+def _down_in_wait(life, fall_at=None, die_at=None, steps=500):
+  """`life`'s `wait` as a hold of `steps` physics steps, its body's fall
+  watch counting a fall at step `fall_at` (`Body.falls`, as the humanoid's
+  does the step its get-up takes it) and its robot dying at `die_at`: how
+  many steps each wait held."""
+  held: list[int] = []
+
+  def hold(seconds, *a, **kw):
+    life.calls.append(("wait", (seconds,)))
+    held.append(0)
+    for n in range(steps):
+      if n == fall_at:
+        life.body.falls += 1
+      if n == die_at:
+        life.dead = {"cause": "flat"}
+      yield ()
+      held[-1] += 1
+  life.body.hold_routine = hold
+  return held
+
+
+@pytest.mark.parametrize("src, line", [
+  # a verb an `if` tests...
+  ("def x():\n    a = 0\n    if not wait(5):\n        a = 1\n    a = 2\n    wait(1)\n", 3),
+  # ...and one in a call an `if` tests, whose fall ends the run, not the call
+  ("def x():\n    a = 0\n    if not hold():\n        a = 1\n    a = 2\n    wait(1)\n\n"
+   "def hold():\n    wait(5)\n", 9),
+])
+def test_a_fall_ends_the_run_inside_any_verb_whatever_tests_it(src, line):
+  """#671 (Luca, 11-08 15:29): a reach inside an `if` fell, read false, and
+  the run went on through the get-up, the topple and the death. A verb is
+  ended the step its body falls -- a wait here, which never notices -- and
+  the run stops there, at its line, a fall said and no test read false.
+  Shown to fail without `run_verb`'s watch (the wait held its 500 steps and
+  the run went on to its end) and without `lang`'s fall rule (the call read
+  false, and `a = 1` ran)."""
+  life = _stub_life()
+  held = _down_in_wait(life, fall_at=3)
+  r, _ = run(src, life)
+  assert not r["ok"] and r["failedAt"] == 0 and (r["total"], r["completed"]) == (1, 0), r
+  step = r["steps"][-1]
+  assert step["line"] == line and step["fell"] and step["reason"] == st.FELL, step
+  assert "tested" not in step and r["testsFalse"] == 0 and "stopped" not in r, r
+  assert r["locals"] == {"a": 0.0}, "a line past the fall ran"
+  assert held == [3], "the wait held on past the fall"
+
+
+def test_a_death_ends_the_run_at_once_and_a_dead_robot_begins_no_verb():
+  """#671 (Ben, 2026-11-09): a death ends the run AT ONCE -- it went on
+  until the stand-up closed it 300 s later, and three of Luca's verbs ran on
+  a dead robot. The verb it died in is ended the step it died (`stopped:
+  died`, no failed step), and dead as a verb ends, the run begins no other.
+  Shown to fail without `run_verb`'s watch and `lang`'s look before each
+  verb: both waits held to their ends."""
+  life = _stub_life()
+  held = _down_in_wait(life, die_at=3)
+  r, _ = run("def x():\n    if wait(5):\n        wait(5)\n", life)
+  assert r["stopped"] == "died" and not r["ok"] and "failedAt" not in r, r
+  assert (r["total"], r["completed"], held) == (1, 0, [3]), (r, held)
+  assert r["steps"][-1]["stopped"] == "died" and r["steps"][-1]["line"] == 2
+  # ...and dead the moment a wait ends: the next is never begun
+  life = _stub_life()
+
+  def dies_as_it_ends(seconds, *a, **kw):
+    life.calls.append(("wait", (seconds,)))
+    life.dead = {"cause": "flat"}
+    return None
+    yield
+  life.body.hold_routine = dies_as_it_ends
+  r, _ = run("def x():\n    wait(5)\n    wait(5)\n", life)
+  assert r["stopped"] == "died" and (r["total"], r["completed"]) == (1, 1), r
+  assert len(life.calls) == 1, "a verb began on a dead robot"
+
+
+def test_a_verb_never_runs_again_on_a_dead_robot():
+  """#671's review: a death is read the step it lands, before the verb runs
+  again -- resumed first, a verb's code took one more turn on a dead robot.
+  Here the death is the step's own, as the loop's death seam's is (a
+  stepper's), and the wait's line after its third yield never runs. Shown
+  to fail with the death read after the verb resumes (it held 3)."""
+  life = _stub_life()
+  held = _down_in_wait(life)
+  stepped = [0]
+
+  def step(*a):
+    stepped[0] += 1
+    if stepped[0] == 3:
+      life.dead = {"cause": "flat"}
+  proc = lang.compile_procedure("def x():\n    wait(5)\n", HOME)
+  r = tick.run(SimpleNamespace(step=step), lang.run_procedure_routine(life, proc, HOME))
+  assert r["stopped"] == "died" and held == [2], (r, held)
+
+
+@pytest.mark.parametrize("stop", [True, False])
+def test_a_death_while_an_interrupt_is_asked_ends_the_run_before_the_next_verb(stop):
+  """#671's second review: between two verbs the interrupt's ask steps the
+  world (`HubLifecycle._ask_interrupt` blocks while its call flies), and the
+  robot may die in it. Answered stop or go on, the run ends `died` after the
+  last line that ran, the next verb never begun -- and the dead robot is
+  never asked again. Shown to fail with the death read only before the ask:
+  told to stop, the run ended `interrupted`; to go on, the next wait ran on
+  a dead robot."""
+  life = _stub_life()
+  asked: list = []
+
+  def interrupted():
+    asked.append(float(life.data.time))
+    life.dead = {"cause": "flat"}             # ...dead as its call flew
+    return stop
+  life.interrupted = interrupted
+  r, _ = run("def x():\n    wait(1)\n    wait(1)\n    wait(1)\n", life)
+  assert r["stopped"] == "died" and (r["total"], r["completed"]) == (1, 1), r
+  assert [c[0] for c in life.calls] == ["wait"], "a verb began on a dead robot"
+  assert len(asked) == 1, "a dead robot was asked"
+
+
+def test_a_verb_called_on_a_dead_robot_never_begins():
+  """...and `run_verb` itself begins nothing on a dead robot, whoever calls
+  it (#671's second review: the watch read only a death that came after
+  the verb began). Shown to fail with that reading alone: the wait ran."""
+  life = _stub_life()
+  life.dead = {"cause": "flat"}
+  verdict = tick.run(SimpleNamespace(step=lambda *a: None),
+                     st.run_verb(life, st.language(HOME)["wait"], {"seconds": 1.0}))
+  assert verdict == {"ok": False, "stopped": "died"} and life.calls == []
+
+
+def test_the_language_says_a_fall_stops_the_procedure_in_a_test_or_not():
+  """#671: the rule is the language's, so its text says it -- among what
+  ends a run, and where a verb may be a test -- in the practice's words,
+  which the served pair's rule and a session's hello carry byte for byte.
+  A death needs no word: a dead robot reads nothing."""
+  from pluggybot.mind import practice
+  for facts in (st.hand_facts(), HOME):
+    text = " ".join(practice.language_text(facts).split())
+    assert "A procedure runs until it ends, a verb fails, you fall, its budget" in text
+    assert "But if you fall, the procedure stops there, in a test or not." in text
 
 
 # ---- the fence, extended to loops ------------------------------------------------
@@ -660,6 +826,46 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   for v in ("fetch", "stow", "drive", "press", "draw", "pick", "place", "survey"):
     assert f"  {v}(" not in text, v
   assert "  find(" not in ov.hands_procedure_rule(()), "no places, no find"
+
+
+def test_a_tag_is_named_by_its_number_in_each_verb_that_takes_one():
+  """#640: all 11 first answers of #560's table probe wrote `spot("93")`
+  -- a name may be in quotes, and nothing said a tag is none. Every verb
+  that takes a tag says so in its own text, and the robot reads it there:
+  the practice's `spot` and `watch`, the served rule's `find` too. An
+  example is a call that compiles, by a tag the world neither renders nor
+  places, so it names no job's; `find`, whose tag must be a task area's,
+  shows none, and calls its tag no "place's": in the robot's text a place
+  is a point."""
+  from pluggybot.mind import practice as mp
+  from pluggybot.perception import tags
+  assert st.BY_NUMBER == "named by its number, not in quotes"
+  table = {**st.VERBS, **st.HANDS_VERBS}
+  takers = sorted(n for n, v in table.items() if "tag" in v.args)
+  assert takers == ["find", "spot", "watch"]
+  for n in takers:
+    assert table[n].args["tag"].kind == "float", n
+    assert st.BY_NUMBER in table[n].doc, n
+  shown = {"spot": f"A tag is {st.BY_NUMBER}: `spot({st.TAG_EXAMPLE})` looks for tag",
+           "watch": f"A tag is {st.BY_NUMBER}: `watch({st.TAG_EXAMPLE})` keeps reading tag",
+           "find": f"A tag is {st.BY_NUMBER}"}
+  for n, said in shown.items():
+    assert said in table[n].doc, n
+    if n != "find":
+      compile_ok(f"def a():\n    {n}({st.TAG_EXAMPLE})\n")
+  assert "find(" not in table["find"].doc and "place's" not in table["find"].doc
+  rendered = {int(p.stem[3:]) for p in (SRC.parents[1] / "models" / "tags").glob("tag*.png")}
+  assert len(rendered) > 30 and st.TAG_EXAMPLE not in set(tags.TAG_SIZES) | rendered
+  assert st.TAG_EXAMPLE not in HOME.places
+  body = dict(mp.system_sections(st.hand_facts()))["your body"]
+  rule = ov.hands_procedure_rule(HOME.places)
+  for verb, text in (("spot", body), ("watch", body), ("spot", rule), ("watch", rule),
+                     ("find", rule)):
+    line = next(line for line in text.splitlines() if line.startswith(f"  {verb}("))
+    assert shown[verb] in line, verb
+  # ...and it is the language's own rule: the number compiles, in quotes it does not
+  assert refusals(f'def a():\n    spot("{st.TAG_EXAMPLE}")\n') == [
+    "line 2, spot: tag takes a number, not a name in quotes"]
 
 
 # ---- the lifecycle: define, run by name ------------------------------------------

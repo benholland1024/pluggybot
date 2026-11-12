@@ -265,7 +265,7 @@ def test_an_errand_that_will_not_fit_is_deferred_and_stays_queued():
   what the pack can spend is not started. Deferred, not dropped -- the job is
   still the job, and the answer is a charge."""
   life = life_with(errands=[job_errand()])
-  life.battery.energy_wh = 0.8            # the drawer's 7.08 + the 18 reserve
+  life.battery.energy_wh = 0.8            # short of the drawer's 7.503 + the 19.5 reserve
   assert life._afford_next() is False
   assert len(life.errands) == 1, "a deferred errand must survive the charge"
   assert any("DEFER" in line for line in life.log), life.log
@@ -401,7 +401,7 @@ def test_only_measured_costs_are_shown_to_the_model():
   that `idle` costs 7 Wh -- false, and exactly the confident wrong number
   the rest of this design keeps out of the prompt."""
   t = en.load(HUMANOID_HOME)
-  assert t.as_context(("idle", "explore", "open_drawer")) == {"open_drawer": 7.138}
+  assert t.as_context(("idle", "explore", "open_drawer")) == {"open_drawer": 7.503}
   assert t.cost("idle") == t.dearest_wh(), "the gate still prices it"
   menu = ov.Menu.for_world(HUMANOID_HOME, lc.board_book(HUMANOID_HOME))
   assert set(menu.costs_wh) <= set(t.errand_wh)

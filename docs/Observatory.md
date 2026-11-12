@@ -10,6 +10,900 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The cube is offered (#560) — opens when this PR is deployed
+
+**What changed in the world.**
+- **`place_cube` is one more kind in `home_humanoid`'s rotation**: the cube
+  put on its mat on the storeroom's counter, its fifth job beside the
+  drawer, the door, the chest and the table. It gives 9 minutes
+  (`tasks.CUBE_MINUTES`, three times its reference's slowest pass from the
+  dearest station, the mall's, its area remembered, 180 s; Ben's call over
+  8, three times the tour's 159 s, which left a claim at the mall about 300
+  s to write the procedure in; a claim there on a fresh map was not
+  flown), pays 51 (Ben's 90 for 16 minutes, pro rata, as the
+  table's) and costs 9.858 Wh (`energy.json`, unchanged: its reference now
+  costs 8.124 from the dearest station). The robots read a new row in their
+  reward table: `prompt_sha` `2384a72b…` → `4904a4cb…`, 64,023 → 64,556
+  chars, 17 sections both, over #669's (`overseer_probe.py --deployed
+  --prompt`). Its row and its job's sentence state its grader's drop rule
+  as the table's row does: while nothing of the robot's holds the cube, it
+  may not come down faster than 0.5 m/s. Nothing about the verbs, the body
+  or the house moved.
+- **Our reference passed from the tour** (SimNotes, "The cube from the
+  tour"): 28 of 32 draws, its bar 24, 23 on the tree before it on the same
+  pod; 23 of 32 on fresh draws 400-431, one of which (431) showed the
+  one-tag case the review then fixed. A try that failed reads the
+  mat and the cube again. It is a reference, never shown to a mind.
+- ⚠ The rotation's `maxOffered` stays 4 with five kinds: at most four of
+  them stand on the board at once.
+
+**Why.** #560: Ben's word of 2026-11-10, that the cube is offered on the
+table's terms once its reference passes from the tour.
+
+**What the period is for.**
+- **Whether a robot takes the cube, and what it writes**: the counter's
+  fifth job, the one with the shortest time and the least pay.
+- **The counter's crowding**: two robots at it is likelier with one more
+  job there, and the arms still know nothing of the other robot (#678).
+- ⚠ **Not to be pooled with the period before for anything the reward table
+  or the offers decide**: there is one more kind on the board.
+
+### The counter's jobs priced again, on the waist's body (#560) — opens when this PR is deployed
+
+**What changed is what three of the counter's offers say they cost**
+(`energy.json`; `dataHashes.energy` moves): `open_drawer` 7.50 Wh (7.14
+before), `open_door` 9.04 (7.72), `open_chest` 8.54 (7.46); `place_cube`
+(9.86) and `set_table` (9.82) are as they were. Each is its reference flown
+from the dearest of the three stations, the mall's, on the waist's body
+(SimNotes, "The grown world"); the drawer's was a try that stopped at its
+reach, lost at the storeroom, so a pass costs more. No text the robots read moved: `prompt_sha`
+`2384a72b…` both sides (no job is a menu action, so the prompt's
+`energyCostWh` is `{}`); each offer's `estimateWh` in the turn did.
+
+**Why.** The rows were measured on 3 Nov, before the waist (#560's stage
+(c3)), the reach planned where the robot stands (#627), the gripper's jaws
+and its thin grip (#628, #646) and `step`'s turn (#649): the robots do
+these jobs on today's body.
+
+**What the period is for.** Nothing of its own. A claim of the door now
+asks 1.3 Wh more of the pack, the chest 1.1, the drawer 0.4 (0.2 % or less
+of the served 777.6 Wh), so ⚠ it is not to be pooled with the period
+before for anything the energy gate decides: a claim refused for its
+energy, a charge before a job.
+
+### A `withdraw` opens its gripper before the hand comes out (#669) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `0deeb7c4…` → `2384a72b…`, 63,719 → 64,023
+chars, 17 sections both):
+- **`withdraw` opens its hand's gripper first**, whatever the gripper says
+  it holds, and gives the jaws `GRIP_S` (0.6 s) before the hand moves; one
+  already open is left as it is (`HumanoidBody.release_routine`,
+  `Gripper.opened`). A withdraw used to bring the hand home with its jaws as
+  they were: shut on a door's lever, the arm stayed on the lever and its way
+  home levered the trunk over.
+- **Its text says so**: "open a hand's gripper, letting go of whatever it
+  holds, then bring the hand back out along the way it went in, and its arm
+  home -- ..." (the served rule's verbs and the session's hello).
+- **A walk lets go too**: a `step`, a `drive_to`, a `face`, a `find` or a
+  walk of the loop's own (a charge trip) begun with a hand out opens that
+  hand's gripper as a withdraw does before the arm comes home
+  (`to_walk_routine`). It used to bring the arm home with its gripper as it
+  was, carrying what it held. A `step` asked while a gripper says it holds
+  something refuses before that, as it always has (`holding`): nothing
+  opens and nothing moves. The body text says both: "Before a `step` or
+  any other walk moves your feet, a hand that is out comes home, its
+  gripper opened as `withdraw` opens it: a walk carries nothing. A `step`
+  asked while either gripper says it holds something moves nothing, and
+  reads false."
+- No verb, argument, sensor, schema, reward, body or geometry moved, and a
+  flight whose every withdraw began with its gripper open is the same
+  flight (SimNotes, "Letting go before the way home": our references and the
+  hands check, flown on both trees).
+
+**Why.** #669, from the reading of 11-08's three deaths at the counter
+(14:25, Rowan): its jaws shut on the door's lever and read "closed on
+nothing it holds" (#646's thin grip, since fixed by #647), so its
+procedure's `if read("right.held") > 0: open_hand(...)` never opened them,
+and the `withdraw` after levered the trunk into the counter (9 of 9 flown).
+A pull that lets go can still leave the jaws shut, and our references
+withdraw with the jaws shut after a grip that read false.
+
+**What the period is for.**
+- **Falls on the way home** (`withdraw` steps reading "you fell on the way
+  home", and the `stuck` deaths at the counter after them), against the
+  periods before.
+- **A procedure that withdraws a hand holding something it meant to keep**
+  drops it now: does a robot carry a piece by a withdraw and lose it, and
+  change what it writes?
+- ⚠ A withdraw whose gripper was not open takes 0.6 s longer: not to be
+  pooled with an earlier period for a verb's or a run's time.
+
+
+### A robot standing or walking that the other's LIDAR sees is kept off where its body stands (#675) — opens when this PR is deployed
+
+**What changed is where the walks and the steps keep off the other robot**
+(SimNotes, "A robot at work kept off where its body stands"):
+- **Standing or walking, seen, it is kept off at its body** -- a robot at
+  work with a hand out, deciding, or walking -- placed as this robot's own
+  sensors put it (`HubLifecycle.keep_clear`), as one resting already was;
+  out of the LIDAR's sight, at its reported pose, as before. "Seen": this
+  robot's scans returned points off it (`Body.seen_at`), within `SEEN_HOLD_S`
+  (1 s) of now, or, its LIDAR idle since (a hand at work takes no scan), the
+  other has not gone anywhere since (`Body.moved_at`).
+- Every walk and step reads it (`Body.others`), the disc's 0.65 m unchanged;
+  a plan hears of a robot coming into sight or leaving it at once.
+- No text the robots read moved: `prompt_sha` `0deeb7c4…` both sides, 63,719
+  chars, 17 sections; the hello and the site's guide unchanged. A robot alone
+  is unchanged: the cube check's set-outs 0 and 1 flew row for row on both
+  trees, every field but the wall clock.
+
+**Why.** #675, from #672's flights and the 11-07 and 11-08 drift rows: with
+the pair within 2 m, one robot's reported pose lay 0.49 m from its body in
+the other's map at the median (1.13 m at the 90th percentile), so the disc
+round a robot at work stood where it was not. Flown at 11:48's placements,
+Luca at work and its word 0.5 m off: staging's steps walked into it (touched
+in 5 of 6 flights, both robots fell in 3), where this build refused each,
+saying the true 0.56 m; with Luca's body 1.15 m off and its word in the way,
+staging refused every step for nothing, and this build took them. A walk
+with Luca's body on its way and its word 0.6 m off it: staging's planned
+through the body, was held by the depth camera and gave up after 90 s, 3 of
+3, where this build's planned round it and arrived in 10 s (SimNotes).
+
+**What the period is for.**
+- Steps refused for another robot (`blocked`, "your step stopped short of
+  another robot"), and the distances they say: now the other's body where
+  this robot saw it.
+- Walks that gave up "peer" (`DRIVE_GAVE_UP`), and touches and falls with
+  the pair at the counter. The arms still know nothing of the other robot
+  (#670's open half).
+- ⚠ Not to be pooled with the period before for anything about two robots
+  near each other.
+
+### A fall ends a procedure's run, an `if`'s test or not, and a death ends it at once (#671) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `5dc60982…` → `0deeb7c4…`, 63,647 → 63,719
+chars, 17 sections both):
+- **A fall ends the run where it comes.** The verb it came in is ended the
+  step the body's fall watch counts it (`steps.run_verb`), and the run
+  stops there, an `if`'s test or not, as the step it stopped at, in the
+  verb's own words ("it stopped at line 14, reach: you fell on the way
+  there, and let go"; "you fell" where a verb has none); no test is counted
+  read false for it. A tested verb that fell used to read false and let the
+  run go on; an untested one already ended it. The language's text says so
+  where it lists what ends a run and where a verb is a test (the served
+  rule's and the session's hello's).
+- **A death ends the run at once.** The verb it came in is ended the step
+  the robot dies, its hand halted where it is; the `procedure` row is
+  `aborted` with `stopped: died` and its count, and History's line follows
+  the death's own: "my death ended it at line N". A run used to go on until
+  the stand-up closed it 300 s later (`stopped: stood_up`, no count), or to
+  its end on a dead robot. The map still hears `task_failed` at the
+  stand-up, beside `stood_up`, as it did.
+- **An interrupt that ended a walk inside a verb is said at that line**
+  ("it was interrupted at line 5"), where History said "after" it.
+- No verb, schema, reward, body or geometry moved, and a flight with no
+  fall in it is the same flight: the investigation's chest flight (draw 187,
+  `chest_run16`'s tail then `chest_free4`, osmesa; on staging its arm was not
+  held and nothing fell) read the same on staging and this tree at every
+  sample, bit for bit. Shoved over (45 N*s) inside a tested verb on the bare
+  floor, both trees fell at the same instant; staging's run went on -- a
+  tested `wait(12)` held through the fall and the get-up and read TRUE, and a
+  tested `reach` read false and its `if`'s `withdraw` waited the get-up out
+  -- and this tree's ended the step the fall was counted, at the verb's line.
+
+**Why.** #671, from the reading of 11-08's three deaths at the counter
+(15:29, Luca): `chest_free4`'s reach on line 14, inside an `if`, fell and
+read false, and the run went on. Its `withdraw` waited out the get-up, the
+topple and the death (119 s), three more verbs ran on a dead robot, and
+History said, after the death, that it "ran the procedure chest_free4 to its
+end (9 steps; 2 tests read false ...)". A fall already fails a job's try;
+Ben's calls (2026-11-09): a fall ends the run, said as "stopped at line N:
+you fell", and a death ends it at once.
+
+**What the period is for.**
+- **Runs a fall ended**: `procedure` rows `aborted` whose `failedReason`
+  begins "you fell". Compare a period before only by the runs a fall ended
+  there too: a tested verb's fall then let the run go on, its later verbs
+  and tests counted.
+- **No run ends `stood_up` now**; a `stopped: died` row stands beside each
+  death that came inside one.
+- **What a robot does after a run a fall ended**: does it change what it
+  fell doing (a cross-body reach with the other arm held, a way home past
+  the counter), or run it again as it was?
+- ⚠ Not to be pooled with an earlier period for a run's step count or its
+  tests read false after a fall.
+
+### A step keeps off another robot as a walk does (#670) — opens when this PR is deployed
+
+**What changed is what the feet's verb does beside another robot, and what
+the robots are told of it** (SimNotes, "Two robots at the counter"):
+- **A step's walk keeps the walks' disc round the other robot's middle**
+  (`HumanoidBody._kept_off`): 0.65 m, 1.2 m round one that has fallen,
+  where `Body.others` puts it -- its reported pose standing or walking, its
+  body lying, resting or dead -- judged where the stride's carry would take
+  it. Standing within it already, a step any of whose walks would head
+  nearer neither turns nor walks.
+- **...and the walks' front stop, turned to the step's way** (0.40 m along
+  it, 0.27 m either side), judged at the carry too, on the LIDAR's returns
+  off the other robot alone.
+- Either reads false, `blocked`, and says how ("your step stopped short of
+  another robot: ...", `steps.STEP_KEPT_OFF`). A robot alone steps as it
+  did, bit for bit (the cube check's set-outs 0-1, row for row).
+- **What the robots are told** (`HANDS_VERBS["step"]`): the rule, its
+  numbers off the walks' own sizes. `prompt_sha` `de14cb3e…` → `5dc60982…`,
+  63,235 → 63,647 chars, 17 sections both; the session's hello and the
+  site's guide move with it.
+
+**Why.** #670, off 11-08's 11:48 death: Rowan's walk to the cupboard stopped
+at the disc round Luca, hung in its own withdraw (#668); its procedure stepped
+onto its work spot anyway, and its arm's way home hooked Luca's. Both fell, and
+Rowan died. Flown from where that walk stopped, Luca where the rows put it,
+staging's arms touched in 9 of 9 and both robots fell in 4; on this build every
+step toward Luca was refused, and nothing touched. From the same place a reach
+alone still met Luca in 6 of 9, and Rowan fell in 6; and at the disc's edge,
+where the steps are taken, the arm's way home met Luca in 6 of 6, and both fell
+in 3 (SimNotes). The arms are #670's open half.
+
+**What the period is for.**
+- How often a step reads false for another robot, and what the robot does
+  next: whether its procedure goes on to reach from where it stopped.
+- Whether the robots still touch, or fall, working near each other. A reach
+  and its ways out and home still know nothing of the other robot (SimNotes),
+  and a fall at one prop reaches the next.
+- ⚠ Not to be pooled with the period before for anything about two robots
+  at the counter.
+
+### A withdraw asked aside as its arm comes home ends (#668) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A release takes its legs back before it waits on its posture.** Once the
+  arm reads home, or not by `RELEASE_S` (15 s), the legs go back to the
+  standing policy (`to_stand_routine`: a step aside under way, or one asked
+  as they come back, ends), and the posture is waited on 4 s at most. That is
+  every `withdraw`, the charge's unplug and the references'. Before, a step
+  aside asked while the arm was still coming home took the legs for the
+  walker, and the release waited forever: Luca's withdraw on 11-08 ran 2,191
+  s, asked aside 17 times, its mind never asked, its job failed only after
+  the fall that ended it, and the run held open past its hour.
+- **A fall as the legs come back says "fell" at once**, as one anywhere else
+  in a release does.
+- **Nothing the robots read moved**: `prompt_sha` `de14cb3e…` before and
+  after, no verb's words, no wire. Where nobody asks a robot aside in a
+  withdraw, nothing changes at all: the four offered jobs from the tour, 32
+  draws each, replayed staging's flights exactly.
+
+**What the period is for.** #668's acceptance: no `withdraw` outlives its
+arm's way home. Off the container's log, a `withdraw` step's line to the
+next step's is under 21 s (`RELEASE_S`, the walker's two settles and the
+4 s) unless it fell, and a `MAKE WAY` inside one is followed by the
+procedure's next step.
+
+⚠ **Not to be pooled with the period before for** how long a withdraw lasts
+once the other robot asks it aside, or a run that held one open (11-08's ran
+2,191 s).
+
+### A start-over keeps the clock (#594) — opens when this PR is deployed
+
+**What changed is only a start-over** (Webserver.md, "A start-over keeps the
+clock"): a save `continuation.load` reads and refuses (put back
+`MAX_RESUMES` times, or another house's) begins the world again from its XML
+at the save's own `t`, where it began at 0. Nothing else of the save is
+taken: the bodies, the maps and places, the activities, the producer's
+schedule and the robots' clocks start fresh, as before, built on that clock.
+The board loads on it (deadlines and claims as written, a claim never past
+it, its open jobs' things dated at it), the run's budget counts from it, the
+producer's first offer comes 240 s after it, and History says "...; it
+started over, and its clock carried on". After three start-overs that die
+before their first save (`MAX_START_OVERS`, as restores are counted), the
+next start is at 0, as a save that cannot be read is ("its clock went back
+to 0"). A restart that carries on (every restart but two so far) is
+untouched, and no prompt moved.
+
+**Why.** The two start-overs, 10-27 (t=2,375,322) and 11-01 (t=401,163),
+set the clock back to 0, and every stamp the volume keeps stood in its
+future: the desks' closes were trimmed before they were paid, and `say` was
+shut for 27 days (#594's items 1-2, fixed on their own in #598). Ben's call
+(2026-11-08, on #594): keep the clock, so the next store written for a
+continuous clock cannot trip the same way.
+
+**What the period is for.** Nothing to read until a start-over; then its
+History line, the wire's `t` going on past the refused save's, no offer
+lapsing and no held job running out at its start, and the next restart
+carrying on from the start-over's first save. It pools with the period
+before for everything else. ⚠ Sim time still repeats across 10-27 and 11-01:
+a query by `simTime` over those still needs `created_at`.
+
+### `spot` says what its camera can see, and the two cameras are named apart (#660) — opens when this PR is deployed
+
+**What changed is only what the robots read** (`prompt_sha` `c71dde29…` →
+`de14cb3e…`, 62,312 → 63,235 chars, 17 sections both): `spot`'s and `watch`'s
+text now say they read the colour camera and what its picture takes in, in
+numbers off the model -- from 19 to 61 degrees below level, 34 degrees either
+side of where the head faces at its top and more than 50 at its bottom, a
+thing at x in the stance frame in it only if it stands lower than (1.27 - 0.34
+x) m, the whole of a tag inside it, a small one at the shoulders' height only
+within about 0.3 m and a larger one nearer still, bowing only lowering it, and
+a small block's tag read to about 1.5 m -- and `look`'s, `find`'s, a
+practice's first picture's and the lab's view's say the navigation camera, so
+nothing a robot reads calls either the head camera. A `spot` that sees nothing
+says so of the colour camera, that the tag may be too near or too far, and the
+top of its picture. No verb, no schema, no reward and no geometry moved; the
+session's hello and the site's guide moved with the text.
+
+**Why.** Both robots read `spot`'s reach off where they had stood: eight runs
+since the 11-07 release spotted a wall tag (60-63) and none saw one, because
+those tags are above the colour camera's picture wherever the feet can go,
+and `find` and `look`, which do see them, are a different camera the robots
+were told was the same one (Rowan's tk_0055). Read through the deployed
+prompt: told the old words, 0 of 86 said a wall tag was out of `spot`'s sight
+from the counter's edge and 1 of 86 that the two cameras differ (the deployed
+mind); told these, 12 of 12 on both in every round (Evaluation.md §4).
+
+**What the period is for.** How often a robot still spots a wall tag, and
+whether a robot reads a small block from further than it has stood. ⚠ Not to
+be pooled with the period before for anything that reads a robot's words about
+its cameras.
+
+### A job's sentence says when its things were put back (#659) — opens when this PR is deployed
+
+**What changed is what the robots are TOLD** (TaskPattern.md §2):
+- **Every job that sets its things out says so, with the time**:
+  `The drawer was put back shut at t=205338, when this job was offered.`
+  (the door's and the lid's the same, the cube's "beside its mat", the
+  table's "The plate, the fork and the cup were set out"), in the sentence
+  of every offer and every held job, and on the site's job list, which draws
+  the same text. A start-over dates a standing job at the new clock's 0,
+  where its world begins with every prop at rest.
+- **`tasks.MAX_DESCRIPTION` is 500**, a visitor's message's, where it was
+  420: there the clause cost the door, the chest and the table the ends of
+  their sentences, without a word.
+- The prompt did not move (`prompt_sha` `c71dde29…`, 62,312 chars, before and
+  after: `overseer_probe.py --deployed --prompt`), nor the state's keys, the
+  schema, the menu, the reward table, the arm, the body or the house.
+
+**Why.** #659, from the 11-08 triage on `fe07629`. Every hand job's offer
+puts its prop back at rest (66 since the release) and nothing the robots read
+said so. Rowan left a drawer 19 cm out, found it shut, and spent three
+procedures, four library lookups and a ticket on timing a spring it does not
+have (tk_0057). Luca said done on t_0177's drawer taking it for the last
+job's 23 cm: it had come out 8.
+
+**What the period is for.**
+- **Does a robot still write of a spring**, or of a prop going back by itself?
+- **Does a robot say done on a prop as an earlier job left it?** Read a `done`
+  against the job's grade and its thinking.
+- ⚠ **A job standing at the deploy keeps the words it was offered with** until
+  it resolves (a description is written at the offer): read from the first
+  offer after it, all of them gone within half an hour (an offer stands 15
+  minutes, a held job 16).
+- ⚠ **What to expect, offline and on two robots' real turns of 11-08**
+  (their History, pins, notes, library and board, through the deployed mind,
+  `zai-org/GLM-5.3-Flash:baseten`, the prompt as this branch builds it):
+  - **Where the question is open it lands.** Rowan at t=205876, asking itself
+    whether the drawer still stood out from t_0167 or "was reset shut between
+    t_0167 and this job": told nothing, 0 of 12 answers said it had been put
+    back and 8 of 12 reasoned it might still be out; with the dated sentence
+    22 of 36 said so and 3 of 36. The wordings differed in how often: the
+    sentence with no date (the issue's) 16 of 36 and 12 of 36, moved first 18
+    and 6, moved last 9 of 24 and 11 of 24.
+  - **A belief already written down does not move.** Luca at t=208376, its
+    pin saying the drawer stood 23 cm out, said done in 12 of 12 told nothing
+    and 11 of 12 with the dated sentence, none of the six wordings much
+    different; and at t=208230, as it weighed why its pulls moved 2 mm, no
+    wording did better than none (1 of 12 told nothing, 1 of 12 at best).
+  - Two robots' turns, 36 answers an arm at most. A live reading is what
+    counts, and since the note outlives the sentence, what to look for is a
+    robot NOT forming the belief.
+- ⚠ **Not to be pooled with the period before for what a robot does with a
+  job**: the job's own words moved.
+
+### A run says every variable its two lines hold and counts the rest (#658) — opens when this PR is deployed
+
+**What changed is what the robots read of a run's variables.** History said
+the first twelve names a run assigned and nothing of the others, and
+`(+N more)` counted only what the line's width left out of those twelve. Now
+the width of the run's own line and the next is the only limit: the names go
+beside the run's line where they all fit, else on a line of their own, and
+where not even that holds them, beside the run's line as far as it goes,
+`(more on the next line)`, and on into the next, which says `the procedure …
+also ended with`. `(+N more)` counts every name left past them. The prompt
+did not move (`prompt_sha` `c71dde29…` both sides: "on that line or the next"
+was already true), nor the state, the schema, the menu or the wire: the
+`procedure` event always carried every name.
+
+**Why.** #658, from the 11-08 triage, on `fe07629`. 97 of its 167 runs
+assigned more than twelve names (89 of the 155 that ran to their end, the
+issue's count, and 8 of the 12 cut short), and every one lost the rest
+silently: at least 542 names, the last assigned and so usually what the run
+was written to find. Luca took to copying results into early names; Rowan
+recalled a run's line five times, and it came back as cut as it went in.
+
+**What to expect.** Each run replayed through this code from its own line in
+the robot's History and the wire's names, in the order its source assigns
+them: 96 of the 97 read whole. The one left counting is Rowan's
+`drawer_final` at t=197807, `(+6 more)`, its run's line 377 characters long.
+⚠ A row's `locals` kept at most 24 names (the site's `MAX_LOCALS`, 64 from
+rooftop-media-2026 #504) and 8 rows stop there: priced off each run's
+source for the names past it, an upper bound since a branch may not have
+run, it is still 96. A run whose names do not all fit beside its line says
+them on the next line too, and that is 88 of the 167 where it was 68 (the
+run's line carries its tests' reasons and its stop conditions): the 20 more
+each take one of the twelve History lines the model is shown. Two of them
+start their names beside the run's line and carry them on, `drawer_spring`
+and `drawer_spring2` (four with the names past the site's 24).
+
+**What the period is for.**
+- **The acceptance**: a run with twenty-odd names reads whole, and neither
+  robot copies a result into an early name at the end of a run (the defined
+  sources: Luca's `kx = 0.0023` in `drawer_omega14`'s line was a pull's
+  distance).
+- **Whether a run's line is still recalled to find what it left out**: the
+  `recall` rows naming a procedure's line, and thoughts about a readout being
+  cut, against the period before.
+- ⚠ **Not to be pooled with the period before for anything a run's numbers
+  decide**: what a robot wrote next, and whether it said `done`, on numbers
+  it could not see before.
+
+### The restaurant's table is offered (#560) — opens when this PR is deployed
+
+**What changed in the world.**
+- **`set_table` is one more kind in `home_humanoid`'s rotation**: a place laid
+  at the restaurant's dining table 0, set out where its draw lays it. It gives
+  14 minutes (`tasks.TABLE_MINUTES`, three times its reference's slowest pass
+  over the tour, 279 s), pays 79 (Ben's 90 for 16 minutes, pro rata) and
+  costs 9.82 Wh from the dearest station (`energy.json`). The robots read a
+  new row in their reward table: `prompt_sha` `b8453bf3…` → `c71dde29…`,
+  61,413 → 62,312 chars, 17 sections both (`overseer_probe.py --deployed
+  --prompt`). Nothing about the verbs, the body or the house moved.
+- **Our reference passed from the tour** (SimNotes, "The lay from the tour"):
+  24 of 32 draws, its bar 24, 12 on the tree before it on the same pod. It is
+  a reference, never shown to a mind.
+
+**Why.** #560's first served job: Ben's answers of 2026-11-07, that it is
+offered whatever the practice reading says once the reference passes from
+the tour, the live robots learning it being the point.
+
+**What the period is for.**
+- **Whether a robot takes the job, and what it writes**: claims of `set_table`
+  against the counter's three, and how a first procedure ends. The practice's
+  fresh arms on this job laid none within 3 tries (Evaluation.md), so a live
+  pass is not expected soon.
+- **What it costs them**: the walk to the mall and the 14 minutes a held job
+  gives, for a job that pays only when the place is laid.
+- ⚠ **Not to be pooled with the period before for anything the reward table
+  or the offers decide**: there is one more kind on the board.
+
+### Rays no longer pass through what stands still (#657) — opens when this PR is deployed
+
+**What changed is only what the LIDAR and the depth camera read** (SimNotes,
+"A ray through a body MuJoCo's cull left out"): every body welded to the
+world now stands on an inertial frame unturned on the middle of its box, so
+`mj_multiRay` no longer loses rays that meet it. Live today that is about
+2.5 % of the rays that land on the lab's cage and under 1 % of those on the
+shelves, the loading rack, the chest, the drawers' cabinet and the stations;
+the dining tables' 6 % comes with their legs (#643), which ship with it.
+Nothing the robots are told moved (`prompt_sha` the same), nor the physics (a
+limp body dropped onto a seated table, shelf and cage flies the same
+trajectory, bit for bit), and a restart keeps the world, its bodies and its
+maps (`continuation.fingerprint` hashes no inertia; `build.dataHashes.world`
+moves).
+
+**What the period is for.** Nothing to read: it is recorded so that a reading
+of what those sensors saw at such a body knows which side of it it is on.
+
+### `measure` reads an end only where its camera saw past it, and says when something taller stands there (#636) — opens when this PR is deployed
+
+**What changed is what `measure` reads and what the robots are told**
+(SimNotes, "Where `measure` looks"; `scripts/measure_spike.py`):
+- **An end reads only where the camera saw past it.** Each of an end's
+  points is walked outward across the depth picture (`Body.depth_pictures`,
+  `box.past_end`), and an end with no reading says why: the top ran off the
+  picture (the counter's near end, 0.26 wherever a robot stood), out of the
+  part's 0.17-3 m range, or the top's own pixels go on past where it reads
+  (the counter going on beside the chest, a few cm short). What the window
+  holds whole reads exactly as it did, and a true end at the picture's
+  corner still reads.
+- **Something taller standing just past an end** is where the top's free
+  surface stops (Ben's call): it reads there, and four new readings,
+  `object.near_taller` (`far`, `left`, `right`), read 1.
+- `measure`'s text says so, and the four readings are in the language and
+  the body sections: `prompt_sha` `8583b660…` → `b8453bf3…`, 60,394 → 61,413
+  chars, 17 sections both (`overseer_probe.py --deployed --prompt`); the
+  practice's language and body and the session host's `hello` with it (the
+  site re-vendors it, and its guide for people needs a row for each of the
+  four readings). The counter recording's `readouts` carry the four, the
+  flight the same (611 of its 671 lines byte for byte; the other 60 differ
+  by those keys alone). Nothing else moved: the schema, the menu, the reward
+  table, the body, the house.
+
+**Why.** #636, filed from #634's review: from where the references work, a
+procedure that stepped in until `object.near` read under 0.26 stepped until
+a step was refused, the number being the picture's bottom edge meeting the
+counter's height; and the robots had read an end at the cabinet's shadow as
+where a counter ended.
+
+**What the period is for.**
+- **What robots do with the words**: how often a run's `object.*` read comes
+  back "ran off your depth camera's picture", and what it does next: a step
+  back, a look elsewhere, or another `measure` at the same point.
+- **Whether `object.*_taller` is read**, and against what: a robot reasoning
+  about where it can set something down.
+- ⚠ **Not to be pooled with the period before for anything an `object.*`
+  decides**: a near end that used to read 0.26 now has no reading, and a
+  procedure stops there unless its author tests the read.
+### A run ends on its hour, even mid-charge (#654) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A charge stops at the run's end with its plug in** (`HubLifecycle._hour_up`,
+  where a next run carries on, as the deployed world's do). What it got is
+  banked as a `charge` row (below 85 %, `ok: false`, its gain in `gainedWh`),
+  the day ends there and its state stays `CHARGE`. Before, it ran to full (up
+  to 85 minutes from 38 %) with the run held open behind it, and the other
+  robot stood `DONE`: 13 % of the `drift` samples on 11-07 and 23 % on 11-08,
+  every one of them beside the other in `CHARGE`.
+- **A plug now survives a restart.** It never did: a catch came back with its
+  weld's anchor 1 m off and threw the plug on the first step (SimNotes, "A
+  plug through a restart"). So a deploy during a charge cut it too, and said
+  nothing of the plug.
+- **The next run's robot is told and asked.** History says `it cut my charge
+  short, and my plug is still in`, the first decision reads `charging` true
+  (it read false: nothing steps before that decision), and the pack fills
+  while it thinks (a restart that lands while it thinks says `my plug is still
+  in` too). A `charge` goes straight on with no walk (`CHARGE: still plugged
+  in at N% -- carrying on`, no `GO_CHARGE ->` line and so no `charge` row); an
+  `explore`, or a procedure at its first verb that moves the body, takes the
+  plug out by hand first (`CHARGE: unplugging`, about 8 s); what stands still
+  (`idle`, `recall`, `look`, a claim, a procedure of `wait`, `spot`, `measure`
+  or `watch`) leaves it in, the pack filling, until the pack is full
+  (`CHARGED`, 90 %), where clearing the station takes it out as a charge's end
+  does. Scripted, it finishes the charge.
+- **Nothing else in a charge trip outlives the run**: a wait for a taken
+  station, its holder having no reason to leave before the process ends
+  (`WAIT: gave up on ... this run's time is up`), a search, and the trip's
+  next leg all stop with it (`GO_CHARGE stopped: ...`, no failed `charge`
+  row), and **a job runs out on the seam once its holder's day is over**
+  (t_0076, t_0094 and t_0118 were held 1,481-3,871 s against 960).
+- ⚠ "At the station" is read off the plug: a robot thinking there with its
+  plug in has not yielded it to the other robot and is not lingering (full,
+  it is), and a `tell` about the station is checked against the plug.
+
+**What the period is for.**
+- **The acceptance**: a robot in `DONE` under 5 % of the `drift` samples, and
+  no job held past its limit by a robot whose day is over. A robot plugged in
+  at its day's end reads `CHARGE`, as it is: read its `pack` against the
+  run's end. The rest that holds a run open is a walk or a procedure in
+  flight at the hour.
+- **What the minds do with a cut charge**: how often the next decision is
+  `charge`, and what they do instead. Asked of the deployed model through this
+  PR's prompt, on one robot's documents and one situation (a real day is the
+  reading): told `charging` true and the plug still in, `charge` 6 of 6; told
+  `charging` true alone, 5 of 6; told `charging` false, as the first decision
+  read before this PR, 2 of 6 (the others walked off or looked something up).
+
+⚠ **Not to be pooled with the period before for**: a charge's length or
+count (one charge is now up to two `charge` ledger rows, one of them `ok:
+false`, and `pw_events`' `charge` rows are approaches: carried on with the
+plug in is no row), a run's length, decisions per hour (one more per hour of
+charging), or anything per run (a run is now an hour).
+
+### A `step` that did not walk says so, and a small turn turns (#649) — opens when this PR is deployed
+
+**What changed is what the feet's verb does and says** (SimNotes, "Stepping
+toward the work"; `scripts/step_spike.py`):
+- **A step's turn is closed on the stance's own heading** (`_turn_routine`,
+  `TURN_*`). It stopped on the pelvis's heading, and the feet did not
+  follow the pelvis's last degrees: asked 3 deg the stance turned 0.3, and
+  15 to the right 9. Now 3 deg lands 2-3.3 deg (1.6-3.8 straight after a
+  big turn), a turn of any size within a degree or two; one whose feet will
+  not follow reads false (`turned short`).
+- **A walk asked at least 1 cm that its own legs reckon went under it reads
+  false** (`too short`, "your step was too short to walk",
+  `steps.STEP_WHY`), never `stepped`; where it stopped still rides `step.*`.
+  A walk's physics is unchanged, its stop rule included.
+- **What the robots are told** (`HANDS_VERBS["step"]`): the feet walk in
+  strides of about 5 cm, a walk asked under 6 cm may take none and may stop a
+  few cm off, the reading false (a walk asked at least 1 cm), a turn lands
+  within a degree or two or reads false, and `step.dy` counts a sidestep 1-3
+  cm short and one going left after a step ahead up to 10 cm or more. "at
+  least a stride, about 10 cm" is gone. `prompt_sha` `0a30526b…` →
+  `8583b660…`, 59,967 → 60,394 chars;
+  the language in the site's guide (`protocol/hello.home_humanoid_counter.json`)
+  moves with it (re-vendored at the release).
+
+**Why.** #649, off the 11-08 reading of tk_0054 and both robots' creep loops:
+every short step of 3-8 cm read `stepped` whether or not a foot moved
+(Rowan's six `step(0, 0.03, 0)` ended where they began), and a robot built a
+theory of a biased `spot` on it; #643's small turn the same.
+
+**What the period is for.**
+- **The share of a robot's `step`s that read `too short`, and what it does
+  next**: whether its creep loops, after hearing the reason, ask a step
+  that walks, and what the asks' sizes become, against the period before.
+- **Whether small turns are asked and land**: `step.turn` against what was
+  asked, by size.
+- ⚠ **Not to be pooled with the period before for anything a step's word
+  or a small turn decides**: a procedure's path past a short step (it now
+  ends there unless its author tests the verb), where a stance lands after
+  a turn, and a hand job's grade through either. On one pod beside the tree
+  before, the hands checks' 160 flights were the same flight for flight (their
+  steps ask no turn), and the served drawer, door and chest from the tour
+  passed 29, 28 and 31 of 32 on both trees, the station 39 of 39 approaches and
+  140 of 140 seats on both; the table, not offered, 12 of 32 against 9.
+### `pull` says when it reads false and reads whether it ended held fast, and `spot` and `watch` say which face of a block they read (#650) — opens when this PR is deployed; released with #640's words, it rides with that period as one
+
+**What changed is what the robots are TOLD**, in the procedure rule's
+language and body (the practice's byte for byte, #559), and what one kind of
+refused call leaves behind:
+- **`pull`'s text said "ok when it pulled", and it now says when it reads
+  false**: "How far it went, the hardest it pushed, whether it ended held
+  fast and the way it was going at its end ride `pull.*`, unless it reads
+  false; ok unless an argument was refused, your hand was not out, (dx, dy,
+  dz) are all 0 or you fell: whatever else stopped it, held fast against
+  something too, it is still ok, and `pull.moved` says how far it went".
+  What it reads did not change.
+- **`pull.held` is a new reading**: 1 if the last `pull` ended held fast, as
+  the hand felt it, 0 if something else stopped it, off its report's `why`.
+  A served robot is shown no step's `why`, and until this nothing it reads
+  told held fast from out of reach.
+- **`spot`'s text says which face of a block it reads**: "A small block
+  carries its tag on every face: the one read is the one you see most
+  square-on, `spot.nx`..`nz` say which, so from elsewhere the same tag can
+  read another face, its middle up to the block's width from this one's".
+  `watch` says the same of each picture, "so which face can change as you
+  move". What they read did not change.
+- **A call a computed argument refuses leaves its verb no reading**
+  (`steps.forget_readings`): it read false in an `if` and never ran, and
+  what the verb last reported went on reading as this call's -- a retry
+  computes just such a distance off `pull.moved`. A `read` of it now ends
+  the run saying it has no reading, as one after a failed pull always has;
+  every verb's, and `<verb>.stopped` reads 0.
+- `prompt_sha` `ce973a53…` → `0a30526b…`, 59,280 → 59,967 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`); the practice's
+  language and body and the session host's `hello` with it (the site
+  re-vendors it and corrects its guide for people). What the parser
+  accepts and refuses did not move, nor the schema, the menu, the reward
+  table, the body or the house.
+
+**Why.** #650, from the tickets of 11-08: both robots asked whether a pull
+held fast reads false and got opposite answers from their own runs, Luca
+rightly that it reads ok ("retry branches should key on pull.moved"),
+Rowan's lift loops built on its reading false; and Luca asked four ways
+which face `spot` reads of a cube and why its reading moved. Flown on this
+tree at the drawer's set-outs 0 and 1 (osmesa): a grip on the knob pushed
+against the shut drawer read ok, moved 1.1-1.6 cm, `pull.held` 1; drawn
+free 12-13 cm, ok, `pull.held` 0; drawn on to its end stop, ok, 12.6-12.9
+cm, `pull.held` 1; the other hand, not out, read false. Eighteen pulls of a
+free hand through the air, 1 to 20 N in three directions, none read held
+fast. `spot` read the top face up close, 12.7-14.8 mm from the cube's
+middle, and the front face from 0.74-0.93 m on. Read through the deployed
+prompt, before and after (Evaluation.md §4, "What `pull` and `spot` say,
+read"), the deployed mind took a pull held fast to read false 15 times in
+24 before and in none of 12 after.
+
+**What the period is for.**
+- **Do the procedures stop building on a pull reading false held fast?**
+  The defined sources (the `procedure` rows): `if pull(...)` branches that
+  treat its failing as held fast, and reads of `pull.held` and
+  `pull.moved`, against the period before.
+- **Do the tickets asking this stop?** "does `pull` read ok held fast",
+  "which face does `spot` read", "why does spot's reading drift on the same
+  tag", against the period before.
+- ⚠ **Not to be pooled with the period before for anything a procedure's
+  text decides**: a define, a run's path past a pull, a hand job's grade.
+
+### A take that did not happen says so, and a `done` on a job not held says why (#648) — opens when this PR is deployed
+
+**What changed is what the robots are TOLD** (TaskPattern.md, "The
+lifecycle"; Overseer.md §2b):
+- **A `take_task` that does not happen leaves a History line of why**,
+  after the answer's own `chose take_task`: `could not take t_0122
+  (open_drawer): Rowan took it at t=185073`, or that it lapsed, or that the
+  board has no such job.
+- **So does a `done` on a job the robot does not hold**: `said done on
+  t_0137 (open_chest): not graded, because nobody has taken it`, or who
+  took it and when, and how it ended if it has.
+- The prompt did not move, nor the state, the schema, the menu, the reward
+  table, the arm, the body or the house. A robot that did not try to take a
+  job is still not told who holds it (#648's second half, Ben's call).
+
+**Why.** #648, from the 11-08 triage, on `fe07629` and `0342b56`. The two
+robots share one board and an answer takes 10-90 s to think. Of 59
+`take_task` answers from 11-07 09:00 UTC to 11-08 10:40 UTC, 4 lost to the
+other robot, by 16-62 s, and the loser's History read `chose take_task
+(t_0122): ...` and nothing after it. Luca pinned "t_0122 (drawer) taken",
+wrote "The drawer job t_0122 is mine" and ran its procedure on the job
+Rowan held, and it worked t_0071 for 394 s before it found out.
+
+**What the period is for.**
+- **Does a lost take read as lost?** After a `could not take` line, a
+  `done`, a run on that job's prop, or a pin or thought calling it its own,
+  against the period before: t_0071 and t_0122 went on being worked.
+- **Do the two still spend turns on who has what?** `tell`s, tickets and
+  thoughts asking it (tk_0052 is one), which only #648's second half would
+  end.
+- ⚠ **What to expect, offline and on one turn.** The deployed mind
+  (`zai-org/GLM-5.3-Flash:baseten`), on the served prompt as staging
+  builds it and Luca's own turn after it lost t_0122 (its pin `t_0122 (drawer) taken … run
+  drawer_final next turn`, its last thought, its History and its
+  `drawer_final`), nine answers each way. Without the line all 9 ran
+  `drawer_final` on Rowan's job and 2 said `done` on it. With it none did,
+  and all 9 said the job had gone to Rowan. One situation, and a live
+  reading is what counts.
+
+### A grip reads held against what its drive pushes at the gap it reads (#646) — opens when this PR is deployed; released with the gripper's jaws (#628), it rides with that period as one
+
+**What changed is what a grip READS** (SimNotes, "A hard squeeze on
+something thin"):
+- **`held` judges the squeeze against what the gripper's drive pushes at
+  the gap it reads** (`arms.pushes`, each on its running mean): the force
+  asked, or short of it the drive's spring's. Under 2 cm at a squeeze over
+  30 N the spring is the less, and judged against half the force asked a
+  grip there could read "closed on nothing it holds" while the jaws held it:
+  the plate's 8 mm wall at 120 N, wherever its jaws stopped 1 cm apart or
+  less, squeezing under 60 N. Now it reads held.
+- **Where a mind sees it**: `close_hand`'s word, the `left.held` and
+  `right.held` sensors, the felt readings under each hand verb, and what
+  reads a grip -- a `pull` whose grip is lost ends "let go", a `step` is
+  refused while a gripper holds -- on a thin thing squeezed hard. Elsewhere
+  nothing moved: flown on one pod beside the tree before, the hands checks
+  (160 flights), the served drawer, door and chest from the tour (96) and
+  the station (179) were the same flight for flight.
+- **Nothing the robots are told moved, nor the squeeze**: the language,
+  the jobs, the rewards and the cadence; `prompt_sha` stays as released.
+  A hard squeeze on a thin thing still squeezes what the drive's spring
+  pushes there.
+
+**Why.** #646, from #628's call: the plate's wall read nothing held at 120
+N at 4 of our reference's 32 grips, and the table's practice arms (#642),
+which asked 50-120 N, closed on it "on nothing" where their jaws held it --
+3 of their 70 tries turn on it, flown again.
+
+**What the period is for.**
+- **The live grips at 40 N and up that close on nothing**: History's
+  `close_hand` lines saying so, by the squeeze asked, against the period
+  before -- with #628's, which rides in it.
+- ⚠ **Not to be pooled with the period before for anything a grip's word
+  decides**: a `close_hand`'s verdict, a procedure's path past it, a hand
+  job's grade.
+
+### The procedure language says a tag is named by its number, what a budget is capped at and counts, what a name is, and that the def that runs comes first with no arguments (#640) — opens when this PR is deployed; released into a pause, it rides with the rest of its release as one period
+
+**What changed is what the robots are TOLD**, in the procedure rule's
+language and body, the practice's byte for byte (#559), and in what a
+refusal says:
+- **Each verb that takes a tag says it is named by its number**: `spot`
+  and `watch` end "A tag is named by its number, not in quotes:
+  `spot(12)` looks for tag 12" (`watch(12)` keeps reading it), by a tag
+  the world neither renders nor places (`steps.TAG_EXAMPLE`); the served
+  rule's `find` the same sentence with no example, as its tag must be a
+  task area's.
+- **A budget's caps, what it counts, whose counts and what a run has
+  without one**: the example's `budget(steps=40, seconds=60)` says "steps
+  at most 200, seconds at most 1800" where it said "both capped", and the
+  statements add "and first in the def that runs, `budget(...)`: the most
+  verbs the run calls (`steps`) and the most seconds it runs (`seconds`),
+  60 verbs and 600 seconds without one", each number off its constant.
+- **What a name is** (Ben's call): "Every name you choose is lowercase
+  letters, digits and underscores, a letter first, at most 32 characters"
+  (`lang.name_rule`, off `MAX_NAME_CHARS`); and a refused name says its own
+  reason, the first time -- the rule, the language's own word, a verb's, a
+  def's or a maths function's name -- where a local's said "(it is
+  reserved)" where it was set, whatever its fault, and nothing at each use
+  after.
+- **The def that runs comes first, with no arguments**: where defs call
+  defs (every hands world, the served pair's too) the example's comment is
+  "# first in the source, the def that runs: no arguments, a lowercase
+  name", the calls say "The first is the procedure, and runs, so it goes
+  above the defs it calls", and a source of several defs whose first takes
+  arguments is refused "...: the first def runs, so put the one you mean to
+  run first, or give each a default" (a lone def's, "give each a default",
+  as before). In the served library such a source, defined under the name
+  of the def meant to run, is refused "the def is named 'grip', the entry
+  'place': the first def is the one that runs and names the entry, so put
+  place first" (it said only that the names differ), and one kept callable
+  says which of its defs runs, as `procedure:new` of it does.
+- `prompt_sha` `45d56c74…` → `ce973a53…`, 58,710 → 59,280 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`); the practice's
+  language and body and the session host's `hello` with it (the site
+  re-vendors it, and its guide gives people the budget's numbers and what a
+  name is). What the parser accepts and refuses did not move, nor the
+  schema, the menu, the reward table, the body or the house.
+
+**Why.** #640, from #560's table probe (PR #639): all 11 first answers
+that came back from GLM-5.3-Flash and DeepSeek-V4.1-Flash were refused
+before any try -- all 11 wrote `spot("93")`, 9 asked a budget past its 200
+steps, 5 gave the def that runs arguments -- and in the arms that followed
+(PR #642) every first answer was. Probed on each wording in turn
+(Evaluation.md §4, "The language's gaps, re-probed"): no tag in quotes and
+no budget past its caps in any of 55 answers; the def that runs given
+arguments came back, a helper written first as a Python script puts it,
+in 5 of the 11 answers that wrote several defs until the text said the
+def that runs comes first, and none of the served text's 3; a name in
+capitals in 5 of 25, then none of the served text's 18. What still refuses
+is what the text states: a sensor written as Python, a source past 3,000
+characters, nesting past 4.
+
+**What the period is for.**
+- **Are the served robots' defines refused for these any more?** The
+  refusals History carries (`tag takes a number, not a name in quotes`,
+  `budget: steps=… is outside 1..200`, `… is the def that runs, and
+  nothing passes it …`, `… is not a name this language allows (…)`)
+  against the period before -- in the served library, also `the def is
+  named …, the entry …` and the entries `procedures` marks not runnable.
+- **Do the budgets the robots write change?** The `budget(...)` lines of
+  the procedures' defined sources (the `procedure` rows), against the
+  period before: told 60 and 600 without one, a robot may write one, or a
+  larger one, where it wrote none.
+- ⚠ **Not to be pooled with the period before for anything a procedure's
+  text decides**: a define's refusals, a run's `steps` stop, and a hand
+  job's grade, in one period with the rest of its release.
+
+### The gripper's jaws carry inertia enough for their drive's line (#628) — opens when this PR is deployed; released with the dining room's tables on legs (#643), it rides with that period as one
+
+**What changed in the body** (SimNotes, "The gripper's drive on its
+line"; Parts.md, "The gripper"):
+- **Each of the Dex1-1's jaws carries 3.6 kg of reflected inertia, where it
+  carried 0.2** (`parts.Gripper.jaw_armature`). The drive no longer flips
+  its force between its clips every step while its jaws travel: every
+  squeeze from 5 to 120 N shuts in the motor's own time, 0.33-0.38 s, where
+  the jaws had run at up to 8x the motor's speed, and from 40 N a light
+  thing off the jaws' middle is shut on where it was batted and the jaws
+  stood open.
+- **Every grip moved, through one part**: the served jobs' (the drawer, the
+  door, the chest) and the station's plug. Flown beside the tree before on
+  one pod, each flight its own noise: from the tour, 64 draws each, the
+  drawer 60, the door 58 and the chest 61 against 57, 56 and 60; the
+  station's approach 39 of 39 and its seats 140 of 140 in both.
+- **Nothing the robots read moved**: the language, the jobs, the rewards
+  and the cadence; `prompt_sha` stays as released. The house's geometry is
+  the same (`continuation.fingerprint` hashes geometry, not inertia), so
+  the deploy's restart carries the bodies and the maps on.
+
+**Why.** #628 (Ben, 2026-11-07: next week's first fix, before the table is
+offered live): the table's practice arms closed on nothing 33 times in 53
+grips of 40 N and more (#642).
+
+**What the period is for.**
+- **The live grips that close on nothing**: History's `close_hand` lines
+  saying so, by the squeeze asked, against the period before -- from 40 N
+  most of all.
+- **The served jobs' passes** -- the drawer, the door, the chest -- against
+  the period before.
+- **The charges**: every plug-in and unplug, as before on the pod; the live
+  box is the check.
+
+### The dining room's tables on legs, and the place's dishware put away in it (#560, the table set built to be served) — opens when this PR is deployed
+
+**What changed in the world** (SimNotes, "The table set served";
+Challenges.md §12):
+- **The restaurant's four dining tables are a top on legs** (each was one
+  box) and table 0's south chair is gone. The house's geometry moved, so the
+  deploy's restart keeps the clock, the packs, the deaths and the jobs and
+  drops both robots' maps and places (`continuation.fingerprint`), History
+  saying so -- as the waist's release did.
+- **The place's dishware is in the world, put away**: a plate, a cup, a fork
+  and a place card a metre under the dining room's floor, their contacts off
+  and their weight held, in a geom group no robot's sensor casts against and
+  no camera draws. Nothing sets it out while no job does. The same walks
+  alternated on one pod ran 0.913-0.916x real time with it, 0.902-0.905x
+  without; the deploy box was not read (its 1.23x median stands).
+- **Nothing the robots read moved**: `set_table` is built and off the
+  rotation (its reference laid 13 of 32, its bar 24), so no row, offer or
+  direction names it; `prompt_sha` stays `45d56c74…` (58,710 chars, 17
+  sections). The house's places now include the card's tag (93), which no
+  robot can see while it is put away.
+
+**Why.** #560's first task to be served: Ben's call on #615 (the
+restaurant's tables first) and his answers of 11-07 (all four tables on
+legs, table 0's south chair away). The job waits on its reference.
+
+**What the period is for.**
+- **The maps dropped**: how long the robots take to lay the house again, and
+  the drift readings after (as after the waist's release).
+- **The dining room re-mapped round tables on legs**: does either robot walk
+  into one, or find a doorway it cannot plan through? Its walks into the
+  restaurant, if any, against the period before.
+
 ### A hand's force reads its body's own motion, a stop on one reads it from 0.1 s into its move, and History says what a stop condition read (#631) — opens when this PR is deployed; released with the waist, it rides with that period and #627's and #630's as one
 
 **What changed in the body's code and in what the robots read** (SimNotes,

@@ -162,16 +162,20 @@ def reported(verb: str, key: str, life) -> float:
   return float(rep[key])
 
 
-def measured(key: str):
-  """An `object.*` sensor's read: the last `measure`'s number, or why it
-  gave none (#630, its report's `unread`) -- it saw no top, or the top
-  ran on past where it looked that way."""
+def measured(key: str, taller: bool = False):
+  """An `object.*` sensor's read: the last `measure`'s number -- or, with
+  `taller` (#636), 1 where something taller stood past that end, the free
+  surface's, and 0 where the camera saw the top stop -- or why it gave none
+  (#630, its report's `unread`): it saw no top, or the look at that end
+  stopped short of it."""
+  name = f"object.{key}_taller" if taller else f"object.{key}"
+
   def read(life) -> float:
     rep = (getattr(life, "reports", None) or {}).get("measure")
     if rep is not None and key in rep:
-      return float(rep[key])
+      return float(key in rep.get("taller", ())) if taller else float(rep[key])
     why = (rep or {}).get("unread", {}).get(key) or "`measure` has not run"
-    raise NoReading(f"object.{key} has no reading: {why}")
+    raise NoReading(f"{name} has no reading: {why}")
   return read
 
 
@@ -319,14 +323,19 @@ HUMANOID_JOINTS = _humanoid_axes()
 #: Each body's own axes, present whatever it holds.
 BODY_AXES = {"humanoid": HUMANOID_JOINTS}
 #: ...and the reports of a pull (#493, the force move #525): how far it
-#: went, the hardest it pushed and the way the hand was going at its end.
-PULL_SENSORS = ("pull.moved", "pull.force", "pull.dx", "pull.dy", "pull.dz")
+#: went, the hardest it pushed, whether it ended held fast (#650: until it,
+#: nothing a served robot reads told that from out of reach) and the way the
+#: hand was going at its end.
+PULL_SENSORS = ("pull.moved", "pull.force", "pull.held", "pull.dx", "pull.dy", "pull.dz")
 SENSORS["pull.moved"] = Sensor(
   "pull.moved", lambda life: reported("pull", "moved", life),
   "how far the last `pull` took the hand from where it began, m")
 SENSORS["pull.force"] = Sensor(
   "pull.force", lambda life: reported("pull", "force", life),
   "the hardest the last `pull` pushed along its way, N, as your hand felt it")
+SENSORS["pull.held"] = Sensor(
+  "pull.held", lambda life: reported("pull", "held", life),
+  "1 if the last `pull` ended held fast, as your hand felt it, 0 if something else stopped it")
 #: ...and where the last step took the stance (#525), in the stance frame
 #: it stood in before: what a place read before it is turned into.
 STEP_SENSORS = ("step.dx", "step.dy", "step.turn")
@@ -356,13 +365,20 @@ SENSORS["find.facing"] = Sensor(
   "from")
 #: ...and what `measure` saw (#493, the arm with sight): a flat top's height
 #: and where it ends, the stance frame.
-MEASURE_SENSORS = tuple(f"object.{k}" for k in ("top", "near", "far", "left", "right"))
+OBJECT_ENDS = ("near", "far", "left", "right")
+MEASURE_SENSORS = (("object.top",) + tuple(f"object.{k}" for k in OBJECT_ENDS)
+                   + tuple(f"object.{k}_taller" for k in OBJECT_ENDS))
 for _k, _doc in (("top", "the height of the flat top `measure` last saw, m"),
                  ("near", "how far ahead that top begins, m"),
                  ("far", "how far ahead that top ends, m"),
                  ("left", "how far to your left that top reaches, m"),
                  ("right", "how far to your left its right edge is (negative: to your right), m")):
   SENSORS[f"object.{_k}"] = Sensor(f"object.{_k}", measured(_k), _doc)
+for _k in OBJECT_ENDS:
+  SENSORS[f"object.{_k}_taller"] = Sensor(
+    f"object.{_k}_taller", measured(_k, taller=True),
+    f"1 if something taller stands just past that top's {_k} end, where its free surface "
+    "stops (the top may go on behind it); 0 if your camera saw the top stop there")
 for _k, _a in enumerate("xyz"):
   SENSORS[f"pull.d{_a}"] = Sensor(
     f"pull.d{_a}", (lambda key: lambda life: reported("pull", key, life))(f"d{_a}"),

@@ -1536,19 +1536,26 @@ class Reach:
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
             "grippers": {s: {"shut": g.shut_asked, "force": g.force, "gap": g.gap,
-                             "squeeze": g.squeeze, "rng": g.sense.rng.bit_generator.state}
+                             "gapMean": g.gap_mean, "squeeze": g.squeeze,
+                             "rng": g.sense.rng.bit_generator.state}
                          for s, g in self.grippers.items()},
-            "motion": self.motion.kept_state()}
+            "motion": self.motion.kept_state(),
+            # ...and its model of itself as its loop last posed it: what a
+            # spot is placed through between two of the loop's ticks
+            "selfModel": self.self_model.kept_state()}
 
   def restore_kept(self, state: dict) -> None:
     for k, v in state["reach"].items():
       setattr(self, k, value_back(v))
     self.motion.restore_kept(state.get("motion", {}))
+    if "selfModel" in state:                  # a save from before it: posed at the next tick
+      self.self_model.restore_kept(state["selfModel"])
     self.sensed_force = {s: np.array(f, dtype=float) for s, f in self.force.items()}
     for s, kept in state["grippers"].items():
       g = self.grippers[s]
       g.shut_asked, g.force = bool(kept["shut"]), float(kept["force"])
       g.gap, g.squeeze = float(kept["gap"]), float(kept["squeeze"])
+      g.gap_mean = float(kept.get("gapMean", kept["gap"]))     # a save from before it
       g.sense.rng.bit_generator.state = kept["rng"]
 
   def posture_now(self) -> np.ndarray:
@@ -1563,7 +1570,14 @@ class Reach:
   def _trim(self, dt: float) -> None:
     """The posture as the robot's model has it against the plan's; the
     policy asked that much more, once the posture it was shown has arrived
-    (a ramp's lag is not a miss), never past what it trained on."""
+    (a ramp's lag is not a miss), never past what it trained on. ⚠ IT TRIMS
+    ON WHILE THE WALKER HOLDS THE LEGS, off the walker's posture: a walk
+    leaves the standing goal pitched forward, 0.008-0.017 rad after a short
+    step and 0.020 after a walk of a second or more (the edge of the band
+    `settled` reads), taken up again a second or two after the hand-back.
+    Trimmed only while the standing policy steps, our table's reference
+    laid 20 of 32 from the tour where it lays 27 (#668): every hand job is
+    measured on it as it is."""
     have = self.posture_now()[:2]
     if self.stand.settled:
       trim = np.clip(self.trim + TRIM_RATE * (self.posture[:2] - have) * dt,

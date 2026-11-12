@@ -9,6 +9,7 @@ Every test here is a direct call or the stub body: the flights that measure
 the reference and the practice are `scripts/attempts.py`'s.
 """
 
+import functools
 import json
 import math
 import re
@@ -18,12 +19,15 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.body import StubBody
+from pluggybot import lifecycle as lc
+from pluggybot.body import StubBody, body_for
 from pluggybot.evaluation import practice as ep
+from pluggybot.home import storeroom as sr
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.mind import practice as mp
+from pluggybot.perception import tags
 from pluggybot.procedure import axes, lang
 from pluggybot.procedure import steps as st
 from pluggybot.procedure.library import Library, LibraryRefused
@@ -1134,6 +1138,317 @@ def test_a_pull_hands_the_body_its_force_and_give_and_one_that_never_ran_reads_n
   assert "failedAt" in ran and "pull" in ran["steps"][-1]["reason"]
 
 
+class _PullEnds(StubBody):
+  """A stub whose pull ends the way it is told to, as `Body.pull_routine`
+  reports it."""
+
+  ends = "distance"
+
+  def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
+                   give=True):
+    why = self.ends.pop(0) if isinstance(self.ends, list) else self.ends
+    return {"why": why, "seconds": 0.5, "moved": 0.02, "along": 0.02, "dx": 0.0,
+            "dy": 0.0, "dz": 0.02, "direction": [0.0, 0.0, 1.0], "force": float(limit_n)}
+    yield
+
+
+@pytest.mark.parametrize("ends, reads", [
+  ("distance", True), ("held fast", True), ("let go", True), ("out of reach", True),
+  ("feet moved", True), ("out of time", True), ("until", True),
+  ("not out", False), ("fell", False)])
+def test_a_pull_reads_false_only_where_its_text_says(ends, reads):
+  """#650: read "ok when it pulled", one robot built its loops on a pull
+  held fast reading false and the other was right that it reads ok. Only a
+  hand that was not out, or a fall, reads false, however else it stopped (a
+  way all 0 is the test above's, an argument refused the next one's); and
+  `pull.held` says which of its stops was held fast."""
+  body = _PullEnds(*_bare())
+  body.ends = ends
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    p = 0\n'
+             '    if pull("left", 0, 0, 1, 10, 0.1):\n        p = 1\n'
+             '        h = read("pull.held")\n', body)
+  assert ran["locals"]["p"] == (1 if reads else 0), ran
+  if reads:
+    assert ran["locals"]["h"] == (1.0 if ends == "held fast" else 0.0), ran
+
+
+def test_a_pull_that_reads_false_leaves_no_reading_of_its_own():
+  """As its text says: after a pull that went ok, one that read false leaves
+  none of its readings, `pull.held` ending the run as `pull.moved` always
+  has (#525) -- the first pull's would read as this one's. (A pull that
+  fell ends the run there, read by a test or not: the test below.)"""
+  body = _PullEnds(*_bare())
+  body.ends = ["held fast", "not out"]
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    pull("left", 0, 0, 1, 10, 0.1)\n'
+             '    was = read("pull.held")\n    p = 1\n'
+             '    if not pull("left", 0, 0, 1, 10, 0.1):\n        p = 0\n'
+             '    h = read("pull.held")\n', body)
+  assert ran["locals"]["was"] == 1.0 and ran["locals"]["p"] == 0, ran
+  assert ran["steps"][-1]["reason"] == "pull.held has no reading: `pull` has not run", ran
+
+
+@pytest.mark.parametrize("verb", ["reach", "pull"])
+def test_a_hand_verb_that_fell_ends_the_run_though_an_if_tests_it(verb):
+  """#671 (Luca, 11-08 15:29): `chest_free4`'s reach inside an `if` fell,
+  read false, and the run went on -- its `withdraw` waited out the get-up,
+  the topple and the death, and three more verbs ran on a dead robot. A
+  fall ends the run as it fails a job's try, a test or not: the run stops
+  at the verb that fell, in that verb's own words, no test counted read
+  false for it, and History says "it stopped at line N: you fell...".
+  Shown to fail without the fall's exception in `lang`: the `if` read
+  false, and both withdraws ran."""
+  class Falls(_PullEnds):
+    ends = "fell"
+
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                      turns=None):
+      if verb == "reach":
+        self.falls += 1          # the fall watch's count, as the get-up takes the body
+        return False
+      return True
+      yield
+
+    def hand_why(self, side):
+      return "fell" if verb == "reach" else ""
+
+    def pull_routine(self, *a, **kw):
+      self.falls += 1
+      return (yield from super().pull_routine(*a, **kw))
+  call = ('reach("left", 0.3, 0.2, 0.9)' if verb == "reach"
+          else 'pull("left", 0, 0, 1, 10, 0.1)')
+  source = ("def a():\n    n = 0\n"
+            + ('    reach("left", 0.3, 0.2, 0.9)\n' if verb == "pull" else "")
+            + f"    if not {call}:\n        withdraw(\"left\")\n        n = 1\n"
+            "    withdraw(\"left\")\n    n = 2\n")
+  ran = _fly(source, Falls(*_bare()))
+  line = 3 if verb == "reach" else 4
+  said = (st.REACH_WHY if verb == "reach" else st.MOVE_WHY)["fell"].format(hand="left")
+  step = ran["steps"][-1]
+  assert not ran["ok"] and ran["failedAt"] == len(ran["steps"]) - 1, ran
+  assert (step["verb"], step["line"], step["reason"]) == (verb, line, said), step
+  assert step["fell"] and "tested" not in step and ran["testsFalse"] == 0, step
+  assert ran["locals"] == {"n": 0.0}, "a line past the fall ran"
+  [history] = lc.procedure_outcome("a", ran)
+  assert history.startswith(f"the procedure a did not finish -- it stopped at line {line}, "
+                            f"{verb}: {said} ("), history
+
+
+def test_a_hand_whose_move_a_death_ended_is_halted_where_it_is():
+  """#671's second review: a death closes a hand verb's routine, but the
+  reach's own move goes on, on the physics seam -- a pull went on pulling
+  for a dead robot. The verb's hand is halted where it is (`Body.stop_hand`,
+  as a stop condition halts one), and the run ends `died`. Shown to fail
+  without the halt."""
+  class Pulling(StubBody):
+    def stop_hand(self, side):
+      self.halted.append(side)
+      return True
+
+    def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
+                     give=True):
+      for n in range(200):
+        if n == 50:
+          self.life.dead = {"cause": "flat"}  # the death seam's, as the pull goes on
+        yield self.STILL
+      return {"why": "distance", "seconds": 0.4, "moved": 0.1, "along": 0.1, "dx": 0.0,
+              "dy": 0.0, "dz": 0.1, "direction": [0.0, 0.0, 1.0], "force": 5.0}
+  body = Pulling(*_bare())
+  body.halted = []
+  body.life = life = _Life(body)
+  facts = st.hand_facts()
+  proc = lang.compile_procedure('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+                                '    pull("left", 0, 0, 1, 10, 0.1)\n    wait(1)\n', facts)
+  ran = body.run(lang.run_procedure_routine(life, proc, facts))
+  assert ran["stopped"] == "died" and ran["steps"][-1]["verb"] == "pull", ran
+  assert body.halted == ["left"], body.halted
+
+
+def test_a_call_refused_before_it_ran_leaves_its_verb_no_reading():
+  """#650's review: a computed argument out of its bounds reads false in an
+  `if`'s test and the verb never runs (`lang`). What it last reported must
+  not read as this call's -- a retry computes just such a distance, what is
+  left of `pull.moved` -- and its stop condition's reading is a move's that
+  ended otherwise, so reading it is not reading the last pull's."""
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+             '    pull("left", 0, 0, 1, 10, 0.1, until="time", above=1e9)\n'
+             '    d = 0.1 - read("pull.moved")\n    p = 1\n'
+             '    if not pull("left", 0, 0, 1, 10, d):\n        p = 0\n'
+             '    s = read("pull.stopped")\n    m = read("pull.moved")\n')
+  assert ran["locals"]["p"] == 0 and ran["locals"]["s"] == 0.0, ran
+  assert ran["steps"][-1]["reason"] == "pull.moved has no reading: `pull` has not run", ran
+  # ...every verb's, not the pull's alone: a step's would be taken off a
+  # place a second time
+  ran = _fly('def a():\n    step(0.2)\n    d = 9 * read("step.dx")\n    p = 1\n'
+             '    if not step(d):\n        p = 0\n    x = read("step.dx")\n')
+  assert ran["locals"]["p"] == 0, ran
+  assert ran["steps"][-1]["reason"] == "step.dx has no reading: `step` has not run", ran
+  # ...and a stop condition's reading is a move's that ended otherwise, off
+  # a move that did stop on one; a verb that never read one gets none
+  life = _Life(_stub())
+  life.reports = {"pull": {"moved": 0.1}, "stopped": {"pull": 1.0, "reach": 1.0}}
+  st.forget_readings(life, "pull")
+  st.forget_readings(life, "spot")
+  assert "pull" not in life.reports
+  assert life.reports["stopped"] == {"pull": 0.0, "reach": 1.0}
+
+
+def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads():
+  """#650: the words both robots asked about. `pull`'s text says when it
+  reads false -- no "ok when it pulled", held fast being ok too -- and how
+  it is told how far it went; `spot`'s and `watch`'s say which face of a
+  small block they read. What is true of them is pinned beside: the test
+  above, and the next one."""
+  pull = " ".join(st.HANDS_VERBS["pull"].doc.split())
+  assert "ok when it pulled" not in pull
+  assert ("whether it ended held fast and the way it was going at its end ride `pull.*`, "
+          "unless it reads false") in pull
+  assert ("ok unless an argument was refused, your hand was not out, (dx, dy, dz) are all 0 "
+          "or you fell") in pull
+  assert "whatever else stopped it, held fast against something too, it is still ok" in pull
+  assert "`pull.moved` says how far it went" in pull
+  spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
+  assert ("A small block carries its tag on every face: the one read is the one you see "
+          "most square-on, `spot.nx`..`nz` say which") in spot
+  assert "another face, its middle up to the block's width from this one's" in spot
+  watch = " ".join(st.HANDS_VERBS["watch"].doc.split())
+  assert "the face that picture shows most square-on" in watch
+  told = " ".join(mp.system_prompt(st.hand_facts()).split())
+  for doc in (pull, spot, watch):
+    assert doc in told
+  assert "1 if the last `pull` ended held fast, as your hand felt it" in told
+
+
+def _standing():
+  """The robot's body standing at its keyframe, one `mj_forward`: its cameras
+  placed as its model draws them."""
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  return model, data
+
+
+def _picture(model, data, camera):
+  """`camera`'s picture as the robot stands: how far below level its top and
+  its bottom are and how far either side it goes, degrees, its place and
+  turn."""
+  i = model.camera(camera).id
+  rot = data.cam_xmat[i].reshape(3, 3)
+  down = math.degrees(math.asin(rot[2, 2]))  # a camera looks along its -z
+  half = float(model.cam_fovy[i]) / 2
+  side = math.degrees(math.atan(math.tan(math.radians(half)) * tags.PICTURE_W / tags.PICTURE_H))
+  return {"top": down - half, "bottom": down + half, "side": side, "half": half,
+          "at": data.cam_xpos[i].copy(), "rot": rot}
+
+
+def _bearing(pic, up):
+  """How far to the side of straight ahead `pic`'s right edge reaches at its
+  top (`up` 1) or its bottom (-1), degrees, the robot facing along x as at
+  its keyframe: its corner turned into the world by the camera's own turn,
+  the picture being tilted, never the camera-frame half-angle."""
+  x, y, _ = pic["rot"] @ np.array([math.tan(math.radians(pic["side"])),
+                                   up * math.tan(math.radians(pic["half"])), -1.0])
+  return math.degrees(math.atan2(abs(y), x))
+
+
+def _in_picture(pic, point):
+  """Whether `point`, in the world, is inside `pic` (a camera looks along
+  its -z, its y up)."""
+  x, y, z = pic["rot"].T @ (np.asarray(point, float) - pic["at"])
+  tall, wide = math.tan(math.radians(pic["half"])), math.tan(math.radians(pic["side"]))
+  return bool(z < 0 and abs(y / -z) <= tall and abs(x / -z) <= wide)
+
+
+def test_spot_and_watch_say_which_camera_they_read_and_what_its_picture_takes_in():
+  """#660: both robots took `spot` for short-sighted and went on pointing it
+  at tags above its picture. `spot`'s and `watch`'s text name the colour
+  camera and say what its picture takes in, in the model's numbers, and
+  `look`'s and `find`'s name the other camera; nothing calls either of them
+  the head camera any more."""
+  model, data = _standing()
+  colour = _picture(model, data, "color_eye")
+  spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
+  assert "your colour camera" in spot and "head camera" not in spot
+  assert f"runs from {colour['top']:.0f} to {colour['bottom']:.0f} degrees below level" in spot
+  assert (f"out to {_bearing(colour, 1):.0f} degrees either side of where your head faces at "
+          f"its top and more than {int(_bearing(colour, -1) // 10 * 10)} at its bottom") in spot
+  assert _bearing(colour, 1) < _bearing(colour, -1), "the picture is tilted: wider at its bottom"
+  assert "bowing only takes it lower" in spot
+  # the picture's top in the stance frame, whose origin is the soles' middle
+  soles = np.mean([data.geom_xpos[model.geom(f"{s}_sole").id] for s in hm.SIDES], axis=0)
+  drop = math.tan(math.radians(colour["top"]))
+  at_feet = float(colour["at"][2]) + drop * float(colour["at"][0] - soles[0])
+  assert st.SPOT_TOP_AT_FEET_M == pytest.approx(at_feet, abs=1e-5)
+  assert ("With your trunk square to your feet, a thing at x in your stance frame is in the "
+          f"picture only if it stands lower than ({at_feet:.2f} - {drop:.2f} x) m over the floor") in spot
+  assert "a tag reads only with the whole of it inside the picture" in spot
+  shoulder = float(data.xanchor[model.joint("left_shoulder_pitch").id][2])
+  small = (at_feet - shoulder - tags.BLOCK_TAG_SIZE / 2) / drop
+  assert ("the lower a tag is, the further off it reads, a small one level with your shoulders "
+          f"only within about {small:.1f} m ahead of you, a larger one nearer still, and nothing "
+          "as high as your camera ever") in spot
+  assert f"a small block's tag reads from up to about {st.SPOT_BLOCK_READS_M:g} m away" in spot
+  watch = " ".join(st.HANDS_VERBS["watch"].doc.split())
+  assert "your colour camera" in watch and "head camera" not in watch
+  assert (f"the top of whose picture is {colour['top']:.0f} degrees below level as you stand "
+          "and lower as you bow") in watch
+  assert "navigation camera" in " ".join(st.VERBS["find"].doc.split())
+  told = " ".join(mp.system_prompt(st.hand_facts()).split())
+  for doc in (spot, watch):
+    assert doc in told
+  assert "head camera" not in told
+
+
+def test_a_wall_tag_is_above_spots_picture_from_the_counter_and_in_the_navigation_cameras():
+  """#660's premise, one `mj_forward` and no flight. With the camera right
+  over the counter's front edge -- no stance gets it nearer the wall -- a
+  tag on the wall above the counter is above the colour camera's picture
+  (`spot`'s, its text says) and inside the navigation camera's (`find`'s and
+  `look`'s). And the wall's own tags, 120 mm at the shoulders' height, come
+  whole into the colour camera's picture only with it within 0.2 m of them:
+  flown, 11-13 cm off a bare wall read them and 16 cm did not."""
+  model, data = _standing()
+  colour = _picture(model, data, "color_eye")
+  navigation = _picture(model, data, "nav_eye")
+  for pic in (colour, navigation):
+    camera_x, camera_y = float(pic["at"][0]), float(pic["at"][1])
+    tag = (camera_x + sr.COUNTER_D, camera_y, sr.TAG_Z)
+    assert _in_picture(pic, tag) is (pic is navigation), pic["top"]
+  # the whole of a wall tag, whose black square is 120 mm: its top edge is
+  # the last to come in (and the picture's own top only falls off with range)
+  drop = float(colour["at"][2]) - (sr.TAG_Z + tags.TAG_SIZES[tags.COUNTER_TAG_IDS[1]] / 2)
+  in_from = drop / math.tan(math.radians(colour["top"]))
+  assert 0.0 < in_from < 0.2, in_from
+
+
+def test_a_practices_first_picture_is_said_to_be_the_navigation_cameras():
+  """#660: the picture a practice opens with (`evaluation.practice.head_picture`,
+  `Body.head_camera`) is the navigation camera's, by that name."""
+  mind = Mind('def a():\n    wait(1)\n')
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), ep.JOB.format(limit=30), retry_wait_s=0.0)
+  pr.first(picture=b"\xff\xd8")
+  assert "The picture is your navigation camera's" in json.dumps(mind.asked[0]["messages"])
+
+
+def test_a_tag_on_every_face_is_read_by_the_face_seen_most_square_on():
+  """What `spot`'s and `watch`'s text states (#650): of the faces one
+  picture decodes, the one seen most square-on (#407: keyed by id, the last
+  decoded won, a knob's top seen edge-on) -- whichever order they decode in."""
+  model, data = _standing()
+  body = body_for(model, data)
+
+  def face(t, normal):
+    return {"id": 54, "t": t, "center": (0.0, 0.0), "yaw": 0.0, "normal": normal,
+            "edge": (1.0, 0.0, 0.0)}
+  square = face((0.0, 0.0, 0.8), (0.0, 0.0, 1.0))
+  glancing = face((0.0, 0.013, 0.813), (0.0, 0.96, 0.28))
+  for picture in ([square, glancing], [glancing, square]):
+    body._detector = lambda: NS(detect_all=lambda _: list(picture))
+    assert body._decoded(54)["range"] == pytest.approx(0.8)
+  body._detector = lambda: NS(detect_all=lambda _: [])
+  assert body._decoded(54) is None
+
+
 class CutMind(Mind):
   """A mind whose first answer runs out of its tokens still thinking."""
 
@@ -1223,6 +1538,194 @@ def test_a_first_answer_lost_to_every_cut_leaves_the_job_ahead_of_the_next_ask()
   # ...and a chest's notes, its last ask, are never held: nothing follows them
   mind.cut = 3
   assert pr.carry(None)[1].answer is None and pr._unanswered == []
+
+
+class _Killed(BaseException):
+  """A pool worker killed mid-call (`pool.terminate()`): nothing it was
+  doing returns, nor is caught as an error."""
+
+
+def _answered(source='def a():\n    wait(1)\n'):
+  """The router's answer: `source`, 100 tokens in and 40 out."""
+  text = json.dumps({"think": "a try", "source": source})
+  return 200, {"choices": [{"message": {"content": text}}],
+               "usage": {"prompt_tokens": 100, "completion_tokens": 40}}
+
+
+def _script(monkeypatch):
+  """`scripts/practice.py`, loaded."""
+  import importlib.util
+  from pathlib import Path
+  path = Path(__file__).resolve().parents[1] / "scripts" / "practice.py"
+  spec = importlib.util.spec_from_file_location("practice_script", path)
+  script = importlib.util.module_from_spec(spec)
+  monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")     # what its import sets
+  spec.loader.exec_module(script)
+  return script
+
+
+def _practice_script(monkeypatch, router, first=()):
+  """`scripts/practice.py`, its mind's router `router` (no network, no price
+  list) and each set-out flown on the stub world without a picture, in this
+  process: the chests in `first` first, and one whose worker was killed
+  (`_Killed`) returning nothing."""
+  import urllib.request
+  from pluggybot.mind import llm
+  script = _script(monkeypatch)
+
+  def no_network(*a, **kw):
+    raise AssertionError("a test reached the network")
+  monkeypatch.setattr(urllib.request, "urlopen", no_network)
+  monkeypatch.setattr(llm, "stream_fetch", router)
+  monkeypatch.setattr(llm, "_default_fetch", lambda *a, **kw: (503, {}))   # no price list
+  monkeypatch.setenv(llm.TOKEN_ENV, "hf_test")
+  practice_on = ep.practice_on
+  monkeypatch.setattr(ep, "practice_on", lambda k, mind, attempts, **kw: practice_on(
+    k, mind, attempts, **{**kw, "picture": False}, build=lambda t: stub_world(t)))
+
+  class Pool:
+    def __init__(self, processes, **kw):
+      pass
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *exc):
+      return False
+
+    def terminate(self):
+      pass
+
+    def imap_unordered(self, fn, jobs):
+      for j in sorted(jobs, key=lambda j: j["chest"] not in first):
+        try:
+          yield fn(j)
+        except _Killed:
+          pass
+  monkeypatch.setattr(script, "get_context", lambda kind: NS(Pool=Pool))
+  return script
+
+
+def test_a_practice_asks_at_the_effort_it_is_given_and_never_pools_two(monkeypatch, tmp_path,
+                                                                       capsys):
+  """#560's table arms on #626: at its provider's own effort the deployed
+  mind thought a median of 95-115k tokens a call, and 97 of 208 answers
+  were cut off; the arms fly again asked to think less (Ben, 2026-11-07),
+  by its reasoning effort, never a smaller budget. `--effort` goes on every
+  request a practice makes, on every row (`run.effort`, the skill), and a
+  record read keeps each effort's rows apart; unset, nothing is sent, as
+  before. Through the script's `main`, the router faked: no network."""
+  bodies = []
+
+  def router(url, body, headers, timeout, **kw):
+    bodies.append(body)
+    return _answered()
+  script = _practice_script(monkeypatch, router)
+  low, unset = tmp_path / "low", tmp_path / "unset"
+  for into, effort in ((low, ["--effort", "low"]), (unset, [])):
+    script.main(["--chests", "0", "--attempts", "1", "--model", "org/m", "--into", str(into),
+                 *effort])
+  asked = [b.get("reasoning_effort") for b in bodies]
+  assert asked == ["low", None] and "reasoning_effort" not in bodies[1]
+  rows = {d: [json.loads(line) for line in open(d / "rows.jsonl")] for d in (low, unset)}
+  assert [r["run"]["effort"] for d in (low, unset) for r in rows[d]] == ["low", None]
+  assert not any("error" in r for d in rows for r in rows[d])
+  # read together, the two are two regimes: the per-task record's and the mind's cost
+  both = tmp_path / "both"
+  both.mkdir()
+  (both / "rows.jsonl").write_text("".join(
+    json.dumps(r) + "\n" for d in (low, unset) for r in rows[d]))
+  capsys.readouterr()
+  script.read(str(both))
+  said = capsys.readouterr().out
+  assert said.count("THE PER-TASK RECORD") == 2 and said.count("THE MIND,") == 2
+  assert "org/m at effort low" in said and "org/m at its provider's effort" in said
+
+
+def test_every_practice_call_is_journaled_as_asked_and_as_answered_the_failed_too(monkeypatch,
+                                                                                 tmp_path):
+  """#560 (#626's call 6): a set-out's calls are journaled as they go, on
+  disk before each goes on -- its ask, then its turn as recorded, a call
+  that failed too -- and the journal spends what its rows say it spent."""
+  class FailsFirst(Mind):
+    def create(self, **kw):
+      if not self.asked:
+        self.asked.append(kw)
+        raise RuntimeError("503 from the router")
+      return super().create(**kw)
+  script = _script(monkeypatch)
+  path = tmp_path / "inflight" / "practice-0.jsonl"
+  on_disk = []
+  journal = script.journal(path)
+
+  def on_call(turn, answered):
+    journal(turn, answered)
+    on_disk.append(len(path.read_text().splitlines()))
+  pr = mp.Practice(FailsFirst('def a():\n    wait(1)\n', 'def b():\n    wait(2)\n'), "a-mind",
+                   st.hand_facts(), ep.JOB.format(limit=30), retry_wait_s=0.0, on_call=on_call)
+  rows = ep.practice_on(0, pr, 2, picture=False, budget_s=30.0, build=lambda t: stub_world(t))
+  lines = [json.loads(line) for line in path.read_text().splitlines()]
+  assert on_disk == [1, 2, 3, 4, 5, 6]
+  assert [(ln["kind"], ln["answered"], ln["try"]) for ln in lines] == [
+    ("first", False, 1), ("first", True, 1), ("retry", False, 1), ("retry", True, 1),
+    ("after", False, 2), ("after", True, 2)]
+  assert [ln["tokensIn"] for ln in lines if ln["answered"]] == [0, 100, 100]
+  answered = [ln for ln in lines if ln["answered"]]
+  assert (sum(ln["tokensIn"] for ln in answered), sum(ln["tokensOut"] for ln in answered),
+          len(answered)) == tuple(sum(r["practice"][k] for r in rows)
+                                  for k in ("tokensIn", "tokensOut", "calls"))
+
+
+def test_an_early_stop_writes_what_the_set_outs_it_killed_spent(monkeypatch, tmp_path, capsys):
+  """#560 (#626's call 6, Ben, 2026-11-07): the early stop kills the
+  set-outs in flight, and their spend reached no row -- #626's table arms
+  recorded $8.50 and ~$6.60 more was killed. A killed set-out's spend is
+  one record off its journal, apart from the record's rows (a row is an
+  attempt): its answered calls summed and priced as a row is, the call it
+  had open counted and never priced. A set-out whose rows came has none,
+  the per-task record never reads it, and `--read` says it apart. Through
+  the script's `main`: chest 1 is in flight, its second call open, when
+  chest 0 ends and the bar of 2 is out of reach."""
+  from pluggybot.mind import llm
+  calls = []
+
+  def router(url, body, headers, timeout, **kw):
+    calls.append(body)
+    if len(calls) == 2:                  # chest 1's second, still open at the kill
+      raise _Killed()
+    return _answered()
+  script = _practice_script(monkeypatch, router, first=(1,))
+  monkeypatch.setattr(llm.HFClient, "pricing", lambda self, model: (0.5, 2.0))
+  into = tmp_path / "rec"
+  script.main(["--chests", "0-1", "--attempts", "2", "--model", "org/m", "--into", str(into),
+               "--early-stop"])
+  rows = [json.loads(line) for line in open(into / "rows.jsonl")]
+  assert {r["task"]["chest"] for r in rows} == {0} and len(rows) == 2
+  assert json.loads((into / "stopped.json").read_text())["after"] == 1
+  dead = [json.loads(line) for line in open(into / "killed.jsonl")]
+  assert len(dead) == 1
+  (gone,) = dead
+  assert gone["task"]["chest"] == 1 and gone["killed"] == "stopped early"
+  assert gone["process"] == "practice" and gone["skill"] == rows[0]["skill"]
+  assert script.regime_of(gone) == script.regime_of(rows[0])
+  assert {k: gone["practice"][k] for k in ("tokensIn", "tokensOut", "calls")} == {
+    "tokensIn": 100, "tokensOut": 40, "calls": 1}
+  assert gone["usd"] == round((100 * 0.5 + 40 * 2.0) / 1e6, 5) == rows[0]["usd"]
+  assert [(c["kind"], c["try"]) for c in gone["open"]] == [("after", 2)] and gone["onTry"] == 2
+  assert "verdict" not in gone and "attempt" not in gone
+  assert not list((into / "inflight").iterdir())
+  # read: the killed spend said apart, the per-task record as without it
+  capsys.readouterr()
+  script.read(str(into))
+  said = capsys.readouterr().out
+  assert said.count("THE MIND,") == 1
+  assert ("  and killed in flight, 1 set-outs (stopped early): 1 answers, 100 tokens in and 40 "
+          "out, $0.00, 0.0 h waiting on it; 1 calls cut off uncounted") in said
+  script.att.read(str(into))
+  record = capsys.readouterr().out
+  (into / "killed.jsonl").unlink()
+  script.att.read(str(into))
+  assert capsys.readouterr().out == record and "THE PER-TASK RECORD" in record
 
 
 def _pass(name, source, chest, attempt):
@@ -1433,22 +1936,82 @@ def test_what_is_felt_drives_its_routine_as_yield_from_would():
   assert ended == [True, True]
 
 
-class Seeing(StubBody):
-  """A stub whose depth camera sees a counter's top and, on it, a box's
-  flat top 0.25 m deep and 0.30 m wide (the believed world frame)."""
+#: Where the head's D435 is in the stance frame at the stand, m, and how far
+#: it looks down, rad: its `depth_eye` on the robot's model of itself
+#: (`arms.SelfModel` posed at `stand_qpos`, 2026-11-07), and its height's
+#: vertical field, rad.
+D435_AT, D435_PITCH = np.array([0.045, 0.0, 1.26]), math.radians(40.0)
+D435_FOVY = math.radians(58.0)
 
-  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
+
+@functools.lru_cache(maxsize=16)
+def _stage(boxes: tuple) -> dict:
+  """`boxes` and the floor as the D435 sees them, standing, before its
+  noise: each `(x0, x1, y0, y1, z0, z1)` in the stance frame. Each pixel's
+  ray cast at them (the nearest, as the part sees), the same range gate and
+  the same shadow as `DepthCamera`'s."""
+  from pluggybot.perception import box, depth
+  w, h = box.DEPTH_W, box.DEPTH_H
+  focal = (h / 2) / math.tan(D435_FOVY / 2)
+  c, s = math.cos(D435_PITCH), math.sin(D435_PITCH)
+  # camera to stance frame: its x (right), y (up) and z (back, out of its lens)
+  turn = np.column_stack([[0.0, -1.0, 0.0], [s, 0.0, c], [-c, 0.0, s]])
+  u, v = np.meshgrid(np.arange(w) - w / 2 + 0.5, np.arange(h) - h / 2 + 0.5)
+  rays = np.stack([u / focal, -v / focal, -np.ones_like(u)], axis=-1) @ turn.T
+  eye = D435_AT
+  with np.errstate(divide="ignore", invalid="ignore"):
+    z = np.where(rays[..., 2] < 0, -eye[2] / rays[..., 2], np.inf)
+    for (x0, x1, y0, y1, z0, z1) in boxes:
+      lo, hi = (np.array([x0, y0, z0]) - eye) / rays, (np.array([x1, y1, z1]) - eye) / rays
+      t0, t1 = np.minimum(lo, hi).max(axis=-1), np.maximum(lo, hi).min(axis=-1)
+      z = np.where((t1 >= t0) & (t0 > 0.0) & (t0 < z), t0, z)
+  z = np.where(np.isinf(z) | (z > depth.MAX_Z), np.nan, z)
+  flat = z.reshape(-1)
+  shadow = depth.DepthCamera._shadow(
+    NS(focal_px=focal, baseline=depth.BASELINE, _u=u.reshape(-1), height=h, width=w),
+    flat).reshape(z.shape)
+  return {"z": z, "shadow": shadow, "rays": rays, "eye": eye, "turn": turn, "focal": focal}
+
+
+def _frame(stage: dict, pose, rng):
+  """One frame of the stage through the part's noise and dropout, laid in
+  the believed world frame the stub stands at (`DepthPicture`)."""
+  from pluggybot.perception import box, depth
+  z = np.where(stage["shadow"] | (stage["z"] < box.DEPTH_MIN_Z), np.nan, stage["z"])
+  z = z + rng.normal(0.0, 1.0, z.shape) * depth.NOISE_K * np.nan_to_num(z) ** 2
+  z = np.where(rng.random(z.shape) < depth.DROPOUT, np.nan, z)
+  valid = ~np.isnan(z)
+  points = stage["eye"] + stage["rays"][valid] * z[valid][:, None]
+  x, y, yaw = pose
+  yaw_turn = np.array([[math.cos(yaw), -math.sin(yaw), 0.0], [math.sin(yaw), math.cos(yaw), 0.0],
+                       [0.0, 0.0, 1.0]])
+  return depth.DepthPicture(z=z, points=points @ yaw_turn.T + [x, y, 0.0],
+                            eye=yaw_turn @ stage["eye"] + [x, y, 0.0],
+                            turn=yaw_turn @ stage["turn"], focal=stage["focal"],
+                            near=box.DEPTH_MIN_Z, reach=depth.MAX_Z, noise_k=depth.NOISE_K)
+
+
+class Sees(StubBody):
+  """A stub whose D435 sees `boxes` and the floor (`_stage`), laid in the
+  stance frame it stands in."""
+  boxes = ()
+
+  def depth_pictures(self, width, height, min_z, frames=1, apart=0.1):
     yield from self._wait(frames * apart)
-    rng = np.random.default_rng(0)
-    counter = np.column_stack([rng.uniform(0.2, 1.2, 4000), rng.uniform(-0.6, 0.6, 4000),
-                               np.full(4000, 0.72)])
-    top = np.column_stack([rng.uniform(0.40, 0.65, 3000), rng.uniform(0.02, 0.32, 3000),
-                           np.full(3000, 0.87)])
-    cloud = np.vstack([counter, top])
-    x, y, yaw = self.pose
-    c, s = math.cos(yaw), math.sin(yaw)
-    return np.column_stack([x + c * cloud[:, 0] - s * cloud[:, 1],
-                            y + s * cloud[:, 0] + c * cloud[:, 1], cloud[:, 2]])
+    rng = np.random.default_rng(636)
+    return [_frame(_stage(tuple(self.boxes)), self.pose, rng) for _ in range(int(frames))]
+
+
+def _sees(boxes=(), pose=(0.0, 0.0, 0.0)) -> Sees:
+  body = Sees(*_bare())
+  body.boxes = boxes
+  body.start_at(*pose)
+  return body
+
+
+#: A counter's top and, on it, a box's flat top 0.25 m deep and 0.30 m wide.
+COUNTER = (0.3, 1.2, -0.6, 0.6, 0.0, 0.72)
+BOX_ON_IT = (0.40, 0.65, 0.02, 0.32, 0.72, 0.87)
 
 
 def test_measure_reads_the_flat_top_at_a_point_and_its_edges_in_the_stance_frame():
@@ -1456,56 +2019,22 @@ def test_measure_reads_the_flat_top_at_a_point_and_its_edges_in_the_stance_frame
   point named -- never the wider counter under it -- and its four edges,
   wherever the body stands and faces."""
   for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
-    body = Seeing(*_bare())
-    body.start_at(*pose)
     ran = _fly('def a():\n    measure(0.36, 0.2)\n    t = read("object.top")\n'
                '    n = read("object.near")\n    f = read("object.far")\n'
-               '    l = read("object.left")\n    r = read("object.right")\n', body, measure=True)
+               '    l = read("object.left")\n    r = read("object.right")\n',
+               _sees([COUNTER, BOX_ON_IT], pose), measure=True)
     got = ran["locals"]
     assert got["t"] == pytest.approx(0.87, abs=0.005)
     assert (got["n"], got["f"]) == pytest.approx((0.40, 0.65), abs=0.01)
     assert (got["l"], got["r"]) == pytest.approx((0.32, 0.02), abs=0.01)
-  ran = _fly('def a():\n    measure(2.5, 1.5)\n', Seeing(*_bare()), measure=True)
+  ran = _fly('def a():\n    measure(2.5, 1.5)\n', _sees([COUNTER, BOX_ON_IT]), measure=True)
   assert ran["steps"][-1]["reason"] == "no flat top seen round (2.5, 1.5) from where you stand"
+  # ...and a body with no camera looks at nothing, no picture to read past
+  ran = _fly('def a():\n    measure(0.5, 0)\n', _stub(), measure=True)
+  assert ran["steps"][-1]["reason"] == "no flat top seen round (0.5, 0) from where you stand"
   assert "measure" not in st.hand_facts(measure=False).verbs
   assert "object.top" not in st.hand_facts(measure=False).sensors
-
-
-class Sees(StubBody):
-  """A stub whose depth camera sees `cloud` (k, 3), laid in the stance
-  frame it stands in."""
-  cloud = np.zeros((0, 3))
-
-  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
-    yield from self._wait(frames * apart)
-    x, y, yaw = self.pose
-    c, s = math.cos(yaw), math.sin(yaw)
-    p = self.cloud
-    return np.column_stack([x + c * p[:, 0] - s * p[:, 1], y + s * p[:, 0] + c * p[:, 1], p[:, 2]])
-
-
-def _sees(cloud, pose=(0.0, 0.0, 0.0)) -> Sees:
-  body = Sees(*_bare())
-  body.cloud = np.asarray(cloud, dtype=float)
-  body.start_at(*pose)
-  return body
-
-
-#: Where the head's D435 is in the stance frame at the stand, m, and how far
-#: it looks down, rad: its `depth_eye` on the robot's model of itself
-#: (`arms.SelfModel` posed at `stand_qpos`, 2026-11-07).
-D435_AT, D435_PITCH = np.array([0.045, 0.0, 1.26]), math.radians(40.0)
-
-
-def _seen(points, rng) -> np.ndarray:
-  """`points` as the D435 returns them: each moved along its ray by the
-  part's noise at its axial depth (`depth.NOISE_K`, as `DepthCamera`)."""
-  from pluggybot.perception import depth
-  p = np.asarray(points, dtype=float)
-  rel = p - D435_AT
-  axial = rel @ np.array([math.cos(D435_PITCH), 0.0, -math.sin(D435_PITCH)])
-  noise = rng.normal(0.0, 1.0, len(p)) * depth.NOISE_K * axial ** 2
-  return D435_AT + rel * (1.0 + noise / axial)[:, None]
+  assert "object.near_taller" not in st.hand_facts(measure=False).sensors
 
 
 def test_measure_never_reads_its_windows_rim_as_where_a_top_ends():
@@ -1515,13 +2044,10 @@ def test_measure_never_reads_its_windows_rim_as_where_a_top_ends():
   stepped, and it crept on that toward the counter. An end that is the
   window's is no reading, and reading it says why; an end inside the
   window still reads, wherever the robot stands."""
-  rng = np.random.default_rng(630)
-  n = 40_000
-  top = _seen(np.column_stack([rng.uniform(0.2, 1.2, n), rng.uniform(-0.6, 0.6, n),
-                               np.full(n, 0.72)]), rng)
   for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
     ran = _fly('def a():\n    measure(0.9, 0)\n    t = read("object.top")\n'
-               '    f = read("object.far")\n    n = read("object.near")\n', _sees(top, pose))
+               '    f = read("object.far")\n    n = read("object.near")\n',
+               _sees([COUNTER], pose))
     got = ran["locals"]
     assert "n" not in got, f"the rim, read as where the top begins: {got.get('n')}"
     assert ran["steps"][-1]["reason"] == (
@@ -1531,9 +2057,162 @@ def test_measure_never_reads_its_windows_rim_as_where_a_top_ends():
     assert ran["steps"][0]["ok"] and ran["steps"][0]["runsOn"] == ["near", "left", "right"]
   # ...measured nearer, its near end is in the window, and its far end is not
   ran = _fly('def a():\n    measure(0.5, 0)\n    n = read("object.near")\n'
-             '    f = read("object.far")\n', _sees(top))
-  assert ran["locals"]["n"] == pytest.approx(0.2, abs=0.01)
+             '    f = read("object.far")\n', _sees([COUNTER]))
+  assert ran["locals"]["n"] == pytest.approx(0.3, abs=0.01)
   assert ran["steps"][-1]["reason"].endswith("runs on past that away from you")
+
+
+def test_an_end_whose_tops_own_pixels_go_on_past_it_is_no_end(monkeypatch):
+  """#636: walking out from an end's points, the picture shows more of the
+  top past where the end reads (at the chest, the counter going on beside
+  it, read a few cm short at 9 of 2,399 ends past the rim's check): the
+  camera never saw it stop, so it is no end, and reading it says so.
+  `box.past_end` tells it apart (`test_box.py`); here, the verb's branch."""
+  from pluggybot.perception import box
+  monkeypatch.setattr(box, "past_end", lambda *a, **k: {
+    "lower": 0.0, "taller": 0.0, "cut": 0.0, "runs": 1.0, "reach": False, "near": False})
+  ran = _fly('def a():\n    measure(0.55, 0)\n    n = read("object.near")\n', _sees([COUNTER]))
+  assert "n" not in ran["locals"]
+  assert ran["steps"][-1]["reason"] == ("object.near has no reading: your last `measure` saw the "
+                                        "top run on past where it read its end toward you")
+  assert "near" in ran["steps"][0]["runsOn"]
+
+
+def test_measure_reads_no_end_its_picture_cut_and_one_it_saw_past():
+  """#636: standing where it works at a counter whose front is 0.22-0.24 m
+  ahead, the D435's picture meets the counter's height 0.26 m ahead, so the
+  counter's points end at the picture's bottom edge: `object.near` read
+  0.26 wherever it looked and however near it stood. The end the picture
+  cut is no reading, and reading it says why; a top whose near face the
+  camera sees reads it."""
+  cut_off = (0.22, 1.2, -0.6, 0.6, 0.0, 0.72)
+  source = ('def a():\n    measure(0.55, 0)\n    t = read("object.top")\n'
+            '    x = read("object.near_taller")\n')
+  for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
+    ran = _fly(source.replace("near_taller", "near"), _sees([cut_off], pose))
+    assert ran["locals"]["t"] == pytest.approx(0.72, abs=0.005) and "x" not in ran["locals"]
+    assert ran["steps"][-1]["reason"] == (
+      "object.near has no reading: your last `measure` saw the top run off your depth "
+      "camera's picture toward you")
+    assert ran["steps"][0]["ok"] and ran["steps"][0]["unseen"] == ["near"]
+    # ...its `_taller` reading says the same, for a read with no number has no other word
+    ran = _fly(source, _sees([cut_off], pose))
+    assert ran["steps"][-1]["reason"].startswith("object.near_taller has no reading: "
+                                                 "your last `measure` saw the top run off")
+  # ...and a top whose near face it sees reads it, nothing taller standing past it
+  ran = _fly('def a():\n    measure(0.55, 0)\n    n = read("object.near")\n'
+             '    x = read("object.near_taller")\n', _sees([COUNTER]))
+  assert ran["locals"]["n"] == pytest.approx(0.3, abs=0.01) and ran["locals"]["x"] == 0
+  assert "unseen" not in ran["steps"][0] and "taller" not in ran["steps"][0]
+
+
+@pytest.mark.parametrize("saw, reads, taller", [
+  ({"lower": 0.66, "cut": 0.34}, True, False),   # the counter's left end at the picture's corner
+  ({"lower": 0.09, "taller": 0.465, "runs": 0.445}, True, True),   # beside the chest
+  ({"cut": 0.6, "lower": 0.4}, False, False),
+  ({"runs": 0.4, "lower": 0.35, "taller": 0.25}, False, False),
+  ({"lower": 0.5, "cut": 0.5}, False, False),    # a tie is the cautious word's
+  ({"lower": 0.5, "runs": 0.5}, False, False),
+  ({"lower": 0.5, "taller": 0.5}, True, True),
+])
+def test_an_end_takes_the_walks_most_common_word(monkeypatch, saw, reads, taller):
+  """#636: a top's end can be seen past along part of it and cut along the
+  rest: what it reads is what most of its walks said, and a tie is the word
+  that claims less (`steps.MEASURE_WORDS`) -- a fixed share let a right end
+  read as one with nine in a hundred walks saying the top stopped there."""
+  from pluggybot.perception import box
+  monkeypatch.setattr(box, "past_end", lambda *a, **k: {
+    "lower": 0.0, "taller": 0.0, "cut": 0.0, "runs": 0.0, "reach": False, "near": False, **saw})
+  ran = _fly('def a():\n    measure(0.55, 0)\n    n = read("object.near")\n'
+             '    x = read("object.near_taller")\n', _sees([COUNTER]))
+  assert ("n" in ran["locals"]) is reads
+  assert (ran["locals"].get("x", 0.0) == 1.0) is taller
+
+
+def test_a_taller_thing_on_a_top_is_where_its_free_surface_ends_and_the_read_says_so():
+  """#636, Ben's call: a taller thing standing on a top is the end of the
+  top's free surface: it reads as that end -- its near edge where the top
+  runs on behind it -- and the read says that is what it is, `object.*_taller`
+  and the step's verdict both."""
+  counter = (0.3, 1.0, -0.6, 0.6, 0.0, 0.72)
+  against = (0.3, 1.0, -0.6, -0.1, 0.72, 1.05)
+  source = ('def a():\n    measure(0.65, 0.3)\n    t = read("object.top")\n'
+            '    r = read("object.right")\n    x = read("object.right_taller")\n'
+            '    l = read("object.left_taller")\n')
+  ran = _fly(source, _sees([counter, against]))
+  assert ran["locals"]["t"] == pytest.approx(0.72, abs=0.005)
+  assert ran["locals"]["r"] == pytest.approx(-0.1, abs=0.01)
+  assert (ran["locals"]["x"], ran["locals"]["l"]) == (1.0, 0.0)
+  assert ran["steps"][0]["taller"] == ["right"]
+  # ...a taller thing that hides the top behind it: the end is where the camera lost it
+  behind = (0.42, 0.72, -0.25, 0.1, 0.72, 1.05)
+  ran = _fly('def a():\n    measure(0.75, 0.5)\n    r = read("object.right")\n'
+             '    x = read("object.right_taller")\n', _sees([counter, behind]))
+  assert ran["locals"]["x"] == 1.0 and 0.09 <= ran["locals"]["r"] <= 0.16
+  assert ran["steps"][0]["taller"] == ["right"]
+  # ...and no taller thing, no taller reading: the same top, its end seen past
+  ran = _fly(source, _sees([(0.3, 1.0, -0.1, 0.6, 0.0, 0.72)]))
+  assert ran["locals"]["r"] == pytest.approx(-0.1, abs=0.01)
+  assert (ran["locals"]["x"], ran["locals"]["l"]) == (0.0, 0.0)
+  assert "taller" not in ran["steps"][0]
+
+
+def test_measure_looks_past_its_cameras_shadow_and_past_the_floor_it_cannot_reach():
+  """#636: the D435's shadow is a band of nothing beside a near thing's
+  image-left, tens of pixels wide: walked past, what stands behind it says
+  the top ended there -- and a table's far edge across a room, the floor
+  beyond it past the part's 3 m, reads where it does. Neither is unseen."""
+  # a top standing left of the robot's middle: its left end's shadow, on the
+  # floor beside it, is in the picture and the floor beyond it reads lower
+  ran = _fly('def a():\n    measure(0.75, 0.25)\n    l = read("object.left")\n',
+             _sees([(0.3, 1.2, -0.6, 0.55, 0.0, 0.72)]))
+  assert ran["locals"]["l"] == pytest.approx(0.55, abs=0.015)
+  assert "unseen" not in ran["steps"][0]
+  # ...a table across the room: its far edge at 2.3 m, the floor beyond 3 m
+  far_table = (1.6, 2.3, -0.5, 0.5, 0.0, 0.72)
+  ran = _fly('def a():\n    measure(2.0, 0)\n    f = read("object.far")\n',
+             _sees([far_table]))
+  assert ran["locals"]["f"] == pytest.approx(2.3, abs=0.03)
+  assert "unseen" not in ran["steps"][0]
+
+
+def test_a_top_past_the_cameras_reach_has_no_end_that_way():
+  """#636: a top's points also end at the part's reach, 3 m, and walked past
+  there is nothing to see: an end whose points stand there is the camera's,
+  and reading it says so."""
+  long_low = (1.2, 6.0, -0.5, 0.5, 0.0, 0.3)
+  ran = _fly('def a():\n    measure(2.8, 0)\n    f = read("object.far")\n', _sees([long_low]))
+  assert "f" not in ran["locals"]
+  assert ran["steps"][-1]["reason"] == (
+    "object.far has no reading: your last `measure` saw the top run on past your depth "
+    "camera's 3 m reach away from you")
+  assert ran["steps"][0]["unseen"] == ["far"]
+
+
+def test_a_top_nearer_than_the_camera_reads_has_no_end_that_way():
+  """#636's review: a high top close under the camera ends, in its points,
+  where the part's nearest reading does -- nearer, every pixel reads
+  nothing, and a walk across them would say the top stopped there."""
+  shelf = (0.0, 0.7, -0.5, 0.5, 0.0, 1.16)
+  ran = _fly('def a():\n    measure(0.4, 0)\n    t = read("object.top")\n'
+             '    n = read("object.near")\n', _sees([shelf]))
+  assert ran["locals"]["t"] == pytest.approx(1.16, abs=0.005) and "n" not in ran["locals"]
+  assert ran["steps"][-1]["reason"] == (
+    "object.near has no reading: your last `measure` saw the top run on nearer than your depth "
+    "camera reads, 0.17 m, toward you")
+  assert "near" in ran["steps"][0]["unseen"]
+
+
+def test_a_lower_surface_just_past_a_far_end_is_not_the_top_running_on():
+  """#636's review: seen from far off, a surface 1.7 cm under a table's top
+  and just past its far end lies inside the noise of a ray, 3 cm at 1.8 m,
+  and passed for the top going on. But the ray's noise is along the ray: in
+  height it is 3 mm, and the end stands."""
+  ran = _fly('def a():\n    measure(1.6, 0)\n    f = read("object.far")\n'
+             '    x = read("object.far_taller")\n',
+             _sees([(1.3, 1.85, -0.5, 0.5, 0.0, 0.72), (1.9, 2.4, -0.6, 0.6, 0.0, 0.703)]))
+  assert ran["locals"]["f"] == pytest.approx(1.85, abs=0.03), ran["steps"][-1]
+  assert ran["locals"]["x"] == 0.0 and "far" not in ran["steps"][0].get("runsOn", ())
 
 
 def test_measure_sees_no_top_in_the_floor_its_camera_lifts():
@@ -1542,22 +2221,17 @@ def test_measure_sees_no_top_in_the_floor_its_camera_lifts():
   (Rowan's chest_diag: 0.0168 m, "garbage"). Under `box.FLOOR_M` is the
   floor's, and a real top over it still reads."""
   from pluggybot.perception import box
-  rng = np.random.default_rng(630)
   for x, y in ((1.2, -0.9), (2.0, -1.5), (2.6, 0.0)):
-    n = 50_000
-    floor = np.column_stack([rng.uniform(x - 0.5, x + 0.5, n), rng.uniform(y - 0.5, y + 0.5, n),
-                             np.zeros(n)])
     source = (f'def a():\n    k = 0\n    if measure({x:g}, {y:g}):\n        k = 1\n'
               '    t = read("object.top")\n')
-    ran = _fly(source, _sees(_seen(floor, rng)))
+    ran = _fly(source, _sees())
     assert not ran["steps"][0]["ok"], f"the floor read as a top at ({x}, {y})"
     assert ran["steps"][-1]["reason"] == (
       f"object.top has no reading: your last `measure` saw no flat top round ({x:g}, {y:g}) "
       "from where you stood")
-    # ...and a box's top 0.10 m up still reads, a quarter as many points as the floor
-    lid = np.column_stack([rng.uniform(x - 0.15, x + 0.15, n // 4),
-                           rng.uniform(y - 0.15, y + 0.15, n // 4), np.full(n // 4, 0.10)])
-    ran = _fly(source, _sees(_seen(np.vstack([floor, lid]), rng)))
+    # ...and a box's top 0.10 m up still reads
+    lid = (x - 0.15, x + 0.15, y - 0.15, y + 0.15, 0.0, 0.10)
+    ran = _fly(source, _sees([lid]))
     assert ran["steps"][0]["ok"] and ran["locals"]["t"] > box.FLOOR_M
     assert ran["locals"]["t"] == pytest.approx(0.10, abs=0.02)
 
@@ -1568,7 +2242,10 @@ def test_measures_text_says_where_it_looks_and_what_is_the_floor():
   from pluggybot.perception import box
   doc = st.HANDS_VERBS["measure"].doc
   assert f"within {st.MEASURE_NEAR_M:g} m of (x, y)" in doc
-  assert f"past those {st.MEASURE_NEAR_M:g} m, its end that way has no reading" in doc
+  assert f"past those {st.MEASURE_NEAR_M:g} m, off your camera's picture" in doc
+  assert f"its range ({box.DEPTH_MIN_Z:g} to {st.MEASURE_REACH_M:g} m)" in doc
+  assert "its end that way has no reading, and reading it says why" in doc
+  assert "reads where the free top stops" in doc and "`object.near_taller`" in doc
   assert f"{box.FLOOR_M:g} m or more over the floor" in doc
   # ...and an `object.*` read before any `measure` names the sensor read
   ran = _fly('def a():\n    wait(0)\n    t = read("object.top")\n')
@@ -1590,6 +2267,19 @@ def test_an_arm_without_step_has_no_step_to_call_read_or_be_told_of():
   with pytest.raises(st.Refused):
     lang.compile_procedure('def a():\n    x = read("step.dx")\n', facts)
   assert "step" in st.hand_facts().verbs and "step.dx" in st.hand_facts().sensors
+
+
+def test_a_world_that_names_no_verbs_is_told_its_vocabulary_and_no_step():
+  """#669's review: the body asked `"step" in facts.verbs`, and facts that
+  name no verbs -- None, every one of `VERBS` as `language` and
+  `describe_vocabulary` read it, the walks and no hand's -- raised
+  TypeError. Its vocabulary has no `step`, so it is told none: the walk
+  sentence goes where the verbs it is told include `step`."""
+  from dataclasses import replace
+  facts = replace(st.hand_facts(step=False), verbs=None)
+  text = mp.system_prompt(facts)
+  assert "step" not in st.language(facts) and "drive_to(" in text and "move(" in text
+  assert "step(" not in text and "`step`" not in text
 
 
 class NotesMind(Mind):

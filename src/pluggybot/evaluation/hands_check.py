@@ -187,24 +187,34 @@ DOOR = '''def open_door():
 #: THE CUBE, out of reach where the robot stands: the mat's middle and the
 #: cube's off their tags, the cube's turn off its edges; a STEP in and aside,
 #: until the cube is 0.32 m ahead and 0.18 to the left -- nearer, the head
-#: camera no longer sees it, so what it read is turned into the frame it
-#: stands in after the step (`step.*`). ⚠ STEPPED IN ALONE, THE STAND'S
-#: CREEP PUT IT ASIDE (#560's stage (c3)): stand4 turned its stance 2.5 deg
-#: clockwise over the step and left the cube 0.177 to its left, the stand
-#: retrained on the waist holds its stance and left it 0.157 -- there the
-#: left hand's carry to the mat ran into its shoulder's inner stop, 10 of 32
-#: placed where 22 were. Stepped aside, the waist's body placed it 19 times
-#: of 32 over three seeds of its noise, today's stepped in alone 18 -- and
-#: 15, each set-out its own noise (SimNotes, "The cube and the robot's
-#: noise"). Gripped steeply from above-front, the jaws on two of its faces,
-#: at the first tilt that reaches and holds; lifted
-#: straight up and
-#: set down by force moves that hold their line (`give` 0: a cube set down
-#: giving slid along what it touched), carried over the mat by where the
-#: grip left it in the hand; and let go only once its set-down has pressed
-#: on the mat.
+#: camera no longer sees it standing, so what it read is turned into the
+#: frame it stands in after the step (`step.*`; stepped in alone, the waist's
+#: stand left the cube where the carry ran into the shoulder's inner stop:
+#: SimNotes, "The cube and the robot's noise"). Gripped steeply from
+#: above-front, the jaws on two of its faces; lifted straight up and set down
+#: by force moves that hold their line (`give` 0: a cube set down giving slid
+#: along what it touched), carried over the mat by where the grip left it in
+#: the hand; and let go only once its set-down has pressed on the mat. What
+#: the tour took (#560; SimNotes, "The cube from the tour"):
+#:  - ⚠ A TRY THAT FAILED READS THE MAT AND THE CUBE AGAIN, and the next aims
+#:    where the cube now is, 1 cm on along the fingers: a reach stopped short
+#:    or a shut on nothing moved the feet 3-7 cm, and every try after it
+#:    aimed at the first read. Where only one tag reads, the other is moved
+#:    as it seems to have moved: the feet's move moves both alike. The first
+#:    try aims at the read the step carried, as before (read again first,
+#:    more first reaches stopped short, found no posture or turned the stance
+#:    14 deg);
+#:  - ⚠ A LIFT THAT LEFT THE CUBE BEHIND IS A TRY THAT FAILED (`left.held`,
+#:    read once its running mean has had 0.1 s: a grip lost read held up to
+#:    40 ms on, #646): a shut on its edge read held and let go as it rose;
+#:  - the tries' tilts are 60, 60, 46 and 75 deg: at 75 a reach took 12 s and
+#:    moved the feet most;
+#:  - the carry aims 0.6 cm on and 0.5 cm to the right of where the grip's
+#:    offset puts it: the jaws push the cube along them as they shut, and it
+#:    was set down a mean 0.55 cm short and 0.5 to the left over 62 flights;
+#:  - 150 s of budget lets a fourth try end (the check grades its own 68 s).
 PLACE = '''def place_cube():
-  budget(steps=60, seconds=66)
+  budget(steps=60, seconds=150)
   spot(57)
   mx = read("spot.x")
   my = read("spot.y")
@@ -213,7 +223,8 @@ PLACE = '''def place_cube():
   y = read("spot.y") + 0.013 * read("spot.ny")
   z = read("spot.z") + 0.013 * read("spot.nz")
   a = atan2(read("spot.ey"), read("spot.ex"))
-  step(x - 0.32, y - 0.18)
+  if not step(x - 0.32, y - 0.18):
+    pass
   c = cos(read("step.turn"))
   s = sin(read("step.turn"))
   u = x - read("step.dx")
@@ -225,31 +236,63 @@ PLACE = '''def place_cube():
   mx = c * u + s * v
   my = c * v - s * u
   a = a - read("step.turn")
-  while a > 0.79:
-    a = a - 1.571
-  while a < -0.79:
-    a = a + 1.571
+  b = 0
+  p = 0
+  q = 0
   g = 0
   t = 1.05
   for i in range(4):
+    k = (g == 0) * (i > 0)
+    m = 0
+    n = 0
+    if k > 0:
+      if spot(57):
+        m = 1
+        u = read("spot.x")
+        v = read("spot.y")
+    if k > 0:
+      if spot(56):
+        n = 1
+        p = read("spot.x") + 0.013 * read("spot.nx")
+        q = read("spot.y") + 0.013 * read("spot.ny")
+        z = read("spot.z") + 0.013 * read("spot.nz")
+        a = atan2(read("spot.ey"), read("spot.ex"))
+    if m + n > 0:
+      e = x
+      h = y
+      x = n * p + (1 - n) * (x + u - mx)
+      y = n * q + (1 - n) * (y + v - my)
+      mx = m * u + (1 - m) * (mx + p - e)
+      my = m * v + (1 - m) * (my + q - h)
+      b = 0.01
     if g == 0:
+      while a > 0.79:
+        a = a - 1.571
+      while a < -0.79:
+        a = a + 1.571
       open_hand("left")
-      if reach("left", x, y, z + 0.003, cos(a) * cos(t), sin(a) * cos(t), -sin(t), -sin(a), cos(a), 0):
+      if reach("left", x + b * cos(a), y + b * sin(a), z + 0.003, cos(a) * cos(t), sin(a) * cos(t), -sin(t), -sin(a), cos(a), 0):
         g = 2
-      else:
-        withdraw("left")
+      elif not withdraw("left"):
+        pass
+    w = 0
     if g == 2:
       g = 0
+      w = 1
       if close_hand("left"):
-        g = 1
-      else:
-        withdraw("left")
-    t = t + 0.26 - 0.77 * (i == 1)
+        ox = x - read("left.x")
+        oy = y - read("left.y")
+        pull("left", 0, 0, 1, 20, 0.03, give=0)
+        wait(0.1)
+        g = read("left.held") > 0.5
+        w = 1 - g
+    if w > 0:
+      open_hand("left")
+      if not withdraw("left"):
+        pass
+    t = 1.05 - 0.25 * (i > 0) + 0.51 * (i > 1)
   if g == 1:
-    ox = x - read("left.x")
-    oy = y - read("left.y")
-    pull("left", 0, 0, 1, 20, 0.03, give=0)
-    move_hand("left", mx - ox, my - oy, read("left.z"))
+    move_hand("left", mx - ox + 0.006, my - oy - 0.005, read("left.z"))
     for j in range(2):
       if g == 1:
         pull("left", 0, 0, -1, 4, 0.1, give=0)
@@ -258,51 +301,88 @@ PLACE = '''def place_cube():
   withdraw("left")
 '''
 
-#: THE TABLE'S PLACE (#560) from ONE STANCE 0.14 m left of the start, where
-#: the waist's yaw reaches every piece (#621). Each choice is deliberate and
-#: measured (SimNotes, "The table's reference on the waist"): the cup from
-#: above, gripped 3 cm short of its middle (at the middle the palm cuts the
-#: lid) and placed off the plate's tag read with the hand out, a reach that
-#: bows out of the tag's view tried again 1.5 cm higher; the plate's and the
-#: fork's jaws the other way round at 60 deg (as asked before, the yaw takes
-#: the grip that never carries), each reach aimed at its grip (#627: the reach
-#: plans where the robot stands), the plate gripped 1.5 cm inside its wall (at
-#: it, a pad brushed the fork
-#: over), the fork at 25 N (from 40 the gripper's chatter stalls short of
-#: it); every precise move a pull (`go`: a carry takes only a posture its
+#: THE TABLE'S PLACE (#560) from ONE STANCE left of the start, where the
+#: waist's yaw reaches every piece (#621; 0.15 m from the check's start,
+#: `solutions.TABLE_LAY_STEP` off the walk). Each choice is deliberate and
+#: measured (SimNotes, "The table's reference on the waist" and "The lay from
+#: the tour"): the cup's tag read before the step (out of view from the
+#: stance; turned to if the first look loses it), what was read carried
+#: through the step's own turn, the plate's tag read again from the stance;
+#: the cup from above, gripped 3 cm short of its middle (at the middle the
+#: palm cuts the lid) and placed off the plate's tag read with the hand out;
+#: its reach aimed inside the 2 cm band its shallow posture holds (`e`,
+#: across the arm's way out: nearer, the planner stands it up and the descent
+#: bows it; further, it bows the plate's tag out of view), a pull carrying the
+#: hand on over the grip, a reach still cut short tried again 1.5 cm higher;
+#: the plate's and the fork's jaws the other way round at 60 deg (as asked
+#: before, the yaw takes the grip that never carries), each reach aimed at
+#: its grip (#627: the reach plans where the robot stands), the plate
+#: gripped 1.5 cm inside its wall (at it, a pad brushed the fork over), the
+#: fork at 25 N (chosen before #628, when the drive's chatter batted it from
+#: 40); every precise move a pull (`go`: a carry takes only a posture its
 #: statue reaches); each piece set down by where its jaws left it, the card
 #: read again once it is up, the plate 1 cm to the right and the fork 0.5 cm
-#: nearer the robot against what the carry's turn leaves; an open hand lifted
-#: straight up, its jaws opened first.
+#: nearer the robot against what the carry's turn leaves; an open hand
+#: lifted straight up, its jaws opened first, 9 cm before the left arm's way
+#: home (at 6, a hand nearer the table struck its edge going home, and at 12
+#: the lift itself ran out of reach and moved the feet).
 TABLE = '''def lay_place():
   budget(steps=190, seconds=290)
   spot(93)
   k = read("spot.x")
   m = read("spot.y")
+  a = 0.15
   spot(90)
   px = read("spot.x")
   py = read("spot.y")
-  spot(91)
-  u = read("spot.x") - px - 0.03
+  s = k - 0.077 - px
+  w = m - 0.243 - py
+  t = 0
+  if not spot(91):
+    if not step(0, 0, -0.17):
+      pass
+    t = read("step.turn")
+    spot(90)
+    px = read("spot.x")
+    py = read("spot.y")
+    spot(91)
+  u = read("spot.x") - px
   v = read("spot.y") - py
   cz = read("spot.z") - 0.03
-  s = k - 0.07 - px - 0.03
-  w = m - 0.243 - py
-  step(0, 0.14)
+  if not step(0, a, -t):
+    pass
+  r = read("step.turn")
+  c = cos(r)
+  e = sin(r)
+  q = c * u + e * v
+  v = c * v - e * u
+  u = q - 0.03
+  c = cos(r + t)
+  e = sin(r + t)
+  q = c * s + e * w
+  w = c * w - e * s
+  s = q - 0.03
   move("right_shoulder_roll", -0.9)
   move("right_elbow", 1.4)
   open_hand("right")
   spot(90)
   x = read("spot.x") + u
   y = read("spot.y") + v
-  reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
-  if spot(90):
-    x = read("spot.x") + u
-    y = read("spot.y") + v
-  else:
+  e = 0.7 * y - 0.72 * x
+  f = 0
+  if e > -0.577:
+    f = e + 0.577
+  if e < -0.597:
+    f = e + 0.597
+  g = 0
+  if reach("right", x + 0.72 * f, y - 0.7 * f, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
+    if spot(90):
+      x = read("spot.x") + u
+      y = read("spot.y") + v
+      g = 1
+  if g == 0:
     withdraw("right")
-    spot(90)
-    reach("right", read("spot.x") + u + 0.005, read("spot.y") + v, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
+    reach("right", x + 0.72 * f + 0.005, y - 0.7 * f, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
     if spot(90):
       x = read("spot.x") + u
       y = read("spot.y") + v
@@ -351,7 +431,7 @@ TABLE = '''def lay_place():
     pull("left", 0, 0, -1, 6, 0.09, give=0)
     open_hand("left")
     wait(0.4)
-    pull("left", 0, 0, 1, 20, 0.06, give=0)
+    pull("left", 0, 0, 1, 20, 0.09, give=0)
     withdraw("left")
 
 

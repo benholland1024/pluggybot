@@ -87,6 +87,11 @@
       "directions": "The robots' rooms are in your own house, off the living room, where its charging station is: two rooms side by side, each with its own door in the living room's south wall. The east room's door is the one nearer the charging station. Its tag, tag 74, is on the room's south wall, facing its door.",
       "tags": {"74": "the east room's tag"}
     },
+    "dining_table_0": {
+      "house": "mall",
+      "directions": "The mall is south of the second house, across the alley between them, on the middle street's east side: in through its front door on the street, or its door from the alley, into the concourse that runs down its west side. The restaurant's dining room door is on the concourse's east side, the north of its two doors. The dining room has four tables in two rows of two, and the place is laid at the table on your left as you come in, the nearer the door of that row, on its south side, toward the room's middle, where no chair stands. A place card stands on the table facing south, carrying tag 93 on its face. The plate carries tag 90 in its middle, the cup tag 91 on its lid and the fork tag 92 on its handle.",
+      "tags": {"93": "the place card", "90": "the plate", "91": "the cup", "92": "the fork"}
+    },
     "study_room": {
       "house": "facility",
       "directions": "The study room is in the second house, the one across the middle street from your own house: in through its front garden and its lobby, and the study room's door is on the lobby's west side, across from the storeroom's. A table stands in it with a chair at either end. Its tag, tag 75, is on its west wall, facing its door.",

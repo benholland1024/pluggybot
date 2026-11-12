@@ -1,4 +1,5 @@
-"""Leaving out of a ray cast what it cannot reach (issue #560).
+"""What a ray cast leaves out: what it cannot reach (issue #560), and nothing
+it can (issue #657).
 
 Every geom in the model costs every ray of an `mj_multiRay`, whether a ray
 could reach it or not -- 27 us a LIDAR frame each in the house -- and its
@@ -8,6 +9,10 @@ reach, cost the served pair a sixth of its speed. A geom whose every point
 lies past what a sensor can read could only come back as what that sensor
 already counts as nothing, so a cast without it is the same reading, bit for
 bit -- each sensor states why at its own call.
+
+`static_inertials` is the other half: what keeps MuJoCo's own culling of a
+whole body from leaving out a body a ray does meet (SimNotes, "A ray through
+a body MuJoCo's cull left out").
 """
 
 import mujoco
@@ -16,7 +21,66 @@ import numpy as np
 #: A geom group no world puts anything in: a cast leaves out what is moved
 #: there for the call, and casts every other group.
 CULL_GROUP = 5
-CAST_GROUPS = np.array([group != CULL_GROUP for group in range(6)], dtype=np.uint8)
+#: ...and where what is PUT AWAY waits (#560: the restaurant's dishware
+#: between its jobs, `activity.dishware.park`): no cast reads it, as no
+#: camera draws it (MuJoCo draws groups 0-2). Before it, only the chest's
+#: hidden lump was here, which a ray never meets (its alpha is 0).
+PARKED_GROUP = 3
+CAST_GROUPS = np.array([group not in (CULL_GROUP, PARKED_GROUP) for group in range(6)],
+                       dtype=np.uint8)
+#: A cast with the cull off: everything but what is put away.
+UNCULLED_GROUPS = np.array([group != PARKED_GROUP for group in range(6)], dtype=np.uint8)
+#: How far off its body a cull sphere may stand and be left alone, m: rounding.
+SPHERE_OFF_M = 1e-6
+#: A box's corners, each half-size's sign.
+_CORNERS = np.array([[x, y, z] for x in (-1.0, 1.0) for y in (-1.0, 1.0) for z in (-1.0, 1.0)])
+
+
+def static_inertials(model) -> dict[str, tuple[np.ndarray, float, np.ndarray]]:
+  """The bodies welded to the world whose cull sphere `mj_multiRay` would
+  misplace, each with the inertial frame it needs: `{name: (pos, mass,
+  inertia)}`, the frame unturned in the body's, `pos` the middle of its box,
+  its mass and inertia as compiled.
+
+  ⚠ MuJoCo 3.10 leaves a body out of an `mj_multiRay` ray that misses its
+  bounding sphere, and centres that sphere at `xipos` plus the box's offset
+  UNTURNED (`mju_singleRay`; `mj_ray` tests the box itself). The compiler
+  turns a body's inertial frame to its principal axes, and 6 % of the depth
+  camera's rays on a dining table's top went on through it to the floor
+  (#657). Welded to the world a body's inertia moves nothing and its frame
+  may stand anywhere, so it stands where there is no offset to misplace.
+  Unturned alone does not do: a body turned in the world turns the offset
+  itself. A body that moves keeps its true inertia, and this bug."""
+  data = mujoco.MjData(model)
+  mujoco.mj_kinematics(model, data)
+  out = {}
+  for b in range(1, model.nbody):
+    adr = model.body_bvhadr[b]
+    if adr < 0 or model.body_weldid[b] or model.body_mocapid[b] >= 0:
+      continue
+    offset = model.bvh_aabb[adr, :3]
+    if np.linalg.norm(data.ximat[b].reshape(3, 3) @ offset - offset) < SPHERE_OFF_M:
+      continue
+    corners = []
+    for g in range(model.body_geomadr[b], model.body_geomadr[b] + model.body_geomnum[b]):
+      mat = np.empty(9)
+      mujoco.mju_quat2Mat(mat, model.geom_quat[g])
+      corners.append(model.geom_pos[g] + (model.geom_aabb[g, :3] + _CORNERS * model.geom_aabb[g, 3:])
+                     @ mat.reshape(3, 3).T)
+    points = np.concatenate(corners)
+    out[model.body(b).name] = ((points.min(axis=0) + points.max(axis=0)) / 2,
+                               float(model.body_mass[b]), model.body_inertia[b].copy())
+  return out
+
+
+def fix_static_inertials(spec) -> None:
+  """`static_inertials` set on a world's `spec`, for what a world puts in at
+  load: the chest, the drawers, the stations, the signs. (The house's own
+  are written into its file, `home.world`.)"""
+  for name, (pos, mass, inertia) in static_inertials(spec.compile()).items():
+    body = spec.body(name)
+    body.explicitinertial = True
+    body.ipos, body.iquat, body.mass, body.inertia = pos, [1.0, 0.0, 0.0, 0.0], mass, inertia
 
 
 class StaticCull:
@@ -65,7 +129,8 @@ class StaticCull:
     groups = self.model.geom_group[far]
     self.model.geom_group[far] = CULL_GROUP
     try:
-      mujoco.mj_multiRay(self.model, data, pos, dirs, CAST_GROUPS if self.on else None, 1,
+      mujoco.mj_multiRay(self.model, data, pos, dirs,
+                         CAST_GROUPS if self.on else UNCULLED_GROUPS, 1,
                          bodyexclude, geomid, dist, None, n, cutoff)
     finally:
       self.model.geom_group[far] = groups

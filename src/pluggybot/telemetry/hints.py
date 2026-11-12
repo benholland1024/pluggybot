@@ -104,6 +104,16 @@ def _shelf_geoms() -> list[tuple[str, str, str]]:
           for _, c, h in hw.shelf_geoms(2.0, 0.35)]
 
 
+def _dining_table_geoms() -> list[tuple[str, str, str]]:
+  """The restaurant's own dining table (`home.world.table_geoms`): its top
+  and four legs, body-local about the floor under its middle, as the world
+  places its body."""
+  from pluggybot.home import world as hw
+  hx, hy, hz = hw.DINING_TABLE_HALF
+  return [("box", f"{h[0]:.4g} {h[1]:.4g} {h[2]:.4g}", f"{c[0]:.4g} {c[1]:.4g} {c[2]:.4g}")
+          for _, c, h in hw.table_geoms(hx, hy, 2 * hz)]
+
+
 def _stairs_geoms() -> list[tuple[str, str, str]]:
   """The house's own staircase (`home.world.stairs_geoms`), body-local about
   the floor under its block's middle, as the world places its body."""
@@ -308,6 +318,18 @@ MARKERS = [
               "a board, so the boards are where they are: dress them, never "
               "move them. Empty in the world itself: the dishware and the "
               "stock are each task's own."),
+  # ---- v7 (issue #560): the table set served ----------------------------------
+  Marker("dining_table", _dining_table_geoms(), collides=True,
+         axes={}, build="reskin",
+         note="MANY boxes, kept, as the stairs are: a TOP (the one flat box, "
+              "3 cm thick, its upper face the table's height, 0.72 m) and "
+              "four LEGS (5 cm square, from the floor to the top's underside, "
+              "their middles 5 cm in from the top's edges). The space under "
+              "the top is real: a robot laying a place stands with its knees "
+              "under it, which a `table`'s one box never allowed. A place a "
+              "job lays (pluggybot #560) is set on its top -- a card, a "
+              "plate, a cup and a fork, each a body of its own -- so dress "
+              "the top and the legs where they are and put nothing on it."),
 ]
 
 #: These markers are EXACTLY ONE BOX, pinned rather than merely intended.

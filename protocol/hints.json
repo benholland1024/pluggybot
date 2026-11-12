@@ -24,7 +24,8 @@
   "mouse",
   "plate",
   "chair",
-  "shelf"
+  "shelf",
+  "dining_table"
  ],
  "oneBoxHints": [
   "couch",
@@ -1907,6 +1908,169 @@
        0.0,
        0.0,
        1.35
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
+  "dining_table": {
+   "marker": "many",
+   "markers": 5,
+   "collides": true,
+   "build": "reskin",
+   "axes": {},
+   "note": "MANY boxes, kept, as the stairs are: a TOP (the one flat box, 3 cm thick, its upper face the table's height, 0.72 m) and four LEGS (5 cm square, from the floor to the top's underside, their middles 5 cm in from the top's edges). The space under the top is real: a robot laying a place stands with its knees under it, which a `table`'s one box never allowed. A place a job lays (pluggybot #560) is set on its top -- a card, a plate, a cup and a fork, each a body of its own -- so dress the top and the legs where they are and put nothing on it.",
+   "body": {
+    "name": "hint_dining_table",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "dining_table",
+    "pos": [
+     0.0,
+     66.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_dining_table_0",
+      "type": "box",
+      "size": [
+       0.8,
+       0.8,
+       0.03
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.705
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_dining_table_1",
+      "type": "box",
+      "size": [
+       0.05,
+       0.05,
+       0.69
+      ],
+      "pos": [
+       0.35,
+       0.35,
+       0.345
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_dining_table_2",
+      "type": "box",
+      "size": [
+       0.05,
+       0.05,
+       0.69
+      ],
+      "pos": [
+       0.35,
+       -0.35,
+       0.345
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_dining_table_3",
+      "type": "box",
+      "size": [
+       0.05,
+       0.05,
+       0.69
+      ],
+      "pos": [
+       -0.35,
+       0.35,
+       0.345
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     },
+     {
+      "name": "hint_dining_table_4",
+      "type": "box",
+      "size": [
+       0.05,
+       0.05,
+       0.69
+      ],
+      "pos": [
+       -0.35,
+       -0.35,
+       0.345
       ],
       "quat": [
        1.0,

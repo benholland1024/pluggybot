@@ -5,6 +5,7 @@ and in the robot's library one procedure calls another. Every rule pinned
 on the parser, the stub life or the library: nothing here flies.
 """
 
+import re
 import textwrap
 from dataclasses import replace
 from types import SimpleNamespace
@@ -329,7 +330,11 @@ def test_a_define_or_undefine_says_which_callers_it_stopped_or_mended():
 # ---- what the robot is told -----------------------------------------------------
 
 
-def test_the_language_says_its_caps_off_the_constants():
+def test_the_language_says_its_caps_off_the_constants(monkeypatch):
+  """...and a budget's (#640: 9 of #560's 11 first table answers asked for
+  more steps than 200, where the text said only "both capped"), what a
+  budget counts, whose counts and what a run has without one, each the
+  parser's."""
   text = mp.language_text(HOME)
   assert f"at most {lang.MAX_SOURCE_CHARS:,} characters" in text
   assert f"calls go at most {lang.MAX_CALL_DEPTH} deep" in text
@@ -337,6 +342,66 @@ def test_the_language_says_its_caps_off_the_constants():
   bare = mp.language_text(NO_CALLS)
   assert f"at most {lang.MAX_SOURCE_CHARS:,} characters" in bare
   assert "several defs" not in bare and mp.ONE_DEF in bare and "So may a call" not in bare
+  for t in (text, bare):
+    assert (f"budget(steps=40, seconds=60)    # optional, first; steps at most {lang.MAX_STEPS}, "
+            f"seconds at most {lang.MAX_BUDGET_S:g}\n") in t
+    flat = " ".join(t.split())
+    assert ("and first in the def that runs, `budget(...)`: the most verbs the run calls "
+            f"(`steps`) and the most seconds it runs (`seconds`), {lang.DEFAULT_STEPS} verbs and "
+            f"{lang.DEFAULT_BUDGET_S:g} seconds without one.") in flat
+    assert (f"(N at most {lang.MAX_ITER}), `while` (stopped at {lang.MAX_ITER} rounds)"
+            in flat)
+    # ...and what a name is (#640: unsaid, a capitalised local was refused)
+    assert f"\nEvery name you choose is {lang.name_rule()}.\n" in t
+  assert lang.NAME_RE.match("n" * lang.MAX_NAME_CHARS)
+  assert not lang.NAME_RE.match("n" * (lang.MAX_NAME_CHARS + 1))
+  cap = f"def a():\n  budget(steps={lang.MAX_STEPS}, seconds={lang.MAX_BUDGET_S:g})\n  wait(1)\n"
+  assert compile_ok(cap).steps_budget == lang.MAX_STEPS
+  assert refusals(cap.replace(f"={lang.MAX_STEPS}", f"={lang.MAX_STEPS + 1}")) == [
+    f"line 2, budget: steps={lang.MAX_STEPS + 1} is outside 1..{lang.MAX_STEPS}"]
+  bare_run = compile_ok("def a():\n  wait(1)\n")
+  assert (bare_run.steps_budget, bare_run.budget_s) == (lang.DEFAULT_STEPS, lang.DEFAULT_BUDGET_S)
+  # ...a step is a verb run: a read, a call and the arithmetic are none; and
+  # the budget is the def that runs', a callee's its own only when it runs --
+  # so the run stops inside `b`, its own 50 notwithstanding
+  r, _ = run("def a():\n  budget(steps=2)\n  b()\n  wait(1)\n\ndef b():\n  budget(steps=50)\n"
+             "  k = read(\"time\") + 1\n  wait(1)\n  wait(1)\n  wait(1)\n")
+  assert r["stopped"] == "steps" and [(s["verb"], s.get("in")) for s in r["steps"]] == [
+    ("wait", "b"), ("wait", "b")]
+  # ...read off the constants, never typed: moved, the text moves with them
+  for name, value in (("MAX_STEPS", 123), ("MAX_BUDGET_S", 1234.5), ("MAX_ITER", 45),
+                      ("DEFAULT_STEPS", 67), ("DEFAULT_BUDGET_S", 890.5),
+                      ("MAX_NAME_CHARS", 41)):
+    monkeypatch.setattr(lang, name, value)
+  moved = " ".join(mp.language_text(HOME).split())
+  assert "steps at most 123, seconds at most 1234.5" in moved
+  assert "(N at most 45), `while` (stopped at 45 rounds)" in moved
+  assert "67 verbs and 890.5 seconds without one." in moved
+  assert "a letter first, at most 41 characters." in moved
+
+
+def test_the_def_that_runs_says_no_arguments_and_first_where_the_writer_copies_from():
+  """#640: where defs call defs, the example's first def lost the one
+  def's "no arguments", and 5 of #560's 11 first table answers gave the
+  def that runs some; with it back, 5 of 11 answers that wrote several defs
+  still put a helper first, Python's way, and were told to give its
+  arguments defaults. The example the hands' worlds show, the practice's and
+  the served rule's, says the def that runs comes first with no arguments,
+  the calls say it goes above the defs it calls, and a refusal of several
+  defs says to put the one that is meant to run first."""
+  assert "no arguments" in mp.FIRST_DEF and "first in the source" in mp.FIRST_DEF
+  for text in (mp.language_text(st.hand_facts()), ov.hands_procedure_rule(HOME.places)):
+    head = next(line for line in text.splitlines() if line.startswith("  def wave():"))
+    assert head.endswith(mp.FIRST_DEF), head
+    example = text[text.index("  def wave"):text.index("Statements:")]
+    assert compile_ok(textwrap.dedent(example).strip("\n") + "\n").params == ()
+    assert "The first is the procedure, and runs, so it goes above the defs it calls;" in (
+      " ".join(text.split()))
+  assert refusals("def a(hand):\n  wait(1)\n") == [
+    "line 1: a is the def that runs, and nothing passes it hand: give each a default"]
+  assert refusals("def b(hand):\n  open_hand(hand)\n\ndef a():\n  b(\"left\")\n") == [
+    "line 1: b is the def that runs, and nothing passes it hand: the first def runs, so put "
+    "the one you mean to run first, or give each a default"]
 
 
 def test_the_calls_example_compiles_and_hands_over_no_survival_policy():
@@ -358,6 +423,41 @@ def test_the_served_rule_says_the_librarys_calls_and_the_index_says_calls():
   assert mp.vocabulary_index(HOME)["calls"] is True
   assert mp.vocabulary_index(HOME)["callDepth"] == lang.MAX_CALL_DEPTH
   assert mp.vocabulary_index(NO_CALLS)["calls"] is False
+
+
+def test_a_helper_written_first_is_told_the_first_def_runs():
+  """#640: a source of several defs whose first takes arguments is most
+  often a helper written first, as a Python script puts it. Defined under
+  the name of the def meant to run, the library refuses it saying the first
+  def runs and names the entry, where it said only that the names differ;
+  under the helper's name it is kept callable, and it, a run of it and a
+  `procedure:new` of it say which of its defs runs. A lone def that takes
+  arguments is told only that it runs when called, as before."""
+  helper_first = 'def grip(hand):\n  open_hand(hand)\n\ndef place():\n  grip("left")\n'
+  order = ("the def is named 'grip', the entry 'place': the first def is the one that runs "
+           "and names the entry, so put place first")
+  hint = ("it runs only when another procedure calls it; of its defs the first, grip, is "
+          "the one that runs, so put the one you mean to run first")
+  L = lib.Library(HOME)
+  with pytest.raises(lib.LibraryRefused, match=re.escape(order)):
+    L.define("place", helper_first)
+  L.define("grip", helper_first)
+  L.define("turn", "def turn(axis, a=0.5):\n  move(axis, a)\n")
+  ctx = {r["name"]: r for r in L.as_context()}
+  assert ctx["grip"]["runnable"] is False and ctx["grip"]["reasons"] == [f"it takes hand: {hint}"]
+  assert ctx["turn"]["reasons"] == ["it takes axis: it runs only when another procedure calls it"]
+  with pytest.raises(Refused) as e:
+    run_entry(L, "grip")
+  assert e.value.reasons == [f"grip takes hand: {hint}"]
+  with pytest.raises(lib.LibraryRefused, match="the def is named 'grip', the entry 'other'$"):
+    L.define("other", helper_first)                # no def of that name: as it was
+  from pluggybot.mind.overseer import PROCEDURE_NEW
+  for name, said in (("place", order), ("grip", f"and grip takes hand: {hint}")):
+    life = stub_life(WORLD)
+    life.overseer = SimpleNamespace(library=lib.Library(HOME), event_map=None)
+    life.body.run(life._after_decision_routine(Decision(
+      action=PROCEDURE_NEW, reason="r", define={"name": name, "source": helper_first})))
+    assert said in life.thoughts.read("History.md"), name
 
 
 def test_procedure_new_on_a_define_that_takes_arguments_says_why_it_ran_nothing():

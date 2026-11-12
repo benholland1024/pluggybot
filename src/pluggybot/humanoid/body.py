@@ -22,12 +22,14 @@ from pluggybot import tick
 from pluggybot.body import NOT_SEEN, TOPPLE_HOLD_S, Body, RackPose
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
-from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
-from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
+from pluggybot.humanoid.arms import GRIP_S, HELD_GAP_M, HandGoal
+from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
+                                       StandPolicy)
 from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, HumanoidMission
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
+from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
 from pluggybot.perception.watch import TagWatch
 from pluggybot.power import Pack
@@ -42,11 +44,9 @@ LEVEL_TILT_RAD = math.radians(5.0)
 #: counter and the floor ahead (`model._trunk`), and its eye (#275): the
 #: Camera Module 3 on the head, looking ahead.
 TAG_CAMERA, HEAD_CAMERA = "color_eye", "nav_eye"
-#: How long a gripper is given to close or open, s: the Dex1-1 shuts its
-#: stroke in 0.24 s at its fastest, and a squeeze settles after.
-GRIP_S = 0.6
-#: ...and how much longer, s, while its jaws stand open on something and
-#: squeeze it too little to hold, read every `GRIP_READ_S`: a chest's knob
+#: How much longer than `arms.GRIP_S` a shut gripper's word is waited
+#: for, s, while its jaws stand open on something and squeeze it too
+#: little to hold, read every `GRIP_READ_S`: a chest's knob
 #: on its drop handle swung off a pad and back between the jaws, and read
 #: at `GRIP_S` alone the grip said NOT HELD in 7 of 24 set-outs where the
 #: pads held the knob 2 s later (#493).
@@ -54,6 +54,13 @@ GRIP_SETTLE_S, GRIP_READ_S = 1.5, 0.1
 #: A gaze's bow is waited for this long at most, s (`gaze_routine`), and a
 #: hand's way out and home this long (`release_routine`).
 GAZE_WAIT_S, RELEASE_S = 4.0, 15.0
+#: ...and its posture back at the stand after, its legs the standing
+#: policy's again, this long at most, s: 4.0, twice the 2.0 s the standing
+#: policy's posture takes to cross its whole range at its rates. ⚠
+#: Unbounded, a withdraw waited 2,191 s (#668; SimNotes, "Making way,
+#: standing").
+STAND_BACK_S = 2.0 * max((HEIGHT_RANGE[1] - HEIGHT_RANGE[0]) / HEIGHT_RATE,
+                         (PITCH_RANGE[1] - PITCH_RANGE[0]) / PITCH_RATE)
 #: A hand's carry or pull stops once the body's own odometry puts its
 #: stance this far from where it began, m: a pull toward the robot dragged
 #: it 0.3 m to the counter, its standing policy stepping under the arm
@@ -81,6 +88,56 @@ STEP_STUCK_M, STEP_STUCK_S, STEP_PATIENCE_S, STEP_SETTLE_S = 0.01, 1.0, 15.0, 0.
 #: SimNotes, "Stepping toward the work"). ⚠ Not a foot's lift: the model of
 #: itself read a sole 4-5 mm off through the slide that was under 2.
 STEP_START_S = 2.0
+#: A step's walk that went this little, m, by its own reckoning along the way
+#: it was asked, did not walk (#649): "too short", never "stepped". ⚠ MEASURED,
+#: on the walk as it is (`step_spike`'s floor sweep, SimNotes, "Stepping toward
+#: the work"): the walker's stride starts 0.3-0.4 s in, and the pelvis alone
+#: leans over planted feet before it, so an ask under about `STEP_SHORT_M`
+#: often stops on the lean, its feet not having moved; the reckoning of a
+#: stance that stayed reads up to 0.9 cm. Judged only where it asks this much.
+STEP_LEAST_M = 0.01
+#: ...and asked less than this, m, a walk may take no stride at all (its table
+#: there, four stances and three draws an ask: 3 and 4 cm back never moved,
+#: left went 0.7-3 cm, and from here up every ask went at least 2.7 cm).
+STEP_SHORT_M = 0.06
+#: A sidestep's `step.dy` reads this much less than its feet went, m, each
+#: way (#649; the same sweep): the walker slides before its first stride, under
+#: what the legs' reckoning can see -- to the left 1.2-3.7 cm over asks of 3-30
+#: cm, to the right 0.6-2.4 (ahead and back, under a centimetre). Told to the
+#: robot, never fed back: the reckoning is the legs'.
+STEP_DY_SHORT_M = (0.01, 0.03)
+#: ...and a step going left after a step ahead (`_step_walks`' two walks, the
+#: second off the first's carry) much more: asked 3-10 cm ahead and 10-20 left,
+#: its left read 1.3-19 cm short, 3-8 on average, its true left past the ask by
+#: 2-6; to the right, 0.2-2.4 (#649, four stances and three draws an ask).
+STEP_DY_LEFT_AFTER_M = 0.10
+#: A STEP'S TURN IS THE STANCE'S (#649; SimNotes, "Stepping toward the work"):
+#: the walker yaws its pelvis over planted feet for 0.2 s before a foot lifts,
+#: so stopped on the pelvis's heading a few degrees' turn left the stance
+#: where it was (asked 3, turned 0.3) and one of 15 to the right turned it 9.
+#: A turn over `TURN_BIG_RAD` goes at the walker's pace to the pelvis's
+#: heading, as ever; then short pulses of `TURN_W`, each read `TURN_SETTLE_S`
+#: after (`TURN_SETTLE_BIG_S` after the walker's own, whose last foot is
+#: landing), closed on the stance's own heading -- its reckoned turn is the
+#: truth's to 0.2 deg -- until it is within `TURN_TOL_RAD`, at most
+#: `TURN_PULSES` of them. ⚠ PULSES SHORTER THAN A STRIDE: under 0.2 s no
+#: foot lifts and the stance twists 1-3 deg a pulse; at 0.25 s a foot lands
+#: and it jumps 7-14. ⚠ NOT IN A WALKER STILL MOVING: read 0.3 s after its
+#: own turn, a 0.14 s pulse moved the stance 7.8 deg where from rest it moves 2-3.
+TURN_BIG_RAD, TURN_TOL_RAD = math.radians(6.0), math.radians(0.75)
+TURN_PULSES, TURN_SETTLE_S, TURN_SETTLE_BIG_S = 8, 0.5, 0.7
+#: ...one still this far off, rad, once its pulses are spent, its feet held,
+#: reads "turned short" (a turn's flights ended within `TURN_TOL_RAD`, 144 of
+#: 144); and the most its closing can take, s, over a step's patience.
+TURN_MISS_RAD = math.radians(2.0)
+TURN_CLOSE_S = TURN_SETTLE_BIG_S + TURN_PULSES * (0.14 + TURN_SETTLE_S)
+#: A STEP KEEPS OFF ANOTHER ROBOT AS A WALK DOES (#670, `_kept_off`): the disc
+#: a walk's plan keeps round that robot's middle, m, standing and lying, and
+#: the walks' front stop turned to the step's way, m along it and either side
+#: -- what its text says.
+STEP_KEEP_M = HumanoidMission.OTHER_ROBOT_CELLS * GRID_M
+STEP_KEEP_DOWN_M = HumanoidMission.DOWN_ROBOT_CELLS * GRID_M
+STEP_FRONT_M, STEP_FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M
 #: How far its measured depth's rays reach (`depth_cloud`, and a watcher's,
 #: `depth_watched`), m: a counter's chest within arm's reach. Each draws its
 #: own noise stream (`senses.Noise`: `measure`, `watched`), so watching
@@ -101,6 +158,14 @@ ASKEW_RAD = SEARCH_RAD
 
 def _yaw(rot: np.ndarray) -> float:
   return math.atan2(rot[1, 0], rot[0, 0])
+
+
+def _turn_pulse(togo: float) -> float:
+  """A step's turn's pulse of `TURN_W`, s, by the turn it has to go, rad:
+  under a stride's first lift (`TURN_BIG_RAD`'s note). MEASURED from rest:
+  0.08 s turns the stance 0.7-1.3 deg, 0.10 s 1-1.5 and 0.14 s 2-4."""
+  d = math.degrees(abs(togo))
+  return 0.08 if d < 1.0 else 0.10 if d < 2.0 else 0.14
 
 
 def _step_walks(ahead: float, left: float) -> list[tuple[float, float]]:
@@ -397,9 +462,9 @@ class HumanoidBody(Body):
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Upright at (x, y) facing `yaw`, standing, its arms hanging, and told
-    so: its odometry there and its drivers fresh. Steps nothing
-    (`Body.start_at`) and touches no map: a stand-up's goes in the
-    lifecycle (#572)."""
+    so: its odometry there, its drivers fresh and no robot seen (#675).
+    Steps nothing (`Body.start_at`) and touches no map: a stand-up's goes
+    in the lifecycle (#572)."""
     m, d = self._m, self._d
     adr = m.jnt_qposadr[m.joint(self.handle.el(f"{hm.ROBOT_ROOT}_root")).id]
     d.qpos[adr:adr + 3] = [x, y, hm.stand_height()]
@@ -414,6 +479,8 @@ class HumanoidBody(Body):
     mujoco.mj_forward(m, d)
     self.mission.fresh_drivers()
     self.mission.drop_aside()
+    # ...and nobody its LIDAR saw from where it stood before (#675)
+    self.mission.seen_t.clear()
     if self.mission.matcher is not None:
       self.mission.matcher.anchored(on=False)
 
@@ -453,6 +520,11 @@ class HumanoidBody(Body):
 
   def from_seen(self, x, y):
     return self.mission.from_seen(x, y)
+
+  def seen_at(self, root):
+    return self.mission.seen_at(root)
+
+  moved_at = property(lambda self: self.mission.went_t)
 
   def level(self) -> bool:
     return self.mission.level()
@@ -586,15 +658,27 @@ class HumanoidBody(Body):
     (`Reach.home`, #539), the posture back at the stand: "home"; "fell" -- a
     fall ends it at once, the next routine waiting out the get-up, as a
     reach's does -- or "held", not home in `RELEASE_S`: a hand that cannot
-    come home ends the routine there, never the attempt it is in."""
+    come home ends the routine there, never the attempt it is in. ⚠ ITS
+    GRIPPER IS OPENED FIRST, whatever it says it holds, as every way home
+    lets go (`HumanoidMission.let_go_routine`, #669). ⚠ ITS
+    LEGS GO BACK TO THE STANDING POLICY BEFORE ITS POSTURE IS WAITED ON,
+    `STAND_BACK_S` AT MOST, the arm's word the answer (#668): an arm at
+    rest is no hand out, and a step aside asked as it came home took them
+    for the walker, under which the standing posture never moves."""
     yield from self.mission.to_stand_routine()
-    self.reach.retreat(side)
     falls = self.mission.falls
+    if not (yield from self.mission.let_go_routine((side,))):
+      return "fell"
+    self.reach.retreat(side)
     for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
       if self.mission.falls != falls or self.reach.home(side):
         break
       yield STILL
-    while self.mission.falls == falls and not self.stand.settled:
+    if self.mission.falls == falls:
+      yield from self.mission.to_stand_routine(getup=False)
+    for _ in range(int(round(STAND_BACK_S / self._m.opt.timestep))):
+      if self.mission.falls != falls or self.stand.settled:
+        break
       yield STILL
     if self.mission.falls != falls:
       return "fell"
@@ -701,10 +785,15 @@ class HumanoidBody(Body):
       waited += GRIP_READ_S
 
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
-    """Its D435's points, each frame placed through its pelvis in its model
-    of itself (posed off its encoders and IMU) and its stance: the camera
+    """`depth_pictures`' points, one cloud."""
+    pictures = yield from self.depth_pictures(width, height, min_z, frames, apart)
+    return np.concatenate([p.points for p in pictures]) if pictures else np.zeros((0, 3))
+
+  def depth_pictures(self, width, height, min_z, frames=1, apart=0.1):
+    """Its D435's frames, each placed through its pelvis in its model of
+    itself (posed off its encoders and IMU) and its stance: the camera
     rides the waist, its frame posed off the waist's reading."""
-    from pluggybot.perception.depth import DepthCamera
+    from pluggybot.perception.depth import DepthCamera, DepthPicture
     key = (int(width), int(height), float(min_z))
     if getattr(self, "_depth", (None,))[0] != key:
       self._depth = (key, DepthCamera(self._m, self.handle, width=key[0], height=key[1],
@@ -717,13 +806,20 @@ class HumanoidBody(Body):
       yield from self.hold_routine(apart)
       self.reach._pose()
       sm = self.reach.self_model
-      pts = cam.frame(self._d, dict(zip(hm.WAIST, sm.q[sm.waist]))).points
+      joints = dict(zip(hm.WAIST, sm.q[sm.waist]))
+      got = cam.frame(self._d, joints)
       rot = np.zeros(9)
       mujoco.mju_quat2Mat(rot, sm.d.qpos[3:7])
-      inside = pts @ rot.reshape(3, 3).T + sm.d.qpos[0:3]
+      rot = rot.reshape(3, 3)
+      inside = got.points @ rot.T + sm.d.qpos[0:3]
       x, y, yaw = self.stance
-      out.append(inside @ _rz(yaw).T + [x, y, 0.0])
-    return np.concatenate(out) if out else np.zeros((0, 3))
+      turned = _rz(yaw)
+      origin, mat = cam.mount.pose(joints)
+      out.append(DepthPicture(z=got.z, points=inside @ turned.T + [x, y, 0.0],
+                              eye=(rot @ origin + sm.d.qpos[0:3]) @ turned.T + [x, y, 0.0],
+                              turn=turned @ rot @ mat, focal=cam.focal_px, near=cam.min_z,
+                              reach=cam.max_z, noise_k=cam.noise_k))
+    return out
 
   def _report(self, rep: dict) -> dict:
     """A carry's or a pull's report (`Reach.report`), its stance frame's
@@ -818,12 +914,17 @@ class HumanoidBody(Body):
     motion at `STEP_V` (`BACK_V` backing up), or the one and then the other
     where the walker would not walk that way (`_step_walks`) -- and stands:
     a walk stops once what its legs reckon it has walked, and its speed times
-    `STEP_STOP_S`, reach its length, so a stride, about 10 cm, is the least
-    it goes. Its legs are the walking policy's meanwhile. Returns how it
-    ended (`why`: "stepped", "holding" -- a hand holds something, and it
-    does not move -- "blocked", "fell", "out of time"), in how long, and
-    where its stance went, by its own reckoning, in the stance frame it
-    stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
+    `STEP_STOP_S`, reach its length, so a stride, about 5 cm of the
+    stance's, is the least it goes (asked under `STEP_SHORT_M` a walk may
+    take none). Its legs are the walking policy's meanwhile. Returns how it
+    ended (`why`: "stepped", "too short" -- the walk its legs reckon went
+    under `STEP_LEAST_M`, asked at least that -- "turned short" -- its feet
+    held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
+    "holding" -- a hand holds something, and it does not move -- "blocked"
+    -- its walk got nowhere, or kept off another robot as a walk does
+    (`_kept_off`, #670: then `keptOff` says how) -- "fell", "out of time"), in
+    how long, and where its stance went, by its own reckoning, in the stance
+    frame it stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
     ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
     correction is no step, and the band's matcher at its station, its
     corrections walked as steps, stopped a step to the seat 3.6 cm inside it
@@ -834,6 +935,23 @@ class HumanoidBody(Body):
     t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
     if any(self.gripped(s) for s in hm.SIDES):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
+    walks = _step_walks(ahead, left)
+    # ...nor, any of its walks heading nearer another robot it would stand
+    # too near as that walk begins (`_kept_off`), turns or hands its legs
+    # over: refused at its walk, each such step took 1.3 s and moved its
+    # feet (#670). Its walks' ways and starts as asked, after its turn.
+    c, s = math.cos(turn), math.sin(turn)
+    at = (0.0, 0.0)
+    for a_, l_ in walks:
+      wa, wl = c * a_ - s * l_, s * a_ + c * l_
+      n = math.hypot(wa, wl)
+      kept = self._kept_off(wa / n, wl / n, 0.0, math.inf, at)
+      if kept is not None:
+        return {"why": "blocked", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0,
+                "keptOff": self._kept_said(kept)}
+      at = (at[0] + wa, at[1] + wl)
+    if abs(turn) > TURN_STOP_RAD:
+      patience += TURN_CLOSE_S
 
     def over() -> str | None:
       if mi.falls != falls:
@@ -846,34 +964,44 @@ class HumanoidBody(Body):
       # hand-over outlasted `STEP_STUCK_S` (#525)
       yield from mi.to_walk_routine()
       why = over() or why
-    # the turn, its heading counted unwrapped: wrapped, one past pi never ended
-    heading, turned = by_legs(mi.pose)[2], 0.0
-    while (why == "stepped" and abs(turn) > TURN_STOP_RAD
-           and turned * math.copysign(1.0, turn) < abs(turn) - TURN_STOP_RAD):
-      yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, turn))
-      now = by_legs(mi.pose)[2]
-      turned += math.remainder(now - heading, 2 * math.pi)
-      heading = now
-      why = over() or why
+    if why == "stepped" and abs(turn) > TURN_STOP_RAD:
+      why = yield from self._turn_routine(turn, over, by_legs, s0[2])
     # ⚠ A TURN IS TAKEN AS ON THE SPOT: its feet shuffle round, the stance
     # truly moves 2-6 cm and the odometry is 3-7 cm off over it (turns of
     # 17-86 deg) -- so the step's move is the walks' alone, measured from
     # where the turn left the belief
     s_mid = by_legs(self.stance)
-    for a_, l_ in _step_walks(ahead, left):
+    kept = None
+    for a_, l_ in walks:
       if why == "stepped":
-        why = yield from self._walk_routine(a_, l_, over, by_legs)
+        # ...each walk reading every scan the step has taken, its hand-over's
+        # and its turn's included: standing still, the LIDAR takes none
+        why, kept = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
     yield from mi.to_stand_routine()
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
       yield STILL
     if mi.falls != falls:
       why = "fell"
+    if why == "blocked" and kept and kept["by"] == "keep":
+      # ...how far off the robot it kept off stands now, its stride's carry
+      # and settle walked
+      px, py, _ = mi.pose
+      bodies = mi._bodies()
+      if kept["of"] < len(bodies):
+        b = bodies[kept["of"]]
+        kept["m"] = round(math.hypot(b.x - px, b.y - py), 3)
     x1, y1, yaw1 = by_legs(self.stance)
     if not length:
       x1, y1 = s_mid[0], s_mid[1]
     d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
+    # ...and a walk its own legs reckon went nowhere did not walk (#649)
+    if why == "stepped" and length >= STEP_LEAST_M:
+      way = _rz(s_mid[2]) @ np.array([ahead / length, left / length, 0.0])
+      if float((x1 - s_mid[0]) * way[0] + (y1 - s_mid[1]) * way[1]) < STEP_LEAST_M:
+        why = "too short"
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
-            "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi)}
+            "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
+            **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {})}
 
   def _by_legs(self):
     """A pose of the belief's, (x, y, heading), as the legs' reckoning alone
@@ -887,11 +1015,66 @@ class HumanoidBody(Body):
       return pose[0] - float(d[0]), pose[1] - float(d[1]), pose[2] - float(d[2])
     return by_legs
 
-  def _walk_routine(self, ahead, left, over, by_legs):
+  def _turn_routine(self, turn, over, by_legs, s0):
+    """A step's turn, `turn` rad from the heading `s0` its stance had as
+    the step began (`TURN_BIG_RAD`'s note): over `TURN_BIG_RAD` the
+    walker's own turn first, as before, on its pelvis's heading; then
+    short pulses closed on the stance's own heading, read after a settle, until
+    it is within `TURN_TOL_RAD`, at most `TURN_PULSES`. Returns "stepped",
+    "turned short" (its pulses spent, still `TURN_MISS_RAD` off), or what
+    `over` says."""
+    mi, dt, why = self.mission, self._m.opt.timestep, "stepped"
+    # the stance's heading counted unwrapped, from where it stood: wrapped,
+    # one past pi never ended
+    last = by_legs(self.stance)[2]
+    done = math.remainder(last - s0, 2 * math.pi)
+
+    def seen() -> None:
+      nonlocal last, done
+      now = by_legs(self.stance)[2]
+      done += math.remainder(now - last, 2 * math.pi)
+      last = now
+    settle = TURN_SETTLE_S
+    if abs(turn) > TURN_BIG_RAD:
+      heading, turned = by_legs(mi.pose)[2], 0.0
+      while why == "stepped" and turned * math.copysign(1.0, turn) < abs(turn) - TURN_STOP_RAD:
+        yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, turn))
+        seen()
+        now = by_legs(mi.pose)[2]
+        turned += math.remainder(now - heading, 2 * math.pi)
+        heading = now
+        why = over() or why
+      settle = TURN_SETTLE_BIG_S
+    pulses = 0
+    while why == "stepped":
+      for _ in range(int(round(settle / dt))):
+        yield from mi._twist_routine(0.0, 0.0, 0.0)
+        seen()
+        why = over() or why
+        if why != "stepped":
+          return why
+      togo = turn - done
+      if abs(togo) <= TURN_TOL_RAD:
+        break
+      if pulses == TURN_PULSES:
+        return "turned short" if abs(togo) > TURN_MISS_RAD else why
+      for _ in range(int(round(_turn_pulse(togo) / dt))):
+        yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, togo))
+        seen()
+        why = over() or why
+        if why != "stepped":
+          return why
+      pulses, settle = pulses + 1, TURN_SETTLE_S
+    return why
+
+  def _walk_routine(self, ahead, left, over, by_legs, since):
     """One straight walk of a step, its legs the walker's: "stepped" once
     what its legs reckon it has walked (`by_legs`), and its speed times
     `STEP_STOP_S`, reach its length; "blocked" where it gets nowhere in a
-    window, its first `STEP_START_S`; else what `over` says."""
+    window, its first `STEP_START_S`, or where it keeps off another robot
+    (`_kept_off`, judged where its stride's carry would take it, off the
+    scans taken since `since`, the step's start); else what `over` says.
+    Returns (why, how it kept off, or None)."""
     mi, dt = self.mission, self._m.opt.timestep
     length = math.hypot(ahead, left)
     x0, y0, yaw = by_legs(mi.pose)
@@ -906,15 +1089,64 @@ class HumanoidBody(Body):
       speed += min(1.0, dt / 0.2) * ((now - went) / dt - speed)
       went = now
       if went + max(speed, 0.0) * STEP_STOP_S >= length:
-        return "stepped"
+        return "stepped", None
+      kept = self._kept_off(ux, uy, max(speed, 0.0) * STEP_STOP_S, since)
+      if kept is not None:
+        return "blocked", kept
       if float(self._d.time) - mark[0] >= window:
         if went - mark[1] < STEP_STUCK_M:
-          return "blocked"
+          return "blocked", None
         mark, window = (float(self._d.time), went), STEP_STUCK_S
       why = over()
       if why is not None:
-        return why
+        return why, None
       yield from mi._twist_routine(pace * ux, pace * uy, 0.0)
+
+  def _kept_off(self, ux, uy, carry, since, at=(0.0, 0.0)):
+    """A STEP KEEPS OFF ANOTHER ROBOT AS A WALK DOES (#670; SimNotes,
+    "Two robots at the counter"): its walk going (`ux`, `uy`) in the trunk's
+    frame from `at` (m, in that frame; where it stands, or where an earlier
+    walk of the step will leave it), `carry` m more were it stopped now, None
+    while it is clear -- else how it keeps off, `by`:
+
+    - "keep": where its carry would take its middle is inside the disc a
+      walk's plan keeps round that robot's middle (`Navigator._cells`, as
+      `Body.others` answers it: its reported pose standing or walking, its
+      body lying, resting or dead) and the walk heads nearer that middle --
+      begun inside, a step only goes away (a walk out of a disc goes out);
+      `m` between the middles now, `keepM` the disc, `of` which robot;
+    - "body": the newest scan since `since` has that robot's body inside
+      the walks' front stop turned to the way (`HumanoidMission.in_front`),
+      its carry farther on, `m` along it. ⚠ ITS RETURNS ALONE
+      (`Lidar.exclude_robot`'s split, #316, as the walks' depth camera holds
+      for its peer channel's alone, #328): the work is nearer than the
+      walks' stop -- stood at the chest's and the drawer's work spots, their
+      own faces read 0.35-0.38 m ahead, inside its 0.40, and the door's and
+      the cube's 0.42-0.46."""
+    mi = self.mission
+    px, py, th = mi.pose
+    c, s = math.cos(th), math.sin(th)
+    vx, vy = c * ux - s * uy, s * ux + c * uy
+    qx = px + c * at[0] - s * at[1] + vx * carry
+    qy = py + s * at[0] + c * at[1] + vy * carry
+    for i, b in enumerate(mi._bodies()):
+      keep = mi._cells(b) * mi.grid.resolution
+      dx, dy = b.x - qx, b.y - qy
+      if math.hypot(dx, dy) < keep and vx * dx + vy * dy > 0.0:
+        return {"by": "keep", "m": round(math.hypot(b.x - px, b.y - py), 3),
+                "keepM": round(keep, 2), "of": i}
+    seen = mi.peer_returns
+    if seen is not None and seen[0] >= since and len(seen[2]):
+      near = mi.in_front(seen[1] - math.atan2(uy, ux), seen[2], mi.FRONT_STOP_RANGE + carry)
+      if len(near):
+        return {"by": "body", "m": round(float(near.min()), 3)}
+    return None
+
+  @staticmethod
+  def _kept_said(kept: dict) -> dict:
+    """How a step kept off another robot, as its record says it: which robot
+    it was is the step's own business."""
+    return {k: v for k, v in kept.items() if k != "of"}
 
   # ---- senses --------------------------------------------------------------
 

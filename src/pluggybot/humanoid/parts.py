@@ -323,10 +323,16 @@ class Gripper:
   def housing_kg(self) -> float:
     return self.mass - 2 * self.finger_kg
 
-  #: The jaws' reflected inertia, kg: its motor's rotor through its gear is
-  #: unpublished. Stated so the 2 ms step stays stable at the stiffness a
-  #: squeeze commands (`GRIP_KP`); the sheet's closing time is the check.
-  jaw_armature: float = 0.2
+  #: The jaws' reflected inertia, kg a jaw: its motor's rotor, behind its
+  #: 1:25 reduction and a 7 mm pinion, is unpublished (through 1:25 any
+  #: rotor its size reflects more). Stated so the drive's line holds on a 2
+  #: ms step: a jaw's mechanical time constant on it -- its inertia over the
+  #: line's back-EMF, K^2/R (`dcmotor`) -- at least a step. At 0.2 it was
+  #: 0.13 ms, and MuJoCo, integrating the drive explicitly while it is
+  #: clipped, flipped its force between its clips every step: the jaws ran
+  #: at up to 8x the line's top speed, and from 40 N batted a fork's handle
+  #: and never shut on it (#628). The sheet's closing time is the check.
+  jaw_armature: float = 3.6
 
   def dcmotor(self, bus_v: float = BUS_V_NOMINAL) -> dict:
     """The actuated jaw's driver as a position-mode `dcmotor`, as a joint's
@@ -347,7 +353,9 @@ class Gripper:
 #: and damping (it takes both in each command); stiff enough that shut on
 #: anything wider than 1 cm short of closed it pushes at its clip -- a
 #: servo held at its stall, the claw's lesson (#407: below it, a held cube
-#: crept out of the jaws).
+#: crept out of the jaws). Nearer closed it pushes its spring's, short of a
+#: hard squeeze, and a grip's word judges the squeeze against that
+#: (`arms.pushes`, #646).
 GRIP_KP, GRIP_KD = 24000.0, 300.0
 
 #: Unitree Dex1-1 (Standard), the parallel gripper of Unitree's G1, H2 and

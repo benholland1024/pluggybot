@@ -223,6 +223,7 @@ def test_a_set_outs_places_are_not_its_pieces_hidden_draw():
 
 
 def test_the_set_outs_world_is_its_table_on_legs_its_chair_away_and_its_pieces_resting():
+  from pluggybot.home import world as hw
   model = ct.model_of(ct.table_set_out(0))
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
@@ -231,7 +232,7 @@ def test_the_set_outs_world_is_its_table_on_legs_its_chair_away_and_its_pieces_r
   assert f"dining_table_{ct.TABLE_I}_chair_1_geom" not in names
   assert f"dining_table_{ct.TABLE_I}_chair_0_geom" in names
   top = data.geom_xpos[model.geom(f"dining_table_{ct.TABLE_I}_geom").id][2]
-  assert top + ct.TABLE_TOP_T / 2 == pytest.approx(ct.TABLE_H)
+  assert top + hw.TABLE_TOP_T / 2 == pytest.approx(ct.TABLE_H)
   for _ in range(250):
     mujoco.mj_step(model, data)
   for p in dw.PIECES:
@@ -251,7 +252,7 @@ def test_a_piece_reads_lifted_with_hysteresis_and_no_flag_carries_its_load():
     mujoco.mj_forward(model, data)
     act.sense(model, data)
     assert act.flags["cupLifted"] is want, z
-  assert set(act.flags) == {f"{p}Lifted" for p in dw.PIECES}
+  assert set(act.flags) == {"setOut", *(f"{p}Lifted" for p in dw.PIECES)}
   data.qpos[cup + 2] = 0.05
   mujoco.mj_forward(model, data)
   act.sense(model, data)
@@ -261,9 +262,9 @@ def test_a_piece_reads_lifted_with_hysteresis_and_no_flag_carries_its_load():
 
 
 def test_the_dishware_is_shaped_for_the_gripper_it_meets():
-  """Each piece fits the Dex1-1's 90 mm and reads held in it: pinched at 90
-  N, a 6 mm wall read as the jaws shut on nothing (its gap under
-  `HELD_GAP_M`)."""
+  """Each piece fits the Dex1-1's 90 mm, and jaws stopped on it read clear
+  of closed: 1.5 `HELD_GAP_M` is a margin chosen, never a limit found (a 6
+  mm wall read held at all 32 of our reference's grips, #646)."""
   from pluggybot.humanoid import arms, parts
   assert dw.PLATE_WALL_T >= 1.5 * arms.HELD_GAP_M
   assert 2 * dw.HANDLE[1] >= 1.5 * arms.HELD_GAP_M

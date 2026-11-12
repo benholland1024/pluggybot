@@ -98,13 +98,16 @@ class KeepClear(NamedTuple):
   the pair says so, also WHO it is and whether it is RESTING (issue #415):
   a robot resting can be asked to make way (`Body.ask_way`). And whether it
   is DEAD (issue #455): it lies where it died until the world stands it
-  up, so it is neither waited for nor asked."""
+  up, so it is neither waited for nor asked. And whether, standing or
+  walking, it is where the asker's LIDAR SAW it (#675): at its body, never
+  where it says it is."""
   x: float
   y: float
   down: bool = False
   root: str = ""
   resting: bool = False
   dead: bool = False
+  seen: bool = False
 
 
 class Body(abc.ABC):
@@ -270,7 +273,8 @@ class Body(abc.ABC):
   def footprint_centre(self) -> tuple[float, float]:
     """The middle of the floor its body covers, off the true geometry --
     read to act only for a robot lying still, fallen, resting or dead, or
-    stepping aside for the one that reads it (issues #365, #455)."""
+    stepping aside for the one that reads it (issues #365, #455), or one
+    its LIDAR sees (#675, `seen_at`)."""
 
   @abc.abstractmethod
   def as_seen(self, x: float, y: float) -> tuple[float, float]:
@@ -282,6 +286,20 @@ class Body(abc.ABC):
     """`as_seen` undone: a point in its own map back to the true world
     point (issue #455). How a way it plans reaches another robot, told
     relative to that robot's body as this one sees it."""
+
+  @abc.abstractmethod
+  def seen_at(self, root: str) -> float | None:
+    """When its LIDAR last returned points off the robot `root` -- its
+    scans' split, `Lidar.exclude_robot`'s (#316) -- sim s; None where it
+    never has, or its scans since have missed it for longer than
+    `navigator.SEEN_HOLD_S` (#675): what keeps that robot, standing or
+    walking, at its body (`HubLifecycle.keep_clear`). Standing still, a
+    hand at work, it takes no scan, and its newest scans' word stands."""
+
+  #: When its body last went anywhere -- commanded to move, getting up, or
+  #: warped (a start, a stand-up) -- sim s; a hand at work is no move. How
+  #: another robot knows one it saw has not moved since (#675).
+  moved_at: float
 
   @abc.abstractmethod
   def level(self) -> bool:
@@ -527,10 +545,10 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def release_routine(self, side: str) -> Routine:
-    """A hand back out along its way in, and its arm home: returns "home"
-    once its drivers read it there (#539), else why not -- "fell" (a fall
-    let go of it) or "held" (not home in the body's time: something holds
-    it)."""
+    """A hand back out along its way in, and its arm home -- its gripper
+    opened first, whatever it says it holds (#669): returns "home" once its
+    drivers read it there (#539), else why not -- "fell" (a fall let go of
+    it) or "held" (not home in the body's time: something holds it)."""
 
   @abc.abstractmethod
   def grip_routine(self, side: str, closed: bool, force: float | None = None) -> Routine:
@@ -576,10 +594,14 @@ class Body(abc.ABC):
     """THE STEP (#525): its hands home and empty, the body turns `turn`
     rad on the spot (left, +) and walks `ahead` m and `left` m in the frame
     it then stands in (negative backs up, or goes right), and stands still
-    -- as the body walks: the humanoid's least step is a stride. Returns how it ended (`why`:
-    "stepped", "holding" -- a hand holds something, and nothing moves --
-    "blocked", "fell", "out of time"), in how long, and where its stance
-    went by its own reckoning, in the stance frame it stood in before
+    -- as the body walks: the humanoid's least step is a stride, and a walk asked less may
+    take none. Returns how it ended (`why`:
+    "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
+    turn that could not get there -- "holding" -- a hand holds something, and nothing
+    moves -- "blocked" -- its walk got nowhere, or kept off another robot as a
+    walk does (#670), and then `keptOff` says how -- "fell", "out of time"), in
+    how long, and where its stance went by its own reckoning, in the stance
+    frame it stood in before
     (`dx`, `dy`, m; `turn`, rad): what a place read before the step is
     turned into."""
 
@@ -598,6 +620,15 @@ class Body(abc.ABC):
     `apart` s apart: the points it saw, (k, 3), the believed world frame,
     through its camera's pose in its model of itself (#493: the humanoid's
     D435). Its own body never in them."""
+
+  @abc.abstractmethod
+  def depth_pictures(self, width: int, height: int, min_z: float, frames: int = 1,
+                     apart: float = 0.1) -> Routine:
+    """`depth_cloud`, each frame's picture beside its points: a list of
+    `perception.depth.DepthPicture`, the frames in the order they were
+    taken, for a caller that asks where the camera stopped seeing (#636:
+    a cloud alone cannot say). It looks exactly as `depth_cloud` looks:
+    its points, in its order, drawing the same noise."""
 
   @abc.abstractmethod
   def hand_at(self, side: str) -> tuple[float, float, float]:
@@ -893,6 +924,10 @@ class StubBody(Body):
     self.last_drive = None
     self.working = False
     self.docked = self.resting = False
+    #: ...when it last moved, and when its LIDAR last saw each other robot,
+    #: by root (a test sets them; `seen_at` answers them as they are)
+    self.moved_at = 0.0
+    self.sightings: dict[str, float] = {}
     self.others = []
     self.ask_way = None
     #: whether it makes way when asked (a test sets it), and every ask:
@@ -1011,6 +1046,9 @@ class StubBody(Body):
 
   def from_seen(self, x, y):
     return x, y
+
+  def seen_at(self, root):
+    return self.sightings.get(root)
 
   def level(self) -> bool:
     w, x, y, z = self.attitude
@@ -1136,6 +1174,7 @@ class StubBody(Body):
   def release_routine(self, side):
     self.hands.pop(side, None)
     self.grips.pop(side, None)
+    self.shut[side] = False
     return "home"
     yield
 
@@ -1194,6 +1233,11 @@ class StubBody(Body):
     """No camera: nothing seen, after the time looking takes."""
     yield from self._wait(frames * apart)
     return np.zeros((0, 3))
+
+  def depth_pictures(self, width, height, min_z, frames=1, apart=0.1):
+    """No camera: no pictures, after the time looking takes."""
+    yield from self._wait(frames * apart)
+    return []
 
   def hand_at(self, side):
     """Where it sent the hand; hanging at its side, where it sent none."""

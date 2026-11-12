@@ -142,8 +142,10 @@ def test_the_blocking_twin_and_the_ticked_routine_are_one_trajectory():
 #: ...and `_until_stood_up_routine` (issue #348), which drives its argument
 #: as `yield from` would and is itself a routine the fence checks.
 #: ...each drives the routine it is handed (`steps._felt_routine`, #493).
+#: ...and `steps._until_down_routine` (#671), which closes it at a fall or
+#: a death.
 ROUTINE_DRIVERS = {"run", "Step", "_until_stood_up_routine", "_felt_routine",
-                   "_guarded_routine"}
+                   "_guarded_routine", "_until_down_routine"}
 
 
 def _routine_calls(tree):

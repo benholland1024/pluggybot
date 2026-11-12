@@ -51,7 +51,7 @@ ATTEMPTS = 5
 #: shut its jaws on nothing.
 KNOB_TAG = CHEST_TAG_IDS[0]
 KNOB_MM = 2000 * ch.KNOB
-#: The head camera's picture the mind is shown, pixels.
+#: The navigation camera's picture the mind is shown (`Body.head_camera`), pixels.
 PICTURE_W, PICTURE_H = 640, 480
 #: The bar (call 3, Ben, 2026-10-18): this share of the held-out chests
 #: opened and set down within this many tries.
@@ -181,7 +181,7 @@ def procedure_skill(proc: lang.Procedure | None, facts: WorldFacts, out: dict, l
 
 
 def head_picture(task: at.Task) -> bytes:
-  """The head camera's picture at `task`'s set-out, a JPEG: what the robot
+  """The navigation camera's picture at `task`'s set-out, a JPEG: what the robot
   sees as it stands before its first try."""
   import io
   import mujoco

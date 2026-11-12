@@ -607,6 +607,11 @@ A `charge` row per attempt, with the pack fraction at it, by cause —
 - `voluntary` — the mind chose `charge`. Nothing can refuse one since
   `TOP_UP_BELOW` went (#135), so chosen is honoured.
 
+An attempt is an approach: a charge the run's end cut short and the next
+run's mind carried on, its plug still in, walks nowhere and is no row
+(#654), though the ledger books a `charge` row at each end of it (below 85 %,
+`ok: false`, its gain in `gainedWh`).
+
 The fractions at the voluntary charges are a distribution, never a mean: a
 model that tops up at 0.74 every time and one that spreads from 0.30 to 0.74
 are different animals.
@@ -1155,7 +1160,11 @@ again 32 times and never used its library. The KEPT protocol
 - **the flight**: each held-out chest a copy of that robot, frozen, up to 5
   tries; the bar is read there, 80 % within 3 of the chest's own tries.
   ⚠ It STOPS EARLY once the bar is out of reach (`out_of_reach`: a seventh
-  of 32 chests failed within 3), the curve read off the chests flown.
+  of 32 chests failed within 3), the curve read off the chests flown. The
+  chests still in flight are killed, and what each one's calls spent is
+  written apart from the rows, off the journal it kept of them
+  (`practice.py`'s `killed.jsonl`, #560): its answered calls summed and
+  priced, the call it had open counted and never priced.
 Alongside it, feedback a procedure is debugged by, none of it the chest's:
 a sensor written as Python is refused naming its `read`, an operator the
 language lacks naming the four it has; a reach out of reach says whether
@@ -1884,8 +1893,8 @@ at set-outs 0-31, no fall**; 32 of 32 over #618's held-out set-outs (seed
 of 32 over the practice arms' held-out set-outs (seed 402613269) -- 140 of
 144. `TABLE_STANCES` on the same pod laid none (cup 21, plate 18, fork 0 at
 0-31; 19, 11, 0 held out). So by §7's ladder A the job is no longer a
-defect; it stays unoffered, Ben's call on #615 (the restaurant's tables
-first).
+defect. It was offered in the restaurant once the reference passed from the
+tour (Challenges.md §12; SimNotes, "The lay from the tour").
 
 **Two fresh practice arms on the table** (#560). The FRESH protocol
 (`practice.py --job table --held-out 32 --early-stop`): a fresh robot a
@@ -1942,10 +1951,380 @@ near a fresh mind gets to a skill that is there. At `343e273`:
   provider over one night; a fresh robot learns within a set-out, and its
   lost first tries left it 4 at most -- the KEPT protocol, practice first, is
   the other reading. ⚠ The dollars recorded are a floor: the early stop
-  kills the set-outs in flight, up to 8 an arm here, and their spend never
-  reaches a row (estimated by the hours they ran, at each arm's own rate).
+  killed up to 8 set-outs an arm in flight before a set-out's calls were
+  journaled (§4), so theirs is estimated by the hours they ran, at each
+  arm's own rate.
   Spend: about $17 -- the arms $8.50 recorded and ~$6.60 killed in flight,
   the first run ~$1.80 ($0.23 recorded); our procedure cost no tokens.
+
+**The table's arms again, the mind asked to think less: stopped at the
+probe** (#560, after #627). Ben's answer 4 on #560 (2026-11-07): the arms
+fly again with the mind asked to think less by its reasoning EFFORT, a
+setting of the model -- never a smaller token budget or source cap -- and
+KEPT or a stronger model only if that fails. `practice.py --effort
+low|high|max` asks it (each request's `reasoning_effort`; a row's
+`run.effort`; read, each effort's rows apart). The plan, written first: the
+effort probed on the table's first turn, two FRESH arms at the highest
+whose answers all finish well inside the 128,000 tokens and the router's 20
+minutes, #626's bar and set-outs, on the release's commit (`fccc6cd`) --
+and a stop if the best effort still cuts answers off. The probe: the first
+turn as the practice asks it (its prompt, the job and the head camera's
+picture, at held-out set-out 266354185 of seed 402613269), one answer a
+call, no repair, the calls at once:
+
+| the mind, effort | asked | answered: tokens out, wall | cut at 128,000 tokens | closed mid-answer |
+|---|---|---|---|---|
+| GLM-5.3-Flash on baseten (the deployed mind), `low` | 8 | 5: 18-72k (median 49k), 2.7-10.4 min | 2, at 17 and 19 min | 1, at 7.7 min |
+| ... `high` | 6 | none | 1, at 19 min | 5, at 7.7-20 min (42-111k) |
+| ... `max` (its card's default) | 3 | none | | 3, at 7.6-20 min (65-126k) |
+| ... its provider's own: #626's 14 first calls | 14 | none | 4 | 10, at 20 min |
+| GLM-5.3-Flash on deepinfra, `low` | 3 | 2: 48k and 54k, 8-9 min | 1, at 16 min | |
+| DeepSeek-V4.1-Flash on deepinfra, `low` | 4 | 4: 30-54k (median 37k), 2.9-5.1 min | | |
+| Kimi-K3 on deepinfra, its default (`max`) | 2 | 2: 72k and 96k, 10.8 and 12.9 min | | |
+| ... `low` | 2 | 2: 5k and 9k, 2.1 and 2.3 min | | |
+
+- **No effort keeps the deployed mind's first answer inside the limits, so
+  the arms did not fly.** Even at `low`, 2 of 8 thought to the cap and wrote
+  nothing, and 1 of 3 on deepinfra: `low` thinks less -- a median of 49k
+  where nothing at `high` had finished by 42-88k -- but here the first
+  answer is a whole place's plan (on #604's live decisions, `low` was 1.4k).
+  The streams ran at 91-141 tokens a second, so the router's 20 minutes ends
+  a think at 110-170k: a cap past 128,000 would buy the fastest streams
+  40k at most.
+- **The provider closed 7 of the deployed mind's 17 streams mid-answer
+  before the router's 20 minutes** (at 7.6-11.7 min, three in one second),
+  where 3 of #626's 208 calls closed early. A close loses the reply at any
+  effort.
+- **DeepSeek-V4.1-Flash at `low` answered all 4**, the most 54k tokens in 5
+  minutes (Overseer.md §6's stronger candidate): 4 answers, one afternoon.
+- **Kimi-K3 answered all 4 too** (probed after, on Ben's answer on #639): at
+  `low` 5-9k tokens in about 2 minutes, at its default 72-96k in 11-13,
+  inside the limits but not well inside; at $2.85/$14.25 a Mtok, about
+  $0.12 and $1.21 a call. Its card says it reasons on turns handed back
+  whole, its reasoning included, which a practice never does.
+- **No answer compiled as written** (15 of 15). All 11 of GLM's and
+  DeepSeek's named a tag in quotes, `spot("93")` -- the language says
+  `spot(tag)` and never that a tag is a number -- and none of Kimi-K3's 4;
+  11 of the 15 asked a budget past its 200 steps (220-50,000; its example
+  says only "both capped"), 5 a first def taking arguments, 4 a source past
+  the 3,000 characters (#640 has the three the text leaves out). In an arm
+  each goes back with its reasons, two repairs a try: on #626's night 52 of
+  53 repairs were answered, a median of 4.7k tokens.
+- **Our procedure over the same 32 set-outs at this commit: 29 of 32**, no
+  fall (30 on #626's pod, before #635 aimed it at its grips): a fork lost
+  from the jaws in its carry's last pull and thrown off the table, a fork
+  never carried (the left arm held at the plate's withdraw), and a cup lost
+  in its carry after its lift stopped out of reach with the plate's tag out
+  of view.
+- **What it cannot say**: first turns only, on one set-out, one afternoon,
+  and a try's later turns may be no shorter (at its provider's effort, 36
+  of #626's 56 were cut, beside all 14 first ones). Spend: $0.88 for the
+  probe and $2.66 for Kimi-K3's; no arm flew on the deployed mind.
+
+**Two fresh arms on DeepSeek-V4.1-Flash at `low`** (#560; Ben's answers on
+#639, 2026-11-07): the mind that answered the probe's first turn every time,
+the bar and set-outs #626's, unchanged and written first (26 of 32 within 3,
+no try that fell; seed 402613269), on staging `f7c7a94` (the release
+`fccc6cd` with the flag), the language as served (#640 fixes its gaps):
+
+| arm | set-outs flown | held out within 3 | within 5 | pieces laid in its 35 tries | tries that fell | tries with no procedure | cost |
+|---|---|---|---|---|---|---|---|
+| deepseekA | 7 of 32; stopped early | **0 of 7** [0.00, 0.35] | 0 | 4: 3 cups, a fork | 3 | none | $0.98 recorded, ~$1.94 |
+| deepseekB | 7 of 32; stopped early | **0 of 7** [0.00, 0.35] | 0 | 5: 3 cups, 2 forks | 4 | none | $0.90 recorded, ~$1.53 |
+| #626's tableA and tableB, the deployed mind | 7 and 7 | 0 and 0 | 0 and 0 | 1, a cup | 6 and 3 | 15 and 16 | $8.50 recorded, ~$15 |
+| our procedure, the 9 set-outs they flew | 9 | 8 laid | | | 0 | | none |
+
+- **The mind's side held.** Every one of the 98 calls was answered, none
+  cut at the cap or closed: a median of 25-27k tokens and 2.6 minutes a
+  call, the most 107k and 12 minutes. No try went without a procedure,
+  where #626's arms lost 31 of 70 tries. Every first answer was refused for
+  #640's gaps (13 of 14 a tag in quotes, 13 a budget past its caps), and
+  each was answered from its reasons: 28 of the 98 calls were repairs, and
+  none was lost.
+- **The body's side failed every try.** By #560's reader, which ranks a
+  fall ahead of what went wrong before it (in the run's own order, given
+  with the KEPT practice below, a fall is 2 of the 70), each of the 70: a
+  reach or a carry out of reach (18), a grip that closed on nothing (18), a
+  carry that lost its piece from the jaws (12), a fall (7), a reach given
+  only one of its two directions (4), a step that got nowhere (3), and 8
+  others. In 70 tries no plate was laid; 6 cups and 3 forks were. The plate
+  is the piece the grades found let fall or knocked over, 15 of 19 times.
+- **The grips**: 56 closed on nothing, in 34 of the 70 tries, an `if`'s
+  test or not. Of those whose squeeze the source names, 33 of 53 at 40 N or
+  more closed on nothing and 2 of 8 under it. The arms asked 50-120 N; our
+  procedure squeezes the fork at 25 N. ⚠ Taken apart since (#628; SimNotes,
+  "The gripper's drive on its line"): every try flown again from its
+  set-out, noise and source on the tree before the fix, each grip landed
+  again from the state it began
+  in under the drive as it was and as fixed, of the 52 at 40 N and more
+  that closed on nothing 13 were the drive's stall -- every one the plate's
+  wall at 100-120 N -- and 39 were misses, no piece between the jaws. Read
+  by #646's rule since (SimNotes, "A hard squeeze on something thin"), the
+  tries flown again on the fixed drive beside the rule before: 3 grips more
+  read held -- each the plate's wall at 120 N, its jaws stalled 9.2-9.7 mm
+  apart -- and their procedures went on to carry the plate; no try passed
+  under either.
+- **#631's early force stops are nearly gone**: one stop in a move's first
+  0.5 s in 70 tries, where #626's arms had 9 in 3 tries.
+- **#636's misread stands**: DeepSeek measured only 9 times in 70 tries,
+  and all 9 read the table's near end where the picture ended, 13 cm past
+  it.
+- **What it cannot say**: two fresh arms of one mind at one effort, on one
+  provider, one evening, each stopped at 7 set-outs: 14 flights of the 32.
+  Spend: $1.88 recorded and ~$1.59 killed in flight (the early stop's 8
+  set-outs an arm, by the hours they ran at each arm's own rate).
+
+**The language's gaps, re-probed** (#640, 2026-11-07): the probe's first
+turn again -- set-out 266354185 of seed 402613269, one answer a call, no
+repair, both minds at `low` -- on four texts in turn. `eaa7419` says a tag
+is named by its number, what a budget is capped at and counts, and that
+the def that runs takes no arguments; `8378d1c` words the budget's
+sentence again (whose budget counts, in verbs and seconds); `6c184d3` adds
+what a name is, which the first two showed unsaid (Ben's call); `8b46c86`,
+the one served, says the def that runs comes first -- in the example's
+comment, in the calls, and in a refusal of several defs -- which the third
+showed wanting. Each slip is counted off every reason a refusal gives and
+again off the source itself, which agree on every answer, the probe's
+above included; the last column is the answers that wrote several defs,
+and how many of those put a helper with arguments first:
+
+| mind, at `low` | text | asked | answered | compiled as written | a tag in quotes | a budget past its caps | the def that runs given arguments | a name in capitals | several defs: a helper first |
+|---|---|---|---|---|---|---|---|---|---|
+| GLM-5.3-Flash (baseten 8, deepinfra 3) | before | 11 | 7 | 0 | 7 | 5 | 4 | 3 | 5: 4 |
+| DeepSeek-V4.1-Flash (deepinfra) | before | 4 | 4 | 0 | 4 | 4 | 1 | 0 | 3: 1 |
+| GLM-5.3-Flash (baseten) | `eaa7419` | 8 | 6 | 0 | 0 | 0 | 0 | 2 | 1: 0 |
+| DeepSeek-V4.1-Flash (deepinfra) | `eaa7419` | 6 | 6 | 5 | 0 | 0 | 0 | 0 | 0: 0 |
+| GLM-5.3-Flash (baseten) | `8378d1c` | 14 | 7 | 0 | 0 | 0 | 0 | 1 | 3: 0 |
+| DeepSeek-V4.1-Flash (deepinfra) | `8378d1c` | 6 | 6 | 2 | 0 | 0 | 0 | 2 | 1: 0 |
+| GLM-5.3-Flash (baseten) | `6c184d3` | 8 | 6 | 0 | 0 | 0 | 3 | 0 | 4: 3 |
+| DeepSeek-V4.1-Flash (deepinfra) | `6c184d3` | 6 | 6 | 3 | 0 | 0 | 2 | 2 | 2: 2 |
+| GLM-5.3-Flash (baseten) | `8b46c86` | 8 | 8 | 1 | 0 | 0 | 0 | 0 | 3: 0 |
+| DeepSeek-V4.1-Flash (deepinfra) | `8b46c86` | 10 | 10 | 9 | 0 | 0 | 0 | 0 | 0: 0 |
+
+- **No tag in quotes and no budget past its caps in any of the 55 answers
+  since the first wording**, where all 11 before had the one and 9 the
+  other.
+- **The def that runs given arguments is always a helper written first,
+  Python's way**: with "no arguments" back in the example, 5 of the 11
+  answers that wrote several defs put a helper first (the def meant to run
+  last, often named `wave` after the example) and were told to give its
+  arguments defaults; told the def that runs comes first, all 3 of the
+  served text's answers of several defs did, and a refusal of one that does
+  not now says to move it up.
+- **A name in capitals** (`cX`, `T`, `L`): 5 of the 25 answers on the
+  first two texts, 2 of 12 once the text said what a name is, none of 18
+  on the served text; a refused name now says its own reason, once.
+- **What still refuses is what the text states**: a sensor written as
+  Python (`spot.x`, 20 answers, 19 of them GLM's), a source past the 3,000
+  characters (13), nesting past 4 (10), a squeeze past 120 N (2), a verb
+  inside an expression (1) and a syntax error (1). In #642's arms every try
+  had a procedure within its two repairs.
+- **The deployed mind answered 27 of 38**: 6 thought to the 128,000-token
+  cap, 2 ran into the router's 20 minutes, and 3 lost their stream to the
+  provider's HTTP 500 (19:36-19:38 UTC). DeepSeek answered all 28. A run
+  on `6c184d3` lost 13 of its 14 calls to read timeouts on both providers
+  at once (21:31-21:37 UTC) and was flown again.
+- **What it cannot say**: first turns only, on one set-out, one evening,
+  samples of 6 to 14 a mind and text, so the compile rates move with the
+  noise (DeepSeek's 5, 2 and 3 of 6, then 9 of 10); the served text's 0 of
+  18 for the def order and the capitals is one evening's. Spend: $1.83
+  recorded over 80 calls (16 lost before any count, their tokens
+  unrecorded). Rows and the readers: `~/pluggybot-training/issue-640-language/`.
+
+**The table's practice KEPT, with notes, on DeepSeek-V4.1-Flash at `low`:
+six practice set-outs, none passed, nothing kept: given up** (#560;
+set-outs 0-3 the night of 11-10, 4 and 5 the day after). #560's open box
+after the gripper's fix (#628): the KEPT protocol with the robot's own notes
+(`practice.py --job table --acquire 0-31 --notes --held-out 32 --seed
+402613269 --early-stop`), the mind and effort of the fresh arms above, and
+their bar, written first and unchanged (26 of the 32 held-out set-outs
+within 3, no try counted that fell; the set-outs pair by number with
+tableA's, tableB's, deepseekA's and deepseekB's). Set-outs 0-3 flew on
+`1d4bd21` (staging `b4074eb` with #676, #669's withdraw that opens its
+gripper first, the counter's jobs priced again and the cube offered) until
+the night's clock stopped it at set-out 3's end, and 4 and 5 on `db88140`,
+the same robot carried on. ⚠ `practice.py` has no resume: a wrapper handed
+the harness's own `acquire` all a KEPT robot carries, as the robot had it
+at set-out 3's end -- nothing kept, its notes (1,270 characters) and its
+draft (2,321) -- and counted the night's four toward the give-up and the
+16. Of what a practice flies, only YOUR BODY's text moved between the two
+trees, its prompt and job rendered on each and compared: a sentence added,
+that a `step` asked while a gripper holds something moves nothing and reads
+false, and the one before it reworded (#669's second review); the rest of
+the diff is what a restart keeps and the cube's offer, and the physics, the
+language, the grader and the set-outs are the same. The per-task record
+keeps the two commits apart. Since the fresh arms' `f7c7a94` the TABLE
+moved: its set-out stands at the served table, a top on legs, its south
+chair away (#643), and rays no longer pass through tables (#657). And the
+language's gaps (#640), the jaws' drive (#628) and a thin grip (#646),
+`measure` seen past (#636), `step`'s small turns (#649), the words of
+`pull` and `spot` (#650, #660), a readout of every name (#658) and a fall
+that ends a run (#671): so its tries compare with the fresh arms' as two
+worlds, never as one changed by a mind's notes alone. The practice is
+serial, 20-45 minutes a set-out:
+
+| arm | practice: set-outs practiced, the try each passed at | kept | held out within 3 | pieces laid in its 30 tries | tries that fell | cost |
+|---|---|---|---|---|---|---|
+| keptA | 6 (0-5): none; given up | nothing | unread | 1, a cup | 11 | $1.11 recorded |
+
+- **The mind's side held, and the language's gaps are gone**: all 46
+  calls answered, none cut or closed (a median of 31k tokens and 3.4
+  minutes a call, the most 102k and 10.1); one first answer of 6 refused
+  (nesting past 4), where all 14 of the fresh arms' were (#640), and 9
+  repairs, one for each source refused, each answered: 5 for a source past
+  the 3,000 characters, 2 for a verb inside an expression and a `return`
+  given a value, 1 for a name with a dot and 1 for the nesting.
+- **Its notes carried what the body taught.** After set-out 0, 1,453
+  characters: where each tag read, "Open hand before every reach (shut jaws
+  grip nothing: try1 fail)", and that a plate pinched at its rim and carried
+  sideways low pushed until its feet moved or it fell -- so lift high and
+  move slowly; by set-out 3's end, never to carry the plate across its body
+  and to slide it by short pulls instead. Its last 10 tries moved the plate
+  by pulls, and once by a `move_hand`, and the feet's stop, which fired in
+  7 of the first 20, fired in none of them: what one arm did, never shown
+  to follow from its notes. Two reaches toppled it in set-out 4 ("bare reach
+  that plunges topples me"), and from that set-out's fourth try 12 reaches
+  ran with a stop on the hand's downward force (`until`, 35-45 N): each
+  stopped on it and none fell, where all 5 reaches it fell in over the 30
+  tries had none; its last notes say "Never reach unguarded". Two of
+  set-out 5's runs stopped at a `spot.*` read after a `spot` that failed,
+  told "line ?" and "`spot` has not run", and the notes say to read one only
+  under a `spot` that passed. Grips that closed on nothing: 7, in 6 of the
+  30 tries, where the fresh arms had 56 in 34 of 70. `measure` was written
+  in 5 sources and ran once, and its near end, the top running off the
+  picture toward the robot, read none (#636).
+- ⚠ **What the grade never said, its notes got wrong.** At set-out 4's end
+  they call the cup "Placed <2cm; grade silent", and at set-out 5's "CUP
+  WORKS (placed twice)": in the 9 of those set-outs' 10 tries that lifted
+  it, it ended 3.1-6.3 cm from its place, 4.0 in each of set-out 4's last
+  three, and was never laid. The grade names only the first piece at fault
+  (`challenge/table.py`), and each of those tries failed on a fall, the
+  plate or a dropped fork first, so the cup's distance was never said, and
+  the robot read the silence as laid.
+- **What failed instead: carries its feet ended, then reaches it fell in.**
+  #560's reader (`read_arms.py`) ranks a fall before anything else: a fall
+  11, a carry its feet ended 5, a tag not in view 5, a grip on nothing 3,
+  out of reach 2, a hand held back short 2, a carry that lost its piece 1
+  and a turn stopped short 1. In the run's own order, a fall only where
+  nothing went wrong before it: a carry its feet ended 6, a tag not in view
+  6, a fall 4, out of reach 4, a grip on nothing 3, held back 3, a carry
+  that lost its piece 3 and a turn short 1 -- where the fresh arms' 70, in
+  that order, were out of reach 19, a grip on nothing 19, a carry that lost
+  its piece 13, a fall 2, the feet's stop 2 and 15 others. The feet's stop
+  (the stance 5 cm from where the move began, `FEET_MOVED_M`, said "your
+  feet moved under the force") fired in 7 of the 30 tries and in 12 of the
+  fresh arms' 70: in 5 of the 7 the hand read 63-148 N first, a carried
+  plate pressed on what it met, and in 2 only 8-9 N. The robot fell in 11
+  of 30 tries (in a `reach` 5, a `move_hand` 3, a `pull` 2 and a
+  `withdraw`), where the fresh arms fell in 7 of 70. No plate was laid, as
+  in the fresh arms' 70 tries.
+- **What it cannot say**: one KEPT arm, six practice set-outs of its 16, on
+  two trees a sentence apart. Nothing was kept, so no held-out set-out flew
+  and the bar is unread: this reads acquiring alone, never pooled with the
+  fresh arms' held-out rows. Spend: $1.11 recorded over the 46 calls ($0.65
+  the night, $0.46 the day after), nothing in flight at either stop. Rows,
+  the bar and the readers: `~/pluggybot-training/night-shift-1110/t3-table-practice/`,
+  the carry-on's wrapper and reading
+  `~/pluggybot-training/day-shift-1111/d5-table-practice/`.
+
+**What `pull` and `spot` say, read** (#650, 2026-11-08): the deployed prompt
+before the words changed (`ce973a53`) and on the text served (`0a30526b`),
+interleaved, one answer a call, every question answerable "unknown". The
+deployed mind (GLM-5.3-Flash on baseten) and DeepSeek-V4.1-Flash (deepinfra);
+the rules were written before the answers were read, and the old text was
+asked in each round, so its sample is the larger:
+
+| question (the true answer) | GLM before | GLM after | DeepSeek before | DeepSeek after |
+|---|---|---|---|---|
+| a hand pushes its whole force at what cannot move: does `if pull(...)` read true? (true) | 8/24 | 12/12 | 23/32 | 25/26 |
+| which sensor says how far it went? (`pull.moved`) | 24/24 | 12/12 | 32/32 | 26/26 |
+| it reaches no further after 20 cm: does the `if` read true? (true) | 24/24 | 12/12 | 30/32 | 23/26 |
+| a 26 mm block, its tag on all six faces: which face does `spot.x` give? (the one seen most square-on) | 0/24 | 12/12 | 1/32 | 26/26 |
+| ...and which says which? (`spot.nx..nz`) | 23/24 | 12/12 | 28/32 | 26/26 |
+| its readings from two places differ by 2 cm: why? (another face) | 16/24 | 12/12 | 11/32 | 26/26 |
+
+- **The first row is the live confusion, reproduced**: told "ok when it
+  pulled", the deployed mind read a pull held fast as reading false 15 times
+  in 24, as Rowan did (#650), true 8 and unsure once; told what it reads,
+  none of 12. The old text's rate moved between rounds, 2 of 12 true and
+  then 6 of 12, which is why the "before" is both.
+- **Over-correction checked** (GLM): "ok unless" could read as "always
+  true", so a hand not out, a fall and a way all 0, each truly false, were
+  asked: 20, 8 and 2 of 20 before, all 10 of 10 each after. Asked what would
+  tell a pull held fast from one out of reach, all 10 named `pull.held`
+  after (it did not exist before).
+- **A wording measured and changed.** The first wording said a face's middle
+  is half the block's width from the block's own, and named `pull.held` in
+  the verb; review took out the first, as telling the robot how to find a
+  block's middle, more than #650 asked, and the second as saying it twice.
+  This table is the text served. DeepSeek's third row is 23 of 26 against 30
+  of 32 before, and its two rounds read 4 of 6 and 19 of 20: noise, on calls
+  of about 500 tokens.
+- **What it cannot say**: the fourth row's rule is near the new text's own
+  word -- read by hand, most answers before said "the face turned toward
+  the camera", which was the right idea without saying which of two faces
+  in view -- and the last row's answer is one the new sentence states. It
+  reads what a mind takes the words to mean, one afternoon, not what a robot
+  then writes; that is the period's (Observatory.md). Spend: $0.49 over 154
+  calls. Rows and scripts: `~/pluggybot-training/issue-650-words/`.
+
+**What `spot` says of its camera, read** (#660, 2026-11-08 and 11-09): the
+deployed prompt before the words changed (`c71dde29`) and on the text served
+(`de14cb3e`), interleaved over eight rounds, the old text asked in each and
+pooled (the rows below are that pool beside the last round's, on the text
+served: the wording moved between rounds, and the numbers are the text that
+ships). GLM-5.3-Flash on baseten (the deployed mind), DeepSeek-V4.1-Flash on
+deepinfra, every question answerable "unknown"; each rule was written before
+its round's answers were read:
+
+| question (the true answer) | GLM before | GLM after | DeepSeek before | DeepSeek after |
+|---|---|---|---|---|
+| the wall tag above a counter 0.6 m deep, from its front edge: does `spot` see it? (false) | 0/86 | 12/12 | 5/96 | 10/12 |
+| does bowing lower bring a high tag into `spot`'s picture? (false) | 74/86 | 12/12 | 66/96 | 12/12 |
+| `spot`'s camera and `look`'s: the same camera? (different) | 1/86 | 12/12 | 1/96 | 12/12 |
+| how far along the line to it does a 26 mm block's tag read? (about 1.5 m) | 0/86 | 10/12 | 0/96 | 9/12 |
+| a block 0.8 m up, 1.0 m back along the floor: does `spot` see it? (true) | 70/86 | 12/12 | 55/96 | 9/12 |
+| a tag at shoulder height on a bare wall, its size not given: where can you stand and read it? (within about 0.3 m, a larger one nearer) | 5/86 | 11/12 | 6/96 | 7/12 |
+| `find` saw a wall tag and `spot` of it failed: why? (two cameras; the colour camera's picture is lower) | 3/86 | 12/12 | 0/96 | 12/12 |
+
+- **The first and third rows are the live confusion, reproduced**: told the
+  old words, 5 of 182 answers said a wall tag was out of `spot`'s sight from
+  the counter's edge and 2 of 182 that `spot` and `look` are two cameras;
+  told these, the deployed mind 12 of 12 on both, in every one of the eight
+  rounds of the new words. Its misses on the fourth row are blank or garbled
+  fields, no wrong number.
+- **The wording moved four times on what a reading and two reviews showed,
+  each round read again.** "Unless your face is almost against it" gave no
+  sense of how near (3 of GLM's 12 on the shoulder row said half a metre or
+  further back; DeepSeek went from "nowhere" to "within a metre"), and the
+  block on a counter read 10 and 5 of 12: told the rule -- a thing is in the
+  picture only if it stands lower than a line falling 0.34 m a metre, and the
+  lower a tag the further off it reads -- that row is 12 of 12. The first
+  review's corrections followed: the picture's sides as a bearing (34 deg
+  either side at its top and 52.7 at its bottom, the picture being tilted;
+  said "more than 50", a verb's text being fenced off the number 53) and a
+  12 cm tag's own distance. The second review's: `watch`'s top is lower as the
+  robot bows, and the rule is said in the stance frame, where the robot reads
+  every place, (1.27 - 0.34 x) m at x, the camera standing 4.5 cm ahead of the
+  soles' middle -- said from the camera, the 12 cm tag's 0.13 m would have put
+  a robot that measured it from its stance inside the camera's 0.10 m near
+  plane, and the text now says a larger tag reads "nearer still".
+- **The sixth row, on the last wording, asks of a tag whose size it does not
+  give**, and the text answers by size: of DeepSeek's five misses two say
+  "unknown" and one "nowhere", which that allows, and two say to stand
+  further back, as does GLM's one ("more than about 0.35 m away", the
+  rule's inequality turned round): the misreading this row is for.
+- **DeepSeek is the noisy reader**: it thinks in about 250 tokens a call, and
+  over the five rounds of the rule's wording its wall-tag row read 11, 11,
+  11, 7 and 10 of 12 -- the middle two on the same `spot` text word for word --
+  and its block row 9, 8, 5, 7 and 9. The deployed mind read both 12 of 12
+  in all five.
+- **What it cannot say**: the shoulder row's rule is on the sentence's own
+  number and is no independent evidence, and it moved with the wording,
+  written before that round's answers. It reads what a mind takes the words
+  to mean, not what a robot then writes; that is the period's (Observatory.md).
+  Spend: $1.47 over 384 calls. Rows, the quiz and the rules:
+  `~/pluggybot-training/issue-660/`.
 
 ## 5. What silently invalidates a number
 
@@ -2202,16 +2581,19 @@ it -- or, from #572, the stand-up that ended it, which drops the map: an
 `intervention` row with subject `reset_robot`). ⚠ Before #476 only the
 death rows carry the belief.
 
-### A start-over sets the sim clock back (#610)
+### A start-over set the sim clock back (#610)
 
-Sim time orders nothing across a start-over. Within one build identity, a
-start-over (the saved world not taken up, and the world begun again from
-its XML) sets the clock back to 0, so the rows written before it carry the
-larger `simTime`. After 11-01's, the jobs offered before it carried
-t=356,486-357,689, with the clock at 153,197 two days later. A shape that
-orders rows by `simTime` reads those as the newest. `first_solve` orders a
-kind's attempts by the board's count, the row's task `id` (#610). ⚠ A new
-shape that orders rows reads a count of its own, never `simTime` alone.
+Sim time orders nothing across a start-over at 0. Within one build
+identity, a start-over (the saved world not taken up, and the world begun
+again from its XML) set the clock back to 0 until #594, so the rows written
+before it carry the larger `simTime`: on 10-27 and on 11-01. After 11-01's,
+the jobs offered before it carried t=356,486-357,689, with the clock at
+153,197 two days later. A shape that orders rows by `simTime` reads those as
+the newest. `first_solve` orders a kind's attempts by the board's count, the
+row's task `id` (#610). Since #594 a start-over keeps its save's clock, but
+one whose save cannot give it one still begins at 0 (Webserver.md, "A
+start-over keeps the clock"). ⚠ A new shape that orders rows reads a count
+of its own, never `simTime` alone.
 
 ### The demo cell is not the deployed pack
 
@@ -2434,7 +2816,8 @@ there before them: the humanoids' hand jobs, #559, flown by
 `scripts/solve.py --feature drawer|door|cube|chest`, each on a fresh map
 over a tour of the house -- flight k from the next of eight places, its
 prop at draw k -- the bar, 6 of 8 as the checks', written before they
-flew; Challenges.md §11). **Ladder B — a model-equipped robot finds one:**
+flew; Challenges.md §11; and the restaurant's table, #560, `--feature
+table`, its bar 24 of 32 draws, Challenges.md §12). **Ladder B — a model-equipped robot finds one:**
 a LOCAL flight on the `autonomous` arm with the deployed prompt and model,
 the feature's phrase put in the inbox at mission start as a visitor's message,
 and the run read into one word (used / errored / refused / garbled /

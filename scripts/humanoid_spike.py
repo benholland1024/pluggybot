@@ -34,7 +34,10 @@ the parts and the bill.
                 slope and blocks; `stairs` -- it up the house's flight on its
                 own map, round on the landing and down; `fall` -- shoved over
                 three ways, the get-up taking each fall; `getup` -- up off its
-                back, its front and its side
+                back, its front and its side; `jaws` -- our table reference
+                flown to its fork's grip, then the fork shut on again from
+                that moment at 40, 80 and 120 N, the jaws as they were before
+                #628 and as built, how each ended said
   --strip SCENE the scene's filmstrip, headless (`--out` names it)
   --policy NPZ  fly another standing policy (default models/humanoid_stand.npz)
   --mass        the mass budget by segment, beside the T2's published model
@@ -57,6 +60,10 @@ the parts and the bill.
   --feel        what the hand's readings -- its arm's own and the whole
                 body's -- make of 20 N staged at the grip, each way, standing
                 still and swaying (#547)
+  --grips [A-B] our table reference's three grips at its set-outs A-B (0-31),
+                each shut again from the state it began in at 10-120 N, the
+                jaws as they were before #628 and as built: held of the
+                set-outs (#628)
   --moving      what a hand's force reads moving through free air, nothing
                 touched: 18 reaches, carries and pulls, either hand, flown on
                 a bare floor, the reading taken as still and as served (its
@@ -74,7 +81,7 @@ the parts and the bill.
   (default)     the `body` scene's filmstrip, humanoid_spike.png
 
 Usage:
-  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp|pull|bar|feel|demo|walk|rough|stairs|fall|getup
+  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp|pull|bar|feel|demo|walk|rough|stairs|fall|getup|jaws
   MUJOCO_GL=egl uv run python scripts/humanoid_spike.py [--torque|--shove|...]
 """
 
@@ -296,6 +303,257 @@ def view_body() -> None:
         ahead = data.time - (time.time() - wall)
         if ahead > 0:
           time.sleep(ahead)
+
+
+# ---- the scene: `jaws` (#628) -------------------------------------------------------
+
+#: The `jaws` scene (#628; SimNotes, "The gripper's drive on its line"): the
+#: table's set-out it flies to, the squeezes the fork is shut on again in
+#: turn, N, and each jaw's inertia, kg: theirs before #628, then as built.
+JAW_SET_OUT, JAW_SQUEEZES = 0, (40.0, 80.0, 120.0)
+JAW_INERTIAS = ((0.2, "before #628"), (hp.GRIPPER.jaw_armature, "as built"))
+#: Each shut is shown this long, s; and the camera: on the fork from over the
+#: hand, on the robot's side, the jaws closing across its view (azimuth,
+#: elevation, distance).
+JAW_SHUT_S, JAW_CAM = 1.5, (90.0, -25.0, 0.45)
+
+
+def table_grips_world(k: int):
+  """The table's set-out `k`, our reference (`hands_check.TABLE`) flown to its
+  fork's shut, each piece's first shut's state saved as it began, the
+  physics alone (mjSTATE_INTEGRATION): the cup's, the right hand's first;
+  the plate's, the left's at 40 N; the fork's, the left's at 25. The world
+  and {piece: (side, state)}."""
+  from pluggybot.evaluation import attempts as at
+  from pluggybot.evaluation import hands_check as hc
+  from pluggybot.evaluation import practice as ep
+  from pluggybot.humanoid import arms
+  from pluggybot.procedure import lang
+
+  class Shut(Exception):
+    pass
+  world = at.set_out(at.Task(chest=k, body="humanoid", mount="counter", grader="table"))
+  m, d = world.model, world.data
+  spec = mujoco.mjtState.mjSTATE_INTEGRATION
+  real, left, saved = arms.Gripper.shut, m.actuator("left_gripper").id, {}
+
+  def shut(self, force=None):
+    side = "left" if self.act == left else "right"
+    piece = "cup" if side == "right" else {40.0: "plate", 25.0: "fork"}.get(force)
+    if piece and piece not in saved:
+      state = np.zeros(mujoco.mj_stateSize(m, spec))
+      mujoco.mj_getState(m, d, state, spec)
+      saved[piece] = (side, state)
+      if piece == "fork":
+        raise Shut
+    real(self, force)
+  arms.Gripper.shut = shut
+  try:
+    facts = hc.facts()
+    at.attempt_in(world, ep.procedure_skill(lang.compile_procedure(hc.TABLE, facts), facts, {}))
+  except Shut:
+    pass
+  finally:
+    arms.Gripper.shut = real
+  return world, saved
+
+
+def jaws_world():
+  """The `jaws` scene's world: `table_grips_world` at `JAW_SET_OUT`, lit
+  brighter for our camera once the flight is over (the robot's cameras read
+  their tags under the world's own light). The world, the fork's shut's
+  saved state and its handle's geom."""
+  world, saved = table_grips_world(JAW_SET_OUT)
+  m = world.model
+  m.vis.headlight.ambient[:] = 0.35
+  m.vis.headlight.diffuse[:] = 0.55
+  return world, saved["fork"][1], m.geom("fork_handle").id
+
+
+#: `--grips`' squeezes, N, over the language's 5-120 (`close_hand`).
+GRIP_SQUEEZES = (10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 50.0, 60.0, 80.0, 100.0, 120.0)
+
+
+def shut_again(world, side: str, state, force: float, inertia: float, piece: str) -> dict:
+  """One saved shut landed again from its state, physics alone -- every
+  other control held where it was -- the side's jaws at `inertia` kg,
+  squeezing `force` N, for the grip's wait (`body.GRIP_S`): held, the
+  gripper's own word (`arms.Gripper`, sampled every step), with its pads on
+  `piece`; and how often its force flipped between its clips."""
+  from pluggybot.humanoid import arms
+  from pluggybot.humanoid.body import GRIP_S
+  m, d = world.model, world.data
+  dofs = [m.jnt_dofadr[m.joint(f"{side}_{j}").id] for j in hm.JAWS]
+  act = m.actuator(f"{side}_gripper").id
+  pads = {m.geom(f"{side}_{j}_pad").id for j in hm.JAWS}
+  ours = {g for g in range(m.ngeom) if m.geom(g).name.startswith(piece)
+          and not m.geom(g).name.endswith("_tag")}
+  before = m.dof_armature[dofs].copy(), m.actuator_forcerange[act].copy()
+  try:
+    m.dof_armature[dofs] = inertia
+    mujoco.mj_setState(m, d, state, mujoco.mjtState.mjSTATE_INTEGRATION)
+    mujoco.mj_forward(m, d)
+    g = arms.Gripper(m, d, side)
+    g.shut(force)
+    n = int(round(GRIP_S / m.opt.timestep))
+    f = np.zeros(n)
+    for i in range(n):
+      mujoco.mj_step(m, d)
+      g.sample()
+      f[i] = d.actuator_force[act]
+    on = any({int(c.geom1), int(c.geom2)} & pads and {int(c.geom1), int(c.geom2)} & ours
+             for c in d.contact[:d.ncon])
+    big = np.abs(f) > 0.5 * force
+    return {"held": bool(on and g.held()), "gap": g.read()[0],
+            "flips": int(np.sum((f[1:] * f[:-1] < 0) & big[1:] & big[:-1]))}
+  finally:
+    m.dof_armature[dofs], m.actuator_forcerange[act] = before
+
+
+def _grips_at(k: int) -> list[dict]:
+  """Set-out `k`'s grips taken apart; none where its flight raised (said),
+  as a check's flight that raises is a row of its own, never the batch's end."""
+  try:
+    world, saved = table_grips_world(k)
+  except Exception as e:
+    print(f"set-out {k}: its flight raised {type(e).__name__}: {e}", flush=True)
+    return []
+  rows = [{"k": k, "piece": piece, "force": force, "inertia": inertia,
+           **shut_again(world, side, state, force, inertia, piece)}
+          for piece, (side, state) in saved.items()
+          for inertia, _ in JAW_INERTIAS for force in GRIP_SQUEEZES]
+  world.close()
+  return rows
+
+
+def grips_table(set_outs, jobs: int) -> None:
+  """#628's measure: our table reference's three grips at each set-out, each
+  shut again from the state it began in at every squeeze of
+  `GRIP_SQUEEZES`, the jaws as before #628 and as built -- a process a
+  set-out."""
+  from multiprocessing import Pool
+  with Pool(max(1, jobs), maxtasksperchild=1) as pool:
+    rows = [r for rs in pool.map(_grips_at, set_outs, chunksize=1) for r in rs]
+  print(f"THE TABLE'S GRIPS shut again from where each began, held of the set-outs "
+        f"{set_outs[0]}-{set_outs[-1]} (a set-out whose flight never reached one leaves it out):")
+  print("  piece  jaws        " + " ".join(f"{f:>6.0f}" for f in GRIP_SQUEEZES) + "   flipped")
+  for piece in ("cup", "plate", "fork"):
+    for inertia, said in JAW_INERTIAS:
+      mine = [r for r in rows if r["piece"] == piece and r["inertia"] == inertia]
+      cells = [f"{sum(r['held'] for r in mine if r['force'] == f):>3}/"
+               f"{sum(1 for r in mine if r['force'] == f):<2}" for f in GRIP_SQUEEZES]
+      print(f"  {piece:6s} {inertia:>4g} kg    " + " ".join(cells)
+            + f"   {sum(r['flips'] > 0 for r in mine)}/{len(mine)}  ({said})")
+
+
+class JawsScene:
+  """The `jaws` scene, a physics step at a time: from the saved state, the
+  left hand shut on the fork at each squeeze in turn, its jaws at each
+  inertia in turn, physics alone -- every other control held where it was."""
+
+  def __init__(self, world, state, handle: int):
+    self.m, self.d, self.state, self.handle = world.model, world.data, state, handle
+    self.act = self.m.actuator("left_gripper").id
+    self.dofs = [self.m.jnt_dofadr[self.m.joint(f"left_{j}").id] for j in hm.JAWS]
+    self.qpos = [self.m.jnt_qposadr[self.m.joint(f"left_{j}").id] for j in hm.JAWS]
+    self.pads = {self.m.geom(f"left_{j}_pad").id for j in hm.JAWS}
+    self.cases = [(f, a, said) for f in JAW_SQUEEZES for a, said in JAW_INERTIAS]
+    self.k = -1
+    self.next()
+
+  @property
+  def case(self) -> tuple:
+    return self.cases[self.k]
+
+  def next(self) -> None:
+    self.k = (self.k + 1) % len(self.cases)
+    force, inertia, _ = self.case
+    self.m.dof_armature[self.dofs] = inertia
+    mujoco.mj_setState(self.m, self.d, self.state, mujoco.mjtState.mjSTATE_INTEGRATION)
+    mujoco.mj_forward(self.m, self.d)
+    self.m.actuator_forcerange[self.act] = (-2 * force, 2 * force)
+    self.d.ctrl[self.act] = 0.0
+    self.t0, self.flips, self.last = self.d.time, 0, 0.0
+
+  def step(self):
+    """One physics step: how the shut ended (a line) once it has; `next`
+    then starts the next."""
+    mujoco.mj_step(self.m, self.d)
+    f = float(self.d.actuator_force[self.act])
+    force, inertia, said = self.case
+    if min(abs(f), abs(self.last)) > 0.5 * force and f * self.last < 0:
+      self.flips += 1
+    self.last = f
+    if self.d.time - self.t0 < JAW_SHUT_S:
+      return None
+    gap = 1000 * float(self.d.qpos[self.qpos].sum())
+    on = any({int(c.geom1), int(c.geom2)} & self.pads and self.handle in (c.geom1, c.geom2)
+             for c in self.d.contact[:self.d.ncon])
+    line = (f"{force:.0f} N, {inertia:g} kg a jaw ({said}): "
+            + (f"shut on the fork, {gap:.0f} mm apart" if on else f"the fork NOT held, the jaws "
+               f"{gap:.0f} mm apart") + f"; its force flipped between its clips {self.flips} times")
+    return line
+
+
+def view_jaws() -> None:
+  from mujoco import viewer as mj_viewer
+  print(f"flying our table reference at set-out {JAW_SET_OUT} to the fork's grip ...")
+  world, state, handle = jaws_world()
+  scene = JawsScene(world, state, handle)
+  m, d = world.model, world.data
+  print(f"the left hand shut on the fork from that moment, again and again: at "
+        f"{', '.join(f'{f:.0f}' for f in JAW_SQUEEZES)} N, each first with its jaws as they "
+        f"were before #628 and then as built. Close the window to quit.")
+  with mj_viewer.launch_passive(m, d) as viewer:
+    viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FREE
+    viewer.cam.lookat[:] = d.geom_xpos[handle]
+    viewer.cam.azimuth, viewer.cam.elevation, viewer.cam.distance = JAW_CAM
+    wall = time.time() - d.time
+    while viewer.is_running():
+      t = d.time
+      said = scene.step()
+      if said:
+        print("  " + said)
+        scene.next()
+        wall = time.time() - d.time
+      elif int(round(t / m.opt.timestep)) % 10 == 0:
+        viewer.sync()
+        ahead = d.time - (time.time() - wall)
+        if ahead > 0:
+          time.sleep(ahead)
+  world.close()
+
+
+def filmstrip_jaws(out: str) -> None:
+  """The `jaws` scene: each shut's end, its squeeze and its jaws' inertia,
+  and how it ended, written on it -- the shuts at a squeeze side by side."""
+  from PIL import Image, ImageDraw
+  world, state, handle = jaws_world()
+  scene = JawsScene(world, state, handle)
+  m, d = world.model, world.data
+  r = mujoco.Renderer(m, 300, 400)
+  cam = mujoco.MjvCamera()
+  cam.lookat[:] = d.geom_xpos[handle]
+  cam.azimuth, cam.elevation, cam.distance = JAW_CAM
+  tiles = []
+  while len(tiles) < len(scene.cases):
+    said = scene.step()
+    if said:
+      r.update_scene(d, cam)
+      img = Image.fromarray(r.render())
+      head, tail = said.split(": ", 1)
+      for i, line in enumerate((head, *tail.split("; "))):
+        ImageDraw.Draw(img).text((8, 8 + 14 * i), line, fill=(255, 255, 255))
+      tiles.append(img)
+      scene.next()
+  r.close()
+  world.close()
+  cols = len(JAW_INERTIAS)
+  strip = Image.new("RGB", (400 * cols, 300 * (len(tiles) // cols)), (255, 255, 255))
+  for k, tile in enumerate(tiles):
+    strip.paste(tile, (400 * (k % cols), 300 * (k // cols)))
+  strip.save(out)
+  print(f"wrote {out}")
 
 
 #: The filmstrip's moments: the moves whose end is shot.
@@ -4380,7 +4638,7 @@ SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
           "pull": lambda: view_stage2("pull"), "bar": lambda: view_stage2("bar"),
           "feel": lambda: view_stage2("feel"),
           "demo": view_demo, "walk": view_walk, "rough": view_rough, "stairs": view_stairs,
-          "fall": view_fall, "getup": view_getup}
+          "fall": view_fall, "getup": view_getup, "jaws": view_jaws}
 
 
 #: The `--moving` table's moves (#631): reaches either hand, high, low, far,
@@ -4541,6 +4799,10 @@ def main(argv=None) -> None:
   ap.add_argument("--feel", action="store_true",
                   help="what the hand's readings, its arm's and the whole body's, make of 20 N "
                        "staged at the grip, each way, still and swaying (#547)")
+  ap.add_argument("--grips", nargs="?", const="0-31", default=None, metavar="A-B",
+                  help="our table reference's three grips at set-outs A-B (0-31), each shut "
+                       "again from where it began at 10-120 N, the jaws as before #628 and as "
+                       "built: held of the set-outs (#628)")
   ap.add_argument("--moving", action="store_true",
                   help="what a hand's force reads moving through free air, nothing touched: 18 "
                        "reaches, carries and pulls, taken as still and as served (#631)")
@@ -4596,6 +4858,8 @@ def main(argv=None) -> None:
     SCENES[args.view]()
   elif args.strip == "reach":
     filmstrip_reach(args.out)
+  elif args.strip == "jaws":
+    filmstrip_jaws(args.out)
   elif args.strip == "demo":
     filmstrip_demo(args.out)
   elif args.strip == "walk":
@@ -4620,6 +4884,9 @@ def main(argv=None) -> None:
     bar_table(args.policy, jobs=args.jobs, oracle=args.oracle)
   elif args.feel:
     feel_table(args.policy, jobs=args.jobs)
+  elif args.grips is not None:
+    a, _, b = args.grips.partition("-")
+    grips_table(list(range(int(a), int(b or a) + 1)), jobs=args.jobs)
   elif args.moving:
     moving_table(jobs=args.jobs)
   elif args.handover is not None:

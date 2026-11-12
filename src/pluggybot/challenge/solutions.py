@@ -43,9 +43,11 @@ APPROACH = '''def to_%(prop)s():
   t = a + %(stance)g
   x = read("spot.x") * cos(t) + read("spot.y") * sin(t)
   y = read("spot.y") * cos(t) - read("spot.x") * sin(t)
-  step(x - %(ahead)g - 0.3, y - %(left)g, t)
+  if not step(x - %(ahead)g - 0.3, y - %(left)g, t):
+    pass
   spot(%(handle)d)
-  step(read("spot.x") - %(ahead)g, read("spot.y") - %(left)g)
+  if not step(read("spot.x") - %(ahead)g, read("spot.y") - %(left)g):
+    pass
 '''
 
 
@@ -123,14 +125,119 @@ DOOR = _hands_job("door", "door")
 CUBE = _hands_job("place", "cube")
 CHEST = _hands_job("lid", "chest")
 
+
+#: THE RESTAURANT'S TABLE (#560): the walk to the place, then the table
+#: check's procedure from its one stance (`evaluation.hands_check.TABLE`,
+#: served as `TABLE_LAY_STEP` says). What flying took is SimNotes', "The
+#: table set served" and "The lay from the tour":
+#:  - one tag gives no facing, so the card's own rotation is read OBLIQUELY
+#:    (`mapping.places`: 40 deg and more off a tag, within 0.5 deg): from 45
+#:    deg south-west of its face -- the card faces south, the directions say
+#:    -- `back` m out on each axis, the stance's line 0.3 m short once
+#:    stepped across, and the turn to face along it asked `WIDER` wider;
+#:  - `spot.n*` is INTO the card's face, so that turn is its own angle;
+#:  - the step across is halved (a step goes 0.5 m at most), and what it
+#:    leaves across the card's line, 14 cm at worst, is stepped out off the
+#:    two looks the last step needs, past 3 cm: stood 10 cm left of the line
+#:    the lay's first look loses the cup, and the lay's step aside, whole
+#:    strides, walks 13-16 cm for anything asked of 9.5-16;
+#:  - the last 30 cm is STRAIGHT ahead off those two looks (with a step to
+#:    its right in it, it landed 2-4 cm long), `NEARER` nearer the table
+#:    than the check's start;
+#:  - a walk's turns are counted as they went (`step.turn`, to 0.2 deg) and
+#:    one more squares it to `FACING` past the card's normal where it is 1.5
+#:    deg off.
+TABLE_APPROACH = '''def to_table():
+  budget(steps=16, seconds=900)
+  find(93, %(ax)g, %(ay)g, 600)
+  cx = read("find.x")
+  cy = read("find.y")
+  drive_to(cx - %(back)g, cy - %(back)g, 180)
+  face(0.785)
+  spot(93)
+  a = atan2(read("spot.ny"), read("spot.nx"))
+  y = read("spot.y") * cos(a) - read("spot.x") * sin(a)
+  if not step(0, y / 2, a + %(wider)g):
+    pass
+  h = read("step.turn")
+  if not step(0, y / 2):
+    pass
+  h = h + read("step.turn")
+  spot(93)
+  x = read("spot.x")
+  y = read("spot.y")
+  spot(93)
+  x = (x + read("spot.x")) / 2
+  y = (y + read("spot.y")) / 2
+  if y * y > 0.0009:
+    if not step(0, y):
+      pass
+    h = h + read("step.turn")
+  if not step(x - %(ahead)g + %(nearer)g, 0):
+    pass
+  h = a + %(facing)g - h - read("step.turn")
+  if h * h > 0.0007:
+    if not step(0, 0, h):
+      pass
+'''
+#: How much wider than read the walk's turn is asked, rad: turned 1 deg
+#: right of the card the check's procedure laid 1 of 8, its fork's carry
+#: running out of its posture and swinging the waist to -45 deg, turned 3.5
+#: left 6 of 8. It reads no better at 1.1 or 2 deg (SimNotes, "The table set
+#: served").
+WIDER = 0.058
+#: How much nearer the table than the check's start the walk's last step goes,
+#: m -- a little of it (the lay's first step aside gives back ~1.4 cm) keeps
+#: the stance in the lay's window: 0-3 cm nearer than the check's start
+#: (SimNotes, "The lay from the tour"; further back the cup's reach bows out
+#: of view of the plate's tag, nearer the arm's way home strikes the table).
+NEARER = 0.025
+#: Where the walk's last turn wants it to face, rad left of square, by its own
+#: reckoning of the turns its steps made: more than 1.5 deg off it (a 41 deg
+#: turn lands up to 3 deg over, and a step aside adds up to 2 more; 5 deg left,
+#: the lay's put-downs go wide) one more turn puts it back.
+FACING = 0.026
+
+#: THE LAY, SERVED: the table check's procedure (`hands_check.TABLE`) with its
+#: first step aside taken from where the card reads across the robot (`m`):
+#: 15.5 cm left of the card's line, whatever the walk left across it, where
+#: the check, starting on the line, asks 15 (SimNotes, "The lay from the
+#: tour": a step walks in whole strides, so where it lands depends more on
+#: where it starts than on what it is asked).
+TABLE_LAY_STEP = ("  a = 0.15\n", "  a = m + 0.155\n")
+
+
+def _table_job() -> tuple[str, str]:
+  """The table job's reference: the walk to its place (`TABLE_APPROACH`),
+  searching round the address its offer gives, then the table check's own
+  procedure (`hands_check.TABLE`)."""
+  from pluggybot.activity import dishware as dw
+  from pluggybot.evaluation import counter as ct
+  from pluggybot.evaluation import hands_check
+  from pluggybot.home import places as addresses
+  from pluggybot.home import restaurant
+  address = addresses.area(restaurant.TABLE)["address"]
+  # the soles' middle from the card's tag where the set-out starts the robot,
+  # and the look from 0.3 m further out
+  ahead = ct.CARD_IN + ct.TABLE_GAP - dw.CARD[1] - dw.FILM
+  assert hands_check.TABLE.count(TABLE_LAY_STEP[0]) == 1
+  return (TABLE_APPROACH % {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
+                            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER,
+                            "facing": FACING},
+          hands_check.TABLE.replace(*TABLE_LAY_STEP))
+
+
+TABLE = _table_job()
+
 #: The procedures that discharge each job, by kind.
 PROCEDURES = {"open_drawer": DRAWER, "open_door": DOOR, "place_cube": CUBE,
-              "open_chest": CHEST}
+              "open_chest": CHEST, "set_table": TABLE}
 
 
-#: The jobs by their place: the counter's props (`world_config`'s `counter`).
+#: The jobs by their place: the counter's props and the restaurant's table
+#: (`world_config`'s `jobs`).
 TARGETS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
-           "open_chest": "chest"}
+           "open_chest": "chest", "set_table": "dining_table_0"}
 
 
 def job_routine(life, kind: str, world: str):

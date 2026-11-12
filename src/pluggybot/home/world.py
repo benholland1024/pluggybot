@@ -107,6 +107,9 @@ is exactly as hard as the walls make it and not an inch harder.
 
 import json
 import math
+import re
+
+import mujoco
 
 from pluggybot.activity.plate import (
   plate_light_xml,
@@ -114,6 +117,7 @@ from pluggybot.activity.plate import (
 from pluggybot.activity import station as _station
 from pluggybot.activity.cage import PLATE_NAMES, cage_xml
 from pluggybot.home.props import BLOCKS, bench_xml, block_xml
+from pluggybot.perception.cull import static_inertials
 from pluggybot.perception.tags import BLOCK_TAG_IDS, asset_xml, write_tag_pngs
 
 # ---- layout constants (the one source) --------------------------------------
@@ -434,10 +438,17 @@ LOOP_ZONES = ("street_north", "street_east", "street_south", "street_west")
 #: The dining room's tables: 0.8 m square at a table's 0.72 m (the
 #: storeroom counter's height, which the hands' jobs were measured at), two
 #: rows of two either side of the aisle the concourse's door opens on, with
-#: two chairs each, north and south: east and west of a table is where a
-#: robot stands to set it.
+#: two chairs each, north and south.
 DINING_TABLE_HALF = (0.40, 0.40, 0.36)
 DINING_TABLES = ((20.8, -11.2), (23.0, -11.2), (20.8, -14.8), (23.0, -14.8))
+#: ...each a TOP ON LEGS (#560, Ben's call: one room, one kind of table):
+#: crouching to reach, a robot standing at one box met it with both thighs
+#: at about 200 N (SimNotes, "Setting a table"). Its top's thickness, and its
+#: legs' half side and how far in from the top's edges their middles stand, m.
+TABLE_TOP_T, TABLE_LEG, TABLE_LEG_IN = 0.03, 0.025, 0.05
+#: THE PLACE A JOB SETS (#560): table 0's south side, where a robot stands to
+#: lay it -- its chair taken away (`chairs`' second, the south one).
+SET_TABLE = 0
 #: A chair: its footprint and the top of its back, m, set this far off its
 #: table's edge.
 CHAIR_HALF = (0.225, 0.225, 0.45)
@@ -653,6 +664,30 @@ def _chair_xml(name: str, cx: float, cy: float, yaw: float) -> str:
           f'    </body>')
 
 
+def table_geoms(hx: float, hy: float, top: float) -> list[
+    tuple[str, tuple[float, float, float], tuple[float, float, float]]]:
+  """A table on legs, (suffix, centre, half-extents) in its own frame -- the
+  floor under its middle: its top, `hx` by `hy` with its upper face `top` up
+  (`geom`, the suffix a one-box body's geom has), and a leg under each
+  corner (`TABLE_LEG_IN` in) from the floor to the top's underside."""
+  leg_h = (top - TABLE_TOP_T) / 2
+  out = [("geom", (0.0, 0.0, top - TABLE_TOP_T / 2), (hx, hy, TABLE_TOP_T / 2))]
+  out += [(f"leg{i}", (sx * (hx - TABLE_LEG_IN), sy * (hy - TABLE_LEG_IN), leg_h),
+           (TABLE_LEG, TABLE_LEG, leg_h))
+          for i, (sx, sy) in enumerate(((1, 1), (1, -1), (-1, 1), (-1, -1)))]
+  return out
+
+
+def _table_xml(name: str, cx: float, cy: float, hx: float, hy: float, top: float) -> str:
+  """A dining table (`table_geoms`): the top a table's wood, its legs darker."""
+  geoms = "\n".join(
+    f'      <geom name="{name}_{s}" type="box" pos="{c[0]:.4f} {c[1]:.4f} {c[2]:.4f}" '
+    f'size="{h[0]:.4f} {h[1]:.4f} {h[2]:.4f}" '
+    f'rgba="{"0.50 0.42 0.34 1" if s == "geom" else "0.45 0.37 0.30 1"}"/>'
+    for s, c, h in table_geoms(hx, hy, top))
+  return f'    <body name="{name}" pos="{cx:.4f} {cy:.4f} 0">\n{geoms}\n    </body>'
+
+
 def shelf_geoms(length: float, depth: float, double: bool = False) -> list[
     tuple[str, tuple[float, float, float], tuple[float, float, float]]]:
   """A shelf's boxes, (suffix, centre, half-extents) in its own frame -- x
@@ -737,6 +772,22 @@ def _board_xml(name: str, spec: dict) -> str:
   return _box_body(name, x, y, z, hx, hy, height, "0.95 0.95 0.93 1",
                    extra=' friction="0.25" priority="1"',
                    geom_name=spec["geom"])
+
+
+def _with_static_inertials(xml: str) -> str:
+  """The house's text with an `<inertial>` in each of its bodies a ray cast
+  would misplace (`perception.cull.static_inertials`, #657), read off the
+  text compiled -- run from the repository's root, as the tags' are written."""
+  spec = mujoco.MjSpec.from_string(xml)
+  spec.modelfiledir = "models/"
+  for name, (pos, mass, inertia) in static_inertials(spec.compile()).items():
+    x, y, z = pos.round(5) + 0.0                 # no "-0.00000"
+    tag = (f'<inertial pos="{x:.5f} {y:.5f} {z:.5f}" mass="{mass:.6g}" '
+           f'diaginertia="{inertia[0]:.6g} {inertia[1]:.6g} {inertia[2]:.6g}"/>')
+    xml, n = re.subn(rf'(<body name="{name}"[^>]*>\n)', rf'\g<1>      {tag}\n', xml)
+    if n != 1:
+      raise ValueError(f"the house has {n} bodies named {name}")
+  return xml
 
 
 def build_home_world() -> tuple[str, dict]:
@@ -1055,16 +1106,20 @@ def build_home_world() -> tuple[str, dict]:
   # The grown world's furniture (issue #560): the dining room's tables and
   # chairs, the expo line's counter in its pass, the study room's table, the
   # counters and the shelves -- each a hinted body, scenery all.
-  def chairs(name, cx, cy, half_y):
+  def chairs(name, cx, cy, half_y, south: bool = True):
     off = half_y + CHAIR_GAP + CHAIR_HALF[1]
     for k, (dy, yaw) in enumerate(((off, -math.pi / 2), (-off, math.pi / 2))):
+      if k == 1 and not south:
+        continue
       add(_chair_xml(f"{name}_chair_{k}", cx, cy + dy, yaw), f"{name}_chair_{k}", "chair")
 
+  # ...the dining room's, each a top on legs (#560), table 0's south chair
+  # away from the place a job sets
   for i, (tx, ty) in enumerate(DINING_TABLES):
     hx_, hy_, hz_ = DINING_TABLE_HALF
-    add(_box_body(f"dining_table_{i}", tx, ty, hz_, hx_, hy_, hz_, "0.50 0.42 0.34 1"),
-        f"dining_table_{i}", "table")
-    chairs(f"dining_table_{i}", tx, ty, hy_)
+    add(_table_xml(f"dining_table_{i}", tx, ty, hx_, hy_, 2 * hz_), f"dining_table_{i}",
+        "dining_table")
+    chairs(f"dining_table_{i}", tx, ty, hy_, south=i != SET_TABLE)
   add(_box_body("expo_counter", BACK_X, sum(EXPO_Y) / 2, EXPO_HALF[2], *EXPO_HALF,
                 "0.60 0.56 0.50 1"), "expo_counter", "counter")
   for name, cx, cy, half in COUNTERS:
@@ -1205,7 +1260,7 @@ def build_home_world() -> tuple[str, dict]:
     "rooms": dict(ROOM_OF),
     "gridBounds": list(GRID_BOUNDS),
   }
-  return xml, meta
+  return _with_static_inertials(xml), meta
 
 
 def write_home_world(xml_path: str = "models/home_world.xml",

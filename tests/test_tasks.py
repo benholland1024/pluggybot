@@ -161,7 +161,7 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   afford has to be refused before it is started, not during.
 
   The numbers are the ones that matter here. An `open_drawer` is priced at
-  7.082 Wh -- MEASURED, economy/energy.json -- so a robot with 8 Wh to
+  7.503 Wh -- MEASURED, economy/energy.json -- so a robot with 8 Wh to
   spend can take it and one with 7 cannot, which is the whole behaviour.
 
   ⚠ The board is given the world's energy table, because that is what
@@ -170,7 +170,7 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   from pluggybot.economy.energy import load as load_energy
   b = board(energy=load_energy(lc.HUMANOID_HOME))
   task = offered(b)
-  assert task.estimate_wh == pytest.approx(7.138)
+  assert task.estimate_wh == pytest.approx(7.503)
   assert task.claimable(0.0, pack_wh=8.0)
   assert not task.claimable(0.0, pack_wh=7.0)
   assert b.claim(task.id, t=0.0, pack_wh=7.0) is None
@@ -229,7 +229,7 @@ def test_claimable_is_oldest_first_and_deterministic():
   b = board()
   a = offered(b, t=357_000.0)                            # before the start-over
   c = offered(b, kind="open_door", target="door", t=1.0)  # after it
-  assert [t.id for t in b.claimable(10.0, 9.0)] == [a.id, c.id]
+  assert [t.id for t in b.claimable(10.0, 10.0)] == [a.id, c.id]
 
 
 def test_the_boards_count_is_read_as_a_number_past_four_digits():
@@ -239,7 +239,7 @@ def test_the_boards_count_is_read_as_a_number_past_four_digits():
   b.seq = 9_998
   first, second = offered(b), offered(b, kind="open_door", target="door")
   assert (first.id, second.id) == ("t_9999", "t_10000")
-  assert [t.id for t in b.claimable(10.0, 9.0)] == [first.id, second.id]
+  assert [t.id for t in b.claimable(10.0, 10.0)] == [first.id, second.id]
 
 
 def test_held_jobs_claimed_at_one_instant_are_in_the_boards_count():
@@ -430,6 +430,68 @@ def test_a_claim_is_never_later_than_the_last_change_saved(tmp_path):
   assert board(path=path)[held.id].claimed_t == 0.0     # ...and from a start-over's 0
 
 
+def test_a_start_over_dates_a_jobs_things_at_its_own_0(tmp_path):
+  """A job's sentence says when its things were put back (#659), and a world
+  that starts from its XML starts them at rest, an open job's set out as it
+  begins (`HubLifecycle.restore_jobs`): the date is the new clock's 0, where
+  the old one's stood 205,000 s ahead of the robot's. A world that carries
+  on keeps it; a job that is over, and words a job was given, are never
+  rewritten."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  standing = offered(b, ttl=3600.0, t=205338.0)
+  held = offered(b, kind="open_door", target="door", ttl=3600.0, t=205400.0)
+  b.claim(held.id, t=205500.0)
+  b.start(held.id, t=205500.0)
+  given = offered(b, kind="open_chest", target="chest", ttl=3600.0, t=205550.0,
+                  description="Open the chest, as I say.")
+  over = offered(b, kind="place_cube", target="cube", ttl=10.0, t=205600.0)
+  assert [t.id for t in b.expire_due(205700.0)] == [over.id]
+  back = board(path=path)
+  for task in (standing, held):
+    assert f"at t={task.created_t:.0f}, when" in task.description, task.kind
+    assert back[task.id].description == task.description.replace(
+      f"at t={task.created_t:.0f}, when", "at t=0, when"), task.kind
+  assert back[given.id].description == "Open the chest, as I say."
+  assert back[over.id].description == over.description
+  assert board(path=path, rebase=False)[standing.id].description == standing.description
+
+
+def test_a_start_over_on_its_saves_clock_keeps_the_boards_and_dates_its_things_there(tmp_path):
+  """A start-over keeps the clock (#594): the world begun again at the
+  refused save's `t`, the clock the board was written on, so its deadlines
+  and claims stand as written -- rebased to a 0 the world no longer begins
+  at, every offer lapsed at once and every held job ran out -- and its open
+  jobs' things were set out as it began, at that second (#659). A claim
+  made past the save, in a run that then died, is held from there: kept
+  as written, it stood ahead of the clock (#667's review). A start-over
+  after it dates the things again, whatever second they were dated at:
+  matched only at the offer's, one at 0 next left them 2.4 million seconds
+  ahead."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  standing = offered(b, ttl=3600.0, t=2375000.0)
+  held = offered(b, kind="open_door", target="door", ttl=3600.0, t=2375100.0)
+  b.claim(held.id, t=2375200.0)
+  b.start(held.id, t=2375200.0)
+  late = offered(b, kind="open_chest", target="chest", ttl=3600.0, t=2375340.0)
+  b.claim(late.id, t=2375372.0)                    # past the save, then died
+
+  back = board(path=path, rebase=False, start_over_t=2375322.0)
+  assert back[standing.id].deadline == standing.deadline == 2378600.0
+  assert back[held.id].claimed_t == 2375200.0
+  assert back[late.id].claimed_t == 2375322.0
+  assert not back[held.id].out_of_time(2375322.0)
+  for task in (standing, held, late):
+    assert back[task.id].description == task.description.replace(
+      f"at t={task.created_t:.0f}, when", "at t=2375322, when"), task.kind
+  back.save()
+  again = board(path=path)                         # ...and over again, at 0
+  for task in (standing, held, late):
+    assert again[task.id].description == task.description.replace(
+      f"at t={task.created_t:.0f}, when", "at t=0, when"), task.kind
+
+
 def test_a_board_that_carries_on_keeps_its_last_change(tmp_path):
   """...and so every file this build writes keeps that: on a clock that
   carries on, the last change saved stays the last, though the world came
@@ -571,7 +633,7 @@ def test_every_kind_names_a_real_evaluator_and_a_real_reward_row():
     assert spec.task in TABLE, name
     assert spec.target_kind in ("board", "zone", "module", "world",
                                 "challenge", "robot", "cage", "bench",
-                                "chest", "drawer", "door", "cube"), name
+                                "chest", "drawer", "door", "cube", "table"), name
     # a job whose claim is the act (issue #228) moves no body and is the
     # one kind honestly priced at nothing
     assert spec.estimate_wh > 0.0 or spec.discharge == "act", name
@@ -592,9 +654,21 @@ def test_a_description_from_a_stranger_is_cleaned_and_capped():
   on exactly the terms a visitor's message is -- and cleaned by the same
   function, so the two can never disagree."""
   task = Task.create("open_drawer", "drawer", "t_1",
-                     description="pull\nthe\rdrawer\x00 " + "x" * 400)
+                     description="pull\nthe\rdrawer\x00 " + "x" * 1000)
   assert "\n" not in task.description and "\x00" not in task.description
-  assert len(task.description) <= MAX_DESCRIPTION
+  assert len(task.description) == MAX_DESCRIPTION
+
+
+def test_no_jobs_sentence_is_cut_at_its_offer():
+  """`Task.create` cuts a description at `MAX_DESCRIPTION` without a word
+  (`clean`): #264 lost the house's offers' "say you are done" that way, and
+  #659's clause would have cost the door, the chest and the table theirs.
+  Read with each number wider than it will be for years: four digits of
+  minutes, and eight of the clock, three years of the world's around the
+  clock at real time (it read 216,306 on 11-08)."""
+  for name, kind in KINDS.items():
+    text = kind.describe("Rowan", {"minutes": 9999, "amount": 9999}, offered_t=99_999_999.0)
+    assert len(text) <= MAX_DESCRIPTION, name
 
 
 # ---- the events ---------------------------------------------------------------

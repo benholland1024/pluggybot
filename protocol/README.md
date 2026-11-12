@@ -54,6 +54,74 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a fall ends a procedure's run, and a death ends it at once (pluggybot #671)
+
+A verb a robot falls in is ended the step its body's fall watch counts the
+fall, and the run stops there, an `if`'s test or not; a verb its robot dies
+in is ended the step it dies, and the run with it. What a consumer sees:
+
+- **A run a death ended** closes with `outcome: "aborted"` and `stopped:
+  "died"` (a new `stopped` token), WITH its count (`completed`, `total`)
+  and no `failedAt`. A death used to leave the run going until the
+  stand-up closed it 300 s later (`stopped: "stood_up"`, no count). A run
+  a death ends no longer waits for that close, so `stood_up` is now the
+  token of an errand a stand-up lands in only where no death came first;
+  old records keep it.
+- **A run a fall ended** is a failed step, as an untested verb that fell
+  always was: `failedAt`, `failedLine` and `failedReason` (the verb's own
+  words, "you fell on the way there, and let go", or "you fell" where it
+  has none). Nothing new on the event; a session's `attempt` carries the
+  run's record, whose step carries `fell: true`, and no test counted read
+  false for it.
+- **The session host's `hello`**: the language's text says a fall stops
+  the procedure, in a test or not.
+
+```jsonc
+{"type": "procedure", "t": 211837.4, "robot": "pluggybot", "name": "lap",
+ "outcome": "aborted", "completed": 2, "total": 3,
+ "failedAt": null, "stopped": "died", "program": {...}}
+```
+
+No bump: one `stopped` token new, which a consumer shows as the token it
+is until it has words for it.
+
+### 0.21.0, additive: the table set built to be served (pluggybot #560)
+
+The restaurant's first job, a place laid at the dining room's table 0, is
+built into the served world and not yet offered (its reference has not met
+its bar). What a consumer sees:
+
+- **A hint, additive** (`VISUAL_HINTS`, `hints.json`): `dining_table` --
+  MANY boxes, a RESKIN: a top (the one flat box, 3 cm thick, its upper face
+  0.72 m up) and four legs (5 cm square, from the floor to the top's
+  underside, their middles 5 cm in from its edges). The dining room's four
+  tables are `dining_table`s, a top on legs with knee room under it (each
+  was one `table` box); the house's table, the study room's and the lab's
+  bench stay one-box `table`s.
+- **The dining room loses a chair**: table 0's south one
+  (`dining_table_0_chair_1`), where the place is laid.
+- **Four dynamic bodies, the place's dishware**: `plate`, `cup` and `fork`
+  (free joints) and `place_card` (a mocap body), each wearing its tag.
+  Between jobs they are put away a metre under the dining room's floor (a
+  frame's poses say so), where no page's camera goes and no robot's sensor
+  reaches; an offer sets them out on table 0, where its draw lays them. The
+  humanoid scene has 239 bodies (236), the pair's 272.
+- **An activity, additive**: `dining_table_0`, the place's -- its flags
+  `setOut` (live: the dishware out where a job set it), `plateLifted`,
+  `cupLifted` and `forkLifted` (live, each over the table while out). A page
+  may hide the four bodies while `setOut` is false; under the floor nothing
+  shows them anyway.
+- **A task kind**: `set_table` joins `taskKinds`, its target
+  `dining_table_0` (the table's own body, so a marker anchored on its body
+  stands over the table) and its `targetKind` `table`. It is a challenge
+  (rooftop's `CHALLENGE_KINDS`), graded as the counter's jobs are; no world
+  offers it yet, so no stream carries one.
+- **Tag textures** `tagtex90.png`-`tagtex93.png`: the plate's, the cup's,
+  the fork's and the card's.
+
+No bump: a hint, an activity and a kind are additive, and bodies a page has
+no art for are drawn as their primitives.
+
 ### 0.21.0, additive: a run's tests that read false (`testsFalse`), and `completed` counted as the site reads it (pluggybot #629)
 
 A verb or a call may be an `if`'s test, and one that reads false is read

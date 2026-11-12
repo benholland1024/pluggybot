@@ -91,11 +91,51 @@ STOPS = {"statements": f"it ran {MAX_STATEMENTS:,} statements, the most one run 
 #: recursion, and ~980 unary minuses (a source of 1,000 characters) raised
 #: RecursionError out of the define and ended the served process (#500).
 MAX_EXPR_DEPTH = 50
-NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+#: A name a procedure gives -- a variable's, a def's, an argument's -- is at
+#: most this long, and the text says its rule (`name_rule`; #640: unsaid, 5
+#: of 25 first table answers named a variable in capitals).
+MAX_NAME_CHARS = 32
+NAME_RE = re.compile(rf"^[a-z][a-z0-9_]{{0,{MAX_NAME_CHARS - 1}}}$")
 #: Names a local may not shadow: the language's own words and every verb.
 RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
                       "if", "elif", "else", "for", "while", "in", "return",
                       "pass", "True", "False", "None"})
+
+
+def called_only(proc) -> str:
+  """What a procedure whose first def needs arguments is told, after its
+  name: it runs only when another calls it -- and, its source holding
+  several defs, that the first is the one that runs (#640: such sources
+  most often put a helper first, as a Python script does)."""
+  takes = ", ".join(p for p in proc.params if p not in proc.defaults)
+  return (f"takes {takes}: it runs only when another procedure calls it"
+          + (f"; of its defs the first, {proc.name}, is the one that runs, so put the one "
+             "you mean to run first" if proc.defs else ""))
+
+
+def name_rule() -> str:
+  """What a name is, as the text says it and a refusal gives it."""
+  return ("lowercase letters, digits and underscores, a letter first, at most "
+          f"{MAX_NAME_CHARS} characters")
+
+
+def name_fault(name: str, verbs=(), own=(), math: bool = False) -> str:
+  """Why `name` is no name a procedure may give, or "": ⚠ AS TRUE AS THE
+  CHECK IT ANSWERS (#640: a capitalised local was refused as "reserved"),
+  each site asking what it refuses -- a local may not be a verb's or a
+  def's, an argument not a maths function's either."""
+  if not NAME_RE.match(name):
+    return name_rule()
+  if name in RESERVED:
+    return "it is one of the language's own words"
+  if name in verbs:
+    return "it is a verb's name"
+  if name in own:
+    return "it is a def's name"
+  if math and name in MATH:
+    return "it is a maths function's name"
+  return ""
+
 
 _BIN = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/"}
 #: The functions an expression may call where the world's facts allow it
@@ -251,6 +291,16 @@ class _Parser:
     #: whether a call named nothing it may call: its procedure's verbs are
     #: then not all counted
     self.unknown = False
+    #: the names refused so far, each one's reason said at its first refusal
+    self.named_bad: set[str] = set()
+
+  def bad_name(self, node, name: str, why: str) -> None:
+    """A name refused: why, the first time (every later use of an uppercase
+    local repeating the rule ran a refusal list to dozens of lines)."""
+    said = name in self.named_bad
+    self.named_bad.add(name)
+    self.refuse(node, f"{name!r} is not a name this language allows"
+                      + ("" if said else f" ({why})"))
 
   def callable(self, name: str) -> bool:
     """A name a call may name: a def of this source, or the library's."""
@@ -311,9 +361,9 @@ class _Parser:
       self.refuse(node, f"a {type(node.value).__name__} is not a number")
       return _REFUSED
     if isinstance(node, ast.Name):
-      if (not NAME_RE.match(node.id) or node.id in RESERVED or node.id in self.verbs
-          or (self.calls and node.id in self.own)):
-        self.refuse(node, f"{node.id!r} is not a name this language allows")
+      why = name_fault(node.id, self.verbs, self.own if self.calls else ())
+      if why:
+        self.bad_name(node, node.id, why)
       elif node.id in self.params:
         self.use(node.id, "number", node)
       return ("var", node.id)
@@ -471,10 +521,9 @@ class _Parser:
         self.refuse(node, "assign to one plain name")
         return ("pass",)
       name = node.targets[0].id
-      if (not NAME_RE.match(name) or name in RESERVED or name in self.verbs
-          or (self.calls and name in self.own)):
-        self.refuse(node, f"{name!r} is not a name this language allows "
-                          "(it is reserved)")
+      why = name_fault(name, self.verbs, self.own if self.calls else ())
+      if why:
+        self.bad_name(node, name, why)
       self._sets(name, node)
       return ("set", name, self.expr(node.value))
     if isinstance(node, ast.AugAssign):
@@ -729,8 +778,12 @@ def _parse(source: str, verbs: dict | None = None, verb_tests: bool = False,
   if alone:
     missing = [x for x in p.own[first][0] if x not in p.own[first][1]]
     if missing:
+      # ...among several, most likely a helper written first, as a Python
+      # script does (#640: 5 of 11 such first answers), which no default mends
       p.refuse(fns[0], f"{first} is the def that runs, and nothing passes it "
-                       f"{', '.join(missing)}: give each a default")
+                       f"{', '.join(missing)}: "
+                       + ("the first def runs, so put the one you mean to run first, or "
+                          if len(fns) > 1 else "") + "give each a default")
   budgets, written = {}, {}
   for fn in fns:
     if fn.name in budgets:
@@ -768,8 +821,7 @@ def _header(p: _Parser, fn, first: bool) -> tuple:
   """A def's name and arguments: (its arguments, their defaults, its line).
   Where defs call none, a procedure takes none."""
   if not NAME_RE.match(fn.name):
-    p.refuse(fn, f"{fn.name!r} is not a name this language allows "
-                 "(lowercase, digits, underscores, 32 characters)")
+    p.bad_name(fn, fn.name, name_rule())
   elif (p.calls and not first
         and (fn.name in RESERVED or fn.name in p.verbs or fn.name in MATH)):
     # a call by it would be the verb's: `wait(1)` in a source with a `def
@@ -789,8 +841,9 @@ def _header(p: _Parser, fn, first: bool) -> tuple:
                  "or annotations, and no decorators")
   params = tuple(x.arg for x in a.args)
   for x in params:
-    if not NAME_RE.match(x) or x in RESERVED or x in p.verbs or x in MATH:
-      p.refuse(fn, f"{x!r} is not a name this language allows")
+    why = name_fault(x, p.verbs, math=True)
+    if why:
+      p.bad_name(fn, x, why)
   defaults = {}
   for x, d in zip(params[len(params) - len(a.defaults):], a.defaults):
     lit = _literal(d)
@@ -1080,8 +1133,9 @@ class _Failed(Exception):
 
 
 #: What ends a whole run, a call an `if` tests too: a failed step where no
-#: test reads it, and the run's own limits.
-LIMITS = ("failed", "interrupted", "budget", "steps", "statements")
+#: test reads it -- and a fall, which every test reads as one (#671) -- the
+#: run's own limits, and its robot's death (#671).
+LIMITS = ("failed", "interrupted", "budget", "steps", "statements", "died")
 
 
 def _truth(v: float) -> bool:
@@ -1174,15 +1228,15 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
   `entry` for the library's procedure whose source holds its line); a
   verb failing in it ends the whole run as one failing anywhere does --
   unless the call is an `if`'s test, which then reads it false, as it reads
-  a fault in its arithmetic, and the run goes on.
+  a fault in its arithmetic, and the run goes on. A fall ends the run
+  wherever it comes, and a death too (`stopped: died`, #671).
 
   `total` is the calls MADE, `completed` the calls the run went on past --
   every call made but one that ended it, a test that read false among them
   -- and `testsFalse` how many tests read false (#629)."""
   reasons = validate(proc, facts)
   if not proc.alone:
-    reasons = reasons + [f"{proc.name} takes {', '.join(p for p in proc.params if p not in proc.defaults)}: "
-                         "it runs only when another procedure calls it"]
+    reasons = reasons + [f"{proc.name} {called_only(proc)}"]
   if reasons:
     raise Refused(reasons)
   result: dict[str, Any] = into if into is not None else {}
@@ -1217,10 +1271,16 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
                 tested: bool = False) -> Routine:
     """One verb run: True when it did what it said. A failure ends the
     procedure -- unless the verb is an `if`'s test (`tested`), when it is
-    recorded and read, or a call held by one (`at.tested`) ends there."""
+    recorded and read, or a call held by one (`at.tested`) ends there.
+    ⚠ A FALL ENDS IT WHATEVER TESTS IT (#671; `st.run_verb`), as a fall
+    fails a job's try, and a dead robot begins no verb: dead as the last one
+    ended, or while its interrupt was asked, which steps the world -- and a
+    dead robot is never asked one."""
     nonlocal count
-    if count and life.interrupted():
+    if count and not st.dead(life) and life.interrupted() and not st.dead(life):
       raise _Stop("interrupted")
+    if st.dead(life):
+      raise _Stop("died")
     if float(life.data.time) - t0 > proc.budget_s:
       raise _Stop("budget")
     if count >= proc.steps_budget:
@@ -1250,6 +1310,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     life._say(f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}): "
               f"{st.Step(verb, values).describe()}")
     if bad:
+      st.forget_readings(life, verb)
       verdict = {"ok": False, "reason": "; ".join(bad)}
     else:
       verdict = yield from st.run_verb(life, spec, values,
@@ -1257,15 +1318,17 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
                                         "line": line, **at.said()},
                                        until=t0 + proc.budget_s)
     read = not verdict.get("ok") and at.tested
+    tests = (tested or read) and not verdict.get("fell")
     entry = {"i": count - 1, "verb": verb, "line": line, **at.said(), **verdict,
-             **({"tested": True} if tested or read else {})}
+             **({"tested": True} if tests else {})}
     result["steps"].append(entry)
     del result["inFlight"]
-    if verdict.get("stopped") == "interrupted":
+    if verdict.get("stopped") in ("interrupted", "died"):
       # the robot's own interrupt ended a walk inside it (issue #381,
-      # `run_verb`): an abort, as between two verbs, never a failed step
-      raise _Stop("interrupted")
-    if not verdict.get("ok") and (tested or read):
+      # `run_verb`): an abort, as between two verbs, never a failed step --
+      # and so is the robot's death inside it (#671)
+      raise _Stop(verdict["stopped"])
+    if not verdict.get("ok") and tests:
       # ...a call the run goes on past: set on a success alone, `completed`
       # was the NUMBER of the last call that did what it said, and a run
       # whose last calls were tests that read false was graded cut short

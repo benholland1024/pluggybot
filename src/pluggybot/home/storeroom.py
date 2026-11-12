@@ -37,6 +37,8 @@ EDGE_X = BACK_X - COUNTER_D
 #: the tag over each.
 PROPS = ("chest", "drawer", "door", "cube")
 TAGS = dict(zip(PROPS, COUNTER_TAG_IDS))
+#: Each prop a job's target, a kind of its own (`home.jobs`).
+TARGETS = {p: p for p in PROPS}
 #: Each prop's handle this far along the wall, m: a metre and a fifth apart,
 #: so a robot at one prop, its arms out, is clear of the next and of a door
 #: swung open toward it, about the storeroom's middle.
@@ -201,14 +203,19 @@ def activity_for(model, data, prop: str, k: int):
   raise KeyError(prop)
 
 
-def activities(model, data) -> list:
-  """The four props' activities where the world has the counter (`attach`'s
-  draws, 0 each), or none."""
+def present(model) -> bool:
+  """Whether this world has the counter."""
   try:
     model.body("store_counter")
   except KeyError:
-    return []
-  return [activity_for(model, data, p, 0) for p in PROPS]
+    return False
+  return True
+
+
+def activities(model, data) -> list:
+  """The four props' activities where the world has the counter (`attach`'s
+  draws, 0 each), or none."""
+  return [activity_for(model, data, p, 0) for p in PROPS] if present(model) else []
 
 
 def _subtree(model, prop: str) -> list[int]:
@@ -257,6 +264,8 @@ def redraw(model, data, prop: str, k: int) -> None:
   else:
     alone = _drawn_model(prop, k)
     for b in range(1, alone.nbody):
+      if not alone.body_weldid[b]:      # no draw moves it, and rays need its frame (`cull.static_inertials`)
+        continue
       bid = model.body(alone.body(b).name).id
       model.body_mass[bid] = alone.body_mass[b]
       model.body_ipos[bid] = alone.body_ipos[b]
@@ -282,12 +291,15 @@ def redraw(model, data, prop: str, k: int) -> None:
   model.qpos_spring[:] = spring
 
 
-def set_out(model, data, prop: str) -> None:
+def set_out(model, data, prop: str, k: int | None = None) -> None:
   """A prop back as the world compiled it: every joint of it at its rest
   (`qpos0`) and still -- the drawer shut, the door shut with its lever up,
-  the lid down, the cube on its board. Its activity is the caller's to
+  the lid down, the cube on its board -- and, for an offer drawing `k`, its
+  hidden dynamics that draw's (`redraw`). Its activity is the caller's to
   begin again after (`renew`): the door's latch bolts on a door already
   shut."""
+  if k is not None:
+    redraw(model, data, prop, k)
   for b in _subtree(model, prop):
     for j in range(int(model.body_jntadr[b]), int(model.body_jntadr[b] + model.body_jntnum[b])):
       q, v = int(model.jnt_qposadr[j]), int(model.jnt_dofadr[j])
@@ -296,6 +308,15 @@ def set_out(model, data, prop: str) -> None:
       data.qpos[q:q + nq] = model.qpos0[q:q + nq]
       data.qvel[v:v + nv] = 0.0
       data.qfrc_applied[v:v + nv] = 0.0
+
+
+def put_away(model, data, prop: str) -> None:
+  """Nothing: a prop stays on the counter between its jobs, as the last one
+  left it, until an offer sets it out (`home.jobs`)."""
+
+
+def away(model, data, prop: str) -> bool:
+  return True
 
 
 def touched_by(model, data, prop: str, geoms) -> bool:

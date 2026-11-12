@@ -35,13 +35,14 @@ the odometry keeps its height and finds its planted foot on the map
 """
 
 import math
+from typing import Iterable
 
 import mujoco
 import numpy as np
 
 from pluggybot import tick
 from pluggybot.humanoid import model as hm
-from pluggybot.humanoid.arms import SelfModel, kept_value, value_back
+from pluggybot.humanoid.arms import GRIP_S, SelfModel, kept_value, value_back
 from pluggybot.humanoid.getup import GETUP_NPZ, FallWatch, GetupDriver, tipped
 from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.places import HumanoidPlaces
@@ -228,6 +229,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     #: falls it had counted then: the heading's hold waits from it too
     #: (`_settled`).
     self._moved_t, self._falls_seen = float(data.time), 0
+    #: When its BODY last went anywhere, sim s -- a motion command, a
+    #: get-up, a warp; never a hand at work (`Body.moved_at`, #675).
+    self.went_t = float(data.time)
     #: A tag watched while it moves (`perception.watch.TagWatch`, the
     #: body's `watch`), stepped after every physics step; None for none.
     self.sight = None
@@ -307,6 +311,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
           self.legs = "walk"
     if any(command):
       self.last_motion_t = float(self.data.time)
+    if any(command) or self.legs == "getup":
+      self.went_t = float(self.data.time)
     if self.legs == "getup":
       # Getting up: every joint the get-up policy's, a walk asked meanwhile
       # walks nowhere -- but the waist's, which it knows nothing of: held
@@ -390,21 +396,44 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     at rest and the posture settled, and took the legs off the floor. ⚠ No
     budget of its own, as the quadruped's get-up has none: a body that
     cannot stand is the lifecycle's `stuck` death after `stuck_after_s`,
-    whose stand-up closes the routine; a script with no lifecycle bounds
-    its own run."""
+    whose stand-up closes the routine; a script whose lifecycle is not
+    mortal, or that has none, bounds its own run (as the drift spike's
+    `stuck_guard` does its flights)."""
     while self.legs == "getup":
       yield STILL
       self._after_step()
 
+  def let_go_routine(self, sides: Iterable[str]) -> tick.Routine:
+    """Each of `sides`' grippers its own command has not open
+    (`Gripper.opened`) opened, and `GRIP_S` given to the jaws standing
+    still, before an arm is sent home: True, or False the step a fall comes
+    (#669). ⚠ WHATEVER IT SAYS IT HOLDS: shut on a door's lever that read
+    nothing held, an arm sent home levered the trunk into the counter."""
+    shut = [self.reach.grippers[s] for s in sides if not self.reach.grippers[s].opened()]
+    if not shut:
+      return True
+    falls = self.falls
+    for g in shut:
+      g.open()
+    for _ in range(int(round(GRIP_S / self.model.opt.timestep))):
+      yield from self._nav_routine(0.0, 0.0)
+      if self.falls != falls:
+        return False
+    return True
+
   def to_walk_routine(self):
     """The legs to the walking policy: the arms home and the posture back to
     the stand first, the waist home (a walk carries nothing yet, and the
-    walking policy knows no waist), then handed over. ⚠ A
+    walking policy knows no waist), then handed over -- ⚠ an arm that is
+    out letting go first, as a withdraw's does (`let_go_routine`, #669). ⚠ A
     fall as they came home went to the walker if its step was the one that
     settled them (#520): the get-up stands it first."""
     yield from self._getup_routine()
     if self.legs == "walk":
       return
+    if not (yield from self.let_go_routine([s for s in hm.SIDES
+                                             if self.reach.phase[s] != "rest"])):
+      yield from self._getup_routine()
     for s in hm.SIDES:
       if self.reach.phase[s] not in ("rest",):
         self.reach.retreat(s)
@@ -417,14 +446,18 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.walker.last_action[:] = 0.0
     self.legs = "walk"
 
-  def to_stand_routine(self):
+  def to_stand_routine(self, getup: bool = True):
     """The legs to the standing policy: the walking one held still
     `SETTLE_S` first, its stride settled, then handed over. ⚠ A fall while
     it settles is the get-up's until it stands (#520): at the settle's end
-    the legs went to the standing policy whatever had happened in it. ⚠ It
-    ends a step aside under way (#559): the aside walked the settle's STILL
-    steps, and the legs went to the standing policy mid-stride."""
-    yield from self._getup_routine()
+    the legs went to the standing policy whatever had happened in it --
+    or, `getup` False, a get-up under way or begun as it settles ends it
+    there, for a caller a fall ends at once (`Body.release_routine`). ⚠ It
+    ends a step aside under way (#559), and one asked as it settles (#668):
+    the aside walked the settle's STILL steps, and the legs went to the
+    standing policy mid-stride."""
+    if getup:
+      yield from self._getup_routine()
     if self._aside is not None:
       self._end_aside("its own move", STILL)
     if self.legs == "stand":
@@ -432,10 +465,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     for _ in range(int(round(SETTLE_S / self.model.opt.timestep))):
       if self.legs != "walk":
         break
+      if self._aside is not None:
+        self._end_aside("its own move", STILL)
       yield STILL
       self._after_step()
     if self.legs != "walk":
-      yield from self._getup_routine()
+      if getup:
+        yield from self._getup_routine()
       return
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
@@ -530,8 +566,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     the quadruped's rule): its reckoning, the three policies' drivers and
     the gains they set in the model, its senses' noise, its reach (`Reach.
     kept_state`), the depth frame it last took, the plan it last made, its
-    clocks; the grid, the camera's layer and the walls it is kept off as
-    arrays. Never saved with a hand out or getting up (`HumanoidBody.
+    clocks, who its LIDAR saw (#675); the grid, the camera's layer and the
+    walls it is kept off as arrays. Never saved with a hand out or getting up (`HumanoidBody.
     working`, `posture`): a hand's move is a routine's. ⚠ The walker that
     sees the ground (not served) keeps no scan: it starts its ground anew,
     as after a fall. ⚠ Nor is the hands' depth cloud's noise kept
@@ -564,10 +600,15 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     return ({"legs": self.legs, "falls": self.falls, "steps": self._steps,
              "lastMotion": self.last_motion_t,
              "moved": [self._moved_t, self._falls_seen],
+             "went": self.went_t,
              "odometry": o.kept_state(),
+             # ...and its model of itself as the odometry last posed it,
+             # which the LIDAR's band and a look are placed through
+             "selfModel": o.sm.kept_state(),
              "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
-                       "rate": kept_value(trunk.rate)},
+                       "rate": kept_value(trunk.rate), "accel": kept_value(trunk.accel)},
              "jointsRng": self.stand.joints.kept_state(),
+             "sight": None if self.sight is None else self.sight.kept_state(),
              "drivers": drivers, "torqued": torqued,
              "reach": self.reach.kept_state(),
              "frame": frame,
@@ -578,6 +619,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "clocks": {"scan": self._next_scan, "backoff": self.backoff_until,
                         "walls": self._walls_t},
              "peerSeen": [self.peer_seen_m, self.peer_seen_t],
+             # ...and who its LIDAR saw, and when (#675)
+             "lidarSeen": [self.scanned_t, dict(self.seen_t)],
              "lidarRng": [self.lidar.rng.bit_generator.state,
                           self.lidar.peer_rng.bit_generator.state],
              "depthRng": [self.depth.rng.bit_generator.state,
@@ -585,6 +628,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "match": match,
              # ...and the places it has found, with the map they are laid in
              "places": self.places.kept_state(),
+             # ...and when and where it last looked for them
+             "placeLook": self._place_look_kept(),
              # ...and the station its charge went to (#560): restarted plugged
              # in at the mall, an unplug would reach for the house's plug
              "station": self.station},
@@ -606,12 +651,21 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     # ...a save from before the hold (#593): its clock starts at the restore
     moved = state.get("moved", [float(self.data.time), self.falls])
     self._moved_t, self._falls_seen = float(moved[0]), int(moved[1])
+    # ...a save from before #675: it went at the restore, as far as anyone knows
+    self.went_t = float(state.get("went", self.data.time))
     self.odo.restore_kept(state["odometry"])
+    # ...a save from before it: posed at the odometry's next tick
+    if "selfModel" in state:
+      self.odo.sm.restore_kept(state["selfModel"])
     trunk = self.stand.trunk
     trunk.imu.restore_kept(state["trunk"]["imu"])
     trunk.attitude.q = tuple(float(v) for v in state["trunk"]["q"])
     trunk.rate = value_back(state["trunk"]["rate"])
+    if "accel" in state["trunk"]:             # a save from before it: read at the next step
+      trunk.accel = value_back(state["trunk"]["accel"])
     self.stand.joints.restore_kept(state["jointsRng"])
+    if self.sight is not None and state.get("sight") is not None:
+      self.sight.restore_kept(state["sight"])
     for name, drv in (("stand", self.stand), ("walk", self.walker), ("getup", self.getup)):
       kept = state["drivers"].get(name)
       if drv is None or kept is None:
@@ -639,6 +693,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._next_scan = float(clocks["scan"])
     self.backoff_until = float(clocks["backoff"])
     self.peer_seen_m, self.peer_seen_t = state["peerSeen"]
+    # ...a save from before #675 saw nobody: its next scan sees afresh
+    scanned, seen = state.get("lidarSeen", [None, {}])
+    self.scanned_t = None if scanned is None else float(scanned)
+    self.seen_t = {str(k): float(v) for k, v in seen.items()}
     self.lidar.rng.bit_generator.state = state["lidarRng"][0]
     self.lidar.peer_rng.bit_generator.state = state["lidarRng"][1]
     self.depth.rng.bit_generator.state = state["depthRng"][0]
@@ -658,6 +716,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         self.matcher.restore_kept(state["match"], arrays)
     # ...the places only with the map they were laid in (#419)
     self.places.restore_kept(state.get("places") if mapped else None)
+    self._place_look_back(state.get("placeLook") if mapped else None)
     return mapped
 
   def _all_drivers(self) -> dict:
@@ -673,9 +732,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   def fresh_drivers(self) -> None:
     """Its drivers and senses built again where the body stands now (a
     start, a stand-up): a body moved, which the heading's hold waits out
-    (`_settled`). The map is not touched here."""
+    (`_settled`) and another robot's old sighting of it (`went_t`). The map
+    is not touched here."""
     self._build_drivers(self.stand.policy, self.walker.policy)
-    self._moved_t = float(self.data.time)
+    self._moved_t = self.went_t = float(self.data.time)
 
   def waist_read(self) -> dict:
     """The waist's angle as its driver last read it, bare name -> rad: the
@@ -694,10 +754,17 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
                            float(self.odo.sm.d.qpos[2]), joints=self.waist_read())
 
   def _front_blocked(self, angles, ranges) -> bool:
+    return bool(len(self.in_front(angles, ranges)))
+
+  def in_front(self, angles, ranges, reach: float | None = None) -> np.ndarray:
+    """The front stop's box over a scan's bearings (rad, its way ahead at 0)
+    and ranges: how far ahead each return in it lies, m -- ahead within
+    `reach` (`FRONT_STOP_RANGE`) and `FRONT_HALF_M` either side. The walks'
+    stop and a step's, turned to its way (`HumanoidBody._kept_off`, #670)."""
     ahead = np.cos(angles) * ranges
     side = np.sin(angles) * ranges
-    return bool(((ahead > 0.0) & (ahead < self.FRONT_STOP_RANGE)
-                 & (np.abs(side) <= self.FRONT_HALF_M)).any())
+    reach = self.FRONT_STOP_RANGE if reach is None else reach
+    return ahead[(ahead > 0.0) & (ahead < reach) & (np.abs(side) <= self.FRONT_HALF_M)]
 
   def _backoff_routine(self):
     yield from self._twist_routine(-self.BACKOFF_V, 0.0, 0.0)

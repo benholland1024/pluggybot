@@ -78,9 +78,9 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 
 | action | what happens | parameters |
 |---|---|---|
-| `take_task` | accept a job the world is OFFERING and do it (issue #21) | `task` |
+| `take_task` | accept a job the world is OFFERING and do it (issue #21). The job can go while the answer is thought about, and a take that does not happen says why in History (`could not take t_0122 (open_drawer): Rowan took it at t=185073`, issue #648) | `task` |
 | `explore` | frontier-drive for `DECIDED_EXPLORE_S` (45 s); optionally head for a zone first. History says whether the zone was reached (the drive's cause when not) and how the explore ended, `EXPLORE_ENDS` (issue #424) | `zone` |
-| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424). At the nearest station, waiting for it while another robot holds it, or with `station: "free"` on to the nearest station nobody holds (#560, Ben's call: the robot's to decide, waiting the default) | `station` |
+| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424). At the nearest station, waiting for it while another robot holds it, or with `station: "free"` on to the nearest station nobody holds (#560, Ben's call: the robot's to decide, waiting the default). Plugged in already -- a run's end leaves it so -- it goes straight on, no walk (#654) | `station` |
 | `idle` | stand still for `AUTONOMOUS_IDLE_S` (60 s), so an idling agent cannot re-decide faster than `CALLS_PER_HOUR` | — |
 | `recall` | look something up in memory and stand still `RECALL_S` (10 s); the lines arrive on the next turn, at most `MAX_RECALL_RUN` (3) in a row (issue #221, §7) | `read` (a key), `find` (words) |
 | `procedure:<name>` | run a procedure the robot wrote, from its own library (issue #166, §2b) | — |
@@ -209,8 +209,9 @@ the language does not change. Nothing in `procedure/` writes `data.ctrl` (the fe
 `tests/test_procedure.py`).
 
 **Total by construction:** a procedure declares `budget(steps=N,
-seconds=S)` and code caps both (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800); every
-loop is bounded; the interpreter checks budgets and `interrupted()` at every
+seconds=S)`, N the verbs it runs, and code caps both (`MAX_STEPS` 200,
+`MAX_BUDGET_S` 1800; 60 and 600 s without one), and the text says all four
+(#640); every loop is bounded; the interpreter checks budgets and `interrupted()` at every
 verb, which is a safe point, and a walk inside a verb asks it every second
 on the way (issue #381: a verb it ended is `stopped: interrupted`, an abort
 and never a failed step); a runaway `while` stops at `MAX_ITER` as
@@ -225,7 +226,11 @@ the text says so; one over it that parses is refused with every reason, the
 cap's first (#615's smoke: three repairs of a 5,458-character source heard
 only its length) -- where it arrives whole, in practice and a person's run:
 a served answer's source is cut one past the cap (`define`'s clip), and
-hears the cap alone.
+hears the cap alone. A name it gives is lowercase letters, digits and
+underscores, a letter first, at most `MAX_NAME_CHARS` (32), and the text
+says so (`lang.name_rule`); a name refused says its own reason the first
+time -- the rule, the language's own word, a verb's, a def's or a maths
+function's name -- never "reserved" for one that is not (#640).
 
 **Procedures that call procedures** (#560, Ben's decision of 2026-11-04:
 modular, reusable subroutines), wherever the world's facts give calls
@@ -252,7 +257,9 @@ and the served pair's):
   `MAX_CALL_DEPTH` (4) deep, never round to themselves (refused, the loop
   named). The first def takes no argument without a default (it runs with
   nothing passing it one), but a library's may: it is then callable and no
-  action (`Library.runnable`, `as_context` says why).
+  action (`Library.runnable`, `as_context` says why -- and, of a source of
+  several defs, that its first is the one that runs: such a one is most
+  often a helper written first, as a Python script puts it, #640).
 - **A call does what its def does**: true when it ran to its end or a
   `return`; a verb failing in it ends the run as anywhere, the step saying
   where it ran (`in`, and `entry` for another library procedure's source,
@@ -308,7 +315,28 @@ what its code did. A test that reads false lets the run go on, and this line
 is where its reason reaches the robot (#629): said to the log alone, Rowan's
 run of 82 calls, 80 of them measures out of its camera's view, read "(2
 steps)" and "stopped (error)", and two tickets went on theories built from
-it. Sources survive a restart and are
+it. **A fall is never a test's to read** (#671): it ends the run where it
+comes, inside whatever verb it came in (`steps.run_verb` ends that verb the
+step the body's fall watch counts it), and the line says it as the step the
+run stopped at: "it stopped at line 14, reach: you fell on the way there,
+and let go". Read false, Luca's tested reach that fell let its run go on
+through the get-up, the topple and its death, a `withdraw` waiting the
+get-up out for two minutes and three verbs running on a dead robot (11-08).
+**A death ends the run at once too**, never at the stand-up 300 s on: its
+verb is ended the step the robot dies, before it runs again, its hand
+halted where it is (`Body.stop_hand`: a closed pull went on pulling for a
+dead robot), and a robot dead between two verbs -- in the interrupt's ask,
+which steps the world -- begins no other and is never asked; the line
+follows the death's own, "my death ended it at line 9" ("after line 9"
+where it came between two verbs, as an interrupt's line says it), and the
+`procedure` event says `stopped: died`. Its errand is one a death ended, as
+a stand-up's close of one was: never scored, failed for the map at the
+stand-up beside `stood_up` (heard at the death, its row held the map's one
+slot through it), and after a true death the new robot hears nothing of it
+(`_after_true_death`). A #58 program, which leaves no line of its own, says
+"dying cut short" as it did. ⚠ An arm a death halted out holds a save off
+until the stand-up (`Keeper.busy`), as a robot dead from a fall, getting
+up, does. Sources survive a restart and are
 recompiled against *today's* world when the library loads; one that no
 longer validates is kept and shown marked not runnable, with the reasons.
 
@@ -346,7 +374,9 @@ stand clear of), and the loop with no mind never sees the field or the
 offer. History says the `done` and names the job (`said done on t_0027
 (open_door): …`), and so does its grade's line (`failed the job t_0027
 (open_door): …`, #629: by its kind alone, Rowan took one job's grade for
-another's). A job held past the time its description gives is failed by the
+another's). A `done` on a job the robot does not hold is dropped and says
+why (`said done on t_0137 (open_chest): not graded, because nobody has
+taken it`; #648). A job held past the time its description gives is failed by the
 loop, its prop offered again, and while the robot holds one its context
 lists it with that time's remainder (`heldTasks`, `leftS`; #602). `CHALLENGE_RULE` says all of this to
 the mind and, like every rule on this arm, demonstrates nothing about
@@ -355,9 +385,16 @@ charging.
 **A procedure's variables are its readout** (issue #227). Nothing a
 procedure `read` reached the mind before: the run's verdicts said which
 steps passed. Now the locals as a run ended ride the `procedure` event
-(`locals`) and one History line -- `ran the procedure weigh to its end (5
-steps) -- it ended with f = 7.38, ...` (`LOCALS_SHOWN` of them) -- and the procedure
-rule says so.
+(`locals`) and History -- `ran the procedure weigh to its end (5 steps) -- it
+ended with f = 7.38, ...`, on a line of their own (`the procedure weigh ended
+with ...`) where that one has no room for them all, and where not even a line
+of their own holds them, beside the run's line as far as it goes (`(more on
+the next line)`) and on into the next (`the procedure weigh also ended with
+...`) -- and the procedure rule says so. The width of those two lines is the
+only limit, and `(+N more)` counts every name past it (#658: shown the first
+twelve and told nothing of the rest, 97 of 167 runs on `fe07629` lost the
+last names they assigned, and a History record holds only what it said, so a
+`recall` brought none of them back).
 
 **There is no route: a walk goes into the unknown** (issue #381). No
 world writes one (the rover's surveyed routes went with it, #376), so
@@ -480,9 +517,11 @@ raised into the picture or at the other robot's edge. ⚠ NEVER THE ROOM THE
 ROBOT STANDS IN: a room's edge is a line in
 the world, and Rowan bracketed the lab's (22.0-22.6 m) by asking — its
 true position, read off the flag. ⚠ ONE `mj_ray` A RAY, NEVER
-`mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere off its centre
-of mass, its offset unturned, and the cage's inertial frame is turned, so
-rays at its far walls' tops passed through them. ⚠ The head camera is
+`mj_multiRay`: MuJoCo 3.10 culls a body there by a sphere misplaced where
+its inertial frame is turned (SimNotes, "A ray through a body MuJoCo's cull
+left out"), as the cage's was: its far walls' tops let rays through. What
+stands still no longer has such a frame (#657); what moves, a robot's arm
+before the cage, keeps it. ⚠ The head camera is
 pitched 20° down for the walls' tags: standing and facing the cage, it
 loses it within 0.88-1.04 m of its middle by the side (1.04 straight in
 front, 0.94 from either end, 0.88 on the diagonals), so a robot giving
@@ -694,7 +733,7 @@ the humanoid's `nav_eye`, the Camera Module 3 on its head, issue #408),
 the website renders the TresJS scene from that pose and answers on the
 ingest socket with an `image` inbound kind — `{robot, ref, jpeg}` — and
 the picture arrives on the robot's NEXT turn as `seen`: the visitor
-channel's block (`{id, from, text}`, sender "your head camera") with where
+channel's block (`{id, from, text}`, sender "your navigation camera", #660) with where
 it stood and `image: attached`, and the JPEG itself as an **image part of
 the same user turn**, in the backend's own shape (`llm.image_part`: the
 Anthropic SDK's `image` block, the OpenAI-style data URL everywhere
@@ -1087,7 +1126,9 @@ otherwise).
   start with a full pack and no map of the house (#572); its kind says who — `timer` (the world, after a
   death) or `admin` (`reset_robot`) — and whatever it landed in has already
   ended (the errand's job failed "interrupted by a death", with a
-  `task_failed` beside it), so it is news, never an interrupt. The stand-up
+  `task_failed` beside it; a procedure's run ends at the death itself, and
+  its `task_failed` waits for the stand-up to come beside it too, #671), so
+  it is news, never an interrupt. The stand-up
   drops a queued `battery_below` row, which fired on the pack it has just
   refilled; any other queued row is still news and waits its turn. After a
   true death the new robot hears nothing of its predecessor's errand. ⚠ `message_received` takes **no configuration**: a row
@@ -1628,13 +1669,17 @@ and when it **turns up** (`cadence.json`): what it **costs**, per world,
 `scripts/energy_spike.py` flies each errand on an oversized pack
 (`BIG_PACK_WH`) and reports the span the loop cannot interrupt. The pack is
 oversized on purpose: a demo cell measures where the robot *died*, not what
-the job costs. Re-run it (`--write`) after anything that changes what an
-errand does. The shipped table for the humanoid (`energy.json`,
-`home_humanoid`): its hand jobs, each its reference's procedures flown
-from the dearest of its stations, the mall's (#560), with the place
-remembered — `open_drawer` 7.138 Wh, `open_door` 7.720, `open_chest`
-7.463, `place_cube` 9.858 (a placement that failed) — exploring at 48.2
-mWh/s, and 338.8 W net into a body plugged in at its station.
+the job costs. Re-run it after anything that changes what an errand does,
+and fold its rows in by hand: `--write` sets each row to the new reading
+and the provenance (`measuredOn`) to one line, where the table carries the
+dearer and says where each row came from. The shipped table for the
+humanoid (`energy.json`, `home_humanoid`): its hand jobs, each its
+reference's procedures flown from the dearest of its stations with the
+place remembered — the counter's from the mall's (#560), `open_drawer`
+7.503 Wh (a try that stopped at its reach), `open_door` 9.041, `open_chest` 8.543,
+`place_cube` 9.858 (a placement that failed), and `set_table` 9.82 from
+the research center's — exploring at 48.2 mWh/s, and 338.8 W net into a
+body plugged in at its station.
 
 - ⚠ **A key may name a target**, and `<errand>:<target>` wins over
   `<errand>` (the rover's `draw` cost 0.929 Wh at the near board and 1.065
@@ -1648,11 +1693,11 @@ mWh/s, and 338.8 W net into a body plugged in at its station.
   the map it already has* — a first errand on a fresh map plans and searches
   through unexplored space, so a row is measured from the station with the
   place remembered — on which station it charged at (the door measured
-  5.17 Wh from the house's, 7.72 from the mall's, and 7.72 is carried) and
-  on the run (the drawer's two procedures once measured 7.036 and 7.082
-  Wh, and the dearer was carried). The failure directions are not
-  symmetric: an over-estimate is a charge nobody needed, an under-estimate
-  is a robot dead in the garden.
+  3.66 Wh from the research center's, 6.53 from the house's and 9.04 from
+  the mall's, and 9.04 is carried) and on the run (the drawer's two
+  procedures once measured 7.036 and 7.082 Wh, and the dearer was
+  carried). The failure directions are not symmetric: an over-estimate is
+  a charge nobody needed, an under-estimate is a robot dead in the garden.
 - **The invariant is not "never exceeded"; it is that an overrun smaller than
   the margin cannot strand the robot.** A bigger one is a stale table, and the
   loop says so (`ENERGY <errand> cost X against an estimate of Y —
@@ -2625,9 +2670,13 @@ HF_TOKEN=... PLUGGY_MODEL=zai-org/GLM-5.3-Flash:cheapest MUJOCO_GL=egl \
 HF_TOKEN=... MUJOCO_GL=egl uv run python scripts/two_robots.py \
     --pack hosting --tasks --overseer --fast --max-sim-time 14400
 
-# re-measure what each errand costs, after anything that changes one
-MUJOCO_GL=egl uv run python scripts/energy_spike.py \
-    --actions open_drawer,open_door,place_cube,open_chest --write
+# re-measure what each errand costs, after anything that changes one: each job
+# from each station (station, station_facility, station_mall), each one's
+# dearest folded into energy.json by hand, the dearer of it and its row kept
+# (`--write` overwrites the rows it measured, the explore's and the charge's
+# too, and their note)
+MUJOCO_GL=egl uv run python scripts/energy_spike.py --station station_mall \
+    --actions open_drawer,open_door,place_cube,open_chest,set_table
 
 # the latency curve and the cost of a candidate deadline; a router candidate; the local box
 HF_TOKEN=... uv run python scripts/overseer_probe.py --calls 50

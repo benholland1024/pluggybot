@@ -185,6 +185,17 @@ class SelfModel:
     mujoco.mj_kinematics(self.m, d)
     mujoco.mj_comPos(self.m, d)
 
+  def kept_state(self) -> dict:
+    """Its pose for a restart (#345): what a loop last posed it to, which
+    what is placed through it reads until that loop poses it again."""
+    return {"qpos": self.d.qpos.tolist()}
+
+  def restore_kept(self, state: dict) -> None:
+    self.d.qpos[:] = state["qpos"]
+    self.q = self.d.qpos[self.qadr].copy()
+    mujoco.mj_kinematics(self.m, self.d)
+    mujoco.mj_comPos(self.m, self.d)
+
   def _set_arm(self, side: str, q_arm: np.ndarray) -> None:
     self.q[self.arm[side]] = q_arm
     self.d.qpos[self.qadr[self.arm[side]]] = q_arm
@@ -447,10 +458,16 @@ class Waist:
                     self.kp, self.kd)
 
 
+#: How long a gripper is given to close or open, s: the Dex1-1 shuts its
+#: stroke in 0.24 s at its fastest, and a squeeze settles after.
+GRIP_S = 0.6
 #: A grip is HELD, by the gripper's own reading, when shut it stopped this
-#: far short of closed, m, with the squeeze up to this share of the force it
-#: was shut with: a hand shut on nothing closes; one shut on something
-#: stalls against it, pressing.
+#: far short of closed, m, with the squeeze up to this share of what its
+#: drive pushes there (`pushes`): a hand shut on nothing closes; one shut on
+#: something stalls against it, pressing. ⚠ Not of the force asked: under 2
+#: cm a hard squeeze's spring stalls short of it, and judged against it the
+#: plate's 8 mm wall read nothing held at 120 N wherever its jaws stopped 1
+#: cm apart or less, some 60 N a pad (#646).
 HELD_GAP_M, HELD_SHARE = 0.005, 0.5
 #: The least a grip may be shut with, N a pad: the sheet's adjustable
 #: range is 5-120 (`parts.GRIPPER`).
@@ -458,8 +475,19 @@ GRIP_MIN_N = 5.0
 #: The squeeze a grip is judged by is its reading's running mean over this,
 #: s, sampled every physics step (`Gripper.sample`): one reading's noise,
 #: the current sense's 5.1 N, read a 15 N grip as nothing held 7 % of the
-#: time and a 5 N one 31 % (#525).
+#: time and a 5 N one 31 % (#525). ⚠ THE GAP IT IS JUDGED AT IS ITS RUNNING
+#: MEAN TOO: at the gap as it read that step, a grip lost on something 26-35
+#: mm across at 80-120 N read held up to 40 ms longer than judged against
+#: the force, the mean's lag against the spring's falling bar (#646).
 SQUEEZE_S = 0.1
+
+
+def pushes(gap: float, force: float) -> float:
+  """What the gripper's drive squeezes with, N a pad, shut with `force` and
+  its jaws stopped `gap` m apart, off its own command: `force`, its torque
+  limit, or short of it its spring's (`parts.GRIP_KP`) pull toward shut --
+  the actuated jaw `gap / 2` from it, and each pad half the motor's push."""
+  return min(force, hp.GRIP_KP * (gap / 2) / 2)
 
 
 class Gripper:
@@ -475,6 +503,7 @@ class Gripper:
     self.shut_asked = False
     self.force = hp.GRIPPER.grip_force_n
     self.gap, self.squeeze = self.sense.read(data)
+    self.gap_mean = self.gap
 
   def _limit(self, force: float) -> None:
     """Each pad squeezes at most `force`, N: the motor's limit, twice it
@@ -488,6 +517,12 @@ class Gripper:
     self.d.ctrl[self.act] = min(max(width, 0.0), hp.GRIPPER.stroke) / 2
     self.shut_asked = False
 
+  def opened(self) -> bool:
+    """Whether it was last told to open its whole stroke, by its own
+    command: never as it boots (its jaws commanded together), nor once
+    told to shut."""
+    return not self.shut_asked and self.d.ctrl[self.act] >= hp.GRIPPER.stroke / 2
+
   def shut(self, force: float | None = None) -> None:
     """Shut, squeezing with `force`, N a pad -- the sheet's grip force where
     none is given (#525: pinched at 120 N, a door's lever could not turn in
@@ -498,11 +533,13 @@ class Gripper:
     self.shut_asked = True
 
   def sample(self) -> None:
-    """One physics step's reading: the gap as it reads, the squeeze into
-    its running mean (`SQUEEZE_S`)."""
+    """One physics step's reading: the gap as it reads, and it and the
+    squeeze into their running means (`SQUEEZE_S`)."""
     gap, squeeze = self.sense.read(self.d)
+    share = min(1.0, self.m.opt.timestep / SQUEEZE_S)
     self.gap = gap
-    self.squeeze += min(1.0, self.m.opt.timestep / SQUEEZE_S) * (squeeze - self.squeeze)
+    self.gap_mean += share * (gap - self.gap_mean)
+    self.squeeze += share * (squeeze - self.squeeze)
 
   def read(self) -> tuple[float, float]:
     """(gap m, squeeze N) as last sampled, the squeeze its running mean."""
@@ -510,7 +547,8 @@ class Gripper:
 
   def held(self) -> bool:
     gap, squeeze = self.read()
-    return self.shut_asked and gap > HELD_GAP_M and squeeze > HELD_SHARE * self.force
+    return (self.shut_asked and gap > HELD_GAP_M
+            and squeeze > HELD_SHARE * pushes(self.gap_mean, self.force))
 
 
 @dataclass

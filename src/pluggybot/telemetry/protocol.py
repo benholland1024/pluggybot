@@ -87,9 +87,15 @@ VISUAL_HINTS = (
   # v6 (issue #560): the grown world's restaurant, store and study room. A
   # `chair` is ONE BOX like the furniture; a `shelf` is MANY -- its ends, its
   # back and its boards -- kept, because what a task sets on it stands on a
-  # board. The dining tables are `table`s, the expo line's, the checkout's
-  # and the kitchen's worktops `counter`s, the park's trees `tree`s.
+  # board. The expo line's, the checkout's and the kitchen's worktops are
+  # `counter`s, the park's trees `tree`s.
   "chair", "shelf",
+  # v7 (issue #560, the table set served): a `dining_table` is MANY -- a top
+  # and four legs, the knee room a robot crouches into to lay a place, which
+  # a `table`'s one box (the house's, the study room's, the lab's bench, each
+  # a block the robot believes) has none of. A reskin, as `stairs`: dress
+  # the top and the legs where they are.
+  "dining_table",
 )
 
 #: What a pressure plate is FOR, by the plate body's name in `scene.plates`

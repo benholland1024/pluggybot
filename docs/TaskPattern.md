@@ -103,6 +103,14 @@ Rules the states carry, each decided explicitly:
   own records. The holder is shown each job it holds with the time it has
   left (`heldTasks`, `leftS`) -- a network fact: the board knows when the
   job was taken, as it knows how long an offer stands.
+- **What no job holds is put away** (#560): a job whose things exist only
+  for it -- the restaurant's dishware -- has them set out by its offer and
+  put away (`HubLifecycle._put_away_step`) once no task naming its target is
+  open: lapsed, settled or failed, it is the next sweep's to park. Never
+  from under a robot's hand, which it waits for, as an offer does. The
+  counter's props stay out as the last job left them (`home.jobs`: each
+  area says which), until the next offer of their job puts them back, which
+  its sentence says, and when (§2).
 - **The board is bounded** (40 held, 6 offered at once), and resolved tasks
   age out oldest-first. An OPEN task is never dropped to make room: dropping a
   job the robot might still do and that job lapsing are different events, and
@@ -110,13 +118,14 @@ Rules the states carry, each decided explicitly:
 - **The board's orders are its own count** (`Task.number`, the id's number;
   #610): what ages out first, which offer's draw a restart puts back on its
   prop, and the order offers are listed in. ⚠ Never a stamp (`createdT`,
-  `resolvedT`): a start-over sets the clock back to 0, and after 11-01's the
+  `resolvedT`): a start-over set the clock back to 0 (two did; one with no
+  clock to keep still does, #594), and after 11-01's the
   tasks stamped on the clock before it ranked newest. t_0002 would have
   outlasted every task resolved before the new clock passed it, more than
   204,000 s, and every restart put an old offer's draw back on its prop
   over the job held there. The site lists the board on the same count. A
   robot's held jobs are in the order it claimed them (`held_by`): a claim
-  is moved with the clock at a start-over (#602), and ties go by the
+  is moved with the clock at a start-over at 0 (#602), and ties go by the
   count.
 - **A restart keeps a claim with the robot that made it** (issue #345). The
   robot is still that robot. A job `claimed` or `active` comes back claimed
@@ -134,6 +143,19 @@ Rules the states carry, each decided explicitly:
   figure. A world that starts again at 0 moves a held claim with the
   clock, as it moves an offer's deadline, and writes both down as the day
   begins (#602).
+- **A take can lose, and its robot hears it** (issue #648). Two robots
+  share the board and an answer takes 10-90 s to think, so an offer can be
+  gone by the time the answer that took it lands: 4 of 59 takes from 11-07
+  to 11-08, each to the other robot. `_claim_task` says every refusal in
+  History (`could not take t_0122 (open_drawer): Rowan took it at
+  t=185073`), and `_done` says a `done` on a job this robot does not hold
+  (`said done on t_0137 (open_chest): not graded, because nobody has taken
+  it`), both off the shared board's facts (`_not_mine`): no such job, it
+  lapsed, nobody took it, who took it and when, how it ended. ⚠ A `done` is
+  free text and may name the offer hidden from this robot (#228): of that
+  it says only that it does not hold it, never "no such job", which would
+  assert a falsehood. Said to the log alone, a loser's last word on the job was its own `chose take_task`:
+  it read that as holding the job and went on to work it.
 
 ---
 
@@ -166,6 +188,7 @@ sight. Worked through what reaches the robot:
 | another robot's reported pose (`others`) | ✅ | what the other robot says on the network, never a sensor's |
 | the pose of a movable object | ❌ | finding it *is* the task — see the perception ladder, §3 |
 | a prop's hidden dynamics — the drawer's runners, the chest's catch | ❌ | hidden ground truth, drawn per offer and kept in `Task.secret`, and redacted where a metric carries it (`catchN`, `Verdict.secret`) |
+| when a job's things were put back ("The drawer was put back shut at t=205338, when this job was offered.") | ✅ | the job's own history, which whoever posted it knows. A `draws` kind's sentence says it, dated on the robot's own clock, and at a start-over the second the world began again from its XML with every prop at rest (#659, #594; why dated: its period in Observatory.md). Told nothing, a robot timed a spring the drawer does not have. How the prop stands *now* stays the robot's to see: anything may have touched it since |
 
 The test for a new delivery is the middle column of the first row against the
 last: *could a dispatcher who cannot see the room have written this?* A
@@ -246,7 +269,7 @@ names none.
 
 Related, because a stranger will eventually be on this path
 (`TASK_SOURCES = system | visitor | overseer`): a description is untrusted
-text on the inbox's terms — capped (`tasks.MAX_DESCRIPTION`, 420) and
+text on the inbox's terms — capped (`tasks.MAX_DESCRIPTION`, 500) and
 cleaned by its normaliser on the way in. And as `mind/inbox.py` records,
 **sanitising is not the security boundary**; the boundary is that nothing
 a task says can reach the robot's body except through an errand or a
@@ -383,8 +406,8 @@ every one below was hit, measured, and given a gate.
   fatal in either direction: the first table guessed 0.35 Wh for a drawing
   that measured 0.929, and a recording showed a robot claim the job at 88 %
   and die mid-stroke. Costs come from `scripts/energy_spike.py` into
-  `economy/energy.json` (the humanoids' hand jobs at 7.14–9.86 Wh from the
-  dearest station, the mall's, against the 19.5 Wh return-trip reserve,
+  `economy/energy.json` (the humanoids' hand jobs at 7.50–9.86 Wh, each
+  from its dearest station, against the 19.5 Wh return-trip reserve,
   `humanoid.world.RESERVE_WH`); a cost key may name a TARGET
   (`action:target`) and wins over the bare action, because one target can
   measurably cost more than another and one number for both either kills
@@ -524,8 +547,11 @@ One `TaskKind` entry: `task` names the evaluator/reward row (an evaluator
 may judge several rows — `open_drawer` and the practice's `drawer` are both
 judged by `drawer.eval_drawer`), `target_kind` says what the target names,
 and the `template` is the sentence a person reads — **with no price in it**
-(§2.2). `estimate_wh` is the world-agnostic FALLBACK and must never sit
-below the measured cost of the job (`tests/test_energy.py` is the drift
+(§2.2), **saying when a `draws` kind's things were put back** (`{offered}`,
+the offer's own second; §2), and **inside `MAX_DESCRIPTION`**, past which it
+is cut without a word: `test_no_jobs_sentence_is_cut_at_its_offer` reads
+every kind with its numbers wider than they will be for years.
+`estimate_wh` is the world-agnostic FALLBACK and must never sit below the measured cost of the job (`tests/test_energy.py` is the drift
 guard); the number that actually gets used comes from `economy/energy.json`,
 so **run `scripts/energy_spike.py` for the new job in every world that
 offers the kind** -- a procedure job's is its hand-written solution, flown --

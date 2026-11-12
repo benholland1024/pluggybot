@@ -1,6 +1,6 @@
 """Ladder A of issue #264: what a hand-written solution stands on -- the
 humanoids' hand jobs' (#559: `challenge/solutions.py`, flown by
-`scripts/solve.py --feature drawer|door|cube|chest`).
+`scripts/solve.py --feature drawer|door|cube|chest|table`).
 
 The rules, each pinned without a mission (docs/Testing.md):
 
@@ -38,13 +38,14 @@ def test_the_offers_say_where_by_their_areas_terms_and_never_a_position(tmp_path
 
   from pluggybot.economy.tasks import KINDS, TaskBoard
   from pluggybot.home import places as addresses
-  from pluggybot.lifecycle import HUMANOID_HOME, task_producer
+  from pluggybot.lifecycle import HUMANOID_HOME, task_producer, world_targets
   board = TaskBoard(path=str(tmp_path / "t.json"))
   producer = task_producer(board, HUMANOID_HOME, procedures=True)
   offered = list(producer.cadence.kinds)
   assert offered
+  here = world_targets(HUMANOID_HOME, procedures=True)
   for kind in offered:
-    area = KINDS[kind].target_kind
+    area = here[KINDS[kind].target_kind][0]
     params, secret = producer._build(kind, area)
     job = board.offer(kind, area, params=params, secret=secret, t=1.0)
     shown = job.as_context(1.0)
