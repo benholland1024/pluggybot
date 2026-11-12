@@ -219,6 +219,19 @@ class _StoodUp:
 
 STOOD_UP = _StoodUp()
 
+
+class Stuck(MissionAborted):
+  """The run's end where nothing dies (`HubLifecycle.mortal` False, #684):
+  a body that rights itself whose get-up has held its legs for its
+  `stuck_after_s`, the `stuck` death a mortal one would die. `record` is
+  `HubLifecycle.stuck`: when it fell (`fellT`) and ended (`t`), the death's
+  words (`why`) and where it lies (`at`, x and y, its true pose)."""
+
+  def __init__(self, record: dict) -> None:
+    super().__init__(f"stuck: {record['why']} at ({record['at'][0]:.2f}, {record['at'][1]:.2f})")
+    self.record = record
+
+
 #: Why a job fails when a stand-up ended the errand working on it (issue
 #: #348): `TaskBoard.load`'s "interrupted by a restart", one cause over.
 DEATH_ENDED = "interrupted by a death"
@@ -1246,6 +1259,8 @@ class HubLifecycle:
     #: What was true as it went down (`_moment`), for the `stuck` death
     #: `stuck_after_s` later to carry (issue #362).
     self._fall: dict | None = None
+    #: Where nothing dies, the get-up that ended the run (`Stuck`'s record).
+    self.stuck: dict | None = None
     self._next_death_check = 0.0
     #: ⚠ A STAND-UP STEPS THE SIM, AND THE RESTART SEAM IS ON EVERY STEP
     #: (issue #143). `MissionRunner.start_at` ends with a one-second settle
@@ -1337,13 +1352,15 @@ class HubLifecycle:
     until it returns or the stand-up closes it. A `stuck` death by toppling is a
     body down for its `stuck_after_s`: one that rights itself, its get-up
     holding its legs for its budget (#684); one that cannot, its torso past
-    TOPPLE_TILT_RAD for TOPPLE_HOLD_S.
+    TOPPLE_TILT_RAD for TOPPLE_HOLD_S. Where nothing dies, a body that
+    rights itself and would have died `stuck` ends the run (`Stuck`).
     """
-    if (not self.mortal or self.dead is not None
-        or self.data.time < self._next_death_check):
+    if self.dead is not None or self.data.time < self._next_death_check:
       return
     self._next_death_check = self.data.time + DEATH_CHECK_S
-    if self.battery.empty:
+    if not self.mortal and not self.body.rights_itself:
+      return
+    if self.mortal and self.battery.empty:
       self._die("flat", "the pack reached zero")
       return
     # ⚠ THE MIND STOPPED BEING CONSULTED (issue #127), which is a death of
@@ -1359,7 +1376,7 @@ class HubLifecycle:
     # is judged on. `_last_ask_t` is stamped by the ASK, not by the answer,
     # for the same reason: a mind consulted through an outage is still being
     # consulted. See `UNMINDED_AFTER_S`.
-    if (self.event_map is not None
+    if (self.mortal and self.event_map is not None
         and self.data.time - self._last_ask_t >= UNMINDED_AFTER_S):
       quiet = self.data.time - self._last_ask_t
       # ...AND WHAT THE LIST SAID ABOUT IT (issue #317). "My own map stopped
@@ -1387,14 +1404,28 @@ class HubLifecycle:
       # ...AND WHAT IT WAS DOING, READ AS IT FELL (issue #362): the death is
       # `stuck_after_s` later, by which time the errand has had that long
       # to react to the fall.
-      self._fall = self._moment()
+      self._fall = self._moment() if self.mortal else None
     elif self.data.time - self._down_since >= self.body.stuck_after_s:
       # ...a body that gets itself up (issue #387) is `stuck` only once its
       # get-up has had its measured budget and it is still not up
-      self._die("stuck", (f"fell and could not get up in {self.body.stuck_after_s:.0f} s "
-                          if self.body.rights_itself else "knocked over ")
-                + f"({math.degrees(self._chassis_tilt()):.0f} deg from upright)",
-                at=self._fall)
+      why = ((f"fell and could not get up in {self.body.stuck_after_s:.0f} s "
+              if self.body.rights_itself else "knocked over ")
+             + f"({math.degrees(self._chassis_tilt()):.0f} deg from upright)")
+      if self.mortal:
+        self._die("stuck", why, at=self._fall)
+      else:
+        self._end_stuck(why)
+
+  def _end_stuck(self, why: str) -> None:
+    """Where nothing dies, a get-up that would have been the `stuck` death
+    ends the run (`Stuck`, #684): the get-up's hold
+    (`HumanoidMission._getup_routine`) has no budget of its own, and a
+    flight whose robot could not stand ran on for good."""
+    x, y, _ = self.body.true_pose()
+    self.stuck = {"t": round(float(self.data.time), 3), "fellT": round(self._down_since, 3),
+                  "why": why, "at": [round(float(x), 2), round(float(y), 2)]}
+    self._say(f"STUCK: {why}; nothing dies here, so the run ends")
+    raise Stuck(self.stuck)
 
   def _chassis_tilt(self) -> float:
     """Radians between the chassis's up axis and where the posture its legs
@@ -6209,6 +6240,8 @@ class HubLifecycle:
     return {
       "state": self.state,
       "aborted": aborted,
+      # ...and the get-up that aborted it where nothing dies (#684, `Stuck`)
+      "stuck": self.stuck,
       # A failed dock ended this run (issue #32) -- distinct from "aborted"
       # (the viewer closing is a request to stop, not a failure) and visible
       # here so a watcher can tell "finished the day" from "never got home".
