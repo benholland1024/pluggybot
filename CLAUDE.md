@@ -371,23 +371,23 @@ save a filmstrip PNG named after the script.
   and `keep_out`; SimNotes, "The arms keep off the other robot"): a
   cylinder 0.28 m round its middle, 1.55 m tall, kept 5 cm off, placed as
   `others` places one seen (#675) within `ARMS_NEAR_M` (1.5 m) -- never at
-  its reported pose, and alone no look at all (bit for bit); a reach's way
-  out and its way home from there, a withdraw's way home (judged before
-  #669's let-go, its gripper as it was), the way home from where it begins
-  (its line out, 8 cm, first): the first that keeps clear and dips no
-  deeper over the work, else a verb's (`refuse`) refused saying where that
-  robot stands -- at a counter none does, so a robot within about 1 m beside
-  refuses that arm and the minds work it out. ⚠ THE LOOP'S OWN NEVER IS (a
-  charge's plug-in: a failed charge is a death): it waits `ARM_WAIT_S` (60
-  s) at most, then goes the way that comes least near. With a hand out that
-  could not come home the walk verbs refuse (`Body.arm_kept`) and the loop's
-  walks wait so, then bring it home -- ⚠ the wait counted
-  against no walk's patience nor its stagnation clock (`Navigator.held_s`:
-  counted, a walk gave up "stalled" as its arm came home). ⚠ THEN ITS LEGS GO
-  BACK TO THE STANDING POLICY, AND ITS POSTURE IS WAITED ON `STAND_BACK_S`
-  AT MOST (#668; SimNotes, "Making way,
-  standing"): asked aside as its arm came home, the walker took them and a
-  `withdraw` waited 2,191 s. ⚠ The posture's trim runs on under the walker
+  its reported pose, and alone no look at all (bit for bit). A reach's way
+  out and its way home from there; a withdraw's way home, judged before
+  #669's let-go (its gripper as it was), from where it begins (its line
+  out, 8 cm, first), the way judged the way taken: the first that keeps
+  clear and dips no deeper over the work, else a verb's (`refuse`) is
+  refused saying where that robot stands -- at a counter none does, so a
+  robot within about 1 m beside refuses that arm and the minds work it out.
+  ⚠ THE LOOP'S OWN NEVER IS (a charge's plug-in: a failed charge is a
+  death): it waits `ARM_WAIT_S` (60 s) at most, never asked aside
+  meanwhile, then goes the way that comes least near. With a hand out that
+  could not come home the walk verbs refuse (`Body.arm_kept`) and the
+  loop's walks wait so, then bring it home -- ⚠ the wait counted against no
+  walk's patience nor its stagnation clock (`Navigator.held_s`: counted, a
+  walk gave up "stalled" as its arm came home). ⚠ THEN ITS LEGS GO BACK TO
+  THE STANDING POLICY, AND ITS POSTURE IS WAITED ON `STAND_BACK_S` AT MOST
+  (#668; SimNotes, "Making way, standing"): asked aside as its arm came
+  home, the walker took them and a `withdraw` waited 2,191 s. ⚠ The posture's trim runs on under the walker
   (`Reach._trim`), and the hand jobs are measured on it: trimmed only while
   the standing policy steps, the table's tour laid 20 of 32, not 27.
   Training's arms and waist are SCRIPTED,
