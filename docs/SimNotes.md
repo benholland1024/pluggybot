@@ -7318,6 +7318,114 @@ held and loads at the grip is the honest fix. `carry_spike.py --view
 plate_close:route:1` watches a 0.47 kg plate held close tilt in the jaws from
 35 s and fall at 47 s; `--strip` draws it.
 
+## Carrying, served (#682's stage A)
+
+Ben's calls of 11-12 on #682: one piece in one hand, held close (`close`);
+the walk takes the carry pose itself and says so, no `carry` verb; the plate
+squeezed at 80 N; a self-filter of about 0.12 m round a held grip; and a
+walker retrained to carry (below, "A walker trained to carry"). This is the
+walk that carries, on walk2 (the loop of 11-12/13, L4; rows and probes in
+`~/pluggybot-training/loop-1112/l4-carry/`).
+
+- **The hand-over carries a hand that holds** (`HumanoidMission.carries`,
+  `_lift_routine`, `to_walk_routine`; `Reach.CARRY_POSE`, `carry_pose`): a
+  hand out at a pose of its own whose gripper reads held is lifted 2 cm
+  straight up at 20 N, the most the standing body holds; only if the lift
+  went its distance is it carried -- out along its line, then its judged way
+  (the way home's, ending there) to the forearm folded up and the hand at the
+  hips, its gripper as it was -- and held there in joint space through every
+  walk, a `step` too, until a reach or a let-go ends it. Anything else that is
+  out lets go and comes home, as #669's does.
+- **Lifted first, because a carry pulls on what it holds.** Carried with no
+  lift, a drawer's handle held through a step came out 19 cm with the arm.
+  A guard that let go where the arm's own force reading passed 30 N on its
+  way (a free plate's move read 16.5 N at most) felled the robot at the first
+  drawer flown: the arm, let go mid-move against the drawer's pull, threw the
+  trunk. With the lift, a drawer's handle (2 draws) and a door's lever read
+  held fast and were let go, no fall (`probe/held_handle.py`).
+- **The wrist keeps the hand turned against the floor as it was, solved on
+  the stand's statue.** Solved on the model as it stood -- bowed 0.3 rad for
+  the table reference's plate grip -- the plate rode 15-17 deg tipped once the
+  trunk stood up; on the stand's statue, 2.3 and 6.9 deg (the second began at
+  3.0). The turn is the one the hand's command keeps, never its joints read
+  again: a read draws on the drivers' noise, and the check a walk verb makes
+  before it walks would move the flight.
+- **The self-filter** (`HELD_DROP_M`, `_held_drop`, `Lidar.band`'s `drop`):
+  each grip that reads held, placed off the odometry's model of itself and
+  levelled along the pelvis's heading as a scan's points are; a room's return
+  within 0.12 m is neither a point nor a ray that went on (a bearing the
+  piece alone stopped reads nothing, never free), in the band and in the depth
+  camera's low layer. Another robot's returns are kept: split out by the part,
+  dropped they would blind the front stop to it.
+- **Flown on walk2** (one pod, a Ryzen 9 5950X, osmesa, c3dcca4; each flight
+  its own noise and draw; rows `batches/b4/`):
+  - the reference's own grip and lift, then the served hand-over (raised, out
+    along its line, to `close`): the plate at 80 N arrived 15 of 16 walks (4
+    m straight, the 13 m route, the goals 4 m ahead and 2.5 m behind; one
+    found no route), no fall, no drop, turned at most 13 deg in the jaws; the
+    cup at 40 N 11 of 11, no fall, but it fell out of its jaws on the 13 m
+    route twice of three (turned 180 deg): the cup's creep, T7's A7, still not
+    diagnosed. 5 set-ups whose grip closed on nothing were not flown;
+  - in the house (the kitchen's shelf, through the staff door, to table 0's
+    standoff; closed loop), the arm posed as T7 posed it and held out there,
+    the served hand-over taking it to `close`: arms home 4/4 in 39-46 s;
+    plate close 4/4, plate low 3/4, plate out 3/4, cup out 3/4, cup tray 4/4
+    (cup at 40 N: 2/4 and 3/4) -- 17 of 20 carries arrived, where T7's as
+    served (no carry pose, no filter) arrived 6 of 24 -- in 43-108 s; no
+    fall. ⚠ But the plate fell out of its jaws once in each of its three
+    poses (3 of 12 walks at 80 N; at the instrument's own pose before the
+    review's fixes, 5 of 8), turning in the pinch until it slid free: it
+    touched nothing of the world first (every geom a held piece met was
+    recorded; the floor alone, after it fell). Not the door frame's, then:
+    the plate's own pinch over a walk of 90-100 s with many stops and turns.
+    The cup never fell in the house (16 walks);
+  - two pieces at once (`both_low`, outside Ben's one piece): 2 of 8 goals
+    arrived and one fell standing (before the lift);
+  - walk2 veers toward the carrying arm at `close`, as T7 measured: +24-27
+    deg over 4 m with the plate (left), -10 to -15 with the cup, arms home
+    +3.5-5.
+- **The table's reference with the plate at 80 N** (`hands_check.TABLE`, the
+  served lay): 77 of 96 set-outs (0-95) against 82 at 40 N on the same pod,
+  paired -- 5 lost, none won, every one the fork knocked from its jaws or off
+  its place after the plate was laid; at 0-31, 22 against 24, its bar. The
+  lay walks nothing, so it squeezes at 40 N still; 80 N is a carried plate's,
+  stage C's reference's.
+
+**What is true now:** a walk carries a hand that holds and has come away, at
+one pose, its wrist level as it was, its piece hidden from its own sensors
+within 0.12 m of the grip; everything else lets go as before. On walk2 it
+veers toward the carrying arm, which the Navigator steers out and a `step`
+does not. Two things stand before a carry is graded (stage C): the plate's
+pinch let it slide free in 3 of 12 house walks even at 80 N, touching
+nothing, and the cup's creep on the 13 m route.
+
+## A walker trained to carry (#682's stage B)
+
+`Pluggy-Humanoid-Walk-Carry` (`training/humanoid_train/walk.py`
+`carry_env_cfg`, `CarryArms`; `robot.get_carry_spec`): walk2's flat task
+fine-tuned from its checkpoint (`model_2999.pt`), each arm in segments of
+4-15 s hanging (30 %), moving as walk2's arms did (20 %) or holding one pose
+drawn from the carry box the whole segment (50 %; both arms carry a quarter
+of the time), a 0-1 kg payload at each grip site drawn at every reset, the
+actor seeing walk2's 24 joints in walk2's order (the exporter records them,
+`export.seen_joints`).
+
+- **⚠ Trained on the waist's joint, it learnt to spin** (carry1, 1250
+  iterations on a 5090, $0.25, stopped): asked to stand still it turned 0.8
+  rad/s by its heading, each world at +-1.9 rad/s by the root's velocity
+  sampled after a step -- while the reward's own reading of the same root
+  said it tracked its turn (the turn's term rose 0.05 -> 1.0, its yaw error
+  1.2 -> 4.5). The pelvis's yaw rang against the trunk on the waist's spring
+  at the policy's rate, and the policy phased the ringing to the instant the
+  reward samples it. walk2 itself, flown in that task, scored 0.3 on the
+  turn's reward with the waist's joint and 34.9 without it (its own measure
+  of its turn 0.53 and 0.86 a step). The carry task's model is RIGID at the
+  waist, as walk2's body was (`get_carry_spec`); served, the waist is held
+  home while the robot walks. ⚠ Any walker retrained on today's model with
+  the waist's joint free meets this.
+- carry2 (rigid waist), 2500 iterations from walk2 on a 5090: its turn's
+  yaw error 0.44-0.45 through training, walk2's own 0.46.
+
 ## The arms keep off the other robot (issue #678)
 
 **What happened.** #670 kept a step off the other robot as a walk is kept
