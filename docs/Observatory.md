@@ -30,8 +30,9 @@ an error"):
   a live map stays until the map goes (a true death or a stand-up: a
   station's fix drops a map only past `ASKEW`, 0.6 m), and the doubt pulls
   a right belief onto such a copy (SimNotes: on a synthetic counter 11-12
-  work poses of 12, the base 0-5). Whether to bump it at this deploy is
-  #681's call 2.
+  work poses of 12, the base 0-5; on Luca's live map of 11-09, 35 of 40
+  poses round the counter moved 0.2 m, the base none). Whether to bump it
+  at this deploy is #681's call 2.
 - No text the robots read moved: `prompt_sha` `4904a4cb…` both sides, 64,556
   chars, 17 sections.
 

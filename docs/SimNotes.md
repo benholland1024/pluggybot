@@ -7518,7 +7518,15 @@ could not show, each read on synthetic scans:
   0.77-0.80 of its points on walls and is doubted, and the search takes the
   copy -- under `UNIQUE_M` from the truth, so the truth is no rival of it. A
   right belief at 12 work poses was moved onto the copy at 12, 11 and 12 of
-  12 (copies at +0.3, -0.3 and +0.57 m), the base at 5, 0 and 0. A station's
+  12 (copies at +0.3, -0.3 and +0.57 m), the base at 5, 0 and 0. On the
+  live robots' own maps (T5's counter probe, 40 true poses round the counter,
+  the maps of the 11-08 and 11-09 saves) it is one map of four: Luca's of
+  11-09 moved a right belief 0.2 m along the counter at 35 poses of 40 (the
+  base at none), and a belief 0.1-0.4 m off ended within 0.15 m of the truth
+  at 10 of 320 (the base 101); Luca's of 11-08 and Rowan's of 11-09 kept the
+  right belief as the base did and took 300 and 319 of 320 back (the base 91
+  and 82); Rowan's of 11-08 holds the storeroom 0.57 m off whole, and both
+  go there from the truth. A station's
   fix drops a map only past `ASKEW` (0.6 m), so a copy laid nearer than that
   stays in a kept map until the map goes (a true death, a stand-up or a
   `MAP_EPOCH` bump); the batch flew fresh maps. It is the full-fit doubt's

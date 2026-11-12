@@ -141,7 +141,9 @@ FOUND_SHARE = 0.75
 #: fit at the truth is doubted and the search takes the copy, which is
 #: under UNIQUE_M from the truth and so no rival of it (a synthetic counter,
 #: a copy the base laid 0.3-0.57 m off: 11-12 of 12 work poses moved onto
-#: it, the base 0-5); the copies kept maps hold go only with the map.
+#: it, the base 0-5; Luca's live map of 11-09: 35 of 40 poses round the
+#: counter moved 0.2 m along it, the base 0); the copies kept maps hold go
+#: only with the map.
 DOUBT_HELD_SHARE = 0.95
 DOUBT_SHARE = 0.8
 DOUBT_FOUND_SHARE = 0.9
