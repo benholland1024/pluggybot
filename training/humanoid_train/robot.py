@@ -112,11 +112,11 @@ ARM_GAIN_SCALE = tuple(BODY["arm_gain_scale"])
 WAIST_GAIN_SCALE = tuple(BODY["waist_gain_scale"])
 
 
-def actuators() -> tuple[DcMotorActuatorCfg, ...]:
+def actuators(waist_joint: bool = True) -> tuple[DcMotorActuatorCfg, ...]:
   out = []
   for motor in MOTORS:
     legs = tuple(j for j in _group(motor) if j in LEGS)
-    waist = tuple(j for j in _group(motor) if j in WAIST)
+    waist = tuple(j for j in _group(motor) if j in WAIST and waist_joint)
     arms = tuple(j for j in _group(motor) if j in ARMS)
     if legs:
       out.append(_actuator(motor, joints=legs))
@@ -164,9 +164,20 @@ PAYLOAD_BUILT_KG, PAYLOAD_INERTIA = 1e-4, 1e-7
 def get_carry_spec() -> mujoco.MjSpec:
   """The robot with a payload body at each grip site (`PAYLOADS`), welded
   to its hand: what a carried piece weighs, where the jaws hold it -- never
-  the hand's middle, where walk2's `hand_kg` added its load. In the
-  training model only."""
+  the hand's middle, where walk2's `hand_kg` added its load -- and its waist
+  RIGID, as walk2's body was (its joint taken out: the trunk welded to the
+  pelvis). ⚠ On the waist's joint the pelvis's yaw rang against the trunk
+  at the policy's rate, and fine-tuned there (carry1, #682) the walker
+  phased that ringing to the instant the reward samples it: tracking its
+  turn by the reward's reading, it spun at 0.8 rad/s asked to stand, every
+  world at +-1.9 between two samples. Served, the waist is held home while
+  it walks (`pluggybot.humanoid.reach.Reach.hold_waist`). In the training
+  model only."""
   spec = get_spec()
+  for body in spec.worldbody.find_all(mujoco.mjtObj.mjOBJ_BODY):
+    for joint in list(body.joints):
+      if joint.name in WAIST:
+        spec.delete(joint)
   for side, name in zip(("left", "right"), PAYLOADS):
     hand = spec.body(f"{side}_hand")
     grip = next(s for s in hand.sites if s.name == f"{side}_grip")
@@ -175,5 +186,17 @@ def get_carry_spec() -> mujoco.MjSpec:
   return spec
 
 
+CARRY_INIT_STATE = EntityCfg.InitialStateCfg(
+  pos=INIT_STATE.pos,
+  joint_pos={k: v for k, v in INIT_STATE.joint_pos.items() if k not in WAIST},
+  joint_vel={".*": 0.0},
+)
+CARRY_ARTICULATION = EntityArticulationInfoCfg(
+  actuators=actuators(waist_joint=False),
+  soft_joint_pos_limit_factor=0.9,
+)
+
+
 def get_carry_robot_cfg() -> EntityCfg:
-  return EntityCfg(init_state=INIT_STATE, spec_fn=get_carry_spec, articulation=ARTICULATION)
+  return EntityCfg(init_state=CARRY_INIT_STATE, spec_fn=get_carry_spec,
+                   articulation=CARRY_ARTICULATION)
