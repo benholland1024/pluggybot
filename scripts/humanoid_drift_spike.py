@@ -38,10 +38,10 @@ and the legs alone, through the true heading.
 `--seed` draws the IMU's offset and scale and the joints' noise: `luca` and
 `rowan` are the served pair's own (the first robot's and the second's),
 anything else a draw keyed by it. The truth is ours, read to take the
-error apart; nothing here steers off it. A fall it has not stood up from,
-`STOOD_AGAIN_S` (5 s) at a time, within `GETUP_WAIT_S` (40 s) ends the
-flight, and `--falls`' too, `stuck`, the rows until then kept
-(`stuck_guard`).
+error apart; nothing here steers off it. A get-up that has not stood in
+the death's budget (20 s) ends the flight, and `--falls`' too, `stuck`,
+the rows until then kept: where nothing dies, the lifecycle's own bound
+(`lifecycle.Stuck`, #684).
 
 #593's two scenes (SimNotes, "A robot left standing when its run ends, and a
 heading held at a standstill"): `--still` stands one humanoid still
@@ -70,18 +70,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from station_spike import _life, zone_of  # noqa: E402  (the house as the station's trials fly it)
 
-from pluggybot.tick import MissionAborted  # noqa: E402
+from pluggybot.lifecycle import Stuck  # noqa: E402
 
 #: A row of the belief against the truth this often, sim s.
 EVERY_S = 5.0
-#: A get-up is waited for this long at most, s (`HumanoidBody.GETUP_BUDGET_S`'s
-#: margin: the slowest in the house stood at 30): `--falls`' wait after its
-#: shove, and in every flight here the get-up after which it ends `stuck`
-#: (`stuck_guard`).
+#: `--falls`' wait after its shove for the fall and the get-up's stand, s:
+#: what a shove that fells nothing waits out, a get-up that has not stood in
+#: the death's budget (`HumanoidBody.GETUP_BUDGET_S`, 20) ending the flight
+#: first (`Stuck`).
 GETUP_WAIT_S = 40.0
-#: ...counted from the first fall of a spell that only a stand this long
-#: ends, s: one stood shorter and down again is the same struggle.
-STOOD_AGAIN_S = 5.0
 #: The walk across the street goes to the storeroom's middle, in front of
 #: its counter (`home.storeroom`), and back to the station's standoff, each
 #: walk given this long, s.
@@ -315,45 +312,10 @@ def _patch(tr: Tracker) -> None:
   HumanoidMission._match, HumanoidBody._fix_at = matched, fixed
 
 
-class Stuck(MissionAborted):
-  """A get-up that never stood (`stuck_guard`); its one argument says when
-  it fell and where it lies."""
-
-
-def stuck_guard(body, wait_s: float = GETUP_WAIT_S, again_s: float = STOOD_AGAIN_S):
-  """A step hook that ends a flight `wait_s` after a fall it has not got up
-  from: `Stuck`, the clock running from the spell's first fall until it has
-  stood `again_s`. ⚠ The loop's get-up has no budget of its own: served,
-  the `stuck` death's stand-up closes it, and this lifecycle is not mortal
-  (SimNotes, "A flight that never got up")."""
-  since: list[float | None] = [None]       # the spell's first fall
-  stood: list[float | None] = [None]       # ...and since when it stands
-
-  def hook() -> None:
-    t = float(body.data.time)
-    if body.posture != "getting_up":
-      if since[0] is not None:
-        stood[0] = t if stood[0] is None else stood[0]
-        if t - stood[0] >= again_s:
-          since[0] = stood[0] = None
-      return
-    stood[0] = None
-    if since[0] is None:
-      since[0] = t
-    elif t - since[0] >= wait_s:
-      x, y, _ = body.true_pose()
-      raise Stuck({"fellT": round(since[0], 1), "t": round(t, 1), "zone": zone_of(x, y),
-                   "at": [round(x, 2), round(y, 2)]})
-  return hook
-
-
-def _flight():
-  """The house and a lifecycle on it, as the station's trials fly it
-  (`station_spike._life`), a get-up that never stands ending the flight
-  (`stuck_guard`). (life, body, station)."""
-  life, body, station = _life()
-  body.step_hooks.append(stuck_guard(body))
-  return life, body, station
+def stuck_row(stuck: Stuck) -> dict:
+  """A get-up that never stood, as a flight's row says it: when it fell
+  and ended, why, where it lies and in which zone (`Stuck.record`)."""
+  return {**stuck.record, "zone": zone_of(*stuck.record["at"])}
 
 
 def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trips: int = 2,
@@ -367,11 +329,11 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
   at the storeroom, as a job would -- and, if `charge`, the loop's charge
   path and the station's fix as it charges. The rows, each walk's end, the
   shares over the flight and over each zone -- and `stuck`, where a fall
-  it never got up from ended it (`stuck_guard`), the rows until then."""
+  it never got up from ended it (`Stuck`), the rows until then."""
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   cfg = world_config(HUMANOID_HOME)
   starts = {"start": cfg["start"], "hall": cfg["start2"]}
-  life, body, _ = _flight()
+  life, body, _ = _life()
   data, wall = life.data, time.time()
   out = {"seed": seed, "start": start, "exploreS": explore_s, "trips": trips, "restS": rest_s,
          "idleAt": idle_at, "idleS": idle_s, "learned": offset_learned}
@@ -427,7 +389,7 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
       tr.due = 0.0
       body.run(body.hold_routine(0.05))
     except Stuck as stuck:
-      out["stuck"] = {**stuck.args[0], "phase": tr.phase}
+      out["stuck"] = {**stuck_row(stuck), "phase": tr.phase}
     out.update(rows=tr.rows, zones=tr.zone_table(), residual=tr.residual,
                counts=body.match_counts, falls=body.falls,
                events=[{k: e[k] for k in ("t", "why", "before", "after", "truth") if k in e}
@@ -459,11 +421,11 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
   matcher's verdicts and the belief's records since the shove. A fall's
   get-up holds its odometry (#572): stood, the belief is off by what the
   get-up moved it, and the matcher's searches take that back. `stuck`, a
-  fall it never got up from (`stuck_guard`), ends it there."""
+  fall it never got up from (`Stuck`), ends it there."""
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   cfg = world_config(HUMANOID_HOME)
   starts = {"start": cfg["start"], "hall": cfg["start2"]}
-  life, body, _ = _flight()
+  life, body, _ = _life()
   data, model, wall = life.data, life.model, time.time()
   m = body.mission
 
@@ -522,7 +484,7 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
                          if v != counts0.get(k, 0)}
       out["events"] = [e["why"] for e in body.belief_events if e["seq"] > seq0]
     except Stuck as stuck:
-      out.update(stuck=stuck.args[0], falls=m.falls, stood=False)
+      out.update(stuck=stuck_row(stuck), falls=m.falls, stood=False)
     out["wallS"] = round(time.time() - wall, 1)
   finally:
     body.close()
@@ -555,8 +517,7 @@ def falls(seed: str, start: str, explore_s: float, parallel: int) -> list[dict]:
     if "stuck" in r:
       s = r["stuck"]
       print(f"{r['shoveDeg']:5.0f} {s['zone']:12s} {r['falls']:4d} stuck: fell at "
-            f"t={s['fellT']:.0f}, and {s['t'] - s['fellT']:.0f} s on it had not stood "
-            f"{STOOD_AGAIN_S:.0f} s")
+            f"t={s['fellT']:.0f}, still getting up {s['t'] - s['fellT']:.0f} s on")
       continue
     print(f"{r['shoveDeg']:5.0f} {r['zone']:12s} {r['falls']:4d} {r['getupS']:5.1f} "
           f"{r['moved']:6.2f} {r.get('getupMoved', float('nan')):6.2f} "
@@ -740,8 +701,7 @@ def report(run: dict) -> None:
   stuck = run.get("stuck")
   if stuck:
     print(f"  STUCK: fell at t={stuck['fellT']:.0f} in the {stuck['zone']} ({stuck['phase']}), "
-          f"and {stuck['t'] - stuck['fellT']:.0f} s on it had not stood {STOOD_AGAIN_S:.0f} s: "
-          "the flight ended there")
+          f"still getting up {stuck['t'] - stuck['fellT']:.0f} s on: the flight ended there")
   if not run["rows"]:
     return
   last = run["rows"][-1]
@@ -852,6 +812,8 @@ def table(runs: list[dict]) -> None:
 
 
 def main(argv=None) -> int:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--seed", default="luca", help="the IMU's and joints' draws: luca, rowan, or any")

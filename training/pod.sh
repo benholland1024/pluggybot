@@ -399,9 +399,12 @@ mkdir -p "$out"
 cd /root/pluggybot
 printf '%s\n' "commit $(cat COMMIT)" "started $(date -Is)" "cmd $*" > "$out/meta.txt"
 # one BLAS thread and one llvmpipe thread a process, as a batch is a process
-# a core (llvmpipe draws the same pixels on one thread as on all of them)
+# a core (llvmpipe draws the same pixels on one thread as on all of them);
+# every flight's output as it is written, and its stacks on `kill -USR1` of
+# its python -- never the shell that waits on it (`pluggybot.batch`, #684)
 OUT=$out PATH=/root/pluggybot/.venv/bin:$HOME/.local/bin:$PATH MUJOCO_GL=osmesa \
-  OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 LP_NUM_THREADS=1 PYTHONUNBUFFERED=1 nohup bash -c \
+  OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 LP_NUM_THREADS=1 PYTHONUNBUFFERED=1 \
+  PLUGGY_STACKS_ON_SIGUSR1=1 nohup bash -c \
   '"$@" > "$OUT/log.txt" 2>&1; echo "exit $? at $(date -Is)" >> "$OUT/meta.txt"' _ "$@" \
   </dev/null >/dev/null 2>&1 &
 echo "started $name: pid $!"

@@ -25,7 +25,8 @@
   "plate",
   "chair",
   "shelf",
-  "dining_table"
+  "dining_table",
+  "floor_plate"
  ],
  "oneBoxHints": [
   "couch",
@@ -1650,6 +1651,65 @@
     ]
    }
   },
+  "floor_plate": {
+   "marker": "box",
+   "markers": 1,
+   "collides": false,
+   "build": "replace",
+   "axes": {
+    "extentX": "size0",
+    "extentY": "size1",
+    "thickness": "size2"
+   },
+   "note": "A pressure plate FLUSH with the floor: the floor's own square under it reads the weight on it, and this box is its PAINT -- ONE thin box standing on the floor, static, which nothing touches (the robot walks on the floor through it). Draw it as a `plate` is drawn, its glyph INSIDE the box on its top face for `scene.plates[name].purpose` (the garden's is `light`); its 4 mm stand over a ground's 2 mm paint so the art shows.",
+   "body": {
+    "name": "hint_floor_plate",
+    "parent": "world",
+    "dynamic": false,
+    "robot": null,
+    "visual": "floor_plate",
+    "pos": [
+     0.0,
+     60.0,
+     0.0
+    ],
+    "quat": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "geoms": [
+     {
+      "name": "hint_floor_plate_0",
+      "type": "box",
+      "size": [
+       0.4,
+       0.4,
+       0.004
+      ],
+      "pos": [
+       0.0,
+       0.0,
+       0.002
+      ],
+      "quat": [
+       1.0,
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rgba": [
+       0.6,
+       0.6,
+       0.6,
+       1.0
+      ],
+      "texture": null
+     }
+    ]
+   }
+  },
   "chair": {
    "marker": "box",
    "markers": 1,
@@ -1669,7 +1729,7 @@
     "visual": "chair",
     "pos": [
      0.0,
-     60.0,
+     63.0,
      0.0
     ],
     "quat": [
@@ -1724,7 +1784,7 @@
     "visual": "shelf",
     "pos": [
      0.0,
-     63.0,
+     66.0,
      0.0
     ],
     "quat": [
@@ -1941,7 +2001,7 @@
     "visual": "dining_table",
     "pos": [
      0.0,
-     66.0,
+     69.0,
      0.0
     ],
     "quat": [

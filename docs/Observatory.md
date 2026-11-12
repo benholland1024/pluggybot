@@ -10,6 +10,45 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A get-up's death is timed off the get-up, and the garden's plate is flush (#684) — opens when this PR is deployed
+
+**What changed.**
+- **What counts as a `stuck` death.** A robot is `stuck` once its get-up
+  has held its legs for 20 s (`GETUP_BUDGET_S`), whatever its tilt, a stand
+  of under 5 s between two get-ups not starting the clock again
+  (`STOOD_AGAIN_S`); before, only once its trunk had lain 60 deg or more off
+  upright for 20 s running, and any check under 60 deg started the clock
+  again. The words History
+  keeps are the same ("fell and could not get up in 20 s (N deg from
+  upright)").
+- **The garden's pressure plate is flush with the floor**: the floor's own
+  square, read off the load on it (`plate_xml(flush=True)`), its pad paint
+  that nothing touches (`floor_plate`), where it was a sprung pad 21 mm
+  proud. It lights the lamp as it did, at 100 N on it; the light's flags
+  are `state` and `pressed`, its `depressMm` gone. The lab's three plates
+  are as they were.
+- ⚠ **The world's geometry changed** (the plate's joint is gone,
+  `continuation.fingerprint`): the deploy keeps the clock, the packs, the
+  deaths and the jobs and drops both robots' bodies and maps, as a world
+  change always has (History: "the world itself changed since then").
+- No text the robots read moved: `prompt_sha` unchanged.
+
+**Why.** Ben's calls on #684 (2026-11-12). A get-up stuck short of 60 deg
+(D3's new get-up sat at the chest, #679), or thrashing across it, never
+died, and lay there until its pack or `unminded` ended it, with no world
+saved meanwhile. The plate tripped the served walker in a drift flight, and
+the lamp's pole kept it down (SimNotes, "A flight that never got up").
+
+**What the period is for.** Nothing of its own. ⚠ The `stuck` column is
+not to be pooled with the periods before: a get-up that sits or thrashes
+for 20 s now dies where it never did, and one that stands after 20 s of
+get-up dies where it might have lived (of #679's 151 falls on the served
+get-up, one: laid on its front against the south wall, stood at 21.5 s,
+its trunk past 60 deg for at most 19.7 s running). A death both clocks
+call comes sooner by the time the trunk took to pass 60 deg after the
+get-up took the legs at 35 (about half a second in #684's flight, flown
+served). No live death had been in the garden (5 `stuck` since 10-31).
+
 ### A read after a verb that failed says so, a fault in a statement names its line, and the table's grade names every piece at fault (#686, #687) — opens when this PR is deployed
 
 **What changed is what the robots read** (Overseer.md §2b, Hands.md §3,

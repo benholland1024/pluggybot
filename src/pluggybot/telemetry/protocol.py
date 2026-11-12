@@ -96,6 +96,11 @@ VISUAL_HINTS = (
   # a block the robot believes) has none of. A reskin, as `stairs`: dress
   # the top and the legs where they are.
   "dining_table",
+  # v8 (issue #684): a plate FLUSH with the floor, the garden's -- the floor's
+  # own square read off its load, its pad paint nothing touches. Not a
+  # `plate`, whose rule is a pad the robot steps on (it collides): the same
+  # art, on a body the physics walks through.
+  "floor_plate",
 )
 
 #: What a pressure plate is FOR, by the plate body's name in `scene.plates`
