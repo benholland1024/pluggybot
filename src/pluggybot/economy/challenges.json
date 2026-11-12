@@ -97,7 +97,7 @@
       "base": 51,
       "bonus": 0,
       "shown": false,
-      "detail": "Put the cube on the storeroom's counter on its mat -- resting on it, upright, within 2.5 cm of its middle -- set down, never dropped, and let go of it, within the minutes the job gives from when you take it, without falling. Graded on the cube's place 5 s after you say you are done and on whether you fell since you took the job; how you move it is up to you."
+      "detail": "Put the cube on the storeroom's counter on its mat -- resting on it, upright, within 2.5 cm of its middle -- set down -- while nothing of yours holds it, it may not come down faster than 0.5 m/s -- and let go of it, within the minutes the job gives from when you take it, without falling. Graded on the cube's place 5 s after you say you are done and on whether you fell since you took the job; how you move it is up to you."
     },
     "open_chest": {
       "tier": "auto",

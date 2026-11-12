@@ -312,6 +312,8 @@ def hands_main(args) -> None:
 
 
 def main() -> None:
+  from pluggybot.batch import watched
+  watched()
   parser = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument("--feature", choices=tuple(HAND_JOBS), default="drawer",

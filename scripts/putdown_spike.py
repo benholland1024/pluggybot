@@ -1054,6 +1054,8 @@ def read_rows(into: str) -> list[dict]:
 
 
 def main() -> None:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--levers", default="")
   ap.add_argument("--candidates", default=",".join(KINDS))

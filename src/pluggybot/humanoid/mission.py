@@ -394,10 +394,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     """Held still while a fall's get-up has the legs, until it stands. ⚠
     Unheld, a walk asked of a body that fell with its arms home found them
     at rest and the posture settled, and took the legs off the floor. ⚠ No
-    budget of its own, as the quadruped's get-up has none: a body that
-    cannot stand is the lifecycle's `stuck` death after `stuck_after_s`,
-    whose stand-up closes the routine; a script with no lifecycle bounds
-    its own run."""
+    budget of its own: a body that cannot stand is the lifecycle's `stuck`
+    death after `stuck_after_s`, whose stand-up closes the routine, and
+    where nothing dies the same clock ends the run (`lifecycle.Stuck`,
+    #684); a script with no lifecycle bounds its own run."""
     while self.legs == "getup":
       yield STILL
       self._after_step()

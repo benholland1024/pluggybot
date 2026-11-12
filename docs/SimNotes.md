@@ -308,11 +308,14 @@ rot.
 
 A pressure plate that latches a garden light (`activity/plate.py`; the
 `geom_pos` trap under "Conventions" is the surviving lesson of the gate it
-replaced, table in ActivityPattern.md §3.4). Three measured rules the pattern
-doc carries:
+replaced, table in ActivityPattern.md §3.4). The garden's is flush with the
+floor since #684, read off its load ("A flight that never got up"); the
+sprung pad below is the lab's three. Three measured rules the pattern doc
+carries:
 - **Hysteresis**: one wheel crossing flips a bare threshold **4** times, a
   hysteretic one (`PLATE_ON` 6 mm / `PLATE_OFF` 3 mm) **2** — one press, one
-  release, the floor.
+  release, the floor; a humanoid walking across the flush plate, 175 and
+  71 over 15 crossings (`LOAD_ON_N` 100 / `LOAD_OFF_N` 50).
 - **An analogue flag defeats sparseness**: `depressMm` over a 300-frame
   crossing is 38 deltas at 0.1 mm rounding, 15 at 1 mm. Quantise to what a
   consumer can act on or keep it off the wire.
@@ -7440,6 +7443,68 @@ never held in four tries (2 of 32), each try stopped short, out of reach or
 shut on nothing.
 
 
+## A flight that never got up (the drift batch of 11-10)
+
+One flight of the doubt rule's drift batch, seed 13 from the hall, never
+finished on either tree: 57 and 72 minutes at full CPU on a pod (an EPYC
+7773X), nothing on its stdout or stderr, where the rest flew whole in 22-42
+minutes. It read as a C call that never returned, and was not one: a
+flight's stdout redirected to a file is block-buffered (a whole flight's
+report is 4 KB, under the 8 KB buffer, so every flight's stdout is empty
+until it ends), and a SIGINT that reaches Python prints its traceback
+within seconds, so the one sent must have reached a shell. Flown again on
+another CPU and Python (an i5-9600KF on 3.14, the pod's 3.12) it hung the
+same way, every flight of it at the same step: 117.7 s in, the explore's
+walk north along the house's east wall crossed the garden's pressure plate
+(a sprung pad 21 mm proud of the floor), went down on it, and fell forward
+0.65 m over the garden lamp's pole (4 cm, which its maps held within 10 cm
+of it), the pole between its legs. The get-up thrashed round the pole and
+lay still against the house's wall, 120 deg from upright, for good. Two
+flights tell the causes apart: with the pad's contacts off (under the
+LIDAR's band and the depth camera's low layer, so nothing the robot senses
+changes) the same walk passed the pole 0.42 m off and never fell; with the
+pole's off from the step it fell, the get-up stood 2.6 s later. The plate
+tripped the served walker, and the pole kept it down.
+
+`HumanoidMission._getup_routine` holds the walk until the get-up stands,
+with no budget of its own: served, a fall it cannot get up from is the
+lifecycle's `stuck` death, whose stand-up closes the routine. The spike's
+lifecycle is not mortal, and the explore's budget and the walk's timeout
+are read only between drive steps. Flown under the served rules (mortal,
+its 300 s restart, the explore inside `_until_stood_up_routine`), the same
+fall is a `stuck` death 20.6 s on, and the stand-up 300 s later closes the
+explore; the physics thread never stalls, and no save is taken while it
+lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
+60 deg or more off its posture, so a get-up stuck short of that never died
+`stuck`.
+
+**What is true now** (#684, Ben's calls of 11-12):
+- A get-up's death is timed off the get-up: a body that rights itself is
+  `stuck` once its get-up has held its legs 20 s, whatever its tilt, a
+  stand under 5 s between two get-ups one struggle on one clock (the drift
+  spike's own guard's rule, kept). Of
+  #679's 151 falls on the served get-up, one that stood dies now (laid on
+  its front against the south wall, up at 21.5 s, its trunk past 60 deg for
+  at most 19.7 s running).
+- Where nothing dies the same clock ends the run (`lifecycle.Stuck`, a
+  `MissionAborted`): every instrument's flight and every demo's day. 13h's
+  own command line, on the raised plate, fell at 117.8 s and ended at
+  137.8 s, its rows kept; the drift spike's own guard is retired for it.
+- A batch's flights are watched (`pluggybot.batch`): their output as it is
+  written, and every thread's stack on `kill -USR1` of a flight's python.
+- The garden's plate is flush with the floor: the floor's own square, read
+  off its load, its pad paint nothing touches (`floor_plate`;
+  ActivityPattern.md §3.1). 13h on it crossed the plate at 115.9-117.5 s,
+  where it had fallen, its pelvis at 0.725 m at the lowest, and five times
+  more, the lamp lit at 115.4 s; it explored, walked both trips and docked
+  with no fall. Of the served walker's straight walks, none fell on the
+  flush plate (15 crossings, 9 begun at a standstill 4 cm off its edge);
+  on the raised pad, none fell either, but all 9 begun at its edge and 3 of
+  the 15 stood on its edge for good (0.10-0.25 m); the lab's three, the
+  same 21 mm sprung pad, were crossed 21 times at speed, and stalled all 9
+  edge starts.
+
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
@@ -7464,3 +7529,9 @@ shut on nothing.
    in one comparison, and doing the thing twice found the third.
 7. A loop that never ends is named by walking the day routine's generator
    chain (`gi_yieldfrom`) in a reproduction.
+8. A flight that seems hung is read from inside it: run it `-u` (redirected,
+   its stdout says nothing until it ends), signal the Python process and
+   never its shell, and give it `faulthandler.register(SIGUSR1,
+   all_threads=True)`, which dumps every thread's stack with no ptrace; one
+   that calls `prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)` lets `py-spy dump`
+   attach where Yama allows only a parent (scope 1).

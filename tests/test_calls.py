@@ -210,10 +210,11 @@ def test_a_call_an_if_tests_reads_a_failure_in_it_and_the_run_goes_on():
   assert r["ok"] and [c[1][0] for c in life.calls] == [1.0, 3.0]
   assert {"verb": "expr", "ok": False, "reason": "division by zero"}.items() <= next(
     s for s in r["steps"] if not s["ok"]).items()
-  # ...a fault in the arithmetic of the call at line 2 a test of its own
+  # ...a fault in the arithmetic of the call at line 2 a test of its own,
+  # named by the line it came at in b (#686)
   assert r["completed"] == r["total"] == 2 and r["testsFalse"] == 1
   assert procedure_outcome("a", r)[0] == (
-    "ran the procedure a to its end (2 steps; 1 test read false -- line 2, an expression "
+    "ran the procedure a to its end (2 steps; 1 test read false -- line 7, an expression "
     "(in b): division by zero)")
   r, _ = run("def a():\n  budget(steps=2)\n  if b():\n    pass\n  wait(3)\n"
              "def b():\n  for i in range(5):\n    wait(1)\n")

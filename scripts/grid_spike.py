@@ -519,6 +519,8 @@ def report_walks(rows: list[dict]) -> None:
 
 
 def main(argv=None) -> int:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
   ap.add_argument("--scales", default="1,2,3,4",
                   help="multiples of today's cells, comma separated (default 1,2,3,4)")

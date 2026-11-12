@@ -573,13 +573,17 @@ charging rows below, as shapes.
   (`DEATH_CAUSES`):
   - `flat` — the pack reached zero. A decision failure. Caught on the physics
     seam the moment it happens, inside an errand or not.
-  - `stuck` — toppled past `TOPPLE_TILT_RAD` (60°) for the body's
-    `stuck_after_s` (the humanoid's, its get-up's budget, 20 s, its tilt
-    read off the posture its legs hold), or unable to reach the charger. A
-    physics or navigation failure. Every `death` event carries `at` since
-    #362 (where the robot was and believed it was, what it was running,
-    the nearest peer), read AS IT FELL for a topple; protocol/README.md has
-    the shape.
+  - `stuck` — down for the body's `stuck_after_s`, or unable to reach the
+    charger. A physics or navigation failure. Down is a body that rights
+    itself with its get-up holding its legs, whatever its tilt (the
+    humanoid's get-up budget, 20 s from the get-up's start, a stand under
+    5 s between two get-ups not starting it again, #684: timed off its tilt
+    past `TOPPLE_TILT_RAD`, a get-up sitting short of 60° never died), and
+    one that cannot toppled past `TOPPLE_TILT_RAD` (60°, read off the
+    posture its legs hold) for `TOPPLE_HOLD_S`. Every `death` event
+    carries `at` since #362 (where the robot was and believed it was, what
+    it was running, the nearest peer), read AS IT FELL for a topple;
+    protocol/README.md has the shape.
   - `unpaid` — upkeep came due and the balance could not cover it. An ECONOMIC
     failure: the robot is fine and it is broke. None while upkeep is off
     (#387).
@@ -2041,13 +2045,14 @@ no try that fell; seed 402613269), on staging `f7c7a94` (the release
   #640's gaps (13 of 14 a tag in quotes, 13 a budget past its caps), and
   each was answered from its reasons: 28 of the 98 calls were repairs, and
   none was lost.
-- **The body's side failed every try.** By the first thing that went wrong
-  in each of the 70: a reach or a carry out of reach (18), a grip that
-  closed on nothing (18), a carry that lost its piece from the jaws (12),
-  a fall (7), a reach given only one of its two directions (4), a step
-  that got nowhere (3), and 8 others. In 70 tries no plate was laid; 6 cups
-  and 3 forks were. The plate is the piece the grades found let fall or
-  knocked over, 15 of 19 times.
+- **The body's side failed every try.** By #560's reader, which ranks a
+  fall ahead of what went wrong before it (in the run's own order, given
+  with the KEPT practice below, a fall is 2 of the 70), each of the 70: a
+  reach or a carry out of reach (18), a grip that closed on nothing (18), a
+  carry that lost its piece from the jaws (12), a fall (7), a reach given
+  only one of its two directions (4), a step that got nowhere (3), and 8
+  others. In 70 tries no plate was laid; 6 cups and 3 forks were. The plate
+  is the piece the grades found let fall or knocked over, 15 of 19 times.
 - **The grips**: 56 closed on nothing, in 34 of the 70 tries, an `if`'s
   test or not. Of those whose squeeze the source names, 33 of 53 at 40 N or
   more closed on nothing and 2 of 8 under it. The arms asked 50-120 N; our
@@ -2131,68 +2136,101 @@ and how many of those put a helper with arguments first:
   unrecorded). Rows and the readers: `~/pluggybot-training/issue-640-language/`.
 
 **The table's practice KEPT, with notes, on DeepSeek-V4.1-Flash at `low`:
-four practice set-outs, none passed, and the night's clock ended it there**
-(#560, the night of 11-10; a partial reading). #560's open box after the
-gripper's fix (#628): the KEPT protocol with the robot's own notes
+six practice set-outs, none passed, nothing kept: given up** (#560;
+set-outs 0-3 the night of 11-10, 4 and 5 the day after). #560's open box
+after the gripper's fix (#628): the KEPT protocol with the robot's own notes
 (`practice.py --job table --acquire 0-31 --notes --held-out 32 --seed
 402613269 --early-stop`), the mind and effort of the fresh arms above, and
 their bar, written first and unchanged (26 of the 32 held-out set-outs
 within 3, no try counted that fell; the set-outs pair by number with
-tableA's, tableB's, deepseekA's and deepseekB's), on `1d4bd21` (staging
-`b4074eb` with #676, #669's withdraw that opens its gripper first, the
-counter's jobs priced again and the cube offered). Since the fresh arms'
-`f7c7a94` the TABLE moved: its set-out stands at the served table, a top on
-legs, its south chair away (#643), and rays no longer pass through tables
-(#657). And the language's gaps (#640), the jaws' drive (#628) and a thin
-grip (#646), `measure` seen past (#636), `step`'s small turns (#649), the
-words of `pull` and `spot` (#650, #660), a readout of every name (#658) and
-a fall that ends a run (#671): so its tries compare with the fresh arms' as
-two worlds, never as one changed by a mind's notes alone. The practice is
-serial, 20-30 minutes a set-out, and it was stopped at set-out 3's end, two
-short of its give-up (nothing kept after 6), to be read before the night's
-end:
+tableA's, tableB's, deepseekA's and deepseekB's). Set-outs 0-3 flew on
+`1d4bd21` (staging `b4074eb` with #676, #669's withdraw that opens its
+gripper first, the counter's jobs priced again and the cube offered) until
+the night's clock stopped it at set-out 3's end, and 4 and 5 on `db88140`,
+the same robot carried on. ⚠ `practice.py` has no resume: a wrapper handed
+the harness's own `acquire` all a KEPT robot carries, as the robot had it
+at set-out 3's end -- nothing kept, its notes (1,270 characters) and its
+draft (2,321) -- and counted the night's four toward the give-up and the
+16. Of what a practice flies, only YOUR BODY's text moved between the two
+trees, its prompt and job rendered on each and compared: a sentence added,
+that a `step` asked while a gripper holds something moves nothing and reads
+false, and the one before it reworded (#669's second review); the rest of
+the diff is what a restart keeps and the cube's offer, and the physics, the
+language, the grader and the set-outs are the same. The per-task record
+keeps the two commits apart. Since the fresh arms' `f7c7a94` the TABLE
+moved: its set-out stands at the served table, a top on legs, its south
+chair away (#643), and rays no longer pass through tables (#657). And the
+language's gaps (#640), the jaws' drive (#628) and a thin grip (#646),
+`measure` seen past (#636), `step`'s small turns (#649), the words of
+`pull` and `spot` (#650, #660), a readout of every name (#658) and a fall
+that ends a run (#671): so its tries compare with the fresh arms' as two
+worlds, never as one changed by a mind's notes alone. The practice is
+serial, 20-45 minutes a set-out:
 
-| arm | practice: set-outs practiced, the try each passed at | kept | held out within 3 | pieces laid in its 20 tries | tries that fell | cost |
+| arm | practice: set-outs practiced, the try each passed at | kept | held out within 3 | pieces laid in its 30 tries | tries that fell | cost |
 |---|---|---|---|---|---|---|
-| keptA | 4 (0-3): none | nothing | unread | 1, a cup | 7 | $0.65 recorded |
+| keptA | 6 (0-5): none; given up | nothing | unread | 1, a cup | 11 | $1.11 recorded |
 
-- **The mind's side held, and the language's gaps are gone**: all 30
-  calls answered, none cut or closed (a median of 30k tokens and 3.4
-  minutes a call, the most 73k and 7.6); no first answer refused, where all
-  14 of the fresh arms' were (#640), and 6 repairs, each answered: 5 for a
-  source past the 3,000 characters, 1 for a name with a dot.
+- **The mind's side held, and the language's gaps are gone**: all 46
+  calls answered, none cut or closed (a median of 31k tokens and 3.4
+  minutes a call, the most 102k and 10.1); one first answer of 6 refused
+  (nesting past 4), where all 14 of the fresh arms' were (#640), and 9
+  repairs, one for each source refused, each answered: 5 for a source past
+  the 3,000 characters, 2 for a verb inside an expression and a `return`
+  given a value, 1 for a name with a dot and 1 for the nesting.
 - **Its notes carried what the body taught.** After set-out 0, 1,453
   characters: where each tag read, "Open hand before every reach (shut jaws
   grip nothing: try1 fail)", and that a plate pinched at its rim and carried
   sideways low pushed until its feet moved or it fell -- so lift high and
   move slowly; by set-out 3's end, never to carry the plate across its body
-  and to slide it by short pulls instead. Grips that closed on nothing: 2,
-  in 2 of the 20 tries, where the fresh arms had 56 in 34 of 70. From
-  set-out 3's second try every source wrote `measure` (4); one ran it, and its near end, the top
-  running off the picture toward the robot, read none (#636). One source
-  wrote a stop on a reading (`until`); it never ran.
-- **What failed instead: carries its feet ended, and falls.** #560's reader
-  (`read_arms.py`) ranks a fall before anything else: a fall 7, a carry its
-  feet ended 5, a tag not in view 3, a grip on nothing 2, out of reach 2 and
-  a hand held back short 1. In the run's own order, a fall only where nothing
-  went wrong before it: a carry its feet ended 6, out of reach 4, a tag not
-  in view 4, a fall 3, a grip on nothing 2, held back 1 -- where the fresh
-  arms' 70, in that order, were out of reach 19, a grip on nothing 19, a
-  carry that lost its piece 13, a fall 2, the feet's stop 2 and 15 others.
-  The feet's
-  stop (the stance 5 cm from where the move began, `FEET_MOVED_M`, said
-  "your feet moved under the force") fired in 7 of the 20 tries, and in 12
-  of the fresh arms' 70: in 5 of the 7 the hand read 63-148 N first, a
-  carried plate pressed on what it met, and in 2 only 8-9 N. The robot fell
-  in 7 of 20 tries (in a `move_hand` 3, a `reach` 2, a `pull` and a
+  and to slide it by short pulls instead. Its last 10 tries moved the plate
+  by pulls, and once by a `move_hand`, and the feet's stop, which fired in
+  7 of the first 20, fired in none of them: what one arm did, never shown
+  to follow from its notes. Two reaches toppled it in set-out 4 ("bare reach
+  that plunges topples me"), and from that set-out's fourth try 12 reaches
+  ran with a stop on the hand's downward force (`until`, 35-45 N): each
+  stopped on it and none fell, where all 5 reaches it fell in over the 30
+  tries had none; its last notes say "Never reach unguarded". Two of
+  set-out 5's runs stopped at a `spot.*` read after a `spot` that failed,
+  told "line ?" and "`spot` has not run" (since #686, its line and that the
+  last `spot` failed), and the notes say to read one only under a `spot`
+  that passed. Grips that closed on nothing: 7, in 6 of the
+  30 tries, where the fresh arms had 56 in 34 of 70. `measure` was written
+  in 5 sources and ran once, and its near end, the top running off the
+  picture toward the robot, read none (#636).
+- ⚠ **What the grade never said, its notes got wrong.** At set-out 4's end
+  they call the cup "Placed <2cm; grade silent", and at set-out 5's "CUP
+  WORKS (placed twice)": in the 9 of those set-outs' 10 tries that lifted
+  it, it ended 3.1-6.3 cm from its place, 4.0 in each of set-out 4's last
+  three, and was never laid. The grade named only the first piece at fault
+  (`challenge/table.py`; every one since #687), and each of those tries
+  failed on a fall, the plate or a dropped fork first, so the cup's distance
+  was never said, and the robot read the silence as laid.
+- **What failed instead: carries its feet ended, then reaches it fell in.**
+  #560's reader (`read_arms.py`) ranks a fall before anything else: a fall
+  11, a carry its feet ended 5, a tag not in view 5, a grip on nothing 3,
+  out of reach 2, a hand held back short 2, a carry that lost its piece 1
+  and a turn stopped short 1. In the run's own order, a fall only where
+  nothing went wrong before it: a carry its feet ended 6, a tag not in view
+  6, a fall 4, out of reach 4, a grip on nothing 3, held back 3, a carry
+  that lost its piece 3 and a turn short 1 -- where the fresh arms' 70, in
+  that order, were out of reach 19, a grip on nothing 19, a carry that lost
+  its piece 13, a fall 2, the feet's stop 2 and 15 others. The feet's stop
+  (the stance 5 cm from where the move began, `FEET_MOVED_M`, said "your
+  feet moved under the force") fired in 7 of the 30 tries and in 12 of the
+  fresh arms' 70: in 5 of the 7 the hand read 63-148 N first, a carried
+  plate pressed on what it met, and in 2 only 8-9 N. The robot fell in 11
+  of 30 tries (in a `reach` 5, a `move_hand` 3, a `pull` 2 and a
   `withdraw`), where the fresh arms fell in 7 of 70. No plate was laid, as
   in the fresh arms' 70 tries.
-- **What it cannot say**: one KEPT arm, four practice set-outs of its 16, one
-  night. Nothing was kept, so no held-out set-out flew and the bar is unread:
-  this reads acquiring alone, never pooled with the fresh arms' held-out
-  rows. Spend: $0.65 recorded over the 30 calls; the stop came before set-out
-  4 asked its first, so nothing was in flight. Rows, the bar and the
-  readers: `~/pluggybot-training/night-shift-1110/t3-table-practice/`.
+- **What it cannot say**: one KEPT arm, six practice set-outs of its 16, on
+  two trees a sentence apart. Nothing was kept, so no held-out set-out flew
+  and the bar is unread: this reads acquiring alone, never pooled with the
+  fresh arms' held-out rows. Spend: $1.11 recorded over the 46 calls ($0.65
+  the night, $0.46 the day after), nothing in flight at either stop. Rows,
+  the bar and the readers: `~/pluggybot-training/night-shift-1110/t3-table-practice/`,
+  the carry-on's wrapper and reading
+  `~/pluggybot-training/day-shift-1111/d5-table-practice/`.
 
 **What `pull` and `spot` say, read** (#650, 2026-11-08): the deployed prompt
 before the words changed (`ce973a53`) and on the text served (`0a30526b`),
