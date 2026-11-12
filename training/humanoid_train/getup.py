@@ -167,18 +167,19 @@ POSES = Path(__file__).with_name("getup_poses.json")
 POSE_SPREAD_RAD, POSE_TILT_RAD, POSE_DROP_M = 0.2, 0.1, 0.02
 #: `-Getup-Wall3` (#679's third round): the get-up HANDS BACK as served --
 #: once standing as the served get-up hands back (within `STOOD_UP`, the
-#: pelvis `HAND_BACK_M` of the stand's height, its roll and pitch turning
-#: under `HAND_BACK_RATE` rad/s) for `HAND_BACK_S` (`humanoid.getup`'s
-#: `STOOD_*`, which a test reads these against), the standing policy
+#: pelvis `HAND_BACK_M` of the stand's height) for `HAND_BACK_S`
+#: (`humanoid.getup`'s `STOOD_*`, which a test reads these against), the standing policy
 #: (`STAND_NPZ`, served) has the legs, the arms held at its pose; and a fall
 #: past `RETAKE_DEG` or the pelvis under `RETAKE_M` is the get-up's again,
-#: as the served watch takes it (`FALL_TILT_RAD`, `COLLAPSED_M`). ⚠ The served test reads the gyro whole; the
-#: training physics turns a standing robot on its soles at ~1 rad/s, so its
-#: yaw is left out. ⚠ Never handed back, D3's wall policies stood with their
+#: as the served watch takes it (`FALL_TILT_RAD`, `COLLAPSED_M`). ⚠ The
+#: served test also waits for the gyro under 0.3 rad/s, and the training's
+#: does not: the action's noise in training never let it settle (with it,
+#: getupwall14 handed back in no episode of 150 iterations), and the training
+#: physics turns a standing robot ~1 rad/s on its soles. ⚠ Never handed back, D3's wall policies stood with their
 #: soles 0.52-0.60 m apart, and the served standing policy, given that
 #: stance, fell within 2 s (#679's second round).
 STAND_NPZ = robot.REPO / "models" / "humanoid_stand.npz"
-HAND_BACK_M, HAND_BACK_RATE, HAND_BACK_S = 0.05, 0.3, 0.5
+HAND_BACK_M, HAND_BACK_S = 0.05, 0.5
 #: Handed back is paid this a second (`upright`'s weight).
 HANDED_WEIGHT = 1.0
 RETAKE_DEG, RETAKE_M = 35.0, 0.40
@@ -818,9 +819,7 @@ class HandBackAction(JointPositionAction):
     data = self._entity.data
     up = -data.projected_gravity_b[:, 2]
     z = data.root_link_pos_w[:, 2] - self._env.scene.env_origins[:, 2]
-    rate = data.root_link_ang_vel_b[:, :2].norm(dim=-1)
-    stood = ((up > STOOD_UP) & ((z - robot.BODY["stand_height"]).abs() < HAND_BACK_M)
-             & (rate < HAND_BACK_RATE))
+    stood = (up > STOOD_UP) & ((z - robot.BODY["stand_height"]).abs() < HAND_BACK_M)
     fell = (up < math.cos(math.radians(RETAKE_DEG))) | (z < RETAKE_M)
     self.handed &= ~fell
     self.still = torch.where(stood & ~self.handed, self.still + self._env.step_dt,

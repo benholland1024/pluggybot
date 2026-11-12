@@ -571,10 +571,9 @@ def test_the_wall_getup_trains_handing_back_as_the_served_getup_hands_back():
   # STOOD_UP is cos(radians(deg)): its degrees are the literal inside
   stood_deg = ast.literal_eval(values["STOOD_UP"].args[0].args[0])
   assert stood_deg == pytest.approx(math.degrees(served.STOOD_TILT_RAD))
-  read = {k: ast.literal_eval(values[k]) for k in ("HAND_BACK_M", "HAND_BACK_RATE", "HAND_BACK_S",
-                                                  "RETAKE_DEG", "RETAKE_M")}
+  read = {k: ast.literal_eval(values[k]) for k in ("HAND_BACK_M", "HAND_BACK_S", "RETAKE_DEG",
+                                                  "RETAKE_M")}
   assert read["HAND_BACK_M"] == served.STOOD_M
-  assert read["HAND_BACK_RATE"] == served.STOOD_RATE
   assert read["HAND_BACK_S"] == served.STOOD_S
   assert read["RETAKE_DEG"] == pytest.approx(math.degrees(served.FALL_TILT_RAD))
   assert read["RETAKE_M"] == served.COLLAPSED_M
