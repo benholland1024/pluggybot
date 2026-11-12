@@ -12,7 +12,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A walk carries what a hand holds (#682's stage A) — opens when this PR is deployed
 
-**What changed** (`prompt_sha` `303b3f0c…` → `d6a5ae24…`, 65,136 → 65,598
+**What changed** (`prompt_sha` `303b3f0c…` → `b7562d8b…`, 65,136 → 65,703
 chars, 17 sections both, over #678's; the session host's hello re-vendored,
 the site's branch `loop-carry`):
 - **A walk carries a hand that holds** (Ben's calls of 11-12; SimNotes,

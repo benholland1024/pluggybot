@@ -38,6 +38,7 @@ from pluggybot.body import KeepClear, StubBody
 from pluggybot.challenge import solutions as sol
 from pluggybot.evaluation import hands_check as hc
 from pluggybot.humanoid import body as hb
+from pluggybot.humanoid import mission as hmis
 from pluggybot.humanoid import odometry as od
 from pluggybot.humanoid.mission import HumanoidMission
 from pluggybot.navigator import GRID_M, Navigator
@@ -408,11 +409,13 @@ def test_the_body_text_says_a_walk_carries_a_hand_that_holds_something():
                ov.hands_procedure_rule()):
     flat = " ".join(text.split())
     assert "a hand that is out comes home, its gripper opened as `withdraw` opens it" in flat
-    assert ("a hand that is out whose gripper says it holds something is CARRIED: it comes "
-            "back out along the way it went in, then its arm folds to your side, the forearm "
-            "up and the hand at your hips, turned as it was against the floor, its gripper "
-            "still shut.") in flat, "the carry goes unsaid beside the let-go"
+    assert ("a hand that is out whose gripper says it holds something is first lifted "
+            f"{100 * hmis.CARRY_LIFT_M:g} cm, and if what it holds came away it is CARRIED: it "
+            "comes back out along the way it went in, then its arm folds to your side, the "
+            "forearm up and the hand at your hips, turned as it was against the floor, its "
+            "gripper still shut.") in flat, "the carry goes unsaid beside the let-go"
     assert "says so in its report (`carried`;" in flat
+    assert "What did not come away is let go and comes home." in flat
     assert "moves nothing, and reads false" not in flat, "the old refusal is still said"
   assert "holding" not in st.STEP_WHY
   assert "a hand that holds something carried at your side" in st.HANDS_VERBS["step"].doc

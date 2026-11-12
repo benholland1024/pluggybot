@@ -467,7 +467,9 @@ there (§4's "A tag watched while the robot moves").
   carries what a hand holds (#682, Ben's calls of 2026-11-12): its hand-over
   lets go of a hand that is out holding nothing, as a `withdraw` does
   (`HumanoidMission.let_go_routine`, #669), and CARRIES one whose gripper
-  says it holds something -- out along its line, then its arm to one carry
+  says it holds something and whose lift (2 cm straight up at the most the
+  standing body holds) went its distance -- held fast, a handle or a lever is
+  let go as an empty hand is -- out along its line, then its arm to one carry
   pose (`Reach.CARRY_POSE`, Ben's `close`: the forearm folded up, the hand at
   the hips), its wrist keeping the hand turned against the floor as it was,
   solved on the stand's statue where the walk carries it -- and holds it

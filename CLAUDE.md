@@ -1047,7 +1047,12 @@ save a filmstrip PNG named after the script.
   HAND OUT WHOSE GRIP READS HELD IS CARRIED (#682; Ben, 2026-11-12: one
   piece in one hand, `close`, the walk taking the pose itself and saying
   so; `HumanoidMission.carries`, `Reach.CARRY_POSE`, `tests/test_carry.py`;
-  SimNotes, "Carrying, served"): its gripper as it is, out along its line,
+  SimNotes, "Carrying, served"): ⚠ LIFTED FIRST, 2 cm at 20 N
+  (`CARRY_LIFT_M`, `_lift_routine`), and carried only once what it holds
+  came away -- held fast, a drawer's handle or a door's lever is let go as an
+  empty hand is (carried unasked, a drawer came out 19 cm with the arm; let
+  go where the arm's force passed 30 N, the robot fell); then its gripper as
+  it is, out along its line,
   then its judged way (`way_home`'s, ending there) to the forearm folded up
   and the hand at the hips, the wrist keeping the hand turned against the
   floor as it was -- ⚠ SOLVED ON THE STAND'S STATUE, where the walk carries
