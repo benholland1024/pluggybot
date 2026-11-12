@@ -23,10 +23,15 @@ an error"):
   nothing, the fit is what it was: laid in as an `ok` one is (a slid one
   refused). A robot's day parts from the base's only where the search takes
   a pose.
-- The drift rows' `matched` counts gain a verdict, `doubted` (additive; the
-  protocol names none of them).
+- The drift rows' `matched` counts gain a verdict, `doubted`, taken out of
+  `ok`: across this period's start, `ok` before is `ok` + `doubted` after
+  (the protocol names none of them).
 - `MAP_EPOCH` is NOT bumped: a copy of the storeroom already laid askew in
-  a live map stays until that robot's next station fix past `ASKEW`.
+  a live map stays until the map goes (a true death or a stand-up: a
+  station's fix drops a map only past `ASKEW`, 0.6 m), and the doubt pulls
+  a right belief onto such a copy (SimNotes: on a synthetic counter 11-12
+  work poses of 12, the base 0-5). Whether to bump it at this deploy is
+  #681's call 2.
 - No text the robots read moved: `prompt_sha` `8e3c4c51…` both sides, 64,492
   chars, 17 sections.
 

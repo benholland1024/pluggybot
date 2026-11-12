@@ -792,10 +792,11 @@ the belief.
 a fit costs ~0.5 ms where a correlative search over a useful window costs
 tens; the fit's own normal matrix says which directions the walls fix,
 which the issue asks for by name. A search (brute force over ±0.6 m and
-±6° in whole cells and degrees, then a fit from its best) runs only when a
-fit disagrees with its map -- a pose already past the fit's reach -- and a
-robot lost beyond that window has its fixtures (#476), and #381's loop
-closure.
+±6° in whole cells and degrees, then a fit from its best) runs when a fit
+disagrees with its map -- a pose already past the fit's reach -- or, since
+#681, slid past `MAX_STEP_M` or only partly agreed with ("The storeroom
+keeps an error", below: 11-37 ms each); a robot lost beyond that window has
+its fixtures (#476), and #381's loop closure.
 
 Every piece was found by flying a lab trip with each scan and the true pose
 recorded, and replaying the matcher over the recording in seconds. A
@@ -865,7 +866,9 @@ puck had every ray hit the housing at 4 cm and the self-filter drop all
 matched pose is the belief (`Navigator._match`); the fixture's anchor stays
 beside it ("Drift hygiene"). A match costs 0.67 ms on the dev machine
 (median 0.46, p99 7.2 -- the field's refresh, 5 ms every 20 fused scans or 1
-m, and the rare search): 6.7 ms of a sim second per robot at 10 Hz. Fusing
+m, and the rare search): 6.7 ms of a sim second per robot at 10 Hz. Since
+#681 a doubted or slid fit is searched too, ~25 ms a scan, and nothing bounds
+a run of them (below). Fusing
 only the scans after the robot moved took the grid's updates on a recorded
 day of lab trips from every level scan to 6 918 of 10 947, and the mapping
 as a whole from ~21 to ~20 ms a sim second; a day that stands still less
@@ -7506,24 +7509,59 @@ storeroom not laid in and 0.55 m laid in, where the night's pod had the base
 doubted scan in: a flight then parts from the base's only where the search
 takes a pose.
 
+**What the review found (code-review at max, 11-12).** Three things the batch
+could not show, each read on synthetic scans:
+- **A copy already in the map captures a right belief.** The tests' storeroom
+  with a copy the base laid while its belief was 0.3-0.57 m off along the
+  counter (20 minutes from 24 work poses, the band's `free_from`): the copy's
+  scans cleared some of the true walls' cells, so a fit at the truth has
+  0.77-0.80 of its points on walls and is doubted, and the search takes the
+  copy -- under `UNIQUE_M` from the truth, so the truth is no rival of it. A
+  right belief at 12 work poses was moved onto the copy at 12, 11 and 12 of
+  12 (copies at +0.3, -0.3 and +0.57 m), the base at 5, 0 and 0. A station's
+  fix drops a map only past `ASKEW` (0.6 m), so a copy laid nearer than that
+  stays in a kept map until the map goes (a true death, a stand-up or a
+  `MAP_EPOCH` bump); the batch flew fresh maps. Its first fits were full-fit
+  doubts (`DOUBT_SHARE`); doubting held fits alone left it uncaptured there,
+  where T5's probe of the real counter took back +0.3 and +0.4 m only at 26
+  and 15 of 40 poses (#681's call 1).
+- **The rival test holds within the window.** In the panelled corridor a
+  belief 0.75 m off along it (the truth outside the ±0.6 m window) was taken
+  onto the alias a metre from the truth at 20 of 20 noise draws, the base
+  keeping 0.75. The served sidewalks have nothing that repeats (above).
+- **A run of doubts has no bound.** A doubted or slid scan costs ~25 ms where
+  a match costs 0.5-1; a robot standing among something its map lacks was
+  doubted at 600 scans of 600 in a minute, until its field refreshed.
+- **Not doubted:** an error toward a wall whose far side was never seen. Its
+  points land on unseen cells, which are no information, so the share on
+  walls reads 0.93-1.00 and the fit is `ok` (a dead end mapped from one side:
+  0.3 m toward its end kept in 44 cases of 45, away from it 18).
+
 **What is true now.** A match the walls only partly agree with is searched
 before its scan is laid in, a pose found is taken only where no other place
 in the window explains the scan as well, and found nothing, the fit is laid
-in as before. `tests/test_scan_match.py` pins it on synthetic scans: a
-storeroom whose side walls hold while its end walls disagree by 0.3 m is
-taken back and laid in; a corridor fenced in panels a metre apart, where the
-search as first written took the place a metre behind the truth, is left
-doubted, its scan laid in as an `ok` one is; a straight corridor held along
-is laid in.
+in as before, correction and all. `tests/test_scan_match.py` pins it on
+synthetic scans: a storeroom whose side walls hold while its end walls
+disagree by 0.3 m is taken back and laid in, at `DOUBT_FOUND_SHARE`'s bar; a
+corridor fenced in panels a metre apart, where the search as first written
+took the place a metre behind the truth, is left doubted, its scan laid in
+as an `ok` one is, its turn taken; a corridor with a post the map lacks, a
+tenth of the scan, is doubted (`DOUBT_HELD_SHARE`); a straight corridor held
+along is laid in; and a slid or doubted fit gets the doubt's search, an
+inconsistent one the base's. The drift rows' `matched.ok` counts no doubted
+fit: across the periods, `ok` before is `ok` + `doubted` after.
 
 **Not done.** A drag past the search's 0.6 m (the live 1.1 m of 13:56): the
 wide search or the station. The slow creep (0.2 m and 2 deg an hour with
 every scan matched, Rowan charging and in `DONE`): not explained. A fix
 under `ASKEW` keeps an askew map (the mall's leg, above). Copies already
-laid in the live maps go at each robot's next station fix past `ASKEW`, or
-at a `MAP_EPOCH` bump. The base's own search, from an `inconsistent` fit,
-still takes the best of two places that explain a scan alike.
-
+laid in the live maps go only with the map (a `MAP_EPOCH` bump, a true death
+or a stand-up: a station's fix drops a map only past `ASKEW`), and until
+then the doubt pulls a right belief onto them (above). A run of doubts
+searched scan by scan (a refused doubt remembered until the robot moves or
+the field refreshes would bound it). The base's own search, from an
+`inconsistent` fit, still takes the best of two places that explain a scan
+alike, and the doubt's beyond its window.
 
 ## Debugging workflow that worked
 
