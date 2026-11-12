@@ -1501,7 +1501,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     result["locals"] = {**{k: round(float(v), 6) for k, v in env.items()
                            if isinstance(v, float)
                            and (k not in proc.params or v != proc.defaults[k][1])}, **inner}
-    # ...and a watch it began ends with it (#554): no picture for nobody
-    if "watch" in (facts.verbs or ()):
-      st.end_watch(life)
+    # ...and a watch it began ends with it (#554): no picture for nobody;
+    # and what its failed calls said (#686)
+    st.end_run(life, watching="watch" in (facts.verbs or ()))
   return result

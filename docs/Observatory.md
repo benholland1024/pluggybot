@@ -20,10 +20,12 @@ Challenges.md §12):
   reading it now says "spot.z has no reading: your last `spot` failed",
   where it said "`spot` has not run" after a `spot` that had; so does
   `reach.stopped` (and `move_hand`'s and `pull`'s) after a first call
-  refused. A verb never called still says it has not run. A `watch` that
-  fails before it begins (no whole tag, or its call refused) ends the watch
-  before it, whose readings read as its own, and the procedure's end
-  forgets that word with its watch.
+  refused. The word ends with its run: the next procedure's read of a verb
+  it never called says it has not run, as it did; what a verb last reported
+  is kept from one run to the next, as ever. A `watch` that fails before it
+  begins (no whole tag, or its call refused) ends the watch before it,
+  whose readings read as its own. A `find` is ok only with the place it
+  reads kept, as its text says (the robot's own search finds no other way).
 - **A fault in a statement's own arithmetic names its line** -- an
   assignment's, an `if`'s or an `elif`'s test, a `while`'s and its cap.
   History: "it stopped at line 5, an expression: …", where it said "it
@@ -45,7 +47,9 @@ Challenges.md §12):
   piece at fault reads as it did, and what still touched the place is still
   said only of a place otherwise laid. Pass or fail is as it was: D5's 30
   tries' metrics replayed through it, 30 of 30, the longest History line a
-  settled job of them would leave 340 characters of 400.
+  settled job of them would leave 340 characters of 400. ⚠ 58 of the 599
+  mixes of faults it can name still run past History's line, cut there and
+  said so, all but 4 with a call past the job's time (Challenges.md §12).
 - The prompt did not move (`prompt_sha` `4904a4cb…` both sides, 64,556
   chars, 17 sections), nor the session host's `hello` (byte for byte), the
   state, the schema, the menu, the reward table, the body or the house.

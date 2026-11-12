@@ -485,6 +485,11 @@ def test_a_fault_in_a_calls_arithmetic_is_named_by_its_own_line_in_its_def():
   r, _ = run("def a():\n  if not b():\n    wait(2)\ndef b():\n  wait(1)\n  y = 1 / 0\n")
   read = next(s for s in r["steps"] if not s["ok"])
   assert r["ok"] and (read["line"], read["in"], read["tested"]) == (6, "b", True), read
+  # ...two calls deep, the def it came in, an expression all the same
+  r, _ = run("def a():\n  if not b():\n    wait(2)\ndef b():\n  c()\ndef c():\n  wait(1)\n"
+             "  y = 1 / 0\n")
+  read = next(s for s in r["steps"] if not s["ok"])
+  assert r["ok"] and (read["verb"], read["line"], read["in"]) == ("expr", 8, "c"), read
   # ...and in the library's procedure that holds it, ITS line
   L = lib.Library(HOME)
   L.define("half", "def half():\n  wait(1)\n  wait(1)\n  y = 1 / 0\n")
@@ -510,6 +515,22 @@ def test_a_find_that_failed_reads_so_never_that_it_has_not_run():
   assert r["steps"][-1]["reason"] == "find.x has no reading: your last `find` failed", r
   r, _ = run('def x():\n  wait(1)\n  a = read("find.facing")\n')
   assert r["steps"][-1]["reason"] == "find.facing has no reading: `find` has not run", r
+
+
+def test_a_find_is_ok_only_with_the_place_it_reads_kept():
+  """#686's second review: `find` is ok "when seen, and you remember where
+  it is", and a find whose place was not kept read ok while its `find.*`
+  said it failed. One reads false, saying so. (The robot's own search says
+  found only once the place is kept: this pins the verb, not the body.)
+  Shown to fail on the tree before it."""
+  life = _stub_life()
+  life.body.places = None
+  life.body.find_tag_routine = lambda *a, **kw: tick.result(
+    {"tag": 35, "found": True, "why": "found", "seconds": 1.0, "at": [1.0, 1.0]})
+  r, _ = run('def x():\n  if not find(35, 1, 1):\n    pass\n  a = read("find.x")\n', life)
+  step = r["steps"][0]
+  assert not step["ok"] and step["reason"] == "saw tag 35 but does not remember where it is", r
+  assert r["steps"][-1]["reason"] == "find.x has no reading: your last `find` failed", r
 
 
 def test_the_step_budget_stops_at_a_step_boundary():

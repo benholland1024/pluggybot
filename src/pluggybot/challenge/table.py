@@ -264,11 +264,10 @@ def _laid(raw: dict, metrics: dict) -> tuple[bool, str]:
   """Criteria 1 to 4 on measurements all there: the verdict and its
   reason. ⚠ EVERY PIECE AT FAULT IS NAMED, ONCE, BY ITS FIRST FAULT IN
   THE CRITERIA'S ORDER -- its drop, else where it ended, how it lies or the
-  fork's turn -- in the words it gets alone (#687; Challenges.md §12), and
-  each rule ONCE over the pieces it names: said whole for each, a fall with
-  all three dropped ran a settled job's History line to 438 characters of
-  its 400, and D5's longest try to 393 (once, 275 and 340). What still
-  touched the place is said of one otherwise laid, as before."""
+  fork's turn -- in the words it gets alone, and each rule ONCE over the
+  pieces it names, which keeps a settled job's reason inside History's
+  line but in rare mixes (#687; Challenges.md §12 has the numbers). What
+  still touched the place is said of one otherwise laid, as before."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
     return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
                    f"not the {HOLD_S:.0f} s the job asks for")

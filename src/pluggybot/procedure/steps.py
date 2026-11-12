@@ -315,14 +315,15 @@ def _find(life, args: dict) -> Routine:
   rec = yield from life.body.find_tag_routine(tag, near=(x, y), patience=patience,
                                               stop=_interrupt(life))
   why = rec.get("why", "")
-  out = {"ok": bool(rec.get("found")), "tag": tag, "why": why,
+  # ...where it found it, read as `find.*` (#559): in its map, as it
+  # remembers the place -- its face's way the best it knows (`Places.facing`);
+  # ok only with that place kept, as its text says (#686's review: ok
+  # beside a reading that said it failed)
+  place = (life.body.places.get(tag) if rec.get("found") and life.body.places is not None
+           else None)
+  out = {"ok": place is not None, "tag": tag, "why": why,
          "seconds": rec.get("seconds"), "remembered": bool(rec.get("remembered")),
          **({"at": list(rec["at"])} if rec.get("at") else {})}
-  # ...where it found it, read as `find.*` (#559): in its map, as it
-  # remembers the place -- its face's way the best it knows (`Places.facing`).
-  # A find is found only once its place is kept (`find_routine`'s `seen`),
-  # so one with none read false
-  place = life.body.places.get(tag) if out["ok"] and life.body.places is not None else None
   if place is not None:
     _reports(life)["find"] = {"x": float(place.x), "y": float(place.y),
                               "facing": float(life.body.places.facing(tag)[0])}
@@ -346,6 +347,7 @@ def _find(life, args: dict) -> Routine:
       else f"{searched}, and no walk took it anywhere else to look from{looks}{walk_why}"
       if why == "gave up"
       else f"{searched} and ran out of time{looks}" if why == "out of time"
+      else f"saw tag {tag} but does not remember where it is" if rec.get("found")
       else f"did not find tag {tag}: {why or 'no reason given'}")
   if rec.get("trail"):
     out["trace"] = f"find tag {tag}: {find_trace(rec)}"
@@ -856,12 +858,18 @@ def forget_readings(life, verb: str) -> None:
     _stopped_reading(life, verb, False)
 
 
-def end_watch(life) -> None:
-  """A procedure's end (`lang.run_procedure_routine`): its watch ends with
-  it (#554), and so does its last `watch` call's word -- the next
-  procedure's read says `watch` has not run in it (#686)."""
-  life.body.watch(None)
-  _reports(life).pop("watch", None)
+def end_run(life, watching: bool) -> None:
+  """A procedure's end (`lang.run_procedure_routine`): the words its failed
+  calls left (`_unread`) end with it, so the next one's read of a verb it
+  never called says it has not run (#686's review: a served robot keeps its
+  reports from one run to the next) -- what a verb last reported stays, as
+  ever -- and, `watching`, its watch ends with it (#554)."""
+  from pluggybot.procedure import axes
+  reports = _reports(life)
+  for verb in [v for v, rep in reports.items() if isinstance((rep or {}).get(axes.UNREAD), str)]:
+    del reports[verb]
+  if watching:
+    life.body.watch(None)
 
 
 def _thinned(felt: list, n: int = FELT_MAX) -> list:

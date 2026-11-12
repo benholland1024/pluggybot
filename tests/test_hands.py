@@ -1354,6 +1354,28 @@ def test_a_spot_that_saw_and_then_failed_reads_as_failed_not_as_the_last_one():
   assert ran["steps"][-1]["reason"] == "spot.x has no reading: your last `spot` failed", ran
 
 
+def test_a_failed_calls_word_ends_with_its_procedure_and_a_last_report_does_not():
+  """#686's second review: a served robot keeps its reports from one
+  procedure to the next, and a `spot` that failed in one told the next,
+  which never called it, "your last `spot` failed". The words a run's
+  failed calls leave end with it, as its watch does: the next run's read
+  says `spot` has not run in it. What a verb last reported is kept, as it
+  always was. Shown to fail on the tree before it."""
+  facts = st.hand_facts()
+  body = _SpotsOnce(*_bare())
+  life = _Life(body)
+  for src, said in (('def a():\n    spot(53)\n', None),
+                    ('def b():\n    wait(0)\n    x = read("spot.x")\n', 0.5),
+                    ('def c():\n    if not spot(53):\n        pass\n', None),
+                    ('def d():\n    wait(0)\n    x = read("spot.x")\n',
+                     "spot.x has no reading: `spot` has not run")):
+    ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(src, facts), facts))
+    if isinstance(said, str):
+      assert ran["steps"][-1]["reason"] == said, ran
+    elif said is not None:
+      assert ran["locals"]["x"] == pytest.approx(said), ran
+
+
 def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads():
   """#650: the words both robots asked about. `pull`'s text says when it
   reads false -- no "ok when it pulled", held fast being ok too -- and how

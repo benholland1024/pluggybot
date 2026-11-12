@@ -108,8 +108,10 @@ joint walked to a setpoint -- and the sensors `time` and each hand's place,
 force, `held` and `gap`. A verb that never ran leaves no reading behind
 (a call a computed argument refuses included, `steps.forget_readings`, #650),
 nor one whose last call failed, and reading it says that call failed, never
-that the verb has not run (#686); and a humanoid with a hand out keeps its
-posture to look (a bow would carry the hand with it).
+that the verb has not run (#686) -- in that run: the next one's read of a
+verb it never called says it has not run (`steps.end_run`); and a humanoid
+with a hand out keeps its posture to look (a bow would carry the hand with
+it).
 
 **A move that stops on a reading** (#554; `steps.GUARDED_VERBS`, behind
 `WorldFacts.guarded`, the practice's flag): `reach`, `move_hand` and `pull`

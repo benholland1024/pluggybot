@@ -409,7 +409,14 @@ the fork's turn -- in the words it gets alone, a rule said once over the
 pieces it names: "the plate ended 22 cm from its place and the cup ended 4
 cm from its place: each must rest on the table within 2.5 cm of where it
 goes". Named the first piece alone, it left a practicing robot's cup 3-6
-cm off unsaid behind the plate, and the robot noted it laid.
+cm off unsaid behind the plate, and the robot noted it laid. ⚠ A served
+robot reads it in History, whose line holds 400 characters and says where
+it was cut, so each rule is said once: said whole for each piece, a fall
+with all three dropped ran a settled job's line to 438, and D5's 30 tries
+to 393 at most; said once, 275 and 340. Of the 599 mixes of faults one can
+name, 58 still run past it, all but 4 with a call past the job's time (the
+4: a fall, one piece dropped, one away and the fork turned); the
+practice's report and the board carry the reason whole.
 
 **A drop is a FREE piece's fall, never a held one's carry**, the cube's
 line too since (§10, Ben's call): read at every step, it failed two cubes
