@@ -7456,6 +7456,16 @@ actor seeing walk2's 24 joints in walk2's order (the exporter records them,
   - Not flown: `--odometry`, `--torque`, `--handover`, the step's and the
     station's instruments, the drift and make-way spikes, the tour's
     references, the pair's determinism and the real-time multiple.
+- **carry3**, 1500 iterations more from carry2 with half its carries drawn
+  within 0.15 rad of `close` (`close_share` 0.5; a Xeon w7-3455 host, 25
+  min): the right hand's veer went (cup close +3.4 deg, cup out -5.7) and the
+  left's came back (plate close +6.6, plate low +7.2), its arms-home walk
+  -7.4 deg over 4 m; 44 of 48 goals (carry2 47); the house 22 of 24, one
+  plate let fall; ⚠ the plate's reach arm, which carry2 walked 15 of 15,
+  toppled it 9 times; and on the flat-floor rule's back-off at 0.3 m/s one
+  trial of three stood still (-0.14 m/s its mean, the bar's edge). Narrowed
+  toward one pose, it lost what the box had given it: carry2 is the
+  candidate, carry3 kept off the repository (`loop-1112/l4-carry/`).
 
 ## The arms keep off the other robot (issue #678)
 
