@@ -2175,26 +2175,28 @@ save a filmstrip PNG named after the script.
   weakest direction rests on under `DOUBT_WEAK_SHARE` (a tenth) of its
   points, with under `DOUBT_HELD_SHARE` (95 %) of them on walls, is searched
   too, and a pose found there is taken at `DOUBT_FOUND_SHARE` (90 %) with
-  every direction fixed -- at the storeroom's counter the side walls kept a
-  fit 0.3-0.4 m off `ok`, and the copy it laid kept the error for hours.
+  every direction fixed, never one the rule would doubt again -- at the
+  storeroom's counter the side walls kept a fit 0.3-0.4 m off `ok`, and the
+  copy it laid kept the error for hours.
   ⚠ NEVER ON A FIT'S SHARE ALONE: a copy of the room already in the map
   lowers a RIGHT belief's share as an error does, and doubted under 80 %,
   the search took the copy (35 of 40 poses round the counter on a live map
   of 11-09, the base none); a right belief by a copy rests its weakest
   direction on 0.12-0.30 of its points, the counter's errors on 0.05-0.19.
-  ⚠ A SLID FIT'S SEARCH IS TAKEN ONLY WITHIN `DOUBT_SLID_M` (8 cm) OF WHERE
-  IT SLID (it slid toward one copy, the search found another). ⚠ ONLY
+  ⚠ A SLID FIT'S SEARCH IS TAKEN ONLY WHERE IT SLID (`DOUBT_SLID_*`, 8 cm
+  and 1.5 deg: it slid toward one copy, the search found another). ⚠ ONLY
   WHERE NO OTHER PLACE IN ITS WINDOW EXPLAINS THE SCAN AS WELL
   (`DOUBT_RIVAL_SHARE`: a place `UNIQUE_M` off at 90 % of the best's points
   on walls refuses it): along a sidewalk every place scores alike, and
-  taking the best walked a belief 5.95 m off. ⚠ AT MOST ONCE EVERY
-  `DOUBT_EVERY` (10) SCANS, a search being ~25 ms (kept state, `doubtWait`).
-  ⚠ FOUND NOTHING, IT IS WHAT IT WAS, correction and all (`doubted`, laid in
-  as `ok`; `FIT_TAKEN` for an instrument counting matches, and `ok` counts
-  no doubted fit): left out of the map, doubted scans starved new ground,
-  and from the mall's station no walk found a route. Not doubted: an error
-  toward a wall whose far side was never seen (unseen cells are no
-  information).
+  taking the best walked a belief 5.95 m off. ⚠ AT MOST ONCE IN
+  `DOUBT_EVERY` (10) MATCHED SCANS, a search being ~25 ms (kept state,
+  `doubtWait`; afresh at a fix, a relocation or a stand-up). ⚠ FOUND
+  NOTHING, IT IS WHAT IT WAS, correction and all (`doubted`, laid in as `ok`;
+  `FIT_TAKEN` for an instrument counting matches, the doubt's `found` among
+  them, and `ok` counts neither): left out of the map, doubted scans starved
+  new ground, and from the mall's station no walk found a route. Not
+  doubted: an error toward a wall whose far side was never seen (unseen
+  cells are no information).
   ⚠ A ROBOT ITS MAP KEEPS REFUSING SEARCHES WIDER (#422): `LOST_RUN` (10)
   refusals running -- any other verdict breaks the run -- search 2 m and
   15° round the belief (`_relocate`), over PLACES (candidates `UNIQUE_M`

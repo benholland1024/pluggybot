@@ -870,8 +870,8 @@ matched pose is the belief (`Navigator._match`); the fixture's anchor stays
 beside it ("Drift hygiene"). A match costs 0.67 ms on the dev machine
 (median 0.46, p99 7.2 -- the field's refresh, 5 ms every 20 fused scans or 1
 m, and the rare search): 6.7 ms of a sim second per robot at 10 Hz. Since
-#681 a doubted or slid fit is searched too, ~25 ms a scan, and nothing bounds
-a run of them (below). Fusing
+#681 a doubted or slid fit is searched too, ~25 ms a search, at most once in
+10 matched scans (below). Fusing
 only the scans after the robot moved took the grid's updates on a recorded
 day of lab trips from every level scan to 6 918 of 10 947, and the mapping
 as a whole from ~21 to ~20 ms a sim second; a day that stands still less
@@ -7647,7 +7647,9 @@ map laid from the true poses, kept a belief +0.3 or +0.4 m off at all 40
 direction rests on under a tenth of its points (`DOUBT_WEAK_SHARE`), with
 under 95 % of its points on walls, is searched as an inconsistent one is --
 and a slid one too -- and a pose found there is taken at 90 % on walls with
-every direction fixed. Found nothing, the fit is what it was: a doubted
+every direction fixed, never one the rule would doubt again (a take whose
+weakest direction rests on a few aliasing points, at 90-95 %, would be
+searched off at the next scan). Found nothing, the fit is what it was: a doubted
 scan is laid in as an `ok` one is, correction and all, and a slid one stays
 refused (left out of the map, doubted scans starved new ground: on the way
 to the mall's station 229 of ~720 never went in, the station's fix kept the
@@ -7691,12 +7693,13 @@ a belief 0.3 or 0.4 m off on the room without a copy came back at
 (7,840 places, a map laid true) 17 fits are doubted and the pose moves over
 0.1 m at 2, the hall's stairs, the base's own.
 
-**A slid fit's search is taken only within 8 cm of where the fit slid**
-(`DOUBT_SLID_M`). On Luca's map of 11-09 a belief 0.1 m off slid 0.17 m
-toward one copy of the counter and the search found the other, 0.25 m from
-it (13 poses of 40; the base refuses a slid fit, and kept the belief within
-0.15 m). Where the counter's errors slid back on a map laid true, the
-search's pose was within 0.053 m of the slide's.
+**A slid fit's search is taken only within 8 cm and 1.5 deg of where the
+fit slid** (`DOUBT_SLID_*`, its correction along the directions the walls
+fix). On Luca's map of 11-09 a belief 0.1 m off slid 0.17 m toward one copy
+of the counter and the search found the other, 0.25 m from it (13 poses of
+40; the base refuses a slid fit, and kept the belief within 0.15 m). Where
+the counter's errors slid back, the search's pose was within 0.053 m and
+0.74 deg of the slide's.
 
 **...and its search takes only a place no other explains as well**
 (`DOUBT_RIVAL_SHARE`). As first written the doubt walked drift flight 19h
@@ -7715,11 +7718,15 @@ fenced in panels a metre apart, a belief 0.75 m off (the truth outside the
 ±0.6 m window) was taken onto the alias a metre from the truth at 20 noise
 draws of 20, the base keeping 0.75; the served sidewalks repeat nothing.
 
-**...at most once a second** (`DOUBT_EVERY`, 10 scans). A search costs
-~25 ms at 360 points where a match costs 0.5-1, and standing among
-something its map lacked, the review's robot was doubted at 600 scans of
-600 in a minute; between searches a doubted fit is laid in as it was and a
-slid one refused, as before #681.
+**...at most once in 10 matched scans** (`DOUBT_EVERY`, a second at the
+LIDAR's rate), afresh wherever the belief is put somewhere new (a fix, a
+relocation, a stand-up). A search costs ~25 ms where a match costs 0.5, and
+standing among something its map lacked, the review's robot was doubted at
+600 scans of 600 in a minute; between searches a doubted fit is laid in as
+it was and a slid one refused, as before #681. A minute standing, in ms of
+matching a sim second (base / first two rounds / now): beside the review's
+copy 3.7 / 173 / 3.7, beside a cabinet the map lacks 3.5 / 144 / 3.5, in a
+corridor with a post it lacks, every fit held and doubted, 2.9 / 117 / 15.
 
 **Flown** on one pod beside the base (loop-staging 2057c1a; two EPYC 9554s,
 the night of 11-12), D4's batch again, every flight a process:
@@ -7746,14 +7753,17 @@ under 0.8 of its points on walls and the search finds the copy, keeps the
 belief; a full fit is doubted where its weakest direction rests on under
 `DOUBT_WEAK_SHARE` of its points and not over; a slid fit's search is taken
 only within `DOUBT_SLID_M` of where it slid; a run of doubted scans is
-searched once in `DOUBT_EVERY`, the count kept across a restart; in a
-corridor fenced in panels a metre apart the search takes no place another
+searched once in `DOUBT_EVERY`, the count kept across a restart and
+started afresh at a stand-up, a fix or a relocation; a take the rule would
+doubt again is refused; in a corridor fenced in panels a metre apart the search takes no place another
 explains as well, and a fit it finds nothing for keeps its own correction;
 a corridor with a post the map lacks, a tenth of the scan, is doubted
 (`DOUBT_HELD_SHARE`); a straight corridor held along is laid in; and a slid
 or doubted fit gets the doubt's search, an inconsistent one the base's. The
 drift rows' `matched.ok` counts no doubted fit: across the periods, `ok`
-before is `ok` + `doubted` after.
+before is `ok` + `doubted` + the doubt's `found` after (an inconsistent
+fit's `found`, the base's, is rare: none in its 60 drift flights), and the
+instruments count all three (`FIT_TAKEN`).
 
 **Not done.** A drag past the search's 0.6 m (the live 1.1 m of 13:56): the
 wide search or the station. The slow creep (0.2 m and 2 deg an hour with

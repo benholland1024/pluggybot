@@ -837,7 +837,8 @@ def test_the_static_probe_counts_a_doubted_fit_as_the_fit_it_was(capsys):
   from pathlib import Path
   sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
   import lidar_spike as ls
-  ls.probe_summary([{"variant": "band", "zone": "alley", "x": 20.0, "y": -7.0, "why": "doubted",
-                     "held": 0, "weak": [1.0, 0.0, 0.0], "returns": 300}])
+  ls.probe_summary([{"variant": "band", "zone": "alley", "x": 20.0, "y": -7.0, "why": why,
+                     "held": 0, "weak": [1.0, 0.0, 0.0], "returns": 300}
+                    for why in ("doubted", "found")])     # ...searched where it stood, too
   line = next(ln for ln in capsys.readouterr().out.splitlines() if "block sidewalks" in ln)
   assert line.split("|")[1].split()[0] == "100%", line

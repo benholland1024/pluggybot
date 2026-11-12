@@ -69,11 +69,12 @@ def test_a_flight_whose_robot_never_gets_up_ends_stuck_with_what_it_flew(monkeyp
 
 def test_a_doubted_fit_is_a_scan_its_robot_matched():
   # #681: a fit the walls only partly agree with is "doubted" and taken as it
-  # came, as "ok" was (`scan_match.FIT_TAKEN`): `--done` counts it among the
-  # scans a waiting robot matched, or one on a sidewalk reads as matching
-  # none, #593's sign of a robot lost while it waits.
+  # came, or "found" by the doubt's search where it stood, as "ok" was
+  # (`scan_match.FIT_TAKEN`): `--done` counts both among the scans a waiting
+  # robot matched, or one on a sidewalk reads as matching none, #593's sign
+  # of a robot lost while it waits (#681's reviews).
   hds = _spike()
-  assert hds.scans_taken({"ok": 3, "doubted": 2, "found": 1, "slid": 4}) == 5
+  assert hds.scans_taken({"ok": 3, "doubted": 2, "found": 1, "slid": 4, "inconsistent": 5}) == 6
 
 
 def test_the_zone_table_counts_a_doubted_fit_as_the_fit_it_was(capsys):

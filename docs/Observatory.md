@@ -20,19 +20,20 @@ an error"):
   walls, is searched (±0.6 m, ±6°) as an `inconsistent` one always was, and
   so is one that slid; a pose found there is taken at 90 % on walls with
   every direction fixed, only where no place half a metre or more off
-  explains the scan as well (`DOUBT_RIVAL_SHARE`), and for a slid fit only
-  within 8 cm of where it slid. Found nothing, the fit is what it was: laid
-  in as an `ok` one is (a slid one refused). A doubt is searched at most
-  once every 10 scans. A robot's day parts from the base's only where the
-  search takes a pose.
+  explains the scan as well (`DOUBT_RIVAL_SHARE`), never one the rule would
+  doubt again, and for a slid fit only where it slid. Found nothing, the
+  fit is what it was: laid in as an `ok` one is (a slid one refused). A
+  doubt is searched at most once in 10 matched scans. A robot's day parts
+  from the base's only where the search takes a pose.
 - **Never on a fit's share alone**: the first two rounds (never deployed)
   also doubted any fit under 80 % on walls, and that half pulled a right
   belief onto a copy of the storeroom already in a live map (Luca's of
   11-09: 35 of 40 poses round the counter moved 0.2 m, the base none);
   this round moves none there, as the base.
 - The drift rows' `matched` counts gain a verdict, `doubted`, taken out of
-  `ok`: across this period's start, `ok` before is `ok` + `doubted` after
-  (the protocol names none of them).
+  `ok`: across this period's start, `ok` before is `ok` + `doubted` + the
+  doubt's `found` after (the base's own `found` is rare; the protocol names
+  none of them).
 - `MAP_EPOCH` is NOT bumped here. A deploy that carries #684's flush plate
   changes the world's geometry fingerprint and drops both robots' maps (a
   restart keeps no map across a changed geometry), so no copy the base laid

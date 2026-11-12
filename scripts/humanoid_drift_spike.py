@@ -660,8 +660,9 @@ def done(seconds: float = 300.0, wait: bool = True, hold: bool = True) -> dict:
 
 
 def scans_taken(matched: dict) -> int:
-  """How many of a matcher's verdicts (`match_counts`) were a fit taken as
-  it came (`scan_match.FIT_TAKEN`: a doubted one is ok's, #681)."""
+  """How many of a matcher's verdicts (`match_counts`) were a scan its fit
+  took, as it came or as the doubt's search found it (`scan_match.FIT_TAKEN`:
+  what was ok's before #681)."""
   return sum(matched.get(k, 0) for k in FIT_TAKEN)
 
 

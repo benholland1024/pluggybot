@@ -325,7 +325,7 @@ def probe_summary(rows: list[dict]) -> None:
 
   def line(label: str, rs: list[dict], tail: str = "") -> None:
     n = len(rs)
-    acc = [r for r in rs if r["why"] in FIT_TAKEN]     # a doubted fit is ok's (#681)
+    acc = [r for r in rs if r["why"] in FIT_TAKEN]     # doubted, or searched, is ok's (#681)
     full = sum(1 for r in acc if r["held"] == 0)
     heading = sum(1 for r in acc if r["held"] == 1 and abs(r["weak"][2]) < 0.5)
     pc = lambda k: f"{100 * k / n:5.0f}%"  # noqa: E731

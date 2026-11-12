@@ -350,6 +350,36 @@ def test_a_full_fit_is_doubted_where_its_weakest_direction_rests_on_few_points(
   assert sm.ScanMatcher(g).match(AT_COUNTER, ANGLES, ranges).why == "ok"
 
 
+def test_the_doubts_search_takes_no_pose_it_would_doubt_again(store, monkeypatch):
+  # #681's review of 11-13: the take was judged at DOUBT_FOUND_SHARE with
+  # every direction fixed, never by the doubt's own test, so a pose whose
+  # weakest direction rests on a few aliasing points, at 0.90-0.95 on walls,
+  # could be taken, and the next scan from it doubted and searched again.
+  # Pinned at the bars: the storeroom's take-back, its found fit put just
+  # under DOUBT_WEAK_SHARE and DOUBT_HELD_SHARE, is refused (doubted, as it
+  # was), and just over either, taken.
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
+  guess = (AT_COUNTER[0] + 0.3, AT_COUNTER[1], AT_COUNTER[2])
+  m = sm.ScanMatcher(store)
+  m.refresh(*guess[:2])
+  pts = m.points(ANGLES, ranges)
+  start = m._search(guess, pts, unique=True)
+  fit = m._fit(start, pts)
+  at, why, kw = m._judge(guess, pts, fit, found=True, doubt=True)
+  live = float(fit[2].sum())
+  weak, share = kw["weakest"] / live, kw["inliers"] / live
+  assert why == "found" and weak > sm.DOUBT_WEAK_SHARE, (why, weak, share)
+  monkeypatch.setattr(sm, "DOUBT_HELD_SHARE", share + 0.01)
+  monkeypatch.setattr(sm, "DOUBT_WEAK_SHARE", weak + 0.01)
+  got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+  assert got.why == "doubted" and abs(got.pose[0] - guess[0]) < 0.05, got
+  for name, bar in (("DOUBT_WEAK_SHARE", weak - 0.01), ("DOUBT_HELD_SHARE", share - 0.01)):
+    with monkeypatch.context() as patch:
+      patch.setattr(sm, name, bar)
+      got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+      assert got.why == "found" and abs(got.pose[0] - AT_COUNTER[0]) < 0.05, (name, got)
+
+
 def test_a_slid_fits_search_is_taken_only_where_the_fit_slid(room, monkeypatch):
   # A fit that slid past MAX_STEP is searched, and the search's pose taken
   # only within DOUBT_SLID_M of where the fit itself slid: on Luca's live map
@@ -360,9 +390,11 @@ def test_a_slid_fits_search_is_taken_only_where_the_fit_slid(room, monkeypatch):
   ranges = cast(ROOM, TRUE, np.random.default_rng(5))
   guess = (TRUE[0] + 0.14, TRUE[1] - 0.10, TRUE[2] + 0.08)
   assert sm.ScanMatcher(room).match(guess, ANGLES, ranges).why == "found"
-  monkeypatch.setattr(sm, "DOUBT_SLID_M", 0.0)
-  got = sm.ScanMatcher(room).match(guess, ANGLES, ranges)
-  assert got.why == "slid" and not got.accepted and got.pose == guess, got
+  for name in ("DOUBT_SLID_M", "DOUBT_SLID_RAD"):     # ...where it slid and turned
+    with monkeypatch.context() as patch:
+      patch.setattr(sm, name, 0.0)
+      got = sm.ScanMatcher(room).match(guess, ANGLES, ranges)
+      assert got.why == "slid" and not got.accepted and got.pose == guess, (name, got)
 
 
 def test_the_doubts_search_runs_once_in_its_scans_and_a_restart_keeps_the_count(
@@ -399,6 +431,15 @@ def test_the_doubts_search_runs_once_in_its_scans_and_a_restart_keeps_the_count(
   assert calls == [], calls
   again.match(guess, ANGLES, ranges)
   assert len(calls) == 1
+  # ...and starts afresh where the belief is put somewhere new: back on its
+  # feet (`fuse_next`), or the window of a fix opened or closed (`anchored`)
+  for reset in (again.fuse_next, lambda: again.anchored(on=False)):
+    calls.clear()
+    again.match(guess, ANGLES, ranges)
+    assert calls == [], calls
+    reset()
+    again.match(guess, ANGLES, ranges)
+    assert len(calls) == 1, calls
 
 
 def test_a_scan_with_no_map_under_it_is_no_match():
@@ -734,8 +775,9 @@ def test_a_robot_lost_past_the_search_is_relocated_after_two_runs_of_refusals(ro
     got = m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
     assert got.why == "inconsistent" and got.pose == LOST
   assert m.pending is not None, "the first search found nothing"
+  m.doubt_wait = sm.DOUBT_EVERY      # a doubt searched just before: relocated, it waits no more
   got = m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
-  assert got.why == "relocated" and got.accepted and not got.fuse
+  assert got.why == "relocated" and got.accepted and not got.fuse and m.doubt_wait == 0
   assert math.hypot(got.pose[0] - TRUE[0], got.pose[1] - TRUE[1]) < 0.02
   assert abs(math.degrees(got.pose[2] - TRUE[2])) < 0.3
   assert m.match(got.pose, ANGLES, cast(ROOM, TRUE, rng)).why == "ok"
