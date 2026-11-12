@@ -7384,6 +7384,10 @@ walk that carries, on walk2 (the loop of 11-12/13, L4; rows and probes in
   - walk2 veers toward the carrying arm at `close`, as T7 measured: +24-27
     deg over 4 m with the plate (left), -10 to -15 with the cup, arms home
     +3.5-5.
+  - the hands checks at set-outs 0-31 (lid, drawer, door, cube, table: 26,
+    21, 24, 20 and 24 of 32), beside loop-staging on the same pod: 160 of 160
+    verdicts the same, reason for reason -- no reference walks holding
+    anything, and the self-filter moved none of them.
 - **The table's reference with the plate at 80 N** (`hands_check.TABLE`, the
   served lay): 77 of 96 set-outs (0-95) against 82 at 40 N on the same pod,
   paired -- 5 lost, none won, every one the fork knocked from its jaws or off
