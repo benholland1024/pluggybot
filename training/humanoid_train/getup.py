@@ -168,10 +168,11 @@ POSE_SPREAD_RAD, POSE_TILT_RAD, POSE_DROP_M = 0.2, 0.1, 0.02
 #: `-Getup-Wall3` (#679's third round): the get-up HANDS BACK as served --
 #: once standing as the served get-up hands back (within `STOOD_UP`, the
 #: pelvis `HAND_BACK_M` of the stand's height, its roll and pitch turning
-#: under `HAND_BACK_RATE` rad/s) for `HAND_BACK_S`, the standing policy
+#: under `HAND_BACK_RATE` rad/s) for `HAND_BACK_S` (`humanoid.getup`'s
+#: `STOOD_*`, which a test reads these against), the standing policy
 #: (`STAND_NPZ`, served) has the legs, the arms held at its pose; and a fall
-#: past `RETAKE_TILT` or the pelvis under `RETAKE_M` is the get-up's again,
-#: as the served watch takes it. ⚠ The served test reads the gyro whole; the
+#: past `RETAKE_DEG` or the pelvis under `RETAKE_M` is the get-up's again,
+#: as the served watch takes it (`FALL_TILT_RAD`, `COLLAPSED_M`). ⚠ The served test reads the gyro whole; the
 #: training physics turns a standing robot on its soles at ~1 rad/s, so its
 #: yaw is left out. ⚠ Never handed back, D3's wall policies stood with their
 #: soles 0.52-0.60 m apart, and the served standing policy, given that
@@ -180,7 +181,7 @@ STAND_NPZ = robot.REPO / "models" / "humanoid_stand.npz"
 HAND_BACK_M, HAND_BACK_RATE, HAND_BACK_S = 0.05, 0.3, 0.5
 #: Handed back is paid this a second (`upright`'s weight).
 HANDED_WEIGHT = 1.0
-RETAKE_TILT, RETAKE_M = math.cos(math.radians(35.0)), 0.40
+RETAKE_DEG, RETAKE_M = 35.0, 0.40
 #: Its stand is the served get-up's: within 10 deg of upright
 #: (`getup.STOOD_TILT_RAD`), and touching nothing of the box. ⚠ Paid at the
 #: open floor's 0.9 (25 deg), it stood leaning on the counter 18 deg off
@@ -820,7 +821,7 @@ class HandBackAction(JointPositionAction):
     rate = data.root_link_ang_vel_b[:, :2].norm(dim=-1)
     stood = ((up > STOOD_UP) & ((z - robot.BODY["stand_height"]).abs() < HAND_BACK_M)
              & (rate < HAND_BACK_RATE))
-    fell = (up < RETAKE_TILT) | (z < RETAKE_M)
+    fell = (up < math.cos(math.radians(RETAKE_DEG))) | (z < RETAKE_M)
     self.handed &= ~fell
     self.still = torch.where(stood & ~self.handed, self.still + self._env.step_dt,
                              torch.zeros_like(self.still))

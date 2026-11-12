@@ -548,6 +548,38 @@ def test_the_getup_charges_the_head_as_built(head):
   assert struck == set(hm.HEAD_GEOMS)
 
 
+def test_the_wall_getup_trains_handing_back_as_the_served_getup_hands_back():
+  # #679's third round: training hands the legs to the standing policy where
+  # the served get-up does (`getup.STOOD_*`) and takes them back where the
+  # served watch would (`FALL_TILT_RAD`, `COLLAPSED_M`) -- read off its source,
+  # as `training/` cannot import this package. Never handed back in training,
+  # round 2's pick stood with its soles 0.6 m apart, and the standing policy
+  # given that stance fell within 2 s.
+  import ast
+  from pathlib import Path
+  from pluggybot.humanoid import getup as served
+  src = Path(__file__).resolve().parents[1] / "training" / "humanoid_train" / "getup.py"
+  values = {}
+  for node in ast.parse(src.read_text()).body:
+    if not isinstance(node, ast.Assign) or not isinstance(node.targets[0], (ast.Name, ast.Tuple)):
+      continue
+    target, value = node.targets[0], node.value
+    names = [t.id for t in target.elts] if isinstance(target, ast.Tuple) else [target.id]
+    parts = value.elts if isinstance(value, ast.Tuple) and len(names) > 1 else [value]
+    for name, part in zip(names, parts):
+      values[name] = part
+  # STOOD_UP is cos(radians(deg)): its degrees are the literal inside
+  stood_deg = ast.literal_eval(values["STOOD_UP"].args[0].args[0])
+  assert stood_deg == pytest.approx(math.degrees(served.STOOD_TILT_RAD))
+  read = {k: ast.literal_eval(values[k]) for k in ("HAND_BACK_M", "HAND_BACK_RATE", "HAND_BACK_S",
+                                                  "RETAKE_DEG", "RETAKE_M")}
+  assert read["HAND_BACK_M"] == served.STOOD_M
+  assert read["HAND_BACK_RATE"] == served.STOOD_RATE
+  assert read["HAND_BACK_S"] == served.STOOD_S
+  assert read["RETAKE_DEG"] == pytest.approx(math.degrees(served.FALL_TILT_RAD))
+  assert read["RETAKE_M"] == served.COLLAPSED_M
+
+
 @pytest.mark.parametrize("npz", _getups())
 def test_a_getup_sees_the_joints_it_drives(head, npz):
   # #679: a get-up's inputs are the joints it drives (getup3's 78, carried on
