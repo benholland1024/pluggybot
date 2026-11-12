@@ -122,31 +122,42 @@ SEARCH_RAD = math.radians(6.0)
 SEARCH_STEP_RAD = math.radians(1.0)
 FOUND_SHARE = 0.75
 #: ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS DOUBTED (issue #681): one
-#: that held a direction with under DOUBT_HELD_SHARE of its points on walls,
-#: or any under DOUBT_SHARE, is searched as an inconsistent one is -- and a
-#: slid one too -- a pose found taken only at DOUBT_FOUND_SHARE; found
-#: nothing, it is what it was ("doubted": the fit's correction stands and
-#: its scan is laid in, as `ok`; a slid one stays refused). MEASURED: at the
-#: storeroom's counter the side walls kept a fit `ok` 0.3-0.4 m off along
-#: the counter at 40 of 40 poses, its scan laid in, and the copy kept the
-#: error for hours (Luca, 11-08, 0.58 m); doubted, 40 of 40 taken back.
-#: From the truth over the house, held fits under 0.95 were 15 of 2,306 and
-#: any fit under 0.8 32 of 7,761; a pose found taken at FOUND_SHARE moved
-#: the truth over 0.1 m at 11 places of 7,840 (the stairs), at 0.9 and the
-#: rival test (below) at 2, the base's own. ⚠ NOT LAID IN, doubted scans
-#: starved the map of new ground: a robot walked to the mall's station 0.43
-#: m off, the station's fix kept the map it had laid, and no walk out of
-#: there found a route. ⚠ A COPY OF THE ROOM ALREADY IN THE MAP CAPTURES A
-#: RIGHT BELIEF: where the copy's scans cleared the true walls' cells, the
-#: fit at the truth is doubted and the search takes the copy, which is
-#: under UNIQUE_M from the truth and so no rival of it (a synthetic counter,
-#: a copy the base laid 0.3-0.57 m off: 11-12 of 12 work poses moved onto
-#: it, the base 0-5; Luca's live map of 11-09: 35 of 40 poses round the
-#: counter moved 0.2 m along it, the base 0); the copies kept maps hold go
-#: only with the map.
+#: that held a direction, or whose weakest direction rests on under
+#: DOUBT_WEAK_SHARE of its points, with under DOUBT_HELD_SHARE of them on
+#: walls, is searched as an inconsistent one is -- and a slid one too -- a
+#: pose found taken only at DOUBT_FOUND_SHARE; found nothing, it is what it
+#: was ("doubted": the fit's correction stands and its scan is laid in, as
+#: `ok`; a slid one stays refused). MEASURED: at the storeroom's counter the
+#: side walls kept a fit `ok` 0.3-0.4 m off along the counter at 40 of 40
+#: poses, its scan laid in, and the copy kept the error for hours (Luca,
+#: 11-08, 0.58 m); toward the counter its front, its props and the wall
+#: behind "fix" that direction on 0.05-0.19 of the points (median 0.075),
+#: and doubted, the fit is taken back at 40 and 34 of 40 poses (0.3, 0.4 m
+#: off). ⚠ NEVER ON THE SHARE ALONE: a copy of the room already in the map
+#: lowers a RIGHT belief's share as an error does (its scans cleared the
+#: true walls: 0.54-0.83 on walls), and doubted under 0.8 the search took the
+#: copy (#681's review: 11-12 of 12 synthetic work poses, 35 of 40 poses
+#: round the counter on Luca's live map of 11-09; the base 0-5 and 0); there
+#: the weakest direction rests on 0.12-0.30, and so none moves, as the
+#: base's. From the truth over the house, 17 fits of 7,840 are doubted, and
+#: 2 moved over 0.1 m (the stairs, the base's own). ⚠ NOT LAID IN, doubted
+#: scans starved the map of new ground: a robot walked to the mall's station
+#: 0.43 m off, the station's fix kept the map it had laid, and no walk out
+#: of there found a route.
 DOUBT_HELD_SHARE = 0.95
-DOUBT_SHARE = 0.8
+DOUBT_WEAK_SHARE = 0.10
 DOUBT_FOUND_SHARE = 0.9
+#: ⚠ A SLID FIT'S SEARCH IS TAKEN ONLY WITHIN DOUBT_SLID_M OF WHERE THE FIT
+#: SLID: on Luca's live map of 11-09 a belief 0.1 m off slid 0.17 m toward
+#: one copy of the counter and the search found another 0.25 m from it (13
+#: poses of 40, the base refusing all); the slides the counter's take-backs
+#: made, on a map laid true, ended within 0.053 m of the search's pose.
+DOUBT_SLID_M = 0.08
+#: ⚠ ...AND A DOUBT IS SEARCHED AT MOST ONCE EVERY DOUBT_EVERY SCANS (1 s at
+#: the LIDAR's rate); between, a fit is what it was. A search costs ~25 ms
+#: against a fit's 0.5-1, and standing among clutter the map lacked, 600 of
+#: 600 scans in a minute were doubted (#681's review).
+DOUBT_EVERY = 10
 #: ⚠ ...AND ITS SEARCH TAKES ONLY THE ONE PLACE IN ITS WINDOW THAT EXPLAINS
 #: THE SCAN: none UNIQUE_M or more from the best puts DOUBT_RIVAL_SHARE of
 #: the best's points on walls (each place at its best turn). MEASURED on a
@@ -326,6 +337,8 @@ class ScanMatcher:
     self.pending: tuple[float, float, float] | None = None
     #: Scans still to be laid at an anchor's belief, unmatched (`anchored`).
     self.anchoring = 0
+    #: Scans before a doubted or slid fit may be searched again (DOUBT_EVERY).
+    self.doubt_wait = 0
 
   # ---- the field ------------------------------------------------------------
 
@@ -462,6 +475,7 @@ class ScanMatcher:
     """Align one scan, taken at the believed `pose` from `origin` (None:
     `origin`'s), against the map."""
     x0, y0, th0 = (float(v) for v in pose)
+    self.doubt_wait = max(self.doubt_wait - 1, 0)
     if self.anchoring:
       return self._done(pose, "anchored")
     if self.field is None or self._stale(x0, y0):
@@ -469,9 +483,12 @@ class ScanMatcher:
     pts = self.points(angles, ranges, origin)
     if self.field is None or len(pts) < MIN_INLIERS:
       return self._done(pose, "no map" if self.field is None else "sparse")
-    at, why, kw = self._judge((x0, y0, th0), pts, self._fit((x0, y0, th0), pts))
-    if why not in ("inconsistent", "doubted", "slid"):
+    fit = self._fit((x0, y0, th0), pts)
+    at, why, kw = self._judge((x0, y0, th0), pts, fit)
+    if why not in ("inconsistent", "doubted", "slid") or (why != "inconsistent" and self.doubt_wait):
       return self._done(at, why, **kw)
+    if why != "inconsistent":
+      self.doubt_wait = DOUBT_EVERY
     # Most of the scan on mapped cells and too little of it on walls: the
     # pose is off by more than the fit reaches -- a wheel pump while the
     # robot was tilted and unmatched left it 0.45 m out, the fit could not
@@ -486,7 +503,9 @@ class ScanMatcher:
       found_at, found, found_kw = self._judge(
         (x0, y0, th0), pts, self._fit(start, pts), found=True,
         share=FOUND_SHARE if why == "inconsistent" else DOUBT_FOUND_SHARE)
-      if found == "found":
+      slid_to = fit[0]
+      if found == "found" and (why != "slid" or math.hypot(
+          found_at[0] - slid_to[0], found_at[1] - slid_to[1]) <= DOUBT_SLID_M):
         return self._done(found_at, found, **found_kw)
     if why != "inconsistent":
       # ...doubted or slid, and nothing better near: as it was
@@ -553,7 +572,8 @@ class ScanMatcher:
       return asked, "sparse", kw
     if math.hypot(dx, dy) > MAX_STEP_M or abs(dth) > MAX_STEP_RAD:
       return asked, "slid", kw
-    if n < (DOUBT_SHARE if keep.all() else DOUBT_HELD_SHARE) * n_live:
+    weak = not keep.all() or info[0] < DOUBT_WEAK_SHARE * n_live
+    if weak and n < DOUBT_HELD_SHARE * n_live:
       return fit_pose, "doubted", dict(step=(dx, dy, dth), **kw)
     return fit_pose, "ok", dict(step=(dx, dy, dth), **kw)
 
@@ -712,6 +732,7 @@ class ScanMatcher:
     self.fused_pose, self.fused_t = None, -math.inf
     self.counts, self.last = {}, None
     self.lost_run, self.pending, self.anchoring = 0, None, 0
+    self.doubt_wait = 0
 
   def kept_state(self) -> tuple[dict, dict]:
     """The field is the map as it was when last computed, not as it is now,
@@ -723,7 +744,7 @@ class ScanMatcher:
              "fusedT": None if self.fused_pose is None else self.fused_t,
              "counts": dict(self.counts), "lostRun": self.lost_run,
              "pending": None if self.pending is None else list(self.pending),
-             "anchoring": self.anchoring}
+             "anchoring": self.anchoring, "doubtWait": self.doubt_wait}
     return state, ({} if self.field is None else {"matchField": self.field})
 
   def restore_kept(self, state: dict, arrays: dict) -> None:
@@ -738,5 +759,6 @@ class ScanMatcher:
     pending = state.get("pending")
     self.pending = None if pending is None else tuple(float(v) for v in pending)
     self.anchoring = int(state.get("anchoring", 0))
+    self.doubt_wait = int(state.get("doubtWait", 0))
     self.field = arrays.get("matchField")
     self.normals = None if self.field is None else _normals(self.field)
