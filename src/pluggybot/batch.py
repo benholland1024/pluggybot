@@ -1,10 +1,7 @@
-"""A batch of flights a person can see into (#684): every flight's output as
-it is written, and every thread's stack on SIGUSR1.
-
-A drift batch's flight ran 57 and 72 minutes on a pod with nothing on its
-stdout or stderr, and read as a C call that never returned: stdout to a
-file is block-buffered, and a flight's whole report sat under the buffer
-until it ended. SimNotes, "A flight that never got up", is the story.
+"""A batch of flights a person can see into (#684; SimNotes, "A flight that
+never got up"): every flight's output as it is written -- stdout to a file
+is block-buffered, and a flight's whole report sits under the buffer until
+it ends -- and every thread's stack on SIGUSR1.
 
 A batch runner calls `watched` first. The processes it starts inherit its
 environment, so each prints as it goes (`PYTHONUNBUFFERED`) and, once it

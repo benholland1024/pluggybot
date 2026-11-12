@@ -364,10 +364,10 @@ def test_a_body_that_does_not_right_itself_is_knocked_over_at_its_own_hold():
 GETUP_S = HumanoidBody.GETUP_BUDGET_S
 
 
-def _getting_up(tilt_deg, stands_at: float | None = None, mortal: bool = True):
+def _getting_up(tilt_deg, up=lambda s: False, mortal: bool = True):
   """A stub that rights itself, on the humanoid's budget, its get-up taking
   its legs now: its trunk `tilt_deg(s)` off upright `s` into the get-up,
-  and its legs handed back, upright, at `stands_at` (never, None)."""
+  its legs handed back, upright, while `up(s)`."""
   body = StubBody()
   body.rights_itself, body.stuck_after_s = True, GETUP_S
   life = _life(body=body, mortal=mortal)
@@ -376,11 +376,9 @@ def _getting_up(tilt_deg, stands_at: float | None = None, mortal: bool = True):
 
   def hook() -> None:
     s = float(life.data.time) - t0
-    a = 0.0
-    if stands_at is not None and s >= stands_at:
-      body.posture = "standing"
-    else:
-      a = math.radians(tilt_deg(s))
+    standing = up(s)
+    body.posture = "standing" if standing else "getting_up"
+    a = 0.0 if standing else math.radians(tilt_deg(s))
     body.attitude = (math.cos(a / 2), math.sin(a / 2), 0.0, 0.0)
   body.step_hooks.insert(0, hook)
   return life, t0
@@ -408,9 +406,42 @@ def test_a_get_up_that_never_stands_is_stuck_at_its_budget_whatever_its_tilt(til
 def test_a_get_up_that_stands_inside_its_budget_lives_and_its_clock_starts_over():
   """...and one that stands inside it lives, lying however it lay, and its
   next fall has the whole budget again."""
-  life, t0 = _getting_up(lambda s: 90.0, stands_at=15.0)
+  life, t0 = _getting_up(lambda s: 90.0, up=lambda s: s >= 15.0)
   life.body.run(life.body.hold_routine(GETUP_S + 5.0))
   assert life.dead is None and life._fall is None
+
+
+def test_a_get_up_that_stands_a_moment_and_goes_down_again_is_one_struggle():
+  """...but one that hands its legs back for a moment and goes down again
+  is down all the while, on the clock of its first fall (#684's review):
+  started over at every hand-back -- 1 s up in every 5, as two robots at
+  the counter fell into each other again 1.4 s after standing (#679) -- it
+  never ran out. Stood `STOOD_AGAIN_S`, its next fall has the whole budget
+  again."""
+  life, t0 = _getting_up(lambda s: 45.0, up=lambda s: s % 5.0 >= 4.0)
+  life.body.run(life.body.hold_routine(GETUP_S + 1.0))
+  assert life.dead is not None and life.dead["cause"] == "stuck"
+  assert life.dead["t"] - t0 == pytest.approx(GETUP_S, abs=2 * lc.DEATH_CHECK_S)
+  # ...and up 6 s from 15 s, down again at 21: a new fall, its own clock
+  life, t0 = _getting_up(lambda s: 45.0, up=lambda s: 15.0 <= s < 15.0 + lc.STOOD_AGAIN_S + 1.0)
+  life.body.run(life.body.hold_routine(GETUP_S + 15.0))
+  assert life.dead is None, "a fall after standing 6 s is a new one"
+  life.body.run(life.body.hold_routine(7.0))
+  assert life.dead is not None
+  assert life.dead["t"] - t0 == pytest.approx(21.0 + GETUP_S, abs=2 * lc.DEATH_CHECK_S)
+
+
+def test_a_body_that_rights_itself_lying_with_no_get_up_running_is_down_all_the_same():
+  """...and one lying past 60 deg whose get-up does not have its legs (none
+  should: the fall watch takes them at 35) is down all the same -- the
+  seam's backstop where the get-up missed a fall (#684's review)."""
+  life, t0 = _getting_up(lambda s: 80.0, up=lambda s: False)
+  life.body.posture = "standing"
+  life.body.step_hooks.pop(0)
+  life.body.attitude = (math.cos(0.7), math.sin(0.7), 0.0, 0.0)   # 80 deg over
+  life.body.run(life.body.hold_routine(GETUP_S + 1.0))
+  assert life.dead is not None and life.dead["cause"] == "stuck"
+  assert life.dead["why"].startswith("fell and could not get up")
 
 
 def test_where_nothing_dies_a_get_up_that_would_have_died_ends_the_run():
@@ -431,11 +462,24 @@ def test_where_nothing_dies_a_get_up_that_would_have_died_ends_the_run():
   assert life.dead is None and life.deaths == []
 
 
+def test_a_stuck_run_crosses_a_process_whole():
+  """`Stuck` is pickled whole, as a pool's worker hands an exception to its
+  parent (#684's review): unpickled from its message alone, it raised in
+  the pool's result thread, and `pool.map` waited for good -- the hang the
+  bound is for."""
+  import pickle
+  record = {"t": 30.0, "fellT": 10.0, "why": "fell and could not get up in 20 s (45 deg from upright)",
+            "at": [5.4, 2.03]}
+  back = pickle.loads(pickle.dumps(lc.Stuck(record)))
+  assert isinstance(back, lc.Stuck) and back.record == record
+  assert str(back) == str(lc.Stuck(record))
+
+
 def test_where_nothing_dies_a_get_up_that_stands_and_a_body_that_cannot_right_itself_run_on():
   """...but a get-up that stands inside the budget runs on, and so does a
   body with no get-up lying on its side, as it always did where nothing
   dies: nothing holds a flight waiting for it to stand."""
-  life, _ = _getting_up(lambda s: 90.0, stands_at=15.0, mortal=False)
+  life, _ = _getting_up(lambda s: 90.0, up=lambda s: s >= 15.0, mortal=False)
   life.body.run(life.body.hold_routine(GETUP_S + 5.0))
   assert life.stuck is None
   body = StubBody()
@@ -459,6 +503,8 @@ def test_a_day_where_nothing_dies_ends_at_a_get_up_that_never_stands_and_says_wh
   assert r["aborted"] and r["dead"] is None
   assert r["stuck"] == life.stuck and r["stuck"]["why"].startswith("fell and could not get up")
   assert r["sim_time"] == pytest.approx(r["stuck"]["t"], abs=0.1) and r["sim_time"] < 60.0
+  life.begin(world_config(HUMANOID_HOME)["start"]).close()
+  assert life.stuck is None, "a day after it says nothing of this one's (#684's review)"
 
 
 # ---- upkeep off, a configuration (issue #387) --------------------------------

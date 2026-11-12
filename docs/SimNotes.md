@@ -7420,7 +7420,9 @@ lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
 
 **What is true now** (#684, Ben's calls of 11-12):
 - A get-up's death is timed off the get-up: a body that rights itself is
-  `stuck` once its get-up has held its legs 20 s, whatever its tilt. Of
+  `stuck` once its get-up has held its legs 20 s, whatever its tilt, a
+  stand under 5 s between two get-ups one struggle on one clock (the drift
+  spike's own guard's rule, kept). Of
   #679's 151 falls on the served get-up, one that stood dies now (laid on
   its front against the south wall, up at 21.5 s, its trunk past 60 deg for
   at most 19.7 s running).

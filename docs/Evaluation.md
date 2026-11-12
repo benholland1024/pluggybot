@@ -576,10 +576,11 @@ charging rows below, as shapes.
   - `stuck` — down for the body's `stuck_after_s`, or unable to reach the
     charger. A physics or navigation failure. Down is a body that rights
     itself with its get-up holding its legs, whatever its tilt (the
-    humanoid's get-up budget, 20 s from the get-up's start, #684: timed off
-    its tilt past `TOPPLE_TILT_RAD`, a get-up sitting short of 60° never
-    died), and one that cannot toppled past `TOPPLE_TILT_RAD` (60°, read off
-    the posture its legs hold) for `TOPPLE_HOLD_S`. Every `death` event
+    humanoid's get-up budget, 20 s from the get-up's start, a stand under
+    5 s between two get-ups not starting it again, #684: timed off its tilt
+    past `TOPPLE_TILT_RAD`, a get-up sitting short of 60° never died), and
+    one that cannot toppled past `TOPPLE_TILT_RAD` (60°, read off the
+    posture its legs hold) for `TOPPLE_HOLD_S`. Every `death` event
     carries `at` since #362 (where the robot was and believed it was, what
     it was running, the nearest peer), read AS IT FELL for a topple;
     protocol/README.md has the shape.

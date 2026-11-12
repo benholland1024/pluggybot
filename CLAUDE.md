@@ -542,7 +542,8 @@ save a filmstrip PNG named after the script.
   starts its height again. `stuck_after_s` is
   `GETUP_BUDGET_S` (20), ⚠ TIMED FROM THE GET-UP'S START, WHATEVER ITS
   TILT (#684: off the tilt past 60 deg, a get-up sitting short of it never
-  died); falls into a wall or off the landing still end stuck. ⚠ WHERE
+  died), a stand under `STOOD_AGAIN_S` (5 s) between two get-ups one
+  struggle on one clock; falls into a wall or off the landing still end stuck. ⚠ WHERE
   NOTHING DIES THE SAME CLOCK ENDS THE RUN (`lifecycle.Stuck`, a
   `MissionAborted`; `HubLifecycle.stuck`, the summary's `stuck`): the
   get-up's hold has no budget of its own, and a flight on a lifecycle

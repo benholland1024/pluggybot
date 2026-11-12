@@ -75,8 +75,9 @@ from pluggybot.lifecycle import Stuck  # noqa: E402
 #: A row of the belief against the truth this often, sim s.
 EVERY_S = 5.0
 #: `--falls`' wait after its shove for the fall and the get-up's stand, s:
-#: past the death's budget (`HumanoidBody.GETUP_BUDGET_S`, 20), after which
-#: a get-up that has not stood ends the flight (`Stuck`).
+#: what a shove that fells nothing waits out, a get-up that has not stood in
+#: the death's budget (`HumanoidBody.GETUP_BUDGET_S`, 20) ending the flight
+#: first (`Stuck`).
 GETUP_WAIT_S = 40.0
 #: The walk across the street goes to the storeroom's middle, in front of
 #: its counter (`home.storeroom`), and back to the station's standoff, each

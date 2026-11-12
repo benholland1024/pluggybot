@@ -14,17 +14,19 @@ observatory is NOT a result: it reports into the issue it informs.
 
 **What changed.**
 - **What counts as a `stuck` death.** A robot is `stuck` once its get-up
-  has held its legs for 20 s (`GETUP_BUDGET_S`), whatever its tilt; before,
-  only once its trunk had lain 60 deg or more off upright for 20 s running,
-  and any check under 60 deg started the clock again. The words History
+  has held its legs for 20 s (`GETUP_BUDGET_S`), whatever its tilt, a stand
+  of under 5 s between two get-ups not starting the clock again
+  (`STOOD_AGAIN_S`); before, only once its trunk had lain 60 deg or more off
+  upright for 20 s running, and any check under 60 deg started the clock
+  again. The words History
   keeps are the same ("fell and could not get up in 20 s (N deg from
   upright)").
 - **The garden's pressure plate is flush with the floor**: the floor's own
   square, read off the load on it (`plate_xml(flush=True)`), its pad paint
-  that nothing touches, where it was a sprung pad 21 mm proud. It lights the
-  lamp as it did, at 100 N on it; the light's flags carry `loadN` (10 N
-  steps) where they carried `depressMm`. The lab's three plates are as they
-  were.
+  that nothing touches (`floor_plate`), where it was a sprung pad 21 mm
+  proud. It lights the lamp as it did, at 100 N on it; the light's flags
+  are `state` and `pressed`, its `depressMm` gone. The lab's three plates
+  are as they were.
 - ⚠ **The world's geometry changed** (the plate's joint is gone,
   `continuation.fingerprint`): the deploy keeps the clock, the packs, the
   deaths and the jobs and drops both robots' bodies and maps, as a world

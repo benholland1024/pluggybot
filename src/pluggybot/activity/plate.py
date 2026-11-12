@@ -78,8 +78,9 @@ PLATE_OFF = 0.003         # ...and at which it reads released again. The gap
 #: (`plate_xml(flush=True)`, the garden's) is the floor's own square, read
 #: by a touch sensor under whatever stands on it, as load cells under a
 #: plate in a recess read it; its pad is paint, drawn and touched by
-#: nothing. The garden's was the sprung pad 21 mm proud, which the served
-#: walker went down on and fell over the lamp's pole.
+#: nothing (ActivityPattern.md §3.1).
+#: ⚠ A sole is read where its contacts are, its corners on a plane: one only
+#: part over the plate reads the share its corners inside carry, or none.
 LOAD_ZONE_HALF = 0.004    # m: the sensor's zone either side of the floor
 LOAD_PAINT_HALF = 0.002   # m: the pad's paint, 4 mm, over the garden's 2 mm
 LOAD_ON_N = 100.0         # N on it at which it reads pressed: 10 kg, which
@@ -208,7 +209,7 @@ class PlateLight(Activity):
       "on": {"rgba": list(LAMP_LIT)},
     })
     self.lamp.select("off")
-    self.set(state="off", pressed=False, loadN=0)
+    self.set(state="off", pressed=False)
 
   def kept_state(self) -> dict:
     return {**super().kept_state(), "pressed": self.press.value,
@@ -235,13 +236,10 @@ class PlateLight(Activity):
     lit = self.latch.update(1.0 if pressed else 0.0)
     state = "on" if lit else "off"
     self.lamp.select(state)
-    # Quantised to 10 N on purpose. An ANALOGUE flag defeats sparseness: it
-    # differs almost every step, so an otherwise-constant activity would
-    # ship a delta on nearly every frame (the sprung pad's depth, over one
-    # wheel crossing of 300 frames: 38 deltas at 0.1 mm, 15 at 1 mm).
-    # Quantise an analogue value to what a consumer can act on, or leave it
-    # off the wire.
-    self.set(state=state, pressed=pressed, loadN=int(round(n, -1)))
+    # ⚠ No load on the wire (ActivityPattern.md §3.6): a robot standing on
+    # the plate shifts tens of newtons a step, so any rounding of it would
+    # ship a delta on nearly every frame, and nothing reads one.
+    self.set(state=state, pressed=pressed)
 
 
 def plate_center(model, prefix: str = "garden") -> tuple[float, float]:

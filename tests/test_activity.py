@@ -193,7 +193,7 @@ def test_a_flush_plate_with_nothing_on_it_reads_nothing(home_model):
     mujoco.mj_step(home_model, data)
     light.sense(home_model, data)
   assert light.load(data) == 0.0
-  assert light.flags == {"state": "off", "pressed": False, "loadN": 0}
+  assert light.flags == {"state": "off", "pressed": False}
 
 
 def _plate_and_a_foot(kg: float):
@@ -243,7 +243,7 @@ def test_a_foot_on_the_flush_plate_presses_it_and_lifted_off_it_latches_the_ligh
 def test_a_save_from_the_sprung_plates_days_comes_back_lit_and_without_its_depth(home_model):
   """A world saved before #684 carries the garden light's flags with the
   sprung pad's `depressMm`: put back, the light is as it was and the depth
-  is gone from the wire, never shipped beside `loadN` for good."""
+  is gone from the wire, never shipped for good beside the flags it has."""
   light = PlateLight(home_model, mujoco.MjData(home_model))
   light.restore_kept({"flags": {"state": "on", "pressed": False, "depressMm": 1},
                       "pressed": False, "latched": True})

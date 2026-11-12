@@ -68,9 +68,9 @@ load on it, its pad paint that nothing touches. What a consumer sees:
 - **`garden_plate` is no longer dynamic**: the scene says so, and no frame
   carries its pose (the humanoid house's dynamic bodies 56, the robot's 33
   among them).
-- **The `garden_light` activity's flags** are `state`, `pressed` and
-  `loadN` (the weight on the plate, N, in 10 N steps), where they carried
-  `depressMm`.
+- **The `garden_light` activity's flags** are `state` and `pressed`; its
+  `depressMm` is gone (a robot standing on the flush plate shifts tens of
+  newtons a step, which no flag could carry sparsely).
 
 No bump: a hint is additive, and a page with no art for one draws its box.
 

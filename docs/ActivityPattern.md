@@ -204,7 +204,9 @@ over one (rover) wheel crossing (300 frames):
 | 1 mm | **15** |
 
 No viewer can use a tenth of a millimetre. Quantise to what a consumer can
-act on, or do not put it on the wire at all.
+act on, or do not put it on the wire at all -- as the flush plate's load is
+not (#684): a robot standing on it shifts tens of newtons a step, and no
+rounding of that is sparse.
 
 ---
 
@@ -216,8 +218,7 @@ Activity flags ride in the frame, beside `state` and `battery`:
 {"t": 123.45, "key": true,
  "robots": {"pluggybot": {...}},
  "world": {"lab_mouse": [...]},
- "activities": {"garden_light": {"state": "on", "pressed": false,
-                                 "depressMm": 1}}}
+ "activities": {"garden_light": {"state": "on", "pressed": false}}}
 ```
 
 and the header advertises the names: `"activities": ["garden_light"]`.
