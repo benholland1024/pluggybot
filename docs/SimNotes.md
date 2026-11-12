@@ -7052,8 +7052,8 @@ reaches alone from there touched 2 of 6, no fall. The arms met at 0.68 m on
 home is what felled them either way.
 
 **What it leaves open** (#670's own list): an arm on its way out or home
-reaching into the other robot -- nothing a reach does knows of it (Hands.md
-§7); a fall at one prop reaching the next, 1.2 m apart (a fall carries the
+reaching into the other robot -- since #678 kept off it ("The arms keep off
+the other robot"); a fall at one prop reaching the next, 1.2 m apart (a fall carries the
 pelvis 0.8-0.9 m sideways); and the get-up against the counter (#669).
 
 ## A robot at work kept off where its body stands (issue #675)
@@ -7165,8 +7165,8 @@ both trees: one charge each, the same meeting, no death. A robot alone is
 unchanged: the cube check's set-outs 0 and 1 flew row for row.
 
 **What it does not fix.** The arms (#670's open half): the disc is about
-where bodies stand, and an arm's way out or home reaches 0.74 m to the side.
-And the drift itself: both robots 0.5-0.7 m off in the storeroom for half an
+where bodies stand, and an arm's way out or home reaches 0.74 m to the side
+-- #678's ("The arms keep off the other robot"). And the drift itself: both robots 0.5-0.7 m off in the storeroom for half an
 hour hurts the jobs too, and is worth a reading of its own (#572's
 instruments) of why the storeroom loses them.
 

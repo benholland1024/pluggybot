@@ -366,8 +366,21 @@ save a filmstrip PNG named after the script.
   driven into its top. ⚠ No force guard on
   it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
-  home"). ⚠ THEN ITS LEGS GO BACK TO THE STANDING POLICY, AND ITS POSTURE
-  IS WAITED ON `STAND_BACK_S` AT MOST (#668; SimNotes, "Making way,
+  home"). ⚠ BOTH WAYS KEEP OFF ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS
+  THE MOVE BEGINS (#678; `Reach._kept_off`, `HumanoidMission.look_round`
+  and `keep_out`; SimNotes, "The arms keep off the other robot"): a
+  cylinder 0.28 m round its middle, 1.55 m tall, kept 5 cm off, placed as
+  `others` places one seen (#675) within `ARMS_NEAR_M` (1.5 m) -- never at
+  its reported pose, and alone no look at all (bit for bit); a reach's way
+  out and its way home from there, a withdraw's way home (judged before
+  #669's let-go, its gripper as it was): the first that keeps clear and dips
+  no deeper over the work, else refused saying where that robot stands --
+  at a counter none does, so a robot within about 1 m beside refuses that
+  arm and the minds work it out. With a hand out that could not come home
+  the walk verbs refuse (`Body.arm_kept`) and the loop's walks wait
+  `ARM_WAIT_S` (60 s) at most, then bring it home. ⚠ THEN ITS LEGS GO
+  BACK TO THE STANDING POLICY, AND ITS POSTURE IS WAITED ON `STAND_BACK_S`
+  AT MOST (#668; SimNotes, "Making way,
   standing"): asked aside as its arm came home, the walker took them and a
   `withdraw` waited 2,191 s. ⚠ The posture's trim runs on under the walker
   (`Reach._trim`), and the hand jobs are measured on it: trimmed only while
@@ -1005,7 +1018,8 @@ save a filmstrip PNG named after the script.
   drive explicitly, and at 0.2 kg a shut's force flipped between its clips
   every step and from 40 N batted a light handle it never shut on; ⚠ A
   `withdraw` OPENS ITS GRIPPER, `GRIP_S` BEFORE ITS HAND MOVES, whatever it
-  says it holds, and so does a walk's hand-over for a hand that is out (#669;
+  says it holds (but one refused for another robot's body, judged first:
+  #678), and so does a walk's hand-over for a hand that is out (#669;
   `HumanoidMission.let_go_routine`; one already open, `Gripper.opened`, is
   left alone): shut on a door's lever that read nothing held, the way home
   levered the trunk into the counter, 9 of 9 flown. ⚠ A `step` asked while
@@ -1041,9 +1055,8 @@ save a filmstrip PNG named after the script.
   turns nor moves; ⚠ the front stop reads the LIDAR's returns off that
   robot ALONE (at the chest's and the drawer's work spots the props read
   0.35-0.38 m ahead, inside its 0.40), from the scans the step takes
-  (standing still, it takes none): `blocked`, `keptOff` saying how; a reach
-  and its ways out and home still know nothing of it (flown, an arm's way
-  home still felled both robots at the disc's edge); ⚠ a
+  (standing still, it takes none): `blocked`, `keptOff` saying how; an
+  arm's ways keep off it as a reach's do (#678, above); ⚠ a
   humanoid with a hand out keeps its posture to look (a bow carried the
   hand 43 cm up). A verb test and the maths are in every hands
   world (`hand_facts`), the served humanoids' included (`served_hand_facts`,
