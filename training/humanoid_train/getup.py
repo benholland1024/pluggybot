@@ -1078,12 +1078,23 @@ def getup_wall3_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     func=lambda env: _paid(env, BUDGET_S) * (1.0 - handed_back(env)[:, 0]), weight=-HANDED_WEIGHT)
   for name in ("stand_height", "stand_pose", "feet_down"):
     cfg.rewards[name].func = _handed_only(cfg.rewards[name].func)
+  # ⚠ ...and the get-up's own charges are not charged while the standing
+  # policy has the legs: charged its joints' speed and torque (in the
+  # training physics the standing policy keeps stepping against a ~1 rad/s
+  # turn on its soles), a second handed back cost ~300 times one not (the
+  # episode's charges -18 against -0.06), and the runs learned to avoid the
+  # hand-back whatever the wait cost.
+  for name in GENTLE:
+    if name != "impact":
+      cfg.rewards[name].func = _handed_only(cfg.rewards[name].func, handed=False)
   return cfg
 
 
-def _handed_only(func):
-  """`func`'s pay only while the standing policy has the legs."""
+def _handed_only(func, handed: bool = True):
+  """`func`'s pay only while the standing policy has the legs (or, with
+  `handed` False, only while it does not)."""
   def paid(env, **params):
-    return func(env, **params) * handed_back(env)[:, 0]
-  paid.__name__ = f"{func.__name__}_handed"
+    on = handed_back(env)[:, 0]
+    return func(env, **params) * (on if handed else 1.0 - on)
+  paid.__name__ = f"{func.__name__}_{'handed' if handed else 'unhanded'}"
   return paid
