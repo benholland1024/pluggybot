@@ -517,7 +517,7 @@ def _place_obstacle(env, env_ids, draws: dict, pos, quat, tipping, way,
     face = torch.where(lean, torch.maximum(face_dist, reach + 0.005), face)
   centre = pos.clone()
   centre[:, :2] = pos[:, :2] + toward[:, :2] * (face + OBSTACLE_HALF[0])[:, None]
-  centre[:, 2] = top - OBSTACLE_HALF[2]
+  centre[:, 2] = env.scene.env_origins[env_ids][:, 2] + top - OBSTACLE_HALF[2]
   turn = torch.stack([torch.cos(ang / 2), torch.zeros_like(ang), torch.zeros_like(ang),
                       torch.sin(ang / 2)], -1)
   env.scene["obstacle"].write_mocap_pose_to_sim(torch.cat([centre, turn], -1), env_ids)
@@ -820,6 +820,11 @@ class HandBackAction(JointPositionAction):
     up, z = _up(self._env), _z(self._env)
     stood = (up > STOOD_UP) & ((z - robot.BODY["stand_height"]).abs() < HAND_BACK_M)
     fell = (up < math.cos(math.radians(RETAKE_DEG))) | (z < RETAKE_M)
+    retaken = self.handed & fell
+    if bool(retaken.any()):
+      # ...its last action seen as none, as the served get-up begins a take
+      # (`GetupDriver.begin`): what it put out while handed back moved nothing
+      self._env.action_manager._action[retaken] = 0.0
     self.handed &= ~fell
     self.still = torch.where(stood & ~self.handed, self.still + self._env.step_dt,
                              torch.zeros_like(self.still))

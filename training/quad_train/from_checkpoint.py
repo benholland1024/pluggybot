@@ -11,6 +11,7 @@ every array to 0.0, #679)."""
 import hashlib
 import json
 import sys
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -29,8 +30,10 @@ arrays["layers"] = np.array(4)
 arrays["meta"] = t["meta"]
 training = json.loads(str(t["training"]))
 with open(ckpt, "rb") as fh:
+  # iterations and steps the lineage's, as `export` counts them (the resumed runs' too)
   training.update({"iterations": iteration, "env_steps": training["envs"] * iteration * 24,
-                   "onnx_sha256": None, "checkpoint": ckpt.split("/")[-2] + "/" + ckpt.split("/")[-1],
+                   "onnx_sha256": None,
+                   "checkpoint": f"{Path(ckpt).resolve().parent.name}/{Path(ckpt).name}",
                    "checkpoint_sha256": hashlib.sha256(fh.read()).hexdigest()})
 if task:
   training["task"] = task
@@ -41,5 +44,6 @@ arrays["training"] = np.array(json.dumps(training))
 for key in ("obs_mean", "obs_div", *(f"{w}{k}" for k in range(4) for w in "wb")):
   assert arrays[key].shape == t[key].shape, (key, arrays[key].shape, t[key].shape)
 assert len(training["action_joints"]) == arrays["b3"].shape[0]
+out = out if out.endswith(".npz") else out + ".npz"   # np.savez's own rule
 np.savez(out, **arrays)
 print("wrote", out, "from", ckpt)

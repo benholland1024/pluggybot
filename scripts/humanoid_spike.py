@@ -4284,6 +4284,9 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
     else:
       h.step()
     served.check(d, h.root, h.reach.held_pitch())
+    # ...its strikes over the whole flight, a fall after the hand-back's too:
+    # the served robot takes those (the bare table's peaks stop at the
+    # get-up's stand: it compares three ways of falling over the fall)
     for i in range(d.ncon):
       c = d.contact[i]
       if (c.geom1 in ours) == (c.geom2 in ours):
@@ -4472,11 +4475,9 @@ def counter_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   return rows
 
 
-# Where a get-up ends (#679's second round): D3's wall policy sat still on the
-# floor in three falls today's stands from, and lay propped on a wall in a
-# fourth -- each a fixed point of a blind policy. Their end states, and each
-# fall as the get-up was handed it, are the training's `posed` starts
-# (`training/humanoid_train/getup_poses.json`).
+# Where a get-up ends four falls, and each as the get-up was handed it: the
+# wall get-up's `posed` starts (`training/humanoid_train/getup_poses.json`;
+# SimNotes, "The wall get-up's second and third rounds").
 
 #: The falls whose end states are recorded: (place, way) as the house's and
 #: the counter's tables stage them.
@@ -5478,8 +5479,9 @@ def main(argv=None) -> None:
   elif args.speed is not None:
     speed_table(args.speed, args.profile)
   elif args.fall_ends is not None:
-    fall_ends(args.fall_ends or None, args.fall_out or "training/humanoid_train/getup_poses.json",
-              jobs=args.jobs)
+    fall_ends(args.fall_ends or None,
+              args.fall_out or str(Path(__file__).resolve().parents[1] / "training"
+                                   / "humanoid_train" / "getup_poses.json"), jobs=args.jobs)
   elif args.fall is not None:
     npz, watch = args.fall or None, args.fall_watch
     rows = {"bare": fall_table(npz, jobs=args.jobs, watch_s=watch),
