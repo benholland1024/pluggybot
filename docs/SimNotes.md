@@ -2038,9 +2038,9 @@ its side facing the face 6 of 18 (5.2 and 9.2 s,
 on its left 9 of 9 in 2.5-2.6 s (today 3, the rest 21-23 s). Shoved at the
 counter 17 of 20 to 15, from a bow and on a bare floor every fall today's
 stood from. Four that today's stood from it did not -- shoved sideways in the
-hall, where it lies or crouches against the wall, and left or front-left at
-the chest, where it SITS on the floor: never past 60 deg, so neither stood
-nor a stuck death, the get-up holding the legs. Its head strikes in more of
+hall, where it sits still on the floor or lies propped on the wall, and left
+or front-left at the chest, where it SITS: never past 60 deg, the get-up
+holding the legs, which since #684 is the `stuck` death at 20 s. Its head strikes in more of
 the rows (100 to today's 68), softer at worst in every table (5.4 m/s at the
 counter to today's 6.1 on a bare floor) but 1 m/s or more harder in 16 (4.9
 m/s from a bow where today's never struck). Later
@@ -2048,6 +2048,54 @@ checkpoints stood more often from a side facing the face and lost the back
 beside a box on its left again. Over the garden lamp's pole (#679's note: a
 walker tripped on the plate's pad and fell with the pole between its legs)
 it never stood either.
+
+**The wall get-up's second and third rounds** (#679; `--fall`'s tables read
+on #684's clock, `-Getup-Wall2-Mirror`, `-Getup-Wall3-Mirror`). Flown on past
+its first stand as the mission flies it -- the legs back to the standing
+policy, the watch on, a fall taken again -- until the `stuck` clock settles
+(`StuckClock`; the tables had stopped at the first stand, or watched on with
+nothing to take a second fall), getupwall10 regresses on SIX of the 151 falls
+today's get-up lives through, not four: lying on its back, head back,
+against the counter, it stands in 5.1 s with its back to the counter, the
+standing policy sways back onto it 2.7 s later, and it ends on hands and
+knees. Today's lives through 119. The three sitters hold one posture (the
+left hip flexed 2.1-2.8 rad, the right turned 0.65-1.0) -- a fixed point of a
+blind policy, as the prop on the wall and the hands and knees are; in the
+hall it sat down with its trunk never past 32 deg. Started there (`posed`: where it
+ended each fall, and the fall as the get-up was handed it,
+`humanoid_spike.py --fall-ends`), the training physics' mean action learned
+to rise from a sit in half the starts (0.04 to 0.50-0.54); a wall far in the
+way a body tips taught nothing, the training's clean tip standing 32 of 32
+against it. That round's pick stood from the hall's left and the counter's
+two, but stood faster with its soles 0.53-0.65 m apart (getup3's 0.32), and
+given that stance the standing policy tipped within 2 s in nine falls the
+get-up then never stood from: 14 regressions. ⚠ A get-up trained never
+handing back stands where the standing policy cannot keep it. Trained handing
+back (`HandBackAction`), in the training physics:
+- ⚠ *Its stillness is not the training's*: waiting for the trunk's turning
+  under the served get-up's 0.3 rad/s, the action's noise never let it settle,
+  and nothing was handed back.
+- ⚠ *A get-up keeps the legs where it can*: with the stand paid whoever held
+  it, both runs learned within 450 iterations to stand just outside the
+  hand-back; paid only handed back, within 170; with the wait charged too,
+  within 140 -- handed back, the get-up's own joint and torque charges read
+  the standing policy's stepping against the training physics' ~1 rad/s turn
+  on the soles (an episode's -18 against -0.5). Paid only handed back and
+  charged only while it holds the legs, it handed back in 0.78-0.86 of every
+  second it could through 1000 iterations.
+`models/humanoid_getup_wall3.npz` (getupwall14's iteration 9850: that round's
+pick carried on handing back, chosen in `-Getup-Wall3`'s physics before the
+bar was read; NOT served) loses none of the 151 falls today's get-up lives
+through on the clock and gains 24 (lying along a face 57 of 63 to today's 39,
+the counter's shoves 20 of 20 to 15) -- all six of getupwall10's back, the
+hall shoved back standing in 2.9 s with its soles 0.26 m apart -- and stands
+from all 14 of the counter's falls inside the 20 s (2.8-14.8 s after the
+take). Its slowest of the 151: shoved left at the chest, it sits, and rises
+18.2 s after the take. On 130 falls
+outside the bar (the shoves at 35 and 55 N*s, the bar's 45; laid 0.05 and
+0.18 m off a face), never trained on, it lives through 110 to today's 93 and
+loses 3 of today's: shoved right at 35 N*s it sits in a posture its posed
+starts never held, and one fall back down the flight.
 
 **A bow is no fall** (#520). The IMU is on the pelvis and the body has no
 waist, so a bow the standing policy is asked tilts it by the whole bow, and

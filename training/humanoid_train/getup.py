@@ -35,10 +35,10 @@ trained on open floor alone never stood a robot lying against one.
 """
 
 import copy
+import dataclasses
 import functools
 import json
 import math
-import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -168,16 +168,17 @@ POSE_SPREAD_RAD, POSE_TILT_RAD, POSE_DROP_M = 0.2, 0.1, 0.02
 #: `-Getup-Wall3` (#679's third round): the get-up HANDS BACK as served --
 #: once standing as the served get-up hands back (within `STOOD_UP`, the
 #: pelvis `HAND_BACK_M` of the stand's height) for `HAND_BACK_S`
-#: (`humanoid.getup`'s `STOOD_*`, which a test reads these against), the standing policy
-#: (`STAND_NPZ`, served) has the legs, the arms held at its pose; and a fall
-#: past `RETAKE_DEG` or the pelvis under `RETAKE_M` is the get-up's again,
-#: as the served watch takes it (`FALL_TILT_RAD`, `COLLAPSED_M`). ⚠ The
-#: served test also waits for the gyro under 0.3 rad/s, and the training's
-#: does not: the action's noise in training never let it settle (with it,
-#: getupwall14 handed back in no episode of 150 iterations), and the training
-#: physics turns a standing robot ~1 rad/s on its soles. ⚠ Never handed back, D3's wall policies stood with their
-#: soles 0.52-0.60 m apart, and the served standing policy, given that
-#: stance, fell within 2 s (#679's second round).
+#: (`humanoid.getup`'s `STOOD_*`, which a test reads these against), the
+#: standing policy (`STAND_NPZ`, served) has the legs, the arms held at its
+#: pose; and a fall past `RETAKE_DEG` or the pelvis under `RETAKE_M` is the
+#: get-up's again, as the served watch takes it (`FALL_TILT_RAD`,
+#: `COLLAPSED_M`). ⚠ The served test also waits for the gyro under 0.3 rad/s,
+#: and the training's does not: the action's noise in training never let it
+#: settle (with it, getupwall14 handed back in no episode of 150 iterations),
+#: and the training physics turns a standing robot ~1 rad/s on its soles.
+#: ⚠ Never handed back, the wall policies stood with their soles 0.52-0.65 m
+#: apart (getup3's 0.32), and the served standing policy, given that stance,
+#: fell within 2 s (#679's second round).
 STAND_NPZ = robot.REPO / "models" / "humanoid_stand.npz"
 HAND_BACK_M, HAND_BACK_S = 0.05, 0.5
 #: Handed back is paid this a second (`upright`'s weight).
@@ -1082,7 +1083,7 @@ def getup_wall3_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # policy has the legs: charged its joints' speed and torque (in the
   # training physics the standing policy keeps stepping against a ~1 rad/s
   # turn on its soles), a second handed back cost ~300 times one not (the
-  # episode's charges -18 against -0.06), and the runs learned to avoid the
+  # episode's charges -18 against -0.5), and the runs learned to avoid the
   # hand-back whatever the wait cost.
   for name in GENTLE:
     if name != "impact":

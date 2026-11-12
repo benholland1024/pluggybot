@@ -152,12 +152,48 @@ iterations in 38 min on a 5090 shared with a second run, chosen by the
 training physics' scan below before the bar was read on it (SimNotes,
 "Getting up beside a wall or the counter", has its readings). Later checkpoints stood more often from a side
 facing the box and lost the back beside a box on its left: read a run's
-checkpoints there with `python -m humanoid_train.scan RUN` (ten starts
-against a box or on open floor), and make any checkpoint the served npz with
+checkpoints there with `python -m humanoid_train.scan RUN [EVERY] [N]
+[BASE.pt] [TASK]` (fifteen starts against a box, on open floor and posed,
+every checkpoint flown at once in its own block of worlds beside a base, in
+TASK's env), and make any checkpoint the served npz with
 `python -m quad_train.from_checkpoint` (mjlab writes the ONNX of the last
 save alone; checked identical to `quad_train.export`'s of the same
-checkpoint). ⚠ A dict's tuple is no flag (`--env.events.reset-base.params.
+checkpoint; `TASK WALL` name the run where the template's do not). ⚠ A
+dict's tuple is no flag (`--env.events.reset-base.params.
 obstacle.gap-m.along 0 0.15` is refused): change those in code.
+`-Getup-Wall2-Mirror` (#679's second round) carries getupwall10 at 8450 on
+with POSED starts beside the wall task's (0.2 to their 1.15,
+`WALL2_STARTS`): the four served falls getupwall10 lost, as it ended them --
+sitting still on the floor in three, propped on a wall in the fourth: fixed
+points of a blind policy -- and as the get-up was handed each, moving
+(`humanoid_train/getup_poses.json`, `humanoid_spike.py --fall-ends`), each
+mirrored half the time, at any heading, one resting on its face or falling
+against it started there; and a wall FAR in the way a body tips
+(`OBSTACLE2`), which alone teaches nothing (the training physics' clean tip
+stood 32 of 32 against it on getupwall10). `-Getup-Wall3-Mirror` (the third)
+HANDS BACK as served (`HandBackAction`): upright and within 5 cm of the
+stand's height for 0.5 s, the served standing policy
+(`models/humanoid_stand.npz`) has the legs, the arms held at its pose, until
+a fall the served watch would take; handed back is paid and waiting
+charged, the stand paid only handed back and the get-up's own joint and
+torque charges charged only while it holds the legs -- ⚠ each of those
+missing, the runs learned within 140-450 iterations to stand just outside
+the hand-back (handed back, its charges read the standing policy's stepping
+against the training physics' ~1 rad/s turn on the soles). ⚠ Never handed
+back in training, a get-up stands as it pleases: the second round's pick
+stood with its soles 0.53-0.65 m apart (getup3's 0.32), and given that
+stance the standing policy tipped within 2 s in nine of the served falls.
+⚠ The served hand-back also waits for the gyro under 0.3 rad/s; under the
+action's noise in training the trunk never settled, and handed back in no
+episode, so the training's waits for upright and tall alone.
+`models/humanoid_getup_wall3.npz` (NOT served) is getupwall14's iteration
+9850: `-Getup-Wall3-Mirror` from getupwall12's 9050 (`-Getup-Wall2-Mirror`
+from getupwall10's 8450), 800 iterations in ~25 min on a 5090 shared with a
+second run, chosen by the scan in `-Getup-Wall3`'s physics before the bar was
+read on it (SimNotes, "The wall get-up's second and third rounds"). Its
+second run, the same from getupwall10, never learned to rise from a sit (as
+the second round's other run did not): the sit was learned once, by
+getupwall12, and carried on.
 ⚠ A get-up SEES THE JOINTS IT
 DRIVES: over every joint the waist made 80 inputs, where getup3's 78 carry
 on; and mjlab's metadata lists every joint of the body, so it is exported
@@ -206,6 +242,7 @@ run on a card records its steps a second:
 | RTX 5090 | Vast, an EPYC 9B14 host | 0.633 | 95,000-98,000 | 0.0018 | `Pluggy-Humanoid-Walk-Seeing-Fine` (fine2, fine3, fine4a, fine5a, fine6a), 1500 iterations in 25 min alone (#507) |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 108,000 | 0.0013 | the same (fine4b, fine5b, fine6b), 1500 iterations in 23 min alone (#507) |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host in South Korea | 0.516 | 155,000 | 0.00092 | `Pluggy-Humanoid-Getup-Wall` (getupwall1), 1500 iterations in 16 min alone; two runs to the card ~65,000 each (getupwall10: 1002 iterations in 38 min) (#679) |
+| RTX 5090 | Vast, another 7800X3D host in South Korea | 0.516 | 70,000 each, two to the card | 0.0010 | `Pluggy-Humanoid-Getup-Wall2-Mirror` and `-Wall3-Mirror` (getupwall12-15), 1000 iterations in 22-25 min with two runs to the card (#679's second and third rounds) |
 
 Two runs on one card share it rather than add to it: two humanoid runs on
 one 5090 each took 1.0 s an iteration against 0.46 s alone.
