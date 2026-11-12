@@ -541,14 +541,19 @@ class Body(abc.ABC):
     hand then FOLLOWS that path (`hand_follows`) -- or, where that posture
     makes no approach, in any, the grip as asked (#493: a knob gripped in a
     crouch whose lid's arc only a bow followed). The humanoid's (#507); a
-    body with no such hand refuses it (`NotImplementedError`)."""
+    body with no such hand refuses it (`NotImplementedError`). ⚠ Its way
+    out, and its way home from there, keep off another robot the body sees
+    as it begins (#678): where none does, nothing moves (`hand_why` "kept
+    off", `hand_kept`)."""
 
   @abc.abstractmethod
   def release_routine(self, side: str) -> Routine:
     """A hand back out along its way in, and its arm home -- its gripper
     opened first, whatever it says it holds (#669): returns "home" once its
     drivers read it there (#539), else why not -- "fell" (a fall let go of
-    it) or "held" (not home in the body's time: something holds it)."""
+    it), "held" (not home in the body's time: something holds it) or "kept
+    off" (#678: every way home would meet the body of another robot it sees
+    as it begins, so nothing moved, its gripper as it was; `hand_kept`)."""
 
   @abc.abstractmethod
   def grip_routine(self, side: str, closed: bool, force: float | None = None) -> Routine:
@@ -680,16 +685,28 @@ class Body(abc.ABC):
     """Why a hand's last `reach_routine` ended short of holding there: "out
     of reach" (no posture it holds puts the pose in reach), "stopped short"
     (it stopped on its way: pushing on something, or out of reach as the
-    body truly stood), "until" (`stop_hand` stopped it), "fell", "out of
-    time" -- or "" where it held (#493)."""
+    body truly stood), "until" (`stop_hand` stopped it), "kept off" (#678:
+    every way out, or home from there, would meet another robot's body;
+    `hand_kept`), "fell", "out of time" -- or "" where it held (#493)."""
 
+  @abc.abstractmethod
   def hand_kept(self, side: str) -> dict | None:
     """How a hand's last `reach_routine` or `release_routine` was refused
-    for another robot's body in its arm's way (#678, a prototype): `m`
-    between the middles, `x`, `y` where that robot stands in the stance
-    frame, `home` (its way home or out), `other` (whether the other hand's
-    way there keeps off it; None where it reaches not) -- else None."""
-    return None
+    for another robot's body in its arm's way, the robot as the body's look
+    as it began saw it (#678): `m` between the two middles, `x`, `y` where
+    that robot stands in the stance frame, `home` (its way home, else its
+    way out), `back` (a reach whose way home from there would meet it), and
+    for a reach `other` (whether the other hand's way there keeps off it;
+    None where that hand does not reach) -- else None."""
+
+  @abc.abstractmethod
+  def arm_kept(self) -> dict | None:
+    """Whether a hand that is out could not come home now: every way home
+    it has would meet the body of another robot the body sees (one look,
+    #678) -- `hand`, and `m`, `x`, `y` as `hand_kept` says them -- else
+    None, with no hand out none, and no look. A walk brings the arms home
+    first, so the walk verbs refuse to walk then (`steps.ARM_KEPT_OFF`);
+    the loop's own walks wait for it (`HumanoidMission.ARM_WAIT_S`)."""
 
   @abc.abstractmethod
   def stop_hand(self, side: str) -> bool:
@@ -1287,6 +1304,14 @@ class StubBody(Body):
     """Never short -- every reach holds at once -- but with a hand a test
     put `out_of_reach`."""
     return self._why.get(side, "")
+
+  def hand_kept(self, side) -> dict | None:
+    """No other robot's body in any arm's way: none."""
+    return None
+
+  def arm_kept(self) -> dict | None:
+    """No other robot's body in any arm's way home: none."""
+    return None
 
   def stop_hand(self, side) -> bool:
     """Its moves are done at once: none is under way to stop."""

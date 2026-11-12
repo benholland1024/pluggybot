@@ -176,12 +176,16 @@ WATCHED = "; what `watch` reads, %(hz)g times a second"
 
 #: What a walk does with a hand that is out (#669: `HumanoidMission.let_go_routine`),
 #: and a `step` while a gripper says it holds something: refuses, before the
-#: hand-over that lets go (`HumanoidBody.step_routine`'s "holding"). Said in
-#: YOUR BODY where the verbs it lists give a `step`.
+#: hand-over that lets go (`HumanoidBody.step_routine`'s "holding") -- as a
+#: walk verb does with a hand out that could not come home (#678:
+#: `steps.ARM_KEPT_OFF`). Said in YOUR BODY where the verbs it lists give a
+#: `step`.
 WALK_LETS_GO = (" Before a `step` or any other walk moves\nyour feet, a hand that is out comes "
                 "home, its gripper opened as `withdraw`\nopens it: a walk carries nothing. A "
                 "`step` asked while either gripper says\nit holds something moves nothing, and "
-                "reads false.")
+                "reads false. Nor does a `step`\nor any other walk move while a hand is out "
+                "whose every way home would\nmeet the body of another robot standing near you: "
+                "it reads false\nand says where that robot stands.")
 
 YOUR_BODY = """YOUR BODY
 

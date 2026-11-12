@@ -269,8 +269,12 @@ def _walk_stopped(life, x: float, y: float) -> dict:
 
 def _drive_to(life, args: dict) -> Routine:
   """A walk to a world point over the map, and over floor not yet on it
-  (issue #381, `Navigator.OPTIMISTIC`): no route is written for it."""
+  (issue #381, `Navigator.OPTIMISTIC`): no route is written for it. ⚠ Not
+  with a hand out that could not come home (#678, `_arm_out`)."""
   x, y = float(args["x"]), float(args["y"])
+  refused = _arm_out(life, "walk")
+  if refused is not None:
+    return refused
   arrived = yield from _go(life, x, y, _patience(life, args), _interrupt(life))
   px, py, _ = life.body.pose
   short = round(math.hypot(x - px, y - py), 3)
@@ -287,6 +291,9 @@ def _drive_to(life, args: dict) -> Routine:
 
 
 def _face(life, args: dict) -> Routine:
+  refused = _arm_out(life, "walk")
+  if refused is not None:
+    return refused
   squared = yield from life.body.face_routine(float(args["heading"]))
   return {"ok": bool(squared),
           **({} if squared else {"reason": (
@@ -311,6 +318,10 @@ def _find(life, args: dict) -> Routine:
   where it is rides the verdict (`at`), and the robot remembers it."""
   tag = int(args["tag"])
   x, y = float(args["x"]), float(args["y"])
+  refused = _arm_out(life, "walk")
+  if refused is not None:
+    _reports(life).pop("find", None)
+    return {**refused, "tag": tag}
   patience = _patience(life, {"patience": args.get("patience", FIND_PATIENCE_S)})
   rec = yield from life.body.find_tag_routine(tag, near=(x, y), patience=patience,
                                               stop=_interrupt(life))
@@ -877,25 +888,49 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "out of time": "your {hand} hand did not get there in time"}
 
 
-#: ...and one whose every way crosses another robot's body (#678, a
-#: prototype; `Body.hand_kept`), by where the arm was going.
+#: ...and one that kept off another robot's body (#678; `Body.hand_kept`,
+#: `Body.arm_kept`), by what it refused: where that robot stands, from the
+#: robot's own middle and said of its own body, what two minds work it out
+#: from -- the other hand, a step away, a `tell` (Ben, 2026-11-12).
 ARM_KEPT_OFF = {
-  "reach": "your {hand} arm's way there would meet another robot's body, {m:.2f} m {where}: "
-           "no way your arm takes there keeps clear of it, so it did not go",
+  "reach": "your {hand} arm's way there would meet another robot, its middle {m:.2f} m from "
+           "yours {where}: no way your arm takes there keeps clear of its body, so your arm "
+           "did not move",
   "back": "your {hand} arm could get there, but its way home from there would meet another "
-          "robot's body, {m:.2f} m {where}: no way home keeps clear of it, so it did not go",
-  "withdraw": "your {hand} arm's way home would meet another robot's body, {m:.2f} m {where}: "
-              "no way your arm takes home keeps clear of it, so it stays out where it is, "
-              "its gripper as it was",
-  "step": "your {hand} arm is out, and its way home would meet another robot's body, {m:.2f} m "
-          "{where}: a step brings your arms home first, so you did not step"}
+          "robot, its middle {m:.2f} m from yours {where}: no way home keeps clear of its "
+          "body, so your arm did not move",
+  "withdraw": "your {hand} arm's way home would meet another robot, its middle {m:.2f} m from "
+              "yours {where}: no way home keeps clear of its body, so your hand stays where it "
+              "is, its gripper as it was",
+  "step": "your {hand} arm is out, and its way home would meet another robot, its middle "
+          "{m:.2f} m from yours {where}: a step brings your arms home first, so you did not "
+          "step",
+  "walk": "your {hand} arm is out, and its way home would meet another robot, its middle "
+          "{m:.2f} m from yours {where}: a walk brings your arms home first, so you did not "
+          "walk"}
+#: ...and, after a reach's, what the other hand's way there would do.
+OTHER_HAND_KEPT = {True: "; your {other} hand's way there keeps clear of it",
+                   False: "; nor does your {other} hand's",
+                   None: "; your {other} hand does not reach there"}
 
 
 def _where(kept: dict) -> str:
-  """Where another robot stands, as the robot says it of its own body."""
+  """Where another robot stands, as the robot says it of its own body: from
+  its stance's middle, a quarter of the way round each."""
   a = math.degrees(math.atan2(kept["y"], kept["x"]))
   return ("ahead of you" if abs(a) <= 45 else "on your left" if 45 < a <= 135
           else "on your right" if -135 <= a < -45 else "behind you")
+
+
+def _arm_out(life, walk: str) -> dict | None:
+  """A walk refused before it moves (#678): a hand out whose every way home
+  would meet another robot's body (`Body.arm_kept`) -- a walk brings the
+  arms home first. Its verdict, by the verb (`ARM_KEPT_OFF`), else None."""
+  kept = life.body.arm_kept()
+  if kept is None:
+    return None
+  return {"ok": False, "why": "arm out", "hand": kept["hand"],
+          "reason": ARM_KEPT_OFF[walk].format(where=_where(kept), **kept)}
 
 
 def _reach(life, args: dict) -> Routine:
@@ -925,11 +960,9 @@ def _reach(life, args: dict) -> Routine:
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
-    reason = ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
-      hand=hand, where=_where(kept), **kept)
-    reason += ({True: f"; your {other} hand's way there keeps clear of it",
-                False: f"; nor does your {other} hand's",
-                None: f"; your {other} hand does not reach it"}[kept.get("other")])
+    reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
+      hand=hand, where=_where(kept), **{k: v for k, v in kept.items() if k != "hand"})
+      + OTHER_HAND_KEPT[kept.get("other")].format(other=other))
   if why == "out of reach" and rot is not None and life.body.hand_reaches(hand, place):
     # ...turned as asked; and whether the TURN is what is out of reach,
     # off the same plan (#493: a mind asked both hands for a turn neither
@@ -1076,6 +1109,11 @@ def _step(life, args: dict) -> Routine:
   frame it then stands in, and stands -- its feet where the hands' work is. Where its stance
   went, in the stance frame it stood in before, rides `step.*` whatever
   stopped it. ok when it stepped."""
+  refused = _arm_out(life, "step")
+  if refused is not None:
+    # ...a hand out that could not come home: nothing moves (#678)
+    _reports(life)["step"] = {"dx": 0.0, "dy": 0.0, "turn": 0.0}
+    return {**refused, "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
   rep = yield from life.body.step_routine(float(args["ahead"]), float(args.get("left", 0.0)),
                                           float(args.get("turn", 0.0)))
   _reports(life)["step"] = {k: float(rep.get(k, 0.0)) for k in ("dx", "dy", "turn")}
@@ -1083,9 +1121,7 @@ def _step(life, args: dict) -> Routine:
          **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")}}
   if rep["why"] != "stepped":
     kept = rep.get("keptOff")
-    reason = (ARM_KEPT_OFF["step"].format(where=_where(kept), **kept)
-              if kept and kept["by"] == "arm"
-              else STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
+    reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
               else STEP_WHY.get(rep["why"], "your step stopped short"))
     return {"ok": False, **out, "reason": reason}
   return {"ok": True, **out}
@@ -1266,7 +1302,10 @@ HANDS_VERBS: dict[str, Verb] = {
                 "fingers; you take whatever posture reaches. stiffness 1 is your arm's full "
                 "stiffness, less is softer. ok once it holds there -- or as near as it came: "
                 "what it touches on its way in can hold it a few cm short, and your hand's "
-                "place (`left.x` and the rest) says where it is"),
+                "place (`left.x` and the rest) says where it is. Its way out, and its way "
+                "home from there, keep clear of the body of another robot standing near you: "
+                "where no way does, your arm does not move, and it reads false saying where "
+                "that robot stands"),
   "via": Verb("via", {"hand": _HAND, **_HAND_AT, **_TURN}, _via,
               "add the point (x, y, z) to your hand's path, the grip turned there to "
               "(fx, fy, fz) and (jx, jy, jz) where given as for `reach`; nothing moves "
@@ -1338,7 +1377,9 @@ HANDS_VERBS: dict[str, Verb] = {
                    "hand back out along the way it went in, and its arm home -- straight "
                    "there, or out to your side first and down at your side where that keeps "
                    "the arm higher in front of you than straight would; ok once your arm is "
-                   "home"),
+                   "home. Its way home keeps clear of the body of another robot standing near "
+                   "you: where no way does, your gripper stays as it is and your hand where it "
+                   "is, and it reads false saying where that robot stands"),
 }
 #: The hands' vocabulary (#525; docs/Hands.md): what the humanoid's
 #: procedures call, the checks' and the practice's alike...

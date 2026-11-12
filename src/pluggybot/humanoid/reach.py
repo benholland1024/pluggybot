@@ -31,7 +31,6 @@ before `mj_step`; the arms take new commands every `EVERY_S`.
 from dataclasses import dataclass
 import itertools
 import math
-import os
 
 import mujoco
 import numpy as np
@@ -814,14 +813,15 @@ def _side_way(side: str, q_out, q_home) -> list[np.ndarray]:
   return [raised, lowered, back, np.asarray(q_home, dtype=float).copy()]
 
 
-#: ANOTHER ROBOT'S BODY, AS A HAND'S WAY KEEPS OFF IT (#678, a prototype):
-#: a cylinder standing round the middle of its soles where `Body.others`
-#: places it, this wide, m -- the standing body, its arms hanging, its
-#: grippers 0.28 m out -- and this tall, its head's top...
+#: ANOTHER ROBOT'S BODY, AS A HAND'S WAY KEEPS OFF IT (#678; SimNotes, "The
+#: arms keep off the other robot"): a cylinder standing round the middle of
+#: its soles where this robot's LIDAR sees it (`HumanoidMission.keep_out`),
+#: this wide, m -- the standing body, its arms hanging, its grippers 0.28 m
+#: out, on the drawing -- and this tall, its head's top. ⚠ ITS SIGHTED
+#: PLACE, NEVER ITS HEADING: a robot standing square to the counter beside
+#: this one is narrower that way than round, so a refusal can come where
+#: its arm would have passed it (#678's stage 1: 15 of 40 at 0.71-0.95 m)...
 OTHER_BODY_M, OTHER_TOP_M = 0.28, 1.55
-#: The prototype's switch, for its measurement alone (`$PLUGGY_ARMS_KEEP_OFF`
-#: 0: no body is kept off).
-ARMS_KEEP_OFF = os.environ.get("PLUGGY_ARMS_KEEP_OFF", "1") != "0"
 #: ...with this much room between it and every part of the arm, m.
 OTHER_CLEAR_M = 0.05
 #: The way drawn in: the arm's elbow bent this far, rad, before its shoulder
@@ -886,9 +886,6 @@ def _tucked_way(side: str, q0, q1) -> list[np.ndarray]:
 
 
 class Reach:
-  #: (#678's prototype) none kept off where a test builds one round `__init__`
-  keep_out: tuple = ()
-
   """The arms and grippers of one body beside its standing policy (module
   docstring). A hand's PHASE: `rest` (hanging), `move` (joint space to the
   pre-grasp, the posture walking to its plan), `approach` (a straight line
@@ -977,10 +974,11 @@ class Reach:
     self.looks = {s: 0 for s in hm.SIDES}
     self.looking = {s: False for s in hm.SIDES}
     self._planner: SelfModel | None = None
-    #: The other robots' bodies a hand's way keeps off (#678, a prototype):
-    #: each one's soles' middle (x, y), stance frame, set by the body before
-    #: it asks a reach or a withdraw; and, by side, how the last way judged
-    #: against them was refused (`kept_off`), else None.
+    #: The other robots' bodies a hand's way keeps off (#678): each one's
+    #: soles' middle (x, y), stance frame, as the body's look placed them
+    #: as it began a reach, a withdraw or a walk's hand-over, and none once
+    #: it is over (`HumanoidMission.keep_out`); and, by side, how the last
+    #: way judged against them was refused (`_kept_off`), else None.
     self.keep_out: list = []
     self.kept: dict[str, dict | None] = {s: None for s in hm.SIDES}
 
@@ -997,17 +995,17 @@ class Reach:
     end of its range. `postures` are the ones it may take, `flip` whether
     it may take the other grip."""
     plan_, goal = self._planned(side, goal, approach, postures, flip)
-    self.__dict__.setdefault("kept", {s: None for s in hm.SIDES})[side] = None
+    self.kept[side] = None
     if plan_ is None:
       return False
     posture, q_pre, _, slack = plan_
     outs = self.way_out(side, q_pre, posture)
     if outs is None:
-      # every way out crosses another robot's body (#678): nothing moves
+      # every way out meets another robot's body (#678): nothing moves
       return False
     if not self._returns(side, q_pre, posture):
-      # ...nor goes where every way home from would (#678): stranded there,
-      # an arm's withdraw is refused and so is every walk's hand-over
+      # ...nor goes where every way home from would: stranded there, its
+      # withdraw and every walk the verbs ask are refused (#678)
       self.kept[side]["back"] = True
       return False
     self.slack[side], self.outs[side] = slack, outs
@@ -1566,19 +1564,24 @@ class Reach:
     return (aside if dips(aside) < straight else [q1]), dips
 
   def _kept_off(self, sm, side, q0, q1, out, pick, dips, poses, refuse):
-    """A HAND'S WAY KEEPS OFF ANOTHER ROBOT'S BODY (#678, a prototype):
-    the first of today's way (`pick`), straight, the side way and the way
-    drawn in (`_tucked_way`) whose arm keeps `OTHER_CLEAR_M` off every body
-    of `keep_out` (`room`) -- an arm begun nearer only going no nearer -- in
-    each of `poses` (None as the robot stands, else a posture's statue),
-    and dips no deeper over the work than `pick`; else None where `refuse`,
-    `kept` saying how, or `pick`."""
+    """A HAND'S WAY KEEPS OFF ANOTHER ROBOT'S BODY (#678; SimNotes, "The
+    arms keep off the other robot"): the first of today's way (`pick`),
+    straight, the side way and the way drawn in (`_tucked_way`) whose arm
+    keeps `OTHER_CLEAR_M` off every body of `keep_out` (`room`) -- an arm
+    begun nearer only going no nearer -- in each of `poses` (None as the
+    robot stands, else a posture's statue), and dips no deeper over the
+    work than `pick`: #539's and #560's rule kept whole, so at a counter,
+    where today's way out is the side way, none other is taken. Else None
+    where `refuse`, `kept` saying how (the nearest robot's middle, stance
+    frame), or of those the one that comes least near it: the way a walk's
+    hand-over takes once it has waited (`HumanoidMission.ARM_WAIT_S`) --
+    at a counter, today's."""
     straight = [np.asarray(q1, dtype=float).copy()]
     aside = _side_way(side, q1, q0)[::-1][1:] + [q1] if out else _side_way(side, q0, q1)
     ways = [pick] + [w for w in (straight, aside, _tucked_way(side, q0, q1))
                      if not _same_way(w, pick)]
     deepest = max(HOME_DIP_M, dips(pick))
-    best = -math.inf
+    best, best_way = -math.inf, pick
     for i, w in enumerate(ways):
       self._pose_planner(sm, None)
       if i and dips(w) > deepest + 1e-9:
@@ -1588,21 +1591,18 @@ class Reach:
         self._pose_planner(sm, pose)
         start = room(sm, side, q0, [], self.keep_out)
         worst = min(worst, room(sm, side, q0, w, self.keep_out) - min(OTHER_CLEAR_M, start))
-      best = max(best, worst)
+      if worst > best:
+        best, best_way = worst, w
       if worst >= 0.0:
         self.kept[side] = None
-        self.__dict__.setdefault("ways_log", []).append(
-          (round(float(self.d.time), 2), side, "out" if out else "home", i, len(ways)))
         return w
     if not refuse:
-      return pick
+      return best_way
     c = np.asarray(self.keep_out, dtype=float).reshape(-1, 2)
     k = int(np.argmin(np.hypot(c[:, 0], c[:, 1])))
-    self.__dict__.setdefault("ways_log", []).append(
-      (round(float(self.d.time), 2), side, "out" if out else "home", -1, len(ways)))
-    self.kept[side] = {"home": not out, "k": k, "m": round(float(np.hypot(*c[k])), 2),
+    self.kept[side] = {"home": not out, "m": round(float(np.hypot(*c[k])), 2),
                        "x": round(float(c[k, 0]), 2), "y": round(float(c[k, 1]), 2),
-                       "short": round(-best, 3), "ways": len(ways)}
+                       "short": round(-best, 3)}
     return None
 
   def _pose_planner(self, sm, pose) -> None:
