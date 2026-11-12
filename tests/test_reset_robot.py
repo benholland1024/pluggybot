@@ -17,8 +17,10 @@ import math
 import mujoco
 import pytest
 
+from pluggybot import lifecycle as lc
 from pluggybot import tick
 from pluggybot.body import StubBody
+from pluggybot.humanoid.body import HumanoidBody
 from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, world_config, zone_centre
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import Inbox
@@ -339,6 +341,7 @@ def test_a_body_that_rights_itself_is_stuck_only_past_its_budget():
   body.rights_itself, body.stuck_after_s = True, 4.0
   life = stub_life(body=body, mortal=True)
   body.attitude = (math.cos(0.7), math.sin(0.7), 0.0, 0.0)   # 80 deg over
+  body.posture = "getting_up"
   body.run(body.hold_routine(3.0))
   assert life.dead is None, "past TOPPLE_HOLD_S, inside the get-up's budget"
   body.run(body.hold_routine(1.5))
@@ -354,6 +357,60 @@ def test_a_body_that_does_not_right_itself_is_knocked_over_at_its_own_hold():
   body.attitude = (math.cos(0.7), math.sin(0.7), 0.0, 0.0)
   body.run(body.hold_routine(2.5))
   assert life.dead is not None and "knocked over" in life.dead["why"]
+
+
+# ---- ...timed off its get-up, whatever its tilt (issue #684) -----------------
+
+GETUP_S = HumanoidBody.GETUP_BUDGET_S
+
+
+def _getting_up(tilt_deg, stands_at: float | None = None):
+  """A stub that rights itself, on the humanoid's budget, its get-up taking
+  its legs now: its trunk `tilt_deg(s)` off upright `s` into the get-up,
+  and its legs handed back, upright, at `stands_at` (never, None)."""
+  body = StubBody()
+  body.rights_itself, body.stuck_after_s = True, GETUP_S
+  life = _life(body=body)
+  t0 = float(life.data.time)
+  body.posture = "getting_up"
+
+  def hook() -> None:
+    s = float(life.data.time) - t0
+    a = 0.0
+    if stands_at is not None and s >= stands_at:
+      body.posture = "standing"
+    else:
+      a = math.radians(tilt_deg(s))
+    body.attitude = (math.cos(a / 2), math.sin(a / 2), 0.0, 0.0)
+  body.step_hooks.insert(0, hook)
+  return life, t0
+
+
+@pytest.mark.parametrize("tilt_deg", [lambda s: 45.0,
+                                      lambda s: 70.0 if int(s / 0.5) % 2 == 0 else 50.0],
+                         ids=["sitting at 45 deg", "thrashing across 60 deg"])
+def test_a_get_up_that_never_stands_is_stuck_at_its_budget_whatever_its_tilt(tilt_deg):
+  """A get-up stuck short of 60 deg (D3's new policy sat at the chest), or
+  thrashing across it, is `stuck` once its get-up has had its legs for its
+  budget: timed off the tilt, any check under 60 deg started the clock
+  again and it lay there for good. The fall is read as the get-up took the
+  legs, and the words are the ones a fall it could not get up from had."""
+  life, t0 = _getting_up(tilt_deg)
+  life.body.run(life.body.hold_routine(GETUP_S - 0.5))
+  assert life.dead is None, "inside the get-up's budget"
+  life.body.run(life.body.hold_routine(1.0))
+  assert life.dead is not None and life.dead["cause"] == "stuck"
+  assert life.dead["t"] - t0 == pytest.approx(GETUP_S, abs=2 * lc.DEATH_CHECK_S)
+  assert life.dead["why"].startswith(f"fell and could not get up in {GETUP_S:.0f} s (")
+  assert life._fall is not None and life._fall["t"] - t0 <= lc.DEATH_CHECK_S + 1e-6
+
+
+def test_a_get_up_that_stands_inside_its_budget_lives_and_its_clock_starts_over():
+  """...and one that stands inside it lives, lying however it lay, and its
+  next fall has the whole budget again."""
+  life, t0 = _getting_up(lambda s: 90.0, stands_at=15.0)
+  life.body.run(life.body.hold_routine(GETUP_S + 5.0))
+  assert life.dead is None and life._fall is None
 
 
 # ---- upkeep off, a configuration (issue #387) --------------------------------

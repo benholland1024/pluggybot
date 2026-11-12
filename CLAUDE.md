@@ -540,8 +540,9 @@ save a filmstrip PNG named after the script.
   mission waits out a get-up before a walk takes the legs or the standing
   policy takes them back, and on standing forgets its ground map and
   starts its height again. `stuck_after_s` is
-  `GETUP_BUDGET_S` (20); falls into a wall or off the landing still end
-  stuck.
+  `GETUP_BUDGET_S` (20), ⚠ TIMED FROM THE GET-UP'S START, WHATEVER ITS
+  TILT (#684: off the tilt past 60 deg, a get-up sitting short of it never
+  died); falls into a wall or off the landing still end stuck.
 - **The humanoid pair is served in the house, and deployed** (#559 stages
   1 and 4; `humanoid/world.py`, `lifecycle.world_config`,
   `tests/test_humanoid_served.py`; SimNotes, "The humanoid pair served";
@@ -578,9 +579,10 @@ save a filmstrip PNG named after the script.
   `Body.docked`, which a restart forgets with the plug still in. ⚠ ITS
   WALKS KEEP OFF NO PLATE (stage 4; its shock plate is off): kept off the
   pads it knew, one standing on a pad as it found the sign planned no walk
-  off it. ⚠ THE DEATH SEAM READS A TOPPLE OFF THE POSTURE THE LEGS
-  HOLD (`Body.held_pitch`, stage 3): a reach's deepest bow is 63 deg of
-  pelvis tilt, past `TOPPLE_TILT_RAD`'s 60.
+  off it. ⚠ A TOPPLE IS READ OFF THE POSTURE THE LEGS HOLD
+  (`Body.held_pitch`, stage 3; `HubLifecycle.down`, what the other robot
+  keeps clear of): a reach's deepest bow is 63 deg of pelvis tilt, past
+  `TOPPLE_TILT_RAD`'s 60.
 - **The humanoid charges by a cable it plugs into itself** (#559 stage 2;
   `activity/station.py`, `humanoid/charge.py`, `tests/test_station.py`;
   SimNotes, "The humanoid's charging station"): a station on the living
@@ -2273,9 +2275,11 @@ save a filmstrip PNG named after the script.
   first seen nearer than 0.8 m.
 - **The robot can die, and a person or a timer stands it up** (issue #107;
   Evaluation.md §6): `HubLifecycle._death_step` on the physics seam — `flat`
-  at zero pack, `stuck` (toppled past `TOPPLE_TILT_RAD` for the body's
-  `stuck_after_s` -- the humanoid's `GETUP_BUDGET_S`, 20 s -- or a failed
-  charge), `unpaid`, `unminded`; never summed. ⚠ A humanoid RESTS STANDING
+  at zero pack, `stuck` (down for the body's `stuck_after_s` -- the
+  humanoid's get-up holding its legs for `GETUP_BUDGET_S`, 20 s, whatever
+  its tilt (#684); a body that cannot right itself toppled past
+  `TOPPLE_TILT_RAD` -- or a failed charge), `unpaid`, `unminded`; never
+  summed. ⚠ A humanoid RESTS STANDING
   and the mind is not asked (`REST_S`, above); `posture` rides the wire
   (`standing`, or `getting_up` after a fall). `reset_robot` warps
   it to the start pose with a full pack. ⚠ Mortality is OPT-IN (`mortal=`;

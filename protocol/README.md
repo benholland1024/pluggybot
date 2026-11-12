@@ -1082,10 +1082,11 @@ explained, because a `death` carried only its cause. It now carries `at`:
                  "state": "CHARGE", "dead": null}}}
 ```
 
-- **`at.t` is when these were read**: as the body passed 60° for a
-  topple, which is the body's `stuck_after_s` (a quadruped's 20 s) BEFORE
-  the death's own `t` (the errand has reacted by then); the death's `t`
-  for every other cause.
+- **`at.t` is when these were read**: as the body went down for a topple
+  -- its get-up taking its legs where it rights itself (#684), past 60°
+  where it cannot -- which is the body's `stuck_after_s` (the humanoid's
+  20 s) BEFORE the death's own `t` (the errand has reacted by then); the
+  death's `t` for every other cause.
 - `pose` is the TRUE pose and `believed` the robot's own estimate, in the
   same terms (the body's centre on the floor, heading in degrees), so their
   difference is the drift.
