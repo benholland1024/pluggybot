@@ -7521,21 +7521,23 @@ could not show, each read on synthetic scans:
   12 (copies at +0.3, -0.3 and +0.57 m), the base at 5, 0 and 0. A station's
   fix drops a map only past `ASKEW` (0.6 m), so a copy laid nearer than that
   stays in a kept map until the map goes (a true death, a stand-up or a
-  `MAP_EPOCH` bump); the batch flew fresh maps. Its first fits were full-fit
-  doubts (`DOUBT_SHARE`); doubting held fits alone left it uncaptured there,
-  where T5's probe of the real counter took back +0.3 and +0.4 m only at 26
-  and 15 of 40 poses (#681's call 1).
+  `MAP_EPOCH` bump); the batch flew fresh maps. It is the full-fit doubt's
+  (`DOUBT_SHARE`): doubting held fits alone, the same 36 read as the base's
+  (5, 0 and 0), where T5's probe of the real counter took back +0.3 and
+  +0.4 m only at 26 and 15 of 40 poses (#681's call 1).
 - **The rival test holds within the window.** In the panelled corridor a
   belief 0.75 m off along it (the truth outside the ±0.6 m window) was taken
   onto the alias a metre from the truth at 20 of 20 noise draws, the base
   keeping 0.75. The served sidewalks have nothing that repeats (above).
-- **A run of doubts has no bound.** A doubted or slid scan costs ~25 ms where
-  a match costs 0.5-1; a robot standing among something its map lacks was
-  doubted at 600 scans of 600 in a minute, until its field refreshed.
+- **A run of doubts has no bound.** A doubted or slid scan is searched, 11 ms
+  at its median in D4's flights and ~25 ms at 360 points in the review's,
+  where a match costs 0.5-1; standing among something its map lacks, the
+  review's robot was doubted at 600 scans of 600 in a minute, until its
+  field refreshed.
 - **Not doubted:** an error toward a wall whose far side was never seen. Its
   points land on unseen cells, which are no information, so the share on
-  walls reads 0.93-1.00 and the fit is `ok` (a dead end mapped from one side:
-  0.3 m toward its end kept in 44 cases of 45, away from it 18).
+  walls reads 0.93-1.00 and the fit is `ok` (the review's dead end mapped from
+  one side: 0.3 m toward its end kept in 44 cases of 45, away from it 18).
 
 **What is true now.** A match the walls only partly agree with is searched
 before its scan is laid in, a pose found is taken only where no other place
