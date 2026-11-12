@@ -811,6 +811,8 @@ def table(runs: list[dict]) -> None:
 
 
 def main(argv=None) -> int:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--seed", default="luca", help="the IMU's and joints' draws: luca, rowan, or any")
