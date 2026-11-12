@@ -38,6 +38,8 @@ import copy
 import functools
 import json
 import math
+import dataclasses
+from dataclasses import dataclass
 from pathlib import Path
 
 import mujoco
@@ -49,6 +51,7 @@ from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp import dr
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.envs.mdp.actions.actions import JointPositionAction
 from mjlab.envs.mdp.terminations import nan_detection
 from mjlab.managers import TerminationTermCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
@@ -162,6 +165,22 @@ OBSTACLE2 = {**OBSTACLE, "tipping_share": 0.5, "tipping": {"into": 0.3, "along":
 #: at any side in `posed_share` of them.
 POSES = Path(__file__).with_name("getup_poses.json")
 POSE_SPREAD_RAD, POSE_TILT_RAD, POSE_DROP_M = 0.2, 0.1, 0.02
+#: `-Getup-Wall3` (#679's third round): the get-up HANDS BACK as served --
+#: once standing as the served get-up hands back (within `STOOD_UP`, the
+#: pelvis `HAND_BACK_M` of the stand's height, its roll and pitch turning
+#: under `HAND_BACK_RATE` rad/s) for `HAND_BACK_S`, the standing policy
+#: (`STAND_NPZ`, served) has the legs, the arms held at its pose; and a fall
+#: past `RETAKE_TILT` or the pelvis under `RETAKE_M` is the get-up's again,
+#: as the served watch takes it. ⚠ The served test reads the gyro whole; the
+#: training physics turns a standing robot on its soles at ~1 rad/s, so its
+#: yaw is left out. ⚠ Never handed back, D3's wall policies stood with their
+#: soles 0.52-0.60 m apart, and the served standing policy, given that
+#: stance, fell within 2 s (#679's second round).
+STAND_NPZ = robot.REPO / "models" / "humanoid_stand.npz"
+HAND_BACK_M, HAND_BACK_RATE, HAND_BACK_S = 0.05, 0.3, 0.5
+#: Handed back is paid this a second (`upright`'s weight).
+HANDED_WEIGHT = 1.0
+RETAKE_TILT, RETAKE_M = math.cos(math.radians(35.0)), 0.40
 #: Its stand is the served get-up's: within 10 deg of upright
 #: (`getup.STOOD_TILT_RAD`), and touching nothing of the box. ⚠ Paid at the
 #: open floor's 0.9 (25 deg), it stood leaning on the counter 18 deg off
@@ -734,6 +753,101 @@ def beside(env) -> torch.Tensor:
   return _beside(env).float()
 
 
+@dataclass(kw_only=True)
+class HandBackActionCfg(JointPositionActionCfg):
+  """The get-up's joints, handed to the standing policy as served
+  (`HandBackAction`)."""
+
+  stand_npz: str = str(STAND_NPZ)
+
+  def build(self, env) -> "HandBackAction":
+    return HandBackAction(self, env)
+
+
+class HandBackAction(JointPositionAction):
+  """The get-up policy's targets until it stands as the served get-up hands
+  back; then the standing policy's on the legs (its observation as the
+  served `StandDriver` builds it, its last action started at none, its
+  posture the stand's) and the arms held at its pose -- until a fall the
+  served watch would take, when the get-up has them again."""
+
+  def __init__(self, cfg: HandBackActionCfg, env):
+    super().__init__(cfg, env)
+    import numpy as np
+    dev = self.device
+    with np.load(cfg.stand_npz) as z:
+      self.mean = torch.tensor(z["obs_mean"], device=dev, dtype=torch.float32)
+      self.div = torch.tensor(z["obs_div"], device=dev, dtype=torch.float32)
+      self.layers = [(torch.tensor(z[f"w{k}"], device=dev, dtype=torch.float32),
+                      torch.tensor(z[f"b{k}"], device=dev, dtype=torch.float32))
+                     for k in range(int(z["layers"]))]
+      meta, training = json.loads(str(z["meta"])), json.loads(str(z["training"]))
+    assert meta["observation_names"] == "base_ang_vel,projected_gravity,joint_pos,joint_vel,actions,posture"
+    names = list(self._entity.joint_names)
+    self.seen = torch.tensor([names.index(n) for n in meta["joint_names"].split(",")], device=dev)
+    self.seen_default = torch.tensor([float(v) for v in meta["default_joint_pos"].split(",")],
+                                     device=dev)
+    driven = [names[int(i)] for i in self._target_ids]
+    legs = list(training["action_joints"])
+    self.legs = torch.tensor([driven.index(n) for n in legs], device=dev)
+    scale = torch.tensor([float(v) for v in meta["action_scale"].split(",")], device=dev)
+    default = dict(zip(meta["joint_names"].split(","), self.seen_default.tolist()))
+    self.leg_default = torch.tensor([default[n] for n in legs], device=dev)
+    self.leg_scale = scale
+    #: what the standing policy holds every driven joint at, its legs' aside
+    self.hold = torch.tensor([default[n] for n in driven], device=dev)
+    n = self.num_envs
+    self.handed = torch.zeros(n, dtype=torch.bool, device=dev)
+    self.still = torch.zeros(n, device=dev)
+    self.last = torch.zeros(n, len(legs), device=dev)
+
+  def _stand_act(self) -> torch.Tensor:
+    data = self._entity.data
+    q, qd = data.joint_pos[:, self.seen], data.joint_vel[:, self.seen]
+    obs = torch.cat([data.root_link_ang_vel_b, data.projected_gravity_b, q - self.seen_default, qd,
+                     self.last, torch.zeros(self.num_envs, 2, device=self.device)], dim=-1)
+    x = (obs - self.mean) / self.div
+    for w, b in self.layers[:-1]:
+      x = torch.nn.functional.elu(x @ w + b)
+    w, b = self.layers[-1]
+    return x @ w + b
+
+  def process_actions(self, actions: torch.Tensor) -> None:
+    super().process_actions(actions)
+    data = self._entity.data
+    up = -data.projected_gravity_b[:, 2]
+    z = data.root_link_pos_w[:, 2] - self._env.scene.env_origins[:, 2]
+    rate = data.root_link_ang_vel_b[:, :2].norm(dim=-1)
+    stood = ((up > STOOD_UP) & ((z - robot.BODY["stand_height"]).abs() < HAND_BACK_M)
+             & (rate < HAND_BACK_RATE))
+    fell = (up < RETAKE_TILT) | (z < RETAKE_M)
+    self.handed &= ~fell
+    self.still = torch.where(stood & ~self.handed, self.still + self._env.step_dt,
+                             torch.zeros_like(self.still))
+    took = ~self.handed & (self.still >= HAND_BACK_S)
+    self.last[took] = 0.0
+    self.handed |= took
+    if bool(self.handed.any()):
+      act = self._stand_act()
+      self.last = torch.where(self.handed[:, None], act, self.last)
+      target = self.hold.expand(self.num_envs, -1).clone()
+      target[:, self.legs] = self.leg_default + self.leg_scale * act
+      self._processed_actions = torch.where(self.handed[:, None], target, self._processed_actions)
+
+  def reset(self, env_ids=None) -> None:
+    super().reset(env_ids)
+    ids = slice(None) if env_ids is None else env_ids
+    self.handed[ids] = False
+    self.still[ids] = 0.0
+    self.last[ids] = 0.0
+
+
+def handed_back(env) -> torch.Tensor:
+  """1 where the standing policy has the legs (`HandBackAction`)."""
+  term = env.action_manager.get_term("joint_pos")
+  return getattr(term, "handed", torch.zeros(env.num_envs, device=env.device))[:, None].float()
+
+
 def getup_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg = make_velocity_env_cfg()
   cfg.scene.entities = {"robot": robot.get_robot_cfg()}
@@ -936,4 +1050,21 @@ def getup_wall2_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg = getup_wall_env_cfg(play)
   cfg.events["reset_base"].params["obstacle"] = copy.deepcopy(OBSTACLE2)
   cfg.events["reset_base"].params["starts"] = dict(WALL2_STARTS)
+  return cfg
+
+
+def getup_wall3_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """`-Getup-Wall3` (#679's third round): `-Getup-Wall2` handing back to the
+  served standing policy (`HandBackAction`), and paid while it has -- carried
+  on from getupwall12 (`--agent.load-run '.*_getupwall12$'
+  --agent.load-checkpoint model_9050.pt`)."""
+  cfg = getup_wall2_env_cfg(play)
+  old = cfg.actions["joint_pos"]
+  cfg.actions["joint_pos"] = HandBackActionCfg(
+    **{f.name: getattr(old, f.name) for f in dataclasses.fields(old) if f.init})
+  # ...and paid while the standing policy has it: a stance it cannot hold
+  # loses the pay until the get-up stands it again. (Not shown to the critic:
+  # a 108th input would not load getupwall12's.)
+  cfg.rewards["handed_back"] = RewardTermCfg(func=lambda env: handed_back(env)[:, 0],
+                                             weight=HANDED_WEIGHT)
   return cfg

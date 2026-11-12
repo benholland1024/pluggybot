@@ -4,7 +4,9 @@ checkpoint (a world that blew up or went NaN on the way, and was started
 again, counts as down, and the table says how many did). Each case's env is
 built once and flies every checkpoint at once, each its own block of worlds
 (a BASE checkpoint first, to read the others against in the same pass).
-  python -m humanoid_train.scan RUN_DIR [EVERY] [N] [BASE.pt]   (from training/)"""
+  python -m humanoid_train.scan RUN_DIR [EVERY] [N] [BASE.pt] [TASK]   (from training/)
+TASK is the env flown (`-Getup-Wall2-Mirror` by default; `-Getup-Wall3-Mirror` hands back to the
+standing policy, so standing at 14 s is standing on it)."""
 import json
 import re
 import sys
@@ -19,7 +21,8 @@ from mjlab.tasks.registry import load_env_cfg
 run = Path(sys.argv[1])
 every = int(sys.argv[2]) if len(sys.argv) > 2 else 200
 n = int(sys.argv[3]) if len(sys.argv) > 3 else 256
-base = Path(sys.argv[4]) if len(sys.argv) > 4 else None
+base = Path(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else None
+task = sys.argv[5] if len(sys.argv) > 5 else "Pluggy-Humanoid-Getup-Wall2-Mirror"
 saved = {int(m.group(1)): p for p in run.glob("model_*.pt")
          if (m := re.fullmatch(r"model_(\d+)\.pt", p.name))}
 if not saved:
@@ -69,7 +72,7 @@ names = [("BASE " if base and k == 0 else "") + p.name for k, p in enumerate(ckp
 rows = {name: {} for name in names}
 lost = {name: 0 for name in names}
 for case, (starts, box, poses) in CASES.items():
-  cfg = load_env_cfg("Pluggy-Humanoid-Getup-Wall2-Mirror", play=True)
+  cfg = load_env_cfg(task, play=True)
   cfg.scene.num_envs = n * len(ckpts)
   cfg.episode_length_s = 20.0
   draws = {**getup.OBSTACLE, **box}

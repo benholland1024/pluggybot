@@ -2,7 +2,9 @@
 an npz `quad_train.export` wrote for the same task (the joints it sees, their
 defaults, the action's scale, the observation's terms, the gains): mjlab writes
 the ONNX of the last save alone, and a checkpoint before it has none.
-  python -m quad_train.from_checkpoint MODEL.pt TEMPLATE.npz OUT.npz
+  python -m quad_train.from_checkpoint MODEL.pt TEMPLATE.npz OUT.npz [TASK [WALL]]
+(TASK and WALL: the task it trained on and its wall-clock line, where they are not the
+template's).
 The normaliser is (x - mean) / (std + 1e-2), rsl_rl's: the npz is identical
 to `quad_train.export`'s of the same checkpoint's ONNX (getupwall8's model_9000,
 every array to 0.0, #679)."""
@@ -14,6 +16,7 @@ import numpy as np
 import torch
 
 ckpt, template, out = sys.argv[1], sys.argv[2], sys.argv[3]
+task, wall = (sys.argv[4:] + [None, None])[:2]
 saved = torch.load(ckpt, map_location="cpu", weights_only=False)
 state, iteration = saved["actor_state_dict"], int(saved["iter"])
 t = np.load(template)
@@ -29,6 +32,10 @@ with open(ckpt, "rb") as fh:
   training.update({"iterations": iteration, "env_steps": training["envs"] * iteration * 24,
                    "onnx_sha256": None, "checkpoint": ckpt.split("/")[-2] + "/" + ckpt.split("/")[-1],
                    "checkpoint_sha256": hashlib.sha256(fh.read()).hexdigest()})
+if task:
+  training["task"] = task
+if wall:
+  training["wall"] = wall
 arrays["training"] = np.array(json.dumps(training))
 # ...the template's shapes, every layer, and so its inputs, joints and actions
 for key in ("obs_mean", "obs_div", *(f"{w}{k}" for k in range(4) for w in "wb")):
