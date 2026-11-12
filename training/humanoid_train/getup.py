@@ -1069,8 +1069,13 @@ def getup_wall3_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # iterations to stand just outside the hand-back (its pay 0.65-0.79 a
   # second at the start, 0.004-0.03 at the end) -- served, a get-up that never
   # hands back is the `stuck` death at 20 s.
+  # ⚠ And waiting is charged: paid the stand only once handed back, they
+  # learned within 170 iterations to stand just outside the hand-back anyway
+  # (`upright` and `rise` paid there, and nothing risked).
   cfg.rewards["handed_back"] = RewardTermCfg(func=lambda env: handed_back(env)[:, 0],
                                              weight=HANDED_WEIGHT)
+  cfg.rewards["not_handed"] = RewardTermCfg(
+    func=lambda env: _paid(env, BUDGET_S) * (1.0 - handed_back(env)[:, 0]), weight=-HANDED_WEIGHT)
   for name in ("stand_height", "stand_pose", "feet_down"):
     cfg.rewards[name].func = _handed_only(cfg.rewards[name].func)
   return cfg
