@@ -21,7 +21,7 @@ mechanisms) cheap enough to be worth doing:
 
 | layer | owns | example |
 |---|---|---|
-| **1. Rigid bodies and contacts** | MuJoCo | the plate's sprung joint; the foot that presses it |
+| **1. Rigid bodies and contacts** | MuJoCo | the floor's square under the garden's plate; the foot that presses it |
 | **2. Task state machines** | *this doc* — Python | "is it pressed"; "is the gate open"; "is this plot dug" |
 | **3. Browser visuals** | the website | the gate's swing, water pouring, plants growing |
 
@@ -88,10 +88,23 @@ The supporting pieces in `activity/base.py`:
 ### 3.1 Sense, never assume
 
 The criterion reads contacts or joint sensors. A commanded gate is a belief;
-a joint past its threshold is a fact. The plate reads a **`jointpos` sensor**
-rather than `qpos` — the same number today, and not the same thing on
-hardware, where a real plate has a switch or an encoder. Model the thing the
-robot will actually have and the criterion transfers.
+a joint past its threshold is a fact. The garden's plate reads a **`touch`
+sensor** -- the load on the floor's square under it, as load cells under a
+plate in a recess read it, never whose foot it is -- and the lab's sprung pads a
+**`jointpos` sensor** rather than `qpos`: the same number today, and not the
+same thing on hardware, where a real plate has a switch or an encoder. Model
+the thing the robot will actually have and the criterion transfers.
+
+⚠ **A plate flush with the floor is read off its load, never its travel**
+(#684): the floor is a plane, which holds a foot up over a pad as anywhere,
+so a flush pad cannot sink under one; and at the floor's own height the
+plane shares the contacts -- a pad's own touch sensor read 49-50 % of a box
+resting on it. So the flush plate is the floor's square, its sensor's zone
+a site on the world body over it, its pad paint that nothing touches
+(hinted `floor_plate`: a `plate`'s rule is a pad that collides). The
+garden's had been the sprung pad 21 mm proud, which the served walker went
+down on and fell over the lamp's pole (SimNotes, "A flight that never got
+up").
 
 ### 3.2 Thresholds need hysteresis
 
@@ -106,7 +119,10 @@ reference plate, one (rover) wheel crossing:
 
 and 2 is the floor, a crossing being one press and one release. Chatter is
 not cosmetic: each flip is a telemetry delta, and for a latching effect it is
-a decision that cannot be taken back.
+a decision that cannot be taken back. A load chatters too: over 15 walks of
+the served humanoid across the garden's flush plate, a bare 100 N made 175
+flips and the hysteresis (`LOAD_ON_N` 100 / `LOAD_OFF_N` 50) 71, about a
+press for each footfall on it.
 
 ### 3.3 Irreversible state latches in Python
 
@@ -239,7 +255,9 @@ deltas and each shipped a random half of the state changes. Guarded by
    drive wheel's ~15 N had to pass it comfortably (a walking robot's foot
    carries more). 1200 N/m gives 1.2 mm of sag and bottoms out under a
    wheel. Both ends have margin, and both were checked before anything was
-   drawn.
+   drawn. The flush plate's load the same way (#684): nothing a job sets out
+   weighs 10 kg, and a sole under a third of the humanoid's weight presses
+   it (`test_activity.py`); its foot crossing peaked at 476-853 N.
 3. **Write the module**: geometry emitter + `Activity` subclass, together.
 4. **Add it to a world generator** — one import, one call, and regenerate.
 5. **Demo with a filmstrip**, and *sweep the camera*: pick the angle by

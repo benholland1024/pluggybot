@@ -1847,7 +1847,14 @@ save a filmstrip PNG named after the script.
   ⚠ The lab's and the workshop's props (`activity/cage.py`, `home/props.py`:
   the cage, the tower's blocks and the bench, whose jobs went with the
   quadruped) are geometry the generator emits; behaviour is added beside
-  it. The house carries no robot. ⚠ The grid is 856,800
+  it. ⚠ THE GARDEN'S PLATE IS FLUSH (#684, Ben's call; `plate_xml(flush=True)`,
+  ActivityPattern.md §3.1): the floor's own square, read by a touch sensor
+  on a site of the world body over it, its pad paint nothing touches,
+  hinted `floor_plate` (a `plate` collides) -- at 21 mm on a spring, the
+  served walker went down on it and fell over the lamp's pole, and a pad at
+  the floor's height shares the plane's contacts (its sensor read half a
+  box's weight). The lab's three are the sprung pad still (`plate_xml`'s
+  default). The house carries no robot. ⚠ The grid is 856,800
   cells (#560; 469,200 before), 46 % of `occupancy_grid.MAX_CELLS` (1,876,800, the largest
   grid measured: #558, `scripts/grid_spike.py`): walks plan on the compiled
   lattice, and what grows with the cells is each scan's update, each plan's

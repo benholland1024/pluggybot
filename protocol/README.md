@@ -54,6 +54,26 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: the garden's plate flush with the floor (pluggybot #684)
+
+The garden's pressure plate, a sprung pad 21 mm proud that tripped the
+served walker, is flush with the floor: the floor's own square, read off the
+load on it, its pad paint that nothing touches. What a consumer sees:
+
+- **A hint, additive** (`VISUAL_HINTS`, `hints.json`): `floor_plate` -- ONE
+  thin box standing on the floor (400 x 400 x 4 mm, over a ground's 2 mm
+  paint), static, colliding with nothing. Draw it as a `plate` is drawn,
+  its glyph inside the box for `scene.plates[name].purpose`; the garden's
+  is `light`. The lab's three stay `plate`s (sprung, dynamic).
+- **`garden_plate` is no longer dynamic**: the scene says so, and no frame
+  carries its pose (the humanoid house's dynamic bodies 56, the robot's 33
+  among them).
+- **The `garden_light` activity's flags** are `state`, `pressed` and
+  `loadN` (the weight on the plate, N, in 10 N steps), where they carried
+  `depressMm`.
+
+No bump: a hint is additive, and a page with no art for one draws its box.
+
 ### 0.21.0, additive: a fall ends a procedure's run, and a death ends it at once (pluggybot #671)
 
 A verb a robot falls in is ended the step its body's fall watch counts the
