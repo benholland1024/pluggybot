@@ -228,6 +228,17 @@ class _Homing:
     self.n, self.steps, self.sent = n, 0, False
     self.phase = {s: "rest" for s in hm.SIDES}
     self.grippers, self.log, self.at, self.on_step = grippers, log, at, on_step
+    #: ...and what a walk carries (#682): none, until `carry_q` says
+    self.carry_q = {s: None for s in hm.SIDES}
+
+  def carried(self, side) -> bool:
+    return self.phase[side] == "carried" and self.carry_q[side] is not None
+
+  def drop_carry(self, side) -> None:
+    self.carry_q[side] = None
+
+  def carry_pose(self, side):
+    return np.array([0.15, 0.25, 0.0, 2.0, -1.0, -1.0])
 
   def retreat(self, side, approach=None) -> None:
     self.sent, self.steps = True, 0
@@ -251,15 +262,32 @@ class _Homing:
 
 class _Out(_Homing):
   """...one whose `out` hands are out (holding), each sent home at once:
-  for a walk's hand-over (`to_walk_routine`)."""
+  for a walk's hand-over (`to_walk_routine`) -- and each lifted by a pull a
+  step long, its end what `lifts` says (#682: "distance", else held fast)."""
 
-  def __init__(self, grippers: dict, out, log, at):
+  def __init__(self, grippers: dict, out, log, at, lifts=None):
     super().__init__(0, grippers, log, at)
     self.phase = {s: "hold" if s in out else "rest" for s in hm.SIDES}
+    self.lifts, self.report = dict(lifts or {}), {s: None for s in hm.SIDES}
+
+  def out(self, side) -> bool:
+    return self.phase[side] == "hold"
+
+  def pull(self, side, way, force, distance_m, speed=None, give=True) -> bool:
+    self.log.append(("lift", side, self.at()))
+    self.phase[side], self.report[side] = "carry", None
+    return True
+
+  def step(self) -> None:
+    super().step()
+    for s in hm.SIDES:
+      if self.phase[s] == "carry":
+        self.phase[s] = "hold"
+        self.report[s] = {"why": self.lifts.get(s, "distance")}
 
   def retreat(self, side, approach=None) -> None:
     super().retreat(side, approach)
-    self.phase[side] = "rest"
+    self.phase[side] = "rest" if self.carry_q[side] is None else "carried"
 
   def hold_posture(self, height, pitch) -> None:
     pass

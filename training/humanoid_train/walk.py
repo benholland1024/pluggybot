@@ -59,7 +59,8 @@ from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
 
 from humanoid_train import robot
 from humanoid_train.stairs import StairsCommandCfg, foot_nose_clearance
-from humanoid_train.stand import HAND_KG, ScriptedArmsCfg, torque_over_rating
+from humanoid_train.stand import (ARM_MOVE_S, ARM_RATE, HAND_KG, MIRRORED, ScriptedArms,
+                                  ScriptedArmsCfg, torque_over_rating)
 
 #: Top commanded speeds: forward and back, sideways (m/s), turning (rad/s),
 #: and where the curriculum starts them. A person walks 1.2-1.4 m/s; the
@@ -513,4 +514,180 @@ def stairs_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     cfg.terminations.pop("out_of_terrain_bounds", None)
     gen = cfg.scene.terrain.terrain_generator
     gen.curriculum, gen.num_rows, gen.num_cols = False, 5, 3
+  return cfg
+
+
+# ---- carrying (#682) ---------------------------------------------------------------
+
+#: THE CARRY BOX, the LEFT arm's range for each joint, rad (the right mirrors
+#: roll, yaw and the wrist's roll): every carry pose #682's instrument flew
+#: (`scripts/carry_spike.py`'s `low`, `tray`, `out`, `close`, the wrist
+#: levelling a piece) and the wrist's whole span, which levelling one uses.
+#: walk2's arms went within half of `stand.ARM_GOALS` of hanging, and every
+#: pose that holds a piece level is outside that: its wrist turned 0.6-1.5
+#: rad, an elbow folded close to 2.0, and walk2 veered 4-22 deg toward the
+#: carrying arm over 4 m (SimNotes, "Carrying while walking, measured").
+CARRY_BOX = {"shoulder_pitch": (-1.2, 0.3), "shoulder_roll": (0.05, 0.6),
+             "shoulder_yaw": (-0.5, 0.5), "elbow": (0.3, 2.05),
+             "wrist_pitch": (-1.5, 1.5), "wrist_roll": (-1.6, 1.6)}
+#: Each arm, on its own, is given a segment this long, s, and in it hangs,
+#: moves as walk2's did (a new goal every `stand.ARM_MOVE_S`), or CARRIES --
+#: a pose drawn from `CARRY_BOX` held the whole segment, as a carry is held
+#: through a walk -- by these shares: both arms carry about a quarter of the
+#: time.
+CARRY_SEGMENT_S = (4.0, 15.0)
+CARRY_SHARES = (0.3, 0.2, 0.5)
+#: THE CARRY POSE the served walk takes (`pluggybot.humanoid.reach.CARRY_POSE`,
+#: Ben's `close`: the LEFT arm's shoulder pitch, roll, yaw and elbow, rad; a
+#: pluggybot test reads the two alike), and how far round it, rad, a carry
+#: drawn near it lies (`CarryArmsCfg.close_share`), its wrist anywhere in the
+#: carry box -- the wrist that levels a piece there depends on the piece.
+CARRY_CLOSE = (0.15, 0.25, 0.0, 2.00)
+CARRY_CLOSE_SPREAD = 0.15
+#: What a carried piece weighs at each grip, kg, drawn at each reset
+#: (`robot.PAYLOADS`): the table's dishware is 0.04-0.50 kg, and 1 kg a
+#: stack or a full bowl.
+PAYLOAD_KG = (0.0, 1.0)
+#: The joints a carrying walker sees, in their order: walk2's.
+CARRY_SEEN = robot.LEGS + robot.ARMS
+
+
+@dataclass(kw_only=True)
+class CarryArmsCfg(ScriptedArmsCfg):
+  """`stand.ScriptedArmsCfg` with carries held (`CarryArms`)."""
+  segment_s: tuple[float, float] = CARRY_SEGMENT_S
+  shares: tuple[float, float, float] = CARRY_SHARES
+  #: Share of carries drawn near `CARRY_CLOSE` rather than across the box
+  #: (carry3: 0.5; carry2: 0).
+  close_share: float = 0.0
+
+  def build(self, env) -> "CarryArms":
+    return CarryArms(self, env)
+
+
+class CarryArms(ScriptedArms):
+  """The arms as a carrying walker meets them (#682): each arm in segments
+  of `segment_s`, hanging, moving as walk2's scripted arms did (within
+  `reach` of `stand.ARM_GOALS`, hanging `rest_share` of its goals), or
+  holding one pose drawn from `CARRY_BOX` the whole segment -- ramped there
+  at `stand.ARM_RATE` as the served reach walks an arm in joint space, its
+  weight fed forward as `ScriptedArms` feeds it."""
+
+  HANG, MOVE, CARRY = 0, 1, 2
+
+  def __init__(self, cfg: CarryArmsCfg, env):
+    super().__init__(cfg, env)
+    _, names = self._entity.find_joints(robot.ARMS, preserve_order=True)
+    lo, hi = [], []
+    for name in names:
+      side, kind = name.split("_", 1)
+      a, b = CARRY_BOX[kind]
+      if side == "right" and kind in MIRRORED:
+        a, b = -b, -a
+      lo.append(a)
+      hi.append(b)
+    self.carry_lo = torch.tensor(lo, device=self.device)
+    self.carry_hi = torch.tensor(hi, device=self.device)
+    near_lo, near_hi = list(lo), list(hi)
+    for i, name in enumerate(names):
+      side, kind = name.split("_", 1)
+      j = ("shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow")
+      if kind in j:
+        c = CARRY_CLOSE[j.index(kind)]
+        if side == "right" and kind in MIRRORED:
+          c = -c
+        near_lo[i] = max(lo[i], c - CARRY_CLOSE_SPREAD)
+        near_hi[i] = min(hi[i], c + CARRY_CLOSE_SPREAD)
+    self.near_lo = torch.tensor(near_lo, device=self.device)
+    self.near_hi = torch.tensor(near_hi, device=self.device)
+    self.half = len(self.ids) // 2
+    self.mode = torch.zeros(self.num_envs, 2, dtype=torch.long, device=self.device)
+    self.segment = torch.zeros(self.num_envs, 2, device=self.device)
+    self.arm_timer = torch.zeros(self.num_envs, 2, device=self.device)
+    shares = torch.tensor(cfg.shares, device=self.device, dtype=torch.float)
+    self.cum = torch.cumsum(shares / shares.sum(), 0)
+
+  def _arm(self, k: int) -> slice:
+    return slice(0, self.half) if k == 0 else slice(self.half, 2 * self.half)
+
+  def _moving_goal(self, env_ids: torch.Tensor, k: int) -> torch.Tensor:
+    """walk2's draw for arm `k` of `env_ids`: within `reach` of
+    `stand.ARM_GOALS`, or hanging `rest_share` of the time."""
+    sl = self._arm(k)
+    u = torch.rand(len(env_ids), self.half, device=self.device)
+    goal = self.lo[sl] + u * (self.hi[sl] - self.lo[sl])
+    rest = torch.rand(len(env_ids), 1, device=self.device) < self.cfg.rest_share
+    return torch.where(rest, self.rest[env_ids, sl], goal)
+
+  def _new_segments(self, env_ids: torch.Tensor, k: int) -> None:
+    """Arm `k` of `env_ids` given a new segment: its mode drawn by `shares`,
+    its length by `segment_s`, and its first goal."""
+    n = len(env_ids)
+    sl = self._arm(k)
+    mode = torch.bucketize(torch.rand(n, device=self.device), self.cum).clamp(max=2)
+    self.mode[env_ids, k] = mode
+    self.segment[env_ids, k] = torch.empty(n, device=self.device).uniform_(*self.cfg.segment_s)
+    near = (torch.rand(n, 1, device=self.device) < self.cfg.close_share)
+    lo = torch.where(near, self.near_lo[sl], self.carry_lo[sl])
+    hi = torch.where(near, self.near_hi[sl], self.carry_hi[sl])
+    carry = lo + torch.rand(n, self.half, device=self.device) * (hi - lo)
+    goal = torch.where((mode == self.CARRY)[:, None], carry, self.rest[env_ids, sl])
+    moving = mode == self.MOVE
+    if moving.any():
+      goal[moving] = self._moving_goal(env_ids[moving], k)
+    self.goal[env_ids, sl] = goal
+    self.arm_timer[env_ids, k] = torch.empty(n, device=self.device).uniform_(*ARM_MOVE_S)
+
+  def process_actions(self, actions: torch.Tensor) -> None:
+    dt = self._env.step_dt
+    self.segment -= dt
+    self.arm_timer -= dt
+    for k in (0, 1):
+      due = torch.nonzero(self.segment[:, k] <= 0).flatten()
+      if len(due):
+        self._new_segments(due, k)
+      # ...an arm moving as walk2's: a new goal every `ARM_MOVE_S`
+      moved = torch.nonzero((self.mode[:, k] == self.MOVE) & (self.arm_timer[:, k] <= 0)).flatten()
+      if len(moved):
+        self.goal[moved, self._arm(k)] = self._moving_goal(moved, k)
+        self.arm_timer[moved, k] = torch.empty(len(moved), device=self.device).uniform_(*ARM_MOVE_S)
+    step = ARM_RATE * dt
+    self.target += torch.clamp(self.goal - self.target, -step, step)
+
+  def reset(self, env_ids=None) -> None:
+    super().reset(env_ids)
+    ids = torch.arange(self.num_envs, device=self.device) if env_ids is None else env_ids
+    if isinstance(ids, slice):
+      ids = torch.arange(self.num_envs, device=self.device)[ids]
+    for k in (0, 1):
+      self._new_segments(ids, k)
+
+
+def carry_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """`Pluggy-Humanoid-Walk-Carry` (#682): the flat walker (`walk_env_cfg`)
+  with its arms carrying (`CarryArms`) and a load at each grip
+  (`robot.PAYLOADS`, `PAYLOAD_KG` drawn at every reset) in place of walk2's
+  load at the hands' middles -- fine-tuned from walk2 (`--agent.resume True
+  --agent.load-run '.*_walk2$' --agent.load-checkpoint model_2999.pt`):
+  its observations are walk2's, so the checkpoint carries over, and its
+  commands start at their full range."""
+  cfg = walk_env_cfg(play)
+  cfg.scene.entities = {"robot": robot.get_carry_robot_cfg()}
+  cfg.actions["arms"] = CarryArmsCfg(rest_share=0.5, reach=0.5)
+  cfg.events.pop("hand_kg", None)
+  cfg.events["payload_kg"] = EventTermCfg(
+    mode="reset", func=dr.body_mass,
+    params={"asset_cfg": SceneEntityCfg("robot", body_names=robot.PAYLOADS),
+            "operation": "abs", "ranges": PAYLOAD_KG})
+  # ...and it sees the joints walk2 saw, in walk2's order: the legs and the
+  # arms, never the waist, which came after it (#560's stage (c3)) and is
+  # held home while it walks -- seen, its 71 inputs took no checkpoint of
+  # walk2's 69 (`export.py` records the joints a task sees)
+  for group in ("actor", "critic"):
+    for term in ("joint_pos", "joint_vel"):
+      cfg.observations[group].terms[term].params["asset_cfg"] = SceneEntityCfg(
+        "robot", joint_names=CARRY_SEEN, preserve_order=True)
+  cfg.curriculum.pop("command_vel", None)
+  twist = cfg.commands["twist"]
+  twist.ranges.lin_vel_x, twist.ranges.ang_vel_z = LIN_X, ANG_Z
   return cfg

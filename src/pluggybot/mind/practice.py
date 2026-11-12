@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 import json
 import time
 
+from pluggybot.humanoid.mission import CARRY_LIFT_M
 from pluggybot.perception.watch import WATCH_HZ
 from pluggybot.procedure import lang
 from pluggybot.procedure.steps import (Refused, WorldFacts, describe_vocabulary, language,
@@ -174,18 +175,27 @@ GUARD_EXAMPLE_N = 15.0
 #: are fresh at its camera's rate.
 WATCHED = "; what `watch` reads, %(hz)g times a second"
 
-#: What a walk does with a hand that is out (#669: `HumanoidMission.let_go_routine`),
-#: and a `step` while a gripper says it holds something: refuses, before the
-#: hand-over that lets go (`HumanoidBody.step_routine`'s "holding") -- as a
-#: walk verb does with a hand out that could not come home (#678:
-#: `steps.ARM_KEPT_OFF`). Said in YOUR BODY where the verbs it lists give a
-#: `step`.
-WALK_LETS_GO = (" Before a `step` or any other walk moves\nyour feet, a hand that is out comes "
-                "home, its gripper opened as `withdraw`\nopens it: a walk carries nothing. A "
-                "`step` asked while either gripper says\nit holds something moves nothing, and "
-                "reads false. Nor does a `step`\nor any other walk move while a hand is out "
-                "whose every way home would\nmeet the body of another robot standing near you: "
-                "it reads false\nand says where that robot stands.")
+#: What a walk does with a hand that is out (#669: `HumanoidMission.let_go_routine`)
+#: -- and with one whose gripper says it holds something, which it CARRIES
+#: (#682: `HumanoidMission.to_walk_routine`, `Reach.CARRY_POSE`) -- and a
+#: walk refused with a hand out that could not come home, nor to its side
+#: (#678: `steps.ARM_KEPT_OFF`). Said in YOUR BODY where the verbs it lists
+#: give a `step`.
+WALK_LETS_GO = (" Before a `step` or any other walk moves your\n"
+                "feet, a hand that is out comes home, its gripper opened as `withdraw`\n"
+                "opens it -- but a hand that is out whose gripper says it holds something\n"
+                "is first raised %(lift)g cm, and if what it holds came with it, it is\n"
+                "CARRIED: it comes back out along the way it went in, then its arm folds to\n"
+                "your side, the forearm up and the hand at your hips, turned as it was\n"
+                "against the floor, its gripper still shut. The walk carries it there, says\n"
+                "so in its report (`carried`; `dropped`, any whose gripper says it holds\n"
+                "nothing by the walk's end), and it stays there after, until you reach with\n"
+                "that hand again or withdraw it. If what it holds did not come with it, the\n"
+                "hand lets go and comes home. Nor does a `step` or any other walk move\n"
+                "while a hand is out whose every way home -- or to your side, carried --\n"
+                "would meet the body of another robot standing near you: it reads false and\n"
+                "says where that robot stands.") % {
+  "lift": round(100 * CARRY_LIFT_M, 1)}
 
 YOUR_BODY = """YOUR BODY
 

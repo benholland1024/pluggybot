@@ -292,7 +292,7 @@ def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was
       assert np.array_equal(sb.d.site_xpos, sa.d.site_xpos)
     laid = []
     for m in (ma, mb):
-      m.lidar.band = lambda data, level, z, joints=None: laid.append(
+      m.lidar.band = lambda data, level, z, joints=None, drop=None: laid.append(
         (np.asarray(level).tolist(), z, joints))
       m._scan()
     assert laid[0] == laid[1] and laid[1][2] != {j: 0.0 for j in hm.WAIST}, \
