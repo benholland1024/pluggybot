@@ -113,7 +113,7 @@ def test_furniture_is_collidable_and_decor_is_not(trio):
                 "fence", "whiteboard", "rack", "cage", "mouse", "plate",
                 "tree", "chair", "shelf"):
       assert any_solid, f"{name} ({hint}) stopped colliding"
-    elif hint in ("floor", "ground", "sidewalk", "street", "plant"):
+    elif hint in ("floor", "ground", "sidewalk", "street", "plant", "floor_plate"):
       assert not any_solid, f"{name} ({hint}) grew a collision"
 
 

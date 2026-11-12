@@ -161,7 +161,7 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   afford has to be refused before it is started, not during.
 
   The numbers are the ones that matter here. An `open_drawer` is priced at
-  7.082 Wh -- MEASURED, economy/energy.json -- so a robot with 8 Wh to
+  7.503 Wh -- MEASURED, economy/energy.json -- so a robot with 8 Wh to
   spend can take it and one with 7 cannot, which is the whole behaviour.
 
   ⚠ The board is given the world's energy table, because that is what
@@ -170,7 +170,7 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   from pluggybot.economy.energy import load as load_energy
   b = board(energy=load_energy(lc.HUMANOID_HOME))
   task = offered(b)
-  assert task.estimate_wh == pytest.approx(7.138)
+  assert task.estimate_wh == pytest.approx(7.503)
   assert task.claimable(0.0, pack_wh=8.0)
   assert not task.claimable(0.0, pack_wh=7.0)
   assert b.claim(task.id, t=0.0, pack_wh=7.0) is None
@@ -229,7 +229,7 @@ def test_claimable_is_oldest_first_and_deterministic():
   b = board()
   a = offered(b, t=357_000.0)                            # before the start-over
   c = offered(b, kind="open_door", target="door", t=1.0)  # after it
-  assert [t.id for t in b.claimable(10.0, 9.0)] == [a.id, c.id]
+  assert [t.id for t in b.claimable(10.0, 10.0)] == [a.id, c.id]
 
 
 def test_the_boards_count_is_read_as_a_number_past_four_digits():
@@ -239,7 +239,7 @@ def test_the_boards_count_is_read_as_a_number_past_four_digits():
   b.seq = 9_998
   first, second = offered(b), offered(b, kind="open_door", target="door")
   assert (first.id, second.id) == ("t_9999", "t_10000")
-  assert [t.id for t in b.claimable(10.0, 9.0)] == [first.id, second.id]
+  assert [t.id for t in b.claimable(10.0, 10.0)] == [first.id, second.id]
 
 
 def test_held_jobs_claimed_at_one_instant_are_in_the_boards_count():

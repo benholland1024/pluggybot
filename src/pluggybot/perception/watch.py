@@ -54,6 +54,15 @@ class TagWatch:
     #: after another took a picture 21 steps after the last (#554's review)
     self._n = 0
 
+  def kept_state(self) -> dict:
+    """The camera's clock, for a restart (#345): a watch ends with its
+    procedure, which a restart ends, but the frames a later one is taken on
+    are the clock's."""
+    return {"n": self._n}
+
+  def restore_kept(self, state: dict) -> None:
+    self._n = int(state["n"])
+
   def start(self, tag: int) -> None:
     """`tag` watched from the camera's next frame on, what was read of any
     tag before forgotten."""

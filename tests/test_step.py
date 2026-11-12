@@ -114,6 +114,7 @@ class Walk:
   FRONT_STOP_RANGE, FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M
   grid = NS(resolution=GRID_M)
   _bodies, _cells, in_front = Navigator._bodies, Navigator._cells, HumanoidMission.in_front
+  held_s = Navigator.held_s
 
   def __init__(self, coast_s=0.22, wall=None, turn_drift=0.0, handover_s=0.0, handover_m=0.0,
                fall_at=None, settle_m=0.0, shuffle_s=0.0, planted_s=0.0, feet=1.0, others=(),
@@ -384,6 +385,32 @@ def test_a_step_that_gets_nowhere_says_it_is_blocked_and_one_holding_does_not_mo
   body.held = True
   rep = _step(body, 0.3, 0.0, 0.5)
   assert rep["why"] == "holding" and walk.asked == []
+
+
+def test_the_body_text_says_a_step_holding_something_moves_nothing():
+  """#669's second review: the body text said that before a `step` or any
+  other walk a hand that is out comes home, its gripper opened as `withdraw`
+  opens it -- but a step asked while a gripper says it holds something
+  refuses before its legs are handed over (`holding`), and the let-go is in
+  that hand-over: no gripper opened, no arm home, nothing moved. Asked
+  through the deployed prompt, the deployed mind read a step holding a knob
+  as letting go and walking, 12 times of 12. What the robot is served says
+  what the step does, beside the walks' let-go, in the practice's body and
+  the served rule alike."""
+  from pluggybot.mind import overseer as ov
+  from pluggybot.mind import practice as mp
+  walk = Walk()
+  body = _walker(walk)
+  body.held = True
+  rep = _step(body, 0.3, 0.0, 0.5)
+  assert rep["why"] == "holding" and walk.legs == "stand" and walk.asked == [], \
+    "the premise: a step holding something never reaches the hand-over"
+  for text in (dict(mp.system_sections(st.hand_facts()))["your body"],
+               ov.hands_procedure_rule()):
+    flat = " ".join(text.split())
+    assert "a hand that is out comes home, its gripper opened as `withdraw` opens it" in flat
+    assert ("A `step` asked while either gripper says it holds something moves nothing, "
+            "and reads false.") in flat, "the step's refusal goes unsaid beside the let-go"
 
 
 def test_a_walk_its_stance_did_not_make_says_it_was_too_short():

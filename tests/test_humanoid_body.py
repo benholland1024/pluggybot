@@ -99,7 +99,7 @@ class _Sent:
     self.phase = {s: "rest" for s in hm.SIDES}
     self.grippers = {}
 
-  def reach(self, side, goal, approach=None, postures=None, flip=True) -> bool:
+  def reach(self, side, goal, approach=None, postures=None, flip=True, refuse=True) -> bool:
     self.phase[side] = self.end
     return True
 

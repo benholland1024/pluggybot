@@ -308,7 +308,8 @@ they may all stand at once, and each is discharged by a procedure the robot
 writes (`TaskKind.discharge = "procedure"`, #207): claiming queues nothing;
 the robot writes the procedure, runs it and sets `done` to the job's id,
 and only a mind with a library is offered one (`lifecycle.world_targets`).
-Three are offered (cadence.json); the cube's is not, below.
+All four are offered (cadence.json), the cube's since its reference passed
+from the tour (below).
 
 **The criteria are the checks'**, through the same evaluators, with two
 departures, both about where an attempt starts:
@@ -324,7 +325,12 @@ departures, both about where an attempt starts:
   (`TaskKind.minutes`, `tasks.HAND_MINUTES`; a world's cadence may give
   another), counted from the claim: 16, three times the slowest pass of the
   references over a tour of the house (313 s, from the station), rounded
-  up (TaskPattern.md §4 has why it is the kind's, #580). Held past them
+  up (TaskPattern.md §4 has why it is the kind's, #580) -- and the cube's
+  9, three times its own from the dearest station, the mall's, its area
+  remembered (180 s; `tasks.CUBE_MINUTES`), offered later on the table's
+  terms: three times its slowest over the tour, 159 s on a fresh map, gave
+  8, and left a claim at the mall about 300 s to write the procedure in,
+  where one answer may take 300 (Ben's call, 2026-11-11). Held past them
   with no `done` waiting on its grade, the job is failed at its holder's
   next pass of the day loop, between what the robot does, or at once on a
   charge trip ("not graded within the 960 s the job allows -- the drawer
@@ -362,16 +368,20 @@ humanoids see theirs.
 **Each has its hand-written solution** (`challenge/solutions.py`, Evaluation.md
 §7), two procedures in the robot's own vocabulary, written when one would
 have passed the language's 1,500 characters (3,000 since #560, and its defs
-may call each other: the two are 1,491-2,013 together): the walk there, then the check's own
-procedure -- unchanged for the door and the chest; the drawer's pulls 4 cm
+may call each other: the two are 1,524-2,943 together, the cube's place
+alone 2,275): the walk there, then the check's own procedure -- unchanged
+for the door and the chest; the drawer's pulls 4 cm
 further and lets go of the knob before its arm goes home. A job is offered
 once its reference passes 6 of 8 over a tour of the house, the bar written
 before they flew (`solve.py --from tour`; SimNotes, "The humanoids' first
 jobs"): the drawer 8, the door 8, the chest 7. Each job's energy is its
 reference flown from the station (`energy.json`). The cube's reference set
-it down 2-7 cm off its mat's middle all 8 times, so `place_cube` is
-defined, graded and priced but not offered (why: SimNotes, "Setting a
-table").
+it down 2-7 cm off its mat's middle all 8 times (why: SimNotes, "Setting a
+table"), so `place_cube` was not offered until its procedure read the mat
+and the cube again after a try that failed: then it placed 28 of 32 draws
+over the tour, its bar 24 written before it flew, a fall failing its try,
+and joined the rotation on the table's terms (Ben, 2026-11-10): 9 minutes,
+paying 51 (SimNotes, "The cube from the tour").
 
 ## 12. Lay a place at a table (issue #560, its first task)
 
@@ -392,6 +402,21 @@ m/s -- let go over the table, or knocked over; (3) nothing of the robot
 touches a piece during the hold; (4) in time; (5) no fall, the lid's (6).
 Said beside, gating nothing: whether each piece was lifted, how far each
 was off at the call, the fork's turn and the body's worst tilt.
+
+**Its reason names every piece at fault** (#687), once, by its first fault
+in the criteria's order -- its drop, else where it ended, how it lies or
+the fork's turn -- in the words it gets alone, a rule said once over the
+pieces it names: "the plate ended 22 cm from its place and the cup ended 4
+cm from its place: each must rest on the table within 2.5 cm of where it
+goes". Named the first piece alone, it left a practicing robot's cup 3-6
+cm off unsaid behind the plate, and the robot noted it laid. ⚠ A served
+robot reads it in History, whose line holds 400 characters and says where
+it was cut, so each rule is said once: said whole for each piece, a fall
+with all three dropped ran a settled job's line to 438, and D5's 30 tries
+to 393 at most; said once, 275 and 340. Of the 599 mixes of faults one can
+name, 58 still run past it, all but 4 with a call past the job's time (the
+4: a fall, one piece dropped, one away and the fork turned); the
+practice's report and the board carry the reason whole.
 
 **A drop is a FREE piece's fall, never a held one's carry**, the cube's
 line too since (§10, Ben's call): read at every step, it failed two cubes

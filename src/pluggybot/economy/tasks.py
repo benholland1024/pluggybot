@@ -219,6 +219,15 @@ HAND_MINUTES = 16
 #: the tour, 279 s from the claim to the call (`scripts/solve.py --feature
 #: table --from tour`, one pod), rounded up.
 TABLE_MINUTES = 14
+#: ...and the cube's (#560): three times its reference's slowest pass from
+#: the dearest station, the mall's, its area remembered, 177-180 s to its
+#: call (`scripts/energy_spike.py --station station_mall --actions
+#: place_cube`), rounded up -- Ben's call, 2026-11-11, over 8, three times
+#: the tour's slowest on a fresh map (159 s; the tour has no mall): a claim
+#: at the mall then left about 300 s to write the procedure, where one
+#: answer may take 300 (`CALL_TIMEOUT_S`). A claim there on a fresh map, its
+#: find before the walk, was not flown.
+CUBE_MINUTES = 9
 
 
 KINDS: dict[str, TaskKind] = {
@@ -245,11 +254,12 @@ KINDS: dict[str, TaskKind] = {
   # in the counter's row, its handle by its own (tier 1, TaskPattern.md
   # §3), the area's directions with the offer, never a position. Graded as
   # the checks are, from the claim -- a fall fails it -- to a hold after
-  # `done`, within the minutes the job gives (`HAND_MINUTES`, `HubLifecycle.
-  # _grade_hands_routine`); each offer draws the prop's hidden dynamics
-  # afresh. No errand: a procedure the robot writes (`discharge`). MEASURED
-  # off the hand-written references from the dearest station, the mall's
-  # (`challenge/solutions.py`, `energy.json`); the fallback a touch above.
+  # `done`, within the minutes the job gives (`HAND_MINUTES`, the cube's
+  # `CUBE_MINUTES`; `HubLifecycle._grade_hands_routine`); each offer draws the
+  # prop's hidden dynamics afresh. No errand: a procedure the robot writes
+  # (`discharge`). MEASURED off the hand-written references from the dearest
+  # station, the mall's (`challenge/solutions.py`, `energy.json`); the
+  # fallback a touch above.
   "open_drawer": TaskKind(
     "open_drawer", task="open_drawer", target_kind="drawer",
     template="Pull the drawer out of its cabinet, at least 15 cm, and let go of it, "
@@ -258,7 +268,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: out that far both "
              "times, nothing of yours touching it in between. No errand does this: "
              "write the procedure, run it, and say you are done.",
-    estimate_wh=7.14, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=7.51, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "open_door": TaskKind(
     "open_door", task="open_door", target_kind="door",
     template="Open the cupboard's door, at least 50 degrees, and let go of it, within "
@@ -268,16 +278,17 @@ KINDS: dict[str, TaskKind] = {
              "are done and again 5 s later: open that far both times, nothing of yours "
              "touching it in between. No errand does this: write the procedure, run "
              "it, and say you are done.",
-    estimate_wh=7.72, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=9.05, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   "place_cube": TaskKind(
     "place_cube", task="place_cube", target_kind="cube",
     template="Put the cube on its mat -- resting on it, flat, its middle within 2.5 cm "
-             "of the mat's -- set down, never dropped, and let go of it, within "
+             "of the mat's -- set down, never coming down faster than 0.5 m/s while "
+             "nothing of yours holds it, and let go of it, within "
              "{minutes} minutes of taking this job and without falling. The cube was put "
              "back beside its mat at t={offered}, when this job was offered. It is graded "
              "5 s after you say you are done, nothing of yours touching it. No errand "
              "does this: write the procedure, run it, and say you are done.",
-    estimate_wh=9.86, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=9.86, discharge="procedure", draws=True, minutes=CUBE_MINUTES),
   "open_chest": TaskKind(
     "open_chest", task="open_chest", target_kind="chest",
     template="Open the chest's lid past 57 degrees, set it back down shut and let go "
@@ -287,7 +298,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: shut, nothing of "
              "yours touching it. No errand does this: write the procedure, run it, "
              "and say you are done.",
-    estimate_wh=7.47, discharge="procedure", draws=True, minutes=HAND_MINUTES),
+    estimate_wh=8.55, discharge="procedure", draws=True, minutes=HAND_MINUTES),
   # THE RESTAURANT'S FIRST JOB (#560): a place laid at the dining room's table
   # 0 (`home.restaurant`), the table check's criteria (`challenge/table.py`,
   # its row's detail all of them) as the practice's job states them -- the

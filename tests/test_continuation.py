@@ -13,6 +13,7 @@ sensors stepping on -- on the served humanoid. The flown parity check is
 """
 
 import json
+import math
 from types import SimpleNamespace
 
 import mujoco
@@ -20,7 +21,9 @@ import numpy as np
 import pytest
 
 from pluggybot import continuation, tick
+from pluggybot.body import body_for
 from pluggybot.economy.tasks import TaskBoard
+from pluggybot.humanoid import model as hm
 from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, task_board, world_config
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.mind.thoughts import HISTORY
@@ -28,6 +31,7 @@ from pluggybot.procedure.steps import Program, Step
 from pluggybot.robot import world_spec
 from pluggybot.tick import MissionAborted
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+from test_humanoid_body import _floor
 
 
 class _Stop(Exception):
@@ -259,6 +263,59 @@ def test_a_restored_humanoid_steps_on_exactly_as_if_nothing_had_stopped(tmp_path
   assert np.array_equal(back.near_field.height, life.near_field.height, equal_nan=True)
 
 
+def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was():
+  """The parity rule where the robot's model of itself is posed: its
+  LIDAR's band is laid at the height and the waist's turn its odometry's
+  model last read (`_scan`), a look is placed through that model and a spot
+  through the reach's, each posed again only at its loop's next tick; and
+  its last look, the frames a watch is taken on and the IMU's last reading
+  each decide what comes next. Fresh after a restore, the first band was laid
+  off the drawing's zero pose and the robot looked at its first step, and
+  `determinism_spike.py --resume-at 1` parted 18 ms after the restore. A
+  save from before them, or one whose places did not come back, leaves
+  them fresh, to be posed at the next tick and looked from anew."""
+  a, b, c = body_for(*_floor()), body_for(*_floor()), body_for(*_floor())
+  try:
+    ma, mb, mc = a.mission, b.mission, c.mission
+    q = np.linspace(-0.3, 0.3, len(hm.JOINT_NAMES))
+    q[ma.odo.sm.waist] = 0.25
+    ma.odo.sm.pose(q, np.array([0.2, 0.0, -0.98]))
+    ma.reach.self_model.pose(-q, np.array([0.0, 0.1, -0.99]))
+    ma._place_look = (5.0, (1.0, 2.0, 0.5))
+    for _ in range(7):
+      ma.sight.step(0.0)
+    ma.stand.trunk.accel = np.array([0.1, 0.2, 9.7])
+    state, arrays = ma.kept_state()
+    mb.restore_kept(json.loads(json.dumps(state)), arrays)
+    for sa, sb in ((ma.odo.sm, mb.odo.sm), (ma.reach.self_model, mb.reach.self_model)):
+      assert np.array_equal(sb.q, sa.q) and np.array_equal(sb.d.qpos, sa.d.qpos)
+      assert np.array_equal(sb.d.site_xpos, sa.d.site_xpos)
+    laid = []
+    for m in (ma, mb):
+      m.lidar.band = lambda data, level, z, joints=None: laid.append(
+        (np.asarray(level).tolist(), z, joints))
+      m._scan()
+    assert laid[0] == laid[1] and laid[1][2] != {j: 0.0 for j in hm.WAIST}, \
+      "the band laid at the height and the waist's turn the save had"
+    assert mb._stance_frame() == ma._stance_frame()
+    assert mb._place_look == ma._place_look
+    assert mb.sight.kept_state() == ma.sight.kept_state() == {"n": 7}
+    assert np.array_equal(mb.stand.trunk.accel, ma.stand.trunk.accel)
+    mb.restore_kept(json.loads(json.dumps(state)), {k: v for k, v in arrays.items() if k != "grid"})
+    assert mb._place_look == (-math.inf, None), "no map back, no places: it looks anew"
+    old = {k: v for k, v in state.items() if k not in ("selfModel", "placeLook", "sight")}
+    old["trunk"] = {k: v for k, v in state["trunk"].items() if k != "accel"}
+    old["reach"] = {k: v for k, v in state["reach"].items() if k != "selfModel"}
+    mc.restore_kept(json.loads(json.dumps(old)), arrays)
+    for sm in (mc.odo.sm, mc.reach.self_model):
+      assert not sm.q.any(), "posed at its loop's next tick"
+    assert mc._place_look == (-math.inf, None)
+    assert mc.sight.kept_state() == {"n": 0} and mc.stand.trunk.accel is None
+  finally:
+    for body in (a, b, c):
+      body.close()
+
+
 def test_a_dead_robot_is_still_dead_after_a_restart_and_pays_no_second_heart(tmp_path):
   """A robot saved dead at 0 % that came back alive would die again on its
   first step -- a second heart for one death -- or stand up free at 100 %.
@@ -351,9 +408,9 @@ def test_an_offer_keeps_this_worlds_price_across_a_restart(tmp_path):
   b = task_board(str(path), world=HUMANOID_HOME)
   task = b.offer("open_drawer", "drawer", t=0.0)
   back = task_board(str(path), world=HUMANOID_HOME)
-  assert back[task.id].estimate_wh == task.estimate_wh == 7.138
-  assert KINDS["open_drawer"].estimate_wh > 7.138, "the premise: two prices"
-  assert back[task.id].claimable(10.0, pack_wh=7.139)
+  assert back[task.id].estimate_wh == task.estimate_wh == 7.503
+  assert KINDS["open_drawer"].estimate_wh > 7.503, "the premise: two prices"
+  assert back[task.id].claimable(10.0, pack_wh=7.504)
 
 
 def test_a_world_that_carries_on_keeps_its_deadlines_on_its_own_clock(tmp_path):

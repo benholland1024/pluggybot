@@ -308,11 +308,14 @@ rot.
 
 A pressure plate that latches a garden light (`activity/plate.py`; the
 `geom_pos` trap under "Conventions" is the surviving lesson of the gate it
-replaced, table in ActivityPattern.md §3.4). Three measured rules the pattern
-doc carries:
+replaced, table in ActivityPattern.md §3.4). The garden's is flush with the
+floor since #684, read off its load ("A flight that never got up"); the
+sprung pad below is the lab's three. Three measured rules the pattern doc
+carries:
 - **Hysteresis**: one wheel crossing flips a bare threshold **4** times, a
   hysteretic one (`PLATE_ON` 6 mm / `PLATE_OFF` 3 mm) **2** — one press, one
-  release, the floor.
+  release, the floor; a humanoid walking across the flush plate, 175 and
+  71 over 15 crossings (`LOAD_ON_N` 100 / `LOAD_OFF_N` 50).
 - **An analogue flag defeats sparseness**: `depressMm` over a 300-frame
   crossing is 38 deltas at 0.1 mm rounding, 15 at 1 mm. Quantise to what a
   consumer can act on or keep it off the wire.
@@ -3484,9 +3487,11 @@ targets and last actions, and the gains they set in the MODEL, which a
 restart compiles fresh -- its IMU's filter and its joints' and grippers'
 noise, its reach, its reckoning with its planted foot, its map, the
 camera's layer and the walls it is kept off, the scan matcher and its
-clocks. Saved at the day loop's first pass and carried on in a new process,
+clocks, and its models of itself as their loops last posed them (the
+LIDAR's band is laid through the odometry's: Webserver.md, "Parity").
+Saved at the day loop's first pass and carried on in a new process,
 its day was IDENTICAL through its whole explore (`determinism_spike.py
---world home_humanoid --resume-at 5`: 508 state samples to t = 260 s). ⚠ A
+--resume-at 1`: 509 state samples to t = 260 s, 2026-11-11). ⚠ A
 test saving on a step every controller's period divides read a fresh reach
 as a kept one: 685 steps are the reach's 5 and the policies' 10 alike, so
 the parity tests save on 687. Never saved with a hand out (`Body.working`):
@@ -3925,19 +3930,20 @@ prop at draw k. **The bar, written before they flew: 6 of 8.**
 | `open_drawer` | **8 of 8** (3 before its procedure's change) | 20-21 cm out, the call 39-281 s after the claim |
 | `open_door` | **8 of 8** | 62-74 deg open, the call 57-301 s after the claim |
 | `open_chest` | **7 of 8** | opened to 59-65 deg, the call 61-301 s after the claim; the garden's (draw 7) let fall at 1.7 rad/s as it was lowered |
-| `place_cube` | 0 of 8, **not offered** | set down 2-7 cm from the mat's middle (2.5 allowed) |
+| `place_cube` | 0 of 8, not offered then | set down 2-7 cm from the mat's middle (2.5 allowed); **offered since #560**, its tries reading again, 28 of 32 ("The cube from the tour") |
 
 No falls in the 32. The slowest pass took 313 s from the station, and each
 job allows 16 minutes from the claim (three times it, rounded up). Priced
 from the station with the place remembered (`energy.json`; since #560 the
-dearest of three, the mall's): the drawer 7.14 Wh, the door 7.72, the
-chest 7.46.
+dearest of three, the mall's, and on the waist's body since 10 Nov): the
+drawer 7.50 Wh, the door 9.04, the chest 8.54.
 
-**What is not yet.** The cube: offered once a reference places it (its
-check passed 3-4 of 8 at its own set-outs, the fingers against a 26 mm cube
-on a board). Why its reference misses: "Setting a table". From the station, every flight's belief ended 2.3-2.5 m off
-the truth, the street crossed on a fresh map, and passed: the counter's
-places are laid in the map its walks plan on. A lid let fall once in 8.
+**What came later.** The cube is offered since its reference placed it 28
+times in 32 over the tour, with a minutes and a pay of its own ("The cube
+from the tour"); why it missed before: "Setting a table". From the station,
+every flight's belief ended 2.3-2.5 m off the truth, the street crossed on
+a fresh map, and passed: the counter's places are laid in the map its walks
+plan on. A lid let fall once in 8.
 
 ## Where the humanoids get lost (issue #572, stage 2)
 
@@ -5294,16 +5300,25 @@ goes again from the standoff, once a charge.
 **The hand jobs are priced from the mall's station.** A job is taken from
 any of the three, and the energy table carries the dearest: the mall's,
 43 m by route from the storeroom's counter, where the house's is 29 and
-the research center's 7. Flown from it (`energy_spike.py --station
-station_mall`, a process each on one pod): the drawer 7.138 Wh, the door
-7.720 and the chest 7.463, each passed (from the house's station 4.74,
-5.17 and 5.25 on 1 Nov, the table carrying the C1's dearer 7.08, 5.72 and
-5.98), and the cube 9.858, a placement that failed after four reaches.
-Left to choose, the spike measured every job after the first from the
-research center's, the nearest once the robot had been to the storeroom;
-`--station` pins one. The tests' pack (`DEMO_WH`) grew from 30 Wh to 33,
-so that charged it still funds the dearest job and the reserve both (29.7
-of 29.36), and the pair's fixture was flown again on it.
+the research center's 7. Left to choose, the spike measured every job
+after the first from the research center's, the nearest once the robot
+had been to the storeroom; `--station` pins one. Flown from each on the
+waist's body (10 Nov, a process each on one pod; `energy.json`'s
+`measuredOn` has every reading), the mall's was the dearest of every job:
+the drawer 7.503 Wh (a try that stopped at its reach: a pass costs
+more), the door 9.041 and the chest
+8.543 (each passed), all three carried, and the cube 8.058 (placed),
+under 3 Nov's 9.858 from the same station, a placement that failed after
+four reaches, which is kept; from the house's 5.44, 6.53, 5.80 and 7.39,
+from the research center's 2.17, 3.66, 2.78 and 5.98. Each of the four
+mall flights came to the storeroom with its belief 0.41-0.67 m off (the
+house's and the research center's about 5 cm): its find's first walk ran
+out of its 90 s 8-11 m short, it looked round and found the row from the
+building's address, and the drawer's reference then asked `step` for
+0.79 m aside, past the 0.5 m it takes, and could not reach the handle.
+The tests' pack (`DEMO_WH`) grew from 30 Wh to 33 on 3 Nov, so that
+charged it still funds the dearest job and the reserve both (29.7 of
+29.36), and the pair's fixture was flown again on it.
 
 **Three stations sensed every step** (`Station.sense`, on the physics
 seam) cost 32 us a step each, against a pair's 229 us `mj_step`; an armed
@@ -6148,8 +6163,8 @@ Each draw its own noise (#560's seeds stage; a Xeon Gold 6138, where seed
 0's realization passed the chest 25 and the lid's check 22): the chest 32
 of 32 from the tour with no fall, the lid's check 22 of 32.
 
-From the mall's station the chest costs 8.11 Wh over 175 s (passed), 8.6 %
-over `energy.json`'s 7.463: inside the table's 10 %, so not priced again.
+From the mall's station the chest cost 8.11 Wh over 175 s (passed), and
+8.543 over 183 s on 10 Nov's tree, which `energy.json` carries.
 
 **What it leaves is the approach's.** Its first turn comes off the knob's
 tag's facing read square-on from 0.75 m, and its walk turns the stance too,
@@ -7040,8 +7055,8 @@ reaches alone from there touched 2 of 6, no fall. The arms met at 0.68 m on
 home is what felled them either way.
 
 **What it leaves open** (#670's own list): an arm on its way out or home
-reaching into the other robot -- nothing a reach does knows of it (Hands.md
-§7); a fall at one prop reaching the next, 1.2 m apart (a fall carries the
+reaching into the other robot -- since #678 kept off it ("The arms keep off
+the other robot"); a fall at one prop reaching the next, 1.2 m apart (a fall carries the
 pelvis 0.8-0.9 m sideways); and the get-up against the counter (#669).
 
 ## A robot at work kept off where its body stands (issue #675)
@@ -7153,8 +7168,8 @@ both trees: one charge each, the same meeting, no death. A robot alone is
 unchanged: the cube check's set-outs 0 and 1 flew row for row.
 
 **What it does not fix.** The arms (#670's open half): the disc is about
-where bodies stand, and an arm's way out or home reaches 0.74 m to the side.
-And the drift itself: both robots 0.5-0.7 m off in the storeroom for half an
+where bodies stand, and an arm's way out or home reaches 0.74 m to the side
+-- #678's ("The arms keep off the other robot"). And the drift itself: both robots 0.5-0.7 m off in the storeroom for half an
 hour hurts the jobs too, and is worth a reading of its own (#572's
 instruments) of why the storeroom loses them.
 
@@ -7181,9 +7196,19 @@ is left as it is, so a withdraw after an `open_hand` is the flight it was.
 `step` refuses only a grip that reads held, and a procedure that ends with a
 hand out walks after it, so the same jaws on the same lever came home
 through every walk (#669's review). One routine lets go for both
-(`HumanoidMission.let_go_routine`), and the body text says so: "Before a
-`step` or any other walk, a hand that is out comes home, its gripper opened
-as `withdraw` opens it: a walk carries nothing." With nothing to open it
+(`HumanoidMission.let_go_routine`). A `step` asked while a gripper says it
+holds something still refuses before that hand-over (`holding`), opening
+nothing, and the body text says both: "Before a `step` or any other walk
+moves your feet, a hand that is out comes home, its gripper opened as
+`withdraw` opens it: a walk carries nothing. A `step` asked while either
+gripper says it holds something moves nothing, and reads false." The
+refusal went unsaid at first (#669's second review): asked through the
+deployed prompt, GLM-5.3-Flash on baseten read a `step` with its jaws on a
+knob that read held as letting go and walking 12 times of 12 on that text,
+and as refused, the gripper still shut, 12 of 12 on this one; a `step`
+after jaws that read nothing held, and a `drive_to` with a cube in hand,
+read as letting go 12 of 12 on both (`~/pluggybot-training/day-shift-1111/
+d1-release/quiz/`, $0.07). With nothing to open it
 steps nothing, and no reference begins a walk with a hand out -- nor does any
 of the 459 practice tries below, by their recorded verbs. Its text
 says so with no condition the robot must work out. Worded "open a hand's
@@ -7293,6 +7318,356 @@ held and loads at the grip is the honest fix. `carry_spike.py --view
 plate_close:route:1` watches a 0.47 kg plate held close tilt in the jaws from
 35 s and fall at 47 s; `--strip` draws it.
 
+## The arms keep off the other robot (issue #678)
+
+**What happened.** #670 kept a step off the other robot as a walk is kept
+off it, and an arm still knew nothing of it: at 11:48 on 11-08 Rowan's way
+home from the cupboard's lever hooked Luca's arm, their middles 0.68 m
+apart, and both fell; at #670's placements (0.54-0.73 m) the reach for the
+lever swung out by its side and its jaw met Luca's thigh, or its bow brought
+its head into Luca. #678's stage 1 (the night of 11-10; `~/pluggybot-training/
+night-shift-1110/t4-arms/findings.md`) prototyped what follows, flew it, and
+Ben chose it on 11-12 with four answers: about 1 m of side clearance at a
+counter, the minds coordinating; a walk with an arm stuck out refused by the
+verbs and waited out, bounded, by the loop's walks; the other robot as a
+cylinder first; and only a robot the LIDAR sees, one scan at the move's start.
+
+**What is true now** (`Reach._kept_off`, `HumanoidMission.look_round` and
+`keep_out`, `HumanoidBody.reach_routine`, `release_routine` and `arm_kept`,
+`steps.ARM_KEPT_OFF`):
+- *What an arm keeps off.* Another robot as a cylinder round its soles'
+  middle, 0.28 m round (the standing body, arms hanging: its grippers hang
+  0.28 m out on the drawing) and 1.55 m tall (its head's top), every part of
+  the arm kept 5 cm off it (`OTHER_BODY_M`, `OTHER_TOP_M`, `OTHER_CLEAR_M`):
+  a capsule at five points of its axis with its radius, a box at its corners
+  and its middle (`arm_points`, `room`), the arm walked in joint space as
+  `dip` walks it. An arm begun nearer than the 5 cm only goes no nearer. Its
+  place, never its heading: a robot standing square to the counter beside
+  this one is narrower that way than round.
+- *Whom.* Only a robot the LIDAR sees in ONE scan as the move begins
+  (`look_round`): standing still, the humanoid's LIDAR takes no scan of its
+  own (#670), so a reach, a withdraw, a walk verb and a walk's hand-over
+  with an arm out each take one, recorded as any scan's sighting is
+  (`seen_t`, `peer_returns`) and never into the map. A robot it saw is placed
+  where `others` places one seen (#675: its body, through this robot's own
+  pose error); one it did not is kept off nowhere -- never at its reported
+  pose, which at the counter lay 0.49 m from its body at the median. One
+  lying down or dead is left out (it lies under the arms' work, and the
+  walks' wider disc keeps the feet off it), and so is one past `ARMS_NEAR_M`
+  (1.5 m): on the drawing no part of an arm comes further than 0.91 m from
+  the stance's middle in any posture a reach or a carry takes (300 random
+  arms a side in each of the 99 postures with their waist's yaws, then the
+  farthest pushed further by an optimiser from 12 starts in the 30 deepest),
+  so past 1.24 m none comes within the body's 0.33 m. With no other robot
+  about no look is taken and nothing is judged: a robot alone flies as it
+  did, bit for bit.
+- *Which ways.* A reach's way out, as the robot stands and in the posture
+  the reach takes, and its way home from its pre-grasp, in that posture and
+  stood up -- an arm never goes where it could not come back from; a
+  withdraw's way home, as it stands and stood up, from where it truly begins
+  (`Reach._home_from`): a hand at its goal comes out along its line first,
+  `APPROACH_M` (8 cm), and its way home begins at that pre-grasp -- and the
+  way judged clear is the way taken (`Reach.judged_home`, where the arm
+  begins it within `HOME_RAD` of where it was judged from): judged from the
+  grip, or judged afresh a few mm off, a way clear by a hair could cross the
+  other robot unrefused. The first of today's way,
+  straight, the side way and the way drawn in (`_tucked_way`: its elbow bent
+  to 1.9 rad where it stands, its shoulder moved, its elbow out) that keeps
+  clear and dips no deeper over the work than today's (#539's and #560's
+  rule kept whole). At a counter there is none: today's way out there is the
+  side way, which rolls the arm 75 deg out and meets a robot beside out to
+  about 1.0 m, and every way that keeps the arm in dips into the counter's
+  face (stage 1: 1,500 random ways of one and two via points found none at
+  0.65 m). Elsewhere there can be: an arm raised high and out to its right,
+  whose straight way home sweeps through a robot ahead and to its right,
+  takes the side way 16 cm clear (`tests/test_arms_keep_off.py`).
+- *Otherwise refused*, nothing moved, in words the robot reads
+  (`steps.ARM_KEPT_OFF`): what did not move, why, where that robot stands
+  from its own middle ("another robot, its middle 0.54 m from yours on your
+  right"), and for a reach what the other hand's way would do ("your left
+  hand's way there keeps clear of it"). A withdraw is judged before #669's
+  let-go, so its gripper stays as it was, holding what it holds.
+- *A walk with a hand out that could not come home.* A walk brings the arms
+  home first (#669), so `step`, `drive_to`, `face` and `find` refuse to walk
+  then (`Body.arm_kept`, one look) and say so; the loop's own walks -- a
+  charge's among them -- are never refused: their hand-over waits, looking
+  every `ARM_LOOK_S` (1 s), until a look finds a way home clear, `ARM_WAIT_S`
+  (60 s) at most, then lets go and brings the arm home the way that comes
+  least near that robot (at a counter, today's). ⚠ SO DO THE LOOP'S OWN
+  HAND MOVES (`refuse` False: a charge's plug-in and unplug), as the verbs'
+  (`refuse` True) never do: refused, the plug went unfetched, the charge
+  failed, and a failed charge is a death (`HubLifecycle._strand`) -- a reach
+  waits, then goes the way out that comes least near that robot; a release
+  waits as the hand-over does. A robot whose arm waits is never asked aside
+  (`arm_waiting`: standing still with no hand out, a reach's wait would read
+  as resting, and walked off it planned off the stance it had left). Each
+  wait is kept on the mission (`arm_waits`, the latest 100). One look an
+  instant: a walk verb's and its hand-over's are one scan. ⚠ THE WAIT IS NO WALK'S: a drive counts it against
+  neither its patience nor its stagnation clock (`Navigator.held_s`), nor a
+  step against its own -- counted, a minute's wait in a walk's first
+  command left a 40 s walk out of time before its first stride, and a
+  longer one gave up "stalled" as the arm came home.
+- *What it costs.* A look is one band scan. Judging a reach is about 0.17 s
+  of planning on the dev box (way out and way back, four ways in two poses);
+  a refused reach also plans the other hand for its words, a full search
+  where that hand does not reach, as an out-of-reach reach's words do.
+
+**The text.** The reach's and the withdraw's texts and YOUR BODY's walk
+sentence each say it, without naming the LIDAR, which no text the robot
+reads mentions: "Its way out, and its way home from there, keep clear of
+the body of another robot standing near you: where no way does, your arm
+does not move, and it reads false saying where that robot stands"; the
+withdraw's the same of its way home, "your gripper stays as it is and your
+hand where it is"; and YOUR BODY's "Nor does a `step` or any other walk
+move while a hand is out whose every way home would meet the body of
+another robot standing near you". #669's withdraw text still begins with
+its let-go, the exception after it (the deployed mind misread a condition
+there, #669); a quiz of these words on the deployed mind was not flown.
+
+**Flown** (`~/pluggybot-training/loop-1112/l3-arms/`: stage 1's instruments
+`fly/fly1148.py` and `fly/pairs.py`, and `fly/read_l3.py`; one Vast pod, an
+AMD EPYC 7B13, osmesa; this build at fbaac57 and loop-staging 91d5025, which
+it had merged, side by side, both before #684):
+- *11:48's placements* (Rowan's door_go4 from where its walk stopped, its
+  steps flown, or its tail alone; Luca behind its right shoulder on the
+  walker, held still, 0.54-0.73 m off; three noise draws each, 30 flights a
+  tree): loop-staging touched in 14 (233 contacts), Rowan fell in 9 and Luca
+  in 4 -- stage 1's base, flight for flight; this build touched in none and
+  nobody fell, 23 reaches refused, each for Luca's body 0.54-0.79 m on its
+  right, each saying the left hand's way there keeps clear. The steps #670
+  refuses it refuses still, 54 on each tree.
+- *Neighbouring props* (both robots running their check's own procedure at
+  once, draws 0-3): at the counter's work spots, 1.16-1.24 m apart, the same
+  flights on both trees, row for row, 12 of 12, with no refusal and the same
+  props done (one fall, the cube's robot's, on both). Moved nearer -- 0.86-0.95
+  m (each 15 cm toward the other) and 0.71-0.80 m (22.5 cm), six flights
+  each -- loop-staging touched in 4, two of them falling; this build in
+  none, with 40 refusals in 8 flights at 0.73-0.99 m, 15 of them in the door
+  and cube's flights whose loop-staging twin never touched (the cube's robot
+  steps aside first and still stands 0.96-0.99 m off), and one withdraw
+  refused at 0.88 m, its arm left out. No prop was done at those spacings on
+  either tree: the references need their stance within a few cm.
+- *The hands checks* (the lid, the drawer, the door, the cube and the table
+  at set-outs 0-31, a robot alone): 160 flights of 160 the same on both
+  trees, row for row -- the lid 26, the drawer 21, the door 24, the cube 20,
+  the table 24.
+- *Again after the first review* (a139754 beside loop-staging e791777, both
+  after #684): 11:48's the same -- this build no touch and no fall, the
+  same 23 refusals; loop-staging touched in 14, Rowan fell in 9 and Luca in
+  4, four of those flights ended by #684's `Stuck` (down 20 s where nothing
+  dies) -- the work spots 12 of 12 and the hands checks 160 of 160 row for
+  row.
+- *The pair's fixture day* (`two_robots.py` as the pair's recording is
+  made, before #684's plate; the first robot plugs in at the station while
+  the second explores, then the second): one charge each on both trees, no
+  death, both robots done. The two parted from 95.5 s: the first robot's
+  plug-in looked as its reaches and withdraw began, and a look's scan draws
+  on its LIDAR's noise, so its later scans read otherwise; the second's
+  charge began at 378 s here and 357 s on loop-staging (on the reviewed
+  build, 87fcf5e beside e791777, after #684: 361 s and 352 s, the same day
+  otherwise).
+- *A hand left out, then a loop walk* (`fly/strand.py`, on a7bb9c5 and
+  loop-staging e791777: the nearer neighbours' drawer and door, each robot
+  then walking 1 m back from the counter if a hand is still out, the other
+  standing still or walking off 10 s after the procedures end; draws 0 and 1
+  at both nearer spacings): one withdraw was refused, at 0.88 m, leaving
+  Rowan's left hand out. Its walk's hand-over waited for it -- 60 s with Luca
+  standing still, then the arm came home today's way, meeting nothing of
+  Luca (whose body that way is narrower than the cylinder); 15 s with Luca
+  walking off, the arm coming home at the first look that found its way
+  clear. Both walks arrived, their drives counting none of the wait (10.5
+  and 10.7 s of walking), and the reviewed build (87fcf5e) flew the set the
+  same. On loop-staging the same flights touched three times each at 0.88
+  m, and at 0.73 m both robots fell, in both draws.
+
+**What it leaves open.** A carried hand (`move_hand`, `pull`) is not
+judged, nor a posture a reach's look takes with its hand waiting at its
+pre-grasp (#627: a waist turned toward the other robot carries the arm with
+it), nor anything after a move begins: a robot walking up beside an arm
+already out is met at the arm's next move, and its way home then is the
+walk's to wait for. The cylinder is round: turned to the heading the
+LIDAR sees, fewer refusals would come where the arms would have passed --
+Ben's later step, if live refusals show it. Whether the minds act on the
+words -- the other hand, a step away, a `tell` -- is the live world's to
+show. And a hand stranded out (a withdraw refused, nothing walking) holds
+the world's saves, as any hand out does (`Keeper.busy`).
+
+## The cube from the tour (issue #560)
+
+**What is true now.** Our cube reference places the cube from anywhere in
+the house: **28 of 32 draws over the tour** (`solve.py --feature cube --from
+tour --n 32`, one pod, an AMD EPYC 7B12, osmesa, each draw its own noise; the
+bar, 24, written before it first flew), where the tree before it placed 23
+on the same pod, and the place check at set-outs 0-31 reads 20 where it read
+17. On fresh draws, 400-431, 23 of 32 (25 for round 1; draw 431's trace
+showed the one-tag case the review fixed, so they are not untouched, but
+not flattered either: 431 still failed). So `place_cube` is
+offered ("The humanoids' first jobs"): 9 minutes from the claim, three
+times its slowest pass from the dearest station, the mall's, its area
+remembered (177 s and 180 s, the re-pricing's flight and this one), paying
+51 (Ben's 90 for 16 minutes, pro rata), and priced at 9.858 Wh
+(`energy.json`: flown on this reference from the mall's station it cost
+8.124 Wh over 180 s, from the house's 5.955, from the research center's
+6.208, and 3 Nov's dearer reading is kept). Three times its slowest pass
+over the tour (159 s, on a fresh map; the tour has no mall) gave 8, and
+left a claim at the mall about 300 s to write the procedure in, where one
+answer may take 300 (Ben's call for 9, 2026-11-11); a claim at the mall on
+a fresh map, its find before the walk, was not flown. #669's `withdraw`,
+which opens its gripper first, changes none of its flights: every `withdraw` it makes follows an `open_hand` (the first
+round's 32 flown on both trees, the same row for row).
+
+| the bar's 32 draws, how each ended | the tree before | now |
+|---|---|---|
+| **placed** | 23 | **28** |
+| shut on nothing or let go as it rose, and never held again | 5 | 1 |
+| fell at the first reach | 2 | 2 (the same draws) |
+| set down 2.5-3 cm off the mat's middle | 2 | 1 |
+
+![Our reference at draw 0 from the house's station: the walk there (0-91
+s), the steps to the counter and in (95-107 s), the cube gripped and lifted
+(111 s), set down on its mat (115 s), the arm home (119-123 s), and the
+grade (`MUJOCO_GL=osmesa uv run python scripts/solve.py --feature cube
+--from station --draw 0 --strip`)](figures/solve_cube_tour.png)
+
+The change is the place's half (`hands_check.PLACE`): the walk there is
+the counter's (`solutions.APPROACH`) unchanged. What flying took, read off
+64 development draws (200-231 and 300-331; the tree before placed 42 of
+them, the reference now 58), every flight's verbs, the cube's and the mat's
+true places at each and the true stance where each began (the rows are in
+`~/pluggybot-training/night-shift-1110/t2-cube/`):
+
+**A try that failed moved the feet, and every try after it aimed at the
+first read.** A reach stopped short (its tips on the board, or out of reach
+from how the robot stood) or a shut on nothing moved the stance 3-7 cm, up
+to 12 at a second try at 75 deg, which took 12 s; the tries after it went
+to where the cube had been in the frame before. Each try after one that
+failed now reads the mat and the cube again and aims where the cube is, 1
+cm on along the fingers (as the first try's read is, below), its carry
+from the mat read in that frame; where only one of the two reads, the other
+is moved as that one seems to have moved, the feet's move moving both alike
+in the frame (read again only where both read, a fresh draw whose mat was
+out of view aimed its next try where the cube had been and set it down 6 cm
+off). Of the development draws' misses, 14 never
+held the cube on the tree before and 2 do now; of the flights that tried
+twice or more, none placed it at its second try there (15) and 10 of 17 do
+now.
+
+**The first try keeps the read the step carried.** The cube's first read,
+from 0.4-0.45 m, is true to 0.2 cm; the step to the work overshoots, 2.6 +-
+1.1 cm (asked 0.11 m, walked 0.137), and the legs' reckoning of it is 0.4
+cm short, so the first reach is aimed 0.2-1.6 cm on from the cube's middle.
+Read again just before it, the aim true to 0.5 cm, the reach found no
+posture at 0.27 m, stopped short more, and twice turned the stance 14 deg:
+13 placed of 22 where 17 had been. The first try also stays as it was; its
+two falls (the bar's draws 3 and 9, and one development draw) are its own.
+
+**A lift that left the cube behind is a try that failed.** A shut on the
+cube's edge read held, and the cube stayed as the hand rose: the carry took
+nothing to the mat. The hand now reads whether it holds after the lift
+(`left.held`, once its running mean has had 0.1 s: a grip lost read held up
+to 40 ms on, #646) and, holding nothing, lets go, goes home and tries
+again.
+
+**The tries go 60, 60, 46 and 75 deg.** Second at 75 deg, a try took 12 s
+and moved the feet most; second at 60, again aimed, more placed (51 of 64
+where 47).
+
+**The carry aims 0.6 cm on and 0.5 cm to the right of the grip's offset.**
+The cube's reads share the step's and the reach's error with the mat's, and
+the offset carries it through, so the set-down's error is the cube's own
+move as the jaws shut on it (along them, 0.3 cm to the left at the mean, up
+to 2.5 either way) and the carry's: a mean 0.55 cm short and 0.5 cm to the
+left, which took 9 placings of 62 past the 2.5 cm allowed. Aimed off by its
+mean, the set-down's error is +0.2 +- 0.9 cm ahead and -0.05 +- 1.1 across.
+Centring the offset between the jaws instead (the cube is centred there
+after a shut, to 0.4 cm) was worse: the jaws' axis carried the step's
+sideways reckoning, which the mat's read shares.
+
+**Not taken: the step asked further.** The cube lands 0.290 +- 0.011 m
+ahead where the step asks 0.32, and a first try at a cube nearer than 0.285
+held 9 times in 20, further 37 in 44; asked 0.335, the first tries held
+more, but more cubes were never held and three robots fell (49 placed of 64,
+the reference without it 47); asked 0.345, 41.
+
+| development draws (200-231, 300-331) | placed of 64 |
+|---|---|
+| the tree before | 42 |
+| read again before every try, the first too | 13 of 22 (17) |
+| ...after a try that failed, aimed 1 cm on (60, 75, 46, 61 deg) | 47 |
+| ...aimed true | 50 |
+| ...aimed 1 cm on, at 60, 60, 46 and 75 deg | 51 |
+| ...and the carry aimed off by its bias (round 1) | 59 |
+| ...and the step asked to 0.335 | 48 of 62 |
+| round 1's, one tag read again carrying the other, `held` read 0.1 s on (**the reference**, after the review) | **58** |
+
+⚠ What it still loses: the first reach falls on a few draws (2 of the bar's
+32, 1 of 64 dev), the same draws on the tree before; and some cubes are
+never held in four tries (2 of 32), each try stopped short, out of reach or
+shut on nothing.
+
+
+## A flight that never got up (the drift batch of 11-10)
+
+One flight of the doubt rule's drift batch, seed 13 from the hall, never
+finished on either tree: 57 and 72 minutes at full CPU on a pod (an EPYC
+7773X), nothing on its stdout or stderr, where the rest flew whole in 22-42
+minutes. It read as a C call that never returned, and was not one: a
+flight's stdout redirected to a file is block-buffered (a whole flight's
+report is 4 KB, under the 8 KB buffer, so every flight's stdout is empty
+until it ends), and a SIGINT that reaches Python prints its traceback
+within seconds, so the one sent must have reached a shell. Flown again on
+another CPU and Python (an i5-9600KF on 3.14, the pod's 3.12) it hung the
+same way, every flight of it at the same step: 117.7 s in, the explore's
+walk north along the house's east wall crossed the garden's pressure plate
+(a sprung pad 21 mm proud of the floor), went down on it, and fell forward
+0.65 m over the garden lamp's pole (4 cm, which its maps held within 10 cm
+of it), the pole between its legs. The get-up thrashed round the pole and
+lay still against the house's wall, 120 deg from upright, for good. Two
+flights tell the causes apart: with the pad's contacts off (under the
+LIDAR's band and the depth camera's low layer, so nothing the robot senses
+changes) the same walk passed the pole 0.42 m off and never fell; with the
+pole's off from the step it fell, the get-up stood 2.6 s later. The plate
+tripped the served walker, and the pole kept it down.
+
+`HumanoidMission._getup_routine` holds the walk until the get-up stands,
+with no budget of its own: served, a fall it cannot get up from is the
+lifecycle's `stuck` death, whose stand-up closes the routine. The spike's
+lifecycle is not mortal, and the explore's budget and the walk's timeout
+are read only between drive steps. Flown under the served rules (mortal,
+its 300 s restart, the explore inside `_until_stood_up_routine`), the same
+fall is a `stuck` death 20.6 s on, and the stand-up 300 s later closes the
+explore; the physics thread never stalls, and no save is taken while it
+lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
+60 deg or more off its posture, so a get-up stuck short of that never died
+`stuck`.
+
+**What is true now** (#684, Ben's calls of 11-12):
+- A get-up's death is timed off the get-up: a body that rights itself is
+  `stuck` once its get-up has held its legs 20 s, whatever its tilt, a
+  stand under 5 s between two get-ups one struggle on one clock (the drift
+  spike's own guard's rule, kept). Of
+  #679's 151 falls on the served get-up, one that stood dies now (laid on
+  its front against the south wall, up at 21.5 s, its trunk past 60 deg for
+  at most 19.7 s running).
+- Where nothing dies the same clock ends the run (`lifecycle.Stuck`, a
+  `MissionAborted`): every instrument's flight and every demo's day. 13h's
+  own command line, on the raised plate, fell at 117.8 s and ended at
+  137.8 s, its rows kept; the drift spike's own guard is retired for it.
+- A batch's flights are watched (`pluggybot.batch`): their output as it is
+  written, and every thread's stack on `kill -USR1` of a flight's python.
+- The garden's plate is flush with the floor: the floor's own square, read
+  off its load, its pad paint nothing touches (`floor_plate`;
+  ActivityPattern.md §3.1). 13h on it crossed the plate at 115.9-117.5 s,
+  where it had fallen, its pelvis at 0.725 m at the lowest, and five times
+  more, the lamp lit at 115.4 s; it explored, walked both trips and docked
+  with no fall. Of the served walker's straight walks, none fell on the
+  flush plate (15 crossings, 9 begun at a standstill 4 cm off its edge);
+  on the raised pad, none fell either, but all 9 begun at its edge and 3 of
+  the 15 stood on its edge for good (0.10-0.25 m); the lab's three, the
+  same 21 mm sprung pad, were crossed 21 times at speed, and stalled all 9
+  edge starts.
+
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
@@ -7317,3 +7692,9 @@ plate_close:route:1` watches a 0.47 kg plate held close tilt in the jaws from
    in one comparison, and doing the thing twice found the third.
 7. A loop that never ends is named by walking the day routine's generator
    chain (`gi_yieldfrom`) in a reproduction.
+8. A flight that seems hung is read from inside it: run it `-u` (redirected,
+   its stdout says nothing until it ends), signal the Python process and
+   never its shell, and give it `faulthandler.register(SIGUSR1,
+   all_threads=True)`, which dumps every thread's stack with no ptrace; one
+   that calls `prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)` lets `py-spy dump`
+   attach where Yama allows only a parent (scope 1).

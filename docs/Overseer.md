@@ -219,7 +219,9 @@ and never a failed step); a runaway `while` stops at `MAX_ITER` as
 physics thread: four nested loops in one def could run 10^8) as
 `statements`; a failed step, an arithmetic fault (division by zero, a local
 read before it was set) or a computed argument outside a verb's range ends
-the procedure with the step and the reason in the record. A source is at
+the procedure with the step, its line and the reason in the record -- an
+arithmetic fault at its statement's line, in the def it ran in (#686: it
+carried none, and the robot was told "line ?"). A source is at
 most `MAX_SOURCE_CHARS` (3,000 since #560: of 4,838 sources minds wrote in
 practice, never told the cap, 421 were over 1,500 and 47 over 3,000), and
 the text says so; one over it that parses is refused with every reason, the
@@ -1669,13 +1671,17 @@ and when it **turns up** (`cadence.json`): what it **costs**, per world,
 `scripts/energy_spike.py` flies each errand on an oversized pack
 (`BIG_PACK_WH`) and reports the span the loop cannot interrupt. The pack is
 oversized on purpose: a demo cell measures where the robot *died*, not what
-the job costs. Re-run it (`--write`) after anything that changes what an
-errand does. The shipped table for the humanoid (`energy.json`,
-`home_humanoid`): its hand jobs, each its reference's procedures flown
-from the dearest of its stations, the mall's (#560), with the place
-remembered — `open_drawer` 7.138 Wh, `open_door` 7.720, `open_chest`
-7.463, `place_cube` 9.858 (a placement that failed) — exploring at 48.2
-mWh/s, and 338.8 W net into a body plugged in at its station.
+the job costs. Re-run it after anything that changes what an errand does,
+and fold its rows in by hand: `--write` sets each row to the new reading
+and the provenance (`measuredOn`) to one line, where the table carries the
+dearer and says where each row came from. The shipped table for the
+humanoid (`energy.json`, `home_humanoid`): its hand jobs, each its
+reference's procedures flown from the dearest of its stations with the
+place remembered — the counter's from the mall's (#560), `open_drawer`
+7.503 Wh (a try that stopped at its reach), `open_door` 9.041, `open_chest` 8.543,
+`place_cube` 9.858 (a placement that failed), and `set_table` 9.82 from
+the research center's — exploring at 48.2 mWh/s, and 338.8 W net into a
+body plugged in at its station.
 
 - ⚠ **A key may name a target**, and `<errand>:<target>` wins over
   `<errand>` (the rover's `draw` cost 0.929 Wh at the near board and 1.065
@@ -1689,11 +1695,11 @@ mWh/s, and 338.8 W net into a body plugged in at its station.
   the map it already has* — a first errand on a fresh map plans and searches
   through unexplored space, so a row is measured from the station with the
   place remembered — on which station it charged at (the door measured
-  5.17 Wh from the house's, 7.72 from the mall's, and 7.72 is carried) and
-  on the run (the drawer's two procedures once measured 7.036 and 7.082
-  Wh, and the dearer was carried). The failure directions are not
-  symmetric: an over-estimate is a charge nobody needed, an under-estimate
-  is a robot dead in the garden.
+  3.66 Wh from the research center's, 6.53 from the house's and 9.04 from
+  the mall's, and 9.04 is carried) and on the run (the drawer's two
+  procedures once measured 7.036 and 7.082 Wh, and the dearer was
+  carried). The failure directions are not symmetric: an over-estimate is
+  a charge nobody needed, an under-estimate is a robot dead in the garden.
 - **The invariant is not "never exceeded"; it is that an overrun smaller than
   the margin cannot strand the robot.** A bigger one is a stale table, and the
   loop says so (`ENERGY <errand> cost X against an estimate of Y —
@@ -2666,9 +2672,13 @@ HF_TOKEN=... PLUGGY_MODEL=zai-org/GLM-5.3-Flash:cheapest MUJOCO_GL=egl \
 HF_TOKEN=... MUJOCO_GL=egl uv run python scripts/two_robots.py \
     --pack hosting --tasks --overseer --fast --max-sim-time 14400
 
-# re-measure what each errand costs, after anything that changes one
-MUJOCO_GL=egl uv run python scripts/energy_spike.py \
-    --actions open_drawer,open_door,place_cube,open_chest --write
+# re-measure what each errand costs, after anything that changes one: each job
+# from each station (station, station_facility, station_mall), each one's
+# dearest folded into energy.json by hand, the dearer of it and its row kept
+# (`--write` overwrites the rows it measured, the explore's and the charge's
+# too, and their note)
+MUJOCO_GL=egl uv run python scripts/energy_spike.py --station station_mall \
+    --actions open_drawer,open_door,place_cube,open_chest,set_table
 
 # the latency curve and the cost of a candidate deadline; a router candidate; the local box
 HF_TOKEN=... uv run python scripts/overseer_probe.py --calls 50
