@@ -1010,16 +1010,21 @@ class HumanoidBody(Body):
     if abs(turn) > TURN_STOP_RAD:
       patience += TURN_CLOSE_S
 
+    waited = 0.0
+
     def over() -> str | None:
       if mi.falls != falls:
         return "fell"
-      return "out of time" if float(self._d.time) - t0 > patience else None
+      return "out of time" if float(self._d.time) - t0 - waited > patience else None
     length, why = math.hypot(ahead, left), "stepped"
     if abs(turn) > TURN_STOP_RAD or length:
       # the legs to the walker, its arms home, before anything is measured:
       # out of a deep bow the pelvis came 16 cm forward on its own, and the
-      # hand-over outlasted `STEP_STUCK_S` (#525)
+      # hand-over outlasted `STEP_STUCK_S` (#525) -- a wait in it for an
+      # arm's way home counted against no patience, as a walk's (#678)
+      held = mi.held_s
       yield from mi.to_walk_routine()
+      waited = mi.held_s - held
       why = over() or why
     if why == "stepped" and abs(turn) > TURN_STOP_RAD:
       why = yield from self._turn_routine(turn, over, by_legs, s0[2])

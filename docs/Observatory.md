@@ -10,6 +10,53 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A hand's way out and home keeps off the other robot it sees (#678) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `4904a4cb…` → `303b3f0c…`, 64,556 → 65,136
+chars, 17 sections both, over #684's; the session host's hello re-vendored,
+the site's branch `loop-arms`):
+- **A hand's way keeps off another robot's body** where the robot's LIDAR
+  sees it in one look as the move begins (SimNotes, "The arms keep off the
+  other robot"): a cylinder 0.28 m round that robot's middle, 1.55 m tall,
+  kept 5 cm off, within 1.5 m. A `reach` whose every way out, or every way
+  home from there, would meet it, and a `withdraw` whose every way home
+  would, read false and move nothing, saying where that robot stands ("its
+  middle 0.54 m from yours on your right"), a reach what the other hand's
+  way would do. A withdraw refused keeps its gripper as it was, holding
+  what it holds (judged before #669's let-go). At the counter no other way
+  exists, so a robot within about 1 m on the reaching side refuses that
+  arm. A robot it does not see is kept off nowhere -- never where it says
+  it is.
+- **`step`, `drive_to`, `face` and `find` refuse to walk** with a hand out
+  that could not come home, saying so; **the loop's own walks** (a charge,
+  an explore) wait for it at their hand-over, 60 s at most, looking every
+  second, then bring it home.
+- **The texts say it**: `reach`'s, `withdraw`'s, and YOUR BODY's sentence on
+  what a walk does with a hand out.
+- A robot alone is as it was, bit for bit. In the pair, a reach, a
+  withdraw and a walk verb with a hand out each take a LIDAR scan as they
+  begin, so the pair's LIDAR noise is drawn otherwise than in the period
+  before from the first.
+
+**Why.** #678, Ben's call of 11-12: option (a) with its stage 1's four
+recommendations, after the counter falls of 11-08, where an arm on its way
+home hooked the other robot's and both fell.
+
+**What the period is for.**
+- **Whether the minds act on the refusals' words** -- the other hand, a
+  step away, a `tell` -- and how often they come at the counter, where both
+  robots work.
+- **Refusals for nothing**: the cylinder is round and never turned to the
+  heading, so a robot standing square to the counter beside the other can
+  refuse an arm that would have passed it (stage 1: 15 of 40 at 0.71-0.95
+  m). Turned to the heading is Ben's later step, if these show.
+- **Hands left out**: a withdraw refused leaves the hand out, and the world
+  is not saved while one is (`Keeper.busy`); a loop walk waits up to a
+  minute for it.
+- ⚠ Not to be pooled with the periods before for anything a robot's
+  reaches, withdraws or walks at the counter decide, nor for the pair's
+  falls there.
+
 ### A get-up's death is timed off the get-up, and the garden's plate is flush (#684) — opens when this PR is deployed
 
 **What changed.**

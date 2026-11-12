@@ -504,9 +504,12 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
           break
       if why == "fell":
         break
-    if float(self.data.time) > t0 or why != "clear":
-      self.arm_waits.append({"t": round(t0, 3), "s": round(float(self.data.time) - t0, 3),
-                             "sides": out, "why": why})
+    waited = float(self.data.time) - t0
+    if waited > 0.0 or why != "clear":
+      # ...stood still for no walk: the walk counts none of it (`held_s`)
+      self.held_s += waited
+      self.arm_waits.append({"t": round(t0, 3), "s": round(waited, 3), "sides": out,
+                             "why": why})
 
   def look_round(self) -> frozenset[str]:
     """ONE SCAN AT A HAND'S MOVE'S START (#678; Ben, 2026-11-12): its

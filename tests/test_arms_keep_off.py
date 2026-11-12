@@ -18,11 +18,13 @@ section's.
      let-go;
   6. the walk verbs refuse to walk with a hand out that could not come home;
      the loop's own walks wait for it, `ARM_WAIT_S` at most, looking every
-     `ARM_LOOK_S`, then bring it home today's way;
+     `ARM_LOOK_S`, then bring it home today's way -- the wait counted against
+     neither a walk's patience nor its stagnation clock, nor a step's;
   7. nothing of it reads the simulator's truth.
 """
 
 import math
+from types import SimpleNamespace as NS
 
 import mujoco
 import numpy as np
@@ -485,6 +487,50 @@ def test_a_walks_hand_over_waits_its_bound_at_most_then_brings_the_arm_home_toda
     t0 = at()
     body.run(m.to_walk_routine())
     assert m.legs == "walk" and m.looks == 0 and m.arm_waits == [], (out, others)
+
+
+def test_a_walk_counts_no_wait_for_an_arms_way_home_against_its_patience():
+  """A walk's hand-over that waited for an arm's way home (`held_s`) is
+  time the walk stood for nothing of its own: counted, a minute's wait in a
+  loop walk's first command left a 40 s walk out of time before it took a
+  stride, and a longer one gave up "stalled" the moment the arm came home,
+  its stagnation clock run out while it stood. Nor does a step count it."""
+  from pluggybot import tick
+  from pluggybot.humanoid import body as hb
+  from test_step import Stepper, Walk, _step
+  from test_unknown import STEPPER, _Walk
+
+  class Held(_Walk):
+    """`_Walk`, its first command's hand-over standing it `hold` s."""
+
+    def __init__(self, hold, **kw):
+      super().__init__(**kw)
+      self.hold = hold
+
+    def _nav_routine(self, v, w):
+      if self.hold:
+        self.data.time += self.hold
+        self.held_s, self.hold = self.held_s + self.hold, 0.0
+      yield from super()._nav_routine(v, w)
+  for patience in (40.0, 120.0):
+    walk = Held(60.0, step=0.05)
+    assert tick.run(STEPPER, walk.drive_to_routine(5.0, 0.0, patience)), walk.last_drive
+    assert walk.last_drive["why"] == ""
+
+  class HeldWalk(Walk):
+    """`Walk`, its hand-over standing it a minute for an arm's way home."""
+
+    def to_walk_routine(self):
+      if self.legs != "walk":
+        self.t += 60.0
+        self.held_s += 60.0
+        yield hb.STILL
+      yield from super().to_walk_routine()
+  walk = HeldWalk()
+  body = object.__new__(Stepper)
+  body.mission, body._d, body._m = walk, NS(time=0.0), NS(opt=NS(timestep=0.002))
+  rep = _step(body, 0.3)
+  assert rep["why"] == "stepped", rep
 
 
 # ---- 7: hardware-honest ------------------------------------------------------------------------

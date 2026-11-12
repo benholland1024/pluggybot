@@ -62,6 +62,7 @@ class _Drive:
   whose drive is the `Navigator`'s) -- with the planner and the legs
   stubbed: every command is 0.1 s, and the robot moves `step` m along x."""
   drive_to_routine = HumanoidMission.drive_to_routine
+  held_s = HumanoidMission.held_s
   _drove = HumanoidMission._drove
   _at_stand_in = HumanoidMission._at_stand_in
   _other_in_the_way = HumanoidMission._other_in_the_way

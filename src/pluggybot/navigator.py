@@ -272,6 +272,13 @@ class Navigator:
   PEER_STOP_HALF_M = PEER_STOP_HALF_M
   PEER_CLEARANCE_M = PEER_CLEARANCE_M
   FACING_TOLERANCE = FACING_TOLERANCE
+  #: How long, s, this body has stood still inside a walk's own first
+  #: command, waiting on something no drive is about -- the humanoid's
+  #: hand-over, an arm's way home kept off another robot (#678,
+  #: `HumanoidMission._arms_wait_routine`) -- which a drive counts against
+  #: neither its patience nor its stagnation clock, as a stop's question;
+  #: 0 for a body that never waits.
+  held_s = 0.0
   #: How a drive's progress is read (`STAGNATION_S`): in a straight line to
   #: the goal, the rover's, or ALONG THE ROUTE it plans (issue #387): from
   #: the bedroom's corner the only way to the hall door walks 2.5 m round
@@ -875,7 +882,16 @@ class Navigator:
     # plans a way past it, and a drive at its stand-in replans every step
     next_goal_ask = t0
     aimed = False                      # has it faced its route yet (`AIMED_RAD`)
-    while self.data.time - t0 < timeout:
+    held = self.held_s
+    while True:
+      if self.held_s != held:
+        # ...its legs' hand-over stood it waiting (#678): neither its patience
+        # nor its stagnation clock ran, and the world moved meanwhile
+        took, held = self.held_s - held, self.held_s
+        t0, last_improve = t0 + took, last_improve + took
+        waypoints, self._plan_memo = [], None
+      if self.data.time - t0 >= timeout:
+        break
       dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
       if dist < 0.08 and not waypoints:
         return self._drove(wx, wy, t0, "")

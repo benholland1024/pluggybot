@@ -378,7 +378,9 @@ save a filmstrip PNG named after the script.
   at a counter none does, so a robot within about 1 m beside refuses that
   arm and the minds work it out. With a hand out that could not come home
   the walk verbs refuse (`Body.arm_kept`) and the loop's walks wait
-  `ARM_WAIT_S` (60 s) at most, then bring it home. ⚠ THEN ITS LEGS GO
+  `ARM_WAIT_S` (60 s) at most, then bring it home -- ⚠ the wait counted
+  against no walk's patience nor its stagnation clock (`Navigator.held_s`:
+  counted, a walk gave up "stalled" as its arm came home). ⚠ THEN ITS LEGS GO
   BACK TO THE STANDING POLICY, AND ITS POSTURE IS WAITED ON `STAND_BACK_S`
   AT MOST (#668; SimNotes, "Making way,
   standing"): asked aside as its arm came home, the walker took them and a
