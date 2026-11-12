@@ -27,6 +27,7 @@ import numpy as np
 from pluggybot.evaluation import counter as ct
 from pluggybot.perception import box
 from pluggybot.procedure import steps as st
+from pluggybot.procedure.axes import UNREAD
 
 SET_OUTS = {"drawer": ct.drawer_set_out, "door": ct.door_set_out, "cube": ct.cube_set_out,
             "lid": ct.set_out, "table": ct.table_set_out}
@@ -126,7 +127,7 @@ def ends_at(model, data, tree, pictures, stance, windows, out, tag):
           kinds.append("robot" if h is None else "lower" if h < top - 0.015
                        else "taller" if h > top + 0.015 else "on")
       else:
-        why = report["unread"].get(key, "")
+        why = report[UNREAD].get(key, "")
         status = next((word for text, word in WHY if text in why), "?")
       row = {**tag, "at": [mx, my], "top": round(top, 3), "end": key, "status": status,
              "read": None if at is None else round(at, 3), "truth": kinds}

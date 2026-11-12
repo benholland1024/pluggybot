@@ -18,11 +18,12 @@ Challenges.md §12):
   `find` or a `pull` that read false, a call refused before it ran, or one a
   fall or a death closed forgets what its verb last reported, as before;
   reading it now says "spot.z has no reading: your last `spot` failed",
-  where it said "`spot` has not run" after a `spot` that had. A verb never
-  called still says it has not run. A `watch` that fails before it begins
-  (no whole tag, or its call refused) ends the watch before it, whose
-  readings read as its own, and the procedure's end forgets that word with
-  its watch.
+  where it said "`spot` has not run" after a `spot` that had; so does
+  `reach.stopped` (and `move_hand`'s and `pull`'s) after a first call
+  refused. A verb never called still says it has not run. A `watch` that
+  fails before it begins (no whole tag, or its call refused) ends the watch
+  before it, whose readings read as its own, and the procedure's end
+  forgets that word with its watch.
 - **A fault in a statement's own arithmetic names its line** -- an
   assignment's, an `if`'s or an `elif`'s test, a `while`'s and its cap.
   History: "it stopped at line 5, an expression: …", where it said "it

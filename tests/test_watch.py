@@ -265,6 +265,21 @@ def test_a_watch_that_failed_before_it_began_ends_the_last_and_reads_so(call):
   assert ran["steps"][-1]["reason"] == "watch.seen has no reading: `watch` has not run", ran
 
 
+def test_a_watch_with_no_reading_in_its_wait_reads_as_failed_and_watches_on():
+  """#686's review: a `watch` begun whose first reading had not come by the
+  end of its wait read false and watches on, and a read before that reading
+  said "`watch` has not run" after it had. It says the last `watch`
+  failed, and the watch goes on to read as it comes. Shown to fail on the
+  words as they were."""
+  body = _Watching(_sighting(), after=0.6)
+  ran = _fly('def a():\n    if not watch(53):\n        s = read("watch.seen")\n', body)
+  assert ran["steps"][-1]["reason"] == "watch.seen has no reading: your last `watch` failed", ran
+  body = _Watching(_sighting(), after=0.6)
+  ran = _fly('def a():\n    if not watch(53):\n        wait(0.2)\n    s = read("watch.seen")\n',
+             body)
+  assert ran["ok"] and ran["locals"] == {"s": 1.0}, ran
+
+
 def test_watch_is_the_languages_only_where_the_facts_name_it():
   """Behind the practice's switch (`hand_facts(watching=)`), as `measure`
   is: unwatched, no verb and no readings, and the served robots' verbs and

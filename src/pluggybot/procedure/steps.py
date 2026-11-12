@@ -319,7 +319,9 @@ def _find(life, args: dict) -> Routine:
          "seconds": rec.get("seconds"), "remembered": bool(rec.get("remembered")),
          **({"at": list(rec["at"])} if rec.get("at") else {})}
   # ...where it found it, read as `find.*` (#559): in its map, as it
-  # remembers the place -- its face's way the best it knows (`Places.facing`)
+  # remembers the place -- its face's way the best it knows (`Places.facing`).
+  # A find is found only once its place is kept (`find_routine`'s `seen`),
+  # so one with none read false
   place = life.body.places.get(tag) if out["ok"] and life.body.places is not None else None
   if place is not None:
     _reports(life)["find"] = {"x": float(place.x), "y": float(place.y),
@@ -602,6 +604,10 @@ def _watch(life, args: dict) -> Routine:
     yield from life.body.hold_routine(WATCH_POLL_S)
     waited += WATCH_POLL_S
   got = life.body.sighting()
+  if got is None:
+    # ...no reading by the end of its wait: it watches on, and until one
+    # comes, reading it says this call failed
+    _unread(life, "watch")
   if got is None or not got["seen"]:
     return {"ok": False, "tag": int(tag),
             "reason": f"tag {int(tag)} is not in view of your colour camera now"}
@@ -825,21 +831,27 @@ def _stopped_reading(life, verb: str, stopped: bool) -> None:
   _reports(life).setdefault("stopped", {})[verb] = 1.0 if stopped else 0.0
 
 
+def _unread(life, verb: str) -> None:
+  """`verb`'s report, after a call of it that failed: no reading, and
+  reading it says so (`axes.unread`), never that it has not run (#686)."""
+  from pluggybot.procedure import axes
+  _reports(life)[verb] = {axes.UNREAD: f"your last `{verb}` failed"}
+
+
 def forget_readings(life, verb: str) -> None:
   """A call that failed before it could report -- refused before it ran
   (`lang`, a computed argument), closed by a fall or a death (`run_verb`),
   or a `spot`, a `find` or a `pull` that read false: what its verb last
-  reported would read as this call's, so it goes -- a retry computes just
-  such an argument, as a distance left of what `pull.moved` read -- and
-  reading it says this call failed (#686: worded as a verb never run, it
-  told a robot `spot` had not run after one that had). A `watch`'s
-  readings are its watch's, which ends with it. Its stop condition's
-  reading is a move's that ended otherwise (#650's review)."""
-  from pluggybot.procedure import axes
-  reports = _reports(life)
-  reports[verb] = {axes.UNREAD: f"your last `{verb}` failed"}
+  reported would read as this call's, so it goes (`_unread`) -- a retry
+  computes just such an argument, as a distance left of what `pull.moved`
+  read. A `watch`'s readings are the running watch's, so that watch ends
+  -- here, where a refused call, which never reaches `_watch`, comes too.
+  Its stop condition's reading is a move's that ended otherwise (#650's
+  review)."""
+  _unread(life, verb)
   if verb == "watch":
     life.body.watch(None)
+  reports = _reports(life)
   if verb in reports.get("stopped", {}):
     _stopped_reading(life, verb, False)
 

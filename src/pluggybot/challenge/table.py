@@ -263,14 +263,12 @@ def _listed(items: list[str]) -> str:
 def _laid(raw: dict, metrics: dict) -> tuple[bool, str]:
   """Criteria 1 to 4 on measurements all there: the verdict and its
   reason. ⚠ EVERY PIECE AT FAULT IS NAMED, ONCE, BY ITS FIRST FAULT IN
-  THE CRITERIA'S ORDER, in the words it gets alone (#687: named the first
-  piece alone, a practicing robot read the cup's 3-6 cm, unsaid behind the
-  plate, as laid) -- a drop, else where it ended, how it lies or the fork's
-  turn -- and each rule ONCE over the pieces it names: every fault's
-  sentence whole, 11 of D5's 30 tries' reasons ran a settled job's History
-  line past its 400 characters, and this way none (379 at most). What
-  still touched the place is said of one otherwise laid, as before: beside
-  the pieces, 5 of those 30 ran past it."""
+  THE CRITERIA'S ORDER -- its drop, else where it ended, how it lies or the
+  fork's turn -- in the words it gets alone (#687; Challenges.md §12), and
+  each rule ONCE over the pieces it names: said whole for each, a fall with
+  all three dropped ran a settled job's History line to 438 characters of
+  its 400, and D5's longest try to 393 (once, 275 and 340). What still
+  touched the place is said of one otherwise laid, as before."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
     return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
                    f"not the {HOLD_S:.0f} s the job asks for")

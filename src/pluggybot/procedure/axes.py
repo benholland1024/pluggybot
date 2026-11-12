@@ -163,8 +163,7 @@ UNREAD = "unread"
 def unread(verb: str, key: str, life) -> str:
   """Why `verb`'s last report holds no `key`: what that report says
   (`UNREAD`), or, where no call of it left one, that it has not run --
-  never that, after a call that failed (#686: told so after a `spot` that
-  ran, a robot was told an untruth)."""
+  never that after a call of it that failed (#686)."""
   why = ((getattr(life, "reports", None) or {}).get(verb) or {}).get(UNREAD)
   if isinstance(why, dict):
     why = why.get(key)
@@ -411,7 +410,7 @@ def _stopped(verb: str):
   def read(life) -> float:
     got = ((getattr(life, "reports", None) or {}).get("stopped") or {}).get(verb)
     if got is None:
-      raise NoReading(f"{verb}.stopped has no reading: `{verb}` has not run")
+      raise NoReading(f"{verb}.stopped has no reading: {unread(verb, 'stopped', life)}")
     return float(got)
   return read
 
