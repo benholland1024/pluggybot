@@ -151,3 +151,29 @@ ACTION_SCALE = {
 
 def get_robot_cfg() -> EntityCfg:
   return EntityCfg(init_state=INIT_STATE, spec_fn=get_spec, articulation=ARTICULATION)
+
+
+#: A body welded at each hand's grip site, a load carried in its jaws (#682,
+#: `walk.carry_env_cfg`): its mass set at every reset, a point mass there.
+PAYLOADS = ("left_payload", "right_payload")
+#: ...built this light, kg, and this small, kg*m^2 (a body's mass is the
+#: event's to set; a welded one moves nothing of its own).
+PAYLOAD_BUILT_KG, PAYLOAD_INERTIA = 1e-4, 1e-7
+
+
+def get_carry_spec() -> mujoco.MjSpec:
+  """The robot with a payload body at each grip site (`PAYLOADS`), welded
+  to its hand: what a carried piece weighs, where the jaws hold it -- never
+  the hand's middle, where walk2's `hand_kg` added its load. In the
+  training model only."""
+  spec = get_spec()
+  for side, name in zip(("left", "right"), PAYLOADS):
+    hand = spec.body(f"{side}_hand")
+    grip = next(s for s in hand.sites if s.name == f"{side}_grip")
+    hand.add_body(name=name, pos=list(grip.pos), mass=PAYLOAD_BUILT_KG,
+                  inertia=[PAYLOAD_INERTIA] * 3)
+  return spec
+
+
+def get_carry_robot_cfg() -> EntityCfg:
+  return EntityCfg(init_state=INIT_STATE, spec_fn=get_carry_spec, articulation=ARTICULATION)
