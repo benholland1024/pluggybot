@@ -540,3 +540,15 @@ def test_the_lift_pulls_with_the_most_the_pull_verb_asks():
   """A typed copy, pinned: the lift's force is what the standing body holds
   at a hand, the `pull` verb's most (an import would be circular)."""
   assert hmis.CARRY_LIFT_N == st.PULL_MOST_N
+
+
+def test_the_carrying_walker_trains_on_the_carry_pose_the_walk_takes():
+  """`Pluggy-Humanoid-Walk-Carry` draws a share of its carries near the pose
+  the served walk takes (#682's stage B, carry3): the two are one pose, read
+  off training's source (its environment is its own: nothing imports it)."""
+  import ast
+  from pathlib import Path
+  src = (Path(__file__).resolve().parents[1] / "training" / "humanoid_train" / "walk.py").read_text()
+  close = next(ast.literal_eval(n.value) for n in ast.walk(ast.parse(src))
+               if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "CARRY_CLOSE")
+  assert tuple(close) == tuple(rc.CARRY_POSE)

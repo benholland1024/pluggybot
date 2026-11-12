@@ -537,6 +537,13 @@ CARRY_BOX = {"shoulder_pitch": (-1.2, 0.3), "shoulder_roll": (0.05, 0.6),
 #: time.
 CARRY_SEGMENT_S = (4.0, 15.0)
 CARRY_SHARES = (0.3, 0.2, 0.5)
+#: THE CARRY POSE the served walk takes (`pluggybot.humanoid.reach.CARRY_POSE`,
+#: Ben's `close`: the LEFT arm's shoulder pitch, roll, yaw and elbow, rad; a
+#: pluggybot test reads the two alike), and how far round it, rad, a carry
+#: drawn near it lies (`CarryArmsCfg.close_share`), its wrist anywhere in the
+#: carry box -- the wrist that levels a piece there depends on the piece.
+CARRY_CLOSE = (0.15, 0.25, 0.0, 2.00)
+CARRY_CLOSE_SPREAD = 0.15
 #: What a carried piece weighs at each grip, kg, drawn at each reset
 #: (`robot.PAYLOADS`): the table's dishware is 0.04-0.50 kg, and 1 kg a
 #: stack or a full bowl.
@@ -550,6 +557,9 @@ class CarryArmsCfg(ScriptedArmsCfg):
   """`stand.ScriptedArmsCfg` with carries held (`CarryArms`)."""
   segment_s: tuple[float, float] = CARRY_SEGMENT_S
   shares: tuple[float, float, float] = CARRY_SHARES
+  #: Share of carries drawn near `CARRY_CLOSE` rather than across the box
+  #: (carry3: 0.5; carry2: 0).
+  close_share: float = 0.0
 
   def build(self, env) -> "CarryArms":
     return CarryArms(self, env)
@@ -578,6 +588,18 @@ class CarryArms(ScriptedArms):
       hi.append(b)
     self.carry_lo = torch.tensor(lo, device=self.device)
     self.carry_hi = torch.tensor(hi, device=self.device)
+    near_lo, near_hi = list(lo), list(hi)
+    for i, name in enumerate(names):
+      side, kind = name.split("_", 1)
+      j = ("shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow")
+      if kind in j:
+        c = CARRY_CLOSE[j.index(kind)]
+        if side == "right" and kind in MIRRORED:
+          c = -c
+        near_lo[i] = max(lo[i], c - CARRY_CLOSE_SPREAD)
+        near_hi[i] = min(hi[i], c + CARRY_CLOSE_SPREAD)
+    self.near_lo = torch.tensor(near_lo, device=self.device)
+    self.near_hi = torch.tensor(near_hi, device=self.device)
     self.half = len(self.ids) // 2
     self.mode = torch.zeros(self.num_envs, 2, dtype=torch.long, device=self.device)
     self.segment = torch.zeros(self.num_envs, 2, device=self.device)
@@ -605,8 +627,10 @@ class CarryArms(ScriptedArms):
     mode = torch.bucketize(torch.rand(n, device=self.device), self.cum).clamp(max=2)
     self.mode[env_ids, k] = mode
     self.segment[env_ids, k] = torch.empty(n, device=self.device).uniform_(*self.cfg.segment_s)
-    carry = self.carry_lo[sl] + torch.rand(n, self.half, device=self.device) * (
-      self.carry_hi[sl] - self.carry_lo[sl])
+    near = (torch.rand(n, 1, device=self.device) < self.cfg.close_share)
+    lo = torch.where(near, self.near_lo[sl], self.carry_lo[sl])
+    hi = torch.where(near, self.near_hi[sl], self.carry_hi[sl])
+    carry = lo + torch.rand(n, self.half, device=self.device) * (hi - lo)
     goal = torch.where((mode == self.CARRY)[:, None], carry, self.rest[env_ids, sl])
     moving = mode == self.MOVE
     if moving.any():
