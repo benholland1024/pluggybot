@@ -438,6 +438,11 @@ class _Arms:
     #: where each judged way home ended (`toward`: a carry pose, or None home)
     self.carry_q = {s: None for s in hm.SIDES}
     self.toward = []
+    self.rest = {s: np.array([0.0, 0.1 if s == "left" else -0.1, 0.0, 0.3, 0.0, 0.0])
+                 for s in hm.SIDES}
+
+  def out(self, side) -> bool:
+    return self.phase[side] == "hold"
 
   def carried(self, side) -> bool:
     return self.phase[side] == "carried" and self.carry_q[side] is not None

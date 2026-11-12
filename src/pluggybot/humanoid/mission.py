@@ -114,6 +114,10 @@ HELD_DROP_M = 0.12
 #: the arm; and an arm stopped on its way by the force it read and let go
 #: there fell with the drawer's spring.
 CARRY_LIFT_M, CARRY_LIFT_N = 0.02, 20.0
+#: ...and waited on this long at most, s, then ended where the hand is and
+#: read as not come away: 2 cm at the hand's 0.06 m/s is a third of a second,
+#: and a hold that gives slowly would hold every walk for good (#668's class).
+CARRY_LIFT_S = 3.0
 #: A depth frame this often, s -- the ground's map's too (`humanoid.scan`):
 #: at the part's 10 Hz, its ray-cast frames slowed one robot's real time
 #: from 2.7x to 1.8x, and at 1 m/s two frames 0.2 m apart still overlap.
@@ -477,16 +481,21 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     return True
 
   def carries(self) -> dict[str, np.ndarray]:
-    """What a walk's hand-over would carry (#682): by side, each arm that
-    is out and whose gripper says it holds something, and the carry pose it
-    is taken to -- the one it is held at already, carried, else its own
-    (`Reach.carry_pose`). Nothing moves."""
+    """What a walk's hand-over would carry (#682): by side, each arm whose
+    gripper says it holds something and that is out at a pose of its own
+    (`Reach.out`, which its lift tests) or carried already, and the carry
+    pose it is taken to -- the one it is held at, carried, else its own
+    (`Reach.carry_pose`). An arm on its way anywhere else, or walked joint by
+    joint, is none: nothing has shown that what it holds comes away. Nothing
+    moves, and no joint is read."""
     out = {}
     for s in hm.SIDES:
-      if self.reach.phase[s] == "rest" or not self.reach.grippers[s].held():
+      if not self.reach.grippers[s].held():
         continue
-      q = self.reach.carry_q[s]
-      out[s] = q.copy() if q is not None and self.reach.carried(s) else self.reach.carry_pose(s)
+      if self.reach.carried(s):
+        out[s] = self.reach.carry_q[s].copy()
+      elif self.reach.out(s):
+        out[s] = self.reach.carry_pose(s)
     return out
 
   def to_walk_routine(self):
@@ -544,8 +553,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     lifting = [s for s in carry if self.reach.out(s)]
     for s in lifting:
       self.reach.pull(s, (0.0, 0.0, 1.0), CARRY_LIFT_N, CARRY_LIFT_M, give=False)
-    falls = self.falls
+    falls, t0 = self.falls, float(self.data.time)
     while any(self.reach.phase[s] == "carry" for s in lifting) and self.falls == falls:
+      if float(self.data.time) - t0 >= CARRY_LIFT_S:
+        # ...a lift that will not end, ended where the hand is: not come away
+        for s in lifting:
+          self.reach.stop(s, "out of time")
+        break
       yield STILL
       self._after_step()
     if self.falls != falls:

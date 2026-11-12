@@ -412,7 +412,8 @@ class Lidar:
     its ray reached, through a wall 7.5 m behind. ⚠ WHAT A HAND HOLDS IS NO
     READING (`drop`: centres, levelled as the points are -- x and y from
     the root, z over the floor -- and a radius, m; #682's self-filter): a
-    return within it is the robot's own, as a ray that met its body is,
+    return of the room's within it is the robot's own, as a ray that met its
+    body is (another robot's is its own, split out as ever),
     neither a point nor a ray that went on -- else its front stop backed it
     off its own plate, and a ray stopped by the plate laid its bearing free
     through what stood behind."""
@@ -422,12 +423,12 @@ class Lidar:
     rot, base = level @ turn, level @ offset
     lo, hi = band_m
 
-    def flat(points):
+    def flat(points, held=None):
       q = points @ rot.T + base
       z = height + q[:, 2]
       v = q[:, :2] - base[:2]
       r = np.hypot(v[:, 0], v[:, 1])
-      mine = _held(q[:, 0], q[:, 1], z, drop)
+      mine = _held(q[:, 0], q[:, 1], z, held)
       keep = (z >= lo + rise * r) & (z <= hi) & (r < self.max_range) & ~mine
       banded = keep
       a, r = np.arctan2(v[keep, 1], v[keep, 0]), r[keep]
@@ -446,7 +447,10 @@ class Lidar:
       # and which were what a hand holds
       return have, a[m0], (r[m0] + r[m1]) / 2, banded, mine
 
-    have, angles, ranges, banded, held = flat(c.points)
+    # ...what a hand holds among the room's returns alone: another robot's
+    # are its, split out by the part's own reading (#316), and dropped from
+    # the scan they would leave the front stop blind to it
+    have, angles, ranges, banded, held = flat(c.points, drop)
     p_have, peer_angles, peer_ranges, p_banded, p_held = flat(c.peers)
     # ...and which robots those in the band came off, by the split's labels
     # (#675: what keeps one standing at its body, `HubLifecycle.keep_clear`)

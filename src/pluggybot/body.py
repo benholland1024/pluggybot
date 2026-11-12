@@ -1341,7 +1341,7 @@ class StubBody(Body):
     """A walk's hand-over, as the body's (#682): a hand out whose grip holds
     is carried, every other comes home."""
     keep = {s for s in self.hands if self.grips.get(s)}
-    self.carried |= keep
+    self.carried = keep
     for s in list(self.hands):
       if s not in keep:
         self.hands.pop(s)

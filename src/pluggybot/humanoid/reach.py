@@ -1578,14 +1578,19 @@ class Reach:
     """The arm's six joints a walk carries a hand at (#682): `CARRY_POSE`'s
     shoulder and elbow (mirrored for the right), its wrist's pitch and roll
     the ones that keep the hand turned as it is now against the floor --
-    the floor's up in the hand's own frame as it is now, off its senses
-    (`grip_now`) -- so what it holds is kept as it is: level, lifted level.
-    ⚠ SOLVED ON THE STATUE OF THE STAND (`statue`, posture 0), where a walk
-    carries it, never the posture it holds now: solved bowed, a plate lifted
-    from a reach's 0.3 rad bow was carried 15-17 deg tipped once the trunk
-    stood up. Each joint `arms.RANGE_MARGIN` inside its range; never what
-    the hand holds, which it cannot know."""
-    _, r_now = self.grip_now(side)
+    the floor's up in the hand's own frame as it is held now -- the turn its
+    command keeps (as `carry` keeps it), else its model as last posed, never
+    its joints read again (each read draws on their noise, and a check
+    before a walk would move the flight) -- so what it holds is kept as it
+    is: level, lifted level. ⚠ SOLVED ON THE STATUE OF THE STAND (`statue`,
+    posture 0), where a walk carries it, never the posture it holds now:
+    solved bowed, a plate lifted from a reach's 0.3 rad bow was carried 15-17
+    deg tipped once the trunk stood up. Each joint `arms.RANGE_MARGIN` inside
+    its range; never what the hand holds, which it cannot know."""
+    if self.cmd[side] is not None and self.cmd[side].rot is not None:
+      r_now = np.asarray(self.cmd[side].rot, dtype=float)
+    else:
+      r_now = self.self_model.grip_pose(side)[1]
     up = r_now.T @ np.array([0.0, 0.0, 1.0])
     sm = self._planner_model()
     idx = sm.arm[side]
@@ -1781,7 +1786,9 @@ class Reach:
       self.homes[side] = self.way_home(side)
     self.q_to[side] = self.homes[side].pop(0)
     self.phase[side] = "home"
-    if all(p in ("rest", "home") for p in self.phase.values()):
+    # ...the stand once no hand is out at its work: one carried at the side
+    # is none (#682), and kept the reach's bow, a withdraw left it bowed
+    if all(p in ("rest", "home", "carried") for p in self.phase.values()):
       self.hold_posture(0.0, 0.0)
 
   def home(self, side: str) -> bool:

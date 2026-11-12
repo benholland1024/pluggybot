@@ -33,7 +33,7 @@ from pluggybot.body import body_for
 from pluggybot.humanoid import mission as hmis
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import reach as rc
-from pluggybot.humanoid.arms import SelfModel
+from pluggybot.humanoid.arms import HandGoal, SelfModel
 from pluggybot.perception.lidar import BEARINGS, Cloud
 from pluggybot.procedure import steps as st
 from test_hands import _Life, _stub
@@ -144,8 +144,15 @@ def test_a_let_go_and_a_withdraw_end_a_carry():
                     lambda: float(body.data.time))
     m.reach.phase["right"], m.reach.carry_q["right"] = "carried", np.zeros(6)
     body.run(body.release_routine("right", refuse=True))
-    assert m.reach.toward == [("right", None)], "a withdraw judged its way to the carry pose"
+    assert m.reach.toward == [("right", m.reach.rest["right"].tolist())], \
+      "a withdraw judged its way to the carry pose"
     assert m.reach.carry_q["right"] is None
+    # ...and the loop's own release (a charge's), which waits for its way home
+    # rather than refuse it, judges it home too: its carry ended first
+    m.reach.toward.clear()
+    m.reach.phase["right"], m.reach.carry_q["right"] = "carried", np.zeros(6)
+    body.run(body.release_routine("right"))
+    assert m.reach.toward and all(end is None for _, end in m.reach.toward), m.reach.toward
   finally:
     body.close()
 
@@ -188,10 +195,16 @@ def test_the_carry_pose_keeps_the_hand_turned_against_the_floor_solved_standing(
     stand._set_arm(side, want)
     turn = stand.grip_pose(side)[1].copy()
     up = _hand_up(stand, side)
-    # ...while the robot's model of itself still stands in a reach's bow
+    # ...while the robot's model of itself still stands in a reach's bow --
+    # the turn its command keeps, and no joint read again (a read draws on
+    # the drivers' noise: a check before a walk would move the flight)
     rc.statue(r.self_model, (-0.16, 0.3, 0.0), q0)
-    r.grip_now = lambda s: (np.zeros(3), turn)
+    r.cmd[side] = HandGoal(np.zeros(3), turn, 1.0)
+    reads = []
+    real_read = r.stand.joints.read
+    r.stand.joints.read = lambda d: reads.append(1) or real_read(d)
     q = r.carry_pose(side)
+    assert reads == [], "the carry pose read the joints again"
     assert np.allclose(q[:4], rc.seed(side, (*rc.CARRY_POSE, 0.0, 0.0))[:4])
     rc.statue(stand, (0.0, 0.0, 0.0), q0)
     stand._set_arm(side, q)
@@ -372,6 +385,158 @@ def test_a_step_holding_something_walks_and_its_report_says_what_it_carried():
   assert rep["ok"] and rep["why"] == "stepped" and rep["carried"] == ["left"], rep
   assert "dropped" not in rep and body.stepped == [(0.2, 0.0, 0.0)]
   assert ran["locals"]["r"] == pytest.approx(0.2)
+  # ...a hand carried whose grip reads empty by the walk's end was dropped
+  # (the stub's walk is at once: its grip read as the walk ends)
+  life = _Life(body)
   body.grips["left"] = False
+  assert st._carried(life) == {"carried": ["left"], "dropped": ["left"]}
+  # ...and the next walk carries it no longer: its hand-over let it go
   ran = body.run(lang.run_procedure_routine(_Life(body), proc, facts))
-  assert ran["steps"][0]["dropped"] == ["left"]
+  assert "carried" not in ran["steps"][0] and not body.carrying("left")
+
+
+# ---- the review's: a carry rests, rides a restart, is bounded and judged home ------
+
+
+def test_a_hand_carried_at_its_side_is_no_hand_at_work():
+  """A carry lasts until a reach or a let-go: counted as a hand out, the
+  world was never saved through it (`Keeper.busy`), and the robot never
+  rested to be asked aside (#682's review). Held at its side as a hanging
+  arm is, it is neither -- and the walks' aside carries it, as any walk."""
+  body = body_for(*_floor())
+  m = body.mission
+  try:
+    m.reach.carry_q["left"] = m.reach.q_cmd["left"].copy()
+    m.reach.phase["left"] = "carried"
+    assert not body.working and not m._hand_out()
+    m.reach.phase["right"] = "hold"
+    assert body.working and m._hand_out()
+  finally:
+    body.close()
+
+
+def test_a_carried_arm_rides_a_restart():
+  """What a restart keeps of the reach (`Reach.KEPT`) brings a carry back:
+  its phase, its pose and the carry pose its way home ends at."""
+  a, b = body_for(*_floor()), body_for(*_floor())
+  try:
+    ra, rb = a.mission.reach, b.mission.reach
+    ra.carry_q["left"] = np.array([0.15, 0.25, 0.0, 2.0, -1.2, -1.1])
+    ra.q_cmd["left"] = ra.carry_q["left"].copy()
+    ra.phase["left"] = "carried"
+    rb.restore_kept(ra.kept_state())
+    assert rb.carried("left") and np.array_equal(rb.carry_q["left"], ra.carry_q["left"])
+    assert rb.carry_q["right"] is None and np.array_equal(rb.home_to("left"), ra.carry_q["left"])
+  finally:
+    a.close()
+    b.close()
+
+
+def test_a_lift_that_never_ends_is_ended_and_carries_nothing(monkeypatch):
+  """A hold that gives slowly kept a lift going and every walk waiting on it
+  (the #668 class): it is ended where the hand is after `CARRY_LIFT_S`, read
+  as not come away, and the hand let go."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  _spy_opens(monkeypatch, body, log)
+  at = lambda: float(body.data.time)  # noqa: E731
+  grippers = m.reach.grippers
+  m.reach = _Out(grippers, ("left",), log, at, lifts={"left": None})
+  stopped = []
+
+  def never(side, way, force, distance_m, speed=None, give=True):
+    log.append(("lift", side, at()))
+    m.reach.phase[side] = "carry"
+    return True
+  m.reach.pull = never
+  m.reach.step = lambda: None
+  m.reach.stop = lambda side, why: stopped.append((side, why)) or m.reach.phase.update(
+    {side: "hold"}) or m.reach.report.update({side: {"why": why}})
+  grippers["left"].shut()
+  monkeypatch.setattr(grippers["left"], "held", lambda: True)
+  t0 = at()
+  body.run(m.to_walk_routine())
+  assert stopped == [("left", "out of time")]
+  assert at() - t0 < hmis.CARRY_LIFT_S + 2.0 and m.legs == "walk"
+  assert ("open", "left") in [e[:2] for e in log] and m.reach.carry_q["left"] is None
+
+
+def test_only_a_hand_out_at_a_pose_of_its_own_or_carried_is_carried(monkeypatch):
+  """A hand on its way anywhere, or walked joint by joint by `move`, holding
+  something, has shown nothing comes away -- its lift needs a pose of its
+  own (#682's review: a drawer's handle held through a `move` was dragged
+  out) -- so a walk lets it go."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  _spy_opens(monkeypatch, body, log)
+  at = lambda: float(body.data.time)  # noqa: E731
+  grippers = m.reach.grippers
+  m.reach = _Out(grippers, ("left",), log, at)
+  m.reach.phase["left"] = "joints"
+  grippers["left"].shut()
+  monkeypatch.setattr(grippers["left"], "held", lambda: True)
+  assert m.carries() == {}
+  body.run(m.to_walk_routine())
+  said = [e[:2] for e in log]
+  assert ("lift", "left") not in said and ("open", "left") in said, said
+
+
+def test_a_withdraw_refused_keeps_its_carry_and_judges_the_way_to_its_rest():
+  """A withdraw of a carried hand is judged home -- to its rest -- before
+  anything ends the carry: refused for another robot's body, the hand stays
+  carried, its carry as it was (#682's review: dropped first, the arm hung
+  at its side carried by no one's account)."""
+  from test_arms_keep_off import _Arms, _beside
+  body = body_for(*_floor())
+  m = body.mission
+  try:
+    _beside(body)
+    m.reach = _Arms(m.reach.grippers, (), lambda: False, [], lambda: float(body.data.time))
+    m.reach.phase["left"], m.reach.carry_q["left"] = "carried", np.zeros(6)
+    assert body.run(body.release_routine("left", refuse=True)) == "kept off"
+    assert m.reach.carried("left") and np.array_equal(m.reach.carry_q["left"], np.zeros(6))
+    rest = m.reach.toward[0][1]
+    assert m.reach.toward[0][0] == "left" and rest is not None and not np.allclose(rest, 0.0)
+  finally:
+    body.close()
+
+
+def test_a_hand_home_stands_the_body_back_beside_one_carried():
+  """The posture goes back to the stand once no hand is out at its work --
+  and one carried at its side is none: kept the reach's bow, a withdraw of
+  the other hand left the robot bowed, its plate at its side."""
+  from test_hands import _bare_reach
+  r = _bare_reach()
+  r.phase["left"], r.carry_q["left"] = "carried", np.zeros(6)
+  r.phase["right"] = "hold"
+  r.way_home = lambda side, refuse=False: [np.zeros(6)]
+  r._go_home("right")
+  assert r.postures[-1][:2] == (0.0, 0.0)
+
+
+def test_another_robots_returns_stand_within_a_held_grips_volume():
+  """The self-filter is the room's returns' alone: another robot's are split
+  out by the part's own reading (#316) and dropped, the front stop would be
+  blind to it (#682's review)."""
+  lidar = _bare_lidar()
+  joints = {j: 0.0 for j in hm.WAIST}
+  offset, turn = lidar.mount.pose(joints)
+  height = 0.7
+  n_el = len(lidar.elevations)
+  ray = int(np.argmin(np.abs(lidar.elevations))) * BEARINGS
+  peer = Cloud(np.zeros((0, 3)), np.array([[0.3, 0.0, 0.0]]), np.zeros(BEARINGS, dtype=bool),
+               np.isin(np.arange(n_el * BEARINGS), [ray]), np.zeros(0, dtype=np.int64),
+               np.array([ray]), np.zeros(n_el * BEARINGS, dtype=bool), np.array([0]))
+  lidar.cloud = lambda data: peer
+  q = peer.peers[0] @ turn.T + offset
+  scan = lidar.band(None, np.eye(3), height, joints=joints,
+                    drop=(np.array([[q[0], q[1], height + q[2]]]), hmis.HELD_DROP_M))
+  assert len(scan.peer_ranges) == 1 and scan.peer_ranges[0] == pytest.approx(0.3, abs=0.01)
+
+
+def test_the_lift_pulls_with_the_most_the_pull_verb_asks():
+  """A typed copy, pinned: the lift's force is what the standing body holds
+  at a hand, the `pull` verb's most (an import would be circular)."""
+  assert hmis.CARRY_LIFT_N == st.PULL_MOST_N

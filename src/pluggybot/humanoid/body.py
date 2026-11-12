@@ -423,8 +423,11 @@ class HumanoidBody(Body):
   @property
   def working(self) -> bool:
     """A hand out (#559): its move is a routine's, which no file holds, so
-    a restart's save waits it out (`continuation.Keeper.busy`)."""
-    return any(p != "rest" for p in self.reach.phase.values())
+    a restart's save waits it out (`continuation.Keeper.busy`) -- but not
+    one carried at its side (#682), held there as a hanging arm is, its
+    pose and its carry kept (`Reach.KEPT`): a carry lasts until a reach or a
+    let-go, and saves held through it, a crash rolled the world back."""
+    return any(p not in ("rest", "carried") for p in self.reach.phase.values())
 
   def close(self) -> None:
     if self._tags is not None:
@@ -756,19 +759,19 @@ class HumanoidBody(Body):
     yield from self.mission.to_stand_routine()
     falls = self.mission.falls
     self._kept.pop(side, None)
-    # ...a hand carried at its side comes home too: its way home is its rest
-    # (#682)
-    self.reach.drop_carry(side)
     try:
       # ...its way home judged against another robot its LIDAR sees, ONE look
-      # as it begins (#678), before the let-go
+      # as it begins (#678), before the let-go -- home to its rest, a hand
+      # carried at its side too (#682), whose carry ends only once it goes
       if refuse:
         self.reach.keep_out = (self.mission.keep_out(self.mission.look_round())
                                if self.reach.phase[side] != "rest" else [])
-        if self.reach.keep_out and not self.reach.home_clear(side):
+        if self.reach.keep_out and not self.reach.home_clear(side, self.reach.rest[side]):
           self._kept[side] = dict(self.reach.kept[side])
           return "kept off"
+        self.reach.drop_carry(side)
       else:
+        self.reach.drop_carry(side)
         yield from self.mission._arms_wait_routine((side,), nav=False)
         if self.mission.falls != falls:
           return "fell"

@@ -29,8 +29,6 @@ the site's branch `loop-carry`):
 - **The self-filter**: every LIDAR return and every point of the depth
   camera's low layer within 0.12 m of a grip that holds is the robot's own,
   in neither its map, its matcher nor its front stop.
-- **The table's reference squeezes the plate at 80 N** (40 before): the
-  served `set_table` lay is that reference.
 - **The texts say it**: YOUR BODY's sentence on what a walk does with a hand
   out, `step`'s doc, and the words of a walk refused for a carried arm's way
   to its side (#678's refusal composed).
@@ -50,10 +48,8 @@ the shelf-to-table task, whose set-out is stage C's.
   -- whether the lift reads it held fast every time (flown: a drawer's
   handle and a door's lever, 3 of 3), or carries a lid's knob that comes
   away 2 cm.
-- **The table job's rate** with the plate at 80 N (the reference's check:
-  SimNotes, "Carrying, served").
 - ⚠ Not to be pooled with the periods before for anything a walk after a
-  procedure decides, nor for the table job's rate.
+  procedure decides.
 
 ### A hand's way out and home keeps off the other robot it sees (#678) — opens when this PR is deployed
 
