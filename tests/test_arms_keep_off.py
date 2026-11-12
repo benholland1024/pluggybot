@@ -128,6 +128,32 @@ def test_at_a_counter_no_way_that_dips_deeper_is_taken():
   assert not r.reach("right", goal) and r.kept["right"]["home"] is False
 
 
+#: A hand already out over the work going on to another place (drawn,
+#: `probe/out_hand_search.py`): straight there its arm meets a robot 0.65 m
+#: ahead and to its right; the side way keeps clear of it, 3 cm deeper.
+OUT_FROM = np.array([-0.08, -0.21, 0.77, 0.73, 0.2, -1.51])
+OUT_TO = np.array([-0.95, -1.19, 0.37, 0.0, 0.48, -0.99])
+
+
+def test_a_hand_already_out_takes_no_way_on_that_dips_deeper_than_straight():
+  """A hand already out goes on straight today, its way's dip unjudged (it
+  sweeps nothing aside); kept off another robot, another way it takes dips
+  no deeper over the work than straight would have -- judged as the arm
+  stands at its end -- or none is taken."""
+  r = _standing_reach()
+  r.q_cmd["right"] = OUT_FROM.copy()
+  today = r.way_out("right", OUT_TO)
+  assert len(today) == 1 and np.allclose(today[0], OUT_TO), "the premise: straight on"
+  r.keep_out = [_at(0.65, -30)]
+  sm = r._planner_model()
+  r._pose_planner(sm, None)
+  aside = rc._side_way("right", OUT_TO, OUT_FROM)[::-1][1:] + [OUT_TO]
+  start = rc.room(sm, "right", OUT_FROM, [], r.keep_out)
+  assert rc.room(sm, "right", OUT_FROM, aside, r.keep_out) - min(rc.OTHER_CLEAR_M, start) > 0.0, \
+    "the premise: the side way keeps clear of it"
+  assert r.way_out("right", OUT_TO) is None, "it took a way deeper over the work"
+
+
 # ---- 3: whom it keeps off, and where -------------------------------------------------------
 
 

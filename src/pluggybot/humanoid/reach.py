@@ -1494,7 +1494,7 @@ class Reach:
     its pitch. The side way only where it dips less. Where another robot
     stands by (`keep_out`, #678), the way judged against its body as it
     stands and stood up (`_kept_off`): None where every way crosses it and
-    `refuse`, else today's way."""
+    `refuse`, else the one that comes least near it."""
     return self._judged(side, self.q_cmd[side].copy(), self.rest[side].copy(), out=False,
                         poses=(None, (0.0, 0.0, 0.0)), refuse=refuse)
 
@@ -1538,13 +1538,14 @@ class Reach:
 
   def _picked(self, sm, side: str, q0, q1, out: bool):
     """`_judged`'s way with nobody by, and how far a way dips (m; 0 where
-    nothing it works over is ahead)."""
+    nothing it works over is ahead; None for a hand already out, whose way
+    today is never judged so: `_kept_off` judges another against it)."""
     ahead = front(sm, side, self.rest[side])
     if out:
       sm._set_arm(side, q0)
       if (outline(sm, side)[:, 0] > ahead).any():
         # a hand already out sweeps nothing aside on its way to the next
-        return [q1], lambda w: 0.0
+        return [q1], None
     sm._set_arm(side, q1 if out else q0)
     p = outline(sm, side)
     there = p[p[:, 0] > ahead]
@@ -1580,6 +1581,17 @@ class Reach:
     aside = _side_way(side, q1, q0)[::-1][1:] + [q1] if out else _side_way(side, q0, q1)
     ways = [pick] + [w for w in (straight, aside, _tucked_way(side, q0, q1))
                      if not _same_way(w, pick)]
+    if dips is None:
+      # ...a hand already out: another way dips no deeper under the lowest
+      # of the arm ahead at its end than going straight there does
+      ahead = front(sm, side, self.rest[side])
+      sm._set_arm(side, q1)
+      p = outline(sm, side)
+      there = p[p[:, 0] > ahead]
+      low = float(there[:, 1].min()) if len(there) else -math.inf
+
+      def dips(w):
+        return dip(sm, side, q0, w, low, ahead) if len(there) else 0.0
     deepest = max(HOME_DIP_M, dips(pick))
     best, best_way = -math.inf, pick
     for i, w in enumerate(ways):
