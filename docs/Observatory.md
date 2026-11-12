@@ -12,13 +12,13 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A walk carries what a hand holds (#682's stage A) — opens when this PR is deployed
 
-**What changed** (`prompt_sha` `303b3f0c…` → `b7562d8b…`, 65,136 → 65,703
+**What changed** (`prompt_sha` `303b3f0c…` → `609b7ad5…`, 65,136 → 65,730
 chars, 17 sections both, over #678's; the session host's hello re-vendored,
 the site's branch `loop-carry`):
 - **A walk carries a hand that holds** (Ben's calls of 11-12; SimNotes,
   "Carrying, served"): before any walk -- a `step` too, and the loop's own --
-  a hand that is out whose gripper says it holds something is lifted 2 cm,
-  and if what it holds came away, keeps its grip, comes out along its line
+  a hand that is out whose gripper says it holds something is raised 2 cm,
+  and if what it holds came with it, keeps its grip, comes out along its line
   and folds to the robot's side (the forearm up, the hand at the hips),
   turned against the floor as it was, and stays there through the walk and
   after, until a reach or a let-go ends it. A hand that holds nothing, or
