@@ -431,6 +431,33 @@ def test_a_get_up_that_stands_a_moment_and_goes_down_again_is_one_struggle():
   assert life.dead["t"] - t0 == pytest.approx(21.0 + GETUP_S, abs=2 * lc.DEATH_CHECK_S)
 
 
+@pytest.mark.parametrize("up", [lambda s: False, lambda s: s % 5.0 >= 4.0,
+                                lambda s: 15.0 <= s < 15.0 + lc.STOOD_AGAIN_S + 1.0,
+                                lambda s: s >= 12.0],
+                         ids=["never up", "up 1 s in every 5", "up 6 s, down again", "up at 12 s"])
+def test_the_fall_tables_read_a_get_up_on_the_clock_the_death_seam_keeps(up):
+  """#679's second round reads `humanoid_spike.py --fall`'s tables on #684's
+  clock, which the instrument keeps off its own trials (`StuckClock`): it
+  must die when the seam's does, and not before, on the seam's own
+  timelines -- a sit to the end, a stand under `STOOD_AGAIN_S` between two
+  get-ups, a stand held."""
+  import sys
+  from pathlib import Path
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+  import humanoid_spike as sp
+  end = GETUP_S + 15.0
+  life, t0 = _getting_up(lambda s: 45.0, up=up)
+  life.body.run(life.body.hold_routine(end))
+  clock, s = sp.StuckClock(), 0.0
+  while s < end:
+    clock.check(s, not up(s))
+    s += 0.002
+  if life.dead is None:
+    assert clock.died is None
+  else:
+    assert clock.died == pytest.approx(life.dead["t"] - t0, abs=2 * lc.DEATH_CHECK_S)
+
+
 def test_a_body_that_rights_itself_lying_with_no_get_up_running_is_down_all_the_same():
   """...and one lying past 60 deg whose get-up does not have its legs (none
   should: the fall watch takes them at 35) is down all the same -- the

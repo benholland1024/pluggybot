@@ -36,7 +36,9 @@ trained on open floor alone never stood a robot lying against one.
 
 import copy
 import functools
+import json
 import math
+from pathlib import Path
 
 import mujoco
 import mujoco_warp as mjwarp
@@ -72,8 +74,9 @@ EPISODE_S = 10.0
 #: How each episode starts, and the share of them: on its back, on its
 #: front or on a side (each a few centimetres up, its joints near the
 #: stand's), dropped from 0.85-1.05 m any way up with its joints anywhere
-#: near the stand's, or TIPPING from its stand at a shove's speed.
-KINDS = ("back", "front", "side", "dropped", "tipping")
+#: near the stand's, TIPPING from its stand at a shove's speed, or POSED
+#: where a get-up was seen to end (`POSES`; none but `-Getup-Wall2`'s).
+KINDS = ("back", "front", "side", "dropped", "tipping", "posed")
 STARTS = {"back": 0.3, "front": 0.25, "side": 0.0, "dropped": 0.2, "tipping": 0.25}
 #: A side start's pelvis, m: clear of the floor with an arm under it.
 SIDE_M = 0.22
@@ -134,11 +137,31 @@ HEAD_STARTS = {"back": 0.15, "front": 0.15, "side": 0.15, "dropped": 0.15, "tipp
 #: back -- the one way of lying the served get-up never stood from -- and
 #: `left` the share of a body on its back or front with the box at its left;
 #: `share` is the lying starts', `tipping_share` the tipping starts'.
-OBSTACLE = {"share": 0.5, "tipping_share": 0.25, "counter": 0.6, "counter_top_m": (0.6, 0.95),
+OBSTACLE = {"share": 0.5, "tipping_share": 0.25, "posed_share": 0.5, "counter": 0.6,
+            "counter_top_m": (0.6, 0.95),
             "wall_top_m": 2.4, "lying": {"beside": 0.7, "head": 0.15, "feet": 0.15},
-            "front": 0.9, "left": 0.5, "tipping": {"into": 0.5, "along": 0.5},
+            "front": 0.9, "left": 0.5, "tipping": {"into": 0.5, "along": 0.5, "far": 0.0},
             "gap_m": {"beside": (0.0, 0.25), "head": (0.0, 0.35), "feet": (0.0, 0.35),
-                      "into": (0.05, 0.5), "along": (0.0, 0.3)}}
+                      "into": (0.05, 0.5), "along": (0.0, 0.3), "far": (0.7, 1.4),
+                      "posed": (0.0, 0.4)}}
+#: `-Getup-Wall2`'s box (#679's second round): with half the tipping starts,
+#: and FAR in 0.4 of those -- into the way it tips, its face 0.7-1.4 m past
+#: the standing body's reach, a wall its head meets as it lands (the hall's
+#: walls 1.48 m off its middle, the storeroom's north wall 1.2 m off the
+#: chest's work spot); a sitter's at any side in half of the posed starts.
+OBSTACLE2 = {**OBSTACLE, "tipping_share": 0.5, "tipping": {"into": 0.3, "along": 0.3, "far": 0.4}}
+
+#: `-Getup-Wall2` (#679's second round): where D3's wall policy was seen to
+#: stand still in four falls today's get-up stands from -- three sitting on
+#: the floor, one propped on a wall -- and each fall as the get-up was handed
+#: it, moving (`humanoid_spike.py --fall-ends`): each drawn evenly, mirrored
+#: half the time, at any heading, each joint off its pose by up to
+#: `POSE_SPREAD_RAD` and the trunk's roll and pitch by up to `POSE_TILT_RAD`,
+#: its lowest part `POSE_DROP_M` over the floor. One recorded `against` its
+#: face starts against it (a wall's, where it was); the others take the box
+#: at any side in `posed_share` of them.
+POSES = Path(__file__).with_name("getup_poses.json")
+POSE_SPREAD_RAD, POSE_TILT_RAD, POSE_DROP_M = 0.2, 0.1, 0.02
 #: Its stand is the served get-up's: within 10 deg of upright
 #: (`getup.STOOD_TILT_RAD`), and touching nothing of the box. ⚠ Paid at the
 #: open floor's 0.9 (25 deg), it stood leaning on the counter 18 deg off
@@ -150,6 +173,8 @@ DOWN_M, DOWN_WEIGHT = 0.4, -1.0
 #: `-Getup-Wall`'s starts: `-Getup-Head`'s with twice the sides (a body on
 #: its side, front to the box, is the one getup3 never stood from).
 WALL_STARTS = {**HEAD_STARTS, "side": 0.3}
+#: `-Getup-Wall2`'s: `-Getup-Wall`'s, and POSED in 0.2 beside their 1.15.
+WALL2_STARTS = {**WALL_STARTS, "posed": 0.2}
 #: Its episodes, s: a slower stand beside a face still earns.
 WALL_EPISODE_S = 20.0
 #: Its PPO: the entropy bonus kept (at 0 the action's noise fell from 0.23
@@ -212,10 +237,80 @@ def _quat_from_rpy(roll, pitch, yaw):
                      dim=-1)
 
 
+def _quat_mul(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+  """The product a b of (w, x, y, z) quaternions."""
+  aw, ax, ay, az = a.unbind(-1)
+  bw, bx, by, bz = b.unbind(-1)
+  return torch.stack([aw * bw - ax * bx - ay * by - az * bz, aw * bx + ax * bw + ay * bz - az * by,
+                      aw * by - ax * bz + ay * bw + az * bx, aw * bz + ax * by - ay * bx + az * bw],
+                     dim=-1)
+
+
+def _quat_apply(quat: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+  """v turned by the (w, x, y, z) quaternion."""
+  w, u = quat[:, :1], quat[:, 1:]
+  t = 2.0 * torch.cross(u, v, dim=-1)
+  return v + w * t + torch.cross(u, t, dim=-1)
+
+
+def _poses(env, asset, names: tuple[str, ...] | None):
+  """The posed starts' table (`POSES`) in the asset's joint order, read once:
+  each pose's joints and their speeds and their mirror image's, its trunk
+  with no heading (w, x, y, z) and its velocity (linear, angular: the world's
+  turned by that heading), whether it starts against its face, and the
+  face's way off the heading (rad) and distance from the pelvis (m)."""
+  key = ("_getup_poses", names)
+  cache = getattr(env, "_getup_pose_cache", {})
+  if key not in cache:
+    table = json.loads(POSES.read_text())["poses"]
+    chosen = [k for k in table if names is None or k in names]
+    if not chosen:
+      raise ValueError(f"no pose of {names} in {POSES}")
+    joints = list(asset.joint_names)
+    default = asset.data.default_joint_pos[0]
+    index, sign = [], []
+    for name in joints:
+      side, _, part = name.partition("_")
+      twin = (("right" if side == "left" else "left") + "_" + part
+              if side in ("left", "right") else name)
+      index.append(joints.index(twin))
+      sign.append(-1.0 if part in FLIPS or name.endswith("_yaw") and twin == name else 1.0)
+    q, qd, quat, vel, lean, ang, dist = [], [], [], [], [], [], []
+    for k in chosen:
+      pose = table[k]
+      row, speed = default.clone(), torch.zeros_like(default)
+      for j, name in enumerate(joints):
+        if name in pose["joints"]:
+          row[j] = pose["joints"][name]
+          speed[j] = pose.get("joint_vel", {}).get(name, 0.0)
+      q.append(row)
+      qd.append(speed)
+      quat.append(pose["quat_level"])
+      vel.append(pose.get("lin_vel", [0.0] * 3) + pose.get("ang_vel", [0.0] * 3))
+      lean.append(bool(pose["against"]))
+      ang.append((pose["face"] or {"angle": 0.0})["angle"])
+      dist.append((pose["face"] or {"dist": 0.0})["dist"])
+    dev = env.device
+    q, qd = torch.stack(q).to(dev), torch.stack(qd).to(dev)
+    index, sign = torch.tensor(index, device=dev), torch.tensor(sign, device=dev)
+    vel = torch.tensor(vel, device=dev, dtype=torch.float32)
+    # the mirror image's: a polar vector's y turned over, an axial one's x and z
+    flip = torch.tensor([1.0, -1.0, 1.0, -1.0, 1.0, -1.0], device=dev)
+    cache[key] = {"q": q, "q_mirror": q[:, index] * sign, "qd": qd, "qd_mirror": qd[:, index] * sign,
+                  "quat": torch.tensor(quat, device=dev, dtype=torch.float32),
+                  "vel": vel, "vel_mirror": vel * flip,
+                  "lean": torch.tensor(lean, device=dev), "angle": torch.tensor(ang, device=dev),
+                  "dist": torch.tensor(dist, device=dev)}
+    env._getup_pose_cache = cache
+  return cache[key]
+
+
 def reset_fallen(env, env_ids, starts: dict | None = None,
-                 asset_cfg: SceneEntityCfg = _ROBOT, obstacle: dict | None = None) -> None:
+                 asset_cfg: SceneEntityCfg = _ROBOT, obstacle: dict | None = None,
+                 poses: tuple[str, ...] | None = None) -> None:
   """Each episode's start, drawn by `starts` (`STARTS`'s kinds), and with
-  `obstacle` (`OBSTACLE`'s draws) the box placed against it."""
+  `obstacle` (`OBSTACLE`'s draws) the box placed against it; a posed start
+  among `poses` (`POSES`' names; all of them by default)."""
   env_ids = envs_mdp.events.resolve_env_ids(env, env_ids)
   asset = env.scene[asset_cfg.name]
   shares = [(starts or STARTS).get(k, 0.0) for k in KINDS]
@@ -223,7 +318,7 @@ def reset_fallen(env, env_ids, starts: dict | None = None,
   u = torch.rand(n, device=dev) * sum(shares)
   edges = torch.cumsum(torch.tensor(shares, device=dev), 0)
   kind = torch.searchsorted(edges, u.contiguous()).clamp(max=len(KINDS) - 1)
-  back, front, side, dropped, tipping = (kind == k for k in range(len(KINDS)))
+  back, front, side, dropped, tipping, posed = (kind == k for k in range(len(KINDS)))
   yaw = torch.empty(n, device=dev).uniform_(-math.pi, math.pi)
   roll = torch.empty(n, device=dev).uniform_(-0.3, 0.3)
   pitch = torch.where(back, torch.full_like(yaw, -math.pi / 2),
@@ -249,17 +344,51 @@ def reset_fallen(env, env_ids, starts: dict | None = None,
   vel[:, 0], vel[:, 1] = speed * torch.cos(way), speed * torch.sin(way)
   turn = speed / robot.BODY["stand_height"]
   vel[:, 3], vel[:, 4] = -turn * torch.sin(way), turn * torch.cos(way)
-  asset.write_root_state_to_sim(
-    torch.cat([pos, _quat_from_rpy(roll, pitch, yaw), vel], dim=-1), env_ids)
+  quat = _quat_from_rpy(roll, pitch, yaw)
   q0 = asset.data.default_joint_pos[env_ids]
   spread = torch.where(dropped, 0.6, torch.where(tipping, 0.0, 0.3))[:, None]
   q = q0 + spread * (2 * torch.rand_like(q0) - 1)
+  lean = face_ang = face_dist = None
+  qd = torch.zeros_like(q0)
+  if bool(posed.any()):
+    # ...where a get-up was seen to end: its pose (mirrored half the time),
+    # turned to `yaw`, tilted a little, its joints a little off
+    table = _poses(env, asset, poses)
+    pick = torch.randint(len(table["q"]), (n,), device=dev)
+    mirrored = torch.rand(n, device=dev) < 0.5
+    pose_q = torch.where(mirrored[:, None], table["q_mirror"][pick], table["q"][pick])
+    level = table["quat"][pick]
+    level = torch.where(mirrored[:, None], level * torch.tensor([1.0, -1.0, 1.0, -1.0], device=dev),
+                        level)
+    tilt = _quat_from_rpy(_uniform(n, (-POSE_TILT_RAD, POSE_TILT_RAD), dev),
+                          _uniform(n, (-POSE_TILT_RAD, POSE_TILT_RAD), dev), yaw)
+    quat = torch.where(posed[:, None], _quat_mul(tilt, level), quat)
+    q = torch.where(posed[:, None], pose_q + POSE_SPREAD_RAD * (2 * torch.rand_like(q0) - 1), q)
+    qd = torch.where(mirrored[:, None], table["qd_mirror"][pick], table["qd"][pick])
+    moving = torch.where(mirrored[:, None], table["vel_mirror"][pick], table["vel"][pick])
+    turned = torch.cat([_quat_apply(tilt, moving[:, :3]), _quat_apply(tilt, moving[:, 3:])], -1)
+    vel = torch.where(posed[:, None], turned, vel)
+    lean = posed & table["lean"][pick]
+    face_ang = torch.where(mirrored, -table["angle"][pick], table["angle"][pick])
+    face_dist = table["dist"][pick]
+    pos[:, 2] = torch.where(posed, torch.full_like(yaw, 1.0), pos[:, 2])
   limits = asset.data.soft_joint_pos_limits[env_ids]
   q = torch.max(torch.min(q, limits[..., 1]), limits[..., 0])
-  asset.write_joint_state_to_sim(q, torch.zeros_like(q), env_ids=env_ids)
+  asset.write_root_state_to_sim(torch.cat([pos, quat, vel], dim=-1), env_ids)
+  asset.write_joint_state_to_sim(q, qd, env_ids=env_ids)
+  if lean is not None:
+    # ...its lowest part `POSE_DROP_M` over the floor, off where its geoms are
+    with wp.ScopedDevice(env.sim.wp_device):
+      mjwarp.kinematics(env.sim.wp_model, env.sim.wp_data)
+    down = torch.zeros(n, 3, device=dev)
+    down[:, 2] = -1.0
+    below = _reach(env, env_ids, down, pos, asset_cfg)     # how far under the root it reaches
+    floor = env.scene.env_origins[env_ids][:, 2]
+    pos[:, 2] = torch.where(posed, floor + below + POSE_DROP_M, pos[:, 2])
+    asset.write_root_state_to_sim(torch.cat([pos, quat, vel], dim=-1), env_ids)
   if obstacle is not None:
-    quat = _quat_from_rpy(roll, pitch, yaw)
-    _place_obstacle(env, env_ids, obstacle, pos, quat, tipping, way, asset_cfg)
+    _place_obstacle(env, env_ids, obstacle, pos, quat, tipping, way, asset_cfg,
+                    posed=posed, lean=lean, face_ang=face_ang, face_dist=face_dist, yaw=yaw)
 
 
 def _uniform(n, lo_hi, device) -> torch.Tensor:
@@ -312,17 +441,24 @@ def _reach(env, env_ids, toward: torch.Tensor, root: torch.Tensor,
 
 
 def _place_obstacle(env, env_ids, draws: dict, pos, quat, tipping, way,
-                    asset_cfg: SceneEntityCfg) -> None:
+                    asset_cfg: SceneEntityCfg, posed=None, lean=None, face_ang=None,
+                    face_dist=None, yaw=None) -> None:
   """The box against each start (`OBSTACLE`): drawn present, a counter's
   top or a wall's, its face square to a way from the root -- beside the
-  trunk, beyond the head or the feet of a body lying; into or along the
-  way a body tips -- a gap past the body's reach that way; else parked."""
+  trunk, beyond the head or the feet of a body lying; into, along or FAR
+  into the way a body tips; at any side of a body posed, or where a posed
+  body leant (`lean`: a wall, `face_dist` from the pelvis at `face_ang` off
+  its heading `yaw`) -- a gap past the body's reach that way; else parked."""
   n, dev = len(env_ids), env.device
+  none = torch.zeros(n, dtype=torch.bool, device=dev)
+  posed = none if posed is None else posed
+  lean = none if lean is None else lean
   with wp.ScopedDevice(env.sim.wp_device):   # the starts just written: where each geom is
     mjwarp.kinematics(env.sim.wp_model, env.sim.wp_data)
   share = torch.where(tipping, draws["tipping_share"], draws["share"])
-  present = torch.rand(n, device=dev) < share
-  counter = torch.rand(n, device=dev) < draws["counter"]
+  share = torch.where(posed, draws.get("posed_share", draws["share"]), share)
+  present = (torch.rand(n, device=dev) < share) | lean
+  counter = (torch.rand(n, device=dev) < draws["counter"]) & ~lean
   top = torch.where(counter, _uniform(n, draws["counter_top_m"], dev),
                     torch.full((n,), draws["wall_top_m"], device=dev))
   top = torch.where(present, top, torch.full_like(top, PARKED_TOP_M))
@@ -332,7 +468,8 @@ def _place_obstacle(env, env_ids, draws: dict, pos, quat, tipping, way,
   long = torch.where(head.norm(dim=-1) > 0.3, long, _uniform(n, (-math.pi, math.pi), dev))
   side = torch.where(torch.rand(n, device=dev) < 0.5, 1.0, -1.0)
   lying_p = torch.tensor([draws["lying"][k] for k in ("beside", "head", "feet")], device=dev)
-  tip_p = torch.tensor([draws["tipping"][k] for k in ("into", "along")], device=dev)
+  tip_p = torch.tensor([draws["tipping"].get(k, 0.0) for k in ("into", "along", "far")],
+                       device=dev)
   lie = torch.multinomial(lying_p, n, replacement=True)
   tip = torch.multinomial(tip_p, n, replacement=True)
   # Beside a body on its side: at its front (`front` of them) or its back;
@@ -346,14 +483,24 @@ def _place_obstacle(env, env_ids, draws: dict, pos, quat, tipping, way,
                        torch.where(lefts.norm(dim=-1) > 0.7, leftward, long + side * math.pi / 2))
   ang = torch.where(lie == 0, across, torch.where(lie == 1, long, long + math.pi))
   ang = ang + _uniform(n, (-0.25, 0.25), dev)
-  ang = torch.where(tipping, torch.where(tip == 0, way + _uniform(n, (-0.6, 0.6), dev),
-                                         way + side * math.pi / 2 + _uniform(n, (-0.3, 0.3), dev)),
-                    ang)
+  tipped = torch.where(tip == 0, way + _uniform(n, (-0.6, 0.6), dev),
+                       torch.where(tip == 1, way + side * math.pi / 2 + _uniform(n, (-0.3, 0.3), dev),
+                                   way + _uniform(n, (-0.5, 0.5), dev)))
+  ang = torch.where(tipping, tipped, ang)
   gaps = {k: _uniform(n, draws["gap_m"][k], dev) for k in draws["gap_m"]}
   gap = torch.where(lie == 0, gaps["beside"], torch.where(lie == 1, gaps["head"], gaps["feet"]))
-  gap = torch.where(tipping, torch.where(tip == 0, gaps["into"], gaps["along"]), gap)
+  gap = torch.where(tipping, torch.where(tip == 0, gaps["into"],
+                                         torch.where(tip == 1, gaps["along"], gaps["far"])), gap)
+  if bool(posed.any()):
+    ang = torch.where(posed, _uniform(n, (-math.pi, math.pi), dev), ang)
+    ang = torch.where(lean, yaw + face_ang, ang)
+    gap = torch.where(posed, gaps["posed"], gap)
   toward = torch.stack([torch.cos(ang), torch.sin(ang), torch.zeros_like(ang)], -1)
-  face = _reach(env, env_ids, toward, pos, asset_cfg) + gap
+  reach = _reach(env, env_ids, toward, pos, asset_cfg)
+  face = reach + gap
+  if bool(lean.any()):
+    # ...where it leant, never inside the body as its joints now lie
+    face = torch.where(lean, torch.maximum(face_dist, reach + 0.005), face)
   centre = pos.clone()
   centre[:, :2] = pos[:, :2] + toward[:, :2] * (face + OBSTACLE_HALF[0])[:, None]
   centre[:, 2] = top - OBSTACLE_HALF[2]
@@ -777,4 +924,16 @@ def getup_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.events["reset_base"].params["starts"] = dict(WALL_STARTS)
   if not play:
     cfg.episode_length_s = WALL_EPISODE_S
+  return cfg
+
+
+def getup_wall2_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """`-Getup-Wall2` (#679's second round): `-Getup-Wall` with the bodies
+  posed where its policy was seen to end (`POSES`: three sitting, one propped
+  on a wall) among its starts, and a wall FAR in the way a body tips
+  (`OBSTACLE2`) -- carried on from getupwall10 (`--agent.load-run
+  '.*_getupwall10$' --agent.load-checkpoint model_8450.pt`)."""
+  cfg = getup_wall_env_cfg(play)
+  cfg.events["reset_base"].params["obstacle"] = copy.deepcopy(OBSTACLE2)
+  cfg.events["reset_base"].params["starts"] = dict(WALL2_STARTS)
   return cfg

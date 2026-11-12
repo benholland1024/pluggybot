@@ -3923,8 +3923,115 @@ def filmstrip_stairs(out: str, every_s: float = 2.0) -> None:
 from pluggybot.humanoid.getup import (COLLAPSED_M, FALL_TILT_RAD, GETUP_NPZ,  # noqa: E402
                                       FallWatch, GetupDriver, over_lower_sole, tipped)
 from pluggybot.body import TOPPLE_TILT_RAD  # noqa: E402
+from pluggybot.humanoid.body import HumanoidBody  # noqa: E402
+from pluggybot.lifecycle import DEATH_CHECK_S, STOOD_AGAIN_S  # noqa: E402
 from pluggybot.navigator import footprint_middle  # noqa: E402
 from pluggybot.perception.lidar import robot_geoms  # noqa: E402
+
+#: A get-up's fall is flown until its `stuck` clock settles (`StuckClock`),
+#: this long from the shove (or the lying start) at most, s.
+CLOCK_CAP_S = 60.0
+
+
+class StuckClock:
+  """#684's `stuck` clock as the death seam keeps it (`HubLifecycle.
+  _death_step`, its constants), read off a trial's own timeline -- graded by
+  us off the truth: down while the get-up has the legs or the trunk lies past
+  `TOPPLE_TILT_RAD` off the posture its legs hold; a stand under
+  `STOOD_AGAIN_S` before it goes down again one struggle on one clock; dead
+  `stuck` once down `GETUP_BUDGET_S` since its struggle began. Settled once it
+  died, or stood `STOOD_AGAIN_S` after a struggle."""
+
+  def __init__(self):
+    self.since = self.up_since = None
+    self.next_t, self.died, self.struggles, self.lived = 0.0, None, 0, False
+
+  def check(self, t: float, down: bool) -> None:
+    if self.died is not None or t < self.next_t:
+      return
+    self.next_t = t + DEATH_CHECK_S
+    if not down:
+      if self.since is not None:
+        self.up_since = t if self.up_since is None else self.up_since
+        if t - self.up_since < STOOD_AGAIN_S:
+          return
+        self.lived = True
+      self.since = self.up_since = None
+      return
+    self.up_since, self.lived = None, False
+    if self.since is None:
+      self.since, self.struggles = t, self.struggles + 1
+    elif t - self.since >= HumanoidBody.GETUP_BUDGET_S:
+      self.died = t
+
+  @property
+  def settled(self) -> bool:
+    return self.died is not None or self.lived
+
+  def verdict(self) -> dict:
+    """`died` (and when), `lived` (up `STOOD_AGAIN_S` after its last
+    struggle), `held` (never down), or `open` (the watch ended first)."""
+    word = ("died" if self.died is not None else "lived" if self.lived
+            else "held" if self.struggles == 0 else "open")
+    return {"verdict": word, "died_s": self.died, "struggles": self.struggles}
+
+
+def _down_now(d, root: int, pitch: float) -> bool:
+  """The trunk past `TOPPLE_TILT_RAD` off a posture pitched `pitch` forward
+  (`HubLifecycle._chassis_tilt`, off the truth)."""
+  w, x, y, z = d.xquat[root]
+  up = (1.0 - 2.0 * (x * x + y * y)) * math.cos(pitch) - 2.0 * (x * z - w * y) * math.sin(pitch)
+  return math.acos(max(-1.0, min(1.0, up))) >= TOPPLE_TILT_RAD
+
+
+class Served:
+  """A get-up's fall flown on past its first stand as the mission flies it
+  (`humanoid.mission`: the legs back to the standing policy, the fall watch
+  on, a fall taken again), and its `stuck` clock read (`StuckClock`): every
+  get-up (s from the trial's start: taken, stood or None) and the verdict."""
+
+  def __init__(self, t0: float, npz: str | None):
+    self.t0, self.npz, self.f = t0, npz, None
+    self.clock, self.getups = StuckClock(), []
+
+  def took(self, t: float) -> None:
+    self.getups.append([t - self.t0, None])
+
+  def stood(self, h: "Humanoid", t: float) -> None:
+    """The first get-up stood: the mission's own stepping from here on."""
+    self.getups[-1][1] = t - self.t0
+    self.f = Falling(h, self.npz)
+
+  def step(self) -> None:
+    """One physics step past the first stand."""
+    was = self.f.up
+    self.f.step()
+    t = self.f.h.d.time
+    if self.f.up and not was:
+      self.took(t)
+    elif was and not self.f.up:
+      self.getups[-1][1] = t - self.t0
+
+  @property
+  def getting_up(self) -> bool:
+    """The get-up has the legs: its first take till it stood, or a later one."""
+    if self.f is not None:
+      return self.f.up
+    return bool(self.getups) and self.getups[-1][1] is None
+
+  def check(self, d, root: int, pitch: float) -> None:
+    if d.time - self.t0 >= self.clock.next_t:
+      self.clock.check(d.time - self.t0, self.getting_up or _down_now(d, root, pitch))
+
+  def going(self, t: float, watch: float) -> bool:
+    """Whether the trial flies on, `t` s from its start: to its own watch
+    before any get-up, and from the first till the clock settles."""
+    if not self.getups:
+      return t < watch
+    return not self.clock.settled and t < CLOCK_CAP_S
+
+  def row(self) -> dict:
+    return {"getups": self.getups, "clock": self.clock.verdict()}
 
 #: The shoves, the robot's frame (x ahead), and how hard, N*s: past what it
 #: stands through every way (`--shove`: 10-20 N*s), it goes over.
@@ -3993,7 +4100,9 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS,
   took_over, stood_at, gen = None, None, shove(h, FALL_WAYS[way], ns)
   force = np.zeros(6)
   t0 = d.time
-  while d.time - t0 < (watch_s or FALL_S if mode == "getup" else FALL_S):
+  served = Served(t0, npz) if mode == "getup" else None
+  while (d.time - t0 < FALL_S if served is None
+         else served.going(d.time - t0, watch_s or FALL_S)):
     if gen is not None:
       if next(gen, "done") == "done":
         gen = None
@@ -4002,11 +4111,16 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS,
       took_over = d.time - t0
       if mode == "getup":
         getup.begin()
-    if took_over is not None and mode == "getup":
+        served.took(d.time)
+    if served is not None and served.f is not None:
+      served.step()
+    elif took_over is not None and mode == "getup":
       getup.step(trunk_stepped=False)
       mujoco.mj_step(m, d)
       if getup.stood and stood_at is None:
         stood_at = d.time - t0
+        h = Humanoid(m, d)
+        served.stood(h, d.time)
     elif took_over is not None and mode == "limp":
       h.stand.trunk.step()
       legs.limp()
@@ -4039,11 +4153,13 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS,
     if stepped % every == 0 and d.xmat[h.root][8] <= math.cos(TOPPLE_TILT_RAD):
       reach = floor_reach(m, d, gids, footprint_middle(m, d, gids))
       lying = reach if lying is None else max(lying, reach)
+    if served is not None:
+      served.check(d, h.root, h.reach.held_pitch())
   return {"way": way, "mode": mode, "first": first, "peaks": peaks, "hit": hit, "tau": tau.tolist(),
           "stop": stop.tolist(),
           "speed": speed.tolist(), "took_over_s": took_over, "stood_s": stood_at,
           "up_at_end": bool(d.xmat[h.root][8] > 0.95 and d.xpos[h.root][2] > 0.6),
-          "lying_reach_m": lying}
+          "lying_reach_m": lying, **(served.row() if served is not None else {})}
 
 
 def _fall_trial(job):
@@ -4126,7 +4242,8 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
   head_part, unit, unit_v = None, m.geom("lidar").id, None
   vel = np.zeros(6)
   t0 = d.time
-  while d.time - t0 < (watch_s or HOUSE_FALL_S):
+  served = Served(t0, npz)
+  while served.going(d.time - t0, watch_s or HOUSE_FALL_S):
     if gen is not None:
       if next(gen, "done") == "done":
         gen = None
@@ -4134,15 +4251,20 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
     if took is None and watch.falling(d, h.reach.held_pitch()):
       took = d.time - t0
       getup.begin()
-    if took is not None and stood is None:
+      served.took(d.time)
+    if served.f is not None:
+      served.step()
+    elif took is not None and stood is None:
       h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
       getup.step()
       mujoco.mj_step(m, d)
       if getup.stood:
         stood = d.time - t0
         h = Humanoid(m, d)
+        served.stood(h, d.time)
     else:
       h.step()
+    served.check(d, h.root, h.reach.held_pitch())
     for i in range(d.ncon):
       c = d.contact[i]
       if (c.geom1 in ours) == (c.geom2 in ours):
@@ -4161,7 +4283,7 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
         unit_v = float(np.linalg.norm(vel[3:]))
   return {"place": place, "way": way, "first": first, "head_v": head_v, "head_part": head_part,
           "unit_v": unit_v, "took_s": took, "stood_s": stood,
-          "end_z": float(d.xpos[h.root][2]) - z}
+          "end_z": float(d.xpos[h.root][2]) - z, **served.row()}
 
 
 def _head_geoms(m) -> dict[int, str]:
@@ -4251,26 +4373,30 @@ def counter_fall_trial(prop: str, way: str, npz: str | None = None, ns: float = 
   over, longest, touched = None, 0.0, 0.0
   every = max(1, round(h.stand.policy.period / m.opt.timestep))
   vel = np.zeros(6)
-  t0, n, limit = d.time, 0, HOUSE_FALL_S        # a shove it stands through: the house's watch
-  while d.time - t0 < limit:
+  t0, n = d.time, 0
+  served = Served(t0, npz)
+  while served.going(d.time - t0, HOUSE_FALL_S):   # a shove it stands through: the house's watch
     if gen is not None:
       if next(gen, "done") == "done":
         gen = None
       continue
     if took is None and watch.falling(d, h.reach.held_pitch()):
       took = d.time - t0
-      limit = took + COUNTER_FALL_S
       getup.begin()
-    if took is not None and stood is None:
+      served.took(d.time)
+    if served.f is not None:
+      served.step()
+    elif took is not None and stood is None:
       h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
       getup.step()
       mujoco.mj_step(m, d)
       if getup.stood:
         stood = d.time - t0
-        limit = d.time - t0 + 0.5
         h = Humanoid(m, d)
+        served.stood(h, d.time)
     else:
       h.step()
+    served.check(d, h.root, h.reach.held_pitch())
     n += 1
     if n % every == 0:
       past = d.xmat[h.root][8] <= math.cos(TOPPLE_TILT_RAD)
@@ -4292,7 +4418,7 @@ def counter_fall_trial(prop: str, way: str, npz: str | None = None, ns: float = 
           "up_after_s": None if stood is None or took is None else stood - took,
           "past_topple_s": longest, "against_s": touched, "head_v": head_v,
           "head_part": head_part, "end_z": float(d.xpos[h.root][2]),
-          "end_xy": [float(v) for v in d.xpos[h.root][:2]]}
+          "end_xy": [float(v) for v in d.xpos[h.root][:2]], **served.row()}
 
 
 def _counter_fall_trial(job):
@@ -4331,6 +4457,157 @@ def counter_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   print(f"  stood within {budget:g} s of the takeover: {len(within)} of {len(took)} falls; "
         f"stuck (past the topple {budget:g} s running): {len(stuck)}")
   return rows
+
+
+# Where a get-up ends (#679's second round): D3's wall policy sat still on the
+# floor in three falls today's stands from, and lay propped on a wall in a
+# fourth -- each a fixed point of a blind policy. Their end states, and each
+# fall as the get-up was handed it, are the training's `posed` starts
+# (`training/humanoid_train/getup_poses.json`).
+
+#: The falls whose end states are recorded: (place, way) as the house's and
+#: the counter's tables stage them.
+FALL_ENDS = {"the hall, left": ("the hall", "left"), "the hall, right": ("the hall", "right"),
+             "the chest, left": ("chest", "left"), "the chest, front-left": ("chest", "front-left")}
+#: Each is watched this long from the shove, s: every one is still by then.
+FALL_END_S = 14.0
+#: Where the nearest face round the body is looked for: rays this high, m,
+#: every this many degrees of the pelvis's heading.
+FACE_RAY_Z, FACE_RAY_DEG = 0.3, 5
+#: An end state whose trunk lies past this rests on its face, deg: it starts
+#: against it (the chest's front-left sits leaning 56 deg on the north wall).
+FACE_LEANS_DEG = 45.0
+#: A fall's face is the nearest within this of the way the pelvis moves, deg.
+FALL_FACE_DEG = 60
+
+
+def _nearest_face(m, d, root: int, ours: set[int], within: tuple | None = None) -> dict | None:
+  """The nearest face round the body (off the truth): its way off the
+  pelvis's heading, rad, and its distance from the pelvis, m -- the ray
+  that meets it soonest at `FACE_RAY_Z`, past the robot's own geoms; with
+  `within` (a way off the heading, rad, and a half-width, deg), only there."""
+  heading = math.atan2(d.xmat[root][3], d.xmat[root][0])
+  best, gid = None, np.array([-1], dtype=np.int32)
+  for k in range(0, 360, FACE_RAY_DEG):
+    if within is not None and abs(math.degrees(math.remainder(math.radians(k) - within[0],
+                                                               math.tau))) > within[1]:
+      continue
+    a = heading + math.radians(k)
+    way = np.array([math.cos(a), math.sin(a), 0.0])
+    at, gone = np.array([d.xpos[root][0], d.xpos[root][1], FACE_RAY_Z]), 0.0
+    for _ in range(20):
+      r = mujoco.mj_ray(m, d, at, way, None, 1, -1, gid)
+      if r < 0 or gid[0] < 0:
+        break
+      if int(gid[0]) not in ours:
+        if best is None or gone + r < best[1]:
+          best = (math.radians(k), gone + r)
+        break
+      at, gone = at + way * (r + 1e-3), gone + r + 1e-3
+  return None if best is None else {"angle": round(math.remainder(best[0], math.tau), 4),
+                                    "dist": round(float(best[1]), 4)}
+
+
+def _pose_now(m, d, root: int, moving: bool) -> dict:
+  """The body as it is (off the truth): the pelvis's height, its orientation
+  with its heading taken off (w, x, y, z), its tilt, every joint, and --
+  `moving` -- the root's velocity in the world turned by the heading taken
+  off (linear and angular, as mjlab writes a root state) and every joint's."""
+  heading = math.atan2(d.xmat[root][3], d.xmat[root][0])
+  level, turn = np.zeros(4), np.array([math.cos(-heading / 2), 0.0, 0.0, math.sin(-heading / 2)])
+  adr, vadr = m.jnt_qposadr[m.body_jntadr[root]], m.jnt_dofadr[m.body_jntadr[root]]
+  mujoco.mju_mulQuat(level, turn, d.qpos[adr + 3:adr + 7])
+  out = {"pelvis_z": float(d.qpos[adr + 2]), "quat_level": [float(v) for v in level],
+         "tilt_deg": math.degrees(math.acos(max(-1.0, min(1.0, d.xmat[root][8])))),
+         "joints": {j: float(d.qpos[m.jnt_qposadr[m.joint(j).id]]) for j in hm.JOINT_NAMES}}
+  if moving:
+    c, s = math.cos(-heading), math.sin(-heading)
+    unturn = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+    ang_w = d.xmat[root].reshape(3, 3) @ d.qvel[vadr + 3:vadr + 6]    # the free joint's is local
+    out["lin_vel"] = [float(v) for v in unturn @ d.qvel[vadr:vadr + 3]]
+    out["ang_vel"] = [float(v) for v in unturn @ ang_w]
+    out["joint_vel"] = {j: float(d.qvel[m.jnt_dofadr[m.joint(j).id]]) for j in hm.JOINT_NAMES}
+  return out
+
+
+def fall_end(name: str, npz: str | None = None) -> dict:
+  """One of `FALL_ENDS` flown as its table stages it, the get-up taking the
+  fall (and the standing policy after a stand), watched `FALL_END_S`: where
+  it ended (`_pose_now`) and the nearest face, and the fall as the get-up
+  was handed it, moving, with the nearest face the way it moved."""
+  from pluggybot.home import storeroom
+  place, way = FALL_ENDS[name]
+  if place in HOUSE_FALLS:
+    at, z, yaw = HOUSE_FALLS[place]
+    m, d = standing_world(at=at, yaw=yaw, z=z)
+    push = FALL_WAYS[way]
+  else:
+    x, y, yaw = storeroom.work_spot(place)
+    m, d = standing_world(scenery=storeroom.attach, at=(x, y), yaw=yaw)
+    push = COUNTER_WAYS[way]
+  h = Humanoid(m, d)
+  getup = GetupDriver(m, d, policy=StandPolicy(npz or str(GETUP_NPZ)), trunk=h.stand.trunk,
+                      joints=h.stand.joints)
+  watch = FallWatch(h.stand.trunk, h.stand.joints)
+  for _ in range(int(1.0 / m.opt.timestep)):
+    h.step()
+  gen, took, stood, t0, falling = shove(h, push, FALL_NS), None, None, d.time, None
+  ours = set(robot_geoms(m, ROBOT_ROOT))
+  while d.time - t0 < FALL_END_S:
+    if gen is not None:
+      if next(gen, "done") == "done":
+        gen = None
+      continue
+    if took is None and watch.falling(d, h.reach.held_pitch()):
+      took = d.time - t0
+      getup.begin()
+      falling = _pose_now(m, d, h.root, moving=True)
+      heading = math.atan2(d.xmat[h.root][3], d.xmat[h.root][0])
+      vx, vy = d.qvel[m.jnt_dofadr[m.body_jntadr[h.root]]:][:2]
+      falling["face"] = _nearest_face(m, d, h.root, ours,
+                                      within=(math.atan2(vy, vx) - heading, FALL_FACE_DEG))
+      falling["against"] = falling["face"] is not None
+    if took is not None and stood is None:
+      h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
+      getup.step()
+      mujoco.mj_step(m, d)
+      if getup.stood:
+        stood = d.time - t0
+        h = Humanoid(m, d)
+    else:
+      h.step()
+  end = {"name": name, "took_s": took, "stood_s": stood, **_pose_now(m, d, h.root, moving=False),
+         "face": _nearest_face(m, d, h.root, ours)}
+  end["against"] = end["face"] is not None and end["tilt_deg"] > FACE_LEANS_DEG
+  return {"end": end, "falling": falling}
+
+
+def _fall_end(job):
+  return fall_end(*job)
+
+
+def fall_ends(npz: str | None, out: str, jobs: int = 4) -> dict:
+  """--fall-ends: `FALL_ENDS`' end states, written to `out` (the training's
+  `posed` starts)."""
+  import multiprocessing as mp
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    flown = pool.map(_fall_end, [(n, npz) for n in FALL_ENDS])
+  poses = {}
+  for r in flown:
+    end, falling = r["end"], r["falling"]
+    poses[end["name"]] = {k: v for k, v in end.items() if k != "name"}
+    if falling is not None:
+      poses[end["name"] + ", falling"] = falling
+  for name, r in poses.items():
+    face = "-" if r["face"] is None else (f"{r['face']['dist']:.2f} m at "
+                                          f"{math.degrees(r['face']['angle']):+.0f} deg")
+    print(f"{name:32s} pelvis {r['pelvis_z']:.3f} m tilt {r['tilt_deg']:5.1f} deg, the face {face}"
+          f"{' (against it)' if r['against'] else ''}"
+          + (f"; took {r['took_s']:.2f} s, stood {r['stood_s']}" if "took_s" in r else ""))
+  table = {"npz": npz or str(GETUP_NPZ), "watched_s": FALL_END_S, "poses": poses}
+  Path(out).write_text(json.dumps(table, indent=1) + "\n")
+  print(f"wrote {out}")
+  return table
 
 
 # Lying along a face (#679): the state the counter's falls ended in, staged
@@ -4408,14 +4685,23 @@ def lying_trial(face: str, pose: str, gap: float, npz: str | None = None) -> dic
   stood, over, longest, head_v, head_part, k = None, None, 0.0, None, None, 0
   vel = np.zeros(6)
   t0 = d.time
-  while d.time - t0 < COUNTER_FALL_S:
+  served = Served(t0, npz)
+  served.took(t0)
+  while served.going(d.time - t0, COUNTER_FALL_S):
+    if served.f is not None:
+      served.step()
+      served.check(d, root, h.reach.held_pitch())
+      continue
     h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
     getup.step()
     mujoco.mj_step(m, d)
     k += 1
+    served.check(d, root, 0.0)
     if getup.stood:
       stood = d.time - t0
-      break
+      h = Humanoid(m, d)
+      served.stood(h, d.time)
+      continue
     if k % every == 0:
       down = d.xmat[root][8] <= math.cos(TOPPLE_TILT_RAD)
       over = (over if over is not None else d.time) if down else None
@@ -4428,7 +4714,7 @@ def lying_trial(face: str, pose: str, gap: float, npz: str | None = None) -> dic
         head_v, head_part = float(np.linalg.norm(vel[3:])), heads[mine]
   return {"face": face, "pose": pose, "gap": gap, "stood_s": stood, "past_topple_s": longest,
           "head_v": head_v, "head_part": head_part,
-          "end_xy": [float(v) for v in d.xpos[root][:2]]}
+          "end_xy": [float(v) for v in d.xpos[root][:2]], **served.row()}
 
 
 def _lying_trial(job):
@@ -4501,7 +4787,13 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
   _drain(shove(h, FALL_WAYS[way], ns))
   vel = np.zeros(6)
   n, up = 0, False
-  while d.time - t0 < (watch_s or BOW_WATCH_S if served else BOW_WATCH_S):
+  srv = Served(t0, npz) if served else None
+  while (d.time - t0 < BOW_WATCH_S if srv is None
+         else srv.going(d.time - t0, watch_s or BOW_WATCH_S)):
+    if srv is not None and srv.f is not None:
+      srv.step()
+      srv.check(d, h.root, h.reach.held_pitch())
+      continue
     if not up and n % every == 0:
       t, g = d.time - t0, h.stand.trunk.gravity()
       tip = tipped(g, h.reach.held_pitch())
@@ -4514,15 +4806,20 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
       if served and (tip > FALL_TILT_RAD or sunk):
         up, rec["took_s"] = True, t
         getup.begin()
+        srv.took(d.time)
     if up:
       h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
       getup.step()
       mujoco.mj_step(m, d)
       if getup.stood:
         rec["stood_s"] = d.time - t0
-        break
+        h = Humanoid(m, d)
+        srv.stood(h, d.time)
+        continue
     else:
       h.step()
+    if srv is not None:
+      srv.check(d, h.root, h.reach.held_pitch())
     n += 1
     for i in range(d.ncon):
       c = d.contact[i]
@@ -4538,7 +4835,7 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
         mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, other, vel, 0)
         rec["unit_v"] = float(np.linalg.norm(vel[3:]))
   rec["fell"] = rec["hit_s"] is not None or float(d.xpos[h.root][2]) < z0 - 0.15
-  return rec
+  return {**rec, **(srv.row() if srv is not None else {})}
 
 
 def _bow_fall_trial(job):
@@ -5098,6 +5395,11 @@ def main(argv=None) -> None:
                        "default the tables' own: 8 bare, 15 in the house, 6 from a bow)")
   ap.add_argument("--fall-out", default=None, metavar="JSON",
                   help="with --fall: every table's rows written there")
+  ap.add_argument("--fall-ends", nargs="?", const="", default=None, metavar="NPZ",
+                  help="where a get-up (the committed one, or NPZ) ends four falls -- the hall's "
+                       "sideways two, the chest's left and front-left -- written to "
+                       "training/humanoid_train/getup_poses.json (--fall-out: elsewhere), the "
+                       "wall get-up's `posed` starts (#679)")
   ap.add_argument("--speed", nargs="?", type=float, const=60.0, default=None, metavar="SIM_S",
                   help="the loop's cost: one humanoid and a pair, the same walks in the "
                        "house, timed (--profile: where it goes)")
@@ -5162,6 +5464,9 @@ def main(argv=None) -> None:
     house_climb_table(args.climb or None, jobs=args.jobs)
   elif args.speed is not None:
     speed_table(args.speed, args.profile)
+  elif args.fall_ends is not None:
+    fall_ends(args.fall_ends or None, args.fall_out or "training/humanoid_train/getup_poses.json",
+              jobs=args.jobs)
   elif args.fall is not None:
     npz, watch = args.fall or None, args.fall_watch
     rows = {"bare": fall_table(npz, jobs=args.jobs, watch_s=watch),
