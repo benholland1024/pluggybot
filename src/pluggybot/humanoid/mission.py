@@ -104,6 +104,16 @@ LOW_BURN = OCC_THRESH + 2.0
 #: Never by the simulator's geoms: the robot knows its own hand and its
 #: grip's word, never what is in it.
 HELD_DROP_M = 0.12
+#: A CARRY BEGINS WITH A LIFT, AND WHAT DOES NOT COME AWAY IS LET GO (#682;
+#: `to_walk_routine`): a hand that holds is first pulled this far straight up,
+#: m, with at most this much, N -- the most the standing body holds at a hand
+#: (`procedure.steps.PULL_MOST_N`) -- holding its line and turn; only one whose
+#: lift went its distance is carried, and one held fast (a drawer's handle, a
+#: door's lever, flown) or whose grip was lost is let go and comes home,
+#: #669's way. ⚠ Pulled on unasked, a drawer's handle held came out 19 cm with
+#: the arm; and an arm stopped on its way by the force it read and let go
+#: there fell with the drawer's spring.
+CARRY_LIFT_M, CARRY_LIFT_N = 0.02, 20.0
 #: A depth frame this often, s -- the ground's map's too (`humanoid.scan`):
 #: at the part's 10 Hz, its ray-cast frames slowed one robot's real time
 #: from 2.7x to 1.8x, and at 1 m/s two frames 0.2 m apart still overlap.
@@ -488,7 +498,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     its line, then to its carry pose (`Reach.CARRY_POSE`, `carries`) its
     judged way, its gripper as it is, and held there through the walk, the
     trunk carrying it -- never walked where the reach left it (over a
-    table's top, walk2 fell in 16 of 37) -- ⚠ and waiting first,
+    table's top, walk2 fell in 16 of 37) -- ⚠ ONLY ONCE IT HAS COME AWAY:
+    lifted first, what does not come (held fast) is let go, as a hand that
+    holds nothing is (`_lift_routine`) -- ⚠ and waiting first,
     `ARM_WAIT_S` at most, while every way home, or to its carry pose, it
     has would meet another robot's body (`_arms_wait_routine`, #678): its
     way then judged against the robot as its last look saw it. ⚠ A fall as
@@ -499,6 +511,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       return
     try:
       carry = self.carries()
+      if carry:
+        carry = yield from self._lift_routine(carry)
       for s in hm.SIDES:
         if s in carry:
           self.reach.carry_q[s] = carry[s]
@@ -520,6 +534,24 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     yield from self._getup_routine()
     self.walker.last_action[:] = 0.0
     self.legs = "walk"
+
+  def _lift_routine(self, carry: dict) -> tick.Routine:
+    """A carry's first move (`CARRY_LIFT_M`, #682): each hand of `carry` that
+    is out at a pose of its own (`Reach.out`; one carried already came away
+    before) pulled straight up, holding its line and turn, all at once, and
+    waited on. Returns `carry` less every hand whose lift did not go its
+    distance -- held fast, its grip lost, or a fall -- which a walk lets go."""
+    lifting = [s for s in carry if self.reach.out(s)]
+    for s in lifting:
+      self.reach.pull(s, (0.0, 0.0, 1.0), CARRY_LIFT_N, CARRY_LIFT_M, give=False)
+    falls = self.falls
+    while any(self.reach.phase[s] == "carry" for s in lifting) and self.falls == falls:
+      yield STILL
+      self._after_step()
+    if self.falls != falls:
+      return {}
+    return {s: q for s, q in carry.items()
+            if s not in lifting or (self.reach.report[s] or {}).get("why") == "distance"}
 
   def _arms_wait_routine(self, sides=hm.SIDES, nav: bool = True):
     """The loop's own move home for `sides`' arms that are out -- a walk's

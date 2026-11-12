@@ -4,10 +4,11 @@ rule pinned without a flight -- a fake reach, the stub body, a direct call
 (docs/Testing.md):
 
   1. a walk's hand-over CARRIES a hand that is out whose gripper says it
-     holds something -- its gripper as it was, its arm to the carry pose
-     (`Reach.CARRY_POSE`, Ben's `close`) its own way -- and lets go of one
-     that holds nothing, as #669's does; an arm at its carry pose already
-     goes nowhere;
+     holds something -- lifted first, and carried only once it came away;
+     its gripper as it was, its arm to the carry pose (`Reach.CARRY_POSE`,
+     Ben's `close`) its own way -- and lets go of one that holds nothing or
+     whose lift was held fast, as #669's does; an arm at its carry pose
+     already goes nowhere;
   2. the carry pose keeps the hand turned as it is against the floor,
      solved on the statue of the stand -- where the walk carries it -- never
      the posture it holds now;
@@ -76,10 +77,34 @@ def test_a_walk_carries_a_hand_that_holds_and_lets_go_of_one_that_holds_nothing(
   said = [e[:2] for e in log]
   assert ("open", "left") not in said, "the walk let go of what the hand held"
   assert said.index(("open", "right")) < said.index(("retreat", "right")), said
-  assert ("retreat", "left") in said, "the held arm was walked where the reach left it"
+  assert said.index(("lift", "left")) < said.index(("retreat", "left")), \
+    "the held arm was walked where the reach left it, or never lifted first"
+  assert ("lift", "right") not in said, "a hand that holds nothing was lifted"
   assert m.reach.carry_q["left"] is not None and m.reach.carry_q["right"] is None
   assert m.reach.carried("left") and m.reach.phase["right"] == "rest"
   assert not grippers["left"].opened() and grippers["right"].opened()
+
+
+def test_a_hand_whose_lift_is_held_fast_is_let_go_never_carried(monkeypatch):
+  """What a hand holds is carried only once a lift shows it comes away:
+  pulled up 2 cm at the most the standing body holds, a drawer's handle or
+  a door's lever is held fast, and the walk lets go and brings the arm home,
+  #669's way -- carried, a drawer's handle held came out 19 cm with the arm
+  (flown, `held_handle.py`)."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  _spy_opens(monkeypatch, body, log)
+  at = lambda: float(body.data.time)  # noqa: E731
+  grippers = m.reach.grippers
+  m.reach = _Out(grippers, ("left",), log, at, lifts={"left": "held fast"})
+  grippers["left"].shut()
+  monkeypatch.setattr(grippers["left"], "held", lambda: True)
+  body.run(m.to_walk_routine())
+  said = [e[:2] for e in log]
+  assert said == [("lift", "left"), ("open", "left"), ("retreat", "left")], said
+  assert m.reach.carry_q["left"] is None and m.reach.phase["left"] == "rest"
+  assert m.legs == "walk"
 
 
 def test_an_arm_at_its_carry_pose_already_goes_nowhere(monkeypatch):
