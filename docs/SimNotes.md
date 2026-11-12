@@ -7402,13 +7402,21 @@ it had merged, side by side, both before #684):
   at set-outs 0-31, a robot alone): 160 flights of 160 the same on both
   trees, row for row -- the lid 26, the drawer 21, the door 24, the cube 20,
   the table 24.
+- *Again after the first review* (a139754 beside loop-staging e791777, both
+  after #684): 11:48's the same -- this build no touch and no fall, the
+  same 23 refusals; loop-staging touched in 14, Rowan fell in 9 and Luca in
+  4, four of those flights ended by #684's `Stuck` (down 20 s where nothing
+  dies) -- the work spots 12 of 12 and the hands checks 160 of 160 row for
+  row.
 - *The pair's fixture day* (`two_robots.py` as the pair's recording is
   made, before #684's plate; the first robot plugs in at the station while
   the second explores, then the second): one charge each on both trees, no
   death, both robots done. The two parted from 95.5 s: the first robot's
   plug-in looked as its reaches and withdraw began, and a look's scan draws
   on its LIDAR's noise, so its later scans read otherwise; the second's
-  charge began at 378 s here and 357 s on loop-staging.
+  charge began at 378 s here and 357 s on loop-staging (on the reviewed
+  build, 87fcf5e beside e791777, after #684: 361 s and 352 s, the same day
+  otherwise).
 - *A hand left out, then a loop walk* (`fly/strand.py`, on a7bb9c5 and
   loop-staging e791777: the nearer neighbours' drawer and door, each robot
   then walking 1 m back from the counter if a hand is still out, the other
@@ -7419,8 +7427,9 @@ it had merged, side by side, both before #684):
   Luca (whose body that way is narrower than the cylinder); 15 s with Luca
   walking off, the arm coming home at the first look that found its way
   clear. Both walks arrived, their drives counting none of the wait (10.5
-  and 10.7 s of walking). On loop-staging the same flights touched three
-  times each at 0.88 m, and at 0.73 m both robots fell, in both draws.
+  and 10.7 s of walking), and the reviewed build (87fcf5e) flew the set the
+  same. On loop-staging the same flights touched three times each at 0.88
+  m, and at 0.73 m both robots fell, in both draws.
 
 **What it leaves open.** A carried hand (`move_hand`, `pull`) is not
 judged, nor a posture a reach's look takes with its hand waiting at its
