@@ -15,6 +15,7 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot import lifecycle as lc
 from pluggybot import tick
 from pluggybot.lifecycle import errand_from, world_config, world_facts
 from pluggybot.mind import overseer as ov
@@ -442,6 +443,94 @@ def test_an_evaluation_fault_and_a_runaway_loop_stop_the_procedure(src, why):
   r, _ = run(src)
   assert not r["ok"] and r.get("stopped", r["steps"][-1].get("reason")) == why \
     or (not r["ok"] and any(why in s.get("reason", "") for s in r["steps"]))
+
+
+@pytest.mark.parametrize("src, line, why", [
+  ('def x():\n  wait(1)\n  a = read("spot.x")\n', 3, "spot.x has no reading: `spot` has not run"),
+  ('def x():\n  wait(1)\n  n = 0\n  n += 1 / n\n', 4, "division by zero"),
+  ('def x():\n  if read("pull.moved") > 0:\n    wait(1)\n', 2,
+   "pull.moved has no reading: `pull` has not run"),
+  ('def x():\n  if 1 > 2:\n    wait(1)\n  elif b > 0:\n    wait(2)\n', 4,
+   "'b' was read before it was set"),
+  ('def x():\n  wait(1)\n  n = 0\n  while sqrt(n - 1) < 2:\n    n += 1\n', 4,
+   "sqrt of a negative number (-1)"),
+  ('def x():\n  n = 0\n  while 1:\n    n += 1\n  wait(1)\n', 3, "loop-cap"),
+])
+def test_a_fault_in_a_plain_statement_is_named_by_its_line(src, line, why):
+  """#686: a fault in a statement's own arithmetic -- an assignment, an
+  `if`'s or an `elif`'s test, a `while`'s and its cap -- stopped the run at
+  "line ?": only a call's arguments carried theirs. It is a step of its own
+  at the statement's line, which the practice's report and History say.
+  Shown to fail, every one, on the tree before it."""
+  r, _ = run(src)
+  step = r["steps"][-1]
+  assert not r["ok"] and r["failedAt"] == r["total"] - 1, r
+  assert (step["verb"], step.get("line"), step["reason"]) == ("expr", line, why), step
+  [history] = lc.procedure_outcome("x", r)
+  assert f"it stopped at line {line}, an expression: {why}" in history, history
+
+
+def test_a_fault_in_a_calls_arithmetic_is_named_by_its_own_line_in_its_def():
+  """#686: a fault in a def's arithmetic is the def's line -- in the
+  library's procedure that holds it, where that is another -- as a verb
+  that fails in it is: untested, it read "line ?"; tested, the CALL's line
+  beside the def's name, and the library's procedure's name beside the
+  caller's line. Shown to fail on the tree before it."""
+  r, _ = run("def a():\n  b()\n  wait(9)\ndef b():\n  wait(1)\n  y = 1 / 0\n")
+  step = r["steps"][-1]
+  assert (step["verb"], step.get("line"), step.get("in")) == ("expr", 6, "b"), step
+  assert "it stopped at line 6, an expression (in b): division by zero" in \
+    lc.procedure_outcome("a", r)[0]
+  # ...a test reads it false, the run going on, at the same line
+  r, _ = run("def a():\n  if not b():\n    wait(2)\ndef b():\n  wait(1)\n  y = 1 / 0\n")
+  read = next(s for s in r["steps"] if not s["ok"])
+  assert r["ok"] and (read["line"], read["in"], read["tested"]) == (6, "b", True), read
+  # ...two calls deep, the def it came in, an expression all the same
+  r, _ = run("def a():\n  if not b():\n    wait(2)\ndef b():\n  c()\ndef c():\n  wait(1)\n"
+             "  y = 1 / 0\n")
+  read = next(s for s in r["steps"] if not s["ok"])
+  assert r["ok"] and (read["verb"], read["line"], read["in"]) == ("expr", 8, "c"), read
+  # ...and in the library's procedure that holds it, ITS line
+  L = lib.Library(HOME)
+  L.define("half", "def half():\n  wait(1)\n  wait(1)\n  y = 1 / 0\n")
+  L.define("go", "def go():\n  wait(2)\n  half()\n")
+  L.define("tried", "def tried():\n  wait(2)\n  if half():\n    pass\n")
+  for name, ok in (("go", False), ("tried", True)):
+    r = tick.run(SimpleNamespace(step=lambda *a: None),
+                 lang.run_procedure_routine(_stub_life(), L.get(name), HOME))
+    read = next(s for s in r["steps"] if not s["ok"])
+    assert r["ok"] is ok and (read["line"], read.get("entry")) == (4, "half"), read
+    assert "line 4 of half, an expression" in lc.procedure_outcome(name, r)[0]
+
+
+def test_a_find_that_failed_reads_so_never_that_it_has_not_run():
+  """#686: a `find` that did not find its tag forgets where the last one
+  found it -- it would read as this call's -- and reading it says the last
+  `find` failed. Shown to fail on the words as they were."""
+  life = _stub_life()
+  life.body.places = None
+  life.body.find_tag_routine = lambda *a, **kw: tick.result(
+    {"tag": 35, "found": False, "why": "not found", "seconds": 1.0, "arounds": 2})
+  r, _ = run('def x():\n  if not find(35, 1, 1):\n    pass\n  a = read("find.x")\n', life)
+  assert r["steps"][-1]["reason"] == "find.x has no reading: your last `find` failed", r
+  r, _ = run('def x():\n  wait(1)\n  a = read("find.facing")\n')
+  assert r["steps"][-1]["reason"] == "find.facing has no reading: `find` has not run", r
+
+
+def test_a_find_is_ok_only_with_the_place_it_reads_kept():
+  """#686's second review: `find` is ok "when seen, and you remember where
+  it is", and a find whose place was not kept read ok while its `find.*`
+  said it failed. One reads false, saying so. (The robot's own search says
+  found only once the place is kept: this pins the verb, not the body.)
+  Shown to fail on the tree before it."""
+  life = _stub_life()
+  life.body.places = None
+  life.body.find_tag_routine = lambda *a, **kw: tick.result(
+    {"tag": 35, "found": True, "why": "found", "seconds": 1.0, "at": [1.0, 1.0]})
+  r, _ = run('def x():\n  if not find(35, 1, 1):\n    pass\n  a = read("find.x")\n', life)
+  step = r["steps"][0]
+  assert not step["ok"] and step["reason"] == "saw tag 35 but does not remember where it is", r
+  assert r["steps"][-1]["reason"] == "find.x has no reading: your last `find` failed", r
 
 
 def test_the_step_budget_stops_at_a_step_boundary():
