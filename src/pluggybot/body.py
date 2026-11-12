@@ -54,8 +54,8 @@ from pluggybot.tick import Routine
 
 #: Torso tilt from upright that counts as knocked over (issue #107), and
 #: how long it has to hold: a body tipped for a moment recovers, a robot on
-#: its side does not. A body's own hold is `stuck_after_s` (the humanoid's
-#: get-up budget).
+#: its side does not. A body that rights itself is timed off its get-up
+#: instead, for its `stuck_after_s` (#684: the humanoid's get-up budget).
 TOPPLE_TILT_RAD = math.radians(60.0)
 TOPPLE_HOLD_S = 2.0
 
@@ -751,7 +751,8 @@ class Body(abc.ABC):
   #: Resting: the humanoid rests standing (`humanoid.way`).
   resting: bool
   #: Its posture, as the wire carries it (issue #387): `standing` or
-  #: `getting_up`. Resting is never a fall.
+  #: `getting_up`. Resting is never a fall. A body that rights itself is
+  #: down, for the death seam, while it is `getting_up` (#684).
   posture: str
   #: Whether it gets itself up from a fall (issue #387): the humanoid's
   #: get-up policy does; a body that cannot waits for somebody.
@@ -762,11 +763,12 @@ class Body(abc.ABC):
   #: (`humanoid.getup`), each the moment its get-up takes over.
   falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that
-  #: rights itself, its get-up's MEASURED budget; one that cannot,
-  #: `TOPPLE_HOLD_S`.
+  #: rights itself, its get-up's MEASURED budget, timed from the get-up's
+  #: start; one that cannot, `TOPPLE_HOLD_S` past `TOPPLE_TILT_RAD`.
   stuck_after_s: float
   #: The trunk's pitch forward that the posture its legs hold puts it at,
-  #: rad: what a topple is read past (`TOPPLE_TILT_RAD`, the death seam's).
+  #: rad: what a topple is read past (`TOPPLE_TILT_RAD`: the lifecycle's
+  #: `down`, and the death seam's for a body that cannot right itself).
   #: 0 for a body that stands only upright; the humanoid's bow
   #: (`Reach.held_pitch`), whose deepest, 63 deg, is past the seam's 60
   #: (#559).

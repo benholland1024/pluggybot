@@ -1080,6 +1080,8 @@ def view(scene: str, lost=("station", LOST_SCENE_OFF)) -> None:
 
 
 def main(argv=None) -> int:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--approach", action="store_true")

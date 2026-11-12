@@ -142,7 +142,9 @@ def main() -> None:
   for i, r in enumerate(results, 1):
     print(f"robot {i}: {r['state']} at {r['battery']:.0%}, "
           f"{r['charge_cycles']} charge(s), "
-          f"{len(r['errands'])} errand(s), dead={r['dead']}")
+          f"{len(r['errands'])} errand(s), dead={r['dead']}"
+          + (f"; the day ended at t={r['stuck']['t']:.0f} s: {r['stuck']['why']}"
+             if r["stuck"] else ""))
   print(json.dumps([{k: r[k] for k in ("state", "battery", "sim_time", "dead")}
                     for r in results]))
 

@@ -308,11 +308,14 @@ rot.
 
 A pressure plate that latches a garden light (`activity/plate.py`; the
 `geom_pos` trap under "Conventions" is the surviving lesson of the gate it
-replaced, table in ActivityPattern.md §3.4). Three measured rules the pattern
-doc carries:
+replaced, table in ActivityPattern.md §3.4). The garden's is flush with the
+floor since #684, read off its load ("A flight that never got up"); the
+sprung pad below is the lab's three. Three measured rules the pattern doc
+carries:
 - **Hysteresis**: one wheel crossing flips a bare threshold **4** times, a
   hysteretic one (`PLATE_ON` 6 mm / `PLATE_OFF` 3 mm) **2** — one press, one
-  release, the floor.
+  release, the floor; a humanoid walking across the flush plate, 175 and
+  71 over 15 crossings (`LOAD_ON_N` 100 / `LOAD_OFF_N` 50).
 - **An analogue flag defeats sparseness**: `depressMm` over a 300-frame
   crossing is 38 deltas at 0.1 mm rounding, 15 at 1 mm. Quantise to what a
   consumer can act on or keep it off the wire.
@@ -7411,18 +7414,35 @@ are read only between drive steps. Flown under the served rules (mortal,
 its 300 s restart, the explore inside `_until_stood_up_routine`), the same
 fall is a `stuck` death 20.6 s on, and the stand-up 300 s later closes the
 explore; the physics thread never stalls, and no save is taken while it
-lies (`Keeper.busy`, 320 s). The death's clock runs only while the trunk is
-60 deg or more off its posture: a get-up stuck short of that would never
-die `stuck`, bounded only by its pack or `unminded` (none seen).
+lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
+60 deg or more off its posture, so a get-up stuck short of that never died
+`stuck`.
 
-**What is true now:** a drift flight that has not stood 5 s
-(`STOOD_AGAIN_S`) within `GETUP_WAIT_S` (40 s) of a fall ends `stuck`, the
-rows until then kept, and so does a `--falls` flight (`stuck_guard`;
-`tests/test_drift_spike.py` pins the rule and its wiring on a body that
-steps only a clock). The station spike's trials, `solve.py`'s and the
-non-mortal days of `hub_lifecycle.py` and `two_robots.py` have no such
-guard: a fall they cannot get up from runs to their parent's subprocess
-timeout (1800-3600 s) or for good.
+**What is true now** (#684, Ben's calls of 11-12):
+- A get-up's death is timed off the get-up: a body that rights itself is
+  `stuck` once its get-up has held its legs 20 s, whatever its tilt, a
+  stand under 5 s between two get-ups one struggle on one clock (the drift
+  spike's own guard's rule, kept). Of
+  #679's 151 falls on the served get-up, one that stood dies now (laid on
+  its front against the south wall, up at 21.5 s, its trunk past 60 deg for
+  at most 19.7 s running).
+- Where nothing dies the same clock ends the run (`lifecycle.Stuck`, a
+  `MissionAborted`): every instrument's flight and every demo's day. 13h's
+  own command line, on the raised plate, fell at 117.8 s and ended at
+  137.8 s, its rows kept; the drift spike's own guard is retired for it.
+- A batch's flights are watched (`pluggybot.batch`): their output as it is
+  written, and every thread's stack on `kill -USR1` of a flight's python.
+- The garden's plate is flush with the floor: the floor's own square, read
+  off its load, its pad paint nothing touches (`floor_plate`;
+  ActivityPattern.md §3.1). 13h on it crossed the plate at 115.9-117.5 s,
+  where it had fallen, its pelvis at 0.725 m at the lowest, and five times
+  more, the lamp lit at 115.4 s; it explored, walked both trips and docked
+  with no fall. Of the served walker's straight walks, none fell on the
+  flush plate (15 crossings, 9 begun at a standstill 4 cm off its edge);
+  on the raised pad, none fell either, but all 9 begun at its edge and 3 of
+  the 15 stood on its edge for good (0.10-0.25 m); the lab's three, the
+  same 21 mm sprung pad, were crossed 21 times at speed, and stalled all 9
+  edge starts.
 
 
 ## Debugging workflow that worked

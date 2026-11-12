@@ -4771,6 +4771,8 @@ def moving_table(jobs: int = 4) -> list[dict]:
 
 
 def main(argv=None) -> None:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
   ap.add_argument("--view", choices=sorted(SCENES), default=None, metavar="SCENE",
                   help=f"a scene in the viewer: {', '.join(sorted(SCENES))}")

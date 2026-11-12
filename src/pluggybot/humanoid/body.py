@@ -261,13 +261,15 @@ class HumanoidBody(Body):
 
   STILL = STILL
   level_tilt_rad = LEVEL_TILT_RAD
-  #: How long a fall may last before it is the `stuck` death, s; without
-  #: its get-up policy, the topple's hold. MEASURED (`humanoid_spike.py
-  #: --fall`): it stood from six shoves on a bare floor in 2.7-4.2 s, and
-  #: from 17 of 20 in the house within 15 s, the slowest 11.9 s; of the
-  #: three still down, one stood at 30 s, at the foot of the flight it had
-  #: fallen down. The quadruped's 20 (its slowest 4.6), the margin for
-  #: falls those places do not make.
+  #: How long its get-up may hold its legs before it is the `stuck` death,
+  #: s, timed from the get-up's start (#684); without its get-up policy,
+  #: the topple's hold. MEASURED (`humanoid_spike.py --fall`): it stood from
+  #: six shoves on a bare floor in 2.7-4.2 s, and from 17 of 20 in the
+  #: house within 15 s, the slowest 11.9 s; of the three still down, one
+  #: stood at 30 s, at the foot of the flight it had fallen down. Of #679's
+  #: 151 falls, 119 stood within it and 6 more at 21.5-23.1 s, laid on
+  #: their front, head back, against a face. The quadruped's 20 (its slowest
+  #: 4.6), the margin for falls those places do not make.
   GETUP_BUDGET_S = 20.0
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,

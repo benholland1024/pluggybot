@@ -223,6 +223,8 @@ def strip(name: str, out: str) -> None:
 
 
 def main() -> None:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--walks", action="store_true")
   ap.add_argument("--turns", action="store_true")

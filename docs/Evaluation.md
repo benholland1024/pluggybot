@@ -573,13 +573,17 @@ charging rows below, as shapes.
   (`DEATH_CAUSES`):
   - `flat` — the pack reached zero. A decision failure. Caught on the physics
     seam the moment it happens, inside an errand or not.
-  - `stuck` — toppled past `TOPPLE_TILT_RAD` (60°) for the body's
-    `stuck_after_s` (the humanoid's, its get-up's budget, 20 s, its tilt
-    read off the posture its legs hold), or unable to reach the charger. A
-    physics or navigation failure. Every `death` event carries `at` since
-    #362 (where the robot was and believed it was, what it was running,
-    the nearest peer), read AS IT FELL for a topple; protocol/README.md has
-    the shape.
+  - `stuck` — down for the body's `stuck_after_s`, or unable to reach the
+    charger. A physics or navigation failure. Down is a body that rights
+    itself with its get-up holding its legs, whatever its tilt (the
+    humanoid's get-up budget, 20 s from the get-up's start, a stand under
+    5 s between two get-ups not starting it again, #684: timed off its tilt
+    past `TOPPLE_TILT_RAD`, a get-up sitting short of 60° never died), and
+    one that cannot toppled past `TOPPLE_TILT_RAD` (60°, read off the
+    posture its legs hold) for `TOPPLE_HOLD_S`. Every `death` event
+    carries `at` since #362 (where the robot was and believed it was, what
+    it was running, the nearest peer), read AS IT FELL for a topple;
+    protocol/README.md has the shape.
   - `unpaid` — upkeep came due and the balance could not cover it. An ECONOMIC
     failure: the robot is fine and it is broke. None while upkeep is off
     (#387).

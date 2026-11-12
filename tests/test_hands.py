@@ -1656,8 +1656,10 @@ def _practice_script(monkeypatch, router, first=()):
   process: the chests in `first` first, and one whose worker was killed
   (`_Killed`) returning nothing."""
   import urllib.request
+  from pluggybot import batch
   from pluggybot.mind import llm
   script = _script(monkeypatch)
+  monkeypatch.setattr(batch, "watched", lambda: None)   # the runner's, never this process's
 
   def no_network(*a, **kw):
     raise AssertionError("a test reached the network")
