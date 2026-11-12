@@ -114,6 +114,7 @@ class Walk:
   FRONT_STOP_RANGE, FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M
   grid = NS(resolution=GRID_M)
   _bodies, _cells, in_front = Navigator._bodies, Navigator._cells, HumanoidMission.in_front
+  held_s = Navigator.held_s
 
   def __init__(self, coast_s=0.22, wall=None, turn_drift=0.0, handover_s=0.0, handover_m=0.0,
                fall_at=None, settle_m=0.0, shuffle_s=0.0, planted_s=0.0, feet=1.0, others=(),

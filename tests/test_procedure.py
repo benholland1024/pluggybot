@@ -243,7 +243,7 @@ def _stub_life(clock=None):
     setpoint=lambda act: 0.0,
     go_to_routine=routine("drive_to", True), in_sight=lambda x, y: True,
     face_routine=routine("face", True), hold_routine=routine("wait"),
-    pose=(0.0, 0.0, 0.0), falls=0)
+    pose=(0.0, 0.0, 0.0), falls=0, arm_kept=lambda: None)
   life = SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          interrupted=lambda: False,
                          _say=lambda *a, **k: None, calls=calls,

@@ -545,7 +545,7 @@ def _lid_grips(m, d0, far: float) -> list:
       return dict(seen) if tag == 53 else None
 
     def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
-                      turns=None):
+                      turns=None, refuse=False):
       self.reaches.append((np.asarray(pos, dtype=float), np.asarray(rot, dtype=float)))
       self._why[side] = "out of reach"
       return False

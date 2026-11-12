@@ -178,7 +178,7 @@ def _fly(source: str, body=None, measure: bool = True) -> dict:
 
 def test_a_reach_that_does_not_hold_says_the_bodys_own_why():
   class Short(StubBody):
-    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, refuse=False):
       return False
       yield
 
@@ -195,7 +195,7 @@ def test_a_withdraw_is_ok_only_once_its_arm_is_home(why):
   """#539: `withdraw` said ok as the arm's walk home began, the arm still
   seconds from home; it is ok once the body says home, else says why not."""
   class Away(StubBody):
-    def release_routine(self, side):
+    def release_routine(self, side, refuse=False):
       return why
       yield
   source = 'def a():\n    reach("left", 0.3, 0.2, 0.9)\n    withdraw("left")\n'
@@ -420,6 +420,8 @@ def _bare_reach():
   r.grippers = {s: _Grip() for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.outs = {s: [] for s in hm.SIDES}
+  # ...and no other robot's body for its ways to keep off (#678)
+  r.keep_out, r.kept, r.judged_home = [], {s: None for s in hm.SIDES}, {s: None for s in hm.SIDES}
   r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
   r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
@@ -1101,7 +1103,7 @@ def test_a_reach_out_of_reach_says_whether_the_other_hand_could():
                             " it can (leave fx..jz at 0 and your arm finds a turn)")
   # ...and a hand that stopped short is not out of reach: nothing is said of the other
   class Short(StubBody):
-    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, refuse=False):
       return False
       yield
 
@@ -1201,7 +1203,7 @@ def test_a_hand_verb_that_fell_ends_the_run_though_an_if_tests_it(verb):
     ends = "fell"
 
     def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
-                      turns=None):
+                      turns=None, refuse=False):
       if verb == "reach":
         self.falls += 1          # the fall watch's count, as the get-up takes the body
         return False
