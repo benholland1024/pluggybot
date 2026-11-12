@@ -378,6 +378,16 @@ def test_a_stopped_reading_is_none_before_its_verb_and_its_verbs_alone():
   assert ran["steps"][-1]["reason"] == "move_hand.stopped has no reading: `move_hand` has not run"
 
 
+def test_a_stopped_reading_after_a_call_refused_before_it_ran_says_it_failed():
+  """#686's review: the first `reach` refused before it ran (a computed
+  argument past its bounds) left `reach.stopped` no reading, as every
+  report's sensor -- and said "`reach` has not run" after a call of it.
+  It says that call failed. Shown to fail on the words as they were."""
+  ran = _fly('def a():\n    z = 9\n    if not reach("left", 0.3, 0.2, z, until="left.z", '
+             'above=1.0):\n        pass\n    s = read("reach.stopped")\n', Moving(*_bare()))
+  assert ran["steps"][-1]["reason"] == "reach.stopped has no reading: your last `reach` failed"
+
+
 def test_the_report_shows_what_stopped_a_move():
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 1.3, until="left.z", above=1.0)\n',
              Moving(*_bare()))

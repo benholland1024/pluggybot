@@ -2188,8 +2188,9 @@ serial, 20-45 minutes a set-out:
   stopped on it and none fell, where all 5 reaches it fell in over the 30
   tries had none; its last notes say "Never reach unguarded". Two of
   set-out 5's runs stopped at a `spot.*` read after a `spot` that failed,
-  told "line ?" and "`spot` has not run", and the notes say to read one only
-  under a `spot` that passed. Grips that closed on nothing: 7, in 6 of the
+  told "line ?" and "`spot` has not run" (since #686, its line and that the
+  last `spot` failed), and the notes say to read one only under a `spot`
+  that passed. Grips that closed on nothing: 7, in 6 of the
   30 tries, where the fresh arms had 56 in 34 of 70. `measure` was written
   in 5 sources and ran once, and its near end, the top running off the
   picture toward the robot, read none (#636).
@@ -2197,10 +2198,10 @@ serial, 20-45 minutes a set-out:
   they call the cup "Placed <2cm; grade silent", and at set-out 5's "CUP
   WORKS (placed twice)": in the 9 of those set-outs' 10 tries that lifted
   it, it ended 3.1-6.3 cm from its place, 4.0 in each of set-out 4's last
-  three, and was never laid. The grade names only the first piece at fault
-  (`challenge/table.py`), and each of those tries failed on a fall, the
-  plate or a dropped fork first, so the cup's distance was never said, and
-  the robot read the silence as laid.
+  three, and was never laid. The grade named only the first piece at fault
+  (`challenge/table.py`; every one since #687), and each of those tries
+  failed on a fall, the plate or a dropped fork first, so the cup's distance
+  was never said, and the robot read the silence as laid.
 - **What failed instead: carries its feet ended, then reaches it fell in.**
   #560's reader (`read_arms.py`) ranks a fall before anything else: a fall
   11, a carry its feet ended 5, a tag not in view 5, a grip on nothing 3,
