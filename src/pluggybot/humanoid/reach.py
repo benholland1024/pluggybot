@@ -1746,12 +1746,17 @@ class Reach:
                              "gapMean": g.gap_mean, "squeeze": g.squeeze,
                              "rng": g.sense.rng.bit_generator.state}
                          for s, g in self.grippers.items()},
-            "motion": self.motion.kept_state()}
+            "motion": self.motion.kept_state(),
+            # ...and its model of itself as its loop last posed it: what a
+            # spot is placed through between two of the loop's ticks
+            "selfModel": self.self_model.kept_state()}
 
   def restore_kept(self, state: dict) -> None:
     for k, v in state["reach"].items():
       setattr(self, k, value_back(v))
     self.motion.restore_kept(state.get("motion", {}))
+    if "selfModel" in state:                  # a save from before it: posed at the next tick
+      self.self_model.restore_kept(state["selfModel"])
     self.sensed_force = {s: np.array(f, dtype=float) for s, f in self.force.items()}
     for s, kept in state["grippers"].items():
       g = self.grippers[s]

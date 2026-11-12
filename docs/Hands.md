@@ -463,7 +463,10 @@ there (§4's "A tag watched while the robot moves").
 - **A walk with something in hand.** A step carries nothing: the walking
   policy walks with its arms home, and its hand-over lets go of a hand
   that is out first, as a `withdraw` does (`HumanoidMission.let_go_routine`,
-  #669) -- the body text says so, for `step` and every other walk.
+  #669) -- but a `step` asked while a gripper says it holds something
+  refuses before that hand-over (`holding`), and nothing moves. The body
+  text says both: the let-go for `step` and every other walk that moves
+  the feet, and the step's refusal beside it.
 - **A way out or home that looks, or feels.** Both are judged on the
   robot's model of itself alone (#539, #560): what the hand works over is
   taken to lie under it ahead of the robot's front, and the space at its

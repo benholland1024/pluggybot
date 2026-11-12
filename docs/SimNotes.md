@@ -3484,9 +3484,11 @@ targets and last actions, and the gains they set in the MODEL, which a
 restart compiles fresh -- its IMU's filter and its joints' and grippers'
 noise, its reach, its reckoning with its planted foot, its map, the
 camera's layer and the walls it is kept off, the scan matcher and its
-clocks. Saved at the day loop's first pass and carried on in a new process,
+clocks, and its models of itself as their loops last posed them (the
+LIDAR's band is laid through the odometry's: Webserver.md, "Parity").
+Saved at the day loop's first pass and carried on in a new process,
 its day was IDENTICAL through its whole explore (`determinism_spike.py
---world home_humanoid --resume-at 5`: 508 state samples to t = 260 s). ⚠ A
+--resume-at 1`: 509 state samples to t = 260 s, 2026-11-11). ⚠ A
 test saving on a step every controller's period divides read a fresh reach
 as a kept one: 685 steps are the reach's 5 and the policies' 10 alike, so
 the parity tests save on 687. Never saved with a hand out (`Body.working`):
@@ -7191,9 +7193,19 @@ is left as it is, so a withdraw after an `open_hand` is the flight it was.
 `step` refuses only a grip that reads held, and a procedure that ends with a
 hand out walks after it, so the same jaws on the same lever came home
 through every walk (#669's review). One routine lets go for both
-(`HumanoidMission.let_go_routine`), and the body text says so: "Before a
-`step` or any other walk, a hand that is out comes home, its gripper opened
-as `withdraw` opens it: a walk carries nothing." With nothing to open it
+(`HumanoidMission.let_go_routine`). A `step` asked while a gripper says it
+holds something still refuses before that hand-over (`holding`), opening
+nothing, and the body text says both: "Before a `step` or any other walk
+moves your feet, a hand that is out comes home, its gripper opened as
+`withdraw` opens it: a walk carries nothing. A `step` asked while either
+gripper says it holds something moves nothing, and reads false." The
+refusal went unsaid at first (#669's second review): asked through the
+deployed prompt, GLM-5.3-Flash on baseten read a `step` with its jaws on a
+knob that read held as letting go and walking 12 times of 12 on that text,
+and as refused, the gripper still shut, 12 of 12 on this one; a `step`
+after jaws that read nothing held, and a `drive_to` with a cube in hand,
+read as letting go 12 of 12 on both (`~/pluggybot-training/day-shift-1111/
+d1-release/quiz/`, $0.07). With nothing to open it
 steps nothing, and no reference begins a walk with a hand out -- nor does any
 of the 459 practice tries below, by their recorded verbs. Its text
 says so with no condition the robot must work out. Worded "open a hand's
@@ -7264,13 +7276,18 @@ on the same pod, and the place check at set-outs 0-31 reads 20 where it read
 17. On fresh draws, 400-431, 23 of 32 (25 for round 1; draw 431's trace
 showed the one-tag case the review fixed, so they are not untouched, but
 not flattered either: 431 still failed). So `place_cube` is
-offered ("The humanoids' first jobs"): 8 minutes from the claim, three
-times its slowest pass over the tour (159 s), paying 45 (Ben's 90 for 16
-minutes, pro rata), and priced at 9.858 Wh (`energy.json`: flown on this
-reference from the mall's station it cost 8.124 Wh over 180 s, from the
-house's 5.955, from the research center's 6.208, and 3 Nov's dearer reading
-is kept). #669's `withdraw`, which opens its gripper first, changes none of
-its flights: every `withdraw` it makes follows an `open_hand` (the first
+offered ("The humanoids' first jobs"): 9 minutes from the claim, three
+times its slowest pass from the dearest station, the mall's, its area
+remembered (177 s and 180 s, the re-pricing's flight and this one), paying
+51 (Ben's 90 for 16 minutes, pro rata), and priced at 9.858 Wh
+(`energy.json`: flown on this reference from the mall's station it cost
+8.124 Wh over 180 s, from the house's 5.955, from the research center's
+6.208, and 3 Nov's dearer reading is kept). Three times its slowest pass
+over the tour (159 s, on a fresh map; the tour has no mall) gave 8, and
+left a claim at the mall about 300 s to write the procedure in, where one
+answer may take 300 (Ben's call for 9, 2026-11-11); a claim at the mall on
+a fresh map, its find before the walk, was not flown. #669's `withdraw`,
+which opens its gripper first, changes none of its flights: every `withdraw` it makes follows an `open_hand` (the first
 round's 32 flown on both trees, the same row for row).
 
 | the bar's 32 draws, how each ended | the tree before | now |
@@ -7363,6 +7380,51 @@ never held in four tries (2 of 32), each try stopped short, out of reach or
 shut on nothing.
 
 
+## A flight that never got up (the drift batch of 11-10)
+
+One flight of the doubt rule's drift batch, seed 13 from the hall, never
+finished on either tree: 57 and 72 minutes at full CPU on a pod (an EPYC
+7773X), nothing on its stdout or stderr, where the rest flew whole in 22-42
+minutes. It read as a C call that never returned, and was not one: a
+flight's stdout redirected to a file is block-buffered (a whole flight's
+report is 4 KB, under the 8 KB buffer, so every flight's stdout is empty
+until it ends), and a SIGINT that reaches Python prints its traceback
+within seconds, so the one sent must have reached a shell. Flown again on
+another CPU and Python (an i5-9600KF on 3.14, the pod's 3.12) it hung the
+same way, every flight of it at the same step: 117.7 s in, the explore's
+walk north along the house's east wall crossed the garden's pressure plate
+(a sprung pad 21 mm proud of the floor), went down on it, and fell forward
+0.65 m over the garden lamp's pole (4 cm, which its maps held within 10 cm
+of it), the pole between its legs. The get-up thrashed round the pole and
+lay still against the house's wall, 120 deg from upright, for good. Two
+flights tell the causes apart: with the pad's contacts off (under the
+LIDAR's band and the depth camera's low layer, so nothing the robot senses
+changes) the same walk passed the pole 0.42 m off and never fell; with the
+pole's off from the step it fell, the get-up stood 2.6 s later. The plate
+tripped the served walker, and the pole kept it down.
+
+`HumanoidMission._getup_routine` holds the walk until the get-up stands,
+with no budget of its own: served, a fall it cannot get up from is the
+lifecycle's `stuck` death, whose stand-up closes the routine. The spike's
+lifecycle is not mortal, and the explore's budget and the walk's timeout
+are read only between drive steps. Flown under the served rules (mortal,
+its 300 s restart, the explore inside `_until_stood_up_routine`), the same
+fall is a `stuck` death 20.6 s on, and the stand-up 300 s later closes the
+explore; the physics thread never stalls, and no save is taken while it
+lies (`Keeper.busy`, 320 s). The death's clock runs only while the trunk is
+60 deg or more off its posture: a get-up stuck short of that would never
+die `stuck`, bounded only by its pack or `unminded` (none seen).
+
+**What is true now:** a drift flight that has not stood 5 s
+(`STOOD_AGAIN_S`) within `GETUP_WAIT_S` (40 s) of a fall ends `stuck`, the
+rows until then kept, and so does a `--falls` flight (`stuck_guard`;
+`tests/test_drift_spike.py` pins the rule and its wiring on a body that
+steps only a clock). The station spike's trials, `solve.py`'s and the
+non-mortal days of `hub_lifecycle.py` and `two_robots.py` have no such
+guard: a fall they cannot get up from runs to their parent's subprocess
+timeout (1800-3600 s) or for good.
+
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
@@ -7387,3 +7449,9 @@ shut on nothing.
    in one comparison, and doing the thing twice found the third.
 7. A loop that never ends is named by walking the day routine's generator
    chain (`gi_yieldfrom`) in a reproduction.
+8. A flight that seems hung is read from inside it: run it `-u` (redirected,
+   its stdout says nothing until it ends), signal the Python process and
+   never its shell, and give it `faulthandler.register(SIGUSR1,
+   all_threads=True)`, which dumps every thread's stack with no ptrace; one
+   that calls `prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)` lets `py-spy dump`
+   attach where Yama allows only a parent (scope 1).
