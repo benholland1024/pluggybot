@@ -7269,6 +7269,157 @@ the world (Hands.md §7); a reach of one hand while the other is held takes a
 posture planned for a free body; and the get-up against the counter (13 of 14
 flown falls there never stood in 60 s).
 
+## The arms keep off the other robot (issue #678)
+
+**What happened.** #670 kept a step off the other robot as a walk is kept
+off it, and an arm still knew nothing of it: at 11:48 on 11-08 Rowan's way
+home from the cupboard's lever hooked Luca's arm, their middles 0.68 m
+apart, and both fell; at #670's placements (0.54-0.73 m) the reach for the
+lever swung out by its side and its jaw met Luca's thigh, or its bow brought
+its head into Luca. #678's stage 1 (the night of 11-10; `~/pluggybot-training/
+night-shift-1110/t4-arms/findings.md`) prototyped what follows, flew it, and
+Ben chose it on 11-12 with four answers: about 1 m of side clearance at a
+counter, the minds coordinating; a walk with an arm stuck out refused by the
+verbs and waited out, bounded, by the loop's walks; the other robot as a
+cylinder first; and only a robot the LIDAR sees, one scan at the move's start.
+
+**What is true now** (`Reach._kept_off`, `HumanoidMission.look_round` and
+`keep_out`, `HumanoidBody.reach_routine`, `release_routine` and `arm_kept`,
+`steps.ARM_KEPT_OFF`):
+- *What an arm keeps off.* Another robot as a cylinder round its soles'
+  middle, 0.28 m round (the standing body, arms hanging: its grippers hang
+  0.28 m out on the drawing) and 1.55 m tall (its head's top), every part of
+  the arm kept 5 cm off it (`OTHER_BODY_M`, `OTHER_TOP_M`, `OTHER_CLEAR_M`):
+  a capsule at five points of its axis with its radius, a box at its corners
+  and its middle (`arm_points`, `room`), the arm walked in joint space as
+  `dip` walks it. An arm begun nearer than the 5 cm only goes no nearer. Its
+  place, never its heading: a robot standing square to the counter beside
+  this one is narrower that way than round.
+- *Whom.* Only a robot the LIDAR sees in ONE scan as the move begins
+  (`look_round`): standing still, the humanoid's LIDAR takes no scan of its
+  own (#670), so a reach, a withdraw, a walk verb and a walk's hand-over
+  with an arm out each take one, recorded as any scan's sighting is
+  (`seen_t`, `peer_returns`) and never into the map. A robot it saw is placed
+  where `others` places one seen (#675: its body, through this robot's own
+  pose error); one it did not is kept off nowhere -- never at its reported
+  pose, which at the counter lay 0.49 m from its body at the median. One
+  lying down or dead is left out (it lies under the arms' work, and the
+  walks' wider disc keeps the feet off it), and so is one past `ARMS_NEAR_M`
+  (1.5 m): on the drawing no part of an arm comes further than 0.91 m from
+  the stance's middle in any posture a reach or a carry takes (300 random
+  arms a side in each of the 99 postures with their waist's yaws, then the
+  farthest pushed further by an optimiser from 12 starts in the 30 deepest),
+  so past 1.24 m none comes within the body's 0.33 m. With no other robot
+  about no look is taken and nothing is judged: a robot alone flies as it
+  did, bit for bit.
+- *Which ways.* A reach's way out, as the robot stands and in the posture
+  the reach takes, and its way home from its pre-grasp, in that posture and
+  stood up -- an arm never goes where it could not come back from; a
+  withdraw's way home, as it stands and stood up. The first of today's way,
+  straight, the side way and the way drawn in (`_tucked_way`: its elbow bent
+  to 1.9 rad where it stands, its shoulder moved, its elbow out) that keeps
+  clear and dips no deeper over the work than today's (#539's and #560's
+  rule kept whole). At a counter there is none: today's way out there is the
+  side way, which rolls the arm 75 deg out and meets a robot beside out to
+  about 1.0 m, and every way that keeps the arm in dips into the counter's
+  face (stage 1: 1,500 random ways of one and two via points found none at
+  0.65 m). Elsewhere there can be: an arm raised high and out to its right,
+  whose straight way home sweeps through a robot ahead and to its right,
+  takes the side way 16 cm clear (`tests/test_arms_keep_off.py`).
+- *Otherwise refused*, nothing moved, in words the robot reads
+  (`steps.ARM_KEPT_OFF`): what did not move, why, where that robot stands
+  from its own middle ("another robot, its middle 0.54 m from yours on your
+  right"), and for a reach what the other hand's way would do ("your left
+  hand's way there keeps clear of it"). A withdraw is judged before #669's
+  let-go, so its gripper stays as it was, holding what it holds.
+- *A walk with a hand out that could not come home.* A walk brings the arms
+  home first (#669), so `step`, `drive_to`, `face` and `find` refuse to walk
+  then (`Body.arm_kept`, one look) and say so; the loop's own walks -- a
+  charge's among them -- are never refused: their hand-over waits, looking
+  every `ARM_LOOK_S` (1 s), until a look finds a way home clear, `ARM_WAIT_S`
+  (60 s) at most, then lets go and brings the arm home the way that comes
+  least near that robot (at a counter, today's). Each wait is kept on the
+  mission (`arm_waits`). ⚠ THE WAIT IS NO WALK'S: a drive counts it against
+  neither its patience nor its stagnation clock (`Navigator.held_s`), nor a
+  step against its own -- counted, a minute's wait in a walk's first
+  command left a 40 s walk out of time before its first stride, and a
+  longer one gave up "stalled" as the arm came home.
+- *What it costs.* A look is one band scan. Judging a reach is about 0.17 s
+  of planning on the dev box (way out and way back, four ways in two poses);
+  a refused reach also plans the other hand for its words, a full search
+  where that hand does not reach, as an out-of-reach reach's words do.
+
+**The text.** The reach's and the withdraw's texts and YOUR BODY's walk
+sentence each say it, without naming the LIDAR, which no text the robot
+reads mentions: "Its way out, and its way home from there, keep clear of
+the body of another robot standing near you: where no way does, your arm
+does not move, and it reads false saying where that robot stands"; the
+withdraw's the same of its way home, "your gripper stays as it is and your
+hand where it is"; and YOUR BODY's "Nor does a `step` or any other walk
+move while a hand is out whose every way home would meet the body of
+another robot standing near you". #669's withdraw text still begins with
+its let-go, the exception after it (the deployed mind misread a condition
+there, #669); a quiz of these words on the deployed mind was not flown.
+
+**Flown** (`~/pluggybot-training/loop-1112/l3-arms/`: stage 1's instruments
+`fly/fly1148.py` and `fly/pairs.py`, and `fly/read_l3.py`; one Vast pod, an
+AMD EPYC 7B13, osmesa; this build at fbaac57 and loop-staging 91d5025, which
+it had merged, side by side, both before #684):
+- *11:48's placements* (Rowan's door_go4 from where its walk stopped, its
+  steps flown, or its tail alone; Luca behind its right shoulder on the
+  walker, held still, 0.54-0.73 m off; three noise draws each, 30 flights a
+  tree): loop-staging touched in 14 (233 contacts), Rowan fell in 9 and Luca
+  in 4 -- stage 1's base, flight for flight; this build touched in none and
+  nobody fell, 23 reaches refused, each for Luca's body 0.54-0.79 m on its
+  right, each saying the left hand's way there keeps clear. The steps #670
+  refuses it refuses still, 54 on each tree.
+- *Neighbouring props* (both robots running their check's own procedure at
+  once, draws 0-3): at the counter's work spots, 1.16-1.24 m apart, the same
+  flights on both trees, row for row, 12 of 12, with no refusal and the same
+  props done (one fall, the cube's robot's, on both). Moved nearer -- 0.86-0.95
+  m (each 15 cm toward the other) and 0.71-0.80 m (22.5 cm), six flights
+  each -- loop-staging touched in 4, two of them falling; this build in
+  none, with 40 refusals in 8 flights at 0.73-0.99 m, 15 of them in the door
+  and cube's flights whose loop-staging twin never touched (the cube's robot
+  steps aside first and still stands 0.96-0.99 m off), and one withdraw
+  refused at 0.88 m, its arm left out. No prop was done at those spacings on
+  either tree: the references need their stance within a few cm.
+- *The hands checks* (the lid, the drawer, the door, the cube and the table
+  at set-outs 0-31, a robot alone): 160 flights of 160 the same on both
+  trees, row for row -- the lid 26, the drawer 21, the door 24, the cube 20,
+  the table 24.
+- *The pair's fixture day* (`two_robots.py` as the pair's recording is
+  made, before #684's plate; the first robot plugs in at the station while
+  the second explores, then the second): one charge each on both trees, no
+  death, both robots done. The two parted from 95.5 s: the first robot's
+  plug-in looked as its reaches and withdraw began, and a look's scan draws
+  on its LIDAR's noise, so its later scans read otherwise; the second's
+  charge began at 378 s here and 357 s on loop-staging.
+- *A hand left out, then a loop walk* (`fly/strand.py`, on a7bb9c5 and
+  loop-staging e791777: the nearer neighbours' drawer and door, each robot
+  then walking 1 m back from the counter if a hand is still out, the other
+  standing still or walking off 10 s after the procedures end; draws 0 and 1
+  at both nearer spacings): one withdraw was refused, at 0.88 m, leaving
+  Rowan's left hand out. Its walk's hand-over waited for it -- 60 s with Luca
+  standing still, then the arm came home today's way, meeting nothing of
+  Luca (whose body that way is narrower than the cylinder); 15 s with Luca
+  walking off, the arm coming home at the first look that found its way
+  clear. Both walks arrived, their drives counting none of the wait (10.5
+  and 10.7 s of walking). On loop-staging the same flights touched three
+  times each at 0.88 m, and at 0.73 m both robots fell, in both draws.
+
+**What it leaves open.** A carried hand (`move_hand`, `pull`) is not
+judged, nor a posture a reach's look takes with its hand waiting at its
+pre-grasp (#627: a waist turned toward the other robot carries the arm with
+it), nor anything after a move begins: a robot walking up beside an arm
+already out is met at the arm's next move, and its way home then is the
+walk's to wait for. The cylinder is round: turned to the heading the
+LIDAR sees, fewer refusals would come where the arms would have passed --
+Ben's later step, if live refusals show it. Whether the minds act on the
+words -- the other hand, a step away, a `tell` -- is the live world's to
+show. And a hand stranded out (a withdraw refused, nothing walking) holds
+the world's saves, as any hand out does (`Keeper.busy`).
+
 ## The cube from the tour (issue #560)
 
 **What is true now.** Our cube reference places the cube from anywhere in
