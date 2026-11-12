@@ -1064,7 +1064,21 @@ def getup_wall3_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     **{f.name: getattr(old, f.name) for f in dataclasses.fields(old) if f.init})
   # ...and paid while the standing policy has it: a stance it cannot hold
   # loses the pay until the get-up stands it again. (Not shown to the critic:
-  # a 108th input would not load getupwall12's.)
+  # a 108th input would not load getupwall12's.) ⚠ The stand is paid only so:
+  # paid as well while the get-up held it, both runs learned within 450
+  # iterations to stand just outside the hand-back (its pay 0.65-0.79 a
+  # second at the start, 0.004-0.03 at the end) -- served, a get-up that never
+  # hands back is the `stuck` death at 20 s.
   cfg.rewards["handed_back"] = RewardTermCfg(func=lambda env: handed_back(env)[:, 0],
                                              weight=HANDED_WEIGHT)
+  for name in ("stand_height", "stand_pose", "feet_down"):
+    cfg.rewards[name].func = _handed_only(cfg.rewards[name].func)
   return cfg
+
+
+def _handed_only(func):
+  """`func`'s pay only while the standing policy has the legs."""
+  def paid(env, **params):
+    return func(env, **params) * handed_back(env)[:, 0]
+  paid.__name__ = f"{func.__name__}_handed"
+  return paid
