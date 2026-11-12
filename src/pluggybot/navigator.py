@@ -272,6 +272,13 @@ class Navigator:
   PEER_STOP_HALF_M = PEER_STOP_HALF_M
   PEER_CLEARANCE_M = PEER_CLEARANCE_M
   FACING_TOLERANCE = FACING_TOLERANCE
+  #: How long, s, this body has stood still inside a walk's own first
+  #: command, waiting on something no drive is about -- the humanoid's
+  #: hand-over, an arm's way home kept off another robot (#678,
+  #: `HumanoidMission._arms_wait_routine`) -- which a drive counts against
+  #: neither its patience nor its stagnation clock, as a stop's question;
+  #: 0 for a body that never waits.
+  held_s = 0.0
   #: How a drive's progress is read (`STAGNATION_S`): in a straight line to
   #: the goal, the rover's, or ALONG THE ROUTE it plans (issue #387): from
   #: the bedroom's corner the only way to the hall door walks 2.5 m round
@@ -514,11 +521,7 @@ class Navigator:
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
       scan = self._scan()
       angles, ranges, peer_angles, peer_ranges, free_from, origin = scan[:6]
-      t = float(self.data.time)
-      self.peer_returns = (t, peer_angles, peer_ranges)
-      self.scanned_t = t
-      for root in scan.peer_roots:
-        self.seen_t[root] = t
+      self._sighted(scan, float(self.data.time))
       origin = self.LIDAR_ORIGIN if origin is None else origin
       if self.maps():
         m = self._match(angles, ranges, origin)
@@ -534,6 +537,16 @@ class Navigator:
         all_ranges = np.concatenate((ranges, peer_ranges))
         if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
+
+  def _sighted(self, scan: Scan, t: float) -> None:
+    """What a scan saw of the other robots, kept: its returns off them, for
+    the front stop's and a step's (`peer_returns`, #316, #670), and whom
+    they came off, by root (`seen_t`, #675) -- every scan's, and a look's
+    (`HumanoidMission.look_round`, #678)."""
+    self.peer_returns = (t, scan.peer_angles, scan.peer_ranges)
+    self.scanned_t = t
+    for root in scan.peer_roots:
+      self.seen_t[root] = t
 
   def _scan(self) -> Scan:
     """One scan, the map's and the other robots' apart (`Lidar.scan_split`):
@@ -875,7 +888,16 @@ class Navigator:
     # plans a way past it, and a drive at its stand-in replans every step
     next_goal_ask = t0
     aimed = False                      # has it faced its route yet (`AIMED_RAD`)
-    while self.data.time - t0 < timeout:
+    held = self.held_s
+    while True:
+      if self.held_s != held:
+        # ...its legs' hand-over stood it waiting (#678): neither its patience
+        # nor its stagnation clock ran, and the world moved meanwhile
+        took, held = self.held_s - held, self.held_s
+        t0, last_improve = t0 + took, last_improve + took
+        waypoints, self._plan_memo = [], None
+      if self.data.time - t0 >= timeout:
+        break
       dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
       if dist < 0.08 and not waypoints:
         return self._drove(wx, wy, t0, "")

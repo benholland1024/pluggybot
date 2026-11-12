@@ -34,6 +34,7 @@ the odometry keeps its height and finds its planted foot on the map
 (`humanoid.odometry`).
 """
 
+from collections import deque
 import math
 from typing import Iterable
 
@@ -103,6 +104,26 @@ DEPTH_PERIOD = 0.2
 _DRIVER = {"stand": ("last_action", "goal", "posture", "target"),
            "walk": ("last_action", "twist", "target"),
            "getup": ("last_action", "target", "_still")}
+
+
+#: A HAND'S WAY KEEPS OFF ANOTHER ROBOT THIS ROBOT'S LIDAR SEES (#678;
+#: `keep_out`, `reach.OTHER_BODY_M`; SimNotes, "The arms keep off the other
+#: robot"): one within this of the stance's middle, m -- past 1.24 m no part
+#: of an arm comes within the body's 0.33 m of it in any posture a reach or
+#: a carry takes (its farthest point 0.91 m out, on the drawing), so one
+#: further off is never judged...
+ARMS_NEAR_M = 1.5
+#: ...and a walk's hand-over with an arm out whose every way home would meet
+#: its body waits for it to leave, this long at most, s, looking again this
+#: often (`to_walk_routine`), and then brings the arm home the way that comes
+#: least near it -- at a counter, today's: the loop's own walks, a charge's
+#: among them, are never refused (Ben, 2026-11-12), where the walk verbs
+#: refuse (`Body.arm_kept`). A minute: a robot walking by is gone in seconds,
+#: and one standing still is asked by its mind every 10-90 s.
+ARM_WAIT_S = 60.0
+ARM_LOOK_S = 1.0
+#: ...and the latest this many waits kept for the instruments (`arm_waits`).
+ARM_WAITS_KEPT = 100
 
 
 def command_for(vx: float, vy: float, w: float) -> tuple[float, float, float]:
@@ -232,6 +253,16 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     #: When its BODY last went anywhere, sim s -- a motion command, a
     #: get-up, a warp; never a hand at work (`Body.moved_at`, #675).
     self.went_t = float(data.time)
+    #: The latest times an arm waited for its way to clear of another robot
+    #: (`_arms_wait_routine`, `HumanoidBody.reach_routine`, #678), for the
+    #: instruments: when, how long, which hands, why it ended.
+    self.arm_waits: deque[dict] = deque(maxlen=ARM_WAITS_KEPT)
+    #: The latest look's sim time and whom it saw (`look_round`): one scan
+    #: an instant, however many moves ask.
+    self._looked: tuple[float, frozenset] | None = None
+    #: Whether an arm waits for its way now (`arm_wait_routine`): busy,
+    #: never asked aside (`HumanoidWay._busy`).
+    self.arm_waiting = False
     #: A tag watched while it moves (`perception.watch.TagWatch`, the
     #: body's `watch`), stepped after every physics step; None for none.
     self.sight = None
@@ -394,11 +425,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     """Held still while a fall's get-up has the legs, until it stands. ⚠
     Unheld, a walk asked of a body that fell with its arms home found them
     at rest and the posture settled, and took the legs off the floor. ⚠ No
-    budget of its own, as the quadruped's get-up has none: a body that
-    cannot stand is the lifecycle's `stuck` death after `stuck_after_s`,
-    whose stand-up closes the routine; a script whose lifecycle is not
-    mortal, or that has none, bounds its own run (as the drift spike's
-    `stuck_guard` does its flights)."""
+    budget of its own: a body that cannot stand is the lifecycle's `stuck`
+    death after `stuck_after_s`, whose stand-up closes the routine, and
+    where nothing dies the same clock ends the run (`lifecycle.Stuck`,
+    #684); a script with no lifecycle bounds its own run."""
     while self.legs == "getup":
       yield STILL
       self._after_step()
@@ -425,26 +455,133 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     """The legs to the walking policy: the arms home and the posture back to
     the stand first, the waist home (a walk carries nothing yet, and the
     walking policy knows no waist), then handed over -- ⚠ an arm that is
-    out letting go first, as a withdraw's does (`let_go_routine`, #669). ⚠ A
-    fall as they came home went to the walker if its step was the one that
+    out letting go first, as a withdraw's does (`let_go_routine`, #669),
+    ⚠ and waiting first, `ARM_WAIT_S` at most, while every way home it has
+    would meet another robot's body (`_arms_wait_routine`, #678): its way
+    home then judged against the robot as its last look saw it. ⚠ A fall
+    as they came home went to the walker if its step was the one that
     settled them (#520): the get-up stands it first."""
     yield from self._getup_routine()
     if self.legs == "walk":
       return
-    if not (yield from self.let_go_routine([s for s in hm.SIDES
-                                             if self.reach.phase[s] != "rest"])):
+    try:
+      yield from self._arms_wait_routine()
       yield from self._getup_routine()
-    for s in hm.SIDES:
-      if self.reach.phase[s] not in ("rest",):
-        self.reach.retreat(s)
-    self.reach.hold_posture(0.0, 0.0)
-    while (any(p != "rest" for p in self.reach.phase.values())
-           or not self.stand.settled or not self.reach.waist_home()):
-      yield STILL
-      self._after_step()
+      if not (yield from self.let_go_routine([s for s in hm.SIDES
+                                               if self.reach.phase[s] != "rest"])):
+        yield from self._getup_routine()
+      for s in hm.SIDES:
+        if self.reach.phase[s] not in ("rest",):
+          self.reach.retreat(s)
+      self.reach.hold_posture(0.0, 0.0)
+      while (any(p != "rest" for p in self.reach.phase.values())
+             or not self.stand.settled or not self.reach.waist_home()):
+        yield STILL
+        self._after_step()
+    finally:
+      self.reach.keep_out = []
     yield from self._getup_routine()
     self.walker.last_action[:] = 0.0
     self.legs = "walk"
+
+  def _arms_wait_routine(self, sides=hm.SIDES, nav: bool = True):
+    """The loop's own move home for `sides`' arms that are out -- a walk's
+    hand-over, a release no verb asked for (#678): while some arm out could
+    come home by no way that keeps off a robot its look sees
+    (`Reach.home_clear`), waited for (`arm_wait_routine`; `nav`, the walk's
+    bookkeeping each step, as a hand-over's own). Leaves the reach keeping
+    off the robots its last look placed (`Reach.keep_out`): the way home is
+    judged against them -- the first that keeps clear or, waited out, the
+    one that comes least near (`Reach._kept_off`)."""
+    out = [s for s in sides if self.reach.phase[s] != "rest"]
+    self.reach.keep_out = []
+    if not out or not self.others:
+      return
+
+    def clear() -> bool:
+      self.reach.keep_out = self.keep_out(self.look_round())
+      return all(self.reach.home_clear(s) for s in out)
+    t0 = float(self.data.time)
+    yield from self.arm_wait_routine(clear, out, "home", nav)
+    # ...stood still for no walk: a walk counts none of it (`held_s`)
+    self.held_s += float(self.data.time) - t0
+
+  def arm_wait_routine(self, clear, sides, move: str, nav: bool = False):
+    """THE LOOP'S OWN ARM WAITS FOR ITS WAY (#678; Ben, 2026-11-12: the
+    verbs refuse, the loop's waits): `clear()` asked now and every
+    `ARM_LOOK_S`, the body held still meanwhile -- never asked aside
+    (`arm_waiting`: standing still with no hand out, a reach's wait would
+    rest, and a robot resting is walked off) -- until it says yes, a fall,
+    or `ARM_WAIT_S` has gone by. Returns "clear", "fell" or "waited", the
+    wait kept in `arm_waits` where it took any time."""
+    t0, falls, why = float(self.data.time), self.falls, "waited"
+    self.arm_waiting = True
+    try:
+      while True:
+        if clear():
+          why = "clear"
+          break
+        if float(self.data.time) - t0 >= ARM_WAIT_S:
+          break
+        for _ in range(int(round(ARM_LOOK_S / self.model.opt.timestep))):
+          yield STILL
+          if nav:
+            self._after_step()
+          if self.falls != falls:
+            break
+        if self.falls != falls:
+          why = "fell"
+          break
+    finally:
+      self.arm_waiting = False
+    if float(self.data.time) > t0 or why != "clear":
+      self.arm_waits.append({"t": round(t0, 3), "s": round(float(self.data.time) - t0, 3),
+                             "sides": list(sides), "move": move, "why": why})
+    return why
+
+  def look_round(self) -> frozenset[str]:
+    """ONE SCAN AT A HAND'S MOVE'S START (#678; Ben, 2026-11-12): its
+    LIDAR's band now, its sighting recorded as every scan's is
+    (`Navigator._scan_step`: the returns off another robot, `peer_returns`,
+    and whom they came off, `seen_t`) -- never into the map nor the front
+    stop. Standing still, its LIDAR takes none of its own (#670), and a
+    hand's way keeps off only a robot one sees. Returns whom this scan saw,
+    by root -- none, scanning nothing, with no other robot about
+    (`others`): alone, a flight is what it was, bit for bit."""
+    if not self.others:
+      return frozenset()
+    t = float(self.data.time)
+    if self._looked is not None and self._looked[0] == t:
+      # ...once an instant: a walk verb's look and its hand-over's are one
+      return self._looked[1]
+    scan = self._scan()
+    self._sighted(scan, t)
+    self._looked = (t, frozenset(scan.peer_roots))
+    return self._looked[1]
+
+  def keep_out(self, seen) -> list[tuple[float, float]]:
+    """What a hand's way keeps off (#678): each other robot its LIDAR saw
+    (`seen`, by root: a look, `look_round`) standing within `ARMS_NEAR_M`
+    of its stance's middle, that robot's soles' middle in the stance frame,
+    placed as `others` places one seen (#675: at its body, through this
+    robot's own pose error) -- ⚠ NEVER WHERE IT SAYS IT IS: at the counter
+    its word lay 0.49 m from its body at the median, 1.13 m at the 90th
+    percentile, and one unseen is kept off nowhere. Not one down or dead:
+    it lies on the floor under the arms' work, and the walks' wider disc
+    keeps the feet off it."""
+    if not seen:
+      return []
+    sx, sy, syaw = self._stance_frame()
+    c, s = math.cos(syaw), math.sin(syaw)
+    out = []
+    for b in self._bodies():
+      if b.root not in seen or b.down or b.dead:
+        continue
+      dx, dy = b.x - sx, b.y - sy
+      x, y = c * dx + s * dy, c * dy - s * dx
+      if math.hypot(x, y) <= ARMS_NEAR_M:
+        out.append((x, y))
+    return out
 
   def to_stand_routine(self, getup: bool = True):
     """The legs to the standing policy: the walking one held still

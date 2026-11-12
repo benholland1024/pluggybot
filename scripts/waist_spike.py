@@ -1477,6 +1477,8 @@ def report(rows) -> None:
 
 
 def main() -> None:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--bands", action="store_true")
   ap.add_argument("--window", action="store_true")

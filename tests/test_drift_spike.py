@@ -1,11 +1,15 @@
 """A drift flight whose robot never gets up ends `stuck`, never runs on for
-good (`scripts/humanoid_drift_spike.py`, `stuck_guard`): the loop's get-up
-has no budget of its own, and the spike's lifecycle no `stuck` death
-(SimNotes, "A flight that never got up").
+good (`scripts/humanoid_drift_spike.py`): its lifecycle is not mortal, and
+where nothing dies a get-up that would have died `stuck` ends the run
+(`lifecycle.Stuck`, #684; SimNotes, "A flight that never got up"). The
+rule is pinned in `tests/test_reset_robot.py`; here, that the flight keeps
+what it flew and says where it lies.
 
-Pinned without a flight (docs/Testing.md): the guard's rule by direct calls,
-and its wiring through `fly` on a body that steps nothing but a clock -- its
-steps capped, so a flight that never ends fails here and never hangs.
+Pinned without a flight (docs/Testing.md): `fly` on the stub body
+(`tests/test_body.py`), its get-up never standing. The stub passes time
+only where a routine holds (the rest at the storeroom), and a flight that
+never ended would end there anyway, without its `stuck`. And that the
+instruments count a doubted fit as the fit it was (#681).
 """
 
 import sys
@@ -14,73 +18,17 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from pluggybot import tick
+from pluggybot.body import StubBody
+from pluggybot.humanoid.body import HumanoidBody
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 ROOT = Path(__file__).resolve().parents[1]
-#: Where the robot lies (the garden, where 13h's did), and the fake's clock.
-LIES = (5.4, 2.06, 0.0)
-DT = 0.01
 
 
 def _spike():
   sys.path.insert(0, str(ROOT / "scripts"))
   import humanoid_drift_spike as hds
   return hds
-
-
-class Body:
-  """What a flight asks of its body: a clock stepped by `tick.run`, every
-  step its hooks; from `fall_t` on its get-up has the legs and never stands
-  (`posture`). At most `most` steps: past them, the flight never ended."""
-
-  def __init__(self, fall_t: float = 5.0, most: int = 20_000):
-    self.data = NS(time=0.0)
-    self.fall_t, self.most, self.steps = fall_t, most, 0
-    self.step_hooks: list = []
-    self.posture = "standing"
-    self.falls, self.match_counts, self.belief_events = 0, {}, []
-    self.closed = False
-
-  def step(self, cmd) -> None:
-    self.steps += 1
-    assert self.steps <= self.most, "the flight never ended"
-    self.data.time += DT
-    if self.data.time >= self.fall_t and self.posture == "standing":
-      self.posture, self.falls = "getting_up", self.falls + 1
-    for hook in list(self.step_hooks):
-      hook()
-
-  def run(self, routine):
-    return tick.run(self, routine)
-
-  def true_pose(self):
-    return LIES
-
-  def start_at(self, *pose) -> None:
-    pass
-
-  def start_discovery(self) -> None:
-    pass
-
-  def look_around_routine(self):
-    yield (0.0, 0.0, 0.0)
-
-  def close(self) -> None:
-    self.closed = True
-
-
-class Life:
-  """The lifecycle's explore: a walk that never returns on its own -- its
-  get-up holds it, as `_getup_routine` held 13h's."""
-
-  def __init__(self, body: Body):
-    self.body, self.data = body, body.data
-
-  def explore(self, budget, mark_done):
-    def walking():
-      while True:
-        yield (0.3, 0.0, 0.0)
-    return self.body.run(walking())
 
 
 class Tracker:
@@ -96,65 +44,27 @@ class Tracker:
     return []
 
 
-def test_a_get_up_not_stood_in_its_wait_ends_the_flight_and_one_stood_in_time_does_not():
-  hds = _spike()
-  body = Body()
-  hook = hds.stuck_guard(body, wait_s=40.0, again_s=5.0)
-
-  def at(t: float, posture: str) -> None:
-    body.data.time, body.posture = t, posture
-    hook()
-
-  at(10.0, "standing")
-  at(11.0, "getting_up")                    # fell
-  at(50.9, "getting_up")                    # 39.9 s: still waited for
-  at(51.0, "standing")                      # stood in time...
-  at(56.0, "standing")                      # ...and stays up: forgotten
-  at(57.0, "getting_up")                    # a new fall
-  at(96.9, "getting_up")
-  with pytest.raises(hds.Stuck) as stuck:
-    at(97.0, "getting_up")
-  assert stuck.value.args[0] == {"fellT": 57.0, "t": 97.0, "zone": "garden", "at": [5.4, 2.06]}
-  # ...raised on the seam, so `tick.run` throws it into the routine in flight
-  assert issubclass(hds.Stuck, tick.MissionAborted)
-
-
-def test_a_robot_up_and_down_again_is_one_struggle_on_one_clock():
-  """Stood shorter than `again_s` and down again, the clock runs on from
-  the first fall: a get-up that hands back for a step at a time is no
-  bound's reset."""
-  hds = _spike()
-  body = Body()
-  hook = hds.stuck_guard(body, wait_s=40.0, again_s=5.0)
-
-  def at(t: float, posture: str) -> None:
-    body.data.time, body.posture = t, posture
-    hook()
-
-  at(11.0, "getting_up")                    # fell
-  for k in range(1, 8):                     # up 1 s at a time, down again
-    at(11.0 + 5 * k, "standing")
-    at(12.0 + 5 * k, "getting_up")
-  with pytest.raises(hds.Stuck) as stuck:
-    at(51.0, "getting_up")
-  assert stuck.value.args[0]["fellT"] == 11.0
-
-
 def test_a_flight_whose_robot_never_gets_up_ends_stuck_with_what_it_flew(monkeypatch):
   hds = _spike()
-  body = Body(fall_t=5.0)
-  monkeypatch.setattr(hds, "_life", lambda: (Life(body), body, None))
+  body = StubBody()
+  body.rights_itself, body.stuck_after_s = True, HumanoidBody.GETUP_BUDGET_S
+  life = stub_life(body=body)
+  life.max_sim_time = life.explore_deadline = 1e9     # as `station_spike._life` sets them
+  monkeypatch.setattr(hds, "_life", lambda: (life, body, None))
   monkeypatch.setattr(hds, "draws", lambda body, seed: {})
   monkeypatch.setattr(hds, "Tracker", Tracker)
+  body.posture = "getting_up"
   out = hds.fly("13", "hall", explore_s=240.0, trips=2, rest_s=60.0)
   stuck = out["stuck"]
-  assert stuck["phase"] == "explore" and stuck["zone"] == "garden", stuck
-  assert stuck["fellT"] == pytest.approx(5.0, abs=2 * DT)
-  assert stuck["t"] - stuck["fellT"] == pytest.approx(hds.GETUP_WAIT_S, abs=2 * DT)
-  # ...nothing it never reached is said, and what it flew is kept
-  assert "explored" not in out and "docked" not in out and out["walks"] == []
-  assert out["falls"] == 1 and out["simS"] == pytest.approx(stuck["t"], abs=0.1)
-  assert body.closed
+  # ...in the first rest, where the stub first holds, its get-up's budget in
+  assert stuck["phase"] == "rest1", stuck
+  assert stuck["t"] - stuck["fellT"] == pytest.approx(body.stuck_after_s, abs=0.2)
+  assert stuck["why"].startswith("fell and could not get up")
+  assert stuck["at"] == [round(body.x, 2), round(body.y, 2)]
+  assert stuck["zone"] == hds.zone_of(body.x, body.y)
+  # ...what it flew is kept, and nothing it never reached is said
+  assert [w["walk"] for w in out["walks"]] == ["out1"] and "docked" not in out
+  assert out["simS"] == pytest.approx(stuck["t"], abs=0.1)
 
 
 def test_a_doubted_fit_is_a_scan_its_robot_matched():

@@ -1054,13 +1054,13 @@ def build_home_world() -> tuple[str, dict]:
 
   # The reference activity. Its module owns BOTH the geometry and the state
   # machine (activity/plate.py), so a world adds one by calling one function.
-  # The PAD is hinted `plate` and says what it is for (`plates` below, the
-  # site's glyph); the light itself has no hint, because there is no `light`
-  # in the vocabulary and inventing one ahead of a consumer is how a shared
-  # vocabulary rots.
+  # The PAD is hinted `floor_plate` (#684: flush, paint over the floor's own
+  # square) and says what it is for (`plates` below, the site's glyph); the
+  # light itself has no hint, because there is no `light` in the vocabulary
+  # and inventing one ahead of a consumer is how a shared vocabulary rots.
   act_body, act_sensor = plate_light_xml(PLATE_XY)
   bodies.append(act_body)
-  hints["garden_plate"] = "plate"
+  hints["garden_plate"] = "floor_plate"
   plates = {"garden_plate": {"purpose": "light"}}
 
   # The lab's props (issue #215): the cage, what lives in it, its three

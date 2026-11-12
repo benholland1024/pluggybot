@@ -17,8 +17,10 @@ import math
 import mujoco
 import pytest
 
+from pluggybot import lifecycle as lc
 from pluggybot import tick
 from pluggybot.body import StubBody
+from pluggybot.humanoid.body import HumanoidBody
 from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, world_config, zone_centre
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import Inbox
@@ -339,6 +341,7 @@ def test_a_body_that_rights_itself_is_stuck_only_past_its_budget():
   body.rights_itself, body.stuck_after_s = True, 4.0
   life = stub_life(body=body, mortal=True)
   body.attitude = (math.cos(0.7), math.sin(0.7), 0.0, 0.0)   # 80 deg over
+  body.posture = "getting_up"
   body.run(body.hold_routine(3.0))
   assert life.dead is None, "past TOPPLE_HOLD_S, inside the get-up's budget"
   body.run(body.hold_routine(1.5))
@@ -354,6 +357,154 @@ def test_a_body_that_does_not_right_itself_is_knocked_over_at_its_own_hold():
   body.attitude = (math.cos(0.7), math.sin(0.7), 0.0, 0.0)
   body.run(body.hold_routine(2.5))
   assert life.dead is not None and "knocked over" in life.dead["why"]
+
+
+# ---- ...timed off its get-up, whatever its tilt (issue #684) -----------------
+
+GETUP_S = HumanoidBody.GETUP_BUDGET_S
+
+
+def _getting_up(tilt_deg, up=lambda s: False, mortal: bool = True):
+  """A stub that rights itself, on the humanoid's budget, its get-up taking
+  its legs now: its trunk `tilt_deg(s)` off upright `s` into the get-up,
+  its legs handed back, upright, while `up(s)`."""
+  body = StubBody()
+  body.rights_itself, body.stuck_after_s = True, GETUP_S
+  life = _life(body=body, mortal=mortal)
+  t0 = float(life.data.time)
+  body.posture = "getting_up"
+
+  def hook() -> None:
+    s = float(life.data.time) - t0
+    standing = up(s)
+    body.posture = "standing" if standing else "getting_up"
+    a = 0.0 if standing else math.radians(tilt_deg(s))
+    body.attitude = (math.cos(a / 2), math.sin(a / 2), 0.0, 0.0)
+  body.step_hooks.insert(0, hook)
+  return life, t0
+
+
+@pytest.mark.parametrize("tilt_deg", [lambda s: 45.0,
+                                      lambda s: 70.0 if int(s / 0.5) % 2 == 0 else 50.0],
+                         ids=["sitting at 45 deg", "thrashing across 60 deg"])
+def test_a_get_up_that_never_stands_is_stuck_at_its_budget_whatever_its_tilt(tilt_deg):
+  """A get-up stuck short of 60 deg (D3's new policy sat at the chest), or
+  thrashing across it, is `stuck` once its get-up has had its legs for its
+  budget: timed off the tilt, any check under 60 deg started the clock
+  again and it lay there for good. The fall is read as the get-up took the
+  legs, and the words are the ones a fall it could not get up from had."""
+  life, t0 = _getting_up(tilt_deg)
+  life.body.run(life.body.hold_routine(GETUP_S - 0.5))
+  assert life.dead is None, "inside the get-up's budget"
+  life.body.run(life.body.hold_routine(1.0))
+  assert life.dead is not None and life.dead["cause"] == "stuck"
+  assert life.dead["t"] - t0 == pytest.approx(GETUP_S, abs=2 * lc.DEATH_CHECK_S)
+  assert life.dead["why"].startswith(f"fell and could not get up in {GETUP_S:.0f} s (")
+  assert life._fall is not None and life._fall["t"] - t0 <= lc.DEATH_CHECK_S + 1e-6
+
+
+def test_a_get_up_that_stands_inside_its_budget_lives_and_its_clock_starts_over():
+  """...and one that stands inside it lives, lying however it lay, and its
+  next fall has the whole budget again."""
+  life, t0 = _getting_up(lambda s: 90.0, up=lambda s: s >= 15.0)
+  life.body.run(life.body.hold_routine(GETUP_S + 5.0))
+  assert life.dead is None and life._fall is None
+
+
+def test_a_get_up_that_stands_a_moment_and_goes_down_again_is_one_struggle():
+  """...but one that hands its legs back for a moment and goes down again
+  is down all the while, on the clock of its first fall (#684's review):
+  started over at every hand-back -- 1 s up in every 5, as two robots at
+  the counter fell into each other again 1.4 s after standing (#679) -- it
+  never ran out. Stood `STOOD_AGAIN_S`, its next fall has the whole budget
+  again."""
+  life, t0 = _getting_up(lambda s: 45.0, up=lambda s: s % 5.0 >= 4.0)
+  life.body.run(life.body.hold_routine(GETUP_S + 1.0))
+  assert life.dead is not None and life.dead["cause"] == "stuck"
+  assert life.dead["t"] - t0 == pytest.approx(GETUP_S, abs=2 * lc.DEATH_CHECK_S)
+  # ...and up 6 s from 15 s, down again at 21: a new fall, its own clock
+  life, t0 = _getting_up(lambda s: 45.0, up=lambda s: 15.0 <= s < 15.0 + lc.STOOD_AGAIN_S + 1.0)
+  life.body.run(life.body.hold_routine(GETUP_S + 15.0))
+  assert life.dead is None, "a fall after standing 6 s is a new one"
+  life.body.run(life.body.hold_routine(7.0))
+  assert life.dead is not None
+  assert life.dead["t"] - t0 == pytest.approx(21.0 + GETUP_S, abs=2 * lc.DEATH_CHECK_S)
+
+
+def test_a_body_that_rights_itself_lying_with_no_get_up_running_is_down_all_the_same():
+  """...and one lying past 60 deg whose get-up does not have its legs (none
+  should: the fall watch takes them at 35) is down all the same -- the
+  seam's backstop where the get-up missed a fall (#684's review)."""
+  life, t0 = _getting_up(lambda s: 80.0, up=lambda s: False)
+  life.body.posture = "standing"
+  life.body.step_hooks.pop(0)
+  life.body.attitude = (math.cos(0.7), math.sin(0.7), 0.0, 0.0)   # 80 deg over
+  life.body.run(life.body.hold_routine(GETUP_S + 1.0))
+  assert life.dead is not None and life.dead["cause"] == "stuck"
+  assert life.dead["why"].startswith("fell and could not get up")
+
+
+def test_where_nothing_dies_a_get_up_that_would_have_died_ends_the_run():
+  """...and where nothing dies, that get-up ends the run (`Stuck`, a
+  `MissionAborted` thrown into the routine in flight): the get-up's hold
+  has no budget of its own, and a flight whose robot never stood ran on
+  for good (13h's). It says when it fell, why and where it lies, and is no
+  death."""
+  life, t0 = _getting_up(lambda s: 45.0, mortal=False)
+  assert not life.mortal
+  with pytest.raises(lc.Stuck) as stuck:
+    life.body.run(life.body.hold_routine(GETUP_S + 5.0))
+  assert isinstance(stuck.value, tick.MissionAborted) and stuck.value.record == life.stuck
+  assert life.stuck["t"] - t0 == pytest.approx(GETUP_S, abs=2 * lc.DEATH_CHECK_S)
+  assert life.stuck["fellT"] - t0 <= lc.DEATH_CHECK_S + 1e-6
+  assert life.stuck["why"] == f"fell and could not get up in {GETUP_S:.0f} s (45 deg from upright)"
+  assert life.stuck["at"] == [round(life.body.x, 2), round(life.body.y, 2)]
+  assert life.dead is None and life.deaths == []
+
+
+def test_a_stuck_run_crosses_a_process_whole():
+  """`Stuck` is pickled whole, as a pool's worker hands an exception to its
+  parent (#684's review): unpickled from its message alone, it raised in
+  the pool's result thread, and `pool.map` waited for good -- the hang the
+  bound is for."""
+  import pickle
+  record = {"t": 30.0, "fellT": 10.0, "why": "fell and could not get up in 20 s (45 deg from upright)",
+            "at": [5.4, 2.03]}
+  back = pickle.loads(pickle.dumps(lc.Stuck(record)))
+  assert isinstance(back, lc.Stuck) and back.record == record
+  assert str(back) == str(lc.Stuck(record))
+
+
+def test_where_nothing_dies_a_get_up_that_stands_and_a_body_that_cannot_right_itself_run_on():
+  """...but a get-up that stands inside the budget runs on, and so does a
+  body with no get-up lying on its side, as it always did where nothing
+  dies: nothing holds a flight waiting for it to stand."""
+  life, _ = _getting_up(lambda s: 90.0, up=lambda s: s >= 15.0, mortal=False)
+  life.body.run(life.body.hold_routine(GETUP_S + 5.0))
+  assert life.stuck is None
+  body = StubBody()
+  life = stub_life(body=body)
+  body.attitude = (math.cos(0.7), math.sin(0.7), 0.0, 0.0)   # 80 deg over
+  body.run(body.hold_routine(GETUP_S + 5.0))
+  assert not life.mortal and life.stuck is None
+
+
+def test_a_day_where_nothing_dies_ends_at_a_get_up_that_never_stands_and_says_why():
+  """The wiring: a day (`HubLifecycle.run`) whose robot's get-up never
+  stands ends there, aborted, its summary saying why -- not at its budget.
+  (Its pack low, so the day holds at a charge: a stub passes time only
+  where it holds.)"""
+  body = StubBody()
+  body.rights_itself, body.stuck_after_s = True, GETUP_S
+  life = stub_life(body=body)
+  body.posture = "getting_up"
+  life.battery.energy_wh = life.low_battery_wh * 0.5
+  r = life.run(start=world_config(HUMANOID_HOME)["start"], max_sim_time=600.0)
+  assert r["aborted"] and r["dead"] is None
+  assert r["stuck"] == life.stuck and r["stuck"]["why"].startswith("fell and could not get up")
+  assert r["sim_time"] == pytest.approx(r["stuck"]["t"], abs=0.1) and r["sim_time"] < 60.0
+  life.begin(world_config(HUMANOID_HOME)["start"]).close()
+  assert life.stuck is None, "a day after it says nothing of this one's (#684's review)"
 
 
 # ---- upkeep off, a configuration (issue #387) --------------------------------

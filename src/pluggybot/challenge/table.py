@@ -255,34 +255,53 @@ def eval_table(m: dict) -> tuple[bool, dict, str]:
   return ok, metrics, reason
 
 
+def _listed(items: list[str]) -> str:
+  """`a`, `a and b`, `a, b and c`."""
+  return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
 def _laid(raw: dict, metrics: dict) -> tuple[bool, str]:
   """Criteria 1 to 4 on measurements all there: the verdict and its
-  reason, the first piece at fault named."""
+  reason. ⚠ EVERY PIECE AT FAULT IS NAMED, ONCE, BY ITS FIRST FAULT IN
+  THE CRITERIA'S ORDER -- its drop, else where it ended, how it lies or the
+  fork's turn -- in the words it gets alone, and each rule ONCE over the
+  pieces it names, which keeps a settled job's reason inside History's
+  line but in rare mixes (#687; Challenges.md §12 has the numbers). What
+  still touched the place is said of one otherwise laid, as before."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
     return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
                    f"not the {HOLD_S:.0f} s the job asks for")
+  said = []
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    return False, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                   f"the {limit:.0f} s the job allows")
-  for p in PIECES:
-    fast = float(raw[p]["fastestFreeMS"])
-    if fast > DROP_M_S:
-      return False, (f"the {p} came down at {fast:.1f} m/s with nothing holding it -- "
-                     f"dropped or knocked over, not set down (no faster than {DROP_M_S:.1f})")
-  for p in PIECES:
+    said.append(f"called {float(raw['elapsedS']):.0f} s after the start, past "
+                f"the {limit:.0f} s the job allows")
+  dropped = [p for p in PIECES if float(raw[p]["fastestFreeMS"]) > DROP_M_S]
+  if dropped:
+    said.append(_listed([f"the {p} came down at {float(raw[p]['fastestFreeMS']):.1f} m/s"
+                         for p in dropped])
+                + (" with" if len(dropped) == 1 else ", each with")
+                + " nothing holding it -- dropped or knocked over, not set down (no faster "
+                f"than {DROP_M_S:.1f})")
+  turn = abs(float(raw["fork"]["turnDeg"]))
+  away, askew = [], []
+  for p in (p for p in PIECES if p not in dropped):
     off, above, tilt = 100 * float(raw[p]["offM"]), 100 * float(raw[p]["aboveM"]), float(raw[p]["tiltDeg"])
     if off > 100 * PLACE_M or abs(above) > 100 * RESTING_M:
-      where = f"{off:.0f} cm from its place" + (f", {above:.0f} cm over the table" if above > 1 else "")
-      return False, (f"the {p} ended {where}: it must rest on the table within "
-                     f"{100 * PLACE_M:.1f} cm of where it goes")
-    if tilt > math.degrees(UPRIGHT_RAD):
+      away.append(f"the {p} ended {off:.0f} cm from its place"
+                  + (f", {above:.0f} cm over the table" if above > 1 else ""))
+    elif tilt > math.degrees(UPRIGHT_RAD):
       lies = "upright" if p == "cup" else "flat"
-      return False, f"the {p} rests at its place tipped {tilt:.0f} deg: it must stand {lies}"
-  turn = float(raw["fork"]["turnDeg"])
-  if abs(turn) > math.degrees(FORK_RAD):
-    return False, (f"the fork lies {abs(turn):.0f} deg off the place's line: it must lie along "
-                   f"it, its head toward the card, within {math.degrees(FORK_RAD):.0f} deg")
+      askew.append(f"the {p} rests at its place tipped {tilt:.0f} deg: it must stand {lies}")
+    elif p == "fork" and turn > math.degrees(FORK_RAD):
+      askew.append(f"the fork lies {turn:.0f} deg off the place's line: it must lie along it, "
+                   f"its head toward the card, within {math.degrees(FORK_RAD):.0f} deg")
+  if away:
+    said.append(_listed(away) + (": it" if len(away) == 1 else ": each")
+                + f" must rest on the table within {100 * PLACE_M:.1f} cm of where it goes")
+  said += askew
+  if said:
+    return False, "; ".join(said)
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
     return False, f"the place laid, but {touched} still touched it after the call -- let go"

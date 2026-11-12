@@ -153,6 +153,8 @@ def test_a_held_out_set_outs_noise_is_sealed_with_it(monkeypatch):
     return {at.noise_of(at.Task(chest=k)) for k in ks}
   assert len(keys(a)) == 8
   assert not keys(a) & keys(at.PUBLIC) and not keys(a) & keys(b)
+  from pluggybot import batch
+  monkeypatch.setattr(batch, "watched", lambda: None)     # the runner's, never this process's
   for script in (hands_check, attempts_script):
     monkeypatch.setattr(script, "run_pool", lambda *a, **kw: [])
     with pytest.raises(SystemExit):

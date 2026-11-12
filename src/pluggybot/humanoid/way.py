@@ -59,9 +59,11 @@ class HumanoidWay:
   #: MEASURED over six doorways of the house (`scripts/make_way_spike.py`),
   #: the stand-up (2.2 s) and a walk of 0.82-0.88 m took 6.7-8.9 s.
   ASIDE_WALK_M, ASIDE_BUDGET_S = 6.0, 30.0
-  #: No step aside under way, and when it last moved, sim s (`_init_way`).
+  #: No step aside under way, and when it last moved, sim s (`_init_way`);
+  #: no arm waiting for its way (`HumanoidMission.arm_wait_routine`).
   _aside = None
   last_motion_t = 0.0
+  arm_waiting = False
 
   def _init_way(self) -> None:
     #: The step aside under way: for whom, from where, to where, when it
@@ -175,8 +177,11 @@ class HumanoidWay:
   @property
   def resting(self) -> bool:
     """Resting STANDING: no motion command for `REST_S`, no walk of its own,
-    no hand out and on its feet."""
-    return not self._busy() and float(self.data.time) - self.last_motion_t >= REST_S
+    no hand out, no arm waiting for its way (#678,
+    `HumanoidMission.arm_wait_routine`: asked aside meanwhile, a reach
+    planned off the stance it had left) and on its feet."""
+    return (not self._busy() and not self.arm_waiting
+            and float(self.data.time) - self.last_motion_t >= REST_S)
 
   def _way_refusal(self) -> str:
     return ("charging" if self.plugged_in()

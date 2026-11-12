@@ -1,7 +1,8 @@
 """Guards for the activity layer (issue #8): task state machines over physics.
 
 The Threshold/toggle/telemetry tests are pure or near-pure and run in
-milliseconds; the plate is pressed by a load on its pad, no robot.
+milliseconds; the plate is pressed by a load set on it -- a sole-sized box,
+or the robot set down on it -- never a robot walking.
 """
 
 import mujoco
@@ -10,7 +11,7 @@ import pytest
 from pluggybot.activity.base import (
   Activity, ActivitySet, GeomToggle, MocapToggle, Threshold,
 )
-from pluggybot.activity.plate import PLATE_ON, PLATE_TRAVEL, PlateLight
+from pluggybot.activity.plate import LOAD_PAINT_HALF, PLATE_REST_Z, PlateLight, plate_light_xml
 from pluggybot.humanoid import world as hw
 from pluggybot.telemetry.protocol import PROTOCOL_VERSION
 from pluggybot.telemetry.recorder import FrameBuilder
@@ -100,7 +101,7 @@ def test_geom_pos_does_nothing_on_a_body_welded_to_the_world(home_model):
   the garden gate, already did -- issue #93).
   """
   data = mujoco.MjData(home_model)
-  gid = home_model.geom("garden_plate_pad").id      # a pad on a JOINTED body
+  gid = home_model.geom("lab_feed_plate_pad").id    # a pad on a JOINTED body
   bid = home_model.geom_bodyid[gid]
   assert home_model.body_weldid[bid] != 0, "the plate should not be welded"
 
@@ -159,37 +160,95 @@ def test_mocap_toggle_refuses_a_non_mocap_body():
 
 # ---- the reference activity -------------------------------------------------
 
-def test_plate_rests_below_its_own_trigger(home_model):
-  """The pad's own weight must not press it. If a plate triggers itself the
-  activity is on from t=0 and nothing about it is testable."""
+def test_the_gardens_plate_is_flush_with_the_floor_and_the_labs_are_not(home_model):
+  """#684 (Ben's call, 2026-11-12): the garden's pad, 21 mm proud on a
+  spring, tripped the served walker onto the lamp's pole; now its top is the
+  floor's -- nothing of it moves or touches anything, its pad paint over the
+  garden's grass, its load read off the floor's own square. The lab's three
+  are the sprung pad as they were (`plate_xml`'s default)."""
+  data = mujoco.MjData(home_model)
+  mujoco.mj_forward(home_model, data)
+
+  def top(prefix):
+    g = home_model.geom(f"{prefix}_plate_pad").id
+    return data.geom_xpos[g][2] + home_model.geom_size[g][2]
+  pad = home_model.geom("garden_plate_pad").id
+  assert home_model.body("garden_plate").jntnum == 0
+  assert home_model.geom_contype[pad] == home_model.geom_conaffinity[pad] == 0
+  assert top("garden") <= 2 * LOAD_PAINT_HALF + 1e-9, "paint, never a step"
+  zone = home_model.site("garden_plate_zone").id
+  assert home_model.site_bodyid[zone] == 0 and data.site_xpos[zone][2] == 0.0, \
+    "the floor's own square"
+  for name in ("shock", "feed", "toy"):
+    assert top(f"lab_{name}") == pytest.approx(PLATE_REST_Z + 0.005, abs=1e-9)
+    assert home_model.body(f"lab_{name}_plate").jntnum == 1
+
+
+def test_a_flush_plate_with_nothing_on_it_reads_nothing(home_model):
+  """...and with nothing on it, it reads nothing: a plate that pressed
+  itself would be on from t=0, and nothing about it testable."""
   data = mujoco.MjData(home_model)
   light = PlateLight(home_model, data)
-  for _ in range(2000):
+  for _ in range(500):
     mujoco.mj_step(home_model, data)
     light.sense(home_model, data)
-  assert light.depth(data) < PLATE_ON, "the plate presses itself"
-  assert light.flags == {"state": "off", "pressed": False, "depressMm": 1}
+  assert light.load(data) == 0.0
+  assert light.flags == {"state": "off", "pressed": False}
 
 
-def test_pressing_latches_the_light_on_and_releasing_does_not_turn_it_off(home_model):
-  data = mujoco.MjData(home_model)
-  light = PlateLight(home_model, data)
-  adr = home_model.joint("garden_plate_joint").qposadr[0]
-  mujoco.mj_forward(home_model, data)
-  light.sense(home_model, data)
-  assert light.flags["state"] == "off"
+def _plate_and_a_foot(kg: float):
+  """A floor, the garden's plate and lamp at the origin, and a box the size
+  of the humanoid's sole under `kg`, standing 1 m east of the plate."""
+  robot = mujoco.MjModel.from_xml_path("models/humanoid.xml")
+  sole = robot.geom_size[robot.geom("right_sole").id]
+  plate, sensor = plate_light_xml((0.0, 0.0))
+  model = mujoco.MjModel.from_xml_string(f"""<mujoco><worldbody>
+    <geom name="floor" type="plane" size="5 5 0.1"/>{plate}
+    <body name="foot" pos="1 0 {sole[2]:.4f}"><freejoint/>
+      <geom type="box" size="{sole[0]:.4f} {sole[1]:.4f} {sole[2]:.4f}" mass="{kg}"/>
+    </body></worldbody><sensor>{sensor}</sensor></mujoco>""")
+  return model, mujoco.MjData(model), robot
 
-  data.qpos[adr] = -PLATE_TRAVEL * 0.9
-  mujoco.mj_forward(home_model, data)
-  light.sense(home_model, data)
+
+def test_a_foot_on_the_flush_plate_presses_it_and_lifted_off_it_latches_the_light_on():
+  """The flush plate's whole pattern through the solver: a sole under a
+  third of the humanoid's weight -- less than one foot carries standing --
+  set on it presses it, the light comes on, and lifted off it is released
+  and the light stays on. The floor's square reads all of what stands on
+  it."""
+  _, _, robot = _plate_and_a_foot(1.0)
+  weight_n = float(robot.body_subtreemass[robot.body("pluggybot").id]) * 9.81
+  model, data, _ = _plate_and_a_foot(weight_n / 3 / 9.81)
+  light = PlateLight(model, data)
+  adr = model.joint(model.body("foot").jntadr[0]).qposadr[0]
+
+  def settle(x: float, z: float = 0.0) -> None:
+    data.qpos[adr:adr + 3] = [x, 0.0, data.qpos[adr + 2] + z]
+    data.qvel[:] = 0.0
+    for _ in range(150):
+      mujoco.mj_step(model, data)
+      light.sense(model, data)
+
+  settle(1.0)
+  assert light.flags["pressed"] is False and light.flags["state"] == "off"
+  settle(0.0)
+  assert light.load(data) == pytest.approx(weight_n / 3, rel=0.02)
   assert light.flags["pressed"] and light.flags["state"] == "on"
-
-  data.qpos[adr] = 0.0
-  mujoco.mj_forward(home_model, data)
-  light.sense(home_model, data)
-  assert not light.flags["pressed"], "pressed is a LIVE flag"
+  settle(1.0, z=0.5)
+  assert light.load(data) == 0.0 and not light.flags["pressed"], "pressed is a LIVE flag"
   assert light.flags["state"] == "on", "state is LATCHED -- a real motion "\
       "light times out; this one leaving a mark is the activity's point"
+
+
+def test_a_save_from_the_sprung_plates_days_comes_back_lit_and_without_its_depth(home_model):
+  """A world saved before #684 carries the garden light's flags with the
+  sprung pad's `depressMm`: put back, the light is as it was and the depth
+  is gone from the wire, never shipped for good beside the flags it has."""
+  light = PlateLight(home_model, mujoco.MjData(home_model))
+  light.restore_kept({"flags": {"state": "on", "pressed": False, "depressMm": 1},
+                      "pressed": False, "latched": True})
+  assert light.flags == {"state": "on", "pressed": False}
+  assert light.latch.value and light.lamp.current == "on"
 
 
 # ---- telemetry --------------------------------------------------------------
@@ -313,22 +372,34 @@ def test_two_sinks_over_one_activity_set_stay_independent(served_model):
 def test_a_real_light_turning_on_reaches_a_telemetry_frame(served_model):
   """End to end: a load on the plate -> flag flips -> the flip is on the wire.
 
-  Activity state being CARRIED is not a CHANGE propagating: here the pad is
-  pressed through the solver (a foot's load on it, then off), the hook
-  senses it, and the frames carry the light coming on -- and keep it on,
-  sparsely.
+  Activity state being CARRIED is not a CHANGE propagating: here the plate
+  is pressed through the solver -- the robot set on it from 2 s, its feet
+  on the plate, to 4 s, then set down 3 m off it -- the hook senses it, and
+  the frames carry the light coming on, and keep it on, sparsely.
   """
+  from pluggybot.humanoid import model as hm
   data = mujoco.MjData(served_model)
   acts = ActivitySet([PlateLight(served_model, data)])
   fb = FrameBuilder(served_model, data, hz=20.0, model_name="home_humanoid",
                     activities=acts)
-  pad = served_model.body("garden_plate").id
+  plate = served_model.body("garden_plate").pos[:2]
+  root = served_model.joint(f"{hm.ROBOT_ROOT}_root")
+  stand = hm.stand_qpos()
+
+  def set_down(x: float, y: float) -> None:
+    adr, dof = root.qposadr[0], root.dofadr[0]
+    data.qpos[adr:adr + 7] = [x, y, hm.stand_height(), 1.0, 0.0, 0.0, 0.0]
+    for name in hm.qpos_order():
+      data.qpos[served_model.joint(name).qposadr[0]] = stand.get(name, 0.0)
+    data.qvel[dof:dof + 6] = 0.0
   seen = []
   hook = acts.step_hook(served_model, data)
   steps = round(6.0 / served_model.opt.timestep)
   for k in range(steps):
-    # 25 N (a 10 kg body's share on one foot) from 2 s to 4 s
-    data.xfrc_applied[pad, 2] = -25.0 if steps // 3 <= k < 2 * steps // 3 else 0.0
+    if k == steps // 3:
+      set_down(*plate)
+    elif k == 2 * steps // 3:
+      set_down(plate[0] + 3.0, plate[1])
     mujoco.mj_step(served_model, data)
     hook()
     frame = fb.build()

@@ -59,6 +59,157 @@ failed, no walk out of there finding a route (SimNotes).
 - ⚠ Not to be pooled with the period before for anything about where the
   robots believe they are.
 
+### A hand's way out and home keeps off the other robot it sees (#678) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `4904a4cb…` → `303b3f0c…`, 64,556 → 65,136
+chars, 17 sections both, over #684's; the session host's hello re-vendored,
+the site's branch `loop-arms`):
+- **A hand's way keeps off another robot's body** where the robot's LIDAR
+  sees it in one look as the move begins (SimNotes, "The arms keep off the
+  other robot"): a cylinder 0.28 m round that robot's middle, 1.55 m tall,
+  kept 5 cm off, within 1.5 m. A `reach` whose every way out, or every way
+  home from there, would meet it, and a `withdraw` whose every way home
+  would, read false and move nothing, saying where that robot stands ("its
+  middle 0.54 m from yours on your right"), a reach what the other hand's
+  way would do. A withdraw refused keeps its gripper as it was, holding
+  what it holds (judged before #669's let-go). At the counter no other way
+  exists, so a robot within about 1 m on the reaching side refuses that
+  arm. A robot it does not see is kept off nowhere -- never where it says
+  it is.
+- **`step`, `drive_to`, `face` and `find` refuse to walk** with a hand out
+  that could not come home, saying so; **the loop's own walks** (a charge,
+  an explore) wait for it at their hand-over, 60 s at most, looking every
+  second, then bring it home -- **and so do the loop's own hand moves**, a
+  charge's plug-in and unplug, which are never refused (a failed charge is
+  a death).
+- **The texts say it**: `reach`'s, `withdraw`'s, and YOUR BODY's sentence on
+  what a walk does with a hand out.
+- A robot alone is as it was, bit for bit. In the pair, a reach, a
+  withdraw and a walk verb with a hand out each take a LIDAR scan as they
+  begin, so the pair's LIDAR noise is drawn otherwise than in the period
+  before from the first.
+
+**Why.** #678, Ben's call of 11-12: option (a) with its stage 1's four
+recommendations, after the counter falls of 11-08, where an arm on its way
+home hooked the other robot's and both fell.
+
+**What the period is for.**
+- **Whether the minds act on the refusals' words** -- the other hand, a
+  step away, a `tell` -- and how often they come at the counter, where both
+  robots work.
+- **Refusals for nothing**: the cylinder is round and never turned to the
+  heading, so a robot standing square to the counter beside the other can
+  refuse an arm that would have passed it (stage 1: 15 of 40 at 0.71-0.95
+  m). Turned to the heading is Ben's later step, if these show.
+- **Hands left out**: a withdraw refused leaves the hand out, and the world
+  is not saved while one is (`Keeper.busy`); a loop walk waits up to a
+  minute for it.
+- ⚠ Not to be pooled with the periods before for anything a robot's
+  reaches, withdraws or walks at the counter decide, nor for the pair's
+  falls there.
+
+### A get-up's death is timed off the get-up, and the garden's plate is flush (#684) — opens when this PR is deployed
+
+**What changed.**
+- **What counts as a `stuck` death.** A robot is `stuck` once its get-up
+  has held its legs for 20 s (`GETUP_BUDGET_S`), whatever its tilt, a stand
+  of under 5 s between two get-ups not starting the clock again
+  (`STOOD_AGAIN_S`); before, only once its trunk had lain 60 deg or more off
+  upright for 20 s running, and any check under 60 deg started the clock
+  again. The words History
+  keeps are the same ("fell and could not get up in 20 s (N deg from
+  upright)").
+- **The garden's pressure plate is flush with the floor**: the floor's own
+  square, read off the load on it (`plate_xml(flush=True)`), its pad paint
+  that nothing touches (`floor_plate`), where it was a sprung pad 21 mm
+  proud. It lights the lamp as it did, at 100 N on it; the light's flags
+  are `state` and `pressed`, its `depressMm` gone. The lab's three plates
+  are as they were.
+- ⚠ **The world's geometry changed** (the plate's joint is gone,
+  `continuation.fingerprint`): the deploy keeps the clock, the packs, the
+  deaths and the jobs and drops both robots' bodies and maps, as a world
+  change always has (History: "the world itself changed since then").
+- No text the robots read moved: `prompt_sha` unchanged.
+
+**Why.** Ben's calls on #684 (2026-11-12). A get-up stuck short of 60 deg
+(D3's new get-up sat at the chest, #679), or thrashing across it, never
+died, and lay there until its pack or `unminded` ended it, with no world
+saved meanwhile. The plate tripped the served walker in a drift flight, and
+the lamp's pole kept it down (SimNotes, "A flight that never got up").
+
+**What the period is for.** Nothing of its own. ⚠ The `stuck` column is
+not to be pooled with the periods before: a get-up that sits or thrashes
+for 20 s now dies where it never did, and one that stands after 20 s of
+get-up dies where it might have lived (of #679's 151 falls on the served
+get-up, one: laid on its front against the south wall, stood at 21.5 s,
+its trunk past 60 deg for at most 19.7 s running). A death both clocks
+call comes sooner by the time the trunk took to pass 60 deg after the
+get-up took the legs at 35 (about half a second in #684's flight, flown
+served). No live death had been in the garden (5 `stuck` since 10-31).
+
+### A read after a verb that failed says so, a fault in a statement names its line, and the table's grade names every piece at fault (#686, #687) — opens when this PR is deployed
+
+**What changed is what the robots read** (Overseer.md §2b, Hands.md §3,
+Challenges.md §12):
+- **A `read` of a verb whose last call failed says so.** A `spot`, a
+  `find` or a `pull` that read false, a call refused before it ran, or one a
+  fall or a death closed forgets what its verb last reported, as before;
+  reading it now says "spot.z has no reading: your last `spot` failed",
+  where it said "`spot` has not run" after a `spot` that had; so does
+  `reach.stopped` (and `move_hand`'s and `pull`'s) after a first call
+  refused. The word ends with its run: the next procedure's read of a verb
+  it never called says it has not run, as it did; what a verb last reported
+  is kept from one run to the next, as ever. A `watch` that fails before it
+  begins (no whole tag, or its call refused) ends the watch before it,
+  whose readings read as its own. A `find` is ok only with the place it
+  reads kept, as its text says (the robot's own search finds no other way).
+- **A fault in a statement's own arithmetic names its line** -- an
+  assignment's, an `if`'s or an `elif`'s test, a `while`'s and its cap.
+  History: "it stopped at line 5, an expression: …", where it said "it
+  stopped at an expression: …"; the practice's report "stopped at line 5,
+  expr: …" where it said "line ?"; and the `procedure` event carries
+  `failedLine` for it, as for a verb. A fault in a def's arithmetic is named
+  at its own line in that def, a test that read false on it too (it named
+  the call's line beside the def's name, and in another of the library's
+  procedures, a line of the caller's source as that procedure's).
+- **The table's grade names every piece at fault**: `set_table`'s reason,
+  in History and on the board, and the practice's. Each piece once, by its
+  first fault in the criteria's order -- its drop, else where it ended, how
+  it lies or the fork's turn -- in the words it would get alone, and a rule
+  said once over the pieces it names. D5's set-out 1, second try: "the
+  plate came down at 2.3 m/s with nothing holding it -- dropped or knocked
+  over, not set down (no faster than 0.5); the cup ended 8 cm from its place
+  and the fork ended 24 cm from its place: each must rest on the table
+  within 2.5 cm of where it goes", where it said the plate's drop alone. One
+  piece at fault reads as it did, and what still touched the place is still
+  said only of a place otherwise laid. Pass or fail is as it was: D5's 30
+  tries' metrics replayed through it, 30 of 30, the longest History line a
+  settled job of them would leave 340 characters of 400. ⚠ 58 of the 599
+  mixes of faults it can name still run past History's line, cut there and
+  said so, all but 4 with a call past the job's time (Challenges.md §12).
+- The prompt did not move (`prompt_sha` `4904a4cb…` both sides, 64,556
+  chars, 17 sections), nor the session host's `hello` (byte for byte), the
+  state, the schema, the menu, the reward table, the body or the house.
+
+**Why.** #686 and #687, from D5's table practice of 11-11 (Evaluation.md
+§4): two of set-out 5's five tries stopped at a `spot.*` read after a
+`spot` that ran and failed, told "line ?" and "`spot` has not run"; and its
+notes called the cup laid ("CUP WORKS (placed twice)") where it ended
+3.1-6.3 cm off in each of the 9 tries that lifted it, every one graded on a
+fall, the plate or a dropped fork first.
+
+**What the period is for.**
+- **Whether a failed verb's reading still reads as a verb never called**:
+  a `read` of `spot.*`, `pull.*`, `find.*` or `step.*` after a call of it
+  that failed, and what the next source does about it, against the period
+  before.
+- **Whether `set_table`'s tries work on the pieces the grade now names**: a
+  try's next source moving the cup or the fork after one graded on the
+  plate.
+- **Pooled with the period before** for anything the reward table, the
+  offers, the body or the house decide; ⚠ not for what a robot wrote after
+  a failed `read` or a table's grade.
+
 ### The cube is offered (#560) — opens when this PR is deployed
 
 **What changed in the world.**

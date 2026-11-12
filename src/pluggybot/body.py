@@ -54,8 +54,8 @@ from pluggybot.tick import Routine
 
 #: Torso tilt from upright that counts as knocked over (issue #107), and
 #: how long it has to hold: a body tipped for a moment recovers, a robot on
-#: its side does not. A body's own hold is `stuck_after_s` (the humanoid's
-#: get-up budget).
+#: its side does not. A body that rights itself is timed off its get-up
+#: instead, for its `stuck_after_s` (#684: the humanoid's get-up budget).
 TOPPLE_TILT_RAD = math.radians(60.0)
 TOPPLE_HOLD_S = 2.0
 
@@ -528,7 +528,8 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def reach_routine(self, side: str, pos, rot=None, stiffness: float = 1.0,
-                    patience: float = 20.0, path=None, turns=None) -> Routine:
+                    patience: float = 20.0, path=None, turns=None,
+                    refuse: bool = False) -> Routine:
     """A hand (`side`, "left" or "right") to a grip pose in the believed
     world frame -- `pos`, m, and `rot`, world from grip (its fingers along
     its -z, its jaws closing along its x), or None for any -- its arm's
@@ -541,14 +542,23 @@ class Body(abc.ABC):
     hand then FOLLOWS that path (`hand_follows`) -- or, where that posture
     makes no approach, in any, the grip as asked (#493: a knob gripped in a
     crouch whose lid's arc only a bow followed). The humanoid's (#507); a
-    body with no such hand refuses it (`NotImplementedError`)."""
+    body with no such hand refuses it (`NotImplementedError`). ⚠ Its way
+    out, and its way home from there, keep off another robot the body sees
+    as it begins (#678): where none does, `refuse` (the verbs') moves
+    nothing (`hand_why` "kept off", `hand_kept`), and the loop's own reach
+    waits for a way a bounded while, then takes the one that comes least
+    near it."""
 
   @abc.abstractmethod
-  def release_routine(self, side: str) -> Routine:
+  def release_routine(self, side: str, refuse: bool = False) -> Routine:
     """A hand back out along its way in, and its arm home -- its gripper
     opened first, whatever it says it holds (#669): returns "home" once its
     drivers read it there (#539), else why not -- "fell" (a fall let go of
-    it) or "held" (not home in the body's time: something holds it)."""
+    it), "held" (not home in the body's time: something holds it) or, where
+    `refuse` (the verbs'), "kept off" (#678: every way home would meet the
+    body of another robot it sees as it begins, so nothing moved, its
+    gripper as it was; `hand_kept`). The loop's own waits for a way a
+    bounded while, as a walk's hand-over does."""
 
   @abc.abstractmethod
   def grip_routine(self, side: str, closed: bool, force: float | None = None) -> Routine:
@@ -680,8 +690,28 @@ class Body(abc.ABC):
     """Why a hand's last `reach_routine` ended short of holding there: "out
     of reach" (no posture it holds puts the pose in reach), "stopped short"
     (it stopped on its way: pushing on something, or out of reach as the
-    body truly stood), "until" (`stop_hand` stopped it), "fell", "out of
-    time" -- or "" where it held (#493)."""
+    body truly stood), "until" (`stop_hand` stopped it), "kept off" (#678:
+    every way out, or home from there, would meet another robot's body;
+    `hand_kept`), "fell", "out of time" -- or "" where it held (#493)."""
+
+  @abc.abstractmethod
+  def hand_kept(self, side: str) -> dict | None:
+    """How a hand's last `reach_routine` or `release_routine` was refused
+    for another robot's body in its arm's way, the robot as the body's look
+    as it began saw it (#678): `m` between the two middles, `x`, `y` where
+    that robot stands in the stance frame, `home` (its way home, else its
+    way out), `back` (a reach whose way home from there would meet it), and
+    for a reach `other` (whether the other hand's way there keeps off it;
+    None where that hand does not reach) -- else None."""
+
+  @abc.abstractmethod
+  def arm_kept(self) -> dict | None:
+    """Whether a hand that is out could not come home now: every way home
+    it has would meet the body of another robot the body sees (one look,
+    #678) -- `hand`, and `m`, `x`, `y` as `hand_kept` says them -- else
+    None, with no hand out none, and no look. A walk brings the arms home
+    first, so the walk verbs refuse to walk then (`steps.ARM_KEPT_OFF`);
+    the loop's own walks wait for it (`HumanoidMission.ARM_WAIT_S`)."""
 
   @abc.abstractmethod
   def stop_hand(self, side: str) -> bool:
@@ -726,7 +756,8 @@ class Body(abc.ABC):
   #: Resting: the humanoid rests standing (`humanoid.way`).
   resting: bool
   #: Its posture, as the wire carries it (issue #387): `standing` or
-  #: `getting_up`. Resting is never a fall.
+  #: `getting_up`. Resting is never a fall. A body that rights itself is
+  #: down, for the death seam, while it is `getting_up` (#684).
   posture: str
   #: Whether it gets itself up from a fall (issue #387): the humanoid's
   #: get-up policy does; a body that cannot waits for somebody.
@@ -737,11 +768,12 @@ class Body(abc.ABC):
   #: (`humanoid.getup`), each the moment its get-up takes over.
   falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that
-  #: rights itself, its get-up's MEASURED budget; one that cannot,
-  #: `TOPPLE_HOLD_S`.
+  #: rights itself, its get-up's MEASURED budget, timed from the get-up's
+  #: start; one that cannot, `TOPPLE_HOLD_S` past `TOPPLE_TILT_RAD`.
   stuck_after_s: float
   #: The trunk's pitch forward that the posture its legs hold puts it at,
-  #: rad: what a topple is read past (`TOPPLE_TILT_RAD`, the death seam's).
+  #: rad: what a topple is read past (`TOPPLE_TILT_RAD`: the lifecycle's
+  #: `down`, and the death seam's for a body that cannot right itself).
   #: 0 for a body that stands only upright; the humanoid's bow
   #: (`Reach.held_pitch`), whose deepest, 63 deg, is past the seam's 60
   #: (#559).
@@ -1162,7 +1194,7 @@ class StubBody(Body):
     raise KeyError(f"a stub body has no actuator {act!r}")
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
-                    turns=None):
+                    turns=None, refuse=False):
     if side in self.out_of_reach or (rot is not None and side in self.unturned):
       self._why[side] = "out of reach"
       return False
@@ -1171,7 +1203,7 @@ class StubBody(Body):
     return True
     yield
 
-  def release_routine(self, side):
+  def release_routine(self, side, refuse=False):
     self.hands.pop(side, None)
     self.grips.pop(side, None)
     self.shut[side] = False
@@ -1279,6 +1311,14 @@ class StubBody(Body):
     """Never short -- every reach holds at once -- but with a hand a test
     put `out_of_reach`."""
     return self._why.get(side, "")
+
+  def hand_kept(self, side) -> dict | None:
+    """No other robot's body in any arm's way: none."""
+    return None
+
+  def arm_kept(self) -> dict | None:
+    """No other robot's body in any arm's way home: none."""
+    return None
 
   def stop_hand(self, side) -> bool:
     """Its moves are done at once: none is under way to stop."""

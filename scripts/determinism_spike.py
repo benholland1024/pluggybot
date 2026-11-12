@@ -353,6 +353,8 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict) -> int:
 
 
 def main() -> int:
+  from pluggybot.batch import watched
+  watched()
   from pluggybot.lifecycle import HUMANOID_HOME, world_for
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)

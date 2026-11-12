@@ -178,7 +178,7 @@ def _fly(source: str, body=None, measure: bool = True) -> dict:
 
 def test_a_reach_that_does_not_hold_says_the_bodys_own_why():
   class Short(StubBody):
-    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, refuse=False):
       return False
       yield
 
@@ -195,7 +195,7 @@ def test_a_withdraw_is_ok_only_once_its_arm_is_home(why):
   """#539: `withdraw` said ok as the arm's walk home began, the arm still
   seconds from home; it is ok once the body says home, else says why not."""
   class Away(StubBody):
-    def release_routine(self, side):
+    def release_routine(self, side, refuse=False):
       return why
       yield
   source = 'def a():\n    reach("left", 0.3, 0.2, 0.9)\n    withdraw("left")\n'
@@ -420,6 +420,8 @@ def _bare_reach():
   r.grippers = {s: _Grip() for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.outs = {s: [] for s in hm.SIDES}
+  # ...and no other robot's body for its ways to keep off (#678)
+  r.keep_out, r.kept, r.judged_home = [], {s: None for s in hm.SIDES}, {s: None for s in hm.SIDES}
   r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
   r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
@@ -1101,7 +1103,7 @@ def test_a_reach_out_of_reach_says_whether_the_other_hand_could():
                             " it can (leave fx..jz at 0 and your arm finds a turn)")
   # ...and a hand that stopped short is not out of reach: nothing is said of the other
   class Short(StubBody):
-    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, refuse=False):
       return False
       yield
 
@@ -1184,7 +1186,7 @@ def test_a_pull_that_reads_false_leaves_no_reading_of_its_own():
              '    if not pull("left", 0, 0, 1, 10, 0.1):\n        p = 0\n'
              '    h = read("pull.held")\n', body)
   assert ran["locals"]["was"] == 1.0 and ran["locals"]["p"] == 0, ran
-  assert ran["steps"][-1]["reason"] == "pull.held has no reading: `pull` has not run", ran
+  assert ran["steps"][-1]["reason"] == "pull.held has no reading: your last `pull` failed", ran
 
 
 @pytest.mark.parametrize("verb", ["reach", "pull"])
@@ -1201,7 +1203,7 @@ def test_a_hand_verb_that_fell_ends_the_run_though_an_if_tests_it(verb):
     ends = "fell"
 
     def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
-                      turns=None):
+                      turns=None, refuse=False):
       if verb == "reach":
         self.falls += 1          # the fall watch's count, as the get-up takes the body
         return False
@@ -1275,21 +1277,105 @@ def test_a_call_refused_before_it_ran_leaves_its_verb_no_reading():
              '    if not pull("left", 0, 0, 1, 10, d):\n        p = 0\n'
              '    s = read("pull.stopped")\n    m = read("pull.moved")\n')
   assert ran["locals"]["p"] == 0 and ran["locals"]["s"] == 0.0, ran
-  assert ran["steps"][-1]["reason"] == "pull.moved has no reading: `pull` has not run", ran
+  assert ran["steps"][-1]["reason"] == "pull.moved has no reading: your last `pull` failed", ran
   # ...every verb's, not the pull's alone: a step's would be taken off a
   # place a second time
   ran = _fly('def a():\n    step(0.2)\n    d = 9 * read("step.dx")\n    p = 1\n'
              '    if not step(d):\n        p = 0\n    x = read("step.dx")\n')
   assert ran["locals"]["p"] == 0, ran
-  assert ran["steps"][-1]["reason"] == "step.dx has no reading: `step` has not run", ran
+  assert ran["steps"][-1]["reason"] == "step.dx has no reading: your last `step` failed", ran
   # ...and a stop condition's reading is a move's that ended otherwise, off
   # a move that did stop on one; a verb that never read one gets none
   life = _Life(_stub())
   life.reports = {"pull": {"moved": 0.1}, "stopped": {"pull": 1.0, "reach": 1.0}}
   st.forget_readings(life, "pull")
   st.forget_readings(life, "spot")
-  assert "pull" not in life.reports
+  assert life.reports["pull"] == {axes.UNREAD: "your last `pull` failed"}
   assert life.reports["stopped"] == {"pull": 0.0, "reach": 1.0}
+
+
+def test_a_read_after_a_spot_that_failed_says_so_at_its_line():
+  """#686 (D5's table practice, set-out 5, tries 2 and 3): `spot(90)` ran
+  and failed, then `ez = read("spot.z")` stopped the run, and the robot was
+  told "stopped at line ?, expr: spot.z has no reading: `spot` has not
+  run". A failed `spot` forgets its report, as it must, but every missing
+  report was worded as a verb never run; and a fault in a plain statement
+  carried no line. The read says the last `spot` failed, at its own line,
+  in the practice's report and in History. Shown to fail, both halves, on
+  the tree before it."""
+  ran = _fly('def a():\n    if not spot(90):\n        pass\n    ez = read("spot.z")\n')
+  step, said = ran["steps"][-1], "spot.z has no reading: your last `spot` failed"
+  assert (step["verb"], step.get("line"), step["reason"]) == ("expr", 4, said), step
+  report = mp.run_report(2, ran, {"ok": False, "reason": "no"}, 1.0, False)
+  assert f"and stopped at line 4, expr: {said}." in report, report
+  [history] = lc.procedure_outcome("a", ran)
+  assert history.startswith("the procedure a did not finish -- it stopped at line 4, an "
+                            f"expression: {said} ("), history
+
+
+class _SpotsOnce(StubBody):
+  """A stub whose `spot` sees its tag once, and then never again."""
+
+  seen = 0
+
+  def spot(self, tag, at_height=None):
+    self.seen += 1
+    return ({"x": 0.5, "y": 0.0, "z": 0.9, "range": 0.6, "normal": (1.0, 0.0, 0.0),
+             "edge": (0.0, 1.0, 0.0)} if self.seen == 1 else None)
+
+
+@pytest.mark.parametrize("verb, source, sensor", [
+  # a `spot` that saw nothing, one handed no whole tag, and one refused
+  # before it ran
+  ("spot", '    if not spot(90):\n        pass\n', "spot.x"),
+  ("spot", '    if not spot(90.5):\n        pass\n', "spot.range"),
+  ("spot", '    t = 900\n    if not spot(t):\n        pass\n', "spot.nz"),
+  # a `pull` with no hand out, a `step` and a `measure` refused
+  ("pull", '    if not pull("left", 0, 0, 1, 10, 0.1):\n        pass\n', "pull.moved"),
+  ("step", '    d = 9\n    if not step(d):\n        pass\n', "step.dx"),
+  ("measure", '    x = 9\n    if not measure(x, 0):\n        pass\n', "object.top"),
+])
+def test_a_verb_whose_last_call_failed_reads_so_never_that_it_has_not_run(verb, source, sensor):
+  """#686: a failure or a refusal forgets what its verb last reported --
+  it would read as this call's -- and reading it says that last call
+  failed, where every verb's said it had not run. A verb never called in
+  the run still says so. Shown to fail on the words as they were."""
+  ran = _fly(f'def a():\n{source}    v = read("{sensor}")\n')
+  assert ran["steps"][-1]["reason"] == f"{sensor} has no reading: your last `{verb}` failed", ran
+  assert _fly(f'def a():\n    wait(0)\n    v = read("{sensor}")\n')["steps"][-1]["reason"] == (
+    f"{sensor} has no reading: `{verb}` has not run")
+
+
+def test_a_spot_that_saw_and_then_failed_reads_as_failed_not_as_the_last_one():
+  """#686, the lie itself: a `spot` that read, then one that failed -- the
+  second forgets the first's reading, and says it was the one that failed,
+  never that `spot` has not run."""
+  ran = _fly('def a():\n    spot(53)\n    x = read("spot.x")\n    if not spot(53):\n'
+             '        pass\n    y = read("spot.x")\n', _SpotsOnce(*_bare()))
+  assert ran["locals"]["x"] == pytest.approx(0.5), ran
+  assert ran["steps"][-1]["reason"] == "spot.x has no reading: your last `spot` failed", ran
+
+
+def test_a_failed_calls_word_ends_with_its_procedure_and_a_last_report_does_not():
+  """#686's second review: a served robot keeps its reports from one
+  procedure to the next, and a `spot` that failed in one told the next,
+  which never called it, "your last `spot` failed". The words a run's
+  failed calls leave end with it, as its watch does: the next run's read
+  says `spot` has not run in it. What a verb last reported is kept, as it
+  always was. Shown to fail on the tree before it."""
+  facts = st.hand_facts()
+  body = _SpotsOnce(*_bare())
+  life = _Life(body)
+  for src, said in (('def a():\n    spot(53)\n', None),
+                    ('def b():\n    wait(0)\n    x = read("spot.x")\n', 0.5),
+                    ('def c():\n    if not spot(53):\n        pass\n', None),
+                    ('def d():\n    wait(0)\n    x = read("spot.x")\n',
+                     "spot.x has no reading: `spot` has not run")):
+    ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(src, facts), facts))
+    if isinstance(said, str):
+      assert ran["steps"][-1]["reason"] == said, ran
+    elif said is not None:
+      assert ran["locals"]["x"] == pytest.approx(said), ran
 
 
 def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads():
@@ -1570,8 +1656,10 @@ def _practice_script(monkeypatch, router, first=()):
   process: the chests in `first` first, and one whose worker was killed
   (`_Killed`) returning nothing."""
   import urllib.request
+  from pluggybot import batch
   from pluggybot.mind import llm
   script = _script(monkeypatch)
+  monkeypatch.setattr(batch, "watched", lambda: None)   # the runner's, never this process's
 
   def no_network(*a, **kw):
     raise AssertionError("a test reached the network")

@@ -86,6 +86,12 @@ LOOK_SLICE_S = 0.2
 #: How often the death seam looks (sim seconds); it is on every physics
 #: step and a quaternion-to-tilt every 2 ms would be the cost, not the check.
 DEATH_CHECK_S = 0.1
+#: A body that rights itself and stood less than this between two of its
+#: get-ups is down all the while, on one `stuck` clock, s (#684's review): a
+#: get-up hands the legs back once still 0.5 s (`getup.STOOD_S`), two robots
+#: at the counter fell into each other again 1.4 s after standing (#679),
+#: and a clock started over at every hand-back need never run out.
+STOOD_AGAIN_S = 5.0
 
 #: HOW LONG THE MIND MAY GO UNCONSULTED BEFORE THAT IS A DEATH (issue #127),
 #: in sim seconds. The third failure the arms are judged on, beside a flat
@@ -218,6 +224,25 @@ class _StoodUp:
 
 
 STOOD_UP = _StoodUp()
+
+
+class Stuck(MissionAborted):
+  """The run's end where nothing dies (`HubLifecycle.mortal` False, #684):
+  a body that rights itself whose get-up has held its legs for its
+  `stuck_after_s`, the `stuck` death a mortal one would die. `record` is
+  `HubLifecycle.stuck`: when it fell (`fellT`) and ended (`t`), the death's
+  words (`why`) and where it lies (`at`, x and y, its true pose)."""
+
+  def __init__(self, record: dict) -> None:
+    super().__init__(f"stuck: {record['why']} at ({record['at'][0]:.2f}, {record['at'][1]:.2f})")
+    self.record = record
+
+  def __reduce__(self):
+    # ...pickled by its record: a pool's worker hands its exception to the
+    # parent so, and one rebuilt from its message raised in the pool's own
+    # thread, which then waited for good
+    return type(self), (self.record,)
+
 
 #: Why a job fails when a stand-up ended the errand working on it (issue
 #: #348): `TaskBoard.load`'s "interrupted by a restart", one cause over.
@@ -1240,10 +1265,17 @@ class HubLifecycle:
     self.survival_since = 0.0
     self.home_pose: tuple[float, float, float] | None = None
     self.on_event: list = []
-    self._tilted_since: float | None = None
-    #: What was true when the chassis passed TOPPLE_TILT_RAD (`_moment`),
-    #: for the `stuck` death TOPPLE_HOLD_S later to carry (issue #362).
+    #: Since when the body has been down (`_death_step`): its get-up holding
+    #: its legs, or a body that cannot right itself past TOPPLE_TILT_RAD.
+    self._down_since: float | None = None
+    #: ...and since when a body that rights itself has stood again, while
+    #: that clock still runs (`STOOD_AGAIN_S`).
+    self._up_since: float | None = None
+    #: What was true as it went down (`_moment`), for the `stuck` death
+    #: `stuck_after_s` later to carry (issue #362).
     self._fall: dict | None = None
+    #: Where nothing dies, the get-up that ended the run (`Stuck`'s record).
+    self.stuck: dict | None = None
     self._next_death_check = 0.0
     #: ⚠ A STAND-UP STEPS THE SIM, AND THE RESTART SEAM IS ON EVERY STEP
     #: (issue #143). `MissionRunner.start_at` ends with a one-second settle
@@ -1332,15 +1364,21 @@ class HubLifecycle:
     a day that hit zero inside an errand, docked on nothing and ended "day
     over". The moment is recorded here; a procedure's run ends at it
     (#671, `steps.run_verb`), and any other routine the loop drives runs on
-    until it returns or the stand-up closes it. A `stuck` death by toppling is the
-    torso past TOPPLE_TILT_RAD for the body's `stuck_after_s`: the rover's
-    TOPPLE_HOLD_S, or a get-up's budget for a body that rights itself.
+    until it returns or the stand-up closes it. A `stuck` death by toppling is a
+    body down for its `stuck_after_s`: one that rights itself, its get-up
+    holding its legs (or its torso past TOPPLE_TILT_RAD) for its budget, a
+    stand under `STOOD_AGAIN_S` between two get-ups not starting it again
+    (#684); one that cannot, its torso past TOPPLE_TILT_RAD for
+    TOPPLE_HOLD_S. Where nothing dies, a body that rights itself and would
+    have died `stuck` ends the run (`Stuck`), at every check while it stays
+    down.
     """
-    if (not self.mortal or self.dead is not None
-        or self.data.time < self._next_death_check):
+    if self.dead is not None or self.data.time < self._next_death_check:
       return
     self._next_death_check = self.data.time + DEATH_CHECK_S
-    if self.battery.empty:
+    if not self.mortal and not self.body.rights_itself:
+      return
+    if self.mortal and self.battery.empty:
       self._die("flat", "the pack reached zero")
       return
     # ⚠ THE MIND STOPPED BEING CONSULTED (issue #127), which is a death of
@@ -1356,7 +1394,7 @@ class HubLifecycle:
     # is judged on. `_last_ask_t` is stamped by the ASK, not by the answer,
     # for the same reason: a mind consulted through an outage is still being
     # consulted. See `UNMINDED_AFTER_S`.
-    if (self.event_map is not None
+    if (self.mortal and self.event_map is not None
         and self.data.time - self._last_ask_t >= UNMINDED_AFTER_S):
       quiet = self.data.time - self._last_ask_t
       # ...AND WHAT THE LIST SAID ABOUT IT (issue #317). "My own map stopped
@@ -1369,22 +1407,51 @@ class HubLifecycle:
       self._die("unminded", f"nothing has asked me anything for {quiet:.0f} s "
                             f"-- {ev.silence(self.event_map)}")
       return
-    tilt = self._chassis_tilt()
-    if tilt < TOPPLE_TILT_RAD:
-      self._tilted_since = self._fall = None
+    # ⚠ A BODY THAT RIGHTS ITSELF IS DOWN WHILE ITS GET-UP HAS ITS LEGS,
+    # WHATEVER ITS TILT (#684): timed off the trunk past TOPPLE_TILT_RAD, a
+    # get-up sitting short of it, or thrashing across it, never died. (Past
+    # it with no get-up running, it is down all the same.)
+    righting = self.body.rights_itself
+    down = (self._chassis_tilt() >= TOPPLE_TILT_RAD
+            or (righting and self.body.posture == "getting_up"))
+    now = float(self.data.time)
+    if not down:
+      # ...and one that stands for a moment and goes down again is down
+      # still, on the same clock, until it has stood `STOOD_AGAIN_S`
+      if righting and self._down_since is not None:
+        self._up_since = now if self._up_since is None else self._up_since
+        if now - self._up_since < STOOD_AGAIN_S:
+          return
+      self._down_since = self._fall = self._up_since = None
       return
-    if self._tilted_since is None:
-      self._tilted_since = float(self.data.time)
+    self._up_since = None
+    if self._down_since is None:
+      self._down_since = float(self.data.time)
       # ...AND WHAT IT WAS DOING, READ AS IT FELL (issue #362): the death is
-      # TOPPLE_HOLD_S later, by which time the errand has had two seconds
-      # to react to the fall -- a failed pick lowers the lift and moves on.
-      self._fall = self._moment()
-    elif self.data.time - self._tilted_since >= self.body.stuck_after_s:
+      # `stuck_after_s` later, by which time the errand has had that long
+      # to react to the fall.
+      self._fall = self._moment() if self.mortal else None
+    elif self.data.time - self._down_since >= self.body.stuck_after_s:
       # ...a body that gets itself up (issue #387) is `stuck` only once its
-      # get-up has had its measured budget and it is still down
-      self._die("stuck", (f"fell and could not get up in {self.body.stuck_after_s:.0f} s "
-                          if self.body.rights_itself else "knocked over ")
-                + f"({math.degrees(tilt):.0f} deg from upright)", at=self._fall)
+      # get-up has had its measured budget and it is still not up
+      why = ((f"fell and could not get up in {self.body.stuck_after_s:.0f} s "
+              if self.body.rights_itself else "knocked over ")
+             + f"({math.degrees(self._chassis_tilt()):.0f} deg from upright)")
+      if self.mortal:
+        self._die("stuck", why, at=self._fall)
+      else:
+        self._end_stuck(why)
+
+  def _end_stuck(self, why: str) -> None:
+    """Where nothing dies, a get-up that would have been the `stuck` death
+    ends the run (`Stuck`, #684): the get-up's hold
+    (`HumanoidMission._getup_routine`) has no budget of its own, and a
+    flight whose robot could not stand ran on for good."""
+    x, y, _ = self.body.true_pose()
+    self.stuck = {"t": round(float(self.data.time), 3), "fellT": round(self._down_since, 3),
+                  "why": why, "at": [round(float(x), 2), round(float(y), 2)]}
+    self._say(f"STUCK: {why}; nothing dies here, so the run ends")
+    raise Stuck(self.stuck)
 
   def _chassis_tilt(self) -> float:
     """Radians between the chassis's up axis and where the posture its legs
@@ -1398,10 +1465,10 @@ class HubLifecycle:
     return math.acos(max(-1.0, min(1.0, up)))
 
   def down(self) -> bool:
-    """Lying on the floor: the chassis past TOPPLE_TILT_RAD, the topple
-    death's own test, read as an IMU reads it -- from the moment of the
-    fall rather than the death two seconds later, and on a world where
-    nothing dies as much as on one where it can."""
+    """Lying on the floor: the chassis past TOPPLE_TILT_RAD (the topple
+    death's own test for a body that cannot right itself), read as an IMU
+    reads it -- from the moment of the fall rather than the death later,
+    and on a world where nothing dies as much as on one where it can."""
     return self._chassis_tilt() >= TOPPLE_TILT_RAD
 
   def keep_clear(self, seen_by: Body | None = None) -> tuple:
@@ -3292,7 +3359,7 @@ class HubLifecycle:
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
     self.stranded = False
-    self._tilted_since = self._fall = None
+    self._down_since = self._fall = self._up_since = None
     self.survival_since = float(self.data.time)
     # ...and the unminded clock (issue #127). ⚠ A ROBOT STOOD BACK UP MUST
     # NOT DIE AGAIN INSTANTLY: without this, a robot that died `unminded`
@@ -5779,8 +5846,8 @@ class HubLifecycle:
       "dead": dict(self.dead) if self.dead is not None else None,
       "survivalSince": self.survival_since, "lastAskT": self._last_ask_t,
       "askedT": self._asked_t, "askedAfterS": self._asked_after_s,
-      "minded": self._minded, "tiltedSince": self._tilted_since,
-      "fall": self._fall,
+      "minded": self._minded, "downSince": self._down_since,
+      "upSince": self._up_since, "fall": self._fall,
       "decidedAt": (None if self._decided_at is None else list(self._decided_at)),
       "stoodStill": self._stood_still,
       "clocks": {"death": self._next_death_check, "task": self._next_task_check,
@@ -5840,7 +5907,9 @@ class HubLifecycle:
                                                       state.get("mapDone")))
       self.blacklist = ({tuple(c) for c in state.get("blacklist", ())}
                         if mapped else set())
-      self._tilted_since = state.get("tiltedSince")
+      # (`tiltedSince`: a save from before #684, its clock off the tilt)
+      self._down_since = state.get("downSince", state.get("tiltedSince"))
+      self._up_since = state.get("upSince")
       self._fall = state.get("fall")
       self._cleared_rack = bool(state.get("clearedRack"))
       # ...the hand jobs' readings with the props they were read off, put
@@ -6162,6 +6231,7 @@ class HubLifecycle:
     """The day's setup, returning the routine that IS the day."""
     self.max_sim_time = max_sim_time
     self._day_over = False
+    self.stuck = None                     # ...a day before this one's (`Stuck`)
     self.resumed = None                   # `continuation.restore` sets it
     self.start_over_t = None              # ...and `continuation.start_over`
     # ...home from here (#455): a restore puts a robot clear (`unclip`)
@@ -6198,6 +6268,8 @@ class HubLifecycle:
     return {
       "state": self.state,
       "aborted": aborted,
+      # ...and the get-up that aborted it where nothing dies (#684, `Stuck`)
+      "stuck": self.stuck,
       # A failed dock ended this run (issue #32) -- distinct from "aborted"
       # (the viewer closing is a request to stop, not a failure) and visible
       # here so a watcher can tell "finished the day" from "never got home".

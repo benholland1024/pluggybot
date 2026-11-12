@@ -234,6 +234,7 @@ class _Walk:
   every command is 0.1 s, the robot moves `step` m along x, and the map is
   `grows` cells bigger each time it is counted."""
   drive_to_routine = nav.Navigator.drive_to_routine
+  held_s = nav.Navigator.held_s
   _drove = nav.Navigator._drove
   _at_stand_in = nav.Navigator._at_stand_in
   _other_in_the_way = nav.Navigator._other_in_the_way
@@ -370,7 +371,7 @@ def _life(stops_at=None):
                               pose_xy=lambda: life.body.pose[:2],
                               in_sight=lambda x, y: True,
                               peer_on_the_goal=lambda x, y: None,
-                              watch=lambda tag: None,
+                              watch=lambda tag: None, arm_kept=lambda: None,
                               go_to_routine=go, hold_routine=hold)
   life.walks = walks
   return life

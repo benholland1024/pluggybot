@@ -149,7 +149,9 @@ def main() -> None:
   if args.record:
     print(f"telemetry recorded -> {args.record}")
   if r["aborted"]:
-    print("mission aborted (viewer closed)")
+    # ...by a get-up that never stood (#684: nothing dies here), or the viewer
+    print(f"mission ended at t={r['stuck']['t']:.0f} s: {r['stuck']['why']}" if r["stuck"]
+          else "mission aborted (viewer closed)")
     return
   print()
   print(f"charge cycles          : {r['charge_cycles']}")
