@@ -28,9 +28,9 @@ other robot held"):
   its own hold, its scans matched, its errand paused where it was until the
   answer comes (up to `INTERRUPT_TIMEOUT_S`, 115 s, and its slices), every
   clock its routine keeps running on.
-- No text the robots read moved: `prompt_sha` `609b7ad5…` both sides,
-  65,730 chars, 17 sections. A robot alone, and a pair with no interrupt
-  asked, fly the base's day bit for bit.
+- No text the robots read moved: `prompt_sha` `b345cc34…` both sides,
+  66,029 chars, 17 sections (over #688's and #689's). A robot alone, and a
+  pair with no interrupt asked, fly the base's day bit for bit.
 
 **Why.** #690: on 11-12 at 20:30 UTC Rowan's interrupt (`battery below 22%
 -> ask`) took 5.8 sim s, and Luca, walking a plain `drive_to` in the lobby,
@@ -54,6 +54,66 @@ every one and walked on, 0.001 m and 0.14 deg off.
   count them before reading either robot's job record.
 - ⚠ The stream's pacing and frames through a second robot's ask are whole
   now: a reading of wall time across an ask is not the period before's.
+
+### A full file says what it holds, a `done` is graded at the word, and `leftS` is the ask's (#688, #689) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `609b7ad5…` → `b345cc34…`, 65,730 → 66,029
+chars, 17 sections both, over #681's; the session host's hello re-vendored,
+the site's branch `loop-words`):
+- **A full document's refusal says what it holds** (#688): `Notes.md holds
+  64 of 64 entries; unnote one first`, and of a page of chars what the line
+  would add (`Top_of_mind.md holds 2,960 of 3,000 chars, and this line is
+  100 more; unpin one first`), never the size the refused write would have
+  made ("65 of 64"). History's words, read where a `could not <verb>` line
+  is.
+- **`Notes.md` and `Findings.md` ride the turn beside their count**:
+  `{"holds": "64 of 64 entries", "index": {…}}`, where the index alone was
+  -- the turn's shape for those two, for every robot from the first turn --
+  and the prompt says so where it says what each index is ("beside how many
+  notes it holds of the most it may (`holds`)").
+- **A `done` is graded at the word, before its answer's action** (#689):
+  an `idle`, a `charge`, a `look`, a `recall`, an `explore` or a
+  `take_task` beside it no longer stands between the word and the grade's
+  first measure; an answer that runs a procedure is graded once its run is
+  over, as before, and so is a robot that died while it thought (after its
+  stand-up). History says which: `said done on t_0202 (open_drawer): graded
+  now, before this answer's idle`, or `… graded once everything queued has
+  run`.
+- **The challenges rule says both**: the grade "waits until that run has
+  finished; on an answer that runs no procedure, the grade comes at once,
+  before that answer's action" (it said "once everything you queued has
+  finished"), and `leftS` is "the seconds of that time still left when you
+  were asked; the clock runs on while you think".
+- **The last loop's quiz's two rewordings**: a reach refused for the other
+  robot says the other hand's "ways there and home keep clear of it" (it
+  said "way there"), and YOUR BODY's carry says a held hand "is first raised
+  2 cm, pulling up with at most 20 N, and if what it holds came up with it,
+  it is CARRIED".
+- A robot whose answers set no `done` and whose memory is not full does as
+  before; the turn's notes-tier shape and the texts are every robot's.
+
+**Why.** #688: Rowan, tk_0059, read "65 of 64" as its count and its cap
+drifting apart, and nothing it was shown said how full a file was -- 1,292
+notes and findings refused as full from 11-01 to 11-12 against 1,160
+written. #689: Rowan, tk_0060, lost t_0202 by 5 s after a 160 s answer it
+had counted only the next ask's time for, and all 15 `done`s said with
+`idle` since 11-01 were graded a minute after the word. Quizzed on the
+deployed mind (loop-1113's L2, GLM-5.3-Flash on baseten, 12 answers an
+item): the release's refusal words read "65 of 64" as over the cap 12 of
+12 and "3060 of 3000" as a page already over 12 of 12, these 0 and 0 (and
+so with the prompt's `holds` sentence); and the rule's "once everything you
+queued has finished" read an idle and a charge as queued 9 of 12, its new
+sentence 0 of 12.
+
+**What the period is for.**
+- **The memory refusals** against the notes written, by day (#688's table),
+  and whether a robot at `64 of 64` takes one out before it writes, on the
+  same answer or the one before.
+- **The `done`s**: History's `said done … graded now` and the grade's line
+  5 s apart where no procedure ran; grades failed for the job's time, and
+  answers that count `leftS` against a long think.
+- ⚠ Not to be pooled with the periods before for anything about when a job
+  is graded, a memory write refused, or what a robot keeps in its notes.
 
 ### A scan match the walls only partly agree with is searched (#681) — opens when this PR is deployed
 

@@ -47,7 +47,9 @@ only that the verdict is reachable from the world afterwards (§4). **Since
 - `procedure`: claiming queues nothing; the robot writes and runs the
   procedure and says `done`, and the job's own grader runs on the seam
   (`HubLifecycle._grade_routine`; the humanoids' hand jobs,
-  `_grade_hands_routine`, Challenges.md §11). Its target is named only
+  `_grade_hands_routine`, Challenges.md §11) at the word, before its
+  answer's action, or once the run is over where the same answer runs a
+  procedure (#689). Its target is named only
   where a procedure can be written (`lifecycle.world_targets`), so the
   offer exists on the `autonomous` arm alone; a procedure job of another
   shape adds its own grade there.
@@ -101,7 +103,8 @@ Rules the states carry, each decided explicitly:
   minutes past its limit. A `done` waiting to be graded is left to the
   grade, and a true death fails the jobs its robot held, in that robot's
   own records. The holder is shown each job it holds with the time it has
-  left (`heldTasks`, `leftS`) -- a network fact: the board knows when the
+  left as it is asked (`heldTasks`, `leftS`; the rule says the clock runs on
+  while it thinks, #689) -- a network fact: the board knows when the
   job was taken, as it knows how long an offer stands.
 - **What no job holds is put away** (#560): a job whose things exist only
   for it -- the restaurant's dishware -- has them set out by its offer and

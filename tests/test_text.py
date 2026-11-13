@@ -183,7 +183,7 @@ def test_the_gate_answers_every_document_row(row):
   if row.policy == text.ROLL:
     assert text.admit(row, row.writer, row.cap + 1) is False
   else:
-    with pytest.raises(text.Refused, match=f"{row.name} is full"):
+    with pytest.raises(text.Refused, match=re.escape(f"{row.name} holds {row.cap:,} of {row.cap:,}")):
       text.admit(row, row.writer, row.cap + 1)
   # A narrower cap for one instance is honoured; a wider one is not.
   with pytest.raises(text.Refused) if row.policy == text.REFUSE else pytest.raises(AssertionError):

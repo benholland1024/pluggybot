@@ -813,7 +813,9 @@ save a filmstrip PNG named after the script.
   (`_settle_job`). ⚠ A true
   death fails its robot's jobs in that robot's own records. ⚠ ITS HOLDER
   IS SHOWN IT, and the time it has left (`heldTasks`, `leftS`): without it
-  the robots spent their recalls finding out when they took it. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
+  the robots spent their recalls finding out when they took it; ⚠ `leftS`
+  is the ask's, and the rule says the clock runs on while it thinks (#689,
+  Overseer.md §2b). ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
   prop out, ⚠ ITS SENTENCE SAYING WHEN (`{offered}`, #659, TaskPattern.md
   §2; a test reads it as offered, past `MAX_DESCRIPTION`'s silent cut), its
@@ -1380,8 +1382,11 @@ save a filmstrip PNG named after the script.
   `->`, no hazard→act tactic, no imperative menu act, no robot's name). Every
   row is in `mind/text.py`; `text.admit` is the ONE gate every document write
   passes; a refusal is narrated AND written to History, the reason before
-  what it tried (#409), never swallowed; on EVERY arm, memory is not
-  a rail. ⚠ **`think` is the FIRST property of the decision schema**
+  what it tried (#409), never swallowed, ⚠ and a full document's says what
+  it HOLDS, never what the refused write would have made (#688: "65 of 64"
+  read as over the cap; `text.held`, its one shape), as each notes-tier
+  index rides the turn beside it (`holds`); on EVERY arm, memory is not a
+  rail. ⚠ **`think` is the FIRST property of the decision schema**
   (constrained decoding follows property order). ⚠ **`recall` is an ACTION**,
   never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`; its
   chain ends at any other action but a fallback's, which keeps it ONCE, a
@@ -2509,7 +2514,12 @@ save a filmstrip PNG named after the script.
   claiming a hand job queues NOTHING — the robot writes the procedure, runs
   it, and sets `done` to the task id. The grade is
   `HubLifecycle._grade_routine` (`_grade_hands_routine`: its check's grader
-  on the seam, the hold, one verdict). ⚠ GATED ON A MIND, NOT MOVED INTO
+  on the seam, the hold, one verdict), ⚠ AT THE WORD, BEFORE ITS ANSWER'S
+  ACTION (#689: after it, 15 of 15 said with `idle` were graded a minute
+  late; `CHALLENGE_RULE` says so, Overseer.md §2b), unless that answer runs
+  a procedure, whose run is the work and is graded by the day loop once the
+  queue is empty -- and a robot that died while it thought is graded there
+  after its stand-up, which closes its answer, a grade mid-hold too. ⚠ GATED ON A MIND, NOT MOVED INTO
   `rewards.json` (a prop is a target only where `world_targets(...,
   procedures=True)`, and every `task_producer` caller passes whether there
   is a mind). ⚠ `_claim_task` gates on `claim_budget_wh`, not

@@ -340,10 +340,79 @@ def test_a_done_and_its_grade_are_said_in_history_by_the_jobs_id(tmp_path, opene
   assert verdict["ok"] is opened, verdict["reason"]
   lines = life.thoughts.texts[HISTORY].splitlines()
   said = [i for i, ln in enumerate(lines) if ln.endswith(
-    f"said done on {task.id} (open_drawer): graded once everything queued has run")]
+    f"said done on {task.id} (open_drawer): graded now, before this answer's idle")]
   graded = [i for i, ln in enumerate(lines) if ln.endswith(
     f"{'passed' if opened else 'failed'} the job {task.id} (open_drawer): {verdict['reason']}")]
   assert len(said) == len(graded) == 1 and said[0] < graded[0], lines
+
+
+def _holds(life) -> list:
+  """Every hold the body is asked from here on, as (when it began, how
+  long, how many grades were in by then): what came before what."""
+  asked, hold = [], life.body.hold_routine
+
+  def spy(seconds, *a, **kw):
+    asked.append((float(life.data.time), float(seconds), len(life.grades)))
+    return hold(seconds, *a, **kw)
+  life.body.hold_routine = spy
+  return asked
+
+
+def test_a_done_is_graded_before_its_answers_action(tmp_path):
+  """#689: a `done` waited out its answer's action before its grade -- all
+  15 said with `idle` from 11-01 to 11-12 were graded a minute after the
+  word -- where every hand job says it is graded when you say you are done.
+  It is graded at the word, before the answer's idle holds."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  mujoco.mj_forward(life.model, life.data)
+  holds = _holds(life)
+  t = float(life.data.time)
+  life.body.run(life._after_decision_routine(
+    ov.Decision(action="idle", reason="", done=task.id)))
+  [grade] = life.grades
+  assert grade["task"] == task.id and grade["ok"], grade
+  assert grade["t"] == pytest.approx(t, abs=1e-3), "graded after the idle, not at the word"
+  idle = [h for h in holds if h[1] == life.idle_s]
+  assert idle and idle[0][2] == 1, "the idle held before the grade"
+  assert life._grade_pending == ""
+  assert any(ln.endswith(f"said done on {task.id} (open_drawer): graded now, before this "
+                         "answer's idle") for ln in life.thoughts.texts[HISTORY].splitlines())
+
+
+def test_a_done_beside_a_procedure_is_graded_once_the_run_is_over(tmp_path):
+  """...but an answer that runs a procedure is graded once its run is over
+  (#689): the run is the work, and graded at the word it would grade the
+  work undone."""
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.procedure import library as lib
+  life = _life(tmp_path)
+  life.overseer.library = lib.Library(world_facts(HUMANOID_HOME))
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id,
+    define={"name": "pace", "source": "def pace():\n  wait(1)\n"})))
+  assert life.grades == [] and life._grade_pending == task.id
+  assert len(life.errands) == 1, "the run is queued"
+  assert any(ln.endswith(f"said done on {task.id} (open_drawer): graded once everything "
+                         "queued has run") for ln in life.thoughts.texts[HISTORY].splitlines())
+
+
+def test_a_dead_robots_done_is_left_to_the_loops_pass(tmp_path):
+  """...and the answer of a robot that died while it thought leaves its
+  grade to the loop's pass after the stand-up, as every grade was (#689):
+  its answer runs under the stand-up's close, and a grade closed mid-hold
+  is lost."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.dead = {"t": float(life.data.time), "cause": "flat"}
+  life.body.run(life._after_decision_routine(
+    ov.Decision(action="idle", reason="", done=task.id)))
+  assert life.grades == [] and life._grade_pending == task.id
 
 
 def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
@@ -367,6 +436,28 @@ def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
   assert held[0]["description"] == drawer_job.description
   assert [h["id"] for h in overseer_context(b)["heldTasks"]] == [door_job.id]
   assert "`heldTasks`" in ov.CHALLENGE_RULE and "`leftS`" in ov.CHALLENGE_RULE
+
+
+def test_the_rule_says_a_done_is_graded_at_once_unless_its_answer_runs_a_procedure():
+  """#689's quiz: told "the grade happens once everything you queued has
+  finished", 9 of 12 asked read an answer's idle and its charge as queued
+  and the grade as coming after them, where the code grades first; told
+  this, 12 of 12 read it right (loop-1113's L2)."""
+  flat = " ".join(ov.CHALLENGE_RULE.split())
+  assert ("on the same answer as the run if you like, and the grade then waits until that run "
+          "has finished; on an answer that runs no procedure, the grade comes at once, before "
+          "that answer's action.") in flat
+  assert "everything you queued" not in flat
+
+
+def test_the_rule_says_left_s_is_the_asks_and_the_clock_runs_while_it_thinks():
+  """#689: `leftS` is the board's as the turn is built, and the clock runs
+  on through the answer: Rowan, asked with 193 s of t_0202 left, answered
+  160 s later with 33 s left, its own think uncounted ("my inter-ask gaps
+  run ~170 s"), and its run's grade came 5 s past the job's time."""
+  flat = " ".join(ov.CHALLENGE_RULE.split())
+  assert ("its `leftS` the seconds of that time still left when you were asked; the clock "
+          "runs on while you think.") in flat
 
 
 @pytest.mark.parametrize("left", ["", "CHARGE", "GO_CHARGE"])
