@@ -473,9 +473,13 @@ def test_a_restart_sets_an_open_pass_offer_back_out_on_the_pass(tmp_path):
 
 
 def test_the_pass_set_out_lies_on_the_counter_in_a_row_each_draw_its_own():
-  """Each piece rests whole on the expo counter's top, on the dining side of
-  the wall it stands in, the cup right of the plate and the fork left as a
-  robot faces the pass; seeded, each draw its own, the fork's head in."""
+  """Each piece rests whole on the expo counter's top, NEAR ITS DINING EDGE
+  -- a carried piece hangs under the pass's top 0.32-0.35 m ahead of the
+  soles, so the walk's hand-over clears the counter only 0.37 m off its face,
+  and standing there a hand takes a piece no further than 0.45-0.47 ahead
+  (set out 0.18-0.20 m in, the hand-over swept the cup into the counter's
+  edge) -- the cup right of the plate and the fork left as a robot faces the
+  pass; seeded, each draw its own, the fork's head in."""
   hx, hy, hz = hw.EXPO_HALF
   cx, cy = hw.BACK_X, sum(hw.EXPO_Y) / 2
   # each piece's reach behind its middle and ahead of it, the fork's turn spared
@@ -490,6 +494,7 @@ def test_the_pass_set_out_lies_on_the_counter_in_a_row_each_draw_its_own():
       assert cx - hx + r[p][0] <= x and x + r[p][1] <= cx + hx, (k, p)
       assert abs(y - cy) + r[p][1] <= hy, (k, p)
       assert x < hw.BACK_X - hw.WALL_HALF_T, (k, p, "the dining side")
+      assert x - (cx - hx) <= 0.12, (k, p, "near the dining edge")
     assert so.pieces["cup"][1] < so.pieces["plate"][1] < so.pieces["fork"][1], k
     assert abs(math.remainder(so.pieces["fork"][2], 2 * math.pi)) <= math.radians(6.0), k
     assert so.card == ct.table_set_out(k).card and so.load == dw.draw(k)

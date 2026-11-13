@@ -236,19 +236,24 @@ TABLE = _table_job()
 #: hand-over (`HumanoidMission.carries`). Three runs -- the cup, the plate,
 #: the fork -- over the procedures they call (`LIBRARY`); what flying took is
 #: SimNotes', "The place laid from the pass":
-#:  - the pass is found by its pair of tags (68, 69), and each piece walked
-#:    up to from 1.2 m off the wall, `s` to the right of its middle, so that
-#:    it lands where its hand takes it STANDING, about 0.45 m ahead and 0.25
-#:    m to that hand's side (deeper, the reach bows over the counter);
+#:  - the pass is found by its pair of tags (68, 69) -- the wall's facing
+#:    off the line through the two, as a far find reads one tag's own facing
+#:    16 deg off -- and each piece walked up to from 1.1 m off the wall, `s`
+#:    to the right of its middle (from 1.2 the walk back from the table found
+#:    no route past the tables), so that it lands where its hand takes it
+#:    STANDING, about 0.45 m ahead and 0.25 m to that hand's side (deeper,
+#:    the reach bows over the counter);
 #:  - a piece is pulled back over the counter's edge before the walk: the
 #:    carry pose holds it under the pass's top;
 #:  - where a tag is not in the colour camera's picture, a turn toward its
 #:    side and then a step in (`near`): a face lands up to 16 deg off;
-#:  - the cup gripped from above 1.5 cm under its lid, the plate's wall 1 cm
-#:    lower than the table check grips it (there the pads' tips catch 0.7-0.9
-#:    cm of the wall, and carried it fell in 37 of 42 legs), the plate and the
-#:    fork from a hover 6 cm over their grip, read again there and pulled
-#:    straight down: the stance turns 5-10 deg as an arm goes out;
+#:  - the cup gripped from above 1.5 cm under its lid and squeezed at 25 N
+#:    (at the table check's 40 N it let go while carried in 17 of 28 legs,
+#:    at 25 N in 1 of 9), the plate's wall 1 cm lower than the table check
+#:    grips it (there the pads' tips catch 0.7-0.9 cm of the wall, and carried
+#:    it fell in 37 of 42 legs), the plate and the fork from a hover 6 cm over
+#:    their grip, read again there and pulled straight down: the stance turns
+#:    5-10 deg as an arm goes out;
 #:  - the walk to the place is the table's (`TABLE_APPROACH`), ending
 #:    `PASS_BACK` further back, its last step over 0.45 m taken in two
 #:    (carrying, a walk ended 0.2 m further back); nothing steps aside
@@ -261,13 +266,15 @@ PASS_TO = '''def to_pass(s):
   find(69, %(ax)g, %(ay)g, 600)
   bx = read("find.x")
   by = read("find.y")
-  f = read("find.facing")
   find(68, %(ax)g, %(ay)g, 600)
-  mx = (bx + read("find.x")) / 2 + 1.2 * cos(f) + s * sin(f)
-  my = (by + read("find.y")) / 2 + 1.2 * sin(f) - s * cos(f)
+  cx = read("find.x")
+  cy = read("find.y")
+  f = atan2(cy - by, cx - bx) + 1.5708
+  mx = (bx + cx) / 2 + 1.1 * cos(f) + s * sin(f)
+  my = (by + cy) / 2 + 1.1 * sin(f) - s * cos(f)
   drive_to(mx, my, 180)
   face(f + 3.14159 - 6.28318 * (f > 0))
-  if not step(0.30, 0):
+  if not step(0.20, 0):
     pass
 '''
 PASS_NEAR = '''def near(t, a, b):
@@ -298,10 +305,11 @@ PASS_GO = '''def go(h, x, y, z, f, g):
 '''
 #: ...the table's walk to the place, as the pass's trips call it: its last
 #: step ahead taken in two where it is over 0.45 m (a step goes 0.5 at most).
-#: It ends this much further back than the table check's start, m: nearer, a
-#: cup put down from as near as the check stands took a crouch and a waist
-#: turn and fell.
-PASS_BACK = 0.05
+#: It ends this much further back than the table check's start, m: the cup's
+#: put-down is at the edge of the right hand's band both ways -- from where
+#: the check stands it took a crouch and a waist turn and fell, from 5 cm
+#: further back a bow of 0.55 rad that missed it by 13 cm.
+PASS_BACK = 0.01
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place():\n"),
                  ("  if not step(x - %(ahead)g + %(nearer)g, 0):\n    pass\n",
                   "  x = x - %(ahead)g - %(back_pass)g\n  if x > 0.45:\n"
@@ -322,9 +330,9 @@ PASS_CUP = '''def lay_cup():
     withdraw("right")
     reach("right", x, y, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
   pull("right", 0, 0, -1, 12, read("right.z") - cz, give=0)
-  if not close_hand("right", 40):
+  if not close_hand("right", 25):
     open_hand("right")
-    close_hand("right", 30)
+    close_hand("right", 25)
   ox = x + 0.025 - read("right.x")
   oy = y - read("right.y")
   oz = read("right.z") - cz + 0.075
