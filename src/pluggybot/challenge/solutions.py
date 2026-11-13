@@ -245,7 +245,10 @@ TABLE = _table_job()
 #:    STANDING, about 0.45 m ahead and 0.25 m to that hand's side (deeper,
 #:    the reach bows over the counter);
 #:  - a piece is pulled back over the counter's edge before the walk: the
-#:    carry pose holds it under the pass's top;
+#:    carry pose holds it under the pass's top (the cup's hand to 0.29 m
+#:    ahead: gripped at its middle and pulled to 0.26, the arm ran out of
+#:    reach in 11 of 61, and the walk's 2 cm lift, out of reach too, let 3
+#:    of those cups go);
 #:  - where a tag is not in the colour camera's picture, a turn toward its
 #:    side and then a step in (`near`): a face lands up to 16 deg off;
 #:  - the cup gripped from above at its middle, 1.5 cm under its lid, at 25
@@ -346,7 +349,7 @@ PASS_CUP = '''def lay_cup():
   oy = y - read("right.y")
   oz = read("right.z") - cz + 0.075
   pull("right", 0, 0, 1, 20, 0.05, give=0)
-  go("right", 0.26, read("right.y"), read("right.z"), 20, 0)
+  go("right", 0.29, read("right.y"), read("right.z"), 20, 0)
   to_place()
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.10
