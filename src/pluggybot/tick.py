@@ -280,6 +280,7 @@ class _Loop:
           raise _Raised(e, step=True) from e
         cmd = step.tick()
     finally:
+      step.routine.close()
       for h in holding:
         if h is not None:
           h.routine.close()
