@@ -385,7 +385,7 @@ taken it`; #648). A job held past the time its description gives is failed by th
 loop, its prop offered again, and while the robot holds one its context
 lists it with that time's remainder (`heldTasks`, `leftS`; #602), as of the
 ask -- the rule says the clock runs on while it thinks (#689: asked with 193
-s of t_0202 left, Rowan answered 183 s later, its own think uncounted). `CHALLENGE_RULE` says all of this to
+s of t_0202 left, Rowan answered 160 s later, its own think uncounted). `CHALLENGE_RULE` says all of this to
 the mind and, like every rule on this arm, demonstrates nothing about
 charging.
 

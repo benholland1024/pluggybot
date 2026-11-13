@@ -815,7 +815,7 @@ save a filmstrip PNG named after the script.
   IS SHOWN IT, and the time it has left (`heldTasks`, `leftS`): without it
   the robots spent their recalls finding out when they took it; ⚠ `leftS`
   is the ask's, and the rule says the clock runs on while it thinks (#689:
-  asked with 193 s left, Rowan answered 183 s later, its think uncounted). ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
+  asked with 193 s left, Rowan answered 160 s later, its think uncounted). ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
   prop out, ⚠ ITS SENTENCE SAYING WHEN (`{offered}`, #659, TaskPattern.md
   §2; a test reads it as offered, past `MAX_DESCRIPTION`'s silent cut), its
@@ -2509,7 +2509,9 @@ save a filmstrip PNG named after the script.
   late), unless that answer runs a procedure, whose run is the work and is
   graded by the day loop once the queue is empty -- and a robot that died
   while it thought is graded there after its stand-up, which closes its
-  answer, a grade mid-hold too. ⚠ GATED ON A MIND, NOT MOVED INTO
+  answer, a grade mid-hold too. `CHALLENGE_RULE` says it: told "once
+  everything you queued has finished", 9 of 12 asked took an idle for
+  queued. ⚠ GATED ON A MIND, NOT MOVED INTO
   `rewards.json` (a prop is a target only where `world_targets(...,
   procedures=True)`, and every `task_producer` caller passes whether there
   is a mind). ⚠ `_claim_task` gates on `claim_budget_wh`, not

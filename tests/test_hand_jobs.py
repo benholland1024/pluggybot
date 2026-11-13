@@ -438,10 +438,22 @@ def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
   assert "`heldTasks`" in ov.CHALLENGE_RULE and "`leftS`" in ov.CHALLENGE_RULE
 
 
+def test_the_rule_says_a_done_is_graded_at_once_unless_its_answer_runs_a_procedure():
+  """#689's quiz: told "the grade happens once everything you queued has
+  finished", 9 of 12 asked read an answer's idle and its charge as queued
+  and the grade as coming after them, where the code grades first; told
+  this, 12 of 12 read it right (loop-1113's L2)."""
+  flat = " ".join(ov.CHALLENGE_RULE.split())
+  assert ("on the same answer as the run if you like, and the grade then waits until that run "
+          "has finished; on an answer that runs no procedure, the grade comes at once, before "
+          "that answer's action.") in flat
+  assert "everything you queued" not in flat
+
+
 def test_the_rule_says_left_s_is_the_asks_and_the_clock_runs_while_it_thinks():
   """#689: `leftS` is the board's as the turn is built, and the clock runs
   on through the answer: Rowan, asked with 193 s of t_0202 left, answered
-  183 s later with 33 s left, its own think uncounted ("my inter-ask gaps
+  160 s later with 33 s left, its own think uncounted ("my inter-ask gaps
   run ~170 s"), and its run's grade came 5 s past the job's time."""
   flat = " ".join(ov.CHALLENGE_RULE.split())
   assert ("its `leftS` the seconds of that time still left when you were asked; the clock "

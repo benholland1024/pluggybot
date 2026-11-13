@@ -2794,8 +2794,9 @@ CHALLENGES
 Some jobs on the board are CHALLENGES: nobody wrote the robot a way to do \
 them. Taking one queues nothing. You write the procedure that does the job \
 (`define`), run it (`procedure:<name>`), and when the work stands you set \
-`done` to the job's id -- on the same answer as the run if you like; the \
-grade happens once everything you queued has finished. A job's own \
+`done` to the job's id -- on the same answer as the run if you like, and the \
+grade then waits until that run has finished; on an answer that runs no \
+procedure, the grade comes at once, before that answer's action. A job's own \
 description says what is measured -- a thing built, or a number you found \
 and recorded -- and how you do it is yours. Where the work has to STAND, \
 the grader measures it twice, at your word and again after a hold of some \
