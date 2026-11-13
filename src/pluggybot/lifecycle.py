@@ -4286,7 +4286,9 @@ class HubLifecycle:
       return False
     self._grade_pending = task.id
     # ...never inside a dead robot's answer, which its stand-up closes, a
-    # grade mid-hold and all: the loop's pass after it grades, as before
+    # grade mid-hold and all: the loop's pass after it grades, as before.
+    # (No other stand-up lands in an answer: an admin's reaches a robot
+    # only between errands, and the timer's 300 s after a death.)
     now = self.dead is None and not decision.action.startswith(PROCEDURE_PREFIX)
     when = (f"graded now, before this answer's {decision.action}" if now
             else "graded once everything queued has run")
@@ -5691,7 +5693,8 @@ class HubLifecycle:
     if graded_now:
       # ...but beside any other action, the grade is the word's, before the
       # action runs (#689): after it, a `done` with `idle` was graded a
-      # minute late, 15 of 15
+      # minute late, 15 of 15. Never at the rack, as the loop's grade.
+      yield from self._leave_rack_routine()
       yield from self._grade_routine()
 
     if decision.action == "take_task":

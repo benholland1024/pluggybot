@@ -388,17 +388,25 @@ def admit(surface: Surface, by: str, size: int, cap: int | None = None,
   raise Refused(full_message(surface, size - adds, adds, limit))
 
 
+def held(surface: Surface, holds: int, limit: int | None = None) -> str:
+  """How full a document is, in one shape wherever it is said (#688): `64
+  of 64 entries`, `2,960 of 3,000 chars` -- its refusal's, and a notes-tier
+  index's beside it in the turn. `limit` narrows the row's cap, as
+  `admit`'s does."""
+  what = "chars" if surface.unit == CHARS else "entries"
+  return f"{holds:,} of {surface.cap if limit is None else limit:,} {what}"
+
+
 def full_message(surface: Surface, holds: int, adds: int, limit: int) -> str:
   """One sentence, one shape, whichever document is full: what it is, what
   it HOLDS of its limit, for a page of chars what the line would add, and
   the remedy -- which is always the REMOVE verb. ⚠ Never the size the
   refused write would have made (#688): a file holding 64 said "65 of 64",
   read as its count and its cap drifting apart."""
-  what = "chars" if surface.unit == CHARS else "entries"
   more = f", and this line is {adds:,} more" if surface.unit == CHARS else ""
   remedy = (f"{surface.remove} one first" if surface.remove
             else "nothing more fits")
-  return f"{surface.name} holds {holds:,} of {limit:,} {what}{more}; {remedy}"
+  return f"{surface.name} holds {held(surface, holds, limit)}{more}; {remedy}"
 
 
 # ---- a placeholder (issue #462) ---------------------------------------------

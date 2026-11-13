@@ -12,7 +12,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A full file says what it holds, a `done` is graded at the word, and `leftS` is the ask's (#688, #689) — opens when this PR is deployed
 
-**What changed** (`prompt_sha` `609b7ad5…` → `948c9be3…`, 65,730 → 65,904
+**What changed** (`prompt_sha` `609b7ad5…` → `b345cc34…`, 65,730 → 66,029
 chars, 17 sections both, over #681's; the session host's hello re-vendored,
 the site's branch `loop-words`):
 - **A full document's refusal says what it holds** (#688): `Notes.md holds
@@ -23,7 +23,9 @@ the site's branch `loop-words`):
   is.
 - **`Notes.md` and `Findings.md` ride the turn beside their count**:
   `{"holds": "64 of 64 entries", "index": {…}}`, where the index alone was
-  -- the turn's shape for those two, for every robot from the first turn.
+  -- the turn's shape for those two, for every robot from the first turn --
+  and the prompt says so where it says what each index is ("beside how many
+  notes it holds of the most it may (`holds`)").
 - **A `done` is graded at the word, before its answer's action** (#689):
   an `idle`, a `charge`, a `look`, a `recall`, an `explore` or a
   `take_task` beside it no longer stands between the word and the grade's
@@ -53,9 +55,10 @@ had counted only the next ask's time for, and all 15 `done`s said with
 `idle` since 11-01 were graded a minute after the word. Quizzed on the
 deployed mind (loop-1113's L2, GLM-5.3-Flash on baseten, 12 answers an
 item): the release's refusal words read "65 of 64" as over the cap 12 of
-12 and "3060 of 3000" as a page already over 12 of 12, these 0 and 0; and
-the rule's "once everything you queued has finished" read an idle and a
-charge as queued 9 of 12, its new sentence 0 of 12.
+12 and "3060 of 3000" as a page already over 12 of 12, these 0 and 0 (and
+so with the prompt's `holds` sentence); and the rule's "once everything you
+queued has finished" read an idle and a charge as queued 9 of 12, its new
+sentence 0 of 12.
 
 **What the period is for.**
 - **The memory refusals** against the notes written, by day (#688's table),

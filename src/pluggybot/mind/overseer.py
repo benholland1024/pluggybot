@@ -2171,8 +2171,9 @@ not need writing down.
 you name -- `tasks/open_drawer`, `visitors/ben`, `rooms/garden`, anything. Set \
 `note` to `{"topic": "...", "title": "...", "text": "..."}` to add one; more \
 on a subject is another note in the same topic, never a longer one. Only the \
-INDEX (the topics and titles) is shown to you each turn; a note's text is \
-there when you look it up. Set `unnote` to `topic/title` to take one out. \
+INDEX (the topics and titles) is shown to you each turn, beside how many \
+notes it holds of the most it may (`holds`); a note's text is there when you \
+look it up. Set `unnote` to `topic/title` to take one out. \
 Set `cites` to the numbers of the History lines a pin or a note was drawn \
 from (`#123 #140`), when it was drawn from some.
 - You may write to any of these with any action; none of it costs a turn.
@@ -2907,7 +2908,8 @@ WHAT YOU HAVE MEASURED
 
 `%(name)s` is YOURS, like your notes, and it is for one kind of line only: \
 a MEASUREMENT. Its index is shown with your other files below, one topic per \
-job. Set `record` to `{"quantity": "<what>", "value": <a number>, "unit": \
+job, beside how many findings it holds of the most it may (`holds`). Set \
+`record` to `{"quantity": "<what>", "value": <a number>, "unit": \
 "<unit>", "method": "<how you got it>", "topic": "<the job>"}` on any \
 answer; it costs no turn and is written as one line, `<quantity> = <value> \
 <unit> -- <method>`, under `findings/<topic>`. Code reads that line back -- \

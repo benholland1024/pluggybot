@@ -797,8 +797,8 @@ def test_a_refused_thought_is_told_to_the_robot_in_its_history():
   # ...and a line that is only WORDS of the refusal is still quoted
   room = SPECS[TOP_OF_MIND].cap - len(files.read(TOP_OF_MIND)) - 1
   files.pin("z" * (room - 2), t=50.0)                # all the page but two
-  life._reconsider(ov.Decision(action="idle", pin="full"))
-  assert files.lines(HISTORY)[-1].endswith("unpin one first -- 'full'")
+  life._reconsider(ov.Decision(action="idle", pin="holds"))
+  assert files.lines(HISTORY)[-1].endswith("unpin one first -- 'holds'")
 
 
 @pytest.mark.parametrize("remove,doc", [("unpin", TOP_OF_MIND), ("drop_goal", GOALS)])
@@ -1129,6 +1129,11 @@ def test_the_turn_shows_how_full_each_notes_tier_file_is_beside_its_index(files)
   turn = ov._user_turn({"thoughts": shown})
   assert f'"holds": "2 of {MAX_NOTES} entries"' in turn
   assert f'"holds": "1 of {MAX_FINDINGS} entries"' in turn
+  # ...and the prompt says what `holds` is, where it says what the index is
+  assert ("Only the INDEX (the topics and titles) is shown to you each turn, beside how many "
+          "notes it holds of the most it may (`holds`)") in " ".join(ov.RULES.split())
+  assert ("one topic per job, beside how many findings it holds of the most it may "
+          "(`holds`)") in " ".join(ov.FINDINGS_RULE.split())
 
 
 def test_findings_are_typed_topics_per_task(files):

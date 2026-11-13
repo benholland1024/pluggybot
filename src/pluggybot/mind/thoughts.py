@@ -468,23 +468,24 @@ class ThoughtFiles:
     never off the rendered text."""
     return [dict(r.fields, topic=r.topic, t=r.t) for r in self._findings()]
 
-  def index(self, name: str) -> dict[str, list[str]]:
+  def index(self, name: str, rows=None) -> dict[str, list[str]]:
     """What the model is shown of a notes-tier document: every topic with
     its titles -- for findings, `quantity = value unit` (the method waits
-    for a `recall`)."""
+    for a `recall`). `rows` are its records where the caller read them."""
     out: dict[str, list[str]] = {}
-    rows = self._findings() if name == FINDINGS else self._notes()
+    if rows is None:
+      rows = self._findings() if name == FINDINGS else self._notes()
     for r in rows:
       label = (r.text.split(" -- ")[0] if name == FINDINGS else r.title)
       out.setdefault(r.topic, []).append(label)
     return out
 
-  def holds(self, name: str) -> str:
-    """How full a notes-tier document is, in its refusal's words (#688):
-    `64 of 64 entries`."""
-    spec = SPECS[name]
+  def tier(self, name: str) -> dict:
+    """What the turn shows of a notes-tier document: its index beside what
+    it holds (#688), in its refusal's words (`text.held`), off one read."""
     rows = self._findings() if name == FINDINGS else self._notes()
-    return f"{len(rows):,} of {spec.cap:,} {spec.unit}"
+    return {"holds": registry.held(SPECS[name], len(rows)),
+            "index": self.index(name, rows)}
 
   def history_tail(self, n: int = HISTORY_SHOWN) -> list[str]:
     """The newest `n` History lines, each prefixed with its record id so
@@ -523,7 +524,7 @@ class ThoughtFiles:
       elif s.name in (FINDINGS, NOTES):
         # ...and what it holds of its cap beside it (#688): nothing said how
         # full a file was until a write failed, 1,292 times in 12 days
-        out[s.name] = {"holds": self.holds(s.name), "index": self.index(s.name)}
+        out[s.name] = self.tier(s.name)
       else:
         out[s.name] = self.texts[s.name]
     return out
