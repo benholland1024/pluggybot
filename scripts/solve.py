@@ -3,11 +3,12 @@ offered job flown the way the robot's own attempt runs and graded by the
 job's own grader -- so a passing verdict here is the verdict a robot would
 be paid for, and a robot that never earns it is a finding about the robot.
 
-  --feature drawer | door | cube | chest | table
+  --feature drawer | door | cube | chest | table | pass
                     a hand job: `open_drawer`, `open_door`, `place_cube` or
                     `open_chest` offered on the storeroom's counter, or
-                    `set_table` at the restaurant's table (#560), as the
-                    cadence offers it -- the area's address and directions,
+                    `set_table` at the restaurant's table (#560) -- or
+                    `set_table_pass`, its place laid from the pass (#682's
+                    stage C, never offered) -- as the cadence offers it -- the area's address and directions,
                     the prop's hidden dynamics drawn afresh (`--draw K`, the
                     board's own sequence where none is given) and the prop
                     set out -- claimed, the hand-written reference's two
@@ -16,13 +17,20 @@ be paid for, and a robot that never earns it is a finding about the robot.
                     robot's, `done`, and the grade on the seam; one fresh
                     humanoid a flight on a fresh map, from in front of its
                     station (`--from station`) or inside the storeroom's
-                    door (`--from store`); `--n` draws from K, a process
+                    door (`--from store`), or in front of the restaurant's
+                    pass (`--from pass`); `--n` draws from K, a process
                     each (`--jobs`), a row each (`--into DIR`); `--view`
                     watches one, `--strip` its filmstrip, `solve.png`.
                     Each flight draws noise of its own, keyed by its job,
                     its draw and where it starts (`noise_of`, #560), or
                     `--noise KEY`'s: a draw flown again (a row's `noise`),
-                    `robot` the robot's own, as every flight drew before
+                    `robot` the robot's own, as every flight drew before;
+                    `--walker NPZ` another walking policy (#682's stage B's
+                    `models/humanoid_walk_carry.npz`), walk2 unset;
+                    `--held-out N` N draws nobody has flown, sealed by the
+                    frozen build's commit as the attempt kit seals a held-out
+                    chest (`attempts.seed_of`, `held_out`; a dirty tree is
+                    refused), each its own noise
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/solve.py --feature drawer --n 8 --jobs 4 --into DIR
@@ -32,6 +40,7 @@ Usage:
 
 import argparse
 import math
+import os
 import tempfile
 import time
 from pathlib import Path
@@ -43,6 +52,13 @@ from pluggybot.economy.tasks import TaskBoard
 from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, board_book, world_config
 from pluggybot.mind import overseer as ov
 from pluggybot.robot import world_spec
+
+#: `--walker NPZ`: the walking policy flown (the served one, walk2, unset) --
+#: through the environment, so a pool's spawned flights fly it too.
+WALKER = os.environ.get("SOLVE_WALKER")
+if WALKER:
+  from pluggybot.humanoid import mission as _mission
+  _mission.WALK_NPZ = Path(WALKER)
 
 
 class _Mind:
@@ -64,7 +80,8 @@ class _Mind:
 #: a counter's prop, or the restaurant's table (#560).
 HAND_JOBS = {"drawer": ("open_drawer", "drawer"), "door": ("open_door", "door"),
              "cube": ("place_cube", "cube"), "chest": ("open_chest", "chest"),
-             "table": ("set_table", "dining_table_0")}
+             "table": ("set_table", "dining_table_0"),
+             "pass": ("set_table_pass", "dining_table_0")}
 
 
 def work_view(target: str) -> tuple[tuple[float, float], list[float], float, float]:
@@ -90,6 +107,13 @@ def work_view(target: str) -> tuple[tuple[float, float], list[float], float, flo
 #: living room, the hall, the kitchen and the garden (`home.SPAWNS`).
 STORE_START = (22.8, -3.0, 0.0)
 TOUR = ("station", "store", "lobby", "lab", "start", "hall", "kitchen", "garden")
+
+
+def pass_start() -> tuple[float, float, float]:
+  """In front of the restaurant's pass, facing it (`--from pass`): where an
+  offline flight of the place laid from it starts (`counter.pass_set_out`)."""
+  from pluggybot.evaluation import counter as ct
+  return ct.pass_set_out(0).start
 
 
 def noise_of(kind: str, start: str, draw: int | None) -> str:
@@ -126,7 +150,7 @@ def hand_life(state_dir: str, start: str, viewer=None, noise: str | None = None)
   life.activities = acts
   from pluggybot.home import world as home
   at = (life.body.charge_standoff() if start == "station" else STORE_START if start == "store"
-        else tuple(home.SPAWNS[start]))
+        else pass_start() if start == "pass" else tuple(home.SPAWNS[start]))
   life.body.start_at(*at)
   life.body.start_discovery()
   return life, viewer
@@ -181,6 +205,8 @@ def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
            "find": {k: find.get(k) for k in ("found", "why", "seconds", "viewpoints",
                                              "arounds")},
            "beliefM": round(math.hypot(x - tx, y - ty), 3), "steps": run["steps"]}
+    if WALKER:
+      row["walker"] = os.path.basename(WALKER)
   if view and viewer is not None:
     print(f"{feature}: {'PASSED' if row['grade']['ok'] else 'FAILED'} -- "
           f"{row['grade']['reason']}. Close the window to quit.")
@@ -274,6 +300,26 @@ class _HandStrip:
     print(f"wrote {out}")
 
 
+def _drafts(args) -> list[int]:
+  """The draws `--n` flies from `--draw`, or `--held-out`'s, sealed by the
+  frozen build (the attempt kit's `build`, `seed_of` and `held_out`)."""
+  if args.held_out is None:
+    first = 0 if args.draw is None else args.draw
+    return [first + i for i in range(args.n)]
+  import sys
+  sys.path.insert(0, str(Path(__file__).resolve().parent))
+  from attempts import build
+  from pluggybot.evaluation import attempts as at
+  info = build()
+  if info["dirty"] and args.seed is None:
+    raise SystemExit("a held-out draw is a frozen build's: commit the tree first (or name --seed)")
+  seed = args.seed if args.seed is not None else at.seed_of(info["commit"])
+  ks = at.held_out(seed, args.held_out)
+  print(f"held out: {args.held_out} draws by seed {seed} (commit {info['commit']}): {ks}",
+        flush=True)
+  return ks
+
+
 def _hand_job_row(spec) -> dict:
   feature, start, draw, noise = spec
   try:
@@ -292,9 +338,8 @@ def hands_main(args) -> None:
                    strip=args.out_strip if args.strip else None, noise=args.noise)
     print(json.dumps({k: v for k, v in row.items() if k != "steps"}))
     return
-  first = 0 if args.draw is None else args.draw
-  specs = [(args.feature, TOUR[i % len(TOUR)] if args.start == "tour" else args.start, first + i,
-            args.noise) for i in range(args.n)]
+  specs = [(args.feature, TOUR[i % len(TOUR)] if args.start == "tour" else args.start, k,
+            args.noise) for i, k in enumerate(_drafts(args))]
   rows = []
   with mp.get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:
     for row in pool.imap(_hand_job_row, specs):
@@ -321,11 +366,11 @@ def main() -> None:
   parser.add_argument("--view", action="store_true", help="watch one flight in the viewer")
   parser.add_argument("--n", type=int, default=1,
                       help="how many draws, from --draw, a process each")
-  parser.add_argument("--from", dest="start", choices=("station", "store", "tour"),
+  parser.add_argument("--from", dest="start", choices=("station", "store", "pass", "tour"),
                       default="station",
                       help="each flight from in front of the station, inside the "
-                           "storeroom's door, or each of `--n` from the next of eight "
-                           "places across the house (`tour`)")
+                           "storeroom's door, in front of the restaurant's pass, or each "
+                           "of `--n` from the next of eight places across the house (`tour`)")
   parser.add_argument("--draw", type=int, default=None,
                       help="the draw of its prop's hidden dynamics (default: the "
                            "board's own sequence, 0; with --n, the first)")
@@ -335,9 +380,32 @@ def main() -> None:
   parser.add_argument("--jobs", type=int, default=1, help="flights at once, a process each")
   parser.add_argument("--into", default=None, help="the rows, DIR/rows.jsonl")
   parser.add_argument("--strip", action="store_true", help="one flight's filmstrip")
+  parser.add_argument("--held-out", dest="held_out", type=int, default=None, metavar="N",
+                      help="N draws nobody has flown, sealed by the frozen build's commit")
+  parser.add_argument("--seed", type=int, default=None,
+                      help="--held-out's seed, not the build's")
+  parser.add_argument("--walker", default=None, metavar="NPZ",
+                      help="another walking policy's .npz (#682's stage B), walk2 unset")
   parser.add_argument("--strip-out", dest="out_strip", default="solve.png",
                       help="--strip's file")
   args = parser.parse_args()
+  if args.held_out is not None:
+    # ...as the attempt kit refuses them: a held-out draw is sealed with its
+    # noise, and its draws are the build's, never `--draw`'s or `--n`'s
+    if args.noise is not None:
+      parser.error("a held-out draw's noise is sealed with it: --noise flies a draw again "
+                   "at a named --draw")
+    if args.view or args.strip:
+      parser.error("--held-out flies a batch: --view and --strip fly one named --draw")
+    if args.draw is not None or args.n != 1:
+      parser.error("--held-out N names its own draws: no --draw, no --n")
+  if args.walker:
+    # ...through the environment, so a pool's spawned flights fly it too
+    os.environ["SOLVE_WALKER"] = str(Path(args.walker).expanduser().resolve())
+    global WALKER
+    WALKER = os.environ["SOLVE_WALKER"]
+    from pluggybot.humanoid import mission
+    mission.WALK_NPZ = Path(WALKER)
   if args.start == "tour" and (args.view or args.strip):
     parser.error("--view and --strip fly one: --from station or store")
   hands_main(args)

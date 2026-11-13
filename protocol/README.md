@@ -54,6 +54,19 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a task kind no world offers (`set_table_pass`, pluggybot #682's stage C)
+
+`taskKinds` (every kind the producer knows) gains `set_table_pass`: table
+0's place laid from its pieces set out on the restaurant's pass, its target
+`dining_table_0` and its `targetKind` `table`, graded as `set_table` is. No
+world's cadence offers it, so no stream carries one; a page that ever sees
+one may draw it as it draws `set_table`. The pieces it sets out are the
+place's own (`dining_table_0`'s activity, the same four bodies), on the
+pass's counter, and `<piece>Lifted` reads a piece over where it was set out
+-- the pass's top or the table's -- as it always read one over the table's.
+
+No bump: a kind is additive.
+
 ### 0.21.0, unchanged: the lab's plates flush with the floor too (pluggybot #684)
 
 The lab's three pressure plates (`shock`, `feed`, `toy`), sprung pads 21 mm
@@ -146,7 +159,8 @@ its bar). What a consumer sees:
   humanoid scene has 239 bodies (236), the pair's 272.
 - **An activity, additive**: `dining_table_0`, the place's -- its flags
   `setOut` (live: the dishware out where a job set it), `plateLifted`,
-  `cupLifted` and `forkLifted` (live, each over the table while out). A page
+  `cupLifted` and `forkLifted` (live, each over where it was set out while
+  out: the table, or the pass for `set_table_pass`). A page
   may hide the four bodies while `setOut` is false; under the floor nothing
   shows them anyway.
 - **A task kind**: `set_table` joins `taskKinds`, its target

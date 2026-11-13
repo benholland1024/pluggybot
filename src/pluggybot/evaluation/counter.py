@@ -300,13 +300,17 @@ class TableSetOut:
   card: tuple[float, float, float]
   start: tuple[float, float, float]
   counter: None = None
+  #: The top the pieces are set out on, m: the table's, or the pass's
+  #: (`pass_set_out`).
+  surface: float = TABLE_H
 
   def attach(self, spec) -> None:
-    """The card and the pieces, set out on the house's own table 0."""
+    """The card on the house's own table 0, and the pieces set out on their
+    top (the table's, or the pass's)."""
     from pluggybot.activity import dishware as dw
     dw.attach_card(spec, self.card[:2], self.card[2], TABLE_H)
     for name, (x, y, yaw) in self.pieces.items():
-      dw.ATTACH[name](spec, (x, y), yaw, TABLE_H, getattr(self.load, f"{name}_kg"),
+      dw.ATTACH[name](spec, (x, y), yaw, self.surface, getattr(self.load, f"{name}_kg"),
                       self.load.friction)
 
 
@@ -344,6 +348,64 @@ def table_set_out(k: int) -> TableSetOut:
   # the start is the pelvis's: the soles' middle stands `_stance_ahead()` before it
   start = (sx, sy - _stance_ahead(), north)
   return TableSetOut(k=k, load=dw.draw(k), pieces=pieces, card=(cx, cy, -north), start=start)
+
+
+#: THE PLACE LAID FROM THE PASS (#682's stage C, easy mode; Ben, 11-12): the
+#: same place at table 0, its card where `table_set_out` stands it, and its
+#: pieces set out on the restaurant's expo counter instead -- the pass in the
+#: dining room's east wall (`home.world.EXPO_Y`), a carry of 4-5 m from the
+#: place. Its top's height, m.
+PASS_H = 2 * _home.EXPO_HALF[2]
+#: The pass's own frame, P: from the middle of the counter's dining-side
+#: edge, x into the counter (east) and y to the left of a robot facing it
+#: (north). Where each piece is set out in P (x, y, m), how far either way it
+#: is drawn off it (m), and how far its turn is (rad): a row along the pass,
+#: the cup to the right and the fork to the left -- the fork along x, its
+#: head in, as it lies at the place -- each NEAR THE COUNTER'S EDGE: a carried
+#: piece hangs under the pass's top, 0.32-0.35 m ahead of the soles' middle
+#: (`humanoid.reach.CARRY_POSE`), so a walk's hand-over clears the counter
+#: only 0.37 m off its face, and standing there a hand takes a piece no
+#: further in than this (SimNotes, "The place laid from the pass").
+PASS_SOURCES = {"plate": ((0.11, 0.0), (0.010, 0.010), math.pi),
+                "cup": ((0.06, -0.35), (0.010, 0.010), math.pi),
+                "fork": ((0.07, 0.35), (0.008, 0.008), math.radians(6.0))}
+#: Where an offline flight of it starts (`world`; never the served job's,
+#: which begins wherever the robot is): the soles' middle this far out of
+#: the pass's edge, on its middle, facing it, m.
+PASS_GAP = 0.90
+#: `pass_set_out(k)`'s stream is this and k: a stream of its own, never the
+#: table's set-out's nor the pieces' hidden draw's.
+PASS_SEED = 5603
+
+
+def pass_to_world(px: float, py: float) -> tuple[float, float]:
+  """A point of the pass's frame P in the world: the middle of the expo
+  counter's dining-side edge, x east into it, y north."""
+  return _home.BACK_X - _home.EXPO_HALF[0] + px, sum(_home.EXPO_Y) / 2 + py
+
+
+def pass_set_out(k: int) -> TableSetOut:
+  """Place `k` laid from the pass (seeded): its pieces set out on the expo
+  counter round `PASS_SOURCES`, each drawn off it and turned, off a stream
+  of its own, with draw k's hidden weights and friction (`dishware.draw`,
+  the table's); the card at table 0 as `table_set_out` stands it; an
+  offline flight's robot in front of the pass, facing it (east)."""
+  from pluggybot.activity import dishware as dw
+  if k < 0:
+    raise ValueError(f"a set-out is a whole number from 0, not {k}")
+  rng = np.random.default_rng((PASS_SEED, k))
+  pieces = {}
+  for name in dw.PIECES:
+    (x, y), (dx, dy), turn = PASS_SOURCES[name]
+    px, py = x + float(rng.uniform(-dx, dx)), y + float(rng.uniform(-dy, dy))
+    pieces[name] = (*pass_to_world(px, py), float(rng.uniform(-turn, turn)))
+  north = math.pi / 2
+  cx, cy = place_to_world(CARD_IN, 0.0)
+  sx, sy = pass_to_world(-PASS_GAP, 0.0)
+  # the start is the pelvis's: the soles' middle stands `_stance_ahead()` before it
+  start = (sx - _stance_ahead(), sy, 0.0)
+  return TableSetOut(k=k, load=dw.draw(k), pieces=pieces, card=(cx, cy, -north), start=start,
+                     surface=PASS_H)
 
 
 def world(so, policy=None, noise: str | None = None):

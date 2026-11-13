@@ -43,6 +43,9 @@ On a bare floor, an arm holds a piece:
                 lift leaves it
   --walker NPZ  another walking policy (#682's stage B), walk2 unset
   --held-drop M the self-filter's radius round a held grip (0.12 unset)
+  --pinch-out M a posed piece held this much further out toward the
+                fingertips than the reference's shut left it (the cup's
+                creep, #682's A7: how deep it is held)
 
   scripts/carry_spike.py --fly [--cases A,B] [--courses A,B] [--draws N]
                          [--first K] [--jobs J] [--out rows.jsonl] [--trace DIR]
@@ -108,6 +111,10 @@ HELD = {"none": (), "empty": ((None, "left"),), "plate": (("plate", "left"),),
 #: The squeeze a posed piece is shut on, N a pad (the reference's 40);
 #: `--squeeze N` another (the Dex1-1's 5-120).
 SQUEEZE_N = float(os.environ.get("CARRY_SQUEEZE", "40"))
+#: `--pinch-out M`: a posed piece put this much further out toward the
+#: fingertips than the reference's own shut left it (`PINCH`), m: a shallower
+#: grip -- does the cup's creep (#682's A7) follow how deep it is held?
+PINCH_OUT = float(os.environ.get("CARRY_PINCH_OUT", "0"))
 #: THE PINCH: where the reference's shut and lift left each piece in its
 #: jaws, the piece's frame in the grip site's (m, rotation): flown off the
 #: pedestal (`ref`'s grip; the plate's mean of draws 0, 1 and 3, 4-11 deg
@@ -647,6 +654,8 @@ def setup_posed(body, model, data, info) -> dict:
     pb = model.body(piece).id
     gs = model.site(f"{side}_grip").id
     p_rel, r_rel = np.array(PINCH[piece][0]), np.array(PINCH[piece][1])
+    # ...out toward the fingertips: the grip site's -z is the fingers' way
+    p_rel = p_rel + np.array([0.0, 0.0, -PINCH_OUT])
     rg = data.site_xmat[gs].reshape(3, 3)
     pos = data.site_xpos[gs] + rg @ p_rel
     quat = np.zeros(4)
@@ -895,6 +904,8 @@ def fly(job) -> dict:
       row["q_carried"] = {s_: [float(v) for v in mi.reach.q_cmd[s_]] for _, s_ in info["arms"]}
     if WALKER:
       row["walker"] = os.path.basename(WALKER)
+    if PINCH_OUT:
+      row["pinchOut"] = PINCH_OUT
     if HELD_DROP:
       row["held_drop"] = float(HELD_DROP)
     per = {}
@@ -1179,7 +1190,7 @@ def view(spec: str) -> None:
 
 
 def main(argv=None) -> None:
-  global TRACE, UNSEEN, KG, BLIND, SQUEEZE_N, HOUSE, SERVED
+  global TRACE, UNSEEN, KG, BLIND, SQUEEZE_N, HOUSE, SERVED, PINCH_OUT
   from pluggybot.batch import watched
   watched()
   ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1202,6 +1213,8 @@ def main(argv=None) -> None:
   ap.add_argument("--served", action="store_true",
                   help="the served walk's own hand-over (#682), which carries a held grip")
   ap.add_argument("--walker", default=None, help="another walking policy's .npz")
+  ap.add_argument("--pinch-out", dest="pinch_out", type=float, default=None,
+                  help="a posed piece this much further out toward the fingertips, m")
   ap.add_argument("--held-drop", type=float, default=None,
                   help="the self-filter's radius round a held grip, m")
   ap.add_argument("--read", default=None)
@@ -1234,6 +1247,10 @@ def main(argv=None) -> None:
     os.environ["CARRY_HELD_DROP"] = str(args.held_drop)
     from pluggybot.humanoid import mission as _m2
     _m2.HELD_DROP_M = args.held_drop
+  if args.pinch_out is not None:
+    # ...through the environment, as every option a spawned flight reads
+    os.environ["CARRY_PINCH_OUT"] = str(args.pinch_out)
+    PINCH_OUT = args.pinch_out
   if args.walker:
     os.environ["CARRY_WALKER"] = str(Path(args.walker).expanduser().resolve())
     from pluggybot.humanoid import mission as _m

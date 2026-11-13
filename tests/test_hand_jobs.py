@@ -565,8 +565,8 @@ def test_a_bare_offer_gives_its_kinds_minutes_and_is_graded_on_them(tmp_path):
     task = TaskBoard().offer(kind, KINDS[kind].target_kind)
     assert f"within {KINDS[kind].minutes} minutes" in task.description, kind
     assert task.params["minutes"] == KINDS[kind].minutes
-  assert {KINDS[k].minutes for k in HAND_JOBS if k not in ("set_table", "place_cube")} == {
-    HAND_MINUTES}
+  assert {KINDS[k].minutes for k in HAND_JOBS
+          if k not in ("set_table", "place_cube", "set_table_pass")} == {HAND_MINUTES}
   life = _life(tmp_path)
   task = life.tasks.offer("open_drawer", "drawer", ttl=3000.0, t=float(life.data.time))
   life.tasks.tasks[task.id] = replace(task, params={})
@@ -673,13 +673,16 @@ def test_each_jobs_row_is_its_own_shown_only_where_it_is_offered():
   from pluggybot.economy import scoring
   from pluggybot.mind.overseer import world_kinds
   table = default_table()
+  from pluggybot.economy.cadence import default_cadence
+  offered = {KINDS[k].task for k in default_cadence(HUMANOID_HOME).kinds}
   for job, check in HAND_JOBS.items():
     assert scoring.EVALUATORS[job] is scoring.EVALUATORS[check]
-    assert table[job].base > 0 == table[check].base
-  from pluggybot.economy.cadence import default_cadence
+    assert 0 == table[check].base
+    # ...paid where a world offers it, and nothing where none does (#682's
+    # stage C: the place laid from the pass, its reference read, never offered)
+    assert (table[job].base > 0) == (job in offered), job
   served = {r["task"] for r in table.as_context(challenges=True,
                                                 kinds=world_kinds(HUMANOID_HOME))}
-  offered = {KINDS[k].task for k in default_cadence(HUMANOID_HOME).kinds}
   assert offered and offered <= set(HAND_JOBS)
   assert served & set(HAND_JOBS) == offered, "a row only where its job is offered"
   assert not set(HAND_JOBS.values()) & served
@@ -695,8 +698,9 @@ def test_an_offer_says_where_by_the_areas_terms_and_how_long_it_gives():
   maker = task_producer(board, HUMANOID_HOME, procedures=True)
   offered = list(maker.cadence.kinds)
   # ...each once its reference passed there (cadence.json's note): the table's
-  # 24 of 32 and the cube's 28 of 32 over the tour (#560)
-  assert set(offered) == set(HAND_JOBS)
+  # 24 of 32 and the cube's 28 of 32 over the tour (#560) -- all but the place
+  # laid from the pass, never offered (#682's stage C, Ben's call)
+  assert set(HAND_JOBS) - set(offered) == {"set_table_pass"}
   here = world_targets(HUMANOID_HOME, procedures=True)
   for kind in offered:
     task = maker._offer(kind, here[KINDS[kind].target_kind][0], 0.0)

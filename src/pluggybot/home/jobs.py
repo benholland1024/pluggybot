@@ -7,7 +7,10 @@ counter, the table a place is laid at.
 
   TARGETS                      {target: its `TaskKind.target_kind`}
   present(model)               whether the compiled world has the area
-  set_out(model, data, t, k)   an offer's: the thing as draw k sets it out
+  set_out(model, data, t, k, kind)
+                               an offer's: the thing as draw k of the job's
+                               kind sets it out (the table's place laid
+                               from beside it or from the pass)
   redraw(model, data, t, k)    draw k's hidden dynamics alone (a restart's)
   drawn(t, k)                  draw k's truth, its activity's
   touched_by(model, data, t, geoms)

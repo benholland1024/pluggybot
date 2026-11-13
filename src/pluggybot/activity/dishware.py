@@ -274,14 +274,16 @@ def _yaw_quat(yaw: float) -> list[float]:
   return [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
 
 
-def place(model, data, pieces: dict, card: tuple, z: float, card_name: str = "place_card") -> None:
+def place(model, data, pieces: dict, card: tuple, z: float, card_name: str = "place_card",
+          piece_z: float | None = None) -> None:
   """The dishware SET OUT on a surface `z` up: each piece of `pieces`
   ({name: (x, y, yaw)}) resting where it is set out, as `attach_<piece>` puts
-  it, and the card standing at `card` (x, y, facing) -- all live and still."""
+  it -- on the surface `piece_z` up where it is another (the pass, #682) --
+  and the card standing at `card` (x, y, facing) -- all live and still."""
   for name, (x, y, yaw) in pieces.items():
     b = model.body(name).id
     _switch(model, b, True)
-    _pose(model, data, b, (x, y, z), _yaw_quat(yaw))
+    _pose(model, data, b, (x, y, z if piece_z is None else piece_z), _yaw_quat(yaw))
   b = model.body(card_name).id
   _switch(model, b, True)
   _pose(model, data, b, (card[0], card[1], z), card_quat(card[2]))
@@ -336,7 +338,9 @@ class Dishware(Activity):
             plate's geoms out of the parked group, `place` / `park`): what
             a page that draws the world hides the pieces by
     lifted  LIVE, each piece: its bottom more than `LIFT_ON` over the
-            surface it was set out on, while it is out
+            surface it was set out on, while it is out -- the height it
+            rested at when first sensed out, the table's or the pass's
+            (#682's stage C), never the table's alone
 
   ⚠ `load` is the truth (`draw`): nothing of it is a flag."""
 
@@ -346,31 +350,46 @@ class Dishware(Activity):
     self.bodies = {p: int(model.body(p).id) for p in PIECES}
     self._plate_geom = int(model.body_geomadr[self.bodies["plate"]])
     self._parked = PARKED_GROUP
+    #: ...where a save from before `rest` was kept puts them: the table's
     self.surface_z = float(surface_z)
     self.renew(model, load)
 
   def renew(self, model, load: Load) -> None:
     """Begun again over `load`, the pieces set out afresh: their
-    thresholds clear."""
+    thresholds clear, and where each rests read again once it is out."""
     self.load = load
     self.lifted = {p: Threshold(on=LIFT_ON, off=LIFT_ON / 2) for p in PIECES}
+    #: The height each piece rested at, set out: read at the first sense
+    #: that finds it out, off where `place` put it (`_placed_at`) -- ⚠ never
+    #: `xpos`: an offer sets out in the physics hook, the activities' hook
+    #: senses in the same pass, and `xpos` is still the parked pose there.
+    self.rest: dict[str, float] | None = None
     self.set(setOut=bool(model.geom_group[self._plate_geom] != self._parked),
              **{f"{p}Lifted": False for p in PIECES})
 
   def kept_state(self) -> dict:
-    return {**super().kept_state(), "lifted": {p: t.value for p, t in self.lifted.items()}}
+    return {**super().kept_state(), "lifted": {p: t.value for p, t in self.lifted.items()},
+            "rest": None if self.rest is None else dict(self.rest)}
 
   def restore_kept(self, state: dict) -> None:
     super().restore_kept(state)
     for p, v in (state.get("lifted") or {}).items():
       if p in self.lifted:
         self.lifted[p].value = bool(v)
+    if "rest" in state:
+      self.rest = None if state["rest"] is None else {p: float(z) for p, z in state["rest"].items()}
+    elif state.get("lifted"):
+      # ...a save from before `rest` was kept: its pieces were the table's
+      self.rest = {p: self.surface_z for p in PIECES}
 
   def sense(self, model, data) -> None:
     if model.geom_group[self._plate_geom] == self._parked:
       if self.flags.get("setOut") is not False:
         self.set(setOut=False, **{f"{p}Lifted": False for p in PIECES})
+      self.rest = None
       return
+    if self.rest is None:
+      self.rest = {p: float(_placed_at(model, data, b)[2]) for p, b in self.bodies.items()}
     self.set(setOut=True,
-             **{f"{p}Lifted": self.lifted[p].update(float(data.xpos[b][2]) - self.surface_z)
+             **{f"{p}Lifted": self.lifted[p].update(float(data.xpos[b][2]) - self.rest[p])
                 for p, b in self.bodies.items()})

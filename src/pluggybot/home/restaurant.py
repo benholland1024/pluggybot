@@ -107,14 +107,20 @@ def redraw(model, data, target: str, k: int) -> None:
   model.qpos_spring[:] = spring
 
 
-def set_out(model, data, target: str, k: int) -> None:
-  """The place set out for an offer drawing `k`: every piece where set-out k
-  puts it (`counter.table_set_out`) and the card at its place, live and
-  still, their hidden parameters drawn (`redraw`)."""
+#: Each kind's set-out of the place: its pieces beside it on the table, or on
+#: the pass (#682's stage C, easy mode; `counter.pass_set_out`), the card at
+#: the table either way.
+SET_OUTS = {"set_table": ct.table_set_out, "set_table_pass": ct.pass_set_out}
+
+
+def set_out(model, data, target: str, k: int, kind: str = "set_table") -> None:
+  """The place set out for an offer of `kind` drawing `k`: every piece where
+  that kind's set-out k puts it (`SET_OUTS`) and the card at its place, live
+  and still, their hidden parameters drawn (`redraw`)."""
   _ours(target)
-  so = ct.table_set_out(k)
+  so = SET_OUTS[kind](k)
   redraw(model, data, target, k)
-  dw.place(model, data, so.pieces, so.card, SURFACE_Z)
+  dw.place(model, data, so.pieces, so.card, SURFACE_Z, piece_z=so.surface)
 
 
 def put_away(model, data, target: str) -> None:
