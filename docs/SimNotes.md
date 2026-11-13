@@ -8089,8 +8089,8 @@ spike's `--asked`), before -> now:
 
 Before, its physics stepped none of the ask's steps in any of the 18; now
 every one, its trunk (but for the get-up's own fall) at most 1.2 deg off
-upright through any ask, and each ended within 0.01 m and 0.1 deg of the
-truth. Held, a robot stands where its legs' policy has it (the walker
+upright through any ask, and each ended within 0.01 m and 0.2 deg of the
+truth (now: the branch's last commit, flown again on the dev box). Held, a robot stands where its legs' policy has it (the walker
 marking time, the standing policy holding, a get-up getting up), its hand's
 own loop holding its reach, its plug in, its senses on.
 
