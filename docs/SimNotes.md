@@ -7475,6 +7475,90 @@ actor seeing walk2's 24 joints in walk2's order (the exporter records them,
   toward one pose, it lost what the box had given it: carry2 is the
   candidate, carry3 kept off the repository (`loop-1112/l4-carry/`).
 
+## The place laid from the pass (#682's stage C, easy mode)
+
+**What is true now.** Table 0's place can be laid from its pieces set out on
+the restaurant's pass -- the expo counter in the dining room's east wall,
+0.90 m up, between its pair of tags (68, 69) -- each piece carried 4-5 m to
+the place by the walk's own hand-over (`set_table_pass`, NOT OFFERED and paid
+nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
+(`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
+written before it, 24 of 32 draws over the tour on walk2 and on the carry
+walker (`scripts/solve.py --feature pass --from tour`; the reading is
+below). What developing it took, each measured on the loop's pods (AMD EPYC
+7B13, osmesa, each draw its own noise; rows in
+`~/pluggybot-training/loop-1113/l4-shelf/`):
+
+- **A carried piece hangs under the pass's top.** The carry pose holds the
+  cup's grip at 0.89 m and the plate's at 0.865, 0.23-0.26 m ahead of the
+  soles' middle (`CARRY_POSE`, its wrist solved to keep the grip's turn), so
+  the cup's bottom rides at 0.83 m and the plate's at 0.81, their far edges
+  0.32-0.35 m ahead: the walk's hand-over clears a 0.90 m counter only from
+  about 0.37 m off its face. Standing (no bow) a hand takes a piece at the
+  pass's height no further than about 0.45 m ahead, 0.25 m to its side
+  (`reach.plan`; further in, or nearer the middle, it bows 0.55-0.8 rad over
+  the counter). Set out 0.18-0.20 m in, the cup was gripped and the hand-over
+  swept it into the counter's edge; the pieces lie 0.06-0.11 m in, and each
+  is pulled back over the edge before the walk.
+- **A grip's descent holds its line.** Re-targeted off the hand's sensed
+  place (`go`), the cup's descent drifted 1.4-3.6 cm back and 11 of 16 grips
+  closed on nothing; a pull straight down that gives across its way (`give`
+  1) slid on the force reading's phantom 5-8 N -- 3.6 cm back in one flight,
+  19 cm forward with the cup pushed in another. Straight down holding its
+  line, the cup's grips landed 1.5-3.4 cm short of its middle. Gripped 4.9-5.5
+  cm short it was lost on the pull back or the walk, 7 short closed on
+  nothing.
+- **The stance turns 5-10 deg as an arm goes out**, and a reach planned
+  before it put the plate's grip 4-9 cm off its 8 mm wall: the plate and the
+  fork are reached to a hover 6 cm over their grip, read again there,
+  corrected at that height and pulled straight down (the plate laid 7 of 10
+  where 4-5).
+- **The plate's rim pinch (#682's open item 1).** The table check's plate
+  grip -- fingers 60 deg down, the grip 5.3 cm over the surface -- puts the
+  80 mm pads' lower tips only 0.7-0.9 cm over the 2.8 cm wall's top: an edge
+  pinch, enough for the table's 20-30 cm move. Carried from the pass it fell
+  in 37 of 42 legs (80 and 120 N, pulled back or not, on walk2; 6 of 9 on the
+  carry walker), and posed at that pinch on the 13 m house route (`carry_spike.py
+  --house --served`, 80 N) in 8 of 8. Gripped 1 cm lower, the pads over
+  1.6-1.9 cm of the wall: 1 of 9 legs. ⚠ The hand's sensed place is 1.5-2 cm
+  off across the jaws, and a carry moves the plate a further 2 cm forward in
+  them: its offset in the hand is the flights' (2 cm ahead, 8.3 cm across),
+  as the table check's is a constant.
+- **The cup's creep (#682's open item 2) follows the squeeze.** Gripped at
+  the right depth, the cup let go WHILE CARRIED at the table check's 40 N in
+  10 of 20 legs gripped 3 cm under its lid and 17 of 27 gripped 1.5 cm under,
+  tilting 19-58 deg in the jaws as it went (60 N: 4 of 9), where at 25 N 1 of
+  9; gripped 4.5 cm under its lid, 9 of 10. The cup posed at the
+  reference's own pinch on the 13 m house route held at 40 N (0 of 16), so
+  the walk alone does not do it: the pass's grip, its height and its
+  hand-over do. 25 N holds a 0.15-0.35 kg cup with room (`dishware.RANGES`).
+- **A far find reads one tag's own facing 16 deg off**, and from the tour
+  the robot faced the pass that far off, the cup out of the colour camera's
+  picture; the wall's facing is taken off the line through its two tags. A
+  face lands up to 16 deg off its 4 deg tolerance anyway: a piece the
+  picture misses is looked for by a turn toward its side, then a step in
+  (`near`), and the fork, whose tag is 19 mm, is taken from 0.20 m to the
+  side, not 0.25 (at 32 deg it sat on the picture's edge).
+- **The table's approach, carrying,** ended up to 0.2 m further back than
+  it expects and once asked its last step 0.53 m (refused over 0.5): taken in
+  two. A step aside carrying the cup fell; nothing steps aside carrying. The
+  cup's put-down sits at the edge of the right hand's band both ways: from
+  the table check's stance it took a crouch and a waist turn and fell, from 5
+  cm further back a 0.55 rad bow that missed by 13 cm; the walk ends 1 cm
+  further back (`PASS_BACK`). The walk back from the table to a standoff 1.2
+  m off the pass found no route past the tables; it walks to 1.1.
+- **The Navigator's footprint with a piece (#682's open item 3, A5)**, read
+  off the truth from the pelvis -- where the map's inflation and the LIDAR's
+  front stop are measured from -- over every carry (min / median / max): the
+  cup reaches 0.34 / 0.38 / 0.40 m ahead and 0.29-0.32 m to its side, 0.44 /
+  0.46 / 0.48 round; the fork 0.36 / 0.38 / 0.40 ahead, 0.47 / 0.48 / 0.50
+  round; the plate 0.31 / 0.42 / 0.46 ahead, to 0.37 aside, 0.37 / 0.48 /
+  0.50 round, tilted a median 24 deg in its pinch. Against the inflation's
+  0.35 m and the front stop's 0.40 m ahead and 0.27 to each side: a carried
+  piece pokes 0.10-0.15 m past the inflation on its side, and its outer edge
+  past the front stop's half-width, so a walk that hugs a jamb on the
+  carrying side would strike it. Not changed (the pass's route has no door).
+
 ## The arms keep off the other robot (issue #678)
 
 **What happened.** #670 kept a step off the other robot as a walk is kept

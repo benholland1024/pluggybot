@@ -248,7 +248,7 @@ TABLE = _table_job()
 #:  - where a tag is not in the colour camera's picture, a turn toward its
 #:    side and then a step in (`near`): a face lands up to 16 deg off;
 #:  - the cup gripped from above 1.5 cm under its lid and squeezed at 25 N
-#:    (at the table check's 40 N it let go while carried in 17 of 28 legs,
+#:    (at the table check's 40 N it let go while carried in 17 of 27 legs,
 #:    at 25 N in 1 of 9), the plate's wall 1 cm lower than the table check
 #:    grips it (there the pads' tips catch 0.7-0.9 cm of the wall, and carried
 #:    it fell in 37 of 42 legs), the plate and the fork from a hover 6 cm over

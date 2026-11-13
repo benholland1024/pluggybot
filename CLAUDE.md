@@ -903,7 +903,9 @@ save a filmstrip PNG named after the script.
   ahead, so a walk's hand-over clears the counter only 0.37 m off it -- and
   ⚠ its reference grips the plate's wall 1 cm lower than the table check
   (there the pads' tips catch 0.7-0.9 cm of the wall, and carried it fell
-  in 37 of 42 legs).
+  in 37 of 42 legs) and squeezes the cup at 25 N, not 40 (the cup's creep
+  follows the squeeze: carried at 40 N it let go in 17 of 27 legs, at 25 N
+  in 1 of 9).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
