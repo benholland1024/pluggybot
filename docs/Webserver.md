@@ -430,9 +430,10 @@ log carries:
   wall minute: resident memory, its rate, and the sim clock. A runaway
   that has stopped the world shows as `t` standing still.
 - **`vitals: RUNAWAY -- ...`** when the rate has run over 50 MiB a minute
-  for two samples in a row. The first three samples are a warm-up (the
-  build and the carry-on take the process from 212 to 788 MiB in its first
-  minute). `tracemalloc` starts, and every thread's stack follows
+  for two samples in a row. The first five samples are a warm-up (the
+  build and the carry-on: the grown world took a fresh process from 173 MiB
+  to 1.3 GB over four minutes). `tracemalloc` starts, and every thread's
+  stack follows
   (`faulthandler`; Python 3.13+ names the threads, and the image's 3.12
   prints their ids). 20 s later tracing stops and the allocations made
   since and still held are listed: the twelve largest, eight frames each,
@@ -458,6 +459,14 @@ Why the numbers are what they are:
   +23 and +20 back to back (`3518953`, 2026-09-25). A threshold of 30
   clears them by 1.3×. 50 sits about 2× from them and 2× from the
   runaway's 115.
+- **A warm-up of five samples.** The house before #560 took the
+  process from 212 to 788 MiB in its first minute, and three samples
+  covered a slower box. The grown world took four minutes in the deployed
+  process of 2026-11-12 (19:17-19:21 UTC, 173 MiB to 1.3 GB), and a warm-up
+  of three set the alarm off with 4.6 MiB new at the onset. Five judges
+  nothing until the sixth sample: a load of up to five minutes passes, and
+  a runaway that begins once the world is loaded is still reported at its
+  second minute.
 - **Tracing starts at the onset, never at boot.** MEASURED on 2026-09-25,
   with the pair free-running on the dev machine (EGL, Python 3.14; the
   image runs 3.12), four interleaved runs, per wall minute after start-up:

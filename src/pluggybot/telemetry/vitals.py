@@ -34,9 +34,10 @@ SAMPLE_S = 60.0
 RUNAWAY_MB_PER_MIN = 50.0
 RUNAWAY_MINUTES = 2
 #: Samples after start that judge nothing: the world is built and carried on
-#: from then (212 -> 788 MiB in the deployed process's first minute), and a
-#: slower box spreads that over three.
-WARMUP_MINUTES = 3
+#: from then, and the grown world (#560) took four minutes in the deployed
+#: process of 2026-11-12 (173 MiB -> 1.3 GB), which a warm-up of three read
+#: as a runaway.
+WARMUP_MINUTES = 5
 #: Wall seconds of tracemalloc between the onset and the allocation report.
 #: It starts AT the onset, never at boot: MEASURED, traced from boot the pair
 #: ran 5.8x slower (7.8 sim-s a wall minute against 45, free-running), and a
