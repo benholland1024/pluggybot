@@ -49,13 +49,13 @@ m off `ok`, its scan laid in, and the copy kept the error for hours (live,
 11-07/08: the store's error a median 0.16 m, 90th percentile 0.66, worst
 1.04; the lobby next door 0.05 and 0.14). Flown on one pod beside the base
 (loop-staging): the counter's 9 belief moves taken back (0.005-0.009 m; the
-base kept 0.23-0.41), the counter's jobs from the three stations as the
-base's (8 of 9 passed on both: from the mall's station the chest failed,
-the robot 0.9-1.0 m off in the storeroom on both, #681's call 3), 46 of 60
-drift flights row for row and of the other 14, 11 the same or better at
-their worst and 3 worse by 4-48 mm, and every walk-in, lost and approach
-trial the base's row for row. On the live maps of 11-08 and 11-09 a right
-belief round the counter moves where the base's does and nowhere else.
+base kept 0.23-0.41), the counter's jobs from the three stations the base's
+row for row (all passed), 59 of 60 drift flights row for row and the 60th
+better (its one take), every walk-in, lost and approach trial the base's.
+On the live maps of 11-08 and 11-09 a right belief round the counter moves
+where the base's does and nowhere else: flown on Luca's of 11-09 the
+counter's jobs were the base's flights row for row, where the first two
+rounds took the storeroom's copy (SimNotes).
 
 **What the period is for.**
 - **The storeroom's drift rows** against the periods before (#681 read

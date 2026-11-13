@@ -7851,11 +7851,12 @@ under 95 % of its points on walls, is searched as an inconsistent one is --
 and a slid one too -- and a pose found there is taken at 90 % on walls with
 every direction fixed, never one the rule would doubt again (a take whose
 weakest direction rests on a few aliasing points, at 90-95 %, would be
-searched off at the next scan). Found nothing, the fit is what it was: a doubted
-scan is laid in as an `ok` one is, correction and all, and a slid one stays
-refused (left out of the map, doubted scans starved new ground: on the way
-to the mall's station 229 of ~720 never went in, the station's fix kept the
-map laid askew under `ASKEW`, and no walk out of there found a route).
+searched off at the next scan). Found nothing, the fit is what it was: a
+doubted scan is laid in as an `ok` one is, correction and all, and a slid
+one stays refused (left out of the map, doubted scans starved new ground:
+on the way to the mall's station 229 of ~720 never went in, the station's
+fix kept the map laid askew under `ASKEW`, and no walk out of there found a
+route).
 
 **Never on a fit's share alone.** The first two rounds also doubted any fit
 with under 80 % of its points on walls, and the review of 11-12 found that
@@ -7946,24 +7947,24 @@ copy 3.7 / 173 / 3.7, beside a cabinet the map lacks 3.5 / 144 / 3.5, in a
 corridor with a post it lacks, every fit held and doubted, 2.9 / 117 / 15.
 
 **Flown** beside the base (loop-staging 2057c1a), D4's batch again, every
-flight a process, both trees on one pod: the code as it stands on an EPYC
-7C13, and before the review's fixes on two EPYC 9554s (in brackets):
+flight a process, both trees on one pod (an EPYC 7C13), the code as it
+stands:
 
 | | this round | base |
 |---|---|---|
-| the counter: a belief moved +0.25/+0.4/-0.3 m after each of three jobs | 9 of 9 taken back at the first scan, 0.005-0.009 m (the same) | 0 of 9, 0.23-0.41 m kept |
-| the counter's jobs from each station (9) | 9 passed; from the mall's station 0.01-0.03 m off in the storeroom (8: the chest failed, 0.9-1.0 m off) | 9 passed; from the mall's 0.27-0.30 m off (the same as this round, row for row) |
-| drift flights (60 pairs) | 49 row for row; of the 11 that part, 7 the same at their worst, 1 better (7 mm), 3 worse (2, 8 and 27 mm) (46; 8 the same, 3 better by 4-24 mm, 3 worse by 4, 6 and 48 mm) | |
-| walk-ins (16), lost (52) and approach (33) trials | every row the base's, all docked (the same) | |
+| the counter: a belief moved +0.25/+0.4/-0.3 m after each of three jobs | 9 of 9 taken back at the first scan, 0.005-0.009 m | 0 of 9, 0.23-0.41 m kept |
+| the counter's jobs from each station (9) | the base's, row for row: 9 passed (from the mall's station 0.27-0.30 m off in the storeroom) | 9 passed |
+| drift flights (60 pairs) | 59 row for row; 22h's one take, on the north sidewalk, put the belief 0.09 m off where the base's went to 0.15 | |
+| walk-ins (16), lost (52) and approach (33) trials | every row the base's, all docked | |
 
-The drift flights that came out worse each took a pose or a few on open
-ground, a few centimetres the way the map laid on the first trip already
-lay: Luca's seed (the 9554s) walking out of the second garden into the
-research center's lobby, its only doubt of the flight taken 5 cm from the
-truth, the storeroom 0.24 m off at rest where the base's was 0.18; Rowan's
-idle with its gyro's offset learned (the 7C13) four takes in 5 s on the
-street. The mall's leg turns with the CPU on both trees (#681's call 3: a
-fix under `ASKEW` keeps a map laid askew).
+Of 411,000 scans in those drift flights 419 were doubted and one taken.
+Without `DOUBT_GAIN` (the same pod) 11 drift flights parted, three worse at
+their worst by 2-27 mm and one better by 7 mm, the takes on open ground
+moving a belief a few centimetres either way; and from the mall's station
+the takes put the robot 0.01-0.03 m off in the storeroom where the base was
+0.27-0.30 -- a leg that turns with the CPU on both trees (on two EPYC 9554s,
+before the review's fixes, both went 0.9-1.0 m off alike and the chest
+failed): #681's call 3, a fix under `ASKEW` keeping a map laid askew.
 
 **What is true now.** `tests/test_scan_match.py` pins it on synthetic scans:
 a storeroom whose side walls hold while its end walls disagree by 0.3 m is
