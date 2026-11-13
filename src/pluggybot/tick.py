@@ -42,6 +42,9 @@ Two rules the seam carries:
   and the manoeuvre in flight may hold a `finally` that restores the physics
   timestep or clears the press flag. Raised in the driver those blocks would
   wait for garbage collection; thrown in, they run where they always ran.
+
+  ⚠ A BLOCKING `run` INSIDE `run_many` STEPS EVERY ROBOT OF THE LOOP (#690):
+  the others held through their waits, their routines where they were.
 """
 
 from typing import Any, Generator
@@ -137,14 +140,10 @@ def run_many(pairs, name: str = "", step=None, waits=None) -> list:
 
   def held(i: int) -> Command:
     """The command robot `i` steps with once its routine has returned."""
-    if waits[i] is None:
-      return steppers[i].STILL
-    cmd = waiting[i].tick() if waiting[i] is not None else None
-    if cmd is None:
-      waiting[i] = Step(waits[i](), f"{name}:{i}:wait")
-      cmd = waiting[i].tick()
-    return steppers[i].STILL if cmd is None else cmd
+    return _held(steppers, waits, waiting, i, f"{name}:{i}:wait")
 
+  loop = _Loop(steppers, step, waits, name)
+  _LOOPS.append(loop)
   cmds = [st.tick() for st in steps]
   try:
     while any(c is not None for c in cmds):
@@ -173,15 +172,84 @@ def run_many(pairs, name: str = "", step=None, waits=None) -> list:
         continue
       cmds = [st.tick() if c is not None else None for st, c in zip(steps, cmds)]
   finally:
+    _LOOPS.remove(loop)
     for w in waiting:
       if w is not None:
         w.routine.close()
   return [st.result for st in steps]
 
 
+def _held(steppers, waits, holding, i: int, name: str) -> Command:
+  """Robot `i`'s command while its own routine does not drive it: its WAIT's
+  -- begun again whenever it returns, kept in `holding[i]` -- or `STILL`
+  where it has none."""
+  if waits[i] is None:
+    return steppers[i].STILL
+  cmd = holding[i].tick() if holding[i] is not None else None
+  if cmd is None:
+    holding[i] = Step(waits[i](), name)
+    cmd = holding[i].tick()
+  return steppers[i].STILL if cmd is None else cmd
+
+
+#: Every `run_many` driving now, innermost last (#690): where a blocking
+#: `run` begun inside one of its routines steps the world.
+_LOOPS: list["_Loop"] = []
+
+
+class _Loop:
+  """A `run_many` in flight: its steppers, its world's step, its robots'
+  waits."""
+
+  def __init__(self, steppers: list, step, waits: list, name: str) -> None:
+    self.steppers, self.step, self.waits, self.name = steppers, step, waits, name
+
+  def run(self, stepper, routine: Routine, name: str) -> Any:
+    """`routine` driven to its end for `stepper`'s robot, every step the
+    loop's: every robot applied in the loop's order, the world stepped once,
+    every robot booked. ⚠ EACH OTHER ROBOT IS HELD THROUGH ITS WAIT (#690),
+    begun for this run and closed where it stands at its end, its own routine
+    never advanced -- so a second robot's blocking call cannot begin inside
+    the first's: stepped by one stepper alone, while Rowan's interrupt was
+    asked (`HubLifecycle._ask_interrupt`) Luca's legs held a walk's stale
+    targets and fell, its IMU's filter blind, and it got up 120 deg off. A
+    wait's own exception is raised as it is, as `run_many`'s is; the step's
+    is thrown into `routine`."""
+    me = next(i for i, sw in enumerate(self.steppers) if sw is stepper)
+    holding: list[Step | None] = [None] * len(self.steppers)
+    step = Step(routine, name)
+    cmd = step.tick()
+    try:
+      while cmd is not None:
+        now = [cmd if i == me else
+               _held(self.steppers, self.waits, holding, i, f"{self.name}:{i}:held")
+               for i in range(len(self.steppers))]
+        try:
+          for sw, c in zip(self.steppers, now):
+            sw.apply(c)
+          self.step()
+          for sw in self.steppers:
+            sw.after_step()
+        except BaseException as e:  # noqa: BLE001 -- re-raised inside the routine
+          cmd = step.tick(e)
+        else:
+          cmd = step.tick()
+    finally:
+      for h in holding:
+        if h is not None:
+          h.routine.close()
+    return step.result
+
+
 def run(stepper, routine: Routine, name: str = "") -> Any:
   """Drive a routine to completion, stepping `stepper` with every command,
-  and return what it returned. The blocking twin of `yield from`."""
+  and return what it returned. The blocking twin of `yield from` -- and,
+  begun inside a `run_many` that drives `stepper` with other robots, that
+  loop's steps (`_Loop.run`)."""
+  loop = next((lp for lp in reversed(_LOOPS)
+               if len(lp.steppers) > 1 and any(sw is stepper for sw in lp.steppers)), None)
+  if loop is not None:
+    return loop.run(stepper, routine, name)
   step = Step(routine, name)
   cmd = step.tick()
   while cmd is not None:

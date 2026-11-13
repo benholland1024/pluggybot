@@ -32,6 +32,10 @@ and the legs alone, through the true heading.
     ... --table run*.json             # runs side by side, and by zone
     ... --falls [--fall-explore S]    # shoved over six ways after an explore:
                                       # the belief as it stands, and after (#572)
+    ... --falls --fall-at lobby [--walking] [--shove-ns N]  # in the lobby, walking
+                                      # too, the IMU's own heading apart (#690)
+    ... --asked walk|stand|reach|getup|charge|step [--ask-s S]  # #690: the pair,
+                                      # the other's interrupt asked meanwhile
     ... --still boot|walk|turn|standup  # #593: standing after it, no scan matched
     ... --done [--no-wait] [--no-hold]  # #593: the pair, the second's day over first
 
@@ -410,73 +414,147 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
 SHOVE_N, SHOVE_S = 300.0, 0.3
 SHOVES_DEG = (0.0, 60.0, 120.0, 180.0, 240.0, 300.0)
 STOOD_S = 5.0
+#: `--fall-at lobby` (#690): the research center's lobby, where Luca fell on
+#: 11-12 -- started at its north end facing south, looked round, no explore,
+#: and (`--walking`) walking the loop's own walk toward the storeroom's door,
+#: as Luca walked, shoved mid-stride as it passes `LOBBY_SHOVE_Y`.
+LOBBY_AT, LOBBY_GOAL, LOBBY_SHOVE_Y = (20.3, 2.5, -math.pi / 2), (21.0, -3.0), -0.5
+#: ...and its heading through the fall, every this many physics steps (50 Hz),
+#: from the shove until `STOOD_S` after it stood: the belief's against the
+#: truth's, and its IMU's own (`imu.Attitude`) -- the filter apart from the
+#: odometry -- with what the part read.
+TRACE_STEPS = 10
+
+
+def _until_fall(m, routine):
+  """`routine` driven as `yield from` would, closed at the step its body falls
+  -- as a procedure's verb is (`steps._until_down_routine`)."""
+  falls = m.falls
+  sent = None
+  while True:
+    try:
+      cmd = routine.send(sent)
+    except StopIteration as stop:
+      return stop.value
+    if m.falls != falls:
+      routine.close()
+      return None
+    sent = yield cmd
 
 
 def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
-         shove_deg: float = 0.0) -> dict:
+         shove_deg: float = 0.0, at: str | None = None, walking: bool = False,
+         shove_ns: float | None = None) -> dict:
   """One humanoid from `start`, its draws `seed`'s, the loop's explore for
-  `explore_s`, then shoved over from `shove_deg` off its heading: how far
+  `explore_s` -- or at `at` (`lobby`), looked round -- then shoved over from
+  `shove_deg` off its heading, standing or (`walking`) mid-stride: how far
   its get-up truly moved it -- from the step it took the legs to the step
   it handed them back -- and its belief between those steps; its belief's
-  error (m, deg) at each, `STOOD_S` after and after a look round; and the
-  matcher's verdicts and the belief's records since the shove. A fall's
-  get-up holds its odometry (#572): stood, the belief is off by what the
-  get-up moved it, and the matcher's searches take that back. `stuck`, a
-  fall it never got up from (`Stuck`), ends it there."""
+  error (m, deg) at each, `STOOD_S` after and after a look round; the
+  matcher's verdicts and the belief's records since the shove; and its
+  heading through it (`trace`, `TRACE_STEPS`), its IMU's own turn of it
+  apart (`imuTurn`). A fall's get-up holds its odometry (#572): stood, the
+  belief is off by what the get-up moved it, and the matcher's searches take
+  that back. `stuck`, a fall it never got up from (`Stuck`), ends it there."""
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  from pluggybot.perception.imu import G
   cfg = world_config(HUMANOID_HOME)
   starts = {"start": cfg["start"], "hall": cfg["start2"]}
   life, body, _ = _life()
   data, model, wall = life.data, life.model, time.time()
   m = body.mission
+  force = SHOVE_N if shove_ns is None else float(shove_ns) / SHOVE_S
 
   def off():
     (bx, by, bh), (tx, ty, th) = body.pose, body.true_pose()
     return [round(math.hypot(bx - tx, by - ty), 3), round(math.degrees(wrap(bh - th)), 1)]
 
-  out = {"seed": seed, "start": start, "exploreS": explore_s, "shoveDeg": shove_deg}
+  out = {"seed": seed, "start": start, "exploreS": explore_s, "shoveDeg": shove_deg,
+         "at": at, "walking": walking, "shoveNs": round(force * SHOVE_S, 3)}
   try:
     life.blacklist, life.floor_explored = set(), False
-    body.start_at(*starts[start])
+    body.start_at(*(LOBBY_AT if at == "lobby" else starts[start]))
     out.update(draws(body, seed))
     try:
       body.start_discovery()
       body.run(body.look_around_routine())
-      life.explore(budget=explore_s, mark_done=False)
+      if at is None:
+        life.explore(budget=explore_s, mark_done=False)
       out.update(before=off(), zone=zone_of(*body.true_pose()[:2]))
       x0, y0, yaw = body.true_pose()
       # ...the steps the get-up takes the legs and hands them back, read on
       # the physics seam, before any scan is matched after it
       seam = {}
+      trace: list[dict] = []
+      trunk = m.stand.trunk
+
+      def imu_off() -> float:
+        """Its IMU's own heading against the truth's, rad."""
+        return wrap(trunk.attitude.yaw() - m.true_pose()[2])
 
       def at_seam():
-        legs = m.legs
+        legs, t = m.legs, float(data.time)
         if legs == "getup" and "fell" not in seam:
           seam["fell"] = (body.true_pose(), off(), body.pose)
         elif legs != "getup" and "fell" in seam and "stood" not in seam:
-          seam["stood"] = (body.true_pose(), off(), body.pose)
+          seam["stood"] = (body.true_pose(), off(), body.pose, t, imu_off())
+        if ("shoved" in seam and m._steps % TRACE_STEPS == 0
+            and ("stood" not in seam or t - seam["stood"][3] <= STOOD_S)):
+          bh, th = body.pose[2], body.true_pose()[2]
+          trace.append({"t": round(t, 3), "legs": legs,
+                        "heading": round(math.degrees(wrap(bh - th)), 3),
+                        "imu": round(math.degrees(imu_off()), 3),
+                        "acc": round(float(np.linalg.norm(trunk.accel)) / G, 3),
+                        "rate": round(float(np.linalg.norm(trunk.rate)), 3),
+                        "offset": round(math.degrees(m.odo.offset), 3),
+                        "still": bool(m.odo.hold.still)})
       body.step_hooks.append(at_seam)
       counts0 = dict(body.match_counts)
       seq0 = max((e["seq"] for e in body.belief_events), default=0)
-      push = np.array([math.cos(yaw + math.radians(shove_deg)),
-                       math.sin(yaw + math.radians(shove_deg)), 0.0]) * SHOVE_N
-      for _ in range(int(round(SHOVE_S / model.opt.timestep))):
-        data.xfrc_applied[body.root, :3] = push
-        body.run(body.hold_routine(model.opt.timestep))
-      data.xfrc_applied[body.root] = 0.0
+
+      def shoved(heading: float) -> np.ndarray:
+        seam["shoved"] = (float(data.time), off(), body.true_pose(), imu_off())
+        h = heading + math.radians(shove_deg)
+        return np.array([math.cos(h), math.sin(h), 0.0]) * force
+
+      if walking:
+        # ...mid-stride as it passes the line, the walk the loop's own and
+        # ended at the step it falls, as a procedure's verb is
+        push = [None]
+
+        def shove_hook():
+          if push[0] is None and body.true_pose()[1] < LOBBY_SHOVE_Y:
+            push[0] = shoved(body.true_pose()[2])
+          if push[0] is not None:
+            on = float(data.time) - seam["shoved"][0] < SHOVE_S
+            data.xfrc_applied[body.root, :3] = push[0] if on else 0.0
+        body.step_hooks.append(shove_hook)
+        body.run(_until_fall(m, body.go_to_routine(*LOBBY_GOAL, timeout=60.0)))
+      else:
+        push = shoved(yaw)
+        for _ in range(int(round(SHOVE_S / model.opt.timestep))):
+          data.xfrc_applied[body.root, :3] = push
+          body.run(body.hold_routine(model.opt.timestep))
+        data.xfrc_applied[body.root] = 0.0
       t0 = float(data.time)
       while float(data.time) - t0 < GETUP_WAIT_S and not (m.falls and m.legs == "stand"):
         body.run(body.hold_routine(0.05))
+      if walking:
+        body.step_hooks.remove(shove_hook)
+        data.xfrc_applied[body.root] = 0.0
       x1, y1, _ = body.true_pose()
       out.update(falls=m.falls, stood=m.falls > 0 and m.legs == "stand",
                  getupS=round(float(data.time) - t0, 1),
                  moved=round(math.hypot(x1 - x0, y1 - y0), 3))
+      if "shoved" in seam:
+        _, at_shove, (sx0, sy0, _), imu0 = seam["shoved"]
+        out.update(shovedAt=[round(sx0, 2), round(sy0, 2)], atShove=at_shove)
       if "stood" in seam:
         (fx, fy, _), at_fall, (bx0, by0, _) = seam["fell"]
-        (sx, sy, _), at_stood, (bx1, by1, _) = seam["stood"]
+        (sx, sy, _), at_stood, (bx1, by1, _), _, imu1 = seam["stood"]
         out.update(getupMoved=round(math.hypot(sx - fx, sy - fy), 3),
                    beliefMoved=round(math.hypot(bx1 - bx0, by1 - by0), 3), atFall=at_fall,
-                   atStood=at_stood)
+                   atStood=at_stood, imuTurn=round(math.degrees(wrap(imu1 - imu0)), 2))
       body.run(body.hold_routine(STOOD_S))
       out["afterStood"] = off()
       body.run(body.look_around_routine())
@@ -484,6 +562,7 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
       out["verdicts"] = {k: v - counts0.get(k, 0) for k, v in body.match_counts.items()
                          if v != counts0.get(k, 0)}
       out["events"] = [e["why"] for e in body.belief_events if e["seq"] > seq0]
+      out["trace"] = trace
     except Stuck as stuck:
       out.update(stuck=stuck_row(stuck), falls=m.falls, stood=False)
     out["wallS"] = round(time.time() - wall, 1)
@@ -492,14 +571,16 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
   return out
 
 
-def falls(seed: str, start: str, explore_s: float, parallel: int) -> list[dict]:
+def falls(seed: str, start: str, explore_s: float, parallel: int, at: str | None = None,
+          walking: bool = False, shove_ns: float | None = None) -> list[dict]:
   """`fall` from each of `SHOVES_DEG`, one process a fall, and the table."""
   import subprocess
   from concurrent.futures import ThreadPoolExecutor
 
   def run(deg):
     cmd = [sys.executable, __file__, "--one-fall",
-           json.dumps({"seed": seed, "start": start, "explore": explore_s, "deg": deg})]
+           json.dumps({"seed": seed, "start": start, "explore": explore_s, "deg": deg,
+                       "at": at, "walking": walking, "ns": shove_ns})]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
     try:
       return json.loads(r.stdout.strip().splitlines()[-1])
@@ -509,8 +590,8 @@ def falls(seed: str, start: str, explore_s: float, parallel: int) -> list[dict]:
   with ThreadPoolExecutor(parallel) as pool:
     rows = list(pool.map(run, SHOVES_DEG))
   print(f"{'shove':>5s} {'zone':12s} {'fell':>4s} {'up s':>5s} {'moved':>6s} {'get-up':>6s} "
-        f"{'belief':>6s} {'off as it fell':>14s} {'as it stood':>13s} {f'{STOOD_S:g} s on':>13s} "
-        f"{'after a look':>13s}  records")
+        f"{'belief':>6s} {'off as it fell':>14s} {'as it stood':>13s} {'IMU turn':>8s} "
+        f"{f'{STOOD_S:g} s on':>13s} {'after a look':>13s}  records")
   for r in rows:
     if "crashed" in r:
       print(f"{r['shoveDeg']:5.0f} crashed: {r['crashed'][-200:]}")
@@ -524,9 +605,160 @@ def falls(seed: str, start: str, explore_s: float, parallel: int) -> list[dict]:
           f"{r['moved']:6.2f} {r.get('getupMoved', float('nan')):6.2f} "
           f"{r.get('beliefMoved', float('nan')):6.2f} "
           f"{str(r.get('atFall', '-')):>14s} {str(r.get('atStood', '-')):>13s} "
+          f"{r.get('imuTurn', float('nan')):+8.2f} "
           f"{str(r['afterStood']):>13s} {str(r['afterLook']):>13s}  "
           f"{', '.join(r['events']) or '-'}")
   return rows
+
+
+# ---- #690: one robot asked mid-errand while the other is busy -------------------------
+
+#: `--asked`: the served pair, the second robot's mid-errand interrupt asked
+#: (`HubLifecycle.interrupted`, its call in flight `--ask-s` of sim time:
+#: Rowan's on 11-12 took 5.8) `ASK_AT_S` into what the first is doing
+#: (`--asked-state`): walking down the research center's lobby as Luca was
+#: (`LOBBY_AT` to `LOBBY_GOAL`), standing, a hand out, getting up from a
+#: shove, plugged in at its station, or turning a `step`. The asker stands in
+#: the storeroom.
+ASK_AT_S, ASKER_AT = 3.0, (26.0, -3.0, 0.0)
+ASKED_STATES = ("walk", "stand", "reach", "getup", "charge", "step")
+
+
+class _Asked:
+  """A mind whose interrupt's answer takes `seconds` of sim time and says
+  carry on: what `HubLifecycle._ask_interrupt` reads of it."""
+
+  event_map = None
+
+  def __init__(self, data, seconds: float) -> None:
+    self.data, self.seconds, self.until = data, seconds, None
+
+  def start_interrupt(self, state, errand, why) -> None:
+    self.until = float(self.data.time) + self.seconds
+
+  @property
+  def interrupt_pending(self) -> bool:
+    return float(self.data.time) < self.until
+
+  def interrupt_result(self) -> dict:
+    return {"continue": True, "why": "", "source": "llm"}
+
+
+def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
+  """The pair, the first robot `state` (`ASKED_STATES`) as the second's
+  interrupt is asked for `ask_s`: the first's belief against the truth every
+  `TRACE_STEPS` steps, read off the ASKER's seam (the other's own ran nothing
+  while the asker was asked, until #690), and whether its own physics ran --
+  its steps counted -- its falls, its tilt and what its routine came to."""
+  from pluggybot import lifecycle, pair, tick
+  from pluggybot.mind import events as ev
+  wall = time.time()
+  lifecycle.overseer_context = lambda life: {}     # a mind's state: none to show here
+  lives = pair.build_pair(lifecycle.HUMANOID_HOME, pack="demo", errands=("none", "none"))
+  luca, rowan = lives
+  data, m = luca.data, luca.body.mission
+  out: dict = {"state": state, "askS": ask_s}
+  try:
+    at = (*LOBBY_AT[:2], LOBBY_AT[2])
+    if state == "charge":
+      at = lifecycle.world_config(lifecycle.HUMANOID_HOME)["start"]
+    luca.body.start_at(*at)
+    rowan.body.start_at(ASKER_AT[0], ASKER_AT[1], ASKER_AT[2])
+
+    def hold(life, s):
+      return life.body.hold_routine(s)
+
+    tick.run_many([(luca.body.stepper, luca.body.look_around_routine()),
+                   (rowan.body.stepper, hold(rowan, 1.0))], name="look")
+    rows, ask = [], {}
+
+    def sample():
+      if rowan.body.mission._steps % TRACE_STEPS:          # the asker's: its seam runs throughout
+        return
+      bh, (tx, ty, th) = m.pose[2], m.true_pose()
+      tilt = math.degrees(math.acos(max(-1.0, min(1.0, float(data.xmat[m.root][8])))))
+      rows.append({"t": round(float(data.time), 3), "asking": "t0" in ask and "t1" not in ask,
+                   "steps": m._steps, "legs": m.legs, "falls": m.falls, "tilt": round(tilt, 1),
+                   "true": [round(tx, 3), round(ty, 3), round(math.degrees(th), 2)],
+                   "heading": round(math.degrees(wrap(bh - th)), 3),
+                   "imu": round(math.degrees(wrap(m.stand.trunk.attitude.yaw() - th)), 3)})
+    rowan.body.step_hooks.append(sample)
+
+    def doing():
+      if state == "walk":
+        return (yield from luca.body.go_to_routine(*LOBBY_GOAL, timeout=60.0))
+      if state == "reach":
+        x, y, h = luca.body.pose
+        return (yield from luca.body.reach_routine(
+          "right", (x + 0.42 * math.cos(h), y + 0.42 * math.sin(h), 0.95)))
+      if state == "getup":
+        h = luca.body.true_pose()[2] + math.pi
+        for _ in range(int(round(SHOVE_S / luca.model.opt.timestep))):
+          data.xfrc_applied[m.root, :3] = (SHOVE_N * math.cos(h), SHOVE_N * math.sin(h), 0.0)
+          yield from luca.body.hold_routine(luca.model.opt.timestep)
+        data.xfrc_applied[m.root] = 0.0
+        yield from luca.body.hold_routine(ASK_AT_S + ask_s + 20.0)
+        return m.legs
+      if state == "charge":
+        docked = yield from luca.go_charge_routine()
+        out["docked"] = bool(docked)
+        yield from luca.body.hold_routine(ask_s + 5.0)
+        return bool(luca.body.charging())
+      if state == "step":
+        return (yield from luca.body.step_routine(0.0, 0.0, math.pi / 2))
+      yield from luca.body.hold_routine(ASK_AT_S + ask_s + 5.0)
+      return m.legs
+
+    def asking():
+      # ...once the first robot is at it: a charge's walk and dock first
+      while state == "charge" and not luca.body.charging() and float(data.time) < 300.0:
+        yield from hold(rowan, 0.5)
+      yield from hold(rowan, ASK_AT_S if state != "getup" else 1.0)
+      rowan.overseer = _Asked(data, ask_s)
+      rowan._interrupt_pending = ev.Row(event="battery_below", action=ev.ASK, value=0.2)
+      ask["t0"], ask["steps0"] = float(data.time), m._steps
+      ask["carried"] = not rowan.interrupted()
+      ask["t1"], ask["steps1"] = float(data.time), m._steps
+      rowan.overseer = None
+      yield from hold(rowan, 2.0)
+
+    got = tick.run_many([(luca.body.stepper, doing()), (rowan.body.stepper, asking())],
+                        name="pair", waits=[lambda: hold(luca, 1.0), lambda: hold(rowan, 1.0)])
+    t1 = float(data.time)
+    while m.legs == "getup" and float(data.time) - t1 < GETUP_WAIT_S:
+      tick.run_many([(luca.body.stepper, hold(luca, 0.1)), (rowan.body.stepper, hold(rowan, 0.1))])
+    tick.run_many([(luca.body.stepper, hold(luca, STOOD_S)), (rowan.body.stepper, hold(rowan, STOOD_S))])
+    during = [r for r in rows if r["asking"]]
+    (bx, by, bh), (tx, ty, th) = m.pose, m.true_pose()
+    out.update(asked=[round(ask["t0"], 3), round(ask["t1"], 3)], carriedOn=ask["carried"],
+               stepped=ask["steps1"] - ask["steps0"],
+               steps=round((ask["t1"] - ask["t0"]) / luca.model.opt.timestep),
+               routine=str(got[0]), falls=m.falls, legs=m.legs,
+               tiltDuring=max((r["tilt"] for r in during), default=None),
+               end=[round(math.hypot(bx - tx, by - ty), 3), round(math.degrees(wrap(bh - th)), 2)],
+               imuEnd=round(math.degrees(wrap(m.stand.trunk.attitude.yaw() - th)), 2),
+               rows=rows, wallS=round(time.time() - wall, 1))
+  finally:
+    for life in lives:
+      life.body.close()
+  return out
+
+
+def asked_report(run: dict) -> None:
+  print(f"== --asked {run['state']}: the other robot's interrupt asked {run['asked'][0]:.1f}-"
+        f"{run['asked'][1]:.1f} s ({run['askS']:g} s, carried on: {run['carriedOn']}); this "
+        f"robot's physics stepped {run['stepped']} of the ask's {run['steps']} steps, its "
+        f"trunk tilted at most {run['tiltDuring']} deg meanwhile; falls {run['falls']}, legs "
+        f"{run['legs']}, its routine {run['routine']}; at the end {run['end'][0]:.3f} m and "
+        f"{run['end'][1]:+.2f} deg off (its IMU's own heading {run['imuEnd']:+.2f}); "
+        f"{run['wallS']:.0f} s")
+  last = None
+  for r in run["rows"]:
+    if last is None or r["t"] - last >= 0.5:
+      last = r["t"]
+      print(f"  t={r['t']:7.2f} {'ASKED' if r['asking'] else '     '} steps {r['steps']:6d} "
+            f"{r['legs']:5s} falls {r['falls']} tilt {r['tilt']:5.1f} heading {r['heading']:+8.2f} "
+            f"IMU {r['imu']:+8.2f}")
 
 
 # ---- #593: standing where nothing is matched, and a run that ends first -------------
@@ -840,7 +1072,19 @@ def main(argv=None) -> int:
                   help="after an explore of --fall-explore s, shoved over six ways, a "
                        "process each: the belief as it stands and after (#572)")
   ap.add_argument("--fall-explore", type=float, default=120.0)
+  ap.add_argument("--fall-at", default=None, choices=("lobby",),
+                  help="--falls: started in the research center's lobby, looked round, no "
+                       "explore (#690)")
+  ap.add_argument("--walking", action="store_true",
+                  help="--falls --fall-at lobby: shoved mid-stride, walking toward the "
+                       "storeroom's door")
+  ap.add_argument("--shove-ns", type=float, default=None,
+                  help="--falls: the shove's impulse, N*s (90: 300 N for 0.3 s)")
   ap.add_argument("--parallel", type=int, default=3, help="--falls' processes at once")
+  ap.add_argument("--asked", default=None, choices=ASKED_STATES,
+                  help="#690: the pair, this robot doing it while the other's interrupt is "
+                       "asked for --ask-s")
+  ap.add_argument("--ask-s", type=float, default=5.8)
   ap.add_argument("--out", default=None, help="the run, as JSON")
   ap.add_argument("--table", nargs="+", default=None, metavar="JSON",
                   help="runs written by --out, side by side and by zone")
@@ -863,12 +1107,22 @@ def main(argv=None) -> int:
   args = ap.parse_args(argv)
   if args.one_fall:
     t = json.loads(args.one_fall)
-    print(json.dumps(fall(t["seed"], t["start"], t["explore"], t["deg"])))
+    print(json.dumps(fall(t["seed"], t["start"], t["explore"], t["deg"], at=t.get("at"),
+                          walking=bool(t.get("walking")), shove_ns=t.get("ns"))))
     return 0
   if args.falls:
-    rows = falls(args.seed, args.start, args.fall_explore, args.parallel)
+    if args.walking and args.fall_at is None:
+      ap.error("--walking walks the lobby's walk: --fall-at lobby")
+    rows = falls(args.seed, args.start, args.fall_explore, args.parallel, at=args.fall_at,
+                 walking=args.walking, shove_ns=args.shove_ns)
     if args.out:
       Path(args.out).write_text(json.dumps(rows))
+    return 0
+  if args.asked:
+    run = asked(args.asked, args.ask_s)
+    asked_report(run)
+    if args.out:
+      Path(args.out).write_text(json.dumps(run))
     return 0
   if args.still or args.done:
     if args.still:
