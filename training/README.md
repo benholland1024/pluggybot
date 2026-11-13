@@ -122,8 +122,8 @@ the step, so a 5 kN hit costs a tenth of an episode's pay),
 four episodes in ten a fall, no lift, every charge at full weight, and a
 side among the starts: at the shared charge alone the get-up let the head
 strike at 5.5-6.9 m/s falling forward or sideways, and with no side start
-it lost getting up off one side (`models/humanoid_getup.npz` is getup1's
-4450 iterations, 2000 without the side, then 1000 with it).
+it lost getting up off one side (getup3, the served get-up until #679, is
+getup1's 4450 iterations, 2000 without the side, then 1000 with it).
 `-Getup-Wall` (#679) carries getup3 on (`--agent.resume True --agent.load-run
 '.*_getup3$' --agent.load-checkpoint model_7448.pt`) with a box beside the
 fallen body in a share of its episodes (`OBSTACLE`): a counter's top
@@ -146,7 +146,7 @@ face still earns), twice the side starts (`WALL_STARTS`), the entropy bonus
 kept and small steps from getup3 (`WALL_PPO`: at no entropy the action's
 noise fell to 0.06 and the get-up shook standing in the served physics; at
 `desired_kl` 0.01 the get-up off its back beside a box fell from 0.99 to
-0.51 in 450 iterations). `models/humanoid_getup_wall.npz` (NOT served) is
+0.51 in 450 iterations). The first round's pick, never served, is
 getupwall10's iteration 8450: `-Getup-Wall-Mirror` from getup3, 1002
 iterations in 38 min on a 5090 shared with a second run, chosen by the
 training physics' scan below before the bar was read on it (SimNotes,
@@ -180,7 +180,7 @@ charges charged only while it holds the legs, and no gyro test -- ⚠ each,
 and what went wrong without it, in SimNotes ("The wall get-up's second and
 third rounds"): never handed back, a get-up stands where the standing policy
 cannot keep it.
-`models/humanoid_getup_wall3.npz` (NOT served) is getupwall14's iteration
+`models/humanoid_getup.npz`, SERVED since #679, is getupwall14's iteration
 9850: `-Getup-Wall3-Mirror` from getupwall12's 9050 (`-Getup-Wall2-Mirror`
 from getupwall10's 8450), 800 iterations in ~25 min on a 5090 shared with a
 second run, chosen by the scan in `-Getup-Wall3`'s physics before the bar was
