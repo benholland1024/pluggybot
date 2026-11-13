@@ -464,9 +464,9 @@ Why the numbers are what they are:
   covered a slower box. The grown world took four minutes in the deployed
   process of 2026-11-12 (19:17-19:21 UTC, 173 MiB to 1.3 GB), and a warm-up
   of three set the alarm off with 4.6 MiB new at the onset. Five judges
-  nothing until the sixth sample: a load of up to five minutes passes, and
-  a runaway that begins once the world is loaded is still reported at its
-  second minute.
+  nothing until the sixth sample: a load of up to five minutes passes, a
+  runaway that begins once the world is loaded is still reported at its
+  second minute, and one from boot six minutes in at the earliest.
 - **Tracing starts at the onset, never at boot.** MEASURED on 2026-09-25,
   with the pair free-running on the dev machine (EGL, Python 3.14; the
   image runs 3.12), four interleaved runs, per wall minute after start-up:

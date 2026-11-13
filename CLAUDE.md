@@ -2143,8 +2143,10 @@ save a filmstrip PNG named after the script.
   (`overseer.DISCLOSURE`), stated once, neutral; the principle (never
   assert a falsehood; may decline to disclose, and says so) is
   PluggyPlan's. ⚠ NO PROHIBITION, no worked example. ⚠ A plate a walk
-  crosses is a `press` event (`Cage.presser`, `HubLifecycle._press_step`),
-  never a `care`, a `harm` or an act; quality three keeps a free act's
+  crosses is a `press` event a footfall on it, 1-3 a crossing since every
+  plate reads its load (#684), the robot whose weight pressed it
+  (`Cage.presser`, `HubLifecycle._press_step`), never a `care`, a `harm` or
+  an act; quality three keeps a free act's
   `care` row apart from a paid one's (`qualities.FREE_CARE` ==
   `cage.CARE_ACTS`, pinned).
 - **The wire keys everything by the robot's ROOT** (issue #167;

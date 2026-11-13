@@ -44,7 +44,9 @@ THE STATE MACHINE, and the one table that is it (`Cage._advance`):
   (* the clock restarts.) Every state but `resting` runs a clock and falls
   back when it ends: `on_its_side` -> `hiding` after `SIDE_S`, and
   `eating` / `playing` / `hiding` -> `resting` after theirs. A plate acts
-  on its RISING EDGE (one press is one act, however long the foot stays);
+  on its RISING EDGE: one press is one act, a foot's landing on it however
+  long it stays -- a load plate reads every footfall, so a walk across one
+  is 1-3 acts (#684);
   company acts once per visit, after `COMPANY_S` of a robot inside
   `COMPANY_M` of the cage. Nothing here is random: the same acts at the
   same times give the same mouse, which is what makes a prediction
@@ -448,21 +450,28 @@ class Cage(Activity):
       self._plated.clear()
 
   def presser(self, model, data, act: str) -> str:
-    """The robot whose foot is on this plate, off the contact array
-    (rooftop #296's reader shape; read at a press, never per step): one
-    whose geom touches something at a point over the plate's square, where
-    its load cell reads (`plate.plate_xml`); the nearest robot's root where
-    none does."""
+    """The robot whose weight pressed this plate, off the contact array
+    (rooftop #296's reader shape; read at a press, never per step): of the
+    contacts its load cell reads -- a geom of the world's (the floor's
+    square) touched at a point over the plate (`plate.plate_xml`) -- the
+    robot whose geoms carry the most of the load; the nearest robot's root
+    where none does."""
     px, py = self.plate_xy[act]
     n = data.ncon
     pos = data.contact.pos[:n]
-    over = ((np.abs(pos[:, 0] - px) <= PLATE_HALF) & (np.abs(pos[:, 1] - py) <= PLATE_HALF)
-            & (np.abs(pos[:, 2]) <= LOAD_ZONE_HALF))
-    g = data.contact.geom[:n][over]
-    roots = set(model.body_rootid[model.geom_bodyid[g.ravel()]].tolist())
-    for root, bid in self.robots.items():
-      if bid in roots:
-        return root
+    g = data.contact.geom[:n]
+    body = model.geom_bodyid[g]
+    over = np.nonzero((np.abs(pos[:, 0] - px) <= PLATE_HALF) & (np.abs(pos[:, 1] - py) <= PLATE_HALF)
+                      & (np.abs(pos[:, 2]) <= LOAD_ZONE_HALF) & ((body[:, 0] == 0) | (body[:, 1] == 0)))[0]
+    carried: dict[int, float] = {}
+    f6 = np.zeros(6)
+    for i in over:
+      root = int(model.body_rootid[body[i, 1] if body[i, 0] == 0 else body[i, 0]])
+      mujoco.mj_contactForce(model, data, int(i), f6)
+      carried[root] = carried.get(root, 0.0) + float(f6[0])
+    on = [r for r in self.robots if self.robots[r] in carried]
+    if on:
+      return max(on, key=lambda r: carried[self.robots[r]])
     return min(self.robots, default="",
                key=lambda r: math.hypot(data.xpos[self.robots[r]][0] - px,
                                         data.xpos[self.robots[r]][1] - py))

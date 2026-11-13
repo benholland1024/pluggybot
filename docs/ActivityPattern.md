@@ -106,15 +106,15 @@ a site on the world body over it, its pad paint that nothing touches
 plate had been a sprung pad 21 mm proud: the served walker went down on the
 garden's and fell over the lamp's pole, and from a standstill at the edge
 of the lab's three it stood on the edge for good (SimNotes, "A flight that
-never got up"). Whose foot pressed one is where the contacts its load cell
-reads are (`Cage.presser`).
+never got up"). Whose foot pressed one is the robot whose contacts carry
+most of what its load cell reads (`Cage.presser`).
 
 ### 3.2 Thresholds need hysteresis
 
-A bare threshold on a sprung joint chatters: the plate rings as a load
-crosses it, and a single comparison flips on every ring. Measured on the
-reference plate when it was sprung (before #684), one (rover) wheel
-crossing:
+A bare threshold chatters: a sprung joint rings as a load crosses it, a
+load rings as a foot lands, and a single comparison flips on every ring.
+Measured on the reference plate when it was sprung (before #684), one
+(rover) wheel crossing:
 
 | | flips |
 |---|---|

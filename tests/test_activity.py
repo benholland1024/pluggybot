@@ -101,6 +101,8 @@ def test_geom_pos_does_nothing_on_a_body_welded_to_the_world(home_model):
   the garden gate, already did -- issue #93).
   """
   data = mujoco.MjData(home_model)
+  block = home_model.body("block_0").id             # a body on its own joint
+  assert home_model.body_weldid[block] != 0, "the block should not be welded"
   fence = home_model.geom("fence_east_0_geom")      # welded scenery
   fid, fbid = fence.id, home_model.geom_bodyid[fence.id]
   assert home_model.body_weldid[fbid] == 0, "the fence should be welded"

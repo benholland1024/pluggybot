@@ -18,8 +18,9 @@ floor as the garden's has been since #684: each the floor's own square read
 off its load (`plate.LOAD_ON_N`, 100 N on, 50 off), its pad paint nothing
 touches (`floor_plate`; ActivityPattern.md §3.1). The cage's acts, its
 state machine and its flags are as they were, the house's shock plate still
-switched off; a press is still the robot whose foot is on it, read off the
-contacts over the plate's square. Flown with the served walker
+switched off; a press is the robot whose weight pressed it, read off the
+contacts its load cell reads (the most of the load), where it was the
+first robot with a contact on the pad. Flown with the served walker
 (walk2), the last loop's walks: from a standstill 4 cm off a plate's edge
 it walks what it walks on bare floor (0.18 m of a 0.3 m ask, 0.49 of 0.6,
 the same to the centimetre 1 m off the plates), and every start pressed
@@ -54,8 +55,9 @@ none did. The warm-up: the 11-12 wake's second false alarm.
   fault of this change.
 - **No fall on a lab plate**: none came on the sprung pads walking at
   speed, and none should come now.
-- A `RUNAWAY` line in a process's first five minutes is no longer printed;
-  read the `vitals: rss` lines for a runaway at boot.
+- A `RUNAWAY` line in a process's first six minutes is no longer printed
+  (five samples judge nothing, and a runaway is two over the rate); read
+  the `vitals: rss` lines for a runaway at boot.
 
 ### One robot's interrupt asked, the other robot held (#690) — opens when this PR is deployed
 

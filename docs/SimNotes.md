@@ -7830,8 +7830,8 @@ lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
   0.49 of 0.6), each start pressing its plate, and crossed at speed 19
   times it never fell. A load plate presses about once a footfall on it:
   1-3 presses a crossing (the cage counted 41 acts over 19 crossings, the
-  sprung pads 27 over 21), each the robot's whose contacts are over the
-  square.
+  sprung pads 27 over 21), each the robot's whose weight pressed it (its
+  contacts over the square carrying the most of the load).
 
 ## The storeroom keeps an error, and a match the walls only partly agree with is searched (issue #681)
 
