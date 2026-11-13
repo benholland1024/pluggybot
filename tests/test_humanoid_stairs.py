@@ -524,6 +524,61 @@ def test_the_getup_policy_stands_it_up_off_its_back(head):
   assert d.xmat[root][8] > 0.95 and d.xpos[root][2] > 0.65
 
 
+#: How the body lies along a counter's face (its front's way and its head's,
+#: in the face's terms: n off it into the room, a along it), and its nearest
+#: part's gap to it, m -- two of #679's lying table's falls.
+ALONG_A_COUNTER = {"on its front, head back, 0.1 m off": ("-z", "-a", 0.1),
+                   "on its side facing it, 0.25 m off": ("-n", "+a", 0.25)}
+
+
+@pytest.mark.parametrize("lying", sorted(ALONG_A_COUNTER))
+def test_the_getup_stands_it_up_lying_along_a_counter(lying):
+  # #679: the get-up trained on open floor (getup3, served until then) never
+  # stood a body lying along the storeroom's counter like this -- 20 s on, a
+  # `stuck` death -- and the served one, trained beside a box and handing
+  # back as served, stands in 2-4 s; here on a bare floor beside a box the
+  # counter's size, the waist held home as the mission holds it.
+  from pluggybot.evaluation.counter import COUNTER_D, COUNTER_H
+  from pluggybot.humanoid.body import HumanoidBody
+  from pluggybot.humanoid.getup import GetupDriver
+  from pluggybot.humanoid.policy import StandDriver
+  from pluggybot.humanoid.reach import Reach
+  face_x = 0.6
+  spec = mujoco.MjSpec.from_string(hm.body_xml())
+  spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[COUNTER_D / 2, 1.2, COUNTER_H / 2],
+                          pos=[face_x + COUNTER_D / 2, 0.0, COUNTER_H / 2])
+  model = spec.compile()
+  d = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, d, 0)
+  front, head, gap = ALONG_A_COUNTER[lying]
+  axes = {"-n": (1.0, 0.0, 0.0), "+a": (0.0, 1.0, 0.0), "-a": (0.0, -1.0, 0.0),
+          "-z": (0.0, 0.0, -1.0)}
+  front, head = np.array(axes[front]), np.array(axes[head])
+  quat = np.zeros(4)
+  mujoco.mju_mat2Quat(quat, np.column_stack([front, np.cross(head, front), head]).flatten())
+  root = model.body(hm.ROBOT_ROOT).id
+  adr = model.jnt_qposadr[model.body_jntadr[root]]
+  d.qpos[adr:adr + 3], d.qpos[adr + 3:adr + 7] = [face_x - 1.0, 0.0, 0.4], quat
+  mujoco.mj_forward(model, d)
+  # ...its lowest part 1 cm over the floor and its nearest `gap` off the face
+  ours = [g for g in range(model.ngeom) if model.geom_bodyid[g] != 0]
+  boxes = [(d.geom_xpos[g] + d.geom_xmat[g].reshape(3, 3) @ model.geom_aabb[g][:3],
+            np.abs(d.geom_xmat[g].reshape(3, 3)) @ model.geom_aabb[g][3:]) for g in ours]
+  low, near = min(c[2] - h[2] for c, h in boxes), max(c[0] + h[0] for c, h in boxes)
+  d.qpos[adr:adr + 3] += [face_x - gap - near, 0.0, 0.01 - low]
+  mujoco.mj_forward(model, d)
+  stand = StandDriver(model, d)
+  reach = Reach(model, d, stand)
+  g = GetupDriver(model, d, trunk=stand.trunk, joints=stand.joints)
+  g.begin()
+  while d.time < HumanoidBody.GETUP_BUDGET_S and not g.stood:
+    reach.hold_waist()
+    g.step()
+    mujoco.mj_step(model, d)
+  assert g.stood, f"still down {HumanoidBody.GETUP_BUDGET_S:g} s on: the stuck death"
+  assert d.xmat[root][8] > 0.95 and d.xpos[root][2] > 0.65
+
+
 def _getups():
   from pluggybot.humanoid.getup import GETUP_NPZ
   return sorted(p.name for p in GETUP_NPZ.parent.glob("humanoid_getup*.npz"))
