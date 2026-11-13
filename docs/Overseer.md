@@ -1425,7 +1425,12 @@ may still be in flight* — the errand it interrupts was queued by one — and
 sharing `_slot` would have whichever landed second silently discard the other.
 Same shape, same lock discipline, separate state. And it steps the sim while it
 flies, exactly as `_decide` does: the robot is standing still mid-errand, which
-is the one moment the stream is most worth watching.
+is the one moment the stream is most worth watching. ⚠ It waits BLOCKING
+(`body.run`), where `_decide` yields: in the pair that wait is the loop's, every
+robot stepped, the other held standing through its own hold and its errand
+paused for the ask (#690: stepped by the asking robot alone, the other's legs
+and senses stopped, and Luca fell walking; SimNotes, "One robot's interrupt
+asked, the other robot held").
 
 `docs/Evaluation.md` §2 has the safe points and the ordering.
 

@@ -10,6 +10,51 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### One robot's interrupt asked, the other robot held (#690) — opens when this PR is deployed
+
+**What changed is the pair's loop while one robot's mid-errand interrupt
+is asked** (`tick._Loop.run`; SimNotes, "One robot's interrupt asked, the
+other robot held"):
+- `HubLifecycle._ask_interrupt` waits on the mind blocking (`body.run`),
+  and that wait stepped the world with the asking robot's stepper alone:
+  the other robot's legs held their last targets -- walking or with a hand
+  out it fell, standing or turning a `step` it fell within 30 s, getting up
+  it lay where it was while its 20 s death clock ran on -- and its IMU's
+  filter, fall watch, odometry, scans and seam stood still: on the first
+  robot's seam the world's activities, the stream's frames, the recorder
+  and the pacer too, so a second robot's ask went by unpaced and
+  unstreamed.
+- Now every step of an ask is both robots': the other held standing through
+  its own hold, its scans matched, its errand paused where it was until the
+  answer comes (up to `INTERRUPT_TIMEOUT_S`, 115 s, and its slices), every
+  clock its routine keeps running on.
+- No text the robots read moved: `prompt_sha` `609b7ad5…` both sides,
+  65,730 chars, 17 sections. A robot alone, and a pair with no interrupt
+  asked, fly the base's day bit for bit.
+
+**Why.** #690: on 11-12 at 20:30 UTC Rowan's interrupt (`battery below 22%
+-> ask`) took 5.8 sim s, and Luca, walking a plain `drive_to` in the lobby,
+fell 0.8 s after it was answered and got up 120 deg off; lost for the 26
+minutes to the pause, it walked into the garden believing it stood at the
+storeroom's counter. Flown on one pod beside the base, Luca walking the
+lobby while Rowan is asked 5.8 s: the base's Luca stepped none of the ask's
+2,900 steps, fell, and stood 2.6 m and 40 deg off; this period's stepped
+every one and walked on, 0.001 m and 0.14 deg off.
+
+**What the period is for.**
+- **Falls during the other robot's ask**: none should come. Read each
+  `INTERRUPT` line against the other robot's next fall (the log) and its
+  drift rows across it.
+- **The heading after a get-up**: #690's fourth box, no get-up leaving a
+  robot past the matcher's 15 deg (`headingDeg` on the drift rows before and
+  after a fall).
+- **What the pause costs**: a walk that gives up, a procedure out of its
+  budget or a job out of its minutes just after the other robot's
+  `INTERRUPT` line is this period's price, not a fault of the robot's own;
+  count them before reading either robot's job record.
+- ⚠ The stream's pacing and frames through a second robot's ask are whole
+  now: a reading of wall time across an ask is not the period before's.
+
 ### A scan match the walls only partly agree with is searched (#681) — opens when this PR is deployed
 
 **What changed is how the robots' scan matcher treats a fit the walls only

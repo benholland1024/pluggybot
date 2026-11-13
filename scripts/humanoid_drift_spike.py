@@ -668,7 +668,8 @@ def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
                    "steps": m._steps, "legs": m.legs, "falls": m.falls, "tilt": round(tilt, 1),
                    "true": [round(tx, 3), round(ty, 3), round(math.degrees(th), 2)],
                    "heading": round(math.degrees(wrap(bh - th)), 3),
-                   "imu": round(math.degrees(wrap(m.stand.trunk.attitude.yaw() - th)), 3)})
+                   "imu": round(math.degrees(wrap(m.stand.trunk.attitude.yaw() - th)), 3),
+                   "imuTilt": round(math.degrees(m.stand.trunk.attitude.tilt()), 1)})
     rowan.body.step_hooks.append(sample)
 
     def doing():
@@ -760,8 +761,8 @@ def asked_report(run: dict) -> None:
     if last is None or r["t"] - last >= 0.5:
       last = r["t"]
       print(f"  t={r['t']:7.2f} {'ASKED' if r['asking'] else '     '} steps {r['steps']:6d} "
-            f"{r['legs']:5s} falls {r['falls']} tilt {r['tilt']:5.1f} heading {r['heading']:+8.2f} "
-            f"IMU {r['imu']:+8.2f}")
+            f"{r['legs']:5s} falls {r['falls']} tilt {r['tilt']:5.1f} (its IMU's {r['imuTilt']:5.1f}) "
+            f"heading {r['heading']:+8.2f} IMU {r['imu']:+8.2f}")
 
 
 # ---- #593: standing where nothing is matched, and a run that ends first -------------
