@@ -354,7 +354,7 @@ def test_a_refusal_says_where_the_other_robot_stands_and_what_the_other_hand_can
       ({"home": False, "m": 0.54, "x": 0.02, "y": -0.54, "other": True},
        "your right arm's way there would meet another robot, its middle 0.54 m from yours on "
        "your right: no way your arm takes there keeps clear of its body, so your arm did not "
-       "move; your left hand's way there keeps clear of it"),
+       "move; your left hand's ways there and home keep clear of it"),
       ({"home": True, "back": True, "m": 0.73, "x": -0.6, "y": -0.42, "other": False},
        "your right arm could get there, but its way home from there would meet another robot, "
        "its middle 0.73 m from yours behind you: no way home keeps clear of its body, so your "

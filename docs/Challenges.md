@@ -306,8 +306,10 @@ on the wall. Each is a job of its own -- `open_chest`, `open_drawer`,
 `open_door`, `place_cube` (`tasks.HAND_JOBS`) -- its target its prop, so
 they may all stand at once, and each is discharged by a procedure the robot
 writes (`TaskKind.discharge = "procedure"`, #207): claiming queues nothing;
-the robot writes the procedure, runs it and sets `done` to the job's id,
-and only a mind with a library is offered one (`lifecycle.world_targets`).
+the robot writes the procedure, runs it and sets `done` to the job's id --
+graded at that word, before its answer's action, or once the run is over
+where the same answer runs a procedure (#689) -- and only a mind with a
+library is offered one (`lifecycle.world_targets`).
 All four are offered (cadence.json), the cube's since its reference passed
 from the tour (below).
 
@@ -336,7 +338,8 @@ departures, both about where an attempt starts:
   charge trip ("not graded within the 960 s the job allows -- the drawer
   was never measured", `HubLifecycle._run_out_held`, #602), and its prop is
   free to be offered again. While it holds one, the robot is shown it with
-  the time left (`heldTasks`, `leftS`).
+  the time left (`heldTasks`, `leftS`) as it is asked, and told the clock
+  runs on while it thinks (#689).
 
 **The offer says where by the area's terms** (#419): the facility's
 address, and directions that name the storeroom, the counter, the row's

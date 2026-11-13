@@ -479,6 +479,13 @@ class ThoughtFiles:
       out.setdefault(r.topic, []).append(label)
     return out
 
+  def holds(self, name: str) -> str:
+    """How full a notes-tier document is, in its refusal's words (#688):
+    `64 of 64 entries`."""
+    spec = SPECS[name]
+    rows = self._findings() if name == FINDINGS else self._notes()
+    return f"{len(rows):,} of {spec.cap:,} {spec.unit}"
+
   def history_tail(self, n: int = HISTORY_SHOWN) -> list[str]:
     """The newest `n` History lines, each prefixed with its record id so
     it can be cited."""
@@ -505,7 +512,7 @@ class ThoughtFiles:
     Core documents are shown WHOLE; `History.md` is TAILED (with record
     ids); the notes-tier documents are shown as their INDEX -- the topics
     and the titles, which is what bounds the prompt whatever the robot
-    has written, and a body is a `recall` away.
+    has written, and a body is a `recall` away -- beside what each holds.
     """
     out = {}
     for s in FILES:
@@ -514,7 +521,9 @@ class ThoughtFiles:
       if s.name == HISTORY:
         out[s.name] = self.history_tail()
       elif s.name in (FINDINGS, NOTES):
-        out[s.name] = self.index(s.name)
+        # ...and what it holds of its cap beside it (#688): nothing said how
+        # full a file was until a write failed, 1,292 times in 12 days
+        out[s.name] = {"holds": self.holds(s.name), "index": self.index(s.name)}
       else:
         out[s.name] = self.texts[s.name]
     return out
@@ -525,14 +534,14 @@ class ThoughtFiles:
     self.refusals.append(why)
     raise ThoughtRefused(why)
 
-  def _admit(self, name: str, by: str, size: int) -> bool:
+  def _admit(self, name: str, by: str, size: int, adds: int = 1) -> bool:
     """`text.admit` with the refusal counted here. True within the cap;
     False where History has to roll; raises otherwise."""
     spec = SPECS.get(name)
     if spec is None:
       self._refuse(f"{name}: no such thought file")
     try:
-      return registry.admit(spec, by, size)
+      return registry.admit(spec, by, size, adds=adds)
     except registry.Refused as e:
       self._refuse(str(e))
 
@@ -557,7 +566,8 @@ class ThoughtFiles:
       self._admit(name, by, 0)
       self._refuse(f"{name}: {line[:QUOTED_CHARS]!r} is already on the page")
     size = len("\n".join(held + [line])) if name in CORE and line else 0
-    self._admit(name, by, size)            # the writer is checked regardless
+    # the writer is checked regardless; what the line adds, its newline too
+    self._admit(name, by, size, adds=size - len("\n".join(held)))
     if not line:
       return ""
     if name == HISTORY:

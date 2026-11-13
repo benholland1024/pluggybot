@@ -215,7 +215,7 @@ def test_history_rolls_and_top_of_mind_refuses(files):
   with pytest.raises(ThoughtRefused) as e:
     for i in range(400):
       files.pin(f"an opinion about board number {i}", t=float(i))
-  assert "full" in str(e.value)
+  assert "of 3,000 chars, and this line is" in str(e.value)
   assert len(files.read(TOP_OF_MIND)) <= SPECS[TOP_OF_MIND].cap
   assert files.dropped[TOP_OF_MIND] == 0, \
     "the robot's own file dropped a line it was never told about"
@@ -756,7 +756,7 @@ def test_a_refused_thought_is_narrated_rather_than_swallowed(tmp_path):
       files.pin(f"an opinion about board number {i}", t=float(i))
 
   life._reconsider(ov.Decision(action="idle", pin="one thing too many"))
-  assert any("THOUGHT refused" in line and "full" in line for line in said)
+  assert any("THOUGHT refused" in line and "unpin one first" in line for line in said)
   assert "one thing too many" not in files.read(TOP_OF_MIND)
   # ...and a mission is never ended by a memory write.
   assert life.thoughts.refusals
@@ -792,8 +792,8 @@ def test_a_refused_thought_is_told_to_the_robot_in_its_history():
       files.pin(f"opinion {i}: " + "x" * 300, t=float(i))
   life._reconsider(ov.Decision(action="idle", pin="y" * MAX_LINE_CHARS))
   last = files.lines(HISTORY)[-1]
-  assert re.search(r"\] could not pin: Top_of_mind\.md is full \(\d+ of \d+ chars\); "
-                   r"unpin one first -- 'y+'$", last), last
+  assert re.search(r"\] could not pin: Top_of_mind\.md holds [\d,]+ of 3,000 chars, and this "
+                   r"line is \d+ more; unpin one first -- 'y+'$", last), last
   # ...and a line that is only WORDS of the refusal is still quoted
   room = SPECS[TOP_OF_MIND].cap - len(files.read(TOP_OF_MIND)) - 1
   files.pin("z" * (room - 2), t=50.0)                # all the page but two
@@ -914,7 +914,7 @@ def test_a_full_goals_file_refuses_out_loud_rather_than_dropping_one(files):
   before = files.read(GOALS)
   with pytest.raises(ThoughtRefused) as e:
     files.intend(f"goal number {i} " + "x" * 200, t=2.0)
-  assert "full" in str(e.value)
+  assert "of 8,000 chars, and this line is" in str(e.value)
   assert files.read(GOALS) == before, "a refused goal changed the file"
   assert files.dropped[GOALS] == 0, "a goal was silently dropped"
   # ...and the remedy works: make room and the write lands.
@@ -1031,7 +1031,7 @@ def test_a_note_is_a_titled_line_in_a_topic_the_robot_names(files):
   files.note({"topic": "tasks/draw", "title": "far board", "text": "fails from the explore's end"}, t=2.0)
   assert files.index(NOTES) == {"visitors/ben": ["likes houses"],
                                 "tasks/draw": ["far board"]}
-  assert files.volatile()[NOTES] == files.index(NOTES)
+  assert files.volatile()[NOTES]["index"] == files.index(NOTES)
   assert "asked for a house" not in json.dumps(files.volatile())
   # The document on the wire carries the bodies, grouped by topic.
   assert files.read(NOTES) == ("## visitors/ben\n- likes houses: asked for a house "
@@ -1074,10 +1074,61 @@ def test_the_notes_are_capped_by_count_and_refuse_out_loud(files):
     files.note({"topic": "fruit", "title": f"fruit {i}", "text": "tasty"}, t=1.0)
   with pytest.raises(ThoughtRefused) as e:
     files.note({"topic": "fruit", "title": "one more", "text": "tasty"}, t=2.0)
-  assert "full" in str(e.value) and "unnote" in str(e.value)
+  assert f"holds {MAX_NOTES} of {MAX_NOTES} entries" in str(e.value) and "unnote" in str(e.value)
   assert len(files.index(NOTES)["fruit"]) == MAX_NOTES
   assert files.unnote("fruit/fruit 0", t=3.0)
   assert files.note({"topic": "fruit", "title": "one more", "text": "tasty"}, t=4.0)
+
+
+def test_a_full_file_says_what_it_holds_never_the_count_the_write_would_make(files):
+  """#688: the refusal gave the count the refused write would have made, so
+  a `Notes.md` holding 64 said "65 of 64", and Rowan read the count and the
+  cap as drifting apart (tk_0059). It says what the file holds, and the
+  remedy; and so of `Findings.md`."""
+  from pluggybot.mind.text import MAX_FINDINGS, MAX_NOTES
+  for i in range(MAX_NOTES):
+    files.note({"topic": "fruit", "title": f"fruit {i}", "text": "tasty"}, t=1.0)
+  with pytest.raises(ThoughtRefused) as e:
+    files.note({"topic": "fruit", "title": "one more", "text": "tasty"}, t=2.0)
+  assert str(e.value) == f"Notes.md holds {MAX_NOTES} of {MAX_NOTES} entries; unnote one first"
+  for i in range(MAX_FINDINGS):
+    files.record({"quantity": f"mass {i}", "value": 0.4, "unit": "kg"}, t=3.0)
+  with pytest.raises(ThoughtRefused) as e:
+    files.record({"quantity": "one more", "value": 0.4, "unit": "kg"}, t=4.0)
+  assert str(e.value) == (f"Findings.md holds {MAX_FINDINGS} of {MAX_FINDINGS} entries; "
+                          "retract one first")
+
+
+def test_a_pin_past_the_pages_cap_says_what_it_holds_and_what_the_line_adds(files):
+  """#688: a pin to a full `Top_of_mind.md` said the size the page would
+  have had ("3060 of 3000 chars"). It says what the page holds and what the
+  line would add, its newline among it, so the two sum past the cap."""
+  for i in range(9):
+    files.pin(f"{i} " + "x" * 300, t=float(i))
+  files.pin("z" * 233, t=9.0)
+  assert len("\n".join(files.lines(TOP_OF_MIND))) == 2960
+  with pytest.raises(ThoughtRefused) as e:
+    files.pin("y" * 99, t=10.0)
+  assert str(e.value) == ("Top_of_mind.md holds 2,960 of 3,000 chars, and this line is 100 "
+                          "more; unpin one first")
+
+
+def test_the_turn_shows_how_full_each_notes_tier_file_is_beside_its_index(files):
+  """#688: nothing the robots were shown said how full a file was, and 1,292
+  notes and findings were refused as full from 11-01 to 11-12 against 1,160
+  written. Each notes-tier file's index rides the turn with what it holds."""
+  from pluggybot.mind.text import MAX_FINDINGS, MAX_NOTES
+  files.note({"topic": "bays", "title": "bay C", "text": "it sticks"}, t=1.0)
+  files.note({"topic": "bays", "title": "bay D", "text": "it is fine"}, t=2.0)
+  files.record({"quantity": "block mass", "value": 0.42, "unit": "kg"}, t=3.0)
+  shown = files.volatile()
+  assert shown[NOTES] == {"holds": f"2 of {MAX_NOTES} entries",
+                          "index": {"bays": ["bay C", "bay D"]}}
+  assert shown[FINDINGS] == {"holds": f"1 of {MAX_FINDINGS} entries",
+                             "index": {"findings/general": ["block mass = 0.42 kg"]}}
+  turn = ov._user_turn({"thoughts": shown})
+  assert f'"holds": "2 of {MAX_NOTES} entries"' in turn
+  assert f'"holds": "1 of {MAX_FINDINGS} entries"' in turn
 
 
 def test_findings_are_typed_topics_per_task(files):
