@@ -426,21 +426,6 @@ LOBBY_AT, LOBBY_GOAL, LOBBY_SHOVE_Y = (20.3, 2.5, -math.pi / 2), (21.0, -3.0), -
 TRACE_STEPS = 10
 
 
-def _until_fall(m, routine):
-  """`routine` driven as `yield from` would, closed at the step its body falls
-  -- as a procedure's verb is (`steps._until_down_routine`)."""
-  falls = m.falls
-  sent = None
-  while True:
-    try:
-      cmd = routine.send(sent)
-    except StopIteration as stop:
-      return stop.value
-    if m.falls != falls:
-      routine.close()
-      return None
-    sent = yield cmd
-
 
 def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
          shove_deg: float = 0.0, at: str | None = None, walking: bool = False,
@@ -458,6 +443,7 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
   that back. `stuck`, a fall it never got up from (`Stuck`), ends it there."""
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   from pluggybot.perception.imu import G
+  from pluggybot.procedure.steps import _until_down_routine
   cfg = world_config(HUMANOID_HOME)
   starts = {"start": cfg["start"], "hall": cfg["start2"]}
   life, body, _ = _life()
@@ -520,6 +506,7 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
       if walking:
         # ...mid-stride as it passes the line, the walk the loop's own and
         # ended at the step it falls, as a procedure's verb is
+        # (`steps._until_down_routine`)
         push = [None]
 
         def shove_hook():
@@ -529,7 +516,7 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
             on = float(data.time) - seam["shoved"][0] < SHOVE_S
             data.xfrc_applied[body.root, :3] = push[0] if on else 0.0
         body.step_hooks.append(shove_hook)
-        body.run(_until_fall(m, body.go_to_routine(*LOBBY_GOAL, timeout=60.0)))
+        body.run(_until_down_routine(life, body.go_to_routine(*LOBBY_GOAL, timeout=60.0)))
       else:
         push = shoved(yaw)
         for _ in range(int(round(SHOVE_S / model.opt.timestep))):
