@@ -429,3 +429,94 @@ def test_the_sentence_says_the_graders_own_numbers_within_the_cap():
       assert f"{100 * abs(b):g} cm {'left' if b > 0 else 'right'}" in words, p
   assert f"{100 * table.PLACE_M:g} cm" in words and f"{table.HOLD_S:g} s later" in words
   assert len(words.format(minutes=999, offered=99_999_999)) <= MAX_DESCRIPTION
+
+
+# ---- the place laid from the pass (#682's stage C, easy mode) ------------------------------
+
+
+def _offer_pass(life, **params):
+  """The place laid from the pass, offered as a cadence would offer it --
+  none does (`cadence.json`): it is never offered."""
+  maker = task_producer(life.tasks, HUMANOID_HOME, procedures=True)
+  made, secret = maker._build("set_table_pass", restaurant.TABLE)
+  return life.tasks.offer("set_table_pass", restaurant.TABLE, params={**made, **params},
+                          secret=secret, ttl=3000.0, t=float(life.data.time))
+
+
+def test_a_pass_offer_sets_its_pieces_out_on_the_pass_and_the_card_at_the_table(tmp_path):
+  """The kind chooses the set-out (`restaurant.SET_OUTS`): an offer of the
+  place laid from the pass sets each piece out where `pass_set_out` lays it,
+  on the pass's top, its hidden weight the draw's, and the card at the
+  table -- never the table's set-out beside the place."""
+  life = _life(tmp_path)
+  task = _offer_pass(life)
+  k = task.secret["draw"]
+  so, load = ct.pass_set_out(k), dw.draw(k)
+  for p, (x, y, _) in so.pieces.items():
+    assert _at(life, p) == pytest.approx((x, y, ct.PASS_H)), p
+    assert life.model.body_mass[life.model.body(p).id] == pytest.approx(getattr(load, f"{p}_kg"))
+  assert _at(life, "place_card") == pytest.approx((*ct.table_set_out(k).card[:2], ct.TABLE_H))
+  assert life._target_activity(restaurant.TABLE).load == load
+
+
+def test_a_restart_sets_an_open_pass_offer_back_out_on_the_pass(tmp_path):
+  """`restore_jobs` sets the newest open offer's place out by ITS kind: a
+  pass's pieces back on the pass, never beside the table."""
+  life = _life(tmp_path)
+  task = _offer_pass(life)
+  k = task.secret["draw"]
+  fresh = _life(tmp_path)
+  fresh.begin((0.0, 0.0, 0.0))
+  assert _out(fresh)
+  for p, (x, y, _) in ct.pass_set_out(k).pieces.items():
+    assert _at(fresh, p) == pytest.approx((x, y, ct.PASS_H)), p
+
+
+def test_the_pass_set_out_lies_on_the_counter_in_a_row_each_draw_its_own():
+  """Each piece rests whole on the expo counter's top, on the dining side of
+  the wall it stands in, the cup right of the plate and the fork left as a
+  robot faces the pass; seeded, each draw its own, the fork's head in."""
+  hx, hy, hz = hw.EXPO_HALF
+  cx, cy = hw.BACK_X, sum(hw.EXPO_Y) / 2
+  # each piece's reach behind its middle and ahead of it, the fork's turn spared
+  r = {"plate": (dw.PLATE_R,) * 2, "cup": (dw.CUP_R,) * 2,
+       "fork": (dw.HANDLE[0] + 0.005, dw.HANDLE[0] + 2 * dw.HEAD[0] + 0.005)}
+  assert ct.PASS_H == pytest.approx(2 * hz)
+  seen = set()
+  for k in range(20):
+    so = ct.pass_set_out(k)
+    assert so.surface == ct.PASS_H
+    for p, (x, y, yaw) in so.pieces.items():
+      assert cx - hx + r[p][0] <= x and x + r[p][1] <= cx + hx, (k, p)
+      assert abs(y - cy) + r[p][1] <= hy, (k, p)
+      assert x < hw.BACK_X - hw.WALL_HALF_T, (k, p, "the dining side")
+    assert so.pieces["cup"][1] < so.pieces["plate"][1] < so.pieces["fork"][1], k
+    assert abs(math.remainder(so.pieces["fork"][2], 2 * math.pi)) <= math.radians(6.0), k
+    assert so.card == ct.table_set_out(k).card and so.load == dw.draw(k)
+    seen.add(tuple(np.round(so.pieces["plate"], 6)))
+  assert len(seen) == 20
+  assert ct.pass_set_out(3) == ct.pass_set_out(3)
+
+
+def test_the_place_laid_from_the_pass_is_graded_as_the_tables_and_pays_nothing(tmp_path):
+  """Its grade is the table's evaluator under a row of its own (`HAND_JOBS`),
+  paying nothing, shown to no mind -- and no world's cadence offers it."""
+  import json
+  from pathlib import Path
+  from pluggybot.economy import scoring
+  from pluggybot.economy.tasks import HAND_JOBS
+  assert HAND_JOBS["set_table_pass"] == "table"
+  assert scoring.EVALUATORS["set_table_pass"] is table.eval_table
+  assert scoring.SAMPLERS["set_table_pass"] is table.sample_table
+  row = default_table()["set_table_pass"]
+  assert row.base == 0 and row.bonus == 0 and row.shown is False
+  cadence = json.loads(Path("src/pluggybot/economy/cadence.json").read_text())
+  for world, spec in {"default": cadence["default"], **cadence["worlds"]}.items():
+    assert "set_table_pass" not in (spec.get("kinds") or {}), world
+  life = _life(tmp_path)
+  task = _offer_pass(life)
+  assert life._claim_task(task.id) and task.id in life._job_watches
+  _lay(life)
+  verdict = _grade(life, task.id)
+  assert verdict["ok"], verdict["reason"]
+  assert life.ledger.robots[life.root]["balance"] == 0

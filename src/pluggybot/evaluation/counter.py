@@ -360,12 +360,15 @@ PASS_H = 2 * _home.EXPO_HALF[2]
 #: edge, x into the counter (east) and y to the left of a robot facing it
 #: (north). Where each piece is set out in P (x, y, m), how far either way it
 #: is drawn off it (m), and how far its turn is (rad): a row along the pass,
-#: the cup to the right and the fork to the left, every piece on the dining
-#: side of the wall's line (0.30 in) -- the fork along x, its head in, as it
-#: lies at the place.
-PASS_SOURCES = {"plate": ((0.20, 0.0), (0.010, 0.010), math.pi),
-                "cup": ((0.18, -0.35), (0.010, 0.010), math.pi),
-                "fork": ((0.18, 0.35), (0.008, 0.008), math.radians(6.0))}
+#: the cup to the right and the fork to the left -- the fork along x, its
+#: head in, as it lies at the place -- each NEAR THE COUNTER'S EDGE: a carried
+#: piece hangs under the pass's top, 0.32-0.35 m ahead of the soles' middle
+#: (`humanoid.reach.CARRY_POSE`), so a walk's hand-over clears the counter
+#: only 0.37 m off its face, and standing there a hand takes a piece no
+#: further in than this (SimNotes, "The place laid from the pass").
+PASS_SOURCES = {"plate": ((0.11, 0.0), (0.010, 0.010), math.pi),
+                "cup": ((0.06, -0.35), (0.010, 0.010), math.pi),
+                "fork": ((0.07, 0.35), (0.008, 0.008), math.radians(6.0))}
 #: Where an offline flight of it starts (`world`; never the served job's,
 #: which begins wherever the robot is): the soles' middle this far out of
 #: the pass's edge, on its middle, facing it, m.

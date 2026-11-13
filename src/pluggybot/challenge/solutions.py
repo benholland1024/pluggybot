@@ -231,9 +231,13 @@ TABLE = _table_job()
 
 PASS: tuple = ()
 
-#: The procedures that discharge each job, by kind.
+#: The procedures that discharge each job, by kind: each run in turn, a run
+#: that does not end ok the last.
 PROCEDURES = {"open_drawer": DRAWER, "open_door": DOOR, "place_cube": CUBE,
               "open_chest": CHEST, "set_table": TABLE, "set_table_pass": PASS}
+#: ...and the procedures they call, by kind: put in the library first, run
+#: only by a call (#560's defs that call defs).
+LIBRARY: dict = {"set_table_pass": ()}
 
 
 #: The jobs by their place: the counter's props and the restaurant's table
@@ -241,6 +245,11 @@ PROCEDURES = {"open_drawer": DRAWER, "open_door": DOOR, "place_cube": CUBE,
 TARGETS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
            "open_chest": "chest", "set_table": "dining_table_0",
            "set_table_pass": "dining_table_0"}
+
+
+def _def_name(source: str) -> str:
+  """A source's first def's name: the procedure it is defined under."""
+  return source.split("def ", 1)[1].split("(", 1)[0].strip()
 
 
 def job_routine(life, kind: str, world: str):
@@ -262,10 +271,13 @@ def job_routine(life, kind: str, world: str):
   assert task is not None and life._claim_task(task.id), "the claim was refused"
   facts = world_facts(world)
   library = lib.Library(facts)
+  # ...the procedures the runs call, defined first and never run themselves
+  for source in LIBRARY.get(kind, ()):
+    library.define(_def_name(source), source)
   sources = PROCEDURES[kind] if isinstance(PROCEDURES[kind], tuple) else (PROCEDURES[kind],)
   runs = []
   for source in sources:
-    name = lang.compile_procedure(source, facts).name
+    name = _def_name(source)
     library.define(name, source)
     errand = errand_from(ov.Decision(action=f"procedure:{name}"), library=library)
     result = yield from life.run_errand_routine(errand)
