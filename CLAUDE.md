@@ -2188,7 +2188,10 @@ save a filmstrip PNG named after the script.
   WHERE NO OTHER PLACE IN ITS WINDOW EXPLAINS THE SCAN AS WELL
   (`DOUBT_RIVAL_SHARE`: a place `UNIQUE_M` off at 90 % of the best's points
   on walls refuses it): along a sidewalk every place scores alike, and
-  taking the best walked a belief 5.95 m off. ⚠ AT MOST ONCE IN
+  taking the best walked a belief 5.95 m off; ⚠ AND THAT PUTS `DOUBT_GAIN`
+  (1.2) TIMES AS MANY POINTS ON WALLS AS THE POSE ASKED ABOUT (on open
+  ground the search's places gained 1.00-1.11, coin tosses that moved a
+  belief 10 cm; the counter's take-backs 1.25-2.1). ⚠ AT MOST ONCE IN
   `DOUBT_EVERY` (10) MATCHED SCANS, a search being ~25 ms (kept state,
   `doubtWait`; afresh at a fix, a relocation or a stand-up). ⚠ FOUND
   NOTHING, IT IS WHAT IT WAS, correction and all (`doubted`, laid in as `ok`;

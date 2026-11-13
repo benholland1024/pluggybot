@@ -7691,7 +7691,13 @@ a right belief standing 30 s at 12 work poses was moved onto the copy at
 a belief 0.3 or 0.4 m off on the room without a copy came back at
 12 of 12 each (the base none). From the truth across the house
 (7,840 places, a map laid true) 17 fits are doubted and the pose moves over
-0.1 m at 2, the hall's stairs, the base's own.
+0.1 m at 2, the hall's stairs, the base's own. Flown with Luca's map of
+11-09 as the robot's own from the start (the counter's flight: a look round
+in the storeroom, the drawer's, the door's or the chest's job, then
+standing, four steps toward the counter and standing), the share doubted
+took the copy at the look and ended 0.21-0.24 m off; this round flew the
+base's flight row for row, 0.12 m off at the end (where the base's own map
+lies), every fit `ok`, every job passed.
 
 **A slid fit's search is taken only within 8 cm and 1.5 deg of where the
 fit slid** (`DOUBT_SLID_*`, its correction along the directions the walls
@@ -7718,6 +7724,15 @@ fenced in panels a metre apart, a belief 0.75 m off (the truth outside the
 ±0.6 m window) was taken onto the alias a metre from the truth at 20 noise
 draws of 20, the base keeping 0.75; the served sidewalks repeat nothing.
 
+**...and only a place that explains the scan much better** (`DOUBT_GAIN`:
+1.2 times as many points on walls as the pose asked about). Captured on a
+drift flight, a weakly fixed fit on open ground -- the street, its fences
+far -- was searched once a second, and the places it found put 1.00-1.11
+times as many points on walls as the pose asked about: four takes in 5 s
+moved the belief 10 cm the wrong way and 9 cm back, 0.09 to 0.12 m off in
+all. The counter's take-backs gained 1.25-2.1 (median 1.55; the sidewalks'
+aliases of 19h, 1.01-1.07).
+
 **...at most once in 10 matched scans** (`DOUBT_EVERY`, a second at the
 LIDAR's rate), afresh wherever the belief is put somewhere new (a fix, a
 relocation, a stand-up). A search costs ~25 ms where a match costs 0.5, and
@@ -7728,22 +7743,25 @@ matching a sim second (base / first two rounds / now): beside the review's
 copy 3.7 / 173 / 3.7, beside a cabinet the map lacks 3.5 / 144 / 3.5, in a
 corridor with a post it lacks, every fit held and doubted, 2.9 / 117 / 15.
 
-**Flown** on one pod beside the base (loop-staging 2057c1a; two EPYC 9554s,
-the night of 11-12), D4's batch again, every flight a process:
+**Flown** beside the base (loop-staging 2057c1a), D4's batch again, every
+flight a process, both trees on one pod: the code as it stands on an EPYC
+7C13, and before the review's fixes on two EPYC 9554s (in brackets):
 
 | | this round | base |
 |---|---|---|
-| the counter: a belief moved +0.25/+0.4/-0.3 m after each of three jobs | 9 of 9 taken back at the first scan, 0.005-0.009 m | 0 of 9, 0.23-0.41 m kept |
-| the counter's jobs from each station (9) | 8 passed; from the mall's station the chest failed, the robot 0.88-1.0 m off in the storeroom | the same, row for row but the mall's door (0.33 m off in the storeroom, this round 0.35-0.38; both passed) |
-| drift flights (60 pairs) | 46 row for row; of the 14 that part, 8 the same at their worst, 3 better (4-24 mm), 3 worse (4, 6 and 48 mm) | |
-| walk-ins (16), lost (52) and approach (33) trials | every row the base's | all docked |
+| the counter: a belief moved +0.25/+0.4/-0.3 m after each of three jobs | 9 of 9 taken back at the first scan, 0.005-0.009 m (the same) | 0 of 9, 0.23-0.41 m kept |
+| the counter's jobs from each station (9) | 9 passed; from the mall's station 0.01-0.03 m off in the storeroom (8: the chest failed, 0.9-1.0 m off) | 9 passed; from the mall's 0.27-0.30 m off (the same as this round, row for row) |
+| drift flights (60 pairs) | 49 row for row; of the 11 that part, 7 the same at their worst, 1 better (7 mm), 3 worse (2, 8 and 27 mm) (46; 8 the same, 3 better by 4-24 mm, 3 worse by 4, 6 and 48 mm) | |
+| walk-ins (16), lost (52) and approach (33) trials | every row the base's, all docked (the same) | |
 
-The 48 mm is Luca's seed: its only doubt of the flight, walking out of the
-second garden into the research center's lobby, was searched and taken 5 cm
-from the truth, and the error the first trip laid into the storeroom's map
-read 0.24 m at rest where the base's read 0.18. The mall's leg went 0.9-1.0
-m off in the storeroom on both trees alike on this CPU (D4's pod passed it
-on both): #681's call 3, a fix under `ASKEW` keeping a map laid askew.
+The drift flights that came out worse each took a pose or a few on open
+ground, a few centimetres the way the map laid on the first trip already
+lay: Luca's seed (the 9554s) walking out of the second garden into the
+research center's lobby, its only doubt of the flight taken 5 cm from the
+truth, the storeroom 0.24 m off at rest where the base's was 0.18; Rowan's
+idle with its gyro's offset learned (the 7C13) four takes in 5 s on the
+street. The mall's leg turns with the CPU on both trees (#681's call 3: a
+fix under `ASKEW` keeps a map laid askew).
 
 **What is true now.** `tests/test_scan_match.py` pins it on synthetic scans:
 a storeroom whose side walls hold while its end walls disagree by 0.3 m is
@@ -7755,7 +7773,8 @@ belief; a full fit is doubted where its weakest direction rests on under
 only within `DOUBT_SLID_M` of where it slid; a run of doubted scans is
 searched once in `DOUBT_EVERY`, the count kept across a restart and
 started afresh at a stand-up, a fix or a relocation; a take the rule would
-doubt again is refused; in a corridor fenced in panels a metre apart the search takes no place another
+doubt again is refused, and one that gains under `DOUBT_GAIN`; in a
+corridor fenced in panels a metre apart the search takes no place another
 explains as well, and a fit it finds nothing for keeps its own correction;
 a corridor with a post the map lacks, a tenth of the scan, is doubted
 (`DOUBT_HELD_SHARE`); a straight corridor held along is laid in; and a slid

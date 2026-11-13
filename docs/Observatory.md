@@ -20,11 +20,12 @@ an error"):
   walls, is searched (±0.6 m, ±6°) as an `inconsistent` one always was, and
   so is one that slid; a pose found there is taken at 90 % on walls with
   every direction fixed, only where no place half a metre or more off
-  explains the scan as well (`DOUBT_RIVAL_SHARE`), never one the rule would
-  doubt again, and for a slid fit only where it slid. Found nothing, the
-  fit is what it was: laid in as an `ok` one is (a slid one refused). A
-  doubt is searched at most once in 10 matched scans. A robot's day parts
-  from the base's only where the search takes a pose.
+  explains the scan as well (`DOUBT_RIVAL_SHARE`), only one with 1.2 times
+  as many points on walls as the pose asked about (`DOUBT_GAIN`), never one
+  the rule would doubt again, and for a slid fit only where it slid. Found
+  nothing, the fit is what it was: laid in as an `ok` one is (a slid one
+  refused). A doubt is searched at most once in 10 matched scans. A robot's
+  day parts from the base's only where the search takes a pose.
 - **Never on a fit's share alone**: the first two rounds (never deployed)
   also doubted any fit under 80 % on walls, and that half pulled a right
   belief onto a copy of the storeroom already in a live map (Luca's of
