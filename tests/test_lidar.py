@@ -827,3 +827,18 @@ def test_the_instruments_scan_the_waists_body_at_its_reading(room):
   for variant in ("ring", "band"):
     angles, ranges, _ = ls._scan(variant, model, data, lidar)
     assert len(angles) and np.isfinite(ranges).any(), variant
+
+
+def test_the_static_probe_counts_a_doubted_fit_as_the_fit_it_was(capsys):
+  """#681: a fit the walls only partly agree with is "doubted" and pins its
+  directions as the "ok" one it was; read as no fit, every place on a
+  sidewalk it fired at came out "NOT heading" in `lidar_spike.py --probe`."""
+  import sys
+  from pathlib import Path
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+  import lidar_spike as ls
+  ls.probe_summary([{"variant": "band", "zone": "alley", "x": 20.0, "y": -7.0, "why": why,
+                     "held": 0, "weak": [1.0, 0.0, 0.0], "returns": 300}
+                    for why in ("doubted", "found")])     # ...searched where it stood, too
+  line = next(ln for ln in capsys.readouterr().out.splitlines() if "block sidewalks" in ln)
+  assert line.split("|")[1].split()[0] == "100%", line

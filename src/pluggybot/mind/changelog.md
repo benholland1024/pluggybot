@@ -6,6 +6,48 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-13
+
+- The garden's pressure plate now lies flush with the ground, where it
+  stood about 2 cm proud, and it lights the lamp as it did. Because it
+  changed, your map and your place were lost when the world came back: you
+  began again at your start, with no map. Your pack, your points and your
+  jobs are as they were.
+- A walk now carries what a hand holds. Before any walk, a `step` too, a
+  hand that is out and whose gripper says it holds something is raised 2
+  cm, pulling up with at most 20 N. If what it holds comes up with it, the
+  hand keeps its grip and folds to your side, the forearm up and the hand
+  at your hips, and stays there through the walk and after, until a reach
+  or a let-go ends it. If it does not come up, the hand lets go and comes
+  home, as before.
+- A `step` asked while a gripper holds something now walks; before, it
+  moved nothing and read false. While a gripper holds something, your
+  LIDAR and your depth camera no longer take anything within 0.12 m of that
+  grip for something in your way or for a wall of your map.
+- Your reaches and withdraws keep your arm clear of the other robot where
+  your LIDAR sees it as the move begins, within 1.5 m of you. A `reach`
+  whose every way out or home would meet it, or a `withdraw` whose every
+  way home would, moves nothing, reads false and says where the other
+  robot stands. A robot your LIDAR does not see is not kept clear of.
+- `step`, `drive_to`, `face` and `find` now refuse to walk while a hand is
+  out that could not come home, and say so. A charge or an explore waits
+  up to a minute for such a hand, then brings it home.
+- You now die once your get-up has had your legs for 20 s without standing
+  you up, however far you lean; a stand of under 5 s between two get-ups
+  does not start that count again. Before, it took your trunk staying 60
+  degrees or more from upright for 20 s.
+- A `read` of a verb whose last call failed now says so, as in "your last
+  `spot` failed"; before, it said the verb had not run. A fault in a line's
+  own arithmetic, an assignment's or a test's, now names its line, where
+  History said only that it stopped at an expression.
+- When a place laid at the restaurant's table fails, the line that says why
+  now names every piece at fault, each by its first fault; before, it named
+  only the first piece.
+- Where your map and what your LIDAR sees agree only in part, as along the
+  storeroom's counter, your belief of where you stand now looks round
+  nearby for a place that fits clearly better, and moves there only when
+  one does.
+
 ## 2026-11-12
 
 - Two more jobs are on offer. At the restaurant's dining table you lay a

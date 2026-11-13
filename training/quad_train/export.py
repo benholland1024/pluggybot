@@ -85,31 +85,29 @@ def body_facts(joints: str = "legs") -> dict:
           "waist_gain_scale": list(getattr(hr, "WAIST_GAIN_SCALE", ()))}
 
 
-#: The metadata's lists with an entry a joint of the body, in `joint_names`'
-#: order (mjlab's every joint; the gains, every actuated one -- the body's
-#: every joint since the jaws are frozen in training).
-PER_JOINT = ("joint_names", "default_joint_pos", "joint_stiffness", "joint_damping")
+def seen_joints(task: str) -> tuple[str, ...] | None:
+  """The joints `task`'s actor sees, in their order, where it names them --
+  a carrying walker sees walk2's, never the waist (#682) -- else None: every
+  joint the entity has, as mjlab's metadata lists them."""
+  import humanoid_train  # noqa: F401  (registers the tasks)
+  from mjlab.tasks.registry import load_env_cfg
+  term = load_env_cfg(task).observations["actor"].terms.get("joint_pos")
+  names = None if term is None else getattr(term.params.get("asset_cfg"), "joint_names", None)
+  return tuple(names) if isinstance(names, (list, tuple)) else None
 
 
-def sees_driven(arrays: dict, driven: list) -> None:
-  """The metadata's joints narrowed to the ones the policy drives, each
-  one's default pose and gains with it: mjlab writes every joint of the
-  body there, and the served runtime builds an observation off what it
-  lists (`pluggybot.humanoid.policy`). ⚠ Refused unless the input is
-  exactly the get-up's terms over those joints, and every list has an
-  entry a joint."""
-  meta = json.loads(str(arrays["meta"]))
+def narrowed(meta: dict, seen: tuple[str, ...]) -> dict:
+  """`meta` with its per-joint lists (names, gains, default pose) cut to
+  `seen`, in its order: what the served sim builds the observation off
+  (`pluggybot.humanoid.policy`)."""
   names = meta["joint_names"].split(",")
-  lists = {key: dict(zip(names, meta[key].split(","))) for key in PER_JOINT}
-  assert all(len(meta[key].split(",")) == len(names) for key in PER_JOINT), \
-    {key: len(meta[key].split(",")) for key in PER_JOINT}
-  terms = meta["observation_names"].split(",")
-  assert terms == ["base_ang_vel", "projected_gravity", "joint_pos", "joint_vel", "actions"], terms
-  n = arrays["obs_mean"].shape[0]
-  assert n == 6 + 3 * len(driven), f"{n} inputs are not the get-up's over {len(driven)} joints"
-  for key in PER_JOINT:
-    meta[key] = ",".join(lists[key][j] for j in driven)
-  arrays["meta"] = np.array(json.dumps(meta))
+  at = [names.index(n) for n in seen]
+  out = dict(meta)
+  for key in ("joint_names", "joint_stiffness", "joint_damping", "default_joint_pos"):
+    if key in meta:
+      vals = meta[key].split(",")
+      out[key] = ",".join(vals[k] for k in at)
+  return out
 
 
 def main(argv=None) -> None:
@@ -128,13 +126,13 @@ def main(argv=None) -> None:
                        "quadruped went (#559); kept so a documented command runs")
   ap.add_argument("--joints", choices=("legs", "all"), default="legs",
                   help="the humanoid's joints the policy drives")
-  ap.add_argument("--sees", choices=("body", "driven"), default="body",
-                  help="the joints it observes: all the body's, as mjlab's metadata lists "
-                       "them, or only the ones it drives (the get-up's, #679)")
   args = ap.parse_args(argv)
   arrays = load(args.onnx)
-  if args.sees == "driven":
-    sees_driven(arrays, body_facts(args.joints)["action_joints"])
+  seen = seen_joints(args.task)
+  if seen is not None:
+    meta = narrowed(json.loads(str(arrays["meta"])), seen)
+    arrays["meta"] = np.array(json.dumps(meta))
+    print(f"the joints it sees: {len(seen)} ({', '.join(seen[:2])}, ...)")
   err = check(args.onnx, arrays)
   assert err < 1e-4, f"numpy and ONNX disagree by {err}"
   print(f"numpy matches the ONNX file to {err:.1e}")

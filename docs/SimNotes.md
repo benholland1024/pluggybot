@@ -795,10 +795,11 @@ the belief.
 a fit costs ~0.5 ms where a correlative search over a useful window costs
 tens; the fit's own normal matrix says which directions the walls fix,
 which the issue asks for by name. A search (brute force over ±0.6 m and
-±6° in whole cells and degrees, then a fit from its best) runs only when a
-fit disagrees with its map -- a pose already past the fit's reach -- and a
-robot lost beyond that window has its fixtures (#476), and #381's loop
-closure.
+±6° in whole cells and degrees, then a fit from its best) runs when a fit
+disagrees with its map -- a pose already past the fit's reach -- or, since
+#681, slid past `MAX_STEP_M` or only partly agreed with ("The storeroom
+keeps an error", below: 11-37 ms each); a robot lost beyond that window has
+its fixtures (#476), and #381's loop closure.
 
 Every piece was found by flying a lab trip with each scan and the true pose
 recorded, and replaying the matcher over the recording in seconds. A
@@ -868,7 +869,9 @@ puck had every ray hit the housing at 4 cm and the self-filter drop all
 matched pose is the belief (`Navigator._match`); the fixture's anchor stays
 beside it ("Drift hygiene"). A match costs 0.67 ms on the dev machine
 (median 0.46, p99 7.2 -- the field's refresh, 5 ms every 20 fused scans or 1
-m, and the rare search): 6.7 ms of a sim second per robot at 10 Hz. Fusing
+m, and the rare search): 6.7 ms of a sim second per robot at 10 Hz. Since
+#681 a doubted or slid fit is searched too, ~25 ms a search, at most once in
+10 matched scans (below). Fusing
 only the scans after the robot moved took the grid's updates on a recorded
 day of lab trips from every level scan to 6 918 of 10 947, and the mapping
 as a whole from ~21 to ~20 ms a sim second; a day that stands still less
@@ -880,10 +883,11 @@ t = 419 s and carried on in a new process it was IDENTICAL after the restore
 `level()` is neither matched nor fused, so drift while it is not level runs
 free until it is and the search finds it; a robot lost beyond the search's
 window searches wider after a run of refusals (#422, "Lost after a long
-explore, and found again"); and the first trip through new territory carries
-its own drift into the map it lays (0.2-0.3 m by the lab, ~1 m round the
-street loop), which later visits match to but do not correct (#381's loop
-closure).
+explore, and found again"); a match the walls only partly agree with is
+searched too (#681, "The storeroom keeps an error"); and the first trip
+through new territory carries its own drift into the map it lays (0.2-0.3 m
+by the lab, ~1 m round the street loop), which later visits match to but do
+not correct (#381's loop closure).
 
 ## The first quadruped deploy (issue #387)
 
@@ -7378,6 +7382,208 @@ the world (Hands.md §7); a reach of one hand while the other is held takes a
 posture planned for a free body; and the get-up against the counter (13 of 14
 flown falls there never stood in 60 s).
 
+## Carrying while walking, measured (#560's next task)
+
+The next task carries the table's dishware from the restaurant kitchen's
+shelf, and today a walk carries nothing: `step` refuses a held grip and the
+walk's hand-over lets go (#669). `scripts/carry_spike.py` hands walk2 the legs
+with an arm posed holding the plate or the cup anyway, on a bare floor -- the
+piece put into the open jaws where our table reference's shut leaves it, the
+wrist solved to hold it level -- and walks open-loop courses and goals through
+the Navigator (2,192 flights, each its own noise and draw; the rows and the
+plan are the night shift's, 2026-11-11, T7).
+
+- **walk2 never trained with its arms at rest**: its scripted arms went
+  anywhere within half their range, with 0-1 kg in a hand, and it sees every
+  arm joint. But a wrist holding a piece level turns 0.6-1.5 rad (trained to
+  0.7-0.8), and an elbow folded close 1.6-2.0 (to 1.15).
+- **At a designed carry pose it never fell** (392 open-loop walks, 128 closed
+  loop, 64 with 1-2 kg on one arm). It veers toward the carrying arm, 4-22 deg
+  more than arms-home over 4 m, and walks 8-15 % less far; closed loop the
+  Navigator steers it out (its reckoning holds), arriving within 0.24 m of
+  where arms-home does.
+- **The arm the reach leaves for the table's grips is over the top** (roll
+  2.5-2.9 rad); walked so it fell in 16 of 37 -- and in none shown that arm at
+  rest (`--blind-arms`): an arm input far outside its training topples walk2.
+  Shown its arms at rest, a piece held close walks true, but a load held out
+  goes unbalanced (both arms out fell 20 of 28): it balances off those inputs.
+- **The robot's own sensors see what it holds**: its front stop backs it off
+  its own plate, or its map leaves no route -- 7 of 10 holding poses never
+  arrived; hidden from every cast (`--unseen`), all did.
+- **The plate's wall pinch creeps with its weight**: at 40 N a 0.5 kg plate
+  dropped in 8 of 20 routes of 13 m, at 80 N in none (the turn 7-8 deg, the
+  same at 120 N) -- friction at the pinch, not the solver's drift, which
+  ignores the force ("The grip that leaked"). The cup, held across its body,
+  slips under 1.1 cm on a bare floor.
+- **In the house** (`--house`: the shelf through the staff door to table 0's
+  standoff, closed loop), every carry arrives with the held piece hidden from
+  the casts (28 of 28, within 0.13 m), and 6 of 24 as served. But the cup
+  held out slid down its jaws through the longer walk and fell at a pivot in
+  2 of 8, touching nothing, sooner at 120 N than at 40: a creep that is not
+  the squeeze's, not yet diagnosed.
+
+**What is true now:** nothing served carries. Carrying needs a hand-over that
+keeps a held grip and walks the arm to a carry pose first, a self-filter for
+what a hand holds, the plate squeezed at 80 N, and the cup's creep found.
+walk2 as it is carries
+closed loop at a cost in time and a veer; a walker trained with carry poses
+held and loads at the grip is the honest fix. `carry_spike.py --view
+plate_close:route:1` watches a 0.47 kg plate held close tilt in the jaws from
+35 s and fall at 47 s; `--strip` draws it.
+
+## Carrying, served (#682's stage A)
+
+Ben's calls of 11-12 on #682: one piece in one hand, held close (`close`);
+the walk takes the carry pose itself and says so, no `carry` verb; the plate
+squeezed at 80 N; a self-filter of about 0.12 m round a held grip; and a
+walker retrained to carry (below, "A walker trained to carry"). This is the
+walk that carries, on walk2 (the loop of 11-12/13, L4; rows and probes in
+`~/pluggybot-training/loop-1112/l4-carry/`).
+
+- **The hand-over carries a hand that holds** (`HumanoidMission.carries`,
+  `_lift_routine`, `to_walk_routine`; `Reach.CARRY_POSE`, `carry_pose`): a
+  hand out at a pose of its own whose gripper reads held is lifted 2 cm
+  straight up at 20 N, the most the standing body holds; only if the lift
+  went its distance is it carried -- out along its line, then its judged way
+  (the way home's, ending there) to the forearm folded up and the hand at the
+  hips, its gripper as it was -- and held there in joint space through every
+  walk, a `step` too, until a reach or a let-go ends it. Anything else that is
+  out lets go and comes home, as #669's does.
+- **Lifted first, because a carry pulls on what it holds.** Carried with no
+  lift, a drawer's handle held through a step came out 19 cm with the arm.
+  A guard that let go where the arm's own force reading passed 30 N on its
+  way (a free plate's move read 16.5 N at most) felled the robot at the first
+  drawer flown: the arm, let go mid-move against the drawer's pull, threw the
+  trunk. With the lift, a drawer's handle (2 draws) and a door's lever read
+  held fast and were let go, no fall (`probe/held_handle.py`).
+- **The wrist keeps the hand turned against the floor as it was, solved on
+  the stand's statue.** Solved on the model as it stood -- bowed 0.3 rad for
+  the table reference's plate grip -- the plate rode 15-17 deg tipped once the
+  trunk stood up; on the stand's statue, 2.3 and 6.9 deg (the second began at
+  3.0). The turn is the one the hand's command keeps, never its joints read
+  again: a read draws on the drivers' noise, and the check a walk verb makes
+  before it walks would move the flight.
+- **The self-filter** (`HELD_DROP_M`, `_held_drop`, `Lidar.band`'s `drop`):
+  each grip that reads held, placed off the odometry's model of itself and
+  levelled along the pelvis's heading as a scan's points are; a room's return
+  within 0.12 m is neither a point nor a ray that went on (a bearing the
+  piece alone stopped reads nothing, never free), in the band and in the depth
+  camera's low layer. Another robot's returns are kept: split out by the part,
+  dropped they would blind the front stop to it.
+- **Flown on walk2** (one pod, a Ryzen 9 5950X, osmesa, c3dcca4; each flight
+  its own noise and draw; rows `batches/b4/`):
+  - the reference's own grip and lift, then the served hand-over (raised, out
+    along its line, to `close`): the plate at 80 N arrived 15 of 16 walks (4
+    m straight, the 13 m route, the goals 4 m ahead and 2.5 m behind; one
+    found no route), no fall, no drop, turned at most 13 deg in the jaws; the
+    cup at 40 N 11 of 11, no fall, but it fell out of its jaws on the 13 m
+    route twice of three (turned 180 deg): the cup's creep, T7's A7, still not
+    diagnosed. 5 set-ups whose grip closed on nothing were not flown;
+  - in the house (the kitchen's shelf, through the staff door, to table 0's
+    standoff; closed loop), the arm posed as T7 posed it and held out there,
+    the served hand-over taking it to `close`: arms home 4/4 in 39-46 s;
+    plate close 4/4, plate low 3/4, plate out 3/4, cup out 3/4, cup tray 4/4
+    (cup at 40 N: 2/4 and 3/4) -- 17 of 20 carries arrived, where T7's as
+    served (no carry pose, no filter) arrived 6 of 24 -- in 43-108 s; no
+    fall. ⚠ But the plate fell out of its jaws once in each of its three
+    poses (3 of 12 walks at 80 N; at the instrument's own pose before the
+    review's fixes, 5 of 8), turning in the pinch until it slid free: it
+    touched nothing of the world first (every geom a held piece met was
+    recorded; the floor alone, after it fell). Not the door frame's, then:
+    the plate's own pinch over a walk of 90-100 s with many stops and turns.
+    The cup never fell in the house (16 walks);
+  - two pieces at once (`both_low`, outside Ben's one piece): 2 of 8 goals
+    arrived and one fell standing (before the lift);
+  - walk2 veers toward the carrying arm at `close`, as T7 measured: +24-27
+    deg over 4 m with the plate (left), -10 to -15 with the cup, arms home
+    +3.5-5.
+  - the hands checks at set-outs 0-31 (lid, drawer, door, cube, table: 26,
+    21, 24, 20 and 24 of 32), beside loop-staging on the same pod: 160 of 160
+    verdicts the same, reason for reason -- no reference walks holding
+    anything, and the self-filter moved none of them.
+- **The table's reference with the plate at 80 N** (`hands_check.TABLE`, the
+  served lay): 77 of 96 set-outs (0-95) against 82 at 40 N on the same pod,
+  paired -- 5 lost, none won, every one the fork knocked from its jaws or off
+  its place after the plate was laid; at 0-31, 22 against 24, its bar. The
+  lay walks nothing, so it squeezes at 40 N still; 80 N is a carried plate's,
+  stage C's reference's.
+
+**What is true now:** a walk carries a hand that holds and has come away, at
+one pose, its wrist level as it was, its piece hidden from its own sensors
+within 0.12 m of the grip; everything else lets go as before. On walk2 it
+veers toward the carrying arm, which the Navigator steers out and a `step`
+does not. Two things stand before a carry is graded (stage C): the plate's
+pinch let it slide free in 3 of 12 house walks even at 80 N, touching
+nothing, and the cup's creep on the 13 m route.
+
+## A walker trained to carry (#682's stage B)
+
+`Pluggy-Humanoid-Walk-Carry` (`training/humanoid_train/walk.py`
+`carry_env_cfg`, `CarryArms`; `robot.get_carry_spec`): walk2's flat task
+fine-tuned from its checkpoint (`model_2999.pt`), each arm in segments of
+4-15 s hanging (30 %), moving as walk2's arms did (20 %) or holding one pose
+drawn from the carry box the whole segment (50 %; both arms carry a quarter
+of the time), a 0-1 kg payload at each grip site drawn at every reset, the
+actor seeing walk2's 24 joints in walk2's order (the exporter records them,
+`export.seen_joints`).
+
+- **⚠ Trained on the waist's joint, it learnt to spin** (carry1, 1250
+  iterations on a 5090, $0.25, stopped): asked to stand still it turned 0.8
+  rad/s by its heading, each world at +-1.9 rad/s by the root's velocity
+  sampled after a step -- while the reward's own reading of the same root
+  said it tracked its turn (the turn's term rose 0.05 -> 1.0, its yaw error
+  1.2 -> 4.5). The pelvis's yaw rang against the trunk on the waist's spring
+  at the policy's rate, and the policy phased the ringing to the instant the
+  reward samples it. walk2 itself, flown in that task, scored 0.3 on the
+  turn's reward with the waist's joint and 34.9 without it (its own measure
+  of its turn 0.53 and 0.86 a step). The carry task's model is RIGID at the
+  waist, as walk2's body was (`get_carry_spec`); served, the waist is held
+  home while the robot walks. ⚠ Any walker retrained on today's model with
+  the waist's joint free meets this.
+- **carry2** (rigid waist): 2500 iterations from walk2 on a 5090 (1:08, an
+  EPYC 7K62 host at 1.6 s an iteration), its turn's yaw error 0.43-0.45
+  through training (walk2's own 0.46); `models/humanoid_walk_carry.npz`,
+  beside walk2, served by nothing. Its checks, beside walk2 on one pod (a
+  Ryzen 9 5950X, osmesa; each flight its own noise and draw; rows
+  `batches/b3`, `b4`, `b5`):
+  - **Ben's flat-floor rule passes** (`--track`, arms home): forward 0.51,
+    0.99, 1.31; back -0.21, -0.47; sideways 0.28; turns 0.47, -0.42, 1.04 --
+    every asked part's error inside the rule's bar (0.11, 0.11, 0.12; 0.21,
+    0.14; 0.11; 0.39, 0.30, 0.11), what was not asked within 0.07. It turns
+    asked 0.5 rad/s at 0.47 where walk2 turned 0.24.
+  - **The house's route, carried by the served hand-over: 32 of 32 arrived,
+    no fall, no drop** -- plate close, low and out in 42-56 s, the cup out and
+    tray in 53-78 s (at 40 N and at 80), arms home in 37-43 -- where walk2,
+    the same flights, arrived 26 of 32 in 43-108 s and let the plate fall
+    free 3 times.
+  - **The carry matrix** (T7's poses, the instrument's own hand-over): no
+    fall at a designed pose (0 of 120); the plate's carries walk true -- over
+    4 m, 0.1-0.3 deg off its own arms-home walk and 3-4 % shorter (walk2:
+    +8-21 deg, 6-8 %) -- and the route's open-loop end 0.8-2.0 m from its
+    arms-home end's (walk2: 5.4-12.7); but a carry in the RIGHT hand veers
+    still, -14 to -20 deg over 4 m (cup close, cup out; walk2 -8 to -15), and
+    its arms-home walk itself veers +9.6 deg over 4 m (walk2 +4.6). Closed
+    loop, 39 of 40 goals arrived (walk2 35); the plate turned no more in its
+    jaws (8-9 deg).
+  - The reach's own arm, never walked by the served hand-over: the plate's
+    walked with no fall (0 of 15), the cup's over the top fell every time (7
+    of 7), as walk2's did -- outside the carry box, so untrained.
+  - Rough ground as walk2 (`--rough`: the same falls on doorsteps and blocks,
+    none on flat, paving and the slope).
+  - Not flown: `--odometry`, `--torque`, `--handover`, the step's and the
+    station's instruments, the drift and make-way spikes, the tour's
+    references, the pair's determinism and the real-time multiple.
+- **carry3**, 1500 iterations more from carry2 with half its carries drawn
+  within 0.15 rad of `close` (`close_share` 0.5; a Xeon w7-3455 host, 25
+  min): the right hand's veer went (cup close +3.4 deg, cup out -5.7) and the
+  left's came back (plate close +6.6, plate low +7.2), its arms-home walk
+  -7.4 deg over 4 m; 44 of 48 goals (carry2 47); the house 22 of 24, one
+  plate let fall; ⚠ the plate's reach arm, which carry2 walked 15 of 15,
+  toppled it 9 times; and on the flat-floor rule's back-off at 0.3 m/s one
+  trial of three stood still (-0.14 m/s its mean, the bar's edge). Narrowed
+  toward one pose, it lost what the box had given it: carry2 is the
+  candidate, carry3 kept off the repository (`loop-1112/l4-carry/`).
+
 ## The arms keep off the other robot (issue #678)
 
 **What happened.** #670 kept a step off the other robot as a walk is kept
@@ -7727,7 +7933,190 @@ lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
   same 21 mm sprung pad, were crossed 21 times at speed, and stalled all 9
   edge starts.
 
+## The storeroom keeps an error, and a match the walls only partly agree with is searched (issue #681)
 
+**What happened.** At the storeroom's counter the matcher could not take
+back an east-west error over about 0.15 m. The room's north and south walls
+stay on their walls whatever the offset along them and make half or more of
+a scan's points, so the fit is never `inconsistent` and the bounded search
+never runs; the points that would fix east-west -- the west wall 5 m behind,
+the counter's front -- lie past the field's 0.3 m reach and pull on nothing,
+or "fix" it on points that alias (the counter's front, its props and the
+wall behind it are parallel lines, the front and the wall 0.60 m apart); and
+the scan is laid in from the wrong pose, a copy of the room that every later
+scan matches in full. Live (11-07/08) the store's error had a median of 0.16
+m, a 90th percentile of 0.66 and a worst of 1.04 (the lobby next door 0.05
+and 0.14), in jumps kept for hours: Luca's +0.57 m at 09:09 on 11-08 stood
+2.6 hours. Its errors came from a hand's work dragging the body while no
+scan is taken, from a map laid askew on the way from the mall, and from the
+bounded search itself. A static probe at 40 poses round the counter, on a
+map laid from the true poses, kept a belief +0.3 or +0.4 m off at all 40
+(the night shift of 11-10, T5).
+
+**A match the walls only partly agree with is doubted**
+(`scan_match.DOUBT_*`): one that held a direction, or whose weakest
+direction rests on under a tenth of its points (`DOUBT_WEAK_SHARE`), with
+under 95 % of its points on walls, is searched as an inconsistent one is --
+and a slid one too -- and a pose found there is taken at 90 % on walls with
+every direction fixed, never one the rule would doubt again (a take whose
+weakest direction rests on a few aliasing points, at 90-95 %, would be
+searched off at the next scan). Found nothing, the fit is what it was: a
+doubted scan is laid in as an `ok` one is, correction and all, and a slid
+one stays refused (left out of the map, doubted scans starved new ground:
+on the way to the mall's station 229 of ~720 never went in, the station's
+fix kept the map laid askew under `ASKEW`, and no walk out of there found a
+route).
+
+**Never on a fit's share alone.** The first two rounds also doubted any fit
+with under 80 % of its points on walls, and the review of 11-12 found that
+half capturing a RIGHT belief: where a copy of the room is already in the
+map, the copy's scans cleared some of the true walls' cells, a fit at the
+truth reads 0.54-0.83 on walls, and the search takes the copy, which
+explains more and is under `UNIQUE_M` from the truth (so no rival of it).
+What tells the two apart is what fixes the fit. Toward the counter, an
+error's fit is often "fixed" in every direction by the few points that
+alias, its weakest direction resting on 0.05-0.19 of its points (median
+0.075, the counter's 40 poses at 0.2-0.4 m off, a map laid true; 0.05-0.26
+on the live maps); a right belief by a copy rests its weakest on the room's
+own walls, 0.12-0.30 (Luca's live map of 11-09) and 0.17-0.30 (the tests'
+copies). Nothing else read separated them: how much more the copy's place
+explains (the truth 0.71-0.88 of the copy's count, an error 0.60-0.79 of the
+truth's), how many of the found pose's points on walls facing the
+correction sit on a wall at the kept pose too (0.44-0.66 against 0.14-0.64
+toward the counter, where its parallel lines double every wall), or rays
+passing a mapped wall. The same review's copies, read the same way (T5's
+counter probe; a right belief at 40 true poses round the counter, and
+beliefs 0.1-0.4 m off along x, one scan each):
+
+| map | right belief moved over 0.15 m: base / share doubted / now | a belief off ending within 0.15 m (of 320): base / share doubted / now |
+|---|---|---|
+| laid from true poses | 0 / 0 / 0 of 40 | 97 / 319 / 313 |
+| Luca's of 11-08 | 0 / 0 / 0 | 91 / 300 / 263 |
+| Luca's of 11-09 (copies 0.25 m apart along the counter) | 0 / 35 / 0 | 101 / 10 / 100 |
+| Rowan's of 11-09 | 0 / 0 / 0 | 82 / 319 / 301 |
+| Rowan's of 11-08 (the storeroom laid 0.57 m off whole) | 40 / 40 / 40 | 1 / 0 / 1 |
+
+On the tests' storeroom with a copy the base laid 0.3, -0.3 and 0.57 m off
+along the counter (20 minutes from 24 work poses, the band's `free_from`),
+a right belief standing 30 s at 12 work poses was moved onto the copy at
+5, 0 and 0 of 12, the base's own (the share doubted 12, 11 and 12), and
+a belief 0.3 or 0.4 m off on the room without a copy came back at
+12 of 12 each (the base none). From the truth across the house
+(7,840 places, a map laid true) 17 fits are doubted and the pose moves over
+0.1 m at 2, the hall's stairs, the base's own. Flown with Luca's map of
+11-09 as the robot's own from the start (the counter's flight: a look round
+in the storeroom, the drawer's, the door's or the chest's job, then
+standing, four steps toward the counter and standing), the share doubted
+took the copy at the look and ended 0.21-0.24 m off; this round flew the
+base's flight row for row, 0.12 m off at the end (where the base's own map
+lies), every fit `ok`, every job passed.
+
+**A slid fit's search is taken only within 8 cm and 1.5 deg of where the
+fit slid** (`DOUBT_SLID_*`, its correction along the directions the walls
+fix). On Luca's map of 11-09 a belief 0.1 m off slid 0.17 m toward one copy
+of the counter and the search found the other, 0.25 m from it (13 poses of
+40; the base refuses a slid fit, and kept the belief within 0.15 m). Where
+the counter's errors slid back, the search's pose was within 0.053 m and
+0.74 deg of the slide's.
+
+**...and its search takes only a place no other explains as well**
+(`DOUBT_RIVAL_SHARE`). As first written the doubt walked drift flight 19h
+(seed 19 from the hall) 0.8 to 5.95 m off in 45 s: along `sidewalk_east`
+and `sidewalk_2_north` -- the facility's wall and the loop's fence,
+parallel, nothing across -- fits held along the walk with 89-95 % of their
+points on walls were doubted, and the search took its best 25 times, each a
+few points ahead (2-11 of ~150) and up to 0.6 m behind the robot (the map's
+far end lags the scan's reach, so a pose behind puts a few more far points
+on mapped wall). Every place along such a sidewalk scores 0.95-1.00 of the
+best; at the counter the best place half a metre or more from the truth
+scores 0.65-0.75 of it. So the doubted search refuses a best that a place
+`UNIQUE_M` (0.5 m) or more off matches at 0.9 of its points on walls, each
+place at its best turn. It holds only within the window: in a corridor
+fenced in panels a metre apart, a belief 0.75 m off (the truth outside the
+±0.6 m window) was taken onto the alias a metre from the truth at 20 noise
+draws of 20, the base keeping 0.75; the served sidewalks repeat nothing.
+
+**...and only a place that explains the scan much better** (`DOUBT_GAIN`:
+1.2 times as many points on walls as the fit it would replace, never the
+pose asked about: a fit corrected across a sidewalk would make a gain of
+any place along it). Captured on a
+drift flight, a weakly fixed fit on open ground -- the street, its fences
+far -- was searched once a second, and the places it found put 1.00-1.11
+times as many points on walls as the pose asked about: four takes in 5 s
+moved the belief 10 cm the wrong way and 9 cm back, 0.09 to 0.12 m off in
+all. The counter's take-backs gained 1.21-2.1 over the fits they replaced
+(medians 1.34-1.74 by map, on T5's probe; the sidewalks' aliases of 19h,
+1.01-1.07 over the pose asked about).
+
+**...at most once in 10 scans the matcher is handed** (`DOUBT_EVERY`, a
+second at the LIDAR's rate), afresh wherever the belief is put somewhere
+new (a fix, a relocation; a stand-up forgets the map), never at
+`fuse_next`, which the Navigator calls at every scan it does not map. A
+search costs ~25 ms where a match costs 0.5, and
+standing among something its map lacked, the review's robot was doubted at
+600 scans of 600 in a minute; between searches a doubted fit is laid in as
+it was and a slid one refused, as before #681. A minute standing, in ms of
+matching a sim second (base / first two rounds / now): beside the review's
+copy 3.7 / 173 / 3.7, beside a cabinet the map lacks 3.5 / 144 / 3.5, in a
+corridor with a post it lacks, every fit held and doubted, 2.9 / 117 / 15.
+
+**Flown** beside the base (loop-staging with #682), D4's batch again, every
+flight a process, both trees on one pod (an EPYC 7C13), the code as it
+stands:
+
+| | this round | base |
+|---|---|---|
+| the counter: a belief moved +0.25/+0.4/-0.3 m after each of three jobs | 9 of 9 taken back at the first scan, 0.005-0.009 m | 0 of 9, 0.23-0.41 m kept |
+| the counter's jobs from each station (9) | the base's, row for row: 9 passed (from the mall's station 0.27-0.30 m off in the storeroom) | 9 passed |
+| drift flights (60 pairs) | the base's, row for row: 429 scans doubted in 28 flights, none taken | all docked, every walk there |
+| walk-ins (16), lost (52) and approach (33) trials | the base's, row for row, all docked | |
+
+On the same pod, without `DOUBT_GAIN` 11 drift flights parted from the
+base, three worse at their worst by 2-27 mm and one better by 7 mm, the
+takes on open ground moving a belief a few centimetres either way; with it
+measured from the pose asked about, one (a take 0.09 m off the truth where
+the base was 0.15). From the mall's station the takes without the gain put
+the robot 0.01-0.03 m off in the storeroom where the base was 0.27-0.30 --
+a leg that turns with the CPU on both trees (on two EPYC 9554s, before the
+review's fixes, both went 0.9-1.0 m off alike and the chest failed): #681's
+call 3, a fix under `ASKEW` keeping a map laid askew.
+
+**What is true now.** `tests/test_scan_match.py` pins it on synthetic scans:
+a storeroom whose side walls hold while its end walls disagree by 0.3 m is
+taken back and laid in, at `DOUBT_FOUND_SHARE`'s bar; the same storeroom
+with a copy laid 0.3 m along the counter, where a right belief's fit has
+under 0.8 of its points on walls and the search finds the copy, keeps the
+belief; a full fit is doubted where its weakest direction rests on under
+`DOUBT_WEAK_SHARE` of its points and not over; a slid fit's search is taken
+only within `DOUBT_SLID_M` of where it slid; a run of doubted scans is
+searched once in `DOUBT_EVERY`, the count kept across a restart and
+started afresh at a fix or a relocation, never at `fuse_next`; a take the
+rule would doubt again is refused, and one that gains under `DOUBT_GAIN`
+over the fit it would replace; in a
+corridor fenced in panels a metre apart the search takes no place another
+explains as well, and a fit it finds nothing for keeps its own correction;
+a corridor with a post the map lacks, a tenth of the scan, is doubted
+(`DOUBT_HELD_SHARE`); a straight corridor held along is laid in; and a slid
+or doubted fit gets the doubt's search, an inconsistent one the base's. The
+drift rows' `matched.ok` counts no doubted fit: across the periods, `ok`
+before is `ok` + `doubted` + the doubt's `found` after (an inconsistent
+fit's `found`, the base's, is rare: none in its 60 drift flights), and the
+instruments count all three (`FIT_TAKEN`).
+
+**Not done.** A drag past the search's 0.6 m (the live 1.1 m of 13:56): the
+wide search or the station. The slow creep (0.2 m and 2 deg an hour with
+every scan matched, Rowan charging and in `DONE`): not explained. A fix
+under `ASKEW` keeps an askew map (the mall's leg). An error toward a wall
+whose far side was never seen is not doubted: its points land on unseen
+cells, no information, so the fit reads 0.93-1.00 on walls (the review's
+dead end mapped from one side: 0.3 m toward its end kept in 44 cases of
+45). A copy already in a kept map goes only with the map (a true death, a
+stand-up, a `MAP_EPOCH` bump or a world whose geometry changed); it no
+longer moves a right belief the base's fit kept, and from a belief 0.2 m
+off on Luca's map of 11-09 one pose of 40 was searched onto the copy where
+the base's fit ended 0.1 m off. The base's own search, from an
+`inconsistent` fit, still takes the best of two places that explain a scan
+alike, and the doubt's beyond its window.
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

@@ -584,8 +584,8 @@ def test_a_getup_sees_the_joints_it_drives(head, npz):
   # #679: a get-up's inputs are the joints it drives (getup3's 78, carried on
   # since the waist), and the served runtime builds them off the joints its
   # file lists -- but mjlab lists every joint of the body (25 since the
-  # waist), so `quad_train.export --sees driven` writes the ones it sees.
-  # Exported without it, the get-up built 80 inputs for a 78-input net.
+  # waist), so `quad_train.export` writes the ones its task's actor names.
+  # Exported over every joint, the get-up built 80 inputs for a 78-input net.
   from pluggybot.humanoid.getup import GETUP_NPZ, GetupDriver
   from pluggybot.humanoid.policy import StandPolicy
   model, _ = head

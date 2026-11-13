@@ -71,6 +71,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from station_spike import _life, zone_of  # noqa: E402  (the house as the station's trials fly it)
 
 from pluggybot.lifecycle import Stuck  # noqa: E402
+from pluggybot.mapping.scan_match import FIT_TAKEN  # noqa: E402
 
 #: A row of the belief against the truth this often, sim s.
 EVERY_S = 5.0
@@ -650,12 +651,19 @@ def done(seconds: float = 300.0, wait: bool = True, hold: bool = True) -> dict:
   due[0] = 0.0
   sample()
   waiting = [r for r in rows if r["state"] == "DONE"]
-  ok = [r["matched"].get("ok", 0) for r in waiting] or [0]
+  ok = [scans_taken(r["matched"]) for r in waiting] or [0]
   return {"seconds": seconds, "wait": wait, "hold": hold,
           "doneFromS": waiting[0]["t"] if waiting else None, "endS": ends[0]["sim_time"],
           "headingWorstDeg": max((abs(r["headingDeg"]) for r in waiting), default=None),
           "errWorstM": max((r["errM"] for r in waiting), default=None),
           "matchedWaiting": ok[-1] - ok[0], "rows": rows, "wallS": round(time.time() - wall, 1)}
+
+
+def scans_taken(matched: dict) -> int:
+  """How many of a matcher's verdicts (`match_counts`) were a scan its fit
+  took, as it came or as the doubt's search found it (`scan_match.FIT_TAKEN`:
+  what was ok's before #681)."""
+  return sum(matched.get(k, 0) for k in FIT_TAKEN)
 
 
 def still_report(run: dict) -> None:
@@ -783,7 +791,7 @@ def zone_report(runs: list[dict]) -> None:
           f"{t['holdDeg'] / max(mins, 1e-9):5.2f} "
           f"{t['matcherDeg'] / max(mins, 1e-9):5.2f}         | "
           f"{100 * t['legsM'] / metres:5.1f} {100 * t['headingM'] / metres:5.1f} "
-          f"{100 * t['matcherM'] / metres:5.1f}      | {100 * v.get('ok', 0) / n:4.0f} "
+          f"{100 * t['matcherM'] / metres:5.1f}      | {100 * scans_taken(v) / n:4.0f} "
           f"{100 * v.get('held', 0) / n:4.0f} {100 * none / n:4.0f} {100 * refused / n:7.0f}"
           f"            | {t['returns'] / n:5.0f}")
 

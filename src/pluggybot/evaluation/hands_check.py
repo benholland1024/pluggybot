@@ -319,7 +319,11 @@ PLACE = '''def place_cube():
 #: its grip (#627: the reach plans where the robot stands), the plate
 #: gripped 1.5 cm inside its wall (at it, a pad brushed the fork over), the
 #: fork at 25 N (chosen before #628, when the drive's chatter batted it from
-#: 40); every precise move a pull (`go`: a carry takes only a posture its
+#: 40), the plate at 40 -- ⚠ a CARRIED plate is squeezed at 80 (#682, Ben's
+#: call 3: at 40 a 0.5 kg plate dropped in 8 of 20 walked carries of 13 m), but
+#: this lay walks nothing, and at 80 it laid 77 of 96 set-outs where 40 laid
+#: 82, paired on one pod, the 5 lost all the fork's, knocked out after the
+#: plate (SimNotes, "Carrying, served"); every precise move a pull (`go`: a carry takes only a posture its
 #: statue reaches); each piece set down by where its jaws left it, the card
 #: read again once it is up, the plate 1 cm to the right and the fork 0.5 cm
 #: nearer the robot against what the carry's turn leaves; an open hand
