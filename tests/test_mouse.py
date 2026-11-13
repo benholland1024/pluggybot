@@ -10,8 +10,9 @@ What these pin, each without a mission (docs/Testing.md):
      and re-arms on leaving; the mocap mouse moves with the state and
      stands up again after its side; the counts; the shock plate switched
      off in the house.
-  2. Sensed off the real house: a plate's joint sensor trips the act; a
-     robot beside the cage is company and one on a plate is not; the state
+  2. Sensed off the real house: a robot standing on a plate trips the act
+     through the plate's load; a robot beside the cage is company and one on
+     a plate is not; the state
      is seen while the cage is in the head camera's picture (#605) -- never
      off the room the robot stands in -- and is `None` otherwise, as a
      segmentation render of that picture says.
@@ -36,7 +37,7 @@ from pluggybot.activity import cage as cg
 from pluggybot.activity.cage import (
   ACTS, CLOCKS, COMPANY_M, COMPANY_S, MOUSE_STATES, TRANSITIONS, Cage, mouse_poses,
 )
-from pluggybot.activity.plate import PLATE_TRAVEL
+from pluggybot.activity.plate import LOAD_OFF_N, LOAD_ON_N
 from pluggybot.economy import energy as en
 from pluggybot.economy import scoring
 from pluggybot.economy.ledger import Ledger
@@ -219,21 +220,31 @@ def _place(model, data, x, y, yaw=math.pi / 2):
   mujoco.mj_forward(model, data)
 
 
-def test_a_plates_joint_sensor_trips_the_act_and_hysteresis_holds_it(home_model):
+def test_a_robot_on_a_plate_presses_it_through_its_load_and_hysteresis_holds_it(home_model):
+  """The lab's plates are the floor's own squares, read off their loads
+  (#684): the robot set down standing on the shock plate presses it through
+  the solver -- its flag, the mouse's state, its count and the press, THIS
+  robot's -- and a load between off and on holds the press. Under the
+  plate's 10 kg nothing presses it."""
   cage, data = _cage(home_model)
-  adr = home_model.joint("lab_shock_plate_joint").qposadr[0]
-  data.qpos[adr] = -PLATE_TRAVEL
-  mujoco.mj_forward(home_model, data)
+  adr = cage.sensor_adr["shock"]
+  data.sensordata[adr] = 0.9 * LOAD_ON_N
   cage.sense(home_model, data)
+  assert cage.flags["shock"] is False and not cage.presses
+  _place(home_model, data, *cg.plate_center(home_model, "shock"))
+  for _ in range(round(0.3 / home_model.opt.timestep)):
+    mujoco.mj_step(home_model, data)
+    cage.sense(home_model, data)
+  assert cage.load(data, "shock") > LOAD_ON_N
   assert cage.flags["shock"] is True and cage.state == "on_its_side"
-  data.qpos[adr] = -0.004                       # between off (3 mm) and on (6 mm)
-  mujoco.mj_forward(home_model, data)
+  [press] = cage.presses
+  assert (press["plate"], press["robot"], press["before"]) == ("shock", FIRST.root, "resting")
+  data.sensordata[adr] = (LOAD_ON_N + LOAD_OFF_N) / 2
   cage.sense(home_model, data)
   assert cage.flags["shock"] is True, "hysteresis holds the press"
-  data.qpos[adr] = 0.0
-  mujoco.mj_forward(home_model, data)
+  data.sensordata[adr] = 0.0
   cage.sense(home_model, data)
-  assert cage.flags["shock"] is False and cage.counts["shock"] == 1
+  assert cage.flags["shock"] is False and cage.counts["shock"] == 1 and cage.press_seq == 1
 
 
 def test_a_robot_beside_the_cage_is_company_and_one_on_a_plate_is_not(home_model):

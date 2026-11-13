@@ -502,9 +502,9 @@ mouse with a state the robot reads — `resting` / `eating` / `playing` /
 `hiding` / `on_its_side` — that a shock changes and that food, a toy and
 company also change, on their own clocks: one table (`TRANSITIONS`) and
 one set of clocks (`CLOCKS`: on its side `SIDE_S` 120 s then hiding
-`HIDE_S` 600 s; eating 180 s; playing 240 s), nothing random. Three sprung
-plates in front of the cage (`shock`, `feed`, `toy`, each the garden
-plate) act on their rising edge; a robot inside `COMPANY_M` (1.0 m) of the
+`HIDE_S` 600 s; eating 180 s; playing 240 s), nothing random. Three
+plates in front of the cage (`shock`, `feed`, `toy`, each the garden's:
+flush with the floor, read off its load) act on their rising edge; a robot inside `COMPANY_M` (1.0 m) of the
 cage for `COMPANY_S` (10 s) is company, once per visit. No picture: the
 state IS what the robot sees, and it sees it only while the cage is in its
 head camera's picture (`Cage.context`, #605; `cageInView` in the `lab`

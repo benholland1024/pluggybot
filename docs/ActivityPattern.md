@@ -88,12 +88,13 @@ The supporting pieces in `activity/base.py`:
 ### 3.1 Sense, never assume
 
 The criterion reads contacts or joint sensors. A commanded gate is a belief;
-a joint past its threshold is a fact. The garden's plate reads a **`touch`
+a joint past its threshold is a fact. Every plate reads a **`touch`
 sensor** -- the load on the floor's square under it, as load cells under a
-plate in a recess read it, never whose foot it is -- and the lab's sprung pads a
-**`jointpos` sensor** rather than `qpos`: the same number today, and not the
-same thing on hardware, where a real plate has a switch or an encoder. Model
-the thing the robot will actually have and the criterion transfers.
+plate in a recess read it, never whose foot it is -- and what moves on a
+joint, a door's hinge or a chest's lid, a **`jointpos` sensor** rather than
+`qpos`: the same number today, and not the same thing on hardware, where a
+real hinge has a switch or an encoder. Model the thing the robot will
+actually have and the criterion transfers.
 
 ⚠ **A plate flush with the floor is read off its load, never its travel**
 (#684): the floor is a plane, which holds a foot up over a pad as anywhere,
@@ -101,16 +102,19 @@ so a flush pad cannot sink under one; and at the floor's own height the
 plane shares the contacts -- a pad's own touch sensor read 49-50 % of a box
 resting on it. So the flush plate is the floor's square, its sensor's zone
 a site on the world body over it, its pad paint that nothing touches
-(hinted `floor_plate`: a `plate`'s rule is a pad that collides). The
-garden's had been the sprung pad 21 mm proud, which the served walker went
-down on and fell over the lamp's pole (SimNotes, "A flight that never got
-up").
+(hinted `floor_plate`: a `plate`'s rule is a pad that collides). Every
+plate had been a sprung pad 21 mm proud: the served walker went down on the
+garden's and fell over the lamp's pole, and from a standstill at the edge
+of the lab's three it stood on the edge for good (SimNotes, "A flight that
+never got up"). Whose foot pressed one is where the contacts its load cell
+reads are (`Cage.presser`).
 
 ### 3.2 Thresholds need hysteresis
 
 A bare threshold on a sprung joint chatters: the plate rings as a load
 crosses it, and a single comparison flips on every ring. Measured on the
-reference plate, one (rover) wheel crossing:
+reference plate when it was sprung (before #684), one (rover) wheel
+crossing:
 
 | | flips |
 |---|---|
@@ -251,14 +255,11 @@ deltas and each shipped a random half of the state changes. Guarded by
    quantised scalar. That decision is the activity.
 2. **Pick the sensed criterion** — which contact or joint sensor answers it —
    and bracket the mechanics so the criterion is reachable but not
-   self-triggering. The plate's spring was chosen by arithmetic at both ends:
-   its own weight (1.47 N) must not reach the 6 mm trigger, and the rover's
-   drive wheel's ~15 N had to pass it comfortably (a walking robot's foot
-   carries more). 1200 N/m gives 1.2 mm of sag and bottoms out under a
-   wheel. Both ends have margin, and both were checked before anything was
-   drawn. The flush plate's load the same way (#684): nothing a job sets out
-   weighs 10 kg, and a sole under a third of the humanoid's weight presses
-   it (`test_activity.py`); its foot crossing peaked at 476-853 N.
+   self-triggering. The plate's load was chosen by arithmetic at both ends
+   (#684): nothing a job sets out weighs 10 kg, and a sole under a third of
+   the humanoid's weight presses it (`test_activity.py`); its foot crossing
+   peaked at 476-853 N. Both ends have margin, and both were checked before
+   anything was drawn.
 3. **Write the module**: geometry emitter + `Activity` subclass, together.
 4. **Add it to a world generator** — one import, one call, and regenerate.
 5. **Demo with a filmstrip**, and *sweep the camera*: pick the angle by

@@ -11,7 +11,7 @@ import pytest
 from pluggybot.activity.base import (
   Activity, ActivitySet, GeomToggle, MocapToggle, Threshold,
 )
-from pluggybot.activity.plate import LOAD_PAINT_HALF, PLATE_REST_Z, PlateLight, plate_light_xml
+from pluggybot.activity.plate import LOAD_PAINT_HALF, PlateLight, plate_light_xml
 from pluggybot.humanoid import world as hw
 from pluggybot.telemetry.protocol import PROTOCOL_VERSION
 from pluggybot.telemetry.recorder import FrameBuilder
@@ -101,10 +101,6 @@ def test_geom_pos_does_nothing_on_a_body_welded_to_the_world(home_model):
   the garden gate, already did -- issue #93).
   """
   data = mujoco.MjData(home_model)
-  gid = home_model.geom("lab_feed_plate_pad").id    # a pad on a JOINTED body
-  bid = home_model.geom_bodyid[gid]
-  assert home_model.body_weldid[bid] != 0, "the plate should not be welded"
-
   fence = home_model.geom("fence_east_0_geom")      # welded scenery
   fid, fbid = fence.id, home_model.geom_bodyid[fence.id]
   assert home_model.body_weldid[fbid] == 0, "the fence should be welded"
@@ -160,28 +156,25 @@ def test_mocap_toggle_refuses_a_non_mocap_body():
 
 # ---- the reference activity -------------------------------------------------
 
-def test_the_gardens_plate_is_flush_with_the_floor_and_the_labs_are_not(home_model):
-  """#684 (Ben's call, 2026-11-12): the garden's pad, 21 mm proud on a
-  spring, tripped the served walker onto the lamp's pole; now its top is the
-  floor's -- nothing of it moves or touches anything, its pad paint over the
-  garden's grass, its load read off the floor's own square. The lab's three
-  are the sprung pad as they were (`plate_xml`'s default)."""
+def test_every_plate_is_flush_with_the_floor(home_model):
+  """#684 (Ben's calls, 2026-11-12): the garden's pad, 21 mm proud on a
+  spring, tripped the served walker onto the lamp's pole, and the lab's three,
+  the same pad, stalled it at their edge from a standstill; now each plate's
+  top is the floor's -- nothing of it moves or touches anything, its pad
+  paint over the ground's, its load read off the floor's own square."""
   data = mujoco.MjData(home_model)
   mujoco.mj_forward(home_model, data)
-
-  def top(prefix):
-    g = home_model.geom(f"{prefix}_plate_pad").id
-    return data.geom_xpos[g][2] + home_model.geom_size[g][2]
-  pad = home_model.geom("garden_plate_pad").id
-  assert home_model.body("garden_plate").jntnum == 0
-  assert home_model.geom_contype[pad] == home_model.geom_conaffinity[pad] == 0
-  assert top("garden") <= 2 * LOAD_PAINT_HALF + 1e-9, "paint, never a step"
-  zone = home_model.site("garden_plate_zone").id
-  assert home_model.site_bodyid[zone] == 0 and data.site_xpos[zone][2] == 0.0, \
-    "the floor's own square"
-  for name in ("shock", "feed", "toy"):
-    assert top(f"lab_{name}") == pytest.approx(PLATE_REST_Z + 0.005, abs=1e-9)
-    assert home_model.body(f"lab_{name}_plate").jntnum == 1
+  for prefix in ("garden", "lab_shock", "lab_feed", "lab_toy"):
+    pad = home_model.geom(f"{prefix}_plate_pad").id
+    assert home_model.body(f"{prefix}_plate").jntnum == 0, prefix
+    assert home_model.geom_contype[pad] == home_model.geom_conaffinity[pad] == 0, prefix
+    top = data.geom_xpos[pad][2] + home_model.geom_size[pad][2]
+    assert top <= 2 * LOAD_PAINT_HALF + 1e-9, f"{prefix}: paint, never a step"
+    zone = home_model.site(f"{prefix}_plate_zone").id
+    assert home_model.site_bodyid[zone] == 0 and data.site_xpos[zone][2] == 0.0, \
+      f"{prefix}: the floor's own square"
+    sensor = home_model.sensor(f"{prefix}_plate_load")
+    assert sensor.type[0] == mujoco.mjtSensor.mjSENS_TOUCH and sensor.objid[0] == zone
 
 
 def test_a_flush_plate_with_nothing_on_it_reads_nothing(home_model):

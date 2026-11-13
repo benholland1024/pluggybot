@@ -23,15 +23,17 @@ from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
 def _plate_world(on_pad: str = "pluggybot"):
-  """A floor, the lab's cage and plates at the origin, one robot (a 1.5 kg
-  block) standing on the feed pad's corner and the other beside the pad
-  and NEARER its centre, touching nothing of it."""
+  """A floor, the lab's cage and plates at the origin, one robot (a 15 kg
+  block, over the plate's `LOAD_ON_N`) standing in the feed plate's corner
+  and the other beside the plate, NEARER its centre and the cage's, touching
+  nothing of it: the plate is the floor's square, so whose it is is where
+  its contacts are."""
   body, sensors = cg.cage_xml((0.0, 1.2))
-  at = {on_pad: (0.18, 0.18, 0.08)}
-  at[next(r for r in ("pluggybot", "r2_pluggybot") if r != on_pad)] = (0.25, 0.0, 0.04)
+  at = {on_pad: (0.175, 0.175, 0.03)}
+  at[next(r for r in ("pluggybot", "r2_pluggybot") if r != on_pad)] = (0.0, 0.225, 0.03)
   robots = "".join(f"""
     <body name="{name}" pos="{x} {y} {z}"><freejoint/>
-      <geom type="box" size="0.03 0.03 0.03" mass="1.5"/></body>"""
+      <geom type="box" size="0.02 0.02 0.02" mass="15"/></body>"""
                    for name, (x, y, z) in sorted(at.items()))
   xml = f"""<mujoco><option timestep="0.002"/><worldbody>
     <geom name="floor" type="plane" size="5 5 0.1"/>{body}{robots}

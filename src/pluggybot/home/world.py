@@ -1071,11 +1071,12 @@ def build_home_world() -> tuple[str, dict]:
   bodies.append(cage_body)
   hints["lab_cage"] = "cage"
   hints["lab_mouse"] = "mouse"
-  # The lab's three plates are what the robot ACTS on the cage with (#226);
-  # each pad says which act, so a visitor can tell them apart. The robot is
-  # told nothing here: the glyph is the site's and its cameras never see it.
+  # The lab's three plates are what the robot ACTS on the cage with (#226),
+  # flush with the floor as the garden's is (`floor_plate`, #684); each pad
+  # says which act, so a visitor can tell them apart. The robot is told
+  # nothing here: the glyph is the site's and its cameras never see it.
   for name in PLATE_NAMES:
-    hints[f"lab_{name}_plate"] = "plate"
+    hints[f"lab_{name}_plate"] = "floor_plate"
     plates[f"lab_{name}_plate"] = {"purpose": name}
   bodies.append(bench_xml(LAB_BENCH_XY))
   hints["lab_bench"] = "table"
