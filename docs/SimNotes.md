@@ -7572,22 +7572,35 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
   piece pokes 0.10-0.15 m past the inflation on its side, and its outer edge
   past the front stop's half-width, so a walk that hugs a jamb on the
   carrying side would strike it. Not changed (the pass's route has no door).
-- **The bar's reading: NOT MET.** The bar was written before any flight (24
-  of 32 draws over the tour, a fall failing the try, on walk2 and on the
-  carry walker, one pod, then 32 held-out draws each, sealed by the frozen
-  commit). At b531491 (the cup aimed 2.5 cm short), on one pod (an AMD EPYC
-  7B13, osmesa): walk2 0 of 32, the carry walker 0 of 32; held out, 1 of 32
-  (laid in 421 s) and 0. The first piece not laid, a flight (walk2's bar and
-  held-out draws, then the carry walker's): the cup let go while carried 20
-  and 13, 16 and 17; a put-down off its place, or its reach failing, 9 and
-  8, 6 and 9; a pick-up at the pass that failed 1 and 6, 8 and 4; a walk
-  that never got there 2 and 4, 0 and 0; a fall 0 and 0, 2 and 2. Over
-  walk2's 64 the plate was laid in 32, the cup in 11 and the fork in 13, the
-  fork set down 3-6 cm off its place in 21 (3 cm in 12); on the carry walker
-  the plate's put-down reach failed in 23 and 21 of 32 (no posture, stopped
-  short, a fall): its walk leaves the card a median 0.46 m ahead and 6 cm to
-  its right, where walk2's leaves it 0.52 ahead and 5 cm to its left, and
-  the reference's put-downs are walk2's stances.
+- **The bar's readings: NOT MET.** Written before any flight (24 of 32 draws
+  over the tour, a fall failing the try, on walk2 and on the carry walker,
+  one pod, then 32 held-out draws each, sealed by the frozen commit), and
+  read twice on one pod (an AMD EPYC 7B13, osmesa):
+  - At b531491 (the cup aimed 2.5 cm short): walk2 0 of 32, the carry walker
+    0; held out, 1 (laid in 421 s) and 0. The first piece not laid, a flight
+    (walk2's bar and held-out draws, then the carry walker's): the cup let
+    go while carried 20 and 13, 16 and 17; a put-down off its place, or its
+    reach failing, 9 and 8, 6 and 9; a pick-up at the pass that failed 1 and
+    6, 8 and 4; a walk that never got there 2 and 4, 0 and 0; a fall 0 and
+    0, 2 and 2.
+  - At 0804ecc (the cup gripped at its middle, each put-down moved by where
+    dev flights set its piece down, the cup pulled back to 0.29 m): walk2 10
+    of 32, the carry walker 0; held out (sealed by 0804ecc), 6 and 0; each
+    laid in 413-516 s. Over walk2's 64 the cup was laid in 29 (11 before),
+    the plate in 36 (32) and the fork in 37 (13), and a cup let go carried
+    in 1 (34 before). Walk2's first piece not laid, the bar's draws and the
+    held-out: a put-down off its place 13 and 16 -- the cup's, set down a
+    median 1.5 cm right of its spot and up to 7 cm either side of it; a
+    pick-up at the pass 4 and 8 (the plate came down as its grip shut, near
+    the pass's edge, 14 times in the 64); a fall 3 and 0 (the fork's pull
+    back from the pass felled the robot 3 times in each reading's bar
+    draws); a cup let go by the walk's hand-over 2 and 0 (its pull back
+    still ran out of reach in 4).
+  - The carry walker laid no place in either: the plate's put-down reach
+    failed in 23 and 21 of 32, then 24 and 23 (no posture, stopped short, a
+    fall): its walk leaves the card a median 0.46 m ahead and 6 cm to its
+    right, where walk2's leaves it 0.52 ahead and 5 cm to its left, and the
+    reference's put-downs are walk2's stances.
 
 ## The arms keep off the other robot (issue #678)
 

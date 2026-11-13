@@ -906,7 +906,10 @@ save a filmstrip PNG named after the script.
   in 37 of 42 legs) and ⚠ grips the cup AT ITS MIDDLE (aimed 2.5 cm short,
   as the table check's 3, the cup's side met each pad only at the
   fingertip's corner and carried, it crept out of the jaws in 20 of 32
-  flights a walker; at the middle none of 64: `test_solutions`).
+  flights a walker; at the middle none of 64: `test_solutions`). ⚠ ITS BAR
+  (24 of 32 over the tour, walk2 and the carry walker) IS NOT MET: 10 of 32
+  on walk2 at its best, held out 6, the carry walker 0 (its stances at the
+  table are walk2's).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).

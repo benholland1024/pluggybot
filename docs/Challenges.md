@@ -491,8 +491,11 @@ the served ones, nothing added. NOT OFFERED -- no world's cadence names it --
 and paid nothing (`shown: false`): its reference (`solutions.PASS`, three runs
 over the procedures they call, `solutions.LIBRARY`) flew against a bar
 written before it, on the table's terms -- 24 of 32 draws over the tour, a
-fall failing its try, on walk2 and on the carry walker, one pod -- and
-offering it is Ben's call (SimNotes, "The place laid from the pass", has
+fall failing its try, on walk2 and on the carry walker, one pod -- and did
+NOT meet it: 0 of 32 on each walker at first; then, its cup gripped at its
+middle and its put-downs moved, 10 of 32 on walk2 and 0 on the carry walker
+(held out, 6 and 0).
+Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
