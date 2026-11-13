@@ -10,6 +10,53 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The lab's plates flush with the floor, and the memory alarm's warm-up five samples (#684's call 3) — opens when this PR is deployed
+
+**What changed in the world.** The lab's three pressure plates (`shock`,
+`feed`, `toy`), sprung pads 21 mm proud since #215, are flush with the
+floor as the garden's has been since #684: each the floor's own square read
+off its load (`plate.LOAD_ON_N`, 100 N on, 50 off), its pad paint nothing
+touches (`floor_plate`; ActivityPattern.md §3.1). The cage's acts, its
+state machine and its flags are as they were, the house's shock plate still
+switched off; a press is still the robot whose foot is on it, read off the
+contacts over the plate's square. Flown with the served walker
+(walk2), the last loop's walks: from a standstill 4 cm off a plate's edge
+it walks what it walks on bare floor (0.18 m of a 0.3 m ask, 0.49 of 0.6,
+the same to the centimetre 1 m off the plates), and every start pressed
+the plate, where on the sprung pads all 9 stood on the edge (0.07 and
+0.11 m) and pressed none; walking across them at speed, no fall either way,
+every crossing pressed -- a load plate about once a footfall on it, 1-3
+presses a crossing where the pads made 1-2.
+- **The geometry changed** (`continuation.fingerprint`: three slide joints
+  and three pads gone): the first process of this build keeps the clock,
+  the packs, the deaths and the jobs, and drops both robots' bodies and
+  maps, as the deploy that carried the garden's plate did.
+- Nothing the robots read moved: `prompt_sha` `b345cc34…` both sides
+  (66,029 chars, 17 sections); the session host's hello byte for byte.
+- **The memory alarm's warm-up is five samples, not three**
+  (`vitals.WARMUP_MINUTES`; Webserver.md, "When the process dies"): no row
+  moves. A process that loads the grown world over four minutes, as the one
+  of 2026-11-12 19:17 UTC did (173 MiB to 1.3 GB), no longer prints a false
+  `RUNAWAY`; a runaway once the world is loaded is still reported at its
+  second minute.
+
+**Why.** #684's call 3 (Ben's, for this loop): from a standstill at the
+edge of a lab plate the served walker stood on its edge for good (all 9 of
+the last loop's starts went 0.07-0.24 m), where on the flush garden plate
+none did. The warm-up: the 11-12 wake's second false alarm.
+
+**What the period is for.**
+- **The lab's presses** (`press` rows, the cage's counts): a walk across
+  the feed or the toy plate still presses it, about once a footfall on it
+  (1-3 a crossing; count crossings, never presses, against the periods
+  before), and one begun at a plate's edge goes on. A press is a foot's
+  100 N: one that never comes from a robot walking a plate's middle is a
+  fault of this change.
+- **No fall on a lab plate**: none came on the sprung pads walking at
+  speed, and none should come now.
+- A `RUNAWAY` line in a process's first five minutes is no longer printed;
+  read the `vitals: rss` lines for a runaway at boot.
+
 ### One robot's interrupt asked, the other robot held (#690) — opens when this PR is deployed
 
 **What changed is the pair's loop while one robot's mid-errand interrupt

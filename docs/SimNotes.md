@@ -7824,7 +7824,14 @@ lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
   on the raised pad, none fell either, but all 9 begun at its edge and 3 of
   the 15 stood on its edge for good (0.10-0.25 m); the lab's three, the
   same 21 mm sprung pad, were crossed 21 times at speed, and stalled all 9
-  edge starts.
+  edge starts (0.07 m of a 0.3 m ask, 0.11 of 0.6).
+- The lab's three are flush too (#684's call 3): from those 9 starts the
+  walker walks what it walks on bare floor 1 m off them (0.18 m of 0.3,
+  0.49 of 0.6), each start pressing its plate, and crossed at speed 19
+  times it never fell. A load plate presses about once a footfall on it:
+  1-3 presses a crossing (the cage counted 41 acts over 19 crossings, the
+  sprung pads 27 over 21), each the robot's whose contacts are over the
+  square.
 
 ## The storeroom keeps an error, and a match the walls only partly agree with is searched (issue #681)
 
