@@ -688,9 +688,13 @@ def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
       if state == "walk":
         return (yield from luca.body.go_to_routine(*LOBBY_GOAL, timeout=60.0))
       if state == "reach":
+        # ...the right hand out ahead at a counter's height, and kept there
         x, y, h = luca.body.pose
-        return (yield from luca.body.reach_routine(
-          "right", (x + 0.42 * math.cos(h), y + 0.42 * math.sin(h), 0.95)))
+        c, s = math.cos(h), math.sin(h)
+        held = yield from luca.body.reach_routine(
+          "right", (x + 0.40 * c + 0.20 * s, y + 0.40 * s - 0.20 * c, 0.95))
+        yield from luca.body.hold_routine(ASK_AT_S + ask_s + 5.0)
+        return held
       if state == "getup":
         h = luca.body.true_pose()[2] + math.pi
         for _ in range(int(round(SHOVE_S / luca.model.opt.timestep))):
@@ -717,22 +721,30 @@ def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
       rowan.overseer = _Asked(data, ask_s)
       rowan._interrupt_pending = ev.Row(event="battery_below", action=ev.ASK, value=0.2)
       ask["t0"], ask["steps0"] = float(data.time), m._steps
+      out["atAsk"] = {"legs": m.legs, "working": bool(luca.body.working),
+                      "charging": bool(luca.body.charging())}
       ask["carried"] = not rowan.interrupted()
       ask["t1"], ask["steps1"] = float(data.time), m._steps
       rowan.overseer = None
       yield from hold(rowan, 2.0)
 
-    got = tick.run_many([(luca.body.stepper, doing()), (rowan.body.stepper, asking())],
-                        name="pair", waits=[lambda: hold(luca, 1.0), lambda: hold(rowan, 1.0)])
-    t1 = float(data.time)
-    while m.legs == "getup" and float(data.time) - t1 < GETUP_WAIT_S:
-      tick.run_many([(luca.body.stepper, hold(luca, 0.1)), (rowan.body.stepper, hold(rowan, 0.1))])
-    tick.run_many([(luca.body.stepper, hold(luca, STOOD_S)), (rowan.body.stepper, hold(rowan, STOOD_S))])
+    got = [None]
+    try:
+      got = tick.run_many([(luca.body.stepper, doing()), (rowan.body.stepper, asking())],
+                          name="pair", waits=[lambda: hold(luca, 1.0), lambda: hold(rowan, 1.0)])
+      t1 = float(data.time)
+      while m.legs == "getup" and float(data.time) - t1 < GETUP_WAIT_S:
+        tick.run_many([(luca.body.stepper, hold(luca, 0.1)), (rowan.body.stepper, hold(rowan, 0.1))])
+      tick.run_many([(luca.body.stepper, hold(luca, STOOD_S)),
+                     (rowan.body.stepper, hold(rowan, STOOD_S))])
+    except Stuck as stuck:
+      out["stuck"] = stuck_row(stuck)
     during = [r for r in rows if r["asking"]]
     (bx, by, bh), (tx, ty, th) = m.pose, m.true_pose()
-    out.update(asked=[round(ask["t0"], 3), round(ask["t1"], 3)], carriedOn=ask["carried"],
-               stepped=ask["steps1"] - ask["steps0"],
-               steps=round((ask["t1"] - ask["t0"]) / luca.model.opt.timestep),
+    t0, t1 = ask.get("t0", float(data.time)), ask.get("t1", float(data.time))
+    out.update(asked=[round(t0, 3), round(t1, 3)], carriedOn=ask.get("carried"),
+               stepped=ask.get("steps1", m._steps) - ask.get("steps0", m._steps),
+               steps=round((t1 - t0) / luca.model.opt.timestep),
                routine=str(got[0]), falls=m.falls, legs=m.legs,
                tiltDuring=max((r["tilt"] for r in during), default=None),
                end=[round(math.hypot(bx - tx, by - ty), 3), round(math.degrees(wrap(bh - th)), 2)],
@@ -745,6 +757,10 @@ def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
 
 
 def asked_report(run: dict) -> None:
+  if "stuck" in run:
+    s = run["stuck"]
+    print(f"== --asked {run['state']}: STUCK -- fell at t={s['fellT']:.1f} in the {s['zone']}, "
+          f"still getting up {s['t'] - s['fellT']:.0f} s on: the flight ended there")
   print(f"== --asked {run['state']}: the other robot's interrupt asked {run['asked'][0]:.1f}-"
         f"{run['asked'][1]:.1f} s ({run['askS']:g} s, carried on: {run['carriedOn']}); this "
         f"robot's physics stepped {run['stepped']} of the ask's {run['steps']} steps, its "
