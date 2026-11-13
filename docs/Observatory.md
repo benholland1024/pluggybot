@@ -21,8 +21,8 @@ state machine and its flags are as they were, the house's shock plate still
 switched off; a press is the robot whose weight pressed it, read off the
 contacts its load cell reads (the most of the load), where it was the
 first robot with a contact on the pad. Flown with the served walker
-(walk2), the last loop's walks: from a standstill 4 cm off a plate's edge
-it walks what it walks on bare floor (0.18 m of a 0.3 m ask, 0.49 of 0.6,
+(walk2), the last loop's walks: from a standstill, its toes at a plate's
+edge, it walks what it walks on bare floor (0.18 m of a 0.3 m ask, 0.49 of 0.6,
 the same to the centimetre 1 m off the plates), and every start pressed
 the plate, where on the sprung pads all 9 stood on the edge (0.07 and
 0.11 m) and pressed none; walking across them at speed, no fall either way,

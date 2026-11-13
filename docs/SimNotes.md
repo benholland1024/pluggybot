@@ -7820,7 +7820,7 @@ lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
   where it had fallen, its pelvis at 0.725 m at the lowest, and five times
   more, the lamp lit at 115.4 s; it explored, walked both trips and docked
   with no fall. Of the served walker's straight walks, none fell on the
-  flush plate (15 crossings, 9 begun at a standstill 4 cm off its edge);
+  flush plate (15 crossings, 9 begun at a standstill, the toes at its edge);
   on the raised pad, none fell either, but all 9 begun at its edge and 3 of
   the 15 stood on its edge for good (0.10-0.25 m); the lab's three, the
   same 21 mm sprung pad, were crossed 21 times at speed, and stalled all 9
