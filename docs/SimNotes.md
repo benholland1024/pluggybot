@@ -1952,14 +1952,15 @@ over the sole it stands on (shoved hard from the front, the standing
 policy folded into a squat 32 deg off upright, and the tilt alone never
 fired), and hands back once it has stood still 0.5 s. Shoved 45 N*s each of
 six ways on a bare floor, by our grading off the world (the waist's body,
-11-13; a get-up's peaks to its first stand):
+11-13; a get-up's peaks to its first stand, the waist held home as the
+mission holds it):
 
 | falling as | stood | the head struck at, m/s (the floor's push back, kN) | gears past their part's peak | the hardest into a hard stop |
 |---|---|---|---|---|
 | the standing policy | never | 5.0-5.4 (1.6-8.9) in four falls of six | 4-8 joints, to 4.3x (an elbow) | 577 N*m |
 | limp | never | 0.4-6.0 (to 8.5) in all six | 0-4 joints, to 4.2x | 384 N*m |
-| the get-up policy | all six, 2.9-3.7 s | 0.6-5.4 (to 5.9) in two; in four not at all | 1-8 joints, to 1.3x | 569 N*m |
-| getup3, served until #679 | all six, 3.1-3.7 s | 0.1-6.1 (to 7.3) in three | 3-9 joints, to 1.7x | 417 N*m |
+| the get-up policy | all six, 2.9-3.7 s | 4.0-5.4 (to 5.9) in two; in four not at all | 1-8 joints, to 1.3x | 570 N*m |
+| getup3, served until #679 | all six, 3.1-3.8 s | 0.1-6.0 (to 4.6) in three | 3-9 joints, to 1.7x | 416 N*m |
 
 From lying it stood in 2.2 s off its back, 2.0 off its front and 2.9 off
 its side (getup3 2.9, 2.3 and 2.9). The kilonewtons are MuJoCo's soft contact -- the shape of a

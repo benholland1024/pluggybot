@@ -3929,7 +3929,8 @@ from pluggybot.navigator import footprint_middle  # noqa: E402
 from pluggybot.perception.lidar import robot_geoms  # noqa: E402
 
 #: A get-up's fall is flown until its `stuck` clock settles (`StuckClock`),
-#: this long from the shove (or the lying start) at most, s.
+#: this long from its first take at most, s: the first struggle settles
+#: within `GETUP_BUDGET_S` and `STOOD_AGAIN_S` of it.
 CLOCK_CAP_S = 60.0
 
 
@@ -4034,7 +4035,7 @@ class Served:
     before any get-up, and from the first till the clock settles."""
     if not self.getups:
       return t < watch
-    return not self.clock.settled and t < CLOCK_CAP_S
+    return not self.clock.settled and t < self.getups[0][0] + CLOCK_CAP_S
 
   def row(self) -> dict:
     return {"getups": self.getups, "clock": self.clock.verdict(),
@@ -4128,7 +4129,8 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS,
     if served is not None and served.f is not None:
       served.step()
     elif took_over is not None and mode == "getup":
-      getup.step(trunk_stepped=False)
+      h.reach.hold_waist()  # as the mission holds it (`Falling.step`)
+      getup.step()
       mujoco.mj_step(m, d)
       if getup.stood and stood_at is None:
         stood_at = d.time - t0
@@ -4366,7 +4368,8 @@ COUNTER_WAYS = {"front": (1, 0), "front-left": (1, 1), "front-right": (1, -1),
                 "left": (0, 1), "right": (0, -1), "back": (-1, 0)}
 
 
-def counter_fall_trial(prop: str, way: str, npz: str | None = None, ns: float = FALL_NS) -> dict:
+def counter_fall_trial(prop: str, way: str, npz: str | None = None, ns: float = FALL_NS,
+                       watch_s: float | None = None) -> dict:
   """The robot at `prop`'s work spot on the storeroom's counter (its props
   set out as the world compiles them), shoved `way` at `ns` N*s, its get-up
   policy taking the fall as the mission hands it: when that took over and
@@ -4393,7 +4396,7 @@ def counter_fall_trial(prop: str, way: str, npz: str | None = None, ns: float = 
   vel = np.zeros(6)
   t0, n = d.time, 0
   served = Served(t0, npz, m)
-  while served.going(d.time - t0, HOUSE_FALL_S):   # a shove it stands through: the house's watch
+  while served.going(d.time - t0, watch_s or HOUSE_FALL_S):   # by default the house's watch
     if gen is not None:
       if next(gen, "done") == "done":
         gen = None
@@ -4443,13 +4446,14 @@ def _counter_fall_trial(job):
   return counter_fall_trial(*job)
 
 
-def counter_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+def counter_fall_table(npz: str | None = None, jobs: int = 4,
+                       watch_s: float | None = None) -> list[dict]:
   """--fall, at the counter: each prop's work spot shoved each way, the
   get-up taking it."""
   import multiprocessing as mp
   from pluggybot.home import storeroom
   from pluggybot.humanoid.body import HumanoidBody
-  work = [(p, w, npz) for p in storeroom.PROPS for w in COUNTER_WAYS]
+  work = [(p, w, npz, FALL_NS, watch_s) for p in storeroom.PROPS for w in COUNTER_WAYS]
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
     rows = pool.map(_counter_fall_trial, work)
   budget = HumanoidBody.GETUP_BUDGET_S
@@ -5405,8 +5409,9 @@ def main(argv=None) -> None:
                        "from each bow a reach takes, what the watch says")
   ap.add_argument("--fall-watch", type=float, default=None, metavar="S",
                   help="with --fall: a fall watched S s from the shove while the get-up has not "
-                       "taken it (by default the tables' own: 8 bare, 15 in the house, 6 from a "
-                       "bow); one it takes is flown till #684's clock settles, 60 s at most")
+                       "taken it (by default the tables' own: 8 bare, 15 in the house and at the "
+                       "counter, 6 from a bow; lying, it is handed the body at once); one it takes "
+                       "is flown till #684's clock settles, 60 s from the take at most")
   ap.add_argument("--fall-out", default=None, metavar="JSON",
                   help="with --fall: every table's rows written there")
   ap.add_argument("--fall-ends", nargs="?", const="", default=None, metavar="NPZ",
@@ -5486,7 +5491,7 @@ def main(argv=None) -> None:
     npz, watch = args.fall or None, args.fall_watch
     rows = {"bare": fall_table(npz, jobs=args.jobs, watch_s=watch),
             "house": house_fall_table(npz, jobs=args.jobs, watch_s=watch),
-            "counter": counter_fall_table(npz, jobs=args.jobs),
+            "counter": counter_fall_table(npz, jobs=args.jobs, watch_s=watch),
             "lying": lying_table(npz, jobs=args.jobs),
             "bow": bow_fall_table(npz, jobs=args.jobs, watch_s=watch)}
     if args.fall_out:

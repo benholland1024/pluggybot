@@ -190,7 +190,9 @@ the second round's other run did not): the sit was learned once, by
 getupwall12, and carried on. ⚠ It trained with a bug since fixed (getup.py's
 review): a reset that drew a posed start gave every start drawn with it that
 pose's joint speeds (up to 7.7 rad/s), so some of its lying and tipping
-starts began with their joints swinging.
+starts began with their joints swinging; and a take after a hand-back chose
+its first action seeing the last it had put out while handed back, where
+the served get-up begins a take seeing none (`retake_last_action` since).
 ⚠ A get-up SEES THE JOINTS IT
 DRIVES: over every joint the waist made 80 inputs, where getup3's 78 carry
 on; and mjlab's metadata lists every joint of the body, so the export writes

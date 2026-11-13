@@ -458,6 +458,53 @@ def test_the_fall_tables_read_a_get_up_on_the_clock_the_death_seam_keeps(up):
     assert clock.died == pytest.approx(life.dead["t"] - t0, abs=2 * lc.DEATH_CHECK_S)
 
 
+def _spike():
+  import sys
+  from pathlib import Path
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+  import humanoid_spike
+  return humanoid_spike
+
+
+def test_a_fall_table_flies_a_late_take_its_whole_clock():
+  # #679's review: a fall the get-up takes is flown till #684's clock
+  # settles, `CLOCK_CAP_S` at most FROM THE TAKE: counted from the shove, a
+  # fall taken 45 s in under a long `--fall-watch` was cut 15 s into its
+  # 20 s budget, its clock still open, and the table printed it dead.
+  sp = _spike()
+  served = sp.Served(0.0, None, None)
+  assert served.going(49.0, 50.0) and not served.going(51.0, 50.0)   # its watch, untaken
+  served.took(45.0)
+  assert served.going(45.0 + HumanoidBody.GETUP_BUDGET_S + lc.STOOD_AGAIN_S, 50.0)
+
+
+def test_every_fall_trial_holds_the_waist_while_its_get_up_has_the_legs():
+  # #679's review: the fall tables fly the get-up as the mission does, the
+  # waist walked home and held (`Reach.hold_waist`) at each step the get-up
+  # steps -- the bare floor's first get-up stepped without it, its waist
+  # left to the last command its reach gave.
+  import ast
+  sp = _spike()
+  with open(sp.__file__) as fh:
+    tree = ast.parse(fh.read())
+
+  def call(stmt, name):
+    return (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)
+            and isinstance(stmt.value.func, ast.Attribute) and stmt.value.func.attr == name)
+
+  sites = 0
+  for node in ast.walk(tree):
+    for body in (getattr(node, "body", None), getattr(node, "orelse", None)):
+      if not isinstance(body, list):
+        continue
+      for k, stmt in enumerate(body):
+        if call(stmt, "step") and "getup" in ast.unparse(stmt.value.func.value):
+          sites += 1
+          assert any(call(s, "hold_waist") for s in body[:k]), \
+              f"line {stmt.lineno}: the get-up stepped with its waist unheld"
+  assert sites >= 7
+
+
 def test_a_body_that_rights_itself_lying_with_no_get_up_running_is_down_all_the_same():
   """...and one lying past 60 deg whose get-up does not have its legs (none
   should: the fall watch takes them at 35) is down all the same -- the

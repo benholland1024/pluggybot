@@ -814,17 +814,22 @@ class HandBackAction(JointPositionAction):
     w, b = self.layers[-1]
     return x @ w + b
 
+  def fallen(self) -> torch.Tensor:
+    """Where the body lies as a fall the served watch would take
+    (`RETAKE_DEG`, `RETAKE_M`)."""
+    up, z = _up(self._env), _z(self._env)
+    return (up < math.cos(math.radians(RETAKE_DEG))) | (z < RETAKE_M)
+
   def process_actions(self, actions: torch.Tensor) -> None:
     super().process_actions(actions)
-    data = self._entity.data
     up, z = _up(self._env), _z(self._env)
     stood = (up > STOOD_UP) & ((z - robot.BODY["stand_height"]).abs() < HAND_BACK_M)
-    fell = (up < math.cos(math.radians(RETAKE_DEG))) | (z < RETAKE_M)
+    fell = self.fallen()
     retaken = self.handed & fell
     if bool(retaken.any()):
-      # ...its last action seen as none, as the served get-up begins a take
-      # (`GetupDriver.begin`): what it put out while handed back moved nothing
-      self._env.action_manager._action[retaken] = 0.0
+      # ...a take's first action charged as from none, as it was seen
+      # (`retake_last_action`): what it put out while handed back moved nothing
+      self._env.action_manager._prev_action[retaken] = 0.0
     self.handed &= ~fell
     self.still = torch.where(stood & ~self.handed, self.still + self._env.step_dt,
                              torch.zeros_like(self.still))
@@ -844,6 +849,20 @@ class HandBackAction(JointPositionAction):
     self.handed[ids] = False
     self.still[ids] = 0.0
     self.last[ids] = 0.0
+
+
+def retake_last_action(env) -> torch.Tensor:
+  """The last action, none where the get-up is about to take a fall back
+  from the standing policy (`HandBackAction`): the served get-up begins a
+  take seeing none (`GetupDriver.begin`). ⚠ Read where the retake is
+  decided it came a step late: the take's first action was chosen seeing
+  the last it had put out while handed back, and the next saw none."""
+  action = env.action_manager.action
+  term = env.action_manager.get_term("joint_pos")
+  if not isinstance(term, HandBackAction):
+    return action
+  pending = term.handed & term.fallen()
+  return torch.where(pending[:, None], torch.zeros_like(action), action)
 
 
 def handed_back(env) -> torch.Tensor:
@@ -1066,6 +1085,8 @@ def getup_wall3_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   old = cfg.actions["joint_pos"]
   cfg.actions["joint_pos"] = HandBackActionCfg(
     **{f.name: getattr(old, f.name) for f in dataclasses.fields(old) if f.init})
+  for group in ("actor", "critic"):
+    cfg.observations[group].terms["actions"].func = retake_last_action
   # Handed back is paid and waiting charged, the stand paid only handed back,
   # and the get-up's own charges charged only while it holds the legs (handed
   # back, they read the standing policy's stepping): ⚠ any of the three

@@ -563,11 +563,8 @@ save a filmstrip PNG named after the script.
   TILT (#684: off the tilt past 60 deg, a get-up sitting short of it never
   died), a stand under `STOOD_AGAIN_S` (5 s) between two get-ups one
   struggle on one clock; a fall off the landing, or one that leaves it on
-  its side FRONT TO A FACE within 0.1 m, still ends stuck (#679: the get-up
-  trained on open floor never stood a body lying along the counter or a
-  wall, and the served one, trained beside a box and handing back as the
-  mission does, stands from every other way of lying there; flown, it lives
-  through every fall of #679's 151 the old one did, and 24 more). ⚠ WHERE
+  its side FRONT TO A FACE within 0.1 m, still ends stuck (#679; SimNotes,
+  "The wall get-up's second and third rounds"). ⚠ WHERE
   NOTHING DIES THE SAME CLOCK ENDS THE RUN (`lifecycle.Stuck`, a
   `MissionAborted`; `HubLifecycle.stuck`, the summary's `stuck`): the
   get-up's hold has no budget of its own, and a flight on a lifecycle
