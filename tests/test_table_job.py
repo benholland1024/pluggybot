@@ -557,3 +557,26 @@ def test_a_piece_on_the_pass_reads_lifted_off_the_pass_never_the_table(tmp_path)
   mujoco.mj_forward(life.model, life.data)
   act.sense(life.model, life.data)
   assert act.rest == pytest.approx({p: ct.TABLE_H for p in dw.PIECES}, abs=1e-6)
+
+
+def test_a_place_set_out_in_the_hook_reads_where_it_was_set_out(tmp_path):
+  """The served order (#682's stage C, its second review): an offer sets the
+  place out in the physics hook (`_task_step`, its producer's tick) and the
+  activities' hook senses it in the SAME pass, before a forward pass has
+  carried the new poses into `xpos` -- read off `xpos` there, every piece
+  rested 1 m under the floor, where it is put away, and every `<piece>Lifted`
+  of every table job read true the whole job. Each kind's own surface."""
+  life = _life(tmp_path)
+  act = life._target_activity(restaurant.TABLE)
+  for offer, surface in ((_offer, ct.TABLE_H), (_offer_pass, ct.PASS_H)):
+    mujoco.mj_step(life.model, life.data)        # a step with the place put away
+    task = offer(life)                           # ...the hook sets it out
+    act.sense(life.model, life.data)             # ...and senses it, the same pass
+    for _ in range(3):
+      mujoco.mj_step(life.model, life.data)
+      act.sense(life.model, life.data)
+    assert act.rest == pytest.approx({p: surface for p in dw.PIECES}, abs=1e-6), task.kind
+    assert not any(act.flags[f"{p}Lifted"] for p in dw.PIECES), (task.kind, act.flags)
+    life.tasks.resolve(task.id, table_verdict(), t=float(life.data.time))
+    restaurant.put_away(life.model, life.data, restaurant.TABLE)
+    act.sense(life.model, life.data)

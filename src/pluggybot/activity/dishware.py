@@ -360,7 +360,9 @@ class Dishware(Activity):
     self.load = load
     self.lifted = {p: Threshold(on=LIFT_ON, off=LIFT_ON / 2) for p in PIECES}
     #: The height each piece rested at, set out: read at the first sense
-    #: that finds it out (`place` leaves it still where its set-out puts it).
+    #: that finds it out, off where `place` put it (`_placed_at`) -- ⚠ never
+    #: `xpos`: an offer sets out in the physics hook, the activities' hook
+    #: senses in the same pass, and `xpos` is still the parked pose there.
     self.rest: dict[str, float] | None = None
     self.set(setOut=bool(model.geom_group[self._plate_geom] != self._parked),
              **{f"{p}Lifted": False for p in PIECES})
@@ -387,7 +389,7 @@ class Dishware(Activity):
       self.rest = None
       return
     if self.rest is None:
-      self.rest = {p: float(data.xpos[b][2]) for p, b in self.bodies.items()}
+      self.rest = {p: float(_placed_at(model, data, b)[2]) for p, b in self.bodies.items()}
     self.set(setOut=True,
              **{f"{p}Lifted": self.lifted[p].update(float(data.xpos[b][2]) - self.rest[p])
                 for p, b in self.bodies.items()})

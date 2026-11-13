@@ -64,6 +64,10 @@ from pluggybot.lifecycle import (
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
              "open_chest": "chest", "set_table": "dining_table_0",
              "set_table_pass": "dining_table_0"}
+#: ...and the tags a job's reference finds before its place's, found first
+#: too, so no first search of a fresh map is priced: the pass's pair (#682's
+#: stage C), which every trip of the place laid from the pass finds first.
+FOUND_FIRST = {"set_table_pass": (69, 68)}  # tags.RESTAURANT_TAG_IDS, as `solutions.PASS_TO` finds them
 
 
 class _Writer:
@@ -175,7 +179,8 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
     for action in actions:
       # ...from the station, its area's tag found first if the explore missed it
       prop = HAND_JOBS[action]
-      _from_the_station(life, prop, _place_tag(prop))
+      for tag in (*FOUND_FIRST.get(action, ()), _place_tag(prop)):
+        _from_the_station(life, prop, tag)
       t0 = float(data.time)
       # Topped up first, so every job is measured from the same place in the
       # pack and none of them against a battery that ran out halfway.

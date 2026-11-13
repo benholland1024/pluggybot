@@ -234,45 +234,30 @@ TABLE = _table_job()
 #: table's place from its pieces set out on the restaurant's expo counter
 #: (`counter.pass_set_out`), a piece a trip, each carried by the walk's own
 #: hand-over (`HumanoidMission.carries`). Three runs -- the cup, the plate,
-#: the fork -- over the procedures they call (`LIBRARY`); what flying took is
-#: SimNotes', "The place laid from the pass":
-#:  - the pass is found by its pair of tags (68, 69) -- the wall's facing
-#:    off the line through the two, as a far find reads one tag's own facing
-#:    16 deg off -- and each piece walked up to from 1.1 m off the wall, `s`
-#:    to the LEFT of its middle as the robot faces it (the cup's -0.10, the
-#:    plate's -0.18, the fork's 0.10; from 1.2 the walk back from the table found
-#:    no route past the tables), so that it lands where its hand takes it
-#:    STANDING, about 0.45 m ahead and 0.25 m to that hand's side (deeper,
-#:    the reach bows over the counter);
-#:  - a piece is pulled back over the counter's edge before the walk: the
-#:    carry pose holds it under the pass's top (the cup's hand to 0.29 m
-#:    ahead: gripped at its middle and pulled to 0.26, the arm ran out of
-#:    reach in 11 of 61, and the walk's 2 cm lift, out of reach too, let 3
-#:    of those cups go);
-#:  - where a tag is not in the colour camera's picture, a turn toward its
-#:    side and then a step in (`near`): a face lands up to 16 deg off;
-#:  - the cup gripped from above at its middle, 1.5 cm under its lid, at 25
-#:    N: aimed 2.5 cm short (the table check aims 3, where at the middle the
-#:    palm cuts the lid), its side met each pad only at the fingertip's
-#:    corner, a pivot, and it crept out of the jaws while carried in 20 of 32
-#:    flights (#682's open item 2); at the middle its side crosses each
-#:    pad's whole width (`test_solutions`);
-#:    the plate's wall 1 cm lower than the table check
-#:    grips it (there the pads' tips catch 0.7-0.9 cm of the wall, and carried
-#:    it fell in 37 of 42 legs), the plate and the fork from a hover 6 cm over
-#:    their grip, read again there and pulled straight down: the stance turns
-#:    5-10 deg as an arm goes out;
-#:  - the walk to the place is the table's (`TABLE_APPROACH`), ending
-#:    `PASS_BACK` further back, its last step over 0.45 m taken in two
-#:    (carrying, a walk ended 0.2 m further back); nothing steps aside
-#:    carrying (a cup carried fell on one);
+#: the fork -- over the procedures they call (`LIBRARY`). Each choice is
+#: measured (SimNotes, "The place laid from the pass"):
+#:  - the pass found by its two tags, the wall's facing off the line through
+#:    them (a far find reads one tag's own facing 16 deg off); each piece
+#:    walked up to from 1.1 m off the wall, `s` to the LEFT of its middle, so
+#:    that its hand takes it STANDING (deeper, the reach bows over the
+#:    counter); a tag out of the colour camera's picture, a turn of `b` rad
+#:    toward its side, then a step in (`near`);
+#:  - the cup gripped at its MIDDLE (aimed short, its side met each pad only
+#:    at the fingertip's corner and it crept out of the jaws:
+#:    `test_solutions`), the plate's wall 1 cm lower than the table check
+#:    grips it (the pads' tips over 0.7-0.9 cm of the wall, it slipped out),
+#:    the plate and the fork from a hover read again there and pulled
+#:    straight down (the stance turns 5-10 deg as an arm goes out);
+#:  - each piece pulled back over the counter's edge before the walk (the
+#:    carry pose holds it under the pass's top), the cup's hand to 0.29 m:
+#:    further, its arm runs out of reach, and the hand-over lets go of what
+#:    its lift could not raise;
+#:  - the walk to the place the table's (`TABLE_APPROACH`), `PASS_BACK`
+#:    further back, its last step over 0.45 m in two; nothing steps aside
+#:    carrying;
 #:  - each piece set down from a hover over its spot, its offset in the hand
-#:    the grip's own -- the plate's and the fork's measured from the flights,
-#:    as the table check's is (the hand's sensed place is 1.5-2 cm off) --
-#:    and each put-down moved out by where flights on walk2 set its piece
-#:    down (dev draws 240-271): the cup's and the plate's 1 cm, the fork's
-#:    2.7 cm and 0.5 cm to its right (within 2.5 cm, the fork 5 of 18 where
-#:    moved so 15).
+#:    the grip's own, each put-down moved by where flights on walk2 set its
+#:    piece down (the hand's sensed place is 1.5-2 cm off).
 PASS_TO = '''def to_pass(s):
   face(0)
   find(69, %(ax)g, %(ay)g, 600)
@@ -474,9 +459,13 @@ TARGETS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
 
 
 def _def_name(source: str) -> str:
-  """A source's first def's name: the procedure it is defined under."""
+  """A source's first def's name: the procedure it is defined under -- one
+  with none refused here, never a StopIteration inside `job_routine`."""
   import ast
-  return next(n.name for n in ast.parse(source).body if isinstance(n, ast.FunctionDef))
+  name = next((n.name for n in ast.parse(source).body if isinstance(n, ast.FunctionDef)), None)
+  if name is None:
+    raise ValueError(f"a reference source with no def: {source[:60]!r}")
+  return name
 
 
 def job_routine(life, kind: str, world: str):

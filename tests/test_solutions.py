@@ -139,3 +139,14 @@ def test_the_pass_cup_is_gripped_across_each_pads_width_off_its_tips():
   zs = [z0 + t * s for t in on]
   assert min(zs) + wz >= 0.01, f"its side meets each pad {100 * (min(zs) + wz):.1f} cm from the fingertips"
   assert on[-1] - on[0] >= 0.02, f"its side lies along {100 * (on[-1] - on[0]):.1f} cm of each pad"
+
+
+def test_a_reference_source_with_no_def_is_refused_by_name():
+  """`job_routine` defines each source under its first def's name: one with
+  none is a ValueError saying so (the second review of #682's stage C) --
+  never a StopIteration, which inside the routine is an opaque RuntimeError."""
+  import pytest
+  from pluggybot.challenge import solutions
+  with pytest.raises(ValueError, match="no def"):
+    solutions._def_name("x = 1\n")
+  assert solutions._def_name(solutions.PASS[0]) == "lay_cup"
