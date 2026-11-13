@@ -62,7 +62,8 @@ from pluggybot.lifecycle import (
 #: restaurant's table -- its reference's two procedures (`challenge.
 #: solutions`) flown from the station with its place remembered.
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
-             "open_chest": "chest", "set_table": "dining_table_0"}
+             "open_chest": "chest", "set_table": "dining_table_0",
+             "set_table_pass": "dining_table_0"}
 
 
 class _Writer:

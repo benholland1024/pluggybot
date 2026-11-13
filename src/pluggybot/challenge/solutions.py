@@ -239,7 +239,8 @@ TABLE = _table_job()
 #:  - the pass is found by its pair of tags (68, 69) -- the wall's facing
 #:    off the line through the two, as a far find reads one tag's own facing
 #:    16 deg off -- and each piece walked up to from 1.1 m off the wall, `s`
-#:    to the right of its middle (from 1.2 the walk back from the table found
+#:    to the LEFT of its middle as the robot faces it (the cup's -0.10, the
+#:    plate's -0.18, the fork's 0.10; from 1.2 the walk back from the table found
 #:    no route past the tables), so that it lands where its hand takes it
 #:    STANDING, about 0.45 m ahead and 0.25 m to that hand's side (deeper,
 #:    the reach bows over the counter);
@@ -463,7 +464,8 @@ TARGETS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
 
 def _def_name(source: str) -> str:
   """A source's first def's name: the procedure it is defined under."""
-  return source.split("def ", 1)[1].split("(", 1)[0].strip()
+  import ast
+  return next(n.name for n in ast.parse(source).body if isinstance(n, ast.FunctionDef))
 
 
 def job_routine(life, kind: str, world: str):
@@ -476,7 +478,6 @@ def job_routine(life, kind: str, world: str):
   and `scripts/energy_spike.py` prices."""
   from pluggybot.lifecycle import errand_from, task_producer, world_facts
   from pluggybot.mind import overseer as ov
-  from pluggybot.procedure import lang
   from pluggybot.procedure import library as lib
   maker = task_producer(life.tasks, world, procedures=True)
   params, secret = maker._build(kind, TARGETS[kind])

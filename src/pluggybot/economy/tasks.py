@@ -327,8 +327,9 @@ KINDS: dict[str, TaskKind] = {
   # 4-5 m to the table (`home.restaurant.SET_OUTS`) and graded by the
   # table's evaluator. NOT OFFERED (no world's cadence names it) and paid
   # nothing (`challenges.json`): offering it is Ben's call, and then it is
-  # measured as `set_table` was. Its energy a guess above the table's, never
-  # flown by `energy_spike.py`.
+  # measured as `set_table` was (`energy_spike.py --station station_facility
+  # --actions set_table_pass`, its minutes by the table's rule). Until then its
+  # energy is a fallback a claim alone reads, above the table's, unmeasured.
   "set_table_pass": TaskKind(
     "set_table_pass", task="set_table_pass", target_kind="table",
     template="Lay the place at the card on the restaurant's table from the pieces on its pass: "

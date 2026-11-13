@@ -7541,7 +7541,9 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
   side, not 0.25 (at 32 deg it sat on the picture's edge).
 - **The table's approach, carrying,** ended up to 0.2 m further back than
   it expects and once asked its last step 0.53 m (refused over 0.5): taken in
-  two. A step aside carrying the cup fell; nothing steps aside carrying. The
+  two. A step aside the lay took after it, carrying the cup, fell once, and
+  is gone; the approach's own steps across (0.3-0.4 m, one with its big turn)
+  stay, and a cup has let go during them. The
   cup's put-down sits at the edge of the right hand's band both ways: from
   the table check's stance it took a crouch and a waist turn and fell, from 5
   cm further back a 0.55 rad bow that missed by 13 cm; the walk ends 1 cm

@@ -420,15 +420,17 @@ def test_the_served_table_is_the_set_outs():
 
 def test_the_sentence_says_the_graders_own_numbers_within_the_cap():
   """The template's numbers are the table check's constants, so neither
-  moves without the other, and the sentence fits a description's cap."""
+  moves without the other, and the sentence fits a description's cap -- the
+  place laid from the pass's too, graded as the table's is."""
   from pluggybot.economy.tasks import MAX_DESCRIPTION
-  words = KINDS["set_table"].template
-  for p, (a, b) in table.SPOTS.items():
-    assert f"{100 * a:g} cm out" in words, p
-    if b:
-      assert f"{100 * abs(b):g} cm {'left' if b > 0 else 'right'}" in words, p
-  assert f"{100 * table.PLACE_M:g} cm" in words and f"{table.HOLD_S:g} s later" in words
-  assert len(words.format(minutes=999, offered=99_999_999)) <= MAX_DESCRIPTION
+  for kind in ("set_table", "set_table_pass"):
+    words = KINDS[kind].template
+    for p, (a, b) in table.SPOTS.items():
+      assert f"{100 * a:g} cm out" in words, (kind, p)
+      if b:
+        assert f"{100 * abs(b):g} cm {'left' if b > 0 else 'right'}" in words, (kind, p)
+    assert f"{100 * table.PLACE_M:g} cm" in words and f"{table.HOLD_S:g} s later" in words, kind
+    assert len(words.format(minutes=999, offered=99_999_999)) <= MAX_DESCRIPTION, kind
 
 
 # ---- the place laid from the pass (#682's stage C, easy mode) ------------------------------
@@ -515,7 +517,8 @@ def test_the_place_laid_from_the_pass_is_graded_as_the_tables_and_pays_nothing(t
   assert scoring.SAMPLERS["set_table_pass"] is table.sample_table
   row = default_table()["set_table_pass"]
   assert row.base == 0 and row.bonus == 0 and row.shown is False
-  cadence = json.loads(Path("src/pluggybot/economy/cadence.json").read_text())
+  from pluggybot.economy.cadence import CADENCE_PATH
+  cadence = json.loads(Path(CADENCE_PATH).read_text())
   for world, spec in {"default": cadence["default"], **cadence["worlds"]}.items():
     assert "set_table_pass" not in (spec.get("kinds") or {}), world
   life = _life(tmp_path)
@@ -525,3 +528,32 @@ def test_the_place_laid_from_the_pass_is_graded_as_the_tables_and_pays_nothing(t
   verdict = _grade(life, task.id)
   assert verdict["ok"], verdict["reason"]
   assert life.ledger.robots[life.root]["balance"] == 0
+
+
+def test_a_piece_on_the_pass_reads_lifted_off_the_pass_never_the_table(tmp_path):
+  """`<piece>Lifted` is a piece over where it was SET OUT (#682's stage C,
+  its review): read off the table's top, a piece on the pass, 0.18 m over
+  it, read lifted the moment it was set out, every flag on the wire false.
+  Where each rests is read once it is out, and kept across a restart."""
+  import json
+  life = _life(tmp_path)
+  task = _offer_pass(life)
+  act = life._target_activity(restaurant.TABLE)
+  mujoco.mj_forward(life.model, life.data)
+  act.sense(life.model, life.data)
+  assert act.flags["setOut"] is True
+  assert not any(act.flags[f"{p}Lifted"] for p in dw.PIECES), act.flags
+  cup = life.model.jnt_qposadr[life.model.joint("cup_free").id]
+  life.data.qpos[cup + 2] += 2 * dw.LIFT_ON
+  mujoco.mj_forward(life.model, life.data)
+  act.sense(life.model, life.data)
+  assert act.flags["cupLifted"] is True and act.flags["plateLifted"] is False
+  again = restaurant.activity_for(life.model, life.data, restaurant.TABLE, task.secret["draw"])
+  again.restore_kept(json.loads(json.dumps(act.kept_state())))
+  assert again.rest == pytest.approx(act.rest) and again.lifted["cup"].value is True
+  # ...and the table's set-out reads off the table's top, as it always did
+  life.tasks.resolve(task.id, table_verdict(), t=float(life.data.time))
+  _offer(life)
+  mujoco.mj_forward(life.model, life.data)
+  act.sense(life.model, life.data)
+  assert act.rest == pytest.approx({p: ct.TABLE_H for p in dw.PIECES}, abs=1e-6)

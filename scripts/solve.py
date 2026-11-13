@@ -389,6 +389,16 @@ def main() -> None:
   parser.add_argument("--strip-out", dest="out_strip", default="solve.png",
                       help="--strip's file")
   args = parser.parse_args()
+  if args.held_out is not None:
+    # ...as the attempt kit refuses them: a held-out draw is sealed with its
+    # noise, and its draws are the build's, never `--draw`'s or `--n`'s
+    if args.noise is not None:
+      parser.error("a held-out draw's noise is sealed with it: --noise flies a draw again "
+                   "at a named --draw")
+    if args.view or args.strip:
+      parser.error("--held-out flies a batch: --view and --strip fly one named --draw")
+    if args.draw is not None or args.n != 1:
+      parser.error("--held-out N names its own draws: no --draw, no --n")
   if args.walker:
     # ...through the environment, so a pool's spawned flights fly it too
     os.environ["SOLVE_WALKER"] = str(Path(args.walker).expanduser().resolve())
