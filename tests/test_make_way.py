@@ -43,6 +43,7 @@ class _Drive:
   every command is 0.1 s; the way to `GOAL` is cut until `opens_at` (sim s,
   None never), and then the robot walks straight there."""
   drive_to_routine = nav.Navigator.drive_to_routine
+  held_s = nav.Navigator.held_s
   _drove = nav.Navigator._drove
   _at_stand_in = nav.Navigator._at_stand_in
   _other_in_the_way = nav.Navigator._other_in_the_way

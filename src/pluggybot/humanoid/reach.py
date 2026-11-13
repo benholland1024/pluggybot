@@ -38,9 +38,9 @@ from scipy.optimize import least_squares
 
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
-from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper, Motion,
-                                     HandGoal, SelfModel, Waist, _rot_error, kept_value,
-                                     value_back)
+from pluggybot.humanoid.arms import (RANGE_MARGIN, REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
+                                     Motion, HandGoal, SelfModel, Waist, _rot_error,
+                                     kept_value, value_back)
 from pluggybot.humanoid.policy import HEIGHT_RANGE, PITCH_RANGE, StandDriver
 
 
@@ -254,6 +254,22 @@ HOME_SAMPLE_RAD = 0.05
 HOME_RAD = 0.05
 #: The way OUT is judged so from its other end (`way_out`, #560): straight, a
 #: hanging hand at a table 13 cm out was driven into its top at 353-359 N.
+
+#: THE CARRY POSE (#682; Ben, 2026-11-12: `close`, one piece in one hand):
+#: what a walk's hand-over walks an arm to whose gripper says it holds
+#: something, in joint space, its way judged as the way home is
+#: (`way_home`), and holds it at through the walk -- the LEFT arm's shoulder
+#: pitch, roll and yaw and its elbow, rad (the right mirrors roll and yaw):
+#: the forearm folded up, the hand at the hips 0.19-0.23 m ahead. Its wrist
+#: keeps the hand turned as it was against the floor (`carry_pose`). ⚠ NEVER
+#: WHERE THE REACH LEFT IT: over the table's top, the shoulder rolled
+#: 2.5-2.9 rad, walk2 fell in 16 of 37 walks; at this pose, holding the
+#: plate or the cup, in none of 56, and its own sensors kept off the plate
+#: (SimNotes, "Carrying while walking, measured").
+CARRY_POSE = (0.15, 0.25, 0.0, 2.00)
+#: ...its wrist found on a grid this many ways in pitch and in roll, then
+#: once more this fine round the best.
+CARRY_GRID, CARRY_FINE = (33, 41), 0.1
 
 #: The postures a reach may take, in the order they are tried -- the least
 #: bent first: the pelvis's height off the stand's, m, and the trunk's
@@ -813,6 +829,100 @@ def _side_way(side: str, q_out, q_home) -> list[np.ndarray]:
   return [raised, lowered, back, np.asarray(q_home, dtype=float).copy()]
 
 
+#: ANOTHER ROBOT'S BODY, AS A HAND'S WAY KEEPS OFF IT (#678; SimNotes, "The
+#: arms keep off the other robot"): a cylinder standing round the middle of
+#: its soles where this robot's LIDAR sees it (`HumanoidMission.keep_out`),
+#: this wide, m -- the standing body, its arms hanging, its grippers 0.28 m
+#: out, on the drawing -- and this tall, its head's top. ⚠ ITS SIGHTED
+#: PLACE, NEVER ITS HEADING: a robot standing square to the counter beside
+#: this one is narrower that way than round, so a refusal can come where
+#: its arm would have passed it (#678's stage 1: 15 of 40 at 0.71-0.95 m)...
+OTHER_BODY_M, OTHER_TOP_M = 0.28, 1.55
+#: ...with this much room between it and every part of the arm, m.
+OTHER_CLEAR_M = 0.05
+#: The way drawn in: the arm's elbow bent this far, rad, before its shoulder
+#: moves (its range ends at 2.10).
+TUCK_ELBOW = 1.9
+
+
+def arm_points(sm: SelfModel, side: str) -> tuple[np.ndarray, np.ndarray]:
+  """The arm's solid parts as points (x, y, z), stance frame, each with the
+  radius round it: a capsule's axis at five points, a box's corners and its
+  middle."""
+  m, d = sm.m, sm.d
+  pts, rad = [], []
+  for part in ARM_PARTS:
+    g = m.geom(f"{side}_{part}").id
+    pos, rot, size = d.geom_xpos[g], d.geom_xmat[g].reshape(3, 3), m.geom_size[g]
+    if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_CAPSULE:
+      pts += [pos + f * size[1] * rot[:, 2] for f in (-1.0, -0.5, 0.0, 0.5, 1.0)]
+      rad += [size[0]] * 5
+    else:
+      corners = np.array(list(itertools.product((-1.0, 1.0), repeat=3))) * size
+      pts += list(pos + corners @ rot.T) + [pos.copy()]
+      rad += [0.0] * 9
+  return np.array(pts), np.array(rad)
+
+
+def room(sm: SelfModel, side: str, q0, ways, keep_out) -> float:
+  """The least room, m, between any part of the arm and any robot of
+  `keep_out` ((x, y) of its soles' middle, stance frame: `OTHER_BODY_M`
+  round, `OTHER_TOP_M` tall) as the arm walks from `q0` through `ways` in
+  joint space (as `dip` walks it), its start included; inf with none."""
+  if not len(keep_out):
+    return math.inf
+  centres = np.asarray(keep_out, dtype=float).reshape(-1, 2)
+  worst, prev = math.inf, np.asarray(q0, dtype=float)
+  for w in [prev] + list(ways):
+    w = np.asarray(w, dtype=float)
+    n = max(1, math.ceil(float(np.abs(w - prev).max()) / HOME_SAMPLE_RAD))
+    for k in range(1, n + 1):
+      sm._set_arm(side, prev + (w - prev) * (k / n))
+      p, r = arm_points(sm, side)
+      under = p[:, 2] - r < OTHER_TOP_M
+      if under.any():
+        gap = np.hypot(p[under, 0, None] - centres[:, 0], p[under, 1, None] - centres[:, 1])
+        worst = min(worst, float((gap - r[under, None]).min()) - OTHER_BODY_M)
+    prev = w
+  return worst
+
+
+def _same_way(a, b) -> bool:
+  return len(a) == len(b) and all(np.allclose(x, y) for x, y in zip(a, b))
+
+
+def _tucked_way(side: str, q0, q1) -> list[np.ndarray]:
+  """The way drawn in from `q0` to `q1` in joint space: its elbow bent to
+  `TUCK_ELBOW` where it stands, its shoulder and wrist then to `q1`'s, the
+  elbow held, then its elbow to `q1`'s."""
+  e = hm.ARM.index("elbow")
+  a, b = (np.asarray(q, dtype=float).copy() for q in (q0, q1))
+  a[e] = b[e] = max(float(a[e]), TUCK_ELBOW)
+  return [a, b, np.asarray(q1, dtype=float).copy()]
+
+
+def _aside(side: str, q0, q1, out: bool) -> list[np.ndarray]:
+  """The side way from `q0` to `q1`: home's (`_side_way`), or going `out`
+  that walked back."""
+  return _side_way(side, q1, q0)[::-1][1:] + [q1] if out else _side_way(side, q0, q1)
+
+
+def _dips(sm: SelfModel, side: str, q0, at, ahead: float):
+  """How far a way from `q0` dips under the lowest of the arm ahead of the
+  robot's front (`ahead`) as it stands at `at`, over the work (`dip`): a
+  function of the way, m. ⚠ None of it ahead works over nothing there, and
+  every way dips 0: judged as if all under it were solid, a drawer pulled
+  close took the side way, which swept a jaw into its face and pushed it 4
+  cm back in."""
+  sm._set_arm(side, at)
+  p = outline(sm, side)
+  there = p[p[:, 0] > ahead]
+  if not len(there):
+    return lambda w: 0.0
+  low = float(there[:, 1].min())
+  return lambda w: dip(sm, side, q0, w, low, ahead)
+
+
 class Reach:
   """The arms and grippers of one body beside its standing policy (module
   docstring). A hand's PHASE: `rest` (hanging), `move` (joint space to the
@@ -820,7 +930,9 @@ class Reach:
   in), `hold`, `pull` (the goal moved while holding), `blocked` (stopped on
   its way, `BLOCKED_M`), `carry` (a hand that is out carried on, `carry`),
   `joints` (an arm walked joint by joint, `set_joints`), `retreat` (a
-  straight line out), `home` (joint space home, its own way: `way_home`)."""
+  straight line out), `home` (joint space home, its own way: `way_home`) --
+  or, a hand a walk carries (`carry_q`), to its carry pose -- and `carried`
+  (held there, #682)."""
 
   def __init__(self, model, data, stand: StandDriver, prefix: str = "",
                key: str = "humanoid"):
@@ -902,11 +1014,26 @@ class Reach:
     self.looks = {s: 0 for s in hm.SIDES}
     self.looking = {s: False for s in hm.SIDES}
     self._planner: SelfModel | None = None
+    #: The other robots' bodies a hand's way keeps off (#678): each one's
+    #: soles' middle (x, y), stance frame, as the body's look placed them
+    #: as it began a reach, a withdraw or a walk's hand-over, and none once
+    #: it is over (`HumanoidMission.keep_out`); and, by side, how the last
+    #: way judged against them was refused (`_kept_off`), else None.
+    self.keep_out: list = []
+    self.kept: dict[str, dict | None] = {s: None for s in hm.SIDES}
+    #: ...and, by side, the way home the last judgment found clear and the
+    #: arm it began from (`home_clear`): the way `_go_home` then takes.
+    self.judged_home: dict[str, tuple | None] = {s: None for s in hm.SIDES}
+    #: By side, the carry pose a walk's hand-over takes that arm to and
+    #: holds it at (#682, `carry_pose`) -- where its way home ends -- else
+    #: None: home is its rest. A new reach, a joint moved by hand and a
+    #: let-go end it (`drop_carry`).
+    self.carry_q: dict[str, np.ndarray | None] = {s: None for s in hm.SIDES}
 
   # ---- what a caller asks ----
 
   def reach(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
-            postures=REACH_POSTURES, flip: bool = True) -> bool:
+            postures=REACH_POSTURES, flip: bool = True, refuse: bool = True) -> bool:
     """A hand to `goal`: planned, then moved, approached and held. False
     (nothing moves) if no posture the policy holds puts it in reach. ⚠ A
     TWO-JAW GRIP IS THE SAME GRIP HALF A TURN ROUND ITS FINGERS (#493): where
@@ -914,12 +1041,28 @@ class Reach:
     reached a chest's knob with its jaws closing to its right in twice the
     places it did with them closing to its left, its wrist's roll at the
     end of its range. `postures` are the ones it may take, `flip` whether
-    it may take the other grip."""
+    it may take the other grip. Where another robot stands by (`keep_out`,
+    #678), its way out and its way home from there keep off it: none that
+    does, and nothing moves (`kept` says how) -- or, not `refuse`, the way
+    out that comes least near it is taken (`_kept_off`)."""
     plan_, goal = self._planned(side, goal, approach, postures, flip)
+    self.kept[side] = self.judged_home[side] = None
     if plan_ is None:
       return False
-    posture, q_pre, _, self.slack[side] = plan_
-    self.outs[side] = self.way_out(side, q_pre)
+    # ...a hand reached out again carries no longer (#682): its way home is
+    # its rest once more
+    self.carry_q[side] = None
+    posture, q_pre, _, slack = plan_
+    outs = self.way_out(side, q_pre, posture, refuse=refuse)
+    if outs is None:
+      # every way out meets another robot's body (#678): nothing moves
+      return False
+    if refuse and not self._returns(side, q_pre, posture):
+      # ...nor goes where every way home from would: stranded there, its
+      # withdraw and every walk the verbs ask are refused (#678)
+      self.kept[side]["back"] = True
+      return False
+    self.slack[side], self.outs[side] = slack, outs
     self.hold_posture(*posture)
     self._off[side] = 0.0
     self.speed[side] = HAND_SPEED
@@ -929,6 +1072,28 @@ class Reach:
     self.left[side], self.looks[side], self.looking[side] = [], 0, False
     self.phase[side] = "move"
     return True
+
+  def clear_way(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
+                postures=REACH_POSTURES, flip: bool = True) -> bool | None:
+    """Whether `reach` would plan `goal` for `side` and take a way out that
+    keeps off every other robot's body (#678) -- None where it plans none;
+    nothing moved, `kept` as it was."""
+    plan_, _ = self._planned(side, goal, approach, postures, flip)
+    if plan_ is None:
+      return None
+    kept = self.kept[side]
+    clear = (self.way_out(side, plan_[1], plan_[0]) is not None
+             and self._returns(side, plan_[1], plan_[0]))
+    self.kept[side] = kept
+    return clear
+
+  def _returns(self, side: str, q_pre, posture) -> bool:
+    """Whether some way home from the pre-grasp `q_pre` keeps off every
+    other robot's body (#678), in `posture` and stood up; True with none
+    by. False sets `kept`."""
+    return not len(self.keep_out) or self._judged(
+      side, np.asarray(q_pre, dtype=float).copy(), self.rest[side].copy(), out=False,
+      poses=(posture, (0.0, 0.0, 0.0)), refuse=True) is not None
 
   def plans(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
             postures=REACH_POSTURES, flip: bool = True) -> bool:
@@ -1335,9 +1500,10 @@ class Reach:
   def set_joints(self, side: str, q) -> None:
     """The arm to joint angles `q` (its six, `hm.ARM` order) in joint space
     and held there: the motor level's (`Body.ramp_routine`), its hand's
-    goal let go."""
+    goal let go, and a carry it held (#682)."""
     self.goal[side] = self.cmd[side] = None
     self.outs[side] = []
+    self.carry_q[side] = None
     self.q_to[side] = np.asarray(q, dtype=float).copy()
     self.looking[side] = False
     self.phase[side] = "joints"
@@ -1373,17 +1539,124 @@ class Reach:
     self.looking[side] = False
     self.phase[side] = "retreat"
 
-  def way_home(self, side: str) -> list[np.ndarray]:
+  def way_home(self, side: str, refuse: bool = False) -> list[np.ndarray] | None:
     """The joint targets an arm walks home through from its command, judged
     on the robot's model of itself as it stands (`HOME_DIP_M`): its rest
     alone -- or, where that walk takes some part of the arm further ahead
     than the robot's front (`front`) and lower than the lowest of it there
     now, the side way: rolled out to its side (`HOME_ROLL`), its other
     joints home but its shoulder pitched back (`HOME_BACK`), its roll, then
-    its pitch. The side way only where it dips less."""
-    return self._judged(side, self.q_cmd[side].copy(), self.rest[side].copy(), out=False)
+    its pitch. The side way only where it dips less. Where another robot
+    stands by (`keep_out`, #678), the way judged against its body as it
+    stands and stood up (`_kept_off`): None where every way crosses it and
+    `refuse`, else the one that comes least near it."""
+    return self._judged(side, self.q_cmd[side].copy(), self.home_to(side), out=False,
+                        poses=(None, (0.0, 0.0, 0.0)), refuse=refuse)
 
-  def way_out(self, side: str, q_to) -> list[np.ndarray]:
+  def home_to(self, side: str, carry=None) -> np.ndarray:
+    """Where an arm's way home ends: the carry pose a walk carries it at
+    (`carry_q`, or `carry` given), else its rest."""
+    q = self.carry_q[side] if carry is None else carry
+    return (self.rest[side] if q is None else np.asarray(q, dtype=float)).copy()
+
+  def home_clear(self, side: str, carry=None) -> bool:
+    """Whether some way home -- to its carry pose, carried (`home_to`) --
+    keeps off every other robot's body (#678), judged from where it will
+    begin (`_home_from`): False sets `kept`, nothing moved; True with none
+    by."""
+    self.judged_home[side] = None
+    if not len(self.keep_out):
+      return True
+    q0 = self._home_from(side)
+    way = self._judged(side, q0, self.home_to(side, carry), out=False,
+                       poses=(None, (0.0, 0.0, 0.0)), refuse=True)
+    if way is not None:
+      self.judged_home[side] = (q0, [np.asarray(w, dtype=float).copy() for w in way])
+    return way is not None
+
+  def carry_pose(self, side: str) -> np.ndarray:
+    """The arm's six joints a walk carries a hand at (#682): `CARRY_POSE`'s
+    shoulder and elbow (mirrored for the right), its wrist's pitch and roll
+    the ones that keep the hand turned as it is now against the floor --
+    the floor's up in the hand's own frame as it is held now -- the turn its
+    command keeps (as `carry` keeps it), else its model as last posed, never
+    its joints read again (each read draws on their noise, and a check
+    before a walk would move the flight) -- so what it holds is kept as it
+    is: level, lifted level. ⚠ SOLVED ON THE STATUE OF THE STAND (`statue`,
+    posture 0), where a walk carries it, never the posture it holds now:
+    solved bowed, a plate lifted from a reach's 0.3 rad bow was carried 15-17
+    deg tipped once the trunk stood up. Each joint `arms.RANGE_MARGIN` inside
+    its range; never what the hand holds, which it cannot know."""
+    if self.cmd[side] is not None and self.cmd[side].rot is not None:
+      r_now = np.asarray(self.cmd[side].rot, dtype=float)
+    else:
+      r_now = self.self_model.grip_pose(side)[1]
+    up = r_now.T @ np.array([0.0, 0.0, 1.0])
+    sm = self._planner_model()
+    idx = sm.arm[side]
+    lo = sm.ranges[idx, 0] + RANGE_MARGIN
+    hi = sm.ranges[idx, 1] - RANGE_MARGIN
+    q = seed(side, (*CARRY_POSE, 0.0, 0.0))
+    q[:4] = np.clip(q[:4], lo[:4], hi[:4])
+    arms = self._arms()
+    arms.update({f"{side}_{j}": float(v) for j, v in zip(hm.ARM, q)})
+    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    statue(sm, (0.0, 0.0, 0.0), q0, arms=arms, fast=True)
+    wp, wr = hm.ARM.index("wrist_pitch"), hm.ARM.index("wrist_roll")
+    adr = sm.qadr[idx]
+    grip = sm.grip[side]
+
+    def off(p_: float, r_: float) -> float:
+      q[wp], q[wr] = p_, r_
+      sm.d.qpos[adr] = q
+      mujoco.mj_kinematics(sm.m, sm.d)
+      have = sm.d.site_xmat[grip].reshape(3, 3).T @ np.array([0.0, 0.0, 1.0])
+      return float(np.arccos(np.clip(have @ up, -1.0, 1.0)))
+
+    best = (math.inf, 0.0, 0.0)
+    for p_ in np.linspace(lo[wp], hi[wp], CARRY_GRID[0]):
+      for r_ in np.linspace(lo[wr], hi[wr], CARRY_GRID[1]):
+        e = off(p_, r_)
+        if e < best[0]:
+          best = (e, p_, r_)
+    _, p0, r0 = best
+    for p_ in np.linspace(max(lo[wp], p0 - CARRY_FINE), min(hi[wp], p0 + CARRY_FINE), 21):
+      for r_ in np.linspace(max(lo[wr], r0 - CARRY_FINE), min(hi[wr], r0 + CARRY_FINE), 21):
+        e = off(p_, r_)
+        if e < best[0]:
+          best = (e, p_, r_)
+    q[wp], q[wr] = best[1], best[2]
+    sm._set_arm(side, q)
+    return q.copy()
+
+  def drop_carry(self, side: str) -> None:
+    """An arm carried no longer (#682): its way home is its rest again --
+    a let-go's, a withdraw's."""
+    self.carry_q[side] = None
+
+  def carried(self, side: str) -> bool:
+    """Whether an arm is held at the carry pose a walk took it to (#682)."""
+    return self.phase[side] == "carried" and self.carry_q[side] is not None
+
+  def _home_from(self, side: str) -> np.ndarray:
+    """Where an arm's way home will begin (`retreat`): a hand on its line in
+    comes out along it first, to its pre-grasp `APPROACH_M` back along its
+    fingers -- solved on its model of itself as it stands, from where the
+    arm is commanded -- else its command."""
+    q = self.q_cmd[side].copy()
+    if (self.phase[side] in ("rest", "home", "joints", "move") or self.cmd[side] is None
+            or self.goal[side] is None):
+      return q
+    pre = (self.goal[side] if self.phase[side] == "retreat"
+           else pregrasp(self.goal[side], APPROACH_M))
+    sm = self._planner_model()
+    sm.q = self.self_model.q.copy()
+    sm.d.qpos[:] = self.self_model.d.qpos
+    sm._set_arm(side, q)
+    got, ep, _ = sm.solve(side, pre.pos, pre.rot)
+    return got if ep <= REPLAN_M else q
+
+  def way_out(self, side: str, q_to, posture=None, refuse: bool = True) -> list[np.ndarray] | None:
     """The joint targets an arm walks out through from its command to `q_to`,
     a reach's pre-grasp: the way home's judgment from its other end --
     `q_to` alone, or, from an arm with none of it ahead of the robot's front
@@ -1392,40 +1665,110 @@ class Reach:
     way only where it dips less. Judged as the robot stands, never in the
     posture the reach then takes: of 151 reaches planned in a crouch or a
     bow, 10 judged otherwise there, each straight where standing it was the
-    side way (#560)."""
+    side way (#560). Where another robot stands by (`keep_out`, #678),
+    judged against its body as it stands and in `posture` (`_kept_off`):
+    None where every way crosses it and `refuse`, else the one that comes
+    least near it."""
     return self._judged(side, self.q_cmd[side].copy(), np.asarray(q_to, dtype=float).copy(),
-                        out=True)
+                        out=True, poses=(None, posture), refuse=refuse)
 
-  def _judged(self, side: str, q0, q1, out: bool) -> list[np.ndarray]:
+  def _judged(self, side: str, q0, q1, out: bool, poses=(None,),
+              refuse: bool = False) -> list[np.ndarray] | None:
     """The joint targets from `q0` to `q1` on the robot's model of itself
     as it stands (`HOME_DIP_M`): `q1` alone, or the side way (`_side_way`,
     walked back going `out`) where straight takes some part of the arm
     further ahead than the robot's front (`front`) and lower than the
     lowest of it there at the end over the work -- `q0` going home, `q1`
-    going out -- and the side way dips less."""
+    going out -- and the side way dips less. With another robot by, the
+    first way of today's, straight, the side way and the way drawn in that
+    keeps off it (`_kept_off`)."""
     sm = self._planner_model()
     sm.q = self.self_model.q.copy()
     sm.d.qpos[:] = self.self_model.d.qpos
+    pick, dips = self._picked(sm, side, q0, q1, out)
+    if not len(self.keep_out):
+      return pick
+    return self._kept_off(sm, side, q0, q1, out, pick, dips, poses, refuse)
+
+  def _picked(self, sm, side: str, q0, q1, out: bool):
+    """`_judged`'s way with nobody by, and how far a way dips (`_dips`; None
+    for a hand already out, whose way today is never judged so: `_kept_off`
+    judges another against it)."""
     ahead = front(sm, side, self.rest[side])
     if out:
       sm._set_arm(side, q0)
       if (outline(sm, side)[:, 0] > ahead).any():
         # a hand already out sweeps nothing aside on its way to the next
-        return [q1]
-    sm._set_arm(side, q1 if out else q0)
-    p = outline(sm, side)
-    there = p[p[:, 0] > ahead]
-    # ⚠ none of it ahead worked over nothing there: judged as if all under
-    # it were solid, a drawer pulled close took the side way, which swept a
-    # jaw into its face and pushed it 4 cm back in
-    if not len(there):
-      return [q1]
-    low = float(there[:, 1].min())
-    straight = dip(sm, side, q0, [q1], low, ahead)
+        return [q1], None
+    dips = _dips(sm, side, q0, q1 if out else q0, ahead)
+    straight = dips([q1])
     if straight <= HOME_DIP_M:
-      return [q1]
-    aside = _side_way(side, q1, q0)[::-1][1:] + [q1] if out else _side_way(side, q0, q1)
-    return aside if dip(sm, side, q0, aside, low, ahead) < straight else [q1]
+      return [q1], dips
+    aside = _aside(side, q0, q1, out)
+    return (aside if dips(aside) < straight else [q1]), dips
+
+  def _kept_off(self, sm, side, q0, q1, out, pick, dips, poses, refuse):
+    """A HAND'S WAY KEEPS OFF ANOTHER ROBOT'S BODY (#678; SimNotes, "The
+    arms keep off the other robot"): the first of today's way (`pick`),
+    straight, the side way and the way drawn in (`_tucked_way`) whose arm
+    keeps `OTHER_CLEAR_M` off every body of `keep_out` (`room`) -- an arm
+    begun nearer only going no nearer -- in each of `poses` (None as the
+    robot stands, else a posture's statue), and dips no deeper over the
+    work than `pick` (a hand already out: than going straight on, judged as
+    the arm stands at its end): #539's and #560's rule kept whole, so at a
+    counter, where today's way out is the side way, none other is taken.
+    Else, `kept` saying how (the nearest robot's middle, stance frame),
+    None where `refuse`, or of those ways the one that comes least near it:
+    what the loop's own moves take once they have waited
+    (`HumanoidMission.ARM_WAIT_S`) -- at a counter, today's."""
+    ways = [pick] + [w for w in ([np.asarray(q1, dtype=float).copy()], _aside(side, q0, q1, out),
+                                 _tucked_way(side, q0, q1)) if not _same_way(w, pick)]
+    self._pose_planner(sm, None)
+    if dips is None:
+      # ...a hand already out: another way dips no deeper under the lowest
+      # of the arm ahead at its end than going straight on does
+      dips = _dips(sm, side, q0, q1, front(sm, side, self.rest[side]))
+    deepest = max(HOME_DIP_M, dips(pick))
+    posed: dict = {}
+    best, best_way = -math.inf, pick
+    for i, w in enumerate(ways):
+      self._pose_planner(sm, None)
+      if i and dips(w) > deepest + 1e-9:
+        continue
+      worst = math.inf
+      for k, pose in enumerate(poses):
+        # ...each posture's statue balanced once a judgment, and the room
+        # its arm begins with there
+        if k in posed:
+          sm.q[:], sm.d.qpos[:], start = posed[k]
+          mujoco.mj_kinematics(sm.m, sm.d)
+        else:
+          self._pose_planner(sm, pose)
+          start = room(sm, side, q0, [], self.keep_out)
+          posed[k] = (sm.q.copy(), sm.d.qpos.copy(), start)
+        worst = min(worst, room(sm, side, q0, w, self.keep_out) - min(OTHER_CLEAR_M, start))
+      if worst > best:
+        best, best_way = worst, w
+      if worst >= 0.0:
+        self.kept[side] = None
+        return w
+    c = np.asarray(self.keep_out, dtype=float).reshape(-1, 2)
+    k = int(np.argmin(np.hypot(c[:, 0], c[:, 1])))
+    self.kept[side] = {"home": not out, "m": round(float(np.hypot(*c[k])), 2),
+                       "x": round(float(c[k, 0]), 2), "y": round(float(c[k, 1]), 2),
+                       "short": round(-best, 3)}
+    return None if refuse else best_way
+
+  def _pose_planner(self, sm, pose) -> None:
+    """`sm` as the robot stands (None), or in posture `pose`'s statue."""
+    if pose is None:
+      sm.q = self.self_model.q.copy()
+      sm.d.qpos[:] = self.self_model.d.qpos
+      mujoco.mj_kinematics(sm.m, sm.d)
+      return
+    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    statue(sm, tuple(float(v) for v in pose), q0, arms=self._arms(), lean=self._lean(),
+           fast=True)
 
   def _go_home(self, side: str) -> None:
     """The arm on its way home (`way_home`), its goal let go; the posture
@@ -1433,10 +1776,19 @@ class Reach:
     self.goal[side] = self.cmd[side] = None
     self.outs[side] = []
     self.looking[side] = False
-    self.homes[side] = self.way_home(side)
+    # ...the way home a judgment found clear, where the arm begins it as it
+    # was judged (#678: judged afresh from a start a few mm off, a way clear
+    # by a hair could cross the other robot unrefused)
+    judged, self.judged_home[side] = self.judged_home[side], None
+    if judged is not None and np.abs(self.q_cmd[side] - judged[0]).max() <= HOME_RAD:
+      self.homes[side] = [w.copy() for w in judged[1]]
+    else:
+      self.homes[side] = self.way_home(side)
     self.q_to[side] = self.homes[side].pop(0)
     self.phase[side] = "home"
-    if all(p in ("rest", "home") for p in self.phase.values()):
+    # ...the stand once no hand is out at its work: one carried at the side
+    # is none (#682), and kept the reach's bow, a withdraw left it bowed
+    if all(p in ("rest", "home", "carried") for p in self.phase.values()):
       self.hold_posture(0.0, 0.0)
 
   def home(self, side: str) -> bool:
@@ -1531,7 +1883,7 @@ class Reach:
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
-          "allowed", "left", "looks", "looking")
+          "allowed", "left", "looks", "looking", "carry_q")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
@@ -1871,7 +2223,7 @@ class Reach:
         pulled = self.pulls[s] is not None and self.pulls[s].get("pull") is not None
         stiffness = (self._pulled if pulled else self._held)(s, dt, *have[s])
         sm._set_arm(s, self.q_cmd[s])
-      elif phase in ("rest", "move", "joints", "home"):
+      elif phase in ("rest", "move", "joints", "home", "carried"):
         there = self._joints(s, dt)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s] = 0.0
@@ -1888,7 +2240,7 @@ class Reach:
           if self.homes[s]:
             self.q_to[s] = self.homes[s].pop(0)
           else:
-            self.phase[s] = "rest"
+            self.phase[s] = "rest" if self.carry_q[s] is None else "carried"
       elif phase == "blocked":
         sm._set_arm(s, self.q_cmd[s])
         stiffness = self.cmd[s].stiffness

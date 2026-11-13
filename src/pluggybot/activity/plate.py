@@ -3,11 +3,13 @@
 The first consumer of the activity pattern (issue #8), and deliberately the
 smallest thing that exercises every part of it:
 
-  a SENSED criterion      a sprung slide joint with a `jointpos` sensor, so
-                          "is it pressed" is read out of the physics rather
-                          than inferred from where the robot was told to go
-  HYSTERESIS              the plate rings after a wheel rolls onto it, and a
-                          bare threshold turns that ringing into chatter
+  a SENSED criterion      the load on the floor's square under it, a touch
+                          sensor (flush since #684; the lab's sprung pads, a
+                          slide joint's `jointpos`), so "is it pressed" is
+                          read out of the physics rather than inferred from
+                          where the robot was told to go
+  HYSTERESIS              a load rings as a foot lands, and a bare threshold
+                          turns that ringing into chatter
   a LATCH                 "the light is on" has no restoring force to model,
                           so Python remembers it and the sim does not have to
   PRE-ALLOCATED TOGGLES   the bulb goes from unlit to lit -- `geom_rgba` on
@@ -68,6 +70,27 @@ PLATE_OFF = 0.003         # ...and at which it reads released again. The gap
                           # IS the hysteresis, and it is what stops a ringing
                           # sprung joint from chattering the state machine.
 
+# ---- a flush plate: the floor's own square, on a load cell (#684) -------------
+#: A pad flush with the floor cannot sink under a foot -- the floor is a
+#: plane, which holds the foot up over the pad as anywhere -- and at the
+#: floor's height the plane takes half of what stands on the pad (measured:
+#: a box resting on it read 49-50 % of its weight). So a FLUSH plate
+#: (`plate_xml(flush=True)`, the garden's) is the floor's own square, read
+#: by a touch sensor under whatever stands on it, as load cells under a
+#: plate in a recess read it; its pad is paint, drawn and touched by
+#: nothing (ActivityPattern.md §3.1).
+#: ⚠ A sole is read where its contacts are, its corners on a plane: one only
+#: part over the plate reads the share its corners inside carry, or none.
+LOAD_ZONE_HALF = 0.004    # m: the sensor's zone either side of the floor
+LOAD_PAINT_HALF = 0.002   # m: the pad's paint, 4 mm, over the garden's 2 mm
+LOAD_ON_N = 100.0         # N on it at which it reads pressed: 10 kg, which
+                          # nothing a job sets out weighs, where the served
+                          # walker's foot crossing it peaked at 476-853 N
+                          # (15 walks, each pressing it)
+LOAD_OFF_N = 50.0         # ...and released again: the hysteresis, 71 flips
+                          # over those walks where a bare 100 N made 175
+
+
 # ---- the light --------------------------------------------------------------
 #: The bulb sits on a pole BESIDE the plate, garden-path-light style, so the
 #: cause and the effect are in one camera frame -- step on the plate, the
@@ -88,8 +111,8 @@ LAMP_UNLIT = (0.35, 0.34, 0.30, 1.0)
 LAMP_LIT = (1.0, 0.85, 0.35, 1.0)
 
 
-def plate_xml(plate_xy: tuple[float, float],
-              prefix: str = "garden") -> tuple[str, str]:
+def plate_xml(plate_xy: tuple[float, float], prefix: str = "garden",
+              flush: bool = False) -> tuple[str, str]:
   """MJCF for one pressure plate: (worldbody, sensor).
 
   The plate on its own, because it is the one mechanism the robot can
@@ -97,10 +120,23 @@ def plate_xml(plate_xy: tuple[float, float],
   of them with nothing lit (activity/cage.py, issue #215). Returns the
   two fragments separately because MuJoCo wants sensors in their own
   top-level section. Names: `<prefix>_plate`, its joint and its sensor
-  `<prefix>_plate_pos`, which is what `PlateLight` and any later reader
-  bind to.
+  `<prefix>_plate_pos`, which is what `Cage` and any later reader bind
+  to -- or, `flush`, a load plate (`LOAD_ON_N`): no joint, and its touch
+  sensor `<prefix>_plate_load`, which `PlateLight` reads.
   """
   px, py = plate_xy
+  if flush:
+    body = f"""
+    <!-- Pressure plate, flush with the floor: the floor's own square, read
+         by a touch sensor under whatever stands on it. Its pad is paint. -->
+    <body name="{prefix}_plate" pos="{px:.4f} {py:.4f} {LOAD_PAINT_HALF:.4f}">
+      <geom name="{prefix}_plate_pad" type="box" contype="0" conaffinity="0"
+            size="{PLATE_HALF:.4f} {PLATE_HALF:.4f} {LOAD_PAINT_HALF:.4f}"
+            rgba="0.42 0.44 0.48 1"/>
+    </body>
+    <site name="{prefix}_plate_zone" type="box" group="5" pos="{px:.4f} {py:.4f} 0"
+          size="{PLATE_HALF:.4f} {PLATE_HALF:.4f} {LOAD_ZONE_HALF:.4f}"/>"""
+    return body, f'<touch name="{prefix}_plate_load" site="{prefix}_plate_zone"/>'
   body = f"""
     <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
          sensor; the pad is just what the wheel touches. -->
@@ -142,9 +178,9 @@ def light_xml(light_xy: tuple[float, float], prefix: str = "garden") -> str:
 def plate_light_xml(plate_xy: tuple[float, float],
                     prefix: str = "garden") -> tuple[str, str]:
   """MJCF for one plate-and-light activity: (worldbody, sensor) -- the
-  plate, and the lamp `LAMP_OFFSET` beside it."""
+  plate, flush (#684), and the lamp `LAMP_OFFSET` beside it."""
   px, py = plate_xy
-  plate, sensor = plate_xml(plate_xy, prefix)
+  plate, sensor = plate_xml(plate_xy, prefix, flush=True)
   lamp = light_xml((px + LAMP_OFFSET[0], py + LAMP_OFFSET[1]), prefix)
   return plate + lamp, sensor
 
@@ -165,15 +201,15 @@ class PlateLight(Activity):
   def __init__(self, model, data, prefix: str = "garden",
                name: str | None = None) -> None:
     super().__init__(name or f"{prefix}_light")
-    self.sensor_adr = int(model.sensor(f"{prefix}_plate_pos").adr[0])
-    self.press = Threshold(on=PLATE_ON, off=PLATE_OFF)
+    self.sensor_adr = int(model.sensor(f"{prefix}_plate_load").adr[0])
+    self.press = Threshold(on=LOAD_ON_N, off=LOAD_OFF_N)
     self.latch = Threshold(on=0.5, latch=True)
     self.lamp = GeomToggle(model, f"{prefix}_light_bulb", {
       "off": {"rgba": list(LAMP_UNLIT)},
       "on": {"rgba": list(LAMP_LIT)},
     })
     self.lamp.select("off")
-    self.set(state="off", pressed=False, depressMm=0.0)
+    self.set(state="off", pressed=False)
 
   def kept_state(self) -> dict:
     return {**super().kept_state(), "pressed": self.press.value,
@@ -181,35 +217,29 @@ class PlateLight(Activity):
 
   def restore_kept(self, state: dict) -> None:
     super().restore_kept(state)
+    self.flags.pop("depressMm", None)       # a save from the sprung pad's days
     self.press.value = bool(state.get("pressed"))
     self.latch.value = bool(state.get("latched"))
     # the lamp is a geom's colour, which the new process compiled unlit
     self.lamp.current = None
     self.lamp.select("on" if self.latch.value else "off")
 
-  def depth(self, data) -> float:
-    """How far the plate is pushed down, in metres (positive = down).
-
-    Read from the JOINT SENSOR rather than from qpos, which is the same
-    number today and will not be on hardware: a real plate has a switch or
-    an encoder, and modelling the thing the robot will actually have is
-    what keeps the criterion transferable.
-    """
-    return -float(data.sensordata[self.sensor_adr])
+  def load(self, data) -> float:
+    """The weight on the plate, N: its touch sensor's reading, the normal
+    force of what stands on the floor's square under it -- what load cells
+    under a plate read, never whose foot it is (`LOAD_ON_N`)."""
+    return float(data.sensordata[self.sensor_adr])
 
   def sense(self, model, data) -> None:
-    d = self.depth(data)
-    pressed = self.press.update(d)
+    n = self.load(data)
+    pressed = self.press.update(n)
     lit = self.latch.update(1.0 if pressed else 0.0)
     state = "on" if lit else "off"
     self.lamp.select(state)
-    # Quantised to the whole millimetre on purpose. An ANALOGUE flag defeats
-    # sparseness: it differs almost every step, so an otherwise-constant
-    # activity would ship a delta on nearly every frame. Measured over one
-    # wheel crossing (300 frames): 38 deltas at 0.1 mm, 15 at 1 mm -- and no
-    # viewer can use a tenth of a millimetre. Quantise an analogue value to
-    # what a consumer can actually act on, or leave it off the wire.
-    self.set(state=state, pressed=pressed, depressMm=round(d * 1000))
+    # ⚠ No load on the wire (ActivityPattern.md §3.6): a robot standing on
+    # the plate shifts tens of newtons a step, so any rounding of it would
+    # ship a delta on nearly every frame, and nothing reads one.
+    self.set(state=state, pressed=pressed)
 
 
 def plate_center(model, prefix: str = "garden") -> tuple[float, float]:

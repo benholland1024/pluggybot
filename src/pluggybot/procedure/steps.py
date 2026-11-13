@@ -257,6 +257,19 @@ def _patience(life, args: dict) -> float:
   return s
 
 
+def _carried(life) -> dict:
+  """What a walk's report says of a hand it carried (#682; Ben, 2026-11-12:
+  the walk takes the carry pose itself and says so): `carried`, each hand
+  held at the side a walk carries it at -- its gripper said it held
+  something as the walk began -- and, of those, `dropped`, each whose
+  gripper says it holds nothing now. None carried, nothing said."""
+  hands = [s for s in ("left", "right") if life.body.carrying(s)]
+  if not hands:
+    return {}
+  dropped = [s for s in hands if not life.body.gripped(s)]
+  return {"carried": hands, **({"dropped": dropped} if dropped else {})}
+
+
 def _walk_stopped(life, x: float, y: float) -> dict:
   """A walk the robot's own interrupt ended (issue #381): an abort, never
   a failure -- the runners stop the program as `interrupted`."""
@@ -269,26 +282,33 @@ def _walk_stopped(life, x: float, y: float) -> dict:
 
 def _drive_to(life, args: dict) -> Routine:
   """A walk to a world point over the map, and over floor not yet on it
-  (issue #381, `Navigator.OPTIMISTIC`): no route is written for it."""
+  (issue #381, `Navigator.OPTIMISTIC`): no route is written for it. ⚠ Not
+  with a hand out that could not come home (#678, `_arm_out`)."""
   x, y = float(args["x"]), float(args["y"])
+  refused = _arm_out(life, "walk")
+  if refused is not None:
+    return refused
   arrived = yield from _go(life, x, y, _patience(life, args), _interrupt(life))
   px, py, _ = life.body.pose
   short = round(math.hypot(x - px, y - py), 3)
   if arrived:
-    return {"ok": True, "shortM": short}
+    return {"ok": True, "shortM": short, **_carried(life)}
   if _stopped(life):
-    return _walk_stopped(life, x, y)
+    return {**_walk_stopped(life, x, y), **_carried(life)}
   # WHY it gave up, not only how far short (issue #350): "stopped 9.1 m
   # short of (22, 3)" was a route the planner could not make, and Rowan
   # read it as the pack -- then told Luca, and both declined the lab.
   why = life.drive_why(x, y)
-  return {"ok": False, "shortM": short, "why": why,
+  return {"ok": False, "shortM": short, "why": why, **_carried(life),
           "reason": f"did not arrive at ({x:g}, {y:g}): {why}, at ({px:.1f}, {py:.1f})"}
 
 
 def _face(life, args: dict) -> Routine:
+  refused = _arm_out(life, "walk")
+  if refused is not None:
+    return refused
   squared = yield from life.body.face_routine(float(args["heading"]))
-  return {"ok": bool(squared),
+  return {"ok": bool(squared), **_carried(life),
           **({} if squared else {"reason": (
             f"did not square up to heading {float(args['heading']):.2f} rad "
             "within its time")})}
@@ -311,21 +331,28 @@ def _find(life, args: dict) -> Routine:
   where it is rides the verdict (`at`), and the robot remembers it."""
   tag = int(args["tag"])
   x, y = float(args["x"]), float(args["y"])
+  refused = _arm_out(life, "walk")
+  if refused is not None:
+    forget_readings(life, "find")
+    return {**refused, "tag": tag}
   patience = _patience(life, {"patience": args.get("patience", FIND_PATIENCE_S)})
   rec = yield from life.body.find_tag_routine(tag, near=(x, y), patience=patience,
                                               stop=_interrupt(life))
   why = rec.get("why", "")
-  out = {"ok": bool(rec.get("found")), "tag": tag, "why": why,
+  # ...where it found it, read as `find.*` (#559): in its map, as it
+  # remembers the place -- its face's way the best it knows (`Places.facing`);
+  # ok only with that place kept, as its text says (#686's review: ok
+  # beside a reading that said it failed)
+  place = (life.body.places.get(tag) if rec.get("found") and life.body.places is not None
+           else None)
+  out = {"ok": place is not None, "tag": tag, "why": why,
          "seconds": rec.get("seconds"), "remembered": bool(rec.get("remembered")),
          **({"at": list(rec["at"])} if rec.get("at") else {})}
-  # ...where it found it, read as `find.*` (#559): in its map, as it
-  # remembers the place -- its face's way the best it knows (`Places.facing`)
-  place = life.body.places.get(tag) if out["ok"] and life.body.places is not None else None
   if place is not None:
     _reports(life)["find"] = {"x": float(place.x), "y": float(place.y),
                               "facing": float(life.body.places.facing(tag)[0])}
   else:
-    _reports(life).pop("find", None)
+    forget_readings(life, "find")
   if not out["ok"]:
     searched = (f"did not find tag {tag}"
                 + (" where it was last seen, nor" if rec.get("remembered") else "")
@@ -344,10 +371,11 @@ def _find(life, args: dict) -> Routine:
       else f"{searched}, and no walk took it anywhere else to look from{looks}{walk_why}"
       if why == "gave up"
       else f"{searched} and ran out of time{looks}" if why == "out of time"
+      else f"saw tag {tag} but does not remember where it is" if rec.get("found")
       else f"did not find tag {tag}: {why or 'no reason given'}")
   if rec.get("trail"):
     out["trace"] = f"find tag {tag}: {find_trace(rec)}"
-  return out
+  return {**out, **_carried(life)}
 
 
 def _walk_trace(w: dict) -> str:
@@ -545,7 +573,7 @@ def _spot(life, args: dict) -> Routine:
   from pluggybot.procedure import axes
   tag = args["tag"]
   if float(tag) != int(tag):
-    _reports(life).pop("spot", None)
+    forget_readings(life, "spot")
     return {"ok": False, "reason": f"a tag is a whole number, not {tag}"}
   got, bowed, seen = None, False, None
   for down in SPOT_GAZES:
@@ -563,7 +591,7 @@ def _spot(life, args: dict) -> Routine:
   if bowed:
     yield from life.body.gaze_routine(0.0)
   if seen is None:
-    _reports(life).pop("spot", None)
+    forget_readings(life, "spot")
     # what the bows could not change, the picture's top (#660), and short:
     # History's line says each false test's reason inside its 400 characters
     return {"ok": False, "tag": int(tag),
@@ -589,10 +617,12 @@ def _watch(life, args: dict) -> Routine:
   what it reads riding `watch.*`. It waits for its first reading and is ok
   when that picture shows the tag; where it does not, it watches on all the
   same -- which a procedure sees only where the verb is an `if`'s test, a
-  failed verb ending it otherwise, and its watch with it."""
+  failed verb ending it otherwise, and its watch with it. One that fails
+  before it begins ends the watch before it (`forget_readings`)."""
   from pluggybot.procedure import axes
   tag = args["tag"]
   if float(tag) != int(tag):
+    forget_readings(life, "watch")
     return {"ok": False, "reason": f"a tag is a whole number, not {tag}"}
   life.body.watch(int(tag))
   waited = 0.0
@@ -600,6 +630,10 @@ def _watch(life, args: dict) -> Routine:
     yield from life.body.hold_routine(WATCH_POLL_S)
     waited += WATCH_POLL_S
   got = life.body.sighting()
+  if got is None:
+    # ...no reading by the end of its wait: it watches on, and until one
+    # comes, reading it says this call failed
+    _unread(life, "watch")
   if got is None or not got["seen"]:
     return {"ok": False, "tag": int(tag),
             "reason": f"tag {int(tag)} is not in view of your colour camera now"}
@@ -652,6 +686,7 @@ def _measure(life, args: dict) -> Routine:
   surface ends, and `object.<end>_taller` says so."""
   import numpy as np
   from pluggybot.perception import box
+  from pluggybot.procedure.axes import UNREAD
   x, y = float(args["x"]), float(args["y"])
   pictures = yield from life.body.depth_pictures(box.DEPTH_W, box.DEPTH_H, box.DEPTH_MIN_Z,
                                                  frames=box.FRAMES, apart=box.APART_S)
@@ -669,7 +704,7 @@ def _measure(life, args: dict) -> Routine:
   read = {key: box.edge_read(on[:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
   if top is None or None in read.values():
     said = f"your last `measure` saw no flat top round ({x:g}, {y:g}) from where you stood"
-    _reports(life)["measure"] = {"unread": dict.fromkeys(("top", *read), said)}
+    _reports(life)["measure"] = {UNREAD: dict.fromkeys(("top", *read), said)}
     return {"ok": False, "reason": f"no flat top seen round ({x:g}, {y:g}) from where you stand"}
   got, past, unseen, taller = {"top": top}, {}, {}, []
   for key, axis, far, way in MEASURE_ENDS:
@@ -700,7 +735,7 @@ def _measure(life, args: dict) -> Routine:
       got[key] = end
       if word == "taller":
         taller.append(key)
-  _reports(life)["measure"] = {**got, "unread": {**past, **unseen}, "taller": taller}
+  _reports(life)["measure"] = {**got, UNREAD: {**past, **unseen}, "taller": taller}
   return {"ok": True, **{k: round(v, 3) for k, v in got.items()},
           **({"runsOn": list(past)} if past else {}),
           **({"unseen": list(unseen)} if unseen else {}),
@@ -822,16 +857,43 @@ def _stopped_reading(life, verb: str, stopped: bool) -> None:
   _reports(life).setdefault("stopped", {})[verb] = 1.0 if stopped else 0.0
 
 
+def _unread(life, verb: str) -> None:
+  """`verb`'s report, after a call of it that failed: no reading, and
+  reading it says so (`axes.unread`), never that it has not run (#686)."""
+  from pluggybot.procedure import axes
+  _reports(life)[verb] = {axes.UNREAD: f"your last `{verb}` failed"}
+
+
 def forget_readings(life, verb: str) -> None:
-  """A call refused before it ran (`lang`, a computed argument): what its
-  verb last reported would read as this call's, so it goes, as a failed
-  `spot`'s or `pull`'s does -- a retry computes just such an argument, as
-  a distance left of what `pull.moved` read -- and its stop condition's
-  reading is a move's that ended otherwise (#650's review)."""
+  """A call that failed before it could report -- refused before it ran
+  (`lang`, a computed argument), closed by a fall or a death (`run_verb`),
+  or a `spot`, a `find` or a `pull` that read false: what its verb last
+  reported would read as this call's, so it goes (`_unread`) -- a retry
+  computes just such an argument, as a distance left of what `pull.moved`
+  read. A `watch`'s readings are the running watch's, so that watch ends
+  -- here, where a refused call, which never reaches `_watch`, comes too.
+  Its stop condition's reading is a move's that ended otherwise (#650's
+  review)."""
+  _unread(life, verb)
+  if verb == "watch":
+    life.body.watch(None)
   reports = _reports(life)
-  reports.pop(verb, None)
   if verb in reports.get("stopped", {}):
     _stopped_reading(life, verb, False)
+
+
+def end_run(life, watching: bool) -> None:
+  """A procedure's end (`lang.run_procedure_routine`): the words its failed
+  calls left (`_unread`) end with it, so the next one's read of a verb it
+  never called says it has not run (#686's review: a served robot keeps its
+  reports from one run to the next) -- what a verb last reported stays, as
+  ever -- and, `watching`, its watch ends with it (#554)."""
+  from pluggybot.procedure import axes
+  reports = _reports(life)
+  for verb in [v for v, rep in reports.items() if isinstance((rep or {}).get(axes.UNREAD), str)]:
+    del reports[verb]
+  if watching:
+    life.body.watch(None)
 
 
 def _thinned(felt: list, n: int = FELT_MAX) -> list:
@@ -877,6 +939,59 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "out of time": "your {hand} hand did not get there in time"}
 
 
+#: ...and one that kept off another robot's body (#678; `Body.hand_kept`,
+#: `Body.arm_kept`), by what it refused: where that robot stands, from the
+#: robot's own middle and said of its own body, what two minds work it out
+#: from -- the other hand, a step away, a `tell` (Ben, 2026-11-12).
+ARM_KEPT_OFF = {
+  "reach": "your {hand} arm's way there would meet another robot, its middle {m:.2f} m from "
+           "yours {where}: no way your arm takes there keeps clear of its body, so your arm "
+           "did not move",
+  "back": "your {hand} arm could get there, but its way home from there would meet another "
+          "robot, its middle {m:.2f} m from yours {where}: no way home keeps clear of its "
+          "body, so your arm did not move",
+  "withdraw": "your {hand} arm's way home would meet another robot, its middle {m:.2f} m from "
+              "yours {where}: no way home keeps clear of its body, so your hand stays where it "
+              "is, its gripper as it was",
+  "step": "your {hand} arm is out, and its way home would meet another robot, its middle "
+          "{m:.2f} m from yours {where}: a step brings your arms home first, so you did not "
+          "step",
+  "walk": "your {hand} arm is out, and its way home would meet another robot, its middle "
+          "{m:.2f} m from yours {where}: a walk brings your arms home first, so you did not "
+          "walk",
+  # ...and one a walk would carry (#682): its way to your side
+  "step carried": "your {hand} hand holds something, and its way to your side, where a step "
+                  "carries it, would meet another robot, its middle {m:.2f} m from yours "
+                  "{where}: so you did not step",
+  "walk carried": "your {hand} hand holds something, and its way to your side, where a walk "
+                  "carries it, would meet another robot, its middle {m:.2f} m from yours "
+                  "{where}: so you did not walk"}
+#: ...and, after a reach's, what the other hand's way there would do.
+OTHER_HAND_KEPT = {True: "; your {other} hand's way there keeps clear of it",
+                   False: "; nor does your {other} hand's",
+                   None: "; your {other} hand does not reach there"}
+
+
+def _where(kept: dict) -> str:
+  """Where another robot stands, as the robot says it of its own body: from
+  its stance's middle, a quarter of the way round each."""
+  a = math.degrees(math.atan2(kept["y"], kept["x"]))
+  return ("ahead of you" if abs(a) <= 45 else "on your left" if 45 < a <= 135
+          else "on your right" if -135 <= a < -45 else "behind you")
+
+
+def _arm_out(life, walk: str) -> dict | None:
+  """A walk refused before it moves (#678): a hand out whose every way home
+  would meet another robot's body (`Body.arm_kept`) -- a walk brings the
+  arms home first. Its verdict, by the verb (`ARM_KEPT_OFF`), else None."""
+  kept = life.body.arm_kept()
+  if kept is None:
+    return None
+  said = ARM_KEPT_OFF[f"{walk} carried" if kept.get("carried") else walk]
+  return {"ok": False, "why": "arm out", "hand": kept["hand"],
+          "reason": said.format(where=_where(kept), **kept)}
+
+
 def _reach(life, args: dict) -> Routine:
   """A hand's grip point to (x, y, z), its fingers along (fx, fy, fz) and
   its jaws closing along (jx, jy, jz) -- or at whatever turn the arm finds,
@@ -892,7 +1007,7 @@ def _reach(life, args: dict) -> Routine:
   (ok, stopped), felt = yield from _felt_routine(life, hand, _guarded_routine(
     life, hand, guard, life.body.reach_routine(
       hand, place, rot, stiffness=float(args.get("stiffness", _STIFF.default)),
-      patience=REACH_PATIENCE_S)))
+      patience=REACH_PATIENCE_S, refuse=True)))
   why = "" if ok else life.body.hand_why(hand)
   _stopped_reading(life, "reach", why == UNTIL)
   said = _said(guard, stopped, why)
@@ -902,6 +1017,11 @@ def _reach(life, args: dict) -> Routine:
     return {"ok": True, "hand": hand, "why": why, **said, "felt": felt}
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
   other = {"left": "right", "right": "left"}.get(hand)
+  kept = life.body.hand_kept(hand) if why == "kept off" else None
+  if kept is not None:
+    reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
+      hand=hand, where=_where(kept), **{k: v for k, v in kept.items() if k != "hand"})
+      + OTHER_HAND_KEPT[kept.get("other")].format(other=other))
   if why == "out of reach" and rot is not None and life.body.hand_reaches(hand, place):
     # ...turned as asked; and whether the TURN is what is out of reach,
     # off the same plan (#493: a mind asked both hands for a turn neither
@@ -1001,7 +1121,7 @@ def _pull(life, args: dict) -> Routine:
   _stopped_reading(life, "pull", False)
   d = (float(args["dx"]), float(args["dy"]), float(args["dz"]))
   if math.sqrt(sum(v * v for v in d)) == 0.0:
-    _reports(life).pop("pull", None)
+    forget_readings(life, "pull")
     return {"ok": False, "reason": "give the pull a way: (dx, dy, dz) are all 0"}
   guard = _guard(args)
   (rep, stopped), felt = yield from _felt_routine(life, hand, _guarded_routine(
@@ -1014,7 +1134,7 @@ def _pull(life, args: dict) -> Routine:
          "felt": felt, **_said(guard, stopped, rep.get("why"))}
   if rep.get("why") in ("not out", "fell"):
     # ...and no reading: the last pull's would read as this one's
-    _reports(life).pop("pull", None)
+    forget_readings(life, "pull")
     return {"ok": False, **out,
             "reason": MOVE_WHY.get(rep["why"], "the pull did not begin").format(hand=hand)}
   way = axes.in_stance(life, rep.get("direction") or (0.0, 0.0, 0.0), point=False)
@@ -1028,7 +1148,6 @@ def _pull(life, args: dict) -> Routine:
 #: Why a step stopped short, as its record says it (`Body.step_routine`).
 STEP_WHY = {"too short": "your step was too short to walk",
             "turned short": "your turn stopped short of where you asked",
-            "holding": "a step carries nothing: open your hands first",
             "blocked": "your step got nowhere: something stands in your way",
             "fell": "you fell",
             "out of time": "your step ran out of time"}
@@ -1043,16 +1162,23 @@ STEP_KEPT_OFF = {
 
 
 def _step(life, args: dict) -> Routine:
-  """THE STEP (issue #525; docs/Hands.md): its hands home and empty, the
+  """THE STEP (issue #525; docs/Hands.md): its hands home -- a hand that
+  holds something carried at its side (#682) -- the
   body turns `turn` rad on the spot and walks `ahead` m and `left` m in the
   frame it then stands in, and stands -- its feet where the hands' work is. Where its stance
   went, in the stance frame it stood in before, rides `step.*` whatever
   stopped it. ok when it stepped."""
+  refused = _arm_out(life, "step")
+  if refused is not None:
+    # ...a hand out that could not come home: nothing moves (#678)
+    _reports(life)["step"] = {"dx": 0.0, "dy": 0.0, "turn": 0.0}
+    return {**refused, "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
   rep = yield from life.body.step_routine(float(args["ahead"]), float(args.get("left", 0.0)),
                                           float(args.get("turn", 0.0)))
   _reports(life)["step"] = {k: float(rep.get(k, 0.0)) for k in ("dx", "dy", "turn")}
   out = {"why": rep["why"], "seconds": rep.get("seconds"),
-         **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")}}
+         **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")},
+         **_carried(life)}
   if rep["why"] != "stepped":
     kept = rep.get("keptOff")
     reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
@@ -1084,11 +1210,13 @@ def _withdraw(life, args: dict) -> Routine:
   """ok once the arm is home, by its drivers (`Body.release_routine`), its
   gripper opened first (#669)."""
   hand = args["hand"]
-  why, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand))
+  why, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand, refuse=True))
   if why == "home":
     return {"ok": True, "hand": hand, "felt": felt}
-  return {"ok": False, "hand": hand, "why": why, "felt": felt,
-          "reason": WITHDRAW_WHY.get(why, "your {hand} arm did not get home").format(hand=hand)}
+  kept = life.body.hand_kept(hand) if why == "kept off" else None
+  reason = (ARM_KEPT_OFF["withdraw"].format(hand=hand, where=_where(kept), **kept) if kept
+            else WITHDRAW_WHY.get(why, "your {hand} arm did not get home").format(hand=hand))
+  return {"ok": False, "hand": hand, "why": why, "felt": felt, "reason": reason}
 
 
 #: A hand's path, the most points (`via`): a 64-degree arc in 4-degree
@@ -1234,7 +1362,10 @@ HANDS_VERBS: dict[str, Verb] = {
                 "fingers; you take whatever posture reaches. stiffness 1 is your arm's full "
                 "stiffness, less is softer. ok once it holds there -- or as near as it came: "
                 "what it touches on its way in can hold it a few cm short, and your hand's "
-                "place (`left.x` and the rest) says where it is"),
+                "place (`left.x` and the rest) says where it is. Its way out, and its way "
+                "home from there, keep clear of the body of another robot standing near you: "
+                "where no way does, your arm does not move, and it reads false saying where "
+                "that robot stands"),
   "via": Verb("via", {"hand": _HAND, **_HAND_AT, **_TURN}, _via,
               "add the point (x, y, z) to your hand's path, the grip turned there to "
               "(fx, fy, fz) and (jx, jy, jz) where given as for `reach`; nothing moves "
@@ -1274,7 +1405,8 @@ HANDS_VERBS: dict[str, Verb] = {
                         "turn": Arg("float", lo=-3.2, hi=3.2, default=0.0)}, _step,
                "turn `turn` rad on the spot (left, +), then walk `ahead` m and `left` m in "
                "the frame you then stand in (negative: back, right), and stand still -- your "
-               "hands home first; a step carries nothing. Your feet walk in strides, each "
+               "hands home first, but a hand that holds something carried at your side, as "
+               "every walk carries it (`carried` in its report). Your feet walk in strides, each "
                "carrying your stance about 5 cm: a walk asked under "
                f"{100 * STEP_SHORT_M:.0f} cm may take none, and a walk may stop a few cm off "
                f"what you asked. A walk asked at least {100 * STEP_LEAST_M:.0f} cm that your own "
@@ -1306,7 +1438,9 @@ HANDS_VERBS: dict[str, Verb] = {
                    "hand back out along the way it went in, and its arm home -- straight "
                    "there, or out to your side first and down at your side where that keeps "
                    "the arm higher in front of you than straight would; ok once your arm is "
-                   "home"),
+                   "home. Its way home keeps clear of the body of another robot standing near "
+                   "you: where no way does, your gripper stays as it is and your hand where it "
+                   "is, and it reads false saying where that robot stands"),
 }
 #: The hands' vocabulary (#525; docs/Hands.md): what the humanoid's
 #: procedures call, the checks' and the practice's alike...

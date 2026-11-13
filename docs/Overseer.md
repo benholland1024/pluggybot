@@ -219,7 +219,9 @@ and never a failed step); a runaway `while` stops at `MAX_ITER` as
 physics thread: four nested loops in one def could run 10^8) as
 `statements`; a failed step, an arithmetic fault (division by zero, a local
 read before it was set) or a computed argument outside a verb's range ends
-the procedure with the step and the reason in the record. A source is at
+the procedure with the step, its line and the reason in the record -- an
+arithmetic fault at its statement's line, in the def it ran in (#686: it
+carried none, and the robot was told "line ?"). A source is at
 most `MAX_SOURCE_CHARS` (3,000 since #560: of 4,838 sources minds wrote in
 practice, never told the cap, 421 were over 1,500 and 47 over 3,000), and
 the text says so; one over it that parses is refused with every reason, the

@@ -85,6 +85,31 @@ def body_facts(joints: str = "legs") -> dict:
           "waist_gain_scale": list(getattr(hr, "WAIST_GAIN_SCALE", ()))}
 
 
+def seen_joints(task: str) -> tuple[str, ...] | None:
+  """The joints `task`'s actor sees, in their order, where it names them --
+  a carrying walker sees walk2's, never the waist (#682) -- else None: every
+  joint the entity has, as mjlab's metadata lists them."""
+  import humanoid_train  # noqa: F401  (registers the tasks)
+  from mjlab.tasks.registry import load_env_cfg
+  term = load_env_cfg(task).observations["actor"].terms.get("joint_pos")
+  names = None if term is None else getattr(term.params.get("asset_cfg"), "joint_names", None)
+  return tuple(names) if isinstance(names, (list, tuple)) else None
+
+
+def narrowed(meta: dict, seen: tuple[str, ...]) -> dict:
+  """`meta` with its per-joint lists (names, gains, default pose) cut to
+  `seen`, in its order: what the served sim builds the observation off
+  (`pluggybot.humanoid.policy`)."""
+  names = meta["joint_names"].split(",")
+  at = [names.index(n) for n in seen]
+  out = dict(meta)
+  for key in ("joint_names", "joint_stiffness", "joint_damping", "default_joint_pos"):
+    if key in meta:
+      vals = meta[key].split(",")
+      out[key] = ",".join(vals[k] for k in at)
+  return out
+
+
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser()
   ap.add_argument("onnx")
@@ -103,6 +128,11 @@ def main(argv=None) -> None:
                   help="the humanoid's joints the policy drives")
   args = ap.parse_args(argv)
   arrays = load(args.onnx)
+  seen = seen_joints(args.task)
+  if seen is not None:
+    meta = narrowed(json.loads(str(arrays["meta"])), seen)
+    arrays["meta"] = np.array(json.dumps(meta))
+    print(f"the joints it sees: {len(seen)} ({', '.join(seen[:2])}, ...)")
   err = check(args.onnx, arrays)
   assert err < 1e-4, f"numpy and ONNX disagree by {err}"
   print(f"numpy matches the ONNX file to {err:.1e}")

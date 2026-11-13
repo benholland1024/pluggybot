@@ -187,6 +187,9 @@ def _rz(yaw: float) -> np.ndarray:
   return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
 
 
+_OTHER = {"left": "right", "right": "left"}
+
+
 class HumanoidPack(Pack):
   """The pack's book with the humanoid's draw: its electronics always on
   (`parts.ELECTRONICS_W`), and every winding's heat at the torque its
@@ -258,13 +261,15 @@ class HumanoidBody(Body):
 
   STILL = STILL
   level_tilt_rad = LEVEL_TILT_RAD
-  #: How long a fall may last before it is the `stuck` death, s; without
-  #: its get-up policy, the topple's hold. MEASURED (`humanoid_spike.py
-  #: --fall`): it stood from six shoves on a bare floor in 2.7-4.2 s, and
-  #: from 17 of 20 in the house within 15 s, the slowest 11.9 s; of the
-  #: three still down, one stood at 30 s, at the foot of the flight it had
-  #: fallen down. The quadruped's 20 (its slowest 4.6), the margin for
-  #: falls those places do not make.
+  #: How long its get-up may hold its legs before it is the `stuck` death,
+  #: s, timed from the get-up's start (#684); without its get-up policy,
+  #: the topple's hold. MEASURED (`humanoid_spike.py --fall`): it stood from
+  #: six shoves on a bare floor in 2.7-4.2 s, and from 17 of 20 in the
+  #: house within 15 s, the slowest 11.9 s; of the three still down, one
+  #: stood at 30 s, at the foot of the flight it had fallen down. Of #679's
+  #: 151 falls, 119 stood within it and 6 more at 21.5-23.1 s, laid on
+  #: their front, head back, against a face. The quadruped's 20 (its slowest
+  #: 4.6), the margin for falls those places do not make.
   GETUP_BUDGET_S = 20.0
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
@@ -305,6 +310,9 @@ class HumanoidBody(Body):
     #: the hands whose reach `stop_hand` stopped (#554).
     self._why: dict[str, str] = {}
     self._halted: set[str] = set()
+    #: How each hand's last reach or withdraw was refused for another
+    #: robot's body in its arm's way (#678; `hand_kept`), else absent.
+    self._kept: dict[str, dict] = {}
     self.docked = False
     self.head_camera = handle.el(HEAD_CAMERA)
     self.collision_steps = 0
@@ -415,8 +423,11 @@ class HumanoidBody(Body):
   @property
   def working(self) -> bool:
     """A hand out (#559): its move is a routine's, which no file holds, so
-    a restart's save waits it out (`continuation.Keeper.busy`)."""
-    return any(p != "rest" for p in self.reach.phase.values())
+    a restart's save waits it out (`continuation.Keeper.busy`) -- but not
+    one carried at its side (#682), held there as a hanging arm is, its
+    pose and its carry kept (`Reach.KEPT`): a carry lasts until a reach or a
+    let-go, and saves held through it, a crash rolled the world back."""
+    return any(p not in ("rest", "carried") for p in self.reach.phase.values())
 
   def close(self) -> None:
     if self._tags is not None:
@@ -479,8 +490,9 @@ class HumanoidBody(Body):
     mujoco.mj_forward(m, d)
     self.mission.fresh_drivers()
     self.mission.drop_aside()
-    # ...and nobody its LIDAR saw from where it stood before (#675)
+    # ...and nobody its LIDAR saw from where it stood before (#675, #678)
     self.mission.seen_t.clear()
+    self.mission._looked = None
     if self.mission.matcher is not None:
       self.mission.matcher.anchored(on=False)
 
@@ -601,17 +613,25 @@ class HumanoidBody(Body):
   # ---- hands ---------------------------------------------------------------
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
-                    turns=None):
+                    turns=None, refuse=False):
     """⚠ True only once the hand HOLDS at the goal, never on `Reach.done`
     (#520): that is also a hand stopped short (`blocked`) and a hand
     hanging, as every hand is once a fall has let go of the reach and the
     stand-up has built a fresh one. A fall ends it at once; the next
-    routine waits out the get-up."""
+    routine waits out the get-up. ⚠ ITS WAY OUT, AND ITS WAY HOME FROM
+    THERE, KEEP OFF ANOTHER ROBOT ITS LIDAR SEES as it begins (#678;
+    `HumanoidMission.look_round`, `Reach._kept_off`): where none does,
+    `refuse` -- a verb's -- does not go, "kept off" (`hand_kept` says how,
+    and whether the other hand's way would); the loop's own reach -- a
+    charge's -- waits for one, looking again every `ARM_LOOK_S`,
+    `ARM_WAIT_S` at most, then goes the way out that comes least near it:
+    refused, a charge would fail, and a failed charge is a death."""
     yield from self.mission.to_stand_routine()
     p = self.to_stance(pos)
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     self._why[side] = "out of reach"
     self._halted.discard(side)
+    self._kept.pop(side, None)
     postures = reach_.REACH_POSTURES
     if path is not None:
       # the posture the hand then follows its path in, and that one alone
@@ -623,13 +643,26 @@ class HumanoidBody(Body):
       if follow is None:
         return False
       postures = (follow,)
-    if not self.reach.reach(side, HandGoal(p, r, stiffness), postures=postures,
-                            flip=path is None):
-      # ...or where its approach is out of reach in that posture, in any: the
-      # hand takes the path's posture once out (`Reach.carry`)
-      # -- the grip asked, never half a turn round: the path's turns are its
-      if path is None or not self.reach.reach(side, HandGoal(p, r, stiffness), flip=False):
-        return False
+    went = False
+
+    def goal() -> HandGoal:
+      # ...planned afresh off each look, from the stance it stands in then
+      return HandGoal(self.to_stance(pos), None if rot is None
+                      else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float), stiffness)
+
+    def clear() -> bool:
+      nonlocal went
+      went = self._reached(side, goal(), postures, path is not None, words=refuse)
+      return went or refuse or self._why[side] != "kept off"
+    why = yield from self.mission.arm_wait_routine(clear, (side,), "reach")
+    if why == "fell":
+      self._why[side] = "fell"
+      return False
+    if why == "waited":
+      # ...waited out: the way out that comes least near it
+      went = self._reached(side, goal(), postures, path is not None, words=False, refuse=False)
+    if not went:
+      return False
     falls = self.mission.falls
     for _ in range(int(round(patience / self._m.opt.timestep))):
       if self.mission.falls != falls or self.reach.done(side):
@@ -641,8 +674,61 @@ class HumanoidBody(Body):
                        else "stopped short" if self.reach.done(side) else "out of time")
     return held
 
+  def _reached(self, side, goal, postures, follows, words, refuse=True) -> bool:
+    """A reach planned and begun off one look round (`look_round`, #678):
+    True; else False, `hand_why` and `hand_kept` saying why -- and, `words`,
+    whether the other hand's way there would keep off that robot."""
+    self._why[side] = "out of reach"
+    self._kept.pop(side, None)
+    self.reach.keep_out = self.mission.keep_out(self.mission.look_round())
+    try:
+      if self.reach.reach(side, goal, postures=postures, flip=not follows, refuse=refuse):
+        return True
+      # ...or where its approach is out of reach in that posture, in any: the
+      # hand takes the path's posture once out (`Reach.carry`)
+      # -- the grip asked, never half a turn round: the path's turns are its
+      kept = self.reach.kept[side]
+      if follows and self.reach.reach(side, goal, flip=False, refuse=refuse):
+        return True
+      kept = self.reach.kept[side] or kept
+      if kept is not None:
+        # every way out, or home from there, meets another robot's body
+        self._why[side] = "kept off"
+        self._kept[side] = dict(kept, **({"other": self.reach.clear_way(_OTHER[side], goal)}
+                                         if words and not follows else {}))
+      return False
+    finally:
+      self.reach.keep_out = []
+
   def hand_why(self, side) -> str:
     return self._why.get(side, "")
+
+  def hand_kept(self, side) -> dict | None:
+    return self._kept.get(side)
+
+  def arm_kept(self) -> dict | None:
+    # ...one look, and only with an arm out that a walk would move: a hand
+    # home, or carried at its side already (#682), sweeps nothing
+    arms = self.reach
+    out = [s for s in hm.SIDES if arms.phase[s] != "rest" and not arms.carried(s)]
+    if not out:
+      return None
+    arms.keep_out = self.mission.keep_out(self.mission.look_round())
+    if not arms.keep_out:
+      arms.keep_out = []
+      return None
+    try:
+      # ...each judged to where the walk takes it: carried, its carry pose
+      carry = self.mission.carries()
+      for s in out:
+        if not arms.home_clear(s, carry.get(s)):
+          return dict(arms.kept[s], hand=s, **({"carried": True} if s in carry else {}))
+      return None
+    finally:
+      arms.keep_out = []
+
+  def carrying(self, side) -> bool:
+    return self.reach.carried(side)
 
   def stop_hand(self, side) -> bool:
     # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a
@@ -653,7 +739,7 @@ class HumanoidBody(Body):
     self._halted.add(side)
     return True
 
-  def release_routine(self, side):
+  def release_routine(self, side, refuse=False):
     """Out and home, waited for until its drivers read the arm there
     (`Reach.home`, #539), the posture back at the stand: "home"; "fell" -- a
     fall ends it at once, the next routine waiting out the get-up, as a
@@ -664,16 +750,40 @@ class HumanoidBody(Body):
     LEGS GO BACK TO THE STANDING POLICY BEFORE ITS POSTURE IS WAITED ON,
     `STAND_BACK_S` AT MOST, the arm's word the answer (#668): an arm at
     rest is no hand out, and a step aside asked as it came home took them
-    for the walker, under which the standing posture never moves."""
+    for the walker, under which the standing posture never moves. ⚠ ITS
+    WAY HOME KEEPS OFF ANOTHER ROBOT ITS LIDAR SEES as it begins (#678;
+    `Reach._kept_off`): where none does, `refuse` -- a verb's -- is "kept
+    off", nothing moved and its gripper as it was, judged before the let-go
+    (`hand_kept`); the loop's own -- a charge's -- waits for one as a walk's
+    hand-over does (`HumanoidMission._arms_wait_routine`)."""
     yield from self.mission.to_stand_routine()
     falls = self.mission.falls
-    if not (yield from self.mission.let_go_routine((side,))):
-      return "fell"
-    self.reach.retreat(side)
-    for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
-      if self.mission.falls != falls or self.reach.home(side):
-        break
-      yield STILL
+    self._kept.pop(side, None)
+    try:
+      # ...its way home judged against another robot its LIDAR sees, ONE look
+      # as it begins (#678), before the let-go -- home to its rest, a hand
+      # carried at its side too (#682), whose carry ends only once it goes
+      if refuse:
+        self.reach.keep_out = (self.mission.keep_out(self.mission.look_round())
+                               if self.reach.phase[side] != "rest" else [])
+        if self.reach.keep_out and not self.reach.home_clear(side, self.reach.rest[side]):
+          self._kept[side] = dict(self.reach.kept[side])
+          return "kept off"
+        self.reach.drop_carry(side)
+      else:
+        self.reach.drop_carry(side)
+        yield from self.mission._arms_wait_routine((side,), nav=False)
+        if self.mission.falls != falls:
+          return "fell"
+      if not (yield from self.mission.let_go_routine((side,))):
+        return "fell"
+      self.reach.retreat(side)
+      for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
+        if self.mission.falls != falls or self.reach.home(side):
+          break
+        yield STILL
+    finally:
+      self.reach.keep_out = []
     if self.mission.falls == falls:
       yield from self.mission.to_stand_routine(getup=False)
     for _ in range(int(round(STAND_BACK_S / self._m.opt.timestep))):
@@ -909,7 +1019,9 @@ class HumanoidBody(Body):
     return float(f[0]), float(f[1]), float(f[2])
 
   def step_routine(self, ahead, left=0.0, turn=0.0, patience=STEP_PATIENCE_S):
-    """THE STEP (#525): its hands home and empty, it turns `turn` on the
+    """THE STEP (#525): its hands home -- or a hand whose gripper says it
+    holds something carried at its side, the walk's hand-over's (#682,
+    `HumanoidMission.to_walk_routine`) -- it turns `turn` on the
     spot, walks `ahead` and `left` in the frame it then stands in -- one
     motion at `STEP_V` (`BACK_V` backing up), or the one and then the other
     where the walker would not walk that way (`_step_walks`) -- and stands:
@@ -920,7 +1032,7 @@ class HumanoidBody(Body):
     ended (`why`: "stepped", "too short" -- the walk its legs reckon went
     under `STEP_LEAST_M`, asked at least that -- "turned short" -- its feet
     held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
-    "holding" -- a hand holds something, and it does not move -- "blocked"
+    "blocked"
     -- its walk got nowhere, or kept off another robot as a walk does
     (`_kept_off`, #670: then `keptOff` says how) -- "fell", "out of time"), in
     how long, and where its stance went, by its own reckoning, in the stance
@@ -933,8 +1045,6 @@ class HumanoidBody(Body):
     yield from mi._getup_routine()
     by_legs = self._by_legs()
     t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
-    if any(self.gripped(s) for s in hm.SIDES):
-      return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
     walks = _step_walks(ahead, left)
     # ...nor, any of its walks heading nearer another robot it would stand
     # too near as that walk begins (`_kept_off`), turns or hands its legs
@@ -953,16 +1063,21 @@ class HumanoidBody(Body):
     if abs(turn) > TURN_STOP_RAD:
       patience += TURN_CLOSE_S
 
+    waited = 0.0
+
     def over() -> str | None:
       if mi.falls != falls:
         return "fell"
-      return "out of time" if float(self._d.time) - t0 > patience else None
+      return "out of time" if float(self._d.time) - t0 - waited > patience else None
     length, why = math.hypot(ahead, left), "stepped"
     if abs(turn) > TURN_STOP_RAD or length:
       # the legs to the walker, its arms home, before anything is measured:
       # out of a deep bow the pelvis came 16 cm forward on its own, and the
-      # hand-over outlasted `STEP_STUCK_S` (#525)
+      # hand-over outlasted `STEP_STUCK_S` (#525) -- a wait in it for an
+      # arm's way home counted against no patience, as a walk's (#678)
+      held = mi.held_s
       yield from mi.to_walk_routine()
+      waited = mi.held_s - held
       why = over() or why
     if why == "stepped" and abs(turn) > TURN_STOP_RAD:
       why = yield from self._turn_routine(turn, over, by_legs, s0[2])

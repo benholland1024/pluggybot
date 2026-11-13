@@ -4,6 +4,7 @@ noise, maps fused from known poses, and the body's wiring called at its
 seam -- the humanoid standing in its house, its own LIDAR's scans. Nothing
 here flies."""
 
+import copy
 import gc
 import math
 import time
@@ -123,15 +124,377 @@ def test_a_corridor_is_fixed_across_and_held_along(corridor, monkeypatch):
   assert abs(math.degrees(got.pose[2] - true[2])) < 0.2
 
 
-def test_a_fit_that_would_slide_past_the_gate_is_refused(room):
+def test_a_fit_that_would_slide_past_the_gate_is_refused_unless_the_search_finds_it(
+    room, monkeypatch):
   # 17 cm off is a pose the fit can pull back, but not in one scan: a
-  # correction past MAX_STEP is another wall to sit on, and is refused.
-  m = sm.ScanMatcher(room)
+  # correction past MAX_STEP may be another wall to sit on, so the fit's is
+  # never taken -- the bounded search's is, where the walls agree with it
+  # (DOUBT_FOUND_SHARE), and otherwise the scan is refused.
   ranges = cast(ROOM, TRUE, np.random.default_rng(5))
   guess = (TRUE[0] + 0.14, TRUE[1] - 0.10, TRUE[2] + 0.08)
-  got = m.match(guess, ANGLES, ranges)
-  assert not got.accepted
+  got = sm.ScanMatcher(room).match(guess, ANGLES, ranges)
+  assert got.why == "found"
+  assert math.hypot(got.pose[0] - TRUE[0], got.pose[1] - TRUE[1]) < 0.02
+  monkeypatch.setattr(sm, "DOUBT_FOUND_SHARE", 1.01)
+  got = sm.ScanMatcher(room).match(guess, ANGLES, ranges)
+  assert not got.accepted and got.why == "slid" and not got.fuse
   assert got.pose == guess
+
+
+#: A storeroom as the counter has it (#559, T5's night of 11-10): 6 x 6 m, and
+#: the robot 0.6 m from its east wall facing it, so that the returns ahead
+#: fall under MATCH_MIN_M and the long north and south walls make most of the
+#: scan, as the counter's own returns are left out at a work spot.
+STORE = box(0.013, 0.021, 6.013, 6.021)
+AT_COUNTER = (5.4, 3.02, 0.0)
+
+
+@pytest.fixture(scope="module")
+def store():
+  rng = np.random.default_rng(4)
+  poses = [(rng.uniform(0.6, 5.4), rng.uniform(0.6, 5.4), rng.uniform(-3, 3)) for _ in range(40)]
+  return mapped(STORE, (-1, -1, 7, 7), poses)
+
+
+@pytest.mark.parametrize("off", [0.3, -0.3])
+def test_a_fit_its_side_walls_hold_while_its_end_walls_disagree_is_searched(store, off):
+  # MEASURED at the counter (T5): the side walls stay on their walls whatever
+  # the offset along them, so a fit 0.3-0.4 m off was judged `ok` and its
+  # scan laid in, and the copy it laid kept the error for hours. Doubted, the
+  # search takes the pose the end walls agree with, and the scan is not laid
+  # at the pose it disagreed with.
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
+  guess = (AT_COUNTER[0] + off, AT_COUNTER[1], AT_COUNTER[2])
+  got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+  assert got.why == "found" and got.fuse, got
+  assert abs(got.pose[0] - AT_COUNTER[0]) < 0.05, got
+
+
+def test_a_doubted_fits_take_is_judged_at_its_own_bar(store, monkeypatch):
+  # ...at DOUBT_FOUND_SHARE, never the base search's FOUND_SHARE: at 0.75 a
+  # take moved a true pose over 0.1 m at 11 places of 7,840 (the hall's
+  # stairs), at 0.9 at the base's own 2 (#681's review: no test read it).
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
+  guess = (AT_COUNTER[0] + 0.3, AT_COUNTER[1], AT_COUNTER[2])
+  monkeypatch.setattr(sm, "DOUBT_FOUND_SHARE", 1.01)
+  got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+  assert got.why == "doubted", got
+
+
+#: A corridor fenced in panels, both sides (#681's sidewalks; D4, the day
+#: shift of 11-11): 0.7 m of fence and a 0.3 m gap every metre, so a place a
+#: metre along explains a scan as well as the truth does.
+PANELS = [(x, y, x + 0.7, y) for x in np.arange(-30.0, 40.0) + 0.013 for y in (0.0, 1.5)]
+
+
+@pytest.fixture(scope="module")
+def panelled():
+  return mapped(PANELS, (-25, -1, 35, 3), [(x, 0.75, 0.0) for x in np.arange(-12, 20, 0.5)])
+
+
+#: The panels' ends fix the fit along the corridor at 0.2 of its points, so
+#: these doubt it at a bar over that: what is pinned is what the doubt's
+#: search does with a fit, whatever doubted it (the sidewalks' were held).
+PANELS_WEAK = 0.3
+
+
+def test_a_doubted_fits_search_takes_no_place_another_explains_as_well(panelled, monkeypatch):
+  # MEASURED (the drift flight seed 19 from the hall): along a sidewalk every
+  # place scored 0.95-1.00 of the search's best, and taking the best, a few
+  # points ahead each time, walked the belief 5.95 m off. Here the best is
+  # the place a metre behind the truth, and the truth, 0.4 m ahead of the
+  # belief, explains the scan as well: neither is taken, and the fit is as
+  # it would have been -- its scan laid in, as an `ok` one is (not laid in,
+  # doubted scans starved the map of new ground on the way to the mall).
+  monkeypatch.setattr(sm, "DOUBT_WEAK_SHARE", PANELS_WEAK)
+  true = (4.0, 0.75, 0.0)
+  ranges = cast(PANELS, true, np.random.default_rng(3))
+  guess = (true[0] - 0.4, true[1], true[2])
+  got = sm.ScanMatcher(panelled).match(guess, ANGLES, ranges)
+  assert got.why == "doubted" and got.accepted and got.fuse, got
+  assert abs(got.pose[0] - guess[0]) < 0.05, got
+
+
+def test_a_doubted_fit_the_search_finds_nothing_for_keeps_its_own_correction(panelled, monkeypatch):
+  # ...found nothing, a doubted fit is the fit it was, correction and all:
+  # 0.4 m behind the truth and 1.7 deg turned, the panels fix its heading,
+  # and the fit's turn is taken as an `ok` one's would be. Laid at the pose
+  # asked about instead, every doubted scan -- 229 of ~720 along the mall's
+  # sidewalk -- would lose its correction across and its turn (#681's review).
+  monkeypatch.setattr(sm, "DOUBT_WEAK_SHARE", PANELS_WEAK)
+  true = (4.0, 0.75, 0.0)
+  ranges = cast(PANELS, true, np.random.default_rng(3))
+  guess = (true[0] - 0.4, true[1], true[2] + 0.03)
+  got = sm.ScanMatcher(panelled).match(guess, ANGLES, ranges)
+  assert got.why == "doubted" and got.fuse, got
+  assert abs(math.degrees(got.pose[2] - true[2])) < 0.3, got
+  assert abs(got.pose[0] - guess[0]) < 0.05, got
+
+
+def test_only_the_base_search_takes_the_best_of_two_places_alike(room, monkeypatch):
+  # Which search a fit gets is the rule (#681): an inconsistent fit the
+  # base's, whose best is taken as it always was; a slid or a doubted one the
+  # doubt's, whose best is taken only where no place UNIQUE_M off explains
+  # the scan as well (`unique`). Pinned at the wiring: on one noise draw in
+  # the panelled corridor a slid fit's refusal hung on one point (#681's
+  # review).
+  calls = []
+  real = sm.ScanMatcher._search
+
+  def spy(self, pose, pts, **kw):
+    calls.append(kw.get("unique", False))
+    return real(self, pose, pts, **kw)
+
+  monkeypatch.setattr(sm.ScanMatcher, "_search", spy)
+  slid = (TRUE[0] + 0.14, TRUE[1] - 0.10, TRUE[2] + 0.08)
+  got = sm.ScanMatcher(room).match(slid, ANGLES, cast(ROOM, TRUE, np.random.default_rng(5)))
+  assert got.why == "found" and calls == [True], (got, calls)
+  calls.clear()
+  far = (TRUE[0] + 0.30, TRUE[1] - 0.26, TRUE[2] + 0.04)
+  got = sm.ScanMatcher(room).match(far, ANGLES, cast(ROOM, TRUE, np.random.default_rng(21)))
+  assert got.why == "found" and calls == [False], (got, calls)
+
+
+def test_a_straight_corridor_held_along_is_not_doubted(corridor):
+  # ...where nothing disagrees: a corridor's fit held along it is laid in,
+  # 0.3 m off along it as anywhere (no end in reach says otherwise).
+  true = (4.0, 0.7, 0.0)
+  ranges = cast(CORRIDOR, true, np.random.default_rng(3))
+  got = sm.ScanMatcher(corridor).match((true[0] + 0.3, true[1], true[2]), ANGLES, ranges)
+  assert got.why == "ok" and got.held == 1 and got.fuse
+
+
+def test_a_fit_held_along_with_a_tenth_of_its_points_off_the_walls_is_doubted(corridor):
+  # ...and where something does: a held fit with 0.89-0.95 of its points on
+  # walls is searched (DOUBT_HELD_SHARE), as the sidewalks' were on the drift
+  # flight 19h (#681's review: no test read the bar). Here a post the map
+  # never saw takes a tenth of the scan; nothing along the corridor explains
+  # it better, so the fit is what it was, held and laid in.
+  true = (4.0, 0.7, 0.0)
+  ranges = cast(CORRIDOR + [(5.5, 0.5, 5.5, 1.0)], true, np.random.default_rng(3))
+  m = sm.ScanMatcher(corridor)
+  got = m.match((true[0] + 0.3, true[1], true[2]), ANGLES, ranges)
+  assert got.why == "doubted" and got.held == 1 and got.fuse, got
+
+
+#: The free_from the band lays a scan from: about 1 m ahead, and 2.8 m
+#: behind, where the head's back hides the rings under -26 deg.
+BAND_FF = np.where(np.abs(ANGLES) < math.pi / 2, 1.0, 2.8)
+
+
+@pytest.fixture(scope="module")
+def store_copy(store):
+  """The storeroom with a copy of its counter's end laid 0.3 m along it, as
+  a matcher that kept a belief 0.3 m off laid it (#681's review: the copies
+  the live maps hold): 72 scans from 24 work poses round the counter, each
+  laid where the belief put it, its rays clearing what they crossed."""
+  g = copy.deepcopy(store)
+  rng = np.random.default_rng(5)
+  work = [(rng.uniform(5.0, 5.4), AT_COUNTER[1] + rng.normal(0, 0.15), rng.uniform(-0.6, 0.6))
+          for _ in range(24)]
+  noise = np.random.default_rng(11)
+  for p in work:
+    for _ in range(3):
+      g.update((p[0] + 0.3, p[1], p[2]), ANGLES, cast(STORE, p, noise), 8.0, origin=(0.0, 0.0),
+               free_from=BAND_FF)
+  return g, [AT_COUNTER] + work[:6]
+
+
+def test_a_copy_of_the_room_in_the_map_does_not_capture_a_right_belief(store_copy):
+  # #681's review: where a copy's scans cleared the true walls' cells, a fit
+  # at the truth read 0.77-0.80 on walls; doubted for being under 0.8, its
+  # search took the copy, which explains more (11-12 work poses of 12 on the
+  # review's synthetic counter; 35 of 40 poses round the counter on Luca's
+  # live map of 11-09, the base none). A fit with every direction fixed by
+  # many points is not doubted, whatever its share: the copy pulls no right
+  # belief the base's fit would have kept.
+  g, poses = store_copy
+  for k, p in enumerate(poses):
+    ranges = cast(STORE, p, np.random.default_rng(30 + k))
+    m = sm.ScanMatcher(g)
+    got = m.match(p, ANGLES, ranges)
+    assert got.why == "ok" and abs(got.pose[0] - p[0]) < 0.05, (k, got)
+  # ...the case it pins: at the counter the copy explains the scan better
+  m = sm.ScanMatcher(g)
+  m.refresh(*AT_COUNTER[:2])
+  pts = m.points(ANGLES, cast(STORE, AT_COUNTER, np.random.default_rng(30)))
+  d, _, _, _, live = m.distance(AT_COUNTER, pts)
+  assert (np.abs(d[live]) < sm.INLIER_M).mean() < 0.8
+  start = m._search(AT_COUNTER, pts, unique=True)
+  assert start is not None and abs(start[0] - AT_COUNTER[0] - 0.3) < 0.06, start
+
+
+def test_a_full_fit_is_doubted_where_its_weakest_direction_rests_on_few_points(
+    store_copy, monkeypatch):
+  # ...and one whose weakest direction rests on under DOUBT_WEAK_SHARE of its
+  # points is doubted as a held one is: MEASURED at the counter, a belief
+  # 0.2-0.4 m off toward it is often a full fit, the counter's front, its
+  # props and the wall behind "fixing" the direction at 0.05-0.19 of its
+  # points (median 0.075), where a right belief beside a copy reads 0.12-0.29
+  # (Luca's live map of 11-09) and the tests' copies 0.17-0.30. Pinned at the
+  # bar: the right belief by the copy is doubted (and searched onto the copy)
+  # with the bar just over its weakest direction's share, and not just under.
+  g, _ = store_copy
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(30))
+  m = sm.ScanMatcher(g)
+  m.refresh(*AT_COUNTER[:2])
+  pts = m.points(ANGLES, ranges)
+  fit = m._fit(AT_COUNTER, pts)
+  _, why, kw = m._judge(AT_COUNTER, pts, fit)
+  weak = kw["weakest"] / float(fit[2].sum())
+  assert why == "ok" and kw["held"] == 0 and weak > sm.DOUBT_WEAK_SHARE, (why, kw, weak)
+  monkeypatch.setattr(sm, "DOUBT_WEAK_SHARE", weak + 0.01)
+  got = sm.ScanMatcher(g).match(AT_COUNTER, ANGLES, ranges)
+  assert got.why == "found" and abs(got.pose[0] - AT_COUNTER[0] - 0.3) < 0.06, got
+  monkeypatch.setattr(sm, "DOUBT_WEAK_SHARE", weak - 0.01)
+  assert sm.ScanMatcher(g).match(AT_COUNTER, ANGLES, ranges).why == "ok"
+
+
+def test_the_doubts_search_takes_no_pose_it_would_doubt_again(store, monkeypatch):
+  # #681's review of 11-13: the take was judged at DOUBT_FOUND_SHARE with
+  # every direction fixed, never by the doubt's own test, so a pose whose
+  # weakest direction rests on a few aliasing points, at 0.90-0.95 on walls,
+  # could be taken, and the next scan from it doubted and searched again.
+  # Pinned at the bars: the storeroom's take-back, its found fit put just
+  # under DOUBT_WEAK_SHARE and DOUBT_HELD_SHARE, is refused (doubted, as it
+  # was), and just over either, taken.
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
+  guess = (AT_COUNTER[0] + 0.3, AT_COUNTER[1], AT_COUNTER[2])
+  m = sm.ScanMatcher(store)
+  m.refresh(*guess[:2])
+  pts = m.points(ANGLES, ranges)
+  start = m._search(guess, pts, unique=True)
+  fit = m._fit(start, pts)
+  at, why, kw = m._judge(guess, pts, fit, found=True, doubt=True)
+  live = float(fit[2].sum())
+  weak, share = kw["weakest"] / live, kw["inliers"] / live
+  assert why == "found" and weak > sm.DOUBT_WEAK_SHARE, (why, weak, share)
+  monkeypatch.setattr(sm, "DOUBT_HELD_SHARE", share + 0.01)
+  monkeypatch.setattr(sm, "DOUBT_WEAK_SHARE", weak + 0.01)
+  got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+  assert got.why == "doubted" and abs(got.pose[0] - guess[0]) < 0.05, got
+  for name, bar in (("DOUBT_WEAK_SHARE", weak - 0.01), ("DOUBT_HELD_SHARE", share - 0.01)):
+    with monkeypatch.context() as patch:
+      patch.setattr(sm, name, bar)
+      got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+      assert got.why == "found" and abs(got.pose[0] - AT_COUNTER[0]) < 0.05, (name, got)
+
+
+def test_the_doubts_search_takes_only_a_place_that_explains_the_scan_much_better(
+    store, monkeypatch):
+  # MEASURED (#681's third round, a drift flight's captured takes): on open
+  # ground a weakly fixed fit's search found places 1.00-1.11 as good as the
+  # pose asked about, and four takes in 5 s moved the belief 10 cm the wrong
+  # way and 9 cm back; the counter's take-backs gained 1.25-2.1. Pinned at
+  # the bar: the storeroom's take-back, refused with DOUBT_GAIN just over
+  # its gain, taken just under.
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
+  guess = (AT_COUNTER[0] + 0.3, AT_COUNTER[1], AT_COUNTER[2])
+  m = sm.ScanMatcher(store)
+  m.refresh(*guess[:2])
+  pts = m.points(ANGLES, ranges)
+  on_wall = np.abs(np.nan_to_num(m.field, nan=np.inf)) < sm.INLIER_M
+  start = m._search(guess, pts, unique=True)
+  gain = m._on_wall_count(start, pts, on_wall) / m._on_wall_count(guess, pts, on_wall)
+  assert gain > sm.DOUBT_GAIN, gain
+  monkeypatch.setattr(sm, "DOUBT_GAIN", gain + 0.01)
+  got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+  assert got.why == "doubted" and abs(got.pose[0] - guess[0]) < 0.05, got
+  monkeypatch.setattr(sm, "DOUBT_GAIN", gain - 0.01)
+  got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+  assert got.why == "found" and abs(got.pose[0] - AT_COUNTER[0]) < 0.05, got
+
+
+def test_the_doubts_gain_is_over_the_fit_it_would_replace(store, monkeypatch):
+  # ...over the pose the doubted fit would lay the scan at, never the pose
+  # asked about (#681's second review): a fit corrected across a sidewalk
+  # made any place along it a gain over the asked pose. The wiring, and the
+  # bar against a pose: no place gains over itself.
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
+  guess = (AT_COUNTER[0] + 0.3, AT_COUNTER[1], AT_COUNTER[2])
+  m = sm.ScanMatcher(store)
+  m.refresh(*guess[:2])
+  pts = m.points(ANGLES, ranges)
+  at, why, _ = m._judge(guess, pts, m._fit(guess, pts))
+  assert why == "doubted" and at != guess, (why, at)
+  start = m._search(guess, pts, unique=True)
+  assert start is not None and m._search(guess, pts, unique=True, against=start) is None
+  seen = []
+  real = sm.ScanMatcher._search
+
+  def spy(self, pose, pts, **kw):
+    seen.append(kw.get("against"))
+    return real(self, pose, pts, **kw)
+
+  monkeypatch.setattr(sm.ScanMatcher, "_search", spy)
+  assert sm.ScanMatcher(store).match(guess, ANGLES, ranges).why == "found"
+  assert seen == [at], (seen, at)
+
+
+def test_a_slid_fits_search_is_taken_only_where_the_fit_slid(room, monkeypatch):
+  # A fit that slid past MAX_STEP is searched, and the search's pose taken
+  # only within DOUBT_SLID_M of where the fit itself slid: on Luca's live map
+  # of 11-09 a belief 0.1 m off slid 0.17 m toward one copy of the counter
+  # and the search found another 0.25 m from it (13 poses of 40, the base
+  # refusing every one); the slides the search agreed with, within 0.05 m
+  # on a map laid true, were the counter's take-backs.
+  ranges = cast(ROOM, TRUE, np.random.default_rng(5))
+  guess = (TRUE[0] + 0.14, TRUE[1] - 0.10, TRUE[2] + 0.08)
+  assert sm.ScanMatcher(room).match(guess, ANGLES, ranges).why == "found"
+  for name in ("DOUBT_SLID_M", "DOUBT_SLID_RAD"):     # ...where it slid and turned
+    with monkeypatch.context() as patch:
+      patch.setattr(sm, name, 0.0)
+      got = sm.ScanMatcher(room).match(guess, ANGLES, ranges)
+      assert got.why == "slid" and not got.accepted and got.pose == guess, (name, got)
+
+
+def test_the_doubts_search_runs_once_in_its_scans_and_a_restart_keeps_the_count(
+    corridor, monkeypatch):
+  # #681's review: ~25 ms a doubted scan, and 600 of 600 doubted in a minute
+  # standing among clutter the map lacks. The search a doubted or a slid fit
+  # gets runs at most once every DOUBT_EVERY scans; between, the fit is what
+  # it was (doubted laid in, slid refused, as before #681). The post the map
+  # never saw doubts every scan here, and nothing explains it better.
+  calls = []
+  real = sm.ScanMatcher._search
+
+  def spy(self, pose, pts, **kw):
+    calls.append(len(calls))
+    return real(self, pose, pts, **kw)
+
+  monkeypatch.setattr(sm.ScanMatcher, "_search", spy)
+  true = (4.0, 0.7, 0.0)
+  ranges = cast(CORRIDOR + [(5.5, 0.5, 5.5, 1.0)], true, np.random.default_rng(3))
+  guess = (true[0] + 0.3, true[1], true[2])
+  m = sm.ScanMatcher(corridor)
+  whys = [m.match(guess, ANGLES, ranges).why for _ in range(2 * sm.DOUBT_EVERY + 1)]
+  assert set(whys) == {"doubted"} and len(calls) == 3, (whys, calls)
+  # ...and the count rides a restart
+  m = sm.ScanMatcher(corridor)
+  for _ in range(3):
+    m.match(guess, ANGLES, ranges)
+  state, arrays = m.kept_state()
+  again = sm.ScanMatcher(corridor)
+  again.restore_kept(state, arrays)
+  calls.clear()
+  for _ in range(sm.DOUBT_EVERY - 3):
+    again.match(guess, ANGLES, ranges)
+  assert calls == [], calls
+  again.match(guess, ANGLES, ranges)
+  assert len(calls) == 1
+  # ...and starts afresh where the belief is put somewhere new -- the window
+  # of a fix opened or closed (`anchored`), the map forgotten at a stand-up
+  # -- and never at `fuse_next`, which the Navigator calls at every scan it
+  # does not map (#681's second review: a robot bowing in and out of
+  # mapping searched at every mapped scan)
+  for reset, afresh in ((again.fuse_next, False), (lambda: again.anchored(on=False), True),
+                        (again.forget, True)):
+    calls.clear()
+    again.match(guess, ANGLES, ranges)
+    assert calls == [], calls
+    reset()
+    again.match(guess, ANGLES, ranges)
+    assert len(calls) == afresh, (reset, calls)
 
 
 def test_a_scan_with_no_map_under_it_is_no_match():
@@ -467,11 +830,24 @@ def test_a_robot_lost_past_the_search_is_relocated_after_two_runs_of_refusals(ro
     got = m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
     assert got.why == "inconsistent" and got.pose == LOST
   assert m.pending is not None, "the first search found nothing"
+  m.doubt_wait = sm.DOUBT_EVERY      # a doubt searched just before: relocated, it waits no more
   got = m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
-  assert got.why == "relocated" and got.accepted and not got.fuse
+  assert got.why == "relocated" and got.accepted and not got.fuse and m.doubt_wait == 0
   assert math.hypot(got.pose[0] - TRUE[0], got.pose[1] - TRUE[1]) < 0.02
   assert abs(math.degrees(got.pose[2] - TRUE[2])) < 0.3
   assert m.match(got.pose, ANGLES, cast(ROOM, TRUE, rng)).why == "ok"
+
+
+def test_the_wide_search_judges_at_its_bar_as_it_reads_now(room, monkeypatch):
+  # `_relocate` judges what it found at FOUND_SHARE as the module reads it
+  # when it runs, as the bounded search does: a bar bound when `_judge` was
+  # defined left a test or a sweep of it flying the old one (#681's review).
+  m = sm.ScanMatcher(room)
+  m.refresh(LOST[0], LOST[1])
+  pts = m.points(ANGLES, cast(ROOM, TRUE, np.random.default_rng(23)))
+  assert m._relocate(LOST, pts) is not None, "the premise: the wide search finds it"
+  monkeypatch.setattr(sm, "FOUND_SHARE", 1.01)
+  assert m._relocate(LOST, pts) is None
 
 
 def test_a_correction_the_wide_search_finds_once_is_not_taken(room):

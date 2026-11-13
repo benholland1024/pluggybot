@@ -368,6 +368,8 @@ def keep_again(record: str, into: str) -> dict:
 
 
 def main(argv=None) -> None:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--job", choices=sorted(ep.JOBS), default="lid")

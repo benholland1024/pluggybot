@@ -267,6 +267,8 @@ def strip(job: str, k: int, out: str = "hands_check.png", noise: str | None = No
 
 
 def main(argv=None) -> None:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--job", default=",".join(hc.JOBS))

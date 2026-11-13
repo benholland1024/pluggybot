@@ -5359,13 +5359,13 @@
   {
    "name": "garden_plate",
    "parent": "world",
-   "dynamic": true,
+   "dynamic": false,
    "robot": null,
-   "visual": "plate",
+   "visual": "floor_plate",
    "pos": [
     5.7,
     0.7,
-    0.016
+    0.002
    ],
    "quat": [
     1.0,
@@ -5380,7 +5380,7 @@
      "size": [
       0.4,
       0.4,
-      0.01
+      0.004
      ],
      "pos": [
       0.0,

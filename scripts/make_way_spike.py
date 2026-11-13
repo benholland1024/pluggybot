@@ -203,6 +203,8 @@ def report(rows: list[dict]) -> None:
 
 
 def main(argv=None) -> int:
+  from pluggybot.batch import watched
+  watched()
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
   ap.add_argument("--scene", default=None, help="scenes, comma separated (default all)")
   ap.add_argument("--before", action="store_true", help="nobody asks (the drive before #415)")

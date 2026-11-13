@@ -5,14 +5,15 @@ are SimNotes' "Stepping toward the work".
 
   1. `step` reports where the stance went in the frame it stood in before,
      read as sensors, and a place read before is turned by them;
-  2. a step carries nothing: holding something, nothing moves;
+  2. a step holding something walks, its hand-over carrying it (#682;
+     `tests/test_carry.py` pins the carry);
   3. the humanoid's step hands its legs to the walker before it measures
      anything, turns first -- its heading counted unwrapped -- stops its
      walk where what its legs reckon it has walked and its stride's carry reach
      the step, walks an oblique step the walker would skew as two, reports a
      turn as on the spot, says `blocked` where its walk gets nowhere and
      `fell` for a fall up to its last settle, commands nothing once fallen,
-     and does not move holding something;
+     and walks holding something;
   4. its odometry takes a shuffle's swing foot off the floor;
   5. a walk its own legs reckon went nowhere reads false with its reason, and
      a turn closes on the STANCE's heading (issue #649), its text saying so
@@ -37,6 +38,7 @@ from pluggybot.body import KeepClear, StubBody
 from pluggybot.challenge import solutions as sol
 from pluggybot.evaluation import hands_check as hc
 from pluggybot.humanoid import body as hb
+from pluggybot.humanoid import mission as hmis
 from pluggybot.humanoid import odometry as od
 from pluggybot.humanoid.mission import HumanoidMission
 from pluggybot.navigator import GRID_M, Navigator
@@ -85,13 +87,14 @@ def test_the_stubs_step_and_grip_read_as_the_humanoids():
   assert ran["locals"]["g"] == 0.0
 
 
-def test_a_step_carries_nothing():
+def test_a_step_carries_what_a_hand_holds():
+  """It refused, `holding` (#525); a walk carries a hand that holds now (#682)."""
   body = StubBody(*_bare())
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    close_hand("left")\n'
-             '    if not step(0.2):\n        x = read("step.dx")\n', body)
+             '    if step(0.2):\n        x = read("step.dx")\n', body)
   step = ran["steps"][2]
-  assert not step["ok"] and step["why"] == "holding" and step["reason"] == st.STEP_WHY["holding"]
-  assert ran["locals"]["x"] == 0.0 and body.pose[:2] == pytest.approx((0.0, 0.0))
+  assert step["ok"] and step["why"] == "stepped" and step["carried"] == ["left"]
+  assert ran["locals"]["x"] == pytest.approx(0.2) and body.pose[:2] == pytest.approx((0.2, 0.0))
 
 
 # ---- the humanoid's step, on a fake walk ------------------------------------------
@@ -114,6 +117,7 @@ class Walk:
   FRONT_STOP_RANGE, FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M
   grid = NS(resolution=GRID_M)
   _bodies, _cells, in_front = Navigator._bodies, Navigator._cells, HumanoidMission.in_front
+  held_s = Navigator.held_s
 
   def __init__(self, coast_s=0.22, wall=None, turn_drift=0.0, handover_s=0.0, handover_m=0.0,
                fall_at=None, settle_m=0.0, shuffle_s=0.0, planted_s=0.0, feet=1.0, others=(),
@@ -366,7 +370,7 @@ def test_a_step_is_given_its_first_window_to_get_going():
   assert rep["dy"] == pytest.approx(-0.21, abs=0.01)
 
 
-def test_a_step_that_gets_nowhere_says_it_is_blocked_and_one_holding_does_not_move():
+def test_a_step_that_gets_nowhere_says_it_is_blocked_and_one_holding_walks():
   walk = Walk(wall=0.05)
   rep = _step(_walker(walk), 0.3)
   assert rep["why"] == "blocked" and rep["dx"] == pytest.approx(0.05, abs=0.002)
@@ -378,38 +382,43 @@ def test_a_step_that_gets_nowhere_says_it_is_blocked_and_one_holding_does_not_mo
   walk = Walk(shuffle_s=60.0)
   rep = _step(_walker(walk), 0.0, -0.21)
   assert rep["why"] == "blocked" and hb.STEP_START_S <= walk.t <= hb.STEP_START_S + 0.01
-  # ...and with something in its hand it neither turns nor walks
+  # ...and with something in its hand it turns and walks all the same (#682:
+  # the walk's hand-over carries it; it refused, `holding`, before)
   walk = Walk()
   body = _walker(walk)
   body.held = True
   rep = _step(body, 0.3, 0.0, 0.5)
-  assert rep["why"] == "holding" and walk.asked == []
+  assert rep["why"] == "stepped" and walk.asked != []
 
 
-def test_the_body_text_says_a_step_holding_something_moves_nothing():
-  """#669's second review: the body text said that before a `step` or any
-  other walk a hand that is out comes home, its gripper opened as `withdraw`
-  opens it -- but a step asked while a gripper says it holds something
-  refuses before its legs are handed over (`holding`), and the let-go is in
-  that hand-over: no gripper opened, no arm home, nothing moved. Asked
-  through the deployed prompt, the deployed mind read a step holding a knob
-  as letting go and walking, 12 times of 12. What the robot is served says
-  what the step does, beside the walks' let-go, in the practice's body and
-  the served rule alike."""
+def test_the_body_text_says_a_walk_carries_a_hand_that_holds_something():
+  """#669's second review read the body text against what a step does (a
+  step holding a knob, read as letting go and walking, 12 times of 12): a
+  walk carries a hand that holds something now (#682; Ben, 2026-11-12: the
+  walk takes the carry pose itself and says so). What the robot is served
+  says it, beside the walks' let-go, in the practice's body and the served
+  rule alike -- and no longer that a step holding something moves nothing."""
   from pluggybot.mind import overseer as ov
   from pluggybot.mind import practice as mp
   walk = Walk()
   body = _walker(walk)
   body.held = True
   rep = _step(body, 0.3, 0.0, 0.5)
-  assert rep["why"] == "holding" and walk.legs == "stand" and walk.asked == [], \
-    "the premise: a step holding something never reaches the hand-over"
+  assert rep["why"] == "stepped" and walk.asked != [], "the premise: a step holding walks"
   for text in (dict(mp.system_sections(st.hand_facts()))["your body"],
                ov.hands_procedure_rule()):
     flat = " ".join(text.split())
     assert "a hand that is out comes home, its gripper opened as `withdraw` opens it" in flat
-    assert ("A `step` asked while either gripper says it holds something moves nothing, "
-            "and reads false.") in flat, "the step's refusal goes unsaid beside the let-go"
+    assert ("a hand that is out whose gripper says it holds something is first raised "
+            f"{100 * hmis.CARRY_LIFT_M:g} cm, and if what it holds came with it, it is CARRIED: it "
+            "comes back out along the way it went in, then its arm folds to your side, the "
+            "forearm up and the hand at your hips, turned as it was against the floor, its "
+            "gripper still shut.") in flat, "the carry goes unsaid beside the let-go"
+    assert "says so in its report (`carried`;" in flat
+    assert "If what it holds did not come with it, the hand lets go and comes home." in flat
+    assert "moves nothing, and reads false" not in flat, "the old refusal is still said"
+  assert "holding" not in st.STEP_WHY
+  assert "a hand that holds something carried at your side" in st.HANDS_VERBS["step"].doc
 
 
 def test_a_walk_its_stance_did_not_make_says_it_was_too_short():

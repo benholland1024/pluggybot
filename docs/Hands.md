@@ -92,23 +92,26 @@ and its feet, which the walking policy moves.
 | verb | what it does | its report | how it fails | built from |
 |---|---|---|---|---|
 | `spot(tag)` | stands still and looks for a tag, named by its number as its text says (#640), in its colour camera, which looks down -- as it stands, then bowing lower (`SPOT_GAZES`) until it sees it -- and stands up again; its text says what that camera takes in, off the model (#660: its picture 19 to 61 deg below level and 34 deg either side of where the head faces at its top and more than 50 at its bottom, a thing at x in the stance frame in it only if lower than (1.27 - 0.34 x) m over the floor, the whole of a tag inside it, a small block's tag read to about 1.5 m) | `spot.x/y/z` (the face's middle: of a small block with its tag on every face, the face seen most square-on, as its text says, #650), `spot.nx..nz` (into the thing it is on: which face), `spot.ex..ez` (along an edge), `spot.range` | not in its picture from where it stands, or too far: the refusal names the colour camera and the top of its picture, which no bow raises (#660) | the colour imager's tag detector (`perception.tags`), `Body.gaze_routine` |
-| `watch(tag)` | keeps the colour camera (`spot`'s; its text gives the top of its picture, off the model, #660) reading a tag, by its number as `spot`'s, while the procedure goes on, 15 pictures a second, each read 0.1 s after it was taken; ends with the procedure or the next `watch` | as `spot`'s, where the newest picture that showed it put it (`watch.*`; of a small block, the face that picture shows most square-on, so which face can change as it moves, #650), and `watch.seen` (whether the newest picture shows it), `watch.age` | not in view as it begins: it watches on | `spot`'s decode, placed through the robot's model of itself as its arm's loop last posed it (`perception.watch`) |
+| `watch(tag)` | keeps the colour camera (`spot`'s; its text gives the top of its picture, off the model, #660) reading a tag, by its number as `spot`'s, while the procedure goes on, 15 pictures a second, each read 0.1 s after it was taken; ends with the procedure or the next `watch`, one that fails before it begins too (#686) | as `spot`'s, where the newest picture that showed it put it (`watch.*`; of a small block, the face that picture shows most square-on, so which face can change as it moves, #650), and `watch.seen` (whether the newest picture shows it), `watch.age` | not in view as it begins: it watches on | `spot`'s decode, placed through the robot's model of itself as its arm's loop last posed it (`perception.watch`) |
 | `measure(x, y)` | the depth camera's look at what stands within 0.45 m of (x, y) (`MEASURE_NEAR_M`, its text says so) | `object.top/near/far/left/right`; an end reads only where the camera saw past it (#630, #636): the top running on past the window, off the picture or out of the part's range (0.17 to 3 m), or on past where it reads, leaves that end no reading, and its read says which. `object.near_taller` (`far`, `left`, `right`) reads 1 where something taller stands just past an end, which then reads where the free top stops | no flat top seen, 6 cm over the floor or more (`box.FLOOR_M`: lower, the floor's own noise) | the D435's pictures (`Body.depth_pictures`) and `perception/box.py` |
-| `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it -- straight in joint space, or round by its side where straight would sweep the arm low ahead of the robot (`Reach.way_out`, the way home's judgment) -- then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
+| `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it -- straight in joint space, or round by its side where straight would sweep the arm low ahead of the robot (`Reach.way_out`, the way home's judgment) -- then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short; kept off another robot (#678: every way out, or home from there, would meet the body of another robot its LIDAR sees as it begins -- nothing moves, and the words say where that robot stands and what the other hand's way would do). ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture; another robot as its look placed it (`HumanoidMission.keep_out`, `Reach._kept_off`) |
 | `via(hand, x, y, z, turn)` | adds a point to the hand's next move; nothing moves | -- | a path holds 40 points | -- |
 | `move_hand(hand, x, y, z, speed, stiffness, turn)` | a hand that is out carried along a line, or through its `via` points, as ONE motion from one posture | as `reach` | out of reach (planned or partway), held back | `Reach.carry`, `path_for` |
 | `pull(hand, dx, dy, dz, force, distance, speed, give)` | THE FORCE MOVE (§4), at most 20 N: what the standing body holds, pushing away around two thirds of it (#544) | `pull.moved`, `pull.force` (the hardest along its way, as felt), `pull.held` (1 if it ended held fast, #650: until it, nothing a served robot reads told that from out of reach), `pull.dx..dz` (the way the hand was going at its end) | reads false only for an argument refused, a hand not out, a way all 0 or a fall, as its text says (#650), and none of its readings is left then; stopped short any other way (held fast, let go, out of reach, feet moved, out of time) it is ok. The rest of why it stopped is the record's, which a practice's mind is shown and a served robot is not | `Reach.pull` |
 | `close_hand(hand, force)` | shuts the gripper with at most `force` a pad, 5-120 N, a hand pressed on what it met eased to where it is first (`Reach.ease`) | `hand.held`, `hand.gap` | closed on nothing it holds | the Dex1-1's torque limit, its encoder and current |
 | `open_hand(hand)` | opens the gripper | -- | -- | -- |
-| `withdraw(hand)` | its gripper opened first, whatever it says it holds -- one already open its whole stroke left as it is -- and `GRIP_S` given to it before the hand moves (#669: jaws left shut on a lever held the hand, and the way home levered the trunk over; SimNotes, "Letting go before the way home"); then the hand back along its way in, then the arm home: straight, or out to its side first and lowered there, its shoulder pitched back, where that keeps the arm higher in front of the robot than straight would (SimNotes, "The way home"); ok once its drivers read it home | -- | not home by `RELEASE_S` (something holds it); a fall | the gripper's own command (`Gripper.opened`, `HumanoidMission.let_go_routine`), `Reach.way_home` on the robot's model of itself, `Reach.home` |
-| `step(ahead, left, turn)` | the feet to the work, its hands home first: a turn on the spot, closed on the stance's own heading (#649; within a degree or two of what is asked), then a walk in the frame it then stands in -- one motion, or ahead then left where the walker would skew it -- and a stand; the feet walk in strides, about 5 cm of the stance's, and a walk asked under 6 cm may take none | `step.dx/dy` (where the stance went, in the frame it stood in before), `step.turn`; the verb's text turns a place read before into the frame after | too short (a walk asked at least 1 cm that its own legs reckon went under it, #649), turned short (a turn whose pulses ran out still 2 deg off, its feet held), holding something (nothing moves), blocked (nowhere in its first 2 s, or 1 cm in a second after; or kept off another robot as a walk is, #670: its middle 0.65 m from that robot's, 1.2 m from one fallen, and begun nearer it goes only away -- one any of whose walks would head nearer neither turns nor moves; or that robot's body inside the walks' front stop turned to its way, 0.40 m along it and 0.27 m either side, off its returns alone in the scans the step takes -- each judged where its stride's carry would take it, and saying how), fell, out of time. ⚠ A turn's shuffle moves the feet 2-6 cm the report does not count, a sidestep's first slide from the stance a reach leaves 1-4 cm, and `step.dy` counts a sidestep 1-3 cm short, one going left after a step ahead up to 10 cm or more | the walking policy, the legs' odometry |
+| `withdraw(hand)` | its gripper opened first, whatever it says it holds -- one already open its whole stroke left as it is -- and `GRIP_S` given to it before the hand moves (#669: jaws left shut on a lever held the hand, and the way home levered the trunk over; SimNotes, "Letting go before the way home"); then the hand back along its way in, then the arm home: straight, or out to its side first and lowered there, its shoulder pitched back, where that keeps the arm higher in front of the robot than straight would (SimNotes, "The way home"); ok once its drivers read it home | -- | not home by `RELEASE_S` (something holds it); a fall; kept off another robot (#678: every way home would meet the body of another robot its LIDAR sees as it begins, judged before the let-go -- nothing moves, its gripper as it was) | the gripper's own command (`Gripper.opened`, `HumanoidMission.let_go_routine`), `Reach.way_home` on the robot's model of itself, `Reach.home` |
+| `step(ahead, left, turn)` | the feet to the work, its hands home first -- a hand that holds carried at its side, as every walk carries it (#682, §7): a turn on the spot, closed on the stance's own heading (#649; within a degree or two of what is asked), then a walk in the frame it then stands in -- one motion, or ahead then left where the walker would skew it -- and a stand; the feet walk in strides, about 5 cm of the stance's, and a walk asked under 6 cm may take none | `step.dx/dy` (where the stance went, in the frame it stood in before), `step.turn`; the verb's text turns a place read before into the frame after | too short (a walk asked at least 1 cm that its own legs reckon went under it, #649), turned short (a turn whose pulses ran out still 2 deg off, its feet held), blocked (nowhere in its first 2 s, or 1 cm in a second after; or kept off another robot as a walk is, #670: its middle 0.65 m from that robot's, 1.2 m from one fallen, and begun nearer it goes only away -- one any of whose walks would head nearer neither turns nor moves; or that robot's body inside the walks' front stop turned to its way, 0.40 m along it and 0.27 m either side, off its returns alone in the scans the step takes -- each judged where its stride's carry would take it, and saying how), fell, out of time; and, before anything moves, a hand out whose every way home -- or to its carry pose, holding -- would meet another robot's body (#678, `Body.arm_kept`: a step brings the arms home, or to its side, first) -- as `drive_to`, `face` and `find` refuse too. ⚠ A turn's shuffle moves the feet 2-6 cm the report does not count, a sidestep's first slide from the stance a reach leaves 1-4 cm, and `step.dy` counts a sidestep 1-3 cm short, one going left after a step ahead up to 10 cm or more | the walking policy, the legs' odometry |
 
 Beside them stay `wait` and `move(axis, target)` -- the motor level, one arm
 joint walked to a setpoint -- and the sensors `time` and each hand's place,
 force, `held` and `gap`. A verb that never ran leaves no reading behind
 (a call a computed argument refuses included, `steps.forget_readings`, #650),
-and a humanoid with a hand out keeps its posture to look (a bow would carry
-the hand with it).
+nor one whose last call failed, and reading it says that call failed, never
+that the verb has not run (#686) -- in that run: the next one's read of a
+verb it never called says it has not run (`steps.end_run`); and a humanoid
+with a hand out keeps its posture to look (a bow would carry the hand with
+it).
 
 **A move that stops on a reading** (#554; `steps.GUARDED_VERBS`, behind
 `WorldFacts.guarded`, the practice's flag): `reach`, `move_hand` and `pull`
@@ -460,13 +463,27 @@ there (§4's "A tag watched while the robot moves").
 - **Motion within the hand** beyond a light grip's turn between the pads.
 - **Contact without a grip** other than pushing with a pull (a negative
   way): no slide or pivot verb, nor yet a job needing one.
-- **A walk with something in hand.** A step carries nothing: the walking
-  policy walks with its arms home, and its hand-over lets go of a hand
-  that is out first, as a `withdraw` does (`HumanoidMission.let_go_routine`,
-  #669) -- but a `step` asked while a gripper says it holds something
-  refuses before that hand-over (`holding`), and nothing moves. The body
-  text says both: the let-go for `step` and every other walk that moves
-  the feet, and the step's refusal beside it.
+- **Carry more than one piece, or anywhere but at its side.** A walk
+  carries what a hand holds (#682, Ben's calls of 2026-11-12): its hand-over
+  lets go of a hand that is out holding nothing, as a `withdraw` does
+  (`HumanoidMission.let_go_routine`, #669), and CARRIES one whose gripper
+  says it holds something and whose lift (2 cm straight up at the most the
+  standing body holds) went its distance -- held fast, a handle or a lever is
+  let go as an empty hand is -- out along its line, then its arm to one carry
+  pose (`Reach.CARRY_POSE`, Ben's `close`: the forearm folded up, the hand at
+  the hips), its wrist keeping the hand turned against the floor as it was,
+  solved on the stand's statue where the walk carries it -- and holds it
+  there through every walk, a `step` too, until a reach or a let-go ends it
+  (SimNotes, "Carrying, served"). There is no `carry` verb, and no other
+  pose: one piece in one hand, close. The body text says it beside the
+  let-go, and a walk verb's report says what it carried (`carried`) and what
+  its grip read empty by the end (`dropped`). The walker under it is walk2,
+  trained before any carry -- it veers 4-22 deg toward the carrying arm over
+  4 m, which the Navigator steers out but a `step`'s walk does not -- until
+  a walker trained carrying is served (`Pluggy-Humanoid-Walk-Carry`, #682's
+  stage B, Ben's call). Nor does a walk verb move with a hand out whose
+  every way home -- or to its carry pose, holding -- would meet another
+  robot's body (#678), whose loop's own walks wait for it instead.
 - **A way out or home that looks, or feels.** Both are judged on the
   robot's model of itself alone (#539, #560): what the hand works over is
   taken to lie under it ahead of the robot's front, and the space at its
@@ -482,11 +499,20 @@ there (§4's "A tag watched while the robot moves").
   down over the hand, as on 11-08 -- still holds it. A guard on the hand's
   force could not yet tell that from a blocked reach's press (SimNotes,
   "The way home").
-- **Keep its arms off another robot.** A step keeps the robot's middle off
-  another robot's as a walk does (#670), and nothing else does: a reach, its
-  way out and its way home know nothing of it. On 11-08 an arm on its way
-  home hooked the other robot's arm with their middles 0.68 m apart, just
-  outside a walk's disc (SimNotes, "Two robots at the counter").
+- **Keep its arms off a robot it does not see, or see it turned.** A
+  reach's way out and home and a withdraw's keep off another robot's body
+  where the LIDAR's one look as the move begins sees it (#678; SimNotes, "The
+  arms keep off the other robot"): a cylinder round its middle, never turned
+  to its heading, so a robot standing square to the counter beside this one
+  refuses an arm where its own arms would have been passed (stage 1: 15 of 40
+  refusals at 0.71-0.95 m came where the flight without them never touched).
+  A carried hand (`move_hand`, `pull`) is not judged, and nor is anything
+  after a move begins: a robot walking up beside an arm already out is
+  judged at the arm's next move. At a counter there is no other way: today's
+  way out rolls the arm out by its side and every way that keeps it in dips
+  into the counter's face, so a robot within about 1 m on the reaching side
+  refuses that arm, and the minds work it out -- the other hand, a step, a
+  `tell`.
 - **A small thing low down, or a knob on a short stem.** The fingers are 8
   cm and the grip point their middle, so their tips meet the surface before
   a steep grip reaches a small object's middle (§5).

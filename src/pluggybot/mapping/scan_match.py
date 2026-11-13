@@ -9,12 +9,14 @@ point pulls on the pose from up to `REACH_M` away and its residual is
 metres. Odometry's prediction is a term of the same fit (a robust prior),
 the scan may fix only the directions its walls face (`DEGENERATE`), a fit
 the map disagrees with is past the field's reach and a bounded search
-finds where to fit from (`_search`), a robot its map keeps refusing is
-lost past that search and searches wider (`_relocate`, issue #422), and a
-scan goes into the map only when a fit agreed and the robot has moved
-(`Match.fuse`, `ScanMatcher.fuses`). docs/SimNotes.md, "The map stays true
-under drift" and "Lost after a long explore, and found again", has why
-each piece is there and what it measured.
+finds where to fit from (`_search`) -- as does one that slid or that the
+walls only partly agree with (`DOUBT_*`, issue #681) -- a robot its map
+keeps refusing is lost past that search and searches wider (`_relocate`,
+issue #422), and a scan goes into the map only when a fit was taken and
+the robot has moved (`Match.fuse`, `ScanMatcher.fuses`). docs/SimNotes.md,
+"The map stays true under drift", "Lost after a long explore, and found
+again" and "The storeroom keeps an error", has why each piece is there and
+what it measured.
 
 Deterministic: no threads, and every sum is numpy's own loop in a fixed
 order -- never a BLAS product, whose summation order is the library's.
@@ -78,8 +80,10 @@ MIN_INLIERS = 40
 #: Gauss-Newton iterations, at most, and the step under which it stops.
 MAX_ITER = 8
 CONVERGED_M = 5e-4
-#: The most one scan may move the pose: past it the fit has found another
-#: wall to sit on, and the scan is refused and not fused.
+#: The most one scan may move the pose: past it the fit may have found
+#: another wall to sit on, so its correction is never taken -- the bounded
+#: search's pose may be (DOUBT_*), else the scan is refused and not fused
+#: ("slid").
 MAX_STEP_M = 0.15
 MAX_STEP_RAD = math.radians(5.0)
 #: ODOMETRY'S PRIOR, in points' worth (a unit-gradient point adds 1): how
@@ -119,6 +123,65 @@ SEARCH_M = 0.6
 SEARCH_RAD = math.radians(6.0)
 SEARCH_STEP_RAD = math.radians(1.0)
 FOUND_SHARE = 0.75
+#: ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS DOUBTED (issue #681): one
+#: that held a direction, or whose weakest direction rests on under
+#: DOUBT_WEAK_SHARE of its points, with under DOUBT_HELD_SHARE of them on
+#: walls, is searched as an inconsistent one is -- and a slid one too -- a
+#: pose found taken only at DOUBT_FOUND_SHARE with every direction fixed,
+#: and never one this rule would doubt; found nothing, it is what it was
+#: ("doubted": the fit's correction stands and its scan is laid in, as `ok`;
+#: a slid one stays refused). MEASURED at the storeroom's counter: the side
+#: walls kept a fit `ok` 0.3-0.4 m off along the counter at 40 of 40 poses,
+#: its scan laid in, and the copy kept the error for hours (Luca, 11-08,
+#: 0.58 m); toward the counter its front, its props and the wall behind
+#: "fix" that direction on 0.05-0.19 of the points (median 0.075). ⚠ NEVER
+#: ON THE SHARE ALONE: a copy of the room already in the map lowers a right
+#: belief's share as an error does, and doubted under 0.8 on walls, the
+#: search took the copy (35 of 40 poses round the counter on a live map of
+#: 11-09, the base none), where the right belief's weakest direction rests
+#: on 0.12-0.30. From the truth over the house, 17 fits of 7,840 are
+#: doubted, and 2 moved over 0.1 m (the stairs, the base's own). ⚠ NOT LAID
+#: IN, doubted scans starved the map of new ground: from the mall's station
+#: no walk found a route.
+DOUBT_HELD_SHARE = 0.95
+DOUBT_WEAK_SHARE = 0.10
+DOUBT_FOUND_SHARE = 0.9
+#: ⚠ A SLID FIT'S SEARCH IS TAKEN ONLY WHERE THE FIT SLID, within
+#: DOUBT_SLID_M and DOUBT_SLID_RAD of its correction: on a live map of 11-09
+#: a belief 0.1 m off slid 0.17 m toward one copy of the counter and the
+#: search found another 0.25 m away (13 poses of 40, the base refusing all);
+#: the counter's take-backs ended within 0.053 m and 0.74 deg of the slide.
+DOUBT_SLID_M = 0.08
+DOUBT_SLID_RAD = math.radians(1.5)
+#: ⚠ ...AND A DOUBT IS SEARCHED AT MOST ONCE IN DOUBT_EVERY SCANS THE
+#: MATCHER IS HANDED (a second at the LIDAR's rate), afresh wherever the
+#: belief is put somewhere new (a fix, a relocation; a stand-up forgets the
+#: map); between, a fit is what it was. ⚠ NOT AFRESH AT `fuse_next`: the
+#: Navigator calls it at every scan it does not map. A search costs ~25 ms
+#: against a match's 0.5, and standing among clutter the map lacked, 600 of
+#: 600 scans in a minute were doubted (#681's review).
+DOUBT_EVERY = 10
+#: ⚠ ...AND ITS SEARCH TAKES ONLY THE ONE PLACE IN ITS WINDOW THAT EXPLAINS
+#: THE SCAN: none UNIQUE_M or more from the best puts DOUBT_RIVAL_SHARE of
+#: the best's points on walls, each place at its best turn (the search's own
+#: cell counts, where RIVAL_SHARE weighs the wide search's fitted inliers).
+#: MEASURED on a drift flight (seed 19 from the hall): along a sidewalk -- a
+#: wall and a fence, parallel, nothing across -- every place scored
+#: 0.95-1.00 of the best, and the search took the best 25 times, each a few
+#: points ahead and up to 0.6 m behind the robot, until it was 5.95 m off;
+#: at the counter the rival is the alias 0.6 m east, 0.75 of the truth. ⚠ IN
+#: ITS WINDOW ONLY: a belief further off than SEARCH_M along a fence of
+#: panels a metre apart was taken onto the alias a metre from the truth (the
+#: base kept its 0.75 m); the served sidewalks repeat nothing.
+DOUBT_RIVAL_SHARE = 0.9
+#: ⚠ ...AND ONLY A PLACE THAT PUTS DOUBT_GAIN AS MANY OF THE SCAN'S POINTS ON
+#: WALLS AS THE FIT IT WOULD REPLACE (`at`: never the pose asked about, which
+#: a fit corrected across a sidewalk would make a gain of anything along
+#: it): on open ground a weakly fixed fit's search found places 1.00-1.11 as
+#: good, each a coin toss (four takes on the street in 5 s of a drift flight
+#: moved the belief 10 cm away and 9 cm back), where the counter's
+#: take-backs gained 1.21-2.1 over the fit (medians 1.34-1.74 by map).
+DOUBT_GAIN = 1.2
 #: ⚠ A ROBOT ITS MAP KEEPS REFUSING IS LOST PAST THE SEARCH'S REACH (issue
 #: #422): after LOST_RUN scans running "inconsistent" -- any other verdict
 #: breaks the run -- and every LOST_RUN more, the search looks WIDE_M and
@@ -165,12 +228,18 @@ FUSE_S = 5.0
 
 NO_STEP = (0.0, 0.0, 0.0)
 #: The verdicts that move the pose, and those whose scan may be fused
-#: (`Match.fuse`): matched, found by the search, laid at an anchor, or too
-#: little map under it to say -- never a scan whose fit slid or whose map
-#: disagreed, nor the one the wide search relocated by (the next, matched
-#: from there, is).
-ACCEPTED = frozenset({"ok", "found", "relocated"})
-FUSED = frozenset({"ok", "found", "anchored", "no map", "sparse", "unconstrained"})
+#: (`Match.fuse`): matched, found by the search, doubted and found nothing
+#: better (as `ok`), laid at an anchor, or too little map under it to say --
+#: never a scan whose fit slid or whose map disagreed, nor the one the wide
+#: search relocated by (the next, matched from there, is).
+ACCEPTED = frozenset({"ok", "found", "relocated", "doubted"})
+FUSED = frozenset({"ok", "found", "doubted", "anchored", "no map", "sparse", "unconstrained"})
+#: ...and a scan its fit, or the doubt's search from it, took: what was
+#: "ok" before #681 is among these, doubted or found by the search where it
+#: stood (an inconsistent fit's "found", the base's, is rare: none in 60 of
+#: its drift flights). An instrument counting matched scans counts these
+#: (`lidar_spike.py --probe`, the drift spike's `--done` and zone table).
+FIT_TAKEN = frozenset({"ok", "doubted", "found"})
 
 
 class Match(NamedTuple):
@@ -178,13 +247,16 @@ class Match(NamedTuple):
   if `accepted`, else the one asked about."""
   pose: tuple[float, float, float]
   accepted: bool
-  #: "ok", "found" (by the search, the fit having been inconsistent),
+  #: "ok", "found" (by the search, the fit having been inconsistent, slid or
+  #: doubted), "doubted" (the walls only partly agreed, DOUBT_*, and the
+  #: search found nothing better or waits its DOUBT_EVERY: as "ok"),
   #: "relocated" (by the wide search, the robot lost past the search's
   #: reach), "anchored" (not matched: laid at an anchor's belief,
   #: ANCHORED_SCANS), or why not: "no map" (nothing mapped near), "sparse"
   #: (fewer than MIN_INLIERS), "unconstrained" (no direction fixed), "slid"
-  #: (past MAX_STEP), "inconsistent" (the map disagreed, and the search
-  #: found nothing it agreed with).
+  #: (past MAX_STEP, and the search found nothing where the fit slid, or
+  #: waits), "inconsistent" (the map disagreed, and the search found
+  #: nothing it agreed with).
   why: str
   inliers: int
   #: The inliers' RMS distance to the map at the matched pose, m.
@@ -218,11 +290,35 @@ def _solve3(a: np.ndarray, b: np.ndarray) -> np.ndarray:
   return np.array([x0, x1, x2])
 
 
+def _apart(a, b) -> tuple[float, float]:
+  """How far apart two poses, or two corrections, (x, y, theta) are: metres
+  and radians turned."""
+  return (math.hypot(a[0] - b[0], a[1] - b[1]),
+          abs(math.atan2(math.sin(a[2] - b[2]), math.cos(a[2] - b[2]))))
+
+
 def _same(a, b) -> bool:
-  """Two poses, or two corrections, (x, y, theta) the wide search found are
-  one: within UNIQUE_M and UNIQUE_RAD of each other."""
-  turned = abs(math.atan2(math.sin(a[2] - b[2]), math.cos(a[2] - b[2])))
-  return math.hypot(a[0] - b[0], a[1] - b[1]) < UNIQUE_M and turned < UNIQUE_RAD
+  """Two poses, or two corrections, the wide search found are one: within
+  UNIQUE_M and UNIQUE_RAD of each other."""
+  m, rad = _apart(a, b)
+  return m < UNIQUE_M and rad < UNIQUE_RAD
+
+
+def _near(a, b) -> bool:
+  """A pose the doubt's search found is where a slid fit slid (`b`, its
+  correction along the directions the walls fix): within DOUBT_SLID_M and
+  DOUBT_SLID_RAD."""
+  m, rad = _apart(a, b)
+  return m <= DOUBT_SLID_M and rad <= DOUBT_SLID_RAD
+
+
+def _rival(places: np.ndarray, shifts: np.ndarray, best_at) -> int:
+  """The most points on walls at any place, of a search's `places` (each
+  place's most at any turn, [dy, dx] over `shifts`, m), UNIQUE_M or more
+  from the best's shift `best_at` (dx, dy, dtheta); 0 if there is none."""
+  apart = np.hypot(shifts[:, None] - best_at[1], shifts[None, :] - best_at[0])
+  far = apart >= UNIQUE_M - 1e-9                # whole cells: 0.5 m reads 0.49999...
+  return int(places[far].max()) if far.any() else 0
 
 
 def _normals(field: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -271,6 +367,8 @@ class ScanMatcher:
     self.pending: tuple[float, float, float] | None = None
     #: Scans still to be laid at an anchor's belief, unmatched (`anchored`).
     self.anchoring = 0
+    #: Scans before a doubted or slid fit may be searched again (DOUBT_EVERY).
+    self.doubt_wait = 0
 
   # ---- the field ------------------------------------------------------------
 
@@ -338,6 +436,7 @@ class ScanMatcher:
     unmatched, the next of them at once. `on=False` closes the window: the
     belief was put somewhere else since."""
     self.anchoring = ANCHORED_SCANS if on else 0
+    self.doubt_wait = 0
     if on:
       self.lost_run, self.pending, self.fused_pose = 0, None, None
 
@@ -407,6 +506,7 @@ class ScanMatcher:
     """Align one scan, taken at the believed `pose` from `origin` (None:
     `origin`'s), against the map."""
     x0, y0, th0 = (float(v) for v in pose)
+    self.doubt_wait = max(self.doubt_wait - 1, 0)
     if self.anchoring:
       return self._done(pose, "anchored")
     if self.field is None or self._stale(x0, y0):
@@ -415,20 +515,31 @@ class ScanMatcher:
     if self.field is None or len(pts) < MIN_INLIERS:
       return self._done(pose, "no map" if self.field is None else "sparse")
     at, why, kw = self._judge((x0, y0, th0), pts, self._fit((x0, y0, th0), pts))
-    if why != "inconsistent":
+    slid_to = kw.pop("slid_to", None)
+    if why not in ("inconsistent", "doubted", "slid"):
       return self._done(at, why, **kw)
     # Most of the scan on mapped cells and too little of it on walls: the
     # pose is off by more than the fit reaches -- a wheel pump while the
     # robot was tilted and unmatched left it 0.45 m out, the fit could not
     # pull it back, and every scan fused painted a second copy of the house.
     # Search round the prediction, fit from the best, and take it only if
-    # the walls agree; else the scan is refused and NOT fused.
-    start = self._search((x0, y0, th0), pts)
+    # the walls agree; else the scan is refused and NOT fused. A fit that
+    # slid or that the walls only partly agree with gets the doubt's search
+    # (DOUBT_*), once in DOUBT_EVERY scans, and else is what it was: slid
+    # refused, doubted laid in as ok.
+    doubt = why != "inconsistent"
+    if doubt and self.doubt_wait:
+      return self._done(at, why, **kw)
+    if doubt:
+      self.doubt_wait = DOUBT_EVERY
+    start = self._search((x0, y0, th0), pts, unique=doubt, against=at)
     if start is not None:
       found_at, found, found_kw = self._judge((x0, y0, th0), pts, self._fit(start, pts),
-                                              found=True)
-      if found == "found":
+                                              found=True, doubt=doubt)
+      if found == "found" and (slid_to is None or _near(found_at, slid_to)):
         return self._done(found_at, found, **found_kw)
+    if doubt:
+      return self._done(at, why, **kw)
     # ...and refused for long enough, the robot is lost past the search's
     # reach: search wider (LOST_RUN), and take what it finds the second time
     self.lost_run += 1
@@ -436,6 +547,7 @@ class ScanMatcher:
       wide = self._relocate((x0, y0, th0), pts)
       seen, self.pending = self.pending, None if wide is None else wide[1]["step"]
       if wide is not None and seen is not None and _same(seen, self.pending):
+        self.doubt_wait = 0
         return self._done(wide[0], "relocated", **wide[1])
     return self._done(at, why, **kw)
 
@@ -458,7 +570,7 @@ class ScanMatcher:
       hess, grad, d, live = self._normal((x, y, th), pts)
     return (x, y, th), d, live
 
-  def _judge(self, asked, pts, fit, found: bool = False):
+  def _judge(self, asked, pts, fit, found: bool = False, doubt: bool = False):
     """The verdict on a fit: (the pose to lay the scan at, why, the rest of
     `Match`). Which directions the walls fix is read where the fit ENDED
     (offset, a room's points sit off its walls and it looks like a
@@ -478,8 +590,14 @@ class ScanMatcher:
               weakest=float(info[0]), weak_dir=tuple(float(v) for v in vec[:, 0]),
               held=int(3 - keep.sum()))
     fit_pose = (x0 + dx, y0 + dy, th0 + dth)
+    # a fit the doubt distrusts: one direction held or weakly fixed (DOUBT_*)
+    doubtful = ((not keep.all() or info[0] < DOUBT_WEAK_SHARE * n_live)
+                and n < DOUBT_HELD_SHARE * n_live)
     if found:
-      if n >= MIN_INLIERS and n >= FOUND_SHARE * n_live and keep.all():
+      # the doubt's take at its own bar, and never one it would doubt again
+      share = DOUBT_FOUND_SHARE if doubt else FOUND_SHARE     # ...as they read now
+      if (n >= MIN_INLIERS and n >= share * n_live and keep.all()
+          and not (doubt and doubtful)):
         return fit_pose, "found", dict(step=(dx, dy, dth), **kw)
       return asked, "inconsistent", kw
     if n_live >= MIN_INLIERS and n < LOST_SHARE * n_live:
@@ -489,15 +607,22 @@ class ScanMatcher:
     if n < MIN_INLIERS:
       return asked, "sparse", kw
     if math.hypot(dx, dy) > MAX_STEP_M or abs(dth) > MAX_STEP_RAD:
-      return asked, "slid", kw
+      # ...and where it slid, for the doubt's search (`match` takes it out
+      # of the fields it hands `_done`)
+      return asked, "slid", dict(slid_to=fit_pose, **kw)
+    if doubtful:
+      return fit_pose, "doubted", dict(step=(dx, dy, dth), **kw)
     return fit_pose, "ok", dict(step=(dx, dy, dth), **kw)
 
   def _search(self, pose, pts: np.ndarray, reach_m: float = SEARCH_M,
-              reach_rad: float = SEARCH_RAD):
+              reach_rad: float = SEARCH_RAD, unique: bool = False, against=None):
     """The pose within `reach_m` and `reach_rad` of `pose` at which the most
     of the scan lands on a mapped wall (|d| < INLIER_M, the nearest cell):
     brute force over whole-cell shifts and SEARCH_STEP_RAD turns. None if
-    no candidate beats `pose` itself."""
+    no candidate beats `pose` itself -- or, `unique`, if none beats the pose
+    `against` (the fit it would replace; None: `pose`) by DOUBT_GAIN, or a
+    place UNIQUE_M from the best puts DOUBT_RIVAL_SHARE as many on walls
+    (`_rival`)."""
     g, f = self.grid, self.field
     res = g.resolution
     on_wall = np.abs(np.nan_to_num(f, nan=np.inf)) < INLIER_M
@@ -506,6 +631,8 @@ class ScanMatcher:
     shifts = np.arange(-n, n + 1)
     x0, y0, th0 = pose
     best, best_at = -1, None
+    # each place's most at any turn, [dy, dx]: one spot turned is one place
+    places = np.zeros((len(shifts), len(shifts)), dtype=np.int64) if unique else None
     for dth in np.arange(-reach_rad, reach_rad + 1e-12, SEARCH_STEP_RAD):
       wx, wy = self._world((x0, y0, th0 + dth), pts)
       i = np.floor((wx - g.x_min) / res).astype(np.int64) - self.corner[0]
@@ -515,12 +642,18 @@ class ScanMatcher:
       inside = (ii >= 0) & (ii < w) & (jj >= 0) & (jj < h)
       hits = on_wall[np.where(inside, jj, 0), np.where(inside, ii, 0)] & inside
       score = hits.sum(axis=2)
+      if unique:
+        np.maximum(places, score, out=places)
       k = int(np.argmax(score))
       if score.flat[k] > best:
         best, best_at = int(score.flat[k]), (float(shifts[k % len(shifts)]) * res,
                                              float(shifts[k // len(shifts)]) * res, float(dth))
     here = self._on_wall_count(pose, pts, on_wall)
     if best_at is None or best <= here:
+      return None
+    kept = here if against is None else self._on_wall_count(against, pts, on_wall)
+    if unique and (best < DOUBT_GAIN * kept
+                   or _rival(places, shifts * res, best_at) >= DOUBT_RIVAL_SHARE * best):
       return None
     return (x0 + best_at[0], y0 + best_at[1], th0 + best_at[2])
 
@@ -640,6 +773,7 @@ class ScanMatcher:
     self.fused_pose, self.fused_t = None, -math.inf
     self.counts, self.last = {}, None
     self.lost_run, self.pending, self.anchoring = 0, None, 0
+    self.doubt_wait = 0
 
   def kept_state(self) -> tuple[dict, dict]:
     """The field is the map as it was when last computed, not as it is now,
@@ -651,7 +785,7 @@ class ScanMatcher:
              "fusedT": None if self.fused_pose is None else self.fused_t,
              "counts": dict(self.counts), "lostRun": self.lost_run,
              "pending": None if self.pending is None else list(self.pending),
-             "anchoring": self.anchoring}
+             "anchoring": self.anchoring, "doubtWait": self.doubt_wait}
     return state, ({} if self.field is None else {"matchField": self.field})
 
   def restore_kept(self, state: dict, arrays: dict) -> None:
@@ -666,5 +800,6 @@ class ScanMatcher:
     pending = state.get("pending")
     self.pending = None if pending is None else tuple(float(v) for v in pending)
     self.anchoring = int(state.get("anchoring", 0))
+    self.doubt_wait = int(state.get("doubtWait", 0))
     self.field = arrays.get("matchField")
     self.normals = None if self.field is None else _normals(self.field)

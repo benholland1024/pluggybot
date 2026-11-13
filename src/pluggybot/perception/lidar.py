@@ -372,7 +372,7 @@ class Lidar:
 
   def band(self, data, level: np.ndarray, height: float,
            band_m: tuple[float, float] = BAND_M, rise: float = BAND_RISE,
-           joints: dict | None = None) -> Scan:
+           joints: dict | None = None, drop: tuple[np.ndarray, float] | None = None) -> Scan:
     """The cloud laid flat into a 2D scan (`Scan`): each point levelled
     through `level` (the robot's tilt, level from its root body: its IMU's,
     `imu.Attitude.level`) composed with its mount's turn -- each joint on
@@ -409,19 +409,27 @@ class Lidar:
     beyond, and laid out to it, cleared a box it hid. ⚠ THE ORIGIN IS WHERE THE
     SENSOR IS, never where it sits on the robot upright: bowed 52 deg it is
     0.58 m ahead of that, and a free ray laid from there ran 0.6 m past what
-    its ray reached, through a wall 7.5 m behind."""
+    its ray reached, through a wall 7.5 m behind. ⚠ WHAT A HAND HOLDS IS NO
+    READING (`drop`: centres, levelled as the points are -- x and y from
+    the root, z over the floor -- and a radius, m; #682's self-filter): a
+    return of the room's within it is the robot's own, as a ray that met its
+    body is (another robot's is its own, split out as ever),
+    neither a point nor a ray that went on -- else its front stop backed it
+    off its own plate, and a ray stopped by the plate laid its bearing free
+    through what stood behind."""
     offset, turn, _ = self._mounted(joints)
     c = self.cloud(data)
     level = np.asarray(level, dtype=float)
     rot, base = level @ turn, level @ offset
     lo, hi = band_m
 
-    def flat(points):
+    def flat(points, held=None):
       q = points @ rot.T + base
       z = height + q[:, 2]
       v = q[:, :2] - base[:2]
       r = np.hypot(v[:, 0], v[:, 1])
-      keep = (z >= lo + rise * r) & (z <= hi) & (r < self.max_range)
+      mine = _held(q[:, 0], q[:, 1], z, held)
+      keep = (z >= lo + rise * r) & (z <= hi) & (r < self.max_range) & ~mine
       banded = keep
       a, r = np.arctan2(v[keep, 1], v[keep, 0]), r[keep]
       b = _bin(a)
@@ -435,21 +443,26 @@ class Lidar:
       have = count > 0
       first = np.cumsum(count) - count
       m0, m1 = (first + (count - 1) // 2)[have], (first + count // 2)[have]
-      # ...the median point's own angle kept, and which points were in the band
-      return have, a[m0], (r[m0] + r[m1]) / 2, banded
+      # ...the median point's own angle kept, which points were in the band,
+      # and which were what a hand holds
+      return have, a[m0], (r[m0] + r[m1]) / 2, banded, mine
 
-    have, angles, ranges, banded = flat(c.points)
-    p_have, peer_angles, peer_ranges, p_banded = flat(c.peers)
+    # ...what a hand holds among the room's returns alone: another robot's
+    # are its, split out by the part's own reading (#316), and dropped from
+    # the scan they would leave the front stop blind to it
+    have, angles, ranges, banded, held = flat(c.points, drop)
+    p_have, peer_angles, peer_ranges, p_banded, p_held = flat(c.peers)
     # ...and which robots those in the band came off, by the split's labels
     # (#675: what keeps one standing at its body, `HubLifecycle.keep_clear`)
     struck = c.peer_geoms[p_banded]
     roots = tuple(root for root, ids in self._other_roots.items()
                   if struck.size and np.isin(struck, ids).any())
     # ...the rays that brought nothing back in the band: none within reach,
-    # or a point outside it -- never a return the part dropped
+    # or a point outside it -- never a return the part dropped, nor one off
+    # what a hand holds (`drop`)
     quiet = c.far.copy()
-    quiet[c.rays[~banded]] = True
-    quiet[c.peer_rays[~p_banded]] = True
+    quiet[c.rays[~banded & ~held]] = True
+    quiet[c.peer_rays[~p_banded & ~p_held]] = True
     d = self._dirs[c.looked] @ rot.T
     bins = _bin(np.arctan2(d[:, 1], d[:, 0]))
     # where each ray that looked leaves the band, from the scan's origin:
@@ -496,6 +509,18 @@ class Lidar:
   def blind_fraction(self, data) -> float:
     """Share of a frame's rays the robot's own body hides."""
     return float(self.hidden(data).mean())
+
+
+def _held(x: np.ndarray, y: np.ndarray, z: np.ndarray,
+          drop: tuple[np.ndarray, float] | None) -> np.ndarray:
+  """Which points (x, y, z, levelled) lie within a held grip's volume
+  (`Lidar.band`'s `drop`: its centres and its radius)."""
+  if drop is None or not len(drop[0]):
+    return np.zeros(len(x), dtype=bool)
+  c, radius = np.asarray(drop[0], dtype=float).reshape(-1, 3), float(drop[1])
+  d2 = ((x[:, None] - c[:, 0]) ** 2 + (y[:, None] - c[:, 1]) ** 2
+        + (z[:, None] - c[:, 2]) ** 2)
+  return (d2 <= radius * radius).any(axis=1)
 
 
 def _bin(a: np.ndarray) -> np.ndarray:
