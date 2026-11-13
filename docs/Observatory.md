@@ -21,10 +21,10 @@ an error"):
   so is one that slid; a pose found there is taken at 90 % on walls with
   every direction fixed, only where no place half a metre or more off
   explains the scan as well (`DOUBT_RIVAL_SHARE`), only one with 1.2 times
-  as many points on walls as the pose asked about (`DOUBT_GAIN`), never one
-  the rule would doubt again, and for a slid fit only where it slid. Found
+  as many points on walls as the fit it would replace (`DOUBT_GAIN`), never
+  one the rule would doubt again, and for a slid fit only where it slid. Found
   nothing, the fit is what it was: laid in as an `ok` one is (a slid one
-  refused). A doubt is searched at most once in 10 matched scans. A robot's
+  refused). A doubt is searched at most once in 10 scans. A robot's
   day parts from the base's only where the search takes a pose.
 - **Never on a fit's share alone**: the first two rounds (never deployed)
   also doubted any fit under 80 % on walls, and that half pulled a right
@@ -49,9 +49,9 @@ m off `ok`, its scan laid in, and the copy kept the error for hours (live,
 11-07/08: the store's error a median 0.16 m, 90th percentile 0.66, worst
 1.04; the lobby next door 0.05 and 0.14). Flown on one pod beside the base
 (loop-staging): the counter's 9 belief moves taken back (0.005-0.009 m; the
-base kept 0.23-0.41), the counter's jobs from the three stations the base's
-row for row (all passed), 59 of 60 drift flights row for row and the 60th
-better (its one take), every walk-in, lost and approach trial the base's.
+base kept 0.23-0.41), and everything else the base's row for row -- the
+counter's jobs from the three stations (all passed), 60 drift flights of 60
+(429 scans doubted, none taken), every walk-in, lost and approach trial.
 On the live maps of 11-08 and 11-09 a right belief round the counter moves
 where the base's does and nowhere else: flown on Luca's of 11-09 the
 counter's jobs were the base's flights row for row, where the first two

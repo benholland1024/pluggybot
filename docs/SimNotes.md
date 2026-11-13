@@ -7928,17 +7928,22 @@ fenced in panels a metre apart, a belief 0.75 m off (the truth outside the
 draws of 20, the base keeping 0.75; the served sidewalks repeat nothing.
 
 **...and only a place that explains the scan much better** (`DOUBT_GAIN`:
-1.2 times as many points on walls as the pose asked about). Captured on a
+1.2 times as many points on walls as the fit it would replace, never the
+pose asked about: a fit corrected across a sidewalk would make a gain of
+any place along it). Captured on a
 drift flight, a weakly fixed fit on open ground -- the street, its fences
 far -- was searched once a second, and the places it found put 1.00-1.11
 times as many points on walls as the pose asked about: four takes in 5 s
 moved the belief 10 cm the wrong way and 9 cm back, 0.09 to 0.12 m off in
-all. The counter's take-backs gained 1.25-2.1 (median 1.55; the sidewalks'
-aliases of 19h, 1.01-1.07).
+all. The counter's take-backs gained 1.21-2.1 over the fits they replaced
+(medians 1.34-1.74 by map, on T5's probe; the sidewalks' aliases of 19h,
+1.01-1.07 over the pose asked about).
 
-**...at most once in 10 matched scans** (`DOUBT_EVERY`, a second at the
-LIDAR's rate), afresh wherever the belief is put somewhere new (a fix, a
-relocation, a stand-up). A search costs ~25 ms where a match costs 0.5, and
+**...at most once in 10 scans the matcher is handed** (`DOUBT_EVERY`, a
+second at the LIDAR's rate), afresh wherever the belief is put somewhere
+new (a fix, a relocation; a stand-up forgets the map), never at
+`fuse_next`, which the Navigator calls at every scan it does not map. A
+search costs ~25 ms where a match costs 0.5, and
 standing among something its map lacked, the review's robot was doubted at
 600 scans of 600 in a minute; between searches a doubted fit is laid in as
 it was and a slid one refused, as before #681. A minute standing, in ms of
@@ -7946,7 +7951,7 @@ matching a sim second (base / first two rounds / now): beside the review's
 copy 3.7 / 173 / 3.7, beside a cabinet the map lacks 3.5 / 144 / 3.5, in a
 corridor with a post it lacks, every fit held and doubted, 2.9 / 117 / 15.
 
-**Flown** beside the base (loop-staging 2057c1a), D4's batch again, every
+**Flown** beside the base (loop-staging with #682), D4's batch again, every
 flight a process, both trees on one pod (an EPYC 7C13), the code as it
 stands:
 
@@ -7954,17 +7959,18 @@ stands:
 |---|---|---|
 | the counter: a belief moved +0.25/+0.4/-0.3 m after each of three jobs | 9 of 9 taken back at the first scan, 0.005-0.009 m | 0 of 9, 0.23-0.41 m kept |
 | the counter's jobs from each station (9) | the base's, row for row: 9 passed (from the mall's station 0.27-0.30 m off in the storeroom) | 9 passed |
-| drift flights (60 pairs) | 59 row for row; 22h's one take, on the north sidewalk, put the belief 0.09 m off where the base's went to 0.15 | |
-| walk-ins (16), lost (52) and approach (33) trials | every row the base's, all docked | |
+| drift flights (60 pairs) | the base's, row for row: 429 scans doubted in 28 flights, none taken | all docked, every walk there |
+| walk-ins (16), lost (52) and approach (33) trials | the base's, row for row, all docked | |
 
-Of 411,000 scans in those drift flights 419 were doubted and one taken.
-Without `DOUBT_GAIN` (the same pod) 11 drift flights parted, three worse at
-their worst by 2-27 mm and one better by 7 mm, the takes on open ground
-moving a belief a few centimetres either way; and from the mall's station
-the takes put the robot 0.01-0.03 m off in the storeroom where the base was
-0.27-0.30 -- a leg that turns with the CPU on both trees (on two EPYC 9554s,
-before the review's fixes, both went 0.9-1.0 m off alike and the chest
-failed): #681's call 3, a fix under `ASKEW` keeping a map laid askew.
+On the same pod, without `DOUBT_GAIN` 11 drift flights parted from the
+base, three worse at their worst by 2-27 mm and one better by 7 mm, the
+takes on open ground moving a belief a few centimetres either way; with it
+measured from the pose asked about, one (a take 0.09 m off the truth where
+the base was 0.15). From the mall's station the takes without the gain put
+the robot 0.01-0.03 m off in the storeroom where the base was 0.27-0.30 --
+a leg that turns with the CPU on both trees (on two EPYC 9554s, before the
+review's fixes, both went 0.9-1.0 m off alike and the chest failed): #681's
+call 3, a fix under `ASKEW` keeping a map laid askew.
 
 **What is true now.** `tests/test_scan_match.py` pins it on synthetic scans:
 a storeroom whose side walls hold while its end walls disagree by 0.3 m is
@@ -7975,8 +7981,9 @@ belief; a full fit is doubted where its weakest direction rests on under
 `DOUBT_WEAK_SHARE` of its points and not over; a slid fit's search is taken
 only within `DOUBT_SLID_M` of where it slid; a run of doubted scans is
 searched once in `DOUBT_EVERY`, the count kept across a restart and
-started afresh at a stand-up, a fix or a relocation; a take the rule would
-doubt again is refused, and one that gains under `DOUBT_GAIN`; in a
+started afresh at a fix or a relocation, never at `fuse_next`; a take the
+rule would doubt again is refused, and one that gains under `DOUBT_GAIN`
+over the fit it would replace; in a
 corridor fenced in panels a metre apart the search takes no place another
 explains as well, and a fit it finds nothing for keeps its own correction;
 a corridor with a post the map lacks, a tenth of the scan, is doubted

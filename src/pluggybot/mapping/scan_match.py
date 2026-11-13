@@ -180,7 +180,7 @@ DOUBT_RIVAL_SHARE = 0.9
 #: it): on open ground a weakly fixed fit's search found places 1.00-1.11 as
 #: good, each a coin toss (four takes on the street in 5 s of a drift flight
 #: moved the belief 10 cm away and 9 cm back), where the counter's
-#: take-backs gained 1.27-2.1 over the fit (median 1.5).
+#: take-backs gained 1.21-2.1 over the fit (medians 1.34-1.74 by map).
 DOUBT_GAIN = 1.2
 #: ⚠ A ROBOT ITS MAP KEEPS REFUSING IS LOST PAST THE SEARCH'S REACH (issue
 #: #422): after LOST_RUN scans running "inconsistent" -- any other verdict
