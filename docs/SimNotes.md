@@ -8065,9 +8065,13 @@ stood (below).
 **What is true now** (`tick._Loop.run`): a blocking `run` begun inside
 `run_many` is the loop's -- every robot applied in the loop's order, one
 world step, every robot booked -- each other robot held through its wait
-(`run_pair`'s: its body's own hold, its scans matched), begun for the run and
-closed at its end, and its own routine left where it was, so no second
-robot's blocking call can begin inside the first's. `_ask_interrupt` is the
+(`run_pair`'s: its body's own hold, its scans matched), one wait across the
+ask's think slices, closed once its own routine drives it again, and its own
+routine left where it was, so no second robot's blocking call can begin
+inside the first's. What such a run raises that is not its routine's own --
+a held robot's wait's, the step's -- is `run_many`'s to raise (`tick._Raised`):
+inside the asker's stack, the procedure runner's `except Exception` took the
+other robot's error for its own. `_ask_interrupt` is the
 one such run in `src/`: every other blocking twin (the explore, a charge, a
 decision, a walk) is called only by scripts and tests. Flown on one pod
 beside the base, the other robot doing each thing as the second's interrupt
@@ -8092,11 +8096,12 @@ own loop holding its reach, its plug in, its senses on.
 
 **The price.** While one robot's interrupt is asked, the other's errand
 pauses, standing, for the whole ask -- up to 115 s of think and its slices.
-A walk counts none of the pause: the held robot is told how long it was held
-(its stepper's `held`, into `Navigator.held_s`, as an arm's wait for its way
-is, #678), and walks on with its patience whole and a fresh plan -- told
-nothing, asked 115 s, the lobby's walk ran out of its 60 s and gave up where
-it stood. A procedure's budget and a job's minutes run on through the pause.
+A walk or a `step` counts none of the pause: the held robot is told how long
+it was held (its stepper's `held`, into `Navigator.held_s`, as an arm's wait
+for its way is, #678), and a walk goes on with its patience whole and a
+fresh plan -- told nothing, asked 115 s, the lobby's walk ran out of its 60
+s and gave up where it stood, and a `step` held 30 s read "out of time". A
+procedure's budget and a job's minutes run on through the pause.
 Before, the body went on without it. The whole fix is `_ask_interrupt` as a
 routine, yielding its think slices as `_decide_routine` does, so the other
 robot's routine runs on through the ask (not done: it moves `interrupted()`

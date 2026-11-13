@@ -411,9 +411,52 @@ def test_a_humanoid_told_it_was_held_counts_it_off_its_walks():
   robot's blocking run is told how long (`HumanoidStepper.held`), into the
   clock a walk takes off its patience and its stagnation (`held_s`, #678's)."""
   from pluggybot.humanoid.mission import HumanoidStepper
-  mission = NS(held_s=0.5, model=NS(opt=NS(timestep=0.002)))
+  mission = NS(held_s=0.5, arm_waiting=False, model=NS(opt=NS(timestep=0.002)))
   HumanoidStepper(mission).held(250)
   assert mission.held_s == pytest.approx(1.0)
+  # ...but an arm waiting for its way counts its own time there whole (its
+  # wait adds it to `held_s` as it ends): told, the hold counted twice
+  mission.arm_waiting = True
+  HumanoidStepper(mission).held(250)
+  assert mission.held_s == pytest.approx(1.0)
+
+
+def test_one_robots_ask_in_slices_holds_the_other_through_one_wait():
+  """#690's second review: an interrupt's ask is one blocking run a think
+  slice, and the other robot is held through ONE wait across them, closed
+  once its own routine drives it again -- begun and closed each slice, ten
+  a second, each close skipped its wait's bookkeeping for the step before.
+  Shown to fail with the holds closed at each run's end."""
+  log: list = []
+  a, b = _Swap(log, "a"), _Swap(log, "b")
+  begun, closed = [], []
+
+  def slice_():
+    for _ in range(2):
+      yield 0.0, 0.5
+
+  def ra():
+    yield 0.1, 0.0
+    for _ in range(3):                       # three think slices
+      tick.run(a, slice_())
+    yield 0.1, 0.0
+
+  def rb():
+    for _ in range(3):
+      yield 0.2, 0.0
+
+  def waiting():
+    begun.append(1)
+    try:
+      while True:
+        yield 0.0, 0.9
+    except GeneratorExit:
+      closed.append(1)
+      raise
+
+  tick.run_many([(a, ra()), (b, rb())], waits=[None, waiting], step=lambda: None)
+  assert (begun, closed) == ([1], [1])
+  assert b.told == [2, 2, 2], "told each slice's steps"
 
 
 def test_the_other_robot_is_held_while_one_robots_interrupt_is_asked(monkeypatch):

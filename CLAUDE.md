@@ -2024,8 +2024,8 @@ save a filmstrip PNG named after the script.
   stale targets through Rowan's 5.8 s interrupt (`_ask_interrupt`), and it
   fell, its IMU's filter blind, and got up 120 deg off. The price: the
   other robot's errand pauses, standing, for the whole ask (up to
-  `INTERRUPT_TIMEOUT_S` of think), a walk counting none of it (its stepper
-  is told: `held`, into `held_s`). ⚠ What the run raises that is not its
+  `INTERRUPT_TIMEOUT_S` of think), a walk or a `step` counting none of it
+  (its stepper is told: `held`, into `held_s`). ⚠ What the run raises that is not its
   routine's own -- a held robot's wait's, the step's -- is `run_many`'s to
   raise (`tick._Raised`): booked inside the asker's stack, the procedure
   runner's `except Exception` took the other robot's error for its own.

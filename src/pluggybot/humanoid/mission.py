@@ -198,8 +198,10 @@ class HumanoidStepper:
 
   def held(self, steps: int) -> None:
     """Held standing through another robot's blocking run (`tick._Loop.run`,
-    #690): a walk counts none of it (`Navigator.held_s`)."""
-    self.mission.held_s += steps * self.model.opt.timestep
+    #690): a walk counts none of it (`Navigator.held_s`) -- but where an arm
+    waits for its way, whose wait counts all its own time there."""
+    if not self.mission.arm_waiting:
+      self.mission.held_s += steps * self.model.opt.timestep
 
   def run(self, routine, name: str = ""):
     return tick.run(self, routine, name)

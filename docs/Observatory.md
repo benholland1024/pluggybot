@@ -27,8 +27,8 @@ other robot held"):
 - Now every step of an ask is both robots': the other held standing through
   its own hold, its scans matched, its errand paused where it was until the
   answer comes (up to `INTERRUPT_TIMEOUT_S`, 115 s, and its slices) -- a walk
-  counting none of the pause, a procedure's budget and a job's minutes
-  running on.
+  or a `step` counting none of the pause, a procedure's budget and a job's
+  minutes running on.
 - No text the robots read moved: `prompt_sha` `b345cc34…` both sides,
   66,029 chars, 17 sections (over #688's and #689's). A robot alone, and a
   pair with no interrupt asked, fly the base's day bit for bit.

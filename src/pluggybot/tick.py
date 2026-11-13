@@ -149,15 +149,12 @@ def run_many(pairs, name: str = "", step=None, waits=None) -> list:
     for i in range(len(steps)):
       cmds[i] = _ticked(steps, cmds, i)
     while any(c is not None for c in cmds):
+      loop.release()                        # ...its own routine drives each robot again
       now = [c if c is not None else _held(steppers, waits, waiting, i, name, "wait")
              for i, c in enumerate(cmds)]
       exc = None
       try:
-        for sw, c in zip(steppers, now):
-          sw.apply(c)
-        step()
-        for sw in steppers:
-          sw.after_step()
+        _step_world(steppers, now, step)
       except BaseException as e:  # noqa: BLE001 -- re-raised inside every routine
         exc = e
       if exc is not None:
@@ -166,12 +163,25 @@ def run_many(pairs, name: str = "", step=None, waits=None) -> list:
       for i in range(len(steps)):
         if cmds[i] is not None:
           cmds[i] = _ticked(steps, cmds, i)
+  except _Raised as r:                      # a held robot's own, from wherever it came
+    raise r.exc from None
   finally:
     _LOOPS.remove(loop)
+    loop.release()
     for w in waiting:
       if w is not None:
         w.routine.close()
   return [st.result for st in steps]
+
+
+def _step_world(steppers: list, now: list, step) -> None:
+  """One step of the world: every robot's command applied in the loop's
+  order, the world stepped once, every robot booked."""
+  for sw, c in zip(steppers, now):
+    sw.apply(c)
+  step()
+  for sw in steppers:
+    sw.after_step()
 
 
 def _thrown(steps: list, cmds: list, exc: BaseException,
@@ -237,23 +247,34 @@ class _Raised(BaseException):
 
 class _Loop:
   """A `run_many` in flight: its steppers, its world's step, its robots'
-  waits."""
+  waits -- and the holds a blocking run inside it holds the other robots
+  through, kept from one such run to the next (an interrupt's ask is one a
+  think slice) until the loop's own next step."""
 
   def __init__(self, steppers: list, step, waits: list, name: str) -> None:
     self.steppers, self.step, self.waits, self.name = steppers, step, waits, name
+    self.holding: list[Step | None] = [None] * len(steppers)
+
+  def release(self) -> None:
+    """The holds closed where they stand: each robot's own routine, or its
+    wait, drives it again."""
+    for i, h in enumerate(self.holding):
+      if h is not None:
+        h.routine.close()
+        self.holding[i] = None
 
   def run(self, stepper, routine: Routine, name: str) -> Any:
     """`routine` driven to its end for `stepper`'s robot, every step the
-    loop's: every robot applied in the loop's order, the world stepped once,
-    every robot booked (#690; SimNotes, "One robot's interrupt asked, the
-    other robot held"). ⚠ EACH OTHER ROBOT IS HELD THROUGH ITS WAIT, begun
-    for this run and closed where it stands at its end, its own routine never
-    advanced, so no second blocking run begins inside the first -- and told
-    how many steps it was held (its stepper's `held`, where it has one). The
-    step's exception is thrown into `routine`, then carried to `run_many`
-    (`_Raised`), and so is a held robot's wait's."""
+    loop's (`_step_world`; #690; SimNotes, "One robot's interrupt asked, the
+    other robot held"). ⚠ EACH OTHER ROBOT IS HELD THROUGH ITS WAIT, its own
+    routine never advanced, so no second blocking run begins inside the
+    first -- and told how many steps it was held (its stepper's `held`,
+    where it has one). The step's exception is thrown into `routine`, then
+    carried past its callers to `run_many` (`_Raised`), which throws it into
+    every other live routine and raises it: one each routine might have
+    taken ends the day here, where `run_many`'s own step lets it go on. A
+    held robot's wait's own is carried too, and raised as it is."""
     me = next(i for i, sw in enumerate(self.steppers) if sw is stepper)
-    holding: list[Step | None] = [None] * len(self.steppers)
     step = Step(routine, name)
     stepped = 0
     try:
@@ -261,29 +282,22 @@ class _Loop:
       while cmd is not None:
         try:
           now = [cmd if i == me else
-                 _held(self.steppers, self.waits, holding, i, self.name, "held")
+                 _held(self.steppers, self.waits, self.holding, i, self.name, "held")
                  for i in range(len(self.steppers))]
         except BaseException as e:  # noqa: BLE001 -- a held robot's own: the loop's
           raise _Raised(e, step=False) from e
         try:
-          for sw, c in zip(self.steppers, now):
-            sw.apply(c)
-          self.step()
-          stepped += 1
-          for sw in self.steppers:
-            sw.after_step()
+          _step_world(self.steppers, now, self.step)
         except BaseException as e:  # noqa: BLE001 -- thrown in, then the loop's
           try:
             step.tick(e)
           except BaseException:  # noqa: BLE001 -- as it came out of the routine
             pass
           raise _Raised(e, step=True) from e
+        stepped += 1
         cmd = step.tick()
     finally:
       step.routine.close()
-      for h in holding:
-        if h is not None:
-          h.routine.close()
       for i, sw in enumerate(self.steppers):
         told = getattr(sw, "held", None)
         if i != me and stepped and told is not None:
