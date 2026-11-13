@@ -65,3 +65,25 @@ def test_the_prompt_says_what_a_bare_return_does():
   from pluggybot.mind import overseer as ov
   rule = ov.hands_procedure_rule()
   assert "`return` (alone)" in rule and "your variables are your readout" in rule
+
+
+def test_the_pass_reference_is_a_library_the_served_language_takes():
+  """The place laid from the pass (#682's stage C): the procedures its runs
+  call and its three runs, a piece each, compile against the served pair's
+  language (calls, the hands' verbs, the maths) in one library -- each
+  source inside the language's cap, the whole inside a library's -- the
+  procedures they call defined first (`solutions.LIBRARY`), and only the
+  runs and the walk to the place runnable alone."""
+  from pluggybot.challenge import solutions
+  from pluggybot.lifecycle import HUMANOID_HOME, world_facts
+  from pluggybot.procedure import lang
+  from pluggybot.procedure import library as lib
+  library = lib.Library(world_facts(HUMANOID_HOME))
+  helpers = solutions.LIBRARY["set_table_pass"]
+  runs = solutions.PROCEDURES["set_table_pass"]
+  for source in (*helpers, *runs):
+    assert len(source) <= lang.MAX_SOURCE_CHARS
+    library.define(solutions._def_name(source), source)
+  assert [solutions._def_name(s) for s in runs] == ["lay_cup", "lay_plate", "lay_fork"]
+  assert all(e.valid for e in library.entries.values())
+  assert set(library.runnable()) == {"to_place", "lay_cup", "lay_plate", "lay_fork"}

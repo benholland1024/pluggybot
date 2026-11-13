@@ -54,6 +54,19 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a task kind no world offers (`set_table_pass`, pluggybot #682's stage C)
+
+`taskKinds` (every kind the producer knows) gains `set_table_pass`: table
+0's place laid from its pieces set out on the restaurant's pass, its target
+`dining_table_0` and its `targetKind` `table`, graded as `set_table` is. No
+world's cadence offers it, so no stream carries one; a page that ever sees
+one may draw it as it draws `set_table`. The pieces it sets out are the
+place's own (`dining_table_0`'s activity, the same four bodies), on the
+pass's counter; while one is out, a piece on the pass reads `<piece>Lifted`
+(it stands over the table's height).
+
+No bump: a kind is additive.
+
 ### 0.21.0, additive: the garden's plate flush with the floor (pluggybot #684)
 
 The garden's pressure plate, a sprung pad 21 mm proud that tripped the

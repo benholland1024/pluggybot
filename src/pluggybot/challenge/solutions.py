@@ -229,7 +229,213 @@ def _table_job() -> tuple[str, str]:
 
 TABLE = _table_job()
 
-PASS: tuple = ()
+
+#: THE PLACE LAID FROM THE PASS (#682's stage C, easy mode; Ben, 11-12): the
+#: table's place from its pieces set out on the restaurant's expo counter
+#: (`counter.pass_set_out`), a piece a trip, each carried by the walk's own
+#: hand-over (`HumanoidMission.carries`). Three runs -- the cup, the plate,
+#: the fork -- over the procedures they call (`LIBRARY`); what flying took is
+#: SimNotes', "The place laid from the pass":
+#:  - the pass is found by its pair of tags (68, 69), and each piece walked
+#:    up to from 1.2 m off the wall, `s` to the right of its middle, so that
+#:    it lands where its hand takes it STANDING, about 0.45 m ahead and 0.25
+#:    m to that hand's side (deeper, the reach bows over the counter);
+#:  - a piece is pulled back over the counter's edge before the walk: the
+#:    carry pose holds it under the pass's top;
+#:  - where a tag is not in the colour camera's picture, a turn toward its
+#:    side and then a step in (`near`): a face lands up to 16 deg off;
+#:  - the cup gripped from above 1.5 cm under its lid, the plate's wall 1 cm
+#:    lower than the table check grips it (there the pads' tips catch 0.7-0.9
+#:    cm of the wall, and carried it fell in 37 of 42 legs), the plate and the
+#:    fork from a hover 6 cm over their grip, read again there and pulled
+#:    straight down: the stance turns 5-10 deg as an arm goes out;
+#:  - the walk to the place is the table's (`TABLE_APPROACH`), ending
+#:    `PASS_BACK` further back, its last step over 0.45 m taken in two
+#:    (carrying, a walk ended 0.2 m further back); nothing steps aside
+#:    carrying (a cup carried fell on one);
+#:  - each piece set down from a hover over its spot, its offset in the hand
+#:    the grip's own -- the plate's and the fork's measured from the flights,
+#:    as the table check's is (the hand's sensed place is 1.5-2 cm off).
+PASS_TO = '''def to_pass(s):
+  face(0)
+  find(69, %(ax)g, %(ay)g, 600)
+  bx = read("find.x")
+  by = read("find.y")
+  f = read("find.facing")
+  find(68, %(ax)g, %(ay)g, 600)
+  mx = (bx + read("find.x")) / 2 + 1.2 * cos(f) + s * sin(f)
+  my = (by + read("find.y")) / 2 + 1.2 * sin(f) - s * cos(f)
+  drive_to(mx, my, 180)
+  face(f + 3.14159 - 6.28318 * (f > 0))
+  if not step(0.30, 0):
+    pass
+'''
+PASS_NEAR = '''def near(t, a, b):
+  if not spot(t):
+    if not step(0, 0, b):
+      pass
+    if not spot(t):
+      if not step(0.12, 0):
+        pass
+      spot(t)
+  x = read("spot.x") - a
+  y = read("spot.y") - b
+  if y * y < 0.0009:
+    y = 0
+  if not step(x, y):
+    pass
+'''
+PASS_GO = '''def go(h, x, y, z, f, g):
+  dx = x - read(h + ".x")
+  dy = y - read(h + ".y")
+  dz = z - read(h + ".z")
+  d = sqrt(dx * dx + dy * dy + dz * dz)
+  if d > 0.01:
+    pull(h, dx, dy, dz, f, d, give=g)
+  elif d > 0.002:
+    if not move_hand(h, x, y, z):
+      pass
+'''
+#: ...the table's walk to the place, as the pass's trips call it: its last
+#: step ahead taken in two where it is over 0.45 m (a step goes 0.5 at most).
+#: It ends this much further back than the table check's start, m: nearer, a
+#: cup put down from as near as the check stands took a crouch and a waist
+#: turn and fell.
+PASS_BACK = 0.05
+PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place():\n"),
+                 ("  if not step(x - %(ahead)g + %(nearer)g, 0):\n    pass\n",
+                  "  x = x - %(ahead)g - %(back_pass)g\n  if x > 0.45:\n"
+                  "    if not step(x / 2, 0):\n      pass\n    h = h + read(\"step.turn\")\n"
+                  "    x = x / 2\n  if not step(x, 0):\n    pass\n"))
+PASS_CUP = '''def lay_cup():
+  budget(steps=120, seconds=1200)
+  to_pass(-0.10)
+  near(91, 0.47, -0.25)
+  move("right_shoulder_roll", -0.9)
+  move("right_elbow", 1.4)
+  open_hand("right")
+  spot(91)
+  x = read("spot.x") - 0.025
+  y = read("spot.y")
+  cz = read("spot.z") - 0.015
+  if not reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
+    withdraw("right")
+    reach("right", x, y, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
+  pull("right", 0, 0, -1, 12, read("right.z") - cz, give=0)
+  if not close_hand("right", 40):
+    open_hand("right")
+    close_hand("right", 30)
+  ox = x + 0.025 - read("right.x")
+  oy = y - read("right.y")
+  oz = read("right.z") - cz + 0.075
+  pull("right", 0, 0, 1, 20, 0.05, give=0)
+  go("right", 0.26, read("right.y"), read("right.z"), 20, 0)
+  to_place()
+  spot(93)
+  tz = read("spot.z") - 0.055 + oz + 0.10
+  reach("right", read("spot.x") - 0.085 - ox, read("spot.y") - 0.24 - oy, tz, 0.707, 0, -0.707, 0, 1, 0)
+  pull("right", 0, 0, -1, 6, 0.15, give=0)
+  open_hand("right")
+  wait(0.4)
+  pull("right", 0, 0, 1, 20, 0.08, give=0)
+  withdraw("right")
+'''
+PASS_PLATE = '''def lay_plate():
+  budget(steps=120, seconds=1200)
+  to_pass(-0.18)
+  near(90, 0.45, 0.184)
+  move("left_shoulder_roll", 0.9)
+  move("left_elbow", 1.4)
+  open_hand("left")
+  spot(90)
+  px = read("spot.x")
+  py = read("spot.y")
+  gz = read("spot.z") + 0.0384
+  reach("left", px, py + 0.066, gz + 0.06, 0.5, 0, -0.866, 0, -1, 0)
+  if spot(90):
+    go("left", read("spot.x"), read("spot.y") + 0.066, gz + 0.06, 20, 0)
+  pull("left", 0, 0, -1, 12, read("left.z") - gz, give=0)
+  if not close_hand("left", 80):
+    open_hand("left")
+    close_hand("left", 80)
+  oz = read("left.z") - gz + 0.0434
+  pull("left", 0, 0, 1, 20, 0.05, give=0)
+  go("left", 0.22, read("left.y"), read("left.z"), 20, 0)
+  to_place()
+  spot(93)
+  tz = read("spot.z") - 0.055 + oz + 0.05
+  reach("left", read("spot.x") - 0.21, read("spot.y") + 0.073, tz, 0.5, 0, -0.866, 0, -1, 0)
+  pull("left", 0, 0, -1, 6, 0.11, give=0)
+  open_hand("left")
+  wait(0.4)
+  pull("left", 0, 0, 1, 20, 0.09, give=0)
+  withdraw("left")
+'''
+PASS_FORK = '''def lay_fork():
+  budget(steps=120, seconds=1200)
+  to_pass(0.10)
+  near(92, 0.44, 0.20)
+  spot(92)
+  px = read("spot.x")
+  py = read("spot.y")
+  gz = read("spot.z") + 0.0264
+  a = atan2(read("spot.ey"), read("spot.ex"))
+  while a > 0.79:
+    a = a - 1.571
+  while a < -0.79:
+    a = a + 1.571
+  move("left_shoulder_roll", 0.9)
+  move("left_elbow", 1.4)
+  open_hand("left")
+  if spot(92):
+    px = read("spot.x")
+    py = read("spot.y")
+  c = cos(a)
+  e = sin(a)
+  reach("left", px, py, gz + 0.06, 0.5 * c, 0.5 * e, -0.866, e, -c, 0)
+  if spot(92):
+    go("left", read("spot.x"), read("spot.y"), gz + 0.06, 20, 0)
+  pull("left", 0, 0, -1, 12, read("left.z") - gz, give=0)
+  if not close_hand("left", 25):
+    open_hand("left")
+    close_hand("left", 25)
+  oz = read("left.z") - gz + 0.0484
+  pull("left", 0, 0, 1, 20, 0.05, give=0)
+  go("left", 0.21, read("left.y"), read("left.z"), 20, 0)
+  to_place()
+  spot(93)
+  tz = read("spot.z") - 0.055 + oz + 0.05
+  reach("left", read("spot.x") - 0.207, read("spot.y") + 0.16, tz, 0.5, 0, -0.866, 0, -1, 0)
+  pull("left", 0, 0, -1, 6, 0.11, give=0)
+  open_hand("left")
+  wait(0.4)
+  pull("left", 0, 0, 1, 20, 0.09, give=0)
+  withdraw("left")
+'''
+
+
+def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
+  """The place laid from the pass's reference: the procedures its runs call
+  (the walks to the pass and to the place, `near`, `go`) and its
+  three runs, a piece each, the address its offer gives in its finds."""
+  from pluggybot.activity import dishware as dw
+  from pluggybot.evaluation import counter as ct
+  from pluggybot.home import places as addresses
+  from pluggybot.home import restaurant
+  address = addresses.area(restaurant.TABLE)["address"]
+  ahead = ct.CARD_IN + ct.TABLE_GAP - dw.CARD[1] - dw.FILM
+  place = TABLE_APPROACH
+  for old, new in PASS_TO_PLACE:
+    assert place.count(old) == 1, old
+    place = place.replace(old, new)
+  terms = {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
+           "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
+           "back_pass": PASS_BACK}
+  return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
+          (PASS_CUP, PASS_PLATE, PASS_FORK))
+
+
+PASS_LIBRARY, PASS = _pass_job()
 
 #: The procedures that discharge each job, by kind: each run in turn, a run
 #: that does not end ok the last.
@@ -237,7 +443,7 @@ PROCEDURES = {"open_drawer": DRAWER, "open_door": DOOR, "place_cube": CUBE,
               "open_chest": CHEST, "set_table": TABLE, "set_table_pass": PASS}
 #: ...and the procedures they call, by kind: put in the library first, run
 #: only by a call (#560's defs that call defs).
-LIBRARY: dict = {"set_table_pass": ()}
+LIBRARY: dict = {"set_table_pass": PASS_LIBRARY}
 
 
 #: The jobs by their place: the counter's props and the restaurant's table

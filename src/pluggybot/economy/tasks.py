@@ -331,12 +331,12 @@ KINDS: dict[str, TaskKind] = {
   # flown by `energy_spike.py`.
   "set_table_pass": TaskKind(
     "set_table_pass", task="set_table_pass", target_kind="table",
-    template="Lay the place at the card on the restaurant's table from the pass, the counter in "
-             "the dining room's east wall: from the foot of the card's face toward you, the plate's "
-             "middle 19 cm out; the fork 19 cm out, 16 cm left, along the line, head to the card; "
-             "the cup 7 cm out, 24 cm right. Each within 2.5 cm, set down and let go of, within "
-             "{minutes} minutes of taking this job, without falling; graded when you say you are "
-             "done and 5 s later. The pieces were set out on the pass at t={offered}. Write the "
+    template="Lay the place at the card on the restaurant's table from the pieces on its pass: "
+             "from the foot of the card's face toward you, the plate's middle 19 cm out; the fork "
+             "19 cm out, 16 cm left, along the line, head to the card; the cup 7 cm out, 24 cm "
+             "right. Each within 2.5 cm, set down and let go of, within {minutes} minutes of "
+             "taking this job, without falling; graded when you say you are done and 5 s later. "
+             "The pieces were set out at t={offered}, when this job was offered. Write the "
              "procedure.",
     estimate_wh=15.0, discharge="procedure", draws=True, minutes=PASS_MINUTES),
 }
