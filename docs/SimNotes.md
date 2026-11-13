@@ -8010,6 +8010,112 @@ off on Luca's map of 11-09 one pose of 40 was searched onto the copy where
 the base's fit ended 0.1 m off. The base's own search, from an
 `inconsistent` fit, still takes the best of two places that explain a scan
 alike, and the doubt's beyond its window.
+
+## One robot's interrupt asked, the other robot held (issue #690)
+
+**What the live pair showed.** On 1e8f1d48 (11-12, 20:30 UTC) Luca fell 63
+s into a plain `drive_to` in the research center's lobby, and its get-up
+stood it 120 deg off the truth: every scan after it was refused for the 26
+minutes to the pause (944 matched from the restart to the fall, none after),
+and it walked into the garden believing it stood at the storeroom's
+counter. The log has why: Rowan's `battery below 22% -> ask` fired at
+t=227566.3, its mid-errand interrupt was answered at t=227572.1 -- 5.8 sim
+s, in 3.1 wall s -- and Luca's "you fell" came at t=227572.9, 0.8 s later.
+
+**Not the IMU's filter.** The first hypothesis -- the attitude filter's
+gravity correction (`imu.Attitude`, `TAU_S`) running on through a tumble,
+when what the accelerometer reads is no longer gravity, a wrong tilt turned
+into a heading -- was flown and is not it. 72 falls on a bare floor (8 ways,
+45-100 N*s, standing and walking at 0.6 and 1.0 m/s) left the filter's
+heading within 0.8 deg of the truth's. 201 flights of the served mission in
+the house -- the lobby's walk shoved mid-stride 8 ways at 70-150 N*s, along
+its west wall, standing where Luca stood up facing four ways, three other
+IMUs' draws, a belief 0.42 m off with its map laid through it, as Luca's was
+-- fell 129 times: the 101 get-ups that stood left the heading within 1.7
+deg (p95 1.1), the filter's own change across a fall at most 1.35, though
+the bodies turned 5-177 deg and the get-ups took 2.1-14.8 s, and 28 never
+stood in 20 s (`Stuck`). The filter follows the gyro exactly but for a
+two-step lag (it reads the sensor computed the step before), so a body at
+rest before and after is tracked whole; its scale error (Luca's +0.39 %
+about z) is a fraction of a fall's 5-12 rad; and its correction turns the
+estimate about an axis level in its own world, so the only heading it adds
+is the holonomy of the tilt errors it chases.
+
+**The cause: one robot's blocking wait stepped the world without the
+other.** `HubLifecycle._ask_interrupt` waits on the mind with
+`self.body.run(self.body.hold_routine(THINK_SLICE_S))`: a blocking
+`tick.run` on the asking robot's stepper, inside the pair's
+`tick.run_many`. Through every step of the ask the other robot's stepper
+never ran -- no policy step, so its legs held the last targets they were
+sent; no step of its IMU's filter; no fall watch, no odometry; and no seam,
+whose hooks on the first robot are the world's activities, the stream's
+frames, the recorder and the real-time pacer (Rowan's 5.8 s passed in 3.1
+wall s, unpaced, unstreamed). Flown as live (`humanoid_drift_spike.py
+--asked walk`: the pair, Luca walking the lobby's walk, Rowan asked through
+the real `interrupted()` by a mind that answers carry on after 5.8 s): Luca's
+physics stepped none of the ask's 2,900 steps; it lay on the floor 1.4 s
+into the ask while its filter's tilt read 1.5 deg; 0.78 s after the answer,
+as the filter's correction caught up, its fall watch fired (live: 0.8); and
+the get-up stood it 2.6 m and 40 deg off, kept. What it lost is the turn its
+body made unseen: the correction rights the tilt by the shortest arc, and
+whatever of the fall's turning that arc does not undo stays as a heading.
+Whatever else the other robot was doing, the ask stopped its body as it
+stood (below).
+
+**What is true now** (`tick._Loop.run`): a blocking `run` begun inside
+`run_many` is the loop's -- every robot applied in the loop's order, one
+world step, every robot booked -- each other robot held through its wait
+(`run_pair`'s: its body's own hold, its scans matched), one wait across the
+ask's think slices, closed once its own routine drives it again, and its own
+routine left where it was, so no second robot's blocking call can begin
+inside the first's. What such a run raises that is not its routine's own --
+a held robot's wait's, the step's -- is `run_many`'s to raise
+(`tick._Raised`): inside the asker's stack, the procedure runner's `except
+Exception` took the other robot's error for its own. `_ask_interrupt` is the
+one such run in `src/`: every other blocking twin (the explore, a charge, a
+decision, a walk) is called only by scripts and tests. Flown, the other
+robot doing each thing as the second's interrupt is asked for 5.8 s
+(Rowan's), 30 and 115 (`INTERRUPT_TIMEOUT_S`; the drift spike's `--asked`),
+before (the base, on a pod) -> now (on the dev box):
+
+| the other robot, as the ask flies | 5.8 s | 30 s | 115 s |
+|---|---|---|---|
+| walking the lobby's walk | fell, stood 2.6 m and 40 deg off -> held, walked on | fell, 2.6 m and 40 deg -> held, walked on | fell, 0.9 m and 39 deg -> held, walked on |
+| standing, resting | leaned 7.7 deg -> held | fell -> held | fell -> held |
+| a hand out at a counter's height | fell -> held, the hand kept there | fell -> held | fell -> held |
+| getting up from a shove | its get-up stopped where it lay, then stood -> stood | stopped, and its 20 s clock ran on: `stuck` -> stood | `stuck` -> stood |
+| plugged in at its station | leaned 16 deg -> held, charging | leaned 17 deg -> held, charging | leaned 23 deg, fell after, `stuck` -> held, charging |
+| turning a `step`, 90 deg | leaned 4.7 deg -> held, turned | fell -> held, turned | fell -> held, turned |
+
+Before, its physics stepped none of the ask's steps in any of the 18; now
+every one, its trunk (but for the get-up's own fall) at most 1.2 deg off
+upright through any ask, and each ended within 0.01 m and 0.2 deg of the
+truth. Held, a robot stands where its legs' policy has it (the walker
+marking time, the standing policy holding, a get-up getting up), its hand's
+own loop holding its reach, its plug in, its senses on.
+
+**The price.** While one robot's interrupt is asked, the other's errand
+pauses, standing, for the whole ask -- up to 115 s of think and its slices.
+A walk or a `step` counts none of the pause: the held robot is told how long
+it was held (its stepper's `held`, into `Navigator.held_s`, as an arm's wait
+for its way is, #678), and a walk goes on with its patience whole and a
+fresh plan -- told nothing, asked 115 s, the lobby's walk ran out of its 60
+s and gave up where it stood, and a `step` held 30 s read "out of time". A
+procedure's budget and a job's minutes run on through the pause.
+Before, the body went on without it. The whole fix is `_ask_interrupt` as a
+routine, yielding its think slices as `_decide_routine` does, so the other
+robot's routine runs on through the ask (not done: it moves `interrupted()`
+and its three callers, a walk's among them).
+
+**Nothing else moves.** On the same pod, a robot alone (600 s) and the
+pair's day with a fall and a death arranged fly the base's trajectory bit
+for bit (`determinism_spike.py --compare`: 1,201 and 528 state samples
+identical, two runs each tree, and the pair's day again on the dev box);
+the 201 flights of the falls above, the drift spike's walking falls in the
+lobby and two drift flights (Luca's and Rowan's draws) are the base's row
+for row; and the pair's recording, flown as its fixture is, is the base's
+but for two wall-clock stamps.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
