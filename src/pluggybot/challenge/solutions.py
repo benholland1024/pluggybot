@@ -229,15 +229,18 @@ def _table_job() -> tuple[str, str]:
 
 TABLE = _table_job()
 
+PASS: tuple = ()
+
 #: The procedures that discharge each job, by kind.
 PROCEDURES = {"open_drawer": DRAWER, "open_door": DOOR, "place_cube": CUBE,
-              "open_chest": CHEST, "set_table": TABLE}
+              "open_chest": CHEST, "set_table": TABLE, "set_table_pass": PASS}
 
 
 #: The jobs by their place: the counter's props and the restaurant's table
-#: (`world_config`'s `jobs`).
+#: (`world_config`'s `jobs`) -- the place laid from the pass is the table's.
 TARGETS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
-           "open_chest": "chest", "set_table": "dining_table_0"}
+           "open_chest": "chest", "set_table": "dining_table_0",
+           "set_table_pass": "dining_table_0"}
 
 
 def job_routine(life, kind: str, world: str):

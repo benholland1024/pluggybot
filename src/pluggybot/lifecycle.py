@@ -4804,7 +4804,7 @@ class HubLifecycle:
     if area is None or k is None or not area.present(self.model):
       self._say(f"TASK {task.id}: this world has no {target} to set out")
       return
-    area.set_out(self.model, self.data, target, int(k))
+    area.set_out(self.model, self.data, target, int(k), kind=task.kind)
     act = self._target_activity(target)
     if act is not None:
       act.renew(self.model, area.drawn(target, int(k)))
@@ -4862,7 +4862,7 @@ class HubLifecycle:
       k = int(t.secret["draw"])
       area = jobs.area_of(target)
       if t.open:
-        area.set_out(self.model, self.data, target, k)
+        area.set_out(self.model, self.data, target, k, kind=t.kind)
       else:
         area.redraw(self.model, self.data, target, k)
       act = self._target_activity(target)

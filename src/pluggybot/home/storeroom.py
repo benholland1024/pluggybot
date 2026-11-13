@@ -291,13 +291,13 @@ def redraw(model, data, prop: str, k: int) -> None:
   model.qpos_spring[:] = spring
 
 
-def set_out(model, data, prop: str, k: int | None = None) -> None:
+def set_out(model, data, prop: str, k: int | None = None, kind: str | None = None) -> None:
   """A prop back as the world compiled it: every joint of it at its rest
   (`qpos0`) and still -- the drawer shut, the door shut with its lever up,
   the lid down, the cube on its board -- and, for an offer drawing `k`, its
-  hidden dynamics that draw's (`redraw`). Its activity is the caller's to
-  begin again after (`renew`): the door's latch bolts on a door already
-  shut."""
+  hidden dynamics that draw's (`redraw`); one prop is one job's, whatever
+  its `kind`. Its activity is the caller's to begin again after (`renew`):
+  the door's latch bolts on a door already shut."""
   if k is not None:
     redraw(model, data, prop, k)
   for b in _subtree(model, prop):

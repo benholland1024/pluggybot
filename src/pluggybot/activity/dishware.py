@@ -274,14 +274,16 @@ def _yaw_quat(yaw: float) -> list[float]:
   return [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
 
 
-def place(model, data, pieces: dict, card: tuple, z: float, card_name: str = "place_card") -> None:
+def place(model, data, pieces: dict, card: tuple, z: float, card_name: str = "place_card",
+          piece_z: float | None = None) -> None:
   """The dishware SET OUT on a surface `z` up: each piece of `pieces`
   ({name: (x, y, yaw)}) resting where it is set out, as `attach_<piece>` puts
-  it, and the card standing at `card` (x, y, facing) -- all live and still."""
+  it -- on the surface `piece_z` up where it is another (the pass, #682) --
+  and the card standing at `card` (x, y, facing) -- all live and still."""
   for name, (x, y, yaw) in pieces.items():
     b = model.body(name).id
     _switch(model, b, True)
-    _pose(model, data, b, (x, y, z), _yaw_quat(yaw))
+    _pose(model, data, b, (x, y, z if piece_z is None else piece_z), _yaw_quat(yaw))
   b = model.body(card_name).id
   _switch(model, b, True)
   _pose(model, data, b, (card[0], card[1], z), card_quat(card[2]))

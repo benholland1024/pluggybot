@@ -228,6 +228,11 @@ TABLE_MINUTES = 14
 #: answer may take 300 (`CALL_TIMEOUT_S`). A claim there on a fresh map, its
 #: find before the walk, was not flown.
 CUBE_MINUTES = 9
+#: ...and the place laid from the pass's (#682's stage C, easy mode): NOT
+#: OFFERED, so a generous limit its reference's flights are graded under,
+#: the bar written before they flew (Ben's call to offer it, and then its
+#: minutes by the table's rule, three times its slowest pass).
+PASS_MINUTES = 30
 
 
 KINDS: dict[str, TaskKind] = {
@@ -316,6 +321,24 @@ KINDS: dict[str, TaskKind] = {
              "when you say you are done and 5 s later. The plate, the fork and the cup were set out "
              "at t={offered}, when this job was offered. No errand does this: write the procedure.",
     estimate_wh=9.83, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
+  # ...and its easy mode of carrying (#682's stage C; Ben, 11-12): the same
+  # place, its pieces set out on the pass, the expo counter in the dining
+  # room's east wall between the restaurant's two tags (68, 69), each carried
+  # 4-5 m to the table (`home.restaurant.SET_OUTS`) and graded by the
+  # table's evaluator. NOT OFFERED (no world's cadence names it) and paid
+  # nothing (`challenges.json`): offering it is Ben's call, and then it is
+  # measured as `set_table` was. Its energy a guess above the table's, never
+  # flown by `energy_spike.py`.
+  "set_table_pass": TaskKind(
+    "set_table_pass", task="set_table_pass", target_kind="table",
+    template="Lay the place at the card on the restaurant's table from the pass, the counter in "
+             "the dining room's east wall: from the foot of the card's face toward you, the plate's "
+             "middle 19 cm out; the fork 19 cm out, 16 cm left, along the line, head to the card; "
+             "the cup 7 cm out, 24 cm right. Each within 2.5 cm, set down and let go of, within "
+             "{minutes} minutes of taking this job, without falling; graded when you say you are "
+             "done and 5 s later. The pieces were set out on the pass at t={offered}. Write the "
+             "procedure.",
+    estimate_wh=15.0, discharge="procedure", draws=True, minutes=PASS_MINUTES),
 }
 
 #: The hand jobs' graders (#559, #560): each served job's row is its own --
@@ -323,7 +346,7 @@ KINDS: dict[str, TaskKind] = {
 #: graded by its capability check's evaluator, whose row stays the
 #: practice's, unpaid.
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "place",
-             "open_chest": "lid", "set_table": "table"}
+             "open_chest": "lid", "set_table": "table", "set_table_pass": "table"}
 
 
 def kind_names() -> list[str]:
