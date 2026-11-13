@@ -75,6 +75,11 @@ def test_the_grown_worlds_four_minute_start_never_fires_and_a_runaway_after_it_d
   late = _day(RESTING[:2] + [115.0] * 8, GROWN_START)
   first_fast = len(GROWN_START) + 2          # the sample closing minute one
   assert _feed(RunawayRule(), late) == [first_fast + 1]
+  # ...and the window Webserver.md states: a load of five minutes passes, one
+  # of six does not -- a runaway from boot is reported six minutes in
+  ramp = [173.0 + 232.0 * i for i in range(7)]
+  assert _feed(RunawayRule(), _day(RESTING, ramp[:6])) == []
+  assert _feed(RunawayRule(), _day(RESTING, ramp)) == [6]
 
 
 def test_the_threshold_keeps_its_margin_on_both_sides():
