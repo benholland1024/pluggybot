@@ -8076,7 +8076,7 @@ spike's `--asked`), before -> now:
 
 | the other robot, as the ask flies | 5.8 s | 30 s | 115 s |
 |---|---|---|---|
-| walking the lobby's walk | fell, stood 2.6 m and 40 deg off -> held, walked on | fell, 2.6 m and 40 deg -> held, walked on | fell, 0.9 m and 39 deg -> held, its walk then out of its 60 s |
+| walking the lobby's walk | fell, stood 2.6 m and 40 deg off -> held, walked on | fell, 2.6 m and 40 deg -> held, walked on | fell, 0.9 m and 39 deg -> held, walked on |
 | standing, resting | leaned 7.7 deg -> held | fell -> held | fell -> held |
 | a hand out at a counter's height | fell -> held, the hand kept there | fell -> held | fell -> held |
 | getting up from a shove | its get-up stopped where it lay, then stood -> stood | stopped, and its 20 s clock ran on: `stuck` -> stood | `stuck` -> stood |
@@ -8091,14 +8091,16 @@ marking time, the standing policy holding, a get-up getting up), its hand's
 own loop holding its reach, its plug in, its senses on.
 
 **The price.** While one robot's interrupt is asked, the other's errand
-pauses, standing, for the whole ask -- up to 115 s of think and its slices --
-and every clock its routine keeps runs on: a walk's patience (asked 115 s,
-the lobby's walk ran out of its 60 s and gave up where it stood), a
-procedure's budget, a job's minutes. Before, the body went on without it.
-The whole fix is `_ask_interrupt` as a routine, yielding its think slices as
-`_decide_routine` does, so the other robot's routine runs on through the ask
-(not done: it moves `interrupted()` and its three callers, a walk's among
-them).
+pauses, standing, for the whole ask -- up to 115 s of think and its slices.
+A walk counts none of the pause: the held robot is told how long it was held
+(its stepper's `held`, into `Navigator.held_s`, as an arm's wait for its way
+is, #678), and walks on with its patience whole and a fresh plan -- told
+nothing, asked 115 s, the lobby's walk ran out of its 60 s and gave up where
+it stood. A procedure's budget and a job's minutes run on through the pause.
+Before, the body went on without it. The whole fix is `_ask_interrupt` as a
+routine, yielding its think slices as `_decide_routine` does, so the other
+robot's routine runs on through the ask (not done: it moves `interrupted()`
+and its three callers, a walk's among them).
 
 **Nothing else moves.** On the same pod, a robot alone (600 s) and the
 pair's day with a fall and a death arranged fly the base's trajectory bit

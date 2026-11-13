@@ -524,13 +524,15 @@ def fall(seed: str = "luca", start: str = "start", explore_s: float = 120.0,
           body.run(body.hold_routine(model.opt.timestep))
         data.xfrc_applied[body.root] = 0.0
       t0 = float(data.time)
-      while float(data.time) - t0 < GETUP_WAIT_S and not (m.falls and m.legs == "stand"):
+      # ...a walk that ended short of the line was never shoved: no fall to wait for
+      while ("shoved" in seam and float(data.time) - t0 < GETUP_WAIT_S
+             and not (m.falls and m.legs == "stand")):
         body.run(body.hold_routine(0.05))
       if walking:
         body.step_hooks.remove(shove_hook)
         data.xfrc_applied[body.root] = 0.0
       x1, y1, _ = body.true_pose()
-      out.update(falls=m.falls, stood=m.falls > 0 and m.legs == "stand",
+      out.update(shoved="shoved" in seam, falls=m.falls, stood=m.falls > 0 and m.legs == "stand",
                  getupS=round(float(data.time) - t0, 1),
                  moved=round(math.hypot(x1 - x0, y1 - y0), 3))
       if "shoved" in seam:
@@ -588,6 +590,9 @@ def falls(seed: str, start: str, explore_s: float, parallel: int, at: str | None
       print(f"{r['shoveDeg']:5.0f} {s['zone']:12s} {r['falls']:4d} stuck: fell at "
             f"t={s['fellT']:.0f}, still getting up {s['t'] - s['fellT']:.0f} s on")
       continue
+    if not r.get("shoved", True):
+      print(f"{r['shoveDeg']:5.0f} {r['zone']:12s} never shoved: its walk ended short of the line")
+      continue
     print(f"{r['shoveDeg']:5.0f} {r['zone']:12s} {r['falls']:4d} {r['getupS']:5.1f} "
           f"{r['moved']:6.2f} {r.get('getupMoved', float('nan')):6.2f} "
           f"{r.get('beliefMoved', float('nan')):6.2f} "
@@ -640,15 +645,15 @@ def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
   from pluggybot import lifecycle, pair, tick
   from pluggybot.mind import events as ev
   wall = time.time()
-  lifecycle.overseer_context = lambda life: {}     # a mind's state: none to show here
   lives = pair.build_pair(lifecycle.HUMANOID_HOME, pack="demo", errands=("none", "none"))
   luca, rowan = lives
   data, m = luca.data, luca.body.mission
   out: dict = {"state": state, "askS": ask_s}
+  context = lifecycle.overseer_context
   try:
-    at = (*LOBBY_AT[:2], LOBBY_AT[2])
-    if state == "charge":
-      at = lifecycle.world_config(lifecycle.HUMANOID_HOME)["start"]
+    lifecycle.overseer_context = lambda life: {}   # a mind's state: none to show here
+    at = (lifecycle.world_config(lifecycle.HUMANOID_HOME)["start"] if state == "charge"
+          else LOBBY_AT)
     luca.body.start_at(*at)
     rowan.body.start_at(ASKER_AT[0], ASKER_AT[1], ASKER_AT[2])
 
@@ -739,6 +744,7 @@ def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
                imuEnd=round(math.degrees(wrap(m.stand.trunk.attitude.yaw() - th)), 2),
                rows=rows, wallS=round(time.time() - wall, 1))
   finally:
+    lifecycle.overseer_context = context
     for life in lives:
       life.body.close()
   return out

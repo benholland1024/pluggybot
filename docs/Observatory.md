@@ -26,8 +26,9 @@ other robot held"):
   unstreamed.
 - Now every step of an ask is both robots': the other held standing through
   its own hold, its scans matched, its errand paused where it was until the
-  answer comes (up to `INTERRUPT_TIMEOUT_S`, 115 s, and its slices), every
-  clock its routine keeps running on.
+  answer comes (up to `INTERRUPT_TIMEOUT_S`, 115 s, and its slices) -- a walk
+  counting none of the pause, a procedure's budget and a job's minutes
+  running on.
 - No text the robots read moved: `prompt_sha` `b345cc34…` both sides,
   66,029 chars, 17 sections (over #688's and #689's). A robot alone, and a
   pair with no interrupt asked, fly the base's day bit for bit.
@@ -48,10 +49,10 @@ every one and walked on, 0.001 m and 0.14 deg off.
 - **The heading after a get-up**: #690's fourth box, no get-up leaving a
   robot past the matcher's 15 deg (`headingDeg` on the drift rows before and
   after a fall).
-- **What the pause costs**: a walk that gives up, a procedure out of its
-  budget or a job out of its minutes just after the other robot's
-  `INTERRUPT` line is this period's price, not a fault of the robot's own;
-  count them before reading either robot's job record.
+- **What the pause costs**: a procedure out of its budget or a job out of
+  its minutes just after the other robot's `INTERRUPT` line is this
+  period's price, not a fault of the robot's own; count them before reading
+  either robot's job record.
 - ⚠ The stream's pacing and frames through a second robot's ask are whole
   now: a reading of wall time across an ask is not the period before's.
 

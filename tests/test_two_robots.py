@@ -12,6 +12,7 @@ it is the drive's, on a stub that walks.
 import math
 import pathlib
 import re
+from types import SimpleNamespace as NS
 
 import mujoco
 import numpy as np
@@ -148,6 +149,7 @@ class _Swap:
 
   def __init__(self, log, name, raise_at=None):
     self.log, self.name, self.raise_at, self.after = log, name, raise_at, 0
+    self.told: list[int] = []
 
   def apply(self, command):
     self.log.append((self.name, "before", command))
@@ -163,6 +165,9 @@ class _Swap:
     self.apply(command)
     self.log.append(("world", "step"))
     self.after_step()
+
+  def held(self, steps):
+    self.told.append(steps)
 
 
 def test_run_many_applies_every_command_steps_once_then_books_every_robot():
@@ -306,6 +311,109 @@ def test_a_blocking_run_inside_the_loop_steps_every_robot_the_others_held():
                  ("a", "before", (0.1, 0.0)), ("b", "before", (0.2, 0.0)), *world,
                  ("a", "before", (0.0, 0.0)), ("b", "before", (0.2, 0.0)), *world]
   assert booked == ["booked", "closed"], "the wait booked between its steps, then closed"
+  # ...and told how long it was held, so a walk of its counts none of it
+  # (review: held through a 115 s ask, its 60 s walk gave up where it stood)
+  assert b.told == [2] and a.told == []
+
+
+def _asks(a, inner):
+  """a's routine: a step, a blocking run of `inner` -- an ask -- that books
+  any `Exception` it sees as its own failure (as the lifecycle's procedure
+  runner does), and steps on."""
+  seen: list = []
+
+  def ra():
+    try:
+      yield 0.1, 0.0
+      try:
+        tick.run(a, inner())
+      except Exception as e:  # noqa: BLE001 -- what the asker would book as its own
+        seen.append(f"a booked {e}")
+      yield 0.1, 0.0
+    finally:
+      seen.append("a-finally")
+  return ra, seen
+
+
+def test_a_held_robots_own_error_is_raised_by_the_loop_never_booked_by_the_asker():
+  """#690's review: a held robot's wait that raises inside another's
+  blocking run (its scan match, a look) raises as `run_many` raises a wait's
+  own, never inside the asker's call stack, whose procedure runner's `except
+  Exception` booked it as the asker's failed procedure and the day went on.
+  Shown to fail with the wait's error raised where it came: the asker
+  booked it, and `run_many` returned."""
+  log: list = []
+  a, b = _Swap(log, "a"), _Swap(log, "b")
+
+  def asked():
+    for _ in range(3):
+      yield 0.0, 0.5
+
+  def rb():
+    for _ in range(4):
+      yield 0.2, 0.0
+
+  def waiting():
+    yield 0.0, 0.9
+    raise RuntimeError("its scan")
+
+  ra, seen = _asks(a, asked)
+  with pytest.raises(RuntimeError, match="its scan"):
+    tick.run_many([(a, ra()), (b, rb())], waits=[None, waiting], step=lambda: None)
+  assert seen == ["a-finally"], "the asker unwound, booking nothing of b's"
+
+
+def test_a_step_exception_in_a_blocking_run_is_thrown_into_every_live_routine():
+  """#690's review: the step's exception inside a blocking run -- a hook's
+  `MissionAborted`, the held robot's own `Stuck` -- reaches every live
+  routine, the held robot's too, as `run_many`'s own step's does, and then
+  is raised: thrown into the asker's alone, b's cleanup waited for garbage
+  collection. Shown to fail with it thrown into the asker's run alone."""
+  log: list = []
+  a, b = _Swap(log, "a"), _Swap(log, "b", raise_at=2)   # inside a's run
+  b_seen: list = []
+
+  def asked():
+    for _ in range(3):
+      yield 0.0, 0.5
+
+  def rb():
+    try:
+      for _ in range(4):
+        yield 0.2, 0.0
+    finally:
+      b_seen.append("b-finally")
+
+  ra, seen = _asks(a, asked)
+  with pytest.raises(RuntimeError, match="hook"):
+    tick.run_many([(a, ra()), (b, rb())], waits=[None, None], step=lambda: None)
+  assert seen == ["a-finally"] and b_seen == ["b-finally"]
+
+
+def test_a_loop_whose_routine_raises_at_once_leaves_nothing_behind():
+  """#690's review: a routine that raises on its first tick ends its loop
+  as any other way out does -- left registered, a later blocking `run` of
+  one of its steppers was stepped through a dead loop."""
+  log: list = []
+  a, b = _Swap(log, "a"), _Swap(log, "b")
+
+  def refused():
+    raise ValueError("refused")
+    yield  # noqa -- a routine
+
+  with pytest.raises(ValueError, match="refused"):
+    tick.run_many([(a, tick.once(0.1, 0.0)), (b, refused())], step=lambda: None)
+  assert tick._LOOPS == []
+
+
+def test_a_humanoid_told_it_was_held_counts_it_off_its_walks():
+  """#690's review, the body's half: a humanoid held through the other
+  robot's blocking run is told how long (`HumanoidStepper.held`), into the
+  clock a walk takes off its patience and its stagnation (`held_s`, #678's)."""
+  from pluggybot.humanoid.mission import HumanoidStepper
+  mission = NS(held_s=0.5, model=NS(opt=NS(timestep=0.002)))
+  HumanoidStepper(mission).held(250)
+  assert mission.held_s == pytest.approx(1.0)
 
 
 def test_the_other_robot_is_held_while_one_robots_interrupt_is_asked(monkeypatch):
