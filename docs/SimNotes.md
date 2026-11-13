@@ -8069,14 +8069,14 @@ world step, every robot booked -- each other robot held through its wait
 ask's think slices, closed once its own routine drives it again, and its own
 routine left where it was, so no second robot's blocking call can begin
 inside the first's. What such a run raises that is not its routine's own --
-a held robot's wait's, the step's -- is `run_many`'s to raise (`tick._Raised`):
-inside the asker's stack, the procedure runner's `except Exception` took the
-other robot's error for its own. `_ask_interrupt` is the
+a held robot's wait's, the step's -- is `run_many`'s to raise
+(`tick._Raised`): inside the asker's stack, the procedure runner's `except
+Exception` took the other robot's error for its own. `_ask_interrupt` is the
 one such run in `src/`: every other blocking twin (the explore, a charge, a
-decision, a walk) is called only by scripts and tests. Flown on one pod
-beside the base, the other robot doing each thing as the second's interrupt
-is asked for 5.8 s (Rowan's), 30 and 115 (`INTERRUPT_TIMEOUT_S`; the drift
-spike's `--asked`), before -> now:
+decision, a walk) is called only by scripts and tests. Flown, the other
+robot doing each thing as the second's interrupt is asked for 5.8 s
+(Rowan's), 30 and 115 (`INTERRUPT_TIMEOUT_S`; the drift spike's `--asked`),
+before (the base, on a pod) -> now (on the dev box):
 
 | the other robot, as the ask flies | 5.8 s | 30 s | 115 s |
 |---|---|---|---|
@@ -8090,7 +8090,7 @@ spike's `--asked`), before -> now:
 Before, its physics stepped none of the ask's steps in any of the 18; now
 every one, its trunk (but for the get-up's own fall) at most 1.2 deg off
 upright through any ask, and each ended within 0.01 m and 0.2 deg of the
-truth (now: the branch's last commit, flown again on the dev box). Held, a robot stands where its legs' policy has it (the walker
+truth. Held, a robot stands where its legs' policy has it (the walker
 marking time, the standing policy holding, a get-up getting up), its hand's
 own loop holding its reach, its plug in, its senses on.
 
@@ -8110,10 +8110,11 @@ and its three callers, a walk's among them).
 **Nothing else moves.** On the same pod, a robot alone (600 s) and the
 pair's day with a fall and a death arranged fly the base's trajectory bit
 for bit (`determinism_spike.py --compare`: 1,201 and 528 state samples
-identical, two runs each tree); the 201 flights of the falls above, the
-drift spike's walking falls in the lobby and two drift flights (Luca's and
-Rowan's draws) are the base's row for row; and the pair's recording, flown
-as its fixture is, is the base's but for two wall-clock stamps.
+identical, two runs each tree, and the pair's day again on the dev box);
+the 201 flights of the falls above, the drift spike's walking falls in the
+lobby and two drift flights (Luca's and Rowan's draws) are the base's row
+for row; and the pair's recording, flown as its fixture is, is the base's
+but for two wall-clock stamps.
 
 ## Debugging workflow that worked
 

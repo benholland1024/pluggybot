@@ -36,11 +36,12 @@ other robot held"):
 **Why.** #690: on 11-12 at 20:30 UTC Rowan's interrupt (`battery below 22%
 -> ask`) took 5.8 sim s, and Luca, walking a plain `drive_to` in the lobby,
 fell 0.8 s after it was answered and got up 120 deg off; lost for the 26
-minutes to the pause, it walked into the garden believing it stood at the
-storeroom's counter. Flown on one pod beside the base, Luca walking the
-lobby while Rowan is asked 5.8 s: the base's Luca stepped none of the ask's
-2,900 steps, fell, and stood 2.6 m and 40 deg off; this period's stepped
-every one and walked on, 0.001 m and 0.14 deg off.
+minutes until the world was paused that evening, it walked into the garden
+believing it stood at the storeroom's counter. Flown on one pod beside the
+base, Luca walking the lobby while Rowan is asked 5.8 s: the base's Luca
+stepped none of the ask's 2,900 steps, fell, and stood 2.6 m and 40 deg
+off; this period's stepped every one and walked on, 0.001 m and 0.14 deg
+off.
 
 **What the period is for.**
 - **Falls during the other robot's ask**: none should come. Read each
