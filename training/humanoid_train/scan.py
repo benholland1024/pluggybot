@@ -32,6 +32,8 @@ ckpts = ([base] if base else []) + [saved[i] for i in sorted(saved)
                                     if (i - first) % every == 0 or i == last]
 LYING = {"beside": 1.0, "head": 0.0, "feet": 0.0}
 POSES = json.loads(getup.POSES.read_text())["poses"]
+#: The end states sitting free of any face, and those against one (the prop
+#: on the hall's wall and the sitter leaning on the counter): `getup.POSES`.
 SITTING = tuple(k for k, p in POSES.items() if "joint_vel" not in p and not p["against"])
 LEANING = tuple(k for k, p in POSES.items() if "joint_vel" not in p and p["against"])
 FALLING = tuple(k for k, p in POSES.items() if "joint_vel" in p)

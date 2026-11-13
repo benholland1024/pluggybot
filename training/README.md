@@ -158,7 +158,10 @@ every checkpoint flown at once in its own block of worlds beside a base, in
 TASK's env), and make any checkpoint the served npz with
 `python -m quad_train.from_checkpoint` (mjlab writes the ONNX of the last
 save alone; checked identical to `quad_train.export`'s of the same
-checkpoint; `TASK WALL` name the run where the template's do not). ⚠ A
+checkpoint; `TASK WALL` name the run where the template's do not). The
+served get-up's checkpoint written as an ONNX as the runner writes one at a
+save, `quad_train.export` matched it to 1.8e-6 and wrote every array of
+the served file to 0.0 (11-13). ⚠ A
 dict's tuple is no flag (`--env.events.reset-base.params.
 obstacle.gap-m.along 0 0.15` is refused): change those in code.
 `-Getup-Wall2-Mirror` (#679's second round) carries getupwall10 at 8450 on

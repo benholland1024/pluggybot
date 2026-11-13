@@ -155,14 +155,16 @@ OBSTACLE = {"share": 0.5, "tipping_share": 0.25, "posed_share": 0.5, "counter": 
 OBSTACLE2 = {**OBSTACLE, "tipping_share": 0.5, "tipping": {"into": 0.3, "along": 0.3, "far": 0.4}}
 
 #: `-Getup-Wall2` (#679's second round): where D3's wall policy was seen to
-#: stand still in four falls today's get-up stands from -- three sitting on
-#: the floor, one propped on a wall -- and each fall as the get-up was handed
-#: it, moving (`humanoid_spike.py --fall-ends`): each drawn evenly, mirrored
-#: half the time, at any heading, each joint off its pose by up to
-#: `POSE_SPREAD_RAD` and the trunk's roll and pitch by up to `POSE_TILT_RAD`,
-#: its lowest part `POSE_DROP_M` over the floor. One recorded `against` its
-#: face starts against it (a wall's, where it was); the others take the box
-#: at any side in `posed_share` of them.
+#: stand still in four falls getup3 stands from -- three sitting on the
+#: floor (one leaning 56 deg on the counter behind it), one propped on the
+#: hall's wall -- and each fall as the get-up was handed it, moving
+#: (`humanoid_spike.py --fall-ends`): each drawn evenly, mirrored half the
+#: time, at any heading, each joint off its pose by up to `POSE_SPREAD_RAD`
+#: and the trunk's roll and pitch by up to `POSE_TILT_RAD`, its lowest part
+#: `POSE_DROP_M` over the floor. One recorded `against` its face -- the prop,
+#: the leaning sitter, and each fall with a face in its way -- starts against
+#: it (a wall's, where it was); the others take the box at any side in
+#: `posed_share` of them.
 POSES = Path(__file__).with_name("getup_poses.json")
 POSE_SPREAD_RAD, POSE_TILT_RAD, POSE_DROP_M = 0.2, 0.1, 0.02
 #: `-Getup-Wall3` (#679's third round): the get-up HANDS BACK as served --

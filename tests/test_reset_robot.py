@@ -431,6 +431,17 @@ def test_a_get_up_that_stands_a_moment_and_goes_down_again_is_one_struggle():
   assert life.dead["t"] - t0 == pytest.approx(21.0 + GETUP_S, abs=2 * lc.DEATH_CHECK_S)
 
 
+def _spike():
+  """`scripts/humanoid_spike.py`, the fall tables' instrument."""
+  import sys
+  from pathlib import Path
+  scripts = str(Path(__file__).resolve().parents[1] / "scripts")
+  if scripts not in sys.path:
+    sys.path.insert(0, scripts)
+  import humanoid_spike
+  return humanoid_spike
+
+
 @pytest.mark.parametrize("up", [lambda s: False, lambda s: s % 5.0 >= 4.0,
                                 lambda s: 15.0 <= s < 15.0 + lc.STOOD_AGAIN_S + 1.0,
                                 lambda s: s >= 12.0],
@@ -441,10 +452,7 @@ def test_the_fall_tables_read_a_get_up_on_the_clock_the_death_seam_keeps(up):
   must die when the seam's does, and not before, on the seam's own
   timelines -- a sit to the end, a stand under `STOOD_AGAIN_S` between two
   get-ups, a stand held."""
-  import sys
-  from pathlib import Path
-  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-  import humanoid_spike as sp
+  sp = _spike()
   end = GETUP_S + 15.0
   life, t0 = _getting_up(lambda s: 45.0, up=up)
   life.body.run(life.body.hold_routine(end))
@@ -456,14 +464,6 @@ def test_the_fall_tables_read_a_get_up_on_the_clock_the_death_seam_keeps(up):
     assert clock.died is None
   else:
     assert clock.died == pytest.approx(life.dead["t"] - t0, abs=2 * lc.DEATH_CHECK_S)
-
-
-def _spike():
-  import sys
-  from pathlib import Path
-  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-  import humanoid_spike
-  return humanoid_spike
 
 
 def test_a_fall_table_flies_a_late_take_its_whole_clock():

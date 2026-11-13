@@ -560,8 +560,10 @@ def test_the_getup_stands_it_up_lying_along_a_counter(lying):
   adr = model.jnt_qposadr[model.body_jntadr[root]]
   d.qpos[adr:adr + 3], d.qpos[adr + 3:adr + 7] = [face_x - 1.0, 0.0, 0.4], quat
   mujoco.mj_forward(model, d)
-  # ...its lowest part 1 cm over the floor and its nearest `gap` off the face
-  ours = [g for g in range(model.ngeom) if model.geom_bodyid[g] != 0]
+  # ...its lowest part 1 cm over the floor and its nearest `gap` off the face,
+  # by the geoms that collide (`humanoid_spike.py`'s lying table's)
+  ours = [g for g in range(model.ngeom) if model.geom_bodyid[g] != 0
+          and (model.geom_contype[g] or model.geom_conaffinity[g])]
   boxes = [(d.geom_xpos[g] + d.geom_xmat[g].reshape(3, 3) @ model.geom_aabb[g][:3],
             np.abs(d.geom_xmat[g].reshape(3, 3)) @ model.geom_aabb[g][3:]) for g in ours]
   low, near = min(c[2] - h[2] for c, h in boxes), max(c[0] + h[0] for c, h in boxes)
