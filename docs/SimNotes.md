@@ -7524,14 +7524,26 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
   off across the jaws, and a carry moves the plate a further 2 cm forward in
   them: its offset in the hand is the flights' (2 cm ahead, 8.3 cm across),
   as the table check's is a constant.
-- **The cup's creep (#682's open item 2) follows the squeeze.** Gripped at
-  the right depth, the cup let go WHILE CARRIED at the table check's 40 N in
-  10 of 20 legs gripped 3 cm under its lid and 17 of 27 gripped 1.5 cm under,
-  tilting 19-58 deg in the jaws as it went (60 N: 4 of 9), where at 25 N 1 of
-  9; gripped 4.5 cm under its lid, 9 of 10. The cup posed at the
-  reference's own pinch on the 13 m house route held at 40 N (0 of 16), so
-  the walk alone does not do it: the pass's grip, its height and its
-  hand-over do. 25 N holds a 0.15-0.35 kg cup with room (`dishware.RANGES`).
+- **The cup's creep (#682's open item 2) is where its grip is aimed.** Taken
+  from above, the fingers 45 deg down, a cup touches each pad along the line
+  of its side, which crosses the pad's face where the grip is aimed along
+  the fingers' way. Aimed 2.5 cm short of its middle (the table check aims
+  3: at the table's height the palm cuts the lid at the middle), the grips
+  landed 2.1-3.5 cm short (a median 2.8-3.0), and the line met each pad only
+  at its fingertip's corner -- a contact trace (dev draw 152) read one
+  contact a pad, 35-40 mm from the pad's middle, its tip at 40, the cup
+  pivoting about the jaws' line and creeping toward the tips about 0.2 mm/s
+  -- and carried, it let go in 20 of 32 of the bar's flights on each walker
+  at 25 N (at 40 N, 12 of 16 from the tour), the hand-over's way to the
+  carry pose turning the hand about 29 deg midway. Aimed at its middle
+  (landed 0.8 cm short to 0.4 past), the line crosses each pad's width
+  1.5-2.5 cm off the tips (the trace's two contacts a pad, 4 cm apart), and
+  of 64 cups carried from the tour (dev draws 200-231, 32 on each walker)
+  none let go; 54 of the 64 grips held (a pad landed on the rim, or the cup
+  was pushed aside, in the other 10). The cup posed in the grip on the 13 m
+  house route held at 40 N (0 of 16): `carry_spike.py`'s pinch has its side
+  up each pad to 2.7 cm off the tips, where the pass's grips reached 1.3 cm
+  at the shut, and less as the cup crept.
 - **A far find reads one tag's own facing 16 deg off**, and from the tour
   the robot faced the pass that far off, the cup out of the colour camera's
   picture; the wall's facing is taken off the line through its two tags. A
@@ -7560,6 +7572,22 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
   piece pokes 0.10-0.15 m past the inflation on its side, and its outer edge
   past the front stop's half-width, so a walk that hugs a jamb on the
   carrying side would strike it. Not changed (the pass's route has no door).
+- **The bar's reading: NOT MET.** The bar was written before any flight (24
+  of 32 draws over the tour, a fall failing the try, on walk2 and on the
+  carry walker, one pod, then 32 held-out draws each, sealed by the frozen
+  commit). At b531491 (the cup aimed 2.5 cm short), on one pod (an AMD EPYC
+  7B13, osmesa): walk2 0 of 32, the carry walker 0 of 32; held out, 1 of 32
+  (laid in 421 s) and 0. The first piece not laid, a flight (walk2's bar and
+  held-out draws, then the carry walker's): the cup let go while carried 20
+  and 13, 16 and 17; a put-down off its place, or its reach failing, 9 and
+  8, 6 and 9; a pick-up at the pass that failed 1 and 6, 8 and 4; a walk
+  that never got there 2 and 4, 0 and 0; a fall 0 and 0, 2 and 2. Over
+  walk2's 64 the plate was laid in 32, the cup in 11 and the fork in 13, the
+  fork set down 3-6 cm off its place in 21 (3 cm in 12); on the carry walker
+  the plate's put-down reach failed in 23 and 21 of 32 (no posture, stopped
+  short, a fall): its walk leaves the card a median 0.46 m ahead and 6 cm to
+  its right, where walk2's leaves it 0.52 ahead and 5 cm to its left, and
+  the reference's put-downs are walk2's stances.
 
 ## The arms keep off the other robot (issue #678)
 

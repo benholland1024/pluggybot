@@ -87,3 +87,55 @@ def test_the_pass_reference_is_a_library_the_served_language_takes():
   assert [solutions._def_name(s) for s in runs] == ["lay_cup", "lay_plate", "lay_fork"]
   assert all(e.valid for e in library.entries.values())
   assert set(library.runnable()) == {"to_place", "lay_cup", "lay_plate", "lay_fork"}
+
+
+def _pass_cup_grip():
+  """The pass reference's cup grip as its source says it: how far short of
+  the cup's middle it is aimed along the fingers' way, how far under the
+  lid, and the fingers' tilt down from level, rad."""
+  import math
+  from pluggybot.challenge import solutions
+  tree = ast.parse(solutions.PROCEDURES["set_table_pass"][0])
+  said = {}
+  for node in ast.walk(tree):
+    if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+      v, off = node.value, 0.0
+      if isinstance(v, ast.BinOp) and isinstance(v.op, ast.Sub) and isinstance(v.right, ast.Constant):
+        v, off = v.left, v.right.value
+      if (isinstance(v, ast.Call) and getattr(v.func, "id", "") == "read"
+          and isinstance(v.args[0], ast.Constant)):
+        said.setdefault(v.args[0].value, off)
+    if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "reach" and "f" not in said:
+      fx, _, fz = (ast.literal_eval(a) for a in node.args[4:7])
+      said["f"] = math.atan2(-fz, fx)
+  return said["spot.x"], said["spot.z"], said["f"]
+
+
+def test_the_pass_cup_is_gripped_across_each_pads_width_off_its_tips():
+  """#682's open item 2, the cup's creep: a cup gripped from above by
+  fingers tilted down touches each pad along the line of its side, and
+  that line crosses the pad's face where the grip is aimed along the
+  fingers' way. Aimed 2.5 cm short of the cup's middle (b531491), the line
+  met each pad only at its fingertip's corner -- one contact a pad (a
+  contact trace: grip frame z -0.035..-0.040, the tips at -0.040), a pivot
+  about the jaws' line -- and carried, the cup crept out of the jaws in 20
+  of 32 flights on each walker; aimed at its middle, the line crosses the
+  pad's width away from the tips (the trace's two contacts a pad: z -0.023
+  and +0.007) and none of 64 let go. Off the reference's own source, the
+  gripper's pads and the cup's drawing."""
+  import math
+  from pluggybot.activity import dishware as dw
+  from pluggybot.humanoid import parts
+  short, under, tilt = _pass_cup_grip()
+  wy, wz = parts.GRIPPER.pad_half[1:]          # across the pad, along the finger
+  c, s = math.cos(tilt), math.sin(tilt)
+  h = dw.CUP_H - under                         # the grip over the cup's foot
+  # the cup's foot in the grip frame (z back up the fingers, y across them),
+  # its side's line on the pad's face, t up the cup's axis
+  y0, z0 = h * c - short * s, -(short * c + h * s)
+  on = [t / 1000 for t in range(int(dw.CUP_H * 1000) + 1)
+        if abs(y0 - t / 1000 * c) <= wy and abs(z0 + t / 1000 * s) <= wz]
+  assert on, "the cup's side never meets the pads"
+  zs = [z0 + t * s for t in on]
+  assert min(zs) + wz >= 0.01, f"its side meets each pad {100 * (min(zs) + wz):.1f} cm from the fingertips"
+  assert on[-1] - on[0] >= 0.02, f"its side lies along {100 * (on[-1] - on[0]):.1f} cm of each pad"

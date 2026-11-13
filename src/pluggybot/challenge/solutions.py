@@ -248,9 +248,13 @@ TABLE = _table_job()
 #:    carry pose holds it under the pass's top;
 #:  - where a tag is not in the colour camera's picture, a turn toward its
 #:    side and then a step in (`near`): a face lands up to 16 deg off;
-#:  - the cup gripped from above 1.5 cm under its lid and squeezed at 25 N
-#:    (at the table check's 40 N it let go while carried in 17 of 27 legs,
-#:    at 25 N in 1 of 9), the plate's wall 1 cm lower than the table check
+#:  - the cup gripped from above at its middle, 1.5 cm under its lid, at 25
+#:    N: aimed 2.5 cm short (the table check aims 3, where at the middle the
+#:    palm cuts the lid), its side met each pad only at the fingertip's
+#:    corner, a pivot, and it crept out of the jaws while carried in 20 of 32
+#:    flights (#682's open item 2); at the middle its side crosses each
+#:    pad's whole width (`test_solutions`);
+#:    the plate's wall 1 cm lower than the table check
 #:    grips it (there the pads' tips catch 0.7-0.9 cm of the wall, and carried
 #:    it fell in 37 of 42 legs), the plate and the fork from a hover 6 cm over
 #:    their grip, read again there and pulled straight down: the stance turns
@@ -261,7 +265,11 @@ TABLE = _table_job()
 #:    carrying (a cup carried fell on one);
 #:  - each piece set down from a hover over its spot, its offset in the hand
 #:    the grip's own -- the plate's and the fork's measured from the flights,
-#:    as the table check's is (the hand's sensed place is 1.5-2 cm off).
+#:    as the table check's is (the hand's sensed place is 1.5-2 cm off) --
+#:    and each put-down moved out by where flights on walk2 set its piece
+#:    down (dev draws 240-271): the cup's and the plate's 1 cm, the fork's
+#:    2.7 cm and 0.5 cm to its right (within 2.5 cm, the fork 5 of 18 where
+#:    moved so 15).
 PASS_TO = '''def to_pass(s):
   face(0)
   find(69, %(ax)g, %(ay)g, 600)
@@ -324,7 +332,7 @@ PASS_CUP = '''def lay_cup():
   move("right_elbow", 1.4)
   open_hand("right")
   spot(91)
-  x = read("spot.x") - 0.025
+  x = read("spot.x")
   y = read("spot.y")
   cz = read("spot.z") - 0.015
   if not reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
@@ -334,7 +342,7 @@ PASS_CUP = '''def lay_cup():
   if not close_hand("right", 25):
     open_hand("right")
     close_hand("right", 25)
-  ox = x + 0.025 - read("right.x")
+  ox = x - read("right.x")
   oy = y - read("right.y")
   oz = read("right.z") - cz + 0.075
   pull("right", 0, 0, 1, 20, 0.05, give=0)
@@ -342,7 +350,7 @@ PASS_CUP = '''def lay_cup():
   to_place()
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.10
-  reach("right", read("spot.x") - 0.085 - ox, read("spot.y") - 0.24 - oy, tz, 0.707, 0, -0.707, 0, 1, 0)
+  reach("right", read("spot.x") - 0.075 - ox, read("spot.y") - 0.24 - oy, tz, 0.707, 0, -0.707, 0, 1, 0)
   pull("right", 0, 0, -1, 6, 0.15, give=0)
   open_hand("right")
   wait(0.4)
@@ -373,7 +381,7 @@ PASS_PLATE = '''def lay_plate():
   to_place()
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
-  reach("left", read("spot.x") - 0.21, read("spot.y") + 0.073, tz, 0.5, 0, -0.866, 0, -1, 0)
+  reach("left", read("spot.x") - 0.20, read("spot.y") + 0.073, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
   open_hand("left")
   wait(0.4)
@@ -414,7 +422,7 @@ PASS_FORK = '''def lay_fork():
   to_place()
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
-  reach("left", read("spot.x") - 0.207, read("spot.y") + 0.16, tz, 0.5, 0, -0.866, 0, -1, 0)
+  reach("left", read("spot.x") - 0.18, read("spot.y") + 0.155, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
   open_hand("left")
   wait(0.4)
