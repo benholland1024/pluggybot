@@ -405,6 +405,32 @@ def test_the_doubts_search_takes_only_a_place_that_explains_the_scan_much_better
   assert got.why == "found" and abs(got.pose[0] - AT_COUNTER[0]) < 0.05, got
 
 
+def test_the_doubts_gain_is_over_the_fit_it_would_replace(store, monkeypatch):
+  # ...over the pose the doubted fit would lay the scan at, never the pose
+  # asked about (#681's second review): a fit corrected across a sidewalk
+  # made any place along it a gain over the asked pose. The wiring, and the
+  # bar against a pose: no place gains over itself.
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
+  guess = (AT_COUNTER[0] + 0.3, AT_COUNTER[1], AT_COUNTER[2])
+  m = sm.ScanMatcher(store)
+  m.refresh(*guess[:2])
+  pts = m.points(ANGLES, ranges)
+  at, why, _ = m._judge(guess, pts, m._fit(guess, pts))
+  assert why == "doubted" and at != guess, (why, at)
+  start = m._search(guess, pts, unique=True)
+  assert start is not None and m._search(guess, pts, unique=True, against=start) is None
+  seen = []
+  real = sm.ScanMatcher._search
+
+  def spy(self, pose, pts, **kw):
+    seen.append(kw.get("against"))
+    return real(self, pose, pts, **kw)
+
+  monkeypatch.setattr(sm.ScanMatcher, "_search", spy)
+  assert sm.ScanMatcher(store).match(guess, ANGLES, ranges).why == "found"
+  assert seen == [at], (seen, at)
+
+
 def test_a_slid_fits_search_is_taken_only_where_the_fit_slid(room, monkeypatch):
   # A fit that slid past MAX_STEP is searched, and the search's pose taken
   # only within DOUBT_SLID_M of where the fit itself slid: on Luca's live map
@@ -456,15 +482,19 @@ def test_the_doubts_search_runs_once_in_its_scans_and_a_restart_keeps_the_count(
   assert calls == [], calls
   again.match(guess, ANGLES, ranges)
   assert len(calls) == 1
-  # ...and starts afresh where the belief is put somewhere new: back on its
-  # feet (`fuse_next`), or the window of a fix opened or closed (`anchored`)
-  for reset in (again.fuse_next, lambda: again.anchored(on=False)):
+  # ...and starts afresh where the belief is put somewhere new -- the window
+  # of a fix opened or closed (`anchored`), the map forgotten at a stand-up
+  # -- and never at `fuse_next`, which the Navigator calls at every scan it
+  # does not map (#681's second review: a robot bowing in and out of
+  # mapping searched at every mapped scan)
+  for reset, afresh in ((again.fuse_next, False), (lambda: again.anchored(on=False), True),
+                        (again.forget, True)):
     calls.clear()
     again.match(guess, ANGLES, ranges)
     assert calls == [], calls
     reset()
     again.match(guess, ANGLES, ranges)
-    assert len(calls) == 1, calls
+    assert len(calls) == afresh, (reset, calls)
 
 
 def test_a_scan_with_no_map_under_it_is_no_match():
