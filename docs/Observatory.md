@@ -43,7 +43,7 @@ presses a crossing where the pads made 1-2.
 
 **Why.** #684's call 3 (Ben's, for this loop): from a standstill at the
 edge of a lab plate the served walker stood on its edge for good (all 9 of
-the last loop's starts went 0.07-0.24 m), where on the flush garden plate
+the last loop's starts went 0.07-0.11 m), where on the flush garden plate
 none did. The warm-up: the 11-12 wake's second false alarm.
 
 **What the period is for.**
