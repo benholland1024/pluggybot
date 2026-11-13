@@ -1063,21 +1063,20 @@ class HumanoidBody(Body):
     if abs(turn) > TURN_STOP_RAD:
       patience += TURN_CLOSE_S
 
-    waited = 0.0
+    held = mi.held_s
 
     def over() -> str | None:
+      # ...a wait for an arm's way home counted against no patience, as a
+      # walk's (#678), nor a hold through the other robot's blocking run (#690)
       if mi.falls != falls:
         return "fell"
-      return "out of time" if float(self._d.time) - t0 - waited > patience else None
+      return "out of time" if float(self._d.time) - t0 - (mi.held_s - held) > patience else None
     length, why = math.hypot(ahead, left), "stepped"
     if abs(turn) > TURN_STOP_RAD or length:
       # the legs to the walker, its arms home, before anything is measured:
       # out of a deep bow the pelvis came 16 cm forward on its own, and the
-      # hand-over outlasted `STEP_STUCK_S` (#525) -- a wait in it for an
-      # arm's way home counted against no patience, as a walk's (#678)
-      held = mi.held_s
+      # hand-over outlasted `STEP_STUCK_S` (#525)
       yield from mi.to_walk_routine()
-      waited = mi.held_s - held
       why = over() or why
     if why == "stepped" and abs(turn) > TURN_STOP_RAD:
       why = yield from self._turn_routine(turn, over, by_legs, s0[2])
@@ -1198,7 +1197,12 @@ class HumanoidBody(Body):
     wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
     pace = BACK_V if ahead < -abs(left) else STEP_V
     speed, went, mark, window = 0.0, 0.0, (float(self._d.time), 0.0), STEP_START_S
+    held = mi.held_s
     while True:
+      if mi.held_s != held:
+        # ...held through the other robot's blocking run (#690): its window
+        # counts none of it
+        mark, held = (mark[0] + mi.held_s - held, mark[1]), mi.held_s
       x, y, _ = by_legs(mi.pose)
       now = wx * (x - x0) + wy * (y - y0)
       speed += min(1.0, dt / 0.2) * ((now - went) / dt - speed)

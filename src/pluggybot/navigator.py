@@ -275,9 +275,10 @@ class Navigator:
   #: How long, s, this body has stood still inside a walk's own first
   #: command, waiting on something no drive is about -- the humanoid's
   #: hand-over, an arm's way home kept off another robot (#678,
-  #: `HumanoidMission._arms_wait_routine`) -- which a drive counts against
-  #: neither its patience nor its stagnation clock, as a stop's question;
-  #: 0 for a body that never waits.
+  #: `HumanoidMission._arms_wait_routine`), held through the other robot's
+  #: blocking run (#690, `HumanoidStepper.held`) -- which a drive counts
+  #: against neither its patience nor its stagnation clock, as a stop's
+  #: question; 0 for a body that never waits.
   held_s = 0.0
   #: How a drive's progress is read (`STAGNATION_S`): in a straight line to
   #: the goal, the rover's, or ALONG THE ROUTE it plans (issue #387): from

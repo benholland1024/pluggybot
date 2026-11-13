@@ -391,6 +391,25 @@ def test_a_step_that_gets_nowhere_says_it_is_blocked_and_one_holding_walks():
   assert rep["why"] == "stepped" and walk.asked != []
 
 
+def test_a_step_held_through_the_other_robots_run_counts_none_of_it():
+  """#690's second review: a robot held standing through the other robot's
+  blocking run mid-step (its stepper told, into `held_s`) reads the step as
+  it would have gone, its walk's window and its patience counting none of
+  the hold. Shown to fail with both on the bare clock: held 30 s, the step
+  read "out of time"."""
+  class Held(Walk):
+    def _twist_routine(self, vx, vy, w):
+      if len(self.asked) == 50 and not hasattr(self, "paused"):
+        # ...as `tick._Loop.run` holds it: the world goes on, the body stands,
+        # and its stepper is told (`HumanoidStepper.held`)
+        self.paused, self.t, self.held_s = True, self.t + 30.0, self.held_s + 30.0
+      yield from super()._twist_routine(vx, vy, w)
+  walk = Held()
+  rep = _step(_walker(walk), 0.3)
+  assert walk.paused and rep["why"] == "stepped", rep
+  assert rep["dx"] == pytest.approx(0.3, abs=0.02)
+
+
 def test_the_body_text_says_a_walk_carries_a_hand_that_holds_something():
   """#669's second review read the body text against what a step does (a
   step holding a knob, read as letting go and walking, 12 times of 12): a
