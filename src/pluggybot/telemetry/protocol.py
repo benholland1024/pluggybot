@@ -78,8 +78,9 @@ VISUAL_HINTS = (
   # and the plates are unhinted like the garden's: no new word where an old
   # one is true.
   "cage", "mouse",
-  # v5: the pressure plate (the garden's and the lab's three), once the site
-  # wanted to draw what each one DOES. One hint for the class of thing; what
+  # v5: the pressure plate (the garden's and the lab's three, sprung, until
+  # #684 made them `floor_plate`s), once the site wanted to draw what each
+  # one DOES. One hint for the class of thing; what
   # a plate is for is `scene.plates` (PLATE_PURPOSES), never a hint per
   # purpose -- a shock plate and a feed plate are the same pad with a
   # different label, and the label is data.
@@ -96,8 +97,9 @@ VISUAL_HINTS = (
   # a block the robot believes) has none of. A reskin, as `stairs`: dress
   # the top and the legs where they are.
   "dining_table",
-  # v8 (issue #684): a plate FLUSH with the floor, the garden's -- the floor's
-  # own square read off its load, its pad paint nothing touches. Not a
+  # v8 (issue #684): a plate FLUSH with the floor, every plate's (the garden's
+  # and the lab's three) -- the floor's own square read off its load, its pad
+  # paint nothing touches. Not a
   # `plate`, whose rule is a pad the robot steps on (it collides): the same
   # art, on a body the physics walks through.
   "floor_plate",

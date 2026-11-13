@@ -468,36 +468,33 @@
             size="0.0150 0.0200" quat="0.7071068 0 0.7071068 0"
             rgba="0.55 0.48 0.42 1"/>
     </body>
-    <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
-         sensor; the pad is just what the wheel touches. -->
-    <body name="lab_shock_plate" pos="24.0000 4.3800 0.0160">
-      <joint name="lab_shock_plate_joint" type="slide" axis="0 0 1"
-             range="-0.0100 0" stiffness="1200.0"
-             damping="12.0" armature="1e-5"/>
-      <geom name="lab_shock_plate_pad" type="box"
-            size="0.2000 0.2000 0.0050"
-            mass="0.15" rgba="0.42 0.44 0.48 1"/>
+    <!-- Pressure plate, flush with the floor: the floor's own square, read
+         by a touch sensor under whatever stands on it. Its pad is paint. -->
+    <body name="lab_shock_plate" pos="24.0000 4.3800 0.0020">
+      <geom name="lab_shock_plate_pad" type="box" contype="0" conaffinity="0"
+            size="0.2000 0.2000 0.0020"
+            rgba="0.42 0.44 0.48 1"/>
     </body>
-    <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
-         sensor; the pad is just what the wheel touches. -->
-    <body name="lab_feed_plate" pos="25.0000 4.3800 0.0160">
-      <joint name="lab_feed_plate_joint" type="slide" axis="0 0 1"
-             range="-0.0100 0" stiffness="1200.0"
-             damping="12.0" armature="1e-5"/>
-      <geom name="lab_feed_plate_pad" type="box"
-            size="0.2000 0.2000 0.0050"
-            mass="0.15" rgba="0.42 0.44 0.48 1"/>
+    <site name="lab_shock_plate_zone" type="box" group="5" pos="24.0000 4.3800 0"
+          size="0.2000 0.2000 0.0040"/>
+    <!-- Pressure plate, flush with the floor: the floor's own square, read
+         by a touch sensor under whatever stands on it. Its pad is paint. -->
+    <body name="lab_feed_plate" pos="25.0000 4.3800 0.0020">
+      <geom name="lab_feed_plate_pad" type="box" contype="0" conaffinity="0"
+            size="0.2000 0.2000 0.0020"
+            rgba="0.42 0.44 0.48 1"/>
     </body>
-    <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
-         sensor; the pad is just what the wheel touches. -->
-    <body name="lab_toy_plate" pos="26.0000 4.3800 0.0160">
-      <joint name="lab_toy_plate_joint" type="slide" axis="0 0 1"
-             range="-0.0100 0" stiffness="1200.0"
-             damping="12.0" armature="1e-5"/>
-      <geom name="lab_toy_plate_pad" type="box"
-            size="0.2000 0.2000 0.0050"
-            mass="0.15" rgba="0.42 0.44 0.48 1"/>
+    <site name="lab_feed_plate_zone" type="box" group="5" pos="25.0000 4.3800 0"
+          size="0.2000 0.2000 0.0040"/>
+    <!-- Pressure plate, flush with the floor: the floor's own square, read
+         by a touch sensor under whatever stands on it. Its pad is paint. -->
+    <body name="lab_toy_plate" pos="26.0000 4.3800 0.0020">
+      <geom name="lab_toy_plate_pad" type="box" contype="0" conaffinity="0"
+            size="0.2000 0.2000 0.0020"
+            rgba="0.42 0.44 0.48 1"/>
     </body>
+    <site name="lab_toy_plate_zone" type="box" group="5" pos="26.0000 4.3800 0"
+          size="0.2000 0.2000 0.0040"/>
     <body name="lab_bench" pos="27.6800 1.5000 0.4000">
       <geom name="lab_bench_geom" type="box" size="0.3000 0.6000 0.4000" rgba="0.55 0.47 0.38 1"/>
     </body>
@@ -664,8 +661,8 @@
   </worldbody>
   <sensor>
     <touch name="garden_plate_load" site="garden_plate_zone"/>
-    <jointpos name="lab_shock_plate_pos" joint="lab_shock_plate_joint"/>
-    <jointpos name="lab_feed_plate_pos" joint="lab_feed_plate_joint"/>
-    <jointpos name="lab_toy_plate_pos" joint="lab_toy_plate_joint"/>
+    <touch name="lab_shock_plate_load" site="lab_shock_plate_zone"/>
+    <touch name="lab_feed_plate_load" site="lab_feed_plate_zone"/>
+    <touch name="lab_toy_plate_load" site="lab_toy_plate_zone"/>
   </sensor>
 </mujoco>

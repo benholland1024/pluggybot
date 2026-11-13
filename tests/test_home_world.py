@@ -448,8 +448,8 @@ def test_every_plate_is_hinted_and_says_what_it_is_for(home_model, meta):
   """The site draws a glyph on each pressure plate so a visitor can tell the
   shock plate from the feed plate (`protocol.PLATE_PURPOSES`). Every plate
   body in the world -- the garden's and the lab's three -- is hinted a
-  plate (the lab's `plate`, the garden's `floor_plate`: flush, #684), names
-  a purpose the vocabulary knows, and rides `scene.plates` by its body name.
+  `floor_plate` (flush, #684), names a purpose the vocabulary knows, and
+  rides `scene.plates` by its body name.
   The glyph is the site's: the sim's plate rgba, what the robot's cameras
   render, is one colour for all four."""
   from pluggybot.telemetry.protocol import PLATE_PURPOSES
@@ -458,8 +458,7 @@ def test_every_plate_is_hinted_and_says_what_it_is_for(home_model, meta):
   assert pads == {"garden_plate", "lab_shock_plate", "lab_feed_plate", "lab_toy_plate"}
   assert set(meta["plates"]) == pads
   for name in pads:
-    assert meta["visualHints"][name] == ("floor_plate" if name == "garden_plate"
-                                         else "plate"), name
+    assert meta["visualHints"][name] == "floor_plate", name
     assert meta["plates"][name]["purpose"] in PLATE_PURPOSES, name
   assert {meta["plates"][n]["purpose"] for n in pads} == set(PLATE_PURPOSES), \
       "a purpose in the vocabulary has no plate, or two plates share one"
@@ -549,18 +548,17 @@ def test_the_mouse_is_a_mocap_body_and_dynamic_on_the_wire(home_model, meta):
     assert abs(x - cx) < 0.30 and abs(y - cy) < 0.20 and 0.0 < z < 0.10, state
 
 
-def test_the_lab_plates_rest_below_their_own_trigger(home_model):
-  """Three garden plates with nothing lit: each settles under its own weight
-  short of `PLATE_ON`, so a plate nobody drove onto never reads pressed."""
+def test_the_lab_plates_read_no_load_with_nothing_on_them(home_model):
+  """Three garden plates with nothing lit, flush with the floor (#684): with
+  nothing standing on it each reads no load, so a plate nobody walked onto
+  never reads pressed."""
   from pluggybot.activity.cage import PLATE_NAMES
-  from pluggybot.activity.plate import PLATE_ON
   data = mujoco.MjData(home_model)
   for _ in range(500):
     mujoco.mj_step(home_model, data)
   for name in PLATE_NAMES:
-    adr = int(home_model.sensor(f"lab_{name}_plate_pos").adr[0])
-    depth = -float(data.sensordata[adr])
-    assert 0.0 <= depth < PLATE_ON, f"the {name} plate rests at {depth * 1000:.1f} mm"
+    adr = int(home_model.sensor(f"lab_{name}_plate_load").adr[0])
+    assert float(data.sensordata[adr]) == 0.0, f"the {name} plate reads a load"
 
 
 # ---- the cameras' near plane (issue #215) --------------------------------------

@@ -1903,14 +1903,15 @@ save a filmstrip PNG named after the script.
   ⚠ The lab's and the workshop's props (`activity/cage.py`, `home/props.py`:
   the cage, the tower's blocks and the bench, whose jobs went with the
   quadruped) are geometry the generator emits; behaviour is added beside
-  it. ⚠ THE GARDEN'S PLATE IS FLUSH (#684, Ben's call; `plate_xml(flush=True)`,
-  ActivityPattern.md §3.1): the floor's own square, read by a touch sensor
-  on a site of the world body over it, its pad paint nothing touches,
-  hinted `floor_plate` (a `plate` collides) -- at 21 mm on a spring, the
-  served walker went down on it and fell over the lamp's pole, and a pad at
-  the floor's height shares the plane's contacts (its sensor read half a
-  box's weight). The lab's three are the sprung pad still (`plate_xml`'s
-  default). The house carries no robot. ⚠ The grid is 856,800
+  it. ⚠ EVERY PLATE IS FLUSH, THE GARDEN'S AND THE LAB'S THREE (#684, Ben's
+  calls; `plate_xml`, ActivityPattern.md §3.1): the floor's own square, read
+  by a touch sensor on a site of the world body over it, its pad paint
+  nothing touches, hinted `floor_plate` (a `plate` collides; no world's now)
+  -- at 21 mm on a spring, the served walker went down on the garden's and
+  fell over the lamp's pole, and stood on the lab's edge for good from a
+  standstill; and a pad at the floor's height shares the plane's contacts
+  (its sensor read half a box's weight). A press is whose contacts are over
+  the square (`Cage.presser`). The house carries no robot. ⚠ The grid is 856,800
   cells (#560; 469,200 before), 46 % of `occupancy_grid.MAX_CELLS` (1,876,800, the largest
   grid measured: #558, `scripts/grid_spike.py`): walks plan on the compiled
   lattice, and what grows with the cells is each scan's update, each plan's
@@ -2142,8 +2143,10 @@ save a filmstrip PNG named after the script.
   (`overseer.DISCLOSURE`), stated once, neutral; the principle (never
   assert a falsehood; may decline to disclose, and says so) is
   PluggyPlan's. ⚠ NO PROHIBITION, no worked example. ⚠ A plate a walk
-  crosses is a `press` event (`Cage.presser`, `HubLifecycle._press_step`),
-  never a `care`, a `harm` or an act; quality three keeps a free act's
+  crosses is a `press` event a footfall on it, 1-3 a crossing since every
+  plate reads its load (#684), the robot whose weight pressed it
+  (`Cage.presser`, `HubLifecycle._press_step`), never a `care`, a `harm` or
+  an act; quality three keeps a free act's
   `care` row apart from a paid one's (`qualities.FREE_CARE` ==
   `cage.CARE_ACTS`, pinned).
 - **The wire keys everything by the robot's ROOT** (issue #167;

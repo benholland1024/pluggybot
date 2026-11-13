@@ -4,10 +4,10 @@ The first consumer of the activity pattern (issue #8), and deliberately the
 smallest thing that exercises every part of it:
 
   a SENSED criterion      the load on the floor's square under it, a touch
-                          sensor (flush since #684; the lab's sprung pads, a
-                          slide joint's `jointpos`), so "is it pressed" is
-                          read out of the physics rather than inferred from
-                          where the robot was told to go
+                          sensor (every plate flush with the floor since
+                          #684), so "is it pressed" is read out of the
+                          physics rather than inferred from where the robot
+                          was told to go
   HYSTERESIS              a load rings as a foot lands, and a bare threshold
                           turns that ringing into chatter
   a LATCH                 "the light is on" has no restoring force to model,
@@ -45,44 +45,25 @@ from pluggybot.activity.base import Activity, GeomToggle, Threshold
 
 # ---- plate mechanics --------------------------------------------------------
 PLATE_HALF = 0.20         # m: a 400 mm pad. Wide enough that arriving a few
-                          # cm off still lands a wheel on it -- this is a
-                          # centimetre-tolerance target, like the sowing
-                          # points, and does not deserve a millimetre
-                          # approach controller.
-PLATE_THICK = 0.005       # half-thickness of the pad itself
-PLATE_REST_Z = 0.016      # m: pad centre at rest, so its top sits 21 mm up.
-                          # A step for a 90 mm wheel to climb, and low enough
-                          # that it does: measured, not assumed.
-PLATE_TRAVEL = 0.010      # m of downward travel. Bottoms out 1 mm clear of
-                          # the floor plane at full depression -- a sprung
-                          # part that can reach the ground is a contact the
-                          # solver has to referee for no reason.
-PLATE_MASS = 0.15
-PLATE_STIFFNESS = 1200.0  # N/m. Bracketed, not guessed: the pad's own weight
-                          # (1.47 N) must NOT reach the trigger depth, and a
-                          # drive wheel's load (~15 N) must exceed it easily.
-                          # 1.47/1200 = 1.2 mm of static sag against a 6 mm
-                          # trigger; 15 N would want 12.5 mm and so bottoms
-                          # the plate out at 10 mm. Both ends have margin.
-PLATE_DAMPING = 12.0
-PLATE_ON = 0.006          # m of depression at which the plate reads pressed
-PLATE_OFF = 0.003         # ...and at which it reads released again. The gap
-                          # IS the hysteresis, and it is what stops a ringing
-                          # sprung joint from chattering the state machine.
+                          # cm off still lands a foot on it -- this is a
+                          # centimetre-tolerance target, and does not deserve
+                          # a millimetre approach controller.
 
-# ---- a flush plate: the floor's own square, on a load cell (#684) -------------
+# ---- the plate: the floor's own square, on a load cell (#684) -----------------
 #: A pad flush with the floor cannot sink under a foot -- the floor is a
 #: plane, which holds the foot up over the pad as anywhere -- and at the
 #: floor's height the plane takes half of what stands on the pad (measured:
-#: a box resting on it read 49-50 % of its weight). So a FLUSH plate
-#: (`plate_xml(flush=True)`, the garden's) is the floor's own square, read
-#: by a touch sensor under whatever stands on it, as load cells under a
-#: plate in a recess read it; its pad is paint, drawn and touched by
-#: nothing (ActivityPattern.md §3.1).
+#: a box resting on it read 49-50 % of its weight). So a plate is the
+#: floor's own square, read by a touch sensor under whatever stands on it,
+#: as load cells under a plate in a recess read it; its pad is paint, drawn
+#: and touched by nothing (ActivityPattern.md §3.1). A sprung pad 21 mm
+#: proud, the plates' before, stalled the served walker at its edge from a
+#: standstill and tripped it walking (SimNotes, "A flight that never got
+#: up").
 #: ⚠ A sole is read where its contacts are, its corners on a plane: one only
 #: part over the plate reads the share its corners inside carry, or none.
 LOAD_ZONE_HALF = 0.004    # m: the sensor's zone either side of the floor
-LOAD_PAINT_HALF = 0.002   # m: the pad's paint, 4 mm, over the garden's 2 mm
+LOAD_PAINT_HALF = 0.002   # m: the pad's paint, 4 mm, over a ground's 2 mm
 LOAD_ON_N = 100.0         # N on it at which it reads pressed: 10 kg, which
                           # nothing a job sets out weighs, where the served
                           # walker's foot crossing it peaked at 476-853 N
@@ -111,22 +92,19 @@ LAMP_UNLIT = (0.35, 0.34, 0.30, 1.0)
 LAMP_LIT = (1.0, 0.85, 0.35, 1.0)
 
 
-def plate_xml(plate_xy: tuple[float, float], prefix: str = "garden",
-              flush: bool = False) -> tuple[str, str]:
-  """MJCF for one pressure plate: (worldbody, sensor).
+def plate_xml(plate_xy: tuple[float, float], prefix: str = "garden") -> tuple[str, str]:
+  """MJCF for one pressure plate, flush with the floor: (worldbody, sensor).
 
   The plate on its own, because it is the one mechanism the robot can
-  operate by driving (ActivityPattern.md gap 3), and the lab wants three
+  operate by walking (ActivityPattern.md gap 3), and the lab wants three
   of them with nothing lit (activity/cage.py, issue #215). Returns the
   two fragments separately because MuJoCo wants sensors in their own
-  top-level section. Names: `<prefix>_plate`, its joint and its sensor
-  `<prefix>_plate_pos`, which is what `Cage` and any later reader bind
-  to -- or, `flush`, a load plate (`LOAD_ON_N`): no joint, and its touch
-  sensor `<prefix>_plate_load`, which `PlateLight` reads.
+  top-level section. Names: `<prefix>_plate` (its pad, paint), the zone
+  over the floor's square, and its touch sensor `<prefix>_plate_load`,
+  which `PlateLight` and `Cage` read (`LOAD_ON_N`).
   """
   px, py = plate_xy
-  if flush:
-    body = f"""
+  body = f"""
     <!-- Pressure plate, flush with the floor: the floor's own square, read
          by a touch sensor under whatever stands on it. Its pad is paint. -->
     <body name="{prefix}_plate" pos="{px:.4f} {py:.4f} {LOAD_PAINT_HALF:.4f}">
@@ -136,21 +114,7 @@ def plate_xml(plate_xy: tuple[float, float], prefix: str = "garden",
     </body>
     <site name="{prefix}_plate_zone" type="box" group="5" pos="{px:.4f} {py:.4f} 0"
           size="{PLATE_HALF:.4f} {PLATE_HALF:.4f} {LOAD_ZONE_HALF:.4f}"/>"""
-    return body, f'<touch name="{prefix}_plate_load" site="{prefix}_plate_zone"/>'
-  body = f"""
-    <!-- Pressure plate: a sprung pad on a slide joint. The JOINT is the
-         sensor; the pad is just what the wheel touches. -->
-    <body name="{prefix}_plate" pos="{px:.4f} {py:.4f} {PLATE_REST_Z:.4f}">
-      <joint name="{prefix}_plate_joint" type="slide" axis="0 0 1"
-             range="{-PLATE_TRAVEL:.4f} 0" stiffness="{PLATE_STIFFNESS}"
-             damping="{PLATE_DAMPING}" armature="1e-5"/>
-      <geom name="{prefix}_plate_pad" type="box"
-            size="{PLATE_HALF:.4f} {PLATE_HALF:.4f} {PLATE_THICK:.4f}"
-            mass="{PLATE_MASS}" rgba="0.42 0.44 0.48 1"/>
-    </body>"""
-  sensor = (f'<jointpos name="{prefix}_plate_pos" '
-            f'joint="{prefix}_plate_joint"/>')
-  return body, sensor
+  return body, f'<touch name="{prefix}_plate_load" site="{prefix}_plate_zone"/>'
 
 
 def light_xml(light_xy: tuple[float, float], prefix: str = "garden") -> str:
@@ -178,9 +142,9 @@ def light_xml(light_xy: tuple[float, float], prefix: str = "garden") -> str:
 def plate_light_xml(plate_xy: tuple[float, float],
                     prefix: str = "garden") -> tuple[str, str]:
   """MJCF for one plate-and-light activity: (worldbody, sensor) -- the
-  plate, flush (#684), and the lamp `LAMP_OFFSET` beside it."""
+  plate, and the lamp `LAMP_OFFSET` beside it."""
   px, py = plate_xy
-  plate, sensor = plate_xml(plate_xy, prefix, flush=True)
+  plate, sensor = plate_xml(plate_xy, prefix)
   lamp = light_xml((px + LAMP_OFFSET[0], py + LAMP_OFFSET[1]), prefix)
   return plate + lamp, sensor
 

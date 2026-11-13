@@ -29,11 +29,11 @@ Four rules the base class exists to enforce:
   commanded gate is a belief; a joint past its threshold is a fact. This
   repo has paid for that lesson at least five times.
 
-  THRESHOLDS NEED HYSTERESIS. A bare threshold on a sprung joint chatters:
-  the plate rings as a wheel rolls over it, and a single comparison flips
-  state on every ring. Measured on the reference plate, one wheel crossing:
-  **4 flips bare, 2 with hysteresis** -- and 2 is the floor, since a
-  crossing is one press and one release. Chatter is not cosmetic: each flip
+  THRESHOLDS NEED HYSTERESIS. A bare threshold chatters: a load rings as a
+  foot lands on it (as a sprung joint rang under a wheel), and a single
+  comparison flips state on every ring. Measured on the reference plate's
+  load, 15 walks across: **175 flips bare, 71 with hysteresis**, about a
+  press and a release a footfall (ActivityPattern.md §3.2). Chatter is not cosmetic: each flip
   is a telemetry delta, and for a latching effect it is a decision that
   cannot be taken back.
 
@@ -220,8 +220,8 @@ class Threshold:
 
   `on` is the level at which the criterion becomes true; `off` is where it
   becomes false again, and must be slacker. Between them the answer is
-  whatever it already was, which is what stops a ringing sprung joint from
-  chattering (measured: 8 flips per crossing without, 1 with).
+  whatever it already was, which is what stops a ringing reading -- a
+  sprung joint's, a foot's load -- from chattering.
 
   `latch=True` makes the true state permanent -- for "dug", "planted",
   "opened": world facts with no restoring force to model, remembered in

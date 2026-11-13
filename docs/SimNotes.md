@@ -308,14 +308,14 @@ rot.
 
 A pressure plate that latches a garden light (`activity/plate.py`; the
 `geom_pos` trap under "Conventions" is the surviving lesson of the gate it
-replaced, table in ActivityPattern.md §3.4). The garden's is flush with the
+replaced, table in ActivityPattern.md §3.4). Every plate is flush with the
 floor since #684, read off its load ("A flight that never got up"); the
-sprung pad below is the lab's three. Three measured rules the pattern doc
-carries:
-- **Hysteresis**: one wheel crossing flips a bare threshold **4** times, a
-  hysteretic one (`PLATE_ON` 6 mm / `PLATE_OFF` 3 mm) **2** — one press, one
-  release, the floor; a humanoid walking across the flush plate, 175 and
-  71 over 15 crossings (`LOAD_ON_N` 100 / `LOAD_OFF_N` 50).
+sprung pad below was every plate's before it. Three measured rules the
+pattern doc carries:
+- **Hysteresis**: one wheel crossing of the sprung pad flipped a bare
+  threshold **4** times, a hysteretic one (6 mm on / 3 mm off) **2** — one
+  press, one release, the floor; a humanoid walking across the flush plate,
+  175 and 71 over 15 crossings (`LOAD_ON_N` 100 / `LOAD_OFF_N` 50).
 - **An analogue flag defeats sparseness**: `depressMm` over a 300-frame
   crossing is 38 deltas at 0.1 mm rounding, 15 at 1 mm. Quantise to what a
   consumer can act on or keep it off the wire.
@@ -7820,11 +7820,18 @@ lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
   where it had fallen, its pelvis at 0.725 m at the lowest, and five times
   more, the lamp lit at 115.4 s; it explored, walked both trips and docked
   with no fall. Of the served walker's straight walks, none fell on the
-  flush plate (15 crossings, 9 begun at a standstill 4 cm off its edge);
+  flush plate (15 crossings, 9 begun at a standstill, the toes at its edge);
   on the raised pad, none fell either, but all 9 begun at its edge and 3 of
   the 15 stood on its edge for good (0.10-0.25 m); the lab's three, the
   same 21 mm sprung pad, were crossed 21 times at speed, and stalled all 9
-  edge starts.
+  edge starts (0.07 m of a 0.3 m ask, 0.11 of 0.6).
+- The lab's three are flush too (#684's call 3): from those 9 starts the
+  walker walks what it walks on bare floor 1 m off them (0.18 m of 0.3,
+  0.49 of 0.6), each start pressing its plate, and crossed at speed 19
+  times it never fell. A load plate presses about once a footfall on it:
+  1-3 presses a crossing (the cage counted 41 acts over 19 crossings, the
+  sprung pads 27 over 21), each the robot's whose weight pressed it (its
+  contacts over the square carrying the most of the load).
 
 ## The storeroom keeps an error, and a match the walls only partly agree with is searched (issue #681)
 
