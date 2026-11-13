@@ -7541,9 +7541,11 @@ cylinder first; and only a robot the LIDAR sees, one scan at the move's start.
 - *Otherwise refused*, nothing moved, in words the robot reads
   (`steps.ARM_KEPT_OFF`): what did not move, why, where that robot stands
   from its own middle ("another robot, its middle 0.54 m from yours on your
-  right"), and for a reach what the other hand's way would do ("your left
-  hand's way there keeps clear of it"). A withdraw is judged before #669's
-  let-go, so its gripper stays as it was, holding what it holds.
+  right"), and for a reach what the other hand's ways would do ("your left
+  hand's ways there and home keep clear of it": `Reach.clear_way` judges
+  both, and said of its way there alone, 3 of 12 asked could not say a left
+  reach would go). A withdraw is judged before #669's let-go, so its
+  gripper stays as it was, holding what it holds.
 - *A walk with a hand out that could not come home.* A walk brings the arms
   home first (#669), so `step`, `drive_to`, `face` and `find` refuse to walk
   then (`Body.arm_kept`, one look) and say so; the loop's own walks -- a
@@ -7591,7 +7593,7 @@ it had merged, side by side, both before #684):
   tree): loop-staging touched in 14 (233 contacts), Rowan fell in 9 and Luca
   in 4 -- stage 1's base, flight for flight; this build touched in none and
   nobody fell, 23 reaches refused, each for Luca's body 0.54-0.79 m on its
-  right, each saying the left hand's way there keeps clear. The steps #670
+  right, each saying the left hand's ways keep clear. The steps #670
   refuses it refuses still, 54 on each tree.
 - *Neighbouring props* (both robots running their check's own procedure at
   once, draws 0-3): at the counter's work spots, 1.16-1.24 m apart, the same

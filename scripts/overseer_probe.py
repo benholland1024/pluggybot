@@ -90,6 +90,7 @@ from pluggybot.lifecycle import (HUMANOID_HOME, board_book, points_ledger, world
 from pluggybot.mind import changelog, llm, look
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import JPEG_MAGIC, MAX_IMAGE_BYTES
+from pluggybot.mind.text import MAX_NOTES
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.robot import BODIES, SECOND
 from pluggybot.telemetry.protocol import ROBOT_ROOT
@@ -215,7 +216,8 @@ def synthetic_state(menu: Menu, i: int, world: str) -> dict:
     "thoughts": {"History.md": [f"#{i} [t={120 * i}s] {kind}: {job['did']} "
                                 f"(+{pays} points)"][:i],
                  "Top_of_mind.md": job["mind"] if i else "",
-                 "Notes.md": {f"tasks/{kind}": ["what it pays"]} if i else {}},
+                 "Notes.md": {"holds": f"{min(i, 1)} of {MAX_NOTES} entries",
+                              "index": {f"tasks/{kind}": ["what it pays"]} if i else {}}},
     "lastThoughts": ["the pack is fine; a job is on offer"] if i else [],
     "visitorSuggestions": [],
     # A claimable offer, so the probe exercises `take_task` -- the action the

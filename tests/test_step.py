@@ -410,7 +410,8 @@ def test_the_body_text_says_a_walk_carries_a_hand_that_holds_something():
     flat = " ".join(text.split())
     assert "a hand that is out comes home, its gripper opened as `withdraw` opens it" in flat
     assert ("a hand that is out whose gripper says it holds something is first raised "
-            f"{100 * hmis.CARRY_LIFT_M:g} cm, and if what it holds came with it, it is CARRIED: it "
+            f"{100 * hmis.CARRY_LIFT_M:g} cm, pulling up with at most {hmis.CARRY_LIFT_N:g} N, "
+            "and if what it holds came up with it, it is CARRIED: it "
             "comes back out along the way it went in, then its arm folds to your side, the "
             "forearm up and the hand at your hips, turned as it was against the floor, its "
             "gripper still shut.") in flat, "the carry goes unsaid beside the let-go"
