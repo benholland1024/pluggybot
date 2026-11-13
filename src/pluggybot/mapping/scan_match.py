@@ -172,6 +172,12 @@ DOUBT_EVERY = 10
 #: panels a metre apart was taken onto the alias a metre from the truth (the
 #: base kept its 0.75 m); the served sidewalks repeat nothing.
 DOUBT_RIVAL_SHARE = 0.9
+#: ⚠ ...AND ONLY A PLACE THAT PUTS DOUBT_GAIN AS MANY OF THE SCAN'S POINTS ON
+#: WALLS AS THE POSE ASKED ABOUT: on open ground a weakly fixed fit's search
+#: found places 1.00-1.11 as good, each a coin toss (four takes on the street
+#: in 5 s of a drift flight moved the belief 10 cm away and 9 cm back), where
+#: the counter's take-backs gained 1.25-2.1 (median 1.55).
+DOUBT_GAIN = 1.2
 #: ⚠ A ROBOT ITS MAP KEEPS REFUSING IS LOST PAST THE SEARCH'S REACH (issue
 #: #422): after LOST_RUN scans running "inconsistent" -- any other verdict
 #: breaks the run -- and every LOST_RUN more, the search looks WIDE_M and
@@ -599,8 +605,9 @@ class ScanMatcher:
     """The pose within `reach_m` and `reach_rad` of `pose` at which the most
     of the scan lands on a mapped wall (|d| < INLIER_M, the nearest cell):
     brute force over whole-cell shifts and SEARCH_STEP_RAD turns. None if
-    no candidate beats `pose` itself -- or, `unique`, if a place UNIQUE_M
-    from it puts DOUBT_RIVAL_SHARE as many on walls (`_rival`)."""
+    no candidate beats `pose` itself -- or, `unique`, if none beats it by
+    DOUBT_GAIN, or a place UNIQUE_M from the best puts DOUBT_RIVAL_SHARE as
+    many on walls (`_rival`)."""
     g, f = self.grid, self.field
     res = g.resolution
     on_wall = np.abs(np.nan_to_num(f, nan=np.inf)) < INLIER_M
@@ -629,7 +636,8 @@ class ScanMatcher:
     here = self._on_wall_count(pose, pts, on_wall)
     if best_at is None or best <= here:
       return None
-    if unique and _rival(places, shifts * res, best_at) >= DOUBT_RIVAL_SHARE * best:
+    if unique and (best < DOUBT_GAIN * here
+                   or _rival(places, shifts * res, best_at) >= DOUBT_RIVAL_SHARE * best):
       return None
     return (x0 + best_at[0], y0 + best_at[1], th0 + best_at[2])
 

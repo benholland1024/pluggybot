@@ -380,6 +380,31 @@ def test_the_doubts_search_takes_no_pose_it_would_doubt_again(store, monkeypatch
       assert got.why == "found" and abs(got.pose[0] - AT_COUNTER[0]) < 0.05, (name, got)
 
 
+def test_the_doubts_search_takes_only_a_place_that_explains_the_scan_much_better(
+    store, monkeypatch):
+  # MEASURED (#681's third round, a drift flight's captured takes): on open
+  # ground a weakly fixed fit's search found places 1.00-1.11 as good as the
+  # pose asked about, and four takes in 5 s moved the belief 10 cm the wrong
+  # way and 9 cm back; the counter's take-backs gained 1.25-2.1. Pinned at
+  # the bar: the storeroom's take-back, refused with DOUBT_GAIN just over
+  # its gain, taken just under.
+  ranges = cast(STORE, AT_COUNTER, np.random.default_rng(9))
+  guess = (AT_COUNTER[0] + 0.3, AT_COUNTER[1], AT_COUNTER[2])
+  m = sm.ScanMatcher(store)
+  m.refresh(*guess[:2])
+  pts = m.points(ANGLES, ranges)
+  on_wall = np.abs(np.nan_to_num(m.field, nan=np.inf)) < sm.INLIER_M
+  start = m._search(guess, pts, unique=True)
+  gain = m._on_wall_count(start, pts, on_wall) / m._on_wall_count(guess, pts, on_wall)
+  assert gain > sm.DOUBT_GAIN, gain
+  monkeypatch.setattr(sm, "DOUBT_GAIN", gain + 0.01)
+  got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+  assert got.why == "doubted" and abs(got.pose[0] - guess[0]) < 0.05, got
+  monkeypatch.setattr(sm, "DOUBT_GAIN", gain - 0.01)
+  got = sm.ScanMatcher(store).match(guess, ANGLES, ranges)
+  assert got.why == "found" and abs(got.pose[0] - AT_COUNTER[0]) < 0.05, got
+
+
 def test_a_slid_fits_search_is_taken_only_where_the_fit_slid(room, monkeypatch):
   # A fit that slid past MAX_STEP is searched, and the search's pose taken
   # only within DOUBT_SLID_M of where the fit itself slid: on Luca's live map
