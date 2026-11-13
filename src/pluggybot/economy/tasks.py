@@ -326,10 +326,14 @@ KINDS: dict[str, TaskKind] = {
   # room's east wall between the restaurant's two tags (68, 69), each carried
   # 4-5 m to the table (`home.restaurant.SET_OUTS`) and graded by the
   # table's evaluator. NOT OFFERED (no world's cadence names it) and paid
-  # nothing (`challenges.json`): offering it is Ben's call, and then it is
-  # measured as `set_table` was (`energy_spike.py --station station_facility
-  # --actions set_table_pass`, its minutes by the table's rule). Until then its
-  # energy is a fallback a claim alone reads, above the table's, unmeasured.
+  # nothing (`challenges.json`): offering it is Ben's call. Its energy is its
+  # own, measured 14 Nov 2026 at 5d9b6ab as `set_table` was, from each
+  # station (`energy_spike.py --station S --actions set_table_pass`, the
+  # pass's tags and the card found first): the research center's 20.59 Wh
+  # over 443 s, the house's 20.15 over 424, the mall's 17.80 over 364 (a
+  # fall cut its fork short) -- the dearest. ⚠ NOT a row of `energy.json`:
+  # there the dearest row prices every errand that has none, and a kind no
+  # world offers moves nothing served.
   "set_table_pass": TaskKind(
     "set_table_pass", task="set_table_pass", target_kind="table",
     template="Lay the card's place on the restaurant's table from the pieces on its pass: "
@@ -339,7 +343,7 @@ KINDS: dict[str, TaskKind] = {
              "taking this job, without falling; graded when you say you are done and 5 s later. "
              "These were set out at t={offered}, when this job was offered. No errand does this: "
              "write the procedure.",
-    estimate_wh=15.0, discharge="procedure", draws=True, minutes=PASS_MINUTES),
+    estimate_wh=20.59, discharge="procedure", draws=True, minutes=PASS_MINUTES),
 }
 
 #: The hand jobs' graders (#559, #560): each served job's row is its own --
