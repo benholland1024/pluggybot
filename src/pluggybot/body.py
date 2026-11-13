@@ -601,14 +601,15 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def step_routine(self, ahead: float, left: float = 0.0, turn: float = 0.0,
                    patience: float = 15.0) -> Routine:
-    """THE STEP (#525): its hands home and empty, the body turns `turn`
+    """THE STEP (#525): its hands home -- a hand whose gripper says it
+    holds something CARRIED at its side, as every walk carries one (#682,
+    `carrying`) -- the body turns `turn`
     rad on the spot (left, +) and walks `ahead` m and `left` m in the frame
     it then stands in (negative backs up, or goes right), and stands still
     -- as the body walks: the humanoid's least step is a stride, and a walk asked less may
     take none. Returns how it ended (`why`:
     "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
-    turn that could not get there -- "holding" -- a hand holds something, and nothing
-    moves -- "blocked" -- its walk got nowhere, or kept off another robot as a
+    turn that could not get there -- "blocked" -- its walk got nowhere, or kept off another robot as a
     walk does (#670), and then `keptOff` says how -- "fell", "out of time"), in
     how long, and where its stance went by its own reckoning, in the stance
     frame it stood in before
@@ -707,11 +708,21 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def arm_kept(self) -> dict | None:
     """Whether a hand that is out could not come home now: every way home
-    it has would meet the body of another robot the body sees (one look,
-    #678) -- `hand`, and `m`, `x`, `y` as `hand_kept` says them -- else
-    None, with no hand out none, and no look. A walk brings the arms home
-    first, so the walk verbs refuse to walk then (`steps.ARM_KEPT_OFF`);
-    the loop's own walks wait for it (`HumanoidMission.ARM_WAIT_S`)."""
+    it has -- or, its gripper holding something, to the side a walk carries
+    it at (#682: then `carried`) -- would meet the body of another robot the
+    body sees (one look, #678) -- `hand`, and `m`, `x`, `y` as `hand_kept`
+    says them -- else None, with no hand out none, and no look. A walk
+    brings the arms home or to its side first, so the walk verbs refuse to
+    walk then (`steps.ARM_KEPT_OFF`); the loop's own walks wait for it
+    (`HumanoidMission.ARM_WAIT_S`)."""
+
+  @abc.abstractmethod
+  def carrying(self, side: str) -> bool:
+    """Whether a hand is CARRIED (#682; Ben, 2026-11-12): its gripper said
+    it held something as a walk began, so the walk took its arm to the
+    side it carries at -- the forearm folded up, the hand at the hips,
+    turned as it was against the floor -- and holds it there, its gripper
+    shut, until a reach takes it out again or a withdraw home."""
 
   @abc.abstractmethod
   def stop_hand(self, side: str) -> bool:
@@ -924,6 +935,8 @@ class StubBody(Body):
     #: shut where a test sent it holds, as the stub's every walk arrives.
     self.hands: dict[str, tuple] = {}
     self.grips: dict[str, bool] = {}
+    #: ...and which hands a walk carries (#682): out, their grips holding
+    self.carried: set[str] = set()
     #: ...the force each was last shut with (#525), how wide what a shut
     #: hand holds is, m, and which grippers are shut (each starts so)
     self.squeezes: dict[str, float | None] = {}
@@ -1200,12 +1213,14 @@ class StubBody(Body):
       return False
     self._why[side] = ""
     self.hands[side] = tuple(pos)
+    self.carried.discard(side)
     return True
     yield
 
   def release_routine(self, side, refuse=False):
     self.hands.pop(side, None)
     self.grips.pop(side, None)
+    self.carried.discard(side)
     self.shut[side] = False
     return "home"
     yield
@@ -1245,13 +1260,12 @@ class StubBody(Body):
     yield
 
   def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
-    """The step at once, as asked -- its hands home, turned, then walked --
-    unless a hand holds something; its asks kept in `stepped`."""
+    """The step at once, as asked -- its hands home, a hand that holds
+    something carried (#682), turned, then walked; its asks kept in
+    `stepped`."""
     self.stepped.append((float(ahead), float(left), float(turn)))
-    if any(self.grips.get(s) for s in self.hands):
-      return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
-    # ...its hands home first, as a walk's are
-    self.hands.clear()
+    # ...its hands home first, as a walk's are, but what holds is carried
+    self.carry()
     c, s_ = math.cos(turn), math.sin(turn)
     dx, dy = c * ahead - s_ * left, s_ * ahead + c * left
     cw, sw = math.cos(self.theta), math.sin(self.theta)
@@ -1319,6 +1333,18 @@ class StubBody(Body):
   def arm_kept(self) -> dict | None:
     """No other robot's body in any arm's way home: none."""
     return None
+
+  def carrying(self, side) -> bool:
+    return side in self.carried
+
+  def carry(self) -> None:
+    """A walk's hand-over, as the body's (#682): a hand out whose grip holds
+    is carried, every other comes home."""
+    keep = {s for s in self.hands if self.grips.get(s)}
+    self.carried = keep
+    for s in list(self.hands):
+      if s not in keep:
+        self.hands.pop(s)
 
   def stop_hand(self, side) -> bool:
     """Its moves are done at once: none is under way to stop."""

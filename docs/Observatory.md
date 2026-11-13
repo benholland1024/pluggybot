@@ -41,8 +41,8 @@ an error"):
   survives it; otherwise a copy goes with its map (a true death or a
   stand-up: a station's fix drops a map only past `ASKEW`, 0.6 m), and no
   longer moves a right belief (above).
-- No text the robots read moved: `prompt_sha` `303b3f0c…` both sides, 65,136
-  chars, 17 sections (over #678's).
+- No text the robots read moved: `prompt_sha` `609b7ad5…` both sides, 65,730
+  chars, 17 sections (over #682's).
 
 **Why.** #681: at the storeroom's counter the side walls kept a fit 0.3-0.4
 m off `ok`, its scan laid in, and the copy kept the error for hours (live,
@@ -67,6 +67,47 @@ belief round the counter moves where the base's does and nowhere else.
   there is any worse off than before.
 - ⚠ Not to be pooled with the period before for anything about where the
   robots believe they are.
+
+### A walk carries what a hand holds (#682's stage A) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `303b3f0c…` → `609b7ad5…`, 65,136 → 65,730
+chars, 17 sections both, over #678's; the session host's hello re-vendored,
+the site's branch `loop-carry`):
+- **A walk carries a hand that holds** (Ben's calls of 11-12; SimNotes,
+  "Carrying, served"): before any walk -- a `step` too, and the loop's own --
+  a hand that is out whose gripper says it holds something is raised 2 cm,
+  and if what it holds came with it, keeps its grip, comes out along its line
+  and folds to the robot's side (the forearm up, the hand at the hips),
+  turned against the floor as it was, and stays there through the walk and
+  after, until a reach or a let-go ends it. A hand that holds nothing, or
+  whose lift was held fast (a drawer's handle, a door's lever), lets go and
+  comes home, as since #669.
+- **`step` walks holding something** (it refused, `holding`), and a walk
+  verb's report says `carried` and `dropped`.
+- **The self-filter**: every LIDAR return and every point of the depth
+  camera's low layer within 0.12 m of a grip that holds is the robot's own,
+  in neither its map, its matcher nor its front stop.
+- **The texts say it**: YOUR BODY's sentence on what a walk does with a hand
+  out, `step`'s doc, and the words of a walk refused for a carried arm's way
+  to its side (#678's refusal composed).
+- The walker is walk2 still: carrying, it veers toward the carrying arm,
+  which the Navigator steers out and a `step` does not. A robot whose hands
+  hold nothing walks as it did, bit for bit; one that ends a procedure
+  gripping something fixed is lifted at the next walk, 2 cm at most 20 N,
+  before it lets go as it did.
+
+**Why.** #682, Ben's calls of 11-12 (one piece in one hand, held close; the
+walk takes the pose itself; the plate at 80 N; the self-filter), stage A of
+the shelf-to-table task, whose set-out is stage C's.
+
+**What the period is for.**
+- **What the minds do with it**: a procedure that walks holding something on
+  purpose (none is asked to yet), and one that walks still holding a handle
+  -- whether the lift reads it held fast every time (flown: a drawer's
+  handle and a door's lever, 3 of 3), or carries a lid's knob that comes
+  away 2 cm.
+- ⚠ Not to be pooled with the periods before for anything a walk after a
+  procedure decides.
 
 ### A hand's way out and home keeps off the other robot it sees (#678) — opens when this PR is deployed
 

@@ -415,9 +415,10 @@ def test_the_robot_is_told_its_arms_keep_off_another_robot_and_what_a_walk_does(
   assert ("Its way home keeps clear of the body of another robot standing near you: where no "
           "way does, your gripper stays as it is and your hand where it is") in withdraw
   assert withdraw.startswith("open a hand's gripper, letting go of whatever it holds, then")
-  body = dict(mp.system_sections(st.hand_facts()))["your body"]
-  assert ("Nor does a `step`\nor any other walk move while a hand is out whose every way home "
-          "would\nmeet the body of another robot standing near you") in body
+  body = " ".join(dict(mp.system_sections(st.hand_facts()))["your body"].split())
+  assert ("Nor does a `step` or any other walk move while a hand is out whose every way home "
+          "-- or to your side, carried -- would meet the body of another robot standing near "
+          "you") in body
 
 
 # ---- 5: a withdraw refused keeps its gripper ------------------------------------------------
@@ -433,9 +434,30 @@ class _Arms:
     self.grippers, self.log, self.at, self.clear = grippers, log, at, clear
     self.phase = {s: "hold" if s in out else "rest" for s in hm.SIDES}
     self.keep_out, self.kept, self.judged = [], {s: None for s in hm.SIDES}, []
+    #: ...and what a walk carries (#682): none, until `carry_q` says; and
+    #: where each judged way home ended (`toward`: a carry pose, or None home)
+    self.carry_q = {s: None for s in hm.SIDES}
+    self.toward = []
+    self.rest = {s: np.array([0.0, 0.1 if s == "left" else -0.1, 0.0, 0.3, 0.0, 0.0])
+                 for s in hm.SIDES}
 
-  def home_clear(self, side) -> bool:
+  def out(self, side) -> bool:
+    return self.phase[side] == "hold"
+
+  def carried(self, side) -> bool:
+    return self.phase[side] == "carried" and self.carry_q[side] is not None
+
+  def drop_carry(self, side) -> None:
+    self.carry_q[side] = None
+
+  def carry_pose(self, side):
+    return np.array([0.15, 0.25, 0.0, 2.0, -1.0, -1.0])
+
+  def home_clear(self, side, carry=None) -> bool:
     self.judged.append((side, self.at()))
+    # ...as `Reach.home_to` ends it: `carry`, else the carry it holds, else home
+    end = carry if carry is not None else self.carry_q[side]
+    self.toward.append((side, None if end is None else list(end)))
     if not self.keep_out or self.clear():
       self.kept[side] = None
       return True
@@ -444,7 +466,7 @@ class _Arms:
 
   def retreat(self, side, approach=None) -> None:
     self.log.append(("retreat", side, self.at(), list(self.keep_out)))
-    self.phase[side] = "rest"
+    self.phase[side] = "rest" if self.carry_q[side] is None else "carried"
 
   def home(self, side) -> bool:
     return self.phase[side] == "rest"

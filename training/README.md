@@ -130,6 +130,22 @@ scale). `humanoid_train/g1_check.py` flies mjlab's stock G1
 velocity policy outside mjlab -- numpy, MuJoCo's C engine, at 5 ms and the
 served 2 ms -- the pipeline's check on a body its maker walks (#507, rule 6).
 
+`Pluggy-Humanoid-Walk-Carry` (#682's stage B) is walk2 fine-tuned to carry
+(`--agent.resume True --agent.load-run '.*_walk2$' --agent.load-checkpoint
+model_2999.pt`): each arm in segments of 4-15 s hanging, moving as walk2's
+did, or holding one pose of the carry box the whole segment
+(`walk.CarryArms`; `--env.actions.arms.close-share 0.5` draws half of the
+carries near the served carry pose, carry3's), a 0-1 kg payload at each grip
+site drawn at every reset (`robot.get_carry_spec`'s welded bodies), the actor
+seeing walk2's 24 joints in walk2's order so its checkpoint carries over (the
+exporter writes the joints a task sees). ⚠ ITS MODEL IS RIGID AT THE WAIST, as
+walk2's body was: on the waist's joint the pelvis's yaw rang against the trunk
+at the policy's rate, and carry1 phased that ringing to the instant the reward
+samples the root -- by the reward it tracked its turn, by its heading it spun
+(SimNotes, "A walker trained to carry"). carry2 is 2500 iterations from walk2,
+carry3 1500 more from carry2 at a close share of 0.5;
+`models/humanoid_walk_carry.npz` is not served.
+
 Every reward's weight and parameter and every curriculum stage is a flag
 (`--env.rewards.belly-down.params.budget-s 0`,
 `--env.curriculum.gentle-rise-speed.params.stages.3.step 0`), so variants of
@@ -165,6 +181,9 @@ run on a card records its steps a second:
 | RTX 5090 | Vast, a Ryzen 9 9950X host | 0.647 | 96,000 | 0.0019 | `Pluggy-Humanoid-Getup` (getup1) beside a seeing walker's run on the same card (#507) |
 | RTX 5090 | Vast, an EPYC 9B14 host | 0.633 | 95,000-98,000 | 0.0018 | `Pluggy-Humanoid-Walk-Seeing-Fine` (fine2, fine3, fine4a, fine5a, fine6a), 1500 iterations in 25 min alone (#507) |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 108,000 | 0.0013 | the same (fine4b, fine5b, fine6b), 1500 iterations in 23 min alone (#507) |
+| RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 118,000 | 0.0012 | `Pluggy-Humanoid-Walk-Carry` on the waist's joint (carry1, stopped: #682) at 0.83 s an iteration |
+| RTX 5090 | Vast, an EPYC 7K62 host (DLPerf 200) | 0.514 | 61,000 | 0.0023 | `Pluggy-Humanoid-Walk-Carry` (carry2), 2500 iterations in 68 min alone: a slow host by its CPU |
+| RTX 5090 | Vast, a Xeon w7-3455 host | 0.514 | 101,000 | 0.0014 | `Pluggy-Humanoid-Walk-Carry` (carry3), 1500 iterations in 25 min alone |
 
 Two runs on one card share it rather than add to it: two humanoid runs on
 one 5090 each took 1.0 s an iteration against 0.46 s alone.
