@@ -8637,6 +8637,17 @@ standing, the bow's straight way met a counter -- and a way home that looks
 (the depth frame's points against the arm's path and the posture's return
 after it) would tell them apart (Hands.md §7).
 
+A `step` begun as the robot staggers hands its legs back moving (#693's
+fifth option): at 9d31fe6 the step back after each pressed fall handed them
+back at 0.30-0.81 m/s and the standing policy fell; with this rule none of
+these flights' hand-backs came over 0.13 m/s, but a stagger from anything
+else would hand back so. Holding the walker on, 2 s at most, until its legs'
+own reckoning reads under 0.15 m/s (prototyped on the base alone) stood 2 of
+the 3 robots still pressed and fell in 1, and moved every flight whose walk
+ended still moving: Luca's door passed 12 (7), parted at its walk in, and the
+cube's 32 parted at their first step, 18 placed with 3 falls (20 and 1).
+Not built.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
