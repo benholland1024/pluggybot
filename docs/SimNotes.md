@@ -8706,6 +8706,135 @@ ended still moving: Luca's door passed 12 (7), parted at its walk in, and the
 cube's 32 parted at their first step, 18 placed with 3 falls (20 and 1).
 Not built.
 
+## A heading lost in a fall, searched for at every heading (issue #690's net)
+
+**Why.** A humanoid's odometry is held through a get-up and its heading is
+its IMU's alone (`HumanoidMission._after_physics`), so a turn its IMU did
+not follow stays in the heading: past the wide search's 15 deg every scan is
+refused for good. On 11-12 Luca's came out of a fall 120 deg off and its
+map refused every scan for the 26 minutes to the pause. The cause there was
+the other robot's blocking interrupt ("One robot's interrupt asked, the
+other robot held"); this is the net under any other.
+
+**After a get-up, measured first.** The 201 mission falls of that section,
+flown again at 6956d89 on one pod (a Xeon Gold 6138), each scan from the
+stand on recorded with the matcher and the map as they stood: a replay of
+the matcher over the recording reproduces the flight's verdicts exactly,
+and a variant's up to its first verdict that differs, where the flight would
+part (`~/pluggybot-training/loop-1114/n6-690b/`: `mission_fall2.py`,
+`replay.py`). 129 fell and 118 stood (101 at 13ddef7: the get-up beside a
+wall), 11 stuck. At the stand the heading was within 1.44 deg and the
+belief 0.71 m off at the median, 2.04 at most (the fall's travel). The first
+scan fitted in 80 of the 118, the rest after at most 26 refused (2.7 s);
+95 were then within 0.3 m and 3 deg, and 20 fits were `doubted` 0.3-0.9 m
+off along the lobby, its long walls fixing one direction (8 kept it to the
+flight's end: #681's "not done").
+
+Then the heading knocked at the stand -- turned where the belief stood, as
+the IMU's filter turns it when it rights the tilt by the shortest arc --
+and the robot standing 30 s after (a procedure's fall ends its run and the
+mind is asked, #671) or walking on at once (the loop's own walks). Standing
+knocked 40, 120, -40 or -120 deg, not one scan of 472 get-ups fitted in 40
+s, the bounded search refusing each at 21 ms; walking on knocked 120 deg, 9
+of 118 laid scans in `ok` 3.6-8.7 m off from 10 s on, a copy of the house
+laid askew begun. Knocked 160 deg, the served wide search itself took the
+lobby's half turn in 72 of 118 (below).
+
+**The net** (`ScanMatcher.fell`, `TURNED_*`). The get-up's stand
+(`HumanoidMission._stood_up`) arms it; then the next TURNED_SEARCHES (6)
+wide searches that find nothing look again at every heading -- the wide
+lattice at 2 deg, scored on 150 returns within 6 m with the walls widened
+by the step's arc there, its 5 best poses (two at one place 20 deg apart
+are two) searched cell by cell and fitted -- and a pose is taken as the
+wide search takes one: FOUND_SHARE with every direction fixed, unrivalled,
+found again by the next search, carried there by odometry (`_carried`: a
+heading off walks the belief another way than the body, so the correction
+moves where the pose does not). Any scan that fits ends it, and so does a
+warp (`start_at`); the last search runs only to confirm the one before; and
+a fall starts the run of refusals again, what the wide search found before
+it gone with it (#690's review).
+
+**What the lobby taught it.** The lobby is a 3 x 12 m hall, and a scan
+turned half round fits it about as well as the truth: of 312 searches that
+found both, the half turn put 0.90-1.11 of the truth's points on walls
+(median 0.99), the better in 115. So:
+
+- *It runs only where the served wide search found nothing.* Run first, on
+  the 118 right-headed get-ups it refused 10 of the served search's 16
+  right relocations, the half turn its rival; run after it, never.
+- *Its rival is a find 0.8 as good* (`TURNED_RIVAL_SHARE`, where the wide
+  search's is 0.9): at every heading the half turn is always looked at, and
+  walking on knocked 40 deg it once explained the scan better than the
+  truth, the truth's points on walls 0.889 and then 0.867 of its own, and
+  was taken twice running, 3.03 m and 180 deg off. At 0.8 nothing was taken
+  wrong, 517 taken right where 0.9 took 525 (the log of every search's
+  finds, its rule replayed at each share).
+- *Only while the belief is within TURNED_NEAR_M (0.5 m) of where it stood
+  up.* Walked on with its heading off, the belief walks another way than
+  the body, the truth leaves the lattice and the half turn is left
+  unrivalled: replayed walking on knocked 120 deg, 5 of 118 were taken
+  onto it, 1.4-4.7 m off, each 1.24-1.73 m from the stand's belief, where
+  every pose taken right was found within 0.88 m (all but three within
+  0.5).
+
+The net replayed over every get-up (the rule as built; 6956d89's flights):
+
+| the 118 get-ups, knocked at the stand | today: a scan fitting in 40 s | the net: taken right | onto its map, 0.4 m askew (E) | refused, as today | taken wrong |
+|---|---|---|---|---|---|
+| not knocked, walking on / standing 30 s | 118 / 118 (95 / 97 within 0.3 m; the rest doubted along the hall, or E) | never searched | -- | -- | 0 |
+| 40 deg, standing | 0 | 60 | 3 | 55 | 0 |
+| 80 deg, standing | 1 (wrong) | 60 | 3 | 55 | 0 |
+| 120 deg, standing | 0 | 60 | 3 | 55 | 0 |
+| 160 deg, standing | 72, every one the served search's half turn | 52 | 3 | 63 (61 the served search's half turn first) | 0 |
+| -40 deg, standing | 0 | 58 | 3 | 57 | 0 |
+| -120 deg, standing | 0 | 57 | 2 | 59 | 0 |
+| 40 deg, walking on | 0 | 56 | 3 | 59 | 0 |
+| 120 deg, walking on | 9 (all off) | 57 | 3 | 58 | 0 |
+| -120 deg, walking on | 4 (all off) | 57 | 2 | 59 | 0 |
+
+The E scenarios had their belief put 0.42 m off before the fall, the map
+laid through it: right in that map's frame. The takes come at the second
+search, 1.9-2.1 s after the stand, a few at the sixth (6.1 s). Knocked 160
+deg, the served search's half turn comes first in 61, and the net's take at
+2 s comes before the half turn the base took later in 9.
+
+**Flown**, the branch beside the base on the same pod, a process a flight
+(26d233f, before the review's fixes, which move no take in the replays):
+B0's 201 flights the base's row for row; knocked 40 and 120 deg, standing
+and walking on, 233 of the 472 get-ups taken back, each ending within
+0.024 m and 0.25 deg where the base ended 0.13-9.2 m and 39-123 deg off,
+2.0 s after the stand at the median (6.1 at most) -- the replays' counts,
+group for group; 261 relocations over the 673 flights, none more than 0.5
+m from the truth (the E scenarios' 0.39-0.41, right in their map). A robot
+alone's drift flights, the drift spike's six walking falls in the lobby and
+the pair's recording flew the base's but two wall-clock stamps (at
+8bf386e); the pair's day with its arranged knock-over -- a warp onto its
+side that sets the robot's yaw to 0, a turn its IMU never sees -- parts at
+47 s, where the branch takes the 106.7-deg knock back to 0.03 m and 0.2
+deg of the truth.
+
+**The cost.** Flown on the dev box one flight at a time, a search took 110
+ms (112 at most); a get-up whose heading is right makes none (0 in 236), a
+knocked one two when it is taken back and, refused, six as flown (0.66 s;
+five since the review, the last running only to confirm), the worst single
+scan 176 ms (with its bounded search and the served wide search's 41).
+Against the pair's ~1.2x real time on the deploy box's one physics thread,
+about 0.17 s of slack a second (the pacer only sleeps: lag, paid back at
+that margin), the worst is ~4 s of lag and a stream frame 0.1 s late at
+most six times. Today's lost run is the bigger cost -- a refused scan 21
+ms, about 0.25 s a sim second, past the slack for as long as the robot is
+lost -- and the net's take ends it: the refused flight spent 19 s of its
+111 s after the stand matching, the one taken back 1.2 s of its whole
+flight.
+
+**Not done.** A robot the net refuses is still lost, and still not told:
+#690's option (b), a History line once its map has refused every scan for
+a minute, changes what the robots read (Ben's call, drafted). Nor is the
+served wide search's own half turn: knocked about 160-200 deg, it takes the
+lobby's turned pose (its truth outside its 15 deg, so no rival to it); a
+rival at every heading there refused 10 of its 16 right relocations of
+right-headed get-ups.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

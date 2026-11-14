@@ -10,6 +10,47 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A heading lost in a fall, searched for at every heading (#690's net) — opens when this PR is deployed
+
+**What changed is what a robot's map does after a get-up.** Its scans are
+matched as before; but up from a fall (the get-up's stand arms
+`ScanMatcher.fell`), a run of refused scans whose wide search (2 m, 15 deg)
+finds nothing searches again at every heading -- 6 such searches at most,
+only while the belief is within 0.5 m of where it stood up -- and a pose
+found twice is taken: a `relocated` belief event, its `drift` row and its
+BELIEF narration, as the wide search's are, its turn as large as the fall
+left it. Nothing the robots read moved (`prompt_sha` b345cc34, the session
+host's hello byte for byte), nor any geometry: the deploy keeps both
+robots' bodies and maps.
+
+**Why.** #690: on 11-12 Luca's heading came out of a fall 120 deg off and
+its map refused every scan for the 26 minutes to the pause. The cause (the
+other robot's blocking interrupt) is fixed; this is the net under any
+other. On #690's 201 mission falls, flown on one pod beside 6956d89 with
+each get-up's heading knocked at the stand (SimNotes, "A heading lost in a
+fall, searched for at every heading"): the 118 that stood right-headed were
+never searched (the branch's 201 flights the base's row for row); of the
+1,062 knocked 40-160 deg, standing or walking on, where the base refused
+every scan or laid the house askew, 517 were taken back within 0.3 m and 3
+deg (2 s after the stand at the median) and none taken wrong; the rest
+refused, the lobby's scan turned half round fitting as well as the truth.
+Flown beside the base (26d233f): 233 of 472 knocked get-ups taken back,
+261 relocations in 673 flights and none more than 0.5 m from the truth, the
+base's 201 right-headed flights row for row.
+
+**What the period is for.**
+- **`relocated` drift rows within a minute of a get-up**, against the
+  periods before: a turn of more than 25 deg between `before` and `after`
+  is this rule's alone (the served wide search's own turned 19-21 deg at
+  most in the batch, knocked 160). ⚠ One whose `headingDeg` after it is near
+  180 is a hall's half turn taken: none in the batch.
+- **A run of refusals after a get-up that never ends** (`matched` all
+  `inconsistent` in the samples after a fall): still lost, the net having
+  refused; #690's option (b), the robot told, is not built.
+- The physics thread: at most 6 searches of ~0.1 s a get-up (5 when it
+  takes nothing: the last only confirms), only where the served search found
+  nothing.
+
 ### One robot's interrupt asked, the other robot's errand going on (#692) — opens when this PR is deployed
 
 **What changed is how a mid-errand interrupt is asked**
