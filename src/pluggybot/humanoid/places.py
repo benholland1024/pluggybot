@@ -187,6 +187,9 @@ class HumanoidPlaces:
     self._place_look: tuple[float, tuple[float, float, float] | None] = (-math.inf, None)
     #: The last find's record.
     self.last_find: dict | None = None
+    #: ...and its search, where its interrupt stopped it (`find_routine`'s
+    #: `resume`, #692): taken by the next find, whatever it is.
+    self._find_kept: dict | None = None
     #: The newest look of its head's camera that saw a station (#572,
     #: `see_station`), or None.
     self.station_sighting: dict | None = None
@@ -425,31 +428,41 @@ class HumanoidPlaces:
     return wall, seen, frontier, walk, known
 
   def find_routine(self, tag: int, near: tuple[float, float] | None,
-                   patience: float, stop=None) -> Routine:
+                   patience: float, stop=None, resume: bool = False) -> Routine:
     """Find the place `tag` marks (the module docstring). Returns its
     record: `found`, `why` ("found", "not found" -- every viewpoint looked
     from --, "gave up" -- every viewpoint walked for, and no walk to one
     took it anywhere new to look from, the last its `walk` --, "out of
-    time" after `patience` s, or "interrupted" by `stop`, the robot's own
-    interrupt, asked as every walk is), the `seconds` it took, whether it
-    was `remembered`, how many `guesses`, `viewpoints` and look-`arounds`,
-    where the place is (`at`) once found, and its `trail`, in order: each
-    walk -- what to (`to`: "guess", where the place should be; "address";
-    "viewpoint") and how it ended (its `last_drive`) -- and each look round
-    (`lookedAt`); then where the belief stood (`err` against the truth, a
-    trace's). Out of time, a walk ends where it stands and a look-around at
-    its next look."""
+    time" after `patience` s, or "interrupted" by `stop`, which says the
+    robot's own interrupt is due: its verb asks it, #692), the `seconds` it
+    took, whether it was `remembered`, how many `guesses`, `viewpoints` and
+    look-`arounds`, where the place is (`at`) once found, and its `trail`,
+    in order: each walk -- what to (`to`: "guess", where the place should
+    be; "address"; "viewpoint") and how it ended (its `last_drive`) -- and
+    each look round (`lookedAt`); then where the belief stood (`err`
+    against the truth, a trace's). Out of time, a walk ends where it stands
+    and a look-around at its next look.
+
+    `resume` goes on with the search its `stop` last ended, for this tag
+    and address, `patience` s more: where it has walked and looked, the
+    step it was cut short in to take again, its record one find, its
+    `seconds` the searching alone; else it searches afresh."""
     tag = int(tag)
     t0 = float(self.data.time)
     until = t0 + float(patience)
-    rec = {"tag": tag, "remembered": self.places.get(tag) is not None,
-           "near": None if near is None else [round(near[0], 2), round(near[1], 2)],
-           "guesses": 0, "viewpoints": 0, "arounds": 0, "trail": []}
+    kept, self._find_kept = self._find_kept, None
+    if not (resume and kept is not None and (kept["tag"], kept["near"]) == (tag, near)):
+      kept = None
+    rec = kept["rec"] if kept else {
+      "tag": tag, "remembered": self.places.get(tag) is not None,
+      "near": None if near is None else [round(near[0], 2), round(near[1], 2)],
+      "guesses": 0, "viewpoints": 0, "arounds": 0, "trail": []}
+    began_t, searched = (kept["t"], kept["searched"]) if kept else (t0, 0.0)
     self.last_find = rec
 
     def seen() -> bool:
       p = self.places.get(tag)
-      return p is not None and p.seen_t >= t0
+      return p is not None and p.seen_t >= began_t
 
     def left() -> float:
       return until - float(self.data.time)
@@ -458,17 +471,19 @@ class HumanoidPlaces:
       return seen() or left() <= 0.0 or (stop is not None and bool(stop()))
 
     def ended() -> str:
-      """Why a walk or a look-around ended the find: "" if it goes on."""
+      """Why a walk or a look-around ended the find: "" if it goes on. Out
+      of time before its `stop`: there is no search left to ask about."""
       if seen():
         return "found"
-      if stop is not None and stop():
-        return "interrupted"
-      return "out of time" if left() <= 0.0 else ""
+      if left() <= 0.0:
+        return "out of time"
+      return "interrupted" if stop is not None and stop() else ""
 
     def done(why: str) -> dict:
       p = self.places.get(tag)
       rec.update(found=why == "found", why=why,
-                 seconds=round(float(self.data.time) - t0, 1), err=self.truth_error(),
+                 seconds=round(searched + float(self.data.time) - t0, 1),
+                 err=self.truth_error(),
                  **({"at": [round(p.x, 3), round(p.y, 3)]} if p is not None and why == "found"
                     else {}))
       return rec
@@ -499,7 +514,17 @@ class HumanoidPlaces:
     tried: list = []                            # viewpoints walked to
     began = 0                                   # ...and the looks before the first
     went_near = near is None
+    if kept:
+      looked, guessed, tried = kept["looked"], kept["guessed"], kept["tried"]
+      began, went_near = kept["began"], kept["wentNear"]
+    cut = None              # the step its stop cut short: what it had booked before it
+
+    def booked() -> tuple:
+      return (len(guessed), len(tried), went_near, began,
+              rec["guesses"], rec["viewpoints"], rec["arounds"])
+
     while not ended():
+      mark = booked()
       guess = self.places.expected(tag)
       if guess is not None and not any(math.hypot(guess[0] - gx, guess[1] - gy) < LOOKED_M
                                        for gx, gy in guessed):
@@ -514,13 +539,16 @@ class HumanoidPlaces:
                                          stop=halt)
         walked("guess", sx, sy)
         if ended():
+          cut = mark
           break
         yield from self.face_routine(wrap_angle(gf + math.pi))
         self.look_for_places()
         if ended():
+          cut = mark
           break
         rec["arounds"] += 1
         if (yield from self._look_around_routine(halt)):
+          cut = mark
           break
         looked_round(self.pose_xy())
         continue
@@ -529,11 +557,15 @@ class HumanoidPlaces:
         went_near = True
         yield from self.drive_to_routine(near[0], near[1], timeout=left(), stop=halt)
         walked("address", *near)
+        if ended():
+          cut = mark
+          break
         continue
       here = self.pose_xy()
       if not any(math.hypot(here[0] - lx, here[1] - ly) < LOOKED_M for lx, ly in looked):
         rec["arounds"] += 1
         if (yield from self._look_around_routine(halt)):
+          cut = mark
           break
         looked_round(here)
         continue
@@ -559,7 +591,22 @@ class HumanoidPlaces:
       yield from self.drive_to_routine(vp[0], vp[1], timeout=min(left(), VIEWPOINT_PATIENCE_S),
                                        stop=halt)
       walked("viewpoint", *vp)
-    return done(ended())
+      if ended():
+        cut = mark
+        break
+    why = ended()
+    if why == "interrupted":
+      # ...kept for `resume`, the step its stop cut short unbooked so it is
+      # taken again: a walk to a viewpoint or the address, a guess, a look
+      if cut is not None:
+        del guessed[cut[0]:], tried[cut[1]:]
+        went_near, began = cut[2], cut[3]
+        rec.update(guesses=cut[4], viewpoints=cut[5], arounds=cut[6])
+      self._find_kept = {"tag": tag, "near": near, "rec": rec, "t": began_t,
+                         "searched": searched + float(self.data.time) - t0,
+                         "looked": looked, "guessed": guessed, "tried": tried,
+                         "began": began, "wentNear": went_near}
+    return done(why)
 
   # ---- what the search asks of its body ------------------------------------------
 

@@ -1406,14 +1406,16 @@ class HumanoidBody(Body):
 
   def forget_world(self) -> None:
     """`Body.forget_world`: the map, its layer, the walls it is kept off,
-    the plan it last made, the places it found and a step aside under way
-    to a spot on that map (`HumanoidWay.drop_aside`), gone."""
+    the plan it last made, the places it found, a search its interrupt
+    stopped, and a step aside under way to a spot on that map
+    (`HumanoidWay.drop_aside`), gone."""
     m = self.mission
     m.drop_aside()
     m.forget_map()
     m.places.forget()
     m.low[:] = 0.0
     m._walls_t, m._walls_mask, m._plan_memo = None, None, None
+    m._find_kept = None
 
   def plan_frontier(self, blacklist):
     from pluggybot.behavior.navigation import plan
@@ -1568,10 +1570,11 @@ class HumanoidBody(Body):
 
   places = property(lambda self: self.mission.places)
 
-  def find_tag_routine(self, tag, near, patience, stop=None):
+  def find_tag_routine(self, tag, near, patience, stop=None, resume=False):
     """Its mission's search (`humanoid.places`, #559's stage 3): the
     quadruped's, its looks through the head's navigation camera."""
-    return self.mission.find_routine(tag, near=near, patience=patience, stop=stop)
+    return self.mission.find_routine(tag, near=near, patience=patience, stop=stop,
+                                     resume=resume)
 
   # ---- the quadruped's world: not the humanoid's yet -----------------------
 

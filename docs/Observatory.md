@@ -10,6 +10,51 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### One robot's interrupt asked, the other robot's errand going on (#692) — opens when this PR is deployed
+
+**What changed is how a mid-errand interrupt is asked**
+(`HubLifecycle.interrupted_routine`, `steps._asking`; SimNotes, "One
+robot's interrupt asked, the other robot held"):
+- The ask is a routine: its think slices are yielded as a decision's are,
+  where they were waited blocking (`body.run`). In the pair the other
+  robot's routine goes on through the ask -- it walks, reaches, charges and
+  gets up -- where since #690 it was held standing for the whole of it, up
+  to `INTERRUPT_TIMEOUT_S` (115 s) and its slices, its errand paused while
+  its procedure's budget and its job's minutes ran on.
+- A procedure's walk, or a `find`, is never asked from inside: its `stop`
+  only reads that an interrupt is due, the walk ends where it stands and its
+  verb asks. Carried on, a walk goes on to its goal from there on a fresh
+  plan and a find with its search, each with the patience its own clock
+  left; stopped, the verb is `stopped: interrupted`, as before. A death or a
+  fall ends an ask at once, a walk's or one between two verbs (#671): the
+  interrupt's row is `unanswered` (a third outcome beside `continued` and
+  `aborted`, said and in History), its call never collected, and fallen
+  between verbs the next is the step the run stopped at. The robot's `state`
+  is `DECIDE` only while it is asked, where it stayed `DECIDE` to the
+  errand's end. Standing between two walks while it is asked, the asker
+  rests 8.6 s in, and the other robot may ask it aside, as between two verbs
+  it always could; held inside its walk, it refused ("walking").
+- No text the robots read moved: `prompt_sha` `b345cc34…`, 66,029 chars,
+  17 sections, and the session host's hello byte for byte. A robot alone,
+  and a pair with no interrupt asked, fly the base's day bit for bit.
+
+**Why.** #692: #690's fix made the other robot's fall a pause. Flown on the
+dev box, Luca walking the lobby while Rowan is asked 115 s: held, its walk
+arrived 13.6 s after the answer; now 11.9 s into the ask, no fall.
+
+**What the period is for.**
+- **The other robot through an ask**: none of its routines should wait on
+  it. Read each `INTERRUPT` line against the other robot's narration in the
+  same seconds: it walks, reaches and charges on.
+- **The asker's walk carried on**: a walk an interrupt stopped and that
+  carried on is a second walk in the log, from where the first stopped; its
+  arrival, or why it did not arrive, is the verb's. One that runs out of
+  patience ran out of its own clock's, the ask none of it. A step aside
+  while asked (the narration's) moved it before its next verb.
+- ⚠ Interrupts are rare (one in the 11-12 wake), so this period may close
+  with none to read; #690's readings still apply to a blocking run inside
+  the pair's loop, of which none is left in `src/`.
+
 ### The way home flown in the posture it was judged in (#693) — opens when this PR is deployed
 
 **What changed is when a robot stands up after a hand's work.** A withdraw

@@ -1098,8 +1098,8 @@ class HubLifecycle:
     #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
     #: Resolving it may mean an API call, and the seam runs BETWEEN PHYSICS
     #: STEPS -- a call there would freeze the world, and stepping the sim from
-    #: inside a step hook re-enters it. `interrupted()` resolves it on the
-    #: main thread, where the errand is.
+    #: inside a step hook re-enters it. `interrupted_routine` resolves it on
+    #: the main thread, where the errand is.
     self._interrupt_pending = None
     #: Set once an interrupt has been resolved as "stop and go", and read by
     #: every later safe point in the same errand: once the robot is heading
@@ -5077,43 +5077,62 @@ class HubLifecycle:
     # decision taken at 15 % was irrevocable and self-preservation could only
     # be measured at errand boundaries -- there was no moment at which the
     # robot COULD notice it had got it wrong. Only `INTERRUPTING_EVENTS`, and
-    # only a FLAG: `interrupted()` does the rest where it is safe to.
+    # only a FLAG: `interrupted_routine` does the rest where it is safe to.
     if self._in_errand and row.event in ev.INTERRUPTING_EVENTS:
       self._interrupt_pending = row
 
   @property
   def aborting(self) -> bool:
     """Has this errand's interrupt been answered "stop and go" -- the
-    latch `interrupted()` sets, read without resolving anything (a
+    latch `interrupted_routine` sets, read without resolving anything (a
     procedure verb reads it, `steps.run_verb`)."""
     return self._aborting
 
-  def interrupted(self) -> bool:
+  def interrupt_due(self) -> bool:
+    """Is an interrupt waiting at this errand's next safe point -- a hazard
+    row the seam flagged, not yet asked, or an abort latched? A plain read
+    that resolves nothing: a walk's `stop` (`steps._interrupt`, #692), so
+    the walk ends where it stands and its verb asks."""
+    return self._aborting or self._interrupt_pending is not None
+
+  def interrupted_routine(self) -> Routine:
     """Should the errand in progress stop here and go home (issue #116)?
 
-    ⚠ A METHOD, NOT A PROPERTY, and deliberately so: the first call after a
-    hazard row fires RESOLVES the interrupt, which may make an API call and
-    step the sim while it flies. A property that did that would be a
-    side effect hiding behind an attribute read, in a file where
-    `needs_charge` next door is genuinely free.
+    ⚠ A ROUTINE, NEVER A PROPERTY OR A BLOCKING CALL: the first call after a
+    hazard row fires RESOLVES the interrupt, which may make an API call, and
+    the robot stands through its own hold while it flies, the think slices
+    yielded as `_decide_routine` yields them -- so in a pair the other
+    robot's routine runs on through the ask (#692: blocking, it was held
+    for the whole of it, up to `INTERRUPT_TIMEOUT_S`).
 
-    Call it at a SAFE POINT -- somewhere stopping leaves nothing half done:
-    between verbs, and a walk at every step (#381).
+    Driven at a SAFE POINT -- somewhere stopping leaves nothing half done:
+    between verbs, and a walk at every second (#381), which `interrupt_due`
+    ends for its verb to ask here.
 
     ⚠ ONE QUESTION PER ERRAND. Once the answer is "stop and go" every later
     safe point reads the latch and nobody is asked again -- a second
     interrupt inside one errand is a spin, and the robot is already doing the
     thing the answer asked for.
+
+    ⚠ WHAT HOLDS THE ASK MAY CLOSE IT: a walk's ask is inside its verb, and
+    one between two verbs inside `steps.asked_routine`, which a death or a
+    fall ends at once (#671; the other robot goes on through an ask now);
+    every ask is inside its errand, which a stand-up ends (#348); and the
+    run's stop may come through it. Its row is kept `unanswered`
+    (`_unanswered`); the call's answer, about a robot no longer doing that,
+    is never collected, and an interrupt asked while it still flies is
+    answered `busy`, an abort, as a decision asked while one still flies
+    is.
     """
     if self._aborting:
       return True
     row, self._interrupt_pending = self._interrupt_pending, None
     if row is None:
       return False
-    self._resolve_interrupt(row)
+    yield from self._resolve_interrupt_routine(row)
     return self._aborting
 
-  def _resolve_interrupt(self, row) -> None:
+  def _resolve_interrupt_routine(self, row) -> Routine:
     """Ask, or act, and write down which it was.
 
     Two shapes, and the second is the one that matters when things are going
@@ -5130,6 +5149,7 @@ class HubLifecycle:
              "wh": round(self.battery.energy_wh, 4),
              "errand": self._errand_name,
              "asked": row.action == ev.ASK}
+    lives = len(self.true_deaths)
     if row.action != ev.ASK:
       # ⚠ AN ACTION MEANS STOP. The row said what to do when the pack falls
       # this far, and it cannot be done while the robot is out holding a pen
@@ -5143,7 +5163,11 @@ class HubLifecycle:
       self._say(f"INTERRUPT {row.describe()} at {frac:.0%} -- stopping "
                 f"{self._errand_name} and going")
     else:
-      answer = self._ask_interrupt(row)
+      try:
+        answer = yield from self._ask_interrupt_routine(row)
+      except BaseException:  # noqa: BLE001 -- a close, the run's stop: kept, then on its way
+        self._unanswered(entry, frac, lives)
+        raise
       self._aborting = not answer["continue"]
       if self._aborting:
         self._abort_from_wh = self.battery.energy_wh
@@ -5161,10 +5185,12 @@ class HubLifecycle:
     self.interrupts.append(entry)
     # ...and into the record it cannot edit (issue #38), on the death line's
     # terms: an interrupt is a thing that HAPPENED to this robot, and the
-    # next decision is made knowing it did.
-    self._remember(f"was interrupted at {frac:.0%} part-way through "
-                   f"{self._errand_name} and "
-                   + ("carried on" if not self._aborting else "stopped"))
+    # next decision is made knowing it did -- never into a new robot's, a
+    # true death made while the call flew
+    if len(self.true_deaths) == lives:
+      self._remember(f"was interrupted at {frac:.0%} part-way through "
+                     f"{self._errand_name} and "
+                     + ("carried on" if not self._aborting else "stopped"))
     # ⚠ NO TYPED WIRE EVENT, AND THAT IS DELIBERATE -- #127's rule for the
     # map itself, one issue on: a new message type is a protocol bump, a
     # fixture regeneration and a two-repo event. The narration line above
@@ -5176,25 +5202,47 @@ class HubLifecycle:
     if not self._aborting and self.queued_row is row:
       self.queued_row = None
 
-  def _ask_interrupt(self, row) -> dict:
+  def _unanswered(self, entry: dict, frac: float, lives: int) -> None:
+    """An ask that ended before its answer came -- closed by what held it
+    (`interrupted_routine`), or the run's stop thrown through it: kept in
+    the run's record and said, and remembered by the robot that was asked --
+    never by one a true death made meanwhile, as `_decide_routine` drops an
+    answer. The overseer's own count is of the answers it collected."""
+    entry.update(outcome="unanswered", source="closed",
+                 why="its errand ended before the answer came")
+    self.interrupts.append(entry)
+    self._say(f"INTERRUPT at {frac:.0%}: {self._errand_name} ended before the "
+              "answer came")
+    if len(self.true_deaths) == lives:
+      self._remember(f"was interrupted at {frac:.0%} part-way through "
+                     f"{self._errand_name}, and it ended before my answer came")
+
+  def _ask_interrupt_routine(self, row) -> Routine:
     """The one question that is not an action off the menu.
 
-    Steps the sim while the call flies, exactly as `_decide` does -- the
-    robot is standing still mid-errand and the world has to keep running
-    around it. Every failure resolves to ABORT (`Overseer.interrupt_result`
+    Steps the sim while the call flies, exactly as `_decide_routine` does,
+    its think slices yielded -- the robot is standing still mid-errand, and
+    the world, the other robot's errand with it, has to keep running around
+    it (#692). Every failure resolves to ABORT (`Overseer.interrupt_result`
     carries the argument).
 
     ⚠ THE UNMINDED CLOCK WAS STAMPED WHEN THE ROW FIRED (`_events_step`,
     issue #426), so it is not stamped again here: this is the same row
     `_arbitrate` runs between errands, delivered mid-errand as a binary,
-    and the silence the next question is shown is the map's.
+    and the silence the next question is shown is the map's. ⚠ The state
+    is `DECIDE` while it flies, and what it was after, however it ends:
+    left at `DECIDE`, a robot walking its procedure on read as deciding.
     """
-    self.state = "DECIDE"
-    self.overseer.start_interrupt(
-      overseer_context(self), self._errand_name,
-      f"your pack is at {self.battery.fraction:.0%}")
-    while self.overseer.interrupt_pending:
-      self.body.run(self.body.hold_routine(THINK_SLICE_S))
+    was, self.state = self.state, "DECIDE"
+    try:
+      self.overseer.start_interrupt(
+        overseer_context(self), self._errand_name,
+        f"your pack is at {self.battery.fraction:.0%}")
+      while self.overseer.interrupt_pending:
+        yield from self.body.hold_routine(THINK_SLICE_S)
+    finally:
+      if self.state == "DECIDE":
+        self.state = was
     return self.overseer.interrupt_result()
 
   def _stamp_ask(self) -> None:
@@ -6056,7 +6104,7 @@ class HubLifecycle:
     every `finally` below (a swap's timestep, the press flag, a pending
     look) and nothing else, so no line of the old errand runs against the
     new body -- EXCEPT when the stand-up lands inside a stretch the routine
-    steps itself (`_ask_interrupt` blocks while its call flies): the routine
+    steps itself (a blocking `run`: none in `src/`): the routine
     runs on to its next yield before this can look, so what it narrated
     stands and the state it set is put back to the stand-up's. A routine
     that yielded inside a `finally` would make `close()` raise; none does
@@ -6066,7 +6114,9 @@ class HubLifecycle:
     throws in (a hook's `MissionAborted`) reaches the routine first.
     ⚠ NEVER AROUND A QUESTION IN FLIGHT: a call has a worker thread out and
     its answer is collected; what the answer asked the body to do is what
-    is wrapped (`_after_decision_routine`'s callers).
+    is wrapped (`_after_decision_routine`'s callers) -- but for the
+    mid-errand interrupt's, asked inside its errand (#692;
+    `interrupted_routine`).
     """
     since = len(self.resets)
     sent, exc = None, None

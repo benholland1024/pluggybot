@@ -369,7 +369,8 @@ def _stub_life():
     pose=(0.0, 0.0, 0.0), watch=lambda tag: None, falls=0, arm_kept=lambda: None, carrying=lambda side: False,
     )
   return SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
-                         interrupted=lambda: False,
+                         interrupt_due=lambda: False,
+                         interrupted_routine=lambda: tick.result(False),
                          _say=lambda *a, **k: None, calls=calls, model=model,
                          world=WORLD, boards=None, ledger=None,
                          battery=SimpleNamespace(fraction=0.5, energy_wh=4.0),
@@ -553,7 +554,7 @@ def test_the_time_budget_stops_at_a_step_boundary():
 
 def test_an_interrupt_stops_between_verbs():
   life = _stub_life()
-  life.interrupted = lambda: True
+  life.interrupted_routine = lambda: tick.result(True)
   r, _ = run('def x():\n  wait(1)\n  wait(1)\n', life)
   assert r["stopped"] == "interrupted" and r["completed"] == 1
 
@@ -662,24 +663,70 @@ def test_a_verb_never_runs_again_on_a_dead_robot():
 @pytest.mark.parametrize("stop", [True, False])
 def test_a_death_while_an_interrupt_is_asked_ends_the_run_before_the_next_verb(stop):
   """#671's second review: between two verbs the interrupt's ask steps the
-  world (`HubLifecycle._ask_interrupt` blocks while its call flies), and the
-  robot may die in it. Answered stop or go on, the run ends `died` after the
-  last line that ran, the next verb never begun -- and the dead robot is
-  never asked again. Shown to fail with the death read only before the ask:
-  told to stop, the run ended `interrupted`; to go on, the next wait ran on
-  a dead robot."""
+  world (`HubLifecycle.interrupted_routine` yields its think slices while
+  its call flies, #692), and the robot may die in it. Answered stop or go
+  on, the run ends `died` after the last line that ran, the next verb never
+  begun -- and the dead robot is never asked again. Shown to fail with the
+  death read only before the ask: told to stop, the run ended
+  `interrupted`; to go on, the next wait ran on a dead robot."""
   life = _stub_life()
   asked: list = []
 
-  def interrupted():
+  def interrupted_routine():
     asked.append(float(life.data.time))
-    life.dead = {"cause": "flat"}             # ...dead as its call flew
+    for n in range(3):                        # its think slices, stepped
+      if n == 1:
+        life.dead = {"cause": "flat"}         # ...dead as its call flew
+      yield ()
     return stop
-  life.interrupted = interrupted
+  life.interrupted_routine = interrupted_routine
   r, _ = run("def x():\n    wait(1)\n    wait(1)\n    wait(1)\n", life)
   assert r["stopped"] == "died" and (r["total"], r["completed"]) == (1, 1), r
   assert [c[0] for c in life.calls] == ["wait"], "a verb began on a dead robot"
   assert len(asked) == 1, "a dead robot was asked"
+
+
+@pytest.mark.parametrize("stop", [True, False])
+def test_a_fall_while_an_interrupt_is_asked_ends_the_run_at_the_next_verb(stop):
+  """#692's second review: while one robot's interrupt is asked between two
+  verbs the other robot goes on, and the asker may fall in the ask (the
+  verb's own watch, `run_verb`'s, reads only a fall inside it). Answered stop
+  or go on, the run stops there (#671: a fall ends it, a test or not), the
+  next verb the step it stopped at, never begun, `FELL` its words. Shown to
+  fail with no fall read across the ask: the next wait ran on a fallen
+  robot."""
+  life = _stub_life()
+
+  def interrupted_routine():
+    for n in range(3):                        # its think slices, stepped
+      if n == 1:
+        life.body.falls += 1                  # ...shoved over as its call flew
+      yield ()
+    return stop
+  life.interrupted_routine = interrupted_routine
+  r, _ = run("def x():\n    wait(1)\n    wait(1)\n    wait(1)\n", life)
+  assert not r["ok"] and r["failedAt"] == 1 and "stopped" not in r, r
+  assert r["steps"][-1]["fell"] and r["steps"][-1]["reason"] == st.FELL
+  assert r["steps"][-1]["line"] == 3
+  assert [c[0] for c in life.calls] == ["wait"], "a verb began on a fallen robot"
+
+
+def test_a_fall_in_the_ask_ends_the_run_even_where_the_next_call_is_refused():
+  """#692's third review: fallen in the ask between two verbs, the next call
+  is the step the run stopped at, never begun, even where its computed
+  argument is refused and an `if` tests it -- read as a test that read
+  false, the fall was lost and the run went on past it."""
+  life = _stub_life()
+
+  def interrupted_routine():
+    life.body.falls += 1                      # ...shoved over as its call flew
+    yield ()
+    return False
+  life.interrupted_routine = interrupted_routine
+  r, _ = run("def x():\n  a = 30\n  wait(1)\n  if not wait(a * 3):\n    wait(1)\n"
+             "  wait(1)\n", life)
+  assert not r["ok"] and r["failedAt"] == 1 and r["steps"][-1]["fell"], r
+  assert r["testsFalse"] == 0 and [c[0] for c in life.calls] == ["wait"], r
 
 
 def test_a_verb_called_on_a_dead_robot_never_begins():
@@ -756,7 +803,8 @@ def test_the_same_procedure_twice_is_one_trajectory():
     mujoco.mj_resetDataKeyframe(model, data, 0)
     mujoco.mj_forward(model, data)
     body = body_for(model, data)
-    life = SimpleNamespace(body=body, model=model, data=data, interrupted=lambda: False,
+    life = SimpleNamespace(body=body, model=model, data=data, interrupt_due=lambda: False,
+                           interrupted_routine=lambda: tick.result(False),
                            _say=lambda *a, **k: None, world=WORLD,
                            boards=None, ledger=None,
                            battery=SimpleNamespace(fraction=0.5, energy_wh=1.0))
@@ -1141,7 +1189,7 @@ def test_sin_cos_atan2_and_sqrt_only_where_the_world_gives_the_maths():
   facts = HOME
   assert facts.math
   proc = compile_ok(src, facts)
-  life = SimpleNamespace(data=SimpleNamespace(time=0.0), interrupted=lambda: False,
+  life = SimpleNamespace(data=SimpleNamespace(time=0.0),
                          _say=lambda *a, **k: None, reports={})
   env = {}
   assert lang._eval(proc.body[0][2], env, life, facts) == pytest.approx(

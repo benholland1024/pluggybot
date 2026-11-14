@@ -262,16 +262,16 @@ def test_run_many_drives_a_finished_robot_by_its_wait_until_the_last_returns():
 
 def test_a_blocking_run_inside_the_loop_steps_every_robot_the_others_held():
   """#690: a blocking `run` begun inside one robot's routine -- how
-  `HubLifecycle._ask_interrupt` waits on the mind -- stepped the world with
-  that robot's stepper alone, and the other robot's body moved on with
-  nothing of its own run: on 11-12 Luca, walking, fell on its legs' stale
-  targets while Rowan's interrupt was asked, its IMU's filter blind, and got
-  up 120 deg off. Inside the loop every step of such a run is the loop's:
-  every robot applied, the world stepped once, every robot booked -- each
-  other robot held through its WAIT, begun for the run and closed at its
-  end, and its own routine never advanced (two asks never nest). Shown to
-  fail with `run` stepping its own stepper alone: b was neither applied nor
-  booked through a's run."""
+  `HubLifecycle._ask_interrupt` waited on the mind until #692 -- stepped the
+  world with that robot's stepper alone, and the other robot's body moved on
+  with nothing of its own run: on 11-12 Luca, walking, fell on its legs'
+  stale targets while Rowan's interrupt was asked, its IMU's filter blind,
+  and got up 120 deg off. Inside the loop every step of such a run is the
+  loop's: every robot applied, the world stepped once, every robot booked --
+  each other robot held through its WAIT, begun for the run and closed at
+  its end, and its own routine never advanced (two asks never nest). Shown
+  to fail with `run` stepping its own stepper alone: b was neither applied
+  nor booked through a's run."""
   log: list = []
   a, b = _Swap(log, "a"), _Swap(log, "b")
   booked: list = []
@@ -459,67 +459,58 @@ def test_one_robots_ask_in_slices_holds_the_other_through_one_wait():
   assert b.told == [2, 2, 2], "told each slice's steps"
 
 
-def test_the_other_robot_is_held_while_one_robots_interrupt_is_asked(monkeypatch):
-  """#690, the pair's wiring, on the stub: `_ask_interrupt` waits on the mind
-  with a blocking `body.run`, and while the call flies every step of it is
-  the other robot's too -- its seam (its own hooks: on 11-12 Luca's filter,
-  fall watch and odometry stood still through the 5.8 s of Rowan's ask, and
-  it fell) and its body's hold -- its routine waiting where it was until the
-  answer comes. Shown to fail with `tick.run` stepping one stepper: Luca's
-  seam missed every step of Rowan's ask."""
+@pytest.mark.parametrize("where", ["between verbs", "mid-walk"])
+def test_the_other_robots_routine_goes_on_while_one_robots_interrupt_is_asked(
+    monkeypatch, where):
+  """#692, the pair's wiring, on the stub: one robot's mid-errand interrupt
+  is asked inside its procedure -- between two verbs, or where its walk's
+  `stop` found one due -- and while the call flies its think slices are
+  YIELDED, so the OTHER robot's routine goes on: its walk, begun as the ask
+  began, arrives before the answer comes, its seam stepped at every step of
+  the ask (#690: Luca's legs and senses stood still through Rowan's 5.8 s,
+  and it fell). Shown to fail with the ask waited blocking, its slices
+  `body.run`'s: the loop held Luca through its wait, and its walk began only
+  once Rowan was answered."""
   from pluggybot import lifecycle
-  from pluggybot.mind import events as ev
+  from pluggybot.procedure import lang
+  from test_interrupt import _Mind, _flag_at, _paced_walk
   monkeypatch.setattr(lifecycle, "overseer_context", lambda life: {})
   model, data = StubBody.world()
   model.opt.timestep = 0.05                 # nothing stepped here is physics
   luca = stub_life(body=StubBody(model, data), robot_name="Luca")
   rowan = stub_life(body=StubBody(model, data, handle=SECOND), robot_name="Rowan")
-
-  class Slow:
-    """The interrupt's call, in flight for six think slices."""
-    left, event_map = 6, None
-
-    def start_interrupt(self, state, errand, why):
-      pass
-
-    @property
-    def interrupt_pending(self):
-      self.left -= 1
-      return self.left >= 0
-
-    def interrupt_result(self):
-      return {"continue": True, "why": "", "source": "llm"}
-
+  rowan.overseer = mind = _Mind(data, slices=10)          # 1 s of think
+  _paced_walk(luca)
+  _paced_walk(rowan)
+  _flag_at(rowan, 0.5 if where == "between verbs" else 1.5)
+  source = ("def job():\n  wait(1)\n  wait(1)\n" if where == "between verbs"
+            else "def job():\n  drive_to(3.0, 0.0)\n  wait(1)\n")
+  facts = lifecycle.world_facts(HUMANOID_HOME)
   seam: list[float] = []
   luca.body.step_hooks.append(lambda: seam.append(float(data.time)))
-  own: list[float] = []                     # the steps Luca's own routine took
+  walked: list[float] = []
 
-  def standing():
-    for cmd in luca.body.hold_routine(2.0):
-      own.append(float(data.time))
-      yield cmd
+  def lucas():
+    while not mind.asked:                   # ...until Rowan is asked
+      yield from luca.body.hold_routine(model.opt.timestep)
+    walked.append(float(data.time))
+    arrived = yield from luca.body.go_to_routine(0.4, 0.0)   # 0.4 s away
+    walked.append(float(data.time))
+    return arrived
 
-  asked: list = []
-
-  def asks():
-    yield from rowan.body.hold_routine(0.5)
-    rowan.overseer = Slow()
-    rowan._interrupt_pending = ev.Row(event="battery_below", action=ev.ASK, value=0.2)
-    t0 = float(data.time)
-    carried_on = not rowan.interrupted()
-    asked.append((t0, float(data.time), carried_on))
-    rowan.overseer = None
-    yield from rowan.body.hold_routine(0.5)
-
-  tick.run_many([(luca.body.stepper, standing()), (rowan.body.stepper, asks())],
-                waits=[lambda: luca.body.hold_routine(1.0), lambda: rowan.body.hold_routine(1.0)])
-  [(t0, t1, carried_on)] = asked
-  assert carried_on and t1 - t0 == pytest.approx(0.6, abs=1e-6), "six slices of 0.1 s"
+  ran, _ = tick.run_many(
+    [(rowan.body.stepper, lang.run_procedure_routine(
+      rowan, lang.compile_procedure(source, facts), facts)), (luca.body.stepper, lucas())],
+    waits=[lambda: rowan.body.hold_routine(1.0), lambda: luca.body.hold_routine(1.0)])
+  [(t0, t1)] = mind.asked
+  assert t1 - t0 == pytest.approx(1.0), "ten slices of 0.1 s"
+  assert ran["ok"] and ran["completed"] == 2, ran
+  began, arrived = walked
+  assert began - t0 <= model.opt.timestep + 1e-9, "Luca's walk began as Rowan was asked"
+  assert arrived < t1, "...and arrived before Rowan was answered"
   steps = round((t1 - t0) / model.opt.timestep)
   assert len([t for t in seam if t0 < t <= t1 + 1e-9]) == steps, \
     "the other robot's seam ran at every step of the ask"
-  assert not [t for t in own if t0 < t < t1], "...and its own routine waited where it was"
-  assert len(own) == round(2.0 / model.opt.timestep), "...then went on to its end"
 
 
 def test_a_waits_own_exception_is_raised_as_it_is_never_thrown_into_the_others():
