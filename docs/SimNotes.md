@@ -7600,10 +7600,12 @@ the place by the walk's own hand-over (`set_table_pass`, NOT OFFERED and paid
 nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
-walker (`scripts/solve.py --feature pass --from tour`; the reading is
-below). What developing it took, each measured on the loop's pods (AMD EPYC
-7B13, osmesa, each draw its own noise; rows in
-`~/pluggybot-training/loop-1113/l4-shelf/`):
+walker (`scripts/solve.py --feature pass --from tour`; the readings are
+below), three times, and has not met it. What developing it took, each
+measured on the loops' pods (AMD EPYC 7B13 and 7K62, Xeon Gold 6138,
+osmesa, each draw its own noise; rows in
+`~/pluggybot-training/loop-1113/l4-shelf/` and, round 3's,
+`~/pluggybot-training/loop-1114/n4-pass/`):
 
 - **A carried piece hangs under the pass's top.** The carry pose holds the
   cup's grip at 0.89 m and the plate's at 0.865, 0.23-0.26 m ahead of the
@@ -7616,14 +7618,21 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
   the counter). Set out 0.18-0.20 m in, the cup was gripped and the hand-over
   swept it into the counter's edge; the pieces lie 0.06-0.11 m in, and each
   is pulled back over the edge before the walk.
-- **A grip's descent holds its line.** Re-targeted off the hand's sensed
-  place (`go`), the cup's descent drifted 1.4-3.6 cm back and 11 of 16 grips
-  closed on nothing; a pull straight down that gives across its way (`give`
-  1) slid on the force reading's phantom 5-8 N -- 3.6 cm back in one flight,
-  19 cm forward with the cup pushed in another. Straight down holding its
-  line, the cup's grips landed 1.5-3.4 cm short of its middle. Gripped 4.9-5.5
-  cm short it was lost on the pull back or the walk, 7 short closed on
-  nothing.
+- **A grip's descent holds its line, and its arm.** Re-targeted off the
+  hand's sensed place (`go`), the cup's descent drifted 1.4-3.6 cm back and
+  11 of 16 grips closed on nothing; a pull straight down that gives across
+  its way (`give` 1) slid on the force reading's phantom 5-8 N. Held to its
+  line (`give` 0), the 10 cm pull down still drifted 0.9-1.6 cm (sd) across
+  the jaws from a hover that had landed within 0.3-0.4 cm of the cup's
+  middle, and put a pad on the lid's rim 2-5 times in 32 (the jaws clear the
+  70 mm cup by 1 cm a side). Reached for 5 cm over it the grip landed within
+  0.3 cm -- but the arm took another configuration there, and its pull-back
+  off the pass ran out of reach 14 of 30 (the base's 1 of 29). Brought down
+  by `move_hand` from the 10 cm hover, the arm's configuration comes down
+  with it: across the jaws within 0.2 cm (sd), none on the rim in 32. But a
+  hover that lands 0.8 cm or more short of the middle still brings the jaws
+  down on the lid: 5 of the third reading's 64 (below). Aimed 0.5 cm past
+  the middle too, the pull-back ran out of reach 7 of 27: not done.
 - **The stance turns 5-10 deg as an arm goes out**, and a reach planned
   before it put the plate's grip 4-9 cm off its 8 mm wall: the plate and the
   fork are reached to a hover 6 cm over their grip, read again there,
@@ -7687,11 +7696,88 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
   0.35 m and the front stop's 0.40 m ahead and 0.27 to each side: a carried
   piece pokes 0.10-0.15 m past the inflation on its side, and its outer edge
   past the front stop's half-width, so a walk that hugs a jamb on the
-  carrying side would strike it. Not changed (the pass's route has no door).
+  carrying side would strike it. ROUND 3 COUNTED WHAT IT COSTS this route
+  (every carried piece's touches of the room's furniture, by verb, over
+  1,307 dev flights: 645 cups, 494 plates, 299 forks carried through a
+  walk): during the Navigator's own walks a carried piece touched it 8
+  times -- the fork a dining chair 6, the plate 2, about 1 % of their
+  carries -- and the cup never; its costs are at the route's ends, the
+  procedure's (the plate on the pass at the hand-over in 315 flights, the
+  fork in 87; the plate on table 0 during the approach's steps in 37,
+  below). The Navigator is not changed.
+- **Round 3's instruments** (the loop of 11-14; `~/pluggybot-training/loop-1114/n4-pass/`,
+  each flight beside `solve.py`'s own): a free piece coming down past 0.3
+  m/s and under which verb, a carried piece or the robot touching the room,
+  each held piece's place and tilt in its grip after every verb, and the
+  planner's cells round a walk that found no way. They read the second
+  reading's "pick-up" misses as the lay's: the plate's 80 N shut at the pass
+  flickers its contact (a let-go and a hold 0.1 s apart), and the plate in
+  every one came down at the TABLE.
+- **The plate strikes the pass at the hand-over, and tilts in its jaws.**
+  From the stance the table check's distances gave (its tag 0.45 m ahead,
+  the pass's face 0.34), the hand-over took the carried plate into the
+  counter's edge in 30 of 32 legs, and from there it rode 6-18 deg tilted in
+  the pinch (14-25 at the put-down's hover). The descent's touch flattens
+  most; one still 10-24 deg tilted after it was let go 1.5-3.7 cm over the
+  table and came down at 0.5-0.63 m/s, a drop. Eased to the gripper's least
+  squeeze (5 N) first, the same flights settled flat in the jaws on the
+  table and were let go at its top (`test_solutions`).
+- **A long pull-back by `pull` re-poses and falls; by `move_hand` it does
+  not -- for the plate.** The left hand holds the plate (and the fork) with
+  its arm over the top (shoulder roll 2.8 rad). Brought back 0.27 m by the
+  force move, the posture jumped to a 20 cm crouch, a 31 deg bow and a 15
+  deg waist turn for the whole way (a force move takes another posture as
+  its arm misses), and over the second reading's and round 3's flights the
+  plate pulled back 0.26-0.30 m fell 12 of 50 (0.20-0.23 m: 0 of 99), the
+  fork 7 of 9 (3 of 46). A position move takes one posture for its whole
+  path: the same 0.27 m in a 16 cm crouch, no bow, no fall in 32 -- so the
+  plate is taken from 0.50 m (the pass's face 0.39 ahead) and brought back
+  to 0.23 by `move_hand`: struck 12 of 32, laid 23 where the old stance laid
+  17 on the same draws (`test_solutions`). Not the fork: from 0.49 m by
+  `move_hand` its pelvis still came 0.25-0.3 m toward the pass and 2 of the
+  first 4 fell at the hand-over; the fork keeps the table check's distances.
+- **A carried plate's low side meets table 0 on the approach.** At the
+  place's final stance the table's edge is about 0.13 m ahead of the soles'
+  middle and a carried plate reaches 0.31-0.40 m ahead: level (its bottom at
+  0.81) it clears the 0.72 m top, but tilted 38-53 deg in the pinch its low
+  side rides at 0.70-0.75 and the approach's steps drive it into the edge
+  (dropped carried in 8 of the 64 full sequences that first took the plate
+  from 0.50 m).
+- **The cup's put-down: its crouch.** The cup's spot is 24 cm right of the
+  card, and the right hand reaches the table's height there crouched: the
+  pull down takes a 16 cm crouch the reach to its hover did not, and the
+  stance turns about 2 deg as it does (the cup 1.5 cm further, 0.9 cm left:
+  sd 0.6/0.5). A crouching reach tilts a cup in the jaws -- of 196 put-downs,
+  4 of 139 reached uncrouched tilted past 10 deg, 22 of 39 crouched 8 cm, 11
+  of 13 crouched 16 cm (set down tilted, it rests 4 cm toward the robot or
+  topples at the let-go) -- and the crouch followed how far right of the
+  card's line the robot stood. Reached at its final height instead, the
+  crouch in the reach, it tilted 10 of 25 and laid 7 of 32 (the base 15).
+  Turned 4 deg right of square for the cup (`PASS_CUP_FACING`), its target
+  nearer the hand's middle (-0.18 m aside, not -0.24), none of 19 tilted,
+  and its rests' spread was 0.8 / 1.2 cm (toward / left) about a constant
+  bias; its offsets are the card's frame, turned by the card's angle in the
+  stance (`atan2(spot.ny, spot.nx)`: square-on, a 3 deg error is 1.3 cm
+  toward the robot), and moved by where dev draws set the cup down
+  (`PASS_CUP_AT`).
+- **A carried plate or fork walls the robot in.** The robot's own body is
+  left out of its depth camera by its geoms, and a held piece only within
+  `HELD_DROP_M` (0.12 m) of the grip: the cup, gripped at its middle, lies
+  inside it; the plate's rim reaches 0.18 m from its grip and the fork's head
+  0.13. Seen in the band and the depth camera's layer as the robot turns at
+  the pass, it rings the robot round: "no route over the floor mapped so
+  far", 4.5-4.8 m short after 0-2 s, or 0.1-0.4 m short of the place's
+  standoff. Walks lost carrying: the cup 1 of 64, the plate 2-6 of 32 a
+  round, the fork 5-7 of 32. With the self-filter at 0.20 m (measured, NOT
+  changed: its volume is Ben's call 5 on #682): the plate lost 0 of 32, the
+  fork 0 of 32 (its own base 6). The walk to the place's standoff is no
+  longer insisted on (`if not drive_to(...)`): stopped 0.1-0.4 m short, it
+  goes on to the card's own steps.
 - **The bar's readings: NOT MET.** Written before any flight (24 of 32 draws
   over the tour, a fall failing the try, on walk2 and on the carry walker,
   one pod, then 32 held-out draws each, sealed by the frozen commit), and
-  read twice on one pod (an AMD EPYC 7B13, osmesa):
+  read twice on one pod (an AMD EPYC 7B13, osmesa), then a third time on
+  another (an AMD EPYC 7K62):
   - At b531491 (the cup aimed 2.5 cm short): walk2 0 of 32, the carry walker
     0; held out, 1 (laid in 421 s) and 0. The first piece not laid, a flight
     (walk2's bar and held-out draws, then the carry walker's): the cup let
@@ -7707,8 +7793,9 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
     in 1 (34 before). Walk2's first piece not laid, the bar's draws and the
     held-out: a put-down off its place 13 and 16 -- the cup's, set down a
     median 1.5 cm right of its spot and up to 7 cm either side of it; a
-    pick-up at the pass 4 and 8 (the plate came down as its grip shut, near
-    the pass's edge, 14 times in the 64); a fall 3 and 0 (the fork's pull
+    pick-up at the pass 4 and 8 -- in fact the plate coming down at the
+    TABLE's put-down, read as the pick-up's by a contact flickering as its
+    grip shut (round 3, above); a fall 3 and 0 (the fork's pull
     back from the pass felled the robot 3 times in each reading's bar
     draws); a cup let go by the walk's hand-over 2 and 0 (its pull back
     still ran out of reach in 4).
@@ -7717,6 +7804,43 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
     fall): its walk leaves the card a median 0.46 m ahead and 6 cm to its
     right, where walk2's leaves it 0.52 ahead and 5 cm to its left, and the
     reference's put-downs are walk2's stances.
+  - At bc07d5e (round 3, above), on walk2 alone (nothing argued for serving
+    the carry walker): 15 of 32; held out (sealed by bc07d5e), 11; each laid
+    in 387-494 s. Two draws were flown both by `solve.py` and by round 3's
+    instrumented runner, and they agreed in grade and sim time; the reading
+    went through the runner. Over the bar's 32, the cup was laid in 22, the
+    plate in 30 and the fork in 25. The first piece not laid in each flight
+    (the bar's draws, then the held-out), each flight read:
+    - **the lay**, 8 and 14:
+      - The cup's put-down: 3-4 cm off in 7 and 8 cm once, and tipped in
+        the jaws in 2. Its force move down takes a waist turned a further
+        15-30 deg, or a 16 cm crouch, and carries the cup about 2 cm across,
+        give or take 1.2 cm (sd).
+      - The fork's: 3 cm off in 5, where its grip lands along the handle
+        varying over 5 cm. Its put-down was out of reach once, and it was let
+        go over the table twice.
+      - The plate's: out of reach in 2, 3 cm off once, let go tilted once.
+      - In 4 of these 22, the approach had left the robot 12-24 cm across
+        the card's line from where it stands at the median; 8 approaches in
+        10 end within 4 cm of it.
+    - **the grip**, 5 and 1:
+      - The cup was lost at its pick in 5. Each was reached to a hover
+        0.8-1.3 cm short of its middle, the jaws met the lid on the descent
+        (held back), the cup tipped 34-46 deg in the jaws, and the lift read
+        it gone. Every hover within 0.8 cm either way came down straight.
+      - The fork's reach stopped short once, after `near`'s 0.18 m step
+        aside.
+    - **the carry**, 2 and 3:
+      - The plate, riding tilted in its pinch, slid off at table 0 on the
+        approach in 3, once after striking the pass.
+      - The cup's pull back ran out of reach and the hand-over let it go in 2.
+    - **a fall**, 2 and 3: every one was the fork's pull back from the pass,
+      the pull itself or the hand-over after it.
+    - **the walk**, 0 and 0.
+
+    The tally the first two readings were read by takes a piece's first
+    let-go. Read that way, this reading's first misses are a put-down 8 and
+    13, a pick-up 6 and 4, a carry 1 and 1, and a fall 2 and 3.
 
 ## The arms keep off the other robot (issue #678)
 
