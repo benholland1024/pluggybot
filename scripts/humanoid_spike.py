@@ -37,8 +37,14 @@ the parts and the bill.
                 back, its front and its side; `jaws` -- our table reference
                 flown to its fork's grip, then the fork shut on again from
                 that moment at 40, 80 and 120 N, the jaws as they were before
-                #628 and as built, how each ended said
-  --strip SCENE the scene's filmstrip, headless (`--out` names it)
+                #628 and as built, how each ended said; `way_home` -- bowed at a
+                0.72 m counter whose edge is 13 cm ahead of its soles' middle,
+                its left arm where Luca's way home began at the cupboard's
+                lever (#693), sent home: home in the bow, then the stand
+                (`--stand-at-once`: the stand as it sets off, as before #693 --
+                a jaw on the counter's top, and over backward)
+  --strip SCENE the scene's filmstrip, headless (`--out` names it); `way_home`'s
+                is both ways, the stand as it sets off and once home
   --policy NPZ  fly another standing policy (default models/humanoid_stand.npz)
   --mass        the mass budget by segment, beside the T2's published model
   --torque      the torque table: each joint's load against its actuator's
@@ -5198,12 +5204,151 @@ def speed_table(sim_s: float = 60.0, profile: bool = False) -> None:
           flush=True)
 
 
+# ---- the scene: `way_home` (#693) -----------------------------------------------------
+
+#: Where Luca's way home began at the cupboard's lever (11-12 19:59, door
+#: draw 8 flown): the left arm's joints as its withdraw sent it home, after
+#: the 8 cm line out -- behind the toes in the bow it worked in, so judged
+#: straight, unchecked -- and that bow; a 0.72 m counter whose front edge
+#: stands this far ahead of the soles' middle, m (13 cm: 38 N*s up on the
+#: arm and a fall with the stand asked as it set off; 14 cm: 3.5 N*s, none).
+WAY_HOME_ARM = np.array([0.9008, 0.1824, 0.0185, 1.3846, 1.3785, -0.7419])
+WAY_HOME_BOW, WAY_HOME_EDGE, WAY_HOME_TOP = (0.0, 0.3), 0.13, 0.72
+
+
+def way_home_world():
+  """The humanoid standing before the scene's counter (`WAY_HOME_EDGE`)."""
+  def scenery(spec):
+    front = to_world((WAY_HOME_EDGE, 0.0, 0.0))
+    c, s_ = math.cos(STAND_YAW), math.sin(STAND_YAW)
+    body = spec.worldbody.add_body(name="way_home_counter",
+                                   pos=[front[0] + c * 0.3, front[1] + s_ * 0.3, 0.0],
+                                   quat=_yaw_quat(STAND_YAW))
+    body.add_geom(name="way_home_counter", type=mujoco.mjtGeom.mjGEOM_BOX,
+                  size=[0.3, 0.6, WAY_HOME_TOP / 2], pos=[0, 0, WAY_HOME_TOP / 2],
+                  rgba=[0.62, 0.48, 0.34, 1])
+  model, data = standing_world(scenery)
+  return model, data, Humanoid(model, data)
+
+
+def way_home_scene(h: Humanoid, at_once: bool):
+  """Bowed as the reach left it, the left arm to where Luca's way home
+  began, then sent home (`Reach.retreat`): the stand once it is home -- or
+  `at_once`, as it sets off (the rule before #693) -- and 3 s more. Yields
+  a line for each thing that happens, else None, a physics step each."""
+  from pluggybot.humanoid import reach as rc
+  ahead = rc.Reach._ahead
+  if at_once:
+    rc.Reach._ahead = lambda self, side: True
+  try:
+    yield from wait(h, 1.0)
+    h.reach.hold_posture(*WAY_HOME_BOW)
+    yield "bowed 0.3 rad, as the reach at the lever left it"
+    yield from wait(h, 2.5)
+    h.reach.set_joints("left", WAY_HOME_ARM)
+    yield "the left arm where Luca's way home began, behind the toes"
+    yield from wait(h, 3.0)
+    h.reach.retreat("left")
+    yield ("sent home, the stand asked as it sets off" if at_once else
+           "sent home: the stand once it is home")
+    cg = h.m.geom("way_home_counter").id
+    f6, up, said, t0 = np.zeros(6), 0.0, set(), h.d.time
+    while h.d.time - t0 < 4.5:
+      h.step()
+      for i in range(h.d.ncon):
+        g1, g2 = int(h.d.contact.geom[i, 0]), int(h.d.contact.geom[i, 1])
+        if cg in (g1, g2) and h.m.geom(g2 if g1 == cg else g1).name.startswith("left_"):
+          mujoco.mj_contactForce(h.m, h.d, i, f6)
+          up += abs(f6[0]) * float(h.d.contact.frame[i][2]) * (1.0 if g1 == cg else -1.0) \
+            * h.m.opt.timestep
+      if up > 1.0 and "touch" not in said:
+        said.add("touch")
+        yield f"{h.d.time - t0:.1f} s: a jaw on the counter's top"
+      if h.reach.phase["left"] == "rest" and "home" not in said:
+        said.add("home")
+        yield f"{h.d.time - t0:.1f} s: the arm's command home"
+      if h.fallen() and "fell" not in said:
+        said.add("fell")
+        yield f"{h.d.time - t0:.1f} s: fell, the counter's push on the arm {up:.0f} N*s up"
+      yield None
+    if "fell" not in said:
+      yield f"stood, the counter's push on the arm {up:.0f} N*s up"
+  finally:
+    rc.Reach._ahead = ahead
+
+
+def view_way_home(at_once: bool = False) -> None:
+  from mujoco import viewer as mj_viewer
+  print("the `way_home` scene (#693): bowed at a 0.72 m counter, the left arm where Luca's "
+        "way home began, sent home -- " + ("the stand asked as it sets off, as before #693"
+                                           if at_once else "the stand once it is home") +
+        ". Close the window to quit.")
+  model, data, h = way_home_world()
+  with mj_viewer.launch_passive(model, data) as viewer:
+    viewer.cam.lookat[:] = to_world((0.05, 0.25, 0.75))
+    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 2.0, \
+      math.degrees(STAND_YAW) + 90.0, -10.0
+    while viewer.is_running():
+      wall = time.time() - data.time
+      for line in way_home_scene(h, at_once):
+        if line:
+          print(f"  -> {line}")
+        if not viewer.is_running():
+          return
+        if int(round(data.time / model.opt.timestep)) % 10 == 0:
+          viewer.sync()
+          ahead = data.time - (time.time() - wall)
+          if ahead > 0:
+            time.sleep(ahead)
+      # ...again from the stand, the world as it was built
+      mujoco.mj_resetData(model, data)
+      _pose(model, data, hm.stand_qpos())
+      h = Humanoid(model, data)
+
+
+def filmstrip_way_home(out: str) -> None:
+  """The `way_home` scene both ways, a row each -- the stand as the arm
+  sets off (before #693), and once it is home -- a tile every 0.25 s from
+  the arm sent home, the robot's left side from a fixed camera."""
+  from PIL import Image, ImageDraw
+  rows = []
+  for at_once in (True, False):
+    model, data, h = way_home_world()
+    r = mujoco.Renderer(model, 300, 300)
+    cam = mujoco.MjvCamera()
+    cam.lookat[:] = to_world((0.05, 0.25, 0.75))
+    cam.distance, cam.azimuth, cam.elevation = 2.0, math.degrees(STAND_YAW) + 90.0, -10.0
+    tiles, sent, due = [], None, 0.0
+    for line in way_home_scene(h, at_once):
+      if line:
+        print(f"  {'at once' if at_once else 'once home'}: {line}")
+        if line.startswith("sent home"):
+          sent, due = data.time, data.time
+      if sent is not None and data.time >= due and len(tiles) < 12:
+        due += 0.25
+        r.update_scene(data, cam)
+        img = Image.fromarray(r.render())
+        ImageDraw.Draw(img).text(
+          (6, 6), f"{'stand at once' if at_once else 'stand once home'}  +{data.time - sent:.2f} s",
+          fill=(255, 255, 255))
+        tiles.append(img)
+    r.close()
+    rows.append(tiles)
+  strip = Image.new("RGB", (300 * max(len(t) for t in rows), 300 * len(rows)), (255, 255, 255))
+  for i, tiles in enumerate(rows):
+    for k, tile in enumerate(tiles):
+      strip.paste(tile, (300 * k, 300 * i))
+  strip.save(out)
+  print(f"wrote {out}")
+
+
 SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
           "reach": view_reach, "grasp": lambda: view_stage2("grasp"),
           "pull": lambda: view_stage2("pull"), "bar": lambda: view_stage2("bar"),
           "feel": lambda: view_stage2("feel"),
           "demo": view_demo, "walk": view_walk, "rough": view_rough, "stairs": view_stairs,
-          "fall": view_fall, "getup": view_getup, "jaws": view_jaws}
+          "fall": view_fall, "getup": view_getup, "jaws": view_jaws,
+          "way_home": view_way_home}
 
 
 #: The `--moving` table's moves (#631): reaches either hand, high, low, far,
@@ -5425,6 +5570,8 @@ def main(argv=None) -> None:
   ap.add_argument("--profile", action="store_true", help="with --speed")
   ap.add_argument("--jobs", type=int, default=4, help="processes for a table's flights")
   ap.add_argument("--out", default="humanoid_spike.png")
+  ap.add_argument("--stand-at-once", action="store_true",
+                  help="`--view way_home`: the stand asked as the arm sets off, as before #693")
   args = ap.parse_args(argv)
   policy = StandPolicy(args.policy) if args.policy else None
   if policy is not None:
@@ -5433,7 +5580,9 @@ def main(argv=None) -> None:
   if args.getup_policy:
     global _GETUP
     _GETUP = args.getup_policy
-  if args.view:
+  if args.view == "way_home":
+    view_way_home(args.stand_at_once)
+  elif args.view:
     SCENES[args.view]()
   elif args.strip == "reach":
     filmstrip_reach(args.out)
@@ -5449,6 +5598,8 @@ def main(argv=None) -> None:
     filmstrip_stairs(args.out)
   elif args.strip in ("fall", "getup"):
     filmstrip_falls(args.strip, args.out)
+  elif args.strip == "way_home":
+    filmstrip_way_home(args.out)
   elif args.strip and args.strip != "body":
     filmstrip_stage2(args.strip, args.out)
   elif args.shove:
