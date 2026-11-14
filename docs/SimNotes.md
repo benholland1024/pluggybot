@@ -1942,7 +1942,8 @@ which has its tables and the descent's state). Each fix above is pinned in
 `tests/test_humanoid_stairs.py`.
 
 **Falling, and getting up** (`humanoid/getup.py`, `Pluggy-Humanoid-Getup`
-and `-Getup-Head`; `humanoid_spike.py --fall`, `--view fall`, `--view
+and `-Getup-Head`, and the served get-up's `-Getup-Wall3-Mirror` since #679,
+below; `humanoid_spike.py --fall`, `--view fall`, `--view
 getup`). Without a get-up a fall is today's `stuck` death: a heart, and on
 a served world a stand-up 300 s later. The get-up policy takes every joint,
 arms too, once the IMU reads the trunk tipped 35 deg past the posture its
@@ -1950,16 +1951,19 @@ legs hold (below: a bow is no fall) or the pelvis has sunk under 0.40 m
 over the sole it stands on (shoved hard from the front, the standing
 policy folded into a squat 32 deg off upright, and the tilt alone never
 fired), and hands back once it has stood still 0.5 s. Shoved 45 N*s each of
-six ways on a bare floor, by our grading off the world:
+six ways on a bare floor, by our grading off the world (the waist's body,
+11-13; a get-up's peaks to its first stand, the waist held home as the
+mission holds it):
 
 | falling as | stood | the head struck at, m/s (the floor's push back, kN) | gears past their part's peak | the hardest into a hard stop |
 |---|---|---|---|---|
-| the standing policy | never | 3.8-5.0 (5.5-10.0) in four falls of six | 0-10 joints, to 3.9x (an elbow) | 530 N*m |
-| limp | never | 1.2-5.3 (to 9.7) in five | 0-4 joints, to 4.0x | 232 N*m |
-| the get-up policy | all six, 2.7-4.2 s | 0.3-3.3 (at most 0.3) in three; in three not at all | 1-8 joints, to 1.2x | 592 N*m |
+| the standing policy | never | 5.0-5.4 (1.6-8.9) in four falls of six | 4-8 joints, to 4.3x (an elbow) | 577 N*m |
+| limp | never | 0.4-6.0 (to 8.5) in all six | 0-4 joints, to 4.2x | 384 N*m |
+| the get-up policy | all six, 2.9-3.7 s | 4.0-5.4 (to 5.9) in two; in four not at all | 1-8 joints, to 1.3x | 570 N*m |
+| getup3, served until #679 | all six, 3.1-3.8 s | 0.1-6.0 (to 4.6) in three | 3-9 joints, to 1.7x | 416 N*m |
 
-From lying it stood in 3.0 s off its back, 2.1 off its front and 2.7 off
-its side. The kilonewtons are MuJoCo's soft contact -- the shape of a
+From lying it stood in 2.2 s off its back, 2.0 off its front and 2.9 off
+its side (getup3 2.9, 2.3 and 2.9). The kilonewtons are MuJoCo's soft contact -- the shape of a
 blow, not a number to bank -- and the torque through each gear counts what
 its rotor's inertia takes as the joint is stopped short, the shock that
 strips a gearbox. What it took:
@@ -1977,13 +1981,12 @@ strips a gearbox. What it took:
   before it had; 1000 iterations with sides among the starts brought it
   back.
 
-In the house, shoved the same four ways at five places, it stood 17 times
-in 20 within 15 s, the slowest 11.9 s, on the flight four in four. Down at
-15 s: shoved sideways in the 3 m hall, against the wall it fell into; and
-twice at the landing's edge, once to the foot of the flight, where it stood
-at 30 s. So a fall into a wall or off the landing is a `stuck` death still,
-and getting up among walls and flights is the training that would close it
-(the get-up trained on open floor alone). The stuck budget is 20 s, as
+In the house, shoved the same four ways at five places and read on #684's
+clock (watched 25 s), it lives through 18 of 20: it dies at the landing's
+edge, shoved forward and back (getup3 17, down on the flight shoved left
+too). A fall off the landing is a `stuck` death still, and so is one that
+leaves it on its side facing a wall or the counter within 0.1 m of it
+(below). The stuck budget is 20 s, as
 the quadruped's was (`HumanoidBody.GETUP_BUDGET_S`). The mission waits out a
 get-up before handing the legs to a walk (⚠ a fall mid-walk with the arms
 home found them at rest and took the legs off the floor; one on the step
@@ -1992,6 +1995,114 @@ fall while the walker settled went to the standing policy at the settle's
 end, #520), and on standing again forgets its map of the ground and starts
 its height again over the ground it stands on, as at boot (⚠ kept through
 a fall down the flight, the height was 0.41 m off at the foot for good).
+
+**Getting up beside a wall or the counter** (#679; `--fall`'s counter and
+lying tables, `Pluggy-Humanoid-Getup-Wall`). The get-up trained on open
+floor alone (getup3, served until #679) never stands a body lying on its
+SIDE with its FRONT to a face. Laid along the storeroom's counter and its south wall with the
+truth -- the joints at the stand's, its nearest part 0, 0.1 or 0.25 m off
+the face -- it stood from every other way of lying (its side with its back
+to the face in 2.8-3.5 s, its back in 4.0-10.2, its front in 2.4-4.8) and
+from that one never in 25 s, at the 0.72 m counter and the 2.4 m wall alike
+(0 of 18): it rolls onto its front to push up, the face stops the roll, and
+it pushes again for as long as it lies there. That is how the counter's
+falls of 11-08 lay: flown again on the build that fell (#646's thin grip
+pulled the robot over, which #647 stopped; the get-up's code and file are
+unchanged since), it stood within 20 s in 0 of the 14, one at 30.4 s. Shoved
+45 N*s from each prop's work spot, it went down in 20 of 24 and stood within
+20 s in 15; the five that did not stayed against the counter, three of
+them shoved to their right. Fine-tuning getup3 on today's body with a box
+beside it taught, each flown in the served physics but the last:
+- ⚠ *A lean is no stand*: paid from 25 deg off upright, as on open floor,
+  it stood leaning on the counter 17-20 deg off upright, and the served
+  get-up, which hands back at 10, never did -- neither up nor past 60 deg,
+  the get-up holding the legs for good. The stand is paid within 10 deg and
+  touching nothing of the box.
+- ⚠ *Keep the noise*: with no entropy bonus the action's noise fell from
+  0.23 to 0.06, and a get-up that stood at the stand's height 3 deg off
+  upright shook at 0.9 rad/s and was never handed back. The training physics
+  cannot say so: there a standing robot turns on its soles at ~1 rad/s,
+  getup3 too.
+- ⚠ *A lazy mean*: on today's body getup3 pays 4-7 times the torque charges
+  it paid on its own, and the fine-tune cut them by not trying: in the
+  training physics its mean action lay still on its back beside the box in
+  136 of 256 starts that getup3 stood from in 252. Staying down is charged
+  (`down`).
+- ⚠ *A one-sided get-up*: fine-tuned, it rose off its back by rolling to its
+  left, and lay still beside a box there (in the training physics 10 % stood
+  with the box at its left, 100 % at its right; getup3 96 and 100). Each
+  sample and its mirror image trained together (`-Getup-Wall-Mirror`) kept
+  it even: 100 and 100.
+
+The first round's pick, getupwall10's iteration 8450 (from getup3; never
+served), chosen on the training physics alone (`python -m humanoid_train.scan`,
+ten starts), stood from the counter's falls by catching the falling body
+against the counter rather than lying down along it (getup3 from none), and
+from a side facing the face only 0.25 m off it; but shoved sideways in the
+hall and left or front-left at the chest it SITS, or lies propped on the
+wall -- never past 60 deg, the get-up holding the legs, which since #684 is
+the `stuck` death at 20 s -- and its head struck 1 m/s or more harder than
+getup3's in 16 rows. Later checkpoints stood more often from a side facing
+the face and lost the back beside a box on its left again.
+
+**The wall get-up's second and third rounds** (#679; `--fall`'s tables read
+on #684's clock, `-Getup-Wall2-Mirror`, `-Getup-Wall3-Mirror`). Flown on past
+its first stand as the mission flies it -- the legs back to the standing
+policy, the watch on, a fall taken again -- until the `stuck` clock settles
+(`StuckClock`; the tables had stopped at the first stand, or watched on with
+nothing to take a second fall), getupwall10 regresses on SIX of the 151 falls
+getup3 lives through, not four: lying on its back, head back,
+against the counter, it stands in 5.1 s with its back to the counter, the
+standing policy sways back onto it 2.7 s later, and it ends on hands and
+knees. getup3 lives through 119. The three sitters hold one posture (the
+left hip flexed 2.1-2.8 rad, the right turned 0.65-1.0) -- a fixed point of a
+blind policy, as the prop on the wall and the hands and knees are; in the
+hall it sat down with its trunk never past 32 deg. Started there (`posed`: where it
+ended each fall, and the fall as the get-up was handed it,
+`humanoid_spike.py --fall-ends`), the training physics' mean action learned
+to rise from a sit in half the starts (0.04 to 0.50-0.54); a wall far in the
+way a body tips taught nothing, the training's clean tip standing 32 of 32
+against it. That round's pick stood from the hall's left and the counter's
+two, but stood faster with its soles 0.53-0.65 m apart (getup3's 0.32), and
+given that stance the standing policy tipped within 2 s in nine falls the
+get-up then never stood from: 14 regressions. ⚠ A get-up trained never
+handing back stands where the standing policy cannot keep it. Trained handing
+back (`HandBackAction`), in the training physics:
+- ⚠ *Its stillness is not the training's*: waiting for the trunk's turning
+  under the served get-up's 0.3 rad/s, the action's noise never let it settle,
+  and nothing was handed back.
+- ⚠ *A get-up keeps the legs where it can*: with the stand paid whoever held
+  it, both runs learned within 450 iterations to stand just outside the
+  hand-back; paid only handed back, within 170; with the wait charged too,
+  within 140 -- handed back, the get-up's own joint and torque charges read
+  the standing policy's stepping against the training physics' ~1 rad/s turn
+  on the soles (an episode's -18 against -0.5). Paid only handed back and
+  charged only while it holds the legs, it handed back in 0.78-0.86 of every
+  second it could through 1000 iterations.
+The served get-up since #679, `models/humanoid_getup.npz`, is getupwall14's
+iteration 9850 (that round's pick carried on handing back, chosen in
+`-Getup-Wall3`'s physics before the bar was read). It loses none of the 151
+falls getup3 lives through on the clock and gains 24 (lying along a face 57
+of 63 to getup3's 39, the counter's shoves 20 of 20 to 15, the house's 18 of
+20 to 17) -- all six of getupwall10's back, the hall shoved back standing in
+2.9 s, its soles 0.35 m apart and 0.26 m 0.4 s later -- and stands from the
+counter's falls inside the 20 s (2.8-14.8 s after the take). Lying on its
+side facing the face, touching it or 0.1 m off, it still never stands (the
+six of the 63 it does not). Its slowest of the 151: shoved left at the
+chest, it sits, and rises 18.2 s after the take. Its head strikes in fewer
+of the rows (58 to getup3's 68), softer at worst in every table but the
+bow's: there 7.0 m/s, the rim of its cap, from the stand shoved forward at
+30 N*s (getup3 1.3), and 10 falls from a bow 1 m/s or more harder. On 130
+falls outside the bar (the shoves at 35 and 55 N*s, the bar's 45; laid 0.05
+and 0.18 m off a face), never trained on, it lives through 110 to getup3's
+93 and loses 3 of getup3's: shoved right at 35 N*s it sits in a posture its
+posed starts never held, and one fall back down the flight. Read again on
+the tree it is served on (over staging's 13ddef7, beside getup3, on one pod
+of the CPU type the rounds were read on, 11-13), the 151 and the 130 came out
+row for row as they had; the counter's 14, flown on that pod for both (the
+rounds had flown them on the dev box), part from the dev box's flights by
+the CPU (one, n1425-1, does not fall there), and it stands from the 13 that
+fall (getup3 from none).
 
 **A bow is no fall** (#520). The IMU is on the pelvis and the body has no
 waist, so a bow the standing policy is asked tilts it by the whole bow, and
@@ -2008,23 +2119,24 @@ range, or a stand's trim read the floor's held bow 2.3 deg tipped, not
 2.5 deg going down and 1.5 coming up, and stage 5's 38 shoves from the
 stand come out row for row as before. From each posture a reach takes,
 shoved four ways at 10-45 N*s (`--fall`'s third table; on the standing
-policy alone, graded by us, then as served; times from the shove):
+policy alone, graded by us, then as served; times from the shove; the
+waist's body and its standing policy, waist16, 11-13):
 
 | posture | falls | taken first by the tilt, the collapse | ahead of the strike, s | shoves it stood through called falls: now, off upright | stood, served |
 |---|---|---|---|---|---|
-| the stand | 11 of 16 | 8, 3 | 0.22-0.60 | 0 of 5, 0 | 11, 2.7-4.1 s |
-| -0.20 m, 0.55 rad | 10 of 16 | 7, 3 | 0.05-0.40 | 0 of 6, 0 | 10, 2.7-4.0 s |
-| -0.22 m, 0.80 rad | 10 of 16 | 7, 3 | 0.04-0.46 | 0 of 6, 6 | 10, 2.6-4.7 s |
-| -0.25 m, 0.95 rad | 9 of 16 | 6, 3 | 0.04-0.45 | 0 of 7, 7 | 9, 2.6-3.9 s |
-| -0.25 m, 1.10 rad | 9 of 16 | 6, 3 | 0.03-0.48 | 0 of 7, 7 | 9, 2.6-3.9 s |
+| the stand | 10 of 16 | 7, 3 | 0.24-0.43 | 0 of 6, 0 | 10, 2.9-4.2 s |
+| -0.20 m, 0.55 rad | 8 of 16 | 6, 2 | 0.05-0.42 | 0 of 8, 0 | 8, 2.8-3.8 s |
+| -0.22 m, 0.80 rad | 8 of 16 | 6, 2 | 0.06-0.43 | 0 of 8, 8 | 8, 2.7-3.5 s |
+| -0.25 m, 0.95 rad | 8 of 16 | 6, 2 | 0.06-0.45 | 0 of 8, 8 | 8, 2.6-4.9 s |
+| -0.25 m, 1.10 rad | 8 of 16 | 6, 2 | 0.06-0.50 | 0 of 8, 8 | 8, 2.7-4.1 s |
 
-The most a shove it stood through tipped it past its posture was 8.4 deg.
+The most a shove it stood through tipped it past its posture was 7.2 deg.
 ⚠ A forward fall from a bow folds at the knees, and THE COLLAPSE TAKES IT,
-0.03-0.08 s before they strike: lying on its face is only 27 deg past the
+0.05-0.08 s before they strike: lying on its face is only 27 deg past the
 deepest bow, so the tilt alone would never fire there. As served the head
-struck in 22 of the 49 falls at 1.0-5.3 m/s (on the standing policy alone,
-in 36 at 0.2-5.0): the get-up's training tips its falling starts over from
-the stand, never from a bow. `reach_routine` says True only of a hand
+struck in 18 of the 42 falls at 0.3-7.0 m/s (getup3 15, at 0.7-6.0; on the
+standing policy alone, in 35 at 0.5-8.1): the get-up's training tips its
+falling starts over from the stand, never from a bow. `reach_routine` says True only of a hand
 holding at its goal now, never on a stop or a fall, which ends it at once;
 a fall ends a ramp of the arm (`move`) too -- ramped on, it drove the
 stand-up's fresh reach -- and the stand-up keeps the grippers as they were
@@ -2041,12 +2153,16 @@ climbing in 11 s, peaked at 108 and 89 %) -- and coming down, in 3.3 s, the
 knee peaks at 116, the ankle's pitch at 92 and its roll at 53 (88 % of the
 RS03's). The estimates the parts were chosen on put the knee and the hip's
 roll at ~92 and the hip's turn at ~51: flown, the hip's roll is 52-63 and
-its turn 24-37. Getting up keeps every leg part inside its ratings (peaks
-to 73 %, RMS to 72 % over 2-3 s) and spends the arms whole: the upper
+its turn 24-37. Getting up off its back, its front and its side (the served
+get-up, #679; 11-13) keeps every leg part under its peak -- the hip's pitch
+to 118 N*m off its front, 98 % of the RS04's (getup3: 88, 73 %) -- with RMS
+to 94 % of its rating over the 2-3 s (getup3 72 %); holds the waist home at
+its RS03's whole 60 from every start, its RMS 116 % of its rating over the
+2.2 s off its back (getup3 to 96 %); and spends the arms whole: the upper
 arm's twist and the elbow (RS02) at their 17 N*m peaks from every start,
-and the shoulder's pitch and roll (RS03) at their 60 off its front and its
-side. Nothing past a rating; the arms have no margin for a body heavier
-than this one.
+the shoulder's pitch (RS03) at its 60 off its front and its side and its
+roll off its side. Past a rating only for a burst of seconds; the arms have
+no margin for a body heavier than this one.
 
 **Whether it can be served** (`humanoid_spike.py --speed`): the same walks
 in the same house, each body through the Navigator with its own senses,

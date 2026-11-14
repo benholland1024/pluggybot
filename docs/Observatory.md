@@ -10,6 +10,50 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The get-up beside a wall is served (#679) — opens when this PR is deployed
+
+**What changed is the policy a fallen robot gets up on**:
+`models/humanoid_getup.npz` is getupwall14's iteration 9850
+(`-Getup-Wall3-Mirror`: trained with a box beside the fallen body in a share
+of its episodes, from postures the old one sat or lay still in, and handing
+back to the served standing policy as the mission does), where getup3
+(`-Getup-Head`, trained on open floor alone) was. Nothing else moved: the
+watch that hands it a fall, the hand-back, the waist held home, the `stuck`
+clock (#684), and every text the robots read (`prompt_sha` unchanged). The
+header's `build.body.policies.getup` and `dataHashes.world` change; the
+world's geometry does not, so the deploy keeps both robots' bodies and maps.
+
+**Why.** #679: all three `stuck` deaths of 11-08 were at the storeroom's
+counter, and the old get-up never stood a body lying along it, or along a
+wall, on its side facing it. Flown beside staging's 13ddef7 on one pod
+(SimNotes, "The wall get-up's second and third rounds"): of the 151 falls of
+#679's bar it lives through every one getup3 does and 24 more (lying along
+the counter or the storeroom's wall 57 of 63 to 39; shoved at the counter's
+props 20 of 20 to 15; in the house 18 of 20 to 17); of the counter's falls
+of 11-08, flown again, it stands from 13 of 13 to none; of 130 falls outside
+the bar, 110 to 93, losing 3 (two one trajectory, a sit after a 35 N*s shove
+to the right in the hall; one a fall back down the flight). Against it: its
+head strikes in fewer falls but harder at worst (7.0 m/s from the stand
+shoved forward at 30 N*s, where getup3's struck at 1.3; 10 falls from a bow
+1 m/s or more harder); its slowest stand of the 151 comes 18.2 s into the 20
+(shoved left at the chest, it sits first); and it works its parts harder
+(the hip's pitch to 98 % of its peak off its front, getup3's 73 %; the
+waist's hold past its rating's RMS for 2.2 s off its back). Lying on its
+side facing the face within 0.1 m it still never stands, and a fall off the
+landing still ends stuck.
+
+**What the period is for.**
+- **The `stuck` deaths**: how many a day, and where the body lay (the
+  `death` rows, with the `drift` samples round them), against the periods
+  before; the counter's above all.
+- **A get-up that stands and falls again**: the narration's falls and the
+  `posture` on the wire (`getting_up`, then `standing`). A stand of under
+  5 s before the next fall is one struggle on one clock, so a robot that
+  stands for a moment beside the counter and goes down again dies 20 s from
+  the first take.
+- ⚠ The `stuck` column, and anything a day's falls decide, is not to be
+  pooled with the periods before.
+
 ### The lab's plates flush with the floor, and the memory alarm's warm-up five samples (#684's call 3) — opens when this PR is deployed
 
 **What changed in the world.** The lab's three pressure plates (`shock`,

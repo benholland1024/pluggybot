@@ -122,8 +122,88 @@ the step, so a 5 kN hit costs a tenth of an episode's pay),
 four episodes in ten a fall, no lift, every charge at full weight, and a
 side among the starts: at the shared charge alone the get-up let the head
 strike at 5.5-6.9 m/s falling forward or sideways, and with no side start
-it lost getting up off one side (`models/humanoid_getup.npz` is getup1's
-4450 iterations, 2000 without the side, then 1000 with it). Export any of
+it lost getting up off one side (getup3, the served get-up until #679, is
+getup1's 4450 iterations, 2000 without the side, then 1000 with it).
+`-Getup-Wall` (#679) carries getup3 on (`--agent.resume True --agent.load-run
+'.*_getup3$' --agent.load-checkpoint model_7448.pt`) with a box beside the
+fallen body in a share of its episodes (`OBSTACLE`): a counter's top
+(0.60-0.95 m) or a wall's (2.4 m), a mocap body sunk into the floor to it;
+beside the trunk (at a body's front or back, its left or right, by a
+share), beyond the head or the feet of a body lying, and into or along the
+way a body tips, its face a gap past the body's own reach (so no start
+begins inside it); its hits charged as the floor's. Trained on open floor
+alone, the get-up never stood a body lying on its side with its front to a
+face, which is how the counter's falls lay. Its stand is paid as the served
+get-up hands back, within 10 deg of upright and touching nothing of the box
+(paid from 25 deg, it stood leaning on the counter, and the served get-up
+never handed back), and staying down is charged (`down`).
+`-Getup-Wall-Mirror` trains on each sample and its mirror image as well
+(rsl_rl's symmetry extension, `getup.mirror`): fine-tuned without it, the
+get-up came to rise off its back by rolling to one side, and with a box on
+that side lay still beside it. Both carry the recipe as their defaults, each
+part measured: 20 s episodes (`WALL_EPISODE_S`: a slower stand beside a
+face still earns), twice the side starts (`WALL_STARTS`), the entropy bonus
+kept and small steps from getup3 (`WALL_PPO`: at no entropy the action's
+noise fell to 0.06 and the get-up shook standing in the served physics; at
+`desired_kl` 0.01 the get-up off its back beside a box fell from 0.99 to
+0.51 in 450 iterations). The first round's pick, never served, is
+getupwall10's iteration 8450: `-Getup-Wall-Mirror` from getup3, 1002
+iterations in 38 min on a 5090 shared with a second run, chosen by the
+training physics' scan below before the bar was read on it (SimNotes,
+"Getting up beside a wall or the counter", has its readings). Later checkpoints stood more often from a side
+facing the box and lost the back beside a box on its left: read a run's
+checkpoints there with `python -m humanoid_train.scan RUN [EVERY] [N]
+[BASE.pt] [TASK]` (fifteen starts against a box, on open floor and posed,
+every checkpoint flown at once in its own block of worlds beside a base, in
+TASK's env), and make any checkpoint the served npz with
+`python -m quad_train.from_checkpoint` (mjlab writes the ONNX of the last
+save alone; checked identical to `quad_train.export`'s of the same
+checkpoint; `TASK WALL` name the run where the template's do not). The
+served get-up's checkpoint written as an ONNX as the runner writes one at a
+save, `quad_train.export` matched it to 1.8e-6 and wrote every array of
+the served file to 0.0 (11-13). ⚠ A
+dict's tuple is no flag (`--env.events.reset-base.params.
+obstacle.gap-m.along 0 0.15` is refused): change those in code.
+`-Getup-Wall2-Mirror` (#679's second round) carries getupwall10 at 8450 on
+with POSED starts beside the wall task's (0.2 to their 1.15,
+`WALL2_STARTS`): the four served falls getupwall10 lost, as it ended them --
+sitting still on the floor in three, propped on a wall in the fourth: fixed
+points of a blind policy -- and as the get-up was handed each, moving
+(`humanoid_train/getup_poses.json`, `humanoid_spike.py --fall-ends`), each
+mirrored half the time, at any heading, one resting on its face or falling
+against it started there; and a wall FAR in the way a body tips
+(`OBSTACLE2`), which alone teaches nothing (the training physics' clean tip
+stood 32 of 32 against it on getupwall10). `-Getup-Wall3-Mirror` (the third)
+HANDS BACK as served (`HandBackAction`): upright and within 5 cm of the
+stand's height for 0.5 s, the served standing policy
+(`models/humanoid_stand.npz`) has the legs, the arms held at its pose, until
+a fall the served watch would take; handed back is paid and waiting
+charged, the stand paid only handed back, the get-up's own joint and torque
+charges charged only while it holds the legs, and no gyro test -- ⚠ each,
+and what went wrong without it, in SimNotes ("The wall get-up's second and
+third rounds"): never handed back, a get-up stands where the standing policy
+cannot keep it.
+`models/humanoid_getup.npz`, SERVED since #679, is getupwall14's iteration
+9850: `-Getup-Wall3-Mirror` from getupwall12's 9050 (`-Getup-Wall2-Mirror`
+from getupwall10's 8450), 800 iterations in ~25 min on a 5090 shared with a
+second run, chosen by the scan in `-Getup-Wall3`'s physics before the bar was
+read on it (SimNotes, "The wall get-up's second and third rounds"). Its
+second run, the same from getupwall10, never learned to rise from a sit (as
+the second round's other run did not): the sit was learned once, by
+getupwall12, and carried on. ⚠ It trained with a bug since fixed (getup.py's
+review): a reset that drew a posed start gave every start drawn with it that
+pose's joint speeds (up to 7.7 rad/s), so some of its lying and tipping
+starts began with their joints swinging; and a take after a hand-back chose
+its first action seeing the last it had put out while handed back, where
+the served get-up begins a take seeing none (`retake_last_action` since).
+⚠ A get-up SEES THE JOINTS IT
+DRIVES: over every joint the waist made 80 inputs, where getup3's 78 carry
+on; and mjlab's metadata lists every joint of the body, so the export writes
+the joints its task's actor names (`quad_train.export.seen_joints`, as the
+carrying walker's, #682), or the served runtime builds 80 inputs for a
+78-input net.
+⚠ The head is its fourteen parts (#581's stage 3), each charged as the
+head. Export any of
 them naming its task (`--task`), which records the joints it drives and
 each one's gains (`--joints all` for the get-up, its arms at their served
 scale). `humanoid_train/g1_check.py` flies mjlab's stock G1
@@ -181,6 +261,8 @@ run on a card records its steps a second:
 | RTX 5090 | Vast, a Ryzen 9 9950X host | 0.647 | 96,000 | 0.0019 | `Pluggy-Humanoid-Getup` (getup1) beside a seeing walker's run on the same card (#507) |
 | RTX 5090 | Vast, an EPYC 9B14 host | 0.633 | 95,000-98,000 | 0.0018 | `Pluggy-Humanoid-Walk-Seeing-Fine` (fine2, fine3, fine4a, fine5a, fine6a), 1500 iterations in 25 min alone (#507) |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 108,000 | 0.0013 | the same (fine4b, fine5b, fine6b), 1500 iterations in 23 min alone (#507) |
+| RTX 5090 | Vast, a Ryzen 7 7800X3D host in South Korea | 0.516 | 155,000 | 0.00092 | `Pluggy-Humanoid-Getup-Wall` (getupwall1), 1500 iterations in 16 min alone; two runs to the card ~65,000 each (getupwall10: 1002 iterations in 38 min) (#679) |
+| RTX 5090 | Vast, another 7800X3D host in South Korea | 0.516 | 70,000 each, two to the card | 0.0010 | `Pluggy-Humanoid-Getup-Wall2-Mirror` and `-Wall3-Mirror` (getupwall12-15), 1000 iterations in 22-25 min with two runs to the card (#679's second and third rounds) |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 118,000 | 0.0012 | `Pluggy-Humanoid-Walk-Carry` on the waist's joint (carry1, stopped: #682) at 0.83 s an iteration |
 | RTX 5090 | Vast, an EPYC 7K62 host (DLPerf 200) | 0.514 | 61,000 | 0.0023 | `Pluggy-Humanoid-Walk-Carry` (carry2), 2500 iterations in 68 min alone: a slow host by its CPU |
 | RTX 5090 | Vast, a Xeon w7-3455 host | 0.514 | 101,000 | 0.0014 | `Pluggy-Humanoid-Walk-Carry` (carry3), 1500 iterations in 25 min alone |
