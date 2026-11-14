@@ -1184,7 +1184,7 @@ class HubLifecycle:
     self.charging_now = False
     self.charge_cycles = 0
     self.log: list[str] = []
-    self.status = ""                    # the latest _say message, bare
+    self.status = ""                    # its latest own `_say` line, bare (`board`)
     #: THE OTHER ROBOTS' lifecycles (issue #167), set by `pair.build_pair`.
     #: Read by `others_context` for what each broadcasts, and by nothing
     #: that decides: what one robot does about another is its mind's.
@@ -2334,12 +2334,19 @@ class HubLifecycle:
     if self.dead is not None:
       yield from self.body.hold_routine(WAIT_FOR_WORK_S)
 
-  def _say(self, msg: str, detail: str = "") -> None:
+  def _say(self, msg: str, detail: str = "", board: bool = False) -> None:
     """Narrate one line. `msg` is what the ROBOT says; `detail` is evidence.
 
     `msg` becomes `self.status`, which rides every telemetry frame, is
     rendered verbatim under the robot's portrait and goes to `say_hooks` (the
     event stream). So it has to be a sentence a robot could say.
+
+    ⚠ `board`: the line is the BOARD's doing and none of this robot's -- an
+    offer, an expiry, a job's things set out or put away -- narrated like
+    any other and KEPT OUT OF `status`, which is what the other robot is
+    shown as this one's `doing` (`others_context`): both lifecycles say the
+    board's lines, and "TASK t_0306: the cube is set out" was read as the
+    other robot's claim on that job (the wake of 2026-11-14).
 
     `detail` reaches the console and `self.log` and NOTHING else -- no status,
     no frame, no hook. It is where a caught exception's class and message go
@@ -2347,7 +2354,8 @@ class HubLifecycle:
     class, and a visitor reading the Thoughts tab should not be shown a
     traceback for something that did not crash.
     """
-    self.status = msg
+    if not board:
+      self.status = msg
     # A second robot's lines say whose they are (issue #167); the first
     # robot's read exactly as they always did.
     who = f" {self.root}" if self.body.handle.prefix else ""
@@ -4828,13 +4836,13 @@ class HubLifecycle:
     target, k = task.target, task.secret.get("draw")
     area = jobs.area_of(target)
     if area is None or k is None or not area.present(self.model):
-      self._say(f"TASK {task.id}: this world has no {target} to set out")
+      self._say(f"TASK {task.id}: this world has no {target} to set out", board=True)
       return
     area.set_out(self.model, self.data, target, int(k), kind=task.kind)
     act = self._target_activity(target)
     if act is not None:
       act.renew(self.model, area.drawn(target, int(k)))
-    self._say(f"TASK {task.id}: the {target} is set out")
+    self._say(f"TASK {task.id}: the {target} is set out", board=True)
 
   def _worked_props(self) -> set:
     """The job targets whose things a robot is touching now (#559, #560;
@@ -4868,7 +4876,7 @@ class HubLifecycle:
         if target in worked:
           continue
         area.put_away(self.model, self.data, target)
-        self._say(f"the {target}'s things are put away: no job holds it")
+        self._say(f"the {target}'s things are put away: no job holds it", board=True)
 
   def restore_jobs(self) -> None:
     """After a restart (#559, #560): the world file carries each target's
@@ -4911,7 +4919,8 @@ class HubLifecycle:
     worked, out = self._worked_props(), []
     for prop, t in unseen:
       if prop in worked:
-        self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved")
+        self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved",
+                  board=True)
         continue
       self._set_out_job(t)
       out.append(prop)
@@ -4953,7 +4962,7 @@ class HubLifecycle:
       return
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
-      self._say(f"TASK {task.id} expired: {task.description}")
+      self._say(f"TASK {task.id} expired: {task.description}", board=True)
     # ...and on a charge trip, away from the counter with its hands home, a
     # job it holds past the time it gives (#602): left to the loop's pass, a
     # 74-minute charge held t_0024 and its drawer 69 minutes past its limit
@@ -4968,7 +4977,7 @@ class HubLifecycle:
     if self.producer is not None:
       for task in self.producer.tick(float(self.data.time), self.fundable_wh,
                                      busy=self._worked_props):
-        self._say(f"TASK {task.id} offered: {task.description}")
+        self._say(f"TASK {task.id} offered: {task.description}", board=True)
     # ...and what no job holds now put away (#560), where the world's
     # activities are
     if self.activities is not None:
@@ -6114,7 +6123,7 @@ class HubLifecycle:
     present = {self.root, *(p.root for p in self.peers)}
     for task in self.tasks.release_absent(present):
       self._say(f"TASK {task.id}: offered again -- whoever held it is not "
-                "in this world")
+                "in this world", board=True)
     return self.tasks.held_by(self.root)
 
   # ---- the loop ------------------------------------------------------------
@@ -6353,7 +6362,7 @@ class HubLifecycle:
     # (issue #345 keeps the rest).
     if self.tasks is not None:
       for task in self.tasks.announce_interrupted(t=float(self.data.time)):
-        self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart")
+        self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart", board=True)
       # ...and the board written as this day reads it (#602): a start-over
       # moves its deadlines and claims in memory, and a restart that carried
       # on before its next change read the old clock back

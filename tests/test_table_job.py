@@ -580,3 +580,65 @@ def test_a_place_set_out_in_the_hook_reads_where_it_was_set_out(tmp_path):
     life.tasks.resolve(task.id, table_verdict(), t=float(life.data.time))
     restaurant.put_away(life.model, life.data, restaurant.TABLE)
     act.sense(life.model, life.data)
+
+
+# ---- the board's own lines, and a robot's status ---------------------------
+
+
+def test_the_boards_own_lines_are_narrated_and_never_become_a_robots_status(tmp_path):
+  """A robot's `status` is its last narrated line: what the other robot is
+  shown as its `doing` (`others_context`) and what the site prints under
+  its portrait. Both lifecycles also narrate the BOARD's doings -- an offer,
+  its things set out, an expiry, things put away -- and those lines became
+  the robot's status: on the wake of 2026-11-14 six thoughts read "TASK
+  t_0306: the cube is set out" as the other robot's claim on that job.
+  Narrated as before; the status stays the robot's own."""
+  from types import SimpleNamespace
+
+  from pluggybot.lifecycle import others_context
+  life = _life(tmp_path)
+  life.producer = task_producer(life.tasks, HUMANOID_HOME, procedures=True)
+  said = []
+  life.say_hooks.append(lambda t, msg, *a: said.append(msg))
+  assert life.status == ""                          # before it has said anything
+  life.data.time = 5000.0                           # an offer is due
+  _sweep(life)
+  assert any(" offered: " in m for m in said), said
+  assert any("to set out" in m for m in said), said  # (this stub world has no drawer)
+  assert life.status == ""                          # ...the board's lines are not its own
+  life._say("EXPLORE: heading for the kitchen")
+  mine = life.status
+  task = _offer(life)                               # the table's: its things set out
+  assert any(m == f"TASK {task.id}: the {restaurant.TABLE} is set out" for m in said)
+  life.data.time = 1e9                              # every offer lapsed, the place put away
+  _sweep(life)
+  assert any(m.startswith(f"TASK {task.id} expired: ") for m in said)
+  assert any("things are put away" in m for m in said)
+  assert life.status == mine
+  shown = others_context(SimpleNamespace(peers=[life]))[0]
+  assert shown["doing"] == mine
+  # ...and each such line in the lifecycle is marked the board's, where it is said
+  import ast
+  import inspect
+
+  from pluggybot import lifecycle as lc
+  marked = {}
+  for node in ast.walk(ast.parse(inspect.getsource(lc))):
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "_say" and node.args):
+      text = ast.unparse(node.args[0])
+      for phrase in BOARD_LINES:
+        if phrase in text:
+          marked.setdefault(phrase, []).append(
+            any(k.arg == "board" and ast.unparse(k.value) == "True" for k in node.keywords))
+  assert set(marked) == set(BOARD_LINES), sorted(set(BOARD_LINES) - set(marked))
+  assert all(all(v) for v in marked.values()), {k: v for k, v in marked.items() if not all(v)}
+
+
+#: The board's own lines, by a phrase of each as the lifecycle says it: an
+#: offer, an expiry, an offer's things set out (or not there to set out, or
+#: left where a hand is on them), things put away, a claim given back for a
+#: robot that is not in this world, a job a restart failed.
+BOARD_LINES = (" offered: ", " expired: ", "is set out", "to set out",
+               "left as the world was saved", "things are put away",
+               "whoever held it is not", "interrupted by a restart")
