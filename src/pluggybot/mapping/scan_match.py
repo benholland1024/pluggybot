@@ -220,17 +220,24 @@ RIVAL_SHARE = 0.9
 #: by the step's arc there; its TURNED_TRIES best poses, two at one place
 #: TURNED_ALIAS_RAD apart counted two, each searched cell by cell and fitted;
 #: one taken as the wide search takes one (FOUND_SHARE with every direction
-#: fixed, no rival at RIVAL_SHARE at any heading), found AGAIN by the next,
-#: carried there by odometry. MEASURED (docs/SimNotes.md, "A heading lost in
-#: a fall, searched for at every heading"): in the lobby, a scan turned 180
-#: deg puts 0.90-1.11 of the truth's points on walls, so half its get-ups
-#: knocked 120 deg are refused, never taken wrong; ~0.1 s a search.
+#: fixed, no rival at TURNED_RIVAL_SHARE at any heading), found AGAIN by the
+#: next, carried there by odometry. MEASURED (docs/SimNotes.md, "A heading
+#: lost in a fall, searched for at every heading"): in the lobby, a scan
+#: turned 180 deg fits as well as the truth, so half its knocked get-ups are
+#: refused, never taken wrong; ~0.1 s a search.
 TURNED_SEARCHES = 6
 TURNED_TRIES = 5
 TURNED_STEP_RAD = math.radians(2.0)
 TURNED_RANGE_M = 6.0
 TURNED_POINTS = 150
 TURNED_ALIAS_RAD = math.radians(20.0)
+#: ⚠ ...ITS RIVAL A FIND THIS SHARE AS GOOD, not RIVAL_SHARE's 0.9: at every
+#: heading a hall's half turn is always looked at, and it can explain the
+#: scan better than the truth. MEASURED in the lobby: over 1,062 knocked
+#: get-ups, at 0.9 one was taken onto it walking on, 3.03 m and 180 deg off
+#: (the truth 0.889, then 0.867, of the half turn's points on walls); at 0.8
+#: none, and 517 taken right where 0.9 took 525.
+TURNED_RIVAL_SHARE = 0.8
 #: ⚠ ...AND ONLY WHILE THE BELIEF IS WITHIN TURNED_NEAR_M OF WHERE IT STOOD
 #: UP: walked on with its heading off, it has walked another way than the
 #: body, the truth leaves the lattice and the hall's scan turned half round
@@ -798,7 +805,7 @@ class ScanMatcher:
     """The one pose within WIDE_M of `pose`, at any heading, the map agrees
     with, as `_relocate`'s, or None: `_turned_candidates`' each searched cell
     by cell and fitted, the "found" one with the most inliers taken unless
-    another found explains the scan as well (RIVAL_SHARE)."""
+    another found explains the scan nearly as well (TURNED_RIVAL_SHARE)."""
     found = []
     for start in self._turned_candidates(pose, pts):
       fine = self._search(start, pts, reach_m=WIDE_STRIDE * self.grid.resolution,
@@ -809,7 +816,7 @@ class ScanMatcher:
     if not found:
       return None
     best = max(found, key=lambda f: f[1]["inliers"])
-    if any(not _same(at, best[0]) and kw["inliers"] >= RIVAL_SHARE * best[1]["inliers"]
+    if any(not _same(at, best[0]) and kw["inliers"] >= TURNED_RIVAL_SHARE * best[1]["inliers"]
            for at, kw in found):
       return None
     return best

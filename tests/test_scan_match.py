@@ -1038,7 +1038,7 @@ def test_the_search_at_every_heading_takes_nothing_the_scan_turned_half_round_fi
   # MEASURED in the lobby: a scan turned 180 deg put 0.90-1.11 of the
   # truth's points on walls (median 0.99) and was the best in 115 of 312
   # searches; taken, the robot would face the wrong way down the hall. Two
-  # places at once are a rival (RIVAL_SHARE), and nothing is taken.
+  # places at once are a rival (TURNED_RIVAL_SHARE), and nothing is taken.
   rng = np.random.default_rng(42)
   hall = mapped(HALL, (-1, -1, 10, 4), [(rng.uniform(0.6, 8.4), rng.uniform(0.6, 2.4),
                                          rng.uniform(-3, 3)) for _ in range(30)])
@@ -1050,7 +1050,7 @@ def test_the_search_at_every_heading_takes_nothing_the_scan_turned_half_round_fi
   m.fell()
   assert [m.match(turned, ANGLES, r).why for r in scans] == ["inconsistent"] * len(scans)
   # ...the premise: with no rival counted, it takes one of the two
-  monkeypatch.setattr(sm, "RIVAL_SHARE", 2.0)
+  monkeypatch.setattr(sm, "TURNED_RIVAL_SHARE", 2.0)
   m = sm.ScanMatcher(hall)
   m.fell()
   assert [m.match(turned, ANGLES, r).why for r in scans][-1] == "relocated"
@@ -1071,6 +1071,27 @@ def test_the_search_at_every_heading_waits_on_the_served_wide_search(room, monke
   rng = np.random.default_rng(43)
   whys = [m.match(LOST, ANGLES, cast(ROOM, TRUE, rng)).why for _ in range(2 * sm.LOST_RUN)]
   assert whys[-1] == "relocated" and not ran
+
+
+def test_the_search_at_every_heading_takes_no_pose_a_turned_one_explains_nearly_as_well(
+    room, monkeypatch):
+  # MEASURED walking on knocked 40 deg in the lobby: the scan turned half
+  # round put 333, then 317, points on walls where the truth's put 296 and
+  # 275 -- 0.889 and 0.867 of them, under RIVAL_SHARE's 0.9 -- and was taken
+  # twice running, 3.03 m and 180 deg off. At every heading the half turn is
+  # always looked at: a find TURNED_RIVAL_SHARE as good is its rival.
+  half = (TRUE[0] + 2.0, TRUE[1], TRUE[2] + math.pi)
+  inliers = {TRUE: 296, half: 333}
+  m = sm.ScanMatcher(room)
+  monkeypatch.setattr(m, "_turned_candidates", lambda pose, pts: [TRUE, half])
+  monkeypatch.setattr(m, "_search", lambda start, pts, **kw: start)
+  monkeypatch.setattr(m, "_fit", lambda start, pts: start)
+  monkeypatch.setattr(m, "_judge", lambda asked, pts, fit, found=False, doubt=False: (
+    fit, "found", {"inliers": inliers[fit], "step": (0.0, 0.0, 0.0)}))
+  assert m._relocate_turned(TURNED, None) is None
+  # ...the premise: at the wide search's own share, the half turn is taken
+  monkeypatch.setattr(sm, "TURNED_RIVAL_SHARE", sm.RIVAL_SHARE)
+  assert m._relocate_turned(TURNED, None)[0] == half
 
 
 def _walking(k, per_scan):
