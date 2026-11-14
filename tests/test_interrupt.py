@@ -413,17 +413,21 @@ def _flag_at(life, t: float) -> None:
   life.body.step_hooks.append(hook)
 
 
-def _paced_walk(life, speed: float = 1.0) -> list[dict]:
+def _paced_walk(life, speed: float = 1.0, held_s: float = 0.0) -> list[dict]:
   """`life`'s walk, a stub's that takes time: straight at its goal at
   `speed` m/s, its `stop` asked every `STOP_EVERY_S` as the Navigator asks
   it -- True ends it where it stands, `DRIVE_STOPPED` -- and out of
-  patience at `timeout`. Each walk's start, patience and ending, in order."""
+  patience at `timeout`; the first held `held_s` as it begins, which its
+  clock counts out as a walk's counts a hold (`Navigator.held_s`). Each
+  walk's start, patience and ending, in order."""
   from pluggybot import navigator as nav
   body, walks = life.body, []
 
   def go(x, y, timeout=90.0, stop=None):
+    walks.append({"t": float(life.data.time), "timeout": timeout, "from": (body.x, body.y)})
+    for _ in range(round((0.0 if len(walks) > 1 else held_s) / life.model.opt.timestep)):
+      yield body.STILL
     t0 = float(life.data.time)
-    walks.append({"t": t0, "timeout": timeout, "from": (body.x, body.y)})
     next_stop = t0 + nav.STOP_EVERY_S
     while True:
       d, why = math.hypot(x - body.x, y - body.y), None
@@ -476,17 +480,17 @@ def test_a_walk_its_interrupt_stops_asks_where_it_stands_and_walks_on_with_the_p
   Shown to fail with the ask made inside the walk's `stop`, blocking, as it
   was: one walk, asked from inside, never a second."""
   life = _asked_life(monkeypatch, carry_on)
-  walks = _paced_walk(life)                     # 3 m at 1 m/s
-  _flag_at(life, 1.5)                           # ...its stop read at 1 s and 2 s
+  walks = _paced_walk(life, held_s=0.5)         # held 0.5 s, then 3 m at 1 m/s
+  _flag_at(life, 1.7)                           # ...its stop read at 1.5 s and 2.5 s
   r = _ran(life, "def job():\n  drive_to(3.0, 0.0)\n  wait(1)\n")
   [(t0, t1)] = life.overseer.asked
-  assert (t0, t1) == pytest.approx((2.0, 2.6)), "asked as its walk's stop read it, 6 slices"
-  assert walks[0]["why"] == DRIVE_STOPPED and walks[0]["ended"] == pytest.approx(2.0)
+  assert (t0, t1) == pytest.approx((2.5, 3.1)), "asked as its walk's stop read it, 6 slices"
+  assert walks[0]["why"] == DRIVE_STOPPED and walks[0]["ended"] == pytest.approx(2.5)
   if carry_on:
     assert len(walks) == 2, walks
-    assert walks[1]["t"] == pytest.approx(2.6) and walks[1]["from"] == pytest.approx((2.0, 0.0))
+    assert walks[1]["t"] == pytest.approx(3.1) and walks[1]["from"] == pytest.approx((2.0, 0.0))
     assert walks[1]["timeout"] == pytest.approx(DRIVE_TIMEOUT_S - 2.0), \
-        "the patience left, the ask none of it"
+        "the patience its own clock left: the hold and the ask none of it"
     assert walks[1]["why"] == "" and life.body.pose[:2] == pytest.approx((3.0, 0.0))
     assert r["ok"] and r["completed"] == 2, r
     assert [i["outcome"] for i in life.interrupts] == ["continued"]

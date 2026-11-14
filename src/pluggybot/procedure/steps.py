@@ -240,6 +240,15 @@ def _stopped(life) -> bool:
   return bool(rec) and rec.get("why") == DRIVE_STOPPED
 
 
+def _stopped_after(life, arrived) -> float | None:
+  """The seconds of its patience the body's last walk used, where its
+  `stop` ended it (`_asking`): its record's, by the walk's own clock;
+  None where it arrived or ended otherwise."""
+  if arrived or not _stopped(life):
+    return None
+  return float(life.body.last_drive.get("seconds") or 0.0)
+
+
 def _interrupt(life):
   """A walk's `stop` inside a job: the robot's own hazard row due
   (`HubLifecycle.interrupt_due`, issue #116), read and never asked there --
@@ -265,24 +274,23 @@ def _budgeted(life, s: float) -> float:
   return s
 
 
-def _asking(life, go: Callable, stopped: Callable, patience: float) -> Routine:
+def _asking(life, go: Callable, used: Callable, patience: float) -> Routine:
   """Drive `go(patience, stop)` -- a walk or a find, `stop` the robot's own
-  interrupt due (`_interrupt`) -- and each time it ends on that
-  (`stopped(result)`), ask it where the robot stands
-  (`interrupted_routine`, #692): answered carry on, `go` again from there
-  with the patience left, the ask counting none of it and never past the
+  interrupt due (`_interrupt`) -- and each time it ends on that (`used`:
+  the seconds of its patience it used, else None), ask it where the robot
+  stands (`interrupted_routine`, #692): answered carry on, `go` again from
+  there with the patience left -- by its own clock, so the ask is none of
+  it, nor a hold its walk counts out (`Navigator.held_s`) -- never past the
   program's own budget (`_budgeted`), on a fresh plan. Every result, in
   order; after an abort the last is the one its interrupt stopped."""
   stop = _interrupt(life)
-  if stop is None:
-    return [(yield from go(_budgeted(life, patience), None))]
-  spent, out = 0.0, []
+  out: list = []
   while True:
-    t0 = float(life.data.time)
-    out.append((yield from go(_budgeted(life, max(0.0, patience - spent)), stop)))
-    spent += float(life.data.time) - t0
-    if not stopped(out[-1]) or (yield from life.interrupted_routine()):
+    out.append((yield from go(_budgeted(life, patience), stop)))
+    spent = None if stop is None else used(out[-1])
+    if spent is None or (yield from life.interrupted_routine()):
       return out
+    patience = max(0.0, patience - spent)
 
 
 def _carried(life) -> dict:
@@ -317,7 +325,7 @@ def _drive_to(life, args: dict) -> Routine:
   if refused is not None:
     return refused
   walks = yield from _asking(life, lambda left, stop: _go(life, x, y, left, stop),
-                             lambda arrived: not arrived and _stopped(life),
+                             lambda arrived: _stopped_after(life, arrived),
                              float(args.get("patience", DRIVE_TIMEOUT_S)))
   arrived = walks[-1]
   px, py, _ = life.body.pose
@@ -369,7 +377,7 @@ def _find(life, args: dict) -> Routine:
   rec = _joined((yield from _asking(
     life, lambda left, stop: life.body.find_tag_routine(tag, near=(x, y), patience=left,
                                                         stop=stop),
-    lambda rec: rec.get("why") == "interrupted",
+    lambda rec: float(rec.get("seconds") or 0.0) if rec.get("why") == "interrupted" else None,
     float(args.get("patience", FIND_PATIENCE_S)))))
   why = rec.get("why", "")
   # ...where it found it, read as `find.*` (#559): in its map, as it
