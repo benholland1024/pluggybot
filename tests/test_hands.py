@@ -745,6 +745,8 @@ def _bowed_reach(posture):
   rc._posed(r.self_model, posture[0], posture[1], q)
   r.posture = np.array(posture, dtype=float)
   r.stand_home = False
+  # ...its posture arrived where the policy was asked it
+  r.stand = NS(settled=True)
   return r
 
 
@@ -806,11 +808,38 @@ def test_off_the_stand_an_arm_with_none_of_it_ahead_has_the_stand_once_it_is_hom
   r = _bowed_reach((0.0, 0.0, 0.0))
   assert _set_off(r, "left", AT_THE_LEVER) == [(0.0, 0.0, 0.0)]
   assert _homed(r, "left") == []
-  # ...and with the other hand out (moved joint by joint), never
+  # ...with the other hand out (moved joint by joint), never
   r = _bowed_reach((0.0, 0.3, 0.0))
   r.set_joints("right", RAISED)
   assert _set_off(r, "left", AT_THE_LEVER) == []
   assert _homed(r, "left") == []
+  # ...with the other arm going home too, judged apart, as they set off (the
+  # review of #693: a walk's hand-over sends both)
+  r = _bowed_reach((0.0, 0.3, 0.0))
+  r.set_joints("right", RAISED)
+  r.q_cmd["right"] = RAISED.copy()
+  r.retreat("right")
+  assert r.phase["right"] == "home"
+  assert _set_off(r, "left", AT_THE_LEVER) == [(0.0, 0.0, 0.0)]
+  # ...and with the posture still walking to a plan a retreat cut short, as
+  # it sets off: not the posture the way was judged in
+  r = _bowed_reach((0.0, 0.3, 0.0))
+  r.stand = NS(settled=False)
+  assert _set_off(r, "left", AT_THE_LEVER) == [(0.0, 0.0, 0.0)]
+
+
+def test_a_posture_asked_ends_the_stand_a_way_home_was_keeping():
+  """#693's review: the stand an arm's way home keeps (`stand_home`) waits
+  on nothing once another posture is asked -- a reach's, an aside's -- or
+  it would stand the robot up later, mid-work."""
+  from pluggybot.humanoid import reach as rc
+  r = _bowed_reach((0.0, 0.3, 0.0))
+  _set_off(r, "left", AT_THE_LEVER)
+  assert r.stand_home, "the premise: the stand kept for the arm's home"
+  r.stand = NS(settled=True, ask=lambda height, pitch: None)
+  r.trim = np.zeros(2)
+  rc.Reach.hold_posture(r, -0.08, 0.15)
+  assert not r.stand_home
 
 
 def test_the_joints_an_arm_is_judged_home_by_are_its_drivers_reading():

@@ -1451,7 +1451,9 @@ class Reach:
 
   def hold_posture(self, height: float, pitch: float, waist: float = 0.0) -> None:
     """The posture to stand in, its legs' held by their own loop
-    (`TRIM_RATE`), the waist turned to `waist`, rad, to the left positive."""
+    (`TRIM_RATE`), the waist turned to `waist`, rad, to the left positive --
+    in place of a stand an arm's way home was keeping (`stand_home`)."""
+    self.stand_home = False
     self.posture = np.array([height, pitch, waist], dtype=float)
     self.stand.ask(*(self.posture[:2] + self.trim))
 
@@ -1811,9 +1813,12 @@ class Reach:
     # NEVER AN ARM AHEAD: held as it came home, a crouch's side way swept the
     # jaws into a cupboard's opened door, and a turn held to the end swung
     # the hanging arm into a table's leg (the check lost 3 doors and 23
-    # tables of 32)
+    # tables of 32). ⚠ NOR WITH THE OTHER ARM GOING HOME TOO, judged apart,
+    # NOR A POSTURE STILL WALKING to a plan a retreat cut short (`settled`):
+    # neither is the posture the way was judged in
     if all(p in ("rest", "home", "carried") for p in self.phase.values()):
-      if self.posture.any() and not self._ahead(side):
+      alone = [s for s in hm.SIDES if self.phase[s] == "home"] == [side]
+      if self.posture.any() and alone and self.stand.settled and not self._ahead(side):
         self.stand_home = True
       else:
         self.hold_posture(0.0, 0.0)

@@ -559,7 +559,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         yield STILL
         self._after_step()
       for _ in range(int(round(STAND_BACK_S / self.model.opt.timestep))):
-        if self.reach._posture_held():
+        # ...a fall in it is the get-up's, waited out below
+        if self.legs == "getup" or self.reach._posture_held():
           break
         yield STILL
         self._after_step()

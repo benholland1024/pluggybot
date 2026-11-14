@@ -8403,7 +8403,12 @@ was made and walked again on the statues
 - Off the stand -- bowed, crouched or turned -- an arm with none of it ahead
   of the robot's front has the stand once it is home (its command at the
   rest, or at the carry pose a walk carries it at): flown as it was judged.
-  An arm with some of it ahead has it as it sets off, as before.
+  An arm with some of it ahead has it as it sets off, as before; so does
+  one going home beside the other arm (each judged apart: a walk's
+  hand-over sends both, though none of the 738 ways home flown here began
+  with the other arm anywhere but at rest), and one whose posture is still
+  walking to a plan a retreat cut short (`settled`). A posture asked in the
+  meantime ends the wait (`hold_posture`).
 - A withdraw waits for its trunk to stand still in the stand
   (`Reach._posture_held`), never the posture the policy is shown alone,
   `STAND_BACK_S` at most, and its word is the arm's as it came home: asked
@@ -8462,11 +8467,16 @@ failing standing), and 19 others parted to the same verdicts.
 **What it leaves open.** An arm with some of it ahead still comes home as
 the stand rises under it: the judgment checks only what is under the hand,
 on its model as it stands, and the drawer's set-out 2 fell that way before
-(its hand's housing on the counter's top, 21.6 N*s up). Neither timing is
-safe in every room -- held, the crouch's side way met a door; standing, the
-bow's straight way met a counter -- and a way home that looks (the depth
-frame's points against the arm's path, and the posture's return after)
-would tell them apart (Hands.md §7).
+(its hand's housing on the counter's top, 21.6 N*s up). An arm held home
+turned has the waist come home after it, its hand hanging: at draw 22 its
+pads brushed the counter's face (9 N), and the hanging arm swung into a
+table's leg where every arm was held -- the word a withdraw gives is the
+arm's as it came home, so a knock after reads "home". And the stand comes
+once the arm's command is home, its drivers a few degrees behind. Neither
+timing is safe in every room -- held, the crouch's side way met a door;
+standing, the bow's straight way met a counter -- and a way home that looks
+(the depth frame's points against the arm's path and the posture's return
+after it) would tell them apart (Hands.md §7).
 
 ## Debugging workflow that worked
 

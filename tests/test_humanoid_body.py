@@ -467,6 +467,8 @@ class _Homeward(_Out):
 
   def step(self) -> None:
     self.steps += 1
+    if self.on_step is not None:
+      self.on_step(self.steps)
     if self.steps == self.n and "home" in self.phase.values():
       self.phase = {s: "rest" for s in hm.SIDES}
       if self.waiting:
@@ -499,6 +501,22 @@ def test_a_walks_hand_over_asks_the_stand_as_each_arm_sets_off_home_by_its_own_w
     assert done and m.legs == "walk", kw
     assert [e for e in log if e[0] == "stand"] == [("stand", asked)], (kw, log)
     assert m.reach.steps == pytest.approx(250, abs=2), (kw, "the walker took a trunk not yet still")
+  # ...a fall as it waits on the trunk goes to the get-up at once (#693's
+  # review: a tipped trunk is never still, and it waited out its bound first)
+  m.legs, log[:] = "stand", []
+  m.reach = _Homeward(_opened(m.reach.grippers), ("left",), log, n=50, still=10 ** 6)
+  m.getup = _Rising(10 ** 6)
+  m.reach.on_step = lambda k: k == 60 and m._fell()
+  waited, real = [], m._getup_routine
+
+  def getup_routine():
+    waited.append(float(body.data.time))
+    return (yield from real())
+  m._getup_routine = getup_routine
+  t0 = float(body.data.time)
+  _capped(body, m.to_walk_routine(), 6.0)
+  assert m.legs == "getup" and len(waited) >= 2, waited
+  assert waited[-1] - t0 < 0.5, f"waited {waited[-1] - t0:.2f} s on a fallen trunk"
 
 
 def _capped(body, routine, seconds, each=None):
