@@ -8447,7 +8447,7 @@ whose hooks on the first robot are the world's activities, the stream's
 frames, the recorder and the real-time pacer (Rowan's 5.8 s passed in 3.1
 wall s, unpaced, unstreamed). Flown as live (`humanoid_drift_spike.py
 --asked walk`: the pair, Luca walking the lobby's walk, Rowan asked through
-the real `interrupted()` by a mind that answers carry on after 5.8 s): Luca's
+its real interrupt by a mind that answers carry on after 5.8 s): Luca's
 physics stepped none of the ask's 2,900 steps; it lay on the floor 1.4 s
 into the ask while its filter's tilt read 1.5 deg; 0.78 s after the answer,
 as the filter's correction caught up, its fall watch fired (live: 0.8); and
@@ -8457,21 +8457,22 @@ whatever of the fall's turning that arc does not undo stays as a heading.
 Whatever else the other robot was doing, the ask stopped its body as it
 stood (below).
 
-**What is true now** (`tick._Loop.run`): a blocking `run` begun inside
+**The hold (#690)** (`tick._Loop.run`): a blocking `run` begun inside
 `run_many` is the loop's -- every robot applied in the loop's order, one
 world step, every robot booked -- each other robot held through its wait
-(`run_pair`'s: its body's own hold, its scans matched), one wait across the
-ask's think slices, closed once its own routine drives it again, and its own
-routine left where it was, so no second robot's blocking call can begin
-inside the first's. What such a run raises that is not its routine's own --
-a held robot's wait's, the step's -- is `run_many`'s to raise
-(`tick._Raised`): inside the asker's stack, the procedure runner's `except
-Exception` took the other robot's error for its own. `_ask_interrupt` is the
-one such run in `src/`: every other blocking twin (the explore, a charge, a
-decision, a walk) is called only by scripts and tests. Flown, the other
-robot doing each thing as the second's interrupt is asked for 5.8 s
+(`run_pair`'s: its body's own hold, its scans matched), one wait across
+consecutive runs (an ask's think slices were one each), closed once its own
+routine drives it again, and its own routine left where it was, so no second
+robot's blocking call can begin inside the first's. What such a run raises
+that is not its routine's own -- a held robot's wait's, the step's -- is
+`run_many`'s to raise (`tick._Raised`): inside the asker's stack, the
+procedure runner's `except Exception` took the other robot's error for its
+own. The ask was the one such run in `src/`, and none is left (#692, below):
+every blocking twin (the explore, a charge, a decision, an errand, a walk) is
+called only by scripts and tests, and the hold is kept for the next. Flown,
+the other robot doing each thing as the second's interrupt is asked for 5.8 s
 (Rowan's), 30 and 115 (`INTERRUPT_TIMEOUT_S`; the drift spike's `--asked`),
-before (the base, on a pod) -> now (on the dev box):
+before #690 (on a pod) -> held (on the dev box):
 
 | the other robot, as the ask flies | 5.8 s | 30 s | 115 s |
 |---|---|---|---|
@@ -8482,25 +8483,35 @@ before (the base, on a pod) -> now (on the dev box):
 | plugged in at its station | leaned 16 deg -> held, charging | leaned 17 deg -> held, charging | leaned 23 deg, fell after, `stuck` -> held, charging |
 | turning a `step`, 90 deg | leaned 4.7 deg -> held, turned | fell -> held, turned | fell -> held, turned |
 
-Before, its physics stepped none of the ask's steps in any of the 18; now
+Before, its physics stepped none of the ask's steps in any of the 18; held,
 every one, its trunk (but for the get-up's own fall) at most 1.2 deg off
 upright through any ask, and each ended within 0.01 m and 0.2 deg of the
 truth. Held, a robot stands where its legs' policy has it (the walker
 marking time, the standing policy holding, a get-up getting up), its hand's
 own loop holding its reach, its plug in, its senses on.
 
-**The price.** While one robot's interrupt is asked, the other's errand
-pauses, standing, for the whole ask -- up to 115 s of think and its slices.
-A walk or a `step` counts none of the pause: the held robot is told how long
-it was held (its stepper's `held`, into `Navigator.held_s`, as an arm's wait
-for its way is, #678), and a walk goes on with its patience whole and a
-fresh plan -- told nothing, asked 115 s, the lobby's walk ran out of its 60
-s and gave up where it stood, and a `step` held 30 s read "out of time". A
-procedure's budget and a job's minutes run on through the pause.
-Before, the body went on without it. The whole fix is `_ask_interrupt` as a
-routine, yielding its think slices as `_decide_routine` does, so the other
-robot's routine runs on through the ask (not done: it moves `interrupted()`
-and its three callers, a walk's among them).
+**The ask a routine (#692), and what is true now.** Held, the other
+robot's errand paused, standing, for the whole ask -- up to 115 s of think
+and its slices -- while a procedure's budget and a job's minutes ran on (a
+walk or a `step` counting none of it: the held robot is told how long, its
+stepper's `held`, into `Navigator.held_s`). The ask is a routine now
+(`HubLifecycle.interrupted_routine`), its think slices yielded as
+`_decide_routine`'s are, so the other robot's routine runs on through it.
+Flown on the dev box, the lobby's walk while Rowan is asked 115 s: on
+a0df301, held, Luca's walk arrived at t=137.9 s, 13.6 s after the answer
+(the ask 9.3-124.4 s); on #692 at t=21.2 s, 11.9 s into the ask, every one of
+the ask's 57,550 steps its own, no fall, its trunk within 1.7 deg of upright
+(walking), and it ended 0.000 m and 0.02 deg off the truth.
+
+The asker's own walk is never asked from inside: a walk's `stop` reads only
+that an interrupt is due (`interrupt_due`), the walk -- or a `find` -- ends
+where it stands, `DRIVE_STOPPED`, its verb asks (`steps._asking`), and
+carried on it goes on from there on a fresh plan with the patience its own
+clock left (its record's seconds: a hold the walk counts out, and the ask,
+are none of it, and never past the run's budget); stopped, the verb is
+`stopped: interrupted` as before. A walk's ask is inside its verb, so
+a death or a fall ends it at once (#671), its call never answered; an ask
+between two verbs runs to its answer, the death read before the next.
 
 **Nothing else moves.** On the same pod, a robot alone (600 s) and the
 pair's day with a fall and a death arranged fly the base's trajectory bit
@@ -8509,7 +8520,9 @@ identical, two runs each tree, and the pair's day again on the dev box);
 the 201 flights of the falls above, the drift spike's walking falls in the
 lobby and two drift flights (Luca's and Rowan's draws) are the base's row
 for row; and the pair's recording, flown as its fixture is, is the base's
-but for two wall-clock stamps.
+but for two wall-clock stamps. With the ask a routine (#692), on the dev
+box beside a0df301 on osmesa, the pair's day with a fall and a death
+arranged flies the base's trajectory bit for bit (528 state samples).
 
 ## Debugging workflow that worked
 
