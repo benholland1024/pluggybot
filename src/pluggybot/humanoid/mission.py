@@ -439,6 +439,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.odo.z, self.odo.foot = hm.stand_height(), None
     if self.head is not None:
       self.head.forget()
+    if self.matcher is not None:
+      # ...its heading what its IMU followed of the fall (#690): until a scan
+      # fits, its map is searched at every heading
+      self.matcher.fell()
 
   def _after_physics(self) -> None:
     # The reckoning first: the scan lays its frame through it. ⚠ NONE WHILE

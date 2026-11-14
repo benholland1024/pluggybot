@@ -209,6 +209,28 @@ UNIQUE_RAD = math.radians(5.0)
 #: map's edge and the rest on its walls, was "found" with 216 inliers where
 #: the truth had 359 (0.60), and refused a relocation the truth had earned.
 RIVAL_SHARE = 0.9
+#: ⚠ A ROBOT UP FROM A FALL SEARCHES EVERY HEADING (issue #690): its
+#: odometry is held through the get-up and its heading is its IMU's, so a
+#: heading the fall turned unseen stays turned, past WIDE_RAD for good (the
+#: other robot's blocking interrupt, 11-12: 120 deg, refused for 26 minutes).
+#: After `fell`, the next TURNED_SEARCHES wide searches that find nothing
+#: (the served one runs first) look again at every heading (`_turned`): the
+#: lattice WIDE_STRIDE cells and TURNED_STEP_RAD apart within WIDE_M, scored
+#: on at most TURNED_POINTS returns within TURNED_RANGE_M, the walls widened
+#: by the step's arc there; its TURNED_TRIES best poses, two at one place
+#: TURNED_ALIAS_RAD apart counted two, each searched cell by cell and fitted;
+#: one taken as the wide search takes one (FOUND_SHARE with every direction
+#: fixed, no rival at RIVAL_SHARE at any heading), found AGAIN by the next,
+#: carried there by odometry. MEASURED (docs/SimNotes.md, "A heading lost in
+#: a fall, searched for at every heading"): in the lobby, a scan turned 180
+#: deg puts 0.90-1.11 of the truth's points on walls, so half its get-ups
+#: knocked 120 deg are refused, never taken wrong; ~0.1 s a search.
+TURNED_SEARCHES = 6
+TURNED_TRIES = 5
+TURNED_STEP_RAD = math.radians(2.0)
+TURNED_RANGE_M = 6.0
+TURNED_POINTS = 150
+TURNED_ALIAS_RAD = math.radians(20.0)
 #: ⚠ AN ANCHOR RE-LAYS THE MAP ROUND IT (issue #422): once the dock has put
 #: the belief in its frame to millimetres (`anchored`), the next
 #: ANCHORED_SCANS scans that go into the map are laid at that belief,
@@ -304,6 +326,18 @@ def _same(a, b) -> bool:
   return m < UNIQUE_M and rad < UNIQUE_RAD
 
 
+def _carried(found, then, now) -> tuple[float, float, float]:
+  """Where a pose `found` from the belief `then` is, carried by odometry to
+  the belief `now`: found + (now - then) in `then`'s frame. A heading off by
+  a turn walks the belief off another way than the body, and the two
+  corrections differ by that; the pose carried does not."""
+  c, s = math.cos(then[2]), math.sin(then[2])
+  dx, dy = now[0] - then[0], now[1] - then[1]
+  fx, fy = c * dx + s * dy, -s * dx + c * dy
+  c, s = math.cos(found[2]), math.sin(found[2])
+  return (found[0] + c * fx - s * fy, found[1] + s * fx + c * fy, found[2] + now[2] - then[2])
+
+
 def _near(a, b) -> bool:
   """A pose the doubt's search found is where a slid fit slid (`b`, its
   correction along the directions the walls fix): within DOUBT_SLID_M and
@@ -369,6 +403,10 @@ class ScanMatcher:
     self.anchoring = 0
     #: Scans before a doubted or slid fit may be searched again (DOUBT_EVERY).
     self.doubt_wait = 0
+    #: Wide searches left at every heading since a fall (`fell`), and what
+    #: the last one found: (the pose, the belief it was found from).
+    self.turned_left = 0
+    self.turned_seen: tuple[tuple, tuple] | None = None
 
   # ---- the field ------------------------------------------------------------
 
@@ -439,6 +477,13 @@ class ScanMatcher:
     self.doubt_wait = 0
     if on:
       self.lost_run, self.pending, self.fused_pose = 0, None, None
+      self.turned_left, self.turned_seen = 0, None
+
+  def fell(self) -> None:
+    """The robot is up from a fall (issue #690): until a scan fits, its next
+    TURNED_SEARCHES wide searches that find nothing look at every heading
+    (`_turned`)."""
+    self.turned_left, self.turned_seen = TURNED_SEARCHES, None
 
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
@@ -549,6 +594,16 @@ class ScanMatcher:
       if wide is not None and seen is not None and _same(seen, self.pending):
         self.doubt_wait = 0
         return self._done(wide[0], "relocated", **wide[1])
+      # ...and up from a fall, at every heading (TURNED_*): only where the
+      # served search found nothing, which in the lobby a turned search
+      # would refuse for the scan turned 180 deg
+      if wide is not None:
+        self.turned_seen = None
+      elif self.turned_left:
+        turned = self._turned((x0, y0, th0), pts)
+        if turned is not None:
+          self.doubt_wait = 0
+          return self._done(turned[0], "relocated", **turned[1])
     return self._done(at, why, **kw)
 
   def _fit(self, start, pts: np.ndarray):
@@ -712,6 +767,78 @@ class ScanMatcher:
         break
     return out
 
+  def _turned(self, pose, pts: np.ndarray):
+    """The wide search at every heading, up from a fall (TURNED_*): the pose
+    it finds, as `_relocate`'s, if the last one found it too -- carried from
+    the belief it was found from to this one -- else None."""
+    self.turned_left -= 1
+    found = self._relocate_turned(pose, pts)
+    seen, self.turned_seen = self.turned_seen, None if found is None else (found[0], tuple(pose))
+    if found is None or seen is None:
+      return None
+    return found if _same(_carried(seen[0], seen[1], pose), found[0]) else None
+
+  def _relocate_turned(self, pose, pts: np.ndarray):
+    """The one pose within WIDE_M of `pose`, at any heading, the map agrees
+    with, as `_relocate`'s, or None: `_turned_candidates`' each searched cell
+    by cell and fitted, the "found" one with the most inliers taken unless
+    another found explains the scan as well (RIVAL_SHARE)."""
+    found = []
+    for start in self._turned_candidates(pose, pts):
+      fine = self._search(start, pts, reach_m=WIDE_STRIDE * self.grid.resolution,
+                          reach_rad=TURNED_STEP_RAD) or start
+      at, why, kw = self._judge(pose, pts, self._fit(fine, pts), found=True)
+      if why == "found":
+        found.append((at, kw))
+    if not found:
+      return None
+    best = max(found, key=lambda f: f[1]["inliers"])
+    if any(not _same(at, best[0]) and kw["inliers"] >= RIVAL_SHARE * best[1]["inliers"]
+           for at, kw in found):
+      return None
+    return best
+
+  def _turned_candidates(self, pose, pts: np.ndarray) -> list[tuple[float, float, float]]:
+    """The TURNED_TRIES best poses of a lattice WIDE_STRIDE cells and
+    TURNED_STEP_RAD apart within WIDE_M of `pose`, at every heading, each
+    scored by its returns within TURNED_RANGE_M (TURNED_POINTS at most)
+    within half a stride and the step's arc of a mapped wall; one UNIQUE_M
+    from those taken before it, or TURNED_ALIAS_RAD turned from them, is
+    another."""
+    g, f = self.grid, self.field
+    res = g.resolution
+    near_pts = pts[np.hypot(pts[:, 0], pts[:, 1]) < TURNED_RANGE_M]
+    if len(near_pts) > TURNED_POINTS:
+      near_pts = near_pts[np.linspace(0, len(near_pts) - 1, TURNED_POINTS).round().astype(np.int64)]
+    on_wall = (np.abs(np.nan_to_num(f, nan=np.inf)) < INLIER_M).astype(np.uint8)
+    widen = WIDE_STRIDE / 2 + TURNED_RANGE_M * math.sin(TURNED_STEP_RAD / 2) / res
+    near = ndimage.maximum_filter(on_wall, size=2 * math.ceil(widen) + 1) > 0
+    h, w = near.shape
+    n = int(round(WIDE_M / res / WIDE_STRIDE))
+    shifts = np.arange(-n, n + 1) * WIDE_STRIDE
+    turns = np.arange(0.0, 2 * math.pi - 1e-9, TURNED_STEP_RAD)
+    x0, y0, th0 = pose
+    scores = np.empty((len(turns), len(shifts), len(shifts)), dtype=np.int64)
+    for k, dth in enumerate(turns):
+      wx, wy = self._world((x0, y0, th0 + dth), near_pts)
+      i = np.floor((wx - g.x_min) / res).astype(np.int64) - self.corner[0]
+      j = np.floor((wy - g.y_min) / res).astype(np.int64) - self.corner[1]
+      ii = i[None, None, :] + shifts[None, :, None]
+      jj = j[None, None, :] + shifts[:, None, None]
+      inside = (ii >= 0) & (ii < w) & (jj >= 0) & (jj < h)
+      scores[k] = (near[np.where(inside, jj, 0), np.where(inside, ii, 0)] & inside).sum(axis=2)
+    out: list[tuple[float, float, float]] = []
+    for flat in np.argsort(-scores, axis=None, kind="stable"):
+      k, a, b = np.unravel_index(int(flat), scores.shape)
+      cand = (x0 + float(shifts[b]) * res, y0 + float(shifts[a]) * res, th0 + float(turns[k]))
+      if any(math.hypot(cand[0] - c[0], cand[1] - c[1]) < UNIQUE_M
+             and abs(math.remainder(cand[2] - c[2], 2 * math.pi)) < TURNED_ALIAS_RAD for c in out):
+        continue
+      out.append(cand)
+      if len(out) == TURNED_TRIES:
+        break
+    return out
+
   def _on_wall_count(self, pose, pts, on_wall) -> int:
     g = self.grid
     wx, wy = self._world(pose, pts)
@@ -756,7 +883,10 @@ class ScanMatcher:
     if why != "inconsistent":
       # any other verdict breaks the run of refusals, and what the wide
       # search found in it (LOST_RUN)
-      self.lost_run, self.pending = 0, None
+      self.lost_run, self.pending, self.turned_seen = 0, None, None
+    if why in ACCEPTED:
+      # ...and a scan that fits ends the search at every heading (TURNED_*)
+      self.turned_left = 0
     self.counts[why] = self.counts.get(why, 0) + 1
     if why in ACCEPTED and held:
       self.counts["held"] = self.counts.get("held", 0) + 1
@@ -774,6 +904,7 @@ class ScanMatcher:
     self.counts, self.last = {}, None
     self.lost_run, self.pending, self.anchoring = 0, None, 0
     self.doubt_wait = 0
+    self.turned_left, self.turned_seen = 0, None
 
   def kept_state(self) -> tuple[dict, dict]:
     """The field is the map as it was when last computed, not as it is now,
@@ -785,7 +916,9 @@ class ScanMatcher:
              "fusedT": None if self.fused_pose is None else self.fused_t,
              "counts": dict(self.counts), "lostRun": self.lost_run,
              "pending": None if self.pending is None else list(self.pending),
-             "anchoring": self.anchoring, "doubtWait": self.doubt_wait}
+             "anchoring": self.anchoring, "doubtWait": self.doubt_wait,
+             "turnedLeft": self.turned_left,
+             "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen]}
     return state, ({} if self.field is None else {"matchField": self.field})
 
   def restore_kept(self, state: dict, arrays: dict) -> None:
@@ -801,5 +934,8 @@ class ScanMatcher:
     self.pending = None if pending is None else tuple(float(v) for v in pending)
     self.anchoring = int(state.get("anchoring", 0))
     self.doubt_wait = int(state.get("doubtWait", 0))
+    self.turned_left = int(state.get("turnedLeft", 0))
+    seen = state.get("turnedSeen")
+    self.turned_seen = None if seen is None else tuple(tuple(float(v) for v in p) for p in seen)
     self.field = arrays.get("matchField")
     self.normals = None if self.field is None else _normals(self.field)
