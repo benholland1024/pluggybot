@@ -4446,23 +4446,28 @@ class HubLifecycle:
                      f"failed the job {task.id} ({task.kind}): {verdict.reason}")
 
   def _ran_nothing(self, decision) -> str:
-    """Why a decided `procedure:<name>` built nothing, as History says it:
-    not in the library (this answer's own `undefine`, done first, says so),
-    in it but not compiling against today's world, or one whose first def
-    takes arguments."""
+    """Why a decided `procedure:<name>` built nothing, as History and the
+    narration say it. The menu offers only runnable names, so it is this
+    answer's own edit of the library that left it so: its `undefine` (done
+    before the action) removed it, or left it unable to run -- not
+    compiling, a callee gone (`Library._relink`), or taking arguments."""
     from pluggybot.procedure.lang import called_only
     name = decision.action[len(PROCEDURE_PREFIX):]
     library = getattr(self.overseer, "library", None)
     entry = library.entries.get(name) if library is not None else None
     head = f"ran nothing: `{decision.action}`"
+    undone = (decision.undefine or "").strip()
     if entry is None:
-      undone = (decision.undefine or "") == name
       return (f"{head} is not in your library"
               + (" -- this answer's `undefine` removed it, and an undefine is done "
-                 "before the action" if undone else ""))
+                 "before the action" if undone == name else ""))
+    after = (f" -- after this answer's `undefine` of {undone}, done before the action"
+             if undone and undone != name else "")
     if not entry.valid:
-      return f"{head} is not runnable: {'; '.join(entry.reasons)}"
-    return f"{head} {called_only(entry.procedure)}"
+      return f"{head} is not runnable: {'; '.join(entry.reasons)}{after}"
+    if not entry.procedure.alone:
+      return f"{head} {called_only(entry.procedure)}{after}"
+    return f"{head}: it could not be built{after}"
 
   def _define(self, decision) -> None:
     """Apply a decision's `define` / `undefine` to the library (issue #166).
@@ -5878,12 +5883,14 @@ class HubLifecycle:
       # Vocabulary and world agreed on an action nothing can build. Not an
       # exception: the loop's next pass asks again, and the overseer's
       # consecutive-idle cap stops that becoming a spin.
-      self._say(f"DECIDE: nothing to build for {decision.action!r}")
       if decision.action.startswith(PROCEDURE_PREFIX):
-        # ...and, for a procedure it named, where the robot reads, as
-        # `procedure:new`'s is: told the narration alone, Rowan read a run
-        # that never began as its fix failing (11-12, t_0230)
-        self._remember(self._ran_nothing(decision))
+        # ...a procedure it named says why where the robot reads too, as
+        # `procedure:new`'s does (Overseer.md §2b)
+        why = self._ran_nothing(decision)
+        self._say(f"DECIDE: {why}")
+        self._remember(why)
+      else:
+        self._say(f"DECIDE: nothing to build for {decision.action!r}")
       yield from self.body.hold_routine(DECIDED_IDLE_S)
       return "unbuildable"
     fit = self.affords(errand)

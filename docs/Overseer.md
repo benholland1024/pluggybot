@@ -308,11 +308,11 @@ runs the procedure the same answer defines — the action enum is built from
 the library before the answer, so a new name could never be named in it and
 the constrained decoder substituted an old one; it runs nothing if the define
 was refused, and is never an order or a map row. **A run that never began
-says so in History** ("ran nothing: ..."), `procedure:new`'s and a named
-one's alike -- one the same answer's `undefine` removed (done before the
-action), one that no longer compiles, one that takes arguments: told the
-narration alone, Rowan read a run that never began as its fix failing
-(11-12). A full library, a source
+says why in History** ("ran nothing: ..."), `procedure:new`'s and a named
+one's alike: the menu offers only runnable names, so a named one fails only
+where the same answer's own `undefine` (done before the action) removed it
+or left it unable to run. Told the narration alone, Rowan read a run that
+never began as its fix failing (11-12). A full library, a source
 that does not compile, a name that does not match its `def`: each refuses out
 loud, narrated and counted (`library.refusals`), and a `procedure` event
 carries `defined` / `undefined` / `refused` with the source. **Every run

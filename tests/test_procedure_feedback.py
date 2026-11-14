@@ -521,11 +521,38 @@ def test_a_named_procedure_that_builds_nothing_says_so_where_the_robot_reads():
   said = life.thoughts.read("History.md")
   assert "ran nothing: `procedure:hook5` is not in your library" in said
   assert "this answer's `undefine` removed it" in said
-  # ...and one whose first def takes an argument, as `procedure:new` says it
-  L.define("press", "def press(n):\n  wait(n)\n")
+
+
+def test_a_named_procedure_this_answer_left_unable_to_run_says_why(monkeypatch):
+  """The menu offers only runnable names, so the other ways a named one
+  builds nothing are this answer's own edits: a callee undefined (the
+  library's relink marks the caller), or a replacement whose first def
+  takes an argument -- and a build that raised says only that."""
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("grip", "def grip():\n  wait(1)\n")
+  L.define("opener", "def opener():\n  grip()\n  wait(1)\n")
   life, _ = _deciding_life(L)
-  life.body.run(life._after_decision_routine(Decision(action="procedure:press", reason="x")))
+  life.body.run(life._after_decision_routine(
+    Decision(action="procedure:opener", reason="x", undefine="grip")))
+  said = life.thoughts.read("History.md")
+  assert "ran nothing: `procedure:opener` is not runnable: " in said
+  assert "after this answer's `undefine` of grip" in said
+  L.define("press", "def press():\n  wait(1)\n")
+  life, _ = _deciding_life(L)
+  life.body.run(life._after_decision_routine(Decision(
+    action="procedure:press", reason="x", undefine="press",
+    define={"name": "press", "source": "def press(n):\n  wait(n)\n"})))
   assert "ran nothing: `procedure:press` takes n" in life.thoughts.read("History.md")
+  L.define("ok", "def ok():\n  wait(1)\n")
+  life, _ = _deciding_life(L)
+
+  def broken(*a, **kw):
+    raise ValueError("no steps")
+  monkeypatch.setattr(lc, "programmed_errand", broken)
+  life.body.run(life._after_decision_routine(Decision(action="procedure:ok", reason="x")))
+  said = life.thoughts.read("History.md")
+  assert "ran nothing: `procedure:ok`: it could not be built" in said
+  assert "takes" not in said
 
 
 def test_a_refused_define_is_written_where_the_robot_reads():
