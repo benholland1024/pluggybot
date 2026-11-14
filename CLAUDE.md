@@ -1377,20 +1377,23 @@ save a filmstrip PNG named after the script.
   only SETS A FLAG (a call between physics steps re-enters the hook; #143
   measured a RecursionError); `HubLifecycle.interrupted_routine()` resolves
   it, a ROUTINE whose think slices are YIELDED as `_decide_routine`'s are
-  (#692: asked blocking, the pair's other robot was held through the ask,
-  its errand paused up to 115 s); ONE question per errand, the abort
-  LATCHES. ⚠ Abort means STOP
+  (#692: blocking, the pair's other robot was held through the ask), its
+  `state` `DECIDE` while it flies and given back after; ONE question per
+  errand, the abort LATCHES. ⚠ Abort means STOP
   at a safe point (the quadruped's stowed its tool first; the humanoid has
   none to stow), and an abort is NOT an `error`: what it did is SCORED AS
   IT STANDS. ⚠ `needs_charge` and `interrupted_routine()` are not
   the same check. ⚠ A procedure's walk is a safe point every second (#381),
   its `stop` only READING one due (`interrupt_due`): the walk -- or a
   `find` -- ends where it stands and its verb asks (`steps._asking`, #692);
-  carried on, it goes on from there with the patience it had left, the ask
-  none of it and never past the run's budget, on a fresh plan; stopped, the
-  verb is `stopped: interrupted` in BOTH runners (`steps.run_verb` reads the
-  `aborting` latch), never a failed step. ⚠ A walk's ask is inside its verb,
-  which a death or a fall ends at once (#671), its call left unanswered.
+  carried on, a walk goes on from there on a fresh plan and a find with its
+  search (`find_tag_routine(resume=)`: the step its stop cut short taken
+  again, its record one find), with the patience their own clocks left,
+  never past the run's budget; stopped, the verb is `stopped: interrupted`
+  in BOTH runners (`steps.run_verb` reads the `aborting` latch), never a
+  failed step. ⚠ A walk's ask is inside its verb, which a death or a fall
+  ends at once (#671): its row is kept `unanswered`, its call never
+  collected.
 - **The memory is four tiers over one record store, and every text surface is
   a DOCUMENT or a MESSAGE** (issues #217, #221; Overseer.md §7).
   `mind/memory.py` is the store (SQLite + FTS5, one `memory.sqlite` per robot,
@@ -1996,9 +1999,10 @@ save a filmstrip PNG named after the script.
   stubs the ROUTINE (`life.body.go_to_routine = lambda *a, **kw:
   tick.result(False)`), never the twin. Parity is the trajectory hash
   (`scripts/determinism_spike.py --compare` before and after). ⚠ NO
-  BLOCKING RUN IS LEFT INSIDE THE DAY'S ROUTINES, and none is added: the
-  interrupt's ask was the last (#692), and a twin is called by scripts and
-  tests alone; one begun inside a pair's loop is the loop's (#690, below).
+  BLOCKING RUN IS LEFT INSIDE THE DAY'S ROUTINES, and none is added: a twin
+  is called by scripts and tests alone, and the interrupt's ask, the last
+  (#692), has none -- handed to a walk as its `stop`, it asked blocking. One
+  begun inside a pair's loop is the loop's (#690, below).
 - **The loop reaches the machine only through `Body`** (issue #380;
   `pluggybot/body.py`, documented at each member): every module in `src/`
   but the machine's own (`tests/test_body.py::BODY_SIDE`: `humanoid/`,
@@ -2052,12 +2056,10 @@ save a filmstrip PNG named after the script.
   robot applied, one `mj_step`, every robot booked, each other robot held
   through its wait (its body's own hold), its routine left where it was --
   stepped by the asking robot's stepper alone, Luca's legs held a walk's
-  stale targets through Rowan's 5.8 s interrupt (then a blocking wait), and
-  it fell, its IMU's filter blind, and got up 120 deg off. None is left in
-  `src/` (the ask yields since #692, the other robot's errand going on
-  through it, where held it paused up to `INTERRUPT_TIMEOUT_S`): the hold is
-  for the next, a walk or a `step` counting none of it (its stepper is
-  told: `held`, into `held_s`). ⚠ What the run raises that is not its
+  stale targets through Rowan's 5.8 s interrupt, and it fell, its IMU's
+  filter blind, and got up 120 deg off. None is left in `src/` (the ask
+  yields, #692): the hold is for the next, a walk or a `step` counting none
+  of it (its stepper is told: `held`, into `held_s`). ⚠ What the run raises that is not its
   routine's own -- a held robot's wait's, the step's -- is `run_many`'s to
   raise (`tick._Raised`): booked inside the asker's stack, the procedure
   runner's `except Exception` took the other robot's error for its own.

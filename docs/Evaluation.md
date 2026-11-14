@@ -486,7 +486,7 @@ its think slices yielded so a pair's other robot goes on (#692).
 | where | why it is safe |
 |---|---|
 | between a program's or a procedure's verbs | the verb before it has ended |
-| inside a verb's walk, every second (`drive_to`, `find`; issue #381) | the walk only reads one due and stops where it stands, and the verb asks (#692): carried on, it walks on with the patience left; stopped, the verb says `stopped: interrupted` -- the run is recorded stopped, never failed |
+| inside a verb's walk, every second (`drive_to`, `find`; issue #381) | the walk only reads one due and stops where it stands, and the verb asks (#692): carried on, a walk walks on and a find goes on with its search, with the patience left; stopped, the verb says `stopped: interrupted` -- the run is recorded stopped, never failed |
 
 ⚠ `needs_charge` and `interrupted_routine()` are **not** the same check:
 `needs_charge` is *code's* reserve and is off on this arm, while

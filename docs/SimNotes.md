@@ -8506,12 +8506,15 @@ the ask's 57,550 steps its own, no fall, its trunk within 1.7 deg of upright
 The asker's own walk is never asked from inside: a walk's `stop` reads only
 that an interrupt is due (`interrupt_due`), the walk -- or a `find` -- ends
 where it stands, `DRIVE_STOPPED`, its verb asks (`steps._asking`), and
-carried on it goes on from there on a fresh plan with the patience its own
-clock left (its record's seconds: a hold the walk counts out, and the ask,
-are none of it, and never past the run's budget); stopped, the verb is
-`stopped: interrupted` as before. A walk's ask is inside its verb, so
-a death or a fall ends it at once (#671), its call never answered; an ask
-between two verbs runs to its answer, the death read before the next.
+carried on a walk goes on from there on a fresh plan and a find with its
+search (`resume`: begun afresh, it walked back to its address and looked
+round again where it had), each with the patience its own clock left (its
+record's seconds: a hold the walk counts out, and the ask, are none of it,
+and never past the run's budget); stopped, the verb is `stopped:
+interrupted` as before. A walk's ask is inside its verb, so a death or a
+fall ends it at once (#671), its row kept `unanswered`, its call never
+collected; an ask between two verbs runs to its answer, the death read
+before the next.
 
 **Nothing else moves.** On the same pod, a robot alone (600 s) and the
 pair's day with a fall and a death arranged fly the base's trajectory bit

@@ -23,10 +23,13 @@ robot's interrupt asked, the other robot held"):
   its procedure's budget and its job's minutes ran on.
 - A procedure's walk, or a `find`, is never asked from inside: its `stop`
   only reads that an interrupt is due, the walk ends where it stands and its
-  verb asks. Carried on, it goes on to its goal from there on a fresh plan
-  with the patience its own clock left; stopped, the verb is `stopped:
-  interrupted`, as before. A death or a fall in a walk's ask ends the verb
-  at once (#671), its call unanswered.
+  verb asks. Carried on, a walk goes on to its goal from there on a fresh
+  plan and a find with its search, each with the patience its own clock
+  left; stopped, the verb is `stopped: interrupted`, as before. A death or a
+  fall in a walk's ask ends the verb at once (#671): the interrupt's row is
+  `unanswered` (a third outcome beside `continued` and `aborted`, said and
+  in History), its call never collected. The robot's `state` is `DECIDE`
+  only while it is asked, where it stayed `DECIDE` to the errand's end.
 - No text the robots read moved: `prompt_sha` `b345cc34…`, 66,029 chars,
   17 sections, and the session host's hello byte for byte. A robot alone,
   and a pair with no interrupt asked, fly the base's day bit for bit.

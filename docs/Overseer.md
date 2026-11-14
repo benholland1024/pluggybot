@@ -1441,13 +1441,16 @@ asked, the other robot held").
 ⚠ **A WALK IS NEVER ASKED FROM INSIDE.** A procedure's walk (and a `find`) is a
 safe point every second, but its `stop` only reads that an interrupt is due
 (`interrupt_due`): the walk ends where it stands, its verb asks, and answered
-carry on it goes on to its goal from there -- a fresh plan, given the patience
-it had left (the ask none of it, and never past the run's own budget); answered
-stop, the verb is `stopped: interrupted`. Asked between two walks, the robot
-stands as between two verbs, so a long think may rest it and the other robot
-may ask it aside. The ask is inside the verb, which a death or a fall ends at
-once (#671): its answer is never collected, and an interrupt asked while that
-call still flies is answered `busy`, an abort.
+carry on a walk goes on to its goal from there on a fresh plan, a find with its
+search (the step the stop cut short taken again, its record one find), each
+with the patience its own clock left (the ask none of it, and never past the
+run's own budget); answered stop, the verb is `stopped: interrupted`. Asked
+between two walks, the robot stands as between two verbs, so a long think may
+rest it and the other robot may ask it aside. The ask is inside the verb, which
+a death or a fall ends at once (#671): its row is kept `unanswered` (and in
+History), its answer never collected, and an interrupt asked while that call
+still flies is answered `busy`, an abort. The robot's `state` is `DECIDE` while
+it is asked, and given back after.
 
 `docs/Evaluation.md` §2 has the safe points and the ordering.
 
