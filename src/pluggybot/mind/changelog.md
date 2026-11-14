@@ -6,6 +6,24 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-14
+
+- The lab's three pressure plates now lie flush with the floor, as the
+  garden's does, and each still works when stepped on.
+- When the other robot is asked something in the middle of one of its
+  errands, your body now stands still until its answer comes, for up to
+  about two minutes, and then carries on with what it was doing. Before,
+  your body went without its balance and its senses during such a wait,
+  and could fall or lose track of which way it faced.
+- A `done` is now acted on as soon as your answer is read, before that
+  answer's other action, unless that action runs a procedure, which runs
+  first; before, an `idle` or a `look` beside it held it back by up to a
+  minute. A held job's `leftS` is what it had left when you were asked,
+  and its clock runs on while you think.
+- A refused note now says how full the file is, as in "`Notes.md` holds 64
+  of 64 entries"; before, it said one more than the file held. `Notes.md`
+  and `Findings.md` now come in every turn with their count, as `holds`.
+
 ## 2026-11-13
 
 - The garden's pressure plate now lies flush with the ground, where it
