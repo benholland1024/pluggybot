@@ -1135,6 +1135,46 @@ def test_a_better_place_wider_waits_for_the_next_wide_search_and_a_restart_keeps
   assert looked == [0, sm.LOST_RUN, sm.LOST_RUN] and not a.fallen and not b.fallen
 
 
+def test_while_a_better_place_waits_a_take_stands_only_where_it_is_that_place(counter):
+  # Flown at the cube's end of the counter: the first find refused, the
+  # search's next lay 0.43 m from the truth -- one place with it, to the
+  # wide search -- between the truth and the place refused, and the fits
+  # after it slid back onto that place. Until the next wide search a take
+  # is the find that waits, to a fit's own width, or it waits too.
+  m = sm.ScanMatcher(counter)
+  m.refresh(BEHIND[0], BEHIND[1])
+  pts = m.points(ANGLES, cast(COUNTER, STOOD, np.random.default_rng(31)))
+  kw = {"inliers": 200, "rms_m": 0.03, "weakest": 40.0, "weak_dir": (1.0, 0.0, 0.0), "held": 0}
+  waits = (STOOD[0] - BEHIND[0], STOOD[1] - BEHIND[1], 0.0)
+  for off, outdone in ((0.43, True), (sm.DOUBT_SLID_M + 0.02, True), (0.03, False)):
+    m.pending = waits
+    step = (waits[0] + off, waits[1], 0.0)
+    take = ((BEHIND[0] + step[0], BEHIND[1] + step[1], BEHIND[2]), dict(kw, step=step))
+    assert m._outdone(BEHIND, pts, take) is outdone, off
+    assert m.pending == waits, "no search while one waits"
+
+
+def test_up_from_a_fall_a_fit_that_slid_is_one_more_refusal_of_the_run(room, monkeypatch):
+  # A fit that slid is refused and breaks the run of refusals, so a robot
+  # whose fits slid never came to its wide search (N6's lobby: 30 s of them;
+  # at the counter a run of fits slid and takes refused in turn, 563 scans in
+  # a minute, 0.9 m off). Up from a fall it counts as the map's own refusal
+  # does: LOST_RUN of them, the wide search; LOST_RUN more, the pose.
+  monkeypatch.setattr(sm, "DOUBT_FOUND_SHARE", 1.01)     # the doubt's search takes nothing
+  slid = (TRUE[0] + 0.14, TRUE[1] - 0.10, TRUE[2] + 0.08)
+  rng = np.random.default_rng(5)
+  m = sm.ScanMatcher(room)
+  m.fell()
+  whys = [m.match(slid, ANGLES, cast(ROOM, TRUE, rng)).why for _ in range(2 * sm.LOST_RUN)]
+  assert whys == ["inconsistent"] * (2 * sm.LOST_RUN - 1) + ["relocated"], whys
+  assert math.hypot(m.last.pose[0] - TRUE[0], m.last.pose[1] - TRUE[1]) < 0.03
+  # ...and not up from one, it is what it was: refused, the run broken
+  m = sm.ScanMatcher(room)
+  rng = np.random.default_rng(5)
+  whys = [m.match(slid, ANGLES, cast(ROOM, TRUE, rng)).why for _ in range(2 * sm.LOST_RUN)]
+  assert set(whys) == {"slid"} and m.lost_run == 0, whys
+
+
 def test_a_fix_or_a_warp_ends_the_falls_doubt_of_the_pose(counter):
   # The station's fix, or a warp, puts the belief where the world says it
   # is: what a fall left in doubt is settled, and the scans after it are no

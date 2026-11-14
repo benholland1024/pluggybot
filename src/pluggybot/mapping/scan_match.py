@@ -647,6 +647,11 @@ class ScanMatcher:
     past the search's window"."""
     if why in ACCEPTED and unsure and self._outdone(asked, pts, (at, kw)):
       return self._lost(asked, pts, kw, near=(at, kw))
+    if why == "slid" and self.fallen:
+      # ...and up from a fall a fit that slid is one more of the run: broken
+      # by it, a run of fits slid and takes refused in turn never came to its
+      # wide search (flown: 563 scans refused in a minute, 0.9 m off)
+      return self._lost(asked, pts, kw)
     return self._done(at, why, **kw)
 
   def _lost(self, asked, pts: np.ndarray, kw: dict, near=None) -> Match:
@@ -782,18 +787,22 @@ class ScanMatcher:
 
   def _outdone(self, pose, pts: np.ndarray, near) -> bool:
     """Whether a wider look holds a better place than `near`, a take (its
-    pose, `Match`'s fields) with the pose in doubt (WIDER, issue #681): the
-    wide search with `near` one more of its places, run where none of its
-    finds waits to be found again (`pending`); a find elsewhere waits as the
-    wide search's own does, and until the next wide search (LOST_RUN) a take
-    stands only where it is that find."""
+    pose, `Match`'s fields) with the pose in doubt (issue #681): the wide
+    search with `near` one more of its places, run where none of its finds
+    waits to be found again (`pending`). A find at another place (UNIQUE_M:
+    nearer is one place, and a copy of the room a step away must not take a
+    belief from the room) waits as the wide search's own does, and until
+    the next wide search (LOST_RUN) a take stands only where it is that find
+    itself, as near as a slid fit's search must be (`_near`: flown, the
+    search's next find lay 0.43 m from the truth, between it and the place
+    refused, and the fits after it slid back to that place)."""
     if self.pending is None:
       wide = self._relocate(pose, pts, also=near)
       if wide is None or _same(wide[0], near[0]):
         return False
       self.pending = wide[1]["step"]
       return True
-    return not _same(near[1]["step"], self.pending)
+    return not _near(near[1]["step"], self.pending)
 
   def _relocate(self, pose, pts: np.ndarray, also=None):
     """The wide search (LOST_RUN): the one pose within WIDE_M and WIDE_RAD of
