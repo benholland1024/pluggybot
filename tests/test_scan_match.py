@@ -1073,37 +1073,55 @@ def test_the_search_at_every_heading_waits_on_the_served_wide_search(room, monke
   assert whys[-1] == "relocated" and not ran
 
 
-def test_a_robot_walking_on_turned_is_found_again_where_odometry_carried_it(nook, monkeypatch):
-  # Walking on with its heading turned, its belief goes another way than its
-  # body, and the correction from it the next search finds is another: 1 m of
-  # walk at 120 deg off moves it 1.7 m. The pose found, carried by odometry
-  # from where it was found to where the next search believes it is, is the
-  # same.
-  def walk(k):
-    truth = (TRUE[0] - 0.5 + 0.05 * k, TRUE[1], TRUE[2])
-    step = (0.05 * k * math.cos(TRUE[2]), 0.05 * k * math.sin(TRUE[2]))
-    c, s = math.cos(math.radians(120.0)), math.sin(math.radians(120.0))
-    belief = (TURNED[0] - 0.5 + c * step[0] - s * step[1], TURNED[1] + s * step[0] + c * step[1],
-              TURNED[2])
-    return truth, belief
+def _walking(k, per_scan):
+  """Scan k of a robot up from a fall standing its first LOST_RUN scans,
+  then walking `per_scan` a scan: (the truth, the belief that walked the
+  same steps through its heading turned 120 deg)."""
+  d = per_scan * max(0, k - (sm.LOST_RUN - 1))
+  return ((TRUE[0] + d * math.cos(TRUE[2]), TRUE[1] + d * math.sin(TRUE[2]), TRUE[2]),
+          (TURNED[0] + d * math.cos(TURNED[2]), TURNED[1] + d * math.sin(TURNED[2]), TURNED[2]))
 
-  rng = np.random.default_rng(44)
+
+def _walked(nook, per_scan, seed=44):
   m = sm.ScanMatcher(nook)
   m.fell()
+  rng = np.random.default_rng(seed)
   for k in range(2 * sm.LOST_RUN):
-    truth, belief = walk(k)
+    truth, belief = _walking(k, per_scan)
     got = m.match(belief, ANGLES, cast(NOOK, truth, rng))
+  return m, got, truth
+
+
+def test_a_robot_walking_on_turned_is_found_again_where_odometry_carried_it(nook, monkeypatch):
+  # Walking on with its heading turned, its belief goes another way than its
+  # body, and the correction from it the next search finds is another: 0.4 m
+  # between them at 120 deg off moves it 0.7 m. The pose found, carried by
+  # odometry from the belief it was found from to the next search's, is the
+  # same.
+  m, got, truth = _walked(nook, 0.04)
   assert got.why == "relocated"
   assert math.hypot(got.pose[0] - truth[0], got.pose[1] - truth[1]) < 0.03
   # ...the premise: compared as the served search compares, its corrections
   monkeypatch.setattr(sm, "_carried", lambda found, then, now: (
     found[0] - then[0] + now[0], found[1] - then[1] + now[1], found[2] - then[2] + now[2]))
-  m = sm.ScanMatcher(nook)
-  m.fell()
-  rng = np.random.default_rng(44)
-  whys = [m.match(walk(k)[1], ANGLES, cast(NOOK, walk(k)[0], rng)).why
-          for k in range(2 * sm.LOST_RUN)]
-  assert "relocated" not in whys
+  m, got, truth = _walked(nook, 0.04)
+  assert got.why == "inconsistent" and m.turned_seen is not None
+
+
+def test_a_robot_that_walked_on_from_where_it_stood_up_searches_no_more(nook, monkeypatch):
+  # Walked on with its heading off, its belief has walked another way than
+  # its body and the truth leaves the lattice round it, and in a hall the
+  # scan turned half round is left there to fit unrivalled: MEASURED,
+  # walking on knocked 120 deg in the lobby, 5 of 118 were taken onto it,
+  # each 1.24-1.73 m from where it stood up; every pose taken right was found
+  # within 0.88 m. Past TURNED_NEAR_M, the search at every heading is over.
+  m, got, _ = _walked(nook, 0.07)
+  assert got.why == "inconsistent" and m.turned_left == 0
+  # ...the premise: with the stand anywhere near, the same walk is taken
+  monkeypatch.setattr(sm, "TURNED_NEAR_M", 2.0)
+  m, got, truth = _walked(nook, 0.07)
+  assert got.why == "relocated"
+  assert math.hypot(got.pose[0] - truth[0], got.pose[1] - truth[1]) < 0.03
 
 
 def test_the_search_at_every_heading_ends_at_its_count_or_a_scan_that_fits(room, monkeypatch):
@@ -1139,6 +1157,7 @@ def test_a_restart_keeps_the_search_at_every_heading(nook):
     a.match(TURNED, ANGLES, r)
   state, arrays = a.kept_state()
   assert state["turnedLeft"] == sm.TURNED_SEARCHES - 1 and state["turnedSeen"] is not None
+  assert state["turnedFrom"] == list(TURNED[:2])
   b = sm.ScanMatcher(nook)
   b.restore_kept(state, arrays)
   for r in scans[sm.LOST_RUN + 2:]:

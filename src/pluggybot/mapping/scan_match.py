@@ -231,6 +231,14 @@ TURNED_STEP_RAD = math.radians(2.0)
 TURNED_RANGE_M = 6.0
 TURNED_POINTS = 150
 TURNED_ALIAS_RAD = math.radians(20.0)
+#: ⚠ ...AND ONLY WHILE THE BELIEF IS WITHIN TURNED_NEAR_M OF WHERE IT STOOD
+#: UP: walked on with its heading off, it has walked another way than the
+#: body, the truth leaves the lattice and the hall's scan turned half round
+#: is left to fit unrivalled. MEASURED, walking on knocked 120 deg in the
+#: lobby: the poses taken right were found 0.02-0.88 m from the stand's
+#: belief (all but three within 0.5), 5 of 118 taken onto the half turn,
+#: 1.4-4.7 m off, at 1.24-1.73 m.
+TURNED_NEAR_M = 0.5
 #: ⚠ AN ANCHOR RE-LAYS THE MAP ROUND IT (issue #422): once the dock has put
 #: the belief in its frame to millimetres (`anchored`), the next
 #: ANCHORED_SCANS scans that go into the map are laid at that belief,
@@ -407,6 +415,8 @@ class ScanMatcher:
     #: the last one found: (the pose, the belief it was found from).
     self.turned_left = 0
     self.turned_seen: tuple[tuple, tuple] | None = None
+    #: ...and where the belief stood up: the first scan matched since.
+    self.turned_from: tuple[float, float] | None = None
 
   # ---- the field ------------------------------------------------------------
 
@@ -477,13 +487,13 @@ class ScanMatcher:
     self.doubt_wait = 0
     if on:
       self.lost_run, self.pending, self.fused_pose = 0, None, None
-      self.turned_left, self.turned_seen = 0, None
+      self.turned_left, self.turned_seen, self.turned_from = 0, None, None
 
   def fell(self) -> None:
     """The robot is up from a fall (issue #690): until a scan fits, its next
     TURNED_SEARCHES wide searches that find nothing look at every heading
     (`_turned`)."""
-    self.turned_left, self.turned_seen = TURNED_SEARCHES, None
+    self.turned_left, self.turned_seen, self.turned_from = TURNED_SEARCHES, None, None
 
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
@@ -552,6 +562,8 @@ class ScanMatcher:
     `origin`'s), against the map."""
     x0, y0, th0 = (float(v) for v in pose)
     self.doubt_wait = max(self.doubt_wait - 1, 0)
+    if self.turned_left and self.turned_from is None:
+      self.turned_from = (x0, y0)
     if self.anchoring:
       return self._done(pose, "anchored")
     if self.field is None or self._stale(x0, y0):
@@ -599,6 +611,10 @@ class ScanMatcher:
       # would refuse for the scan turned 180 deg
       if wide is not None:
         self.turned_seen = None
+      elif self.turned_left and math.hypot(x0 - self.turned_from[0],
+                                           y0 - self.turned_from[1]) > TURNED_NEAR_M:
+        # ...walked on from where it stood up: over (TURNED_NEAR_M)
+        self.turned_left, self.turned_seen = 0, None
       elif self.turned_left:
         turned = self._turned((x0, y0, th0), pts)
         if turned is not None:
@@ -904,7 +920,7 @@ class ScanMatcher:
     self.counts, self.last = {}, None
     self.lost_run, self.pending, self.anchoring = 0, None, 0
     self.doubt_wait = 0
-    self.turned_left, self.turned_seen = 0, None
+    self.turned_left, self.turned_seen, self.turned_from = 0, None, None
 
   def kept_state(self) -> tuple[dict, dict]:
     """The field is the map as it was when last computed, not as it is now,
@@ -918,7 +934,8 @@ class ScanMatcher:
              "pending": None if self.pending is None else list(self.pending),
              "anchoring": self.anchoring, "doubtWait": self.doubt_wait,
              "turnedLeft": self.turned_left,
-             "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen]}
+             "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen],
+             "turnedFrom": None if self.turned_from is None else list(self.turned_from)}
     return state, ({} if self.field is None else {"matchField": self.field})
 
   def restore_kept(self, state: dict, arrays: dict) -> None:
@@ -937,5 +954,7 @@ class ScanMatcher:
     self.turned_left = int(state.get("turnedLeft", 0))
     seen = state.get("turnedSeen")
     self.turned_seen = None if seen is None else tuple(tuple(float(v) for v in p) for p in seen)
+    since = state.get("turnedFrom")
+    self.turned_from = None if since is None else tuple(float(v) for v in since)
     self.field = arrays.get("matchField")
     self.normals = None if self.field is None else _normals(self.field)
