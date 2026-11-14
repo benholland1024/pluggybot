@@ -8428,8 +8428,22 @@ set-outs 0-31, each its own noise; `~/pluggybot-training/loop-1114/n2-693/`):
 | 9d31fe6 | 5 / 7 | 10 / 6 | 26 (0 fell) | 21 (3) | 24 (1) | 20 (1) | 24 (3) |
 | this | 0 / 8 | 0 / 8 | 26 (0) | 21 (2) | 24 (1) | 20 (1) | 24 (2) |
 
-Every fall's last way home pressed nothing on the top (0-2.3 N*s up, where
-9.4-44.9), and draw 22 opened the door. `scripts/humanoid_spike.py --view
+At set-outs 32-127 (the table's 32-63), beside the base on the same pod:
+the lid 77 and 77 of 96, the drawer 67 then 66, the door 71 then 72, the
+cube 60 then 61, the table 30 and 30 of 32, falls 6 then 5; 412 of the 416
+the base's by verdict. Every flight that moved -- the drawer's 2 at 0-31
+and 72 and 127 above, the table's 27, the door's 38 and the cube's 111 --
+parted where a withdraw before it waited for the trunk to stand still,
+never where the stand waited for an arm -- most 0.12 s later, the cube's
+111 1.8 s sooner (its next look's bow waited on a trunk already still): the
+drawer's two lost their falls there, and the drawer's 127 its pass (its
+last way home, some of the arm ahead and the stand rising as before, put a
+jaw on the drawer's front and pushed it from 19 cm to 12). The station's
+trials are the base's: docked and unplugged from 36 of 36 starts round the
+standoff, the same rows, and plugged in and unplugged from 140 of 140 seats,
+5 of them 0.1-0.6 s apart (their withdraws, at the stand, waited on the
+trunk). Every fall's last way home at the door pressed nothing on the top
+(0-2.3 N*s up, where 9.4-44.9), and draw 22 opened the door. `scripts/humanoid_spike.py --view
 way_home` stages it: bowed at a 0.72 m counter whose edge is 13 cm ahead of
 the soles' middle, the left arm where draw 8's way home began, sent home --
 nothing on the top, standing; `--stand-at-once` asks the stand as the arm

@@ -35,7 +35,10 @@ went over backward (SimNotes, "The way home flown in the posture it was
 judged in"). On one pod beside 9d31fe6: none of the 33 fell, with or
 without the step back, and the hands check at set-outs 0-31 passed what it
 did -- the lid 26, the drawer 21, the door 24, the cube 20, the table 24 --
-with 6 falls where it had 8.
+with 6 falls where it had 8; at 32-127 it passed 306 where the base passed
+305 (the drawer one fewer, the door and the cube one more), 5 falls where
+it had 6; and the station's trials are the base's (36 of 36 starts, 140 of
+140 seats).
 
 **What the period is for.**
 - **Falls within 5 s of a `withdraw` at the counter**, against the periods
