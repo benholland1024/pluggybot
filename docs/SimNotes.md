@@ -2690,7 +2690,9 @@ under the hand with its edge 8 cm behind it (30):
   face and pushed it 4 cm back in; straight, the hand drops 8 mm past the
   front, under the open drawer. ⚠ So from over its head the arm swings
   forward and down through whatever stands ahead: on the drawing, through a
-  0.72 m counter 0.28 m ahead.
+  0.72 m counter 0.28 m ahead. ⚠ And judged as it stands, it is flown as it
+  stands: off the stand, the stand waits until such an arm is home (#693;
+  below, "The way home flown in the posture it was judged in").
 
 **Flown again** on the rule as it stands, against `9357d53`:
 
@@ -8527,6 +8529,149 @@ for row; and the pair's recording, flown as its fixture is, is the base's
 but for two wall-clock stamps. With the ask a routine (#692), on the dev
 box beside a0df301 on osmesa, the pair's day with a fall and a death
 arranged flies the base's trajectory bit for bit (528 state samples).
+
+## The way home flown in the posture it was judged in (issue #693)
+
+**What happened.** On 11-12 at 19:59 UTC Luca ran `door_run24` at the
+cupboard's lever on the storeroom's counter: six pulls held fast, an
+`open_hand`, then a `withdraw` that said "you fell on the way home". Flown
+from where Luca stood at the door's 33 draws, each its own noise (the loop of
+11-13/14; `~/pluggybot-training/loop-1113/l5-small/`), 5 of 33 fell 2-4 s
+after the withdraw began and 10 of 33 with no step back after it, each the
+same way: an open jaw pressed on the counter's top for about a second, 29-45
+N*s up, and the robot tipped 10-19 deg backward.
+
+**Why: judged in one posture, flown in another.** The way home is judged on
+the robot's model of itself as it stands (`Reach.way_home`), and the stand
+was asked as the arm set off (`_go_home`). As each fall's last way home
+began -- after the 8 cm line out, the hand 6 cm ahead of the soles' middle
+and 0.85 m up -- no part of the arm was ahead of the robot's front (the
+toes, 0.117-0.121 m), so the judgment took it straight home, unchecked: an
+arm with none of it ahead worked over nothing there (above, "The way
+home"). In the bow the reach had left (0.3 rad, 4 falls of 5) that straight
+way stays behind the toes, 0.107 m at most against a front at 0.110 on the
+statue; on the stand's statue, where the ask carried it, the same joints
+swing 3.4 cm past the toes and down to 0.55 m. Flown: the trunk unbowed 17
+-> 3 deg in 0.4 s, the pelvis came 4.7 cm forward, and the hand went 3 cm
+forward and 5 cm down onto the top, 1-1.5 cm behind its edge. The fifth
+(draw 22) was crouched 16 cm with the waist turned 30 deg, the hand beside
+the counter on the robot's left: the pelvis rose and the waist turned home
+under an arm coming down there. Each way home's judgment was recorded as it
+was made and walked again on the statues
+(`~/pluggybot-training/loop-1114/n2-693/c/judge_trace.py`, `replay_judge.py`).
+
+**What is true now** (`Reach._go_home`, `_ahead`, `stand_home`;
+`HumanoidBody.release_routine`; `HumanoidMission.to_walk_routine`):
+- Off the stand -- bowed, crouched or turned -- an arm with none of it ahead
+  of the robot's front has the stand once it is home (its command at the
+  rest, or at the carry pose a walk carries it at): flown as it was judged.
+  An arm with some of it ahead has it as it sets off, as before; so does
+  one going home beside the other arm (each judged apart: a walk's
+  hand-over sends both, though none of the 738 ways home flown here began
+  with the other arm anywhere but at rest), and one whose posture is still
+  walking to a plan a retreat cut short (`settled`). A posture asked in the
+  meantime ends the wait (`hold_posture`).
+- A withdraw waits for its trunk to stand still in the stand
+  (`Reach._posture_held`), never the posture the policy is shown alone,
+  `STAND_BACK_S` at most, and its word is the arm's as it came home: asked
+  late, a stand's ramp arrived while the trunk still rose, and a waist
+  turning home after the arm swung the hanging arm into a counter's face, its
+  drivers reading it off its rest (draw 22: "held" of an arm home).
+- A walk's hand-over asks the stand as each arm's own way does -- at once
+  with no arm out -- and gives the walker a trunk standing still, the same
+  bound.
+
+**Flown** (one Vast pod, an AMD EPYC 7B13, beside 9d31fe6; Luca's door at
+its 33 draws with and without the step back, and the hands check at
+set-outs 0-31, each its own noise; `~/pluggybot-training/loop-1114/n2-693/`):
+
+| | Luca's door, fell / door passed | no step back | lid | drawer | door | cube | table |
+|---|---|---|---|---|---|---|---|
+| 9d31fe6 | 5 / 7 | 10 / 6 | 26 (0 fell) | 21 (3) | 24 (1) | 20 (1) | 24 (3) |
+| this | 0 / 8 | 0 / 8 | 26 (0) | 21 (2) | 24 (1) | 20 (1) | 24 (2) |
+
+At set-outs 32-127 (the table's 32-63), beside the base on the same pod:
+the lid 77 and 77 of 96, the drawer 67 then 66, the door 71 then 72, the
+cube 60 then 61, the table 30 and 30 of 32, falls 6 then 5; 412 of the 416
+the base's by verdict. Every flight that moved -- the drawer's 2 at 0-31
+and 72 and 127 above, the table's 27, the door's 38 and the cube's 111 --
+parted where a withdraw before it waited for the trunk to stand still,
+never where the stand waited for an arm -- most 0.12 s later, the cube's
+111 1.8 s sooner (its next look's bow waited on a trunk already still): the
+drawer's two lost their falls there, and the drawer's 127 its pass (its
+last way home, some of the arm ahead and the stand rising as before, put a
+jaw on the drawer's front and pushed it from 19 cm to 12). The station's
+trials are the base's: docked and unplugged from 36 of 36 starts round the
+standoff, the same rows, and plugged in and unplugged from 140 of 140 seats,
+5 of them 0.1-0.6 s apart (their withdraws, at the stand, waited on the
+trunk). The place laid from the pass (`set_table_pass`, merged beside this;
+never offered), over the tour's 32 draws on the same pod: 15 at a0df301, its
+own reading, and 14 with this, falls 2 then 1 -- every flight parted at its
+first walk with a piece in hand, whose hand-over asks the stand as the arm's
+own way does (as it sets off for its carry pose, or once there), where
+9d31fe6 asked it as the arm's line out began; its misses after are its own
+(a `spot` out of view, a `close_hand`, a `reach` out of reach, a walk given
+up, a fall in a `move_hand`). Every fall's last way home at the door pressed nothing on the top
+(0-2.3 N*s up, where 9.4-44.9), and draw 22 opened the door. `scripts/humanoid_spike.py --view
+way_home` stages it: bowed at a 0.72 m counter whose edge is 13 cm ahead of
+the soles' middle, the left arm where draw 8's way home began, sent home --
+nothing on the top, standing; `--stand-at-once` asks the stand as the arm
+sets off, as before, and a jaw comes down on the top 0.5 s in, 38 N*s up,
+and the robot goes over backward at 2.6 s (12 cm: 40 N*s, the same fall;
+14 and 15 cm: 3 N*s, standing). `--strip way_home` draws both. Of the check's 160 flights 139 are
+the base's in every phase and verdict; drawer 2's and table 27's falls are
+gone (each a flight parted at its first withdraw's wait for the trunk, then
+failing standing), and 19 others parted to the same verdicts.
+
+**The other options, flown on the same pod:**
+- *The stand once the hand is behind the front* (#693's second option, its
+  first half): nothing changed at the door -- the hand was behind it
+  already. Where a hand was ahead, held until it came behind, the door's
+  reference lost 4 passes with 3 falls: crouched and turned at the lever,
+  its side way's roll-out swept the jaws into the cupboard's opened door
+  (20-46 N for 1.5 s), where standing up as it rolled out lifted them clear.
+- *Lift before going home* (the third, 5 cm): moves the falls, never removes
+  them -- 4 and 14 fell, the flights parting at their first withdraw and the
+  last way home still pressing a jaw on the top (31-44 N*s).
+- *The whole posture held until every arm is home* (the first, and the
+  second's other half flown in reverse): no fall at the door, but the table
+  laid 1 place of 32 (30 falls) and the door's reference lost 3: a turn held
+  until home swung the hanging arm into a table's leg as the waist came home
+  (16-31 N, then 108-231 N as the next `move` rolled it out), the robot down
+  in the next `spot`.
+- *The surface the depth camera reads under the hand* (the fourth): the
+  falls' ways home never pass over the top in the posture they are judged
+  in, so alone it changes none of them (flown alone, Luca's door's 33 were
+  the base's, its 5 falls with them). Holding the posture only where one
+  depth frame (848 x 480) sees the held way home clear of everything but
+  what the hand worked on removed every fall at the door, and laid 1 table
+  of 32 (30 falls): the frame judges the way home, never the posture's
+  return after it.
+
+**What it leaves open.** An arm with some of it ahead still comes home as
+the stand rises under it: the judgment checks only what is under the hand,
+on its model as it stands, and the drawer's set-out 2 fell that way before
+(its hand's housing on the counter's top, 21.6 N*s up). An arm held home
+turned has the waist come home after it, its hand hanging: at draw 22 its
+pads brushed the counter's face (9 N), and the hanging arm swung into a
+table's leg where every arm was held -- the word a withdraw gives is the
+arm's as it came home, so a knock after reads "home". And the stand comes
+once the arm's command is home, its drivers a few degrees behind. Neither
+timing is safe in every room -- held, the crouch's side way met a door;
+standing, the bow's straight way met a counter -- and a way home that looks
+(the depth frame's points against the arm's path and the posture's return
+after it) would tell them apart (Hands.md §7).
+
+A `step` begun as the robot staggers hands its legs back moving (#693's
+fifth option): at 9d31fe6 the step back after each pressed fall handed them
+back at 0.30-0.81 m/s and the standing policy fell; with this rule none of
+these flights' hand-backs came over 0.13 m/s, but a stagger from anything
+else would hand back so. Holding the walker on, 2 s at most, until its legs'
+own reckoning reads under 0.15 m/s (prototyped on the base alone) stood 2 of
+the 3 robots still pressed and fell in 1, and moved every flight whose walk
+ended still moving: Luca's door passed 12 (7), parted at its walk in, and the
+cube's 32 parted at their first step, 18 placed with 3 falls (20 and 1).
+Not built.
 
 ## Debugging workflow that worked
 

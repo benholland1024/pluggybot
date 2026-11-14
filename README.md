@@ -194,6 +194,12 @@ uv run python scripts/humanoid_spike.py --view jaws   # the fork at the
                                       # table shut on again and again from
                                       # one moment, at 40, 80 and 120 N, its
                                       # jaws as before #628 and as built
+uv run python scripts/humanoid_spike.py --view way_home  # bowed at a
+                                      # counter, the arm sent home from
+                                      # where Luca's began: home in the bow,
+                                      # then the stand (--stand-at-once: as
+                                      # before #693, a jaw on the top and
+                                      # over backward)
 uv run python scripts/station_spike.py --view     # it plugs itself in at its
                                       # station and unplugs (--view fall:
                                       # shoved over plugged in)

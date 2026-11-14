@@ -23,9 +23,9 @@ from pluggybot.body import NOT_SEEN, TOPPLE_HOLD_S, Body, RackPose
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import GRIP_S, HELD_GAP_M, HandGoal
-from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
-                                       StandPolicy)
-from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, HumanoidMission
+from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
+from pluggybot.humanoid.mission import (DEPTH_PERIOD, MOTION_EPS, STAND_BACK_S, V_MIN,
+                                        HumanoidMission)
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
@@ -54,13 +54,7 @@ GRIP_SETTLE_S, GRIP_READ_S = 1.5, 0.1
 #: A gaze's bow is waited for this long at most, s (`gaze_routine`), and a
 #: hand's way out and home this long (`release_routine`).
 GAZE_WAIT_S, RELEASE_S = 4.0, 15.0
-#: ...and its posture back at the stand after, its legs the standing
-#: policy's again, this long at most, s: 4.0, twice the 2.0 s the standing
-#: policy's posture takes to cross its whole range at its rates. ⚠
-#: Unbounded, a withdraw waited 2,191 s (#668; SimNotes, "Making way,
-#: standing").
-STAND_BACK_S = 2.0 * max((HEIGHT_RANGE[1] - HEIGHT_RANGE[0]) / HEIGHT_RATE,
-                         (PITCH_RANGE[1] - PITCH_RANGE[0]) / PITCH_RATE)
+#: ...and its posture back at the stand after: `mission.STAND_BACK_S`.
 #: A hand's carry or pull stops once the body's own odometry puts its
 #: stance this far from where it began, m: a pull toward the robot dragged
 #: it 0.3 m to the counter, its standing policy stepping under the arm
@@ -751,6 +745,12 @@ class HumanoidBody(Body):
     `STAND_BACK_S` AT MOST, the arm's word the answer (#668): an arm at
     rest is no hand out, and a step aside asked as it came home took them
     for the walker, under which the standing posture never moves. ⚠ ITS
+    TRUNK IS WAITED ON STILL THERE (`Reach._posture_held`), never the posture
+    the policy is shown alone (#693): off the stand, an arm with none of it
+    ahead comes home before the stand is asked (`Reach._go_home`), and the
+    next verb began as the trunk still rose. The arm's word is its own as it
+    came home: a waist turning home after swung the hanging arm into a
+    counter's face, and read off its rest then it said "held". ⚠ ITS
     WAY HOME KEEPS OFF ANOTHER ROBOT ITS LIDAR SEES as it begins (#678;
     `Reach._kept_off`): where none does, `refuse` -- a verb's -- is "kept
     off", nothing moved and its gripper as it was, judged before the let-go
@@ -782,17 +782,18 @@ class HumanoidBody(Body):
         if self.mission.falls != falls or self.reach.home(side):
           break
         yield STILL
+      came_home = self.reach.home(side)
     finally:
       self.reach.keep_out = []
     if self.mission.falls == falls:
       yield from self.mission.to_stand_routine(getup=False)
     for _ in range(int(round(STAND_BACK_S / self._m.opt.timestep))):
-      if self.mission.falls != falls or self.stand.settled:
+      if self.mission.falls != falls or (self.stand.settled and self.reach._posture_held()):
         break
       yield STILL
     if self.mission.falls != falls:
       return "fell"
-    return "home" if self.reach.home(side) else "held"
+    return "home" if came_home else "held"
 
   def grip_routine(self, side, closed, force=None):
     """Shut -- squeezing with `force`, N a pad, or its sheet's (#525) -- its

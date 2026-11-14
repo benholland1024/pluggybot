@@ -52,6 +52,49 @@ arrived 13.6 s after the answer; now 11.9 s into the ask, no fall.
   with none to read; #690's readings still apply to a blocking run inside
   the pair's loop, of which none is left in `src/`.
 
+### The way home flown in the posture it was judged in (#693) — opens when this PR is deployed
+
+**What changed is when a robot stands up after a hand's work.** A withdraw
+(and a walk's hand-over) asked for the stand as the arm set off home; off
+the stand -- bowed, crouched or turned -- an arm with none of it ahead of
+the robot's front now comes home first and the stand is asked once it is
+home, the posture its way home was judged in (`Reach._go_home`). An arm
+with some of it ahead has the stand as it sets off, as before. Every
+withdraw then waits for the trunk to stand still in the stand
+(`_posture_held`, `STAND_BACK_S` at most) before the next verb, and its
+word is the arm's as it came home; a walk's hand-over gives the walker a
+trunk standing still, the same bound. Nothing the robots read moved
+(`prompt_sha` b345cc34, the session host's hello byte for byte), nor any
+geometry: the deploy keeps both robots' bodies and maps.
+
+**Why.** #693: Luca's `withdraw` at the cupboard's lever on 11-12 at 19:59
+UTC fell after its way home. Flown from where Luca stood at the door's 33
+draws, 5 fell 2-4 s after the withdraw began (10 with no step back after
+it): from the bow, the straight way home it was judged in stays behind the
+toes, but the stand asked as it set off swung the same arm 3.4 cm past them
+and pressed an open jaw on the counter's top, 29-45 N*s up, and the robot
+went over backward (SimNotes, "The way home flown in the posture it was
+judged in"). On one pod beside 9d31fe6: none of the 33 fell, with or
+without the step back, and the hands check at set-outs 0-31 passed what it
+did -- the lid 26, the drawer 21, the door 24, the cube 20, the table 24 --
+with 6 falls where it had 8; at 32-127 it passed 306 where the base passed
+305 (the drawer one fewer, the door and the cube one more), 5 falls where
+it had 6; and the station's trials are the base's (36 of 36 starts, 140 of
+140 seats).
+
+**What the period is for.**
+- **Falls within 5 s of a `withdraw` at the counter**, against the periods
+  before (#693's last box): the narration's "fell" after a `withdraw` or
+  the verb after it, and the `death` rows round them.
+- **A withdraw's length.** Off the stand it now waits for the arm, then
+  the trunk: at Luca's door 0.5-1.6 s more (median 0.9) where the robot
+  worked bowed, crouched or turned, none at the stand -- so a procedure's
+  seconds run out a little sooner, and a `withdraw` that read "held" for
+  15 s there (draw 3, the stand rising under an arm the counter held) came
+  home in 3.2.
+- ⚠ A withdraw's falls and the counter's `stuck` deaths are not to be
+  pooled with the periods before.
+
 ### The get-up beside a wall is served (#679) — opens when this PR is deployed
 
 **What changed is the policy a fallen robot gets up on**:

@@ -1029,6 +1029,9 @@ class Reach:
     #: None: home is its rest. A new reach, a joint moved by hand and a
     #: let-go end it (`drop_carry`).
     self.carry_q: dict[str, np.ndarray | None] = {s: None for s in hm.SIDES}
+    #: Whether the stand waits for an arm on its way home (`_go_home`, #693):
+    #: asked once every arm is home or carried (`_update`).
+    self.stand_home = False
 
   # ---- what a caller asks ----
 
@@ -1448,7 +1451,9 @@ class Reach:
 
   def hold_posture(self, height: float, pitch: float, waist: float = 0.0) -> None:
     """The posture to stand in, its legs' held by their own loop
-    (`TRIM_RATE`), the waist turned to `waist`, rad, to the left positive."""
+    (`TRIM_RATE`), the waist turned to `waist`, rad, to the left positive --
+    in place of a stand an arm's way home was keeping (`stand_home`)."""
+    self.stand_home = False
     self.posture = np.array([height, pitch, waist], dtype=float)
     self.stand.ask(*(self.posture[:2] + self.trim))
 
@@ -1770,9 +1775,21 @@ class Reach:
     statue(sm, tuple(float(v) for v in pose), q0, arms=self._arms(), lean=self._lean(),
            fast=True)
 
+  def _ahead(self, side: str) -> bool:
+    """Whether some part of the arm as commanded stands further ahead than
+    the robot's front (`front`), on its model of itself as it stands: where
+    none does, its way home was judged straight, unchecked (`_picked`)."""
+    sm = self._planner_model()
+    sm.q = self.self_model.q.copy()
+    sm.d.qpos[:] = self.self_model.d.qpos
+    ahead = front(sm, side, self.rest[side])
+    sm._set_arm(side, self.q_cmd[side])
+    return bool((outline(sm, side)[:, 0] > ahead).any())
+
   def _go_home(self, side: str) -> None:
     """The arm on its way home (`way_home`), its goal let go; the posture
-    back to the stand once no hand is out."""
+    back to the stand once no hand is out -- or, off the stand with none of
+    the arm ahead of its front, once it is home."""
     self.goal[side] = self.cmd[side] = None
     self.outs[side] = []
     self.looking[side] = False
@@ -1786,10 +1803,25 @@ class Reach:
       self.homes[side] = self.way_home(side)
     self.q_to[side] = self.homes[side].pop(0)
     self.phase[side] = "home"
-    # ...the stand once no hand is out at its work: one carried at the side
-    # is none (#682), and kept the reach's bow, a withdraw left it bowed
+    # ...and the stand once no hand is out at its work -- one carried at the
+    # side is none (#682); kept the reach's bow, a withdraw left it bowed --
+    # but off the stand, an arm with none of it ahead of the robot's front
+    # comes home first (`_update`). ⚠ ITS WAY HOME WAS JUDGED STRAIGHT,
+    # UNCHECKED, ON ITS MODEL AS IT STANDS (#693): asked as the arm set off,
+    # the stand carried a hand its bow kept behind the toes 3.4 cm past them
+    # and down onto a counter's top, and tipped the robot over backward. ⚠
+    # NEVER AN ARM AHEAD: held as it came home, a crouch's side way swept the
+    # jaws into a cupboard's opened door, and a turn held to the end swung
+    # the hanging arm into a table's leg (the check lost 3 doors and 23
+    # tables of 32). ⚠ NOR WITH THE OTHER ARM GOING HOME TOO, judged apart,
+    # NOR A POSTURE STILL WALKING to a plan a retreat cut short (`settled`):
+    # neither is the posture the way was judged in
     if all(p in ("rest", "home", "carried") for p in self.phase.values()):
-      self.hold_posture(0.0, 0.0)
+      alone = [s for s in hm.SIDES if self.phase[s] == "home"] == [side]
+      if self.posture.any() and alone and self.stand.settled and not self._ahead(side):
+        self.stand_home = True
+      else:
+        self.hold_posture(0.0, 0.0)
 
   def home(self, side: str) -> bool:
     """Whether an arm is home: its rest commanded, and every joint of it
@@ -1883,7 +1915,7 @@ class Reach:
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
-          "allowed", "left", "looks", "looking", "carry_q")
+          "allowed", "left", "looks", "looking", "carry_q", "stand_home")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
@@ -2241,6 +2273,10 @@ class Reach:
             self.q_to[s] = self.homes[s].pop(0)
           else:
             self.phase[s] = "rest" if self.carry_q[s] is None else "carried"
+            # ...home: the stand its way home kept from it (`_go_home`)
+            if self.stand_home and all(p in ("rest", "carried") for p in self.phase.values()):
+              self.stand_home = False
+              self.hold_posture(0.0, 0.0)
       elif phase == "blocked":
         sm._set_arm(s, self.q_cmd[s])
         stiffness = self.cmd[s].stiffness
