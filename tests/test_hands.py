@@ -149,8 +149,12 @@ class _Life:
     self.step_now = self.step_until = None
     self.aborting = False
 
-  def interrupted(self):
+  def interrupt_due(self):
     return False
+
+  def interrupted_routine(self):
+    return False
+    yield
 
   def _say(self, text, detail="", **_):
     self.said.append(text)

@@ -337,8 +337,9 @@ def test_drive_to_takes_a_patience_the_code_caps():
 def _life(stops_at=None):
   """A life for one `drive_to`: a body that records what each walk was
   given and, asked `stop`, is ended by it (`last_drive`, as the drive
-  records it) -- and an interrupt that answers "stop" once `stops_at`
-  sim s have passed, latching `aborting` the way the lifecycle does."""
+  records it) -- and an interrupt due once `stops_at` sim s have passed,
+  answered "stop" when its verb asks it, latching `aborting` the way the
+  lifecycle does."""
   walks = []
   life = SimpleNamespace(data=SimpleNamespace(time=0.0, ctrl=[0.0]), model=None,
                          world=HUMANOID_HOME,
@@ -346,10 +347,13 @@ def _life(stops_at=None):
                          _say=lambda *a, **k: None,
                          drive_why=lambda x, y: "the walk gave up (why)")
 
-  def interrupted():
-    if stops_at is not None and life.data.time >= stops_at:
-      life.aborting = True
+  def due():
+    return life.aborting or (stops_at is not None and life.data.time >= stops_at)
+
+  def asked():
+    life.aborting = due()
     return life.aborting
+    yield
 
   def go(x, y, timeout=90.0, stop=None):
     walks.append({"timeout": timeout, "stop": stop is not None})
@@ -366,7 +370,7 @@ def _life(stops_at=None):
     life.data.time += seconds
     return
     yield
-  life.interrupted = interrupted
+  life.interrupt_due, life.interrupted_routine = due, asked
   life.body = SimpleNamespace(pose=(0.0, 0.0, 0.0), last_drive=None, falls=0,
                               pose_xy=lambda: life.body.pose[:2],
                               in_sight=lambda x, y: True,
@@ -401,7 +405,7 @@ def test_patience_is_the_walks_budget_and_never_past_the_programs():
   life.step_until = life.data.time + 25.0
   tick.run(STEPPER, st._drive_to(life, {"x": 3.0, "y": 0.0, "patience": 300.0}))
   assert [w["timeout"] for w in life.walks] == [st.DRIVE_TIMEOUT_S, 300.0, 25.0]
-  assert all(w["stop"] for w in life.walks), "every walk asks the interrupt"
+  assert all(w["stop"] for w in life.walks), "every walk stops for the interrupt"
 
 
 def test_a_walk_its_interrupt_stopped_stops_either_runner_as_interrupted():

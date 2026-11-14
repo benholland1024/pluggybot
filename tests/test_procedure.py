@@ -245,7 +245,8 @@ def _stub_life(clock=None):
     face_routine=routine("face", True), hold_routine=routine("wait"),
     pose=(0.0, 0.0, 0.0), falls=0, arm_kept=lambda: None, carrying=lambda side: False)
   life = SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
-                         interrupted=lambda: False,
+                         interrupt_due=lambda: False,
+                         interrupted_routine=lambda: tick.result(False),
                          _say=lambda *a, **k: None, calls=calls,
                          model=None, world=WORLD, boards=None,
                          drive_why=lambda x, y: "the drive gave up (why)")
@@ -324,7 +325,7 @@ def test_the_budget_stops_a_program_at_a_step_boundary():
 
 def test_an_interrupt_stops_a_program_between_steps():
   life = _stub_life()
-  life.interrupted = lambda: True
+  life.interrupted_routine = lambda: tick.result(True)
   p = Program.single("p", [Step("wait", {"seconds": 1.0})] * 2)
   r = _run(life, p)
   assert r["stopped"] == "interrupted" and r["completed"] == 1
@@ -361,15 +362,18 @@ def test_a_fall_fails_a_programs_step_and_a_death_stops_it_inside_one():
 @pytest.mark.parametrize("stop", [True, False])
 def test_a_death_while_a_programs_interrupt_is_asked_stops_it_before_its_next_step(stop):
   """...and dead in the interrupt's ask between two steps (#671's second
-  review; the language's own test beside its runner), answered stop or go
-  on: `died`, the next step never begun. Shown to fail with the death read
-  only before the ask."""
+  review; the language's own test beside its runner), the ask's think
+  slices stepped (#692), answered stop or go on: `died`, the next step
+  never begun. Shown to fail with the death read only before the ask."""
   life = _stub_life()
 
-  def interrupted():
-    life.dead = {"cause": "flat"}
+  def interrupted_routine():
+    for n in range(3):                        # its think slices, stepped
+      if n == 1:
+        life.dead = {"cause": "flat"}
+      yield ()
     return stop
-  life.interrupted = interrupted
+  life.interrupted_routine = interrupted_routine
   r = _run(life, Program.single("p", [Step("wait", {"seconds": 1.0})] * 3))
   assert r["stopped"] == "died" and r["completed"] == 1, r
   assert [c[0] for c in life.calls] == ["wait"], "a step began on a dead robot"

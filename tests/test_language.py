@@ -369,7 +369,8 @@ def _stub_life():
     pose=(0.0, 0.0, 0.0), watch=lambda tag: None, falls=0, arm_kept=lambda: None, carrying=lambda side: False,
     )
   return SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
-                         interrupted=lambda: False,
+                         interrupt_due=lambda: False,
+                         interrupted_routine=lambda: tick.result(False),
                          _say=lambda *a, **k: None, calls=calls, model=model,
                          world=WORLD, boards=None, ledger=None,
                          battery=SimpleNamespace(fraction=0.5, energy_wh=4.0),
@@ -553,7 +554,7 @@ def test_the_time_budget_stops_at_a_step_boundary():
 
 def test_an_interrupt_stops_between_verbs():
   life = _stub_life()
-  life.interrupted = lambda: True
+  life.interrupted_routine = lambda: tick.result(True)
   r, _ = run('def x():\n  wait(1)\n  wait(1)\n', life)
   assert r["stopped"] == "interrupted" and r["completed"] == 1
 
@@ -662,20 +663,23 @@ def test_a_verb_never_runs_again_on_a_dead_robot():
 @pytest.mark.parametrize("stop", [True, False])
 def test_a_death_while_an_interrupt_is_asked_ends_the_run_before_the_next_verb(stop):
   """#671's second review: between two verbs the interrupt's ask steps the
-  world (`HubLifecycle._ask_interrupt` blocks while its call flies), and the
-  robot may die in it. Answered stop or go on, the run ends `died` after the
-  last line that ran, the next verb never begun -- and the dead robot is
-  never asked again. Shown to fail with the death read only before the ask:
-  told to stop, the run ended `interrupted`; to go on, the next wait ran on
-  a dead robot."""
+  world (`HubLifecycle.interrupted_routine` yields its think slices while
+  its call flies, #692), and the robot may die in it. Answered stop or go
+  on, the run ends `died` after the last line that ran, the next verb never
+  begun -- and the dead robot is never asked again. Shown to fail with the
+  death read only before the ask: told to stop, the run ended
+  `interrupted`; to go on, the next wait ran on a dead robot."""
   life = _stub_life()
   asked: list = []
 
-  def interrupted():
+  def interrupted_routine():
     asked.append(float(life.data.time))
-    life.dead = {"cause": "flat"}             # ...dead as its call flew
+    for n in range(3):                        # its think slices, stepped
+      if n == 1:
+        life.dead = {"cause": "flat"}         # ...dead as its call flew
+      yield ()
     return stop
-  life.interrupted = interrupted
+  life.interrupted_routine = interrupted_routine
   r, _ = run("def x():\n    wait(1)\n    wait(1)\n    wait(1)\n", life)
   assert r["stopped"] == "died" and (r["total"], r["completed"]) == (1, 1), r
   assert [c[0] for c in life.calls] == ["wait"], "a verb began on a dead robot"
@@ -756,7 +760,8 @@ def test_the_same_procedure_twice_is_one_trajectory():
     mujoco.mj_resetDataKeyframe(model, data, 0)
     mujoco.mj_forward(model, data)
     body = body_for(model, data)
-    life = SimpleNamespace(body=body, model=model, data=data, interrupted=lambda: False,
+    life = SimpleNamespace(body=body, model=model, data=data, interrupt_due=lambda: False,
+                           interrupted_routine=lambda: tick.result(False),
                            _say=lambda *a, **k: None, world=WORLD,
                            boards=None, ledger=None,
                            battery=SimpleNamespace(fraction=0.5, energy_wh=1.0))
@@ -1141,7 +1146,7 @@ def test_sin_cos_atan2_and_sqrt_only_where_the_world_gives_the_maths():
   facts = HOME
   assert facts.math
   proc = compile_ok(src, facts)
-  life = SimpleNamespace(data=SimpleNamespace(time=0.0), interrupted=lambda: False,
+  life = SimpleNamespace(data=SimpleNamespace(time=0.0),
                          _say=lambda *a, **k: None, reports={})
   env = {}
   assert lang._eval(proc.body[0][2], env, life, facts) == pytest.approx(

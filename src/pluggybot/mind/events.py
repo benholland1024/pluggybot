@@ -1058,10 +1058,10 @@ def silence(emap: EventMap | None) -> str:
   #  ⚠ AND NO CLAIM ABOUT WHAT FIRED. This read "and none has fired", which
   #  the map cannot know and which can be FALSE: `battery_below` and
   #  `points_below` are `INTERRUPTING_EVENTS`, so an `ask` row on either can
-  #  fire mid-errand, consult the mind through `_ask_interrupt` -- and not
-  #  stamp the unminded clock, which only `_arbitrate`'s two asks do. How
-  #  long the silence was is the first half of the death line and is
-  #  measured; what the list SAYS is this half, and it stops there.
+  #  fire mid-errand, consult the mind through `_ask_interrupt_routine` --
+  #  and not stamp the unminded clock, which only `_arbitrate`'s two asks
+  #  do. How long the silence was is the first half of the death line and
+  #  is measured; what the list SAYS is this half, and it stops there.
   return f"the only rules that ask me are on {named}"
 
 

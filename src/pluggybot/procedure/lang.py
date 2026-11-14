@@ -1283,7 +1283,8 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     ended, or while its interrupt was asked, which steps the world -- and a
     dead robot is never asked one."""
     nonlocal count
-    if count and not st.dead(life) and life.interrupted() and not st.dead(life):
+    if (count and not st.dead(life) and (yield from life.interrupted_routine())
+        and not st.dead(life)):
       raise _Stop("interrupted")
     if st.dead(life):
       raise _Stop("died")
