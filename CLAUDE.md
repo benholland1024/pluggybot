@@ -367,9 +367,18 @@ save a filmstrip PNG named after the script.
   driven into its top. ⚠ No force guard on
   it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
-  home"). ⚠ BOTH WAYS KEEP OFF ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS
-  THE MOVE BEGINS (#678; `Reach._kept_off`, `HumanoidMission.look_round`
-  and `keep_out`; SimNotes, "The arms keep off the other robot"): a
+  home"). ⚠ JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
+  `_ahead`; SimNotes, "The way home flown in the posture it was judged
+  in"): off the stand, an arm with none of it ahead of the front -- judged
+  straight, unchecked -- has the stand once it is home (asked as it set
+  off, the stand swung Luca's hand 3.4 cm past the toes onto the counter's
+  top: 5 of 33 fell), one with some ahead as it sets off (held, the check
+  lost 3 doors and 23 tables of 32); a withdraw and a walk's hand-over wait
+  for the trunk still in the stand (`_posture_held`, `STAND_BACK_S` at
+  most), a withdraw's word the arm's as it came home. ⚠ BOTH WAYS KEEP OFF
+  ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
+  `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
+  SimNotes, "The arms keep off the other robot"): a
   cylinder 0.28 m round its middle, 1.55 m tall, kept 5 cm off, placed as
   `others` places one seen (#675) within `ARMS_NEAR_M` (1.5 m) -- never at
   its reported pose, and alone no look at all (bit for bit). A reach's way
