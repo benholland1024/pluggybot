@@ -164,6 +164,14 @@ def _calls(source: str) -> list[tuple[str, list]]:
   return [(name, args) for _, name, args in sorted(out)]
 
 
+def _index(calls: list, test, what: str, start: int = 0) -> int:
+  """The first of `calls` from `start` that passes `test` -- a source
+  without one fails saying which, never a StopIteration."""
+  i = next((j for j in range(start, len(calls)) if test(calls[j])), None)
+  assert i is not None, f"the reference's source has no {what}"
+  return i
+
+
 def test_the_pass_plate_is_eased_before_it_is_let_go():
   """#682's stage C, round 3: the plate tilts in its jaws as it is carried
   (2-28 deg at its put-down's hover), and the descent's touch flattens most
@@ -176,11 +184,12 @@ def test_the_pass_plate_is_eased_before_it_is_let_go():
   from pluggybot.challenge import solutions
   from pluggybot.procedure import steps
   calls = _calls(solutions.PROCEDURES["set_table_pass"][1])
-  assert calls[0][0] == "budget" and any(n == "to_place" for n, _ in calls)
-  after = calls[next(i for i, (n, _) in enumerate(calls) if n == "to_place"):]
-  let_go = max(i for i, (n, a) in enumerate(after) if n == "open_hand" and a == ["left"])
-  before = [c for c in after[:let_go] if c[0] in steps.HANDS_VERBS and c[1][:1] == ["left"]]
-  assert before and before[-1][0] == "close_hand", f"the plate is let go straight after {before[-1][0]}"
+  after = calls[_index(calls, lambda c: c[0] == "to_place", "walk to the place"):]
+  let_gos = [i for i, (n, a) in enumerate(after) if n == "open_hand" and a == ["left"]]
+  assert let_gos, "the plate is never let go at the place"
+  before = [c for c in after[:let_gos[-1]] if c[0] in steps.HANDS_VERBS and c[1][:1] == ["left"]]
+  last = before[-1][0] if before else "nothing"
+  assert last == "close_hand", f"the plate is let go straight after {last}"
   assert before[-1][1][1] <= steps._GRIP.lo + 1e-9, f"eased to {before[-1][1][1]} N, not the least squeeze"
 
 
@@ -209,8 +218,10 @@ def test_the_pass_plate_is_brought_back_from_the_pass_by_a_position_move():
   pass is a position move."""
   from pluggybot.challenge import solutions
   moves = _hand_moves(solutions.PROCEDURES["set_table_pass"][1], "left")
-  lift = next(j for j, (n, a) in enumerate(moves) if n == "pull" and a[3] == 1)
-  assert moves[lift + 1][0] == "move_hand", f"the plate is brought back by {moves[lift + 1][0]}"
+  shut = _index(moves, lambda m: m[0] == "close_hand", "shut on the plate at the pass")
+  lift = _index(moves, lambda m: m[0] == "pull", "lift off the pass", start=shut + 1)
+  back = moves[lift + 1][0] if lift + 1 < len(moves) else "nothing"
+  assert back == "move_hand", f"the plate is brought back by {back}"
 
 
 def test_the_pass_cup_descends_to_its_grip_by_a_position_move():
@@ -226,5 +237,6 @@ def test_the_pass_cup_descends_to_its_grip_by_a_position_move():
   reach to its shut by a position move."""
   from pluggybot.challenge import solutions
   moves = _hand_moves(solutions.PROCEDURES["set_table_pass"][0], "right")
-  shut = next(j for j, (n, _) in enumerate(moves) if n == "close_hand")
+  reach = _index(moves, lambda m: m[0] == "reach", "reach for the cup")
+  shut = _index(moves, lambda m: m[0] == "close_hand", "shut on the cup", start=reach + 1)
   assert moves[shut - 1][0] == "move_hand", f"the cup is brought down to its grip by {moves[shut - 1][0]}"

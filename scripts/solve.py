@@ -237,18 +237,17 @@ class _HandStrip:
   put-downs at the place -- names the other (`also`), a camera on each, and
   takes more tiles further apart."""
 
-  TILES, WALK_EVERY_S, WORK_EVERY_S, NEAR_M = 12, 60.0, 4.0, 1.2
+  WALK_EVERY_S, NEAR_M = 60.0, 1.2
 
-  def __init__(self, life, prop: str, also: tuple = (), tiles: int | None = None,
-               work_every: float | None = None) -> None:
+  def __init__(self, life, prop: str, also: tuple = (), tiles: int = 12,
+               work_every: float = 4.0) -> None:
     self.life, self.model, self.data = life, life.model, life.data
     self.r = mujoco.Renderer(self.model, 300, 400)
     self.tiles: list = []
     self.prop = prop
     #: each place the work is, a camera on it: the prop's first
     self.works = (work_view(prop), *also)
-    self.TILES = tiles or self.TILES
-    self.WORK_EVERY_S = work_every or self.WORK_EVERY_S
+    self.most, self.work_every = tiles, work_every
     self.due = 0.0
     self.near = None
     life.body.step_hooks.append(self.hook)
@@ -295,7 +294,7 @@ class _HandStrip:
 
   def hook(self) -> None:
     t = float(self.data.time)
-    if len(self.tiles) >= self.TILES - 1:
+    if len(self.tiles) >= self.most - 1:
       return
     x, y, _ = self.life.body.true_pose()
     near = next((i for i, ((hx, hy), *_) in enumerate(self.works)
@@ -304,7 +303,7 @@ class _HandStrip:
     if t < self.due and near == self.near:
       return
     self.near = near
-    self.due = t + (self.WORK_EVERY_S if near is not None else self.WALK_EVERY_S)
+    self.due = t + (self.work_every if near is not None else self.WALK_EVERY_S)
     self._shoot(f"{t:.0f} s" + ("" if near is not None else ": on its way"), near)
 
   def done(self, grade, out: str) -> None:

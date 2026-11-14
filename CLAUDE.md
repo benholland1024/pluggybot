@@ -909,15 +909,12 @@ save a filmstrip PNG named after the script.
   as the table check's 3, the cup's side met each pad only at the
   fingertip's corner and carried, it crept out of the jaws in 20 of 32
   flights a walker; at the middle none of 64), ⚠ brought down to it by
-  `move_hand` (by `pull` it drifted onto the lid's rim; reached for nearer,
-  the arm took another configuration and its pull-back ran out of reach),
-  ⚠ takes the plate from 0.50 m and brings it back by `move_hand`, never
-  `pull` (a pull that long re-posed into a 31 deg bow over the counter and
-  fell) and ⚠ eases it to the least squeeze before its let-go (tilted in
-  the jaws, let go, it dropped): `test_solutions`. ⚠ ITS BAR (24 of 32 over
+  `move_hand` (by `pull` it drifted onto the lid's rim), ⚠ takes the plate
+  from 0.50 m and brings it back by `move_hand`, never `pull` (that far, a
+  pull bowed over the counter and fell), and ⚠ eases it before its let-go
+  (let go tilted, it dropped): `test_solutions`. ⚠ ITS BAR (24 of 32 over
   the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2 at its
-  best (held out 11); the carry walker laid none (its stances at the table
-  are walk2's).
+  best, held out 11, the carry walker 0 (each miss: SimNotes).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).

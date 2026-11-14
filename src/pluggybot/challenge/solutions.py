@@ -246,7 +246,8 @@ TABLE = _table_job()
 #:    at the fingertip's corner and it crept out of the jaws), brought down to
 #:    it from 10 cm over by `move_hand` (by `pull` it drifted across the jaws
 #:    onto the lid's rim; reached for nearer, the arm took another
-#:    configuration and its pull-back ran out of reach: `test_solutions`);
+#:    configuration and its pull-back ran out of reach: `test_solutions`),
+#:    not read again at its hover (its tag is on its lid, under the hand);
 #:    the plate's wall 1 cm lower than the table check grips it (the pads'
 #:    tips over 0.7-0.9 cm of the wall, it slipped out), the plate and the
 #:    fork from a hover read again there and pulled straight down (the
@@ -260,7 +261,10 @@ TABLE = _table_job()
 #:  - the walk to the place the table's (`TABLE_APPROACH`), `PASS_BACK`
 #:    further back, its last step over 0.45 m in two, its last turn the
 #:    facing its run wants (the cup's `PASS_CUP_FACING`); nothing steps aside
-#:    carrying;
+#:    carrying; its walk to the standoff going on where it gave up (a carried
+#:    piece seen walls the robot in 0.1-0.4 m short) -- given up far off, the
+#:    card's spot there reads nothing and ends the run (each of 20 given up
+#:    4.4-5.3 m short);
 #:  - each piece set down from a hover over its spot, its offset in the hand
 #:    the grip's own, each put-down moved by where flights on walk2 set its
 #:    piece down (the hand's sensed place is 1.5-2 cm off) -- the cup's in the
@@ -326,8 +330,8 @@ PASS_BACK = 0.01
 PASS_CUP_FACING = -0.07
 #: Where the cup's hand is put down from the card's foot, in the card's own
 #: frame (m toward the robot, m to its right), the cup's offset in the hand
-#: taken off: the place's (0.07, 0.24) moved by where dev flights from that
-#: stance set it down.
+#: taken off: its spot, 0.07 out and 0.24 right, moved by where dev flights
+#: from that stance set it down (the reference before aimed at 0.075, 0.24).
 PASS_CUP_AT = (0.066, 0.209)
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),

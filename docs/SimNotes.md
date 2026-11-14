@@ -7841,6 +7841,27 @@ osmesa, each draw its own noise; rows in
     The tally the first two readings were read by takes a piece's first
     let-go. Read that way, this reading's first misses are a put-down 8 and
     13, a pick-up 6 and 4, a carry 1 and 1, and a fall 2 and 3.
+- **What round 3 left, measured beside its reading** (not in the
+  reference; round 3 ended with the reading):
+  - **The fork's pull-back as a fixed length** from where its hand gripped
+    (0.23 or 0.20 m, where the reference goes to 0.21 m wherever it
+    gripped), its leg alone from the tour on 64 dev draws each, each draw's
+    variants on one pod: falls 3 → 2 and 1, laid 35 → 33 and 33. At 0.20 m
+    the fork ends further out, and 14 walks walled themselves in. Not a
+    lever: it lays no more, and it saves 1-2 falls in 64.
+  - **The self-filter at 0.20 m, at the place level:** the frozen
+    reference's whole place on 64 more dev draws (27 laid) walled itself in
+    3 times, the first miss in only one, now that the walk to the standoff
+    is not insisted on. The legs' evidence for Ben's call 5 stands (above),
+    and it could buy at most 1-3 places in 64.
+  - **Named, not measured:**
+    - the put-downs brought down by a position move from the hover, as the
+      cup's pick is (the lay is 22 of the reading's 38 misses, and the force
+      move down re-poses);
+    - the cup's hover corrected when it lands short of the middle (its tag
+      is on its lid, under the hand there);
+    - the plate's tilt in its pinch;
+    - the approach's lateral error at the table.
 
 ## The arms keep off the other robot (issue #678)
 
