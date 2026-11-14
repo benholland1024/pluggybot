@@ -5102,10 +5102,8 @@ class HubLifecycle:
     hazard row fires RESOLVES the interrupt, which may make an API call, and
     the robot stands through its own hold while it flies, the think slices
     yielded as `_decide_routine` yields them -- so in a pair the other
-    robot's routine runs on through the ask (#692). Asked blocking, every
-    robot was stepped and the other's errand paused for up to
-    `INTERRUPT_TIMEOUT_S` (#690), its procedure's budget and its job's
-    minutes running on.
+    robot's routine runs on through the ask (#692: blocking, it was held
+    for the whole of it, up to `INTERRUPT_TIMEOUT_S`).
 
     Driven at a SAFE POINT -- somewhere stopping leaves nothing half done:
     between verbs, and a walk at every second (#381), which `interrupt_due`
@@ -5118,9 +5116,10 @@ class HubLifecycle:
 
     ⚠ WHAT HOLDS THE ASK MAY CLOSE IT: a walk's ask is inside its verb, which
     a death or a fall ends at once (#671), and every ask is inside its
-    errand, which a stand-up ends (#348). The call's answer, about a robot
-    that is no longer doing that, is never collected, and an interrupt
-    asked while it still flies is answered `busy`, an abort.
+    errand, which a stand-up ends (#348). Its row is kept `unanswered`
+    (`_unanswered`); the call's answer, about a robot no longer doing that,
+    is never collected, and an interrupt asked while it still flies is
+    answered `busy`, an abort.
     """
     if self._aborting:
       return True
@@ -5160,7 +5159,12 @@ class HubLifecycle:
       self._say(f"INTERRUPT {row.describe()} at {frac:.0%} -- stopping "
                 f"{self._errand_name} and going")
     else:
-      answer = yield from self._ask_interrupt_routine(row)
+      lives = len(self.true_deaths)
+      try:
+        answer = yield from self._ask_interrupt_routine(row)
+      except GeneratorExit:
+        self._unanswered(entry, frac, lives)
+        raise
       self._aborting = not answer["continue"]
       if self._aborting:
         self._abort_from_wh = self.battery.energy_wh
@@ -5193,6 +5197,20 @@ class HubLifecycle:
     if not self._aborting and self.queued_row is row:
       self.queued_row = None
 
+  def _unanswered(self, entry: dict, frac: float, lives: int) -> None:
+    """An ask closed before its answer came, by what held it
+    (`interrupted_routine`): kept in the run's record and said, and
+    remembered by the robot that was asked -- never by one a true death
+    made meanwhile, as `_decide_routine` drops an answer."""
+    entry.update(outcome="unanswered", source="closed",
+                 why="its errand ended before the answer came")
+    self.interrupts.append(entry)
+    self._say(f"INTERRUPT at {frac:.0%}: {self._errand_name} ended before the "
+              "answer came")
+    if len(self.true_deaths) == lives:
+      self._remember(f"was interrupted at {frac:.0%} part-way through "
+                     f"{self._errand_name}, and it ended before my answer came")
+
   def _ask_interrupt_routine(self, row) -> Routine:
     """The one question that is not an action off the menu.
 
@@ -5205,14 +5223,18 @@ class HubLifecycle:
     ⚠ THE UNMINDED CLOCK WAS STAMPED WHEN THE ROW FIRED (`_events_step`,
     issue #426), so it is not stamped again here: this is the same row
     `_arbitrate` runs between errands, delivered mid-errand as a binary,
-    and the silence the next question is shown is the map's.
+    and the silence the next question is shown is the map's. ⚠ The state
+    is `DECIDE` while it flies, and what it was once answered: left at
+    `DECIDE`, a robot walking its procedure on read as deciding.
     """
-    self.state = "DECIDE"
+    was, self.state = self.state, "DECIDE"
     self.overseer.start_interrupt(
       overseer_context(self), self._errand_name,
       f"your pack is at {self.battery.fraction:.0%}")
     while self.overseer.interrupt_pending:
       yield from self.body.hold_routine(THINK_SLICE_S)
+    if self.state == "DECIDE":
+      self.state = was
     return self.overseer.interrupt_result()
 
   def _stamp_ask(self) -> None:
@@ -6074,7 +6096,7 @@ class HubLifecycle:
     every `finally` below (a swap's timestep, the press flag, a pending
     look) and nothing else, so no line of the old errand runs against the
     new body -- EXCEPT when the stand-up lands inside a stretch the routine
-    steps itself (a blocking `run`; none in `src/` since #692): the routine
+    steps itself (a blocking `run`: none in `src/`): the routine
     runs on to its next yield before this can look, so what it narrated
     stands and the state it set is put back to the stand-up's. A routine
     that yielded inside a `finally` would make `close()` raise; none does

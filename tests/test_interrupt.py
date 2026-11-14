@@ -521,21 +521,83 @@ def test_a_death_in_a_walks_ask_ends_the_run_at_once_its_walk_never_resumed(monk
   assert r["steps"][0]["stopped"] == "died"
   [ask] = life.overseer.asked
   assert ask == pytest.approx([2.0]), "asked, and never answered"
-  assert len(walks) == 1 and life.interrupts == []
+  assert len(walks) == 1
+  # ...and kept, never lost (#692's review: a paid ask left no record): the
+  # run's row and the robot's own History say it went unanswered
+  [row] = life.interrupts
+  assert (row["outcome"], row["source"]) == ("unanswered", "closed")
+  assert row["outcome"] in ev.INTERRUPT_OUTCOMES
+  from pluggybot.mind.thoughts import HISTORY
+  assert any("it ended before my answer came" in line
+             for line in life.thoughts.volatile()[HISTORY])
+
+
+def test_the_ask_says_decide_while_it_flies_and_gives_the_state_back_after(monkeypatch):
+  """#692's review: the ask sets `DECIDE` while its call flies, and once
+  answered gives back what it was -- left at `DECIDE`, a robot walking on
+  with its procedure read on the site as deciding until its errand ended.
+  Shown to fail without the give-back."""
+  life = _asked_life(monkeypatch, carry_on=True)
+  during, start = [], life.overseer.start_interrupt
+
+  def start_interrupt(state, errand, why):
+    during.append(life.state)
+    start(state, errand, why)
+  life.overseer.start_interrupt = start_interrupt
+  _paced_walk(life)
+  _flag_at(life, 1.5)
+  life.state = "PROCEDURE"                      # as `run_errand_routine` sets it
+  r = _ran(life, "def job():\n  drive_to(3.0, 0.0)\n  wait(1)\n")
+  assert r["ok"] and during == ["DECIDE"], (r, during)
+  assert life.state == "PROCEDURE"
+
+
+def test_a_walk_its_own_stop_did_not_end_is_never_sent_round_again():
+  """#692's review: a walk goes round again only where ITS `stop` ended it.
+  Read off the body's record alone, a walk that ended at once without
+  writing one, an earlier stopped walk's record left, went round again
+  with nothing stepped, for ever. Shown to fail with the record read alone."""
+  from types import SimpleNamespace
+  calls = []
+
+  def go(x, y, timeout=90.0, stop=None):
+    calls.append(timeout)
+    if len(calls) > 3:
+      raise AssertionError("sent round again with nothing stepped")
+    return False                                # refused at once, no record
+    yield
+  body = SimpleNamespace(last_drive={"why": DRIVE_STOPPED, "goal": (9.0, 9.0), "seconds": 5.0},
+                         go_to_routine=go, pose=(0.0, 0.0, 0.0), arm_kept=lambda: None,
+                         carrying=lambda side: False)
+  life = SimpleNamespace(body=body, data=SimpleNamespace(time=0.0), step_until=None,
+                         interrupt_due=lambda: False,
+                         interrupted_routine=lambda: tick.result(False),
+                         drive_why=lambda x, y: "the walk gave up (why)")
+  tick.run(None, st._drive_to(life, {"x": 1.0, "y": 0.0}))
+  assert calls == [DRIVE_TIMEOUT_S]
 
 
 def _paced_find(life, seconds: float) -> list[dict]:
   """`life`'s find, a stub's that takes time: its place seen once it has
-  searched `seconds` in all, its `stop` asked every second as a find's
-  walks ask it -- True ends it `interrupted` where it stands -- and out of
-  time at `patience`. Each search's start, patience and record."""
-  body, finds, searched = life.body, [], [0.0]
+  searched `seconds`, its `stop` asked every second as a find's walks ask
+  it -- True ends it `interrupted` where it stands -- and out of time at
+  `patience`; `resume` going on with the search a stop ended, its record
+  one find, as the body's does (`find_tag_routine`), else afresh. Each
+  search's start, patience, whether it resumed, and record."""
+  body, finds, searched, kept = life.body, [], [0.0], []
 
-  def find(tag, near, patience, stop=None):
+  def find(tag, near, patience, stop=None, resume=False):
     t0 = float(life.data.time)
-    rec = {"tag": tag, "remembered": False, "guesses": 0, "viewpoints": 1, "arounds": 1,
-           "trail": [{"lookedAt": [round(t0, 2), 0.0]}]}
-    finds.append({"t": t0, "patience": patience, "rec": rec})
+    if resume and kept:
+      rec = kept.pop()
+      before = rec["seconds"]
+    else:
+      kept.clear()
+      rec, before, searched[0] = {"tag": tag, "remembered": False, "guesses": 0,
+                                  "viewpoints": 0, "arounds": 0, "trail": []}, 0.0, 0.0
+    rec["arounds"] += 1
+    rec["trail"].append({"lookedAt": [round(t0, 2), 0.0]})
+    finds.append({"t": t0, "patience": patience, "resume": resume, "rec": rec})
     next_stop = t0 + 1.0
     while True:
       why = None
@@ -551,8 +613,11 @@ def _paced_find(life, seconds: float) -> list[dict]:
           why = "interrupted"
       if why is not None:
         rec.update(found=why == "found", why=why,
-                   seconds=round(float(life.data.time) - t0, 1),
+                   seconds=round(before + float(life.data.time) - t0, 1),
                    **({"at": list(near)} if why == "found" else {}))
+        if why == "interrupted":
+          kept.append(rec)
+        finds[-1]["why"] = why
         return rec
       searched[0] += life.model.opt.timestep
       yield body.STILL
@@ -564,26 +629,29 @@ def _paced_find(life, seconds: float) -> list[dict]:
 def test_a_find_its_interrupt_stops_asks_and_searches_on_with_the_patience_left(
     monkeypatch, carry_on):
   """...and a `find`, whose walks and looks read the same `stop`: ended
-  where it stands, its verb asks. Carried on, it searches again from there
-  with the patience it had left, and its record is ONE find -- the seconds
-  it searched and its looks summed, every look on its trail, the ask none
-  of them; told to stop, `stopped: interrupted`. Shown to fail with the ask
-  made inside the find's `stop`, blocking: one search, never a second."""
+  where it stands, its verb asks. Carried on, it goes on with its search
+  from there (`resume`: the body's, its record one find, the seconds it
+  searched and its looks on one trail, the ask none of them) with the
+  patience it had left; told to stop, `stopped: interrupted`. Shown to fail
+  with the ask made inside the find's `stop`, blocking (one search, never a
+  second), and with the search begun afresh (#692's review: everything it
+  had walked and looked from, done again)."""
   life = _asked_life(monkeypatch, carry_on)
   finds = _paced_find(life, seconds=3.0)
   _flag_at(life, 1.5)
   r = _ran(life, "def job():\n  find(68, 1.0, 2.0)\n  wait(1)\n")
   [(t0, t1)] = life.overseer.asked
   assert (t0, t1) == pytest.approx((2.0, 2.6))
-  assert finds[0]["rec"]["why"] == "interrupted"
+  assert finds[0]["why"] == "interrupted"
   if carry_on:
-    assert len(finds) == 2, finds
+    assert [f["resume"] for f in finds] == [False, True], finds
     assert finds[1]["t"] == pytest.approx(2.6)
     assert finds[1]["patience"] == pytest.approx(st.FIND_PATIENCE_S - 2.0)
     assert r["ok"] and r["completed"] == 2, r
     found = r["steps"][0]
     assert found["ok"] and found["seconds"] == pytest.approx(3.0), found
     assert found["trace"].count("looked round") == 2, found["trace"]
+    assert float(life.data.time) == pytest.approx(3.6 + 1.0), "found 1 s on, then its wait"
   else:
     assert len(finds) == 1, finds
     assert r["stopped"] == "interrupted" and r["completed"] == 0, r

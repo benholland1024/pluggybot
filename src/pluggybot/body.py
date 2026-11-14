@@ -218,12 +218,14 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def find_tag_routine(self, tag: int, near: tuple[float, float] | None,
-                       patience: float, stop=None) -> Routine:
+                       patience: float, stop=None, resume: bool = False) -> Routine:
     """Find the task area `tag` marks (issue #419): where it remembers it,
     confirmed by the tag, or else searched for round `near` -- a job's
     address, in its map; None, round where it stands -- until the tag is in
-    view, `patience` s run out or `stop` (the robot's own interrupt, asked
-    as a walk asks it) says so. Returns its record: `found`, `why`,
+    view, `patience` s run out or `stop` (asked as a walk asks it: the
+    robot's own interrupt due) ends it, `why` "interrupted". `resume` goes
+    on with the search its `stop` last ended, the step it cut short taken
+    again, its record one find (#692). Returns its record: `found`, `why`,
     `seconds`, and `at` once found."""
 
   @abc.abstractmethod
@@ -1037,7 +1039,7 @@ class StubBody(Body):
     return
     yield
 
-  def find_tag_routine(self, tag, near, patience, stop=None):
+  def find_tag_routine(self, tag, near, patience, stop=None, resume=False):
     """Found at once where the test put the place in, and never otherwise:
     the stub searches nothing."""
     self.found.append(int(tag))

@@ -235,7 +235,9 @@ REMOVE = "remove"
 #: its next verb (a walk's every step), and what it did is scored as it
 #: stands -- the cost of the choice. (The rover's and the quadruped's abort
 #: put their tool back first: one dropped in the rack's lane stranded a run.)
-INTERRUPT_OUTCOMES = ("continued", "aborted")
+#: `unanswered`: its errand ended -- a death, a fall, a stand-up -- before
+#: the answer came (#692), neither a choice.
+INTERRUPT_OUTCOMES = ("continued", "aborted", "unanswered")
 
 ACTION_FAILURES = (
   "busy",          # something the map fired earlier has not run yet

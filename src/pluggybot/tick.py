@@ -48,8 +48,8 @@ Two rules the seam carries:
   ⚠ A BLOCKING `run` INSIDE `run_many` STEPS EVERY ROBOT OF THE LOOP (#690):
   the others held through their waits, their routines where they were; what
   that run raises that is not the routine's own is raised by `run_many`, as
-  it raises its own (`_Raised`). None is begun in `src/` since #692 (the
-  interrupt's ask yields): the rule is for the next.
+  it raises its own (`_Raised`). None is begun in `src/`: the rule is for
+  the next.
 """
 
 from typing import Any, Generator

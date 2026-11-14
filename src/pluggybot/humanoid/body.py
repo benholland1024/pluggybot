@@ -1567,10 +1567,11 @@ class HumanoidBody(Body):
 
   places = property(lambda self: self.mission.places)
 
-  def find_tag_routine(self, tag, near, patience, stop=None):
+  def find_tag_routine(self, tag, near, patience, stop=None, resume=False):
     """Its mission's search (`humanoid.places`, #559's stage 3): the
     quadruped's, its looks through the head's navigation camera."""
-    return self.mission.find_routine(tag, near=near, patience=patience, stop=stop)
+    return self.mission.find_routine(tag, near=near, patience=patience, stop=stop,
+                                     resume=resume)
 
   # ---- the quadruped's world: not the humanoid's yet -----------------------
 

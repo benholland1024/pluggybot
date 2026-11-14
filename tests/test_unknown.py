@@ -298,24 +298,21 @@ def test_the_map_still_growing_is_progress_and_a_map_standing_still_is_not():
   assert blind.last_drive["why"] == "stalled", "a body that reads no growth"
 
 
-def test_a_stop_ends_the_walk_as_an_abort_and_its_answer_costs_no_patience():
+def test_a_stop_ends_the_walk_as_an_abort_where_it_stands():
   """The drive asks `stop` every `STOP_EVERY_S`; a True ends it where it
   stands as `DRIVE_STOPPED` -- never one of the four ways a drive gives up
-  -- and the time a False took (a stop that stood it still: none in `src/`
-  since #692, whose interrupt only reads) counts against neither its
-  patience nor its stagnation clock."""
+  -- and a False leaves it walking. It only reads (#692: the interrupt's
+  verb asks, standing), so nothing it answers takes time."""
   walk = _Walk(step=0.004)                              # 4 cm/s: slow progress
-  asked = []
+  asked, t0 = [], walk.data.time
 
   def stop():
     asked.append(walk.data.time)
-    if len(asked) == 3:
-      walk.data.time += 50.0                            # the mind thought for 50 s
     return len(asked) == 6
   assert tick.run(STEPPER, walk.drive_to_routine(5.0, 0.0, 20.0, stop=stop)) is False
   rec = walk.last_drive
   assert rec["why"] == nav.DRIVE_STOPPED and nav.DRIVE_STOPPED not in nav.DRIVE_GAVE_UP
-  assert len(asked) == 6 and rec["seconds"] < 20.0, "the 50 s ask came off its patience"
+  assert len(asked) == 6 and rec["seconds"] == pytest.approx(asked[-1] - t0, abs=0.05)
   assert "stopped by the robot's own interrupt" in nav.gave_up(rec)
 
 
