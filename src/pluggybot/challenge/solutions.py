@@ -441,7 +441,7 @@ PASS_FORK = '''def lay_fork():
   to_place(%(facing)g)
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
-  reach("left", read("spot.x") - 0.18, read("spot.y") + 0.155, tz, 0.5, 0, -0.866, 0, -1, 0)
+  reach("left", read("spot.x") - 0.18, read("spot.y") + 0.146, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
   open_hand("left")
   wait(0.4)
