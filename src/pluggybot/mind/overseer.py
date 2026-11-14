@@ -677,6 +677,11 @@ class Decision:
   #: out. Paperwork, so writing one costs no turn; and no verb replaces.
   define: dict | None = None
   undefine: str = ""
+  #: How long the answer WROTE `define`'s source where `Menu.validate` cut
+  #: it (one past the cap), else 0: the library refuses it in that length.
+  #: Code's, never the model's, on `map_edit`'s terms -- and never on the
+  #: wire, whose `define` is the cut text as it always was.
+  define_chars: int = 0
   #: THE SCIENCE RECORD'S TWO VERBS (issue #217), on `pin`/`unpin`'s
   #: terms: `record` is `{"quantity", "value", "unit", "method", "topic"}`
   #: -- one finding, written into `findings/<topic>` in the shape code
@@ -1747,7 +1752,7 @@ class Menu:
     # as `standing_order` is: a model emitting one anyway must not be able to
     # cost a perfectly good decision.
     emap = (ev.parse(raw.get("event_map"), self) if event_map else None)
-    define, undefine = None, ""
+    define, undefine, define_chars = None, "", 0
     if procedures is not None:
       spec = raw.get("define")
       if isinstance(spec, dict) and str(spec.get("source", "")).strip():
@@ -1755,8 +1760,14 @@ class Menu:
         # is narrated and counted, which is the interesting path. The
         # decision stands whatever the library says, as a refused `learn`
         # leaves the action intact.
+        # ⚠ CUT ONE PAST THE CAP, AND THE LENGTH IT WAS WRITTEN IN KEPT: this
+        # slice is the only cut a source meets (the schema gives a string no
+        # length), and a refusal that read the cut's own 3,001 was taken for
+        # one character over by both robots.
+        written = str(spec.get("source"))
         define = {"name": clean(spec.get("name"), MAX_ID),
-                  "source": str(spec.get("source"))[:lang.MAX_SOURCE_CHARS + 1]}
+                  "source": written[:lang.MAX_SOURCE_CHARS + 1]}
+        define_chars = len(written) if len(written) > lang.MAX_SOURCE_CHARS + 1 else 0
       undefine = clean(raw.get("undefine"), MAX_ID)
     # ...and an UNDEFINE BESIDE A DEFINE LEFT OUT waits, as beside one the
     # library refuses (#264): alone it deleted the procedure the answer was
@@ -1909,7 +1920,8 @@ class Menu:
                     serves=clean(raw.get("serves"), MAX_LINE_CHARS),
                     escalate=escalate, standing_order=order,
                     event_map=emap.rows if emap is not None else (),
-                    define=define, undefine=undefine, done=done,
+                    define=define, define_chars=define_chars,
+                    undefine=undefine, done=done,
                     record=record, retract=retract,
                     other_needs=other_needs, tell=tell, give_points=give,
                     heart_for=heart_for, rate=rate, decline=decline,

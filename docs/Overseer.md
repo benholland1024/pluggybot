@@ -228,8 +228,17 @@ practice, never told the cap, 421 were over 1,500 and 47 over 3,000), and
 the text says so; one over it that parses is refused with every reason, the
 cap's first (#615's smoke: three repairs of a 5,458-character source heard
 only its length) -- where it arrives whole, in practice and a person's run:
-a served answer's source is cut one past the cap (`define`'s clip), and
-hears the cap alone. A name it gives is lowercase letters, digits and
+a served answer's source is cut one past the cap (`define`'s clip in
+`Menu.validate`, the one cut a source meets: the schema gives a string no
+length) with the length it was written in kept beside it
+(`Decision.define_chars`, never on the wire), and its refusal says that
+length and what the text before the cut is refused for, never what the cut
+made of its last line (`Library._as_written`). Read off the cut, every such
+refusal said "the source is 3001 characters; the cap is 3000": on the wake
+of 2026-11-14 both robots took that for one character over, trimmed a
+little and were refused at "3001" again (16 refusals, four such pairs,
+three jobs lost), and five were also told a fault the cut had made ("line
+111: Expr is not part of this language", a `pass` cut to `pa`). A name it gives is lowercase letters, digits and
 underscores, a letter first, at most `MAX_NAME_CHARS` (32), and the text
 says so (`lang.name_rule`); a name refused says its own reason the first
 time -- the rule, the language's own word, a verb's, a def's or a maths

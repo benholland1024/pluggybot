@@ -470,6 +470,83 @@ def test_a_refusal_for_the_librarys_room_says_what_the_source_is_refused_for_too
   assert "the library is full" in line and "line 2" in line, line
 
 
+def _cut_in_a_pass(extra: int = 400) -> str:
+  """A source `extra` characters over the cap, a true fault on its line 2,
+  written so that the served cut (one past the cap) falls inside a `pass`
+  and leaves a text that still parses."""
+  from pluggybot.procedure import lang
+  head, tail = "def big():\n  import os\n", "  if wait(1):\n    pa"
+  room = lang.MAX_SOURCE_CHARS + 1 - len(head) - len(tail)
+  fill = "  wait(1)\n" * (room // 10 - 1) + "  wait(1)" + " " * (room % 10) + "\n"
+  written = head + fill + tail + "ss\n" + "  wait(1)\n" * (extra // 10)
+  assert written[:lang.MAX_SOURCE_CHARS + 1].endswith("    pa")
+  return written
+
+
+def test_a_define_cut_at_the_cap_is_refused_in_the_length_it_was_written():
+  """A served answer's source is cut one past the cap before the library
+  reads it (`Menu.validate`), and the refusal read "the source is 3001
+  characters; the cap is 3000" whatever was written: both robots took it for
+  one character over, trimmed a little and were refused at "3001" again (the
+  wake of 2026-11-14: 16 refusals, four such pairs, three jobs lost). Where
+  the cut text still parsed, its own last line was told as a fault too --
+  "line 111: Expr is not part of this language" for a `pass` cut to `pa`,
+  which Luca took for a `-=` of its own. The refusal says the length that
+  was WRITTEN and what the text before the cut is refused for, never what
+  the cut's last line made; the wire's `define` is as it was."""
+  from pluggybot.procedure import lang
+  cap = lang.MAX_SOURCE_CHARS
+  written = _cut_in_a_pass()
+  menu = _menu()
+  said = lambda n: f"the source is {n} characters; the cap is {cap}"  # noqa: E731
+  for freeing in ("", "a"):                 # `define`'s path, then `check`'s
+    L = lib.Library(lc.world_facts(WORLD))
+    L.define("a", "def a():\n  wait(1)\n")
+    life, events = _deciding_life(L)
+    decision = menu.validate({"action": "idle", "reason": "x", "undefine": freeing,
+                              "define": {"name": "big", "source": written}},
+                             procedures=("a",))
+    life._define(decision)
+    line = life.thoughts.read("History.md").splitlines()[-1]
+    assert said(len(written)) in line, line           # never the cut's 3001
+    assert "Expr" not in line, line                   # what the cut made of `pass`
+    assert "line 2: " in line, line                   # a true fault before the cut
+    refused = [e for e in events if e.get("outcome") == "refused"][-1]
+    assert refused["reasons"][0] == said(len(written))
+    assert len(refused["source"]) == cap + 1          # the wire's source: the cut, as before
+    assert set(L.names()) == {"a"}
+  assert decision.define_chars == len(written)
+  assert decision.as_dict()["define"] == {"name": "big", "source": written[:cap + 1]}
+  # ...a source of exactly one over is whole, and says its own length
+  one_over = "def big():\n" + "  wait(1)\n" * ((cap + 1 - 11) // 10)
+  assert len(one_over) == cap + 1
+  whole = menu.validate({"action": "idle", "reason": "x",
+                         "define": {"name": "big", "source": one_over}}, procedures=())
+  assert whole.define_chars == 0
+  with pytest.raises(lib.LibraryRefused) as e:
+    lib.Library(lc.world_facts(WORLD)).define("big", whole.define["source"])
+  assert e.value.reasons[0] == said(cap + 1)
+  # ...and a cut that falls on a line's end loses nothing of that line: only
+  # a last line the cut may have split is left unsaid
+  head, tail = "def big():\n", "  import os\n"
+  room = cap + 1 - len(head) - len(tail)
+  ended = (head + "  wait(1)\n" * (room // 10 - 1) + "  wait(1)" + " " * (room % 10) + "\n"
+           + tail)
+  assert len(ended) == cap + 1
+  L = lib.Library(lc.world_facts(WORLD))
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("big", ended, written=cap + 500)
+  assert e.value.reasons[0] == said(cap + 500)
+  assert any("Import" in r for r in e.value.reasons), e.value.reasons
+  room = cap + 1 - len(head) - len(tail[:-1])
+  split = (head + "  wait(1)\n" * (room // 10 - 1) + "  wait(1)" + " " * (room % 10) + "\n"
+           + tail[:-1])
+  assert len(split) == cap + 1 and split.endswith("import os")
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("big", split, written=cap + 500)
+  assert e.value.reasons == [said(cap + 500)]
+
+
 # ---- 3. a procedure is run on the answer that defines it -------------------
 
 
