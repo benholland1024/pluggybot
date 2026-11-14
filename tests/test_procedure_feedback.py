@@ -434,6 +434,42 @@ def test_a_refused_define_says_the_undefine_goes_on_the_same_answer():
   assert "(it holds 1)" in said                     # never "2 of 1"
 
 
+def test_a_refusal_for_the_librarys_room_says_what_the_source_is_refused_for_too():
+  """A define into a full library heard "the library is full" and nothing
+  else, made room on its next answer, and was then refused for what was
+  wrong with its source all along (the wake of 2026-11-14: 8 of 21 such
+  refusals, a turn each inside a held job's clock). Every reason at once,
+  the library's and the source's -- from `define`, from `check` (the
+  undefine-and-define path), and where the robot reads."""
+  bad = "def b():\n  import os\n"
+  L = lib.Library(lc.world_facts(WORLD), cap=1)
+  L.define("a", "def a():\n  wait(1)\n")
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("b", bad)
+  said = e.value.reasons
+  assert "the library is full (it holds 1)" in said[0]
+  assert any(r.startswith("line 2") for r in said[1:]), said
+  assert L.check("b", bad) == said                  # `check` says what `define` says
+  # ...a name already kept, and its source's own fault
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("a", "def a():\n  import os\n")
+  assert any("already defined" in r for r in e.value.reasons)
+  assert any(r.startswith("line 2") for r in e.value.reasons), e.value.reasons
+  # ...and a name no entry can take still hears of its source
+  with pytest.raises(lib.LibraryRefused) as e:
+    lib.Library(lc.world_facts(WORLD)).define("", bad)
+  assert any("not a name" in r for r in e.value.reasons)
+  assert any(r.startswith("line 2") for r in e.value.reasons), e.value.reasons
+  # ...a source nothing is wrong with adds nothing, and changes nothing
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("b", "def b():\n  wait(2)\n")
+  assert len(e.value.reasons) == 1 and set(L.names()) == {"a"}
+  life, _ = _deciding_life(L)
+  life._define(Decision(action="idle", reason="x", define={"name": "b", "source": bad}))
+  line = life.thoughts.read("History.md").splitlines()[-1]
+  assert "the library is full" in line and "line 2" in line, line
+
+
 # ---- 3. a procedure is run on the answer that defines it -------------------
 
 

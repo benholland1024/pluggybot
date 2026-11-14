@@ -253,10 +253,10 @@ class Library:
       reasons.append(f"the library is full (it holds {self.cap}) -- an "
                      "`undefine` on the same answer as this define makes room "
                      "first")
-    entries = None
-    if not reasons:
-      entries, entry = self._trial(name, source)
-      reasons.extend(_defined(entry))
+    # ...and what the SOURCE is refused for, in the same refusal: told its
+    # room alone, a robot made room and was refused again for its source
+    entries, faults = self._judged(name, source)
+    reasons.extend(faults)
     if reasons or entries is None:
       self.refusals.append({"t": t, "verb": "define", "name": name,
                             "reasons": reasons})
@@ -318,9 +318,22 @@ class Library:
       reasons.append(f"the library is full (it holds {self.cap}) -- an "
                      "`undefine` on the same answer as this define makes room "
                      "first")
-    if reasons:
-      return reasons
-    return _defined(self._trial(name, source, freeing)[1])
+    return reasons + self._judged(name, source, freeing)[1]
+
+  def _judged(self, name: str, source: str, freeing: str = "") -> tuple[dict | None, list[str]]:
+    """What the source itself is refused for, whatever the library's room
+    or the name's standing say of the define -- and, under a name an entry
+    can take, the library the define would make (`_trial`); under any
+    other, the source compiled alone against the library as it stands."""
+    if _NAME.match(name) and name != "new":
+      entries, entry = self._trial(name, source, freeing)
+      return entries, _defined(entry)
+    linked = {n: e.procedure or e.reasons for n, e in self.entries.items() if n != freeing}
+    try:
+      lang.compile_procedure(source, self.facts, library=linked, alone=False)
+    except Refused as e:
+      return None, list(e.reasons)
+    return None, []
 
 
 def _defined(entry: Entry) -> list[str]:
