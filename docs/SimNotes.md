@@ -8424,7 +8424,13 @@ set-outs 0-31, each its own noise; `~/pluggybot-training/loop-1114/n2-693/`):
 | this | 0 / 8 | 0 / 8 | 26 (0) | 21 (2) | 24 (1) | 20 (1) | 24 (2) |
 
 Every fall's last way home pressed nothing on the top (0-2.3 N*s up, where
-9.4-44.9), and draw 22 opened the door. Of the check's 160 flights 139 are
+9.4-44.9), and draw 22 opened the door. `scripts/humanoid_spike.py --view
+way_home` stages it: bowed at a 0.72 m counter whose edge is 13 cm ahead of
+the soles' middle, the left arm where draw 8's way home began, sent home --
+nothing on the top, standing; `--stand-at-once` asks the stand as the arm
+sets off, as before, and a jaw comes down on the top 0.5 s in, 38 N*s up,
+and the robot goes over backward at 2.6 s (12 cm: 40 N*s, the same fall;
+14 and 15 cm: 3 N*s, standing). `--strip way_home` draws both. Of the check's 160 flights 139 are
 the base's in every phase and verdict; drawer 2's and table 27's falls are
 gone (each a flight parted at its first withdraw's wait for the trunk, then
 failing standing), and 19 others parted to the same verdicts.
