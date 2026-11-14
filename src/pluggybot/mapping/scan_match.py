@@ -12,10 +12,13 @@ the map disagrees with is past the field's reach and a bounded search
 finds where to fit from (`_search`) -- as does one that slid or that the
 walls only partly agree with (`DOUBT_*`, issue #681) -- a robot its map
 keeps refusing is lost past that search and searches wider (`_relocate`,
-issue #422), and a scan goes into the map only when a fit was taken and
-the robot has moved (`Match.fuse`, `ScanMatcher.fuses`). docs/SimNotes.md,
-"The map stays true under drift", "Lost after a long explore, and found
-again" and "The storeroom keeps an error", has why each piece is there and
+issue #422), a take with the pose in doubt (up from a fall, or the map
+having refused the belief) stands only where that wider search holds no
+better place (`_take`, issue #681), and a scan goes into the map only when
+a fit was taken and the robot has moved (`Match.fuse`, `ScanMatcher.fuses`).
+docs/SimNotes.md, "The map stays true under drift", "Lost after a long
+explore, and found again", "The storeroom keeps an error" and "A get-up
+moves the body past the search's window", has why each piece is there and
 what it measured.
 
 Deterministic: no threads, and every sum is numpy's own loop in a fixed
@@ -424,6 +427,9 @@ class ScanMatcher:
     self.turned_seen: tuple[tuple, tuple] | None = None
     #: ...and where the belief stood up: the first scan matched since.
     self.turned_from: tuple[float, float] | None = None
+    #: Up from a fall (`fell`) and no take has stood since: each is checked
+    #: by a wider look (WIDER, `_take`).
+    self.fallen = False
 
   # ---- the field ------------------------------------------------------------
 
@@ -493,8 +499,10 @@ class ScanMatcher:
     self.anchoring = ANCHORED_SCANS if on else 0
     self.doubt_wait = 0
     # ...and either way the belief stands somewhere new: a search at every
-    # heading armed by a fall before is over (TURNED_*)
+    # heading armed by a fall before is over (TURNED_*), and its doubt of
+    # the pose (WIDER)
     self.turned_left, self.turned_seen, self.turned_from = 0, None, None
+    self.fallen = False
     if on:
       self.lost_run, self.pending, self.fused_pose = 0, None, None
 
@@ -502,9 +510,12 @@ class ScanMatcher:
     """The robot is up from a fall (issue #690): until a scan fits, its next
     TURNED_SEARCHES wide searches that find nothing look at every heading
     (`_turned`). The run of refusals starts again, and what its wide search
-    found before the fall goes: the fall moved the body under it."""
+    found before the fall goes: the fall moved the body under it -- by more
+    than the bounded search reaches, as often as not, so until a take
+    stands each is checked by a wider look (`fallen`, `_take`, issue #681)."""
     self.turned_left, self.turned_seen, self.turned_from = TURNED_SEARCHES, None, None
     self.lost_run, self.pending = 0, None
+    self.fallen = True
 
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
@@ -586,10 +597,15 @@ class ScanMatcher:
     pts = self.points(angles, ranges, origin)
     if self.field is None or len(pts) < MIN_INLIERS:
       return self._done(pose, "no map" if self.field is None else "sparse")
-    at, why, kw = self._judge((x0, y0, th0), pts, self._fit((x0, y0, th0), pts))
+    asked = (x0, y0, th0)
+    at, why, kw = self._judge(asked, pts, self._fit(asked, pts))
     slid_to = kw.pop("slid_to", None)
+    # The pose in doubt -- the map refused the belief, or the robot is up
+    # from a fall and no take has stood since: a take is checked by a wider
+    # look (`_take`)
+    unsure = why == "inconsistent" or self.fallen
     if why not in ("inconsistent", "doubted", "slid"):
-      return self._done(at, why, **kw)
+      return self._take(asked, pts, at, why, kw, unsure)
     # Most of the scan on mapped cells and too little of it on walls: the
     # pose is off by more than the fit reaches -- a wheel pump while the
     # robot was tilted and unmatched left it 0.45 m out, the fit could not
@@ -601,22 +617,47 @@ class ScanMatcher:
     # refused, doubted laid in as ok.
     doubt = why != "inconsistent"
     if doubt and self.doubt_wait:
-      return self._done(at, why, **kw)
+      return self._take(asked, pts, at, why, kw, unsure)
     if doubt:
       self.doubt_wait = DOUBT_EVERY
-    start = self._search((x0, y0, th0), pts, unique=doubt, against=at)
+    start = self._search(asked, pts, unique=doubt, against=at)
     if start is not None:
-      found_at, found, found_kw = self._judge((x0, y0, th0), pts, self._fit(start, pts),
+      found_at, found, found_kw = self._judge(asked, pts, self._fit(start, pts),
                                               found=True, doubt=doubt)
       if found == "found" and (slid_to is None or _near(found_at, slid_to)):
-        return self._done(found_at, found, **found_kw)
+        return self._take(asked, pts, found_at, found, found_kw, unsure)
     if doubt:
-      return self._done(at, why, **kw)
-    # ...and refused for long enough, the robot is lost past the search's
-    # reach: search wider (LOST_RUN), and take what it finds the second time
+      return self._take(asked, pts, at, why, kw, unsure)
+    return self._lost(asked, pts, kw)
+
+  def _take(self, asked, pts: np.ndarray, at, why: str, kw: dict, unsure: bool) -> Match:
+    """The verdict `why` at `at`, as `_done` -- unless it would move the
+    belief or lay the scan (ACCEPTED) with the pose in doubt (`unsure`) and
+    a wider look holds a better place (`_outdone`): then the scan is
+    refused, one more of the run (`_lost`).
+
+    ⚠ A TAKE WITH THE POSE IN DOUBT IS CHECKED BY A WIDER LOOK (issue #681):
+    a get-up moves the body with the odometry held -- at the storeroom's
+    counter a median 0.87 m, 71 of 83 falls past SEARCH_M -- so the truth
+    lies outside the bounded search's window, and its best inside it, or
+    the fit itself, is the place where the counter's face lies on the wall
+    0.6 m behind it: 76 % of the scan on walls, every direction fixed, and
+    `ok` ever after (18 of 83 falls ended 0.55-1.08 m off; live, four of
+    five, kept 33-87 minutes). docs/SimNotes.md, "A get-up moves the body
+    past the search's window"."""
+    if why in ACCEPTED and unsure and self._outdone(asked, pts, (at, kw)):
+      return self._lost(asked, pts, kw, near=(at, kw))
+    return self._done(at, why, **kw)
+
+  def _lost(self, asked, pts: np.ndarray, kw: dict, near=None) -> Match:
+    """A scan refused, "inconsistent": the map disagreed and the search
+    found nothing it agreed with, or a wider look holds a better place than
+    `near`, the take it would have been. Refused for long enough, the robot
+    is lost past the search's reach: search wider (LOST_RUN), and take what
+    it finds the second time."""
     self.lost_run += 1
     if self.lost_run % LOST_RUN == 0:
-      wide = self._relocate((x0, y0, th0), pts)
+      wide = self._relocate(asked, pts, also=near)
       seen, self.pending = self.pending, None if wide is None else wide[1]["step"]
       if wide is not None and seen is not None and _same(seen, self.pending):
         self.doubt_wait = 0
@@ -627,11 +668,11 @@ class ScanMatcher:
       if wide is not None:
         self.turned_seen = None
       elif self.turned_left:
-        turned = self._turned((x0, y0, th0), pts)
+        turned = self._turned(asked, pts)
         if turned is not None:
           self.doubt_wait = 0
           return self._done(turned[0], "relocated", **turned[1])
-    return self._done(at, why, **kw)
+    return self._done(asked, "inconsistent", **{k: v for k, v in kw.items() if k != "step"})
 
   def _fit(self, start, pts: np.ndarray):
     """Gauss-Newton from `start`, odometry's prior centred on it: the pose
@@ -739,13 +780,30 @@ class ScanMatcher:
       return None
     return (x0 + best_at[0], y0 + best_at[1], th0 + best_at[2])
 
-  def _relocate(self, pose, pts: np.ndarray):
+  def _outdone(self, pose, pts: np.ndarray, near) -> bool:
+    """Whether a wider look holds a better place than `near`, a take (its
+    pose, `Match`'s fields) with the pose in doubt (WIDER, issue #681): the
+    wide search with `near` one more of its places, run where none of its
+    finds waits to be found again (`pending`); a find elsewhere waits as the
+    wide search's own does, and until the next wide search (LOST_RUN) a take
+    stands only where it is that find."""
+    if self.pending is None:
+      wide = self._relocate(pose, pts, also=near)
+      if wide is None or _same(wide[0], near[0]):
+        return False
+      self.pending = wide[1]["step"]
+      return True
+    return not _same(near[1]["step"], self.pending)
+
+  def _relocate(self, pose, pts: np.ndarray, also=None):
     """The wide search (LOST_RUN): the one pose within WIDE_M and WIDE_RAD of
     `pose` the map agrees with, as (pose, `Match`'s fields), or None. Each of
     the best lattice places is searched cell by cell round it and fitted;
     the "found" one with the most inliers is taken, unless another found
-    elsewhere explains the scan as well (RIVAL_SHARE)."""
-    found = []
+    elsewhere explains the scan as well (RIVAL_SHARE). `also` is one more
+    place found, the bounded search's (`_outdone`): the best, a rival or
+    neither, as any."""
+    found = [] if also is None else [also]
     for start in self._wide_candidates(pose, pts):
       fine = self._search(start, pts, reach_m=WIDE_STRIDE * self.grid.resolution,
                           reach_rad=SEARCH_STEP_RAD) or start
@@ -920,7 +978,8 @@ class ScanMatcher:
       self.lost_run, self.pending, self.turned_seen = 0, None, None
     if why in ACCEPTED:
       # ...and a scan that fits ends the search at every heading (TURNED_*)
-      self.turned_left = 0
+      # and the fall's doubt of the pose (WIDER)
+      self.turned_left, self.fallen = 0, False
     self.counts[why] = self.counts.get(why, 0) + 1
     if why in ACCEPTED and held:
       self.counts["held"] = self.counts.get("held", 0) + 1
@@ -939,6 +998,7 @@ class ScanMatcher:
     self.lost_run, self.pending, self.anchoring = 0, None, 0
     self.doubt_wait = 0
     self.turned_left, self.turned_seen, self.turned_from = 0, None, None
+    self.fallen = False
 
   def kept_state(self) -> tuple[dict, dict]:
     """The field is the map as it was when last computed, not as it is now,
@@ -953,7 +1013,8 @@ class ScanMatcher:
              "anchoring": self.anchoring, "doubtWait": self.doubt_wait,
              "turnedLeft": self.turned_left,
              "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen],
-             "turnedFrom": None if self.turned_from is None else list(self.turned_from)}
+             "turnedFrom": None if self.turned_from is None else list(self.turned_from),
+             "fallen": self.fallen}
     return state, ({} if self.field is None else {"matchField": self.field})
 
   def restore_kept(self, state: dict, arrays: dict) -> None:
@@ -974,5 +1035,6 @@ class ScanMatcher:
     self.turned_seen = None if seen is None else tuple(tuple(float(v) for v in p) for p in seen)
     since = state.get("turnedFrom")
     self.turned_from = None if since is None else tuple(float(v) for v in since)
+    self.fallen = bool(state.get("fallen", False))
     self.field = arrays.get("matchField")
     self.normals = None if self.field is None else _normals(self.field)
