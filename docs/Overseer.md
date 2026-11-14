@@ -211,10 +211,11 @@ the language does not change. Nothing in `procedure/` writes `data.ctrl` (the fe
 **Total by construction:** a procedure declares `budget(steps=N,
 seconds=S)`, N the verbs it runs, and code caps both (`MAX_STEPS` 200,
 `MAX_BUDGET_S` 1800; 60 and 600 s without one), and the text says all four
-(#640); every loop is bounded; the interpreter checks budgets and `interrupted()` at every
-verb, which is a safe point, and a walk inside a verb asks it every second
-on the way (issue #381: a verb it ended is `stopped: interrupted`, an abort
-and never a failed step); a runaway `while` stops at `MAX_ITER` as
+(#640); every loop is bounded; the interpreter checks budgets and the interrupt
+(`interrupted_routine`) at every verb, which is a safe point, and a walk inside a
+verb reads it every second on the way, ending where it stands for its verb to ask
+(issues #381, #692: a verb it ended is `stopped: interrupted`, an abort and never a
+failed step); a runaway `while` stops at `MAX_ITER` as
 `loop-cap`, and a run at `MAX_STATEMENTS` (100,000, about 0.1 s of the
 physics thread: four nested loops in one def could run 10^8) as
 `statements`; a failed step, an arithmetic fault (division by zero, a local
@@ -1429,13 +1430,31 @@ difference is what a wrong answer costs, and here it is the robot.
 may still be in flight* — the errand it interrupts was queued by one — and
 sharing `_slot` would have whichever landed second silently discard the other.
 Same shape, same lock discipline, separate state. And it steps the sim while it
-flies, exactly as `_decide` does: the robot is standing still mid-errand, which
-is the one moment the stream is most worth watching. ⚠ It waits BLOCKING
-(`body.run`), where `_decide` yields: in the pair that wait is the loop's, every
-robot stepped, the other held standing through its own hold and its errand
-paused for the ask (#690: stepped by the asking robot alone, the other's legs
+flies, exactly as `_decide_routine` does, its think slices YIELDED
+(`interrupted_routine`, #692): the robot is standing still mid-errand, which is
+the one moment the stream is most worth watching, and in the pair the other
+robot's errand goes on through the ask (waited blocking, it was held standing
+for the whole ask, #690; stepped by the asking robot alone before that, its legs
 and senses stopped, and Luca fell walking; SimNotes, "One robot's interrupt
 asked, the other robot held").
+
+⚠ **A WALK IS NEVER ASKED FROM INSIDE.** A procedure's walk (and a `find`) is a
+safe point every second, but its `stop` only reads that an interrupt is due
+(`interrupt_due`): the walk ends where it stands, its verb asks, and answered
+carry on a walk goes on to its goal from there on a fresh plan, a find with its
+search (the step the stop cut short taken again, its record one find), each
+with the patience its own clock left (the ask none of it, and never past the
+run's own budget); answered stop, the verb is `stopped: interrupted`. Asked
+between two walks, the robot stands as between two verbs, so a long think may
+rest it and the other robot may ask it aside. The ask is inside the verb, which
+a death or a fall ends at once (#671): its row is kept `unanswered` (and in
+History; so is one the run's stop cuts short), its answer never collected, and
+an interrupt asked while that call still flies is answered `busy`, an abort, as
+a decision is. An ask between two verbs ends the same way, the step its robot
+dies or falls in (`steps.asked_routine`; the other robot goes on meanwhile), and
+a fall there makes the next verb the step the run stopped at, never begun
+(`FELL`). The robot's `state` is `DECIDE` while it is asked, and given back
+after, however the ask ends.
 
 `docs/Evaluation.md` §2 has the safe points and the ordering.
 

@@ -26,14 +26,20 @@ Nothing here touches the network: the client is the injected seam, as in
 tests/test_overseer.py, whose fakes these reuse.
 """
 
+import math
+
 import pytest
 
+from pluggybot import tick
+from pluggybot.navigator import DRIVE_STOPPED
 from pluggybot.evaluation.arms import arm_flags
 from pluggybot.lifecycle import HUMANOID_HOME, THINK_SLICE_S, board_book, world_config, world_facts
 from pluggybot.mind import events as ev
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.procedure import lang
+from pluggybot.procedure import steps as st
+from pluggybot.procedure.steps import DRIVE_TIMEOUT_S
 
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 from test_overseer import FakeClient
@@ -283,22 +289,25 @@ def test_the_abort_latches_so_nobody_is_asked_twice(menu, monkeypatch):
   spin, and by the time it would fire the robot is already doing the thing
   the first answer asked for. `run_errand` has three safe points and a
   drawing has one per stroke, so the latch is what stands between an abort
-  and a question at every one of them.
+  and a question at every one of them -- and a walk's `stop` reads it too
+  (`interrupt_due`, #692), so a walk after an abort ends where it stands.
 
   Asserted on the latch itself rather than through a mission, because a
-  mission cannot be made to reach a second safe point on request."""
+  mission cannot be made to reach a second safe point on request. Shown to
+  fail with the latch's early answer taken out: asked twice."""
   from pluggybot.lifecycle import HubLifecycle
 
   life = HubLifecycle.__new__(HubLifecycle)
   life._aborting = True
   life._interrupt_pending = "a row nobody must look at"
-  #  Latched: it answers without resolving, so `_resolve_interrupt` -- which
-  #  is what spends a call -- is never reached.
-  monkeypatch.setattr(HubLifecycle, "_resolve_interrupt",
+  #  Latched: it answers without resolving, so `_resolve_interrupt_routine`
+  #  -- which is what spends a call -- is never reached, and nothing steps.
+  monkeypatch.setattr(HubLifecycle, "_resolve_interrupt_routine",
                       lambda self, row: pytest.fail("asked twice"))
-  assert life.interrupted() is True
+  assert tick.run(None, life.interrupted_routine()) is True
   assert life._interrupt_pending == "a row nobody must look at", \
       "a latched abort does not even consume the pending row"
+  assert life.interrupt_due() is True
 
 
 def test_a_continue_consumes_the_row_rather_than_charging_afterwards(menu):
@@ -308,7 +317,7 @@ def test_a_continue_consumes_the_row_rather_than_charging_afterwards(menu):
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
-  src = inspect.getsource(HubLifecycle._resolve_interrupt)
+  src = inspect.getsource(HubLifecycle._resolve_interrupt_routine)
   assert "self.queued_row = None" in src
   assert "not self._aborting and self.queued_row is row" in src
 
@@ -332,24 +341,440 @@ def test_the_seam_only_sets_a_flag(menu):
 
 
 def test_the_call_steps_the_sim_rather_than_freezing_it(menu):
-  """`_decide`'s rule, and it matters more here: the robot is standing still
-  mid-errand and this is the one moment the stream is most worth watching."""
+  """`_decide_routine`'s rule, and it matters more here: the robot is
+  standing still mid-errand and this is the one moment the stream is most
+  worth watching -- and its think slices are YIELDED as that rule's are
+  (#692): waited blocking (`body.run`), the pair's other robot paused for
+  the whole ask (#690)."""
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
-  src = inspect.getsource(HubLifecycle._ask_interrupt)
+  src = inspect.getsource(HubLifecycle._ask_interrupt_routine)
   assert "while self.overseer.interrupt_pending:" in src
-  assert "self.body.run(self.body.hold_routine(THINK_SLICE_S))" in src
+  assert "yield from self.body.hold_routine(THINK_SLICE_S)" in src
+  assert ".run(" not in src
 
 
-def test_interrupted_is_a_method_because_it_has_a_side_effect(menu):
-  """A property that made an API call would be a side effect hiding behind an
-  attribute read, in a file where `needs_charge` next door is genuinely
-  free."""
+def test_the_interrupt_is_asked_by_a_routine_and_read_by_a_plain_method(menu):
+  """Resolving has a side effect -- a call, the world stepped while it
+  flies -- so it is a ROUTINE (#692), never a property: one would be a side
+  effect hiding behind an attribute read, in a file where `needs_charge`
+  next door is genuinely free. And it has no blocking twin: handed to a
+  walk as its `stop`, `interrupted()` asked inside the walk, blocking. What
+  a walk is handed reads, and resolves nothing (`interrupt_due`)."""
+  import inspect
+
   from pluggybot.lifecycle import HubLifecycle
-  assert callable(HubLifecycle.interrupted)
-  assert not isinstance(HubLifecycle.interrupted, property)
+  assert inspect.isgeneratorfunction(HubLifecycle.interrupted_routine)
+  assert not hasattr(HubLifecycle, "interrupted")
+  assert callable(HubLifecycle.interrupt_due)
+  assert not isinstance(inspect.getattr_static(HubLifecycle, "interrupt_due"), property)
   assert isinstance(HubLifecycle.needs_charge, property)
+
+
+# ---- the ask is a routine, and what it stopped goes on (issue #692) ------------
+
+
+class _Mind:
+  """The interrupt's call, in flight `slices` think slices and answering
+  `carry_on`: what `HubLifecycle._ask_interrupt_routine` reads of a mind --
+  and when each ask began and was answered (`asked`)."""
+
+  event_map = None
+
+  def __init__(self, data, slices: int = 6, carry_on: bool = True) -> None:
+    self.data, self.slices, self.carry_on = data, slices, carry_on
+    self.asked: list[list[float]] = []
+    self.left = 0
+
+  def start_interrupt(self, state, errand, why) -> None:
+    self.asked.append([float(self.data.time)])
+    self.left = self.slices
+
+  @property
+  def interrupt_pending(self) -> bool:
+    self.left -= 1
+    return self.left >= 0
+
+  def interrupt_result(self) -> dict:
+    self.asked[-1].append(float(self.data.time))
+    return {"continue": self.carry_on, "why": "", "source": "llm"}
+
+
+def _flag_at(life, t: float) -> None:
+  """The seam's flag, set once at sim time `t`: a hazard `ask` row fired
+  mid-errand (`_events_step`)."""
+  row, done = ev.Row(event="battery_below", action=ev.ASK, value=0.5), []
+
+  def hook():
+    if not done and float(life.data.time) >= t - 1e-9:
+      done.append(t)
+      life._interrupt_pending = row
+  life.body.step_hooks.append(hook)
+
+
+def _paced_walk(life, speed: float = 1.0, held_s: float = 0.0) -> list[dict]:
+  """`life`'s walk, a stub's that takes time: straight at its goal at
+  `speed` m/s, its `stop` asked every `STOP_EVERY_S` as the Navigator asks
+  it -- True ends it where it stands, `DRIVE_STOPPED` -- and out of
+  patience at `timeout`; the first held `held_s` as it begins, which its
+  clock counts out as a walk's counts a hold (`Navigator.held_s`). Each
+  walk's start, patience and ending, in order."""
+  from pluggybot import navigator as nav
+  body, walks = life.body, []
+
+  def go(x, y, timeout=90.0, stop=None):
+    walks.append({"t": float(life.data.time), "timeout": timeout, "from": (body.x, body.y)})
+    for _ in range(round((0.0 if len(walks) > 1 else held_s) / life.model.opt.timestep)):
+      yield body.STILL
+    t0 = float(life.data.time)
+    next_stop = t0 + nav.STOP_EVERY_S
+    while True:
+      d, why = math.hypot(x - body.x, y - body.y), None
+      if d < 1e-9:
+        why = ""
+      elif float(life.data.time) - t0 >= timeout - 1e-9:
+        why = "timeout"
+      elif stop is not None and float(life.data.time) >= next_stop - 1e-9:
+        next_stop += nav.STOP_EVERY_S
+        if stop():
+          why = nav.DRIVE_STOPPED
+      if why is not None:
+        walks[-1].update(why=why, ended=float(life.data.time))
+        body.last_drive = {"why": why, "goal": (x, y), "shortM": round(d, 3),
+                           "seconds": round(float(life.data.time) - t0, 1)}
+        return not why
+      k = min(1.0, speed * life.model.opt.timestep / d)
+      body.x, body.y = body.x + k * (x - body.x), body.y + k * (y - body.y)
+      yield body.STILL
+  body.go_to_routine = go
+  return walks
+
+
+def _asked_life(monkeypatch, carry_on: bool):
+  """A stub robot stepped 0.05 s a step, its mind answering its interrupt
+  `carry_on` after six think slices (0.6 s)."""
+  from pluggybot import lifecycle
+  monkeypatch.setattr(lifecycle, "overseer_context", lambda life: {})
+  life = stub_life()
+  life.model.opt.timestep = 0.05
+  life.overseer = _Mind(life.data, carry_on=carry_on)
+  return life
+
+
+def _ran(life, source: str) -> dict:
+  facts = world_facts(HUMANOID_HOME)
+  return life.body.run(lang.run_procedure_routine(
+    life, lang.compile_procedure(source, facts), facts))
+
+
+@pytest.mark.parametrize("carry_on", [True, False])
+def test_a_walk_its_interrupt_stops_asks_where_it_stands_and_walks_on_with_the_patience_left(
+    monkeypatch, carry_on):
+  """#692: a walk's `stop` only READS that an interrupt is due
+  (`interrupt_due`): the walk ends where it stands, `DRIVE_STOPPED`, and its
+  verb asks (`interrupted_routine`, its think slices yielded). Carried on,
+  it walks on to its goal from there, a fresh walk given the patience it
+  had left -- the ask counting none of it -- and the run goes on; told to
+  stop, the verb is `stopped: interrupted` where it stood, never a failure.
+  Shown to fail with the ask made inside the walk's `stop`, blocking, as it
+  was: one walk, asked from inside, never a second."""
+  life = _asked_life(monkeypatch, carry_on)
+  walks = _paced_walk(life, held_s=0.5)         # held 0.5 s, then 3 m at 1 m/s
+  _flag_at(life, 1.7)                           # ...its stop read at 1.5 s and 2.5 s
+  r = _ran(life, "def job():\n  drive_to(3.0, 0.0)\n  wait(1)\n")
+  [(t0, t1)] = life.overseer.asked
+  assert (t0, t1) == pytest.approx((2.5, 3.1)), "asked as its walk's stop read it, 6 slices"
+  assert walks[0]["why"] == DRIVE_STOPPED and walks[0]["ended"] == pytest.approx(2.5)
+  if carry_on:
+    assert len(walks) == 2, walks
+    assert walks[1]["t"] == pytest.approx(3.1) and walks[1]["from"] == pytest.approx((2.0, 0.0))
+    assert walks[1]["timeout"] == pytest.approx(DRIVE_TIMEOUT_S - 2.0), \
+        "the patience its own clock left: the hold and the ask none of it"
+    assert walks[1]["why"] == "" and life.body.pose[:2] == pytest.approx((3.0, 0.0))
+    assert r["ok"] and r["completed"] == 2, r
+    assert [i["outcome"] for i in life.interrupts] == ["continued"]
+  else:
+    assert len(walks) == 1, walks
+    assert r["stopped"] == "interrupted" and r["completed"] == 0 and "failedAt" not in r, r
+    assert r["steps"][0]["stopped"] == "interrupted"
+    assert r["steps"][0]["shortM"] == pytest.approx(1.0)
+    assert [i["outcome"] for i in life.interrupts] == ["aborted"]
+
+
+def test_a_death_in_a_walks_ask_ends_the_run_at_once_its_walk_never_resumed(monkeypatch):
+  """#671 inside #692: a walk's ask is inside its verb, which a death ends
+  the step it lands -- the ask with it, never answered, the walk never
+  walked on by a dead robot, the run `stopped: died` and its next verb never
+  begun. Shown to fail with the ask made inside the walk's `stop`, blocking:
+  it ran on to its answer, the dead robot's walk carrying on."""
+  life = _asked_life(monkeypatch, carry_on=True)
+  walks = _paced_walk(life)
+  _flag_at(life, 1.5)
+
+  def dies():
+    if life.dead is None and float(life.data.time) >= 2.3 - 1e-9:
+      life.dead = {"cause": "flat"}           # ...as its call flew
+  life.body.step_hooks.append(dies)
+  r = _ran(life, "def job():\n  drive_to(3.0, 0.0)\n  wait(1)\n")
+  assert r["stopped"] == "died" and r["completed"] == 0, r
+  assert r["steps"][0]["stopped"] == "died"
+  [ask] = life.overseer.asked
+  assert ask == pytest.approx([2.0]), "asked, and never answered"
+  assert len(walks) == 1
+  # ...and kept, never lost (#692's review: a paid ask left no record): the
+  # run's row and the robot's own History say it went unanswered
+  [row] = life.interrupts
+  assert (row["outcome"], row["source"]) == ("unanswered", "closed")
+  assert row["outcome"] in ev.INTERRUPT_OUTCOMES
+  from pluggybot.mind.thoughts import HISTORY
+  assert any("it ended before my answer came" in line
+             for line in life.thoughts.volatile()[HISTORY])
+  assert life.state != "DECIDE", "the state given back however the ask ends"
+
+
+def test_the_ask_says_decide_while_it_flies_and_gives_the_state_back_after(monkeypatch):
+  """#692's review: the ask sets `DECIDE` while its call flies, and once
+  answered gives back what it was -- left at `DECIDE`, a robot walking on
+  with its procedure read on the site as deciding until its errand ended.
+  Shown to fail without the give-back."""
+  life = _asked_life(monkeypatch, carry_on=True)
+  during, start = [], life.overseer.start_interrupt
+
+  def start_interrupt(state, errand, why):
+    during.append(life.state)
+    start(state, errand, why)
+  life.overseer.start_interrupt = start_interrupt
+  _paced_walk(life)
+  _flag_at(life, 1.5)
+  life.state = "PROCEDURE"                      # as `run_errand_routine` sets it
+  r = _ran(life, "def job():\n  drive_to(3.0, 0.0)\n  wait(1)\n")
+  assert r["ok"] and during == ["DECIDE"], (r, during)
+  assert life.state == "PROCEDURE"
+
+
+def test_a_walk_its_own_stop_did_not_end_is_never_sent_round_again():
+  """#692's review: a walk goes round again only where ITS `stop` ended it.
+  Read off the body's record alone, a walk that ended at once without
+  writing one, an earlier stopped walk's record left, went round again
+  with nothing stepped, for ever. Shown to fail with the record read alone."""
+  from types import SimpleNamespace
+  calls = []
+
+  def go(x, y, timeout=90.0, stop=None):
+    calls.append(timeout)
+    if len(calls) > 3:
+      raise AssertionError("sent round again with nothing stepped")
+    return False                                # refused at once, no record
+    yield
+  body = SimpleNamespace(last_drive={"why": DRIVE_STOPPED, "goal": (9.0, 9.0), "seconds": 5.0},
+                         go_to_routine=go, pose=(0.0, 0.0, 0.0), arm_kept=lambda: None,
+                         carrying=lambda side: False)
+  life = SimpleNamespace(body=body, data=SimpleNamespace(time=0.0), step_until=None,
+                         interrupt_due=lambda: False,
+                         interrupted_routine=lambda: tick.result(False),
+                         drive_why=lambda x, y: "the walk gave up (why)")
+  tick.run(None, st._drive_to(life, {"x": 1.0, "y": 0.0}))
+  assert calls == [DRIVE_TIMEOUT_S]
+
+
+def test_an_ask_the_runs_stop_cuts_short_is_kept_unanswered(monkeypatch):
+  """#692's second review: a stop the run's hooks raise as the call flies
+  (`MissionAborted`: `stop_when`, the hour) goes on its way through the ask,
+  and the interrupt is kept `unanswered` -- its row was already taken off
+  the seam's flag, and it left no record. Shown to fail with a close alone
+  kept."""
+  from pluggybot.tick import MissionAborted
+  life = _asked_life(monkeypatch, carry_on=True)
+  life.overseer.slices = 20
+
+  def stops():
+    if life.overseer.asked and float(life.data.time) >= life.overseer.asked[0][0] + 0.5:
+      raise MissionAborted("the run's end")
+  life.body.step_hooks.append(stops)
+  life._interrupt_pending = ev.Row(event="battery_below", action=ev.ASK, value=0.5)
+  with pytest.raises(MissionAborted):
+    life.body.run(life.interrupted_routine())
+  [row] = life.interrupts
+  assert row["outcome"] == "unanswered"
+
+
+def test_a_true_death_while_the_call_flew_writes_nothing_in_the_new_robots_history(monkeypatch):
+  """#692's second review: an ask between two verbs runs to its answer, and
+  the robot's last heart may go while it flies; the answer is the dead
+  robot's, and none of it goes into the History of the robot the true
+  death made, as `_decide_routine` drops one. Shown to fail without the
+  count of true deaths read across the ask."""
+  from pluggybot.mind.thoughts import HISTORY
+  life = _asked_life(monkeypatch, carry_on=True)
+  pending = type(life.overseer).interrupt_pending
+
+  class Dies(type(life.overseer)):
+    @property
+    def interrupt_pending(self):
+      if self.left == 3:
+        life.true_deaths.append({"t": float(life.data.time)})   # ...as its call flew
+      return pending.fget(self)
+  life.overseer.__class__ = Dies
+  life._interrupt_pending = ev.Row(event="battery_below", action=ev.ASK, value=0.5)
+  assert life.body.run(life.interrupted_routine()) is False
+  assert [r["outcome"] for r in life.interrupts] == ["continued"]
+  assert not any("was interrupted" in line for line in life.thoughts.volatile()[HISTORY])
+
+
+def test_a_find_carried_on_is_given_what_its_own_clock_left_whatever_its_record_says(
+    monkeypatch):
+  """#692's second review: a find carried on is given the patience its own
+  clock left -- the sim's time it searched -- never one read back off its
+  record's running total, which a resume that missed starts again at 0
+  (the next find given more patience than it began with). Shown to fail
+  with the patience read off the record."""
+  life = _asked_life(monkeypatch, carry_on=True)
+  finds = _paced_find(life, seconds=3.0)
+  real = life.body.find_tag_routine
+
+  def forgets(*a, **kw):
+    rec = yield from real(*a, **kw)
+    rec["seconds"] = 0.0                        # ...as a search begun afresh says
+    return rec
+  life.body.find_tag_routine = forgets
+  _flag_at(life, 1.5)
+  _ran(life, "def job():\n  find(68, 1.0, 2.0)\n  wait(1)\n")
+  assert [f["patience"] for f in finds] == pytest.approx(
+    [st.FIND_PATIENCE_S, st.FIND_PATIENCE_S - 2.0])
+
+
+def test_a_death_in_an_ask_between_verbs_ends_it_unanswered_as_in_a_walks(monkeypatch):
+  """#692's third review: an ask between two verbs ends the step its robot
+  dies in, as a walk's ask inside its verb does -- the row `unanswered`, the
+  answer never applied, the run `stopped: died` at once. Run on to its
+  answer, the dead robot's record said it carried on, and the same death
+  in a walk's ask said unanswered."""
+  life = _asked_life(monkeypatch, carry_on=True)
+  _flag_at(life, 0.5)
+
+  def dies():
+    if life.dead is None and life.overseer.asked and float(life.data.time) >= 1.3 - 1e-9:
+      life.dead = {"cause": "flat"}
+  life.body.step_hooks.append(dies)
+  r = _ran(life, "def job():\n  wait(1)\n  wait(1)\n")
+  assert r["stopped"] == "died" and r["completed"] == 1, r
+  [ask] = life.overseer.asked
+  assert ask == pytest.approx([1.0]), "asked, and never answered"
+  assert [i["outcome"] for i in life.interrupts] == ["unanswered"]
+  assert float(life.data.time) == pytest.approx(1.3), "ended the step it died"
+
+
+def _paced_find(life, seconds: float) -> list[dict]:
+  """`life`'s find, a stub's that takes time: its place seen once it has
+  searched `seconds`, its `stop` asked every second as a find's walks ask
+  it -- True ends it `interrupted` where it stands -- and out of time at
+  `patience`; `resume` going on with the search a stop ended, its record
+  one find, as the body's does (`find_tag_routine`), else afresh. Each
+  search's start, patience, whether it resumed, and record."""
+  body, finds, searched, kept = life.body, [], [0.0], []
+
+  def find(tag, near, patience, stop=None, resume=False):
+    t0 = float(life.data.time)
+    if resume and kept:
+      rec = kept.pop()
+      before = rec["seconds"]
+    else:
+      kept.clear()
+      rec, before, searched[0] = {"tag": tag, "remembered": False, "guesses": 0,
+                                  "viewpoints": 0, "arounds": 0, "trail": []}, 0.0, 0.0
+    rec["arounds"] += 1
+    rec["trail"].append({"lookedAt": [round(t0, 2), 0.0]})
+    finds.append({"t": t0, "patience": patience, "resume": resume, "rec": rec})
+    next_stop = t0 + 1.0
+    while True:
+      why = None
+      if searched[0] >= seconds - 1e-9:
+        why = "found"
+        body.places.see(tag, near[0], near[1], float(life.data.time), view=0.0,
+                        tag_facing=0.0)
+      elif float(life.data.time) - t0 >= patience - 1e-9:
+        why = "out of time"
+      elif stop is not None and float(life.data.time) >= next_stop - 1e-9:
+        next_stop += 1.0
+        if stop():
+          why = "interrupted"
+      if why is not None:
+        rec.update(found=why == "found", why=why,
+                   seconds=round(before + float(life.data.time) - t0, 1),
+                   **({"at": list(near)} if why == "found" else {}))
+        if why == "interrupted":
+          kept.append(rec)
+        finds[-1]["why"] = why
+        return rec
+      searched[0] += life.model.opt.timestep
+      yield body.STILL
+  body.find_tag_routine = find
+  return finds
+
+
+@pytest.mark.parametrize("carry_on", [True, False])
+def test_a_find_its_interrupt_stops_asks_and_searches_on_with_the_patience_left(
+    monkeypatch, carry_on):
+  """...and a `find`, whose walks and looks read the same `stop`: ended
+  where it stands, its verb asks. Carried on, it goes on with its search
+  from there (`resume`: the body's, its record one find, the seconds it
+  searched and its looks on one trail, the ask none of them) with the
+  patience it had left; told to stop, `stopped: interrupted`. Shown to fail
+  with the ask made inside the find's `stop`, blocking (one search, never a
+  second), and with the search begun afresh (#692's review: everything it
+  had walked and looked from, done again)."""
+  life = _asked_life(monkeypatch, carry_on)
+  finds = _paced_find(life, seconds=3.0)
+  _flag_at(life, 1.5)
+  r = _ran(life, "def job():\n  find(68, 1.0, 2.0)\n  wait(1)\n")
+  [(t0, t1)] = life.overseer.asked
+  assert (t0, t1) == pytest.approx((2.0, 2.6))
+  assert finds[0]["why"] == "interrupted"
+  if carry_on:
+    assert [f["resume"] for f in finds] == [False, True], finds
+    assert finds[1]["t"] == pytest.approx(2.6)
+    assert finds[1]["patience"] == pytest.approx(st.FIND_PATIENCE_S - 2.0)
+    assert r["ok"] and r["completed"] == 2, r
+    found = r["steps"][0]
+    assert found["ok"] and found["seconds"] == pytest.approx(3.0), found
+    assert found["trace"].count("looked round") == 2, found["trace"]
+    assert float(life.data.time) == pytest.approx(3.6 + 1.0), "found 1 s on, then its wait"
+  else:
+    assert len(finds) == 1, finds
+    assert r["stopped"] == "interrupted" and r["completed"] == 0, r
+    assert r["steps"][0]["stopped"] == "interrupted"
+    assert "by its own interrupt" in r["steps"][0]["reason"]
+
+
+def test_a_walk_whose_ask_fails_is_stopped_where_it_stands():
+  """Every failure aborts (`interrupt_result`), through the routine too: a
+  row fired on the seam mid-walk, the walk ended where it stood, and the
+  call that could not be made -- the endpoint down -- answered stop. The
+  run is `stopped: interrupted`, never an error. Shown to fail with a
+  failed call read as carry on: the walk went on to its goal."""
+  boss = make(Menu.for_world(HUMANOID_HOME, None), client=FakeClient(RuntimeError("down")))
+  life = stub_life(overseer=boss)
+  boss.event_map = ev.EventMap((ev.Row(event="battery_below", action=ev.ASK,
+                                       value=MID_ERRAND),))
+  life.model.opt.timestep = 0.05
+  walks = _paced_walk(life)
+
+  def drained():
+    if float(life.data.time) >= 0.5 - 1e-9:
+      life.battery.energy_wh = min(life.battery.energy_wh,
+                                   life.battery.capacity_wh * (MID_ERRAND - 0.05))
+  life.body.step_hooks.append(drained)
+  facts = world_facts(HUMANOID_HOME)
+  errand = programmed_errand(lang.compile_procedure(
+    "def job():\n  drive_to(3.0, 0.0)\n  wait(1)\n", facts), task="program", name="procedure")
+  out = life.body.run(life.run_errand_routine(errand))
+  [entry] = life.interrupts
+  assert entry["asked"] and entry["outcome"] == "aborted", entry
+  assert entry["source"] == "fallback:offline"
+  assert [w["why"] for w in walks] == [DRIVE_STOPPED], walks
+  assert out["procedure"]["stopped"] == "interrupted" and out["procedure"]["completed"] == 0
+  assert not out.get("error")
 
 
 # ---- no map, no interrupt ------------------------------------------------

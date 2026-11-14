@@ -478,18 +478,19 @@ safe point.
 The seam only **sets a flag**. Resolving may mean an API call, and the seam
 runs *between physics steps*, where a call freezes the world and stepping the
 sim re-enters the hook (#143 measured that as a RecursionError, not a slow
-leak). `HubLifecycle.interrupted()` resolves it on the main thread, where the
-errand is, and is a **method** rather than a property because the first call
-after a row fires has a side effect.
+leak). `HubLifecycle.interrupted_routine()` resolves it on the main thread,
+where the errand is: a **routine**, never a property, because the first call
+after a row fires has a side effect -- a call, the world stepped while it flies,
+its think slices yielded so a pair's other robot goes on (#692).
 
 | where | why it is safe |
 |---|---|
 | between a program's or a procedure's verbs | the verb before it has ended |
-| inside a verb's walk, every second (`drive_to`, `find`; issue #381) | it stops where it stands, and the verb says `stopped: interrupted` -- the run is recorded stopped, never failed |
+| inside a verb's walk, every second (`drive_to`, `find`; issue #381) | the walk only reads one due and stops where it stands, and the verb asks (#692): carried on, a walk walks on and a find goes on with its search, with the patience left; stopped, the verb says `stopped: interrupted` -- the run is recorded stopped, never failed |
 
-⚠ `needs_charge` and `interrupted()` are **not** the same check:
+⚠ `needs_charge` and `interrupted_routine()` are **not** the same check:
 `needs_charge` is *code's* reserve and is off on this arm, while
-`interrupted()` is the agent's own row.
+`interrupted_routine()` is the agent's own row.
 
 ⚠ **AN ABORT ENDS THE RUN WHERE IT STANDS**, and nothing more is done for
 it. The quadruped's stowed its tool first and recorded what getting home

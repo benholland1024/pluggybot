@@ -390,6 +390,91 @@ def test_a_find_whose_walks_took_it_nowhere_to_look_from_gave_up(world, monkeypa
     body.close()
 
 
+def test_a_find_its_interrupt_stopped_goes_on_with_its_search(world):
+  """#692's review: a find its interrupt's `stop` ended goes on with its
+  search where its verb carries it on (`resume`): the walk the stop cut
+  short is taken again, and nowhere it walked to or looked round from is
+  walked to or looked round from again -- its record one find, its seconds
+  the searching alone, the ask none of them. Begun afresh, it walked back
+  to the address and looked round again where it had. Shown to fail with
+  every find begun afresh."""
+  body = _humanoid(world, 20.0, 0.0, 0.0)
+  m = body.mission
+  near, at, went, looked, due = (25.2, -2.4), [(20.0, 0.0)], [], [], [False]
+
+  def drive(x, y, timeout=90.0, stop=None):
+    went.append((round(x, 3), round(y, 3)))
+    m.data.time += 5.0
+    due[0] = due[0] or len(went) == 3           # ...on its way to its second viewpoint
+    if len(went) == 5:                          # ...and on its way to its third, seen
+      m.places.see(FEED, *_sign("feed"), float(m.data.time), view=SOUTH, tag_facing=SOUTH)
+    if stop is not None and stop():
+      m.last_drive = {"why": lp.DRIVE_STOPPED, "goal": (x, y), "seconds": 5.0, "shortM": 1.0}
+      return tick.result(False)
+    at[0] = (x, y)
+    m.last_drive = {"why": "", "goal": (x, y), "seconds": 5.0, "shortM": 0.0}
+    return tick.result(True)
+
+  def look_round(stop):
+    looked.append(at[0])
+    return tick.result(False)
+
+  try:
+    m.drive_to_routine = drive
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = lambda: []
+    m._look_around_routine = look_round
+    m.pose_xy = lambda: at[0]
+    first = body.run(m.find_routine(FEED, near=near, patience=600.0, stop=lambda: due[0]))
+    assert first["why"] == "interrupted" and len(went) == 3, (first, went)
+    due[0] = False
+    m.data.time += 7.0                          # the ask, carried on
+    rec = body.run(m.find_routine(FEED, near=near, patience=585.0, stop=lambda: due[0],
+                                  resume=True))
+    assert went[0] == near and went.count(near) == 1, "the address walked to again"
+    assert went[3] == went[2], "the walk its stop cut short, taken again"
+    assert looked == [near, went[1], went[2]], "a look round where it had looked"
+    assert rec is first and rec["why"] == "found", rec
+    assert (rec["viewpoints"], rec["arounds"]) == (3, 3)
+    assert rec["seconds"] == pytest.approx(5 * 5.0), "the searching alone"
+    assert [e.get("to") or "look" for e in rec["trail"]] == [
+      "address", "look", "viewpoint", "look", "viewpoint", "viewpoint", "look", "viewpoint"]
+    assert rec["trail"][4]["why"] == "interrupted"
+  finally:
+    body.close()
+
+
+def test_a_find_out_of_time_as_its_stop_comes_due_is_out_of_time(world):
+  """#692's second review: a find whose patience runs out on the step its
+  interrupt comes due is out of time -- no search left to ask about, none
+  kept to go on with -- where it read "interrupted" and its verb asked
+  about a find that was over. And a robot that forgets its world forgets a
+  search its stop kept. Shown to fail with the stop read first."""
+  body = _humanoid(world, 20.0, 0.0, 0.0)
+  m = body.mission
+  due = [False]
+
+  def drive(x, y, timeout=90.0, stop=None):
+    m.data.time += timeout                      # its walk takes all that is left
+    due[0] = True                               # ...and the interrupt comes due
+    m.last_drive = {"why": lp.DRIVE_STOPPED, "goal": (x, y), "seconds": timeout,
+                    "shortM": 1.0}
+    return tick.result(False)
+
+  try:
+    m.drive_to_routine = drive
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = lambda: []
+    m._look_around_routine = lambda stop: tick.result(False)
+    rec = body.run(m.find_routine(FEED, near=(25.2, -2.4), patience=60.0, stop=lambda: due[0]))
+    assert rec["why"] == "out of time" and m._find_kept is None, rec
+    m._find_kept = {"tag": FEED}
+    body.forget_world()
+    assert m._find_kept is None
+  finally:
+    body.close()
+
+
 def test_a_find_ends_on_its_patience_and_hands_each_walk_only_what_is_left(world):
   """Each walk is handed what is LEFT of the find's patience, never more
   (a 1 s floor walked a program past its budget), and asks the find's time
