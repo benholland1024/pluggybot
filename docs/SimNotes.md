@@ -8590,10 +8590,11 @@ standoff, the same rows, and plugged in and unplugged from 140 of 140 seats,
 trunk). The place laid from the pass (`set_table_pass`, merged beside this;
 never offered), over the tour's 32 draws on the same pod: 15 at a0df301, its
 own reading, and 14 with this, falls 2 then 1 -- every flight parted at its
-first walk with a piece in hand, the hand-over waiting on the trunk, before
-any way home this judges, and its misses after are its own (a `spot` out of
-view, a `close_hand`, a `reach` out of reach, a walk given up, a fall in a
-`move_hand`). Every fall's last way home at the door pressed nothing on the top
+first walk with a piece in hand, whose hand-over asks the stand as the arm's
+own way does (as it sets off for its carry pose, or once there), where
+9d31fe6 asked it as the arm's line out began; its misses after are its own
+(a `spot` out of view, a `close_hand`, a `reach` out of reach, a walk given
+up, a fall in a `move_hand`). Every fall's last way home at the door pressed nothing on the top
 (0-2.3 N*s up, where 9.4-44.9), and draw 22 opened the door. `scripts/humanoid_spike.py --view
 way_home` stages it: bowed at a 0.72 m counter whose edge is 13 cm ahead of
 the soles' middle, the left arm where draw 8's way home began, sent home --
