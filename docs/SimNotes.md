@@ -8781,7 +8781,7 @@ The net replayed over every get-up (the rule as built; 6956d89's flights):
 
 | the 118 get-ups, knocked at the stand | today: a scan fitting in 40 s | the net: taken right | onto its map, 0.4 m askew (E) | refused, as today | taken wrong |
 |---|---|---|---|---|---|
-| not knocked, walking on / standing 30 s | 118 / 118 (all right but the doubted) | never searched | -- | -- | 0 |
+| not knocked, walking on / standing 30 s | 118 / 118 (95 / 97 within 0.3 m; the rest doubted along the hall, or E) | never searched | -- | -- | 0 |
 | 40 deg, standing | 0 | 60 | 3 | 55 | 0 |
 | 80 deg, standing | 1 (wrong) | 60 | 3 | 55 | 0 |
 | 120 deg, standing | 0 | 60 | 3 | 55 | 0 |
@@ -8817,10 +8817,11 @@ deg of the truth.
 ms (112 at most); a get-up whose heading is right makes none (0 in 236), a
 knocked one two when it is taken back and, refused, six as flown (0.66 s;
 five since the review, the last running only to confirm), the worst single
-scan 176 ms (with its bounded search and the served wide search's 41). Against the pair's ~1.2x real time on the deploy box's one
-physics thread, about 0.17 s of slack a second (the pacer only sleeps: lag,
-paid back at that margin), the worst is ~4 s of lag and a stream frame 0.1
-s late six times. Today's lost run is the bigger cost -- a refused scan 21
+scan 176 ms (with its bounded search and the served wide search's 41).
+Against the pair's ~1.2x real time on the deploy box's one physics thread,
+about 0.17 s of slack a second (the pacer only sleeps: lag, paid back at
+that margin), the worst is ~4 s of lag and a stream frame 0.1 s late at
+most six times. Today's lost run is the bigger cost -- a refused scan 21
 ms, about 0.25 s a sim second, past the slack for as long as the robot is
 lost -- and the net's take ends it: the refused flight spent 19 s of its
 111 s after the stand matching, the one taken back 1.2 s of its whole
