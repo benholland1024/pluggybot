@@ -47,7 +47,8 @@ from pluggybot.humanoid.arms import GRIP_S, SelfModel, kept_value, value_back
 from pluggybot.humanoid.getup import GETUP_NPZ, FallWatch, GetupDriver, tipped
 from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.places import HumanoidPlaces
-from pluggybot.humanoid.policy import StandDriver, StandPolicy
+from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
+                                       StandDriver, StandPolicy)
 from pluggybot.humanoid.reach import Reach
 from pluggybot.humanoid.scan import HeadScan
 from pluggybot.humanoid.senses import Noise
@@ -72,6 +73,13 @@ VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.4), 0.4, 1.0
 #: The standing policy's hand-back: the walking one is held still this
 #: long first, s, its stride settled.
 SETTLE_S = 0.8
+#: A posture back at the stand -- a withdraw's (`HumanoidBody.release_routine`)
+#: and a walk's hand-over's -- is waited on this long at most, s: 4.0, twice
+#: the 2.0 s the standing policy's posture takes to cross its whole range at
+#: its rates. ⚠ Unbounded, a withdraw waited 2,191 s (#668; SimNotes, "Making
+#: way, standing").
+STAND_BACK_S = 2.0 * max((HEIGHT_RANGE[1] - HEIGHT_RANGE[0]) / HEIGHT_RATE,
+                         (PITCH_RANGE[1] - PITCH_RANGE[0]) / PITCH_RATE)
 #: Its heading is held at a standstill (`imu.HeadingHold`, #593) once it has
 #: rested this long since anything moved it (`_settled`), s. MEASURED
 #: (`humanoid_drift_spike.py --still --hold-after S`), a humanoid stopped
@@ -540,9 +548,19 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       for s in hm.SIDES:
         if self.reach.phase[s] != "rest" and not self.reach.carried(s):
           self.reach.retreat(s)
-      self.reach.hold_posture(0.0, 0.0)
+      # ...the stand asked as each arm sets off home, by its own way
+      # (`Reach._go_home`, #693: off the stand, one with none of it ahead
+      # once it is home), and the trunk waited on still there,
+      # `STAND_BACK_S` at most
+      if all(p in ("rest", "carried") for p in self.reach.phase.values()):
+        self.reach.hold_posture(0.0, 0.0)
       while (any(p not in ("rest", "carried") for p in self.reach.phase.values())
              or not self.stand.settled or not self.reach.waist_home()):
+        yield STILL
+        self._after_step()
+      for _ in range(int(round(STAND_BACK_S / self.model.opt.timestep))):
+        if self.reach._posture_held():
+          break
         yield STILL
         self._after_step()
     finally:

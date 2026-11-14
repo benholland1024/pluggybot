@@ -422,8 +422,9 @@ def _bare_reach():
   r.outs = {s: [] for s in hm.SIDES}
   # ...and no other robot's body for its ways to keep off (#678)
   r.keep_out, r.kept, r.judged_home = [], {s: None for s in hm.SIDES}, {s: None for s in hm.SIDES}
-  # ...and no carry (#682): home is the rest
+  # ...and no carry (#682): home is the rest; nor a stand waiting on one (#693)
   r.carry_q = {s: None for s in hm.SIDES}
+  r.stand_home = False
   r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
   r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
@@ -714,6 +715,102 @@ def test_the_walk_home_walks_every_target_in_turn_then_rests():
       break
   assert r.phase["right"] == "rest" and np.allclose(r.q_cmd["right"], r.rest["right"])
   assert len(seen) == len(way) == 4 and all(np.allclose(a, b) for a, b in zip(seen, way))
+
+
+def _homed(r, side):
+  """The stand's asks (`hold_posture`, recorded) as the loop walks the arm
+  home: each with the phase the arm was in when it came."""
+  seen = []
+  r.hold_posture = lambda height, pitch, waist=0.0: seen.append(
+    ((height, pitch, waist), r.phase[side]))
+  for _ in range(2000):
+    if r.phase[side] not in ("home", "retreat"):
+      break
+    r._update(0.01)
+  return seen
+
+
+#: The left arm as Luca's `withdraw` began its way home at the cupboard's
+#: lever (#693, door draw 8, the judgment's own record): behind the toes, in
+#: the bow it worked in.
+AT_THE_LEVER = np.array([0.9008, 0.1824, 0.0185, 1.3846, 1.3785, -0.7419])
+
+
+def _bowed_reach(posture):
+  """`_stepped(_standing_reach())`, its model of itself posed as a reach's
+  statue at `posture` (height, pitch, waist) and holding it."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  q = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  rc._posed(r.self_model, posture[0], posture[1], q)
+  r.posture = np.array(posture, dtype=float)
+  r.stand_home = False
+  return r
+
+
+def _some_ahead(r, side, q):
+  """Whether some part of the arm at `q` stands further ahead than the
+  robot's front, on its model as it stands (the judgment's own reading,
+  `reach.front`, `outline`); leaves the model's arm at `q`."""
+  from pluggybot.humanoid import reach as rc
+  sm = r.self_model
+  ahead = rc.front(sm, side, r.rest[side])
+  sm._set_arm(side, q)
+  return bool((rc.outline(sm, side)[:, 0] > ahead).any())
+
+
+def _set_off(r, side, q0, carry=None):
+  """The arm commanded at `q0` and sent home (`retreat`, as a withdraw's
+  hand-over does), a carry pose its way's end where given: the stand's asks
+  as it sets off (`hold_posture`, recorded)."""
+  r.set_joints(side, q0)
+  r.q_cmd[side] = np.asarray(q0, dtype=float).copy()
+  r.carry_q[side] = carry
+  asked = []
+  r.hold_posture = lambda height, pitch, waist=0.0: asked.append((height, pitch, waist))
+  r.retreat(side)
+  return asked
+
+
+def test_off_the_stand_an_arm_with_none_of_it_ahead_has_the_stand_once_it_is_home():
+  """#693: Luca's `withdraw` at the cupboard's lever (11-12, 19:59) fell
+  after its way home. The way home is judged on the robot's model of itself
+  as it stands, and no part of the arm was ahead of the robot's front, so it
+  was judged straight, unchecked; from the bow it worked in it stays behind
+  the toes -- but the stand was asked as the arm set off, and on the stand's
+  statue the same joints swing 3.4 cm past the toes and down to the
+  counter's top: a jaw pressed on it for a second, 29-45 N*s up, and the
+  robot went over backward (5 of 33 draws flown, 10 with no step back). Off
+  the stand -- bowed, or crouched and turned -- such an arm has the stand
+  once it is home, its command at the rest, or at the carry pose a walk
+  carries it at (#682). An arm with some of it ahead has the stand as it
+  sets off, as before (held, a crouch's side way swept the jaws into a
+  cupboard's opened door and a turn held to the end swung the hanging arm
+  into a table's leg); at the stand, as before; and with the other hand out,
+  never."""
+  for posture in ((0.0, 0.3, 0.0), (-0.16, 0.0, 0.52)):
+    r = _bowed_reach(posture)
+    assert not _some_ahead(r, "left", AT_THE_LEVER), f"{posture}: the premise, none of it ahead"
+    assert _set_off(r, "left", AT_THE_LEVER) == [], f"{posture}: asked as the arm set off"
+    assert _homed(r, "left") == [((0.0, 0.0, 0.0), "rest")], posture
+  # ...carried (#682): at the carry pose
+  r = _bowed_reach((0.0, 0.3, 0.0))
+  assert _set_off(r, "left", AT_THE_LEVER, np.array([0.15, 0.25, 0.0, 2.0, 0.0, 0.0])) == []
+  assert _homed(r, "left") == [((0.0, 0.0, 0.0), "carried")]
+  # ...some of it ahead: as it sets off, as before
+  r = _bowed_reach((0.0, 0.3, 0.0))
+  assert _some_ahead(r, "left", _of("left", RAISED)), "the premise: some of it ahead"
+  assert _set_off(r, "left", _of("left", RAISED)) == [(0.0, 0.0, 0.0)]
+  assert _homed(r, "left") == []
+  # ...at the stand: as it sets off, as before
+  r = _bowed_reach((0.0, 0.0, 0.0))
+  assert _set_off(r, "left", AT_THE_LEVER) == [(0.0, 0.0, 0.0)]
+  assert _homed(r, "left") == []
+  # ...and with the other hand out (moved joint by joint), never
+  r = _bowed_reach((0.0, 0.3, 0.0))
+  r.set_joints("right", RAISED)
+  assert _set_off(r, "left", AT_THE_LEVER) == []
+  assert _homed(r, "left") == []
 
 
 def test_the_joints_an_arm_is_judged_home_by_are_its_drivers_reading():

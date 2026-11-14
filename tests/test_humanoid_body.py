@@ -230,6 +230,8 @@ class _Homing:
     self.grippers, self.log, self.at, self.on_step = grippers, log, at, on_step
     #: ...and what a walk carries (#682): none, until `carry_q` says
     self.carry_q = {s: None for s in hm.SIDES}
+    #: ...its posture the stand's (#693: off it, the stand may wait for home)
+    self.posture = np.zeros(3)
 
   def carried(self, side) -> bool:
     return self.phase[side] == "carried" and self.carry_q[side] is not None
@@ -247,6 +249,9 @@ class _Homing:
 
   def home(self, side) -> bool:
     return self.sent and self.steps >= self.n
+
+  def _posture_held(self) -> bool:
+    return True
 
   def step(self) -> None:
     self.steps += 1
@@ -439,6 +444,63 @@ def test_a_walk_lets_go_of_a_hand_that_is_out_before_it_comes_home(monkeypatch):
   assert grippers["left"].opened() and not grippers["right"].opened()
 
 
+class _Homeward(_Out):
+  """...one bowed, its hands out sent home along a way `n` steps long and
+  the stand asked as `Reach._go_home` asks it -- at once, or, off the stand
+  with none of the arm `ahead`, once the arms are home (`Reach._update`) --
+  each ask said in `log` with the step it came at; and its trunk standing
+  still there `still` steps after the arms are home."""
+
+  def __init__(self, grippers, out, log, n, still, posture=(0.0, 0.3, 0.0), ahead=False):
+    super().__init__(grippers, out, log, lambda: self.steps)
+    self.n, self.still, self.ahead = n, still, ahead
+    self.posture = np.array(posture, dtype=float)
+    self.waiting = False
+
+  def retreat(self, side, approach=None) -> None:
+    _Homing.retreat(self, side, approach)
+    self.phase[side] = "home"
+    if self.posture.any() and not self.ahead:
+      self.waiting = True
+    else:
+      self.hold_posture(0.0, 0.0)
+
+  def step(self) -> None:
+    self.steps += 1
+    if self.steps == self.n and "home" in self.phase.values():
+      self.phase = {s: "rest" for s in hm.SIDES}
+      if self.waiting:
+        self.waiting = False
+        self.hold_posture(0.0, 0.0)
+
+  def hold_posture(self, height, pitch) -> None:
+    self.log.append(("stand", self.steps))
+    self.posture = np.zeros(3)
+
+  def _posture_held(self) -> bool:
+    return self.steps >= self.n + self.still
+
+
+def test_a_walks_hand_over_asks_the_stand_as_each_arm_sets_off_home_by_its_own_way():
+  """#693: a walk's hand-over asked the stand as its arms set off home,
+  whatever their ways. It asks it now as each arm's own way does
+  (`Reach._go_home`): off the stand with none of the arm ahead of its
+  front, once the arms are home; else as they set off; with no arm out, at
+  once, as before. The walker takes the legs once the trunk stands still in
+  the stand (`Reach._posture_held`), `STAND_BACK_S` at most: asked late, a
+  stand's ramp arrives while the trunk still rises."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  for kw, asked in (({}, 50), ({"ahead": True}, 0), ({"posture": (0.0, 0.0, 0.0)}, 0)):
+    m.legs, log[:] = "stand", []
+    m.reach = _Homeward(_opened(m.reach.grippers), ("left",), log, n=50, still=200, **kw)
+    done, _ = _capped(body, m.to_walk_routine(), 3.0)
+    assert done and m.legs == "walk", kw
+    assert [e for e in log if e[0] == "stand"] == [("stand", asked)], (kw, log)
+    assert m.reach.steps == pytest.approx(250, abs=2), (kw, "the walker took a trunk not yet still")
+
+
 def _capped(body, routine, seconds, each=None):
   """A routine driven as `Body.run` drives it, `seconds` of sim at most:
   (whether it returned, what it returned). `each` is called before every
@@ -511,6 +573,56 @@ def test_a_release_waits_on_its_posture_a_bounded_time(monkeypatch):
   t0 = float(body.data.time)
   assert _capped(body, body.release_routine("left"), 2.0) == (True, "home")
   assert float(body.data.time) - t0 == pytest.approx(0.2 + 10 * m.model.opt.timestep, abs=0.005)
+
+
+class _Bowed(_Homing):
+  """...one bowed when its arm is sent home (#693), its trunk standing still
+  in the stand `still` steps after the arm reads home, and its drivers
+  reading the arm off its rest again `knocked` steps after it came home, as
+  a waist turning home swings a hanging arm into a counter's face."""
+
+  def __init__(self, n, grippers, still, knocked):
+    super().__init__(n, grippers)
+    self.still, self.knocked = still, knocked
+    self.posture = np.array([0.0, 0.3, 0.0])
+
+  def home(self, side) -> bool:
+    return self.sent and self.n <= self.steps < self.n + self.knocked
+
+  def _posture_held(self) -> bool:
+    return self.steps >= self.n + self.still
+
+
+def test_a_release_waits_for_its_trunk_still_in_the_stand_and_says_its_arm_came_home(
+    monkeypatch):
+  """#693: off the stand, an arm with none of it ahead of the robot's front
+  comes home before the stand is asked (`Reach._go_home`), so the trunk
+  rises after it, and the next verb began as it rose: a release waits for
+  the trunk to stand still in the stand (`Reach._posture_held`), never the
+  posture the policy is shown alone (`settled`), `STAND_BACK_S` at most. Its
+  word is the arm's as it came home: a waist turning home after swings the
+  hanging arm into a counter's face, and read off its rest then, it said
+  "held" of an arm home."""
+  from pluggybot.humanoid import body as hb
+  body = body_for(*_floor())
+  m = body.mission
+  dt = m.model.opt.timestep
+  m.reach = _Bowed(10, _opened(m.reach.grippers), still=300, knocked=50)
+  t0 = float(body.data.time)
+  assert _capped(body, body.release_routine("left"), 3.0) == (True, "home")
+  assert float(body.data.time) - t0 == pytest.approx(310 * dt, abs=2 * dt)
+  # ...its arm read off its rest while the posture came back: still "home"
+  from pluggybot.humanoid.policy import StandDriver
+  m.reach = _Bowed(10, _opened(m.reach.grippers), still=0, knocked=50)
+  monkeypatch.setattr(StandDriver, "settled", property(lambda self: m.reach.steps >= 300))
+  assert _capped(body, body.release_routine("left"), 3.0) == (True, "home")
+  monkeypatch.undo()
+  # ...its trunk never still there: `STAND_BACK_S` at most
+  monkeypatch.setattr(hb, "STAND_BACK_S", 0.2)
+  m.reach = _Bowed(10, _opened(m.reach.grippers), still=10 ** 6, knocked=10 ** 6)
+  t0 = float(body.data.time)
+  assert _capped(body, body.release_routine("left"), 3.0) == (True, "home")
+  assert float(body.data.time) - t0 == pytest.approx(0.2 + 10 * dt, abs=2 * dt)
 
 
 def test_a_fall_as_a_release_takes_its_legs_back_ends_it_at_once():
