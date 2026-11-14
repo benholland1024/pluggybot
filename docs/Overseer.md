@@ -1448,9 +1448,13 @@ run's own budget); answered stop, the verb is `stopped: interrupted`. Asked
 between two walks, the robot stands as between two verbs, so a long think may
 rest it and the other robot may ask it aside. The ask is inside the verb, which
 a death or a fall ends at once (#671): its row is kept `unanswered` (and in
-History), its answer never collected, and an interrupt asked while that call
-still flies is answered `busy`, an abort. The robot's `state` is `DECIDE` while
-it is asked, and given back after.
+History; so is one the run's stop cuts short), its answer never collected, and
+an interrupt asked while that call still flies is answered `busy`, an abort, as
+a decision is. Between two verbs the ask runs to its answer; the other robot
+goes on meanwhile, so a fall in it ends the run at the next verb, never begun
+(`FELL`), and a true death in it keeps the answer out of the new robot's
+History. The robot's `state` is `DECIDE` while it is asked, and given back
+after, however the ask ends.
 
 `docs/Evaluation.md` §2 has the safe points and the ordering.
 

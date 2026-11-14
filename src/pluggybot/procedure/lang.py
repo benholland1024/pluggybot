@@ -1281,16 +1281,15 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     ⚠ A FALL ENDS IT WHATEVER TESTS IT (#671; `st.run_verb`), as a fall
     fails a job's try, and a dead robot begins no verb: dead as the last one
     ended, or while its interrupt was asked, which steps the world -- and a
-    dead robot is never asked one."""
+    dead robot is never asked one; fallen as it was asked, this verb is the
+    step the run stopped at (`st.asked_routine`)."""
     nonlocal count
-    if (count and not st.dead(life) and (yield from life.interrupted_routine())
-        and not st.dead(life)):
-      raise _Stop("interrupted")
-    if st.dead(life):
-      raise _Stop("died")
-    if float(life.data.time) - t0 > proc.budget_s:
+    why = (yield from st.asked_routine(life)) if count else ("died" if st.dead(life) else "")
+    if why in ("interrupted", "died"):
+      raise _Stop(why)
+    if why != "fell" and float(life.data.time) - t0 > proc.budget_s:
       raise _Stop("budget")
-    if count >= proc.steps_budget:
+    if why != "fell" and count >= proc.steps_budget:
       raise _Stop("steps")
     spec = st.language(facts)[verb]
     values: dict = {}
@@ -1319,6 +1318,9 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     if bad:
       st.forget_readings(life, verb)
       verdict = {"ok": False, "reason": "; ".join(bad)}
+    elif why == "fell":
+      st.forget_readings(life, verb)
+      verdict = {"ok": False, "fell": True, "reason": st.FELL}
     else:
       verdict = yield from st.run_verb(life, spec, values,
                                        {"procedure": proc.name, "n": count,

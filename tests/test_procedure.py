@@ -379,6 +379,27 @@ def test_a_death_while_a_programs_interrupt_is_asked_stops_it_before_its_next_st
   assert [c[0] for c in life.calls] == ["wait"], "a step began on a dead robot"
 
 
+@pytest.mark.parametrize("stop", [True, False])
+def test_a_fall_while_a_programs_interrupt_is_asked_ends_it_at_its_next_step(stop):
+  """...and fallen in the interrupt's ask between two steps (#692's second
+  review, the language's own test beside its runner), answered stop or go
+  on: the next step is where it failed, `FELL`, never begun. Shown to fail
+  with no fall read across the ask."""
+  life = _stub_life()
+
+  def interrupted_routine():
+    for n in range(3):                        # its think slices, stepped
+      if n == 1:
+        life.body.falls += 1
+      yield ()
+    return stop
+  life.interrupted_routine = interrupted_routine
+  r = _run(life, Program.single("p", [Step("wait", {"seconds": 1.0})] * 3))
+  assert not r["ok"] and r["failedAt"] == 1 and "stopped" not in r, r
+  assert r["steps"][-1]["fell"] and r["steps"][-1]["reason"] == st.FELL
+  assert [c[0] for c in life.calls] == ["wait"], "a step began on a fallen robot"
+
+
 # ---- two places, one verdict (on the stub) -------------------------------------
 
 

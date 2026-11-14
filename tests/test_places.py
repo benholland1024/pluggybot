@@ -444,6 +444,37 @@ def test_a_find_its_interrupt_stopped_goes_on_with_its_search(world):
     body.close()
 
 
+def test_a_find_out_of_time_as_its_stop_comes_due_is_out_of_time(world):
+  """#692's second review: a find whose patience runs out on the step its
+  interrupt comes due is out of time -- no search left to ask about, none
+  kept to go on with -- where it read "interrupted" and its verb asked
+  about a find that was over. And a robot that forgets its world forgets a
+  search its stop kept. Shown to fail with the stop read first."""
+  body = _humanoid(world, 20.0, 0.0, 0.0)
+  m = body.mission
+  due = [False]
+
+  def drive(x, y, timeout=90.0, stop=None):
+    m.data.time += timeout                      # its walk takes all that is left
+    due[0] = True                               # ...and the interrupt comes due
+    m.last_drive = {"why": lp.DRIVE_STOPPED, "goal": (x, y), "seconds": timeout,
+                    "shortM": 1.0}
+    return tick.result(False)
+
+  try:
+    m.drive_to_routine = drive
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = lambda: []
+    m._look_around_routine = lambda stop: tick.result(False)
+    rec = body.run(m.find_routine(FEED, near=(25.2, -2.4), patience=60.0, stop=lambda: due[0]))
+    assert rec["why"] == "out of time" and m._find_kept is None, rec
+    m._find_kept = {"tag": FEED}
+    body.forget_world()
+    assert m._find_kept is None
+  finally:
+    body.close()
+
+
 def test_a_find_ends_on_its_patience_and_hands_each_walk_only_what_is_left(world):
   """Each walk is handed what is LEFT of the find's patience, never more
   (a 1 s floor walked a program past its budget), and asks the find's time

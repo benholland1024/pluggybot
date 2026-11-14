@@ -1405,14 +1405,16 @@ class HumanoidBody(Body):
 
   def forget_world(self) -> None:
     """`Body.forget_world`: the map, its layer, the walls it is kept off,
-    the plan it last made, the places it found and a step aside under way
-    to a spot on that map (`HumanoidWay.drop_aside`), gone."""
+    the plan it last made, the places it found, a search its interrupt
+    stopped, and a step aside under way to a spot on that map
+    (`HumanoidWay.drop_aside`), gone."""
     m = self.mission
     m.drop_aside()
     m.forget_map()
     m.places.forget()
     m.low[:] = 0.0
     m._walls_t, m._walls_mask, m._plan_memo = None, None, None
+    m._find_kept = None
 
   def plan_frontier(self, blacklist):
     from pluggybot.behavior.navigation import plan

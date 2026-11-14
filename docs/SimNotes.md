@@ -8513,8 +8513,9 @@ record's seconds: a hold the walk counts out, and the ask, are none of it,
 and never past the run's budget); stopped, the verb is `stopped:
 interrupted` as before. A walk's ask is inside its verb, so a death or a
 fall ends it at once (#671), its row kept `unanswered`, its call never
-collected; an ask between two verbs runs to its answer, the death read
-before the next.
+collected; an ask between two verbs runs to its answer, a death or a fall
+in it read before the next verb, which a fall makes the step the run
+stopped at, never begun.
 
 **Nothing else moves.** On the same pod, a robot alone (600 s) and the
 pair's day with a fall and a death arranged fly the base's trajectory bit

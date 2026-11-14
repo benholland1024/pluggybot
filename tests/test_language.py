@@ -686,6 +686,31 @@ def test_a_death_while_an_interrupt_is_asked_ends_the_run_before_the_next_verb(s
   assert len(asked) == 1, "a dead robot was asked"
 
 
+@pytest.mark.parametrize("stop", [True, False])
+def test_a_fall_while_an_interrupt_is_asked_ends_the_run_at_the_next_verb(stop):
+  """#692's second review: while one robot's interrupt is asked between two
+  verbs the other robot goes on, and the asker may fall in the ask (the
+  verb's own watch, `run_verb`'s, reads only a fall inside it). Answered stop
+  or go on, the run stops there (#671: a fall ends it, a test or not), the
+  next verb the step it stopped at, never begun, `FELL` its words. Shown to
+  fail with no fall read across the ask: the next wait ran on a fallen
+  robot."""
+  life = _stub_life()
+
+  def interrupted_routine():
+    for n in range(3):                        # its think slices, stepped
+      if n == 1:
+        life.body.falls += 1                  # ...shoved over as its call flew
+      yield ()
+    return stop
+  life.interrupted_routine = interrupted_routine
+  r, _ = run("def x():\n    wait(1)\n    wait(1)\n    wait(1)\n", life)
+  assert not r["ok"] and r["failedAt"] == 1 and "stopped" not in r, r
+  assert r["steps"][-1]["fell"] and r["steps"][-1]["reason"] == st.FELL
+  assert r["steps"][-1]["line"] == 3
+  assert [c[0] for c in life.calls] == ["wait"], "a verb began on a fallen robot"
+
+
 def test_a_verb_called_on_a_dead_robot_never_begins():
   """...and `run_verb` itself begins nothing on a dead robot, whoever calls
   it (#671's second review: the watch read only a death that came after

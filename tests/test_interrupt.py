@@ -530,6 +530,7 @@ def test_a_death_in_a_walks_ask_ends_the_run_at_once_its_walk_never_resumed(monk
   from pluggybot.mind.thoughts import HISTORY
   assert any("it ended before my answer came" in line
              for line in life.thoughts.volatile()[HISTORY])
+  assert life.state != "DECIDE", "the state given back however the ask ends"
 
 
 def test_the_ask_says_decide_while_it_flies_and_gives_the_state_back_after(monkeypatch):
@@ -575,6 +576,72 @@ def test_a_walk_its_own_stop_did_not_end_is_never_sent_round_again():
                          drive_why=lambda x, y: "the walk gave up (why)")
   tick.run(None, st._drive_to(life, {"x": 1.0, "y": 0.0}))
   assert calls == [DRIVE_TIMEOUT_S]
+
+
+def test_an_ask_the_runs_stop_cuts_short_is_kept_unanswered(monkeypatch):
+  """#692's second review: a stop the run's hooks raise as the call flies
+  (`MissionAborted`: `stop_when`, the hour) goes on its way through the ask,
+  and the interrupt is kept `unanswered` -- its row was already taken off
+  the seam's flag, and it left no record. Shown to fail with a close alone
+  kept."""
+  from pluggybot.tick import MissionAborted
+  life = _asked_life(monkeypatch, carry_on=True)
+  life.overseer.slices = 20
+
+  def stops():
+    if life.overseer.asked and float(life.data.time) >= life.overseer.asked[0][0] + 0.5:
+      raise MissionAborted("the run's end")
+  life.body.step_hooks.append(stops)
+  life._interrupt_pending = ev.Row(event="battery_below", action=ev.ASK, value=0.5)
+  with pytest.raises(MissionAborted):
+    life.body.run(life.interrupted_routine())
+  [row] = life.interrupts
+  assert row["outcome"] == "unanswered"
+
+
+def test_a_true_death_while_the_call_flew_writes_nothing_in_the_new_robots_history(monkeypatch):
+  """#692's second review: an ask between two verbs runs to its answer, and
+  the robot's last heart may go while it flies; the answer is the dead
+  robot's, and none of it goes into the History of the robot the true
+  death made, as `_decide_routine` drops one. Shown to fail without the
+  count of true deaths read across the ask."""
+  from pluggybot.mind.thoughts import HISTORY
+  life = _asked_life(monkeypatch, carry_on=True)
+  pending = type(life.overseer).interrupt_pending
+
+  class Dies(type(life.overseer)):
+    @property
+    def interrupt_pending(self):
+      if self.left == 3:
+        life.true_deaths.append({"t": float(life.data.time)})   # ...as its call flew
+      return pending.fget(self)
+  life.overseer.__class__ = Dies
+  life._interrupt_pending = ev.Row(event="battery_below", action=ev.ASK, value=0.5)
+  assert life.body.run(life.interrupted_routine()) is False
+  assert [r["outcome"] for r in life.interrupts] == ["continued"]
+  assert not any("was interrupted" in line for line in life.thoughts.volatile()[HISTORY])
+
+
+def test_a_find_carried_on_is_given_what_its_own_clock_left_whatever_its_record_says(
+    monkeypatch):
+  """#692's second review: a find carried on is given the patience its own
+  clock left -- the sim's time it searched -- never one read back off its
+  record's running total, which a resume that missed starts again at 0
+  (the next find given more patience than it began with). Shown to fail
+  with the patience read off the record."""
+  life = _asked_life(monkeypatch, carry_on=True)
+  finds = _paced_find(life, seconds=3.0)
+  real = life.body.find_tag_routine
+
+  def forgets(*a, **kw):
+    rec = yield from real(*a, **kw)
+    rec["seconds"] = 0.0                        # ...as a search begun afresh says
+    return rec
+  life.body.find_tag_routine = forgets
+  _flag_at(life, 1.5)
+  _ran(life, "def job():\n  find(68, 1.0, 2.0)\n  wait(1)\n")
+  assert [f["patience"] for f in finds] == pytest.approx(
+    [st.FIND_PATIENCE_S, st.FIND_PATIENCE_S - 2.0])
 
 
 def _paced_find(life, seconds: float) -> list[dict]:

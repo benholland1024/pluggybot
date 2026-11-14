@@ -261,15 +261,15 @@ def _budgeted(life, s: float) -> float:
 def _asking(life, go: Callable, used: Callable, patience: float) -> Routine:
   """Drive `go(patience, stop, again)` -- a walk or a find, `stop` the
   robot's own interrupt due (`_interrupt`), `again` once it is carried on
-  -- and each time `stop` ended it (`used`: the seconds of its patience it
-  used, None where it ended otherwise), ask the interrupt where the robot
-  stands (`interrupted_routine`, #692): answered carry on, `go` again from
-  there with the patience left -- by its own clock, so the ask is none of
-  it, nor a hold its walk counts out (`Navigator.held_s`) -- never past the
-  program's own budget (`_budgeted`). Every result, in order; after an
-  abort the last is the one its interrupt stopped. ⚠ Carried on only where
-  `stop` said so in this go: read off a record alone, a stale one could
-  send it round again with nothing stepped."""
+  -- and each time `stop` ended it (`used(result, seconds)`: the seconds of
+  its patience it used by its own clock, None where it ended otherwise),
+  ask the interrupt where the robot stands (`interrupted_routine`, #692):
+  answered carry on, `go` again from there with the patience left -- the
+  ask none of it -- never past the program's own budget (`_budgeted`).
+  Every result, in order; after an abort the last is the one its interrupt
+  stopped. ⚠ Carried on only where `stop` said so in this go: read off a
+  record alone, a stale one could send it round again with nothing
+  stepped."""
   due = _interrupt(life)
   out: list = []
   while True:
@@ -280,9 +280,10 @@ def _asking(life, go: Callable, used: Callable, patience: float) -> Routine:
         fired.append(True)
         return True
       return False
+    t0 = float(life.data.time) if due is not None else 0.0
     out.append((yield from go(_budgeted(life, patience), None if due is None else stop,
                               bool(out))))
-    spent = used(out[-1]) if fired else None
+    spent = used(out[-1], float(life.data.time) - t0) if fired else None
     if spent is None or (yield from life.interrupted_routine()):
       return out
     patience = max(0.0, patience - spent)
@@ -321,8 +322,9 @@ def _drive_to(life, args: dict) -> Routine:
     return refused
   walks = yield from _asking(
     life, lambda left, stop, again: _go(life, x, y, left, stop),
-    lambda arrived: (None if arrived or not _stopped(life)
-                     else float(life.body.last_drive.get("seconds") or 0.0)),
+    # ...by the walk's own clock, its record's: a hold it counts out
+    # (`Navigator.held_s`) none of it
+    lambda arrived, s: None if arrived else float(life.body.last_drive.get("seconds") or 0.0),
     float(args.get("patience", DRIVE_TIMEOUT_S)))
   arrived = walks[-1]
   px, py, _ = life.body.pose
@@ -371,18 +373,12 @@ def _find(life, args: dict) -> Routine:
   if refused is not None:
     forget_readings(life, "find")
     return {**refused, "tag": tag}
-  searched = [0.0]                # ...its record's seconds are the whole find's
-
-  def used(rec: dict) -> float | None:
-    if rec.get("why") != "interrupted":
-      return None
-    now = float(rec.get("seconds") or 0.0)
-    spent, searched[0] = now - searched[0], now
-    return spent
   rec = (yield from _asking(
     life, lambda left, stop, again: life.body.find_tag_routine(
       tag, near=(x, y), patience=left, stop=stop, **({"resume": True} if again else {})),
-    used, float(args.get("patience", FIND_PATIENCE_S))))[-1]
+    # ...by the find's own clock, which a hold runs on
+    lambda rec, s: s if rec.get("why") == "interrupted" else None,
+    float(args.get("patience", FIND_PATIENCE_S))))[-1]
   why = rec.get("why", "")
   # ...where it found it, read as `find.*` (#559): in its map, as it
   # remembers the place -- its face's way the best it knows (`Places.facing`);
@@ -1591,6 +1587,22 @@ def dead(life) -> bool:
   return getattr(life, "dead", None) is not None
 
 
+def asked_routine(life) -> Routine:
+  """A runner's safe point between two verbs (#116): the robot's own
+  interrupt asked (`interrupted_routine`), its think slices stepped.
+  Returns "died" where the robot is dead, or died as it was asked (#671); "fell"
+  where it fell as it was asked -- the other robot goes on through the ask
+  (#692), and a fall ends the run whatever comes after (#671), the next
+  verb the step it stopped at, never begun; "interrupted" where the answer
+  was stop; else ""."""
+  if dead(life):
+    return "died"
+  falls = getattr(life.body, "falls", 0)
+  stop = yield from life.interrupted_routine()
+  return ("died" if dead(life) else "fell" if getattr(life.body, "falls", 0) != falls
+          else "interrupted" if stop else "")
+
+
 def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
              until: float | None = None) -> Routine:
   """One verb, as both runners call it (this module's and the language's).
@@ -1945,21 +1957,19 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
     # never inside anything else; a death, inside anything (#671) -- the
     # interrupt's ask too, which steps the world, and a dead robot is never
     # asked one
-    if (i and not dead(life) and (yield from life.interrupted_routine())
-        and not dead(life)):
-      result["stopped"] = "interrupted"
+    why = (yield from asked_routine(life)) if i else ("died" if dead(life) else "")
+    if why in ("interrupted", "died"):
+      result["stopped"] = why
       break
-    if dead(life):
-      result["stopped"] = "died"
-      break
-    if float(life.data.time) - t0 > program.budget_s:
+    if why != "fell" and float(life.data.time) - t0 > program.budget_s:
       result["stopped"] = "budget"
       break
     life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
-    verdict = yield from run_verb(life, VERBS[step.verb], step.args,
-                                  {"procedure": program.name, "n": i + 1,
-                                   "of": len(steps)},
-                                 until=t0 + program.budget_s)
+    verdict = ({"ok": False, "fell": True, "reason": FELL} if why == "fell"
+               else (yield from run_verb(life, VERBS[step.verb], step.args,
+                                         {"procedure": program.name, "n": i + 1,
+                                          "of": len(steps)},
+                                         until=t0 + program.budget_s)))
     entry = {"i": i, "verb": step.verb, **verdict}
     result["steps"].append(entry)
     if verdict.get("stopped") in ("interrupted", "died"):

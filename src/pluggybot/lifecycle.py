@@ -5116,10 +5116,13 @@ class HubLifecycle:
 
     ⚠ WHAT HOLDS THE ASK MAY CLOSE IT: a walk's ask is inside its verb, which
     a death or a fall ends at once (#671), and every ask is inside its
-    errand, which a stand-up ends (#348). Its row is kept `unanswered`
-    (`_unanswered`); the call's answer, about a robot no longer doing that,
-    is never collected, and an interrupt asked while it still flies is
-    answered `busy`, an abort.
+    errand, which a stand-up ends (#348), and the run's stop may come
+    through it. Its row is kept `unanswered` (`_unanswered`); the call's
+    answer, about a robot no longer doing that, is never collected, and an
+    interrupt asked while it still flies is answered `busy`, an abort, as a
+    decision asked while one still flies is. A fall in an ask between two
+    verbs, the other robot going on, is the runners' to read
+    (`steps.asked_routine`).
     """
     if self._aborting:
       return True
@@ -5146,6 +5149,7 @@ class HubLifecycle:
              "wh": round(self.battery.energy_wh, 4),
              "errand": self._errand_name,
              "asked": row.action == ev.ASK}
+    lives = len(self.true_deaths)
     if row.action != ev.ASK:
       # ⚠ AN ACTION MEANS STOP. The row said what to do when the pack falls
       # this far, and it cannot be done while the robot is out holding a pen
@@ -5159,10 +5163,9 @@ class HubLifecycle:
       self._say(f"INTERRUPT {row.describe()} at {frac:.0%} -- stopping "
                 f"{self._errand_name} and going")
     else:
-      lives = len(self.true_deaths)
       try:
         answer = yield from self._ask_interrupt_routine(row)
-      except GeneratorExit:
+      except BaseException:  # noqa: BLE001 -- a close, the run's stop: kept, then on its way
         self._unanswered(entry, frac, lives)
         raise
       self._aborting = not answer["continue"]
@@ -5182,10 +5185,12 @@ class HubLifecycle:
     self.interrupts.append(entry)
     # ...and into the record it cannot edit (issue #38), on the death line's
     # terms: an interrupt is a thing that HAPPENED to this robot, and the
-    # next decision is made knowing it did.
-    self._remember(f"was interrupted at {frac:.0%} part-way through "
-                   f"{self._errand_name} and "
-                   + ("carried on" if not self._aborting else "stopped"))
+    # next decision is made knowing it did -- never into a new robot's, a
+    # true death made while the call flew
+    if len(self.true_deaths) == lives:
+      self._remember(f"was interrupted at {frac:.0%} part-way through "
+                     f"{self._errand_name} and "
+                     + ("carried on" if not self._aborting else "stopped"))
     # ⚠ NO TYPED WIRE EVENT, AND THAT IS DELIBERATE -- #127's rule for the
     # map itself, one issue on: a new message type is a protocol bump, a
     # fixture regeneration and a two-repo event. The narration line above
@@ -5198,10 +5203,11 @@ class HubLifecycle:
       self.queued_row = None
 
   def _unanswered(self, entry: dict, frac: float, lives: int) -> None:
-    """An ask closed before its answer came, by what held it
-    (`interrupted_routine`): kept in the run's record and said, and
-    remembered by the robot that was asked -- never by one a true death
-    made meanwhile, as `_decide_routine` drops an answer."""
+    """An ask that ended before its answer came -- closed by what held it
+    (`interrupted_routine`), or the run's stop thrown through it: kept in
+    the run's record and said, and remembered by the robot that was asked --
+    never by one a true death made meanwhile, as `_decide_routine` drops an
+    answer."""
     entry.update(outcome="unanswered", source="closed",
                  why="its errand ended before the answer came")
     self.interrupts.append(entry)
@@ -5224,17 +5230,19 @@ class HubLifecycle:
     issue #426), so it is not stamped again here: this is the same row
     `_arbitrate` runs between errands, delivered mid-errand as a binary,
     and the silence the next question is shown is the map's. ⚠ The state
-    is `DECIDE` while it flies, and what it was once answered: left at
-    `DECIDE`, a robot walking its procedure on read as deciding.
+    is `DECIDE` while it flies, and what it was after, however it ends:
+    left at `DECIDE`, a robot walking its procedure on read as deciding.
     """
     was, self.state = self.state, "DECIDE"
-    self.overseer.start_interrupt(
-      overseer_context(self), self._errand_name,
-      f"your pack is at {self.battery.fraction:.0%}")
-    while self.overseer.interrupt_pending:
-      yield from self.body.hold_routine(THINK_SLICE_S)
-    if self.state == "DECIDE":
-      self.state = was
+    try:
+      self.overseer.start_interrupt(
+        overseer_context(self), self._errand_name,
+        f"your pack is at {self.battery.fraction:.0%}")
+      while self.overseer.interrupt_pending:
+        yield from self.body.hold_routine(THINK_SLICE_S)
+    finally:
+      if self.state == "DECIDE":
+        self.state = was
     return self.overseer.interrupt_result()
 
   def _stamp_ask(self) -> None:

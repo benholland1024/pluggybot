@@ -1392,8 +1392,11 @@ save a filmstrip PNG named after the script.
   never past the run's budget; stopped, the verb is `stopped: interrupted`
   in BOTH runners (`steps.run_verb` reads the `aborting` latch), never a
   failed step. ⚠ A walk's ask is inside its verb, which a death or a fall
-  ends at once (#671): its row is kept `unanswered`, its call never
-  collected.
+  ends at once (#671): its row is kept `unanswered` (so is one the run's
+  stop cuts short), its call never collected. Between two verbs the other
+  robot goes on, so a fall in the ask ends the run at the next verb, never
+  begun, `FELL` (`steps.asked_routine`), and a true death in it keeps the
+  answer out of the new robot's History.
 - **The memory is four tiers over one record store, and every text surface is
   a DOCUMENT or a MESSAGE** (issues #217, #221; Overseer.md §7).
   `mind/memory.py` is the store (SQLite + FTS5, one `memory.sqlite` per robot,

@@ -471,12 +471,13 @@ class HumanoidPlaces:
       return seen() or left() <= 0.0 or (stop is not None and bool(stop()))
 
     def ended() -> str:
-      """Why a walk or a look-around ended the find: "" if it goes on."""
+      """Why a walk or a look-around ended the find: "" if it goes on. Out
+      of time before its `stop`: there is no search left to ask about."""
       if seen():
         return "found"
-      if stop is not None and stop():
-        return "interrupted"
-      return "out of time" if left() <= 0.0 else ""
+      if left() <= 0.0:
+        return "out of time"
+      return "interrupted" if stop is not None and stop() else ""
 
     def done(why: str) -> dict:
       p = self.places.get(tag)
