@@ -8499,11 +8499,26 @@ walk or a `step` counting none of it: the held robot is told how long, its
 stepper's `held`, into `Navigator.held_s`). The ask is a routine now
 (`HubLifecycle.interrupted_routine`), its think slices yielded as
 `_decide_routine`'s are, so the other robot's routine runs on through it.
-Flown on the dev box, the lobby's walk while Rowan is asked 115 s: on
-a0df301, held, Luca's walk arrived at t=137.9 s, 13.6 s after the answer
-(the ask 9.3-124.4 s); on #692 at t=21.2 s, 11.9 s into the ask, every one of
-the ask's 57,550 steps its own, no fall, its trunk within 1.7 deg of upright
-(walking), and it ended 0.000 m and 0.02 deg off the truth.
+Flown on the dev box on osmesa, the same 18, held (a0df301) -> going on
+(#692), when the other robot's routine ended, s after the answer (before it:
+inside the ask; the standing, the hand's, the get-up's and the charge's
+routines last the ask's length by the spike's making, so held they end it
+later):
+
+| the other robot, as the ask flies | 5.8 s | 30 s | 115 s |
+|---|---|---|---|
+| walking the lobby's walk | +12.1 -> +6.1 | +15.2 -> -18.1 | +13.6 -> -103.2 |
+| standing, resting | +10.8 -> +5.0 | +35.0 -> +5.0 | +120.0 -> +4.9 |
+| a hand out at a counter's height | +13.8 -> +9.9 | +38.0 -> +9.9 | +123.0 -> +9.8 |
+| getting up from a shove | +28.1 -> +22.3 | +52.3 -> +22.3 | +137.3 -> +22.2 |
+| plugged in at its station | +10.1 -> +4.3 | +34.3 -> +4.3 | +119.3 -> +4.3 |
+| turning a `step`, 90 deg | +0.5 -> -5.3 | +0.5 -> -29.5 | +0.5 -> -114.6 |
+
+Going on, each ends the same seconds after the answer whatever the ask;
+the lobby's walk asked 115 s arrived at t=21.2 s, 11.9 s into the ask (held,
+at t=137.9 s). In both, every one of each ask's steps was the other robot's
+own, nothing fell but the get-up's own shove, and each ended within 0.009 m
+and 0.18 deg of the truth.
 
 The asker's own walk is never asked from inside: a walk's `stop` reads only
 that an interrupt is due (`interrupt_due`), the walk -- or a `find` -- ends
@@ -8517,7 +8532,22 @@ interrupted` as before. A walk's ask is inside its verb, so a death or a
 fall ends it at once (#671), its row kept `unanswered`, its call never
 collected; an ask between two verbs ends so too (`steps.asked_routine`),
 and a fall there makes the next verb the step the run stopped at, never
-begun.
+begun. Flown on the real body
+(`~/pluggybot-training/loop-1114/n3-692/asker/`: the second robot's
+procedure walking the lobby's walk, its interrupt asked 3 s in), held
+inside its walk on a0df301 it walked 17.5 s in all and arrived at t=43.9 s,
+asked 20 s; on #692 its walk stopped after 3.0 s where it stood, its verb
+asked, and carried on it walked on from there with 57 s of its 60 -- 14.5 s
+more, the same 17.5 s walked and the same arrival to the step (asked 115 s,
+17.3 s both ways, arriving at t=138.7 s both). Told to stop, it stood 4.43
+m short in both. Standing between its two walks it rested 8.6 s into the
+ask, as between two verbs it would, and the other robot may ask it aside
+there (#415); held inside its walk it never rested. A find asked 3 s into
+its walk to its address the same way: held inside it on a0df301, it found
+tag 60 at t=43.4 s, its record saying 37 s, the ask's 20 among them; on
+#692 it stopped, asked and went on with its search -- the walk to the
+address taken again from where it stood -- and found it at the same step,
+its record one find of 17 s, both walks on its trail.
 
 **Nothing else moves.** On the same pod, a robot alone (600 s) and the
 pair's day with a fall and a death arranged fly the base's trajectory bit
@@ -8527,8 +8557,11 @@ the 201 flights of the falls above, the drift spike's walking falls in the
 lobby and two drift flights (Luca's and Rowan's draws) are the base's row
 for row; and the pair's recording, flown as its fixture is, is the base's
 but for two wall-clock stamps. With the ask a routine (#692), on the dev
-box beside a0df301 on osmesa, the pair's day with a fall and a death
-arranged flies the base's trajectory bit for bit (528 state samples).
+box on osmesa beside loop-staging (6956d89, #693's), a robot alone (600 s)
+and the pair's day with a fall and a death arranged fly its trajectory bit
+for bit (1,201 and 543 state samples), and the pair's recording, flown as
+its fixture is, is its own and the committed fixture's but for two
+wall-clock stamps of 11,705 lines.
 
 ## The way home flown in the posture it was judged in (issue #693)
 

@@ -31,7 +31,9 @@ robot's interrupt asked, the other robot held"):
   `aborted`, said and in History), its call never collected, and fallen
   between verbs the next is the step the run stopped at. The robot's `state`
   is `DECIDE` only while it is asked, where it stayed `DECIDE` to the
-  errand's end.
+  errand's end. Standing between two walks while it is asked, the asker
+  rests 8.6 s in, and the other robot may ask it aside, as between two verbs
+  it always could; held inside its walk, it refused ("walking").
 - No text the robots read moved: `prompt_sha` `b345cc34…`, 66,029 chars,
   17 sections, and the session host's hello byte for byte. A robot alone,
   and a pair with no interrupt asked, fly the base's day bit for bit.
@@ -47,7 +49,8 @@ arrived 13.6 s after the answer; now 11.9 s into the ask, no fall.
 - **The asker's walk carried on**: a walk an interrupt stopped and that
   carried on is a second walk in the log, from where the first stopped; its
   arrival, or why it did not arrive, is the verb's. One that runs out of
-  patience ran out of its own clock's, the ask none of it.
+  patience ran out of its own clock's, the ask none of it. A step aside
+  while asked (the narration's) moved it before its next verb.
 - ⚠ Interrupts are rare (one in the 11-12 wake), so this period may close
   with none to read; #690's readings still apply to a blocking run inside
   the pair's loop, of which none is left in `src/`.
