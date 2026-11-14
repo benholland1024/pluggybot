@@ -711,6 +711,24 @@ def test_a_fall_while_an_interrupt_is_asked_ends_the_run_at_the_next_verb(stop):
   assert [c[0] for c in life.calls] == ["wait"], "a verb began on a fallen robot"
 
 
+def test_a_fall_in_the_ask_ends_the_run_even_where_the_next_call_is_refused():
+  """#692's third review: fallen in the ask between two verbs, the next call
+  is the step the run stopped at, never begun, even where its computed
+  argument is refused and an `if` tests it -- read as a test that read
+  false, the fall was lost and the run went on past it."""
+  life = _stub_life()
+
+  def interrupted_routine():
+    life.body.falls += 1                      # ...shoved over as its call flew
+    yield ()
+    return False
+  life.interrupted_routine = interrupted_routine
+  r, _ = run("def x():\n  a = 30\n  wait(1)\n  if not wait(a * 3):\n    wait(1)\n"
+             "  wait(1)\n", life)
+  assert not r["ok"] and r["failedAt"] == 1 and r["steps"][-1]["fell"], r
+  assert r["testsFalse"] == 0 and [c[0] for c in life.calls] == ["wait"], r
+
+
 def test_a_verb_called_on_a_dead_robot_never_begins():
   """...and `run_verb` itself begins nothing on a dead robot, whoever calls
   it (#671's second review: the watch read only a death that came after

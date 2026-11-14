@@ -1589,18 +1589,15 @@ def dead(life) -> bool:
 
 def asked_routine(life) -> Routine:
   """A runner's safe point between two verbs (#116): the robot's own
-  interrupt asked (`interrupted_routine`), its think slices stepped.
-  Returns "died" where the robot is dead, or died as it was asked (#671); "fell"
-  where it fell as it was asked -- the other robot goes on through the ask
-  (#692), and a fall ends the run whatever comes after (#671), the next
-  verb the step it stopped at, never begun; "interrupted" where the answer
-  was stop; else ""."""
-  if dead(life):
-    return "died"
-  falls = getattr(life.body, "falls", 0)
-  stop = yield from life.interrupted_routine()
-  return ("died" if dead(life) else "fell" if getattr(life.body, "falls", 0) != falls
-          else "interrupted" if stop else "")
+  interrupt asked (`interrupted_routine`), its think slices stepped, and
+  ENDED the step the robot dies or falls in it (`_until_down_routine`), as
+  a walk's ask inside its verb is -- the row kept `unanswered` either way,
+  and the other robot goes on meanwhile (#692). Returns "died", or "fell"
+  -- a fall ends the run whatever comes after (#671), the next verb the step
+  it stopped at, never begun --, "interrupted" where the answer was stop,
+  else ""."""
+  stop, ended = yield from _until_down_routine(life, life.interrupted_routine())
+  return ended or ("interrupted" if stop else "")
 
 
 def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
@@ -1964,7 +1961,8 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
     if why != "fell" and float(life.data.time) - t0 > program.budget_s:
       result["stopped"] = "budget"
       break
-    life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
+    if why != "fell":
+      life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
     verdict = ({"ok": False, "fell": True, "reason": FELL} if why == "fell"
                else (yield from run_verb(life, VERBS[step.verb], step.args,
                                          {"procedure": program.name, "n": i + 1,

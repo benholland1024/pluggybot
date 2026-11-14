@@ -1309,18 +1309,20 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     result["total"] = count
     result["inFlight"] = {"line": line, "verb": verb, **at.said()}
     # a watcher's word that a verb began (#530: the line a person's page
-    # lights); a life with none says nothing more
+    # lights); a life with none says nothing more -- nor of a verb a fall
+    # in the ask before it never began
     began = getattr(life, "verb_began", None)
-    if began is not None:
+    if began is not None and why != "fell":
       began(count, line, verb, values)
-    life._say(f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}): "
-              f"{st.Step(verb, values).describe()}")
-    if bad:
-      st.forget_readings(life, verb)
-      verdict = {"ok": False, "reason": "; ".join(bad)}
-    elif why == "fell":
+    if why != "fell":
+      life._say(f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}): "
+                f"{st.Step(verb, values).describe()}")
+    if why == "fell":
       st.forget_readings(life, verb)
       verdict = {"ok": False, "fell": True, "reason": st.FELL}
+    elif bad:
+      st.forget_readings(life, verb)
+      verdict = {"ok": False, "reason": "; ".join(bad)}
     else:
       verdict = yield from st.run_verb(life, spec, values,
                                        {"procedure": proc.name, "n": count,

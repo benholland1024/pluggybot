@@ -5114,15 +5114,15 @@ class HubLifecycle:
     interrupt inside one errand is a spin, and the robot is already doing the
     thing the answer asked for.
 
-    ⚠ WHAT HOLDS THE ASK MAY CLOSE IT: a walk's ask is inside its verb, which
-    a death or a fall ends at once (#671), and every ask is inside its
-    errand, which a stand-up ends (#348), and the run's stop may come
-    through it. Its row is kept `unanswered` (`_unanswered`); the call's
-    answer, about a robot no longer doing that, is never collected, and an
-    interrupt asked while it still flies is answered `busy`, an abort, as a
-    decision asked while one still flies is. A fall in an ask between two
-    verbs, the other robot going on, is the runners' to read
-    (`steps.asked_routine`).
+    ⚠ WHAT HOLDS THE ASK MAY CLOSE IT: a walk's ask is inside its verb, and
+    one between two verbs inside `steps.asked_routine`, which a death or a
+    fall ends at once (#671; the other robot goes on through an ask now);
+    every ask is inside its errand, which a stand-up ends (#348); and the
+    run's stop may come through it. Its row is kept `unanswered`
+    (`_unanswered`); the call's answer, about a robot no longer doing that,
+    is never collected, and an interrupt asked while it still flies is
+    answered `busy`, an abort, as a decision asked while one still flies
+    is.
     """
     if self._aborting:
       return True
@@ -5207,7 +5207,7 @@ class HubLifecycle:
     (`interrupted_routine`), or the run's stop thrown through it: kept in
     the run's record and said, and remembered by the robot that was asked --
     never by one a true death made meanwhile, as `_decide_routine` drops an
-    answer."""
+    answer. The overseer's own count is of the answers it collected."""
     entry.update(outcome="unanswered", source="closed",
                  why="its errand ended before the answer came")
     self.interrupts.append(entry)

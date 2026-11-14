@@ -644,6 +644,27 @@ def test_a_find_carried_on_is_given_what_its_own_clock_left_whatever_its_record_
     [st.FIND_PATIENCE_S, st.FIND_PATIENCE_S - 2.0])
 
 
+def test_a_death_in_an_ask_between_verbs_ends_it_unanswered_as_in_a_walks(monkeypatch):
+  """#692's third review: an ask between two verbs ends the step its robot
+  dies in, as a walk's ask inside its verb does -- the row `unanswered`, the
+  answer never applied, the run `stopped: died` at once. Run on to its
+  answer, the dead robot's record said it carried on, and the same death
+  in a walk's ask said unanswered."""
+  life = _asked_life(monkeypatch, carry_on=True)
+  _flag_at(life, 0.5)
+
+  def dies():
+    if life.dead is None and life.overseer.asked and float(life.data.time) >= 1.3 - 1e-9:
+      life.dead = {"cause": "flat"}
+  life.body.step_hooks.append(dies)
+  r = _ran(life, "def job():\n  wait(1)\n  wait(1)\n")
+  assert r["stopped"] == "died" and r["completed"] == 1, r
+  [ask] = life.overseer.asked
+  assert ask == pytest.approx([1.0]), "asked, and never answered"
+  assert [i["outcome"] for i in life.interrupts] == ["unanswered"]
+  assert float(life.data.time) == pytest.approx(1.3), "ended the step it died"
+
+
 def _paced_find(life, seconds: float) -> list[dict]:
   """`life`'s find, a stub's that takes time: its place seen once it has
   searched `seconds`, its `stop` asked every second as a find's walks ask

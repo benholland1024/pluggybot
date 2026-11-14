@@ -1391,12 +1391,12 @@ save a filmstrip PNG named after the script.
   again, its record one find), with the patience their own clocks left,
   never past the run's budget; stopped, the verb is `stopped: interrupted`
   in BOTH runners (`steps.run_verb` reads the `aborting` latch), never a
-  failed step. ⚠ A walk's ask is inside its verb, which a death or a fall
-  ends at once (#671): its row is kept `unanswered` (so is one the run's
-  stop cuts short), its call never collected. Between two verbs the other
-  robot goes on, so a fall in the ask ends the run at the next verb, never
-  begun, `FELL` (`steps.asked_routine`), and a true death in it keeps the
-  answer out of the new robot's History.
+  failed step. ⚠ EVERY ASK ENDS THE STEP ITS ROBOT DIES OR FALLS IN (#671;
+  a walk's inside its verb, one between verbs in `steps.asked_routine`; the
+  other robot goes on through it now): its row kept `unanswered` (so is one
+  the run's stop cuts short), its call never collected, and fallen between
+  verbs, the next verb is the step the run stopped at, never begun,
+  `FELL`.
 - **The memory is four tiers over one record store, and every text surface is
   a DOCUMENT or a MESSAGE** (issues #217, #221; Overseer.md §7).
   `mind/memory.py` is the store (SQLite + FTS5, one `memory.sqlite` per robot,
@@ -2003,8 +2003,8 @@ save a filmstrip PNG named after the script.
   tick.result(False)`), never the twin. Parity is the trajectory hash
   (`scripts/determinism_spike.py --compare` before and after). ⚠ NO
   BLOCKING RUN IS LEFT INSIDE THE DAY'S ROUTINES, and none is added: a twin
-  is called by scripts and tests alone, and the interrupt's ask, the last
-  (#692), has none -- handed to a walk as its `stop`, it asked blocking. One
+  is called by scripts and tests alone, and the interrupt's ask (#692) has
+  none: handed to a walk as its `stop`, a twin would ask blocking. One
   begun inside a pair's loop is the loop's (#690, below).
 - **The loop reaches the machine only through `Body`** (issue #380;
   `pluggybot/body.py`, documented at each member): every module in `src/`
