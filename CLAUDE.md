@@ -923,7 +923,9 @@ save a filmstrip PNG named after the script.
   pull bowed over the counter and fell), and ⚠ eases it before its let-go
   (let go tilted, it dropped): `test_solutions`. ⚠ ITS BAR (24 of 32 over
   the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2 at its
-  best, held out 11, the carry walker 0 (each miss: SimNotes).
+  best, held out 11, the carry walker 0 (each miss: SimNotes; 14 with
+  #693's wait for the trunk at a walk's hand-over, every flight parted at
+  its first walk).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
