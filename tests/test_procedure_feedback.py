@@ -505,6 +505,56 @@ def test_procedure_new_runs_nothing_when_the_define_was_refused():
   assert "ran nothing: `procedure:new`" in life.thoughts.read("History.md")
 
 
+def test_a_named_procedure_that_builds_nothing_says_so_where_the_robot_reads():
+  """Live 11-12 (Rowan, t_0230): an answer chose `procedure:door_hook5`,
+  undefined door_hook5 and defined door_hook6. The undefine is done first,
+  so nothing ran and its `done` was graded on a door nothing touched --
+  said to the narration alone. Its next answer: "hook6's diagonal pulls
+  didn't open it either"."""
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("hook5", "def hook5():\n  wait(1)\n")
+  life, _ = _deciding_life(L)
+  decision = Decision(action="procedure:hook5", reason="run the fix", undefine="hook5",
+                      define={"name": "hook6", "source": "def hook6():\n  wait(1)\n"})
+  assert life.body.run(life._after_decision_routine(decision)) == "unbuildable"
+  assert not [e for e in life.errands if e.program is not None]
+  said = life.thoughts.read("History.md")
+  assert "ran nothing: `procedure:hook5` is not in your library" in said
+  assert "this answer's `undefine` removed it" in said
+
+
+def test_a_named_procedure_this_answer_left_unable_to_run_says_why(monkeypatch):
+  """The menu offers only runnable names, so the other ways a named one
+  builds nothing are this answer's own edits: a callee undefined (the
+  library's relink marks the caller), or a replacement whose first def
+  takes an argument -- and a build that raised says only that."""
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("grip", "def grip():\n  wait(1)\n")
+  L.define("opener", "def opener():\n  grip()\n  wait(1)\n")
+  life, _ = _deciding_life(L)
+  life.body.run(life._after_decision_routine(
+    Decision(action="procedure:opener", reason="x", undefine="grip")))
+  said = life.thoughts.read("History.md")
+  assert "ran nothing: `procedure:opener` is not runnable: " in said
+  assert "after this answer's `undefine` of grip" in said
+  L.define("press", "def press():\n  wait(1)\n")
+  life, _ = _deciding_life(L)
+  life.body.run(life._after_decision_routine(Decision(
+    action="procedure:press", reason="x", undefine="press",
+    define={"name": "press", "source": "def press(n):\n  wait(n)\n"})))
+  assert "ran nothing: `procedure:press` takes n" in life.thoughts.read("History.md")
+  L.define("ok", "def ok():\n  wait(1)\n")
+  life, _ = _deciding_life(L)
+
+  def broken(*a, **kw):
+    raise ValueError("no steps")
+  monkeypatch.setattr(lc, "programmed_errand", broken)
+  life.body.run(life._after_decision_routine(Decision(action="procedure:ok", reason="x")))
+  said = life.thoughts.read("History.md")
+  assert "ran nothing: `procedure:ok`: it could not be built" in said
+  assert "takes" not in said
+
+
 def test_a_refused_define_is_written_where_the_robot_reads():
   """Narrated and put on the wire, a refusal reached everyone but the robot
   that made it -- and both deployed libraries were full, so "an `undefine`

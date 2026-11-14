@@ -10,6 +10,40 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A decided procedure that runs nothing says why in History (N5, `loop-n5`) — opens when this PR is deployed
+
+**What changed is what History says when an answer's `procedure:<name>`
+builds nothing.** The loop said why to the narration alone (`DECIDE:
+nothing to build for 'procedure:<name>'`); now one reason goes to the
+narration and to History alike, as `procedure:new`'s branch has always
+said its own (`HubLifecycle._ran_nothing`): "ran nothing:
+`procedure:door_hook5` is not in your library -- this answer's `undefine`
+removed it, and an undefine is done before the action"; "... is not
+runnable: <its reasons>" (where the same answer undefined a callee, "--
+after this answer's `undefine` of grip, done before the action"); "...
+takes n: it runs only when another procedure calls it"; or "...: it could
+not be built". The menu offers only runnable names, and an event-map row
+or a standing order naming one no longer runnable fails `unrunnable` before
+this branch, so the line comes only from an answer whose own `undefine`
+or `define` left its procedure so. Other unbuildable actions keep "nothing
+to build". Nothing else the robots read moved (`prompt_sha` b345cc34, the
+session host's hello byte for byte), nor any geometry.
+
+**Why.** t_0230 on 11-12 (Rowan, `open_door`): an answer chose
+`procedure:door_hook5`, undefined `door_hook5` and defined its fix
+`door_hook6`; the undefine is done first, so nothing ran, the `done` on the
+same answer was graded at once on a door nothing had touched, and History
+held only "chose", "forgot" and "wrote". Rowan's next answer: "hook6's
+diagonal pulls didn't open it either" -- hook6 never ran. One answer in 84
+decided procedures that wake.
+
+**What the period is for.**
+- **"ran nothing: `procedure:" History lines**, both robots, against the
+  `DECIDE: nothing to build for 'procedure:` narrations of the periods
+  before (one in 84 decided procedures on 11-12).
+- **The answer after one:** whether it re-runs or redefines (`procedure:new`,
+  or the new name) rather than concluding its fix failed.
+
 ### A heading lost in a fall, searched for at every heading (#690's net) — opens when this PR is deployed
 
 **What changed is what a robot's map does after a get-up.** Its scans are
