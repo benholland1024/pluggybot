@@ -4445,6 +4445,25 @@ class HubLifecycle:
     self._settle_job(task, verdict, float(self.data.time),
                      f"failed the job {task.id} ({task.kind}): {verdict.reason}")
 
+  def _ran_nothing(self, decision) -> str:
+    """Why a decided `procedure:<name>` built nothing, as History says it:
+    not in the library (this answer's own `undefine`, done first, says so),
+    in it but not compiling against today's world, or one whose first def
+    takes arguments."""
+    from pluggybot.procedure.lang import called_only
+    name = decision.action[len(PROCEDURE_PREFIX):]
+    library = getattr(self.overseer, "library", None)
+    entry = library.entries.get(name) if library is not None else None
+    head = f"ran nothing: `{decision.action}`"
+    if entry is None:
+      undone = (decision.undefine or "") == name
+      return (f"{head} is not in your library"
+              + (" -- this answer's `undefine` removed it, and an undefine is done "
+                 "before the action" if undone else ""))
+    if not entry.valid:
+      return f"{head} is not runnable: {'; '.join(entry.reasons)}"
+    return f"{head} {called_only(entry.procedure)}"
+
   def _define(self, decision) -> None:
     """Apply a decision's `define` / `undefine` to the library (issue #166).
 
@@ -5860,6 +5879,11 @@ class HubLifecycle:
       # exception: the loop's next pass asks again, and the overseer's
       # consecutive-idle cap stops that becoming a spin.
       self._say(f"DECIDE: nothing to build for {decision.action!r}")
+      if decision.action.startswith(PROCEDURE_PREFIX):
+        # ...and, for a procedure it named, where the robot reads, as
+        # `procedure:new`'s is: told the narration alone, Rowan read a run
+        # that never began as its fix failing (11-12, t_0230)
+        self._remember(self._ran_nothing(decision))
       yield from self.body.hold_routine(DECIDED_IDLE_S)
       return "unbuildable"
     fit = self.affords(errand)
