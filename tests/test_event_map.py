@@ -1681,8 +1681,8 @@ def test_the_unminded_death_line_names_what_the_list_said_about_asking():
   #  ⚠ ...AND IT CLAIMS NOTHING ABOUT WHAT FIRED, which the list cannot know
   #  and which can be FALSE: `battery_below` and `points_below` are
   #  `INTERRUPTING_EVENTS`, so an `ask` row on either can fire mid-errand
-  #  and consult the mind through `_ask_interrupt` -- which does not stamp
-  #  the unminded clock. How long the silence was is the measured half of
+  #  and consult the mind through `_ask_interrupt_routine` -- which does not
+  #  stamp the unminded clock. How long the silence was is the measured half of
   #  the death line; this half is the configuration and stops there.
   fires = ev.EventMap((ev.Row(event="battery_below", value=0.3, action="ask"),))
   assert "battery_below" in ev.INTERRUPTING_EVENTS
@@ -2157,21 +2157,21 @@ def test_the_agent_is_told_a_rule_at_the_limit_arrives_late(menu):
 
 
 def test_an_interrupt_consults_the_mind_and_says_so(menu, tmp_path):
-  """⚠ THE SAME ROW, TWO PATHS, ONE STAMP. `battery_below 0.3 -> ask`
-  reaches `_arbitrate` when it fires between errands and `_ask_interrupt`
+  """⚠ THE SAME ROW, TWO PATHS, ONE STAMP. `battery_below 0.3 -> ask` reaches
+  `_arbitrate` when it fires between errands and `_ask_interrupt_routine`
   when it fires mid-errand -- a different QUESTION (a binary, not a menu)
   but the same mind. Until #322 the second did not stamp, so whether a
-  consultation counted depended on when the row happened to come true.
-  Since #426 neither does: the row stamped the clock when it FIRED, before
-  the interrupt was flagged, so no outcome of the call can unstamp it -- and
-  a second stamp at the safe point would show the next question a silence
-  of the few seconds between the two."""
+  consultation counted depended on when the row happened to come true. Since
+  #426 neither does: the row stamped the clock when it FIRED, before the
+  interrupt was flagged, so no outcome of the call can unstamp it -- and a
+  second stamp at the safe point would show the next question a silence of
+  the few seconds between the two."""
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
   seam = inspect.getsource(HubLifecycle._events_step)
   assert seam.index("_stamp_ask()") < seam.index("self._interrupt_pending = row")
-  assert "_stamp_ask" not in inspect.getsource(HubLifecycle._ask_interrupt)
+  assert "_stamp_ask" not in inspect.getsource(HubLifecycle._ask_interrupt_routine)
 
 
 def test_an_interrupt_that_carries_on_is_the_case_this_fixes(menu, tmp_path):
@@ -2181,7 +2181,7 @@ def test_an_interrupt_that_carries_on_is_the_case_this_fixes(menu, tmp_path):
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
-  src = inspect.getsource(HubLifecycle._resolve_interrupt)
+  src = inspect.getsource(HubLifecycle._resolve_interrupt_routine)
   assert "if not self._aborting and self.queued_row is row:" in src, \
       "a continue consumes the row; an abort leaves it for `_arbitrate`"
 

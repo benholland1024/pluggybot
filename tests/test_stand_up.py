@@ -256,10 +256,11 @@ def test_a_charge_trip_a_stand_up_ends_is_not_a_failed_dock():
 
 
 def test_a_stand_up_inside_a_blocking_stretch_puts_the_state_back():
-  """A stretch the routine steps itself (`_ask_interrupt` blocks while its
-  call flies) can hold the stand-up, and the routine then runs on to its
-  next yield -- setting its own state -- before the wrapper can look. The
-  state goes back to the stand-up's. Shown to fail without the reset."""
+  """A stretch the routine steps itself (a blocking `run`: none in `src/`
+  since #692, where `_ask_interrupt` was one) can hold the stand-up, and the
+  routine then runs on to its next yield -- setting its own state -- before
+  the wrapper can look. The state goes back to the stand-up's. Shown to
+  fail without the reset."""
   life = _life()
   try:
     life.battery.energy_wh = 0.0

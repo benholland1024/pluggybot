@@ -1281,15 +1281,15 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     ⚠ A FALL ENDS IT WHATEVER TESTS IT (#671; `st.run_verb`), as a fall
     fails a job's try, and a dead robot begins no verb: dead as the last one
     ended, or while its interrupt was asked, which steps the world -- and a
-    dead robot is never asked one."""
+    dead robot is never asked one; fallen as it was asked, this verb is the
+    step the run stopped at (`st.asked_routine`)."""
     nonlocal count
-    if count and not st.dead(life) and life.interrupted() and not st.dead(life):
-      raise _Stop("interrupted")
-    if st.dead(life):
-      raise _Stop("died")
-    if float(life.data.time) - t0 > proc.budget_s:
+    why = (yield from st.asked_routine(life)) if count else ("died" if st.dead(life) else "")
+    if why in ("interrupted", "died"):
+      raise _Stop(why)
+    if why != "fell" and float(life.data.time) - t0 > proc.budget_s:
       raise _Stop("budget")
-    if count >= proc.steps_budget:
+    if why != "fell" and count >= proc.steps_budget:
       raise _Stop("steps")
     spec = st.language(facts)[verb]
     values: dict = {}
@@ -1309,13 +1309,18 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     result["total"] = count
     result["inFlight"] = {"line": line, "verb": verb, **at.said()}
     # a watcher's word that a verb began (#530: the line a person's page
-    # lights); a life with none says nothing more
+    # lights); a life with none says nothing more -- nor of a verb a fall
+    # in the ask before it never began
     began = getattr(life, "verb_began", None)
-    if began is not None:
+    if began is not None and why != "fell":
       began(count, line, verb, values)
-    life._say(f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}): "
-              f"{st.Step(verb, values).describe()}")
-    if bad:
+    if why != "fell":
+      life._say(f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}): "
+                f"{st.Step(verb, values).describe()}")
+    if why == "fell":
+      st.forget_readings(life, verb)
+      verdict = {"ok": False, "fell": True, "reason": st.FELL}
+    elif bad:
       st.forget_readings(life, verb)
       verdict = {"ok": False, "reason": "; ".join(bad)}
     else:

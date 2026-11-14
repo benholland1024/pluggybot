@@ -149,8 +149,12 @@ class ProcedureLife:
     self.step_until = None
     self.aborting = False
 
-  def interrupted(self) -> bool:
+  def interrupt_due(self) -> bool:
     return False
+
+  def interrupted_routine(self):
+    return False
+    yield  # a routine that steps nothing
 
   def _say(self, text: str, detail: str = "", **_) -> None:
     self.said.append(text)

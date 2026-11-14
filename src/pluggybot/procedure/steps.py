@@ -41,7 +41,8 @@ Three rules the shape carries for the rungs above it:
   the vocabulary caps it (`MAX_BUDGET_S`) and the step count (`MAX_STEPS`);
   a program past either does not validate. The runner checks the budget at
   step boundaries, which are the safe points; a walk is a safe point at
-  every step (issue #381), and asks `life.interrupted` as it goes (#116).
+  every second (issue #381): one due (`life.interrupt_due`) ends it where it
+  stands, and its verb asks (`life.interrupted_routine`, #116, #692).
 
   ABORT ENDS IT WHERE IT IS. Whatever ends a program early -- a failed
   step, the budget, an interrupt -- the verdict is taken of what it did,
@@ -240,21 +241,52 @@ def _stopped(life) -> bool:
 
 
 def _interrupt(life):
-  """A walk's `stop` inside a job: the robot's own hazard row, resolved
-  where the walk stands (`HubLifecycle.interrupted`, issue #116) -- a walk
-  is a safe point at every step. None where there is nothing to ask."""
-  return getattr(life, "interrupted", None)
+  """A walk's `stop` inside a job: the robot's own hazard row due
+  (`HubLifecycle.interrupt_due`, issue #116), read and never asked there --
+  a walk is a safe point at every second (#381), and it ends where it
+  stands for its verb to ask (`_asking`, #692). None where there is
+  nothing to ask."""
+  return getattr(life, "interrupt_due", None)
 
 
-def _patience(life, args: dict) -> float:
-  """How long this walk may take: the program's `patience`, or
-  `DRIVE_TIMEOUT_S` -- and never past the program's own budget
-  (`life.step_until`, `run_verb`)."""
-  s = float(args.get("patience", DRIVE_TIMEOUT_S))
+def _budgeted(life, s: float) -> float:
+  """`s` s, never past the program's own budget (`life.step_until`,
+  `run_verb`)."""
   until = getattr(life, "step_until", None)
   if until is not None:
     s = min(s, max(0.0, float(until) - float(life.data.time)))
   return s
+
+
+def _asking(life, go: Callable, used: Callable, patience: float) -> Routine:
+  """Drive `go(patience, stop, again)` -- a walk or a find, `stop` the
+  robot's own interrupt due (`_interrupt`), `again` once it is carried on
+  -- and each time `stop` ended it (`used(result, seconds)`: the seconds of
+  its patience it used by its own clock, None where it ended otherwise),
+  ask the interrupt where the robot stands (`interrupted_routine`, #692):
+  answered carry on, `go` again from there with the patience left -- the
+  ask none of it -- never past the program's own budget (`_budgeted`).
+  Every result, in order; after an abort the last is the one its interrupt
+  stopped. ⚠ Carried on only where `stop` said so in this go: read off a
+  record alone, a stale one could send it round again with nothing
+  stepped."""
+  due = _interrupt(life)
+  out: list = []
+  while True:
+    fired: list = []
+
+    def stop(fired=fired) -> bool:
+      if due():
+        fired.append(True)
+        return True
+      return False
+    t0 = float(life.data.time) if due is not None else 0.0
+    out.append((yield from go(_budgeted(life, patience), None if due is None else stop,
+                              bool(out))))
+    spent = used(out[-1], float(life.data.time) - t0) if fired else None
+    if spent is None or (yield from life.interrupted_routine()):
+      return out
+    patience = max(0.0, patience - spent)
 
 
 def _carried(life) -> dict:
@@ -288,7 +320,13 @@ def _drive_to(life, args: dict) -> Routine:
   refused = _arm_out(life, "walk")
   if refused is not None:
     return refused
-  arrived = yield from _go(life, x, y, _patience(life, args), _interrupt(life))
+  walks = yield from _asking(
+    life, lambda left, stop, again: _go(life, x, y, left, stop),
+    # ...by the walk's own clock, its record's: a hold it counts out
+    # (`Navigator.held_s`) none of it
+    lambda arrived, s: None if arrived else float(life.body.last_drive.get("seconds") or 0.0),
+    float(args.get("patience", DRIVE_TIMEOUT_S)))
+  arrived = walks[-1]
   px, py, _ = life.body.pose
   short = round(math.hypot(x - px, y - py), 3)
   if arrived:
@@ -335,9 +373,12 @@ def _find(life, args: dict) -> Routine:
   if refused is not None:
     forget_readings(life, "find")
     return {**refused, "tag": tag}
-  patience = _patience(life, {"patience": args.get("patience", FIND_PATIENCE_S)})
-  rec = yield from life.body.find_tag_routine(tag, near=(x, y), patience=patience,
-                                              stop=_interrupt(life))
+  rec = (yield from _asking(
+    life, lambda left, stop, again: life.body.find_tag_routine(
+      tag, near=(x, y), patience=left, stop=stop, **({"resume": True} if again else {})),
+    # ...by the find's own clock, which a hold runs on
+    lambda rec, s: s if rec.get("why") == "interrupted" else None,
+    float(args.get("patience", FIND_PATIENCE_S))))[-1]
   why = rec.get("why", "")
   # ...where it found it, read as `find.*` (#559): in its map, as it
   # remembers the place -- its face's way the best it knows (`Places.facing`);
@@ -1546,19 +1587,33 @@ def dead(life) -> bool:
   return getattr(life, "dead", None) is not None
 
 
+def asked_routine(life) -> Routine:
+  """A runner's safe point between two verbs (#116): the robot's own
+  interrupt asked (`interrupted_routine`), its think slices stepped, and
+  ENDED the step the robot dies or falls in it (`_until_down_routine`), as
+  a walk's ask inside its verb is -- the row kept `unanswered` either way,
+  and the other robot goes on meanwhile (#692). Returns "died", or "fell"
+  -- a fall ends the run whatever comes after (#671), the next verb the step
+  it stopped at, never begun --, "interrupted" where the answer was stop,
+  else ""."""
+  stop, ended = yield from _until_down_routine(life, life.interrupted_routine())
+  return ended or ("interrupted" if stop else "")
+
+
 def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
              until: float | None = None) -> Routine:
   """One verb, as both runners call it (this module's and the language's).
   While it runs, `life.step_now` says which step this is (`where`: the
   procedure, the count, a line), for a death to name (issue #362), and
   `life.step_until` when the program's budget ends (`until`, sim s), past
-  which no walk inside it waits (`_patience`).
+  which no walk inside it waits (`_budgeted`).
 
   ⚠ A VERB THE ROBOT'S OWN INTERRUPT ENDED IS STOPPED, NOT FAILED (issue
-  #381): a walk inside it asks the interrupt as it goes (`_interrupt`),
-  and when the answer latched an abort during this verb, a verb that did
-  not succeed says `stopped: interrupted` -- both runners stop the program
-  there as an abort, never at a failed step.
+  #381): a walk inside it stops where it stands for one due (`_interrupt`)
+  and the verb asks it (`_asking`, #692), and when the answer latched an
+  abort during this verb, a verb that did not succeed says `stopped:
+  interrupted` -- both runners stop the program there as an abort, never
+  at a failed step.
 
   ⚠ A FALL OR A DEATH ENDS IT AT ONCE (#671; `_until_down_routine`;
   Overseer.md §2b): a verb its body fell in fails and says so (`fell`, in
@@ -1899,20 +1954,20 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
     # never inside anything else; a death, inside anything (#671) -- the
     # interrupt's ask too, which steps the world, and a dead robot is never
     # asked one
-    if i and not dead(life) and life.interrupted() and not dead(life):
-      result["stopped"] = "interrupted"
+    why = (yield from asked_routine(life)) if i else ("died" if dead(life) else "")
+    if why in ("interrupted", "died"):
+      result["stopped"] = why
       break
-    if dead(life):
-      result["stopped"] = "died"
-      break
-    if float(life.data.time) - t0 > program.budget_s:
+    if why != "fell" and float(life.data.time) - t0 > program.budget_s:
       result["stopped"] = "budget"
       break
-    life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
-    verdict = yield from run_verb(life, VERBS[step.verb], step.args,
-                                  {"procedure": program.name, "n": i + 1,
-                                   "of": len(steps)},
-                                 until=t0 + program.budget_s)
+    if why != "fell":
+      life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
+    verdict = ({"ok": False, "fell": True, "reason": FELL} if why == "fell"
+               else (yield from run_verb(life, VERBS[step.verb], step.args,
+                                         {"procedure": program.name, "n": i + 1,
+                                          "of": len(steps)},
+                                         until=t0 + program.budget_s)))
     entry = {"i": i, "verb": step.verb, **verdict}
     result["steps"].append(entry)
     if verdict.get("stopped") in ("interrupted", "died"):

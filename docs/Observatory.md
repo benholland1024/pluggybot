@@ -10,6 +10,213 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A decided procedure that runs nothing says why in History (N5, `loop-n5`) — opens when this PR is deployed
+
+**What changed is what History says when an answer's `procedure:<name>`
+builds nothing.** The loop said why to the narration alone (`DECIDE:
+nothing to build for 'procedure:<name>'`); now one reason goes to the
+narration and to History alike, as `procedure:new`'s branch has always
+said its own (`HubLifecycle._ran_nothing`): "ran nothing:
+`procedure:door_hook5` is not in your library -- this answer's `undefine`
+removed it, and an undefine is done before the action"; "... is not
+runnable: <its reasons>" (where the same answer undefined a callee, "--
+after this answer's `undefine` of grip, done before the action"); "...
+takes n: it runs only when another procedure calls it"; or "...: it could
+not be built". The menu offers only runnable names, and an event-map row
+or a standing order naming one no longer runnable fails `unrunnable` before
+this branch, so the line comes only from an answer whose own `undefine`
+or `define` left its procedure so. Other unbuildable actions keep "nothing
+to build". Nothing else the robots read moved (`prompt_sha` b345cc34, the
+session host's hello byte for byte), nor any geometry.
+
+**Why.** t_0230 on 11-12 (Rowan, `open_door`): an answer chose
+`procedure:door_hook5`, undefined `door_hook5` and defined its fix
+`door_hook6`; the undefine is done first, so nothing ran, the `done` on the
+same answer was graded at once on a door nothing had touched, and History
+held only "chose", "forgot" and "wrote". Rowan's next answer: "hook6's
+diagonal pulls didn't open it either" -- hook6 never ran. One answer in 84
+decided procedures that wake.
+
+**What the period is for.**
+- **"ran nothing: `procedure:" History lines**, both robots, against the
+  `DECIDE: nothing to build for 'procedure:` narrations of the periods
+  before (one in 84 decided procedures on 11-12).
+- **The answer after one:** whether it re-runs or redefines (`procedure:new`,
+  or the new name) rather than concluding its fix failed.
+
+### A heading lost in a fall, searched for at every heading (#690's net) — opens when this PR is deployed
+
+**What changed is what a robot's map does after a get-up.** Its scans are
+matched as before; but up from a fall (the get-up's stand arms
+`ScanMatcher.fell`), a run of refused scans whose wide search (2 m, 15 deg)
+finds nothing searches again at every heading -- 6 such searches at most,
+only while the belief is within 0.5 m of where it stood up -- and a pose
+found twice is taken: a `relocated` belief event, its `drift` row and its
+BELIEF narration, as the wide search's are, its turn as large as the fall
+left it. Nothing the robots read moved (`prompt_sha` b345cc34, the session
+host's hello byte for byte), nor any geometry: the deploy keeps both
+robots' bodies and maps.
+
+**Why.** #690: on 11-12 Luca's heading came out of a fall 120 deg off and
+its map refused every scan for the 26 minutes to the pause. The cause (the
+other robot's blocking interrupt) is fixed; this is the net under any
+other. On #690's 201 mission falls, flown on one pod beside 6956d89 with
+each get-up's heading knocked at the stand (SimNotes, "A heading lost in a
+fall, searched for at every heading"): the 118 that stood right-headed were
+never searched (the branch's 201 flights the base's row for row); of the
+1,062 knocked 40-160 deg, standing or walking on, where the base refused
+every scan or laid the house askew, 517 were taken back within 0.3 m and 3
+deg (2 s after the stand at the median) and none taken wrong; the rest
+refused, the lobby's scan turned half round fitting as well as the truth.
+Flown beside the base (26d233f): 233 of 472 knocked get-ups taken back,
+261 relocations in 673 flights and none more than 0.5 m from the truth, the
+base's 201 right-headed flights row for row.
+
+**What the period is for.**
+- **`relocated` drift rows within a minute of a get-up**, against the
+  periods before: a turn of more than 25 deg between `before` and `after`
+  is this rule's alone (the served wide search's own turned 19-21 deg at
+  most in the batch, knocked 160). ⚠ One whose `headingDeg` after it is near
+  180 is a hall's half turn taken: none in the batch.
+- **A run of refusals after a get-up that never ends** (`matched` all
+  `inconsistent` in the samples after a fall): still lost, the net having
+  refused; #690's option (b), the robot told, is not built.
+- The physics thread: at most 6 searches of ~0.1 s a get-up (5 when it
+  takes nothing: the last only confirms), only where the served search found
+  nothing.
+
+### One robot's interrupt asked, the other robot's errand going on (#692) — opens when this PR is deployed
+
+**What changed is how a mid-errand interrupt is asked**
+(`HubLifecycle.interrupted_routine`, `steps._asking`; SimNotes, "One
+robot's interrupt asked, the other robot held"):
+- The ask is a routine: its think slices are yielded as a decision's are,
+  where they were waited blocking (`body.run`). In the pair the other
+  robot's routine goes on through the ask -- it walks, reaches, charges and
+  gets up -- where since #690 it was held standing for the whole of it, up
+  to `INTERRUPT_TIMEOUT_S` (115 s) and its slices, its errand paused while
+  its procedure's budget and its job's minutes ran on.
+- A procedure's walk, or a `find`, is never asked from inside: its `stop`
+  only reads that an interrupt is due, the walk ends where it stands and its
+  verb asks. Carried on, a walk goes on to its goal from there on a fresh
+  plan and a find with its search, each with the patience its own clock
+  left; stopped, the verb is `stopped: interrupted`, as before. A death or a
+  fall ends an ask at once, a walk's or one between two verbs (#671): the
+  interrupt's row is `unanswered` (a third outcome beside `continued` and
+  `aborted`, said and in History), its call never collected, and fallen
+  between verbs the next is the step the run stopped at. The robot's `state`
+  is `DECIDE` only while it is asked, where it stayed `DECIDE` to the
+  errand's end. Standing between two walks while it is asked, the asker
+  rests 8.6 s in, and the other robot may ask it aside, as between two verbs
+  it always could; held inside its walk, it refused ("walking").
+- No text the robots read moved: `prompt_sha` `b345cc34…`, 66,029 chars,
+  17 sections, and the session host's hello byte for byte. A robot alone,
+  and a pair with no interrupt asked, fly the base's day bit for bit.
+
+**Why.** #692: #690's fix made the other robot's fall a pause. Flown on the
+dev box, Luca walking the lobby while Rowan is asked 115 s: held, its walk
+arrived 13.6 s after the answer; now 11.9 s into the ask, no fall.
+
+**What the period is for.**
+- **The other robot through an ask**: none of its routines should wait on
+  it. Read each `INTERRUPT` line against the other robot's narration in the
+  same seconds: it walks, reaches and charges on.
+- **The asker's walk carried on**: a walk an interrupt stopped and that
+  carried on is a second walk in the log, from where the first stopped; its
+  arrival, or why it did not arrive, is the verb's. One that runs out of
+  patience ran out of its own clock's, the ask none of it. A step aside
+  while asked (the narration's) moved it before its next verb.
+- ⚠ Interrupts are rare (one in the 11-12 wake), so this period may close
+  with none to read; #690's readings still apply to a blocking run inside
+  the pair's loop, of which none is left in `src/`.
+
+### The way home flown in the posture it was judged in (#693) — opens when this PR is deployed
+
+**What changed is when a robot stands up after a hand's work.** A withdraw
+(and a walk's hand-over) asked for the stand as the arm set off home; off
+the stand -- bowed, crouched or turned -- an arm with none of it ahead of
+the robot's front now comes home first and the stand is asked once it is
+home, the posture its way home was judged in (`Reach._go_home`). An arm
+with some of it ahead has the stand as it sets off, as before. Every
+withdraw then waits for the trunk to stand still in the stand
+(`_posture_held`, `STAND_BACK_S` at most) before the next verb, and its
+word is the arm's as it came home; a walk's hand-over gives the walker a
+trunk standing still, the same bound. Nothing the robots read moved
+(`prompt_sha` b345cc34, the session host's hello byte for byte), nor any
+geometry: the deploy keeps both robots' bodies and maps.
+
+**Why.** #693: Luca's `withdraw` at the cupboard's lever on 11-12 at 19:59
+UTC fell after its way home. Flown from where Luca stood at the door's 33
+draws, 5 fell 2-4 s after the withdraw began (10 with no step back after
+it): from the bow, the straight way home it was judged in stays behind the
+toes, but the stand asked as it set off swung the same arm 3.4 cm past them
+and pressed an open jaw on the counter's top, 29-45 N*s up, and the robot
+went over backward (SimNotes, "The way home flown in the posture it was
+judged in"). On one pod beside 9d31fe6: none of the 33 fell, with or
+without the step back, and the hands check at set-outs 0-31 passed what it
+did -- the lid 26, the drawer 21, the door 24, the cube 20, the table 24 --
+with 6 falls where it had 8; at 32-127 it passed 306 where the base passed
+305 (the drawer one fewer, the door and the cube one more), 5 falls where
+it had 6; and the station's trials are the base's (36 of 36 starts, 140 of
+140 seats).
+
+**What the period is for.**
+- **Falls within 5 s of a `withdraw` at the counter**, against the periods
+  before (#693's last box): the narration's "fell" after a `withdraw` or
+  the verb after it, and the `death` rows round them.
+- **A withdraw's length.** Off the stand it now waits for the arm, then
+  the trunk: at Luca's door 0.5-1.6 s more (median 0.9) where the robot
+  worked bowed, crouched or turned, none at the stand -- so a procedure's
+  seconds run out a little sooner, and a `withdraw` that read "held" for
+  15 s there (draw 3, the stand rising under an arm the counter held) came
+  home in 3.2.
+- ⚠ A withdraw's falls and the counter's `stuck` deaths are not to be
+  pooled with the periods before.
+
+### The get-up beside a wall is served (#679) — opens when this PR is deployed
+
+**What changed is the policy a fallen robot gets up on**:
+`models/humanoid_getup.npz` is getupwall14's iteration 9850
+(`-Getup-Wall3-Mirror`: trained with a box beside the fallen body in a share
+of its episodes, from postures the old one sat or lay still in, and handing
+back to the served standing policy as the mission does), where getup3
+(`-Getup-Head`, trained on open floor alone) was. Nothing else moved: the
+watch that hands it a fall, the hand-back, the waist held home, the `stuck`
+clock (#684), and every text the robots read (`prompt_sha` unchanged). The
+header's `build.body.policies.getup` and `dataHashes.world` change; the
+world's geometry does not, so the deploy keeps both robots' bodies and maps.
+
+**Why.** #679: all three `stuck` deaths of 11-08 were at the storeroom's
+counter, and the old get-up never stood a body lying along it, or along a
+wall, on its side facing it. Flown beside staging's 13ddef7 on one pod
+(SimNotes, "The wall get-up's second and third rounds"): of the 151 falls of
+#679's bar it lives through every one getup3 does and 24 more (lying along
+the counter or the storeroom's wall 57 of 63 to 39; shoved at the counter's
+props 20 of 20 to 15; in the house 18 of 20 to 17); of the counter's falls
+of 11-08, flown again, it stands from 13 of 13 to none; of 130 falls outside
+the bar, 110 to 93, losing 3 (two one trajectory, a sit after a 35 N*s shove
+to the right in the hall; one a fall back down the flight). Against it: its
+head strikes in fewer falls but harder at worst (7.0 m/s from the stand
+shoved forward at 30 N*s, where getup3's struck at 1.3; 10 falls from a bow
+1 m/s or more harder); its slowest stand of the 151 comes 18.2 s into the 20
+(shoved left at the chest, it sits first); and it works its parts harder
+(the hip's pitch to 98 % of its peak off its front, getup3's 73 %; the
+waist's hold past its rating's RMS for 2.2 s off its back). Lying on its
+side facing the face within 0.1 m it still never stands, and a fall off the
+landing still ends stuck.
+
+**What the period is for.**
+- **The `stuck` deaths**: how many a day, and where the body lay (the
+  `death` rows, with the `drift` samples round them), against the periods
+  before; the counter's above all.
+- **A get-up that stands and falls again**: the narration's falls and the
+  `posture` on the wire (`getting_up`, then `standing`). A stand of under
+  5 s before the next fall is one struggle on one clock, so a robot that
+  stands for a moment beside the counter and goes down again dies 20 s from
+  the first take.
+- ⚠ The `stuck` column, and anything a day's falls decide, is not to be
+  pooled with the periods before.
+
 ### The lab's plates flush with the floor, and the memory alarm's warm-up five samples (#684's call 3) — opens when this PR is deployed
 
 **What changed in the world.** The lab's three pressure plates (`shock`,

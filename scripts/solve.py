@@ -99,6 +99,15 @@ def work_view(target: str) -> tuple[tuple[float, float], list[float], float, flo
   sx, sy = ct.place_to_world(-ct.TABLE_GAP, 0.0)
   return ((cx, cy), [0.6 * cx + 0.4 * sx, 0.6 * cy + 0.4 * sy, ct.TABLE_H + 0.15], 1.8,
           math.degrees(facing) + 20.0)
+
+
+def pass_view() -> tuple[tuple[float, float], list[float], float, float]:
+  """The pass's work, as `work_view` gives a job's: the middle of the expo
+  counter's dining edge, and a camera from across the counter onto the
+  robot's hands at it (`--feature pass`'s pick-ups)."""
+  from pluggybot.evaluation import counter as ct
+  px, py = ct.pass_to_world(0.0, 0.0)
+  return (px, py), [px - 0.2, py, ct.PASS_H + 0.1], 2.2, 140.0
 #: Where a flight starts, (x, y, heading): in front of its station, the place
 #: a job is taken from, or inside the storeroom's door facing its counter --
 #: or, `tour`, each flight of `--n` at the next of eight places across the
@@ -182,7 +191,9 @@ def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
       _, lookat, distance, azimuth = work_view(prop)
       viewer.cam.lookat[:] = lookat
       viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = distance + 0.2, azimuth, -22.0
-    shots = _HandStrip(life, prop) if strip else None
+    shots = None if not strip else (
+      _HandStrip(life, prop, also=(pass_view(),), tiles=20, work_every=15.0) if feature == "pass"
+      else _HandStrip(life, prop))
 
     def fly():
       yield from body.look_around_routine()
@@ -221,28 +232,35 @@ class _HandStrip:
   and once a minute on its way, then -- once it stands within `NEAR_M` of
   the prop, about where its walk there ends -- a tile every 4 s from beside
   the counter, the grade's last. (At 1.8 m a search's viewpoint near the
-  counter drew it with the robot out of the frame.)"""
+  counter drew it with the robot out of the frame.) A job whose work is in
+  two places -- the place laid from the pass: its pick-ups at the pass, its
+  put-downs at the place -- names the other (`also`), a camera on each, and
+  takes more tiles further apart."""
 
-  TILES, WALK_EVERY_S, WORK_EVERY_S, NEAR_M = 12, 60.0, 4.0, 1.2
+  WALK_EVERY_S, NEAR_M = 60.0, 1.2
 
-  def __init__(self, life, prop: str) -> None:
+  def __init__(self, life, prop: str, also: tuple = (), tiles: int = 12,
+               work_every: float = 4.0) -> None:
     self.life, self.model, self.data = life, life.model, life.data
     self.r = mujoco.Renderer(self.model, 300, 400)
     self.tiles: list = []
     self.prop = prop
-    (self.hx, self.hy), self.lookat, self.distance, self.azimuth = work_view(prop)
+    #: each place the work is, a camera on it: the prop's first
+    self.works = (work_view(prop), *also)
+    self.most, self.work_every = tiles, work_every
     self.due = 0.0
     self.near = None
     life.body.step_hooks.append(self.hook)
 
-  def _shoot(self, label: str, near: bool) -> None:
+  def _shoot(self, label: str, near: int | None) -> None:
     from PIL import Image, ImageDraw
     m, d = self.model, self.data
     cam = mujoco.MjvCamera()
-    if near:
-      # on the work (`work_view`)
-      cam.lookat[:] = self.lookat
-      cam.distance, cam.azimuth, cam.elevation = self.distance, self.azimuth, -22.0
+    if near is not None:
+      # on the work it stands at (`work_view`, `pass_view`)
+      _, lookat, distance, azimuth = self.works[near]
+      cam.lookat[:] = lookat
+      cam.distance, cam.azimuth, cam.elevation = distance, azimuth, -22.0
     else:
       # from behind, or turned round it where a wall stands in between (a
       # walk just through a doorway was drawn as the wall behind it, from
@@ -276,21 +294,22 @@ class _HandStrip:
 
   def hook(self) -> None:
     t = float(self.data.time)
-    if len(self.tiles) >= self.TILES - 1:
+    if len(self.tiles) >= self.most - 1:
       return
     x, y, _ = self.life.body.true_pose()
-    near = math.hypot(x - self.hx, y - self.hy) < self.NEAR_M
-    # ...a tile as it comes to the prop, whenever the walk's next was due
+    near = next((i for i, ((hx, hy), *_) in enumerate(self.works)
+                 if math.hypot(x - hx, y - hy) < self.NEAR_M), None)
+    # ...a tile as it comes to the work, whenever the walk's next was due
     if t < self.due and near == self.near:
       return
     self.near = near
-    self.due = t + (self.WORK_EVERY_S if near else self.WALK_EVERY_S)
-    self._shoot(f"{t:.0f} s" + ("" if near else ": on its way"), near)
+    self.due = t + (self.work_every if near is not None else self.WALK_EVERY_S)
+    self._shoot(f"{t:.0f} s" + ("" if near is not None else ": on its way"), near)
 
   def done(self, grade, out: str) -> None:
     from PIL import Image
     if grade is not None:
-      self._shoot(f"{self.data.time:.0f} s: {'PASSED' if grade['ok'] else 'failed'}", True)
+      self._shoot(f"{self.data.time:.0f} s: {'PASSED' if grade['ok'] else 'failed'}", 0)
     self.r.close()
     img = Image.new("RGB", (400 * min(4, len(self.tiles)), 300 * math.ceil(len(self.tiles) / 4)),
                     (255, 255, 255))

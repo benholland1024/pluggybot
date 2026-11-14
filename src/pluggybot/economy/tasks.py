@@ -331,9 +331,11 @@ KINDS: dict[str, TaskKind] = {
   # station (`energy_spike.py --station S --actions set_table_pass`, the
   # pass's tags and the card found first): the research center's 20.59 Wh
   # over 443 s, the house's 20.15 over 424, the mall's 17.80 over 364 (a
-  # fall cut its fork short) -- the dearest. ⚠ NOT a row of `energy.json`:
-  # there the dearest row prices every errand that has none, and a kind no
-  # world offers moves nothing served.
+  # fall cut its fork short) -- the dearest; that reference was round 2's,
+  # and round 3's lays a place in about the same time (387-494 s against
+  # 413-516), so it is not measured again while the kind is unoffered. ⚠ NOT
+  # a row of `energy.json`: there the dearest row prices every errand that
+  # has none, and a kind no world offers moves nothing served.
   "set_table_pass": TaskKind(
     "set_table_pass", task="set_table_pass", target_kind="table",
     template="Lay the card's place on the restaurant's table from the pieces on its pass: "

@@ -606,7 +606,7 @@ def falls(seed: str, start: str, explore_s: float, parallel: int, at: str | None
 # ---- #690: one robot asked mid-errand while the other is busy -------------------------
 
 #: `--asked`: the served pair, the second robot's mid-errand interrupt asked
-#: (`HubLifecycle.interrupted`, its call in flight `--ask-s` of sim time:
+#: (`HubLifecycle.interrupted_routine`, its call in flight `--ask-s` of sim time:
 #: Rowan's on 11-12 took 5.8) `ASK_AT_S` into what the first is doing
 #: (`--asked-state`): walking down the research center's lobby as Luca was
 #: (`LOBBY_AT` to `LOBBY_GOAL`), standing, a hand out, getting up from a
@@ -618,7 +618,7 @@ ASKED_STATES = ("walk", "stand", "reach", "getup", "charge", "step")
 
 class _Asked:
   """A mind whose interrupt's answer takes `seconds` of sim time and says
-  carry on: what `HubLifecycle._ask_interrupt` reads of it."""
+  carry on: what `HubLifecycle._ask_interrupt_routine` reads of it."""
 
   event_map = None
 
@@ -641,7 +641,8 @@ def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
   interrupt is asked for `ask_s`: the first's belief against the truth every
   `TRACE_STEPS` steps, read off the ASKER's seam (the other's own ran nothing
   while the asker was asked, until #690), and whether its own physics ran --
-  its steps counted -- its falls, its tilt and what its routine came to."""
+  its steps counted -- its falls, its tilt, what its routine came to and when
+  it did (`doneT`: inside the ask since #692, its routine going on)."""
   from pluggybot import lifecycle, pair, tick
   from pluggybot.mind import events as ev
   wall = time.time()
@@ -716,14 +717,19 @@ def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
       ask["t0"], ask["steps0"] = float(data.time), m._steps
       out["atAsk"] = {"legs": m.legs, "working": bool(luca.body.working),
                       "charging": bool(luca.body.charging())}
-      ask["carried"] = not rowan.interrupted()
+      ask["carried"] = not (yield from rowan.interrupted_routine())
       ask["t1"], ask["steps1"] = float(data.time), m._steps
       rowan.overseer = None
       yield from hold(rowan, 2.0)
 
+    def timed():
+      got = yield from doing()
+      out["doneT"] = round(float(data.time), 3)
+      return got
+
     got = [None]
     try:
-      got = tick.run_many([(luca.body.stepper, doing()), (rowan.body.stepper, asking())],
+      got = tick.run_many([(luca.body.stepper, timed()), (rowan.body.stepper, asking())],
                           name="pair", waits=[lambda: hold(luca, 1.0), lambda: hold(rowan, 1.0)])
       t1 = float(data.time)
       while m.legs == "getup" and float(data.time) - t1 < GETUP_WAIT_S:
@@ -750,6 +756,17 @@ def asked(state: str = "walk", ask_s: float = 5.8) -> dict:
   return out
 
 
+def _done(run: dict) -> str:
+  """When the first robot's routine ended, against the ask's window."""
+  done = run.get("doneT")
+  if done is None:
+    return ""
+  t0, t1 = run["asked"]
+  return (f" at t={done:.1f} s, "
+          + ("before the ask" if done < t0 else "DURING the ask" if done <= t1
+             else f"{done - t1:.1f} s after the ask"))
+
+
 def asked_report(run: dict) -> None:
   if "stuck" in run:
     s = run["stuck"]
@@ -759,7 +776,8 @@ def asked_report(run: dict) -> None:
         f"{run['asked'][1]:.1f} s ({run['askS']:g} s, carried on: {run['carriedOn']}); this "
         f"robot's physics stepped {run['stepped']} of the ask's {run['steps']} steps, its "
         f"trunk tilted at most {run['tiltDuring']} deg meanwhile; falls {run['falls']}, legs "
-        f"{run['legs']}, its routine {run['routine']}; at the end {run['end'][0]:.3f} m and "
+        f"{run['legs']}, its routine {run['routine']}{_done(run)}; at the end "
+        f"{run['end'][0]:.3f} m and "
         f"{run['end'][1]:+.2f} deg off (its IMU's own heading {run['imuEnd']:+.2f}); "
         f"{run['wallS']:.0f} s")
   last = None

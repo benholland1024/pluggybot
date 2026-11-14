@@ -866,11 +866,10 @@ class Navigator:
 
     `timeout` is the walk's patience. `stop`, a callable, is asked every
     `STOP_EVERY_S` (issue #381): True ends the drive where it stands, as
-    `DRIVE_STOPPED`, and the time it took to answer -- a question to the
-    mind, standing still -- counts against neither the patience nor the
-    stagnation clock. `beyond`, points, is where the way goes on past the
-    goal without a plan -- a press's walk in (issue #455) -- and a robot
-    asked off the way is asked off them too."""
+    `DRIVE_STOPPED`. ⚠ It reads and never waits: the robot's own interrupt
+    only says one is due, and its verb asks (#692). `beyond`, points, is
+    where the way goes on past the goal without a plan -- a press's walk in
+    (issue #455) -- and a robot asked off the way is asked off them too."""
     waypoints: list[tuple[float, float]] = []
     next_replan = 0.0
     holding = False                    # is this drive standing for a peer
@@ -903,14 +902,9 @@ class Navigator:
       if dist < 0.08 and not waypoints:
         return self._drove(wx, wy, t0, "")
       if stop is not None and self.data.time >= next_stop:
-        asked = float(self.data.time)
         if stop():
           return self._drove(wx, wy, t0, DRIVE_STOPPED)
-        took = float(self.data.time) - asked
-        t0, last_improve = t0 + took, last_improve + took
         next_stop = self.data.time + STOP_EVERY_S
-        if took > 0.0:
-          waypoints, self._plan_memo = [], None   # the world moved while it stood
       left = self._left(dist, waypoints, wx, wy)
       if self.PROGRESS_MAP_GROWTH and self.data.time >= next_look:
         next_look = self.data.time + MAP_LOOK_S

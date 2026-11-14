@@ -1942,7 +1942,8 @@ which has its tables and the descent's state). Each fix above is pinned in
 `tests/test_humanoid_stairs.py`.
 
 **Falling, and getting up** (`humanoid/getup.py`, `Pluggy-Humanoid-Getup`
-and `-Getup-Head`; `humanoid_spike.py --fall`, `--view fall`, `--view
+and `-Getup-Head`, and the served get-up's `-Getup-Wall3-Mirror` since #679,
+below; `humanoid_spike.py --fall`, `--view fall`, `--view
 getup`). Without a get-up a fall is today's `stuck` death: a heart, and on
 a served world a stand-up 300 s later. The get-up policy takes every joint,
 arms too, once the IMU reads the trunk tipped 35 deg past the posture its
@@ -1950,16 +1951,19 @@ legs hold (below: a bow is no fall) or the pelvis has sunk under 0.40 m
 over the sole it stands on (shoved hard from the front, the standing
 policy folded into a squat 32 deg off upright, and the tilt alone never
 fired), and hands back once it has stood still 0.5 s. Shoved 45 N*s each of
-six ways on a bare floor, by our grading off the world:
+six ways on a bare floor, by our grading off the world (the waist's body,
+11-13; a get-up's peaks to its first stand, the waist held home as the
+mission holds it):
 
 | falling as | stood | the head struck at, m/s (the floor's push back, kN) | gears past their part's peak | the hardest into a hard stop |
 |---|---|---|---|---|
-| the standing policy | never | 3.8-5.0 (5.5-10.0) in four falls of six | 0-10 joints, to 3.9x (an elbow) | 530 N*m |
-| limp | never | 1.2-5.3 (to 9.7) in five | 0-4 joints, to 4.0x | 232 N*m |
-| the get-up policy | all six, 2.7-4.2 s | 0.3-3.3 (at most 0.3) in three; in three not at all | 1-8 joints, to 1.2x | 592 N*m |
+| the standing policy | never | 5.0-5.4 (1.6-8.9) in four falls of six | 4-8 joints, to 4.3x (an elbow) | 577 N*m |
+| limp | never | 0.4-6.0 (to 8.5) in all six | 0-4 joints, to 4.2x | 384 N*m |
+| the get-up policy | all six, 2.9-3.7 s | 4.0-5.4 (to 5.9) in two; in four not at all | 1-8 joints, to 1.3x | 570 N*m |
+| getup3, served until #679 | all six, 3.1-3.8 s | 0.1-6.0 (to 4.6) in three | 3-9 joints, to 1.7x | 416 N*m |
 
-From lying it stood in 3.0 s off its back, 2.1 off its front and 2.7 off
-its side. The kilonewtons are MuJoCo's soft contact -- the shape of a
+From lying it stood in 2.2 s off its back, 2.0 off its front and 2.9 off
+its side (getup3 2.9, 2.3 and 2.9). The kilonewtons are MuJoCo's soft contact -- the shape of a
 blow, not a number to bank -- and the torque through each gear counts what
 its rotor's inertia takes as the joint is stopped short, the shock that
 strips a gearbox. What it took:
@@ -1977,13 +1981,12 @@ strips a gearbox. What it took:
   before it had; 1000 iterations with sides among the starts brought it
   back.
 
-In the house, shoved the same four ways at five places, it stood 17 times
-in 20 within 15 s, the slowest 11.9 s, on the flight four in four. Down at
-15 s: shoved sideways in the 3 m hall, against the wall it fell into; and
-twice at the landing's edge, once to the foot of the flight, where it stood
-at 30 s. So a fall into a wall or off the landing is a `stuck` death still,
-and getting up among walls and flights is the training that would close it
-(the get-up trained on open floor alone). The stuck budget is 20 s, as
+In the house, shoved the same four ways at five places and read on #684's
+clock (watched 25 s), it lives through 18 of 20: it dies at the landing's
+edge, shoved forward and back (getup3 17, down on the flight shoved left
+too). A fall off the landing is a `stuck` death still, and so is one that
+leaves it on its side facing a wall or the counter within 0.1 m of it
+(below). The stuck budget is 20 s, as
 the quadruped's was (`HumanoidBody.GETUP_BUDGET_S`). The mission waits out a
 get-up before handing the legs to a walk (⚠ a fall mid-walk with the arms
 home found them at rest and took the legs off the floor; one on the step
@@ -1992,6 +1995,114 @@ fall while the walker settled went to the standing policy at the settle's
 end, #520), and on standing again forgets its map of the ground and starts
 its height again over the ground it stands on, as at boot (⚠ kept through
 a fall down the flight, the height was 0.41 m off at the foot for good).
+
+**Getting up beside a wall or the counter** (#679; `--fall`'s counter and
+lying tables, `Pluggy-Humanoid-Getup-Wall`). The get-up trained on open
+floor alone (getup3, served until #679) never stands a body lying on its
+SIDE with its FRONT to a face. Laid along the storeroom's counter and its south wall with the
+truth -- the joints at the stand's, its nearest part 0, 0.1 or 0.25 m off
+the face -- it stood from every other way of lying (its side with its back
+to the face in 2.8-3.5 s, its back in 4.0-10.2, its front in 2.4-4.8) and
+from that one never in 25 s, at the 0.72 m counter and the 2.4 m wall alike
+(0 of 18): it rolls onto its front to push up, the face stops the roll, and
+it pushes again for as long as it lies there. That is how the counter's
+falls of 11-08 lay: flown again on the build that fell (#646's thin grip
+pulled the robot over, which #647 stopped; the get-up's code and file are
+unchanged since), it stood within 20 s in 0 of the 14, one at 30.4 s. Shoved
+45 N*s from each prop's work spot, it went down in 20 of 24 and stood within
+20 s in 15; the five that did not stayed against the counter, three of
+them shoved to their right. Fine-tuning getup3 on today's body with a box
+beside it taught, each flown in the served physics but the last:
+- ⚠ *A lean is no stand*: paid from 25 deg off upright, as on open floor,
+  it stood leaning on the counter 17-20 deg off upright, and the served
+  get-up, which hands back at 10, never did -- neither up nor past 60 deg,
+  the get-up holding the legs for good. The stand is paid within 10 deg and
+  touching nothing of the box.
+- ⚠ *Keep the noise*: with no entropy bonus the action's noise fell from
+  0.23 to 0.06, and a get-up that stood at the stand's height 3 deg off
+  upright shook at 0.9 rad/s and was never handed back. The training physics
+  cannot say so: there a standing robot turns on its soles at ~1 rad/s,
+  getup3 too.
+- ⚠ *A lazy mean*: on today's body getup3 pays 4-7 times the torque charges
+  it paid on its own, and the fine-tune cut them by not trying: in the
+  training physics its mean action lay still on its back beside the box in
+  136 of 256 starts that getup3 stood from in 252. Staying down is charged
+  (`down`).
+- ⚠ *A one-sided get-up*: fine-tuned, it rose off its back by rolling to its
+  left, and lay still beside a box there (in the training physics 10 % stood
+  with the box at its left, 100 % at its right; getup3 96 and 100). Each
+  sample and its mirror image trained together (`-Getup-Wall-Mirror`) kept
+  it even: 100 and 100.
+
+The first round's pick, getupwall10's iteration 8450 (from getup3; never
+served), chosen on the training physics alone (`python -m humanoid_train.scan`,
+ten starts), stood from the counter's falls by catching the falling body
+against the counter rather than lying down along it (getup3 from none), and
+from a side facing the face only 0.25 m off it; but shoved sideways in the
+hall and left or front-left at the chest it SITS, or lies propped on the
+wall -- never past 60 deg, the get-up holding the legs, which since #684 is
+the `stuck` death at 20 s -- and its head struck 1 m/s or more harder than
+getup3's in 16 rows. Later checkpoints stood more often from a side facing
+the face and lost the back beside a box on its left again.
+
+**The wall get-up's second and third rounds** (#679; `--fall`'s tables read
+on #684's clock, `-Getup-Wall2-Mirror`, `-Getup-Wall3-Mirror`). Flown on past
+its first stand as the mission flies it -- the legs back to the standing
+policy, the watch on, a fall taken again -- until the `stuck` clock settles
+(`StuckClock`; the tables had stopped at the first stand, or watched on with
+nothing to take a second fall), getupwall10 regresses on SIX of the 151 falls
+getup3 lives through, not four: lying on its back, head back,
+against the counter, it stands in 5.1 s with its back to the counter, the
+standing policy sways back onto it 2.7 s later, and it ends on hands and
+knees. getup3 lives through 119. The three sitters hold one posture (the
+left hip flexed 2.1-2.8 rad, the right turned 0.65-1.0) -- a fixed point of a
+blind policy, as the prop on the wall and the hands and knees are; in the
+hall it sat down with its trunk never past 32 deg. Started there (`posed`: where it
+ended each fall, and the fall as the get-up was handed it,
+`humanoid_spike.py --fall-ends`), the training physics' mean action learned
+to rise from a sit in half the starts (0.04 to 0.50-0.54); a wall far in the
+way a body tips taught nothing, the training's clean tip standing 32 of 32
+against it. That round's pick stood from the hall's left and the counter's
+two, but stood faster with its soles 0.53-0.65 m apart (getup3's 0.32), and
+given that stance the standing policy tipped within 2 s in nine falls the
+get-up then never stood from: 14 regressions. ⚠ A get-up trained never
+handing back stands where the standing policy cannot keep it. Trained handing
+back (`HandBackAction`), in the training physics:
+- ⚠ *Its stillness is not the training's*: waiting for the trunk's turning
+  under the served get-up's 0.3 rad/s, the action's noise never let it settle,
+  and nothing was handed back.
+- ⚠ *A get-up keeps the legs where it can*: with the stand paid whoever held
+  it, both runs learned within 450 iterations to stand just outside the
+  hand-back; paid only handed back, within 170; with the wait charged too,
+  within 140 -- handed back, the get-up's own joint and torque charges read
+  the standing policy's stepping against the training physics' ~1 rad/s turn
+  on the soles (an episode's -18 against -0.5). Paid only handed back and
+  charged only while it holds the legs, it handed back in 0.78-0.86 of every
+  second it could through 1000 iterations.
+The served get-up since #679, `models/humanoid_getup.npz`, is getupwall14's
+iteration 9850 (that round's pick carried on handing back, chosen in
+`-Getup-Wall3`'s physics before the bar was read). It loses none of the 151
+falls getup3 lives through on the clock and gains 24 (lying along a face 57
+of 63 to getup3's 39, the counter's shoves 20 of 20 to 15, the house's 18 of
+20 to 17) -- all six of getupwall10's back, the hall shoved back standing in
+2.9 s, its soles 0.35 m apart and 0.26 m 0.4 s later -- and stands from the
+counter's falls inside the 20 s (2.8-14.8 s after the take). Lying on its
+side facing the face, touching it or 0.1 m off, it still never stands (the
+six of the 63 it does not). Its slowest of the 151: shoved left at the
+chest, it sits, and rises 18.2 s after the take. Its head strikes in fewer
+of the rows (58 to getup3's 68), softer at worst in every table but the
+bow's: there 7.0 m/s, the rim of its cap, from the stand shoved forward at
+30 N*s (getup3 1.3), and 10 falls from a bow 1 m/s or more harder. On 130
+falls outside the bar (the shoves at 35 and 55 N*s, the bar's 45; laid 0.05
+and 0.18 m off a face), never trained on, it lives through 110 to getup3's
+93 and loses 3 of getup3's: shoved right at 35 N*s it sits in a posture its
+posed starts never held, and one fall back down the flight. Read again on
+the tree it is served on (over staging's 13ddef7, beside getup3, on one pod
+of the CPU type the rounds were read on, 11-13), the 151 and the 130 came out
+row for row as they had; the counter's 14, flown on that pod for both (the
+rounds had flown them on the dev box), part from the dev box's flights by
+the CPU (one, n1425-1, does not fall there), and it stands from the 13 that
+fall (getup3 from none).
 
 **A bow is no fall** (#520). The IMU is on the pelvis and the body has no
 waist, so a bow the standing policy is asked tilts it by the whole bow, and
@@ -2008,23 +2119,24 @@ range, or a stand's trim read the floor's held bow 2.3 deg tipped, not
 2.5 deg going down and 1.5 coming up, and stage 5's 38 shoves from the
 stand come out row for row as before. From each posture a reach takes,
 shoved four ways at 10-45 N*s (`--fall`'s third table; on the standing
-policy alone, graded by us, then as served; times from the shove):
+policy alone, graded by us, then as served; times from the shove; the
+waist's body and its standing policy, waist16, 11-13):
 
 | posture | falls | taken first by the tilt, the collapse | ahead of the strike, s | shoves it stood through called falls: now, off upright | stood, served |
 |---|---|---|---|---|---|
-| the stand | 11 of 16 | 8, 3 | 0.22-0.60 | 0 of 5, 0 | 11, 2.7-4.1 s |
-| -0.20 m, 0.55 rad | 10 of 16 | 7, 3 | 0.05-0.40 | 0 of 6, 0 | 10, 2.7-4.0 s |
-| -0.22 m, 0.80 rad | 10 of 16 | 7, 3 | 0.04-0.46 | 0 of 6, 6 | 10, 2.6-4.7 s |
-| -0.25 m, 0.95 rad | 9 of 16 | 6, 3 | 0.04-0.45 | 0 of 7, 7 | 9, 2.6-3.9 s |
-| -0.25 m, 1.10 rad | 9 of 16 | 6, 3 | 0.03-0.48 | 0 of 7, 7 | 9, 2.6-3.9 s |
+| the stand | 10 of 16 | 7, 3 | 0.24-0.43 | 0 of 6, 0 | 10, 2.9-4.2 s |
+| -0.20 m, 0.55 rad | 8 of 16 | 6, 2 | 0.05-0.42 | 0 of 8, 0 | 8, 2.8-3.8 s |
+| -0.22 m, 0.80 rad | 8 of 16 | 6, 2 | 0.06-0.43 | 0 of 8, 8 | 8, 2.7-3.5 s |
+| -0.25 m, 0.95 rad | 8 of 16 | 6, 2 | 0.06-0.45 | 0 of 8, 8 | 8, 2.6-4.9 s |
+| -0.25 m, 1.10 rad | 8 of 16 | 6, 2 | 0.06-0.50 | 0 of 8, 8 | 8, 2.7-4.1 s |
 
-The most a shove it stood through tipped it past its posture was 8.4 deg.
+The most a shove it stood through tipped it past its posture was 7.2 deg.
 ⚠ A forward fall from a bow folds at the knees, and THE COLLAPSE TAKES IT,
-0.03-0.08 s before they strike: lying on its face is only 27 deg past the
+0.05-0.08 s before they strike: lying on its face is only 27 deg past the
 deepest bow, so the tilt alone would never fire there. As served the head
-struck in 22 of the 49 falls at 1.0-5.3 m/s (on the standing policy alone,
-in 36 at 0.2-5.0): the get-up's training tips its falling starts over from
-the stand, never from a bow. `reach_routine` says True only of a hand
+struck in 18 of the 42 falls at 0.3-7.0 m/s (getup3 15, at 0.7-6.0; on the
+standing policy alone, in 35 at 0.5-8.1): the get-up's training tips its
+falling starts over from the stand, never from a bow. `reach_routine` says True only of a hand
 holding at its goal now, never on a stop or a fall, which ends it at once;
 a fall ends a ramp of the arm (`move`) too -- ramped on, it drove the
 stand-up's fresh reach -- and the stand-up keeps the grippers as they were
@@ -2041,12 +2153,16 @@ climbing in 11 s, peaked at 108 and 89 %) -- and coming down, in 3.3 s, the
 knee peaks at 116, the ankle's pitch at 92 and its roll at 53 (88 % of the
 RS03's). The estimates the parts were chosen on put the knee and the hip's
 roll at ~92 and the hip's turn at ~51: flown, the hip's roll is 52-63 and
-its turn 24-37. Getting up keeps every leg part inside its ratings (peaks
-to 73 %, RMS to 72 % over 2-3 s) and spends the arms whole: the upper
+its turn 24-37. Getting up off its back, its front and its side (the served
+get-up, #679; 11-13) keeps every leg part under its peak -- the hip's pitch
+to 118 N*m off its front, 98 % of the RS04's (getup3: 88, 73 %) -- with RMS
+to 94 % of its rating over the 2-3 s (getup3 72 %); holds the waist home at
+its RS03's whole 60 from every start, its RMS 116 % of its rating over the
+2.2 s off its back (getup3 to 96 %); and spends the arms whole: the upper
 arm's twist and the elbow (RS02) at their 17 N*m peaks from every start,
-and the shoulder's pitch and roll (RS03) at their 60 off its front and its
-side. Nothing past a rating; the arms have no margin for a body heavier
-than this one.
+the shoulder's pitch (RS03) at its 60 off its front and its side and its
+roll off its side. Past a rating only for a burst of seconds; the arms have
+no margin for a body heavier than this one.
 
 **Whether it can be served** (`humanoid_spike.py --speed`): the same walks
 in the same house, each body through the Navigator with its own senses,
@@ -2574,7 +2690,9 @@ under the hand with its edge 8 cm behind it (30):
   face and pushed it 4 cm back in; straight, the hand drops 8 mm past the
   front, under the open drawer. ⚠ So from over its head the arm swings
   forward and down through whatever stands ahead: on the drawing, through a
-  0.72 m counter 0.28 m ahead.
+  0.72 m counter 0.28 m ahead. ⚠ And judged as it stands, it is flown as it
+  stands: off the stand, the stand waits until such an arm is home (#693;
+  below, "The way home flown in the posture it was judged in").
 
 **Flown again** on the rule as it stands, against `9357d53`:
 
@@ -7484,10 +7602,12 @@ the place by the walk's own hand-over (`set_table_pass`, NOT OFFERED and paid
 nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
-walker (`scripts/solve.py --feature pass --from tour`; the reading is
-below). What developing it took, each measured on the loop's pods (AMD EPYC
-7B13, osmesa, each draw its own noise; rows in
-`~/pluggybot-training/loop-1113/l4-shelf/`):
+walker (`scripts/solve.py --feature pass --from tour`; the readings are
+below), three times, and has not met it. What developing it took, each
+measured on the loops' pods (AMD EPYC 7B13 and 7K62, Xeon Gold 6138,
+osmesa, each draw its own noise; rows in
+`~/pluggybot-training/loop-1113/l4-shelf/` and, round 3's,
+`~/pluggybot-training/loop-1114/n4-pass/`):
 
 - **A carried piece hangs under the pass's top.** The carry pose holds the
   cup's grip at 0.89 m and the plate's at 0.865, 0.23-0.26 m ahead of the
@@ -7500,14 +7620,21 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
   the counter). Set out 0.18-0.20 m in, the cup was gripped and the hand-over
   swept it into the counter's edge; the pieces lie 0.06-0.11 m in, and each
   is pulled back over the edge before the walk.
-- **A grip's descent holds its line.** Re-targeted off the hand's sensed
-  place (`go`), the cup's descent drifted 1.4-3.6 cm back and 11 of 16 grips
-  closed on nothing; a pull straight down that gives across its way (`give`
-  1) slid on the force reading's phantom 5-8 N -- 3.6 cm back in one flight,
-  19 cm forward with the cup pushed in another. Straight down holding its
-  line, the cup's grips landed 1.5-3.4 cm short of its middle. Gripped 4.9-5.5
-  cm short it was lost on the pull back or the walk, 7 short closed on
-  nothing.
+- **A grip's descent holds its line, and its arm.** Re-targeted off the
+  hand's sensed place (`go`), the cup's descent drifted 1.4-3.6 cm back and
+  11 of 16 grips closed on nothing; a pull straight down that gives across
+  its way (`give` 1) slid on the force reading's phantom 5-8 N. Held to its
+  line (`give` 0), the 10 cm pull down still drifted 0.9-1.6 cm (sd) across
+  the jaws from a hover that had landed within 0.3-0.4 cm of the cup's
+  middle, and put a pad on the lid's rim 2-5 times in 32 (the jaws clear the
+  70 mm cup by 1 cm a side). Reached for 5 cm over it the grip landed within
+  0.3 cm -- but the arm took another configuration there, and its pull-back
+  off the pass ran out of reach 14 of 30 (the base's 1 of 29). Brought down
+  by `move_hand` from the 10 cm hover, the arm's configuration comes down
+  with it: across the jaws within 0.2 cm (sd), none on the rim in 32. But a
+  hover that lands 0.8 cm or more short of the middle still brings the jaws
+  down on the lid: 5 of the third reading's 64 (below). Aimed 0.5 cm past
+  the middle too, the pull-back ran out of reach 7 of 27: not done.
 - **The stance turns 5-10 deg as an arm goes out**, and a reach planned
   before it put the plate's grip 4-9 cm off its 8 mm wall: the plate and the
   fork are reached to a hover 6 cm over their grip, read again there,
@@ -7571,11 +7698,88 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
   0.35 m and the front stop's 0.40 m ahead and 0.27 to each side: a carried
   piece pokes 0.10-0.15 m past the inflation on its side, and its outer edge
   past the front stop's half-width, so a walk that hugs a jamb on the
-  carrying side would strike it. Not changed (the pass's route has no door).
+  carrying side would strike it. ROUND 3 COUNTED WHAT IT COSTS this route
+  (every carried piece's touches of the room's furniture, by verb, over
+  1,307 dev flights: 645 cups, 494 plates, 299 forks carried through a
+  walk): during the Navigator's own walks a carried piece touched it 8
+  times -- the fork a dining chair 6, the plate 2, about 1 % of their
+  carries -- and the cup never; its costs are at the route's ends, the
+  procedure's (the plate on the pass at the hand-over in 315 flights, the
+  fork in 87; the plate on table 0 during the approach's steps in 37,
+  below). The Navigator is not changed.
+- **Round 3's instruments** (the loop of 11-14; `~/pluggybot-training/loop-1114/n4-pass/`,
+  each flight beside `solve.py`'s own): a free piece coming down past 0.3
+  m/s and under which verb, a carried piece or the robot touching the room,
+  each held piece's place and tilt in its grip after every verb, and the
+  planner's cells round a walk that found no way. They read the second
+  reading's "pick-up" misses as the lay's: the plate's 80 N shut at the pass
+  flickers its contact (a let-go and a hold 0.1 s apart), and the plate in
+  every one came down at the TABLE.
+- **The plate strikes the pass at the hand-over, and tilts in its jaws.**
+  From the stance the table check's distances gave (its tag 0.45 m ahead,
+  the pass's face 0.34), the hand-over took the carried plate into the
+  counter's edge in 30 of 32 legs, and from there it rode 6-18 deg tilted in
+  the pinch (14-25 at the put-down's hover). The descent's touch flattens
+  most; one still 10-24 deg tilted after it was let go 1.5-3.7 cm over the
+  table and came down at 0.5-0.63 m/s, a drop. Eased to the gripper's least
+  squeeze (5 N) first, the same flights settled flat in the jaws on the
+  table and were let go at its top (`test_solutions`).
+- **A long pull-back by `pull` re-poses and falls; by `move_hand` it does
+  not -- for the plate.** The left hand holds the plate (and the fork) with
+  its arm over the top (shoulder roll 2.8 rad). Brought back 0.27 m by the
+  force move, the posture jumped to a 20 cm crouch, a 31 deg bow and a 15
+  deg waist turn for the whole way (a force move takes another posture as
+  its arm misses), and over the second reading's and round 3's flights the
+  plate pulled back 0.26-0.30 m fell 12 of 50 (0.20-0.23 m: 0 of 99), the
+  fork 7 of 9 (3 of 46). A position move takes one posture for its whole
+  path: the same 0.27 m in a 16 cm crouch, no bow, no fall in 32 -- so the
+  plate is taken from 0.50 m (the pass's face 0.39 ahead) and brought back
+  to 0.23 by `move_hand`: struck 12 of 32, laid 23 where the old stance laid
+  17 on the same draws (`test_solutions`). Not the fork: from 0.49 m by
+  `move_hand` its pelvis still came 0.25-0.3 m toward the pass and 2 of the
+  first 4 fell at the hand-over; the fork keeps the table check's distances.
+- **A carried plate's low side meets table 0 on the approach.** At the
+  place's final stance the table's edge is about 0.13 m ahead of the soles'
+  middle and a carried plate reaches 0.31-0.40 m ahead: level (its bottom at
+  0.81) it clears the 0.72 m top, but tilted 38-53 deg in the pinch its low
+  side rides at 0.70-0.75 and the approach's steps drive it into the edge
+  (dropped carried in 8 of the 64 full sequences that first took the plate
+  from 0.50 m).
+- **The cup's put-down: its crouch.** The cup's spot is 24 cm right of the
+  card, and the right hand reaches the table's height there crouched: the
+  pull down takes a 16 cm crouch the reach to its hover did not, and the
+  stance turns about 2 deg as it does (the cup 1.5 cm further, 0.9 cm left:
+  sd 0.6/0.5). A crouching reach tilts a cup in the jaws -- of 196 put-downs,
+  4 of 139 reached uncrouched tilted past 10 deg, 22 of 39 crouched 8 cm, 11
+  of 13 crouched 16 cm (set down tilted, it rests 4 cm toward the robot or
+  topples at the let-go) -- and the crouch followed how far right of the
+  card's line the robot stood. Reached at its final height instead, the
+  crouch in the reach, it tilted 10 of 25 and laid 7 of 32 (the base 15).
+  Turned 4 deg right of square for the cup (`PASS_CUP_FACING`), its target
+  nearer the hand's middle (-0.18 m aside, not -0.24), none of 19 tilted,
+  and its rests' spread was 0.8 / 1.2 cm (toward / left) about a constant
+  bias; its offsets are the card's frame, turned by the card's angle in the
+  stance (`atan2(spot.ny, spot.nx)`: square-on, a 3 deg error is 1.3 cm
+  toward the robot), and moved by where dev draws set the cup down
+  (`PASS_CUP_AT`).
+- **A carried plate or fork walls the robot in.** The robot's own body is
+  left out of its depth camera by its geoms, and a held piece only within
+  `HELD_DROP_M` (0.12 m) of the grip: the cup, gripped at its middle, lies
+  inside it; the plate's rim reaches 0.18 m from its grip and the fork's head
+  0.13. Seen in the band and the depth camera's layer as the robot turns at
+  the pass, it rings the robot round: "no route over the floor mapped so
+  far", 4.5-4.8 m short after 0-2 s, or 0.1-0.4 m short of the place's
+  standoff. Walks lost carrying: the cup 1 of 64, the plate 2-6 of 32 a
+  round, the fork 5-7 of 32. With the self-filter at 0.20 m (measured, NOT
+  changed: its volume is Ben's call 5 on #682): the plate lost 0 of 32, the
+  fork 0 of 32 (its own base 6). The walk to the place's standoff is no
+  longer insisted on (`if not drive_to(...)`): stopped 0.1-0.4 m short, it
+  goes on to the card's own steps.
 - **The bar's readings: NOT MET.** Written before any flight (24 of 32 draws
   over the tour, a fall failing the try, on walk2 and on the carry walker,
   one pod, then 32 held-out draws each, sealed by the frozen commit), and
-  read twice on one pod (an AMD EPYC 7B13, osmesa):
+  read twice on one pod (an AMD EPYC 7B13, osmesa), then a third time on
+  another (an AMD EPYC 7K62):
   - At b531491 (the cup aimed 2.5 cm short): walk2 0 of 32, the carry walker
     0; held out, 1 (laid in 421 s) and 0. The first piece not laid, a flight
     (walk2's bar and held-out draws, then the carry walker's): the cup let
@@ -7591,8 +7795,9 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
     in 1 (34 before). Walk2's first piece not laid, the bar's draws and the
     held-out: a put-down off its place 13 and 16 -- the cup's, set down a
     median 1.5 cm right of its spot and up to 7 cm either side of it; a
-    pick-up at the pass 4 and 8 (the plate came down as its grip shut, near
-    the pass's edge, 14 times in the 64); a fall 3 and 0 (the fork's pull
+    pick-up at the pass 4 and 8 -- in fact the plate coming down at the
+    TABLE's put-down, read as the pick-up's by a contact flickering as its
+    grip shut (round 3, above); a fall 3 and 0 (the fork's pull
     back from the pass felled the robot 3 times in each reading's bar
     draws); a cup let go by the walk's hand-over 2 and 0 (its pull back
     still ran out of reach in 4).
@@ -7601,6 +7806,64 @@ below). What developing it took, each measured on the loop's pods (AMD EPYC
     fall): its walk leaves the card a median 0.46 m ahead and 6 cm to its
     right, where walk2's leaves it 0.52 ahead and 5 cm to its left, and the
     reference's put-downs are walk2's stances.
+  - At bc07d5e (round 3, above), on walk2 alone (nothing argued for serving
+    the carry walker): 15 of 32; held out (sealed by bc07d5e), 11; each laid
+    in 387-494 s. Two draws were flown both by `solve.py` and by round 3's
+    instrumented runner, and they agreed in grade and sim time; the reading
+    went through the runner. Over the bar's 32, the cup was laid in 22, the
+    plate in 30 and the fork in 25. The first piece not laid in each flight
+    (the bar's draws, then the held-out), each flight read:
+    - **the lay**, 8 and 14:
+      - The cup's put-down: 3-4 cm off in 7 and 8 cm once, and tipped in
+        the jaws in 2. Its force move down takes a waist turned a further
+        15-30 deg, or a 16 cm crouch, and carries the cup about 2 cm across,
+        give or take 1.2 cm (sd).
+      - The fork's: 3 cm off in 5, where its grip lands along the handle
+        varying over 5 cm. Its put-down was out of reach once, and it was let
+        go over the table twice.
+      - The plate's: out of reach in 2, 3 cm off once, let go tilted once.
+      - In 4 of these 22, the approach had left the robot 12-24 cm across
+        the card's line from where it stands at the median; 8 approaches in
+        10 end within 4 cm of it.
+    - **the grip**, 5 and 1:
+      - The cup was lost at its pick in 5. Each was reached to a hover
+        0.8-1.3 cm short of its middle, the jaws met the lid on the descent
+        (held back), the cup tipped 34-46 deg in the jaws, and the lift read
+        it gone. Every hover within 0.8 cm either way came down straight.
+      - The fork's reach stopped short once, after `near`'s 0.18 m step
+        aside.
+    - **the carry**, 2 and 3:
+      - The plate, riding tilted in its pinch, slid off at table 0 on the
+        approach in 3, once after striking the pass.
+      - The cup's pull back ran out of reach and the hand-over let it go in 2.
+    - **a fall**, 2 and 3: every one was the fork's pull back from the pass,
+      the pull itself or the hand-over after it.
+    - **the walk**, 0 and 0.
+
+    The tally the first two readings were read by takes a piece's first
+    let-go. Read that way, this reading's first misses are a put-down 8 and
+    13, a pick-up 6 and 4, a carry 1 and 1, and a fall 2 and 3.
+- **What round 3 left, measured beside its reading** (not in the
+  reference; round 3 ended with the reading):
+  - **The fork's pull-back as a fixed length** from where its hand gripped
+    (0.23 or 0.20 m, where the reference goes to 0.21 m wherever it
+    gripped), its leg alone from the tour on 64 dev draws each, each draw's
+    variants on one pod: falls 3 → 2 and 1, laid 35 → 33 and 33. At 0.20 m
+    the fork ends further out, and 14 walks walled themselves in. Not a
+    lever: it lays no more, and it saves 1-2 falls in 64.
+  - **The self-filter at 0.20 m, at the place level:** the frozen
+    reference's whole place on 64 more dev draws (27 laid) walled itself in
+    3 times, the first miss in only one, now that the walk to the standoff
+    is not insisted on. The legs' evidence for Ben's call 5 stands (above),
+    and it could buy at most 1-3 places in 64.
+  - **Named, not measured:**
+    - the put-downs brought down by a position move from the hover, as the
+      cup's pick is (the lay is 22 of the reading's 38 misses, and the force
+      move down re-poses);
+    - the cup's hover corrected when it lands short of the middle (its tag
+      is on its lid, under the hand there);
+    - the plate's tilt in its pinch;
+    - the approach's lateral error at the table.
 
 ## The arms keep off the other robot (issue #678)
 
@@ -8186,7 +8449,7 @@ whose hooks on the first robot are the world's activities, the stream's
 frames, the recorder and the real-time pacer (Rowan's 5.8 s passed in 3.1
 wall s, unpaced, unstreamed). Flown as live (`humanoid_drift_spike.py
 --asked walk`: the pair, Luca walking the lobby's walk, Rowan asked through
-the real `interrupted()` by a mind that answers carry on after 5.8 s): Luca's
+its real interrupt by a mind that answers carry on after 5.8 s): Luca's
 physics stepped none of the ask's 2,900 steps; it lay on the floor 1.4 s
 into the ask while its filter's tilt read 1.5 deg; 0.78 s after the answer,
 as the filter's correction caught up, its fall watch fired (live: 0.8); and
@@ -8196,21 +8459,22 @@ whatever of the fall's turning that arc does not undo stays as a heading.
 Whatever else the other robot was doing, the ask stopped its body as it
 stood (below).
 
-**What is true now** (`tick._Loop.run`): a blocking `run` begun inside
+**The hold (#690)** (`tick._Loop.run`): a blocking `run` begun inside
 `run_many` is the loop's -- every robot applied in the loop's order, one
 world step, every robot booked -- each other robot held through its wait
-(`run_pair`'s: its body's own hold, its scans matched), one wait across the
-ask's think slices, closed once its own routine drives it again, and its own
-routine left where it was, so no second robot's blocking call can begin
-inside the first's. What such a run raises that is not its routine's own --
-a held robot's wait's, the step's -- is `run_many`'s to raise
-(`tick._Raised`): inside the asker's stack, the procedure runner's `except
-Exception` took the other robot's error for its own. `_ask_interrupt` is the
-one such run in `src/`: every other blocking twin (the explore, a charge, a
-decision, a walk) is called only by scripts and tests. Flown, the other
-robot doing each thing as the second's interrupt is asked for 5.8 s
+(`run_pair`'s: its body's own hold, its scans matched), one wait across
+consecutive runs (an ask's think slices were one each), closed once its own
+routine drives it again, and its own routine left where it was, so no second
+robot's blocking call can begin inside the first's. What such a run raises
+that is not its routine's own -- a held robot's wait's, the step's -- is
+`run_many`'s to raise (`tick._Raised`): inside the asker's stack, the
+procedure runner's `except Exception` took the other robot's error for its
+own. The ask was the one such run in `src/`, and none is left (#692, below):
+every blocking twin (the explore, a charge, a decision, an errand, a walk) is
+called only by scripts and tests, and the hold is kept for the next. Flown,
+the other robot doing each thing as the second's interrupt is asked for 5.8 s
 (Rowan's), 30 and 115 (`INTERRUPT_TIMEOUT_S`; the drift spike's `--asked`),
-before (the base, on a pod) -> now (on the dev box):
+before #690 (on a pod) -> held (on the dev box):
 
 | the other robot, as the ask flies | 5.8 s | 30 s | 115 s |
 |---|---|---|---|
@@ -8221,25 +8485,69 @@ before (the base, on a pod) -> now (on the dev box):
 | plugged in at its station | leaned 16 deg -> held, charging | leaned 17 deg -> held, charging | leaned 23 deg, fell after, `stuck` -> held, charging |
 | turning a `step`, 90 deg | leaned 4.7 deg -> held, turned | fell -> held, turned | fell -> held, turned |
 
-Before, its physics stepped none of the ask's steps in any of the 18; now
+Before, its physics stepped none of the ask's steps in any of the 18; held,
 every one, its trunk (but for the get-up's own fall) at most 1.2 deg off
 upright through any ask, and each ended within 0.01 m and 0.2 deg of the
 truth. Held, a robot stands where its legs' policy has it (the walker
 marking time, the standing policy holding, a get-up getting up), its hand's
 own loop holding its reach, its plug in, its senses on.
 
-**The price.** While one robot's interrupt is asked, the other's errand
-pauses, standing, for the whole ask -- up to 115 s of think and its slices.
-A walk or a `step` counts none of the pause: the held robot is told how long
-it was held (its stepper's `held`, into `Navigator.held_s`, as an arm's wait
-for its way is, #678), and a walk goes on with its patience whole and a
-fresh plan -- told nothing, asked 115 s, the lobby's walk ran out of its 60
-s and gave up where it stood, and a `step` held 30 s read "out of time". A
-procedure's budget and a job's minutes run on through the pause.
-Before, the body went on without it. The whole fix is `_ask_interrupt` as a
-routine, yielding its think slices as `_decide_routine` does, so the other
-robot's routine runs on through the ask (not done: it moves `interrupted()`
-and its three callers, a walk's among them).
+**The ask a routine (#692), and what is true now.** Held, the other
+robot's errand paused, standing, for the whole ask -- up to 115 s of think
+and its slices -- while a procedure's budget and a job's minutes ran on (a
+walk or a `step` counting none of it: the held robot is told how long, its
+stepper's `held`, into `Navigator.held_s`). The ask is a routine now
+(`HubLifecycle.interrupted_routine`), its think slices yielded as
+`_decide_routine`'s are, so the other robot's routine runs on through it.
+Flown on the dev box on osmesa, the same 18, held (a0df301) -> going on
+(#692), when the other robot's routine ended, s after the answer (before it:
+inside the ask; the standing, the hand's, the get-up's and the charge's
+routines last the ask's length by the spike's making, so held they end it
+later):
+
+| the other robot, as the ask flies | 5.8 s | 30 s | 115 s |
+|---|---|---|---|
+| walking the lobby's walk | +12.1 -> +6.1 | +15.2 -> -18.1 | +13.6 -> -103.2 |
+| standing, resting | +10.8 -> +5.0 | +35.0 -> +5.0 | +120.0 -> +4.9 |
+| a hand out at a counter's height | +13.8 -> +9.9 | +38.0 -> +9.9 | +123.0 -> +9.8 |
+| getting up from a shove | +28.1 -> +22.3 | +52.3 -> +22.3 | +137.3 -> +22.2 |
+| plugged in at its station | +10.1 -> +4.3 | +34.3 -> +4.3 | +119.3 -> +4.3 |
+| turning a `step`, 90 deg | +0.5 -> -5.3 | +0.5 -> -29.5 | +0.5 -> -114.6 |
+
+Going on, each ends the same seconds after the answer whatever the ask;
+the lobby's walk asked 115 s arrived at t=21.2 s, 11.9 s into the ask (held,
+at t=137.9 s). In both, every one of each ask's steps was the other robot's
+own, nothing fell but the get-up's own shove, and each ended within 0.009 m
+and 0.18 deg of the truth.
+
+The asker's own walk is never asked from inside: a walk's `stop` reads only
+that an interrupt is due (`interrupt_due`), the walk -- or a `find` -- ends
+where it stands, `DRIVE_STOPPED`, its verb asks (`steps._asking`), and
+carried on a walk goes on from there on a fresh plan and a find with its
+search (`resume`: begun afresh, it walked back to its address and looked
+round again where it had), each with the patience its own clock left (its
+record's seconds: a hold the walk counts out, and the ask, are none of it,
+and never past the run's budget); stopped, the verb is `stopped:
+interrupted` as before. A walk's ask is inside its verb, so a death or a
+fall ends it at once (#671), its row kept `unanswered`, its call never
+collected; an ask between two verbs ends so too (`steps.asked_routine`),
+and a fall there makes the next verb the step the run stopped at, never
+begun. Flown on the real body
+(`~/pluggybot-training/loop-1114/n3-692/asker/`: the second robot's
+procedure walking the lobby's walk, its interrupt asked 3 s in), held
+inside its walk on a0df301 it walked 17.5 s in all and arrived at t=43.9 s,
+asked 20 s; on #692 its walk stopped after 3.0 s where it stood, its verb
+asked, and carried on it walked on from there with 57 s of its 60 -- 14.5 s
+more, the same 17.5 s walked and the same arrival to the step (asked 115 s,
+17.3 s both ways, arriving at t=138.7 s both). Told to stop, it stood 4.43
+m short in both. Standing between its two walks it rested 8.6 s into the
+ask, as between two verbs it would, and the other robot may ask it aside
+there (#415); held inside its walk it never rested. A find asked 3 s into
+its walk to its address the same way: held inside it on a0df301, it found
+tag 60 at t=43.4 s, its record saying 37 s, the ask's 20 among them; on
+#692 it stopped, asked and went on with its search -- the walk to the
+address taken again from where it stood -- and found it at the same step,
+its record one find of 17 s, both walks on its trail.
 
 **Nothing else moves.** On the same pod, a robot alone (600 s) and the
 pair's day with a fall and a death arranged fly the base's trajectory bit
@@ -8248,7 +8556,284 @@ identical, two runs each tree, and the pair's day again on the dev box);
 the 201 flights of the falls above, the drift spike's walking falls in the
 lobby and two drift flights (Luca's and Rowan's draws) are the base's row
 for row; and the pair's recording, flown as its fixture is, is the base's
-but for two wall-clock stamps.
+but for two wall-clock stamps. With the ask a routine (#692), on the dev
+box on osmesa beside loop-staging (6956d89, #693's), a robot alone (600 s)
+and the pair's day with a fall and a death arranged fly its trajectory bit
+for bit (1,201 and 543 state samples), and the pair's recording, flown as
+its fixture is, is its own and the committed fixture's but for two
+wall-clock stamps of 11,705 lines.
+
+## The way home flown in the posture it was judged in (issue #693)
+
+**What happened.** On 11-12 at 19:59 UTC Luca ran `door_run24` at the
+cupboard's lever on the storeroom's counter: six pulls held fast, an
+`open_hand`, then a `withdraw` that said "you fell on the way home". Flown
+from where Luca stood at the door's 33 draws, each its own noise (the loop of
+11-13/14; `~/pluggybot-training/loop-1113/l5-small/`), 5 of 33 fell 2-4 s
+after the withdraw began and 10 of 33 with no step back after it, each the
+same way: an open jaw pressed on the counter's top for about a second, 29-45
+N*s up, and the robot tipped 10-19 deg backward.
+
+**Why: judged in one posture, flown in another.** The way home is judged on
+the robot's model of itself as it stands (`Reach.way_home`), and the stand
+was asked as the arm set off (`_go_home`). As each fall's last way home
+began -- after the 8 cm line out, the hand 6 cm ahead of the soles' middle
+and 0.85 m up -- no part of the arm was ahead of the robot's front (the
+toes, 0.117-0.121 m), so the judgment took it straight home, unchecked: an
+arm with none of it ahead worked over nothing there (above, "The way
+home"). In the bow the reach had left (0.3 rad, 4 falls of 5) that straight
+way stays behind the toes, 0.107 m at most against a front at 0.110 on the
+statue; on the stand's statue, where the ask carried it, the same joints
+swing 3.4 cm past the toes and down to 0.55 m. Flown: the trunk unbowed 17
+-> 3 deg in 0.4 s, the pelvis came 4.7 cm forward, and the hand went 3 cm
+forward and 5 cm down onto the top, 1-1.5 cm behind its edge. The fifth
+(draw 22) was crouched 16 cm with the waist turned 30 deg, the hand beside
+the counter on the robot's left: the pelvis rose and the waist turned home
+under an arm coming down there. Each way home's judgment was recorded as it
+was made and walked again on the statues
+(`~/pluggybot-training/loop-1114/n2-693/c/judge_trace.py`, `replay_judge.py`).
+
+**What is true now** (`Reach._go_home`, `_ahead`, `stand_home`;
+`HumanoidBody.release_routine`; `HumanoidMission.to_walk_routine`):
+- Off the stand -- bowed, crouched or turned -- an arm with none of it ahead
+  of the robot's front has the stand once it is home (its command at the
+  rest, or at the carry pose a walk carries it at): flown as it was judged.
+  An arm with some of it ahead has it as it sets off, as before; so does
+  one going home beside the other arm (each judged apart: a walk's
+  hand-over sends both, though none of the 738 ways home flown here began
+  with the other arm anywhere but at rest), and one whose posture is still
+  walking to a plan a retreat cut short (`settled`). A posture asked in the
+  meantime ends the wait (`hold_posture`).
+- A withdraw waits for its trunk to stand still in the stand
+  (`Reach._posture_held`), never the posture the policy is shown alone,
+  `STAND_BACK_S` at most, and its word is the arm's as it came home: asked
+  late, a stand's ramp arrived while the trunk still rose, and a waist
+  turning home after the arm swung the hanging arm into a counter's face, its
+  drivers reading it off its rest (draw 22: "held" of an arm home).
+- A walk's hand-over asks the stand as each arm's own way does -- at once
+  with no arm out -- and gives the walker a trunk standing still, the same
+  bound.
+
+**Flown** (one Vast pod, an AMD EPYC 7B13, beside 9d31fe6; Luca's door at
+its 33 draws with and without the step back, and the hands check at
+set-outs 0-31, each its own noise; `~/pluggybot-training/loop-1114/n2-693/`):
+
+| | Luca's door, fell / door passed | no step back | lid | drawer | door | cube | table |
+|---|---|---|---|---|---|---|---|
+| 9d31fe6 | 5 / 7 | 10 / 6 | 26 (0 fell) | 21 (3) | 24 (1) | 20 (1) | 24 (3) |
+| this | 0 / 8 | 0 / 8 | 26 (0) | 21 (2) | 24 (1) | 20 (1) | 24 (2) |
+
+At set-outs 32-127 (the table's 32-63), beside the base on the same pod:
+the lid 77 and 77 of 96, the drawer 67 then 66, the door 71 then 72, the
+cube 60 then 61, the table 30 and 30 of 32, falls 6 then 5; 412 of the 416
+the base's by verdict. Every flight that moved -- the drawer's 2 at 0-31
+and 72 and 127 above, the table's 27, the door's 38 and the cube's 111 --
+parted where a withdraw before it waited for the trunk to stand still,
+never where the stand waited for an arm -- most 0.12 s later, the cube's
+111 1.8 s sooner (its next look's bow waited on a trunk already still): the
+drawer's two lost their falls there, and the drawer's 127 its pass (its
+last way home, some of the arm ahead and the stand rising as before, put a
+jaw on the drawer's front and pushed it from 19 cm to 12). The station's
+trials are the base's: docked and unplugged from 36 of 36 starts round the
+standoff, the same rows, and plugged in and unplugged from 140 of 140 seats,
+5 of them 0.1-0.6 s apart (their withdraws, at the stand, waited on the
+trunk). The place laid from the pass (`set_table_pass`, merged beside this;
+never offered), over the tour's 32 draws on the same pod: 15 at a0df301, its
+own reading, and 14 with this, falls 2 then 1 -- every flight parted at its
+first walk with a piece in hand, whose hand-over asks the stand as the arm's
+own way does (as it sets off for its carry pose, or once there), where
+9d31fe6 asked it as the arm's line out began; its misses after are its own
+(a `spot` out of view, a `close_hand`, a `reach` out of reach, a walk given
+up, a fall in a `move_hand`). Every fall's last way home at the door pressed nothing on the top
+(0-2.3 N*s up, where 9.4-44.9), and draw 22 opened the door. `scripts/humanoid_spike.py --view
+way_home` stages it: bowed at a 0.72 m counter whose edge is 13 cm ahead of
+the soles' middle, the left arm where draw 8's way home began, sent home --
+nothing on the top, standing; `--stand-at-once` asks the stand as the arm
+sets off, as before, and a jaw comes down on the top 0.5 s in, 38 N*s up,
+and the robot goes over backward at 2.6 s (12 cm: 40 N*s, the same fall;
+14 and 15 cm: 3 N*s, standing). `--strip way_home` draws both. Of the check's 160 flights 139 are
+the base's in every phase and verdict; drawer 2's and table 27's falls are
+gone (each a flight parted at its first withdraw's wait for the trunk, then
+failing standing), and 19 others parted to the same verdicts.
+
+**The other options, flown on the same pod:**
+- *The stand once the hand is behind the front* (#693's second option, its
+  first half): nothing changed at the door -- the hand was behind it
+  already. Where a hand was ahead, held until it came behind, the door's
+  reference lost 4 passes with 3 falls: crouched and turned at the lever,
+  its side way's roll-out swept the jaws into the cupboard's opened door
+  (20-46 N for 1.5 s), where standing up as it rolled out lifted them clear.
+- *Lift before going home* (the third, 5 cm): moves the falls, never removes
+  them -- 4 and 14 fell, the flights parting at their first withdraw and the
+  last way home still pressing a jaw on the top (31-44 N*s).
+- *The whole posture held until every arm is home* (the first, and the
+  second's other half flown in reverse): no fall at the door, but the table
+  laid 1 place of 32 (30 falls) and the door's reference lost 3: a turn held
+  until home swung the hanging arm into a table's leg as the waist came home
+  (16-31 N, then 108-231 N as the next `move` rolled it out), the robot down
+  in the next `spot`.
+- *The surface the depth camera reads under the hand* (the fourth): the
+  falls' ways home never pass over the top in the posture they are judged
+  in, so alone it changes none of them (flown alone, Luca's door's 33 were
+  the base's, its 5 falls with them). Holding the posture only where one
+  depth frame (848 x 480) sees the held way home clear of everything but
+  what the hand worked on removed every fall at the door, and laid 1 table
+  of 32 (30 falls): the frame judges the way home, never the posture's
+  return after it.
+
+**What it leaves open.** An arm with some of it ahead still comes home as
+the stand rises under it: the judgment checks only what is under the hand,
+on its model as it stands, and the drawer's set-out 2 fell that way before
+(its hand's housing on the counter's top, 21.6 N*s up). An arm held home
+turned has the waist come home after it, its hand hanging: at draw 22 its
+pads brushed the counter's face (9 N), and the hanging arm swung into a
+table's leg where every arm was held -- the word a withdraw gives is the
+arm's as it came home, so a knock after reads "home". And the stand comes
+once the arm's command is home, its drivers a few degrees behind. Neither
+timing is safe in every room -- held, the crouch's side way met a door;
+standing, the bow's straight way met a counter -- and a way home that looks
+(the depth frame's points against the arm's path and the posture's return
+after it) would tell them apart (Hands.md §7).
+
+A `step` begun as the robot staggers hands its legs back moving (#693's
+fifth option): at 9d31fe6 the step back after each pressed fall handed them
+back at 0.30-0.81 m/s and the standing policy fell; with this rule none of
+these flights' hand-backs came over 0.13 m/s, but a stagger from anything
+else would hand back so. Holding the walker on, 2 s at most, until its legs'
+own reckoning reads under 0.15 m/s (prototyped on the base alone) stood 2 of
+the 3 robots still pressed and fell in 1, and moved every flight whose walk
+ended still moving: Luca's door passed 12 (7), parted at its walk in, and the
+cube's 32 parted at their first step, 18 placed with 3 falls (20 and 1).
+Not built.
+
+## A heading lost in a fall, searched for at every heading (issue #690's net)
+
+**Why.** A humanoid's odometry is held through a get-up and its heading is
+its IMU's alone (`HumanoidMission._after_physics`), so a turn its IMU did
+not follow stays in the heading: past the wide search's 15 deg every scan is
+refused for good. On 11-12 Luca's came out of a fall 120 deg off and its
+map refused every scan for the 26 minutes to the pause. The cause there was
+the other robot's blocking interrupt ("One robot's interrupt asked, the
+other robot held"); this is the net under any other.
+
+**After a get-up, measured first.** The 201 mission falls of that section,
+flown again at 6956d89 on one pod (a Xeon Gold 6138), each scan from the
+stand on recorded with the matcher and the map as they stood: a replay of
+the matcher over the recording reproduces the flight's verdicts exactly,
+and a variant's up to its first verdict that differs, where the flight would
+part (`~/pluggybot-training/loop-1114/n6-690b/`: `mission_fall2.py`,
+`replay.py`). 129 fell and 118 stood (101 at 13ddef7: the get-up beside a
+wall), 11 stuck. At the stand the heading was within 1.44 deg and the
+belief 0.71 m off at the median, 2.04 at most (the fall's travel). The first
+scan fitted in 80 of the 118, the rest after at most 26 refused (2.7 s);
+95 were then within 0.3 m and 3 deg, and 20 fits were `doubted` 0.3-0.9 m
+off along the lobby, its long walls fixing one direction (8 kept it to the
+flight's end: #681's "not done").
+
+Then the heading knocked at the stand -- turned where the belief stood, as
+the IMU's filter turns it when it rights the tilt by the shortest arc --
+and the robot standing 30 s after (a procedure's fall ends its run and the
+mind is asked, #671) or walking on at once (the loop's own walks). Standing
+knocked 40, 120, -40 or -120 deg, not one scan of 472 get-ups fitted in 40
+s, the bounded search refusing each at 21 ms; walking on knocked 120 deg, 9
+of 118 laid scans in `ok` 3.6-8.7 m off from 10 s on, a copy of the house
+laid askew begun. Knocked 160 deg, the served wide search itself took the
+lobby's half turn in 72 of 118 (below).
+
+**The net** (`ScanMatcher.fell`, `TURNED_*`). The get-up's stand
+(`HumanoidMission._stood_up`) arms it; then the next TURNED_SEARCHES (6)
+wide searches that find nothing look again at every heading -- the wide
+lattice at 2 deg, scored on 150 returns within 6 m with the walls widened
+by the step's arc there, its 5 best poses (two at one place 20 deg apart
+are two) searched cell by cell and fitted -- and a pose is taken as the
+wide search takes one: FOUND_SHARE with every direction fixed, unrivalled,
+found again by the next search, carried there by odometry (`_carried`: a
+heading off walks the belief another way than the body, so the correction
+moves where the pose does not). Any scan that fits ends it, and so does a
+warp (`start_at`); the last search runs only to confirm the one before; and
+a fall starts the run of refusals again, what the wide search found before
+it gone with it (#690's review).
+
+**What the lobby taught it.** The lobby is a 3 x 12 m hall, and a scan
+turned half round fits it about as well as the truth: of 312 searches that
+found both, the half turn put 0.90-1.11 of the truth's points on walls
+(median 0.99), the better in 115. So:
+
+- *It runs only where the served wide search found nothing.* Run first, on
+  the 118 right-headed get-ups it refused 10 of the served search's 16
+  right relocations, the half turn its rival; run after it, never.
+- *Its rival is a find 0.8 as good* (`TURNED_RIVAL_SHARE`, where the wide
+  search's is 0.9): at every heading the half turn is always looked at, and
+  walking on knocked 40 deg it once explained the scan better than the
+  truth, the truth's points on walls 0.889 and then 0.867 of its own, and
+  was taken twice running, 3.03 m and 180 deg off. At 0.8 nothing was taken
+  wrong, 517 taken right where 0.9 took 525 (the log of every search's
+  finds, its rule replayed at each share).
+- *Only while the belief is within TURNED_NEAR_M (0.5 m) of where it stood
+  up.* Walked on with its heading off, the belief walks another way than
+  the body, the truth leaves the lattice and the half turn is left
+  unrivalled: replayed walking on knocked 120 deg, 5 of 118 were taken
+  onto it, 1.4-4.7 m off, each 1.24-1.73 m from the stand's belief, where
+  every pose taken right was found within 0.88 m (all but three within
+  0.5).
+
+The net replayed over every get-up (the rule as built; 6956d89's flights):
+
+| the 118 get-ups, knocked at the stand | today: a scan fitting in 40 s | the net: taken right | onto its map, 0.4 m askew (E) | refused, as today | taken wrong |
+|---|---|---|---|---|---|
+| not knocked, walking on / standing 30 s | 118 / 118 (95 / 97 within 0.3 m; the rest doubted along the hall, or E) | never searched | -- | -- | 0 |
+| 40 deg, standing | 0 | 60 | 3 | 55 | 0 |
+| 80 deg, standing | 1 (wrong) | 60 | 3 | 55 | 0 |
+| 120 deg, standing | 0 | 60 | 3 | 55 | 0 |
+| 160 deg, standing | 72, every one the served search's half turn | 52 | 3 | 63 (61 the served search's half turn first) | 0 |
+| -40 deg, standing | 0 | 58 | 3 | 57 | 0 |
+| -120 deg, standing | 0 | 57 | 2 | 59 | 0 |
+| 40 deg, walking on | 0 | 56 | 3 | 59 | 0 |
+| 120 deg, walking on | 9 (all off) | 57 | 3 | 58 | 0 |
+| -120 deg, walking on | 4 (all off) | 57 | 2 | 59 | 0 |
+
+The E scenarios had their belief put 0.42 m off before the fall, the map
+laid through it: right in that map's frame. The takes come at the second
+search, 1.9-2.1 s after the stand, a few at the sixth (6.1 s). Knocked 160
+deg, the served search's half turn comes first in 61, and the net's take at
+2 s comes before the half turn the base took later in 9.
+
+**Flown**, the branch beside the base on the same pod, a process a flight
+(26d233f, before the review's fixes, which move no take in the replays):
+B0's 201 flights the base's row for row; knocked 40 and 120 deg, standing
+and walking on, 233 of the 472 get-ups taken back, each ending within
+0.024 m and 0.25 deg where the base ended 0.13-9.2 m and 39-123 deg off,
+2.0 s after the stand at the median (6.1 at most) -- the replays' counts,
+group for group; 261 relocations over the 673 flights, none more than 0.5
+m from the truth (the E scenarios' 0.39-0.41, right in their map). A robot
+alone's drift flights, the drift spike's six walking falls in the lobby and
+the pair's recording flew the base's but two wall-clock stamps (at
+8bf386e); the pair's day with its arranged knock-over -- a warp onto its
+side that sets the robot's yaw to 0, a turn its IMU never sees -- parts at
+47 s, where the branch takes the 106.7-deg knock back to 0.03 m and 0.2
+deg of the truth.
+
+**The cost.** Flown on the dev box one flight at a time, a search took 110
+ms (112 at most); a get-up whose heading is right makes none (0 in 236), a
+knocked one two when it is taken back and, refused, six as flown (0.66 s;
+five since the review, the last running only to confirm), the worst single
+scan 176 ms (with its bounded search and the served wide search's 41).
+Against the pair's ~1.2x real time on the deploy box's one physics thread,
+about 0.17 s of slack a second (the pacer only sleeps: lag, paid back at
+that margin), the worst is ~4 s of lag and a stream frame 0.1 s late at
+most six times. Today's lost run is the bigger cost -- a refused scan 21
+ms, about 0.25 s a sim second, past the slack for as long as the robot is
+lost -- and the net's take ends it: the refused flight spent 19 s of its
+111 s after the stand matching, the one taken back 1.2 s of its whole
+flight.
+
+**Not done.** A robot the net refuses is still lost, and still not told:
+#690's option (b), a History line once its map has refused every scan for
+a minute, changes what the robots read (Ben's call, drafted). Nor is the
+served wide search's own half turn: knocked about 160-200 deg, it takes the
+lobby's turned pose (its truth outside its 15 deg, so no rival to it); a
+rival at every heading there refused 10 of its 16 right relocations of
+right-headed get-ups.
 
 ## Debugging workflow that worked
 

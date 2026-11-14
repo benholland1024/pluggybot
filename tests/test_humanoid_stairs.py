@@ -522,3 +522,139 @@ def test_the_getup_policy_stands_it_up_off_its_back(head):
   root = model.body(hm.ROBOT_ROOT).id
   assert g.stood, f"still down after {GETUP_S:g} s"
   assert d.xmat[root][8] > 0.95 and d.xpos[root][2] > 0.65
+
+
+#: How the body lies along a counter's face (its front's way and its head's,
+#: in the face's terms: n off it into the room, a along it), and its nearest
+#: part's gap to it, m -- two of #679's lying table's falls.
+ALONG_A_COUNTER = {"on its front, head back, 0.1 m off": ("-z", "-a", 0.1),
+                   "on its side facing it, 0.25 m off": ("-n", "+a", 0.25)}
+
+
+@pytest.mark.parametrize("lying", sorted(ALONG_A_COUNTER))
+def test_the_getup_stands_it_up_lying_along_a_counter(lying):
+  # #679: the get-up trained on open floor (getup3, served until then) never
+  # stood a body lying along the storeroom's counter like this -- 20 s on, a
+  # `stuck` death -- and the served one, trained beside a box and handing
+  # back as served, stands in 2-4 s; here on a bare floor beside a box the
+  # counter's size, the waist held home as the mission holds it.
+  from pluggybot.evaluation.counter import COUNTER_D, COUNTER_H
+  from pluggybot.humanoid.body import HumanoidBody
+  from pluggybot.humanoid.getup import GetupDriver
+  from pluggybot.humanoid.policy import StandDriver
+  from pluggybot.humanoid.reach import Reach
+  face_x = 0.6
+  spec = mujoco.MjSpec.from_string(hm.body_xml())
+  spec.worldbody.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[COUNTER_D / 2, 1.2, COUNTER_H / 2],
+                          pos=[face_x + COUNTER_D / 2, 0.0, COUNTER_H / 2])
+  model = spec.compile()
+  d = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, d, 0)
+  front, head, gap = ALONG_A_COUNTER[lying]
+  axes = {"-n": (1.0, 0.0, 0.0), "+a": (0.0, 1.0, 0.0), "-a": (0.0, -1.0, 0.0),
+          "-z": (0.0, 0.0, -1.0)}
+  front, head = np.array(axes[front]), np.array(axes[head])
+  quat = np.zeros(4)
+  mujoco.mju_mat2Quat(quat, np.column_stack([front, np.cross(head, front), head]).flatten())
+  root = model.body(hm.ROBOT_ROOT).id
+  adr = model.jnt_qposadr[model.body_jntadr[root]]
+  d.qpos[adr:adr + 3], d.qpos[adr + 3:adr + 7] = [face_x - 1.0, 0.0, 0.4], quat
+  mujoco.mj_forward(model, d)
+  # ...its lowest part 1 cm over the floor and its nearest `gap` off the face,
+  # by the geoms that collide (`humanoid_spike.py`'s lying table's)
+  ours = [g for g in range(model.ngeom) if model.geom_bodyid[g] != 0
+          and (model.geom_contype[g] or model.geom_conaffinity[g])]
+  boxes = [(d.geom_xpos[g] + d.geom_xmat[g].reshape(3, 3) @ model.geom_aabb[g][:3],
+            np.abs(d.geom_xmat[g].reshape(3, 3)) @ model.geom_aabb[g][3:]) for g in ours]
+  low, near = min(c[2] - h[2] for c, h in boxes), max(c[0] + h[0] for c, h in boxes)
+  d.qpos[adr:adr + 3] += [face_x - gap - near, 0.0, 0.01 - low]
+  mujoco.mj_forward(model, d)
+  stand = StandDriver(model, d)
+  reach = Reach(model, d, stand)
+  g = GetupDriver(model, d, trunk=stand.trunk, joints=stand.joints)
+  g.begin()
+  while d.time < HumanoidBody.GETUP_BUDGET_S and not g.stood:
+    reach.hold_waist()
+    g.step()
+    mujoco.mj_step(model, d)
+  assert g.stood, f"still down {HumanoidBody.GETUP_BUDGET_S:g} s on: the stuck death"
+  assert d.xmat[root][8] > 0.95 and d.xpos[root][2] > 0.65
+
+
+def _getups():
+  from pluggybot.humanoid.getup import GETUP_NPZ
+  return sorted(p.name for p in GETUP_NPZ.parent.glob("humanoid_getup*.npz"))
+
+
+def test_the_getup_charges_the_head_as_built(head):
+  # #679: a get-up's training charges a hit on the head's parts (`HEAD`, in
+  # `training/`, which cannot import this package: read off its source) --
+  # matched whole, as mjlab's sensors match a pattern -- and they are the
+  # head's parts as the body builds them (`model.HEAD_GEOMS`): getup3 trained
+  # when the head was one cylinder, and charged that one alone.
+  import ast
+  import re
+  from pathlib import Path
+  model, _ = head
+  src = Path(__file__).resolve().parents[1] / "training" / "humanoid_train" / "getup.py"
+  patterns = next(ast.literal_eval(node.value) for node in ast.parse(src.read_text()).body
+                  if isinstance(node, ast.Assign)
+                  and any(isinstance(t, ast.Name) and t.id == "HEAD" for t in node.targets))
+  names = {model.geom(g).name for g in range(model.ngeom)}
+  struck = {n for n in names if any(re.fullmatch(p, n) for p in patterns)}
+  assert struck == set(hm.HEAD_GEOMS)
+
+
+def test_the_wall_getup_trains_handing_back_as_the_served_getup_hands_back():
+  # #679's third round: training hands the legs to the standing policy where
+  # the served get-up does (`getup.STOOD_*`) and takes them back where the
+  # served watch would (`FALL_TILT_RAD`, `COLLAPSED_M`) -- read off its source,
+  # as `training/` cannot import this package. Never handed back in training,
+  # round 2's pick stood with its soles 0.6 m apart, and the standing policy
+  # given that stance fell within 2 s.
+  import ast
+  from pathlib import Path
+  from pluggybot.humanoid import getup as served
+  src = Path(__file__).resolve().parents[1] / "training" / "humanoid_train" / "getup.py"
+  values = {}
+  for node in ast.parse(src.read_text()).body:
+    if not isinstance(node, ast.Assign) or not isinstance(node.targets[0], (ast.Name, ast.Tuple)):
+      continue
+    target, value = node.targets[0], node.value
+    names = [t.id for t in target.elts] if isinstance(target, ast.Tuple) else [target.id]
+    parts = value.elts if isinstance(value, ast.Tuple) and len(names) > 1 else [value]
+    for name, part in zip(names, parts):
+      values[name] = part
+  # STOOD_UP is cos(radians(deg)): its degrees are the literal inside
+  stood_deg = ast.literal_eval(values["STOOD_UP"].args[0].args[0])
+  assert stood_deg == pytest.approx(math.degrees(served.STOOD_TILT_RAD))
+  read = {k: ast.literal_eval(values[k]) for k in ("HAND_BACK_M", "HAND_BACK_S", "RETAKE_DEG",
+                                                  "RETAKE_M")}
+  assert read["HAND_BACK_M"] == served.STOOD_M
+  assert read["HAND_BACK_S"] == served.STOOD_S
+  assert read["RETAKE_DEG"] == pytest.approx(math.degrees(served.FALL_TILT_RAD))
+  assert read["RETAKE_M"] == served.COLLAPSED_M
+
+
+@pytest.mark.parametrize("npz", _getups())
+def test_a_getup_sees_the_joints_it_drives(head, npz):
+  # #679: a get-up's inputs are the joints it drives (getup3's 78, carried on
+  # since the waist), and the served runtime builds them off the joints its
+  # file lists -- but mjlab lists every joint of the body (25 since the
+  # waist), so `quad_train.export` writes the ones its task's actor names.
+  # Exported over every joint, the get-up built 80 inputs for a 78-input net.
+  from pluggybot.humanoid.getup import GETUP_NPZ, GetupDriver
+  from pluggybot.humanoid.policy import StandPolicy
+  model, _ = head
+  policy = StandPolicy(GETUP_NPZ.parent / npz)
+  assert policy.joint_names == policy.action_joints
+  # ...and every list the file keeps a joint at a time lines up with them
+  for key in ("default_joint_pos", "joint_stiffness", "joint_damping"):
+    assert len(policy.meta[key].split(",")) == len(policy.joint_names), key
+  d = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, d, 0)
+  mujoco.mj_forward(model, d)
+  g = GetupDriver(model, d, policy=policy)
+  g.begin()
+  assert g.observation().shape == policy.mean.shape
+  g.step()

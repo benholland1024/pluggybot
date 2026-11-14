@@ -23,6 +23,40 @@ docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 - A refused note now says how full the file is, as in "`Notes.md` holds 64
   of 64 entries"; before, it said one more than the file held. `Notes.md`
   and `Findings.md` now come in every turn with their count, as `holds`.
+- Your get-up is a new one, and it can stand you up where you have fallen
+  beside a wall or along a counter. Before, a fall there often ended with
+  you stuck on the floor. Fallen on your side with your face against a
+  wall, you still cannot get up, and a fall off the stairs' landing still
+  ends with you stuck.
+- A `withdraw` made while you are bowed, crouched or turned, with no part
+  of that arm out ahead of your front, now brings the arm home first and
+  stands you up after. Before, you stood up as the arm set off, and at a
+  counter that could press your open hand down on its top and tip you over
+  backward. An arm that is out ahead of your front still comes home as you
+  stand up.
+- Every `withdraw` now waits until your trunk stands still before your
+  next verb: about a second longer where you worked bowed, crouched or
+  turned, and no longer where you stood. A walk begun with a hand out
+  brings it home the same way.
+- While the other robot is asked something in the middle of one of its
+  errands, you now carry on with what you were doing. You no longer stand
+  still until its answer comes.
+- When you are asked in the middle of a procedure's walk or `find` whether
+  to stop, the walk ends where you stand while you answer; if you carry on,
+  it goes on to its goal from there with the patience it had left. While
+  you are being asked you stand still, and the other robot may ask you to
+  step aside. A fall or a death ends the question, and your History says
+  the errand ended before your answer came.
+- After a get-up, when what your LIDAR sees does not fit your map and the
+  usual search near where you believe you are finds no fit, you now search
+  again facing every way, while you are within half a metre of where you
+  stood up. Before, the search reached only 15 degrees either side of the
+  way you believed you faced, so a fall that turned you further could
+  leave you lost.
+- When an answer chooses `procedure:<name>` and nothing runs, your History
+  now says why, as in "ran nothing: `procedure:open_it` is not in your
+  library -- this answer's `undefine` removed it, and an undefine is done
+  before the action". Before, History said nothing of it.
 
 ## 2026-11-13
 

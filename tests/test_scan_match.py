@@ -763,6 +763,40 @@ def test_the_served_body_set_down_far_from_its_belief_finds_itself(house):
   body.close()
 
 
+def test_the_served_body_up_from_a_fall_its_heading_turned_finds_itself(house):
+  # The served body's own LIDAR in its house, through the scan's own seam
+  # (issue #690): the living room mapped by a scan standing, then its belief
+  # 0.5 m off and turned 120 deg -- what the other robot's blocking interrupt
+  # left Luca with on 11-12 -- and its get-up's stand called as the get-up
+  # calls it. The served wide search finds nothing; at every heading, the
+  # pose found twice puts the belief back. Never up from a fall, the same
+  # scans are refused.
+  from pluggybot.perception.lidar import LIDAR_PERIOD
+
+  def turned(stood):
+    body = _humanoid(house)
+    m = body.mission
+    m._scan_step()
+    x, y, th = m.pose
+    m.odo.correct(x - 0.4, y + 0.3, th + math.radians(120.0))
+    if stood:
+      m._stood_up()
+    whys = []
+    for _ in range(2 * sm.LOST_RUN):
+      m.data.time += LIDAR_PERIOD
+      m._scan_step()
+      whys.append(m.matcher.last.why)
+    (bx, by, bth), (tx, ty, tth) = m.pose, m.true_pose()
+    body.close()
+    return whys, math.hypot(bx - tx, by - ty), _deg(bth - tth)
+
+  whys, off, deg = turned(stood=False)
+  assert whys == ["inconsistent"] * (2 * sm.LOST_RUN) and deg > 100.0
+  whys, off, deg = turned(stood=True)
+  assert whys == ["inconsistent"] * (2 * sm.LOST_RUN - 1) + ["relocated"], whys
+  assert off < 0.05 and deg < 1.0
+
+
 def test_a_restart_keeps_the_matchers_field_and_the_imus_stream(house):
   # A new piece of state that decides anything is kept (issue #345): the
   # field the next match reads and where the IMU's noise had got to.
@@ -946,6 +980,283 @@ def test_a_restart_keeps_the_run_of_refusals_and_what_it_found(room):
   b.restore_kept(state, arrays)
   for r in scans[sm.LOST_RUN + 2:]:
     got_a, got_b = a.match(LOST, ANGLES, r), b.match(LOST, ANGLES, r)
+  assert got_a.why == got_b.why == "relocated" and got_a.pose == got_b.pose
+
+
+# ---- a robot up from a fall, its heading turned (issue #690) -----------------
+
+
+#: Up from a fall 0.5 m from TRUE, its heading turned 120 deg: what the other
+#: robot's blocking interrupt left Luca with on 11-12.
+TURNED = (TRUE[0] - 0.4, TRUE[1] + 0.3, TRUE[2] + math.radians(120.0))
+#: ROOM is nearly the same turned half round (its two long stubs are), and
+#: so is any box: an L, its north-east corner walled off, is not.
+NOOK = [(0.013, 0.021, 6.013, 0.021), (6.013, 0.021, 6.013, 2.521), (6.013, 2.521, 4.513, 2.521),
+        (4.513, 2.521, 4.513, 4.021), (4.513, 4.021, 0.013, 4.021), (0.013, 4.021, 0.013, 0.021),
+        (2.013, 0.021, 2.013, 1.5), (1.0, 3.011, 1.6, 3.011)]
+
+
+@pytest.fixture(scope="module")
+def nook():
+  rng = np.random.default_rng(0)
+  poses = ([(rng.uniform(0.5, 1.8), rng.uniform(0.5, 3.5), rng.uniform(-3, 3)) for _ in range(20)]
+           + [(rng.uniform(2.3, 4.2), rng.uniform(0.3, 3.7), rng.uniform(-3, 3)) for _ in range(20)]
+           + [(rng.uniform(4.6, 5.7), rng.uniform(0.3, 2.2), rng.uniform(-3, 3)) for _ in range(8)])
+  return mapped(NOOK, (-1, -1, 7, 5), poses)
+
+
+def _deg(a):
+  return abs(math.degrees(math.remainder(a, 2 * math.pi)))
+
+
+def test_a_robot_up_from_a_fall_its_heading_turned_is_found_at_every_heading(nook):
+  # Its odometry held through the get-up and its heading its IMU's, a
+  # heading the fall turned unseen is past the wide search's 15 deg for good:
+  # live, every scan refused for 26 minutes. Up from a fall (`fell`), a wide
+  # search that finds nothing looks again at every heading, and a pose found
+  # twice is taken. Never fallen, the same scans are refused.
+  rng = np.random.default_rng(41)
+  scans = [cast(NOOK, TRUE, rng) for _ in range(2 * sm.LOST_RUN)]
+  never = sm.ScanMatcher(nook)
+  assert [never.match(TURNED, ANGLES, r).why for r in scans] == ["inconsistent"] * len(scans)
+  m = sm.ScanMatcher(nook)
+  m.fell()
+  whys = [m.match(TURNED, ANGLES, r).why for r in scans]
+  assert whys == ["inconsistent"] * (len(scans) - 1) + ["relocated"], whys
+  assert m.last.accepted and not m.last.fuse
+  assert math.hypot(m.last.pose[0] - TRUE[0], m.last.pose[1] - TRUE[1]) < 0.03
+  assert _deg(m.last.pose[2] - TRUE[2]) < 0.5
+  assert m.turned_left == 0, "a pose taken still searches every heading"
+
+
+#: A hall symmetric under a half turn, as the lobby (3 x 12 m) nearly is.
+HALL = box(0.013, 0.021, 9.013, 3.021)
+
+
+def test_the_search_at_every_heading_takes_nothing_the_scan_turned_half_round_fits_as_well(
+    monkeypatch):
+  # MEASURED in the lobby: a scan turned 180 deg put 0.90-1.11 of the
+  # truth's points on walls (median 0.99) and was the best in 115 of 312
+  # searches; taken, the robot would face the wrong way down the hall. Two
+  # places at once are a rival (TURNED_RIVAL_SHARE), and nothing is taken.
+  rng = np.random.default_rng(42)
+  hall = mapped(HALL, (-1, -1, 10, 4), [(rng.uniform(0.6, 8.4), rng.uniform(0.6, 2.4),
+                                         rng.uniform(-3, 3)) for _ in range(30)])
+  # ...its half turn 1.1 m from the truth, both within the search's reach
+  true = (4.0, 1.3, 0.2)
+  turned = (3.6, 1.6, 0.2 + math.radians(120.0))
+  scans = [cast(HALL, true, rng) for _ in range(2 * sm.LOST_RUN)]
+  m = sm.ScanMatcher(hall)
+  m.fell()
+  assert [m.match(turned, ANGLES, r).why for r in scans] == ["inconsistent"] * len(scans)
+  # ...the premise: with no rival counted, it takes one of the two
+  monkeypatch.setattr(sm, "TURNED_RIVAL_SHARE", 2.0)
+  m = sm.ScanMatcher(hall)
+  m.fell()
+  assert [m.match(turned, ANGLES, r).why for r in scans][-1] == "relocated"
+
+
+def test_the_search_at_every_heading_waits_on_the_served_wide_search(room, monkeypatch):
+  # Up from a fall with its heading right and its belief past the bounded
+  # search -- most get-ups: a fall moves the body up to 2 m (the lobby's 118
+  # stood 0.71 m off at the median) -- the served wide search relocates it as
+  # before, and the search at every heading never runs. MEASURED, run
+  # first in the lobby, it refused 10 relocations the served one made right:
+  # the hall's scan turned half round was its rival.
+  m = sm.ScanMatcher(room)
+  m.fell()
+  ran = []
+  real = m._relocate_turned
+  monkeypatch.setattr(m, "_relocate_turned", lambda pose, pts: (ran.append(1), real(pose, pts))[1])
+  rng = np.random.default_rng(43)
+  whys = [m.match(LOST, ANGLES, cast(ROOM, TRUE, rng)).why for _ in range(2 * sm.LOST_RUN)]
+  assert whys[-1] == "relocated" and not ran
+
+
+def test_the_search_at_every_heading_takes_no_pose_a_turned_one_explains_nearly_as_well(
+    room, monkeypatch):
+  # MEASURED walking on knocked 40 deg in the lobby: the scan turned half
+  # round put 333, then 317, points on walls where the truth's put 296 and
+  # 275 -- 0.889 and 0.867 of them, under RIVAL_SHARE's 0.9 -- and was taken
+  # twice running, 3.03 m and 180 deg off. At every heading the half turn is
+  # always looked at: a find TURNED_RIVAL_SHARE as good is its rival.
+  half = (TRUE[0] + 2.0, TRUE[1], TRUE[2] + math.pi)
+  inliers = {TRUE: 296, half: 333}
+  m = sm.ScanMatcher(room)
+  monkeypatch.setattr(m, "_turned_candidates", lambda pose, pts: [TRUE, half])
+  monkeypatch.setattr(m, "_search", lambda start, pts, **kw: start)
+  monkeypatch.setattr(m, "_fit", lambda start, pts: start)
+  monkeypatch.setattr(m, "_judge", lambda asked, pts, fit, found=False, doubt=False: (
+    fit, "found", {"inliers": inliers[fit], "step": (0.0, 0.0, 0.0)}))
+  assert m._relocate_turned(TURNED, None) is None
+  # ...the premise: at the wide search's own share, the half turn is taken
+  monkeypatch.setattr(sm, "TURNED_RIVAL_SHARE", sm.RIVAL_SHARE)
+  assert m._relocate_turned(TURNED, None)[0] == half
+
+
+def _walking(k, per_scan):
+  """Scan k of a robot up from a fall standing its first LOST_RUN scans,
+  then walking `per_scan` a scan: (the truth, the belief that walked the
+  same steps through its heading turned 120 deg)."""
+  d = per_scan * max(0, k - (sm.LOST_RUN - 1))
+  return ((TRUE[0] + d * math.cos(TRUE[2]), TRUE[1] + d * math.sin(TRUE[2]), TRUE[2]),
+          (TURNED[0] + d * math.cos(TURNED[2]), TURNED[1] + d * math.sin(TURNED[2]), TURNED[2]))
+
+
+def _walked(nook, per_scan, seed=44):
+  m = sm.ScanMatcher(nook)
+  m.fell()
+  rng = np.random.default_rng(seed)
+  for k in range(2 * sm.LOST_RUN):
+    truth, belief = _walking(k, per_scan)
+    got = m.match(belief, ANGLES, cast(NOOK, truth, rng))
+  return m, got, truth
+
+
+def test_a_robot_walking_on_turned_is_found_again_where_odometry_carried_it(nook, monkeypatch):
+  # Walking on with its heading turned, its belief goes another way than its
+  # body, and the correction from it the next search finds is another: 0.4 m
+  # between them at 120 deg off moves it 0.7 m. The pose found, carried by
+  # odometry from the belief it was found from to the next search's, is the
+  # same.
+  m, got, truth = _walked(nook, 0.04)
+  assert got.why == "relocated"
+  assert math.hypot(got.pose[0] - truth[0], got.pose[1] - truth[1]) < 0.03
+  # ...the premise: compared as the served search compares, its corrections
+  monkeypatch.setattr(sm, "_carried", lambda found, then, now: (
+    found[0] - then[0] + now[0], found[1] - then[1] + now[1], found[2] - then[2] + now[2]))
+  m, got, truth = _walked(nook, 0.04)
+  assert got.why == "inconsistent" and m.turned_seen is not None
+
+
+def test_a_robot_that_walked_on_from_where_it_stood_up_searches_no_more(nook, monkeypatch):
+  # Walked on with its heading off, its belief has walked another way than
+  # its body and the truth leaves the lattice round it, and in a hall the
+  # scan turned half round is left there to fit unrivalled: MEASURED,
+  # walking on knocked 120 deg in the lobby, 5 of 118 were taken onto it,
+  # each 1.24-1.73 m from where it stood up; every pose taken right was found
+  # within 0.88 m. Past TURNED_NEAR_M, the search at every heading is over.
+  m, got, _ = _walked(nook, 0.07)
+  assert got.why == "inconsistent" and m.turned_left == 0
+  # ...the premise: with the stand anywhere near, the same walk is taken
+  monkeypatch.setattr(sm, "TURNED_NEAR_M", 2.0)
+  m, got, truth = _walked(nook, 0.07)
+  assert got.why == "relocated"
+  assert math.hypot(got.pose[0] - truth[0], got.pose[1] - truth[1]) < 0.03
+
+
+def _counted(m, monkeypatch, found_from=None):
+  """`m`'s searches at every heading counted, each finding nothing -- or,
+  from the `found_from`th on, a pose where the robot stands -- and the
+  searches it does not count stubbed: nothing to find, in 0 s."""
+  ran = []
+  kw = {"inliers": 300, "rms_m": 0.01, "weakest": 100.0, "weak_dir": (1.0, 0.0, 0.0),
+        "held": 0, "step": (0.0, 0.0, 0.0)}
+
+  def turned(pose, pts):
+    ran.append(1)
+    return (tuple(pose), kw) if found_from is not None and len(ran) >= found_from else None
+  monkeypatch.setattr(m, "_relocate_turned", turned)
+  monkeypatch.setattr(m, "_search", lambda *a, **k: None)
+  monkeypatch.setattr(m, "_relocate", lambda pose, pts: None)
+  return ran
+
+
+#: A scan of another room's walls where the map has its own: every fit refused.
+ELSEWHERE = box(0.4, 0.7, 3.1, 2.9) + [(1.7, 0.7, 1.7, 1.6)]
+
+
+def test_the_search_at_every_heading_ends_at_its_count_or_a_scan_that_fits(room, monkeypatch):
+  # TURNED_SEARCHES of them, ~0.1 s each on the physics thread, and only
+  # until the map fits a scan: a robot lost for good otherwise searched
+  # every heading every second (Luca's 26 minutes). The last runs only to
+  # confirm the one before (#690's review): what it found alone, no search
+  # after it would confirm.
+  m = sm.ScanMatcher(room)
+  m.fell()
+  ran = _counted(m, monkeypatch)
+  elsewhere = cast(ELSEWHERE, (1.2, 1.6, 0.9), np.random.default_rng(45))
+  for _ in range((sm.TURNED_SEARCHES + 2) * sm.LOST_RUN):
+    assert m.match(TRUE, ANGLES, elsewhere).why == "inconsistent"
+  assert len(ran) == sm.TURNED_SEARCHES - 1 and m.turned_left == 0
+  # ...and one found by the last but one is confirmed by the last
+  m = sm.ScanMatcher(room)
+  m.fell()
+  ran = _counted(m, monkeypatch, found_from=sm.TURNED_SEARCHES - 1)
+  whys = [m.match(TRUE, ANGLES, elsewhere).why for _ in range(sm.TURNED_SEARCHES * sm.LOST_RUN)]
+  assert whys[-1] == "relocated" and len(ran) == sm.TURNED_SEARCHES
+  m.fell()
+  assert m.match(TRUE, ANGLES, cast(ROOM, TRUE, np.random.default_rng(46))).accepted
+  assert m.turned_left == 0 and m.turned_seen is None
+
+
+def test_a_fall_starts_the_run_of_refusals_again(room, monkeypatch):
+  # #690's review: what the wide search found before the fall is gone with
+  # the run -- the fall moved the body under it, up to 2 m and turned -- and
+  # the next wide search comes LOST_RUN refusals after the stand, never the
+  # rest of a run begun before the fall.
+  m = sm.ScanMatcher(room)
+  rng = np.random.default_rng(48)
+  for _ in range(sm.LOST_RUN + 3):
+    m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
+  assert m.pending is not None and m.lost_run == sm.LOST_RUN + 3, "the premise: a run, and a find"
+  m.fell()
+  assert (m.lost_run, m.pending) == (0, None)
+  searched = []
+  monkeypatch.setattr(m, "_relocate", lambda pose, pts: searched.append(1))
+  monkeypatch.setattr(m, "_relocate_turned", lambda pose, pts: None)
+  elsewhere = cast(ELSEWHERE, (1.2, 1.6, 0.9), np.random.default_rng(49))
+  for _ in range(sm.LOST_RUN - 1):
+    m.match(LOST, ANGLES, elsewhere)
+  assert not searched
+  m.match(LOST, ANGLES, elsewhere)
+  assert searched == [1]
+
+
+def test_a_warp_ends_the_search_at_every_heading(room):
+  # #690's review: `start_at` (a warp: a restart put clear of the other
+  # robot, a script) puts the belief somewhere new, closing the anchor's
+  # window (`anchored(on=False)`); a search armed by a fall before it is
+  # over too, or it would carry what it found to a belief already right.
+  m = sm.ScanMatcher(room)
+  m.fell()
+  m.match(TURNED, ANGLES, cast(ROOM, TRUE, np.random.default_rng(50)))
+  assert m.turned_left and m.turned_from is not None, "the premise: armed, and where it stood up"
+  m.anchored(on=False)
+  assert (m.turned_left, m.turned_seen, m.turned_from) == (0, None, None)
+
+
+def test_a_scan_with_too_few_returns_near_offers_no_heading(room):
+  # #690's review: the lattice scores the returns within TURNED_RANGE_M, and
+  # on open ground with its walls 6-8 m off there are none: every pose read
+  # alike, and five fits ran from arbitrary starts for nothing.
+  m = sm.ScanMatcher(room)
+  m.refresh(*TRUE[:2])
+  far = np.full(len(ANGLES), sm.TURNED_RANGE_M + 0.5)
+  pts = m.points(ANGLES, far)
+  assert len(pts) >= sm.MIN_INLIERS, "the premise: a scan the matcher reads"
+  assert m._turned_candidates(TRUE, pts) == []
+  near = m.points(ANGLES, cast(ROOM, TRUE, np.random.default_rng(51)))
+  assert len(m._turned_candidates(TRUE, near)) == sm.TURNED_TRIES
+
+
+def test_a_restart_keeps_the_search_at_every_heading(nook):
+  # Both decide when the robot relocates (issue #345's rule): restarted
+  # after its first search at every heading, it relocates on the same scan
+  # as a robot never stopped.
+  rng = np.random.default_rng(47)
+  scans = [cast(NOOK, TRUE, rng) for _ in range(2 * sm.LOST_RUN)]
+  a = sm.ScanMatcher(nook)
+  a.fell()
+  for r in scans[:sm.LOST_RUN + 2]:
+    a.match(TURNED, ANGLES, r)
+  state, arrays = a.kept_state()
+  assert state["turnedLeft"] == sm.TURNED_SEARCHES - 1 and state["turnedSeen"] is not None
+  assert state["turnedFrom"] == list(TURNED[:2])
+  b = sm.ScanMatcher(nook)
+  b.restore_kept(state, arrays)
+  for r in scans[sm.LOST_RUN + 2:]:
+    got_a, got_b = a.match(TURNED, ANGLES, r), b.match(TURNED, ANGLES, r)
   assert got_a.why == got_b.why == "relocated" and got_a.pose == got_b.pose
 
 

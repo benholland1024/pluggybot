@@ -298,23 +298,21 @@ def test_the_map_still_growing_is_progress_and_a_map_standing_still_is_not():
   assert blind.last_drive["why"] == "stalled", "a body that reads no growth"
 
 
-def test_a_stop_ends_the_walk_as_an_abort_and_its_answer_costs_no_patience():
+def test_a_stop_ends_the_walk_as_an_abort_where_it_stands():
   """The drive asks `stop` every `STOP_EVERY_S`; a True ends it where it
   stands as `DRIVE_STOPPED` -- never one of the four ways a drive gives up
-  -- and the time a False took (a question to the mind, standing still)
-  counts against neither its patience nor its stagnation clock."""
+  -- and a False leaves it walking. It only reads (#692: the interrupt's
+  verb asks, standing), so nothing it answers takes time."""
   walk = _Walk(step=0.004)                              # 4 cm/s: slow progress
-  asked = []
+  asked, t0 = [], walk.data.time
 
   def stop():
     asked.append(walk.data.time)
-    if len(asked) == 3:
-      walk.data.time += 50.0                            # the mind thought for 50 s
     return len(asked) == 6
   assert tick.run(STEPPER, walk.drive_to_routine(5.0, 0.0, 20.0, stop=stop)) is False
   rec = walk.last_drive
   assert rec["why"] == nav.DRIVE_STOPPED and nav.DRIVE_STOPPED not in nav.DRIVE_GAVE_UP
-  assert len(asked) == 6 and rec["seconds"] < 20.0, "the 50 s ask came off its patience"
+  assert len(asked) == 6 and rec["seconds"] == pytest.approx(asked[-1] - t0, abs=0.05)
   assert "stopped by the robot's own interrupt" in nav.gave_up(rec)
 
 
@@ -337,8 +335,9 @@ def test_drive_to_takes_a_patience_the_code_caps():
 def _life(stops_at=None):
   """A life for one `drive_to`: a body that records what each walk was
   given and, asked `stop`, is ended by it (`last_drive`, as the drive
-  records it) -- and an interrupt that answers "stop" once `stops_at`
-  sim s have passed, latching `aborting` the way the lifecycle does."""
+  records it) -- and an interrupt due once `stops_at` sim s have passed,
+  answered "stop" when its verb asks it, latching `aborting` the way the
+  lifecycle does."""
   walks = []
   life = SimpleNamespace(data=SimpleNamespace(time=0.0, ctrl=[0.0]), model=None,
                          world=HUMANOID_HOME,
@@ -346,10 +345,13 @@ def _life(stops_at=None):
                          _say=lambda *a, **k: None,
                          drive_why=lambda x, y: "the walk gave up (why)")
 
-  def interrupted():
-    if stops_at is not None and life.data.time >= stops_at:
-      life.aborting = True
+  def due():
+    return life.aborting or (stops_at is not None and life.data.time >= stops_at)
+
+  def asked():
+    life.aborting = due()
     return life.aborting
+    yield
 
   def go(x, y, timeout=90.0, stop=None):
     walks.append({"timeout": timeout, "stop": stop is not None})
@@ -366,7 +368,7 @@ def _life(stops_at=None):
     life.data.time += seconds
     return
     yield
-  life.interrupted = interrupted
+  life.interrupt_due, life.interrupted_routine = due, asked
   life.body = SimpleNamespace(pose=(0.0, 0.0, 0.0), last_drive=None, falls=0,
                               pose_xy=lambda: life.body.pose[:2],
                               in_sight=lambda x, y: True,
@@ -401,7 +403,7 @@ def test_patience_is_the_walks_budget_and_never_past_the_programs():
   life.step_until = life.data.time + 25.0
   tick.run(STEPPER, st._drive_to(life, {"x": 3.0, "y": 0.0, "patience": 300.0}))
   assert [w["timeout"] for w in life.walks] == [st.DRIVE_TIMEOUT_S, 300.0, 25.0]
-  assert all(w["stop"] for w in life.walks), "every walk asks the interrupt"
+  assert all(w["stop"] for w in life.walks), "every walk stops for the interrupt"
 
 
 def test_a_walk_its_interrupt_stopped_stops_either_runner_as_interrupted():

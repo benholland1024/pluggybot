@@ -440,6 +440,8 @@ class _Arms:
     self.toward = []
     self.rest = {s: np.array([0.0, 0.1 if s == "left" else -0.1, 0.0, 0.3, 0.0, 0.0])
                  for s in hm.SIDES}
+    #: ...its posture the stand's (#693: off it, the stand waits for home)
+    self.posture = np.zeros(3)
 
   def out(self, side) -> bool:
     return self.phase[side] == "hold"
@@ -470,6 +472,9 @@ class _Arms:
 
   def home(self, side) -> bool:
     return self.phase[side] == "rest"
+
+  def _posture_held(self) -> bool:
+    return True
 
   def step(self) -> None:
     pass
