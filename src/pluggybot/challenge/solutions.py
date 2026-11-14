@@ -243,21 +243,34 @@ TABLE = _table_job()
 #:    counter); a tag out of the colour camera's picture, a turn of `b` rad
 #:    toward its side, then a step in (`near`);
 #:  - the cup gripped at its MIDDLE (aimed short, its side met each pad only
-#:    at the fingertip's corner and it crept out of the jaws:
-#:    `test_solutions`), the plate's wall 1 cm lower than the table check
-#:    grips it (the pads' tips over 0.7-0.9 cm of the wall, it slipped out),
-#:    the plate and the fork from a hover read again there and pulled
-#:    straight down (the stance turns 5-10 deg as an arm goes out);
-#:  - each piece pulled back over the counter's edge before the walk (the
-#:    carry pose holds it under the pass's top), the cup's hand to 0.29 m:
-#:    further, its arm runs out of reach, and the hand-over lets go of what
-#:    its lift could not raise;
+#:    at the fingertip's corner and it crept out of the jaws), brought down to
+#:    it from 10 cm over by `move_hand` (by `pull` it drifted across the jaws
+#:    onto the lid's rim; reached for nearer, the arm took another
+#:    configuration and its pull-back ran out of reach: `test_solutions`),
+#:    not read again at its hover (its tag is on its lid, under the hand);
+#:    the plate's wall 1 cm lower than the table check grips it (the pads'
+#:    tips over 0.7-0.9 cm of the wall, it slipped out), the plate and the
+#:    fork from a hover read again there and pulled straight down (the
+#:    stance turns 5-10 deg as an arm goes out);
+#:  - each piece brought back over the counter's edge before the walk (the
+#:    carry pose holds it under the pass's top): the cup's hand to 0.29 m
+#:    (further, its arm runs out of reach, and the hand-over lets go of what
+#:    its lift could not raise); the plate, taken from 0.50 m, to 0.23 by
+#:    `move_hand` (nearer the pass the hand-over struck it, and a `pull` that
+#:    long took a 31 deg bow over the counter and fell: `test_solutions`);
 #:  - the walk to the place the table's (`TABLE_APPROACH`), `PASS_BACK`
-#:    further back, its last step over 0.45 m in two; nothing steps aside
-#:    carrying;
+#:    further back, its last step over 0.45 m in two, its last turn the
+#:    facing its run wants (the cup's `PASS_CUP_FACING`); nothing steps aside
+#:    carrying; its walk to the standoff going on where it gave up (a carried
+#:    piece seen walls the robot in 0.1-0.4 m short) -- given up far off, the
+#:    card's spot there reads nothing and ends the run (each of 20 given up
+#:    4.4-5.3 m short);
 #:  - each piece set down from a hover over its spot, its offset in the hand
 #:    the grip's own, each put-down moved by where flights on walk2 set its
-#:    piece down (the hand's sensed place is 1.5-2 cm off).
+#:    piece down (the hand's sensed place is 1.5-2 cm off) -- the cup's in the
+#:    card's own frame, turned by the card's angle in the stance; the plate
+#:    eased to the least squeeze before it is let go (tilted in the jaws, let
+#:    go, it fell the last centimetres: `test_solutions`).
 PASS_TO = '''def to_pass(s):
   face(0)
   find(69, %(ax)g, %(ay)g, 600)
@@ -307,7 +320,23 @@ PASS_GO = '''def go(h, x, y, z, f, g):
 #: the check stands it took a crouch and a waist turn and fell, from 5 cm
 #: further back a bow of 0.55 rad that missed it by 13 cm.
 PASS_BACK = 0.01
-PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place():\n"),
+#: Where the walk to the place's last turn leaves the cup's trip facing, rad
+#: left of square (the table's `FACING` for the plate's and the fork's): the
+#: cup goes 24 cm right of the card, and a robot facing square reached for it
+#: crouched as far as it stood left of the card's line -- a crouching reach
+#: tilts a cup in the jaws (taken uncrouched 4 of 139 tilted past 10 deg,
+#: crouched 16 cm 11 of 13). Turned 4 deg right, none of 19 tilted and its
+#: rests' spread was 0.8 / 1.2 cm (SimNotes, "The place laid from the pass").
+PASS_CUP_FACING = -0.07
+#: Where the cup's hand is put down from the card's foot, in the card's own
+#: frame (m toward the robot, m to its right), the cup's offset in the hand
+#: taken off: its spot, 0.07 out and 0.24 right, moved by where dev flights
+#: from that stance set it down (the reference before aimed at 0.075, 0.24).
+PASS_CUP_AT = (0.066, 0.209)
+PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
+                 ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
+                 ("  drive_to(cx - %(back)g, cy - %(back)g, 180)\n",
+                  "  if not drive_to(cx - %(back)g, cy - %(back)g, 180):\n    pass\n"),
                  ("  if not step(x - %(ahead)g + %(nearer)g, 0):\n    pass\n",
                   "  x = x - %(ahead)g - %(back_pass)g\n  if x > 0.45:\n"
                   "    if not step(x / 2, 0):\n      pass\n    h = h + read(\"step.turn\")\n"
@@ -326,7 +355,8 @@ PASS_CUP = '''def lay_cup():
   if not reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
     withdraw("right")
     reach("right", x, y, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
-  pull("right", 0, 0, -1, 12, read("right.z") - cz, give=0)
+  if not move_hand("right", x, y, cz):
+    pass
   if not close_hand("right", 25):
     open_hand("right")
     close_hand("right", 25)
@@ -335,10 +365,11 @@ PASS_CUP = '''def lay_cup():
   oz = read("right.z") - cz + 0.075
   pull("right", 0, 0, 1, 20, 0.05, give=0)
   go("right", 0.29, read("right.y"), read("right.z"), 20, 0)
-  to_place()
+  to_place(%(cup_facing)g)
   spot(93)
+  a = atan2(read("spot.ny"), read("spot.nx"))
   tz = read("spot.z") - 0.055 + oz + 0.10
-  reach("right", read("spot.x") - 0.075 - ox, read("spot.y") - 0.24 - oy, tz, 0.707, 0, -0.707, 0, 1, 0)
+  reach("right", read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox, read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy, tz, 0.707, 0, -0.707, 0, 1, 0)
   pull("right", 0, 0, -1, 6, 0.15, give=0)
   open_hand("right")
   wait(0.4)
@@ -348,7 +379,7 @@ PASS_CUP = '''def lay_cup():
 PASS_PLATE = '''def lay_plate():
   budget(steps=120, seconds=1200)
   to_pass(-0.18)
-  near(90, 0.45, 0.184)
+  near(90, 0.50, 0.184)
   move("left_shoulder_roll", 0.9)
   move("left_elbow", 1.4)
   open_hand("left")
@@ -365,12 +396,16 @@ PASS_PLATE = '''def lay_plate():
     close_hand("left", 80)
   oz = read("left.z") - gz + 0.0434
   pull("left", 0, 0, 1, 20, 0.05, give=0)
-  go("left", 0.22, read("left.y"), read("left.z"), 20, 0)
-  to_place()
+  if not move_hand("left", 0.23, read("left.y"), read("left.z")):
+    pass
+  to_place(%(facing)g)
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
   reach("left", read("spot.x") - 0.20, read("spot.y") + 0.073, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
+  if not close_hand("left", 5):
+    pass
+  wait(0.5)
   open_hand("left")
   wait(0.4)
   pull("left", 0, 0, 1, 20, 0.09, give=0)
@@ -407,10 +442,10 @@ PASS_FORK = '''def lay_fork():
   oz = read("left.z") - gz + 0.0484
   pull("left", 0, 0, 1, 20, 0.05, give=0)
   go("left", 0.21, read("left.y"), read("left.z"), 20, 0)
-  to_place()
+  to_place(%(facing)g)
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
-  reach("left", read("spot.x") - 0.18, read("spot.y") + 0.155, tz, 0.5, 0, -0.866, 0, -1, 0)
+  reach("left", read("spot.x") - 0.18, read("spot.y") + 0.146, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
   open_hand("left")
   wait(0.4)
@@ -435,9 +470,10 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
     place = place.replace(old, new)
   terms = {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
-           "back_pass": PASS_BACK}
+           "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
+           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1]}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
-          (PASS_CUP, PASS_PLATE, PASS_FORK))
+          (PASS_CUP % terms, PASS_PLATE % terms, PASS_FORK % terms))
 
 
 PASS_LIBRARY, PASS = _pass_job()
