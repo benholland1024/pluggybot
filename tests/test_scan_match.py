@@ -1145,25 +1145,99 @@ def test_a_robot_that_walked_on_from_where_it_stood_up_searches_no_more(nook, mo
   assert math.hypot(got.pose[0] - truth[0], got.pose[1] - truth[1]) < 0.03
 
 
+def _counted(m, monkeypatch, found_from=None):
+  """`m`'s searches at every heading counted, each finding nothing -- or,
+  from the `found_from`th on, a pose where the robot stands -- and the
+  searches it does not count stubbed: nothing to find, in 0 s."""
+  ran = []
+  kw = {"inliers": 300, "rms_m": 0.01, "weakest": 100.0, "weak_dir": (1.0, 0.0, 0.0),
+        "held": 0, "step": (0.0, 0.0, 0.0)}
+
+  def turned(pose, pts):
+    ran.append(1)
+    return (tuple(pose), kw) if found_from is not None and len(ran) >= found_from else None
+  monkeypatch.setattr(m, "_relocate_turned", turned)
+  monkeypatch.setattr(m, "_search", lambda *a, **k: None)
+  monkeypatch.setattr(m, "_relocate", lambda pose, pts: None)
+  return ran
+
+
+#: A scan of another room's walls where the map has its own: every fit refused.
+ELSEWHERE = box(0.4, 0.7, 3.1, 2.9) + [(1.7, 0.7, 1.7, 1.6)]
+
+
 def test_the_search_at_every_heading_ends_at_its_count_or_a_scan_that_fits(room, monkeypatch):
   # TURNED_SEARCHES of them, ~0.1 s each on the physics thread, and only
   # until the map fits a scan: a robot lost for good otherwise searched
-  # every heading every second (Luca's 26 minutes).
+  # every heading every second (Luca's 26 minutes). The last runs only to
+  # confirm the one before (#690's review): what it found alone, no search
+  # after it would confirm.
   m = sm.ScanMatcher(room)
   m.fell()
-  ran = []
-  monkeypatch.setattr(m, "_relocate_turned", lambda pose, pts: ran.append(1))
-  # ...the searches it does not count stubbed: nothing to find, in 0 s
-  monkeypatch.setattr(m, "_search", lambda *a, **kw: None)
-  monkeypatch.setattr(m, "_relocate", lambda pose, pts: None)
-  elsewhere = cast(box(0.4, 0.7, 3.1, 2.9) + [(1.7, 0.7, 1.7, 1.6)], (1.2, 1.6, 0.9),
-                   np.random.default_rng(45))
+  ran = _counted(m, monkeypatch)
+  elsewhere = cast(ELSEWHERE, (1.2, 1.6, 0.9), np.random.default_rng(45))
   for _ in range((sm.TURNED_SEARCHES + 2) * sm.LOST_RUN):
     assert m.match(TRUE, ANGLES, elsewhere).why == "inconsistent"
-  assert len(ran) == sm.TURNED_SEARCHES and m.turned_left == 0
+  assert len(ran) == sm.TURNED_SEARCHES - 1 and m.turned_left == 0
+  # ...and one found by the last but one is confirmed by the last
+  m = sm.ScanMatcher(room)
+  m.fell()
+  ran = _counted(m, monkeypatch, found_from=sm.TURNED_SEARCHES - 1)
+  whys = [m.match(TRUE, ANGLES, elsewhere).why for _ in range(sm.TURNED_SEARCHES * sm.LOST_RUN)]
+  assert whys[-1] == "relocated" and len(ran) == sm.TURNED_SEARCHES
   m.fell()
   assert m.match(TRUE, ANGLES, cast(ROOM, TRUE, np.random.default_rng(46))).accepted
   assert m.turned_left == 0 and m.turned_seen is None
+
+
+def test_a_fall_starts_the_run_of_refusals_again(room, monkeypatch):
+  # #690's review: what the wide search found before the fall is gone with
+  # the run -- the fall moved the body under it, up to 2 m and turned -- and
+  # the next wide search comes LOST_RUN refusals after the stand, never the
+  # rest of a run begun before the fall.
+  m = sm.ScanMatcher(room)
+  rng = np.random.default_rng(48)
+  for _ in range(sm.LOST_RUN + 3):
+    m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
+  assert m.pending is not None and m.lost_run == sm.LOST_RUN + 3, "the premise: a run, and a find"
+  m.fell()
+  assert (m.lost_run, m.pending) == (0, None)
+  searched = []
+  monkeypatch.setattr(m, "_relocate", lambda pose, pts: searched.append(1))
+  monkeypatch.setattr(m, "_relocate_turned", lambda pose, pts: None)
+  elsewhere = cast(ELSEWHERE, (1.2, 1.6, 0.9), np.random.default_rng(49))
+  for _ in range(sm.LOST_RUN - 1):
+    m.match(LOST, ANGLES, elsewhere)
+  assert not searched
+  m.match(LOST, ANGLES, elsewhere)
+  assert searched == [1]
+
+
+def test_a_warp_ends_the_search_at_every_heading(room):
+  # #690's review: `start_at` (a warp: a restart put clear of the other
+  # robot, a script) puts the belief somewhere new, closing the anchor's
+  # window (`anchored(on=False)`); a search armed by a fall before it is
+  # over too, or it would carry what it found to a belief already right.
+  m = sm.ScanMatcher(room)
+  m.fell()
+  m.match(TURNED, ANGLES, cast(ROOM, TRUE, np.random.default_rng(50)))
+  assert m.turned_left and m.turned_from is not None, "the premise: armed, and where it stood up"
+  m.anchored(on=False)
+  assert (m.turned_left, m.turned_seen, m.turned_from) == (0, None, None)
+
+
+def test_a_scan_with_too_few_returns_near_offers_no_heading(room):
+  # #690's review: the lattice scores the returns within TURNED_RANGE_M, and
+  # on open ground with its walls 6-8 m off there are none: every pose read
+  # alike, and five fits ran from arbitrary starts for nothing.
+  m = sm.ScanMatcher(room)
+  m.refresh(*TRUE[:2])
+  far = np.full(len(ANGLES), sm.TURNED_RANGE_M + 0.5)
+  pts = m.points(ANGLES, far)
+  assert len(pts) >= sm.MIN_INLIERS, "the premise: a scan the matcher reads"
+  assert m._turned_candidates(TRUE, pts) == []
+  near = m.points(ANGLES, cast(ROOM, TRUE, np.random.default_rng(51)))
+  assert len(m._turned_candidates(TRUE, near)) == sm.TURNED_TRIES
 
 
 def test_a_restart_keeps_the_search_at_every_heading(nook):

@@ -492,15 +492,19 @@ class ScanMatcher:
     belief was put somewhere else since."""
     self.anchoring = ANCHORED_SCANS if on else 0
     self.doubt_wait = 0
+    # ...and either way the belief stands somewhere new: a search at every
+    # heading armed by a fall before is over (TURNED_*)
+    self.turned_left, self.turned_seen, self.turned_from = 0, None, None
     if on:
       self.lost_run, self.pending, self.fused_pose = 0, None, None
-      self.turned_left, self.turned_seen, self.turned_from = 0, None, None
 
   def fell(self) -> None:
     """The robot is up from a fall (issue #690): until a scan fits, its next
     TURNED_SEARCHES wide searches that find nothing look at every heading
-    (`_turned`)."""
+    (`_turned`). The run of refusals starts again, and what its wide search
+    found before the fall goes: the fall moved the body under it."""
     self.turned_left, self.turned_seen, self.turned_from = TURNED_SEARCHES, None, None
+    self.lost_run, self.pending = 0, None
 
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
@@ -571,6 +575,10 @@ class ScanMatcher:
     self.doubt_wait = max(self.doubt_wait - 1, 0)
     if self.turned_left and self.turned_from is None:
       self.turned_from = (x0, y0)
+    elif self.turned_left and math.hypot(x0 - self.turned_from[0],
+                                         y0 - self.turned_from[1]) > TURNED_NEAR_M:
+      # ...walked on from where it stood up: over (TURNED_NEAR_M)
+      self.turned_left, self.turned_seen = 0, None
     if self.anchoring:
       return self._done(pose, "anchored")
     if self.field is None or self._stale(x0, y0):
@@ -618,10 +626,6 @@ class ScanMatcher:
       # would refuse for the scan turned 180 deg
       if wide is not None:
         self.turned_seen = None
-      elif self.turned_left and math.hypot(x0 - self.turned_from[0],
-                                           y0 - self.turned_from[1]) > TURNED_NEAR_M:
-        # ...walked on from where it stood up: over (TURNED_NEAR_M)
-        self.turned_left, self.turned_seen = 0, None
       elif self.turned_left:
         turned = self._turned((x0, y0, th0), pts)
         if turned is not None:
@@ -793,8 +797,12 @@ class ScanMatcher:
   def _turned(self, pose, pts: np.ndarray):
     """The wide search at every heading, up from a fall (TURNED_*): the pose
     it finds, as `_relocate`'s, if the last one found it too -- carried from
-    the belief it was found from to this one -- else None."""
+    the belief it was found from to this one -- else None. The last of
+    them runs only to confirm the one before: what it found alone, no
+    search after it would."""
     self.turned_left -= 1
+    if not self.turned_left and self.turned_seen is None:
+      return None
     found = self._relocate_turned(pose, pts)
     seen, self.turned_seen = self.turned_seen, None if found is None else (found[0], tuple(pose))
     if found is None or seen is None:
@@ -831,6 +839,9 @@ class ScanMatcher:
     g, f = self.grid, self.field
     res = g.resolution
     near_pts = pts[np.hypot(pts[:, 0], pts[:, 1]) < TURNED_RANGE_M]
+    if len(near_pts) < MIN_INLIERS:
+      # ...too few to score a place by: every lattice pose would read alike
+      return []
     if len(near_pts) > TURNED_POINTS:
       near_pts = near_pts[np.linspace(0, len(near_pts) - 1, TURNED_POINTS).round().astype(np.int64)]
     on_wall = (np.abs(np.nan_to_num(f, nan=np.inf)) < INLIER_M).astype(np.uint8)

@@ -8749,7 +8749,10 @@ are two) searched cell by cell and fitted -- and a pose is taken as the
 wide search takes one: FOUND_SHARE with every direction fixed, unrivalled,
 found again by the next search, carried there by odometry (`_carried`: a
 heading off walks the belief another way than the body, so the correction
-moves where the pose does not). Any scan that fits ends it.
+moves where the pose does not). Any scan that fits ends it, and so does a
+warp (`start_at`); the last search runs only to confirm the one before; and
+a fall starts the run of refusals again, what the wide search found before
+it gone with it (#690's review).
 
 **What the lobby taught it.** The lobby is a 3 x 12 m hall, and a scan
 turned half round fits it about as well as the truth: of 312 searches that
@@ -8796,23 +8799,25 @@ deg, the served search's half turn comes first in 61, and the net's take at
 2 s comes before the half turn the base took later in 9.
 
 **Flown**, the branch beside the base on the same pod, a process a flight
-(the rule as built but its rival share, 0.9 then, at 8bf386e): B0's 201
-flights the base's row for row; knocked 40 and 120 deg standing and 120
-walking on, 180 of the 354 get-ups taken back, each ending within 0.024 m
-and 0.25 deg where the base ended 0.13-9.2 m and 39-123 deg off, at 2.0 s
-after the stand (median; 6.1 at most); 205 relocations over the 555
-flights, none more than 0.5 m from the truth (the E scenarios' 0.39-0.41,
-right in their map). A robot alone's drift flights, the drift spike's six
-walking falls in the lobby and the pair's recording flew the base's but
-two wall-clock stamps; the pair's day with its arranged knock-over -- a
-warp onto its side that sets the robot's yaw to 0, a turn its IMU never
-sees -- parts at 47 s, where the branch takes the 106-deg knock back.
+(26d233f, before the review's fixes, which move no take in the replays):
+B0's 201 flights the base's row for row; knocked 40 and 120 deg, standing
+and walking on, 233 of the 472 get-ups taken back, each ending within
+0.024 m and 0.25 deg where the base ended 0.13-9.2 m and 39-123 deg off,
+2.0 s after the stand at the median (6.1 at most) -- the replays' counts,
+group for group; 261 relocations over the 673 flights, none more than 0.5
+m from the truth (the E scenarios' 0.39-0.41, right in their map). A robot
+alone's drift flights, the drift spike's six walking falls in the lobby and
+the pair's recording flew the base's but two wall-clock stamps (at
+8bf386e); the pair's day with its arranged knock-over -- a warp onto its
+side that sets the robot's yaw to 0, a turn its IMU never sees -- parts at
+47 s, where the branch takes the 106.7-deg knock back to 0.03 m and 0.2
+deg of the truth.
 
 **The cost.** Flown on the dev box one flight at a time, a search took 110
 ms (112 at most); a get-up whose heading is right makes none (0 in 236), a
-knocked one two when it is taken back and six when refused -- 0.66 s, the
-worst single scan 176 ms (with its bounded search and the served wide
-search's 41). Against the pair's ~1.2x real time on the deploy box's one
+knocked one two when it is taken back and, refused, six as flown (0.66 s;
+five since the review, the last running only to confirm), the worst single
+scan 176 ms (with its bounded search and the served wide search's 41). Against the pair's ~1.2x real time on the deploy box's one
 physics thread, about 0.17 s of slack a second (the pacer only sleeps: lag,
 paid back at that margin), the worst is ~4 s of lag and a stream frame 0.1
 s late six times. Today's lost run is the bigger cost -- a refused scan 21

@@ -34,20 +34,22 @@ never searched (the branch's 201 flights the base's row for row); of the
 every scan or laid the house askew, 517 were taken back within 0.3 m and 3
 deg (2 s after the stand at the median) and none taken wrong; the rest
 refused, the lobby's scan turned half round fitting as well as the truth.
-Flown beside the base at 8bf386e (its rival share 0.9 then): 180 of 354
-knocked get-ups taken back, 205 relocations in 555 flights and none more
-than 0.5 m from the truth, the base's 201 right-headed flights row for row.
+Flown beside the base (26d233f): 233 of 472 knocked get-ups taken back,
+261 relocations in 673 flights and none more than 0.5 m from the truth, the
+base's 201 right-headed flights row for row.
 
 **What the period is for.**
 - **`relocated` drift rows within a minute of a get-up**, against the
-  periods before: a turn of more than 15 deg between `before` and `after`
-  is this rule's alone. ⚠ One whose `headingDeg` after it is near 180 is a
-  hall's half turn taken: none in the batch.
+  periods before: a turn of more than 25 deg between `before` and `after`
+  is this rule's alone (the served wide search's own turned 19-21 deg at
+  most in the batch, knocked 160). ⚠ One whose `headingDeg` after it is near
+  180 is a hall's half turn taken: none in the batch.
 - **A run of refusals after a get-up that never ends** (`matched` all
   `inconsistent` in the samples after a fall): still lost, the net having
   refused; #690's option (b), the robot told, is not built.
-- The physics thread: at most 6 searches of ~0.1 s a get-up, only where the
-  served search found nothing.
+- The physics thread: at most 6 searches of ~0.1 s a get-up (5 when it
+  takes nothing: the last only confirms), only where the served search found
+  nothing.
 
 ### One robot's interrupt asked, the other robot's errand going on (#692) — opens when this PR is deployed
 

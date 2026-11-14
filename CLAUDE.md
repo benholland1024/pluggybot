@@ -2312,15 +2312,17 @@ save a filmstrip PNG named after the script.
   ⚠ UP FROM A FALL, A WIDE SEARCH THAT FINDS NOTHING LOOKS AT EVERY HEADING
   (#690's net; `ScanMatcher.fell`, armed by `HumanoidMission._stood_up`;
   `TURNED_*`; SimNotes, "A heading lost in a fall, searched for at every
-  heading"): its next `TURNED_SEARCHES` (6), ~0.11 s each, a pose taken as
-  the wide search takes one and found again carried by odometry, any scan
-  that fits ending it -- ⚠ ONLY AFTER THE SERVED SEARCH (run first, it
-  refused 10 of its right relocations in the lobby, whose scan turned half
-  round fits as well as the truth), ⚠ ITS RIVAL A FIND `TURNED_RIVAL_SHARE`
-  (0.8) AS GOOD (at 0.9 the half turn, better than the truth, was taken
-  once, 3 m and 180 deg off), and ⚠ ONLY WITHIN `TURNED_NEAR_M` (0.5 m) OF
-  WHERE THE BELIEF STOOD UP (walked on, it took 5 of 118 onto that half
-  turn). There it refuses about half the lobby's knocked get-ups.
+  heading"): its next `TURNED_SEARCHES` (6, the last only to confirm),
+  ~0.11 s each, a pose taken as the wide search takes one and found again
+  carried by odometry, any scan that fits or a warp ending it, a fall
+  starting the run of refusals again -- ⚠ ONLY AFTER THE SERVED SEARCH
+  (run first, it refused 10 of its right relocations in the lobby, whose
+  scan turned half round fits as well as the truth), ⚠ ITS RIVAL A FIND
+  `TURNED_RIVAL_SHARE` (0.8) AS GOOD (at 0.9 the half turn, better than the
+  truth, was taken once, 3 m and 180 deg off), and ⚠ ONLY WITHIN
+  `TURNED_NEAR_M` (0.5 m) OF WHERE THE BELIEF STOOD UP (walked on, it took
+  5 of 118 onto that half turn). There it refuses about half the lobby's
+  knocked get-ups.
   ⚠ THE STATION OUTRANKS THE MAP: anchored off its tags (a fix, below),
   the next `ANCHORED_SCANS` (30) scans are laid at the belief unmatched
   (`ScanMatcher.anchored`), or a copy of the room laid askew pulls the
