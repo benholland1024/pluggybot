@@ -258,13 +258,6 @@ def _interrupt(life):
   return getattr(life, "interrupt_due", None)
 
 
-def _patience(life, args: dict) -> float:
-  """How long this walk may take: the program's `patience`, or
-  `DRIVE_TIMEOUT_S` -- and never past the program's own budget
-  (`_budgeted`)."""
-  return _budgeted(life, float(args.get("patience", DRIVE_TIMEOUT_S)))
-
-
 def _budgeted(life, s: float) -> float:
   """`s` s, never past the program's own budget (`life.step_until`,
   `run_verb`)."""
@@ -1612,7 +1605,7 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
   While it runs, `life.step_now` says which step this is (`where`: the
   procedure, the count, a line), for a death to name (issue #362), and
   `life.step_until` when the program's budget ends (`until`, sim s), past
-  which no walk inside it waits (`_patience`).
+  which no walk inside it waits (`_budgeted`).
 
   ⚠ A VERB THE ROBOT'S OWN INTERRUPT ENDED IS STOPPED, NOT FAILED (issue
   #381): a walk inside it stops where it stands for one due (`_interrupt`)

@@ -301,8 +301,9 @@ def test_the_map_still_growing_is_progress_and_a_map_standing_still_is_not():
 def test_a_stop_ends_the_walk_as_an_abort_and_its_answer_costs_no_patience():
   """The drive asks `stop` every `STOP_EVERY_S`; a True ends it where it
   stands as `DRIVE_STOPPED` -- never one of the four ways a drive gives up
-  -- and the time a False took (a question to the mind, standing still)
-  counts against neither its patience nor its stagnation clock."""
+  -- and the time a False took (a stop that stood it still: none in `src/`
+  since #692, whose interrupt only reads) counts against neither its
+  patience nor its stagnation clock."""
   walk = _Walk(step=0.004)                              # 4 cm/s: slow progress
   asked = []
 

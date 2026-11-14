@@ -866,11 +866,11 @@ class Navigator:
 
     `timeout` is the walk's patience. `stop`, a callable, is asked every
     `STOP_EVERY_S` (issue #381): True ends the drive where it stands, as
-    `DRIVE_STOPPED`, and the time it took to answer -- a question to the
-    mind, standing still -- counts against neither the patience nor the
-    stagnation clock. `beyond`, points, is where the way goes on past the
-    goal without a plan -- a press's walk in (issue #455) -- and a robot
-    asked off the way is asked off them too."""
+    `DRIVE_STOPPED` -- the robot's own interrupt only says one is due, and
+    its verb asks (#692) -- and any time it took to answer counts against
+    neither the patience nor the stagnation clock. `beyond`, points, is
+    where the way goes on past the goal without a plan -- a press's walk in
+    (issue #455) -- and a robot asked off the way is asked off them too."""
     waypoints: list[tuple[float, float]] = []
     next_replan = 0.0
     holding = False                    # is this drive standing for a peer
