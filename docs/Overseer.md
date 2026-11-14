@@ -368,9 +368,12 @@ errand behind it -- the humanoids' hand jobs at the storeroom's counter,
 nothing when it is taken: the robot writes and runs the procedure that
 does it, and sets `done` to the task's id — a paperwork field on the
 library's slot, so it exists only where a procedure can be written. It is
-honoured at the loop's next idle moment, after whatever the same answer
-queued has run, so "run my procedure, then grade me" is one answer; the
-grade is the job's own (its check's evaluator, watching from the claim --
+graded at the word, before the answer's action (#689: after it, the 15
+said with `idle` from 11-01 to 11-12 were each graded a minute late),
+unless the same answer runs a procedure, whose run is the work: then at the
+loop's next idle moment, once the run is over, so "run my procedure, then
+grade me" is one answer (and a robot that died while it thought is graded
+there too, after its stand-up); the grade is the job's own (its check's evaluator, watching from the claim --
 a fall anywhere fails it -- to a hold after `done` the robot is told to
 stand clear of), and the loop with no mind never sees the field or the
 offer. History says the `done` and names the job (`said done on t_0027
@@ -380,7 +383,9 @@ another's). A `done` on a job the robot does not hold is dropped and says
 why (`said done on t_0137 (open_chest): not graded, because nobody has
 taken it`; #648). A job held past the time its description gives is failed by the
 loop, its prop offered again, and while the robot holds one its context
-lists it with that time's remainder (`heldTasks`, `leftS`; #602). `CHALLENGE_RULE` says all of this to
+lists it with that time's remainder (`heldTasks`, `leftS`; #602), as of the
+ask -- the rule says the clock runs on while it thinks (#689: asked with 193
+s of t_0202 left, Rowan answered 160 s later, its own think uncounted). `CHALLENGE_RULE` says all of this to
 the mind and, like every rule on this arm, demonstrates nothing about
 charging.
 
@@ -497,9 +502,9 @@ mouse with a state the robot reads — `resting` / `eating` / `playing` /
 `hiding` / `on_its_side` — that a shock changes and that food, a toy and
 company also change, on their own clocks: one table (`TRANSITIONS`) and
 one set of clocks (`CLOCKS`: on its side `SIDE_S` 120 s then hiding
-`HIDE_S` 600 s; eating 180 s; playing 240 s), nothing random. Three sprung
-plates in front of the cage (`shock`, `feed`, `toy`, each the garden
-plate) act on their rising edge; a robot inside `COMPANY_M` (1.0 m) of the
+`HIDE_S` 600 s; eating 180 s; playing 240 s), nothing random. Three
+plates in front of the cage (`shock`, `feed`, `toy`, each the garden's:
+flush with the floor, read off its load) act on their rising edge; a robot inside `COMPANY_M` (1.0 m) of the
 cage for `COMPANY_S` (10 s) is company, once per visit. No picture: the
 state IS what the robot sees, and it sees it only while the cage is in its
 head camera's picture (`Cage.context`, #605; `cageInView` in the `lab`
@@ -1425,7 +1430,12 @@ may still be in flight* — the errand it interrupts was queued by one — and
 sharing `_slot` would have whichever landed second silently discard the other.
 Same shape, same lock discipline, separate state. And it steps the sim while it
 flies, exactly as `_decide` does: the robot is standing still mid-errand, which
-is the one moment the stream is most worth watching.
+is the one moment the stream is most worth watching. ⚠ It waits BLOCKING
+(`body.run`), where `_decide` yields: in the pair that wait is the loop's, every
+robot stepped, the other held standing through its own hold and its errand
+paused for the ask (#690: stepped by the asking robot alone, the other's legs
+and senses stopped, and Luca fell walking; SimNotes, "One robot's interrupt
+asked, the other robot held").
 
 `docs/Evaluation.md` §2 has the safe points and the ordering.
 
@@ -2221,7 +2231,7 @@ for any of this; its own goals live in `Goals.md`.
 |---|---|---|---|
 | **constitution** | human | always, the cached prefix | `Main.md`: rendered from the library file the environment names (#263); no write API, and an edit on the volume is set aside |
 | **core** | robot | always, whole | `Goals.md` (`intend` / `drop_goal`) and `Top_of_mind.md` (`pin` / `unpin`) — RAM: *always in front of you, so keep it short; anything you only need sometimes is a note* |
-| **notes** | robot | the INDEX always; a body by `recall` | `Notes.md`: titled lines in topics the robot names (`note {topic, title, text}` / `unnote`). `Findings.md` is the first TYPED topic family, `findings/<task>`, fields declared by code (`record` / `retract`, offered with the library) |
+| **notes** | robot | the INDEX always, beside what it holds (`holds`, #688); a body by `recall` | `Notes.md`: titled lines in topics the robot names (`note {topic, title, text}` / `unnote`). `Findings.md` is the first TYPED topic family, `findings/<task>`, fields declared by code (`record` / `retract`, offered with the library) |
 | **history** | system, and the senders | the tail (12 lines, each `#id`) always; the rest by `recall` | what happened: decisions and their thinks, verdicts, deaths, interventions, visitor and peer messages |
 
 The **procedural** tier (`procedures/`) is unchanged by #221 and is memory
@@ -2271,7 +2281,13 @@ gate every document write passes (the files' `append`, the library's
   narrated (`THOUGHT refused: …`) and TOLD, never swallowed: a History
   line, `could not <verb>: <why> -- '<what it tried>'`, the reason first
   because a History line is capped from the end (issue #409; narrated
-  alone, 129 refusals in 48 h reached everyone but the robot). `unpin`,
+  alone, 129 refusals in 48 h reached everyone but the robot). A full
+  document's `<why>` says what it HOLDS (#688): `Notes.md holds 64 of 64
+  entries; unnote one first`, and of a page of chars what the line would
+  add, its newline among it (`Top_of_mind.md holds 2,960 of 3,000 chars, and
+  this line is 100 more; unpin one first`) -- it said the size the refused
+  write would have made, "65 of 64", and Rowan read the count and the cap
+  as drifting apart (tk_0059). `unpin`,
   `drop_goal` and `retract` quote one line: an exact text, else the one
   line containing the quote; hits that are all one text are a line
   written twice, and the OLDEST goes (the newest is the finding a grader

@@ -54,6 +54,37 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a task kind no world offers (`set_table_pass`, pluggybot #682's stage C)
+
+`taskKinds` (every kind the producer knows) gains `set_table_pass`: table
+0's place laid from its pieces set out on the restaurant's pass, its target
+`dining_table_0` and its `targetKind` `table`, graded as `set_table` is. No
+world's cadence offers it, so no stream carries one; a page that ever sees
+one may draw it as it draws `set_table`. The pieces it sets out are the
+place's own (`dining_table_0`'s activity, the same four bodies), on the
+pass's counter, and `<piece>Lifted` reads a piece over where it was set out
+-- the pass's top or the table's -- as it always read one over the table's.
+
+No bump: a kind is additive.
+
+### 0.21.0, unchanged: the lab's plates flush with the floor too (pluggybot #684)
+
+The lab's three pressure plates (`shock`, `feed`, `toy`), sprung pads 21 mm
+proud whose edge the served walker stood on for good from a standstill, are
+flush with the floor as the garden's is. What a consumer sees:
+
+- **`lab_shock_plate`, `lab_feed_plate` and `lab_toy_plate` are
+  `floor_plate`s**: ONE thin box of paint, static, colliding with nothing,
+  drawn as the garden's is with its purpose's glyph. No world hints a
+  `plate` now; the hint stays for the frozen worlds before.
+- **They are no longer dynamic**: no frame carries their poses (the humanoid
+  house's dynamic bodies 53, the pair's 86).
+- **The `lab_cage` activity's flags** are as they were: `feed` and `toy`
+  each true while what stands on its plate weighs 100 N or more, off again
+  under 50 (the house's `shock` plate is switched off, its flag never lit).
+
+No bump: no name or shape moved.
+
 ### 0.21.0, additive: the garden's plate flush with the floor (pluggybot #684)
 
 The garden's pressure plate, a sprung pad 21 mm proud that tripped the
@@ -64,7 +95,7 @@ load on it, its pad paint that nothing touches. What a consumer sees:
   thin box standing on the floor (400 x 400 x 4 mm, over a ground's 2 mm
   paint), static, colliding with nothing. Draw it as a `plate` is drawn,
   its glyph inside the box for `scene.plates[name].purpose`; the garden's
-  is `light`. The lab's three stay `plate`s (sprung, dynamic).
+  is `light`. (The lab's three followed: above.)
 - **`garden_plate` is no longer dynamic**: the scene says so, and no frame
   carries its pose (the humanoid house's dynamic bodies 56, the robot's 33
   among them).
@@ -128,7 +159,8 @@ its bar). What a consumer sees:
   humanoid scene has 239 bodies (236), the pair's 272.
 - **An activity, additive**: `dining_table_0`, the place's -- its flags
   `setOut` (live: the dishware out where a job set it), `plateLifted`,
-  `cupLifted` and `forkLifted` (live, each over the table while out). A page
+  `cupLifted` and `forkLifted` (live, each over where it was set out while
+  out: the table, or the pass for `set_table_pass`). A page
   may hide the four bodies while `setOut` is false; under the floor nothing
   shows them anyway.
 - **A task kind**: `set_table` joins `taskKinds`, its target

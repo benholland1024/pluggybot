@@ -966,8 +966,10 @@ ARM_KEPT_OFF = {
   "walk carried": "your {hand} hand holds something, and its way to your side, where a walk "
                   "carries it, would meet another robot, its middle {m:.2f} m from yours "
                   "{where}: so you did not walk"}
-#: ...and, after a reach's, what the other hand's way there would do.
-OTHER_HAND_KEPT = {True: "; your {other} hand's way there keeps clear of it",
+#: ...and, after a reach's, what the other hand's ways out and home would do
+#: (`Reach.clear_way` judges both: "way there" alone, beside a doc saying
+#: both, left 3 of 12 asked unsure a left reach would go)
+OTHER_HAND_KEPT = {True: "; your {other} hand's ways there and home keep clear of it",
                    False: "; nor does your {other} hand's",
                    None: "; your {other} hand does not reach there"}
 

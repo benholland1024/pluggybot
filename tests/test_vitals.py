@@ -45,6 +45,11 @@ def _cumulative(start, steps):
 # on record (+23 and +20 back to back) among ordinary ones.
 STARTUP = [212.6, 788.5]
 RESTING = [0.5, 0.5, 3.7, 1.0, 4.0, 1.9, 22.9, 19.6, 0.3, 0.1, 2.7, 2.7] * 5
+# The deployed process of 2026-11-12 19:17 UTC, an hourly restart into the
+# grown world (#560): 173 MiB at its start and 1.3 GB four minutes later, its
+# alarm set off at 19:21 with 4.6 MiB new at the onset. Made up between the
+# two ends the log gave.
+GROWN_START = [173.0, 470.0, 760.0, 1050.0, 1331.0]
 
 
 def _day(steps, startup=STARTUP):
@@ -58,6 +63,23 @@ def test_the_resting_rate_and_the_startup_never_fire():
   slow = _day(RESTING, [212.6, 400.0, 600.0, 788.5])
   assert _feed(RunawayRule(), slow) == []
   assert _feed(RunawayRule(warmup=2), slow) != []
+
+
+def test_the_grown_worlds_four_minute_start_never_fires_and_a_runaway_after_it_does():
+  """11-12 19:21 UTC: a fresh process loading the grown world took four
+  minutes, which a warm-up of three read as a runaway (shown); a runaway
+  once it has loaded is still caught at its second minute."""
+  grown = _day(RESTING, GROWN_START)
+  assert _feed(RunawayRule(), grown) == []
+  assert _feed(RunawayRule(warmup=3), grown) != []
+  late = _day(RESTING[:2] + [115.0] * 8, GROWN_START)
+  first_fast = len(GROWN_START) + 2          # the sample closing minute one
+  assert _feed(RunawayRule(), late) == [first_fast + 1]
+  # ...and the window Webserver.md states: a load of five minutes passes, one
+  # of six does not -- a runaway from boot is reported six minutes in
+  ramp = [173.0 + 232.0 * i for i in range(7)]
+  assert _feed(RunawayRule(), _day(RESTING, ramp[:6])) == []
+  assert _feed(RunawayRule(), _day(RESTING, ramp)) == [6]
 
 
 def test_the_threshold_keeps_its_margin_on_both_sides():

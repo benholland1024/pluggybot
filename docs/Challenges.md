@@ -306,8 +306,10 @@ on the wall. Each is a job of its own -- `open_chest`, `open_drawer`,
 `open_door`, `place_cube` (`tasks.HAND_JOBS`) -- its target its prop, so
 they may all stand at once, and each is discharged by a procedure the robot
 writes (`TaskKind.discharge = "procedure"`, #207): claiming queues nothing;
-the robot writes the procedure, runs it and sets `done` to the job's id,
-and only a mind with a library is offered one (`lifecycle.world_targets`).
+the robot writes the procedure, runs it and sets `done` to the job's id --
+graded at that word, before its answer's action, or once the run is over
+where the same answer runs a procedure (#689) -- and only a mind with a
+library is offered one (`lifecycle.world_targets`).
 All four are offered (cadence.json), the cube's since its reference passed
 from the tour (below).
 
@@ -336,7 +338,8 @@ departures, both about where an attempt starts:
   charge trip ("not graded within the 960 s the job allows -- the drawer
   was never measured", `HubLifecycle._run_out_held`, #602), and its prop is
   free to be offered again. While it holds one, the robot is shown it with
-  the time left (`heldTasks`, `leftS`).
+  the time left (`heldTasks`, `leftS`) as it is asked, and told the clock
+  runs on while it thinks (#689).
 
 **The offer says where by the area's terms** (#419): the facility's
 address, and directions that name the storeroom, the counter, the row's
@@ -473,6 +476,27 @@ what flying took). Offered once it passes the bar written before it flew --
 24 of 32 draws over the tour, a fall failing its try, each draw its own
 noise, on one pod -- and it laid 24 (12 on the tree before it). On two sets
 of draws nothing was tuned on, 46 of 64: it is at the bar's edge.
+
+**Laid from the pass: `set_table_pass`** (#682's stage C, easy mode of
+carrying; Ben's call of 11-12). The same place, graded by this check's
+evaluator under a row of its own, its pieces set out instead on the
+restaurant's pass, the expo counter in the dining room's east wall, between
+its two tags (68, 69): a row near the counter's dining edge
+(`counter.pass_set_out`; a carried piece hangs under the pass's top, so the
+walk's hand-over clears the counter only from about 0.37 m off it), the card
+at table 0 as `table_set_out` stands it. Each piece is a trip: gripped at the
+pass, carried 4-5 m by the walk's own hand-over, put down at the place. Its
+set-out is the kind's (`restaurant.SET_OUTS`): the dishware and the house are
+the served ones, nothing added. NOT OFFERED -- no world's cadence names it --
+and paid nothing (`shown: false`): its reference (`solutions.PASS`, three runs
+over the procedures they call, `solutions.LIBRARY`) flew against a bar
+written before it, on the table's terms -- 24 of 32 draws over the tour, a
+fall failing its try, on walk2 and on the carry walker, one pod -- and did
+NOT meet it: 0 of 32 on each walker at first; then, its cup gripped at its
+middle and its put-downs moved, 10 of 32 on walk2 and 0 on the carry walker
+(held out, 6 and 0).
+Offering it is Ben's call (SimNotes, "The place laid from the pass", has
+what flying took and what it read).
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.

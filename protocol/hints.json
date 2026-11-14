@@ -1661,7 +1661,7 @@
     "extentY": "size1",
     "thickness": "size2"
    },
-   "note": "A pressure plate FLUSH with the floor: the floor's own square under it reads the weight on it, and this box is its PAINT -- ONE thin box standing on the floor, static, which nothing touches (the robot walks on the floor through it). Draw it as a `plate` is drawn, its glyph INSIDE the box on its top face for `scene.plates[name].purpose` (the garden's is `light`); its 4 mm stand over a ground's 2 mm paint so the art shows.",
+   "note": "A pressure plate FLUSH with the floor: the floor's own square under it reads the weight on it, and this box is its PAINT -- ONE thin box standing on the floor, static, which nothing touches (the robot walks on the floor through it). Draw it as a `plate` is drawn, its glyph INSIDE the box on its top face for `scene.plates[name].purpose` (the garden's is `light`, the lab's three `shock`, `feed` and `toy`); its 4 mm stand over a ground's 2 mm paint so the art shows.",
    "body": {
     "name": "hint_floor_plate",
     "parent": "world",

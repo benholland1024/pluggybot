@@ -10,6 +10,162 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The lab's plates flush with the floor, and the memory alarm's warm-up five samples (#684's call 3) — opens when this PR is deployed
+
+**What changed in the world.** The lab's three pressure plates (`shock`,
+`feed`, `toy`), sprung pads 21 mm proud since #215, are flush with the
+floor as the garden's has been since #684: each the floor's own square read
+off its load (`plate.LOAD_ON_N`, 100 N on, 50 off), its pad paint nothing
+touches (`floor_plate`; ActivityPattern.md §3.1). The cage's acts, its
+state machine and its flags are as they were, the house's shock plate still
+switched off; a press is the robot whose weight pressed it, read off the
+contacts its load cell reads (the most of the load), where it was the
+first robot with a contact on the pad. Flown with the served walker
+(walk2), the last loop's walks: from a standstill, its toes at a plate's
+edge, it walks what it walks on bare floor (0.18 m of a 0.3 m ask, 0.49 of 0.6,
+the same to the centimetre 1 m off the plates), and every start pressed
+the plate, where on the sprung pads all 9 stood on the edge (0.07 and
+0.11 m) and pressed none; walking across them at speed, no fall either way,
+every crossing pressed -- a load plate about once a footfall on it, 1-3
+presses a crossing where the pads made 1-2.
+- **The geometry changed** (`continuation.fingerprint`: three slide joints
+  and three pads gone): the first process of this build keeps the clock,
+  the packs, the deaths and the jobs, and drops both robots' bodies and
+  maps, as the deploy that carried the garden's plate did.
+- Nothing the robots read moved: `prompt_sha` `b345cc34…` both sides
+  (66,029 chars, 17 sections); the session host's hello byte for byte.
+- **The memory alarm's warm-up is five samples, not three**
+  (`vitals.WARMUP_MINUTES`; Webserver.md, "When the process dies"): no row
+  moves. A process that loads the grown world over four minutes, as the one
+  of 2026-11-12 19:17 UTC did (173 MiB to 1.3 GB), no longer prints a false
+  `RUNAWAY`; a runaway once the world is loaded is still reported at its
+  second minute.
+
+**Why.** #684's call 3 (Ben's, for this loop): from a standstill at the
+edge of a lab plate the served walker stood on its edge for good (all 9 of
+the last loop's starts went 0.07-0.11 m), where on the flush garden plate
+none did. The warm-up: the 11-12 wake's second false alarm.
+
+**What the period is for.**
+- **The lab's presses** (`press` rows, the cage's counts): a walk across
+  the feed or the toy plate still presses it, about once a footfall on it
+  (1-3 a crossing; count crossings, never presses, against the periods
+  before), and one begun at a plate's edge goes on. A press is a foot's
+  100 N: one that never comes from a robot walking a plate's middle is a
+  fault of this change.
+- **No fall on a lab plate**: none came on the sprung pads walking at
+  speed, and none should come now.
+- A `RUNAWAY` line in a process's first six minutes is no longer printed
+  (five samples judge nothing, and a runaway is two over the rate); read
+  the `vitals: rss` lines for a runaway at boot.
+
+### One robot's interrupt asked, the other robot held (#690) — opens when this PR is deployed
+
+**What changed is the pair's loop while one robot's mid-errand interrupt
+is asked** (`tick._Loop.run`; SimNotes, "One robot's interrupt asked, the
+other robot held"):
+- `HubLifecycle._ask_interrupt` waits on the mind blocking (`body.run`),
+  and that wait stepped the world with the asking robot's stepper alone:
+  the other robot's legs held their last targets -- walking or with a hand
+  out it fell, standing or turning a `step` it fell within 30 s, getting up
+  it lay where it was while its 20 s death clock ran on -- and its IMU's
+  filter, fall watch, odometry, scans and seam stood still: on the first
+  robot's seam the world's activities, the stream's frames, the recorder
+  and the pacer too, so a second robot's ask went by unpaced and
+  unstreamed.
+- Now every step of an ask is both robots': the other held standing through
+  its own hold, its scans matched, its errand paused where it was until the
+  answer comes (up to `INTERRUPT_TIMEOUT_S`, 115 s, and its slices) -- a walk
+  or a `step` counting none of the pause, a procedure's budget and a job's
+  minutes running on.
+- No text the robots read moved: `prompt_sha` `b345cc34…` both sides,
+  66,029 chars, 17 sections (over #688's and #689's). A robot alone, and a
+  pair with no interrupt asked, fly the base's day bit for bit.
+
+**Why.** #690: on 11-12 at 20:30 UTC Rowan's interrupt (`battery below 22%
+-> ask`) took 5.8 sim s, and Luca, walking a plain `drive_to` in the lobby,
+fell 0.8 s after it was answered and got up 120 deg off; lost for the 26
+minutes until the world was paused that evening, it walked into the garden
+believing it stood at the storeroom's counter. Flown on one pod beside the
+base, Luca walking the lobby while Rowan is asked 5.8 s: the base's Luca
+stepped none of the ask's 2,900 steps, fell, and stood 2.6 m and 40 deg
+off; this period's stepped every one and walked on, 0.001 m and 0.14 deg
+off.
+
+**What the period is for.**
+- **Falls during the other robot's ask**: none should come. Read each
+  `INTERRUPT` line against the other robot's next fall (the log) and its
+  drift rows across it.
+- **The heading after a get-up**: #690's fourth box, no get-up leaving a
+  robot past the matcher's 15 deg (`headingDeg` on the drift rows before and
+  after a fall).
+- **What the pause costs**: a procedure out of its budget or a job out of
+  its minutes just after the other robot's `INTERRUPT` line is this
+  period's price, not a fault of the robot's own; count them before reading
+  either robot's job record.
+- ⚠ The stream's pacing and frames through a second robot's ask are whole
+  now: a reading of wall time across an ask is not the period before's.
+
+### A full file says what it holds, a `done` is graded at the word, and `leftS` is the ask's (#688, #689) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `609b7ad5…` → `b345cc34…`, 65,730 → 66,029
+chars, 17 sections both, over #681's; the session host's hello re-vendored,
+the site's branch `loop-words`):
+- **A full document's refusal says what it holds** (#688): `Notes.md holds
+  64 of 64 entries; unnote one first`, and of a page of chars what the line
+  would add (`Top_of_mind.md holds 2,960 of 3,000 chars, and this line is
+  100 more; unpin one first`), never the size the refused write would have
+  made ("65 of 64"). History's words, read where a `could not <verb>` line
+  is.
+- **`Notes.md` and `Findings.md` ride the turn beside their count**:
+  `{"holds": "64 of 64 entries", "index": {…}}`, where the index alone was
+  -- the turn's shape for those two, for every robot from the first turn --
+  and the prompt says so where it says what each index is ("beside how many
+  notes it holds of the most it may (`holds`)").
+- **A `done` is graded at the word, before its answer's action** (#689):
+  an `idle`, a `charge`, a `look`, a `recall`, an `explore` or a
+  `take_task` beside it no longer stands between the word and the grade's
+  first measure; an answer that runs a procedure is graded once its run is
+  over, as before, and so is a robot that died while it thought (after its
+  stand-up). History says which: `said done on t_0202 (open_drawer): graded
+  now, before this answer's idle`, or `… graded once everything queued has
+  run`.
+- **The challenges rule says both**: the grade "waits until that run has
+  finished; on an answer that runs no procedure, the grade comes at once,
+  before that answer's action" (it said "once everything you queued has
+  finished"), and `leftS` is "the seconds of that time still left when you
+  were asked; the clock runs on while you think".
+- **The last loop's quiz's two rewordings**: a reach refused for the other
+  robot says the other hand's "ways there and home keep clear of it" (it
+  said "way there"), and YOUR BODY's carry says a held hand "is first raised
+  2 cm, pulling up with at most 20 N, and if what it holds came up with it,
+  it is CARRIED".
+- A robot whose answers set no `done` and whose memory is not full does as
+  before; the turn's notes-tier shape and the texts are every robot's.
+
+**Why.** #688: Rowan, tk_0059, read "65 of 64" as its count and its cap
+drifting apart, and nothing it was shown said how full a file was -- 1,292
+notes and findings refused as full from 11-01 to 11-12 against 1,160
+written. #689: Rowan, tk_0060, lost t_0202 by 5 s after a 160 s answer it
+had counted only the next ask's time for, and all 15 `done`s said with
+`idle` since 11-01 were graded a minute after the word. Quizzed on the
+deployed mind (loop-1113's L2, GLM-5.3-Flash on baseten, 12 answers an
+item): the release's refusal words read "65 of 64" as over the cap 12 of
+12 and "3060 of 3000" as a page already over 12 of 12, these 0 and 0 (and
+so with the prompt's `holds` sentence); and the rule's "once everything you
+queued has finished" read an idle and a charge as queued 9 of 12, its new
+sentence 0 of 12.
+
+**What the period is for.**
+- **The memory refusals** against the notes written, by day (#688's table),
+  and whether a robot at `64 of 64` takes one out before it writes, on the
+  same answer or the one before.
+- **The `done`s**: History's `said done … graded now` and the grade's line
+  5 s apart where no procedure ran; grades failed for the job's time, and
+  answers that count `leftS` against a long think.
+- ⚠ Not to be pooled with the periods before for anything about when a job
+  is graded, a memory write refused, or what a robot keeps in its notes.
+
 ### A scan match the walls only partly agree with is searched (#681) — opens when this PR is deployed
 
 **What changed is how the robots' scan matcher treats a fit the walls only

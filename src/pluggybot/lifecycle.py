@@ -4253,15 +4253,17 @@ class HubLifecycle:
     else:
       self._say(f"{HEART_REFUSED}{got['why']}")
 
-  def _done(self, decision) -> None:
+  def _done(self, decision) -> bool:
     """Take a decision's `done` (issue #207): the claimed challenge the robot
-    says stands. Paperwork -- it costs no turn -- and it only SETS the grade
-    pending: the grade runs from the day loop once the errand queue is
-    empty, so a procedure queued by the same answer runs first. A `done`
+    says stands. Paperwork -- it costs no turn -- that SETS the grade
+    pending, and is True where the answer grades it before its action
+    (#689): every answer but one that runs a procedure, whose run is the
+    work and is graded from the day loop once the errand queue is empty --
+    and a dead robot's, graded there after its stand-up as before. A `done`
     that names nothing this robot holds is dropped, like a `respond_to` for
     a message already dealt with, and History says why (#648)."""
     if not decision.done:
-      return
+      return False
     from pluggybot.economy.tasks import KINDS
     task = self.tasks.get(decision.done) if self.tasks is not None else None
     if (task is None or task.state != "active"
@@ -4281,14 +4283,20 @@ class HubLifecycle:
         why = self._not_mine(task, float(self.data.time))
       self._say(f"DONE {decision.done}: not a challenge you hold -- {why}")
       self._remember(f"said done on {named}: not graded, because {why}")
-      return
+      return False
     self._grade_pending = task.id
-    self._say(f"DONE {task.id}: graded once the queue is empty -- "
-              f"{task.description}")
+    # ...never inside a dead robot's answer, which its stand-up closes, a
+    # grade mid-hold and all: the loop's pass after it grades, as before.
+    # (No other stand-up lands in an answer: an admin's reaches a robot
+    # only between errands, and the timer's 300 s after a death.)
+    now = self.dead is None and not decision.action.startswith(PROCEDURE_PREFIX)
+    when = (f"graded now, before this answer's {decision.action}" if now
+            else "graded once everything queued has run")
+    self._say(f"DONE {task.id}: {when} -- {task.description}")
     # ...and History says it (#629): said to the log alone, a grade that came
     # 37 s after its job's take read as another job's
-    self._remember(f"said done on {_job_named(task.id, task)}: graded once everything "
-                   "queued has run")
+    self._remember(f"said done on {_job_named(task.id, task)}: {when}")
+    return now
 
   def _grade_routine(self) -> Routine:
     """Grade the job the robot said it finished (issues #207, #559): its own
@@ -4796,7 +4804,7 @@ class HubLifecycle:
     if area is None or k is None or not area.present(self.model):
       self._say(f"TASK {task.id}: this world has no {target} to set out")
       return
-    area.set_out(self.model, self.data, target, int(k))
+    area.set_out(self.model, self.data, target, int(k), kind=task.kind)
     act = self._target_activity(target)
     if act is not None:
       act.renew(self.model, area.drawn(target, int(k)))
@@ -4854,7 +4862,7 @@ class HubLifecycle:
       k = int(t.secret["draw"])
       area = jobs.area_of(target)
       if t.open:
-        area.set_out(self.model, self.data, target, k)
+        area.set_out(self.model, self.data, target, k, kind=t.kind)
       else:
         area.redraw(self.model, self.data, target, k)
       act = self._target_activity(target)
@@ -5673,15 +5681,21 @@ class HubLifecycle:
     # way, and the action stands whatever the library said.
     self._define(decision)
     # ...and a challenge it says it has finished (issue #207): paperwork
-    # that only sets the grade pending -- the loop grades once the queue
-    # is empty, so a procedure queued below runs first.
-    self._done(decision)
+    # that sets the grade pending -- the loop grades once the queue is
+    # empty, so a procedure queued below runs first...
+    graded_now = self._done(decision)
     # ...and the answer to whoever asked, if it answered anyone (issue #16).
     # Before the action runs, so a visitor whose idea was taken hears
     # so at the moment it is taken rather than five minutes later.
     self._answer_visitor(decision)
     # ...and what it says in its chat unasked (issue #485). Paperwork.
     self._chat(decision)
+    if graded_now:
+      # ...but beside any other action, the grade is the word's, before the
+      # action runs (#689): after it, a `done` with `idle` was graded a
+      # minute late, 15 of 15. Never at the rack, as the loop's grade.
+      yield from self._leave_rack_routine()
+      yield from self._grade_routine()
 
     if decision.action == "take_task":
       # The overseer accepting a job somebody offered (issue #21), through

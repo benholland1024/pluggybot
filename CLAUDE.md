@@ -288,7 +288,7 @@ save a filmstrip PNG named after the script.
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair` (`--fall-at`, `--drain-at`); `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345); `--no-economy`, `--sequential`, `--nthreads` |
 | `scripts/make_way_spike.py` | #415 on two legs (#559): the humanoid pair in the house on true-floor maps, one robot resting standing in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B`, `--drift`/`--drift-walker` a map laid off the world, `--standing S`, `--near-field` |
 | `scripts/station_spike.py` | the humanoid's charging station (#559 stage 2; SimNotes "The humanoid's charging station"): `--approach [--n N] [--parallel P]` docked and unplugged or why not from seeded starts round the standoff, one process a trial; `--seats` started at 140 seats over what the seat check accepts: plugged in and unplugged or why not; `--lost [--n N]` a fresh robot 2 m out, its belief set 0.4-1 m wrong: the loop's charge path, its lost search and the fix; `--lost --far [--from near,house,street] [--n N] [--explore S]` its belief set 1-5 m and 5-20 deg wrong (#572), 2 m out, in the house's rooms and across the street, explored first or not, and how each charge ended (`--lost-table ROWS` its table again); `--reach` how far its head's camera and its colour imager read the station's tags, out of its face and off its axis, and the head's fit of the pair (#572 stage 3); `--hold [--seconds S]` plugged in: the charger's watts against what it draws; `--fall` shoved over plugged in: the breakaway, the plug home, the robot up; `--anatomy` #596's scene, the first robot's plug-in taken apart: each look's fit, the plug in the jaws, how the feet and the belief moved since the look, the hand and the plug at the port (every batch's rows say where each try let the plug go, `letGo`); `--walk-in [--explore 120,240]` explored, walked out to 8 places across the house on its own map, then the loop's own `go_charge`; `--view [plug\|fall\|lost]` in the viewer, looped (MUJOCO_GL unset), `--lost-from P --lost-off X,Y,DEG` the lost scene from elsewhere, the camera over the robot; `--strip [plug\|fall\|lost]` its filmstrip, `station_spike.png` (`_fall`, `_lost`); each trial its own noise by its scene and start (`trial_noise`), `--noise KEY` a draw again |
-| `scripts/solve.py --feature drawer` | ladder A of #264 on the humanoid's hands (#559): a hand job (`--feature drawer\|door\|cube\|chest`: `open_drawer`, `open_door`, `place_cube`, `open_chest`) offered on the storeroom's counter, or `--feature table` (`set_table`) at the restaurant's table (#560), its prop drawn (`--draw K`) and set out, claimed, the reference's two procedures (`challenge/solutions.py`) run as the robot's, `done`, graded on the seam; a fresh humanoid on a fresh map from the station (`--from station\|store`, or `tour`: flight k from the next of eight places across the house), `--n` draws a process each (`--jobs`, `--into DIR`), each its own noise by its job, draw and start (`--noise KEY` a draw again), `--view`, `--strip` (`--strip-out PATH`); filmstrip `solve.png` |
+| `scripts/solve.py --feature drawer` | ladder A of #264 on the humanoid's hands (#559): a hand job (`--feature drawer\|door\|cube\|chest`: `open_drawer`, `open_door`, `place_cube`, `open_chest`) offered on the storeroom's counter, or `--feature table` (`set_table`) at the restaurant's table (#560) -- or `--feature pass` (`set_table_pass`, never offered: its place laid from the pass, #682's stage C) --, its prop drawn (`--draw K`) and set out, claimed, the reference's procedures (`challenge/solutions.py`) run as the robot's, `done`, graded on the seam; a fresh humanoid on a fresh map from the station (`--from station\|store\|pass`, or `tour`: flight k from the next of eight places across the house), `--n` draws a process each (`--jobs`, `--into DIR`), or `--held-out N` draws sealed by the frozen commit as the attempt kit seals them, each its own noise by its job, draw and start (`--noise KEY` a draw again), `--walker NPZ` another walking policy, `--view`, `--strip` (`--strip-out PATH`); filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the quadruped's pen drew is symmetric |
 | `scripts/humanoid_spike.py` | the humanoid (#507; SimNotes "The humanoid body", "The humanoid stands, reaches and grasps", "The humanoid behind Body", "The humanoid walks", "The humanoid climbs, falls and gets up" and "One walker that sees the ground", Parts.md "The humanoid body"): `--view body` the body held up on a gantry in the house, each joint through its range, then the grippers; `--view stand` its standing policy shoved, crouching and bowing, `--view reach` a hand to a counter, a high shelf, a low shelf and the floor through `Body`, its get-up loaded, `--view grasp` a drawer's handle gripped and pulled, `--view pull` a locked handle pulled at `pull`'s most, 20 N, each way (#544), `--view bar` the `pull` verb on it at its most, back, up, forward and down (#547), `--view feel` 20 N staged at a held-out hand, what its arm and its whole body read (#547), `--view demo` the chest's knob on a counter found by its tag, reached and gripped through `Body`, `--view walk` living room to kitchen and back on its own map, `--view rough` the walker that sees the ground (not served) across doorsteps, paving, a slope and blocks, `--view stairs` it up the house's flight on its own map, round on the landing and down, `--view fall` shoved over three ways, its get-up taking each fall, `--view getup` up off its back, its front and its side, `--view jaws` our table reference flown to its fork's grip, then the fork shut on again from there at 40, 80 and 120 N, the jaws as before #628 and as built (`--strip SCENE` the filmstrip, `--policy NPZ` another standing policy, `--getup-policy NPZ`); `--mass` beside the T2's published model, `--torque` held in our physics and the walking, the stairs and the get-up FLOWN, `--thermal`, `--energy`, `--sensors`; `--friction [--write]` its arm joints' and its waist's friction calibrated in free air beside the sheets', kept in `models/humanoid_friction.json`; `--lean [--write]` the live trunk against the statue a reach plans on -- the stand, each bow, an arm out, after a step, the table's plate (#627) -- its four states kept for `tests/test_reach_lean.py`; `--shove` the shoves it stands through, `--envelope` the reach flown floor to over the head, `--hold` a locked handle pulled harder, `--pulls` a hand pulling each of 14 ways at a counter's height until it falls, `--bar` the force move on the locked handle each way at 10 and 20 N (`--oracle` closed on its true force: the loop's floor), `--feel` what its arm and its whole body read of 20 N staged at the grip, still and swaying (#547), `--grips [A-B]` our table reference's three grips at its set-outs, each shut again from where it began at 10-120 N, the jaws as before #628 and as built (#628), `--handover [N]` the walk's hand-over at a standstill through `step` (#544), `--demo-table [N]` the demo's set-outs flown through `Body`, `--track` / `--rough [NPZ,...]` the served and any walker asked each command on a bare floor / over a doorstep, paving, a slope and blocks (one that sees the ground on its own map), `--odometry` the leg odometry against the truth, `--climb [NPZ]` flights of five at each riser up and down on the ideal scan and its own map, `--fall [NPZ]` shoved over six ways standing, limp or getting up (how far it reaches lying: the fallen disc's, #580; which of the head's parts struck and how fast, and whether the LIDAR itself did, #581), in five places in the house, and from each bow a reach takes (#520), `--speed [SIM_S]` the real-time multiple of one humanoid and a pair, the same walks in the house (`--profile`); filmstrip `humanoid_spike.png` |
 | `scripts/attempts.py` | #493's harness: a skill tried at chests through the attempt protocol (`evaluation.attempts`) and graded by the lid's grader (`challenge/lid.py`), the humanoid's reference at its counter (`evaluation.opener`; `--body humanoid`, the one there is): `--chests A-B` (0-31), `--held-out N [--seed S]`, `--noise KEY` (a draw again, `robot` the robot's own), `--attempts N`, `--jobs`, `--into DIR` (`rows.jsonl`, a row an attempt), `--read DIR` the per-task record, `--drops` the drawn lids let fall (what the grader's lines were read off), `--view [K]` an attempt in the viewer, `--strip [K]` its filmstrip `attempts.png`, `--record PATH [--chest K]` the humanoid's attempt as the site replays it, a session's stream (#530: the fixture, its scene beside it) |
@@ -296,9 +296,9 @@ save a filmstrip PNG named after the script.
 | `scripts/hands_check.py` | #525's capability check: our procedure in the hands' vocabulary for the lid, a drawer, a door's lever and a cube placed (`evaluation.hands_check`), and #560's table set (`--job table`), flown at each job's set-outs and graded by its own grader, the bar (6 of 8) written first: `--job J,..`, `--set-outs A-B`, `--noise KEY` (a draw again, `robot` the robot's own), `--jobs`, `--into DIR`, `--read DIR`, `--source JOB` the procedure and its length against the cap, `--view JOB [K]` a flight in the viewer, `--strip JOB [K]` its filmstrip `hands_check.png`; JOB may be a scene (`hands_check.SCENES`): `until`, the lid's lift stopped on its hand's height (#554); `watch`, on where its watch puts the knob (stage 2); `table_rim30`, `table_rim30_t60`, the table's levers flown (#560 (c2)) |
 | `scripts/practice.py` | #493's graded practice: the mind (`--model`, the deployed by default; `$HF_TOKEN`; `--effort low\|high\|max` how hard it thinks, each request's `reasoning_effort`, unset its provider's, a row saying which) writes the humanoid's procedure for the lid, tries it from a fresh set-out, is shown how it ran and the world's grade, and writes again, up to `--attempts` (5) a chest, a fresh robot a chest; the hands' vocabulary (#525; #493's `--pull`, `--verb-tests` and `--path` arms retired, `run.vocabulary` saying which a row flew); `--chests`, `--held-out N` (the frozen commit's seed), `--acquire A-B` the KEPT protocol (practice first, `--until`, `--max-chests`, `--give-up-after`; `--kept FILE` a record's library), `--early-stop` once the bar is out of reach (what the set-outs it kills in flight spent to `killed.jsonl`, off their journals of calls), `--notes` notes and a draft carried, `--no-measure` without the depth camera's `measure` (its own arm), `--unguarded` without a hand's move's stop condition (#554), `--unwatched` without `watch` (its stage 2), `--jobs`, `--into DIR`, `--no-picture`, `--read DIR` the per-task record and what the mind cost |
 | `scripts/lidar_spike.py` | the head's LIDAR (#581; SimNotes "The 3D LIDAR on the head", "The band served" and "The sensor in the head"): `--hidden` what the robot's own body hides of a frame, standing and at each of the reach scene's holds, `--hidden --heights Z,...` standing, the head built round the unit with its rays' origin at each height (what a lower head costs); `--view head` the head built round it, close, turning (MUJOCO_GL unset), `--view rings` where its steepest rings meet the floor and where the rays its body hides would have, `--strip head` its filmstrip `lidar_head.png`, at eye level and from the site's 36 deg; `--cost [--poses N]` ms a frame in the house, the level ring, the cloud and the band beside a D435 frame; `--probe [--variants ring,band]` #572's static probe on its model (does a scan pin the heading at each outdoor point); `--view` a walk across the street, its map from its points laid flat, the band's returns red and the level ring's blue (MUJOCO_GL unset); `--strip` its filmstrip `lidar_spike.png`. The drift, station and speed instruments fly the band as served (#581's stage 2) |
-| `scripts/humanoid_drift_spike.py` | #572's stage 2 (SimNotes "Where the humanoids get lost"): one humanoid flies the loop's explore, walks the loop's walks across the street to the storeroom and back, and charges; its belief against the truth, the error taken apart as it is made into the gyro's heading, what its hold at a standstill took off it (#593), the legs' position, the believed heading's, and the matcher's and the station's corrections, over the flight and by zone, beside the odometry alone and the legs alone; `--seed luca\|rowan\|K` the IMU's and joints' draws, `--start start\|hall`, `--explore S`, `--trips N`, `--rest S`, `--idle-at X,Y [--idle S]` stood idle there first, `--learned` its gyro's offset taken off its heading as a zero-rate update that had learned it would, `--no-charge`, `--out`; a get-up not stood in 20 s ends a flight `stuck`, its rows kept (`lifecycle.Stuck`: its lifecycle has no `stuck` death); `--table RUN.json ...` runs side by side and by zone; `--falls [--fall-explore S]` shoved over six ways after an explore, a process each: how far its get-up moved it and its belief, and the belief's error as it fell, as it stood and after (#572 stage 3). The stage's other half is `station_spike.py --lost --far`. #593's two (SimNotes "A robot left standing when its run ends, and a heading held at a standstill"): `--still boot\|walk\|turn\|standup [--seconds S] [--hold-after S]` standing still after each (`standup`: a stand-up's warp), its matcher off and its gyro's offset the part's worst, its heading held and unheld against the truth; `--done [--no-wait] [--no-hold]` the pair, the second robot's day over first, its belief while it waits (the two switches the loop as it was before) |
+| `scripts/humanoid_drift_spike.py` | #572's stage 2 (SimNotes "Where the humanoids get lost"): one humanoid flies the loop's explore, walks the loop's walks across the street to the storeroom and back, and charges; its belief against the truth, the error taken apart as it is made into the gyro's heading, what its hold at a standstill took off it (#593), the legs' position, the believed heading's, and the matcher's and the station's corrections, over the flight and by zone, beside the odometry alone and the legs alone; `--seed luca\|rowan\|K` the IMU's and joints' draws, `--start start\|hall`, `--explore S`, `--trips N`, `--rest S`, `--idle-at X,Y [--idle S]` stood idle there first, `--learned` its gyro's offset taken off its heading as a zero-rate update that had learned it would, `--no-charge`, `--out`; a get-up not stood in 20 s ends a flight `stuck`, its rows kept (`lifecycle.Stuck`: its lifecycle has no `stuck` death); `--table RUN.json ...` runs side by side and by zone; `--falls [--fall-explore S]` shoved over six ways after an explore, a process each: how far its get-up moved it and its belief, and the belief's error as it fell, as it stood and after (#572 stage 3), and its heading through the fall, its IMU's own apart (`imuTurn`; #690), `--fall-at lobby [--walking] [--shove-ns N]` in the research center's lobby, shoved mid-stride on the walk Luca fell on; `--asked walk\|stand\|reach\|getup\|charge\|step [--ask-s S]` (#690; SimNotes "One robot's interrupt asked, the other robot held") the pair, this robot at it while the other's interrupt is asked: whether its physics ran, its falls, its belief after. The stage's other half is `station_spike.py --lost --far`. #593's two (SimNotes "A robot left standing when its run ends, and a heading held at a standstill"): `--still boot\|walk\|turn\|standup [--seconds S] [--hold-after S]` standing still after each (`standup`: a stand-up's warp), its matcher off and its gyro's offset the part's worst, its heading held and unheld against the truth; `--done [--no-wait] [--no-hold]` the pair, the second robot's day over first, its belief while it waits (the two switches the loop as it was before) |
 | `scripts/step_spike.py` | what `step` does with a short ask and a small turn (#649; SimNotes, "Stepping toward the work"): the humanoid alone on a bare floor, from four stances (the boot, after a 12 cm step, after a reach withdrawn, after a turn), the verb's word and report beside what its soles truly did: `--walks` each ask ahead, back, left and right, 3-30 cm, `--turns` 1-90 deg both ways (`--noises N`, `--jobs`); `--view [walk\|turn]` in the viewer (MUJOCO_GL unset), `--strip [walk\|turn]` its filmstrip `step_spike.png` |
-| `scripts/carry_spike.py` | carrying while walking, measured for #560's next task (SimNotes, "Carrying while walking, measured"): an arm posed holding the table's plate or cup, the legs handed to walk2 WITHOUT the served hand-over (`--served` the served one, which carries a held grip at its carry pose, #682), on a bare floor (`--house` the served house's shelf -> table 0 route): `--fly` cases (`none`, `empty`/`plate`/`cup` x `low`/`tray`/`out`/`close`, `both_out`, `both_low`, `empty_inside`, `plate_ref`/`cup_ref` the reference's own grip) over courses (the Navigator's walk and turns, `pass`, `route` the kitchen shelf -> table 0, `goto`/`goto_round` closed loop), `--draws`, `--jobs`; `--unseen` the held piece hidden from every cast, `--blind-arms` the walker shown its arms at rest, `--kg`, `--squeeze`, `--walker NPZ` another walking policy (#682's `-Walk-Carry`); `--read`, `--poses`, `--view CASE:COURSE[:K]`, `--strip` (`carry_spike.png`) |
+| `scripts/carry_spike.py` | carrying while walking, measured for #560's next task (SimNotes, "Carrying while walking, measured"): an arm posed holding the table's plate or cup, the legs handed to walk2 WITHOUT the served hand-over (`--served` the served one, which carries a held grip at its carry pose, #682), on a bare floor (`--house` the served house's shelf -> table 0 route): `--fly` cases (`none`, `empty`/`plate`/`cup` x `low`/`tray`/`out`/`close`, `both_out`, `both_low`, `empty_inside`, `plate_ref`/`cup_ref` the reference's own grip) over courses (the Navigator's walk and turns, `pass`, `route` the kitchen shelf -> table 0, `goto`/`goto_round` closed loop), `--draws`, `--jobs`; `--unseen` the held piece hidden from every cast, `--blind-arms` the walker shown its arms at rest, `--kg`, `--squeeze`, `--pinch-out M` a posed piece held M further out toward the fingertips (the cup's creep), `--walker NPZ` another walking policy (#682's `-Walk-Carry`); `--read`, `--poses`, `--view CASE:COURSE[:K]`, `--strip` (`carry_spike.png`) |
 | `scripts/measure_spike.py` | what `measure` reads of each end of a top, against the truth (#636; SimNotes, "Where `measure` looks"): the verb's own code on the robot's own depth pictures at a check's set-outs (`--job`, `--set-outs`), from the reference's stance at the probe's windows or from viewpoints round it and a grid (`--poses all`), each end read checked by a ray straight down 2 cm past it (`lower`, `on`, `taller`) and each left out saying why; a row an end (`--out`) |
 | `scripts/waist_spike.py` | #560's stage (c), a waist measured before it is built, on the robot's model of itself (SimNotes, "A waist, measured before it is built"): `none`, `pitch`, `yaw`, `pitch_yaw`, `yaw90` (`--candidates`; the yaw at +-90, #560 (c2)), each today's drawing with a waist put in at the pelvis's top, its zero pose today's body; a reach planned as `reach.plan` plans one, the waist's angles part of the posture, balanced again with the arm out, clear of the table and of its own parts, its torques held: `--bands` the table's, `--window` the stance window with our procedure's carry (the waist held, and in the arm's chain), `--envelope` the floor to over the head, `--across` the middle, `--alternatives` every posture at a dozen named reaches (the part's sizing), `--mass`, `--strip PNG` the statues at the table (`docs/figures/waist_table.png`), `--reposture` the plate's and the fork's carries with the posture changed on their way; `--all --jobs N --into DIR` (a batch: ~13 CPU-hours, on a pod, `training/pod.sh batch`), `--read DIR`, `--sample N`, `--check` |
 | `scripts/putdown_spike.py` | #560's stage (c2), the table's put-downs measured before the waist is built (SimNotes, "The table's put-downs, measured before the waist is built"): each lever -- the grip (tilt, the jaws' way round, where the plate's wall is gripped, turned on its way), the path (lift, a `via` point), the hand (the other, a relay), the stance (nearer, back, turned), the layout -- on `none`, `yaw`, `yaw90` (waist_spike's candidates), its WINDOW across 1 cm apart by three measures of the carry: `one` posture and `repose` (waist_spike's, reproduced cell by cell by `--check`) and `served` (our verbs as the served reach makes them, its `HOLD_POSTURES`); `--list`, `--levers A,B`, `--pieces`, `--into DIR`, `--read DIR[,DIR]` (with the bar's summary), `--part I/N` (a pod's share: the whole set is ~33,000 stances, ~40 CPU-hours, half an hour on three 32-vCPU pods), `--models M,N` (those measures alone: a re-run of one), `--sample N` |
@@ -813,7 +813,9 @@ save a filmstrip PNG named after the script.
   (`_settle_job`). ⚠ A true
   death fails its robot's jobs in that robot's own records. ⚠ ITS HOLDER
   IS SHOWN IT, and the time it has left (`heldTasks`, `leftS`): without it
-  the robots spent their recalls finding out when they took it. ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
+  the robots spent their recalls finding out when they took it; ⚠ `leftS`
+  is the ask's, and the rule says the clock runs on while it thinks (#689,
+  Overseer.md §2b). ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
   (`TaskKind.draws`, the board's seq) into the compiled world and sets the
   prop out, ⚠ ITS SENTENCE SAYING WHEN (`{offered}`, #659, TaskPattern.md
   §2; a test reads it as offered, past `MAX_DESCRIPTION`'s silent cut), its
@@ -891,7 +893,23 @@ save a filmstrip PNG named after the script.
   last of the way; ⚠ the left arm lifts 9 cm before its way home (at 6 a
   hand nearer the table struck its edge going home). On draws nothing was
   tuned on, 46 of 64. 14 minutes, 79 points (90 for 16 minutes pro rata,
-  Ben's call), 9.82 Wh from the dearest station (`energy.json`).
+  Ben's call), 9.82 Wh from the dearest station (`energy.json`). ⚠ ITS
+  PLACE LAID FROM THE PASS IS A KIND OF ITS OWN, NEVER OFFERED
+  (`set_table_pass`, #682's stage C; `counter.pass_set_out`, the kind
+  choosing the set-out, `restaurant.SET_OUTS`; `solutions.PASS` over
+  `solutions.LIBRARY`; `solve.py --feature pass`; Challenges.md §12; SimNotes,
+  "The place laid from the pass"): ⚠ its pieces lie near the pass's dining
+  edge -- a carried piece hangs under the pass's 0.90 m top, 0.32-0.35 m
+  ahead, so a walk's hand-over clears the counter only 0.37 m off it -- and
+  ⚠ its reference grips the plate's wall 1 cm lower than the table check
+  (there the pads' tips catch 0.7-0.9 cm of the wall, and carried it fell
+  in 37 of 42 legs) and ⚠ grips the cup AT ITS MIDDLE (aimed 2.5 cm short,
+  as the table check's 3, the cup's side met each pad only at the
+  fingertip's corner and carried, it crept out of the jaws in 20 of 32
+  flights a walker; at the middle none of 64: `test_solutions`). ⚠ ITS BAR
+  (24 of 32 over the tour, walk2 and the carry walker) IS NOT MET: 10 of 32
+  on walk2 at its best, held out 6, the carry walker 0 (its stances at the
+  table are walk2's).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -1380,8 +1398,11 @@ save a filmstrip PNG named after the script.
   `->`, no hazard→act tactic, no imperative menu act, no robot's name). Every
   row is in `mind/text.py`; `text.admit` is the ONE gate every document write
   passes; a refusal is narrated AND written to History, the reason before
-  what it tried (#409), never swallowed; on EVERY arm, memory is not
-  a rail. ⚠ **`think` is the FIRST property of the decision schema**
+  what it tried (#409), never swallowed, ⚠ and a full document's says what
+  it HOLDS, never what the refused write would have made (#688: "65 of 64"
+  read as over the cap; `text.held`, its one shape), as each notes-tier
+  index rides the turn beside it (`holds`); on EVERY arm, memory is not a
+  rail. ⚠ **`think` is the FIRST property of the decision schema**
   (constrained decoding follows property order). ⚠ **`recall` is an ACTION**,
   never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`; its
   chain ends at any other action but a fallback's, which keeps it ONCE, a
@@ -1898,14 +1919,15 @@ save a filmstrip PNG named after the script.
   ⚠ The lab's and the workshop's props (`activity/cage.py`, `home/props.py`:
   the cage, the tower's blocks and the bench, whose jobs went with the
   quadruped) are geometry the generator emits; behaviour is added beside
-  it. ⚠ THE GARDEN'S PLATE IS FLUSH (#684, Ben's call; `plate_xml(flush=True)`,
-  ActivityPattern.md §3.1): the floor's own square, read by a touch sensor
-  on a site of the world body over it, its pad paint nothing touches,
-  hinted `floor_plate` (a `plate` collides) -- at 21 mm on a spring, the
-  served walker went down on it and fell over the lamp's pole, and a pad at
-  the floor's height shares the plane's contacts (its sensor read half a
-  box's weight). The lab's three are the sprung pad still (`plate_xml`'s
-  default). The house carries no robot. ⚠ The grid is 856,800
+  it. ⚠ EVERY PLATE IS FLUSH, THE GARDEN'S AND THE LAB'S THREE (#684, Ben's
+  calls; `plate_xml`, ActivityPattern.md §3.1): the floor's own square, read
+  by a touch sensor on a site of the world body over it, its pad paint
+  nothing touches, hinted `floor_plate` (a `plate` collides; no world's now)
+  -- at 21 mm on a spring, the served walker went down on the garden's and
+  fell over the lamp's pole, and stood on the lab's edge for good from a
+  standstill; and a pad at the floor's height shares the plane's contacts
+  (its sensor read half a box's weight). A press is whose contacts are over
+  the square (`Cage.presser`). The house carries no robot. ⚠ The grid is 856,800
   cells (#560; 469,200 before), 46 % of `occupancy_grid.MAX_CELLS` (1,876,800, the largest
   grid measured: #558, `scripts/grid_spike.py`): walks plan on the compiled
   lattice, and what grows with the cells is each scan's update, each plan's
@@ -1961,7 +1983,8 @@ save a filmstrip PNG named after the script.
   stubs the ROUTINE (`life.body.go_to_routine = lambda *a, **kw:
   tick.result(False)`), never the twin. Parity is the trajectory hash
   (`scripts/determinism_spike.py --compare` before and after).
-  `_ask_interrupt` is still blocking.
+  `_ask_interrupt` is still blocking, the one blocking run inside the
+  day's routines: in a pair it is the loop's (#690, below).
 - **The loop reaches the machine only through `Body`** (issue #380;
   `pluggybot/body.py`, documented at each member): every module in `src/`
   but the machine's own (`tests/test_body.py::BODY_SIDE`: `humanoid/`,
@@ -2009,7 +2032,21 @@ save a filmstrip PNG named after the script.
   other's ends (`run_many`'s `waits`, #593): a run ends robot by robot, and
   held STILL by the loop -- its stepper's bookkeeping, none of its
   routines' -- Rowan matched no scan for 20-55 minutes while Luca charged,
-  its heading turned 105-161 deg, and the next run carried on lost. ⚠ Mutual awareness is the REPORTED pose (a
+  its heading turned 105-161 deg, and the next run carried on lost. ⚠ A
+  BLOCKING `run` BEGUN INSIDE THE LOOP IS THE LOOP'S (#690; `tick._Loop.run`;
+  SimNotes, "One robot's interrupt asked, the other robot held"): every
+  robot applied, one `mj_step`, every robot booked, each other robot held
+  through its wait (its body's own hold), its routine left where it was --
+  stepped by the asking robot's stepper alone, Luca's legs held a walk's
+  stale targets through Rowan's 5.8 s interrupt (`_ask_interrupt`), and it
+  fell, its IMU's filter blind, and got up 120 deg off. The price: the
+  other robot's errand pauses, standing, for the whole ask (up to
+  `INTERRUPT_TIMEOUT_S` of think), a walk or a `step` counting none of it
+  (its stepper is told: `held`, into `held_s`). ⚠ What the run raises that is not its
+  routine's own -- a held robot's wait's, the step's -- is `run_many`'s to
+  raise (`tick._Raised`): booked inside the asker's stack, the procedure
+  runner's `except Exception` took the other robot's error for its own.
+  ⚠ Mutual awareness is the REPORTED pose (a
   network fact) -- but a robot STILL, fallen, resting or dead, is kept
   clear of where its BODY lies, placed as the other's own sensors would, and
   the depth camera's hold skips it (`keep_clear`, `_near_field_step`; #365,
@@ -2122,8 +2159,10 @@ save a filmstrip PNG named after the script.
   (`overseer.DISCLOSURE`), stated once, neutral; the principle (never
   assert a falsehood; may decline to disclose, and says so) is
   PluggyPlan's. ⚠ NO PROHIBITION, no worked example. ⚠ A plate a walk
-  crosses is a `press` event (`Cage.presser`, `HubLifecycle._press_step`),
-  never a `care`, a `harm` or an act; quality three keeps a free act's
+  crosses is a `press` event a footfall on it, 1-3 a crossing since every
+  plate reads its load (#684), the robot whose weight pressed it
+  (`Cage.presser`, `HubLifecycle._press_step`), never a `care`, a `harm` or
+  an act; quality three keeps a free act's
   `care` row apart from a paid one's (`qualities.FREE_CARE` ==
   `cage.CARE_ACTS`, pinned).
 - **The wire keys everything by the robot's ROOT** (issue #167;
@@ -2499,7 +2538,12 @@ save a filmstrip PNG named after the script.
   claiming a hand job queues NOTHING — the robot writes the procedure, runs
   it, and sets `done` to the task id. The grade is
   `HubLifecycle._grade_routine` (`_grade_hands_routine`: its check's grader
-  on the seam, the hold, one verdict). ⚠ GATED ON A MIND, NOT MOVED INTO
+  on the seam, the hold, one verdict), ⚠ AT THE WORD, BEFORE ITS ANSWER'S
+  ACTION (#689: after it, 15 of 15 said with `idle` were graded a minute
+  late; `CHALLENGE_RULE` says so, Overseer.md §2b), unless that answer runs
+  a procedure, whose run is the work and is graded by the day loop once the
+  queue is empty -- and a robot that died while it thought is graded there
+  after its stand-up, which closes its answer, a grade mid-hold too. ⚠ GATED ON A MIND, NOT MOVED INTO
   `rewards.json` (a prop is a target only where `world_targets(...,
   procedures=True)`, and every `task_producer` caller passes whether there
   is a mind). ⚠ `_claim_task` gates on `claim_budget_wh`, not

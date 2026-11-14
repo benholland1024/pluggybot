@@ -308,14 +308,14 @@ rot.
 
 A pressure plate that latches a garden light (`activity/plate.py`; the
 `geom_pos` trap under "Conventions" is the surviving lesson of the gate it
-replaced, table in ActivityPattern.md §3.4). The garden's is flush with the
+replaced, table in ActivityPattern.md §3.4). Every plate is flush with the
 floor since #684, read off its load ("A flight that never got up"); the
-sprung pad below is the lab's three. Three measured rules the pattern doc
-carries:
-- **Hysteresis**: one wheel crossing flips a bare threshold **4** times, a
-  hysteretic one (`PLATE_ON` 6 mm / `PLATE_OFF` 3 mm) **2** — one press, one
-  release, the floor; a humanoid walking across the flush plate, 175 and
-  71 over 15 crossings (`LOAD_ON_N` 100 / `LOAD_OFF_N` 50).
+sprung pad below was every plate's before it. Three measured rules the
+pattern doc carries:
+- **Hysteresis**: one wheel crossing of the sprung pad flipped a bare
+  threshold **4** times, a hysteretic one (6 mm on / 3 mm off) **2** — one
+  press, one release, the floor; a humanoid walking across the flush plate,
+  175 and 71 over 15 crossings (`LOAD_ON_N` 100 / `LOAD_OFF_N` 50).
 - **An analogue flag defeats sparseness**: `depressMm` over a 300-frame
   crossing is 38 deltas at 0.1 mm rounding, 15 at 1 mm. Quantise to what a
   consumer can act on or keep it off the wire.
@@ -7475,6 +7475,133 @@ actor seeing walk2's 24 joints in walk2's order (the exporter records them,
   toward one pose, it lost what the box had given it: carry2 is the
   candidate, carry3 kept off the repository (`loop-1112/l4-carry/`).
 
+## The place laid from the pass (#682's stage C, easy mode)
+
+**What is true now.** Table 0's place can be laid from its pieces set out on
+the restaurant's pass -- the expo counter in the dining room's east wall,
+0.90 m up, between its pair of tags (68, 69) -- each piece carried 4-5 m to
+the place by the walk's own hand-over (`set_table_pass`, NOT OFFERED and paid
+nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
+(`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
+written before it, 24 of 32 draws over the tour on walk2 and on the carry
+walker (`scripts/solve.py --feature pass --from tour`; the reading is
+below). What developing it took, each measured on the loop's pods (AMD EPYC
+7B13, osmesa, each draw its own noise; rows in
+`~/pluggybot-training/loop-1113/l4-shelf/`):
+
+- **A carried piece hangs under the pass's top.** The carry pose holds the
+  cup's grip at 0.89 m and the plate's at 0.865, 0.23-0.26 m ahead of the
+  soles' middle (`CARRY_POSE`, its wrist solved to keep the grip's turn), so
+  the cup's bottom rides at 0.83 m and the plate's at 0.81, their far edges
+  0.32-0.35 m ahead: the walk's hand-over clears a 0.90 m counter only from
+  about 0.37 m off its face. Standing (no bow) a hand takes a piece at the
+  pass's height no further than about 0.45 m ahead, 0.25 m to its side
+  (`reach.plan`; further in, or nearer the middle, it bows 0.55-0.8 rad over
+  the counter). Set out 0.18-0.20 m in, the cup was gripped and the hand-over
+  swept it into the counter's edge; the pieces lie 0.06-0.11 m in, and each
+  is pulled back over the edge before the walk.
+- **A grip's descent holds its line.** Re-targeted off the hand's sensed
+  place (`go`), the cup's descent drifted 1.4-3.6 cm back and 11 of 16 grips
+  closed on nothing; a pull straight down that gives across its way (`give`
+  1) slid on the force reading's phantom 5-8 N -- 3.6 cm back in one flight,
+  19 cm forward with the cup pushed in another. Straight down holding its
+  line, the cup's grips landed 1.5-3.4 cm short of its middle. Gripped 4.9-5.5
+  cm short it was lost on the pull back or the walk, 7 short closed on
+  nothing.
+- **The stance turns 5-10 deg as an arm goes out**, and a reach planned
+  before it put the plate's grip 4-9 cm off its 8 mm wall: the plate and the
+  fork are reached to a hover 6 cm over their grip, read again there,
+  corrected at that height and pulled straight down (the plate laid 7 of 10
+  where 4-5).
+- **The plate's rim pinch (#682's open item 1).** The table check's plate
+  grip -- fingers 60 deg down, the grip 5.3 cm over the surface -- puts the
+  80 mm pads' lower tips only 0.7-0.9 cm over the 2.8 cm wall's top: an edge
+  pinch, enough for the table's 20-30 cm move. Carried from the pass it fell
+  in 37 of 42 legs (80 and 120 N, pulled back or not, on walk2; 6 of 9 on the
+  carry walker), and posed at that pinch on the 13 m house route (`carry_spike.py
+  --house --served`, 80 N) in 8 of 8. Gripped 1 cm lower, the pads over
+  1.6-1.9 cm of the wall: 1 of 9 legs. ⚠ The hand's sensed place is 1.5-2 cm
+  off across the jaws, and a carry moves the plate a further 2 cm forward in
+  them: its offset in the hand is the flights' (2 cm ahead, 8.3 cm across),
+  as the table check's is a constant.
+- **The cup's creep (#682's open item 2) is where its grip is aimed.** Taken
+  from above, the fingers 45 deg down, a cup touches each pad along the line
+  of its side, which crosses the pad's face where the grip is aimed along
+  the fingers' way. Aimed 2.5 cm short of its middle (the table check aims
+  3: at the table's height the palm cuts the lid at the middle), the grips
+  landed 2.1-3.5 cm short (a median 2.8-3.0), and the line met each pad only
+  at its fingertip's corner -- a contact trace (dev draw 152) read one
+  contact a pad, 35-40 mm from the pad's middle, its tip at 40, the cup
+  pivoting about the jaws' line and creeping toward the tips about 0.2 mm/s
+  -- and carried, it let go in 20 of 32 of the bar's flights on each walker
+  at 25 N (at 40 N, 12 of 16 from the tour), the hand-over's way to the
+  carry pose turning the hand about 29 deg midway. Aimed at its middle
+  (landed 0.8 cm short to 0.4 past), the line crosses each pad's width
+  1.5-2.5 cm off the tips (the trace's two contacts a pad, 4 cm apart), and
+  of 64 cups carried from the tour (dev draws 200-231, 32 on each walker)
+  none let go; 54 of the 64 grips held (a pad landed on the rim, or the cup
+  was pushed aside, in the other 10). The cup posed in the grip on the 13 m
+  house route held at 40 N (0 of 16): `carry_spike.py`'s pinch has its side
+  up each pad to 2.7 cm off the tips, where the pass's grips reached 1.3 cm
+  at the shut, and less as the cup crept.
+- **A far find reads one tag's own facing 16 deg off**, and from the tour
+  the robot faced the pass that far off, the cup out of the colour camera's
+  picture; the wall's facing is taken off the line through its two tags. A
+  face lands up to 16 deg off its 4 deg tolerance anyway: a piece the
+  picture misses is looked for by a turn toward its side, then a step in
+  (`near`), and the fork, whose tag is 19 mm, is taken from 0.20 m to the
+  side, not 0.25 (at 32 deg it sat on the picture's edge).
+- **The table's approach, carrying,** ended up to 0.2 m further back than
+  it expects and once asked its last step 0.53 m (refused over 0.5): taken in
+  two. A step aside the lay took after it, carrying the cup, fell once, and
+  is gone; the approach's own steps across (0.3-0.4 m, one with its big turn)
+  stay, and a cup has let go during them. The
+  cup's put-down sits at the edge of the right hand's band both ways: from
+  the table check's stance it took a crouch and a waist turn and fell, from 5
+  cm further back a 0.55 rad bow that missed by 13 cm; the walk ends 1 cm
+  further back (`PASS_BACK`). The walk back from the table to a standoff 1.2
+  m off the pass found no route past the tables; it walks to 1.1.
+- **The Navigator's footprint with a piece (#682's open item 3, A5)**, read
+  off the truth from the pelvis -- where the map's inflation and the LIDAR's
+  front stop are measured from -- over every carry (min / median / max): the
+  cup reaches 0.34 / 0.38 / 0.40 m ahead and 0.29-0.32 m to its side, 0.44 /
+  0.46 / 0.48 round; the fork 0.36 / 0.38 / 0.40 ahead, 0.47 / 0.48 / 0.50
+  round; the plate 0.31 / 0.42 / 0.46 ahead, to 0.37 aside, 0.37 / 0.48 /
+  0.50 round, tilted a median 24 deg in its pinch. Against the inflation's
+  0.35 m and the front stop's 0.40 m ahead and 0.27 to each side: a carried
+  piece pokes 0.10-0.15 m past the inflation on its side, and its outer edge
+  past the front stop's half-width, so a walk that hugs a jamb on the
+  carrying side would strike it. Not changed (the pass's route has no door).
+- **The bar's readings: NOT MET.** Written before any flight (24 of 32 draws
+  over the tour, a fall failing the try, on walk2 and on the carry walker,
+  one pod, then 32 held-out draws each, sealed by the frozen commit), and
+  read twice on one pod (an AMD EPYC 7B13, osmesa):
+  - At b531491 (the cup aimed 2.5 cm short): walk2 0 of 32, the carry walker
+    0; held out, 1 (laid in 421 s) and 0. The first piece not laid, a flight
+    (walk2's bar and held-out draws, then the carry walker's): the cup let
+    go while carried 20 and 13, 16 and 17; a put-down off its place, or its
+    reach failing, 9 and 8, 6 and 9; a pick-up at the pass that failed 1 and
+    6, 8 and 4; a walk that never got there 2 and 4, 0 and 0; a fall 0 and
+    0, 2 and 2.
+  - At 0804ecc (the cup gripped at its middle, each put-down moved by where
+    dev flights set its piece down, the cup pulled back to 0.29 m): walk2 10
+    of 32, the carry walker 0; held out (sealed by 0804ecc), 6 and 0; each
+    laid in 413-516 s. Over walk2's 64 the cup was laid in 29 (11 before),
+    the plate in 36 (32) and the fork in 37 (13), and a cup let go carried
+    in 1 (34 before). Walk2's first piece not laid, the bar's draws and the
+    held-out: a put-down off its place 13 and 16 -- the cup's, set down a
+    median 1.5 cm right of its spot and up to 7 cm either side of it; a
+    pick-up at the pass 4 and 8 (the plate came down as its grip shut, near
+    the pass's edge, 14 times in the 64); a fall 3 and 0 (the fork's pull
+    back from the pass felled the robot 3 times in each reading's bar
+    draws); a cup let go by the walk's hand-over 2 and 0 (its pull back
+    still ran out of reach in 4).
+  - The carry walker laid no place in either: the plate's put-down reach
+    failed in 23 and 21 of 32, then 24 and 23 (no posture, stopped short, a
+    fall): its walk leaves the card a median 0.46 m ahead and 6 cm to its
+    right, where walk2's leaves it 0.52 ahead and 5 cm to its left, and the
+    reference's put-downs are walk2's stances.
+
 ## The arms keep off the other robot (issue #678)
 
 **What happened.** #670 kept a step off the other robot as a walk is kept
@@ -7541,9 +7668,11 @@ cylinder first; and only a robot the LIDAR sees, one scan at the move's start.
 - *Otherwise refused*, nothing moved, in words the robot reads
   (`steps.ARM_KEPT_OFF`): what did not move, why, where that robot stands
   from its own middle ("another robot, its middle 0.54 m from yours on your
-  right"), and for a reach what the other hand's way would do ("your left
-  hand's way there keeps clear of it"). A withdraw is judged before #669's
-  let-go, so its gripper stays as it was, holding what it holds.
+  right"), and for a reach what the other hand's ways would do ("your left
+  hand's ways there and home keep clear of it": `Reach.clear_way` judges
+  both, and said of its way there alone, 3 of 12 asked could not say a left
+  reach would go). A withdraw is judged before #669's let-go, so its
+  gripper stays as it was, holding what it holds.
 - *A walk with a hand out that could not come home.* A walk brings the arms
   home first (#669), so `step`, `drive_to`, `face` and `find` refuse to walk
   then (`Body.arm_kept`, one look) and say so; the loop's own walks -- a
@@ -7591,7 +7720,7 @@ it had merged, side by side, both before #684):
   tree): loop-staging touched in 14 (233 contacts), Rowan fell in 9 and Luca
   in 4 -- stage 1's base, flight for flight; this build touched in none and
   nobody fell, 23 reaches refused, each for Luca's body 0.54-0.79 m on its
-  right, each saying the left hand's way there keeps clear. The steps #670
+  right, each saying the left hand's ways keep clear. The steps #670
   refuses it refuses still, 54 on each tree.
 - *Neighbouring props* (both robots running their check's own procedure at
   once, draws 0-3): at the counter's work spots, 1.16-1.24 m apart, the same
@@ -7818,11 +7947,18 @@ lies (`Keeper.busy`, 320 s). The death's clock ran only while the trunk lay
   where it had fallen, its pelvis at 0.725 m at the lowest, and five times
   more, the lamp lit at 115.4 s; it explored, walked both trips and docked
   with no fall. Of the served walker's straight walks, none fell on the
-  flush plate (15 crossings, 9 begun at a standstill 4 cm off its edge);
+  flush plate (15 crossings, 9 begun at a standstill, the toes at its edge);
   on the raised pad, none fell either, but all 9 begun at its edge and 3 of
   the 15 stood on its edge for good (0.10-0.25 m); the lab's three, the
   same 21 mm sprung pad, were crossed 21 times at speed, and stalled all 9
-  edge starts.
+  edge starts (0.07 m of a 0.3 m ask, 0.11 of 0.6).
+- The lab's three are flush too (#684's call 3): from those 9 starts the
+  walker walks what it walks on bare floor 1 m off them (0.18 m of 0.3,
+  0.49 of 0.6), each start pressing its plate, and crossed at speed 19
+  times it never fell. A load plate presses about once a footfall on it:
+  1-3 presses a crossing (the cage counted 41 acts over 19 crossings, the
+  sprung pads 27 over 21), each the robot's whose weight pressed it (its
+  contacts over the square carrying the most of the load).
 
 ## The storeroom keeps an error, and a match the walls only partly agree with is searched (issue #681)
 
@@ -8008,6 +8144,112 @@ off on Luca's map of 11-09 one pose of 40 was searched onto the copy where
 the base's fit ended 0.1 m off. The base's own search, from an
 `inconsistent` fit, still takes the best of two places that explain a scan
 alike, and the doubt's beyond its window.
+
+## One robot's interrupt asked, the other robot held (issue #690)
+
+**What the live pair showed.** On 1e8f1d48 (11-12, 20:30 UTC) Luca fell 63
+s into a plain `drive_to` in the research center's lobby, and its get-up
+stood it 120 deg off the truth: every scan after it was refused for the 26
+minutes to the pause (944 matched from the restart to the fall, none after),
+and it walked into the garden believing it stood at the storeroom's
+counter. The log has why: Rowan's `battery below 22% -> ask` fired at
+t=227566.3, its mid-errand interrupt was answered at t=227572.1 -- 5.8 sim
+s, in 3.1 wall s -- and Luca's "you fell" came at t=227572.9, 0.8 s later.
+
+**Not the IMU's filter.** The first hypothesis -- the attitude filter's
+gravity correction (`imu.Attitude`, `TAU_S`) running on through a tumble,
+when what the accelerometer reads is no longer gravity, a wrong tilt turned
+into a heading -- was flown and is not it. 72 falls on a bare floor (8 ways,
+45-100 N*s, standing and walking at 0.6 and 1.0 m/s) left the filter's
+heading within 0.8 deg of the truth's. 201 flights of the served mission in
+the house -- the lobby's walk shoved mid-stride 8 ways at 70-150 N*s, along
+its west wall, standing where Luca stood up facing four ways, three other
+IMUs' draws, a belief 0.42 m off with its map laid through it, as Luca's was
+-- fell 129 times: the 101 get-ups that stood left the heading within 1.7
+deg (p95 1.1), the filter's own change across a fall at most 1.35, though
+the bodies turned 5-177 deg and the get-ups took 2.1-14.8 s, and 28 never
+stood in 20 s (`Stuck`). The filter follows the gyro exactly but for a
+two-step lag (it reads the sensor computed the step before), so a body at
+rest before and after is tracked whole; its scale error (Luca's +0.39 %
+about z) is a fraction of a fall's 5-12 rad; and its correction turns the
+estimate about an axis level in its own world, so the only heading it adds
+is the holonomy of the tilt errors it chases.
+
+**The cause: one robot's blocking wait stepped the world without the
+other.** `HubLifecycle._ask_interrupt` waits on the mind with
+`self.body.run(self.body.hold_routine(THINK_SLICE_S))`: a blocking
+`tick.run` on the asking robot's stepper, inside the pair's
+`tick.run_many`. Through every step of the ask the other robot's stepper
+never ran -- no policy step, so its legs held the last targets they were
+sent; no step of its IMU's filter; no fall watch, no odometry; and no seam,
+whose hooks on the first robot are the world's activities, the stream's
+frames, the recorder and the real-time pacer (Rowan's 5.8 s passed in 3.1
+wall s, unpaced, unstreamed). Flown as live (`humanoid_drift_spike.py
+--asked walk`: the pair, Luca walking the lobby's walk, Rowan asked through
+the real `interrupted()` by a mind that answers carry on after 5.8 s): Luca's
+physics stepped none of the ask's 2,900 steps; it lay on the floor 1.4 s
+into the ask while its filter's tilt read 1.5 deg; 0.78 s after the answer,
+as the filter's correction caught up, its fall watch fired (live: 0.8); and
+the get-up stood it 2.6 m and 40 deg off, kept. What it lost is the turn its
+body made unseen: the correction rights the tilt by the shortest arc, and
+whatever of the fall's turning that arc does not undo stays as a heading.
+Whatever else the other robot was doing, the ask stopped its body as it
+stood (below).
+
+**What is true now** (`tick._Loop.run`): a blocking `run` begun inside
+`run_many` is the loop's -- every robot applied in the loop's order, one
+world step, every robot booked -- each other robot held through its wait
+(`run_pair`'s: its body's own hold, its scans matched), one wait across the
+ask's think slices, closed once its own routine drives it again, and its own
+routine left where it was, so no second robot's blocking call can begin
+inside the first's. What such a run raises that is not its routine's own --
+a held robot's wait's, the step's -- is `run_many`'s to raise
+(`tick._Raised`): inside the asker's stack, the procedure runner's `except
+Exception` took the other robot's error for its own. `_ask_interrupt` is the
+one such run in `src/`: every other blocking twin (the explore, a charge, a
+decision, a walk) is called only by scripts and tests. Flown, the other
+robot doing each thing as the second's interrupt is asked for 5.8 s
+(Rowan's), 30 and 115 (`INTERRUPT_TIMEOUT_S`; the drift spike's `--asked`),
+before (the base, on a pod) -> now (on the dev box):
+
+| the other robot, as the ask flies | 5.8 s | 30 s | 115 s |
+|---|---|---|---|
+| walking the lobby's walk | fell, stood 2.6 m and 40 deg off -> held, walked on | fell, 2.6 m and 40 deg -> held, walked on | fell, 0.9 m and 39 deg -> held, walked on |
+| standing, resting | leaned 7.7 deg -> held | fell -> held | fell -> held |
+| a hand out at a counter's height | fell -> held, the hand kept there | fell -> held | fell -> held |
+| getting up from a shove | its get-up stopped where it lay, then stood -> stood | stopped, and its 20 s clock ran on: `stuck` -> stood | `stuck` -> stood |
+| plugged in at its station | leaned 16 deg -> held, charging | leaned 17 deg -> held, charging | leaned 23 deg, fell after, `stuck` -> held, charging |
+| turning a `step`, 90 deg | leaned 4.7 deg -> held, turned | fell -> held, turned | fell -> held, turned |
+
+Before, its physics stepped none of the ask's steps in any of the 18; now
+every one, its trunk (but for the get-up's own fall) at most 1.2 deg off
+upright through any ask, and each ended within 0.01 m and 0.2 deg of the
+truth. Held, a robot stands where its legs' policy has it (the walker
+marking time, the standing policy holding, a get-up getting up), its hand's
+own loop holding its reach, its plug in, its senses on.
+
+**The price.** While one robot's interrupt is asked, the other's errand
+pauses, standing, for the whole ask -- up to 115 s of think and its slices.
+A walk or a `step` counts none of the pause: the held robot is told how long
+it was held (its stepper's `held`, into `Navigator.held_s`, as an arm's wait
+for its way is, #678), and a walk goes on with its patience whole and a
+fresh plan -- told nothing, asked 115 s, the lobby's walk ran out of its 60
+s and gave up where it stood, and a `step` held 30 s read "out of time". A
+procedure's budget and a job's minutes run on through the pause.
+Before, the body went on without it. The whole fix is `_ask_interrupt` as a
+routine, yielding its think slices as `_decide_routine` does, so the other
+robot's routine runs on through the ask (not done: it moves `interrupted()`
+and its three callers, a walk's among them).
+
+**Nothing else moves.** On the same pod, a robot alone (600 s) and the
+pair's day with a fall and a death arranged fly the base's trajectory bit
+for bit (`determinism_spike.py --compare`: 1,201 and 528 state samples
+identical, two runs each tree, and the pair's day again on the dev box);
+the 201 flights of the falls above, the drift spike's walking falls in the
+lobby and two drift flights (Luca's and Rowan's draws) are the base's row
+for row; and the pair's recording, flown as its fixture is, is the base's
+but for two wall-clock stamps.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

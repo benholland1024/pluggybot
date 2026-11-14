@@ -26,9 +26,10 @@ What the lab holds, and why each thing is the shape it is:
                pose per prop, so "eating" is a position the website can
                draw and a fact the state machine can name.
   three PLATES in a row in front of the cage -- `shock`, `feed`, `toy` --
-               each the garden's sprung plate (`plate.plate_xml`), because
-               driving onto a plate is the one mechanism this robot can
-               operate (ActivityPattern.md gap 3). Company is standing
+               each the garden's plate (`plate.plate_xml`): the floor's own
+               square read off its load, flush with the floor (#684),
+               because walking onto a plate is the one mechanism this robot
+               can operate (ActivityPattern.md gap 3). Company is standing
                near the cage and needs no prop.
 
 THE STATE MACHINE, and the one table that is it (`Cage._advance`):
@@ -43,7 +44,9 @@ THE STATE MACHINE, and the one table that is it (`Cage._advance`):
   (* the clock restarts.) Every state but `resting` runs a clock and falls
   back when it ends: `on_its_side` -> `hiding` after `SIDE_S`, and
   `eating` / `playing` / `hiding` -> `resting` after theirs. A plate acts
-  on its RISING EDGE (one press is one act, however long the wheel sits);
+  on its RISING EDGE: one press is one act, a foot's landing on it however
+  long it stays -- a load plate reads every footfall, so a walk across one
+  is 1-3 acts (#684);
   company acts once per visit, after `COMPANY_S` of a robot inside
   `COMPANY_M` of the cage. Nothing here is random: the same acts at the
   same times give the same mouse, which is what makes a prediction
@@ -66,7 +69,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.activity.base import Activity, MocapToggle, Threshold
-from pluggybot.activity.plate import PLATE_OFF, PLATE_ON, plate_xml
+from pluggybot.activity.plate import LOAD_OFF_N, LOAD_ON_N, LOAD_ZONE_HALF, PLATE_HALF, plate_xml
 from pluggybot.perception.tags import PLATE_TAG_IDS, PLATE_TAG_SIZE, plate_half_extent
 from pluggybot.telemetry.protocol import robot_roots
 
@@ -102,10 +105,9 @@ MOUSE_POSES = {
 MOUSE_STATES = tuple(MOUSE_POSES)
 
 # ---- the plates ---------------------------------------------------------------
-#: In a row SOUTH of the cage (the robot drives north onto one, facing the
-#: cage), a metre apart so the inflated planning mask (0.35 m) never merges
-#: two pads, and a metre off the cage so a wheel on a pad is not a chassis in
-#: the enclosure. Offsets from the cage's centre.
+#: In a row SOUTH of the cage (the robot walks north onto one, facing the
+#: cage), a metre apart, and a metre off the cage so a foot on a plate is not
+#: a body in the enclosure. Offsets from the cage's centre.
 PLATE_OFFSETS = {"shock": (-1.0, -1.2), "feed": (0.0, -1.2), "toy": (1.0, -1.2)}
 PLATE_NAMES = tuple(PLATE_OFFSETS)
 
@@ -345,11 +347,12 @@ def sight_points(cage_xy: tuple[float, float]) -> np.ndarray:
 class Cage(Activity):
   """The mouse's state machine over the three plates and the robots' poses.
 
-  Flags on the wire: `mouse` (the state), `shock` / `feed` / `toy` (a wheel
-  on that pad, live), `company` (a robot inside `COMPANY_M`, live), and the
-  four counts `shocks` / `feeds` / `toys` / `visits` -- integers, so they
-  ship a delta only when an act lands. `sense()` reads three joint sensors
-  and every robot's root body and does no allocation.
+  Flags on the wire: `mouse` (the state), `shock` / `feed` / `toy` (a foot
+  on that plate, live), `company` (a robot inside `COMPANY_M`, live), and
+  the four counts `shocks` / `feeds` / `toys` / `visits` -- integers, so they
+  ship a delta only when an act lands. `sense()` reads three touch sensors,
+  the plates' loads (`plate.LOAD_ON_N`), and every robot's root body, and
+  does no allocation.
   """
 
   def __init__(self, model, data, prefix: str = "lab", name: str | None = None,
@@ -362,7 +365,7 @@ class Cage(Activity):
     #: a plate switched off is nothing: no act, no count, no press record,
     #: and its flag never lit.
     self.live_plates = tuple(a for a in ("shock", "feed", "toy") if shock or a != "shock")
-    self.press = {act: Threshold(on=PLATE_ON, off=PLATE_OFF) for act in ACTS
+    self.press = {act: Threshold(on=LOAD_ON_N, off=LOAD_OFF_N) for act in ACTS
                   if act != "company"}
     self.state = "resting"
     self.until: float | None = None
@@ -373,7 +376,7 @@ class Cage(Activity):
                               "act": ""}
     self._company_since: float | None = None
     self._company_done = False
-    #: Every plate press, whose foot or wheel it was and when (issue #403):
+    #: Every plate press, whose foot it was and when (issue #403):
     #: `{"seq", "t", "plate", "robot", "before", "after"}`, newest last.
     #: The lifecycle reads it to record a press no errand of that plate
     #: made; `seq` counts them, and a reader keeps the last it saw.
@@ -386,12 +389,11 @@ class Cage(Activity):
              company=False, shocks=0, feeds=0, toys=0, visits=0)
 
   def rebind(self, model, data) -> None:
-    self.sensor_adr = {act: int(model.sensor(f"{self.prefix}_{act}_plate_pos").adr[0])
+    self.sensor_adr = {act: int(model.sensor(f"{self.prefix}_{act}_plate_load").adr[0])
                        for act in self.press}
     self.cage_xy = cage_center(model, self.prefix)
     self.robots = {root: model.body(root).id for root in robot_roots(model)}
-    self.pads = {act: model.geom(f"{self.prefix}_{act}_plate_pad").id
-                 for act in self.press}
+    self.plate_xy = {act: plate_center(model, act, self.prefix) for act in self.press}
     self.mouse = MocapToggle(model, data, f"{self.prefix}_mouse",
                              mouse_poses(self.cage_xy))
     seen = {model.body(f"{self.prefix}_{name}").id for name in SEEN_BODIES}
@@ -422,9 +424,10 @@ class Cage(Activity):
 
   # ---- the sensed half -------------------------------------------------------
 
-  def depth(self, data, act: str) -> float:
-    """How far one plate is pushed down, metres, off its JOINT SENSOR."""
-    return -float(data.sensordata[self.sensor_adr[act]])
+  def load(self, data, act: str) -> float:
+    """The weight on one plate, N, off its TOUCH SENSOR: what load cells
+    under the floor's square read, never whose foot it is."""
+    return float(data.sensordata[self.sensor_adr[act]])
 
   def nearest_robot_m(self, data) -> float:
     """The nearest robot's root body to the cage's centre, metres."""
@@ -434,7 +437,7 @@ class Cage(Activity):
 
   def sense(self, model, data) -> None:
     now = float(data.time)
-    pressed = {act: self.press[act].update(self.depth(data, act))
+    pressed = {act: self.press[act].update(self.load(data, act))
                for act in self.press}
     company = self.nearest_robot_m(data) <= COMPANY_M
     self._advance(now, pressed, company)
@@ -447,17 +450,28 @@ class Cage(Activity):
       self._plated.clear()
 
   def presser(self, model, data, act: str) -> str:
-    """The robot whose foot or wheel is on this plate's pad, off the
-    contact array (rooftop #296's reader shape; read at a press, never per
-    step); the nearest robot's root where none touches it."""
-    pad = self.pads[act]
-    g = data.contact.geom[:data.ncon]
-    other = np.concatenate((g[g[:, 0] == pad, 1], g[g[:, 1] == pad, 0]))
-    roots = set(model.body_rootid[model.geom_bodyid[other]].tolist())
-    for root, bid in self.robots.items():
-      if bid in roots:
-        return root
-    px, py = model.body_pos[model.geom_bodyid[pad]][:2]
+    """The robot whose weight pressed this plate, off the contact array
+    (rooftop #296's reader shape; read at a press, never per step): of the
+    contacts its load cell reads -- a geom of the world's (the floor's
+    square) touched at a point over the plate (`plate.plate_xml`) -- the
+    robot whose geoms carry the most of the load; the nearest robot's root
+    where none does."""
+    px, py = self.plate_xy[act]
+    n = data.ncon
+    pos = data.contact.pos[:n]
+    g = data.contact.geom[:n]
+    body = model.geom_bodyid[g]
+    over = np.nonzero((np.abs(pos[:, 0] - px) <= PLATE_HALF) & (np.abs(pos[:, 1] - py) <= PLATE_HALF)
+                      & (np.abs(pos[:, 2]) <= LOAD_ZONE_HALF) & ((body[:, 0] == 0) | (body[:, 1] == 0)))[0]
+    carried: dict[int, float] = {}
+    f6 = np.zeros(6)
+    for i in over:
+      root = int(model.body_rootid[body[i, 1] if body[i, 0] == 0 else body[i, 0]])
+      mujoco.mj_contactForce(model, data, int(i), f6)
+      carried[root] = carried.get(root, 0.0) + float(f6[0])
+    on = [r for r in self.robots if self.robots[r] in carried]
+    if on:
+      return max(on, key=lambda r: carried[self.robots[r]])
     return min(self.robots, default="",
                key=lambda r: math.hypot(data.xpos[self.robots[r]][0] - px,
                                         data.xpos[self.robots[r]][1] - py))
@@ -473,7 +487,7 @@ class Cage(Activity):
       self._enter(fallback, now, act="")
     for act in self.live_plates:
       # THE RISING EDGE is the act: `_was` remembers the last reading, so a
-      # wheel that sits on the pad for a minute is one press.
+      # foot that stays on the plate for a minute is one press.
       was = self.flags.get(act, False)
       if pressed[act] and not was:
         self._act(act, now)

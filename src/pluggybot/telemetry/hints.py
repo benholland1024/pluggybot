@@ -287,8 +287,8 @@ MARKERS = [
               "the state it is in is NOT in the geometry, it rides the "
               "activity's flags."),
   # ---- v5: the pressure plate -----------------------------------------------
-  # The lab plates' real pad: 400 x 400 x 10 mm (the garden's, flush since
-  # #684, is a `floor_plate`).
+  # The sprung pad, 400 x 400 x 10 mm: no world's since #684 made every plate
+  # a `floor_plate`, kept for the frozen worlds the site still draws.
   Marker("plate", [("box", "0.20 0.20 0.005", "0 0 0.005")], collides=True,
          axes={"extentX": "size0", "extentY": "size1", "thickness": "size2"},
          build="replace",
@@ -301,7 +301,7 @@ MARKERS = [
               "visitor INSIDE the box, on its top face, and none for a "
               "purpose you have no glyph for. The glyph is the site's -- the "
               "robot's cameras never see it."),
-  # ---- v8 (issue #684): the garden's plate, flush with the floor -------------
+  # ---- v8 (issue #684): a plate flush with the floor, every plate's ---------
   # Its paint: 400 x 400 x 4 mm, standing on the floor.
   Marker("floor_plate", [("box", "0.20 0.20 0.002", "0 0 0.002")], collides=False,
          axes={"extentX": "size0", "extentY": "size1", "thickness": "size2"},
@@ -311,7 +311,8 @@ MARKERS = [
               "ONE thin box standing on the floor, static, which nothing "
               "touches (the robot walks on the floor through it). Draw it as "
               "a `plate` is drawn, its glyph INSIDE the box on its top face "
-              "for `scene.plates[name].purpose` (the garden's is `light`); "
+              "for `scene.plates[name].purpose` (the garden's is `light`, "
+              "the lab's three `shock`, `feed` and `toy`); "
               "its 4 mm stand over a ground's 2 mm paint so the art shows."),
   # ---- v6 (issue #560): the restaurant, the store and the study room ---------
   Marker("chair", [("box", "0.225 0.225 0.45", "0 0 0.45")], collides=True,

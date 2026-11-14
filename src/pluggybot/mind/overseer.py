@@ -2171,8 +2171,9 @@ not need writing down.
 you name -- `tasks/open_drawer`, `visitors/ben`, `rooms/garden`, anything. Set \
 `note` to `{"topic": "...", "title": "...", "text": "..."}` to add one; more \
 on a subject is another note in the same topic, never a longer one. Only the \
-INDEX (the topics and titles) is shown to you each turn; a note's text is \
-there when you look it up. Set `unnote` to `topic/title` to take one out. \
+INDEX (the topics and titles) is shown to you each turn, beside how many \
+notes it holds of the most it may (`holds`); a note's text is there when you \
+look it up. Set `unnote` to `topic/title` to take one out. \
 Set `cites` to the numbers of the History lines a pin or a note was drawn \
 from (`#123 #140`), when it was drawn from some.
 - You may write to any of these with any action; none of it costs a turn.
@@ -2794,8 +2795,9 @@ CHALLENGES
 Some jobs on the board are CHALLENGES: nobody wrote the robot a way to do \
 them. Taking one queues nothing. You write the procedure that does the job \
 (`define`), run it (`procedure:<name>`), and when the work stands you set \
-`done` to the job's id -- on the same answer as the run if you like; the \
-grade happens once everything you queued has finished. A job's own \
+`done` to the job's id -- on the same answer as the run if you like, and the \
+grade then waits until that run has finished; on an answer that runs no \
+procedure, the grade comes at once, before that answer's action. A job's own \
 description says what is measured -- a thing built, or a number you found \
 and recorded -- and how you do it is yours. Where the work has to STAND, \
 the grader measures it twice, at your word and again after a hold of some \
@@ -2804,8 +2806,9 @@ steadied it counts as holding it up. A claimed challenge stands until you \
 say done, or until the time its description gives is up; a failed grade \
 closes it as failed, and so does that time running out -- it may be offered \
 again. While you hold one it is in `heldTasks`, its `leftS` the seconds of \
-that time still left. Said before the work stands (with an `explore`, say), \
-`done` is graded as things are and fails.
+that time still left when you were asked; the clock runs on while you think. \
+Said before the work stands (with an `explore`, say), `done` is graded as \
+things are and fails.
 """
 
 
@@ -2905,7 +2908,8 @@ WHAT YOU HAVE MEASURED
 
 `%(name)s` is YOURS, like your notes, and it is for one kind of line only: \
 a MEASUREMENT. Its index is shown with your other files below, one topic per \
-job. Set `record` to `{"quantity": "<what>", "value": <a number>, "unit": \
+job, beside how many findings it holds of the most it may (`holds`). Set \
+`record` to `{"quantity": "<what>", "value": <a number>, "unit": \
 "<unit>", "method": "<how you got it>", "topic": "<the job>"}` on any \
 answer; it costs no turn and is written as one line, `<quantity> = <value> \
 <unit> -- <method>`, under `findings/<topic>`. Code reads that line back -- \

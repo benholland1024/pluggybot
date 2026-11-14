@@ -5817,13 +5817,13 @@
   {
    "name": "lab_shock_plate",
    "parent": "world",
-   "dynamic": true,
+   "dynamic": false,
    "robot": null,
-   "visual": "plate",
+   "visual": "floor_plate",
    "pos": [
     24.0,
     4.38,
-    0.016
+    0.002
    ],
    "quat": [
     1.0,
@@ -5838,7 +5838,7 @@
      "size": [
       0.4,
       0.4,
-      0.01
+      0.004
      ],
      "pos": [
       0.0,
@@ -5864,13 +5864,13 @@
   {
    "name": "lab_feed_plate",
    "parent": "world",
-   "dynamic": true,
+   "dynamic": false,
    "robot": null,
-   "visual": "plate",
+   "visual": "floor_plate",
    "pos": [
     25.0,
     4.38,
-    0.016
+    0.002
    ],
    "quat": [
     1.0,
@@ -5885,7 +5885,7 @@
      "size": [
       0.4,
       0.4,
-      0.01
+      0.004
      ],
      "pos": [
       0.0,
@@ -5911,13 +5911,13 @@
   {
    "name": "lab_toy_plate",
    "parent": "world",
-   "dynamic": true,
+   "dynamic": false,
    "robot": null,
-   "visual": "plate",
+   "visual": "floor_plate",
    "pos": [
     26.0,
     4.38,
-    0.016
+    0.002
    ],
    "quat": [
     1.0,
@@ -5932,7 +5932,7 @@
      "size": [
       0.4,
       0.4,
-      0.01
+      0.004
      ],
      "pos": [
       0.0,

@@ -340,10 +340,79 @@ def test_a_done_and_its_grade_are_said_in_history_by_the_jobs_id(tmp_path, opene
   assert verdict["ok"] is opened, verdict["reason"]
   lines = life.thoughts.texts[HISTORY].splitlines()
   said = [i for i, ln in enumerate(lines) if ln.endswith(
-    f"said done on {task.id} (open_drawer): graded once everything queued has run")]
+    f"said done on {task.id} (open_drawer): graded now, before this answer's idle")]
   graded = [i for i, ln in enumerate(lines) if ln.endswith(
     f"{'passed' if opened else 'failed'} the job {task.id} (open_drawer): {verdict['reason']}")]
   assert len(said) == len(graded) == 1 and said[0] < graded[0], lines
+
+
+def _holds(life) -> list:
+  """Every hold the body is asked from here on, as (when it began, how
+  long, how many grades were in by then): what came before what."""
+  asked, hold = [], life.body.hold_routine
+
+  def spy(seconds, *a, **kw):
+    asked.append((float(life.data.time), float(seconds), len(life.grades)))
+    return hold(seconds, *a, **kw)
+  life.body.hold_routine = spy
+  return asked
+
+
+def test_a_done_is_graded_before_its_answers_action(tmp_path):
+  """#689: a `done` waited out its answer's action before its grade -- all
+  15 said with `idle` from 11-01 to 11-12 were graded a minute after the
+  word -- where every hand job says it is graded when you say you are done.
+  It is graded at the word, before the answer's idle holds."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  mujoco.mj_forward(life.model, life.data)
+  holds = _holds(life)
+  t = float(life.data.time)
+  life.body.run(life._after_decision_routine(
+    ov.Decision(action="idle", reason="", done=task.id)))
+  [grade] = life.grades
+  assert grade["task"] == task.id and grade["ok"], grade
+  assert grade["t"] == pytest.approx(t, abs=1e-3), "graded after the idle, not at the word"
+  idle = [h for h in holds if h[1] == life.idle_s]
+  assert idle and idle[0][2] == 1, "the idle held before the grade"
+  assert life._grade_pending == ""
+  assert any(ln.endswith(f"said done on {task.id} (open_drawer): graded now, before this "
+                         "answer's idle") for ln in life.thoughts.texts[HISTORY].splitlines())
+
+
+def test_a_done_beside_a_procedure_is_graded_once_the_run_is_over(tmp_path):
+  """...but an answer that runs a procedure is graded once its run is over
+  (#689): the run is the work, and graded at the word it would grade the
+  work undone."""
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.procedure import library as lib
+  life = _life(tmp_path)
+  life.overseer.library = lib.Library(world_facts(HUMANOID_HOME))
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id,
+    define={"name": "pace", "source": "def pace():\n  wait(1)\n"})))
+  assert life.grades == [] and life._grade_pending == task.id
+  assert len(life.errands) == 1, "the run is queued"
+  assert any(ln.endswith(f"said done on {task.id} (open_drawer): graded once everything "
+                         "queued has run") for ln in life.thoughts.texts[HISTORY].splitlines())
+
+
+def test_a_dead_robots_done_is_left_to_the_loops_pass(tmp_path):
+  """...and the answer of a robot that died while it thought leaves its
+  grade to the loop's pass after the stand-up, as every grade was (#689):
+  its answer runs under the stand-up's close, and a grade closed mid-hold
+  is lost."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.dead = {"t": float(life.data.time), "cause": "flat"}
+  life.body.run(life._after_decision_routine(
+    ov.Decision(action="idle", reason="", done=task.id)))
+  assert life.grades == [] and life._grade_pending == task.id
 
 
 def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
@@ -367,6 +436,28 @@ def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
   assert held[0]["description"] == drawer_job.description
   assert [h["id"] for h in overseer_context(b)["heldTasks"]] == [door_job.id]
   assert "`heldTasks`" in ov.CHALLENGE_RULE and "`leftS`" in ov.CHALLENGE_RULE
+
+
+def test_the_rule_says_a_done_is_graded_at_once_unless_its_answer_runs_a_procedure():
+  """#689's quiz: told "the grade happens once everything you queued has
+  finished", 9 of 12 asked read an answer's idle and its charge as queued
+  and the grade as coming after them, where the code grades first; told
+  this, 12 of 12 read it right (loop-1113's L2)."""
+  flat = " ".join(ov.CHALLENGE_RULE.split())
+  assert ("on the same answer as the run if you like, and the grade then waits until that run "
+          "has finished; on an answer that runs no procedure, the grade comes at once, before "
+          "that answer's action.") in flat
+  assert "everything you queued" not in flat
+
+
+def test_the_rule_says_left_s_is_the_asks_and_the_clock_runs_while_it_thinks():
+  """#689: `leftS` is the board's as the turn is built, and the clock runs
+  on through the answer: Rowan, asked with 193 s of t_0202 left, answered
+  160 s later with 33 s left, its own think uncounted ("my inter-ask gaps
+  run ~170 s"), and its run's grade came 5 s past the job's time."""
+  flat = " ".join(ov.CHALLENGE_RULE.split())
+  assert ("its `leftS` the seconds of that time still left when you were asked; the clock "
+          "runs on while you think.") in flat
 
 
 @pytest.mark.parametrize("left", ["", "CHARGE", "GO_CHARGE"])
@@ -474,8 +565,8 @@ def test_a_bare_offer_gives_its_kinds_minutes_and_is_graded_on_them(tmp_path):
     task = TaskBoard().offer(kind, KINDS[kind].target_kind)
     assert f"within {KINDS[kind].minutes} minutes" in task.description, kind
     assert task.params["minutes"] == KINDS[kind].minutes
-  assert {KINDS[k].minutes for k in HAND_JOBS if k not in ("set_table", "place_cube")} == {
-    HAND_MINUTES}
+  assert {KINDS[k].minutes for k in HAND_JOBS
+          if k not in ("set_table", "place_cube", "set_table_pass")} == {HAND_MINUTES}
   life = _life(tmp_path)
   task = life.tasks.offer("open_drawer", "drawer", ttl=3000.0, t=float(life.data.time))
   life.tasks.tasks[task.id] = replace(task, params={})
@@ -582,13 +673,16 @@ def test_each_jobs_row_is_its_own_shown_only_where_it_is_offered():
   from pluggybot.economy import scoring
   from pluggybot.mind.overseer import world_kinds
   table = default_table()
+  from pluggybot.economy.cadence import default_cadence
+  offered = {KINDS[k].task for k in default_cadence(HUMANOID_HOME).kinds}
   for job, check in HAND_JOBS.items():
     assert scoring.EVALUATORS[job] is scoring.EVALUATORS[check]
-    assert table[job].base > 0 == table[check].base
-  from pluggybot.economy.cadence import default_cadence
+    assert 0 == table[check].base
+    # ...paid where a world offers it, and nothing where none does (#682's
+    # stage C: the place laid from the pass, its reference read, never offered)
+    assert (table[job].base > 0) == (job in offered), job
   served = {r["task"] for r in table.as_context(challenges=True,
                                                 kinds=world_kinds(HUMANOID_HOME))}
-  offered = {KINDS[k].task for k in default_cadence(HUMANOID_HOME).kinds}
   assert offered and offered <= set(HAND_JOBS)
   assert served & set(HAND_JOBS) == offered, "a row only where its job is offered"
   assert not set(HAND_JOBS.values()) & served
@@ -604,8 +698,9 @@ def test_an_offer_says_where_by_the_areas_terms_and_how_long_it_gives():
   maker = task_producer(board, HUMANOID_HOME, procedures=True)
   offered = list(maker.cadence.kinds)
   # ...each once its reference passed there (cadence.json's note): the table's
-  # 24 of 32 and the cube's 28 of 32 over the tour (#560)
-  assert set(offered) == set(HAND_JOBS)
+  # 24 of 32 and the cube's 28 of 32 over the tour (#560) -- all but the place
+  # laid from the pass, never offered (#682's stage C, Ben's call)
+  assert set(HAND_JOBS) - set(offered) == {"set_table_pass"}
   here = world_targets(HUMANOID_HOME, procedures=True)
   for kind in offered:
     task = maker._offer(kind, here[KINDS[kind].target_kind][0], 0.0)

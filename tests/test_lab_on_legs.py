@@ -22,17 +22,20 @@ from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 # ---- a press, and whose it was -----------------------------------------------------
 
 
-def _plate_world(on_pad: str = "pluggybot"):
-  """A floor, the lab's cage and plates at the origin, one robot (a 1.5 kg
-  block) standing on the feed pad's corner and the other beside the pad
-  and NEARER its centre, touching nothing of it."""
+def _plate_world(on_pad: str = "pluggybot", at: dict | None = None):
+  """A floor, the lab's cage and plates at the origin, one robot (a 15 kg
+  block, over the plate's `LOAD_ON_N`) standing in the feed plate's corner
+  and the other beside the plate, NEARER its centre and the cage's, touching
+  nothing of it: the plate is the floor's square, so whose it is is where
+  its contacts are. `at` places them otherwise, {root: (x, y, z, kg)}."""
   body, sensors = cg.cage_xml((0.0, 1.2))
-  at = {on_pad: (0.18, 0.18, 0.08)}
-  at[next(r for r in ("pluggybot", "r2_pluggybot") if r != on_pad)] = (0.25, 0.0, 0.04)
+  if at is None:
+    at = {on_pad: (0.175, 0.175, 0.03, 15)}
+    at[next(r for r in ("pluggybot", "r2_pluggybot") if r != on_pad)] = (0.0, 0.225, 0.03, 15)
   robots = "".join(f"""
     <body name="{name}" pos="{x} {y} {z}"><freejoint/>
-      <geom type="box" size="0.03 0.03 0.03" mass="1.5"/></body>"""
-                   for name, (x, y, z) in sorted(at.items()))
+      <geom type="box" size="0.02 0.02 0.02" mass="{kg}"/></body>"""
+                   for name, (x, y, z, kg) in sorted(at.items()))
   xml = f"""<mujoco><option timestep="0.002"/><worldbody>
     <geom name="floor" type="plane" size="5 5 0.1"/>{body}{robots}
   </worldbody><sensor>{sensors}</sensor></mujoco>"""
@@ -53,6 +56,23 @@ def test_the_cage_logs_a_press_as_the_robot_whose_foot_is_on_the_pad(on_pad):
   assert press["plate"] == "feed" and press["robot"] == on_pad, press
   assert press["before"] == "resting" and press["after"] == "eating"
   assert cage.press_seq == 1 and cage.counts["feed"] == 1
+
+
+def test_two_robots_on_one_plate_its_press_is_the_one_whose_weight_pressed_it():
+  """Both on the feed plate, the first robot in the model's order a 2 kg
+  block and the second 15 kg: the press is the second's, whose weight the
+  load cell read past `LOAD_ON_N`, never the first robot with a contact
+  there (#684: a plate reads its load)."""
+  model, data = _plate_world(at={"pluggybot": (0.1, 0.1, 0.03, 2),
+                                 "r2_pluggybot": (-0.1, -0.1, 0.03, 15)})
+  cage = cg.Cage(model, data)
+  for _ in range(1500):
+    mujoco.mj_step(model, data)
+    cage.sense(model, data)
+    if cage.presses:
+      break
+  [press] = list(cage.presses)
+  assert (press["plate"], press["robot"]) == ("feed", "r2_pluggybot"), press
 
 
 def _press(seq, plate, robot="pluggybot"):
