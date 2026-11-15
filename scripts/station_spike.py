@@ -729,7 +729,8 @@ def hold(seconds: float) -> dict:
          "creptInM": round(a1 - a0, 4), "creptLeftM": round(l1 - l0, 4),
          "turnedDeg": round(math.degrees(t1_ - t0_), 2), "soleLiftedMm": round(lifted[0] * 1000, 1),
          "beliefOffM": round(math.hypot(bx - tx, by - ty), 4),
-         "beliefOffDeg": round(math.degrees(abs(math.remainder(bh - th, 2 * math.pi))), 2)}
+         "beliefOffDeg": round(math.degrees(abs(math.remainder(bh - th, 2 * math.pi))), 2),
+         "matched": body.match_counts}
   print(json.dumps(out))
   return out
 
