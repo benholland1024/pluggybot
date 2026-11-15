@@ -972,8 +972,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         self._walls_mask, self._walls_t = np.array(arrays["walls"], dtype=bool), clocks["walls"]
       if self.matcher is not None and state.get("match"):
         self.matcher.restore_kept(state["match"], arrays)
-      self.refusals.restore_kept(state.get("refusals"))
-    # ...the places only with the map they were laid in (#419)
+    # ...the places, and the run of refusals (#697), only with the map they
+    # were laid in or are of (#419)
+    self.refusals.restore_kept(state.get("refusals") if mapped else None)
     self.places.restore_kept(state.get("places") if mapped else None)
     self._place_look_back(state.get("placeLook") if mapped else None)
     return mapped

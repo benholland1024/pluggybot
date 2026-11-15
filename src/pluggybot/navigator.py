@@ -258,12 +258,19 @@ FACING_TOLERANCE = math.radians(0.5)
 #: (`Navigator.belief_events`): drained every physics step, so a few.
 BELIEF_EVENTS_KEPT = 16
 #: ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR THIS LONG IS SAID TO THE ROBOT
-#: (issue #697; `Refusals`, the `refusing` belief event, and `matching` at
-#: the next scan taken), sim s: on 11-12 Luca's map refused every scan for
-#: 26 minutes after a fall turned its heading 120 deg, and nothing it read
-#: said so. MEASURED (#690's lobby falls, the heading right): standing 30 s
-#: after the get-up, the longest run was the whole 30 s in one flight of 118.
+#: (issue #697; `Refusals`, the `refusing` belief event, and `matching` once
+#: a fit holds), sim s: on 11-12 Luca's map refused every scan for 26
+#: minutes after a fall turned its heading 120 deg, and nothing it read said
+#: so. MEASURED (#690's lobby falls, the heading right): standing 30 s after
+#: the get-up, the longest run was the whole 30 s in one flight of 118.
 REFUSED_TELL_S = 60.0
+#: ⚠ ...AND ITS END ONLY ONCE THE MAP HAS TAKEN EVERY SCAN FOR THIS LONG, sim
+#: s: one fit among refusals (a lucky `ok` near a copy of the room) said
+#: "matches again" and re-armed the minute, the two lines alternating for as
+#: long as the robot was lost (#697's review). MEASURED: after a right
+#: relocation every scan fits (730 of 730 over 73 s, the served body's own
+#: scans, its belief turned 120 deg up from a fall).
+MATCHED_TELL_S = 5.0
 
 
 class Refusals:
@@ -271,44 +278,55 @@ class Refusals:
   the robot was told of it. A run is every scan matched and refused
   (`scan_match.REFUSED`) since its first; any other scan breaks it -- one
   taken, one laid in unmatched, or one not matched at all, the robot not
-  mapping (getting up, tipped past the gate) -- and only a scan TAKEN
-  (`scan_match.ACCEPTED`, a relocation's among them) ends what was told."""
+  mapping (getting up, tipped past the gate) -- and only scans TAKEN
+  (`scan_match.ACCEPTED`, a relocation's among them) for MATCHED_TELL_S
+  running end what was told."""
 
   def __init__(self) -> None:
-    #: Sim time of the run's first refusal, or None; and whether the robot
-    #: was told since the last scan taken.
+    #: Sim time of the run's first refusal, or None; whether the robot was
+    #: told; and, told, the first scan of the run since taken, or None.
     self.since: float | None = None
     self.told = False
+    self.fits_since: float | None = None
 
   def seen(self, t: float, why: str | None) -> str | None:
     """A scan at sim time `t` and its verdict (None: not matched), and the
     belief event it raises: `refusing` as a run first reaches
-    REFUSED_TELL_S, `matching` at the first scan taken after, or None."""
+    REFUSED_TELL_S, `matching` once scans taken after it have run
+    MATCHED_TELL_S, or None."""
     if why in REFUSED:
       self.since = t if self.since is None else self.since
+      self.fits_since = None
       if not self.told and t - self.since >= REFUSED_TELL_S:
         self.told = True
         return "refusing"
       return None
     self.since = None
-    if self.told and why in ACCEPTED:
-      self.told = False
+    if not self.told or why not in ACCEPTED:
+      self.fits_since = None
+      return None
+    self.fits_since = t if self.fits_since is None else self.fits_since
+    if t - self.fits_since >= MATCHED_TELL_S:
+      self.told, self.fits_since = False, None
       return "matching"
     return None
 
   def forget(self) -> None:
     """The map that refused is gone (a true death, a stand-up, a fix past
     the map's reach): nothing of it to say."""
-    self.since, self.told = None, False
+    self.since, self.told, self.fits_since = None, False, None
 
   def kept_state(self) -> dict:
-    return {"since": self.since, "told": self.told}
+    return {"since": self.since, "told": self.told, "fitsSince": self.fits_since}
 
   def restore_kept(self, state: dict | None) -> None:
-    """...a save from before #697 had no run: afresh."""
-    since = (state or {}).get("since")
+    """...a save from before #697 had no run, and one whose map did not come
+    back none of it: afresh."""
+    state = state or {}
+    since, fits = state.get("since"), state.get("fitsSince")
     self.since = None if since is None else float(since)
-    self.told = bool((state or {}).get("told", False))
+    self.told = bool(state.get("told", False))
+    self.fits_since = None if fits is None else float(fits)
 
 
 def wire_pose(p) -> dict:
