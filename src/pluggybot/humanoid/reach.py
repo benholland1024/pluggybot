@@ -217,29 +217,32 @@ GO_ON_M, GO_S = 0.015, 1.0
 #: and across it: what runs away with the hand -- a lid falling toward the
 #: robot across a way down -- the arm's spring holds back...
 LEAD_MAX_M, ACROSS_SPEED = 0.08, 2.0
-#: ...A POSTURE IS TAKEN WITH A LIGHT HAND (#699; SimNotes, "A pull's posture
-#: and the hand it rests on"): at its start or on its way, only while the
-#: hand reads no more than this many times the pull's ask, whichever way --
-#: as it reads as the pull begins, over `MEAN_S` on its way -- an ask of at
-#: least this, N: the most a procedure's `pull` asks (`steps.PULL_MOST_N`),
-#: what the standing body holds at a hand (#544), so 40 N for every pull a
-#: robot writes -- and one that is coming is GIVEN UP where the hand reads
-#: past it: the body BACKS OFF toward the posture the pull began in until
-#: the hand reads no more than that ask again, is held there, and that pull
-#: takes no other. ⚠ A posture bows, crouches or turns the body over a hand
-#: that rests on something, and where the arm's solve can no longer follow,
-#: its joints stand and the body bears on the hand: 45-150 N down on a
-#: cupboard door's top for a 15-20 N pull, and a fall when the hand slipped
-#: off; our table reference's fork came down on the table at 92-135 N and
-#: fell twice in 32. ⚠ NOT AT THE ASK ALONE: a hand reading little as its
-#: posture is asked is loaded as the body moves. ⚠ A FORCE, NOT A SHARE OF A
-#: SMALL ASK: while a posture came, our references' pulls that passed read
-#: 30.6 N at most (a 10 N press, three times its ask) and every one past 40
-#: N failed or fell; at twice the ask (20 N there) a door that opens was
-#: refused its posture. ⚠ BACK ONLY AS FAR AS UNLOADS IT: held where it had
-#: got to, a body 1 cm and 3 deg into its posture stayed leant on a lid's
-#: knob at 80-92 N for the 10 s its pulls went on; sent all the way back,
-#: the waist swung a low arm into the counter (935 N).
+#: ...A HAND THAT HOLDS NOTHING TAKES A POSTURE ONLY WHILE IT READS LIGHT
+#: (#699; SimNotes, "A pull's posture and the hand it rests on"): at its
+#: start or on its way, only while it reads no more than this many times the
+#: pull's ask, whichever way -- as it reads as the pull begins, over `MEAN_S`
+#: on its way -- an ask of at least this, N: the most a procedure's `pull`
+#: asks (`steps.PULL_MOST_N`), what the standing body holds at a hand
+#: (#544), so 40 N for every pull a robot writes -- and one that is coming
+#: is GIVEN UP where the hand reads past it: the body BACKS OFF toward the
+#: posture the pull began in until the hand reads no more than that ask
+#: again, is held there, and that pull takes no other. ⚠ A posture bows,
+#: crouches or turns the body over a hand that rests on something, and
+#: where the arm's solve can no longer follow, its joints stand and the
+#: body bears on the hand: 45-150 N down on a cupboard door's top for a
+#: 15-20 N pull, and a fall when the open hand slipped off. ⚠ NOT AT THE ASK
+#: ALONE: a hand reading little as its posture is asked is loaded as the
+#: body moves. ⚠ A FORCE, NOT A SHARE OF A SMALL ASK: at twice the ask (20 N
+#: for a 10 N press) more of what passes was refused. ⚠ BACK ONLY AS FAR AS
+#: UNLOADS IT: held where it had got to, a body 1 cm and 3 deg into its
+#: posture stayed leant on what it held at 80-92 N for the 10 s its pulls
+#: went on; sent all the way back, the waist swung a low arm into the
+#: counter (935 N). ⚠ A HAND THAT GRIPS WHAT IT PULLS TAKES ITS POSTURES AS
+#: IT DID (the grip it began with, `gripped`): our door's lever press leans
+#: on its lever -- at set-outs 32-127 two of its 72 doors opened only so,
+#: 45-155 N read while a posture came -- though a gripped fork and a lid's
+#: knob fall the same way (2 of the table check's 32, 1 of 4 flights of a
+#: robot's own lift): the rule widened to them is Ben's call (SimNotes).
 PRESSED_SHARE, PRESSED_ASK_N = 2.0, 20.0
 #: ...giving, its turn gives to what it holds this share a command (100 a
 #: second: a tenth of a second's lag) -- held, a wrist twisted by a drop
@@ -1396,10 +1399,10 @@ class Reach:
     position, the robot arm's old division. Until it has gone `distance_m` along its way ("distance"), it
     is held fast, a grip it began with is lost ("let go"), or it can reach
     no further. The posture is the one from which the hand reaches its
-    way's end, taken first; a hand held takes no other (`GO_ON_M`), a hand
-    that reads a load takes none, and one that comes is given up where the
-    hand reads a load meanwhile, the body backing off until it reads none
-    (`PRESSED_SHARE`, #699).
+    way's end, taken first; a hand held takes no other (`GO_ON_M`); a hand
+    that holds nothing takes none while it reads a load, and one that comes
+    is given up where it reads a load meanwhile, the body backing off until
+    it reads none (`PRESSED_SHARE`, #699).
     False (nothing moves) for a hand that is not out. How it ends is its
     `report`."""
     if force <= 0.0:
@@ -1413,8 +1416,9 @@ class Reach:
     w = w / max(float(np.linalg.norm(w)), 1e-9)
     # the posture its way's end is reached from, the hand held still while
     # it comes: a posture changed partway jerks what the hand holds -- and
-    # none while the hand reads a load (`PRESSED_SHARE`)
-    posture = (None if self._pressed(self.force[side], force)
+    # none while a hand that holds nothing reads a load (`PRESSED_SHARE`)
+    gripped = self.grippers[side].held()
+    posture = (None if not gripped and self._pressed(self.force[side], force)
                else self.path_for(side, [h, h + float(distance_m) * w], rot=r))
     moved = posture is not None and tuple(posture) != tuple(float(v) for v in self.posture)
     began = self._standing_in() if moved else None
@@ -1426,7 +1430,7 @@ class Reach:
     self.pulls[side] = {"start": h.copy(), "t": 0.0, "ways": [], "fixed": True, "peak": 0.0,
                         **({"postured": 0.0, "began": began} if moved else {}),
                         "pull": {"way": w, "force": float(force), "distance": float(distance_m),
-                                 "give": bool(give), "gripped": self.grippers[side].held(),
+                                 "give": bool(give), "gripped": gripped,
                                  "last": h.copy(), "went": 0.0, "trail": [h.copy()],
                                  "still": 0.0, "anchor": h.copy(), "pinned": 0.0,
                                  "past": [(0.0, 0.0)]}}
@@ -2161,7 +2165,7 @@ class Reach:
       # still, it held on reading 15 times its force as a posture stood the
       # body up with the hand on a locked bar (#547)
       rate = min(rate, 0.0)
-    pressed = self._pressed(fm, limit)
+    pressed = not pv["gripped"] and self._pressed(fm, limit)
     if settling and pressed and not st.get("given"):
       # ...AND THE POSTURE GIVEN UP WHERE THE HAND READS A LOAD (#699): the
       # body backs off toward the posture the pull began in -- the hand

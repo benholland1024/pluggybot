@@ -22,8 +22,9 @@ them are `scripts/hands_check.py`'s.
      from a seed, never one it has left -- and a hand HELD, its arm reaching
      it, takes none: its command stays where the arm last reached, or backs
      off toward the hand, and pinned there it is held fast only pushing its
-     force, else out of reach; a posture is taken with a light hand, and
-     one that is coming is given up where the hand reads a load (#699);
+     force, else out of reach; a hand that holds nothing takes a posture
+     only while it reads light, and one that is coming is given up where
+     it reads a load, the body backing off until it reads none (#699);
   6. a grip is shut with the force asked, inside the gripper's sheet, and
      judged against it, on its squeeze's running mean;
   7. `spot` bows until it sees and stands up again, and says which way the
@@ -392,24 +393,29 @@ def _loaded(ask, share, way=(0.0, 1.0, 0.0)):
   return share * rc.PRESSED_SHARE * max(ask, rc.PRESSED_ASK_N) * np.asarray(way)
 
 
-def test_a_pull_takes_a_posture_only_while_its_hand_reads_light():
+def test_a_hand_that_holds_nothing_takes_a_posture_only_while_it_reads_light():
   """A posture bows, crouches or turns the body over a hand that rests on
   something, and where the arm can no longer follow the body bears on it:
   45-150 N down on a cupboard door's top for a 15-20 N pull, and a fall when
-  the hand slipped off (#699). At its start and on its way: none while the
-  hand reads past `PRESSED_SHARE` times its ask, whichever way."""
+  the open hand slipped off (#699). At its start and on its way: none while
+  the hand reads past `PRESSED_SHARE` times its ask, whichever way -- a
+  hand that holds nothing; one that grips what it pulls takes its postures
+  as it did (our door's lever press leans on its lever: two of its 72
+  held-out doors opened only so)."""
   # ...a force the standing body holds, never a share of a small ask: twice
   # the most a procedure's pull asks, whatever it asks (a 10 N press that
   # opens its door read three times its ask while its posture came)
   assert rc.PRESSED_SHARE > 1.0 and rc.PRESSED_ASK_N == st.PULL_MOST_N
   line = rc.PRESSED_SHARE * st.PULL_MOST_N
   # its first posture: across its way, along it, and a small ask's
-  for ask, read, takes in ((10.0, _loaded(10.0, 1.1), False), (10.0, _loaded(10.0, 0.9), True),
-                           (10.0, _loaded(10.0, 1.1, (0.0, 0.0, -1.0)), False),
-                           (4.0, np.array([0.0, 0.9 * line, 0.0]), True),
-                           (4.0, np.array([0.0, 1.1 * line, 0.0]), False),
-                           (30.0, np.array([0.0, 1.1 * line, 0.0]), True),
-                           (30.0, _loaded(30.0, 1.1), False)):
+  for ask, read, grips, takes in (
+      (10.0, _loaded(10.0, 1.1), False, False), (10.0, _loaded(10.0, 0.9), False, True),
+      (10.0, _loaded(10.0, 1.1, (0.0, 0.0, -1.0)), False, False),
+      (4.0, np.array([0.0, 0.9 * line, 0.0]), False, True),
+      (4.0, np.array([0.0, 1.1 * line, 0.0]), False, False),
+      (30.0, np.array([0.0, 1.1 * line, 0.0]), False, True),
+      (30.0, _loaded(30.0, 1.1), False, False),
+      (10.0, _loaded(10.0, 3.0), True, True)):
     r = _bare_reach()
     _out_hand(r, H, np.eye(3))
     r.phase["left"] = "hold"
@@ -418,14 +424,15 @@ def test_a_pull_takes_a_posture_only_while_its_hand_reads_light():
     r.grip_now = lambda side: (H.copy(), np.eye(3))
     r.path_for = lambda side, poses, rot=None: (0.0, 0.15, 0.0)
     r._posture_held = lambda: True
+    r.grippers["left"].holding = grips
     assert r.pull("left", np.array([0.0, 0.0, 1.0]), ask, 0.2)
-    assert r.postures == ([(0.0, 0.15, 0.0)] if takes else []), (ask, read)
+    assert r.postures == ([(0.0, 0.15, 0.0)] if takes else []), (ask, read, grips)
     assert ("postured" in r.pulls["left"]) is takes
   # on its way: a hand its arm cannot hold where it is takes one reading
   # light (`test_a_held_hand_whose_arm_reaches_it...`), none reading a load
   way = np.array([0.0, 0.0, 1.0])
-  for share, takes in ((0.9, True), (1.1, False)):
-    r = _pulling(way, distance=1.0)
+  for share, grips, takes in ((0.9, False, True), (1.1, False, False), (3.0, True, True)):
+    r = _pulling(way, distance=1.0, held=grips)
     r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3, 0.0)
     r._posture_held = lambda: True
     r.self_model.solve = _reaching_only([H + 1.0])
@@ -434,7 +441,7 @@ def test_a_pull_takes_a_posture_only_while_its_hand_reads_light():
       if r.pulls["left"] is None or r.postures:
         break
       r._pulled("left", DT, H, np.eye(3))
-    assert r.postures == ([(0.0, 0.3, 0.0)] if takes else []), share
+    assert r.postures == ([(0.0, 0.3, 0.0)] if takes else []), (share, grips)
 
 
 def test_a_posture_is_given_up_where_the_hand_reads_a_load_while_it_comes():
@@ -449,11 +456,12 @@ def test_a_posture_is_given_up_where_the_hand_reads_a_load_while_it_comes():
   way, got_to = np.array([0.0, 0.0, 1.0]), (-0.05, 0.1, 0.2)
   ask = rc.PRESSED_ASK_N * way                # what the hand may still read, backed off
 
-  def pulling(held=True):
+  def pulling(held=True, grips=False):
     r = _bare_reach()
     _out_hand(r, H, np.eye(3))
     r.phase["left"] = "hold"
     r.force = {s: np.zeros(3) for s in hm.SIDES}
+    r.grippers["left"].holding = grips
     r.grip_now = lambda side: (H.copy(), np.eye(3))
     r.path_for = lambda side, poses, rot=None: (0.0, 0.15, 0.0)
     r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3, 0.0)
@@ -537,6 +545,10 @@ def test_a_posture_is_given_up_where_the_hand_reads_a_load_while_it_comes():
   r._posture_held = lambda: True
   read(r, _loaded(10.0, 3.0))
   assert r.postures == [(0.0, 0.15, 0.0)]
+  # ...nor does a hand that grips what it pulls, its posture coming
+  r = pulling(grips=True)
+  st_ = read(r, _loaded(10.0, 3.0), 5)
+  assert r.postures == [(0.0, 0.15, 0.0)] and st_ is not None and not st_.get("given")
 
 
 def test_a_pinned_pull_is_held_fast_by_how_far_it_goes_along_its_way():
