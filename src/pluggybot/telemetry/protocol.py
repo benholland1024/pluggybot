@@ -639,9 +639,10 @@ DRIFT_EVENT_TYPES = ("drift",)
 #: (#422) or, up from a fall, its wider look (#681); `fixed` off a
 #: commissioned fixture (a bay's look, a lost robot's,
 #: or the dock's anchor); `lost` at a fixture; `searched`, the search for one
-#: that followed. Additive, like every vocabulary here: the humanoid's
-#: charging station is one (#559).
-DRIFT_WHYS = ("sample", "relocated", "fixed", "lost", "searched")
+#: that followed; `refusing`, the map having refused every scan for a
+#: minute, and `matching`, the scan it took after (#697). Additive, like
+#: every vocabulary here: the humanoid's charging station is one (#559).
+DRIFT_WHYS = ("sample", "relocated", "fixed", "lost", "searched", "refusing", "matching")
 DRIFT_FIXTURES = ("dock", "rack", "station")
 
 #: WHAT THE ROBOT THINKS IS THERE (issue #466, stage 3), additive, no bump:

@@ -795,7 +795,10 @@ only record of it was the box's log. One event type is new:
   `inconsistent`); `fixed` (a commissioned fixture's tags: lying on the
   dock, lined up at a bay, or a lost robot's look); `lost` (a fixture not
   where the belief put it in plain sight); `searched` (the search that
-  followed).
+  followed); `refusing` (the scan matcher has refused every scan for
+  `navigator.REFUSED_TELL_S`, 60 sim s, running, and the robot is told so in
+  History, pluggybot #697) and `matching` (the first scan it took after,
+  told too).
   Every row: `pose` (where the robot IS -- the sim's own check, as a
   death's `at.pose`), `believed` (after the event), `errorM` and
   `headingDeg` (the belief less the truth); an event's `before`. Beside
@@ -808,7 +811,10 @@ only record of it was the box's log. One event type is new:
   - `lost`: `fixture`;
   - `searched`: `found`, `ended`, `seconds`, `viewpoints`, `arounds`, and
     where one was found its `fixture` and whether it `dropped` the map;
-  - `relocated`: `inliers`.
+  - `relocated`: `inliers`;
+  - `refusing`: `seconds` (the run so far) and `verdict` (the refusal that
+    reached it: `inconsistent`, `slid` or `outdone`); `matching`: `verdict`
+    (the one that fit).
 
   Nothing the robot is shown carries the truth.
 

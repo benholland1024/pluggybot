@@ -922,6 +922,8 @@ def test_the_served_body_says_a_map_refusing_every_scan_and_the_scan_that_fits(h
   m.restore_kept(state, arrays)
   m.matcher.answer = taken
   assert scans(2) == ["refusing", "matching"]
+  from pluggybot.telemetry.protocol import DRIFT_WHYS
+  assert {"refusing", "matching"} <= set(DRIFT_WHYS), "the wire's two-repo vocabulary"
   life = stub_life(body=StubBody())
   life._drift_due = _math.inf
   life.body.belief_events = list(m.belief_events)
