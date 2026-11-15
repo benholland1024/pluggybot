@@ -336,14 +336,17 @@ save a filmstrip PNG named after the script.
   anchor renewed at touchdown made a step free). ⚠ A HAND THAT CANNOT GET
   THERE STOPS (`reach.BLOCKED_M`/`BLOCKED_N`, held `BLOCKED_S`): its own
   solve out of reach, or the force it reads (below) a push on its way in --
-  unstopped, an arm pushed the robot over. ⚠ ON ITS WAY OUT, THE TICK IT
-  READS ITSELF PULL TOWARD THE BODY PAST `reach.OUT_PULL_N` (30 N), HELD
-  WHERE ITS JOINTS READ (#708; `Reach._pulling`, `_struck`; SimNotes, "A
-  hand on its way out that meets something"): the joint-space way out swings
-  the hand through what it never looked at, and a jaw caught on a chest's
-  bracket was driven on until the robot went over its toes -- never on any
-  push: our door's way out presses a jaw on the door's top and passes, and
-  stopped there at 20-40 N the door fell in 2-3 more of 32. ⚠ IT GOES IN
+  unstopped, an arm pushed the robot over. ⚠ ON ITS WAY OUT, THE TICK WHAT
+  IT READS WOULD TIP THE BODY TOWARD THE HAND PAST `reach.OUT_TIP_NM` (20 N
+  m) -- its pull toward the body at the hand's height, less its press down
+  at the hand's reach -- HELD WHERE ITS JOINTS READ (#708; `Reach._tipping`,
+  `_struck`; SimNotes, "A hand on its way out that meets something"): the
+  joint-space way out swings the hand through what it never looked at, and
+  a jaw caught on a chest's bracket was driven on until the robot went over
+  its toes. Never on a push or a press: our door's way out drags a jaw back
+  over the door's top pressing down on it, and stopped there -- on the whole
+  reading at 20-40 N, or on its pull alone at 30 N -- the door fell more or
+  passed fewer. ⚠ IT GOES IN
   ONCE THE TRUNK IS STILL (`reach.TRUNK_STILL_RATE`; or after
   `POSTURE_WAIT_S`): the force it reads assumes the body still, and begun
   as the deepest bow stopped turning, the floor's reach read 492 N and
