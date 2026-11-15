@@ -275,10 +275,10 @@ DOING_KINDS = ("EXPLORE", "GO_CHARGE", "CHARGE", "WAIT:", "STATION:", "standing 
                "MAKE WAY:", "MADE WAY:", "PROCEDURE ", "TASK ", "DONE ", "GRADE ",
                "DEAD (", "UP again", "STOOD UP ", "DECIDE ")
 #: ...and the decided actions whose `DECIDE` line is shown as the action and
-#: where (`Decision.what`), never why nor who chose it: the two whose walk
-#: says nothing as it begins (a decided charge until it plugs in or waits, an
-#: explore with no zone until it ends).
-DECIDED_SHOWN = ("charge", "explore")
+#: where (`Decision.what`), never why nor who chose it: what a body sets out
+#: on that says nothing as it begins (a charge until it plugs in or waits, an
+#: explore with no zone until it ends, an idle at all).
+DECIDED_SHOWN = ("charge", "explore", "idle")
 
 #: Sim seconds of charging before calling it stuck, on a DEMO cell.
 #:
@@ -3477,6 +3477,10 @@ class HubLifecycle:
       self._remember(f"reset by {by}" + (f" after {dead_s:.0f} s dead"
                                          if was else " while still awake")
                      + f": {MAP_GONE}")
+      # ...an operator's line, never the other robot's to read (#709), and
+      # what it read before is no longer so: the robot is where it starts,
+      # as at a run's start, and has said nothing since
+      self.doing = ""
     self._emit(event)
     # ...and the map hears it (issue #348), with WHO as its kind -- and the
     # run its death ended, failed, as when the stand-up closed one (#671)

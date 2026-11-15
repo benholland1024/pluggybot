@@ -1352,7 +1352,9 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
       result["testsFalse"] += 1
       life._say(f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}, {verb}) did "
                 "not do what it said, as its test read"
-                + (f" -- {verdict['reason']}" if verdict.get("reason") else ""), doing=True)
+                + (f" -- {verdict['reason']}" if verdict.get("reason") else ""),
+                doing=f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}, {verb}) "
+                      "did not do what it said, as its test read")
       if not tested:
         raise _Failed()
       return False
@@ -1360,7 +1362,9 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
       result["failedAt"] = count - 1
       life._say(f"PROCEDURE {proc.name} failed at step {count} (line {line}{at.text()}, {verb})"
                 + (f" -- {verdict['reason']}" if verdict.get("reason") else ""),
-                detail=verdict.get("trace", ""), doing=True)
+                detail=verdict.get("trace", ""),
+                doing=f"PROCEDURE {proc.name} failed at step {count} (line {line}{at.text()}, "
+                      f"{verb})")
       raise _Stop("failed")
     result["completed"] = count
     return True
@@ -1373,7 +1377,9 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
                             "reason": why, "tested": True})
     result["testsFalse"] += 1
     life._say(f"PROCEDURE {proc.name} line {line}{at.text()}, {verb} did not do what it "
-              f"said, as its test read -- {why}", doing=True)
+              f"said, as its test read -- {why}",
+              doing=f"PROCEDURE {proc.name} line {line}{at.text()}, {verb} did not do what "
+                    "it said, as its test read")
 
   def call(node, env: dict, at: At, tested: bool = False) -> Routine:
     """A call (#560): True when its callee ran to its end or a `return`."""
@@ -1500,7 +1506,8 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
           result["steps"].append({"i": count, "verb": verb,
                                   **({"line": line, **at.said()} if line else {}),
                                   "ok": False, "reason": stop.why})
-          life._say(f"PROCEDURE {proc.name} stopped: {stop.why}", doing=True)
+          life._say(f"PROCEDURE {proc.name} stopped: {stop.why}",
+                    doing=f"PROCEDURE {proc.name} stopped")
   finally:
     # ...whatever ended it, a close from outside included (no yield here)
     result["seconds"] = round(float(life.data.time) - t0, 2)

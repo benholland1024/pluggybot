@@ -24,9 +24,9 @@ that said what its BODY is doing, in the form its call gives
 (`_say(doing=)`), and only a line beginning as the stated list says one may
 (`lifecycle.DOING_KINDS`): a walk, a wait or a step aside, a charge, a
 procedure's lines, a job it holds, a death and a stand-up, and a decided
-charge's or explore's start. A line is private by default, so a new kind of
-line is the robot's own until someone lists it. Overseer.md §2c has the
-table.
+charge's, explore's or idle's start. A line is private by default, so a new
+kind of line is the robot's own until someone lists it, and an operator's
+reset empties it. Overseer.md §2c has the table.
 
 - **Shown in a form without its number or reason:** "CHARGE complete --
   backing off" (was "(90%)"), "CHARGE: unplugging" (was "at 63% -- the pack
@@ -39,9 +39,12 @@ table.
   (was "graded now, before this answer's idle -- <the job>"), a step as its
   verb, "PROCEDURE door_p1 step 24 (line 34): step" (was "step(ahead=0.12,
   left=0.0, turn=0.0)": a procedure may hand a verb what it read of its pack
-  or wallet), and a decided charge or explore as its action, "DECIDE charge
-  (free)" (was its reason and, for a row's or a fallback's, its source: its
-  walk says nothing more until it plugs in, waits or fails).
+  or wallet), a step that read false or failed and a stop without their
+  words (a check's words repeat a value: "seconds=731.9 is above 60.0"), and
+  a decided charge, explore or idle as its action, "DECIDE charge (free)",
+  "DECIDE idle" (was its reason and, for a row's or a fallback's, its
+  source: a charge's walk says nothing more until it plugs in, waits or
+  fails, and an idle nothing at all).
 - **No longer shown:** its `THINK`, any other `DECIDE` line and every
   reason (a fallback's words among them), `THOUGHT` (a pin, a goal, a note, a
   finding), `RECALL`, `READ`, `LOOK`, `INTERRUPT`, its list of rules
@@ -67,10 +70,10 @@ far as the export keeps the lines) the other's `doing` at the 380 answers a
 mind wrote itself was a row of its list of rules firing at 227 ("EVENT
 message received -> ask -- but something is already queued"), a `DECIDE`
 line at 36, a `RECALL` at 7 and a battery level at 2; under this rule it
-is a procedure's line at 145 (its steps as their verbs), a walk or a charge
-at 128, a job it holds at 92, a decided charge at 1, and nothing yet at 14
-(the start of a run, before a line the list shows). It differs at 337 of
-the 380.
+is a procedure's line at 133 (its steps as their verbs), a walk or a charge
+at 124, a job it holds at 89, a decided charge, explore or idle at 20, and
+nothing yet at 14 (the start of a run, before a line the list shows). It
+differs at 337 of the 380.
 
 **What the period is for.** ⚠ This changes the empathy measurement's input
 (what a robot can read of the other): Ben confirms it at the release.

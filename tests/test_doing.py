@@ -229,6 +229,11 @@ def _ask_a_row(a):
   a._events_step()
 
 
+def _an_operators_reset(a):
+  a.home_pose = (0.5, 3.0, 0.0)
+  a._reset_robot(SimpleNamespace(who="ada_admin"))
+
+
 def _a_visitor_answered(a):
   a.inbox.offer({"type": "message", "id": "v1", "from": "vera",
                  "text": "what are you up to?"})
@@ -262,6 +267,7 @@ PRIVATE_DOORS = {
   "an admin's line": (
     lambda a: a._set_points(SimpleNamespace(who="ada_admin", points=5555)),
     ("ada_admin", "5555")),
+  "an admin's reset": (_an_operators_reset, ("ada_admin", "reset me")),
   "a visitor's line": (_a_visitor_answered, ("vera", "my plans to myself")),
 }
 
@@ -270,9 +276,11 @@ PRIVATE_DOORS = {
 def test_what_a_robot_keeps_private_is_nowhere_in_the_others_context(door):
   """A robot plugs in (its walk's line, which the other is shown), then
   narrates one private thing through the lifecycle's own door; the OTHER
-  robot's whole context is read for it, and its `doing` is still the
-  charge's line. On e1ee005 every one of these was the other's `doing`
-  until the robot's next line."""
+  robot's whole context is read for it, and its `doing` is the charge's
+  line still, or what that door's body did in its public form (an unplug,
+  an idle), or nothing (an operator's reset: the robot is where it starts).
+  On e1ee005 every one of these was the other's `doing` until the robot's
+  next line."""
   from pluggybot.mind.inbox import Inbox
   a, b = stub_pair(inboxes=(Inbox(), Inbox()))
   a.ledger.intervene(4321, by="test", t=0.0)
@@ -286,7 +294,8 @@ def test_what_a_robot_keeps_private_is_nowhere_in_the_others_context(door):
   seen = json.dumps(overseer_context(b))
   assert not [w for w in words if w in seen], (door, others_context(b))
   shown = others_context(b)[0]["doing"]
-  assert shown in ("GO_CHARGE -> CHARGE (plugged in)", "CHARGE: unplugging"), shown
+  assert shown in ("GO_CHARGE -> CHARGE (plugged in)", "CHARGE: unplugging", "DECIDE idle",
+                   ""), shown
 
 
 def test_a_decided_walk_is_shown_as_its_action_never_why():
@@ -322,24 +331,40 @@ def test_an_acts_claim_is_never_shown_to_the_robot_it_names():
   assert others_context(b)[0]["doing"] == "GO_CHARGE -> CHARGE (plugged in)"
 
 
-def test_a_step_is_shown_as_its_verb_never_the_values_it_was_handed():
+#: What a procedure may hand on of its own pack (`read("battery.frac")`, a
+#: 0.7319 pack), and the line that says it: a verb's values, a check's words
+#: refusing them, a test's words, a stop's.
+HANDED = {
+  "a verb's values": ('wait(seconds=read("battery.frac"))', "0.7319",
+                      "PROCEDURE p step 1 (line 2): wait"),
+  "a check's words": ('wait(seconds=read("battery.frac") * 1000)', "731.9",
+                      "PROCEDURE p failed at step 1 (line 2, wait)"),
+  "a test's words": ('if not wait(seconds=sqrt(0 - read("battery.frac") * 1000)):\n'
+                     '    wait(seconds=1)', "731.9",
+                     "PROCEDURE p step 1 (line 2, wait) did not do what it said, as its "
+                     "test read"),
+  "a stop's words": ('x = sqrt(0 - read("battery.frac") * 1000)\n  wait(seconds=1)', "731.9",
+                     "PROCEDURE p stopped"),
+}
+
+
+@pytest.mark.parametrize("what", sorted(HANDED))
+def test_a_procedure_is_shown_as_its_verbs_never_what_it_handed_them(what):
   """A procedure may hand a verb what it read of its own pack or wallet
-  (`read("battery.frac")`, `read("points")`): a step's line is shown as its
-  verb, its values left out, the other robot's whole context read at every
-  line the run says."""
+  (`read("battery.frac")`, `read("points")`): its lines are shown as their
+  verbs, the values, a check's and a test's words and a stop's left out,
+  the other robot's whole context read at every line the run says."""
   from pluggybot.mind.overseer import PROCEDURE_NEW, Decision
+  body, value, form = HANDED[what]
   a, b = stub_pair()
   a.battery.energy_wh = a.battery.capacity_wh * 0.7319
   a.body.run(a._after_decision_routine(Decision(
-    action=PROCEDURE_NEW, reason="r", define={
-      "name": "p", "source": 'def p():\n  wait(seconds=read("battery.frac"))\n'})))
+    action=PROCEDURE_NEW, reason="r", define={"name": "p", "source": f"def p():\n  {body}\n"})))
   views = []
   a.say_hooks.append(lambda t, msg: views.append(
     (msg, json.dumps(overseer_context(b)), others_context(b)[0]["doing"])))
   while a.errands:
     a.body.run(a.run_errand_routine(a.errands.pop(0)))
-  assert ("PROCEDURE p step 1 (line 2): wait(seconds=0.7319)", ) == tuple(
-    msg for msg, _, _ in views if "step 1" in msg)
-  assert [shown for msg, _, shown in views if "step 1" in msg] == [
-    "PROCEDURE p step 1 (line 2): wait"]
-  assert not [msg for msg, seen, _ in views if "0.7319" in seen]
+  said = [(msg, shown) for msg, _, shown in views if value in msg]
+  assert said and form in [shown for _, shown in said], said
+  assert not [msg for msg, seen, _ in views if value in seen]

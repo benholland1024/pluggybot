@@ -927,11 +927,11 @@ shown only where the line begins as the stated list says one may
 
 | what the other is shown | the lines (and the form) |
 |---|---|
-| a walk | `EXPLORE` (heading for a zone, how it ended; going to charge without "(battery low)"), `MAKE WAY` and `MADE WAY`, `WAIT` and `STATION` at a station held, `standing by` clearing a station; a decided explore's `DECIDE` line as its action alone ("DECIDE explore (store)") |
+| a walk | `EXPLORE` (heading for a zone, how it ended; going to charge without "(battery low)"), `MAKE WAY` and `MADE WAY`, `WAIT` and `STATION` at a station held, `standing by` clearing a station; a decided explore's `DECIDE` line as its action alone ("DECIDE explore (store)"), and a decided idle's ("DECIDE idle") |
 | a charge | a decided charge's `DECIDE` line as its action alone ("DECIDE charge (free)": it says nothing more until it plugs in, waits or fails), `GO_CHARGE` (each leg, and a failed one "stranded" without its level), `CHARGE` without its level or why: "CHARGE complete -- backing off", "CHARGE: unplugging", "CHARGE: still plugged in -- carrying on", "CHARGE: the run's time is up -- my plug stays in", "the plug came out", and the hand that could not take it out |
-| a procedure it runs | `PROCEDURE` step lines as the verb alone, never the values it was handed (a procedure may hand a verb what it read of its pack or wallet): "PROCEDURE door_p1 step 24 (line 34): step"; a step that read false or failed and the verb's words why, how the run ended (stopped, complete, cut short, failed) |
+| a procedure it runs | `PROCEDURE` step lines as the verb alone, never the values it was handed (a procedure may hand a verb what it read of its pack or wallet): "PROCEDURE door_p1 step 24 (line 34): step"; a step that read false or failed, and a stop, without their words (a check's words repeat the values: "seconds=731.9 is above 60.0"); how the run ended (complete, cut short, failed) |
 | a job it holds | `TASK` claimed (never an act's: its claim is the act, on an offer hidden from the robot it names), done or failed, ended by a fall, out of time, still held after a restart; `DONE` without when it is graded ("before this answer's ..."); `GRADE` (the hold, standing clear) |
-| its body's fate | `DEAD (cause)` without why or hearts; `UP again after N s down -- back at` its start, without the pack; `STOOD UP mid-errand` |
+| its body's fate | `DEAD (cause)` without why or hearts; `UP again after N s down -- back at` its start, without the pack; `STOOD UP mid-errand`. An operator's reset is never shown and empties `doing`: the robot is where it starts, as at a run's start |
 
 Everything else is the robot's own, by what it is: its mind (`THINK`,
 `DECIDE` and every reason and source, any other decision, `INTERRUPT`,
@@ -952,7 +952,8 @@ fails it until someone classes it), narrates every call through `_say` as
 it is written and reads the other's whole context after each (and a form
 whose words its line no longer says fails it), and narrates the private
 things through the lifecycle's own methods. A walk's own words (why it
-stopped short) and a verb's (what it read) are the body's, and are shown.
+stopped short) are the body's, and are shown; a procedure's name is shown
+as its errand's (#709's option 1 named `procedure:door_run26` a doing).
 
 `doing` may be old: it is the last thing the body was seen doing, and
 `state` beside it is what the robot is in now. It is empty until a robot

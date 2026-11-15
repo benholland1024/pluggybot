@@ -2100,8 +2100,7 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
                 f"{step.describe()}" + (f" -- {verdict['reason']}"
                                          if verdict.get("reason") else ""),
                 detail=verdict.get("trace", ""),
-                doing=f"PROCEDURE {program.name} failed at {i + 1}/{len(steps)} {step.verb}"
-                      + (f" -- {verdict['reason']}" if verdict.get("reason") else ""))
+                doing=f"PROCEDURE {program.name} failed at {i + 1}/{len(steps)} {step.verb}")
       break
     result["completed"] = i + 1
   else:
