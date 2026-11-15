@@ -47,7 +47,15 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
   robot a `peer` cause was about -- the lifecycle knows names, the mission
   only poses."""
   why = rec["why"]
-  if why == "no_route":
+  kept = rec.get("standIn")
+  if why == "no_route" and kept:
+    # ...where the plan ended at its stand-in by something the map holds
+    # (#700): "no route over the floor mapped so far" there was read as
+    # floor not yet mapped, three times, of a goal 1 cm off a counter
+    cause = (f"nowhere nearer to stand: the goal is {kept['solidM']:.2f} m from "
+             "something the map holds solid, nearer than a walk keeps, and the robot "
+             f"stood {kept['standM']:.2f} m from it")
+  elif why == "no_route":
     cause = "no route over the floor mapped so far"
   elif why == "stalled":
     cause = f"stalled, no progress for {STAGNATION_S:.0f} s"
@@ -167,7 +175,9 @@ AIMED_RAD = math.radians(45.0)
 WAYPOINT_REACHED_M = 0.08
 #: WHY A DRIVE GAVE UP (issue #350), `Navigator.last_drive["why"]`, one of
 #: four: the planner could not route to the goal over the floor mapped so
-#: far (no plan at all, or only to a stand-in the robot then stood at); no
+#: far (no plan at all, or only to a stand-in the robot then stood at --
+#: where the map's keep-off round something solid took in the goal, the
+#: record's `standIn` says so, #700); no
 #: progress for `STAGNATION_S` toward a goal the plan did reach; another
 #: robot in the way or on the goal when it stopped; the time budget ran
 #: out. The robot reads the cause back: "stopped 9.1 m short", with none,
@@ -334,8 +344,9 @@ class Navigator:
     #: How the last `drive_to` ended (issue #350): `why` ("" arrived, else
     #: one of `DRIVE_GAVE_UP`), the goal, the seconds it took, how far short
     #: it stopped, and for a peer which body -- beside the robot (`here`)
-    #: or at the goal, how far, where, and whether it lies down. `gave_up`
-    #: is its sentence.
+    #: or at the goal, how far, where, and whether it lies down; for a
+    #: `no_route` at its stand-in by something the map holds, what kept it
+    #: off (`standIn`, `_kept_off`, #700). `gave_up` is its sentence.
     self.last_drive: dict | None = None
     #: Where the last plan aimed INSTEAD of the goal -- the nearest cell of
     #: this robot's own component, when the goal was off it -- or None.
@@ -1090,6 +1101,9 @@ class Navigator:
     asked = getattr(self, "_made_way", None)
     if asked:
       rec["askedWay"] = sorted(asked)
+    kept = self._kept_off(wx, wy) if why == "no_route" and self._at_stand_in() else None
+    if kept is not None:
+      rec["standIn"] = kept
     self.last_drive = rec
     return not why
 
@@ -1099,6 +1113,38 @@ class Navigator:
     return (self._stand_in is not None
             and math.hypot(self._stand_in[0] - self.pose[0],
                            self._stand_in[1] - self.pose[1]) < STAND_IN_REACHED_M)
+
+  def _kept_off(self, wx: float, wy: float) -> dict | None:
+    """What keeps a walk off (wx, wy) where the map does (issue #700): of
+    the cells the planner's map holds solid whose keep-off -- taxicab
+    `INFLATION_CELLS`, as `map_costs` grows a wall -- takes in the goal's
+    cell of the plan (its lattice cell, `OPTIMISTIC`), the one nearest the
+    goal: how far the goal is from it (`solidM`) and the robot (`standM`),
+    m, to its nearest point. None where none does: the goal's cell is off
+    the plan's floor for another reason (a robot's disc, the grid's edge)."""
+    g = self.grid
+    solid = self._planning_grid() > OCC_THRESH
+    rows, cols = solid.shape
+    b = optimistic.BLOCK if self.OPTIMISTIC else 1
+    cx, cy = g.world_to_cell(wx, wy)
+    x0, y0, r = (cx // b) * b, (cy // b) * b, self.INFLATION_CELLS
+    lo_x, lo_y = max(x0 - r, 0), max(y0 - r, 0)
+    ys, xs = np.nonzero(solid[lo_y:max(y0 + b + r, 0), lo_x:max(x0 + b + r, 0)])
+    xs, ys = xs + lo_x, ys + lo_y
+    taxicab = (np.maximum(0, np.maximum(x0 - xs, xs - (x0 + b - 1)))
+               + np.maximum(0, np.maximum(y0 - ys, ys - (y0 + b - 1))))
+    xs, ys = xs[taxicab <= r], ys[taxicab <= r]
+    if not len(xs):
+      return None
+    ex, ey = g.x_min + xs * g.resolution, g.y_min + ys * g.resolution
+
+    def off(px: float, py: float) -> np.ndarray:
+      return np.hypot(px - np.clip(px, ex, ex + g.resolution),
+                      py - np.clip(py, ey, ey + g.resolution))
+    to_goal = off(wx, wy)
+    k = int(np.argmin(to_goal))
+    return {"solidM": round(float(to_goal[k]), 3),
+            "standM": round(float(off(self.pose[0], self.pose[1])[k]), 3)}
 
   def face(self, heading: float) -> bool:
     return self.run(self.face_routine(heading))

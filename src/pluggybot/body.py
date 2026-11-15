@@ -187,7 +187,10 @@ class Body(abc.ABC):
   #: else the body's cause), `goal`, `seconds`, `shortM`, and for a peer
   #: `peerAt` / `peerM` / `peerXY` / `peerDown` (`peerRests` if it lay down
   #: to rest); `askedWay`, the robots asked to make way that said yes
-  #: (issue #415). None before any.
+  #: (issue #415); `standIn`, a `no_route` that stood where it could
+  #: nearest a goal its map's keep-off takes in -- `solidM` / `standM`, how
+  #: far the goal and the robot are from what it holds solid there (#700).
+  #: None before any.
   last_drive: dict | None
 
   @abc.abstractmethod
