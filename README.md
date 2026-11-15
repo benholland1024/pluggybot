@@ -59,10 +59,11 @@ Without a display, you can draw the same walk as a picture:
 MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip walk
 ```
 
-This writes `humanoid_spike.png`, a filmstrip of the walk, in about a
-minute. `MUJOCO_GL=egl` renders with a GPU, or with Mesa's EGL. If your
-machine has neither, use `MUJOCO_GL=osmesa` to render on the CPU (on Debian
-or Ubuntu, install the package `libosmesa6` first).
+This writes `humanoid_spike.png`, a filmstrip of the walk. `MUJOCO_GL=egl`
+renders with a GPU, or with Mesa's EGL. If your machine has neither, use
+`MUJOCO_GL=osmesa` to render on the CPU (on Debian or Ubuntu, install the
+package `libosmesa6` first). On a six-core desktop, the walk took under a
+minute either way.
 
 Every script takes `--help`. The [scripts](#scripts) further down show more
 scenes, such as the stairs, a fall and a get-up, and the two robots living

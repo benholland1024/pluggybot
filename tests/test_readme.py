@@ -102,17 +102,20 @@ def test_the_memory_diagram_names_exactly_the_robots_verbs_and_real_states():
 
 
 def _prose(markdown: str) -> str:
-  """The text outside fenced code blocks, where a `#` is a heading and a
-  `](...)` a link."""
-  return re.sub(r"^```.*?^```[^\n]*$", "", markdown, flags=re.S | re.M)
+  """The text outside fenced code blocks (``` or ~~~, indented under a list
+  item too), where a `#` is a heading and a `](...)` a link."""
+  return re.sub(r"^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[^\n]*$", "", markdown,
+                flags=re.S | re.M)
 
 
 def _anchors(markdown: str) -> set[str]:
-  """GitHub's anchor for each heading: lower case, punctuation dropped,
-  spaces as hyphens, and `-1`, `-2` after a heading's repeats."""
+  """GitHub's anchor for each heading, off its text as rendered (a link's
+  words, no tags): lower case, punctuation dropped, spaces as hyphens, and
+  `-1`, `-2` after a heading's repeats."""
   seen, anchors = {}, set()
   for heading in re.findall(r"^#{1,6} (.+)$", _prose(markdown), re.M):
-    slug = re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+    shown = re.sub(r"<[^>]+>", "", re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", heading))
+    slug = re.sub(r"[^\w\- ]", "", shown.strip().lower()).replace(" ", "-")
     anchors.add(f"{slug}-{seen[slug]}" if slug in seen else slug)
     seen[slug] = seen.get(slug, 0) + 1
   return anchors
@@ -129,14 +132,45 @@ def _links(markdown: str) -> list[str]:
 
 def _broken(source: Path, targets: list[str]) -> list[str]:
   """The targets that name no file, or a heading their file does not have."""
-  broken = []
+  broken, anchors = [], {}
   for target in targets:
     path, _, anchor = target.partition("#")
     doc = source.parent / path if path else source
-    if not doc.exists() or (anchor and doc.suffix == ".md"
-                            and anchor not in _anchors(doc.read_text())):
+    if not doc.exists():
       broken.append(target)
+    elif anchor and doc.suffix == ".md":
+      if doc not in anchors:
+        anchors[doc] = _anchors(doc.read_text())
+      if anchor not in anchors[doc]:
+        broken.append(target)
   return broken
+
+
+def _scenes(script: Path) -> set[str]:
+  """The scenes `--view` and `--strip` offer: the keys of the script's
+  `SCENES` dict."""
+  for node in ast.parse(script.read_text()).body:
+    target = node.target if isinstance(node, ast.AnnAssign) else (
+      node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None)
+    if getattr(target, "id", None) == "SCENES" and isinstance(node.value, ast.Dict):
+      return {ast.literal_eval(k) for k in node.value.keys}
+  raise AssertionError(f"{script.name} has no `SCENES = {{...}}` to read the scenes from")
+
+
+def _strips(script: Path) -> set[str]:
+  """The scenes whose filmstrip `--strip` draws: one with a branch of its
+  own (`args.strip == "walk"`), a stage-2 scene `_scene_gen` lists, and the
+  body's, the default. Any other falls through to another scene's."""
+  drawn = {"body"}
+  for node in ast.walk(ast.parse(script.read_text())):
+    if (isinstance(node, ast.Compare) and getattr(node.left, "attr", None) == "strip"
+        and isinstance(node.ops[0], (ast.Eq, ast.In))):
+      drawn |= {c.value for c in ast.walk(node.comparators[0])
+                if isinstance(c, ast.Constant) and isinstance(c.value, str)}
+    if isinstance(node, ast.FunctionDef) and node.name == "_scene_gen":
+      drawn |= {k.value for d in ast.walk(node) if isinstance(d, ast.Dict)
+                for k in d.keys if isinstance(k, ast.Constant)}
+  return drawn
 
 
 def test_the_first_screen_links_only_to_what_is_there():
@@ -152,13 +186,11 @@ def test_the_first_screen_links_only_to_what_is_there():
   broken = _broken(README, targets)
   assert not broken, broken
   script = README.parent / "scripts" / "humanoid_spike.py"
-  scenes = next({ast.literal_eval(k) for k in node.value.keys}
-                for node in ast.parse(script.read_text()).body
-                if isinstance(node, ast.Assign)
-                and any(getattr(t, "id", None) == "SCENES" for t in node.targets))
   named = set(re.findall(r"humanoid_spike\.py --(?:view|strip) (\w+)", first))
   assert named, "the first screen names a scene to run"
-  assert named <= scenes, named - scenes
+  assert named <= _scenes(script), named - _scenes(script)
+  stripped = set(re.findall(r"humanoid_spike\.py --strip (\w+)", first))
+  assert stripped <= _strips(script), stripped - _strips(script)
 
 
 def test_the_start_here_page_links_only_to_what_is_there():
