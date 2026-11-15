@@ -27,16 +27,9 @@ license.
    drew them.
 
    AprilTag: BSD 2-Clause License, Copyright (C) 2013-2015, The Regents of
-   The University of Michigan.
-   moms-apriltag: MIT License, Copyright (c) 2020 Kevin J. Walchko.
-
-3. Short quotations from Wikipedia
-
-   tests/test_library.py uses the opening sentence, or the start of it, of
-   four English Wikipedia articles as test data: "Durian", "Diffuse sky
-   radiation", "Mercury" and "Mercury (planet)". Wikipedia's text is
-   available under the Creative Commons Attribution-ShareAlike 4.0
-   License.
+   The University of Michigan. The full text is in models/apriltag.LICENSE.
+   moms-apriltag: MIT License, Copyright (c) 2020 Kevin J. Walchko. The full
+   text is in models/moms_apriltag.LICENSE.
 
 The Python packages that this project installs are not part of this tree.
 Each one carries its own license.

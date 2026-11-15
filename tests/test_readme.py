@@ -101,10 +101,11 @@ def test_the_memory_diagram_names_exactly_the_robots_verbs_and_real_states():
   assert drawn <= _state_names(loop), drawn - _state_names(loop)
 
 
-def _slug(heading: str) -> str:
-  """GitHub's anchor for a heading: lower case, punctuation dropped, spaces
-  as hyphens."""
-  return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+def _anchors(markdown: str) -> set[str]:
+  """GitHub's anchor for each heading: lower case, punctuation dropped,
+  spaces as hyphens."""
+  return {re.sub(r"[^\w\- ]", "", h.strip().lower()).replace(" ", "-")
+          for h in re.findall(r"^#+ (.+)$", markdown, re.M)}
 
 
 def test_the_first_screen_links_only_to_what_is_there():
@@ -115,11 +116,16 @@ def test_the_first_screen_links_only_to_what_is_there():
   assert FIRST_SCREEN_END in readme, "the first screen ends where the developers' part begins"
   first = readme.split(FIRST_SCREEN_END)[0]
   targets = [t for t in re.findall(r"\]\(([^)\s]+)\)", first) if "://" not in t]
-  files = [t for t in targets if not t.startswith("#")]
-  assert files, "the first screen links the docs and the picture"
-  assert not [t for t in files if not (README.parent / t).exists()]
-  anchors = {_slug(h) for h in re.findall(r"^#+ (.+)$", readme, re.M)}
-  assert not [t for t in targets if t.startswith("#") and t[1:] not in anchors]
+  assert [t for t in targets if not t.startswith("#")], \
+      "the first screen links the docs and the picture"
+  broken = []
+  for target in targets:
+    path, _, anchor = target.partition("#")
+    doc = README.parent / path if path else README
+    if not doc.exists() or (anchor and doc.suffix == ".md"
+                            and anchor not in _anchors(doc.read_text())):
+      broken.append(target)
+  assert not broken, broken
   script = README.parent / "scripts" / "humanoid_spike.py"
   scenes = next({ast.literal_eval(k) for k in node.value.keys}
                 for node in ast.parse(script.read_text()).body

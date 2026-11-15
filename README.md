@@ -20,7 +20,7 @@ them through, and keep itself alive while it still takes on work.
 
 *One robot sets a table. It walks from its charging station to a restaurant
 table, then lays a plate, a fork and a cup at a place card. The world grades
-the job, and this one passed after 232 seconds. Here the robot runs a
+the job, and this one passed. Here the robot runs a
 procedure that we wrote by hand. In the live world, the robots write their
 own.*
 
@@ -388,8 +388,10 @@ scenes, and a recorded day of the pair, are committed under `protocol/`.
 
 ### Letting the robot choose its own errands
 
-Add `--overseer` and an API key, and an LLM (Claude Haiku 4.5) picks what the
-robot does next once the `--errand` queue is empty:
+Add `--overseer` and an API key, and an LLM picks what the robot does next
+once the `--errand` queue is empty. With `ANTHROPIC_API_KEY` it is Claude
+Haiku 4.5, unless `$PLUGGY_MODEL` names another model; the live robots'
+model is set where they are deployed (`docs/Overseer.md` §6):
 
 ```bash
 PLUGGYWORLD_TOKEN=dev-token-change-me ANTHROPIC_API_KEY=... MUJOCO_GL=osmesa \
