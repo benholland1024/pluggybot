@@ -430,9 +430,11 @@ log carries:
   wall minute: resident memory, its rate, and the sim clock. A runaway
   that has stopped the world shows as `t` standing still.
 - **`vitals: RUNAWAY -- ...`** when the rate has run over 50 MiB a minute
-  for two samples in a row. The first five samples are a warm-up (the
-  build and the carry-on: the grown world took a fresh process from 173 MiB
-  to 1.3 GB over four minutes). `tracemalloc` starts, and every thread's
+  for three samples in a row. The first five samples in which the world ran
+  are a warm-up (the build and the carry-on: the grown world took a fresh
+  process from 173 MiB to 1.3 GB over four minutes). A sample whose `t`
+  stood still, its memory no faster than the rate, is a paused world's,
+  and the warm-up does not count it. `tracemalloc` starts, and every thread's
   stack follows
   (`faulthandler`; Python 3.13+ names the threads, and the image's 3.12
   prints their ids). 20 s later tracing stops and the allocations made
@@ -464,9 +466,31 @@ Why the numbers are what they are:
   covered a slower box. The grown world took four minutes in the deployed
   process of 2026-11-12 (19:17-19:21 UTC, 173 MiB to 1.3 GB), and a warm-up
   of three set the alarm off with 4.6 MiB new at the onset. Five judges
-  nothing until the sixth sample: a load of up to five minutes passes, a
-  runaway that begins once the world is loaded is still reported at its
-  second minute, and one from boot six minutes in at the earliest.
+  nothing until the sixth sample: a load of up to six minutes passes (five
+  of warm-up and two fast), a runaway that begins once the world is loaded
+  is reported at its third minute, and one from boot seven minutes in at
+  the earliest.
+- **Counted in samples the world ran.** A process started into a pause
+  builds its world, stops at its first step, and builds at the wake what a
+  fresh process builds in its first minutes. That made three false alarms
+  (2026-11-12 17:01, 11-14 16:01 and 11-15 08:46 UTC). Each process had sat
+  at 280-320 MiB with its clock standing, then grown 540-640 MiB in its
+  first full minute awake. A pause mid-run keeps what was built (1450 MiB,
+  +0.0 a minute, for 13.6 hours from 2026-11-12 21:00 UTC), so a wake is
+  no warm-up. A clock standing with memory running fast is no pause: a
+  runaway that stops the world is still judged.
+- **Three samples, not two.** Each of a robot's two cameras (the colour
+  imager and the navigation camera) builds its renderer at its first use
+  and keeps it: about 210 MiB under osmesa, 190 when it is built and 20-27
+  at its first picture, four in a pair, once a process. A robot that began
+  a process charging built both on its first walk, a minute apart
+  (2026-11-14 17:32-17:33 UTC: +207 and +239, then flat), and two samples
+  read that as a runaway. Its trace held 4.0 MiB: `tracemalloc` sees only
+  the renderer's own arrays, 20 of its 190 MiB. The cost is a minute at any
+  rate: a runaway of 115 MiB a minute (the deaths of 2026-09-24) is
+  reported about 345 MiB in, where those died 7-9 minutes in. One faster
+  than about 170 MiB a minute from the pair's ~1.5 GB reaches the 2 GiB cap
+  before its third sample.
 - **Tracing starts at the onset, never at boot.** MEASURED on 2026-09-25,
   with the pair free-running on the dev machine (EGL, Python 3.14; the
   image runs 3.12), four interleaved runs, per wall minute after start-up:

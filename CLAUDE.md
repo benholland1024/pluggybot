@@ -1904,7 +1904,11 @@ save a filmstrip PNG named after the script.
 - **The served process watches its own memory and says why it ended** (issue
   #349; `telemetry/vitals.py`, Webserver.md "When the process dies"): a
   `vitals: rss` line every wall minute; at a RUNAWAY (`RUNAWAY_MB_PER_MIN` 50
-  for two samples after a warm-up) every thread's stack, then the largest
+  for THREE samples: each of a robot's two cameras builds its renderer at
+  its first use, ~210 MiB, once a process, and a first walk built both a
+  minute apart; after a warm-up of five samples IN WHICH THE WORLD RAN: a
+  process started into a pause builds them at the wake) every thread's
+  stack, then the largest
   allocations `TRACE_S` later; every end Python sees prints `vitals: exiting
   -- <why>`, so a process with no such line was killed. `RunawayRule` is pure
   and pinned with made-up series (`tests/test_vitals.py`). ⚠ `tracemalloc`
