@@ -1185,6 +1185,10 @@ class HubLifecycle:
     self.charge_cycles = 0
     self.log: list[str] = []
     self.status = ""                    # the latest _say message, bare
+    #: ...and the latest that was this robot's OWN (`_say(board=)`): what the
+    #: other robot is shown as its `doing` (`others_context`). Empty until it
+    #: narrates one, at every start (neither is kept across a restart).
+    self.doing = ""
     #: THE OTHER ROBOTS' lifecycles (issue #167), set by `pair.build_pair`.
     #: Read by `others_context` for what each broadcasts, and by nothing
     #: that decides: what one robot does about another is its mind's.
@@ -2334,12 +2338,20 @@ class HubLifecycle:
     if self.dead is not None:
       yield from self.body.hold_routine(WAIT_FOR_WORK_S)
 
-  def _say(self, msg: str, detail: str = "") -> None:
+  def _say(self, msg: str, detail: str = "", board: bool = False) -> None:
     """Narrate one line. `msg` is what the ROBOT says; `detail` is evidence.
 
     `msg` becomes `self.status`, which rides every telemetry frame, is
     rendered verbatim under the robot's portrait and goes to `say_hooks` (the
     event stream). So it has to be a sentence a robot could say.
+
+    ⚠ `board`: the line is the BOARD's doing and none of this robot's -- an
+    offer, an expiry, a job's things set out or put away. It is narrated
+    and becomes `status` like any other, and is KEPT OUT OF `doing`, the
+    robot's last OWN line, which is what the other robot is shown
+    (`others_context`): both lifecycles say the board's lines, and shown
+    one, the other robot read it as a claim on the job (Observatory.md,
+    the period of `loop-k4`).
 
     `detail` reaches the console and `self.log` and NOTHING else -- no status,
     no frame, no hook. It is where a caught exception's class and message go
@@ -2348,6 +2360,8 @@ class HubLifecycle:
     traceback for something that did not crash.
     """
     self.status = msg
+    if not board:
+      self.doing = msg
     # A second robot's lines say whose they are (issue #167); the first
     # robot's read exactly as they always did.
     who = f" {self.root}" if self.body.handle.prefix else ""
@@ -4498,18 +4512,21 @@ class HubLifecycle:
       return {"library": {"names": list(library.names()), "cap": library.cap}}
     name = str((decision.define or {}).get("name", "")).strip()
     source = (decision.define or {}).get("source", "")
+    # ...judged as the answer wrote it, where it came cut at the cap: the
+    # cut text is the event's, as it always was
+    judged = decision.define_written or source
     # AN ANSWER THAT UNDEFINES AND DEFINES is checked before anything
-    # changes (issue #264, `Library.check`): applied in order, a refused
+    # changes (issue #264, `Library.refusal`): applied in order, a refused
     # define had already deleted the procedure it was meant to improve -- or
     # to make room for, which the refusal for a full library advises. The
     # undefine waits for a define that goes through.
     if decision.define and decision.undefine:
-      held = library.check(name, source, freeing=decision.undefine)
-      if held:
+      held = library.refusal(name, judged, freeing=decision.undefine)
+      if held is not None:
         kept = decision.undefine if decision.undefine in library.names() else ""
         library.refusals.append({"t": t, "verb": "define", "name": name,
-                                 "reasons": held})
-        self._say(f"PROCEDURE define {name!r} refused: {'; '.join(held)}"
+                                 "reasons": held.reasons})
+        self._say(f"PROCEDURE define {name!r} refused: {held}"
                   + (f" -- {kept} is kept as it was" if kept else ""))
         if kept == name:
           said = f"could not rewrite the procedure {name} -- the one I had is kept"
@@ -4519,9 +4536,9 @@ class HubLifecycle:
                   "that goes through")
         else:
           said = f"could not write the procedure {name}"
-        self._remember(f"{said}: " + "; ".join(held))
+        self._remember_refusal(said, held)
         self._emit({**base, "outcome": "refused", "name": name,
-                    "verb": "define", "reasons": held, "source": source,
+                    "verb": "define", "reasons": held.reasons, "source": source,
                     **shelf()})
         return
     if decision.undefine:
@@ -4550,11 +4567,10 @@ class HubLifecycle:
                     **shelf()})
     if decision.define:
       try:
-        proc = library.define(name, source, t=t)
+        proc = library.define(name, judged, t=t)
       except LibraryRefused as e:
         self._say(f"PROCEDURE define {name!r} refused: {e}")
-        self._remember(f"could not write the procedure {name}: "
-                       + "; ".join(e.reasons))
+        self._remember_refusal(f"could not write the procedure {name}", e)
         self._emit({**base, "outcome": "refused", "name": name,
                     "verb": "define", "reasons": list(e.reasons),
                     "source": source, **shelf()})
@@ -4567,6 +4583,18 @@ class HubLifecycle:
                        + (f" -- {moved}" if moved else ""))
         self._emit({**base, "outcome": "defined", "name": proc.name,
                     "program": proc.as_dict(), **shelf()})
+
+  def _remember_refusal(self, said: str, refused) -> None:
+    """A refused define where the robot reads: `said` and its reasons on one
+    History line -- on two where the name's or the library's room's reasons
+    and the source's own both stand, the first as it always read. ⚠ On one
+    line the source's faults come last, and History's cap cut them."""
+    standing = refused.reasons[:len(refused.reasons) - len(refused.faults)]
+    if standing and refused.faults:
+      self._remember(f"{said}: " + "; ".join(standing))
+      self._remember("...and its source is refused too: " + "; ".join(refused.faults))
+    else:
+      self._remember(f"{said}: " + "; ".join(refused.reasons))
 
   def _drop_visitor(self, msg) -> None:
     """Tell whoever is holding this row that nobody will ever read it.
@@ -4826,13 +4854,13 @@ class HubLifecycle:
     target, k = task.target, task.secret.get("draw")
     area = jobs.area_of(target)
     if area is None or k is None or not area.present(self.model):
-      self._say(f"TASK {task.id}: this world has no {target} to set out")
+      self._say(f"TASK {task.id}: this world has no {target} to set out", board=True)
       return
     area.set_out(self.model, self.data, target, int(k), kind=task.kind)
     act = self._target_activity(target)
     if act is not None:
       act.renew(self.model, area.drawn(target, int(k)))
-    self._say(f"TASK {task.id}: the {target} is set out")
+    self._say(f"TASK {task.id}: the {target} is set out", board=True)
 
   def _worked_props(self) -> set:
     """The job targets whose things a robot is touching now (#559, #560;
@@ -4866,7 +4894,7 @@ class HubLifecycle:
         if target in worked:
           continue
         area.put_away(self.model, self.data, target)
-        self._say(f"the {target}'s things are put away: no job holds it")
+        self._say(f"the {target}'s things are put away: no job holds it", board=True)
 
   def restore_jobs(self) -> None:
     """After a restart (#559, #560): the world file carries each target's
@@ -4909,7 +4937,8 @@ class HubLifecycle:
     worked, out = self._worked_props(), []
     for prop, t in unseen:
       if prop in worked:
-        self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved")
+        self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved",
+                  board=True)
         continue
       self._set_out_job(t)
       out.append(prop)
@@ -4951,7 +4980,7 @@ class HubLifecycle:
       return
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
-      self._say(f"TASK {task.id} expired: {task.description}")
+      self._say(f"TASK {task.id} expired: {task.description}", board=True)
     # ...and on a charge trip, away from the counter with its hands home, a
     # job it holds past the time it gives (#602): left to the loop's pass, a
     # 74-minute charge held t_0024 and its drawer 69 minutes past its limit
@@ -4966,7 +4995,7 @@ class HubLifecycle:
     if self.producer is not None:
       for task in self.producer.tick(float(self.data.time), self.fundable_wh,
                                      busy=self._worked_props):
-        self._say(f"TASK {task.id} offered: {task.description}")
+        self._say(f"TASK {task.id} offered: {task.description}", board=True)
     # ...and what no job holds now put away (#560), where the world's
     # activities are
     if self.activities is not None:
@@ -6112,7 +6141,7 @@ class HubLifecycle:
     present = {self.root, *(p.root for p in self.peers)}
     for task in self.tasks.release_absent(present):
       self._say(f"TASK {task.id}: offered again -- whoever held it is not "
-                "in this world")
+                "in this world", board=True)
     return self.tasks.held_by(self.root)
 
   # ---- the loop ------------------------------------------------------------
@@ -6351,7 +6380,7 @@ class HubLifecycle:
     # (issue #345 keeps the rest).
     if self.tasks is not None:
       for task in self.tasks.announce_interrupted(t=float(self.data.time)):
-        self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart")
+        self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart", board=True)
       # ...and the board written as this day reads it (#602): a start-over
       # moves its deadlines and claims in memory, and a restart that carried
       # on before its next change read the old clock back
@@ -6962,8 +6991,8 @@ WAY_REFUSED = {"charging": "I am plugged in at my charging station",
 
 def others_context(life) -> list[dict]:
   """What the OTHER robots broadcast (issue #167): the public surface and
-  nothing else -- name, reported pose, state and the status line they
-  narrate to everyone. Not their battery, points, goals, thoughts, reasons
+  nothing else -- name, reported pose, state and the last line they
+  narrated of their OWN doing (`HubLifecycle.doing`: never the board's). Not their battery, points, goals, thoughts, reasons
   or secrets: those are theirs, and a robot that could read them would not
   need to infer them."""
   out = []
@@ -6971,7 +7000,7 @@ def others_context(life) -> list[dict]:
     x, y = other.body.pose_xy()
     out.append({"name": other.robot_name, "robot": other.root,
                 "x": round(x, 2), "y": round(y, 2), "state": other.state,
-                "doing": other.status[:120],
+                "doing": other.doing[:120],
                 "dead": other.dead["cause"] if other.dead else None,
                 # ...and whether it is lying down to rest (issue #387): a
                 # posture anyone in the room can see, never a fall

@@ -10,6 +10,104 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A refused define is judged as it was written and says every reason at once, the other robot is shown a robot's own last line, and the dishware put away stays put away (K4, `loop-k4`) — opens when this PR is deployed
+
+**Three small changes to what the robots read and one to what the world
+does, found on the wake of 2026-11-14.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029
+characters, 17 sections; no rule's text restates any of the words below),
+nor the session host's hello (byte for byte), nor any geometry, nor the
+wire's shape (no field added; what a refused define's `reasons` are judged
+on moved, item 1, and protocol/README.md says so), nor either committed
+recording.
+
+1. **A define cut at the cap is judged as it was written.** A served
+   answer's source is cut one past the cap before it goes on the wire, and
+   the library judged the cut: the refusal read "the source is 3001
+   characters; the cap is 3000" whatever was written. The library now
+   judges the source as the answer wrote it (`Decision.define_written`,
+   kept beside the cut text and in no `as_dict`): the refusal says the
+   written length ("the source is 3412 characters; the cap is 3000") and
+   every fault of the whole source, and nothing a cut made (one past
+   65,536 characters hears the cap alone, in its true length, unread). At
+   most 20 of a source's faults are said and the rest counted, "(+381
+   more)" (`library.MAX_FAULTS_SAID`; the most a refusal said that wake was
+   7): judged whole, a refusal's size was the answer's to choose. The wire's
+   `define` and the `procedure` event's `source` are the cut text byte for
+   byte as before; the event's `reasons` are the new words, and may name a
+   line past the source the event carries (the site prints both).
+2. **A refused define says every reason at once.** A define into a full
+   library, or under a name already kept, heard that reason alone; it now
+   hears what its source is refused for in the same refusal
+   (`Library.refusal`), from `define` and from the undefine-and-define path
+   alike. In History that is two lines where both kinds of reason stand,
+   the first as it always read and the second "...and its source is
+   refused too: ..." (on one line the faults come last and History's
+   400 characters cut them); the narration and the event's `reasons` hold
+   them all in one.
+3. **The other robot is shown a robot's own last line, never the
+   board's.** `others[].doing` was the other robot's `status`, its
+   lifecycle's last narrated line of any kind. It is now the last line that
+   was the robot's OWN (`HubLifecycle.doing`). Kept out of it from here on:
+   an offer ("TASK t_0306 offered: ..."), an expiry, an offer's things set
+   out ("TASK t_0306: the cube is set out", said by both lifecycles), or
+   not in this world to set out, or left as saved under a hand, things put
+   away, a claim given back for a robot that is not in this world, and a
+   job a restart failed. A robot's own job lines (claimed, done, failed,
+   out of time, still mine, not available) are its `doing` as before.
+   `doing` is empty until a robot has narrated a line of its own, at every
+   start (it is not kept across a restart, as `status` never was). ⚠ This
+   changes what each robot reads of the other. `OTHER_ROBOT_RULE` and its
+   sha are untouched, and its sentence ("what it is doing") now holds of
+   the line shown. ⚠ `status` itself is as it was: each frame's, a
+   recording's only narration, and the site's line under a portrait still
+   carry the board's lines.
+
+4. **Put away, the table's dishware stays put away.** A parked piece's
+   weight is held by `gravcomp`, which MuJoCo applies only while the model
+   counts a body so held (`ngravcomp`), and `mj_setConst`, the end of every
+   set-out's redraw, counts afresh. Counted with the pieces set out it was
+   0 -- the pair hooks the one board twice, so a place is set out twice an
+   offer, and a counter prop's set-out comes while the table's is out --
+   and from then on every put-away let the plate, the cup and the fork fall
+   at g (4.9 m in a second), to be parked again, and said so, at the next
+   sweep: "the dining_table_0's things are put away: no job holds it" once
+   a second for as long as the table had no task. The constants are now
+   recomputed with the pieces counted (`dishware.set_const`): parked they
+   stay parked, and the line is said once at a table task's end. Nothing a
+   grade reads moved (a set-out places the pieces afresh), and a lone
+   robot's table flight is row for row what it was.
+
+**Why.** 53 defines were refused that wake. 16 were over the cap and every
+one read "3001 characters": six thoughts took it for one character over
+("failed last turn by exactly one character"), four trims made on that were
+refused at "3001" again, three with a held job lost (t_0301, t_0309,
+t_0322), and five were told a fault the cut had made ("line 111: Expr is
+not part of this language", a `pass` cut to `pa`, which Luca listed among
+its own as "a `-=`"). 21 were for a full library, and at least 8 of those
+were followed by a refusal of the same source for its own faults on the
+robot's next define; `cube_run4` was refused eight times running, a kind of
+reason at a time. And six thoughts read the other robot's status as a claim
+on a job it had not taken (Luca, 20:19: "Leaving t_0305 to Rowan, whose
+broadcast claims it"; Rowan, 20:58: "its broadcast shows it eyeing t_0313
+-- so I take the drawer"); Rowan, 20:26: "the odd broadcast wording isn't
+mine -- my body's code writes it".
+
+**What the period is for.**
+- **Refused defines by reason** (`procedure` rows, `refused`): the over-cap
+  ones say a length other than 3001, none says "Expr is not part of this
+  language" at its text's last line, and a "library is full" refusal
+  carries the source's faults where it has any.
+- **Refusals running:** how many defines of one name are refused in a row
+  (11-14: `cube_run4` eight, `cube_p1` five), and whether a refusal at the
+  cap is followed by another at the cap.
+- **The thoughts after one:** none reads "one character over".
+- **The put-away line:** said once for each table task's end (the live
+  checks counted 2,157 of the wake's 7,759 log lines), and the first
+  robot's `status` no longer that line between table tasks.
+- **`doing` in the other's thoughts:** no thought reads the other robot's
+  status as a claim on a job it never took; and whether the two still sort
+  out who takes a job (they `tell` each other, which is theirs).
+
 ### A decided procedure that runs nothing says why in History (N5, `loop-n5`) — opens when this PR is deployed
 
 **What changed is what History says when an answer's `procedure:<name>`

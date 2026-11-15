@@ -2413,7 +2413,12 @@ wire.
 (`name`, and `program.source` — the text the robot wrote, Python-shaped and
 never executed) and `undefined` (`name`); a `refused` that carries `verb:
 "define" | "undefine"` and `reasons` is the library saying no, as against a
-run's refusal. A program written in the language has `program.source` in
+run's refusal. ⚠ A refused define's `reasons` are judged on the source AS THE
+ANSWER WROTE IT, and its `source` is the wire's cut one (at most
+`MAX_SOURCE_CHARS` + 1 characters): a reason may name a line past the
+`source` beside it and a length greater than its. At most 20 of a source's
+faults are listed (`library.MAX_FAULTS_SAID`), a last entry `(+N more)`
+counting the rest. A program written in the language has `program.source` in
 place of `program.roles`. "What has it written" is therefore
 `?kind=procedure` on the observatory, beside `?kind=thought`.
 
