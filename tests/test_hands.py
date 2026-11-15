@@ -203,7 +203,7 @@ class _Held(StubBody):
                     turns=None, refuse=False):
     fingers = -np.asarray(rot, dtype=float)[:, 2] if rot is not None else np.zeros(3)
     self.hands[side] = tuple(np.asarray(pos, dtype=float) - self.short * fingers)
-    self._fingers, self._goal = fingers, (side, tuple(pos))
+    self._fingers = fingers
     self._why[side] = "" if self.holds else "stopped short"
     return self.holds
     yield
@@ -212,18 +212,8 @@ class _Held(StubBody):
     return tuple(self.push * getattr(self, "_fingers", np.zeros(3)))
 
 
-class _Coming(_Held):
-  """...whose hand is still coming in as its reach's routine ends: once it
-  stands still, it is at its goal and reads nothing."""
-
-  def hold_routine(self, seconds):
-    side, pos = self._goal
-    self.hands[side], self.push = pos, 0.0
-    yield from super().hold_routine(seconds)
-
-
-def _held(short, push, holds=True, pose=(0.0, 0.0, 0.0), kind=_Held):
-  body = kind(*_bare())
+def _held(short, push, holds=True, pose=(0.0, 0.0, 0.0)):
+  body = _Held(*_bare())
   body.short, body.push, body.holds = short, push, holds
   body.start_at(*pose)
   return body
@@ -233,85 +223,32 @@ def _held(short, push, holds=True, pose=(0.0, 0.0, 0.0), kind=_Held):
 ABOVE = 'def a():\n    reach("right", 0.3, -0.05, 0.79, 0, 0, -1, 1, 0, 0)\n'
 
 
-def test_a_reach_held_short_by_what_its_fingers_met_says_how_far():
-  """#711: from straight above, a grip held 2.5-2.9 cm over the cube's
-  middle it was sent to, a pad on its board at 21-142 N, and the reach read
-  ok, "as near as it came", with no number: "closed on nothing it holds"
-  was the robots' one word for it. Held back along its fingers past
-  `REACH_SHORT_M`, its hand pushing along them past `REACH_PUSHED_N`, it says
-  so and how far, its hand's own reading -- wherever the robot stands."""
-  for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
-    ran = _fly(ABOVE, _held(0.027, 31.0, pose=pose))
-    step = ran["steps"][-1]
-    assert step["ok"]
-    assert step["short"] == ("your right hand's grip stopped 2.7 cm short of where you asked, "
-                             "back along its fingers: they met something there and pushed on it "
-                             "with 31 N")
-
-
-@pytest.mark.parametrize("short, push", [(0.006, 31.0), (0.02, 3.0), (0.009, 2.0)])
-def test_a_reach_whose_hand_is_still_coming_says_nothing_of_it(short, push):
-  """#711: a reach ends the moment its command arrives, the hand still
-  0.4-0.9 cm behind it in free air and reading -2 to +3 N along its fingers
-  (the lid and door checks at set-outs 0-3): no push past `REACH_PUSHED_N`,
-  or no more than `REACH_SHORT_M` short, says nothing."""
-  ran = _fly(ABOVE, _held(short, push))
-  assert ran["steps"][-1]["ok"] and "short" not in ran["steps"][-1]
-  # ...nor one asked no turn, whose fingers' way is the arm's to find
-  ran = _fly('def a():\n    reach("right", 0.3, -0.05, 0.79)\n', _held(0.027, 31.0))
-  assert "short" not in ran["steps"][-1]
-
-
-def test_a_reach_whose_hand_was_still_coming_in_says_nothing_of_it_at_rest():
-  """#711: the verb's body routine ends the moment its command arrives, the
-  hand still coming in and read as one that holds -- still: over the hands
-  checks at set-outs 0-31, 10 of 69 grips that read held, 1.1-5.5 cm short
-  at 26-87 N, touched nothing with any part of the arm. A reach that looks
-  held stands still until its hand is at rest, `REACH_SETTLE_S` at most, and
-  is judged there; one that does not look held waits for nothing."""
-  body = _held(0.027, 31.0, kind=_Coming)
-  t0 = float(body.data.time)
-  ran = _fly(ABOVE, body)
-  assert ran["steps"][-1]["ok"] and "short" not in ran["steps"][-1], ran["steps"][-1]
-  assert 0.0 < float(body.data.time) - t0 <= st.REACH_SETTLE_S + 1e-9
-  # ...one truly held is judged at rest, its hand still where it stopped
-  body = _held(0.027, 31.0)
-  t0 = float(body.data.time)
-  assert "short" in _fly(ABOVE, body)["steps"][-1]
-  assert float(body.data.time) - t0 == pytest.approx(st.REACH_STILL_S, abs=0.003)
-  # ...and one that does not look held stands still no longer than before
-  for short, push in ((0.006, 31.0), (0.02, 3.0)):
-    body = _held(short, push, kind=_Coming)
-    t0 = float(body.data.time)
-    _fly(ABOVE, body)
-    assert float(body.data.time) == t0
-
-
-def test_a_reach_that_stopped_short_says_how_far_short_its_grip_stopped():
+def test_a_reach_that_stopped_short_says_how_far_short_its_grip_was_as_it_stopped():
   """#711, #710: a reach that stopped short on its way -- a pad pressing on
   the cube's board at 60-95 N as it went in -- says how far short its grip
-  stopped, back along its fingers."""
-  ran = _fly(ABOVE, _held(0.054, 45.0, holds=False))
-  step = ran["steps"][-1]
-  assert not step["ok"] and step["why"] == "stopped short"
-  assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
-                            + "; its grip stopped 5.4 cm short of where you asked, back along "
-                            "its fingers")
-  assert "short" not in step
+  was as it stopped, back along its fingers, wherever the robot stands; one
+  asked no turn, its fingers' way the arm's to find, says no number."""
+  for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
+    step = _fly(ABOVE, _held(0.054, 45.0, holds=False, pose=pose))["steps"][-1]
+    assert not step["ok"] and step["why"] == "stopped short"
+    assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
+                              + "; as it stopped, its grip was 5.4 cm short of where you asked, "
+                              "back along its fingers")
+  step = _fly('def a():\n    reach("right", 0.3, -0.05, 0.79)\n',
+              _held(0.054, 45.0, holds=False))["steps"][-1]
+  assert step["reason"] == st.REACH_WHY["stopped short"].format(hand="right")
 
 
-def test_a_runs_history_line_says_which_reaches_stopped_short():
-  """#711: a served robot reads its run in History alone, and an ok reach
-  is no test that read false nor a stop condition: its line says the reaches
-  that stopped short, each line's first."""
-  from pluggybot.lifecycle import procedure_outcome
-  said = st.REACH_SHORT.format(hand="right", cm=2.7, n=31)
-  steps = [{"i": 0, "verb": "reach", "line": 4, "ok": True, "short": said},
-           {"i": 1, "verb": "close_hand", "line": 5, "ok": True},
-           {"i": 2, "verb": "reach", "line": 4, "ok": True, "short": said}]
-  line = procedure_outcome("cube_run", {"ok": True, "completed": 3, "steps": steps})[0]
-  assert line == (f"ran the procedure cube_run to its end (3 steps; 2 reaches stopped short -- "
-                  f"line 4, reach: {said})")
+def test_a_reach_that_holds_claims_nothing_of_what_its_fingers_met():
+  """#711: a reach's body routine ends the moment its command arrives, the
+  hand still coming in and its force read as a holding hand's, still -- over
+  the hands checks at set-outs 0-31, 10 of the 69 grips that then read 1 cm
+  short and 10 N along their fingers touched nothing with any part of the
+  arm; judged again at rest, the cube check placed 12 of 32 where it placed
+  20. So one that holds says nothing of it, however short its hand reads."""
+  for short, push in ((0.027, 31.0), (0.055, 38.0)):
+    step = _fly(ABOVE, _held(short, push))["steps"][-1]
+    assert step["ok"] and "short" not in step and "reason" not in step, step
 
 
 @pytest.mark.parametrize("why", ["held", "fell"])

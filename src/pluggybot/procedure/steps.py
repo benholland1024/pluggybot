@@ -711,6 +711,8 @@ MEASURE_AT_M = 0.02
 #: with the window's, 4 of them read true (SimNotes, "Where `measure`
 #: looks").
 MEASURE_RIM_M = 0.03
+
+
 def _share_words(share: float) -> str:
   """A share as `measure`'s text says it: "a quarter" for `box.TOP_SHARE`'s 0.25."""
   return {0.25: "a quarter", 0.5: "half", 1.0: "all"}.get(share, f"{share:g} times")
@@ -1021,68 +1023,32 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
                               "how you truly stand, or pushing on something",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
-#: A reach whose grip ended more than this short of where it was asked, m,
-#: back along its fingers, its hand reading a push along them past this, N,
-#: says how far (#711) -- read the moment the verb's body routine ended
-#: (`_felt_routine`'s last reading), and where that looks held, again once
-#: the hand has come to rest (`_settled`). Held by what its pads met -- a
-#: drawer's front, a door's panel, the cube's board -- a grip was 1.1-2.1 cm
-#: short at that moment and read 27-100 N (our own cube reference, held 1-1.7
-#: cm short by the board, places the cube all the same).
-REACH_SHORT_M, REACH_PUSHED_N = 0.01, 10.0
-#: ...but that moment is the one its command arrived, the hand still coming
-#: in, and read as a hand that holds -- still: over the hands checks at
-#: set-outs 0-31, 10 of 69 such grips touched nothing with any part of the
-#: arm, 1.1-5.5 cm short and reading 26-87 N. So a reach that looks held
-#: stands still until its grip moves under `REACH_STILL_MS` over
-#: `REACH_STILL_S`, `REACH_SETTLE_S` at most, and is judged again there; the
-#: rest, its flight as it was.
-REACH_STILL_S, REACH_STILL_MS, REACH_SETTLE_S = 0.05, 0.02, 0.3
-#: ...as it says it, of a reach that holds and of one that stopped short.
-REACH_SHORT = ("your {hand} hand's grip stopped {cm:.1f} cm short of where you asked, back "
-               "along its fingers: they met something there and pushed on it with {n:.0f} N")
-REACH_STOPPED_AT = "; its grip stopped {cm:.1f} cm short of where you asked, back along its fingers"
+#: A reach that STOPPED SHORT on its way says how far short its grip was,
+#: back along its fingers, as it stopped (#711): past this, m, off the last
+#: of what it felt (`_felt_routine`: nothing more is read). ⚠ NOT ONE THAT
+#: HOLDS: its body routine ends the moment its command arrives, the hand
+#: still coming in and its force read as a holding hand's, still -- over the
+#: hands checks at set-outs 0-31, 10 of the 69 grips that read 1 cm short
+#: and 10 N along their fingers then touched nothing with any part of the
+#: arm, 1.1-5.5 cm short at 26-87 N; and judged again once the hand came to
+#: rest (0.3 s at most), the cube check placed 12 of 32 where it placed 20,
+#: 2 more falling, and 4 such grips still touched nothing.
+REACH_SHORT_M = 0.01
+REACH_STOPPED_AT = ("; as it stopped, its grip was {cm:.1f} cm short of where you asked, back "
+                    "along its fingers")
 
 
-def _short_of(life, place, rot, felt: list) -> tuple[float, float] | None:
+def _short_of(life, place, rot, felt: list) -> float | None:
   """How far a reach's grip ended short of `place` back along its fingers,
-  m, and the push its hand read along them, N, off the last of what it
-  `felt` -- or None where no turn was asked, its fingers' way unknown."""
+  m, off the last of what it `felt` -- or None where no turn was asked, its
+  fingers' way unknown."""
+  import numpy as np
   from pluggybot.procedure import axes
   if rot is None or not felt:
     return None
-  return _along(place, rot, axes.from_stance(life, tuple(felt[-1]["at"])),
-                axes.from_stance(life, tuple(felt[-1]["force"]), point=False))
-
-
-def _along(place, rot, at, push) -> tuple[float, float]:
-  """How far `at` stands short of `place` back along the fingers `rot`
-  points, m, and `push` along them, N (the believed world frame)."""
-  import numpy as np
   fingers = -np.asarray(rot, dtype=float)[:, 2]
-  return (float((np.asarray(place, dtype=float) - np.asarray(at, dtype=float)) @ fingers),
-          float(np.asarray(push, dtype=float) @ fingers))
-
-
-def _held_short(short) -> bool:
-  return short is not None and short[0] > REACH_SHORT_M and short[1] > REACH_PUSHED_N
-
-
-def _settled(life, hand: str, place, rot) -> Routine:
-  """A reach that looks held, standing still until its hand comes to rest
-  (`REACH_STILL_*`), `REACH_SETTLE_S` at most: then how far short and the
-  push, off what its own loop last read (`hand_sensed`, `hand_force`:
-  nothing more is read)."""
-  import numpy as np
-  last, waited = np.asarray(life.body.hand_sensed(hand), dtype=float), 0.0
-  while waited < REACH_SETTLE_S - 1e-9:
-    yield from life.body.hold_routine(REACH_STILL_S)
-    waited += REACH_STILL_S
-    now = np.asarray(life.body.hand_sensed(hand), dtype=float)
-    moved, last = float(np.linalg.norm(now - last)), now
-    if moved < REACH_STILL_MS * REACH_STILL_S:
-      break
-  return _along(place, rot, last, life.body.hand_force(hand))
+  end = np.asarray(axes.from_stance(life, tuple(felt[-1]["at"])), dtype=float)
+  return float((np.asarray(place, dtype=float) - end) @ fingers)
 
 
 #: ...and one that kept off another robot's body (#678; `Body.hand_kept`,
@@ -1159,19 +1125,14 @@ def _reach(life, args: dict) -> Routine:
   why = "" if ok else life.body.hand_why(hand)
   _stopped_reading(life, "reach", why == UNTIL)
   said = _said(guard, stopped, why)
-  short = _short_of(life, place, rot, felt)
   if ok:
-    if _held_short(short):
-      # ...or a hand still coming in: judged again at rest
-      short = yield from _settled(life, hand, place, rot)
-      if _held_short(short):
-        said = {**said, "short": REACH_SHORT.format(hand=hand, cm=100 * short[0], n=short[1])}
     return {"ok": True, "hand": hand, **said, "felt": felt}
   if why == UNTIL:
     return {"ok": True, "hand": hand, "why": why, **said, "felt": felt}
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
-  if why == "stopped short" and short is not None and short[0] > REACH_SHORT_M:
-    reason += REACH_STOPPED_AT.format(cm=100 * short[0])
+  short = _short_of(life, place, rot, felt) if why == "stopped short" else None
+  if short is not None and short > REACH_SHORT_M:
+    reason += REACH_STOPPED_AT.format(cm=100 * short)
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
@@ -1545,10 +1506,7 @@ HANDS_VERBS: dict[str, Verb] = {
                 "fingers; you take whatever posture reaches. stiffness 1 is your arm's full "
                 "stiffness, less is softer. ok once it holds there -- or as near as it came: "
                 "what it touches on its way in can hold it a few cm short, and your hand's "
-                "place (`left.x` and the rest) says where it is; where your grip stopped "
-                f"more than {100 * REACH_SHORT_M:g} cm short of where you asked, back along "
-                "its fingers, pushing on what they met, the reach says how far. Its way out, "
-                "and its way "
+                "place (`left.x` and the rest) says where it is. Its way out, and its way "
                 "home from there, keep clear of the body of another robot standing near you: "
                 "where no way does, your arm does not move, and it reads false saying where "
                 "that robot stands"),
