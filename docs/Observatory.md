@@ -42,11 +42,16 @@ flown on the branch, 11,705 lines, every one the committed fixture's but two
   until the site adds the two they stop at its door; the History lines
   reach it as records either way.
 - It moves no belief, adds no search and names no act: what the robot does
-  about it is its mind's. Measured on the served body's own scans in the
-  living room, nothing stepped: its belief turned 120 deg standing, 750
-  scans of 750 refused and ONE line 60.0 s into the run; the same up from a
-  fall, or set 1.5 m off, the matcher's searches took it back at 2.0 s and
-  nothing was said.
+  about it is its mind's. Measured on the served body's own scans, its
+  map one scan standing, nothing stepped: its belief turned 120 deg and
+  0.5 m off standing, 750 scans of 750 refused and ONE line 60.0 s into the
+  run, in the living room, the lobby and at two places outside the
+  research center the live robots stood on 11-14; the same up from a fall,
+  or set 1.5 m off, the matcher's searches took it back at 2.0 s and
+  nothing was said. ⚠ At (9.5, -22.8), outdoors, the turned belief read
+  `unconstrained` 750 of 750 (a right one there `ok` 750 of 750): a scan
+  that fixes no direction is not a refusal, so a robot lost there is never
+  told (for Ben: whether such a scan should count).
 
 **Why.** #697, #690's option 3b (Ben, 11-14: build it, low priority). On
 11-12 Luca's heading came out of a fall 120 deg off; its map refused every

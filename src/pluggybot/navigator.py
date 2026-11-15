@@ -257,19 +257,15 @@ FACING_TOLERANCE = math.radians(0.5)
 #: How many of the belief's events a body keeps for the lifecycle to drain
 #: (`Navigator.belief_events`): drained every physics step, so a few.
 BELIEF_EVENTS_KEPT = 16
-#: ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR THIS LONG IS SAID TO THE ROBOT
-#: (issue #697; `Refusals`, the `refusing` belief event, and `matching` once
-#: a fit holds), sim s: on 11-12 Luca's map refused every scan for 26
-#: minutes after a fall turned its heading 120 deg, and nothing it read said
-#: so. MEASURED (#690's lobby falls, the heading right): standing 30 s after
-#: the get-up, the longest run was the whole 30 s in one flight of 118.
+#: ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR THIS LONG IS SAID TO THE ROBOT,
+#: sim s (issue #697; `Refusals`, the `refusing` belief event; the story is
+#: Observatory.md's period). MEASURED (#690's lobby falls, the heading
+#: right): standing 30 s after a get-up, a run lasted the whole 30 s in one
+#: flight of 118.
 REFUSED_TELL_S = 60.0
-#: ⚠ ...AND ITS END ONLY ONCE THE MAP HAS TAKEN EVERY SCAN FOR THIS LONG, sim
-#: s: one fit among refusals (a lucky `ok` near a copy of the room) said
-#: "matches again" and re-armed the minute, the two lines alternating for as
-#: long as the robot was lost (#697's review). MEASURED: after a right
-#: relocation every scan fits (730 of 730 over 73 s, the served body's own
-#: scans, its belief turned 120 deg up from a fall).
+#: ⚠ ...AND ITS END (`matching`) ONLY ONCE THE MAP HAS TAKEN EVERY SCAN FOR
+#: THIS LONG, sim s: on one fit among refusals the two lines alternate. A
+#: right relocation's fits held 730 of 730 scans (the served body's own).
 MATCHED_TELL_S = 5.0
 
 

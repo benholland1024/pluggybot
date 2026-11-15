@@ -2503,15 +2503,15 @@ save a filmstrip PNG named after the script.
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost
   (`Body.lost_routine`, by its LIDAR, never its belief: above), searched
   ONCE a charge. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
-  (60 s) RUNNING IS SAID, ONCE, AND SO IS THE SCAN IT TAKES AFTER (#697;
-  `navigator.Refusals`, History's `MAP_REFUSING` / `MAP_MATCHING`): a run
-  is every scan refused (`scan_match.REFUSED`: `inconsistent`, `slid`,
-  `outdone`), any other scan breaking it, one not matched too (a robot not
-  mapping is never refusing); only scans TAKEN for `MATCHED_TELL_S` (5 s)
-  running end what was told (one fit among refusals said it and re-armed
-  the minute, the lines alternating), and a map forgotten owes nothing. What its own matcher knows, never what to do
-  (a test reads both lines); a belief the map ACCEPTS wrong (#681's class)
-  is never told. Each relocation, fix, loss, search and such line is a
+  (60 s) RUNNING IS SAID, ONCE, AND SO IS ITS END (#697;
+  `navigator.Refusals`, History's `MAP_REFUSING` / `MAP_MATCHING`; the
+  Observatory period): a run is every scan refused (`scan_match.REFUSED`:
+  `inconsistent`, `slid`, `outdone`), any other scan breaking it, one not
+  matched too (a robot not mapping is never refusing); only scans TAKEN for
+  `MATCHED_TELL_S` (5 s) running end what was told; a map forgotten owes
+  nothing. What its own matcher knows, never what to do (a test reads both
+  lines); a belief the map ACCEPTS wrong (#681's class) is never told.
+  Each relocation, fix, loss, search and such line is a
   `drift` row (which station, `station`), beside a sample every
   `DRIFT_EVERY_S`; ⚠ the truth rides those rows and never what the robot
   reads.
