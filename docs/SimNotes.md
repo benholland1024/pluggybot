@@ -1106,10 +1106,10 @@ another robot's disc stood a room away from a goal at the counter (a
 test), and loose of the drive's own creep past the stand-in toward the
 goal (flown, below). The distances are measured where the walk ended, so a
 reader of the line can tell a walk that stood where walks stand (0.3-0.6 m
-off) from one held further off. ⚠ A goal just behind a thin wall, inside its keep-off, stands in on
-the near side and reads as one at or onto a counter's edge does: the map
-does not tell the room behind a wall from a counter's top, and every word
-is true of both.
+off) from one held further off. ⚠ A goal just behind a thin wall, inside
+its keep-off, stands in on the near side and reads as one at or onto a
+counter's edge does: the map does not tell the room behind a wall from a
+counter's top, and every word is true of both.
 
 **Where the walk ends, flown** (the served humanoid alone in
 `home_humanoid` on a fresh map after a look round, from the storeroom's door
