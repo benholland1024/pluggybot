@@ -5,7 +5,10 @@ and one that has drifted from `lifecycle.State`, the death causes, the
 event types or the memory verbs is worse than none.
 
 Nothing here flies anything. The README's two Mermaid blocks are parsed
-with regexes that know just enough of the syntax to pull names out.
+with regexes that know just enough of the syntax to pull names out. The
+README's first screen, and CONTRIBUTING.md where it sends a person next,
+are read for their links, anchors and the scene they tell a person to run
+(#714).
 """
 
 import ast
@@ -126,12 +129,12 @@ def _anchors(markdown: str) -> set[str]:
 
 def _links(markdown: str) -> list[str]:
   """Every link's target in the prose, inline (with a title or none) or by
-  reference, `%20` read as a space; one with a scheme (`https:`, `mailto:`)
-  is no file here."""
-  text = _prose(markdown)
+  reference, `%20` read as a space; one in a code span, a footnote or with
+  a scheme (`https:`, `mailto:`) is no file here."""
+  text = re.sub(r"`[^`\n]*`", "", _prose(markdown))
   title = r"(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?"
   inline = re.findall(r"\]\(\s*<?([^)\s>]+)>?" + title + r"\s*\)", text)
-  by_reference = re.findall(r"^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)", text, re.M)
+  by_reference = re.findall(r"^ {0,3}\[(?!\^)[^\]]+\]:\s*<?([^\s>]+)", text, re.M)
   return [unquote(t) for t in inline + by_reference if not re.match(r"[A-Za-z][\w+.-]*:", t)]
 
 
@@ -158,7 +161,10 @@ def _scenes(script: Path) -> set[str]:
     target = node.target if isinstance(node, ast.AnnAssign) else (
       node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None)
     if getattr(target, "id", None) == "SCENES" and isinstance(node.value, ast.Dict):
-      return {ast.literal_eval(k) for k in node.value.keys}
+      keys = node.value.keys
+      assert all(isinstance(k, ast.Constant) for k in keys), \
+          "SCENES has a ** or a computed key, so its scenes cannot be read here"
+      return {k.value for k in keys}
   raise AssertionError(f"{script.name} has no `SCENES = {{...}}` to read the scenes from")
 
 

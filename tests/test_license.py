@@ -34,10 +34,12 @@ def test_every_license_text_notice_names_travels_with_the_code():
   wanted = {"LICENSE", "NOTICE"} | in_tree
   shipped = set(_project(ROOT / "pyproject.toml")["license-files"])
   assert shipped == wanted, f"license-files differs by {shipped ^ wanted}"
-  copied = _copied((ROOT / "Dockerfile").read_text())
-  assert {"LICENSE", "NOTICE"} <= copied, "the image carries LICENSE and NOTICE"
-  assert "models/" in copied or "models" in copied, "the image carries models/ and its texts"
-  kept_out = [path for path in wanted if _ignored(path)]
+  copied = {src.rstrip("/") for src in _copied((ROOT / "Dockerfile").read_text())}
+  uncopied = [path for path in sorted(wanted)
+              if not any(src in ("", ".") or path == src or path.startswith(src + "/")
+                         for src in copied)]
+  assert not uncopied, f"no COPY brings {uncopied} into the image"
+  kept_out = [path for path in sorted(wanted) if _ignored(path)]
   assert not kept_out, f".dockerignore keeps {kept_out} out of the image's build"
 
 
@@ -52,10 +54,22 @@ def _copied(dockerfile: str) -> set[str]:
 
 
 def _ignored(path: str) -> bool:
-  """Whether a pattern of `.dockerignore` matches the path or a folder it
-  is in (a `!` exception is not read: none is written)."""
-  patterns = [line.strip().strip("/") for line in (ROOT / ".dockerignore").read_text().splitlines()
+  """Whether a `.dockerignore` pattern keeps the path out of the build: one
+  that matches it or a folder it is in, name by name as Docker reads it
+  (`*` within a name, `**` across names; a `!` exception is not read: none
+  is written)."""
+  patterns = [line.strip().strip("/").split("/")
+              for line in (ROOT / ".dockerignore").read_text().splitlines()
               if line.strip() and not line.lstrip().startswith(("#", "!"))]
   parts = path.split("/")
-  prefixes = ["/".join(parts[:i]) for i in range(1, len(parts) + 1)]
-  return any(fnmatch.fnmatch(prefix, pattern) for pattern in patterns for prefix in prefixes)
+  return any(_matches(pattern, parts[:i]) for pattern in patterns
+             for i in range(1, len(parts) + 1))
+
+
+def _matches(pattern: list[str], parts: list[str]) -> bool:
+  if not pattern:
+    return not parts
+  if pattern[0] == "**":
+    return any(_matches(pattern[1:], parts[i:]) for i in range(len(parts) + 1))
+  return bool(parts) and fnmatch.fnmatchcase(parts[0], pattern[0]) \
+      and _matches(pattern[1:], parts[1:])
