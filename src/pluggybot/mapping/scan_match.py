@@ -395,11 +395,11 @@ def _rival(places: np.ndarray, shifts: np.ndarray, best_at) -> int:
   return int(places[far].max()) if far.any() else 0
 
 
-def _rivalled(found: list, best) -> bool:
+def _rivalled(found: list, best, share: float = RIVAL_SHARE) -> bool:
   """Whether another of the places `found` (each a pose and `Match`'s
   fields), elsewhere (`_same`), explains the scan as well as `best` does:
-  RIVAL_SHARE of its inliers."""
-  return any(not _same(at, best[0]) and kw["inliers"] >= RIVAL_SHARE * best[1]["inliers"]
+  `share` of its inliers."""
+  return any(not _same(at, best[0]) and kw["inliers"] >= share * best[1]["inliers"]
              for at, kw in found)
 
 
@@ -549,14 +549,11 @@ class ScanMatcher:
     found before the fall goes: the fall moved the body under it -- by more
     than the bounded search reaches, as often as not, so until a take stands
     each is checked by a wider look, and a fit that slid looked round
-    (`fallen`, `_outdone`, issue #681), and an anchor's window
-    (ANCHORED_SCANS) is closed: laid unmatched at a belief the get-up just
-    left behind, its scans were a copy of the room."""
+    (`fallen`, `_outdone`, issue #681)."""
     self.turned_left, self.turned_seen, self.turned_from = TURNED_SEARCHES, None, None
     self.lost_run, self.pending = 0, None
     self._settled()
     self.looks_left = FALLEN_LOOKS
-    self.anchoring = 0
 
   @property
   def fallen(self) -> bool:
@@ -574,11 +571,12 @@ class ScanMatcher:
     somewhere new. Up from a fall that is a take as any other -- a get-up
     carried the body 2.47 m, past the wide search's reach, and its best in
     reach was the counter's face on the wall behind it -- so the fall's
-    doubt goes on from there: the next scan's take is looked round at once,
-    from where the belief was put, which is where its 2 m are counted from
-    (FALLEN_NEAR_M)."""
+    doubt begins again there: the next scan's take is looked round at once,
+    from where the belief was put, which is where its 2 m (FALLEN_NEAR_M)
+    and its looks (FALLEN_LOOKS) are counted from."""
     if self.fallen:
-      self.better, self.rivals, self.wider_wait, self.turned_from = None, False, 0, None
+      self._settled()
+      self.looks_left, self.turned_from = FALLEN_LOOKS, None
 
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
@@ -793,8 +791,8 @@ class ScanMatcher:
     if n < MIN_INLIERS:
       return asked, "sparse", kw
     if math.hypot(dx, dy) > MAX_STEP_M or abs(dth) > MAX_STEP_RAD:
-      # ...and where it slid, for the doubt's search (`match` takes it out
-      # of the fields it hands `_done`)
+      # ...and where it slid, for the doubt's search (`_verdict` takes it
+      # out of the fields `_done` is handed)
       return asked, "slid", dict(slid_to=fit_pose, **kw)
     if doubtful:
       return fit_pose, "doubted", dict(step=(dx, dy, dth), **kw)
@@ -852,8 +850,10 @@ class ScanMatcher:
     A look is made once in LOST_RUN scans: its places (`_look`), with the
     take one more of them. The take stands where it is the best, a rival of
     the best (RIVAL_SHARE: the look cannot tell them apart) or one PLACE
-    with it (UNIQUE_M); else it is outdone, and the best -- where no other
-    place rivals it -- waits (`better`) for the next look to find it again:
+    (UNIQUE_M) with the best or a rival of it -- which of two rivals has the
+    more points is a scan's noise; else it is outdone, and the best -- where
+    no other place rivals it -- waits (`better`) for the next look to find it
+    again:
     once is a coincidence. While it waits a take stands only as that place
     itself, as near as a slid fit's search must be (`_near`) -- between two
     looks, and at the look that finds the place again -- or it is outdone;
@@ -879,13 +879,16 @@ class ScanMatcher:
       found = [near] + found
     if found:
       best = max(found, key=lambda f: f[1]["inliers"])
+      # ...the best and what the look cannot tell from it
+      tops = [f for f in found if f[1]["inliers"] >= RIVAL_SHARE * best[1]["inliers"]]
       rivals = _rivalled(found, best)
       # ...the place that waited, found again: a take stands only as that
       # place itself, as between two looks
       waited = not rivals and seen is not None and _same(seen, best[1]["step"])
       if near is None or not (
-          near[1]["inliers"] >= RIVAL_SHARE * best[1]["inliers"]
-          or (_near(near[1]["step"], best[1]["step"]) if waited else _same(best[0], near[0]))):
+          any(f is near for f in tops)
+          or (_near(near[1]["step"], best[1]["step"]) if waited
+              else any(_same(f[0], near[0]) for f in tops))):
         outdone, self.rivals = near is not None, rivals
         if not rivals:
           self.better = best[1]["step"]
@@ -1008,10 +1011,7 @@ class ScanMatcher:
     if not found:
       return None
     best = max(found, key=lambda f: f[1]["inliers"])
-    if any(not _same(at, best[0]) and kw["inliers"] >= TURNED_RIVAL_SHARE * best[1]["inliers"]
-           for at, kw in found):
-      return None
-    return best
+    return None if _rivalled(found, best, TURNED_RIVAL_SHARE) else best
 
   def _turned_candidates(self, pose, pts: np.ndarray) -> list[tuple[float, float, float]]:
     """The TURNED_TRIES best poses of a lattice WIDE_STRIDE cells and

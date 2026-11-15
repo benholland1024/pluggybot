@@ -1155,11 +1155,18 @@ def test_up_from_a_fall_the_wide_searchs_own_take_is_checked_by_the_next_look(co
   whys, belief = _stood(m, FAR, np.random.default_rng(45), 3 * sm.LOST_RUN + 1)
   assert whys == ["inconsistent"] * (2 * sm.LOST_RUN - 1) + ["relocated"] + ["ok"] * (sm.LOST_RUN + 1)
   assert 0.5 < belief[0] - STOOD[0] < 0.7 and looks[4:] == ["search", "search"], (belief, looks)
-  # ...what the last look held was held from the old belief: it goes
+  # ...what the last look held was held from the old belief: it goes, and
+  # the doubt has all its looks again (with one left, the take the wide
+  # search made stood unlooked at: #681's review)
   m = _fallen(counter)
   m.better, m.rivals, m.wider_wait, m.turned_from = (1.0, 0.0, 0.0), True, 4, (0.0, 0.0)
+  m.looks_left = 1
   m._put()
   assert _doubt(m) == (True, sm.FALLEN_LOOKS, 0, None, False) and m.turned_from is None
+  # ...and a robot not up from a fall is put as it always was
+  m._settled()
+  m._put()
+  assert _doubt(m) == SETTLED
 
 
 def test_the_search_at_every_headings_take_is_checked_by_the_next_look_too(nook):
@@ -1216,6 +1223,28 @@ def test_a_take_stands_where_the_wider_look_cannot_tell_it_from_the_best(counter
   monkeypatch.setattr(sm, "RIVAL_SHARE", share - 0.01)
   whys, belief = _stood(_fallen(counter), BEHIND, np.random.default_rng(31), 1)
   assert whys == ["found"] and 0.5 < belief[0] - STOOD[0] < 0.7, (whys, belief)
+
+
+def test_a_take_stands_as_one_place_with_a_rival_of_the_best_too(counter, monkeypatch):
+  # Which of two places the look cannot tell apart has the more points is a
+  # scan's noise: a take one PLACE with either stands (#681's review: one
+  # place with the best it stood, and one place with the best's rival -- the
+  # look's own fit of where it stands, a few points more than the take --
+  # it was refused until its looks were spent). One place with neither, it
+  # is outdone and neither is taken.
+  m = _fallen(counter)
+  m.refresh(BESIDE[0], BESIDE[1])
+  pts = m.points(ANGLES, cast(COUNTER, STOOD, np.random.default_rng(47)))
+  take = _place((0.0, 0.0), 300)
+  for here, away in ((320, 340), (340, 320)):
+    monkeypatch.setattr(m, "_wide_found", lambda pose, pts, doubt=False, a=here, b=away: [
+      _place((0.05, 0.0), a), _place((0.7, 0.0), b)])
+    m.fell()
+    assert m._outdone(BESIDE, pts, take) == (False, None), (here, away)
+  monkeypatch.setattr(m, "_wide_found", lambda pose, pts, doubt=False: [
+    _place((-0.8, 0.0), 320), _place((0.7, 0.0), 340)])
+  m.fell()
+  assert m._outdone(BESIDE, pts, take) == (True, None) and m.rivals and m.better is None
 
 
 def test_a_take_two_better_places_outdo_is_refused_until_its_looks_are_spent(counter, monkeypatch):
@@ -1572,19 +1601,6 @@ def test_not_up_from_a_fall_a_find_stands_whatever_the_wide_search_holds(counter
   whys, belief = _stood(m, (STOOD[0] + 0.45, STOOD[1] + 0.40, STOOD[2]), np.random.default_rng(33), 1)
   assert whys == ["found"] and math.hypot(belief[0] - STOOD[0], belief[1] - STOOD[1]) < 0.03
   assert not looks and m.pending is None
-
-
-def test_a_fall_closes_an_anchors_window(counter):
-  # Fixed off the station's tags and shoved over before the window closed
-  # (the station's own fall scene), the scans after the get-up were laid
-  # unmatched at a belief the get-up had just left behind: a copy of the
-  # room (#681's review). Up from a fall they are matched.
-  m = sm.ScanMatcher(counter)
-  m.anchored()
-  assert m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, np.random.default_rng(43))).why == "anchored"
-  m.fell()
-  assert m.anchoring == 0
-  assert m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, np.random.default_rng(43))).why == "outdone"
 
 
 # ---- a robot up from a fall, its heading turned (issue #690) -----------------
