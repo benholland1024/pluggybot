@@ -301,6 +301,10 @@ FUSED = frozenset({"ok", "found", "doubted", "anchored", "no map", "sparse", "un
 #: its drift flights). An instrument counting matched scans counts these
 #: (`lidar_spike.py --probe`, the drift spike's `--done` and zone table).
 FIT_TAKEN = frozenset({"ok", "doubted", "found"})
+#: ...and the verdicts that refuse a scan: neither taken nor laid in -- the
+#: run a robot is told of once it lasts a minute (`navigator.Refusals`,
+#: issue #697), `outdone` among them.
+REFUSED = frozenset({"inconsistent", "slid", "outdone"})
 
 
 class Match(NamedTuple):

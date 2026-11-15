@@ -797,6 +797,145 @@ def test_the_served_body_up_from_a_fall_its_heading_turned_finds_itself(house):
   assert off < 0.05 and deg < 1.0
 
 
+# ---- a map that refuses every scan, said (issue #697) ---------------------------
+
+
+def test_every_verdict_is_taken_laid_in_or_refused_and_outdone_is_refused():
+  # The run of refusals (`navigator.Refusals`) counts REFUSED, and every
+  # other verdict breaks it: one taken, or one laid in unmatched
+  assert not sm.REFUSED & (sm.ACCEPTED | sm.FUSED)
+  assert sm.REFUSED | sm.ACCEPTED | sm.FUSED == {
+    "ok", "found", "doubted", "relocated", "anchored", "no map", "sparse",
+    "unconstrained", "slid", "inconsistent", "outdone"}
+  assert sm.REFUSED == {"inconsistent", "slid", "outdone"}
+
+
+def _said(run, scans):
+  """What a run of refusals raises over `scans`, (t, verdict) pairs (None:
+  a scan not matched)."""
+  return [(t, said) for t, why in scans if (said := run.seen(t, why)) is not None]
+
+
+def _every(t0, t1, why, dt=0.5):
+  """A scan every `dt` from `t0` up to `t1`, each answered `why`."""
+  return [(t0 + dt * i, why) for i in range(round((t1 - t0) / dt) + 1)]
+
+
+def test_a_map_that_refuses_every_scan_for_a_minute_says_so_once_and_once_more_as_one_fits():
+  # The rule (issue #697), called directly: every scan refused for
+  # REFUSED_TELL_S since the run's first raises ONE `refusing`, at that
+  # second and not before, whatever refused it; nothing more while it goes
+  # on; ONE `matching` at the first scan taken after, and nothing more
+  from pluggybot.navigator import REFUSED_TELL_S, Refusals
+  run = Refusals()
+  refused = _every(100.0, 100.0 + REFUSED_TELL_S - 0.5, "inconsistent")
+  assert _said(run, refused) == []
+  assert _said(run, [(100.0 + REFUSED_TELL_S, "slid")]) == [(100.0 + REFUSED_TELL_S, "refusing")]
+  assert _said(run, _every(160.5, 400.0, "outdone")) == []
+  assert _said(run, [(400.5, "relocated"), (401.0, "ok"), (401.5, "inconsistent")]) == [
+    (400.5, "matching")]
+  # ...and each kind of refusal counts toward it
+  run = Refusals()
+  mixed = [(100.0 + 0.5 * i, ("slid", "outdone", "inconsistent")[i % 3]) for i in range(121)]
+  assert _said(run, mixed) == [(160.0, "refusing")]
+
+
+@pytest.mark.parametrize("why", ["ok", "found", "doubted", "relocated", "anchored", "no map",
+                                 "sparse", "unconstrained", None])
+def test_any_scan_not_refused_breaks_the_minute_and_only_one_taken_ends_what_was_told(why):
+  # A scan taken breaks the run, and so do one laid in unmatched and one
+  # not matched at all (None: the robot not mapping -- getting up, tipped
+  # past the gate): the minute counts again from the next refusal. After
+  # the robot was told, only a scan TAKEN says `matching`; another breaks
+  # the run and says nothing, and nor does the run after it (where a scan
+  # taken ended it, the next minute's run is told again)
+  from pluggybot.navigator import Refusals
+  run = Refusals()
+  broken = _every(100.0, 159.0, "inconsistent") + [(159.5, why)] + _every(
+    160.0, 219.5, "inconsistent")
+  assert _said(run, broken) == []
+  assert _said(run, [(220.0, "inconsistent")]) == [(220.0, "refusing")]
+  later = [(220.5, why)] + _every(221.0, 400.0, "slid") + [(400.5, "found")]
+  ends = ([(220.5, "matching"), (281.0, "refusing"), (400.5, "matching")]
+          if why in sm.ACCEPTED else [(400.5, "matching")])
+  assert _said(run, later) == ends
+
+
+def test_a_restart_keeps_the_minute_and_what_is_owed_and_a_map_forgotten_owes_nothing():
+  # Kept across a restart (issue #345, through JSON as a save is): a run
+  # part-way says its line at its own minute, once; one told owes its
+  # `matching`; a save from before #697 starts afresh; and a map forgotten
+  # (a true death, a stand-up, a fix past the map's reach) owes nothing
+  import json
+
+  from pluggybot.navigator import Refusals
+  run = Refusals()
+  assert _said(run, _every(100.0, 150.0, "inconsistent")) == []
+  back = Refusals()
+  back.restore_kept(json.loads(json.dumps(run.kept_state())))
+  assert _said(back, _every(150.5, 300.0, "inconsistent")) == [(160.0, "refusing")]
+  again = Refusals()
+  again.restore_kept(json.loads(json.dumps(back.kept_state())))
+  assert _said(again, _every(300.5, 400.0, "inconsistent") + [(400.5, "ok")]) == [
+    (400.5, "matching")]
+  fresh = Refusals()
+  fresh.restore_kept(None)
+  assert _said(fresh, _every(100.0, 159.5, "inconsistent")) == []
+  back.forget()
+  assert _said(back, [(301.0, "ok")]) == []
+  assert _said(back, _every(302.0, 361.5, "inconsistent")) == []
+
+
+def test_the_served_body_says_a_map_refusing_every_scan_and_the_scan_that_fits(house):
+  # The wiring (issue #697), through the served body's scan seam, its
+  # matcher answering every scan `inconsistent`, a scan every 10 s of sim
+  # time: ONE `refusing` belief event REFUSED_TELL_S into the run, a scan
+  # not matched (not mapping) breaking it; kept in the body's state; ONE
+  # `matching` at the scan taken; a map forgotten owes nothing. And the
+  # events drained by the loop are ONE History line each.
+  import math as _math
+
+  from pluggybot.body import StubBody
+  from pluggybot.mind.thoughts import HISTORY
+  from pluggybot.navigator import REFUSED_TELL_S
+  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+  body = _humanoid(house)
+  m = body.mission
+  refused = sm.Match(m.pose, False, "inconsistent", 40, 0.2, 0.0, (1.0, 0.0, 0.0), 3, sm.NO_STEP)
+  taken = refused._replace(accepted=True, why="ok")
+  m.matcher = _FixedMatcher(m.grid, refused)
+  every = REFUSED_TELL_S / 6
+
+  def scans(n, mapping=True):
+    m.maps = lambda: mapping
+    for _ in range(n):
+      m.data.time += every
+      m._scan_step()
+    return [e["why"] for e in m.belief_events]
+
+  assert scans(6) == [] and scans(1, mapping=False) == [] and scans(6) == []
+  assert scans(1) == ["refusing"] and scans(6) == ["refusing"]
+  event = m.belief_events[-1]
+  assert event["seconds"] == pytest.approx(REFUSED_TELL_S) and event["verdict"] == "inconsistent"
+  state, arrays = m.kept_state()
+  m.refusals.forget()
+  m.restore_kept(state, arrays)
+  m.matcher.answer = taken
+  assert scans(2) == ["refusing", "matching"]
+  life = stub_life(body=StubBody())
+  life._drift_due = _math.inf
+  life.body.belief_events = list(m.belief_events)
+  life._belief_step()
+  said = [ln for ln in life.thoughts.texts[HISTORY].splitlines() if "my scans" in ln]
+  assert len(said) == 2 and "matched none of my scans" in said[0], said
+  m.matcher.answer = refused
+  assert scans(7)[-1] == "refusing"
+  m.forget_map()
+  m.matcher.answer = taken
+  assert scans(1).count("matching") == 1, "a map forgotten owed its scan's fit"
+  body.close()
+
+
 def test_a_restart_keeps_the_matchers_field_and_the_imus_stream(house):
   # A new piece of state that decides anything is kept (issue #345): the
   # field the next match reads and where the IMU's noise had got to.
