@@ -260,6 +260,46 @@ def test_the_top_is_the_highest_level_a_large_share_of_points_stand_at():
   assert box.top_height(floor) is None, "the floor is no top"
 
 
+def _flat(rng, n, x0, x1, y0, y1, z, sd=0.001):
+  return np.column_stack([rng.uniform(x0, x1, n), rng.uniform(y0, y1, n), z + rng.normal(0, sd, n)])
+
+
+def test_under_a_point_the_top_is_the_highest_flat_height_30_points_stand_at():
+  """#704: under a point, a small thing's top beside a wider lower one --
+  the cube's on its board, a knob's over the counter -- is the top, however
+  many more points the lower one has: the window's share reads the lower."""
+  rng = np.random.default_rng(704)
+  small = _flat(rng, 300, 0.0, 0.026, 0.0, 0.026, 0.806)
+  wide = _flat(rng, 3000, -0.02, 0.06, -0.03, 0.05, 0.78)
+  pts = np.concatenate([small, wide])
+  assert box.top_height(pts) == pytest.approx(0.78, abs=0.001), "the window's share"
+  assert box.top_height(pts, least=box.MIN_POINTS) == pytest.approx(0.806, abs=0.001)
+  # ...and too few of it to make a top, the lower one
+  assert box.top_height(np.concatenate([small[:20], wide]), least=box.MIN_POINTS) == pytest.approx(
+    0.78, abs=0.001)
+
+
+def test_under_a_point_a_vertical_faces_slice_is_no_flat_top():
+  """#704's review: a vertical face's points fill every 2 mm up it with 30
+  and more, along one line: no flat top (`box.FLAT_ACROSS`), where the
+  counter beside it, spread across the plane, is one."""
+  rng = np.random.default_rng(705)
+  face = np.column_stack([0.45 + rng.normal(0, 0.0008, 12000), rng.uniform(-0.017, 0.017, 12000),
+                          rng.uniform(0.72, 1.18, 12000)])
+  counter = _flat(rng, 1500, 0.42, 0.45, -0.017, 0.017, 0.72)
+  assert box.top_height(np.concatenate([face, counter]), least=box.MIN_POINTS) == pytest.approx(
+    0.72, abs=0.001)
+
+
+def test_under_a_point_a_top_reads_off_its_own_fullest_flat_bin_never_its_noises_tail():
+  """#704's review: with a dense cloud the highest bin 30 points stand at is
+  on the top's noise's upper tail; read there, a top 2.5 mm noisy read
+  0.0016 m high. Its height is its own fullest flat bin's band's."""
+  rng = np.random.default_rng(706)
+  top = _flat(rng, 4000, 0.0, 0.04, 0.0, 0.04, 0.80, sd=0.0025)
+  assert box.top_height(top, least=box.MIN_POINTS) == pytest.approx(0.80, abs=0.0005)
+
+
 def test_a_faces_points_are_joined_to_a_seed_across_its_rows_never_to_another_face():
   """#704: of the points on one top's height, the face a seed stands on --
   its rows 2.5 cm apart, as a look grazing a counter 2.5 m off lays them,
@@ -275,6 +315,19 @@ def test_a_faces_points_are_joined_to_a_seed_across_its_rows_never_to_another_fa
   seeds[-1] = True
   assert box.joined(xy, seeds).all()
   assert not box.joined(xy, np.zeros(len(xy), dtype=bool)).any()
+  # ...and two tops 4.5 cm apart are two, wherever they fall in the bins --
+  # binned 3 cm square from the points' corner, a 4 cm top and one 4.5 cm
+  # past it fell in neighbouring bins and were one (#704's review)
+  for shift in np.arange(0.0, 0.03, 0.0025):
+    a = np.array([(x, y) for x in np.arange(0.0, 0.04, 0.004) for y in np.arange(0, 0.3, 0.004)])
+    b = a + [0.081, 0.0]
+    xy = np.concatenate([a, b]) + [shift, 0.0]
+    seeds = np.zeros(len(xy), dtype=bool)
+    seeds[0] = True
+    got = box.joined(xy, seeds)
+    assert got[:len(a)].all() and not got[len(a):].any(), shift
+    near = np.concatenate([a, a + [0.048, 0.0]]) + [shift, 0.0]
+    assert box.joined(near, seeds).all(), shift     # 1.2 cm apart: one
 
 
 # ---- the edges -------------------------------------------------------------------

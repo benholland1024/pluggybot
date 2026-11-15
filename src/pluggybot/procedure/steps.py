@@ -713,9 +713,14 @@ MEASURE_AT_M = 0.02
 MEASURE_RIM_M = 0.03
 
 
+#: `box.TOP_SHARE` as `measure`'s text says it: a share it has no word for
+#: raises, so a retuned share is given its words, never a number in prose.
+SHARE_WORDS = {0.25: "a quarter", 0.5: "half"}
+
+
 def _share_words(share: float) -> str:
-  """A share as `measure`'s text says it: "a quarter" for `box.TOP_SHARE`'s 0.25."""
-  return {0.25: "a quarter", 0.5: "half", 1.0: "all"}.get(share, f"{share:g} times")
+  """A share as `measure`'s text says it (`SHARE_WORDS`)."""
+  return SHARE_WORDS[share]
 
 
 #: Its ends: the stance frame's axis each lies along, whether it is that
@@ -733,19 +738,20 @@ MEASURE_ENDS = (("near", 0, False, "toward you"), ("far", 0, True, "away from yo
 MEASURE_WORDS = ("cut", "runs", "taller", "lower")
 
 
-def measured_top(near, x: float, y: float):
+def measured_top(near, x: float, y: float, under: bool = True):
   """The top `measure` reads among `near` (k, 3), the stance frame's points
   within `MEASURE_NEAR_M` of (x, y): its height (None where none is seen),
-  whether it is the one under (x, y) (#704) -- the highest height among the
-  points within `MEASURE_AT_M` of it that `box.MIN_POINTS` of them stand at,
-  else the window's -- and which of `near` stand on it, under the point that
-  face alone (`box.joined`)."""
+  whether it is the one under (x, y) (#704) -- the highest flat height among
+  the points within `MEASURE_AT_M` of it that `box.MIN_POINTS` of them stand
+  at (`box.top_height(least=)`), else, or `under` False, the window's -- and
+  which of `near` stand on it, under the point that face alone
+  (`box.joined`)."""
   import numpy as np
   from pluggybot.perception import box
   at = np.hypot(near[:, 0] - x, near[:, 1] - y) < MEASURE_AT_M
-  # ...the highest height there that `box.MIN_POINTS` stand at, whatever stands
-  # lower: half of a knob's front face's circle is the counter far below it
-  top = box.top_height(near[at], least=box.MIN_POINTS) if len(near) else None
+  # ...the highest flat height there that `box.MIN_POINTS` stand at, whatever
+  # stands lower: half of a knob's front face's circle is the counter below it
+  top = box.top_height(near[at], least=box.MIN_POINTS) if under and len(near) else None
   under = top is not None
   if not under:
     top = box.top_height(near) if len(near) else None
@@ -786,8 +792,13 @@ def _measure(life, args: dict) -> Routine:
   which = np.flatnonzero(np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M)
   near = st[which]
   top, under, flat = measured_top(near, x, y)
+  read = {key: box.edge_read(near[flat][:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
+  if under and None in read.values():
+    # ...a top under the point too little of which stands in the window to
+    # read where it ends: the window's, as where too little stands there
+    top, under, flat = measured_top(near, x, y, under=False)
+    read = {key: box.edge_read(near[flat][:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
   on, on_which = near[flat], which[flat]
-  read = {key: box.edge_read(on[:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
   if top is None or None in read.values():
     said = f"your last `measure` saw no flat top round ({x:g}, {y:g}) from where you stood"
     _reports(life)["measure"] = {UNREAD: dict.fromkeys(("top", "under", *read), said)}
@@ -1036,19 +1047,24 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
 REACH_SHORT_M = 0.01
 REACH_STOPPED_AT = ("; as it stopped, its grip was {cm:.1f} cm short of where you asked, back "
                     "along its fingers")
+#: ...and one asked no turn, its fingers' way its arm's to find: how far from
+#: where it was asked, whichever way.
+REACH_STOPPED_FROM = "; as it stopped, its grip was {cm:.1f} cm from where you asked"
 
 
 def _short_of(life, place, rot, felt: list) -> float | None:
   """How far a reach's grip ended short of `place` back along its fingers,
-  m, off the last of what it `felt` -- or None where no turn was asked, its
-  fingers' way unknown."""
+  m -- or, asked no turn, its fingers' way unknown, how far from it -- off
+  the last of what it `felt`; None where it felt nothing."""
   import numpy as np
   from pluggybot.procedure import axes
-  if rot is None or not felt:
+  if not felt:
     return None
-  fingers = -np.asarray(rot, dtype=float)[:, 2]
-  end = np.asarray(axes.from_stance(life, tuple(felt[-1]["at"])), dtype=float)
-  return float((np.asarray(place, dtype=float) - end) @ fingers)
+  miss = np.asarray(place, dtype=float) - np.asarray(axes.from_stance(life, tuple(felt[-1]["at"])),
+                                                     dtype=float)
+  if rot is None:
+    return float(np.linalg.norm(miss))
+  return float(miss @ -np.asarray(rot, dtype=float)[:, 2])
 
 
 #: ...and one that kept off another robot's body (#678; `Body.hand_kept`,
@@ -1132,7 +1148,7 @@ def _reach(life, args: dict) -> Routine:
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
   short = _short_of(life, place, rot, felt) if why == "stopped short" else None
   if short is not None and short > REACH_SHORT_M:
-    reason += REACH_STOPPED_AT.format(cm=100 * short)
+    reason += (REACH_STOPPED_FROM if rot is None else REACH_STOPPED_AT).format(cm=100 * short)
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:

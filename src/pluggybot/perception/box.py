@@ -134,32 +134,61 @@ PAST_REACH_M, PAST_NEAR_M = 0.1, 0.02
 #: stopped short of it: the top goes on there.
 PAST_OVER_M = 0.03
 #: A top's points JOINED to the point it is read at (`joined`, #704): binned
-#: this fine, m, a bin joined to its eight neighbours. A look grazing a top
-#: lays its rows apart on it -- 2.5 cm at 2.5 m off for a counter seen from
-#: the D435's 1.26 m (5.3 mm a row, a sight line 12 deg below level) -- and
-#: a finer bin parts one top into its rows, the end it parts at then no
-#: reading (`past_end`'s `runs`); two tops nearer each other than this are one.
-JOIN_M = 0.03
+#: `JOIN_CELL_M` square, each bin's middle joined to every other's within
+#: this, m -- so two tops nearer each other than this, give or take a bin,
+#: are one, wherever the bins fall. A look grazing a top lays its rows apart
+#: on it -- 2.5 cm at 2.5 m off for a counter seen from the D435's 1.26 m
+#: (5.3 mm a row, a sight line 12 deg below level) -- and joined any nearer,
+#: one top parts into its rows, the end it parts at then no reading
+#: (`past_end`'s `runs`).
+JOIN_M, JOIN_CELL_M = 0.03, 0.01
+#: Under a point (`top_height`'s `least`), a height's points are a FLAT TOP
+#: only where they spread across the plane: the narrower of their two
+#: spreads at least this share of the wider. A vertical face's slice is a
+#: line, as wide as the camera's noise -- 1-2 cm in front of a box's face its
+#: slices filled each 2 mm bin up the face with 30 points or more, and the
+#: highest read as the top under the point -- where a 26 mm cube's top under
+#: its middle spreads as wide as it is long, and a strip of a top a quarter as
+#: wide as the point's 2 cm reach is long counts. Past a metre the camera's
+#: noise spreads a slice as wide as that.
+FLAT_ACROSS = 0.25
 
 
 def top_height(points: np.ndarray, least: int | None = None) -> float | None:
   """The height of the highest flat face among `points` (k, 3), m: the
   highest of its heights' bins holding `TOP_SHARE` of the fullest -- or,
-  given `least`, holding that many points, whatever the fullest holds (a
-  small thing's top beside a wide lower one, #704). None where too few stand
-  off the floor to read one, or no bin holds `least`."""
-  z = np.asarray(points, dtype=float)[:, 2]
-  z = z[z > FLOOR_M]
+  given `least` (a small thing's top beside a wide lower one, #704), the
+  highest whose points spread across the plane (`FLAT_ACROSS`) and number
+  `least`, whatever the fullest holds, read off the fullest such bin of its
+  own band, never its noise's upper tail. None where too few stand off the
+  floor to read one, or no bin is such a top."""
+  pts = np.asarray(points, dtype=float)
+  pts = pts[pts[:, 2] > FLOOR_M]
+  z = pts[:, 2]
   if len(z) < MIN_POINTS:
     return None
   edges = np.arange(FLOOR_M, float(z.max()) + 2 * TOP_BIN_M, TOP_BIN_M)
   counts, _ = np.histogram(z, edges)
-  full = np.flatnonzero(counts >= (TOP_SHARE * counts.max() if least is None else least))
-  if not len(full):
-    return None
-  centre = float(edges[full.max()]) + TOP_BIN_M / 2
+  if least is None:
+    centre = float(edges[np.flatnonzero(counts >= TOP_SHARE * counts.max()).max()]) + TOP_BIN_M / 2
+  else:
+    of = np.clip(np.searchsorted(edges, z, side="right") - 1, 0, len(counts) - 1)
+    flat = [int(b) for b in np.flatnonzero(counts >= least) if _spread(pts[of == b, :2])]
+    if not flat:
+      return None
+    own = [b for b in flat if flat[-1] - b <= round(2 * TOP_BAND_M / TOP_BIN_M)]
+    centre = float(edges[max(own, key=lambda b: counts[b])]) + TOP_BIN_M / 2
   band = z[np.abs(z - centre) < TOP_BAND_M]
   return float(np.median(band))
+
+
+def _spread(xy: np.ndarray) -> bool:
+  """Whether points (k, 2) spread across the plane as a flat top's do, not
+  along a line as a vertical face's slice does (`FLAT_ACROSS`)."""
+  if len(xy) < 3:
+    return False
+  narrow, wide = np.linalg.eigvalsh(np.cov(np.asarray(xy, dtype=float).T))
+  return bool(narrow >= FLAT_ACROSS ** 2 * wide)
 
 
 def on_top(points: np.ndarray, height: float) -> np.ndarray:
@@ -167,21 +196,27 @@ def on_top(points: np.ndarray, height: float) -> np.ndarray:
   return np.abs(np.asarray(points)[:, 2] - height) < TOP_BAND_M
 
 
-def joined(xy: np.ndarray, seeds: np.ndarray, cell: float = JOIN_M) -> np.ndarray:
+def joined(xy: np.ndarray, seeds: np.ndarray, near: float = JOIN_M,
+           cell: float = JOIN_CELL_M) -> np.ndarray:
   """Which of the points `xy` (k, 2) -- a face's, on one top's height -- one
   face holds with the points `seeds` (a mask of them): binned `cell` m
-  square, each bin that holds a point joined to its eight neighbours that
-  do. None joined where there is no seed."""
-  from scipy import ndimage
+  square, the middle of each bin's points joined to every other's within
+  `near` (`JOIN_M`). None joined where there is no seed."""
+  from scipy.sparse import coo_matrix
+  from scipy.sparse.csgraph import connected_components
+  from scipy.spatial import cKDTree
   xy, seeds = np.asarray(xy, dtype=float), np.asarray(seeds, dtype=bool)
   if not len(xy) or not seeds.any():
     return np.zeros(len(xy), dtype=bool)
-  ij = np.floor((xy - xy.min(axis=0)) / cell).astype(int)
-  grid = np.zeros(tuple(ij.max(axis=0) + 1), dtype=bool)
-  grid[ij[:, 0], ij[:, 1]] = True
-  labels, _ = ndimage.label(grid, structure=np.ones((3, 3), dtype=int))
-  of = labels[ij[:, 0], ij[:, 1]]
-  return np.isin(of, np.unique(of[seeds]))
+  cells, of = np.unique(np.floor(xy / cell).astype(np.int64), axis=0, return_inverse=True)
+  of = of.ravel()
+  middles = np.zeros((len(cells), 2))
+  np.add.at(middles, of, xy)
+  middles /= np.bincount(of, minlength=len(cells))[:, None]
+  pairs = cKDTree(middles).query_pairs(near, output_type="ndarray")
+  links = coo_matrix((np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])), shape=(len(cells),) * 2)
+  face = connected_components(links, directed=False)[1][of]
+  return np.isin(face, np.unique(face[seeds]))
 
 
 def edge(along: np.ndarray, far: bool = True, window: float = EDGE_WINDOW_M) -> float | None:

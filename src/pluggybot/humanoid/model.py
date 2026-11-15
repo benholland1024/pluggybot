@@ -739,9 +739,11 @@ def _jaw(s: str, name: str, sign: int, z: float) -> str:
 
 
 def fingers_past_grip() -> float:
-  """How far each jaw's pad reaches past the grip along the fingers, m: the
-  grip is the fingers' middle (`_arm`'s `jaw_z`) and each pad the finger's
-  length, centred on it (`_jaw`) -- what YOUR BODY tells the robot (#711)."""
+  """How far each jaw's pad reaches past the grip along the fingers, m --
+  what YOUR BODY tells the robot (#711): `_arm` puts the grip site and each
+  jaw at one height, the fingers' middle (`jaw_z`), and `_jaw` centres the
+  finger-long pad on its jaw, so the tips reach the pad's half-length past
+  the grip. A test reads it off the compiled drawing, both hands' pads."""
   return hp.GRIPPER.pad_half[2]
 
 

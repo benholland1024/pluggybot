@@ -191,7 +191,8 @@ def test_a_reach_that_does_not_hold_says_the_bodys_own_why():
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n', Short(*_bare()))
   step = ran["steps"][-1]
   assert not step["ok"] and step["why"] == "stopped short"
-  assert step["reason"] == st.REACH_WHY["stopped short"].format(hand="left")
+  # ...and how far from where it was asked its grip was (#711): at its side
+  assert step["reason"].startswith(st.REACH_WHY["stopped short"].format(hand="left") + "; as it")
 
 
 class _Held(StubBody):
@@ -201,7 +202,8 @@ class _Held(StubBody):
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
                     turns=None, refuse=False):
-    fingers = -np.asarray(rot, dtype=float)[:, 2] if rot is not None else np.zeros(3)
+    # ...asked no turn, as if its arm had turned the fingers down
+    fingers = -np.asarray(rot, dtype=float)[:, 2] if rot is not None else np.array([0.0, 0.0, -1.0])
     self.hands[side] = tuple(np.asarray(pos, dtype=float) - self.short * fingers)
     self._fingers = fingers
     self._why[side] = "" if self.holds else "stopped short"
@@ -227,16 +229,18 @@ def test_a_reach_that_stopped_short_says_how_far_short_its_grip_was_as_it_stoppe
   """#711, #710: a reach that stopped short on its way -- a pad pressing on
   the cube's board at 60-95 N as it went in -- says how far short its grip
   was as it stopped, back along its fingers, wherever the robot stands; one
-  asked no turn, its fingers' way the arm's to find, says no number."""
+  asked no turn, its fingers' way the arm's to find, how far from it."""
   for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
     step = _fly(ABOVE, _held(0.054, 45.0, holds=False, pose=pose))["steps"][-1]
     assert not step["ok"] and step["why"] == "stopped short"
     assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
                               + "; as it stopped, its grip was 5.4 cm short of where you asked, "
                               "back along its fingers")
+  # ...and one asked no turn, how far from where it was asked
   step = _fly('def a():\n    reach("right", 0.3, -0.05, 0.79)\n',
               _held(0.054, 45.0, holds=False))["steps"][-1]
-  assert step["reason"] == st.REACH_WHY["stopped short"].format(hand="right")
+  assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
+                            + "; as it stopped, its grip was 5.4 cm from where you asked")
 
 
 def test_a_reach_that_holds_claims_nothing_of_what_its_fingers_met():
@@ -2346,19 +2350,43 @@ def test_measure_at_a_cube_reads_the_cube_not_the_counter_its_board_stands_on():
     assert ran["locals"]["t"] == pytest.approx(0.78, abs=0.004)
 
 
-def test_measure_under_its_point_reads_the_highest_top_there_whatever_stands_lower():
-  """#704: measured at a knob's front-face tag, half of the point's 2 cm
-  stand in front of the knob over the counter far below it; read with the
-  window's share (the highest holding a quarter of the fullest), the branch
-  read the counter there in 12 of Luca's 24 chest flights and the knob's top
-  in the rest. The highest top that `box.MIN_POINTS` stand at is the knob's,
-  as its text says -- 1.6 cm in front of its face, where the counter's
-  points under the circle outnumber its top's that are in it."""
-  knob = (0.43, 0.456, -0.013, 0.013, 0.807, 0.833)
-  ran = _fly('def a():\n    measure(0.414, 0)\n    t = read("object.top")\n',
-             _sees([COUNTER, knob]))
-  assert ran["locals"]["t"] == pytest.approx(0.833, abs=0.004), ran["locals"]
+def test_measure_in_front_of_a_tall_face_reads_the_counter_not_a_slice_of_the_face():
+  """#704's review: under the point, the highest height 30 points stand at --
+  and 1 cm in front of a wall too tall to see over, the wall's points filled
+  every 2 mm up it, the highest read as the top under the point (1.18 m). A
+  flat top's points spread across the plane, a face's slice is a line
+  (`box.FLAT_ACROSS`): the top under that point is the counter's."""
+  wall = (0.45, 0.47, -0.3, 0.3, 0.72, 1.5)
+  ran = _fly('def a():\n    measure(0.44, 0)\n    t = read("object.top")\n', _sees([COUNTER, wall]))
+  assert ran["locals"]["t"] == pytest.approx(0.72, abs=0.004), ran["locals"]
   assert ran["steps"][0]["under"] == 1.0
+
+
+def test_measure_reads_the_window_where_the_top_under_its_point_has_no_ends_to_read(monkeypatch):
+  """#704's review: a top under the point too little of which stands in the
+  window to read where it ends is read as the window's, as where too little
+  stands there -- it read "no flat top seen", a height in hand."""
+  from pluggybot.perception import box
+  joined = box.joined
+
+  def few(xy, seeds, *a, **k):
+    got = joined(xy, seeds, *a, **k)
+    got[np.flatnonzero(got)[5:]] = False
+    return got
+  monkeypatch.setattr(box, "joined", few)
+  ran = _fly('def a():\n    measure(0.44, 0.15)\n    t = read("object.top")\n',
+             _sees([COUNTER, CUBE_BOARD, CUBE_ON_IT]))
+  assert ran["steps"][0]["ok"] and ran["steps"][0]["under"] == 0.0, ran["steps"][0]
+  assert ran["locals"]["t"] == pytest.approx(0.72, abs=0.005)
+
+
+def test_measures_share_of_the_window_is_said_in_words():
+  """#704's review: the window's share is said as words; one the text has no
+  word for raises, so a retuned share is given its words, never a number."""
+  from pluggybot.perception import box
+  assert f"at least {st.SHARE_WORDS[box.TOP_SHARE]} as much" in st.HANDS_VERBS["measure"].doc
+  with pytest.raises(KeyError):
+    st._share_words(0.3)
 
 
 def test_measure_reads_the_top_under_its_point_alone_not_another_at_its_height():
