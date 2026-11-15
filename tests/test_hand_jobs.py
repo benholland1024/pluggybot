@@ -407,9 +407,13 @@ def test_a_watch_left_on_a_job_given_back_ends_nothing_of_the_others(tmp_path):
   luca.tasks.release(task.id)
   assert rowan._claim_task(task.id) and task.id in luca._job_watches
   _fall(luca)
+  assert not luca._fell_holding(task.id), "the fall's to settle, a job Rowan holds"
   luca.body.step_hooks[luca.body.step_hooks.index(luca._fall_step)]()
   assert not luca._fallen and not any("fell holding" in ln for ln in _history(luca))
   assert luca.tasks.get(task.id).state == "active"
+  assert luca._done(ov.Decision(action="idle", reason="", done=task.id)) is False
+  [heard] = [ln for ln in _history(luca) if "said done on" in ln]
+  assert "I fell" not in heard and "took it" in heard, heard
 
 
 def test_a_job_settled_in_a_falls_hold_is_heard_as_over(tmp_path):

@@ -4489,8 +4489,13 @@ class HubLifecycle:
       KINDS[task.kind].task, self._hands_measured(task, at_call, watch, t0)), t0)
 
   def _fell_holding(self, task_id: str) -> bool:
-    """Whether a fall since its claim has ended `task_id`, or will at the
-    next step (a watch taken up after a restart): the fall's to settle."""
+    """Whether a fall since its claim has ended `task_id`, a job this robot
+    holds, or will at the next step (a watch taken up after a restart): the
+    fall's to settle. Never a job given back, whose watch may outlive it by
+    a sweep."""
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    if task is None or task.state != "active" or task.claimed_by != self.root:
+      return False
     watch = self._job_watches.get(task_id)
     return task_id in self._fallen or (watch is not None and _fell_unheld(watch))
 
