@@ -466,10 +466,9 @@ Why the numbers are what they are:
   covered a slower box. The grown world took four minutes in the deployed
   process of 2026-11-12 (19:17-19:21 UTC, 173 MiB to 1.3 GB), and a warm-up
   of three set the alarm off with 4.6 MiB new at the onset. Five judges
-  nothing until the sixth sample: a load of up to six minutes passes (five
-  of warm-up and two fast), a runaway that begins once the world is loaded
-  is reported at its third minute, and one from boot seven minutes in at
-  the earliest.
+  nothing until the sixth sample: a load of up to six minutes passes, a
+  runaway that begins once the world is loaded is reported at its third
+  minute, and one from boot seven minutes in at the earliest.
 - **Counted in samples the world ran.** A process started into a pause
   builds its world, stops at its first step, and builds at the wake what a
   fresh process builds in its first minutes. That made three false alarms
