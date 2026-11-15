@@ -5380,13 +5380,13 @@ CLIP_SIZE, CLIP_FPS, CLIP_BRIGHTEN, CLIP_HOLD_S = (1280, 720), 30, 1.5, 2.0
 #: distance m, the point it looks at from the pelvis, m -- None: the robot's
 #: middle, its subtree's centre of mass), its view's or its filmstrip's; but
 #: `demo` over the left shoulder, the hand that reaches (from the front the
-#: counter hides it), and `walk` farther and higher than its strip (walls came
-#: between). `jaws` and `way_home` look at the work from where their views
-#: do, fixed (`scene_clip`).
+#: counter hides it), its head clear of the caption, and `walk` farther and
+#: higher than its strip (walls came between). `jaws` and `way_home` look at
+#: the work from where their views do, fixed (`scene_clip`).
 CLIP_CAMS = {**{s: (CAM_AZIMUTH, CAM_ELEVATION, CAM_DISTANCE, None)
                 for s in ("body", "stand", "reach")},
              **SCENE_CAMS,
-             "demo": (-45.0, -20.0, 2.6, None), "walk": (180.0, -50.0, 5.0, None),
+             "demo": (-45.0, -20.0, 2.9, (0.0, 0.0, 0.15)), "walk": (180.0, -50.0, 5.0, None),
              **{s: (cam[1], cam[2], cam[0], None) for s, cam in
                 (("rough", ROUGH_CAM), ("stairs", STAIRS_CAM), ("fall", FALL_CAM),
                  ("getup", FALL_CAM))},
