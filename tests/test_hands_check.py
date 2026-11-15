@@ -989,3 +989,70 @@ def test_the_cubes_tries_go_60_60_46_and_75_deg_and_its_budget_lets_the_fourth_e
   body, ran, log = _cube_flown(fail_shut=4)
   assert [_tilt(a) for a in _reaches(log)] == [60, 60, 46, 75]
   assert lang.compile_procedure(hc.PLACE, st.hand_facts()).budget_s == 150
+
+
+#: The door check's set-out 3 as the stub reads it, the start's stance frame: the lever's tip's
+#: tag (its face toward the robot, `spot`'s place) and the line along its top edge, 2.4 deg left.
+LEVER_AT, LEVER_EDGE = (0.424, 0.174, 0.866), (0.999, 0.042, 0.0)
+
+
+def _door_flown(stopped=0):
+  """Our door procedure on a stub that does every move at once, as asked, and sees the lever's
+  tag where `LEVER_AT` has it: its first `stopped` reaches stop short. Each verb as it began."""
+  from pluggybot.body import StubBody
+  from test_hands import _bare, _Life
+
+  class Seeing(StubBody):
+    def __init__(self, *a, **kw):
+      super().__init__(*a, **kw)
+      self.reaches = 0
+
+    def spot(self, tag, at_height=None):
+      if int(tag) != dr.KNOB_TAG_ID:
+        return None
+      x, y, z = LEVER_AT
+      return {"x": x, "y": y, "z": z, "normal": [1.0, 0.0, 0.0], "edge": list(LEVER_EDGE),
+              "range": 0.5}
+
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                      turns=None, refuse=False):
+      self.reaches += 1
+      if self.reaches <= stopped:
+        self._why[side] = "stopped short"
+        return False
+      return (yield from super().reach_routine(side, pos, rot, stiffness, patience, path, turns,
+                                               refuse))
+  body = Seeing(*_bare())
+  life, log = _Life(body), []
+  life.verb_began = lambda count, line, verb, values: log.append((verb, dict(values)))
+  facts = st.hand_facts()
+  ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(hc.DOOR, facts), facts))
+  return ran, log
+
+
+def test_the_doors_reach_stopped_short_turns_its_fingers_toward_the_middle_before_it_tilts():
+  """⚠ A DOOR REACH THAT STOPPED SHORT TRIES ITS FINGERS 10 DEG TOWARD THE ROBOT'S MIDDLE,
+  UNTILTED, BEFORE IT TILTS THEM DOWN (#708; SimNotes, "The door's reach the stop sends
+  back"): at the twelve of 192 set-outs where the lever reached square plans the deepest crouch
+  with the waist turned 30 deg, every way out drags the open jaw over the counter's edge and
+  into the door, and stopped there (`reach.OUT_TIP_NM`) the tilted retry's press and the move
+  back took postures that bowed the robot onto the counter: fingers 10 deg to the right plan a
+  shallower crouch square at all twelve. Then the tilts as before, 15 deg a try."""
+  ran, log = _door_flown(stopped=3)
+  reaches = [a for v, a in log if v == "reach"]
+  assert len(reaches) >= 4, [v for v, _ in log]
+  fingers = [(round(a["fx"], 3), round(a["fy"], 3), round(a["fz"], 3)) for a in reaches[:4]]
+  a = math.atan2(LEVER_EDGE[1], LEVER_EDGE[0])
+  r, t = 0.17, 0.26
+  assert fingers == [
+    (round(math.cos(a), 3), round(math.sin(a), 3), 0.0),
+    (round(math.cos(a - r), 3), round(math.sin(a - r), 3), 0.0),
+    (round(math.cos(a) * math.cos(t), 3), round(math.sin(a) * math.cos(t), 3), round(-math.sin(t), 3)),
+    (round(math.cos(a) * math.cos(2 * t), 3), round(math.sin(a) * math.cos(2 * t), 3),
+     round(-math.sin(2 * t), 3))], fingers
+  # ...each at the lever as read, and each one after a stop goes home first
+  assert {(round(a["x"], 3), round(a["y"], 3), round(a["z"], 3)) for a in reaches[:4]} == {
+    (round(LEVER_AT[0] + 0.013, 3), LEVER_AT[1], LEVER_AT[2])}
+  verbs = [v for v, _ in log]
+  for i in [k for k, v in enumerate(verbs) if v == "reach"][:3]:
+    assert verbs[i + 1] == "withdraw", verbs

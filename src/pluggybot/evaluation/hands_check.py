@@ -128,12 +128,20 @@ DRAWER = '''def open_drawer():
 #: it shut -- and otherwise gripped again LIGHTLY, so its tip turns between
 #: the jaws as the door swings, and pulled toward the body by force, the
 #: hinge steering the hand along the door's arc, then on the way the hand
-#: was last going.
+#: was last going. ⚠ A REACH THAT STOPPED SHORT TRIES ITS FINGERS 10 DEG
+#: TOWARD THE ROBOT'S MIDDLE, UNTILTED, BEFORE IT TILTS THEM DOWN 15 DEG A
+#: TRY (#708; SimNotes, "The door's reach the stop sends back"): at 12 of
+#: set-outs 0-191 the grip asked plans the deepest crouch with the waist
+#: turned 30 deg, whose way out drags the open jaw over the counter's edge
+#: into the door, and a way out stopped there (`reach.OUT_TIP_NM`) went to
+#: the tilt, whose press and move back bowed the robot onto the counter;
+#: turned toward the middle, it plans a shallower crouch, square, at all 12.
 DOOR = '''def open_door():
   budget(steps=60, seconds=66)
   ph = 0
   g = 3
   t = 0.0
+  r = 0.0
   for i in range(12):
     if g == 3:
       g = 4
@@ -158,10 +166,17 @@ DOOR = '''def open_door():
         g = 4
     if g == 0:
       open_hand("left")
-      if reach("left", x, y, z, fx * cos(t), fy * cos(t), -sin(t), 0, 0, 1):
+      if reach("left", x, y, z, cos(a - r) * cos(t), sin(a - r) * cos(t), -sin(t), 0, 0, 1):
         g = 2
       else:
         withdraw("left")
+        g = 5
+    if g == 5:
+      g = 0
+      if r == 0 and t == 0:
+        r = 0.17
+      else:
+        r = 0.0
         t = t + 0.26
     if g == 2:
       if close_hand("left", 120 - 105 * ph):
@@ -182,6 +197,7 @@ DOOR = '''def open_door():
       ph = ph + 1
       g = 3 + (ph > 1)
       t = 0.0
+      r = 0.0
 '''
 
 #: THE CUBE, out of reach where the robot stands: the mat's middle and the
