@@ -1331,9 +1331,10 @@ def drive_to_doc(keep_m: float, ends: tuple[float, float] = WALK_ENDS_M) -> str:
   walk sent to a wall ends, flown (`WALK_ENDS_M`, #700)."""
   return ("walk to a world point over the map, and over floor not yet on it; ok on "
           f"arrival, and it gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f}). "
-          f"Its way keeps your middle about {keep_m:g} m from what your map holds solid: "
-          "a walk sent to a wall or a counter's edge ends short, where you can stand "
-          f"nearest it, {ends[0]:g}-{ends[1]:g} m from the wall or the edge")
+          f"Its way keeps your middle about {keep_m:g} m from what your map holds solid, "
+          "less round a corner: a walk sent to a wall or a counter's edge ends short, "
+          f"where you can stand nearest it, {ends[0]:g}-{ends[1]:g} m from the wall or the "
+          "edge")
 
 
 VERBS: dict[str, Verb] = {

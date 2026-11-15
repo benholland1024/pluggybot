@@ -48,17 +48,16 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
   only poses."""
   why = rec["why"]
   kept = rec.get("standIn")
-  if why == "no_route" and kept:
+  if kept:
     # ...the map's doing, never "no route" (#700; SimNotes, "Where a walk
     # ends by a wall"): "nearer than" only inside the keep-off `drive_to`'s
     # text states (`keepM`) -- its lattice keeps a goal off up to a cell more
     near = ("nearer than a walk keeps" if round(kept["solidM"], 2) < round(kept["keepM"], 2)
             else "about as near as a walk keeps")
-    cause = (f"nowhere nearer to stand: the goal is {kept['solidM']:.2f} m from "
-             f"something the map holds solid, {near}, and the robot stood "
-             f"{kept['standM']:.2f} m from it")
-  elif why == "no_route":
-    cause = "no route over the floor mapped so far"
+    kept = (f"the goal is {kept['solidM']:.2f} m from something the map holds solid, "
+            f"{near}, and the robot stood {kept['standM']:.2f} m from it")
+  if why == "no_route":
+    cause = kept or "no route over the floor mapped so far"
   elif why == "stalled":
     cause = f"stalled, no progress for {STAGNATION_S:.0f} s"
   elif why == DRIVE_STOPPED:
@@ -76,7 +75,7 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
     else:
       cause = f"{peer}{' ' + how if how else ''} in the way, {far:.1f} m off"
   else:
-    cause = "out of time"
+    cause = "out of time" + (f": {kept}" if kept else "")
   return (f"the drive gave up {rec['shortM']:.1f} m short after "
           f"{rec['seconds']:.0f} s ({cause})")
 
@@ -185,7 +184,7 @@ WAYPOINT_REACHED_M = 0.08
 #: four: the planner could not route to the goal over the floor mapped so
 #: far (no plan at all, or only to a stand-in the robot then stood at --
 #: where the map's keep-off round something solid took in the goal, the
-#: record's `standIn` says so, #700); no
+#: record's `standIn` says so, and of a `timeout` there too, #700); no
 #: progress for `STAGNATION_S` toward a goal the plan did reach; another
 #: robot in the way or on the goal when it stopped; the time budget ran
 #: out. The robot reads the cause back: "stopped 9.1 m short", with none,
@@ -353,8 +352,9 @@ class Navigator:
     #: one of `DRIVE_GAVE_UP`), the goal, the seconds it took, how far short
     #: it stopped, and for a peer which body -- beside the robot (`here`)
     #: or at the goal, how far, where, and whether it lies down; for a
-    #: `no_route` at its stand-in by something the map holds, what kept it
-    #: off (`standIn`, `_stood_off`, #700). `gave_up` is its sentence.
+    #: `no_route` or a `timeout` at its stand-in by something the map holds,
+    #: what kept it off (`standIn`, `_stood_off`, #700). `gave_up` is its
+    #: sentence.
     self.last_drive: dict | None = None
     #: Where the last plan aimed INSTEAD of the goal -- the nearest cell of
     #: this robot's own component, when the goal was off it -- or None.
@@ -768,16 +768,6 @@ class Navigator:
     if stand_in:
       self._stand_in = pts[-1]
       self._kept_by = self._solid_by(planning, wx, wy, b)
-      if self._kept_by is not None and (self.others if bodies is None else bodies):
-        # ...the map's doing only where the map alone stands it in as near
-        # (#700's third review: another robot's disc in a doorway stood a
-        # walk in a room away, and "nowhere nearer to stand" was false)
-        alone, _ = optimistic.route(graph, optimistic.coarsen(optimistic.map_costs(
-          planning, self.INFLATION_CELLS, self.UNKNOWN_COST), b), (sx // b, sy // b),
-          (gx // b, gy // b))
-        if alone is None or (math.dist(alone[-1], (gx // b, gy // b))
-                             < math.dist(cells[-1], (gx // b, gy // b))):
-          self._kept_by = None
     # every other cell, 0.2 m apart as A*'s every third, and always the end
     out = pts[2::2]
     if not out or out[-1] != pts[-1]:
@@ -1123,7 +1113,7 @@ class Navigator:
     asked = getattr(self, "_made_way", None)
     if asked:
       rec["askedWay"] = sorted(asked)
-    if why == "no_route" and self._at_stand_in() and self._kept_by is not None:
+    if why in ("no_route", "timeout") and self._kept_by is not None and self._at_stand_in():
       rec["standIn"] = self._stood_off(wx, wy)
     self.last_drive = rec
     return not why

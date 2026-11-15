@@ -2720,18 +2720,17 @@ save a filmstrip PNG named after the script.
   `HubLifecycle.drive_why`, one of `mission.DRIVE_GAVE_UP`'s four causes
   (`tests/test_failure_words.py`). ⚠ A WALK THAT STOOD AT ITS STAND-IN BY
   SOMETHING ITS MAP HOLDS SOLID SAYS SO, never "no route over the floor
-  mapped so far" (#700: read three times as floor not yet mapped, of a goal
-  1 cm off the counter's edge): `no_route` still, its record's `standIn`
-  a field, never a fifth cause -- the cell its map held solid that kept
-  the goal off, found AS THE PLAN CHOOSES ITS STAND-IN, on that plan's grid
-  and its own taxicab keep-off on the goal's own lattice cell, never clamped
-  onto the grid (`Navigator._solid_by`, `_kept_by`), kept with the held
-  plan, through a restart and put back after `_route_past`; ⚠ ONLY WHERE
-  THE MAP ALONE STANDS THE WALK IN AS NEAR (another robot's disc in a
-  doorway stood one a room away: the plan routes once more without the
-  discs), and only on the lattice's plan (A*'s stands in for unseen floor
-  too). ⚠ A `find` WHOSE WALKS TOOK IT NOWHERE
-  NEW TO LOOK FROM "gave up", in its last walk's words, never "not
+  mapped so far" (#700; SimNotes, "Where a walk ends by a wall"):
+  `no_route` (or `timeout`) still, its record's `standIn` a field, never a
+  fifth cause -- the cell its map held solid that kept the goal off, found
+  AS THE PLAN CHOOSES ITS STAND-IN, on that plan's grid, by its own taxicab
+  keep-off at the goal's own lattice cell, never clamped
+  (`Navigator._solid_by`, `_kept_by`), kept with the held plan, through a
+  restart and after `_route_past`; A*'s plan records none (it stands in
+  for unseen floor too). ⚠ ITS WORDS ARE ONLY WHAT IS TRUE WHEREVER THE
+  ROBOT ENDED, measured there: never "nowhere nearer to stand". ⚠ A `find`
+  WHOSE WALKS TOOK IT NOWHERE NEW TO LOOK FROM "gave up", in its last
+  walk's words, never "not
   found" (#439: "looked from every place near there" in 23 s beside a
   resting robot); its walks are the log's `trace`. ⚠ A DECIDED
   `charge` or `explore` says how it ended in History (#424), and a charge

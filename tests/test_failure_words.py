@@ -241,7 +241,8 @@ def test_a_walk_that_stood_at_its_stand_in_by_something_its_map_holds_says_so():
   far", three times, which the robot read as floor not yet mapped and gave
   its walks up for. Flown through the Navigator's own drive and planner, the
   record says what kept it off -- a field, never a fifth cause -- and its
-  words say it: how far the goal is from that, and how far the robot stood."""
+  words say it: how far the goal is from that, and how far the robot stood;
+  so does a walk its patience ended there."""
   goal = (2.99, 1.52)
   first = _Stood.at(_counter(), (1.0, 1.5))
   first._plan_to(*goal)
@@ -252,9 +253,15 @@ def test_a_walk_that_stood_at_its_stand_in_by_something_its_map_holds_says_so():
   assert rec["why"] == "no_route", rec
   assert rec["standIn"] == {"solidM": 0.01, "standM": 0.45, "keepM": 0.35}
   assert gave_up(rec) == (
-    "the drive gave up 0.4 m short after 10 s (nowhere nearer to stand: the goal is "
-    "0.01 m from something the map holds solid, nearer than a walk keeps, and the robot "
-    "stood 0.45 m from it)")
+    "the drive gave up 0.4 m short after 10 s (the goal is 0.01 m from something the map "
+    "holds solid, nearer than a walk keeps, and the robot stood 0.45 m from it)")
+  # ...and one its patience ended there before it stagnated, out of time
+  short = _Stood.at(_counter(), first._stand_in)
+  assert tick.run(STEPPER, short.drive_to_routine(*goal, 5.0)) is False
+  assert short.last_drive["why"] == "timeout" and "standIn" in short.last_drive
+  assert gave_up(short.last_drive).endswith(
+    "(out of time: the goal is 0.01 m from something the map holds solid, nearer than a "
+    "walk keeps, and the robot stood 0.45 m from it)")
   # ...as is a find's walk in its trace, the log's
   assert st._walk_trace({**rec, "seconds": 12.0}) == (
     "no_route 0.44 m short after 12 s solidM=0.01 standM=0.45 keepM=0.35")
@@ -364,8 +371,9 @@ def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_of
   for off, kept_off in ((0.2, True), (0.42, False)):
     w._plan_to(-off, 1.5)
     assert w._stand_in is not None and (w._kept_by is not None) is kept_off, off
-  # ...and never where another robot's disc stood the walk in further off:
-  # the counter's room behind a door it stands in
+  # ...and where another robot's disc stood the walk in further off -- the
+  # counter's room behind a door that robot stands in -- the words are as
+  # true: the goal by the counter, and the robot a room away from it
   import numpy as np
 
   from test_unknown import FREE
@@ -373,12 +381,12 @@ def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_of
   rooms[:, 42:60] = FREE
   rooms[:, 60:] = WALL                            # a counter from x = 3 m in the far room
   doors = _Nav(rooms, (1.0, 0.75))
-  doors._plan_to(2.99, 0.75)
-  assert doors._kept_by is not None, "the premise: the door open, the counter keeps it off"
   doors.others = [lambda: (2.05, 0.75)]           # ...the other robot in the door
   doors._plan_to(2.99, 0.75)
   assert doors._stand_in is not None and doors._stand_in[0] < 2.0, "stood in a room away"
-  assert doors._kept_by is None
+  doors._at = doors._stand_in
+  doors._drove(2.99, 0.75, 0.0, "no_route")
+  assert doors.last_drive["standIn"]["standM"] > 1.0
   shut = _room_with_a_door()
   shut[5:25, 40:42] = WALL                        # its door is a wall now
   s = _Nav(shut, (1.0, 1.5))
@@ -396,7 +404,7 @@ def test_drive_tos_text_says_the_walks_keep_off_off_the_planners_own_constant():
   """#700's other half (Ben: yes): nothing the robots read said how near a
   wall or a counter a walk brings them. `drive_to`'s text says the keep-off
   off the constant the planner keeps it by -- the humanoid's
-  `INFLATION_CELLS` times the map's cell, which `_map_keep_off` reads too --
+  `INFLATION_CELLS` times the map's cell, which `_stood_off`'s `keepM` is --
   and where a walk sent to an edge ended, flown: a range that must still
   hold the keep-off and a lattice cell past it, or the flight is stale. Every
   number is read back off the text, never formatted as the text formats it
@@ -409,8 +417,9 @@ def test_drive_tos_text_says_the_walks_keep_off_off_the_planners_own_constant():
 
   def said(text):
     m = re.search(r"Its way keeps your middle about ([0-9.]+) m from what your map holds "
-                  r"solid: a walk sent to a wall or a counter's edge ends short, where you "
-                  r"can stand nearest it, ([0-9.]+)-([0-9.]+) m from the wall or the edge$", text)
+                  r"solid, less round a corner: a walk sent to a wall or a counter's edge "
+                  r"ends short, where you can stand nearest it, ([0-9.]+)-([0-9.]+) m from "
+                  r"the wall or the edge$", text)
     assert m, text
     return tuple(float(v) for v in m.groups())
   keep, lo, hi = said(doc)
