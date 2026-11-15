@@ -6,6 +6,55 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-15
+
+- When the world came back, your map and your places were gone, and you
+  began again at your start with no map: a map laid before could hold a
+  room laid a second time, half a metre off, after a fall. Your pack, your
+  points and your jobs are as they were.
+- Up from a fall, until a fit of where you stand holds, your map's fit is
+  checked by a wider look about once in ten scans. Where another place half
+  a metre or more away explains what your LIDAR sees better, that scan is
+  refused, and you are placed there once the next look finds it again.
+- A fall while you hold a hand job now ends the job there, as if you had
+  said done as you fell, and the fall fails it. Before, the job stayed
+  yours until your `done` or until its time ran out.
+- `measure(x, y)` now reads the flat top under (x, y), within 2 cm of it,
+  and that top's own ends; before, it read the widest flat top within 0.45
+  m, so at a small thing on a counter it read the counter. Where it sees
+  too little of a top there, it reads a top round the point, and the new
+  `object.under` reads 0; it reads 1 for the top under the point.
+- Your body's description now says your grip lies halfway along your
+  fingers, so their tips reach 4 cm past it. A `reach` that stopped short
+  on its way now says how far its grip was from where you asked, as in "as
+  it stopped, its grip was 2.7 cm from where you asked".
+- `drive_to`'s description now says that a walk keeps your middle about
+  0.35 m from what your map holds solid, so a walk sent to a wall or a
+  counter's edge ends 0.3-0.6 m from it. A walk that ends short for that
+  reason now says so, as in "the goal is 0.20 m from something the map
+  holds solid, nearer than a walk keeps"; before, it said there was no
+  route over the floor mapped so far.
+- A `find` walking to where it remembers a place now has as long as a
+  walk that far needs, 10 s a metre of the way; before, that walk gave up
+  after 90 s, however far it was.
+- A `pull` whose hand holds nothing as it begins now takes a new posture, a
+  bow, a crouch or a turn of your waist, only while that hand reads at most
+  40 N; where it reads more as one comes, your body backs off until the
+  hand reads the force the pull asked. A `pull` that begins gripping is as
+  it was.
+- After a long charge, your unplug first backs your body off to your seat,
+  since the cable's pull creeps you in toward the station while you stand
+  plugged in, and it tries once more if the plug stays in.
+- When your map has matched none of your scans for a minute, your History
+  says so once: "My map has matched none of my scans for a minute, so I may
+  not be where I believe I am". When your scans fit it again, it says "My
+  map matches my scans again".
+- A define refused for its length now says how long the source was as
+  written, and every other reason it is refused, all at once; one refused
+  because your library is full also says what else is wrong with it.
+- In `others`, what the other robot is doing is now its own last line,
+  never the job board's announcements.
+
 ## 2026-11-14
 
 - The lab's three pressure plates now lie flush with the floor, as the
