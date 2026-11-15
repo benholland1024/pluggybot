@@ -1005,7 +1005,7 @@ for its whole 300 s (108.7 m), because the house's north wall is 4 cm thick,
 thinner than a cell, and the robot walking along it carves it out of its own
 map with grazing rays -- the map had it free from x = -3 to 6 m -- and the
 planner routes through where it was (#401: a choice of sensor model, filed,
-not made here).
+not made here; #712 made it, "A thin wall met at a graze").
 
 **Why this price.** A known detour is taken while it is under twice the
 unknown shortcut (`UNKNOWN_COST` 2). It is a choice, not a fit: swept to 1.25 and 4
@@ -1193,7 +1193,8 @@ M ON 60 FLIGHTS OF THE 80: the research center's south wall, 4 cm thick, is
 carved out of the map along the alley by the robot's own grazing rays
 (#401's), free from x 19 to 23.25 at the cube's draw 17, and the planner's
 route runs through it -- over floor the robot has seen, so a walk measured
-over that floor alone reads the same. Every walk took the 43 m way, most
+over that floor alone reads the same (#712 keeps it on most flights, "A
+thin wall met at a graze"). Every walk took the 43 m way, most
 in 96-158 s; at 6 s a metre, the charge's (`CHARGE_WALK_S_M`), two of 59
 ran out at 162 s, both where the map's walk read 27 m -- draws 17 and 33,
 which at 10 s a metre arrived in 205 and 228 s of their 270. At 10 no
@@ -9527,6 +9528,103 @@ same 6 of 8 still fell, in what came after the stop (the hand's retreat,
 its way home, a hand stopped `blocked`), and the hands check moved 7 of its
 160 flights both ways (117 passes for 115, the door's falls 1 to 3). Its fix
 is #708's own.
+
+## A thin wall met at a graze, kept against rays laid a few cm off it (issue #712)
+
+**What happened.** From the mall's station the map's walk to the storeroom's
+counter read 26-27 m on 60 of #698's 80 flights, where the way is 43 m: the
+research center's south wall (y = -6, 4 cm thick, x 16-28, no door) was free
+floor in the robot's own map from x 19 to 23.25, and every walk planned
+through it found it again on the way. #401 had found the same of the house's
+north wall in October and was closed until a walk needed a thin wall kept.
+
+**What erased it.** The cube's draw 17 from the mall flown to its claim
+(`~/pluggybot-training/loop-1115/m1-712/m1_diag.py`, on a6e6f0e), every
+fused scan's clears and hits on the wall's true cells recorded with the ray
+that laid them, and each laid again at the true pose. The robot laid the
+stretch x 19-23.5 sure from inside, from the lobby and the storeroom (9,826
+hits, every column held). Then, walking south along the middle street's
+east sidewalk past the alley's mouth at x 15.55, it erased all 4.5 m of it
+in 8.5 s: 86 scans, 7,610 clears and 26 hits. Its belief there stood 7-10
+cm north of the truth -- along a sidewalk, the direction its walls do not
+fix -- and its rays met the wall's south face at 1-35 deg (16 at the
+median), 5-8 m out. Laid 9 cm north, each ran along the wall's true rows
+for 9 cm / tan(16 deg) = 0.3 m or more before the face it ended on, clearing
+two to six of their cells for the one hit at its end. Laid at the true
+pose, NONE of those 7,610 clears happens. A belief a few cm off between two
+passes is the matcher's floor, so the rule had to live in the map: a scan
+laid a few cm off a wall seen square on lays the wall again where it puts
+it (its hits are as dense as its clears), but met at a graze its hits are
+one a ray, 0.3-0.5 m apart, and its clears run between them.
+
+**The rule** (`OccupancyGrid.update`'s `graze_m`, on in
+`Navigator._scan_step` at `GRAZE_M`, 0.15 m): a ray that ends on a surface
+frees no cell the map holds a wall in over its last `graze_m` / tan(slant)
+metres -- where it runs alongside that surface within `graze_m` of it --
+the slant read off the line to the scan's own neighbouring endpoints
+(`_slant`: the slanter of the two either side within 2.5 deg, square on
+with neither), the stretch at most 2 m (`GRAZE_MOST_M`). Square on it is
+nothing, and a cell with no wall's evidence is freed as before, so no strip
+of unknown is left along a wall and no frontier moves. ⚠ What it costs: a
+wall cell that truly went is no longer freed by a ray that runs alongside
+the surface it ends on within 0.15 m of it; it is still freed by every ray
+that passes it on the way to something else (a door gone, by the rays
+through its doorway; `test_a_wall_that_moved_is_still_cleared_by_rays_that_pass_it_by`).
+
+**Its size** was chosen on that one flight's own scans and nothing else:
+its 4,920 fused scans laid again at the poses they were flown at
+(`m1_replay.py`; the matcher not run again), each `graze_m` against the
+compiled world's raster. Of the south wall's 240 columns (5 cm, x 16-28)
+the base's rule kept 90 (none of x 19-23.5), 0.05 m kept 90, 0.10 190,
+0.15 212 and 0.20 215; of every true wall cell the flight saw, 50 % held
+wall under the base's rule and 60 % under 0.15 (71 and 78 % within a
+cell), at the price of 54 cells of the 267,531 of free floor two cells or
+more off a wall reading wall (0 under the base's) and 539 cells two to
+three cells off a wall reading wall where 332 did -- a wall laid a few cm
+off its twin, kept within 0.15 m of the surface the rays end on.
+
+**Measured** on one pod (a Vast EPYC 7B13, osmesa), 8f00173 beside its
+base a6e6f0e, every batch flown fresh and none of it looked at while
+`GRAZE_M` was chosen (the cube's draw 17 from the mall, the one flight that
+sized it, is among the mall's 80):
+
+| | base | the rule |
+|---|---|---|
+| from the mall, the map's walk to the counter under 35 m: the cube's 32 draws, the drawer's, the door's and the chest's 16 | 60 of 80 | 13 |
+| ...the cube's draws 32-63 | 21 of 32 | 7 |
+| ...the south wall's longest run not held at the claim, median | 7.4 m | 0.8 |
+| ...passed (fell), all 112 | 89 (3) | 103 (4) |
+| the tour's five jobs at 32 draws, passed | 135 of 160 | 144 (the table's 24 to 22, two falls in a `pull`) |
+| the station: round the standoff; its seats; lost near; lost far | 39/39; 140/140; 20/20; 115/123 | 39; 140; 20; 116 |
+| #681's counter falls (K10's b1, 112): off by over 0.25 m at the end; stuck | 12; 12 | 10; 12 |
+| the drift spike's 16 flights: docked; falls | 16; 0 | 16; 0 |
+| ...the belief's error, median, in the house's rooms | 0.03-0.07 m | 0.01-0.04 |
+| ...in the research center's lobby and storeroom | 0.06 m | 0.12-0.15 |
+
+⚠ **What it costs: a wall first laid from a belief that was off is kept,
+and the belief is held to it.** In the drift spike the robot first lays the
+research center with the street's error in it, 5-7 cm in x, and walks
+its lobby, a corridor whose walls fix x and are seen mostly at a graze:
+kept, they held its belief 10 cm west of the truth at the median there for
+the rest of the flight, where the base's walls, laid again on every visit,
+left it 3-4 cm off. It is the same thing that keeps the alley's wall: the
+map cannot tell a wall laid right from one laid off, only which came first.
+The matcher fixed every direction of every scan that erased the wall
+(`m1_diag2.py`: 98-99 % of the evidence lost was to full fits, its belief
+8-9 cm off in y and 0.3-0.8 deg off at the alley's mouth), so a rule keyed
+on a held direction would not have helped; and where the map's walk still
+read short, the scans erased past the 0.15 m: in the two of them flown
+again, the heading's error added 5-10 cm 6-8 m out. The
+pair's fixture day moves by seconds (the first robot plugged in at 46.8 s
+for 44.0, the second at 366.5 for 361.4) and so is flown again where the
+rule is merged. Ben's call (#712): the rule as it is, or a sounder fix of
+the inconsistency between two passes.
+
+**`find`'s rate with the wall kept** (#698's `GUESS_WALK_S_M`, 10 s a
+metre): of the 123 first walks of the two batches whose map's walk read
+40 m or more, the slowest took 4.6 s a metre of it (median 2.3), and 5 s a
+metre would have run none of them out; the 10 was sized where the map's walk
+read 26-27 m and a walk took up to 8.5 s a metre of it.
 
 ## Debugging workflow that worked
 

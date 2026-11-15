@@ -776,7 +776,18 @@ save a filmstrip PNG named after the script.
   BEHIND ANOTHER ROBOT NEARER THAN THE ROOM (the rings over its head read
   the wall beyond), NOR ANY TILTED PAST `CLEARS_TILT_RAD` (30 deg: bowed,
   the steepest rings turn past straight down onto the bearings behind, and
-  a low box 2 m behind was cleared on 8 bearings of 9). ⚠ THE HEAD IS BUILT
+  a low box 2 m behind was cleared on 8 bearings of 9). ⚠ NOR WHERE A RAY
+  RUNS ALONGSIDE THE SURFACE IT ENDS ON WITHIN `GRAZE_M` (0.15 m) OF IT
+  (#712; `OccupancyGrid.update`'s `graze_m`, the slant off the scan's own
+  neighbouring endpoints, `_slant`; square on, nothing): laid 7-10 cm off
+  the wall the robot had laid from inside, the alley's grazing rays erased
+  the research center's 4 cm south wall in 8.5 s -- none of those clears at
+  the true pose -- and the map's walk from the mall read 26 m for 43; a
+  wall that moved is still cleared by the rays that pass it on their way
+  elsewhere. ⚠ IT KEEPS A WALL FIRST LAID FROM A BELIEF THAT WAS OFF, AND
+  THE BELIEF IS HELD TO IT: in the drift spike the research center's
+  belief was off 0.12-0.15 m at the median, where 0.06 without it (Ben's
+  call, #712). ⚠ THE HEAD IS BUILT
   ROUND IT (stage 3, `model._head`; Ben, 2026-11-01 and 11-02: the post was
   fragile, and a crown narrower than the face read as mounted over it): one
   cylinder above and below its window, open all round (its manual: nothing
