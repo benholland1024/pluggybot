@@ -938,8 +938,7 @@ def test_any_scan_not_refused_breaks_the_run_and_what_it_found(room, monkeypatch
   rng = np.random.default_rng(26)
   searched = []
   real = m._relocate
-  monkeypatch.setattr(m, "_relocate",
-                      lambda pose, pts, also=None: (searched.append(1), real(pose, pts, also))[1])
+  monkeypatch.setattr(m, "_relocate", lambda pose, pts: (searched.append(1), real(pose, pts))[1])
   for _ in range(sm.LOST_RUN + 2):
     m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
   assert searched and m.pending is not None, "the premise: a search found the pose"
@@ -1001,7 +1000,7 @@ BEHIND = (STOOD[0] + 0.99, STOOD[1] - 0.30, STOOD[2])
 #: the face's returns onto the wall's line, 9 cm on.
 BESIDE = (STOOD[0] + 0.52, STOOD[1] - 0.04, STOOD[2])
 #: A wider look's take-back, in verdicts: the look's own scan and the
-#: LOST_RUN - 1 after it refused, then the wide search finds the place again.
+#: LOST_RUN - 1 after it refused, then the next look finds the place again.
 TAKEN_BACK = ["inconsistent"] * sm.LOST_RUN + ["relocated"]
 
 
@@ -1037,27 +1036,34 @@ def _stood(m, belief, rng, scans):
 
 
 def _looks(monkeypatch):
-  """Every wider look and wide search from here on, as (which, the run of
-  refusals it was made at)."""
+  """Every wider look and plain wide search from here on, by name."""
   made = []
   found, relocate = sm.ScanMatcher._wide_found, sm.ScanMatcher._relocate
-  depth = []
+  inside = []
 
-  def wide_found(self, pose, pts, doubt=False):
-    if not depth:
-      made.append(("look", self.lost_run))
-    return found(self, pose, pts, doubt)
+  def wide_found(self, pose, pts, doubt=False, turns=None):
+    if not inside:
+      made.append("look")
+    return found(self, pose, pts, doubt, turns)
 
-  def relocated(self, pose, pts, also=None):
-    made.append(("search", self.lost_run))
-    depth.append(1)
+  def relocated(self, pose, pts):
+    made.append("search")
+    inside.append(1)
     try:
-      return relocate(self, pose, pts, also)
+      return relocate(self, pose, pts)
     finally:
-      depth.pop()
+      inside.pop()
   monkeypatch.setattr(sm.ScanMatcher, "_wide_found", wide_found)
   monkeypatch.setattr(sm.ScanMatcher, "_relocate", relocated)
   return made
+
+
+def _place(off, inliers, turn=0.0):
+  """A place a wider look found, `off` (m east, north) of BESIDE and `turn`
+  rad from its heading."""
+  return ((BESIDE[0] + off[0], BESIDE[1] + off[1], BESIDE[2] + turn),
+          {"inliers": inliers, "rms_m": 0.02, "weakest": 80.0, "weak_dir": (1.0, 0.0, 0.0),
+           "held": 0, "step": (off[0], off[1], turn)})
 
 
 def test_up_from_a_fall_a_find_the_search_cannot_see_past_is_refused_for_a_better_place_wider(
@@ -1067,15 +1073,16 @@ def test_up_from_a_fall_a_find_the_search_cannot_see_past_is_refused_for_a_bette
   # body, past the bounded search's 0.6 m, and its best there is the place
   # where the counter's face lies on the wall behind it, 0.6 m east of the
   # truth -- 76 % of the scan on walls, every direction fixed, taken as
-  # `found`, and every fit after it `ok` for 33-87 minutes. The wide search,
+  # `found`, and every fit after it `ok` for 33-87 minutes. A wider look,
   # that find one more of its places, holds the truth: the find is refused,
-  # and the truth taken once the next wide search finds it again.
+  # and the truth taken once the next look finds it again.
+  looks = _looks(monkeypatch)
   whys, belief = _stood(_fallen(counter), BEHIND, np.random.default_rng(31), sm.LOST_RUN + 1)
-  assert whys == TAKEN_BACK, whys
+  assert whys == TAKEN_BACK and looks == ["look", "look"], (whys, looks)
   assert math.hypot(belief[0] - STOOD[0], belief[1] - STOOD[1]) < 0.03, belief
   # ...the premise, and what a robot not up from a fall still does: the
   # search's find is that place, taken at once, no wider look made
-  looks = _looks(monkeypatch)
+  looks.clear()
   whys, belief = _stood(sm.ScanMatcher(counter), BEHIND, np.random.default_rng(31), 1)
   assert whys == ["found"] and 0.5 < belief[0] - STOOD[0] < 0.7 and abs(belief[1] - STOOD[1]) < 0.03
   assert not looks
@@ -1095,63 +1102,63 @@ def test_up_from_a_fall_a_fit_is_refused_for_a_better_place_wider(counter):
 
 def test_a_take_is_checked_once_and_stands_where_the_wider_look_agrees(counter, monkeypatch):
   # A get-up that left the belief right, or within the search's reach: the
-  # wide search finds the take's own place, the take stands at once, and the
-  # fall's doubt of the pose is over -- ~80 ms, once a fall.
+  # look finds the take's own place, the take stands at once, and the fall's
+  # doubt of the pose is over -- one look a fall.
   looks = _looks(monkeypatch)
   for belief, first in (((STOOD[0] + 0.03, STOOD[1] - 0.02, STOOD[2]), "ok"),
                         ((STOOD[0] + 0.45, STOOD[1] + 0.40, STOOD[2]), "found")):
     looks.clear()
     m = _fallen(counter)
     whys, end = _stood(m, belief, np.random.default_rng(33), 5)
-    assert whys == [first] + ["ok"] * 4 and looks == [("look", 0)], (whys, looks)
-    assert not m.fallen and m.fallen_from is None and m.pending is None
+    assert whys == [first] + ["ok"] * 4 and looks == ["look"], (whys, looks)
+    assert (m.fallen, m.looks_left, m.wider_wait, m.better) == (False, 0, 0, None)
     assert math.hypot(end[0] - STOOD[0], end[1] - STOOD[1]) < 0.03, end
 
 
 def test_a_take_stands_where_the_wider_look_cannot_tell_it_from_the_best(counter, monkeypatch):
-  # The wide search takes nothing where a second place explains the scan as
-  # well (RIVAL_SHARE), and the take is one more of its places: its rival,
-  # the take stands as it did before. Here the bar is set so that the
-  # counter's two lines are such a pair.
-  m = sm.ScanMatcher(counter)
+  # A place that explains the scan as well as the best does is its rival
+  # (RIVAL_SHARE), and the take is one more of the look's places: the best's
+  # rival, or itself the best, it stands as it did before. Here the bar is
+  # set so that the counter's two lines are such a pair.
+  m = _fallen(counter)
   m.refresh(BEHIND[0], BEHIND[1])
   pts = m.points(ANGLES, cast(COUNTER, STOOD, np.random.default_rng(31)))
   start = m._search(BEHIND, pts)
   at, why, kw = m._judge(BEHIND, pts, m._fit(start, pts), found=True)
   assert why == "found" and 0.5 < at[0] - STOOD[0] < 0.7, "the premise: the search's find"
-  wide = m._relocate(BEHIND, pts, also=(at, kw))
-  assert wide is not None and math.hypot(wide[0][0] - STOOD[0], wide[0][1] - STOOD[1]) < 0.03
-  share = kw["inliers"] / wide[1]["inliers"]
+  best = max(m._look(BEHIND, pts, (at, kw)), key=lambda f: f[1]["inliers"])
+  assert math.hypot(best[0][0] - STOOD[0], best[0][1] - STOOD[1]) < 0.03, "...and the look's: the truth"
+  share = kw["inliers"] / best[1]["inliers"]
   assert 0.6 < share < sm.RIVAL_SHARE, share
-  # ...a place of its own, the best where it explains the most: here one
-  # made up, far from any the wide search's lattice offers
-  far = ((BEHIND[0] - 1.9, BEHIND[1] + 1.2, BEHIND[2]), dict(kw, inliers=10 * wide[1]["inliers"]))
-  assert m._relocate(BEHIND, pts, also=far) is far
+  assert m._outdone(BEHIND, pts, (at, kw)) == (True, None) and m.better is not None
+  # ...itself the best: here beside a place made up, which explains less
+  m = _fallen(counter)
+  monkeypatch.setattr(m, "_wide_found", lambda pose, pts, doubt=False, turns=None: [_place((-1.0, 0.3), 100)])
+  assert m._outdone(BESIDE, pts, _place((0.0, 0.0), 200)) == (False, None)
+  # ...and the best's rival
   monkeypatch.setattr(sm, "RIVAL_SHARE", share - 0.01)
-  assert m._relocate(BEHIND, pts, also=(at, kw)) is None
   whys, belief = _stood(_fallen(counter), BEHIND, np.random.default_rng(31), 1)
   assert whys == ["found"] and 0.5 < belief[0] - STOOD[0] < 0.7, (whys, belief)
 
 
-def _place(off, inliers):
-  """A place a wide search found, `off` (m east, north) of BESIDE."""
-  step = (off[0], off[1], 0.0)
-  return ((BESIDE[0] + off[0], BESIDE[1] + off[1], BESIDE[2]),
-          {"inliers": inliers, "rms_m": 0.02, "weakest": 80.0, "weak_dir": (1.0, 0.0, 0.0),
-           "held": 0, "step": step})
-
-
-def test_a_take_two_better_places_outdo_is_refused_and_neither_is_taken(counter, monkeypatch):
-  # The wide search cannot tell two places apart, and both explain the scan
-  # far better than the take: the take is refused all the same -- taken, it
-  # is the place the scan fits worst of the three -- and nothing waits to be
-  # found again (#681's review: read as "nothing better", the search's
-  # silence let the take stand).
+def test_a_take_two_better_places_outdo_is_refused_until_its_looks_are_spent(counter, monkeypatch):
+  # The look cannot tell two places apart, and both explain the scan far
+  # better than the take: the take is refused all the same -- taken, it is
+  # the place the scan fits worst of the three -- and nothing waits to be
+  # found again (#681's review: read as "nothing better", the rivalry let
+  # the take stand). ⚠ FALLEN_LOOKS of them, and the doubt is over: refused
+  # for as long as the robot stood there, nothing was matched and nothing
+  # mapped for an hour at a counter (the review again).
   m = _fallen(counter)
-  monkeypatch.setattr(m, "_wide_found", lambda pose, pts, doubt=False: [_place((-0.52, 0.04), 340),
-                                                                        _place((-1.42, 0.04), 335)])
-  whys, belief = _stood(m, BESIDE, np.random.default_rng(38), 3)
-  assert whys == ["inconsistent"] * 3 and belief == BESIDE and m.pending is None and m.fallen, whys
+  looks = []
+  monkeypatch.setattr(m, "_wide_found", lambda pose, pts, doubt=False, turns=None: (
+    looks.append(1), [_place((-0.52, 0.04), 340), _place((-1.42, 0.04), 335)])[1])
+  spent = (sm.FALLEN_LOOKS - 1) * sm.LOST_RUN + 1
+  whys, belief = _stood(m, BESIDE, np.random.default_rng(38), spent)
+  assert whys == ["inconsistent"] * spent and belief == BESIDE and m.better is None, whys
+  assert len(looks) == sm.FALLEN_LOOKS and not m.fallen
+  whys, belief = _stood(m, BESIDE, np.random.default_rng(38), 2)
+  assert whys == ["ok", "ok"] and len(looks) == sm.FALLEN_LOOKS, whys
 
 
 def test_a_wider_look_weighs_places_at_the_takes_heading_and_at_the_doubts_bar(
@@ -1161,22 +1168,24 @@ def test_a_wider_look_weighs_places_at_the_takes_heading_and_at_the_doubts_bar(
   # poses turned 14-16 deg 0.78-0.96, and weighed as the wide search finds
   # its places (FOUND_SHARE, any heading in WIDE_RAD) a right belief up from
   # a fall was refused at 11 places and moved at 3. A get-up moves the body;
-  # the heading is the IMU's (right to 1.6 deg in 84 falls): a place turned
-  # UNIQUE_RAD from the take is no better place for it, and one that
-  # explains under DOUBT_FOUND_SHARE of the scan is none.
+  # the heading is the IMU's (right to 1.6 deg in 84 falls): the look's
+  # lattice is the take's own heading's, a place turned UNIQUE_RAD from the
+  # take is no better place for it, and one that explains under
+  # DOUBT_FOUND_SHARE of the scan is none.
   m = _fallen(counter)
   m.refresh(BESIDE[0], BESIDE[1])
   pts = m.points(ANGLES, cast(COUNTER, STOOD, np.random.default_rng(42)))
-  take = _place((0.0, 0.0), 200)
-  for turn, outdone in ((math.radians(14.0), False), (-sm.UNIQUE_RAD - 0.01, False),
+  take = _place((0.0, 0.0), 200, turn=0.05)
+  for turn, outdone in ((math.radians(14.0), False), (0.05 - sm.UNIQUE_RAD - 0.01, False),
                         (math.radians(4.0), True)):
-    at, kw = _place((-1.0, 0.3), 320)
-    turned = ((at[0], at[1], at[2] + turn), dict(kw, step=(-1.0, 0.3, turn)))
     asked = []
-    monkeypatch.setattr(m, "_wide_found",
-                        lambda pose, pts, doubt=False: (asked.append(doubt), [turned])[1])
-    m.pending, m.wider_wait = None, 0
-    assert m._outdone(BESIDE, pts, take) is outdone and asked == [True], (turn, asked)
+    monkeypatch.setattr(m, "_wide_found", lambda pose, pts, doubt=False, turns=None: (
+      asked.append((doubt, turns)), [_place((-1.0, 0.3), 320, turn)])[1])
+    m.fell()
+    assert m._outdone(BESIDE, pts, take)[0] is outdone, turn
+    (doubt, turns), = asked
+    assert doubt and np.abs(turns - 0.05).max() <= sm.UNIQUE_RAD + 1e-9, (doubt, turns)
+    assert len(turns) == 2 * round(sm.UNIQUE_RAD / sm.SEARCH_STEP_RAD) + 1
   # ...at the doubt's bar: set past any scan, the counter's truth is no place
   # of the look's, and the take it would have refused stands
   monkeypatch.undo()
@@ -1185,63 +1194,58 @@ def test_a_wider_look_weighs_places_at_the_takes_heading_and_at_the_doubts_bar(
   assert whys == ["found"] and 0.5 < belief[0] - STOOD[0] < 0.7, (whys, belief)
 
 
-def test_a_wider_look_is_made_once_in_its_scans(counter, monkeypatch):
-  # ~80 ms on the physics thread: a look is made once in LOST_RUN scans the
-  # matcher is handed, whatever breaks the run between -- a scan with too
-  # little under it does, and what the look found goes with the run -- and a
-  # take between two looks is refused as the last one was (#681's review:
-  # looked at afresh after every such scan, a take was searched every other
-  # scan).
+def test_a_wider_look_is_made_once_in_its_scans_whatever_comes_between(counter, monkeypatch):
+  # ~40 ms on the physics thread: a look is made once in LOST_RUN scans the
+  # matcher is handed, and what it found waits for the next whatever comes
+  # between -- a scan with too little under it, a fit that slid, which each
+  # break the plain run of refusals (#681's review: looked at afresh after
+  # every such scan, a take was searched every other scan; and flown, fits
+  # slid and takes refused in turn never came to a second search, 563 scans
+  # in a minute). A take between two looks is refused as the last one was.
   looks = _looks(monkeypatch)
   m = _fallen(counter)
   rng = np.random.default_rng(39)
   empty = np.full(len(ANGLES), 8.0)
   whys = []
   for k in range(sm.LOST_RUN + 1):
-    ranges = empty if k % 2 else cast(COUNTER, STOOD, rng)
-    whys.append(m.match(BESIDE, ANGLES, ranges).why)
-  assert whys == ["inconsistent", "sparse"] * (sm.LOST_RUN // 2) + ["inconsistent"], whys
-  assert looks == [("look", 0), ("look", 0)], looks
+    whys.append(m.match(BESIDE, ANGLES, empty if k % 2 else cast(COUNTER, STOOD, rng)).why)
+  assert whys == ["inconsistent", "sparse"] * (sm.LOST_RUN // 2) + ["relocated"], whys
+  assert looks == ["look", "look"] and m.lost_run == 0, looks
 
 
-def test_at_the_next_wide_search_the_take_is_still_one_of_its_places(counter, monkeypatch):
+def test_at_the_next_look_the_take_is_weighed_afresh(counter, monkeypatch):
   # Refused at the stand for a better place, a take that is that place's
-  # rival by the time the wide search looks again is outdone no longer:
-  # nothing is relocated, and the take stands at the next look. The wide
-  # search's own lattice is held to the truth's place here, so that only the
-  # take handed to it can be the rival.
+  # rival by the time of the next look is outdone no longer: nothing is
+  # relocated, and the take stands.
   m = _fallen(counter)
-  monkeypatch.setattr(m, "_wide_candidates", lambda pose, pts: [STOOD])
   rng = np.random.default_rng(35)
   whys, belief = _stood(m, BESIDE, rng, sm.LOST_RUN)
-  assert whys == ["inconsistent"] * sm.LOST_RUN and m.pending is not None, whys
+  assert whys == ["inconsistent"] * sm.LOST_RUN and m.better is not None, whys
   monkeypatch.setattr(sm, "RIVAL_SHARE", 0.6)
-  monkeypatch.setattr(m, "_relocate_turned", lambda pose, pts: None)
-  whys, belief = _stood(m, belief, rng, 2)
-  assert whys == ["inconsistent", "ok"] and m.pending is None and not m.fallen, whys
+  whys, belief = _stood(m, belief, rng, 1)
+  assert whys == ["ok"] and m.better is None and not m.fallen, whys
   assert 0.5 < belief[0] - STOOD[0] < 0.7, belief
 
 
 def test_up_from_a_fall_a_copy_of_the_room_a_step_away_takes_no_right_belief(store_copy):
-  # The wider look's find is a PLACE, as the wide search's are (UNIQUE_M): on
-  # the storeroom with a copy laid 0.3 m along its counter the wide search
-  # finds the copy at every pose -- it explains more of a scan than the room
-  # does, the room 0.78-0.81 of its points on walls -- and a right belief up
-  # from a fall stands, as one not up from a fall does (the third round's
-  # rule: a copy captures no right belief). Refused for any better POSE, the
-  # belief was moved onto the copy at 7 poses of 7.
+  # A wider look's find is a PLACE, as the wide search's are (UNIQUE_M): on
+  # the storeroom with a copy laid 0.3 m along its counter the look finds
+  # the copy at every pose -- it explains more of a scan than the room does,
+  # the room 0.78-0.81 of its points on walls -- and a right belief up from
+  # a fall stands, as one not up from a fall does (the third round's rule: a
+  # copy captures no right belief). Refused for any better POSE, the belief
+  # was moved onto the copy at 7 poses of 7.
   g, poses = store_copy
   for k, p in enumerate(poses):
     ranges = cast(STORE, p, np.random.default_rng(30 + k))
     m = _fallen(g)
     got = m.match(p, ANGLES, ranges)
     assert got.why == "ok" and abs(got.pose[0] - p[0]) < 0.05 and not m.fallen, (k, got)
-    # ...the premise: the wide search's find is the copy
+    # ...the premise: the look's best place is the copy
     pts = m.points(ANGLES, ranges)
     at, _, kw = m._judge(p, pts, m._fit(p, pts))
-    wide = m._relocate(p, pts, also=(at, kw))
-    assert wide is not None and 0.2 < wide[0][0] - p[0] < 0.4, (k, wide)
-    assert wide[1]["inliers"] > kw["inliers"], (k, wide[1]["inliers"], kw["inliers"])
+    best = max(m._look(p, pts, (at, kw)), key=lambda f: f[1]["inliers"])
+    assert 0.2 < best[0][0] - p[0] < 0.4 and best[1]["inliers"] > kw["inliers"], (k, best)
 
 
 def test_up_from_a_fall_the_map_is_believed_and_a_copy_further_off_that_explains_more_is_taken(
@@ -1276,22 +1280,23 @@ def test_up_from_a_fall_the_map_is_believed_and_a_copy_further_off_that_explains
 
 def test_a_verdict_that_takes_nothing_is_not_checked(room, monkeypatch):
   # Only a take is checked: a verdict that neither moves the belief nor lays
-  # the scan (too little map to say, no direction fixed) is what it was, up
-  # from a fall too, and costs no wide search.
+  # the scan (too little map to say, no direction fixed, a fit that slid) is
+  # what it was, up from a fall too, and costs no look.
   m = _fallen(room)
   kw = {"inliers": 50, "rms_m": 0.02, "weakest": 0.0, "weak_dir": (1.0, 0.0, 0.0), "held": 3}
-  monkeypatch.setattr(m, "_judge", lambda asked, pts, fit, **k: (asked, "unconstrained", dict(kw)))
   monkeypatch.setattr(m, "_wide_found", lambda *a, **k: pytest.fail("a wider look for no take"))
-  got = m.match(TRUE, ANGLES, cast(ROOM, TRUE, np.random.default_rng(36)))
-  assert got.why == "unconstrained" and not got.accepted and m.fallen and m.lost_run == 0
+  for why in ("unconstrained", "slid"):
+    monkeypatch.setattr(m, "_judge", lambda asked, pts, fit, **k: (asked, why, dict(kw)))
+    monkeypatch.setattr(m, "_search", lambda *a, **k: None)
+    got = m.match(TRUE, ANGLES, cast(ROOM, TRUE, np.random.default_rng(36)))
+    assert got.why == why and not got.accepted and m.fallen and m.lost_run == 0
 
 
-def test_a_better_place_wider_waits_for_the_next_wide_search_and_a_restart_keeps_it(
-    counter, monkeypatch):
-  # Once is a coincidence, for a wider look too: its find waits as the wide
-  # search's own does, found again LOST_RUN refusals on -- no search between,
-  # every scan refused and none laid in -- and a restart between the two
-  # relocates on the same scan (issue #345's rule).
+def test_a_better_place_wider_waits_for_the_next_look_and_a_restart_keeps_it(counter, monkeypatch):
+  # Once is a coincidence, for a wider look too: its find waits to be found
+  # again by the next, LOST_RUN scans on -- no look between, every scan
+  # refused and none laid in, the plain run of refusals not touched -- and a
+  # restart between the two relocates on the same scan (issue #345's rule).
   looks = _looks(monkeypatch)
   rng = np.random.default_rng(34)
   scans = [cast(COUNTER, STOOD, rng) for _ in range(sm.LOST_RUN + 1)]
@@ -1300,74 +1305,62 @@ def test_a_better_place_wider_waits_for_the_next_wide_search_and_a_restart_keeps
     got = a.match(BESIDE, ANGLES, r)
     assert got.why == "inconsistent" and got.pose == BESIDE and got.step == sm.NO_STEP
     assert not got.accepted and not got.fuse and not a.fuses(got, 9.0)
-  assert a.pending is not None and a.fallen and looks == [("look", 0)]
+  assert a.better is not None and a.fallen and looks == ["look"] and (a.lost_run, a.pending) == (0, None)
   state, arrays = a.kept_state()
-  assert state["fallen"] and state["pending"] is not None
-  assert state["fallenFrom"] == list(BESIDE[:2]) and state["widerWait"] == sm.LOST_RUN - 3
+  assert state["fallen"] and state["better"] == list(a.better)
+  assert (state["looksLeft"], state["widerWait"]) == (sm.FALLEN_LOOKS - 1, sm.LOST_RUN - 3)
   b = sm.ScanMatcher(counter)
   b.restore_kept(state, arrays)
-  assert ((b.fallen, b.fallen_from, b.wider_wait, b.pending, b.lost_run)
-          == (a.fallen, a.fallen_from, a.wider_wait, a.pending, a.lost_run))
+  assert ((b.fallen, b.looks_left, b.wider_wait, b.better, b.turned_from)
+          == (a.fallen, a.looks_left, a.wider_wait, a.better, a.turned_from))
   for r in scans[4:]:
     got_a, got_b = a.match(BESIDE, ANGLES, r), b.match(BESIDE, ANGLES, r)
   assert got_a.why == got_b.why == "relocated" and got_a.pose == got_b.pose
-  assert looks == [("look", 0), ("search", sm.LOST_RUN), ("search", sm.LOST_RUN)]
-  assert not a.fallen and not b.fallen
+  assert looks == ["look"] * 3 and not a.fallen and not b.fallen
 
 
 def test_while_a_better_place_waits_a_take_stands_only_where_it_is_that_place(counter):
   # Flown at the cube's end of the counter: the first find refused, the
   # search's next lay 0.43 m from the truth -- one place with it, to the
   # wide search -- between the truth and the place refused, and the fits
-  # after it slid back onto that place. Until the next wide search a take
-  # is the find that waits, to a fit's own width, or it waits too.
+  # after it slid back onto that place. Until the next look a take is the
+  # find that waits, to a fit's own width, or it waits too.
   m = _fallen(counter)
   m.refresh(BEHIND[0], BEHIND[1])
   pts = m.points(ANGLES, cast(COUNTER, STOOD, np.random.default_rng(31)))
   kw = {"inliers": 200, "rms_m": 0.03, "weakest": 40.0, "weak_dir": (1.0, 0.0, 0.0), "held": 0}
   waits = (STOOD[0] - BEHIND[0], STOOD[1] - BEHIND[1], 0.0)
   for off, outdone in ((0.43, True), (sm.DOUBT_SLID_M + 0.02, True), (0.03, False)):
-    m.pending = waits
+    m.better, m.wider_wait = waits, 5
     step = (waits[0] + off, waits[1], 0.0)
     take = ((BEHIND[0] + step[0], BEHIND[1] + step[1], BEHIND[2]), dict(kw, step=step))
-    assert m._outdone(BEHIND, pts, take) is outdone, off
-    assert m.pending == waits and not m.wider_wait, "no look while one waits"
+    assert m._outdone(BEHIND, pts, take) == (outdone, None), off
+    assert (m.better, m.wider_wait) == (waits, 5), "no look while one waits"
+  # ...and with none waiting (two better places, rivals), refused as the last look refused it
+  m.better = None
+  assert m._outdone(BEHIND, pts, take) == (True, None)
 
 
-def test_up_from_a_fall_a_fit_that_slid_is_one_more_refusal_of_the_run(room, monkeypatch):
-  # A fit that slid is refused and breaks the run of refusals, so a robot
-  # whose fits slid never came to its wide search (N6's lobby: 30 s of them;
-  # at the counter a run of fits slid and takes refused in turn, 563 scans in
-  # a minute, 0.9 m off). Up from a fall it counts as the map's own refusal
-  # does: LOST_RUN of them, the wide search; LOST_RUN more, the pose.
-  monkeypatch.setattr(sm, "DOUBT_FOUND_SHARE", 1.01)     # the doubt's search takes nothing
-  slid = (TRUE[0] + 0.14, TRUE[1] - 0.10, TRUE[2] + 0.08)
-  rng = np.random.default_rng(5)
-  m = _fallen(room)
-  whys = [m.match(slid, ANGLES, cast(ROOM, TRUE, rng)).why for _ in range(2 * sm.LOST_RUN)]
-  assert whys == ["inconsistent"] * (2 * sm.LOST_RUN - 1) + ["relocated"], whys
-  assert math.hypot(m.last.pose[0] - TRUE[0], m.last.pose[1] - TRUE[1]) < 0.03
-  # ...and not up from one, it is what it was: refused, the run broken
-  m = sm.ScanMatcher(room)
-  rng = np.random.default_rng(5)
-  whys = [m.match(slid, ANGLES, cast(ROOM, TRUE, rng)).why for _ in range(2 * sm.LOST_RUN)]
-  assert set(whys) == {"slid"} and m.lost_run == 0, whys
-
-
-@pytest.mark.parametrize("run", [sm.LOST_RUN - 1, sm.LOST_RUN - 2, 3])
-def test_a_wider_look_is_found_again_only_lost_run_refusals_on(counter, run):
-  # The wide search's rule, for a wider look too: once is a coincidence, and
-  # the second find is the wide search's LOST_RUN refusals later. A take
-  # first refused as the run of refusals stood just short of LOST_RUN made
-  # its second search on that scan, or two scans on (#681's review): the
-  # look's own scan starts the count.
+def test_a_wider_look_is_found_again_by_the_next_look_and_never_by_the_plain_wide_search(
+    counter, monkeypatch):
+  # The wide search's rule, for a wider look too: once is a coincidence. But
+  # the second find is the next LOOK's -- at the take's heading and the
+  # doubt's bar, as the first -- never the plain wide search's, which looks
+  # at any heading at its own bar and whose turn a run of refusals standing
+  # just short of LOST_RUN brought two scans on (#681's review); and a place
+  # the plain search holds for its own second (`pending`) refuses no take.
+  looks = _looks(monkeypatch)
   m = _fallen(counter)
-  m.lost_run = run
-  rng = np.random.default_rng(37)
-  got = m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, rng))
-  assert got.why == "inconsistent" and m.pending is not None and m.lost_run == 0, got
-  whys, belief = _stood(m, BESIDE, rng, sm.LOST_RUN)
-  assert whys == ["inconsistent"] * (sm.LOST_RUN - 1) + ["relocated"], whys
+  m.lost_run, m.pending = sm.LOST_RUN - 2, (-1.8, 0.0, 0.0)
+  whys, belief = _stood(m, BESIDE, np.random.default_rng(37), sm.LOST_RUN + 1)
+  assert whys == TAKEN_BACK and looks == ["look", "look"], (whys, looks)
+  assert math.hypot(belief[0] - STOOD[0], belief[1] - STOOD[1]) < 0.03, belief
+  # ...and a right take stands at once beside it
+  looks.clear()
+  m = _fallen(counter)
+  m.lost_run, m.pending = sm.LOST_RUN + 1, (-1.8, 0.0, 0.0)
+  whys, belief = _stood(m, (STOOD[0] + 0.45, STOOD[1] + 0.40, STOOD[2]), np.random.default_rng(33), 1)
+  assert whys == ["found"] and looks == ["look"] and m.pending is None, (whys, looks)
   assert math.hypot(belief[0] - STOOD[0], belief[1] - STOOD[1]) < 0.03, belief
 
 
@@ -1381,22 +1374,23 @@ def test_the_falls_doubt_ends_once_the_belief_has_walked_on(counter, monkeypatch
   m = _fallen(counter)
   empty = np.full(len(ANGLES), 8.0)
   assert m.match((STOOD[0] - sm.FALLEN_NEAR_M + 0.1, STOOD[1], STOOD[2]), ANGLES, empty).why == "sparse"
-  assert m.fallen and m.fallen_from == (STOOD[0] - sm.FALLEN_NEAR_M + 0.1, STOOD[1])
+  assert m.fallen and m.turned_from == (STOOD[0] - sm.FALLEN_NEAR_M + 0.1, STOOD[1])
   assert m.match((STOOD[0] + 0.03, STOOD[1], STOOD[2]), ANGLES, empty).why == "sparse" and m.fallen
   whys, belief = _stood(m, BESIDE, np.random.default_rng(40), 1)
   assert whys == ["ok"] and not m.fallen and not looks, (whys, looks)
+  settled = (False, 0, 0, None)
   for on in (True, False):
     m = _fallen(counter)
     m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, np.random.default_rng(41)))
-    assert m.fallen and m.fallen_from and m.wider_wait
+    assert m.fallen and m.wider_wait and m.better is not None and m.looks_left == sm.FALLEN_LOOKS - 1
     m.anchored(on)
-    assert (m.fallen, m.fallen_from, m.wider_wait) == (False, None, 0)
+    assert (m.fallen, m.looks_left, m.wider_wait, m.better) == settled
   m = _fallen(counter)
   m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, np.random.default_rng(41)))
   m.forget()
-  assert (m.fallen, m.fallen_from, m.wider_wait) == (False, None, 0)
+  assert (m.fallen, m.looks_left, m.wider_wait, m.better) == settled
   m.fell()
-  assert (m.fallen, m.fallen_from, m.wider_wait) == (True, None, 0)
+  assert (m.fallen, m.looks_left, m.wider_wait, m.better) == (True, sm.FALLEN_LOOKS, 0, None)
 
 
 def test_not_up_from_a_fall_a_find_stands_whatever_the_wide_search_holds(counter, monkeypatch):
@@ -1411,6 +1405,19 @@ def test_not_up_from_a_fall_a_find_stands_whatever_the_wide_search_holds(counter
   whys, belief = _stood(m, (STOOD[0] + 0.45, STOOD[1] + 0.40, STOOD[2]), np.random.default_rng(33), 1)
   assert whys == ["found"] and math.hypot(belief[0] - STOOD[0], belief[1] - STOOD[1]) < 0.03
   assert not looks and m.pending is None
+
+
+def test_a_fall_closes_an_anchors_window(counter):
+  # Fixed off the station's tags and shoved over before the window closed
+  # (the station's own fall scene), the scans after the get-up were laid
+  # unmatched at a belief the get-up had just left behind: a copy of the
+  # room (#681's review). Up from a fall they are matched.
+  m = sm.ScanMatcher(counter)
+  m.anchored()
+  assert m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, np.random.default_rng(43))).why == "anchored"
+  m.fell()
+  assert m.anchoring == 0
+  assert m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, np.random.default_rng(43))).why == "inconsistent"
 
 
 # ---- a robot up from a fall, its heading turned (issue #690) -----------------
@@ -1588,7 +1595,7 @@ def _counted(m, monkeypatch, found_from=None):
     return (tuple(pose), kw) if found_from is not None and len(ran) >= found_from else None
   monkeypatch.setattr(m, "_relocate_turned", turned)
   monkeypatch.setattr(m, "_search", lambda *a, **k: None)
-  monkeypatch.setattr(m, "_relocate", lambda pose, pts, also=None: None)
+  monkeypatch.setattr(m, "_relocate", lambda pose, pts: None)
   return ran
 
 
@@ -1633,7 +1640,7 @@ def test_a_fall_starts_the_run_of_refusals_again(room, monkeypatch):
   m.fell()
   assert (m.lost_run, m.pending) == (0, None)
   searched = []
-  monkeypatch.setattr(m, "_relocate", lambda pose, pts, also=None: searched.append(1))
+  monkeypatch.setattr(m, "_relocate", lambda pose, pts: searched.append(1))
   monkeypatch.setattr(m, "_relocate_turned", lambda pose, pts: None)
   elsewhere = cast(ELSEWHERE, (1.2, 1.6, 0.9), np.random.default_rng(49))
   for _ in range(sm.LOST_RUN - 1):
