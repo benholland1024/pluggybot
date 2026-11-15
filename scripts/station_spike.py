@@ -690,22 +690,47 @@ def reach() -> list[dict]:
 
 def hold(seconds: float) -> dict:
   """Plugged in at the seat, held `seconds`: the pack's gain, W, net of its
-  draw standing, and the plug held."""
+  draw standing, and the plug held -- and how far the balancer's pull crept
+  the robot in toward the station meanwhile (#703: the sim's truth, read to
+  grade, m in toward it and to its left, deg turned left, and how high a sole
+  lifted, mm), and how far its belief was from its body at the end."""
   model, data, body, station = world(at_seat=True)
   why = body.run(body.dock_routine())
   if why != "docked":
     return {"dock": why}
   pack = body.pack(800.0, 1.0)
   draws, held = [], []
-  body.step_hooks.append(lambda: (draws.append(pack.power_draw(data)),
-                                  held.append(body.charging())))
+  soles = [model.geom(body.handle.el(f"{s}_sole")).id for s in ("left", "right")]
+  lifted = [0.0]
+  floor = [float(data.geom_xpos[g][2]) for g in soles]      # ...each sole's own
+
+  def sample():
+    draws.append(pack.power_draw(data))
+    held.append(body.charging())
+    lifted[0] = max(lifted[0], *(float(data.geom_xpos[g][2]) - z for g, z in zip(soles, floor)))
+  body.step_hooks.append(sample)
+  frame = body._station
+
+  def stance():
+    x, y, yaw = body._true_stance()
+    c, s = math.cos(frame.yaw), math.sin(frame.yaw)
+    return ((x - frame.x) * c + (y - frame.y) * s, -(x - frame.x) * s + (y - frame.y) * c,
+            math.remainder(yaw - frame.yaw, 2 * math.pi))
+  a0, l0, t0_ = stance()
   t0 = float(data.time)
   body.run(body.dock_hold_routine(seconds))
   dt = float(data.time) - t0
+  a1, l1, t1_ = stance()
+  (bx, by, bh), (tx, ty, th) = body.pose, body.true_pose()
   out = {"dock": why, "seconds": round(dt, 1), "chargerW": round(pack.charge_w, 1),
          "drawW": round(float(np.mean(draws)), 1),
          "netW": round(pack.charge_w - float(np.mean(draws)), 1),
-         "heldShare": round(float(np.mean(held)), 4), "falls": body.falls}
+         "heldShare": round(float(np.mean(held)), 4), "falls": body.falls,
+         "creptInM": round(a1 - a0, 4), "creptLeftM": round(l1 - l0, 4),
+         "turnedDeg": round(math.degrees(math.remainder(t1_ - t0_, 2 * math.pi)), 2), "soleLiftedMm": round(lifted[0] * 1000, 1),
+         "beliefOffM": round(math.hypot(bx - tx, by - ty), 4),
+         "beliefOffDeg": round(math.degrees(abs(math.remainder(bh - th, 2 * math.pi))), 2),
+         "matched": body.match_counts}
   print(json.dumps(out))
   return out
 
