@@ -287,6 +287,33 @@ def test_a_hand_that_could_not_take_the_plug_out_says_so():
   assert any("could not get the plug out" in ln for ln in life.log), life.log[-3:]
 
 
+def test_a_charges_end_that_left_the_plug_in_says_so_too():
+  """#703: after a long charge the hand could not take the plug out at a
+  charge's own end either, and said nothing: "CHARGE complete -- backing off"
+  read as unplugged, and the next walk stalled on the rope with no word of
+  why. It says what the run's unplug says."""
+  life = _life()
+  _plugged_in(life, frac=lc.CHARGED)
+
+  def undock():
+    return "arrived"
+    yield
+  life.body.undock_routine = undock
+  life.body.run(life.charge_routine())
+  assert life.log[-1].endswith(lc.UNPLUG_FAILED), life.log[-3:]
+  # ...and one that took it out says nothing of the kind
+  life = _life()
+  _plugged_in(life, frac=lc.CHARGED)
+
+  def unplugs():
+    life.body.on_charger = False
+    return "arrived"
+    yield
+  life.body.undock_routine = unplugs
+  life.body.run(life.charge_routine())
+  assert not any(lc.UNPLUG_FAILED in ln for ln in life.log), life.log[-3:]
+
+
 def test_anything_else_it_chooses_takes_its_plug_out_first():
   """A mind may choose not to go on charging, and walking off pulled the
   plug out past the port's 20 N. A hand takes it out first, as a charge's

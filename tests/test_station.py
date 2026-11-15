@@ -492,6 +492,10 @@ def test_the_unplug_steps_back_to_its_seat_first_where_a_charge_crept_it_in(monk
       assert body.stepped[0][2] == 0.0
       assert body.stance[:2] == pytest.approx((0.0, 0.0), abs=1e-9)
       assert body.stance[2] == pytest.approx(turned)
+      # ...and its look after the step taken standing still, never bowed
+      after = body.said[body.said.index("step") + 1:]
+      assert after[:2] == [("hold", charge.LOOK_SETTLE_S), "spot"], after
+      assert "gaze" not in body.said, body.said
 
 
 def test_an_unplug_whose_step_back_freed_the_plug_reaches_for_none(monkeypatch):
@@ -509,7 +513,7 @@ def test_an_unplug_whose_step_back_freed_the_plug_reaches_for_none(monkeypatch):
   body.stance = (0.18, 0.0, 0.0)
   why = _drive(charge.unplug_routine(body, RackPose(0.35, -0.075, 0.0), []))
   assert "reach" not in body.said and not body.plugged, body.said
-  assert why == "it came off its port as it stepped back to its seat"
+  assert why == "it came off its port as it stepped back to its seat (stepped)", why
 
 
 def test_an_unplug_that_failed_tries_once_more_off_a_look_of_its_own(monkeypatch):

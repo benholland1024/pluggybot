@@ -694,8 +694,9 @@ save a filmstrip PNG named after the script.
   swung into the box -- so further in than 6 cm it backs off to its seat
   first, never turned on the spot first (pinned, a turn swings the plug
   across the box's face), by the station as it last saw it (its scan
-  matcher keeps its belief on its body, 2-8 mm), and a failed try goes
-  again off a look of its own. ⚠ One that fails twice leaves the plug in, and after the
+  matcher keeps its belief on its body, within about a centimetre), and
+  a failed try goes again off a look of its own; a charge's end that left
+  the plug in says so (`UNPLUG_FAILED`). ⚠ One that fails twice leaves the plug in, and after the
   undock's turn the rope pulls it into the port's face, which the catch
   holds: the walk stalls. ⚠ A TRY'S HAND IS PLACED OFF A LOOK OF ITS OWN, TAKEN
   STANDING STILL, THE STATION CARRIED AS THE FEET CARRY IT (#596;

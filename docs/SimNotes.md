@@ -4075,12 +4075,13 @@ back, swings into the station's box (its face 0.17 m ahead of the stance, its
 edge 0.15 m across) and stops short: "my hand could not get the plug out",
 twice of twice on 11-14 after the lobby's charges of 1,944 and 1,504 s, each
 13.1 s after "unplugging" -- a restart only made it heard, and a charge's own
-end failed the same way unheard. The unplug now begins at its seat: further in
+end failed the same way unheard (it says so now). The unplug now begins at its seat: further in
 than `UNPLUG_IN_M` (6 cm) it backs off to it first, by the station as it last
 saw it -- from 18 cm in no look sees the tags, plain or bowed -- in a step or two
 and never turned on the spot first (pinned, a turn would swing its plug across
 the box's face, which the port lets go to); and a failed try is tried once more
-from a look of its own, taken standing still (`UNPLUG_TRIES`).
+from a look of its own, taken standing still (`UNPLUG_TRIES`). Its looks
+while it backs off are plain ones, never bowed toward the box.
 
 **What tells it that it crept: its scan matcher.** Its legs see no slide with
 their feet planted, the gyro's 0.02 deg/s is under the heading hold's gate,
@@ -4094,7 +4095,8 @@ ten a second while it stands docked, keep its belief on its body:
 | 1500 s | 16.1 cm, 11 deg | 2.3 mm, 0.01 deg |
 | 600 s, its matcher off | 8 cm, 9 deg | 110 mm, 7.0 deg |
 
-On a map laid from its seat alone, the robot never having walked
+At the house's station, in one process, its belief was 2.7, 3.0, 9.7 and 12.2
+mm off at 300, 600, 900 and 1,500 s. On a map laid from its seat alone, the robot never having walked
 (`station_spike.py --hold`), its belief did not follow: 15.5 mm off after 15
 mm of creep, the fits laying each scan where the belief already was.
 
@@ -4104,8 +4106,8 @@ from a save of one charge, the unplug a decided `explore` begins with):
 | saved after | before | backed off to its seat first |
 |---|---|---|
 | 300 s | unplugged, 21.3 s | not asked to (3.2 cm in): the same flight |
-| 900 s | unplugged | from 10.3 cm in to 2.7, one step: unplugged, 22.8 s |
-| 1500 s | its hand did not get behind the plug, in 13.2 s | from 14.9 cm in to 0.9 cm out, one step: unplugged, 23.7 s |
+| 900 s | unplugged | from 10.3 cm in to 0.9, one step: unplugged, 25.8 s |
+| 1500 s | its hand did not get behind the plug, in 13.2 s | from 14.9 cm in to 1.7 cm out, one step: unplugged, 26.9 s |
 
 In one process, charged 1,500 s and the unplug at once (one pod), the same:
 at the lobby's station, at the house's (14 cm in, 12 deg), and at the lobby's

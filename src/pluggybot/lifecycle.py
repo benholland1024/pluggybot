@@ -259,6 +259,9 @@ CHARGED = 0.90
 #: the humanoid's house until its cable's station, stage 2) -- History's
 #: words, `charge: did not charge -- ...`.
 NO_CHARGER = "there is nowhere for me to charge here"
+#: ...and what a hand that could not take its plug out says, its run's
+#: unplug and a charge's end alike (#703).
+UNPLUG_FAILED = "CHARGE: my hand could not get the plug out -- going on anyway"
 
 #: Sim seconds of charging before calling it stuck, on a DEMO cell.
 #:
@@ -2908,6 +2911,10 @@ class HubLifecycle:
     if self.data.time > t0:
       self._bank(scoring.score_charge(self, before))
     yield from self.body.undock_routine()
+    if self.body.charging():
+      # ...said as the run's own unplug says it: unsaid, a charge's end that
+      # left the plug in read as one that took it out (#703)
+      self._say(UNPLUG_FAILED)
 
   def unplug_routine(self, why: str = "what I chose next is not here") -> Routine:
     """The plug out by hand before the body goes anywhere (#654): a run's end
@@ -2921,7 +2928,7 @@ class HubLifecycle:
     self._say(f"CHARGE: unplugging at {self.battery.fraction:.0%} -- {why}")
     yield from self.body.undock_routine()
     if self.body.charging():
-      self._say("CHARGE: my hand could not get the plug out -- going on anyway")
+      self._say(UNPLUG_FAILED)
 
   def run_errand(self, errand) -> dict:
     return self.body.run(self.run_errand_routine(errand))
