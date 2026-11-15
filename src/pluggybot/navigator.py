@@ -811,16 +811,17 @@ class Navigator:
     dist, _ = graph.search(src[1] * cols + src[0], limit=limit)
     return dist.reshape(lattice.shape)
 
-  def walks_m(self, goals: dict) -> dict:
+  def walks_m(self, goals: dict, seen: bool = False) -> dict:
     """How far a walk to each of `goals` ({name: (x, y)}) is from where it
     believes it is, m, over its own map, through the floor it has not seen
-    at the planner's price (`UNKNOWN_COST`) -- the walk it would take -- the
-    other robots' discs left in, for they move; inf where no walk reaches
-    one. Each goal's walk is the shortest to a lattice cell within one of
-    its own: a map laid a little askew puts a goal off the wall's face in
-    the wall's inflation."""
+    at the planner's price (`UNKNOWN_COST`) -- the walk it would take -- or,
+    `seen`, over the floor it has seen alone (`seen_floor_lattice`) -- the
+    way it knows; the other robots' discs left in, for they move; inf where
+    no walk reaches one. Each goal's walk is the shortest to a lattice cell
+    within one of its own: a map laid a little askew puts a goal off the
+    wall's face in the wall's inflation."""
     b = optimistic.BLOCK
-    lattice = optimistic.coarsen(
+    lattice = self.seen_floor_lattice() if seen else optimistic.coarsen(
       optimistic.map_costs(self._planning_grid(), self.INFLATION_CELLS, self.UNKNOWN_COST), b)
     x, y, _ = self.pose
     field = self.walk_field(lattice, (x, y))
@@ -835,10 +836,16 @@ class Navigator:
     return {n: walk(*xy) for n, xy in goals.items()}
 
   def walk_m(self, wx: float, wy: float) -> float:
-    """How far a walk to (wx, wy) is from where it believes it is, m, as
-    `walks_m` measures one; the straight line where no walk reaches it."""
-    walk = self.walks_m({0: (wx, wy)})[0]
-    return walk if math.isfinite(walk) else math.hypot(wx - self.pose[0], wy - self.pose[1])
+    """How far a walk to (wx, wy) is from where it believes it is, m
+    (`walks_m`): the way it knows, over the floor it has seen, where that
+    reaches it -- the planner's walk would take a way through floor it has
+    not seen, and where that is a wall it has not met, the walk goes round
+    -- else the planner's, else the straight line."""
+    for seen in (True, False):
+      walk = self.walks_m({0: (wx, wy)}, seen=seen)[0]
+      if math.isfinite(walk):
+        return walk
+    return math.hypot(wx - self.pose[0], wy - self.pose[1])
 
   def nearest_by_walk(self, goals: dict) -> str | None:
     """Which of `goals` ({name: (x, y)}) is the shortest walk from where it
