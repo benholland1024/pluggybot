@@ -189,8 +189,8 @@ class Body(abc.ABC):
   #: to rest); `askedWay`, the robots asked to make way that said yes
   #: (issue #415); `standIn`, a `no_route` that stood where it could
   #: nearest a goal its map's keep-off takes in -- `solidM` / `standM`, how
-  #: far the goal and the robot are from what it holds solid there (#700).
-  #: None before any.
+  #: far the goal and the robot are from what it holds solid there, and
+  #: `keepM`, the keep-off `drive_to`'s text states (#700). None before any.
   last_drive: dict | None
 
   @abc.abstractmethod

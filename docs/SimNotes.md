@@ -1082,13 +1082,16 @@ judged on the 10 cm lattice -- and the plan ends at a stand-in, the nearest
 place to stand. Both were `no_route`, and both were said alike.
 
 **A walk at its stand-in by something its map holds says so**
-(`Navigator._map_keep_off`, the record's `standIn`; `no_route` still):
+(`Navigator._solid_by`, the record's `standIn`; `no_route` still):
 "(nowhere nearer to stand: the goal is 0.00 m from something the map holds
 solid, nearer than a walk keeps, and the robot stood 0.45 m from it)". The
-solid cell is found as `map_costs` grows a wall -- taxicab from the goal's
-lattice cell -- so a record has one exactly where the plan's lattice cell
-for the goal is no floor (pinned both ways along a counter and round a
-post). A goal the seen walls shut off, a robot its map has walled in, and a
+solid cell is found as the plan chooses its stand-in, on that plan's grid,
+as `map_costs` grows a wall -- taxicab from the goal's lattice cell,
+clamped as `route` clamps it -- so a record has one exactly where the
+plan's lattice cell for the goal is no floor (pinned both ways along a
+counter and round a post). The lattice keeps a goal off up to a cell past
+the 0.35 m the verb's text states, and a goal there reads "about as near
+as a walk keeps". A goal the seen walls shut off, a robot its map has walled in, and a
 stand-in another robot's disc made keep "no route over the floor mapped so
 far".
 

@@ -421,11 +421,14 @@ def _find(life, args: dict) -> Routine:
 
 def _walk_trace(w: dict) -> str:
   """A walk's record (`Navigator.last_drive`) as a trace says it: how it
-  ended, how far short and after how long, and the robot it was about."""
+  ended, how far short and after how long, what its map held solid by a
+  goal it stood short of (#700), and the robot it was about."""
   if "why" not in w:
     return "?"
-  peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests",
-                                           "peerDead", "askedWay") if k in w)
+  kept = w.get("standIn") or {}
+  peer = "".join(f" {k}={kept[k]}" for k in ("solidM", "standM") if k in kept) + "".join(
+    f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests", "peerDead",
+                             "askedWay") if k in w)
   how = "arrived" if not w["why"] else f"{w['why']} {float(w.get('shortM') or 0):.2f} m short"
   return f"{how} after {float(w.get('seconds') or 0):.0f} s{peer}"
 
@@ -1315,20 +1318,17 @@ _GIVE = Arg("float", lo=0.0, hi=1.0, default=1.0)
 #: How hard a gripper squeezes, N a pad (#525): the Dex1-1's adjustable 5-120.
 _GRIP = Arg("float", lo=5.0, hi=120.0, default=120.0)
 #: WHERE A WALK SENT TO A WALL OR A COUNTER'S EDGE ENDS, m from it (#700):
-#: FLOWN, never derived -- the served humanoid on a fresh map, sent from the
-#: storeroom's door or its middle to its counter's edge, 1 cm before it and
-#: 5.7 cm onto it, and to two plain walls' faces, ended 0.32-0.60 m off, 15
-#: walks (its plan's keep-off, `WALK_KEEP_M`, and a lattice cell, crept nearer
-#: or backed off; SimNotes, "Where a walk ends by a wall"). The keep-off
-#: moved, fly it again.
-WALK_ENDS_M = (0.3, 0.6)
+#: FLOWN, never derived -- the served humanoid sent to the storeroom's
+#: counter's edge, before it and onto it, and to two plain walls' faces,
+#: 0.32-0.60 m in 15 walks, 0.34-0.54 in 10 held out (SimNotes, "Where a
+#: walk ends by a wall") -- at the keep-off it was flown at, m: that moved,
+#: fly it again (a test fails until this does).
+WALK_ENDS_M, WALK_ENDS_KEEP_M = (0.3, 0.6), 0.35
 
 
 def drive_to_doc(keep_m: float, ends: tuple[float, float] = WALK_ENDS_M) -> str:
   """`drive_to`'s text, off the walk's keep-off (`WALK_KEEP_M`) and where a
-  walk was flown to end by a wall (`WALK_ENDS_M`) -- #700: a goal 1 cm off a
-  counter's edge said "no route over the floor mapped so far", and nothing
-  the robot read said how near a walk brings it."""
+  walk sent to a wall ends, flown (`WALK_ENDS_M`, #700)."""
   return ("walk to a world point over the map, and over floor not yet on it; ok on "
           f"arrival, and it gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f}). "
           f"Its way keeps your middle about {keep_m:g} m from what your map holds solid: "

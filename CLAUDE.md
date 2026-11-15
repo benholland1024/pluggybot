@@ -2722,8 +2722,11 @@ save a filmstrip PNG named after the script.
   SOMETHING ITS MAP HOLDS SOLID SAYS SO, never "no route over the floor
   mapped so far" (#700: read three times as floor not yet mapped, of a goal
   1 cm off the counter's edge): `no_route` still, its record's `standIn`
-  (`Navigator._map_keep_off`, the planner's own taxicab keep-off on the
-  lattice's cell) a field, never a fifth cause. ⚠ A `find` WHOSE WALKS TOOK IT NOWHERE
+  a field, never a fifth cause -- the cell its map held solid that kept
+  the goal off, found AS THE PLAN CHOOSES ITS STAND-IN, on that plan's grid
+  and its own taxicab keep-off on the lattice's clamped cell
+  (`Navigator._solid_by`, `_kept_by`), kept with the held plan and put back
+  after `_route_past`. ⚠ A `find` WHOSE WALKS TOOK IT NOWHERE
   NEW TO LOOK FROM "gave up", in its last walk's words, never "not
   found" (#439: "looked from every place near there" in 23 s beside a
   resting robot); its walks are the log's `trace`. ⚠ A DECIDED
