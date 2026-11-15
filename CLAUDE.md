@@ -2309,33 +2309,41 @@ save a filmstrip PNG named after the script.
   explains the scan as well (`RIVAL_SHARE`) AND the next wide search finds
   the same correction -- once, on a sidewalk whose thin wall the map had
   eroded (#401), it jumped 1.8 m along it.
-  ⚠ A TAKE WITH THE POSE IN DOUBT STANDS ONLY WHERE A WIDER LOOK HOLDS NO
-  BETTER PLACE (#681's fourth round; `ScanMatcher._take`, `_outdone`,
-  `fallen`; SimNotes, "A get-up moves the body past the search's window"):
-  up from a fall until one take stands (`fell`; a fix or a warp ends it
-  too), and for an inconsistent fit's bounded find at any time, the take --
-  a fit's or a search's -- is one more place of the wide search, the best,
-  a rival or neither as any, and a better place elsewhere waits as the wide
-  search's own finds do: the scan refused, the place taken when the next
-  wide search finds it again. A get-up moves the body with the odometry
+  ⚠ UP FROM A FALL A TAKE STANDS ONLY WHERE A WIDER LOOK HOLDS NO BETTER
+  PLACE (#681's fourth round; `ScanMatcher.fell`, `_outdone`, `fallen`;
+  SimNotes, "A get-up moves the body past the search's window"): until one
+  take stands (or a fix, a warp, or the belief `FALLEN_NEAR_M`, 2 m, from
+  where it stood up), a take -- the fit's or a search's -- is one more place
+  of the wide search, and where another place explains the scan better it
+  is refused (`inconsistent`, not laid in) and that place, unrivalled, waits
+  as the wide search's own finds do, taken when the wide search finds it
+  again `LOST_RUN` refusals on. A get-up moves the body with the odometry
   held (at the storeroom's counter a median 0.87 m, past the search's 0.6 m
-  in 71 falls of 84), and unchecked, the search's best inside its window --
+  in 72 falls of 84), and unchecked, the search's best inside its window --
   or the fit itself, left half a metre east -- was the place where the
   counter's face lies on the wall 0.6 m behind it: 76 % on walls, every
   direction fixed, `ok` ever after (19 falls of 84 ended 0.4-1.1 m off;
   live on 11-14, four of five, kept 33-87 minutes). ⚠ A PLACE, NEVER A
-  POSE: a take under `UNIQUE_M` from the wide search's find stands (a copy
-  of the room a step away explains more than the room does, and refused
-  for any better pose, a right belief up from a fall was moved onto it at 7
-  poses of 7) -- ⚠ but while a find waits, only within `_near` of it (the
-  search's next find lay 0.43 m from the truth, and the fits after it slid
-  back onto the place refused). ⚠ NEVER FOUND AGAIN BY THE SCAN THAT MADE
-  IT (`_lost(looked=)`). ⚠ UP FROM A FALL A FIT THAT SLID COUNTS IN THE RUN
-  OF REFUSALS: breaking it, fits slid and takes refused in turn never came
-  to the wide search (563 scans in a minute, 0.9 m off). ~80 ms a wide
-  search, one a fall whose take stands. Not caught: a wrong place under
-  `UNIQUE_M` from the truth (the cube's end of the counter has one 0.40 m
-  east).
+  POSE: a take under `UNIQUE_M` from the best stands (a copy of the room a
+  step away explains more than the room does, and refused for any better
+  pose, a right belief up from a fall was moved onto it at 7 poses of 7) --
+  ⚠ but while a find waits, only within `_near` of it (the search's next
+  find lay 0.43 m from the truth, and the fits after it slid back onto the
+  place refused). ⚠ TWO PLACES THAT BOTH EXPLAIN MORE REFUSE IT TOO, neither
+  taken (read as "nothing better", their rivalry let the worst of three
+  stand). ⚠ A LOOK ONCE IN `LOST_RUN` SCANS (`wider_wait`, ~80 ms; a take
+  between two is refused as the last was), and its find found again only
+  `LOST_RUN` refusals on (the look's own scan starts the count). ⚠ A FIT
+  THAT SLID COUNTS IN THE RUN up from a fall: breaking it, fits slid and
+  takes refused in turn never came to the wide search (563 scans in a
+  minute, 0.9 m off). ⚠ ONLY UP FROM A FALL: a robot that has not fallen
+  takes its search's find as it always did (a wide search's unconfirmed
+  place 1.8 m along an eroded sidewalk would have refused the truth, #401).
+  ⚠ IT BELIEVES THE MAP: a copy of the room `UNIQUE_M` or more away that
+  explains more than the room takes a fallen robot's belief, right or not
+  (a test states it; no pose of 160 on the live maps of 11-08/09). Not
+  caught: a wrong place under `UNIQUE_M` from the truth (the cube's end of
+  the counter has one 0.40 m east).
   ⚠ UP FROM A FALL, A WIDE SEARCH THAT FINDS NOTHING LOOKS AT EVERY HEADING
   (#690's net; `ScanMatcher.fell`, armed by `HumanoidMission._stood_up`;
   `TURNED_*`; SimNotes, "A heading lost in a fall, searched for at every
