@@ -1029,9 +1029,10 @@ def test_the_cubes_tries_go_60_60_46_and_75_deg_and_its_budget_lets_the_fourth_e
 LEVER_AT, LEVER_EDGE = (0.424, 0.174, 0.866), (0.999, 0.042, 0.0)
 
 
-def _door_flown(stopped=0):
+def _door_flown(stopped=0, refused=False):
   """Our door procedure on a stub that does every move at once, as asked, and sees the lever's
-  tag where `LEVER_AT` has it: its first `stopped` reaches stop short. Each verb as it began."""
+  tag where `LEVER_AT` has it: its first `stopped` reaches stop short -- or, `refused`, are refused
+  with nothing moved. Each verb as it began."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _Life
 
@@ -1051,7 +1052,7 @@ def _door_flown(stopped=0):
                       turns=None, refuse=False):
       self.reaches += 1
       if self.reaches <= stopped:
-        self._why[side] = "stopped short"
+        self._why[side] = "out of reach" if refused else "stopped short"
         return False
       return (yield from super().reach_routine(side, pos, rot, stiffness, patience, path, turns,
                                                refuse))
@@ -1063,15 +1064,17 @@ def _door_flown(stopped=0):
   return ran, log
 
 
-def test_the_doors_reach_stopped_short_turns_its_fingers_toward_the_middle_before_it_tilts():
+@pytest.mark.parametrize("refused", [False, True])
+def test_the_doors_reach_stopped_short_turns_its_fingers_toward_the_middle_before_it_tilts(refused):
   """⚠ A DOOR REACH THAT STOPPED SHORT TRIES ITS FINGERS 10 DEG TOWARD THE ROBOT'S MIDDLE,
   UNTILTED, BEFORE IT TILTS THEM DOWN (#708; SimNotes, "The door's reach the stop sends
   back"): at the twelve of 192 set-outs where the lever reached square plans the deepest crouch
   with the waist turned 30 deg, every way out drags the open jaw over the counter's edge and
   into the door, and stopped there (`reach.OUT_TIP_NM`) the tilted retry's press and the move
   back took postures that bowed the robot onto the counter: fingers 10 deg to the right plan a
-  shallower crouch square at all twelve. Then the tilts as before, 15 deg a try."""
-  ran, log = _door_flown(stopped=3)
+  shallower crouch square at all twelve. Then the tilts as before, 15 deg a try -- after a reach
+  refused with nothing moved too (none of the check's first reaches was, over set-outs 0-127)."""
+  ran, log = _door_flown(stopped=3, refused=refused)
   reaches = [a for v, a in log if v == "reach"]
   assert len(reaches) >= 4, [v for v, _ in log]
   fingers = [(round(a["fx"], 3), round(a["fy"], 3), round(a["fz"], 3)) for a in reaches[:4]]

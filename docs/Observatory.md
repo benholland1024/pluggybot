@@ -33,11 +33,11 @@ what the arm's own reading would tip the body toward the hand past 20 N m
 hand's reach -- it stops, held where its drivers read its joints, the body
 in the posture it has got to. Beside it, OUR door's and lid's references
 change (`hands_check.DOOR`, `LID`; the served door's and chest's jobs fly
-them from the tour, and no robot runs them): a reach of theirs that
-stopped short is tried again with the grip turned toward the robot's
-middle -- the door's 10 deg, untilted, the lid's 5 deg at its tilt, its
-hand out where it stopped -- before they tilt it as before (SimNotes, "The
-door's reach the stop sends back").
+them from the tour, and no robot runs them): a door's reach that failed,
+or the lid's first that stopped short with the hand out, is tried again
+with the grip turned toward the robot's middle -- the door's 10 deg,
+untilted, the lid's 5 deg at its tilt -- before they tilt it as before
+(SimNotes, "The door's reach the stop sends back").
 
 **Why.** On 11-14 at 20:21:57 UTC Luca's own `chest_run35` reached with
 its fingers straight ahead into the chest's front: the joint-space way out

@@ -9606,7 +9606,13 @@ way always said ("stopped short ... or pushing on something"), and its
   line to the middle counts for nothing, and near the stance's own axis that
   line has no direction to speak of. Only the way out is watched: a withdraw
   goes home over what the hand caught unstopped, as before (a guard there
-  cost the lid check, "The way home"), though no flight below fell so.
+  cost the lid check, "The way home"), though no flight below fell so. ⚠ A
+  way out begun with the hand already out can stop in free air: of its 203
+  stops in our references' flights none came before a touch, but in the
+  wake of 11-15's `door_run31` at draw 407 (Luca's own, flown with every
+  contact recorded) two reaches begun after a `pull` and an `open_hand`
+  stopped 0.05 s in with no contact of 1 N in the 0.6 s before -- that run
+  failed as it does without the stop.
 
 **Measured** (one pod, an AMD EPYC 7713, which flew the dev box's flights
 second for second; each flight its own noise; against 3dffda2):
@@ -9664,13 +9670,15 @@ passed 23 of 32 at 0-31, with 2 falls (door 3's, and door 27's as on the
 base).
 
 **What is true now** (`hands_check.DOOR`, `LID`):
-- Our door reference's reach that stopped short tries its fingers 10 deg
-  toward the robot's middle, untilted, before it tilts them down 15 deg a
-  try. So turned, the twelve plan (-0.08 m, 0, 0), square
+- Our door reference's reach that fails -- stopped short, or refused,
+  which none of its first reaches was over set-outs 0-127 -- tries its
+  fingers 10 deg toward the robot's middle, untilted, before it tilts them
+  down 15 deg a try. So turned, the twelve plan (-0.08 m, 0, 0), square
   (`c/probe_grip.py`).
 - Our lid reference's first reach that stopped short, its hand out where
-  it stopped (`left.x`), is tried once more at the same tilt with the grip
-  5 deg toward the middle, before its tilts go on. Its lost set-outs had
+  it stopped (`left.x`: on its way out or in), is tried once more at the
+  same tilt with the grip 5 deg toward the middle, before its tilts go on,
+  the last of them (44 deg) then untried. Its lost set-outs had
   the door's cause: a first way out stopped on the counter's edge, then a
   tilt that let the lid fall or never opened it (K13's rows: 84, 105 and
   186). Never after a reach refused with nothing moved: tried so (the first

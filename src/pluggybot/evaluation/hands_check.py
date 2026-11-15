@@ -39,12 +39,16 @@ from pluggybot.procedure import steps as st
 #: hand along the arc; lowered toward the body and down, again by force --
 #: the lid set down by its hinge, not by a plan -- and let go only once the
 #: hand is back down. ⚠ ITS FIRST REACH THAT STOPPED SHORT, ITS HAND OUT
-#: (`left.x`), IS TRIED ONCE MORE AT THE SAME TILT WITH THE GRIP 5 DEG
-#: TOWARD THE ROBOT'S MIDDLE before the tilts go on (#708, as the door's: a
-#: first way out stopped on the counter's edge sent lids to the next tilt,
-#: which let them fall or never opened them); never after a reach refused
-#: with nothing moved (so turned after three refusals, a grip found a plan
-#: whose lift let the lid fall); at 10 deg its pads met the rising lid at 62.
+#: (`left.x`: on its way out or in), IS TRIED ONCE MORE AT THE SAME TILT
+#: WITH THE GRIP 5 DEG TOWARD THE ROBOT'S MIDDLE before the tilts go on, the
+#: last of them (44 deg) then untried (#708, as the door's: a first way out
+#: stopped on the counter's edge sent lids to the next tilt, which let them
+#: fall or never opened them); never after a reach refused with nothing
+#: moved (so turned after three refusals, a grip found a plan whose lift let
+#: the lid fall); at 10 deg its pads met the rising lid at 62. ⚠ The read
+#: moves the flight by itself: a resting hand's place is read off every
+#: joint afresh (`Reach.grip_now`; SimNotes, "The door's reach the stop
+#: sends back").
 LID = '''def open_lid():
   budget(steps=40, seconds=66)
   spot(53)
@@ -143,9 +147,11 @@ DRAWER = '''def open_drawer():
 #: it shut -- and otherwise gripped again LIGHTLY, so its tip turns between
 #: the jaws as the door swings, and pulled toward the body by force, the
 #: hinge steering the hand along the door's arc, then on the way the hand
-#: was last going. ⚠ A REACH THAT STOPPED SHORT TRIES ITS FINGERS 10 DEG
-#: TOWARD THE ROBOT'S MIDDLE, UNTILTED, BEFORE IT TILTS THEM DOWN 15 DEG A
-#: TRY (#708; SimNotes, "The door's reach the stop sends back"): at 12 of
+#: was last going. ⚠ A REACH THAT FAILS -- STOPPED SHORT, OR REFUSED (none
+#: of the check's first reaches was, over set-outs 0-127) -- TRIES ITS
+#: FINGERS 10 DEG TOWARD THE ROBOT'S MIDDLE, UNTILTED, BEFORE IT TILTS THEM
+#: DOWN 15 DEG A TRY (#708; SimNotes, "The door's reach the stop sends
+#: back"; its `g = 5` a state of its own: the language nests 4 deep): at 12 of
 #: set-outs 0-191 the grip asked plans the deepest crouch with the waist
 #: turned 30 deg, whose way out drags the open jaw over the counter's edge
 #: into the door, and a way out stopped there (`reach.OUT_TIP_NM`) went to
