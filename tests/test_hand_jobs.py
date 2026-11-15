@@ -5,6 +5,7 @@ is the counter alone (`StubBody`), nothing flown. The references flown from
 the station are `scripts/solve.py --feature drawer|door|cube|chest`'s.
 """
 
+import json
 import math
 import re
 from dataclasses import replace
@@ -172,14 +173,424 @@ def test_a_drawer_left_shut_fails_and_pays_nothing(tmp_path):
 
 def test_a_fall_since_the_claim_fails_the_job(tmp_path):
   """The watch is the job's from its CLAIM: a fall on the way there -- the
-  body's own count -- fails a drawer that ends out (#544's rule)."""
+  body's own count -- fails a drawer that ends out (#544's rule), and ends
+  the job (#701): a `done` said after it, before the seam has read it,
+  grades nothing of its own."""
   life = _life(tmp_path)
   task = _offer(life, "open_drawer")
   assert life._claim_task(task.id)
   life.body.falls = 1
   life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  assert life._done(ov.Decision(action="idle", reason="", done=task.id)) is False
+  # ...no time said for a fall the seam has not read yet (#701's review)
+  assert any(ln.endswith(f"said done on {task.id} (open_drawer): not graded, because I fell, "
+                         "and that ended it -- it is graded as things stand once I am up")
+             for ln in life.thoughts.texts[HISTORY].splitlines())
+  life.body.run(life.body.hold_routine(drawer.HOLD_S + 0.1))
+  verdict = life.tasks.get(task.id).verdict
+  assert not verdict["ok"] and verdict["reason"].startswith("you fell"), verdict
+
+
+def _fall(life) -> float:
+  """The robot falls now, by its body's own count (the stub's is what the
+  test sets): when."""
+  life.body.falls += 1
+  return float(life.data.time)
+
+
+def _history(life) -> list[str]:
+  return life.thoughts.texts[HISTORY].splitlines()
+
+
+def test_a_fall_while_a_job_is_held_ends_it_there_graded_as_the_world_stands(tmp_path):
+  """#701: a fall fails a hand job's try (#544), but the job was graded only
+  at a `done`, or failed when its minutes ran out (#602) -- held meanwhile,
+  a cupboard stayed booked 985 s past the fall that had failed its job
+  (11-12), and a drawer was opened as asked in a try a fall had lost
+  (11-14). A fall ends it there: the fall its call, the hold a `done`'s
+  grade takes from it, ONE verdict, the fall first and the world after it
+  in its grader's words, History told at the fall, and its prop offered
+  again. Shown to fail with no `_fall_step`: the job held on."""
+  life = _life(tmp_path)
+  life.producer = task_producer(life.tasks, HUMANOID_HOME, procedures=True)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2       # out as the job asks...
+  mujoco.mj_forward(life.model, life.data)
+  life.data.time += 30.0
+  t = _fall(life)                                              # ...and the robot fell
+  life.body.run(life.body.hold_routine(drawer.HOLD_S + 0.1))
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed"
+  assert ended.verdict["reason"] == ("you fell, and a fall fails the try -- the drawer 20 cm "
+                                     "out in 30 s, and let go")
+  [grade] = life.grades
+  assert grade["t"] == pytest.approx(t, abs=0.01), "its call is the fall"
+  assert life.ledger.robots.get(life.root, {}).get("balance", 0) == 0
+  lines = _history(life)
+  fell = [i for i, ln in enumerate(lines) if ln.endswith(
+    f"fell holding {task.id} (open_drawer): a fall fails the try, so the job ends here "
+    "-- graded as things stand once I am up, 5 s on at the least")]
+  failed = [i for i, ln in enumerate(lines) if ln.endswith(
+    f"failed the job {task.id} (open_drawer): {ended.verdict['reason']}")]
+  assert len(fell) == len(failed) == 1 and fell[0] < failed[0], lines
+  assert task.id not in life._job_watches and not life._fallen
+  assert not any(isinstance(h, drawer.Watch) for h in life.body.step_hooks)
+  for _ in range(3):
+    life.data.time += 600.0
+    life._task_step()
+  assert any(t.target == "drawer" and t.id != task.id for t in life.tasks.tasks.values())
+
+
+@pytest.mark.parametrize("when", ["in its hold", "after it"])
+def test_a_done_on_a_job_a_fall_ended_is_heard_and_grades_nothing_again(tmp_path, when):
+  """...and a `done` said on it later -- the answer that says it in flight
+  as the robot fell -- is a `done` on a job not held (#648's line), never a
+  second verdict."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0 if when == "in its hold" else drawer.HOLD_S + 0.1))
+  assert life._done(ov.Decision(action="idle", reason="", done=task.id)) is False
+  assert life._grade_pending == ""
+  life.body.run(life.body.hold_routine(drawer.HOLD_S + 0.1))
+  assert len(life.grades) == 1 and len(life.verdicts) == 1
+  [heard] = [ln for ln in _history(life)
+             if f"said done on {task.id} (open_drawer): not graded, because " in ln]
+  assert heard.endswith("because I fell at t=0, and that ended it -- it is graded as things "
+                        "stand once I am up" if when == "in its hold" else
+                        "because it is over -- I took it at t=0, and it failed at t=5"), heard
+
+
+def test_a_fall_in_a_dones_hold_is_that_grades_and_ends_nothing_twice(tmp_path):
+  """A job whose `done` is holding is ending already, and its grade says the
+  fall first: a fall then begins no second end, banks nothing twice."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  mujoco.mj_forward(life.model, life.data)
+  said: list = []
+  life.say_hooks.append(lambda t, msg: said.append(msg))
+  t0 = float(life.data.time)
+
+  def fall_in_the_hold():
+    if not life.body.falls and float(life.data.time) > t0 + 2.0:
+      _fall(life)
+  life.body.step_hooks.insert(0, fall_in_the_hold)    # counted as the body steps
   verdict = _grade(life, task.id)
-  assert not verdict["ok"] and "fell" in verdict["reason"]
+  assert verdict["reason"].startswith("you fell, and a fall fails the try -- "), verdict
+  assert len(life.grades) == 1 and not life._fallen
+  assert not any("closed already" in m for m in said), said
+  assert not any("fell holding" in ln for ln in _history(life))
+
+
+def test_a_fall_inside_a_run_ends_the_run_and_its_job(tmp_path):
+  """Inside a procedure's run as outside one: the run ends at the fall
+  (#671) and the job with it -- and a `done` said beside the run, its grade
+  waiting on the run's end (#689), grades nothing: the fall's verdict is
+  the one."""
+  from pluggybot.mission.errand import programmed_errand
+  from pluggybot.procedure.steps import Program, Step
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life._grade_pending = task.id                  # as a `done` beside the run leaves it
+  t0 = float(life.data.time)
+
+  def fall_at_two_s():
+    if not life.body.falls and float(life.data.time) >= t0 + 2.0:
+      _fall(life)
+  life.body.step_hooks.insert(0, fall_at_two_s)       # counted as the body steps
+  run = life.run_errand(programmed_errand(
+    Program.single("p", [Step("wait", {"seconds": 10.0})])))["procedure"]
+  assert not run["ok"] and run["steps"][0]["fell"], run
+  t1 = float(life.data.time)
+  assert t1 < t0 + 3.0, "the run ended at the fall"
+  said: list = []
+  life.say_hooks.append(lambda t, msg: said.append(msg))
+  life.body.run(life._grade_routine())           # the loop's pass after the run
+  assert f"GRADE {task.id}: a fall ended it -- graded as its hold ends" in said, said
+  assert float(life.data.time) == t1 and life._grade_pending == "", "no hold of its own"
+  life.body.run(life.body.hold_routine(drawer.HOLD_S + 0.1))
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
+  assert len(life.grades) == 1
+
+
+def test_a_job_a_fall_ended_is_the_falls_past_its_minutes_too(tmp_path):
+  """Its minutes running out in the hold, it is the fall's, in the fall's
+  words, never "not graded"; a job no fall ended runs out as before (#602's
+  tests)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer", minutes=1)
+  assert life._claim_task(task.id)
+  life.data.time += 58.0
+  _fall(life)
+  life.body.run(life.body.hold_routine(3.0))             # 61 s of its 60, in the hold
+  life._run_out_held()
+  assert life.tasks.get(task.id).state == "active", "the fall's, not the clock's"
+  life.body.run(life.body.hold_routine(drawer.HOLD_S))
+  verdict = life.tasks.get(task.id).verdict
+  assert verdict["reason"].startswith("you fell, and a fall fails the try -- "), verdict
+
+
+def test_a_fall_a_restart_cut_is_graded_once_after_it(tmp_path):
+  """A restart between the fall and its verdict (#345): the fall's call
+  rides the save -- its time and its reading -- and its watch is taken up
+  with the save's readings as the world comes back, so the job is settled
+  once, in its grader's words, the day's look round outlasting the hold or
+  not; never "still mine" first and never called again (#701's reviews:
+  called again, History said the fall twice and the grade's time was the
+  restart's; left to `_resume_jobs`, after the look round, a hold ending
+  first failed the job with nothing read)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  assert task.id in life._fallen
+  t = life._fallen[task.id][0]
+  state, arrays = life.kept_state()
+  state = json.loads(json.dumps(state))         # ...as a save writes it
+  board = tmp_path / "tasks.json"
+  saved = board.read_bytes()
+  for look_s, resumed in ((0.5, True), (drawer.HOLD_S + 1.0, False)):
+    board.write_bytes(saved)                    # the board as the save left it
+    again = _life(tmp_path)                     # ...and a world compiled anew
+    again.restore_kept(state, arrays, in_place=True)
+    again.body.run(again.body.hold_routine(look_s))   # the day's look round
+    again._resume_jobs({"name": "pace", "taskId": task.id})
+    again.body.run(again.body.hold_routine(drawer.HOLD_S))
+    ended = again.tasks.get(task.id)
+    assert ended.state == "failed" and ended.verdict["reason"] == (
+      "you fell, and a fall fails the try -- the drawer came out 0 cm, short of the 15 it must")
+    [grade] = again.grades
+    assert grade["t"] == pytest.approx(t), "its call the fall's"
+    assert not again._kept_watches and not again._fallen
+    lines = _history(again)
+    assert not any("still mine" in ln or "fell holding" in ln for ln in lines), lines
+    said = (f"the restart cut short pace; my fall had ended the job {task.id} (open_drawer), "
+            "graded as its hold ends" if resumed else
+            f"the restart cut short pace; the job {task.id} is no longer mine")
+    assert any(ln.endswith(said) for ln in lines), lines
+
+
+def test_a_fall_in_its_hold_rides_a_restore_into_another_world(tmp_path):
+  """...and a restore NOT in place -- another geometry, another map epoch:
+  the jobs carried, the watches' readings not -- keeps the fall (#701's
+  second review: forgotten, the job came back "still mine", a fresh watch
+  read no fall, and a later `done` could pass a try a fall had lost)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  state, arrays = life.kept_state()
+  again = _life(tmp_path)
+  again.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
+  again._resume_jobs(None)
+  again.body.run(again.body.hold_routine(drawer.HOLD_S + 0.1))
+  ended = again.tasks.get(task.id)
+  assert ended.state == "failed", ended
+  assert ended.verdict["reason"].startswith("you fell, and a fall fails the try"), ended
+  assert not any("still mine" in ln for ln in _history(again))
+
+
+def test_a_falls_hold_lasts_until_the_body_stands_again(tmp_path):
+  """The hold is the grade's "stand clear", and a body getting up beside the
+  counter cannot: the job ends once both the hold and the get-up are over
+  (#701's third review: settled at 5 s, its prop was free to be set out
+  beside a get-up that may take 20 s)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.posture = "getting_up"
+  life.body.run(life.body.hold_routine(drawer.HOLD_S + 1.0))
+  assert life.tasks.get(task.id).state == "active", "settled under a body getting up"
+  assert [h["id"] for h in life.tasks.held_context(life.root, 0.0)] == [task.id]
+  life.body.posture = "standing"
+  life.body.run(life.body.hold_routine(0.1))
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
+
+
+def test_a_falls_hold_never_ends_while_its_robot_lies_dead(tmp_path):
+  """...nor while it lies dead (#701's fourth review): its body by the
+  prop until its stand-up, a prop set out then is set out under it -- as a
+  run-out waits for the stand-up (#602)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  life.dead = {"t": float(life.data.time), "cause": "stuck"}
+  life.body.run(life.body.hold_routine(drawer.HOLD_S + 1.0))
+  assert life.tasks.get(task.id).state == "active", "settled under its body, dead"
+  life.dead = None                              # ...stood up
+  life.body.run(life.body.hold_routine(0.1))
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
+
+
+def test_a_fallen_job_whose_watch_a_restart_cannot_take_up_is_failed(tmp_path, monkeypatch):
+  """...and one whose kept watch the next world cannot take up -- its prop
+  not where its watch reads it -- is failed as its hold ends, never held
+  for good waiting on it (#701's third review)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  state, arrays = life.kept_state()
+  again = _life(tmp_path)
+  monkeypatch.setattr(again, "_watch_job", lambda task_id: None)
+  again.restore_kept(json.loads(json.dumps(state)), arrays, in_place=True)
+  again._resume_jobs(None)
+  again.body.run(again.body.hold_routine(drawer.HOLD_S + 0.1))
+  ended = again.tasks.get(task.id)
+  assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
+  assert not again._kept_watches and not again._fallen
+
+
+def test_a_job_taken_again_is_a_try_of_its_own(tmp_path):
+  """A job given back and taken again is a new try: no fall of the try
+  before it (a fall's hold, its watch) ends it, and its `done` is graded on
+  its own (#701's third review)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  life.tasks.release(task.id)
+  life._kept_watches[task.id] = {"most": 0.0, "fastest": 0.0, "falls": 1}   # a save's, left
+  assert life._claim_task(task.id)
+  assert task.id not in life._fallen and life._job_watches[task.id].falls() == 0
+  assert task.id not in life._kept_watches
+  verdict = _grade(life, task.id)
+  assert verdict["reason"] == "the drawer came out 0 cm, short of the 15 it must", verdict
+
+
+def test_a_watch_left_on_a_job_given_back_ends_nothing_of_the_others(tmp_path):
+  """A watch outlives a job given back by up to a sweep: a fall then ends
+  nothing the robot no longer holds -- the other robot's take of it least
+  of all (#701's second review)."""
+  from pluggybot.robot import SECOND
+  luca = _life(tmp_path)
+  body = StubBody(luca.model, luca.data, handle=SECOND, grid_bounds=(-3.0, -8.0, 30.0, 8.0))
+  rowan = HubLifecycle(luca.model, luca.data, realtime=False, world=HUMANOID_HOME, body=body,
+                       tasks=luca.tasks, ledger=luca.ledger, overseer=_Mind(), handle=SECOND)
+  task = _offer(luca, "open_drawer")
+  assert luca._claim_task(task.id)
+  luca.tasks.release(task.id)
+  assert rowan._claim_task(task.id) and task.id in luca._job_watches
+  _fall(luca)
+  assert not luca._fell_holding(task.id), "the fall's to settle, a job Rowan holds"
+  luca.body.step_hooks[luca.body.step_hooks.index(luca._fall_step)]()
+  assert not luca._fallen and not any("fell holding" in ln for ln in _history(luca))
+  assert luca.tasks.get(task.id).state == "active"
+  assert luca._done(ov.Decision(action="idle", reason="", done=task.id)) is False
+  [heard] = [ln for ln in _history(luca) if "said done on" in ln]
+  assert "I fell" not in heard and "took it" in heard, heard
+  luca.data.time = max(float(luca.data.time), luca._next_task_check) + 1.0
+  luca._task_step()                             # ...and the board's next sweep
+  assert task.id not in luca._job_watches, "a watch on Rowan's job, saved with Luca's"
+  assert task.id in rowan._job_watches
+
+
+def test_a_job_settled_in_a_falls_hold_is_heard_as_over(tmp_path):
+  """A job settled some other way inside a fall's hold (a true death's)
+  leaves it: a `done` on it then hears it is over, never that it is being
+  graded (#701's second review)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  life._fail_held(life.tasks.get(task.id), "the robot that took it ran out of lives")
+  assert not life._fallen
+  assert life._done(ov.Decision(action="idle", reason="", done=task.id)) is False
+  [heard] = [ln for ln in _history(life)
+             if f"said done on {task.id} (open_drawer): not graded, because " in ln]
+  assert "because it is over -- I took it at t=0, and it failed at t=1" in heard, heard
+
+
+def test_a_fall_kept_with_no_save_of_its_call_ends_its_job_after_a_restart(tmp_path):
+  """...and a save that kept the watch's fall and not its call (one from
+  before #701's review) ends the job at the step after it is taken up --
+  the day's look round having stepped the world first."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  state, arrays = life.kept_state()
+  del state["fallen"]
+  again = _life(tmp_path)
+  again.restore_kept(state, arrays, in_place=True)
+  again.body.run(again.body.hold_routine(0.5))
+  again._resume_jobs(None)
+  assert not any("still mine" in ln for ln in _history(again))
+  again.body.run(again.body.hold_routine(drawer.HOLD_S + 0.1))
+  ended = again.tasks.get(task.id)
+  assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
+  assert len(again.grades) == 1
+
+
+def test_a_job_a_fall_ended_whose_watch_is_gone_is_failed_never_dropped(tmp_path):
+  """#701's review: a fall's hold that found its watch gone returned with
+  the job still held, its fall forgotten -- shown held again, and a later
+  `done` watched afresh could pass a try a fall had lost."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  life._unwatch_job(task.id)
+  life.body.run(life.body.hold_routine(drawer.HOLD_S))
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed"
+  assert ended.verdict["reason"].startswith("you fell, and a fall fails the try"), ended
+
+
+def test_a_fall_ends_its_own_robots_job_and_never_the_others(tmp_path):
+  """Two robots, one board: Luca's fall ends Luca's job, and Rowan's, held
+  beside it, is Rowan's still -- watched, offered to nobody."""
+  from pluggybot.robot import SECOND
+  luca = _life(tmp_path)
+  body = StubBody(luca.model, luca.data, handle=SECOND, grid_bounds=(-3.0, -8.0, 30.0, 8.0))
+  rowan = HubLifecycle(luca.model, luca.data, realtime=False, world=HUMANOID_HOME, body=body,
+                       tasks=luca.tasks, ledger=luca.ledger, overseer=_Mind(), handle=SECOND)
+  mine, theirs = _offer(luca, "open_drawer"), _offer(luca, "open_door")
+  assert luca._claim_task(mine.id) and rowan._claim_task(theirs.id)
+  _fall(luca)
+  luca.body.run(luca.body.hold_routine(drawer.HOLD_S + 0.1))
+  rowan.body.run(rowan.body.hold_routine(1.5))
+  assert luca.tasks.get(mine.id).state == "failed"
+  assert luca.tasks.get(theirs.id).state == "active" and theirs.id in rowan._job_watches
+  assert rowan.grades == [] and not rowan._fallen
+
+
+def test_a_job_a_fall_ended_is_shown_held_no_longer(tmp_path):
+  """...and from the fall it is no longer among the jobs it is shown it
+  holds (`heldTasks`): the fall ends the run, the robot is asked within the
+  hold, and its turn said "the job ends here" in History beside the job
+  listed held, with its time left. Shown to fail with `overseer_context`
+  listing every held job."""
+  from pluggybot.lifecycle import overseer_context, world_facts
+  from pluggybot.procedure import library as lib
+  life = _life(tmp_path)
+  life.overseer.menu = None                      # ...a mind with no eye: no `look`
+  life.overseer.library = lib.Library(world_facts(HUMANOID_HOME))
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  assert [h["id"] for h in overseer_context(life)["heldTasks"]] == [task.id]
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  assert life.tasks.get(task.id).state == "active", "in the fall's hold"
+  assert "heldTasks" not in overseer_context(life)
 
 
 def test_a_job_called_past_its_minutes_fails(tmp_path):
@@ -458,6 +869,18 @@ def test_the_rule_says_left_s_is_the_asks_and_the_clock_runs_while_it_thinks():
   flat = " ".join(ov.CHALLENGE_RULE.split())
   assert ("its `leftS` the seconds of that time still left when you were asked; the clock "
           "runs on while you think.") in flat
+
+
+def test_the_rule_says_a_fall_ends_a_held_challenge_and_each_job_says_it_fails():
+  """#701: where the rule says when a job is graded, it says a fall ends it
+  -- a fact of the world, the moment of the grade -- and every hand job's
+  own sentence says it is done without falling: the two agree."""
+  flat = " ".join(ov.CHALLENGE_RULE.split())
+  assert ("A claimed challenge stands until you say done, until the time its description "
+          "gives is up, or until you fall: a fall while you hold one ends it there, graded as "
+          "if you had said done as you fell, and a fall fails it.") in flat
+  for kind in HAND_JOBS:
+    assert "without falling" in TaskBoard().offer(kind, KINDS[kind].target_kind).description, kind
 
 
 @pytest.mark.parametrize("left", ["", "CHARGE", "GO_CHARGE"])

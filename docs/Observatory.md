@@ -10,6 +10,68 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A hand job ends at a fall of its holder's (#701, K7, `loop-701`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `b345cc34…` → `b74107d2…`, 66,029 → 66,151
+chars, 17 sections both, over #699's; the session host's hello unmoved,
+byte for byte; no geometry and no wire format moved):
+- **A fall its watch counts ends a held hand job there**
+  (`HubLifecycle._fall_step`, on the seam every step, wherever the robot is
+  -- in a procedure's run, which the fall ends at once (#671), on a walk,
+  standing): the fall is the job's call. The world is read as the fall is
+  counted, the 5 s hold a `done`'s grade takes follows with the watch
+  reading what touches the prop -- lasting until the body stands again,
+  alive, a get-up or a body lying dead being no way to stand clear (a get-up
+  may take 20 s and a death lasts until its stand-up, and a prop set out
+  beside either is set out under it) -- and ONE verdict comes through
+  `scoring.evaluate`, the fall first in the grader's own words ("you fell,
+  and a fall fails the try -- the drawer 20 cm out in 30 s, and let go", a
+  stub test's), settled once, its prop free for the next offer once it is
+  in. History says it at the fall (`fell holding t_0307 (open_drawer): a
+  fall fails the try, so the job ends here -- graded as things stand once I
+  am up, 5 s on at the least`), and the verdict's line once the hold and the
+  get-up are over. A job taken again after it is a try of its own, and from
+  the fall the job is no longer in `heldTasks` (a turn asked in the hold
+  listed it held beside that line).
+- **A `done` said after the fall** -- its answer in flight as the robot fell
+  -- is one on a job not held, #648's line: in the hold `… not graded,
+  because I fell at t=N, and that ended it -- it is graded as things stand
+  once I am up`, after it `… because it is over -- I took it at t=N, and it
+  failed at t=M`; never a second verdict. A `done` said before the fall,
+  waiting on its run (#689), grades nothing: the fall's verdict is the one.
+- **As before**: a fall during a `done`'s hold is that grade's, which says
+  the fall first already; a true death fails the jobs its robot held; a job
+  no fall ended runs out at its minutes (#602), and one a fall ended is the
+  fall's, never "not graded within"; the table's dishware stays out while
+  the job holds it, its hold included, and is put away on the next sweep
+  after, never from under a hand. A restart between the fall and its
+  verdict (rare: no save while a get-up runs) carries the fall's call over
+  -- its time and its reading, into another world too -- and the next
+  settles the job once, off the watch the save kept, taken up as the world
+  comes back, never "still mine" first; a job given back since its watch
+  began is ended by no fall of the robot that gave it.
+- **The challenges rule says so**, where it says how a job ends: "A claimed
+  challenge stands until you say done, until the time its description
+  gives is up, or until you fall: a fall while you hold one ends it there,
+  graded as if you had said done as you fell, and a fall fails it." Each
+  job's own sentence already says "without falling".
+
+**Why.** On 11-12 Luca fell 76 s after taking t_0239 (`open_door`), on its
+arm's way home from the lever, and no `done` followed: the job was failed
+at 1,061 s, "not graded within the 960 s the job allows", the cupboard
+booked 985 s past the fall. On 11-14 Rowan's t_0307 (`open_drawer`) was
+graded "you fell, and a fall fails the try -- the drawer 24 cm out in 407
+s, and let go": the drawer opened as asked in a try a fall had already
+lost. Ben, 11-14: a job a fall has failed ends at the fall.
+
+**What to read on the live rows** (#701's last box: no job stays held after
+its robot fell). Each `fell holding` History line with its `failed the job
+… you fell` line about 5 s later, the task's `resolvedT` as near its fall;
+no `not graded within` for a job whose holder fell after its claim; a
+`done` named after the fall heard as #648's line. The pair's committed
+recording is not re-flown: its day carries no job (no `--tasks`), and the
+new hook acts only while a hand job is held.
+
 ### A walk that stood where it could nearest a goal by a wall says so, and `drive_to`'s text says how near a walk comes (#700, K2, `loop-700`) — opens when this PR is deployed
 
 **What the robots read changes, in two places; what they do does not.**

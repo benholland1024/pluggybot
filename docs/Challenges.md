@@ -320,9 +320,16 @@ departures, both about where an attempt starts:
   from the claim, through the walk there, to the end of the hold after
   `done` (`HubLifecycle._watch_job`, `_grade_hands_routine`): a fall
   anywhere in it fails the job (#544's rule), and so does a lid let fall or
-  a cube dropped before the call. Its readings ride a restart with the
+  a cube dropped before the call. ⚠ A FALL ENDS THE JOB THERE (#701,
+  `_fall_step`): the fall is its call, the hold (and the get-up: it ends
+  once the body stands again, alive) and the grader's words as after a `done`
+  ("you fell, and a fall fails the try -- the drawer 20 cm
+  out in 30 s, and let go"), settled once, its prop free for the next offer;
+  a `done` after it is one on a job not held (#648's line), and one whose
+  `done` is holding is that grade's. Its readings ride a restart with the
   world they were read off (`kept_state`'s `jobWatches`): a lid opened
-  before one is still a lid that was opened.
+  before one is still a lid that was opened, and a fall's call in its
+  hold rides one too (`kept_state`'s `fallen`).
 - *in the job's MINUTES.* The time limit is the job's own term
   (`TaskKind.minutes`, `tasks.HAND_MINUTES`; a world's cadence may give
   another), counted from the claim: 16, three times the slowest pass of the
