@@ -12,10 +12,10 @@ the map disagrees with is past the field's reach and a bounded search
 finds where to fit from (`_search`) -- as does one that slid or that the
 walls only partly agree with (`DOUBT_*`, issue #681) -- a robot its map
 keeps refusing is lost past that search and searches wider (`_relocate`,
-issue #422), up from a fall a take stands only where that wider search
-holds no better place (`_outdone`, issue #681), and a scan goes into the map
-only when a fit was taken and the robot has moved (`Match.fuse`,
-`ScanMatcher.fuses`).
+issue #422), up from a fall a take stands only where a wider look holds no
+better place, and a fit that slid is looked round as well (`_outdone`, issue
+#681), and a scan goes into the map only when a fit was taken and the robot
+has moved (`Match.fuse`, `ScanMatcher.fuses`).
 docs/SimNotes.md, "The map stays true under drift", "Lost after a long
 explore, and found again", "The storeroom keeps an error" and "A get-up
 moves the body past the search's window", has why each piece is there and
@@ -260,10 +260,13 @@ TURNED_NEAR_M = 0.5
 #: The fall's doubt ends with the first take that stands, a fix or a warp --
 #: once the belief has walked FALLEN_NEAR_M from where it stood up, the wide
 #: search's own reach (further on, a first fit is not a get-up's to answer
-#: for) -- or after FALLEN_LOOKS wider looks, a second of scans apart: a
+#: for) -- or with its FALLEN_LOOKS wider looks, a second of scans apart,
+#: the last of them made only to find again what the one before found: a
 #: take two better places outdo, the look unable to tell them apart, was
-#: else refused for as long as the robot stood there (docs/SimNotes.md, "A
-#: get-up moves the body past the search's window").
+#: else refused, and a fit that only ever slid looked round, for as long as
+#: the robot stood there. ⚠ So such a take is the base's again some five
+#: seconds on: the bound's price (docs/SimNotes.md, "A get-up moves the
+#: body past the search's window").
 FALLEN_NEAR_M = 2.0
 FALLEN_LOOKS = 6
 #: ⚠ AN ANCHOR RE-LAYS THE MAP ROUND IT (issue #422): once the dock has put
@@ -313,8 +316,8 @@ class Match(NamedTuple):
   #: (fewer than MIN_INLIERS), "unconstrained" (no direction fixed), "slid"
   #: (past MAX_STEP, and the search found nothing where the fit slid, or
   #: waits), "inconsistent" (the map disagreed, and the search found
-  #: nothing it agreed with -- or, up from a fall, a wider look holds a
-  #: better place than the take, `_outdone`).
+  #: nothing it agreed with), "outdone" (up from a fall, a wider look holds
+  #: a better place than the fit's or its search's take, `_outdone`).
   why: str
   inliers: int
   #: The inliers' RMS distance to the map at the matched pose, m.
@@ -455,12 +458,14 @@ class ScanMatcher:
     self.turned_from: tuple[float, float] | None = None
     #: Up from a fall (`fell`) and no take has stood since (FALLEN_*): the
     #: wider looks left to it, the scans before the next may be made, and
-    #: the correction (dx, dy, dtheta) to the place the last one held better
-    #: than the take, until the next finds it again (`_outdone`).
+    #: what the last one held (`_outdone`): the correction (dx, dy, dtheta)
+    #: to the one place it found, until the next finds it again, or places
+    #: it could not tell apart (`rivals`).
     self.fallen = False
     self.looks_left = 0
     self.wider_wait = 0
     self.better: tuple[float, float, float] | None = None
+    self.rivals = False
 
   # ---- the field ------------------------------------------------------------
 
@@ -543,17 +548,20 @@ class ScanMatcher:
     (`_turned`). The run of refusals starts again, and what its wide search
     found before the fall goes: the fall moved the body under it -- by more
     than the bounded search reaches, as often as not, so until a take stands
-    each is checked by a wider look (`fallen`, `_outdone`, issue #681), and
-    an anchor's window (ANCHORED_SCANS) is closed: laid unmatched at a belief
-    the get-up just left behind, its scans were a copy of the room."""
+    each is checked by a wider look, and a fit that slid looked round
+    (`fallen`, `_outdone`, issue #681), and an anchor's window
+    (ANCHORED_SCANS) is closed: laid unmatched at a belief the get-up just
+    left behind, its scans were a copy of the room."""
     self.turned_left, self.turned_seen, self.turned_from = TURNED_SEARCHES, None, None
     self.lost_run, self.pending = 0, None
-    self.fallen, self.looks_left, self.wider_wait, self.better = True, FALLEN_LOOKS, 0, None
+    self._settled()
+    self.fallen, self.looks_left = True, FALLEN_LOOKS
     self.anchoring = 0
 
   def _settled(self) -> None:
     """The fall's doubt of the pose is over (FALLEN_*)."""
-    self.fallen, self.looks_left, self.wider_wait, self.better = False, 0, 0, None
+    self.fallen, self.looks_left, self.wider_wait = False, 0, 0
+    self.better, self.rivals = None, False
 
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
@@ -642,16 +650,18 @@ class ScanMatcher:
       return self._done(pose, "no map" if self.field is None else "sparse")
     asked = (x0, y0, th0)
     at, why, kw = self._verdict(asked, pts)
-    if self.fallen and why in ACCEPTED:
+    if self.fallen and (why in ACCEPTED or why == "slid"):
       # Up from a fall and no take has stood since: this one stands only
-      # where a wider look holds no better place (`_outdone`)
-      outdone, better = self._outdone(asked, pts, (at, kw))
+      # where a wider look holds no better place, and a fit that slid --
+      # refused, and no refusal of the run the wide search waits on -- is
+      # looked round as well (`_outdone`)
+      outdone, better = self._outdone(asked, pts, (at, kw) if why in ACCEPTED else None)
       if better is not None:
         # ...found again by this look: taken as the wide search's finds are
         self.doubt_wait = 0
         return self._done(better[0], "relocated", **better[1])
       if outdone:
-        return self._done(asked, "inconsistent", **{k: v for k, v in kw.items() if k != "step"})
+        return self._done(asked, "outdone", **{k: v for k, v in kw.items() if k != "step"})
     if why != "inconsistent":
       return self._done(at, why, **kw)
     # ...and refused for long enough, the robot is lost past the search's
@@ -811,37 +821,60 @@ class ScanMatcher:
     return (x0 + best_at[0], y0 + best_at[1], th0 + best_at[2])
 
   def _outdone(self, pose, pts: np.ndarray, near):
-    """Whether a wider look holds a better place than `near`, a take (its
-    pose, `Match`'s fields) of a robot up from a fall (FALLEN_*) -- and that
-    place, as `_relocate` gives one, once it is found again: (outdone, the
-    place or None). The look's places (`_look`) with `near` one more of
-    them: it stands where it is the best, a rival of the best (RIVAL_SHARE:
-    the look cannot tell them apart) or one PLACE with it (UNIQUE_M); else
-    it is outdone, and the best -- where no other place rivals it -- waits
-    (`better`) for the next look, LOST_RUN scans on, to find it again: once
-    is a coincidence. Between two looks a take stands only where it is the
-    place that waits, as near as a slid fit's search must be (`_near`), and
-    with none waiting it is refused as the last look refused it. Its looks
-    spent (FALLEN_LOOKS), the doubt is over."""
+    """Up from a fall (FALLEN_*): whether a wider look holds a better place
+    than `near`, a take (its pose, `Match`'s fields; None for a fit that
+    slid, which nothing outdoes) -- and that place, as `_relocate` gives
+    one, once two looks running found it: (outdone, the place or None).
+
+    A look is made once in LOST_RUN scans: its places (`_look`), with the
+    take one more of them. The take stands where it is the best, a rival of
+    the best (RIVAL_SHARE: the look cannot tell them apart) or one PLACE
+    with it (UNIQUE_M); else it is outdone, and the best -- where no other
+    place rivals it -- waits (`better`) for the next look to find it again:
+    once is a coincidence. Between two looks the last one's word stands: a
+    take is the place that waits, as near as a slid fit's search must be
+    (`_near`), or it is outdone; places the look could not tell apart
+    (`rivals`) outdo every take; and a look that held no place leaves the
+    take the base's. The last of its FALLEN_LOOKS is made only to find again
+    what the one before found (as `_turned`'s last), and the doubt is
+    over."""
     if self.wider_wait:
-      return self.better is None or not _near(near[1]["step"], self.better), None
-    self.wider_wait, self.looks_left = LOST_RUN, self.looks_left - 1
-    found = [near] + self._look(pose, pts, near)
-    best = max(found, key=lambda f: f[1]["inliers"])
-    if _same(best[0], near[0]) or near[1]["inliers"] >= RIVAL_SHARE * best[1]["inliers"]:
-      return False, None
-    seen, self.better = self.better, None if _rivalled(found, best) else best[1]["step"]
-    if seen is not None and self.better is not None and _same(seen, self.better):
-      return True, best
-    if not self.looks_left:
+      if near is None:
+        return False, None
+      if self.better is None:
+        return self.rivals, None
+      return not _near(near[1]["step"], self.better), None
+    self.looks_left -= 1
+    if self.looks_left <= 0 and self.better is None:
       self._settled()
-    return True, None
+      return False, None
+    self.wider_wait = LOST_RUN
+    seen, self.better, self.rivals = self.better, None, False
+    found = self._look(pose, pts, near)
+    outdone, again = False, None
+    if near is not None:
+      found = [near] + found
+    if found:
+      best = max(found, key=lambda f: f[1]["inliers"])
+      if near is None or not (_same(best[0], near[0])
+                              or near[1]["inliers"] >= RIVAL_SHARE * best[1]["inliers"]):
+        outdone = near is not None
+        self.rivals = _rivalled(found, best)
+        if not self.rivals:
+          self.better = best[1]["step"]
+          if seen is not None and _same(seen, self.better):
+            again = best
+    if self.looks_left <= 0 and again is None:
+      self._settled()
+    return outdone, again
 
   def _look(self, pose, pts: np.ndarray, near) -> list:
-    """A wider look's places, for a take `near` (`_outdone`): the wide
-    search's (`_wide_found`), looked for and kept only within UNIQUE_RAD of
-    the take's heading, and judged as the doubt's takes are
-    (DOUBT_FOUND_SHARE, never a fit the doubt would doubt).
+    """A wider look's places, up from a fall (`_outdone`): the wide search's
+    (`_wide_found`: its best places, each at the heading the scan fits it
+    best within WIDE_RAD), judged as the doubt's takes are
+    (DOUBT_FOUND_SHARE, never a fit the doubt would doubt) and kept only
+    within UNIQUE_RAD of the heading of the take `near` -- of `pose`'s, for
+    a fit that slid.
 
     ⚠ A get-up moves the body, and the heading is the IMU's, right to 1.6
     deg through every fall flown. MEASURED from the truth at 7,840 places
@@ -849,11 +882,15 @@ class ScanMatcher:
     steps changes with the stance and a scan from the truth puts 0.61-0.75
     of its points on walls, poses turned 14-16 deg put 0.78-0.96 there, and
     weighed as the wide search finds its places a right belief up from a
-    fall was refused at 11 places and moved at 3 (0.2-1.4 m, 13-16 deg)."""
-    turn = math.remainder(near[0][2] - pose[2], 2 * math.pi)
-    turns = np.arange(turn - UNIQUE_RAD, turn + UNIQUE_RAD + 1e-12, SEARCH_STEP_RAD)
-    return [f for f in self._wide_found(pose, pts, doubt=True, turns=turns)
-            if _apart(f[0], near[0])[1] < UNIQUE_RAD]
+    fall was refused at 11 places and moved at 3 (0.2-1.4 m, 13-16 deg).
+    ⚠ AND THE LATTICE IS THE WIDE SEARCH'S, AT EVERY HEADING: a place the
+    scan fits best turned is none at the take's heading either -- laid at
+    the take's heading alone (a third of the work), the look found those
+    places there too, at the doubt's bar, and three right beliefs by the
+    flight were refused and moved 0.5-1.7 m."""
+    at = pose if near is None else near[0]
+    return [f for f in self._wide_found(pose, pts, doubt=True)
+            if _apart(f[0], at)[1] < UNIQUE_RAD]
 
   def _relocate(self, pose, pts: np.ndarray):
     """The wide search (LOST_RUN): the one pose within WIDE_M and WIDE_RAD of
@@ -866,13 +903,13 @@ class ScanMatcher:
     best = max(found, key=lambda f: f[1]["inliers"])
     return None if _rivalled(found, best) else best
 
-  def _wide_found(self, pose, pts: np.ndarray, doubt: bool = False, turns=None) -> list:
+  def _wide_found(self, pose, pts: np.ndarray, doubt: bool = False) -> list:
     """The places the wide search finds: each of the best lattice places
-    (`_wide_candidates`, at `turns`) searched cell by cell round it and
-    fitted, those judged "found" -- at the doubt's bar, `doubt` (`_look`) --
-    as (pose, `Match`'s fields)."""
+    (`_wide_candidates`) searched cell by cell round it and fitted, those
+    judged "found" -- at the doubt's bar, `doubt` (`_look`) -- as (pose,
+    `Match`'s fields)."""
     found = []
-    for start in self._wide_candidates(pose, pts, turns):
+    for start in self._wide_candidates(pose, pts):
       fine = self._search(start, pts, reach_m=WIDE_STRIDE * self.grid.resolution,
                           reach_rad=SEARCH_STEP_RAD) or start
       at, why, kw = self._judge(pose, pts, self._fit(fine, pts), found=True, doubt=doubt)
@@ -880,10 +917,9 @@ class ScanMatcher:
         found.append((at, kw))
     return found
 
-  def _wide_candidates(self, pose, pts: np.ndarray, turns=None) -> list[tuple[float, float, float]]:
+  def _wide_candidates(self, pose, pts: np.ndarray) -> list[tuple[float, float, float]]:
     """The WIDE_TRIES best poses of a lattice WIDE_STRIDE cells and
-    SEARCH_STEP_RAD apart within WIDE_M and WIDE_RAD of `pose` (or at
-    `turns` from its heading, rad: a wider look's, `_look`), each scored
+    SEARCH_STEP_RAD apart within WIDE_M and WIDE_RAD of `pose`, each scored
     by its points within half a stride of a mapped wall, and each UNIQUE_M
     from those taken before it at ANY heading: one place a candidate."""
     g, f = self.grid, self.field
@@ -893,8 +929,7 @@ class ScanMatcher:
     h, w = near.shape
     n = int(round(WIDE_M / res / WIDE_STRIDE))
     shifts = np.arange(-n, n + 1) * WIDE_STRIDE
-    if turns is None:
-      turns = np.arange(-WIDE_RAD, WIDE_RAD + 1e-12, SEARCH_STEP_RAD)
+    turns = np.arange(-WIDE_RAD, WIDE_RAD + 1e-12, SEARCH_STEP_RAD)
     x0, y0, th0 = pose
     scores = np.empty((len(turns), len(shifts), len(shifts)), dtype=np.int64)
     for k, dth in enumerate(turns):
@@ -1080,7 +1115,8 @@ class ScanMatcher:
              "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen],
              "turnedFrom": None if self.turned_from is None else list(self.turned_from),
              "fallen": self.fallen, "looksLeft": self.looks_left, "widerWait": self.wider_wait,
-             "better": None if self.better is None else list(self.better)}
+             "better": None if self.better is None else list(self.better),
+             "rivals": self.rivals}
     return state, ({} if self.field is None else {"matchField": self.field})
 
   def restore_kept(self, state: dict, arrays: dict) -> None:
@@ -1102,9 +1138,10 @@ class ScanMatcher:
     since = state.get("turnedFrom")
     self.turned_from = None if since is None else tuple(float(v) for v in since)
     self.fallen = bool(state.get("fallen", False))
-    self.looks_left = int(state.get("looksLeft", 0))
+    self.looks_left = int(state.get("looksLeft", FALLEN_LOOKS if self.fallen else 0))
     self.wider_wait = int(state.get("widerWait", 0))
     better = state.get("better")
     self.better = None if better is None else tuple(float(v) for v in better)
+    self.rivals = bool(state.get("rivals", False))
     self.field = arrays.get("matchField")
     self.normals = None if self.field is None else _normals(self.field)
