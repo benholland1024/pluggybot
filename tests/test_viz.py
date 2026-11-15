@@ -1,7 +1,6 @@
 """Guards for the video recorder (viz.py) and the clips it writes of the
 humanoid's scenes (`humanoid_spike.py --record`, #517)."""
 
-import sys
 from pathlib import Path
 
 import mujoco
@@ -275,7 +274,7 @@ def test_record_flies_a_scene_once_and_writes_its_clip(tmp_path, monkeypatch):
   off the frame), the last frame held, the GIF beside the MP4, the world
   closed; and nothing stepped but the scene's own steps. Flown on a
   stand-in scene: no scene is flown in the suite."""
-  sys.path.insert(0, str(ROOT / "scripts"))
+  monkeypatch.syspath_prepend(str(ROOT / "scripts"))
   import humanoid_spike as sp
   from pluggybot import batch
   monkeypatch.setattr(batch, "watched", lambda: None)     # the runner's, never this process's
@@ -317,7 +316,8 @@ def test_record_flies_a_scene_once_and_writes_its_clip(tmp_path, monkeypatch):
   for refused in (["--record", "no_such_scene", str(tmp_path / "x.mp4")],
                   ["--record", "getup", str(tmp_path / "x.gif")],
                   ["--record", "getup", str(tmp_path / "x.mp4"), "--strip", "getup"],
-                  ["--strip", "getup", "--gif", "--out", str(tmp_path / "strip.png")]):
+                  ["--strip", "getup", "--gif", "--out", str(tmp_path / "strip.png")],
+                  ["--record", "getup", str(tmp_path / "x.mp4"), "--stand-at-once"]):
     with pytest.raises(SystemExit):
       sp.main(refused)
   # ...and a world drawn brighter for our camera already is not lifted again
@@ -333,6 +333,8 @@ def test_record_flies_a_scene_once_and_writes_its_clip(tmp_path, monkeypatch):
   monkeypatch.setattr(sp, "scene_clip", lambda scene, at_once=False: {
     "model": model, "data": data, "lines": failing()})
   broken = tmp_path / "stairs.mp4"
+  for earlier in (broken, broken.with_suffix(".gif")):     # an earlier run's
+    earlier.write_bytes(b"an earlier run's clip")
   with pytest.raises(RuntimeError):
     sp.main(["--record", "stairs", str(broken), "--gif"])
   # ...leaves no clip at PATH that reads as the whole scene

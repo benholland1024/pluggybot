@@ -5395,10 +5395,10 @@ CLIP_CAMS = {**{s: (CAM_AZIMUTH, CAM_ELEVATION, CAM_DISTANCE, None)
 #: The scenes whose camera's azimuth is from the robot's heading, turning
 #: with it (`walk`: from its front, through every room it crosses).
 CLIP_TURNS = ("walk",)
-#: MuJoCo's own headlight's ambient, the house's: a world drawn brighter
-#: than it for our camera already (`standing_world`, `held_world`,
-#: `jaws_world`) is not lifted again.
-HOUSE_AMBIENT = 0.1
+#: A world whose headlight's ambient is over this is drawn brighter for our
+#: camera already (`standing_world`, `held_world`, `jaws_world`: 0.35), and
+#: is not lifted again; the house's own is MuJoCo's default, 0.1.
+LIT_AMBIENT = 0.2
 
 
 def _body_once(scene: BodyScene):
@@ -5462,13 +5462,13 @@ def clip_lift(model) -> float:
   """How much a clip of `model`'s scene is lifted after rendering:
   `CLIP_BRIGHTEN` in the house's own light, none in a world drawn brighter
   for our camera already."""
-  return 1.0 if model.vis.headlight.ambient[0] > HOUSE_AMBIENT else CLIP_BRIGHTEN
+  return 1.0 if model.vis.headlight.ambient[0] > LIT_AMBIENT else CLIP_BRIGHTEN
 
 
 def _heading(data, root: int) -> float:
   """Where the body faces, deg: our camera's, never the robot's."""
-  rot = data.xmat[root].reshape(3, 3)
-  return math.degrees(math.atan2(rot[1, 0], rot[0, 0]))
+  from pluggybot.humanoid.body import _yaw
+  return math.degrees(_yaw(data.xmat[root].reshape(3, 3)))
 
 
 def record(scene: str, path: str, gif: bool = False, at_once: bool = False) -> None:
@@ -5480,11 +5480,14 @@ def record(scene: str, path: str, gif: bool = False, at_once: bool = False) -> N
   beside it (`viz.GIF_W` wide). ⚠ The scene's light is never changed for
   the camera: the frames are lifted after rendering (`CLIP_BRIGHTEN`)."""
   from pluggybot.viz import Recorder
-  # ...written under a name of its own until the scene is flown: a flight
-  # that failed leaves no clip at PATH that reads as the whole scene
-  out = Path(path)
+  # ...written under a name of its own until the scene is flown, and what an
+  # earlier run left at PATH gone first: a flight that failed leaves no clip
+  # there that reads as the whole scene
+  out = Path(path).expanduser()
   part = out.with_name(out.stem + ".part.mp4")
   out.parent.mkdir(parents=True, exist_ok=True)
+  for old in (out, out.with_suffix(".gif")):
+    old.unlink(missing_ok=True)
   print(f"recording the `{scene}` scene to {path} ...")
   clip = scene_clip(scene, at_once)
   rec, flown, stage, said = None, False, "", ""
@@ -5525,7 +5528,7 @@ def record(scene: str, path: str, gif: bool = False, at_once: bool = False) -> N
       if "close" in clip:
         clip["close"]()
   part.replace(out)
-  print(f"wrote {path}: {rec.frames_written} frames, {rec.frames_written / CLIP_FPS:.1f} s"
+  print(f"wrote {out}: {rec.frames_written} frames, {rec.frames_written / CLIP_FPS:.1f} s"
         + (f", and {out.with_suffix('.gif')}" if gif else ""))
 
 
@@ -5773,6 +5776,8 @@ def main(argv=None) -> None:
       ap.error(f"--record: no scene {args.record[0]!r} (scenes: {', '.join(sorted(SCENES))})")
     if Path(args.record[1]).suffix.lower() != ".mp4":
       ap.error("--record: PATH is the clip's MP4 (--gif writes a GIF beside it)")
+    if args.stand_at_once and args.record[0] != "way_home":
+      ap.error("--stand-at-once is the way_home scene's")
     record(*args.record, gif=args.gif, at_once=args.stand_at_once)
   elif args.view == "way_home":
     view_way_home(args.stand_at_once)

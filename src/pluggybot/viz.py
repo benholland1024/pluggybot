@@ -74,8 +74,8 @@ class Recorder:
       raise ValueError(f"brighten is a gamma, over 0: {brighten}")
     self.interval = speed / fps            # sim seconds between frames
     self.fps = fps
-    self._next = 0.0
-    self._seen = math.inf                  # no clock read yet: filming starts at the first
+    # No clock read yet: the first call's is where filming starts.
+    self._next = self._seen = math.inf
     self._label = ""
     self.frames_written = 0
     self._lift = (255.0 * (np.arange(256) / 255.0) ** (1.0 / brighten)
