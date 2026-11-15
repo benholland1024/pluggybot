@@ -1059,7 +1059,25 @@ save a filmstrip PNG named after the script.
   top. ⚠ A LONE PIXEL IS NOT A SURFACE (`box._agreed`, no pixel walked
   twice): the noise passes 3 sigma once in a quarter of hundred-pixel
   walks. ⚠ An end takes the walks' most common word, a tie the one that
-  claims less (`steps.MEASURE_WORDS`). ⚠ An answer may take `MAX_TOKENS` 128,000, told
+  claims less (`steps.MEASURE_WORDS`). ⚠ `measure` READS THE TOP UNDER ITS
+  POINT (#704; `steps.measured_top`, its one selection; SimNotes, "Where
+  `measure` looks"): the highest FLAT height among the points within 2 cm
+  of it that 30 stand at (`box.top_height(least=)`), whatever stands lower
+  -- flat meaning spread across the plane (`box.FLAT_ACROSS`,
+  `FLAT_WIDE_M`: a face's slice is a line) -- read off its own run of flat
+  bins (never its noise's tail, nor a wider top under 1 cm below), that face
+  alone (`box.joined`: bins' middles within 3 cm); else, or too little of it
+  to read its ends, the window's, `object.under` saying which. ⚠ A strip
+  under about 1 cm wide (a plate's wall) or a top tilted past ~15 deg is no
+  flat top there, and past a metre a face's slice may pass for one. ⚠ YOUR
+  BODY SAYS THE FINGERTIPS REACH 4 CM PAST THE GRIP (#711;
+  `model.fingers_past_grip`, a test reads the model's pads), and a reach
+  that STOPPED SHORT says how far from its goal its grip was as it stopped,
+  along and across its fingers (`steps._short_of`). ⚠ ONE THAT HOLDS SAYS
+  NOTHING OF IT (SimNotes, "Stepping toward the work"): its routine ends
+  with the hand still coming in, and a tenth of the grips that read held
+  then touched nothing; judged at rest, the cube check placed 12 of 32 for
+  20. ⚠ An answer may take `MAX_TOKENS` 128,000, told
   `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
   (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
   again saying so. ⚠ A REPLY LOST TO EVERY RETRY LOSES ONLY ITSELF: what it
