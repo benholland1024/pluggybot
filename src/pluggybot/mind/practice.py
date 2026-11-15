@@ -208,8 +208,9 @@ read before a reach may lie elsewhere in the frame after it. Your shoulders are 
 straight puts its grip 0.58 m from its shoulder, and it reaches less far
 with its hand turned some ways. Your trunk turns on a waist over your hips,
 up to 60 degrees either way, your shoulders and your head with it. Your hands are "left" and "right": each ends in a two-jaw gripper
-whose jaws close across the point between them (its grip), its fingers 8 cm
-long. Both grippers start shut. A hand that is OUT is one you have reached
+whose jaws close across the point between them (its grip), its fingers %(fingers)g cm
+long, the grip halfway along them: their tips reach %(past)g cm past it.
+Both grippers start shut. A hand that is OUT is one you have reached
 with, until you withdraw it.%(walks)s
 
 VERBS (a statement each; arguments in this order, or by keyword)
@@ -246,6 +247,17 @@ LOST_NOTE = ("(Your reply to the above was lost each time it was asked: none cam
              "as an answer.)")
 
 
+def _fingers() -> dict:
+  """How long a gripper's fingers are and how far their tips reach past the
+  grip, cm, as YOUR BODY says them: off the part and its model's pads
+  (`humanoid.model.fingers_past_grip`, #711: told only "8 cm long", a grip
+  from straight above stopped with its pads on the cube's board 1.4 cm over
+  the cube, and the robots could not tell why)."""
+  from pluggybot.humanoid import model, parts
+  return {"fingers": round(100 * parts.GRIPPER.finger_len, 1),
+          "past": round(100 * model.fingers_past_grip(), 1)}
+
+
 def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
   """The practice's system prompt, a section at a time: the body's verbs,
   sensors and axes off the registries and what `facts` lets it call."""
@@ -262,7 +274,8 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
           ("the language", language_text(facts)),
           ("your body", YOUR_BODY % {"verbs": verbs, "sensors": sensors, "axes": ax,
                                      "slew": axes.HUMANOID_SLEW,
-                                     "walks": WALK_LETS_GO if steps else ""}),
+                                     "walks": WALK_LETS_GO if steps else "",
+                                     **_fingers()}),
           ("your answer", ANSWER % {"cap": f"{MAX_TOKENS:,}", "aim": f"{AIM_TOKENS:,}"})]
 
 

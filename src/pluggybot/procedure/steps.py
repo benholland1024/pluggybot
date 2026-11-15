@@ -64,7 +64,8 @@ from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP
                                      STEP_SHORT_M, WALK_KEEP_M)
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
-from pluggybot.perception.box import DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M
+from pluggybot.perception.box import (DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M,
+                                      TOP_SHARE as MEASURE_TOP_SHARE)
 from pluggybot.perception.depth import MAX_Z as MEASURE_REACH_M
 from pluggybot.perception.tags import BLOCK_TAG_SIZE, PICTURE_H, PICTURE_W
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
@@ -691,6 +692,16 @@ def _watch(life, args: dict) -> Routine:
 #: so (#630). Under 0.35 m the far edge of a 0.26 m deep top was clipped;
 #: at 0.35 and 0.45 the four set-outs read their tops whole.
 MEASURE_NEAR_M = 0.45
+#: ...and the top it reads is the one UNDER the point (#704): the highest
+#: height among the points within this of it, m, that `box.MIN_POINTS` of
+#: them stand at -- that face alone, never another at its height
+#: (`box.joined`) -- and the window's (the highest holding `box.TOP_SHARE` of
+#: the fullest) only where none does. Read as the window's, Luca's `measure`
+#: at the cube's middle read the counter under its board, 0.719-0.722 m in 10
+#: runs of 10 (the cube's top 0.806), and it reached 10 cm under the board;
+#: read with the window's share at the point, a knob's front-face tag read
+#: the counter far below it in 12 flights of 24, its top in the rest.
+MEASURE_AT_M = 0.02
 #: ...and an end read off points whose median stands within this of the
 #: window's rim, m, is the window's, never the top's: no reading (#630:
 #: from (0.9, 0) a counter's near end read the rim, 0.453-0.456 m, however
@@ -700,6 +711,14 @@ MEASURE_NEAR_M = 0.45
 #: with the window's, 4 of them read true (SimNotes, "Where `measure`
 #: looks").
 MEASURE_RIM_M = 0.03
+
+
+#: `box.TOP_SHARE` as `measure`'s text says it: a share it has no word for
+#: fails the text's build, so a retuned share is given its words, never a
+#: number in prose.
+SHARE_WORDS = {0.25: "a quarter", 0.5: "half"}
+
+
 #: Its ends: the stance frame's axis each lies along, whether it is that
 #: axis's far end, and which way the top runs on past it.
 MEASURE_ENDS = (("near", 0, False, "toward you"), ("far", 0, True, "away from you"),
@@ -715,13 +734,46 @@ MEASURE_ENDS = (("near", 0, False, "toward you"), ("far", 0, True, "away from yo
 MEASURE_WORDS = ("cut", "runs", "taller", "lower")
 
 
+def measured_top(near, x: float, y: float):
+  """The top `measure` reads among `near` (k, 3), the stance frame's points
+  within `MEASURE_NEAR_M` of (x, y), one selection: its height (None where
+  none is seen), whether it is the one under (x, y) (#704), which of `near`
+  stand on it, and its ends as `box.edge_read` reads them (`MEASURE_ENDS`'
+  keys). The one under the point is the highest flat height among the points
+  within `MEASURE_AT_M` of it that `box.MIN_POINTS` of them stand at
+  (`box.top_height(least=)`), that face alone (`box.joined`); where there is
+  none, or too little of it stands in the window to read where it ends, the
+  window's."""
+  import numpy as np
+  from pluggybot.perception import box
+  at = np.hypot(near[:, 0] - x, near[:, 1] - y) < MEASURE_AT_M
+
+  def ends(flat):
+    return {key: box.edge_read(near[flat][:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
+  # ...the highest flat height there that `box.MIN_POINTS` stand at, whatever
+  # stands lower: half of a knob's front face's circle is the counter below it
+  top = box.top_height(near[at], least=box.MIN_POINTS) if len(near) else None
+  if top is not None:
+    flat = box.on_top(near, top)
+    # ...that face alone, never another at its height in the window
+    flat[np.flatnonzero(flat)[~box.joined(near[flat, :2], at[flat])]] = False
+    read = ends(flat)
+    if None not in read.values():
+      return top, True, flat, read
+  top = box.top_height(near) if len(near) else None
+  flat = box.on_top(near, top) if top is not None else np.zeros(len(near), dtype=bool)
+  return top, False, flat, ends(flat)
+
+
 def _measure(life, args: dict) -> Routine:
   """The flat top of what stands at (x, y), off the head's depth camera at
   the part's own 848 x 480 (`Body.depth_pictures`): its height and where
   it ends -- nearest and farthest ahead, leftmost and rightmost -- in the
   stance frame, in `object.*`. ok when a flat top is seen. ⚠ OUR CODE'S
   PERCEPTION, a stated prior (`perception.box`): the highest flat face
-  among the points round (x, y), and its edges. ⚠ AN END COUNTS ONLY WHERE
+  among the points within `MEASURE_AT_M` of (x, y), that face alone
+  (`box.joined`) -- or, where too few stand there, among the points round
+  it, `object.under` saying which (#704) -- and its edges. ⚠ AN END COUNTS ONLY WHERE
   THE CAMERA SAW PAST IT (#636): where the top runs on past the window
   (#630) or past where it read, off the picture, or out of the camera's
   range, that end is no reading, and reading it says why
@@ -742,15 +794,13 @@ def _measure(life, args: dict) -> Routine:
   st = np.column_stack([c * dx + s_ * dy, -s_ * dx + c * dy, pts[:, 2]])
   which = np.flatnonzero(np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M)
   near = st[which]
-  top = box.top_height(near) if len(near) else None
-  flat = box.on_top(near, top) if top is not None else np.zeros(len(near), dtype=bool)
+  top, under, flat, read = measured_top(near, x, y)
   on, on_which = near[flat], which[flat]
-  read = {key: box.edge_read(on[:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
   if top is None or None in read.values():
     said = f"your last `measure` saw no flat top round ({x:g}, {y:g}) from where you stood"
-    _reports(life)["measure"] = {UNREAD: dict.fromkeys(("top", *read), said)}
+    _reports(life)["measure"] = {UNREAD: dict.fromkeys(("top", "under", *read), said)}
     return {"ok": False, "reason": f"no flat top seen round ({x:g}, {y:g}) from where you stand"}
-  got, past, unseen, taller = {"top": top}, {}, {}, []
+  got, past, unseen, taller = {"top": top, "under": float(under)}, {}, {}, []
   for key, axis, far, way in MEASURE_ENDS:
     end, strip = read[key]
     rim = MEASURE_NEAR_M - float(np.median(np.hypot(on[strip, 0] - x, on[strip, 1] - y)))
@@ -981,6 +1031,43 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
                               "how you truly stand, or pushing on something",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
+#: A reach that STOPPED SHORT on its way says how far from where it was
+#: asked its grip was as it stopped (#711): past this, m, off the last of
+#: what it felt (`_felt_routine`: nothing more is read). ⚠ NOT ONE THAT
+#: HOLDS: its body routine ends the moment its command arrives, the hand
+#: still coming in and its force read as a holding hand's, still -- over the
+#: hands checks at set-outs 0-31, 10 of the 69 grips that read 1 cm short
+#: and 10 N along their fingers then touched nothing with any part of the
+#: arm, 1.1-5.5 cm short at 26-87 N; and judged again once the hand came to
+#: rest (0.3 s at most), the cube check placed 12 of 32 where it placed 20,
+#: 2 more falling, and 4 such grips still touched nothing.
+REACH_SHORT_M = 0.01
+REACH_STOPPED_FROM = "; as it stopped, its grip was {cm:.1f} cm from where you asked"
+#: ...and, asked a turn, how much of that was back along its fingers and how
+#: much across them.
+REACH_STOPPED_ALONG = " -- {back:.1f} cm back along its fingers and {across:.1f} cm across them"
+
+
+def _short_of(life, place, rot, felt: list) -> str:
+  """How far a reach's grip ended from `place` as its reason says it, off
+  the last of what it `felt` (`REACH_STOPPED_*`) -- asked a turn, how much
+  of it back along its fingers and how much across them -- "" where it felt
+  nothing or ended within `REACH_SHORT_M`."""
+  import numpy as np
+  from pluggybot.procedure import axes
+  if not felt:
+    return ""
+  miss = np.asarray(place, dtype=float) - np.asarray(axes.from_stance(life, tuple(felt[-1]["at"])),
+                                                     dtype=float)
+  far = float(np.linalg.norm(miss))
+  if far <= REACH_SHORT_M:
+    return ""
+  said = REACH_STOPPED_FROM.format(cm=100 * far)
+  if rot is None:
+    return said
+  back = float(miss @ -np.asarray(rot, dtype=float)[:, 2])
+  across = math.sqrt(max(far * far - back * back, 0.0))
+  return said + REACH_STOPPED_ALONG.format(back=100 * back, across=100 * across)
 
 
 #: ...and one that kept off another robot's body (#678; `Body.hand_kept`,
@@ -1062,6 +1149,8 @@ def _reach(life, args: dict) -> Routine:
   if why == UNTIL:
     return {"ok": True, "hand": hand, "why": why, **said, "felt": felt}
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
+  if why == "stopped short":
+    reason += _short_of(life, place, rot, felt)
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
@@ -1379,7 +1468,17 @@ HANDS_VERBS: dict[str, Verb] = {
                   f"{MEASURE_NEAR_M:g} m of (x, y): the height of its flat top and where that "
                   "top ends -- nearest and farthest ahead, leftmost and rightmost -- ride "
                   f"`object.*`; ok when a flat top is seen, {MEASURE_FLOOR_M:g} m or more over "
-                  "the floor. An end reads only where your camera saw past it: where the top "
+                  "the floor. The top it reads is the one under (x, y): the highest flat top "
+                  f"your camera sees within {100 * MEASURE_AT_M:g} cm of (x, y), and its ends "
+                  "are that top's own, not those of another top at its height beside it. "
+                  "Where your camera sees too little of a flat top "
+                  f"within those {100 * MEASURE_AT_M:g} cm, or too little of it to read "
+                  "where it ends, it reads instead the highest top "
+                  f"within those {MEASURE_NEAR_M:g} m that fills at least "
+                  f"{SHARE_WORDS[MEASURE_TOP_SHARE]} as much "
+                  "of its picture as the top that fills the most, and `object.under` reads 0 "
+                  "(1 for the top under (x, y)). An end reads only where your camera saw past "
+                  "it: where the top "
                   f"runs on past those {MEASURE_NEAR_M:g} m, off your camera's picture or out "
                   f"of its range ({MEASURE_NEAREST_M:g} to {MEASURE_REACH_M:g} m), its end that way has "
                   "no reading, and reading it says why. Where something taller stands "
