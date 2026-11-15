@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 VIDEO_W, VIDEO_H = 1280, 720     # the offscreen buffer's full size (see the
                                  # <global offwidth/offheight> in the model)
-GIF_W = 640                      # GIFs get downscaled; 720p GIF is absurd
+GIF_W, GIF_FPS = 640, 15         # GIFs get downscaled; 720p GIF is absurd
 LABEL = (245, 246, 250)
 SHADOW = (12, 13, 15)
 INSET_EDGE = (232, 234, 238)
@@ -43,13 +43,18 @@ class Recorder:
   inset_camera renders a second, model-mounted camera as a picture-in-picture
   -- e.g. a camera on the robot itself. That view exists inside the sim and
   no screen capture of the viewer can reach it.
+
+  `brighten` lifts each frame's pixels AFTER it is rendered (a gamma: 1 is
+  none). ⚠ Never the scene's light: the robot's own cameras see by it, and
+  brightened, a tag decoded 3 cm elsewhere (#507).
   """
 
   def __init__(self, model, path: str, *, track_body: str | None = None,
                fps: int = 30, speed: float = 1.0,
                distance: float = 1.0, azimuth: float = 135.0,
                elevation: float = -18.0, inset_camera: str | None = None,
-               size: tuple[int, int] = (VIDEO_W, VIDEO_H)) -> None:
+               size: tuple[int, int] = (VIDEO_W, VIDEO_H),
+               brighten: float = 1.0) -> None:
     try:
       import imageio.v2 as imageio
     except ModuleNotFoundError as exc:      # pragma: no cover - install hint
@@ -69,6 +74,8 @@ class Recorder:
     self._next = 0.0
     self._label = ""
     self.frames_written = 0
+    self._lift = (255.0 * (np.arange(256) / 255.0) ** (1.0 / brighten)
+                  ).round().astype(np.uint8) if brighten != 1.0 else None
 
     self.rebind(model, None)
     self.cam = mujoco.MjvCamera()
@@ -141,18 +148,22 @@ class Recorder:
     """Render one frame if the sim clock has reached the next sample time.
 
     Safe to call from an on_step hook on every step; it is a clock comparison
-    until it is time for a frame.
+    until it is time for a frame. ⚠ A clock set back (a scene's reset puts
+    `data.time` at its start again) is sampled on from where it now is:
+    held to the old next sample, a scene that starts over is not filmed.
     """
+    if data.time < self._next - self.interval:
+      self._next = data.time
     if data.time < self._next:
       return
     self._next = data.time + self.interval
     self._apply_camera(EASE)
     self.renderer.update_scene(data, self.cam)
-    img = Image.fromarray(self.renderer.render().copy())
+    img = Image.fromarray(self._lifted(self.renderer.render()))
 
     if self.inset is not None:
       self.inset.update_scene(data, camera=self.inset_camera)
-      tile = Image.fromarray(self.inset.render().copy())
+      tile = Image.fromarray(self._lifted(self.inset.render()))
       m = self.height // 36
       x0, y0 = self.width - tile.width - m, self.height - tile.height - m
       img.paste(tile, (x0, y0))
@@ -163,6 +174,11 @@ class Recorder:
     self._caption(img, data.time)
     self.writer.append_data(np.asarray(img))
     self.frames_written += 1
+
+  def _lifted(self, pixels: np.ndarray) -> np.ndarray:
+    """A rendered frame's pixels, brightened (`brighten`): a copy, the
+    renderer's buffer left as it is."""
+    return pixels.copy() if self._lift is None else self._lift[pixels]
 
   def _caption(self, img: Image.Image, sim_time: float) -> None:
     d = ImageDraw.Draw(img)
@@ -187,24 +203,28 @@ class Recorder:
   def _make_inset(self, model) -> None:
     iw = self.width // 4
     self.inset = mujoco.Renderer(model, (iw * self.height) // self.width, iw)
-  def close(self) -> str:
+  def close(self, gif: str | None = None) -> str:
+    """Finish the clip; with `gif`, a GIF of it there too (`GIF_W` wide at
+    `GIF_FPS`), made from the finished video."""
     self.writer.close()
     self.renderer.close()
     if self.inset is not None:
       self.inset.close()
+    if gif is not None:
+      self._to_gif(gif)
     if self.is_gif:
-      self._to_gif()
+      self._to_gif(self.path)
       os.unlink(self._mp4)
     return self.path
 
-  def _to_gif(self) -> None:
+  def _to_gif(self, path: str) -> None:
     """mp4 -> GIF via a single shared palette (palettegen/paletteuse)."""
     import imageio_ffmpeg
 
-    vf = (f"fps={self.fps},scale={GIF_W}:-1:flags=lanczos,split[a][b];"
+    vf = (f"fps={GIF_FPS},scale={GIF_W}:-1:flags=lanczos,split[a][b];"
           "[a]palettegen=stats_mode=diff[p];"
           "[b][p]paletteuse=dither=bayer:bayer_scale=3")
     subprocess.run(
       [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error",
-       "-i", self._mp4, "-vf", vf, "-loop", "0", self.path],
+       "-i", self._mp4, "-vf", vf, "-loop", "0", path],
       check=True)
