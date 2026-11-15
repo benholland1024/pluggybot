@@ -691,7 +691,8 @@ save a filmstrip PNG named after the script.
   after a long charge"): plugged in, the balancer's 2 N creeps the standing
   robot in, 7.5 mm a minute and turning it, until its plug meets the box
   18 cm past its seat (about 22 minutes), where the arm's way out behind
-  the plug swung into the box -- so further in than 6 cm it backs off to
+  the plug drove its jaw into the wall beside the station and the box -- so
+  further in than 6 cm it backs off to
   its seat first, never turned on the spot first (pinned, a turn swings
   the plug across the box's face), by the station as it last saw it (its
   scan matcher keeps its belief on its body, within about a centimetre),

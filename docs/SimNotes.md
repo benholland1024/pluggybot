@@ -4071,8 +4071,10 @@ soft friction under a sustained shear -- at 7.5 mm a minute, turning it left
 about a degree a minute at first, until its plug meets the station's box 18
 cm past its seat and 11 deg turned, after about 22 minutes, and there it
 stays. From there the unplug's arm, on its way out to 3 cm behind the plug's
-back, swings into the station's box (its face 0.17 m ahead of the stance, its
-edge 0.15 m across) and stops short: "my hand could not get the plug out",
+back -- now at the station's face, 0.17 m ahead of the stance -- drives its jaw
+into the wall beside the station (up to 304 N) and then into the station's box
+(93 N), and stops short (every contact of 5 N or more recorded: the same
+unplug backed off first touched nothing but the plug): "my hand could not get the plug out",
 twice of twice on 11-14 after the lobby's charges of 1,944 and 1,504 s, each
 13.1 s after "unplugging" -- a restart only made it heard, and a charge's own
 end failed the same way unheard (it says so now). The unplug now begins at its seat: further in

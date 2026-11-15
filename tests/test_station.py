@@ -468,7 +468,8 @@ def test_the_unplug_steps_back_to_its_seat_first_where_a_charge_crept_it_in(monk
   """#703: plugged in, the balancer's 2 N on its port creeps a standing robot
   in toward the station, 7.5 mm a minute, until its plug meets the station 18
   cm past its seat (SimNotes, "The unplug after a long charge"), and from
-  there the arm's way out behind the plug swung into the station's box: after
+  there the arm's way out behind the plug drove its jaw into the wall beside
+  the station and the station's box: after
   the live 1,944 and 1,504 s charges, "my hand could not get the plug out",
   twice of twice. Further in than `UNPLUG_IN_M` it backs off to its seat
   before its hand goes out, by the station it believes in -- from there no

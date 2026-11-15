@@ -124,7 +124,8 @@ SEAT_STEPS = 6
 #: standing robot in toward the station, 7.5 mm a minute and turning it left
 #: (SimNotes, "The unplug after a long charge"), until its plug meets the
 #: station 18 cm past its seat after about 22 minutes, where the arm's way out
-#: behind the plug swings into the station's box (#703). It unplugged 13 cm in
+#: behind the plug drove its jaw into the wall beside the station (304 N) and
+#: the station's box (#703). It unplugged 13 cm in
 #: and not 18; nearer than this its walker's step back would not move it
 #: (`humanoid.body.STEP_SHORT_M`). It backs off without turning, in this many
 #: steps at most: turned on the spot first, as the dock's line-up turns, a

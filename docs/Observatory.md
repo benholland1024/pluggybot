@@ -22,7 +22,8 @@ on base and branch, 11,705 lines each, every one the same):
   in toward the station, 7.5 mm a minute and turning it left, until its plug
   meets the station's box 18 cm past its seat after about 22 minutes
   (SimNotes, "The unplug after a long charge"). From there the arm's way out
-  behind the plug swung into the box, so every unplug after a charge of
+  behind the plug drove its jaw into the wall beside the station and the
+  station's box, so every unplug after a charge of
   about 20 minutes or more failed: after a run's end, said ("my hand could
   not get the plug out -- going on anyway", twice of twice on 11-14, Luca at
   the lobby's station), and at a charge's own end, unsaid. It backs off --
