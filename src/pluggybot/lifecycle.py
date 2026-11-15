@@ -275,7 +275,7 @@ DOING_KINDS = ("EXPLORE", "GO_CHARGE", "CHARGE", "WAIT:", "STATION:", "standing 
                "MAKE WAY:", "MADE WAY:", "PROCEDURE ", "TASK ", "DONE ", "GRADE ",
                "DEAD (", "UP again", "STOOD UP ", "DECIDE ")
 #: ...and the decided actions whose `DECIDE` line is shown as the action and
-#: where (`Decision.what`), never why nor who chose it: what a body sets out
+#: where (`Decision.shown`), never why nor who chose it: what a body sets out
 #: on that says nothing as it begins (a charge until it plugs in or waits, an
 #: explore with no zone until it ends, an idle at all).
 DECIDED_SHOWN = ("charge", "explore", "idle")
@@ -2391,8 +2391,9 @@ class HubLifecycle:
     string, the line in that form, with a battery level, points or hearts
     taken out; False, nothing. PRIVATE BY DEFAULT, and shown only where it
     begins as `DOING_KINDS` says a line may: a new kind of line is the
-    robot's own until someone lists it (Overseer.md §2c). While the robot
-    is dead, its death line alone.
+    robot's own until someone lists it (Overseer.md §2c), and a marked one
+    the list does not begin is dropped (`tests/test_doing.py` narrates every
+    call and fails on one).
 
     `detail` reaches the console and `self.log` and NOTHING else -- no status,
     no frame, no hook. It is where a caught exception's class and message go
@@ -2402,11 +2403,7 @@ class HubLifecycle:
     """
     self.status = msg
     shown = msg if doing is True else doing
-    # ...and a dead body does nothing: its death is what the other reads
-    # until it stands up, whatever its lines say meanwhile (a run its death
-    # ended, the jobs a true death fails, an answer that came late)
-    if shown and shown.startswith(DOING_KINDS) and (
-        self.dead is None or shown.startswith("DEAD (")):
+    if shown and shown.startswith(DOING_KINDS):
       self.doing = shown
     # A second robot's lines say whose they are (issue #167); the first
     # robot's read exactly as they always did.
@@ -5892,7 +5889,7 @@ class HubLifecycle:
       self._emit({"type": "call", "t": round(float(self.data.time), 3),
                   "robot": self.root, "source": decision.source, **call})
     self._say(f"DECIDE {decision.summary()}", detail=call_said(call),
-              doing=(f"DECIDE {decision.what()}" if decision.action in DECIDED_SHOWN
+              doing=(f"DECIDE {decision.shown()}" if decision.action in DECIDED_SHOWN
                      else False))
     # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
     # what was recalled -- but a FALLBACK KEEPS IT ONCE (#604): the mind did
@@ -7205,14 +7202,19 @@ def others_context(life) -> list[dict]:
   line `DOING_KINDS` lists and its call marks, in its call's form). Not
   their battery, points, hearts, goals, thoughts, their mind's reasons or
   secrets: those are theirs, and a robot that could read them would not
-  need to infer them. (A walk's or a step's own words -- why it stopped,
-  what a verb read -- are the body's, and are shown.)"""
+  need to infer them. (A walk's own words -- why it stopped short -- are
+  the body's, and are shown; a procedure's are its verbs alone.)"""
   out = []
   for other in life.peers:
     x, y = other.body.pose_xy()
     out.append({"name": other.robot_name, "robot": other.root,
                 "x": round(x, 2), "y": round(y, 2), "state": other.state,
-                "doing": other.doing[:120],
+                # ...and a dead body does nothing: its death until it stands
+                # up, whatever it says as it lies there (a run its death
+                # ended, the jobs a true death fails, a late answer's `done`)
+                # and across a restart, which brings `dead` back, not `doing`
+                "doing": (f"DEAD ({other.dead['cause']})" if other.dead
+                          else other.doing)[:120],
                 "dead": other.dead["cause"] if other.dead else None,
                 # ...and whether it is lying down to rest (issue #387): a
                 # posture anyone in the room can see, never a fall

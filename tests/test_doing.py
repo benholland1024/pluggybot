@@ -17,6 +17,7 @@ for each.
 import ast
 import functools
 import importlib
+import itertools
 import json
 import pathlib
 import re
@@ -100,16 +101,19 @@ def _sites() -> list:
 class _Shape(ast.NodeTransformer):
   """A call's text as its SHAPE: each value it interpolates or adds a marker
   naming the expression (a module's own string constant, and a literal
-  chosen between, read as itself), each `x if c else y` the branch `pick`
-  names."""
+  chosen between, read as itself), each `x if c else y` the branch `picks`
+  names for its condition `c` (its first where it names none)."""
 
-  def __init__(self, names: dict, pick: int) -> None:
-    self.names, self.pick = names, pick
+  def __init__(self, names: dict, picks: dict) -> None:
+    self.names, self.picks = names, picks
+
+  def _branch(self, node):
+    return node.orelse if self.picks.get(ast.unparse(node.test)) else node.body
 
   def visit_FormattedValue(self, node):
     v = node.value
     while isinstance(v, ast.IfExp):
-      v = v.body if self.pick == 0 else v.orelse
+      v = self._branch(v)
     if isinstance(v, ast.Constant) and isinstance(v.value, str):
       return ast.Constant(v.value)
     if isinstance(v, ast.Name) and isinstance(self.names.get(v.id), str):
@@ -117,15 +121,15 @@ class _Shape(ast.NodeTransformer):
     return ast.Constant(f"<<{ast.unparse(v)}>>")
 
   def visit_IfExp(self, node):
-    return self.visit(node.body if self.pick == 0 else node.orelse)
+    return self.visit(self._branch(node))
 
   def visit_Name(self, node):
     value = self.names.get(node.id)
     return ast.Constant(value if isinstance(value, str) else f"<<{node.id}>>")
 
 
-def _shaped(site, expr, pick: int):
-  tree = ast.fix_missing_locations(ast.Expression(_Shape(site.names, pick).visit(
+def _shaped(site, expr, picks: dict):
+  tree = ast.fix_missing_locations(ast.Expression(_Shape(site.names, picks).visit(
     ast.parse(ast.unparse(expr), mode="eval").body)))
   try:
     return eval(compile(tree, site.where, "eval"), {})
@@ -135,16 +139,19 @@ def _shaped(site, expr, pick: int):
 
 
 def _variants(site) -> list:
-  """The line and its `doing` as the call writes them, once a branch of
-  each `if`/`else` it chooses between (an interpolation's own aside)."""
+  """The line and its `doing` as the call writes them, once for every way
+  its conditions can read (`x if c else y`: one condition read alike in the
+  line and its form)."""
   node = site.node
   doing = next((k.value for k in node.keywords if k.arg == "doing"), None)
-  branches = any(isinstance(n, ast.IfExp) for n in ast.walk(node.args[0])) or (
-    doing is not None and any(isinstance(n, ast.IfExp) for n in ast.walk(doing)))
+  tests = sorted({ast.unparse(n.test) for expr in (node.args[0], doing) if expr is not None
+                  for n in ast.walk(expr) if isinstance(n, ast.IfExp)})
+  assert len(tests) <= 6, (site.where, tests)
   out = []
-  for pick in ((0, 1) if branches else (0,)):
-    msg = _shaped(site, node.args[0], pick)
-    out.append((msg, None if doing is None else _shaped(site, doing, pick)))
+  for reads in itertools.product((False, True), repeat=len(tests)):
+    picks = dict(zip(tests, reads))
+    msg = _shaped(site, node.args[0], picks)
+    out.append((msg, None if doing is None else _shaped(site, doing, picks)))
   return out
 
 
@@ -174,6 +181,9 @@ def test_each_kind_of_narrated_line_is_listed_public_or_private():
           marked_private.append((site.where, kind))
         shown = msg if doing is True else doing
         begun.update(k for k in lc.DOING_KINDS if shown.startswith(k))
+        # ...a `DECIDE` line only as a decided walk's action, never its line
+        if kind == "DECIDE" and shown != "DECIDE <<decision.shown()>>":
+          marked_private.append((site.where, shown))
   assert not unlisted, unlisted
   assert not marked_private, marked_private
   assert begun == set(lc.DOING_KINDS), set(lc.DOING_KINDS) - begun
@@ -217,7 +227,7 @@ def test_every_narrated_line_reaches_the_other_robot_only_as_its_call_says():
 
 def _words(line: str) -> list:
   """The line's own words: what it interpolates is left out (a form may
-  show a part of a value, `Decision.what` of its summary)."""
+  show a part of a value, `Decision.shown` of its summary)."""
   return re.findall(r"[A-Za-z_]+", re.sub(r"<<.*?>>", " ", line))
 
 
@@ -306,7 +316,7 @@ def test_what_a_robot_keeps_private_is_nowhere_in_the_others_context(door):
 def test_a_decided_walk_is_shown_as_its_action_never_why():
   """A decided charge says nothing of its own until it plugs in, waits or
   fails, so its `DECIDE` line is shown -- as the action and where
-  (`Decision.what`), the other robot's whole context read at every line it
+  (`Decision.shown`), the other robot's whole context read at every line it
   says on the way: never the reason, nor who chose it."""
   from pluggybot.mind.overseer import Decision
   a, b = stub_pair()
@@ -394,3 +404,6 @@ def test_a_dead_robot_is_shown_dead_until_it_stands_up():
   assert "the pack ran flat" not in json.dumps(overseer_context(b))
   a.stand_up("the world", auto=True)
   assert others_context(b)[0]["doing"].startswith("UP again after ")
+  # ...and across a restart, which brings `dead` back and not `doing`
+  a.dead, a.doing = {"cause": "stuck", "why": "fell into the wall"}, ""
+  assert others_context(b)[0]["doing"] == "DEAD (stuck)"

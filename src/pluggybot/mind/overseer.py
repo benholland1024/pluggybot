@@ -837,24 +837,30 @@ class Decision:
             **({"call": dict(self.call)} if self.call else {}),
             "source": self.source}
 
-  def what(self) -> str:
-    """The action and what it acts on, as `summary` begins: never why, nor
-    who chose it (the other robot's read of a decided walk, #709)."""
+  def summary(self) -> str:
+    """The one-line narration that reaches the event stream."""
+    what = self.action
     detail = ""
     if self.action == "recall":
       detail = " ".join(p for p in (f"read {self.read}" if self.read else "",
                                     f"find {self.find!r}" if self.find else "") if p)
     detail = detail or self.zone or self.station or self.task
-    return f"{self.action} ({detail})" if detail else self.action
-
-  def summary(self) -> str:
-    """The one-line narration that reaches the event stream."""
+    if detail:
+      what = f"{what} ({detail})"
     # The source is shown for anything the MODEL did not answer -- a
     # fallback and, since issue #127, a row of the agent's own map. "the
     # robot chose to charge" and "its map charged for it" are different
     # events and the narration has always said which.
     tail = "" if self.source.startswith("llm") else f" [{self.source}]"
-    return f"{self.what()}: {self.reason or 'no reason given'}{tail}"
+    return f"{what}: {self.reason or 'no reason given'}{tail}"
+
+  def shown(self) -> str:
+    """What the other robot reads of a decided walk (#709): the action and
+    where it goes -- an explore's zone, a charge's station -- and nothing
+    else of the answer (never why, who chose it, nor a field another action
+    left on it)."""
+    where = {"explore": self.zone, "charge": self.station}.get(self.action, "")
+    return f"{self.action} ({where})" if where else self.action
 
 
 # ---- the choices the world actually offers ----------------------------------
