@@ -1804,8 +1804,8 @@ save a filmstrip PNG named after the script.
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
   bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
   kept maps are found laid wrong, #425 and #476, or are laid by a rule no
-  longer the map's, #581's band; `MAPS_DROPPED` says the newest bump's
-  reason); a save restored `MAX_RESUMES` (3)
+  longer the map's, #581's band, or may hold a room laid twice after a
+  fall, #681; `MAPS_DROPPED` says the newest bump's reason); a save restored `MAX_RESUMES` (3)
   times without a new one is not trusted. ⚠ A SAVE READ AND REFUSED IS A
   START-OVER AT ITS OWN CLOCK (#594, Ben's call; `Loaded.start_over_t`,
   `continuation.start_over`): the world from its XML BUILT at the save's

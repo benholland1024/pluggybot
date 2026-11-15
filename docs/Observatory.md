@@ -10,6 +10,29 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Both maps dropped at the next wake: `MAP_EPOCH` 5 (#681, Ben's call of 2026-11-15) — opens when this PR is deployed
+
+**What changed is what the next wake carries over.** The save the deployed
+world restores is of epoch 4, so it comes back as a changed world does: the
+clock, the packs, the deaths and the jobs, never the bodies, the beliefs,
+the maps or the places found in them. Both robots begin the wake at their
+starts with no map, and History says why (`MAPS_DROPPED`: "the map I had
+could hold a room laid a second time, half a metre off, after a fall, and
+it is gone"). Nothing else moved: the geometry, the prompt and the hello
+are as #681's fourth round left them.
+
+**Why.** #681's fourth round stops a fall at the storeroom's counter from
+laying a copy of the room into the map, but does not undo a copy already
+laid, and the live maps were laid under the old rule: on 2026-11-14 Luca
+stood 0.54-1.10 m east of the truth after three such falls and Rowan 0.75 m
+east from its 20:33 fall to the pause, the matcher reading every scan `ok`.
+A copy left in a map can hold a belief that later finds it.
+
+**What the period is for.** The wake's first hour: both robots explore and
+lay their maps again (the time it takes, against 2026-11-14's and
+2026-11-13's starts with no map); then the storeroom's `drift` rows after a
+fall, which #681's fourth round's period reads.
+
 ### A `find`'s walk to where its place should be is given what a walk that long needs (#698, K3, `loop-698`) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` unmoved, `0f1df27e…`, 67,157 chars, 17
