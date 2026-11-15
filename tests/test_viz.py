@@ -184,6 +184,37 @@ def test_recorder_brightens_its_frames_after_rendering_never_the_light(world_mod
   assert means[1.5] > means[1.0] + 10.0, means
 
 
+def test_recorder_holds_its_last_frame_without_stepping(world_model, tmp_path):
+  """A clip's end is held so its last caption is read: the frame rendered
+  once and written again, never the sim stepped (a hold that stepped it
+  moved a demo's reported state)."""
+  data = mujoco.MjData(world_model)
+  data.qvel[:] = 0.5                       # moving, or a step would not show
+  rec = Recorder(world_model, str(tmp_path / "held.mp4"), size=SMALL)
+  try:
+    _step_n(world_model, data, 50, rec)
+    t, qpos, n = data.time, data.qpos.copy(), rec.frames_written
+    rec.hold(data, 1.0)
+  finally:
+    rec.close()
+  assert rec.frames_written - n == 30
+  assert data.time == t
+  np.testing.assert_array_equal(data.qpos, qpos)
+
+
+def test_recorder_cuts_a_caption_to_the_frame(world_model, tmp_path):
+  """A line longer than the frame is cut at a word, an ellipsis where it
+  was: drawn whole, it ran under the clock and off the frame."""
+  rec = Recorder(world_model, str(tmp_path / "x.mp4"), size=SMALL)
+  try:
+    cut = rec._fit("shut at 40 N, 0.2 kg a jaw " * 8, 200)
+  finally:
+    rec.close()
+  assert cut.endswith(" ...") and rec._font.getlength(cut) <= 200
+  with pytest.raises(ValueError):
+    Recorder(world_model, str(tmp_path / "y.mp4"), size=SMALL, brighten=0.0)
+
+
 def test_recorder_films_on_after_the_clock_is_set_back(world_model, world_data,
                                                        tmp_path):
   """A scene that starts over resets its data, and its clock goes back to 0
@@ -217,11 +248,15 @@ def test_recorder_writes_a_gif_beside_its_clip(world_model, world_data, tmp_path
 def test_record_flies_a_scene_once_and_writes_its_clip(tmp_path, monkeypatch):
   """`humanoid_spike.py --record SCENE PATH --gif` (#517): the scene's world
   handed to the recorder, a frame sampled on the sim clock as its lines go
-  by, brightened after rendering, the GIF beside the MP4, the world closed;
-  and nothing stepped but the scene's own steps. Flown on a stand-in scene:
-  no scene is flown in the suite."""
+  by, brightened after rendering, the part it is at captioned and under it
+  how the last part ended (the latest word alone: each kept, the caption ran
+  off the frame), the last frame held, the GIF beside the MP4, the world
+  closed; and nothing stepped but the scene's own steps. Flown on a
+  stand-in scene: no scene is flown in the suite."""
   sys.path.insert(0, str(ROOT / "scripts"))
   import humanoid_spike as sp
+  from pluggybot import batch
+  monkeypatch.setattr(batch, "watched", lambda: None)     # the runner's, never this process's
 
   model = mujoco.MjModel.from_xml_string(hm.body_xml(hm.CHOSEN))
   data = mujoco.MjData(model)
@@ -229,9 +264,9 @@ def test_record_flies_a_scene_once_and_writes_its_clip(tmp_path, monkeypatch):
 
   def lines():
     yield "lying on its back"
-    for _ in range(steps):
+    for k in range(steps):
       mujoco.mj_step(model, data)
-      yield None
+      yield "  falling; the get-up has it" if k == steps // 2 else None
     yield "  stood in 0.5 s"
   closed, made = [], {}
   monkeypatch.setattr(sp, "scene_clip", lambda scene, at_once=False: {
@@ -242,6 +277,10 @@ def test_record_flies_a_scene_once_and_writes_its_clip(tmp_path, monkeypatch):
     def __init__(self, *a, **k):
       made.update(k)
       super().__init__(*a, **k)
+
+    def set_label(self, text):
+      made["label"] = text
+      super().set_label(text)
   monkeypatch.setattr(viz, "Recorder", Spied)
   out = tmp_path / "getup.mp4"
   sp.main(["--record", "getup", str(out), "--gif"])
@@ -250,7 +289,8 @@ def test_record_flies_a_scene_once_and_writes_its_clip(tmp_path, monkeypatch):
   assert closed == ["getup"]
   assert made["track_body"] == ROBOT_ROOT and made["fps"] == 30
   assert made["brighten"] == sp.CLIP_BRIGHTEN > 1.0
-  assert abs(len(_frames(out)) - 16) <= 2
+  assert made["label"] == "lying on its back\nlying on its back: stood in 0.5 s"
+  assert abs(len(_frames(out)) - (16 + 30 * sp.CLIP_HOLD_S)) <= 2
   assert out.with_suffix(".gif").exists()
   with pytest.raises(SystemExit):
     sp.main(["--record", "no_such_scene", str(tmp_path / "x.mp4")])

@@ -5363,25 +5363,35 @@ SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
 # to the encoder), the camera following the robot.
 
 #: A clip's size (on h264's 16-px grid, inside every scene world's offscreen
-#: buffer) and rate; and its frames' lift after rendering, a gamma (the
-#: house's light is a room's, dim for our camera, and never changed: the
-#: robot's own cameras see by it). ⚠ Drawn on EGL: a 1280x720 frame of the
-#: house took 11 ms on the dev box's GPU and 1.3 s under osmesa.
-CLIP_SIZE, CLIP_FPS, CLIP_BRIGHTEN = (1280, 720), 30, 1.5
+#: buffer) and rate; its frames' lift after rendering, a gamma (the house's
+#: light is a room's, dim for our camera, and never changed: the robot's own
+#: cameras see by it); and how long its last frame is held, s, the scene's
+#: last word on it. ⚠ Drawn on EGL: a 1280x720 frame of the house took 11 ms
+#: on the dev box's GPU and 1.3 s under osmesa.
+CLIP_SIZE, CLIP_FPS, CLIP_BRIGHTEN, CLIP_HOLD_S = (1280, 720), 30, 1.5, 2.0
 #: Each scene's camera, following the robot: (azimuth, elevation deg,
-#: distance m), its view's or its filmstrip's, but `demo` over the left
-#: shoulder, the hand that reaches (from the front the counter hides it), and
-#: `walk` farther and higher than its strip (walls came between). `jaws` and
-#: `way_home` look at the work from where their views do, fixed.
-CLIP_CAMS = {**{s: (CAM_AZIMUTH, CAM_ELEVATION, CAM_DISTANCE) for s in ("body", "stand", "reach")},
-             **{s: c[:3] for s, c in SCENE_CAMS.items()},
-             "demo": (-45.0, -20.0, 2.6), "walk": (0.0, -50.0, 5.0), "rough": (90.0, -15.0, 4.0),
-             "stairs": (STAIRS_CAM[1], STAIRS_CAM[2], STAIRS_CAM[0]),
-             "fall": (120.0, -15.0, 3.5), "getup": (120.0, -15.0, 3.0), "jaws": JAW_CAM,
-             "way_home": (math.degrees(STAND_YAW) + 90.0, -10.0, 2.0)}
-#: The scenes whose camera turns with the robot, this far round from its
-#: heading (`walk`: from its front, through every room it crosses).
-CLIP_TURNS = {"walk": 180.0}
+#: distance m, the point it looks at from the pelvis, m -- None: the robot's
+#: middle, its subtree's centre of mass), its view's or its filmstrip's; but
+#: `demo` over the left shoulder, the hand that reaches (from the front the
+#: counter hides it), and `walk` farther and higher than its strip (walls came
+#: between). `jaws` and `way_home` look at the work from where their views
+#: do, fixed (`scene_clip`).
+CLIP_CAMS = {**{s: (CAM_AZIMUTH, CAM_ELEVATION, CAM_DISTANCE, None)
+                for s in ("body", "stand", "reach")},
+             **SCENE_CAMS,
+             "demo": (-45.0, -20.0, 2.6, None), "walk": (180.0, -50.0, 5.0, None),
+             "rough": (90.0, -15.0, 4.0, None),
+             "stairs": (STAIRS_CAM[1], STAIRS_CAM[2], STAIRS_CAM[0], None),
+             "fall": (120.0, -15.0, 3.5, None), "getup": (120.0, -15.0, 3.0, None),
+             "jaws": (*JAW_CAM, None),
+             "way_home": (math.degrees(STAND_YAW) + 90.0, -10.0, 2.0, None)}
+#: The scenes whose camera's azimuth is from the robot's heading, turning
+#: with it (`walk`: from its front, through every room it crosses).
+CLIP_TURNS = ("walk",)
+#: The scenes whose world is drawn brighter for our camera already, no
+#: camera of the robot's at work in it (`held_world`, `jaws_world`): their
+#: frames are not lifted again.
+CLIP_LIT = ("body", "jaws")
 
 
 def _body_once(scene: BodyScene):
@@ -5394,13 +5404,16 @@ def _body_once(scene: BodyScene):
 
 
 def _jaws_once(scene: JawsScene):
-  """The `jaws` scene's shuts once through: a line as each ends."""
+  """The `jaws` scene's shuts once through: a line as each begins, and how
+  it ended."""
   for k in range(len(scene.cases)):
     if k:
       scene.next()
-    while not (said := scene.step()):
+    force, inertia, said = scene.case
+    yield f"shut at {force:.0f} N, {inertia:g} kg a jaw ({said})"
+    while not (line := scene.step()):
       yield None
-    yield said
+    yield "  " + line.split(": ", 1)[-1]
 
 
 def scene_clip(scene: str, at_once: bool = False) -> dict:
@@ -5448,41 +5461,55 @@ def record(scene: str, path: str, gif: bool = False, at_once: bool = False) -> N
   """--record: `scene` flown once through, headless, and a clip of it written
   to `path` as it flies -- an MP4 at `CLIP_SIZE` and `CLIP_FPS`, sampled on
   the sim clock (real time whatever the machine did), the camera following
-  the robot, the part it is at and the sim's clock written on each frame --
-  and with `gif`, a GIF beside it (`viz.GIF_W` wide). ⚠ The scene's light is
-  never changed for the camera: the frames are lifted after rendering
-  (`CLIP_BRIGHTEN`)."""
+  the robot, on each frame the part it is at, how the last part ended and
+  the sim's clock, its last frame held `CLIP_HOLD_S` -- and with `gif`, a GIF
+  beside it (`viz.GIF_W` wide). ⚠ The scene's light is never changed for
+  the camera: the frames are lifted after rendering (`CLIP_BRIGHTEN`)."""
   from pluggybot.viz import Recorder
+  out = Path(path)
+  out.parent.mkdir(parents=True, exist_ok=True)
+  gif_path = str(out.with_suffix(".gif")) if gif and out.suffix.lower() != ".gif" else None
   clip = scene_clip(scene, at_once)
   model, data, at = clip["model"], clip["data"], clip.get("at")
   root = model.body(ROBOT_ROOT).id
-  az, el, dist = CLIP_CAMS[scene]
-  if scene in CLIP_TURNS:
-    az = _heading(data, root) + CLIP_TURNS[scene]
-  rec = Recorder(model, path, track_body=ROBOT_ROOT if at is None else None, fps=CLIP_FPS,
-                 azimuth=az, elevation=el, distance=dist, size=CLIP_SIZE,
-                 brighten=CLIP_BRIGHTEN)
-  if at is not None:
-    rec.cam.lookat[:] = at
+  az, el, dist, off = CLIP_CAMS[scene]
+
+  def aim():
+    if off is not None:
+      rec.cam.lookat[:] = data.xpos[root] + off
+    if scene in CLIP_TURNS:
+      rec.set_camera(azimuth=_heading(data, root) + az)
   print(f"recording the `{scene}` scene to {path} ...")
-  flown, part = False, ""
+  rec, flown, stage, ended = None, False, "", ""
   try:
+    rec = Recorder(model, path, fps=CLIP_FPS, size=CLIP_SIZE,
+                   track_body=ROBOT_ROOT if at is None and off is None else None,
+                   azimuth=az + (_heading(data, root) if scene in CLIP_TURNS else 0.0),
+                   elevation=el, distance=dist,
+                   brighten=1.0 if scene in CLIP_LIT else CLIP_BRIGHTEN)
+    if at is not None:
+      rec.cam.lookat[:] = at
     for line in clip["lines"]:
       if line:
         print(line if line.startswith("  ") else f"  -> {line}")
-        # ...a part's name, then how it ended beside it (its first clause)
-        part = f"{part}: {line.split(';')[0].strip()}" if line.startswith("  ") else line
-        rec.set_label(part)
-      if scene in CLIP_TURNS:
-        rec.set_camera(azimuth=_heading(data, root) + CLIP_TURNS[scene])
+        # ...the part it is at, and under it how the last part ended (its
+        # first clause), until another ends
+        if line.startswith("  "):
+          ended = f"{stage}: {line.split(';')[0].strip()}"
+        else:
+          stage = line
+        rec.set_label("\n".join(t for t in (stage, ended) if t))
+      aim()
       rec.maybe_grab(data)
+    rec.hold(data, CLIP_HOLD_S)
     flown = True
   finally:
-    rec.close(gif=str(Path(path).with_suffix(".gif")) if gif and flown else None)
+    if rec is not None:
+      rec.close(gif=gif_path if flown else None)
     if "close" in clip:
       clip["close"]()
   print(f"wrote {path}: {rec.frames_written} frames, {rec.frames_written / CLIP_FPS:.1f} s"
-        + (f", and {Path(path).with_suffix('.gif')}" if gif else ""))
+        + (f", and {gif_path}" if gif_path else ""))
 
 
 #: The `--moving` table's moves (#631): reaches either hand, high, low, far,
