@@ -474,9 +474,16 @@ def test_a_refusal_for_the_librarys_room_says_what_the_source_is_refused_for_too
     room, faults = life.thoughts.read("History.md").splitlines()[-2:]
     assert "could not write the procedure b" in room and "the library is full" in room
     assert "nosuch" not in room and "line cut" not in room + faults, (room, faults)
-    assert "the source of b is refused too: line 2: unknown verb 'nosuch'" in faults
+    assert "...and its source is refused too: line 2: unknown verb 'nosuch'" in faults
     assert faults.endswith("line 3: Import is not part of this language")
     assert len(room) + len(faults) > 400 + len("[t=0s] ") * 2
+  # ...a whole sentence whatever the name is: one that is none is itself the
+  # first line's reason, and "the source of  is refused too" named nothing
+  life, _ = _deciding_life(L)
+  life._define(Decision(action="idle", reason="x", define={"name": "", "source": bad}))
+  room, faults = life.thoughts.read("History.md").splitlines()[-2:]
+  assert "is not a name this library allows" in room and "the library is full" in room
+  assert "] ...and its source is refused too: line 2: Import is not part of" in faults, faults
   # ...and one line, as it always was, where only one kind of reason stands
   life, _ = _deciding_life(lib.Library(lc.world_facts(WORLD)))
   life._define(Decision(action="idle", reason="x", define={"name": "b", "source": bad}))
@@ -582,6 +589,69 @@ def test_a_define_cut_at_the_cap_is_judged_as_it_was_written():
   huge = "def big():\n  import os\n" + "  wait(1)\n" * (lang.MAX_PARSE_CHARS // 10)
   _, refused, _, _ = _refused_define(huge)
   assert len(huge) > lang.MAX_PARSE_CHARS and refused["reasons"] == [said(len(huge))]
+
+
+def test_a_refusals_size_is_bounded_whatever_was_written(monkeypatch):
+  """Judged as written, a refusal's size was the answer's to choose: a
+  source of 64,811 characters with a fault on each line said 5,401 reasons,
+  1.26 MB on the status line, the wire and the library's record (cut at the
+  cap it could say 249), and one past `MAX_PARSE_CHARS` was parsed whole
+  for the names it calls before it was refused unread, 0.27 s between two
+  physics steps for 130,000 characters. At most `MAX_FAULTS_SAID` of a
+  source's faults are said and the rest counted, the cap's first; one too
+  long to read is refused unread."""
+  from pluggybot.procedure import lang
+  faulty = "def big():\n  wait(1)\n" + "  import os\n" * 400     # the cap's, and 400 more
+  _, refused, lines, life = _refused_define(faulty)
+  reasons = refused["reasons"]
+  assert reasons[0] == f"the source is {len(faulty)} characters; the cap is {lang.MAX_SOURCE_CHARS}"
+  assert reasons[1:-1] == [f"line {n}: Import is not part of this language"
+                           for n in range(3, lib.MAX_FAULTS_SAID + 2)]
+  assert reasons[-1] == f"(+{401 - lib.MAX_FAULTS_SAID} more)"
+  assert life.overseer.library.refusals[-1]["reasons"] == reasons
+  assert len(life.status) < 60 * (lib.MAX_FAULTS_SAID + 2)
+  # ...the name's and the library's room's reasons are no faults of the
+  # source: said beside them, never counted against them
+  L = lib.Library(lc.world_facts(WORLD), cap=1)
+  L.define("a", "def a():\n  wait(1)\n")
+  held = L.refusal("a", faulty)
+  assert "already defined" in held.reasons[0] and "library is full" in held.reasons[1]
+  assert held.reasons[2:] == reasons == held.faults
+  # ...as many as the bound are said whole, with nothing counted
+  whole = "def b():\n  wait(1)\n" + "  import os\n" * lib.MAX_FAULTS_SAID
+  assert lib.Library(lc.world_facts(WORLD)).check("b", whole) == [
+    f"line {n}: Import is not part of this language" for n in range(3, lib.MAX_FAULTS_SAID + 3)]
+  # ...and a source too long to read is never parsed: not for its faults,
+  # not for the names it calls
+  huge = "def big():\n  a()\n" + "  wait(1)\n" * (lang.MAX_PARSE_CHARS // 10)
+  parsed = []
+  real = lib.ast.parse
+  monkeypatch.setattr(lib.ast, "parse",
+                      lambda src, *a, **kw: (parsed.append(len(src)), real(src, *a, **kw))[1])
+  said = [f"the source is {len(huge)} characters; the cap is {lang.MAX_SOURCE_CHARS}"]
+  for name in ("big", ""):                  # a name an entry can take, and none
+    assert L.refusal(name, huge, freeing="a").faults == said
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("big", huge)
+  assert e.value.faults == said and len(huge) not in parsed, parsed
+
+
+def test_a_define_that_goes_through_compiles_the_library_once(monkeypatch):
+  """`define` asked `refusal` and then compiled the library it makes again
+  to keep it: two passes a define on the physics seam (0.05 s each over
+  seven entries), four an answer that replaces a procedure where there were
+  three. The library a define is judged on is the one it keeps."""
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("a", "def a():\n  wait(1)\n")
+  passes = []
+  real = L._compiled
+  monkeypatch.setattr(L, "_compiled", lambda sources: (passes.append(1), real(sources))[1])
+  proc = L.define("b", "def b():\n  a()\n")
+  assert len(passes) == 1 and proc.name == "b" and L.runnable() == ("a", "b")
+  # ...and a refused one changes nothing, as before
+  with pytest.raises(lib.LibraryRefused):
+    L.define("c", "def c():\n  import os\n")
+  assert L.names() == ("a", "b") and set(L.sources) == {"a", "b"}
 
 
 # ---- 3. a procedure is run on the answer that defines it -------------------

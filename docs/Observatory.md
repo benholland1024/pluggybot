@@ -16,7 +16,8 @@ observatory is NOT a result: it reports into the issue it informs.
 does, found on the wake of 2026-11-14.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029
 characters, 17 sections; no rule's text restates any of the words below),
 nor the session host's hello (byte for byte), nor any geometry, nor the
-wire (no field added, none whose meaning moved), nor either committed
+wire's shape (no field added; what a refused define's `reasons` are judged
+on moved, item 1, and protocol/README.md says so), nor either committed
 recording.
 
 1. **A define cut at the cap is judged as it was written.** A served
@@ -27,7 +28,10 @@ recording.
    kept beside the cut text and in no `as_dict`): the refusal says the
    written length ("the source is 3412 characters; the cap is 3000") and
    every fault of the whole source, and nothing a cut made (one past
-   65,536 characters hears the cap alone, in its true length). The wire's
+   65,536 characters hears the cap alone, in its true length, unread). At
+   most 20 of a source's faults are said and the rest counted, "(+381
+   more)" (`library.MAX_FAULTS_SAID`; the most a refusal said that wake was
+   7): judged whole, a refusal's size was the answer's to choose. The wire's
    `define` and the `procedure` event's `source` are the cut text byte for
    byte as before; the event's `reasons` are the new words, and may name a
    line past the source the event carries (the site prints both).
@@ -36,8 +40,8 @@ recording.
    hears what its source is refused for in the same refusal
    (`Library.refusal`), from `define` and from the undefine-and-define path
    alike. In History that is two lines where both kinds of reason stand,
-   the first as it always read and the second "...and the source of <name>
-   is refused too: ..." (on one line the faults come last and History's
+   the first as it always read and the second "...and its source is
+   refused too: ..." (on one line the faults come last and History's
    400 characters cut them); the narration and the event's `reasons` hold
    them all in one.
 3. **The other robot is shown a robot's own last line, never the

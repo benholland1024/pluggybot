@@ -4516,7 +4516,7 @@ class HubLifecycle:
     # cut text is the event's, as it always was
     judged = decision.define_written or source
     # AN ANSWER THAT UNDEFINES AND DEFINES is checked before anything
-    # changes (issue #264, `Library.check`): applied in order, a refused
+    # changes (issue #264, `Library.refusal`): applied in order, a refused
     # define had already deleted the procedure it was meant to improve -- or
     # to make room for, which the refusal for a full library advises. The
     # undefine waits for a define that goes through.
@@ -4536,7 +4536,7 @@ class HubLifecycle:
                   "that goes through")
         else:
           said = f"could not write the procedure {name}"
-        self._remember_refusal(said, name, held)
+        self._remember_refusal(said, held)
         self._emit({**base, "outcome": "refused", "name": name,
                     "verb": "define", "reasons": held.reasons, "source": source,
                     **shelf()})
@@ -4570,7 +4570,7 @@ class HubLifecycle:
         proc = library.define(name, judged, t=t)
       except LibraryRefused as e:
         self._say(f"PROCEDURE define {name!r} refused: {e}")
-        self._remember_refusal(f"could not write the procedure {name}", name, e)
+        self._remember_refusal(f"could not write the procedure {name}", e)
         self._emit({**base, "outcome": "refused", "name": name,
                     "verb": "define", "reasons": list(e.reasons),
                     "source": source, **shelf()})
@@ -4584,7 +4584,7 @@ class HubLifecycle:
         self._emit({**base, "outcome": "defined", "name": proc.name,
                     "program": proc.as_dict(), **shelf()})
 
-  def _remember_refusal(self, said: str, name: str, refused) -> None:
+  def _remember_refusal(self, said: str, refused) -> None:
     """A refused define where the robot reads: `said` and its reasons on one
     History line -- on two where the name's or the library's room's reasons
     and the source's own both stand, the first as it always read. ⚠ On one
@@ -4592,8 +4592,7 @@ class HubLifecycle:
     standing = refused.reasons[:len(refused.reasons) - len(refused.faults)]
     if standing and refused.faults:
       self._remember(f"{said}: " + "; ".join(standing))
-      self._remember(f"...and the source of {name} is refused too: "
-                     + "; ".join(refused.faults))
+      self._remember("...and its source is refused too: " + "; ".join(refused.faults))
     else:
       self._remember(f"{said}: " + "; ".join(refused.reasons))
 

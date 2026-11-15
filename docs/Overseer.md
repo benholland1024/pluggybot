@@ -237,7 +237,10 @@ and nothing a cut made. Judged off the cut, every such refusal read "the
 source is 3001 characters; the cap is 3000" and the cut's own faults were
 told as the robot's (Observatory.md, the period of `loop-k4`, has the
 rows). The `procedure` event's `source` is still the cut text, so its
-`reasons` may name a line past it. A name it gives is lowercase letters, digits and
+`reasons` may name a line past it. A define's refusal says at most
+`library.MAX_FAULTS_SAID` (20) of its source's faults and counts the rest
+(`(+N more)`), and one past `MAX_PARSE_CHARS` is refused unread: judged
+whole, a refusal's size was the answer's to choose. A name it gives is lowercase letters, digits and
 underscores, a letter first, at most `MAX_NAME_CHARS` (32), and the text
 says so (`lang.name_rule`); a name refused says its own reason the first
 time -- the rule, the language's own word, a verb's, a def's or a maths

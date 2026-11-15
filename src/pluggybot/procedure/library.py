@@ -49,6 +49,12 @@ SUFFIX = ROW.suffix   # Python-SHAPED, not Python: not a name a linter or a pers
 NEW_REFUSED = ("'new' is not a name this library allows: "
                "`procedure:new` runs whatever the answer defines")
 _NAME = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+#: A define's refusal says at most this many of its source's faults and
+#: counts the rest: a served answer's source is judged as it was written
+#: (`Decision.define_written`), and one of 64,811 characters with a fault
+#: on each line said 5,401, 1.26 MB on the status line, the wire and
+#: `refusals`. The most a live refusal has said is 7 (the wake of 11-14).
+MAX_FAULTS_SAID = 20
 
 
 class LibraryRefused(ValueError):
@@ -237,13 +243,13 @@ class Library:
     """Add a procedure, or raise LibraryRefused with every reason
     (`refusal`)."""
     name = str(name or "").strip()
-    refused = self.refusal(name, source)
+    refused, entries = self._judged(name, source)
     if refused is not None:
       self.refusals.append({"t": t, "verb": "define", "name": name,
                             "reasons": refused.reasons})
       raise refused
     self.sources[name] = source
-    self.entries = self._trial(name, source)[0]
+    self.entries = entries                 # ...the library it was judged on
     self.defined += 1
     self.store.write(f"{name}{SUFFIX}", source)
     return self.entries[name].procedure
@@ -290,10 +296,18 @@ class Library:
     (`_standing`), then what the source itself is refused for (its
     `faults`). ⚠ Told its room alone, a robot made room on its next answer
     and was refused again for its source."""
+    return self._judged(name, source, freeing)[0]
+
+  def _judged(self, name: str, source: str, freeing: str = "") -> tuple:
+    """`refusal`, and the library the define would make (`_trial`'s, which
+    a define that goes through keeps: compiled once)."""
     name, freeing = str(name or "").strip(), str(freeing or "").strip()
     standing = self._standing(name, freeing)
-    faults = self._faults(name, source, freeing)
-    return LibraryRefused(standing + faults, faults) if standing or faults else None
+    faults, entries = self._faults(name, source, freeing)
+    if len(faults) > MAX_FAULTS_SAID:
+      faults = faults[:MAX_FAULTS_SAID] + [f"(+{len(faults) - MAX_FAULTS_SAID} more)"]
+    refused = LibraryRefused(standing + faults, faults) if standing or faults else None
+    return refused, entries
 
   def _standing(self, name: str, freeing: str = "") -> list[str]:
     """What a define is refused for whatever its source says: its name, and
@@ -321,18 +335,24 @@ class Library:
                      "first")
     return reasons
 
-  def _faults(self, name: str, source: str, freeing: str = "") -> list[str]:
-    """What the source itself is refused for: under a name an entry can
-    take, in the library the define would make (`_trial`); under any other,
-    compiled alone against the library as it stands."""
+  def _faults(self, name: str, source: str, freeing: str = "") -> tuple[list[str], dict]:
+    """What the source itself is refused for, and the library it was
+    compiled in: under a name an entry can take, the one the define would
+    make (`_trial`); under any other, compiled alone against the library as
+    it stands (and none made). ⚠ One too long to read (`lang.
+    MAX_PARSE_CHARS`) is refused here, unread: `_calls` parses a source
+    before `lang` ever sees its length."""
+    if len(source) > lang.MAX_PARSE_CHARS:
+      return [lang.over_cap(len(source))], {}
     if _NAME.match(name) and name != "new":
-      return _defined(self._trial(name, source, freeing)[1])
+      entries, entry = self._trial(name, source, freeing)
+      return _defined(entry), entries
     linked = {n: e.procedure or e.reasons for n, e in self.entries.items() if n != freeing}
     try:
       lang.compile_procedure(source, self.facts, library=linked, alone=False)
     except Refused as e:
-      return list(e.reasons)
-    return []
+      return list(e.reasons), {}
+    return [], {}
 
 
 def _defined(entry: Entry) -> list[str]:

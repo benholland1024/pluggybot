@@ -1557,7 +1557,11 @@ save a filmstrip PNG named after the script.
   test_procedure_feedback.py`): judged off the cut, every refusal said
   "3001 characters" and told what the cut had made of the text as faults
   (Observatory.md, the period of `loop-k4`). A refused define's `reasons`
-  may so name a line past the `source` its event carries.
+  may so name a line past the `source` its event carries. ⚠ A DEFINE'S
+  REFUSAL SAYS AT MOST `library.MAX_FAULTS_SAID` (20) OF ITS SOURCE'S FAULTS
+  AND COUNTS THE REST (`(+N more)`: judged whole, a fault a line said 5,401,
+  1.26 MB on the status line and the wire), and the library refuses one past
+  `MAX_PARSE_CHARS` unread, as `lang` does.
   ⚠ A RUN IS `MAX_STATEMENTS` (100,000, ~0.1 s: four nested loops in one
   def could run 10^8 on the physics thread). ⚠ DEFS CALL DEFS where the
   facts give calls (`WorldFacts.calls`, #560: every hands world, the served
