@@ -26,13 +26,16 @@ flown on the branch, 11,705 lines, every one the committed fixture's but two
   scan breaks it -- one taken, one laid in unmatched (`anchored`, `no map`,
   `sparse`, `unconstrained`), or one not matched because the robot is not
   mapping (getting up, tipped past the gate).
-- **At the first scan its map takes after it (a relocation's among them),
-  it is told that too**: "My map matches my scans again". Nothing else ends
-  what was told; a map forgotten owes nothing (a true death, a stand-up, or
-  the station's fix past the map's reach, whose own line says the map is
-  gone), and after a fix within the map's reach the scan that fits comes
-  once its 30 anchored scans are laid, about 3 s on. Kept across a restart
-  with the map.
+- **Once its map has taken every scan for 5 s running after it
+  (`MATCHED_TELL_S`; a relocation's among them), it is told that too**: "My
+  map matches my scans again". One fit among refusals says nothing and
+  re-arms nothing (the review: else a map that took a scan now and then
+  made the two lines alternate). Nothing else ends what was told; a map
+  forgotten owes nothing (a true death, a stand-up, or the station's fix
+  past the map's reach, whose own line says the map is gone), and after a
+  fix within the map's reach the line comes once its 30 anchored scans are
+  laid and its fits have held, about 8 s on. Kept across a restart with the
+  map.
 - Both are `drift` rows (`why` `refusing` / `matching`, with `seconds` and
   the `verdict`). ⚠ The site's observatory files a `drift` row only under a
   why its own list knows (`DRIFT_WHYS` in `pluggyworldObservatory.ts`), so
@@ -56,7 +59,7 @@ a minute.
 **What to read on the live rows.** The `refusing` line should come only
 after a fall that turned the heading or a belief set far off, and a
 `matching` after it at the station's fix (then the map's next fit) or a
-relocation. Once the site files the two rows, each one's `errorM` and
+relocation, 5 s on. Once the site files the two rows, each one's `errorM` and
 `headingDeg` say whether the robot was off when told: a `refusing` row near
 the truth is a robot told it may be lost that was not. ⚠ A robot lost on a
 map that ACCEPTS its scans -- #681's class, 0.5-1.1 m off at the

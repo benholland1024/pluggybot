@@ -797,8 +797,8 @@ only record of it was the box's log. One event type is new:
   where the belief put it in plain sight); `searched` (the search that
   followed); `refusing` (the scan matcher has refused every scan for
   `navigator.REFUSED_TELL_S`, 60 sim s, running, and the robot is told so in
-  History, pluggybot #697) and `matching` (the first scan it took after,
-  told too).
+  History, pluggybot #697) and `matching` (its map taking every scan
+  again for `navigator.MATCHED_TELL_S`, 5 sim s, told too).
   Every row: `pose` (where the robot IS -- the sim's own check, as a
   death's `at.pose`), `believed` (after the event), `errorM` and
   `headingDeg` (the belief less the truth); an event's `before`. Beside

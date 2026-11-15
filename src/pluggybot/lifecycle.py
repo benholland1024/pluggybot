@@ -304,8 +304,9 @@ DRIFT_EVERY_S = 300.0
 #: What each commissioned fixture is called where the robot reads of it.
 FIXTURE_WORDS = {"station": "my charging station"}
 #: What a robot reads once its map has refused every scan for
-#: `navigator.REFUSED_TELL_S` running, and once a scan is taken again (issue
-#: #697, `_tell_belief`): what its own matcher knows, never what to do.
+#: `navigator.REFUSED_TELL_S` running, and once its map takes scans again
+#: (`MATCHED_TELL_S`; issue #697, `_tell_belief`): what its own matcher
+#: knows, never what to do.
 MAP_REFUSING = ("My map has matched none of my scans for a minute, so I may not be "
                 "where I believe I am")
 MAP_MATCHING = "My map matches my scans again"
@@ -1663,8 +1664,8 @@ class HubLifecycle:
   def _tell_belief(self, rec: dict) -> None:
     """A belief event said, and the ones the robot should know of written
     to History: lost at a fixture, a map dropped, how the search after a
-    loss ended, a map that has refused every scan for a minute and the scan
-    it takes after (#697). A fix within the map's reach and a relocation are
+    loss ended, a map that has refused every scan for a minute and its
+    taking scans again (#697). A fix within the map's reach and a relocation are
     narrated only: the robot was put right where it would have been anyway."""
     why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
     b, a = rec["before"], rec["after"]

@@ -2507,8 +2507,9 @@ save a filmstrip PNG named after the script.
   `navigator.Refusals`, History's `MAP_REFUSING` / `MAP_MATCHING`): a run
   is every scan refused (`scan_match.REFUSED`: `inconsistent`, `slid`,
   `outdone`), any other scan breaking it, one not matched too (a robot not
-  mapping is never refusing); only a scan TAKEN ends what was told, and a
-  map forgotten owes nothing. What its own matcher knows, never what to do
+  mapping is never refusing); only scans TAKEN for `MATCHED_TELL_S` (5 s)
+  running end what was told (one fit among refusals said it and re-armed
+  the minute, the lines alternating), and a map forgotten owes nothing. What its own matcher knows, never what to do
   (a test reads both lines); a belief the map ACCEPTS wrong (#681's class)
   is never told. Each relocation, fix, loss, search and such line is a
   `drift` row (which station, `station`), beside a sample every
