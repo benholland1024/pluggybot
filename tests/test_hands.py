@@ -1234,31 +1234,36 @@ def _walking_out(phase="move"):
   return r, rc
 
 
-def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_it_pulls_toward_the_body():
+def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_its_reading_tips_the_body():
   """⚠ A jaw caught on a chest's bracket on its way out was driven on at
   full stiffness, the world pulling the hand 50-80 N toward the chest until
   the robot went over its toes (#708): an arm walking out to its pre-grasp
   stops the tick its own reading (`force`, as every loop of the body's reads
-  it) PULLS toward the body past `OUT_PULL_N` -- along the level line from
-  where its senses put the hand to the stance's middle -- `blocked`, out
-  where its arm then puts the hand, held where its drivers read its joints:
-  held at the command it drove on to, it pulled on and the robot fell all
-  the same. ⚠ Never on any push: our door's way out presses a jaw down on
-  the door's top harder than that, and passes."""
+  it) would tip the body toward the hand past `OUT_TIP_NM` -- its pull
+  toward the body at the hand's height, less its press down at the hand's
+  reach -- `blocked`, out where its arm then puts the hand, held where its
+  drivers read its joints: held at the command it drove on to, it pulled on
+  and the robot fell all the same. ⚠ Never on a push or a press: our door's
+  way out drags a jaw back over the door's top pressing down on it, which
+  tips the body back, and passes."""
   r, rc = _walking_out()
   read = r.sensed[r.self_model.arm["left"]].copy()
   ahead = r.q_cmd["left"].copy()
-  toward = np.array([-0.8, -0.6, 0.0])           # from the hand (0.4, 0.3) to the middle
-  n = rc.OUT_PULL_N
-  # pressing down, or away from the body, however hard -- or a pull under
-  # the line, whatever the motion-taken reading says -- it walks on
-  for push in (np.array([0.0, 0.0, -3.0 * n]), -2.0 * n * toward, (n - 1.0) * toward):
-    r.feel(push, sensed=3.0 * n * toward)
+  toward = np.array([-0.8, -0.6, 0.0])           # level, from the hand (0.4, 0.3) to the middle
+  height, reach_m = 0.9, 0.5                     # where its senses put the hand
+  pull = rc.OUT_TIP_NM / height                  # a pull that tips the body by the line
+  down = np.array([0.0, 0.0, -1.0])
+  # a press down, however hard; a push away from the body; a pull under the
+  # line; a hard pull that a press down holds back -- whatever the
+  # motion-taken reading says -- it walks on
+  for push in (10.0 * pull * down, -3.0 * pull * toward, 0.95 * pull * toward,
+               3.0 * pull * toward + 3.0 * pull * height / reach_m * 1.01 * down):
+    r.feel(push, sensed=10.0 * pull * toward)
     r._update(0.01)
     assert r.phase["left"] == "move", push
   assert np.abs(r.q_cmd["left"] - ahead).max() > 0.0, "its command walked on toward q_to"
-  # a pull past the line: stopped that tick, held where its drivers read it
-  r.feel((n + 1.0) * toward + np.array([0.0, 0.0, -5.0]))
+  # past the line: stopped that tick, held where its drivers read its arm
+  r.feel(1.05 * pull * toward)
   r._update(0.01)
   assert r.phase["left"] == "blocked" and r.done("left") and r.out("left")
   assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read)
@@ -1274,7 +1279,7 @@ def test_an_arm_walked_another_way_is_never_stopped_by_the_ways_out_rule(phase):
   `withdraw`'s and the motor level's)."""
   r, rc = _walking_out(phase)
   ahead = r.q_cmd["left"].copy()
-  r.feel(3.0 * rc.OUT_PULL_N * np.array([-0.8, -0.6, 0.0]))
+  r.feel(3.0 * rc.OUT_TIP_NM * np.array([-0.8, -0.6, 0.0]))
   r._update(0.01)
   assert r.phase["left"] == phase and np.abs(r.q_cmd["left"] - ahead).max() > 0.0
 
