@@ -81,14 +81,16 @@ def _sites() -> list:
       if isinstance(cls, ast.ClassDef) and cls.name != "HubLifecycle" and any(
           isinstance(f, ast.FunctionDef) and f.name == "_say" for f in cls.body):
         own.update(id(n) for n in ast.walk(cls))
-    module = importlib.import_module(
-      "pluggybot." + ".".join(path.relative_to(SRC).with_suffix("").parts))
-    for node in ast.walk(tree):
-      if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-          and node.func.attr == "_say" and node.args and id(node) not in own
-          and not isinstance(node.func.value, ast.Call)):
-        out.append(SimpleNamespace(where=f"{path.name}:{node.lineno}", node=node,
-                                   names=vars(module)))
+    calls = [node for node in ast.walk(tree)
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+             and node.func.attr == "_say" and node.args and id(node) not in own
+             and not isinstance(node.func.value, ast.Call)]
+    if not calls:
+      continue
+    names = vars(importlib.import_module(
+      "pluggybot." + ".".join(path.relative_to(SRC).with_suffix("").parts)))
+    out += [SimpleNamespace(where=f"{path.name}:{node.lineno}", node=node, names=names)
+            for node in calls]
   return out
 
 
