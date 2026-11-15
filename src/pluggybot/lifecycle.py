@@ -267,13 +267,14 @@ UNPLUG_FAILED = "CHARGE: my hand could not get the plug out -- going on anyway"
 #: (`others[].doing`, issue #709; Overseer.md §2c has the rule and each
 #: line's call): how a line saying what its BODY is doing begins -- a walk,
 #: a wait or a step aside, a charge, a procedure it runs, a job it holds,
-#: a death, a stand-up. A line is shown only where it begins so AND its
-#: call says it is (`_say(doing=)`); everything else -- the robot's
-#: thinking, reasons, memory, list of rules, library, belief, books, talk
-#: and acts, an operator's, a visitor's, the board's -- is its own.
+#: a stand-up, a decided walk's start (a death is read off `dead`). A line
+#: is shown only where it begins so AND its call says it is
+#: (`_say(doing=)`); everything else -- the robot's thinking, reasons,
+#: memory, list of rules, library, belief, books, talk and acts, an
+#: operator's, a visitor's, the board's -- is its own.
 DOING_KINDS = ("EXPLORE", "GO_CHARGE", "CHARGE", "WAIT:", "STATION:", "standing by:",
                "MAKE WAY:", "MADE WAY:", "PROCEDURE ", "TASK ", "DONE ", "GRADE ",
-               "DEAD (", "UP again", "STOOD UP ", "DECIDE ")
+               "UP again", "STOOD UP ", "DECIDE ")
 #: ...and the decided actions whose `DECIDE` line is shown as the action and
 #: where (`Decision.shown`), never why nor who chose it: what a body sets out
 #: on that says nothing as it begins (a charge until it plugs in or waits, an
@@ -1820,7 +1821,7 @@ class HubLifecycle:
     self.deaths.append(dict(self.dead))
     self._say(f"DEAD ({cause}): {why}"
               + (f" -- {hearts} heart{'s' if hearts != 1 else ''} left"
-                 if hearts is not None else ""), doing=f"DEAD ({cause})")
+                 if hearts is not None else ""))
     self._remember(f"died -- {why} -- after {self.survival_s:.0f} s awake "
                    f"({cause})"
                    + (f"; {hearts} lives left" if hearts is not None else ""))
@@ -2692,7 +2693,7 @@ class HubLifecycle:
         self._say(f"EXPLORE done ({status})", doing=True)
         return status
     if self.needs_charge:
-      self._say("EXPLORE -> GO_CHARGE (battery low)", doing="EXPLORE -> GO_CHARGE")
+      self._say("EXPLORE -> GO_CHARGE (battery low)")
       return "battery"
     self._say("EXPLORE: the run's time is up", doing=True)
     return "time"
@@ -5773,12 +5774,9 @@ class HubLifecycle:
                         pack_wh=self.claim_budget_wh) is None:
       return self._no_take(task.id, task, "the board refused it")
     self.claimed.append(task.id)
-    if other is not None:
-      # ...an act's claim IS the act, on an offer hidden from the robot it
-      # names (#228): never that robot's to read as this one's doing (#709)
-      self._say(f"TASK {task.id} claimed: {task.description}")
-    else:
-      self._say(f"TASK {task.id} claimed: {task.description}", doing=True)
+    # ...an act's claim IS the act, on an offer hidden from the robot it
+    # names (#228): never that robot's to read as this one's doing (#709)
+    self._say(f"TASK {task.id} claimed: {task.description}", doing=other is None)
     # ACTIVE from the claim: a job's work starts the moment the robot takes
     # it on -- writing the procedure is the work, and an act is done here.
     self.tasks.start(task.id, t=now)
@@ -6473,8 +6471,7 @@ class HubLifecycle:
     day only if nobody can reset the robot."""
     self.stranded = True
     self._say("GO_CHARGE FAILED -- stranded away from the charging station at "
-              f"{self.battery.fraction:.0%}",
-              doing="GO_CHARGE FAILED -- stranded away from the charging station")
+              f"{self.battery.fraction:.0%}")
     self._die("stuck", f"could not reach the charger, stranded at "
                        f"{self.battery.fraction:.0%}"
                        + (f": {self.charge_failure}" if self.charge_failure else ""))
@@ -6899,9 +6896,7 @@ class HubLifecycle:
       # An IMMORTAL run's failed charge: nothing died, the day simply ended
       # away from the station.
       self._say("GO_CHARGE FAILED -- mission over, stranded away from the "
-                f"charging station at {self.battery.fraction:.0%}",
-                doing="GO_CHARGE FAILED -- mission over, stranded away from the "
-                      "charging station")
+                f"charging station at {self.battery.fraction:.0%}")
       self._remember("could not reach the charger -- stranded at "
                      f"{self.battery.fraction:.0%}"
                      + (f": {self.charge_failure}" if self.charge_failure else ""))

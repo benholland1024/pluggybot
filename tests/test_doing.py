@@ -51,6 +51,7 @@ PRIVATE = {
   "HUNGER": "its points", "ENERGY": "an errand's cost", "SKIP": "an errand's cost",
   "DEFER": "an errand's cost", "DECLINE": "an offer declined and why",
   "TRUE": "its hearts and its books archived",
+  "DEAD": "its why and its hearts (`others_context` reads a death off `dead`)",
   # its acts toward the other, and its talk
   "PREDICT": "a guess and its score", "TELL": "a message and its truth",
   "RATE": "a rating", "CHAT": "its chat", "VISITOR": "a visitor's",
@@ -147,11 +148,17 @@ def _variants(site) -> list:
   tests = sorted({ast.unparse(n.test) for expr in (node.args[0], doing) if expr is not None
                   for n in ast.walk(expr) if isinstance(n, ast.IfExp)})
   assert len(tests) <= 6, (site.where, tests)
+  # ...and a mark the call computes (`doing=other is None`), both ways
+  marks = ((None,) if doing is None
+           else (True, False) if isinstance(doing, (ast.Compare, ast.BoolOp, ast.UnaryOp))
+           else (doing,))
   out = []
   for reads in itertools.product((False, True), repeat=len(tests)):
     picks = dict(zip(tests, reads))
     msg = _shaped(site, node.args[0], picks)
-    out.append((msg, None if doing is None else _shaped(site, doing, picks)))
+    for mark in marks:
+      out.append((msg, mark if mark is None or isinstance(mark, bool)
+                  else _shaped(site, mark, picks)))
   return out
 
 

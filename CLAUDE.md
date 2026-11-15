@@ -2244,7 +2244,8 @@ save a filmstrip PNG named after the script.
   §2c has the table; `tests/test_doing.py` lists every kind, so a new one
   fails until classed): a walk, a charge, a procedure's lines (a step as
   its verb, never the values a procedure handed it nor a check's words), a
-  job it holds (never an act's claim), a death and a stand-up, a decided
+  job it holds (never an act's claim), a death (read off `dead`, across a
+  restart too) and a stand-up, a decided
   charge's, explore's or idle's `DECIDE` line as its action alone
   (`DECIDED_SHOWN`, `Decision.shown`) -- a battery level, a balance, hearts,
   a reason and a `DONE`'s "before this answer's ..." taken out; an
