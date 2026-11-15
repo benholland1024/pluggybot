@@ -9006,10 +9006,10 @@ here; probes written to break it; three code reviews):
   let the wide search's unconfirmed place (1.8 m along a sidewalk whose wall
   the map had eroded, #401) refuse a find that was the truth.
 
-**Flown**, the rule beside the base (eb63935), each batch both trees on
-one pod, a process a flight, every stand the same in both trees. "Off" is
-0.3 m or more from the truth 30 s after the stand (N6's instrument: at the
-end of its window, or 10 deg).
+**Flown**, the rule as built (a4493307, on eb63935's line) beside the base
+(eb63935), each batch both trees on one pod, a process a flight, every stand
+the same in both trees. "Off" is 0.3 m or more from the truth 30 s after
+the stand (N6's instrument: at the end of its window, or 10 deg).
 
 | falls | stood | off: base | the rule | worse than the base |
 |---|---|---|---|---|
@@ -9034,7 +9034,8 @@ truth, as the cube's), a robot its map refused for the whole hold at the
 shop's checkout, and a sidewalk's 0.37 m.
 A flight's END -- after its walk to the door and back -- is over 0.3 m off
 in 19 and 20 of the counter's flights on the base (worst 1.09 m), 1 and 1
-with the rule (0.39).
+with the rule (0.39), leaving out one that fell again and never got up, the
+same on both trees.
 
 - *The live falls themselves* (K4's reproductions through the same
   instrument, on the dev box): Luca's chest procedure at its draw, six
@@ -9044,10 +9045,12 @@ with the rule (0.39).
   lift: the base's verdicts on both trees, right.
 - *A robot that has not fallen:* the 202 recorded falls replayed with the
   fall's doubt off are the base's, take for take and verdict for verdict;
-  round 3's whole batch on one pod (132 station trials, 60 drift pairs, the
-  counter's 9 injected errors, the mall's 9; no fall in any) is the base's
-  row for row; the pair's recording is the base's but two wall-clock
-  stamps, `determinism_spike --pair` and `--resume-at 300` identical.
+  round 3's whole batch on one pod, flown on the rule's code but for its
+  last review's fixes, which only a fall reaches (132 station trials, 60
+  drift pairs, the counter's 9 injected errors, the mall's 9; no fall in
+  any) is the base's row for row; on the branch as merged, the pair's
+  recording is the base's but two wall-clock stamps, and `determinism_spike
+  --pair` and `--resume-at 300` are identical.
 - *A right belief up from a fall:* the whole-house probe ends where the
   base does at all 7,840 places (its own 2 by the hall's flight); on the
   four live maps of 11-08 and 11-09 and a map laid true, 40 poses round the
@@ -9055,8 +9058,10 @@ with the rule (0.39).
 - *A belief left 0.5-1.4 m off on those maps* (the same probe, 25 scans):
   ends over 0.3 m off at 26-33 poses of 40 on the base's map laid true and
   none with the rule; on the live maps 10-40 on the base and 0-4 with the
-  rule, the rest on the map's own copy where it has one (Rowan's of 11-08,
-  laid 0.57 m off whole: both trees on its copy at 40 of 40).
+  rule (0-2 after 70 scans on the two maps of 11-09, where the base's
+  13-40 stay off), the rest on the map's own copy where it has one
+  (Rowan's of 11-08, laid 0.57 m off whole: both trees on its copy at 40 of
+  40).
 
 **The cost.** A look is the wide search's work: 38 ms on the physics thread
 at the median and 57 at most, timed alone on forty recorded falls on the
