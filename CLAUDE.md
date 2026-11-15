@@ -1566,7 +1566,10 @@ save a filmstrip PNG named after the script.
   The library (`MAX_PROCEDURES` 8; `define
   {name, source}` / `undefine`) survives a restart and is recompiled against
   today's world; a REPLACEMENT IS ONE ANSWER (`_define` removes before it
-  adds). ⚠ EVERY ENTRY IS RECOMPILED AGAINST THE OTHERS, CALLEES FIRST,
+  adds). ⚠ A REFUSED DEFINE SAYS EVERY REASON AT ONCE, THE LIBRARY'S AND
+  ITS SOURCE'S (`Library._judged`, from `define` and `check` alike): told
+  its room alone, a robot made room and was refused again for its source
+  (11-14: 8 of 21 "library is full" refusals). ⚠ EVERY ENTRY IS RECOMPILED AGAINST THE OTHERS, CALLEES FIRST,
   AFTER EVERY CHANGE (`Library._relink`): a caller whose callee went is kept
   and marked, and History says it (`callers_moved`); one whose first def
   needs arguments is callable, never `runnable`. ⚠ Invoked as `procedure:<name>` (the action, a standing order or a

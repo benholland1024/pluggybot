@@ -10,6 +10,70 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A refused define says the length it was written and every reason at once, and the board's lines stay out of a robot's status (K4, `loop-k4`) — opens when this PR is deployed
+
+**Three small changes to what the robots read, found on the wake of
+2026-11-14.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029
+characters, 17 sections; no rule's text restates any of the words below),
+nor the session host's hello (byte for byte), nor any geometry, nor either
+committed recording (they fly no tasks and no library).
+
+1. **A define cut at the cap is refused in the length it was written.** A
+   served answer's source is cut one past the cap before the library reads
+   it, and the refusal read "the source is 3001 characters; the cap is
+   3000" whatever was written. It now says the length the answer wrote
+   ("the source is 3412 characters; the cap is 3000"), still says what the
+   text before the cut is refused for, and no longer says what the cut made
+   of its last line (`Library._as_written`; the wire's `define` and the
+   `procedure` event's `source` are the cut text as before, its `reasons`
+   the new words).
+2. **A refused define says every reason at once.** A define into a full
+   library, or under a name already kept, heard that reason alone; it now
+   hears what its source is refused for in the same refusal
+   (`Library._judged`), from `define` and from the undefine-and-define path
+   alike.
+3. **The board's own lines are not a robot's status.** `others[].doing`
+   (and the site's line under a portrait, and each frame's `status`) is the
+   robot's last narrated line. Kept out of it from here on, though narrated
+   as before: an offer ("TASK t_0306 offered: ..."), an expiry, an offer's
+   things set out ("TASK t_0306: the cube is set out", said by both
+   lifecycles), or not in this world to set out, or left as saved under a
+   hand, things put away, a claim given back for a robot that is not in
+   this world, and a job a restart failed. A robot's own job lines
+   (claimed, done, failed, out of time, still mine, not available) are its
+   status as before, and before it has narrated a line of its own its
+   status is empty. ⚠ This changes what each robot reads of the other:
+   `OTHER_ROBOT_RULE` and its sha are untouched, and its sentence ("what it
+   is doing") now holds of the line it is shown.
+
+**Why.** 53 defines were refused that wake. 16 were over the cap and every
+one read "3001 characters": six thoughts took it for one character over
+("failed last turn by exactly one character"), four trims made on that were
+refused at "3001" again, three with a held job lost (t_0301, t_0309,
+t_0322), and five were told a fault the cut had made ("line 111: Expr is
+not part of this language", a `pass` cut to `pa`, which Luca listed among
+its own as "a `-=`"). 21 were for a full library, and at least 8 of those
+were followed by a refusal of the same source for its own faults on the
+robot's next define; `cube_run4` was refused eight times running, a kind of
+reason at a time. And six thoughts read the other robot's status as a claim
+on a job it had not taken (Luca, 20:19: "Leaving t_0305 to Rowan, whose
+broadcast claims it"; Rowan, 20:58: "its broadcast shows it eyeing t_0313
+-- so I take the drawer"); Rowan, 20:26: "the odd broadcast wording isn't
+mine -- my body's code writes it".
+
+**What the period is for.**
+- **Refused defines by reason** (`procedure` rows, `refused`): the over-cap
+  ones say a length other than 3001, none says "Expr is not part of this
+  language" at its text's last line, and a "library is full" refusal
+  carries the source's faults where it has any.
+- **Refusals running:** how many defines of one name are refused in a row
+  (11-14: `cube_run4` eight, `cube_p1` five), and whether a refusal at the
+  cap is followed by another at the cap.
+- **The thoughts after one:** none reads "one character over".
+- **`doing` in the other's thoughts:** no thought reads the other robot's
+  status as a claim on a job it never took; and whether the two still sort
+  out who takes a job (they `tell` each other, which is theirs).
+
 ### A decided procedure that runs nothing says why in History (N5, `loop-n5`) — opens when this PR is deployed
 
 **What changed is what History says when an answer's `procedure:<name>`
