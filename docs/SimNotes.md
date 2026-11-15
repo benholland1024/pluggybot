@@ -9031,7 +9031,7 @@ before the fall (the map's own frame), 2 on a sidewalk and 1 in the lobby;
 in the fresh batch a find 0.36 m off at the house kitchen's counter and an
 `ok` fit 0.51 m off at the restaurant kitchen's worktop (one place with the
 truth, as the cube's), a robot its map refused for the whole hold at the
-shop's checkout, and a sidewalk's 0.37 m.
+shop's checkout, and a sidewalk's 0.39 m.
 A flight's END -- after its walk to the door and back -- is over 0.3 m off
 in 19 and 20 of the counter's flights on the base (worst 1.09 m), 1 and 1
 with the rule (0.39), leaving out one that fell again and never got up, the
