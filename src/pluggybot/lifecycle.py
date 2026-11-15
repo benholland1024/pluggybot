@@ -7161,8 +7161,11 @@ def overseer_context(life) -> dict:
   offers = shown_offers(life)
   state = ov.context_for(life, visitors=visitors, tasks=offers,
                          # ...and what it has taken, with each job's time
-                         # left (#602)
-                         held=(life.tasks.held_context(life.root, float(life.data.time))
+                         # left (#602) -- never one a fall has ended, asked in
+                         # its hold (#701)
+                         held=([h for h in life.tasks.held_context(life.root,
+                                                                   float(life.data.time))
+                                if not life._fell_holding(h["id"])]
                                if life.tasks is not None else None),
                          # The two thought files that change during a run
                          # (issue #38). The other two are already in the

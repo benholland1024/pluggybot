@@ -403,7 +403,8 @@ if `done` were said as it fell (`fell holding t_0239 (open_door): a fall
 fails the try, so the job ends here …`, then the grade's line; #701). A job
 held past the time its description gives is failed by the
 loop, its prop offered again, and while the robot holds one its context
-lists it with that time's remainder (`heldTasks`, `leftS`; #602), as of the
+lists it -- never one a fall ended -- with that time's remainder
+(`heldTasks`, `leftS`; #602), as of the
 ask -- the rule says the clock runs on while it thinks (#689: asked with 193
 s of t_0202 left, Rowan answered 160 s later, its own think uncounted). `CHALLENGE_RULE` says all of this to
 the mind and, like every rule on this arm, demonstrates nothing about

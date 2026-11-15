@@ -369,6 +369,26 @@ def test_a_fall_ends_its_own_robots_job_and_never_the_others(tmp_path):
   assert rowan.grades == [] and not rowan._fallen
 
 
+def test_a_job_a_fall_ended_is_shown_held_no_longer(tmp_path):
+  """...and from the fall it is no longer among the jobs it is shown it
+  holds (`heldTasks`): the fall ends the run, the robot is asked within the
+  hold, and its turn said "the job ends here" in History beside the job
+  listed held, with its time left. Shown to fail with `overseer_context`
+  listing every held job."""
+  from pluggybot.lifecycle import overseer_context, world_facts
+  from pluggybot.procedure import library as lib
+  life = _life(tmp_path)
+  life.overseer.menu = None                      # ...a mind with no eye: no `look`
+  life.overseer.library = lib.Library(world_facts(HUMANOID_HOME))
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  assert [h["id"] for h in overseer_context(life)["heldTasks"]] == [task.id]
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  assert life.tasks.get(task.id).state == "active", "in the fall's hold"
+  assert "heldTasks" not in overseer_context(life)
+
+
 def test_a_job_called_past_its_minutes_fails(tmp_path):
   """The time a job gives runs from its claim (`minutes`), whatever the
   robot did in between: its `done` waiting on the queue, the grade's call

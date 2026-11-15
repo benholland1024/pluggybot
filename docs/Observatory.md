@@ -26,7 +26,9 @@ byte for byte; no geometry and no wire format moved):
   stub test's), settled once, its prop free for the next offer once it is
   in. History says it at the fall (`fell holding t_0307 (open_drawer): a
   fall fails the try, so the job ends here -- graded as things stand, 5 s
-  on`), and the verdict's line 5 s on.
+  on`), and the verdict's line 5 s on; from the fall the job is no longer
+  in `heldTasks` (a turn asked in the hold listed it held beside that
+  line).
 - **A `done` said after the fall** -- its answer in flight as the robot fell
   -- is one on a job not held, #648's line: in the hold `… not graded,
   because I fell at t=N, and that ended it -- it is being graded as things
