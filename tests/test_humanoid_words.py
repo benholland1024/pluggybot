@@ -265,6 +265,42 @@ def test_a_humanoids_procedure_rule_is_its_practices_language_and_body():
   assert rule in text, "the humanoid's prompt carries it"
 
 
+def test_the_body_says_how_far_its_fingertips_reach_past_the_grip_off_the_model():
+  """#711: told only "its fingers 8 cm long", nothing said where the grip
+  lies along them, and from straight above the pads stopped on the cube's
+  board with the grip 1.4 cm over the cube: each pad is the finger's length
+  centred on the grip, so the tips reach half of it past the grip. The
+  number is the model's pad, read off the generated drawing; and the words,
+  the served rule's too, move with the part."""
+  import mujoco
+  from pathlib import Path
+  from pluggybot.humanoid import model as hmodel, parts
+  m = mujoco.MjModel.from_xml_path(str(Path(hmodel.__file__).parents[3] / "models/humanoid.xml"))
+  for side in ("left", "right"):
+    grip = m.site(f"{side}_grip")
+    for jaw in ("a", "b"):
+      pad = m.geom(f"{side}_jaw_{jaw}_pad")
+      body = m.body(pad.bodyid[0])
+      assert body.parentid[0] == grip.bodyid[0], "a jaw is the hand's"
+      # the fingers point down the hand's z: the pad's tip below the grip
+      tip = float(body.pos[2] + pad.pos[2] - pad.size[2])
+      assert float(grip.pos[2]) - tip == pytest.approx(hmodel.fingers_past_grip(), abs=1e-9)
+  told = f"its fingers {100 * parts.GRIPPER.finger_len:g} cm\nlong, the grip halfway along them: "
+  past = f"their tips reach {100 * hmodel.fingers_past_grip():g} cm past it."
+  body_text = dict(practice.system_sections(st.hand_facts()))["your body"]
+  assert told + past in body_text
+  assert told + past in ov.hands_procedure_rule(world_facts(HUMANOID_HOME).places)
+
+
+def test_the_bodys_finger_words_move_with_the_part(monkeypatch):
+  """#711: the gripper's fingers are the part's, never a number typed."""
+  from pluggybot.humanoid import parts
+  monkeypatch.setattr(parts, "GRIPPER", replace(parts.GRIPPER, finger_len=0.10))
+  body_text = dict(practice.system_sections(st.hand_facts()))["your body"]
+  assert "its fingers 10 cm\nlong, the grip halfway along them: their tips reach 5 cm past it." \
+    in body_text
+
+
 def test_a_humanoids_claim_about_its_station_is_checked():
   """`tell`'s worked claim in a humanoid's words is one code can check."""
   assert acts.check_claim("the charging station is free", charging=False) == (

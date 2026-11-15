@@ -292,7 +292,10 @@ class _Says:
     self.gap = 2.0 * st.PLUG_R_M          # ...shut on the plug's jack
     self.stance = (0.0, 0.0, 0.0)
     self.sees, self.drift = sees, drift
-    self.reached, self.pushed, self.said = [], [], []
+    self.reached, self.pushed, self.said, self.stepped = [], [], [], []
+
+  #: ...where it believes it stands: its stance, for a body that only says
+  pose = property(lambda self: self.stance)
 
   def _done(self, value):
     return value
@@ -346,6 +349,15 @@ class _Says:
   def hold_routine(self, seconds):
     self._call(("hold", seconds))
     return self._done(None)
+
+  def step_routine(self, ahead, left=0.0, turn=0.0):
+    """A step as asked, its stance moved there."""
+    self.stepped.append((ahead, left, turn))
+    x, y, yaw = self.stance
+    c, s = math.cos(yaw), math.sin(yaw)
+    self.stance = (x + c * ahead - s * left, y + s * ahead + c * left, yaw + turn)
+    self._call("step")
+    return self._done({"why": "stepped"})
 
   def release_routine(self, side):
     return self._done("home")
@@ -432,19 +444,116 @@ def test_jaws_shut_on_the_boss_draw_back_along_the_plug_and_shut_again(monkeypat
     assert any(np.allclose(pos, drawn) for pos, _, _ in body.moves), "drawn back off the boss"
 
 
+def _unplugs(body):
+  """A body plugged in, whose pull takes the plug off its port."""
+  body.plugged = True
+  body.pull_routine = lambda *a, **kw: (setattr(body, "plugged", False),
+                                        body._done({"why": "distance", "along": 0.05}))[1]
+  return body
+
+
 def test_the_unplug_squeezes_the_seated_plug_lightly_first(monkeypatch):
   """Shut at once on it, the first pad to meet the plug pushed it across the
   port past the connector's 20 N, and it broke away (`charge._squeeze_routine`)."""
   from pluggybot.body import RackPose
   monkeypatch.setattr(charge, "port", lambda body: (np.array([0.0, 0.0, 0.9]),
                                                    np.array([-1.0, 0.0, 0.0])))
-  body = _Says()
-  body.plugged = True
-  body.pull_routine = lambda *a, **kw: (setattr(body, "plugged", False),
-                                        body._done({"why": "distance", "along": 0.05}))[1]
+  body = _unplugs(_Says())
   assert _drive(charge.unplug_routine(body, RackPose(1.0, 0.0, 0.0), [])) == "unplugged"
   shut = [f for closed, f in body.grips if closed]
   assert shut[:2] == [charge.GRIP_MIN_N, charge.UNPLUG_GRIP_N], shut
+
+
+def test_the_unplug_steps_back_to_its_seat_first_where_a_charge_crept_it_in(monkeypatch):
+  """#703: plugged in, the balancer's 2 N on its port creeps a standing robot
+  in toward the station, 7.5 mm a minute, until its plug meets the station 18
+  cm past its seat (SimNotes, "The unplug after a long charge"), and from
+  there the arm's way out behind the plug drove its jaw into the wall beside
+  the station and the station's box: after
+  the live 1,944 and 1,504 s charges, "my hand could not get the plug out",
+  twice of twice. Further in than `UNPLUG_IN_M` it backs off to its seat
+  before its hand goes out, by the station it believes in -- from there no
+  look sees its tags -- never turned on the spot first (pinned there, a turn
+  swings its plug across the box's face, which the port lets go to); no
+  nearer in it steps not at all."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", _port)
+  station = RackPose(0.35, -0.075, 0.0)          # its seat where its stance is
+  for crept, turned, steps in ((0.0, 0.0, 0), (charge.UNPLUG_IN_M - 0.005, 0.0, 0),
+                               (0.18, 0.0, 1), (0.18, math.radians(11.0), 1)):
+    body = _unplugs(_Says())
+    body.stance = (crept, 0.0, turned)
+    trace = []
+    assert _drive(charge.unplug_routine(body, station, trace)) == "unplugged"
+    assert len(body.stepped) == steps, (crept, turned, body.stepped)
+    if steps:
+      assert body.said.index("step") < body.said.index("reach"), body.said
+      assert trace[0]["seat"][0] == pytest.approx(-0.18)
+      # ...back along the station's way to its seat, its feet as they stood
+      assert body.stepped[0][2] == 0.0
+      assert body.stance[:2] == pytest.approx((0.0, 0.0), abs=1e-9)
+      assert body.stance[2] == pytest.approx(turned)
+      # ...and its look after the step taken standing still, never bowed
+      after = body.said[body.said.index("step") + 1:]
+      assert after[:2] == [("hold", charge.LOOK_SETTLE_S), "spot"], after
+      assert "gaze" not in body.said, body.said
+
+
+def test_an_unplug_whose_step_back_freed_the_plug_reaches_for_none(monkeypatch):
+  """A step back that let the plug go -- the port lets go to a pull across
+  its face -- leaves nothing to take out: no hand goes out for it."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", _port)
+  body = _unplugs(_Says())
+  stepped = body.step_routine
+
+  def step(*a, **kw):
+    body.plugged = False
+    return stepped(*a, **kw)
+  body.step_routine = step
+  body.stance = (0.18, 0.0, 0.0)
+  why = _drive(charge.unplug_routine(body, RackPose(0.35, -0.075, 0.0), []))
+  assert "reach" not in body.said and not body.plugged, body.said
+  assert why == "it came off its port as it stepped back to its seat (stepped)", why
+
+
+def test_a_back_off_the_other_robot_keeps_it_from_asks_it_no_more(monkeypatch):
+  """A step kept off the other robot standing behind (`blocked`, as a walk
+  keeps off it) goes the same way asked again: it is the back-off's last, and
+  the try goes on from where it stands."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", _port)
+  body = _unplugs(_Says())
+  body.step_routine = lambda *a, **kw: (body.stepped.append(a), body._done({"why": "blocked"}))[1]
+  body.stance = (0.18, 0.0, 0.0)
+  trace = []
+  assert _drive(charge.unplug_routine(body, RackPose(0.35, -0.075, 0.0), trace)) == "unplugged"
+  assert len(body.stepped) == 1 and {"step": "blocked"} in trace, trace
+
+
+def test_an_unplug_that_failed_tries_once_more_off_a_look_of_its_own(monkeypatch):
+  """#703: a hand that could not take the plug out left it to the walk, and
+  after the undock's turn its rope pulled the plug straight into the port's
+  face, which the catch holds: the walk stalled. One more try, after a look of
+  its own taken standing still (`LOOK_SETTLE_S`: just after a move, a look
+  read the trunk's tilt 0.5 deg off, #596); two that fail say why, and try
+  no third."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", _port)
+  station = RackPose(0.35, -0.075, 0.0)
+  went = iter((False, True))
+  body = _unplugs(_Says(reaches=lambda rot: next(went)))
+  assert _drive(charge.unplug_routine(body, station, [])) == "unplugged"
+  first, again = (i for i, w in enumerate(body.said) if w == "reach")
+  between = body.said[first:again]
+  assert ("hold", charge.LOOK_SETTLE_S) in between, body.said
+  assert between.index(("hold", charge.LOOK_SETTLE_S)) < between.index("spot"), between
+  body = _unplugs(_Says(reaches=lambda rot: False))
+  trace = []
+  why = _drive(charge.unplug_routine(body, station, trace))
+  assert why.startswith("its hand did not get behind the plug"), why
+  assert body.said.count("reach") == charge.UNPLUG_TRIES == 2 and body.plugged
+  assert [t["unplugTry"] for t in trace if "unplugTry" in t] == [0, 1]
 
 
 def _in_feet(v, stance, point=True):

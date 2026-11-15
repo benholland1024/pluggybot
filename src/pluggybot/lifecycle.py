@@ -259,6 +259,9 @@ CHARGED = 0.90
 #: the humanoid's house until its cable's station, stage 2) -- History's
 #: words, `charge: did not charge -- ...`.
 NO_CHARGER = "there is nowhere for me to charge here"
+#: ...and what a hand that could not take its plug out says, its run's
+#: unplug and a charge's end alike (#703).
+UNPLUG_FAILED = "CHARGE: my hand could not get the plug out -- going on anyway"
 
 #: Sim seconds of charging before calling it stuck, on a DEMO cell.
 #:
@@ -300,6 +303,13 @@ CHARGE_WALK_S, CHARGE_WALK_S_M = 90.0, 6.0
 DRIFT_EVERY_S = 300.0
 #: What each commissioned fixture is called where the robot reads of it.
 FIXTURE_WORDS = {"station": "my charging station"}
+#: What a robot reads once its map has refused every scan for
+#: `navigator.REFUSED_TELL_S` running, and once its map takes scans again
+#: (`MATCHED_TELL_S`; issue #697, `_tell_belief`): what its own matcher
+#: knows, never what to do.
+MAP_REFUSING = ("My map has matched none of my scans for a minute, so I may not be "
+                "where I believe I am")
+MAP_MATCHING = "My map matches my scans again"
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
 #: loop gets to reconsider (issue #15). Bounded on purpose: without it one
 #: `explore` decision eats the whole mission, and the point of an overseer is
@@ -1654,8 +1664,9 @@ class HubLifecycle:
   def _tell_belief(self, rec: dict) -> None:
     """A belief event said, and the ones the robot should know of written
     to History: lost at a fixture, a map dropped, how the search after a
-    loss ended. A fix within the map's reach and a relocation are narrated
-    only: the robot was put right where it would have been anyway."""
+    loss ended, a map that has refused every scan for a minute and its
+    taking scans again (#697). A fix within the map's reach and a relocation are
+    narrated only: the robot was put right where it would have been anyway."""
     why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
     b, a = rec["before"], rec["after"]
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
@@ -1677,6 +1688,10 @@ class HubLifecycle:
       # ...found, and near where it believed: no line said so yet
       line = (f"I looked round for {rec.get('seconds', 0):.0f} s and found {what}, near "
               "where I believed I was")
+    elif why == "refusing":
+      line = MAP_REFUSING
+    elif why == "matching":
+      line = MAP_MATCHING
     else:
       if why in ("fixed", "relocated") and rec.get("moved", True):
         self._say(f"BELIEF {why}{' by ' + what if what else ''}: moved {off:.2f} m "
@@ -2908,19 +2923,24 @@ class HubLifecycle:
     if self.data.time > t0:
       self._bank(scoring.score_charge(self, before))
     yield from self.body.undock_routine()
+    if self.body.charging():
+      # ...said as the run's own unplug says it: unsaid, a charge's end that
+      # left the plug in read as one that took it out (#703)
+      self._say(UNPLUG_FAILED)
 
   def unplug_routine(self, why: str = "what I chose next is not here") -> Routine:
     """The plug out by hand before the body goes anywhere (#654): a run's end
-    leaves it in, and a mind may choose not to go on charging. ⚠ WALKED OFF
-    PLUGGED IN, the walk breaks it off the port's catch at the port's 20 N
-    (#559's stage 4), where a hand takes it out as a charge's end does. A
-    hand that could not leaves that to the walk, and says so."""
+    leaves it in, and a mind may choose not to go on charging; a hand takes
+    it out as a charge's end does (`Body.undock_routine`). A hand that could
+    not, in its tries, says so and goes on: ⚠ WALKED OFF after the undock's
+    turn, the rope pulls the plug straight into the port's face, which the
+    catch holds, and the walk stalls (#703)."""
     if not self.body.charging():
       return
     self._say(f"CHARGE: unplugging at {self.battery.fraction:.0%} -- {why}")
     yield from self.body.undock_routine()
     if self.body.charging():
-      self._say("CHARGE: my hand could not get the plug out -- going on anyway")
+      self._say(UNPLUG_FAILED)
 
   def run_errand(self, errand) -> dict:
     return self.body.run(self.run_errand_routine(errand))

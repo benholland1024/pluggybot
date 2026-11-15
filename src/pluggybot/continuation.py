@@ -91,10 +91,15 @@ MAX_START_OVERS = MAX_RESUMES
 #: points laid flat, on maps laid from a plane over the fences: they hold
 #: every fence's cells as floor, and a scan goes in only at half its points
 #: on the walls, so the street's scans, mostly fence, might never go in.
-MAP_EPOCH = 4
+#: 5: #681's fourth round, on maps a fall at the storeroom's counter could
+#: have laid a copy of the room into, about 0.55 m east of it: the rule
+#: stops a new copy, never one already laid (Rowan stood 0.75 m east of the
+#: truth from its 20:33 fall on 2026-11-14 to the pause; Ben's call, 11-15).
+MAP_EPOCH = 5
 #: ...said for the newest epoch's reason: a save crosses only the bump the
 #: deploy that reads it brings.
-MAPS_DROPPED = "the map I had was laid before I could see low things, and it is gone"
+MAPS_DROPPED = ("the map I had could hold a room laid a second time, half a metre off, "
+                "after a fall, and it is gone")
 #: ...and History's words where the save is of the same house with another
 #: body in it (#559, `lifecycle.HOUSES`): the robot carries on in a new one,
 #: the clock, its pack, its deaths and its jobs with it.

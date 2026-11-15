@@ -13,6 +13,8 @@ Every number is the datasheet's, or a stated range with its reason:
              over a life, drawn uniformly in +-it per axis
   scale      the sensitivity's initial tolerance, +-0.5 % (tested in
              production), drawn uniformly per axis
+  range      the widest full scales, +-2000 deg/s and +-16 g: past one
+             an axis reads it, after the three above
 
 Not modelled: cross-axis sensitivity (+-1.25 % gyro, +-1 % accel) and
 nonlinearity (+-0.1 %), which on a body that stays near level add a
@@ -50,12 +52,31 @@ ACCEL_NOISE = (65e-6 * G, 65e-6 * G, 70e-6 * G)
 ACCEL_BIAS = 0.15e-3 * G * TEMP_SWING_C
 #: Accelerometer sensitivity scale factor initial tolerance, +-0.5 %.
 ACCEL_SCALE = 0.005
+#: The accelerometer's full scale, m/s^2 a side: +-16 g, the widest of its
+#: four ranges (ACCEL_FS_SEL 0, Table 2) and the only one its 20-bit FIFO
+#: runs, as a narrower one would clip service (walking on after a shove
+#: reads up to 11.7 g, a get-up's hand-back 6.9; #696). Past it an axis
+#: reads the full scale, where the part's output ends (to within a count:
+#: an IMU reading is never quantised here).
+ACCEL_RANGE = 16.0 * G
+#: The gyro's, rad/s a side: +-2000 deg/s, its widest (GYRO_FS_SEL 0, Table
+#: 1), read the same way past it; the served falls turned it 762 deg/s at most.
+GYRO_RANGE = math.radians(2000.0)
 
 
 def seed_for(key: str) -> int:
   """A sensor's seed, off a checksum of its name and robot -- never
   `hash()`, which Python salts per process."""
   return zlib.crc32(key.encode())
+
+
+def _full_scale(reading: np.ndarray, full: float) -> np.ndarray:
+  """A reading as the part's output gives it, each axis at most `full` a
+  side: the array itself inside full scale, clipped past it. Its three
+  floats are compared first, at a quarter of a clip's cost (0.25 us to
+  1.05, measured), as it runs twice a physics step a robot."""
+  t = reading.tolist()
+  return reading if -full <= min(t) and max(t) <= full else reading.clip(-full, full)
 
 
 class Imu:
@@ -75,19 +96,13 @@ class Imu:
   def gyro(self, rate, dt: float) -> np.ndarray:
     """What the gyro reads for a true body rate, rad/s."""
     n = self.rng.standard_normal(3) * (GYRO_NOISE / math.sqrt(dt))
-    return np.asarray(rate) * self.gyro_scale + self.gyro_bias + n
-
-  def gyro_z(self, rate_z: float, dt: float) -> float:
-    """The yaw axis alone, for a body that reads nothing else (the
-    rover's heading): one draw a step, not three."""
-    n = float(self.rng.standard_normal()) * (GYRO_NOISE / math.sqrt(dt))
-    return (float(rate_z) * float(self.gyro_scale[2])
-            + float(self.gyro_bias[2]) + n)
+    return _full_scale(np.asarray(rate) * self.gyro_scale + self.gyro_bias + n, GYRO_RANGE)
 
   def accel(self, force, dt: float) -> np.ndarray:
     """What the accelerometer reads for a true specific force, m/s^2."""
     n = self.rng.standard_normal(3) * (self._accel_noise / math.sqrt(dt))
-    return np.asarray(force) * self.accel_scale + self.accel_bias + n
+    return _full_scale(np.asarray(force) * self.accel_scale + self.accel_bias + n,
+                       ACCEL_RANGE)
 
   def kept_state(self) -> dict:
     """The part's draws and where its noise had got to (issue #345: a

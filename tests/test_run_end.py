@@ -273,8 +273,9 @@ def test_a_full_pack_ends_the_stay_the_plug_out_by_hand_and_the_station_cleared(
 
 
 def test_a_hand_that_could_not_take_the_plug_out_says_so():
-  """It walks on, and the catch lets go at its 20 N, as a walk-off did; only
-  the log can say the hand failed."""
+  """It goes on, the plug in (#703: walked off after the undock's turn, the
+  rope pulls it into the port's face, which the catch holds); only the log
+  can say the hand failed."""
   life = _life()
   _plugged_in(life)
 
@@ -284,6 +285,33 @@ def test_a_hand_that_could_not_take_the_plug_out_says_so():
   life.body.undock_routine = undock
   life.body.run(life.unplug_routine())
   assert any("could not get the plug out" in ln for ln in life.log), life.log[-3:]
+
+
+def test_a_charges_end_that_left_the_plug_in_says_so_too():
+  """#703: after a long charge the hand could not take the plug out at a
+  charge's own end either, and said nothing: "CHARGE complete -- backing off"
+  read as unplugged, and the next walk stalled on the rope with no word of
+  why. It says what the run's unplug says."""
+  life = _life()
+  _plugged_in(life, frac=lc.CHARGED)
+
+  def undock():
+    return "arrived"
+    yield
+  life.body.undock_routine = undock
+  life.body.run(life.charge_routine())
+  assert life.log[-1].endswith(lc.UNPLUG_FAILED), life.log[-3:]
+  # ...and one that took it out says nothing of the kind
+  life = _life()
+  _plugged_in(life, frac=lc.CHARGED)
+
+  def unplugs():
+    life.body.on_charger = False
+    return "arrived"
+    yield
+  life.body.undock_routine = unplugs
+  life.body.run(life.charge_routine())
+  assert not any(lc.UNPLUG_FAILED in ln for ln in life.log), life.log[-3:]
 
 
 def test_anything_else_it_chooses_takes_its_plug_out_first():

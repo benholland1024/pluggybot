@@ -36,7 +36,7 @@ from pluggybot.mapping import optimistic
 from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
-from pluggybot.mapping.scan_match import ScanMatcher
+from pluggybot.mapping.scan_match import ACCEPTED, REFUSED, ScanMatcher
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, Scan, robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
@@ -257,6 +257,72 @@ FACING_TOLERANCE = math.radians(0.5)
 #: How many of the belief's events a body keeps for the lifecycle to drain
 #: (`Navigator.belief_events`): drained every physics step, so a few.
 BELIEF_EVENTS_KEPT = 16
+#: ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR THIS LONG IS SAID TO THE ROBOT,
+#: sim s (issue #697; `Refusals`, the `refusing` belief event; the story is
+#: Observatory.md's period). MEASURED (#690's lobby falls, the heading
+#: right): standing 30 s after a get-up, a run lasted the whole 30 s in one
+#: flight of 118.
+REFUSED_TELL_S = 60.0
+#: ⚠ ...AND ITS END (`matching`) ONLY ONCE THE MAP HAS TAKEN EVERY SCAN FOR
+#: THIS LONG, sim s: on one fit among refusals the two lines alternate. A
+#: right relocation's fits held 730 of 730 scans (the served body's own).
+MATCHED_TELL_S = 5.0
+
+
+class Refusals:
+  """The run of scans the robot's map has refused (issue #697), and whether
+  the robot was told of it. A run is every scan matched and refused
+  (`scan_match.REFUSED`) since its first; any other scan breaks it -- one
+  taken, one laid in unmatched, or one not matched at all, the robot not
+  mapping (getting up, tipped past the gate) -- and only scans TAKEN
+  (`scan_match.ACCEPTED`, a relocation's among them) for MATCHED_TELL_S
+  running end what was told."""
+
+  def __init__(self) -> None:
+    #: Sim time of the run's first refusal, or None; whether the robot was
+    #: told; and, told, the first scan of the run since taken, or None.
+    self.since: float | None = None
+    self.told = False
+    self.fits_since: float | None = None
+
+  def seen(self, t: float, why: str | None) -> str | None:
+    """A scan at sim time `t` and its verdict (None: not matched), and the
+    belief event it raises: `refusing` as a run first reaches
+    REFUSED_TELL_S, `matching` once scans taken after it have run
+    MATCHED_TELL_S, or None."""
+    if why in REFUSED:
+      self.since = t if self.since is None else self.since
+      self.fits_since = None
+      if not self.told and t - self.since >= REFUSED_TELL_S:
+        self.told = True
+        return "refusing"
+      return None
+    self.since = None
+    if not self.told or why not in ACCEPTED:
+      self.fits_since = None
+      return None
+    self.fits_since = t if self.fits_since is None else self.fits_since
+    if t - self.fits_since >= MATCHED_TELL_S:
+      self.told, self.fits_since = False, None
+      return "matching"
+    return None
+
+  def forget(self) -> None:
+    """The map that refused is gone (a true death, a stand-up, a fix past
+    the map's reach): nothing of it to say."""
+    self.since, self.told, self.fits_since = None, False, None
+
+  def kept_state(self) -> dict:
+    return {"since": self.since, "told": self.told, "fitsSince": self.fits_since}
+
+  def restore_kept(self, state: dict | None) -> None:
+    """...a save from before #697 had no run, and one whose map did not come
+    back none of it: afresh."""
+    state = state or {}
+    since, fits = state.get("since"), state.get("fitsSince")
+    self.since = None if since is None else float(since)
+    self.told = bool(state.get("told", False))
+    self.fits_since = None if fits is None else float(fits)
 
 
 def wire_pose(p) -> dict:
@@ -347,6 +413,8 @@ class Navigator:
     #: newest `belief_event` records, for the lifecycle to drain.
     self.belief_events: collections.deque = collections.deque(maxlen=BELIEF_EVENTS_KEPT)
     self._belief_seq = 0
+    #: ...and the run of scans its map has refused, said at a minute (#697)
+    self.refusals = Refusals()
     self.backoff_until = 0.0
     #: How the last `drive_to` ended (issue #350): `why` ("" arrived, else
     #: one of `DRIVE_GAVE_UP`), the goal, the seconds it took, how far short
@@ -407,6 +475,7 @@ class Navigator:
     """Everything this robot mapped, gone (issue #419: a true death): the
     grid back to unknown and the matcher with nothing to match against."""
     self.grid.grid[...] = 0.0
+    self.refusals.forget()
     if self.matcher is not None:
       self.matcher.forget()
 
@@ -555,6 +624,7 @@ class Navigator:
             self.matcher.fused(self.pose, self.data.time)
       elif self.matcher is not None:
         self.matcher.fuse_next()
+        self._refused(None)
       if self.data.time >= self.backoff_until:
         all_angles = np.concatenate((angles, peer_angles))
         all_ranges = np.concatenate((ranges, peer_ranges))
@@ -612,7 +682,18 @@ class Navigator:
       # is how a belief put right was lost again
       if m.why == "relocated":
         self.belief_event("relocated", before=before, inliers=m.inliers)
+    self._refused(m.why)
     return m
+
+  def _refused(self, why: str | None) -> None:
+    """A scan's verdict (None: not matched) on the run of refusals, and
+    the belief event it raises said (`Refusals`, issue #697)."""
+    t = float(self.data.time)
+    said = self.refusals.seen(t, why)
+    if said == "refusing":
+      self.belief_event(said, seconds=round(t - self.refusals.since, 1), verdict=why)
+    elif said is not None:
+      self.belief_event(said, verdict=why)
 
   def belief_event(self, why: str, before=None, **fields) -> dict:
     """A record of what just moved the belief, or lost it (issue #476), on
@@ -811,30 +892,47 @@ class Navigator:
     dist, _ = graph.search(src[1] * cols + src[0], limit=limit)
     return dist.reshape(lattice.shape)
 
-  def nearest_by_walk(self, goals: dict) -> str | None:
-    """Which of `goals` ({name: (x, y)}) is the shortest walk from where it
-    believes it is, over its own map, through the floor it has not seen at
-    the planner's price (`UNKNOWN_COST`) -- the walk it would take -- the
-    other robots' discs left in, for they move; where no walk reaches any,
-    the nearest as the crow flies. Each goal's walk is the shortest to a
-    lattice cell within one of its own: a map laid a little askew puts a
-    goal off the wall's face in the wall's inflation. None for no goals."""
+  def walks_m(self, goals: dict) -> dict:
+    """How far a walk to each of `goals` ({name: (x, y)}) is from where it
+    believes it is, m, over its own map, as the planner prices it -- a metre
+    of floor it has not seen counts `UNKNOWN_COST` (2) metres, a lattice
+    cell the dearest of its map cells: the walk it would take -- the other
+    robots' discs left in, for they move; inf where no walk reaches one.
+    Each goal's walk is the shortest to a lattice cell within one of its
+    own: a map laid a little askew puts a goal off the wall's face in the
+    wall's inflation."""
     if not goals:
-      return None
+      return {}
     b = optimistic.BLOCK
     lattice = optimistic.coarsen(
       optimistic.map_costs(self._planning_grid(), self.INFLATION_CELLS, self.UNKNOWN_COST), b)
     x, y, _ = self.pose
     field = self.walk_field(lattice, (x, y))
-    rows, cols = field.shape
 
     def walk(gx: float, gy: float) -> float:
       cx, cy = self.grid.world_to_cell(gx, gy)
       lx, ly = cx // b, cy // b
+      if lx + 2 <= 0 or ly + 2 <= 0:
+        return math.inf                   # ...past the low edges: no cell of its own
       near = field[max(ly - 1, 0):ly + 2, max(lx - 1, 0):lx + 2]
       return float(near.min()) if near.size else math.inf
-    return min(goals, key=lambda n: (walk(*goals[n]),
-                                     math.hypot(goals[n][0] - x, goals[n][1] - y)))
+    return {n: walk(*xy) for n, xy in goals.items()}
+
+  def walk_m(self, wx: float, wy: float) -> float:
+    """How far a walk to (wx, wy) is from where it believes it is, m, as
+    `walks_m` measures one; the straight line where no walk reaches it."""
+    walk = self.walks_m({0: (wx, wy)})[0]
+    return walk if math.isfinite(walk) else math.hypot(wx - self.pose[0], wy - self.pose[1])
+
+  def nearest_by_walk(self, goals: dict) -> str | None:
+    """Which of `goals` ({name: (x, y)}) is the shortest walk from where it
+    believes it is (`walks_m`); where no walk reaches any, the nearest as
+    the crow flies. None for no goals."""
+    if not goals:
+      return None
+    x, y, _ = self.pose
+    walks = self.walks_m(goals)
+    return min(goals, key=lambda n: (walks[n], math.hypot(goals[n][0] - x, goals[n][1] - y)))
 
   def in_sight(self, wx: float, wy: float) -> bool:
     """Can one drive plan to (wx, wy): is it within the LIDAR's reach and

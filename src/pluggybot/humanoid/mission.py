@@ -878,6 +878,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "depthRng": [self.depth.rng.bit_generator.state,
                           self.depth.peer_rng.bit_generator.state],
              "match": match,
+             # ...and the run of scans its map has refused, and whether it
+             # was told (#697), with the map it is of
+             "refusals": self.refusals.kept_state(),
              # ...and the places it has found, with the map they are laid in
              "places": self.places.kept_state(),
              # ...and when and where it last looked for them
@@ -969,7 +972,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         self._walls_mask, self._walls_t = np.array(arrays["walls"], dtype=bool), clocks["walls"]
       if self.matcher is not None and state.get("match"):
         self.matcher.restore_kept(state["match"], arrays)
-    # ...the places only with the map they were laid in (#419)
+    # ...the places, and the run of refusals (#697), only with the map they
+    # were laid in or are of (#419)
+    self.refusals.restore_kept(state.get("refusals") if mapped else None)
     self.places.restore_kept(state.get("places") if mapped else None)
     self._place_look_back(state.get("placeLook") if mapped else None)
     return mapped

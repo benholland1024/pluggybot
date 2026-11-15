@@ -1176,6 +1176,34 @@ lab from 3 m errors in all eight directions (62-272 s, median 94), and from
 the facility's own address, which lands in its storeroom a wall from the
 lab, in 123-157 s.
 
+**The walk to where it should be is as long as the walk** (#698). A
+robot that remembers a job's area walks first to where the area's tag
+should be, and that walk had a viewpoint's 90 s whatever its length. From
+the mall's station the counter's row is 22.5-23.4 m in a straight line and
+43 m by the only way there is -- out of the mall by the alley, north along
+the sidewalk, in by the research center's front gate. Flown from there
+(the cube 32 draws, the drawer, the door and the chest 16 each), every
+find's first walk ran out of its 90 s, 5.8-12.3 m short, and the robot
+looked round where it stopped before it walked to the address: first finds
+of 117-256 s, the cube's slowest pass 312.3 s. Now it is given 10 s a
+metre of the walk there as the planner prices it over its own map
+(`GUESS_WALK_S_M`, `Navigator.walk_m`; the straight line where no walk
+reaches), at least the 90 s (`guess_patience`). ⚠ THE MAP'S WALK READ 26-27
+M ON 60 FLIGHTS OF THE 80: the research center's south wall, 4 cm thick, is
+carved out of the map along the alley by the robot's own grazing rays
+(#401's), free from x 19 to 23.25 at the cube's draw 17, and the planner's
+route runs through it -- over floor the robot has seen, so a walk measured
+over that floor alone reads the same. Every walk took the 43 m way, most
+in 96-158 s; at 6 s a metre, the charge's (`CHARGE_WALK_S_M`), two of 59
+ran out at 162 s, both where the map's walk read 27 m -- draws 17 and 33,
+which at 10 s a metre arrived in 205 and 228 s of their 270. At 10 no
+first walk of 112 from the mall ran out (the cube's 64 draws, half of them
+held out from the choice, and the counter jobs' 48), and the cube's
+slowest pass from there is 280.1 s, its median 154.6 (312.3 and 174.8
+before). Where the 90 s used to run out the robot now walks straight in,
+and the counter's work after it is a new draw: its verdicts moved both
+ways, the cube's passes 50 of 64 against 52 (Observatory.md, the period).
+
 **The walking look costs a render**, 14-20 ms on the dev GPU under EGL and
 32 ms on the box under osmesa: a look every metre walked or 45 deg turned,
 never oftener than 0.5 s, and none standing -- 16 ms a sim second at the
@@ -2689,6 +2717,36 @@ set-out 0 (2.3 cm), both of which open, so no tolerance on the hand's place
 tells the cube's grip from theirs. Gripped shallower, 15-30 deg, so the
 tips clear the board, the reach stops short on it (2 of 15).
 
+**What the robot is told of it (#711).** Nothing, until the robots met it:
+from straight above a grip cannot come under 1.4 cm over a 26 mm cube on a
+board, the pads' tips on the board, and "ok" with "closed on nothing it
+holds" after it were all a robot read. So YOUR BODY says where the grip lies
+along the fingers -- halfway, their tips 4 cm past it, off the part and the
+model's pads (`model.fingers_past_grip`) -- and a reach that stopped short
+on its way says how far from where it was asked its grip was as it stopped,
+and how much of that back along its fingers and how much across them
+(`steps._short_of`), off the last of what the verb felt.
+
+⚠ **A reach that holds says nothing of it**, though its grip may end short:
+its body routine ends the moment its command arrives, the hand still coming
+in, and the hand's force is read as a holding hand's, still
+(`reach.HELD_PHASES`). Over the lid, drawer, door and cube checks'
+set-outs 0-3 (each reach's end read off the checks' own flights beside the
+truth, by a probe kept outside the repo with the loop of 11-15's K12 rows)
+a grip in free air was 0.4-0.9 cm behind its goal at that moment, reading
+-2 to +3 N along its fingers, and settled within 0.1 s; one whose pads
+pressed on something -- a drawer's front, a door's panel, the cube's board
+-- was 1.1-2.1 cm short and read 27-100 N. But over all 32 set-outs of every
+check, 10 of the 69 grips that read 1 cm short and 10 N along their fingers
+touched nothing with any part of the arm at that moment, 1.1-5.5 cm short
+at 26-87 N (re-flown, every arm contact recorded): a hand still coming in.
+Judged again once the hand came to rest (the verb standing still 0.3 s at
+most), the cube check placed 12 of 32 where it placed 20, 2 more falling,
+the drawer lost one, and 4 such grips still touched nothing. On Luca's cube
+procedures with the height put right (#704), every grip that read so had
+its pads on the board, the mat or the cube (22 of 22): the words would be
+true where they matter most and false elsewhere, so they are not said.
+
 ## The way home (issue #539)
 
 `withdraw` brings a hand out along its way in (the reach's 8 cm line),
@@ -3955,9 +4013,10 @@ barely backs up -- 4 cm in 3 s asked 0.25 m/s -- so an undock turns away.
 its back, squeeze it at 5 N and then 80 (at 40 it slipped out; shut at 80
 at once, 46 unplugs in 110 could not grip it, 45 of them having knocked it
 off its catch), pull it straight off past the connector's 20 N, carry it to the cup's
-mouth and let go there. One that fails still ends unplugged: the robot turns
-away, the rope's stop pulls the plug off at 20 N and the balancer takes it
-home.
+mouth and let go there -- from its seat, stepped back to it first where a
+charge crept it in, and tried once more where it fails (below, "The unplug
+after a long charge"). One that fails twice does NOT end unplugged: after the
+undock's turn the rope holds the plug in its port.
 
 ![The plug-in and the unplug: from its standoff the humanoid walks in, takes
 the plug out of its cup, plugs it into the port on its torso (16 s),
@@ -4030,6 +4089,71 @@ process from that save:
 
 A bow while plugged in, down to its deepest (1.1 rad, 63 deg), leaves the plug in, no
 catch broken and no fall: what a `spot` looking lower does.
+
+### The unplug after a long charge (#703)
+
+**What is true now.** Plugged in, a standing robot creeps in toward its
+station. The balancer's steady 2 N on the port (`BALANCER_N`), right of the
+robot's middle, slides its soles across the floor -- they never lift: MuJoCo's
+soft friction under a sustained shear -- at 7.5 mm a minute, turning it left
+about a degree a minute at first, until its plug meets the station's box 18
+cm past its seat and 11 deg turned, after about 22 minutes, and there it
+stays. From there the unplug's arm, on its way out to 3 cm behind the plug's
+back -- now at the station's face, 0.17 m ahead of the stance -- drives its jaw
+into the wall beside the station (up to 304 N) and then into the station's box
+(93 N), and stops short (every contact of 5 N or more recorded: the same
+unplug backed off first touched nothing but the plug): "my hand could not get the plug out",
+twice of twice on 11-14 after the lobby's charges of 1,944 and 1,504 s, each
+13.1 s after "unplugging" -- a restart only made it heard, and a charge's own
+end failed the same way unheard (it says so now). The unplug now begins at its seat: further in
+than `UNPLUG_IN_M` (6 cm) it backs off to it first, by the station as it last
+saw it -- from 18 cm in no look sees the tags, plain or bowed -- in a step or two
+and never turned on the spot first (pinned, a turn would swing its plug across
+the box's face, which the port lets go to); and a failed try is tried once more
+from a look of its own, taken standing still (`UNPLUG_TRIES`). Its looks
+while it backs off are plain ones, never bowed toward the box.
+
+**What tells it that it crept: its scan matcher.** Its legs see no slide with
+their feet planted, the gyro's 0.02 deg/s is under the heading hold's gate,
+and the station's anchor is taken once, as the charge begins. The band's fits,
+ten a second while it stands docked, keep its belief on its body:
+
+| plugged in (lobby, the loop's charge path) | its body crept in, turned | its belief off its body |
+|---|---|---|
+| 300 s | 3.8 cm, 5 deg | 5.3 mm, 0.13 deg |
+| 900 s | 11.2 cm, 10 deg | 3.0 mm, 0.11 deg |
+| 1500 s | 16.1 cm, 11 deg | 2.3 mm, 0.01 deg |
+| 600 s, its matcher off | 8 cm, 9 deg | 110 mm, 7.0 deg |
+
+At the house's station, in one process, its belief was 2.7, 3.0, 9.7 and 12.2
+mm off at 300, 600, 900 and 1,500 s. On a map laid from its seat alone, the robot never having walked
+(`station_spike.py --hold`), its belief did not follow: 15.5 mm off after 15
+mm of creep, the fits laying each scan where the belief already was.
+
+**Measured** (the lobby's station, one humanoid, osmesa; each a fresh process
+from a save of one charge, the unplug a decided `explore` begins with):
+
+| saved after | before | backed off to its seat first |
+|---|---|---|
+| 300 s | unplugged, 21.3 s | not asked to (3.2 cm in): the same flight |
+| 900 s | unplugged | from 10.3 cm in to 0.9, one step: unplugged, 25.8 s |
+| 1500 s | its hand did not get behind the plug, in 13.2 s | from 14.9 cm in to 1.7 cm out, one step: unplugged, 26.9 s |
+
+In one process, charged 1,500 s and the unplug at once (one pod), the same:
+at the lobby's station, at the house's (14 cm in, 12 deg), and at the lobby's
+on the live build `2a1fbaff`, each "its hand did not get behind the plug", in
+13.2-13.7 s; its matcher off, the belief stayed where the robot docked, 197 mm
+and 9 deg off its body at 1,500 s. The station's own trials (`--approach`,
+`--seats`, `--lost`) fly as they did, row for row: none charges long enough
+to creep 6 cm.
+
+**A walk after an unplug that failed is tethered.** After the undock's turn
+the rope runs from the plug's back, now in front of the robot, back through
+its body to the station: walked off, the rope's stop pulls the plug straight
+into the port's face (16.5 N read), which the catch holds -- it lets go only to
+a pull off the face or across it -- and the walk stalled 2.7 m short, as
+Luca's did 5.1 m short. What the loop does where a hand cannot take the plug
+out is #703's question for Ben.
 
 ## The humanoids' first jobs (issue #559, stage 3)
 
@@ -5505,8 +5629,10 @@ from the research center's 2.17, 3.66, 2.78 and 5.98. Each of the four
 mall flights came to the storeroom with its belief 0.41-0.67 m off (the
 house's and the research center's about 5 cm): its find's first walk ran
 out of its 90 s 8-11 m short, it looked round and found the row from the
-building's address, and the drawer's reference then asked `step` for
-0.79 m aside, past the 0.5 m it takes, and could not reach the handle.
+building's address (since #698 that walk is given what a walk that long
+needs: "Places, not coordinates"), and the drawer's reference then asked
+`step` for 0.79 m aside, past the 0.5 m it takes, and could not reach the
+handle.
 The tests' pack (`DEMO_WH`) grew from 30 Wh to 33 on 3 Nov, so that
 charged it still funds the dearest job and the reserve both (29.7 of
 29.36), and the pair's fixture was flown again on it.
@@ -6699,6 +6825,54 @@ goes on, edges seen from a stance turned 25 deg, a diagonal edge whose
 reading lies between its ends (and before #657 24 more, one dining table's
 right edge and far edge, read through its top: below). 438 ends went unread
 at the picture's edge, 4,257 at the window and 16 past where they read.
+
+**The top under the point (#704).** Read as the window's, `measure` at a
+small thing on a wider top read the wider one: at the storeroom's cube --
+26 mm on a 0.23 x 0.16 m board on the counter, a few per cent of the
+window's points -- all 10 of Luca's cube runs that measured over the wakes
+of 11-12 and 11-14 read the counter, 0.719-0.722 m, while the same runs'
+`spot(56)` read the cube's top at 0.792-0.807, and Luca reached 10 cm under
+the board 29 times (12 refused for the jaws' turn, 17 stopped short; its
+thighs met the counter's face from the nearest stances, #710). Now the top
+is the one under (x, y) (`steps.measured_top`): the highest flat height
+among the points within `MEASURE_AT_M` (2 cm) of it that 30 of them stand at
+(`box.MIN_POINTS`; `box.top_height(least=)`) -- at the cube's middle its top,
+0.806 -- whatever stands lower there: read with the window's share at the
+point (the highest holding a quarter of the fullest), Luca's `measure` at
+the chest knob's front-face tag, half of its 2 cm over the counter far
+below, read the counter in 12 of 24 flights at their live draws. ⚠ Flat
+means its points spread across the plane (`box.FLAT_ACROSS`: the narrower
+spread at least a quarter of the wider, and the wider at least
+`FLAT_WIDE_M`, 3 mm): a vertical face's slice is a line, and 1 cm in front
+of a wall too tall to see over, the wall's slices filled every 2 mm up it
+with 30 points, the highest read as a top 1.18 m up. ⚠ Its height is read
+off the fullest of its own run of flat bins, never the highest that 30
+points stand at, on its noise's upper tail (a top 2.5 mm noisy read 1.6 mm
+high), nor a wider top within a centimetre under it (a fork 5 mm proud of
+its table read the table's height). ⚠ So a strip of top counts only at a
+quarter as wide as it runs inside the 2 cm, about 1 cm for one crossing
+them: a plate's 8 mm wall is no flat top under the point, and the window's
+is read. A surface tilted past about 15 deg slices into lines as a face
+does, and past a metre the camera's noise spreads a face's slice as wide as
+a top's.
+And of the points at that height, the face those points stand on (`box.joined`:
+the middles of 1 cm bins joined within 3 cm, wherever the bins fall -- a 3
+cm grid joined tops 4.5 cm apart as it fell; a grazing look lays a top's
+rows 2.5 cm apart 2.5 m off, and an end a finer join parted would be no
+reading, never a wrong one), so another top at its height in the window
+lends it no end. Only where the camera sees too little there -- a point over
+the floor, off the picture, hidden; too little of a flat top there -- or
+too little of the top there to read where it ends is the top the window's as
+before, and `object.under` says which. The price: a point a few cm in front of a box
+reads the counter it stands over (the first test of `measure` measured 4 cm
+in front of its box, and read the box); no reference procedure calls the
+verb, and the hands checks at set-outs 0-31 flew the base's flights, 160 of
+160. Flown on Luca's own procedures at their live draws, six keys each (one
+pod, the loop of 11-15's K12 rows): at the cube `top` read 0.803-0.807 in
+42 flights of 42 and its reaches aimed at 0.766 for 0.68 -- falls 16 → 0,
+held out at six more draws 6 → 0; at the knob's front-face tag, read at the
+knob's middle, the knob's upper part (0.819-0.824) in 21 of 24, where the
+window's rule read the lid in 22; the chest's passes 2 of 24 either way.
 
 ⚠ **A top reads high at range.** `box.top_height` takes the band round
 the highest bin holding a quarter of the fullest, and `TOP_BAND_M`'s 5 mm
