@@ -10,6 +10,62 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A hand on its way out that would tip the body over stops there (#708, K13, `loop-708`) — opens when this PR is deployed
+
+**What a deployed robot's `reach` does changes; what it says and reads does
+not.** Nothing in the prompt moved (`prompt_sha` `5b805c80…`, 66,366
+characters, 17 sections, as on #701's), nor the session host's hello (byte
+for byte), nor any geometry or the wire. A reach stopped this way says what
+one stopped on its way always said -- "your right hand stopped short on its
+way: out of reach from how you truly stand, or pushing on something" -- and
+its hand is out where it stopped, as one stopped on its line in is. The
+pair's committed recording is the same day: its fixture's command flown on
+3dffda2 and on this, 11,705 lines the same line for line (the wall clock
+and the build aside), and the station's approaches and seats flight for
+flight.
+
+**The change** (`Reach._update`, `_tipping`, `_struck`;
+`reach.OUT_TIP_NM`; SimNotes, "A hand on its way out that meets
+something"). A reach's arm walks out to its pre-grasp in joint space, and
+nothing stopped it there: the stop on a push (`BLOCKED_N`) was the line
+in's alone. From here on, the tick what the arm's own reading would tip the
+body toward the hand past 20 N m -- its pull toward the body at the hand's
+height, less its press down at the hand's reach -- it stops, held where its
+drivers read its joints, the body in the posture it has got to. A press or
+a push is no such moment: our own references' ways out press on the
+counter, a drawer's top, the door's top or the chest's knob in a fifth of
+them, as before.
+
+**Why.** On 11-14 at 20:21:57 UTC Luca's own `chest_run35` reached with
+its fingers straight ahead into the chest's front: the joint-space way out
+swung the open jaw past the knob and drew it back across the drop handle's
+bracket, where it caught, and the arm drove on at full stiffness -- the
+world pulling the hand 50-80 N toward the chest for half a second -- until
+the robot went over its toes. Flown from where Luca stood at the live draw
+on eight keys, it fell 6 times; at 22 draws and stands held out, 17.
+
+**Measured** (one pod, each flight its own noise, against 3dffda2): #708's
+own flight no longer falls in a way out -- 0 of the 8 keys (6 before), 0 of
+22 held out (17), 1 of 10 at fresh draws (6), that one in the procedure's
+own lid pulls 80 s on, its grip closed on the chest. Our hands check, at
+set-outs 0-31, 32-127 and 128-191, passes 594 where it passed 603: the door
+11 fewer of its 192 (23 for 24, 64 for 72, 41 for 43), the lid 2 fewer, the
+drawer and the cube 2 more each; and it falls 19 times for 16 -- the door 9
+for 2, the drawer and the cube 4 each for 6 (two of theirs inside a reach,
+as #708's). The door's first way out drives its jaw into the counter's edge
+or the door's top; stopped there, it retries at a tilt whose later pull,
+the lever gripped, can bow the body 54 deg and turn its waist 60 -- every
+new fall is in that retry's later verbs, 12-24 s on, never in the stop. The
+tour's five jobs at 32 draws: the table, the chest, the door and the drawer
+as before (24, 29, 26, 30), the cube 25 for 26, no fall moved.
+
+**What to read on the live rows.** A fall inside a `reach` ("failed at step
+N (line L, reach) -- you fell on the way there"): the wake of 11-14 had
+Luca's at 20:21:57 and two of Rowan's (`chest_lift2b` at 18:32:55 and
+`door_p1` at 21:39:26), which flown again fell otherwise or not at all. And a
+`reach` stopped short where none was before: a way out caught on something
+that would have tipped the robot toward it, where it used to drive on.
+
 ### A hand job ends at a fall of its holder's (#701, K7, `loop-701`) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` `b345cc34…` → `b74107d2…`, 66,029 → 66,151

@@ -9332,27 +9332,144 @@ with its price.
   only its caller's patience or an `until`. A hand still loaded when the
   posture's time to come is out (`POSTURE_WAIT_S`) goes on back. And
   `move_hand` takes its postures as it did.
-- *The reach's joint-space way out has no stop on a push at all* (#708,
-  next).
+- *A reach's joint-space way out* is not this rule's: it stops on a push
+  of its own (#708, next).
 
-**The fingers-ahead reach that fells the robot is another loop (#708).**
-Luca's `chest_run35` at draw 303 fell in 6 of 8 flights on c99956e, in the
-same 6 with a pull taking no posture at all, and in the same 6 with this:
-every one falls before its first pull. Taken apart (the flight keyed
-`open_chest:303:n5`, which fell at 19.14 s): the reach plans (-0.16 m, 0,
-30 deg) and swings its arm out in joint space, round by its side; with the
-body in its posture by 17.5 s, at 18.40 s the right jaw's pad meets the
-chest's bracket with the arm still in phase `move`. The arm's own reading
-sees it -- 24 N at 18.45 s (26 true), 36 (38), 40 (53), 47 (62), 58-71
-(51-68) to 18.75 -- and no posture is asked meanwhile; but a joint-space
-move walks to its target whatever the hand reads (the stop on a push,
-`BLOCKED_N` held `BLOCKED_S`, is the line in's alone). The trunk went from
-18.87 s. Stopped there -- a move ended where the arm's own reading passed
-`BLOCKED_N` for `BLOCKED_S`, flown as a measurement and not kept -- the
-same 6 of 8 still fell, in what came after the stop (the hand's retreat,
-its way home, a hand stopped `blocked`), and the hands check moved 7 of its
-160 flights both ways (117 passes for 115, the door's falls 1 to 3). Its fix
-is #708's own.
+**The fingers-ahead reach that fells the robot is another loop (#708)**:
+Luca's `chest_run35` falls in its first reach's way out, before any pull,
+with this rule and without it -- the next section.
+
+## A hand on its way out that meets something (issue #708)
+
+**What happened.** On 11-14 at 20:21:57 UTC Luca ran its own `chest_run35`
+at the chest on the storeroom's counter: it stepped in, opened its right
+hand and reached with its fingers straight ahead into the chest's front
+(`reach("right", tx + 0.04, ty + dy, tz, 1, 0, 0, 0, 1, 0,
+stiffness=0.5)`), and the run ended "you fell on the way there, and let
+go". Flown from where Luca stood at the live draw (303) on eight noise keys
+and starts (the loop of 11-14/15, K4: `~/pluggybot-training/loop-1114-night/
+k4-live/fly/ab/new/`), 6 of 8 fell, each in that reach's way out (`move`),
+the arm still walking out to its pre-grasp in joint space.
+
+**Why: an arm driven on into what it caught.** Taken apart at the key the
+live fall replays (`open_chest:303:n5`, fell at 19.142 s), every 0.01 s off
+the truth for the record alone -- each sole's load and centre of pressure,
+the CoM, the arm's joints commanded and as they stood, the force on the
+hand -- with counterfactuals flown in the harness only
+(`~/pluggybot-training/loop-1114-night/k13-708/`, `c/fly708.py`):
+- *The way out swings the open hand through the chest's front.* The reach
+  planned (-0.16 m, 0, 30 deg); its arm walks out in joint space while the
+  waist turns, and the grip went back and out to its side (0.56 m right of
+  the stance's middle), then forward to 0.49 m ahead and 0.90 m up -- past
+  its pre-grasp (0.44 m) and its goal (0.47) -- and in from the right at
+  the height of the bracket the drop handle hangs from.
+- *Caught, it was driven on.* At 18.38 s a jaw's pad met the lid's front
+  and the bracket, and the joint path, by then coming back and to the left,
+  pulled on it: the world pulled the hand forward and to the right, 50-80 N
+  (up to 56 N forward and 82 to the right) for half a second, at the arm's
+  full gains -- a way out is commanded at stiffness 1 whatever the reach
+  asks -- its joints falling up to 0.19 rad behind their command. The
+  arm's own reading (`force`) rose with it: 14 N 0.03 s after the touch, 21
+  N at 0.07 s, 32 N at 0.12 s.
+- *It pulled the robot over its toes.* The left sole unloaded (228 to 66
+  N), both centres of pressure went to the toes' edge and the right one to
+  its outer edge, and the CoM went forward at 0.1 m/s by 18.9 s, 0.24 by
+  19.1; the standing policy's answer -- its hips' targets swung from bent
+  41 deg to 37 deg past straight, the pelvis pitched back as the body was
+  carried forward -- reached the fall watch's 35 deg at 19.14 s, and the
+  get-up took the legs.
+- *Not the policy, the posture or the watch.* The policy's leg targets held
+  from the touch: it fell (19.94 s). Shown the arm as commanded, or as it
+  stood the step before the touch: it fell (19.14, 19.28). The arm at half
+  its stiffness in `move`: it fell (19.68). The watch kept from firing: the
+  body went down all the same (19.21). The hand colliding with nothing:
+  no fall.
+- *A stop in time keeps it up.* Halted at the touch -- an oracle, off the
+  true contact -- its four reaches each stopped at the chest and none fell,
+  their retreats and ways home clean; and so they did halted 0.1, 0.15, 0.2
+  and 0.25 s after each touch, held at the command or where the joints
+  stood. At 0.3 s the second reach fell. K1's stop for #699 (`movestop`,
+  flown and not kept) read the motion-taken reading (`sensed_force`) past
+  `BLOCKED_N` held `BLOCKED_S`: its noise reset the hold, the stop came
+  0.37 s after the touch, and it held the command the arm was driving on to,
+  so the arm pulled on.
+
+**What is true now** (`Reach._update`, `_tipping`, `_struck`;
+`reach.OUT_TIP_NM`): a hand on its way out to its pre-grasp stops the tick
+what its arm's own reading (`force`, as the line in's stop reads it) would
+tip the body toward the hand past 20 N m -- the reading's pull toward the
+stance's middle at the hand's height, less its press down at the hand's
+reach, where its senses put the hand: the moment of the world's push on the
+hand about the level line through the stance's middle that tips the robot
+over its soles' edge toward the hand -- `blocked`, the body in the posture
+it has got to (`halt`), the arm held where its drivers read its joints,
+never at the command it drove on to. It says what a reach stopped on its
+way always said ("stopped short ... or pushing on something"), and its
+`withdraw` backs out along its fingers as any hand that is out does.
+- *Not any push, nor a pull alone.* Our own references' ways out press on
+  something in 57 of their 304 at the hands check's set-outs 0-31 (the
+  counter, a drawer's top, the door's top, the chest's knob) and press on.
+  Stopped on the whole reading at 20, 25, 30 or 40 N, #708's eight keys
+  never fell, but the door's way out -- dragging a jaw back over the door's
+  top while pressing down on it (in two of its flights read through, 28-74
+  N down by 0.2-0.4 s, toward the body 5-12 N to 0.3 s and about 30 by 0.4)
+  -- was stopped there and retried at a tilt whose later verbs fell, 2-3
+  more falls of 32 at every line; and the lid's way out ends with a jaw on
+  the knob, opening only by pressing on (20-25 N cost it 3-5 of its 26).
+  Stopped on the pull toward the body alone at 30 N, the check at 0-31
+  passed as before, but held out at 32-127 the door passed 6 fewer of 96
+  (72 to 66), its falls new at 3 and gone at 1. That pull's press tips the
+  body back, not over: 0.85 m x 31 N - 0.49 m x 74 N, about -10 N m, in one
+  of those flights, where #708's catch at n5 made 0.88 x 53 - 0.51 x 23,
+  about +35.
+- *In time.* #708's catches pass 20 N m 0.09-0.20 s after the touch (31-66
+  N m at worst; at most 10 in free air before it), inside the 0.25 s a stop
+  had at n5 -- later only where the catch built slowly and the fall came a
+  second or more on.
+- *What it does not do.* In `move` the reading is the arm's alone (`move`
+  is in no `FELT_PHASES`), blind along a straight arm, so a catch dragged
+  along the arm's own line reads short; a sideways drag across the hand's
+  line to the middle counts for nothing, and near the stance's own axis that
+  line has no direction to speak of. Only the way out is watched: a withdraw
+  goes home over what the hand caught unstopped, as before (a guard there
+  cost the lid check, "The way home"), though no flight below fell so.
+
+**Measured** (one pod, an AMD EPYC 7713, which flew the dev box's flights
+second for second; each flight its own noise; against 3dffda2):
+- *#708's flight:* `chest_run35` at draw 303 on K4's eight keys and starts:
+  6 of 8 fell before, none with this -- every reach that caught stopped, and
+  the procedure ran on to its end, its lids short of their 57 deg. Held out
+  at draws 296-302 and 304-310, and at 303 from eight stands 0.1 m and 5 deg
+  off: 17 of 22 fell before, none with this. At ten draws nothing was looked
+  at (311-320): 6 fell before, 1 with this -- 80 s into the procedure's own
+  lid pulls, its grip closed on the chest (#699's gripped kind).
+- *The hands check* at set-outs 0-31: 115 passes as before (lid 26, drawer
+  21, door 23 for 24, cube 21 for 20, table 24), 8 falls for 6. Held out at
+  32-127: 298 for 306 (the door 64 for 72, the lid 76 for 77, the cube 62
+  for 61), 6 falls for 5 -- the door's 1 to 4, the cube's 4 to 2 (one of
+  them inside a reach, as #708's). At 128-191, nothing looked at: 181 for
+  182 (lid 53 for 54, drawer 44 for 42, door 41 for 43, cube 43), its falls
+  5 as before but moved -- the drawer's 4 to 2 (one of them inside a reach),
+  the door's 0 to 2. None of the 125 stops there came in free air: each
+  followed a touch by 0.03-3.4 s.
+- *Every fall that moved* parts from the base's flight at a way out this
+  stopped where the base's drove on to its pre-grasp. The door's new falls
+  (3 and 20 at 0-31, 68, 70 and 93 at 32-127, 161 and 188 at 128-191) come
+  12-24 s after the stop, in the `withdraw` or the `move_hand` after its
+  retried grip's pull, or between them: the steps the base's own door falls
+  come in. Taken apart at door 20: at the stop the soles stand where the
+  base's do, and its retreat and way home are clean; its retry begins 1.9 s
+  sooner, and that pull, the lever gripped, takes the body to a 54 deg bow
+  with the waist at 60 (the base's never passed 32), and as the body is
+  asked back up with the hand still holding, the feet swivel 17 deg and it
+  falls -- #699's gripped kind. Our door's first way out drives its jaw into
+  the counter's edge or the door's top in most of its flights, and a stop
+  there sends it to that retry.
+- *The tour's five jobs* (32 draws each): the table 24, the chest 29, the
+  door 26 and the drawer 30 as before, the cube 25 for 26 (one draw set its
+  cube 3 cm off the mat); 157 of the 160 flights the base's own, no fall
+  moved. *The station's* 39 approaches and 140 seats and *the pair's fixture
+  day* (11,705 lines) are the base's flights exactly.
 
 ## Debugging workflow that worked
 
