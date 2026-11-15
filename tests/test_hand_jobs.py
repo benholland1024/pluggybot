@@ -308,7 +308,10 @@ def test_a_fall_inside_a_run_ends_the_run_and_its_job(tmp_path):
   assert not run["ok"] and run["steps"][0]["fell"], run
   t1 = float(life.data.time)
   assert t1 < t0 + 3.0, "the run ended at the fall"
+  said: list = []
+  life.say_hooks.append(lambda t, msg: said.append(msg))
   life.body.run(life._grade_routine())           # the loop's pass after the run
+  assert f"GRADE {task.id}: a fall ended it -- graded as its hold ends" in said, said
   assert float(life.data.time) == t1 and life._grade_pending == "", "no hold of its own"
   life.body.run(life.body.hold_routine(drawer.HOLD_S + 0.1))
   ended = life.tasks.get(task.id)
@@ -335,10 +338,12 @@ def test_a_job_a_fall_ended_is_the_falls_past_its_minutes_too(tmp_path):
 
 def test_a_fall_a_restart_cut_is_graded_once_after_it(tmp_path):
   """A restart between the fall and its verdict (#345): the fall's call
-  rides the save -- its time, its reading, its hold's end -- and the job
-  is settled once in the next world, never "still mine" first and never
-  called again (#701's review: called again, History said the fall twice
-  and the grade's time was the restart's)."""
+  rides the save -- its time and its reading -- and the job is settled
+  once in the next world, in its grader's words off the watch the save
+  kept, never "still mine" first and never called again (#701's reviews:
+  called again, History said the fall twice and the grade's time was the
+  restart's; graded before `_resume_jobs` took its watch up, as the day's
+  look round outlasted the hold, it was failed with nothing read)."""
   life = _life(tmp_path)
   task = _offer(life, "open_drawer")
   assert life._claim_task(task.id)
@@ -350,16 +355,78 @@ def test_a_fall_a_restart_cut_is_graded_once_after_it(tmp_path):
   state = json.loads(json.dumps(state))         # ...as a save writes it
   again = _life(tmp_path)                       # the same board, a world compiled anew
   again.restore_kept(state, arrays, in_place=True)
-  again.body.run(again.body.hold_routine(0.5))  # the look round, before its jobs are taken up
-  again._resume_jobs(None)
+  again.body.run(again.body.hold_routine(drawer.HOLD_S + 1.0))   # its look round, past the hold
+  assert again.tasks.get(task.id).state == "active", "graded before its watch was taken up"
+  again._resume_jobs({"name": "pace", "taskId": task.id})
   assert again._job_watches[task.id].holding, "in the fall's hold still"
-  again.body.run(again.body.hold_routine(drawer.HOLD_S + 0.1))
+  again.body.run(again.body.hold_routine(0.1))
   ended = again.tasks.get(task.id)
-  assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
+  assert ended.state == "failed" and ended.verdict["reason"] == (
+    "you fell, and a fall fails the try -- the drawer came out 0 cm, short of the 15 it must")
   [grade] = again.grades
   assert grade["t"] == pytest.approx(t), "its call the fall's"
+  assert not again._kept_watches and not again._fallen
   lines = _history(again)
   assert not any("still mine" in ln or "fell holding" in ln for ln in lines), lines
+  assert any(ln.endswith(f"the restart cut short pace; my fall had ended the job {task.id} "
+                         "(open_drawer), graded as its hold ends") for ln in lines), lines
+
+
+def test_a_fall_in_its_hold_rides_a_restore_into_another_world(tmp_path):
+  """...and a restore NOT in place -- another geometry, another map epoch:
+  the jobs carried, the watches' readings not -- keeps the fall (#701's
+  second review: forgotten, the job came back "still mine", a fresh watch
+  read no fall, and a later `done` could pass a try a fall had lost)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  state, arrays = life.kept_state()
+  again = _life(tmp_path)
+  again.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
+  again._resume_jobs(None)
+  again.body.run(again.body.hold_routine(drawer.HOLD_S + 0.1))
+  ended = again.tasks.get(task.id)
+  assert ended.state == "failed", ended
+  assert ended.verdict["reason"].startswith("you fell, and a fall fails the try"), ended
+  assert not any("still mine" in ln for ln in _history(again))
+
+
+def test_a_watch_left_on_a_job_given_back_ends_nothing_of_the_others(tmp_path):
+  """A watch outlives a job given back by up to a sweep: a fall then ends
+  nothing the robot no longer holds -- the other robot's take of it least
+  of all (#701's second review)."""
+  from pluggybot.robot import SECOND
+  luca = _life(tmp_path)
+  body = StubBody(luca.model, luca.data, handle=SECOND, grid_bounds=(-3.0, -8.0, 30.0, 8.0))
+  rowan = HubLifecycle(luca.model, luca.data, realtime=False, world=HUMANOID_HOME, body=body,
+                       tasks=luca.tasks, ledger=luca.ledger, overseer=_Mind(), handle=SECOND)
+  task = _offer(luca, "open_drawer")
+  assert luca._claim_task(task.id)
+  luca.tasks.release(task.id)
+  assert rowan._claim_task(task.id) and task.id in luca._job_watches
+  _fall(luca)
+  luca.body.step_hooks[luca.body.step_hooks.index(luca._fall_step)]()
+  assert not luca._fallen and not any("fell holding" in ln for ln in _history(luca))
+  assert luca.tasks.get(task.id).state == "active"
+
+
+def test_a_job_settled_in_a_falls_hold_is_heard_as_over(tmp_path):
+  """A job settled some other way inside a fall's hold (a true death's)
+  leaves it: a `done` on it then hears it is over, never that it is being
+  graded (#701's second review)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  life._fail_held(life.tasks.get(task.id), "the robot that took it ran out of lives")
+  assert not life._fallen
+  assert life._done(ov.Decision(action="idle", reason="", done=task.id)) is False
+  [heard] = [ln for ln in _history(life)
+             if f"said done on {task.id} (open_drawer): not graded, because " in ln]
+  assert "because it is over -- I took it at t=0, and it failed at t=1" in heard, heard
 
 
 def test_a_fall_kept_with_no_save_of_its_call_ends_its_job_after_a_restart(tmp_path):

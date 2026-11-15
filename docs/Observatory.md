@@ -42,8 +42,10 @@ byte for byte; no geometry and no wire format moved):
   the job holds it, its hold included, and is put away on the next sweep
   after, never from under a hand. A restart between the fall and its
   verdict (rare: no save while a get-up runs) carries the fall's call over
-  -- its time, its reading, its hold's end -- and the next world settles
-  the job once, never "still mine" first.
+  -- its time and its reading, into another world too -- and the next
+  settles the job once, off the watch the save kept once the day has taken
+  it up, never "still mine" first; a job given back since its watch began
+  is ended by no fall of the robot that gave it.
 - **The challenges rule says so**, where it says how a job ends: "A claimed
   challenge stands until you say done, until the time its description
   gives is up, or until you fall: a fall while you hold one ends it there,
