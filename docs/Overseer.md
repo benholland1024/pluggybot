@@ -916,17 +916,45 @@ in the context) is the public surface and nothing else: name, reported pose,
 state, what it says it is doing, whether it is dead, and its
 `posture` (`standing`, or `getting_up` while its get-up has it). Not its
 battery, points, goals, thoughts, reasons or secrets — a test walks the
-whole context for the other's thought lines. Its `doing` is the last line
-the other narrated of its OWN doing (`HubLifecycle.doing`), never the
-BOARD's: an offer, an expiry, an offer's things set out (or not there, or
-left under a hand), things put away, a claim given back for a robot that is
-not in this world and a job a restart failed are narrated like any line and
-become the wire's `status` as ever (`_say(board=True)`), and are kept out
-of `doing`. Both lifecycles say the set-out line and the first says every
-offer, and shown as the other's `doing` they read as its claims
-(Observatory.md, the period of `loop-k4`, has the rows). `doing` is empty
-until a robot narrates a line of its own, at every start: neither it nor
-`status` is kept across a restart.
+whole context for the other's thought lines.
+
+**Its `doing` is the last line the other narrated that says what its BODY
+is doing** (`HubLifecycle.doing`, issue #709), the way anyone in the room
+could see it, and only in the form that call gives it
+(`_say(doing=True)` as said, or `doing="..."`): PRIVATE BY DEFAULT, and
+shown only where the line begins as the stated list says one may
+(`lifecycle.DOING_KINDS`). The wire's `status` is still every line.
+
+| what the other is shown | the lines (and the form) |
+|---|---|
+| a walk | `EXPLORE` (heading for a zone, how it ended; going to charge without "(battery low)"), `MAKE WAY` and `MADE WAY`, `WAIT` and `STATION` at a station held, `standing by` clearing a station |
+| a charge | `GO_CHARGE` (each leg, and a failed one "stranded" without its level), `CHARGE` without its level or why: "CHARGE complete -- backing off", "CHARGE: unplugging", "CHARGE: still plugged in -- carrying on", "CHARGE: the run's time is up -- my plug stays in", "the plug came out", and the hand that could not take it out |
+| a procedure it runs | `PROCEDURE` step lines, a step that read false or failed and why, how the run ended (stopped, complete, cut short, failed) |
+| a job it holds | `TASK` claimed, done or failed, ended by a fall, out of time, still held after a restart; `DONE` without when it is graded ("before this answer's ..."); `GRADE` (the hold, standing clear) |
+| its body's fate | `DEAD (cause)` without why or hearts; `UP again after N s down -- back at` its start, without the pack; `STOOD UP mid-errand` |
+
+Everything else is the robot's own, by what it is: its mind (`THINK`,
+`DECIDE` and its reasons, `INTERRUPT`, `ANSWER`, `LEFT OUT`, `RECALL`,
+`READ`, `LOOK`), its memory and its rules (`THOUGHT`, `HISTORY`,
+`CONSTITUTION`, `EVENT`, `BELIEF`), its library (`PROCEDURE define`,
+`undefine`, a run refused), its books (`SCORE`, `GAVE`, `BOUGHT`, a heart,
+`HUNGER`, `ENERGY`, `SKIP`, `DEFER`, `DECLINE`, `TRUE DEATH`), its acts
+and its talk (`PREDICT`, `TELL`, `RATE`, `CHAT`, `VISITOR`, `TICKET`), an
+operator's (`ADMIN`, `PAUSED`, `RESUMED`, `STOPPING`), a take that did not
+happen, a job's note to its own mind ("nothing queued -- write a
+procedure"), the world's and the board's (`RESTART`, `PRESS`, which says
+the mouse's state; an offer, an expiry, things set out or put away, a claim
+given back) and the run's own (`mission ...`, `stopping at`, `STUCK`).
+`tests/test_doing.py` lists every kind one way or the other (a new kind
+fails it until someone classes it), narrates every call through `_say` as
+it is written and reads the other's whole context after each, and narrates
+the private things through the lifecycle's own methods.
+
+`doing` may be old: it is the last thing the body was seen doing, and
+`state` beside it is what the robot is in now. It is empty until a robot
+narrates a line the list shows, at every start: neither it nor `status` is
+kept across a restart. Observatory.md's periods of `loop-k4` (the board's
+lines) and `loop-709` (this rule) have the rows.
 
 **What a robot may DO about the other, measured** (issue #208; a mind with
 a peer, `mind/acts.py` is the pure half). Five paperwork
