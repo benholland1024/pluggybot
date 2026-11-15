@@ -49,12 +49,21 @@ SUFFIX = ROW.suffix   # Python-SHAPED, not Python: not a name a linter or a pers
 NEW_REFUSED = ("'new' is not a name this library allows: "
                "`procedure:new` runs whatever the answer defines")
 _NAME = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+#: A define's refusal says at most this many of its source's faults and
+#: counts the rest: a served answer's source is judged as it was written
+#: (`Decision.define_written`), and one of 64,811 characters with a fault
+#: on each line said 5,401, 1.26 MB on the status line, the wire and
+#: `refusals`. The most a live refusal has said is 7 (the wake of 11-14).
+MAX_FAULTS_SAID = 20
 
 
 class LibraryRefused(ValueError):
-  def __init__(self, reasons: list[str]) -> None:
+  def __init__(self, reasons: list[str], faults: list[str] | None = None) -> None:
     super().__init__("; ".join(reasons))
     self.reasons = list(reasons)
+    #: ...and those of them that are the SOURCE's own, the last of
+    #: `reasons` (the rest: the name's and the library's room's)
+    self.faults = list(faults or [])
 
 
 @dataclass
@@ -231,38 +240,16 @@ class Library:
   # ---- the two verbs -------------------------------------------------------
 
   def define(self, name: str, source: str, t: float = 0.0) -> lang.Procedure:
-    """Add a procedure, or raise LibraryRefused with every reason."""
-    reasons: list[str] = []
+    """Add a procedure, or raise LibraryRefused with every reason
+    (`refusal`)."""
     name = str(name or "").strip()
-    if not _NAME.match(name):
-      reasons.append(f"{name!r} is not a name this library allows")
-    elif name == "new":
-      # `procedure:new` is the answer's own define (issue #264), never an entry
-      reasons.append(NEW_REFUSED)
-    if name in self.entries:
-      # ⚠ ON THE SAME ANSWER (issue #264): the lifecycle applies `undefine`
-      # before `define`, so a replacement is one answer -- and "undefine it
-      # first" read as a turn of its own to every deployed robot, which
-      # wrote `stack3b` and `weigh_cube2` beside the originals instead.
-      reasons.append(f"{name!r} is already defined -- to replace it, put "
-                     f"{name!r} in `undefine` on the same answer as this "
-                     "define: the undefine is done first")
-    try:
-      registry.admit(ROW, registry.ROBOT, len(self.entries) + 1, cap=self.cap)
-    except registry.Refused:
-      reasons.append(f"the library is full (it holds {self.cap}) -- an "
-                     "`undefine` on the same answer as this define makes room "
-                     "first")
-    entries = None
-    if not reasons:
-      entries, entry = self._trial(name, source)
-      reasons.extend(_defined(entry))
-    if reasons or entries is None:
+    refused, entries = self._judged(name, source)
+    if refused is not None:
       self.refusals.append({"t": t, "verb": "define", "name": name,
-                            "reasons": reasons})
-      raise LibraryRefused(reasons)
+                            "reasons": refused.reasons})
+      raise refused
     self.sources[name] = source
-    self.entries = entries
+    self.entries = entries                 # ...the library it was judged on
     self.defined += 1
     self.store.write(f"{name}{SUFFIX}", source)
     return self.entries[name].procedure
@@ -300,15 +287,43 @@ class Library:
     undefine, because in order a refused define had already deleted the
     procedure it was meant to improve or to make room for. There is still no
     replace: `define` and `undefine` are the library's only two changes."""
-    name = str(name or "").strip()
-    freeing = str(freeing or "").strip()
+    refused = self.refusal(name, source, freeing)
+    return [] if refused is None else refused.reasons
+
+  def refusal(self, name: str, source: str, freeing: str = "") -> LibraryRefused | None:
+    """The refusal `define` raises for this source once `freeing` is gone,
+    or None: EVERY reason at once -- the name's and the library's room's
+    (`_standing`), then what the source itself is refused for (its
+    `faults`). ⚠ Told its room alone, a robot made room on its next answer
+    and was refused again for its source."""
+    return self._judged(name, source, freeing)[0]
+
+  def _judged(self, name: str, source: str, freeing: str = "") -> tuple:
+    """`refusal`, and the library the define would make (`_trial`'s, which
+    a define that goes through keeps: compiled once)."""
+    name, freeing = str(name or "").strip(), str(freeing or "").strip()
+    standing = self._standing(name, freeing)
+    faults, entries = self._faults(name, source, freeing)
+    if len(faults) > MAX_FAULTS_SAID:
+      faults = faults[:MAX_FAULTS_SAID] + [f"(+{len(faults) - MAX_FAULTS_SAID} more)"]
+    refused = LibraryRefused(standing + faults, faults) if standing or faults else None
+    return refused, entries
+
+  def _standing(self, name: str, freeing: str = "") -> list[str]:
+    """What a define is refused for whatever its source says: its name, and
+    the library's room once `freeing` is gone."""
     held = [e for e in self.entries if e != freeing]
     reasons: list[str] = []
     if not _NAME.match(name):
       reasons.append(f"{name!r} is not a name this library allows")
     elif name == "new":
+      # `procedure:new` is the answer's own define (issue #264), never an entry
       reasons.append(NEW_REFUSED)
     if name in held:
+      # ⚠ ON THE SAME ANSWER (issue #264): the lifecycle applies `undefine`
+      # before `define`, so a replacement is one answer -- and "undefine it
+      # first" read as a turn of its own to every deployed robot, which
+      # wrote `stack3b` and `weigh_cube2` beside the originals instead.
       reasons.append(f"{name!r} is already defined -- to replace it, put "
                      f"{name!r} in `undefine` on the same answer as this "
                      "define: the undefine is done first")
@@ -318,9 +333,26 @@ class Library:
       reasons.append(f"the library is full (it holds {self.cap}) -- an "
                      "`undefine` on the same answer as this define makes room "
                      "first")
-    if reasons:
-      return reasons
-    return _defined(self._trial(name, source, freeing)[1])
+    return reasons
+
+  def _faults(self, name: str, source: str, freeing: str = "") -> tuple[list[str], dict]:
+    """What the source itself is refused for, and the library it was
+    compiled in: under a name an entry can take, the one the define would
+    make (`_trial`); under any other, compiled alone against the library as
+    it stands (and none made). ⚠ One too long to read (`lang.
+    MAX_PARSE_CHARS`) is refused here, unread: `_calls` parses a source
+    before `lang` ever sees its length."""
+    if len(source) > lang.MAX_PARSE_CHARS:
+      return [lang.over_cap(len(source))], {}
+    if _NAME.match(name) and name != "new":
+      entries, entry = self._trial(name, source, freeing)
+      return _defined(entry), entries
+    linked = {n: e.procedure or e.reasons for n, e in self.entries.items() if n != freeing}
+    try:
+      lang.compile_procedure(source, self.facts, library=linked, alone=False)
+    except Refused as e:
+      return list(e.reasons), {}
+    return [], {}
 
 
 def _defined(entry: Entry) -> list[str]:

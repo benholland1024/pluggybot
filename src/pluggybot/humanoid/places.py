@@ -15,8 +15,9 @@ standing still spends no render.
 FINDING (`find_routine`). Where it should be first: where it was found,
 or where the row's drawing puts it off a sign already read
 (`Places.expected`) -- facing it from its standoff, a look and a look
-round. Else to `near` -- a job's address, in the map -- over #399's
-planner, and a search round it: a look-around (`LOOK_AROUND_DEG` turns, a
+round, the walk there given what a walk that long needs
+(`guess_patience`). Else to `near` -- a job's address, in the map -- over
+#399's planner, and a search round it: a look-around (`LOOK_AROUND_DEG` turns, a
 look after each) from each viewpoint `next_viewpoint` picks, the frontiers
 of its own map nearest `near` and then a lattice round it, until the tag is
 in view or its patience runs out. Every walk stops the moment the tag is
@@ -73,6 +74,14 @@ LOOKED_OVER_M = 3.5
 UNWALKED_M = 1000.0
 #: A walk to one viewpoint gives up after this long, s.
 VIEWPOINT_PATIENCE_S = 90.0
+#: ...and a walk to where a place should be (a guess: where it was found,
+#: or where its row's drawing puts it) this long a metre of the walk there
+#: over its map (`Navigator.walk_m`), where that is the longer (#698;
+#: SimNotes, "Places, not coordinates"). MEASURED from the mall's station:
+#: at the charge's 6 (`lifecycle.CHARGE_WALK_S_M`) two walks the map read
+#: 27 m -- through a wall its own rays had carved out (#401) -- ran out at
+#: 162 s; at 10 the slowest of 111 took 228 of its 269.
+GUESS_WALK_S_M = 10.0
 #: Where a place it expects is looked at from, m out of its tag's face:
 #: the quadrupeds' (#419), where the neighbours' signs 1 m either side
 #: were inside their camera's half-field and one look there fit the row.
@@ -535,7 +544,7 @@ class HumanoidPlaces:
         rec["guesses"] += 1
         gx, gy, gf = guess
         sx, sy = gx + STANDOFF_M * math.cos(gf), gy + STANDOFF_M * math.sin(gf)
-        yield from self.drive_to_routine(sx, sy, timeout=min(left(), VIEWPOINT_PATIENCE_S),
+        yield from self.drive_to_routine(sx, sy, timeout=min(left(), self.guess_patience(sx, sy)),
                                          stop=halt)
         walked("guess", sx, sy)
         if ended():
@@ -607,6 +616,12 @@ class HumanoidPlaces:
                          "looked": looked, "guessed": guessed, "tried": tried,
                          "began": began, "wentNear": went_near}
     return done(why)
+
+  def guess_patience(self, x: float, y: float) -> float:
+    """What a walk to where a place should be, at (x, y), is given, s:
+    `GUESS_WALK_S_M` a metre of the walk there over its own map
+    (`walk_m`), or `VIEWPOINT_PATIENCE_S` for a near one (#698)."""
+    return max(VIEWPOINT_PATIENCE_S, GUESS_WALK_S_M * self.walk_m(x, y))
 
   # ---- what the search asks of its body ------------------------------------------
 

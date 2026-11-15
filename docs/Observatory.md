@@ -10,6 +10,716 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Both maps dropped at the next wake: `MAP_EPOCH` 5 (#681, Ben's call of 2026-11-15) — opens when this PR is deployed
+
+**What changed is what the next wake carries over.** The save the deployed
+world restores is of epoch 4, so it comes back as a changed world does: the
+clock, the packs, the deaths and the jobs, never the bodies, the beliefs,
+the maps or the places found in them. Both robots begin the wake at their
+starts with no map, and History says why (`MAPS_DROPPED`: "the map I had
+could hold a room laid a second time, half a metre off, after a fall, and
+it is gone"). Nothing else moved: the geometry, the prompt and the hello
+are as #681's fourth round left them.
+
+**Why.** #681's fourth round stops a fall at the storeroom's counter from
+laying a copy of the room into the map, but does not undo a copy already
+laid, and the live maps were laid under the old rule: on 2026-11-14 Luca
+stood 0.54-1.10 m east of the truth after three such falls and Rowan 0.75 m
+east from its 20:33 fall to the pause, the matcher reading every scan `ok`.
+A copy left in a map can hold a belief that later finds it.
+
+**What the period is for.** The wake's first hour: both robots explore and
+lay their maps again (the time it takes, against 2026-11-14's and
+2026-11-13's starts with no map); then the storeroom's `drift` rows after a
+fall, which #681's fourth round's period reads.
+
+### A `find`'s walk to where its place should be is given what a walk that long needs (#698, K3, `loop-698`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` unmoved, `0f1df27e…`, 67,157 chars, 17
+sections; the session host's hello unmoved, sha1 `b796e75d…`; no geometry
+and no wire format moved; nothing the robots read changes):
+- **The walk to where a place should be** -- where it was found, or where
+  its row's drawing puts it off a sign already read (`Places.expected`) --
+  **is given 10 s a metre of the walk there as the planner prices it over
+  the robot's own map** (`humanoid.places.GUESS_WALK_S_M`,
+  `guess_patience`; `Navigator.walk_m`: a metre it has not seen counts
+  twice, the straight line where no walk reaches), at least a viewpoint's
+  90 s (`VIEWPOINT_PATIENCE_S`), never more than the find has left. Before,
+  it was given 90 s whatever its length. A viewpoint's walk, the address's
+  and a lost robot's search are as they were.
+- `Navigator.walks_m` is `nearest_by_walk`'s measure, shared: the station a
+  charge chooses is the one it chose (the same answer and every walk the
+  same at 120 poses over three maps); a goal past the grid's low edges is
+  reached by no walk (its slice wrapped round the field and read 0 m).
+
+**Why** (#698, from N8's minutes of 11-14). From far off the 90 s ran out:
+from the mall's station the counter is 22-25 m in a straight line and 43
+m by the only way there is, the walk stopped 5.8-12.3 m short, and the
+robot looked round there before it walked to the address -- 20-150 s of
+every far claim, and the cube's slowest pass from the mall 312 s where its
+median was 174 (the rule would make 16 minutes of it). The live robots
+claim jobs from wherever they stand. ⚠ The map's walk from the mall reads
+26-27 m on three flights in four, through the research center's south
+wall, which the robot's grazing rays carve out of its map along the alley
+(#401's; drafted again by the loop): every walk went the 43 m way, and at
+6 s a metre two of 59 ran out at 162 s.
+
+**Measured** on one rented pod, an EPYC 7713, every tree on it:
+`loop-staging` 26c9273 beside the branch at 10 s a metre (8c359b6) and at
+6 s a metre (bdce413, the branch's first commit), each on 26c9273; a job
+from the mall's station with its area remembered, as
+`energy_spike.py --station station_mall` flies it (an explore, the
+counter's tag found, a charge at the mall, the job), and the tour as
+`solve.py --from tour` flies it; every draw its own noise, a pass timed
+from the claim to the call, every reading counted off the raw rows (the
+loop's K3 folder):
+
+| from the mall | draws | tree | first walks out of time | passed | fell | slowest pass (draw) | median pass | by the rule |
+|---|---|---|---|---|---|---|---|---|
+| the cube | 0-31 | base | 32 of 32 | 28 | 1 | 312.3 s (17) | 174.0 s | 16 min |
+| | | 6 s a metre | 1 (17) | 26 | 2 | 284.4 s (17) | 154.3 s | 15 min |
+| | | 10 s a metre | 0 | 26 | 2 | 252.1 s (17) | 154.3 s | 13 min |
+| the cube, held out | 32-63 | base | 31 of 32 | 24 | 1 | 261.8 s (33) | 177.1 s | 14 min |
+| | | 6 s a metre | 1 of 27 (33) | 21 of 27 | 0 | 297.9 s (33) | 157.6 s | 15 min |
+| | | 10 s a metre | 0 | 24 | 0 | 280.1 s (33) | 156.9 s | 15 min |
+| the drawer | 0-15 | base | 16 of 16 | 12 | 0 | 297.5 s (1) | 166.3 s | 15 min |
+| | | 10 s a metre | 0 | 12 | 1 | 220.5 s (1) | 150.5 s | 12 min |
+| the door | 0-15 | base | 16 of 16 | 14 | 0 | 198.3 s (11) | 190.6 s | 10 min |
+| | | 10 s a metre | 0 | 14 | 0 | 180.3 s (1) | 172.6 s | 10 min |
+| the chest | 0-15 | base | 16 of 16 | 15 | 0 | 221.6 s (5) | 176.4 s | 12 min |
+| | | 10 s a metre | 0 | 14 | 0 | 193.8 s (5) | 156.1 s | 10 min |
+
+(At 6 s a metre the chest's 16 and the door's first 10 were the 10's
+flights to the row.) What each job took out of the pack from the mall, at
+the median: the cube 8.41 Wh on the base and 7.59 on the branch, the
+drawer 7.63 and 7.08, the door 8.98 and 8.36, the chest 8.47 and 7.54
+(`energy.json`'s rows are 9.858, 7.503, 9.041 and 8.543; the dearest
+flights, 16.25 Wh on both, are a place forgotten before the claim and its
+search from the address).
+
+The tour's five jobs at 32 draws each (fresh maps, no place remembered,
+every guess near) and the five identity flights: the branch's 165 rows are
+the base's, flight for flight. The branch at 6 s a metre and at 10 flew
+the same flights wherever the 6's first walk arrived (57 of 59 cube rows).
+
+- **Where a moved flight parts.** Every pair from the mall parts at the
+  base's first walk's 90 s, where the base looks round and walks to the
+  address and the branch walks on; a remembered place forgotten before the
+  claim (draw 51) is a fresh map's address walk on both. Every verdict that
+  moved is the counter's work after both finds have arrived -- a reach
+  stopped short or falling, a `step` asked past its 0.5 m, an arm not got
+  home -- the ways the base fails too, and they move both ways: the cube
+  passed on the base alone at 4 draws of 0-31 and on the branch alone at 2,
+  and held out at 6 and 6. Every fall on either tree is in a reach at the
+  counter -- the cube's, 2 and 2, and the drawer's, 0 and 1 -- the right
+  thigh, arm or torso pressed on the counter's face before it (59-644 N in
+  the record of what it met), never on the walk.
+- **Where the belief stood as the first find ended**, the counter's work
+  starting from it: 0.35 m off at the median on the branch (64 cube
+  flights), 0.38 on the base (its 36 held out): no worse for coming
+  straight in.
+- **The tightest walks** of the branch's 111 to where the place should be
+  (the 112th is draw 51's address walk) were three of 26-27 m on the map
+  that took 205-228 s of their 263-270 (the cube's draws 17, 33, 34),
+  round by the front gate past where the wall had gone from the map; the
+  next three, 181-198 s, were walks the map read 43 m, handed 430; the
+  other 105 took 96-158 s. At draw 33 the walk took longer than the base's
+  look round and its walk from the address, and its pass is the slowest
+  held out.
+
+**What to read on the live rows.** A far claim's `find`: its first walk
+arriving (`to: guess`, no `timeout`) rather than running out short and a
+look round before the address; a find's seconds from a far station
+against before; and whether a job claimed from far off is done in its
+minutes more often.
+
+### A robot whose map has refused every scan for a minute is told so, and told when a scan fits again (#697, K9, `loop-697`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `0f1df27e…` unmoved, 67,157 chars, 17
+sections: the lines are History rows, never the prefix; the session host's
+hello unmoved, sha1 `b796e75d…`; no geometry moved; the wire gains two
+`drift` whys, additive; the pair's committed recording's command line
+flown on the branch, 11,705 lines, every one the committed fixture's but two
+`earned` events' wall-clock `at`, and no row of either kind in it):
+- **Once its map has refused every scan for a minute, the robot is told so,
+  once** (`navigator.Refusals`, `REFUSED_TELL_S`, 60 sim s): in History,
+  and narrated, "My map has matched none of my scans for a minute, so I may
+  not be where I believe I am". A run is every scan matched and refused
+  (`inconsistent`, `slid`, or #681's `outdone`, up from a fall); any other
+  scan breaks it -- one taken, one laid in unmatched (`anchored`, `no map`,
+  `sparse`, `unconstrained`), or one not matched because the robot is not
+  mapping (getting up, tipped past the gate).
+- **Once its map has taken every scan for 5 s running after it
+  (`MATCHED_TELL_S`; a relocation's among them), it is told that too**: "My
+  map matches my scans again". One fit among refusals says nothing and
+  re-arms nothing (the review: else a map that took a scan now and then
+  made the two lines alternate). Nothing else ends what was told; a map
+  forgotten owes nothing (a true death, a stand-up, or the station's fix
+  past the map's reach, whose own line says the map is gone), and after a
+  fix within the map's reach the line comes once its 30 anchored scans are
+  laid and its fits have held, about 8 s on. Kept across a restart with the
+  map.
+- Both are `drift` rows (`why` `refusing` / `matching`, with `seconds` and
+  the `verdict`). ⚠ The site's observatory files a `drift` row only under a
+  why its own list knows (`DRIFT_WHYS` in `pluggyworldObservatory.ts`), so
+  until the site adds the two they stop at its door; the History lines
+  reach it as records either way.
+- It moves no belief, adds no search and names no act: what the robot does
+  about it is its mind's. Measured on the served body's own scans, its
+  map one scan standing, nothing stepped: its belief turned 120 deg and
+  0.5 m off standing, 750 scans of 750 refused and ONE line 60.0 s into the
+  run, in the living room, the lobby and at two places outside the
+  research center the live robots stood on 11-14; the same up from a fall,
+  or set 1.5 m off, the matcher's searches took it back at 2.0 s and
+  nothing was said. ⚠ At (9.5, -22.8), outdoors, the turned belief read
+  `unconstrained` 750 of 750 (a right one there `ok` 750 of 750): a scan
+  that fixes no direction is not a refusal, so a robot lost there is never
+  told (for Ben: whether such a scan should count).
+
+**Why.** #697, #690's option 3b (Ben, 11-14: build it, low priority). On
+11-12 Luca's heading came out of a fall 120 deg off; its map refused every
+scan for the 26 minutes to the pause, and nothing it read said so. #690's
+net takes a turned heading back where the scan says where the robot is,
+and in the lobby, whose scan turned half round fits as well as the truth,
+it refuses about half the knocked get-ups: those robots are now told within
+a minute.
+
+**What to read on the live rows.** The `refusing` line should come only
+after a fall that turned the heading or a belief set far off, and a
+`matching` after it at the station's fix (then the map's next fit) or a
+relocation, 5 s on. Once the site files the two rows, each one's `errorM` and
+`headingDeg` say whether the robot was off when told: a `refusing` row near
+the truth is a robot told it may be lost that was not. ⚠ A robot lost on a
+map that ACCEPTS its scans -- #681's class, 0.5-1.1 m off at the
+storeroom's counter with every verdict `ok` on 11-14 -- is never told by
+it.
+
+### The unplug begins at its seat, backed off to it where a charge crept it in, and tries once more (#703, K11, `loop-703`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `0f1df27e…` unmoved, 67,157 chars, 17
+sections; the session host's hello unmoved, sha1 `b796e75d…`; no geometry
+and no wire format moved; the pair's committed recording's command line flown
+on base and branch on one pod, 11,705 lines each, every one the same but two
+`earned` events' wall-clock `at`):
+- **The unplug backs off to its seat first where a charge crept it in**
+  (`charge.unplug_routine`'s back-off; `UNPLUG_IN_M`, 6 cm). Plugged in, the
+  balancer's steady 2 N on the port creeps a standing robot in toward the
+  station, 7.5 mm a minute and turning it left, until its plug meets the
+  station's box 18 cm past its seat after about 22 minutes (SimNotes, "The
+  unplug after a long charge"). From there the arm's way out behind the plug
+  drove its jaw into the wall beside the station and the station's box, so
+  every unplug after a charge of about 20 minutes or more failed: after a
+  run's end, said ("my hand could not get the plug out -- going on anyway",
+  twice of twice on 11-14, Luca at the lobby's station), and at a charge's
+  own end, unsaid. It backs off -- never turned on the spot first, which
+  would swing a pinned plug across the box's face -- by the station as it
+  last saw it (no look sees its tags from 18 cm in), its scan matcher's fits
+  keeping its belief on its body (0.2-12 mm in every flight of the loop's
+  charge path).
+- **A failed try is tried once more, off a look of its own taken standing
+  still** (`UNPLUG_TRIES`, 2). One that fails twice is as before: said, and gone on
+  from with the plug in.
+- **A charge's own end that left the plug in says so** (`UNPLUG_FAILED`, the
+  run's unplug's words: "CHARGE: my hand could not get the plug out -- going
+  on anyway"), which it never did; the line rides `status` and `doing` as
+  any.
+- The creep itself is unchanged: a robot charging still ends its charge
+  pinned 18 cm in and 11 deg turned, its plug on the box.
+
+**Why.** #703: twice of twice the hand could not take the plug out after a
+carried charge, and the walk after it stalled, tethered by the rope's stop
+(after the undock's turn the rope pulls the plug into the port's face, which
+the catch holds).
+
+**What to read on the live rows.** "CHARGE: my hand could not get the plug
+out" should not come again. At a charge's end, "CHARGE complete ... backing
+off" is no longer followed about 16 s later by "CHARGE: unplugging at N% --
+the pack is full" (that pair was a first unplug that failed unheard, then
+the second after the undock's turn). An unplug that backs off first takes
+about 5 s longer (25.8-26.9 s against 21.3). No walk should stall right
+after an unplug.
+
+### The IMU reads no further than the part's full scale (#696, K8, `loop-imu`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `0f1df27e…` unmoved, 67,157 chars, 17
+sections, over #704's and #711's; the session host's hello unmoved, sha1
+`b796e75d…`; no geometry and no wire format moved, and the bill and
+`protocol/parts.json` re-render byte for byte; both committed recordings
+flown again on the branch on osmesa and read decompressed, line by line:
+the counter's attempt 671 of 671 lines as committed, the pair's day 11,703
+of 11,705, the other two apart only in a wall-clock `at`):
+- **Each axis of the pelvis's ICM-42688-P reads no further than its full
+  scale** (`imu.ACCEL_RANGE`, `GYRO_RANGE`): the accelerometer ±16 g, the
+  gyro ±2000 °/s, the part's widest ranges (DS-000347 Tables 1–2,
+  `ACCEL_FS_SEL` and `GYRO_FS_SEL` 0, the 20-bit FIFO's only ones), where
+  the part's output ends. The clip comes after the part's noise, offset and
+  scale and draws nothing: inside full scale a reading is the same bits as
+  before, so a flight that never passes it flies as it did. Parts.md's IMU
+  row says so; `Imu.gyro_z`, the rover's yaw alone, which only tests read,
+  is gone.
+- **What the robots read changes only in a hard landing and against a
+  wall.** N7 flew #690's 201 flights of the served mission, shoved, on one
+  pod at `77cde77` (#696), and 129 of them fell. The accelerometer passed
+  16 g in 98 of the 201: in 94 of the 129 falls, for 2-7 samples (4-14 ms)
+  at the landing, 18.7 g at the median and 43.3 g at most, and in 4 flights
+  that never fell, where the shove threw the walking robot into the lobby's
+  wall (16.4-22.1 g on one axis; 5 flights struck it, one falling later).
+  It never did in 88 sim-minutes of walking, standing, reaching and
+  charging, nor in either recorded day (3.5 g at most). The gyro peaked at
+  762 °/s, so its clip bit in nothing measured.
+  On the branch, three of the lobby's falls (`humanoid_drift_spike.py`'s
+  walk shoved mid-stride 0, 60 and 180 deg off its heading, Luca's draws)
+  each passed 16 g on one axis for 2-4 samples at the landing, at 21.1-23.2
+  g, and every such sample read 16 g there and the part's error on its other
+  two axes; none read full scale otherwise, and the gyro turned 497-638
+  °/s at most.
+- **What that moves, as N7 measured it.** The attitude filter takes the
+  accelerometer's direction alone, so the tilt read through it -- the
+  policies' gravity, the fall watch, the get-up's hand-back, the map's gate,
+  the band's levelling -- differs by at most 0.080 deg in a get-up, 0.019
+  after the stand and 0.008 walking. No decision of the fall watch, the
+  hand-back, the map's gate or the band's clearing gate differs (0 of
+  340,630, 27,523, 72,948 and 72,948 checks); 3 of 6.6 M reads of the 2 deg
+  `level()` gate act otherwise (2 places looks wait a step, 1 near-field
+  frame is not folded); a laid band takes another return on a bearing in
+  0.3-2 % of the scans after a bite. Each of the 98 flights that bit parts
+  from its base as a same-size random turn of the reading parts it (the
+  path apart 0.12 m at the median, 1.30 at most), and none moved between
+  stood, stuck and fell. The hand's force (#631) read a clipped sample 3
+  times in 680,910 reads, all at the wall strikes, on a walk, where no verb
+  reads it. The served policies were trained on the sim's own rates and
+  gravity (mjlab, its noise ±0.05 a component of gravity): the tilt's 0.080
+  deg is 1/36 of that half-width, and no served fall reached the gyro's
+  clip.
+
+**Why.** The sensors that feed an estimate are the parts', never the sim's,
+and every other field a part reports already ends where the part's does
+(the joints' torque at its field's last count): the accelerometer gave a
+landing's 43 g as the sim had it. Ben, 11-14: build it. The part's digital
+low-pass filter, which would round a landing's spike, is not modelled, and
+is #696's separate question.
+
+**What to read on the live rows.** Nothing on the wire carries the IMU's
+reading, so the clip is not seen on the rows: a fall's `getting_up` time,
+its stand or `stuck`, and the belief after it should read as before, within
+the spread a perturbation of the reading's size gives them (N7: no class of
+outcome moved in 98 biting flights).
+
+### `measure` reads the top under its point, and a robot is told where its grip lies along its fingers and how far short a reach that stopped short was (#704, #711, K12, `loop-cube`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `5b805c80…` → `0f1df27e…`, 66,366 → 67,157
+chars, 17 sections both, over #701's; the session host's hello moves, sha1
+`fb758c10…` → `b796e75d…`, and the counter's recording is flown again, its
+flight to the byte but the new sensor's readout; no geometry and no wire
+format moved):
+- **`measure(x, y)` reads the top under (x, y)** (`steps.measured_top`):
+  the highest flat height among the points within 2 cm of (x, y)
+  (`MEASURE_AT_M`) that 30 of them stand at (`box.MIN_POINTS`,
+  `box.top_height(least=)`), whatever stands lower there -- flat meaning its
+  points spread across the plane, never a vertical face's slice
+  (`box.FLAT_ACROSS`), its height off its own run of flat bins -- its ends
+  that top's own: of the points at its height, the face those points stand
+  on (`box.joined`), never another top at its height in the window. Only
+  where there is too little of a flat top there, or too little of it to read
+  where it ends, does it read the window's top as before, the highest within
+  0.45 m holding a quarter of the fullest. A strip under about 1 cm wide (a
+  plate's 8 mm wall) is no flat top under the point. A new sensor, `object.under`,
+  reads which (1 or 0), and the verdict carries it. The verb's text says
+  both.
+- **YOUR BODY says where the grip lies along the fingers**: "its fingers 8
+  cm long, the grip halfway along them: their tips reach 4 cm past it", the
+  numbers off the part and the model's pads (`model.fingers_past_grip`).
+- **A reach that stopped short on its way says how far from where it was
+  asked its grip was** (`steps._short_of`): "your right hand stopped short
+  on its way: out of reach from how you truly stand, or pushing on
+  something; as it stopped, its grip was 6.1 cm from where you asked -- 5.0
+  cm back along its fingers and 3.5 cm across them" (asked no turn, the
+  distance alone), off the last of what the verb felt (nothing more is read,
+  no flight moves). A reach that HOLDS says nothing of how short it is: at the
+  moment its routine ends its hand is still coming in, and a tenth of the
+  grips that read held then touched nothing (below).
+
+**Why.** No live try had closed a hand on the cube: 0 of 26 over the wakes
+of 11-12 and 11-14. Luca took its grip's height from `measure` at the
+cube's own (x, y), and `measure` read the counter under the cube's board,
+0.719-0.722 m on all 10 of its cube runs that measured (the cube's top
+0.806, its tag's reading 0.792-0.807): all 29 of its reaches at the cube
+aimed 10 cm under the board, and from the nearest stances the thighs went
+into the counter's face (#710: 3 falls in 7 flights on eb63935). With the
+height right, a grip from straight above stops with its pads' tips on the
+board and the grip 1.4 cm over the cube's top -- the pads reach 4 cm past
+the grip -- which nothing the robots read said, and the reach read ok:
+"closed on nothing it holds" was its one word for it (#711).
+
+**Measured** on rented pods, both trees on one pod each time -- an EPYC 7532
+(this dev box replays its flights bit for bit), then an EPYC 7C13, where the
+base replayed the 7532's rows flight for flight -- `loop-staging` 3dffda2
+beside the branch, the rows in the loop's K12 folder:
+- **The hands checks at set-outs 0-31, every job, the base's flight for
+  flight** (lid 26, drawer 21, door 24, cube 20, table 24 of 32; falls 0,
+  2, 1, 1, 2, both trees): every verdict the same, 160 of 160, and every
+  reach's end and push. No reference procedure calls `measure`, and a
+  reach's words move no flight (flown on `6fe93ac`; the reviews' fixes
+  since touch only `measure` and a failed reach's words).
+- **Luca's own procedures that call `measure`, at their live draws of
+  11-14**, six noise keys each, with K4's contact record (every contact of
+  20 N or more on a part of the robot; the truth read for the record only),
+  the final head `e895f8b`: at the cube, 42 flights of `cube_run1`,
+  `cube_run2`, `cube_run3` and K4's height variant, `measure` read the
+  cube's top, 0.803-0.807 m (base 0.717-0.721, the counter), so they aimed
+  at 0.766 for 0.68: falls 16 of 42 → 0. `cube_run1`'s thighs never met
+  the counter's face (base up to 400 N), and its hand closed on the cube in
+  5 of its 18 flights (its pads on the cube, by the contact record; base
+  none), 2 of them placing it; `cube_run2` and `cube_run3`, which step
+  nearer the face, still pressed a thigh into it in 16 of their 18 flights,
+  at 101-276 N at the hardest (base 18 of 18, 95-738 N), and stopped short
+  on the board, none falling. At the chest's knob tag (its front face, read
+  at the knob's middle), 24 flights of `chest_run33`-`35`: `measure` read
+  the knob's upper part, 0.819-0.824, in 21 and the lid in 3 (base: the lid
+  in 22, the counter in 2); passes 2 of 24 and falls 5 on both trees, not
+  all the same flights (one the base passed failed, one the base fell in
+  passed, and one fell on a pull where the base's did not). A kept procedure
+  that reads `object.top` at a small thing's side-face tag now reads that
+  thing, not what it hangs from.
+- **Held out** (draws 400-405 on a fresh key, Luca's six procedures, a
+  flight a draw): the cube's falls 6 of 18 → 0, a hand closed on the cube in
+  1 (base 0), none placed on either tree; at the knob's tag `measure` read
+  the knob in 9, the lid in 6 and the counter in 3 (base: the lid in 15, the
+  counter in 3), and the chest's 0 of 18 passed and 3 fell on both.
+- **Tried and dropped (#711):** a report for a reach that HOLDS with its
+  grip short, pushing on what its fingers met. At the moment its routine
+  ends the hand is still coming in, its force read as a holding hand's,
+  still: 10 of the 69 grips in the checks that read 1 cm short and 10 N
+  along their fingers touched nothing with any part of the arm (1.1-5.5 cm
+  short at 26-87 N). Judged again once the hand came to rest (0.3 s at
+  most), the cube check placed 12 of 32 where it placed 20, 2 more falling,
+  the drawer lost one, and 4 such grips still touched nothing.
+
+**What to read on the live rows.** A cube run's `top` local near the cube's
+own top (0.806) where it measured at the cube's tag, and `object.under`
+read where a procedure reads it; a failed reach's line "as it stopped, its
+grip was … cm from where you asked" and what the robots do after one (a
+grip raised by the fingertips' 4 cm, or aimed from the side); whether a cube
+reach ever closes on the cube; and, from Luca's kept chest procedures, what
+`measure` at the knob reads now (the knob's own top, not the lid's).
+
+### A hand job ends at a fall of its holder's (#701, K7, `loop-701`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `b345cc34…` → `b74107d2…`, 66,029 → 66,151
+chars, 17 sections both, over #699's; the session host's hello unmoved,
+byte for byte; no geometry and no wire format moved):
+- **A fall its watch counts ends a held hand job there**
+  (`HubLifecycle._fall_step`, on the seam every step, wherever the robot is
+  -- in a procedure's run, which the fall ends at once (#671), on a walk,
+  standing): the fall is the job's call. The world is read as the fall is
+  counted, the 5 s hold a `done`'s grade takes follows with the watch
+  reading what touches the prop -- lasting until the body stands again,
+  alive, a get-up or a body lying dead being no way to stand clear (a get-up
+  may take 20 s and a death lasts until its stand-up, and a prop set out
+  beside either is set out under it) -- and ONE verdict comes through
+  `scoring.evaluate`, the fall first in the grader's own words ("you fell,
+  and a fall fails the try -- the drawer 20 cm out in 30 s, and let go", a
+  stub test's), settled once, its prop free for the next offer once it is
+  in. History says it at the fall (`fell holding t_0307 (open_drawer): a
+  fall fails the try, so the job ends here -- graded as things stand once I
+  am up, 5 s on at the least`), and the verdict's line once the hold and the
+  get-up are over. A job taken again after it is a try of its own, and from
+  the fall the job is no longer in `heldTasks` (a turn asked in the hold
+  listed it held beside that line).
+- **A `done` said after the fall** -- its answer in flight as the robot fell
+  -- is one on a job not held, #648's line: in the hold `… not graded,
+  because I fell at t=N, and that ended it -- it is graded as things stand
+  once I am up`, after it `… because it is over -- I took it at t=N, and it
+  failed at t=M`; never a second verdict. A `done` said before the fall,
+  waiting on its run (#689), grades nothing: the fall's verdict is the one.
+- **As before**: a fall during a `done`'s hold is that grade's, which says
+  the fall first already; a true death fails the jobs its robot held; a job
+  no fall ended runs out at its minutes (#602), and one a fall ended is the
+  fall's, never "not graded within"; the table's dishware stays out while
+  the job holds it, its hold included, and is put away on the next sweep
+  after, never from under a hand. A restart between the fall and its
+  verdict (rare: no save while a get-up runs) carries the fall's call over
+  -- its time and its reading, into another world too -- and the next
+  settles the job once, off the watch the save kept, taken up as the world
+  comes back, never "still mine" first; a job given back since its watch
+  began is ended by no fall of the robot that gave it.
+- **The challenges rule says so**, where it says how a job ends: "A claimed
+  challenge stands until you say done, until the time its description
+  gives is up, or until you fall: a fall while you hold one ends it there,
+  graded as if you had said done as you fell, and a fall fails it." Each
+  job's own sentence already says "without falling".
+
+**Why.** On 11-12 Luca fell 76 s after taking t_0239 (`open_door`), on its
+arm's way home from the lever, and no `done` followed: the job was failed
+at 1,061 s, "not graded within the 960 s the job allows", the cupboard
+booked 985 s past the fall. On 11-14 Rowan's t_0307 (`open_drawer`) was
+graded "you fell, and a fall fails the try -- the drawer 24 cm out in 407
+s, and let go": the drawer opened as asked in a try a fall had already
+lost. Ben, 11-14: a job a fall has failed ends at the fall.
+
+**What to read on the live rows** (#701's last box: no job stays held after
+its robot fell). Each `fell holding` History line with its `failed the job
+… you fell` line about 5 s later, the task's `resolvedT` as near its fall;
+no `not graded within` for a job whose holder fell after its claim; a
+`done` named after the fall heard as #648's line. The pair's committed
+recording is not re-flown: its day carries no job (no `--tasks`), and the
+new hook acts only while a hand job is held.
+
+### A walk that stood where it could nearest a goal by a wall says so, and `drive_to`'s text says how near a walk comes (#700, K2, `loop-700`) — opens when this PR is deployed
+
+**What the robots read changes, in two places; what they do does not.**
+Nothing physical moved: no geometry, no walk, no plan, no wire field's
+meaning (the drive's `why` is one of its four as before).
+
+- **History and every line that ends with a walk's words**
+  (`drive_why`: a `drive_to`'s reason, a `find`'s, a charge's, an
+  explore's). A walk that ended at its stand-in because its goal stands
+  inside the keep-off its map grows round something solid no longer says
+  "(no route over the floor mapped so far)" but "(the goal is 0.00 m from
+  something the map holds solid, nearer than a walk keeps, and the robot
+  stood 0.45 m from it)", and one its patience ended there "(out of time:
+  the goal is ...)". Its record carries `standIn` (`solidM`, `standM`,
+  `keepM`), a field and not a fifth cause; a goal between 0.35 m and the
+  lattice's next cell off reads "about as near as a walk keeps". A goal the
+  walls it has seen shut off (no plan at all) still says "no route over the
+  floor mapped so far"; a goal just behind a thin wall, inside its keep-off,
+  reads as one on a counter's top does (in the map they are alike).
+- **The prompt.** `drive_to`'s text gains: "Its way keeps your middle about
+  0.35 m from what your map holds solid, less round a corner: a walk sent to
+  a wall or a counter's edge ends short, where you can stand nearest it,
+  0.3-0.6 m from the wall or the edge" -- the keep-off off the planner's own
+  constant, the range flown (SimNotes, "Where a walk ends by a wall").
+  `prompt_sha` b345cc34 -> cc714953 (66,029 characters -> 66,244, 17
+  sections), that line alone. The session host's hello is byte for byte
+  (fb758c10: the practice's language has no `drive_to`), so the site's half
+  does not move.
+
+**Why.** 11-12 (build 1e8f1d48), Luca's `door_run21` and `door_run22`
+(t_0210, `open_door`) walked to a point 0.55 m in front of the door's tag,
+which is on the storeroom's east wall 0.6 m behind the counter's edge: 1 cm
+in front of the edge. Three walks ended about half a metre short, each
+saying "no route over the floor mapped so far". Luca's next answers: "both
+runs died on drive_to over the unmapped floor" and "drive_to keeps stalling
+short on the floor the restart wiped"; `door_run23` dropped the walk and
+crept on 7 cm steps, never read the lever's tag, and the job ran out. The
+floor was mapped: the walk had stood as near the counter as a walk stands.
+
+**What to read on the live rows.**
+- **"from something the map holds solid" History lines** beside "no route
+  over the floor mapped so far" ones, both robots: a walk to the counter's
+  props sent at the edge should read the first; the second only where walls
+  shut the goal off (or another robot's disc alone made the stand-in).
+- **The answer after one:** whether the robot takes the rest by `step` or
+  sends its walk further out, rather than concluding its map is missing.
+- **#700's live box:** no "no route" for a goal at the counter's edge read
+  as unmapped floor.
+
+### A hand that holds nothing takes a pull's posture only while it reads light, and gives it up where it reads a load (#699, K1, `loop-699`) — opens when this PR is deployed
+
+**What a deployed robot's `pull` does changes; what it says and reads does
+not.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029
+characters, 17 sections), nor the session host's hello (byte for byte), nor
+any geometry or the wire. A pull's text, its report (`pull.moved`,
+`pull.force`, `pull.held`, `pull.dx..dz`) and the ways it ends are as they
+were. The pair's committed recording is the same day: its fixture's
+command flown on c99956e and on this, 11,705 lines the same line for line
+(the wall clock and the build aside).
+
+**The change** (`Reach.pull`, `_pulled`; `reach.PRESSED_SHARE`,
+`PRESSED_ASK_N`; SimNotes, "A pull's posture and the hand it rests on"). A
+pull has always taken the posture its way's end is reached from as it
+begins, and another on its way where its arm ran out of reach. From here
+on a hand that holds nothing as its pull begins -- open, or shut on nothing
+-- takes one only while it reads no more than 40 N, whichever way (twice
+the pull's ask, an ask of 20 N at least), and a posture that is coming is
+given up where the hand reads past that: the body backs off toward the
+posture the pull began in until the hand reads no more than 20 N, is held
+there, and that pull takes no other, going as far as its arm reaches from
+there -- it ends out of reach, held fast or at its distance, in the words
+it always had. A hand that grips what it pulls takes its postures as
+before.
+
+**Why.** On 11-12 Rowan's own `door_hook3` fell inside its pulls at the
+cupboard: each pull took a posture with the open hand resting on the
+door's top, the arm's solve lost the hand, and the body bore on it at
+45-150 N for a 15-20 N ask until it slipped off. Flown at 40 of the door's
+draws on c99956e, 2 fell and the hand pushed past three times its ask in
+427 of its pulls' samples, 475 N at worst; with this none fell, in 129
+samples, 136 N at worst. Our hands check and the served jobs' references
+are as they were: 115 of 160 at set-outs 0-31 and 306 of 416 held out at
+32-127, every job and every fall the base's (157 and 414 of the flights
+the base's own), and the tour's five jobs at 32 draws and the station's
+approaches and seats flew the base's flights exactly.
+
+**What to read on the live rows.** A fall inside a `pull` within its words
+("failed at step N (line L, pull) -- you fell on the way"): 11-12 had one
+in an evening (#699's last box). ⚠ Not every such fall is this one, and
+three kinds are left: a hand that GRIPS what it pulls takes its postures as
+it did (flown: a lid's knob in Rowan's `chest_lift2b` of 11-14, 1 fall in 4
+flights; our table reference's fork, 2 in 32 -- the rule for every hand
+takes both away and costs two held-out door passes: Ben's call, SimNotes);
+a load across a pull's way that no posture brings stays (17-45 N across a
+15 N pull where the arm's solve misses the turn it is asked); and a
+`reach` whose arm meets something on its joint-space way out is not
+stopped at all (#708: Luca's `chest_run35` falls in 6 of 8 flights before
+and after).
+
+### Up from a fall, a take is checked by a wider look (#681's fourth round, `loop-681d`) — opens when this PR is deployed
+
+**What changed is what a robot's map does with its first scans after a
+get-up.** Up from a fall (the get-up's stand arms `ScanMatcher.fell`), until
+one take stands, a take -- the fit's, its bounded search's, the wide
+search's own -- or a fit that slid is given a wider look, once in ten scans,
+six looks at most: the wide search's places 2 m round the belief, kept at
+the take's own heading and where they explain 0.9 of the scan. Where
+another place, half a metre or more away, explains the scan better than the
+take, the scan is refused by a verdict of its own (`outdone` in a `drift`
+row's `matched` counts, not laid into the map), and that place is taken a
+second of scans later, once the next look finds it again: a `relocated`
+belief event, its `drift` row and its BELIEF narration, as the wide
+search's are. The fall's doubt ends with a take that stands, a station's
+fix, a warp, 2 m walked from where the robot stood up, or its looks spent.
+A robot that has not fallen is matched as before, verdict for verdict.
+Nothing the robots read moved (`prompt_sha` b345cc34, the session host's
+hello byte for byte), nor any geometry: the deploy keeps both robots'
+bodies and maps -- and so
+the belief one robot paused with on 11-14, 0.74 m east of its body, on a
+map of the storeroom laid the same way (it agrees with itself, and is wrong
+until a station's fix past `ASKEW` drops that map).
+
+**Why.** #681, the wake of 11-14: four of five falls at the storeroom's
+counter left the belief 0.55 m (Luca, three times, the third on top of the
+first: 1.10) or 0.75 m (Rowan) east of the truth, `found: 1`, for 33, 75
+and 87 minutes, every scan in the storeroom `ok`; 29 of the wake's 51
+graded tries were flown so and 3 passed (7 of the 22 flown right). A get-up
+moves the body with the odometry held, a median 0.87 m at the counter and
+past the bounded search's 0.6 m in 72 falls of 84, and the search's best
+inside its window was the place where the counter's face lies on the wall
+0.6 m behind it (SimNotes, "A get-up moves the body past the search's
+window").
+
+**What the period is for.**
+- **A fall at the counter, and the belief after it.** The `drift` samples
+  after each fall in a procedure's run (the sim log's PROCEDURE lines name
+  the falls): `errorM` under 0.15 m at the sample after -- against 4 of 5
+  at 0.54-0.75 m on 11-14, kept to a fix. A sample whose `matched` holds
+  about ten `outdone` and a `relocated` is this rule's take-back (the wide
+  search's own reads `inconsistent` x19 before its `relocated`; it
+  relocated twice on 11-14, 1.21 and 1.68 m).
+- **Tries flown with the belief off:** each graded try against the `drift`
+  rows round it, as the reading of 11-14 crossed them (29 of 51).
+- **Wrong takes.** A `relocated` row whose `errorM` after it is over 0.5 m:
+  none flown. Two to look for by their cause: a robot up from a fall on a
+  map that already holds a copy of the room half a metre or more off is
+  taken to whichever of the two explains its scan better; and a long run of
+  `outdone` with no `relocated` (two places the look cannot tell apart) ends
+  after six looks with the take the base would have made.
+- **What it does not catch:** a belief left under half a metre off after a
+  fall (one place with the truth: the cube's end of the counter, 0.38 m, 1
+  fall of 84; 0.36 m at the house kitchen's counter), a fall whose get-up
+  left the truth past the look's 2 m, or one where the truth explains under
+  0.9 of a scan (the look holds no place, and the take is the base's).
+- **The `matched` counts gain a verdict, `outdone`:** about ten a fall whose
+  take is refused, counted as `ok` or `found` before.
+
+### A refused define is judged as it was written and says every reason at once, the other robot is shown a robot's own last line, and the dishware put away stays put away (K4, `loop-k4`) — opens when this PR is deployed
+
+**Three small changes to what the robots read and one to what the world
+does, found on the wake of 2026-11-14.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029
+characters, 17 sections; no rule's text restates any of the words below),
+nor the session host's hello (byte for byte), nor any geometry, nor the
+wire's shape (no field added; what a refused define's `reasons` are judged
+on moved, item 1, and protocol/README.md says so), nor either committed
+recording.
+
+1. **A define cut at the cap is judged as it was written.** A served
+   answer's source is cut one past the cap before it goes on the wire, and
+   the library judged the cut: the refusal read "the source is 3001
+   characters; the cap is 3000" whatever was written. The library now
+   judges the source as the answer wrote it (`Decision.define_written`,
+   kept beside the cut text and in no `as_dict`): the refusal says the
+   written length ("the source is 3412 characters; the cap is 3000") and
+   every fault of the whole source, and nothing a cut made (one past
+   65,536 characters hears the cap alone, in its true length, unread). At
+   most 20 of a source's faults are said and the rest counted, "(+381
+   more)" (`library.MAX_FAULTS_SAID`; the most a refusal said that wake was
+   7): judged whole, a refusal's size was the answer's to choose. The wire's
+   `define` and the `procedure` event's `source` are the cut text byte for
+   byte as before; the event's `reasons` are the new words, and may name a
+   line past the source the event carries (the site prints both).
+2. **A refused define says every reason at once.** A define into a full
+   library, or under a name already kept, heard that reason alone; it now
+   hears what its source is refused for in the same refusal
+   (`Library.refusal`), from `define` and from the undefine-and-define path
+   alike. In History that is two lines where both kinds of reason stand,
+   the first as it always read and the second "...and its source is
+   refused too: ..." (on one line the faults come last and History's
+   400 characters cut them); the narration and the event's `reasons` hold
+   them all in one.
+3. **The other robot is shown a robot's own last line, never the
+   board's.** `others[].doing` was the other robot's `status`, its
+   lifecycle's last narrated line of any kind. It is now the last line that
+   was the robot's OWN (`HubLifecycle.doing`). Kept out of it from here on:
+   an offer ("TASK t_0306 offered: ..."), an expiry, an offer's things set
+   out ("TASK t_0306: the cube is set out", said by both lifecycles), or
+   not in this world to set out, or left as saved under a hand, things put
+   away, a claim given back for a robot that is not in this world, and a
+   job a restart failed. A robot's own job lines (claimed, done, failed,
+   out of time, still mine, not available) are its `doing` as before.
+   `doing` is empty until a robot has narrated a line of its own, at every
+   start (it is not kept across a restart, as `status` never was). ⚠ This
+   changes what each robot reads of the other. `OTHER_ROBOT_RULE` and its
+   sha are untouched, and its sentence ("what it is doing") now holds of
+   the line shown. ⚠ `status` itself is as it was: each frame's, a
+   recording's only narration, and the site's line under a portrait still
+   carry the board's lines.
+
+4. **Put away, the table's dishware stays put away.** A parked piece's
+   weight is held by `gravcomp`, which MuJoCo applies only while the model
+   counts a body so held (`ngravcomp`), and `mj_setConst`, the end of every
+   set-out's redraw, counts afresh. Counted with the pieces set out it was
+   0 -- the pair hooks the one board twice, so a place is set out twice an
+   offer, and a counter prop's set-out comes while the table's is out --
+   and from then on every put-away let the plate, the cup and the fork fall
+   at g (4.9 m in a second), to be parked again, and said so, at the next
+   sweep: "the dining_table_0's things are put away: no job holds it" once
+   a second for as long as the table had no task. The constants are now
+   recomputed with the pieces counted (`dishware.set_const`): parked they
+   stay parked, and the line is said once at a table task's end. Nothing a
+   grade reads moved (a set-out places the pieces afresh), and a lone
+   robot's table flight is row for row what it was.
+
+**Why.** 53 defines were refused that wake. 16 were over the cap and every
+one read "3001 characters": six thoughts took it for one character over
+("failed last turn by exactly one character"), four trims made on that were
+refused at "3001" again, three with a held job lost (t_0301, t_0309,
+t_0322), and five were told a fault the cut had made ("line 111: Expr is
+not part of this language", a `pass` cut to `pa`, which Luca listed among
+its own as "a `-=`"). 21 were for a full library, and at least 8 of those
+were followed by a refusal of the same source for its own faults on the
+robot's next define; `cube_run4` was refused eight times running, a kind of
+reason at a time. And six thoughts read the other robot's status as a claim
+on a job it had not taken (Luca, 20:19: "Leaving t_0305 to Rowan, whose
+broadcast claims it"; Rowan, 20:58: "its broadcast shows it eyeing t_0313
+-- so I take the drawer"); Rowan, 20:26: "the odd broadcast wording isn't
+mine -- my body's code writes it".
+
+**What the period is for.**
+- **Refused defines by reason** (`procedure` rows, `refused`): the over-cap
+  ones say a length other than 3001, none says "Expr is not part of this
+  language" at its text's last line, and a "library is full" refusal
+  carries the source's faults where it has any.
+- **Refusals running:** how many defines of one name are refused in a row
+  (11-14: `cube_run4` eight, `cube_p1` five), and whether a refusal at the
+  cap is followed by another at the cap.
+- **The thoughts after one:** none reads "one character over".
+- **The put-away line:** said once for each table task's end (the live
+  checks counted 2,157 of the wake's 7,759 log lines), and the first
+  robot's `status` no longer that line between table tasks.
+- **`doing` in the other's thoughts:** no thought reads the other robot's
+  status as a claim on a job it never took; and whether the two still sort
+  out who takes a job (they `tell` each other, which is theirs).
+
 ### A decided procedure that runs nothing says why in History (N5, `loop-n5`) — opens when this PR is deployed
 
 **What changed is what History says when an answer's `procedure:<name>`

@@ -226,6 +226,41 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
   assert not any("3.0" in ln for ln in said)
 
 
+def test_a_map_refusing_every_scan_is_one_line_and_a_scan_that_fits_one_more():
+  # Issue #697: the body's `refusing` and `matching` belief events
+  # (`navigator.Refusals`) are drift rows, each ONE History line, said as
+  # it is written. Each line states what the robot's own matcher knows --
+  # never an act, the word "charge" nor where to go -- and "a minute" is
+  # the constant's
+  from pluggybot.lifecycle import MAP_MATCHING, MAP_REFUSING
+  from pluggybot.navigator import REFUSED_TELL_S
+  body = StubBody()
+  life = stub_life(body=body)
+  rows = []
+  life.on_event.append(rows.append)
+  life._drift_due = math.inf
+  at = (4.0, 1.0, 0.0)
+  body.belief_events.append(_event(1, "refusing", at, at, (6.0, 1.0, 2.1), seconds=60.0,
+                                   verdict="inconsistent"))
+  life._belief_step()
+  life._belief_step()
+  assert _history(life)[-1].endswith(MAP_REFUSING) and len(_history(life)) == 1
+  assert MAP_REFUSING in life.status
+  body.belief_events.append(_event(2, "matching", at, at, (4.0, 1.0, 0.0), verdict="found"))
+  life._belief_step()
+  assert _history(life)[-1].endswith(MAP_MATCHING) and len(_history(life)) == 2
+  drift = [r for r in rows if r.get("type") == "drift"]
+  assert [(r["why"], r["verdict"]) for r in drift] == [("refusing", "inconsistent"),
+                                                       ("matching", "found")]
+  assert drift[0]["errorM"] == 2.0 and drift[0]["seconds"] == 60.0
+  assert MAP_REFUSING.startswith("My map has matched none of my scans for a minute")
+  assert REFUSED_TELL_S == 60.0, "the line says a minute"
+  for line in (MAP_REFUSING, MAP_MATCHING):
+    words = set(line.lower().replace(",", " ").split())
+    assert not words & {"charge", "charging", "station", "look", "explore", "ticket", "should",
+                        "must", "go", "walk"}, line
+
+
 def test_the_belief_against_the_truth_is_sampled_with_the_verdicts_since():
   # Every DRIFT_EVERY_S on the physics seam, with the matcher's verdicts
   # since the last: a jump (`relocated`) and a slide (all `ok`) read apart

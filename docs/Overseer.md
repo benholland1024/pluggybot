@@ -228,8 +228,19 @@ practice, never told the cap, 421 were over 1,500 and 47 over 3,000), and
 the text says so; one over it that parses is refused with every reason, the
 cap's first (#615's smoke: three repairs of a 5,458-character source heard
 only its length) -- where it arrives whole, in practice and a person's run:
-a served answer's source is cut one past the cap (`define`'s clip), and
-hears the cap alone. A name it gives is lowercase letters, digits and
+a served answer's source is cut one past the cap for the wire (`define`'s
+clip in `Menu.validate`, the one cut a source meets: the schema gives a
+string no length) and judged as it was written
+(`Decision.define_written`, kept beside the cut text and in no `as_dict`):
+its refusal says the written length and every fault of the whole source,
+and nothing a cut made. Judged off the cut, every such refusal read "the
+source is 3001 characters; the cap is 3000" and the cut's own faults were
+told as the robot's (Observatory.md, the period of `loop-k4`, has the
+rows). The `procedure` event's `source` is still the cut text, so its
+`reasons` may name a line past it. A define's refusal says at most
+`library.MAX_FAULTS_SAID` (20) of its source's faults and counts the rest
+(`(+N more)`), and one past `MAX_PARSE_CHARS` is refused unread: judged
+whole, a refusal's size was the answer's to choose. A name it gives is lowercase letters, digits and
 underscores, a letter first, at most `MAX_NAME_CHARS` (32), and the text
 says so (`lang.name_rule`); a name refused says its own reason the first
 time -- the rule, the language's own word, a verb's, a def's or a maths
@@ -387,9 +398,13 @@ offer. History says the `done` and names the job (`said done on t_0027
 (open_door): …`, #629: by its kind alone, Rowan took one job's grade for
 another's). A `done` on a job the robot does not hold is dropped and says
 why (`said done on t_0137 (open_chest): not graded, because nobody has
-taken it`; #648). A job held past the time its description gives is failed by the
+taken it`; #648). A fall while the robot holds one ends it there, graded as
+if `done` were said as it fell (`fell holding t_0239 (open_door): a fall
+fails the try, so the job ends here …`, then the grade's line; #701). A job
+held past the time its description gives is failed by the
 loop, its prop offered again, and while the robot holds one its context
-lists it with that time's remainder (`heldTasks`, `leftS`; #602), as of the
+lists it -- never one a fall ended -- with that time's remainder
+(`heldTasks`, `leftS`; #602), as of the
 ask -- the rule says the clock runs on while it thinks (#689: asked with 193
 s of t_0202 left, Rowan answered 160 s later, its own think uncounted). `CHALLENGE_RULE` says all of this to
 the mind and, like every rule on this arm, demonstrates nothing about
@@ -416,7 +431,11 @@ has, at a price, and finds the doors by finding the walls either side of
 them (SimNotes, "Walking into
 the unknown"). How long it may take is the procedure's to say:
 `drive_to(x, y, patience=S)`, 60 s when it says nothing, at most 600, and
-never past the procedure's own budget. A decided `explore(zone)` walks to
+never past the procedure's own budget. Its text says how near a wall or a
+counter a walk comes (#700): the planner's keep-off, off its constant, and
+where a walk sent to an edge ends, flown; and a walk that stood where it
+could nearest a goal its map keeps off says so, never "no route" (SimNotes,
+"Where a walk ends by a wall"). A decided `explore(zone)` walks to
 its zone with a decided action's default, `ZONE_PATIENCE_S` (300 s). The
 walk aims at the zone's middle, and one that ends anywhere inside the zone
 has got there (issue #454). The workshop's table stands on its middle: 8
@@ -894,10 +913,20 @@ where another robot exists; a single-robot prefix is unchanged.
 
 **What the other broadcasts** (`lifecycle.others_context`, the `others` list
 in the context) is the public surface and nothing else: name, reported pose,
-state, the status line it narrates to everyone, whether it is dead, and its
+state, what it says it is doing, whether it is dead, and its
 `posture` (`standing`, or `getting_up` while its get-up has it). Not its
 battery, points, goals, thoughts, reasons or secrets — a test walks the
-whole context for the other's thought lines.
+whole context for the other's thought lines. Its `doing` is the last line
+the other narrated of its OWN doing (`HubLifecycle.doing`), never the
+BOARD's: an offer, an expiry, an offer's things set out (or not there, or
+left under a hand), things put away, a claim given back for a robot that is
+not in this world and a job a restart failed are narrated like any line and
+become the wire's `status` as ever (`_say(board=True)`), and are kept out
+of `doing`. Both lifecycles say the set-out line and the first says every
+offer, and shown as the other's `doing` they read as its claims
+(Observatory.md, the period of `loop-k4`, has the rows). `doing` is empty
+until a robot narrates a line of its own, at every start: neither it nor
+`status` is kept across a restart.
 
 **What a robot may DO about the other, measured** (issue #208; a mind with
 a peer, `mind/acts.py` is the pure half). Five paperwork

@@ -866,7 +866,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "memo": None if memo is None else
              [list(memo[0]), memo[1], list(memo[2]),
               None if memo[3] is None else [list(p) for p in memo[3]],
-              None if memo[4] is None else list(memo[4])],
+              None if memo[4] is None else list(memo[4]),
+              None if memo[5] is None else list(memo[5])],
              "clocks": {"scan": self._next_scan, "backoff": self.backoff_until,
                         "walls": self._walls_t},
              "peerSeen": [self.peer_seen_m, self.peer_seen_t],
@@ -877,6 +878,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "depthRng": [self.depth.rng.bit_generator.state,
                           self.depth.peer_rng.bit_generator.state],
              "match": match,
+             # ...and the run of scans its map has refused, and whether it
+             # was told (#697), with the map it is of
+             "refusals": self.refusals.kept_state(),
              # ...and the places it has found, with the map they are laid in
              "places": self.places.kept_state(),
              # ...and when and where it last looked for them
@@ -936,10 +940,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       self._frame_t, self._frame_used_t = float(frame["t"]), float(frame["used"])
       self._frame_level = bool(frame["level"])
     memo = state.get("memo")
+    # ...and what kept its stand-in off the goal (#700): none in a save from before
+    kept_by = memo[5] if memo is not None and len(memo) > 5 else None
     self._plan_memo = (None if memo is None else
                        (tuple(memo[0]), float(memo[1]), tuple(memo[2]),
                         None if memo[3] is None else [tuple(p) for p in memo[3]],
-                        None if memo[4] is None else tuple(memo[4])))
+                        None if memo[4] is None else tuple(memo[4]),
+                        None if kept_by is None else tuple(kept_by)))
     clocks = state["clocks"]
     self._next_scan = float(clocks["scan"])
     self.backoff_until = float(clocks["backoff"])
@@ -965,7 +972,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         self._walls_mask, self._walls_t = np.array(arrays["walls"], dtype=bool), clocks["walls"]
       if self.matcher is not None and state.get("match"):
         self.matcher.restore_kept(state["match"], arrays)
-    # ...the places only with the map they were laid in (#419)
+    # ...the places, and the run of refusals (#697), only with the map they
+    # were laid in or are of (#419)
+    self.refusals.restore_kept(state.get("refusals") if mapped else None)
     self.places.restore_kept(state.get("places") if mapped else None)
     self._place_look_back(state.get("placeLook") if mapped else None)
     return mapped

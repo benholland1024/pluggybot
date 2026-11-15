@@ -1068,6 +1068,75 @@ the rules are pinned in `tests/test_unknown.py`. Not done: the map is still
 the property's rectangle (#381's stage 4), loop closure (stage 3), and what
 a walk into the unknown costs is not yet in any offer (stage 7).
 
+## Where a walk ends by a wall (issue #700)
+
+On 11-12 Luca sent three walks to a point 1 cm in front of the storeroom
+counter's edge. Each ended about half a metre short and said "no route over
+the floor mapped so far"; Luca read that as floor its map had lost, gave
+`drive_to` up, crept to the door's lever in 7 cm steps and ran out of time.
+The planner plans through floor it has not seen (above), so a goal it cannot
+plan to is one of two things: walls it has seen enclose the goal (no plan at
+all), or the goal stands inside the keep-off the map grows round what it
+holds solid -- the humanoid's `INFLATION_CELLS`, 7 cells (0.35 m), taxicab,
+judged on the 10 cm lattice -- and the plan ends at a stand-in, the nearest
+place to stand. Both were `no_route`, and both were said alike.
+
+**A walk at its stand-in by something its map holds says so**
+(`Navigator._solid_by`, the record's `standIn`; `no_route` still, or
+`timeout` where its patience ended it there): "(the goal is 0.00 m from
+something the map holds solid, nearer than a walk keeps, and the robot stood
+0.45 m from it)". The solid cell is found as the plan chooses its stand-in,
+on that plan's grid, as `map_costs` grows a wall -- taxicab from the goal's
+own lattice cell, never clamped onto the grid, so a goal past its edge is
+judged where it is -- so a record has one exactly where the plan's lattice
+cell for the goal is no floor (pinned both ways along a counter and round a
+post). The lattice keeps a goal off up to a cell past the 0.35 m the verb's
+text states, and a goal there reads "about as near as a walk keeps". A goal
+the seen walls shut off (no plan at all), a robot its map has walled in, a
+stand-in only another robot's disc made, and a goal past the grid's edge
+beyond anything on it keep "no route over the floor mapped so far"; so does
+every stand-in of A*'s plan, the Navigator's default, which stands in for
+floor it has not seen as well.
+
+**The words are what is true wherever the robot ended**, its distances
+measured there: a walk the front stop held short of its stand-in, one
+another robot's disc stood a room away from a goal at the counter, and the
+drive's own creep past its stand-in toward the goal (flown, below) each
+read as they are, and a walk that stood where walks stand (0.3-0.6 m off)
+reads apart from one held further off. ⚠ A goal just behind a thin wall,
+inside its keep-off, stands in on the near side and reads as one at or onto
+a counter's edge does: the map does not tell the room behind a wall from a
+counter's top, and every word is true of both.
+
+**Where the walk ends, flown** (the served humanoid alone in
+`home_humanoid` on a fresh map after a look round, from the storeroom's door
+or its middle, three noises; its true middle's distance from the edge or the
+face, m):
+
+| sent to | ended off it | the record's `standM` |
+|---|---|---|
+| the counter's edge, 1 cm before it | 0.36, 0.38, 0.38 | 0.34, 0.36, 0.37 |
+| the counter's edge | 0.47, 0.41, 0.32 | 0.45, 0.39, 0.27 |
+| 5.7 cm onto the counter (#700's own) | 0.36, 0.45, 0.40 | 0.40, 0.47, 0.43 |
+| the south wall's face | 0.45, 0.48, 0.52 | 0.42, 0.46, 0.50 |
+| the north wall, 1 cm before its face | 0.46, 0.60, 0.40 | 0.43, 0.58, 0.36 |
+
+0.32-0.60 m in 15 walks, every one `no_route` with its `standIn`, none a
+fall; two flights more, from starts and on noises nothing was read off,
+0.34-0.54 m in 10. The plan's stand-in is 0.40-0.45 m off an edge square to
+the lattice (the keep-off, the lattice's cell), and the drive's last steps
+creep toward the goal past it or back off it before it stagnates, the robot
+turned any way at all. `standM` is to the solid cell nearest the goal: by
+an edge, the edge's own, 1-5 cm proud of the true face; onto the counter, a
+cell behind it.
+
+**What is true now.** `drive_to`'s text says the keep-off off its constant
+(`WALK_KEEP_M`), less round a corner (the keep-off is a taxicab's: about
+0.25 m diagonally), and where a walk sent to a wall or a counter's edge
+ends (`steps.WALK_ENDS_M`, 0.3-0.6 m): that range is FLOWN, so a change to
+the inflation flies it again. The rules are pinned in
+`tests/test_failure_words.py`.
+
 ## Places, not coordinates (issue #419)
 
 A job is handed the building's address, a few metres off, and the task
@@ -1106,6 +1175,34 @@ between; else a lattice point in the unknown. A fresh quadruped found the
 lab from 3 m errors in all eight directions (62-272 s, median 94), and from
 the facility's own address, which lands in its storeroom a wall from the
 lab, in 123-157 s.
+
+**The walk to where it should be is as long as the walk** (#698). A
+robot that remembers a job's area walks first to where the area's tag
+should be, and that walk had a viewpoint's 90 s whatever its length. From
+the mall's station the counter's row is 22.5-23.4 m in a straight line and
+43 m by the only way there is -- out of the mall by the alley, north along
+the sidewalk, in by the research center's front gate. Flown from there
+(the cube 32 draws, the drawer, the door and the chest 16 each), every
+find's first walk ran out of its 90 s, 5.8-12.3 m short, and the robot
+looked round where it stopped before it walked to the address: first finds
+of 117-256 s, the cube's slowest pass 312.3 s. Now it is given 10 s a
+metre of the walk there as the planner prices it over its own map
+(`GUESS_WALK_S_M`, `Navigator.walk_m`; the straight line where no walk
+reaches), at least the 90 s (`guess_patience`). ⚠ THE MAP'S WALK READ 26-27
+M ON 60 FLIGHTS OF THE 80: the research center's south wall, 4 cm thick, is
+carved out of the map along the alley by the robot's own grazing rays
+(#401's), free from x 19 to 23.25 at the cube's draw 17, and the planner's
+route runs through it -- over floor the robot has seen, so a walk measured
+over that floor alone reads the same. Every walk took the 43 m way, most
+in 96-158 s; at 6 s a metre, the charge's (`CHARGE_WALK_S_M`), two of 59
+ran out at 162 s, both where the map's walk read 27 m -- draws 17 and 33,
+which at 10 s a metre arrived in 205 and 228 s of their 270. At 10 no
+first walk of 112 from the mall ran out (the cube's 64 draws, half of them
+held out from the choice, and the counter jobs' 48), and the cube's
+slowest pass from there is 280.1 s, its median 154.6 (312.3 and 174.8
+before). Where the 90 s used to run out the robot now walks straight in,
+and the counter's work after it is a new draw: its verdicts moved both
+ways, the cube's passes 50 of 64 against 52 (Observatory.md, the period).
 
 **The walking look costs a render**, 14-20 ms on the dev GPU under EGL and
 32 ms on the box under osmesa: a look every metre walked or 45 deg turned,
@@ -2620,6 +2717,36 @@ set-out 0 (2.3 cm), both of which open, so no tolerance on the hand's place
 tells the cube's grip from theirs. Gripped shallower, 15-30 deg, so the
 tips clear the board, the reach stops short on it (2 of 15).
 
+**What the robot is told of it (#711).** Nothing, until the robots met it:
+from straight above a grip cannot come under 1.4 cm over a 26 mm cube on a
+board, the pads' tips on the board, and "ok" with "closed on nothing it
+holds" after it were all a robot read. So YOUR BODY says where the grip lies
+along the fingers -- halfway, their tips 4 cm past it, off the part and the
+model's pads (`model.fingers_past_grip`) -- and a reach that stopped short
+on its way says how far from where it was asked its grip was as it stopped,
+and how much of that back along its fingers and how much across them
+(`steps._short_of`), off the last of what the verb felt.
+
+⚠ **A reach that holds says nothing of it**, though its grip may end short:
+its body routine ends the moment its command arrives, the hand still coming
+in, and the hand's force is read as a holding hand's, still
+(`reach.HELD_PHASES`). Over the lid, drawer, door and cube checks'
+set-outs 0-3 (each reach's end read off the checks' own flights beside the
+truth, by a probe kept outside the repo with the loop of 11-15's K12 rows)
+a grip in free air was 0.4-0.9 cm behind its goal at that moment, reading
+-2 to +3 N along its fingers, and settled within 0.1 s; one whose pads
+pressed on something -- a drawer's front, a door's panel, the cube's board
+-- was 1.1-2.1 cm short and read 27-100 N. But over all 32 set-outs of every
+check, 10 of the 69 grips that read 1 cm short and 10 N along their fingers
+touched nothing with any part of the arm at that moment, 1.1-5.5 cm short
+at 26-87 N (re-flown, every arm contact recorded): a hand still coming in.
+Judged again once the hand came to rest (the verb standing still 0.3 s at
+most), the cube check placed 12 of 32 where it placed 20, 2 more falling,
+the drawer lost one, and 4 such grips still touched nothing. On Luca's cube
+procedures with the height put right (#704), every grip that read so had
+its pads on the board, the mat or the cube (22 of 22): the words would be
+true where they matter most and false elsewhere, so they are not said.
+
 ## The way home (issue #539)
 
 `withdraw` brings a hand out along its way in (the reach's 8 cm line),
@@ -3886,9 +4013,10 @@ barely backs up -- 4 cm in 3 s asked 0.25 m/s -- so an undock turns away.
 its back, squeeze it at 5 N and then 80 (at 40 it slipped out; shut at 80
 at once, 46 unplugs in 110 could not grip it, 45 of them having knocked it
 off its catch), pull it straight off past the connector's 20 N, carry it to the cup's
-mouth and let go there. One that fails still ends unplugged: the robot turns
-away, the rope's stop pulls the plug off at 20 N and the balancer takes it
-home.
+mouth and let go there -- from its seat, stepped back to it first where a
+charge crept it in, and tried once more where it fails (below, "The unplug
+after a long charge"). One that fails twice does NOT end unplugged: after the
+undock's turn the rope holds the plug in its port.
 
 ![The plug-in and the unplug: from its standoff the humanoid walks in, takes
 the plug out of its cup, plugs it into the port on its torso (16 s),
@@ -3961,6 +4089,71 @@ process from that save:
 
 A bow while plugged in, down to its deepest (1.1 rad, 63 deg), leaves the plug in, no
 catch broken and no fall: what a `spot` looking lower does.
+
+### The unplug after a long charge (#703)
+
+**What is true now.** Plugged in, a standing robot creeps in toward its
+station. The balancer's steady 2 N on the port (`BALANCER_N`), right of the
+robot's middle, slides its soles across the floor -- they never lift: MuJoCo's
+soft friction under a sustained shear -- at 7.5 mm a minute, turning it left
+about a degree a minute at first, until its plug meets the station's box 18
+cm past its seat and 11 deg turned, after about 22 minutes, and there it
+stays. From there the unplug's arm, on its way out to 3 cm behind the plug's
+back -- now at the station's face, 0.17 m ahead of the stance -- drives its jaw
+into the wall beside the station (up to 304 N) and then into the station's box
+(93 N), and stops short (every contact of 5 N or more recorded: the same
+unplug backed off first touched nothing but the plug): "my hand could not get the plug out",
+twice of twice on 11-14 after the lobby's charges of 1,944 and 1,504 s, each
+13.1 s after "unplugging" -- a restart only made it heard, and a charge's own
+end failed the same way unheard (it says so now). The unplug now begins at its seat: further in
+than `UNPLUG_IN_M` (6 cm) it backs off to it first, by the station as it last
+saw it -- from 18 cm in no look sees the tags, plain or bowed -- in a step or two
+and never turned on the spot first (pinned, a turn would swing its plug across
+the box's face, which the port lets go to); and a failed try is tried once more
+from a look of its own, taken standing still (`UNPLUG_TRIES`). Its looks
+while it backs off are plain ones, never bowed toward the box.
+
+**What tells it that it crept: its scan matcher.** Its legs see no slide with
+their feet planted, the gyro's 0.02 deg/s is under the heading hold's gate,
+and the station's anchor is taken once, as the charge begins. The band's fits,
+ten a second while it stands docked, keep its belief on its body:
+
+| plugged in (lobby, the loop's charge path) | its body crept in, turned | its belief off its body |
+|---|---|---|
+| 300 s | 3.8 cm, 5 deg | 5.3 mm, 0.13 deg |
+| 900 s | 11.2 cm, 10 deg | 3.0 mm, 0.11 deg |
+| 1500 s | 16.1 cm, 11 deg | 2.3 mm, 0.01 deg |
+| 600 s, its matcher off | 8 cm, 9 deg | 110 mm, 7.0 deg |
+
+At the house's station, in one process, its belief was 2.7, 3.0, 9.7 and 12.2
+mm off at 300, 600, 900 and 1,500 s. On a map laid from its seat alone, the robot never having walked
+(`station_spike.py --hold`), its belief did not follow: 15.5 mm off after 15
+mm of creep, the fits laying each scan where the belief already was.
+
+**Measured** (the lobby's station, one humanoid, osmesa; each a fresh process
+from a save of one charge, the unplug a decided `explore` begins with):
+
+| saved after | before | backed off to its seat first |
+|---|---|---|
+| 300 s | unplugged, 21.3 s | not asked to (3.2 cm in): the same flight |
+| 900 s | unplugged | from 10.3 cm in to 0.9, one step: unplugged, 25.8 s |
+| 1500 s | its hand did not get behind the plug, in 13.2 s | from 14.9 cm in to 1.7 cm out, one step: unplugged, 26.9 s |
+
+In one process, charged 1,500 s and the unplug at once (one pod), the same:
+at the lobby's station, at the house's (14 cm in, 12 deg), and at the lobby's
+on the live build `2a1fbaff`, each "its hand did not get behind the plug", in
+13.2-13.7 s; its matcher off, the belief stayed where the robot docked, 197 mm
+and 9 deg off its body at 1,500 s. The station's own trials (`--approach`,
+`--seats`, `--lost`) fly as they did, row for row: none charges long enough
+to creep 6 cm.
+
+**A walk after an unplug that failed is tethered.** After the undock's turn
+the rope runs from the plug's back, now in front of the robot, back through
+its body to the station: walked off, the rope's stop pulls the plug straight
+into the port's face (16.5 N read), which the catch holds -- it lets go only to
+a pull off the face or across it -- and the walk stalled 2.7 m short, as
+Luca's did 5.1 m short. What the loop does where a hand cannot take the plug
+out is #703's question for Ben.
 
 ## The humanoids' first jobs (issue #559, stage 3)
 
@@ -5436,8 +5629,10 @@ from the research center's 2.17, 3.66, 2.78 and 5.98. Each of the four
 mall flights came to the storeroom with its belief 0.41-0.67 m off (the
 house's and the research center's about 5 cm): its find's first walk ran
 out of its 90 s 8-11 m short, it looked round and found the row from the
-building's address, and the drawer's reference then asked `step` for
-0.79 m aside, past the 0.5 m it takes, and could not reach the handle.
+building's address (since #698 that walk is given what a walk that long
+needs: "Places, not coordinates"), and the drawer's reference then asked
+`step` for 0.79 m aside, past the 0.5 m it takes, and could not reach the
+handle.
 The tests' pack (`DEMO_WH`) grew from 30 Wh to 33 on 3 Nov, so that
 charged it still funds the dearest job and the reserve both (29.7 of
 29.36), and the pair's fixture was flown again on it.
@@ -6630,6 +6825,54 @@ goes on, edges seen from a stance turned 25 deg, a diagonal edge whose
 reading lies between its ends (and before #657 24 more, one dining table's
 right edge and far edge, read through its top: below). 438 ends went unread
 at the picture's edge, 4,257 at the window and 16 past where they read.
+
+**The top under the point (#704).** Read as the window's, `measure` at a
+small thing on a wider top read the wider one: at the storeroom's cube --
+26 mm on a 0.23 x 0.16 m board on the counter, a few per cent of the
+window's points -- all 10 of Luca's cube runs that measured over the wakes
+of 11-12 and 11-14 read the counter, 0.719-0.722 m, while the same runs'
+`spot(56)` read the cube's top at 0.792-0.807, and Luca reached 10 cm under
+the board 29 times (12 refused for the jaws' turn, 17 stopped short; its
+thighs met the counter's face from the nearest stances, #710). Now the top
+is the one under (x, y) (`steps.measured_top`): the highest flat height
+among the points within `MEASURE_AT_M` (2 cm) of it that 30 of them stand at
+(`box.MIN_POINTS`; `box.top_height(least=)`) -- at the cube's middle its top,
+0.806 -- whatever stands lower there: read with the window's share at the
+point (the highest holding a quarter of the fullest), Luca's `measure` at
+the chest knob's front-face tag, half of its 2 cm over the counter far
+below, read the counter in 12 of 24 flights at their live draws. ⚠ Flat
+means its points spread across the plane (`box.FLAT_ACROSS`: the narrower
+spread at least a quarter of the wider, and the wider at least
+`FLAT_WIDE_M`, 3 mm): a vertical face's slice is a line, and 1 cm in front
+of a wall too tall to see over, the wall's slices filled every 2 mm up it
+with 30 points, the highest read as a top 1.18 m up. ⚠ Its height is read
+off the fullest of its own run of flat bins, never the highest that 30
+points stand at, on its noise's upper tail (a top 2.5 mm noisy read 1.6 mm
+high), nor a wider top within a centimetre under it (a fork 5 mm proud of
+its table read the table's height). ⚠ So a strip of top counts only at a
+quarter as wide as it runs inside the 2 cm, about 1 cm for one crossing
+them: a plate's 8 mm wall is no flat top under the point, and the window's
+is read. A surface tilted past about 15 deg slices into lines as a face
+does, and past a metre the camera's noise spreads a face's slice as wide as
+a top's.
+And of the points at that height, the face those points stand on (`box.joined`:
+the middles of 1 cm bins joined within 3 cm, wherever the bins fall -- a 3
+cm grid joined tops 4.5 cm apart as it fell; a grazing look lays a top's
+rows 2.5 cm apart 2.5 m off, and an end a finer join parted would be no
+reading, never a wrong one), so another top at its height in the window
+lends it no end. Only where the camera sees too little there -- a point over
+the floor, off the picture, hidden; too little of a flat top there -- or
+too little of the top there to read where it ends is the top the window's as
+before, and `object.under` says which. The price: a point a few cm in front of a box
+reads the counter it stands over (the first test of `measure` measured 4 cm
+in front of its box, and read the box); no reference procedure calls the
+verb, and the hands checks at set-outs 0-31 flew the base's flights, 160 of
+160. Flown on Luca's own procedures at their live draws, six keys each (one
+pod, the loop of 11-15's K12 rows): at the cube `top` read 0.803-0.807 in
+42 flights of 42 and its reaches aimed at 0.766 for 0.68 -- falls 16 → 0,
+held out at six more draws 6 → 0; at the knob's front-face tag, read at the
+knob's middle, the knob's upper part (0.819-0.824) in 21 of 24, where the
+window's rule read the lid in 22; the chest's passes 2 of 24 either way.
 
 ⚠ **A top reads high at range.** `box.top_height` takes the band round
 the highest bin holding a quarter of the fullest, and `TOP_BAND_M`'s 5 mm
@@ -8406,7 +8649,10 @@ longer moves a right belief the base's fit kept, and from a belief 0.2 m
 off on Luca's map of 11-09 one pose of 40 was searched onto the copy where
 the base's fit ended 0.1 m off. The base's own search, from an
 `inconsistent` fit, still takes the best of two places that explain a scan
-alike, and the doubt's beyond its window.
+alike, and the doubt's beyond its window -- but up from a fall, where a
+get-up has moved the body past either's window, each take is first weighed
+against the wide search's places ("A get-up moves the body past the
+search's window", below).
 
 ## One robot's interrupt asked, the other robot held (issue #690)
 
@@ -8834,6 +9080,453 @@ served wide search's own half turn: knocked about 160-200 deg, it takes the
 lobby's turned pose (its truth outside its 15 deg, so no rival to it); a
 rival at every heading there refused 10 of its 16 right relocations of
 right-headed get-ups.
+
+## A get-up moves the body past the search's window, and up from a fall a take is checked by a wider look (issue #681's fourth round)
+
+**What happened.** On the wake of 11-14 (2a1fbaf, the third round's doubt
+live) four of five falls at the storeroom's counter left the belief 0.55 m
+east of the truth (Luca, three times: 0.55, 0.54, and 0.55 more on top of
+the first) or 0.75 m (Rowan), the heading right, the `drift` row reading
+`found: 1`; it stayed 33, 75 and 87 minutes, to a station's fix or the
+pause, every scan in the storeroom `ok`. 29 of the wake's 51 graded tries
+were flown so, and 3 passed (7 of the 22 flown right).
+
+**The cause, flown** on eb63935 (`~/pluggybot-training/loop-1114-night/
+k10-681d/`: `tools/counter_fall.py`, a robot built as `solve.py` builds a
+served one, walked in from the lobby, the reference's job flown at a prop
+so that the map is its own, then shoved over standing at the work spot or
+inside one of the job's hand verbs, each flight its own noise; every scan
+from the stand on recorded with the matcher and the map as they stood, for
+`anatomy.py` and `replay.py`). 112 flights on each of two pods (two CPU
+types, so two realizations): 84 and 85 falls that stood.
+
+- *The get-up moves the body and the belief stays.* The odometry is held
+  while the get-up has the legs (#572), so the belief stands where the
+  fall was counted and the body where the get-up left it: 0.87 m apart at
+  the median (0.15-2.74), past the bounded search's 0.6 m in 72 of 84, the
+  body back from the counter (west of the belief in 82, a median 0.66 m),
+  its heading followed by the IMU to 0.34 deg at the median (1.55 at most)
+  through turns up to 180 deg. Following the legs instead is no better: an
+  odometry of its own stepped through the get-up beside a flight ended
+  0.8-1.3 m off where the held belief was 1.1-1.3 (six falls), and 1.77
+  against 1.74 in a stagger whose pelvis never went under 0.70 m.
+- *The search takes the best of a window the truth is not in.* From the
+  belief the first fit is `inconsistent`, and the bounded search -- an
+  inconsistent fit's: no rival test, no gain, `FOUND_SHARE` 0.75 -- takes
+  its best. In 12 falls of the 84 that was the place where the counter's
+  front face (x 27.38) lies on the wall 0.6 m behind it (27.98), 0.56-0.60
+  m east of the truth: both lines are in a robot's map within its first job
+  there, and a scan from where a get-up leaves it reads the face alone. One
+  taken apart: 244 of 320 points on walls (0.762), every direction fixed,
+  the weakest resting on 0.244 of the points; the truth, 0.99 m from the
+  belief, would have put 332 of 337 on walls.
+- *...or the fit itself does, or the wide search.* Left about half a metre
+  east, the fit slides the face's returns onto the wall's line in one step,
+  `ok`, no search (3 falls); 3 more were left where they stood, 0.92-1.08 m
+  east, their fits `doubted` or `slid`; at the cube's end of the counter a
+  `found` took a place 0.38 m east; and a get-up that carried the body 2.47
+  m, past the wide search's 2 m, had that search take the face's place as
+  the best in its reach, found twice (1 fall of the 85).
+- *Nothing takes it back.* On the face's place every fit is `ok`: 0.76-0.78
+  on walls, no direction held, the weakest resting on 0.22-0.23 of its
+  points, over `DOUBT_WEAK_SHARE`'s tenth, so never doubted (searched, the
+  doubt's own search would take the truth: 323-329 points against 234-240).
+  Its scans are laid in, and the copy is the map. ⚠ Luca's second fall on
+  top of the first (1.10 m) is NOT reproduced: flown once, shoved again 60 s
+  after a first fall that had left the base 0.60 m east, the second get-up
+  left the belief 1.77 m off and the wide search put it back on the same
+  place, 0.60 m; a copy sixty seconds of standing laid is thin, and Luca's
+  came after 75 minutes of work on its copy.
+
+19 of the 84 and 20 of the 85 ended 0.38-1.08 m off: by how far east of the
+body the stand left the belief (the 84), none of 32 under 0.45 m, 1 of 17
+at 0.45-0.75, 18 of 31 at 0.75-1.25, none of 4 past 1.25. Luca's own chest
+procedure of the wake, at its draw, falls by itself inside a reach in 6
+noise keys of 8 (K4's reproduction, flown through the same instrument): the
+belief left 1.1-1.2 m east of the body, the first matched scan `found`, and
+0.551-0.609 m east 60 s later in 6 of 6 -- the live number. It is not the
+counter's alone: N6's falls in the lobby and at six other places hold the
+same takes in the storeroom, the kitchen, the hall and on a sidewalk
+(below).
+
+**The rule** (`ScanMatcher.fell`, `_outdone`, `_look`, `_put`). Up from a
+fall the pose is in doubt (`fallen`): `HumanoidMission._stood_up` arms it
+as it arms the search at every heading, and it ends with a take that
+stands, a station's fix, a warp, the belief 2 m (`FALLEN_NEAR_M`) from
+where it stood up, or its looks spent (`FALLEN_LOOKS`, 6). Meanwhile, once
+in `LOST_RUN` scans, a take -- the fit's `ok` or `doubted`, its search's
+`found` -- or a fit that `slid` is given a WIDER LOOK: the wide search's own
+places (2 m round the belief, its lattice at every heading in 15 deg), kept
+where they explain the scan as a doubt's take must (`DOUBT_FOUND_SHARE`)
+within `UNIQUE_RAD` of the take's heading (the believed one, for a fit that
+slid), with the take one more of them.
+- The take stands where it is the best, a rival of the best
+  (`RIVAL_SHARE`: the look cannot tell them apart) or one PLACE
+  (`UNIQUE_M`) with the best or a rival of it.
+- Else it is `outdone`, a verdict of its own: not laid in, the belief
+  unmoved, breaking the plain run of refusals as any verdict but
+  `inconsistent` does. The best, where no other place rivals it, waits for
+  the next look to find it again and is then taken (`relocated`). While it
+  waits a take stands only as that place itself (`_near`: 8 cm, 1.5 deg),
+  between two looks and at the look that finds the place again; and places
+  the look could not tell apart refuse every take.
+- The wide search's own take, and the search at every heading's, is a take
+  too (`_put`): the doubt begins again where the belief was put, its looks
+  and its 2 m, and the next scan's take is looked round at once.
+A robot that has not fallen is matched as it was, to the verdict.
+
+**What each piece is there for** (the base's recorded falls replayed
+through each cut with the belief carried, `tools/replay.py`: true to the
+flight while the robot stands, as it does for a minute after each fall
+here; probes written to break it; three code reviews):
+
+- *A place, never a pose.* Refused for any better pose, a right belief was
+  moved wherever a copy of the room lies a step away: on the tests'
+  storeroom with a copy laid 0.3 m along its counter the look's best is the
+  copy at 7 poses of 7 (the room 0.78-0.81 of the copy's points on walls),
+  which the third round's rule forbids. ⚠ The price: a wrong place under
+  0.5 m from the truth is one place with it. The cube's end of the counter
+  has one 0.38-0.40 m east (211 of 273 points on walls where the truth puts
+  98 %): 1 fall of 84, 1 of 85. Taking it back was measured and NOT built:
+  "one place" kept only for a take that left the belief where it stood, a
+  find weighed against the look's best pose, ended 0 of 84 off in replay --
+  and on a live map of 11-09 that holds copies of the storeroom 0.25 m
+  apart it moved 12-14 right finds of 40 onto the copy at two offsets, and
+  25 right beliefs of 40 where "stood" was read off the take's own step.
+- *While a place waits, only that place itself.* After one refusal the
+  search's next find lay 0.43 m from the truth, between it and the place
+  refused -- one place with the find that waited -- was taken, and the fits
+  after it slid back onto the place refused; and at the look that found the
+  truth again a find 0.30 m from it stood, 0.22 m off 30 s later, where the
+  base was right (1 fall of 85).
+- *A fit that only slides is looked round.* It is no take and no refusal
+  of the wide search's run: 563 scans `slid` in a minute, the belief 0.86
+  m off (1 fall of 84), and on three of the five maps probed a belief left
+  (+0.8, +0.3) m stayed there at 10-37 poses of 40.
+- *The doubt's bar, the take's heading, the wide search's lattice.* A probe
+  of right beliefs (`tools/house_fall_probe.py`: the band at the true pose
+  at 7,840 places over the house, a map laid true, the matcher up from a
+  fall): the base ends over 0.1 m off at 2, its own `found`s by the hall's
+  flight, where the band's view of the steps changes with the stance and a
+  scan from the truth puts 0.61-0.75 of its points on walls. Weighed as the
+  wide search finds its places (`FOUND_SHARE`, any heading) the rule
+  refused the right belief at 11 places and moved it at 3 (poses turned
+  14-16 deg put 0.78-0.96 there); with the lattice laid at the take's
+  heading alone, a third of the work, it found those places at the doubt's
+  bar too and moved 3 (0.5-1.7 m): the wide search keeps one candidate a
+  place, at the heading the scan fits it best, so a place that fits better
+  turned is none. As built: the base's 2, the first verdict the base's at
+  every place.
+- *Its own find, its own count, its own verdict.* Found again by the plain
+  wide search (any heading, `FOUND_SHARE`), a look's find was confirmed two
+  scans on by all but the same scan, and a place that search held for its
+  own second refused a right take; read as `inconsistent`, a take the look
+  refused neither counted toward that search's run nor broke it, and its
+  find outlived scans the map agreed with.
+- *`FALLEN_LOOKS`, the last made only to find again.* Two better places
+  the look cannot tell apart refuse a take for as long as the robot stands
+  there; and a fit that only slides would be looked round, 40 ms a second,
+  for good. ⚠ The price: its looks spent, such a take is the base's again,
+  some five seconds on (not seen in any fall flown).
+- *The wide search's own take.* 2.47 m from the belief the truth was out of
+  its reach and the face's place in it (above); from where it was put the
+  truth is in the look's, and replayed, that fall ends right.
+- *An anchor's window is left as it was* (`ANCHORED_SCANS`), measured both
+  ways and neither right. Flown (`tools/anchor_fall.py`: the lost scene 2 m
+  out of the station, the belief set 0.5 m wrong, shoved a second after the
+  station's fix, 21 of the window's 30 scans left, the get-up leaving the
+  belief 1.25 m from the body): the open window laid 19 scans unmatched at
+  that belief and ended 1.21 m off on the copy they made; closed at the
+  fall, they were matched, and it ended 0.49 m off on the map's older copy,
+  the one laid through the wrong belief before the fix, which the window
+  had only begun to lay over. And where the get-up leaves the body in place
+  (1 fall of 84) with no anchored scan laid yet, the closed window hands a
+  right belief to that askew map: 0.2-0.45 m off on maps laid as far askew,
+  0.01 m with the window open (the fourth review's probe). The charge fails
+  on both in the flown scene ("station not seen": the lost search is once a
+  charge, and it was spent before the fall): an issue of its own.
+- *Only up from a fall.* Checking an inconsistent fit's find at any time
+  let the wide search's unconfirmed place (1.8 m along a sidewalk whose wall
+  the map had eroded, #401) refuse a find that was the truth.
+
+**Flown**, the rule as built (a4493307, on eb63935's line) beside the base
+(eb63935), each batch both trees on one pod, a process a flight, every stand
+the same in both trees. "Off" is 0.3 m or more from the truth 30 s after
+the stand (N6's instrument: at the end of its window, or 10 deg).
+
+| falls | stood | off: base | the rule | worse than the base |
+|---|---|---|---|---|
+| the counter's 112 (pod 1) | 84 | 19 | 1 | 0 |
+| the same on a second pod (another CPU, so another realization) | 84 | 20 | 1 | 0 |
+| other stands along the counter, the work spots with other noise, the restaurant's pass: 62 (pod 1) | 47 | 15 | 1 | 0 |
+| the same on the second pod | 47 | 17 | 1 | 0 |
+| N6's: the lobby held 30 s, six other places walking and held: 361 | 260 | 45 | 20 | 0 |
+| N6's: the lobby knocked 120 deg, held and walking: 402 | 236 | 69 | 63 | 0 |
+| FRESH, nothing looked at, flown once on the frozen rule: the counter at four other stands, the pass at two, the house kitchen's counter, the restaurant kitchen's worktop, the shop's checkout, the lab's bench: 48 | 35 | 7 | 3 | 0 |
+| FRESH: N6's hall, kitchen, living room, storeroom and sidewalk, other noise: 30 | 27 | 2 | 1 | 0 |
+
+What the rule leaves off is the base's own, unmoved: the cube's end's find
+(0.38 m, once on each pod), an `ok` fit 0.39 m along the restaurant's pass
+(one place with the truth), and in N6's batches the knocked heading's 58
+(the search at every heading's to find), 14 in the park (open ground,
+nothing in the look's reach), 8 at a place whose belief was set 0.42 m off
+before the fall (the map's own frame), 2 on a sidewalk and 1 in the lobby;
+in the fresh batch a find 0.36 m off at the house kitchen's counter and an
+`ok` fit 0.51 m off at the restaurant kitchen's worktop (one place with the
+truth, as the cube's), a robot its map refused for the whole hold at the
+shop's checkout, and a sidewalk's 0.39 m.
+A flight's END -- after its walk to the door and back -- is over 0.3 m off
+in 19 and 20 of the counter's flights on the base (worst 1.09 m), 1 and 1
+with the rule (0.39), leaving out one that fell again and never got up, the
+same on both trees.
+
+- *The live falls themselves* (K4's reproductions through the same
+  instrument, on the dev box): Luca's chest procedure at its draw, six
+  falls of its own: the base 0.551-0.609 m east 60 s on in 6 of 6, the rule
+  0.000-0.012 m (`outdone` x10, `relocated`, a second after its first
+  scan). Rowan's door procedure (1.71 m off at the stand) and its chest
+  lift: the base's verdicts on both trees, right.
+- *A robot that has not fallen:* the 202 recorded falls replayed with the
+  fall's doubt off are the base's, take for take and verdict for verdict;
+  round 3's whole batch on one pod, flown on the rule's code but for its
+  last review's fixes, which only a fall reaches (132 station trials, 60
+  drift pairs, the counter's 9 injected errors, the mall's 9; no fall in
+  any) is the base's row for row; on the branch as merged, the pair's
+  recording is the base's but two wall-clock stamps, and `determinism_spike
+  --pair` and `--resume-at 300` are identical.
+- *A right belief up from a fall:* the whole-house probe ends where the
+  base does at all 7,840 places (its own 2 by the hall's flight); on the
+  four live maps of 11-08 and 11-09 and a map laid true, 40 poses round the
+  counter each, a right belief is moved at none the base does not move.
+- *A belief left 0.5-1.4 m off on those maps* (the same probe, 25 scans):
+  ends over 0.3 m off at 26-33 poses of 40 on the base's map laid true and
+  none with the rule; on the live maps 10-40 on the base and 0-4 with the
+  rule (0-2 after 70 scans on the two maps of 11-09, where the base's
+  13-40 stay off), the rest on the map's own copy where it has one
+  (Rowan's of 11-08, laid 0.57 m off whole: both trees on its copy at 40 of
+  40).
+
+**The cost.** A look is the wide search's work: 38 ms on the physics thread
+at the median and 57 at most, timed alone on forty recorded falls on the
+dev box (the plain wide search 37 and 47, the bounded search 19 and 24);
+the scan that makes one, with its fit and bounded search, 55 and 79 (the
+worst single match of each of 202 replayed falls beside other work: 69 ms
+at the median, 186 at most). A fall whose take stands makes one look; one
+refused makes two, ten scans apart, and in between each scan's fit and
+bounded search are run and refused (~20 ms a scan): about 0.3 s of the
+thread over the second it takes. Six looks a fall at most. Nothing is added
+for a robot that has not fallen.
+
+**Not done.** Rowan's 0.75 m of 11-14 is not reproduced: the plateaus off
+the counter's two lines (0.92-1.08 m in 3 falls of 84) show a belief can be
+left wherever its fits hold it, and what laid Rowan's there is not known.
+Not up from a fall, the bounded search still takes the best of a window
+the truth may lie outside of, and the doubt's own search looks no further
+than its window; a belief arriving from the mall's station 0.9-1.0 m off
+(#681's call 3, a fix under `ASKEW` keeping a map laid askew) is `ok` on
+its own map, as before. A wrong place under `UNIQUE_M` from the truth
+stands (the cube's end's find; an `ok` fit 0.39 m along the restaurant's
+pass), as does any take where the truth is out of the look's 2 m or
+explains under 0.9 of the scan: the station's to fix, as before. The legs'
+reckoning is still held through a get-up, rightly (above). No
+scan is matched while the loop holds the body still itself (a grade's 5 s
+hold yields `STILL`): the first verdict after a fall inside a job comes
+once that hold is over.
+
+**What is true now.** `tests/test_scan_match.py` pins the rule on a
+synthetic storeroom with its counter (the face 0.6 m in front of the wall,
+both lines in the map): up from a fall the search's find a metre short of
+the truth, the fit slid onto the same place, a fit that only slides and the
+wide search's own take from 2.4 m off are each refused or looked round and
+the truth taken ten scans on, where a robot not up from a fall does what it
+did, no look made; a take the look agrees with stands at once, one look
+made; one place with the best or with its rival, it stands; two better
+rivals refuse it until its looks are spent, the last look made only to find
+again; while a place waits only that place stands, at the look that finds it
+again too; a look once in `LOST_RUN` scans whatever comes between, its find
+never the plain search's to confirm; its places at the doubt's bar and the
+take's heading; a copy 0.3 m off takes no right belief and one 0.7 m off
+does (the cost, stated); the doubt ends with a take that stands, a fix, a
+warp, 2 m walked or its looks, and a restart keeps it; a fall leaves an
+anchor's window as it was.
+
+## A pull's posture and the hand it rests on (issue #699)
+
+**What happened.** On 11-12 at 18:46 UTC Rowan ran its own `door_hook3` at
+the cupboard on the storeroom's counter: its open right hand reached down
+onto the door's top (`until="right.fz", below=-4`), then a 2 cm `pull`
+down at 15 N and a 7 cm `pull` back at 20 N took turns, and the run ended
+"you fell on the way, and let go". Every ask was inside the verb's words.
+Flown from where Rowan stood at 40 of the door's draws -- the 8 first
+looked at (the live 215 and 223, and 0-5) and 6-37, each its own noise --
+with the hand's own reading beside the true force its gripper's geoms push
+with, every 0.02 s of a pull (the loops of 11-14,
+`~/pluggybot-training/loop-1114/n5-live/` and
+`~/pluggybot-training/loop-1114-night/k1-699/`): 2 of 40 fell, 10 more
+bowed past 30 deg, and the hand pushed past three times its ask in 427 of
+its pulls' 33,443 samples, 475 N at worst.
+
+**Why: a posture taken over a hand that rests on something.** A pull takes
+the posture its way's end is reached from as it begins, and another on its
+way where the arm's solve misses its command, the hand waiting meanwhile.
+Taken apart at the live draw (215, which fell at 69.06 s):
+- *A posture asked on its way bears on the hand at once.* At 66.09 s, in a
+  pull down, the solve missed by 1.6 cm and the pull asked (-0.20 m, 0.55
+  rad, 60 deg) of a body bowed 0.3 rad: within 0.1 s the hand on the door
+  pushed 75-86 N for an ask of 15, and the robot read it as it happened
+  (74-86 N).
+- *An arm that can no longer follow stands still.* The next pull took
+  (-0.16, 0.3, 60 deg) as it began, the body still sinking. Past a miss of
+  6 cm (`WILD_M`) no solve is commanded: the arm's joints stood where they
+  were last sent while the pelvis sank 3.5 cm more onto them, 45-140 N down
+  for 1.3 s (read: 45-101), and nothing ends a pull out of reach for
+  `POSTURE_WAIT_S` after a posture is asked. The feet slid, the hand came
+  off the door, and the robot fell on its way home.
+- *A hand in the air is carried into what is under it.* At draw 1 a 7 cm
+  pull back in free air (2 N read) took (-0.22, 0.8, 0 deg) from (0, 0, 45
+  deg): the pelvis went from 0.73 to 0.50 m, the trunk to 57 deg, and the
+  hand, riding the body, came down on the door's top at 64-152 N, 403 at
+  worst. So what the hand reads as a posture is ASKED says nothing (asked
+  only of a light hand, flown on #699: no fall, the loads as before).
+- *Our own reference does it.* The table check's fork, carried by a pull,
+  took (-0.22, 0.8, +45 deg) from (0, 0, -45 deg) on its way at set-outs 6
+  and 26: the fork came down on the table at 92-135 N (82-100 read) and the
+  robot fell -- both of that check's falls in a pull.
+
+**What is true now** (`Reach.pull`, `_pulled`, `_pressed`;
+`reach.PRESSED_SHARE`, `PRESSED_ASK_N`): a hand that holds nothing as its
+pull begins takes a posture, at the pull's start or on its way, only while
+it reads no more than twice the pull's ask whichever way -- an ask of 20 N
+at least, so 40 N for every pull a procedure writes -- as it reads as the
+pull begins, and over `MEAN_S` on its way. A posture that is coming is
+given up where the hand reads past that: the body backs off toward the
+posture the pull began in, only until the hand reads no more than the ask
+(20 N at least), and is held there, as a move stopped is (`halt`), the
+hand waiting on it; that pull takes no other, and goes as far as its arm reaches from
+there, out of reach at once where it cannot follow. A hand that grips what
+it pulls takes its postures as it did (below). What a pull reports and
+says is unchanged: it ends at its distance, held fast or out of reach, as
+before.
+
+**Flown** (one Vast pod, an AMD EPYC 7713, beside c99956e, each flight its
+own noise): Rowan's door at its 40 draws, and the hands check at set-outs
+0-31 (the lid, the drawer, the door, the cube, the table: passes, and the
+check's falls, those in a pull apart).
+
+| | the door: fell | its pulls' samples past 1.5 / 3 / 5 times the ask | hardest | lid | drawer | door | cube | table | falls (in a pull) |
+|---|---|---|---|---|---|---|---|---|---|
+| c99956e | 2 of 40 | 1303 / 427 / 53 | 475 N | 26 | 21 | 24 | 20 | 24 | 6 (2) |
+| no posture in a pull (#699's option 1) | 1 | 1730 / 104 / 10 | 116 N | 27 | 23 | **13** | 18 | 22 | 3 (0) |
+| the command backed off along the whole force read (option 2) | 4 | 960 / 215 / 56 | 372 N | 27 | 21 | 23 | 20 | 24 | 5 (1) |
+| a pull ended past 2.5 times its ask (option 3) | 0 | 507 / 120 / 20 | 136 N | 26 | 21 | 23 | 20 | 24 | 3 (0) |
+| the rule for every hand | 0 | 642 / 129 / 17 | 136 N | 26 | 21 | 24 | 20 | 24 | 4 (0) |
+| this: a hand that holds nothing | 0 | 642 / 129 / 17 | 136 N | 26 | 21 | 24 | 20 | 24 | 6 (2) |
+
+Held out at set-outs 32-127 (the table's 32-63), beside the base on the
+same pod: both passed 306 of 416 (the lid 77, the drawer 66, the door 72,
+the cube 61, the table 30) with the same 5 falls, none in a pull; 414 of
+the 416 flights were the base's, and the two that were not (the table's 37
+and 62) gave up an open hand's posture in a flight that failed the same
+way. The served jobs' references from the tour (`solve.py --from tour`, 32
+draws each: the drawer 30, the door 26, the cube 26, the chest 29, the
+table 24) and the station's 39 approaches and 140 seats flew the base's
+flights exactly (each one's grade, falls and time).
+
+**Why a hand that holds nothing, and what a gripping hand still does.**
+The rule was built for every hand, and for every hand it holds at set-outs
+0-31: while a posture came, the references' pulls that passed read 30.6 N
+at most (163 pulls on c99956e: a door's lever pressed at 10 N, three times
+its ask; then 23, then under 19), every pull past 40 N was in a flight that
+failed or fell (ten of them, 56-150 N), no verdict moved, and both of the
+table's falls in a pull went. Held out, it cost the door 2 of its 72 passes
+(doors 38 and 53; 405 of 416 flights the base's, no other verdict moved):
+there the lever's press read 45 and 155 N while a posture came -- the body
+leaning on the gripped lever -- and the door opened; with the posture
+given up the latch never tripped. A pull's ask is no line either (3.1
+times it passed, 3.2 failed). So the line is drawn at the grip: the three
+flights that pass on the base and whose posture the rule gave up were all a
+gripped lever's (doors 38, 53 and 65, which still passed), every open
+hand's posture it gave up was in a flight that fails anyway (the table's
+hand-away moves at set-outs 1, 8 and 27), and Rowan's hand on the door's
+top held nothing. ⚠ What a gripped hand
+still does the same way: our table reference's fork (2 falls in 32, above)
+and a lid's knob in a robot's own lift (Rowan's `chest_lift2b` at draw 281:
+1 fall in 4 flights, 80-140 N on the knob) -- the rule for every hand took
+both away (commit 6b8d120 is that rule, flown whole), and is Ben's call
+with its price.
+
+⚠ Tried and dropped, each flown beside the rest:
+- *No posture in a pull at all* took every deep bow away (no flight of 40
+  bowed past 30 deg, 10 before) and the samples past three times the ask
+  from 427 to 104 -- and cost the door's reference 11 of its 24: its
+  lever's press takes (-0.16, 0.3, 0) as it begins, and without it ends out
+  of reach before the latch trips.
+- *The line at twice the ask* (20 N for a 10 N press) refused the posture
+  of a door that then opens: 23 of 32.
+- *Held where it had got to* when given up, a body 1 cm and 3 deg into a
+  posture asked on its way stayed leant on a lid's knob at 80-92 N for the
+  10 s its pulls went on: 392 samples past three times the ask over
+  `chest_lift2b`'s four flights for the base's 44, and 35 backing off.
+- *Sent all the way back* to the posture the pull began in, the way back
+  was a posture change of its own: the waist swung a low arm into the
+  counter (935 N, the door's draw 30).
+- *The pull ended* where its posture was given up: the same within the
+  flights (no fall in 40, 140 samples past three times the ask); it needs
+  an end of its own and a word for it.
+- *A posture still coming as a pull begins* (one the pull before asked)
+  given up too: nothing the flights could tell (123 samples for 129).
+- *The command's step along its way cut apart from its step across* (a
+  hand dragged across at the step's cap starved the back-off for 0.6 s at
+  draw 215): 4 falls in the 40 draws for the base's 2.
+
+**What it does not do.**
+- *A hand that grips* (above), as its grip reads: a jaw shut on what it
+  reads as nothing held (#669's lever) is a hand that holds nothing.
+- *The load across a pull's way that no posture brings stays.* The loop
+  closes on the force along the way alone, and where the arm's solve
+  misses its command by a centimetre with the turn it is asked to keep
+  (under `REPLAN_M`), the hand pushes 17-45 N across a 15 N pull for as
+  long as it lasts: with no posture allowed at all, 1730 samples past 1.5
+  times the ask for the base's 1303. #699's first box is not met.
+- *A posture taken with a light hand still bows the body as deep as it
+  did* (11 of the 40 flights past 30 deg, 10 before), and one that lands
+  the hand is given up only once the hand reads it, 0.1-0.2 s on.
+- *The reading is the loops' own* (`Reach.force`, the body taken as
+  still): a posture's own motion reads on it, and a give-up on that gives
+  up a violent change -- one of the door's 11 give-ups over its 40 draws
+  was of a hand in free air (its true push 0 N), the table checks' four
+  were not (91-193 N). The body's motion taken in (`sensed_force`), the
+  loops lost the hands checks 18 set-outs of 480 for 5 won (#631).
+- *A load that comes back once the body is held* is not backed off again:
+  a pull gives up one posture, once.
+- *A pull that ends while its posture is still coming* leaves the body on
+  its way there, as before -- and one that ends while its body backs off,
+  on its way back to where the pull began; nothing of the pull's own ends
+  it then (held fast, pinned and out of reach wait while a posture comes),
+  only its caller's patience or an `until`. A hand still loaded when the
+  posture's time to come is out (`POSTURE_WAIT_S`) goes on back. And
+  `move_hand` takes its postures as it did.
+- *The reach's joint-space way out has no stop on a push at all* (#708,
+  next).
+
+**The fingers-ahead reach that fells the robot is another loop (#708).**
+Luca's `chest_run35` at draw 303 fell in 6 of 8 flights on c99956e, in the
+same 6 with a pull taking no posture at all, and in the same 6 with this:
+every one falls before its first pull. Taken apart (the flight keyed
+`open_chest:303:n5`, which fell at 19.14 s): the reach plans (-0.16 m, 0,
+30 deg) and swings its arm out in joint space, round by its side; with the
+body in its posture by 17.5 s, at 18.40 s the right jaw's pad meets the
+chest's bracket with the arm still in phase `move`. The arm's own reading
+sees it -- 24 N at 18.45 s (26 true), 36 (38), 40 (53), 47 (62), 58-71
+(51-68) to 18.75 -- and no posture is asked meanwhile; but a joint-space
+move walks to its target whatever the hand reads (the stop on a push,
+`BLOCKED_N` held `BLOCKED_S`, is the line in's alone). The trunk went from
+18.87 s. Stopped there -- a move ended where the arm's own reading passed
+`BLOCKED_N` for `BLOCKED_S`, flown as a measurement and not kept -- the
+same 6 of 8 still fell, in what came after the stop (the hand's retreat,
+its way home, a hand stopped `blocked`), and the hands check moved 7 of its
+160 flights both ways (117 passes for 115, the door's falls 1 to 3). Its fix
+is #708's own.
 
 ## Debugging workflow that worked
 

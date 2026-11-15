@@ -790,9 +790,15 @@ only record of it was the box's log. One event type is new:
 - **`drift`**: per robot, every `lifecycle.DRIFT_EVERY_S` (300 sim s) and
   at every event that moved its belief outside a scan match or lost it.
   `why` (`DRIFT_WHYS`): `sample`; `relocated` (the scan matcher's wide
-  search); `fixed` (a commissioned fixture's tags: lying on the dock, lined
-  up at a bay, or a lost robot's look); `lost` (a fixture not where the
-  belief put it in plain sight); `searched` (the search that followed).
+  search, or up from a fall its wider look, pluggybot #681: that one comes
+  after `outdone` in a sample's `matched`, the wide search's own after
+  `inconsistent`); `fixed` (a commissioned fixture's tags: lying on the
+  dock, lined up at a bay, or a lost robot's look); `lost` (a fixture not
+  where the belief put it in plain sight); `searched` (the search that
+  followed); `refusing` (the scan matcher has refused every scan for
+  `navigator.REFUSED_TELL_S`, 60 sim s, running, and the robot is told so in
+  History, pluggybot #697) and `matching` (its map taking every scan
+  again for `navigator.MATCHED_TELL_S`, 5 sim s, told too).
   Every row: `pose` (where the robot IS -- the sim's own check, as a
   death's `at.pose`), `believed` (after the event), `errorM` and
   `headingDeg` (the belief less the truth); an event's `before`. Beside
@@ -805,7 +811,10 @@ only record of it was the box's log. One event type is new:
   - `lost`: `fixture`;
   - `searched`: `found`, `ended`, `seconds`, `viewpoints`, `arounds`, and
     where one was found its `fixture` and whether it `dropped` the map;
-  - `relocated`: `inliers`.
+  - `relocated`: `inliers`;
+  - `refusing`: `seconds` (the run so far) and `verdict` (the refusal that
+    reached it: `inconsistent`, `slid` or `outdone`); `matching`: `verdict`
+    (the one that fit).
 
   Nothing the robot is shown carries the truth.
 
@@ -2413,7 +2422,12 @@ wire.
 (`name`, and `program.source` — the text the robot wrote, Python-shaped and
 never executed) and `undefined` (`name`); a `refused` that carries `verb:
 "define" | "undefine"` and `reasons` is the library saying no, as against a
-run's refusal. A program written in the language has `program.source` in
+run's refusal. ⚠ A refused define's `reasons` are judged on the source AS THE
+ANSWER WROTE IT, and its `source` is the wire's cut one (at most
+`MAX_SOURCE_CHARS` + 1 characters): a reason may name a line past the
+`source` beside it and a length greater than its. At most 20 of a source's
+faults are listed (`library.MAX_FAULTS_SAID`), a last entry `(+N more)`
+counting the rest. A program written in the language has `program.source` in
 place of `program.roles`. "What has it written" is therefore
 `?kind=procedure` on the observatory, beside `?kind=thought`.
 

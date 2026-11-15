@@ -132,6 +132,10 @@ TURN_CLOSE_S = TURN_SETTLE_BIG_S + TURN_PULSES * (0.14 + TURN_SETTLE_S)
 STEP_KEEP_M = HumanoidMission.OTHER_ROBOT_CELLS * GRID_M
 STEP_KEEP_DOWN_M = HumanoidMission.DOWN_ROBOT_CELLS * GRID_M
 STEP_FRONT_M, STEP_FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M
+#: How far a walk's plan keeps its middle off what its map holds solid, m
+#: (the map's inflation, taxicab: along a wall's face) -- what `drive_to`'s
+#: text says (#700).
+WALK_KEEP_M = HumanoidMission.INFLATION_CELLS * GRID_M
 #: How far its measured depth's rays reach (`depth_cloud`, and a watcher's,
 #: `depth_watched`), m: a counter's chest within arm's reach. Each draws its
 #: own noise stream (`senses.Noise`: `measure`, `watched`), so watching
@@ -1656,9 +1660,10 @@ class HumanoidBody(Body):
     yield from charge.plug_in_routine(self, seen, self._charge_trace)
 
   def undock_routine(self):
-    """Unplugged, the plug left to its balancer at the cup, and turned away
-    from the station: its walker barely backs up (4 cm in 3 s asked 0.25
-    m/s), so it walks off forward."""
+    """Unplugged from its seat -- stepped back to it first where a charge
+    crept it in (`charge.unplug_routine`, #703) -- the plug left to its
+    balancer at the cup, and turned away from the station: its walker barely
+    backs up (4 cm in 3 s asked 0.25 m/s), so it walks off forward."""
     from pluggybot.humanoid import charge
     seen = self._station_seen or charge.look(self) or self._station
     if self.charging():

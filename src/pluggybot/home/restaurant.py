@@ -86,9 +86,8 @@ def redraw(model, data, target: str, k: int) -> None:
   """The pieces' hidden weights and friction at draw `k` set into the
   compiled world -- each piece's mass and its inertia (its shape's, scaled),
   every solid geom of it the drawn friction (a tag's film meets nothing) --
-  the derived constants recomputed,
-  the world's pinned statistic kept (`storeroom.redraw`'s trap)."""
-  import mujoco
+  the derived constants recomputed (`dishware.set_const`, which keeps the
+  world's pinned statistic and the put-away's hold)."""
   _ours(target)
   load = dw.draw(k)
   for p in dw.PIECES:
@@ -99,12 +98,7 @@ def redraw(model, data, target: str, k: int) -> None:
     for g in range(int(model.body_geomadr[b]), int(model.body_geomadr[b] + model.body_geomnum[b])):
       if not dw._is_film(model, g):
         model.geom_friction[g][0] = float(load.friction)
-  extent, center = float(model.stat.extent), model.stat.center.copy()
-  spring = model.qpos_spring.copy()
-  mujoco.mj_setConst(model, mujoco.MjData(model))
-  model.stat.extent = extent
-  model.stat.center[:] = center
-  model.qpos_spring[:] = spring
+  dw.set_const(model)
 
 
 #: Each kind's set-out of the place: its pieces beside it on the table, or on

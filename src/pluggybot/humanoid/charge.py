@@ -18,10 +18,11 @@ THE PLUG-IN (`plug_in_routine`), its right hand, standing at the seat:
   shut on it, carried to 5 cm off the port as the body then stands, and
   pushed to the body (`PUSH_N`): the funnel round the port takes it within
   15 mm, and a miss is fetched again and pushed a step to one side.
-THE UNPLUG (`unplug_routine`): the open jaws slid along the seated plug from
-  behind its back, shut, pulled straight off past the connector's 20 N
-  (`UNPLUG_N`), carried to the cup's mouth -- the balancer takes it from
-  there -- and let go.
+THE UNPLUG (`unplug_routine`), from its seat -- backed off to it first
+  where a charge crept it in (`UNPLUG_IN_M`) --: the open jaws slid along
+  the seated plug from behind its back, shut, pulled straight off past the
+  connector's 20 N (`UNPLUG_N`), carried to the cup's mouth -- the balancer
+  takes it from there -- and let go; tried again once from a look of its own.
 LOST (`HumanoidBody.lost_routine`): no station where the belief puts it; it
   looks for its tags by its head's camera, round where it stands and then
   outward from where it believes the station is, and seen, walks nearer by
@@ -118,6 +119,27 @@ CUP_SHORT_M = 0.025
 SEAT_TOL_M, SEAT_IN_M, SEAT_TOL_RAD = 0.06, 0.03, math.radians(6.0)
 #: ...in at most this many looks and steps (the last a look alone).
 SEAT_STEPS = 6
+#: The unplug begins at its seat too, and further in than this, m, it backs
+#: off to it first: plugged in, the balancer's 2 N on the port creeps a
+#: standing robot in toward the station, 7.5 mm a minute and turning it left
+#: (SimNotes, "The unplug after a long charge"), until its plug meets the
+#: station 18 cm past its seat after about 22 minutes, where the arm's way out
+#: behind the plug drove its jaw into the wall beside the station (304 N) and
+#: the station's box (#703). It unplugged 13 cm in and not 18; nearer than
+#: this its walker's step back would not move it
+#: (`humanoid.body.STEP_SHORT_M`). It backs off without turning, in this many
+#: steps at most: turned on the spot first, as the dock's line-up turns, a
+#: robot pinned there would swing its plug across the box's face, which the
+#: port lets go to past 20 N; one step back came 14.9 cm out to its seat.
+#: Its look after a step is never bowed: bowing presses the trunk toward a
+#: box the plug may still be against.
+UNPLUG_IN_M, UNPLUG_STEPS = 0.06, 2
+#: ...and a step whose word is one of these is the last: kept off the other
+#: robot, fallen, or out of its time, the same ask goes the same way.
+BACK_OFF_ENDS = ("blocked", "fell", "out of time")
+#: ...and it tries this many times, each from its seat as a look of its own
+#: places it, taken standing still (`LOOK_SETTLE_S`).
+UNPLUG_TRIES = 2
 #: A LOST robot looks for its station by its head's camera (#572), which
 #: reads the station's 60 mm tags much further than the colour imager's
 #: 1.07 m. MEASURED (`station_spike.py --reach`): both square-on to 4.5 m,
@@ -204,6 +226,50 @@ def look_routine(body):
   x, y, _ = body.pose
   yield from body.face_routine(math.atan2(one[0]["y"] - y, one[0]["x"] - x))
   return look(body)
+
+
+def to_seat(body, seen: RackPose) -> tuple[float, float, float]:
+  """Its seat at the station `seen` (its frame in the believed world) from
+  where it believes it stands: how far ahead and to its left, m, and the turn
+  that faces it the station's way, rad."""
+  sx, sy = seen.to_world(st.SEAT_X, st.SEAT_Y)
+  x, y, yaw = body.pose
+  c, s = math.cos(seen.yaw), math.sin(seen.yaw)
+  return ((sx - x) * c + (sy - y) * s, -(sx - x) * s + (sy - y) * c,
+          math.remainder(seen.yaw - yaw, 2 * math.pi))
+
+
+def _back_off_routine(body, station: RackPose, trace: list):
+  """Backed off to its seat for the unplug (`unplug_seat`) by `station`, its
+  feet as they stand -- never turned on the spot first: pinned at the box, a
+  turn swings the plug across the port's face, which the catch lets go to --
+  in `UNPLUG_STEPS` at most, each step's word in `trace`, then a plain look
+  taken standing still (`LOOK_SETTLE_S`), never bowed toward the box -- and
+  none after a step that went nowhere it could go again (`BACK_OFF_ENDS`):
+  (the station as last seen, the last step's word or "")."""
+  said = ""
+  for _ in range(UNPLUG_STEPS):
+    ahead, left, turn = to_seat(body, station)
+    trace.append({"seat": [round(float(v), 3) for v in (ahead, left, turn)]})
+    if unplug_seat(ahead):
+      break
+    # ...the station's way into the frame it stands in
+    c, s = math.cos(turn), math.sin(turn)
+    r = yield from body.step_routine(c * ahead - s * left, s * ahead + c * left, 0.0)
+    said = str(r.get("why", "")) if isinstance(r, dict) else str(r)
+    trace.append({"step": said})
+    if said in BACK_OFF_ENDS:
+      break
+    yield from body.hold_routine(LOOK_SETTLE_S)
+    station = look(body) or station
+  return station, said
+
+
+def unplug_seat(ahead: float) -> bool:
+  """At its seat to unplug, `ahead` m short of it: no further in than
+  `UNPLUG_IN_M`, the way a charge creeps it; its seat's every other way, its
+  hand reaches the plug wherever its body stands, the port being its own."""
+  return ahead >= -UNPLUG_IN_M
 
 
 def rough(seen: dict) -> RackPose:
@@ -401,7 +467,35 @@ def plug_in_routine(body, station: RackPose, trace: list):
 
 
 def unplug_routine(body, station: RackPose, trace: list):
-  """The unplug (the module docstring): "unplugged", or why not."""
+  """The unplug (the module docstring): "unplugged", or why not -- each try
+  begun at its seat, backed off to it first from further in than
+  `UNPLUG_IN_M` (`_back_off_routine`) by the station as it last saw it, and
+  a later try's off a plain look of its own taken standing still,
+  `UNPLUG_TRIES` in all."""
+  why = ""
+  for k in range(UNPLUG_TRIES):
+    if k:
+      yield from body.hold_routine(LOOK_SETTLE_S)
+      station = look(body) or station
+    # ...from wherever its steps left it: from partway in it unplugged too
+    # (13 cm in), and a step the other robot keeps it from goes nowhere
+    station, stepped = yield from _back_off_routine(body, station, trace)
+    if not body.charging():
+      why = ("it came off its port as it stepped back to its seat" + (f" ({stepped})" if stepped
+                                                                     else ""))
+    else:
+      why = yield from _unplug_try_routine(body, station, trace)
+      if why != "unplugged" and not body.charging():
+        why += "; it came off its port all the same"
+    trace.append({"unplugTry": k, "why": why})
+    if why == "unplugged" or not body.charging():
+      break
+  return why
+
+
+def _unplug_try_routine(body, station: RackPose, trace: list):
+  """One try of the unplug, from where it stands: "unplugged", or why not,
+  the hand home."""
   p, out = port(body)
   seat = p + out * st.GRIP_BACK_M
   turn = _grip(out)

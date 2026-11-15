@@ -285,8 +285,11 @@ def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was
     for _ in range(7):
       ma.sight.step(0.0)
     ma.stand.trunk.accel = np.array([0.1, 0.2, 9.7])
+    # ...and the plan it holds, with what kept its stand-in off the goal (#700)
+    ma._plan_memo = ((1.0, 2.0), 0.5, (0.2, 0.0), [(0.6, 2.0)], (0.6, 2.0), (1.0, 1.95))
     state, arrays = ma.kept_state()
     mb.restore_kept(json.loads(json.dumps(state)), arrays)
+    assert mb._plan_memo == ma._plan_memo
     for sa, sb in ((ma.odo.sm, mb.odo.sm), (ma.reach.self_model, mb.reach.self_model)):
       assert np.array_equal(sb.q, sa.q) and np.array_equal(sb.d.qpos, sa.d.qpos)
       assert np.array_equal(sb.d.site_xpos, sa.d.site_xpos)
@@ -306,7 +309,9 @@ def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was
     old = {k: v for k, v in state.items() if k not in ("selfModel", "placeLook", "sight")}
     old["trunk"] = {k: v for k, v in state["trunk"].items() if k != "accel"}
     old["reach"] = {k: v for k, v in state["reach"].items() if k != "selfModel"}
+    old["memo"] = state["memo"][:5]               # a save from before #700
     mc.restore_kept(json.loads(json.dumps(old)), arrays)
+    assert mc._plan_memo == ma._plan_memo[:5] + (None,), "held whole, and read by `_plan_to`"
     for sm in (mc.odo.sm, mc.reach.self_model):
       assert not sm.q.any(), "posed at its loop's next tick"
     assert mc._place_look == (-math.inf, None)

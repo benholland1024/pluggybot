@@ -114,7 +114,9 @@ def ends_at(model, data, tree, pictures, stance, windows, out, tag):
       continue
     top = report["top"]
     inside = points[np.hypot(points[:, 0] - mx, points[:, 1] - my) < st.MEASURE_NEAR_M]
-    on_top = inside[box.on_top(inside, top)]
+    # ...the points the verb read its ends off, its one selection: the top
+    # under the point, that face alone, or the window's (#704)
+    on_top = inside[st.measured_top(inside, mx, my)[2]]
     for key, axis, far, _ in st.MEASURE_ENDS:
       kinds, status, at = [], "?", None
       if key in report:
@@ -129,7 +131,8 @@ def ends_at(model, data, tree, pictures, stance, windows, out, tag):
       else:
         why = report[UNREAD].get(key, "")
         status = next((word for text, word in WHY if text in why), "?")
-      row = {**tag, "at": [mx, my], "top": round(top, 3), "end": key, "status": status,
+      row = {**tag, "at": [mx, my], "top": round(top, 3), "under": report.get("under"), "end": key,
+           "status": status,
              "read": None if at is None else round(at, 3), "truth": kinds}
       if out is not None:
         out.write(json.dumps(row) + "\n")

@@ -381,9 +381,13 @@ SENSORS["find.facing"] = Sensor(
 #: ...and what `measure` saw (#493, the arm with sight): a flat top's height
 #: and where it ends, the stance frame.
 OBJECT_ENDS = ("near", "far", "left", "right")
-MEASURE_SENSORS = (("object.top",) + tuple(f"object.{k}" for k in OBJECT_ENDS)
+MEASURE_SENSORS = (("object.top", "object.under") + tuple(f"object.{k}" for k in OBJECT_ENDS)
                    + tuple(f"object.{k}_taller" for k in OBJECT_ENDS))
 for _k, _doc in (("top", "the height of the flat top `measure` last saw, m"),
+                 ("under", "1 if that top is the one under the point `measure` looked at; 0 if "
+                  "its camera saw too little of a flat top there, or too little of it to read "
+                  "where it ends, and that top is the one `measure` reads round that point "
+                  "instead"),
                  ("near", "how far ahead that top begins, m"),
                  ("far", "how far ahead that top ends, m"),
                  ("left", "how far to your left that top reaches, m"),

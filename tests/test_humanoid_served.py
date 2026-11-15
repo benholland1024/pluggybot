@@ -308,7 +308,7 @@ def test_a_humanoids_true_death_forgets_its_plan_and_its_walls():
   life = _humanoid()
   m = life.body.mission
   try:
-    m._plan_memo = ((1.0, 1.0), 0.0, (0.0, 0.0), [(1.0, 1.0)], None)
+    m._plan_memo = ((1.0, 1.0), 0.0, (0.0, 0.0), [(1.0, 1.0)], None, None)
     m._walls_t, m._walls_mask = 1.0, np.ones_like(m.grid.grid, dtype=bool)
     life.body.forget_world()
     assert m._plan_memo is None and m._walls_mask is None and m._walls_t is None
