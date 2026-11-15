@@ -291,6 +291,17 @@ def test_under_a_point_a_vertical_faces_slice_is_no_flat_top():
     0.72, abs=0.001)
 
 
+def test_under_a_point_a_thin_top_proud_of_a_wider_one_is_its_own_top():
+  """#704's third review: read off the fullest flat bin within 1 cm under
+  the highest, a fork 5 mm proud of its table read the table's height; the
+  top's own band runs down its own flat bins alone, never across a gap."""
+  rng = np.random.default_rng(709)
+  fork = _flat(rng, 400, 0.0, 0.03, 0.0, 0.012, 0.725, sd=0.0006)
+  table = _flat(rng, 3000, -0.02, 0.05, -0.02, 0.03, 0.72, sd=0.0006)
+  assert box.top_height(np.concatenate([fork, table]), least=box.MIN_POINTS) == pytest.approx(
+    0.725, abs=0.0008)
+
+
 def test_under_a_point_returns_stacked_at_one_place_are_no_flat_top():
   """#704's second review: thirty returns of one pixel in one bin spread
   neither way, and passed the share's test (0 >= 0): a flat top spreads at

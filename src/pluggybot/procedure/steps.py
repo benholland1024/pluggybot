@@ -1042,21 +1042,17 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
 #: rest (0.3 s at most), the cube check placed 12 of 32 where it placed 20,
 #: 2 more falling, and 4 such grips still touched nothing.
 REACH_SHORT_M = 0.01
-REACH_STOPPED_AT = ("; as it stopped, its grip was {cm:.1f} cm short of where you asked, back "
-                    "along its fingers")
-#: ...and one asked no turn, its fingers' way its arm's to find, or one held
-#: off its goal more across its fingers than along them: how far from where
-#: it was asked, whichever way.
 REACH_STOPPED_FROM = "; as it stopped, its grip was {cm:.1f} cm from where you asked"
-#: ...said as back along its fingers where that is at least this share of it.
-REACH_ALONG_SHARE = 0.7
+#: ...and, asked a turn, how much of that was back along its fingers and how
+#: much across them.
+REACH_STOPPED_ALONG = " -- {back:.1f} cm back along its fingers and {across:.1f} cm across them"
 
 
 def _short_of(life, place, rot, felt: list) -> str:
   """How far a reach's grip ended from `place` as its reason says it, off
-  the last of what it `felt` (`REACH_STOPPED_*`): back along its fingers
-  where that is most of the miss (`REACH_ALONG_SHARE`), else whichever way --
-  "" where it felt nothing or ended within `REACH_SHORT_M`."""
+  the last of what it `felt` (`REACH_STOPPED_*`) -- asked a turn, how much
+  of it back along its fingers and how much across them -- "" where it felt
+  nothing or ended within `REACH_SHORT_M`."""
   import numpy as np
   from pluggybot.procedure import axes
   if not felt:
@@ -1066,10 +1062,12 @@ def _short_of(life, place, rot, felt: list) -> str:
   far = float(np.linalg.norm(miss))
   if far <= REACH_SHORT_M:
     return ""
-  back = float(miss @ -np.asarray(rot, dtype=float)[:, 2]) if rot is not None else 0.0
-  if back >= REACH_ALONG_SHARE * far:
-    return REACH_STOPPED_AT.format(cm=100 * back)
-  return REACH_STOPPED_FROM.format(cm=100 * far)
+  said = REACH_STOPPED_FROM.format(cm=100 * far)
+  if rot is None:
+    return said
+  back = float(miss @ -np.asarray(rot, dtype=float)[:, 2])
+  across = math.sqrt(max(far * far - back * back, 0.0))
+  return said + REACH_STOPPED_ALONG.format(back=100 * back, across=100 * across)
 
 
 #: ...and one that kept off another robot's body (#678; `Body.hand_kept`,
@@ -1473,8 +1471,8 @@ HANDS_VERBS: dict[str, Verb] = {
                   "the floor. The top it reads is the one under (x, y): the highest flat top "
                   f"your camera sees within {100 * MEASURE_AT_M:g} cm of (x, y), and its ends "
                   "are that top's own, not those of another top at its height beside it. "
-                  "Where your camera sees too little "
-                  f"within those {100 * MEASURE_AT_M:g} cm, or too little of that top to read "
+                  "Where your camera sees too little of a flat top "
+                  f"within those {100 * MEASURE_AT_M:g} cm, or too little of it to read "
                   "where it ends, it reads instead the highest top "
                   f"within those {MEASURE_NEAR_M:g} m that fills at least "
                   f"{SHARE_WORDS[MEASURE_TOP_SHARE]} as much "

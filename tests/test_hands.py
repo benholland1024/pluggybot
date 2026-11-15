@@ -236,20 +236,26 @@ def test_a_reach_that_stopped_short_says_how_far_short_its_grip_was_as_it_stoppe
     step = _fly(ABOVE, _held(0.054, 45.0, holds=False, pose=pose))["steps"][-1]
     assert not step["ok"] and step["why"] == "stopped short"
     assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
-                              + "; as it stopped, its grip was 5.4 cm short of where you asked, "
-                              "back along its fingers")
+                              + "; as it stopped, its grip was 5.4 cm from where you asked -- 5.4 "
+                              "cm back along its fingers and 0.0 cm across them")
   # ...and one asked no turn, how far from where it was asked
   step = _fly('def a():\n    reach("right", 0.3, -0.05, 0.79)\n',
               _held(0.054, 45.0, holds=False))["steps"][-1]
   assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
                             + "; as it stopped, its grip was 5.4 cm from where you asked")
-  # ...as is one held off more across its fingers than along them (#711's
-  # review: a pad caught on an edge and deflected 4 cm said nothing)
+  # ...and one held off across its fingers says so too (#711's reviews: a pad
+  # caught on an edge and deflected 4 cm said nothing; 5 cm back and 3.5
+  # aside said the 5 alone)
   body = _held(0.005, 45.0, holds=False)
   body.aside = 0.04
   step = _fly(ABOVE, body)["steps"][-1]
   assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
-                            + "; as it stopped, its grip was 4.0 cm from where you asked")
+                            + "; as it stopped, its grip was 4.0 cm from where you asked -- 0.5 "
+                            "cm back along its fingers and 4.0 cm across them")
+  body = _held(0.05, 45.0, holds=False)
+  body.aside = 0.035
+  assert _fly(ABOVE, body)["steps"][-1]["reason"].endswith(
+    "was 6.1 cm from where you asked -- 5.0 cm back along its fingers and 3.5 cm across them")
 
 
 def test_a_reach_that_holds_claims_nothing_of_what_its_fingers_met():
@@ -2394,7 +2400,8 @@ def test_measures_share_of_the_window_is_said_in_words():
   (`SHARE_WORDS`: a share with no words fails the text's build)."""
   from pluggybot.perception import box
   assert f"at least {st.SHARE_WORDS[box.TOP_SHARE]} as much" in st.HANDS_VERBS["measure"].doc
-  assert "or too little of that top to read where it ends" in st.HANDS_VERBS["measure"].doc
+  assert ("too little of a flat top within those 2 cm, or too little of it to read where it ends"
+          in st.HANDS_VERBS["measure"].doc)
 
 
 def test_measure_reads_the_top_under_its_point_alone_not_another_at_its_height():

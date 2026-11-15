@@ -12,9 +12,9 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### `measure` reads the top under its point, and a robot is told where its grip lies along its fingers and how far short a reach that stopped short was (#704, #711, K12, `loop-cube`) — opens when this PR is deployed
 
-**What changed** (`prompt_sha` `5b805c80…` → `f7fca8e5…`, 66,366 → 67,141
+**What changed** (`prompt_sha` `5b805c80…` → `0f1df27e…`, 66,366 → 67,157
 chars, 17 sections both, over #701's; the session host's hello moves, sha1
-`fb758c10…` → `bdceaa3c…`, and the counter's recording is flown again, its
+`fb758c10…` → `b796e75d…`, and the counter's recording is flown again, its
 flight to the byte but the new sensor's readout; no geometry and no wire
 format moved):
 - **`measure(x, y)` reads the top under (x, y)** (`steps.measured_top`):
@@ -22,12 +22,13 @@ format moved):
   (`MEASURE_AT_M`) that 30 of them stand at (`box.MIN_POINTS`,
   `box.top_height(least=)`), whatever stands lower there -- flat meaning its
   points spread across the plane, never a vertical face's slice
-  (`box.FLAT_ACROSS`), its height off its own fullest flat bin -- its ends
+  (`box.FLAT_ACROSS`), its height off its own run of flat bins -- its ends
   that top's own: of the points at its height, the face those points stand
   on (`box.joined`), never another top at its height in the window. Only
-  where none is there, or too little of it to read where it ends, does it
-  read the window's top as before, the highest within 0.45 m holding a
-  quarter of the fullest. A new sensor, `object.under`,
+  where there is too little of a flat top there, or too little of it to read
+  where it ends, does it read the window's top as before, the highest within
+  0.45 m holding a quarter of the fullest. A strip under about 1 cm wide (a
+  plate's 8 mm wall) is no flat top under the point. A new sensor, `object.under`,
   reads which (1 or 0), and the verdict carries it. The verb's text says
   both.
 - **YOUR BODY says where the grip lies along the fingers**: "its fingers 8
@@ -36,10 +37,10 @@ format moved):
 - **A reach that stopped short on its way says how far from where it was
   asked its grip was** (`steps._short_of`): "your right hand stopped short
   on its way: out of reach from how you truly stand, or pushing on
-  something; as it stopped, its grip was 5.4 cm short of where you asked,
-  back along its fingers" -- or "… 4.0 cm from where you asked", asked no
-  turn or held off more across its fingers than along them -- off the last
-  of what the verb felt (nothing more is read, no flight moves). A reach that HOLDS says nothing of how short it is: at the
+  something; as it stopped, its grip was 6.1 cm from where you asked -- 5.0
+  cm back along its fingers and 3.5 cm across them" (asked no turn, the
+  distance alone), off the last of what the verb felt (nothing more is read,
+  no flight moves). A reach that HOLDS says nothing of how short it is: at the
   moment its routine ends its hand is still coming in, and a tenth of the
   grips that read held then touched nothing (below).
 

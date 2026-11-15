@@ -1060,28 +1060,24 @@ save a filmstrip PNG named after the script.
   twice): the noise passes 3 sigma once in a quarter of hundred-pixel
   walks. ⚠ An end takes the walks' most common word, a tie the one that
   claims less (`steps.MEASURE_WORDS`). ⚠ `measure` READS THE TOP UNDER ITS
-  POINT (#704; `steps.measured_top`, one selection, `MEASURE_AT_M`;
-  SimNotes, "Where `measure` looks"): the highest FLAT height among the
-  points within 2 cm of it that 30 stand at (`box.top_height(least=)`),
-  WHATEVER STANDS LOWER (with the window's share there, a knob's front-face
-  tag read the counter below in 12 of 24 flights) -- ⚠ flat meaning its
-  points spread across the plane (`box.FLAT_ACROSS`, `FLAT_WIDE_M`: 1 cm in
-  front of a tall wall its slices read a top 1.18 m up), its height read off
-  its own fullest flat bin, never its noise's upper tail -- and of that
-  height the face they stand on alone (`box.joined`, bins' middles within 3
-  cm); else, or with too little of it in the window to read its ends, the
-  window's as before, `object.under` saying which -- read as the window's,
-  all 10 of Luca's cube runs read the counter under the cube's board
-  (0.719-0.722 m, the cube's top 0.806). ⚠ YOUR BODY SAYS THE
-  FINGERTIPS REACH 4 CM PAST THE GRIP (#711; `model.fingers_past_grip`, a
-  test reads the model's pad), and a reach that STOPPED SHORT says how far
-  from where it was asked its grip was as it stopped, back along its fingers
-  where that is most of it (`steps._short_of`, `REACH_STOPPED_*`). ⚠ ONE THAT
-  HOLDS SAYS NOTHING OF IT (SimNotes, "Stepping toward the work"): its body
-  routine ends as its command arrives, the hand still coming in and its
-  force read as a holding hand's, and 10 of 69 grips that read 1 cm short
-  and 10 N then touched nothing; judged again at rest, the cube check placed
-  12 of 32 for 20. ⚠ An answer may take `MAX_TOKENS` 128,000, told
+  POINT (#704; `steps.measured_top`, its one selection; SimNotes, "Where
+  `measure` looks"): the highest FLAT height among the points within 2 cm
+  of it that 30 stand at (`box.top_height(least=)`), whatever stands lower
+  -- flat meaning spread across the plane (`box.FLAT_ACROSS`,
+  `FLAT_WIDE_M`: a face's slice is a line) -- read off its own run of flat
+  bins (never its noise's tail, nor a wider top under 1 cm below), that face
+  alone (`box.joined`: bins' middles within 3 cm); else, or too little of it
+  to read its ends, the window's, `object.under` saying which. ⚠ A strip
+  under about 1 cm wide (a plate's wall) or a top tilted past ~15 deg is no
+  flat top there, and past a metre a face's slice may pass for one. ⚠ YOUR
+  BODY SAYS THE FINGERTIPS REACH 4 CM PAST THE GRIP (#711;
+  `model.fingers_past_grip`, a test reads the model's pads), and a reach
+  that STOPPED SHORT says how far from its goal its grip was as it stopped,
+  along and across its fingers (`steps._short_of`). ⚠ ONE THAT HOLDS SAYS
+  NOTHING OF IT (SimNotes, "Stepping toward the work"): its routine ends
+  with the hand still coming in, and a tenth of the grips that read held
+  then touched nothing; judged at rest, the cube check placed 12 of 32 for
+  20. ⚠ An answer may take `MAX_TOKENS` 128,000, told
   `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
   (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
   again saying so. ⚠ A REPLY LOST TO EVERY RETRY LOSES ONLY ITSELF: what it

@@ -148,9 +148,11 @@ JOIN_M, JOIN_CELL_M = 0.03, 0.01
 #: line, as wide as the camera's noise -- 1-2 cm in front of a box's face its
 #: slices filled each 2 mm bin up the face with 30 points or more, and the
 #: highest read as the top under the point -- where a 26 mm cube's top under
-#: its middle spreads as wide as it is long, and a strip of a top a quarter as
-#: wide as the point's 2 cm reach is long counts. Past a metre the camera's
-#: noise spreads a slice as wide as that.
+#: its middle spreads as wide as it is long. ⚠ So a strip of top counts only
+#: at a quarter as wide as it runs inside the point's 2 cm: about 1 cm for
+#: one crossing them (a plate's 8 mm wall does not, and the window's top is
+#: read), and a surface tilted more than about 15 deg slices into lines too;
+#: past a metre the camera's noise spreads a face's slice as wide as that.
 FLAT_ACROSS = 0.25
 #: ...and spreads at least this, m, its wider way: thirty returns of one
 #: pixel stacked in a bin spread neither way, and pass the share's test.
@@ -179,10 +181,14 @@ def top_height(points: np.ndarray, least: int | None = None) -> float | None:
     flat = [int(b) for b in np.flatnonzero(counts >= least) if _spread(pts[of == b, :2])]
     if not flat:
       return None
-    own = [b for b in flat if flat[-1] - b <= round(2 * TOP_BAND_M / TOP_BIN_M)]
+    # ...its own band: the flat bins running on down from it, never across a
+    # bin that is not (a fork 5 mm proud of its table is its own top)
+    own, below = [flat[-1]], set(flat)
+    while own[-1] - 1 in below and flat[-1] - (own[-1] - 1) <= round(2 * TOP_BAND_M / TOP_BIN_M):
+      own.append(own[-1] - 1)
     centre = float(edges[max(own, key=lambda b: counts[b])]) + TOP_BIN_M / 2
-    # ...off its flat bins' points alone, never a face's slice at its height
-    z = z[np.isin(of, flat)]
+    # ...off its own bins' points alone, never a face's slice at its height
+    z = z[np.isin(of, own)]
   band = z[np.abs(z - centre) < TOP_BAND_M]
   return float(np.median(band))
 

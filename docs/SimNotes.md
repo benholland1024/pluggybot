@@ -2696,8 +2696,8 @@ holds" after it were all a robot read. So YOUR BODY says where the grip lies
 along the fingers -- halfway, their tips 4 cm past it, off the part and the
 model's pads (`model.fingers_past_grip`) -- and a reach that stopped short
 on its way says how far from where it was asked its grip was as it stopped,
-back along its fingers where that is most of it (`steps._short_of`), off
-the last of what the verb felt.
+and how much of that back along its fingers and how much across them
+(`steps._short_of`), off the last of what the verb felt.
 
 ⚠ **A reach that holds says nothing of it**, though its grip may end short:
 its body routine ends the moment its command arrives, the hand still coming
@@ -6750,17 +6750,24 @@ spread at least a quarter of the wider, and the wider at least
 `FLAT_WIDE_M`, 3 mm): a vertical face's slice is a line, and 1 cm in front
 of a wall too tall to see over, the wall's slices filled every 2 mm up it
 with 30 points, the highest read as a top 1.18 m up. ⚠ Its height is read
-off the fullest flat bin of its own band, never the highest that 30 points
-stand at, on its noise's upper tail (a top 2.5 mm noisy read 1.6 mm high).
+off the fullest of its own run of flat bins, never the highest that 30
+points stand at, on its noise's upper tail (a top 2.5 mm noisy read 1.6 mm
+high), nor a wider top within a centimetre under it (a fork 5 mm proud of
+its table read the table's height). ⚠ So a strip of top counts only at a
+quarter as wide as it runs inside the 2 cm, about 1 cm for one crossing
+them: a plate's 8 mm wall is no flat top under the point, and the window's
+is read. A surface tilted past about 15 deg slices into lines as a face
+does, and past a metre the camera's noise spreads a face's slice as wide as
+a top's.
 And of the points at that height, the face those points stand on (`box.joined`:
 the middles of 1 cm bins joined within 3 cm, wherever the bins fall -- a 3
 cm grid joined tops 4.5 cm apart as it fell; a grazing look lays a top's
 rows 2.5 cm apart 2.5 m off, and an end a finer join parted would be no
 reading, never a wrong one), so another top at its height in the window
 lends it no end. Only where the camera sees too little there -- a point over
-the floor, off the picture, hidden -- or too little of the top there to
-read where it ends is the top the window's as before, and `object.under`
-says which. The price: a point a few cm in front of a box
+the floor, off the picture, hidden; too little of a flat top there -- or
+too little of the top there to read where it ends is the top the window's as
+before, and `object.under` says which. The price: a point a few cm in front of a box
 reads the counter it stands over (the first test of `measure` measured 4 cm
 in front of its box, and read the box); no reference procedure calls the
 verb, and the hands checks at set-outs 0-31 flew the base's flights, 160 of
