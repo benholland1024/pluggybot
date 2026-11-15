@@ -5480,7 +5480,11 @@ def record(scene: str, path: str, gif: bool = False, at_once: bool = False) -> N
   beside it (`viz.GIF_W` wide). ⚠ The scene's light is never changed for
   the camera: the frames are lifted after rendering (`CLIP_BRIGHTEN`)."""
   from pluggybot.viz import Recorder
-  Path(path).parent.mkdir(parents=True, exist_ok=True)
+  # ...written under a name of its own until the scene is flown: a flight
+  # that failed leaves no clip at PATH that reads as the whole scene
+  out = Path(path)
+  part = out.with_name(out.stem + ".part.mp4")
+  out.parent.mkdir(parents=True, exist_ok=True)
   print(f"recording the `{scene}` scene to {path} ...")
   clip = scene_clip(scene, at_once)
   rec, flown, stage, said = None, False, "", ""
@@ -5489,7 +5493,7 @@ def record(scene: str, path: str, gif: bool = False, at_once: bool = False) -> N
     root = model.body(ROBOT_ROOT).id
     az, el, dist, off = CLIP_CAMS[scene]
     turns = scene in CLIP_TURNS
-    rec = Recorder(model, path, fps=CLIP_FPS, size=CLIP_SIZE,
+    rec = Recorder(model, str(part), fps=CLIP_FPS, size=CLIP_SIZE,
                    track_body=ROBOT_ROOT if at is None and off is None else None,
                    azimuth=az + (_heading(data, root) if turns else 0.0),
                    elevation=el, distance=dist,
@@ -5516,12 +5520,13 @@ def record(scene: str, path: str, gif: bool = False, at_once: bool = False) -> N
   finally:
     try:
       if rec is not None:
-        rec.close(gif=str(Path(path).with_suffix(".gif")) if gif and flown else None)
+        rec.close(gif=str(out.with_suffix(".gif")) if gif and flown else None)
     finally:
       if "close" in clip:
         clip["close"]()
+  part.replace(out)
   print(f"wrote {path}: {rec.frames_written} frames, {rec.frames_written / CLIP_FPS:.1f} s"
-        + (f", and {Path(path).with_suffix('.gif')}" if gif else ""))
+        + (f", and {out.with_suffix('.gif')}" if gif else ""))
 
 
 #: The `--moving` table's moves (#631): reaches either hand, high, low, far,

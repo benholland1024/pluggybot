@@ -5,6 +5,7 @@ SIM-time cadence and streamed to an encoder, so a demo can be shared without
 screen-recording the viewer (`--record` on a demo script).
 """
 
+import math
 import os
 import subprocess
 import tempfile
@@ -74,6 +75,7 @@ class Recorder:
     self.interval = speed / fps            # sim seconds between frames
     self.fps = fps
     self._next = 0.0
+    self._seen = math.inf                  # no clock read yet: filming starts at the first
     self._label = ""
     self.frames_written = 0
     self._lift = (255.0 * (np.arange(256) / 255.0) ** (1.0 / brighten)
@@ -151,16 +153,25 @@ class Recorder:
     """Render one frame if the sim clock has reached the next sample time.
 
     Safe to call from an on_step hook on every step; it is a clock comparison
-    until it is time for a frame. ⚠ A clock set back (a scene's reset puts
-    `data.time` at its start again) is sampled on from where it now is:
-    held to the old next sample, a scene that starts over is not filmed.
+    until it is time for a frame. ⚠ Each sample is due `interval` after the
+    last one was DUE, never after the step that took it: counted from the
+    step, a 2 ms step put a frame every 34 ms and a clip played 1.7 % fast;
+    a call that passed several sample times writes the frame for each. ⚠ A
+    clock set back (a scene's reset puts `data.time` at its start again) is
+    sampled on from where it now is: held to the old next sample, a scene
+    that starts over was not filmed. Set back is read off the last call's
+    clock, never off the next sample less an interval, which rounds a ulp
+    over it and wrote a second frame at one instant.
     """
-    if data.time < self._next - self.interval:
+    if data.time < self._seen:
       self._next = data.time
+    self._seen = data.time
     if data.time < self._next:
       return
-    self._next = data.time + self.interval
-    self._write(self._frame(data))
+    frame = self._frame(data)
+    while self._next <= data.time:
+      self._write(frame)
+      self._next += self.interval
 
   def hold(self, data, seconds: float) -> None:
     """The clip's last frame shown `seconds` more: rendered once, now, and
@@ -197,7 +208,7 @@ class Recorder:
   def _lifted(self, pixels: np.ndarray) -> np.ndarray:
     """A rendered frame's pixels, brightened (`brighten`): a copy, the
     renderer's buffer left as it is."""
-    return pixels.copy() if self._lift is None else self._lift[pixels]
+    return pixels.copy() if self._lift is None else np.take(self._lift, pixels)
 
   def _caption(self, img: Image.Image, sim_time: float) -> None:
     d = ImageDraw.Draw(img)
@@ -248,17 +259,17 @@ class Recorder:
     if self.inset is not None:
       self.inset.close()
     if gif is not None and gif != self.path:
-      self._to_gif(gif)
+      self._to_gif(gif, min(self.fps, GIF_FPS))
     if self.is_gif:
-      self._to_gif(self.path)
+      self._to_gif(self.path, self.fps)
       os.unlink(self._mp4)
     return self.path
 
-  def _to_gif(self, path: str) -> None:
+  def _to_gif(self, path: str, fps: int) -> None:
     """mp4 -> GIF via a single shared palette (palettegen/paletteuse)."""
     import imageio_ffmpeg
 
-    vf = (f"fps={min(self.fps, GIF_FPS)},scale={GIF_W}:-1:flags=lanczos,split[a][b];"
+    vf = (f"fps={fps},scale={GIF_W}:-1:flags=lanczos,split[a][b];"
           "[a]palettegen=stats_mode=diff[p];"
           "[b][p]paletteuse=dither=bayer:bayer_scale=3")
     subprocess.run(

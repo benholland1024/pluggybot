@@ -217,6 +217,26 @@ def test_recorder_cuts_a_caption_to_the_frame(world_model, tmp_path):
     Recorder(world_model, str(tmp_path / "y.mp4"), size=SMALL, brighten=0.0)
 
 
+def test_recorder_keeps_real_time_over_a_long_clip(world_model, tmp_path):
+  """Each sample is due an interval after the last was due: counted from
+  the step that took it, 120 s at a 2 ms step gave 3,538 frames for 3,601
+  and the clip played 1.7 % fast; and a second call at one instant (a line
+  yielded with no step) never writes a second frame. The clock alone, no
+  physics, no picture."""
+  rec = Recorder(world_model, str(tmp_path / "long.mp4"), size=SMALL)
+  rec._frame = lambda data: None
+  rec.writer.append_data = lambda frame: None
+  data = mujoco.MjData(world_model)
+  try:
+    for k in range(1, 60_001):
+      data.time = k * 0.002
+      rec.maybe_grab(data)
+      rec.maybe_grab(data)
+  finally:
+    rec.close()
+  assert abs(rec.frames_written - 3601) <= 1, rec.frames_written
+
+
 def test_recorder_films_on_after_the_clock_is_set_back(world_model, world_data,
                                                        tmp_path):
   """A scene that starts over resets its data, and its clock goes back to 0
@@ -303,3 +323,18 @@ def test_record_flies_a_scene_once_and_writes_its_clip(tmp_path, monkeypatch):
   # ...and a world drawn brighter for our camera already is not lifted again
   model.vis.headlight.ambient[:] = 0.35
   assert sp.clip_lift(model) == 1.0
+
+  def failing():
+    yield "walking up the flight"
+    for _ in range(20):
+      mujoco.mj_step(model, data)
+      yield None
+    raise RuntimeError("a flight that fails")
+  monkeypatch.setattr(sp, "scene_clip", lambda scene, at_once=False: {
+    "model": model, "data": data, "lines": failing()})
+  broken = tmp_path / "stairs.mp4"
+  with pytest.raises(RuntimeError):
+    sp.main(["--record", "stairs", str(broken), "--gif"])
+  # ...leaves no clip at PATH that reads as the whole scene
+  assert not broken.exists() and not broken.with_suffix(".gif").exists()
+  assert (tmp_path / "stairs.part.mp4").exists()
