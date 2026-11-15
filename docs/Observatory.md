@@ -20,15 +20,18 @@ byte for byte; no geometry and no wire format moved):
   -- in a procedure's run, which the fall ends at once (#671), on a walk,
   standing): the fall is the job's call. The world is read as the fall is
   counted, the 5 s hold a `done`'s grade takes follows with the watch
-  reading what touches the prop, and ONE verdict comes through
+  reading what touches the prop -- lasting until the body stands again, a
+  get-up being no way to stand clear (one may take 20 s, and a prop set
+  out beside it is set out under it) -- and ONE verdict comes through
   `scoring.evaluate`, the fall first in the grader's own words ("you fell,
   and a fall fails the try -- the drawer 20 cm out in 30 s, and let go", a
   stub test's), settled once, its prop free for the next offer once it is
   in. History says it at the fall (`fell holding t_0307 (open_drawer): a
   fall fails the try, so the job ends here -- graded as things stand, 5 s
-  on`), and the verdict's line 5 s on; from the fall the job is no longer
-  in `heldTasks` (a turn asked in the hold listed it held beside that
-  line).
+  on`), and the verdict's line once the hold and the get-up are over; a
+  job taken again after it is a try of its own; from the fall the job is
+  no longer in `heldTasks` (a turn asked in the hold listed it held beside
+  that line).
 - **A `done` said after the fall** -- its answer in flight as the robot fell
   -- is one on a job not held, #648's line: in the hold `… not graded,
   because I fell at t=N, and that ended it -- it is being graded as things

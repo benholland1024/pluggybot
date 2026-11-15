@@ -4442,15 +4442,14 @@ class HubLifecycle:
     if self.body.falls != self._falls_read:
       self._falls_read = self.body.falls
       for task_id, watch in list(self._job_watches.items()):
-        task = self.tasks.get(task_id) if self.tasks is not None else None
-        # ...this robot's still: a watch outlives a job given back by up to
-        # a sweep (`_task_step`), and the other robot may have taken it
-        if (task is not None and task.state == "active" and task.claimed_by == self.root
-            and task_id not in self._fallen and _fell_unheld(watch)):
+        task = self._holds(task_id)
+        if task is not None and task_id not in self._fallen and _fell_unheld(watch):
           self._fall_ends(task, watch)
-    if self._fallen:
+    # ...its hold over once the body stands again: a prop set out beside a
+    # body getting up (its get-up up to `GETUP_BUDGET_S`) is set out under it
+    if self._fallen and (self.body.posture != "getting_up" or self.dead is not None):
       now = float(self.data.time)
-      for task_id in [t for t, (t0, _) in self._fallen.items() if now - t0 >= _hold_s()]:
+      for task_id in [t for t, (_, _, due) in self._fallen.items() if now >= due]:
         self._fall_graded(task_id)
 
   def _fall_ends(self, task, watch) -> None:
@@ -4458,8 +4457,9 @@ class HubLifecycle:
     grader reads it, the hold begun, History told at the fall."""
     from pluggybot.economy.tasks import KINDS
     module = _hand_grader(HAND_JOBS[KINDS[task.kind].task])
-    self._fallen[task.id] = (float(self.data.time),
-                             module.measure(self.model, self.data, task.target))
+    t0 = float(self.data.time)
+    self._fallen[task.id] = (t0, module.measure(self.model, self.data, task.target),
+                             t0 + module.HOLD_S)
     watch.hold()
     self._say(f"TASK {task.id}: I fell -- a fall fails the try, so the job ends here; "
               f"graded in {module.HOLD_S:.0f} s")
@@ -4471,19 +4471,20 @@ class HubLifecycle:
     once -- nothing, where it was settled some other way meanwhile (a true
     death's) or given back. ⚠ Not before a restart's `_resume_jobs` has
     taken its kept watch up: the day's look round steps the world first."""
-    task = self.tasks.get(task_id) if self.tasks is not None else None
-    if task is None or task.state != "active" or task.claimed_by != self.root:
+    task = self._holds(task_id)
+    if task is None:
       self._fallen.pop(task_id, None)
       return
     if task_id not in self._job_watches and task_id in self._kept_watches:
       return
-    t0, at_call = self._fallen.pop(task_id)
-    watch = self._unwatch_job(task_id)
+    t0, at_call, _ = self._fallen.pop(task_id)
+    watch = self._job_watches.get(task_id)
     if watch is None or not (watch.falls() or 0):
       # ...never left standing with its fall forgotten: a watch gone, or one
       # begun afresh where a restart kept no readings (another world)
       self._fail_held(task, "you fell, and a fall fails the try")
       return
+    self._unwatch_job(task_id)
     from pluggybot.economy.tasks import KINDS
     self._settle_graded(task, scoring.evaluate(
       KINDS[task.kind].task, self._hands_measured(task, at_call, watch, t0)), t0)
@@ -4493,11 +4494,24 @@ class HubLifecycle:
     holds, or will at the next step (a watch taken up after a restart): the
     fall's to settle. Never a job given back, whose watch may outlive it by
     a sweep."""
-    task = self.tasks.get(task_id) if self.tasks is not None else None
-    if task is None or task.state != "active" or task.claimed_by != self.root:
+    if self._holds(task_id) is None:
       return False
     watch = self._job_watches.get(task_id)
     return task_id in self._fallen or (watch is not None and _fell_unheld(watch))
+
+  def _hold_of(self, task_id: str) -> float:
+    """The hold `task_id`'s grade takes, s: its check's own `HOLD_S`."""
+    from pluggybot.economy.tasks import KINDS
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    check = HAND_JOBS.get(KINDS[task.kind].task) if task is not None and task.kind in KINDS else None
+    return _hand_grader(check or "lid").HOLD_S
+
+  def _holds(self, task_id: str):
+    """`task_id` where it is a job this robot holds and works on now, else
+    None."""
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    return (task if task is not None and task.state == "active"
+            and task.claimed_by == self.root else None)
 
   def _settle_job(self, task, verdict, t0: float, said: str) -> None:
     """A hand job closed on its verdict (`_grade_hands_routine`,
@@ -5719,6 +5733,9 @@ class HubLifecycle:
       return True
     self._say(f"TASK {task.id}: nothing queued -- write a procedure, run "
               f"it, and set done to {task.id} when the work stands")
+    # ...a try of its own (#701): no fall, nor watch, of one before it
+    self._fallen.pop(task.id, None)
+    self._unwatch_job(task.id)
     self._watch_job(task.id)
     return True
 
@@ -6087,7 +6104,7 @@ class HubLifecycle:
       # ...and the jobs a fall ended, in their hold (#701): their call kept,
       # never made again after a restart
       "fallen": {task_id: {"t": t0, "atCall": at_call}
-                 for task_id, (t0, at_call) in self._fallen.items()},
+                 for task_id, (t0, at_call, _) in self._fallen.items()},
       # The errand the world stopped in the middle of, and what it was for.
       "errand": (None if errand is None else
                  {"name": errand.name, "taskId": errand.task_id}),
@@ -6146,7 +6163,8 @@ class HubLifecycle:
       self._kept_watches = dict(state.get("jobWatches") or {})
     # ...and the jobs a fall ended, in their hold, whatever the world (#701):
     # a fall is the try's, never the place's, and forgotten its job is held
-    self._fallen = {task_id: (float(f["t"]), dict(f["atCall"]))
+    self._fallen = {task_id: (float(f["t"]), dict(f["atCall"]),
+                              float(f["t"]) + self._hold_of(task_id))
                     for task_id, f in (state.get("fallen") or {}).items()}
     self.dead = dict(state["dead"]) if state.get("dead") else None
     self.survival_since = float(state.get("survivalSince", self.survival_since))
@@ -6227,6 +6245,7 @@ class HubLifecycle:
                 if task.id == cut_task else "")
       if task.target in here.get(KINDS[task.kind].target_kind, ()):
         self._watch_job(task.id)
+        self._kept_watches.pop(task.id, None)   # ...taken up, or never to be (#701)
         if self._fell_holding(task.id):
           # ...the fall's, as its hold ends (#701): never "still mine" first
           if prefix:
@@ -6923,13 +6942,6 @@ def task_board(state: str | None = None, table=None, cadence=None,
     return TaskBoard(path=state, **kw)
   return TaskBoard(path=state, max_tasks=cadence.max_tasks,
                    max_offered=cadence.max_offered, **kw)
-
-
-def _hold_s() -> float:
-  """The hold every hand job's grade takes (`HOLD_S`, the lid's and each
-  check's alike), s."""
-  from pluggybot.challenge import lid
-  return lid.HOLD_S
 
 
 def _fell_unheld(watch) -> bool:

@@ -393,6 +393,61 @@ def test_a_fall_in_its_hold_rides_a_restore_into_another_world(tmp_path):
   assert not any("still mine" in ln for ln in _history(again))
 
 
+def test_a_falls_hold_lasts_until_the_body_stands_again(tmp_path):
+  """The hold is the grade's "stand clear", and a body getting up beside the
+  counter cannot: the job ends once both the hold and the get-up are over
+  (#701's third review: settled at 5 s, its prop was free to be set out
+  beside a get-up that may take 20 s)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.posture = "getting_up"
+  life.body.run(life.body.hold_routine(drawer.HOLD_S + 1.0))
+  assert life.tasks.get(task.id).state == "active", "settled under a body getting up"
+  assert [h["id"] for h in life.tasks.held_context(life.root, 0.0)] == [task.id]
+  life.body.posture = "standing"
+  life.body.run(life.body.hold_routine(0.1))
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
+
+
+def test_a_fallen_job_whose_watch_a_restart_cannot_take_up_is_failed(tmp_path, monkeypatch):
+  """...and one whose kept watch the next world cannot take up -- its prop
+  not where its watch reads it -- is failed as its hold ends, never held
+  for good waiting on it (#701's third review)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  state, arrays = life.kept_state()
+  again = _life(tmp_path)
+  again.restore_kept(json.loads(json.dumps(state)), arrays, in_place=True)
+  monkeypatch.setattr(again, "_watch_job", lambda task_id: None)
+  again._resume_jobs(None)
+  again.body.run(again.body.hold_routine(drawer.HOLD_S + 0.1))
+  ended = again.tasks.get(task.id)
+  assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
+  assert not again._kept_watches and not again._fallen
+
+
+def test_a_job_taken_again_is_a_try_of_its_own(tmp_path):
+  """A job given back and taken again is a new try: no fall of the try
+  before it (a fall's hold, its watch) ends it, and its `done` is graded on
+  its own (#701's third review)."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  life.tasks.release(task.id)
+  assert life._claim_task(task.id)
+  assert task.id not in life._fallen and life._job_watches[task.id].falls() == 0
+  verdict = _grade(life, task.id)
+  assert verdict["reason"] == "the drawer came out 0 cm, short of the 15 it must", verdict
+
+
 def test_a_watch_left_on_a_job_given_back_ends_nothing_of_the_others(tmp_path):
   """A watch outlives a job given back by up to a sweep: a fall then ends
   nothing the robot no longer holds -- the other robot's take of it least
