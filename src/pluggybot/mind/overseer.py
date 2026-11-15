@@ -2819,8 +2819,9 @@ steadied it counts as holding it up. A claimed challenge stands until you \
 say done, until the time its description gives is up, or until you fall: a \
 fall while you hold one ends it there, graded as if you had said done as \
 you fell, and a fall fails it. A failed grade closes it as failed, and so \
-does that time running out -- it may be offered again. While you hold one it is in `heldTasks`, its `leftS` the seconds of \
-that time still left when you were asked; the clock runs on while you think. \
+does that time running out -- it may be offered again. While you hold one \
+it is in `heldTasks`, its `leftS` the seconds of that time still left when \
+you were asked; the clock runs on while you think. \
 Said before the work stands (with an `explore`, say), `done` is graded as \
 things are and fails.
 """

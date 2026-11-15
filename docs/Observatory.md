@@ -41,8 +41,9 @@ byte for byte; no geometry and no wire format moved):
   fall's, never "not graded within"; the table's dishware stays out while
   the job holds it, its hold included, and is put away on the next sweep
   after, never from under a hand. A restart between the fall and its
-  verdict (rare: no save while a get-up runs) ends the job at the next
-  world's first step, a new call there, never "still mine" first.
+  verdict (rare: no save while a get-up runs) carries the fall's call over
+  -- its time, its reading, its hold's end -- and the next world settles
+  the job once, never "still mine" first.
 - **The challenges rule says so**, where it says how a job ends: "A claimed
   challenge stands until you say done, until the time its description
   gives is up, or until you fall: a fall while you hold one ends it there,

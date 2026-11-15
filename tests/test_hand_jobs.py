@@ -181,6 +181,10 @@ def test_a_fall_since_the_claim_fails_the_job(tmp_path):
   life.body.falls = 1
   life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
   assert life._done(ov.Decision(action="idle", reason="", done=task.id)) is False
+  # ...no time said for a fall the seam has not read yet (#701's review)
+  assert any(ln.endswith(f"said done on {task.id} (open_drawer): not graded, because I fell, "
+                         "and that ended it -- it is being graded as things stood then")
+             for ln in life.thoughts.texts[HISTORY].splitlines())
   life.body.run(life.body.hold_routine(drawer.HOLD_S + 0.1))
   verdict = life.tasks.get(task.id).verdict
   assert not verdict["ok"] and verdict["reason"].startswith("you fell"), verdict
@@ -329,26 +333,69 @@ def test_a_job_a_fall_ended_is_the_falls_past_its_minutes_too(tmp_path):
 
 
 def test_a_fall_a_restart_cut_is_graded_once_after_it(tmp_path):
-  """A restart between the fall and its verdict (#345): the watch's fall
-  rides the save, and the job ends at the step after it is taken up --
-  the day's look round having stepped the world first -- settled once, and
-  never "still mine" first."""
+  """A restart between the fall and its verdict (#345): the fall's call
+  rides the save -- its time, its reading, its hold's end -- and the job
+  is settled once in the next world, never "still mine" first and never
+  called again (#701's review: called again, History said the fall twice
+  and the grade's time was the restart's)."""
   life = _life(tmp_path)
   task = _offer(life, "open_drawer")
   assert life._claim_task(task.id)
   _fall(life)
   life.body.run(life.body.hold_routine(1.0))
   assert task.id in life._fallen
+  t = life._fallen[task.id][0]
   state, arrays = life.kept_state()
   again = _life(tmp_path)                       # the same board, a world compiled anew
   again.restore_kept(state, arrays, in_place=True)
   again.body.run(again.body.hold_routine(0.5))  # the look round, before its jobs are taken up
+  again._resume_jobs(None)
+  assert again._job_watches[task.id].holding, "in the fall's hold still"
+  again.body.run(again.body.hold_routine(drawer.HOLD_S + 0.1))
+  ended = again.tasks.get(task.id)
+  assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
+  [grade] = again.grades
+  assert grade["t"] == pytest.approx(t), "its call the fall's"
+  lines = _history(again)
+  assert not any("still mine" in ln or "fell holding" in ln for ln in lines), lines
+
+
+def test_a_fall_kept_with_no_save_of_its_call_ends_its_job_after_a_restart(tmp_path):
+  """...and a save that kept the watch's fall and not its call (one from
+  before #701's review) ends the job at the step after it is taken up --
+  the day's look round having stepped the world first."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  state, arrays = life.kept_state()
+  del state["fallen"]
+  again = _life(tmp_path)
+  again.restore_kept(state, arrays, in_place=True)
+  again.body.run(again.body.hold_routine(0.5))
   again._resume_jobs(None)
   assert not any("still mine" in ln for ln in _history(again))
   again.body.run(again.body.hold_routine(drawer.HOLD_S + 0.1))
   ended = again.tasks.get(task.id)
   assert ended.state == "failed" and ended.verdict["reason"].startswith("you fell"), ended
   assert len(again.grades) == 1
+
+
+def test_a_job_a_fall_ended_whose_watch_is_gone_is_failed_never_dropped(tmp_path):
+  """#701's review: a fall's hold that found its watch gone returned with
+  the job still held, its fall forgotten -- shown held again, and a later
+  `done` watched afresh could pass a try a fall had lost."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  _fall(life)
+  life.body.run(life.body.hold_routine(1.0))
+  life._unwatch_job(task.id)
+  life.body.run(life.body.hold_routine(drawer.HOLD_S))
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed"
+  assert ended.verdict["reason"].startswith("you fell, and a fall fails the try"), ended
 
 
 def test_a_fall_ends_its_own_robots_job_and_never_the_others(tmp_path):

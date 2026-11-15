@@ -831,11 +831,11 @@ save a filmstrip PNG named after the script.
   restart (`jobWatches`). ⚠ A FALL ENDS IT THERE (#701; `_fall_step`, on
   the seam every step): the fall its call, the grade's hold from it, one
   verdict the fall first, its prop free after, out of `heldTasks` from the
-  fall -- held on, a cupboard stayed
-  booked 985 s past the fall that had failed its job; a `done` after it is
-  #648's line, a job whose `done` is holding that grade's, and its kept
-  fall ends it after a restart, never "still mine" first (`_fell_holding`,
-  which no run-out takes). The rule says so. ⚠ HELD PAST ITS MINUTES IT IS FAILED (#602;
+  fall -- held on, a cupboard stayed booked 985 s past the fall that had
+  failed its job; a `done` after it is #648's line, a job whose `done` is
+  holding that grade's, its call kept across a restart (`fallen`), and no
+  run-out takes it (`_fell_holding`). The rule says so. ⚠ HELD PAST ITS
+  MINUTES IT IS FAILED (#602;
   `Task.out_of_time`, `HubLifecycle._run_out_held`): ending only on a
   `done` that could only fail it, three held jobs booked all three of the
   counter's props, and nothing was offered from 02:22 UTC on 11-03; a

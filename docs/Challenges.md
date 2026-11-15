@@ -327,8 +327,8 @@ departures, both about where an attempt starts:
   a `done` after it is one on a job not held (#648's line), and one whose
   `done` is holding is that grade's. Its readings ride a restart with the
   world they were read off (`kept_state`'s `jobWatches`): a lid opened
-  before one is still a lid that was opened, and a fall before one ends
-  its job at the next world's first step.
+  before one is still a lid that was opened, and a fall's call in its
+  hold rides one too (`kept_state`'s `fallen`).
 - *in the job's MINUTES.* The time limit is the job's own term
   (`TaskKind.minutes`, `tasks.HAND_MINUTES`; a world's cadence may give
   another), counted from the claim: 16, three times the slowest pass of the
