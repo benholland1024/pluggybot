@@ -887,7 +887,8 @@ save a filmstrip PNG named after the script.
   `place`): a metre under the floor, contacts off -- ⚠ the BODY's
   broadphase masks with its geoms' (switched alone, the pieces fell 4 m in a
   second) -- weight held (`gravcomp`), in `cull.PARKED_GROUP` -- ⚠ EVERY
-  `mj_setConst` GOES THROUGH `dishware.set_const` (the two `redraw`s'):
+  `mj_setConst` GOES THROUGH `dishware.set_const` (the two `redraw`s'; a
+  test fails on a bare one in `src/`):
   it counts afresh the bodies whose weight is held (`ngravcomp`), MuJoCo
   holds none while that is 0, and counted with the pieces set out -- the
   pair sets a place out twice, and a counter prop's set-out comes while the

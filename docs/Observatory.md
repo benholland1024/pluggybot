@@ -10,7 +10,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A refused define is judged as it was written and says every reason at once, and the other robot is shown a robot's own last line (K4, `loop-k4`) — opens when this PR is deployed
+### A refused define is judged as it was written and says every reason at once, the other robot is shown a robot's own last line, and the dishware put away stays put away (K4, `loop-k4`) — opens when this PR is deployed
 
 **Three small changes to what the robots read and one to what the world
 does, found on the wake of 2026-11-14.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029

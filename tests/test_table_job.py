@@ -637,6 +637,21 @@ def test_put_away_after_any_set_out_the_pieces_stay_where_they_are_parked(tmp_pa
   assert not _out(life)
 
 
+def test_the_models_constants_are_recomputed_only_through_set_const():
+  """The fence round it, as `CTRL_WRITERS` is `data.ctrl`'s: a bare
+  `mj_setConst` anywhere in `src/` takes the count with whatever is parked
+  just then -- both redraws called it so, and the put-away held nothing."""
+  import pathlib
+
+  from pluggybot.home import storeroom
+  src = pathlib.Path(dw.__file__).parents[1]
+  callers = sorted(str(p.relative_to(src)) for p in src.rglob("*.py")
+                   if "mj_setConst(" in p.read_text())
+  assert callers == ["activity/dishware.py"], callers
+  for module in (restaurant, storeroom):
+    assert "set_const(model)" in pathlib.Path(module.__file__).read_text(), module.__name__
+
+
 # ---- the board's own lines, and a robot's status ---------------------------
 
 
