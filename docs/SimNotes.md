@@ -4115,7 +4115,9 @@ In one process, charged 1,500 s and the unplug at once (one pod), the same:
 at the lobby's station, at the house's (14 cm in, 12 deg), and at the lobby's
 on the live build `2a1fbaff`, each "its hand did not get behind the plug", in
 13.2-13.7 s; its matcher off, the belief stayed where the robot docked, 197 mm
-and 9 deg off its body at 1,500 s.
+and 9 deg off its body at 1,500 s. The station's own trials (`--approach`,
+`--seats`, `--lost`) fly as they did, row for row: none charges long enough
+to creep 6 cm.
 
 **A walk after an unplug that failed is tethered.** After the undock's turn
 the rope runs from the plug's back, now in front of the robot, back through

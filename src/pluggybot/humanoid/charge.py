@@ -18,7 +18,7 @@ THE PLUG-IN (`plug_in_routine`), its right hand, standing at the seat:
   shut on it, carried to 5 cm off the port as the body then stands, and
   pushed to the body (`PUSH_N`): the funnel round the port takes it within
   15 mm, and a miss is fetched again and pushed a step to one side.
-THE UNPLUG (`unplug_routine`), from its seat -- stepped back to it first
+THE UNPLUG (`unplug_routine`), from its seat -- backed off to it first
   where a charge crept it in (`UNPLUG_IN_M`) --: the open jaws slid along
   the seated plug from behind its back, shut, pulled straight off past the
   connector's 20 N (`UNPLUG_N`), carried to the cup's mouth -- the balancer
@@ -119,14 +119,14 @@ CUP_SHORT_M = 0.025
 SEAT_TOL_M, SEAT_IN_M, SEAT_TOL_RAD = 0.06, 0.03, math.radians(6.0)
 #: ...in at most this many looks and steps (the last a look alone).
 SEAT_STEPS = 6
-#: The unplug begins at its seat too, and further in than this, m, it steps
-#: back to it first: plugged in, the balancer's 2 N on the port creeps a
+#: The unplug begins at its seat too, and further in than this, m, it backs
+#: off to it first: plugged in, the balancer's 2 N on the port creeps a
 #: standing robot in toward the station, 7.5 mm a minute and turning it left
 #: (SimNotes, "The unplug after a long charge"), until its plug meets the
 #: station 18 cm past its seat after about 22 minutes, where the arm's way out
 #: behind the plug drove its jaw into the wall beside the station (304 N) and
-#: the station's box (#703). It unplugged 13 cm in
-#: and not 18; nearer than this its walker's step back would not move it
+#: the station's box (#703). It unplugged 13 cm in and not 18; nearer than
+#: this its walker's step back would not move it
 #: (`humanoid.body.STEP_SHORT_M`). It backs off without turning, in this many
 #: steps at most: turned on the spot first, as the dock's line-up turns, a
 #: robot pinned there would swing its plug across the box's face, which the
