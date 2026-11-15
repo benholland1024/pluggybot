@@ -56,30 +56,35 @@ board and the grip 1.4 cm over the cube's top -- the pads reach 4 cm past
 the grip -- which nothing the robots read said, and the reach read ok:
 "closed on nothing it holds" was its one word for it (#711).
 
-**Measured** on one pod, an EPYC 7532 (this dev box replays its flights bit
-for bit), both trees -- `loop-staging` 3dffda2 beside the branch -- the rows
-in the loop's K12 folder:
+**Measured** on rented pods, both trees on one pod each time -- an EPYC 7532
+(this dev box replays its flights bit for bit), then an EPYC 7C13, where the
+base replayed the 7532's rows flight for flight -- `loop-staging` 3dffda2
+beside the branch, the rows in the loop's K12 folder:
 - **The hands checks at set-outs 0-31, every job, the base's flight for
   flight** (lid 26, drawer 21, door 24, cube 20, table 24 of 32; falls 0,
   2, 1, 1, 2, both trees): every verdict the same, 160 of 160, and every
   reach's end and push. No reference procedure calls `measure`, and a
-  reach's words move no flight.
+  reach's words move no flight (flown on `6fe93ac`; the reviews' fixes
+  since touch only `measure` and a failed reach's words).
 - **Luca's own procedures that call `measure`, at their live draws of
   11-14**, six noise keys each, with K4's contact record (every contact of
-  20 N or more on a part of the robot; the truth read for the record only):
-  at the cube, 42 flights of `cube_run1`, `cube_run2`, `cube_run3` and K4's
-  height variant, `measure` read the cube's top, 0.803-0.807 m (base
-  0.717-0.721, the counter), so they aimed at 0.766 for 0.68: falls 16 of
-  42 → 0; `cube_run1`'s thighs never met the counter's face (base up to 400
-  N) and it placed the cube 2 of 18 (base 0); `cube_run2` and `cube_run3`,
-  which step nearer the face, still pressed a thigh at up to 219-276 N and
-  stopped short on the board, none falling. At the chest's knob tag (its
-  front face, read at the knob's middle), 24 flights of `chest_run33`-`35`:
-  `measure` read the knob's upper part, 0.822-0.825, in 18 and 0.864-0.867
-  in 6 (base: the lid, 0.870-0.873, in 22 and the counter in 2); passes 2 of
-  24 on both trees, falls 5 → 4. A kept procedure that reads `object.top`
-  at a small thing's side-face tag now reads that thing, not what it hangs
-  from.
+  20 N or more on a part of the robot; the truth read for the record only),
+  the final head `e895f8b`: at the cube, 42 flights of `cube_run1`,
+  `cube_run2`, `cube_run3` and K4's height variant, `measure` read the
+  cube's top, 0.803-0.807 m (base 0.717-0.721, the counter), so they aimed
+  at 0.766 for 0.68: falls 16 of 42 → 0, and the cube placed in 2 (base 0);
+  `cube_run1`'s thighs never met the counter's face (base up to 400 N), while
+  `cube_run2` and `cube_run3`, which step nearer the face, still pressed a
+  thigh at up to 101-276 N and stopped short on the board, none falling. At
+  the chest's knob tag (its front face, read at the knob's middle), 24
+  flights of `chest_run33`-`35`: `measure` read the knob's upper part,
+  0.815-0.824, in 21 and the lid in 3 (base: the lid in 22, the counter in
+  2); passes 2 of 24 and falls 5 on both trees. A kept procedure that reads
+  `object.top` at a small thing's side-face tag now reads that thing, not
+  what it hangs from.
+- **Held out** (draws 400-405 on a fresh key, the same six procedures): the
+  cube's falls 6 of 18 → 0, none placed on either tree; the chest's 0 of 18
+  passed and 3 fell on both.
 - **Tried and dropped (#711):** a report for a reach that HOLDS with its
   grip short, pushing on what its fingers met. At the moment its routine
   ends the hand is still coming in, its force read as a holding hand's,
