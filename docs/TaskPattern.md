@@ -107,10 +107,11 @@ Rules the states carry, each decided explicitly:
   the fall is its call, graded after the hold a `done`'s grade takes, its
   verdict the fall first -- held on, a cupboard stayed booked 985 s past
   the fall that had failed its job, and a drawer was opened in a try a
-  fall had lost; one whose `done` is holding is that grade's. The holder is shown each job it holds with the time it has
-  left as it is asked (`heldTasks`, `leftS`; the rule says the clock runs on
-  while it thinks, #689) -- a network fact: the board knows when the
-  job was taken, as it knows how long an offer stands.
+  fall had lost; one whose `done` is holding is that grade's. The holder
+  is shown each job it holds with the time it has left as it is asked
+  (`heldTasks`, `leftS`; the rule says the clock runs on while it thinks,
+  #689; never one a fall has ended) -- a network fact: the board knows
+  when the job was taken, as it knows how long an offer stands.
 - **What no job holds is put away** (#560): a job whose things exist only
   for it -- the restaurant's dishware -- has them set out by its offer and
   put away (`HubLifecycle._put_away_step`) once no task naming its target is

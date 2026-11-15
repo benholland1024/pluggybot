@@ -5,6 +5,7 @@ is the counter alone (`StubBody`), nothing flown. The references flown from
 the station are `scripts/solve.py --feature drawer|door|cube|chest`'s.
 """
 
+import json
 import math
 import re
 from dataclasses import replace
@@ -346,6 +347,7 @@ def test_a_fall_a_restart_cut_is_graded_once_after_it(tmp_path):
   assert task.id in life._fallen
   t = life._fallen[task.id][0]
   state, arrays = life.kept_state()
+  state = json.loads(json.dumps(state))         # ...as a save writes it
   again = _life(tmp_path)                       # the same board, a world compiled anew
   again.restore_kept(state, arrays, in_place=True)
   again.body.run(again.body.hold_routine(0.5))  # the look round, before its jobs are taken up
