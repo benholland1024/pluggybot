@@ -3985,9 +3985,10 @@ barely backs up -- 4 cm in 3 s asked 0.25 m/s -- so an undock turns away.
 its back, squeeze it at 5 N and then 80 (at 40 it slipped out; shut at 80
 at once, 46 unplugs in 110 could not grip it, 45 of them having knocked it
 off its catch), pull it straight off past the connector's 20 N, carry it to the cup's
-mouth and let go there. One that fails still ends unplugged: the robot turns
-away, the rope's stop pulls the plug off at 20 N and the balancer takes it
-home.
+mouth and let go there -- from its seat, stepped back to it first where a
+charge crept it in, and tried once more where it fails (below, "The unplug
+after a long charge"). One that fails twice does NOT end unplugged: after the
+undock's turn the rope holds the plug in its port.
 
 ![The plug-in and the unplug: from its standoff the humanoid walks in, takes
 the plug out of its cup, plugs it into the port on its torso (16 s),
@@ -4060,6 +4061,71 @@ process from that save:
 
 A bow while plugged in, down to its deepest (1.1 rad, 63 deg), leaves the plug in, no
 catch broken and no fall: what a `spot` looking lower does.
+
+### The unplug after a long charge (#703)
+
+**What is true now.** Plugged in, a standing robot creeps in toward its
+station. The balancer's steady 2 N on the port (`BALANCER_N`), right of the
+robot's middle, slides its soles across the floor -- they never lift: MuJoCo's
+soft friction under a sustained shear -- at 7.5 mm a minute, turning it left
+about a degree a minute at first, until its plug meets the station's box 18
+cm past its seat and 11 deg turned, after about 22 minutes, and there it
+stays. From there the unplug's arm, on its way out to 3 cm behind the plug's
+back -- now at the station's face, 0.17 m ahead of the stance -- drives its jaw
+into the wall beside the station (up to 304 N) and then into the station's box
+(93 N), and stops short (every contact of 5 N or more recorded: the same
+unplug backed off first touched nothing but the plug): "my hand could not get the plug out",
+twice of twice on 11-14 after the lobby's charges of 1,944 and 1,504 s, each
+13.1 s after "unplugging" -- a restart only made it heard, and a charge's own
+end failed the same way unheard (it says so now). The unplug now begins at its seat: further in
+than `UNPLUG_IN_M` (6 cm) it backs off to it first, by the station as it last
+saw it -- from 18 cm in no look sees the tags, plain or bowed -- in a step or two
+and never turned on the spot first (pinned, a turn would swing its plug across
+the box's face, which the port lets go to); and a failed try is tried once more
+from a look of its own, taken standing still (`UNPLUG_TRIES`). Its looks
+while it backs off are plain ones, never bowed toward the box.
+
+**What tells it that it crept: its scan matcher.** Its legs see no slide with
+their feet planted, the gyro's 0.02 deg/s is under the heading hold's gate,
+and the station's anchor is taken once, as the charge begins. The band's fits,
+ten a second while it stands docked, keep its belief on its body:
+
+| plugged in (lobby, the loop's charge path) | its body crept in, turned | its belief off its body |
+|---|---|---|
+| 300 s | 3.8 cm, 5 deg | 5.3 mm, 0.13 deg |
+| 900 s | 11.2 cm, 10 deg | 3.0 mm, 0.11 deg |
+| 1500 s | 16.1 cm, 11 deg | 2.3 mm, 0.01 deg |
+| 600 s, its matcher off | 8 cm, 9 deg | 110 mm, 7.0 deg |
+
+At the house's station, in one process, its belief was 2.7, 3.0, 9.7 and 12.2
+mm off at 300, 600, 900 and 1,500 s. On a map laid from its seat alone, the robot never having walked
+(`station_spike.py --hold`), its belief did not follow: 15.5 mm off after 15
+mm of creep, the fits laying each scan where the belief already was.
+
+**Measured** (the lobby's station, one humanoid, osmesa; each a fresh process
+from a save of one charge, the unplug a decided `explore` begins with):
+
+| saved after | before | backed off to its seat first |
+|---|---|---|
+| 300 s | unplugged, 21.3 s | not asked to (3.2 cm in): the same flight |
+| 900 s | unplugged | from 10.3 cm in to 0.9, one step: unplugged, 25.8 s |
+| 1500 s | its hand did not get behind the plug, in 13.2 s | from 14.9 cm in to 1.7 cm out, one step: unplugged, 26.9 s |
+
+In one process, charged 1,500 s and the unplug at once (one pod), the same:
+at the lobby's station, at the house's (14 cm in, 12 deg), and at the lobby's
+on the live build `2a1fbaff`, each "its hand did not get behind the plug", in
+13.2-13.7 s; its matcher off, the belief stayed where the robot docked, 197 mm
+and 9 deg off its body at 1,500 s. The station's own trials (`--approach`,
+`--seats`, `--lost`) fly as they did, row for row: none charges long enough
+to creep 6 cm.
+
+**A walk after an unplug that failed is tethered.** After the undock's turn
+the rope runs from the plug's back, now in front of the robot, back through
+its body to the station: walked off, the rope's stop pulls the plug straight
+into the port's face (16.5 N read), which the catch holds -- it lets go only to
+a pull off the face or across it -- and the walk stalled 2.7 m short, as
+Luca's did 5.1 m short. What the loop does where a hand cannot take the plug
+out is #703's question for Ben.
 
 ## The humanoids' first jobs (issue #559, stage 3)
 

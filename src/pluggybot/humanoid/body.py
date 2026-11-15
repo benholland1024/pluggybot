@@ -1660,9 +1660,10 @@ class HumanoidBody(Body):
     yield from charge.plug_in_routine(self, seen, self._charge_trace)
 
   def undock_routine(self):
-    """Unplugged, the plug left to its balancer at the cup, and turned away
-    from the station: its walker barely backs up (4 cm in 3 s asked 0.25
-    m/s), so it walks off forward."""
+    """Unplugged from its seat -- stepped back to it first where a charge
+    crept it in (`charge.unplug_routine`, #703) -- the plug left to its
+    balancer at the cup, and turned away from the station: its walker barely
+    backs up (4 cm in 3 s asked 0.25 m/s), so it walks off forward."""
     from pluggybot.humanoid import charge
     seen = self._station_seen or charge.look(self) or self._station
     if self.charging():

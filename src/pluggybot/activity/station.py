@@ -73,7 +73,9 @@ BALANCER_DAMPING = 8.0
 #: Its rope's stop, m from the cup: the robot charging stands its port
 #: 0.25 m off the cup, and walked or fallen this far the stop pulls the plug
 #: off it (the balancer's own 1.6 m stroke would let a fallen robot lie
-#: plugged in).
+#: plugged in) -- ⚠ but never once it has turned its back on the station:
+#: the rope, through its body, then pulls the plug into the port's face,
+#: which the catch holds (#703).
 ROPE_STOP_M = 0.6
 #: The cup lets the plug go to a pull straight out past this, N: the
 #: balancer's 2 N and the funnel's hold, UNPUBLISHED (assumed); across it,
