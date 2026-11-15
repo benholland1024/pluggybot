@@ -808,14 +808,15 @@ def test_a_restart_keeps_the_matchers_field_and_the_imus_stream(house):
     m.data.time += LIDAR_PERIOD
   imu = m.stand.trunk.imu
   for _ in range(100):
-    imu.gyro_z(0.2, 0.002)
+    imu.gyro((0.0, 0.0, 0.2), 0.002)
   assert m.matcher.field is not None, "the premise: a field to keep"
   state, arrays = m.kept_state()
   assert state["trunk"]["imu"]["rng"] and state["match"] is not None
   b = _humanoid(house)
   n = b.mission
   n.restore_kept(state, arrays)
-  assert n.stand.trunk.imu.gyro_z(0.1, 0.002) == imu.gyro_z(0.1, 0.002)
+  rate = (0.0, 0.0, 0.1)
+  assert np.array_equal(n.stand.trunk.imu.gyro(rate, 0.002), imu.gyro(rate, 0.002))
   assert np.array_equal(n.matcher.field, m.matcher.field, equal_nan=True)
   assert n.matcher.fused_pose == m.matcher.fused_pose
   a.close()
