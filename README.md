@@ -20,9 +20,11 @@ them through, and keep itself alive while it still takes on work.
 
 *One robot sets a table. It walks from its charging station to a restaurant
 table, then lays a plate, a fork and a cup at a place card. The world grades
-the job, and this one passed. Here the robot runs a
-procedure that we wrote by hand. In the live world, the robots write their
-own.*
+the job, and this one passed. Here the robot runs a procedure that we wrote
+by hand, in the same way that it runs one of its own. In the live world,
+the robots write their own procedures. The filmstrip was drawn with
+`MUJOCO_GL=osmesa uv run python scripts/solve.py --feature table --from
+station --draw 0 --strip`.*
 
 - **Watch the robots live** at
   [rooftop-media.org/experiments/pluggyworld](https://rooftop-media.org/experiments/pluggyworld).
@@ -36,7 +38,8 @@ own.*
 The commands are for Linux. You need Git and
 [uv](https://docs.astral.sh/uv/), which installs Python and every package
 the simulation uses, MuJoCo among them. To watch the scene in a window, you
-also need a display.
+also need a display. The clone is about 300 MB with its history, and the
+packages take about 600 MB.
 
 ```bash
 git clone https://github.com/benholland1024/pluggybot.git
@@ -64,6 +67,11 @@ renders with a GPU, or with Mesa's EGL. If your machine has neither, use
 `MUJOCO_GL=osmesa` to render on the CPU (on Debian or Ubuntu, install the
 package `libosmesa6` first). On a six-core desktop, the walk took under a
 minute either way.
+
+This scene shows the body alone. The robots' decisions come from a
+language model: you can watch them decide in the live world, and running a
+mind yourself needs an API key ([Letting the robot choose its own
+errands](#letting-the-robot-choose-its-own-errands), further down).
 
 Every script takes `--help`. The [scripts](#scripts) further down show more
 scenes, such as the stairs, a fall and a get-up, and the two robots living
@@ -357,7 +365,7 @@ uv run python -m mujoco.viewer --mjcf=models/humanoid.xml
 their charging station and the storeroom's counter are put in at load,
 `humanoid/world.py`.)
 
-Run scripts in /tests/ :
+Run the tests in `tests/`:
 ```bash
 uv run pytest -v
 # or, to output print statements:
@@ -373,7 +381,8 @@ PLUGGYWORLD_TOKEN=dev-token-change-me MUJOCO_GL=osmesa \
     --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
-Then, in `rooftop-media-2026`, start it with `npm run dev`
+Then, in `rooftop-media-2026`, start it with `npm run dev`. The website's
+code is in that separate repository, which is private.
 
 It serves the generated house + garden (issue #6) with the humanoid in it
 (`home_humanoid`, issue #559), the one world; `--pair` serves both robots,
