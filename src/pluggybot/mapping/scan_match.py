@@ -258,9 +258,10 @@ TURNED_NEAR_M = 0.5
 #: scan on walls, every direction fixed, `ok` ever after (19 of 84 falls
 #: ended 0.4-1.1 m off; live on 11-14, four of five, kept 33-87 minutes).
 #: The fall's doubt ends with the first take that stands, a fix or a warp --
-#: once the belief has walked FALLEN_NEAR_M from where it stood up, the wide
-#: search's own reach (further on, a first fit is not a get-up's to answer
-#: for) -- or with its FALLEN_LOOKS wider looks, a second of scans apart,
+#: once the belief has walked FALLEN_NEAR_M from where it stood up or the
+#: wide search last put it, that search's own reach (further on, a first fit
+#: is not a get-up's to answer for) -- or with its FALLEN_LOOKS wider looks,
+#: a second of scans apart,
 #: the last of them made only to find again what the one before found: a
 #: take two better places outdo, the look unable to tell them apart, was
 #: else refused, and a fit that only ever slid looked round, for as long as
@@ -456,12 +457,11 @@ class ScanMatcher:
     self.turned_seen: tuple[tuple, tuple] | None = None
     #: ...and where the belief stood up: the first scan matched since.
     self.turned_from: tuple[float, float] | None = None
-    #: Up from a fall (`fell`) and no take has stood since (FALLEN_*): the
-    #: wider looks left to it, the scans before the next may be made, and
-    #: what the last one held (`_outdone`): the correction (dx, dy, dtheta)
-    #: to the one place it found, until the next finds it again, or places
-    #: it could not tell apart (`rivals`).
-    self.fallen = False
+    #: Up from a fall (`fell`) and no take has stood since (`fallen`,
+    #: FALLEN_*): the wider looks left to it, the scans before the next may
+    #: be made, and what the last one held (`_outdone`): the correction (dx,
+    #: dy, dtheta) to the one place it found, until the next finds it again,
+    #: or places it could not tell apart (`rivals`).
     self.looks_left = 0
     self.wider_wait = 0
     self.better: tuple[float, float, float] | None = None
@@ -555,13 +555,30 @@ class ScanMatcher:
     self.turned_left, self.turned_seen, self.turned_from = TURNED_SEARCHES, None, None
     self.lost_run, self.pending = 0, None
     self._settled()
-    self.fallen, self.looks_left = True, FALLEN_LOOKS
+    self.looks_left = FALLEN_LOOKS
     self.anchoring = 0
+
+  @property
+  def fallen(self) -> bool:
+    """Up from a fall, and the pose still in doubt: wider looks are left to
+    it (FALLEN_LOOKS)."""
+    return self.looks_left > 0
 
   def _settled(self) -> None:
     """The fall's doubt of the pose is over (FALLEN_*)."""
-    self.fallen, self.looks_left, self.wider_wait = False, 0, 0
+    self.looks_left, self.wider_wait = 0, 0
     self.better, self.rivals = None, False
+
+  def _put(self) -> None:
+    """The wide search, or the search at every heading, just put the belief
+    somewhere new. Up from a fall that is a take as any other -- a get-up
+    carried the body 2.47 m, past the wide search's reach, and its best in
+    reach was the counter's face on the wall behind it -- so the fall's
+    doubt goes on from there: the next scan's take is looked round at once,
+    from where the belief was put, which is where its 2 m are counted from
+    (FALLEN_NEAR_M)."""
+    if self.fallen:
+      self.better, self.rivals, self.wider_wait, self.turned_from = None, False, 0, None
 
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
@@ -659,9 +676,13 @@ class ScanMatcher:
       if better is not None:
         # ...found again by this look: taken as the wide search's finds are
         self.doubt_wait = 0
+        self._settled()
         return self._done(better[0], "relocated", **better[1])
       if outdone:
         return self._done(asked, "outdone", **{k: v for k, v in kw.items() if k != "step"})
+      if why in ACCEPTED:
+        # ...and a take that stands ends the fall's doubt of the pose
+        self._settled()
     if why != "inconsistent":
       return self._done(at, why, **kw)
     # ...and refused for long enough, the robot is lost past the search's
@@ -672,6 +693,7 @@ class ScanMatcher:
       seen, self.pending = self.pending, None if wide is None else wide[1]["step"]
       if wide is not None and seen is not None and _same(seen, self.pending):
         self.doubt_wait = 0
+        self._put()
         return self._done(wide[0], "relocated", **wide[1])
       # ...and up from a fall, at every heading (TURNED_*): only where the
       # served search found nothing, which in the lobby a turned search
@@ -682,6 +704,7 @@ class ScanMatcher:
         turned = self._turned(asked, pts)
         if turned is not None:
           self.doubt_wait = 0
+          self._put()
           return self._done(turned[0], "relocated", **turned[1])
     return self._done(at, why, **kw)
 
@@ -845,7 +868,7 @@ class ScanMatcher:
         return self.rivals, None
       return not _near(near[1]["step"], self.better), None
     self.looks_left -= 1
-    if self.looks_left <= 0 and self.better is None:
+    if not self.looks_left and self.better is None:
       self._settled()
       return False, None
     self.wider_wait = LOST_RUN
@@ -864,7 +887,7 @@ class ScanMatcher:
           self.better = best[1]["step"]
           if seen is not None and _same(seen, self.better):
             again = best
-    if self.looks_left <= 0 and again is None:
+    if not self.looks_left and again is None:
       self._settled()
     return outdone, again
 
@@ -1077,9 +1100,7 @@ class ScanMatcher:
       self.lost_run, self.pending, self.turned_seen = 0, None, None
     if why in ACCEPTED:
       # ...and a scan that fits ends the search at every heading (TURNED_*)
-      # and the fall's doubt of the pose (FALLEN_*)
       self.turned_left = 0
-      self._settled()
     self.counts[why] = self.counts.get(why, 0) + 1
     if why in ACCEPTED and held:
       self.counts["held"] = self.counts.get("held", 0) + 1
@@ -1114,7 +1135,7 @@ class ScanMatcher:
              "turnedLeft": self.turned_left,
              "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen],
              "turnedFrom": None if self.turned_from is None else list(self.turned_from),
-             "fallen": self.fallen, "looksLeft": self.looks_left, "widerWait": self.wider_wait,
+             "looksLeft": self.looks_left, "widerWait": self.wider_wait,
              "better": None if self.better is None else list(self.better),
              "rivals": self.rivals}
     return state, ({} if self.field is None else {"matchField": self.field})
@@ -1137,8 +1158,7 @@ class ScanMatcher:
     self.turned_seen = None if seen is None else tuple(tuple(float(v) for v in p) for p in seen)
     since = state.get("turnedFrom")
     self.turned_from = None if since is None else tuple(float(v) for v in since)
-    self.fallen = bool(state.get("fallen", False))
-    self.looks_left = int(state.get("looksLeft", FALLEN_LOOKS if self.fallen else 0))
+    self.looks_left = int(state.get("looksLeft", 0))
     self.wider_wait = int(state.get("widerWait", 0))
     better = state.get("better")
     self.better = None if better is None else tuple(float(v) for v in better)
