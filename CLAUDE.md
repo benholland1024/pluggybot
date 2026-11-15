@@ -1544,14 +1544,13 @@ save a filmstrip PNG named after the script.
   is not. ⚠ A SOURCE IS `MAX_SOURCE_CHARS` (3,000,
   #560; 1,500 before), SAID IN THE TEXT, and one over it that parses is
   refused with every reason (the cap's alone hid #615's six other faults).
-  ⚠ A SERVED ANSWER'S IS CUT ONE PAST THE CAP (`Menu.validate`, the one cut
-  a source meets) AND REFUSED IN THE LENGTH IT WAS WRITTEN
-  (`Decision.define_chars`, `Library._as_written`; `tests/
-  test_procedure_feedback.py`): read off the cut, every one said "3001
-  characters" and both robots trimmed by a character (11-14: 16 refusals,
-  three jobs lost); what the text before the cut is refused for is said
-  too, never what the cut made of its last line (a `pass` cut to `pa` read
-  "Expr is not part of this language").
+  ⚠ A SERVED ANSWER'S IS CUT ONE PAST THE CAP FOR THE WIRE AND JUDGED AS IT
+  WAS WRITTEN (`Menu.validate`, the one cut a source meets;
+  `Decision.define_written`, in no `as_dict`; `tests/
+  test_procedure_feedback.py`): judged off the cut, every refusal said
+  "3001 characters" and told what the cut had made of the text as faults
+  (Observatory.md, the period of `loop-k4`). A refused define's `reasons`
+  may so name a line past the `source` its event carries.
   ⚠ A RUN IS `MAX_STATEMENTS` (100,000, ~0.1 s: four nested loops in one
   def could run 10^8 on the physics thread). ⚠ DEFS CALL DEFS where the
   facts give calls (`WorldFacts.calls`, #560: every hands world, the served

@@ -230,11 +230,8 @@ class Library:
 
   # ---- the two verbs -------------------------------------------------------
 
-  def define(self, name: str, source: str, t: float = 0.0,
-             written: int = 0) -> lang.Procedure:
-    """Add a procedure, or raise LibraryRefused with every reason. `written`:
-    how long the source was written where it reached here cut
-    (`_as_written`)."""
+  def define(self, name: str, source: str, t: float = 0.0) -> lang.Procedure:
+    """Add a procedure, or raise LibraryRefused with every reason."""
     reasons: list[str] = []
     name = str(name or "").strip()
     if not _NAME.match(name):
@@ -259,7 +256,7 @@ class Library:
     # ...and what the SOURCE is refused for, in the same refusal: told its
     # room alone, a robot made room and was refused again for its source
     entries, faults = self._judged(name, source)
-    reasons.extend(_as_written(faults, source, written))
+    reasons.extend(faults)
     if reasons or entries is None:
       self.refusals.append({"t": t, "verb": "define", "name": name,
                             "reasons": reasons})
@@ -296,8 +293,7 @@ class Library:
     self.store.remove(f"{name}{SUFFIX}")
     self._relink()
 
-  def check(self, name: str, source: str, freeing: str = "",
-            written: int = 0) -> list[str]:
+  def check(self, name: str, source: str, freeing: str = "") -> list[str]:
     """What `define` would refuse this source for once `freeing` -- an entry
     the same answer undefines -- is gone: every reason `define` gives, in its
     words (issue #264). Changes nothing: the lifecycle asks BEFORE that
@@ -322,7 +318,7 @@ class Library:
       reasons.append(f"the library is full (it holds {self.cap}) -- an "
                      "`undefine` on the same answer as this define makes room "
                      "first")
-    return reasons + _as_written(self._judged(name, source, freeing)[1], source, written)
+    return reasons + self._judged(name, source, freeing)[1]
 
   def _judged(self, name: str, source: str, freeing: str = "") -> tuple[dict | None, list[str]]:
     """What the source itself is refused for, whatever the library's room
@@ -338,27 +334,6 @@ class Library:
     except Refused as e:
       return None, list(e.reasons)
     return None, []
-
-
-def _as_written(faults: list[str], source: str, written: int) -> list[str]:
-  """A source's faults where it reached the library CUT -- a served answer's
-  is cut one past the cap (`overseer.Menu.validate`), `written` the length
-  the answer wrote: the cap's fault says that length, and nothing the cut
-  made of its last line is told. ⚠ Read off the cut, every one said "3001
-  characters" and both robots trimmed by a character; and a `pass` cut to
-  `pa` read "Expr is not part of this language" (the wake of 2026-11-14).
-  A line the cut ended on whole keeps its faults."""
-  if written <= len(source):
-    return faults
-  last = f"line {source.count(chr(10)) + 1}"
-  split = not source.endswith("\n")
-  out = []
-  for fault in faults:
-    if fault == lang.over_cap(len(source)):
-      out.append(lang.over_cap(written))
-    elif not (split and re.match(rf"{last}\b", fault)):
-      out.append(fault)
-  return out
 
 
 def _defined(entry: Entry) -> list[str]:

@@ -470,81 +470,105 @@ def test_a_refusal_for_the_librarys_room_says_what_the_source_is_refused_for_too
   assert "the library is full" in line and "line 2" in line, line
 
 
-def _cut_in_a_pass(extra: int = 400) -> str:
-  """A source `extra` characters over the cap, a true fault on its line 2,
-  written so that the served cut (one past the cap) falls inside a `pass`
-  and leaves a text that still parses."""
+def _over_the_cap(head: str, at_the_cut: str, after: str) -> str:
+  """A source written so that the served cut (one past the cap) falls right
+  after `at_the_cut`: `head`, then `wait` lines, then `at_the_cut`, then
+  `after` past the cut."""
   from pluggybot.procedure import lang
-  head, tail = "def big():\n  import os\n", "  if wait(1):\n    pa"
-  room = lang.MAX_SOURCE_CHARS + 1 - len(head) - len(tail)
+  room = lang.MAX_SOURCE_CHARS + 1 - len(head) - len(at_the_cut)
   fill = "  wait(1)\n" * (room // 10 - 1) + "  wait(1)" + " " * (room % 10) + "\n"
-  written = head + fill + tail + "ss\n" + "  wait(1)\n" * (extra // 10)
-  assert written[:lang.MAX_SOURCE_CHARS + 1].endswith("    pa")
+  written = head + fill + at_the_cut + after
+  assert written[:lang.MAX_SOURCE_CHARS + 1].endswith(at_the_cut) and after
   return written
 
 
-def test_a_define_cut_at_the_cap_is_refused_in_the_length_it_was_written():
-  """A served answer's source is cut one past the cap before the library
-  reads it (`Menu.validate`), and the refusal read "the source is 3001
-  characters; the cap is 3000" whatever was written: both robots took it for
-  one character over, trimmed a little and were refused at "3001" again (the
-  wake of 2026-11-14: 16 refusals, four such pairs, three jobs lost). Where
-  the cut text still parsed, its own last line was told as a fault too --
-  "line 111: Expr is not part of this language" for a `pass` cut to `pa`,
-  which Luca took for a `-=` of its own. The refusal says the length that
-  was WRITTEN and what the text before the cut is refused for, never what
-  the cut's last line made; the wire's `define` is as it was."""
+def _refused_define(written: str, freeing: str = "", name: str = "big"):
+  """A served answer defining `written` under `name`, as the lifecycle takes
+  it: the decision, the `procedure` event its refusal put on the wire, and
+  History's lines for it."""
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("a", "def a():\n  wait(1)\n")
+  life, events = _deciding_life(L)
+  decision = _menu().validate({"action": "idle", "reason": "x", "undefine": freeing,
+                               "define": {"name": name, "source": written}},
+                              procedures=("a",))
+  before = len(life.thoughts.read("History.md").splitlines())
+  life._define(decision)
+  refused = [e for e in events if e.get("outcome") == "refused"][-1]
+  assert set(L.names()) == {"a"}
+  return decision, refused, life.thoughts.read("History.md").splitlines()[before:], life
+
+
+def test_a_define_cut_at_the_cap_is_judged_as_it_was_written():
+  """A served answer's source is cut one past the cap (`Menu.validate`), and
+  the library judged the CUT: its refusal read "the source is 3001
+  characters; the cap is 3000" whatever was written, and told what the cut
+  had made of the text as faults -- "line 111: Expr is not part of this
+  language" for a `pass` cut to `pa` (Observatory.md, the period of
+  `loop-k4`). The library judges the source as WRITTEN (`Decision.
+  define_written`): the written length, every true fault, nothing a cut
+  made; the wire's `define` and the event's `source` are the cut text, byte
+  for byte as before, and the written text goes nowhere else."""
+  import json
+
+  from pluggybot.lifecycle import overseer_context
   from pluggybot.procedure import lang
   cap = lang.MAX_SOURCE_CHARS
-  written = _cut_in_a_pass()
-  menu = _menu()
-  said = lambda n: f"the source is {n} characters; the cap is {cap}"  # noqa: E731
+
+  def said(chars: int) -> str:
+    return f"the source is {chars} characters; the cap is {cap}"
+  # a true fault on line 2, the cut inside a `pass`, a name only past the cut
+  written = _over_the_cap("def big():\n  import os\n", "  if wait(1):\n    pa",
+                          "ss\n  zz_past_the_cut = 1\n" + "  wait(1)\n" * 40)
   for freeing in ("", "a"):                 # `define`'s path, then `check`'s
-    L = lib.Library(lc.world_facts(WORLD))
-    L.define("a", "def a():\n  wait(1)\n")
-    life, events = _deciding_life(L)
-    decision = menu.validate({"action": "idle", "reason": "x", "undefine": freeing,
-                              "define": {"name": "big", "source": written}},
-                             procedures=("a",))
-    life._define(decision)
-    line = life.thoughts.read("History.md").splitlines()[-1]
-    assert said(len(written)) in line, line           # never the cut's 3001
-    assert "Expr" not in line, line                   # what the cut made of `pass`
-    assert "line 2: " in line, line                   # a true fault before the cut
-    refused = [e for e in events if e.get("outcome") == "refused"][-1]
-    assert refused["reasons"][0] == said(len(written))
-    assert len(refused["source"]) == cap + 1          # the wire's source: the cut, as before
-    assert set(L.names()) == {"a"}
-  assert decision.define_chars == len(written)
-  assert decision.as_dict()["define"] == {"name": "big", "source": written[:cap + 1]}
+    decision, refused, lines, life = _refused_define(written, freeing)
+    assert refused["reasons"] == [said(len(written)),
+                                  "line 2: Import is not part of this language"]
+    assert said(len(written)) in lines[-1] and "line 2: " in lines[-1], lines
+    assert "Expr" not in " ".join(lines)
+    # ...the wire as it was: the cut text in the decision's `define` and in
+    # the event; the written one nowhere a robot, a page or a file reads
+    assert refused["source"] == written[:cap + 1]
+    assert decision.as_dict()["define"] == {"name": "big", "source": written[:cap + 1]}
+    assert decision.define_written == written
+    for kept in (decision.as_dict(), refused, life.overseer.library.as_context(),
+                 life.overseer.library.stats(), life.thoughts.read("History.md"), life.log):
+      assert "zz_past_the_cut" not in json.dumps(kept, default=str)
+  # ...nor, through a whole answer of a mind's, its record of decisions, its
+  # next context or its files
+  from test_two_minds import stub_pair
+  mind, _ = stub_pair()
+  mind._after_decision(mind.overseer.menu.validate(
+    {"action": "idle", "reason": "x", "define": {"name": "big", "source": written}},
+    procedures=()))
+  assert any("could not write the procedure big" in line
+             for line in mind.thoughts.read("History.md").splitlines())
+  assert mind.decisions[-1]["define"] == {"name": "big", "source": written[:cap + 1]}
+  for kept in (mind.decisions, overseer_context(mind), mind.overseer.library.as_context(),
+               mind.thoughts.read("History.md"), mind.log):
+    assert "zz_past_the_cut" not in json.dumps(kept, default=str)
+  # ...what a cut makes elsewhere than its last line (each source is whole
+  # and sound but for its length): a helper def wholly past the cut,
+  for at, after, made in (
+      ("  wait(1)\n", "def tail_end():\n  wait(1)\n", "unknown verb"),
+      # ...a cut two characters into a `def` line,
+      ("  wait(1)\nde", "f tail_end():\n  wait(1)\n", "nothing outside them"),
+      # ...and a cut on the newline after a helper's `budget(...)`
+      ("def tail_end():\n  budget(steps=5, seconds=10)\n", "  wait(1)\n", "has no steps")):
+    written = _over_the_cap("def big():\n  tail_end()\n", at, after)
+    assert made in " ".join(lib.Library(lc.world_facts(WORLD)).check("big", written[:cap + 1]))
+    _, refused, lines, _ = _refused_define(written)
+    assert refused["reasons"] == [said(len(written))], refused["reasons"]
+    assert made not in " ".join(lines)
   # ...a source of exactly one over is whole, and says its own length
   one_over = "def big():\n" + "  wait(1)\n" * ((cap + 1 - 11) // 10)
-  assert len(one_over) == cap + 1
-  whole = menu.validate({"action": "idle", "reason": "x",
-                         "define": {"name": "big", "source": one_over}}, procedures=())
-  assert whole.define_chars == 0
-  with pytest.raises(lib.LibraryRefused) as e:
-    lib.Library(lc.world_facts(WORLD)).define("big", whole.define["source"])
-  assert e.value.reasons[0] == said(cap + 1)
-  # ...and a cut that falls on a line's end loses nothing of that line: only
-  # a last line the cut may have split is left unsaid
-  head, tail = "def big():\n", "  import os\n"
-  room = cap + 1 - len(head) - len(tail)
-  ended = (head + "  wait(1)\n" * (room // 10 - 1) + "  wait(1)" + " " * (room % 10) + "\n"
-           + tail)
-  assert len(ended) == cap + 1
-  L = lib.Library(lc.world_facts(WORLD))
-  with pytest.raises(lib.LibraryRefused) as e:
-    L.define("big", ended, written=cap + 500)
-  assert e.value.reasons[0] == said(cap + 500)
-  assert any("Import" in r for r in e.value.reasons), e.value.reasons
-  room = cap + 1 - len(head) - len(tail[:-1])
-  split = (head + "  wait(1)\n" * (room // 10 - 1) + "  wait(1)" + " " * (room % 10) + "\n"
-           + tail[:-1])
-  assert len(split) == cap + 1 and split.endswith("import os")
-  with pytest.raises(lib.LibraryRefused) as e:
-    L.define("big", split, written=cap + 500)
-  assert e.value.reasons == [said(cap + 500)]
+  decision, refused, _, _ = _refused_define(one_over)
+  assert len(one_over) == cap + 1 and decision.define_written == ""
+  assert refused["reasons"] == [said(cap + 1)]
+  # ...and one too long to read at all hears the cap alone, in its true length
+  huge = "def big():\n  import os\n" + "  wait(1)\n" * (lang.MAX_PARSE_CHARS // 10)
+  _, refused, _, _ = _refused_define(huge)
+  assert len(huge) > lang.MAX_PARSE_CHARS and refused["reasons"] == [said(len(huge))]
 
 
 # ---- 3. a procedure is run on the answer that defines it -------------------

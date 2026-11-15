@@ -74,9 +74,8 @@ MAX_SOURCE_CHARS = 3000
 #: a source over the cap is read and refused with every reason, where the
 #: cap's alone hid them all (#615's smoke: three repairs of 5,458 characters
 #: taught a mind its length and none of its six other faults). ⚠ A served
-#: answer's source is cut one past the cap (`overseer`'s `define`), the
-#: length it was written in carried beside it: its refusal says that length
-#: and what the text before the cut is refused for (`Library._as_written`).
+#: answer's source is cut one past the cap for the wire (`overseer`'s
+#: `define`) and judged as it was WRITTEN (`Decision.define_written`).
 MAX_PARSE_CHARS = 65536
 MAX_NESTING = 4
 #: How deep calls go below the def that runs (#560): `a` calling `b` is one.
@@ -755,8 +754,7 @@ def _parse(source: str, verbs: dict | None = None, verb_tests: bool = False,
   try:
     tree = ast.parse(source)
   except SyntaxError as e:
-    # ...where one over the cap is no text that parses, the cap alone (a
-    # served answer's source, cut one past it, often is none)
+    # ...where one over the cap is no text that parses, the cap alone
     raise Refused(cap or [f"line {e.lineno or 0}: {e.msg}"]) from None
   except ValueError:
     # a lone surrogate (`\ud800` in the answer's JSON): UnicodeEncodeError

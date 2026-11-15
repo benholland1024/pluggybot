@@ -18,15 +18,18 @@ characters, 17 sections; no rule's text restates any of the words below),
 nor the session host's hello (byte for byte), nor any geometry, nor either
 committed recording (they fly no tasks and no library).
 
-1. **A define cut at the cap is refused in the length it was written.** A
-   served answer's source is cut one past the cap before the library reads
-   it, and the refusal read "the source is 3001 characters; the cap is
-   3000" whatever was written. It now says the length the answer wrote
-   ("the source is 3412 characters; the cap is 3000"), still says what the
-   text before the cut is refused for, and no longer says what the cut made
-   of its last line (`Library._as_written`; the wire's `define` and the
-   `procedure` event's `source` are the cut text as before, its `reasons`
-   the new words).
+1. **A define cut at the cap is judged as it was written.** A served
+   answer's source is cut one past the cap before it goes on the wire, and
+   the library judged the cut: the refusal read "the source is 3001
+   characters; the cap is 3000" whatever was written. The library now
+   judges the source as the answer wrote it (`Decision.define_written`,
+   kept beside the cut text and in no `as_dict`): the refusal says the
+   written length ("the source is 3412 characters; the cap is 3000") and
+   every fault of the whole source, and nothing a cut made (one past
+   65,536 characters hears the cap alone, in its true length). The wire's
+   `define` and the `procedure` event's `source` are the cut text byte for
+   byte as before; the event's `reasons` are the new words, and may name a
+   line past the source the event carries (the site prints both).
 2. **A refused define says every reason at once.** A define into a full
    library, or under a name already kept, heard that reason alone; it now
    hears what its source is refused for in the same refusal

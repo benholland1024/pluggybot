@@ -4506,15 +4506,16 @@ class HubLifecycle:
       return {"library": {"names": list(library.names()), "cap": library.cap}}
     name = str((decision.define or {}).get("name", "")).strip()
     source = (decision.define or {}).get("source", "")
-    # ...and how long the answer wrote it, where it came cut at the cap
-    written = int(getattr(decision, "define_chars", 0) or 0)
+    # ...judged as the answer wrote it, where it came cut at the cap: the
+    # cut text is the event's, as it always was
+    judged = decision.define_written or source
     # AN ANSWER THAT UNDEFINES AND DEFINES is checked before anything
     # changes (issue #264, `Library.check`): applied in order, a refused
     # define had already deleted the procedure it was meant to improve -- or
     # to make room for, which the refusal for a full library advises. The
     # undefine waits for a define that goes through.
     if decision.define and decision.undefine:
-      held = library.check(name, source, freeing=decision.undefine, written=written)
+      held = library.check(name, judged, freeing=decision.undefine)
       if held:
         kept = decision.undefine if decision.undefine in library.names() else ""
         library.refusals.append({"t": t, "verb": "define", "name": name,
@@ -4560,7 +4561,7 @@ class HubLifecycle:
                     **shelf()})
     if decision.define:
       try:
-        proc = library.define(name, source, t=t, written=written)
+        proc = library.define(name, judged, t=t)
       except LibraryRefused as e:
         self._say(f"PROCEDURE define {name!r} refused: {e}")
         self._remember(f"could not write the procedure {name}: "
