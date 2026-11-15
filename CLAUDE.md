@@ -2521,15 +2521,12 @@ save a filmstrip PNG named after the script.
   where the fixture puts it, then the address, then a lattice OUTWARD FROM
   THE ADDRESS (outward from the robot, it walked out of the house). ⚠ THE
   WALK TO WHERE IT SHOULD BE IS GIVEN WHAT A WALK THAT LONG NEEDS (#698;
-  `places.guess_patience`): `GUESS_WALK_S_M` (10 s) a metre of the walk
-  there over its own map as the planner prices it (`Navigator.walk_m`, the
-  straight line where none reaches), at least a viewpoint's 90 s
-  (`VIEWPOINT_PATIENCE_S`) -- given 90 s, from the mall's station (22-25 m
-  in a straight line) it ran out 5.8-12.3 m short and looked round there
-  before it walked to the address; ⚠ at the charge's 6 s a metre two
-  walks the map read 27 m ran out at 162 s: the research center's south
-  wall is carved out of the map along the alley (#401), and the walk goes
-  the 43 m way round. ⚠ The
+  `places.guess_patience`; SimNotes, "Places, not coordinates"): 10 s
+  (`GUESS_WALK_S_M`) a metre of the walk there as the planner prices it
+  over its own map (`Navigator.walk_m`), at least a viewpoint's 90 s --
+  given 90 s, every far first walk ran out short; at the charge's 6 s a
+  metre, two from the mall whose map read 27 m through a wall it had carved
+  out (#401) did. ⚠ The
   signs are put in at load (`humanoid/world.py`), after the robots. ⚠
   Places ride a restart WITH the map (no map back, no places) and a true
   death or a stand-up forgets both (`Body.forget_world`). `find` is a verb where

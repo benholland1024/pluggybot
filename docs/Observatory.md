@@ -39,7 +39,7 @@ claim jobs from wherever they stand. ⚠ The map's walk from the mall reads
 26-27 m on three flights in four, through the research center's south
 wall, which the robot's grazing rays carve out of its map along the alley
 (#401's; drafted again by the loop): every walk went the 43 m way, and at
-6 s a metre one ran out at 162 s.
+6 s a metre two of 59 ran out at 162 s.
 
 **Measured** on one rented pod, an EPYC 7713, every tree on it:
 `loop-staging` 26c9273 beside the branch at 10 s a metre (8c359b6) and at
@@ -95,13 +95,14 @@ the same flights wherever the 6's first walk arrived (57 of 59 cube rows).
   starting from it: 0.35 m off at the median on the branch (64 cube
   flights), 0.38 on the base (its 36 held out): no worse for coming
   straight in.
-- **The tightest walks** at 10 s a metre were three of 26-27 m on the map
+- **The tightest walks** of the branch's 111 to where the place should be
+  (the 112th is draw 51's address walk) were three of 26-27 m on the map
   that took 205-228 s of their 263-270 (the cube's draws 17, 33, 34),
   round by the front gate past where the wall had gone from the map; the
-  next slowest, 181-198 s, were walks the map read 43 m, handed 430. Every
-  other first walk of the 111 took 96-158 s. At draw 33 the walk took
-  longer than the base's look round and its walk from the address, and its
-  pass is the slowest held out.
+  next three, 181-198 s, were walks the map read 43 m, handed 430; the
+  other 105 took 96-158 s. At draw 33 the walk took longer than the base's
+  look round and its walk from the address, and its pass is the slowest
+  held out.
 
 **What to read on the live rows.** A far claim's `find`: its first walk
 arriving (`to: guess`, no `timeout`) rather than running out short and a

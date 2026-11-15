@@ -813,12 +813,15 @@ class Navigator:
 
   def walks_m(self, goals: dict) -> dict:
     """How far a walk to each of `goals` ({name: (x, y)}) is from where it
-    believes it is, m, over its own map, through the floor it has not seen
-    at the planner's price (`UNKNOWN_COST`) -- the walk it would take -- the
-    other robots' discs left in, for they move; inf where no walk reaches
-    one. Each goal's walk is the shortest to a lattice cell within one of
-    its own: a map laid a little askew puts a goal off the wall's face in
-    the wall's inflation."""
+    believes it is, m, over its own map, as the planner prices it -- a metre
+    of floor it has not seen counts `UNKNOWN_COST` (2) metres, a lattice
+    cell the dearest of its map cells: the walk it would take -- the other
+    robots' discs left in, for they move; inf where no walk reaches one.
+    Each goal's walk is the shortest to a lattice cell within one of its
+    own: a map laid a little askew puts a goal off the wall's face in the
+    wall's inflation."""
+    if not goals:
+      return {}
     b = optimistic.BLOCK
     lattice = optimistic.coarsen(
       optimistic.map_costs(self._planning_grid(), self.INFLATION_CELLS, self.UNKNOWN_COST), b)
