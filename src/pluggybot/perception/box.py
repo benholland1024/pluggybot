@@ -142,16 +142,21 @@ PAST_OVER_M = 0.03
 JOIN_M = 0.03
 
 
-def top_height(points: np.ndarray) -> float | None:
-  """The height of the highest flat face among `points` (k, 3), m: None
-  where too few stand off the floor to read one."""
+def top_height(points: np.ndarray, least: int | None = None) -> float | None:
+  """The height of the highest flat face among `points` (k, 3), m: the
+  highest of its heights' bins holding `TOP_SHARE` of the fullest -- or,
+  given `least`, holding that many points, whatever the fullest holds (a
+  small thing's top beside a wide lower one, #704). None where too few stand
+  off the floor to read one, or no bin holds `least`."""
   z = np.asarray(points, dtype=float)[:, 2]
   z = z[z > FLOOR_M]
   if len(z) < MIN_POINTS:
     return None
   edges = np.arange(FLOOR_M, float(z.max()) + 2 * TOP_BIN_M, TOP_BIN_M)
   counts, _ = np.histogram(z, edges)
-  full = np.flatnonzero(counts >= TOP_SHARE * counts.max())
+  full = np.flatnonzero(counts >= (TOP_SHARE * counts.max() if least is None else least))
+  if not len(full):
+    return None
   centre = float(edges[full.max()]) + TOP_BIN_M / 2
   band = z[np.abs(z - centre) < TOP_BAND_M]
   return float(np.median(band))

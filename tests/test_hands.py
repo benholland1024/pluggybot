@@ -2409,6 +2409,21 @@ def test_measure_at_a_cube_reads_the_cube_not_the_counter_its_board_stands_on():
     assert ran["locals"]["t"] == pytest.approx(0.78, abs=0.004)
 
 
+def test_measure_under_its_point_reads_the_highest_top_there_whatever_stands_lower():
+  """#704: measured at a knob's front-face tag, half of the point's 2 cm
+  stand in front of the knob over the counter far below it; read with the
+  window's share (the highest holding a quarter of the fullest), the branch
+  read the counter there in 12 of Luca's 24 chest flights and the knob's top
+  in the rest. The highest top that `box.MIN_POINTS` stand at is the knob's,
+  as its text says -- 1.6 cm in front of its face, where the counter's
+  points under the circle outnumber its top's that are in it."""
+  knob = (0.43, 0.456, -0.013, 0.013, 0.807, 0.833)
+  ran = _fly('def a():\n    measure(0.414, 0)\n    t = read("object.top")\n',
+             _sees([COUNTER, knob]))
+  assert ran["locals"]["t"] == pytest.approx(0.833, abs=0.004), ran["locals"]
+  assert ran["steps"][0]["under"] == 1.0
+
+
 def test_measure_reads_the_top_under_its_point_alone_not_another_at_its_height():
   """#704: of the tops at the height read under the point, the one standing
   there -- another the same height 12 cm along is another top, and its far

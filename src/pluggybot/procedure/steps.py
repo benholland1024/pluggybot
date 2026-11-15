@@ -693,13 +693,14 @@ def _watch(life, args: dict) -> Routine:
 #: at 0.35 and 0.45 the four set-outs read their tops whole.
 MEASURE_NEAR_M = 0.45
 #: ...and the top it reads is the one UNDER the point (#704): the highest
-#: flat face among the points within this of it, m, where the camera sees
-#: `box.MIN_POINTS` of them off the floor -- that face alone, never another
-#: at its height (`box.joined`) -- and the window's (the highest holding
-#: `box.TOP_SHARE` of the fullest) only where too few stand there. Read as
-#: the window's, Luca's `measure` at the cube's middle read the counter under
-#: its board, 0.719-0.722 m in 10 runs of 10 (the cube's top 0.806), and it
-#: reached 10 cm under the board.
+#: height among the points within this of it, m, that `box.MIN_POINTS` of
+#: them stand at -- that face alone, never another at its height
+#: (`box.joined`) -- and the window's (the highest holding `box.TOP_SHARE` of
+#: the fullest) only where none does. Read as the window's, Luca's `measure`
+#: at the cube's middle read the counter under its board, 0.719-0.722 m in 10
+#: runs of 10 (the cube's top 0.806), and it reached 10 cm under the board;
+#: read with the window's share at the point, a knob's front-face tag read
+#: the counter far below it in 12 flights of 24, its top in the rest.
 MEASURE_AT_M = 0.02
 #: ...and an end read off points whose median stands within this of the
 #: window's rim, m, is the window's, never the top's: no reading (#630:
@@ -733,15 +734,19 @@ MEASURE_WORDS = ("cut", "runs", "taller", "lower")
 def measured_top(near, x: float, y: float):
   """The top `measure` reads among `near` (k, 3), the stance frame's points
   within `MEASURE_NEAR_M` of (x, y): its height (None where none is seen),
-  whether it is the one under (x, y) (#704) -- the highest face among the
-  points within `MEASURE_AT_M` of it, where `box.MIN_POINTS` of them stand
-  off the floor, else the window's -- and which of `near` stand on it,
-  under the point that face alone (`box.joined`)."""
+  whether it is the one under (x, y) (#704) -- the highest height among the
+  points within `MEASURE_AT_M` of it that `box.MIN_POINTS` of them stand at,
+  else the window's -- and which of `near` stand on it, under the point that
+  face alone (`box.joined`)."""
   import numpy as np
   from pluggybot.perception import box
   at = np.hypot(near[:, 0] - x, near[:, 1] - y) < MEASURE_AT_M
-  under = int(np.count_nonzero(at & (near[:, 2] > box.FLOOR_M))) >= box.MIN_POINTS
-  top = box.top_height(near[at] if under else near) if len(near) else None
+  # ...the highest height there that `box.MIN_POINTS` stand at, whatever stands
+  # lower: half of a knob's front face's circle is the counter far below it
+  top = box.top_height(near[at], least=box.MIN_POINTS) if len(near) else None
+  under = top is not None
+  if not under:
+    top = box.top_height(near) if len(near) else None
   flat = box.on_top(near, top) if top is not None else np.zeros(len(near), dtype=bool)
   if under and top is not None:
     # ...that face alone, never another at its height in the window
