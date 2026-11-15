@@ -196,15 +196,17 @@ def test_a_reach_that_does_not_hold_says_the_bodys_own_why():
 
 
 class _Held(StubBody):
-  """A stub whose reach ends `short` m back along the fingers asked, its
-  hand reading `push` N along them -- or, `holds` False, stopped short."""
-  short, push, holds = 0.0, 0.0, True
+  """A stub whose reach ends `short` m back along the fingers asked and
+  `aside` m to its left, its hand reading `push` N along them -- or, `holds`
+  False, stopped short."""
+  short, push, holds, aside = 0.0, 0.0, True, 0.0
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
                     turns=None, refuse=False):
     # ...asked no turn, as if its arm had turned the fingers down
     fingers = -np.asarray(rot, dtype=float)[:, 2] if rot is not None else np.array([0.0, 0.0, -1.0])
-    self.hands[side] = tuple(np.asarray(pos, dtype=float) - self.short * fingers)
+    self.hands[side] = tuple(np.asarray(pos, dtype=float) - self.short * fingers
+                             + [0.0, self.aside, 0.0])
     self._fingers = fingers
     self._why[side] = "" if self.holds else "stopped short"
     return self.holds
@@ -241,6 +243,13 @@ def test_a_reach_that_stopped_short_says_how_far_short_its_grip_was_as_it_stoppe
               _held(0.054, 45.0, holds=False))["steps"][-1]
   assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
                             + "; as it stopped, its grip was 5.4 cm from where you asked")
+  # ...as is one held off more across its fingers than along them (#711's
+  # review: a pad caught on an edge and deflected 4 cm said nothing)
+  body = _held(0.005, 45.0, holds=False)
+  body.aside = 0.04
+  step = _fly(ABOVE, body)["steps"][-1]
+  assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
+                            + "; as it stopped, its grip was 4.0 cm from where you asked")
 
 
 def test_a_reach_that_holds_claims_nothing_of_what_its_fingers_met():
@@ -2381,12 +2390,11 @@ def test_measure_reads_the_window_where_the_top_under_its_point_has_no_ends_to_r
 
 
 def test_measures_share_of_the_window_is_said_in_words():
-  """#704's review: the window's share is said as words; one the text has no
-  word for raises, so a retuned share is given its words, never a number."""
+  """#704's review: the window's share is said in words, off the constant
+  (`SHARE_WORDS`: a share with no words fails the text's build)."""
   from pluggybot.perception import box
   assert f"at least {st.SHARE_WORDS[box.TOP_SHARE]} as much" in st.HANDS_VERBS["measure"].doc
-  with pytest.raises(KeyError):
-    st._share_words(0.3)
+  assert "or too little of that top to read where it ends" in st.HANDS_VERBS["measure"].doc
 
 
 def test_measure_reads_the_top_under_its_point_alone_not_another_at_its_height():

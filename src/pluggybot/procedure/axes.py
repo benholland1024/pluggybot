@@ -385,8 +385,8 @@ MEASURE_SENSORS = (("object.top", "object.under") + tuple(f"object.{k}" for k in
                    + tuple(f"object.{k}_taller" for k in OBJECT_ENDS))
 for _k, _doc in (("top", "the height of the flat top `measure` last saw, m"),
                  ("under", "1 if that top is the one under the point `measure` looked at; 0 if "
-                  "its camera saw too little there and that top is the one `measure` reads "
-                  "round that point instead"),
+                  "its camera saw too little there, or too little of that top to read where it "
+                  "ends, and that top is the one `measure` reads round that point instead"),
                  ("near", "how far ahead that top begins, m"),
                  ("far", "how far ahead that top ends, m"),
                  ("left", "how far to your left that top reaches, m"),

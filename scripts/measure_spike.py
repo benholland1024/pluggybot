@@ -114,8 +114,8 @@ def ends_at(model, data, tree, pictures, stance, windows, out, tag):
       continue
     top = report["top"]
     inside = points[np.hypot(points[:, 0] - mx, points[:, 1] - my) < st.MEASURE_NEAR_M]
-    # ...the points the verb read its ends off: the top under the point, that
-    # face alone, or the window's (#704)
+    # ...the points the verb read its ends off, its one selection: the top
+    # under the point, that face alone, or the window's (#704)
     on_top = inside[st.measured_top(inside, mx, my)[2]]
     for key, axis, far, _ in st.MEASURE_ENDS:
       kinds, status, at = [], "?", None

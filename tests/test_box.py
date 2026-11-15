@@ -291,6 +291,29 @@ def test_under_a_point_a_vertical_faces_slice_is_no_flat_top():
     0.72, abs=0.001)
 
 
+def test_under_a_point_returns_stacked_at_one_place_are_no_flat_top():
+  """#704's second review: thirty returns of one pixel in one bin spread
+  neither way, and passed the share's test (0 >= 0): a flat top spreads at
+  least `box.FLAT_WIDE_M` its wider way."""
+  rng = np.random.default_rng(707)
+  pile = np.column_stack([0.01 + rng.normal(0, 2e-5, (40, 2)), 0.901 + rng.normal(0, 0.0002, 40)])
+  counter = _flat(rng, 1500, -0.02, 0.02, -0.02, 0.02, 0.72)
+  assert box.top_height(np.concatenate([pile, counter]), least=box.MIN_POINTS) == pytest.approx(
+    0.72, abs=0.001)
+
+
+def test_under_a_point_a_tops_height_is_its_flat_bins_never_a_faces_slice_at_its_height():
+  """#704's second review: a face rising off a top puts its slice's points
+  in the top's band, and the median took them in; read off the flat bins'
+  points alone, the top reads where it is."""
+  rng = np.random.default_rng(708)
+  counter = _flat(rng, 1500, 0.0, 0.04, -0.02, 0.02, 0.72, sd=0.0004)
+  face = np.column_stack([0.04 + rng.normal(0, 0.0005, 40000), rng.uniform(-0.02, 0.02, 40000),
+                          rng.uniform(0.7215, 1.0, 40000)])
+  assert box.top_height(np.concatenate([counter, face]), least=box.MIN_POINTS) == pytest.approx(
+    0.72, abs=0.0002)
+
+
 def test_under_a_point_a_top_reads_off_its_own_fullest_flat_bin_never_its_noises_tail():
   """#704's review: with a dense cloud the highest bin 30 points stand at is
   on the top's noise's upper tail; read there, a top 2.5 mm noisy read

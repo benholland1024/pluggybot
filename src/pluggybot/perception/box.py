@@ -152,6 +152,9 @@ JOIN_M, JOIN_CELL_M = 0.03, 0.01
 #: wide as the point's 2 cm reach is long counts. Past a metre the camera's
 #: noise spreads a slice as wide as that.
 FLAT_ACROSS = 0.25
+#: ...and spreads at least this, m, its wider way: thirty returns of one
+#: pixel stacked in a bin spread neither way, and pass the share's test.
+FLAT_WIDE_M = 0.003
 
 
 def top_height(points: np.ndarray, least: int | None = None) -> float | None:
@@ -178,17 +181,20 @@ def top_height(points: np.ndarray, least: int | None = None) -> float | None:
       return None
     own = [b for b in flat if flat[-1] - b <= round(2 * TOP_BAND_M / TOP_BIN_M)]
     centre = float(edges[max(own, key=lambda b: counts[b])]) + TOP_BIN_M / 2
+    # ...off its flat bins' points alone, never a face's slice at its height
+    z = z[np.isin(of, flat)]
   band = z[np.abs(z - centre) < TOP_BAND_M]
   return float(np.median(band))
 
 
 def _spread(xy: np.ndarray) -> bool:
   """Whether points (k, 2) spread across the plane as a flat top's do, not
-  along a line as a vertical face's slice does (`FLAT_ACROSS`)."""
+  along a line as a vertical face's slice does (`FLAT_ACROSS`), nor stand
+  at one place (`FLAT_WIDE_M`)."""
   if len(xy) < 3:
     return False
   narrow, wide = np.linalg.eigvalsh(np.cov(np.asarray(xy, dtype=float).T))
-  return bool(narrow >= FLAT_ACROSS ** 2 * wide)
+  return bool(wide >= FLAT_WIDE_M ** 2 and narrow >= FLAT_ACROSS ** 2 * wide)
 
 
 def on_top(points: np.ndarray, height: float) -> np.ndarray:

@@ -12,30 +12,34 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### `measure` reads the top under its point, and a robot is told where its grip lies along its fingers and how far short a reach that stopped short was (#704, #711, K12, `loop-cube`) — opens when this PR is deployed
 
-**What changed** (`prompt_sha` `5b805c80…` → `ffe98287…`, 66,366 → 67,042
+**What changed** (`prompt_sha` `5b805c80…` → `f7fca8e5…`, 66,366 → 67,141
 chars, 17 sections both, over #701's; the session host's hello moves, sha1
-`fb758c10…` → `bf1707e8…`, and the counter's recording is flown again, its
+`fb758c10…` → `bdceaa3c…`, and the counter's recording is flown again, its
 flight to the byte but the new sensor's readout; no geometry and no wire
 format moved):
 - **`measure(x, y)` reads the top under (x, y)** (`steps.measured_top`):
-  the highest height among the points within 2 cm of (x, y)
+  the highest flat height among the points within 2 cm of (x, y)
   (`MEASURE_AT_M`) that 30 of them stand at (`box.MIN_POINTS`,
-  `box.top_height(least=)`), whatever stands lower there, its ends that
-  top's own -- of the points at its height, the face those points stand on
-  (`box.joined`), never another top at its height in the window. Only where
-  none is there does it read the window's top as before, the highest within
-  0.45 m holding a quarter of the fullest. A new sensor, `object.under`,
+  `box.top_height(least=)`), whatever stands lower there -- flat meaning its
+  points spread across the plane, never a vertical face's slice
+  (`box.FLAT_ACROSS`), its height off its own fullest flat bin -- its ends
+  that top's own: of the points at its height, the face those points stand
+  on (`box.joined`), never another top at its height in the window. Only
+  where none is there, or too little of it to read where it ends, does it
+  read the window's top as before, the highest within 0.45 m holding a
+  quarter of the fullest. A new sensor, `object.under`,
   reads which (1 or 0), and the verdict carries it. The verb's text says
   both.
 - **YOUR BODY says where the grip lies along the fingers**: "its fingers 8
   cm long, the grip halfway along them: their tips reach 4 cm past it", the
   numbers off the part and the model's pads (`model.fingers_past_grip`).
-- **A reach that stopped short on its way says how far short its grip
-  was** (`steps.REACH_STOPPED_AT`): "your right hand stopped short on its
-  way: out of reach from how you truly stand, or pushing on something; as it
-  stopped, its grip was 5.4 cm short of where you asked, back along its
-  fingers", off the last of what the verb felt (nothing more is read, no
-  flight moves). A reach that HOLDS says nothing of how short it is: at the
+- **A reach that stopped short on its way says how far from where it was
+  asked its grip was** (`steps._short_of`): "your right hand stopped short
+  on its way: out of reach from how you truly stand, or pushing on
+  something; as it stopped, its grip was 5.4 cm short of where you asked,
+  back along its fingers" -- or "… 4.0 cm from where you asked", asked no
+  turn or held off more across its fingers than along them -- off the last
+  of what the verb felt (nothing more is read, no flight moves). A reach that HOLDS says nothing of how short it is: at the
   moment its routine ends its hand is still coming in, and a tenth of the
   grips that read held then touched nothing (below).
 

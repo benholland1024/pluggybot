@@ -2695,8 +2695,9 @@ board, the pads' tips on the board, and "ok" with "closed on nothing it
 holds" after it were all a robot read. So YOUR BODY says where the grip lies
 along the fingers -- halfway, their tips 4 cm past it, off the part and the
 model's pads (`model.fingers_past_grip`) -- and a reach that stopped short
-on its way says how far short its grip was as it stopped, back along its
-fingers (`steps.REACH_STOPPED_AT`), off the last of what the verb felt.
+on its way says how far from where it was asked its grip was as it stopped,
+back along its fingers where that is most of it (`steps._short_of`), off
+the last of what the verb felt.
 
 ⚠ **A reach that holds says nothing of it**, though its grip may end short:
 its body routine ends the moment its command arrives, the hand still coming
@@ -6737,20 +6738,29 @@ of 11-12 and 11-14 read the counter, 0.719-0.722 m, while the same runs'
 `spot(56)` read the cube's top at 0.792-0.807, and Luca reached 10 cm under
 the board 29 times (12 refused for the jaws' turn, 17 stopped short; its
 thighs met the counter's face from the nearest stances, #710). Now the top
-is the one under (x, y) (`steps.measured_top`): the highest height among the
-points within `MEASURE_AT_M` (2 cm) of it that 30 of them stand at
+is the one under (x, y) (`steps.measured_top`): the highest flat height
+among the points within `MEASURE_AT_M` (2 cm) of it that 30 of them stand at
 (`box.MIN_POINTS`; `box.top_height(least=)`) -- at the cube's middle its top,
 0.806 -- whatever stands lower there: read with the window's share at the
 point (the highest holding a quarter of the fullest), Luca's `measure` at
 the chest knob's front-face tag, half of its 2 cm over the counter far
-below, read the counter in 12 of 24 flights at their live draws. And of the
-points at that height, the face those points stand on (`box.joined`:
-3 cm bins, each joined to its eight neighbours; a grazing look lays a top's
-rows 2.5 cm apart 2.5 m off, and an end a finer bin parted would be no
+below, read the counter in 12 of 24 flights at their live draws. ⚠ Flat
+means its points spread across the plane (`box.FLAT_ACROSS`: the narrower
+spread at least a quarter of the wider, and the wider at least
+`FLAT_WIDE_M`, 3 mm): a vertical face's slice is a line, and 1 cm in front
+of a wall too tall to see over, the wall's slices filled every 2 mm up it
+with 30 points, the highest read as a top 1.18 m up. ⚠ Its height is read
+off the fullest flat bin of its own band, never the highest that 30 points
+stand at, on its noise's upper tail (a top 2.5 mm noisy read 1.6 mm high).
+And of the points at that height, the face those points stand on (`box.joined`:
+the middles of 1 cm bins joined within 3 cm, wherever the bins fall -- a 3
+cm grid joined tops 4.5 cm apart as it fell; a grazing look lays a top's
+rows 2.5 cm apart 2.5 m off, and an end a finer join parted would be no
 reading, never a wrong one), so another top at its height in the window
 lends it no end. Only where the camera sees too little there -- a point over
-the floor, off the picture, hidden -- is the top the window's as before, and
-`object.under` says which. The price: a point a few cm in front of a box
+the floor, off the picture, hidden -- or too little of the top there to
+read where it ends is the top the window's as before, and `object.under`
+says which. The price: a point a few cm in front of a box
 reads the counter it stands over (the first test of `measure` measured 4 cm
 in front of its box, and read the box); no reference procedure calls the
 verb, and the hands checks at set-outs 0-31 flew the base's flights, 160 of
