@@ -55,9 +55,9 @@ ACCEL_SCALE = 0.005
 #: The accelerometer's full scale, m/s^2 a side: +-16 g, the widest of its
 #: four ranges (ACCEL_FS_SEL 0, Table 2) and the only one its 20-bit FIFO
 #: runs, as a narrower one would clip service (walking on after a shove
-#: reads up to 11.7 g, a get-up's hand-back 6.9). Past it an axis reads the
-#: full scale, where the part's output ends (to within a count: an IMU
-#: reading is never quantised here): the sim's landings read up to 43 g (#696).
+#: reads up to 11.7 g, a get-up's hand-back 6.9; #696). Past it an axis
+#: reads the full scale, where the part's output ends (to within a count:
+#: an IMU reading is never quantised here).
 ACCEL_RANGE = 16.0 * G
 #: The gyro's, rad/s a side: +-2000 deg/s, its widest (GYRO_FS_SEL 0, Table
 #: 1), read the same way past it; the served falls turned it 762 deg/s at most.
