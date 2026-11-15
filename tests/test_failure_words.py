@@ -257,7 +257,7 @@ def test_a_walk_that_stood_at_its_stand_in_by_something_its_map_holds_says_so():
     "stood 0.45 m from it)")
   # ...as is a find's walk in its trace, the log's
   assert st._walk_trace({**rec, "seconds": 12.0}) == (
-    "no_route 0.44 m short after 12 s solidM=0.01 standM=0.45")
+    "no_route 0.44 m short after 12 s solidM=0.01 standM=0.45 keepM=0.35")
   # ...and a stand-in nothing the map holds made is said as it was
   _, bare = _drive(CAUSES["stand-in"][0])
   assert bare["why"] == "no_route" and "standIn" not in bare
@@ -280,8 +280,7 @@ def test_the_map_keeps_a_walk_off_a_goal_exactly_where_its_plan_does():
   from test_unknown import FREE, WALL, _Nav
   said = set()
 
-  def agrees(walk, x, y):
-    lattice = op.coarsen(op.map_costs(walk.grid.grid, walk.INFLATION_CELLS))
+  def agrees(walk, lattice, x, y):
     cx, cy = walk.grid.world_to_cell(x, y)
     at = (cx // op.BLOCK, cy // op.BLOCK)
     kept = walk._solid_by(walk.grid.grid, x, y, at, op.BLOCK)
@@ -294,17 +293,21 @@ def test_the_map_keeps_a_walk_off_a_goal_exactly_where_its_plan_does():
       assert f", {near} a walk keeps," in words, (rec, words)
       said.add(near)
     return kept
+  def lattice_of(walk):
+    return op.coarsen(op.map_costs(walk.grid.grid, walk.INFLATION_CELLS))
   counter = _Nav(_counter(cols=140, edge=100), (1.0, 1.5))   # its edge at x = 5 m
+  lattice = lattice_of(counter)
   for i in range(80):
     x = 4.3 + 0.01 * i + 0.003
-    kept = agrees(counter, x, 1.513)
+    kept = agrees(counter, lattice, x, 1.513)
     if kept is not None:
       assert counter._stood_off(x, 1.513)["solidM"] == round(max(0.0, 5.0 - x), 3), (x, kept)
   assert said == {"nearer than", "about as near as"}
   post = np.full((60, 140), FREE)
   post[30, 100] = WALL                            # (5.0, 1.5) to (5.05, 1.55)
   walk = _Nav(post, (1.0, 1.5))
-  kept = [agrees(walk, 5.025 + 0.02 * i, 1.525 + 0.02 * j)
+  lattice = lattice_of(walk)
+  kept = [agrees(walk, lattice, 5.025 + 0.02 * i, 1.525 + 0.02 * j)
           for i in range(-30, 31) for j in range(-30, 31)]
   assert 0 < sum(k is not None for k in kept) < len(kept)
 
@@ -314,10 +317,13 @@ def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_of
   cell is found as the stand-in is chosen, on the grid that plan was made
   on, and kept with it -- a plan held (`_plan_to`'s memo) and one made for
   another robot's sake (`_route_past`) put it back -- and a goal past the
-  grid's edge is judged at the cell the planner clamps it to. A goal the
-  walls it has seen shut it off from says "no route", as it did; so does
-  one by the counter's edge, for a robot its map has walled in (laid inside
-  the counter, past where a walk may step out of a keep-off)."""
+  grid's edge is judged where it is: within a fence's keep-off, kept off by
+  it, and further, past anything on the map (#700's second review: judged
+  at the edge cell the planner clamps it to, 16 m past read "0.00 m ...
+  about as near"). A goal the walls it has seen shut it off from says "no
+  route", as it did; so does one by the counter's edge, for a robot its map
+  has walled in (laid inside the counter, past where a walk may step out of
+  a keep-off)."""
   from test_unknown import WALL, _Nav, _room_with_a_door
   g = _counter()
   n = _Nav(g, (1.0, 1.5))
@@ -336,8 +342,14 @@ def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_of
   old._plan_to(*goal)
   assert old._stand_in is not None and old._kept_by == pytest.approx((3.0, 1.5))
   past = _Nav(_counter(cols=80, edge=78), (1.0, 1.5))   # a fence at the grid's east edge
-  past._plan_to(4.6, 1.5)                         # ...and a goal 0.6 m past it
-  assert past._stand_in is not None and past._kept_by is not None
+  past._plan_to(4.2, 1.5)                         # ...a goal 0.2 m past it
+  assert past._stand_in is not None and past._kept_by[0] == pytest.approx(3.95)
+  past._at = past._stand_in
+  assert past._drove(4.2, 1.5, 0.0, "no_route") is False
+  assert past.last_drive["standIn"]["solidM"] == 0.2
+  for far in (4.6, 20.0):                         # ...and goals past its keep-off
+    past._plan_to(far, 1.5)
+    assert past._stand_in is not None and past._kept_by is None, far
   shut = _room_with_a_door()
   shut[5:25, 40:42] = WALL                        # its door is a wall now
   s = _Nav(shut, (1.0, 1.5))

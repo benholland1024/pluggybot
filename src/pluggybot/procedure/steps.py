@@ -426,11 +426,11 @@ def _walk_trace(w: dict) -> str:
   if "why" not in w:
     return "?"
   kept = w.get("standIn") or {}
-  peer = "".join(f" {k}={kept[k]}" for k in ("solidM", "standM") if k in kept) + "".join(
-    f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests", "peerDead",
-                             "askedWay") if k in w)
+  solid = "".join(f" {k}={kept[k]}" for k in ("solidM", "standM", "keepM") if k in kept)
+  peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests",
+                                           "peerDead", "askedWay") if k in w)
   how = "arrived" if not w["why"] else f"{w['why']} {float(w.get('shortM') or 0):.2f} m short"
-  return f"{how} after {float(w.get('seconds') or 0):.0f} s{peer}"
+  return f"{how} after {float(w.get('seconds') or 0):.0f} s{solid}{peer}"
 
 
 #: What a find's trace calls each walk's goal (`PlaceWalk.find_routine`).

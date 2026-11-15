@@ -90,6 +90,12 @@ def on_the_goal(nav, b: KeepClear, wx: float, wy: float) -> float | None:
   return d if d < nav._cells(b) * nav.grid.resolution - CLOSE_ENOUGH_M else None
 
 
+def off_cell(px, py, ex, ey, side):
+  """How far (px, py) is from the nearest point of the map cell whose low
+  corner is (ex, ey), `side` m a side: scalars or arrays alike (#700)."""
+  return np.hypot(px - np.clip(px, ex, ex + side), py - np.clip(py, ey, ey + side))
+
+
 def footprint_middle(model, data, gids) -> tuple[float, float]:
   """The middle of the floor the geoms `gids` cover: their bounding
   circles, boxed. A humanoid lying straight has it at its pelvis, 3 cm
@@ -697,8 +703,8 @@ class Navigator:
       self._escape_cells(bodies), HALO_CELLS)
     if start is None:
       return None
-    goal = self.grid.world_to_cell(wx, wy)
-    goal = (min(max(goal[0], 0), cols - 1), min(max(goal[1], 0), rows - 1))
+    own = self.grid.world_to_cell(wx, wy)
+    goal = (min(max(own[0], 0), cols - 1), min(max(own[1], 0), rows - 1))
     if not trav[goal[1], goal[0]]:
       # The goal sits in unknown or inflated space. Plan to the nearest
       # cell OF THIS ROBOT'S OWN COMPONENT instead -- the 4-connected
@@ -723,7 +729,7 @@ class Navigator:
         return None
       d2 = (xs - goal[0]) ** 2 + (ys - goal[1]) ** 2
       k = int(np.argmin(d2))
-      self._kept_by = self._solid_by(planning, wx, wy, goal, 1)
+      self._kept_by = self._solid_by(planning, wx, wy, own, 1)
       goal = (int(xs[k]), int(ys[k]))
       self._stand_in = self.grid.cell_to_world(*goal)
     path = astar(trav, start, goal)
@@ -763,10 +769,7 @@ class Navigator:
            for cx, cy in cells]
     if stand_in:
       self._stand_in = pts[-1]
-      # ...the goal's lattice cell as `route` clamps it onto the lattice
-      rows, cols = lattice.shape
-      at = (min(max(gx // b, 0), cols - 1), min(max(gy // b, 0), rows - 1))
-      self._kept_by = self._solid_by(planning, wx, wy, at, b)
+      self._kept_by = self._solid_by(planning, wx, wy, (gx // b, gy // b), b)
     # every other cell, 0.2 m apart as A*'s every third, and always the end
     out = pts[2::2]
     if not out or out[-1] != pts[-1]:
@@ -1128,11 +1131,13 @@ class Navigator:
                  at: tuple[int, int], b: int) -> tuple[float, float] | None:
     """Where a plan's stand-in for (wx, wy) is its map's doing (issue
     #700): of the cells `planning` -- the grid the plan was made on -- holds
-    solid whose keep-off takes in the goal's cell of the plan (`at`, `b` map
-    cells a side: the lattice's, or A*'s own cell), as `map_costs` and
-    `traversable_mask` grow a wall (taxicab `INFLATION_CELLS`), the low
+    solid whose keep-off takes in the goal's own cell of the plan (`at`, `b`
+    map cells a side: the lattice's, or A*'s own cell; never clamped onto
+    the grid, so a goal past its edge is judged where it is), as `map_costs`
+    and `traversable_mask` grow a wall (taxicab `INFLATION_CELLS`), the low
     corner of the one nearest the goal, m; None where none does (another
-    robot's disc, the grid's edge, floor not yet seen)."""
+    robot's disc, floor not yet seen, a goal past the grid's edge beyond
+    the keep-off of anything on it)."""
     g, r = self.grid, self.INFLATION_CELLS
     x0, y0 = at[0] * b, at[1] * b
     lo_x, lo_y = max(x0 - r, 0), max(y0 - r, 0)
@@ -1145,8 +1150,7 @@ class Navigator:
     if not len(xs):
       return None
     ex, ey = g.x_min + xs * g.resolution, g.y_min + ys * g.resolution
-    k = int(np.argmin(np.hypot(wx - np.clip(wx, ex, ex + g.resolution),
-                               wy - np.clip(wy, ey, ey + g.resolution))))
+    k = int(np.argmin(off_cell(wx, wy, ex, ey, g.resolution)))
     return float(ex[k]), float(ey[k])
 
   def _stood_off(self, wx: float, wy: float) -> dict:
@@ -1155,10 +1159,9 @@ class Navigator:
     the robot (`standM`) are from that cell's nearest point, m, and the
     keep-off `drive_to`'s text states (`keepM`)."""
     (ex, ey), c = self._kept_by, self.grid.resolution
-
-    def off(px: float, py: float) -> float:
-      return math.hypot(px - min(max(px, ex), ex + c), py - min(max(py, ey), ey + c))
-    return {"solidM": round(off(wx, wy), 3), "standM": round(off(*self.pose[:2]), 3),
+    px, py, _ = self.pose
+    return {"solidM": round(float(off_cell(wx, wy, ex, ey, c)), 3),
+            "standM": round(float(off_cell(px, py, ex, ey, c)), 3),
             "keepM": round(self.INFLATION_CELLS * c, 3)}
 
   def face(self, heading: float) -> bool:

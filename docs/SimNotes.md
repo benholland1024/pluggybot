@@ -1086,14 +1086,19 @@ place to stand. Both were `no_route`, and both were said alike.
 "(nowhere nearer to stand: the goal is 0.00 m from something the map holds
 solid, nearer than a walk keeps, and the robot stood 0.45 m from it)". The
 solid cell is found as the plan chooses its stand-in, on that plan's grid,
-as `map_costs` grows a wall -- taxicab from the goal's lattice cell,
-clamped as `route` clamps it -- so a record has one exactly where the
-plan's lattice cell for the goal is no floor (pinned both ways along a
-counter and round a post). The lattice keeps a goal off up to a cell past
-the 0.35 m the verb's text states, and a goal there reads "about as near
-as a walk keeps". A goal the seen walls shut off, a robot its map has walled in, and a
-stand-in another robot's disc made keep "no route over the floor mapped so
-far".
+as `map_costs` grows a wall -- taxicab from the goal's own lattice cell,
+never clamped onto the grid, so a goal past its edge is judged where it is
+-- so a record has one exactly where the plan's lattice cell for the goal
+is no floor (pinned both ways along a counter and round a post). The
+lattice keeps a goal off up to a cell past the 0.35 m the verb's text
+states, and a goal there reads "about as near as a walk keeps". A goal the
+seen walls shut off (no plan at all), a robot its map has walled in, a
+stand-in another robot's disc made, and a goal past the grid's edge beyond
+anything on it keep "no route over the floor mapped so far". ⚠ A goal just
+behind a thin wall, inside its keep-off, stands in on the near side and
+says "nowhere nearer to stand", as one at or onto a counter's edge does:
+the map does not tell the room behind a wall from a counter's top, and
+every word is true of both.
 
 **Where the walk ends, flown** (the served humanoid alone in
 `home_humanoid` on a fresh map after a look round, from the storeroom's door
