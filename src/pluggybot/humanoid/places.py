@@ -76,16 +76,15 @@ UNWALKED_M = 1000.0
 VIEWPOINT_PATIENCE_S = 90.0
 #: ...and a walk to where a place should be (a guess: where it was found,
 #: or where its row's drawing puts it) this long a metre of the walk there
-#: (`Navigator.walk_m`: the way it knows, over the floor it has seen),
-#: where that is the longer (#698): from the mall's station the counter is
-#: 22-25 m in a straight line and a 43 m walk, and its 90 s ran out 5.8-11.4
-#: m short, the robot looking round where it stopped before it walked to the
-#: address -- 20-150 s of a far claim; measured as the planner would walk
-#: it, through floor it had not seen, a 26 m way read where the walls it
-#: had not met sent the walk round by the 43, and it ran out again. The
-#: charge's walk is given as much a metre of its straight line
-#: (`lifecycle.CHARGE_WALK_S_M`).
-GUESS_WALK_S_M = 6.0
+#: over its map (`Navigator.walk_m`), where that is the longer (#698): from
+#: the mall's station the counter is 22-25 m in a straight line, and its 90
+#: s ran out 5.8-11.4 m short, the robot looking round where it stopped
+#: before it walked to the address -- 20-150 s of a far claim. MEASURED
+#: there (32 draws): the map's walk read 43 m, or 26-27 m on half the draws
+#: (a way the walk never took), and the walks took up to 158 s and 154 s;
+#: at 6 s a metre, the charge's (`lifecycle.CHARGE_WALK_S_M`), one of 27 m
+#: ran out at 162 s, 11.4 m short, which needed about 210 (7.8 s a metre).
+GUESS_WALK_S_M = 10.0
 #: Where a place it expects is looked at from, m out of its tag's face:
 #: the quadrupeds' (#419), where the neighbours' signs 1 m either side
 #: were inside their camera's half-field and one look there fit the row.
@@ -623,9 +622,8 @@ class HumanoidPlaces:
 
   def guess_patience(self, x: float, y: float) -> float:
     """What a walk to where a place should be, at (x, y), is given, s:
-    `GUESS_WALK_S_M` a metre of the walk there (`walk_m`: the way it knows,
-    over the floor it has seen), or `VIEWPOINT_PATIENCE_S` for a near one
-    (#698)."""
+    `GUESS_WALK_S_M` a metre of the walk there over its own map
+    (`walk_m`), or `VIEWPOINT_PATIENCE_S` for a near one (#698)."""
     return max(VIEWPOINT_PATIENCE_S, GUESS_WALK_S_M * self.walk_m(x, y))
 
   # ---- what the search asks of its body ------------------------------------------

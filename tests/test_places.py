@@ -538,25 +538,22 @@ def test_a_walk_to_where_a_place_should_be_is_given_what_a_walk_that_long_needs(
     assert rec["why"] == "found" and rec["guesses"] == 1 and rec["remembered"]
     assert timeouts == [pytest.approx(lp.GUESS_WALK_S_M * 43.0)]
     assert walks == [pytest.approx(standoff)], "the walk measured to the standoff walked to"
-    for patience, walk, given in ((200.0, 43.0, 200.0), (600.0, 5.0, lp.VIEWPOINT_PATIENCE_S)):
-      metres[0] = walk
+    for patience, metres[0], given in ((200.0, 43.0, 200.0),
+                                       (600.0, 5.0, lp.VIEWPOINT_PATIENCE_S)):
       timeouts.clear()
       m.data.time += 1.0
       body.run(m.find_routine(FEED, near=(25.2, -2.4), patience=patience))
-      assert timeouts == [pytest.approx(given)], (patience, walk)
+      assert timeouts == [pytest.approx(given)], (patience, metres[0])
   finally:
     body.close()
 
 
-def test_a_walk_is_measured_the_way_it_knows_round_a_wall_by_its_door(world):
+def test_a_walk_is_measured_over_the_map_round_a_wall_by_its_door(world):
   """`Navigator.walk_m`, what a guess's patience is sized by (#698): the
-  way it knows, round a wall by its door, over the floor it has seen --
-  never a way through floor it has not seen, which the planner would try:
-  from the mall's station a 26 m way read where the walls it had not met
-  sent the walk round by the 43, and its patience ran out; the straight
-  line where no walk reaches; and a goal past the grid's low edges reached
-  by no walk at all -- read off a slice that wrapped round the field, it
-  was the robot's own cell, 0 m."""
+  walk the planner would take, round a wall by its door; the straight line
+  where no walk reaches; and a goal past the grid's low edges reached by
+  no walk at all -- read off a slice that wrapped round the field, it was
+  the robot's own cell, 0 m."""
   body = _humanoid(world, 20.0, 0.0, 0.0)
   m = body.mission
   try:
@@ -569,11 +566,6 @@ def test_a_walk_is_measured_the_way_it_knows_round_a_wall_by_its_door(world):
     g.grid[wy0:wy1, wx:wx + 2] = 5.0                # a wall, its door north of it
     assert 6.0 < m.walk_m(22.5, 0.0) < 10.0, "the walk went through the wall"
     assert m.walk_m(19.0, 0.0) == pytest.approx(1.0, abs=0.3)
-    _, gy0 = g.world_to_cell(21.0, -1.5)
-    _, gy1 = g.world_to_cell(21.0, 0.0)
-    g.grid[gy0:gy1, wx:wx + 2] = 0.0                # ...and a stretch of it never seen
-    assert m.walks_m({"short": (22.5, 0.0)})["short"] < 5.0, "premise: the planner's way"
-    assert 6.0 < m.walk_m(22.5, 0.0) < 10.0, "a way through floor it has not seen"
     bx0, by0 = g.world_to_cell(23.0, -3.5)
     bx1, by1 = g.world_to_cell(25.5, -1.0)
     g.grid[by0:by1, bx0:bx1] = 5.0                  # a closed room's walls...
