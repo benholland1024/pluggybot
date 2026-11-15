@@ -62,9 +62,14 @@ def test_past_its_full_scale_an_axis_reads_it_and_the_clip_draws_nothing(monkeyp
                  imu.ACCEL_RANGE, np.array((3.0, -2.0, 1.0)) * imu.G, 40 * imu.G)
   _past_one_axis(lambda w: part.gyro(w, dt), lambda w: twin.gyro(w, dt),
                  imu.GYRO_RANGE, np.radians((300.0, -150.0, 40.0)), math.radians(3000.0))
-  # Inside full scale by a hair: the bits of the same part with no full
-  # scale, and each reading draws its three normals, no more.
-  rate, force = np.radians((1980.0, -1980.0, 30.0)), np.array((15.9, -15.9, 1.0)) * imu.G
+  # Inside full scale by as little as the part's error leaves room for (its
+  # worst scale and offset, and six sigma of its noise): the bits of the same
+  # part with no full scale, and each reading draws its three normals, no more.
+  def inside(full, scale, bias, noise):
+    return (full - bias - 6 * noise / math.sqrt(dt)) / (1 + scale)
+  g = inside(imu.GYRO_RANGE, imu.GYRO_SCALE, imu.GYRO_BIAS, imu.GYRO_NOISE)
+  a = inside(imu.ACCEL_RANGE, imu.ACCEL_SCALE, imu.ACCEL_BIAS, max(imu.ACCEL_NOISE))
+  rate, force = np.array((g, -g, 0.5)), np.array((a, -a, imu.G))
   part, ref, drawn = (imu.Imu("test:inside") for _ in range(3))
   with monkeypatch.context() as unbounded:
     unbounded.setattr(imu, "GYRO_RANGE", math.inf)

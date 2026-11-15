@@ -56,8 +56,12 @@ of 11,705, the other two apart only in a wall-clock `at`):
   0.3-2 % of the scans after a bite. Each of the 98 flights that bit parts
   from its base as a same-size random turn of the reading parts it (the
   path apart 0.12 m at the median, 1.30 at most), and none moved between
-  stood, stuck and fell. The hand's force (#631) read a clipped sample 3 times in 680,910
-  reads, all at the wall strikes, on a walk, where no verb reads it.
+  stood, stuck and fell. The hand's force (#631) read a clipped sample 3
+  times in 680,910 reads, all at the wall strikes, on a walk, where no verb
+  reads it. The served policies were trained on the sim's own rates and
+  gravity (mjlab, its noise ±0.05 a component of gravity): the tilt's 0.080
+  deg is 1/36 of that half-width, and no served fall reached the gyro's
+  clip.
 
 **Why.** The sensors that feed an estimate are the parts', never the sim's,
 and every other field a part reports already ends where the part's does

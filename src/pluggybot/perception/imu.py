@@ -56,8 +56,8 @@ ACCEL_SCALE = 0.005
 #: four ranges (ACCEL_FS_SEL 0, Table 2) and the only one its 20-bit FIFO
 #: runs, as a narrower one would clip service (walking on after a shove
 #: reads up to 11.7 g, a get-up's hand-back 6.9). Past it an axis reads the
-#: full scale, where the part's output ends (to within a count, as no
-#: reading here is quantised): the sim's landings read up to 43 g (#696).
+#: full scale, where the part's output ends (to within a count: an IMU
+#: reading is never quantised here): the sim's landings read up to 43 g (#696).
 ACCEL_RANGE = 16.0 * G
 #: The gyro's, rad/s a side: +-2000 deg/s, its widest (GYRO_FS_SEL 0, Table
 #: 1), read the same way past it; the served falls turned it 762 deg/s at most.
@@ -68,6 +68,15 @@ def seed_for(key: str) -> int:
   """A sensor's seed, off a checksum of its name and robot -- never
   `hash()`, which Python salts per process."""
   return zlib.crc32(key.encode())
+
+
+def _full_scale(reading: np.ndarray, full: float) -> np.ndarray:
+  """A reading as the part's output gives it, each axis at most `full` a
+  side: the array itself inside full scale, clipped past it. Its three
+  floats are compared first, at a quarter of a clip's cost (0.25 us to
+  1.05, measured), as it runs twice a physics step a robot."""
+  t = reading.tolist()
+  return reading if -full <= min(t) and max(t) <= full else reading.clip(-full, full)
 
 
 class Imu:
@@ -87,14 +96,13 @@ class Imu:
   def gyro(self, rate, dt: float) -> np.ndarray:
     """What the gyro reads for a true body rate, rad/s."""
     n = self.rng.standard_normal(3) * (GYRO_NOISE / math.sqrt(dt))
-    return (np.asarray(rate) * self.gyro_scale + self.gyro_bias
-            + n).clip(-GYRO_RANGE, GYRO_RANGE)
+    return _full_scale(np.asarray(rate) * self.gyro_scale + self.gyro_bias + n, GYRO_RANGE)
 
   def accel(self, force, dt: float) -> np.ndarray:
     """What the accelerometer reads for a true specific force, m/s^2."""
     n = self.rng.standard_normal(3) * (self._accel_noise / math.sqrt(dt))
-    return (np.asarray(force) * self.accel_scale + self.accel_bias
-            + n).clip(-ACCEL_RANGE, ACCEL_RANGE)
+    return _full_scale(np.asarray(force) * self.accel_scale + self.accel_bias + n,
+                       ACCEL_RANGE)
 
   def kept_state(self) -> dict:
     """The part's draws and where its noise had got to (issue #345: a
