@@ -421,8 +421,26 @@ save a filmstrip PNG named after the script.
   off toward the hand past its force) and, going nowhere, the pull ends
   held fast, or out of reach pushing under `FAST_SHARE` of its ask;
   postures taken for the lead put 30-100 N on a locked bar for an ask of
-  10-20. ⚠ A HAND AT WORK, STANDING,
-  READS ITS FORCE OFF THE WHOLE BODY (#547 stage 2; `arms.SelfModel.felt`,
+  10-20. ⚠ AND A HAND THAT HOLDS NOTHING TAKES A POSTURE ONLY WHILE IT
+  READS LIGHT (#699; `reach.PRESSED_SHARE`, `PRESSED_ASK_N`; SimNotes, "A
+  pull's posture and the hand it rests on"): at its start or on its way,
+  none while it reads past twice the pull's ask whichever way -- an ask of
+  20 N at least, so 40 N for every pull a procedure writes -- and one that
+  is coming is given up where it reads past it: the body backs off toward
+  the posture the pull began in only until the hand reads no more than the
+  ask (20 N at least), is held there, and that pull takes no other. A
+  posture bows, crouches or turns the body over a hand resting on
+  something, its arm's solve loses the hand, and the body bears on it:
+  45-150 N down on a cupboard door's top for a 15-20 N pull. ⚠ NEVER NONE
+  AT ALL: our door's lever press needs its first posture, 11 of its 24
+  passes. ⚠ BACK ONLY AS FAR AS UNLOADS IT: held where it had got to, a
+  body stayed leant on what it held at 80-92 N for 10 s; sent all the way
+  back, the waist swung a low arm into the counter (935 N). ⚠ A HAND THAT
+  GRIPS WHAT IT PULLS TAKES ITS POSTURES AS IT DID: two of our door's 72
+  held-out passes opened only by the body leaning on the gripped lever, and
+  a gripped fork or knob still falls the same way: widening it is Ben's
+  call. ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
+  (#547 stage 2; `arms.SelfModel.felt`,
   `reach.FELT_PHASES`, `Reach.standing`; SimNotes, "A hand's force off the
   whole body"; `--feel`): the robot's balance in least squares over the
   trunk's six rows, the legs', the waist's and the working arm's joints, each weighed by

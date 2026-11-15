@@ -9107,6 +9107,184 @@ does (the cost, stated); the doubt ends with a take that stands, a fix, a
 warp, 2 m walked or its looks, and a restart keeps it; a fall leaves an
 anchor's window as it was.
 
+## A pull's posture and the hand it rests on (issue #699)
+
+**What happened.** On 11-12 at 18:46 UTC Rowan ran its own `door_hook3` at
+the cupboard on the storeroom's counter: its open right hand reached down
+onto the door's top (`until="right.fz", below=-4`), then a 2 cm `pull`
+down at 15 N and a 7 cm `pull` back at 20 N took turns, and the run ended
+"you fell on the way, and let go". Every ask was inside the verb's words.
+Flown from where Rowan stood at 40 of the door's draws -- the 8 first
+looked at (the live 215 and 223, and 0-5) and 6-37, each its own noise --
+with the hand's own reading beside the true force its gripper's geoms push
+with, every 0.02 s of a pull (the loops of 11-14,
+`~/pluggybot-training/loop-1114/n5-live/` and
+`~/pluggybot-training/loop-1114-night/k1-699/`): 2 of 40 fell, 10 more
+bowed past 30 deg, and the hand pushed past three times its ask in 427 of
+its pulls' 33,443 samples, 475 N at worst.
+
+**Why: a posture taken over a hand that rests on something.** A pull takes
+the posture its way's end is reached from as it begins, and another on its
+way where the arm's solve misses its command, the hand waiting meanwhile.
+Taken apart at the live draw (215, which fell at 69.06 s):
+- *A posture asked on its way bears on the hand at once.* At 66.09 s, in a
+  pull down, the solve missed by 1.6 cm and the pull asked (-0.20 m, 0.55
+  rad, 60 deg) of a body bowed 0.3 rad: within 0.1 s the hand on the door
+  pushed 75-86 N for an ask of 15, and the robot read it as it happened
+  (74-86 N).
+- *An arm that can no longer follow stands still.* The next pull took
+  (-0.16, 0.3, 60 deg) as it began, the body still sinking. Past a miss of
+  6 cm (`WILD_M`) no solve is commanded: the arm's joints stood where they
+  were last sent while the pelvis sank 3.5 cm more onto them, 45-140 N down
+  for 1.3 s (read: 45-101), and nothing ends a pull out of reach for
+  `POSTURE_WAIT_S` after a posture is asked. The feet slid, the hand came
+  off the door, and the robot fell on its way home.
+- *A hand in the air is carried into what is under it.* At draw 1 a 7 cm
+  pull back in free air (2 N read) took (-0.22, 0.8, 0 deg) from (0, 0, 45
+  deg): the pelvis went from 0.73 to 0.50 m, the trunk to 57 deg, and the
+  hand, riding the body, came down on the door's top at 64-152 N, 403 at
+  worst. So what the hand reads as a posture is ASKED says nothing (asked
+  only of a light hand, flown on #699: no fall, the loads as before).
+- *Our own reference does it.* The table check's fork, carried by a pull,
+  took (-0.22, 0.8, +45 deg) from (0, 0, -45 deg) on its way at set-outs 6
+  and 26: the fork came down on the table at 92-135 N (82-100 read) and the
+  robot fell -- both of that check's falls in a pull.
+
+**What is true now** (`Reach.pull`, `_pulled`, `_pressed`;
+`reach.PRESSED_SHARE`, `PRESSED_ASK_N`): a hand that holds nothing as its
+pull begins takes a posture, at the pull's start or on its way, only while
+it reads no more than twice the pull's ask whichever way -- an ask of 20 N
+at least, so 40 N for every pull a procedure writes -- as it reads as the
+pull begins, and over `MEAN_S` on its way. A posture that is coming is
+given up where the hand reads past that: the body backs off toward the
+posture the pull began in, only until the hand reads no more than the ask
+(20 N at least), and is held there, as a move stopped is (`halt`), the
+hand waiting on it; that pull takes no other, and goes as far as its arm reaches from
+there, out of reach at once where it cannot follow. A hand that grips what
+it pulls takes its postures as it did (below). What a pull reports and
+says is unchanged: it ends at its distance, held fast or out of reach, as
+before.
+
+**Flown** (one Vast pod, an AMD EPYC 7713, beside c99956e, each flight its
+own noise): Rowan's door at its 40 draws, and the hands check at set-outs
+0-31 (the lid, the drawer, the door, the cube, the table: passes, and the
+check's falls, those in a pull apart).
+
+| | the door: fell | its pulls' samples past 1.5 / 3 / 5 times the ask | hardest | lid | drawer | door | cube | table | falls (in a pull) |
+|---|---|---|---|---|---|---|---|---|---|
+| c99956e | 2 of 40 | 1303 / 427 / 53 | 475 N | 26 | 21 | 24 | 20 | 24 | 6 (2) |
+| no posture in a pull (#699's option 1) | 1 | 1730 / 104 / 10 | 116 N | 27 | 23 | **13** | 18 | 22 | 3 (0) |
+| the command backed off along the whole force read (option 2) | 4 | 960 / 215 / 56 | 372 N | 27 | 21 | 23 | 20 | 24 | 5 (1) |
+| a pull ended past 2.5 times its ask (option 3) | 0 | 507 / 120 / 20 | 136 N | 26 | 21 | 23 | 20 | 24 | 3 (0) |
+| the rule for every hand | 0 | 642 / 129 / 17 | 136 N | 26 | 21 | 24 | 20 | 24 | 4 (0) |
+| this: a hand that holds nothing | 0 | 642 / 129 / 17 | 136 N | 26 | 21 | 24 | 20 | 24 | 6 (2) |
+
+Held out at set-outs 32-127 (the table's 32-63), beside the base on the
+same pod: both passed 306 of 416 (the lid 77, the drawer 66, the door 72,
+the cube 61, the table 30) with the same 5 falls, none in a pull; 414 of
+the 416 flights were the base's, and the two that were not (the table's 37
+and 62) gave up an open hand's posture in a flight that failed the same
+way. The served jobs' references from the tour (`solve.py --from tour`, 32
+draws each: the drawer 30, the door 26, the cube 26, the chest 29, the
+table 24) and the station's 39 approaches and 140 seats flew the base's
+flights exactly (each one's grade, falls and time).
+
+**Why a hand that holds nothing, and what a gripping hand still does.**
+The rule was built for every hand, and for every hand it holds at set-outs
+0-31: while a posture came, the references' pulls that passed read 30.6 N
+at most (163 pulls on c99956e: a door's lever pressed at 10 N, three times
+its ask; then 23, then under 19), every pull past 40 N was in a flight that
+failed or fell (ten of them, 56-150 N), no verdict moved, and both of the
+table's falls in a pull went. Held out, it cost the door 2 of its 72 passes
+(doors 38 and 53; 405 of 416 flights the base's, no other verdict moved):
+there the lever's press read 45 and 155 N while a posture came -- the body
+leaning on the gripped lever -- and the door opened; with the posture
+given up the latch never tripped. A pull's ask is no line either (3.1
+times it passed, 3.2 failed). So the line is drawn at the grip: the three
+flights that pass on the base and whose posture the rule gave up were all a
+gripped lever's (doors 38, 53 and 65, which still passed), every open
+hand's posture it gave up was in a flight that fails anyway (the table's
+hand-away moves at set-outs 1, 8 and 27), and Rowan's hand on the door's
+top held nothing. ⚠ What a gripped hand
+still does the same way: our table reference's fork (2 falls in 32, above)
+and a lid's knob in a robot's own lift (Rowan's `chest_lift2b` at draw 281:
+1 fall in 4 flights, 80-140 N on the knob) -- the rule for every hand took
+both away (commit 6b8d120 is that rule, flown whole), and is Ben's call
+with its price.
+
+⚠ Tried and dropped, each flown beside the rest:
+- *No posture in a pull at all* took every deep bow away (no flight of 40
+  bowed past 30 deg, 10 before) and the samples past three times the ask
+  from 427 to 104 -- and cost the door's reference 11 of its 24: its
+  lever's press takes (-0.16, 0.3, 0) as it begins, and without it ends out
+  of reach before the latch trips.
+- *The line at twice the ask* (20 N for a 10 N press) refused the posture
+  of a door that then opens: 23 of 32.
+- *Held where it had got to* when given up, a body 1 cm and 3 deg into a
+  posture asked on its way stayed leant on a lid's knob at 80-92 N for the
+  10 s its pulls went on: 392 samples past three times the ask over
+  `chest_lift2b`'s four flights for the base's 44, and 35 backing off.
+- *Sent all the way back* to the posture the pull began in, the way back
+  was a posture change of its own: the waist swung a low arm into the
+  counter (935 N, the door's draw 30).
+- *The pull ended* where its posture was given up: the same within the
+  flights (no fall in 40, 140 samples past three times the ask); it needs
+  an end of its own and a word for it.
+- *A posture still coming as a pull begins* (one the pull before asked)
+  given up too: nothing the flights could tell (123 samples for 129).
+- *The command's step along its way cut apart from its step across* (a
+  hand dragged across at the step's cap starved the back-off for 0.6 s at
+  draw 215): 4 falls in the 40 draws for the base's 2.
+
+**What it does not do.**
+- *A hand that grips* (above), as its grip reads: a jaw shut on what it
+  reads as nothing held (#669's lever) is a hand that holds nothing.
+- *The load across a pull's way that no posture brings stays.* The loop
+  closes on the force along the way alone, and where the arm's solve
+  misses its command by a centimetre with the turn it is asked to keep
+  (under `REPLAN_M`), the hand pushes 17-45 N across a 15 N pull for as
+  long as it lasts: with no posture allowed at all, 1730 samples past 1.5
+  times the ask for the base's 1303. #699's first box is not met.
+- *A posture taken with a light hand still bows the body as deep as it
+  did* (11 of the 40 flights past 30 deg, 10 before), and one that lands
+  the hand is given up only once the hand reads it, 0.1-0.2 s on.
+- *The reading is the loops' own* (`Reach.force`, the body taken as
+  still): a posture's own motion reads on it, and a give-up on that gives
+  up a violent change -- one of the door's 11 give-ups over its 40 draws
+  was of a hand in free air (its true push 0 N), the table checks' four
+  were not (91-193 N). The body's motion taken in (`sensed_force`), the
+  loops lost the hands checks 18 set-outs of 480 for 5 won (#631).
+- *A load that comes back once the body is held* is not backed off again:
+  a pull gives up one posture, once.
+- *A pull that ends while its posture is still coming* leaves the body on
+  its way there, as before -- and one that ends while its body backs off,
+  on its way back to where the pull began; nothing of the pull's own ends
+  it then (held fast, pinned and out of reach wait while a posture comes),
+  only its caller's patience or an `until`. A hand still loaded when the
+  posture's time to come is out (`POSTURE_WAIT_S`) goes on back. And
+  `move_hand` takes its postures as it did.
+- *The reach's joint-space way out has no stop on a push at all* (#708,
+  next).
+
+**The fingers-ahead reach that fells the robot is another loop (#708).**
+Luca's `chest_run35` at draw 303 fell in 6 of 8 flights on c99956e, in the
+same 6 with a pull taking no posture at all, and in the same 6 with this:
+every one falls before its first pull. Taken apart (the flight keyed
+`open_chest:303:n5`, which fell at 19.14 s): the reach plans (-0.16 m, 0,
+30 deg) and swings its arm out in joint space, round by its side; with the
+body in its posture by 17.5 s, at 18.40 s the right jaw's pad meets the
+chest's bracket with the arm still in phase `move`. The arm's own reading
+sees it -- 24 N at 18.45 s (26 true), 36 (38), 40 (53), 47 (62), 58-71
+(51-68) to 18.75 -- and no posture is asked meanwhile; but a joint-space
+move walks to its target whatever the hand reads (the stop on a push,
+`BLOCKED_N` held `BLOCKED_S`, is the line in's alone). The trunk went from
+18.87 s. Stopped there -- a move ended where the arm's own reading passed
+`BLOCKED_N` for `BLOCKED_S`, flown as a measurement and not kept -- the
+same 6 of 8 still fell, in what came after the stop (the hand's retreat,
+its way home, a hand stopped `blocked`), and the hands check moved 7 of its
+160 flights both ways (117 passes for 115, the door's falls 1 to 3). Its fix
+is #708's own.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
