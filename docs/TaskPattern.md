@@ -104,14 +104,16 @@ Rules the states carry, each decided explicitly:
   grade, and a true death fails the jobs its robot held, in that robot's
   own records. A fall its watch counts ENDS a hand job there, on the seam
   wherever it comes (#701; a fall ends the procedure's run at once, #671):
-  the fall is its call, graded after the hold a `done`'s grade takes, its
-  verdict the fall first -- held on, a cupboard stayed booked 985 s past
-  the fall that had failed its job, and a drawer was opened in a try a
-  fall had lost; one whose `done` is holding is that grade's. The holder
-  is shown each job it holds with the time it has left as it is asked
-  (`heldTasks`, `leftS`; the rule says the clock runs on while it thinks,
-  #689; never one a fall has ended) -- a network fact: the board knows
-  when the job was taken, as it knows how long an offer stands.
+  the fall is its call, graded after the hold a `done`'s grade takes and
+  once the robot is up again, alive -- a prop set out beside a get-up or a
+  body lying dead is set out under it -- its verdict the fall first. Held
+  on, a cupboard stayed booked 985 s past the fall that had failed its job,
+  and a drawer was opened in a try a fall had lost; one whose `done` is
+  holding is that grade's. The holder is shown each job it holds with the
+  time it has left as it is asked (`heldTasks`, `leftS`; the rule says the
+  clock runs on while it thinks, #689; never one a fall has ended) -- a
+  network fact: the board knows when the job was taken, as it knows how long
+  an offer stands.
 - **What no job holds is put away** (#560): a job whose things exist only
   for it -- the restaurant's dishware -- has them set out by its offer and
   put away (`HubLifecycle._put_away_step`) once no task naming its target is

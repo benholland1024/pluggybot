@@ -322,7 +322,7 @@ departures, both about where an attempt starts:
   anywhere in it fails the job (#544's rule), and so does a lid let fall or
   a cube dropped before the call. ⚠ A FALL ENDS THE JOB THERE (#701,
   `_fall_step`): the fall is its call, the hold (and the get-up: it ends
-  once the body stands again) and the grader's words as after a `done`
+  once the body stands again, alive) and the grader's words as after a `done`
   ("you fell, and a fall fails the try -- the drawer 20 cm
   out in 30 s, and let go"), settled once, its prop free for the next offer;
   a `done` after it is one on a job not held (#648's line), and one whose
