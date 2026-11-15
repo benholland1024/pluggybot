@@ -1098,17 +1098,14 @@ beyond anything on it keep "no route over the floor mapped so far"; so does
 every stand-in of A*'s plan, the Navigator's default, which stands in for
 floor it has not seen as well.
 
-**The words say only what is true wherever the robot ended.** An earlier
-draft led with "nowhere nearer to stand", which a robot reads of where it
-stands: false of a walk held short of its stand-in (the front stop or a
-backoff within `STAND_IN_REACHED_M` of it, read off the code) and of one
-another robot's disc stood a room away from a goal at the counter (a
-test), and loose of the drive's own creep past the stand-in toward the
-goal (flown, below). The distances are measured where the walk ended, so a
-reader of the line can tell a walk that stood where walks stand (0.3-0.6 m
-off) from one held further off. ⚠ A goal just behind a thin wall, inside
-its keep-off, stands in on the near side and reads as one at or onto a
-counter's edge does: the map does not tell the room behind a wall from a
+**The words are what is true wherever the robot ended**, its distances
+measured there: a walk the front stop held short of its stand-in, one
+another robot's disc stood a room away from a goal at the counter, and the
+drive's own creep past its stand-in toward the goal (flown, below) each
+read as they are, and a walk that stood where walks stand (0.3-0.6 m off)
+reads apart from one held further off. ⚠ A goal just behind a thin wall,
+inside its keep-off, stands in on the near side and reads as one at or onto
+a counter's edge does: the map does not tell the room behind a wall from a
 counter's top, and every word is true of both.
 
 **Where the walk ends, flown** (the served humanoid alone in

@@ -336,7 +336,9 @@ def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_of
   route", as it did; so does one by the counter's edge, for a robot its map
   has walled in (laid inside the counter, past where a walk may step out of
   a keep-off)."""
-  from test_unknown import WALL, _Nav, _room_with_a_door
+  import numpy as np
+
+  from test_unknown import FREE, WALL, _Nav, _room_with_a_door
   g = _counter()
   n = _Nav(g, (1.0, 1.5))
   goal = (2.99, 1.52)
@@ -362,21 +364,16 @@ def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_of
   for far in (4.6, 20.0):                         # ...and goals past its keep-off
     past._plan_to(far, 1.5)
     assert past._stand_in is not None and past._kept_by is None, far
-  import numpy as np
-
-  from test_unknown import FREE
   west = np.full((60, 80), FREE)
-  west[:, :2] = WALL                              # ...and as far past the west edge's
-  w = _Nav(west, (2.0, 1.5))
-  for off, kept_off in ((0.2, True), (0.42, False)):
-    w._plan_to(-off, 1.5)
-    assert w._stand_in is not None and (w._kept_by is not None) is kept_off, off
+  west[:, 8] = WALL                               # a thin wall 0.4 m in from the west edge,
+  w = _Nav(west, (2.0, 1.5))                      # ...and a goal just past that edge,
+  w._plan_to(-0.02, 1.5)                          # read in the cell the plan reads it in
+  assert w._stand_in is not None and w._kept_by is not None
+  w._plan_to(-1.0, 1.5)                           # ...and one far past it, nothing near
+  assert w._stand_in is not None and w._kept_by is None
   # ...and where another robot's disc stood the walk in further off -- the
   # counter's room behind a door that robot stands in -- the words are as
   # true: the goal by the counter, and the robot a room away from it
-  import numpy as np
-
-  from test_unknown import FREE
   rooms = _room_with_a_door()
   rooms[:, 42:60] = FREE
   rooms[:, 60:] = WALL                            # a counter from x = 3 m in the far room

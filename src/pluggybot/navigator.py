@@ -1129,15 +1129,16 @@ class Navigator:
                  wy: float, b: int) -> tuple[float, float] | None:
     """Where a plan's stand-in for (wx, wy) is its map's doing (issue
     #700): of the cells `planning` -- the grid the plan was made on -- holds
-    solid whose keep-off takes in the goal's own cell of the plan (`b` map
-    cells a side, the lattice's; floored and never clamped onto the grid, so
-    a goal past any edge is judged where it is), as `map_costs` grows a wall
-    (taxicab `INFLATION_CELLS`), the low corner of the one nearest the goal,
-    m; None where none does (another robot's disc, a goal past the grid's
-    edge beyond the keep-off of anything on it)."""
+    solid whose keep-off takes in the goal's cell of the plan (`b` map cells
+    a side, the lattice's; read as the plan reads it, `world_to_cell`, and
+    never clamped onto the grid, so a goal far past an edge is judged where
+    it is), as `map_costs` grows a wall (taxicab `INFLATION_CELLS`), the low
+    corner of the one nearest the goal, m; None where none does (another
+    robot's disc, a goal past the grid's edge beyond the keep-off of
+    anything on it)."""
     g, r = self.grid, self.INFLATION_CELLS
-    x0 = math.floor((wx - g.x_min) / g.resolution) // b * b
-    y0 = math.floor((wy - g.y_min) / g.resolution) // b * b
+    cx, cy = g.world_to_cell(wx, wy)
+    x0, y0 = cx // b * b, cy // b * b
     lo_x, lo_y = max(x0 - r, 0), max(y0 - r, 0)
     ys, xs = np.nonzero(planning[lo_y:max(y0 + b + r, 0), lo_x:max(x0 + b + r, 0)]
                         > OCC_THRESH)
