@@ -829,9 +829,11 @@ save a filmstrip PNG named after the script.
   `Menu.kinds`), graded by its check's evaluator. ⚠ WATCHED FROM THE CLAIM to the hold after `done`: a fall on
   the way fails it; its `minutes` count from the claim; its readings ride a
   restart (`jobWatches`). ⚠ A FALL ENDS IT THERE (#701; `_fall_step`, on
-  the seam every step): the fall its call, the grade's hold from it and
-  until it stands again (a prop set out beside a get-up is set out under
-  it), one verdict the fall first, its prop free after, out of
+  the seam every step, the one settle there outside a charge trip or the
+  day's end: its run ended at the fall): the fall its call, the grade's
+  hold from it and until it stands again, alive (a prop set out beside a
+  get-up or a body lying dead is set out under it), one verdict the fall
+  first, its prop free after, out of
   `heldTasks` from the fall -- held on, a cupboard stayed booked 985 s
   past the fall that had failed its job; a `done` after it is #648's
   line, a job whose `done` is holding that grade's, a job taken again a

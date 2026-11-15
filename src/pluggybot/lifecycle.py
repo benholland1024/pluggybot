@@ -4302,7 +4302,7 @@ class HubLifecycle:
         # verdict, its time where the seam has read it
         t0 = self._fallen[task.id][0] if task.id in self._fallen else None
         why = (f"I fell{_at(t0, float(self.data.time))}, and that ended it -- it is "
-               "being graded as things stood then")
+               "graded as things stand once I am up")
       elif (task is not None and task.state == "offered"
             and decision.action == "take_task" and decision.task == decision.done):
         # ...before the action runs: "nobody has taken it", after its own
@@ -4437,17 +4437,20 @@ class HubLifecycle:
     reading what touches the prop, and ONE verdict, the fall first
     (`lid.judged`), in its grader's own words (`_fall_graded`). ⚠ Not a job
     whose `done` is holding: that grade says the fall first already. ⚠ ON
-    THE SEAM, dead or alive: a fall ends a procedure's run at the step it is
-    counted (#671), so nothing is working the prop as its job ends."""
+    THE SEAM, the one settle there outside a charge trip or the day's end:
+    a fall ends a procedure's run at the step it is counted (#671), so
+    nothing works the prop as its job ends, and the hold ends only with the
+    robot up and alive."""
     if self.body.falls != self._falls_read:
       self._falls_read = self.body.falls
       for task_id, watch in list(self._job_watches.items()):
         task = self._holds(task_id)
         if task is not None and task_id not in self._fallen and _fell_unheld(watch):
           self._fall_ends(task, watch)
-    # ...its hold over once the body stands again: a prop set out beside a
-    # body getting up (its get-up up to `GETUP_BUDGET_S`) is set out under it
-    if self._fallen and (self.body.posture != "getting_up" or self.dead is not None):
+    # ...its hold over once the body stands again, alive: a prop set out
+    # beside a body getting up (up to `GETUP_BUDGET_S`) or lying dead (its
+    # 300 s, as a run-out waits, #602) is set out under it
+    if self._fallen and self.dead is None and self.body.posture != "getting_up":
       now = float(self.data.time)
       for task_id in [t for t, (_, _, due) in self._fallen.items() if now >= due]:
         self._fall_graded(task_id)
@@ -4470,13 +4473,10 @@ class HubLifecycle:
   def _fall_graded(self, task_id: str) -> None:
     """A job a fall ended, graded as its hold ends (`_fall_step`); settled
     once -- nothing, where it was settled some other way meanwhile (a true
-    death's) or given back. ⚠ Not before a restart's `_resume_jobs` has
-    taken its kept watch up: the day's look round steps the world first."""
+    death's) or given back."""
     task = self._holds(task_id)
     if task is None:
       self._fallen.pop(task_id, None)
-      return
-    if task_id not in self._job_watches and task_id in self._kept_watches:
       return
     t0, at_call, _ = self._fallen.pop(task_id)
     watch = self._job_watches.get(task_id)
@@ -5107,8 +5107,8 @@ class HubLifecycle:
       self._run_out_held()
     # ...and a hand job's watch whose job ended some other way than its
     # grade (#559: a true death, an admin): it reads nothing more
-    for task_id in [t for t in self._job_watches
-                    if (self.tasks.get(t) is None or self.tasks.get(t).state != "active")]:
+    # ...or held by the other robot now, given back and taken (#701)
+    for task_id in [t for t in self._job_watches if self._holds(t) is None]:
       self._unwatch_job(task_id)
     if self.producer is not None:
       for task in self.producer.tick(float(self.data.time), self.fundable_wh,
@@ -5736,6 +5736,7 @@ class HubLifecycle:
               f"it, and set done to {task.id} when the work stands")
     # ...a try of its own (#701): no fall, nor watch, of one before it
     self._fallen.pop(task.id, None)
+    self._kept_watches.pop(task.id, None)
     self._unwatch_job(task.id)
     self._watch_job(task.id)
     return True
@@ -6167,6 +6168,10 @@ class HubLifecycle:
     self._fallen = {task_id: (float(f["t"]), dict(f["atCall"]),
                               float(f["t"]) + self._hold_of(task_id))
                     for task_id, f in (state.get("fallen") or {}).items()}
+    # ...their watches taken up here, the kept readings with them: left to
+    # `_resume_jobs`, after the day's look round, a hold ended first
+    for task_id in [t for t in self._fallen if self._holds(t) is not None]:
+      self._watch_job(task_id)
     self.dead = dict(state["dead"]) if state.get("dead") else None
     self.survival_since = float(state.get("survivalSince", self.survival_since))
     self._last_ask_t = float(state.get("lastAskT", self._last_ask_t))
