@@ -72,19 +72,25 @@ beside the branch, the rows in the loop's K12 folder:
   the final head `e895f8b`: at the cube, 42 flights of `cube_run1`,
   `cube_run2`, `cube_run3` and K4's height variant, `measure` read the
   cube's top, 0.803-0.807 m (base 0.717-0.721, the counter), so they aimed
-  at 0.766 for 0.68: falls 16 of 42 → 0, and the cube placed in 2 (base 0);
-  `cube_run1`'s thighs never met the counter's face (base up to 400 N), while
-  `cube_run2` and `cube_run3`, which step nearer the face, still pressed a
-  thigh at up to 101-276 N and stopped short on the board, none falling. At
-  the chest's knob tag (its front face, read at the knob's middle), 24
-  flights of `chest_run33`-`35`: `measure` read the knob's upper part,
-  0.815-0.824, in 21 and the lid in 3 (base: the lid in 22, the counter in
-  2); passes 2 of 24 and falls 5 on both trees. A kept procedure that reads
-  `object.top` at a small thing's side-face tag now reads that thing, not
-  what it hangs from.
-- **Held out** (draws 400-405 on a fresh key, the same six procedures): the
-  cube's falls 6 of 18 → 0, none placed on either tree; the chest's 0 of 18
-  passed and 3 fell on both.
+  at 0.766 for 0.68: falls 16 of 42 → 0. `cube_run1`'s thighs never met
+  the counter's face (base up to 400 N), and its hand closed on the cube in
+  5 of its 18 flights (its pads on the cube, by the contact record; base
+  none), 2 of them placing it; `cube_run2` and `cube_run3`, which step
+  nearer the face, still pressed a thigh into it in 16 of their 18 flights,
+  at 101-276 N at the hardest (base 18 of 18, 95-738 N), and stopped short
+  on the board, none falling. At the chest's knob tag (its front face, read
+  at the knob's middle), 24 flights of `chest_run33`-`35`: `measure` read
+  the knob's upper part, 0.819-0.824, in 21 and the lid in 3 (base: the lid
+  in 22, the counter in 2); passes 2 of 24 and falls 5 on both trees, not
+  all the same flights (one the base passed failed, one the base fell in
+  passed, and one fell on a pull where the base's did not). A kept procedure
+  that reads `object.top` at a small thing's side-face tag now reads that
+  thing, not what it hangs from.
+- **Held out** (draws 400-405 on a fresh key, Luca's six procedures, a
+  flight a draw): the cube's falls 6 of 18 → 0, a hand closed on the cube in
+  1 (base 0), none placed on either tree; at the knob's tag `measure` read
+  the knob in 9, the lid in 6 and the counter in 3 (base: the lid in 15, the
+  counter in 3), and the chest's 0 of 18 passed and 3 fell on both.
 - **Tried and dropped (#711):** a report for a reach that HOLDS with its
   grip short, pushing on what its fingers met. At the moment its routine
   ends the hand is still coming in, its force read as a holding hand's,
@@ -97,7 +103,7 @@ beside the branch, the rows in the loop's K12 folder:
 **What to read on the live rows.** A cube run's `top` local near the cube's
 own top (0.806) where it measured at the cube's tag, and `object.under`
 read where a procedure reads it; a failed reach's line "as it stopped, its
-grip was … cm short of where you asked" and what the robots do after one (a
+grip was … cm from where you asked" and what the robots do after one (a
 grip raised by the fingertips' 4 cm, or aimed from the side); whether a cube
 reach ever closes on the cube; and, from Luca's kept chest procedures, what
 `measure` at the knob reads now (the knob's own top, not the lid's).

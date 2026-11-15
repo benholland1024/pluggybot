@@ -6775,7 +6775,7 @@ verb, and the hands checks at set-outs 0-31 flew the base's flights, 160 of
 pod, the loop of 11-15's K12 rows): at the cube `top` read 0.803-0.807 in
 42 flights of 42 and its reaches aimed at 0.766 for 0.68 -- falls 16 → 0,
 held out at six more draws 6 → 0; at the knob's front-face tag, read at the
-knob's middle, the knob's upper part (0.815-0.824) in 21 of 24, where the
+knob's middle, the knob's upper part (0.819-0.824) in 21 of 24, where the
 window's rule read the lid in 22; the chest's passes 2 of 24 either way.
 
 ⚠ **A top reads high at range.** `box.top_height` takes the band round
