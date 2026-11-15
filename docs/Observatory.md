@@ -10,6 +10,67 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A robot whose map has refused every scan for a minute is told so, and told when a scan fits again (#697, K9, `loop-697`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `0f1df27e…` unmoved, 67,157 chars, 17
+sections: the lines are History rows, never the prefix; the session host's
+hello unmoved, sha1 `b796e75d…`; no geometry moved; the wire gains two
+`drift` whys, additive; the pair's committed recording's command line
+flown on the branch, 11,705 lines, every one the committed fixture's but two
+`earned` events' wall-clock `at`, and no row of either kind in it):
+- **Once its map has refused every scan for a minute, the robot is told so,
+  once** (`navigator.Refusals`, `REFUSED_TELL_S`, 60 sim s): in History,
+  and narrated, "My map has matched none of my scans for a minute, so I may
+  not be where I believe I am". A run is every scan matched and refused
+  (`inconsistent`, `slid`, or #681's `outdone`, up from a fall); any other
+  scan breaks it -- one taken, one laid in unmatched (`anchored`, `no map`,
+  `sparse`, `unconstrained`), or one not matched because the robot is not
+  mapping (getting up, tipped past the gate).
+- **Once its map has taken every scan for 5 s running after it
+  (`MATCHED_TELL_S`; a relocation's among them), it is told that too**: "My
+  map matches my scans again". One fit among refusals says nothing and
+  re-arms nothing (the review: else a map that took a scan now and then
+  made the two lines alternate). Nothing else ends what was told; a map
+  forgotten owes nothing (a true death, a stand-up, or the station's fix
+  past the map's reach, whose own line says the map is gone), and after a
+  fix within the map's reach the line comes once its 30 anchored scans are
+  laid and its fits have held, about 8 s on. Kept across a restart with the
+  map.
+- Both are `drift` rows (`why` `refusing` / `matching`, with `seconds` and
+  the `verdict`). ⚠ The site's observatory files a `drift` row only under a
+  why its own list knows (`DRIFT_WHYS` in `pluggyworldObservatory.ts`), so
+  until the site adds the two they stop at its door; the History lines
+  reach it as records either way.
+- It moves no belief, adds no search and names no act: what the robot does
+  about it is its mind's. Measured on the served body's own scans, its
+  map one scan standing, nothing stepped: its belief turned 120 deg and
+  0.5 m off standing, 750 scans of 750 refused and ONE line 60.0 s into the
+  run, in the living room, the lobby and at two places outside the
+  research center the live robots stood on 11-14; the same up from a fall,
+  or set 1.5 m off, the matcher's searches took it back at 2.0 s and
+  nothing was said. ⚠ At (9.5, -22.8), outdoors, the turned belief read
+  `unconstrained` 750 of 750 (a right one there `ok` 750 of 750): a scan
+  that fixes no direction is not a refusal, so a robot lost there is never
+  told (for Ben: whether such a scan should count).
+
+**Why.** #697, #690's option 3b (Ben, 11-14: build it, low priority). On
+11-12 Luca's heading came out of a fall 120 deg off; its map refused every
+scan for the 26 minutes to the pause, and nothing it read said so. #690's
+net takes a turned heading back where the scan says where the robot is,
+and in the lobby, whose scan turned half round fits as well as the truth,
+it refuses about half the knocked get-ups: those robots are now told within
+a minute.
+
+**What to read on the live rows.** The `refusing` line should come only
+after a fall that turned the heading or a belief set far off, and a
+`matching` after it at the station's fix (then the map's next fit) or a
+relocation, 5 s on. Once the site files the two rows, each one's `errorM` and
+`headingDeg` say whether the robot was off when told: a `refusing` row near
+the truth is a robot told it may be lost that was not. ⚠ A robot lost on a
+map that ACCEPTS its scans -- #681's class, 0.5-1.1 m off at the
+storeroom's counter with every verdict `ok` on 11-14 -- is never told by
+it.
+
 ### The unplug begins at its seat, backed off to it where a charge crept it in, and tries once more (#703, K11, `loop-703`) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` `0f1df27e…` unmoved, 67,157 chars, 17
