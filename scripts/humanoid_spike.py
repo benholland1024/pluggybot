@@ -3162,6 +3162,8 @@ def filmstrip_walk(out: str, every_s: float = 6.0) -> None:
 from pluggybot.humanoid.walk import SEEING_NPZ, WALK_NPZ  # noqa: E402
 #: Each course is walked at this speed, m/s, for this long, s.
 ROUGH_V, ROUGH_S = 0.6, 12.0
+#: The scene's camera, from the side (distance m, azimuth and elevation deg).
+ROUGH_CAM = (4.0, 90.0, -15.0)
 #: Where each course begins ahead of the robot, m.
 ROUGH_AT = 1.0
 COURSES = ("flat", "doorstep", "paving", "slope", "blocks")
@@ -3478,7 +3480,7 @@ def view_rough() -> None:
     with mj_viewer.launch_passive(model, data) as viewer:
       viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
       viewer.cam.trackbodyid = model.body(ROBOT_ROOT).id
-      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 4.0, 90.0, -15.0
+      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = ROUGH_CAM
       wall = time.time()
       for line in rough_scene(model, data):
         if line:
@@ -4993,6 +4995,11 @@ class Falling:
     self.n += 1
 
 
+#: The `fall` and `getup` scenes' camera, in the viewer and a clip, and in
+#: the filmstrip (distance m, azimuth and elevation deg).
+FALL_CAM, FALL_STRIP_CAM = (3.5, 120.0, -15.0), (3.0, 120.0, -15.0)
+
+
 def fall_scene(f: Falling, ways=("front", "back-right", "left")):
   """The `fall` scene, once: shoved over each of `ways` in turn, the get-up
   policy taking the fall and standing the body again."""
@@ -5057,7 +5064,7 @@ def _run_view(make, scene, what: str) -> None:
     with mj_viewer.launch_passive(h.m, h.d) as viewer:
       viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
       viewer.cam.trackbodyid = h.root
-      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 3.5, 120.0, -15.0
+      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = FALL_CAM
       wall = time.time() - h.d.time
       for line in scene(f):
         if line:
@@ -5105,7 +5112,7 @@ def filmstrip_falls(scene: str, out: str, every_s: float = 0.3) -> None:
       cam = mujoco.MjvCamera()
       cam.lookat[:] = h.d.xpos[h.root]
       cam.lookat[2] = max(0.4, cam.lookat[2])
-      cam.distance, cam.azimuth, cam.elevation = 3.0, 120.0, -15.0
+      cam.distance, cam.azimuth, cam.elevation = FALL_STRIP_CAM
       r.update_scene(h.d, cam)
       img = Image.fromarray(r.render())
       ImageDraw.Draw(img).text((8, 8), f"{h.d.time:.1f} s: {label}"[:60], fill=(255, 255, 255))
@@ -5380,18 +5387,18 @@ CLIP_CAMS = {**{s: (CAM_AZIMUTH, CAM_ELEVATION, CAM_DISTANCE, None)
                 for s in ("body", "stand", "reach")},
              **SCENE_CAMS,
              "demo": (-45.0, -20.0, 2.6, None), "walk": (180.0, -50.0, 5.0, None),
-             "rough": (90.0, -15.0, 4.0, None),
-             "stairs": (STAIRS_CAM[1], STAIRS_CAM[2], STAIRS_CAM[0], None),
-             "fall": (120.0, -15.0, 3.5, None), "getup": (120.0, -15.0, 3.0, None),
+             **{s: (cam[1], cam[2], cam[0], None) for s, cam in
+                (("rough", ROUGH_CAM), ("stairs", STAIRS_CAM), ("fall", FALL_CAM),
+                 ("getup", FALL_CAM))},
              "jaws": (*JAW_CAM, None),
              "way_home": (math.degrees(STAND_YAW) + 90.0, -10.0, 2.0, None)}
 #: The scenes whose camera's azimuth is from the robot's heading, turning
 #: with it (`walk`: from its front, through every room it crosses).
 CLIP_TURNS = ("walk",)
-#: The scenes whose world is drawn brighter for our camera already, no
-#: camera of the robot's at work in it (`held_world`, `jaws_world`): their
-#: frames are not lifted again.
-CLIP_LIT = ("body", "jaws")
+#: MuJoCo's own headlight's ambient, the house's: a world drawn brighter
+#: than it for our camera already (`standing_world`, `held_world`,
+#: `jaws_world`) is not lifted again.
+HOUSE_AMBIENT = 0.1
 
 
 def _body_once(scene: BodyScene):
@@ -5451,6 +5458,13 @@ def scene_clip(scene: str, at_once: bool = False) -> dict:
   return {"model": model, "data": data, "lines": _scene_gen(scene, h)}
 
 
+def clip_lift(model) -> float:
+  """How much a clip of `model`'s scene is lifted after rendering:
+  `CLIP_BRIGHTEN` in the house's own light, none in a world drawn brighter
+  for our camera already."""
+  return 1.0 if model.vis.headlight.ambient[0] > HOUSE_AMBIENT else CLIP_BRIGHTEN
+
+
 def _heading(data, root: int) -> float:
   """Where the body faces, deg: our camera's, never the robot's."""
   rot = data.xmat[root].reshape(3, 3)
@@ -5459,57 +5473,55 @@ def _heading(data, root: int) -> float:
 
 def record(scene: str, path: str, gif: bool = False, at_once: bool = False) -> None:
   """--record: `scene` flown once through, headless, and a clip of it written
-  to `path` as it flies -- an MP4 at `CLIP_SIZE` and `CLIP_FPS`, sampled on
+  to `path` (an MP4) as it flies -- at `CLIP_SIZE` and `CLIP_FPS`, sampled on
   the sim clock (real time whatever the machine did), the camera following
-  the robot, on each frame the part it is at, how the last part ended and
+  the robot, on each frame the part it is at, the latest word on a part and
   the sim's clock, its last frame held `CLIP_HOLD_S` -- and with `gif`, a GIF
   beside it (`viz.GIF_W` wide). ⚠ The scene's light is never changed for
   the camera: the frames are lifted after rendering (`CLIP_BRIGHTEN`)."""
   from pluggybot.viz import Recorder
-  out = Path(path)
-  out.parent.mkdir(parents=True, exist_ok=True)
-  gif_path = str(out.with_suffix(".gif")) if gif and out.suffix.lower() != ".gif" else None
-  clip = scene_clip(scene, at_once)
-  model, data, at = clip["model"], clip["data"], clip.get("at")
-  root = model.body(ROBOT_ROOT).id
-  az, el, dist, off = CLIP_CAMS[scene]
-
-  def aim():
-    if off is not None:
-      rec.cam.lookat[:] = data.xpos[root] + off
-    if scene in CLIP_TURNS:
-      rec.set_camera(azimuth=_heading(data, root) + az)
+  Path(path).parent.mkdir(parents=True, exist_ok=True)
   print(f"recording the `{scene}` scene to {path} ...")
-  rec, flown, stage, ended = None, False, "", ""
+  clip = scene_clip(scene, at_once)
+  rec, flown, stage, said = None, False, "", ""
   try:
+    model, data, at = clip["model"], clip["data"], clip.get("at")
+    root = model.body(ROBOT_ROOT).id
+    az, el, dist, off = CLIP_CAMS[scene]
+    turns = scene in CLIP_TURNS
     rec = Recorder(model, path, fps=CLIP_FPS, size=CLIP_SIZE,
                    track_body=ROBOT_ROOT if at is None and off is None else None,
-                   azimuth=az + (_heading(data, root) if scene in CLIP_TURNS else 0.0),
+                   azimuth=az + (_heading(data, root) if turns else 0.0),
                    elevation=el, distance=dist,
-                   brighten=1.0 if scene in CLIP_LIT else CLIP_BRIGHTEN)
+                   brighten=clip_lift(model))
     if at is not None:
       rec.cam.lookat[:] = at
     for line in clip["lines"]:
       if line:
         print(line if line.startswith("  ") else f"  -> {line}")
-        # ...the part it is at, and under it how the last part ended (its
-        # first clause), until another ends
+        # ...the part it is at, and under it the latest word on a part (its
+        # first clause), until another
         if line.startswith("  "):
-          ended = f"{stage}: {line.split(';')[0].strip()}"
+          said = f"{stage}: {line.split(';')[0].strip()}"
         else:
           stage = line
-        rec.set_label("\n".join(t for t in (stage, ended) if t))
-      aim()
+        rec.set_label("\n".join(t for t in (stage, said) if t))
+      if off is not None:
+        rec.cam.lookat[:] = data.xpos[root] + off
+      if turns:
+        rec.set_camera(azimuth=_heading(data, root) + az)
       rec.maybe_grab(data)
     rec.hold(data, CLIP_HOLD_S)
     flown = True
   finally:
-    if rec is not None:
-      rec.close(gif=gif_path if flown else None)
-    if "close" in clip:
-      clip["close"]()
+    try:
+      if rec is not None:
+        rec.close(gif=str(Path(path).with_suffix(".gif")) if gif and flown else None)
+    finally:
+      if "close" in clip:
+        clip["close"]()
   print(f"wrote {path}: {rec.frames_written} frames, {rec.frames_written / CLIP_FPS:.1f} s"
-        + (f", and {gif_path}" if gif_path else ""))
+        + (f", and {Path(path).with_suffix('.gif')}" if gif else ""))
 
 
 #: The `--moving` table's moves (#631): reaches either hand, high, low, far,
@@ -5650,8 +5662,8 @@ def main(argv=None) -> None:
   ap.add_argument("--strip", choices=sorted(SCENES), default=None, metavar="SCENE",
                   help="a scene's filmstrip, headless (--out names it)")
   ap.add_argument("--record", nargs=2, default=None, metavar=("SCENE", "PATH"),
-                  help="a scene flown once through, headless, and a clip of it written to PATH as "
-                       "it flies: an MP4 at 1280x720 and 30 fps on the sim clock, the camera "
+                  help="a scene flown once through, headless, and a clip of it written to PATH "
+                       "(.mp4) as it flies: 1280x720 at 30 fps on the sim clock, the camera "
                        "following the robot")
   ap.add_argument("--gif", action="store_true",
                   help="with --record: a GIF beside the MP4, 640 px wide at 15 fps")
@@ -5747,9 +5759,15 @@ def main(argv=None) -> None:
   if args.getup_policy:
     global _GETUP
     _GETUP = args.getup_policy
+  if args.gif and not args.record:
+    ap.error("--gif is --record's: the GIF beside its MP4")
   if args.record:
+    if args.view or args.strip:
+      ap.error("--record flies its scene headless: no --view or --strip beside it")
     if args.record[0] not in SCENES:
       ap.error(f"--record: no scene {args.record[0]!r} (scenes: {', '.join(sorted(SCENES))})")
+    if Path(args.record[1]).suffix.lower() != ".mp4":
+      ap.error("--record: PATH is the clip's MP4 (--gif writes a GIF beside it)")
     record(*args.record, gif=args.gif, at_once=args.stand_at_once)
   elif args.view == "way_home":
     view_way_home(args.stand_at_once)

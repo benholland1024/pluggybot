@@ -211,6 +211,8 @@ def test_recorder_cuts_a_caption_to_the_frame(world_model, tmp_path):
   finally:
     rec.close()
   assert cut.endswith(" ...") and rec._font.getlength(cut) <= 200
+  one = rec._fit("x" * 200, 100)                  # a first word too wide alone
+  assert one.endswith(" ...") and rec._font.getlength(one) <= 100
   with pytest.raises(ValueError):
     Recorder(world_model, str(tmp_path / "y.mp4"), size=SMALL, brighten=0.0)
 
@@ -292,5 +294,12 @@ def test_record_flies_a_scene_once_and_writes_its_clip(tmp_path, monkeypatch):
   assert made["label"] == "lying on its back\nlying on its back: stood in 0.5 s"
   assert abs(len(_frames(out)) - (16 + 30 * sp.CLIP_HOLD_S)) <= 2
   assert out.with_suffix(".gif").exists()
-  with pytest.raises(SystemExit):
-    sp.main(["--record", "no_such_scene", str(tmp_path / "x.mp4")])
+  for refused in (["--record", "no_such_scene", str(tmp_path / "x.mp4")],
+                  ["--record", "getup", str(tmp_path / "x.gif")],
+                  ["--record", "getup", str(tmp_path / "x.mp4"), "--strip", "getup"],
+                  ["--strip", "getup", "--gif", "--out", str(tmp_path / "strip.png")]):
+    with pytest.raises(SystemExit):
+      sp.main(refused)
+  # ...and a world drawn brighter for our camera already is not lifted again
+  model.vis.headlight.ambient[:] = 0.35
+  assert sp.clip_lift(model) == 1.0

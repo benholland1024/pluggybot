@@ -2068,8 +2068,9 @@ save a filmstrip PNG named after the script.
 - **Demo video** (`--record PATH`, `viz.Recorder`): frames are STREAMED to the
   encoder (a 90 s clip held in memory is ~7 GB); recording must never step the
   sim; the render size sits on the 16-px macroblock grid
-  (`tests/test_viz.py`). ⚠ NEVER THE SCENE'S LIGHT FOR IT (#517): `brighten`
-  lifts the frames after rendering, as the robot's cameras see by that light.
+  (`tests/test_viz.py`). ⚠ A RECORDING NEVER CHANGES A SCENE'S LIGHT (#517):
+  `brighten` lifts the frames after rendering, as the robot's cameras see by
+  that light (a world a scene draws brighter for our camera is not lifted).
 
 ## Conventions
 

@@ -219,13 +219,17 @@ class Recorder:
       d.text(xy, text, font=self._font, fill=LABEL, anchor=anchor)
 
   def _fit(self, text: str, width: float) -> str:
-    """`text`, cut at a word to fit `width` px, an ellipsis where it was."""
+    """`text`, cut at a word to fit `width` px, an ellipsis where it was (a
+    first word too wide alone cut where it reaches)."""
     if self._font.getlength(text) <= width:
       return text
     words = text.split(" ")
     while len(words) > 1 and self._font.getlength(" ".join(words) + " ...") > width:
       words.pop()
-    return " ".join(words) + " ..."
+    cut = " ".join(words)
+    while cut and self._font.getlength(cut + " ...") > width:
+      cut = cut[:-1]
+    return cut + " ..."
 
 
   def rebind(self, model, data) -> None:
