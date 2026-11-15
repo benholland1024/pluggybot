@@ -2544,7 +2544,14 @@ save a filmstrip PNG named after the script.
   `LOOK_TURNED_RAD`, `LOOK_EVERY_S`). ⚠ NO PLATE IS KEPT OFF and no verb
   presses one (#559's stage 4): a walk across one presses it. The search:
   where the fixture puts it, then the address, then a lattice OUTWARD FROM
-  THE ADDRESS (outward from the robot, it walked out of the house). ⚠ The
+  THE ADDRESS (outward from the robot, it walked out of the house). ⚠ THE
+  WALK TO WHERE IT SHOULD BE IS GIVEN WHAT A WALK THAT LONG NEEDS (#698;
+  `places.guess_patience`; SimNotes, "Places, not coordinates"): 10 s
+  (`GUESS_WALK_S_M`) a metre of the walk there as the planner prices it
+  over its own map (`Navigator.walk_m`), at least a viewpoint's 90 s --
+  given 90 s, every far first walk ran out short; at the charge's 6 s a
+  metre, two from the mall whose map read 27 m through a wall it had carved
+  out (#401) did. ⚠ The
   signs are put in at load (`humanoid/world.py`), after the robots. ⚠
   Places ride a restart WITH the map (no map back, no places) and a true
   death or a stand-up forgets both (`Body.forget_world`). `find` is a verb where
