@@ -38,7 +38,13 @@ from pluggybot.procedure import steps as st
 #: lifted up and a little back by a FORCE MOVE that lets the hinge steer the
 #: hand along the arc; lowered toward the body and down, again by force --
 #: the lid set down by its hinge, not by a plan -- and let go only once the
-#: hand is back down.
+#: hand is back down. ⚠ ITS FIRST REACH THAT STOPPED SHORT, ITS HAND OUT
+#: (`left.x`), IS TRIED ONCE MORE AT THE SAME TILT WITH THE GRIP 5 DEG
+#: TOWARD THE ROBOT'S MIDDLE before the tilts go on (#708, as the door's: a
+#: first way out stopped on the counter's edge sent lids to the next tilt,
+#: which let them fall or never opened them); never after a reach refused
+#: with nothing moved (so turned after three refusals, a grip found a plan
+#: whose lift let the lid fall); at 10 deg its pads met the rising lid at 62.
 LID = '''def open_lid():
   budget(steps=40, seconds=66)
   spot(53)
@@ -56,12 +62,16 @@ LID = '''def open_lid():
   y = y - 0.02 * fy
   g = 0
   t = -0.26
+  r = 0.0
+  n = 0
   for i in range(6):
+    s = 0.0
     if g == 0:
       open_hand("left")
-      if reach("left", x, y, z, fx * cos(t), fy * cos(t), -sin(t), -fy, fx, 0):
+      if reach("left", x, y, z, cos(a - r) * cos(t), sin(a - r) * cos(t), -sin(t), -sin(a - r), cos(a - r), 0):
         g = 2
       else:
+        s = read("left.x")
         withdraw("left")
     if g == 2:
       if close_hand("left"):
@@ -69,10 +79,15 @@ LID = '''def open_lid():
       else:
         g = 0
         withdraw("left")
-    if t < -0.26:
-      t = -0.52 - t
+    if n == 0 and g == 0 and s > 0.2:
+      n = 1
+      r = 0.09
     else:
-      t = -0.69 - t
+      r = 0.0
+      if t < -0.26:
+        t = -0.52 - t
+      else:
+        t = -0.69 - t
   if g == 1:
     z0 = read("left.z")
     pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27)

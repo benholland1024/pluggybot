@@ -524,17 +524,22 @@ def _pads_meet_lid_deg(m, d0, grip, rot):
   return None
 
 
-def _lid_grips(m, d0, far: float) -> list:
+def _lid_grips(m, d0, far: float, out: bool = False) -> list:
   """Each grip the lid's procedure reaches for (its place and turn, a tilt each, every reach
   refused so it tries them all), its knob's tag -- the top face, as `spot` reads it at the
-  counter -- read `far` m further from the robot than it is, the robot square to the chest."""
+  counter -- read `far` m further from the robot than it is, the robot square to the chest:
+  each reach refused with nothing moved, or (`out`) stopped short, the hand out where it
+  stopped."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _fly
   knob = m.geom("chest_knob").id
   c, r = d0.geom_xpos[knob], d0.geom_xmat[knob].reshape(3, 3)
   up = r[:, 2] if r[2, 2] > 0.5 else -r[:, 2]
-  seen = {"x": c[0] + 0.013 * up[0] + far, "y": c[1] + 0.013 * up[1], "z": c[2] + 0.013 * up[2],
-          "normal": list(-up), "edge": list(r[:, 1]), "range": 0.5}
+  # ...the robot standing 0.45 m before the knob (`spot` reads its own stance frame), so a hand
+  # stopped out reads out (`left.x`); its grips come back in the chest's frame
+  back = 0.45
+  seen = {"x": c[0] + 0.013 * up[0] + far + back, "y": c[1] + 0.013 * up[1],
+          "z": c[2] + 0.013 * up[2], "normal": list(-up), "edge": list(r[:, 1]), "range": 0.5}
 
   class Seeing(StubBody):
     def __init__(self, *a, **kw):
@@ -547,10 +552,12 @@ def _lid_grips(m, d0, far: float) -> list:
     def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
                       turns=None, refuse=False):
       self.reaches.append((np.asarray(pos, dtype=float), np.asarray(rot, dtype=float)))
-      self._why[side] = "out of reach"
+      if out:
+        self.hands[side] = tuple(pos)
+      self._why[side] = "stopped short" if out else "out of reach"
       return False
       yield
-  body = Seeing(*_bare())
+  body = Seeing(*_bare(), pose=(-back, 0.0, 0.0))
   _fly(hc.JOBS["lid"], body)
   return body.reaches
 
@@ -574,6 +581,32 @@ def test_the_lids_grip_clears_its_lid_up_the_arc_and_holds_the_whole_knob():
     fingers = -rot[:, 2]
     tip = (d0.geom_xpos[knob] - grip) @ fingers + ch.KNOB * np.abs(r.T @ fingers).sum()
     assert tip <= hp.GRIPPER.pad_half[2], tip
+
+
+
+def test_the_lids_reach_that_stopped_short_turns_its_grip_toward_the_middle_before_its_tilts():
+  """⚠ THE LID'S FIRST REACH THAT STOPPED SHORT -- ITS HAND OUT WHERE IT STOPPED -- IS TRIED
+  ONCE MORE AT THE SAME TILT WITH ITS GRIP 5 DEG TOWARD THE ROBOT'S MIDDLE, BEFORE ITS TILTS GO ON
+  (#708; SimNotes, "The door's reach the stop sends back"): a first way out stopped on the
+  counter's edge (`reach.OUT_TIP_NM`) went to the next tilt up, which let a lid fall or never
+  opened it; turned toward the middle the grip plans a shallower crouch, square. A reach REFUSED
+  with nothing moved tilts as it did: after three refusals the grip so turned found a plan whose
+  lift let a lid fall. At 5 deg the pads clear the rising lid past where its lift ends (at 10
+  they met it at 62 deg)."""
+  m, d0 = _lid_scene()
+
+  def tilts_and_turns(grips):
+    fingers = [-rot[:, 2] for _, rot in grips]
+    return ([round(math.degrees(math.asin(f[2]))) for f in fingers],
+            [round(math.degrees(math.atan2(f[1], f[0]) - math.atan2(fingers[0][1], fingers[0][0])))
+             for f in fingers])
+
+  assert tilts_and_turns(_lid_grips(m, d0, far=0.0)) == ([15, 25, 5, 34, -5, 44], [0] * 6)
+  assert tilts_and_turns(_lid_grips(m, d0, far=0.0, out=True)) == (
+    [15, 15, 25, 5, 34, -5], [0, -5, 0, 0, 0, 0])
+  for grip, rot in _lid_grips(m, d0, far=0.009, out=True)[1:2]:
+    met = _pads_meet_lid_deg(m, d0, grip, rot)
+    assert met is None or met > 63.0, met
 
 
 # ---- 8. the table's reference: its grips and its moves (#560) ----------------------------
