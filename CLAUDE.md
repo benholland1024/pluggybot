@@ -2519,7 +2519,17 @@ save a filmstrip PNG named after the script.
   `LOOK_TURNED_RAD`, `LOOK_EVERY_S`). ⚠ NO PLATE IS KEPT OFF and no verb
   presses one (#559's stage 4): a walk across one presses it. The search:
   where the fixture puts it, then the address, then a lattice OUTWARD FROM
-  THE ADDRESS (outward from the robot, it walked out of the house). ⚠ The
+  THE ADDRESS (outward from the robot, it walked out of the house). ⚠ THE
+  WALK TO WHERE IT SHOULD BE IS GIVEN WHAT A WALK THAT LONG NEEDS (#698;
+  `places.guess_patience`): `GUESS_WALK_S_M` (10 s) a metre of the walk
+  there over its own map as the planner prices it (`Navigator.walk_m`, the
+  straight line where none reaches), at least a viewpoint's 90 s
+  (`VIEWPOINT_PATIENCE_S`) -- given 90 s, from the mall's station (22-25 m
+  in a straight line) it ran out 5.8-12.3 m short and looked round there
+  before it walked to the address; ⚠ at the charge's 6 s a metre two
+  walks the map read 27 m ran out at 162 s: the research center's south
+  wall is carved out of the map along the alley (#401), and the walk goes
+  the 43 m way round. ⚠ The
   signs are put in at load (`humanoid/world.py`), after the robots. ⚠
   Places ride a restart WITH the map (no map back, no places) and a true
   death or a stand-up forgets both (`Body.forget_world`). `find` is a verb where

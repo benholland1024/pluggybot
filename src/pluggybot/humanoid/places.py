@@ -77,13 +77,13 @@ VIEWPOINT_PATIENCE_S = 90.0
 #: ...and a walk to where a place should be (a guess: where it was found,
 #: or where its row's drawing puts it) this long a metre of the walk there
 #: over its map (`Navigator.walk_m`), where that is the longer (#698): from
-#: the mall's station the counter is 22-25 m in a straight line, and its 90
-#: s ran out 5.8-11.4 m short, the robot looking round where it stopped
+#: the mall's station the counter is 22-25 m in a straight line, and the 90
+#: s ran out 5.8-12.3 m short, the robot looking round where it stopped
 #: before it walked to the address -- 20-150 s of a far claim. MEASURED
-#: there (32 draws): the map's walk read 43 m, or 26-27 m on half the draws
-#: (a way the walk never took), and the walks took up to 158 s and 154 s;
-#: at 6 s a metre, the charge's (`lifecycle.CHARGE_WALK_S_M`), one of 27 m
-#: ran out at 162 s, 11.4 m short, which needed about 210 (7.8 s a metre).
+#: there: the map's walk read 43 m, or 26-27 m through a wall its own rays
+#: had carved out (#401), and the walks went the 43 m way; at 6 s a metre,
+#: the charge's (`lifecycle.CHARGE_WALK_S_M`), one of 27 ran out at 162 s,
+#: 11.4 m short, and at 10 it took 205 (7.6 s a metre).
 GUESS_WALK_S_M = 10.0
 #: Where a place it expects is looked at from, m out of its tag's face:
 #: the quadrupeds' (#419), where the neighbours' signs 1 m either side

@@ -1176,6 +1176,34 @@ lab from 3 m errors in all eight directions (62-272 s, median 94), and from
 the facility's own address, which lands in its storeroom a wall from the
 lab, in 123-157 s.
 
+**The walk to where it should be is as long as the walk** (#698). A
+robot that remembers a job's area walks first to where the area's tag
+should be, and that walk had a viewpoint's 90 s whatever its length. From
+the mall's station the counter's row is 22.5-23.4 m in a straight line and
+43 m by the only way there is -- out of the mall by the alley, north along
+the sidewalk, in by the research center's front gate. Flown from there
+(the cube 32 draws, the drawer, the door and the chest 16 each), every
+find's first walk ran out of its 90 s, 5.8-12.3 m short, and the robot
+looked round where it stopped before it walked to the address: first finds
+of 117-256 s, the cube's slowest pass 312.3 s. Now it is given 10 s a
+metre of the walk there as the planner prices it over its own map
+(`GUESS_WALK_S_M`, `Navigator.walk_m`; the straight line where no walk
+reaches), at least the 90 s (`guess_patience`). ⚠ THE MAP'S WALK READ 26-27
+M ON 60 FLIGHTS OF THE 80: the research center's south wall, 4 cm thick, is
+carved out of the map along the alley by the robot's own grazing rays
+(#401's), free from x 19 to 23.25 at the cube's draw 17, and the planner's
+route runs through it -- over floor the robot has seen, so a walk measured
+over that floor alone reads the same. Every walk took the 43 m way, most
+in 96-158 s; at 6 s a metre, the charge's (`CHARGE_WALK_S_M`), two of 59
+ran out at 162 s, both where the map's walk read 27 m -- draws 17 and 33,
+which at 10 s a metre arrived in 205 and 228 s of their 270. At 10 no
+first walk of 112 from the mall ran out (the cube's 64 draws, half of them
+held out from the choice, and the counter jobs' 48), and the cube's
+slowest pass from there is 280.1 s, its median 154.6 (312.3 and 174.8
+before). Where the 90 s used to run out the robot now walks straight in,
+and the counter's work after it is a new draw: its verdicts moved both
+ways, the cube's passes 50 of 64 against 52 (Observatory.md, the period).
+
 **The walking look costs a render**, 14-20 ms on the dev GPU under EGL and
 32 ms on the box under osmesa: a look every metre walked or 45 deg turned,
 never oftener than 0.5 s, and none standing -- 16 ms a sim second at the
@@ -5535,8 +5563,10 @@ from the research center's 2.17, 3.66, 2.78 and 5.98. Each of the four
 mall flights came to the storeroom with its belief 0.41-0.67 m off (the
 house's and the research center's about 5 cm): its find's first walk ran
 out of its 90 s 8-11 m short, it looked round and found the row from the
-building's address, and the drawer's reference then asked `step` for
-0.79 m aside, past the 0.5 m it takes, and could not reach the handle.
+building's address (since #698 that walk is given what a walk that long
+needs: "Places, not coordinates"), and the drawer's reference then asked
+`step` for 0.79 m aside, past the 0.5 m it takes, and could not reach the
+handle.
 The tests' pack (`DEMO_WH`) grew from 30 Wh to 33 on 3 Nov, so that
 charged it still funds the dearest job and the reserve both (29.7 of
 29.36), and the pair's fixture was flown again on it.

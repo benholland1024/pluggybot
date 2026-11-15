@@ -10,6 +10,105 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A `find`'s walk to where its place should be is given what a walk that long needs (#698, K3, `loop-698`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` unmoved, `0f1df27e…`, 67,157 chars, 17
+sections; the session host's hello unmoved, sha1 `b796e75d…`; no geometry
+and no wire format moved; nothing the robots read changes):
+- **The walk to where a place should be** -- where it was found, or where
+  its row's drawing puts it off a sign already read (`Places.expected`) --
+  **is given 10 s a metre of the walk there as the planner prices it over
+  the robot's own map** (`humanoid.places.GUESS_WALK_S_M`,
+  `guess_patience`; `Navigator.walk_m`: a metre it has not seen counts
+  twice, the straight line where no walk reaches), at least a viewpoint's
+  90 s (`VIEWPOINT_PATIENCE_S`), never more than the find has left. Before,
+  it was given 90 s whatever its length. A viewpoint's walk, the address's
+  and a lost robot's search are as they were.
+- `Navigator.walks_m` is `nearest_by_walk`'s measure, shared: the station a
+  charge chooses is the one it chose (the same answer and every walk the
+  same at 120 poses over three maps); a goal past the grid's low edges is
+  reached by no walk (its slice wrapped round the field and read 0 m).
+
+**Why** (#698, from N8's minutes of 11-14). From far off the 90 s ran out:
+from the mall's station the counter is 22-25 m in a straight line and 43
+m by the only way there is, the walk stopped 5.8-12.3 m short, and the
+robot looked round there before it walked to the address -- 20-150 s of
+every far claim, and the cube's slowest pass from the mall 312 s where its
+median was 174 (the rule would make 16 minutes of it). The live robots
+claim jobs from wherever they stand. ⚠ The map's walk from the mall reads
+26-27 m on three flights in four, through the research center's south
+wall, which the robot's grazing rays carve out of its map along the alley
+(#401's; drafted again by the loop): every walk went the 43 m way, and at
+6 s a metre one ran out at 162 s.
+
+**Measured** on one rented pod, an EPYC 7713, every tree on it:
+`loop-staging` 26c9273 beside the branch at 10 s a metre (8c359b6) and at
+6 s a metre (bdce413, the branch's first commit), each on 26c9273; a job
+from the mall's station with its area remembered, as
+`energy_spike.py --station station_mall` flies it (an explore, the
+counter's tag found, a charge at the mall, the job), and the tour as
+`solve.py --from tour` flies it; every draw its own noise, a pass timed
+from the claim to the call, every reading counted off the raw rows (the
+loop's K3 folder):
+
+| from the mall | draws | tree | first walks out of time | passed | fell | slowest pass (draw) | median pass | by the rule |
+|---|---|---|---|---|---|---|---|---|
+| the cube | 0-31 | base | 32 of 32 | 28 | 1 | 312.3 s (17) | 174.0 s | 16 min |
+| | | 6 s a metre | 1 (17) | 26 | 2 | 284.4 s (17) | 154.3 s | 15 min |
+| | | 10 s a metre | 0 | 26 | 2 | 252.1 s (17) | 154.3 s | 13 min |
+| the cube, held out | 32-63 | base | 31 of 32 | 24 | 1 | 261.8 s (33) | 177.1 s | 14 min |
+| | | 6 s a metre | 1 of 27 (33) | 21 of 27 | 0 | 297.9 s (33) | 157.6 s | 15 min |
+| | | 10 s a metre | 0 | 24 | 0 | 280.1 s (33) | 156.9 s | 15 min |
+| the drawer | 0-15 | base | 16 of 16 | 12 | 0 | 297.5 s (1) | 166.3 s | 15 min |
+| | | 10 s a metre | 0 | 12 | 1 | 220.5 s (1) | 150.5 s | 12 min |
+| the door | 0-15 | base | 16 of 16 | 14 | 0 | 198.3 s (11) | 190.6 s | 10 min |
+| | | 10 s a metre | 0 | 14 | 0 | 180.3 s (1) | 172.6 s | 10 min |
+| the chest | 0-15 | base | 16 of 16 | 15 | 0 | 221.6 s (5) | 176.4 s | 12 min |
+| | | 10 s a metre | 0 | 14 | 0 | 193.8 s (5) | 156.1 s | 10 min |
+
+(At 6 s a metre the chest's 16 and the door's first 10 were the 10's
+flights to the row.) What each job took out of the pack from the mall, at
+the median: the cube 8.41 Wh on the base and 7.59 on the branch, the
+drawer 7.63 and 7.08, the door 8.98 and 8.36, the chest 8.47 and 7.54
+(`energy.json`'s rows are 9.858, 7.503, 9.041 and 8.543; the dearest
+flights, 16.25 Wh on both, are a place forgotten before the claim and its
+search from the address).
+
+The tour's five jobs at 32 draws each (fresh maps, no place remembered,
+every guess near) and the five identity flights: the branch's 165 rows are
+the base's, flight for flight. The branch at 6 s a metre and at 10 flew
+the same flights wherever the 6's first walk arrived (57 of 59 cube rows).
+
+- **Where a moved flight parts.** Every pair from the mall parts at the
+  base's first walk's 90 s, where the base looks round and walks to the
+  address and the branch walks on; a remembered place forgotten before the
+  claim (draw 51) is a fresh map's address walk on both. Every verdict that
+  moved is the counter's work after both finds have arrived -- a reach
+  stopped short or falling, a `step` asked past its 0.5 m, an arm not got
+  home -- the ways the base fails too, and they move both ways: the cube
+  passed on the base alone at 4 draws of 0-31 and on the branch alone at 2,
+  and held out at 6 and 6. Every fall on either tree is in a reach at the
+  counter -- the cube's, 2 and 2, and the drawer's, 0 and 1 -- the right
+  thigh, arm or torso pressed on the counter's face before it (59-644 N in
+  the record of what it met), never on the walk.
+- **Where the belief stood as the first find ended**, the counter's work
+  starting from it: 0.35 m off at the median on the branch (64 cube
+  flights), 0.38 on the base (its 36 held out): no worse for coming
+  straight in.
+- **The tightest walks** at 10 s a metre were three of 26-27 m on the map
+  that took 205-228 s of their 263-270 (the cube's draws 17, 33, 34),
+  round by the front gate past where the wall had gone from the map; the
+  next slowest, 181-198 s, were walks the map read 43 m, handed 430. Every
+  other first walk of the 111 took 96-158 s. At draw 33 the walk took
+  longer than the base's look round and its walk from the address, and its
+  pass is the slowest held out.
+
+**What to read on the live rows.** A far claim's `find`: its first walk
+arriving (`to: guess`, no `timeout`) rather than running out short and a
+look round before the address; a find's seconds from a far station
+against before; and whether a job claimed from far off is done in its
+minutes more often.
+
 ### The IMU reads no further than the part's full scale (#696, K8, `loop-imu`) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` `0f1df27e…` unmoved, 67,157 chars, 17
