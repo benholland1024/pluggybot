@@ -230,7 +230,7 @@ def test_a_fall_while_a_job_is_held_ends_it_there_graded_as_the_world_stands(tmp
   lines = _history(life)
   fell = [i for i, ln in enumerate(lines) if ln.endswith(
     f"fell holding {task.id} (open_drawer): a fall fails the try, so the job ends here "
-    "-- graded as things stand, 5 s on")]
+    "-- graded as things stand once I am up, 5 s on at the least")]
   failed = [i for i, ln in enumerate(lines) if ln.endswith(
     f"failed the job {task.id} (open_drawer): {ended.verdict['reason']}")]
   assert len(fell) == len(failed) == 1 and fell[0] < failed[0], lines

@@ -4462,9 +4462,10 @@ class HubLifecycle:
                              t0 + module.HOLD_S)
     watch.hold()
     self._say(f"TASK {task.id}: I fell -- a fall fails the try, so the job ends here; "
-              f"graded in {module.HOLD_S:.0f} s")
+              f"graded once I am up, {module.HOLD_S:.0f} s on at the least")
     self._remember(f"fell holding {_job_named(task.id, task)}: a fall fails the try, so "
-                   f"the job ends here -- graded as things stand, {module.HOLD_S:.0f} s on")
+                   f"the job ends here -- graded as things stand once I am up, "
+                   f"{module.HOLD_S:.0f} s on at the least")
 
   def _fall_graded(self, task_id: str) -> None:
     """A job a fall ended, graded as its hold ends (`_fall_step`); settled

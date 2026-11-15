@@ -27,8 +27,9 @@ byte for byte; no geometry and no wire format moved):
   and a fall fails the try -- the drawer 20 cm out in 30 s, and let go", a
   stub test's), settled once, its prop free for the next offer once it is
   in. History says it at the fall (`fell holding t_0307 (open_drawer): a
-  fall fails the try, so the job ends here -- graded as things stand, 5 s
-  on`), and the verdict's line once the hold and the get-up are over; a
+  fall fails the try, so the job ends here -- graded as things stand once
+  I am up, 5 s on at the least`), and the verdict's line once the hold and
+  the get-up are over; a
   job taken again after it is a try of its own; from the fall the job is
   no longer in `heldTasks` (a turn asked in the hold listed it held beside
   that line).
