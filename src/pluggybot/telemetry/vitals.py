@@ -32,11 +32,23 @@ SAMPLE_S = 60.0
 #: +20 back to back (3518953, 2026-09-25), which a 30 would clear by only
 #: 1.3x. 50 sits ~2x from each.
 RUNAWAY_MB_PER_MIN = 50.0
-RUNAWAY_MINUTES = 2
-#: Samples after start that judge nothing: the world is built and carried on
-#: from then, and the grown world (#560) took four minutes in the deployed
-#: process of 2026-11-12 (173 MiB -> 1.3 GB), which a warm-up of three read
-#: as a runaway.
+#: Three, not two: each of a robot's cameras builds its renderer at its first
+#: use, ~210 MiB under osmesa, and a robot's first walk after a charge built
+#: its two a minute apart (2026-11-14 17:32-17:33 UTC: +207, +239, then
+#: flat), which two read as a runaway. Three renderers in three minutes in a
+#: row would still read as one; none came so in the nine processes of the
+#: saved logs of 11-12, 11-14 and 11-15.
+RUNAWAY_MINUTES = 3
+#: Calm samples in a row that end an episode.
+CALM_MINUTES = 2
+#: Samples that judge nothing, the world being built or running (a paused
+#: world's are not counted): the world is built and carried on from then, and
+#: the grown world (#560) took four minutes in the deployed process of
+#: 2026-11-12 (173 MiB -> 1.3 GB), which a warm-up of three read as a
+#: runaway. A process started into a pause carries on at the wake
+#: (2026-11-14 16:00 UTC, +636 and +228 MiB a minute); a pause mid-run keeps
+#: what was built (1450 MiB for 13.6 hours on 11-12/13), its memory moving
+#: by at most +10 MiB a minute.
 WARMUP_MINUTES = 5
 #: Wall seconds of tracemalloc between the onset and the allocation report.
 #: It starts AT the onset, never at boot: MEASURED, traced from boot the pair
@@ -65,37 +77,56 @@ class RunawayRule:
   """When to look, from one resident-memory sample a minute.
 
   `sample` is True at the ONSET: the growth has run over the rate for
-  `minutes` samples in a row. ONCE PER EPISODE: another onset needs
-  `minutes` samples under the rate first, or one long runaway would dump the
-  stacks every minute until it was killed.
+  `minutes` samples in a row. ONCE PER EPISODE: another onset needs `calm`
+  samples under the rate first, or one long runaway would dump the stacks
+  every minute until it was killed.
+
+  The warm-up is the first `warmup` samples of the world being built or
+  running. A sample whose sim clock (`sim_t`) has not moved since the last
+  one, its memory no faster than the rate, is a paused world's: the warm-up
+  does not count it. One with no clock counts (the world is still being
+  built), as does the first with one (nothing says yet whether the clock
+  moves), and one whose memory ran fast with the clock standing: a runaway
+  that stopped the world.
   """
 
   def __init__(self, mb_per_min: float = RUNAWAY_MB_PER_MIN,
                minutes: int = RUNAWAY_MINUTES,
-               warmup: int = WARMUP_MINUTES) -> None:
+               warmup: int = WARMUP_MINUTES,
+               calm: int = CALM_MINUTES) -> None:
     self.mb_per_min, self.minutes, self.warmup = mb_per_min, minutes, warmup
-    self.samples = 0
+    self.calm = calm
+    #: The samples the warm-up has counted.
+    self.counted = 0
     self.last: tuple[float, float] | None = None
+    self.last_sim: float | None = None
     self.rate: float | None = None
     self.above = self.below = 0
     self.episode = False
 
-  def sample(self, wall_s: float, mib: float | None) -> bool:
-    self.samples += 1
+  def sample(self, wall_s: float, mib: float | None,
+             sim_t: float | None = None) -> bool:
+    stood = (sim_t is not None and self.last_sim is not None
+             and sim_t <= self.last_sim)
+    if sim_t is not None:
+      self.last_sim = sim_t
     self.rate = None
+    if mib is not None and self.last is not None and wall_s > self.last[0]:
+      self.rate = (mib - self.last[1]) * 60.0 / (wall_s - self.last[0])
+    fast = self.rate is not None and self.rate > self.mb_per_min
+    if fast or not stood:
+      self.counted += 1
     if mib is None:
       return False
-    if self.last is not None and wall_s > self.last[0]:
-      self.rate = (mib - self.last[1]) * 60.0 / (wall_s - self.last[0])
     self.last = (wall_s, mib)
-    if self.rate is None or self.samples <= self.warmup:
+    if self.rate is None or self.counted <= self.warmup:
       return False
-    if self.rate > self.mb_per_min:
+    if fast:
       self.above, self.below = self.above + 1, 0
     else:
       self.above, self.below = 0, self.below + 1
     if self.episode:
-      if self.below >= self.minutes:
+      if self.below >= self.calm:
         self.episode = False
       return False
     if self.above >= self.minutes:
@@ -110,7 +141,8 @@ class Watchdog:
   `start()` also turns `faulthandler` on for a fatal signal (a segfault in
   MuJoCo or osmesa prints every thread's stack) where nothing has yet;
   `close(why)` prints the exit line. `sim_time` is a callable the server sets
-  once the world exists, read for the line and never trusted to answer.
+  once the world exists, read for the line and the warm-up (a clock standing
+  still is a paused world) and never trusted to answer.
   """
 
   def __init__(self, *, out=None, sample_s: float = SAMPLE_S,
@@ -171,13 +203,15 @@ class Watchdog:
   def tick(self) -> bool:
     """One sample and its line; at an onset, the tracing and the stacks."""
     mib = self.read_rss()
-    onset = self.rule.sample(self.clock(), mib)
+    sim_t = self._sim_t()
+    onset = self.rule.sample(self.clock(), mib, sim_t)
     self.ticks += 1
     self.peak = _max(self.peak, mib)
     rate = self.rule.rate
     self._say(f"vitals: rss {_mb(mib)}"
               + (f" ({rate:+.1f} MiB/min)" if rate is not None else "")
-              + f", peak {_mb(self.peak)}" + self._clock_note())
+              + f", peak {_mb(self.peak)}"
+              + (f", t={sim_t:.1f} s" if sim_t is not None else ""))
     if onset:
       self._say(f"vitals: RUNAWAY -- resident memory grew over "
                 f"{self.rule.mb_per_min:.0f} MiB/min for {self.rule.minutes} "
@@ -240,11 +274,12 @@ class Watchdog:
       self._say("vitals: (the stacks went to stderr)")
       faulthandler.dump_traceback(file=sys.__stderr__, all_threads=True)
 
-  def _clock_note(self) -> str:
+  def _sim_t(self) -> float | None:
+    """The sim clock, or None where there is none yet or it cannot answer."""
     try:
-      return f", t={float(self.sim_time()):.1f} s" if self.sim_time else ""
-    except Exception:                       # noqa: BLE001 -- a line, not a check
-      return ""
+      return float(self.sim_time()) if self.sim_time else None
+    except Exception:                       # noqa: BLE001 -- a reading, not a check
+      return None
 
   def _stream(self):
     return self.out if self.out is not None else sys.stdout
