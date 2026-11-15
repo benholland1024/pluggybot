@@ -232,9 +232,9 @@ and 100,000 statements a run.
   way; an ask of 20 N at least, the most a procedure's pull asks, so 40 N
   for every pull a robot writes -- and one that is coming is given up where
   it reads past it: the body backs off toward the posture the pull began
-  in, only until the hand reads no more than that ask again, and is held
-  there, as a move stopped is (`halt`), the hand waiting on it; that pull
-  takes no other and goes as far as its arm reaches from there, out of
+  in, only until the hand reads no more than the ask (20 N at least), and
+  is held there, as a move stopped is (`halt`), the hand waiting on it;
+  that pull takes no other and goes as far as its arm reaches from there, out of
   reach at once where it cannot follow. A posture bowed, crouched and
   turned the body over an open hand resting on a cupboard door's top; the
   arm's solve lost the hand, its joints stood, and the body bore on it at

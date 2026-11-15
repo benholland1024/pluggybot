@@ -8885,9 +8885,9 @@ it reads no more than twice the pull's ask whichever way -- an ask of 20 N
 at least, so 40 N for every pull a procedure writes -- as it reads as the
 pull begins, and over `MEAN_S` on its way. A posture that is coming is
 given up where the hand reads past that: the body backs off toward the
-posture the pull began in, only until the hand reads no more than that ask
-again, and is held there, as a move stopped is (`halt`), the hand waiting
-on it; that pull takes no other, and goes as far as its arm reaches from
+posture the pull began in, only until the hand reads no more than the ask
+(20 N at least), and is held there, as a move stopped is (`halt`), the
+hand waiting on it; that pull takes no other, and goes as far as its arm reaches from
 there, out of reach at once where it cannot follow. A hand that grips what
 it pulls takes its postures as it did (below). What a pull reports and
 says is unchanged: it ends at its distance, held fast or out of reach, as
@@ -8965,7 +8965,8 @@ with its price.
   draw 215): 4 falls in the 40 draws for the base's 2.
 
 **What it does not do.**
-- *A hand that grips* (above).
+- *A hand that grips* (above), as its grip reads: a jaw shut on what it
+  reads as nothing held (#669's lever) is a hand that holds nothing.
 - *The load across a pull's way that no posture brings stays.* The loop
   closes on the force along the way alone, and where the arm's solve
   misses its command by a centimetre with the turn it is asked to keep
@@ -8977,9 +8978,19 @@ with its price.
   the hand is given up only once the hand reads it, 0.1-0.2 s on.
 - *The reading is the loops' own* (`Reach.force`, the body taken as
   still): a posture's own motion reads on it, and a give-up on that gives
-  up a violent change.
+  up a violent change -- one of the door's 11 give-ups over its 40 draws
+  was of a hand in free air (its true push 0 N), the table checks' four
+  were not (91-193 N). The body's motion taken in (`sensed_force`), the
+  loops lost the hands checks 18 set-outs of 480 for 5 won (#631).
+- *A load that comes back once the body is held* is not backed off again:
+  a pull gives up one posture, once.
 - *A pull that ends while its posture is still coming* leaves the body on
-  its way there, as before; and `move_hand` takes its postures as it did.
+  its way there, as before -- and one that ends while its body backs off,
+  on its way back to where the pull began; nothing of the pull's own ends
+  it then (held fast, pinned and out of reach wait while a posture comes),
+  only its caller's patience or an `until`. A hand still loaded when the
+  posture's time to come is out (`POSTURE_WAIT_S`) goes on back. And
+  `move_hand` takes its postures as it did.
 - *The reach's joint-space way out has no stop on a push at all* (#708,
   next).
 

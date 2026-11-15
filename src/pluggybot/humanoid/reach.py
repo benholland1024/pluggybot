@@ -225,24 +225,21 @@ LEAD_MAX_M, ACROSS_SPEED = 0.08, 2.0
 #: asks (`steps.PULL_MOST_N`), what the standing body holds at a hand
 #: (#544), so 40 N for every pull a robot writes -- and one that is coming
 #: is GIVEN UP where the hand reads past it: the body BACKS OFF toward the
-#: posture the pull began in until the hand reads no more than that ask
-#: again, is held there, and that pull takes no other. ⚠ A posture bows,
-#: crouches or turns the body over a hand that rests on something, and
-#: where the arm's solve can no longer follow, its joints stand and the
-#: body bears on the hand: 45-150 N down on a cupboard door's top for a
-#: 15-20 N pull, and a fall when the open hand slipped off. ⚠ NOT AT THE ASK
-#: ALONE: a hand reading little as its posture is asked is loaded as the
-#: body moves. ⚠ A FORCE, NOT A SHARE OF A SMALL ASK: at twice the ask (20 N
-#: for a 10 N press) more of what passes was refused. ⚠ BACK ONLY AS FAR AS
-#: UNLOADS IT: held where it had got to, a body 1 cm and 3 deg into its
-#: posture stayed leant on what it held at 80-92 N for the 10 s its pulls
-#: went on; sent all the way back, the waist swung a low arm into the
-#: counter (935 N). ⚠ A HAND THAT GRIPS WHAT IT PULLS TAKES ITS POSTURES AS
-#: IT DID (the grip it began with, `gripped`): our door's lever press leans
-#: on its lever -- at set-outs 32-127 two of its 72 doors opened only so,
-#: 45-155 N read while a posture came -- though a gripped fork and a lid's
-#: knob fall the same way (2 of the table check's 32, 1 of 4 flights of a
-#: robot's own lift): the rule widened to them is Ben's call (SimNotes).
+#: posture the pull began in until the hand reads no more than the ask
+#: again (of this at least: 20 N), is held there, and that pull takes no
+#: other. ⚠ A posture bows, crouches or turns the body over a hand that
+#: rests on something, and where the arm's solve can no longer follow, its
+#: joints stand and the body bears on the hand: 45-150 N down on a cupboard
+#: door's top for a 15-20 N pull. ⚠ NOT AT THE ASK ALONE: a hand reading
+#: little as its posture is asked is loaded as the body moves. ⚠ A FORCE,
+#: NOT A SHARE OF A SMALL ASK: at twice the ask (20 N for a 10 N press) more
+#: of what passes was refused. ⚠ BACK ONLY AS FAR AS UNLOADS IT: held where
+#: it had got to, a body 1 cm into its posture stayed leant on what it held
+#: at 80-92 N for 10 s; sent all the way back, the waist swung a low arm
+#: into the counter (935 N). ⚠ A HAND THAT GRIPS WHAT IT PULLS TAKES ITS
+#: POSTURES AS IT DID (the grip it began with, `gripped`): two of our door's
+#: 72 held-out passes opened only by the body leaning on its lever (45-155 N
+#: read), though a gripped fork or knob falls the same way (SimNotes).
 PRESSED_SHARE, PRESSED_ASK_N = 2.0, 20.0
 #: ...giving, its turn gives to what it holds this share a command (100 a
 #: second: a tenth of a second's lag) -- held, a wrist twisted by a drop
@@ -2173,8 +2170,9 @@ class Reach:
       self.hold_posture(*st["began"])
       st["postured"], st["given"], st["backing"] = st["t"], True, True
     elif st.get("backing") and not (settling and self._pressed(fm, limit, 1.0)):
-      # ...only until the hand reads no more than the ask again, and is
-      # held there, as a move stopped is (`halt`) -- or is back
+      # ...only until the hand reads no more than the ask again (20 N at
+      # least), and is held there, as a move stopped is (`halt`) -- or is
+      # back; still loaded when its time to come is out, it goes on back
       if settling:
         self.hold_posture(*self.posture_now())
       st["backing"] = False

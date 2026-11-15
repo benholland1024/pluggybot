@@ -448,13 +448,15 @@ def test_a_posture_is_given_up_where_the_hand_reads_a_load_while_it_comes():
   """Not at the ask alone: a hand reading little as its posture is asked is
   loaded as the body moves (the weak form flown on #699: no fall, the loads
   as before). The body backs off toward the posture the pull began in --
-  only until the hand reads no more than the ask again -- and is held
-  there, the hand waiting on it, that pull taking no other. Held where it
-  had got to, a body 1 cm into its posture stayed leant on a lid's knob at
-  80-92 N; sent all the way back, the waist swung a low arm into the
-  counter."""
+  only until the hand reads no more than the ask again, `PRESSED_ASK_N` at
+  least -- and is held there, the hand waiting on it, that pull taking no
+  other. Held where it had got to, a body 1 cm into its posture stayed
+  leant on a lid's knob at 80-92 N; sent all the way back, the waist swung
+  a low arm into the counter."""
   way, got_to = np.array([0.0, 0.0, 1.0]), (-0.05, 0.1, 0.2)
-  ask = rc.PRESSED_ASK_N * way                # what the hand may still read, backed off
+  # what the hand may still read, backed off: 20 N, though the pull asks 10
+  # (held at 18, it reads past its ask)
+  ask = rc.PRESSED_ASK_N * way
 
   def pulling(held=True, grips=False):
     r = _bare_reach()
