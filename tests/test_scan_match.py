@@ -1333,7 +1333,7 @@ def test_a_wider_look_weighs_places_at_the_takes_heading_and_at_the_doubts_bar(
 
 
 def test_a_wider_look_is_made_once_in_its_scans_whatever_comes_between(counter, monkeypatch):
-  # ~80 ms on the physics thread: a look is made once in LOST_RUN scans the
+  # ~40 ms on the physics thread: a look is made once in LOST_RUN scans the
   # matcher is handed, and what it found waits for the next whatever comes
   # between -- a scan with too little under it, a fit that slid, which each
   # break the plain run of refusals (#681's review: looked at afresh after
@@ -1601,6 +1601,19 @@ def test_not_up_from_a_fall_a_find_stands_whatever_the_wide_search_holds(counter
   whys, belief = _stood(m, (STOOD[0] + 0.45, STOOD[1] + 0.40, STOOD[2]), np.random.default_rng(33), 1)
   assert whys == ["found"] and math.hypot(belief[0] - STOOD[0], belief[1] - STOOD[1]) < 0.03
   assert not looks and m.pending is None
+
+
+def test_a_fall_leaves_an_anchors_window_as_it_was(counter):
+  # Measured both ways (docs/SimNotes.md, "A get-up moves the body past the
+  # search's window"), and neither right: shoved a second after a station's
+  # fix, the open window laid 19 scans unmatched 1.25 m off the body; closed
+  # at the fall, it handed a right belief to the askew map the fix had just
+  # corrected. The anchor outranks the map, as it did.
+  m = sm.ScanMatcher(counter)
+  m.anchored()
+  m.fell()
+  assert m.anchoring == sm.ANCHORED_SCANS and m.fallen
+  assert m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, np.random.default_rng(43))).why == "anchored"
 
 
 # ---- a robot up from a fall, its heading turned (issue #690) -----------------

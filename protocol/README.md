@@ -790,9 +790,12 @@ only record of it was the box's log. One event type is new:
 - **`drift`**: per robot, every `lifecycle.DRIFT_EVERY_S` (300 sim s) and
   at every event that moved its belief outside a scan match or lost it.
   `why` (`DRIFT_WHYS`): `sample`; `relocated` (the scan matcher's wide
-  search); `fixed` (a commissioned fixture's tags: lying on the dock, lined
-  up at a bay, or a lost robot's look); `lost` (a fixture not where the
-  belief put it in plain sight); `searched` (the search that followed).
+  search, or up from a fall its wider look, pluggybot #681: that one comes
+  after `outdone` in a sample's `matched`, the wide search's own after
+  `inconsistent`); `fixed` (a commissioned fixture's tags: lying on the
+  dock, lined up at a bay, or a lost robot's look); `lost` (a fixture not
+  where the belief put it in plain sight); `searched` (the search that
+  followed).
   Every row: `pose` (where the robot IS -- the sim's own check, as a
   death's `at.pose`), `believed` (after the event), `errorM` and
   `headingDeg` (the belief less the truth); an event's `before`. Beside

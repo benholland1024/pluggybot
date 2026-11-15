@@ -8406,7 +8406,10 @@ longer moves a right belief the base's fit kept, and from a belief 0.2 m
 off on Luca's map of 11-09 one pose of 40 was searched onto the copy where
 the base's fit ended 0.1 m off. The base's own search, from an
 `inconsistent` fit, still takes the best of two places that explain a scan
-alike, and the doubt's beyond its window.
+alike, and the doubt's beyond its window -- but up from a fall, where a
+get-up has moved the body past either's window, each take is first weighed
+against the wide search's places ("A get-up moves the body past the
+search's window", below).
 
 ## One robot's interrupt asked, the other robot held (issue #690)
 
@@ -8834,6 +8837,270 @@ served wide search's own half turn: knocked about 160-200 deg, it takes the
 lobby's turned pose (its truth outside its 15 deg, so no rival to it); a
 rival at every heading there refused 10 of its 16 right relocations of
 right-headed get-ups.
+
+## A get-up moves the body past the search's window, and up from a fall a take is checked by a wider look (issue #681's fourth round)
+
+**What happened.** On the wake of 11-14 (2a1fbaf, the third round's doubt
+live) four of five falls at the storeroom's counter left the belief 0.55 m
+east of the truth (Luca, three times: 0.55, 0.54, and 0.55 more on top of
+the first) or 0.75 m (Rowan), the heading right, the `drift` row reading
+`found: 1`; it stayed 33, 75 and 87 minutes, to a station's fix or the
+pause, every scan in the storeroom `ok`. 29 of the wake's 51 graded tries
+were flown so, and 3 passed (7 of the 22 flown right).
+
+**The cause, flown** on eb63935 (`~/pluggybot-training/loop-1114-night/
+k10-681d/`: `tools/counter_fall.py`, a robot built as `solve.py` builds a
+served one, walked in from the lobby, the reference's job flown at a prop
+so that the map is its own, then shoved over standing at the work spot or
+inside one of the job's hand verbs, each flight its own noise; every scan
+from the stand on recorded with the matcher and the map as they stood, for
+`anatomy.py` and `replay.py`). 112 flights on each of two pods (two CPU
+types, so two realizations): 84 and 85 falls that stood.
+
+- *The get-up moves the body and the belief stays.* The odometry is held
+  while the get-up has the legs (#572), so the belief stands where the
+  fall was counted and the body where the get-up left it: 0.87 m apart at
+  the median (0.15-2.74), past the bounded search's 0.6 m in 72 of 84, the
+  body back from the counter (west of the belief in 82, a median 0.66 m),
+  its heading followed by the IMU to 0.34 deg at the median (1.55 at most)
+  through turns up to 180 deg. Following the legs instead is no better: an
+  odometry of its own stepped through the get-up beside a flight ended
+  0.8-1.3 m off where the held belief was 1.1-1.3 (six falls), and 1.77
+  against 1.74 in a stagger whose pelvis never went under 0.70 m.
+- *The search takes the best of a window the truth is not in.* From the
+  belief the first fit is `inconsistent`, and the bounded search -- an
+  inconsistent fit's: no rival test, no gain, `FOUND_SHARE` 0.75 -- takes
+  its best. In 12 falls of the 84 that was the place where the counter's
+  front face (x 27.38) lies on the wall 0.6 m behind it (27.98), 0.56-0.60
+  m east of the truth: both lines are in a robot's map within its first job
+  there, and a scan from where a get-up leaves it reads the face alone. One
+  taken apart: 244 of 320 points on walls (0.762), every direction fixed,
+  the weakest resting on 0.244 of the points; the truth, 0.99 m from the
+  belief, would have put 332 of 337 on walls.
+- *...or the fit itself does, or the wide search.* Left about half a metre
+  east, the fit slides the face's returns onto the wall's line in one step,
+  `ok`, no search (3 falls); 3 more were left where they stood, 0.92-1.08 m
+  east, their fits `doubted` or `slid`; at the cube's end of the counter a
+  `found` took a place 0.38 m east; and a get-up that carried the body 2.47
+  m, past the wide search's 2 m, had that search take the face's place as
+  the best in its reach, found twice (1 fall of the 85).
+- *Nothing takes it back.* On the face's place every fit is `ok`: 0.76-0.78
+  on walls, no direction held, the weakest resting on 0.22-0.23 of its
+  points, over `DOUBT_WEAK_SHARE`'s tenth, so never doubted (searched, the
+  doubt's own search would take the truth: 323-329 points against 234-240).
+  Its scans are laid in, and the copy is the map. ⚠ Luca's second fall on
+  top of the first (1.10 m) is NOT reproduced: flown once, shoved again 60 s
+  after a first fall that had left the base 0.60 m east, the second get-up
+  left the belief 1.77 m off and the wide search put it back on the same
+  place, 0.60 m; a copy sixty seconds of standing laid is thin, and Luca's
+  came after 75 minutes of work on its copy.
+
+19 of the 84 and 20 of the 85 ended 0.38-1.08 m off: by how far east of the
+body the stand left the belief (the 84), none of 32 under 0.45 m, 1 of 17
+at 0.45-0.75, 18 of 31 at 0.75-1.25, none of 4 past 1.25. Luca's own chest
+procedure of the wake, at its draw, falls by itself inside a reach in 6
+noise keys of 8 (K4's reproduction, flown through the same instrument): the
+belief left 1.1-1.2 m east of the body, the first matched scan `found`, and
+0.551-0.609 m east 60 s later in 6 of 6 -- the live number. It is not the
+counter's alone: N6's falls in the lobby and at six other places hold the
+same takes in the storeroom, the kitchen, the hall and on a sidewalk
+(below).
+
+**The rule** (`ScanMatcher.fell`, `_outdone`, `_look`, `_put`). Up from a
+fall the pose is in doubt (`fallen`): `HumanoidMission._stood_up` arms it
+as it arms the search at every heading, and it ends with a take that
+stands, a station's fix, a warp, the belief 2 m (`FALLEN_NEAR_M`) from
+where it stood up, or its looks spent (`FALLEN_LOOKS`, 6). Meanwhile, once
+in `LOST_RUN` scans, a take -- the fit's `ok` or `doubted`, its search's
+`found` -- or a fit that `slid` is given a WIDER LOOK: the wide search's own
+places (2 m round the belief, its lattice at every heading in 15 deg), kept
+where they explain the scan as a doubt's take must (`DOUBT_FOUND_SHARE`)
+within `UNIQUE_RAD` of the take's heading (the believed one, for a fit that
+slid), with the take one more of them.
+- The take stands where it is the best, a rival of the best
+  (`RIVAL_SHARE`: the look cannot tell them apart) or one PLACE
+  (`UNIQUE_M`) with the best or a rival of it.
+- Else it is `outdone`, a verdict of its own: not laid in, the belief
+  unmoved, breaking the plain run of refusals as any verdict but
+  `inconsistent` does. The best, where no other place rivals it, waits for
+  the next look to find it again and is then taken (`relocated`). While it
+  waits a take stands only as that place itself (`_near`: 8 cm, 1.5 deg),
+  between two looks and at the look that finds the place again; and places
+  the look could not tell apart refuse every take.
+- The wide search's own take, and the search at every heading's, is a take
+  too (`_put`): the doubt begins again where the belief was put, its looks
+  and its 2 m, and the next scan's take is looked round at once.
+A robot that has not fallen is matched as it was, to the verdict.
+
+**What each piece is there for** (the base's recorded falls replayed
+through each cut with the belief carried, `tools/replay.py`: true to the
+flight while the robot stands, as it does for a minute after each fall
+here; probes written to break it; three code reviews):
+
+- *A place, never a pose.* Refused for any better pose, a right belief was
+  moved wherever a copy of the room lies a step away: on the tests'
+  storeroom with a copy laid 0.3 m along its counter the look's best is the
+  copy at 7 poses of 7 (the room 0.78-0.81 of the copy's points on walls),
+  which the third round's rule forbids. ⚠ The price: a wrong place under
+  0.5 m from the truth is one place with it. The cube's end of the counter
+  has one 0.38-0.40 m east (211 of 273 points on walls where the truth puts
+  98 %): 1 fall of 84, 1 of 85. Taking it back was measured and NOT built:
+  "one place" kept only for a take that left the belief where it stood, a
+  find weighed against the look's best pose, ended 0 of 84 off in replay --
+  and on a live map of 11-09 that holds copies of the storeroom 0.25 m
+  apart it moved 12-14 right finds of 40 onto the copy at two offsets, and
+  25 right beliefs of 40 where "stood" was read off the take's own step.
+- *While a place waits, only that place itself.* After one refusal the
+  search's next find lay 0.43 m from the truth, between it and the place
+  refused -- one place with the find that waited -- was taken, and the fits
+  after it slid back onto the place refused; and at the look that found the
+  truth again a find 0.30 m from it stood, 0.22 m off 30 s later, where the
+  base was right (1 fall of 85).
+- *A fit that only slides is looked round.* It is no take and no refusal
+  of the wide search's run: 563 scans `slid` in a minute, the belief 0.86
+  m off (1 fall of 84), and on three of the five maps probed a belief left
+  (+0.8, +0.3) m stayed there at 10-37 poses of 40.
+- *The doubt's bar, the take's heading, the wide search's lattice.* A probe
+  of right beliefs (`tools/house_fall_probe.py`: the band at the true pose
+  at 7,840 places over the house, a map laid true, the matcher up from a
+  fall): the base ends over 0.1 m off at 2, its own `found`s by the hall's
+  flight, where the band's view of the steps changes with the stance and a
+  scan from the truth puts 0.61-0.75 of its points on walls. Weighed as the
+  wide search finds its places (`FOUND_SHARE`, any heading) the rule
+  refused the right belief at 11 places and moved it at 3 (poses turned
+  14-16 deg put 0.78-0.96 there); with the lattice laid at the take's
+  heading alone, a third of the work, it found those places at the doubt's
+  bar too and moved 3 (0.5-1.7 m): the wide search keeps one candidate a
+  place, at the heading the scan fits it best, so a place that fits better
+  turned is none. As built: the base's 2, the first verdict the base's at
+  every place.
+- *Its own find, its own count, its own verdict.* Found again by the plain
+  wide search (any heading, `FOUND_SHARE`), a look's find was confirmed two
+  scans on by all but the same scan, and a place that search held for its
+  own second refused a right take; read as `inconsistent`, a take the look
+  refused neither counted toward that search's run nor broke it, and its
+  find outlived scans the map agreed with.
+- *`FALLEN_LOOKS`, the last made only to find again.* Two better places
+  the look cannot tell apart refuse a take for as long as the robot stands
+  there; and a fit that only slides would be looked round, 40 ms a second,
+  for good. ⚠ The price: its looks spent, such a take is the base's again,
+  some five seconds on (not seen in any fall flown).
+- *The wide search's own take.* 2.47 m from the belief the truth was out of
+  its reach and the face's place in it (above); from where it was put the
+  truth is in the look's, and replayed, that fall ends right.
+- *An anchor's window is left as it was* (`ANCHORED_SCANS`), measured both
+  ways and neither right. Flown (`tools/anchor_fall.py`: the lost scene 2 m
+  out of the station, the belief set 0.5 m wrong, shoved a second after the
+  station's fix, 21 of the window's 30 scans left, the get-up leaving the
+  belief 1.25 m from the body): the open window laid 19 scans unmatched at
+  that belief and ended 1.21 m off on the copy they made; closed at the
+  fall, they were matched, and it ended 0.49 m off on the map's older copy,
+  the one laid through the wrong belief before the fix, which the window
+  had only begun to lay over. And where the get-up leaves the body in place
+  (1 fall of 84) with no anchored scan laid yet, the closed window hands a
+  right belief to that askew map: 0.2-0.45 m off on maps laid as far askew,
+  0.01 m with the window open (the fourth review's probe). The charge fails
+  on both in the flown scene ("station not seen": the lost search is once a
+  charge, and it was spent before the fall): an issue of its own.
+- *Only up from a fall.* Checking an inconsistent fit's find at any time
+  let the wide search's unconfirmed place (1.8 m along a sidewalk whose wall
+  the map had eroded, #401) refuse a find that was the truth.
+
+**Flown**, the rule beside the base (eb63935), each batch both trees on
+one pod, a process a flight, every stand the same in both trees. "Off" is
+0.3 m or more from the truth 30 s after the stand (N6's instrument: at the
+end of its window, or 10 deg).
+
+| falls | stood | off: base | the rule | worse than the base |
+|---|---|---|---|---|
+| the counter's 112 (pod 1) | 84 | 19 | 1 | 0 |
+| the same on a second pod (another CPU, so another realization) | 84 | 20 | 1 | 0 |
+| other stands along the counter, the work spots with other noise, the restaurant's pass: 62 (pod 1) | 47 | 15 | 1 | 0 |
+| the same on the second pod | 47 | 17 | 1 | 0 |
+| N6's: the lobby held 30 s, six other places walking and held: 361 | 260 | 45 | 20 | 0 |
+| N6's: the lobby knocked 120 deg, held and walking: 402 | 236 | 69 | 63 | 0 |
+| FRESH, nothing looked at, flown once on the frozen rule: the counter at four other stands, the pass at two, the house kitchen's counter, the restaurant kitchen's worktop, the shop's checkout, the lab's bench: 48 | 35 | 7 | 3 | 0 |
+| FRESH: N6's hall, kitchen, living room, storeroom and sidewalk, other noise: 30 | 27 | 2 | 1 | 0 |
+
+What the rule leaves off is the base's own, unmoved: the cube's end's find
+(0.38 m, once on each pod), an `ok` fit 0.39 m along the restaurant's pass
+(one place with the truth), and in N6's batches the knocked heading's 58
+(the search at every heading's to find), 14 in the park (open ground,
+nothing in the look's reach), 8 at a place whose belief was set 0.42 m off
+before the fall (the map's own frame), 2 on a sidewalk and 1 in the lobby;
+in the fresh batch a find 0.36 m off at the house kitchen's counter and an
+`ok` fit 0.51 m off at the restaurant kitchen's worktop (one place with the
+truth, as the cube's), a robot its map refused for the whole hold at the
+shop's checkout, and a sidewalk's 0.37 m.
+A flight's END -- after its walk to the door and back -- is over 0.3 m off
+in 19 and 20 of the counter's flights on the base (worst 1.09 m), 1 and 1
+with the rule (0.39).
+
+- *The live falls themselves* (K4's reproductions through the same
+  instrument, on the dev box): Luca's chest procedure at its draw, six
+  falls of its own: the base 0.551-0.609 m east 60 s on in 6 of 6, the rule
+  0.000-0.012 m (`outdone` x10, `relocated`, a second after its first
+  scan). Rowan's door procedure (1.71 m off at the stand) and its chest
+  lift: the base's verdicts on both trees, right.
+- *A robot that has not fallen:* the 202 recorded falls replayed with the
+  fall's doubt off are the base's, take for take and verdict for verdict;
+  round 3's whole batch on one pod (132 station trials, 60 drift pairs, the
+  counter's 9 injected errors, the mall's 9; no fall in any) is the base's
+  row for row; the pair's recording is the base's but two wall-clock
+  stamps, `determinism_spike --pair` and `--resume-at 300` identical.
+- *A right belief up from a fall:* the whole-house probe ends where the
+  base does at all 7,840 places (its own 2 by the hall's flight); on the
+  four live maps of 11-08 and 11-09 and a map laid true, 40 poses round the
+  counter each, a right belief is moved at none the base does not move.
+- *A belief left 0.5-1.4 m off on those maps* (the same probe, 25 scans):
+  ends over 0.3 m off at 26-33 poses of 40 on the base's map laid true and
+  none with the rule; on the live maps 10-40 on the base and 0-4 with the
+  rule, the rest on the map's own copy where it has one (Rowan's of 11-08,
+  laid 0.57 m off whole: both trees on its copy at 40 of 40).
+
+**The cost.** A look is the wide search's work: 38 ms on the physics thread
+at the median and 57 at most, timed alone on forty recorded falls on the
+dev box (the plain wide search 37 and 47, the bounded search 19 and 24);
+the scan that makes one, with its fit and bounded search, 55 and 79 (the
+worst single match of each of 202 replayed falls beside other work: 69 ms
+at the median, 186 at most). A fall whose take stands makes one look; one
+refused makes two, ten scans apart, and in between each scan's fit and
+bounded search are run and refused (~20 ms a scan): about 0.3 s of the
+thread over the second it takes. Six looks a fall at most. Nothing is added
+for a robot that has not fallen.
+
+**Not done.** Rowan's 0.75 m of 11-14 is not reproduced: the plateaus off
+the counter's two lines (0.92-1.08 m in 3 falls of 84) show a belief can be
+left wherever its fits hold it, and what laid Rowan's there is not known.
+Not up from a fall, the bounded search still takes the best of a window
+the truth may lie outside of, and the doubt's own search looks no further
+than its window; a belief arriving from the mall's station 0.9-1.0 m off
+(#681's call 3, a fix under `ASKEW` keeping a map laid askew) is `ok` on
+its own map, as before. A wrong place under `UNIQUE_M` from the truth
+stands (the cube's end's find; an `ok` fit 0.39 m along the restaurant's
+pass), as does any take where the truth is out of the look's 2 m or
+explains under 0.9 of the scan: the station's to fix, as before. The legs'
+reckoning is still held through a get-up, rightly (above). No
+scan is matched while the loop holds the body still itself (a grade's 5 s
+hold yields `STILL`): the first verdict after a fall inside a job comes
+once that hold is over.
+
+**What is true now.** `tests/test_scan_match.py` pins the rule on a
+synthetic storeroom with its counter (the face 0.6 m in front of the wall,
+both lines in the map): up from a fall the search's find a metre short of
+the truth, the fit slid onto the same place, a fit that only slides and the
+wide search's own take from 2.4 m off are each refused or looked round and
+the truth taken ten scans on, where a robot not up from a fall does what it
+did, no look made; a take the look agrees with stands at once, one look
+made; one place with the best or with its rival, it stands; two better
+rivals refuse it until its looks are spent, the last look made only to find
+again; while a place waits only that place stands, at the look that finds it
+again too; a look once in `LOST_RUN` scans whatever comes between, its find
+never the plain search's to confirm; its places at the doubt's bar and the
+take's heading; a copy 0.3 m off takes no right belief and one 0.7 m off
+does (the cost, stated); the doubt ends with a take that stands, a fix, a
+warp, 2 m walked or its looks, and a restart keeps it; a fall leaves an
+anchor's window as it was.
 
 ## Debugging workflow that worked
 
