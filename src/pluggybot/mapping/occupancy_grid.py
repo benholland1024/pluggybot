@@ -33,6 +33,21 @@ L_OCC = 0.85    # amount to add when a ray collides a cell
 #: feel.
 MAX_CELLS = 1_876_800
 
+#: A ray that ends on a surface frees no cell the map holds a wall in over
+#: its last `GRAZE_M` / tan(slant) metres, where it runs alongside that
+#: surface within this far of it, m (`update`'s `graze_m`, #712): the
+#: alley's rays, laid 7-10 cm off the research center's 4 cm south wall the
+#: robot had laid sure from inside, erased it in 8.5 s -- none of those
+#: clears at the true pose. Replayed on that flight's own scans, the wall's
+#: 240 columns kept 90 as the base's rule did at 0.05, 190 at 0.10, 212 at
+#: 0.15 and 215 at 0.20. SimNotes, "A thin wall met at a graze".
+GRAZE_M = 0.15
+#: ...over its last this many metres at most.
+GRAZE_MOST_M = 2.0
+#: Two of a scan's rays this far apart or nearer, rad, tell the way of the
+#: surface between their ends (`_slant`): one bearing missing between them.
+SLANT_GAP_RAD = math.radians(2.5)
+
 
 class OccupancyGrid:
   def __init__(self, x_min, y_min, x_max, y_max, resolution=0.05):
@@ -58,7 +73,8 @@ class OccupancyGrid:
     world_y = ((y + 0.5) * self.resolution) + self.y_min
     return (world_x, world_y)
     
-  def update(self, pose, angles, ranges, max_range, origin=(0.03, 0.03), free_from=None):
+  def update(self, pose, angles, ranges, max_range, origin=(0.03, 0.03), free_from=None,
+             graze_m=None):
     """Update the occupancy map. pose = (x, y, theta) at the AXLE midpoint.
 
     `origin` is where the sensor sits relative to that axle, in robot-frame
@@ -71,6 +87,11 @@ class OccupancyGrid:
     `free_from`, m a ray, is where each ray may begin to clear a cell the
     map holds a wall in (`perception.lidar.Scan`): nearer, it frees only
     cells with no wall's evidence in them.
+
+    `graze_m` (None: off), m: a ray that ends on a surface frees no cell
+    the map holds a wall in where it runs within `graze_m` of that surface,
+    square to it (`GRAZE_M`) -- the surface's way read off the scan's own
+    endpoints either side (`_slant`).
     """
     px, py, theta = pose
     fwd, left = origin
@@ -116,10 +137,20 @@ class OccupancyGrid:
     hin = hit & (hxs.view(np.uint32) < cols) & (hys.view(np.uint32) < rows)
 
     # One weighted bincount accumulates all the evidence in a single pass
+    near = np.zeros_like(keep)
     if free_from is not None:
       # ...nearer than its `free_from`, a ray frees no cell the map holds
       # any wall's evidence in (read before this scan)
-      near = keep & (ts < np.asarray(free_from, dtype=float)[:, None])
+      near |= keep & (ts < np.asarray(free_from, dtype=float)[:, None])
+    if graze_m is not None:
+      # ...nor along its last stretch, where it runs within `graze_m` of the
+      # surface it ends on
+      ex, ey = ox + ranges * cos_a, oy + ranges * sin_a
+      sin_in = _slant(a, ex, ey, hit, cos_a, sin_a)
+      along = graze_m * np.sqrt(1.0 - sin_in ** 2) / np.maximum(sin_in, 1e-9)
+      stretch = np.minimum(np.minimum(along, GRAZE_MOST_M), ranges)
+      near |= keep & hit[:, None] & (ts > (ranges - stretch)[:, None])
+    if near.any():
       keep &= ~near
       walled = self.grid.reshape(-1)[cells[near]] > 0.0
       free_cells = np.concatenate([cells[keep], cells[near][~walled]])
@@ -141,3 +172,27 @@ class OccupancyGrid:
     img[self.grid < -0.5] = 255    # confidently free
     img[self.grid > 0.5] = 0       # confidently occupied
     return img
+
+
+def _slant(a: np.ndarray, ex: np.ndarray, ey: np.ndarray, hit: np.ndarray,
+           cos_a: np.ndarray, sin_a: np.ndarray) -> np.ndarray:
+  """Per ray (world bearings `a`, ends `ex`, `ey`), the sine of the angle at
+  which it meets the surface it ends on, read off the line from its end to
+  its neighbours' -- the next ray each way round, within `SLANT_GAP_RAD`,
+  that ends on something too: the slanter of the two, and 1 (square on)
+  with neither."""
+  out = np.ones(a.size)
+  if a.size < 2:
+    return out
+  order = np.argsort(np.mod(a, 2 * math.pi), kind="stable")
+  s = np.mod(a[order], 2 * math.pi)
+  for step in (1, -1):
+    nb = np.roll(order, step)
+    gap = np.abs(np.mod(s - np.roll(s, step) + math.pi, 2 * math.pi) - math.pi)
+    ok = hit[order] & hit[nb] & (gap <= SLANT_GAP_RAD) & (nb != order)
+    dx, dy = ex[nb] - ex[order], ey[nb] - ey[order]
+    length = np.hypot(dx, dy)
+    ok &= length > 1e-9
+    sine = np.abs(cos_a[order] * dy - sin_a[order] * dx) / np.where(ok, length, 1.0)
+    out[order[ok]] = np.minimum(out[order[ok]], sine[ok])
+  return out

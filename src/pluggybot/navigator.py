@@ -35,7 +35,7 @@ from pluggybot.control import square_up_routine, wrap_angle
 from pluggybot.mapping import optimistic
 from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
-from pluggybot.mapping.occupancy_grid import OccupancyGrid
+from pluggybot.mapping.occupancy_grid import GRAZE_M, OccupancyGrid
 from pluggybot.mapping.scan_match import ACCEPTED, REFUSED, ScanMatcher
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, Scan, robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
@@ -619,7 +619,7 @@ class Navigator:
         m = self._match(angles, ranges, origin)
         if m is None or self.matcher.fuses(m, self.data.time):
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                           origin=origin, free_from=free_from)
+                           origin=origin, free_from=free_from, graze_m=GRAZE_M)
           if m is not None:
             self.matcher.fused(self.pose, self.data.time)
       elif self.matcher is not None:

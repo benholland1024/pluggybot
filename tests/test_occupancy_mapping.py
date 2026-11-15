@@ -84,3 +84,74 @@ def test_evidence_saturation(grid):
   assert logodds_at(grid, 1.03, 0.03) == 5.0    # the tip: strong evidence of a wall
   assert grid.grid.min() >= -5.0
   assert grid.grid.max() <= 5.0
+
+
+def _thin_wall_scans(belief_dy: float):
+  """#712's alley, as a scan sees it: the research center's south wall (4 cm,
+  y -6.02..-5.98, x 16..28) met at 3-35 deg by a robot walking south past
+  the alley's mouth at x 15.55, each scan's ranges the truth's and laid at a
+  belief `belief_dy` north of it (the sidewalk's weak direction)."""
+  for y in np.arange(-6.2, -9.2, -0.04):
+    ox, oy = 15.55, float(y)
+    bearings = np.radians(np.arange(3.0, 36.0, 1.0))
+    ranges = (-6.02 - oy) / np.sin(bearings)
+    keep = (ranges < 8.0) & (ox + ranges * np.cos(bearings) <= 28.0)
+    yield (ox, oy + belief_dy, 0.0), bearings[keep], ranges[keep]
+
+
+def _alley_grid():
+  """The wall laid from inside first: head-on scans from the lobby, its
+  north face's cells sure (+5) from x 19 to 23.5."""
+  g = OccupancyGrid(x_min=10, y_min=-12, x_max=30, y_max=-2, resolution=0.05)
+  for x in np.arange(19.5, 23.5, 0.5):
+    bearings = np.radians(np.linspace(-115.0, -65.0, 51))
+    ranges = (-5.98 - (-3.0)) / np.sin(bearings)
+    for _ in range(8):
+      g.update((float(x), -3.0, 0.0), bearings, ranges, 8.0, origin=(0.0, 0.0))
+  return g
+
+
+def _held_columns(g):
+  """Columns of the wall's two rows (x 19-23.5) either of which reads wall."""
+  r0, r1 = g.world_to_cell(19.0, -6.02)[1], g.world_to_cell(19.0, -5.98)[1]
+  c0, c1 = g.world_to_cell(19.0, -6.0)[0], g.world_to_cell(23.5, -6.0)[0]
+  return int((g.grid[r0:r1 + 1, c0:c1] > 0.5).any(axis=0).sum()), c1 - c0
+
+
+def test_a_thin_wall_met_at_a_graze_from_a_belief_a_few_cm_off_is_kept():
+  # #712: the base's rule erased this wall in 8.5 s of the live robots'
+  # walk, every clear a grazing ray's run along the wall's own rows on its
+  # way to a face laid 9 cm beyond them (at the true pose, none of them).
+  # Pinned on the rule's direct call: the wall laid from inside, then the
+  # alley's grazing scans laid 9 cm off.
+  from pluggybot.mapping.occupancy_grid import GRAZE_M
+  before = _alley_grid()
+  assert _held_columns(before) == (90, 90)
+  for graze in (None, GRAZE_M):
+    g = _alley_grid()
+    for pose, bearings, ranges in _thin_wall_scans(0.09):
+      g.update(pose, bearings, ranges, 8.0, origin=(0.0, 0.0), graze_m=graze)
+    held, cols = _held_columns(g)
+    if graze is None:
+      assert held <= 20, f"the base's rule kept {held} of {cols}: the premise is gone"
+    else:
+      assert held == cols, f"{held} of {cols} columns kept"
+
+
+def test_a_wall_that_moved_is_still_cleared_by_rays_that_pass_it_by():
+  # What the rule costs (#712): a cell it no longer frees is one a ray runs
+  # within GRAZE_M of the surface it ends on. A door laid shut in a doorway
+  # and then gone is still cleared by the rays through the doorway to the
+  # room beyond, each passing it far from its own end.
+  from pluggybot.mapping.occupancy_grid import GRAZE_M
+  g = OccupancyGrid(x_min=-1, y_min=-3, x_max=6, y_max=3, resolution=0.05)
+  bearings = np.radians(np.linspace(-20.0, 20.0, 41))
+  door = 2.0 / np.cos(bearings)                  # a door across x = 2, seen head on
+  for _ in range(10):
+    g.update((0.0, 0.0, 0.0), bearings, door, 8.0, origin=(0.0, 0.0), graze_m=GRAZE_M)
+  assert logodds_at(g, 2.0, 0.0) > 0.5
+  room = 5.0 / np.cos(bearings)                  # the door gone: the wall 5 m off
+  for _ in range(20):
+    g.update((0.0, 0.0, 0.0), bearings, room, 8.0, origin=(0.0, 0.0), graze_m=GRAZE_M)
+  assert logodds_at(g, 2.0, 0.0) < -0.5
+  assert logodds_at(g, 5.0, 0.0) > 0.5
