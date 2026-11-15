@@ -504,6 +504,79 @@ def test_a_find_ends_on_its_patience_and_hands_each_walk_only_what_is_left(world
     body.close()
 
 
+def test_a_walk_to_where_a_place_should_be_is_given_what_a_walk_that_long_needs(world):
+  """#698: from the mall's station the counter's remembered place is a 43 m
+  walk, and its walk's 90 s ran out 5.8-11.4 m short -- the robot looked
+  round where it stopped, then walked to the address: 20-150 s of a far
+  claim. The walk to where a place should be is given `GUESS_WALK_S_M` a
+  metre of the walk there over its map, a near one `VIEWPOINT_PATIENCE_S`,
+  and never more than the find has left. Shown to fail with the 90 s cap."""
+  body = _humanoid(world, 20.0, 0.0, 0.0)
+  m = body.mission
+  sx, sy = _sign("feed")
+  standoff = (sx, sy - lp.STANDOFF_M)
+  timeouts, walks, metres = [], [], [43.0]
+
+  def drive(x, y, timeout=90.0, stop=None):
+    timeouts.append(timeout)
+    m.places.see(FEED, sx, sy, float(m.data.time), view=SOUTH, tag_facing=SOUTH)
+    return tick.result(True)                    # ...and there it is
+
+  def walk_m(x, y):
+    walks.append((x, y))
+    return metres[0]
+
+  try:
+    m.drive_to_routine = drive
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = lambda: []
+    m._look_around_routine = lambda stop: tick.result(False)
+    m.walk_m = walk_m
+    m.places.see(FEED, sx, sy, 0.0, view=SOUTH, tag_facing=SOUTH)    # where it was found
+    m.data.time = 10.0
+    rec = body.run(m.find_routine(FEED, near=(25.2, -2.4), patience=600.0))
+    assert rec["why"] == "found" and rec["guesses"] == 1 and rec["remembered"]
+    assert timeouts == [pytest.approx(lp.GUESS_WALK_S_M * 43.0)]
+    assert walks == [pytest.approx(standoff)], "the walk measured to the standoff walked to"
+    for patience, metres[0], given in ((200.0, 43.0, 200.0),
+                                       (600.0, 5.0, lp.VIEWPOINT_PATIENCE_S)):
+      timeouts.clear()
+      m.data.time += 1.0
+      body.run(m.find_routine(FEED, near=(25.2, -2.4), patience=patience))
+      assert timeouts == [pytest.approx(given)], (patience, metres[0])
+  finally:
+    body.close()
+
+
+def test_a_walk_is_measured_over_the_map_round_a_wall_by_its_door(world):
+  """`Navigator.walk_m`, what a guess's patience is sized by (#698): the
+  walk the planner would take, round a wall by its door; the straight line
+  where no walk reaches; and a goal past the grid's low edges reached by
+  no walk at all -- read off a slice that wrapped round the field, it was
+  the robot's own cell, 0 m."""
+  body = _humanoid(world, 20.0, 0.0, 0.0)
+  m = body.mission
+  try:
+    g = m.grid
+    x0, y0 = g.world_to_cell(16.0, -4.0)
+    x1, y1 = g.world_to_cell(26.0, 4.0)
+    g.grid[y0:y1, x0:x1] = -5.0                     # mapped floor
+    wx, wy0 = g.world_to_cell(21.0, -4.0)
+    _, wy1 = g.world_to_cell(21.0, 2.5)
+    g.grid[wy0:wy1, wx:wx + 2] = 5.0                # a wall, its door north of it
+    assert 6.0 < m.walk_m(22.5, 0.0) < 10.0, "the walk went through the wall"
+    assert m.walk_m(19.0, 0.0) == pytest.approx(1.0, abs=0.3)
+    bx0, by0 = g.world_to_cell(23.0, -3.5)
+    bx1, by1 = g.world_to_cell(25.5, -1.0)
+    g.grid[by0:by1, bx0:bx1] = 5.0                  # a closed room's walls...
+    g.grid[by0 + 2:by1 - 2, bx0 + 2:bx1 - 2] = -5.0   # ...round its floor
+    assert m.walks_m({"in": (24.25, -2.25)})["in"] == math.inf
+    assert m.walk_m(24.25, -2.25) == pytest.approx(math.hypot(4.25, 2.25)), "the straight line"
+    assert m.walks_m({"off": (g.x_min - 5.0, g.y_min - 5.0)})["off"] == math.inf
+  finally:
+    body.close()
+
+
 # ---- 5. the verbs ----------------------------------------------------------------------
 
 
