@@ -1606,7 +1606,6 @@ class HumanoidBody(Body):
     station, fits it off its tags, steps to the seat as it sees it (again
     while off it) and plugs itself in. "docked", or why not -- `NOT_SEEN`
     where the tags were not in sight."""
-    from pluggybot.activity import station as st
     from pluggybot.humanoid import charge
     self._charge_trace = []
     if self._station is None:
@@ -1618,19 +1617,9 @@ class HumanoidBody(Body):
     seen = yield from charge.look_routine(self)
     if seen is None:
       return NOT_SEEN
-    for _ in range(charge.SEAT_STEPS):
-      sx, sy = seen.to_world(st.SEAT_X, st.SEAT_Y)
-      x, y, yaw = self.pose
-      c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
-      ahead, left = (sx - x) * c + (sy - y) * s_, -(sx - x) * s_ + (sy - y) * c
-      turn = math.remainder(seen.yaw - yaw, 2 * math.pi)
-      self._charge_trace.append({"seat": [round(ahead, 3), round(left, 3), round(turn, 3)]})
-      if (-charge.SEAT_IN_M <= ahead <= charge.SEAT_TOL_M and abs(left) <= charge.SEAT_TOL_M
-          and abs(turn) <= charge.SEAT_TOL_RAD):
-        break
-      yield from self.step_routine(ahead, left, turn)
-      seen = (yield from charge.look_low_routine(self)) or seen
-    else:
+    seen, lined_up = yield from charge.seat_routine(self, seen, self._charge_trace,
+                                                    charge.docked_seat)
+    if not lined_up:
       return "not lined up"
     self._station_seen = seen
     why = yield from charge.plug_in_routine(self, seen, self._charge_trace)
@@ -1660,9 +1649,10 @@ class HumanoidBody(Body):
     yield from charge.plug_in_routine(self, seen, self._charge_trace)
 
   def undock_routine(self):
-    """Unplugged, the plug left to its balancer at the cup, and turned away
-    from the station: its walker barely backs up (4 cm in 3 s asked 0.25
-    m/s), so it walks off forward."""
+    """Unplugged from its seat -- stepped back to it first where a charge
+    crept it in (`charge.unplug_routine`, #703) -- the plug left to its
+    balancer at the cup, and turned away from the station: its walker barely
+    backs up (4 cm in 3 s asked 0.25 m/s), so it walks off forward."""
     from pluggybot.humanoid import charge
     seen = self._station_seen or charge.look(self) or self._station
     if self.charging():

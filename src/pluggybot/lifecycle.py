@@ -2911,10 +2911,11 @@ class HubLifecycle:
 
   def unplug_routine(self, why: str = "what I chose next is not here") -> Routine:
     """The plug out by hand before the body goes anywhere (#654): a run's end
-    leaves it in, and a mind may choose not to go on charging. ⚠ WALKED OFF
-    PLUGGED IN, the walk breaks it off the port's catch at the port's 20 N
-    (#559's stage 4), where a hand takes it out as a charge's end does. A
-    hand that could not leaves that to the walk, and says so."""
+    leaves it in, and a mind may choose not to go on charging; a hand takes
+    it out as a charge's end does (`Body.undock_routine`). A hand that could
+    not, in its tries, says so and goes on: ⚠ WALKED OFF after the undock's
+    turn, the rope pulls the plug straight into the port's face, which the
+    catch holds, and the walk stalls (#703)."""
     if not self.body.charging():
       return
     self._say(f"CHARGE: unplugging at {self.battery.fraction:.0%} -- {why}")

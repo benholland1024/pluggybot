@@ -273,8 +273,9 @@ def test_a_full_pack_ends_the_stay_the_plug_out_by_hand_and_the_station_cleared(
 
 
 def test_a_hand_that_could_not_take_the_plug_out_says_so():
-  """It walks on, and the catch lets go at its 20 N, as a walk-off did; only
-  the log can say the hand failed."""
+  """It goes on, the plug in (#703: walked off after the undock's turn, the
+  rope pulls it into the port's face, which the catch holds); only the log
+  can say the hand failed."""
   life = _life()
   _plugged_in(life)
 

@@ -292,7 +292,10 @@ class _Says:
     self.gap = 2.0 * st.PLUG_R_M          # ...shut on the plug's jack
     self.stance = (0.0, 0.0, 0.0)
     self.sees, self.drift = sees, drift
-    self.reached, self.pushed, self.said = [], [], []
+    self.reached, self.pushed, self.said, self.stepped = [], [], [], []
+
+  #: ...where it believes it stands: its stance, for a body that only says
+  pose = property(lambda self: self.stance)
 
   def _done(self, value):
     return value
@@ -346,6 +349,15 @@ class _Says:
   def hold_routine(self, seconds):
     self._call(("hold", seconds))
     return self._done(None)
+
+  def step_routine(self, ahead, left=0.0, turn=0.0):
+    """A step as asked, its stance moved there."""
+    self.stepped.append((ahead, left, turn))
+    x, y, yaw = self.stance
+    c, s = math.cos(yaw), math.sin(yaw)
+    self.stance = (x + c * ahead - s * left, y + s * ahead + c * left, yaw + turn)
+    self._call("step")
+    return self._done({"why": "stepped"})
 
   def release_routine(self, side):
     return self._done("home")
@@ -445,6 +457,59 @@ def test_the_unplug_squeezes_the_seated_plug_lightly_first(monkeypatch):
   assert _drive(charge.unplug_routine(body, RackPose(1.0, 0.0, 0.0), [])) == "unplugged"
   shut = [f for closed, f in body.grips if closed]
   assert shut[:2] == [charge.GRIP_MIN_N, charge.UNPLUG_GRIP_N], shut
+
+
+def _unplugs(body):
+  """A body whose pull takes the plug off its port."""
+  body.plugged = True
+  body.pull_routine = lambda *a, **kw: (setattr(body, "plugged", False),
+                                        body._done({"why": "distance", "along": 0.05}))[1]
+  return body
+
+
+def test_the_unplug_steps_back_to_its_seat_first_where_a_charge_crept_it_in(monkeypatch):
+  """#703: plugged in, the balancer's 2 N on its port creeps a standing robot
+  in toward the station, 7.5 mm a minute, until its plug meets the station 18
+  cm past its seat (SimNotes, "The unplug after a long charge"), and from
+  there the arm's way out behind the plug swung into the station's box: after
+  the live 1,944 and 1,504 s charges, "my hand could not get the plug out",
+  twice of twice. Further in than `UNPLUG_IN_M` it steps back to its seat
+  before its hand goes out, by the station it believes in -- from there no
+  look sees its tags -- and no nearer in it steps not at all."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", _port)
+  station = RackPose(0.35, -0.075, 0.0)          # its seat where its stance is
+  for crept, steps in ((0.0, []), (charge.UNPLUG_IN_M - 0.005, []),
+                       (0.18, [(-0.18, 0.0, 0.0)])):
+    body = _unplugs(_Says())
+    body.stance = (crept, 0.0, 0.0)
+    trace = []
+    assert _drive(charge.unplug_routine(body, station, trace)) == "unplugged"
+    assert [tuple(round(v, 9) + 0.0 for v in s) for s in body.stepped] == steps, crept
+    if steps:
+      assert body.said.index("step") < body.said.index("reach"), body.said
+      assert trace[0]["seat"][0] == pytest.approx(-0.18)
+
+
+def test_an_unplug_that_failed_tries_once_more_off_a_look_of_its_own(monkeypatch):
+  """#703: a hand that could not take the plug out left it to the walk, and
+  after the undock's turn its rope pulled the plug straight into the port's
+  face, which the catch holds: the walk stalled. One more try, after a look of
+  its own; two that fail say why, and try no third."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", _port)
+  station = RackPose(0.35, -0.075, 0.0)
+  went = iter((False, True))
+  body = _unplugs(_Says(reaches=lambda rot: next(went)))
+  assert _drive(charge.unplug_routine(body, station, [])) == "unplugged"
+  first, again = (i for i, w in enumerate(body.said) if w == "reach")
+  assert "spot" in body.said[first:again], body.said
+  body = _unplugs(_Says(reaches=lambda rot: False))
+  trace = []
+  why = _drive(charge.unplug_routine(body, station, trace))
+  assert why.startswith("its hand did not get behind the plug"), why
+  assert body.said.count("reach") == charge.UNPLUG_TRIES == 2 and body.plugged
+  assert [t["unplugTry"] for t in trace if "unplugTry" in t] == [0, 1]
 
 
 def _in_feet(v, stance, point=True):
