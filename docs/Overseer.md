@@ -228,8 +228,19 @@ practice, never told the cap, 421 were over 1,500 and 47 over 3,000), and
 the text says so; one over it that parses is refused with every reason, the
 cap's first (#615's smoke: three repairs of a 5,458-character source heard
 only its length) -- where it arrives whole, in practice and a person's run:
-a served answer's source is cut one past the cap (`define`'s clip), and
-hears the cap alone. A name it gives is lowercase letters, digits and
+a served answer's source is cut one past the cap for the wire (`define`'s
+clip in `Menu.validate`, the one cut a source meets: the schema gives a
+string no length) and judged as it was written
+(`Decision.define_written`, kept beside the cut text and in no `as_dict`):
+its refusal says the written length and every fault of the whole source,
+and nothing a cut made. Judged off the cut, every such refusal read "the
+source is 3001 characters; the cap is 3000" and the cut's own faults were
+told as the robot's (Observatory.md, the period of `loop-k4`, has the
+rows). The `procedure` event's `source` is still the cut text, so its
+`reasons` may name a line past it. A define's refusal says at most
+`library.MAX_FAULTS_SAID` (20) of its source's faults and counts the rest
+(`(+N more)`), and one past `MAX_PARSE_CHARS` is refused unread: judged
+whole, a refusal's size was the answer's to choose. A name it gives is lowercase letters, digits and
 underscores, a letter first, at most `MAX_NAME_CHARS` (32), and the text
 says so (`lang.name_rule`); a name refused says its own reason the first
 time -- the rule, the language's own word, a verb's, a def's or a maths
@@ -894,10 +905,20 @@ where another robot exists; a single-robot prefix is unchanged.
 
 **What the other broadcasts** (`lifecycle.others_context`, the `others` list
 in the context) is the public surface and nothing else: name, reported pose,
-state, the status line it narrates to everyone, whether it is dead, and its
+state, what it says it is doing, whether it is dead, and its
 `posture` (`standing`, or `getting_up` while its get-up has it). Not its
 battery, points, goals, thoughts, reasons or secrets — a test walks the
-whole context for the other's thought lines.
+whole context for the other's thought lines. Its `doing` is the last line
+the other narrated of its OWN doing (`HubLifecycle.doing`), never the
+BOARD's: an offer, an expiry, an offer's things set out (or not there, or
+left under a hand), things put away, a claim given back for a robot that is
+not in this world and a job a restart failed are narrated like any line and
+become the wire's `status` as ever (`_say(board=True)`), and are kept out
+of `doing`. Both lifecycles say the set-out line and the first says every
+offer, and shown as the other's `doing` they read as its claims
+(Observatory.md, the period of `loop-k4`, has the rows). `doing` is empty
+until a robot narrates a line of its own, at every start: neither it nor
+`status` is kept across a restart.
 
 **What a robot may DO about the other, measured** (issue #208; a mind with
 a peer, `mind/acts.py` is the pure half). Five paperwork

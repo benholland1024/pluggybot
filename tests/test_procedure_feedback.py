@@ -434,6 +434,226 @@ def test_a_refused_define_says_the_undefine_goes_on_the_same_answer():
   assert "(it holds 1)" in said                     # never "2 of 1"
 
 
+def test_a_refusal_for_the_librarys_room_says_what_the_source_is_refused_for_too():
+  """A define into a full library heard "the library is full" and nothing
+  else, made room on its next answer, and was then refused for what was
+  wrong with its source all along (the wake of 2026-11-14: 8 of 21 such
+  refusals, a turn each inside a held job's clock). Every reason at once,
+  the library's and the source's -- from `define`, from `check` (the
+  undefine-and-define path), and where the robot reads."""
+  bad = "def b():\n  import os\n"
+  L = lib.Library(lc.world_facts(WORLD), cap=1)
+  L.define("a", "def a():\n  wait(1)\n")
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("b", bad)
+  said = e.value.reasons
+  assert "the library is full (it holds 1)" in said[0]
+  assert any(r.startswith("line 2") for r in said[1:]), said
+  assert L.check("b", bad) == said                  # `check` says what `define` says
+  # ...a name already kept, and its source's own fault
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("a", "def a():\n  import os\n")
+  assert any("already defined" in r for r in e.value.reasons)
+  assert any(r.startswith("line 2") for r in e.value.reasons), e.value.reasons
+  # ...and a name no entry can take still hears of its source
+  with pytest.raises(lib.LibraryRefused) as e:
+    lib.Library(lc.world_facts(WORLD)).define("", bad)
+  assert any("not a name" in r for r in e.value.reasons)
+  assert any(r.startswith("line 2") for r in e.value.reasons), e.value.reasons
+  # ...a source nothing is wrong with adds nothing, and changes nothing
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("b", "def b():\n  wait(2)\n")
+  assert len(e.value.reasons) == 1 and set(L.names()) == {"a"}
+  # ...where the robot reads, on two lines: on one, History's cap (400) cut
+  # the source's faults, which come last (one that lists the verbs is 225)
+  wordy = "def b():\n  nosuch(1)\n  import os\n"
+  for freeing in ("", "zz"):                # `define`'s path, then `check`'s
+    life, _ = _deciding_life(L)
+    life._define(Decision(action="idle", reason="x", undefine=freeing,
+                          define={"name": "b", "source": wordy}))
+    room, faults = life.thoughts.read("History.md").splitlines()[-2:]
+    assert "could not write the procedure b" in room and "the library is full" in room
+    assert "nosuch" not in room and "line cut" not in room + faults, (room, faults)
+    assert "...and its source is refused too: line 2: unknown verb 'nosuch'" in faults
+    assert faults.endswith("line 3: Import is not part of this language")
+    assert len(room) + len(faults) > 400 + len("[t=0s] ") * 2
+  # ...a whole sentence whatever the name is: one that is none is itself the
+  # first line's reason, and "the source of  is refused too" named nothing
+  life, _ = _deciding_life(L)
+  life._define(Decision(action="idle", reason="x", define={"name": "", "source": bad}))
+  room, faults = life.thoughts.read("History.md").splitlines()[-2:]
+  assert "is not a name this library allows" in room and "the library is full" in room
+  assert "] ...and its source is refused too: line 2: Import is not part of" in faults, faults
+  # ...and one line, as it always was, where only one kind of reason stands
+  life, _ = _deciding_life(lib.Library(lc.world_facts(WORLD)))
+  life._define(Decision(action="idle", reason="x", define={"name": "b", "source": bad}))
+  assert "could not write the procedure b: line 2" in life.thoughts.read("History.md").splitlines()[-1]
+
+
+def _over_the_cap(head: str, at_the_cut: str, after: str) -> str:
+  """A source written so that the served cut (one past the cap) falls right
+  after `at_the_cut`: `head`, then `wait` lines, then `at_the_cut`, then
+  `after` past the cut."""
+  from pluggybot.procedure import lang
+  room = lang.MAX_SOURCE_CHARS + 1 - len(head) - len(at_the_cut)
+  fill = "  wait(1)\n" * (room // 10 - 1) + "  wait(1)" + " " * (room % 10) + "\n"
+  written = head + fill + at_the_cut + after
+  assert written[:lang.MAX_SOURCE_CHARS + 1].endswith(at_the_cut) and after
+  return written
+
+
+def _refused_define(written: str, freeing: str = "", name: str = "big"):
+  """A served answer defining `written` under `name`, as the lifecycle takes
+  it: the decision, the `procedure` event its refusal put on the wire, and
+  History's lines for it."""
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("a", "def a():\n  wait(1)\n")
+  life, events = _deciding_life(L)
+  decision = _menu().validate({"action": "idle", "reason": "x", "undefine": freeing,
+                               "define": {"name": name, "source": written}},
+                              procedures=("a",))
+  before = len(life.thoughts.read("History.md").splitlines())
+  life._define(decision)
+  refused = [e for e in events if e.get("outcome") == "refused"][-1]
+  assert set(L.names()) == {"a"}
+  return decision, refused, life.thoughts.read("History.md").splitlines()[before:], life
+
+
+def test_a_define_cut_at_the_cap_is_judged_as_it_was_written():
+  """A served answer's source is cut one past the cap (`Menu.validate`), and
+  the library judged the CUT: its refusal read "the source is 3001
+  characters; the cap is 3000" whatever was written, and told what the cut
+  had made of the text as faults -- "line 111: Expr is not part of this
+  language" for a `pass` cut to `pa` (Observatory.md, the period of
+  `loop-k4`). The library judges the source as WRITTEN (`Decision.
+  define_written`): the written length, every true fault, nothing a cut
+  made; the wire's `define` and the event's `source` are the cut text, byte
+  for byte as before, and the written text goes nowhere else."""
+  import json
+
+  from pluggybot.lifecycle import overseer_context
+  from pluggybot.procedure import lang
+  cap = lang.MAX_SOURCE_CHARS
+
+  def said(chars: int) -> str:
+    return f"the source is {chars} characters; the cap is {cap}"
+  # a true fault on line 2, the cut inside a `pass`, a name only past the cut
+  written = _over_the_cap("def big():\n  import os\n", "  if wait(1):\n    pa",
+                          "ss\n  zz_past_the_cut = 1\n" + "  wait(1)\n" * 40)
+  for freeing in ("", "a"):                 # `define`'s path, then `check`'s
+    decision, refused, lines, life = _refused_define(written, freeing)
+    assert refused["reasons"] == [said(len(written)),
+                                  "line 2: Import is not part of this language"]
+    assert said(len(written)) in lines[-1] and "line 2: " in lines[-1], lines
+    assert "Expr" not in " ".join(lines)
+    # ...the wire as it was: the cut text in the decision's `define` and in
+    # the event; the written one nowhere a robot, a page or a file reads
+    assert refused["source"] == written[:cap + 1]
+    assert decision.as_dict()["define"] == {"name": "big", "source": written[:cap + 1]}
+    assert decision.define_written == written
+    for kept in (decision.as_dict(), refused, life.overseer.library.as_context(),
+                 life.overseer.library.stats(), life.thoughts.read("History.md"), life.log):
+      assert "zz_past_the_cut" not in json.dumps(kept, default=str)
+  # ...nor, through a whole answer of a mind's, its record of decisions, its
+  # next context or its files
+  from test_two_minds import stub_pair
+  mind, _ = stub_pair()
+  mind._after_decision(mind.overseer.menu.validate(
+    {"action": "idle", "reason": "x", "define": {"name": "big", "source": written}},
+    procedures=()))
+  assert any("could not write the procedure big" in line
+             for line in mind.thoughts.read("History.md").splitlines())
+  assert mind.decisions[-1]["define"] == {"name": "big", "source": written[:cap + 1]}
+  for kept in (mind.decisions, overseer_context(mind), mind.overseer.library.as_context(),
+               mind.thoughts.read("History.md"), mind.log):
+    assert "zz_past_the_cut" not in json.dumps(kept, default=str)
+  # ...what a cut makes elsewhere than its last line (each source is whole
+  # and sound but for its length): a helper def wholly past the cut,
+  for at, after, made in (
+      ("  wait(1)\n", "def tail_end():\n  wait(1)\n", "unknown verb"),
+      # ...a cut two characters into a `def` line,
+      ("  wait(1)\nde", "f tail_end():\n  wait(1)\n", "nothing outside them"),
+      # ...and a cut on the newline after a helper's `budget(...)`
+      ("def tail_end():\n  budget(steps=5, seconds=10)\n", "  wait(1)\n", "has no steps")):
+    written = _over_the_cap("def big():\n  tail_end()\n", at, after)
+    assert made in " ".join(lib.Library(lc.world_facts(WORLD)).check("big", written[:cap + 1]))
+    _, refused, lines, _ = _refused_define(written)
+    assert refused["reasons"] == [said(len(written))], refused["reasons"]
+    assert made not in " ".join(lines)
+  # ...a source of exactly one over is whole, and says its own length
+  one_over = "def big():\n" + "  wait(1)\n" * ((cap + 1 - 11) // 10)
+  decision, refused, _, _ = _refused_define(one_over)
+  assert len(one_over) == cap + 1 and decision.define_written == ""
+  assert refused["reasons"] == [said(cap + 1)]
+  # ...and one too long to read at all hears the cap alone, in its true length
+  huge = "def big():\n  import os\n" + "  wait(1)\n" * (lang.MAX_PARSE_CHARS // 10)
+  _, refused, _, _ = _refused_define(huge)
+  assert len(huge) > lang.MAX_PARSE_CHARS and refused["reasons"] == [said(len(huge))]
+
+
+def test_a_refusals_size_is_bounded_whatever_was_written(monkeypatch):
+  """Judged as written, a refusal's size was the answer's to choose: a
+  source of 64,811 characters with a fault on each line said 5,401 reasons,
+  1.26 MB on the status line, the wire and the library's record (cut at the
+  cap it could say 249), and one past `MAX_PARSE_CHARS` was parsed whole
+  for the names it calls before it was refused unread, 0.27 s between two
+  physics steps for 130,000 characters. At most `MAX_FAULTS_SAID` of a
+  source's faults are said and the rest counted, the cap's first; one too
+  long to read is refused unread."""
+  from pluggybot.procedure import lang
+  faulty = "def big():\n  wait(1)\n" + "  import os\n" * 400     # the cap's, and 400 more
+  _, refused, lines, life = _refused_define(faulty)
+  reasons = refused["reasons"]
+  assert reasons[0] == f"the source is {len(faulty)} characters; the cap is {lang.MAX_SOURCE_CHARS}"
+  assert reasons[1:-1] == [f"line {n}: Import is not part of this language"
+                           for n in range(3, lib.MAX_FAULTS_SAID + 2)]
+  assert reasons[-1] == f"(+{401 - lib.MAX_FAULTS_SAID} more)"
+  assert life.overseer.library.refusals[-1]["reasons"] == reasons
+  assert len(life.status) < 60 * (lib.MAX_FAULTS_SAID + 2)
+  # ...the name's and the library's room's reasons are no faults of the
+  # source: said beside them, never counted against them
+  L = lib.Library(lc.world_facts(WORLD), cap=1)
+  L.define("a", "def a():\n  wait(1)\n")
+  held = L.refusal("a", faulty)
+  assert "already defined" in held.reasons[0] and "library is full" in held.reasons[1]
+  assert held.reasons[2:] == reasons == held.faults
+  # ...as many as the bound are said whole, with nothing counted
+  whole = "def b():\n  wait(1)\n" + "  import os\n" * lib.MAX_FAULTS_SAID
+  assert lib.Library(lc.world_facts(WORLD)).check("b", whole) == [
+    f"line {n}: Import is not part of this language" for n in range(3, lib.MAX_FAULTS_SAID + 3)]
+  # ...and a source too long to read is never parsed: not for its faults,
+  # not for the names it calls
+  huge = "def big():\n  a()\n" + "  wait(1)\n" * (lang.MAX_PARSE_CHARS // 10)
+  parsed = []
+  real = lib.ast.parse
+  monkeypatch.setattr(lib.ast, "parse",
+                      lambda src, *a, **kw: (parsed.append(len(src)), real(src, *a, **kw))[1])
+  said = [f"the source is {len(huge)} characters; the cap is {lang.MAX_SOURCE_CHARS}"]
+  for name in ("big", ""):                  # a name an entry can take, and none
+    assert L.refusal(name, huge, freeing="a").faults == said
+  with pytest.raises(lib.LibraryRefused) as e:
+    L.define("big", huge)
+  assert e.value.faults == said and len(huge) not in parsed, parsed
+
+
+def test_a_define_that_goes_through_compiles_the_library_once(monkeypatch):
+  """`define` asked `refusal` and then compiled the library it makes again
+  to keep it: two passes a define on the physics seam (0.05 s each over
+  seven entries), four an answer that replaces a procedure where there were
+  three. The library a define is judged on is the one it keeps."""
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("a", "def a():\n  wait(1)\n")
+  passes = []
+  real = L._compiled
+  monkeypatch.setattr(L, "_compiled", lambda sources: (passes.append(1), real(sources))[1])
+  proc = L.define("b", "def b():\n  a()\n")
+  assert len(passes) == 1 and proc.name == "b" and L.runnable() == ("a", "b")
+  # ...and a refused one changes nothing, as before
+  with pytest.raises(lib.LibraryRefused):
+    L.define("c", "def c():\n  import os\n")
+  assert L.names() == ("a", "b") and set(L.sources) == {"a", "b"}
+
+
 # ---- 3. a procedure is run on the answer that defines it -------------------
 
 

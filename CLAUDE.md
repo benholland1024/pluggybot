@@ -886,7 +886,15 @@ save a filmstrip PNG named after the script.
   DISHWARE IS PUT AWAY BETWEEN JOBS (`restaurant.attach`, `dishware.park`/
   `place`): a metre under the floor, contacts off -- ⚠ the BODY's
   broadphase masks with its geoms' (switched alone, the pieces fell 4 m in a
-  second) -- weight held, in `cull.PARKED_GROUP`; an offer sets it out where
+  second) -- weight held (`gravcomp`), in `cull.PARKED_GROUP` -- ⚠ EVERY
+  `mj_setConst` GOES THROUGH `dishware.set_const` (the two `redraw`s'; a
+  test fails on a bare one in `src/`):
+  it counts afresh the bodies whose weight is held (`ngravcomp`), MuJoCo
+  holds none while that is 0, and counted with the pieces set out -- the
+  pair sets a place out twice, and a counter prop's set-out comes while the
+  table's is out -- a put-away after let them fall at g, put back and said
+  every second (Observatory.md, the period of `loop-k4`;
+  `tests/test_table_job.py`); an offer sets it out where
   set-out k lays it (`_set_out_job`) and a sweep puts it away once no job
   holds the table, never from under a hand (`_put_away_step`); the pair's
   speed with it 0.915x, without 0.903x (one pod). ⚠ `set_table` IS ONE MORE KIND IN THE
@@ -1543,8 +1551,18 @@ save a filmstrip PNG named after the script.
   a refused name says its own reason, once, never "reserved" for one that
   is not. ⚠ A SOURCE IS `MAX_SOURCE_CHARS` (3,000,
   #560; 1,500 before), SAID IN THE TEXT, and one over it that parses is
-  refused with every reason (the cap's alone hid #615's six other faults;
-  a served answer is cut one past the cap, and hears the cap alone).
+  refused with every reason (the cap's alone hid #615's six other faults).
+  ⚠ A SERVED ANSWER'S IS CUT ONE PAST THE CAP FOR THE WIRE AND JUDGED AS IT
+  WAS WRITTEN (`Menu.validate`, the one cut a source meets;
+  `Decision.define_written`, in no `as_dict`; `tests/
+  test_procedure_feedback.py`): judged off the cut, every refusal said
+  "3001 characters" and told what the cut had made of the text as faults
+  (Observatory.md, the period of `loop-k4`). A refused define's `reasons`
+  may so name a line past the `source` its event carries. ⚠ A DEFINE'S
+  REFUSAL SAYS AT MOST `library.MAX_FAULTS_SAID` (20) OF ITS SOURCE'S FAULTS
+  AND COUNTS THE REST (`(+N more)`: judged whole, a fault a line said 5,401,
+  1.26 MB on the status line and the wire), and the library refuses one past
+  `MAX_PARSE_CHARS` unread, as `lang` does.
   ⚠ A RUN IS `MAX_STATEMENTS` (100,000, ~0.1 s: four nested loops in one
   def could run 10^8 on the physics thread). ⚠ DEFS CALL DEFS where the
   facts give calls (`WorldFacts.calls`, #560: every hands world, the served
@@ -1559,7 +1577,11 @@ save a filmstrip PNG named after the script.
   The library (`MAX_PROCEDURES` 8; `define
   {name, source}` / `undefine`) survives a restart and is recompiled against
   today's world; a REPLACEMENT IS ONE ANSWER (`_define` removes before it
-  adds). ⚠ EVERY ENTRY IS RECOMPILED AGAINST THE OTHERS, CALLEES FIRST,
+  adds). ⚠ A REFUSED DEFINE SAYS EVERY REASON AT ONCE, THE LIBRARY'S AND
+  ITS SOURCE'S (`Library.refusal`, `define`'s and `check`'s one door): told
+  its room alone, a robot made room and was refused again for its source
+  (11-14: 8 of 21 "library is full" refusals); in History on two lines
+  where both stand (`_remember_refusal`: on one, its cap cut the faults). ⚠ EVERY ENTRY IS RECOMPILED AGAINST THE OTHERS, CALLEES FIRST,
   AFTER EVERY CHANGE (`Library._relink`): a caller whose callee went is kept
   and marked, and History says it (`callers_moved`); one whose first def
   needs arguments is callable, never `runnable`. ⚠ Invoked as `procedure:<name>` (the action, a standing order or a
@@ -2139,7 +2161,14 @@ save a filmstrip PNG named after the script.
   whole input, pinned by `OTHER_ROBOT_RULE_SHA`, and prescribes NOTHING.
   `others` in the context is the PUBLIC surface (`lifecycle.others_context`) —
   never battery, points, goals, thoughts, reasons or secrets;
-  `HubLifecycle.peers` is read by that and by NOTHING that decides.
+  `HubLifecycle.peers` is read by that and by NOTHING that decides. ⚠ ITS
+  `doing` IS THE ROBOT'S LAST OWN LINE, NEVER THE BOARD'S
+  (`HubLifecycle.doing`, `_say(board=True)`; `tests/test_table_job.py`):
+  both lifecycles narrate an offer's things set out, the first every offer
+  and expiry, and shown one of those the other robot took it for a claim
+  on the job (Observatory.md, the period of `loop-k4`). ⚠ `status` IS
+  UNTOUCHED: the wire's, a recording's only narration and the site's line
+  under a portrait are every narrated line, the board's among them.
 - **Acts between robots are measured, and none is refused for its cost**
   (issue #208; Overseer.md §2c, `mind/acts.py`, `protocol.ACT_EVENT_TYPES`):
   paperwork fields on a mind with a peer ONLY (`Overseer._acts()`).

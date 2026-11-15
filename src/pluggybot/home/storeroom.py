@@ -249,11 +249,12 @@ def redraw(model, data, prop: str, k: int) -> None:
   armature and springs, its geoms' friction -- copied by name off the prop
   compiled alone over draw `k` (the cube's by its own arithmetic, as the
   bench's unknown mass is set, `bench.set_unknown_mass`), the derived
-  constants recomputed. ⚠ THE WORLD'S PINNED STATISTIC SURVIVES IT, as the
-  bench's must: `mj_setConst` re-derives the extent every camera's near
-  plane is scaled by. ⚠ A JOINT'S RANGE IS NOT COPIED: the door's latch
-  holds it (`activity.door.Door`)."""
-  import mujoco
+  constants recomputed (`dishware.set_const`). ⚠ THE WORLD'S PINNED
+  STATISTIC SURVIVES IT, as the bench's must: `mj_setConst` re-derives the
+  extent every camera's near plane is scaled by -- AND SO DOES THE
+  PUT-AWAY'S HOLD of the table's dishware, which it would count afresh. ⚠ A
+  JOINT'S RANGE IS NOT COPIED: the door's latch holds it
+  (`activity.door.Door`)."""
   if prop == "cube":
     from pluggybot.activity import cube as cb
     load = cb.draw(k)
@@ -283,12 +284,8 @@ def redraw(model, data, prop: str, k: int) -> None:
       name = alone.geom(g).name
       if name:
         model.geom_friction[model.geom(name).id] = alone.geom_friction[g]
-  extent, center = float(model.stat.extent), model.stat.center.copy()
-  spring = model.qpos_spring.copy()
-  mujoco.mj_setConst(model, mujoco.MjData(model))
-  model.stat.extent = extent
-  model.stat.center[:] = center
-  model.qpos_spring[:] = spring
+  from pluggybot.activity import dishware
+  dishware.set_const(model)
 
 
 def set_out(model, data, prop: str, k: int | None = None, kind: str | None = None) -> None:
