@@ -1093,8 +1093,12 @@ is no floor (pinned both ways along a counter and round a post). The
 lattice keeps a goal off up to a cell past the 0.35 m the verb's text
 states, and a goal there reads "about as near as a walk keeps". A goal the
 seen walls shut off (no plan at all), a robot its map has walled in, a
-stand-in another robot's disc made, and a goal past the grid's edge beyond
-anything on it keep "no route over the floor mapped so far". ⚠ A goal just
+stand-in another robot's disc made or stood further off (the plan is routed
+once more without the discs: a robot standing in a doorway stood a walk in
+a room away from a goal at the counter), and a goal past the grid's edge
+beyond anything on it keep "no route over the floor mapped so far"; so
+does every stand-in of A*'s plan, the Navigator's default, which stands in
+for floor it has not seen as well. ⚠ A goal just
 behind a thin wall, inside its keep-off, stands in on the near side and
 says "nowhere nearer to stand", as one at or onto a counter's edge does:
 the map does not tell the room behind a wall from a counter's top, and

@@ -25,10 +25,11 @@ meaning (the drive's `why` is one of its four as before).
   keeps, and the robot stood 0.45 m from it)". Its record carries
   `standIn` (`solidM`, `standM`, `keepM`), a field and not a fifth cause;
   a goal between 0.35 m and the lattice's next cell off reads "about as near
-  as a walk keeps". A goal the walls it has seen shut off (no plan at all)
-  still says "no route over the floor mapped so far"; one just behind a thin
-  wall, inside its keep-off, says "nowhere nearer to stand" as one on a
-  counter's top does (in the map they are alike).
+  as a walk keeps". A goal the walls it has seen shut off (no plan at all),
+  and a stand-in the other robot's disc stood further off than the map
+  alone would, still say "no route over the floor mapped so far"; a goal
+  just behind a thin wall, inside its keep-off, says "nowhere nearer to
+  stand" as one on a counter's top does (in the map they are alike).
 - **The prompt.** `drive_to`'s text gains: "Its way keeps your middle about
   0.35 m from what your map holds solid: a walk sent to a wall or a
   counter's edge ends short, where you can stand nearest it, 0.3-0.6 m from

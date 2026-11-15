@@ -283,13 +283,14 @@ def test_the_map_keeps_a_walk_off_a_goal_exactly_where_its_plan_does():
   def agrees(walk, lattice, x, y):
     cx, cy = walk.grid.world_to_cell(x, y)
     at = (cx // op.BLOCK, cy // op.BLOCK)
-    kept = walk._solid_by(walk.grid.grid, x, y, at, op.BLOCK)
+    kept = walk._solid_by(walk.grid.grid, x, y, op.BLOCK)
     assert (kept is not None) == bool(np.isinf(lattice[at[1], at[0]])), (x, y, kept)
     if kept is not None:
       walk._kept_by = kept
       rec = walk._stood_off(x, y)
       words = gave_up({"why": "no_route", "shortM": 0.5, "seconds": 10.0, "standIn": rec})
-      near = "nearer than" if rec["solidM"] < rec["keepM"] else "about as near as"
+      near = ("nearer than" if round(rec["solidM"], 2) < round(rec["keepM"], 2)
+              else "about as near as")
       assert f", {near} a walk keeps," in words, (rec, words)
       said.add(near)
     return kept
@@ -303,6 +304,10 @@ def test_the_map_keeps_a_walk_off_a_goal_exactly_where_its_plan_does():
     if kept is not None:
       assert counter._stood_off(x, 1.513)["solidM"] == round(max(0.0, 5.0 - x), 3), (x, kept)
   assert said == {"nearer than", "about as near as"}
+  # ...decided on the number as said: 0.348 reads "0.35", never nearer than 0.35
+  edge = gave_up({"why": "no_route", "shortM": 0.5, "seconds": 10.0,
+                  "standIn": {"solidM": 0.348, "standM": 0.45, "keepM": 0.35}})
+  assert "is 0.35 m from something the map holds solid, about as near as a walk keeps" in edge
   post = np.full((60, 140), FREE)
   post[30, 100] = WALL                            # (5.0, 1.5) to (5.05, 1.55)
   walk = _Nav(post, (1.0, 1.5))
@@ -338,9 +343,9 @@ def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_of
   assert n._kept_by == kept
   n._route_past("r2_pluggybot", 1.0, 1.0)         # ...a plan to open floor, for a robot's sake
   assert n._kept_by == kept
-  old = _Nav(g, (1.0, 1.5), optimistic=False)     # ...and A*'s, the Navigator's own
-  old._plan_to(*goal)
-  assert old._stand_in is not None and old._kept_by == pytest.approx((3.0, 1.5))
+  old = _Nav(g, (1.0, 1.5), optimistic=False)     # A*'s stand-in, over floor it has seen
+  old._plan_to(*goal)                             # ...stands in for floor unseen too:
+  assert old._stand_in is not None and old._kept_by is None, "it claims nothing"
   past = _Nav(_counter(cols=80, edge=78), (1.0, 1.5))   # a fence at the grid's east edge
   past._plan_to(4.2, 1.5)                         # ...a goal 0.2 m past it
   assert past._stand_in is not None and past._kept_by[0] == pytest.approx(3.95)
@@ -350,6 +355,30 @@ def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_of
   for far in (4.6, 20.0):                         # ...and goals past its keep-off
     past._plan_to(far, 1.5)
     assert past._stand_in is not None and past._kept_by is None, far
+  import numpy as np
+
+  from test_unknown import FREE
+  west = np.full((60, 80), FREE)
+  west[:, :2] = WALL                              # ...and as far past the west edge's
+  w = _Nav(west, (2.0, 1.5))
+  for off, kept_off in ((0.2, True), (0.42, False)):
+    w._plan_to(-off, 1.5)
+    assert w._stand_in is not None and (w._kept_by is not None) is kept_off, off
+  # ...and never where another robot's disc stood the walk in further off:
+  # the counter's room behind a door it stands in
+  import numpy as np
+
+  from test_unknown import FREE
+  rooms = _room_with_a_door()
+  rooms[:, 42:60] = FREE
+  rooms[:, 60:] = WALL                            # a counter from x = 3 m in the far room
+  doors = _Nav(rooms, (1.0, 0.75))
+  doors._plan_to(2.99, 0.75)
+  assert doors._kept_by is not None, "the premise: the door open, the counter keeps it off"
+  doors.others = [lambda: (2.05, 0.75)]           # ...the other robot in the door
+  doors._plan_to(2.99, 0.75)
+  assert doors._stand_in is not None and doors._stand_in[0] < 2.0, "stood in a room away"
+  assert doors._kept_by is None
   shut = _room_with_a_door()
   shut[5:25, 40:42] = WALL                        # its door is a wall now
   s = _Nav(shut, (1.0, 1.5))

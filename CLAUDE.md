@@ -2726,7 +2726,11 @@ save a filmstrip PNG named after the script.
   the goal off, found AS THE PLAN CHOOSES ITS STAND-IN, on that plan's grid
   and its own taxicab keep-off on the goal's own lattice cell, never clamped
   onto the grid (`Navigator._solid_by`, `_kept_by`), kept with the held
-  plan, through a restart and put back after `_route_past`. ⚠ A `find` WHOSE WALKS TOOK IT NOWHERE
+  plan, through a restart and put back after `_route_past`; ⚠ ONLY WHERE
+  THE MAP ALONE STANDS THE WALK IN AS NEAR (another robot's disc in a
+  doorway stood one a room away: the plan routes once more without the
+  discs), and only on the lattice's plan (A*'s stands in for unseen floor
+  too). ⚠ A `find` WHOSE WALKS TOOK IT NOWHERE
   NEW TO LOOK FROM "gave up", in its last walk's words, never "not
   found" (#439: "looked from every place near there" in 23 s beside a
   resting robot); its walks are the log's `trace`. ⚠ A DECIDED

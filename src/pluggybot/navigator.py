@@ -52,7 +52,7 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
     # ...the map's doing, never "no route" (#700; SimNotes, "Where a walk
     # ends by a wall"): "nearer than" only inside the keep-off `drive_to`'s
     # text states (`keepM`) -- its lattice keeps a goal off up to a cell more
-    near = ("nearer than a walk keeps" if kept["solidM"] < kept["keepM"]
+    near = ("nearer than a walk keeps" if round(kept["solidM"], 2) < round(kept["keepM"], 2)
             else "about as near as a walk keeps")
     cause = (f"nowhere nearer to stand: the goal is {kept['solidM']:.2f} m from "
              f"something the map holds solid, {near}, and the robot stood "
@@ -689,8 +689,7 @@ class Navigator:
     through the unknown too (`_plan_optimistic`)."""
     if self.OPTIMISTIC:
       return self._plan_optimistic(wx, wy, bodies)
-    planning = self._planning_grid()
-    self._floor = traversable_mask(planning, self.INFLATION_CELLS)
+    self._floor = traversable_mask(self._planning_grid(), self.INFLATION_CELLS)
     trav = self._floor.copy()
     self._mask_others(trav, bodies)
     self._stand_in = self._kept_by = None
@@ -703,8 +702,8 @@ class Navigator:
       self._escape_cells(bodies), HALO_CELLS)
     if start is None:
       return None
-    own = self.grid.world_to_cell(wx, wy)
-    goal = (min(max(own[0], 0), cols - 1), min(max(own[1], 0), rows - 1))
+    goal = self.grid.world_to_cell(wx, wy)
+    goal = (min(max(goal[0], 0), cols - 1), min(max(goal[1], 0), rows - 1))
     if not trav[goal[1], goal[0]]:
       # The goal sits in unknown or inflated space. Plan to the nearest
       # cell OF THIS ROBOT'S OWN COMPONENT instead -- the 4-connected
@@ -729,7 +728,6 @@ class Navigator:
         return None
       d2 = (xs - goal[0]) ** 2 + (ys - goal[1]) ** 2
       k = int(np.argmin(d2))
-      self._kept_by = self._solid_by(planning, wx, wy, own, 1)
       goal = (int(xs[k]), int(ys[k]))
       self._stand_in = self.grid.cell_to_world(*goal)
     path = astar(trav, start, goal)
@@ -769,7 +767,17 @@ class Navigator:
            for cx, cy in cells]
     if stand_in:
       self._stand_in = pts[-1]
-      self._kept_by = self._solid_by(planning, wx, wy, (gx // b, gy // b), b)
+      self._kept_by = self._solid_by(planning, wx, wy, b)
+      if self._kept_by is not None and (self.others if bodies is None else bodies):
+        # ...the map's doing only where the map alone stands it in as near
+        # (#700's third review: another robot's disc in a doorway stood a
+        # walk in a room away, and "nowhere nearer to stand" was false)
+        alone, _ = optimistic.route(graph, optimistic.coarsen(optimistic.map_costs(
+          planning, self.INFLATION_CELLS, self.UNKNOWN_COST), b), (sx // b, sy // b),
+          (gx // b, gy // b))
+        if alone is None or (math.dist(alone[-1], (gx // b, gy // b))
+                             < math.dist(cells[-1], (gx // b, gy // b))):
+          self._kept_by = None
     # every other cell, 0.2 m apart as A*'s every third, and always the end
     out = pts[2::2]
     if not out or out[-1] != pts[-1]:
@@ -1127,19 +1135,19 @@ class Navigator:
             and math.hypot(self._stand_in[0] - self.pose[0],
                            self._stand_in[1] - self.pose[1]) < STAND_IN_REACHED_M)
 
-  def _solid_by(self, planning: np.ndarray, wx: float, wy: float,
-                 at: tuple[int, int], b: int) -> tuple[float, float] | None:
+  def _solid_by(self, planning: np.ndarray, wx: float,
+                 wy: float, b: int) -> tuple[float, float] | None:
     """Where a plan's stand-in for (wx, wy) is its map's doing (issue
     #700): of the cells `planning` -- the grid the plan was made on -- holds
-    solid whose keep-off takes in the goal's own cell of the plan (`at`, `b`
-    map cells a side: the lattice's, or A*'s own cell; never clamped onto
-    the grid, so a goal past its edge is judged where it is), as `map_costs`
-    and `traversable_mask` grow a wall (taxicab `INFLATION_CELLS`), the low
-    corner of the one nearest the goal, m; None where none does (another
-    robot's disc, floor not yet seen, a goal past the grid's edge beyond
-    the keep-off of anything on it)."""
+    solid whose keep-off takes in the goal's own cell of the plan (`b` map
+    cells a side, the lattice's; floored and never clamped onto the grid, so
+    a goal past any edge is judged where it is), as `map_costs` grows a wall
+    (taxicab `INFLATION_CELLS`), the low corner of the one nearest the goal,
+    m; None where none does (another robot's disc, a goal past the grid's
+    edge beyond the keep-off of anything on it)."""
     g, r = self.grid, self.INFLATION_CELLS
-    x0, y0 = at[0] * b, at[1] * b
+    x0 = math.floor((wx - g.x_min) / g.resolution) // b * b
+    y0 = math.floor((wy - g.y_min) / g.resolution) // b * b
     lo_x, lo_y = max(x0 - r, 0), max(y0 - r, 0)
     ys, xs = np.nonzero(planning[lo_y:max(y0 + b + r, 0), lo_x:max(x0 + b + r, 0)]
                         > OCC_THRESH)
