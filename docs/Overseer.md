@@ -902,20 +902,20 @@ where another robot exists; a single-robot prefix is unchanged.
 
 **What the other broadcasts** (`lifecycle.others_context`, the `others` list
 in the context) is the public surface and nothing else: name, reported pose,
-state, the status line it narrates to everyone, whether it is dead, and its
+state, what it says it is doing, whether it is dead, and its
 `posture` (`standing`, or `getting_up` while its get-up has it). Not its
 battery, points, goals, thoughts, reasons or secrets — a test walks the
-whole context for the other's thought lines. The status line (`doing`) is
-the robot's own last narrated line and never the BOARD's
-(`HubLifecycle._say(board=True)`): an offer, an expiry, an offer's things
-set out (or not there, or left under a hand), things put away, a claim
-given back for a robot that is not in this world and a job a restart
-failed are narrated like any line and kept out of `status`. Both
-lifecycles say the set-out line and the first says every offer, and as a
-status they read as claims: on the wake of 2026-11-14 six thoughts took
-"TASK t_0306: the cube is set out" for the other robot's take of that job
-(Rowan: "the odd broadcast wording isn't mine — my body's code writes
-it"). Before a robot has narrated a line of its own its status is empty.
+whole context for the other's thought lines. Its `doing` is the last line
+the other narrated of its OWN doing (`HubLifecycle.doing`), never the
+BOARD's: an offer, an expiry, an offer's things set out (or not there, or
+left under a hand), things put away, a claim given back for a robot that is
+not in this world and a job a restart failed are narrated like any line and
+become the wire's `status` as ever (`_say(board=True)`), and are kept out
+of `doing`. Both lifecycles say the set-out line and the first says every
+offer, and shown as the other's `doing` they read as its claims
+(Observatory.md, the period of `loop-k4`, has the rows). `doing` is empty
+until a robot narrates a line of its own, at every start: neither it nor
+`status` is kept across a restart.
 
 **What a robot may DO about the other, measured** (issue #208; a mind with
 a peer, `mind/acts.py` is the pure half). Five paperwork

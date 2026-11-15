@@ -585,14 +585,15 @@ def test_a_place_set_out_in_the_hook_reads_where_it_was_set_out(tmp_path):
 # ---- the board's own lines, and a robot's status ---------------------------
 
 
-def test_the_boards_own_lines_are_narrated_and_never_become_a_robots_status(tmp_path):
-  """A robot's `status` is its last narrated line: what the other robot is
-  shown as its `doing` (`others_context`) and what the site prints under
-  its portrait. Both lifecycles also narrate the BOARD's doings -- an offer,
-  its things set out, an expiry, things put away -- and those lines became
-  the robot's status: on the wake of 2026-11-14 six thoughts read "TASK
-  t_0306: the cube is set out" as the other robot's claim on that job.
-  Narrated as before; the status stays the robot's own."""
+def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_path,
+                                                                         monkeypatch):
+  """`others[].doing` was the other robot's `status`, its lifecycle's last
+  narrated line -- and both lifecycles narrate the BOARD's doings (an offer,
+  its things set out, an expiry, things put away), so a robot standing idle
+  was shown as doing a job it had never taken (Observatory.md, the period
+  of `loop-k4`). `status` is as it was, on the wire and under a portrait;
+  the other robot is shown the last line that was the robot's OWN
+  (`HubLifecycle.doing`), whichever of the board's eight lines came since."""
   from types import SimpleNamespace
 
   from pluggybot.lifecycle import others_context
@@ -600,24 +601,54 @@ def test_the_boards_own_lines_are_narrated_and_never_become_a_robots_status(tmp_
   life.producer = task_producer(life.tasks, HUMANOID_HOME, procedures=True)
   said = []
   life.say_hooks.append(lambda t, msg, *a: said.append(msg))
-  assert life.status == ""                          # before it has said anything
-  life.data.time = 5000.0                           # an offer is due
-  _sweep(life)
-  assert any(" offered: " in m for m in said), said
-  assert any("to set out" in m for m in said), said  # (this stub world has no drawer)
-  assert life.status == ""                          # ...the board's lines are not its own
+
+  def shown() -> str:
+    return others_context(SimpleNamespace(peers=[life]))[0]["doing"]
+
+  def the_board_says(*phrases, by) -> None:
+    """`by()` makes the board say each of `phrases`: narrated, the status
+    its newest line as ever, and `doing` what it was."""
+    before, n = shown(), len(said)
+    by()
+    new = said[n:]
+    for phrase in phrases:
+      assert any(phrase in m for m in new), (phrase, new)
+    assert all(any(p in m for p in BOARD_LINES) for m in new), new
+    assert life.status == new[-1] and shown() == before
+
+  # a robot that has said nothing of its own yet: an offer, for a prop this
+  # stub world has not
+  assert (life.status, shown()) == ("", "")
+  life.data.time = 5000.0
+  the_board_says(" offered: ", "to set out", by=lambda: _sweep(life))
+  assert shown() == ""
   life._say("EXPLORE: heading for the kitchen")
-  mine = life.status
-  task = _offer(life)                               # the table's: its things set out
-  assert any(m == f"TASK {task.id}: the {restaurant.TABLE} is set out" for m in said)
-  life.data.time = 1e9                              # every offer lapsed, the place put away
-  _sweep(life)
-  assert any(m.startswith(f"TASK {task.id} expired: ") for m in said)
-  assert any("things are put away" in m for m in said)
-  assert life.status == mine
-  shown = others_context(SimpleNamespace(peers=[life]))[0]
-  assert shown["doing"] == mine
-  # ...and each such line in the lifecycle is marked the board's, where it is said
+  assert life.status == shown() == "EXPLORE: heading for the kitchen"
+  # the table's offer sets its things out; a continuation leaves them under
+  # a hand; the offer is claimed by a robot that is not here, and a restart
+  # failed a job; then every offer lapses and the place is put away
+  box = {}
+  the_board_says("is set out", by=lambda: box.update(task=_offer(life)))
+  task = box["task"]
+  monkeypatch.setattr(life, "_worked_props", lambda: {restaurant.TABLE})
+  the_board_says("left as the world was saved",
+                 by=lambda: life.set_out_unseen(task.number - 1))
+  monkeypatch.undo()
+  life.tasks.claim(task.id, robot="r9_gone", t=float(life.data.time))
+  the_board_says("whoever held it is not", by=life._held_jobs)
+  life.tasks.interrupted = [life.tasks.get(task.id)]
+
+  def a_restart_failed_one() -> None:
+    for gone in life.tasks.announce_interrupted(t=float(life.data.time)):
+      life._say(f"TASK {gone.id} ({gone.kind}): interrupted by a restart", board=True)
+  the_board_says("interrupted by a restart", by=a_restart_failed_one)
+
+  def lapse() -> None:
+    life.data.time = 1e9
+    _sweep(life)
+  the_board_says(" expired: ", "things are put away", by=lapse)
+  assert shown() == life.doing == "EXPLORE: heading for the kitchen"
+  # ...and each of the eight is marked the board's where the lifecycle says it
   import ast
   import inspect
 

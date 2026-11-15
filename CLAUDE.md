@@ -2150,12 +2150,13 @@ save a filmstrip PNG named after the script.
   `others` in the context is the PUBLIC surface (`lifecycle.others_context`) —
   never battery, points, goals, thoughts, reasons or secrets;
   `HubLifecycle.peers` is read by that and by NOTHING that decides. ⚠ ITS
-  `doing` IS THE ROBOT'S OWN LAST LINE, NEVER THE BOARD'S
-  (`_say(board=True)`, `tests/test_table_job.py`): both lifecycles narrate
-  an offer's things set out, the first an offer and an expiry, and as a
-  status "TASK t_0306: the cube is set out" was read as the other robot's
-  claim on that job (11-14, six thoughts); those lines are narrated and
-  kept out of `status`, which is also the site's line under a portrait.
+  `doing` IS THE ROBOT'S LAST OWN LINE, NEVER THE BOARD'S
+  (`HubLifecycle.doing`, `_say(board=True)`; `tests/test_table_job.py`):
+  both lifecycles narrate an offer's things set out, the first every offer
+  and expiry, and shown one of those the other robot took it for a claim
+  on the job (Observatory.md, the period of `loop-k4`). ⚠ `status` IS
+  UNTOUCHED: the wire's, a recording's only narration and the site's line
+  under a portrait are every narrated line, the board's among them.
 - **Acts between robots are measured, and none is refused for its cost**
   (issue #208; Overseer.md §2c, `mind/acts.py`, `protocol.ACT_EVENT_TYPES`):
   paperwork fields on a mind with a peer ONLY (`Overseer._acts()`).

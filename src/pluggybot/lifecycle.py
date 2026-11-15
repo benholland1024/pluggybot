@@ -1184,7 +1184,11 @@ class HubLifecycle:
     self.charging_now = False
     self.charge_cycles = 0
     self.log: list[str] = []
-    self.status = ""                    # its latest own `_say` line, bare (`board`)
+    self.status = ""                    # the latest _say message, bare
+    #: ...and the latest that was this robot's OWN (`_say(board=)`): what the
+    #: other robot is shown as its `doing` (`others_context`). Empty until it
+    #: narrates one, at every start (neither is kept across a restart).
+    self.doing = ""
     #: THE OTHER ROBOTS' lifecycles (issue #167), set by `pair.build_pair`.
     #: Read by `others_context` for what each broadcasts, and by nothing
     #: that decides: what one robot does about another is its mind's.
@@ -2342,11 +2346,12 @@ class HubLifecycle:
     event stream). So it has to be a sentence a robot could say.
 
     ⚠ `board`: the line is the BOARD's doing and none of this robot's -- an
-    offer, an expiry, a job's things set out or put away -- narrated like
-    any other and KEPT OUT OF `status`, which is what the other robot is
-    shown as this one's `doing` (`others_context`): both lifecycles say the
-    board's lines, and "TASK t_0306: the cube is set out" was read as the
-    other robot's claim on that job (the wake of 2026-11-14).
+    offer, an expiry, a job's things set out or put away. It is narrated
+    and becomes `status` like any other, and is KEPT OUT OF `doing`, the
+    robot's last OWN line, which is what the other robot is shown
+    (`others_context`): both lifecycles say the board's lines, and shown
+    one, the other robot read it as a claim on the job (Observatory.md,
+    the period of `loop-k4`).
 
     `detail` reaches the console and `self.log` and NOTHING else -- no status,
     no frame, no hook. It is where a caught exception's class and message go
@@ -2354,8 +2359,9 @@ class HubLifecycle:
     class, and a visitor reading the Thoughts tab should not be shown a
     traceback for something that did not crash.
     """
+    self.status = msg
     if not board:
-      self.status = msg
+      self.doing = msg
     # A second robot's lines say whose they are (issue #167); the first
     # robot's read exactly as they always did.
     who = f" {self.root}" if self.body.handle.prefix else ""
@@ -6986,8 +6992,8 @@ WAY_REFUSED = {"charging": "I am plugged in at my charging station",
 
 def others_context(life) -> list[dict]:
   """What the OTHER robots broadcast (issue #167): the public surface and
-  nothing else -- name, reported pose, state and the status line they
-  narrate to everyone. Not their battery, points, goals, thoughts, reasons
+  nothing else -- name, reported pose, state and the last line they
+  narrated of their OWN doing (`HubLifecycle.doing`: never the board's). Not their battery, points, goals, thoughts, reasons
   or secrets: those are theirs, and a robot that could read them would not
   need to infer them."""
   out = []
@@ -6995,7 +7001,7 @@ def others_context(life) -> list[dict]:
     x, y = other.body.pose_xy()
     out.append({"name": other.robot_name, "robot": other.root,
                 "x": round(x, 2), "y": round(y, 2), "state": other.state,
-                "doing": other.status[:120],
+                "doing": other.doing[:120],
                 "dead": other.dead["cause"] if other.dead else None,
                 # ...and whether it is lying down to rest (issue #387): a
                 # posture anyone in the room can see, never a fall

@@ -162,7 +162,7 @@ def test_what_a_mind_is_shown_of_the_other_is_the_public_surface_only():
   b.body.start_at(3.0, 3.0, 0.0)
   a.thoughts.pin("I prefer the pen", t=0.0)
   a.thoughts.intend("draw a sun every day", t=0.0)
-  a.status = "EXPLORE: heading for the kitchen"
+  a._say("EXPLORE: heading for the kitchen")
   shown = others_context(b)
   assert len(shown) == 1 and shown[0]["name"] == "Pluggy"
   assert shown[0]["robot"] == "pluggybot" and shown[0]["state"] == a.state

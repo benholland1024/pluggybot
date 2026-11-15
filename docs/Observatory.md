@@ -10,13 +10,14 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A refused define says the length it was written and every reason at once, and the board's lines stay out of a robot's status (K4, `loop-k4`) — opens when this PR is deployed
+### A refused define is judged as it was written and says every reason at once, and the other robot is shown a robot's own last line (K4, `loop-k4`) — opens when this PR is deployed
 
 **Three small changes to what the robots read, found on the wake of
 2026-11-14.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029
 characters, 17 sections; no rule's text restates any of the words below),
-nor the session host's hello (byte for byte), nor any geometry, nor either
-committed recording (they fly no tasks and no library).
+nor the session host's hello (byte for byte), nor any geometry, nor the
+wire (no field added, none whose meaning moved), nor either committed
+recording.
 
 1. **A define cut at the cap is judged as it was written.** A served
    answer's source is cut one past the cap before it goes on the wire, and
@@ -39,19 +40,23 @@ committed recording (they fly no tasks and no library).
    is refused too: ..." (on one line the faults come last and History's
    400 characters cut them); the narration and the event's `reasons` hold
    them all in one.
-3. **The board's own lines are not a robot's status.** `others[].doing`
-   (and the site's line under a portrait, and each frame's `status`) is the
-   robot's last narrated line. Kept out of it from here on, though narrated
-   as before: an offer ("TASK t_0306 offered: ..."), an expiry, an offer's
-   things set out ("TASK t_0306: the cube is set out", said by both
-   lifecycles), or not in this world to set out, or left as saved under a
-   hand, things put away, a claim given back for a robot that is not in
-   this world, and a job a restart failed. A robot's own job lines
-   (claimed, done, failed, out of time, still mine, not available) are its
-   status as before, and before it has narrated a line of its own its
-   status is empty. ⚠ This changes what each robot reads of the other:
-   `OTHER_ROBOT_RULE` and its sha are untouched, and its sentence ("what it
-   is doing") now holds of the line it is shown.
+3. **The other robot is shown a robot's own last line, never the
+   board's.** `others[].doing` was the other robot's `status`, its
+   lifecycle's last narrated line of any kind. It is now the last line that
+   was the robot's OWN (`HubLifecycle.doing`). Kept out of it from here on:
+   an offer ("TASK t_0306 offered: ..."), an expiry, an offer's things set
+   out ("TASK t_0306: the cube is set out", said by both lifecycles), or
+   not in this world to set out, or left as saved under a hand, things put
+   away, a claim given back for a robot that is not in this world, and a
+   job a restart failed. A robot's own job lines (claimed, done, failed,
+   out of time, still mine, not available) are its `doing` as before.
+   `doing` is empty until a robot has narrated a line of its own, at every
+   start (it is not kept across a restart, as `status` never was). ⚠ This
+   changes what each robot reads of the other. `OTHER_ROBOT_RULE` and its
+   sha are untouched, and its sentence ("what it is doing") now holds of
+   the line shown. ⚠ `status` itself is as it was: each frame's, a
+   recording's only narration, and the site's line under a portrait still
+   carry the board's lines.
 
 **Why.** 53 defines were refused that wake. 16 were over the cap and every
 one read "3001 characters": six thoughts took it for one character over
