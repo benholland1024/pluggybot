@@ -1043,10 +1043,10 @@ def _looks(monkeypatch):
   found, relocate = sm.ScanMatcher._wide_found, sm.ScanMatcher._relocate
   depth = []
 
-  def wide_found(self, pose, pts):
+  def wide_found(self, pose, pts, doubt=False):
     if not depth:
       made.append(("look", self.lost_run))
-    return found(self, pose, pts)
+    return found(self, pose, pts, doubt)
 
   def relocated(self, pose, pts, also=None):
     made.append(("search", self.lost_run))
@@ -1148,10 +1148,41 @@ def test_a_take_two_better_places_outdo_is_refused_and_neither_is_taken(counter,
   # found again (#681's review: read as "nothing better", the search's
   # silence let the take stand).
   m = _fallen(counter)
-  monkeypatch.setattr(m, "_wide_found", lambda pose, pts: [_place((-0.52, 0.04), 340),
-                                                           _place((-1.42, 0.04), 335)])
+  monkeypatch.setattr(m, "_wide_found", lambda pose, pts, doubt=False: [_place((-0.52, 0.04), 340),
+                                                                        _place((-1.42, 0.04), 335)])
   whys, belief = _stood(m, BESIDE, np.random.default_rng(38), 3)
   assert whys == ["inconsistent"] * 3 and belief == BESIDE and m.pending is None and m.fallen, whys
+
+
+def test_a_wider_look_weighs_places_at_the_takes_heading_and_at_the_doubts_bar(
+    counter, monkeypatch):
+  # MEASURED from the truth at 7,840 places over the house: by the hall's
+  # flight a scan from the truth puts 0.61-0.75 of its points on walls and
+  # poses turned 14-16 deg 0.78-0.96, and weighed as the wide search finds
+  # its places (FOUND_SHARE, any heading in WIDE_RAD) a right belief up from
+  # a fall was refused at 11 places and moved at 3. A get-up moves the body;
+  # the heading is the IMU's (right to 1.6 deg in 84 falls): a place turned
+  # UNIQUE_RAD from the take is no better place for it, and one that
+  # explains under DOUBT_FOUND_SHARE of the scan is none.
+  m = _fallen(counter)
+  m.refresh(BESIDE[0], BESIDE[1])
+  pts = m.points(ANGLES, cast(COUNTER, STOOD, np.random.default_rng(42)))
+  take = _place((0.0, 0.0), 200)
+  for turn, outdone in ((math.radians(14.0), False), (-sm.UNIQUE_RAD - 0.01, False),
+                        (math.radians(4.0), True)):
+    at, kw = _place((-1.0, 0.3), 320)
+    turned = ((at[0], at[1], at[2] + turn), dict(kw, step=(-1.0, 0.3, turn)))
+    asked = []
+    monkeypatch.setattr(m, "_wide_found",
+                        lambda pose, pts, doubt=False: (asked.append(doubt), [turned])[1])
+    m.pending, m.wider_wait = None, 0
+    assert m._outdone(BESIDE, pts, take) is outdone and asked == [True], (turn, asked)
+  # ...at the doubt's bar: set past any scan, the counter's truth is no place
+  # of the look's, and the take it would have refused stands
+  monkeypatch.undo()
+  monkeypatch.setattr(sm, "DOUBT_FOUND_SHARE", 1.01)
+  whys, belief = _stood(_fallen(counter), BEHIND, np.random.default_rng(31), 1)
+  assert whys == ["found"] and 0.5 < belief[0] - STOOD[0] < 0.7, (whys, belief)
 
 
 def test_a_wider_look_is_made_once_in_its_scans(counter, monkeypatch):

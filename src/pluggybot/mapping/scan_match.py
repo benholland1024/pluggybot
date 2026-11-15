@@ -188,8 +188,8 @@ DOUBT_GAIN = 1.2
 #: ⚠ A ROBOT ITS MAP KEEPS REFUSING IS LOST PAST THE SEARCH'S REACH (issue
 #: #422): after LOST_RUN scans running "inconsistent" -- any other verdict
 #: breaks the run (up from a fall a slid fit and a take refused for a wider
-#: look are "inconsistent" too) -- and every LOST_RUN more, the search looks WIDE_M and
-#: WIDE_RAD round the belief (`_relocate`): on a lattice WIDE_STRIDE cells
+#: look are "inconsistent" too) -- and every LOST_RUN more, the search looks
+#: WIDE_M and WIDE_RAD round the belief (`_relocate`): on a lattice WIDE_STRIDE cells
 #: apart with the walls widened to cover it, then cell by cell round its
 #: best. A pose it finds must clear FOUND_SHARE with all three directions
 #: fixed; explain the scan best of the WIDE_TRIES best PLACES (lattice poses
@@ -822,13 +822,25 @@ class ScanMatcher:
     wide search's own finds do (`pending`), to be found again by the next.
     While one waits a take stands only where it is that find itself, as
     near as a slid fit's search must be (`_near`); and a look is made once
-    in LOST_RUN scans, a take between two refused as the last one was."""
+    in LOST_RUN scans, a take between two refused as the last one was.
+
+    ⚠ ITS PLACES ARE JUDGED AS THE DOUBT'S TAKES ARE, AND AT THE TAKE'S OWN
+    HEADING (DOUBT_FOUND_SHARE and never one the doubt would doubt; within
+    UNIQUE_RAD of the take): a get-up moves the body, and the heading is the
+    IMU's, right to 1.6 deg through every fall flown. MEASURED from the
+    truth at 7,840 places over the house: by the hall's flight, where the
+    band's view of the steps changes with the stance and a scan from the
+    truth puts 0.61-0.75 of its points on walls, poses turned 14-16 deg put
+    0.78-0.96 there, and weighed as the wide search finds them a right
+    belief up from a fall was refused at 11 places and moved at 3 (0.2-1.4
+    m, 13-16 deg)."""
     if self.pending is not None:
       return not _near(near[1]["step"], self.pending)
     if self.wider_wait:
       return True
     self.wider_wait = LOST_RUN
-    found = [near] + self._wide_found(pose, pts)
+    found = [near] + [f for f in self._wide_found(pose, pts, doubt=True)
+                      if _apart(f[0], near[0])[1] < UNIQUE_RAD]
     best = max(found, key=lambda f: f[1]["inliers"])
     if _same(best[0], near[0]) or near[1]["inliers"] >= RIVAL_SHARE * best[1]["inliers"]:
       return False
@@ -849,15 +861,16 @@ class ScanMatcher:
     best = max(found, key=lambda f: f[1]["inliers"])
     return None if _rivalled(found, best) else best
 
-  def _wide_found(self, pose, pts: np.ndarray) -> list:
+  def _wide_found(self, pose, pts: np.ndarray, doubt: bool = False) -> list:
     """The places the wide search finds: each of the best lattice places
     (`_wide_candidates`) searched cell by cell round it and fitted, those
-    judged "found" as (pose, `Match`'s fields)."""
+    judged "found" -- at the doubt's bar, `doubt` (`_outdone`) -- as (pose,
+    `Match`'s fields)."""
     found = []
     for start in self._wide_candidates(pose, pts):
       fine = self._search(start, pts, reach_m=WIDE_STRIDE * self.grid.resolution,
                           reach_rad=SEARCH_STEP_RAD) or start
-      at, why, kw = self._judge(pose, pts, self._fit(fine, pts), found=True)
+      at, why, kw = self._judge(pose, pts, self._fit(fine, pts), found=True, doubt=doubt)
       if why == "found":
         found.append((at, kw))
     return found
