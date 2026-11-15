@@ -203,7 +203,7 @@ class _Held(StubBody):
                     turns=None, refuse=False):
     fingers = -np.asarray(rot, dtype=float)[:, 2] if rot is not None else np.zeros(3)
     self.hands[side] = tuple(np.asarray(pos, dtype=float) - self.short * fingers)
-    self._fingers = fingers
+    self._fingers, self._goal = fingers, (side, tuple(pos))
     self._why[side] = "" if self.holds else "stopped short"
     return self.holds
     yield
@@ -212,8 +212,18 @@ class _Held(StubBody):
     return tuple(self.push * getattr(self, "_fingers", np.zeros(3)))
 
 
-def _held(short, push, holds=True, pose=(0.0, 0.0, 0.0)):
-  body = _Held(*_bare())
+class _Coming(_Held):
+  """...whose hand is still coming in as its reach's routine ends: once it
+  stands still, it is at its goal and reads nothing."""
+
+  def hold_routine(self, seconds):
+    side, pos = self._goal
+    self.hands[side], self.push = pos, 0.0
+    yield from super().hold_routine(seconds)
+
+
+def _held(short, push, holds=True, pose=(0.0, 0.0, 0.0), kind=_Held):
+  body = kind(*_bare())
   body.short, body.push, body.holds = short, push, holds
   body.start_at(*pose)
   return body
@@ -250,6 +260,31 @@ def test_a_reach_whose_hand_is_still_coming_says_nothing_of_it(short, push):
   # ...nor one asked no turn, whose fingers' way is the arm's to find
   ran = _fly('def a():\n    reach("right", 0.3, -0.05, 0.79)\n', _held(0.027, 31.0))
   assert "short" not in ran["steps"][-1]
+
+
+def test_a_reach_whose_hand_was_still_coming_in_says_nothing_of_it_at_rest():
+  """#711: the verb's body routine ends the moment its command arrives, the
+  hand still coming in and read as one that holds -- still: over the hands
+  checks at set-outs 0-31, 10 of 69 grips that read held, 1.1-5.5 cm short
+  at 26-87 N, touched nothing with any part of the arm. A reach that looks
+  held stands still until its hand is at rest, `REACH_SETTLE_S` at most, and
+  is judged there; one that does not look held waits for nothing."""
+  body = _held(0.027, 31.0, kind=_Coming)
+  t0 = float(body.data.time)
+  ran = _fly(ABOVE, body)
+  assert ran["steps"][-1]["ok"] and "short" not in ran["steps"][-1], ran["steps"][-1]
+  assert 0.0 < float(body.data.time) - t0 <= st.REACH_SETTLE_S + 1e-9
+  # ...one truly held is judged at rest, its hand still where it stopped
+  body = _held(0.027, 31.0)
+  t0 = float(body.data.time)
+  assert "short" in _fly(ABOVE, body)["steps"][-1]
+  assert float(body.data.time) - t0 == pytest.approx(st.REACH_STILL_S, abs=0.003)
+  # ...and one that does not look held stands still no longer than before
+  for short, push in ((0.006, 31.0), (0.02, 3.0)):
+    body = _held(short, push, kind=_Coming)
+    t0 = float(body.data.time)
+    _fly(ABOVE, body)
+    assert float(body.data.time) == t0
 
 
 def test_a_reach_that_stopped_short_says_how_far_short_its_grip_stopped():

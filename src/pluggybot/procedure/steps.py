@@ -1017,17 +1017,22 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
 #: A reach whose grip ended more than this short of where it was asked, m,
-#: back along its fingers -- as its own senses read it the moment the verb
-#: ended (`_felt_routine`'s last reading: nothing more is read, and the
-#: flight is as it was) -- says how far (#711). One that HOLDS says so only
-#: where its hand also reads a push along its fingers past this, N: the
-#: verb ends the moment its command arrives, and in free air the hand is
-#: still 0.4-0.9 cm behind it, reading -2 to +3 N along its fingers (the
-#: lid and door checks at set-outs 0-3); held by what its pads met -- a
-#: drawer's front, a door's panel, the cube's board -- it was 1.1-2.1 cm
-#: short and read 27-100 N (our own cube reference, held 1-1.7 cm short by
-#: the board, places the cube all the same).
+#: back along its fingers, its hand reading a push along them past this, N,
+#: says how far (#711) -- read the moment the verb's body routine ended
+#: (`_felt_routine`'s last reading), and where that looks held, again once
+#: the hand has come to rest (`_settled`). Held by what its pads met -- a
+#: drawer's front, a door's panel, the cube's board -- a grip was 1.1-2.1 cm
+#: short at that moment and read 27-100 N (our own cube reference, held 1-1.7
+#: cm short by the board, places the cube all the same).
 REACH_SHORT_M, REACH_PUSHED_N = 0.01, 10.0
+#: ...but that moment is the one its command arrived, the hand still coming
+#: in, and read as a hand that holds -- still: over the hands checks at
+#: set-outs 0-31, 10 of 69 such grips touched nothing with any part of the
+#: arm, 1.1-5.5 cm short and reading 26-87 N. So a reach that looks held
+#: stands still until its grip moves under `REACH_STILL_MS` over
+#: `REACH_STILL_S`, `REACH_SETTLE_S` at most, and is judged again there; the
+#: rest, its flight as it was.
+REACH_STILL_S, REACH_STILL_MS, REACH_SETTLE_S = 0.05, 0.02, 0.3
 #: ...as it says it, of a reach that holds and of one that stopped short.
 REACH_SHORT = ("your {hand} hand's grip stopped {cm:.1f} cm short of where you asked, back "
                "along its fingers: they met something there and pushed on it with {n:.0f} N")
@@ -1038,14 +1043,41 @@ def _short_of(life, place, rot, felt: list) -> tuple[float, float] | None:
   """How far a reach's grip ended short of `place` back along its fingers,
   m, and the push its hand read along them, N, off the last of what it
   `felt` -- or None where no turn was asked, its fingers' way unknown."""
-  import numpy as np
   from pluggybot.procedure import axes
   if rot is None or not felt:
     return None
+  return _along(place, rot, axes.from_stance(life, tuple(felt[-1]["at"])),
+                axes.from_stance(life, tuple(felt[-1]["force"]), point=False))
+
+
+def _along(place, rot, at, push) -> tuple[float, float]:
+  """How far `at` stands short of `place` back along the fingers `rot`
+  points, m, and `push` along them, N (the believed world frame)."""
+  import numpy as np
   fingers = -np.asarray(rot, dtype=float)[:, 2]
-  end = np.asarray(axes.from_stance(life, tuple(felt[-1]["at"])), dtype=float)
-  push = np.asarray(axes.from_stance(life, tuple(felt[-1]["force"]), point=False), dtype=float)
-  return float((np.asarray(place, dtype=float) - end) @ fingers), float(push @ fingers)
+  return (float((np.asarray(place, dtype=float) - np.asarray(at, dtype=float)) @ fingers),
+          float(np.asarray(push, dtype=float) @ fingers))
+
+
+def _held_short(short) -> bool:
+  return short is not None and short[0] > REACH_SHORT_M and short[1] > REACH_PUSHED_N
+
+
+def _settled(life, hand: str, place, rot) -> Routine:
+  """A reach that looks held, standing still until its hand comes to rest
+  (`REACH_STILL_*`), `REACH_SETTLE_S` at most: then how far short and the
+  push, off what its own loop last read (`hand_sensed`, `hand_force`:
+  nothing more is read)."""
+  import numpy as np
+  last, waited = np.asarray(life.body.hand_sensed(hand), dtype=float), 0.0
+  while waited < REACH_SETTLE_S - 1e-9:
+    yield from life.body.hold_routine(REACH_STILL_S)
+    waited += REACH_STILL_S
+    now = np.asarray(life.body.hand_sensed(hand), dtype=float)
+    moved, last = float(np.linalg.norm(now - last)), now
+    if moved < REACH_STILL_MS * REACH_STILL_S:
+      break
+  return _along(place, rot, last, life.body.hand_force(hand))
 
 
 #: ...and one that kept off another robot's body (#678; `Body.hand_kept`,
@@ -1124,8 +1156,11 @@ def _reach(life, args: dict) -> Routine:
   said = _said(guard, stopped, why)
   short = _short_of(life, place, rot, felt)
   if ok:
-    if short is not None and short[0] > REACH_SHORT_M and short[1] > REACH_PUSHED_N:
-      said = {**said, "short": REACH_SHORT.format(hand=hand, cm=100 * short[0], n=short[1])}
+    if _held_short(short):
+      # ...or a hand still coming in: judged again at rest
+      short = yield from _settled(life, hand, place, rot)
+      if _held_short(short):
+        said = {**said, "short": REACH_SHORT.format(hand=hand, cm=100 * short[0], n=short[1])}
     return {"ok": True, "hand": hand, **said, "felt": felt}
   if why == UNTIL:
     return {"ok": True, "hand": hand, "why": why, **said, "felt": felt}
@@ -1454,7 +1489,8 @@ HANDS_VERBS: dict[str, Verb] = {
                   "are that top's own, not those of another top at its height beside it. "
                   "Where your camera sees too little "
                   f"within those {100 * MEASURE_AT_M:g} cm, it reads instead the highest top "
-                  f"round (x, y) that fills at least {_share_words(MEASURE_TOP_SHARE)} as much "
+                  f"within those {MEASURE_NEAR_M:g} m that fills at least "
+                  f"{_share_words(MEASURE_TOP_SHARE)} as much "
                   "of its picture as the top that fills the most, and `object.under` reads 0 "
                   "(1 for the top under (x, y)). An end reads only where your camera saw past "
                   "it: where the top "
