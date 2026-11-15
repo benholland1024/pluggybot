@@ -225,7 +225,23 @@ and 100,000 statements a run.
   force -- against a hand held, the command's lead is the miss, and
   postures taken for it put 30-100 N on a locked bar for an ask of 10-20;
   frozen there, 21-24 N stood on it for 20 (#547). One the arm cannot hold
-  where it is takes one as before.
+  where it is takes one as before. ⚠ AND A HAND THAT HOLDS NOTHING TAKES
+  ONE ONLY WHILE IT READS LIGHT (#699; `PRESSED_SHARE`, `PRESSED_ASK_N`): at
+  its start or on its way, none while it reads past twice the pull's ask,
+  whichever way -- as it reads as the pull begins, over `MEAN_S` on its
+  way; an ask of 20 N at least, the most a procedure's pull asks, so 40 N
+  for every pull a robot writes -- and one that is coming is given up where
+  it reads past it: the body backs off toward the posture the pull began
+  in, only until the hand reads no more than the ask (20 N at least), and
+  is held there, as a move stopped is (`halt`), the hand waiting on it;
+  that pull takes no other and goes as far as its arm reaches from there, out of
+  reach at once where it cannot follow. A posture bowed, crouched and
+  turned the body over an open hand resting on a cupboard door's top; the
+  arm's solve lost the hand, its joints stood, and the body bore on it at
+  45-150 N for a 15-20 N pull until the hand slipped off and the robot fell
+  (SimNotes, "A pull's posture and the hand it rests on"). A hand that
+  grips what it pulls takes its postures as it did: our door's lever press
+  leans on its lever.
 - **It stops** at `distance` along its way ("distance"); held fast -- the
   hand moved under `FAST_M` in `FAST_S` pushing at least `FAST_SHARE` of
   its force over `MEAN_S`, or went nowhere along its way that long with its
