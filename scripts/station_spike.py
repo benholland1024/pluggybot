@@ -702,12 +702,12 @@ def hold(seconds: float) -> dict:
   draws, held = [], []
   soles = [model.geom(body.handle.el(f"{s}_sole")).id for s in ("left", "right")]
   lifted = [0.0]
-  floor = [float(min(data.geom_xpos[g][2] for g in soles))]
+  floor = [float(data.geom_xpos[g][2]) for g in soles]      # ...each sole's own
 
   def sample():
     draws.append(pack.power_draw(data))
     held.append(body.charging())
-    lifted[0] = max(lifted[0], float(max(data.geom_xpos[g][2] for g in soles)) - floor[0])
+    lifted[0] = max(lifted[0], *(float(data.geom_xpos[g][2]) - z for g, z in zip(soles, floor)))
   body.step_hooks.append(sample)
   frame = body._station
 
@@ -727,7 +727,7 @@ def hold(seconds: float) -> dict:
          "netW": round(pack.charge_w - float(np.mean(draws)), 1),
          "heldShare": round(float(np.mean(held)), 4), "falls": body.falls,
          "creptInM": round(a1 - a0, 4), "creptLeftM": round(l1 - l0, 4),
-         "turnedDeg": round(math.degrees(t1_ - t0_), 2), "soleLiftedMm": round(lifted[0] * 1000, 1),
+         "turnedDeg": round(math.degrees(math.remainder(t1_ - t0_, 2 * math.pi)), 2), "soleLiftedMm": round(lifted[0] * 1000, 1),
          "beliefOffM": round(math.hypot(bx - tx, by - ty), 4),
          "beliefOffDeg": round(math.degrees(abs(math.remainder(bh - th, 2 * math.pi))), 2),
          "matched": body.match_counts}

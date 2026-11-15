@@ -15,7 +15,7 @@ observatory is NOT a result: it reports into the issue it informs.
 **What changed** (`prompt_sha` `0f1df27e…` unmoved, 67,157 chars, 17
 sections; the session host's hello unmoved, sha1 `b796e75d…`; no History
 line, no geometry and no wire format moved):
-- **The unplug steps back to its seat first where a charge crept it in**
+- **The unplug backs off to its seat first where a charge crept it in**
   (`charge.seat_routine`, the dock's line-up shared; `UNPLUG_IN_M`, 6 cm).
   Plugged in, the balancer's steady 2 N on the port creeps a standing robot
   in toward the station, 7.5 mm a minute and turning it left, until its plug
@@ -24,12 +24,14 @@ line, no geometry and no wire format moved):
   behind the plug swung into the box, so every unplug after a charge of
   about 20 minutes or more failed: after a run's end, said ("my hand could
   not get the plug out -- going on anyway", twice of twice on 11-14, Luca at
-  the lobby's station), and at a charge's own end, unsaid. It steps back by
-  the station as it last saw it (no look sees its tags from 18 cm in), its
+  the lobby's station), and at a charge's own end, unsaid. It backs off --
+  never turned on the spot first, which would swing a pinned plug across the
+  box's face -- by the station as it last saw it (no look sees its tags from 18
+  cm in), its
   scan matcher's fits keeping its belief on its body (2-8 mm in every flight
   of the loop's charge path).
-- **A failed try is tried once more, off a look of its own**
-  (`UNPLUG_TRIES`, 2). One that fails twice is as before: said, and gone on
+- **A failed try is tried once more, off a look of its own taken standing
+  still** (`UNPLUG_TRIES`, 2). One that fails twice is as before: said, and gone on
   from with the plug in.
 - The creep itself is unchanged: a robot charging still ends its charge
   pinned 18 cm in and 11 deg turned, its plug on the box.
@@ -44,8 +46,8 @@ out" should not come again. At a charge's end, "CHARGE complete ... backing
 off" is no longer followed about 16 s later by "CHARGE: unplugging at N% --
 the pack is full" (that pair was a first unplug that failed unheard, then
 the second after the undock's turn). An unplug that steps back first takes
-about 6 s longer (27.5 s against 21). No walk should stall right after an
-unplug.
+about 2 s longer (22.8-23.7 s against 21.3). No walk should stall right
+after an unplug.
 
 ### The IMU reads no further than the part's full scale (#696, K8, `loop-imu`) — opens when this PR is deployed
 

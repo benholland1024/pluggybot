@@ -691,10 +691,11 @@ save a filmstrip PNG named after the script.
   charge"): plugged in, the balancer's 2 N creeps the standing robot in,
   7.5 mm a minute and turning it, until its plug meets the box 18 cm past
   its seat (about 22 minutes), where the arm's way out behind the plug
-  swung into the box -- so further in than 6 cm it steps back to its seat
-  first, by the station as it last saw it (its scan matcher keeps its
-  belief on its body, 2-8 mm), and a failed try goes again off a look of
-  its own. ⚠ One that fails twice leaves the plug in, and after the
+  swung into the box -- so further in than 6 cm it backs off to its seat
+  first, never turned on the spot first (pinned, a turn swings the plug
+  across the box's face), by the station as it last saw it (its scan
+  matcher keeps its belief on its body, 2-8 mm), and a failed try goes
+  again off a look of its own. ⚠ One that fails twice leaves the plug in, and after the
   undock's turn the rope pulls it into the port's face, which the catch
   holds: the walk stalls. ⚠ A TRY'S HAND IS PLACED OFF A LOOK OF ITS OWN, TAKEN
   STANDING STILL, THE STATION CARRIED AS THE FEET CARRY IT (#596;

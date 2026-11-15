@@ -4076,9 +4076,11 @@ edge 0.15 m across) and stops short: "my hand could not get the plug out",
 twice of twice on 11-14 after the lobby's charges of 1,944 and 1,504 s, each
 13.1 s after "unplugging" -- a restart only made it heard, and a charge's own
 end failed the same way unheard. The unplug now begins at its seat: further in
-than `UNPLUG_IN_M` (6 cm) it steps back to it first, by the station as it last
-saw it -- from 18 cm in no look sees the tags, plain or bowed -- and a failed
-try is tried once more from a look of its own (`UNPLUG_TRIES`).
+than `UNPLUG_IN_M` (6 cm) it backs off to it first, by the station as it last
+saw it -- from 18 cm in no look sees the tags, plain or bowed -- in a step or two
+and never turned on the spot first (pinned, a turn would swing its plug across
+the box's face, which the port lets go to); and a failed try is tried once more
+from a look of its own, taken standing still (`UNPLUG_TRIES`).
 
 **What tells it that it crept: its scan matcher.** Its legs see no slide with
 their feet planted, the gyro's 0.02 deg/s is under the heading hold's gate,
@@ -4087,7 +4089,7 @@ ten a second while it stands docked, keep its belief on its body:
 
 | plugged in (lobby, the loop's charge path) | its body crept in, turned | its belief off its body |
 |---|---|---|
-| 300 s | 3.7 cm, 5 deg | 5.3 mm, 0.13 deg |
+| 300 s | 3.8 cm, 5 deg | 5.3 mm, 0.13 deg |
 | 900 s | 11.2 cm, 10 deg | 3.0 mm, 0.11 deg |
 | 1500 s | 16.1 cm, 11 deg | 2.3 mm, 0.01 deg |
 | 600 s, its matcher off | 8 cm, 9 deg | 110 mm, 7.0 deg |
@@ -4099,11 +4101,17 @@ mm of creep, the fits laying each scan where the belief already was.
 **Measured** (the lobby's station, one humanoid, osmesa; each a fresh process
 from a save of one charge, the unplug a decided `explore` begins with):
 
-| saved after | before | stepped back first |
+| saved after | before | backed off to its seat first |
 |---|---|---|
-| 300 s | unplugged | not asked to (3.2 cm in): the same flight |
-| 900 s | unplugged | from 10.3 cm in: unplugged |
-| 1500 s | its hand did not get behind the plug, in 13.2 s | from 14.9 cm in, one step: unplugged |
+| 300 s | unplugged, 21.3 s | not asked to (3.2 cm in): the same flight |
+| 900 s | unplugged | from 10.3 cm in to 2.7, one step: unplugged, 22.8 s |
+| 1500 s | its hand did not get behind the plug, in 13.2 s | from 14.9 cm in to 0.9 cm out, one step: unplugged, 23.7 s |
+
+In one process, charged 1,500 s and the unplug at once (one pod), the same:
+at the lobby's station, at the house's (14 cm in, 12 deg), and at the lobby's
+on the live build `2a1fbaff`, each "its hand did not get behind the plug", in
+13.2-13.7 s; its matcher off, the belief stayed where the robot docked, 197 mm
+and 9 deg off its body at 1,500 s.
 
 **A walk after an unplug that failed is tethered.** After the undock's turn
 the rope runs from the plug's back, now in front of the robot, back through

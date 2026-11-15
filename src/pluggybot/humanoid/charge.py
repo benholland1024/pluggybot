@@ -126,10 +126,13 @@ SEAT_STEPS = 6
 #: station 18 cm past its seat after about 22 minutes, where the arm's way out
 #: behind the plug swings into the station's box (#703). It unplugged 13 cm in
 #: and not 18; nearer than this its walker's step back would not move it
-#: (`humanoid.body.STEP_SHORT_M`).
-UNPLUG_IN_M = 0.06
+#: (`humanoid.body.STEP_SHORT_M`). It backs off without turning, in this many
+#: steps at most: turned on the spot first, as the dock's line-up turns, a
+#: robot pinned there would swing its plug across the box's face, which the
+#: port lets go to past 20 N; one step back came 14.9 cm out to its seat.
+UNPLUG_IN_M, UNPLUG_STEPS = 0.06, 2
 #: ...and it tries this many times, each from its seat as a look of its own
-#: places it.
+#: places it, taken standing still (`LOOK_SETTLE_S`).
 UNPLUG_TRIES = 2
 #: A LOST robot looks for its station by its head's camera (#572), which
 #: reads the station's 60 mm tags much further than the colour imager's
@@ -230,17 +233,25 @@ def to_seat(body, seen: RackPose) -> tuple[float, float, float]:
           math.remainder(seen.yaw - yaw, 2 * math.pi))
 
 
-def seat_routine(body, seen: RackPose, trace: list, seated):
+def seat_routine(body, seen: RackPose, trace: list, seated, steps: int = SEAT_STEPS,
+                 turned: bool = True):
   """Stepped to its seat at `seen` until `seated(ahead, left, turn)` says it
   is there (`to_seat`), a look after each step -- bowed where it sees no
-  pair (`look_low_routine`), else the station as last seen -- in
-  `SEAT_STEPS` at most: (the station as last seen, whether it got there)."""
-  for _ in range(SEAT_STEPS):
+  pair (`look_low_routine`), else the station as last seen -- in `steps` at
+  most, each turned on the spot to the station's way first, or, not
+  `turned`, walked there as it stands: (the station as last seen, whether
+  it got there)."""
+  for _ in range(steps):
     ahead, left, turn = to_seat(body, seen)
     trace.append({"seat": [round(float(v), 3) for v in (ahead, left, turn)]})
     if seated(ahead, left, turn):
       return seen, True
-    yield from body.step_routine(ahead, left, turn)
+    if turned:
+      yield from body.step_routine(ahead, left, turn)
+    else:
+      # ...the station's way into the frame it stands in
+      c, s = math.cos(turn), math.sin(turn)
+      yield from body.step_routine(c * ahead - s * left, s * ahead + c * left, 0.0)
     seen = (yield from look_low_routine(body)) or seen
   return seen, False
 
@@ -454,15 +465,23 @@ def plug_in_routine(body, station: RackPose, trace: list):
 
 def unplug_routine(body, station: RackPose, trace: list):
   """The unplug (the module docstring): "unplugged", or why not -- each try
-  begun at its seat, stepped back to it first from further in than
-  `UNPLUG_IN_M` (`seat_routine`, `unplug_seat`) by the station as it last saw
-  it, and a later try's off a look of its own, `UNPLUG_TRIES` in all."""
+  begun at its seat, backed off to it first from further in than
+  `UNPLUG_IN_M` (`seat_routine`, `unplug_seat`, `UNPLUG_STEPS`) by the
+  station as it last saw it, and a later try's off a look of its own taken
+  standing still, `UNPLUG_TRIES` in all."""
   why = ""
   for k in range(UNPLUG_TRIES):
     if k:
+      yield from body.hold_routine(LOOK_SETTLE_S)
       station = (yield from look_low_routine(body)) or station
-    station, _ = yield from seat_routine(body, station, trace, unplug_seat)
-    why = yield from _unplug_try_routine(body, station, trace)
+    # ...backed off, never turned first, in a step or two: from partway it
+    # unplugged too (13 cm in), and it tries from wherever the steps left it
+    station, _ = yield from seat_routine(body, station, trace, unplug_seat,
+                                         steps=UNPLUG_STEPS, turned=False)
+    if not body.charging():
+      why = "it came off its port as it stepped back to its seat"
+    else:
+      why = yield from _unplug_try_routine(body, station, trace)
     trace.append({"unplugTry": k, "why": why})
     if why == "unplugged" or not body.charging():
       break
