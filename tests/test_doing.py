@@ -15,6 +15,7 @@ for each.
 """
 
 import ast
+import functools
 import importlib
 import json
 import pathlib
@@ -147,7 +148,11 @@ def _variants(site) -> list:
   return out
 
 
-SITES = _sites()
+@functools.cache
+def _all_sites() -> list:
+  """The walk, once a process and only where a test asks for it (a worker
+  collecting this file pays nothing)."""
+  return _sites()
 
 
 def test_each_kind_of_narrated_line_is_listed_public_or_private():
@@ -157,9 +162,9 @@ def test_each_kind_of_narrated_line_is_listed_public_or_private():
   new kind fails here until someone classes it."""
   public = {_kind(k) for k in lc.DOING_KINDS}
   assert not public & set(PRIVATE), public & set(PRIVATE)
-  assert len(SITES) > 150                       # a count, so a lost walk shows
+  assert len(_all_sites()) > 150                      # a count, so a lost walk shows
   unlisted, marked_private, begun = {}, [], set()
-  for site in SITES:
+  for site in _all_sites():
     for msg, doing in _variants(site):
       kind = _kind(msg)
       if kind not in public and kind not in PRIVATE:
@@ -183,7 +188,7 @@ def test_every_narrated_line_reaches_the_other_robot_only_as_its_call_says():
   a, b = stub_pair()
   before = "GO_CHARGE -> CHARGE (plugged in)"
   leaked, wrong, unsafe, stale = [], [], [], []
-  for site in SITES:
+  for site in _all_sites():
     for msg, doing in _variants(site):
       a.doing = before
       a._say(msg, **({} if doing is None else {"doing": doing}))
@@ -368,3 +373,24 @@ def test_a_procedure_is_shown_as_its_verbs_never_what_it_handed_them(what):
   said = [(msg, shown) for msg, _, shown in views if value in msg]
   assert said and form in [shown for _, shown in said], said
   assert not [msg for msg, seen, _ in views if value in seen]
+
+
+def test_a_dead_robot_is_shown_dead_until_it_stands_up():
+  """A dead body does nothing: what the other robot reads of it is its death
+  (`DEAD (cause)`, never why), whatever it says while it lies there -- a run
+  its death ended, the jobs a true death fails, an answer that came late --
+  until it stands up."""
+  a, b = stub_pair()
+  a.body.start_at(0.5, 3.0, 0.0)
+  b.body.start_at(3.0, 3.0, 0.0)
+  a.home_pose = (0.5, 3.0, 0.0)
+  a._say("EXPLORE: heading for the kitchen", doing=True)
+  a._die("flat", "the pack ran flat by the sofa")
+  assert others_context(b)[0]["doing"] == "DEAD (flat)"
+  a._say("PROCEDURE p stopped: my death ended it at line 4", doing="PROCEDURE p stopped")
+  a._say("TASK t_0412 failed: open the drawer", doing=True)
+  a._say("DONE t_0412: open the drawer", doing=True)
+  assert others_context(b)[0]["doing"] == "DEAD (flat)"
+  assert "the pack ran flat" not in json.dumps(overseer_context(b))
+  a.stand_up("the world", auto=True)
+  assert others_context(b)[0]["doing"].startswith("UP again after ")

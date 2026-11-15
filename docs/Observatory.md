@@ -22,44 +22,16 @@ in either). `doing` was the other robot's last narrated line of any kind
 but the board's eight (the period of `loop-k4`). It is now the last line
 that said what its BODY is doing, in the form its call gives
 (`_say(doing=)`), and only a line beginning as the stated list says one may
-(`lifecycle.DOING_KINDS`): a walk, a wait or a step aside, a charge, a
-procedure's lines, a job it holds, a death and a stand-up, and a decided
-charge's, explore's or idle's start. A line is private by default, so a new
-kind of line is the robot's own until someone lists it, and an operator's
-reset empties it. Overseer.md §2c has the table.
-
-- **Shown in a form without its number or reason:** "CHARGE complete --
-  backing off" (was "(90%)"), "CHARGE: unplugging" (was "at 63% -- the pack
-  is full"), "CHARGE: still plugged in -- carrying on" and "CHARGE: the
-  run's time is up -- my plug stays in" (each was "at N%"), "EXPLORE ->
-  GO_CHARGE" (was "(battery low)"), "GO_CHARGE FAILED -- stranded away from
-  the charging station" (was "at N%"), "DEAD (flat)" (was its why and
-  "N hearts left"), "UP again after 300 s down -- back at the start pose"
-  (was "with a full pack and no map (...)"), "DONE t_0412: <the job>"
-  (was "graded now, before this answer's idle -- <the job>"), a step as its
-  verb, "PROCEDURE door_p1 step 24 (line 34): step" (was "step(ahead=0.12,
-  left=0.0, turn=0.0)": a procedure may hand a verb what it read of its pack
-  or wallet), a step that read false or failed and a stop without their
-  words (a check's words repeat a value: "seconds=731.9 is above 60.0"), and
-  a decided charge, explore or idle as its action, "DECIDE charge (free)",
-  "DECIDE idle" (was its reason and, for a row's or a fallback's, its
-  source: a charge's walk says nothing more until it plugs in, waits or
-  fails, and an idle nothing at all).
-- **No longer shown:** its `THINK`, any other `DECIDE` line and every
-  reason (a fallback's words among them), `THOUGHT` (a pin, a goal, a note, a
-  finding), `RECALL`, `READ`, `LOOK`, `INTERRUPT`, its list of rules
-  (`EVENT`, `EVENT MAP`, `LEFT OUT`), `BELIEF`, `SCORE`, `GAVE`, a heart,
-  `HUNGER`, the energy gate (`ENERGY`, `SKIP`, `DEFER`), `DECLINE` and its
-  reason, `PREDICT`, `TELL`, `RATE`, `CHAT`, `VISITOR`, `TICKET`, `ADMIN`,
-  the operator's pause (`PAUSED`, `RESUMED`, `STOPPING`), a `PRESS` (it says
-  the mouse's state), `TRUE DEATH`, `RESTART`, the run's own lines; and of
-  the robot's job and library lines, a take that did not happen ("TASK
-  t_0388: not available -- Rowan holds it", which `loop-k4` still showed), a
-  claim's note to its own mind ("nothing queued -- write a procedure ..."),
-  a job given back because nothing here builds it, a `done` on a job it
-  does not hold, an act's claim (`take_points`: on an offer hidden from the
-  robot it names, which `loop-k4` showed that robot), and a procedure
-  defined, undefined or refused.
+(`lifecycle.DOING_KINDS`); private by default, a dead robot's its death
+until it stands up, and emptied by an operator's reset. Overseer.md §2c has
+the table of what is shown and in what form; in short, a walk, a charge, a
+procedure's lines, a job it holds, its death and stand-up, and a decided
+charge's, explore's or idle's action are shown, each without a battery
+level, points, hearts, a reason or the values a procedure handed a verb
+("CHARGE complete -- backing off", "PROCEDURE door_p1 step 24 (line 34):
+step", "DECIDE idle"); and its thinking, decisions' reasons, memory, list
+of rules, belief, books, talk and acts, an operator's and a visitor's
+lines, an act's claim and a take that did not happen are not.
 
 **Why** (#709). The rule told each robot that what the other "wants, what
 it is worried about and why it is doing what it does, you can only infer",

@@ -2391,7 +2391,8 @@ class HubLifecycle:
     string, the line in that form, with a battery level, points or hearts
     taken out; False, nothing. PRIVATE BY DEFAULT, and shown only where it
     begins as `DOING_KINDS` says a line may: a new kind of line is the
-    robot's own until someone lists it (Overseer.md §2c).
+    robot's own until someone lists it (Overseer.md §2c). While the robot
+    is dead, its death line alone.
 
     `detail` reaches the console and `self.log` and NOTHING else -- no status,
     no frame, no hook. It is where a caught exception's class and message go
@@ -2401,7 +2402,11 @@ class HubLifecycle:
     """
     self.status = msg
     shown = msg if doing is True else doing
-    if shown and shown.startswith(DOING_KINDS):
+    # ...and a dead body does nothing: its death is what the other reads
+    # until it stands up, whatever its lines say meanwhile (a run its death
+    # ended, the jobs a true death fails, an answer that came late)
+    if shown and shown.startswith(DOING_KINDS) and (
+        self.dead is None or shown.startswith("DEAD (")):
       self.doing = shown
     # A second robot's lines say whose they are (issue #167); the first
     # robot's read exactly as they always did.
