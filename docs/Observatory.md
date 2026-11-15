@@ -23,18 +23,21 @@ of 11,705, the other two apart only in a wall-clock `at`):
   scale** (`imu.ACCEL_RANGE`, `GYRO_RANGE`): the accelerometer ±16 g, the
   gyro ±2000 °/s, the part's widest ranges (DS-000347 Tables 1–2,
   `ACCEL_FS_SEL` and `GYRO_FS_SEL` 0, the 20-bit FIFO's only ones), where
-  its 16-bit word ends. The clip comes after the part's noise, offset and
+  the part's output ends. The clip comes after the part's noise, offset and
   scale and draws nothing: inside full scale a reading is the same bits as
   before, so a flight that never passes it flies as it did. Parts.md's IMU
-  row says so.
+  row says so; `Imu.gyro_z`, the rover's yaw alone, which only tests read,
+  is gone.
 - **What the robots read changes only in a hard landing and against a
-  wall.** N7 flew #690's 201 served falls on one pod at `77cde77` (#696):
-  the accelerometer passed 16 g in 94 of the 129 falls, for 2-7 samples
-  (4-14 ms) at the landing, 18.7 g at the median and 43.3 g at most, and in
-  5 shoves that threw a walking robot into the lobby's wall (16.4-22.1 g on
-  one axis; 4 of the 5 never fell); never in 88 sim-minutes of walking,
-  standing, reaching and charging, nor in either recorded day (3.5 g at
-  most). The gyro peaked at 762 °/s, so its clip bit in nothing measured.
+  wall.** N7 flew #690's 201 flights of the served mission, shoved, on one
+  pod at `77cde77` (#696), and 129 of them fell. The accelerometer passed
+  16 g in 98 of the 201: in 94 of the 129 falls, for 2-7 samples (4-14 ms)
+  at the landing, 18.7 g at the median and 43.3 g at most, and in 4 flights
+  that never fell, where the shove threw the walking robot into the lobby's
+  wall (16.4-22.1 g on one axis; 5 flights struck it, one falling later).
+  It never did in 88 sim-minutes of walking, standing, reaching and
+  charging, nor in either recorded day (3.5 g at most). The gyro peaked at
+  762 °/s, so its clip bit in nothing measured.
   On the branch, three of the lobby's falls (`humanoid_drift_spike.py`'s
   walk shoved mid-stride 0, 60 and 180 deg off its heading, Luca's draws)
   each passed 16 g on one axis for 2-4 samples at the landing, at 21.1-23.2
@@ -50,10 +53,10 @@ of 11,705, the other two apart only in a wall-clock `at`):
   340,630, 27,523, 72,948 and 72,948 checks); 3 of 6.6 M reads of the 2 deg
   `level()` gate act otherwise (2 places looks wait a step, 1 near-field
   frame is not folded); a laid band takes another return on a bearing in
-  0.3-2 % of the scans after a bite. A flight that bites parts from its
-  base as a same-size random turn of the reading parts it (the path apart
-  0.12 m at the median, 1.30 at most), and none moved between stood, stuck
-  and fell. The hand's force (#631) read a clipped sample 3 times in 680,910
+  0.3-2 % of the scans after a bite. Each of the 98 flights that bit parts
+  from its base as a same-size random turn of the reading parts it (the
+  path apart 0.12 m at the median, 1.30 at most), and none moved between
+  stood, stuck and fell. The hand's force (#631) read a clipped sample 3 times in 680,910
   reads, all at the wall strikes, on a walk, where no verb reads it.
 
 **Why.** The sensors that feed an estimate are the parts', never the sim's,

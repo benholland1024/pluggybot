@@ -16,9 +16,8 @@ def test_the_gyro_reads_its_datasheet_noise_density():
   # so an integrated angle walks by density * sqrt(t) -- whatever dt is.
   part = imu.Imu("test:noise")
   dt = 0.002
-  samples = np.array([part.gyro_z(0.0, dt) for _ in range(20000)])
-  samples -= part.gyro_bias[2]
-  assert samples.std() == pytest.approx(imu.GYRO_NOISE / math.sqrt(dt), rel=0.05)
+  samples = np.array([part.gyro(np.zeros(3), dt) for _ in range(20000)]) - part.gyro_bias
+  assert samples.std(axis=0) == pytest.approx([imu.GYRO_NOISE / math.sqrt(dt)] * 3, rel=0.05)
 
 
 def test_the_offsets_and_scales_are_drawn_inside_the_datasheets_ranges():
@@ -49,12 +48,12 @@ def _past_one_axis(read, twin, full, inside, past):
       assert got[rest].tobytes() == did[rest].tobytes()
 
 
-def test_past_its_full_scale_an_axis_reads_its_last_code_and_the_clip_draws_nothing():
+def test_past_its_full_scale_an_axis_reads_it_and_the_clip_draws_nothing(monkeypatch):
   # The ICM-42688-P's widest ranges, +-16 g and +-2000 deg/s (DS-000347
-  # Tables 1-2): past them its word ends, after the part's own error, so a
+  # Tables 1-2): past them its output ends, after the part's own error, so a
   # landing's 43 g reads 16 (#696). The clip draws no noise: inside full
-  # scale a reading is the same bits as without it, and a flight that never
-  # passes full scale flies as before.
+  # scale a reading is the same bits as with no full scale at all, and a
+  # flight that never passes it flies as before.
   dt = 0.002
   assert imu.ACCEL_RANGE == 16.0 * imu.G
   assert imu.GYRO_RANGE == math.radians(2000.0)
@@ -63,34 +62,36 @@ def test_past_its_full_scale_an_axis_reads_its_last_code_and_the_clip_draws_noth
                  imu.ACCEL_RANGE, np.array((3.0, -2.0, 1.0)) * imu.G, 40 * imu.G)
   _past_one_axis(lambda w: part.gyro(w, dt), lambda w: twin.gyro(w, dt),
                  imu.GYRO_RANGE, np.radians((300.0, -150.0, 40.0)), math.radians(3000.0))
-  assert ([part.gyro_z(s * math.radians(3000.0), dt) for s in (1, -1)]
-          == [imu.GYRO_RANGE, -imu.GYRO_RANGE])
-  # Inside full scale by a hair: the part's error alone, bit for bit, its
-  # noise drawn as it always was.
-  part, ref = imu.Imu("test:inside"), imu.Imu("test:inside")
+  # Inside full scale by a hair: the bits of the same part with no full
+  # scale, and each reading draws its three normals, no more.
   rate, force = np.radians((1980.0, -1980.0, 30.0)), np.array((15.9, -15.9, 1.0)) * imu.G
-  for _ in range(5):
-    want = (rate * ref.gyro_scale + ref.gyro_bias
-            + ref.rng.standard_normal(3) * (imu.GYRO_NOISE / math.sqrt(dt)))
-    assert part.gyro(rate, dt).tobytes() == want.tobytes()
-    want = (force * ref.accel_scale + ref.accel_bias
-            + ref.rng.standard_normal(3) * (np.array(imu.ACCEL_NOISE) / math.sqrt(dt)))
-    assert part.accel(force, dt).tobytes() == want.tobytes()
+  part, ref, drawn = (imu.Imu("test:inside") for _ in range(3))
+  with monkeypatch.context() as unbounded:
+    unbounded.setattr(imu, "GYRO_RANGE", math.inf)
+    unbounded.setattr(imu, "ACCEL_RANGE", math.inf)
+    want = [(ref.gyro(rate, dt), ref.accel(force, dt)) for _ in range(5)]
+  for gyro, accel in want:
+    assert part.gyro(rate, dt).tobytes() == gyro.tobytes()
+    assert part.accel(force, dt).tobytes() == accel.tobytes()
+    drawn.rng.standard_normal(6)
+  assert part.rng.bit_generator.state == drawn.rng.bit_generator.state
 
 
 def test_two_robots_never_draw_one_stream_and_one_robot_draws_the_same_twice():
   a, b, again = imu.Imu("pluggybot"), imu.Imu("r2_pluggybot"), imu.Imu("pluggybot")
-  assert a.gyro_z(0.1, 0.002) != b.gyro_z(0.1, 0.002)
-  assert imu.Imu("pluggybot").gyro_z(0.1, 0.002) == again.gyro_z(0.1, 0.002)
+  rate = (0.0, 0.0, 0.1)
+  assert not np.array_equal(a.gyro(rate, 0.002), b.gyro(rate, 0.002))
+  assert np.array_equal(imu.Imu("pluggybot").gyro(rate, 0.002), again.gyro(rate, 0.002))
 
 
 def test_a_restart_carries_the_imu_on_where_it_stopped():
-  a = imu.Imu("pluggybot")
+  a, rate = imu.Imu("pluggybot"), (0.0, 0.0, 0.2)
   for _ in range(100):
-    a.gyro_z(0.2, 0.002)
+    a.gyro(rate, 0.002)
   b = imu.Imu("something else")
   b.restore_kept(a.kept_state())
-  assert [a.gyro_z(0.2, 0.002) for _ in range(5)] == [b.gyro_z(0.2, 0.002) for _ in range(5)]
+  assert np.array_equal([a.gyro(rate, 0.002) for _ in range(5)],
+                        [b.gyro(rate, 0.002) for _ in range(5)])
 
 
 def _quat(axis, angle):
@@ -131,7 +132,7 @@ def _held(hold, part, seconds, rate_z=0.0, dt=0.01):
   turn, as the humanoid's odometry hands it over (every 10 ms)."""
   turned = 0.0
   for _ in range(round(seconds / dt)):
-    turned += hold.turn(part.gyro_z(rate_z, dt) * dt, dt, True)
+    turned += hold.turn(part.gyro((0.0, 0.0, rate_z), dt)[2] * dt, dt, True)
   return turned
 
 
