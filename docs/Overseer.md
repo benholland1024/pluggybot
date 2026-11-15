@@ -427,7 +427,11 @@ has, at a price, and finds the doors by finding the walls either side of
 them (SimNotes, "Walking into
 the unknown"). How long it may take is the procedure's to say:
 `drive_to(x, y, patience=S)`, 60 s when it says nothing, at most 600, and
-never past the procedure's own budget. A decided `explore(zone)` walks to
+never past the procedure's own budget. Its text says how near a wall or a
+counter a walk comes (#700): the planner's keep-off, off its constant, and
+where a walk sent to an edge ends, flown; and a walk that stood where it
+could nearest a goal its map keeps off says so, never "no route" (SimNotes,
+"Where a walk ends by a wall"). A decided `explore(zone)` walks to
 its zone with a decided action's default, `ZONE_PATIENCE_S` (300 s). The
 walk aims at the zone's middle, and one that ends anywhere inside the zone
 has got there (issue #454). The workshop's table stands on its middle: 8

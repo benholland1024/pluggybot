@@ -61,7 +61,7 @@ from typing import Any, Callable
 
 from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_FRONT_HALF_M,
                                      STEP_FRONT_M, STEP_KEEP_DOWN_M, STEP_KEEP_M, STEP_LEAST_M,
-                                     STEP_SHORT_M)
+                                     STEP_SHORT_M, WALK_KEEP_M)
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
 from pluggybot.perception.box import DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M
@@ -421,13 +421,16 @@ def _find(life, args: dict) -> Routine:
 
 def _walk_trace(w: dict) -> str:
   """A walk's record (`Navigator.last_drive`) as a trace says it: how it
-  ended, how far short and after how long, and the robot it was about."""
+  ended, how far short and after how long, what its map held solid by a
+  goal it stood short of (#700), and the robot it was about."""
   if "why" not in w:
     return "?"
+  kept = w.get("standIn") or {}
+  solid = "".join(f" {k}={kept[k]}" for k in ("solidM", "standM", "keepM") if k in kept)
   peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests",
                                            "peerDead", "askedWay") if k in w)
   how = "arrived" if not w["why"] else f"{w['why']} {float(w.get('shortM') or 0):.2f} m short"
-  return f"{how} after {float(w.get('seconds') or 0):.0f} s{peer}"
+  return f"{how} after {float(w.get('seconds') or 0):.0f} s{solid}{peer}"
 
 
 #: What a find's trace calls each walk's goal (`PlaceWalk.find_routine`).
@@ -1314,14 +1317,32 @@ _SPEED = Arg("float", lo=HAND_V[0], hi=HAND_V[2], default=HAND_V[1])
 _GIVE = Arg("float", lo=0.0, hi=1.0, default=1.0)
 #: How hard a gripper squeezes, N a pad (#525): the Dex1-1's adjustable 5-120.
 _GRIP = Arg("float", lo=5.0, hi=120.0, default=120.0)
+#: WHERE A WALK SENT TO A WALL OR A COUNTER'S EDGE ENDS, m from it (#700):
+#: FLOWN, never derived -- the served humanoid sent to the storeroom's
+#: counter's edge, before it and onto it, and to two plain walls' faces,
+#: 0.32-0.60 m in 15 walks, 0.34-0.54 in 10 held out (SimNotes, "Where a
+#: walk ends by a wall") -- at the keep-off it was flown at, m: that moved,
+#: fly it again (a test fails until this does).
+WALK_ENDS_M, WALK_ENDS_KEEP_M = (0.3, 0.6), 0.35
+
+
+def drive_to_doc(keep_m: float, ends: tuple[float, float] = WALK_ENDS_M) -> str:
+  """`drive_to`'s text, off the walk's keep-off (`WALK_KEEP_M`) and where a
+  walk sent to a wall ends, flown (`WALK_ENDS_M`, #700)."""
+  return ("walk to a world point over the map, and over floor not yet on it; ok on "
+          f"arrival, and it gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f}). "
+          f"Its way keeps your middle about {keep_m:g} m from what your map holds solid, "
+          "less round a corner: a walk sent to a wall or a counter's edge ends short, "
+          f"where you can stand nearest it, {ends[0]:g}-{ends[1]:g} m from the wall or the "
+          "edge")
+
+
 VERBS: dict[str, Verb] = {
   # `patience` (issue #381): the walk's budget, the robot's to set
   "drive_to": Verb("drive_to", {"x": Arg("float"), "y": Arg("float"),
                                 "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
                                                 default=DRIVE_TIMEOUT_S)},
-                   _drive_to, "walk to a world point over the map, and over floor not "
-                   "yet on it; ok on arrival, and it gives up after "
-                   f"`patience` seconds (at most {MAX_PATIENCE_S:.0f})"),
+                   _drive_to, drive_to_doc(WALK_KEEP_M)),
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
                _face, "turn in place; ok when squared within the budget"),
   # PLACES (issue #419): a task area found by its tag and remembered -- the

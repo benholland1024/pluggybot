@@ -1615,7 +1615,11 @@ save a filmstrip PNG named after the script.
   `program` verdict is the run's own end (`ok`), never its count. ⚠ `drive_to(x, y,
   patience=)` (#381): 60 s unsaid, `MAX_PATIENCE_S` 600, never past the
   run's own budget (`run_verb(until=)`); an argument with a `default` may be
-  left out. ⚠ A PROCEDURE'S LOCALS ARE ITS READOUT (#227:
+  left out; its text says the walk's keep-off off `WALK_KEEP_M` (the
+  humanoid's `INFLATION_CELLS`) and where a walk sent to a wall or a
+  counter's edge ends, `steps.WALK_ENDS_M` -- ⚠ FLOWN, never derived: the
+  keep-off moved, fly it again (#700; SimNotes, "Where a walk ends by a
+  wall"). ⚠ A PROCEDURE'S LOCALS ARE ITS READOUT (#227:
   `lang.run_procedure_routine` returns them, the `procedure` event carries
   them, and History says them beside the run's line, on the next, or on
   both (`_readout`); ⚠ EVERY NAME SAID OR COUNTED, `(+N more)`, the two
@@ -2714,8 +2718,20 @@ save a filmstrip PNG named after the script.
   FAILED VERDICT LEADS WITH THE ERRAND'S OWN FAILURE (#350;
   `evaluate(failed=)`), and a line after a failed drive ends with
   `HubLifecycle.drive_why`, one of `mission.DRIVE_GAVE_UP`'s four causes
-  (`tests/test_failure_words.py`). ⚠ A `find` WHOSE WALKS TOOK IT NOWHERE
-  NEW TO LOOK FROM "gave up", in its last walk's words, never "not
+  (`tests/test_failure_words.py`). ⚠ A WALK THAT STOOD AT ITS STAND-IN BY
+  SOMETHING ITS MAP HOLDS SOLID SAYS SO, never "no route over the floor
+  mapped so far" (#700; SimNotes, "Where a walk ends by a wall"):
+  `no_route` (or `timeout`) still, its record's `standIn` a field, never a
+  fifth cause -- the cell its map held solid that kept the goal off, found
+  AS THE PLAN CHOOSES ITS STAND-IN, on that plan's grid, by its own taxicab
+  keep-off at the goal's own lattice cell, never clamped
+  (`Navigator._solid_by`, `_kept_by`), kept with the held plan, through a
+  restart and after `_route_past`; A*'s plan records none (it stands in
+  for unseen floor too). ⚠ ITS WORDS ARE ONLY WHAT IS TRUE WHEREVER THE
+  ROBOT ENDED, its distances measured there: the front stop or another
+  robot's disc can hold a walk short of its stand-in. ⚠ A `find`
+  WHOSE WALKS TOOK IT NOWHERE NEW TO LOOK FROM "gave up", in its last
+  walk's words, never "not
   found" (#439: "looked from every place near there" in 23 s beside a
   resting robot); its walks are the log's `trace`. ⚠ A DECIDED
   `charge` or `explore` says how it ended in History (#424), and a charge

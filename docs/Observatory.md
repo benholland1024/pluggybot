@@ -10,6 +10,55 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A walk that stood where it could nearest a goal by a wall says so, and `drive_to`'s text says how near a walk comes (#700, K2, `loop-700`) — opens when this PR is deployed
+
+**What the robots read changes, in two places; what they do does not.**
+Nothing physical moved: no geometry, no walk, no plan, no wire field's
+meaning (the drive's `why` is one of its four as before).
+
+- **History and every line that ends with a walk's words**
+  (`drive_why`: a `drive_to`'s reason, a `find`'s, a charge's, an
+  explore's). A walk that ended at its stand-in because its goal stands
+  inside the keep-off its map grows round something solid no longer says
+  "(no route over the floor mapped so far)" but "(the goal is 0.00 m from
+  something the map holds solid, nearer than a walk keeps, and the robot
+  stood 0.45 m from it)", and one its patience ended there "(out of time:
+  the goal is ...)". Its record carries `standIn` (`solidM`, `standM`,
+  `keepM`), a field and not a fifth cause; a goal between 0.35 m and the
+  lattice's next cell off reads "about as near as a walk keeps". A goal the
+  walls it has seen shut off (no plan at all) still says "no route over the
+  floor mapped so far"; a goal just behind a thin wall, inside its keep-off,
+  reads as one on a counter's top does (in the map they are alike).
+- **The prompt.** `drive_to`'s text gains: "Its way keeps your middle about
+  0.35 m from what your map holds solid, less round a corner: a walk sent to
+  a wall or a counter's edge ends short, where you can stand nearest it,
+  0.3-0.6 m from the wall or the edge" -- the keep-off off the planner's own
+  constant, the range flown (SimNotes, "Where a walk ends by a wall").
+  `prompt_sha` b345cc34 -> cc714953 (66,029 characters -> 66,244, 17
+  sections), that line alone. The session host's hello is byte for byte
+  (fb758c10: the practice's language has no `drive_to`), so the site's half
+  does not move.
+
+**Why.** 11-12 (build 1e8f1d48), Luca's `door_run21` and `door_run22`
+(t_0210, `open_door`) walked to a point 0.55 m in front of the door's tag,
+which is on the storeroom's east wall 0.6 m behind the counter's edge: 1 cm
+in front of the edge. Three walks ended about half a metre short, each
+saying "no route over the floor mapped so far". Luca's next answers: "both
+runs died on drive_to over the unmapped floor" and "drive_to keeps stalling
+short on the floor the restart wiped"; `door_run23` dropped the walk and
+crept on 7 cm steps, never read the lever's tag, and the job ran out. The
+floor was mapped: the walk had stood as near the counter as a walk stands.
+
+**What to read on the live rows.**
+- **"from something the map holds solid" History lines** beside "no route
+  over the floor mapped so far" ones, both robots: a walk to the counter's
+  props sent at the edge should read the first; the second only where walls
+  shut the goal off (or another robot's disc alone made the stand-in).
+- **The answer after one:** whether the robot takes the rest by `step` or
+  sends its walk further out, rather than concluding its map is missing.
+- **#700's live box:** no "no route" for a goal at the counter's edge read
+  as unmapped floor.
+
 ### A hand that holds nothing takes a pull's posture only while it reads light, and gives it up where it reads a load (#699, K1, `loop-699`) — opens when this PR is deployed
 
 **What a deployed robot's `pull` does changes; what it says and reads does

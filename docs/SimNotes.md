@@ -1068,6 +1068,75 @@ the rules are pinned in `tests/test_unknown.py`. Not done: the map is still
 the property's rectangle (#381's stage 4), loop closure (stage 3), and what
 a walk into the unknown costs is not yet in any offer (stage 7).
 
+## Where a walk ends by a wall (issue #700)
+
+On 11-12 Luca sent three walks to a point 1 cm in front of the storeroom
+counter's edge. Each ended about half a metre short and said "no route over
+the floor mapped so far"; Luca read that as floor its map had lost, gave
+`drive_to` up, crept to the door's lever in 7 cm steps and ran out of time.
+The planner plans through floor it has not seen (above), so a goal it cannot
+plan to is one of two things: walls it has seen enclose the goal (no plan at
+all), or the goal stands inside the keep-off the map grows round what it
+holds solid -- the humanoid's `INFLATION_CELLS`, 7 cells (0.35 m), taxicab,
+judged on the 10 cm lattice -- and the plan ends at a stand-in, the nearest
+place to stand. Both were `no_route`, and both were said alike.
+
+**A walk at its stand-in by something its map holds says so**
+(`Navigator._solid_by`, the record's `standIn`; `no_route` still, or
+`timeout` where its patience ended it there): "(the goal is 0.00 m from
+something the map holds solid, nearer than a walk keeps, and the robot stood
+0.45 m from it)". The solid cell is found as the plan chooses its stand-in,
+on that plan's grid, as `map_costs` grows a wall -- taxicab from the goal's
+own lattice cell, never clamped onto the grid, so a goal past its edge is
+judged where it is -- so a record has one exactly where the plan's lattice
+cell for the goal is no floor (pinned both ways along a counter and round a
+post). The lattice keeps a goal off up to a cell past the 0.35 m the verb's
+text states, and a goal there reads "about as near as a walk keeps". A goal
+the seen walls shut off (no plan at all), a robot its map has walled in, a
+stand-in only another robot's disc made, and a goal past the grid's edge
+beyond anything on it keep "no route over the floor mapped so far"; so does
+every stand-in of A*'s plan, the Navigator's default, which stands in for
+floor it has not seen as well.
+
+**The words are what is true wherever the robot ended**, its distances
+measured there: a walk the front stop held short of its stand-in, one
+another robot's disc stood a room away from a goal at the counter, and the
+drive's own creep past its stand-in toward the goal (flown, below) each
+read as they are, and a walk that stood where walks stand (0.3-0.6 m off)
+reads apart from one held further off. ⚠ A goal just behind a thin wall,
+inside its keep-off, stands in on the near side and reads as one at or onto
+a counter's edge does: the map does not tell the room behind a wall from a
+counter's top, and every word is true of both.
+
+**Where the walk ends, flown** (the served humanoid alone in
+`home_humanoid` on a fresh map after a look round, from the storeroom's door
+or its middle, three noises; its true middle's distance from the edge or the
+face, m):
+
+| sent to | ended off it | the record's `standM` |
+|---|---|---|
+| the counter's edge, 1 cm before it | 0.36, 0.38, 0.38 | 0.34, 0.36, 0.37 |
+| the counter's edge | 0.47, 0.41, 0.32 | 0.45, 0.39, 0.27 |
+| 5.7 cm onto the counter (#700's own) | 0.36, 0.45, 0.40 | 0.40, 0.47, 0.43 |
+| the south wall's face | 0.45, 0.48, 0.52 | 0.42, 0.46, 0.50 |
+| the north wall, 1 cm before its face | 0.46, 0.60, 0.40 | 0.43, 0.58, 0.36 |
+
+0.32-0.60 m in 15 walks, every one `no_route` with its `standIn`, none a
+fall; two flights more, from starts and on noises nothing was read off,
+0.34-0.54 m in 10. The plan's stand-in is 0.40-0.45 m off an edge square to
+the lattice (the keep-off, the lattice's cell), and the drive's last steps
+creep toward the goal past it or back off it before it stagnates, the robot
+turned any way at all. `standM` is to the solid cell nearest the goal: by
+an edge, the edge's own, 1-5 cm proud of the true face; onto the counter, a
+cell behind it.
+
+**What is true now.** `drive_to`'s text says the keep-off off its constant
+(`WALK_KEEP_M`), less round a corner (the keep-off is a taxicab's: about
+0.25 m diagonally), and where a walk sent to a wall or a counter's edge
+ends (`steps.WALK_ENDS_M`, 0.3-0.6 m): that range is FLOWN, so a change to
+the inflation flies it again. The rules are pinned in
+`tests/test_failure_words.py`.
+
 ## Places, not coordinates (issue #419)
 
 A job is handed the building's address, a few metres off, and the task

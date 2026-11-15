@@ -47,8 +47,17 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
   robot a `peer` cause was about -- the lifecycle knows names, the mission
   only poses."""
   why = rec["why"]
+  kept = rec.get("standIn")
+  if kept:
+    # ...the map's doing, never "no route" (#700; SimNotes, "Where a walk
+    # ends by a wall"): "nearer than" only inside the keep-off `drive_to`'s
+    # text states (`keepM`) -- its lattice keeps a goal off up to a cell more
+    near = ("nearer than a walk keeps" if round(kept["solidM"], 2) < round(kept["keepM"], 2)
+            else "about as near as a walk keeps")
+    kept = (f"the goal is {kept['solidM']:.2f} m from something the map holds solid, "
+            f"{near}, and the robot stood {kept['standM']:.2f} m from it")
   if why == "no_route":
-    cause = "no route over the floor mapped so far"
+    cause = kept or "no route over the floor mapped so far"
   elif why == "stalled":
     cause = f"stalled, no progress for {STAGNATION_S:.0f} s"
   elif why == DRIVE_STOPPED:
@@ -66,7 +75,7 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
     else:
       cause = f"{peer}{' ' + how if how else ''} in the way, {far:.1f} m off"
   else:
-    cause = "out of time"
+    cause = "out of time" + (f": {kept}" if kept else "")
   return (f"the drive gave up {rec['shortM']:.1f} m short after "
           f"{rec['seconds']:.0f} s ({cause})")
 
@@ -78,6 +87,12 @@ def on_the_goal(nav, b: KeepClear, wx: float, wy: float) -> float | None:
   (`Navigator.ask_off`)."""
   d = math.hypot(b.x - wx, b.y - wy)
   return d if d < nav._cells(b) * nav.grid.resolution - CLOSE_ENOUGH_M else None
+
+
+def off_cell(px, py, ex, ey, side):
+  """How far (px, py) is from the nearest point of the map cell whose low
+  corner is (ex, ey), `side` m a side: scalars or arrays alike (#700)."""
+  return np.hypot(px - np.clip(px, ex, ex + side), py - np.clip(py, ey, ey + side))
 
 
 def footprint_middle(model, data, gids) -> tuple[float, float]:
@@ -167,7 +182,9 @@ AIMED_RAD = math.radians(45.0)
 WAYPOINT_REACHED_M = 0.08
 #: WHY A DRIVE GAVE UP (issue #350), `Navigator.last_drive["why"]`, one of
 #: four: the planner could not route to the goal over the floor mapped so
-#: far (no plan at all, or only to a stand-in the robot then stood at); no
+#: far (no plan at all, or only to a stand-in the robot then stood at --
+#: where the map's keep-off round something solid took in the goal, the
+#: record's `standIn` says so, and of a `timeout` there too, #700); no
 #: progress for `STAGNATION_S` toward a goal the plan did reach; another
 #: robot in the way or on the goal when it stopped; the time budget ran
 #: out. The robot reads the cause back: "stopped 9.1 m short", with none,
@@ -334,12 +351,17 @@ class Navigator:
     #: How the last `drive_to` ended (issue #350): `why` ("" arrived, else
     #: one of `DRIVE_GAVE_UP`), the goal, the seconds it took, how far short
     #: it stopped, and for a peer which body -- beside the robot (`here`)
-    #: or at the goal, how far, where, and whether it lies down. `gave_up`
-    #: is its sentence.
+    #: or at the goal, how far, where, and whether it lies down; for a
+    #: `no_route` or a `timeout` at its stand-in by something the map holds,
+    #: what kept it off (`standIn`, `_stood_off`, #700). `gave_up` is its
+    #: sentence.
     self.last_drive: dict | None = None
     #: Where the last plan aimed INSTEAD of the goal -- the nearest cell of
     #: this robot's own component, when the goal was off it -- or None.
     self._stand_in: tuple[float, float] | None = None
+    #: ...and, where that was the map's doing, the low corner of the cell it
+    #: held solid that kept the goal off (`_solid_by`, #700), or None.
+    self._kept_by: tuple[float, float] | None = None
     self._floor = None                        # `_plan_to`'s floor, unmasked
     #: The peer stop (issue #328): the last sighting in the corridor ahead
     #: -- how far off it was and when -- and how many times a drive has
@@ -641,11 +663,11 @@ class Navigator:
     memo = self._plan_memo
     if (memo is not None and memo[0] == (wx, wy) and t - memo[1] < self.REPLAN_HOLD_S
         and math.hypot(x - memo[2][0], y - memo[2][1]) < self.REPLAN_MOVED_M):
-      self._stand_in = memo[4]
+      self._stand_in, self._kept_by = memo[4], memo[5]
       return None if memo[3] is None else list(memo[3])
     planned = self._plan_near(wx, wy)
-    self._plan_memo = ((wx, wy), t, (x, y),
-                       None if planned is None else list(planned), self._stand_in)
+    self._plan_memo = ((wx, wy), t, (x, y), None if planned is None else list(planned),
+                       self._stand_in, self._kept_by)
     return planned
 
   def _plan_near(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
@@ -670,7 +692,7 @@ class Navigator:
     self._floor = traversable_mask(self._planning_grid(), self.INFLATION_CELLS)
     trav = self._floor.copy()
     self._mask_others(trav, bodies)
-    self._stand_in = None
+    self._stand_in = self._kept_by = None
     rows, cols = trav.shape
     # The halo escape, shared with `navigation.plan` since issue #92 -- this
     # inline version is where the idea was born, and exploration's planner
@@ -719,8 +741,8 @@ class Navigator:
     stand-in for a goal inside a wall's inflation, and no plan at all for
     a goal the walls it has seen shut it off from. `_floor` is the map's
     floor before the discs, as `_plan_round` keeps it."""
-    cost = optimistic.map_costs(self._planning_grid(), self.INFLATION_CELLS,
-                                self.UNKNOWN_COST)
+    planning = self._planning_grid()
+    cost = optimistic.map_costs(planning, self.INFLATION_CELLS, self.UNKNOWN_COST)
     self._floor = np.isfinite(cost)
     floor = self._floor.copy()
     self._mask_others(floor, bodies)
@@ -730,7 +752,7 @@ class Navigator:
     graph = optimistic.lattice_for(lattice.shape, self.grid.resolution * b)
     sx, sy = self.grid.world_to_cell(self.pose[0], self.pose[1])
     gx, gy = self.grid.world_to_cell(wx, wy)
-    self._stand_in = None
+    self._stand_in = self._kept_by = None
     start, reach = (sx // b, sy // b), self._escape_cells(bodies)
     if reach:
       start = self._escape_from(np.isfinite(lattice), self._lattice_floor(), start,
@@ -745,6 +767,7 @@ class Navigator:
            for cx, cy in cells]
     if stand_in:
       self._stand_in = pts[-1]
+      self._kept_by = self._solid_by(planning, wx, wy, b)
     # every other cell, 0.2 m apart as A*'s every third, and always the end
     out = pts[2::2]
     if not out or out[-1] != pts[-1]:
@@ -875,7 +898,7 @@ class Navigator:
     holding = False                    # is this drive standing for a peer
     waiting = False                    # ...or waiting on one it stagnated by
     downs, next_downs = (), 0.0        # who lies down, `DOWN_CHECK_S`
-    self._stand_in = None
+    self._stand_in = self._kept_by = None
     t0 = self.data.time
     best_dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
     last_improve = t0
@@ -1090,6 +1113,8 @@ class Navigator:
     asked = getattr(self, "_made_way", None)
     if asked:
       rec["askedWay"] = sorted(asked)
+    if why in ("no_route", "timeout") and self._kept_by is not None and self._at_stand_in():
+      rec["standIn"] = self._stood_off(wx, wy)
     self.last_drive = rec
     return not why
 
@@ -1099,6 +1124,44 @@ class Navigator:
     return (self._stand_in is not None
             and math.hypot(self._stand_in[0] - self.pose[0],
                            self._stand_in[1] - self.pose[1]) < STAND_IN_REACHED_M)
+
+  def _solid_by(self, planning: np.ndarray, wx: float,
+                 wy: float, b: int) -> tuple[float, float] | None:
+    """Where a plan's stand-in for (wx, wy) is its map's doing (issue
+    #700): of the cells `planning` -- the grid the plan was made on -- holds
+    solid whose keep-off takes in the goal's cell of the plan (`b` map cells
+    a side, the lattice's; read as the plan reads it, `world_to_cell`, and
+    never clamped onto the grid, so a goal far past an edge is judged where
+    it is), as `map_costs` grows a wall (taxicab `INFLATION_CELLS`), the low
+    corner of the one nearest the goal, m; None where none does (another
+    robot's disc, a goal past the grid's edge beyond the keep-off of
+    anything on it)."""
+    g, r = self.grid, self.INFLATION_CELLS
+    cx, cy = g.world_to_cell(wx, wy)
+    x0, y0 = cx // b * b, cy // b * b
+    lo_x, lo_y = max(x0 - r, 0), max(y0 - r, 0)
+    ys, xs = np.nonzero(planning[lo_y:max(y0 + b + r, 0), lo_x:max(x0 + b + r, 0)]
+                        > OCC_THRESH)
+    xs, ys = xs + lo_x, ys + lo_y
+    taxicab = (np.maximum(0, np.maximum(x0 - xs, xs - (x0 + b - 1)))
+               + np.maximum(0, np.maximum(y0 - ys, ys - (y0 + b - 1))))
+    xs, ys = xs[taxicab <= r], ys[taxicab <= r]
+    if not len(xs):
+      return None
+    ex, ey = g.x_min + xs * g.resolution, g.y_min + ys * g.resolution
+    k = int(np.argmin(off_cell(wx, wy, ex, ey, g.resolution)))
+    return float(ex[k]), float(ey[k])
+
+  def _stood_off(self, wx: float, wy: float) -> dict:
+    """A walk at its stand-in by what its map holds solid (`_kept_by`), as
+    its record says it (`standIn`, #700): how far the goal (`solidM`) and
+    the robot (`standM`) are from that cell's nearest point, m, and the
+    keep-off `drive_to`'s text states (`keepM`)."""
+    (ex, ey), c = self._kept_by, self.grid.resolution
+    px, py, _ = self.pose
+    return {"solidM": round(float(off_cell(wx, wy, ex, ey, c)), 3),
+            "standM": round(float(off_cell(px, py, ex, ey, c)), 3),
+            "keepM": round(self.INFLATION_CELLS * c, 3)}
 
   def face(self, heading: float) -> bool:
     return self.run(self.face_routine(heading))
@@ -1202,13 +1265,13 @@ class Navigator:
     NEVER THE HELD PLAN (`_plan_to`'s memo, #559): asked just after a plan
     to the same goal from the same spot, it answered that plan -- made WITH
     the robot in the way -- and nobody was ever asked to make way."""
-    others, kept = self.others, (self._stand_in, self._floor)
+    others, kept = self.others, (self._stand_in, self._kept_by, self._floor)
     self.others = [where for where in others if KeepClear(*where()).root != root]
     try:
       return Navigator._plan_near(self, wx, wy)
     finally:
       self.others = others
-      self._stand_in, self._floor = kept
+      self._stand_in, self._kept_by, self._floor = kept
 
   def peer_ahead(self, points) -> float | None:
     """The nearest point of ANOTHER ROBOT's body in the corridor this one

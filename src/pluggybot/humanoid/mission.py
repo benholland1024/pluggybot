@@ -866,7 +866,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "memo": None if memo is None else
              [list(memo[0]), memo[1], list(memo[2]),
               None if memo[3] is None else [list(p) for p in memo[3]],
-              None if memo[4] is None else list(memo[4])],
+              None if memo[4] is None else list(memo[4]),
+              None if memo[5] is None else list(memo[5])],
              "clocks": {"scan": self._next_scan, "backoff": self.backoff_until,
                         "walls": self._walls_t},
              "peerSeen": [self.peer_seen_m, self.peer_seen_t],
@@ -936,10 +937,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       self._frame_t, self._frame_used_t = float(frame["t"]), float(frame["used"])
       self._frame_level = bool(frame["level"])
     memo = state.get("memo")
+    # ...and what kept its stand-in off the goal (#700): none in a save from before
+    kept_by = memo[5] if memo is not None and len(memo) > 5 else None
     self._plan_memo = (None if memo is None else
                        (tuple(memo[0]), float(memo[1]), tuple(memo[2]),
                         None if memo[3] is None else [tuple(p) for p in memo[3]],
-                        None if memo[4] is None else tuple(memo[4])))
+                        None if memo[4] is None else tuple(memo[4]),
+                        None if kept_by is None else tuple(kept_by)))
     clocks = state["clocks"]
     self._next_scan = float(clocks["scan"])
     self.backoff_until = float(clocks["backoff"])

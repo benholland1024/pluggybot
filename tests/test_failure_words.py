@@ -196,6 +196,242 @@ def test_a_stand_in_from_an_earlier_drive_is_not_this_drives():
   assert _drive(fake)[1]["why"] == "stalled"
 
 
+def _counter(cols=80, edge=60):
+  """4 m x 3 m of floor the map holds free, a counter from x = 3 m (column
+  `edge`) to the east wall, on the planner's own `self` (`test_unknown`'s:
+  no world, no body, a plan each call)."""
+  import numpy as np
+
+  from test_unknown import FREE, WALL
+  g = np.full((60, cols), FREE)
+  g[:, edge:] = WALL
+  return g
+
+
+class _Stood:
+  """`_Nav` driven: the Navigator's own `drive_to_routine` over its own
+  planner on a synthetic map, the legs stubbed -- every command 0.1 s, and
+  the robot never moves from where it was put."""
+
+  @staticmethod
+  def at(logodds, at):
+    from test_unknown import _Nav
+
+    class Stood(_Nav):
+      def _nav_routine(self, v, w):
+        self.data.time += 0.1
+        yield v, w
+
+      def _drive_routine(self, seconds, v, w):
+        self.data.time += seconds
+        yield v, w
+
+      def peer_sighting(self):
+        return None
+    walk = Stood(logodds, at)
+    walk.backoff_until, walk.peer_holds, walk.last_drive = 0.0, 0, None
+    return walk
+
+
+def test_a_walk_that_stood_at_its_stand_in_by_something_its_map_holds_says_so():
+  """#700 (11-12, Luca's `door_run21`/`22`): a goal 1 cm in front of the
+  counter's edge is inside the keep-off a walk keeps from what its map
+  holds solid, so the plan ends at a stand-in, the nearest place to stand
+  -- and the walk that stood there said "no route over the floor mapped so
+  far", three times, which the robot read as floor not yet mapped and gave
+  its walks up for. Flown through the Navigator's own drive and planner, the
+  record says what kept it off -- a field, never a fifth cause -- and its
+  words say it: how far the goal is from that, and how far the robot stood;
+  so does a walk its patience ended there."""
+  goal = (2.99, 1.52)
+  first = _Stood.at(_counter(), (1.0, 1.5))
+  first._plan_to(*goal)
+  assert first._stand_in is not None, "the premise: the plan ends short of the counter"
+  walk = _Stood.at(_counter(), first._stand_in)       # ...where the walk stands
+  assert tick.run(STEPPER, walk.drive_to_routine(*goal, 60.0)) is False
+  rec = walk.last_drive
+  assert rec["why"] == "no_route", rec
+  assert rec["standIn"] == {"solidM": 0.01, "standM": 0.45, "keepM": 0.35}
+  assert gave_up(rec) == (
+    "the drive gave up 0.4 m short after 10 s (the goal is 0.01 m from something the map "
+    "holds solid, nearer than a walk keeps, and the robot stood 0.45 m from it)")
+  # ...and one its patience ended there before it stagnated, out of time
+  short = _Stood.at(_counter(), first._stand_in)
+  assert tick.run(STEPPER, short.drive_to_routine(*goal, 5.0)) is False
+  assert short.last_drive["why"] == "timeout" and "standIn" in short.last_drive
+  assert gave_up(short.last_drive).endswith(
+    "(out of time: the goal is 0.01 m from something the map holds solid, nearer than a "
+    "walk keeps, and the robot stood 0.45 m from it)")
+  # ...as is a find's walk in its trace, the log's
+  assert st._walk_trace({**rec, "seconds": 12.0}) == (
+    "no_route 0.44 m short after 12 s solidM=0.01 standM=0.45 keepM=0.35")
+  # ...and a stand-in nothing the map holds made is said as it was
+  _, bare = _drive(CAUSES["stand-in"][0])
+  assert bare["why"] == "no_route" and "standIn" not in bare
+  assert gave_up(bare).endswith("(no route over the floor mapped so far)")
+
+
+def test_the_map_keeps_a_walk_off_a_goal_exactly_where_its_plan_does():
+  """`_solid_by` reads the map as the planner does (`map_costs`' taxicab
+  keep-off, on the lattice's cell, `optimistic.BLOCK`): every goal from
+  0.7 m before a counter's edge onto it, a centimetre apart, is kept off by
+  the map exactly where the planner's lattice cell for it is no floor -- so
+  the words never say a walk keeps off a goal it can stand on, nor miss one
+  it cannot -- and round a post one cell wide, every goal 2 cm apart within
+  0.6 m of it: diagonally the keep-off is a taxicab's. "Nearer than a walk
+  keeps" is said only inside the keep-off `drive_to`'s text states; past
+  it, where the lattice keeps a goal off a cell more, "about as near"."""
+  import numpy as np
+
+  from pluggybot.mapping import optimistic as op
+  from test_unknown import FREE, WALL, _Nav
+  said = set()
+
+  def agrees(walk, lattice, x, y):
+    cx, cy = walk.grid.world_to_cell(x, y)
+    at = (cx // op.BLOCK, cy // op.BLOCK)
+    kept = walk._solid_by(walk.grid.grid, x, y, op.BLOCK)
+    assert (kept is not None) == bool(np.isinf(lattice[at[1], at[0]])), (x, y, kept)
+    if kept is not None:
+      walk._kept_by = kept
+      rec = walk._stood_off(x, y)
+      words = gave_up({"why": "no_route", "shortM": 0.5, "seconds": 10.0, "standIn": rec})
+      near = ("nearer than" if round(rec["solidM"], 2) < round(rec["keepM"], 2)
+              else "about as near as")
+      assert f", {near} a walk keeps," in words, (rec, words)
+      said.add(near)
+    return kept
+  def lattice_of(walk):
+    return op.coarsen(op.map_costs(walk.grid.grid, walk.INFLATION_CELLS))
+  counter = _Nav(_counter(cols=140, edge=100), (1.0, 1.5))   # its edge at x = 5 m
+  lattice = lattice_of(counter)
+  for i in range(80):
+    x = 4.3 + 0.01 * i + 0.003
+    kept = agrees(counter, lattice, x, 1.513)
+    if kept is not None:
+      assert counter._stood_off(x, 1.513)["solidM"] == round(max(0.0, 5.0 - x), 3), (x, kept)
+  assert said == {"nearer than", "about as near as"}
+  # ...decided on the number as said: 0.348 reads "0.35", never nearer than 0.35
+  edge = gave_up({"why": "no_route", "shortM": 0.5, "seconds": 10.0,
+                  "standIn": {"solidM": 0.348, "standM": 0.45, "keepM": 0.35}})
+  assert "is 0.35 m from something the map holds solid, about as near as a walk keeps" in edge
+  post = np.full((60, 140), FREE)
+  post[30, 100] = WALL                            # (5.0, 1.5) to (5.05, 1.55)
+  walk = _Nav(post, (1.0, 1.5))
+  lattice = lattice_of(walk)
+  kept = [agrees(walk, lattice, 5.025 + 0.02 * i, 1.525 + 0.02 * j)
+          for i in range(-30, 31) for j in range(-30, 31)]
+  assert 0 < sum(k is not None for k in kept) < len(kept)
+
+
+def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_off_has_no_route():
+  """#700 on the planner itself (`_plan_to`, as a body calls it): the map's
+  cell is found as the stand-in is chosen, on the grid that plan was made
+  on, and kept with it -- a plan held (`_plan_to`'s memo) and one made for
+  another robot's sake (`_route_past`) put it back -- and a goal past the
+  grid's edge is judged where it is: within a fence's keep-off, kept off by
+  it, and further, past anything on the map (#700's second review: judged
+  at the edge cell the planner clamps it to, 16 m past read "0.00 m ...
+  about as near"). A goal the walls it has seen shut it off from says "no
+  route", as it did; so does one by the counter's edge, for a robot its map
+  has walled in (laid inside the counter, past where a walk may step out of
+  a keep-off)."""
+  import numpy as np
+
+  from test_unknown import FREE, WALL, _Nav, _room_with_a_door
+  g = _counter()
+  n = _Nav(g, (1.0, 1.5))
+  goal = (2.99, 1.52)
+  n._plan_to(*goal)
+  kept = n._kept_by
+  assert n._stand_in is not None and kept == pytest.approx((3.0, 1.5)), kept
+  n.REPLAN_HOLD_S = 10.0                          # ...held: the same plan, its cause with it
+  n._plan_to(*goal)
+  n._kept_by = None
+  n._plan_to(*goal)
+  assert n._kept_by == kept
+  n._route_past("r2_pluggybot", 1.0, 1.0)         # ...a plan to open floor, for a robot's sake
+  assert n._kept_by == kept
+  old = _Nav(g, (1.0, 1.5), optimistic=False)     # A*'s stand-in, over floor it has seen
+  old._plan_to(*goal)                             # ...stands in for floor unseen too:
+  assert old._stand_in is not None and old._kept_by is None, "it claims nothing"
+  past = _Nav(_counter(cols=80, edge=78), (1.0, 1.5))   # a fence at the grid's east edge
+  past._plan_to(4.2, 1.5)                         # ...a goal 0.2 m past it
+  assert past._stand_in is not None and past._kept_by[0] == pytest.approx(3.95)
+  past._at = past._stand_in
+  assert past._drove(4.2, 1.5, 0.0, "no_route") is False
+  assert past.last_drive["standIn"]["solidM"] == 0.2
+  for far in (4.6, 20.0):                         # ...and goals past its keep-off
+    past._plan_to(far, 1.5)
+    assert past._stand_in is not None and past._kept_by is None, far
+  west = np.full((60, 80), FREE)
+  west[:, 8] = WALL                               # a thin wall 0.4 m in from the west edge,
+  w = _Nav(west, (2.0, 1.5))                      # ...and a goal just past that edge,
+  w._plan_to(-0.02, 1.5)                          # read in the cell the plan reads it in
+  assert w._stand_in is not None and w._kept_by is not None
+  w._plan_to(-1.0, 1.5)                           # ...and one far past it, nothing near
+  assert w._stand_in is not None and w._kept_by is None
+  # ...and where another robot's disc stood the walk in further off -- the
+  # counter's room behind a door that robot stands in -- the words are as
+  # true: the goal by the counter, and the robot a room away from it
+  rooms = _room_with_a_door()
+  rooms[:, 42:60] = FREE
+  rooms[:, 60:] = WALL                            # a counter from x = 3 m in the far room
+  doors = _Nav(rooms, (1.0, 0.75))
+  doors.others = [lambda: (2.05, 0.75)]           # ...the other robot in the door
+  doors._plan_to(2.99, 0.75)
+  assert doors._stand_in is not None and doors._stand_in[0] < 2.0, "stood in a room away"
+  doors._at = doors._stand_in
+  doors._drove(2.99, 0.75, 0.0, "no_route")
+  assert doors.last_drive["standIn"]["standM"] > 1.0
+  shut = _room_with_a_door()
+  shut[5:25, 40:42] = WALL                        # its door is a wall now
+  s = _Nav(shut, (1.0, 1.5))
+  assert s._plan_to(5.5, 2.5) is None and s._stand_in is None
+  assert s._drove(5.5, 2.5, 0.0, "no_route") is False
+  assert "standIn" not in s.last_drive
+  assert gave_up(s.last_drive).endswith("(no route over the floor mapped so far)")
+  inside = _Nav(g, (3.5, 1.5))                    # 0.5 m into the counter
+  assert inside._plan_to(*goal) is None and inside._stand_in is None
+  assert inside._drove(*goal, 0.0, "no_route") is False
+  assert "standIn" not in inside.last_drive
+
+
+def test_drive_tos_text_says_the_walks_keep_off_off_the_planners_own_constant():
+  """#700's other half (Ben: yes): nothing the robots read said how near a
+  wall or a counter a walk brings them. `drive_to`'s text says the keep-off
+  off the constant the planner keeps it by -- the humanoid's
+  `INFLATION_CELLS` times the map's cell, which `_stood_off`'s `keepM` is --
+  and where a walk sent to an edge ended, flown: a range that must still
+  hold the keep-off and a lattice cell past it, or the flight is stale. Every
+  number is read back off the text, never formatted as the text formats it
+  (#672's review), and the text is what the served pair reads."""
+  from pluggybot.humanoid import body as hb
+  from pluggybot.mapping import optimistic as op
+  from pluggybot.mind import overseer as ov
+  from pluggybot.navigator import GRID_M
+  doc = st.VERBS["drive_to"].doc
+
+  def said(text):
+    m = re.search(r"Its way keeps your middle about ([0-9.]+) m from what your map holds "
+                  r"solid, less round a corner: a walk sent to a wall or a counter's edge "
+                  r"ends short, where you can stand nearest it, ([0-9.]+)-([0-9.]+) m from "
+                  r"the wall or the edge$", text)
+    assert m, text
+    return tuple(float(v) for v in m.groups())
+  keep, lo, hi = said(doc)
+  assert keep == pytest.approx(HumanoidMission.INFLATION_CELLS * GRID_M, abs=1e-9)
+  assert hb.WALK_KEEP_M == HumanoidMission.INFLATION_CELLS * GRID_M
+  # ...moved, the text moves with it
+  assert said(st.drive_to_doc(0.45, (0.4, 0.6))) == (0.45, 0.4, 0.6)
+  assert (lo, hi) == st.WALK_ENDS_M and lo <= keep <= hi - op.BLOCK * GRID_M
+  # ...flown at this keep-off: one moved, the range is flown again first
+  assert hb.WALK_KEEP_M == pytest.approx(st.WALK_ENDS_KEEP_M), (
+    "WALK_ENDS_M was flown at another keep-off: fly it again (SimNotes, \"Where a walk "
+    "ends by a wall\")")
+  assert f"drive_to(x, y, patience=60)  -- {doc}\n" in ov.hands_procedure_rule()
+
+
 def test_the_cut_route_check_answers_as_a_plan_would_without_the_other_robot():
   """`_route_cut_by_others` labels the floor `_plan_to` last used instead of
   planning again (a plan across the home loop is ~1.3 s on the physics
