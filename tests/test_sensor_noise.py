@@ -35,6 +35,49 @@ def test_the_offsets_and_scales_are_drawn_inside_the_datasheets_ranges():
   assert np.abs(gs - 1.0).max() <= imu.GYRO_SCALE
 
 
+def _past_one_axis(read, twin, full, inside, past):
+  """Each axis in turn driven past `full`, either way, beside a twin (the
+  same part, the same draws) read inside it: that axis reads the full scale,
+  the others what the twin read, bit for bit."""
+  for axis in range(3):
+    for sign in (1.0, -1.0):
+      value = np.array(inside, float)
+      value[axis] = sign * past
+      got, did = read(value), twin(np.array(inside, float))
+      assert got[axis] == sign * full
+      rest = [k for k in range(3) if k != axis]
+      assert got[rest].tobytes() == did[rest].tobytes()
+
+
+def test_past_its_full_scale_an_axis_reads_its_last_code_and_the_clip_draws_nothing():
+  # The ICM-42688-P's widest ranges, +-16 g and +-2000 deg/s (DS-000347
+  # Tables 1-2): past them its word ends, after the part's own error, so a
+  # landing's 43 g reads 16 (#696). The clip draws no noise: inside full
+  # scale a reading is the same bits as without it, and a flight that never
+  # passes full scale flies as before.
+  dt = 0.002
+  assert imu.ACCEL_RANGE == 16.0 * imu.G
+  assert imu.GYRO_RANGE == math.radians(2000.0)
+  part, twin = imu.Imu("test:range"), imu.Imu("test:range")
+  _past_one_axis(lambda f: part.accel(f, dt), lambda f: twin.accel(f, dt),
+                 imu.ACCEL_RANGE, np.array((3.0, -2.0, 1.0)) * imu.G, 40 * imu.G)
+  _past_one_axis(lambda w: part.gyro(w, dt), lambda w: twin.gyro(w, dt),
+                 imu.GYRO_RANGE, np.radians((300.0, -150.0, 40.0)), math.radians(3000.0))
+  assert ([part.gyro_z(s * math.radians(3000.0), dt) for s in (1, -1)]
+          == [imu.GYRO_RANGE, -imu.GYRO_RANGE])
+  # Inside full scale by a hair: the part's error alone, bit for bit, its
+  # noise drawn as it always was.
+  part, ref = imu.Imu("test:inside"), imu.Imu("test:inside")
+  rate, force = np.radians((1980.0, -1980.0, 30.0)), np.array((15.9, -15.9, 1.0)) * imu.G
+  for _ in range(5):
+    want = (rate * ref.gyro_scale + ref.gyro_bias
+            + ref.rng.standard_normal(3) * (imu.GYRO_NOISE / math.sqrt(dt)))
+    assert part.gyro(rate, dt).tobytes() == want.tobytes()
+    want = (force * ref.accel_scale + ref.accel_bias
+            + ref.rng.standard_normal(3) * (np.array(imu.ACCEL_NOISE) / math.sqrt(dt)))
+    assert part.accel(force, dt).tobytes() == want.tobytes()
+
+
 def test_two_robots_never_draw_one_stream_and_one_robot_draws_the_same_twice():
   a, b, again = imu.Imu("pluggybot"), imu.Imu("r2_pluggybot"), imu.Imu("pluggybot")
   assert a.gyro_z(0.1, 0.002) != b.gyro_z(0.1, 0.002)

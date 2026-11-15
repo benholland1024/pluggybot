@@ -13,6 +13,8 @@ Every number is the datasheet's, or a stated range with its reason:
              over a life, drawn uniformly in +-it per axis
   scale      the sensitivity's initial tolerance, +-0.5 % (tested in
              production), drawn uniformly per axis
+  range      the full scale, +-2000 deg/s and +-16 g, the widest: past
+             it an axis reads its last code, after the three above
 
 Not modelled: cross-axis sensitivity (+-1.25 % gyro, +-1 % accel) and
 nonlinearity (+-0.1 %), which on a body that stays near level add a
@@ -50,6 +52,16 @@ ACCEL_NOISE = (65e-6 * G, 65e-6 * G, 70e-6 * G)
 ACCEL_BIAS = 0.15e-3 * G * TEMP_SWING_C
 #: Accelerometer sensitivity scale factor initial tolerance, +-0.5 %.
 ACCEL_SCALE = 0.005
+#: The accelerometer's full scale, m/s^2 a side: +-16 g, the widest of its
+#: four ranges (ACCEL_FS_SEL 0, Table 2; the 20-bit FIFO's only one), as a
+#: narrower one would clip service (a get-up's hand-back reads up to 6.9 g,
+#: walking on after a shove 11.7). Past it an axis reads its 16-bit word's
+#: last code (a count inside it: nothing here is quantised), where the sim's
+#: landings read up to 43 g (#696).
+ACCEL_RANGE = 16.0 * G
+#: The gyro's, rad/s a side: +-2000 deg/s, its widest (GYRO_FS_SEL 0, Table
+#: 1), read the same way past it; the served falls turned it 762 deg/s at most.
+GYRO_RANGE = math.radians(2000.0)
 
 
 def seed_for(key: str) -> int:
@@ -75,19 +87,21 @@ class Imu:
   def gyro(self, rate, dt: float) -> np.ndarray:
     """What the gyro reads for a true body rate, rad/s."""
     n = self.rng.standard_normal(3) * (GYRO_NOISE / math.sqrt(dt))
-    return np.asarray(rate) * self.gyro_scale + self.gyro_bias + n
+    return (np.asarray(rate) * self.gyro_scale + self.gyro_bias
+            + n).clip(-GYRO_RANGE, GYRO_RANGE)
 
   def gyro_z(self, rate_z: float, dt: float) -> float:
     """The yaw axis alone, for a body that reads nothing else (the
     rover's heading): one draw a step, not three."""
     n = float(self.rng.standard_normal()) * (GYRO_NOISE / math.sqrt(dt))
-    return (float(rate_z) * float(self.gyro_scale[2])
-            + float(self.gyro_bias[2]) + n)
+    z = float(rate_z) * float(self.gyro_scale[2]) + float(self.gyro_bias[2]) + n
+    return min(max(z, -GYRO_RANGE), GYRO_RANGE)
 
   def accel(self, force, dt: float) -> np.ndarray:
     """What the accelerometer reads for a true specific force, m/s^2."""
     n = self.rng.standard_normal(3) * (self._accel_noise / math.sqrt(dt))
-    return np.asarray(force) * self.accel_scale + self.accel_bias + n
+    return (np.asarray(force) * self.accel_scale + self.accel_bias
+            + n).clip(-ACCEL_RANGE, ACCEL_RANGE)
 
   def kept_state(self) -> dict:
     """The part's draws and where its noise had got to (issue #345: a
