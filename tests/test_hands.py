@@ -1199,6 +1199,74 @@ def test_a_solve_that_diverged_is_never_commanded():
   assert rc.WILD_M < 1.0
 
 
+def _walking_out(phase="move"):
+  """A reach's left arm walking out to its pre-grasp in joint space, its
+  command ahead of where its drivers read it (`sensed`), the loop's reads
+  stubbed: the force its arm reads is the test's (`feel`), and what the
+  arms are commanded is recorded."""
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import HandGoal
+  r = _standing_reach()
+  r.posture_now = lambda: np.array([-0.16, 0.0, 0.5])
+  r.goal["left"] = HandGoal(np.array([0.45, 0.2, 0.85]), np.eye(3), 0.5)
+  r.q_to["left"] = r.rest["left"] + 0.6
+  r.q_cmd["left"] = r.rest["left"] + 0.25
+  r.phase["left"] = phase
+  r.sensed = np.zeros(len(hm.JOINT_NAMES))
+  r.sensed[r.self_model.arm["left"]] = r.rest["left"] + 0.2      # behind its command
+  r.sensed[r.self_model.arm["right"]] = r.rest["right"]
+  r._pose, r._trim, r._feel = (lambda arms=None: None), (lambda dt: None), (lambda: None)
+  r.sent = []
+  r.arms = {s: NS(command=lambda q, feed, k, s=s: r.sent.append((s, np.array(q), k)))
+            for s in hm.SIDES}
+
+  def feel(read, sensed=None):
+    r.force = {s: np.zeros(3) for s in hm.SIDES}
+    r.sensed_force = {s: np.zeros(3) for s in hm.SIDES}
+    r.force["left"] = np.array([0.0, float(read), 0.0])
+    r.sensed_force["left"] = np.array([0.0, float(read if sensed is None else sensed), 0.0])
+  r.feel = feel
+  return r, rc
+
+
+def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_it_reads_a_push():
+  """⚠ A jaw caught on a chest's bracket on its way out was driven on at
+  full stiffness, 50-80 N pulling the robot over its toes (#708): an arm
+  walking out to its pre-grasp stops the tick its own reading (`force`, as
+  every loop of the body's reads it) passes `OUT_BLOCKED_N` -- `blocked`,
+  out where its arm then puts the hand -- and is held where its drivers read
+  its joints, never at the command it was driving on to: held there, it
+  pulled on and the robot fell all the same."""
+  r, rc = _walking_out()
+  read = r.sensed[r.self_model.arm["left"]].copy()
+  ahead = r.q_cmd["left"].copy()
+  # under the line -- whatever the motion-taken reading says -- it walks on
+  r.feel(rc.OUT_BLOCKED_N - 1.0, sensed=3.0 * rc.OUT_BLOCKED_N)
+  r._update(0.01)
+  assert r.phase["left"] == "move"
+  assert np.abs(r.q_cmd["left"] - ahead).max() > 0.0, "its command walked on toward q_to"
+  # past it: stopped that tick, held where its drivers read its arm
+  r.feel(rc.OUT_BLOCKED_N + 1.0)
+  r._update(0.01)
+  assert r.phase["left"] == "blocked" and r.done("left") and r.out("left")
+  assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read)
+  left = [(q, k) for s, q, k in r.sent if s == "left"]
+  assert np.allclose(left[-1][0], read) and left[-1][1] == 0.5, "commanded there, at its reach's stiffness"
+  assert r.postures[-1] == (-0.16, 0.0, 0.5), "the body held in the posture it has got to"
+
+
+@pytest.mark.parametrize("phase", ["joints", "home", "rest"])
+def test_an_arm_walked_another_way_is_never_stopped_by_the_ways_out_rule(phase):
+  """The rule is a reach's way out's alone: an arm walked joint by joint, or
+  home, or hanging walks on whatever its reading says (its own rules are
+  `withdraw`'s and the motor level's)."""
+  r, rc = _walking_out(phase)
+  ahead = r.q_cmd["left"].copy()
+  r.feel(3.0 * rc.OUT_BLOCKED_N)
+  r._update(0.01)
+  assert r.phase["left"] == phase and np.abs(r.q_cmd["left"] - ahead).max() > 0.0
+
+
 # ---- feedback a procedure can debug by, and what a robot keeps --------------------
 
 
