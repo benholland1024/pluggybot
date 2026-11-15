@@ -738,6 +738,13 @@ def _jaw(s: str, name: str, sign: int, z: float) -> str:
                   </body>"""
 
 
+def fingers_past_grip() -> float:
+  """How far each jaw's pad reaches past the grip along the fingers, m: the
+  grip is the fingers' middle (`_arm`'s `jaw_z`) and each pad the finger's
+  length, centred on it (`_jaw`) -- what YOUR BODY tells the robot (#711)."""
+  return hp.GRIPPER.pad_half[2]
+
+
 def _actuators(spec: HumanoidSpec) -> str:
   """Every joint's driver as a position-mode `dcmotor` on its own part's
   line and its own gains (`humanoid.actuator.JointLimits.dcmotor`, issue

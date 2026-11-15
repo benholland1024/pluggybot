@@ -260,6 +260,23 @@ def test_the_top_is_the_highest_level_a_large_share_of_points_stand_at():
   assert box.top_height(floor) is None, "the floor is no top"
 
 
+def test_a_faces_points_are_joined_to_a_seed_across_its_rows_never_to_another_face():
+  """#704: of the points on one top's height, the face a seed stands on --
+  its rows 2.5 cm apart, as a look grazing a counter 2.5 m off lays them,
+  still one face -- and never another face at its height 5 cm off it."""
+  rows = np.array([(x, y) for x in np.arange(0.0, 0.40, 0.025) for y in np.arange(0, 0.3, 0.004)])
+  other = np.array([(x, y) for x in np.arange(0.425, 0.6, 0.004) for y in np.arange(0, 0.3, 0.004)])
+  xy = np.concatenate([rows, other])
+  seeds = np.zeros(len(xy), dtype=bool)
+  seeds[0] = True
+  got = box.joined(xy, seeds)
+  assert got[:len(rows)].all() and not got[len(rows):].any()
+  # ...seeded on both, both; on neither, none
+  seeds[-1] = True
+  assert box.joined(xy, seeds).all()
+  assert not box.joined(xy, np.zeros(len(xy), dtype=bool)).any()
+
+
 # ---- the edges -------------------------------------------------------------------
 
 #: Spacing and noise, and the bars: the mean of 32 reads and the worst, m.

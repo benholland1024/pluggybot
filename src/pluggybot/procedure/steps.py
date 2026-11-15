@@ -64,7 +64,8 @@ from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP
                                      STEP_SHORT_M, WALK_KEEP_M)
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
-from pluggybot.perception.box import DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M
+from pluggybot.perception.box import (DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M,
+                                      TOP_SHARE as MEASURE_TOP_SHARE)
 from pluggybot.perception.depth import MAX_Z as MEASURE_REACH_M
 from pluggybot.perception.tags import BLOCK_TAG_SIZE, PICTURE_H, PICTURE_W
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
@@ -691,6 +692,15 @@ def _watch(life, args: dict) -> Routine:
 #: so (#630). Under 0.35 m the far edge of a 0.26 m deep top was clipped;
 #: at 0.35 and 0.45 the four set-outs read their tops whole.
 MEASURE_NEAR_M = 0.45
+#: ...and the top it reads is the one UNDER the point (#704): the highest
+#: flat face among the points within this of it, m, where the camera sees
+#: `box.MIN_POINTS` of them off the floor -- that face alone, never another
+#: at its height (`box.joined`) -- and the window's (the highest holding
+#: `box.TOP_SHARE` of the fullest) only where too few stand there. Read as
+#: the window's, Luca's `measure` at the cube's middle read the counter under
+#: its board, 0.719-0.722 m in 10 runs of 10 (the cube's top 0.806), and it
+#: reached 10 cm under the board.
+MEASURE_AT_M = 0.02
 #: ...and an end read off points whose median stands within this of the
 #: window's rim, m, is the window's, never the top's: no reading (#630:
 #: from (0.9, 0) a counter's near end read the rim, 0.453-0.456 m, however
@@ -700,6 +710,11 @@ MEASURE_NEAR_M = 0.45
 #: with the window's, 4 of them read true (SimNotes, "Where `measure`
 #: looks").
 MEASURE_RIM_M = 0.03
+def _share_words(share: float) -> str:
+  """A share as `measure`'s text says it: "a quarter" for `box.TOP_SHARE`'s 0.25."""
+  return {0.25: "a quarter", 0.5: "half", 1.0: "all"}.get(share, f"{share:g} times")
+
+
 #: Its ends: the stance frame's axis each lies along, whether it is that
 #: axis's far end, and which way the top runs on past it.
 MEASURE_ENDS = (("near", 0, False, "toward you"), ("far", 0, True, "away from you"),
@@ -721,7 +736,9 @@ def _measure(life, args: dict) -> Routine:
   it ends -- nearest and farthest ahead, leftmost and rightmost -- in the
   stance frame, in `object.*`. ok when a flat top is seen. ⚠ OUR CODE'S
   PERCEPTION, a stated prior (`perception.box`): the highest flat face
-  among the points round (x, y), and its edges. ⚠ AN END COUNTS ONLY WHERE
+  among the points within `MEASURE_AT_M` of (x, y), that face alone
+  (`box.joined`) -- or, where too few stand there, among the points round
+  it, `object.under` saying which (#704) -- and its edges. ⚠ AN END COUNTS ONLY WHERE
   THE CAMERA SAW PAST IT (#636): where the top runs on past the window
   (#630) or past where it read, off the picture, or out of the camera's
   range, that end is no reading, and reading it says why
@@ -742,15 +759,22 @@ def _measure(life, args: dict) -> Routine:
   st = np.column_stack([c * dx + s_ * dy, -s_ * dx + c * dy, pts[:, 2]])
   which = np.flatnonzero(np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M)
   near = st[which]
-  top = box.top_height(near) if len(near) else None
+  # ...the top under the point, where enough of the picture stands there
+  # (#704), else the window's
+  at = np.hypot(near[:, 0] - x, near[:, 1] - y) < MEASURE_AT_M
+  under = int(np.count_nonzero(at & (near[:, 2] > box.FLOOR_M))) >= box.MIN_POINTS
+  top = box.top_height(near[at] if under else near) if len(near) else None
   flat = box.on_top(near, top) if top is not None else np.zeros(len(near), dtype=bool)
+  if under and top is not None:
+    # ...that face alone, never another at its height in the window
+    flat[np.flatnonzero(flat)[~box.joined(near[flat, :2], at[flat])]] = False
   on, on_which = near[flat], which[flat]
   read = {key: box.edge_read(on[:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
   if top is None or None in read.values():
     said = f"your last `measure` saw no flat top round ({x:g}, {y:g}) from where you stood"
-    _reports(life)["measure"] = {UNREAD: dict.fromkeys(("top", *read), said)}
+    _reports(life)["measure"] = {UNREAD: dict.fromkeys(("top", "under", *read), said)}
     return {"ok": False, "reason": f"no flat top seen round ({x:g}, {y:g}) from where you stand"}
-  got, past, unseen, taller = {"top": top}, {}, {}, []
+  got, past, unseen, taller = {"top": top, "under": float(under)}, {}, {}, []
   for key, axis, far, way in MEASURE_ENDS:
     end, strip = read[key]
     rim = MEASURE_NEAR_M - float(np.median(np.hypot(on[strip, 0] - x, on[strip, 1] - y)))
@@ -981,6 +1005,36 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
                               "how you truly stand, or pushing on something",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
+#: A reach whose grip ended more than this short of where it was asked, m,
+#: back along its fingers -- as its own senses read it the moment the verb
+#: ended (`_felt_routine`'s last reading: nothing more is read, and the
+#: flight is as it was) -- says how far (#711). One that HOLDS says so only
+#: where its hand also reads a push along its fingers past this, N: the
+#: verb ends the moment its command arrives, and in free air the hand is
+#: still 0.4-0.9 cm behind it, reading -2 to +3 N along its fingers (the
+#: lid and door checks at set-outs 0-3); held by what its pads met -- a
+#: drawer's front, a door's panel, the cube's board -- it was 1.1-2.1 cm
+#: short and read 27-100 N (our own cube reference, held 1-1.7 cm short by
+#: the board, places the cube all the same).
+REACH_SHORT_M, REACH_PUSHED_N = 0.01, 10.0
+#: ...as it says it, of a reach that holds and of one that stopped short.
+REACH_SHORT = ("your {hand} hand's grip stopped {cm:.1f} cm short of where you asked, back "
+               "along its fingers: they met something there and pushed on it with {n:.0f} N")
+REACH_STOPPED_AT = "; its grip stopped {cm:.1f} cm short of where you asked, back along its fingers"
+
+
+def _short_of(life, place, rot, felt: list) -> tuple[float, float] | None:
+  """How far a reach's grip ended short of `place` back along its fingers,
+  m, and the push its hand read along them, N, off the last of what it
+  `felt` -- or None where no turn was asked, its fingers' way unknown."""
+  import numpy as np
+  from pluggybot.procedure import axes
+  if rot is None or not felt:
+    return None
+  fingers = -np.asarray(rot, dtype=float)[:, 2]
+  end = np.asarray(axes.from_stance(life, tuple(felt[-1]["at"])), dtype=float)
+  push = np.asarray(axes.from_stance(life, tuple(felt[-1]["force"]), point=False), dtype=float)
+  return float((np.asarray(place, dtype=float) - end) @ fingers), float(push @ fingers)
 
 
 #: ...and one that kept off another robot's body (#678; `Body.hand_kept`,
@@ -1057,11 +1111,16 @@ def _reach(life, args: dict) -> Routine:
   why = "" if ok else life.body.hand_why(hand)
   _stopped_reading(life, "reach", why == UNTIL)
   said = _said(guard, stopped, why)
+  short = _short_of(life, place, rot, felt)
   if ok:
+    if short is not None and short[0] > REACH_SHORT_M and short[1] > REACH_PUSHED_N:
+      said = {**said, "short": REACH_SHORT.format(hand=hand, cm=100 * short[0], n=short[1])}
     return {"ok": True, "hand": hand, **said, "felt": felt}
   if why == UNTIL:
     return {"ok": True, "hand": hand, "why": why, **said, "felt": felt}
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
+  if why == "stopped short" and short is not None and short[0] > REACH_SHORT_M:
+    reason += REACH_STOPPED_AT.format(cm=100 * short[0])
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
@@ -1379,7 +1438,15 @@ HANDS_VERBS: dict[str, Verb] = {
                   f"{MEASURE_NEAR_M:g} m of (x, y): the height of its flat top and where that "
                   "top ends -- nearest and farthest ahead, leftmost and rightmost -- ride "
                   f"`object.*`; ok when a flat top is seen, {MEASURE_FLOOR_M:g} m or more over "
-                  "the floor. An end reads only where your camera saw past it: where the top "
+                  "the floor. The top it reads is the one under (x, y): the highest flat top "
+                  f"your camera sees within {100 * MEASURE_AT_M:g} cm of (x, y), and its ends "
+                  "are that top's own, not those of another top at its height beside it. "
+                  "Where your camera sees too little "
+                  f"within those {100 * MEASURE_AT_M:g} cm, it reads instead the highest top "
+                  f"round (x, y) that fills at least {_share_words(MEASURE_TOP_SHARE)} as much "
+                  "of its picture as the top that fills the most, and `object.under` reads 0 "
+                  "(1 for the top under (x, y)). An end reads only where your camera saw past "
+                  "it: where the top "
                   f"runs on past those {MEASURE_NEAR_M:g} m, off your camera's picture or out "
                   f"of its range ({MEASURE_NEAREST_M:g} to {MEASURE_REACH_M:g} m), its end that way has "
                   "no reading, and reading it says why. Where something taller stands "
@@ -1426,7 +1493,10 @@ HANDS_VERBS: dict[str, Verb] = {
                 "fingers; you take whatever posture reaches. stiffness 1 is your arm's full "
                 "stiffness, less is softer. ok once it holds there -- or as near as it came: "
                 "what it touches on its way in can hold it a few cm short, and your hand's "
-                "place (`left.x` and the rest) says where it is. Its way out, and its way "
+                "place (`left.x` and the rest) says where it is; where your grip stopped "
+                f"more than {100 * REACH_SHORT_M:g} cm short of where you asked, back along "
+                "its fingers, pushing on what they met, the reach says how far. Its way out, "
+                "and its way "
                 "home from there, keep clear of the body of another robot standing near you: "
                 "where no way does, your arm does not move, and it reads false saying where "
                 "that robot stands"),

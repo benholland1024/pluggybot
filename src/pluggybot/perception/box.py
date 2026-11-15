@@ -133,6 +133,13 @@ PAST_REACH_M, PAST_NEAR_M = 0.1, 0.02
 #: ...and a walk whose own top runs this far past where the end reads, m, was
 #: stopped short of it: the top goes on there.
 PAST_OVER_M = 0.03
+#: A top's points JOINED to the point it is read at (`joined`, #704): binned
+#: this fine, m, a bin joined to its eight neighbours. A look grazing a top
+#: lays its rows apart on it -- 2.5 cm at 2.5 m off for a counter seen from
+#: the D435's 1.26 m (5.3 mm a row, a sight line 12 deg below level) -- and
+#: a finer bin parts one top into its rows, the end it parts at then no
+#: reading (`past_end`'s `runs`); two tops nearer each other than this are one.
+JOIN_M = 0.03
 
 
 def top_height(points: np.ndarray) -> float | None:
@@ -153,6 +160,23 @@ def top_height(points: np.ndarray) -> float | None:
 def on_top(points: np.ndarray, height: float) -> np.ndarray:
   """Which of `points` stand on a face at `height`."""
   return np.abs(np.asarray(points)[:, 2] - height) < TOP_BAND_M
+
+
+def joined(xy: np.ndarray, seeds: np.ndarray, cell: float = JOIN_M) -> np.ndarray:
+  """Which of the points `xy` (k, 2) -- a face's, on one top's height -- one
+  face holds with the points `seeds` (a mask of them): binned `cell` m
+  square, each bin that holds a point joined to its eight neighbours that
+  do. None joined where there is no seed."""
+  from scipy import ndimage
+  xy, seeds = np.asarray(xy, dtype=float), np.asarray(seeds, dtype=bool)
+  if not len(xy) or not seeds.any():
+    return np.zeros(len(xy), dtype=bool)
+  ij = np.floor((xy - xy.min(axis=0)) / cell).astype(int)
+  grid = np.zeros(tuple(ij.max(axis=0) + 1), dtype=bool)
+  grid[ij[:, 0], ij[:, 1]] = True
+  labels, _ = ndimage.label(grid, structure=np.ones((3, 3), dtype=int))
+  of = labels[ij[:, 0], ij[:, 1]]
+  return np.isin(of, np.unique(of[seeds]))
 
 
 def edge(along: np.ndarray, far: bool = True, window: float = EDGE_WINDOW_M) -> float | None:

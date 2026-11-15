@@ -566,6 +566,18 @@ def stops_said(steps: list, room: int) -> str:
                   lambda s: s["until"], room)
 
 
+def shorts_said(steps: list, room: int) -> str:
+  """A run's reaches that held where their grip stopped short of where they
+  were asked, pushing on what their fingers met (#711; `steps.REACH_SHORT`),
+  as its History line says them: each line's first, as `stops_said` says its
+  stop conditions. Told only that a reach was ok, a grip from straight above
+  held 2.5-2.9 cm over the cube's middle it was sent to, its pads on the
+  board, and "closed on nothing it holds" was the robot's one word for it."""
+  said = [s for s in steps if s.get("short")]
+  return _by_line(f"{len(said)} reach{'' if len(said) == 1 else 'es'} stopped short", said,
+                  lambda s: s["short"], room)
+
+
 def _by_line(head: str, steps: list, what, room: int) -> str:
   """`head`, then what each line of `steps` first said (`what`), in the
   order its line first said it, as many as fit in `room` characters; ""
@@ -706,12 +718,15 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
     else:
       close = ""
   if close:
-    # ...beside the count, the tests that read false and why (#629), and
-    # what its stop conditions read (#631)
+    # ...beside the count, the tests that read false and why (#629), what
+    # its stop conditions read (#631), and its reaches that stopped short of
+    # where they were asked, holding (#711)
     tests = tests_read_false(steps, room - len(line) - len("; ") - len(close))
     line += f"; {tests}" if tests else ""
     stops = stops_said(steps, room - len(line) - len("; ") - len(close))
-    line += (f"; {stops}" if stops else "") + close
+    line += f"; {stops}" if stops else ""
+    shorts = shorts_said(steps, room - len(line) - len("; ") - len(close))
+    line += (f"; {shorts}" if shorts else "") + close
   if not run.get("locals"):
     return [line]
   return _readout(line, name, run["locals"], room)
