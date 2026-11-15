@@ -10,6 +10,56 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A hand that holds nothing takes a pull's posture only while it reads light, and gives it up where it reads a load (#699, K1, `loop-699`) — opens when this PR is deployed
+
+**What a deployed robot's `pull` does changes; what it says and reads does
+not.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029
+characters, 17 sections), nor the session host's hello (byte for byte), nor
+any geometry or the wire. A pull's text, its report (`pull.moved`,
+`pull.force`, `pull.held`, `pull.dx..dz`) and the ways it ends are as they
+were. The pair's committed recording is the same day: its fixture's
+command flown on c99956e and on this, 11,705 lines the same line for line
+(the wall clock and the build aside).
+
+**The change** (`Reach.pull`, `_pulled`; `reach.PRESSED_SHARE`,
+`PRESSED_ASK_N`; SimNotes, "A pull's posture and the hand it rests on"). A
+pull has always taken the posture its way's end is reached from as it
+begins, and another on its way where its arm ran out of reach. From here
+on a hand that holds nothing as its pull begins -- open, or shut on nothing
+-- takes one only while it reads no more than 40 N, whichever way (twice
+the pull's ask, an ask of 20 N at least), and a posture that is coming is
+given up where the hand reads past that: the body backs off toward the
+posture the pull began in until the hand reads no more than 20 N, is held
+there, and that pull takes no other, going as far as its arm reaches from
+there -- it ends out of reach, held fast or at its distance, in the words
+it always had. A hand that grips what it pulls takes its postures as
+before.
+
+**Why.** On 11-12 Rowan's own `door_hook3` fell inside its pulls at the
+cupboard: each pull took a posture with the open hand resting on the
+door's top, the arm's solve lost the hand, and the body bore on it at
+45-150 N for a 15-20 N ask until it slipped off. Flown at 40 of the door's
+draws on c99956e, 2 fell and the hand pushed past three times its ask in
+427 of its pulls' samples, 475 N at worst; with this none fell, in 129
+samples, 136 N at worst. Our hands check and the served jobs' references
+are as they were: 115 of 160 at set-outs 0-31 and 306 of 416 held out at
+32-127, every job and every fall the base's (157 and 414 of the flights
+the base's own), and the tour's five jobs at 32 draws and the station's
+approaches and seats flew the base's flights exactly.
+
+**What to read on the live rows.** A fall inside a `pull` within its words
+("failed at step N (line L, pull) -- you fell on the way"): 11-12 had one
+in an evening (#699's last box). ⚠ Not every such fall is this one, and
+three kinds are left: a hand that GRIPS what it pulls takes its postures as
+it did (flown: a lid's knob in Rowan's `chest_lift2b` of 11-14, 1 fall in 4
+flights; our table reference's fork, 2 in 32 -- the rule for every hand
+takes both away and costs two held-out door passes: Ben's call, SimNotes);
+a load across a pull's way that no posture brings stays (17-45 N across a
+15 N pull where the arm's solve misses the turn it is asked); and a
+`reach` whose arm meets something on its joint-space way out is not
+stopped at all (#708: Luca's `chest_run35` falls in 6 of 8 flights before
+and after).
+
 ### A refused define is judged as it was written and says every reason at once, the other robot is shown a robot's own last line, and the dishware put away stays put away (K4, `loop-k4`) — opens when this PR is deployed
 
 **Three small changes to what the robots read and one to what the world
