@@ -730,6 +730,25 @@ MEASURE_ENDS = (("near", 0, False, "toward you"), ("far", 0, True, "away from yo
 MEASURE_WORDS = ("cut", "runs", "taller", "lower")
 
 
+def measured_top(near, x: float, y: float):
+  """The top `measure` reads among `near` (k, 3), the stance frame's points
+  within `MEASURE_NEAR_M` of (x, y): its height (None where none is seen),
+  whether it is the one under (x, y) (#704) -- the highest face among the
+  points within `MEASURE_AT_M` of it, where `box.MIN_POINTS` of them stand
+  off the floor, else the window's -- and which of `near` stand on it,
+  under the point that face alone (`box.joined`)."""
+  import numpy as np
+  from pluggybot.perception import box
+  at = np.hypot(near[:, 0] - x, near[:, 1] - y) < MEASURE_AT_M
+  under = int(np.count_nonzero(at & (near[:, 2] > box.FLOOR_M))) >= box.MIN_POINTS
+  top = box.top_height(near[at] if under else near) if len(near) else None
+  flat = box.on_top(near, top) if top is not None else np.zeros(len(near), dtype=bool)
+  if under and top is not None:
+    # ...that face alone, never another at its height in the window
+    flat[np.flatnonzero(flat)[~box.joined(near[flat, :2], at[flat])]] = False
+  return top, under, flat
+
+
 def _measure(life, args: dict) -> Routine:
   """The flat top of what stands at (x, y), off the head's depth camera at
   the part's own 848 x 480 (`Body.depth_pictures`): its height and where
@@ -759,15 +778,7 @@ def _measure(life, args: dict) -> Routine:
   st = np.column_stack([c * dx + s_ * dy, -s_ * dx + c * dy, pts[:, 2]])
   which = np.flatnonzero(np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M)
   near = st[which]
-  # ...the top under the point, where enough of the picture stands there
-  # (#704), else the window's
-  at = np.hypot(near[:, 0] - x, near[:, 1] - y) < MEASURE_AT_M
-  under = int(np.count_nonzero(at & (near[:, 2] > box.FLOOR_M))) >= box.MIN_POINTS
-  top = box.top_height(near[at] if under else near) if len(near) else None
-  flat = box.on_top(near, top) if top is not None else np.zeros(len(near), dtype=bool)
-  if under and top is not None:
-    # ...that face alone, never another at its height in the window
-    flat[np.flatnonzero(flat)[~box.joined(near[flat, :2], at[flat])]] = False
+  top, under, flat = measured_top(near, x, y)
   on, on_which = near[flat], which[flat]
   read = {key: box.edge_read(on[:, axis], far=far) for key, axis, far, _ in MEASURE_ENDS}
   if top is None or None in read.values():
