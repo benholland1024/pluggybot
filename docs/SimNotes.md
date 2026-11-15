@@ -2689,6 +2689,35 @@ set-out 0 (2.3 cm), both of which open, so no tolerance on the hand's place
 tells the cube's grip from theirs. Gripped shallower, 15-30 deg, so the
 tips clear the board, the reach stops short on it (2 of 15).
 
+**What the robot is told of it (#711).** Nothing, until the robots met it:
+from straight above a grip cannot come under 1.4 cm over a 26 mm cube on a
+board, the pads' tips on the board, and "ok" with "closed on nothing it
+holds" after it were all a robot read. So YOUR BODY says where the grip lies
+along the fingers -- halfway, their tips 4 cm past it, off the part and the
+model's pads (`model.fingers_past_grip`) -- and a reach that stopped short
+on its way says how far short its grip was as it stopped, back along its
+fingers (`steps.REACH_STOPPED_AT`), off the last of what the verb felt.
+
+⚠ **A reach that holds says nothing of it**, though its grip may end short:
+its body routine ends the moment its command arrives, the hand still coming
+in, and the hand's force is read as a holding hand's, still
+(`reach.HELD_PHASES`). Over the lid, drawer, door and cube checks'
+set-outs 0-3 (each reach's end read off the checks' own flights beside the
+truth, by a probe kept outside the repo with the loop of 11-15's K12 rows)
+a grip in free air was 0.4-0.9 cm behind its goal at that moment, reading
+-2 to +3 N along its fingers, and settled within 0.1 s; one whose pads
+pressed on something -- a drawer's front, a door's panel, the cube's board
+-- was 1.1-2.1 cm short and read 27-100 N. But over all 32 set-outs of every
+check, 10 of the 69 grips that read 1 cm short and 10 N along their fingers
+touched nothing with any part of the arm at that moment, 1.1-5.5 cm short
+at 26-87 N (re-flown, every arm contact recorded): a hand still coming in.
+Judged again once the hand came to rest (the verb standing still 0.3 s at
+most), the cube check placed 12 of 32 where it placed 20, 2 more falling,
+the drawer lost one, and 4 such grips still touched nothing. On Luca's cube
+procedures with the height put right (#704), every grip that read so had
+its pads on the board, the mat or the cube (22 of 22): the words would be
+true where they matter most and false elsewhere, so they are not said.
+
 ## The way home (issue #539)
 
 `withdraw` brings a hand out along its way in (the reach's 8 cm line),
@@ -6699,6 +6728,38 @@ goes on, edges seen from a stance turned 25 deg, a diagonal edge whose
 reading lies between its ends (and before #657 24 more, one dining table's
 right edge and far edge, read through its top: below). 438 ends went unread
 at the picture's edge, 4,257 at the window and 16 past where they read.
+
+**The top under the point (#704).** Read as the window's, `measure` at a
+small thing on a wider top read the wider one: at the storeroom's cube --
+26 mm on a 0.23 x 0.16 m board on the counter, a few per cent of the
+window's points -- all 10 of Luca's cube runs that measured over the wakes
+of 11-12 and 11-14 read the counter, 0.719-0.722 m, while the same runs'
+`spot(56)` read the cube's top at 0.792-0.807, and Luca reached 10 cm under
+the board 29 times (12 refused for the jaws' turn, 17 stopped short; its
+thighs met the counter's face from the nearest stances, #710). Now the top
+is the one under (x, y) (`steps.measured_top`): the highest height among the
+points within `MEASURE_AT_M` (2 cm) of it that 30 of them stand at
+(`box.MIN_POINTS`; `box.top_height(least=)`) -- at the cube's middle its top,
+0.806 -- whatever stands lower there: read with the window's share at the
+point (the highest holding a quarter of the fullest), Luca's `measure` at
+the chest knob's front-face tag, half of its 2 cm over the counter far
+below, read the counter in 12 of 24 flights at their live draws. And of the
+points at that height, the face those points stand on (`box.joined`:
+3 cm bins, each joined to its eight neighbours; a grazing look lays a top's
+rows 2.5 cm apart 2.5 m off, and an end a finer bin parted would be no
+reading, never a wrong one), so another top at its height in the window
+lends it no end. Only where the camera sees too little there -- a point over
+the floor, off the picture, hidden -- is the top the window's as before, and
+`object.under` says which. The price: a point a few cm in front of a box
+reads the counter it stands over (the first test of `measure` measured 4 cm
+in front of its box, and read the box); no reference procedure calls the
+verb, and the hands checks at set-outs 0-31 flew the base's flights, 160 of
+160. Flown on Luca's own procedures at their live draws, six keys each (one
+pod, the loop of 11-15's K12 rows): at the cube `top` read 0.803-0.807 in
+42 flights of 42 and its reaches aimed at 0.766 for 0.68 -- falls 16 → 0;
+at the knob's front-face tag, read at the knob's middle, the knob's upper
+part (0.822-0.825) in 18 of 24 and 0.864-0.867 in 6, where the window's
+rule read the lid in 22; the chest's passes 2 of 24 either way.
 
 ⚠ **A top reads high at range.** `box.top_height` takes the band round
 the highest bin holding a quarter of the fullest, and `TOP_BAND_M`'s 5 mm

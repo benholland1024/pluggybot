@@ -1059,7 +1059,23 @@ save a filmstrip PNG named after the script.
   top. ⚠ A LONE PIXEL IS NOT A SURFACE (`box._agreed`, no pixel walked
   twice): the noise passes 3 sigma once in a quarter of hundred-pixel
   walks. ⚠ An end takes the walks' most common word, a tie the one that
-  claims less (`steps.MEASURE_WORDS`). ⚠ An answer may take `MAX_TOKENS` 128,000, told
+  claims less (`steps.MEASURE_WORDS`). ⚠ `measure` READS THE TOP UNDER ITS
+  POINT (#704; `steps.measured_top`, `MEASURE_AT_M`; SimNotes, "Where
+  `measure` looks"): the highest height among the points within 2 cm of it
+  that 30 stand at (`box.top_height(least=)`), WHATEVER STANDS LOWER (with
+  the window's share there, a knob's front-face tag read the counter below
+  in 12 of 24 flights), and of that height the face they stand on alone
+  (`box.joined`), else the window's as before, `object.under` saying which
+  -- read as the window's, all 10 of Luca's cube runs read the counter under
+  the cube's board (0.719-0.722 m, the cube's top 0.806). ⚠ YOUR BODY SAYS THE
+  FINGERTIPS REACH 4 CM PAST THE GRIP (#711; `model.fingers_past_grip`, a
+  test reads the model's pad), and a reach that STOPPED SHORT says how far
+  short its grip was as it stopped (`steps.REACH_STOPPED_AT`). ⚠ ONE THAT
+  HOLDS SAYS NOTHING OF IT (SimNotes, "Stepping toward the work"): its body
+  routine ends as its command arrives, the hand still coming in and its
+  force read as a holding hand's, and 10 of 69 grips that read 1 cm short
+  and 10 N then touched nothing; judged again at rest, the cube check placed
+  12 of 32 for 20. ⚠ An answer may take `MAX_TOKENS` 128,000, told
   `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
   (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
   again saying so. ⚠ A REPLY LOST TO EVERY RETRY LOSES ONLY ITSELF: what it

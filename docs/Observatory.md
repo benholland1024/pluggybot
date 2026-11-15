@@ -10,6 +10,88 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `measure` reads the top under its point, and a robot is told where its grip lies along its fingers and how far short a reach that stopped short was (#704, #711, K12, `loop-cube`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` `5b805c80…` → `ffe98287…`, 66,366 → 67,042
+chars, 17 sections both, over #701's; the session host's hello moves, sha1
+`fb758c10…` → `bf1707e8…`, and the counter's recording is flown again, its
+flight to the byte but the new sensor's readout; no geometry and no wire
+format moved):
+- **`measure(x, y)` reads the top under (x, y)** (`steps.measured_top`):
+  the highest height among the points within 2 cm of (x, y)
+  (`MEASURE_AT_M`) that 30 of them stand at (`box.MIN_POINTS`,
+  `box.top_height(least=)`), whatever stands lower there, its ends that
+  top's own -- of the points at its height, the face those points stand on
+  (`box.joined`), never another top at its height in the window. Only where
+  none is there does it read the window's top as before, the highest within
+  0.45 m holding a quarter of the fullest. A new sensor, `object.under`,
+  reads which (1 or 0), and the verdict carries it. The verb's text says
+  both.
+- **YOUR BODY says where the grip lies along the fingers**: "its fingers 8
+  cm long, the grip halfway along them: their tips reach 4 cm past it", the
+  numbers off the part and the model's pads (`model.fingers_past_grip`).
+- **A reach that stopped short on its way says how far short its grip
+  was** (`steps.REACH_STOPPED_AT`): "your right hand stopped short on its
+  way: out of reach from how you truly stand, or pushing on something; as it
+  stopped, its grip was 5.4 cm short of where you asked, back along its
+  fingers", off the last of what the verb felt (nothing more is read, no
+  flight moves). A reach that HOLDS says nothing of how short it is: at the
+  moment its routine ends its hand is still coming in, and a tenth of the
+  grips that read held then touched nothing (below).
+
+**Why.** No live try had closed a hand on the cube: 0 of 26 over the wakes
+of 11-12 and 11-14. Luca took its grip's height from `measure` at the
+cube's own (x, y), and `measure` read the counter under the cube's board,
+0.719-0.722 m on all 10 of its cube runs that measured (the cube's top
+0.806, its tag's reading 0.792-0.807): all 29 of its reaches at the cube
+aimed 10 cm under the board, and from the nearest stances the thighs went
+into the counter's face (#710: 3 falls in 7 flights on eb63935). With the
+height right, a grip from straight above stops with its pads' tips on the
+board and the grip 1.4 cm over the cube's top -- the pads reach 4 cm past
+the grip -- which nothing the robots read said, and the reach read ok:
+"closed on nothing it holds" was its one word for it (#711).
+
+**Measured** on one pod, an EPYC 7532 (this dev box replays its flights bit
+for bit), both trees -- `loop-staging` 3dffda2 beside the branch -- the rows
+in the loop's K12 folder:
+- **The hands checks at set-outs 0-31, every job, the base's flight for
+  flight** (lid 26, drawer 21, door 24, cube 20, table 24 of 32; falls 0,
+  2, 1, 1, 2, both trees): every verdict the same, 160 of 160, and every
+  reach's end and push. No reference procedure calls `measure`, and a
+  reach's words move no flight.
+- **Luca's own procedures that call `measure`, at their live draws of
+  11-14**, six noise keys each, with K4's contact record (every contact of
+  20 N or more on a part of the robot; the truth read for the record only):
+  at the cube, 42 flights of `cube_run1`, `cube_run2`, `cube_run3` and K4's
+  height variant, `measure` read the cube's top, 0.803-0.807 m (base
+  0.717-0.721, the counter), so they aimed at 0.766 for 0.68: falls 16 of
+  42 → 0; `cube_run1`'s thighs never met the counter's face (base up to 400
+  N) and it placed the cube 2 of 18 (base 0); `cube_run2` and `cube_run3`,
+  which step nearer the face, still pressed a thigh at up to 219-276 N and
+  stopped short on the board, none falling. At the chest's knob tag (its
+  front face, read at the knob's middle), 24 flights of `chest_run33`-`35`:
+  `measure` read the knob's upper part, 0.822-0.825, in 18 and 0.864-0.867
+  in 6 (base: the lid, 0.870-0.873, in 22 and the counter in 2); passes 2 of
+  24 on both trees, falls 5 → 4. A kept procedure that reads `object.top`
+  at a small thing's side-face tag now reads that thing, not what it hangs
+  from.
+- **Tried and dropped (#711):** a report for a reach that HOLDS with its
+  grip short, pushing on what its fingers met. At the moment its routine
+  ends the hand is still coming in, its force read as a holding hand's,
+  still: 10 of the 69 grips in the checks that read 1 cm short and 10 N
+  along their fingers touched nothing with any part of the arm (1.1-5.5 cm
+  short at 26-87 N). Judged again once the hand came to rest (0.3 s at
+  most), the cube check placed 12 of 32 where it placed 20, 2 more falling,
+  the drawer lost one, and 4 such grips still touched nothing.
+
+**What to read on the live rows.** A cube run's `top` local near the cube's
+own top (0.806) where it measured at the cube's tag, and `object.under`
+read where a procedure reads it; a failed reach's line "as it stopped, its
+grip was … cm short of where you asked" and what the robots do after one (a
+grip raised by the fingertips' 4 cm, or aimed from the side); whether a cube
+reach ever closes on the cube; and, from Luca's kept chest procedures, what
+`measure` at the knob reads now (the knob's own top, not the lid's).
+
 ### A hand job ends at a fall of its holder's (#701, K7, `loop-701`) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` `b345cc34…` → `b74107d2…`, 66,029 → 66,151
