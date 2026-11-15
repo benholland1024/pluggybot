@@ -106,15 +106,20 @@ BLOCKED_M, BLOCKED_N = 0.03, 30.0
 #: as its approach began. A push lasts; a transient does not.
 BLOCKED_S = 0.15
 #: A hand on its WAY OUT to its pre-grasp (`move`, in joint space) stops the
-#: tick the force its arm reads (`force`) passes this, N, held where its
-#: drivers read its joints -- never where they were commanded (`_struck`): it
-#: is sent to touch nothing before its line in, and its way swings it through
-#: what it never looked at. ⚠ Unstopped, a jaw caught on a chest's bracket
-#: was driven on at full stiffness, the world pulling the hand 50-80 N toward
-#: the chest until the robot went over its toes, 0.75 s after the touch; ⚠
-#: held where commanded 0.37 s after it, the arm pulled on and the robot fell
-#: all the same (#708).
-OUT_BLOCKED_N = 20.0
+#: tick its arm reads it PULL toward the body past this, N -- the force its
+#: arm reads it push with (`force`) along the level line from where its
+#: senses put it to the stance's middle (`_pulling`) -- held where its
+#: drivers read its joints, never where they were commanded (`_struck`):
+#: caught on something as its way draws it back, the arm drags the robot
+#: toward what holds it. ⚠ Unstopped, a jaw caught on a chest's bracket was
+#: driven on at full stiffness, the world pulling the hand 50-80 N toward
+#: the chest until the robot went over its toes, 0.75 s after the touch; held
+#: where commanded 0.37 s after it, the arm pulled on and the robot fell all
+#: the same (#708). ⚠ NEVER ON ANY PUSH: our door's way out presses a jaw
+#: down on the door's top, its whole reading past 40 N before it ends, and
+#: stopped there at any line of 20-40 N the door fell in 2-3 more flights of
+#: 32.
+OUT_PULL_N = 30.0
 #: A hand held whose force pushes on along its fingers past this, N, is
 #: eased before its jaws shut (`ease`, #560): pressed on a cube's board at
 #: 40-120 N, the jaws dragged across it and the feet swivelled 4-6 deg
@@ -1205,8 +1210,22 @@ class Reach:
     self.phase[side] = "blocked"
     return True
 
+  def _pulling(self, side: str) -> float:
+    """How hard a hand pulls toward the body on what it met, N: the force its
+    arm reads it push with (`force`) along the level line from where its
+    senses put it to the stance's middle -- a hand caught on something its
+    arm draws back, which pulls the robot toward it (#708)."""
+    at = self.sensed_grip[side]
+    if at is None:
+      return 0.0
+    n = math.hypot(float(at[0]), float(at[1]))
+    if n < 1e-6:
+      return 0.0
+    f = self.force[side]
+    return -(float(f[0]) * float(at[0]) + float(f[1]) * float(at[1])) / n
+
   def _struck(self, side: str) -> None:
-    """A hand on its way out that met something (`OUT_BLOCKED_N`, #708):
+    """A hand on its way out caught on something (`OUT_PULL_N`, #708):
     stopped as `halt` stops an arm on its way out -- the body in the posture
     it has got to, the hand's goal and command the grip its arm then puts it
     at, `blocked` -- but its arm held where its drivers read its joints, so
@@ -2339,7 +2358,7 @@ class Reach:
         pulled = self.pulls[s] is not None and self.pulls[s].get("pull") is not None
         stiffness = (self._pulled if pulled else self._held)(s, dt, *have[s])
         sm._set_arm(s, self.q_cmd[s])
-      elif phase == "move" and float(np.linalg.norm(self.force[s])) > OUT_BLOCKED_N:
+      elif phase == "move" and self._pulling(s) > OUT_PULL_N:
         self._struck(s)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s], stiffness = 0.0, self.cmd[s].stiffness

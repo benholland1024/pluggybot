@@ -1201,9 +1201,10 @@ def test_a_solve_that_diverged_is_never_commanded():
 
 def _walking_out(phase="move"):
   """A reach's left arm walking out to its pre-grasp in joint space, its
-  command ahead of where its drivers read it (`sensed`), the loop's reads
-  stubbed: the force its arm reads is the test's (`feel`), and what the
-  arms are commanded is recorded."""
+  command ahead of where its drivers read it (`sensed`), the hand out to the
+  robot's left front by its senses, the loop's reads stubbed: the force its
+  arm reads is the test's (`feel`), and what the arms are commanded is
+  recorded."""
   from pluggybot.humanoid import reach as rc
   from pluggybot.humanoid.arms import HandGoal
   r = _standing_reach()
@@ -1219,34 +1220,45 @@ def _walking_out(phase="move"):
   r.sent = []
   r.arms = {s: NS(command=lambda q, feed, k, s=s: r.sent.append((s, np.array(q), k)))
             for s in hm.SIDES}
+  # where its senses put the hand: 0.4 m ahead, 0.3 m to the left -- the
+  # level line to the stance's middle is (-0.8, -0.6)
+  r.self_model.grip_pose = lambda side: (np.array([0.4, 0.3 if side == "left" else -0.3, 0.9]),
+                                         np.eye(3))
 
-  def feel(read, sensed=None):
+  def feel(push, sensed=None):
     r.force = {s: np.zeros(3) for s in hm.SIDES}
     r.sensed_force = {s: np.zeros(3) for s in hm.SIDES}
-    r.force["left"] = np.array([0.0, float(read), 0.0])
-    r.sensed_force["left"] = np.array([0.0, float(read if sensed is None else sensed), 0.0])
+    r.force["left"] = np.asarray(push, dtype=float)
+    r.sensed_force["left"] = np.asarray(push if sensed is None else sensed, dtype=float)
   r.feel = feel
   return r, rc
 
 
-def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_it_reads_a_push():
+def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_it_pulls_toward_the_body():
   """⚠ A jaw caught on a chest's bracket on its way out was driven on at
-  full stiffness, 50-80 N pulling the robot over its toes (#708): an arm
-  walking out to its pre-grasp stops the tick its own reading (`force`, as
-  every loop of the body's reads it) passes `OUT_BLOCKED_N` -- `blocked`,
-  out where its arm then puts the hand -- and is held where its drivers read
-  its joints, never at the command it was driving on to: held there, it
-  pulled on and the robot fell all the same."""
+  full stiffness, the world pulling the hand 50-80 N toward the chest until
+  the robot went over its toes (#708): an arm walking out to its pre-grasp
+  stops the tick its own reading (`force`, as every loop of the body's reads
+  it) PULLS toward the body past `OUT_PULL_N` -- along the level line from
+  where its senses put the hand to the stance's middle -- `blocked`, out
+  where its arm then puts the hand, held where its drivers read its joints:
+  held at the command it drove on to, it pulled on and the robot fell all
+  the same. ⚠ Never on any push: our door's way out presses a jaw down on
+  the door's top harder than that, and passes."""
   r, rc = _walking_out()
   read = r.sensed[r.self_model.arm["left"]].copy()
   ahead = r.q_cmd["left"].copy()
-  # under the line -- whatever the motion-taken reading says -- it walks on
-  r.feel(rc.OUT_BLOCKED_N - 1.0, sensed=3.0 * rc.OUT_BLOCKED_N)
-  r._update(0.01)
-  assert r.phase["left"] == "move"
+  toward = np.array([-0.8, -0.6, 0.0])           # from the hand (0.4, 0.3) to the middle
+  n = rc.OUT_PULL_N
+  # pressing down, or away from the body, however hard -- or a pull under
+  # the line, whatever the motion-taken reading says -- it walks on
+  for push in (np.array([0.0, 0.0, -3.0 * n]), -2.0 * n * toward, (n - 1.0) * toward):
+    r.feel(push, sensed=3.0 * n * toward)
+    r._update(0.01)
+    assert r.phase["left"] == "move", push
   assert np.abs(r.q_cmd["left"] - ahead).max() > 0.0, "its command walked on toward q_to"
-  # past it: stopped that tick, held where its drivers read its arm
-  r.feel(rc.OUT_BLOCKED_N + 1.0)
+  # a pull past the line: stopped that tick, held where its drivers read it
+  r.feel((n + 1.0) * toward + np.array([0.0, 0.0, -5.0]))
   r._update(0.01)
   assert r.phase["left"] == "blocked" and r.done("left") and r.out("left")
   assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read)
@@ -1262,7 +1274,7 @@ def test_an_arm_walked_another_way_is_never_stopped_by_the_ways_out_rule(phase):
   `withdraw`'s and the motor level's)."""
   r, rc = _walking_out(phase)
   ahead = r.q_cmd["left"].copy()
-  r.feel(3.0 * rc.OUT_BLOCKED_N)
+  r.feel(3.0 * rc.OUT_PULL_N * np.array([-0.8, -0.6, 0.0]))
   r._update(0.01)
   assert r.phase["left"] == phase and np.abs(r.q_cmd["left"] - ahead).max() > 0.0
 
