@@ -61,7 +61,7 @@ from typing import Any, Callable
 
 from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_FRONT_HALF_M,
                                      STEP_FRONT_M, STEP_KEEP_DOWN_M, STEP_KEEP_M, STEP_LEAST_M,
-                                     STEP_SHORT_M)
+                                     STEP_SHORT_M, WALK_KEEP_M)
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
 from pluggybot.perception.box import DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M
@@ -1314,14 +1314,34 @@ _SPEED = Arg("float", lo=HAND_V[0], hi=HAND_V[2], default=HAND_V[1])
 _GIVE = Arg("float", lo=0.0, hi=1.0, default=1.0)
 #: How hard a gripper squeezes, N a pad (#525): the Dex1-1's adjustable 5-120.
 _GRIP = Arg("float", lo=5.0, hi=120.0, default=120.0)
+#: WHERE A WALK SENT TO A WALL OR A COUNTER'S EDGE ENDS, m from it (#700):
+#: FLOWN, never derived -- the served humanoid on a fresh map, sent from the
+#: storeroom's door or its middle to its counter's edge, 1 cm before it and
+#: 5.7 cm onto it, and to two plain walls' faces, ended 0.32-0.60 m off, 15
+#: walks (its plan's keep-off, `WALK_KEEP_M`, and a lattice cell, crept nearer
+#: or backed off; SimNotes, "Where a walk ends by a wall"). The keep-off
+#: moved, fly it again.
+WALK_ENDS_M = (0.3, 0.6)
+
+
+def drive_to_doc(keep_m: float, ends: tuple[float, float] = WALK_ENDS_M) -> str:
+  """`drive_to`'s text, off the walk's keep-off (`WALK_KEEP_M`) and where a
+  walk was flown to end by a wall (`WALK_ENDS_M`) -- #700: a goal 1 cm off a
+  counter's edge said "no route over the floor mapped so far", and nothing
+  the robot read said how near a walk brings it."""
+  return ("walk to a world point over the map, and over floor not yet on it; ok on "
+          f"arrival, and it gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f}). "
+          f"Its way keeps your middle about {keep_m:g} m from what your map holds solid: "
+          "a walk sent to a wall or a counter's edge ends short, where you can stand "
+          f"nearest it, {ends[0]:g}-{ends[1]:g} m from the wall or the edge")
+
+
 VERBS: dict[str, Verb] = {
   # `patience` (issue #381): the walk's budget, the robot's to set
   "drive_to": Verb("drive_to", {"x": Arg("float"), "y": Arg("float"),
                                 "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
                                                 default=DRIVE_TIMEOUT_S)},
-                   _drive_to, "walk to a world point over the map, and over floor not "
-                   "yet on it; ok on arrival, and it gives up after "
-                   f"`patience` seconds (at most {MAX_PATIENCE_S:.0f})"),
+                   _drive_to, drive_to_doc(WALK_KEEP_M)),
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
                _face, "turn in place; ok when squared within the budget"),
   # PLACES (issue #419): a task area found by its tag and remembered -- the

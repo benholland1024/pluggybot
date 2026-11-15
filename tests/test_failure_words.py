@@ -66,7 +66,7 @@ class _Drive:
   held_s = HumanoidMission.held_s
   _drove = HumanoidMission._drove
   _at_stand_in = HumanoidMission._at_stand_in
-  _kept_off = HumanoidMission._kept_off
+  _map_keep_off = HumanoidMission._map_keep_off
   # ...the map alone, the LIDAR's: no depth camera's layer here
   _planning_grid = Navigator._planning_grid
   INFLATION_CELLS, OPTIMISTIC = HumanoidMission.INFLATION_CELLS, HumanoidMission.OPTIMISTIC
@@ -234,7 +234,7 @@ def test_a_walk_that_stood_at_its_stand_in_by_something_its_map_holds_says_so():
 
 
 def test_the_map_keeps_a_walk_off_a_goal_exactly_where_its_plan_does():
-  """`_kept_off` reads the map as the planner does (`map_costs`' taxicab
+  """`_map_keep_off` reads the map as the planner does (`map_costs`' taxicab
   keep-off, on the lattice's cell, `optimistic.BLOCK`): every goal from
   0.7 m before a counter's edge onto it, a centimetre apart, is kept off
   by the map in the record exactly where the planner's lattice cell for it
@@ -249,7 +249,7 @@ def test_the_map_keeps_a_walk_off_a_goal_exactly_where_its_plan_does():
   def agrees(fake, x, y):
     lattice = op.coarsen(op.map_costs(fake.grid.grid, fake.INFLATION_CELLS))
     cx, cy = fake.grid.world_to_cell(x, y)
-    kept = fake._kept_off(x, y)
+    kept = fake._map_keep_off(x, y)
     assert (kept is not None) == bool(np.isinf(lattice[cy // op.BLOCK, cx // op.BLOCK])), \
       (x, y, kept)
     return kept
@@ -302,6 +302,36 @@ def test_a_goal_by_a_counter_on_the_planners_own_map_is_kept_off_and_one_shut_of
   assert inside._plan_to(*goal) is None and inside._stand_in is None
   assert inside._drove(*goal, 0.0, "no_route") is False
   assert "standIn" not in inside.last_drive
+
+
+def test_drive_tos_text_says_the_walks_keep_off_off_the_planners_own_constant():
+  """#700's other half (Ben: yes): nothing the robots read said how near a
+  wall or a counter a walk brings them. `drive_to`'s text says the keep-off
+  off the constant the planner keeps it by -- the humanoid's
+  `INFLATION_CELLS` times the map's cell, which `_map_keep_off` reads too --
+  and where a walk sent to an edge ended, flown: a range that must still
+  hold the keep-off and a lattice cell past it, or the flight is stale. Every
+  number is read back off the text, never formatted as the text formats it
+  (#672's review), and the text is what the served pair reads."""
+  from pluggybot.humanoid import body as hb
+  from pluggybot.mapping import optimistic as op
+  from pluggybot.mind import overseer as ov
+  from pluggybot.navigator import GRID_M
+  doc = st.VERBS["drive_to"].doc
+
+  def said(text):
+    m = re.search(r"Its way keeps your middle about ([0-9.]+) m from what your map holds "
+                  r"solid: a walk sent to a wall or a counter's edge ends short, where you "
+                  r"can stand nearest it, ([0-9.]+)-([0-9.]+) m from the wall or the edge$", text)
+    assert m, text
+    return tuple(float(v) for v in m.groups())
+  keep, lo, hi = said(doc)
+  assert keep == pytest.approx(HumanoidMission.INFLATION_CELLS * GRID_M, abs=1e-9)
+  assert hb.WALK_KEEP_M == HumanoidMission.INFLATION_CELLS * GRID_M
+  # ...moved, the text moves with it
+  assert said(st.drive_to_doc(0.45, (0.4, 0.6))) == (0.45, 0.4, 0.6)
+  assert (lo, hi) == st.WALK_ENDS_M and lo <= keep <= hi - op.BLOCK * GRID_M
+  assert f"drive_to(x, y, patience=60)  -- {doc}\n" in ov.hands_procedure_rule()
 
 
 def test_the_cut_route_check_answers_as_a_plan_would_without_the_other_robot():

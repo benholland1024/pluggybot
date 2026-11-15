@@ -132,6 +132,10 @@ TURN_CLOSE_S = TURN_SETTLE_BIG_S + TURN_PULSES * (0.14 + TURN_SETTLE_S)
 STEP_KEEP_M = HumanoidMission.OTHER_ROBOT_CELLS * GRID_M
 STEP_KEEP_DOWN_M = HumanoidMission.DOWN_ROBOT_CELLS * GRID_M
 STEP_FRONT_M, STEP_FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M
+#: How far a walk's plan keeps its middle off what its map holds solid, m
+#: (the map's inflation, taxicab: along a wall's face) -- what `drive_to`'s
+#: text says (#700).
+WALK_KEEP_M = HumanoidMission.INFLATION_CELLS * GRID_M
 #: How far its measured depth's rays reach (`depth_cloud`, and a watcher's,
 #: `depth_watched`), m: a counter's chest within arm's reach. Each draws its
 #: own noise stream (`senses.Noise`: `measure`, `watched`), so watching

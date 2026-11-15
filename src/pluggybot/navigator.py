@@ -346,7 +346,7 @@ class Navigator:
     #: it stopped, and for a peer which body -- beside the robot (`here`)
     #: or at the goal, how far, where, and whether it lies down; for a
     #: `no_route` at its stand-in by something the map holds, what kept it
-    #: off (`standIn`, `_kept_off`, #700). `gave_up` is its sentence.
+    #: off (`standIn`, `_map_keep_off`, #700). `gave_up` is its sentence.
     self.last_drive: dict | None = None
     #: Where the last plan aimed INSTEAD of the goal -- the nearest cell of
     #: this robot's own component, when the goal was off it -- or None.
@@ -1101,7 +1101,7 @@ class Navigator:
     asked = getattr(self, "_made_way", None)
     if asked:
       rec["askedWay"] = sorted(asked)
-    kept = self._kept_off(wx, wy) if why == "no_route" and self._at_stand_in() else None
+    kept = self._map_keep_off(wx, wy) if why == "no_route" and self._at_stand_in() else None
     if kept is not None:
       rec["standIn"] = kept
     self.last_drive = rec
@@ -1114,7 +1114,7 @@ class Navigator:
             and math.hypot(self._stand_in[0] - self.pose[0],
                            self._stand_in[1] - self.pose[1]) < STAND_IN_REACHED_M)
 
-  def _kept_off(self, wx: float, wy: float) -> dict | None:
+  def _map_keep_off(self, wx: float, wy: float) -> dict | None:
     """What keeps a walk off (wx, wy) where the map does (issue #700): of
     the cells the planner's map holds solid whose keep-off -- taxicab
     `INFLATION_CELLS`, as `map_costs` grows a wall -- takes in the goal's
@@ -1123,13 +1123,12 @@ class Navigator:
     m, to its nearest point. None where none does: the goal's cell is off
     the plan's floor for another reason (a robot's disc, the grid's edge)."""
     g = self.grid
-    solid = self._planning_grid() > OCC_THRESH
-    rows, cols = solid.shape
     b = optimistic.BLOCK if self.OPTIMISTIC else 1
     cx, cy = g.world_to_cell(wx, wy)
     x0, y0, r = (cx // b) * b, (cy // b) * b, self.INFLATION_CELLS
     lo_x, lo_y = max(x0 - r, 0), max(y0 - r, 0)
-    ys, xs = np.nonzero(solid[lo_y:max(y0 + b + r, 0), lo_x:max(x0 + b + r, 0)])
+    window = self._planning_grid()[lo_y:max(y0 + b + r, 0), lo_x:max(x0 + b + r, 0)]
+    ys, xs = np.nonzero(window > OCC_THRESH)
     xs, ys = xs + lo_x, ys + lo_y
     taxicab = (np.maximum(0, np.maximum(x0 - xs, xs - (x0 + b - 1)))
                + np.maximum(0, np.maximum(y0 - ys, ys - (y0 + b - 1))))
