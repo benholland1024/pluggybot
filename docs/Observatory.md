@@ -10,61 +10,70 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A hand on its way out that would tip the body over stops there (#708, K13, `loop-708`) — opens when this PR is deployed
+### A hand on its way out that would tip the body over stops there, and our door's and lid's references try their grip turned toward the middle before they tilt (#708, K13 and M3, `loop-708b`) — opens when this PR is deployed
 
 **What a deployed robot's `reach` does changes; what it says and reads does
-not.** Nothing in the prompt moved (`prompt_sha` `5b805c80…`, 66,366
-characters, 17 sections, as on #701's), nor the session host's hello (byte
-for byte), nor any geometry or the wire. A reach stopped this way says what
-one stopped on its way always said -- "your right hand stopped short on its
-way: out of reach from how you truly stand, or pushing on something" -- and
-its hand is out where it stopped, as one stopped on its line in is. The
-pair's committed recording is the same day: its fixture's command flown on
-3dffda2 and on this, 11,705 lines the same line for line (the wall clock
-and the build aside), and the station's approaches and seats flight for
-flight.
+not.** Nothing in the prompt moved (`prompt_sha` `0f1df27e…`, 67,157
+characters, 17 sections, as on e1ee005 and 8edc3e5), nor the session
+host's hello (`b796e75d…`, byte for byte), nor any geometry or the wire. A
+reach stopped this way says what one stopped on its way always said --
+"your right hand stopped short on its way: out of reach from how you truly
+stand, or pushing on something" -- and its hand is out where it stopped, as
+one stopped on its line in is. The pair's committed recording is the same
+day: its fixture's command flown on e1ee005 and on this, 11,705 lines the
+same line for line (the wall clock and the build aside), and the station's
+39 approaches and 140 seats flight for flight.
 
-**The change** (`Reach._update`, `_tipping`, `_struck`;
-`reach.OUT_TIP_NM`; SimNotes, "A hand on its way out that meets
-something"). A reach's arm walks out to its pre-grasp in joint space, and
-nothing stopped it there: the stop on a push (`BLOCKED_N`) was the line
-in's alone. From here on, the tick what the arm's own reading would tip the
-body toward the hand past 20 N m -- its pull toward the body at the hand's
-height, less its press down at the hand's reach -- it stops, held where its
-drivers read its joints, the body in the posture it has got to. A press or
-a push is no such moment: our own references' ways out press on the
-counter, a drawer's top, the door's top or the chest's knob in a fifth of
-them, as before.
+**The change** (`Reach._update`, `_tipping`, `_struck`; `reach.OUT_TIP_NM`;
+SimNotes, "A hand on its way out that meets something"). A reach's arm
+walks out to its pre-grasp in joint space, and nothing stopped it there: the
+stop on a push (`BLOCKED_N`) was the line in's alone. From here on, the tick
+what the arm's own reading would tip the body toward the hand past 20 N m
+-- its pull toward the body at the hand's height, less its press down at the
+hand's reach -- it stops, held where its drivers read its joints, the body
+in the posture it has got to. Beside it, OUR door's and lid's references
+change (`hands_check.DOOR`, `LID`; the served door's and chest's jobs fly
+them from the tour, and no robot runs them): a reach of theirs that
+stopped short is tried again with the grip turned toward the robot's
+middle -- the door's 10 deg, untilted, the lid's 5 deg at its tilt, its
+hand out where it stopped -- before they tilt it as before (SimNotes, "The
+door's reach the stop sends back").
 
 **Why.** On 11-14 at 20:21:57 UTC Luca's own `chest_run35` reached with
 its fingers straight ahead into the chest's front: the joint-space way out
 swung the open jaw past the knob and drew it back across the drop handle's
-bracket, where it caught, and the arm drove on at full stiffness -- the
-world pulling the hand 50-80 N toward the chest for half a second -- until
-the robot went over its toes. Flown from where Luca stood at the live draw
-on eight keys, it fell 6 times; at 22 draws and stands held out, 17.
+bracket, where it caught, and the arm drove on at full stiffness until the
+robot went over its toes. On 11-15 its `chest_run36` fell so six times, one
+of them a stuck death. The stop alone cost our door 10 of its 192
+flights here with 5 more falls (11 and 7 over set-outs 0-191 on K13's
+tree): at 12 of 192 set-outs the grip asked plans the deepest crouch with
+the waist turned 30 deg, whose way out drags the open jaw over the
+counter's edge, and stopped there, the reference's tilted retry bowed the
+robot onto the counter.
 
-**Measured** (one pod, each flight its own noise, against 3dffda2): #708's
-own flight no longer falls in a way out -- 0 of the 8 keys (6 before), 0 of
-22 held out (17), 1 of 10 at fresh draws (6), that one in the procedure's
-own lid pulls 80 s on, its grip closed on the chest. Our hands check, at
-set-outs 0-31, 32-127 and 128-191, passes 594 where it passed 603: the door
-11 fewer of its 192 (23 for 24, 64 for 72, 41 for 43), the lid 2 fewer, the
-drawer and the cube 2 more each; and it falls 19 times for 16 -- the door 9
-for 2, the drawer and the cube 4 each for 6 (two of theirs inside a reach,
-as #708's). The door's first way out drives its jaw into the counter's edge
-or the door's top; stopped there, it retries at a tilt whose later pull,
-the lever gripped, can bow the body 54 deg and turn its waist 60 -- every
-new fall is in that retry's later verbs, 12-24 s on, never in the stop. The
-tour's five jobs at 32 draws: the table, the chest, the door and the drawer
-as before (24, 29, 26, 30), the cube 25 for 26, no fall moved.
+**Measured** (two Vast pods of one CPU model, each flight its own noise,
+against e1ee005; SimNotes has the four arms). #708's own flight no longer
+falls in a way out: 0 of the 8 keys (6 on e1ee005), 1 of 16 at draws
+nothing had seen (6), that one late in the procedure's own lid pulls. Our
+hands check over set-outs 0-255 passes 699 of 896 where e1ee005 passes 653,
+and falls 13 times for 17: every job passes as many or more and falls no
+more at 0-31 and 32-127. Held out at 192-255 two flights move the wrong
+way: the cube passes 45 for 46 (its second reach stopped on the counter's
+edge, its retry setting the cube 9 cm off) and the door falls once where it
+never did (221, the retry's own: it falls with the retry and no stop too),
+while the door passes 49 for 37 there. The tour's five jobs at 32 draws:
+the table 24, the chest 29, the drawer 30 and the door 26 as on e1ee005
+(the door's fall gone, its slowest pass 177 s as before), the cube 25 for
+26 (draw 7, as K13 flew it). The wake of 11-15's own door and chest runs,
+flown at their live draws: none passed fewer, none fell more, and 7 falls
+went.
 
 **What to read on the live rows.** A fall inside a `reach` ("failed at step
-N (line L, reach) -- you fell on the way there"): the wake of 11-14 had
-Luca's at 20:21:57 and two of Rowan's (`chest_lift2b` at 18:32:55 and
-`door_p1` at 21:39:26), which flown again fell otherwise or not at all. And a
-`reach` stopped short where none was before: a way out caught on something
-that would have tipped the robot toward it, where it used to drive on.
+N (line L, reach) -- you fell on the way there"), Luca's `chest_run36`'s
+signature: six on 11-15. And a `reach` stopped short where none was before:
+a way out caught on something that would have tipped the robot toward it,
+where it used to drive on. The references' retries are on no live row:
+the robots write their own procedures.
 
 ### Both maps dropped at the next wake: `MAP_EPOCH` 5 (#681, Ben's call of 2026-11-15) — opens when this PR is deployed
 

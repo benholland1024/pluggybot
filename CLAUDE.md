@@ -346,7 +346,12 @@ save a filmstrip PNG named after the script.
   its toes. Never on a push or a press: our door's way out drags a jaw back
   over the door's top pressing down on it, and stopped there -- on the whole
   reading at 20-40 N, or on its pull alone at 30 N -- the door fell more or
-  passed fewer. ⚠ IT GOES IN
+  passed fewer. ⚠ OUR DOOR'S AND LID'S REFERENCES, A REACH STOPPED SHORT,
+  TRY THE GRIP TURNED TOWARD THE MIDDLE BEFORE THEY TILT (`hands_check.DOOR`,
+  `LID`; SimNotes, "The door's reach the stop sends back"): at 12 of 192 door
+  set-outs every way out of the grip asked drags the jaw over the counter's
+  edge, and stopped there, the tilt after bowed the robot onto the counter.
+  ⚠ IT GOES IN
   ONCE THE TRUNK IS STILL (`reach.TRUNK_STILL_RATE`; or after
   `POSTURE_WAIT_S`): the force it reads assumes the body still, and begun
   as the deepest bow stopped turning, the floor's reach read 492 N and

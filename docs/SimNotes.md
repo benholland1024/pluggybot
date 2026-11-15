@@ -9617,33 +9617,147 @@ second for second; each flight its own noise; against 3dffda2):
   off: 17 of 22 fell before, none with this. At ten draws nothing was looked
   at (311-320): 6 fell before, 1 with this -- 80 s into the procedure's own
   lid pulls, its grip closed on the chest (#699's gripped kind).
-- *The hands check* at set-outs 0-31: 115 passes as before (lid 26, drawer
-  21, door 23 for 24, cube 21 for 20, table 24), 8 falls for 6. Held out at
-  32-127: 298 for 306 (the door 64 for 72, the lid 76 for 77, the cube 62
-  for 61), 6 falls for 5 -- the door's 1 to 4, the cube's 4 to 2 (one of
-  them inside a reach, as #708's). At 128-191, nothing looked at: 181 for
-  182 (lid 53 for 54, drawer 44 for 42, door 41 for 43, cube 43), its falls
-  5 as before but moved -- the drawer's 4 to 2 (one of them inside a reach),
-  the door's 0 to 2. None of the 125 stops there came in free air: each
-  followed a touch by 0.03-3.4 s.
-- *Every fall that moved* parts from the base's flight at a way out this
-  stopped where the base's drove on to its pre-grasp. The door's new falls
-  (3 and 20 at 0-31, 68, 70 and 93 at 32-127, 161 and 188 at 128-191) come
-  12-24 s after the stop, in the `withdraw` or the `move_hand` after its
-  retried grip's pull, or between them: the steps the base's own door falls
-  come in. Taken apart at door 20: at the stop the soles stand where the
-  base's do, and its retreat and way home are clean; its retry begins 1.9 s
-  sooner, and that pull, the lever gripped, takes the body to a 54 deg bow
-  with the waist at 60 (the base's never passed 32), and as the body is
-  asked back up with the hand still holding, the feet swivel 17 deg and it
-  falls -- #699's gripped kind. Our door's first way out drives its jaw into
-  the counter's edge or the door's top in most of its flights, and a stop
-  there sends it to that retry.
-- *The tour's five jobs* (32 draws each): the table 24, the chest 29, the
-  door 26 and the drawer 30 as before, the cube 25 for 26 (one draw set its
-  cube 3 cm off the mat); 157 of the 160 flights the base's own, no fall
-  moved. *The station's* 39 approaches and 140 seats and *the pair's fixture
-  day* (11,705 lines) are the base's flights exactly.
+- *The hands check and the tour, the stop alone:* the door passed 11 fewer
+  of its 192 set-outs with 7 more falls, the lid 2 fewer, the drawer and the
+  cube 2 more each, and the tour's cube 25 for 26. None of its 125 stops in
+  the check came in free air: each followed a touch by 0.03-3.4 s. The
+  station's 39 approaches and 140 seats and the pair's fixture day (11,705
+  lines) were the base's flights exactly. What the door's cost was, and its
+  fix, are the next part.
+
+### The door's reach the stop sends back (the loop of 11-15/16, M3)
+
+**The stop cost the door twelve set-outs.** Over the door check's set-outs
+0-191 (`~/pluggybot-training/loop-1115/m3-708b/`, with K13's rows), twelve
+plan their first reach in the deepest crouch with the waist turned 30 deg
+((-0.16 m, 0, -30 deg): the lever 0.42-0.44 m ahead and 0.16-0.19 m to the
+left, the cupboard turned 0.3-5.7 deg). In all twelve the open jaw drags
+over the counter's edge about 1.1 s into the way out (26-35 N), and on into
+the door's panel in the one taken apart. The base drove on and passed 11 of
+them; the stop stops all 12 and none passed. That is its whole door cost,
+11 of 192: the other set-outs passed 128 on both trees. Their way out is
+the side way, judged as the robot stands, where it dips 2 cm under the
+work; in the turned crouch the same way dips 38 cm, the straight way 42 and
+the way drawn in 42 (`Reach._picked`'s judgment made in the posture,
+`c/probe_judge.py`). No way out of that posture keeps the arm off the
+counter.
+
+**The falls were the retry's, never the stop's.** Read off the contact
+record (every contact of 20 N or more on a part of the robot, beside the
+posture asked, every 0.05 s, `c/hc_c.py`):
+- *Door 3*: stopped at 4.33 s, and the retry tilted 15 deg down; its press
+  ended out of reach. Then the move back (8 cm back and 2 up, the hand
+  open) asked six postures in 7.5 s: the waist went to +57 deg and back
+  past -45, the body bowed 46 deg, the open jaw hooked under the lever's
+  tip at 113-128 N for 1.7 s, and the soles turned 25 deg. The withdraw's
+  way home put the pelvis and the torso into the counter at 670-817 N, and
+  it fell (24.22 s).
+- *Door 20*: stopped at 5.45 s on the door's top. The retry's press, the
+  lever gripped, asked four postures, to a 54 deg bow with the waist at 57,
+  then came back up holding it (49-56 N read) while the soles swivelled.
+  At the let-go the pelvis met the counter at 1095 N, and it fell (22.14 s).
+
+#699's rule widened to a gripping hand (K1's rule A) takes door 20's fall
+and the table check's two, but not door 3's: that is a carry with an open
+hand, which no pull's rule reaches. With the stop and rule A the door
+passed 23 of 32 at 0-31, with 2 falls (door 3's, and door 27's as on the
+base).
+
+**What is true now** (`hands_check.DOOR`, `LID`):
+- Our door reference's reach that stopped short tries its fingers 10 deg
+  toward the robot's middle, untilted, before it tilts them down 15 deg a
+  try. So turned, the twelve plan (-0.08 m, 0, 0), square
+  (`c/probe_grip.py`).
+- Our lid reference's first reach that stopped short, its hand out where
+  it stopped (`left.x`), is tried once more at the same tilt with the grip
+  5 deg toward the middle, before its tilts go on. Its lost set-outs had
+  the door's cause: a first way out stopped on the counter's edge, then a
+  tilt that let the lid fall or never opened it (K13's rows: 84, 105 and
+  186). Never after a reach refused with nothing moved: tried so (the first
+  form), lid 14's three refusals ended in a turned grip whose lift let the
+  lid fall. At 10 deg its pads met the rising lid at 62 deg, under the 63
+  its lift needs clear; at 5, 64. ⚠ Its read of the hand's place after a
+  failed reach moves the flight by itself: with the hand at rest,
+  `Body.hand_sensed` falls back to `Reach.grip_now`, which reads every joint
+  afresh (drawing on their noise) and poses the model of itself the next
+  reach plans on. Over set-outs 0-127, of the lid's flights with only
+  refused reaches (the yaw never fired), 7 of 21 came out otherwise, and
+  the first way out of 23 of the 28 with a refusal ended 10-20 ms apart.
+- Both change our references only. What a robot's `reach` does is the stop
+  above, and what it reads did not move (the prompt `0f1df27e`, the
+  session host's hello `b796e75d`).
+
+**The robots' own doors and chests are not harmed by the stop.** The wake
+of 11-15's door and chest runs (34 and 19: every decided job's procedure
+that ran, flown alone at its live draw, `c/fly_live_c.py`): with the stop
+none passed fewer and none fell more. It stopped 21 ways out in 10 runs: 7
+of those runs fell without it and failed without a fall with it (`door_p1`
+three times, one of them stuck, `door_run31` once, `chest_run36` three
+times), and 3 failed on both.
+
+**Measured** (the loop of 11-15/16, M3; on e1ee005, the stop merged with
+it; each flight its own noise; two Vast pods, both AMD EPYC 7B13, which fly
+each other's flights exactly: 16 of 16 of the base's doors flown on both).
+Four arms -- today's tree, our references' retries alone, the stop alone,
+and both -- of the hands check, passes and falls. The retries change only
+the door's and the lid's flights (the others are their arm's own, flown
+once: 16 of 16 doors and 15 of 15 lids the same with and without the other
+job's retry); set-outs 192-255 nothing was looked at before both were
+frozen:
+
+| set-outs | job | today's tree | the retries alone | the stop alone | both |
+|---|---|---|---|---|---|
+| 0-31 | lid | 26 of 32 | 28 of 32 | 26 of 32 | 28 of 32 |
+| 0-31 | drawer | 21 of 32, 2 fell | 21 of 32, 2 fell | 21 of 32, 2 fell | 21 of 32, 2 fell |
+| 0-31 | door | 24 of 32, 1 fell | 28 of 32 | 23 of 32, 3 fell | 28 of 32 |
+| 0-31 | cube | 20 of 32, 1 fell | 20 of 32, 1 fell | 21 of 32, 1 fell | 21 of 32, 1 fell |
+| 0-31 | table | 24 of 32, 2 fell | 24 of 32, 2 fell | 24 of 32, 2 fell | 24 of 32, 2 fell |
+| 0-31 | all | 115 of 160, 6 fell | 121 of 160, 5 fell | 115 of 160, 8 fell | 122 of 160, 5 fell |
+| 32-127 | lid | 77 of 96 | 84 of 96 | 76 of 96 | 89 of 96 |
+| 32-127 | drawer | 66 of 96 | 66 of 96 | 66 of 96 | 66 of 96 |
+| 32-127 | door | 72 of 96, 1 fell | 84 of 96 | 64 of 96, 4 fell | 86 of 96 |
+| 32-127 | cube | 61 of 96, 4 fell | 61 of 96, 4 fell | 62 of 96, 2 fell | 62 of 96, 2 fell |
+| 32-127 | table | 30 of 32 | 30 of 32 | 30 of 32 | 30 of 32 |
+| 32-127 | all | 306 of 416, 5 fell | 325 of 416, 4 fell | 298 of 416, 6 fell | 333 of 416, 2 fell |
+| 192-255 | lid | 55 of 64 | 55 of 64 | 55 of 64 | 55 of 64 |
+| 192-255 | drawer | 39 of 64, 4 fell | 39 of 64, 4 fell | 40 of 64, 3 fell | 40 of 64, 3 fell |
+| 192-255 | door | 37 of 64 | 49 of 64, 2 fell | 36 of 64 | 49 of 64, 1 fell |
+| 192-255 | cube | 46 of 64, 2 fell | 46 of 64, 2 fell | 45 of 64, 2 fell | 45 of 64, 2 fell |
+| 192-255 | table | 55 of 64 | 55 of 64 | 55 of 64 | 55 of 64 |
+| 192-255 | all | 232 of 320, 6 fell | 244 of 320, 8 fell | 231 of 320, 5 fell | 244 of 320, 6 fell |
+
+- *Every job and set but two passes as many or more with both, and falls no
+  more:* over 0-255 the check passes 699 of 896 where today's tree passes
+  653, and falls 13 times for 17. Held out, two flights miss the bar: the
+  cube's 195, whose second reach the stop stopped on the counter's edge 0.2
+  s after the touch (the base's went on), its retry then setting the cube 9
+  cm off; and door 221's fall, the retry's own (it falls with the retry
+  alone too): its yawed press opened the door 29 deg, and the next reach,
+  toward a lever that had moved under the 10 cm the reference reads as open,
+  stopped against the ajar door's panel, the withdraw dragging the jaw on
+  it until the soles slid and a thigh met the counter at 1271 N.
+- *The stop's cost read on the retried references* (both against the
+  retries alone): 9 more passes over 0-255 and 4 fewer falls. *The retries'
+  own effect* (the retries alone against today's tree): 37 more passes --
+  the door's 133 of its 192 flights to 161, the lid's 158 to 167 -- and as
+  many falls (17), the door's two held out (221 and 244) new.
+- *#708's flight:* `chest_run35` at draw 303 on K4's eight keys fell 6
+  times on today's tree and with the retries alone, none with the stop;
+  at sixteen draws nothing had seen (321-336) 6 and 6 against 1 and 1, the
+  one (draw 329) as K13's fresh one, late in the procedure's own lid pulls.
+- *The tour's five jobs* (32 draws each, `solve.py --from tour`): the
+  table 24, the chest 29, the drawer 30 and the door 26 on all four arms
+  (the door's slowest pass 177 s on each; its fall at draw 5 gone with the
+  door's retry, and with the retry alone one more at draw 15), the cube 26
+  on today's tree and with the retries alone, 25 with the stop (draw 7: its
+  second reach's way out stopped, the grip 43.7 cm from where it was asked,
+  and the cube set 3 cm off, as K13 flew it).
+- *The station's* 39 approaches and 140 seats and *the pair's fixture day*
+  (11,705 lines) are today's flights exactly, with both. *The served jobs'
+  energy* (`energy_spike.py --station station_mall`): the chest's flight
+  the same (7.92 Wh, passed); the door's from the mall failed on both trees,
+  11.32 Wh on today's tree and 9.38 with both, where the table carries
+  9.04.
 
 ## Debugging workflow that worked
 
