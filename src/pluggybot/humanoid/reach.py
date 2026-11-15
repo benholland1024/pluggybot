@@ -224,22 +224,22 @@ LEAD_MAX_M, ACROSS_SPEED = 0.08, 2.0
 #: least this, N: the most a procedure's `pull` asks (`steps.PULL_MOST_N`),
 #: what the standing body holds at a hand (#544), so 40 N for every pull a
 #: robot writes -- and one that is coming is GIVEN UP where the hand reads
-#: past it: the body held where it has got to, as a move stopped is
-#: (`halt`), and that pull takes no other, nor the time a posture is given
-#: to come before it may end out of reach. ⚠ A
-#: posture bows, crouches or turns the body over a hand that rests on
-#: something, and where the arm's solve can no longer follow, its joints
-#: stand and the body bears on the hand: 45-150 N down on a cupboard door's
-#: top for a 15-20 N pull, and a fall when the hand slipped off; our table
-#: reference's fork came down on the table at 92-135 N and fell twice in 32.
-#: ⚠ NOT AT THE ASK ALONE: a hand reading little as its posture is asked is
-#: loaded as the body moves. ⚠ A FORCE, NOT A SHARE OF A SMALL ASK: while a
-#: posture came, our references' pulls that passed read 30.6 N at most (a 10
-#: N press, three times its ask) and every one past 63 N failed or fell; at
-#: twice the ask (20 N there) a door that opens was refused its posture. ⚠
-#: HELD THERE, NEVER SENT BACK where the pull began: on its way back the
-#: waist swung a low arm into the counter (935 N), and the robot fell at
-#: the draw it fell on live.
+#: past it: the body BACKS OFF toward the posture the pull began in until
+#: the hand reads no more than that ask again, is held there, and that pull
+#: takes no other. ⚠ A posture bows, crouches or turns the body over a hand
+#: that rests on something, and where the arm's solve can no longer follow,
+#: its joints stand and the body bears on the hand: 45-150 N down on a
+#: cupboard door's top for a 15-20 N pull, and a fall when the hand slipped
+#: off; our table reference's fork came down on the table at 92-135 N and
+#: fell twice in 32. ⚠ NOT AT THE ASK ALONE: a hand reading little as its
+#: posture is asked is loaded as the body moves. ⚠ A FORCE, NOT A SHARE OF A
+#: SMALL ASK: while a posture came, our references' pulls that passed read
+#: 30.6 N at most (a 10 N press, three times its ask) and every one past 40
+#: N failed or fell; at twice the ask (20 N there) a door that opens was
+#: refused its posture. ⚠ BACK ONLY AS FAR AS UNLOADS IT: held where it had
+#: got to, a body 1 cm and 3 deg into its posture stayed leant on a lid's
+#: knob at 80-92 N for the 10 s its pulls went on; sent all the way back,
+#: the waist swung a low arm into the counter (935 N).
 PRESSED_SHARE, PRESSED_ASK_N = 2.0, 20.0
 #: ...giving, its turn gives to what it holds this share a command (100 a
 #: second: a tenth of a second's lag) -- held, a wrist twisted by a drop
@@ -1398,7 +1398,8 @@ class Reach:
     no further. The posture is the one from which the hand reaches its
     way's end, taken first; a hand held takes no other (`GO_ON_M`), a hand
     that reads a load takes none, and one that comes is given up where the
-    hand reads a load meanwhile (`PRESSED_SHARE`, #699).
+    hand reads a load meanwhile, the body backing off until it reads none
+    (`PRESSED_SHARE`, #699).
     False (nothing moves) for a hand that is not out. How it ends is its
     `report`."""
     if force <= 0.0:
@@ -1416,13 +1417,14 @@ class Reach:
     posture = (None if self._pressed(self.force[side], force)
                else self.path_for(side, [h, h + float(distance_m) * w], rot=r))
     moved = posture is not None and tuple(posture) != tuple(float(v) for v in self.posture)
+    began = self._standing_in() if moved else None
     if moved:
       self.hold_posture(*posture)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), PULL_STIFFNESS)
     self.goal[side] = HandGoal(h.copy(), r.copy(), PULL_STIFFNESS)
     self.speed[side], self._off[side] = float(speed), 0.0
     self.pulls[side] = {"start": h.copy(), "t": 0.0, "ways": [], "fixed": True, "peak": 0.0,
-                        **({"postured": 0.0} if moved else {}),
+                        **({"postured": 0.0, "began": began} if moved else {}),
                         "pull": {"way": w, "force": float(force), "distance": float(distance_m),
                                  "give": bool(give), "gripped": self.grippers[side].held(),
                                  "last": h.copy(), "went": 0.0, "trail": [h.copy()],
@@ -1433,10 +1435,16 @@ class Reach:
     return True
 
   @staticmethod
-  def _pressed(read, ask: float) -> bool:
+  def _pressed(read, ask: float, share: float = PRESSED_SHARE) -> bool:
     """Whether a pull's hand reads a load (`PRESSED_SHARE`): `read`, N, any
-    way, past that many times its `ask`, of `PRESSED_ASK_N` at least."""
-    return float(np.linalg.norm(read)) > PRESSED_SHARE * max(float(ask), PRESSED_ASK_N)
+    way, past `share` times its `ask`, of `PRESSED_ASK_N` at least."""
+    return float(np.linalg.norm(read)) > share * max(float(ask), PRESSED_ASK_N)
+
+  def _standing_in(self) -> tuple:
+    """The posture the body stands in as another is asked of it: the one it
+    holds, or -- one still coming -- where it has got to, as a move stopped
+    is held (`halt`)."""
+    return tuple(float(v) for v in (self.posture if self._posture_held() else self.posture_now()))
 
   def _look(self, side: str) -> bool:
     """Whether a hand at its pre-grasp goes in from the posture it holds
@@ -2156,10 +2164,16 @@ class Reach:
     pressed = self._pressed(fm, limit)
     if settling and pressed and not st.get("given"):
       # ...AND THE POSTURE GIVEN UP WHERE THE HAND READS A LOAD (#699): the
-      # body held where it has got to, as a move stopped is (`halt`) -- the
-      # hand still waiting on it -- and this pull takes no other
-      self.hold_posture(*self.posture_now())
-      st["postured"], st["given"] = st["t"], True
+      # body backs off toward the posture the pull began in -- the hand
+      # still waiting on it -- and this pull takes no other
+      self.hold_posture(*st["began"])
+      st["postured"], st["given"], st["backing"] = st["t"], True, True
+    elif st.get("backing") and not (settling and self._pressed(fm, limit, 1.0)):
+      # ...only until the hand reads no more than the ask again, and is
+      # held there, as a move stopped is (`halt`) -- or is back
+      if settling:
+        self.hold_posture(*self.posture_now())
+      st["backing"] = False
     prev, prev_rot = c.pos.copy(), c.rot
     to = c.pos + rate * dt * w
     ahead = float((to - h) @ w)
@@ -2223,6 +2237,7 @@ class Reach:
         posture = self.posture_for(side, c.pos, rot=c.rot, onward=True, past=left_)
         if posture is not None and tuple(posture) != tuple(self.posture):
           left_.append(tuple(float(v) for v in self.posture))
+          st.setdefault("began", self._standing_in())
           self.hold_posture(*posture)
           st["postured"] = st["t"]
     self.goal[side].pos, self.goal[side].rot = c.pos.copy(), c.rot
@@ -2237,9 +2252,9 @@ class Reach:
       self.q_cmd[side], self.miss[side] = q, ep
     if ep > BLOCKED_M or er > HOLD_ROT_TOL:
       # ...given a posture, the time it takes to come -- none once it was
-      # given up (#699): the body is held where it is, and an arm that
-      # cannot follow from there is out of reach now
-      coming = (st["t"] < SETTLE_S or (not st.get("given")
+      # given up and the body is held (#699): an arm that cannot follow
+      # from there is out of reach now
+      coming = (st["t"] < SETTLE_S or ((not st.get("given") or st.get("backing"))
                 and st["t"] - st.get("postured", -POSTURE_WAIT_S) < POSTURE_WAIT_S))
       self._off[side] = 0.0 if coming else self._off[side] + dt
       if self._off[side] >= BLOCKED_S:
