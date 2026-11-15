@@ -3,6 +3,7 @@ third-party license text that NOTICE names sits in `models/`, goes into the
 wheel through `license-files`, and goes into the serving image. Nothing
 here flies anything."""
 
+import fnmatch
 import hashlib
 import re
 import tomllib
@@ -33,6 +34,28 @@ def test_every_license_text_notice_names_travels_with_the_code():
   wanted = {"LICENSE", "NOTICE"} | in_tree
   shipped = set(_project(ROOT / "pyproject.toml")["license-files"])
   assert shipped == wanted, f"license-files differs by {shipped ^ wanted}"
-  docker = (ROOT / "Dockerfile").read_text()
-  assert re.search(r"^COPY LICENSE NOTICE \./$", docker, re.M), "the image carries LICENSE and NOTICE"
-  assert re.search(r"^COPY models/ models/$", docker, re.M), "the image carries models/ and its texts"
+  copied = _copied((ROOT / "Dockerfile").read_text())
+  assert {"LICENSE", "NOTICE"} <= copied, "the image carries LICENSE and NOTICE"
+  assert "models/" in copied or "models" in copied, "the image carries models/ and its texts"
+  kept_out = [path for path in wanted if _ignored(path)]
+  assert not kept_out, f".dockerignore keeps {kept_out} out of the image's build"
+
+
+def _copied(dockerfile: str) -> set[str]:
+  """Every source a `COPY` brings into the image: its words but the flags
+  and the last, the destination."""
+  sources = set()
+  for line in re.findall(r"^COPY\s+(.+)$", dockerfile, re.M):
+    words = [w for w in line.split() if not w.startswith("--")]
+    sources |= set(words[:-1])
+  return sources
+
+
+def _ignored(path: str) -> bool:
+  """Whether a pattern of `.dockerignore` matches the path or a folder it
+  is in (a `!` exception is not read: none is written)."""
+  patterns = [line.strip().strip("/") for line in (ROOT / ".dockerignore").read_text().splitlines()
+              if line.strip() and not line.lstrip().startswith(("#", "!"))]
+  parts = path.split("/")
+  prefixes = ["/".join(parts[:i]) for i in range(1, len(parts) + 1)]
+  return any(fnmatch.fnmatch(prefix, pattern) for pattern in patterns for prefix in prefixes)

@@ -12,6 +12,7 @@ import ast
 import re
 from pathlib import Path
 from typing import get_args
+from urllib.parse import unquote
 
 from pluggybot import lifecycle
 from pluggybot.mind import events, text
@@ -110,10 +111,12 @@ def _prose(markdown: str) -> str:
 
 def _anchors(markdown: str) -> set[str]:
   """GitHub's anchor for each heading, off its text as rendered (a link's
-  words, no tags): lower case, punctuation dropped, spaces as hyphens, and
-  `-1`, `-2` after a heading's repeats."""
-  seen, anchors = {}, set()
-  for heading in re.findall(r"^#{1,6} (.+)$", _prose(markdown), re.M):
+  words, no tags, no closing hashes): lower case, punctuation dropped,
+  spaces as hyphens, and `-1`, `-2` after a heading's repeats; and every
+  `<a name>` or `id`."""
+  text = _prose(markdown)
+  seen, anchors = {}, set(re.findall(r"<a\s+(?:name|id)=\"([^\"]+)\"", text))
+  for heading in re.findall(r"^#{1,6} (.+?)(?:\s+#+)?\s*$", text, re.M):
     shown = re.sub(r"<[^>]+>", "", re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", heading))
     slug = re.sub(r"[^\w\- ]", "", shown.strip().lower()).replace(" ", "-")
     anchors.add(f"{slug}-{seen[slug]}" if slug in seen else slug)
@@ -123,11 +126,13 @@ def _anchors(markdown: str) -> set[str]:
 
 def _links(markdown: str) -> list[str]:
   """Every link's target in the prose, inline (with a title or none) or by
-  reference; one with a scheme (`https:`, `mailto:`) is no file here."""
+  reference, `%20` read as a space; one with a scheme (`https:`, `mailto:`)
+  is no file here."""
   text = _prose(markdown)
-  inline = re.findall(r"\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)", text)
+  title = r"(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?"
+  inline = re.findall(r"\]\(\s*<?([^)\s>]+)>?" + title + r"\s*\)", text)
   by_reference = re.findall(r"^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)", text, re.M)
-  return [t for t in inline + by_reference if not re.match(r"[A-Za-z][\w+.-]*:", t)]
+  return [unquote(t) for t in inline + by_reference if not re.match(r"[A-Za-z][\w+.-]*:", t)]
 
 
 def _broken(source: Path, targets: list[str]) -> list[str]:
@@ -159,8 +164,9 @@ def _scenes(script: Path) -> set[str]:
 
 def _strips(script: Path) -> set[str]:
   """The scenes whose filmstrip `--strip` draws: one with a branch of its
-  own (`args.strip == "walk"`), a stage-2 scene `_scene_gen` lists, and the
-  body's, the default. Any other falls through to another scene's."""
+  own (`args.strip == "walk"`), a stage-2 scene `_scene_gen` dispatches on,
+  and the body's, the default. Any other reaches the stage-2 filmstrip,
+  which has no scene by that name."""
   drawn = {"body"}
   for node in ast.walk(ast.parse(script.read_text())):
     if (isinstance(node, ast.Compare) and getattr(node.left, "attr", None) == "strip"
@@ -168,8 +174,10 @@ def _strips(script: Path) -> set[str]:
       drawn |= {c.value for c in ast.walk(node.comparators[0])
                 if isinstance(c, ast.Constant) and isinstance(c.value, str)}
     if isinstance(node, ast.FunctionDef) and node.name == "_scene_gen":
-      drawn |= {k.value for d in ast.walk(node) if isinstance(d, ast.Dict)
-                for k in d.keys if isinstance(k, ast.Constant)}
+      returned = [n.value for n in ast.walk(node) if isinstance(n, ast.Return)]
+      dispatch = [n.value for r in returned for n in ast.walk(r)
+                  if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Dict)]
+      drawn |= {k.value for d in dispatch for k in d.keys if isinstance(k, ast.Constant)}
   return drawn
 
 

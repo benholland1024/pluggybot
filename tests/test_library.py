@@ -30,8 +30,7 @@ from test_body import stub_life
 from test_overseer import FakeClient, full
 
 # The extracts are our own words, never Wikipedia's: its text is CC BY-SA,
-# and these fake pages need none of it (#714: the license inventory found
-# four articles' opening sentences here, and these replaced them).
+# and these fake pages need none of it (#714).
 DURIAN = {"title": "Durian", "extract": "A durian is a large fruit with a spiky "
           "husk and a strong smell.", "revision": "1234567",
           "content_urls": {"desktop": {"page": "https://en.wikipedia.org/wiki/Durian"}}}

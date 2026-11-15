@@ -95,11 +95,14 @@ The commands (the README says why Python 3.12):
 uv sync --python 3.12
 uv run pytest -q -m "not slow"           # while you work: the fast tests
 uv run pytest -q                         # before a change is done: the whole suite
+uv run pytest -q --endurance-changed -m endurance   # and the flights it touches
 uv run ruff check src/ scripts/ tests/   # the linter
 ```
 
 The suite runs in parallel. It renders with EGL unless `MUJOCO_GL` names
-another backend.
+another backend. A few long flights prove claims about physics, and they
+run only when asked. The third command flies the ones whose paths your
+change touches, which is usually none.
 
 ## Where people can help
 
