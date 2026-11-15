@@ -464,10 +464,23 @@ def test_a_refusal_for_the_librarys_room_says_what_the_source_is_refused_for_too
   with pytest.raises(lib.LibraryRefused) as e:
     L.define("b", "def b():\n  wait(2)\n")
   assert len(e.value.reasons) == 1 and set(L.names()) == {"a"}
-  life, _ = _deciding_life(L)
+  # ...where the robot reads, on two lines: on one, History's cap (400) cut
+  # the source's faults, which come last (one that lists the verbs is 225)
+  wordy = "def b():\n  nosuch(1)\n  import os\n"
+  for freeing in ("", "zz"):                # `define`'s path, then `check`'s
+    life, _ = _deciding_life(L)
+    life._define(Decision(action="idle", reason="x", undefine=freeing,
+                          define={"name": "b", "source": wordy}))
+    room, faults = life.thoughts.read("History.md").splitlines()[-2:]
+    assert "could not write the procedure b" in room and "the library is full" in room
+    assert "nosuch" not in room and "line cut" not in room + faults, (room, faults)
+    assert "the source of b is refused too: line 2: unknown verb 'nosuch'" in faults
+    assert faults.endswith("line 3: Import is not part of this language")
+    assert len(room) + len(faults) > 400 + len("[t=0s] ") * 2
+  # ...and one line, as it always was, where only one kind of reason stands
+  life, _ = _deciding_life(lib.Library(lc.world_facts(WORLD)))
   life._define(Decision(action="idle", reason="x", define={"name": "b", "source": bad}))
-  line = life.thoughts.read("History.md").splitlines()[-1]
-  assert "the library is full" in line and "line 2" in line, line
+  assert "could not write the procedure b: line 2" in life.thoughts.read("History.md").splitlines()[-1]
 
 
 def _over_the_cap(head: str, at_the_cut: str, after: str) -> str:

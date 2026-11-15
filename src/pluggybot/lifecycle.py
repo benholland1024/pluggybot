@@ -4515,12 +4515,12 @@ class HubLifecycle:
     # to make room for, which the refusal for a full library advises. The
     # undefine waits for a define that goes through.
     if decision.define and decision.undefine:
-      held = library.check(name, judged, freeing=decision.undefine)
-      if held:
+      held = library.refusal(name, judged, freeing=decision.undefine)
+      if held is not None:
         kept = decision.undefine if decision.undefine in library.names() else ""
         library.refusals.append({"t": t, "verb": "define", "name": name,
-                                 "reasons": held})
-        self._say(f"PROCEDURE define {name!r} refused: {'; '.join(held)}"
+                                 "reasons": held.reasons})
+        self._say(f"PROCEDURE define {name!r} refused: {held}"
                   + (f" -- {kept} is kept as it was" if kept else ""))
         if kept == name:
           said = f"could not rewrite the procedure {name} -- the one I had is kept"
@@ -4530,9 +4530,9 @@ class HubLifecycle:
                   "that goes through")
         else:
           said = f"could not write the procedure {name}"
-        self._remember(f"{said}: " + "; ".join(held))
+        self._remember_refusal(said, name, held)
         self._emit({**base, "outcome": "refused", "name": name,
-                    "verb": "define", "reasons": held, "source": source,
+                    "verb": "define", "reasons": held.reasons, "source": source,
                     **shelf()})
         return
     if decision.undefine:
@@ -4564,8 +4564,7 @@ class HubLifecycle:
         proc = library.define(name, judged, t=t)
       except LibraryRefused as e:
         self._say(f"PROCEDURE define {name!r} refused: {e}")
-        self._remember(f"could not write the procedure {name}: "
-                       + "; ".join(e.reasons))
+        self._remember_refusal(f"could not write the procedure {name}", name, e)
         self._emit({**base, "outcome": "refused", "name": name,
                     "verb": "define", "reasons": list(e.reasons),
                     "source": source, **shelf()})
@@ -4578,6 +4577,19 @@ class HubLifecycle:
                        + (f" -- {moved}" if moved else ""))
         self._emit({**base, "outcome": "defined", "name": proc.name,
                     "program": proc.as_dict(), **shelf()})
+
+  def _remember_refusal(self, said: str, name: str, refused) -> None:
+    """A refused define where the robot reads: `said` and its reasons on one
+    History line -- on two where the name's or the library's room's reasons
+    and the source's own both stand, the first as it always read. ⚠ On one
+    line the source's faults come last, and History's cap cut them."""
+    standing = refused.reasons[:len(refused.reasons) - len(refused.faults)]
+    if standing and refused.faults:
+      self._remember(f"{said}: " + "; ".join(standing))
+      self._remember(f"...and the source of {name} is refused too: "
+                     + "; ".join(refused.faults))
+    else:
+      self._remember(f"{said}: " + "; ".join(refused.reasons))
 
   def _drop_visitor(self, msg) -> None:
     """Tell whoever is holding this row that nobody will ever read it.

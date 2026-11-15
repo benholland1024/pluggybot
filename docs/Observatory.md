@@ -33,8 +33,12 @@ committed recording (they fly no tasks and no library).
 2. **A refused define says every reason at once.** A define into a full
    library, or under a name already kept, heard that reason alone; it now
    hears what its source is refused for in the same refusal
-   (`Library._judged`), from `define` and from the undefine-and-define path
-   alike.
+   (`Library.refusal`), from `define` and from the undefine-and-define path
+   alike. In History that is two lines where both kinds of reason stand,
+   the first as it always read and the second "...and the source of <name>
+   is refused too: ..." (on one line the faults come last and History's
+   400 characters cut them); the narration and the event's `reasons` hold
+   them all in one.
 3. **The board's own lines are not a robot's status.** `others[].doing`
    (and the site's line under a portrait, and each frame's `status`) is the
    robot's last narrated line. Kept out of it from here on, though narrated
