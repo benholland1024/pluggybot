@@ -645,8 +645,10 @@ class ScanMatcher:
     `ok` ever after (18 of 83 falls ended 0.55-1.08 m off; live, four of
     five, kept 33-87 minutes). docs/SimNotes.md, "A get-up moves the body
     past the search's window"."""
-    if why in ACCEPTED and unsure and self._outdone(asked, pts, (at, kw)):
-      return self._lost(asked, pts, kw, near=(at, kw))
+    if why in ACCEPTED and unsure:
+      looked = self.pending is None       # `_outdone` looks wide itself, this scan
+      if self._outdone(asked, pts, (at, kw)):
+        return self._lost(asked, pts, kw, near=(at, kw), looked=looked)
     if why == "slid" and self.fallen:
       # ...and up from a fall a fit that slid is one more of the run: broken
       # by it, a run of fits slid and takes refused in turn never came to its
@@ -654,14 +656,15 @@ class ScanMatcher:
       return self._lost(asked, pts, kw)
     return self._done(at, why, **kw)
 
-  def _lost(self, asked, pts: np.ndarray, kw: dict, near=None) -> Match:
+  def _lost(self, asked, pts: np.ndarray, kw: dict, near=None, looked: bool = False) -> Match:
     """A scan refused, "inconsistent": the map disagreed and the search
     found nothing it agreed with, or a wider look holds a better place than
     `near`, the take it would have been. Refused for long enough, the robot
     is lost past the search's reach: search wider (LOST_RUN), and take what
-    it finds the second time."""
+    it finds the second time -- never this scan's own wider look (`looked`)
+    found again by this scan: once is a coincidence."""
     self.lost_run += 1
-    if self.lost_run % LOST_RUN == 0:
+    if self.lost_run % LOST_RUN == 0 and not looked:
       wide = self._relocate(asked, pts, also=near)
       seen, self.pending = self.pending, None if wide is None else wide[1]["step"]
       if wide is not None and seen is not None and _same(seen, self.pending):
