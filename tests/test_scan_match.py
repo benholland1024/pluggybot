@@ -1470,6 +1470,39 @@ def test_between_two_looks_the_last_ones_word_stands(counter):
   assert m.wider_wait == 5 and m.looks_left == sm.FALLEN_LOOKS
 
 
+def test_at_the_look_that_finds_the_waiting_place_again_a_take_stands_only_as_that_place(
+    counter, monkeypatch):
+  # FLOWN (1 fall of 85): refused at the stand for the truth, the search's
+  # next find lay 0.30 m from it at the look that found the truth again --
+  # one PLACE with it (UNIQUE_M), so it stood, 0.22 m off 30 s later, where
+  # between two looks it had been refused and the base was right. Found
+  # again, the place that waits is taken unless the take is that place
+  # itself. At a first look one place with the best still stands (a right
+  # belief beside a copy a step away), and so it does where this look's best
+  # is not the place that waited.
+  m = _fallen(counter)
+  m.refresh(BESIDE[0], BESIDE[1])
+  pts = m.points(ANGLES, cast(COUNTER, STOOD, np.random.default_rng(47)))
+  best = _place((-0.9, 0.0), 330)
+  monkeypatch.setattr(m, "_wide_found", lambda pose, pts, doubt=False: [best])
+  for off, taken in (((-0.6, 0.0), (True, best)), ((-0.85, 0.0), (False, None))):
+    m.fell()
+    assert m._outdone(BESIDE, pts, _place((0.0, 0.0), 250)) == (True, None)
+    m.wider_wait = 0
+    assert m._outdone(BESIDE, pts, _place(off, 250)) == taken, off
+  m.fell()
+  assert m._outdone(BESIDE, pts, _place((-0.6, 0.0), 250)) == (False, None)
+  m.fell()
+  m.better = (1.0, 0.0, 0.0)
+  assert m._outdone(BESIDE, pts, _place((-0.6, 0.0), 250)) == (False, None)
+  # ...nor where the place found again has a rival now: nothing is taken
+  m.fell()
+  m._outdone(BESIDE, pts, _place((0.0, 0.0), 250))
+  m.wider_wait = 0
+  monkeypatch.setattr(m, "_wide_found", lambda pose, pts, doubt=False: [best, _place((0.7, 0.9), 320)])
+  assert m._outdone(BESIDE, pts, _place((-0.6, 0.0), 250)) == (False, None)
+
+
 def test_a_wider_look_is_found_again_by_the_next_look_and_never_by_the_plain_wide_search(
     counter, monkeypatch):
   # The wide search's rule, for a wider look too: once is a coincidence. But
