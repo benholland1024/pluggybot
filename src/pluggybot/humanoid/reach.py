@@ -219,12 +219,14 @@ GO_ON_M, GO_S = 0.015, 1.0
 LEAD_MAX_M, ACROSS_SPEED = 0.08, 2.0
 #: ...A POSTURE IS TAKEN WITH A LIGHT HAND (#699; SimNotes, "A pull's posture
 #: and the hand it rests on"): at its start or on its way, only while the
-#: hand reads no more than this many times the pull's ask, whichever way,
-#: over `MEAN_S` -- an ask of at least this, N: the most a procedure's `pull`
-#: asks (`steps.PULL_MOST_N`), what the standing body holds at a hand
-#: (#544), so 40 N for every pull a robot writes -- and one that is coming
-#: is GIVEN UP where the hand reads past it: the body held where it has got
-#: to, as a move stopped is (`halt`), and that pull takes no other. ⚠ A
+#: hand reads no more than this many times the pull's ask, whichever way --
+#: as it reads as the pull begins, over `MEAN_S` on its way -- an ask of at
+#: least this, N: the most a procedure's `pull` asks (`steps.PULL_MOST_N`),
+#: what the standing body holds at a hand (#544), so 40 N for every pull a
+#: robot writes -- and one that is coming is GIVEN UP where the hand reads
+#: past it: the body held where it has got to, as a move stopped is
+#: (`halt`), and that pull takes no other, nor the time a posture is given
+#: to come before it may end out of reach. ⚠ A
 #: posture bows, crouches or turns the body over a hand that rests on
 #: something, and where the arm's solve can no longer follow, its joints
 #: stand and the body bears on the hand: 45-150 N down on a cupboard door's
@@ -1394,7 +1396,9 @@ class Reach:
     position, the robot arm's old division. Until it has gone `distance_m` along its way ("distance"), it
     is held fast, a grip it began with is lost ("let go"), or it can reach
     no further. The posture is the one from which the hand reaches its
-    way's end, taken first; a hand held takes no other (`GO_ON_M`).
+    way's end, taken first; a hand held takes no other (`GO_ON_M`), a hand
+    that reads a load takes none, and one that comes is given up where the
+    hand reads a load meanwhile (`PRESSED_SHARE`, #699).
     False (nothing moves) for a hand that is not out. How it ends is its
     `report`."""
     if force <= 0.0:
@@ -2232,8 +2236,11 @@ class Reach:
     if ep < WILD_M:
       self.q_cmd[side], self.miss[side] = q, ep
     if ep > BLOCKED_M or er > HOLD_ROT_TOL:
-      coming = (st["t"] < SETTLE_S
-                or st["t"] - st.get("postured", -POSTURE_WAIT_S) < POSTURE_WAIT_S)
+      # ...given a posture, the time it takes to come -- none once it was
+      # given up (#699): the body is held where it is, and an arm that
+      # cannot follow from there is out of reach now
+      coming = (st["t"] < SETTLE_S or (not st.get("given")
+                and st["t"] - st.get("postured", -POSTURE_WAIT_S) < POSTURE_WAIT_S))
       self._off[side] = 0.0 if coming else self._off[side] + dt
       if self._off[side] >= BLOCKED_S:
         self._end(side, "out of reach", h, r)

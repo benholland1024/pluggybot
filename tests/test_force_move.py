@@ -480,6 +480,25 @@ def test_a_posture_is_given_up_where_the_hand_reads_a_load_while_it_comes():
       break
     r._pulled("left", DT, H, np.eye(3))
   assert r.postures == [(0.0, 0.15, 0.0), got_to]
+  # ...nor the time a posture is given to come: an arm that cannot follow
+  # from where the body was held is out of reach now, where one whose
+  # posture is still coming is waited on (`POSTURE_WAIT_S`)
+  for given, ends in ((True, True), (False, False)):
+    r = pulling()
+    if given:
+      r.force["left"] = _loaded(10.0, 1.1)
+      r._pulled("left", DT, H, np.eye(3))
+      r._pulled("left", DT, H, np.eye(3))
+      assert r.pulls["left"]["given"]
+    r.force["left"] = np.zeros(3)
+    r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+      np.zeros(len(hm.ARM)), 1.5 * rc.BLOCKED_M, 0.0)
+    for _ in range(int((rc.SETTLE_S + rc.BLOCKED_S) / DT) + 3):
+      if r.pulls["left"] is None:
+        break
+      r._pulled("left", DT, H, np.eye(3))
+    assert (r.pulls["left"] is None) is ends, given
+    assert not ends or r.report["left"]["why"] == "out of reach"
   # a posture taken on its way is given up so too
   r = _pulling(way, distance=1.0)
   r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3, 0.0)
