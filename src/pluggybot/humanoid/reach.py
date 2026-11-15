@@ -108,20 +108,14 @@ BLOCKED_S = 0.15
 #: A hand on its WAY OUT to its pre-grasp (`move`, in joint space) stops the
 #: tick what its arm reads would TIP THE BODY TOWARD IT past this, N m --
 #: its pull toward the body at the hand's height, less its press down at
-#: the hand's reach (`_tipping`): the moment of the world's push on the hand
-#: about the level line through the stance's middle that tips the robot
-#: over its soles' edge toward the hand -- held where its drivers read its
-#: joints, never where they were commanded (`_struck`). ⚠ Unstopped, a jaw
-#: caught on a chest's bracket was driven on at full stiffness, the world
-#: pulling the hand 50-80 N toward the chest until the robot went over its
-#: toes 0.75 s after the touch; held where commanded 0.37 s after it, the
-#: arm pulled on and the robot fell all the same (#708): its catches pass
-#: this 0.09-0.20 s after the touch, 31-66 N m at worst, 10 at most before
-#: it. ⚠ NEVER ON A PUSH OR A PRESS: our door's way out drags a jaw back
-#: over the door's top pressing down on it, which tips the body back, and
-#: passes -- stopped on the whole reading at 20-40 N the door fell in 2-3
-#: more of 32, and on its pull toward the body alone at 30 N it passed 6
-#: fewer of 96.
+#: the hand's reach (`_tipping`) -- held where its drivers read its joints,
+#: never where they were commanded (`_struck`; SimNotes, "A hand on its way
+#: out that meets something"). ⚠ Unstopped, a jaw caught on a chest's
+#: bracket was driven on until the robot went over its toes (#708): such
+#: catches pass this 0.09-0.20 s after the touch, 10 N m at most before it.
+#: ⚠ NEVER ON A PUSH OR A PRESS: our door's way out drags a jaw over the
+#: door's top pressing down on it, and stopped on the whole reading or on
+#: its pull alone the door passed fewer.
 OUT_TIP_NM = 20.0
 #: A hand held whose force pushes on along its fingers past this, N, is
 #: eased before its jaws shut (`ease`, #560): pressed on a cube's board at

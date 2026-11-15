@@ -1247,6 +1247,9 @@ def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_its_reading_tips_the_
   way out drags a jaw back over the door's top pressing down on it, which
   tips the body back, and passes."""
   r, rc = _walking_out()
+  # ...measured on the arm's own reading in `move` (#708's flights, the
+  # hands checks): read there off the whole body, it must be measured again
+  assert "move" not in rc.FELT_PHASES
   read = r.sensed[r.self_model.arm["left"]].copy()
   ahead = r.q_cmd["left"].copy()
   toward = np.array([-0.8, -0.6, 0.0])           # level, from the hand (0.4, 0.3) to the middle
