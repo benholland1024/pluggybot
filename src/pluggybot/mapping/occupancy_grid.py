@@ -89,9 +89,10 @@ class OccupancyGrid:
     cells with no wall's evidence in them.
 
     `graze_m` (None: off), m: a ray that ends on a surface frees no cell
-    the map holds a wall in where it runs within `graze_m` of that surface,
-    square to it (`GRAZE_M`) -- the surface's way read off the scan's own
-    endpoints either side (`_slant`).
+    the map holds a wall in over its last `graze_m` / tan(slant) metres,
+    where it runs alongside that surface within `graze_m` of it (`GRAZE_M`):
+    square on, nothing more than the one cell short of its end -- the slant
+    read off the scan's own endpoints either side (`_slant`).
     """
     px, py, theta = pose
     fwd, left = origin
@@ -132,25 +133,26 @@ class OccupancyGrid:
     keep[:, 1:] &= (cells[:, 1:] != cells[:, :-1]) | ~live[:, :-1]
 
     # -- The hits themselves
-    hxs = ((ox + ranges * cos_a - self.x_min) / self.resolution).astype(np.int32)
-    hys = ((oy + ranges * sin_a - self.y_min) / self.resolution).astype(np.int32)
+    ex, ey = ox + ranges * cos_a, oy + ranges * sin_a
+    hxs = ((ex - self.x_min) / self.resolution).astype(np.int32)
+    hys = ((ey - self.y_min) / self.resolution).astype(np.int32)
     hin = hit & (hxs.view(np.uint32) < cols) & (hys.view(np.uint32) < rows)
 
     # One weighted bincount accumulates all the evidence in a single pass
-    near = np.zeros_like(keep)
+    near = None
     if free_from is not None:
       # ...nearer than its `free_from`, a ray frees no cell the map holds
       # any wall's evidence in (read before this scan)
-      near |= keep & (ts < np.asarray(free_from, dtype=float)[:, None])
+      near = keep & (ts < np.asarray(free_from, dtype=float)[:, None])
     if graze_m is not None:
-      # ...nor along its last stretch, where it runs within `graze_m` of the
-      # surface it ends on
-      ex, ey = ox + ranges * cos_a, oy + ranges * sin_a
+      # ...nor over its last graze_m / tan(slant) metres, where it runs
+      # alongside the surface it ends on within `graze_m` of it
       sin_in = _slant(a, ex, ey, hit, cos_a, sin_a)
       along = graze_m * np.sqrt(1.0 - sin_in ** 2) / np.maximum(sin_in, 1e-9)
       stretch = np.minimum(np.minimum(along, GRAZE_MOST_M), ranges)
-      near |= keep & hit[:, None] & (ts > (ranges - stretch)[:, None])
-    if near.any():
+      grazed = keep & hit[:, None] & (ts > (ranges - stretch)[:, None])
+      near = grazed if near is None else near | grazed
+    if near is not None and near.any():
       keep &= ~near
       walled = self.grid.reshape(-1)[cells[near]] > 0.0
       free_cells = np.concatenate([cells[keep], cells[near][~walled]])

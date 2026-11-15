@@ -786,8 +786,8 @@ save a filmstrip PNG named after the script.
   wall that moved is still cleared by the rays that pass it on their way
   elsewhere. ⚠ IT KEEPS A WALL FIRST LAID FROM A BELIEF THAT WAS OFF, AND
   THE BELIEF IS HELD TO IT: in the drift spike the research center's
-  belief was off 0.12-0.15 m at the median, where 0.06 without it (Ben's
-  call, #712). ⚠ THE HEAD IS BUILT
+  belief was off 0.12-0.15 m at the median, where 0.06 without it: the
+  trade-off #712 puts to Ben. ⚠ THE HEAD IS BUILT
   ROUND IT (stage 3, `model._head`; Ben, 2026-11-01 and 11-02: the post was
   fragile, and a crown narrower than the face read as mounted over it): one
   cylinder above and below its window, open all round (its manual: nothing
