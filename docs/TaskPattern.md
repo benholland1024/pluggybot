@@ -102,7 +102,12 @@ Rules the states carry, each decided explicitly:
   working it, and left to the pass, a 74-minute charge kept one booked 69
   minutes past its limit. A `done` waiting to be graded is left to the
   grade, and a true death fails the jobs its robot held, in that robot's
-  own records. The holder is shown each job it holds with the time it has
+  own records. A fall its watch counts ENDS a hand job there, on the seam
+  wherever it comes (#701; a fall ends the procedure's run at once, #671):
+  the fall is its call, graded after the hold a `done`'s grade takes, its
+  verdict the fall first -- held on, a cupboard stayed booked 985 s past
+  the fall that had failed its job, and a drawer was opened in a try a
+  fall had lost; one whose `done` is holding is that grade's. The holder is shown each job it holds with the time it has
   left as it is asked (`heldTasks`, `leftS`; the rule says the clock runs on
   while it thinks, #689) -- a network fact: the board knows when the
   job was taken, as it knows how long an offer stands.
@@ -669,9 +674,11 @@ deployed world runs them.
    from a referee ACTIVITY that measured both robots off the world, banked
    on the winner's wallet -- never by either robot's errand. It went with
    the quadruped (`quadruped-final`).
-4. **A claimed task cannot be honestly abandoned.** Deadlines only govern
-   offers, and there is no verb for giving a job up gracefully — unowned by
-   any pattern yet.
+4. **A claimed task cannot be honestly abandoned.** There is no verb for
+   giving a job up: a held job ends at its `done`'s grade, at a fall of its
+   holder's (#701, where the world already knows the try is lost), when the
+   time it gives runs out (#602) or with its holder's true death -- never
+   because the robot chose to stop. Unowned by any pattern yet.
 5. **`visitor` and `overseer` task sources are vocabulary, not yet paths.**
    The caps and cleaning are already in place for the day they are (§2.2).
 6. **No job carries a thing across a walk** (found by building the table,

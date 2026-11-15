@@ -398,7 +398,10 @@ offer. History says the `done` and names the job (`said done on t_0027
 (open_door): …`, #629: by its kind alone, Rowan took one job's grade for
 another's). A `done` on a job the robot does not hold is dropped and says
 why (`said done on t_0137 (open_chest): not graded, because nobody has
-taken it`; #648). A job held past the time its description gives is failed by the
+taken it`; #648). A fall while the robot holds one ends it there, graded as
+if `done` were said as it fell (`fell holding t_0239 (open_door): a fall
+fails the try, so the job ends here …`, then the grade's line; #701). A job
+held past the time its description gives is failed by the
 loop, its prop offered again, and while the robot holds one its context
 lists it with that time's remainder (`heldTasks`, `leftS`; #602), as of the
 ask -- the rule says the clock runs on while it thinks (#689: asked with 193

@@ -828,7 +828,13 @@ save a filmstrip PNG named after the script.
   own row (paid, `shown: false`: shown where a world names it,
   `Menu.kinds`), graded by its check's evaluator. ⚠ WATCHED FROM THE CLAIM to the hold after `done`: a fall on
   the way fails it; its `minutes` count from the claim; its readings ride a
-  restart (`jobWatches`). ⚠ HELD PAST ITS MINUTES IT IS FAILED (#602;
+  restart (`jobWatches`). ⚠ A FALL ENDS IT THERE (#701; `_fall_step`, on
+  the seam every step): the fall its call, the grade's hold from it, one
+  verdict the fall first, its prop free after -- held on, a cupboard stayed
+  booked 985 s past the fall that had failed its job; a `done` after it is
+  #648's line, a job whose `done` is holding that grade's, and its kept
+  fall ends it after a restart, never "still mine" first (`_fell_holding`,
+  which no run-out takes). The rule says so. ⚠ HELD PAST ITS MINUTES IT IS FAILED (#602;
   `Task.out_of_time`, `HubLifecycle._run_out_held`): ending only on a
   `done` that could only fail it, three held jobs booked all three of the
   counter's props, and nothing was offered from 02:22 UTC on 11-03; a

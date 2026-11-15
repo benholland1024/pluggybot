@@ -242,13 +242,22 @@ def test_a_free_piece_that_came_down_fast_fails_the_job(tmp_path):
 
 
 def test_a_fall_since_the_claim_fails_the_job(tmp_path):
+  """...and ends it there (#701): the place stays out through the hold the
+  fall's grade takes -- the job holds the table -- and is put away on the
+  sweep after its verdict."""
   life = _life(tmp_path)
   task = _offer(life)
   assert life._claim_task(task.id)
   life.body.falls = 1
   _lay(life)
-  verdict = _grade(life, task.id)
-  assert not verdict["ok"] and "fell" in verdict["reason"]
+  life.body.run(life.body.hold_routine(1.0))
+  _sweep(life)
+  assert _out(life), "put away from under the job's grade"
+  life.body.run(life.body.hold_routine(table.HOLD_S))
+  verdict = life.tasks.get(task.id).verdict
+  assert not verdict["ok"] and verdict["reason"].startswith("you fell"), verdict
+  _sweep(life)
+  assert not _out(life)
 
 
 def test_a_table_job_held_past_its_minutes_is_failed_and_put_away(tmp_path):
