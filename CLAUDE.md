@@ -1522,8 +1522,9 @@ save a filmstrip PNG named after the script.
   NAME is not in `Main.md` (`robot_display_name`, `$PLUGGY_ROBOT_NAME`).
   `THOUGHT_FILES` / `THOUGHT_VERBS` / the `recall` event / `RECORD_KINDS` are
   two-repo contracts, and the rows ride the wire as rows (a `record` event per
-  write and per RETIRE, a `records` snapshot on open). The state diagram at
-  the top of `README.md` is pinned by `tests/test_readme.py`.
+  write and per RETIRE, a `records` snapshot on open). The state diagram in
+  `README.md` ("The robot's day, as states", under the first screen, which
+  is for people: #714) is pinned by `tests/test_readme.py`.
 - **The robots can read a changelog of their world, and it is a human's
   text** (issue #617; `mind/changelog.md`, `mind/changelog.py`; Overseer.md
   §7b): dated entries, newest first, read through `recall` (`changelog`,
@@ -2082,6 +2083,13 @@ save a filmstrip PNG named after the script.
 
 ## Conventions
 
+- **The license is Apache-2.0** (Ben, 2026-11-15, #714; `LICENSE`, and
+  `pyproject.toml`'s and `training/`'s `license`): a third-party piece put
+  in the tree (a model's numbers, a mesh, a texture, a font, data, copied
+  code or text) is named in `NOTICE` in the same change, its license's
+  full text beside it (`models/*.LICENSE`) and in `pyproject.toml`'s
+  `license-files`; one whose license is not known stays out. The inventory
+  behind it, and how it was searched, are on #714.
 - 2-space Python indent; type hints in `src/`, loose in tests/scripts.
 - **`src/` is divided by DOMAIN, not by era** (issue #50): `humanoid/` (the
   body, #507, and its parts catalog) · `perception/` (the sensors, the tags)

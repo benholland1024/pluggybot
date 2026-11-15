@@ -24,6 +24,11 @@ probes/
 *.mp4
 *.gif
 
+# A script's filmstrip lands at the root (the README's `humanoid_spike.png`,
+# `solve.png`): scratch, never a commit's; a figure that stays goes in
+# docs/figures/. Anchored, so models/tags/ and the figures stay tracked.
+/*.png
+
 # Local secrets: the ingest token, DB password, session secret. NEVER commit
 # these -- this repo is intended to be open-sourced, and an untracked .env is
 # one `git add -A` away from being public forever.

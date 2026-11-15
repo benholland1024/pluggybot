@@ -1,12 +1,12 @@
-# The serving image copies models/, src/, scripts/serve.py and deploy/ and
-# nothing else, so this file is about build-context SIZE: local datasets,
-# training runs, demo footage and weights would otherwise be tarred up and
-# handed to the daemon on every build.
+# The serving image copies models/, src/, scripts/serve.py, deploy/, LICENSE
+# and NOTICE and nothing else, so this file is about build-context SIZE:
+# local datasets, training runs, demo footage and weights would otherwise be
+# tarred up and handed to the daemon on every build.
 #
 # Patterns are ANCHORED (leading /) wherever they name an image artefact:
 # a bare `*.png` would also drop models/tags/*.png, which are the apriltag
 # textures the robot's cameras read -- the world loads, the tags are blank,
-# and the robot never finds the rack.
+# and the robot finds none of its station, its places or its props.
 .git/
 datasets/
 runs/

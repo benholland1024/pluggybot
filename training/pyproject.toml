@@ -1,7 +1,10 @@
 [project]
 name = "pluggybot-training"
 version = "0.1.0"
-description = "Trains the quadruped's walking policy (issue #377). A project of its own: nothing here is imported by pluggybot, and none of it enters the serving image (deploy/requirements-serve.txt)."
+description = "Trains the humanoid's policies (issues #377, #507). A project of its own: nothing here is imported by pluggybot, and none of it enters the serving image (deploy/requirements-serve.txt)."
+# The repository's LICENSE and NOTICE cover this project too: it is never
+# built (`package = false`), and a license file may not be named outside it.
+license = "Apache-2.0"
 # mjlab 1.5.x is the line that pins mujoco ~=3.10.0, the served sim's own
 # version, so a policy is trained on the physics it will run on. It also caps
 # numpy < 2.5, below pluggybot's, which is why this project reads the body

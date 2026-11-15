@@ -29,17 +29,19 @@ from pluggybot.telemetry.protocol import READ_OUTCOMES
 from test_body import stub_life
 from test_overseer import FakeClient, full
 
-DURIAN = {"title": "Durian", "extract": "The durian is the edible fruit of several "
-          "tree species belonging to the genus Durio.", "revision": "1234567",
+# The extracts are our own words, never Wikipedia's: its text is CC BY-SA,
+# and these fake pages need none of it (#714).
+DURIAN = {"title": "Durian", "extract": "A durian is a large fruit with a spiky "
+          "husk and a strong smell.", "revision": "1234567",
           "content_urls": {"desktop": {"page": "https://en.wikipedia.org/wiki/Durian"}}}
-SKY = {"title": "Diffuse sky radiation", "extract": "Diffuse sky radiation is solar "
-       "radiation reaching the Earth's surface after having been scattered.",
+SKY = {"title": "Diffuse sky radiation", "extract": "Diffuse sky radiation is sunlight "
+       "that reaches the ground after the air has scattered it.",
        "revision": "7654321",
        "content_urls": {"desktop": {"page": "https://en.wikipedia.org/wiki/Diffuse_sky_radiation"}}}
-MERCURY = {"title": "Mercury", "extract": "Mercury may refer to:", "revision": "1",
+MERCURY = {"title": "Mercury", "extract": "Mercury can mean several things:", "revision": "1",
            "type": "disambiguation"}
-MERCURY_PLANET = {"title": "Mercury (planet)", "extract": "Mercury is the first planet "
-                  "from the Sun.", "revision": "99"}
+MERCURY_PLANET = {"title": "Mercury (planet)", "extract": "Mercury is the planet "
+                  "nearest the Sun.", "revision": "99"}
 
 
 def shelf(**docs):
@@ -76,7 +78,7 @@ def test_a_title_is_one_request_and_a_question_is_a_search_then_a_summary():
   page = wiki.lookup("durian", FETCH)
   assert (page.title, page.revision, page.url) == (
     "Durian", "1234567", "https://en.wikipedia.org/wiki/Durian")
-  assert page.extract.startswith("The durian is the edible fruit")
+  assert page.extract.startswith("A durian is a large fruit")
   before = len(FETCH.calls)
   page = wiki.lookup("why is the sky blue", FETCH)
   assert page.title == "Diffuse sky radiation" and page.revision == "7654321"
