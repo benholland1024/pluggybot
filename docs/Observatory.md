@@ -23,9 +23,10 @@ but the board's eight (the period of `loop-k4`). It is now the last line
 that said what its BODY is doing, in the form its call gives
 (`_say(doing=)`), and only a line beginning as the stated list says one may
 (`lifecycle.DOING_KINDS`): a walk, a wait or a step aside, a charge, a
-procedure's lines, a job it holds, a death and a stand-up. A line is
-private by default, so a new kind of line is the robot's own until someone
-lists it. Overseer.md §2c has the table.
+procedure's lines, a job it holds, a death and a stand-up, and a decided
+charge's or explore's start. A line is private by default, so a new kind of
+line is the robot's own until someone lists it. Overseer.md §2c has the
+table.
 
 - **Shown in a form without its number or reason:** "CHARGE complete --
   backing off" (was "(90%)"), "CHARGE: unplugging" (was "at 63% -- the pack
@@ -34,10 +35,15 @@ lists it. Overseer.md §2c has the table.
   GO_CHARGE" (was "(battery low)"), "GO_CHARGE FAILED -- stranded away from
   the charging station" (was "at N%"), "DEAD (flat)" (was its why and
   "N hearts left"), "UP again after 300 s down -- back at the start pose"
-  (was "with a full pack and no map (...)"), and "DONE t_0412: <the job>"
-  (was "graded now, before this answer's idle -- <the job>").
-- **No longer shown:** its `THINK`, a `DECIDE` and its reason (a
-  fallback's words among them), `THOUGHT` (a pin, a goal, a note, a
+  (was "with a full pack and no map (...)"), "DONE t_0412: <the job>"
+  (was "graded now, before this answer's idle -- <the job>"), a step as its
+  verb, "PROCEDURE door_p1 step 24 (line 34): step" (was "step(ahead=0.12,
+  left=0.0, turn=0.0)": a procedure may hand a verb what it read of its pack
+  or wallet), and a decided charge or explore as its action, "DECIDE charge
+  (free)" (was its reason and, for a row's or a fallback's, its source: its
+  walk says nothing more until it plugs in, waits or fails).
+- **No longer shown:** its `THINK`, any other `DECIDE` line and every
+  reason (a fallback's words among them), `THOUGHT` (a pin, a goal, a note, a
   finding), `RECALL`, `READ`, `LOOK`, `INTERRUPT`, its list of rules
   (`EVENT`, `EVENT MAP`, `LEFT OUT`), `BELIEF`, `SCORE`, `GAVE`, a heart,
   `HUNGER`, the energy gate (`ENERGY`, `SKIP`, `DEFER`), `DECLINE` and its
@@ -48,7 +54,9 @@ lists it. Overseer.md §2c has the table.
   t_0388: not available -- Rowan holds it", which `loop-k4` still showed), a
   claim's note to its own mind ("nothing queued -- write a procedure ..."),
   a job given back because nothing here builds it, a `done` on a job it
-  does not hold, and a procedure defined, undefined or refused.
+  does not hold, an act's claim (`take_points`: on an offer hidden from the
+  robot it names, which `loop-k4` showed that robot), and a procedure
+  defined, undefined or refused.
 
 **Why** (#709). The rule told each robot that what the other "wants, what
 it is worried about and why it is doing what it does, you can only infer",
@@ -59,9 +67,10 @@ far as the export keeps the lines) the other's `doing` at the 380 answers a
 mind wrote itself was a row of its list of rules firing at 227 ("EVENT
 message received -> ask -- but something is already queued"), a `DECIDE`
 line at 36, a `RECALL` at 7 and a battery level at 2; under this rule it
-is a procedure's line at 145, a walk or a charge at 128, a job it holds at
-93, and nothing yet at 14 (the start of a run, before a line the list
-shows). It differs at 274 of the 380.
+is a procedure's line at 145 (its steps as their verbs), a walk or a charge
+at 128, a job it holds at 92, a decided charge at 1, and nothing yet at 14
+(the start of a run, before a line the list shows). It differs at 337 of
+the 380.
 
 **What the period is for.** ⚠ This changes the empathy measurement's input
 (what a robot can read of the other): Ben confirms it at the release.

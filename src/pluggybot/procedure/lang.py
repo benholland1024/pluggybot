@@ -1320,7 +1320,8 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
       began(count, line, verb, values)
     if why != "fell":
       life._say(f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}): "
-                f"{st.Step(verb, values).describe()}", doing=True)
+                f"{st.Step(verb, values).describe()}",
+                doing=f"PROCEDURE {proc.name} step {count} (line {line}{at.text()}): {verb}")
     if why == "fell":
       st.forget_readings(life, verb)
       verdict = {"ok": False, "fell": True, "reason": st.FELL}

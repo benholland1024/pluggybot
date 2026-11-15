@@ -927,18 +927,20 @@ shown only where the line begins as the stated list says one may
 
 | what the other is shown | the lines (and the form) |
 |---|---|
-| a walk | `EXPLORE` (heading for a zone, how it ended; going to charge without "(battery low)"), `MAKE WAY` and `MADE WAY`, `WAIT` and `STATION` at a station held, `standing by` clearing a station |
-| a charge | `GO_CHARGE` (each leg, and a failed one "stranded" without its level), `CHARGE` without its level or why: "CHARGE complete -- backing off", "CHARGE: unplugging", "CHARGE: still plugged in -- carrying on", "CHARGE: the run's time is up -- my plug stays in", "the plug came out", and the hand that could not take it out |
-| a procedure it runs | `PROCEDURE` step lines, a step that read false or failed and why, how the run ended (stopped, complete, cut short, failed) |
-| a job it holds | `TASK` claimed, done or failed, ended by a fall, out of time, still held after a restart; `DONE` without when it is graded ("before this answer's ..."); `GRADE` (the hold, standing clear) |
+| a walk | `EXPLORE` (heading for a zone, how it ended; going to charge without "(battery low)"), `MAKE WAY` and `MADE WAY`, `WAIT` and `STATION` at a station held, `standing by` clearing a station; a decided explore's `DECIDE` line as its action alone ("DECIDE explore (store)") |
+| a charge | a decided charge's `DECIDE` line as its action alone ("DECIDE charge (free)": it says nothing more until it plugs in, waits or fails), `GO_CHARGE` (each leg, and a failed one "stranded" without its level), `CHARGE` without its level or why: "CHARGE complete -- backing off", "CHARGE: unplugging", "CHARGE: still plugged in -- carrying on", "CHARGE: the run's time is up -- my plug stays in", "the plug came out", and the hand that could not take it out |
+| a procedure it runs | `PROCEDURE` step lines as the verb alone, never the values it was handed (a procedure may hand a verb what it read of its pack or wallet): "PROCEDURE door_p1 step 24 (line 34): step"; a step that read false or failed and the verb's words why, how the run ended (stopped, complete, cut short, failed) |
+| a job it holds | `TASK` claimed (never an act's: its claim is the act, on an offer hidden from the robot it names), done or failed, ended by a fall, out of time, still held after a restart; `DONE` without when it is graded ("before this answer's ..."); `GRADE` (the hold, standing clear) |
 | its body's fate | `DEAD (cause)` without why or hearts; `UP again after N s down -- back at` its start, without the pack; `STOOD UP mid-errand` |
 
 Everything else is the robot's own, by what it is: its mind (`THINK`,
-`DECIDE` and its reasons, `INTERRUPT`, `ANSWER`, `LEFT OUT`, `RECALL`,
+`DECIDE` and every reason and source, any other decision, `INTERRUPT`,
+`ANSWER`, `LEFT OUT`, `RECALL`,
 `READ`, `LOOK`), its memory and its rules (`THOUGHT`, `HISTORY`,
 `CONSTITUTION`, `EVENT`, `BELIEF`), its library (`PROCEDURE define`,
 `undefine`, a run refused), its books (`SCORE`, `GAVE`, `BOUGHT`, a heart,
-`HUNGER`, `ENERGY`, `SKIP`, `DEFER`, `DECLINE`, `TRUE DEATH`), its acts
+`HUNGER`, `ENERGY`, `SKIP`, `DEFER`, `DECLINE`, `TRUE DEATH`, an act's
+claim and close), its acts
 and its talk (`PREDICT`, `TELL`, `RATE`, `CHAT`, `VISITOR`, `TICKET`), an
 operator's (`ADMIN`, `PAUSED`, `RESUMED`, `STOPPING`), a take that did not
 happen, a job's note to its own mind ("nothing queued -- write a
@@ -947,8 +949,10 @@ the mouse's state; an offer, an expiry, things set out or put away, a claim
 given back) and the run's own (`mission ...`, `stopping at`, `STUCK`).
 `tests/test_doing.py` lists every kind one way or the other (a new kind
 fails it until someone classes it), narrates every call through `_say` as
-it is written and reads the other's whole context after each, and narrates
-the private things through the lifecycle's own methods.
+it is written and reads the other's whole context after each (and a form
+whose words its line no longer says fails it), and narrates the private
+things through the lifecycle's own methods. A walk's own words (why it
+stopped short) and a verb's (what it read) are the body's, and are shown.
 
 `doing` may be old: it is the last thing the body was seen doing, and
 `state` beside it is what the robot is in now. It is empty until a robot

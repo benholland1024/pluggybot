@@ -273,7 +273,12 @@ UNPLUG_FAILED = "CHARGE: my hand could not get the plug out -- going on anyway"
 #: and acts, an operator's, a visitor's, the board's -- is its own.
 DOING_KINDS = ("EXPLORE", "GO_CHARGE", "CHARGE", "WAIT:", "STATION:", "standing by:",
                "MAKE WAY:", "MADE WAY:", "PROCEDURE ", "TASK ", "DONE ", "GRADE ",
-               "DEAD (", "UP again", "STOOD UP ")
+               "DEAD (", "UP again", "STOOD UP ", "DECIDE ")
+#: ...and the decided actions whose `DECIDE` line is shown as the action and
+#: where (`Decision.what`), never why nor who chose it: the two whose walk
+#: says nothing as it begins (a decided charge until it plugs in or waits, an
+#: explore with no zone until it ends).
+DECIDED_SHOWN = ("charge", "explore")
 
 #: Sim seconds of charging before calling it stuck, on a DEMO cell.
 #:
@@ -3457,13 +3462,11 @@ class HubLifecycle:
       # and "I waited and got up" are two different things to have believed
       # about your own life. The death line above it survives either way --
       # that is what dying costs (Evaluation.md §6).
-      self._say(f"UP again after {dead_s:.0f} s down -- back at "
-                + (f"{whose}'s start pose (another robot was on mine)"
-                   if whose else "the start pose")
-                + " with a full pack and no map (nobody came; the world stood me up)",
-                doing=f"UP again after {dead_s:.0f} s down -- back at "
-                      + (f"{whose}'s start pose (another robot was on mine)"
-                         if whose else "the start pose"))
+      start = (f"{whose}'s start pose (another robot was on mine)" if whose
+               else "the start pose")
+      self._say(f"UP again after {dead_s:.0f} s down -- back at {start} with a full "
+                "pack and no map (nobody came; the world stood me up)",
+                doing=f"UP again after {dead_s:.0f} s down -- back at {start}")
       self._remember(f"stood back up on my own after {dead_s:.0f} s down: {MAP_GONE}")
     else:
       self._say(f"ADMIN {by} reset me -- back at "
@@ -5764,7 +5767,12 @@ class HubLifecycle:
                         pack_wh=self.claim_budget_wh) is None:
       return self._no_take(task.id, task, "the board refused it")
     self.claimed.append(task.id)
-    self._say(f"TASK {task.id} claimed: {task.description}", doing=True)
+    if other is not None:
+      # ...an act's claim IS the act, on an offer hidden from the robot it
+      # names (#228): never that robot's to read as this one's doing (#709)
+      self._say(f"TASK {task.id} claimed: {task.description}")
+    else:
+      self._say(f"TASK {task.id} claimed: {task.description}", doing=True)
     # ACTIVE from the claim: a job's work starts the moment the robot takes
     # it on -- writing the procedure is the work, and an act is done here.
     self.tasks.start(task.id, t=now)
@@ -5874,7 +5882,9 @@ class HubLifecycle:
     if call:
       self._emit({"type": "call", "t": round(float(self.data.time), 3),
                   "robot": self.root, "source": decision.source, **call})
-    self._say(f"DECIDE {decision.summary()}", detail=call_said(call))
+    self._say(f"DECIDE {decision.summary()}", detail=call_said(call),
+              doing=(f"DECIDE {decision.what()}" if decision.action in DECIDED_SHOWN
+                     else False))
     # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
     # what was recalled -- but a FALLBACK KEEPS IT ONCE (#604): the mind did
     # not act on what it looked up, and dropped, the robot recalled the same
@@ -6883,7 +6893,9 @@ class HubLifecycle:
       # An IMMORTAL run's failed charge: nothing died, the day simply ended
       # away from the station.
       self._say("GO_CHARGE FAILED -- mission over, stranded away from the "
-                f"charging station at {self.battery.fraction:.0%}")
+                f"charging station at {self.battery.fraction:.0%}",
+                doing="GO_CHARGE FAILED -- mission over, stranded away from the "
+                      "charging station")
       self._remember("could not reach the charger -- stranded at "
                      f"{self.battery.fraction:.0%}"
                      + (f": {self.charge_failure}" if self.charge_failure else ""))
@@ -7181,10 +7193,11 @@ def others_context(life) -> list[dict]:
   """What the OTHER robots broadcast (issue #167): the public surface and
   nothing else -- name, reported pose, state and the last line they
   narrated of what their body is doing (`HubLifecycle.doing`, #709: only a
-  line `DOING_KINDS` lists and its call marks, never a level, a balance or
-  a reason). Not their battery, points, goals, thoughts, reasons or
+  line `DOING_KINDS` lists and its call marks, in its call's form). Not
+  their battery, points, hearts, goals, thoughts, their mind's reasons or
   secrets: those are theirs, and a robot that could read them would not
-  need to infer them."""
+  need to infer them. (A walk's or a step's own words -- why it stopped,
+  what a verb read -- are the body's, and are shown.)"""
   out = []
   for other in life.peers:
     x, y = other.body.pose_xy()
