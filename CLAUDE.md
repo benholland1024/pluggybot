@@ -886,7 +886,14 @@ save a filmstrip PNG named after the script.
   DISHWARE IS PUT AWAY BETWEEN JOBS (`restaurant.attach`, `dishware.park`/
   `place`): a metre under the floor, contacts off -- ⚠ the BODY's
   broadphase masks with its geoms' (switched alone, the pieces fell 4 m in a
-  second) -- weight held, in `cull.PARKED_GROUP`; an offer sets it out where
+  second) -- weight held (`gravcomp`), in `cull.PARKED_GROUP` -- ⚠ EVERY
+  `mj_setConst` GOES THROUGH `dishware.set_const` (the two `redraw`s'):
+  it counts afresh the bodies whose weight is held (`ngravcomp`), MuJoCo
+  holds none while that is 0, and counted with the pieces set out -- the
+  pair sets a place out twice, and a counter prop's set-out comes while the
+  table's is out -- a put-away after let them fall at g, put back and said
+  every second (Observatory.md, the period of `loop-k4`;
+  `tests/test_table_job.py`); an offer sets it out where
   set-out k lays it (`_set_out_job`) and a sweep puts it away once no job
   holds the table, never from under a hand (`_put_away_step`); the pair's
   speed with it 0.915x, without 0.903x (one pod). ⚠ `set_table` IS ONE MORE KIND IN THE

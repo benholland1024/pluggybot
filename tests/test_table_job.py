@@ -582,6 +582,61 @@ def test_a_place_set_out_in_the_hook_reads_where_it_was_set_out(tmp_path):
     act.sense(life.model, life.data)
 
 
+# ---- put away, the pieces stay put away ------------------------------------
+
+
+def test_put_away_after_any_set_out_the_pieces_stay_where_they_are_parked(tmp_path):
+  """Put away, a piece's weight is held (`gravcomp`), and MuJoCo holds it
+  only while the model COUNTS a body so held -- a count `mj_setConst`, the
+  end of every set-out's redraw, takes afresh. Taken with the place set out
+  it was 0, and from then on the parked pieces fell at g and the lifecycle
+  put them back, and said so, every second (Observatory.md, the period of
+  `loop-k4`): the pair hooks one board twice, so its place is set out twice,
+  and a counter prop's set-out while the table's is out does it for a robot
+  alone."""
+  from pluggybot.home import storeroom
+
+  def stays(model, data) -> bool:
+    restaurant.put_away(model, data, restaurant.TABLE)
+    for _ in range(int(round(0.2 / model.opt.timestep))):
+      mujoco.mj_step(model, data)
+    return restaurant.away(model, data, restaurant.TABLE)
+
+  # one offer's place set out twice, as the pair's two hooks do
+  model, data = _table_world()
+  restaurant.set_out(model, data, restaurant.TABLE, 3)
+  restaurant.set_out(model, data, restaurant.TABLE, 3)
+  assert stays(model, data), dw._placed_at(model, data, model.body("plate").id)
+  assert model.ngravcomp == len(dw.PIECES)
+  # ...a counter prop set out while the place is out (the house with both)
+  spec = mujoco.MjSpec.from_string(STUB_WORLD)
+  spec.texturedir = "models/"
+  storeroom.attach(spec)
+  restaurant.attach(spec)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  restaurant.set_out(model, data, restaurant.TABLE, 3)
+  storeroom.set_out(model, data, "drawer", 3)
+  assert stays(model, data) and model.ngravcomp == len(dw.PIECES)
+  # ...and through the lifecycle, every way a place is set out again -- the
+  # pair's second hook, a restart's, a continuation's -- the put-away is
+  # said once, not at every sweep
+  life = _life(tmp_path)
+  said = []
+  life.say_hooks.append(lambda t, msg, *a: said.append(msg))
+  task = _offer(life)
+  life._set_out_job(task)
+  life.restore_jobs()
+  assert life.set_out_unseen(task.number - 1) == [restaurant.TABLE]
+  life.tasks.expire_due(1e9)
+  for _ in range(4):
+    _sweep(life)
+    for _ in range(int(round(1.0 / life.model.opt.timestep))):
+      mujoco.mj_step(life.model, life.data)
+  assert sum("things are put away" in m for m in said) == 1, said
+  assert not _out(life)
+
+
 # ---- the board's own lines, and a robot's status ---------------------------
 
 

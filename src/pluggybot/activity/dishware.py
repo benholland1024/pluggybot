@@ -251,6 +251,29 @@ def _switch(model, body: int, live: bool) -> None:
     model.body_gravcomp[body] = 0.0 if live else 1.0
 
 
+def set_const(model) -> None:
+  """A world's derived constants recomputed after a redraw (`mj_setConst`),
+  keeping what that would lose: the pinned statistic (every camera's near
+  plane is scaled by its extent), the springs' references, and the
+  PUT-AWAY'S HOLD. ⚠ `mj_setConst` counts afresh the bodies whose weight is
+  held (`ngravcomp`, which Python cannot write), and MuJoCo holds none while
+  the count is 0: counted with the pieces set out, a put-away after held
+  nothing -- they fell at g and were put back every second (Observatory.md,
+  the period of `loop-k4`). So it is recomputed with every piece counted."""
+  import mujoco
+  held = [b for b in (mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, p) for p in PIECES)
+          if b >= 0]
+  was = model.body_gravcomp[held].copy()
+  extent, center = float(model.stat.extent), model.stat.center.copy()
+  spring = model.qpos_spring.copy()
+  model.body_gravcomp[held] = 1.0
+  mujoco.mj_setConst(model, mujoco.MjData(model))
+  model.body_gravcomp[held] = was
+  model.stat.extent = extent
+  model.stat.center[:] = center
+  model.qpos_spring[:] = spring
+
+
 def _pose(model, data, body: int, xyz, quat=None) -> None:
   """A free piece or the card at `xyz`, turned `quat` (as it was, None), and
   still."""

@@ -12,8 +12,8 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A refused define is judged as it was written and says every reason at once, and the other robot is shown a robot's own last line (K4, `loop-k4`) — opens when this PR is deployed
 
-**Three small changes to what the robots read, found on the wake of
-2026-11-14.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029
+**Three small changes to what the robots read and one to what the world
+does, found on the wake of 2026-11-14.** Nothing in the prompt moved (`prompt_sha` b345cc34, 66,029
 characters, 17 sections; no rule's text restates any of the words below),
 nor the session host's hello (byte for byte), nor any geometry, nor the
 wire (no field added, none whose meaning moved), nor either committed
@@ -58,6 +58,21 @@ recording.
    recording's only narration, and the site's line under a portrait still
    carry the board's lines.
 
+4. **Put away, the table's dishware stays put away.** A parked piece's
+   weight is held by `gravcomp`, which MuJoCo applies only while the model
+   counts a body so held (`ngravcomp`), and `mj_setConst`, the end of every
+   set-out's redraw, counts afresh. Counted with the pieces set out it was
+   0 -- the pair hooks the one board twice, so a place is set out twice an
+   offer, and a counter prop's set-out comes while the table's is out --
+   and from then on every put-away let the plate, the cup and the fork fall
+   at g (4.9 m in a second), to be parked again, and said so, at the next
+   sweep: "the dining_table_0's things are put away: no job holds it" once
+   a second for as long as the table had no task. The constants are now
+   recomputed with the pieces counted (`dishware.set_const`): parked they
+   stay parked, and the line is said once at a table task's end. Nothing a
+   grade reads moved (a set-out places the pieces afresh), and a lone
+   robot's table flight is row for row what it was.
+
 **Why.** 53 defines were refused that wake. 16 were over the cap and every
 one read "3001 characters": six thoughts took it for one character over
 ("failed last turn by exactly one character"), four trims made on that were
@@ -82,6 +97,9 @@ mine -- my body's code writes it".
   (11-14: `cube_run4` eight, `cube_p1` five), and whether a refusal at the
   cap is followed by another at the cap.
 - **The thoughts after one:** none reads "one character over".
+- **The put-away line:** said once for each table task's end (the live
+  checks counted 2,157 of the wake's 7,759 log lines), and the first
+  robot's `status` no longer that line between table tasks.
 - **`doing` in the other's thoughts:** no thought reads the other robot's
   status as a claim on a job it never took; and whether the two still sort
   out who takes a job (they `tell` each other, which is theirs).
