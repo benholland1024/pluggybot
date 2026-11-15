@@ -24,8 +24,8 @@ is `rooftop-media-2026/docs/pluggyworld.md` § "The LLM overseer".
 
 `HubLifecycle.run()` is a priority arbitration loop, and the mind is one
 branch of it. The loop as a state diagram, with what each state reads and
-writes of the memory, is at the top of `README.md` (pinned by
-`tests/test_readme.py`). Since issue #58 the loop is `_day_routine` — a ROUTINE, with
+writes of the memory, is in `README.md`'s "The robot's day, as states"
+(pinned by `tests/test_readme.py`). Since issue #58 the loop is `_day_routine` — a ROUTINE, with
 every branch yielding its drive commands to the one loop that steps the
 physics (`pluggybot/tick.py`) — and `run()` drives it; the branch order and
 every rail below are exactly as they were:

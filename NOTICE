@@ -1,0 +1,42 @@
+PluggyBot
+Copyright 2026 Ben Holland
+
+This project is licensed under the Apache License, Version 2.0. The full
+text is in LICENSE.
+
+This tree also holds the third-party pieces below. Each one keeps its own
+license.
+
+1. The Booster T2's proportions and joint ranges
+
+   The humanoid's proportions, the order and ranges of its leg joints, and
+   the ranges of its arm joints up to the elbow come from the T2 model that
+   Booster Robotics publishes (BoosterRobotics/booster_assets,
+   robots/T2/T2_31dof_JZgripper). Its segment masses are used as a check on
+   ours. None of its meshes is in this tree.
+
+   Where: src/pluggybot/humanoid/model.py, and the files it writes,
+   models/humanoid.xml and models/humanoid.json.
+   License: BSD 3-Clause License, Copyright (c) 2025, BoosterRobotics.
+   The full text is in models/booster_assets.LICENSE.
+
+2. AprilTag markers
+
+   The marker images in models/tags/ and protocol/textures/ are markers of
+   the tag36h11 family from the AprilTag library. The moms-apriltag package
+   drew them.
+
+   AprilTag: BSD 2-Clause License, Copyright (C) 2013-2015, The Regents of
+   The University of Michigan.
+   moms-apriltag: MIT License, Copyright (c) 2020 Kevin J. Walchko.
+
+3. Short quotations from Wikipedia
+
+   tests/test_library.py uses the opening sentence, or the start of it, of
+   four English Wikipedia articles as test data: "Durian", "Diffuse sky
+   radiation", "Mercury" and "Mercury (planet)". Wikipedia's text is
+   available under the Creative Commons Attribution-ShareAlike 4.0
+   License.
+
+The Python packages that this project installs are not part of this tree.
+Each one carries its own license.

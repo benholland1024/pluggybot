@@ -3,6 +3,9 @@ name = "pluggybot"
 version = "0.1.0"
 description = "A simulated, hardware-honest robot and the autonomous agent that lives in it"
 readme = "README.md"
+license = "Apache-2.0"
+# The Booster T2's BSD-3 travels with what is drawn from it (NOTICE).
+license-files = ["LICENSE", "NOTICE", "models/booster_assets.LICENSE"]
 authors = [
     { name = "Ben Holland", email = "benholland1024@gmail.com" }
 ]

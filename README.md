@@ -1,4 +1,88 @@
-# pluggybot
+# PluggyBot
+
+This repository holds the simulation behind
+[PluggyWorld](https://rooftop-media.org/experiments/pluggyworld): the
+world, the robots' bodies and their minds. PluggyWorld is a small simulated
+neighborhood where two humanoid robots, Luca and Rowan, run their own
+lives. Each robot is built in the MuJoCo physics simulator from real parts
+that you could order, and each part keeps the limits and the noise that its
+datasheet gives. A language model makes each robot's decisions. The robots
+charge themselves, take jobs for points, write small programs to do those
+jobs, and talk with visitors. They can also die.
+
+The question underneath is how far an agent like this gets on its own, and
+where it stops. The project measures six qualities of such an agent:
+whether it can learn new skills by its own effort, understand other minds,
+help others, judge and make things with taste, set its own goals and follow
+them through, and keep itself alive while it still takes on work.
+
+![A humanoid robot walks to a restaurant table and lays a plate, a fork and a cup at a place card.](docs/figures/solve_table_tour.png)
+
+*One robot sets a table. It walks from its charging station to a restaurant
+table, then lays a plate, a fork and a cup at a place card. The world grades
+the job, and this one passed after 232 seconds. Here the robot runs a
+procedure that we wrote by hand. In the live world, the robots write their
+own.*
+
+- **Watch the robots live** at
+  [rooftop-media.org/experiments/pluggyworld](https://rooftop-media.org/experiments/pluggyworld).
+  They are awake only at set times, so you may find them asleep.
+- **Read the design** in [docs/PluggyPlan.md](docs/PluggyPlan.md). It says
+  what the project is for and how it is built.
+- **See how the work is measured** in [docs/Evaluation.md](docs/Evaluation.md).
+
+## Run one scene in five minutes
+
+The commands are for Linux. You need Git and
+[uv](https://docs.astral.sh/uv/), which installs Python and every package
+the simulation uses, MuJoCo among them. To watch the scene in a window, you
+also need a display.
+
+```bash
+git clone https://github.com/benholland1024/pluggybot.git
+cd pluggybot
+uv sync
+uv run python scripts/humanoid_spike.py --view walk
+```
+
+A window opens on the house. The humanoid walks from the living room to the
+kitchen and back, and it finds its way with its own sensors. Close the
+window to stop.
+
+Without a display, you can draw the same walk as a picture:
+
+```bash
+MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip walk
+```
+
+This writes `humanoid_spike.png`, a filmstrip of the walk, in about a
+minute. `MUJOCO_GL=egl` renders with a GPU, or with Mesa's EGL. If your
+machine has neither, use `MUJOCO_GL=osmesa` to render on the CPU (on Debian
+or Ubuntu, install the package `libosmesa6` first).
+
+Every script takes `--help`. The [scripts](#scripts) further down show more
+scenes, such as the stairs, a fall and a get-up, and the two robots living
+a day together.
+
+## Where to go next
+
+Read these in this order, and read only the parts that you need.
+
+| Document | What it tells you |
+|---|---|
+| [docs/PluggyPlan.md](docs/PluggyPlan.md) | It says why the project exists, names the six qualities, and shows how the system fits together. |
+| [docs/Evaluation.md](docs/Evaluation.md) | It says how the work is measured, and how to read the records of the live world. |
+| [docs/Overseer.md](docs/Overseer.md) | It describes the mind: what the language model is shown, what it may do, and what happens when a call fails. |
+| [docs/Parts.md](docs/Parts.md) | It lists every part of the robot, the datasheet numbers the simulator takes from it, and what the parts would cost. |
+| [docs/Hands.md](docs/Hands.md) | It explains how the hands move, and the words that a procedure uses to move them. |
+| [docs/Challenges.md](docs/Challenges.md) | It explains how a job is graded: by a test that was written before the robot saw the job. |
+| [docs/SimNotes.md](docs/SimNotes.md) | It records what the simulation taught us, one lesson at a time. It is very long, so search it. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | It shows how the repository is laid out, how a change is made, and where people can help. |
+| [CLAUDE.md](CLAUDE.md) | It holds the rules that the coding agents follow. It is written for them, not for a first read. |
+
+## For developers
+
+The rest of this page is for people who work on the code.
 
 A simulated, hardware-honest robot and the autonomous agent that lives in it:
 a humanoid built from real parts (#507), in a house it shares with a second
@@ -279,7 +363,7 @@ uv run pytest -v
 uv run pytest -vs
 ```
 
-# Running Pluggyworld on rooftop-media.org
+## Running PluggyWorld on rooftop-media.org
 
 In this project, start it like so:
 ```bash
@@ -302,7 +386,7 @@ The site must be showing the matching scene — the header's `model` field is
 what it selects on (`home_humanoid` or `home_humanoid_pair`), and both
 scenes, and a recorded day of the pair, are committed under `protocol/`.
 
-## Letting the robot choose its own errands
+### Letting the robot choose its own errands
 
 Add `--overseer` and an API key, and an LLM (Claude Haiku 4.5) picks what the
 robot does next once the `--errand` queue is empty:
@@ -334,3 +418,11 @@ wiring it into a long run:
 ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --tokens-only
 ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --calls 4
 ```
+
+## License
+
+PluggyBot is licensed under the [Apache License 2.0](LICENSE). The
+third-party pieces in this repository keep their own licenses, and
+[NOTICE](NOTICE) lists them. To cite the project, use
+[CITATION.cff](CITATION.cff), or the "Cite this repository" button on
+GitHub.

@@ -1,5 +1,6 @@
-"""The state diagram at the top of README.md is read against the code
-(issue #221): a diagram in the README is where a developer looks first,
+"""The state diagram in README.md is read against the code (issue #221;
+since #714 it sits under the first screen, which is for people): a diagram
+in the README is where a developer looks first,
 and one that has drifted from `lifecycle.State`, the death causes, the
 event types or the memory verbs is worse than none.
 
@@ -7,6 +8,7 @@ Nothing here flies anything. The README's two Mermaid blocks are parsed
 with regexes that know just enough of the syntax to pull names out.
 """
 
+import ast
 import re
 from pathlib import Path
 from typing import get_args
@@ -16,6 +18,9 @@ from pluggybot.mind import events, text
 from pluggybot.telemetry.protocol import DEATH_CAUSES
 
 README = Path(__file__).resolve().parents[1] / "README.md"
+
+#: Where the README's first screen, the one written for people (#714), ends.
+FIRST_SCREEN_END = "## For developers"
 
 #: Mermaid caps a `stateDiagram-v2` edge label at 200 px and a longer line
 #: wraps (Chromium) or is cut off (Firefox) -- issue #259's clipped labels.
@@ -94,3 +99,32 @@ def test_the_memory_diagram_names_exactly_the_robots_verbs_and_real_states():
   drawn -= {"LR", "TB", "MAIN", "GOALS", "TOP", "NOTES", "FIND", "HIST", "USE",
             "VISITOR", "PROCS", "TICKETS"}
   assert drawn <= _state_names(loop), drawn - _state_names(loop)
+
+
+def _slug(heading: str) -> str:
+  """GitHub's anchor for a heading: lower case, punctuation dropped, spaces
+  as hyphens."""
+  return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+
+
+def test_the_first_screen_links_only_to_what_is_there():
+  """The first screen is a visitor's (#714): a renamed doc, a moved picture,
+  a heading reworded or a scene the script no longer offers fails here, not
+  on a person following it."""
+  readme = README.read_text()
+  assert FIRST_SCREEN_END in readme, "the first screen ends where the developers' part begins"
+  first = readme.split(FIRST_SCREEN_END)[0]
+  targets = [t for t in re.findall(r"\]\(([^)\s]+)\)", first) if "://" not in t]
+  files = [t for t in targets if not t.startswith("#")]
+  assert files, "the first screen links the docs and the picture"
+  assert not [t for t in files if not (README.parent / t).exists()]
+  anchors = {_slug(h) for h in re.findall(r"^#+ (.+)$", readme, re.M)}
+  assert not [t for t in targets if t.startswith("#") and t[1:] not in anchors]
+  script = README.parent / "scripts" / "humanoid_spike.py"
+  scenes = next({ast.literal_eval(k) for k in node.value.keys}
+                for node in ast.parse(script.read_text()).body
+                if isinstance(node, ast.Assign)
+                and any(getattr(t, "id", None) == "SCENES" for t in node.targets))
+  named = set(re.findall(r"humanoid_spike\.py --(?:view|strip) (\w+)", first))
+  assert named, "the first screen names a scene to run"
+  assert named <= scenes, named - scenes
