@@ -2502,9 +2502,18 @@ save a filmstrip PNG named after the script.
   onto a copy within 20 s. The station not in sight from the standoff a
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost
   (`Body.lost_routine`, by its LIDAR, never its belief: above), searched
-  ONCE a charge. Each relocation, fix, loss and search is a `drift` row
-  (which station, `station`), beside a sample every `DRIFT_EVERY_S`; ⚠ the
-  truth rides those rows and never what the robot reads.
+  ONCE a charge. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
+  (60 s) RUNNING IS SAID, ONCE, AND SO IS THE SCAN IT TAKES AFTER (#697;
+  `navigator.Refusals`, History's `MAP_REFUSING` / `MAP_MATCHING`): a run
+  is every scan refused (`scan_match.REFUSED`: `inconsistent`, `slid`,
+  `outdone`), any other scan breaking it, one not matched too (a robot not
+  mapping is never refusing); only a scan TAKEN ends what was told, and a
+  map forgotten owes nothing. What its own matcher knows, never what to do
+  (a test reads both lines); a belief the map ACCEPTS wrong (#681's class)
+  is never told. Each relocation, fix, loss, search and such line is a
+  `drift` row (which station, `station`), beside a sample every
+  `DRIFT_EVERY_S`; ⚠ the truth rides those rows and never what the robot
+  reads.
 - **A robot walks into the unknown** (issue #381's walking stage;
   `mapping/optimistic.py`, `Navigator.OPTIMISTIC`, on in `HumanoidMission`;
   SimNotes, "Walking into the unknown"): it plans through floor it has not seen at `UNKNOWN_COST` a

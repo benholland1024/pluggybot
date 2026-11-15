@@ -2584,7 +2584,11 @@ and survival. From #476 a `drift` row says where each robot was against where
 it believed, so a reading can tell which failures came while it was lost
 (`errorM` past a metre, or between a `lost` row and the `fixed` that ended
 it -- or, from #572, the stand-up that ended it, which drops the map: an
-`intervention` row with subject `reset_robot`). ⚠ Before #476 only the
+`intervention` row with subject `reset_robot`). From #697 a `refusing` row
+is the moment a robot was told its map had refused every scan for a minute
+(History), and `matching` the scan it took after: their `errorM` says
+whether it was off when told, and a robot lost on a map that ACCEPTS its
+scans (#681's class) has no such row. ⚠ Before #476 only the
 death rows carry the belief.
 
 ### A start-over set the sim clock back (#610)
