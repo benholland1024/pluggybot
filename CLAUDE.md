@@ -421,7 +421,23 @@ save a filmstrip PNG named after the script.
   off toward the hand past its force) and, going nowhere, the pull ends
   held fast, or out of reach pushing under `FAST_SHARE` of its ask;
   postures taken for the lead put 30-100 N on a locked bar for an ask of
-  10-20. ⚠ A HAND AT WORK, STANDING,
+  10-20. ⚠ AND A POSTURE IS TAKEN WITH A LIGHT HAND (#699;
+  `reach.PRESSED_SHARE`, `PRESSED_ASK_N`; SimNotes, "A pull's posture and
+  the hand it rests on"): at its start or on its way, none while the hand
+  reads past twice the pull's ask whichever way -- an ask of 20 N at least,
+  so 40 N for every pull a procedure writes -- and one that is coming is
+  given up where the hand reads past it: the body held where it has got to,
+  as a move stopped is, that pull taking no other. A posture bows, crouches
+  or turns the body over a hand resting on something, its arm's solve loses
+  the hand, and the body bears on it: 45-150 N down on a cupboard door's
+  top for a 15-20 N pull (Rowan fell when it slipped off, 11-12), our table
+  reference's fork on the table at 92-135 N (2 falls in 32). ⚠ A FORCE,
+  NEVER A SHARE OF A SMALL ASK: while a posture came our references' pulls
+  that passed read 30.6 N at most, a 10 N press's three times its ask, and
+  every one past 63 N failed or fell. ⚠ NEVER NONE AT ALL: our door's
+  lever press needs its first, 11 of its 24 passes. ⚠ NEVER SENT BACK where
+  the pull began: on its way back the waist swung a low arm into the counter
+  (935 N), and it fell at the draw Rowan fell on. ⚠ A HAND AT WORK, STANDING,
   READS ITS FORCE OFF THE WHOLE BODY (#547 stage 2; `arms.SelfModel.felt`,
   `reach.FELT_PHASES`, `Reach.standing`; SimNotes, "A hand's force off the
   whole body"; `--feel`): the robot's balance in least squares over the
