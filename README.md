@@ -41,9 +41,13 @@ also need a display.
 ```bash
 git clone https://github.com/benholland1024/pluggybot.git
 cd pluggybot
-uv sync
+uv sync --python 3.12
 uv run python scripts/humanoid_spike.py --view walk
 ```
+
+Python 3.12 is what the live world runs, and every package installs
+ready-built on it. On Python 3.14, which uv may pick on its own, one
+package has to be compiled, and that needs a C compiler.
 
 A window opens on the house. The humanoid walks from the living room to the
 kitchen and back, and it finds its way with its own sensors. Close the
@@ -84,17 +88,13 @@ Read these in this order, and read only the parts that you need.
 
 The rest of this page is for people who work on the code.
 
-A simulated, hardware-honest robot and the autonomous agent that lives in it:
-a humanoid built from real parts (#507), in a house it shares with a second
-one (#559). The quadruped before it was deleted in #559's stage 5; the tag
-`quadruped-final` is the last commit that runs it. The work now is
-self-taught generality: the robot acquiring new skills by its own effort
-through five processes (reuse what it has, try and react, follow
-instructions, copy, and imagine first). It chooses among them, and that
-choice is measured (#487, #465). What the project is for, and the six
-qualities the agent is meant to maximise, are in
-[`docs/PluggyPlan.md`](docs/PluggyPlan.md); how the mind sits in the loop is
-[`docs/Overseer.md`](docs/Overseer.md).
+The body is the humanoid (#507), served as a pair in the house (#559). The
+quadruped before it was deleted in #559's stage 5; the tag `quadruped-final`
+is the last commit that runs it. The work now is self-taught generality:
+the robot acquiring new skills by its own effort through five processes
+(reuse what it has, try and react, follow instructions, copy, and imagine
+first). It chooses among them, and that choice is measured (#487, #465).
+How the mind sits in the loop is [`docs/Overseer.md`](docs/Overseer.md).
 
 ## The robot's day, as states
 

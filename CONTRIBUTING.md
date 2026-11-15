@@ -20,7 +20,8 @@ The docs that the README lists are a better start.
 ## How the repository is laid out
 
 The code in `src/pluggybot/` is divided by domain, not by when it was
-built. A module goes where its concern lives.
+built. A module goes where its concern lives. The rule itself is in
+CLAUDE.md's "Conventions".
 
 | Folder | What it holds |
 |---|---|
@@ -68,13 +69,13 @@ These rules hold for every change:
 
 - **A fixed bug becomes a test.** The test must fail without the fix, and
   it is written as cheaply as it can be: a direct call or a stub, not a
-  whole flight, unless the claim is about physics. `docs/Testing.md` shows
-  how.
-- **The test suite has a budget.** The whole suite runs in one or two
-  minutes on a six-core machine. A change that would take it past ten
-  minutes on a quiet machine, or fifteen on a busy one, needs Ben's
-  approval. So does any test that leaves the default run, such as a skip,
-  a gate or a new marker.
+  whole flight, unless the claim is about physics.
+  [docs/Testing.md](docs/Testing.md) shows how.
+- **The test suite has a budget.** A change that would take the whole
+  suite past ten minutes on a quiet machine, or fifteen on a busy one,
+  needs Ben's approval. So does any test that leaves the default run, such
+  as a skip, a gate or a new marker. CLAUDE.md's "Working style" keeps the
+  rule, and the suite's time today.
 - **Physics claims are checked by running the simulation,** never by
   reasoning alone.
 - **The robot only knows what its parts could sense.** Nothing that steers
@@ -85,13 +86,13 @@ These rules hold for every change:
   a one-line pointer to it. When a detail stops being true, its text is
   deleted, because git history keeps the record.
 - **A change to what the live robots read or do starts a new period** in
-  `docs/Observatory.md`, because it changes what the live world's records
-  mean.
+  [docs/Observatory.md](docs/Observatory.md), because it changes what the
+  live world's records mean.
 
-The commands:
+The commands (the README says why Python 3.12):
 
 ```bash
-uv sync
+uv sync --python 3.12
 uv run pytest -q -m "not slow"           # while you work: the fast tests
 uv run pytest -q                         # before a change is done: the whole suite
 uv run ruff check src/ scripts/ tests/   # the linter

@@ -1,5 +1,5 @@
-# The serving image copies models/, src/, scripts/serve.py and deploy/ and
-# nothing else, so this file is about build-context SIZE: local datasets,
+# The serving image copies models/, src/, scripts/serve.py, deploy/, LICENSE
+# and NOTICE and nothing else, so this file is about build-context SIZE: local datasets,
 # training runs, demo footage and weights would otherwise be tarred up and
 # handed to the daemon on every build.
 #

@@ -101,11 +101,42 @@ def test_the_memory_diagram_names_exactly_the_robots_verbs_and_real_states():
   assert drawn <= _state_names(loop), drawn - _state_names(loop)
 
 
+def _prose(markdown: str) -> str:
+  """The text outside fenced code blocks, where a `#` is a heading and a
+  `](...)` a link."""
+  return re.sub(r"^```.*?^```[^\n]*$", "", markdown, flags=re.S | re.M)
+
+
 def _anchors(markdown: str) -> set[str]:
   """GitHub's anchor for each heading: lower case, punctuation dropped,
-  spaces as hyphens."""
-  return {re.sub(r"[^\w\- ]", "", h.strip().lower()).replace(" ", "-")
-          for h in re.findall(r"^#+ (.+)$", markdown, re.M)}
+  spaces as hyphens, and `-1`, `-2` after a heading's repeats."""
+  seen, anchors = {}, set()
+  for heading in re.findall(r"^#{1,6} (.+)$", _prose(markdown), re.M):
+    slug = re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+    anchors.add(f"{slug}-{seen[slug]}" if slug in seen else slug)
+    seen[slug] = seen.get(slug, 0) + 1
+  return anchors
+
+
+def _links(markdown: str) -> list[str]:
+  """Every link's target in the prose, inline (with a title or none) or by
+  reference; one with a scheme (`https:`, `mailto:`) is no file here."""
+  text = _prose(markdown)
+  inline = re.findall(r"\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)", text)
+  by_reference = re.findall(r"^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)", text, re.M)
+  return [t for t in inline + by_reference if not re.match(r"[A-Za-z][\w+.-]*:", t)]
+
+
+def _broken(source: Path, targets: list[str]) -> list[str]:
+  """The targets that name no file, or a heading their file does not have."""
+  broken = []
+  for target in targets:
+    path, _, anchor = target.partition("#")
+    doc = source.parent / path if path else source
+    if not doc.exists() or (anchor and doc.suffix == ".md"
+                            and anchor not in _anchors(doc.read_text())):
+      broken.append(target)
+  return broken
 
 
 def test_the_first_screen_links_only_to_what_is_there():
@@ -115,16 +146,10 @@ def test_the_first_screen_links_only_to_what_is_there():
   readme = README.read_text()
   assert FIRST_SCREEN_END in readme, "the first screen ends where the developers' part begins"
   first = readme.split(FIRST_SCREEN_END)[0]
-  targets = [t for t in re.findall(r"\]\(([^)\s]+)\)", first) if "://" not in t]
+  targets = _links(first)
   assert [t for t in targets if not t.startswith("#")], \
       "the first screen links the docs and the picture"
-  broken = []
-  for target in targets:
-    path, _, anchor = target.partition("#")
-    doc = README.parent / path if path else README
-    if not doc.exists() or (anchor and doc.suffix == ".md"
-                            and anchor not in _anchors(doc.read_text())):
-      broken.append(target)
+  broken = _broken(README, targets)
   assert not broken, broken
   script = README.parent / "scripts" / "humanoid_spike.py"
   scenes = next({ast.literal_eval(k) for k in node.value.keys}
@@ -134,3 +159,12 @@ def test_the_first_screen_links_only_to_what_is_there():
   named = set(re.findall(r"humanoid_spike\.py --(?:view|strip) (\w+)", first))
   assert named, "the first screen names a scene to run"
   assert named <= scenes, named - scenes
+
+
+def test_the_start_here_page_links_only_to_what_is_there():
+  """CONTRIBUTING.md is where the first screen sends a person next (#714)."""
+  page = README.parent / "CONTRIBUTING.md"
+  targets = _links(page.read_text())
+  assert targets, "the start-here page links the docs"
+  broken = _broken(page, targets)
+  assert not broken, broken

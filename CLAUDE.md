@@ -2075,9 +2075,10 @@ save a filmstrip PNG named after the script.
 - **The license is Apache-2.0** (Ben, 2026-11-15, #714; `LICENSE`, and
   `pyproject.toml`'s and `training/`'s `license`): a third-party piece put
   in the tree (a model's numbers, a mesh, a texture, a font, data, copied
-  code or text) is named in `NOTICE` with its license in the same change,
-  and one whose license is not known stays out. The inventory behind it,
-  and how it was searched, are on #714.
+  code or text) is named in `NOTICE` in the same change, its license's
+  full text beside it (`models/*.LICENSE`) and in `pyproject.toml`'s
+  `license-files`; one whose license is not known stays out. The inventory
+  behind it, and how it was searched, are on #714.
 - 2-space Python indent; type hints in `src/`, loose in tests/scripts.
 - **`src/` is divided by DOMAIN, not by era** (issue #50): `humanoid/` (the
   body, #507, and its parts catalog) · `perception/` (the sensors, the tags)
