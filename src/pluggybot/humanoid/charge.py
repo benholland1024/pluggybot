@@ -133,6 +133,9 @@ SEAT_STEPS = 6
 #: Its look after a step is never bowed: bowing presses the trunk toward a
 #: box the plug may still be against.
 UNPLUG_IN_M, UNPLUG_STEPS = 0.06, 2
+#: ...and a step whose word is one of these is the last: kept off the other
+#: robot, fallen, or out of its time, the same ask goes the same way.
+BACK_OFF_ENDS = ("blocked", "fell", "out of time")
 #: ...and it tries this many times, each from its seat as a look of its own
 #: places it, taken standing still (`LOOK_SETTLE_S`).
 UNPLUG_TRIES = 2
@@ -235,55 +238,36 @@ def to_seat(body, seen: RackPose) -> tuple[float, float, float]:
           math.remainder(seen.yaw - yaw, 2 * math.pi))
 
 
-def seat_routine(body, seen: RackPose, trace: list, seated):
-  """Stepped to its seat at `seen` until `seated(ahead, left, turn)` says it
-  is there (`to_seat`), turned on the spot to the station's way first, a
-  look after each step -- bowed where it sees no pair (`look_low_routine`),
-  else the station as last seen -- in `SEAT_STEPS` at most: (the station as
-  last seen, whether it got there)."""
-  for _ in range(SEAT_STEPS):
-    ahead, left, turn = to_seat(body, seen)
-    trace.append({"seat": [round(float(v), 3) for v in (ahead, left, turn)]})
-    if seated(ahead, left, turn):
-      return seen, True
-    yield from body.step_routine(ahead, left, turn)
-    seen = (yield from look_low_routine(body)) or seen
-  return seen, False
-
-
 def _back_off_routine(body, station: RackPose, trace: list):
   """Backed off to its seat for the unplug (`unplug_seat`) by `station`, its
   feet as they stand -- never turned on the spot first: pinned at the box, a
   turn swings the plug across the port's face, which the catch lets go to --
   in `UNPLUG_STEPS` at most, each step's word in `trace`, then a plain look
-  taken standing still (`LOOK_SETTLE_S`), never bowed toward the box: (the
-  station as last seen, the last step's word or "")."""
+  taken standing still (`LOOK_SETTLE_S`), never bowed toward the box -- and
+  none after a step that went nowhere it could go again (`BACK_OFF_ENDS`):
+  (the station as last seen, the last step's word or "")."""
   said = ""
   for _ in range(UNPLUG_STEPS):
     ahead, left, turn = to_seat(body, station)
     trace.append({"seat": [round(float(v), 3) for v in (ahead, left, turn)]})
-    if unplug_seat(ahead, left, turn):
+    if unplug_seat(ahead):
       break
     # ...the station's way into the frame it stands in
     c, s = math.cos(turn), math.sin(turn)
     r = yield from body.step_routine(c * ahead - s * left, s * ahead + c * left, 0.0)
     said = str(r.get("why", "")) if isinstance(r, dict) else str(r)
     trace.append({"step": said})
+    if said in BACK_OFF_ENDS:
+      break
     yield from body.hold_routine(LOOK_SETTLE_S)
     station = look(body) or station
   return station, said
 
 
-def docked_seat(ahead: float, left: float, turn: float) -> bool:
-  """At its seat to plug in: `SEAT_*`'s tolerance."""
-  return (-SEAT_IN_M <= ahead <= SEAT_TOL_M and abs(left) <= SEAT_TOL_M
-          and abs(turn) <= SEAT_TOL_RAD)
-
-
-def unplug_seat(ahead: float, left: float, turn: float) -> bool:
-  """At its seat to unplug: no further in than `UNPLUG_IN_M`, the way a
-  charge creeps it; its seat's every other way, its hand reaches the plug
-  wherever its body stands, the port being its own."""
+def unplug_seat(ahead: float) -> bool:
+  """At its seat to unplug, `ahead` m short of it: no further in than
+  `UNPLUG_IN_M`, the way a charge creeps it; its seat's every other way, its
+  hand reaches the plug wherever its body stands, the port being its own."""
   return ahead >= -UNPLUG_IN_M
 
 
@@ -496,9 +480,12 @@ def unplug_routine(body, station: RackPose, trace: list):
     # (13 cm in), and a step the other robot keeps it from goes nowhere
     station, stepped = yield from _back_off_routine(body, station, trace)
     if not body.charging():
-      why = f"it came off its port as it stepped back to its seat ({stepped})"
+      why = ("it came off its port as it stepped back to its seat" + (f" ({stepped})" if stepped
+                                                                     else ""))
     else:
       why = yield from _unplug_try_routine(body, station, trace)
+      if why != "unplugged" and not body.charging():
+        why += "; it came off its port all the same"
     trace.append({"unplugTry": k, "why": why})
     if why == "unplugged" or not body.charging():
       break

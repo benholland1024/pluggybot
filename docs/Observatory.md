@@ -17,7 +17,7 @@ sections; the session host's hello unmoved, sha1 `b796e75d…`; no geometry
 and no wire format moved; the pair's committed recording's command line flown
 on base and branch, 11,705 lines each, every one the same):
 - **The unplug backs off to its seat first where a charge crept it in**
-  (`charge.seat_routine`, the dock's line-up shared; `UNPLUG_IN_M`, 6 cm).
+  (`charge.unplug_routine`'s back-off; `UNPLUG_IN_M`, 6 cm).
   Plugged in, the balancer's steady 2 N on the port creeps a standing robot
   in toward the station, 7.5 mm a minute and turning it left, until its plug
   meets the station's box 18 cm past its seat after about 22 minutes

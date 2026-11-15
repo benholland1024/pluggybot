@@ -516,6 +516,20 @@ def test_an_unplug_whose_step_back_freed_the_plug_reaches_for_none(monkeypatch):
   assert why == "it came off its port as it stepped back to its seat (stepped)", why
 
 
+def test_a_back_off_the_other_robot_keeps_it_from_asks_it_no_more(monkeypatch):
+  """A step kept off the other robot standing behind (`blocked`, as a walk
+  keeps off it) goes the same way asked again: it is the back-off's last, and
+  the try goes on from where it stands."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", _port)
+  body = _unplugs(_Says())
+  body.step_routine = lambda *a, **kw: (body.stepped.append(a), body._done({"why": "blocked"}))[1]
+  body.stance = (0.18, 0.0, 0.0)
+  trace = []
+  assert _drive(charge.unplug_routine(body, RackPose(0.35, -0.075, 0.0), trace)) == "unplugged"
+  assert len(body.stepped) == 1 and {"step": "blocked"} in trace, trace
+
+
 def test_an_unplug_that_failed_tries_once_more_off_a_look_of_its_own(monkeypatch):
   """#703: a hand that could not take the plug out left it to the walk, and
   after the undock's turn its rope pulled the plug straight into the port's

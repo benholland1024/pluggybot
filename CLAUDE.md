@@ -687,18 +687,18 @@ save a filmstrip PNG named after the script.
   along the plug and grips again. ⚠ THE UNPLUG LETS GO AT THE CUP'S MOUTH
   (`CUP_SHORT_M`): carried to the seat, the plug was driven into the boss
   and the robot fell. ⚠ THE UNPLUG BEGINS AT ITS SEAT TOO (#703;
-  `charge.seat_routine`, `UNPLUG_IN_M`; SimNotes, "The unplug after a long
-  charge"): plugged in, the balancer's 2 N creeps the standing robot in,
-  7.5 mm a minute and turning it, until its plug meets the box 18 cm past
-  its seat (about 22 minutes), where the arm's way out behind the plug
-  swung into the box -- so further in than 6 cm it backs off to its seat
-  first, never turned on the spot first (pinned, a turn swings the plug
-  across the box's face), by the station as it last saw it (its scan
-  matcher keeps its belief on its body, within about a centimetre), and
-  a failed try goes again off a look of its own; a charge's end that left
-  the plug in says so (`UNPLUG_FAILED`). ⚠ One that fails twice leaves the plug in, and after the
-  undock's turn the rope pulls it into the port's face, which the catch
-  holds: the walk stalls. ⚠ A TRY'S HAND IS PLACED OFF A LOOK OF ITS OWN, TAKEN
+  `charge.unplug_routine`'s back-off, `UNPLUG_IN_M`; SimNotes, "The unplug
+  after a long charge"): plugged in, the balancer's 2 N creeps the standing
+  robot in, 7.5 mm a minute and turning it, until its plug meets the box
+  18 cm past its seat (about 22 minutes), where the arm's way out behind
+  the plug swung into the box -- so further in than 6 cm it backs off to
+  its seat first, never turned on the spot first (pinned, a turn swings
+  the plug across the box's face), by the station as it last saw it (its
+  scan matcher keeps its belief on its body, within about a centimetre),
+  and a failed try goes again off a look of its own; a charge's end that
+  left the plug in says so (`UNPLUG_FAILED`). ⚠ One that fails twice
+  leaves the plug in, and after the undock's turn the rope pulls it into
+  the port's face, which the catch holds: the walk stalls. ⚠ A TRY'S HAND IS PLACED OFF A LOOK OF ITS OWN, TAKEN
   STANDING STILL, THE STATION CARRIED AS THE FEET CARRY IT (#596;
   `charge._carried`, `LOOK_SETTLE_S`; SimNotes, "A plug-in that missed
   every try"): moved as far as the belief moves its stance, never turned
