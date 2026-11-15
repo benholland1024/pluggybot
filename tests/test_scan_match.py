@@ -945,7 +945,7 @@ def test_the_served_body_says_a_map_refusing_every_scan_and_the_scan_that_fits(h
   assert scans(7)[-1] == "refusing"
   m.forget_map()
   m.matcher.answer = taken
-  assert scans(1).count("matching") == 1, "a map forgotten owed its scan's fit"
+  assert scans(2).count("matching") == 1, "a map forgotten owed its scans' fit"
   body.close()
 
 
