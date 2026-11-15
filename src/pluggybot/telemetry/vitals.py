@@ -35,16 +35,20 @@ RUNAWAY_MB_PER_MIN = 50.0
 #: Three, not two: each of a robot's cameras builds its renderer at its first
 #: use, ~210 MiB under osmesa, and a robot's first walk after a charge built
 #: its two a minute apart (2026-11-14 17:32-17:33 UTC: +207, +239, then
-#: flat), which two read as a runaway.
+#: flat), which two read as a runaway. Three renderers in three minutes in a
+#: row would still read as one; none came so in the nine processes of the
+#: saved logs of 11-12, 11-14 and 11-15.
 RUNAWAY_MINUTES = 3
 #: Calm samples in a row that end an episode.
 CALM_MINUTES = 2
-#: Samples IN WHICH THE WORLD RAN that judge nothing: the world is built and
-#: carried on from then, and the grown world (#560) took four minutes in the
-#: deployed process of 2026-11-12 (173 MiB -> 1.3 GB), which a warm-up of
-#: three read as a runaway. A process started into a pause builds that at
-#: the wake (2026-11-14 16:00 UTC, +636 and +228 MiB a minute), and a pause
-#: mid-run keeps what was built (1450 MiB, +0.0, for 13.6 hours on 11-12).
+#: Samples that judge nothing, the world being built or running (a paused
+#: world's are not counted): the world is built and carried on from then, and
+#: the grown world (#560) took four minutes in the deployed process of
+#: 2026-11-12 (173 MiB -> 1.3 GB), which a warm-up of three read as a
+#: runaway. A process started into a pause carries on at the wake
+#: (2026-11-14 16:00 UTC, +636 and +228 MiB a minute); a pause mid-run keeps
+#: what was built (1450 MiB for 13.6 hours on 11-12/13), its memory moving
+#: by at most +10 MiB a minute.
 WARMUP_MINUTES = 5
 #: Wall seconds of tracemalloc between the onset and the allocation report.
 #: It starts AT the onset, never at boot: MEASURED, traced from boot the pair
@@ -77,12 +81,13 @@ class RunawayRule:
   samples under the rate first, or one long runaway would dump the stacks
   every minute until it was killed.
 
-  The warm-up is the first `warmup` samples in which the world ran. A sample
-  whose sim clock (`sim_t`) has not moved since the last one, its memory no
-  faster than the rate, is a paused world's: the warm-up does not count it.
-  One with no clock counts (the world is still being built), and so does
-  one whose memory ran fast with the clock standing: a runaway that stopped
-  the world.
+  The warm-up is the first `warmup` samples of the world being built or
+  running. A sample whose sim clock (`sim_t`) has not moved since the last
+  one, its memory no faster than the rate, is a paused world's: the warm-up
+  does not count it. One with no clock counts (the world is still being
+  built), as does the first with one (nothing says yet whether the clock
+  moves), and one whose memory ran fast with the clock standing: a runaway
+  that stopped the world.
   """
 
   def __init__(self, mb_per_min: float = RUNAWAY_MB_PER_MIN,

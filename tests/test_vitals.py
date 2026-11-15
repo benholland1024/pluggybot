@@ -80,6 +80,16 @@ def _watched(tmp_path, rows):
     out.close()
 
 
+def _ruled(rule, rows, clock=True):
+  """The rows at which `rule` fires, the sim clock passed or left out."""
+  return [i for i, (hms, mib, t) in enumerate(rows)
+          if rule.sample(_utc(hms), mib, t if clock else None)]
+
+
+def _at(rows, hms):
+  return next(i for i, row in enumerate(rows) if row[0] == hms)
+
+
 def _minutes(start, n, mib, t):
   """n made-up samples a minute apart from `start`, at one reading."""
   s = _utc(start)
@@ -136,10 +146,20 @@ def test_a_wake_into_a_world_that_never_ran_is_its_warm_up(tmp_path):
   process started into a pause had built only its world, and built the rest
   at the wake -- each robot's camera renderers, ~210 MiB apiece -- which the
   rule read as a runaway, its warm-up spent on the pause's samples. A sample
-  whose clock stood still is not one the world ran, and the warm-up does not
-  count it. A runaway once the woken world has warmed up still fires."""
+  whose clock stood still, its memory calm, is a pause's, and the warm-up
+  does not count it. A runaway once the woken world has warmed up still
+  fires."""
   for rows in (WAKE_1112, WAKE_1114, WAKE_1115):
     assert _watched(tmp_path, rows) == [], rows[-1][0]
+  # The old rule -- two minutes, the clock unread -- fired on each at the
+  # live alarm's own sample (shown); the clock alone keeps all three quiet,
+  # and three minutes alone do not keep the 43-hour pause's wake quiet.
+  for rows, alarm in ((WAKE_1112, "17:01:32"), (WAKE_1114, "16:01:58"),
+                      (WAKE_1115, "08:46:04")):
+    assert _ruled(RunawayRule(minutes=2), rows, clock=False) == [_at(rows, alarm)]
+    assert _ruled(RunawayRule(minutes=2), rows) == [], alarm
+  assert _ruled(RunawayRule(), WAKE_1114, clock=False) == [
+    _at(WAKE_1114, "16:03:18")]
   t = WAKE_1112[-1][2]
   runaway = [(f"17:{11 + i}:52", 1394 + 115.0 * (i + 1), t + 50.0 * (i + 1))
              for i in range(6)]
@@ -219,6 +239,7 @@ def test_the_threshold_keeps_its_margin_on_both_sides():
   assert vitals.RUNAWAY_MB_PER_MIN > 22.9 * 2
   assert 115.0 > vitals.RUNAWAY_MB_PER_MIN * 2
   assert _feed(RunawayRule(mb_per_min=19.0, minutes=2), _day(RESTING)) != []
+  assert _feed(RunawayRule(mb_per_min=19.0), _day(RESTING)) == []
 
 
 def test_a_runaway_fires_once_at_its_third_minute():
