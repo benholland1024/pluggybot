@@ -854,13 +854,13 @@ class ScanMatcher:
     the best (RIVAL_SHARE: the look cannot tell them apart) or one PLACE
     with it (UNIQUE_M); else it is outdone, and the best -- where no other
     place rivals it -- waits (`better`) for the next look to find it again:
-    once is a coincidence. Between two looks the last one's word stands: a
-    take is the place that waits, as near as a slid fit's search must be
-    (`_near`), or it is outdone; places the look could not tell apart
-    (`rivals`) outdo every take; and a look that held no place leaves the
-    take the base's. The last of its FALLEN_LOOKS is made only to find again
-    what the one before found (as `_turned`'s last), and the doubt is
-    over."""
+    once is a coincidence. While it waits a take stands only as that place
+    itself, as near as a slid fit's search must be (`_near`) -- between two
+    looks, and at the look that finds the place again -- or it is outdone;
+    places the look could not tell apart (`rivals`) outdo every take; and a
+    look that held no place leaves the take the base's. The last of its
+    FALLEN_LOOKS is made only to find again what the one before found (as
+    `_turned`'s last), and the doubt is over."""
     if self.wider_wait:
       if near is None:
         return False, None
@@ -879,13 +879,17 @@ class ScanMatcher:
       found = [near] + found
     if found:
       best = max(found, key=lambda f: f[1]["inliers"])
-      if near is None or not (_same(best[0], near[0])
-                              or near[1]["inliers"] >= RIVAL_SHARE * best[1]["inliers"]):
-        outdone = near is not None
-        self.rivals = _rivalled(found, best)
-        if not self.rivals:
+      rivals = _rivalled(found, best)
+      # ...the place that waited, found again: a take stands only as that
+      # place itself, as between two looks
+      waited = not rivals and seen is not None and _same(seen, best[1]["step"])
+      if near is None or not (
+          near[1]["inliers"] >= RIVAL_SHARE * best[1]["inliers"]
+          or (_near(near[1]["step"], best[1]["step"]) if waited else _same(best[0], near[0]))):
+        outdone, self.rivals = near is not None, rivals
+        if not rivals:
           self.better = best[1]["step"]
-          if seen is not None and _same(seen, self.better):
+          if waited:
             again = best
     if not self.looks_left and again is None:
       self._settled()
