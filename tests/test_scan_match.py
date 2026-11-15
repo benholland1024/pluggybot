@@ -1275,6 +1275,8 @@ def test_a_better_place_wider_waits_for_the_next_wide_search_and_a_restart_keeps
   assert state["fallenFrom"] == list(BESIDE[:2]) and state["widerWait"] == sm.LOST_RUN - 3
   b = sm.ScanMatcher(counter)
   b.restore_kept(state, arrays)
+  assert ((b.fallen, b.fallen_from, b.wider_wait, b.pending, b.lost_run)
+          == (a.fallen, a.fallen_from, a.wider_wait, a.pending, a.lost_run))
   for r in scans[4:]:
     got_a, got_b = a.match(BESIDE, ANGLES, r), b.match(BESIDE, ANGLES, r)
   assert got_a.why == got_b.why == "relocated" and got_a.pose == got_b.pose
