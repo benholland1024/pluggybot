@@ -1046,7 +1046,7 @@ def zone_report(runs: list[dict]) -> None:
     mins, metres = t["s"] / 60, max(t["walkedM"], 1e-9)
     v, n = t["verdicts"], max(t["scans"], 1)
     none = sum(v.get(k, 0) for k in ("no map", "sparse", "unconstrained"))
-    refused = sum(v.get(k, 0) for k in ("inconsistent", "slid"))
+    refused = sum(v.get(k, 0) for k in ("inconsistent", "slid", "outdone"))
     print(f"  {name:16s} {mins:5.1f} {t['walkedM']:6.1f} | {t['gyroDeg'] / max(mins, 1e-9):5.2f} "
           f"{t['holdDeg'] / max(mins, 1e-9):5.2f} "
           f"{t['matcherDeg'] / max(mins, 1e-9):5.2f}         | "

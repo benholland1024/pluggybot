@@ -90,6 +90,19 @@ def test_the_zone_table_counts_a_doubted_fit_as_the_fit_it_was(capsys):
   assert line.split("|")[3].split()[:2] == ["100", "100"], line
 
 
+def test_the_zone_table_counts_a_take_a_wider_look_refused_as_refused(capsys):
+  # ...and a take refused up from a fall (`outdone`, #681's fourth round) is
+  # a scan refused, beside the fits the map refused and those that slid.
+  hds = _spike()
+  zone = {"zone": "storage", "s": 60.0, "walkedM": 30.0, "scans": 100,
+          "returnsPerScan": 300.0, "legsM": [0.0, 0.0], "headingM": [0.0, 0.0],
+          "matcherM": [0.0, 0.0],
+          "verdicts": {"ok": 50, "outdone": 30, "inconsistent": 15, "slid": 5}}
+  hds.zone_report([{"zones": [zone]}])
+  line = next(ln for ln in capsys.readouterr().out.splitlines() if "storage" in ln)
+  assert line.split("|")[3].split()[:4] == ["50", "0", "0", "50"], line
+
+
 def test_done_counts_the_doubted_fits_of_a_robot_waiting(monkeypatch):
   # `--done`'s matchedWaiting through `done()` itself, its pair a stub whose
   # waiting robot's every fit is doubted: read by the name "ok" it matched

@@ -2338,6 +2338,62 @@ save a filmstrip PNG named after the script.
   explains the scan as well (`RIVAL_SHARE`) AND the next wide search finds
   the same correction -- once, on a sidewalk whose thin wall the map had
   eroded (#401), it jumped 1.8 m along it.
+  ⚠ UP FROM A FALL A TAKE STANDS ONLY WHERE A WIDER LOOK HOLDS NO BETTER
+  PLACE (#681's fourth round; `ScanMatcher.fell`, `_outdone`, `_look`,
+  `_put`, `fallen`; SimNotes, "A get-up moves the body past the search's
+  window"): a get-up moves the body with the odometry held (at the
+  storeroom's counter a median 0.87 m, past the search's 0.6 m in 72 falls
+  of 84), and unchecked, the search's best inside its window -- or the fit
+  itself, left half a metre east, or the wide search's best in its reach,
+  the body 2.47 m off -- was the place where the counter's face lies on the
+  wall 0.6 m behind it: 76 % on walls, every direction fixed, `ok` ever
+  after (19 falls of 84 ended 0.4-1.1 m off; live on 11-14, four of five,
+  kept 33-87 minutes). So until a take stands (or a fix, a warp, the belief
+  `FALLEN_NEAR_M`, 2 m, from where it stood up, or its `FALLEN_LOOKS`, 6,
+  spent, the last made only to find again), once in `LOST_RUN` scans a
+  take -- the fit's or its search's -- or a fit that slid is given a look:
+  the wide search's own places with the take one more of them. Outdone, the
+  scan is refused by a verdict of its own (`outdone`: not laid in, and
+  breaking the plain run of refusals as any other verdict does), and the
+  best, unrivalled, is taken once the NEXT LOOK finds it again -- never the
+  plain wide search, which looks at any heading at `FOUND_SHARE` and came
+  two scans on. ⚠ A PLACE, NEVER A POSE: a take under `UNIQUE_M` from the
+  best, or from a rival of the best, stands (a copy of the room a step away
+  explains more than the room does: refused for any better pose, a right
+  belief was moved onto it at 7 poses of 7) -- ⚠ but while a place waits,
+  only as that place itself
+  (`_near`), between two looks and at the look that finds it again (a find
+  0.43 m from the truth was taken and slid back onto the place refused;
+  one 0.30 m from it stood where the base was right). The price, measured
+  and kept: a wrong place under `UNIQUE_M` from the truth stands (the
+  cube's end of the counter has one 0.38-0.40 m east, 1 fall of 84) --
+  taken back by its pose, 12-14 right finds of 40 on a live map moved onto
+  a copy 0.25 m off. ⚠ ITS PLACES AT THE DOUBT'S BAR, AT THE TAKE'S
+  HEADING, ON THE WIDE SEARCH'S OWN LATTICE (`DOUBT_FOUND_SHARE`,
+  `UNIQUE_RAD`; the heading is the IMU's, right to 1.6 deg in 84 falls): by
+  the hall's flight a scan from the truth puts 0.61-0.75 of its points on
+  walls and poses turned 14-16 deg 0.78-0.96 -- weighed at `FOUND_SHARE` at
+  any heading, a right belief up from a fall was refused at 11 places of
+  7,840 and moved at 3; with the lattice laid at the take's heading alone
+  (a third of the work), moved at 3: the wide search keeps one candidate a
+  place, at the heading the scan fits it best. ⚠ A FIT THAT ONLY SLIDES IS
+  LOOKED ROUND (no take, and no refusal of the wide search's run: 563 scans
+  in a minute, 0.86 m off). ⚠ TWO PLACES THE LOOK CANNOT TELL APART REFUSE
+  EVERY TAKE, neither taken -- and its looks spent, such a take is the
+  base's again (the bound's price; a fit that only slid would else be
+  looked round for good). ⚠ THE WIDE SEARCH'S OWN TAKE, AND THE SEARCH AT
+  EVERY HEADING'S, IS CHECKED BY THE NEXT LOOK (`_put`: the doubt begins
+  again where the belief was put, its looks and its 2 m). ⚠ AN ANCHOR'S
+  WINDOW IS LEFT AS IT WAS (flown both ways, neither right: shoved a second
+  after a fix the open window laid 19 scans 1.25 m off the body, closed it
+  handed a right belief back to the askew map; SimNotes). ⚠ ONLY UP FROM
+  A FALL: a robot that has not fallen is matched as it was, verdict for
+  verdict (202 recorded falls replayed with the doubt off: the base's). ⚠
+  IT BELIEVES THE MAP: a copy of the room `UNIQUE_M` or more away that
+  explains more than the room takes a fallen robot's belief, right or not
+  (a test states it; no pose of 160 on the live maps of 11-08/09), and
+  where the truth explains under 0.9 of a scan the look holds no place and
+  the take is the base's. A look is ~40 ms, as the wide search is.
   ⚠ UP FROM A FALL, A WIDE SEARCH THAT FINDS NOTHING LOOKS AT EVERY HEADING
   (#690's net; `ScanMatcher.fell`, armed by `HumanoidMission._stood_up`;
   `TURNED_*`; SimNotes, "A heading lost in a fall, searched for at every

@@ -10,6 +10,64 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Up from a fall, a take is checked by a wider look (#681's fourth round, `loop-681d`) — opens when this PR is deployed
+
+**What changed is what a robot's map does with its first scans after a
+get-up.** Up from a fall (the get-up's stand arms `ScanMatcher.fell`), until
+one take stands, a take -- the fit's, its bounded search's, the wide
+search's own -- or a fit that slid is given a wider look, once in ten scans,
+six looks at most: the wide search's places 2 m round the belief, kept at
+the take's own heading and where they explain 0.9 of the scan. Where
+another place, half a metre or more away, explains the scan better than the
+take, the scan is refused by a verdict of its own (`outdone` in a `drift`
+row's `matched` counts, not laid into the map), and that place is taken a
+second of scans later, once the next look finds it again: a `relocated`
+belief event, its `drift` row and its BELIEF narration, as the wide
+search's are. The fall's doubt ends with a take that stands, a station's
+fix, a warp, 2 m walked from where the robot stood up, or its looks spent.
+A robot that has not fallen is matched as before, verdict for verdict.
+Nothing the robots read moved (`prompt_sha` b345cc34, the session host's
+hello byte for byte), nor any geometry: the deploy keeps both robots'
+bodies and maps -- and so
+the belief one robot paused with on 11-14, 0.74 m east of its body, on a
+map of the storeroom laid the same way (it agrees with itself, and is wrong
+until a station's fix past `ASKEW` drops that map).
+
+**Why.** #681, the wake of 11-14: four of five falls at the storeroom's
+counter left the belief 0.55 m (Luca, three times, the third on top of the
+first: 1.10) or 0.75 m (Rowan) east of the truth, `found: 1`, for 33, 75
+and 87 minutes, every scan in the storeroom `ok`; 29 of the wake's 51
+graded tries were flown so and 3 passed (7 of the 22 flown right). A get-up
+moves the body with the odometry held, a median 0.87 m at the counter and
+past the bounded search's 0.6 m in 72 falls of 84, and the search's best
+inside its window was the place where the counter's face lies on the wall
+0.6 m behind it (SimNotes, "A get-up moves the body past the search's
+window").
+
+**What the period is for.**
+- **A fall at the counter, and the belief after it.** The `drift` samples
+  after each fall in a procedure's run (the sim log's PROCEDURE lines name
+  the falls): `errorM` under 0.15 m at the sample after -- against 4 of 5
+  at 0.54-0.75 m on 11-14, kept to a fix. A sample whose `matched` holds
+  about ten `outdone` and a `relocated` is this rule's take-back (the wide
+  search's own reads `inconsistent` x19 before its `relocated`; it
+  relocated twice on 11-14, 1.21 and 1.68 m).
+- **Tries flown with the belief off:** each graded try against the `drift`
+  rows round it, as the reading of 11-14 crossed them (29 of 51).
+- **Wrong takes.** A `relocated` row whose `errorM` after it is over 0.5 m:
+  none flown. Two to look for by their cause: a robot up from a fall on a
+  map that already holds a copy of the room half a metre or more off is
+  taken to whichever of the two explains its scan better; and a long run of
+  `outdone` with no `relocated` (two places the look cannot tell apart) ends
+  after six looks with the take the base would have made.
+- **What it does not catch:** a belief left under half a metre off after a
+  fall (one place with the truth: the cube's end of the counter, 0.38 m, 1
+  fall of 84; 0.36 m at the house kitchen's counter), a fall whose get-up
+  left the truth past the look's 2 m, or one where the truth explains under
+  0.9 of a scan (the look holds no place, and the take is the base's).
+- **The `matched` counts gain a verdict, `outdone`:** about ten a fall whose
+  take is refused, counted as `ok` or `found` before.
+
 ### A refused define is judged as it was written and says every reason at once, the other robot is shown a robot's own last line, and the dishware put away stays put away (K4, `loop-k4`) — opens when this PR is deployed
 
 **Three small changes to what the robots read and one to what the world
