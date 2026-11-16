@@ -1251,7 +1251,9 @@ save a filmstrip PNG named after the script.
   matched belief placed it -- by the legs alone it drifted 14-18 cm in 10 s
   -- what a frame sees afresh replacing it (up close the camera sees none of
   a counter's face), each ahead
-  along its way; begun nearer, along but no nearer; ⚠ ONE ITS SCANS SAY WENT
+  along its way; begun nearer, along but no nearer; ⚠ THE SCANS A STEP OR A
+  LOOK TAKES FOR ITSELF DRAW NOISE OF THEIR OWN (`look_scan`: off the LIDAR's,
+  the tour's table lays parted at their first step); ⚠ ONE ITS SCANS SAY WENT
   UNDER HALF OF WHAT ITS LEGS COUNT (4 cm or more) READS `pressed` (#718;
   `steps._pressed`): pressed on a counter, the legs counted 7-9 cm a stride
   where the pelvis went 1-3, and the robot's soles are that count; ⚠ a

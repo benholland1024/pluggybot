@@ -10238,11 +10238,18 @@ reckoning by both soles or by the reading ahead closing:
   began. It reads "blocked", `keptOff` saying "wall" or "low", how near, and
   the keep. Where the step took no scan, it takes one as it sets off.
 - A step its scans say went under half of what its legs count, these 4 cm
-  or more, reads "pressed", saying both, and `step.*` says the scans'.
+  or more along its walk's way after its turn, reads "pressed", saying both,
+  and `step.*` says the scans' -- never judged where a single correction past
+  3 cm moved its belief as it walked (a relocation, a doubt's take, a fix).
+- The scans a step or a look takes for itself draw noise of their own
+  (`look_scan`): drawn from the LIDAR's, every scan after them drew otherwise,
+  the tour's table lays parted from today's at their first step and three
+  fell in a withdraw (a lay holds in a patch a couple of cm wide).
 - A gaze's bow goes no deeper than leaves its head's front 5 cm short of what
-  its LIDAR reads at its head's height in front of it, 0.05 rad at a time,
-  and none where even upright it does not; `spot` says so where it saw
-  nothing.
+  its LIDAR reads at its head's height in front of it -- or another robot's
+  body the same scan saw -- off a scan taken since it last walked, 0.05 rad
+  at a time, and none where even upright it does not; `spot` says so where
+  it saw nothing.
 - Flown: «MEASURED».
 
 ## Debugging workflow that worked

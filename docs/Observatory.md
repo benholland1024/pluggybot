@@ -12,9 +12,9 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
 
-**What the robots read moves** (`prompt_sha` `a9685974…`, 68,110
+**What the robots read moves** (`prompt_sha` `bec4dffd…`, 68,111
 characters, 17 sections, from `0f1df27e…`'s 67,157; the session host's
-hello moves, sha1 `361f10cd…` from `b796e75d…`):
+hello moves, sha1 `39c0692a…` from `b796e75d…`):
 - `step`'s text, after the sentence that ends "Either reads false and says
   so.", gains: "It keeps off walls and furniture too: it stops before it
   would bring your LIDAR within 0.3 m of anything that reads at your head's
@@ -58,9 +58,13 @@ knees' height (0.08-0.6 m), remembered 60 s within 1.5 m where its matched
 belief placed it, every frame replacing what it sees afresh (up close the
 camera sees none of a counter's face);
 begun nearer, it goes along but no nearer. A step its matched belief says
-went under half of what its legs count reads `pressed`. A gaze's bow (spot's,
-the charge's low look, the chest's reference's) goes no deeper than leaves
-the head's front 5 cm short of what the LIDAR reads at its head's height.
+went under half of what its legs count reads `pressed` (never judged across a
+correction of its belief past 3 cm). A gaze's bow (spot's, the charge's low
+look, the chest's reference's) goes no deeper than leaves the head's front 5
+cm short of what the LIDAR reads at its head's height, or another robot's
+body, in front of it. The scans a step or a look takes for itself draw their
+noise from a stream of their own (`look_scan`): a flight no new rule stops is
+the flight it was, bit for bit.
 
 **Why.** Three of Rowan's falls of 11-15 came in `spot` after its own steps
 had walked it into the research center lobby's wall and the storeroom's
